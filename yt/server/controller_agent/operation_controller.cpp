@@ -8,7 +8,7 @@
 #include "operation_controller_host.h"
 #include "vanilla_controller.h"
 
-#include <yt/server/scheduler/operation.h>
+#include <yt/server/scheduler/proto/controller_agent_tracker_service.pb.h>
 
 #include <yt/ytlib/api/transaction.h>
 
@@ -165,8 +165,8 @@ public:
     virtual ~TOperationControllerWrapper()
     {
         DtorInvoker_->Invoke(BIND([underlying = std::move(Underlying_), id = Id_] () mutable {
-            auto Logger = OperationLogger;
-            Logger.AddTag("OperationId: %v", id);
+            auto Logger = NLogging::TLogger(ControllerLogger)
+                .AddTag("OperationId: %v", id);
             NProfiling::TWallTimer timer;
             LOG_INFO("Started destroying operation controller");
             underlying.Reset();
@@ -180,9 +180,9 @@ public:
         return Underlying_->InitializeClean();
     }
 
-    virtual TOperationControllerInitializationResult InitializeReviving(TControllerTransactionsPtr operationTransactions) override
+    virtual TOperationControllerInitializationResult InitializeReviving(const TControllerTransactions& transactions) override
     {
-        return Underlying_->InitializeReviving(std::move(operationTransactions));
+        return Underlying_->InitializeReviving(transactions);
     }
 
     virtual TOperationControllerPrepareResult Prepare() override

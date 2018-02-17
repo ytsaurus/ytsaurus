@@ -339,7 +339,17 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
 
         op = map(in_="//tmp/t_in", out="//tmp/t_out", command="cat")
         events = get("//sys/operations/{0}/@events".format(op.id))
-        assert ["initializing", "preparing", "pending", "materializing", "running", "completing", "completed"] == [event["state"] for event in events]
+        assert [
+                   "starting",
+                   "waiting_for_agent",
+                   "initializing",
+                   "preparing",
+                   "pending",
+                   "materializing",
+                   "running",
+                   "completing",
+                   "completed"
+               ] == [event["state"] for event in events]
 
     def test_exceed_job_time_limit(self):
         self._prepare_tables()
@@ -630,13 +640,23 @@ class TestSchedulerRevive(YTEnvSetup):
 
         events = get("//sys/operations/{0}/@events".format(op.id))
 
-        events_prefix = ["initializing", "preparing", "materializing", "running", "completing"]
+        events_prefix = [
+            "starting",
+            "waiting_for_agent",
+            "initializing",
+            "preparing",
+            "pending",
+            "materializing",
+            "running",
+            "completing",
+            "orphaned"
+        ]
         if stage <= "stage5":
-            correct_events = events_prefix + ["reviving", "reviving_jobs", "running", "completing", "completed"]
+            correct_events = events_prefix + ["waiting_for_agent", "reviving", "pending", "reviving_jobs", "running", "completing", "completed"]
         else:
-            correct_events = events_prefix + ["reviving", "completed"]
+            correct_events = events_prefix + ["completed"]
 
-        assert correct_events == [event["state"] for event in events if event["state"] != "pending"]
+        assert correct_events == [event["state"] for event in events]
 
         assert "completed" == get("//sys/operations/" + op.id + "/@state")
 

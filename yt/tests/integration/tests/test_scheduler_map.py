@@ -654,8 +654,6 @@ print row + table_index
         create("table", "//tmp/output")
         with pytest.raises(YtError):
             map(in_="//tmp/input",
-                # We don't track operation to make sure that we can't even start it.
-                dont_track=True,
                 out=["<row_count_limit=1>//tmp/out_1", "<row_count_limit=1>//tmp/out_2"],
                 command="cat")
 

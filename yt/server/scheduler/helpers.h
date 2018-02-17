@@ -3,12 +3,10 @@
 #include "private.h"
 
 #include <yt/ytlib/hive/cluster_directory.h>
-#include <yt/ytlib/hive/public.h>
 
 #include <yt/ytlib/chunk_client/helpers.h>
 
 #include <yt/ytlib/object_client/object_service_proxy.h>
-#include <yt/ytlib/object_client/public.h>
 
 #include <yt/core/yson/public.h>
 
@@ -19,6 +17,7 @@ namespace NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void BuildMinimalOperationAttributes(TOperationPtr operation, NYTree::TFluentMap fluent);
 void BuildFullOperationAttributes(TOperationPtr operation, NYTree::TFluentMap fluent);
 void BuildMutableOperationAttributes(TOperationPtr operation, NYTree::TFluentMap fluent);
 void BuildExecNodeAttributes(TExecNodePtr node, NYTree::TFluentMap fluent);
@@ -35,6 +34,12 @@ TCodicilGuard MakeOperationCodicilGuard(const TOperationId& operationId);
 ////////////////////////////////////////////////////////////////////////////////
 
 TOperationRuntimeParamsPtr BuildOperationRuntimeParams(const TOperationSpecBasePtr& spec);
+
+////////////////////////////////////////////////////////////////////////////////
+
+TJobStatus JobStatusFromError(const TError& error);
+TJobId GenerateJobId(NObjectClient::TCellTag tag, NNodeTrackerClient::TNodeId nodeId);
+NNodeTrackerClient::TNodeId NodeIdFromJobId(const TJobId& jobId);
 
 ////////////////////////////////////////////////////////////////////////////////
 

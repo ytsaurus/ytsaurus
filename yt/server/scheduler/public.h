@@ -13,6 +13,14 @@ namespace NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace NProto {
+
+class TSchedulerToAgentJobEvent;
+
+} // namespace NProto
+
+////////////////////////////////////////////////////////////////////////////////
+
 using NJobTrackerClient::TJobId;
 using NJobTrackerClient::EJobType;
 using NJobTrackerClient::EJobState;
@@ -55,6 +63,8 @@ DECLARE_REFCOUNTED_STRUCT(ISchedulingContext)
 DECLARE_REFCOUNTED_STRUCT(IOperationControllerStrategyHost)
 DECLARE_REFCOUNTED_STRUCT(IOperationController)
 
+struct TOperationControllerInitializationResult;
+struct TOperationControllerPrepareResult;
 struct TOperationRevivalDescriptor;
 
 // XXX(babenko): move to private
@@ -116,8 +126,7 @@ DEFINE_ENUM(ESchedulerToAgentJobEventType,
 );
 
 DEFINE_ENUM(ESchedulerToAgentOperationEventType,
-    ((Abandon)                    (0))
-    ((UpdateMinNeededJobResources)(1))
+    ((UpdateMinNeededJobResources)(0))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

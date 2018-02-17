@@ -48,8 +48,7 @@ public:
     const TIncarnationId& GetIncarnationId() const;
 
     void StartOperationNodeUpdates(
-        const TOperationId& operationId,
-        NScheduler::EOperationCypressStorageMode storageMode);
+        const TOperationId& operationId);
 
     void CreateJobNode(
         const TOperationId& operationId,

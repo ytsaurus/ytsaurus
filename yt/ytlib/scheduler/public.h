@@ -56,6 +56,9 @@ DEFINE_ENUM(EOperationType,
 
 DEFINE_ENUM(EOperationState,
     (None)
+    (Starting)
+    (Orphaned)
+    (WaitingForAgent)
     (Initializing)
     (Preparing)
     (Materializing)
@@ -186,14 +189,6 @@ class TJobResources;
 DEFINE_ENUM(ESchedulingDelayType,
     (Sync)
     (Async)
-);
-
-////////////////////////////////////////////////////////////////////////////////
-
-DEFINE_ENUM(EOperationCypressStorageMode,
-    (SimpleHashBuckets)
-    (HashBuckets)
-    (Compatible)
 );
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -154,6 +154,16 @@ void BuildFileSpecs(NScheduler::NProto::TUserJobSpec* jobSpec, const std::vector
 
 ////////////////////////////////////////////////////////////////////////////////
 
+NApi::INativeConnectionPtr FindRemoteConnection(
+    const NApi::INativeConnectionPtr& connection,
+    NObjectClient::TCellTag cellTag);
+
+NApi::INativeConnectionPtr GetRemoteConnectionOrThrow(
+    const NApi::INativeConnectionPtr& connection,
+    NObjectClient::TCellTag cellTag);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NControllerAgent
 } // namespace NYT
 

@@ -3,8 +3,7 @@
 #include "exec_node.h"
 #include "helpers.h"
 #include "job.h"
-
-#include <yt/server/controller_agent/operation_controller.h>
+#include "controller_agent.h"
 
 #include <yt/ytlib/scheduler/helpers.h>
 #include <yt/ytlib/scheduler/config.h>
@@ -53,7 +52,6 @@ TOperation::TOperation(
     const std::vector<TString>& owners,
     TInstant startTime,
     IInvokerPtr controlInvoker,
-    EOperationCypressStorageMode storageMode,
     EOperationState state,
     bool suspended,
     const std::vector<TOperationEvent>& events,
@@ -69,7 +67,6 @@ TOperation::TOperation(
     , Owners_(owners)
     , Events_(events)
     , RevivalDescriptor_(revivalDescriptor)
-    , StorageMode_(storageMode)
     , Id_(id)
     , StartTime_(startTime)
     , AuthenticatedUser_(authenticatedUser)
@@ -77,7 +74,9 @@ TOperation::TOperation(
     , CodicilData_(MakeOperationCodicilString(Id_))
     , CancelableContext_(New<TCancelableContext>())
     , CancelableInvoker_(CancelableContext_->CreateInvoker(controlInvoker))
-{ }
+{
+    YCHECK(Spec_);
+}
 
 const TOperationId& TOperation::GetId() const
 {
@@ -139,7 +138,7 @@ bool TOperation::IsSchedulable() const
 
 IOperationControllerStrategyHostPtr TOperation::GetControllerStrategyHost() const
 {
-    return LocalController_;
+    return Controller_;
 }
 
 void TOperation::UpdateControllerTimeStatistics(const NYPath::TYPath& name, TDuration value)
@@ -190,6 +189,25 @@ const IInvokerPtr& TOperation::GetCancelableControlInvoker()
 void TOperation::Cancel()
 {
     CancelableContext_->Cancel();
+}
+
+void TOperation::SetAgent(const TControllerAgentPtr& agent)
+{
+    Agent_ = agent;
+}
+
+TControllerAgentPtr TOperation::GetAgentOrCancelFiber()
+{
+    auto agent = Agent_.Lock();
+    if (!agent) {
+        throw NConcurrency::TFiberCanceledException();
+    }
+    return agent;
+}
+
+TControllerAgentPtr TOperation::FindAgent()
+{
+    return Agent_.Lock();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

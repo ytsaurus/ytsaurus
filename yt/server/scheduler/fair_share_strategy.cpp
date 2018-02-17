@@ -80,7 +80,6 @@ public:
     TFairShareStrategyOperationState(IOperationStrategyHost* host)
         : Host_(host)
         , Controller_(New<TFairShareStrategyOperationController>(host))
-        , Active_(false)
     { }
 
     TString GetPoolIdByTreeId(const TString& treeId) const

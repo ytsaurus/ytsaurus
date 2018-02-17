@@ -188,7 +188,7 @@ public:
 
     TDuration ClusterInfoLoggingPeriod;
 
-    TDuration UpdateExecNodeDescriptorsPeriod;
+    TDuration ExecNodeDescriptorsUpdatePeriod;
 
     //! Jobs running on node are logged periodically or when they change their state.
     TDuration JobsLoggingPeriod;
@@ -198,7 +198,11 @@ public:
     TDuration RunningJobsUpdatePeriod;
 
     //! Missing jobs are checked not more often then this period.
-    TDuration CheckMissingJobsPeriod;
+    TDuration MissingJobsCheckPeriod;
+
+    TDuration TransientOperationQueueScanPeriod;
+
+    TDuration OperationToAgentAssignmentBackoff;
 
     //! Maximum number of jobs to start within a single heartbeat.
     TNullable<int> MaxStartedJobsPerHeartbeat;
@@ -236,8 +240,13 @@ public:
     // by the corresponding execution node.
     TDuration JobRevivalAbortTimeout;
 
-    // Scheduler scheduler-to-agent operation request timeout.
-    TDuration ControllerAgentOperationRpcTimeout;
+    // Scheduler scheduler-to-agent operation request timeout for light requests.
+    // These are expected to be served in O(1).
+    TDuration ControllerAgentLightRpcTimeout;
+
+    // Scheduler scheduler-to-agent operation request timeout for heavy requests.
+    // These may run for prolonged time periods (e.g. operation preparation).
+    TDuration ControllerAgentHeavyRpcTimeout;
 
     TSchedulerConfig();
 };

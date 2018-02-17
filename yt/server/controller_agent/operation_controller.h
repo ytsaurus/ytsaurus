@@ -2,9 +2,7 @@
 
 #include "public.h"
 
-#include <yt/server/scheduler/job.h>
 #include <yt/server/scheduler/job_metrics.h>
-#include <yt/server/scheduler/operation_controller.h>
 
 #include <yt/ytlib/api/public.h>
 
@@ -32,17 +30,14 @@ namespace NControllerAgent {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TControllerTransactions
-    : public TIntrinsicRefCounted
 {
-    NApi::ITransactionPtr Async;
-    NApi::ITransactionPtr Input;
-    NApi::ITransactionPtr Output;
-    NApi::ITransactionPtr Debug;
-    NApi::ITransactionPtr OutputCompletion;
-    NApi::ITransactionPtr DebugCompletion;
+    NTransactionClient::TTransactionId AsyncId;
+    NTransactionClient::TTransactionId InputId;
+    NTransactionClient::TTransactionId OutputId;
+    NTransactionClient::TTransactionId DebugId;
+    NTransactionClient::TTransactionId OutputCompletionId;
+    NTransactionClient::TTransactionId DebugCompletionId;
 };
-
-DEFINE_REFCOUNTED_TYPE(TControllerTransactions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -61,19 +56,31 @@ struct TOperationControllerInitializationAttributes
 struct TOperationControllerInitializationResult
 {
     std::vector<NApi::ITransactionPtr> Transactions;
-    TOperationControllerInitializationAttributes InitializationAttributes;
+    TOperationControllerInitializationAttributes Attributes;
 };
 
 struct TOperationControllerPrepareResult
 {
-    NYson::TYsonString PrepareAttributes;
+    NYson::TYsonString Attributes;
 };
 
 struct TOperationControllerReviveResult
     : public TOperationControllerPrepareResult
 {
+    struct TRevivedJob
+    {
+        TJobId JobId;
+        EJobType JobType;
+        TInstant StartTime;
+        TJobResources ResourceLimits;
+        bool Interruptible;
+        TString TreeId;
+        NNodeTrackerClient::TNodeId NodeId;
+        TString NodeAddress;
+    };
+
     bool RevivedFromSnapshot = false;
-    std::vector<NScheduler::TJobPtr> Jobs;
+    std::vector<TRevivedJob> RevivedJobs;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -273,7 +280,7 @@ struct IOperationControllerSchedulerHost
      *
      *  \note Invoker affinity: cancelable Controller invoker
      */
-    virtual TOperationControllerInitializationResult InitializeReviving(TControllerTransactionsPtr operationTransactions) = 0;
+    virtual TOperationControllerInitializationResult InitializeReviving(const TControllerTransactions& transactions) = 0;
 
     //! Performs a lightweight initial preparation.
     /*!
@@ -442,7 +449,7 @@ struct TOperationInfo
     NYson::TYsonString BriefProgress;
     NYson::TYsonString RunningJobs;
     NYson::TYsonString JobSplitter;
-    size_t MemoryUsage;
+    ssize_t MemoryUsage;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

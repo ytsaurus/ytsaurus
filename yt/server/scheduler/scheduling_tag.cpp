@@ -42,6 +42,8 @@ const TBooleanFormula& TSchedulingTagFilter::GetBooleanFormula() const
     return BooleanFormula_;
 }
 
+const TSchedulingTagFilter EmptySchedulingTagFilter;
+
 bool operator==(const TSchedulingTagFilter& lhs, const TSchedulingTagFilter& rhs)
 {
     return lhs.GetBooleanFormula() == rhs.GetBooleanFormula();
@@ -52,9 +54,15 @@ bool operator!=(const TSchedulingTagFilter& lhs, const TSchedulingTagFilter& rhs
     return !(lhs.GetBooleanFormula() == rhs.GetBooleanFormula());
 }
 
-const TSchedulingTagFilter EmptySchedulingTagFilter;
+void ToProto(TProtoStringType* protoFilter, const TSchedulingTagFilter& filter)
+{
+    *protoFilter = filter.GetBooleanFormula().GetFormula();
+}
 
-////////////////////////////////////////////////////////////////////////////////
+void FromProto(TSchedulingTagFilter* filter, const TProtoStringType& protoFilter)
+{
+    *filter = TSchedulingTagFilter(MakeBooleanFormula(protoFilter));
+}
 
 void Serialize(const TSchedulingTagFilter& filter, NYson::IYsonConsumer* consumer)
 {

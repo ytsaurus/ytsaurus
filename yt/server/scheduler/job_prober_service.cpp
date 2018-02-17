@@ -25,6 +25,9 @@ using namespace NYson;
 using namespace NYTree;
 using namespace NSecurityClient;
 
+using NYT::FromProto;
+using NYT::ToProto;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TJobProberService

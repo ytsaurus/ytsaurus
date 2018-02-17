@@ -3,8 +3,6 @@
 
 #include <yt/server/admin_server/admin_service.h>
 
-#include <yt/server/job_proxy/config.h>
-
 #include <yt/server/misc/address_helpers.h>
 
 #include <yt/server/scheduler/config.h>
@@ -306,29 +304,6 @@ const TResponseKeeperPtr& TBootstrap::GetResponseKeeper() const
 const TCoreDumperPtr& TBootstrap::GetCoreDumper() const
 {
     return CoreDumper_;
-}
-
-INativeConnectionPtr TBootstrap::FindRemoteConnection(TCellTag cellTag)
-{
-    if (cellTag == Connection_->GetCellTag()) {
-        return Connection_;
-    }
-
-    auto remoteConnection = Connection_->GetClusterDirectory()->FindConnection(cellTag);
-    if (!remoteConnection) {
-        return nullptr;
-    }
-
-    return dynamic_cast<INativeConnection*>(remoteConnection.Get());
-}
-
-INativeConnectionPtr TBootstrap::GetRemoteConnectionOrThrow(TCellTag cellTag)
-{
-    auto connection = FindRemoteConnection(cellTag);
-    if (!connection) {
-        THROW_ERROR_EXCEPTION("Cannot find cluster with cell tag %v", cellTag);
-    }
-    return connection;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

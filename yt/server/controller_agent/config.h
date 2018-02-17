@@ -518,7 +518,7 @@ public:
     TDuration SafeSchedulerOnlineTime;
 
     //! Time between two consecutive calls in operation controller to get exec nodes information from scheduler.
-    TDuration ControllerUpdateExecNodesInformationDelay;
+    TDuration ControllerExecNodeInfoUpdatePeriod;
 
     //! Maximum number of foreign chunks to locate per request.
     int MaxChunksPerLocateRequest;

@@ -9,6 +9,8 @@
 
 #include <yt/server/cell_scheduler/bootstrap.h>
 
+#include <yt/server/scheduler/proto/controller_agent_tracker_service.pb.h>
+
 #include <yt/server/shell/config.h>
 
 #include <yt/ytlib/job_proxy/public.h>
@@ -17,7 +19,6 @@
 
 #include <yt/ytlib/job_tracker_client/job_tracker_service.pb.h>
 
-#include <yt/ytlib/scheduler/proto/controller_agent_tracker_service.pb.h>
 #include <yt/ytlib/scheduler/proto/job.pb.h>
 
 #include <yt/core/misc/finally.h>
@@ -47,6 +48,9 @@ using namespace NYson;
 
 using NNodeTrackerClient::TNodeId;
 using NScheduler::NProto::TSchedulerJobResultExt;
+
+using NYT::FromProto;
+using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -811,8 +815,8 @@ void TNodeShard::RegisterRevivedJobs(const TOperationId& operationId, const std:
 
     for (const auto& job : jobs) {
         auto node = GetOrRegisterNode(
-            job->RevivedNodeDescriptor().Id,
-            TNodeDescriptor(job->RevivedNodeDescriptor().Address));
+            job->GetRevivalNodeId(),
+            TNodeDescriptor(job->GetRevivalNodeAddress()));
         job->SetNode(node);
         job->SetWaitingForConfirmation(true);
         node->UnconfirmedJobIds().emplace(job->GetId());
@@ -1130,7 +1134,7 @@ void TNodeShard::ProcessHeartbeatJobs(
     bool checkMissingJobs = false;
     auto lastCheckMissingJobsTime = node->GetLastCheckMissingJobsTime();
     if ((!lastCheckMissingJobsTime ||
-        now > lastCheckMissingJobsTime.Get() + DurationToCpuDuration(Config_->CheckMissingJobsPeriod)) &&
+        now > lastCheckMissingJobsTime.Get() + DurationToCpuDuration(Config_->MissingJobsCheckPeriod)) &&
         node->UnconfirmedJobIds().empty())
     {
         checkMissingJobs = true;
@@ -1613,7 +1617,7 @@ void TNodeShard::OnJobCompleted(const TJobPtr& job, TJobStatus* status, bool aba
             const auto& schedulerResultExt = result.GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
             if (schedulerResultExt.unread_chunk_specs_size() == 0) {
                 job->SetInterruptReason(EInterruptReason::None);
-            } else if (job->GetRevived()) {
+            } else if (job->IsRevived()) {
                 // NB: We lose the original interrupt reason during the revival,
                 // so we set it to Unknown.
                 job->SetInterruptReason(EInterruptReason::Unknown);
@@ -1760,7 +1764,7 @@ void TNodeShard::RegisterJob(const TJobPtr& job)
     LOG_DEBUG("Job registered (JobId: %v, JobType: %v, Revived: %v, OperationId: %v)",
         job->GetId(),
         job->GetType(),
-        job->GetRevived(),
+        job->IsRevived(),
         job->GetOperationId());
 }
 

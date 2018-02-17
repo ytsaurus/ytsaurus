@@ -229,8 +229,6 @@ public:
 
     bool FailGetJobSpec;
 
-    EOperationCypressStorageMode CypressStorageMode;
-
     TTestingOperationOptions();
 };
 
@@ -309,7 +307,7 @@ public:
     //! to all user jobs via environment variables.
     NYTree::IMapNodePtr SecureVault;
 
-    //! If candidate exec nodes are not found for more than timeout time then operation will be failed.
+    //! If no candidate exec node is seen for more than this timeout then the operation fails.
     TDuration AvailableNodesMissingTimeout;
 
     //! Suspend operation in case of jobs failed due to account limit exceeded.

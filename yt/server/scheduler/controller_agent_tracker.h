@@ -31,6 +31,14 @@ public:
         TControllerAgent* agent,
         TOperation* operation);
 
+    TControllerAgentPtr PickAgentForOperation(const TOperationPtr& operation);
+    void AssignOperationToAgent(
+        const TOperationPtr& operation,
+        const TControllerAgentPtr& agent);
+
+    TFuture<void> RegisterOperationAtAgent(const TOperationPtr& operation);
+    void UnregisterOperationFromAgent(const TOperationPtr& operation);
+
     using TCtxAgentHeartbeat = NRpc::TTypedServiceContext<
         NScheduler::NProto::TReqHeartbeat,
         NScheduler::NProto::TRspHeartbeat>;

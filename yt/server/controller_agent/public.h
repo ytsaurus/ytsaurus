@@ -9,6 +9,14 @@ namespace NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace NProto {
+
+class TOperationDescriptor;
+
+} // namespace NProto
+
+////////////////////////////////////////////////////////////////////////////////
+
 using NScheduler::TOperationId;
 using NScheduler::TJobId;
 using NScheduler::TJobResources;
@@ -20,12 +28,9 @@ using NScheduler::EOperationType;
 using NScheduler::EJobType;
 using NScheduler::EJobState;
 using NScheduler::TOperationSpecBasePtr;
-// TODO(ignat): Move setting alerts from Scheduler to ControllerAgent.
 using NScheduler::EOperationAlertType;
 
 DECLARE_REFCOUNTED_STRUCT(TBriefJobStatistics)
-
-DECLARE_REFCOUNTED_STRUCT(TControllerTransactions)
 
 DECLARE_REFCOUNTED_STRUCT(IJobSizeConstraints)
 
@@ -71,6 +76,8 @@ using TOperationIdToOperationMap = THashMap<TOperationId, TOperationPtr>;
 
 DECLARE_REFCOUNTED_STRUCT(TScheduleJobResult)
 
+struct TControllerTransactions;
+struct TOperationControllerInitializationAttributes;
 struct TOperationControllerInitializationResult;
 struct TOperationControllerReviveResult;
 struct TOperationControllerPrepareResult;

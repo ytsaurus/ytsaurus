@@ -29,12 +29,13 @@ private:
     size_t Hash_;
 };
 
+extern const TSchedulingTagFilter EmptySchedulingTagFilter;
+
 bool operator==(const TSchedulingTagFilter& lhs, const TSchedulingTagFilter& rhs);
 bool operator!=(const TSchedulingTagFilter& lhs, const TSchedulingTagFilter& rhs);
 
-extern const TSchedulingTagFilter EmptySchedulingTagFilter;
-
-////////////////////////////////////////////////////////////////////////////////
+void ToProto(TProtoStringType* protoFilter, const TSchedulingTagFilter& filter);
+void FromProto(TSchedulingTagFilter* filter, const TProtoStringType& protoFilter);
 
 void Serialize(const TSchedulingTagFilter& filter, NYson::IYsonConsumer* consumer);
 void Deserialize(TSchedulingTagFilter& filter, NYTree::INodePtr node);

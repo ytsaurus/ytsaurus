@@ -1,10 +1,10 @@
 #include <yt/core/test_framework/framework.h>
 
 #include <yt/server/scheduler/fair_share_tree_element.h>
-
-#include <yt/server/controller_agent/operation_controller.h>
+#include <yt/server/scheduler/operation_controller.h>
 
 #include <yt/core/profiling/profile_manager.h>
+
 #include <yt/core/yson/null_consumer.h>
 
 namespace NYT {

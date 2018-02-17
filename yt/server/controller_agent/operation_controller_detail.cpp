@@ -169,11 +169,10 @@ TOperationControllerBase::TOperationControllerBase(
     , OperationType(operation->GetType())
     , StartTime(operation->GetStartTime())
     , AuthenticatedUser(operation->GetAuthenticatedUser())
-    , StorageMode(operation->GetStorageMode())
     , SecureVault(operation->GetSecureVault())
     , Owners(operation->GetOwners())
     , UserTransactionId(operation->GetUserTransactionId())
-    , Logger(TLogger(OperationLogger)
+    , Logger(TLogger(ControllerLogger)
         .AddTag("OperationId: %v", OperationId))
     , CoreNotes_({
         Format("OperationId: %v", OperationId)
@@ -185,7 +184,7 @@ TOperationControllerBase::TOperationControllerBase(
     , JobCounter(New<TProgressCounter>(0))
     , RowBuffer(New<TRowBuffer>(TRowBufferTag(), Config->ControllerRowBufferChunkSize))
     , MemoryTag_(operation->GetMemoryTag())
-    , PoolTreeSchedulingTagFilters_(operation->GetPoolTreeSchedulingTagFilters())
+    , PoolTreeSchedulingTagFilters_(operation->PoolTreeSchedulingTagFilters())
     , Spec_(std::move(spec))
     , Options(std::move(options))
     , SuspiciousJobsYsonUpdater_(New<TPeriodicExecutor>(
@@ -259,11 +258,39 @@ void TOperationControllerBase::InitializeClients()
     OutputClient = Client;
 }
 
-TOperationControllerInitializationResult TOperationControllerBase::InitializeReviving(TControllerTransactionsPtr controllerTransactions)
+TOperationControllerInitializationResult TOperationControllerBase::InitializeReviving(const TControllerTransactions& transactions)
 {
     LOG_INFO("Initializing operation for revive");
 
     InitializeClients();
+
+    auto attachTransaction = [&] (const TTransactionId& transactionId, bool ping) -> ITransactionPtr {
+        if (!transactionId) {
+            return nullptr;
+        }
+
+        try {
+            auto connection = GetRemoteConnectionOrThrow(Host->GetClient()->GetNativeConnection(), CellTagFromId(transactionId));
+            auto client = connection->CreateNativeClient(TClientOptions(NSecurityClient::SchedulerUserName));
+            TTransactionAttachOptions options;
+            options.Ping = ping;
+            options.PingAncestors = false;
+            return client->AttachTransaction(transactionId, options);
+        } catch (const std::exception& ex) {
+            LOG_WARNING(ex, "Error attaching operation transaction (OperationId: %v, TransactionId: %v)",
+                OperationId,
+                transactionId);
+            return nullptr;
+        }
+    };
+
+    auto inputTransaction = attachTransaction(transactions.InputId, true);
+    auto outputTransaction = attachTransaction(transactions.OutputId, true);
+    auto debugTransaction = attachTransaction(transactions.DebugId, true);
+    // NB: Async and completion transactions are never reused and thus are not pinged.
+    auto asyncTransaction = attachTransaction(transactions.AsyncId, false);
+    auto outputCompletionTransaction = attachTransaction(transactions.OutputCompletionId, false);
+    auto debugCompletionTransaction = attachTransaction(transactions.DebugCompletionId, false);
 
     bool cleanStart = false;
 
@@ -286,9 +313,9 @@ TOperationControllerInitializationResult TOperationControllerBase::InitializeRev
         };
 
         // NB: Async transaction is not checked.
-        checkTransaction(controllerTransactions->Input);
-        checkTransaction(controllerTransactions->Output);
-        checkTransaction(controllerTransactions->Debug);
+        checkTransaction(inputTransaction);
+        checkTransaction(outputTransaction);
+        checkTransaction(debugTransaction);
 
         for (const auto& pair : asyncCheckResults) {
             const auto& transaction = pair.first;
@@ -325,29 +352,23 @@ TOperationControllerInitializationResult TOperationControllerBase::InitializeRev
             }
         };
 
-        // NB: Async and Completion transactions are always aborted.
-        scheduleAbort(controllerTransactions->Async);
-        scheduleAbort(controllerTransactions->OutputCompletion);
-        scheduleAbort(controllerTransactions->DebugCompletion);
+        scheduleAbort(asyncTransaction);
+        scheduleAbort(outputCompletionTransaction);
+        scheduleAbort(debugCompletionTransaction);
 
         if (cleanStart) {
             LOG_INFO("Aborting operation transactions");
             // NB: Don't touch user transaction.
-            scheduleAbort(controllerTransactions->Input);
-            scheduleAbort(controllerTransactions->Output);
-            scheduleAbort(controllerTransactions->Debug);
+            scheduleAbort(inputTransaction);
+            scheduleAbort(outputTransaction);
+            scheduleAbort(debugTransaction);
         } else {
             LOG_INFO("Reusing operation transactions");
-
-            auto asyncSchedulerTransaction = WaitFor(StartTransaction(ETransactionType::Async, Client))
+            InputTransaction = inputTransaction;
+            OutputTransaction = outputTransaction;
+            DebugTransaction = debugTransaction;
+            AsyncTransaction = WaitFor(StartTransaction(ETransactionType::Async, Client))
                 .ValueOrThrow();
-
-            {
-                InputTransaction = controllerTransactions->Input;
-                OutputTransaction = controllerTransactions->Output;
-                DebugTransaction = controllerTransactions->Debug;
-                AsyncSchedulerTransaction = asyncSchedulerTransaction;
-            }
         }
 
         WaitFor(Combine(asyncResults))
@@ -367,10 +388,12 @@ TOperationControllerInitializationResult TOperationControllerBase::InitializeRev
         SyncPrepare();
     }
 
-    auto result = FinishInitialization();
+    InitUnrecognizedSpec();
 
     LOG_INFO("Operation initialized");
 
+    TOperationControllerInitializationResult result;
+    FillInitializationResult(&result);
     return result;
 }
 
@@ -394,10 +417,12 @@ TOperationControllerInitializationResult TOperationControllerBase::InitializeCle
     WaitFor(initializeFuture)
         .ThrowOnError();
 
-    auto result = FinishInitialization();
+    InitUnrecognizedSpec();
 
     LOG_INFO("Operation initialized");
 
+    TOperationControllerInitializationResult result;
+    FillInitializationResult(&result);
     return result;
 }
 
@@ -474,23 +499,24 @@ void TOperationControllerBase::InitializeStructures()
     DoInitialize();
 }
 
-TOperationControllerInitializationResult TOperationControllerBase::FinishInitialization()
+void TOperationControllerBase::InitUnrecognizedSpec()
 {
     UnrecognizedSpec_ = GetTypedSpec()->GetUnrecognizedRecursively();
+}
 
-    TOperationControllerInitializationResult result;
-    result.InitializationAttributes.Immutable = BuildYsonStringFluently<EYsonType::MapFragment>()
+void TOperationControllerBase::FillInitializationResult(TOperationControllerInitializationResult* result)
+{
+    result->Attributes.Immutable = BuildYsonStringFluently<EYsonType::MapFragment>()
         .Do(BIND(&TOperationControllerBase::BuildInitializeImmutableAttributes, Unretained(this)))
         .Finish();
-    result.InitializationAttributes.Mutable = BuildYsonStringFluently<EYsonType::MapFragment>()
+    result->Attributes.Mutable = BuildYsonStringFluently<EYsonType::MapFragment>()
         .Do(BIND(&TOperationControllerBase::BuildInitializeMutableAttributes, Unretained(this)))
         .Finish();
-    result.InitializationAttributes.BriefSpec = BuildYsonStringFluently<EYsonType::MapFragment>()
+    result->Attributes.BriefSpec = BuildYsonStringFluently<EYsonType::MapFragment>()
         .Do(BIND(&TOperationControllerBase::BuildBriefSpec, Unretained(this)))
         .Finish();
-    result.InitializationAttributes.UnrecognizedSpec = ConvertToYsonString(UnrecognizedSpec_);
-    result.Transactions = GetTransactions();
-    return result;
+    result->Attributes.UnrecognizedSpec = ConvertToYsonString(UnrecognizedSpec_);
+    result->Transactions = GetTransactions();
 }
 
 void TOperationControllerBase::InitUpdatingTables()
@@ -589,7 +615,9 @@ TOperationControllerPrepareResult TOperationControllerBase::SafePrepare()
 
     InitializeStandardEdgeDescriptors();
 
-    return FinishPrepare();
+    TOperationControllerPrepareResult result;
+    FillPrepareResult(&result);
+    return result;
 }
 
 void TOperationControllerBase::SafeMaterialize()
@@ -704,14 +732,14 @@ TOperationControllerReviveResult TOperationControllerBase::Revive()
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvoker);
 
-    TOperationControllerReviveResult result;
-
     if (Spec_->FailOnJobRestart) {
         THROW_ERROR_EXCEPTION("Cannot revive operation when spec option fail_on_job_restart is set");
     }
 
     if (!Snapshot.Data) {
-        Prepare();
+        TOperationControllerReviveResult result;
+        result.RevivedFromSnapshot = false;
+        static_cast<TOperationControllerPrepareResult&>(result) = Prepare();
         return result;
     }
 
@@ -720,7 +748,9 @@ TOperationControllerReviveResult TOperationControllerBase::Revive()
     DoLoadSnapshot(Snapshot);
     Snapshot = TOperationSnapshot();
 
+    TOperationControllerReviveResult result;
     result.RevivedFromSnapshot = true;
+    FillPrepareResult(&result);
 
     InitChunkListPools();
 
@@ -745,9 +775,6 @@ TOperationControllerReviveResult TOperationControllerBase::Revive()
         AbortAllJoblets();
     }
 
-    // To prevent operation failure on startup if available nodes are missing.
-    AvaialableNodesLastSeenTime_ = GetCpuInstant();
-
     CheckTimeLimitExecutor->Start();
     ProgressBuildExecutor_->Start();
     ExecNodesCheckExecutor->Start();
@@ -756,11 +783,18 @@ TOperationControllerReviveResult TOperationControllerBase::Revive()
     MinNeededResourcesSanityCheckExecutor->Start();
     MaxAvailableExecNodeResourcesUpdateExecutor->Start();
 
-    static_cast<TOperationControllerPrepareResult&>(result) = FinishPrepare();
-
     for (const auto& pair : JobletMap) {
         const auto& joblet = pair.second;
-        result.Jobs.emplace_back(BuildJobFromJoblet(joblet));
+        result.RevivedJobs.push_back({
+            joblet->JobId,
+            joblet->JobType,
+            joblet->StartTime,
+            joblet->ResourceLimits,
+            IsJobInterruptible(),
+            joblet->TreeId,
+            joblet->NodeDescriptor.Id,
+            joblet->NodeDescriptor.Address
+        });
     }
 
     State = EControllerState::Running;
@@ -798,7 +832,7 @@ void TOperationControllerBase::StartTransactions()
         .ValueOrThrow();
 
     {
-        AsyncSchedulerTransaction = results[0].ValueOrThrow();
+        AsyncTransaction = results[0].ValueOrThrow();
         InputTransaction = results[1].ValueOrThrow();
         OutputTransaction = results[2].ValueOrThrow();
         DebugTransaction = results[3].ValueOrThrow();
@@ -1077,7 +1111,7 @@ void TOperationControllerBase::ReinstallLivePreview()
                 childIds.push_back(pair.second);
             }
             Host->AttachChunkTreesToLivePreview(
-                AsyncSchedulerTransaction->GetId(),
+                AsyncTransaction->GetId(),
                 table.LivePreviewTableIds,
                 childIds);
         }
@@ -1092,7 +1126,7 @@ void TOperationControllerBase::ReinstallLivePreview()
             }
         }
         Host->AttachChunkTreesToLivePreview(
-            AsyncSchedulerTransaction->GetId(),
+            AsyncTransaction->GetId(),
             IntermediateTable.LivePreviewTableIds,
             childIds);
     }
@@ -1130,7 +1164,7 @@ void TOperationControllerBase::StartOutputCompletionTransaction()
         auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
         TObjectServiceProxy proxy(channel);
 
-        auto path = GetNewOperationPath(OperationId) + "/@completion_transaction_id";
+        auto path = GetNewOperationPath(OperationId) + "/@output_completion_transaction_id";
         auto req = TYPathProxy::Set(path);
         req->set_value(ConvertToYsonString(OutputCompletionTransaction->GetId()).GetData());
         WaitFor(proxy.Execute(req))
@@ -1266,7 +1300,7 @@ void TOperationControllerBase::CommitTransactions()
 
     // Fire-and-forget.
     InputTransaction->Abort();
-    AsyncSchedulerTransaction->Abort();
+    AsyncTransaction->Abort();
 }
 
 void TOperationControllerBase::TeleportOutputChunks()
@@ -2264,7 +2298,7 @@ std::vector<ITransactionPtr> TOperationControllerBase::GetTransactions()
 
     std::vector<ITransactionPtr> transactions = {
         UserTransaction,
-        AsyncSchedulerTransaction,
+        AsyncTransaction,
         InputTransaction,
         OutputTransaction,
         DebugTransaction
@@ -2334,7 +2368,7 @@ void TOperationControllerBase::SafeAbort()
     // Moreover if input transaction abort failed it does not harm anything.
     abortTransaction(InputTransaction, /* sync */ false);
     abortTransaction(OutputTransaction);
-    abortTransaction(AsyncSchedulerTransaction, /* sync */ false);
+    abortTransaction(AsyncTransaction, /* sync */ false);
 
     WaitFor(Combine(abortTransactionFutures))
         .ThrowOnError();
@@ -2371,29 +2405,23 @@ void TOperationControllerBase::CheckAvailableExecNodes()
         return;
     }
 
-    bool hasSuitableNodes = false;
+    bool success = false;
     for (const auto& pair : GetExecNodeDescriptors()) {
         const auto& descriptor = pair.second;
         for (const auto& filter : PoolTreeSchedulingTagFilters_) {
             if (descriptor.CanSchedule(filter)) {
-                hasSuitableNodes = true;
+                success = true;
+                break;
             }
         }
-        if (hasSuitableNodes) {
+        if (success) {
             break;
         }
     }
 
-    if (!hasSuitableNodes) {
-        auto timeout = DurationToCpuDuration(Spec_->AvailableNodesMissingTimeout);
-        if (!AvailableNodesSeen_ && AvaialableNodesLastSeenTime_ + timeout < GetCpuInstant()) {
-            OnOperationFailed(TError("No online nodes match operation scheduling tag filter")
-                << TErrorAttribute("operation_id", OperationId)
-                << TErrorAttribute("scheduling_tag_filter", Spec_->SchedulingTagFilter));
-        }
-    } else {
-        AvailableNodesSeen_ = true;
-        AvaialableNodesLastSeenTime_ = GetCpuInstant();
+    if (!success) {
+        OnOperationFailed(TError("No online nodes match operation scheduling tag filter %Qv",
+            Spec_->SchedulingTagFilter.GetFormula()));
     }
 }
 
@@ -3546,7 +3574,7 @@ void TOperationControllerBase::CreateLivePreviewTables()
         }
         ToProto(req->mutable_node_attributes(), *attributes);
         GenerateMutationId(req);
-        SetTransactionId(req, AsyncSchedulerTransaction->GetId());
+        SetTransactionId(req, AsyncTransaction->GetId());
 
         batchReq->AddRequest(req, key);
     };
@@ -3556,7 +3584,7 @@ void TOperationControllerBase::CreateLivePreviewTables()
 
         for (int index = 0; index < OutputTables_.size(); ++index) {
             auto& table = OutputTables_[index];
-            auto paths = GetCompatibilityOperationPaths(OperationId, StorageMode, "output_" + ToString(index));
+            auto paths = GetCompatibilityOperationPaths(OperationId, "output_" + ToString(index));
 
             // We should clear old table ids in case of revive.
             table.LivePreviewTableIds.clear();
@@ -3581,7 +3609,7 @@ void TOperationControllerBase::CreateLivePreviewTables()
         // We should clear old table ids in case of revive.
         StderrTable_->LivePreviewTableIds.clear();
 
-        auto paths = GetCompatibilityOperationPaths(OperationId, StorageMode, "stderr");
+        auto paths = GetCompatibilityOperationPaths(OperationId, "stderr");
         for (const auto& path : paths) {
             addRequest(
                 path,
@@ -3601,7 +3629,7 @@ void TOperationControllerBase::CreateLivePreviewTables()
         // We should clear old table ids in case of revive.
         IntermediateTable.LivePreviewTableIds.clear();
 
-        auto paths = GetCompatibilityOperationPaths(OperationId, StorageMode, "intermediate");
+        auto paths = GetCompatibilityOperationPaths(OperationId, "intermediate");
         for (const auto& path : paths) {
             addRequest(
                 path,
@@ -3646,7 +3674,8 @@ void TOperationControllerBase::CreateLivePreviewTables()
 
     if (IsOutputLivePreviewSupported()) {
         auto rspsOrError = batchRsp->GetResponses<TCypressYPathProxy::TRspCreate>("create_output");
-        int nodeCount = StorageMode == EOperationCypressStorageMode::Compatible ? 2 : 1;
+        // COMPAT(babenko)
+        int nodeCount = 2;
         YCHECK(rspsOrError.size() == OutputTables_.size() * nodeCount);
 
         int index = 0;
@@ -4694,13 +4723,11 @@ void TOperationControllerBase::CollectTotals()
 void TOperationControllerBase::CustomPrepare()
 { }
 
-TOperationControllerPrepareResult TOperationControllerBase::FinishPrepare()
+void TOperationControllerBase::FillPrepareResult(TOperationControllerPrepareResult* result)
 {
-    TOperationControllerPrepareResult result;
-    result.PrepareAttributes = BuildYsonStringFluently<EYsonType::MapFragment>()
+    result->Attributes = BuildYsonStringFluently<EYsonType::MapFragment>()
         .Do(BIND(&TOperationControllerBase::BuildPrepareAttributes, Unretained(this)))
         .Finish();
-    return result;
 }
 
 void TOperationControllerBase::ClearInputChunkBoundaryKeys()
@@ -5232,7 +5259,7 @@ void TOperationControllerBase::AttachToLivePreview(
     const std::vector<NCypressClient::TNodeId>& tableIds)
 {
     Host->AttachChunkTreesToLivePreview(
-        AsyncSchedulerTransaction->GetId(),
+        AsyncTransaction->GetId(),
         tableIds,
         {chunkTreeId});
 }
@@ -5445,7 +5472,7 @@ void TOperationControllerBase::SafeOnSnapshotCompleted(const TSnapshotCookie& co
     {
         auto headCookie = CompletedJobIdsReleaseQueue_.GetHeadCookie();
         auto jobIdsToRelease = CompletedJobIdsReleaseQueue_.Release(CompletedJobIdsSnapshotCookie_);
-        LOG_INFO("Releasing job ids (SnapshotCookie: %v, HeadCookie: %v, JobCount: %v, SnapshotIndex: %v)",
+        LOG_INFO("Releasing jobs on snapshot completion (SnapshotCookie: %v, HeadCookie: %v, JobCount: %v, SnapshotIndex: %v)",
             CompletedJobIdsSnapshotCookie_,
             headCookie,
             jobIdsToRelease.size(),
@@ -5492,7 +5519,7 @@ void TOperationControllerBase::Dispose()
     VERIFY_INVOKER_AFFINITY(Invoker);
 
     auto headCookie = CompletedJobIdsReleaseQueue_.Checkpoint();
-    LOG_INFO("Releasing job ids before controller disposal (HeadCookie: %v)",
+    LOG_INFO("Releasing jobs on controller disposal (HeadCookie: %v)",
         headCookie);
     auto jobIdsToRelease = CompletedJobIdsReleaseQueue_.Release();
     Host->ReleaseJobs(jobIdsToRelease);
@@ -5680,11 +5707,7 @@ void TOperationControllerBase::BuildInitializeImmutableAttributes(TFluentMap flu
 
     fluent
         .Item("unrecognized_spec").Value(UnrecognizedSpec_)
-        .Item("full_spec")
-            .BeginAttributes()
-                .Item("opaque").Value(true)
-            .EndAttributes()
-            .Value(Spec_);
+        .Item("full_spec").Value(Spec_);
 }
 
 void TOperationControllerBase::BuildInitializeMutableAttributes(TFluentMap fluent) const
@@ -5692,11 +5715,10 @@ void TOperationControllerBase::BuildInitializeMutableAttributes(TFluentMap fluen
     VERIFY_INVOKER_AFFINITY(Invoker);
 
     fluent
-        .Item("async_scheduler_transaction_id").Value(AsyncSchedulerTransaction ? AsyncSchedulerTransaction->GetId() : NullTransactionId)
+        .Item("async_scheduler_transaction_id").Value(AsyncTransaction ? AsyncTransaction->GetId() : NullTransactionId)
         .Item("input_transaction_id").Value(InputTransaction ? InputTransaction->GetId() : NullTransactionId)
         .Item("output_transaction_id").Value(OutputTransaction ? OutputTransaction->GetId() : NullTransactionId)
-        .Item("debug_transaction_id").Value(DebugTransaction ? DebugTransaction->GetId() : NullTransactionId)
-        .Item("user_transaction_id").Value(UserTransactionId);
+        .Item("debug_transaction_id").Value(DebugTransaction ? DebugTransaction->GetId() : NullTransactionId);
 }
 
 void TOperationControllerBase::BuildPrepareAttributes(TFluentMap fluent) const
@@ -6444,7 +6466,8 @@ void TOperationControllerBase::GetExecNodesInformation()
 
     ExecNodeCount_ = Host->GetExecNodeCount();
     ExecNodesDescriptors_ = Host->GetExecNodeDescriptors(NScheduler::TSchedulingTagFilter(Spec_->SchedulingTagFilter));
-    GetExecNodesInformationDeadline_ = now + NProfiling::DurationToCpuDuration(Config->ControllerUpdateExecNodesInformationDelay);
+    GetExecNodesInformationDeadline_ = now + NProfiling::DurationToCpuDuration(Config->ControllerExecNodeInfoUpdatePeriod);
+    LOG_DEBUG("Exec nodes information updated (ExecNodeCount: %v)", ExecNodeCount_);
 }
 
 int TOperationControllerBase::GetExecNodeCount()
@@ -6653,11 +6676,6 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
         }
     }
 
-    // COMPAT(ignat)
-    if (context.GetVersion() >= 202001) {
-        Persist(context, AvailableNodesSeen_);
-    }
-
     // NB: Keep this at the end of persist as it requires some of the previous
     // fields to be already intialized.
     if (context.IsLoad()) {
@@ -6801,23 +6819,6 @@ bool TOperationControllerBase::IsCompleted() const
         }
     }
     return true;
-}
-
-NScheduler::TJobPtr TOperationControllerBase::BuildJobFromJoblet(const TJobletPtr& joblet) const
-{
-    auto job = New<NScheduler::TJob>(
-        joblet->JobId,
-        joblet->JobType,
-        OperationId,
-        nullptr /* execNode */,
-        joblet->StartTime,
-        joblet->ResourceLimits,
-        IsJobInterruptible(),
-        joblet->TreeId);
-    job->SetState(EJobState::Running);
-    job->SetRevived(true);
-    job->RevivedNodeDescriptor() = joblet->NodeDescriptor;
-    return job;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

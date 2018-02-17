@@ -5,6 +5,7 @@
 #include "controller_agent.h"
 #include "operation.h"
 #include "serialize.h"
+#include "helpers.h"
 
 #include <yt/server/scheduler/config.h>
 #include <yt/server/scheduler/scheduler.h>
@@ -60,7 +61,7 @@ using namespace NCellScheduler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = MasterConnectorLogger;
+static const auto& Logger = ControllerAgentLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -171,16 +172,14 @@ public:
         return IncarnationId_;
     }
 
-    void StartOperationNodeUpdates(
-        const TOperationId& operationId,
-        NScheduler::EOperationCypressStorageMode storageMode)
+    void StartOperationNodeUpdates(const TOperationId& operationId)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(Connected_);
 
         OperationNodesUpdateExecutor_->AddUpdate(
             operationId,
-            TOperationNodeUpdate(operationId, storageMode));
+            TOperationNodeUpdate(operationId));
     }
 
     void CreateJobNode(const TOperationId& operationId, const TCreateJobNodeRequest& request)
@@ -200,9 +199,10 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(Connected_);
 
-        return BIND(&TImpl::DoFlushOperationNode, MakeStrong(this))
-            .AsyncVia(CancelableControlInvoker_)
-            .Run(operationId);
+        LOG_INFO("Flushing operation node (OperationId: %v)",
+            operationId);
+
+        return OperationNodesUpdateExecutor_->ExecuteUpdate(operationId);
     }
 
     TFuture<void> AttachToLivePreview(
@@ -305,13 +305,11 @@ private:
 
     struct TOperationNodeUpdate
     {
-        TOperationNodeUpdate(const TOperationId& operationId, EOperationCypressStorageMode storageMode)
+        explicit TOperationNodeUpdate(const TOperationId& operationId)
             : OperationId(operationId)
-            , StorageMode(storageMode)
         { }
 
         TOperationId OperationId;
-        EOperationCypressStorageMode StorageMode;
 
         std::vector<TCreateJobNodeRequest> JobRequests;
 
@@ -408,7 +406,9 @@ private:
         for (const auto& id : watchSet) {
             auto cellTag = CellTagFromId(id);
             if (batchReqs.find(cellTag) == batchReqs.end()) {
-                auto connection = Bootstrap_->FindRemoteConnection(cellTag);
+                auto connection = FindRemoteConnection(
+                    Bootstrap_->GetMasterClient()->GetNativeConnection(),
+                    cellTag);
                 if (!connection) {
                     continue;
                 }
@@ -473,7 +473,6 @@ private:
 
     void DoUpdateOperationNode(
         const TOperationId& operationId,
-        EOperationCypressStorageMode storageMode,
         const TTransactionId& transactionId,
         const std::vector<TCreateJobNodeRequest>& jobRequests,
         const std::vector<TLivePreviewRequest>& livePreviewRequests)
@@ -482,7 +481,7 @@ private:
 
         std::vector<bool> failedRequestSet(jobRequests.size(), false);
         try {
-            CreateJobNodes(operationId, storageMode, jobRequests, &failedRequestSet);
+            CreateJobNodes(operationId, jobRequests, &failedRequestSet);
         } catch (const std::exception& ex) {
             auto error = TError("Error creating job nodes for operation %v",
                 operationId)
@@ -505,7 +504,7 @@ private:
 
                 const auto& request = jobRequests[index];
                 if (request.StderrChunkId) {
-                    auto paths = GetCompatibilityJobPaths(operationId, request.JobId, storageMode, "stderr");
+                    auto paths = GetCompatibilityJobPaths(operationId, request.JobId, "stderr");
                     for (const auto& path : paths) {
                         files.push_back({
                             request.JobId,
@@ -516,7 +515,7 @@ private:
                     }
                 }
                 if (request.FailContextChunkId) {
-                    auto paths = GetCompatibilityJobPaths(operationId, request.JobId, storageMode, "fail_context");
+                    auto paths = GetCompatibilityJobPaths(operationId, request.JobId, "fail_context");
                     for (const auto& path : paths) {
                         files.push_back({
                             request.JobId,
@@ -545,7 +544,7 @@ private:
         }
 
         try {
-            UpdateOperationNodeAttributes(operationId, storageMode);
+            UpdateOperationNodeAttributes(operationId);
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error updating operation %v node",
                 operationId)
@@ -577,14 +576,13 @@ private:
         return BIND(&TImpl::DoUpdateOperationNode,
             MakeStrong(this),
             operationId,
-            update->StorageMode,
             update->LivePreviewTransactionId,
             Passed(std::move(update->JobRequests)),
             Passed(std::move(update->LivePreviewRequests)))
             .AsyncVia(CancelableControlInvoker_);
     }
 
-    void UpdateOperationNodeAttributes(const TOperationId& operationId, EOperationCypressStorageMode storageMode)
+    void UpdateOperationNodeAttributes(const TOperationId& operationId)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -601,7 +599,7 @@ private:
 
         controller->SetProgressUpdated();
 
-        auto paths = GetCompatibilityOperationPaths(operationId, storageMode);
+        auto paths = GetCompatibilityOperationPaths(operationId);
 
         auto batchReq = StartObjectBatchRequest();
         GenerateMutationId(batchReq);
@@ -638,7 +636,6 @@ private:
 
     void CreateJobNodes(
         const TOperationId& operationId,
-        EOperationCypressStorageMode storageMode,
         const std::vector<TCreateJobNodeRequest>& requests,
         std::vector<bool>* failedRequestSet)
     {
@@ -653,7 +650,7 @@ private:
         for (const auto& request : requests) {
             const auto& jobId = request.JobId;
 
-            auto paths = GetCompatibilityJobPaths(operationId, jobId, storageMode);
+            auto paths = GetCompatibilityJobPaths(operationId, jobId);
             auto attributes = ConvertToAttributes(request.Attributes);
 
             for (const auto& path : paths) {
@@ -955,32 +952,21 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
+        auto* update = OperationNodesUpdateExecutor_->FindUpdate(operationId);
+        if (!update) {
+            LOG_DEBUG("Trying to create a job node for an unknown operation (OperationId: %v, JobId: %v)",
+                operationId,
+                request.JobId);
+            return;
+        }
+
         LOG_DEBUG("Creating job node (OperationId: %v, JobId: %v, StderrChunkId: %v, FailContextChunkId: %v)",
             operationId,
             request.JobId,
             request.StderrChunkId,
             request.FailContextChunkId);
 
-        auto* update = OperationNodesUpdateExecutor_->FindUpdate(operationId);
-        if (!update) {
-            LOG_DEBUG("Create a job node for an unknown operation is impossible (OperationId: %v, JobId: %v)",
-                operationId,
-                request.JobId);
-            return;
-        }
-
         update->JobRequests.emplace_back(request);
-    }
-
-    void DoFlushOperationNode(const TOperationId& operationId)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        LOG_INFO("Flushing operation node (OperationId: %v)",
-            operationId);
-
-        WaitFor(OperationNodesUpdateExecutor_->ExecuteUpdate(operationId))
-            .ThrowOnError();
     }
 
     void DoRemoveSnapshot(const TOperationId& operationId)
@@ -1137,11 +1123,9 @@ const TIncarnationId& TMasterConnector::GetIncarnationId() const
     return Impl_->GetIncarnationId();
 }
 
-void TMasterConnector::StartOperationNodeUpdates(
-    const TOperationId& operationId,
-    NScheduler::EOperationCypressStorageMode storageMode)
+void TMasterConnector::StartOperationNodeUpdates(const TOperationId& operationId)
 {
-    Impl_->StartOperationNodeUpdates(operationId, storageMode);
+    Impl_->StartOperationNodeUpdates(operationId);
 }
 
 void TMasterConnector::CreateJobNode(const TOperationId& operationId, const TCreateJobNodeRequest& request)

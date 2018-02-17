@@ -52,8 +52,6 @@ TTestingOperationOptions::TTestingOperationOptions()
         .Default(EControllerFailureType::None);
     RegisterParameter("fail_get_job_spec", FailGetJobSpec)
         .Default(false);
-    RegisterParameter("cypress_storage_mode", CypressStorageMode)
-        .Default(EOperationCypressStorageMode::Compatible);
 }
 
 TAutoMergeConfig::TAutoMergeConfig()

@@ -38,13 +38,11 @@ class TJob
     //! Exec node where the job is running.
     DEFINE_BYVAL_RW_PROPERTY(TExecNodePtr, Node);
 
-    //! Flag that marks job as revived by scheduler. It is useful, for example,
-    //! when we lose information about interruption reason during revival.
-    DEFINE_BYVAL_RW_PROPERTY(bool, Revived, false);
+    //! Node id obtained from corresponding joblet during the revival process.
+    DEFINE_BYVAL_RO_PROPERTY(NNodeTrackerClient::TNodeId, RevivalNodeId, NNodeTrackerClient::InvalidNodeId);
 
-    //! Node descriptor that was obtained from corresponding joblet during the revival process.
-    //! It used only during the revival and is used only for filling `Node` field.
-    DEFINE_BYREF_RW_PROPERTY(TJobNodeDescriptor, RevivedNodeDescriptor);
+    //! Node address obtained from corresponding joblet during the revival process.
+    DEFINE_BYVAL_RO_PROPERTY(TString, RevivalNodeAddress);
 
     //! The time when the job was started.
     DEFINE_BYVAL_RO_PROPERTY(TInstant, StartTime);
@@ -103,21 +101,18 @@ public:
         TInstant startTime,
         const TJobResources& resourceLimits,
         bool interruptible,
-        const TString& treeId);
+        TString treeId,
+        NNodeTrackerClient::TNodeId revivalNodeId = NNodeTrackerClient::InvalidNodeId,
+        TString revivalNodeAddress = TString());
 
     //! The difference between |FinishTime| and |StartTime|.
     TDuration GetDuration() const;
+
+    //! Returns true if the job was revived.
+    bool IsRevived() const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TJob)
-
-////////////////////////////////////////////////////////////////////////////////
-
-TJobStatus JobStatusFromError(const TError& error);
-
-TJobId GenerateJobId(NObjectClient::TCellTag tag, NNodeTrackerClient::TNodeId nodeId);
-
-NNodeTrackerClient::TNodeId NodeIdFromJobId(const TJobId& jobId);
 
 ////////////////////////////////////////////////////////////////////////////////
 

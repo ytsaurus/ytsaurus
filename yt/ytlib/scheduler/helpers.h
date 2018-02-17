@@ -36,13 +36,11 @@ NYPath::TYPath GetNewStderrPath(const TOperationId& operationId, const TJobId& j
 std::vector<NYPath::TYPath> GetCompatibilityJobPaths(
     const TOperationId& operationId,
     const TJobId& jobId,
-    EOperationCypressStorageMode mode,
-    const TString& resourceName = "");
+    const TString& resourceName = {});
 
 std::vector<NYPath::TYPath> GetCompatibilityOperationPaths(
     const TOperationId& operationId,
-    EOperationCypressStorageMode mode,
-    const TString& resourceName = "");
+    const TString& resourceName = {});
 
 const NYPath::TYPath& GetPoolsPath();
 const NYPath::TYPath& GetOperationsArchivePathOrderedById();

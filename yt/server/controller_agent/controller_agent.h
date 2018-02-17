@@ -58,6 +58,7 @@ public:
      *  \note Thread affinity: any
      */
     void ValidateConnected() const;
+    void ValidateIncarnation(const TIncarnationId& incarnationId) const;
     /*!
      *  \note Thread affinity: any
      */
@@ -94,14 +95,20 @@ public:
      */
     const NEventLog::TEventLogWriterPtr& GetEventLogWriter() const;
 
-    // TODO(babenko)
-    TOperationPtr CreateOperation(const NScheduler::TOperationPtr& operation);
-    void RegisterOperation(const TOperationId& operationId, const TOperationPtr& operation);
-    void UnregisterOperation(const TOperationId& operationId);
     TOperationPtr FindOperation(const TOperationId& operationId);
     TOperationPtr GetOperation(const TOperationId& operationId);
     TOperationPtr GetOperationOrThrow(const TOperationId& operationId);
     const TOperationIdToOperationMap& GetOperations();
+
+    void RegisterOperation(const NProto::TOperationDescriptor& descriptor);
+    TFuture<TOperationControllerInitializationResult> InitializeOperation(const TOperationPtr& operation, const TNullable<TControllerTransactions>& transactions);
+    TFuture<TOperationControllerPrepareResult> PrepareOperation(const TOperationPtr& operation);
+    TFuture<void> MaterializeOperation(const TOperationPtr& operation);
+    TFuture<TOperationControllerReviveResult> ReviveOperation(const TOperationPtr& operation);
+    TFuture<void> CommitOperation(const TOperationPtr& operation);
+    TFuture<void> CompleteOperation(const TOperationPtr& operation);
+    TFuture<void> AbortOperation(const TOperationPtr& operation);
+    TFuture<void> DisposeOperation(const TOperationPtr& operation);
 
     //! Extracts specs for given jobs; nulls indicate failures (e.g. missing jobs).
     TFuture<std::vector<TErrorOr<TSharedRef>>> ExtractJobSpecs(const std::vector<TJobSpecRequest>& requests);

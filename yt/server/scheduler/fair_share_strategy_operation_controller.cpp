@@ -18,7 +18,9 @@ TFairShareStrategyOperationController::TFairShareStrategyOperationController(
     IOperationStrategyHost* operation)
     : Controller_(operation->GetControllerStrategyHost())
     , OperationId_(operation->GetId())
-{ }
+{
+    YCHECK(Controller_);
+}
 
 void TFairShareStrategyOperationController::IncreaseConcurrentScheduleJobCalls()
 {

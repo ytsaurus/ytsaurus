@@ -2,7 +2,7 @@
 
 #include "job.h"
 
-#include <yt/server/controller_agent/public.h>
+#include <yt/server/controller_agent/operation_controller.h>
 
 #include <yt/ytlib/job_tracker_client/public.h>
 
@@ -46,26 +46,43 @@ DEFINE_REFCOUNTED_TYPE(IOperationControllerStrategyHost)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TOperationControllerInitializationResult
+{
+    NControllerAgent::TOperationControllerInitializationAttributes Attributes;
+};
+
+struct TOperationControllerPrepareResult
+{
+    NYson::TYsonString Attributes;
+};
+
+struct TOperationControllerReviveResult
+    : public TOperationControllerPrepareResult
+{
+    bool RevivedFromSnapshot = false;
+    std::vector<TJobPtr> RevivedJobs;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 /*!
  *  \note Thread affinity: any
  */
 struct IOperationController
     : public IOperationControllerStrategyHost
 {
-    //! Invokes IOperationControllerSchedulerHost::InitializeClean asynchronously.
-    virtual TFuture<NControllerAgent::TOperationControllerInitializationResult> InitializeClean() = 0;
-
-    //! Invokes IOperationControllerSchedulerHost::InitializeReviving asynchronously.
-    virtual TFuture<NControllerAgent::TOperationControllerInitializationResult> InitializeReviving(const TOperationRevivalDescriptor& descriptor) = 0;
+    //! Invokes IOperationControllerSchedulerHost::InitializeReviving or InitializeClean asynchronously.
+    virtual TFuture<TOperationControllerInitializationResult> Initialize(
+        const TNullable<TOperationRevivalDescriptor>& descriptor) = 0;
 
     //! Invokes IOperationControllerSchedulerHost::Prepare asynchronously.
-    virtual TFuture<NControllerAgent::TOperationControllerPrepareResult> Prepare() = 0;
+    virtual TFuture<TOperationControllerPrepareResult> Prepare() = 0;
 
     //! Invokes IOperationControllerSchedulerHost::Materialize asynchronously.
     virtual TFuture<void> Materialize() = 0;
 
     //! Invokes IOperationControllerSchedulerHost::Revive asynchronously.
-    virtual TFuture<NControllerAgent::TOperationControllerReviveResult> Revive() = 0;
+    virtual TFuture<TOperationControllerReviveResult> Revive() = 0;
 
     //! Invokes IOperationControllerSchedulerHost::Commit asynchronously.
     virtual TFuture<void> Commit() = 0;
@@ -73,10 +90,10 @@ struct IOperationController
     //! Invokes IOperationControllerSchedulerHost::Abort asynchronously.
     virtual TFuture<void> Abort() = 0;
 
-    //! Invokes IOperationControllerSchedulerHost::Complete  asynchronously.
+    //! Invokes IOperationControllerSchedulerHost::Complete asynchronously.
     virtual TFuture<void> Complete() = 0;
 
-    //! Invokes IOperationControllerSchedulerHost::Dispose  asynchronously.
+    //! Invokes IOperationControllerSchedulerHost::Dispose asynchronously.
     virtual TFuture<void> Dispose() = 0;
 
 
@@ -103,9 +120,6 @@ struct IOperationController
     virtual void OnJobRunning(
         const TJobPtr& job,
         NJobTrackerClient::NProto::TJobStatus* status) = 0;
-
-    // XXX(ignat): it is temporary methods.
-    virtual void SetAgentController(const NControllerAgent::IOperationControllerPtr& controller) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IOperationController)
