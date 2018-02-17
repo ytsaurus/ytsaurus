@@ -80,7 +80,7 @@ void BuildMutableOperationAttributes(TOperationPtr operation, TFluentMap fluent)
     fluent
         .Item("state").Value(operation->GetState())
         .Item("suspended").Value(operation->GetSuspended())
-        .Item("events").Value(operation->GetEvents())
+        .Item("events").Value(operation->Events())
         .Item("slot_index_per_pool_tree").Value(operation->GetSlotIndices())
         .DoIf(static_cast<bool>(initializationAttributes), [&] (TFluentMap fluent) {
             fluent

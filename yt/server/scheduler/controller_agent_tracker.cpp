@@ -14,8 +14,6 @@
 #include <yt/server/cell_scheduler/config.h>
 
 // XXX(babenko): remove
-//#include <yt/server/controller_agent/operation.h>
-//#include <yt/server/controller_agent/operation_controller.h>
 #include <yt/server/controller_agent/controller_agent.h>
 #include <yt/server/controller_agent/master_connector.h>
 #include <yt/server/controller_agent/controller_agent_service_proxy.h>
@@ -54,16 +52,16 @@ TFuture<TIntrusivePtr<TResponse>> InvokeAgent(
     const TControllerAgentPtr& agent,
     const TIntrusivePtr<TRequest>& request)
 {
-    // XXX(babenko): agent id
-    LOG_DEBUG("Sending request to agent (OperationId: %v)",
+    LOG_DEBUG("Sending request to agent (AgentAddress: %v, OperationId: %v)",
+        agent->GetDefaultAddress(),
         operationId);
 
     ToProto(request->mutable_incarnation_id(), agent->GetIncarnationId());
 
     return request->Invoke().Apply(BIND([=] (const TErrorOr<TIntrusivePtr<TResponse>>& rspOrError) {
-        // XXX(babenko): agent id
         // XXX(babenko): handle agent errors
-        LOG_DEBUG(rspOrError, "Agent response received (OperationId: %v)",
+        LOG_DEBUG(rspOrError, "Agent response received (AgentAddress: %v, OperationId: %v)",
+            agent->GetDefaultAddress(),
             operationId);
         return rspOrError.ValueOrThrow();
     }));
@@ -136,7 +134,7 @@ public:
         return InvokeAgent<TControllerAgentServiceProxy::TRspPrepareOperation>(req).Apply(
             BIND([] (const TControllerAgentServiceProxy::TRspPrepareOperationPtr& rsp) {
                 return TOperationControllerPrepareResult{
-                    TYsonString(rsp->attributes(), EYsonType::MapFragment)
+                    rsp->has_attributes() ? TYsonString(rsp->attributes(), EYsonType::MapFragment) : TYsonString()
                 };
             }));
     }
@@ -446,9 +444,9 @@ public:
         Agent_.Reset();
     }
 
-    TControllerAgentPtr GetAgent()
+    std::vector<TControllerAgentPtr> GetAgents()
     {
-        return Agent_;
+        return Agent_ ? std::vector<TControllerAgentPtr>{Agent_} : std::vector<TControllerAgentPtr>{};
     }
 
     IOperationControllerPtr CreateController(
@@ -769,11 +767,6 @@ TControllerAgentTracker::TControllerAgentTracker(
 
 TControllerAgentTracker::~TControllerAgentTracker() = default;
 
-TControllerAgentPtr TControllerAgentTracker::GetAgent()
-{
-    return Impl_->GetAgent();
-}
-
 void TControllerAgentTracker::OnAgentConnected()
 {
     Impl_->OnAgentConnected();
@@ -782,6 +775,11 @@ void TControllerAgentTracker::OnAgentConnected()
 void TControllerAgentTracker::OnAgentDisconnected()
 {
     Impl_->OnAgentDisconected();
+}
+
+std::vector<TControllerAgentPtr> TControllerAgentTracker::GetAgents()
+{
+    return Impl_->GetAgents();
 }
 
 IOperationControllerPtr TControllerAgentTracker::CreateController(

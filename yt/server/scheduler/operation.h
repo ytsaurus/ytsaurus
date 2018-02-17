@@ -162,7 +162,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY_FORCE_FLUSH(TNullable<TInstant>, FinishTime);
 
     //! List of events that happened to operation.
-    DEFINE_BYVAL_RO_PROPERTY(std::vector<TOperationEvent>, Events);
+    DEFINE_BYREF_RW_PROPERTY(std::vector<TOperationEvent>, Events);
 
     //! List of operation alerts.
     using TAlerts = TEnumIndexedVector<TError, EOperationAlertType>;
@@ -265,9 +265,7 @@ public:
         TInstant startTime,
         IInvokerPtr controlInvoker,
         EOperationState state = EOperationState::None,
-        bool suspended = false,
-        const std::vector<TOperationEvent>& events = {},
-        const TNullable<TOperationRevivalDescriptor>& revivalDescriptor = Null);
+        const std::vector<TOperationEvent>& events = {});
 
 private:
     const TOperationId Id_;

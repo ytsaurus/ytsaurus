@@ -22,9 +22,10 @@ public:
     ~TControllerAgentTracker();
 
     // TODO(babenko): multiagent support
-    TControllerAgentPtr GetAgent();
     void OnAgentConnected();
     void OnAgentDisconnected();
+
+    std::vector<TControllerAgentPtr> GetAgents();
 
     // TODO(babenko): eliminate
     IOperationControllerPtr CreateController(

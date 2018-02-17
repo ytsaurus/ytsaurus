@@ -259,6 +259,16 @@ public:
         return OperationNodesUpdateExecutor_->ExecuteUpdate(operation->GetId());
     }
 
+    TFuture<void> FetchOperationRevivalDescriptors(const std::vector<TOperationPtr>& operations)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+        YCHECK(State_ != EMasterConnectorState::Disconnected);
+
+        return BIND(&TImpl::DoFetchOperationRevivalDescriptors, MakeStrong(this))
+            .AsyncVia(GetCancelableControlInvoker())
+            .Run(operations);
+    }
+
     void AttachJobContext(
         const TYPath& path,
         const TChunkId& chunkId,
@@ -551,7 +561,6 @@ private:
             SyncClusterDirectory();
             ListOperations();
             RequestOperationAttributes();
-            RequestCommittedFlag();
             FireHandshake();
         }
 
@@ -718,19 +727,11 @@ private:
                 "operation_type",
                 "mutation_id",
                 "user_transaction_id",
-                "async_scheduler_transaction_id",
-                "input_transaction_id",
-                "output_transaction_id",
-                "debug_transaction_id",
-                "output_completion_transaction_id",
-                "debug_completion_transaction_id",
-
                 "spec",
                 "owners",
                 "authenticated_user",
                 "start_time",
                 "state",
-                "suspended",
                 "events",
                 "slot_index_per_pool_tree"
             };
@@ -813,7 +814,7 @@ private:
                             << secureVaultRspOrError;
                     }
 
-                    auto operation = Owner_->TryCreateOperationFromAttributes(
+                    auto operation = TryCreateOperationFromAttributes(
                         operationId,
                         *attributesNode,
                         secureVault);
@@ -824,102 +825,45 @@ private:
             }
         }
 
-        void RequestCommittedFlag()
+        TOperationPtr TryCreateOperationFromAttributes(
+            const TOperationId& operationId,
+            const IAttributeDictionary& attributes,
+            const IMapNodePtr& secureVault)
         {
-            std::vector<TOperationPtr> operationsWithOutputTransaction;
+            auto specNode = attributes.Get<INodePtr>("spec")->AsMap();
 
-            auto getBatchKey = [] (const TOperationPtr& operation) {
-                return "get_op_committed_attr_" + ToString(operation->GetId());
-            };
+            TOperationSpecBasePtr spec;
+            try {
+                spec = ConvertTo<TOperationSpecBasePtr>(specNode);
+            } catch (const std::exception& ex) {
+                LOG_ERROR(ex, "Error parsing operation spec (OperationId: %v)",
+                    operationId);
+                return nullptr;
+            }
 
-            auto batchReq = Owner_->StartObjectBatchRequest(EMasterChannelKind::Follower);
+            auto operation = New<TOperation>(
+                operationId,
+                attributes.Get<EOperationType>("operation_type"),
+                attributes.Get<TMutationId>("mutation_id"),
+                attributes.Get<TTransactionId>("user_transaction_id"),
+                specNode,
+                secureVault,
+                BuildOperationRuntimeParams(spec),
+                attributes.Get<TString>("authenticated_user"),
+                attributes.Get<std::vector<TString>>("owners", spec->Owners),
+                attributes.Get<TInstant>("start_time"),
+                Owner_->Bootstrap_->GetControlInvoker(),
+                attributes.Get<EOperationState>("state"),
+                attributes.Get<std::vector<TOperationEvent>>("events", {}));
 
-            {
-                LOG_INFO("Fetching committed attribute for operations");
-                for (const auto& operation : Result_.Operations) {
-                    if (!operation->RevivalDescriptor()) {
-                        continue;
-                    }
-
-                    auto& revivalDescriptor = *operation->RevivalDescriptor();
-                    if (!revivalDescriptor.OutputTransaction) {
-                        continue;
-                    }
-
-                    operationsWithOutputTransaction.push_back(operation);
-
-                    for (auto transactionId : {
-                        revivalDescriptor.OutputTransaction->GetId(),
-                        NullTransactionId})
-                    {
-                        {
-                            auto req = TYPathProxy::Get(GetOperationPath(operation->GetId()) + "/@");
-                            std::vector<TString> attributeKeys{
-                                "committed"
-                            };
-                            ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
-                            SetTransactionId(req, transactionId);
-                            batchReq->AddRequest(req, getBatchKey(operation));
-                        }
-                        {
-                            auto req = TYPathProxy::Get(GetNewOperationPath(operation->GetId()) + "/@");
-                            std::vector<TString> attributeKeys{
-                                "committed"
-                            };
-                            ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
-                            SetTransactionId(req, transactionId);
-                            batchReq->AddRequest(req, getBatchKey(operation) + "_new");
-                        }
-                    }
+            auto slotIndexMap = attributes.Find<THashMap<TString, int>>("slot_index_per_pool_tree");
+            if (slotIndexMap) {
+                for (const auto& pair : *slotIndexMap) {
+                    operation->SetSlotIndex(pair.first, pair.second);
                 }
             }
 
-            auto batchRspOrError = WaitFor(batchReq->Invoke());
-            THROW_ERROR_EXCEPTION_IF_FAILED(batchRspOrError);
-            const auto& batchRsp = batchRspOrError.Value();
-
-            {
-                for (const auto& operation : operationsWithOutputTransaction) {
-                    auto& revivalDescriptor = *operation->RevivalDescriptor();
-                    auto rsps = batchRsp->GetResponses<TYPathProxy::TRspGet>(getBatchKey(operation));
-                    auto rspsNew = batchRsp->GetResponses<TYPathProxy::TRspGet>(getBatchKey(operation) + "_new");
-
-                    YCHECK(rsps.size() == 2);
-                    YCHECK(rspsNew.size() == 2);
-
-                    for (size_t rspIndex = 0; rspIndex < 2; ++rspIndex) {
-                        std::unique_ptr<IAttributeDictionary> attributes;
-                        auto updateAttributes = [&] (const TErrorOr<TIntrusivePtr<TYPathProxy::TRspGet>>& rspOrError) {
-                            if (!rspOrError.IsOK()) {
-                                return;
-                            }
-
-                            auto responseAttributes = ConvertToAttributes(TYsonString(rspOrError.Value()->value()));
-                            if (attributes) {
-                                attributes->MergeFrom(*responseAttributes);
-                            } else {
-                                attributes = std::move(responseAttributes);
-                            }
-                        };
-
-                        updateAttributes(rsps[rspIndex]);
-                        updateAttributes(rspsNew[rspIndex]);
-
-                        // Commit transaction may be missing or aborted.
-                        if (!attributes) {
-                            continue;
-                        }
-
-                        if (attributes->Get<bool>("committed", false)) {
-                            revivalDescriptor.OperationCommitted = true;
-                            if (rspIndex == 0) {
-                                revivalDescriptor.ShouldCommitOutputTransaction = true;
-                            }
-                            break;
-                        }
-                    }
-                }
-            }
+            return operation;
         }
 
         void UpdateGlobalWatchers()
@@ -948,6 +892,228 @@ private:
             Owner_->MasterHandshake_.Fire(Result_);
         }
     };
+
+    void DoFetchOperationRevivalDescriptors(const std::vector<TOperationPtr>& operations)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        LOG_INFO("Fetching operation revival descriptors (OperationCount: %v)",
+            operations.size());
+
+        {
+            static const std::vector<TString> attributeKeys = {
+                "async_scheduler_transaction_id",
+                "input_transaction_id",
+                "output_transaction_id",
+                "debug_transaction_id",
+                "output_completion_transaction_id",
+                "debug_completion_transaction_id",
+            };
+
+            auto batchReq = StartObjectBatchRequest(EMasterChannelKind::Follower);
+
+            for (const auto& operation : operations) {
+                const auto& operationId = operation->GetId();
+                auto operationAttributesPath = GetOperationPath(operationId) + "/@";
+                auto secureVaultPath = GetSecureVaultPath(operationId);
+
+                // Retrieve operation attributes.
+                {
+                    auto req = TYPathProxy::Get(operationAttributesPath);
+                    ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
+                    batchReq->AddRequest(req, "get_op_attr_" + ToString(operationId));
+                }
+
+                // Retrieve operation completion transaction id.
+                {
+                    auto req = TYPathProxy::Get(GetNewOperationPath(operationId) + "/@");
+                    std::vector<TString> attributeKeys{
+                        "output_completion_transaction_id",
+                    };
+                    ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
+                    batchReq->AddRequest(req, "get_op_completion_tx_id_" + ToString(operationId));
+                }
+            }
+
+            auto batchRsp = WaitFor(batchReq->Invoke())
+                .ValueOrThrow();
+
+            for (const auto& operation : operations) {
+                const auto& operationId = operation->GetId();
+
+                auto attributesRsp = batchRsp->GetResponse<TYPathProxy::TRspGet>(
+                    "get_op_attr_" + ToString(operationId))
+                    .ValueOrThrow();
+
+                auto completionTxIdRsp = batchRsp->GetResponse<TYPathProxy::TRspGet>(
+                    "get_op_completion_tx_id_" + ToString(operationId))
+                    .ValueOrThrow();
+
+                auto attributes = ConvertToAttributes(TYsonString(attributesRsp->value()));
+                auto completionTxIdAttribute = ConvertToAttributes(TYsonString(completionTxIdRsp->value()));
+                attributes->MergeFrom(*completionTxIdAttribute);
+
+                auto attachTransaction = [&] (const TTransactionId& transactionId, bool ping, const TString& name = TString()) -> ITransactionPtr {
+                    if (!transactionId) {
+                        if (name) {
+                            LOG_DEBUG("Missing %v transaction (OperationId: %v, TransactionId: %v)",
+                                name,
+                                operationId,
+                                transactionId);
+                        }
+                        return nullptr;
+                    }
+                    try {
+                        auto connection = NControllerAgent::GetRemoteConnectionOrThrow(
+                            Bootstrap_->GetMasterClient()->GetNativeConnection(),
+                            CellTagFromId(transactionId));
+                        auto client = connection->CreateNativeClient(TClientOptions(SchedulerUserName));
+
+                        TTransactionAttachOptions options;
+                        options.Ping = ping;
+                        options.PingAncestors = false;
+                        return client->AttachTransaction(transactionId, options);
+                    } catch (const std::exception& ex) {
+                        LOG_WARNING(ex, "Error attaching operation transaction (OperationId: %v, TransactionId: %v)",
+                            operationId,
+                            transactionId);
+                        return nullptr;
+                    }
+                };
+
+                TOperationRevivalDescriptor revivalDescriptor;
+                revivalDescriptor.AsyncTransaction = attachTransaction(
+                    attributes->Get<TTransactionId>("async_scheduler_transaction_id", NullTransactionId),
+                    true,
+                    "async transaction");
+                revivalDescriptor.InputTransaction = attachTransaction(
+                    attributes->Get<TTransactionId>("input_transaction_id", NullTransactionId),
+                    true,
+                    "input transaction");
+                revivalDescriptor.OutputTransaction = attachTransaction(
+                    attributes->Get<TTransactionId>("output_transaction_id", NullTransactionId),
+                    true,
+                    "output transaction");
+                revivalDescriptor.OutputCompletionTransaction = attachTransaction(
+                    attributes->Get<TTransactionId>("output_completion_transaction_id", NullTransactionId),
+                    true,
+                    "output completion transaction");
+                revivalDescriptor.DebugTransaction = attachTransaction(
+                    attributes->Get<TTransactionId>("debug_transaction_id", NullTransactionId),
+                    true,
+                    "debug transaction");
+                revivalDescriptor.DebugCompletionTransaction = attachTransaction(
+                    attributes->Get<TTransactionId>("debug_completion_transaction_id", NullTransactionId),
+                    true,
+                    "debug completion transaction");
+
+                const auto& userTransactionId = operation->GetUserTransactionId();
+                auto userTransaction = attachTransaction(userTransactionId, false);
+
+                revivalDescriptor.UserTransactionAborted = !userTransaction && userTransactionId;
+
+                for (const auto& event : operation->Events()) {
+                    if (event.State == EOperationState::Aborting) {
+                        revivalDescriptor.OperationAborting = true;
+                        break;
+                    }
+                }
+
+                operation->RevivalDescriptor() = std::move(revivalDescriptor);
+            }
+        }
+
+        LOG_INFO("Fetching committed flags (OperationCount: %v)",
+            operations.size());
+
+        {
+            std::vector<TOperationPtr> operationsWithOutputTransaction;
+
+            auto getBatchKey = [] (const TOperationPtr& operation) {
+                return "get_op_committed_attr_" + ToString(operation->GetId());
+            };
+
+            auto batchReq = StartObjectBatchRequest(EMasterChannelKind::Follower);
+
+            for (const auto& operation : operations) {
+                auto& revivalDescriptor = *operation->RevivalDescriptor();
+                if (!revivalDescriptor.OutputTransaction) {
+                    continue;
+                }
+
+                operationsWithOutputTransaction.push_back(operation);
+
+                for (auto transactionId : {
+                    revivalDescriptor.OutputTransaction->GetId(),
+                    NullTransactionId})
+                {
+                    {
+                        auto req = TYPathProxy::Get(GetOperationPath(operation->GetId()) + "/@");
+                        std::vector<TString> attributeKeys{
+                            "committed"
+                        };
+                        ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
+                        SetTransactionId(req, transactionId);
+                        batchReq->AddRequest(req, getBatchKey(operation));
+                    }
+                    {
+                        auto req = TYPathProxy::Get(GetNewOperationPath(operation->GetId()) + "/@");
+                        std::vector<TString> attributeKeys{
+                            "committed"
+                        };
+                        ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
+                        SetTransactionId(req, transactionId);
+                        batchReq->AddRequest(req, getBatchKey(operation) + "_new");
+                    }
+                }
+            }
+
+            auto batchRsp = WaitFor(batchReq->Invoke())
+                .ValueOrThrow();
+
+            for (const auto& operation : operationsWithOutputTransaction) {
+                auto& revivalDescriptor = *operation->RevivalDescriptor();
+                auto rsps = batchRsp->GetResponses<TYPathProxy::TRspGet>(getBatchKey(operation));
+                auto rspsNew = batchRsp->GetResponses<TYPathProxy::TRspGet>(getBatchKey(operation) + "_new");
+
+                YCHECK(rsps.size() == 2);
+                YCHECK(rspsNew.size() == 2);
+
+                for (size_t rspIndex = 0; rspIndex < 2; ++rspIndex) {
+                    std::unique_ptr<IAttributeDictionary> attributes;
+                    auto updateAttributes = [&] (const TErrorOr<TIntrusivePtr<TYPathProxy::TRspGet>>& rspOrError) {
+                        if (!rspOrError.IsOK()) {
+                            return;
+                        }
+
+                        auto responseAttributes = ConvertToAttributes(TYsonString(rspOrError.Value()->value()));
+                        if (attributes) {
+                            attributes->MergeFrom(*responseAttributes);
+                        } else {
+                            attributes = std::move(responseAttributes);
+                        }
+                    };
+
+                    updateAttributes(rsps[rspIndex]);
+                    updateAttributes(rspsNew[rspIndex]);
+
+                    // Commit transaction may be missing or aborted.
+                    if (!attributes) {
+                        continue;
+                    }
+
+                    if (attributes->Get<bool>("committed", false)) {
+                        revivalDescriptor.OperationCommitted = true;
+                        if (rspIndex == 0) {
+                            revivalDescriptor.ShouldCommitOutputTransaction = true;
+                        }
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
 
     TObjectServiceProxy::TReqExecuteBatchPtr StartObjectBatchRequest(
         EMasterChannelKind channelKind = EMasterChannelKind::Leader,
@@ -1019,112 +1185,6 @@ private:
             .EndList();
     }
 
-    TOperationPtr TryCreateOperationFromAttributes(
-        const TOperationId& operationId,
-        const IAttributeDictionary& attributes,
-        const IMapNodePtr& secureVault)
-    {
-        auto attachTransaction = [&] (const TTransactionId& transactionId, bool ping, const TString& name = TString()) -> ITransactionPtr {
-            if (!transactionId) {
-                if (name) {
-                    LOG_INFO("Missing %v transaction (OperationId: %v, TransactionId: %v)",
-                        name,
-                        operationId,
-                        transactionId);
-                }
-                return nullptr;
-            }
-            try {
-                auto connection = NControllerAgent::GetRemoteConnectionOrThrow(
-                    Bootstrap_->GetMasterClient()->GetNativeConnection(),
-                    CellTagFromId(transactionId));
-                auto client = connection->CreateNativeClient(TClientOptions(SchedulerUserName));
-
-                TTransactionAttachOptions options;
-                options.Ping = ping;
-                options.PingAncestors = false;
-                return client->AttachTransaction(transactionId, options);
-            } catch (const std::exception& ex) {
-                LOG_ERROR(ex, "Error attaching operation transaction (OperationId: %v, TransactionId: %v)",
-                    operationId,
-                    transactionId);
-                return nullptr;
-            }
-        };
-
-        auto state = attributes.Get<EOperationState>("state");
-
-        auto specNode = attributes.Get<INodePtr>("spec")->AsMap();
-
-        auto userTransactionId = attributes.Get<TTransactionId>("user_transaction_id");
-        auto userTransaction = attachTransaction(
-            attributes.Get<TTransactionId>("user_transaction_id"),
-            false);
-
-        TOperationRevivalDescriptor revivalDescriptor;
-        revivalDescriptor.AsyncTransaction = attachTransaction(
-            attributes.Get<TTransactionId>("async_scheduler_transaction_id", NullTransactionId),
-            true,
-            "async transaction");
-        revivalDescriptor.InputTransaction = attachTransaction(
-            attributes.Get<TTransactionId>("input_transaction_id", NullTransactionId),
-            true,
-            "input transaction");
-        revivalDescriptor.OutputTransaction = attachTransaction(
-            attributes.Get<TTransactionId>("output_transaction_id", NullTransactionId),
-            true,
-            "output transaction");
-        revivalDescriptor.OutputCompletionTransaction = attachTransaction(
-            attributes.Get<TTransactionId>("output_completion_transaction_id", NullTransactionId),
-            true,
-            "output completion transaction");
-        revivalDescriptor.DebugTransaction = attachTransaction(
-            attributes.Get<TTransactionId>("debug_transaction_id", NullTransactionId),
-            true,
-            "debug transaction");
-        revivalDescriptor.DebugCompletionTransaction = attachTransaction(
-            attributes.Get<TTransactionId>("debug_completion_transaction_id", NullTransactionId),
-            true,
-            "debug completion transaction");
-
-        TOperationSpecBasePtr spec;
-        try {
-            spec = ConvertTo<TOperationSpecBasePtr>(specNode);
-        } catch (const std::exception& ex) {
-            LOG_ERROR(ex, "Error parsing operation spec (OperationId: %v)",
-                operationId);
-            return nullptr;
-        }
-
-        revivalDescriptor.UserTransactionAborted = !userTransaction && userTransactionId;
-        revivalDescriptor.OperationAborting = state == EOperationState::Aborting;
-
-        auto operation = New<TOperation>(
-            operationId,
-            attributes.Get<EOperationType>("operation_type"),
-            attributes.Get<TMutationId>("mutation_id"),
-            userTransactionId,
-            specNode,
-            secureVault,
-            BuildOperationRuntimeParams(spec),
-            attributes.Get<TString>("authenticated_user"),
-            attributes.Get<std::vector<TString>>("owners", spec->Owners),
-            attributes.Get<TInstant>("start_time"),
-            Bootstrap_->GetControlInvoker(),
-            state,
-            attributes.Get<bool>("suspended"),
-            attributes.Get<std::vector<TOperationEvent>>("events", {}),
-            revivalDescriptor);
-
-        auto slotIndexMap = attributes.Find<THashMap<TString, int>>("slot_index_per_pool_tree");
-        if (slotIndexMap) {
-            for (const auto& pair : *slotIndexMap) {
-                operation->SetSlotIndex(pair.first, pair.second);
-            }
-        }
-
-        return operation;
-    }
 
 
     void StartPeriodicActivities()
@@ -1255,7 +1315,7 @@ private:
                 {
                     auto req = multisetReq->add_subrequests();
                     req->set_key("events");
-                    req->set_value(ConvertToYsonString(operation->GetEvents()).GetData());
+                    req->set_value(ConvertToYsonString(operation->Events()).GetData());
                 }
 
                 // Set result.
@@ -1558,8 +1618,7 @@ TFuture<void> TMasterConnector::FlushOperationNode(const TOperationPtr& operatio
 
 TFuture<void> TMasterConnector::FetchOperationRevivalDescriptors(const std::vector<TOperationPtr>& operations)
 {
-    // XXX(babenko)
-    return VoidFuture;
+    return Impl_->FetchOperationRevivalDescriptors(operations);
 }
 
 void TMasterConnector::AttachJobContext(
