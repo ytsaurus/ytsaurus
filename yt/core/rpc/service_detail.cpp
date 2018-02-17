@@ -878,7 +878,7 @@ TServiceBase::TRuntimeMethodInfoPtr TServiceBase::GetMethodInfo(const TString& m
     return runtimeInfo;
 }
 
-IInvokerPtr TServiceBase::GetDefaultInvoker()
+IInvokerPtr TServiceBase::GetDefaultInvoker() const
 {
     return DefaultInvoker_;
 }

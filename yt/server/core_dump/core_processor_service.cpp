@@ -41,6 +41,7 @@ using namespace NScheduler;
 using namespace NScheduler::NProto;
 using namespace NTableClient;
 using namespace NYTree;
+using namespace NLogging;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -55,17 +56,20 @@ public:
         const TTransactionId& transaction,
         const TChunkListId& chunkList,
         const IInvokerPtr& controlInvoker,
-        TDuration readWriteTimeout)
+        TDuration readWriteTimeout,
+        const TLogger& logger)
         : JobId_(jobHost->GetJobId())
         , Client_(jobHost->GetClient())
         , AsyncSemaphore_(New<TAsyncSemaphore>(1 /* totalSlots */))
         , ControlInvoker_(controlInvoker)
+        , IOInvoker_(NChunkClient::TDispatcher::Get()->GetReaderInvoker())
         , BlobTableWriterConfig_(blobTableWriterConfig)
         , TableWriterOptions_(tableWriterOptions)
         , Transaction_(transaction)
         , ChunkList_(chunkList)
         , ReadWriteTimeout_(readWriteTimeout)
         , TrafficMeter_(jobHost->GetTrafficMeter())
+        , Logger(logger)
     {
         BoundaryKeys_.set_empty(true);
         CoreResultPromise_ = MakePromise<TCoreResult>({CoreInfos_, BoundaryKeys_});
@@ -77,34 +81,45 @@ public:
     {
         VERIFY_INVOKER_AFFINITY(ControlInvoker_);
 
-        if (NumberOfActiveCores_ == 0) {
+        if (ActiveCoreCount_ == 0) {
             CoreResultPromise_ = NewPromise<TCoreResult>();
         }
-        ++NumberOfActiveCores_;
+        ++ActiveCoreCount_;
+
+        LOG_INFO("Registering core dump (ProcessId: %v, ExecutableName: %v, ActiveCoreCount: %v)",
+            processId,
+            executableName,
+            ActiveCoreCount_);
 
         auto namedPipePath = GetRealPath(CombinePaths("./pipes", Format("core-%v-%v", processId, executableName)));
         auto namedPipe = TNamedPipe::Create(namedPipePath);
 
         AsyncSemaphore_->AsyncAcquire(
             BIND(&TCoreProcessor::DoWriteCore, MakeStrong(this), namedPipe, processId, executableName),
-            NChunkClient::TDispatcher::Get()->GetReaderInvoker());
+            IOInvoker_);
 
         return namedPipePath;
     }
 
     TCoreResult Finalize(TDuration timeout) const
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        VERIFY_INVOKER_AFFINITY(ControlInvoker_);
+
+        LOG_INFO("Finalizing core processor");
 
         TCoreResult coreResult;
 
         TError coreAppearedWaitResult;
         if (timeout != TDuration::Zero()) {
+            LOG_INFO("Waiting for core to appear (Timeout: %v)",
+                timeout);
             coreAppearedWaitResult = WaitFor(GetCoreAppearedEvent()
                 .WithTimeout(timeout));
         }
 
         if (!coreAppearedWaitResult.IsOK()) {
+            YCHECK(coreAppearedWaitResult.FindMatching(NYT::EErrorCode::Timeout));
+            LOG_INFO("Core did not appear within timeout, creating a dummy core info entry (Timeout: %v)", timeout);
             // Even though the core file we have been waiting for didn't appear, we create an entity node in Cypress related to it.
             TCoreInfo dummyCoreInfo;
             dummyCoreInfo.set_process_id(-1);
@@ -113,9 +128,14 @@ public:
             coreResult.CoreInfos = { dummyCoreInfo };
             coreResult.BoundaryKeys.set_empty(true);
         } else {
+            LOG_INFO("At least one core dump appeared within timeout, waiting until no core dump is active "
+                     "(NumberOfActiveCores: %v)",
+                ActiveCoreCount_);
             coreResult = WaitFor(GetCoreResult())
                 .ValueOrThrow();
         }
+
+        LOG_INFO("Core processor finished");
 
         return coreResult;
     }
@@ -125,6 +145,7 @@ private:
     const INativeClientPtr Client_;
     TAsyncSemaphorePtr AsyncSemaphore_;
     const IInvokerPtr ControlInvoker_;
+    const IInvokerPtr IOInvoker_;
     const TBlobTableWriterConfigPtr BlobTableWriterConfig_;
     const TTableWriterOptionsPtr TableWriterOptions_;
     const TTransactionId Transaction_;
@@ -141,9 +162,11 @@ private:
     TOutputResult BoundaryKeys_;
     std::vector<TCoreInfo> CoreInfos_;
 
-    int NumberOfActiveCores_ = 0;
+    int ActiveCoreCount_ = 0;
 
     TTrafficMeterPtr TrafficMeter_;
+
+    TLogger Logger;
 
     TFuture<TCoreResult> GetCoreResult() const
     {
@@ -160,9 +183,19 @@ private:
     // an exception in case of some error.
     void DoWriteCore(TNamedPipePtr namedPipe, i32 processId, TString executableName, TAsyncSemaphoreGuard /* guard */)
     {
-        int coreId = CoreInfos_.size();
-        CoreInfos_.emplace_back();
+        VERIFY_INVOKER_AFFINITY(IOInvoker_);
 
+        int coreId = CoreInfos_.size();
+        auto Logger = TLogger(this->Logger)
+            .AddTag("CoreId: %v, ProcessId: %v, ExecutableName: %v, NamedPipe: %v",
+                coreId,
+                processId,
+                executableName,
+                namedPipe->GetPath());
+
+        LOG_INFO("Started processing core dump");
+
+        CoreInfos_.emplace_back();
         CoreInfos_[coreId].set_process_id(processId);
         CoreInfos_[coreId].set_executable_name(executableName);
 
@@ -206,25 +239,31 @@ private:
                 BoundaryKeys_.mutable_max()->swap(*outputResult.mutable_max());
             }
 
+            LOG_INFO("Finished processing core dump (Size: %v)", coreSize);
+
             CoreInfos_[coreId].set_size(coreSize);
         } catch (const std::exception& ex) {
-            auto error = TError("Error while writing core to Cypress")
+            LOG_ERROR(ex, "Error while piping core to Cypress");
+            auto error = TError("Error while piping core to Cypress")
                 << ex;
             ToProto(CoreInfos_[coreId].mutable_error(), error);
         }
 
-        WaitFor(BIND(&TCoreProcessor::TrySetCoreResult, MakeStrong(this))
+        WaitFor(BIND(&TCoreProcessor::OnCoreWritten, MakeStrong(this))
             .AsyncVia(ControlInvoker_)
             .Run())
             .ThrowOnError();
     }
 
-    void TrySetCoreResult()
+    void OnCoreWritten()
     {
         VERIFY_INVOKER_AFFINITY(ControlInvoker_);
 
-        --NumberOfActiveCores_;
-        if (NumberOfActiveCores_ == 0) {
+        --ActiveCoreCount_;
+        LOG_INFO("Finished processing core dump (ActiveCoreCount: %v)",
+            ActiveCoreCount_);
+
+        if (ActiveCoreCount_ == 0) {
             CoreResultPromise_.Set({CoreInfos_, BoundaryKeys_});
         }
     }
@@ -251,7 +290,8 @@ TCoreProcessorService::TCoreProcessorService(
         transaction,
         chunkList,
         controlInvoker,
-        readWriteTimeout))
+        readWriteTimeout,
+        jobHost->GetLogger()))
 {
     RegisterMethod(RPC_SERVICE_METHOD_DESC(StartCoreDump));
 }
@@ -260,7 +300,10 @@ TCoreProcessorService::~TCoreProcessorService() = default;
 
 TCoreResult TCoreProcessorService::Finalize(TDuration timeout) const
 {
-    return CoreProcessor_->Finalize(timeout);
+    return WaitFor(BIND(&TCoreProcessor::Finalize, CoreProcessor_, timeout)
+        .AsyncVia(GetDefaultInvoker())
+        .Run())
+        .ValueOrThrow();
 }
 
 DEFINE_RPC_SERVICE_METHOD(TCoreProcessorService, StartCoreDump)
@@ -268,7 +311,9 @@ DEFINE_RPC_SERVICE_METHOD(TCoreProcessorService, StartCoreDump)
     auto namedPipePath = CoreProcessor_->ProcessCore(
         request->process_id(),
         request->executable_name());
+    context->SetRequestInfo("ProcessId: %v, ExecutableName: %v", request->process_id(), request->executable_name());
     response->set_named_pipe_path(namedPipePath);
+    context->SetResponseInfo("NamedPipePath: %v", namedPipePath);
     context->Reply();
 }
 
