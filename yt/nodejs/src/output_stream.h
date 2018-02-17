@@ -81,7 +81,7 @@ private:
     const ui64 Watermark_;
 
     size_t MaxPartCount_ = 8;
-    size_t MaxPartLength_ = 1_GB;
+    size_t MaxPartLength_ = 1_GB - 1;
 
     std::atomic<bool> FlowEstablished_ = {false};
 
