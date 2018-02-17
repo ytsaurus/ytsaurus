@@ -297,25 +297,6 @@ private:
     {
         TMasterAutomatonPart::OnAfterSnapshotLoaded();
 
-        // COMPAT(babenko)
-        if (!RegisteredMasterMap_.empty() && RegisteredMasterMap_.begin()->second.Index < 0) {
-            int index = 0;
-            for (auto& pair : RegisteredMasterMap_) {
-                auto& entry = pair.second;
-                entry.Index = index++;
-            }
-
-            // XXX(babenko): hotfix for YT-5643
-            auto it1 = RegisteredMasterMap_.find(6022);
-            auto it2 = RegisteredMasterMap_.find(7022);
-            if (it1 != RegisteredMasterMap_.end() && it2 != RegisteredMasterMap_.end()) {
-                LOG_INFO("Patching cell indexes; cf. YT-5643: %v <-> %v",
-                    it1->second.Index,
-                    it2->second.Index);
-                std::swap(it1->second.Index, it2->second.Index);
-            }
-        }
-
         RegisteredMasterCellTags_.resize(RegisteredMasterMap_.size());
         for (const auto& pair : RegisteredMasterMap_) {
             auto cellTag = pair.first;
