@@ -248,7 +248,7 @@ TListJobsCommand::TListJobsCommand()
         .Optional();
     RegisterParameter("address", Options.Address)
         .Optional();
-    RegisterParameter("has_stderr", Options.HasStderr)
+    RegisterParameter("with_stderr", Options.WithStderr)
         .Optional();
 
     RegisterParameter("sort_field", Options.SortField)

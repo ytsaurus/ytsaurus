@@ -651,6 +651,7 @@ private:
             SetMailboxDisconnected(mailbox);
             mailbox->SetAcknowledgeInProgress(false);
             mailbox->SetCachedChannel(nullptr);
+            mailbox->SetPostBatchingCookie(nullptr);
         }
         CellIdToNextTransientIncomingMessageId_.clear();
     }
@@ -966,7 +967,7 @@ private:
                 .Via(EpochAutomatonInvoker_));
     }
 
-    void OnPostMessagesResponse(const TCellId& cellId, const THiveServiceProxy::TErrorOrRspPostMessagesPtr& rspOrError)
+        void OnPostMessagesResponse(const TCellId& cellId, const THiveServiceProxy::TErrorOrRspPostMessagesPtr& rspOrError)
     {
         NProfiling::TProfilingTimingGuard timingGuard(Profiler, &PostingTimeCounter_);
 
