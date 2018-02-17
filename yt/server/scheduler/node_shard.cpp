@@ -1164,7 +1164,7 @@ void TNodeShard::ProcessHeartbeatJobs(
                 jobId,
                 nodeId,
                 nodeAddress);
-            YCHECK(node->RecentlyCompletedJobIds().erase(jobId));
+            node->RecentlyCompletedJobIds().erase(jobId);
             ToProto(response->add_jobs_to_remove(), jobId);
         }
         node->JobIdsToRemove().clear();
