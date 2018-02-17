@@ -31,11 +31,26 @@ using namespace NConcurrency;
 using namespace NSecurityClient;
 using namespace NChunkClient;
 
+using NYT::FromProto;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = SchedulerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
+
+void BuildMinimalOperationAttributes(TOperationPtr operation, TFluentMap fluent)
+{
+    fluent
+        .Item("operation_type").Value(operation->GetType())
+        .Item("start_time").Value(operation->GetStartTime())
+        .Item("spec").Value(operation->GetSpec())
+        .Item("authenticated_user").Value(operation->GetAuthenticatedUser())
+        .Item("mutation_id").Value(operation->GetMutationId())
+        .Item("user_transaction_id").Value(operation->GetUserTransactionId())
+        .Item("state").Value(operation->GetState())
+        .Item("suspended").Value(operation->GetSuspended());
+}
 
 void BuildFullOperationAttributes(TOperationPtr operation, TFluentMap fluent)
 {
@@ -47,6 +62,7 @@ void BuildFullOperationAttributes(TOperationPtr operation, TFluentMap fluent)
         .Item("spec").Value(operation->GetSpec())
         .Item("authenticated_user").Value(operation->GetAuthenticatedUser())
         .Item("mutation_id").Value(operation->GetMutationId())
+        .Item("user_transaction_id").Value(operation->GetUserTransactionId())
         .DoIf(static_cast<bool>(initializationAttributes), [&] (TFluentMap fluent) {
             fluent
                 .Items(initializationAttributes->Immutable);
@@ -115,6 +131,29 @@ TOperationRuntimeParamsPtr BuildOperationRuntimeParams(const TOperationSpecBaseP
     result->ResourceLimits = spec->ResourceLimits;
     result->Owners = spec->Owners;
     return result;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TJobStatus JobStatusFromError(const TError& error)
+{
+    auto status = TJobStatus();
+    ToProto(status.mutable_result()->mutable_error(), error);
+    return status;
+}
+
+TJobId GenerateJobId(NObjectClient::TCellTag tag, NNodeTrackerClient::TNodeId nodeId)
+{
+    return MakeId(
+        EObjectType::SchedulerJob,
+        tag,
+        RandomNumber<ui64>(),
+        nodeId);
+}
+
+NNodeTrackerClient::TNodeId NodeIdFromJobId(const TJobId& jobId)
+{
+    return jobId.Parts32[0];
 }
 
 ////////////////////////////////////////////////////////////////////////////////

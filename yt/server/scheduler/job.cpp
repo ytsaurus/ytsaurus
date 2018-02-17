@@ -19,14 +19,18 @@ TJob::TJob(
     TInstant startTime,
     const TJobResources& resourceLimits,
     bool interruptible,
-    const TString& treeId)
+    TString treeId,
+    NNodeTrackerClient::TNodeId revivalNodeId,
+    TString revivalNodeAddress)
     : Id_(id)
     , Type_(type)
     , OperationId_(operationId)
     , Node_(std::move(node))
+    , RevivalNodeId_(revivalNodeId)
+    , RevivalNodeAddress_(std::move(revivalNodeAddress))
     , StartTime_(startTime)
     , Interruptible_(interruptible)
-    , TreeId_(treeId)
+    , TreeId_(std::move(treeId))
     , ResourceUsage_(resourceLimits)
     , ResourceLimits_(resourceLimits)
 { }
@@ -36,27 +40,9 @@ TDuration TJob::GetDuration() const
     return *FinishTime_ - StartTime_;
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
-TJobStatus JobStatusFromError(const TError& error)
+bool TJob::IsRevived() const
 {
-    auto status = TJobStatus();
-    ToProto(status.mutable_result()->mutable_error(), error);
-    return status;
-}
-
-TJobId GenerateJobId(NObjectClient::TCellTag tag, NNodeTrackerClient::TNodeId nodeId)
-{
-    return MakeId(
-        EObjectType::SchedulerJob,
-        tag,
-        RandomNumber<ui64>(),
-        nodeId);
-}
-
-NNodeTrackerClient::TNodeId NodeIdFromJobId(const TJobId& jobId)
-{
-    return jobId.Parts32[0];
+    return RevivalNodeId_ != NNodeTrackerClient::InvalidNodeId;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

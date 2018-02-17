@@ -38,7 +38,7 @@ TChunkListPool::TChunkListPool(
     , ControllerInvoker_(controllerInvoker)
     , OperationId_(operationId)
     , TransactionId_(transactionId)
-    , Logger(NLogging::TLogger(OperationLogger)
+    , Logger(NLogging::TLogger(ControllerLogger)
         .AddTag("OperationId: %v", operationId))
 {
     YCHECK(Config_);

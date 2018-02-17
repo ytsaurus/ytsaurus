@@ -364,7 +364,7 @@ TControllerAgentConfig::TControllerAgentConfig()
     RegisterParameter("safe_scheduler_online_time", SafeSchedulerOnlineTime)
         .Default(TDuration::Minutes(10));
 
-    RegisterParameter("controller_update_exec_nodes_information_delay", ControllerUpdateExecNodesInformationDelay)
+    RegisterParameter("controller_exec_node_info_update_period", ControllerExecNodeInfoUpdatePeriod)
         .Default(TDuration::Seconds(30));
 
     RegisterParameter("max_chunks_per_locate_request", MaxChunksPerLocateRequest)

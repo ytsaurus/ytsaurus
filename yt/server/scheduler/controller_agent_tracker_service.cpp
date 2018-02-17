@@ -4,7 +4,7 @@
 
 #include <yt/server/cell_scheduler/bootstrap.h>
 
-#include <yt/ytlib/scheduler/controller_agent_tracker_service_proxy.h>
+#include <yt/server/scheduler/controller_agent_tracker_service_proxy.h>
 
 namespace NYT {
 namespace NScheduler {

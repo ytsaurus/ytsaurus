@@ -30,7 +30,7 @@ public:
         : Config_(config)
         , Statistics_(config)
         , OperationId_(operationId)
-        , Logger(NLogging::TLogger(OperationLogger)
+        , Logger(NLogging::TLogger(ControllerLogger)
             .AddTag("OperationId: %v", OperationId_))
     {
         YCHECK(Config_);
@@ -167,8 +167,8 @@ public:
         Persist(context, OperationId_);
 
         if (context.IsLoad()) {
-            Logger = OperationLogger;
-            Logger.AddTag("OperationId: %v", OperationId_);
+            Logger = NLogging::TLogger(ControllerLogger)
+                .AddTag("OperationId: %v", OperationId_);
         }
     }
 

@@ -48,9 +48,6 @@ public:
     const NRpc::TResponseKeeperPtr& GetResponseKeeper() const;
     const TCoreDumperPtr& GetCoreDumper() const;
 
-    NApi::INativeConnectionPtr FindRemoteConnection(NObjectClient::TCellTag cellTag);
-    NApi::INativeConnectionPtr GetRemoteConnectionOrThrow(NObjectClient::TCellTag cellTag);
-
     void Run();
 
 private:

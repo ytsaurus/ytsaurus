@@ -2,10 +2,7 @@
 
 #include "public.h"
 
-#include <yt/server/controller_agent/public.h>
 #include <yt/server/controller_agent/operation_controller.h>
-
-#include <yt/ytlib/hydra/public.h>
 
 #include <yt/ytlib/scheduler/job_resources.h>
 #include <yt/ytlib/scheduler/proto/scheduler_service.pb.h>
@@ -53,7 +50,12 @@ struct TControllerAttributes
 //! Per-operation data retrieved from Cypress on handshake.
 struct TOperationRevivalDescriptor
 {
-    NControllerAgent::TControllerTransactionsPtr ControllerTransactions;
+    NApi::ITransactionPtr AsyncTransaction;
+    NApi::ITransactionPtr InputTransaction;
+    NApi::ITransactionPtr OutputTransaction;
+    NApi::ITransactionPtr DebugTransaction;
+    NApi::ITransactionPtr OutputCompletionTransaction;
+    NApi::ITransactionPtr DebugCompletionTransaction;
     bool UserTransactionAborted = false;
     bool OperationAborting = false;
     bool OperationCommitted = false;
@@ -166,7 +168,7 @@ public:
     using TAlerts = TEnumIndexedVector<TError, EOperationAlertType>;
     DEFINE_BYREF_RW_PROPERTY_FORCE_FLUSH(TAlerts, Alerts);
 
-    DEFINE_BYVAL_RW_PROPERTY(IOperationControllerPtr, LocalController);
+    DEFINE_BYVAL_RW_PROPERTY(IOperationControllerPtr, Controller);
 
     //! Operation result, becomes set when the operation finishes.
     DEFINE_BYREF_RW_PROPERTY_FORCE_FLUSH(NProto::TOperationResult, Result);
@@ -181,11 +183,14 @@ public:
     //! by Master Connector.
     DEFINE_BYREF_RW_PROPERTY(TNullable<TOperationRevivalDescriptor>, RevivalDescriptor);
 
-    //! Cypress storage mode of the operation.
-    DEFINE_BYVAL_RO_PROPERTY(EOperationCypressStorageMode, StorageMode);
-
     //! Scheduling tag filters of operation pool trees.
-    DEFINE_BYVAL_RW_PROPERTY(std::vector<TSchedulingTagFilter>, PoolTreeSchedulingTagFilters);
+    DEFINE_BYREF_RW_PROPERTY(std::vector<TSchedulingTagFilter>, PoolTreeSchedulingTagFilters);
+
+    //! True if node shards are aware of this operation.
+    DEFINE_BYVAL_RW_PROPERTY(bool, RegisteredAtNodeShards);
+
+    //! True if scheduler strategy is aware of this operation.
+    DEFINE_BYVAL_RW_PROPERTY(bool, RegisteredAtSchedulerStrategy);
 
     //! Returns operation id.
     const TOperationId& GetId() const override;
@@ -243,6 +248,10 @@ public:
     //! Cancels the context of the invoker returned by #GetCancelableControlInvoker.
     void Cancel();
 
+    void SetAgent(const TControllerAgentPtr& agent);
+    TControllerAgentPtr GetAgentOrCancelFiber();
+    TControllerAgentPtr FindAgent();
+
     TOperation(
         const TOperationId& operationId,
         EOperationType type,
@@ -255,7 +264,6 @@ public:
         const std::vector<TString>& owners,
         TInstant startTime,
         IInvokerPtr controlInvoker,
-        EOperationCypressStorageMode storageMode,
         EOperationState state = EOperationState::None,
         bool suspended = false,
         const std::vector<TOperationEvent>& events = {},
@@ -276,6 +284,7 @@ private:
     TPromise<void> StartedPromise_ = NewPromise<void>();
     TPromise<void> FinishedPromise_ = NewPromise<void>();
 
+    TWeakPtr<TControllerAgent> Agent_;
 };
 
 #undef DEFINE_BYVAL_RW_PROPERTY_FORCE_FLUSH

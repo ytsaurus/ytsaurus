@@ -14,7 +14,12 @@
 #include <yt/ytlib/scheduler/proto/output_result.pb.h>
 #include <yt/ytlib/scheduler/proto/job.pb.h>
 
+#include <yt/ytlib/api/native_connection.h>
+
+#include <yt/ytlib/hive/cluster_directory.h>
+
 #include <yt/core/misc/numeric_helpers.h>
+
 #include <yt/core/ytree/helpers.h>
 
 namespace NYT {
@@ -26,6 +31,7 @@ using namespace NChunkPools;
 using namespace NScheduler;
 using namespace NTableClient;
 using namespace NYTree;
+using namespace NApi;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -927,6 +933,35 @@ void BuildFileSpecs(NScheduler::NProto::TUserJobSpec* jobSpec, const std::vector
             }
         }
     }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+INativeConnectionPtr FindRemoteConnection(
+    const INativeConnectionPtr& connection,
+    TCellTag cellTag)
+{
+    if (cellTag == connection->GetCellTag()) {
+        return connection;
+    }
+
+    auto remoteConnection = connection->GetClusterDirectory()->FindConnection(cellTag);
+    if (!remoteConnection) {
+        return nullptr;
+    }
+
+    return dynamic_cast<INativeConnection*>(remoteConnection.Get());
+}
+
+INativeConnectionPtr GetRemoteConnectionOrThrow(
+    const INativeConnectionPtr& connection,
+    TCellTag cellTag)
+{
+    auto remoteConnection = FindRemoteConnection(connection, cellTag);
+    if (!remoteConnection) {
+        THROW_ERROR_EXCEPTION("Cannot find cluster with cell tag %v", cellTag);
+    }
+    return remoteConnection;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

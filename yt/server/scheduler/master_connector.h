@@ -65,8 +65,9 @@ public:
 
     void StartOperationNodeUpdates(const TOperationPtr& operation);
     TFuture<void> CreateOperationNode(const TOperationPtr& operation);
-    TFuture<void> ResetRevivingOperationNode(const TOperationPtr& operation);
+    TFuture<void> UpdateInitializedOperationNode(const TOperationPtr& operation);
     TFuture<void> FlushOperationNode(const TOperationPtr& operation);
+    TFuture<void> FetchOperationRevivalDescriptors(const std::vector<TOperationPtr>& operations);
 
     void AttachJobContext(
         const NYPath::TYPath& path,

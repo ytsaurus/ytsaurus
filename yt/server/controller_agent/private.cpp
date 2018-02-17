@@ -7,8 +7,7 @@ namespace NControllerAgent {
 
 const TString IntermediatePath = "<intermediate>";
 
-const NLogging::TLogger OperationLogger("Operation");
-const NLogging::TLogger MasterConnectorLogger("MasterConnector");
+const NLogging::TLogger ControllerLogger("Controller");
 const NLogging::TLogger ControllerAgentLogger("ControllerAgent");
 
 const NProfiling::TProfiler ControllerAgentProfiler("/controller_agent");

@@ -147,7 +147,6 @@ TYPath GetNewSecureVaultPath(const TOperationId& operationId)
 std::vector<NYPath::TYPath> GetCompatibilityJobPaths(
     const TOperationId& operationId,
     const TJobId& jobId,
-    EOperationCypressStorageMode mode,
     const TString& resourceName)
 {
     TString suffix;
@@ -155,21 +154,15 @@ std::vector<NYPath::TYPath> GetCompatibilityJobPaths(
         suffix = "/" + resourceName;
     }
 
-    switch (mode) {
-        case EOperationCypressStorageMode::Compatible:
-            return {GetJobPath(operationId, jobId) + suffix, GetNewJobPath(operationId, jobId) + suffix};
-        case EOperationCypressStorageMode::SimpleHashBuckets:
-            return {GetJobPath(operationId, jobId) + suffix};
-        case EOperationCypressStorageMode::HashBuckets:
-            return {GetNewJobPath(operationId, jobId) + suffix};
-        default:
-            Y_UNREACHABLE();
-    }
+    // COMPAT(babenko)
+    return {
+        GetJobPath(operationId, jobId) + suffix,
+        GetNewJobPath(operationId, jobId) + suffix
+    };
 }
 
 std::vector<NYPath::TYPath> GetCompatibilityOperationPaths(
     const TOperationId& operationId,
-    EOperationCypressStorageMode mode,
     const TString& resourceName)
 {
     TString suffix;
@@ -177,16 +170,11 @@ std::vector<NYPath::TYPath> GetCompatibilityOperationPaths(
         suffix = "/" + resourceName;
     }
 
-    switch (mode) {
-        case EOperationCypressStorageMode::Compatible:
-            return {GetOperationPath(operationId) + suffix, GetNewOperationPath(operationId) + suffix};
-        case EOperationCypressStorageMode::SimpleHashBuckets:
-            return {GetOperationPath(operationId) + suffix};
-        case EOperationCypressStorageMode::HashBuckets:
-            return {GetNewOperationPath(operationId) + suffix};
-        default:
-            Y_UNREACHABLE();
-    }
+    // COMPAT(babenko)
+    return {
+        GetOperationPath(operationId) + suffix,
+        GetNewOperationPath(operationId) + suffix
+    };
 }
 
 const TYPath& GetPoolsPath()
@@ -244,6 +232,9 @@ bool IsOperationFinishing(EOperationState state)
 bool IsOperationInProgress(EOperationState state)
 {
     return
+        state == EOperationState::Starting ||
+        state == EOperationState::WaitingForAgent ||
+        state == EOperationState::Orphaned ||
         state == EOperationState::Initializing ||
         state == EOperationState::Preparing ||
         state == EOperationState::Materializing ||

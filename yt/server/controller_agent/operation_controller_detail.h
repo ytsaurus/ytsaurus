@@ -205,7 +205,7 @@ public:
     virtual TOperationControllerReviveResult Revive() override;
 
     virtual TOperationControllerInitializationResult InitializeClean() override;
-    virtual TOperationControllerInitializationResult InitializeReviving(TControllerTransactionsPtr operationTransactions) override;
+    virtual TOperationControllerInitializationResult InitializeReviving(const TControllerTransactions& transactions) override;
 
     virtual void OnTransactionAborted(const NTransactionClient::TTransactionId& transactionId) override;
 
@@ -354,7 +354,6 @@ protected:
     const EOperationType OperationType;
     const TInstant StartTime;
     const TString AuthenticatedUser;
-    const NScheduler::EOperationCypressStorageMode StorageMode;
     const NYTree::IMapNodePtr SecureVault;
     const std::vector<TString> Owners;
     const NTransactionClient::TTransactionId UserTransactionId;
@@ -407,7 +406,7 @@ protected:
     NNodeTrackerClient::TNodeDirectoryPtr InputNodeDirectory_;
 
     TSpinLock TransactionsLock_;
-    NApi::ITransactionPtr AsyncSchedulerTransaction;
+    NApi::ITransactionPtr AsyncTransaction;
     NApi::ITransactionPtr InputTransaction;
     NApi::ITransactionPtr OutputTransaction;
     NApi::ITransactionPtr DebugTransaction;
@@ -529,7 +528,8 @@ protected:
     virtual NTransactionClient::TTransactionId GetOutputTransactionParentId();
     virtual void InitializeStructures();
     virtual void SyncPrepare();
-    TOperationControllerInitializationResult FinishInitialization();
+    void InitUnrecognizedSpec();
+    void FillInitializationResult(TOperationControllerInitializationResult* result);
     void InitUpdatingTables();
 
     // Preparation.
@@ -552,7 +552,7 @@ protected:
     void InitInputChunkScraper();
     void InitIntermediateChunkScraper();
     void InitAutoMerge(int outputChunkCountEstimate, double dataWeightRatio);
-    TOperationControllerPrepareResult FinishPrepare();
+    void FillPrepareResult(TOperationControllerPrepareResult* result);
 
     void ParseInputQuery(
         const TString& queryString,
@@ -857,7 +857,7 @@ protected:
 private:
     typedef TOperationControllerBase TThis;
 
-    const i64 MemoryTag_;
+    const TMemoryTag MemoryTag_;
 
     std::vector<NScheduler::TSchedulingTagFilter> PoolTreeSchedulingTagFilters_;
 
@@ -942,9 +942,6 @@ private:
     TRefCountedExecNodeDescriptorMapPtr ExecNodesDescriptors_ = New<NScheduler::TRefCountedExecNodeDescriptorMap>();
 
     NProfiling::TCpuInstant GetExecNodesInformationDeadline_ = 0;
-    NProfiling::TCpuInstant AvaialableNodesLastSeenTime_ = 0;
-
-    bool AvailableNodesSeen_ = false;
 
     TNullable<TJobResources> CachedMaxAvailableExecNodeResources_;
 
@@ -1086,8 +1083,6 @@ private:
         const TErrorOr<TBriefJobStatisticsPtr>& briefStatisticsOrError);
 
     void UpdateSuspiciousJobsYson();
-
-    NScheduler::TJobPtr BuildJobFromJoblet(const TJobletPtr& joblet) const;
 
     //! Helper class that implements IChunkPoolInput interface for output tables.
     class TSink

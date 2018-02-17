@@ -6,13 +6,15 @@
 #include "operation_controller_host.h"
 #include "operation.h"
 #include "scheduling_context.h"
+#include "memory_tag_queue.h"
 
 #include <yt/server/cell_scheduler/bootstrap.h>
 
 #include <yt/server/scheduler/cache.h>
-#include <yt/server/scheduler/operation.h>
 #include <yt/server/scheduler/message_queue.h>
-#include <yt/server/scheduler/job.h>
+#include <yt/server/scheduler/exec_node.h>
+#include <yt/server/scheduler/helpers.h>
+#include <yt/server/scheduler/controller_agent_tracker_service_proxy.h>
 
 #include <yt/ytlib/api/transaction.h>
 #include <yt/ytlib/api/native_connection.h>
@@ -22,8 +24,6 @@
 #include <yt/ytlib/object_client/helpers.h>
 
 #include <yt/ytlib/event_log/event_log.h>
-
-#include <yt/ytlib/scheduler/controller_agent_tracker_service_proxy.h>
 
 #include <yt/core/concurrency/async_semaphore.h>
 #include <yt/core/concurrency/thread_affinity.h>
@@ -163,16 +163,22 @@ public:
         }
     }
 
+    void ValidateIncarnation(const TIncarnationId& incarnationId) const
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        if (IncarnationId_ != incarnationId) {
+            THROW_ERROR_EXCEPTION("Invalid incarnation: expected %v, actual %v",
+                incarnationId,
+                IncarnationId_);
+        }
+    }
+
     TInstant GetConnectionTime() const
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return MasterConnector_->GetConnectionTime();
-    }
-
-    const IInvokerPtr& GetCancelableInvoker()
-    {
-        return CancelableInvoker_;
     }
 
     const IInvokerPtr& GetControllerThreadPoolInvoker()
@@ -274,37 +280,6 @@ public:
     }
 
 
-    TOperationPtr CreateOperation(const NScheduler::TOperationPtr& operation)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        auto agentOperation = New<NControllerAgent::TOperation>(operation.Get());
-        auto host = New<TOperationControllerHost>(
-            agentOperation.Get(),
-            CancelableInvoker_,
-            OperationEventsOutbox_,
-            JobEventsOutbox_,
-            Bootstrap_);
-        agentOperation->SetHost(host);
-        return agentOperation;
-    }
-
-    void RegisterOperation(const TOperationId& operationId, const TOperationPtr& operation)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        YCHECK(IdToOperation_.emplace(operationId, operation).second);
-        LOG_DEBUG("Operation registered (OperationId: %v)", operationId);
-    }
-
-    void UnregisterOperation(const TOperationId& operationId)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        YCHECK(IdToOperation_.erase(operationId) == 1);
-        LOG_DEBUG("Operation unregistered (OperationId: %v)", operationId);
-    }
-
     TOperationPtr FindOperation(const TOperationId& operationId)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -339,6 +314,160 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         return IdToOperation_;
+    }
+
+
+    void RegisterOperation(const NProto::TOperationDescriptor& descriptor)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        auto operation = New<TOperation>(descriptor);
+        const auto& operationId = operation->GetId();
+        auto host = New<TOperationControllerHost>(
+            operation.Get(),
+            CancelableInvoker_,
+            OperationEventsOutbox_,
+            JobEventsOutbox_,
+            Bootstrap_);
+        operation->SetHost(host);
+
+        operation->SetMemoryTag(MemoryTagQueue_.AssignTagToOperation(operationId));
+
+        try {
+            auto controller = CreateControllerForOperation(Config_, operation.Get());
+            operation->SetController(controller);
+        } catch (...) {
+            MemoryTagQueue_.ReclaimOperationTag(operationId);
+            throw;
+        }
+
+        YCHECK(IdToOperation_.emplace(operationId, operation).second);
+
+        MasterConnector_->StartOperationNodeUpdates(operationId);
+
+        LOG_DEBUG("Operation registered (OperationId: %v)", operationId);
+    }
+
+    void UnregisterOperation(const TOperationPtr& operation)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        const auto& controller = operation->GetController();
+        if (controller) {
+            controller->Cancel();
+        }
+
+        YCHECK(IdToOperation_.erase(operation->GetId()) == 1);
+
+        LOG_DEBUG("Operation unregistered (OperationId: %v)", operation->GetId());
+
+        MemoryTagQueue_.ReclaimOperationTag(operation->GetId());
+    }
+
+    TFuture<TOperationControllerInitializationResult> InitializeOperation(
+        const TOperationPtr& operation,
+        const TNullable<TControllerTransactions>& transactions)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        const auto& controller = operation->GetControllerOrThrow();
+        auto callback = transactions
+            ? BIND(&IOperationControllerSchedulerHost::InitializeReviving, controller, *transactions)
+            : BIND(&IOperationControllerSchedulerHost::InitializeClean, controller);
+        return callback
+            .AsyncVia(controller->GetCancelableInvoker())
+            .Run()
+            .Apply(BIND([=] (const TOperationControllerInitializationResult& result) {
+                operation->SetTransactions(result.Transactions);
+                return result;
+            }).AsyncVia(GetCurrentInvoker()));
+    }
+
+    TFuture<TOperationControllerPrepareResult> PrepareOperation(const TOperationPtr& operation)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        const auto& controller = operation->GetControllerOrThrow();
+        return BIND(&IOperationControllerSchedulerHost::Prepare, controller)
+            .AsyncVia(controller->GetCancelableInvoker())
+            .Run();
+    }
+
+    TFuture<void> MaterializeOperation(const TOperationPtr& operation)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        const auto& controller = operation->GetControllerOrThrow();
+        return BIND(&IOperationControllerSchedulerHost::Materialize, controller)
+            .AsyncVia(controller->GetCancelableInvoker())
+            .Run();
+    }
+
+    TFuture<TOperationControllerReviveResult> ReviveOperation(const TOperationPtr& operation)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        const auto& controller = operation->GetControllerOrThrow();
+        return BIND(&IOperationControllerSchedulerHost::Revive, controller)
+            .AsyncVia(controller->GetCancelableInvoker())
+            .Run();
+    }
+
+    TFuture<void> CommitOperation(const TOperationPtr& operation)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        const auto& controller = operation->GetControllerOrThrow();
+        return BIND(&IOperationControllerSchedulerHost::Commit, controller)
+            .AsyncVia(controller->GetCancelableInvoker())
+            .Run();
+    }
+
+    TFuture<void> CompleteOperation(const TOperationPtr& operation)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        operation->SetTransactions({});
+
+        const auto& controller = operation->GetControllerOrThrow();
+        return BIND(&IOperationControllerSchedulerHost::Complete, controller)
+            .AsyncVia(controller->GetCancelableInvoker())
+            .Run();
+    }
+
+    TFuture<void> AbortOperation(const TOperationPtr& operation)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        operation->SetTransactions({});
+
+        const auto& controller = operation->GetController();
+        if (!controller) {
+            LOG_DEBUG("No controller to abort (OperationId: %v)",
+                operation->GetId());
+            return VoidFuture;
+        }
+
+        controller->Cancel();
+        return BIND(&IOperationControllerSchedulerHost::Abort, controller)
+            .AsyncVia(controller->GetInvoker())
+            .Run();
+    }
+
+    TFuture<void> DisposeOperation(const TOperationPtr& operation)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        const auto& controller = operation->GetController();
+        if (!controller) {
+            LOG_DEBUG("No controller to dispose (OperationId: %v)",
+                operation->GetId());
+            return VoidFuture;
+        }
+
+        return BIND(&IOperationControllerSchedulerHost::Dispose, controller)
+            .AsyncVia(controller->GetInvoker())
+            .Run();
     }
 
 
@@ -460,6 +589,8 @@ private:
 
     TPeriodicExecutorPtr HeartbeatExecutor_;
 
+    TMemoryTagQueue MemoryTagQueue_;
+
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
 
@@ -503,9 +634,9 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         CachedExecNodeDescriptorsByTags_ = New<TExpiringCache<TSchedulingTagFilter, TRefCountedExecNodeDescriptorMapPtr>>(
-            BIND(&TImpl::CalculateExecNodeDescriptors, MakeStrong(this)),
+            BIND(&TImpl::FilterExecNodes, MakeStrong(this)),
             Config_->SchedulingTagFilterExpireTimeout,
-            GetCancelableInvoker());
+            CancelableInvoker_);
         CachedExecNodeDescriptorsByTags_->Start();
 
         HeartbeatExecutor_ = New<TPeriodicExecutor>(
@@ -548,6 +679,8 @@ private:
         JobEventsInbox_.reset();
         OperationEventsInbox_.reset();
         ScheduleJobRequestsInbox_.reset();
+
+        MemoryTagQueue_.Reset();
     }
 
     void OnMasterDisconnected()
@@ -632,7 +765,7 @@ private:
 
         auto now = TInstant::Now();
         *execNodesRequested = LastExecNodesUpdateTime_ + Config_->ExecNodesUpdatePeriod < now;
-        *operationAlertsSent = LastOperationAlertsUpdateTime_ + Config_->ExecNodesUpdatePeriod < now;
+        *operationAlertsSent = LastOperationAlertsUpdateTime_ + Config_->OperationAlertsUpdatePeriod < now;
 
         for (const auto& pair : GetOperations()) {
             const auto& operationId = pair.first;
@@ -672,13 +805,15 @@ private:
 
     void SendHeartbeat()
     {
-        LOG_INFO("Sending heartbeat");
-
         bool execNodesRequested;
         bool operationAlertsSent;
         auto req = PrepareHeartbeatRequest(
             &execNodesRequested,
             &operationAlertsSent);
+
+        LOG_DEBUG("Sending heartbeat (ExecNodesRequested: %v, OperationAlertsSent: %v)",
+            execNodesRequested,
+            operationAlertsSent);
 
         auto rspOrError = WaitFor(req->Invoke());
         if (!rspOrError.IsOK()) {
@@ -687,7 +822,7 @@ private:
             return;
         }
 
-        LOG_INFO("Heartbeat succeeded");
+        LOG_DEBUG("Heartbeat succeeded");
         const auto& rsp = rspOrError.Value();
 
         OperationEventsOutbox_->HandleStatus(rsp->agent_to_scheduler_operation_events());
@@ -711,8 +846,19 @@ private:
             }
         }
 
+        for (const auto& protoOperationId : rsp->operation_ids_to_unregister()) {
+            auto operationId = FromProto<TOperationId>(protoOperationId);
+            auto operation = FindOperation(operationId);
+            if (!operation) {
+                LOG_DEBUG("Requested to unregister an unknown operation; ignored (OperationId: %v)",
+                    operationId);
+                continue;
+            }
+            UnregisterOperation(operation);
+        }
+
         auto now = TInstant::Now();
-        if (operationAlertsSent) {
+        if (execNodesRequested) {
             LastExecNodesUpdateTime_ = now;
         }
         if (operationAlertsSent) {
@@ -778,10 +924,6 @@ private:
                 }
 
                 switch (eventType) {
-                    case ESchedulerToAgentOperationEventType::Abandon:
-                        // TODO(babenko)
-                        break;
-
                     case ESchedulerToAgentOperationEventType::UpdateMinNeededJobResources:
                         operation->GetController()->UpdateMinNeededJobResources();
                         break;
@@ -862,7 +1004,7 @@ private:
 
 
     // TODO(ignat): eliminate this copy/paste from scheduler.cpp somehow.
-    TRefCountedExecNodeDescriptorMapPtr CalculateExecNodeDescriptors(const TSchedulingTagFilter& filter) const
+    TRefCountedExecNodeDescriptorMapPtr FilterExecNodes(const TSchedulingTagFilter& filter) const
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -876,6 +1018,11 @@ private:
                 YCHECK(result->emplace(nodeId, descriptor).second);
             }
         }
+
+        LOG_DEBUG("Exec nodes filtered (Formula: %v, MatchingNodeCount: %v)",
+            filter.GetBooleanFormula().GetFormula(),
+            result->size());
+
         return result;
     }
 };
@@ -908,6 +1055,11 @@ TMasterConnector* TControllerAgent::GetMasterConnector()
 void TControllerAgent::ValidateConnected() const
 {
     Impl_->ValidateConnected();
+}
+
+void TControllerAgent::ValidateIncarnation(const TIncarnationId& incarnationId) const
+{
+    Impl_->ValidateIncarnation(incarnationId);
 }
 
 TInstant TControllerAgent::GetConnectionTime() const
@@ -955,21 +1107,6 @@ void TControllerAgent::UpdateConfig(const TControllerAgentConfigPtr& config)
     Impl_->UpdateConfig(config);
 }
 
-TOperationPtr TControllerAgent::CreateOperation(const NScheduler::TOperationPtr& operation)
-{
-    return Impl_->CreateOperation(operation);
-}
-
-void TControllerAgent::RegisterOperation(const TOperationId& operationId, const TOperationPtr& operation)
-{
-    Impl_->RegisterOperation(operationId, operation);
-}
-
-void TControllerAgent::UnregisterOperation(const TOperationId& operationId)
-{
-    Impl_->UnregisterOperation(operationId);
-}
-
 TOperationPtr TControllerAgent::FindOperation(const TOperationId& operationId)
 {
     return Impl_->FindOperation(operationId);
@@ -988,6 +1125,55 @@ TOperationPtr TControllerAgent::GetOperationOrThrow(const TOperationId& operatio
 const TOperationIdToOperationMap& TControllerAgent::GetOperations()
 {
     return Impl_->GetOperations();
+}
+
+void TControllerAgent::RegisterOperation(const NProto::TOperationDescriptor& descriptor)
+{
+    Impl_->RegisterOperation(descriptor);
+}
+
+TFuture<TOperationControllerInitializationResult> TControllerAgent::InitializeOperation(
+    const TOperationPtr& operation,
+    const TNullable<TControllerTransactions>& transactions)
+{
+    return Impl_->InitializeOperation(
+        operation,
+        transactions);
+}
+
+TFuture<TOperationControllerPrepareResult> TControllerAgent::PrepareOperation(const TOperationPtr& operation)
+{
+    return Impl_->PrepareOperation(operation);
+}
+
+TFuture<void> TControllerAgent::MaterializeOperation(const TOperationPtr& operation)
+{
+    return Impl_->MaterializeOperation(operation);
+}
+
+TFuture<TOperationControllerReviveResult> TControllerAgent::ReviveOperation(const TOperationPtr& operation)
+{
+    return Impl_->ReviveOperation(operation);
+}
+
+TFuture<void> TControllerAgent::CommitOperation(const TOperationPtr& operation)
+{
+    return Impl_->CommitOperation(operation);
+}
+
+TFuture<void> TControllerAgent::CompleteOperation(const TOperationPtr& operation)
+{
+    return Impl_->CompleteOperation(operation);
+}
+
+TFuture<void> TControllerAgent::AbortOperation(const TOperationPtr& operation)
+{
+    return Impl_->AbortOperation(operation);
+}
+
+TFuture<void> TControllerAgent::DisposeOperation(const TOperationPtr& operation)
+{
+    return Impl_->DisposeOperation(operation);
 }
 
 TFuture<std::vector<TErrorOr<TSharedRef>>> TControllerAgent::ExtractJobSpecs(

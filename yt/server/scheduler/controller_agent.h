@@ -59,7 +59,7 @@ using TScheduleJobRequestPtr = std::unique_ptr<TScheduleJobRequest>;
  *  Thread affinity: Control thread (unless noted otherwise)
  */
 class TControllerAgent
-    : public TIntrinsicRefCounted
+    : public TRefCounted
 {
 public:
     explicit TControllerAgent(const NControllerAgent::TIncarnationId& incarnationId);
@@ -75,6 +75,8 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(TIntrusivePtr<TMessageQueueOutbox<TSchedulerToAgentJobEvent>>, JobEventsOutbox);
     DEFINE_BYVAL_RO_PROPERTY(TIntrusivePtr<TMessageQueueOutbox<TSchedulerToAgentOperationEvent>>, OperationEventsOutbox);
     DEFINE_BYVAL_RO_PROPERTY(TIntrusivePtr<TMessageQueueOutbox<TScheduleJobRequestPtr>>, ScheduleJobRequestsOutbox);
+
+    DEFINE_BYREF_RW_PROPERTY(THashSet<TOperationPtr>, Operations);
 };
 
 DEFINE_REFCOUNTED_TYPE(TControllerAgent)

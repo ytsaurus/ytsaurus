@@ -26,6 +26,9 @@ using namespace NYson;
 using namespace NCypressClient;
 using namespace NConcurrency;
 
+using NYT::FromProto;
+using NYT::ToProto;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSchedulerService

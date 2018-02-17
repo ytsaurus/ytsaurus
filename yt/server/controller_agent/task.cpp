@@ -41,7 +41,7 @@ using namespace NYTree;
 ////////////////////////////////////////////////////////////////////////////////
 
 TTask::TTask()
-    : Logger(OperationLogger)
+    : Logger(ControllerLogger)
     , CachedPendingJobCount_(-1)
     , CachedTotalJobCount_(-1)
     , DemandSanityCheckDeadline_(0)
@@ -49,7 +49,7 @@ TTask::TTask()
 { }
 
 TTask::TTask(ITaskHostPtr taskHost, std::vector<TEdgeDescriptor> edgeDescriptors)
-    : Logger(OperationLogger)
+    : Logger(ControllerLogger)
     , TaskHost_(taskHost.Get())
     , EdgeDescriptors_(std::move(edgeDescriptors))
     , CachedPendingJobCount_(0)

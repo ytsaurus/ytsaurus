@@ -168,14 +168,17 @@ TSchedulerConfig::TSchedulerConfig()
 
     RegisterParameter("control_thread_priority", ControlThreadPriority)
         .Default();
+
     RegisterParameter("node_shard_count", NodeShardCount)
         .Default(4)
         .GreaterThan(0);
 
     RegisterParameter("connect_retry_backoff_time", ConnectRetryBackoffTime)
         .Default(TDuration::Seconds(15));
+
     RegisterParameter("node_heartbeat_timeout", NodeHeartbeatTimeout)
         .Default(TDuration::Seconds(60));
+
     RegisterParameter("watchers_update_period", WatchersUpdatePeriod)
         .Default(TDuration::Seconds(3));
     RegisterParameter("nodes_attributes_update_period", NodesAttributesUpdatePeriod)
@@ -196,17 +199,18 @@ TSchedulerConfig::TSchedulerConfig()
 
     RegisterParameter("cluster_info_logging_period", ClusterInfoLoggingPeriod)
         .Default(TDuration::Seconds(1));
-
-    RegisterParameter("update_exec_node_descriptors_period", UpdateExecNodeDescriptorsPeriod)
+    RegisterParameter("exec_node_descriptors_update_period", ExecNodeDescriptorsUpdatePeriod)
         .Default(TDuration::Seconds(10));
-
     RegisterParameter("jobs_logging_period", JobsLoggingPeriod)
         .Default(TDuration::Seconds(30));
-
     RegisterParameter("running_jobs_update_period", RunningJobsUpdatePeriod)
         .Default(TDuration::Seconds(10));
+    RegisterParameter("missing_jobs_check_period", MissingJobsCheckPeriod)
+        .Default(TDuration::Seconds(10));
+    RegisterParameter("transient_operation_queue_scan_period", TransientOperationQueueScanPeriod)
+        .Default(TDuration::MilliSeconds(100));
 
-    RegisterParameter("check_missing_jobs_period", CheckMissingJobsPeriod)
+    RegisterParameter("operation_to_agent_assignment_backoff", OperationToAgentAssignmentBackoff)
         .Default(TDuration::Seconds(10));
 
     RegisterParameter("max_started_jobs_per_heartbeat", MaxStartedJobsPerHeartbeat)
@@ -248,9 +252,12 @@ TSchedulerConfig::TSchedulerConfig()
     RegisterParameter("job_revival_abort_timeout", JobRevivalAbortTimeout)
         .Default(TDuration::Minutes(5));
 
-    RegisterParameter("controller_agent_operation_rpc_timeout", ControllerAgentOperationRpcTimeout)
-        .Default(TDuration::Seconds(1));
+    RegisterParameter("controller_agent_light_rpc_timeout", ControllerAgentLightRpcTimeout)
+        .Default(TDuration::Seconds(30));
     
+    RegisterParameter("controller_agent_heavy_rpc_timeout", ControllerAgentHeavyRpcTimeout)
+        .Default(TDuration::Minutes(30));
+
     RegisterPreprocessor([&] () {
         ChunkLocationThrottler->Limit = 10000;
 

@@ -8,17 +8,20 @@
 #include "operation_controller.h"
 #include "scheduling_context.h"
 #include "helpers.h"
+#include "controller_agent_tracker_service_proxy.h"
 
 #include <yt/server/cell_scheduler/bootstrap.h>
+#include <yt/server/cell_scheduler/config.h>
 
-#include <yt/server/controller_agent/operation_controller.h>
+// XXX(babenko): remove
+//#include <yt/server/controller_agent/operation.h>
+//#include <yt/server/controller_agent/operation_controller.h>
 #include <yt/server/controller_agent/controller_agent.h>
 #include <yt/server/controller_agent/master_connector.h>
-#include <yt/server/controller_agent/scheduling_context.h>
-
-#include <yt/ytlib/scheduler/proto/controller_agent_tracker_service.pb.h>
+#include <yt/server/controller_agent/controller_agent_service_proxy.h>
 
 #include <yt/ytlib/api/native_connection.h>
+#include <yt/ytlib/api/transaction.h>
 
 #include <yt/core/concurrency/thread_affinity.h>
 
@@ -34,9 +37,39 @@ using namespace NRpc;
 using namespace NYson;
 using namespace NControllerAgent;
 
+using NYT::FromProto;
+using NYT::ToProto;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = SchedulerLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace {
+
+template <class TResponse, class TRequest>
+TFuture<TIntrusivePtr<TResponse>> InvokeAgent(
+    const TOperationId& operationId,
+    const TControllerAgentPtr& agent,
+    const TIntrusivePtr<TRequest>& request)
+{
+    // XXX(babenko): agent id
+    LOG_DEBUG("Sending request to agent (OperationId: %v)",
+        operationId);
+
+    ToProto(request->mutable_incarnation_id(), agent->GetIncarnationId());
+
+    return request->Invoke().Apply(BIND([=] (const TErrorOr<TIntrusivePtr<TResponse>>& rspOrError) {
+        // XXX(babenko): agent id
+        // XXX(babenko): handle agent errors
+        LOG_DEBUG(rspOrError, "Agent response received (OperationId: %v)",
+            operationId);
+        return rspOrError.ValueOrThrow();
+    }));
+}
+
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -46,102 +79,141 @@ class TOperationController
 public:
     TOperationController(
         NCellScheduler::TBootstrap* bootstrap,
-        TControllerAgent* agent,
+        TSchedulerConfigPtr config,
+        const TControllerAgentPtr& agent,
         TOperation* operation)
         : Bootstrap_(bootstrap)
+        , Agent_(agent)
         , JobEventsOutbox_(agent->GetJobEventsOutbox())
         , OperationEventsOutbox_(agent->GetOperationEventsOutbox())
         , ScheduleJobRequestsOutbox_(agent->GetScheduleJobRequestsOutbox())
         , OperationId_(operation->GetId())
         , RuntimeData_(operation->GetRuntimeData())
-    { }
-
-    virtual TFuture<TOperationControllerInitializationResult> InitializeClean() override
+        , AgentProxy_(Bootstrap_->GetLocalRpcChannel())
     {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        return BIND(&IOperationControllerSchedulerHost::InitializeClean, AgentController_)
-            .AsyncVia(AgentController_->GetCancelableInvoker())
-            .Run();
+        AgentProxy_.SetDefaultTimeout(config->ControllerAgentHeavyRpcTimeout);
     }
 
-    virtual TFuture<TOperationControllerInitializationResult> InitializeReviving(const TOperationRevivalDescriptor& descriptor) override
+    virtual TFuture<TOperationControllerInitializationResult> Initialize(const TNullable<TOperationRevivalDescriptor>& descriptor) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        return BIND(&IOperationControllerSchedulerHost::InitializeReviving, AgentController_, descriptor.ControllerTransactions)
-            .AsyncVia(AgentController_->GetCancelableInvoker())
-            .Run();
+        auto req = AgentProxy_.InitializeOperation();
+        ToProto(req->mutable_operation_id(), OperationId_);
+        if (descriptor) {
+            req->set_clean(false);
+            auto getId = [] (const NApi::ITransactionPtr& transaction) {
+                return transaction ? transaction->GetId() : NTransactionClient::TTransactionId();
+            };
+            ToProto(req->mutable_async_transaction_id(), getId(descriptor->AsyncTransaction));
+            ToProto(req->mutable_input_transaction_id(), getId(descriptor->InputTransaction));
+            ToProto(req->mutable_output_transaction_id(), getId(descriptor->OutputTransaction));
+            ToProto(req->mutable_debug_transaction_id(), getId(descriptor->DebugTransaction));
+            ToProto(req->mutable_output_completion_transaction_id(), getId(descriptor->OutputCompletionTransaction));
+            ToProto(req->mutable_debug_completion_transaction_id(), getId(descriptor->DebugCompletionTransaction));
+        } else {
+            req->set_clean(true);
+        }
+        return InvokeAgent<TControllerAgentServiceProxy::TRspInitializeOperation>(req).Apply(
+            BIND([] (const TControllerAgentServiceProxy::TRspInitializeOperationPtr& rsp) {
+                return TOperationControllerInitializationResult{
+                    TOperationControllerInitializationAttributes{
+                        TYsonString(rsp->immutable_attributes(), EYsonType::MapFragment),
+                        TYsonString(rsp->mutable_attributes(), EYsonType::MapFragment),
+                        TYsonString(rsp->brief_spec(), EYsonType::MapFragment),
+                        TYsonString(rsp->unrecognized_spec(), EYsonType::Node)
+                    }
+                };
+            }));
     }
 
     virtual TFuture<TOperationControllerPrepareResult> Prepare() override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        return BIND(&IOperationControllerSchedulerHost::Prepare, AgentController_)
-            .AsyncVia(AgentController_->GetCancelableInvoker())
-            .Run();
+        auto req = AgentProxy_.PrepareOperation();
+        ToProto(req->mutable_operation_id(), OperationId_);
+        return InvokeAgent<TControllerAgentServiceProxy::TRspPrepareOperation>(req).Apply(
+            BIND([] (const TControllerAgentServiceProxy::TRspPrepareOperationPtr& rsp) {
+                return TOperationControllerPrepareResult{
+                    TYsonString(rsp->attributes(), EYsonType::MapFragment)
+                };
+            }));
     }
 
     virtual TFuture<void> Materialize() override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        return BIND(&IOperationControllerSchedulerHost::Materialize, AgentController_)
-            .AsyncVia(AgentController_->GetCancelableInvoker())
-            .Run();
+        auto req = AgentProxy_.MaterializeOperation();
+        ToProto(req->mutable_operation_id(), OperationId_);
+        return InvokeAgent<TControllerAgentServiceProxy::TRspMaterializeOperation>(req).As<void>();
     }
 
     virtual TFuture<TOperationControllerReviveResult> Revive() override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        return BIND(&IOperationControllerSchedulerHost::Revive, AgentController_)
-            .AsyncVia(AgentController_->GetCancelableInvoker())
-            .Run();
+        auto req = AgentProxy_.ReviveOperation();
+        ToProto(req->mutable_operation_id(), OperationId_);
+        return InvokeAgent<TControllerAgentServiceProxy::TRspReviveOperation>(req).Apply(
+            BIND([operationId = OperationId_] (const TControllerAgentServiceProxy::TRspReviveOperationPtr& rsp) {
+                TOperationControllerReviveResult result;
+                result.Attributes = TYsonString(rsp->attributes(), EYsonType::MapFragment);
+                result.RevivedFromSnapshot = rsp->revived_from_snapshot();
+                for (const auto& protoJob : rsp->revived_jobs()) {
+                    auto job = New<TJob>(
+                        FromProto<TJobId>(protoJob.job_id()),
+                        static_cast<EJobType>(protoJob.job_type()),
+                        operationId,
+                        nullptr /* execNode */,
+                        FromProto<TInstant>(protoJob.start_time()),
+                        FromProto<TJobResources>(protoJob.resource_limits()),
+                        protoJob.interruptible(),
+                        protoJob.tree_id(),
+                        protoJob.node_id(),
+                        protoJob.node_address());
+                    job->SetState(EJobState::Running);
+                    result.RevivedJobs.push_back(job);
+                }
+                return result;
+            }));
     }
 
     virtual TFuture<void> Commit() override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        return BIND(&IOperationControllerSchedulerHost::Commit, AgentController_)
-            .AsyncVia(AgentController_->GetCancelableInvoker())
-            .Run();
+        auto req = AgentProxy_.CommitOperation();
+        ToProto(req->mutable_operation_id(), OperationId_);
+        return InvokeAgent<TControllerAgentServiceProxy::TRspCommitOperation>(req).As<void>();
     }
 
     virtual TFuture<void> Abort() override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        if (!AgentController_) {
-            return VoidFuture;
-        }
-        AgentController_->Cancel();
-        return BIND(&IOperationControllerSchedulerHost::Abort, AgentController_)
-            .AsyncVia(AgentController_->GetInvoker())
-            .Run();
+        auto req = AgentProxy_.AbortOperation();
+        ToProto(req->mutable_operation_id(), OperationId_);
+        return InvokeAgent<TControllerAgentServiceProxy::TRspAbortOperation>(req).As<void>();
     }
 
     virtual TFuture<void> Complete() override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        return BIND(&IOperationControllerSchedulerHost::Complete, AgentController_)
-            .AsyncVia(AgentController_->GetCancelableInvoker())
-            .Run();
+        auto req = AgentProxy_.CompleteOperation();
+        ToProto(req->mutable_operation_id(), OperationId_);
+        return InvokeAgent<TControllerAgentServiceProxy::TRspCompleteOperation>(req).As<void>();
     }
 
     virtual TFuture<void> Dispose() override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        if (!AgentController_) {
-            return VoidFuture;
-        }
-        return BIND(&IOperationControllerSchedulerHost::Dispose, AgentController_)
-            .AsyncVia(AgentController_->GetInvoker())
-            .Run();
+        auto req = AgentProxy_.DisposeOperation();
+        ToProto(req->mutable_operation_id(), OperationId_);
+        return InvokeAgent<TControllerAgentServiceProxy::TRspDisposeOperation>(req).As<void>();
     }
 
 
@@ -300,20 +372,16 @@ public:
         return RuntimeData_->GetPendingJobCount();
     }
 
-    virtual void SetAgentController(const NControllerAgent::IOperationControllerPtr& controller) override
-    {
-        AgentController_ = controller;
-    }
-
 private:
     NCellScheduler::TBootstrap* const Bootstrap_;
+    const TWeakPtr<TControllerAgent> Agent_;
     const TIntrusivePtr<TMessageQueueOutbox<TSchedulerToAgentJobEvent>> JobEventsOutbox_;
     const TIntrusivePtr<TMessageQueueOutbox<TSchedulerToAgentOperationEvent>> OperationEventsOutbox_;
     const TIntrusivePtr<TMessageQueueOutbox<TScheduleJobRequestPtr>> ScheduleJobRequestsOutbox_;
     const TOperationId OperationId_;
     const TOperationRuntimeDataPtr RuntimeData_;
 
-    NControllerAgent::IOperationControllerPtr AgentController_;
+    TControllerAgentServiceProxy AgentProxy_;
 
 
     TSchedulerToAgentJobEvent BuildEvent(
@@ -341,6 +409,17 @@ private:
             {},
             {}
         };
+    }
+
+    template <class TResponse, class TRequest>
+    TFuture<TIntrusivePtr<TResponse>> InvokeAgent(
+        const TIntrusivePtr<TRequest>& request)
+    {
+        auto agent = Agent_.Lock();
+        if (!agent) {
+            throw TFiberCanceledException();
+        }
+        return NScheduler::InvokeAgent<TResponse, TRequest>(OperationId_, agent, request);
     }
 };
 
@@ -376,7 +455,69 @@ public:
         TControllerAgent* agent,
         TOperation* operation)
     {
-        return New<TOperationController>(Bootstrap_, agent, operation);
+        return New<TOperationController>(Bootstrap_, Config_, agent, operation);
+    }
+
+    TControllerAgentPtr PickAgentForOperation(const TOperationPtr& /*operation*/)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        return Agent_;
+    }
+
+    void AssignOperationToAgent(
+        const TOperationPtr& operation,
+        const TControllerAgentPtr& agent)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        YCHECK(agent->Operations().insert(operation).second);
+        operation->SetAgent(agent.Get());
+
+        // TODO(babenko): agent id
+        LOG_DEBUG("Operation assigned to agent (OperationId: %v)",
+            operation->GetId());
+    }
+
+    TFuture<void> RegisterOperationAtAgent(const TOperationPtr& operation)
+    {
+        // TODO(babenko): agent id
+        LOG_DEBUG("Registering operation at agent (OperationId: %v)",
+            operation->GetId());
+
+        TControllerAgentServiceProxy proxy(Bootstrap_->GetLocalRpcChannel());
+        auto req = proxy.RegisterOperation();
+        req->SetTimeout(Config_->ControllerAgentHeavyRpcTimeout);
+
+        auto* descriptor = req->mutable_operation_descriptor();
+        ToProto(descriptor->mutable_operation_id(), operation->GetId());
+        descriptor->set_operation_type(static_cast<int>(operation->GetType()));
+        descriptor->set_spec(ConvertToYsonString(operation->GetSpec()).GetData());
+        descriptor->set_start_time(ToProto<ui64>(operation->GetStartTime()));
+        descriptor->set_authenticated_user(operation->GetAuthenticatedUser());
+        if (operation->GetSecureVault()) {
+            descriptor->set_secure_vault(ConvertToYsonString(operation->GetSecureVault()).GetData());
+        }
+        ToProto(descriptor->mutable_owners(), operation->GetOwners());
+        ToProto(descriptor->mutable_user_transaction_id(), operation->GetUserTransactionId());
+        ToProto(descriptor->mutable_pool_tree_scheduling_tag_filters(), operation->PoolTreeSchedulingTagFilters());
+
+        auto agent = operation->GetAgentOrCancelFiber();
+        return InvokeAgent<TControllerAgentServiceProxy::TRspRegisterOperation>(operation->GetId(), agent, req).As<void>();
+    }
+
+    void UnregisterOperationFromAgent(const TOperationPtr& operation)
+    {
+        auto agent = operation->FindAgent();
+        if (!agent) {
+            return;
+        }
+
+        YCHECK(agent->Operations().erase(operation) == 1);
+
+        // TODO(babenko): agent id
+        LOG_DEBUG("Operation unregistered from agent (OperationId: %v)",
+            operation->GetId());
     }
 
     void ProcessAgentHeartbeat(const TCtxAgentHeartbeatPtr& context)
@@ -420,15 +561,9 @@ public:
             auto operation = scheduler->FindOperation(operationId);
             if (!operation) {
                 // TODO(babenko): agentid?
-                LOG_DEBUG("Unknown operation is running at agent (OperationId: %v)",
+                LOG_DEBUG("Unknown operation is running at agent; unregister requested (OperationId: %v)",
                     operationId);
-
-                agent->GetOperationEventsOutbox()->Enqueue({
-                    ESchedulerToAgentOperationEventType::Abandon,
-                    operationId
-                });
-                LOG_DEBUG("Operation abanbon request enqueued (OperationId: %v)",
-                    operationId);
+                ToProto(response->add_operation_ids_to_unregister(), operationId);
                 continue;
             }
 
@@ -654,6 +789,28 @@ IOperationControllerPtr TControllerAgentTracker::CreateController(
     TOperation* operation)
 {
     return Impl_->CreateController(agent, operation);
+}
+
+TControllerAgentPtr TControllerAgentTracker::PickAgentForOperation(const TOperationPtr& operation)
+{
+    return Impl_->PickAgentForOperation(operation);
+}
+
+void TControllerAgentTracker::AssignOperationToAgent(
+    const TOperationPtr& operation,
+    const TControllerAgentPtr& agent)
+{
+    Impl_->AssignOperationToAgent(operation, agent);
+}
+
+TFuture<void> TControllerAgentTracker::RegisterOperationAtAgent(const TOperationPtr& operation)
+{
+    return Impl_->RegisterOperationAtAgent(operation);
+}
+
+void TControllerAgentTracker::UnregisterOperationFromAgent(const TOperationPtr& operation)
+{
+    Impl_->UnregisterOperationFromAgent(operation);
 }
 
 void TControllerAgentTracker::ProcessAgentHeartbeat(const TCtxAgentHeartbeatPtr& context)

@@ -14,6 +14,24 @@ import "yt/ytlib/table_client/chunk_meta.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
+message TJobResources
+{
+    optional int32 user_slots = 1;
+    optional double cpu = 2;
+    optional int64 memory = 3;
+    optional int32 network = 4;
+}
+
+// TODO(babenko): consider renaming
+message TJobResourcesWithQuota
+{
+    optional int32 user_slots = 1;
+    optional double cpu = 2;
+    optional int64 memory = 3;
+    optional int32 network = 4;
+    optional int64 disk_quota = 5;
+}
+
 message TFileDescriptor
 {
     optional string file_name = 3;

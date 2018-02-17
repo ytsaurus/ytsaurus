@@ -24,7 +24,7 @@ TSnapshotDownloader::TSnapshotDownloader(
     : Config_(config)
     , Bootstrap_(bootstrap)
     , OperationId_(operationId)
-    , Logger(NLogging::TLogger(MasterConnectorLogger)
+    , Logger(NLogging::TLogger(ControllerAgentLogger)
         .AddTag("OperationId: %v", operationId))
 {
     YCHECK(Config_);

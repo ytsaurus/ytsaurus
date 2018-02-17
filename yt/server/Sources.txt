@@ -111,6 +111,8 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/controller_agent/table.cpp
   ${CMAKE_CURRENT_LIST_DIR}/controller_agent/task.cpp
   ${CMAKE_CURRENT_LIST_DIR}/controller_agent/vanilla_controller.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/controller_agent/memory_tag_queue.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/controller_agent/proto/controller_agent_service.proto
 
   ${CMAKE_CURRENT_LIST_DIR}/core_dump/core_processor_service.cpp
   ${CMAKE_CURRENT_LIST_DIR}/core_dump/core_processor_service.proto
@@ -348,6 +350,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/scheduling_tag.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/controller_agent.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/controller_agent_tracker.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/scheduler/proto/controller_agent_tracker_service.proto
 
   ${CMAKE_CURRENT_LIST_DIR}/security_server/account.cpp
   ${CMAKE_CURRENT_LIST_DIR}/security_server/account_proxy.cpp

@@ -7,6 +7,7 @@
 #include <yt/server/controller_agent/master_connector.h>
 #include <yt/server/controller_agent/controller_agent.h>
 #include <yt/server/controller_agent/operation_controller.h>
+#include <yt/server/controller_agent/helpers.h>
 
 #include <yt/server/cell_scheduler/bootstrap.h>
 #include <yt/server/cell_scheduler/config.h>
@@ -66,6 +67,9 @@ using NNodeTrackerClient::GetDefaultAddress;
 
 using std::placeholders::_1;
 
+using NYT::FromProto;
+using NYT::ToProto;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = SchedulerLogger;
@@ -94,9 +98,7 @@ public:
             ->SubscribeSynchronized(BIND(&TImpl::OnClusterDirectorySynchronized, MakeWeak(this))
                 .Via(Bootstrap_->GetControlInvoker(EControlQueue::MasterConnector)));
 
-        Bootstrap_->GetControlInvoker()->Invoke(BIND(
-            &TImpl::StartConnecting,
-            MakeStrong(this)));
+        StartConnecting(true);
     }
 
     EMasterConnectorState GetState() const
@@ -145,8 +147,6 @@ public:
         LOG_INFO("Creating operation node (OperationId: %v)",
             operationId);
 
-        auto strategy = Bootstrap_->GetScheduler()->GetStrategy();
-
         auto batchReq = StartObjectBatchRequest();
 
         {
@@ -160,14 +160,7 @@ public:
 
         auto operationYson = BuildYsonStringFluently()
             .BeginAttributes()
-                .Do(BIND(&ISchedulerStrategy::BuildOperationAttributes, strategy, operationId))
-                .Do(BIND(&BuildFullOperationAttributes, operation))
-                .Item("brief_spec").BeginMap()
-                    .Items(operation->ControllerAttributes().InitializationAttributes->BriefSpec)
-                    .Do(BIND(&ISchedulerStrategy::BuildBriefSpec, strategy, operationId))
-                .EndMap()
-                .Item("progress").BeginMap().EndMap()
-                .Item("brief_progress").BeginMap().EndMap()
+                .Do(BIND(&BuildMinimalOperationAttributes, operation))
                 .Item("opaque").Value("true")
                     .Item("acl").Do(std::bind(&TImpl::BuildOperationAcl, operation, _1))
                 .Item("owners").Value(operation->GetOwners())
@@ -180,8 +173,8 @@ public:
             .EndMap()
             .GetData();
 
-        auto paths = GetCompatibilityOperationPaths(operationId, operation->GetStorageMode());
-        auto secureVaultPaths = GetCompatibilityOperationPaths(operationId, operation->GetStorageMode(), "secure_vault");
+        auto paths = GetCompatibilityOperationPaths(operationId);
+        auto secureVaultPaths = GetCompatibilityOperationPaths(operationId, "secure_vault");
 
         for (const auto& path : paths) {
             auto req = TYPathProxy::Set(path);
@@ -212,39 +205,44 @@ public:
                 .AsyncVia(GetCancelableControlInvoker()));
     }
 
-    TFuture<void> ResetRevivingOperationNode(const TOperationPtr& operation)
+    TFuture<void> UpdateInitializedOperationNode(const TOperationPtr& operation)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(State_ != EMasterConnectorState::Disconnected);
-        YCHECK(operation->GetState() == EOperationState::Reviving);
 
         auto operationId = operation->GetId();
-        LOG_INFO("Resetting reviving operation node (OperationId: %v)",
+        LOG_INFO("Updating initialized operation node (OperationId: %v)",
             operationId);
+
+        auto strategy = Bootstrap_->GetScheduler()->GetStrategy();
 
         auto batchReq = StartObjectBatchRequest();
 
         auto attributes = ConvertToAttributes(BuildYsonStringFluently()
             .BeginMap()
-                .Do(BIND(&BuildMutableOperationAttributes, operation))
-                .Item("progress").BeginMap().EndMap()
-                .Item("brief_progress").BeginMap().EndMap()
+                .Do(BIND(&ISchedulerStrategy::BuildOperationAttributes, strategy, operationId))
+                .Do(BIND(&BuildFullOperationAttributes, operation))
+                .Item("brief_spec").BeginMap()
+                    .Items(operation->ControllerAttributes().InitializationAttributes->BriefSpec)
+                    .Do(BIND(&ISchedulerStrategy::BuildBriefSpec, strategy, operationId))
+                .EndMap()
             .EndMap());
 
-        auto paths = GetCompatibilityOperationPaths(operationId, operation->GetStorageMode());
-
-        for (const auto& key : attributes->List()) {
-            for (const auto& path : paths) {
-                auto req = TYPathProxy::Set(path + "/@" + ToYPathLiteral(key));
-                req->set_value(attributes->GetYson(key).GetData());
-                GenerateMutationId(req);
-                batchReq->AddRequest(req);
+        auto paths = GetCompatibilityOperationPaths(operationId);
+        for (const auto& path : paths) {
+            auto req = TYPathProxy::Multiset(path + "/@");
+            GenerateMutationId(req);
+            for (const auto& key : attributes->List()) {
+                auto* subrequest = req->add_subrequests();
+                subrequest->set_key(key);
+                subrequest->set_value(attributes->GetYson(key).GetData());
             }
+            batchReq->AddRequest(req);
         }
 
         return batchReq->Invoke().Apply(
             BIND(
-                &TImpl::OnRevivingOperationNodeReset,
+                &TImpl::OnInitializedOperationNodeUpdated,
                 MakeStrong(this),
                 operation)
             .AsyncVia(GetCancelableControlInvoker()));
@@ -254,6 +252,9 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(State_ != EMasterConnectorState::Disconnected);
+
+        LOG_INFO("Flushing operation node (OperationId: %v)",
+            operation->GetId());
 
         return OperationNodesUpdateExecutor_->ExecuteUpdate(operation->GetId());
     }
@@ -410,14 +411,6 @@ private:
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
 
-    void ScheduleConnectRetry()
-    {
-        TDelayedExecutor::Submit(
-            BIND(&TImpl::StartConnecting, MakeStrong(this))
-                .Via(Bootstrap_->GetControlInvoker()),
-            Config_->ConnectRetryBackoffTime);
-    }
-
     void ScheduleTestingDisconnect()
     {
         if (Config_->TestingOptions->EnableRandomMasterDisconnection) {
@@ -437,7 +430,15 @@ private:
         }
     }
 
-    void StartConnecting()
+    void StartConnecting(bool immediate)
+    {
+        TDelayedExecutor::Submit(
+            BIND(&TImpl::DoStartConnecting, MakeStrong(this))
+                .Via(Bootstrap_->GetControlInvoker()),
+            immediate ? TDuration::Zero() : Config_->ConnectRetryBackoffTime);
+    }
+
+    void DoStartConnecting()
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -500,7 +501,7 @@ private:
         if (!error.IsOK()) {
             LOG_WARNING(error, "Error connecting to master");
             DoCleanup();
-            ScheduleConnectRetry();
+            StartConnecting(false);
             return;
         }
 
@@ -558,13 +559,7 @@ private:
         const TIntrusivePtr<TImpl> Owner_;
         const TAddressMap ServiceAddresses_;
 
-        struct TReviveOperationInfo
-        {
-            TOperationId Id;
-            EOperationCypressStorageMode StorageMode;
-        };
-
-        std::vector<TReviveOperationInfo> RunningOperations_;
+        std::vector<TOperationId> OperationIds_;
         TMasterHandshakeResult Result_;
 
         void FireConnecting()
@@ -674,15 +669,11 @@ private:
         // - Request operations and their states.
         void ListOperations()
         {
-            static const std::vector<TString> attributeKeys = {"state"};
+            static const std::vector<TString> attributeKeys = {
+                "state"
+            };
 
             auto batchReq = Owner_->StartObjectBatchRequest(EMasterChannelKind::Follower);
-            {
-                auto req = TYPathProxy::List("//sys/operations");
-                ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
-                batchReq->AddRequest(req, "list_operations");
-            }
-
             for (int hash = 0x0; hash <= 0xFF; ++hash) {
                 auto hashStr = Format("%02x", hash);
                 auto req = TYPathProxy::List("//sys/operations/" + hashStr);
@@ -690,29 +681,8 @@ private:
                 batchReq->AddRequest(req, "list_operations_" + hashStr);
             }
 
-            auto batchRspOrError = WaitFor(batchReq->Invoke());
-            THROW_ERROR_EXCEPTION_IF_FAILED(batchRspOrError);
-            const auto& batchRsp = batchRspOrError.Value();
-
-            std::vector<std::pair<EOperationState, TReviveOperationInfo>> operations;
-            THashMap<TOperationId, EOperationState> operationIdToState;
-
-            auto listOperationsRsp = batchRsp->GetResponse<TYPathProxy::TRspList>("list_operations")
+            auto batchRsp = WaitFor(batchReq->Invoke())
                 .ValueOrThrow();
-
-            auto operationsListNode = ConvertToNode(TYsonString(listOperationsRsp->value()));
-            auto operationsList = operationsListNode->AsList();
-
-            for (const auto& operationNode : operationsList->GetChildren()) {
-                auto operationNodeKey = operationNode->GetValue<TString>();
-                // NOTE: This is hash bucket, just skip it.
-                if (operationNodeKey.length() == 2) {
-                    continue;
-                }
-
-                auto id = TOperationId::FromString(operationNodeKey);
-                operationIdToState[id] = operationNode->Attributes().Get<EOperationState>("state");
-            }
 
             for (int hash = 0x0; hash <= 0xFF; ++hash) {
                 auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspList>(
@@ -730,60 +700,14 @@ private:
                     auto id = TOperationId::FromString(operationNode->GetValue<TString>());
                     YCHECK((id.Parts32[0] & 0xff) == hash);
 
-                    auto state = operationNode->Attributes().Find<EOperationState>("state");
-
-                    auto stateIt = operationIdToState.find(id);
-
-                    // Neither //sys/operations/<id> node nor //sys/operations/<hash>/<id> has
-                    // "state" attribute.
-                    if (!state && stateIt == operationIdToState.end()) {
-                        LOG_WARNING("Operation %v does not have \"state\" attribute, skipping it", id);
-                        continue;
-                    }
-
-                    if (!state) {
-                        operations.emplace_back(
-                            stateIt->second,
-                            TReviveOperationInfo{id, EOperationCypressStorageMode::SimpleHashBuckets});
-                        operationIdToState.erase(stateIt);
-                        continue;
-                    } else if (stateIt == operationIdToState.end()) {
-                        operations.emplace_back(*state, TReviveOperationInfo{id, EOperationCypressStorageMode::HashBuckets});
-                    } else {
-                        if (stateIt->second != *state) {
-                            LOG_WARNING("Operation has two operation nodes with different states "
-                                "(OperationId: %v, State: %Qv, HashBucketState: %Qv)",
-                                id,
-                                stateIt->second,
-                                *state);
-                        }
-
-                        operations.emplace_back(
-                            stateIt->second,
-                            TReviveOperationInfo{id, EOperationCypressStorageMode::Compatible});
-
-                        operationIdToState.erase(stateIt);
+                    auto state = operationNode->Attributes().Get<EOperationState>("state");
+                    if (IsOperationInProgress(state)) {
+                        OperationIds_.push_back(id);
                     }
                 }
             }
 
-            size_t runningOperationsWithUndefinedStorageSchema = 0;
-            for (const auto& pair : operationIdToState) {
-                if (IsOperationInProgress(pair.second)) {
-                    ++runningOperationsWithUndefinedStorageSchema;
-                }
-            }
-
-            YCHECK(runningOperationsWithUndefinedStorageSchema == 0 &&
-                   "Operations node contains operations with undefined storage schema");
-
-            for (const auto& operationInfo : operations) {
-                if (IsOperationInProgress(operationInfo.first)) {
-                    RunningOperations_.push_back(operationInfo.second);
-                }
-            }
-
-            LOG_INFO("Operations list received (RunningOperationCount: %v)", RunningOperations_.size());
+            LOG_INFO("Operations list received (RunningOperationCount: %v)", OperationIds_.size());
         }
 
         // - Request attributes for unfinished operations.
@@ -797,11 +721,6 @@ private:
                 "async_scheduler_transaction_id",
                 "input_transaction_id",
                 "output_transaction_id",
-
-                // COMPAT(ignat)
-                "completion_transaction_id",
-                "debug_output_transaction_id",
-                // Proper transactions
                 "debug_transaction_id",
                 "output_completion_transaction_id",
                 "debug_completion_transaction_id",
@@ -819,46 +738,35 @@ private:
             auto batchReq = Owner_->StartObjectBatchRequest(EMasterChannelKind::Follower);
             {
                 LOG_INFO("Fetching attributes and secure vaults for unfinished operations (UnfinishedOperationCount: %v)",
-                    RunningOperations_.size());
+                    OperationIds_.size());
 
-                for (const auto& operationInfo : RunningOperations_) {
+                for (const auto& operationId : OperationIds_) {
                     // Keep stuff below in sync with #TryCreateOperationFromAttributes.
 
-                    const auto& operationId = operationInfo.Id;
-
-                    NYTree::TYPath operationAttributesPath;
-                    NYTree::TYPath secureVaultPath;
-
-                    if (operationInfo.StorageMode == EOperationCypressStorageMode::Compatible ||
-                        operationInfo.StorageMode == EOperationCypressStorageMode::SimpleHashBuckets)
-                    {
-                        operationAttributesPath = GetOperationPath(operationId) + "/@";
-                        secureVaultPath = GetSecureVaultPath(operationId);
-                    } else {
-                        operationAttributesPath = GetNewOperationPath(operationId) + "/@";
-                        secureVaultPath = GetNewSecureVaultPath(operationId);
-                    }
+                    auto  operationAttributesPath = GetOperationPath(operationId) + "/@";
+                    auto secureVaultPath = GetSecureVaultPath(operationId);
 
                     // Retrieve operation attributes.
                     {
                         auto req = TYPathProxy::Get(operationAttributesPath);
                         ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
-                        batchReq->AddRequest(req, "get_op_attr_" + ToString(operationInfo.Id));
+                        batchReq->AddRequest(req, "get_op_attr_" + ToString(operationId));
                     }
+
                     // Retrieve operation completion transaction id.
                     {
                         auto req = TYPathProxy::Get(GetNewOperationPath(operationId) + "/@");
                         std::vector<TString> attributeKeys{
-                            "completion_transaction_id",
+                            "output_completion_transaction_id",
                         };
                         ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
-                        batchReq->AddRequest(req, "get_op_completion_tx_id_" + ToString(operationInfo.Id));
+                        batchReq->AddRequest(req, "get_op_completion_tx_id_" + ToString(operationId));
                     }
 
                     // Retrieve secure vault.
                     {
                         auto req = TYPathProxy::Get(secureVaultPath);
-                        batchReq->AddRequest(req, "get_op_secure_vault_" + ToString(operationInfo.Id));
+                        batchReq->AddRequest(req, "get_op_secure_vault_" + ToString(operationId));
                     }
                 }
             }
@@ -868,17 +776,17 @@ private:
             const auto& batchRsp = batchRspOrError.Value();
 
             {
-                for (const auto& operationInfo : RunningOperations_) {
+                for (const auto& operationId : OperationIds_) {
                     auto attributesRsp = batchRsp->GetResponse<TYPathProxy::TRspGet>(
-                        "get_op_attr_" + ToString(operationInfo.Id))
+                        "get_op_attr_" + ToString(operationId))
                         .ValueOrThrow();
 
                     auto completionTxIdRsp = batchRsp->GetResponse<TYPathProxy::TRspGet>(
-                        "get_op_completion_tx_id_" + ToString(operationInfo.Id))
+                        "get_op_completion_tx_id_" + ToString(operationId))
                         .ValueOrThrow();
 
                     auto secureVaultRspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>(
-                        "get_op_secure_vault_" + ToString(operationInfo.Id));
+                        "get_op_secure_vault_" + ToString(operationId));
 
                     auto attributesNode = ConvertToAttributes(TYsonString(attributesRsp->value()));
                     auto completionTxIdAttribute = ConvertToAttributes(TYsonString(completionTxIdRsp->value()));
@@ -894,22 +802,21 @@ private:
                             secureVault = secureVaultNode->AsMap();
                         } else {
                             LOG_ERROR("Invalid secure vault node type (OperationId: %v, ActualType: %v, ExpectedType: %v)",
-                                operationInfo.Id,
+                                operationId,
                                 secureVaultNode->GetType(),
                                 ENodeType::Map);
                             // TODO(max42): (YT-5651) Do not just ignore such a situation!
                         }
                     } else if (secureVaultRspOrError.GetCode() != NYTree::EErrorCode::ResolveError) {
                         THROW_ERROR_EXCEPTION("Error while attempting to fetch the secure vault of operation (OperationId: %v)",
-                            operationInfo.Id)
+                            operationId)
                             << secureVaultRspOrError;
                     }
 
                     auto operation = Owner_->TryCreateOperationFromAttributes(
-                        operationInfo.Id,
+                        operationId,
                         *attributesNode,
-                        std::move(secureVault),
-                        operationInfo.StorageMode);
+                        secureVault);
                     if (operation) {
                         Result_.Operations.push_back(operation);
                     }
@@ -935,14 +842,14 @@ private:
                     }
 
                     auto& revivalDescriptor = *operation->RevivalDescriptor();
-                    if (!revivalDescriptor.ControllerTransactions->Output) {
+                    if (!revivalDescriptor.OutputTransaction) {
                         continue;
                     }
 
                     operationsWithOutputTransaction.push_back(operation);
 
                     for (auto transactionId : {
-                        revivalDescriptor.ControllerTransactions->Output->GetId(),
+                        revivalDescriptor.OutputTransaction->GetId(),
                         NullTransactionId})
                     {
                         {
@@ -1091,7 +998,7 @@ private:
         }
 
         DoCleanup();
-        StartConnecting();
+        StartConnecting(true);
     }
 
 
@@ -1115,8 +1022,7 @@ private:
     TOperationPtr TryCreateOperationFromAttributes(
         const TOperationId& operationId,
         const IAttributeDictionary& attributes,
-        IMapNodePtr secureVault,
-        EOperationCypressStorageMode storageMode)
+        const IMapNodePtr& secureVault)
     {
         auto attachTransaction = [&] (const TTransactionId& transactionId, bool ping, const TString& name = TString()) -> ITransactionPtr {
             if (!transactionId) {
@@ -1129,7 +1035,9 @@ private:
                 return nullptr;
             }
             try {
-                auto connection = Bootstrap_->GetRemoteConnectionOrThrow(CellTagFromId(transactionId));
+                auto connection = NControllerAgent::GetRemoteConnectionOrThrow(
+                    Bootstrap_->GetMasterClient()->GetNativeConnection(),
+                    CellTagFromId(transactionId));
                 auto client = connection->CreateNativeClient(TClientOptions(SchedulerUserName));
 
                 TTransactionAttachOptions options;
@@ -1154,46 +1062,27 @@ private:
             false);
 
         TOperationRevivalDescriptor revivalDescriptor;
-        revivalDescriptor.ControllerTransactions = New<NControllerAgent::TControllerTransactions>();
-        revivalDescriptor.ControllerTransactions->Async = attachTransaction(
-            attributes.Get<TTransactionId>("async_scheduler_transaction_id"),
+        revivalDescriptor.AsyncTransaction = attachTransaction(
+            attributes.Get<TTransactionId>("async_scheduler_transaction_id", NullTransactionId),
             true,
             "async transaction");
-        revivalDescriptor.ControllerTransactions->Input = attachTransaction(
-            attributes.Get<TTransactionId>("input_transaction_id"),
+        revivalDescriptor.InputTransaction = attachTransaction(
+            attributes.Get<TTransactionId>("input_transaction_id", NullTransactionId),
             true,
             "input transaction");
-        revivalDescriptor.ControllerTransactions->Output = attachTransaction(
-            attributes.Get<TTransactionId>("output_transaction_id"),
+        revivalDescriptor.OutputTransaction = attachTransaction(
+            attributes.Get<TTransactionId>("output_transaction_id", NullTransactionId),
             true,
             "output transaction");
-
-        revivalDescriptor.ControllerTransactions->OutputCompletion = attachTransaction(
-            attributes.Get<TTransactionId>(
-                "output_completion_transaction_id",
-                attributes.Get<TTransactionId>(
-                    "completion_transaction_id",
-                    NullTransactionId
-                )
-            ),
+        revivalDescriptor.OutputCompletionTransaction = attachTransaction(
+            attributes.Get<TTransactionId>("output_completion_transaction_id", NullTransactionId),
             true,
             "output completion transaction");
-
-        // COMPAT(ermolovd). We use NullTransactionId as default value for the transition period.
-        // Once all clusters are updated to version that creates debug_output transaction
-        // this default value can be removed as in other transactions above.
-        revivalDescriptor.ControllerTransactions->Debug = attachTransaction(
-            attributes.Get<TTransactionId>(
-                "debug_transaction_id",
-                attributes.Get<TTransactionId>(
-                    "debug_output_transaction_id",
-                    NullTransactionId
-                )
-            ),
+        revivalDescriptor.DebugTransaction = attachTransaction(
+            attributes.Get<TTransactionId>("debug_transaction_id", NullTransactionId),
             true,
             "debug transaction");
-
-        revivalDescriptor.ControllerTransactions->DebugCompletion = attachTransaction(
+        revivalDescriptor.DebugCompletionTransaction = attachTransaction(
             attributes.Get<TTransactionId>("debug_completion_transaction_id", NullTransactionId),
             true,
             "debug completion transaction");
@@ -1222,7 +1111,6 @@ private:
             attributes.Get<std::vector<TString>>("owners", spec->Owners),
             attributes.Get<TInstant>("start_time"),
             Bootstrap_->GetControlInvoker(),
-            storageMode,
             state,
             attributes.Get<bool>("suspended"),
             attributes.Get<std::vector<TOperationEvent>>("events", {}),
@@ -1326,7 +1214,7 @@ private:
             auto batchReq = StartObjectBatchRequest();
             GenerateMutationId(batchReq);
 
-            auto paths = GetCompatibilityOperationPaths(operation->GetId(), operation->GetStorageMode());
+            auto paths = GetCompatibilityOperationPaths(operation->GetId());
             for (const auto& operationPath : paths) {
                 // Set operation acl.
                 {
@@ -1377,7 +1265,7 @@ private:
                     auto error = FromProto<TError>(operation->Result().error());
                     auto errorString = BuildYsonStringFluently()
                         .BeginMap()
-                        .Item("error").Value(error)
+                            .Item("error").Value(error)
                         .EndMap();
                     req->set_value(errorString.GetData());
                 }
@@ -1454,7 +1342,7 @@ private:
             operationId);
     }
 
-    void OnRevivingOperationNodeReset(
+    void OnInitializedOperationNodeUpdated(
         const TOperationPtr& operation,
         const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError)
     {
@@ -1462,10 +1350,10 @@ private:
 
         auto operationId = operation->GetId();
         auto error = GetCumulativeError(batchRspOrError);
-        THROW_ERROR_EXCEPTION_IF_FAILED(error, "Error resetting reviving operation node %v",
+        THROW_ERROR_EXCEPTION_IF_FAILED(error, "Error updating initialized operation node %v",
             operationId);
 
-        LOG_INFO("Reviving operation node reset (OperationId: %v)",
+        LOG_INFO("Initialized operation node updated (OperationId: %v)",
             operationId);
     }
 
@@ -1489,7 +1377,7 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(State_ == EMasterConnectorState::Connected);
 
-        LOG_INFO("Updating watchers");
+        LOG_DEBUG("Updating watchers");
 
         // Global watchers.
         {
@@ -1546,7 +1434,7 @@ private:
             handler.Run(batchRsp);
         }
 
-        LOG_INFO("Global watchers updated");
+        LOG_DEBUG("Global watchers updated");
     }
 
     void OnOperationWatchersUpdated(
@@ -1574,7 +1462,7 @@ private:
             handler.Run(batchRsp);
         }
 
-        LOG_INFO("Operation watchers updated (OperationId: %v)",
+        LOG_DEBUG("Operation watchers updated (OperationId: %v)",
             operation->GetId());
     }
 
@@ -1658,14 +1546,20 @@ TFuture<void> TMasterConnector::CreateOperationNode(const TOperationPtr& operati
     return Impl_->CreateOperationNode(operation);
 }
 
-TFuture<void> TMasterConnector::ResetRevivingOperationNode(const TOperationPtr& operation)
+TFuture<void> TMasterConnector::UpdateInitializedOperationNode(const TOperationPtr& operation)
 {
-    return Impl_->ResetRevivingOperationNode(operation);
+    return Impl_->UpdateInitializedOperationNode(operation);
 }
 
 TFuture<void> TMasterConnector::FlushOperationNode(const TOperationPtr& operation)
 {
     return Impl_->FlushOperationNode(operation);
+}
+
+TFuture<void> TMasterConnector::FetchOperationRevivalDescriptors(const std::vector<TOperationPtr>& operations)
+{
+    // XXX(babenko)
+    return VoidFuture;
 }
 
 void TMasterConnector::AttachJobContext(

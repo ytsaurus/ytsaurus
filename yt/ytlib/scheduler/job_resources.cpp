@@ -1,10 +1,10 @@
 #include "job_resources.h"
 
-#include <yt/core/ytree/fluent.h>
-
-#include <yt/ytlib/scheduler/proto/controller_agent_tracker_service.pb.h>
+#include <yt/ytlib/scheduler/proto/job.pb.h>
 
 #include <yt/ytlib/node_tracker_client/helpers.h>
+
+#include <yt/core/ytree/fluent.h>
 
 namespace NYT {
 namespace NScheduler {
