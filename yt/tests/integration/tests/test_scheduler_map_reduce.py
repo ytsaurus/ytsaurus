@@ -359,6 +359,26 @@ print "x={0}\ty={1}".format(x, y)
 
         assert read_table("//tmp/t2") == [{"a": "b"}]
 
+    def _ban_nodes_with_intermediate_chunks(self):
+        # Figure out the intermediate chunk
+        chunks = ls("//sys/chunks", attributes=["staging_transaction_id"])
+        intermediate_chunk_ids = []
+        for c in chunks:
+            if "staging_transaction_id" in c.attributes:
+              tx_id = c.attributes["staging_transaction_id"]
+              if "Scheduler \"output\" transaction" in get("#{}/@title".format(tx_id)):
+                  intermediate_chunk_ids.append(str(c))
+
+        assert len(intermediate_chunk_ids) == 1
+        intermediate_chunk_id = intermediate_chunk_ids[0]
+
+        replicas = get("#{}/@stored_replicas".format(intermediate_chunk_id))
+        assert len(replicas) == 1
+        node_id = replicas[0]
+
+        set("//sys/nodes/{}/@banned".format(node_id), True)
+        return [node_id]
+
     @unix_only
     def test_lost_jobs(self):
         create("table", "//tmp/t_in")
@@ -383,22 +403,14 @@ print "x={0}\ty={1}".format(x, y)
                  "sort_locality_timeout" : 0,
                  "sort_assignment_timeout" : 0,
                  "enable_partitioned_data_balancing" : False,
-                 "reduce_job_io" : {"table_reader" : {"retry_count" : 1, "pass_count" : 1}},
+                 "sort_job_io" : {"table_reader" : {"retry_count" : 1, "pass_count" : 1}},
                  "resource_limits" : { "user_slots" : 1}},
              dont_track=True)
 
         # We wait for the first reducer to start (second is pending due to resource_limits).
         events.wait_event("reducer_started", timeout=datetime.timedelta(1000))
 
-        chunks = get("//sys/chunks")
-        banned_nodes = []
-        for c in chunks:
-            replicas = get("//sys/chunks/{0}/@stored_replicas".format(c))
-            if len(replicas) == 1:
-                # Intermediate chunk is stored in single replica.
-                # Ban node with intermediate chunk.
-                set("//sys/nodes/{0}/@banned".format(replicas[0]), True)
-                banned_nodes.append(replicas[0])
+        self._ban_nodes_with_intermediate_chunks()
 
         # First reducer will probably compelete successfully, but the second one
         # must fail due to unavailable intermediate chunk.
@@ -407,9 +419,6 @@ print "x={0}\ty={1}".format(x, y)
         op.track()
 
         assert get("//sys/operations/{0}/@progress/partition_jobs/lost".format(op.id)) == 1
-
-        for n in banned_nodes:
-            set("//sys/nodes/{0}/@banned".format(n), False)
 
     @unix_only
     def test_unavailable_intermediate_chunks(self):
@@ -435,7 +444,7 @@ print "x={0}\ty={1}".format(x, y)
                  "sort_assignment_timeout" : 0,
                  "sort_locality_timeout" : 0,
                  "enable_partitioned_data_balancing" : False,
-                 "reduce_job_io" : {"table_reader" : {"retry_count" : 1, "pass_count" : 1}},
+                 "sort_job_io" : {"table_reader" : {"retry_count" : 1, "pass_count" : 1}},
                  "partition_count": 2,
                  "resource_limits" : { "user_slots" : 1}},
              dont_track=True)
@@ -443,15 +452,7 @@ print "x={0}\ty={1}".format(x, y)
         # We wait for the first reducer to start (second is pending due to resource_limits).
         events.wait_event("reducer_started", timeout=datetime.timedelta(1000))
 
-        chunks = get("//sys/chunks")
-        banned_nodes = []
-        for c in chunks:
-            replicas = get("//sys/chunks/{0}/@stored_replicas".format(c))
-            if len(replicas) == 1:
-                # Intermediate chunk is stored in single replica.
-                # Ban node with intermediate chunk..
-                set("//sys/nodes/{0}/@banned".format(replicas[0]), True)
-                banned_nodes.append(replicas[0])
+        banned_nodes = self._ban_nodes_with_intermediate_chunks()
 
         # First reducer will probably compelete successfully, but the second one
         # must fail due to unavailable intermediate chunk.
