@@ -33,6 +33,7 @@ namespace NScheduler {
 using namespace NConcurrency;
 using namespace NRpc;
 using namespace NYson;
+using namespace NYTree;
 using namespace NControllerAgent;
 
 using NYT::FromProto;
@@ -691,6 +692,10 @@ public:
             for (const auto& pair : *scheduler->GetCachedExecNodeDescriptors()) {
                 ToProto(response->mutable_exec_nodes()->add_exec_nodes(), pair.second);
             }
+        }
+
+        if (request->config_requested()) {
+            response->set_config(ConvertToYsonString(scheduler->GetConfig()).GetData());
         }
 
         auto error = WaitFor(Combine(asyncResults));

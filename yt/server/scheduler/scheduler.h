@@ -36,17 +36,19 @@ public:
     /*!
      *  \note Thread affinity: any
      */
-    ISchedulerStrategyPtr GetStrategy();
+    ISchedulerStrategyPtr GetStrategy() const;
 
     /*!
      *  \note Thread affinity: any
      */
-    NYTree::IYPathServicePtr GetOrchidService();
+    NYTree::IYPathServicePtr GetOrchidService() const;
 
     /*!
      *  \note Thread affinity: any
      */
-    TRefCountedExecNodeDescriptorMapPtr GetCachedExecNodeDescriptors();
+    TRefCountedExecNodeDescriptorMapPtr GetCachedExecNodeDescriptors() const;
+
+    const TSchedulerConfigPtr& GetConfig() const;
 
     /*!
      *  \note Thread affinity: any
@@ -61,7 +63,7 @@ public:
     /*!
      *  \note Thread affinity: any
      */
-    bool IsConnected();
+    bool IsConnected() const;
     /*!
      *  \note Thread affinity: any
      */

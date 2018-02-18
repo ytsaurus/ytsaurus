@@ -283,6 +283,8 @@ public:
             controller->GetCancelableInvoker()->Invoke(
                 BIND(&IOperationController::UpdateConfig, controller, config));
         }
+
+        LOG_INFO("Configuration updated");
     }
 
 
@@ -581,6 +583,7 @@ private:
     TControllerAgentTrackerServiceProxy SchedulerProxy_;
 
     TInstant LastExecNodesUpdateTime_;
+    TInstant LastConfigUpdateTime_;
     TInstant LastOperationAlertsUpdateTime_;
 
     TIncarnationId IncarnationId_;
@@ -706,6 +709,7 @@ private:
 
     TControllerAgentTrackerServiceProxy::TReqHeartbeatPtr PrepareHeartbeatRequest(
         bool* execNodesRequested,
+        bool* configRequested,
         bool* operationAlertsSent)
     {
         auto req = SchedulerProxy_.Heartbeat();
@@ -771,6 +775,7 @@ private:
 
         auto now = TInstant::Now();
         *execNodesRequested = LastExecNodesUpdateTime_ + Config_->ExecNodesUpdatePeriod < now;
+        *configRequested = LastConfigUpdateTime_ + Config_->ConfigUpdatePeriod < now;
         *operationAlertsSent = LastOperationAlertsUpdateTime_ + Config_->OperationAlertsUpdatePeriod < now;
 
         for (const auto& pair : GetOperations()) {
@@ -805,6 +810,7 @@ private:
         }
 
         req->set_exec_nodes_requested(*execNodesRequested);
+        req->set_config_requested(*configRequested);
 
         return req;
     }
@@ -812,12 +818,14 @@ private:
     void SendHeartbeat()
     {
         bool execNodesRequested;
+        bool configRequested;
         bool operationAlertsSent;
         auto req = PrepareHeartbeatRequest(
             &execNodesRequested,
+            &configRequested,
             &operationAlertsSent);
 
-        LOG_DEBUG("Sending heartbeat (ExecNodesRequested: %v, OperationAlertsSent: %v)",
+        LOG_DEBUG("Sending heartbeat (ExecNodesRequested: %v, ConfigRequested: %v, OperationAlertsSent: %v)",
             execNodesRequested,
             operationAlertsSent);
 
@@ -850,6 +858,12 @@ private:
                 TWriterGuard guard(ExecNodeDescriptorsLock_);
                 std::swap(CachedExecNodeDescriptors_, execNodeDescriptors);
             }
+            LOG_DEBUG("Exec node descriptors updated");
+        }
+
+        if (rsp->has_config()) {
+            auto config = ConvertTo<TControllerAgentConfigPtr>(rsp->config());
+            UpdateConfig(config);
         }
 
         for (const auto& protoOperationId : rsp->operation_ids_to_unregister()) {
@@ -866,6 +880,9 @@ private:
         auto now = TInstant::Now();
         if (execNodesRequested) {
             LastExecNodesUpdateTime_ = now;
+        }
+        if (configRequested) {
+            LastConfigUpdateTime_ = now;
         }
         if (operationAlertsSent) {
             LastOperationAlertsUpdateTime_ = now;

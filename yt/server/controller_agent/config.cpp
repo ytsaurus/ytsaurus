@@ -285,6 +285,8 @@ TControllerAgentConfig::TControllerAgentConfig()
 
     RegisterParameter("exec_nodes_update_period", ExecNodesUpdatePeriod)
         .Default(TDuration::Seconds(10));
+    RegisterParameter("config_update_period", ConfigUpdatePeriod)
+        .Default(TDuration::Seconds(10));
     RegisterParameter("operation_alerts_update_period", OperationAlertsUpdatePeriod)
         .Default(TDuration::Seconds(3));
 
