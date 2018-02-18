@@ -604,14 +604,14 @@ class YTEnvSetup(object):
         yt_commands.remove("//sys/operations_archive", force=True, driver=driver)
 
     def _wait_for_jobs_to_vanish(self, driver=None):
-        def check_jobs_are_missing():
+        def check_no_jobs():
             for node in yt_commands.ls("//sys/nodes", driver=driver):
                 jobs = yt_commands.get("//sys/nodes/{0}/orchid/job_controller/active_job_count".format(node), driver=driver)
                 if jobs.get("scheduler", 0) > 0:
                     return False
             return True
 
-        wait(check_jobs_are_missing)
+        wait(check_no_jobs)
 
     def _reset_dynamic_cluster_config(self, driver=None):
         yt_commands.set("//sys/@config", {}, driver=driver)
