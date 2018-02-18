@@ -471,38 +471,41 @@ private:
         }
     }
 
-    void DoUpdateOperationNode(
-        const TOperationId& operationId,
-        const TTransactionId& transactionId,
-        const std::vector<TCreateJobNodeRequest>& jobRequests,
-        const std::vector<TLivePreviewRequest>& livePreviewRequests)
+    void DoUpdateOperationNode(const TOperationId& operationId)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        std::vector<bool> failedRequestSet(jobRequests.size(), false);
+        auto* update = OperationNodesUpdateExecutor_->FindUpdate(operationId);
+        if (!update) {
+            return;
+        }
+
+        LOG_DEBUG("Started updating operation node (OperationId: %v, JobRequestCount: %v, "
+            "LivePreviewTransactionId: %v, LivePreviewRequestCount: %v)",
+            operationId,
+            update->JobRequests.size(),
+            update->LivePreviewTransactionId,
+            update->LivePreviewRequests.size());
+
+        std::vector<TCreateJobNodeRequest> successfulJobRequests;
         try {
-            CreateJobNodes(operationId, jobRequests, &failedRequestSet);
+            std::vector<TCreateJobNodeRequest> jobRequests;
+            std::swap(jobRequests, update->JobRequests);
+            successfulJobRequests = CreateJobNodes(operationId, jobRequests);
         } catch (const std::exception& ex) {
+            LOG_WARNING(ex, "Error creating job nodes (OperationId: %v)",
+                operationId);
             auto error = TError("Error creating job nodes for operation %v",
                 operationId)
                 << ex;
-            if (error.FindMatching(NSecurityClient::EErrorCode::AccountLimitExceeded)) {
-                LOG_DEBUG(error);
-                return;
-            } else {
+            if (!error.FindMatching(NSecurityClient::EErrorCode::AccountLimitExceeded)) {
                 THROW_ERROR error;
             }
         }
 
         try {
             std::vector<TJobFile> files;
-
-            for (size_t index = 0; index < jobRequests.size(); ++index) {
-                if (failedRequestSet[index]) {
-                    continue;
-                }
-
-                const auto& request = jobRequests[index];
+            for (const auto& request : successfulJobRequests) {
                 if (request.StderrChunkId) {
                     auto paths = GetCompatibilityJobPaths(operationId, request.JobId, "stderr");
                     for (const auto& path : paths) {
@@ -535,7 +538,9 @@ private:
         }
 
         try {
-            AttachLivePreviewChunks(operationId, transactionId, livePreviewRequests);
+            std::vector<TLivePreviewRequest> livePreviewRequests;
+            std::swap(livePreviewRequests, update->LivePreviewRequests);
+            AttachLivePreviewChunks(operationId, update->LivePreviewTransactionId, livePreviewRequests);
         } catch (const std::exception& ex) {
             // NB: Don' treat this as a critical error.
             // Some of these chunks could go missing for a number of reasons.
@@ -551,7 +556,8 @@ private:
                 << ex;
         }
 
-        LOG_DEBUG("Operation node updated (OperationId: %v)", operationId);
+        LOG_DEBUG("Finished updating operation node (OperationId: %v)",
+            operationId);
     }
 
     TCallback<TFuture<void>()> UpdateOperationNode(const TOperationId& operationId, TOperationNodeUpdate* update)
@@ -573,12 +579,7 @@ private:
             return {};
         }
 
-        return BIND(&TImpl::DoUpdateOperationNode,
-            MakeStrong(this),
-            operationId,
-            update->LivePreviewTransactionId,
-            Passed(std::move(update->JobRequests)),
-            Passed(std::move(update->LivePreviewRequests)))
+        return BIND(&TImpl::DoUpdateOperationNode, MakeStrong(this), operationId)
             .AsyncVia(CancelableControlInvoker_);
     }
 
@@ -634,15 +635,14 @@ private:
         THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError));
     }
 
-    void CreateJobNodes(
+    std::vector<TCreateJobNodeRequest> CreateJobNodes(
         const TOperationId& operationId,
-        const std::vector<TCreateJobNodeRequest>& requests,
-        std::vector<bool>* failedRequestSet)
+        const std::vector<TCreateJobNodeRequest>& requests)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         if (requests.empty()) {
-            return;
+            return {};
         }
 
         auto batchReq = StartObjectBatchRequest();
@@ -666,33 +666,36 @@ private:
         auto batchRsp = WaitFor(batchReq->Invoke())
             .ValueOrThrow();
 
-        int failedRequestCount = 0;
-        for (size_t index = 0; index < requests.size(); ++index) {
-            const auto& request = requests[index];
+        std::vector<TCreateJobNodeRequest> successfulRequests;
+        for (const auto& request : requests) {
             const auto& jobId = request.JobId;
-            auto rsps = batchRsp->GetResponses<TCypressYPathProxy::TRspCreate>("create_" + ToString(jobId));
-            for (const auto& rsp : rsps) {
-                if (rsp.IsOK()) {
+            auto rspsOrError = batchRsp->GetResponses<TCypressYPathProxy::TRspCreate>("create_" + ToString(jobId));
+            bool allOK = true;
+            for (const auto& rspOrError : rspsOrError) {
+                if (rspOrError.IsOK()) {
                     continue;
                 }
-                TError error = rsp;
-                if (error.FindMatching(NSecurityClient::EErrorCode::AccountLimitExceeded)) {
-                    LOG_ERROR(error, "Account limit exceeded while creating job node (JobId: %v)",
+                allOK = false;
+                if (rspOrError.FindMatching(NSecurityClient::EErrorCode::AccountLimitExceeded)) {
+                    LOG_ERROR(rspOrError, "Account limit exceeded while creating job node (JobId: %v)",
                         jobId);
-                    (*failedRequestSet)[index] = true;
-                    ++failedRequestCount;
                 } else {
                     THROW_ERROR_EXCEPTION("Failed to create job node")
                         << TErrorAttribute("job_id", jobId)
-                        << error;
+                        << rspOrError;
                 }
+            }
+            if (allOK) {
+                successfulRequests.push_back(request);
             }
         }
 
-        LOG_INFO("Job nodes created (TotalCount: %v, FailedCount: %v, OperationId: %v)",
+        LOG_INFO("Job nodes created (TotalCount: %v, SuccessCount: %v, OperationId: %v)",
             requests.size(),
-            failedRequestCount,
+            successfulRequests.size(),
             operationId);
+
+        return successfulRequests;
     }
 
     void AttachLivePreviewChunks(
@@ -954,13 +957,13 @@ private:
 
         auto* update = OperationNodesUpdateExecutor_->FindUpdate(operationId);
         if (!update) {
-            LOG_DEBUG("Trying to create a job node for an unknown operation (OperationId: %v, JobId: %v)",
+            LOG_DEBUG("Requested to create a job node for an unknown operation (OperationId: %v, JobId: %v)",
                 operationId,
                 request.JobId);
             return;
         }
 
-        LOG_DEBUG("Creating job node (OperationId: %v, JobId: %v, StderrChunkId: %v, FailContextChunkId: %v)",
+        LOG_DEBUG("Job node creation scheduled (OperationId: %v, JobId: %v, StderrChunkId: %v, FailContextChunkId: %v)",
             operationId,
             request.JobId,
             request.StderrChunkId,

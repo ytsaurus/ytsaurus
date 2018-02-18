@@ -473,16 +473,18 @@ public:
         YCHECK(agent->Operations().insert(operation).second);
         operation->SetAgent(agent.Get());
 
-        // TODO(babenko): agent id
-        LOG_DEBUG("Operation assigned to agent (OperationId: %v)",
-            operation->GetId());
+        LOG_DEBUG("Operation assigned to agent (OperationId: %v, AgentAddress: %v)",
+            operation->GetId(),
+            agent->GetDefaultAddress());
     }
 
     TFuture<void> RegisterOperationAtAgent(const TOperationPtr& operation)
     {
-        // TODO(babenko): agent id
-        LOG_DEBUG("Registering operation at agent (OperationId: %v)",
-            operation->GetId());
+        auto agent = operation->GetAgentOrCancelFiber();
+
+        LOG_DEBUG("Registering operation at agent (OperationId: %v, AgentAddress: %v)",
+            operation->GetId(),
+            agent->GetDefaultAddress());
 
         TControllerAgentServiceProxy proxy(Bootstrap_->GetLocalRpcChannel());
         auto req = proxy.RegisterOperation();
@@ -501,7 +503,6 @@ public:
         ToProto(descriptor->mutable_user_transaction_id(), operation->GetUserTransactionId());
         ToProto(descriptor->mutable_pool_tree_scheduling_tag_filters(), operation->PoolTreeSchedulingTagFilters());
 
-        auto agent = operation->GetAgentOrCancelFiber();
         return InvokeAgent<TControllerAgentServiceProxy::TRspRegisterOperation>(operation->GetId(), agent, req).As<void>();
     }
 
@@ -514,9 +515,9 @@ public:
 
         YCHECK(agent->Operations().erase(operation) == 1);
 
-        // TODO(babenko): agent id
-        LOG_DEBUG("Operation unregistered from agent (OperationId: %v)",
-            operation->GetId());
+        LOG_DEBUG("Operation unregistered from agent (OperationId: %v, AgentAddress: %v)",
+            operation->GetId(),
+            agent->GetDefaultAddress());
     }
 
     void ProcessAgentHeartbeat(const TCtxAgentHeartbeatPtr& context)
@@ -555,13 +556,11 @@ public:
         std::vector<TString> suspiciousJobsYsons;
         for (const auto& protoOperation : request->operations()) {
             auto operationId = FromProto<TOperationId>(protoOperation.operation_id());
-
-            const auto& scheduler = Bootstrap_->GetScheduler();
             auto operation = scheduler->FindOperation(operationId);
             if (!operation) {
-                // TODO(babenko): agentid?
-                LOG_DEBUG("Unknown operation is running at agent; unregister requested (OperationId: %v)",
-                    operationId);
+                LOG_DEBUG("Unknown operation is running at agent; unregister requested (OperationId: %v, AgentAddress: %v)",
+                    operationId,
+                    agent->GetDefaultAddress());
                 ToProto(response->add_operation_ids_to_unregister(), operationId);
                 continue;
             }
@@ -593,51 +592,77 @@ public:
 
         Agent_->SetSuspiciousJobsYson(TYsonString(JoinSeq("", suspiciousJobsYsons), EYsonType::MapFragment));
 
-        const auto& nodeShards = scheduler->GetNodeShards();
-
         // We must wait for all these results before replying since these activities
         // rely on RPC request to remain alive.
         std::vector<TFuture<void>> asyncResults;
 
-        std::vector<std::vector<const NProto::TAgentToSchedulerJobEvent*>> groupedJobEvents(nodeShards.size());
-        agent->JobEventsInbox().HandleIncoming(
-            request->mutable_agent_to_scheduler_job_events(),
-            [&] (auto* protoEvent) {
-                auto jobId = FromProto<TJobId>(protoEvent->job_id());
-                auto shardId = scheduler->GetNodeShardId(NodeIdFromJobId(jobId));
-                groupedJobEvents[shardId].push_back(protoEvent);
-            });
+        RunInMessageOffloadThread([&] {
+            const auto& nodeShards = scheduler->GetNodeShards();
+            std::vector<std::vector<const NProto::TAgentToSchedulerJobEvent*>> groupedJobEvents(nodeShards.size());
+            agent->JobEventsInbox().HandleIncoming(
+                request->mutable_agent_to_scheduler_job_events(),
+                [&] (auto* protoEvent) {
+                    auto jobId = FromProto<TJobId>(protoEvent->job_id());
+                    auto shardId = scheduler->GetNodeShardId(NodeIdFromJobId(jobId));
+                    groupedJobEvents[shardId].push_back(protoEvent);
+                });
 
-        for (size_t shardId = 0; shardId < nodeShards.size(); ++shardId) {
-            const auto& nodeShard = nodeShards[shardId];
-            asyncResults.push_back(
-                BIND([context, nodeShard, this_ = MakeStrong(this), protoEvents = std::move(groupedJobEvents[shardId])] {
-                    for (const auto* protoEvent : protoEvents) {
-                        auto eventType = static_cast<EAgentToSchedulerJobEventType>(protoEvent->event_type());
-                        auto jobId = FromProto<TJobId>(protoEvent->job_id());
-                        auto error = FromProto<TError>(protoEvent->error());
-                        auto interruptReason = static_cast<EInterruptReason>(protoEvent->interrupt_reason());
-                        switch (eventType) {
-                            case EAgentToSchedulerJobEventType::Interrupted:
-                                nodeShard->InterruptJob(jobId, interruptReason);
-                                break;
-                            case EAgentToSchedulerJobEventType::Aborted:
-                                nodeShard->AbortJob(jobId, error);
-                                break;
-                            case EAgentToSchedulerJobEventType::Failed:
-                                nodeShard->FailJob(jobId);
-                                break;
-                            case EAgentToSchedulerJobEventType::Released:
-                                nodeShard->ReleaseJob(jobId);
-                                break;
-                            default:
-                                Y_UNREACHABLE();
+            for (size_t shardId = 0; shardId < nodeShards.size(); ++shardId) {
+                const auto& nodeShard = nodeShards[shardId];
+                asyncResults.push_back(
+                    BIND([context, nodeShard, this_ = MakeStrong(this), protoEvents = std::move(groupedJobEvents[shardId])] {
+                        for (const auto* protoEvent : protoEvents) {
+                            auto eventType = static_cast<EAgentToSchedulerJobEventType>(protoEvent->event_type());
+                            auto jobId = FromProto<TJobId>(protoEvent->job_id());
+                            auto error = FromProto<TError>(protoEvent->error());
+                            auto interruptReason = static_cast<EInterruptReason>(protoEvent->interrupt_reason());
+                            switch (eventType) {
+                                case EAgentToSchedulerJobEventType::Interrupted:
+                                    nodeShard->InterruptJob(jobId, interruptReason);
+                                    break;
+                                case EAgentToSchedulerJobEventType::Aborted:
+                                    nodeShard->AbortJob(jobId, error);
+                                    break;
+                                case EAgentToSchedulerJobEventType::Failed:
+                                    nodeShard->FailJob(jobId);
+                                    break;
+                                case EAgentToSchedulerJobEventType::Released:
+                                    nodeShard->ReleaseJob(jobId);
+                                    break;
+                                default:
+                                    Y_UNREACHABLE();
+                            }
                         }
-                    }
-                })
-                .AsyncVia(nodeShard->GetInvoker())
-                .Run());
-        }
+                    })
+                        .AsyncVia(nodeShard->GetInvoker())
+                        .Run());
+            }
+
+            std::vector<std::vector<const NProto::TScheduleJobResponse*>> groupedScheduleJobResponses(nodeShards.size());
+            agent->ScheduleJobResponsesInbox().HandleIncoming(
+                request->mutable_agent_to_scheduler_schedule_job_responses(),
+                [&] (auto* protoEvent) {
+                    auto jobId = FromProto<TJobId>(protoEvent->job_id());
+                    auto shardId = scheduler->GetNodeShardId(NodeIdFromJobId(jobId));
+                    groupedScheduleJobResponses[shardId].push_back(protoEvent);
+                });
+
+            for (size_t shardId = 0; shardId < nodeShards.size(); ++shardId) {
+                const auto& nodeShard = nodeShards[shardId];
+                asyncResults.push_back(
+                    BIND([context, nodeShard, protoResponses = std::move(groupedScheduleJobResponses[shardId])] {
+                        for (const auto* protoResponse : protoResponses) {
+                            nodeShard->EndScheduleJob(*protoResponse);
+                        }
+                    })
+                        .AsyncVia(nodeShard->GetInvoker())
+                        .Run());
+            }
+
+            agent->GetJobEventsOutbox()->HandleStatus(request->scheduler_to_agent_job_events());
+            agent->GetOperationEventsOutbox()->HandleStatus(request->scheduler_to_agent_operation_events());
+            agent->GetScheduleJobRequestsOutbox()->HandleStatus(request->scheduler_to_agent_schedule_job_requests());
+        });
 
         agent->OperationEventsInbox().HandleIncoming(
             request->mutable_agent_to_scheduler_operation_events(),
@@ -663,31 +688,6 @@ public:
                 }
             });
 
-        std::vector<std::vector<const NProto::TScheduleJobResponse*>> groupedScheduleJobResponses(nodeShards.size());
-        agent->ScheduleJobResponsesInbox().HandleIncoming(
-            request->mutable_agent_to_scheduler_schedule_job_responses(),
-            [&] (auto* protoEvent) {
-                auto jobId = FromProto<TJobId>(protoEvent->job_id());
-                auto shardId = scheduler->GetNodeShardId(NodeIdFromJobId(jobId));
-                groupedScheduleJobResponses[shardId].push_back(protoEvent);
-            });
-
-        for (size_t shardId = 0; shardId < nodeShards.size(); ++shardId) {
-            const auto& nodeShard = nodeShards[shardId];
-            asyncResults.push_back(
-                BIND([context, nodeShard, protoResponses = std::move(groupedScheduleJobResponses[shardId])] {
-                    for (const auto* protoResponse : protoResponses) {
-                        nodeShard->EndScheduleJob(*protoResponse);
-                    }
-                })
-                .AsyncVia(nodeShard->GetInvoker())
-                .Run());
-        }
-
-        agent->GetJobEventsOutbox()->HandleStatus(request->scheduler_to_agent_job_events());
-        agent->GetOperationEventsOutbox()->HandleStatus(request->scheduler_to_agent_operation_events());
-        agent->GetScheduleJobRequestsOutbox()->HandleStatus(request->scheduler_to_agent_schedule_job_requests());
-
         if (request->exec_nodes_requested()) {
             for (const auto& pair : *scheduler->GetCachedExecNodeDescriptors()) {
                 ToProto(response->mutable_exec_nodes()->add_exec_nodes(), pair.second);
@@ -706,48 +706,51 @@ public:
         }
 
         agent->OperationEventsInbox().ReportStatus(response->mutable_agent_to_scheduler_operation_events());
-        agent->JobEventsInbox().ReportStatus(response->mutable_agent_to_scheduler_job_events());
-        agent->ScheduleJobResponsesInbox().ReportStatus(response->mutable_agent_to_scheduler_schedule_job_responses());
 
-        agent->GetJobEventsOutbox()->BuildOutcoming(
-            response->mutable_scheduler_to_agent_job_events(),
-            [] (auto* protoEvent, const auto& event) {
-                ToProto(protoEvent->mutable_operation_id(), event.OperationId);
-                protoEvent->set_event_type(static_cast<int>(event.EventType));
-                protoEvent->set_log_and_profile(event.LogAndProfile);
-                protoEvent->mutable_status()->CopyFrom(*event.Status);
-                protoEvent->set_start_time(ToProto<ui64>(event.StartTime));
-                if (event.FinishTime) {
-                    protoEvent->set_finish_time(ToProto<ui64>(*event.FinishTime));
-                }
-                if (event.Abandoned) {
-                    protoEvent->set_abandoned(*event.Abandoned);
-                }
-                if (event.AbortReason) {
-                    protoEvent->set_abort_reason(static_cast<int>(*event.AbortReason));
-                }
-                if (event.InterruptReason) {
-                    protoEvent->set_interrupt_reason(static_cast<int>(*event.InterruptReason));
-                }
-            });
+        RunInMessageOffloadThread([&] {
+            agent->JobEventsInbox().ReportStatus(response->mutable_agent_to_scheduler_job_events());
+            agent->ScheduleJobResponsesInbox().ReportStatus(response->mutable_agent_to_scheduler_schedule_job_responses());
 
-        agent->GetOperationEventsOutbox()->BuildOutcoming(
-            response->mutable_scheduler_to_agent_operation_events(),
-            [] (auto* protoEvent, const auto& event) {
-                protoEvent->set_event_type(static_cast<int>(event.EventType));
-                ToProto(protoEvent->mutable_operation_id(), event.OperationId);
-            });
+            agent->GetJobEventsOutbox()->BuildOutcoming(
+                response->mutable_scheduler_to_agent_job_events(),
+                [] (auto* protoEvent, const auto& event) {
+                    ToProto(protoEvent->mutable_operation_id(), event.OperationId);
+                    protoEvent->set_event_type(static_cast<int>(event.EventType));
+                    protoEvent->set_log_and_profile(event.LogAndProfile);
+                    protoEvent->mutable_status()->CopyFrom(*event.Status);
+                    protoEvent->set_start_time(ToProto<ui64>(event.StartTime));
+                    if (event.FinishTime) {
+                        protoEvent->set_finish_time(ToProto<ui64>(*event.FinishTime));
+                    }
+                    if (event.Abandoned) {
+                        protoEvent->set_abandoned(*event.Abandoned);
+                    }
+                    if (event.AbortReason) {
+                        protoEvent->set_abort_reason(static_cast<int>(*event.AbortReason));
+                    }
+                    if (event.InterruptReason) {
+                        protoEvent->set_interrupt_reason(static_cast<int>(*event.InterruptReason));
+                    }
+                });
 
-        agent->GetScheduleJobRequestsOutbox()->BuildOutcoming(
-            response->mutable_scheduler_to_agent_schedule_job_requests(),
-            [] (auto* protoRequest, const auto& request) {
-                ToProto(protoRequest->mutable_operation_id(), request->OperationId);
-                ToProto(protoRequest->mutable_job_id(), request->JobId);
-                protoRequest->set_tree_id(request->TreeId);
-                ToProto(protoRequest->mutable_job_resource_limits(), request->JobResourceLimits);
-                ToProto(protoRequest->mutable_node_resource_limits(), request->NodeResourceLimits);
-                protoRequest->mutable_node_disk_info()->CopyFrom(request->NodeDiskInfo);
-            });
+            agent->GetOperationEventsOutbox()->BuildOutcoming(
+                response->mutable_scheduler_to_agent_operation_events(),
+                [] (auto* protoEvent, const auto& event) {
+                    protoEvent->set_event_type(static_cast<int>(event.EventType));
+                    ToProto(protoEvent->mutable_operation_id(), event.OperationId);
+                });
+
+            agent->GetScheduleJobRequestsOutbox()->BuildOutcoming(
+                response->mutable_scheduler_to_agent_schedule_job_requests(),
+                [] (auto* protoRequest, const auto& request) {
+                    ToProto(protoRequest->mutable_operation_id(), request->OperationId);
+                    ToProto(protoRequest->mutable_job_id(), request->JobId);
+                    protoRequest->set_tree_id(request->TreeId);
+                    ToProto(protoRequest->mutable_job_resource_limits(), request->JobResourceLimits);
+                    ToProto(protoRequest->mutable_node_resource_limits(), request->NodeResourceLimits);
+                    protoRequest->mutable_node_disk_info()->CopyFrom(request->NodeDiskInfo);
+                });
+        });
 
         context->Reply();
     }
@@ -755,6 +758,16 @@ public:
 private:
     const TSchedulerConfigPtr Config_;
     NCellScheduler::TBootstrap* const Bootstrap_;
+
+    const TActionQueuePtr MessageOffloadQueue_ = New<TActionQueue>("MessageOffload");
+
+    template <class F>
+    void RunInMessageOffloadThread(F func)
+    {
+        Y_UNUSED(WaitFor(BIND(func)
+            .AsyncVia(MessageOffloadQueue_->GetInvoker())
+            .Run()));
+    }
 
     // TODO(babenko): multiagent support
     TControllerAgentPtr Agent_;

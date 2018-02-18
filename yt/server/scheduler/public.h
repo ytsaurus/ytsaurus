@@ -67,7 +67,6 @@ struct TOperationControllerInitializationResult;
 struct TOperationControllerPrepareResult;
 struct TOperationRevivalDescriptor;
 
-// XXX(babenko): move to private
 class TMasterConnector;
 
 using NJobTrackerClient::NProto::TJobResult;

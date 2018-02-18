@@ -17,12 +17,16 @@ TMessageQueueOutbox<TItem>::TMessageQueueOutbox(const NLogging::TLogger& logger)
 template <class TItem>
 void TMessageQueueOutbox<TItem>::Enqueue(TItem&& item)
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     Stack_.Enqueue(std::move(item));
 }
 
 template <class TItem>
 void TMessageQueueOutbox<TItem>::Enqueue(std::vector<TItem>&& items)
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     Stack_.Enqueue(std::move(items));
 }
 
@@ -30,6 +34,8 @@ template <class TItem>
 template <class TProtoMessage, class TBuilder>
 void TMessageQueueOutbox<TItem>::BuildOutcoming(TProtoMessage* message, TBuilder protoItemBuilder)
 {
+    VERIFY_THREAD_AFFINITY(Consumer);
+
     Stack_.DequeueAll(true, [&] (TEntry& entry) {
        switch (entry.Tag()) {
            case TEntry::template TagOf<TItem>():
@@ -65,6 +71,8 @@ template <class TItem>
 template <class TProtoMessage>
 void TMessageQueueOutbox<TItem>::HandleStatus(const TProtoMessage& message)
 {
+    VERIFY_THREAD_AFFINITY(Consumer);
+
     auto nextExpectedItemId = message.next_expected_item_id();
     YCHECK(nextExpectedItemId <= NextItemId_);
     if (nextExpectedItemId == FirstItemId_) {
@@ -97,6 +105,8 @@ inline TMessageQueueInbox::TMessageQueueInbox(const NLogging::TLogger& logger)
 template <class TProtoRequest>
 void TMessageQueueInbox::ReportStatus(TProtoRequest* request)
 {
+    VERIFY_THREAD_AFFINITY(Consumer);
+
     request->set_next_expected_item_id(NextExpectedItemId_);
 
     LOG_DEBUG("Inbox status reported (NextExpectedItemId: %v)",
@@ -106,6 +116,8 @@ void TMessageQueueInbox::ReportStatus(TProtoRequest* request)
 template <class TProtoMessage, class TConsumer>
 void TMessageQueueInbox::HandleIncoming(TProtoMessage* message, TConsumer protoItemConsumer)
 {
+    VERIFY_THREAD_AFFINITY(Consumer);
+
     if (message->items_size() == 0) {
         return;
     }

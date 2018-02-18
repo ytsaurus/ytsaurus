@@ -2470,6 +2470,7 @@ private:
 
         RemoveExpiredResourceLimitsTags();
 
+        // XXX(babenko): list agents here
         BuildYsonFluently(consumer)
             .BeginMap()
                 .Item("connected").Value(IsConnected())
@@ -2544,9 +2545,14 @@ private:
         auto controllerJobSplitterInfo = rsp ? toYsonString(rsp->job_splitter()) : emptyMapFragment;
         auto controllerMemoryUsage = rsp ? MakeNullable(rsp->controller_memory_usage()) : Null;
 
+        auto agent = operation->FindAgent();
+
         return BuildYsonStringFluently()
             .BeginMap()
                 .Do(BIND(&NScheduler::BuildFullOperationAttributes, operation))
+                .DoIf(agent.operator bool(), [&] (TFluentMap fluent) {
+                    fluent.Item("agent_address").Value(agent->GetDefaultAddress());
+                })
                 .Item("progress").BeginMap()
                     .DoIf(operation->GetRegisteredAtSchedulerStrategy(), [&] (TFluentMap fluent) {
                         Strategy_->BuildOperationProgress(operation->GetId(), fluent);
@@ -2561,14 +2567,14 @@ private:
                 .EndMap()
                 .Item("running_jobs")
                     .BeginAttributes()
-                        .Item("opaque").Value("true")
+                        .Item("opaque").Value(true)
                     .EndAttributes()
                     .BeginMap()
                         .Items(controllerRunningJobs)
                     .EndMap()
                 .Item("job_splitter")
                     .BeginAttributes()
-                        .Item("opaque").Value("true")
+                        .Item("opaque").Value(true)
                     .EndAttributes()
                     .BeginMap()
                         .Items(controllerJobSplitterInfo)

@@ -156,7 +156,7 @@ public:
 
     void ValidateConnected()
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        VERIFY_THREAD_AFFINITY(ControlThread);
 
         if (!MasterConnector_->IsConnected()) {
             THROW_ERROR_EXCEPTION(GetMasterDisconnectedError());
@@ -197,6 +197,8 @@ public:
 
     TMasterConnector* GetMasterConnector()
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         return MasterConnector_.get();
     }
 
@@ -862,7 +864,7 @@ private:
         }
 
         if (rsp->has_config()) {
-            auto config = ConvertTo<TControllerAgentConfigPtr>(rsp->config());
+            auto config = ConvertTo<TControllerAgentConfigPtr>(TYsonString(rsp->config()));
             UpdateConfig(config);
         }
 
