@@ -444,6 +444,9 @@ public:
     //! Period for requesting exec nodes from scheduler.
     TDuration ExecNodesUpdatePeriod;
 
+    //! Period for requesting config from scheduler.
+    TDuration ConfigUpdatePeriod;
+
     //! Period for pushing operation alerts from agent to scheduler.
     TDuration OperationAlertsUpdatePeriod;
 

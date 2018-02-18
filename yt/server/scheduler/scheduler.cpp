@@ -330,6 +330,13 @@ public:
         return CachedExecNodeDescriptors_;
     }
 
+    const TSchedulerConfigPtr& GetConfig() const
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        return Config_;
+    }
+
     const std::vector<TNodeShardPtr>& GetNodeShards() const
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -337,7 +344,7 @@ public:
         return NodeShards_;
     }
 
-    bool IsConnected()
+    bool IsConnected() const
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -1082,7 +1089,7 @@ private:
 
     THashMap<TOperationId, TOperationPtr> IdToOperation_;
 
-    TReaderWriterSpinLock ExecNodeDescriptorsLock_;
+    mutable TReaderWriterSpinLock ExecNodeDescriptorsLock_;
     TRefCountedExecNodeDescriptorMapPtr CachedExecNodeDescriptors_ = New<TRefCountedExecNodeDescriptorMap>();
 
     TMemoryDistribution CachedExecNodeMemoryDistribution_;
@@ -1288,9 +1295,6 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        // TODO(babenko): improve
-        LOG_INFO("Preparing new incarnation of scheduler");
-
         // NB: We cannot be sure the previous incarnation did a proper cleanup due to possible
         // fiber cancelation.
         DoCleanup();
@@ -1353,6 +1357,7 @@ private:
 
         // XXX(babenko)
         Bootstrap_->GetControllerAgent()->GetMasterConnector()->OnMasterConnected();
+        Bootstrap_->GetControllerAgent()->UpdateConfig(Config_);
 
         CachedExecNodeMemoryDistributionByTags_->Start();
 
@@ -1651,9 +1656,6 @@ private:
 
             Strategy_->UpdateConfig(Config_);
             MasterConnector_->UpdateConfig(Config_);
-
-            // XXX(babenko)
-            Bootstrap_->GetControllerAgent()->UpdateConfig(Config_);
 
             ProfilingExecutor_->SetPeriod(Config_->ProfilingUpdatePeriod);
             LoggingExecutor_->SetPeriod(Config_->ClusterInfoLoggingPeriod);
@@ -1996,10 +1998,10 @@ private:
         auto controller = agentTracker->CreateController(agent.Get(), operation.Get());
         operation->SetController(controller);
 
-        // XXX(babenko): consider joining these two calls
+        // TODO(babenko): consider joining these two calls
         Strategy_->ValidateOperationCanBeRegistered(operation.Get());
         Strategy_->RegisterOperation(operation.Get());
-        // XXX(babenko): try getting rid of this dependency
+        // TODO(babenko): try getting rid of this dependency
         operation->PoolTreeSchedulingTagFilters() = Strategy_->GetOperationPoolTreeSchedulingTagFilters(operation->GetId());
         operation->SetRegisteredAtSchedulerStrategy(true);
 
@@ -2888,19 +2890,24 @@ void TScheduler::Initialize()
     Impl_->Initialize();
 }
 
-ISchedulerStrategyPtr TScheduler::GetStrategy()
+ISchedulerStrategyPtr TScheduler::GetStrategy() const
 {
     return Impl_->GetStrategy();
 }
 
-IYPathServicePtr TScheduler::GetOrchidService()
+IYPathServicePtr TScheduler::GetOrchidService() const
 {
     return Impl_->GetOrchidService();
 }
 
-TRefCountedExecNodeDescriptorMapPtr TScheduler::GetCachedExecNodeDescriptors()
+TRefCountedExecNodeDescriptorMapPtr TScheduler::GetCachedExecNodeDescriptors() const
 {
     return Impl_->GetCachedExecNodeDescriptors();
+}
+
+const TSchedulerConfigPtr& TScheduler::GetConfig() const
+{
+    return Impl_->GetConfig();
 }
 
 int TScheduler::GetNodeShardId(TNodeId nodeId) const
@@ -2913,7 +2920,7 @@ const std::vector<TNodeShardPtr>& TScheduler::GetNodeShards() const
     return Impl_->GetNodeShards();
 }
 
-bool TScheduler::IsConnected()
+bool TScheduler::IsConnected() const
 {
     return Impl_->IsConnected();
 }
