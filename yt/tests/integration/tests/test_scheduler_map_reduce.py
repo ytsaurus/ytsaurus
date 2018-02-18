@@ -445,12 +445,12 @@ print "x={0}\ty={1}".format(x, y)
                  "resource_limits" : { "user_slots" : 1}},
              dont_track=True)
 
-        # We wait for the first reducer to start (second is pending due to resource_limits).
+        # We wait for the first reducer to start (the second one is pending due to resource_limits).
         events_on_fs().wait_event("reducer_started", timeout=datetime.timedelta(1000))
 
         banned_nodes = self._ban_nodes_with_intermediate_chunks()
 
-        # First reducer will probably compelete successfully, but the second one
+        # The first reducer will probably complete successfully, but the second one
         # must fail due to unavailable intermediate chunk.
         # This will lead to a lost map job.
         events_on_fs().notify_event("continue_reducer")
