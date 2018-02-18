@@ -45,16 +45,21 @@ class TReadOperation
     : public IIOOperation
 {
 public:
-    explicit TReadOperation(const TSharedMutableRef& buffer)
+    explicit TReadOperation(const TSharedMutableRef& buffer, bool delayFirstRead)
         : Buffer_(buffer)
+        , DelayFirstRead_(delayFirstRead)
     { }
 
     virtual TErrorOr<TIOResult> PerformIO(int fd) override
     {
+        if (DelayFirstRead_) {
+            DelayFirstRead_ = false;
+            return TIOResult(true, 0);
+        }
+
         size_t bytesRead = 0;
         while (true) {
             ssize_t size = HandleEintr(::read, fd, Buffer_.Begin() + Position_, Buffer_.Size() - Position_);
-
             if (size == -1) {
                 if (errno == EAGAIN) {
                     return TIOResult(Position_ == 0, bytesRead);
@@ -91,6 +96,7 @@ public:
 private:
     TSharedMutableRef Buffer_;
     size_t Position_ = 0;
+    bool DelayFirstRead_ = false;
 
     TPromise<size_t> ResultPromise_ = NewPromise<size_t>();
 };
@@ -278,6 +284,19 @@ class TFDConnectionImpl
 public:
     TFDConnectionImpl(
         int fd,
+        const TString& filePath,
+        const IPollerPtr& poller,
+        bool delayFirstRead)
+        : Name_(Format("FDConnection{file://%v}", filePath))
+        , FD_(fd)
+        , Poller_(poller)
+        , DelayFirstRead_(delayFirstRead)
+    {
+        Init();
+    }
+
+    TFDConnectionImpl(
+        int fd,
         const TNetworkAddress& localAddress,
         const TNetworkAddress& remoteAddress,
         const IPollerPtr& poller)
@@ -287,11 +306,7 @@ public:
         , FD_(fd)
         , Poller_(poller)
     {
-        ReadDirection_.DoIO = BIND(&TFDConnectionImpl::DoIO, MakeStrong(this), &ReadDirection_, false);
-        ReadDirection_.PollFlag = EPollControl::Read;
-        WriteDirection_.DoIO = BIND(&TFDConnectionImpl::DoIO, MakeStrong(this), &WriteDirection_, false);
-        WriteDirection_.PollFlag = EPollControl::Write;
-        Poller_->Register(this);
+        Init();
     }
 
     virtual const TString& GetLoggingId() const override
@@ -343,7 +358,8 @@ public:
 
     TFuture<size_t> Read(const TSharedMutableRef& data)
     {
-        auto read = std::make_unique<TReadOperation>(data);
+        auto read = std::make_unique<TReadOperation>(data, DelayFirstRead_);
+        DelayFirstRead_ = false;
         auto future = read->ToFuture();
         StartIO(&ReadDirection_, std::move(read));
         return future;
@@ -480,6 +496,16 @@ private:
 
     EPollControl Control_ = EPollControl::None;
     IPollerPtr Poller_;
+    bool DelayFirstRead_ = false;
+
+    void Init()
+    {
+        ReadDirection_.DoIO = BIND(&TFDConnectionImpl::DoIO, MakeStrong(this), &ReadDirection_, false);
+        ReadDirection_.PollFlag = EPollControl::Read;
+        WriteDirection_.DoIO = BIND(&TFDConnectionImpl::DoIO, MakeStrong(this), &WriteDirection_, false);
+        WriteDirection_.PollFlag = EPollControl::Write;
+        Poller_->Register(this);
+    }
 
     void StartIO(TIODirection* direction, std::unique_ptr<IIOOperation> operation)
     {
@@ -626,12 +652,20 @@ class TFDConnection
 public:
     TFDConnection(
         int fd,
+        const TString& pipePath,
+        const IPollerPtr& poller,
+        TIntrusivePtr<TRefCounted> pipeHolder = nullptr,
+        bool delayFirstRead = true)
+        : Impl_(New<TFDConnectionImpl>(fd, pipePath, poller, delayFirstRead))
+        , PipeHolder_(std::move(pipeHolder))
+    { }
+
+    TFDConnection(
+        int fd,
         const TNetworkAddress& localAddress,
         const TNetworkAddress& remoteAddress,
-        const IPollerPtr& poller,
-        TIntrusivePtr<TRefCounted> pipeHolder = nullptr)
+        const IPollerPtr& poller)
         : Impl_(New<TFDConnectionImpl>(fd, localAddress, remoteAddress, poller))
-        , PipeHolder_(std::move(pipeHolder))
     { }
 
     ~TFDConnection()
@@ -765,7 +799,7 @@ IConnectionReaderPtr CreateInputConnectionFromPath(
             << TErrorAttribute("path", pipePath);
     }
 
-    return New<TFDConnection>(fd, TNetworkAddress{}, TNetworkAddress{}, poller, pipeHolder);
+    return New<TFDConnection>(fd, pipePath, poller, pipeHolder, true);
 }
 
 IConnectionWriterPtr CreateOutputConnectionFromPath(
@@ -773,7 +807,7 @@ IConnectionWriterPtr CreateOutputConnectionFromPath(
     const IPollerPtr& poller,
     const TIntrusivePtr<TRefCounted>& pipeHolder)
 {
-    int flags = O_WRONLY | O_CLOEXEC | O_NONBLOCK;
+    int flags = O_WRONLY | O_CLOEXEC;
     int fd = HandleEintr(::open, pipePath.c_str(), flags);
     if (fd == -1) {
         THROW_ERROR_EXCEPTION("Failed to open named pipe")
@@ -781,7 +815,8 @@ IConnectionWriterPtr CreateOutputConnectionFromPath(
             << TErrorAttribute("path", pipePath);
     }
 
-    return New<TFDConnection>(fd, TNetworkAddress{}, TNetworkAddress{}, poller, pipeHolder);
+    SafeMakeNonblocking(fd);
+    return New<TFDConnection>(fd, pipePath, poller, pipeHolder, false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
