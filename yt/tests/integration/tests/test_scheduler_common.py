@@ -3082,7 +3082,7 @@ class TestControllerMemoryUsage(YTEnvSetup):
             if state == "running":
                 try:
                     max_usage = max(max_usage, get("//sys/scheduler/orchid/scheduler/operations/{0}/controller_memory_usage".format(op.id)))
-                except YTError;
+                except YTError:
                     pass
                 time.sleep(0.1)
             else:
