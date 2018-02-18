@@ -248,6 +248,7 @@ private:
 
         const auto& controllerAgent = Bootstrap_->GetControllerAgent();
         controllerAgent->ValidateConnected();
+        controllerAgent->ValidateIncarnation(incarnationId);
 
         auto operation = controllerAgent->GetOperationOrThrow(operationId);
         WaitFor(controllerAgent->CompleteOperation(operation))

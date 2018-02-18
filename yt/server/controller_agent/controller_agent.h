@@ -49,6 +49,7 @@ public:
      *  \note Thread affinity: any
      */
     const IInvokerPtr& GetControllerThreadPoolInvoker();
+
     /*!
      *  \note Thread affinity: any
      */
@@ -57,43 +58,48 @@ public:
     /*!
      *  \note Thread affinity: any
      */
+    const NApi::INativeClientPtr& GetClient() const;
+
+    /*!
+     *  \note Thread affinity: any
+     */
+    const NNodeTrackerClient::TNodeDirectoryPtr& GetNodeDirectory();
+
+    /*!
+     *  \note Thread affinity: any
+     */
+    const NChunkClient::TThrottlerManagerPtr& GetChunkLocationThrottlerManager() const;
+
+    /*!
+     *  \note Thread affinity: any
+     */
+    const TCoreDumperPtr& GetCoreDumper() const;
+
+    /*!
+     *  \note Thread affinity: any
+     */
+    const NConcurrency::TAsyncSemaphorePtr& GetCoreSemaphore() const;
+
+    /*!
+     *  \note Thread affinity: any
+     */
+    const NEventLog::TEventLogWriterPtr& GetEventLogWriter() const;
+
+    /*!
+     *  \note Thread affinity: any
+     */
+    TMasterConnector* GetMasterConnector();
+
     void ValidateConnected() const;
     void ValidateIncarnation(const TIncarnationId& incarnationId) const;
+
     /*!
      *  \note Thread affinity: any
      */
     TInstant GetConnectionTime() const;
 
-    // XXX(babenko)
-    TMasterConnector* GetMasterConnector();
-
     const TControllerAgentConfigPtr& GetConfig() const;
     void UpdateConfig(const TControllerAgentConfigPtr& config);
-
-    /*!
-     *  \note Thread affinity: any
-     */
-    const NApi::INativeClientPtr& GetClient() const;
-    /*!
-     *  \note Thread affinity: any
-     */
-    const NNodeTrackerClient::TNodeDirectoryPtr& GetNodeDirectory();
-    /*!
-     *  \note Thread affinity: any
-     */
-    const NChunkClient::TThrottlerManagerPtr& GetChunkLocationThrottlerManager() const;
-    /*!
-     *  \note Thread affinity: any
-     */
-    const TCoreDumperPtr& GetCoreDumper() const;
-    /*!
-     *  \note Thread affinity: any
-     */
-    const NConcurrency::TAsyncSemaphorePtr& GetCoreSemaphore() const;
-    /*!
-     *  \note Thread affinity: any
-     */
-    const NEventLog::TEventLogWriterPtr& GetEventLogWriter() const;
 
     TOperationPtr FindOperation(const TOperationId& operationId);
     TOperationPtr GetOperation(const TOperationId& operationId);

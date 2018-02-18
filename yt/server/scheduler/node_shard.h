@@ -140,7 +140,6 @@ public:
     void BuildNodesYson(NYTree::TFluentMap fluent);
 
     void RegisterRevivedJobs(const TOperationId& operationId, const std::vector<TJobPtr>& jobs);
-    void AbortUnconfirmedJobs(const TOperationId& operationId, const std::vector<TJobPtr>& jobs);
 
     TOperationId FindOperationIdByJobId(const TJobId& job);
 
@@ -212,11 +211,14 @@ private:
 
     NConcurrency::TPeriodicExecutorPtr SubmitJobsToStrategyExecutor_;
 
+    using TEpoch = ui64;
+
     struct TOperationState
     {
-        TOperationState(IOperationControllerPtr controller, bool jobsReady)
+        TOperationState(IOperationControllerPtr controller, bool jobsReady, TEpoch epoch)
             : Controller(std::move(controller))
             , JobsReady(jobsReady)
+            , Epoch(epoch)
         { }
 
         THashMap<TJobId, TJobPtr> Jobs;
@@ -226,10 +228,12 @@ private:
         //! Flag showing that we already know about all jobs of this operation
         //! and it is OK to abort unknown jobs that claim to be a part of this operation.
         bool JobsReady = false;
+        //! Prevents leaking #AbortUnconfirmedJobs between different incarnations of the same operation.
+        TEpoch Epoch;
     };
 
     THashMap<TOperationId, TOperationState> IdToOpertionState_;
-
+    TEpoch CurrentEpoch_ = 0;
 
     void DoCleanup();
 
@@ -250,6 +254,10 @@ private:
     void OnNodeLeaseExpired(NNodeTrackerClient::TNodeId nodeId);
 
     void AbortAllJobsAtNode(const TExecNodePtr& node);
+    void AbortUnconfirmedJobs(
+        const TOperationId& operationId,
+        TEpoch epoch,
+        const std::vector<TJobPtr>& jobs);
 
     void ProcessHeartbeatJobs(
         const TExecNodePtr& node,
@@ -303,7 +311,7 @@ private:
         const TJobPtr& job,
         EInterruptReason reason,
         NProfiling::TCpuDuration interruptTimeout = 0,
-        TNullable<TString> interruptUser = Null);
+        const TNullable<TString>& interruptUser = Null);
 
     TExecNodePtr FindNodeByJob(const TJobId& jobId);
 
@@ -314,8 +322,6 @@ private:
     TJobPtr GetJobOrThrow(const TJobId& jobId);
 
     NJobProberClient::TJobProberServiceProxy CreateJobProberProxy(const TJobPtr& job);
-
-    bool OperationExists(const TOperationId& operationId) const;
 
     TOperationState* FindOperationState(const TOperationId& operationId);
 

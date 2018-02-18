@@ -161,13 +161,13 @@ public:
         auto operationYson = BuildYsonStringFluently()
             .BeginAttributes()
                 .Do(BIND(&BuildMinimalOperationAttributes, operation))
-                .Item("opaque").Value("true")
-                    .Item("acl").Do(std::bind(&TImpl::BuildOperationAcl, operation, _1))
+                .Item("opaque").Value(true)
+                .Item("acl").Do(std::bind(&TImpl::BuildOperationAcl, operation, _1))
                 .Item("owners").Value(operation->GetOwners())
             .EndAttributes()
             .BeginMap()
                 .Item("jobs").BeginAttributes()
-                    .Item("opaque").Value("true")
+                    .Item("opaque").Value(true)
                 .EndAttributes()
                 .BeginMap().EndMap()
             .EndMap()
@@ -452,10 +452,12 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        LOG_INFO("Connecting to master");
-
-        YCHECK(State_ == EMasterConnectorState::Disconnected);
+        if (State_ != EMasterConnectorState::Disconnected) {
+            return;
+        }
         State_ = EMasterConnectorState::Connecting;
+
+        LOG_INFO("Connecting to master");
 
         YCHECK(!CancelableContext_);
         CancelableContext_ = New<TCancelableContext>();
@@ -985,27 +987,27 @@ private:
                 revivalDescriptor.AsyncTransaction = attachTransaction(
                     attributes->Get<TTransactionId>("async_scheduler_transaction_id", NullTransactionId),
                     true,
-                    "async transaction");
+                    "async");
                 revivalDescriptor.InputTransaction = attachTransaction(
                     attributes->Get<TTransactionId>("input_transaction_id", NullTransactionId),
                     true,
-                    "input transaction");
+                    "input");
                 revivalDescriptor.OutputTransaction = attachTransaction(
                     attributes->Get<TTransactionId>("output_transaction_id", NullTransactionId),
                     true,
-                    "output transaction");
+                    "output");
                 revivalDescriptor.OutputCompletionTransaction = attachTransaction(
                     attributes->Get<TTransactionId>("output_completion_transaction_id", NullTransactionId),
                     true,
-                    "output completion transaction");
+                    "output completion");
                 revivalDescriptor.DebugTransaction = attachTransaction(
                     attributes->Get<TTransactionId>("debug_transaction_id", NullTransactionId),
                     true,
-                    "debug transaction");
+                    "debug");
                 revivalDescriptor.DebugCompletionTransaction = attachTransaction(
                     attributes->Get<TTransactionId>("debug_completion_transaction_id", NullTransactionId),
                     true,
-                    "debug completion transaction");
+                    "debug completion");
 
                 const auto& userTransactionId = operation->GetUserTransactionId();
                 auto userTransaction = attachTransaction(userTransactionId, false);

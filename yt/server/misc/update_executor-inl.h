@@ -15,13 +15,14 @@ TUpdateExecutor<TKey, TUpdateParameters>::TUpdateExecutor(
     TCallback<bool(const TUpdateParameters*)> shouldRemoveUpdateAction,
     TCallback<void(const TError&)> onUpdateFailed,
     TDuration period,
-    NLogging::TLogger logger)
+    const NLogging::TLogger& logger)
     : CreateUpdateAction_(createUpdateAction)
     , ShouldRemoveUpdateAction_(shouldRemoveUpdateAction)
     , OnUpdateFailed_(onUpdateFailed)
+    , Invoker_(std::move(invoker))
     , Logger(logger)
     , UpdateExecutor_(New<NConcurrency::TPeriodicExecutor>(
-        std::move(invoker),
+        Invoker_,
         BIND(&TUpdateExecutor<TKey, TUpdateParameters>::ExecuteUpdates, MakeWeak(this)),
         period,
         NConcurrency::EPeriodicExecutorMode::Automatic))
@@ -165,10 +166,10 @@ TCallback<TFuture<void>()> TUpdateExecutor<TKey, TUpdateParameters>::CreateUpdat
                         OnUpdateFailed_(TError("Update of item failed (Key: %v)", key) << error);
                     }
                 })
-                .AsyncVia(GetCurrentInvoker())
+                .AsyncVia(Invoker_)
             );
         })
-        .AsyncVia(GetCurrentInvoker());
+        .AsyncVia(Invoker_);
 }
 
 template <class TKey, class TUpdateParameters>

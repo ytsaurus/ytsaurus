@@ -19,7 +19,7 @@ public:
         TCallback<bool(const TUpdateParameters*)> shouldRemoveUpdateAction,
         TCallback<void(const TError&)> onUpdateFailed,
         TDuration period,
-        NLogging::TLogger logger);
+        const NLogging::TLogger& logger);
 
     void Start();
     void Stop();
@@ -39,6 +39,7 @@ private:
     const TCallback<TCallback<TFuture<void>()>(const TKey&, TUpdateParameters*)> CreateUpdateAction_;
     const TCallback<bool(const TUpdateParameters*)> ShouldRemoveUpdateAction_;
     const TCallback<void(const TError&)> OnUpdateFailed_;
+    const IInvokerPtr Invoker_;
     const NLogging::TLogger Logger;
 
     const NConcurrency::TPeriodicExecutorPtr UpdateExecutor_;

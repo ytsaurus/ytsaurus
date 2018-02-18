@@ -189,7 +189,10 @@ void TNodeShard::RegisterOperation(
     VERIFY_INVOKER_AFFINITY(GetInvoker());
     YCHECK(Connected_);
 
-    YCHECK(IdToOpertionState_.emplace(operationId, TOperationState(controller, !reviving /* jobsReady */)).second);
+    YCHECK(IdToOpertionState_.emplace(
+        operationId,
+        TOperationState(controller, !reviving /* jobsReady */, CurrentEpoch_++)
+    ).second);
 }
 
 void TNodeShard::UnregisterOperation(const TOperationId& operationId)
@@ -199,9 +202,12 @@ void TNodeShard::UnregisterOperation(const TOperationId& operationId)
 
     auto it = IdToOpertionState_.find(operationId);
     YCHECK(it != IdToOpertionState_.end());
-    for (const auto& job : it->second.Jobs) {
+    auto& operationState = it->second;
+
+    for (const auto& job : operationState.Jobs) {
         YCHECK(job.second->GetHasPendingUnregistration());
     }
+
     IdToOpertionState_.erase(it);
 }
 
@@ -829,46 +835,9 @@ void TNodeShard::RegisterRevivedJobs(const TOperationId& operationId, const std:
 
     // Give some time for nodes to confirm the jobs.
     TDelayedExecutor::Submit(
-        BIND(&TNodeShard::AbortUnconfirmedJobs, MakeWeak(this), operationId, jobs)
+        BIND(&TNodeShard::AbortUnconfirmedJobs, MakeWeak(this), operationId, operationState->Epoch, jobs)
             .Via(GetInvoker()),
         Config_->JobRevivalAbortTimeout);
-}
-
-void TNodeShard::AbortUnconfirmedJobs(const TOperationId& operationId, const std::vector<TJobPtr>& jobs)
-{
-    std::vector<TJobPtr> unconfirmedJobs;
-    for (const auto& job : jobs) {
-        if (job->GetWaitingForConfirmation()) {
-            unconfirmedJobs.emplace_back(job);
-        }
-    }
-
-    if (unconfirmedJobs.empty()) {
-        LOG_INFO("All revived jobs were confirmed (OperationId: %v, RevivedJobCount: %v)",
-            operationId,
-            jobs.size());
-        return;
-    }
-
-    LOG_WARNING("Aborting revived jobs that were not confirmed (OperationId: %v, RevivedJobCount: %v, "
-        "JobRevivalAbortTimeout: %v, UnconfirmedJobCount: %v)",
-        operationId,
-        jobs.size(),
-        Config_->JobRevivalAbortTimeout,
-        unconfirmedJobs.size());
-
-    for (const auto& job : unconfirmedJobs) {
-        LOG_DEBUG("Aborting revived job that was not confirmed (OperationId: %v, JobId: %v)",
-            operationId,
-            job->GetId());
-        auto status = JobStatusFromError(
-            TError("Job not confirmed after timeout")
-                << TErrorAttribute("abort_reason", EAbortReason::RevivalConfirmationTimeout));
-        OnJobAborted(job, &status);
-        if (auto node = job->GetNode()) {
-            node->UnconfirmedJobIds().erase(job->GetId());
-        }
-    }
 }
 
 TOperationId TNodeShard::FindOperationIdByJobId(const TJobId& jobId)
@@ -1112,6 +1081,51 @@ void TNodeShard::AbortAllJobsAtNode(const TExecNodePtr& node)
             TError("Node offline")
             << TErrorAttribute("abort_reason", EAbortReason::NodeOffline));
         OnJobAborted(job, &status);
+    }
+}
+
+void TNodeShard::AbortUnconfirmedJobs(
+    const TOperationId& operationId,
+    TEpoch epoch,
+    const std::vector<TJobPtr>& jobs)
+{
+    const auto* operationState = FindOperationState(operationId);
+    if (!operationState || operationState->Epoch != epoch) {
+        return;
+    }
+
+    std::vector<TJobPtr> unconfirmedJobs;
+    for (const auto& job : jobs) {
+        if (job->GetWaitingForConfirmation()) {
+            unconfirmedJobs.emplace_back(job);
+        }
+    }
+
+    if (unconfirmedJobs.empty()) {
+        LOG_INFO("All revived jobs were confirmed (OperationId: %v, RevivedJobCount: %v)",
+            operationId,
+            jobs.size());
+        return;
+    }
+
+    LOG_WARNING("Aborting revived jobs that were not confirmed (OperationId: %v, RevivedJobCount: %v, "
+        "JobRevivalAbortTimeout: %v, UnconfirmedJobCount: %v)",
+        operationId,
+        jobs.size(),
+        Config_->JobRevivalAbortTimeout,
+        unconfirmedJobs.size());
+
+    auto status = JobStatusFromError(
+        TError("Job not confirmed after timeout")
+            << TErrorAttribute("abort_reason", EAbortReason::RevivalConfirmationTimeout));
+    for (const auto& job : unconfirmedJobs) {
+        LOG_DEBUG("Aborting revived job that was not confirmed (OperationId: %v, JobId: %v)",
+            operationId,
+            job->GetId());
+        OnJobAborted(job, &status);
+        if (auto node = job->GetNode()) {
+            node->UnconfirmedJobIds().erase(job->GetId());
+        }
     }
 }
 
@@ -1558,7 +1572,7 @@ void TNodeShard::ProcessScheduledJobs(
     }
 
     for (const auto& job : schedulingContext->PreemptedJobs()) {
-        if (!OperationExists(job->GetOperationId()) || job->GetHasPendingUnregistration()) {
+        if (!FindOperationState(job->GetOperationId()) || job->GetHasPendingUnregistration()) {
             LOG_DEBUG("Dangling preempted job found (JobId: %v, OperationId: %v)",
                 job->GetId(),
                 job->GetOperationId());
@@ -1828,13 +1842,14 @@ void TNodeShard::DoInterruptJob(
     const TJobPtr& job,
     EInterruptReason reason,
     TCpuDuration interruptTimeout,
-    TNullable<TString> interruptUser)
+    const TNullable<TString>& interruptUser)
 {
-    LOG_DEBUG("Interrupting job (Reason: %v, InterruptTimeout: %.3g, JobId: %v, OperationId: %v)",
+    LOG_DEBUG("Interrupting job (Reason: %v, InterruptTimeout: %.3g, JobId: %v, OperationId: %v, User: %v)",
         reason,
         CpuDurationToDuration(interruptTimeout).SecondsFloat(),
         job->GetId(),
-        job->GetOperationId());
+        job->GetOperationId(),
+        interruptUser);
 
     if (job->GetInterruptReason() == EInterruptReason::None && reason != EInterruptReason::None) {
         job->SetInterruptReason(reason);
@@ -1897,11 +1912,6 @@ TJobProberServiceProxy TNodeShard::CreateJobProberProxy(const TJobPtr& job)
     return Host_->CreateJobProberProxy(address);
 }
 
-bool TNodeShard::OperationExists(const TOperationId& operationId) const
-{
-    return IdToOpertionState_.find(operationId) != IdToOpertionState_.end();
-}
-
 TNodeShard::TOperationState* TNodeShard::FindOperationState(const TOperationId& operationId)
 {
     auto it = IdToOpertionState_.find(operationId);
@@ -1919,7 +1929,7 @@ void TNodeShard::BuildNodeYson(const TExecNodePtr& node, TFluentMap fluent)
 {
     fluent
         .Item(node->GetDefaultAddress()).BeginMap()
-            .Do([=] (TFluentMap fluent) {
+            .Do([&] (TFluentMap fluent) {
                 BuildExecNodeAttributes(node, fluent);
             })
         .EndMap();
