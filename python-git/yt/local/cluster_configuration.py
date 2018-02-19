@@ -1,5 +1,17 @@
 from yt.wrapper.common import MB, GB
-from yt.common import update, update_inplace
+
+# TODO(asaitgalin): Remove it when new version of yt.wrapper
+# is built and deployed.
+from copy import deepcopy
+from yt.common import update
+try:
+    from yt.common import update_inplace
+except ImportError:
+    update_inplace = update
+    del update
+
+    def update(obj, patch):
+        return update_inplace(deepcopy(obj), patch)
 
 from yt.packages.six import iteritems, itervalues
 
