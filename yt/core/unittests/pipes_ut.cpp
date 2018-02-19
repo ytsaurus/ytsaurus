@@ -32,6 +32,15 @@ TEST(TPipeIOHolder, CanInstantiate)
     writerHolder->Abort().Get();
 }
 
+TEST(TPipeTest, PrematureEOF)
+{
+    auto pipe = TNamedPipe::Create("./namedpipe");
+    auto reader = pipe->CreateAsyncReader();
+
+    auto buffer = TSharedMutableRef::Allocate(1024 * 1024);
+    EXPECT_THROW(reader->Read(buffer).WithTimeout(TDuration::Seconds(1)).Get().ValueOrThrow(), TErrorException);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TBlob ReadAll(IConnectionReaderPtr reader, bool useWaitFor)
