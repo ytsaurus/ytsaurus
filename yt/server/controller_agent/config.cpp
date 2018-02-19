@@ -114,6 +114,8 @@ TSuspiciousJobsOptions::TSuspiciousJobsOptions()
         .Default(0.95);
     RegisterParameter("update_period", UpdatePeriod)
         .Default(TDuration::Seconds(5));
+    RegisterParameter("max_orchid_entry_count_per_type", MaxOrchidEntryCountPerType)
+        .Default(100);
 }
 
 TOperationOptions::TOperationOptions()

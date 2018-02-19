@@ -633,7 +633,7 @@ public:
     TChunkScraperConfig()
     {
         RegisterParameter("max_chunks_per_request", MaxChunksPerRequest)
-            .Default(1000)
+            .Default(10000)
             .GreaterThan(0)
             .LessThan(100000);
     }

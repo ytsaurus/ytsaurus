@@ -254,7 +254,7 @@ TSchedulerConfig::TSchedulerConfig()
 
     RegisterParameter("controller_agent_light_rpc_timeout", ControllerAgentLightRpcTimeout)
         .Default(TDuration::Seconds(30));
-    
+
     RegisterParameter("controller_agent_heavy_rpc_timeout", ControllerAgentHeavyRpcTimeout)
         .Default(TDuration::Minutes(30));
 
