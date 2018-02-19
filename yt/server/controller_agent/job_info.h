@@ -135,6 +135,7 @@ struct TCompletedJob
     NChunkPools::IChunkPoolInput* DestinationPool = nullptr;
     NChunkPools::IChunkPoolInput::TCookie InputCookie;
     NChunkPools::TChunkStripePtr InputStripe;
+    bool Restartable;
 
     NScheduler::TJobNodeDescriptor NodeDescriptor;
 

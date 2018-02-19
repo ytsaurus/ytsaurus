@@ -1093,7 +1093,7 @@ THashSet<TChunkId> TOperationControllerBase::GetAliveIntermediateChunks() const
     THashSet<TChunkId> intermediateChunks;
 
     for (const auto& pair : ChunkOriginMap) {
-        if (!pair.second->Suspended || pair.second->InputStripe) {
+        if (!pair.second->Suspended || !pair.second->Restartable) {
             intermediateChunks.insert(pair.first);
         }
     }
@@ -2086,7 +2086,7 @@ void TOperationControllerBase::OnInputChunkAvailable(
             continue;
 
         auto task = inputStripe.Task;
-        task->GetChunkPoolInput()->Resume(inputStripe.Cookie, inputStripe.Stripe);
+        task->GetChunkPoolInput()->Resume(inputStripe.Cookie);
         if (task->HasInputLocality()) {
             AddTaskLocalityHint(inputStripe.Stripe, task);
         }
@@ -2123,8 +2123,6 @@ void TOperationControllerBase::OnInputChunkUnavailable(const TChunkId& chunkId, 
         case EUnavailableChunkAction::Skip: {
             descriptor->State = EInputChunkState::Skipped;
             for (const auto& inputStripe : descriptor->InputStripes) {
-                inputStripe.Task->GetChunkPoolInput()->Suspend(inputStripe.Cookie);
-
                 inputStripe.Stripe->DataSlices.erase(
                     std::remove_if(
                         inputStripe.Stripe->DataSlices.begin(),
@@ -2139,8 +2137,11 @@ void TOperationControllerBase::OnInputChunkUnavailable(const TChunkId& chunkId, 
                         }),
                     inputStripe.Stripe->DataSlices.end());
 
-                // Reinstall patched stripe.
-                inputStripe.Task->GetChunkPoolInput()->Resume(inputStripe.Cookie, inputStripe.Stripe);
+                // Store information that chunk disappeared in the chunk mapping.
+                for (const auto& chunk : descriptor->InputChunks) {
+                    inputStripe.Task->GetChunkMapping()->OnChunkDisappeared(chunk);
+                }
+
                 AddTaskPendingHint(inputStripe.Task);
             }
             InputChunkScraper->Start();
@@ -2170,19 +2171,19 @@ bool TOperationControllerBase::OnIntermediateChunkUnavailable(const TChunkId& ch
     YCHECK(it != ChunkOriginMap.end());
     auto& completedJob = it->second;
 
-    // If completedJob->InputStripe != nullptr, that means that source pool/task don't support lost jobs
+    // If completedJob->Restartable == false, that means that source pool/task don't support lost jobs
     // and we have to use scraper to find new replicas of intermediate chunks.
 
-    if (completedJob->InputStripe && Spec_->UnavailableChunkTactics == EUnavailableChunkAction::Fail) {
+    if (!completedJob->Restartable && Spec_->UnavailableChunkTactics == EUnavailableChunkAction::Fail) {
         auto error = TError("Intermediate chunk is unavailable")
             << TErrorAttribute("chunk_id", chunkId);
         OnOperationFailed(error, true);
         return false;
     }
 
-    // If lost jobs are enabled we don't track individual unavailable chunks,
+    // If job is replayable, we don't track individual unavailable chunks,
     // since we will regenerate them all anyway.
-    if (completedJob->InputStripe &&
+    if (!completedJob->Restartable &&
         completedJob->UnavailableChunks.insert(chunkId).second)
     {
         ++UnavailableIntermediateChunkCount;
@@ -2202,7 +2203,7 @@ bool TOperationControllerBase::OnIntermediateChunkUnavailable(const TChunkId& ch
     completedJob->Suspended = true;
     completedJob->DestinationPool->Suspend(completedJob->InputCookie);
 
-    if (!completedJob->InputStripe) {
+    if (completedJob->Restartable) {
         JobCounter->Lost(1);
         completedJob->SourceTask->GetChunkPoolOutput()->Lost(completedJob->OutputCookie);
         completedJob->SourceTask->OnJobLost(completedJob);
@@ -2218,7 +2219,7 @@ void TOperationControllerBase::OnIntermediateChunkAvailable(const TChunkId& chun
     YCHECK(it != ChunkOriginMap.end());
     auto& completedJob = it->second;
 
-    if (!completedJob->InputStripe || !completedJob->Suspended) {
+    if (completedJob->Restartable || !completedJob->Suspended) {
         // Job will either be restarted or all chunks are fine.
         return;
     }
@@ -2242,7 +2243,7 @@ void TOperationControllerBase::OnIntermediateChunkAvailable(const TChunkId& chun
                 UnavailableIntermediateChunkCount);
 
             completedJob->Suspended = false;
-            completedJob->DestinationPool->Resume(completedJob->InputCookie, completedJob->InputStripe);
+            completedJob->DestinationPool->Resume(completedJob->InputCookie);
 
             // TODO (psushin).
             // Unfortunately we don't know what task we are resuming, so
@@ -5381,10 +5382,6 @@ void TOperationControllerBase::RegisterInputStripe(const TChunkStripePtr& stripe
 {
     THashSet<TChunkId> visitedChunks;
 
-    for (const auto& slice : stripe->DataSlices) {
-        slice->Tag = CurrentInputDataSliceTag_++;
-    }
-
     TStripeDescriptor stripeDescriptor;
     stripeDescriptor.Stripe = stripe;
     stripeDescriptor.Task = task;
@@ -5945,12 +5942,30 @@ void TOperationControllerBase::UpdateSuspiciousJobsYson()
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvoker);
 
+    // We sort suspicious jobs by their last activity time and then
+    // leave top `MaxOrchidEntryCountPerType` for each job type.
+
+    std::vector<TJobletPtr> suspiciousJoblets;
+    for (const auto& pair : JobletMap) {
+        const auto& joblet = pair.second;
+        if (joblet->Suspicious) {
+            suspiciousJoblets.emplace_back(joblet);
+        }
+    }
+
+    std::sort(suspiciousJoblets.begin(), suspiciousJoblets.end(), [] (const TJobletPtr& lhs, const TJobletPtr& rhs) {
+        return lhs->LastActivityTime < rhs->LastActivityTime;
+    });
+
+    THashMap<EJobType, int> suspiciousJobCountPerType;
+
     auto yson = BuildYsonStringFluently<EYsonType::MapFragment>()
         .DoFor(
-            JobletMap,
-            [&] (TFluentMap fluent, const std::pair<TJobId, TJobletPtr>& pair) {
-                const auto& joblet = pair.second;
-                if (joblet->Suspicious) {
+            suspiciousJoblets,
+            [&] (TFluentMap fluent, const TJobletPtr& joblet) {
+                auto& count = suspiciousJobCountPerType[joblet->JobType];
+                if (count < Config->SuspiciousJobs->MaxOrchidEntryCountPerType) {
+                    ++count;
                     fluent.Item(ToString(joblet->JobId))
                         .BeginMap()
                             .Item("operation_id").Value(ToString(OperationId))
@@ -6651,7 +6666,6 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
     Persist(context, RowCountLimit);
     Persist(context, EstimatedInputDataSizeHistogram_);
     Persist(context, InputDataSizeHistogram_);
-    Persist(context, CurrentInputDataSliceTag_);
     Persist(context, StderrCount_);
     Persist(context, JobNodeCount_);
     Persist(context, FinishedJobs_);
@@ -6858,12 +6872,20 @@ IChunkPoolInput::TCookie TOperationControllerBase::TSink::Add(TChunkStripePtr st
     return AddWithKey(stripe, TChunkStripeKey());
 }
 
-void TOperationControllerBase::TSink::Suspend(TCookie cookie)
+void TOperationControllerBase::TSink::Suspend(TCookie /* cookie */)
 {
     Y_UNREACHABLE();
 }
 
-void TOperationControllerBase::TSink::Resume(TCookie cookie, TChunkStripePtr stripe)
+void TOperationControllerBase::TSink::Resume(TCookie /* cookie */)
+{
+    Y_UNREACHABLE();
+}
+
+void TOperationControllerBase::TSink::Reset(
+    TCookie /* cookie */,
+    TChunkStripePtr /* stripe */,
+    TInputChunkMappingPtr /* mapping */)
 {
     Y_UNREACHABLE();
 }

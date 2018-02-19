@@ -56,7 +56,7 @@ public:
         , Listener_(listener)
         , Poller_(poller)
     { }
-    
+
     virtual void AddHandler(const TString& path, const IHttpHandlerPtr& handler) override
     {
         YCHECK(!Started_.load());
@@ -149,7 +149,9 @@ private:
         response->WriteHeaders(EStatusCode::InternalServerError);
 
         try {
-            LOG_INFO("Received HTTP request (Method: %v, Path: %v)",
+            auto requestId = TGuid::Create();
+            LOG_INFO("Received HTTP request (RequestId: %v, Method: %v, Path: %v)",
+                requestId,
                 request->GetMethod(),
                 request->GetUrl().Path);
 
@@ -162,6 +164,10 @@ private:
             }
 
             handler->HandleRequest(request, response);
+            LOG_INFO("Finished handling HTTP request (RequestId: %v, Method: %v, Path: %v)",
+                requestId,
+                request->GetMethod(),
+                request->GetUrl().Path);
         } catch (const std::exception& ex) {
             LOG_ERROR(ex, "Error while handling HTTP request");
 

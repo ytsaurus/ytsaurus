@@ -9,6 +9,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/election_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/fair_share_tree_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/file_changelog_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/input_chunk_mapping_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/job_signaler_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/job_size_adjuster_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/max_min_balancer_ut.cpp
