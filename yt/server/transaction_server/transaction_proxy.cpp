@@ -83,6 +83,7 @@ private:
             .SetOpaque(true));
         descriptors->push_back("resource_usage");
         descriptors->push_back("multicell_resource_usage");
+        descriptors->push_back("is_system");
     }
 
     virtual bool GetBuiltinAttribute(const TString& key, IYsonConsumer* consumer) override
@@ -162,6 +163,12 @@ private:
                 .DoListFor(transaction->Locks(), [=] (TFluentList fluent, const TLock* lock) {
                     fluent.Item().Value(lock->GetId());
                 });
+            return true;
+        }
+
+        if (key == "system") {
+            BuildYsonFluently(consumer)
+                .Value(transaction->System());
             return true;
         }
 

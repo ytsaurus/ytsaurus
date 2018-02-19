@@ -435,6 +435,43 @@ class TestCypress(YTEnvSetup):
         copy("//tmp/t1", "//tmp/t2")
         assert get("//tmp/t2/@compression_codec") == "zlib_6"
 
+    def test_copy_from_another_tx1(self):
+        tx = start_transaction()
+        create("table", "//tmp/t", tx=tx)
+
+        copy("//tmp/t", "//tmp/t2", source_transaction_id=tx)
+        assert exists("//tmp/t2")
+        assert exists("//tmp/t", tx=tx)
+        assert not exists("//tmp/t")
+
+        with pytest.raises(YtError): move("//tmp/t", "//tmp/t3", source_transaction_id=tx)
+
+        commit_transaction(tx)
+        assert exists("//tmp/t")
+        assert exists("//tmp/t2")
+        assert not exists("//tmp/t3")
+
+    def test_copy_from_another_tx2(self):
+        tx = start_transaction()
+        create("table", "//tmp/t", tx=tx)
+
+        tx2 = start_transaction()
+
+        copy("//tmp/t", "//tmp/t2", tx=tx2, source_transaction_id=tx)
+        assert exists("//tmp/t2", tx=tx2)
+        assert exists("//tmp/t", tx=tx)
+        assert not exists("//tmp/t")
+        assert not exists("//tmp/t2")
+
+        with pytest.raises(YtError): move("//tmp/t", "//tmp/t3", tx=tx2, source_transaction_id=tx)
+
+        commit_transaction(tx2)
+        assert exists("//tmp/t2")
+        assert not exists("//tmp/t3")
+
+        commit_transaction(tx)
+        assert exists("//tmp/t")
+
     def test_compression_codec_in_tx(self):
         create("table", "//tmp/t", attributes={"compression_codec": "none"})
         assert get("//tmp/t/@compression_codec") == "none"

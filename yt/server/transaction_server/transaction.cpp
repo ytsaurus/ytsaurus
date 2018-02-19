@@ -61,6 +61,7 @@ void TTransaction::Save(NCellMaster::TSaveContext& context) const
     Save(context, StagedNodes_);
     Save(context, AccountResourceUsage_);
     Save(context, Acd_);
+    Save(context, System_);
 }
 
 void TTransaction::Load(NCellMaster::TLoadContext& context)
@@ -91,6 +92,9 @@ void TTransaction::Load(NCellMaster::TLoadContext& context)
     Load(context, StagedNodes_);
     Load(context, AccountResourceUsage_);
     Load(context, Acd_);
+    if (context.GetVersion() >= 702) {
+        Load(context, System_);
+    }
 }
 
 void TTransaction::RecomputeResourceUsage()
@@ -151,6 +155,16 @@ TYsonString TTransaction::GetErrorDescription() const
             })
             .Items(*customAttributes)
         .EndMap();
+}
+
+bool TTransaction::System() const
+{
+    return System_;
+}
+
+void TTransaction::SetSystem(bool system)
+{
+    System_ = system;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

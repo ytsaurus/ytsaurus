@@ -76,8 +76,17 @@ public:
 
     NYson::TYsonString GetErrorDescription() const;
 
+    // A flag marking special transactions that directly mutate chunk
+    // lists. Exposing such nodes (e.g. via copying them to outside
+    // transactions) would lead to inconsistencies and is therefore prohibited.
+    // In particular, upload transactions are marked as system.
+    bool System() const;
+    void SetSystem(bool isSystem);
+
 private:
     void AddNodeResourceUsage(const NCypressServer::TCypressNodeBase* node, bool staged);
+
+    bool System_ = false;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -13,6 +13,7 @@ message TReqStartTransaction
     required int64 timeout = 4;
     required string user_name = 5;
     optional string title = 6;
+    optional bool system = 7;
 }
 
 message TReqPrepareTransactionCommit

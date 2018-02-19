@@ -24,6 +24,8 @@ void ThrowCannotRemoveRoot();
 void ThrowCannotReplaceRoot();
 void ThrowCannotRemoveAttribute(const TString& key);
 void ThrowCannotSetBuiltinAttribute(const TString& key);
+void ThrowCannotMoveFromAnotherTransaction();
+void ThrowCannotCopyFromSystemTransaction();
 
 ////////////////////////////////////////////////////////////////////////////////
 
