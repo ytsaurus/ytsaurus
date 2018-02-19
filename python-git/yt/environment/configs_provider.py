@@ -3,7 +3,21 @@ from .helpers import canonize_uuid, WEB_INTERFACE_RESOURCES_PATH
 
 from yt.wrapper.common import MB, GB
 from yt.wrapper.mappings import VerifiedDict
-from yt.common import YtError, update, update_inplace, get_value
+from yt.common import YtError, get_value
+
+# TODO(asaitgalin): Remove it when new version of yt.wrapper
+# is built and deployed.
+from copy import deepcopy
+from yt.common import update
+try:
+    from yt.common import update_inplace
+except ImportError:
+    update_inplace = update
+    del update
+
+    def update(obj, patch):
+        return update_inplace(deepcopy(obj), patch)
+
 from yt.yson import to_yson_type
 
 from yt.packages.six import iteritems, add_metaclass
@@ -13,7 +27,6 @@ import random
 import socket
 import abc
 import os
-from copy import deepcopy
 
 """
 TLDR: If you want to support new version of ytserver you should create your own ConfigsProvider
@@ -710,7 +723,7 @@ class ConfigsProvider_19_3(ConfigsProvider_19_2):
             config["scheduler"]["exec_node_descriptors_update_period"] = 100
             config["scheduler"]["controller_exec_node_info_update_period"] = 100
             del config["scheduler"]["exec_nodes_request_period"]
- 
+
         return configs
 
 VERSION_TO_CONFIGS_PROVIDER_CLASS = {
