@@ -905,7 +905,8 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
         uploadTransactionTimeout,
         uploadTransactionTitle,
         EmptyAttributes(),
-        uploadTransactionIdHint);
+        uploadTransactionIdHint,
+        true /* isSystem */);
 
     auto* lockedNode = cypressManager
         ->LockNode(TrunkNode, uploadTransaction, lockMode)

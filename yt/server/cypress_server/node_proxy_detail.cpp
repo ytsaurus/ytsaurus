@@ -1413,16 +1413,34 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Copy)
     auto recursive = request->recursive();
     auto force = request->force();
     auto targetPath = GetRequestYPath(context->RequestHeader());
+    auto* sourceTransaction = Transaction;
+    auto hasSourceTransactionId = request->has_source_transaction_id();
+    if (hasSourceTransactionId) {
+        auto sourceTransactionId = FromProto<TTransactionId>(request->source_transaction_id());
+        const auto& transactionManager = Bootstrap_->GetTransactionManager();
+        sourceTransaction = transactionManager->GetTransactionOrThrow(sourceTransactionId);
+    }
 
-    context->SetRequestInfo("SourcePath: %v, PreserveAccount: %v, PreserveExpirationTime: %v, PreserveCreationTime: %v, "
+    context->SetRequestInfo("SourcePath: %v, SourceTransactionId: %v (%v), "
+        "PreserveAccount: %v, PreserveExpirationTime: %v, PreserveCreationTime: %v, "
         "RemoveSource: %v, Recursive: %v, Force: %v",
         sourcePath,
+        sourceTransaction ? sourceTransaction->GetId() : TTransactionId(),
+        hasSourceTransactionId ? "explicit" : "implicit",
         preserveAccount,
         preserveExpirationTime,
         preserveCreationTime,
         removeSource,
         recursive,
         force);
+
+    if (hasSourceTransactionId && removeSource && sourceTransaction != Transaction) {
+        ThrowCannotMoveFromAnotherTransaction();
+    }
+
+    if (sourceTransaction && sourceTransaction->System()) {
+        ThrowCannotCopyFromSystemTransaction();
+    }
 
     bool replace = targetPath.empty();
     if (replace && !force) {
@@ -1442,7 +1460,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Copy)
     }
 
     const auto& cypressManager = Bootstrap_->GetCypressManager();
-    auto sourceProxy = cypressManager->ResolvePathToNodeProxy(sourcePath, Transaction);
+    auto sourceProxy = cypressManager->ResolvePathToNodeProxy(sourcePath, sourceTransaction);
 
     auto* trunkSourceImpl = sourceProxy->GetTrunkNode();
     auto* sourceImpl = removeSource

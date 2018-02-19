@@ -51,7 +51,8 @@ public:
         TNullable<TDuration> timeout,
         const TNullable<TString>& title,
         const NYTree::IAttributeDictionary& attributes,
-        const TTransactionId& hintId = NullTransactionId);
+        const TTransactionId& hintId = NullTransactionId,
+        bool isSystem = false);
     void CommitTransaction(
         TTransaction* transaction,
         TTimestamp commitTimestamp);
