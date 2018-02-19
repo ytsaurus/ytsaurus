@@ -96,7 +96,7 @@ class TestSchedulerAutoMerge(YTEnvSetup):
 
     @pytest.mark.timeout(480)
     def test_account_chunk_limit(self):
-        self._create_account(50)
+        self._create_account(60)
 
         create("table", "//tmp/t_in", attributes={"account": "acc"})
         create("table", "//tmp/t_out", attributes={"account": "acc"})
