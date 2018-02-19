@@ -13,6 +13,8 @@
 #include <yt/core/misc/property.h>
 #include <yt/core/misc/ref_tracked.h>
 
+#include <yt/core/concurrency/public.h>
+
 #include <yt/core/rpc/public.h>
 
 #include <yt/core/tracing/public.h>
@@ -53,21 +55,19 @@ public:
 
     DEFINE_BYREF_RW_PROPERTY(NConcurrency::TDelayedExecutorCookie, IdlePostCookie);
 
-    struct TSyncRequest
-    {
-        TMessageId MessageId;
-        TPromise<void> Promise;
-    };
-
-    typedef std::map<TMessageId, TSyncRequest> TSyncRequestMap;
+    using TSyncRequestMap = std::map<TMessageId, TPromise<void>>;
     DEFINE_BYREF_RW_PROPERTY(TSyncRequestMap, SyncRequests);
+
+    DEFINE_BYVAL_RW_PROPERTY(NRpc::IChannelPtr, CachedChannel);
+    DEFINE_BYVAL_RW_PROPERTY(NProfiling::TCpuInstant, CachedChannelDeadline);
+
+    DEFINE_BYVAL_RW_PROPERTY(NConcurrency::TDelayedExecutorCookie, PostBatchingCookie);
 
 public:
     explicit TMailbox(const TCellId& cellId);
 
     void Save(NHydra::TSaveContext& context) const;
     void Load(NHydra::TLoadContext& context);
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

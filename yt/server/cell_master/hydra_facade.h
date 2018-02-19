@@ -35,9 +35,9 @@ public:
     const NHydra::IHydraManagerPtr& GetHydraManager() const;
     const NRpc::TResponseKeeperPtr& GetResponseKeeper() const;
 
-    IInvokerPtr GetAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) const;
-    IInvokerPtr GetEpochAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) const;
-    IInvokerPtr GetGuardedAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) const;
+    IInvokerPtr GetAutomatonInvoker(EAutomatonThreadQueue queue) const;
+    IInvokerPtr GetEpochAutomatonInvoker(EAutomatonThreadQueue queue) const;
+    IInvokerPtr GetGuardedAutomatonInvoker(EAutomatonThreadQueue queue) const;
 
     IInvokerPtr GetTransactionTrackerInvoker() const;
 

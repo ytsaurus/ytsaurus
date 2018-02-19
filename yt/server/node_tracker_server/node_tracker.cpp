@@ -220,7 +220,7 @@ public:
     TImpl(
         TNodeTrackerConfigPtr config,
         TBootstrap* bootstrap)
-        : TMasterAutomatonPart(bootstrap)
+        : TMasterAutomatonPart(bootstrap, NCellMaster::EAutomatonThreadQueue::NodeTracker)
         , Config_(config)
         , FullHeartbeatSemaphore_(New<TAsyncSemaphore>(Config_->MaxConcurrentFullHeartbeats))
         , IncrementalHeartbeatSemaphore_(New<TAsyncSemaphore>(Config_->MaxConcurrentIncrementalHeartbeats))
@@ -275,7 +275,7 @@ public:
         }
 
         ProfilingExecutor_ = New<TPeriodicExecutor>(
-            Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(),
+            Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::Periodic),
             BIND(&TImpl::OnProfiling, MakeWeak(this)),
             ProfilingPeriod);
         ProfilingExecutor_->Start();
@@ -1206,13 +1206,13 @@ private:
         // NB: Node states gossip is one way: secondary-to-primary.
         if (Bootstrap_->IsSecondaryMaster()) {
             IncrementalNodeStatesGossipExecutor_ = New<TPeriodicExecutor>(
-                Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(),
+                Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Periodic),
                 BIND(&TImpl::OnNodeStatesGossip, MakeWeak(this), true),
                 Config_->IncrementalNodeStatesGossipPeriod);
             IncrementalNodeStatesGossipExecutor_->Start();
 
             FullNodeStatesGossipExecutor_ = New<TPeriodicExecutor>(
-                Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(),
+                Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Periodic),
                 BIND(&TImpl::OnNodeStatesGossip, MakeWeak(this), false),
                 Config_->FullNodeStatesGossipPeriod);
             FullNodeStatesGossipExecutor_->Start();
@@ -1470,9 +1470,7 @@ private:
             Y_UNUSED(WaitFor(mutation->CommitAndReply(context)));
         });
 
-        auto invoker = Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker();
-
-        semaphore->AsyncAcquire(handler, invoker);
+        semaphore->AsyncAcquire(handler, EpochAutomatonInvoker_);
     }
 
     void CommitDisposeNodeWithSemaphore(TNode* node)
@@ -1490,9 +1488,7 @@ private:
             Y_UNUSED(WaitFor(mutation->CommitAndLog(NodeTrackerServerLogger)));
         });
 
-        auto invoker = Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker();
-
-        DisposeNodeSemaphore_->AsyncAcquire(handler, invoker);
+        DisposeNodeSemaphore_->AsyncAcquire(handler, EpochAutomatonInvoker_);
     }
 
 

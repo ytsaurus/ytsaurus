@@ -120,7 +120,7 @@ TChunkReplicator::TChunkReplicator(
         Config_->RepairQueueBalancerWeightDecayFactor,
         Config_->RepairQueueBalancerWeightDecayInterval)
     , EnabledCheckExecutor_(New<TPeriodicExecutor>(
-        Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Default),
+        Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Periodic),
         BIND(&TChunkReplicator::OnCheckEnabled, MakeWeak(this)),
         Config_->ReplicatorEnabledCheckPeriod))
     , JobThrottler_(CreateReconfigurableThroughputThrottler(

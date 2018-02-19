@@ -2,18 +2,20 @@
 
 #include "public.h"
 
-#include <yt/core/misc/ref.h>
-#include <yt/core/misc/variant.h>
-
-#include <yt/core/actions/signal.h>
-
-#include <yt/core/rpc/public.h>
+#include <yt/server/hive/public.h>
 
 #include <yt/ytlib/election/public.h>
 
 #include <yt/ytlib/object_client/public.h>
 
 #include <yt/ytlib/hydra/public.h>
+
+#include <yt/core/misc/ref.h>
+#include <yt/core/misc/variant.h>
+
+#include <yt/core/actions/signal.h>
+
+#include <yt/core/rpc/public.h>
 
 namespace NYT {
 namespace NCellMaster {
@@ -83,7 +85,6 @@ public:
         const TCrossCellMessage& message,
         bool reliable = true);
 
-
     //! For primary masters, always returns |true|.
     //! For secondary masters, returns |true| if the local secondary cell is registered at the primary cell.
     bool IsLocalMasterCellRegistered();
@@ -124,6 +125,10 @@ public:
     //! Same as #GetMasterChannelOrThrow but returns |nullptr| if no channel is currently known.
     NRpc::IChannelPtr FindMasterChannel(NObjectClient::TCellTag cellTag, NHydra::EPeerKind peerKind);
 
+    //! Returns the mailbox used for communicating with the primary master cell.
+    //! May return null if the cell is not connected yet.
+    NHiveServer::TMailbox* FindPrimaryMasterMailbox();
+
     DECLARE_SIGNAL(void(NObjectClient::TCellTag), ValidateSecondaryMasterRegistration);
     DECLARE_SIGNAL(void(NObjectClient::TCellTag), ReplicateKeysToSecondaryMaster);
     DECLARE_SIGNAL(void(NObjectClient::TCellTag), ReplicateValuesToSecondaryMaster);
@@ -131,7 +136,6 @@ public:
 private:
     class TImpl;
     const TIntrusivePtr<TImpl> Impl_;
-
 };
 
 DEFINE_REFCOUNTED_TYPE(TMulticellManager)

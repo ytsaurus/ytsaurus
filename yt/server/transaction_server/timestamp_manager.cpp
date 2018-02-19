@@ -357,8 +357,7 @@ TTimestampManager::TTimestampManager(
         automaton))
 { }
 
-TTimestampManager::~TTimestampManager()
-{ }
+TTimestampManager::~TTimestampManager() = default;
 
 IServicePtr TTimestampManager::GetRpcService()
 {

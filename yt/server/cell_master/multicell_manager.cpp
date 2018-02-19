@@ -66,7 +66,7 @@ public:
     TImpl(
         TMulticellManagerConfigPtr config,
         TBootstrap* bootstrap)
-        : TMasterAutomatonPart(bootstrap)
+        : TMasterAutomatonPart(bootstrap, EAutomatonThreadQueue::MulticellManager)
         , Config_(config)
     {
         YCHECK(Config_);
@@ -245,6 +245,11 @@ public:
         return channel;
     }
 
+    TMailbox* FindPrimaryMasterMailbox()
+    {
+        return PrimaryMasterMailbox_;
+    }
+
 
     DEFINE_SIGNAL(void(TCellTag), ValidateSecondaryMasterRegistration);
     DEFINE_SIGNAL(void(TCellTag), ReplicateKeysToSecondaryMaster);
@@ -367,13 +372,13 @@ private:
 
         if (Bootstrap_->IsSecondaryMaster()) {
             RegisterAtPrimaryMasterExecutor_ = New<TPeriodicExecutor>(
-                Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(),
+                Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Periodic),
                 BIND(&TImpl::OnStartSecondaryMasterRegistration, MakeWeak(this)),
                 RegisterRetryPeriod);
             RegisterAtPrimaryMasterExecutor_->Start();
 
             CellStatisticsGossipExecutor_ = New<TPeriodicExecutor>(
-                Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(),
+                Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Periodic),
                 BIND(&TImpl::OnCellStatisticsGossip, MakeWeak(this)),
                 Config_->CellStatisticsGossipPeriod);
             CellStatisticsGossipExecutor_->Start();
@@ -767,6 +772,11 @@ IChannelPtr TMulticellManager::GetMasterChannelOrThrow(TCellTag cellTag, EPeerKi
 IChannelPtr TMulticellManager::FindMasterChannel(TCellTag cellTag, EPeerKind peerKind)
 {
     return Impl_->FindMasterChannel(cellTag, peerKind);
+}
+
+TMailbox* TMulticellManager::FindPrimaryMasterMailbox()
+{
+    return Impl_->FindPrimaryMasterMailbox();
 }
 
 DELEGATE_SIGNAL(TMulticellManager, void(TCellTag), ValidateSecondaryMasterRegistration, *Impl_);
