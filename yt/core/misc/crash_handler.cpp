@@ -144,7 +144,7 @@ const struct {
 void* GetPC(void* uc)
 {
     // TODO(sandello): Merge with code from Bind() internals.
-#if (defined(HAVE_UCONTEXT_H) || defined(HAVE_SYS_UCONTEXT_H)) && defined(PC_FROM_UCONTEXT) && _linux_
+#if (defined(HAVE_UCONTEXT_H) || defined(HAVE_SYS_UCONTEXT_H)) && defined(PC_FROM_UCONTEXT) && defined(_linux_)
     if (uc) {
         const auto* context = reinterpret_cast<ucontext_t*>(uc);
         return reinterpret_cast<void*>(context->PC_FROM_UCONTEXT);
