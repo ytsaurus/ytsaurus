@@ -43,7 +43,16 @@ struct ITaskHost
 
     virtual ui64 NextJobIndex() = 0;
 
-    virtual void CustomizeJobSpec(const TJobletPtr& joblet, NJobTrackerClient::NProto::TJobSpec* jobSpec) = 0;
+    // TODO(max42): split this function into purely controller part and task part.
+    virtual void InitUserJobSpecTemplate(
+        NScheduler::NProto::TUserJobSpec* proto,
+        NScheduler::TUserJobSpecPtr config,
+        const std::vector<TUserFile>& files,
+        const TString& fileAccount) = 0;
+    // TODO(max42): get rid of this; serialize files either in tasks or in controller.
+    virtual const std::vector<TUserFile>& GetUserFiles(const TUserJobSpecPtr& userJobSpec) const = 0;
+
+    virtual void CustomizeJobSpec(const TJobletPtr& joblet, NJobTrackerClient::NProto::TJobSpec* jobSpec) const = 0;
     virtual void CustomizeJoblet(const TJobletPtr& joblet) = 0;
 
     virtual void AddValueToEstimatedHistogram(const TJobletPtr& joblet) = 0;
@@ -60,9 +69,6 @@ struct ITaskHost
     virtual bool IsRowCountPreserved() const = 0;
     virtual bool IsJobInterruptible() const = 0;
     virtual bool ShouldSkipSanityCheck() = 0;
-
-    virtual const IDigest* GetJobProxyMemoryDigest(EJobType jobType) const = 0;
-    virtual const IDigest* GetUserJobMemoryDigest(EJobType jobType) const = 0;
 
     virtual NObjectClient::TCellTag GetIntermediateOutputCellTag() const = 0;
 

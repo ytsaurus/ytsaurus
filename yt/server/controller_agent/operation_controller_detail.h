@@ -53,11 +53,12 @@
 
 #include <yt/core/logging/log.h>
 
-#include <yt/core/misc/id_generator.h>
-#include <yt/core/misc/nullable.h>
-#include <yt/core/misc/ref_tracked.h>
 #include <yt/core/misc/digest.h>
 #include <yt/core/misc/histogram.h>
+#include <yt/core/misc/id_generator.h>
+#include <yt/core/misc/memory_tag.h>
+#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/ref_tracked.h>
 #include <yt/core/misc/safe_assert.h>
 
 #include <yt/core/ytree/ypath_client.h>
@@ -68,14 +69,6 @@ namespace NYT {
 namespace NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
-
-//! Describes which part of the operation needs a particular file.
-DEFINE_ENUM(EOperationStage,
-    (None)
-    (Map)
-    (ReduceCombiner)
-    (Reduce)
-);
 
 DEFINE_ENUM(EInputChunkState,
     (Active)
@@ -211,6 +204,8 @@ public:
 
     virtual void InitializeReviving(TControllerTransactionsPtr operationTransactions) override;
 
+    virtual TString GetLoggingProgress() const;
+
     virtual TOperationControllerInitializationAttributes GetInitializationAttributes() const override;
     virtual NYson::TYsonString GetAttributes() const override;
 
@@ -244,7 +239,6 @@ public:
 
     virtual void BuildProgress(NYTree::TFluentMap fluent) const;
     virtual void BuildBriefProgress(NYTree::TFluentMap fluent) const;
-    virtual void BuildMemoryDigestStatistics(NYTree::TFluentMap fluent) const;
     virtual void BuildJobSplitterInfo(NYTree::TFluentMap fluent) const;
     virtual void BuildJobsYson(NYTree::TFluentMap fluent) const;
 
@@ -280,8 +274,14 @@ public:
     virtual void AddTaskPendingHint(const TTaskPtr& task) override;
 
     virtual ui64 NextJobIndex() override;
+    virtual void InitUserJobSpecTemplate(
+        NScheduler::NProto::TUserJobSpec* proto,
+        NScheduler::TUserJobSpecPtr config,
+        const std::vector<TUserFile>& files,
+        const TString& fileAccount) override;
+    virtual const std::vector<TUserFile>& GetUserFiles(const TUserJobSpecPtr& userJobSpec) const override;
 
-    virtual void CustomizeJobSpec(const TJobletPtr& joblet, NJobTrackerClient::NProto::TJobSpec* jobSpec) override;
+    virtual void CustomizeJobSpec(const TJobletPtr& joblet, NJobTrackerClient::NProto::TJobSpec* jobSpec) const override;
     virtual void CustomizeJoblet(const TJobletPtr& joblet) override;
 
     virtual void AddValueToEstimatedHistogram(const TJobletPtr& joblet) override;
@@ -301,9 +301,6 @@ public:
     virtual const NJobTrackerClient::NProto::TJobSpec& GetAutoMergeJobSpecTemplate(int tableIndex) const override;
     virtual TTaskGroupPtr GetAutoMergeTaskGroup() const override;
     virtual TAutoMergeDirector* GetAutoMergeDirector() override;
-
-    virtual const IDigest* GetJobProxyMemoryDigest(EJobType jobType) const override;
-    virtual const IDigest* GetUserJobMemoryDigest(EJobType jobType) const override;
 
     virtual NObjectClient::TCellTag GetIntermediateOutputCellTag() const override;
 
@@ -467,24 +464,7 @@ protected:
 
     TIntermediateTable IntermediateTable;
 
-    struct TUserFile
-        : public TLockedUserObject
-    {
-        std::shared_ptr<NYTree::IAttributeDictionary> Attributes;
-        EOperationStage Stage = EOperationStage::None;
-        TString FileName;
-        std::vector<NChunkClient::NProto::TChunkSpec> ChunkSpecs;
-        i64 ChunkCount = -1;
-        bool Executable = false;
-        NYson::TYsonString Format;
-        NTableClient::TTableSchema Schema;
-        bool IsDynamic = false;
-        bool IsLayer = false;
-
-        void Persist(const TPersistenceContext& context);
-    };
-
-    std::vector<TUserFile> Files;
+    yhash<TUserJobSpecPtr, std::vector<TUserFile>> UserJobFiles_;
 
     struct TInputQuery
     {
@@ -595,6 +575,7 @@ protected:
     virtual void PrepareOutputTables();
     void LockOutputTablesAndGetAttributes();
     void FetchUserFiles();
+    void DoFetchUserFiles(const TUserJobSpecPtr& userJobSpec, std::vector<TUserFile>& files);
     void LockUserFiles();
     void GetUserFilesAttributes();
     void CreateLivePreviewTables();
@@ -658,6 +639,9 @@ protected:
     //! Called in jobs duration analyzer to get interesting for analysis jobs set.
     virtual std::vector<EJobType> GetSupportedJobTypesForJobsDurationAnalyzer() const = 0;
 
+    //! Is called by controller on stage of structure initialization.
+    virtual std::vector<TUserJobSpecPtr> GetUserJobSpecs() const;
+
     //! What to do with intermediate chunks that are not useful any more.
     virtual EIntermediateChunkUnstageMode GetIntermediateChunkUnstageMode() const;
 
@@ -669,14 +653,6 @@ protected:
 
     //! Is called by controller when chunks are passed to master connector for unstaging.
     virtual void OnChunksReleased(int chunkCount);
-
-    typedef std::pair<NYPath::TRichYPath, EOperationStage> TPathWithStage;
-
-    //! Called to extract file paths from the spec.
-    virtual std::vector<TPathWithStage> GetFilePaths() const;
-
-    //! Called to extract layer paths from the spec.
-    virtual std::vector<TPathWithStage> GetLayerPaths() const;
 
     //! Called when a job is unable to read a chunk.
     void OnChunkFailed(const NChunkClient::TChunkId& chunkId);
@@ -850,23 +826,17 @@ protected:
         const IJobSizeConstraintsPtr& jobSizeConstraints,
         std::vector<NChunkPools::TChunkStripePtr>* result);
 
-    void InitUserJobSpecTemplate(
-        NScheduler::NProto::TUserJobSpec* proto,
-        NScheduler::TUserJobSpecPtr config,
-        const std::vector<TUserFile>& files,
-        const TString& fileAccount);
-
     void InitUserJobSpec(
         NScheduler::NProto::TUserJobSpec* proto,
-        TJobletPtr joblet);
+        TJobletPtr joblet) const;
 
     void AddStderrOutputSpecs(
         NScheduler::NProto::TUserJobSpec* jobSpec,
-        TJobletPtr joblet);
+        TJobletPtr joblet) const;
 
     void AddCoreOutputSpecs(
         NScheduler::NProto::TUserJobSpec* jobSpec,
-        TJobletPtr joblet);
+        TJobletPtr joblet) const;
 
     void SetInputDataSources(NScheduler::NProto::TSchedulerJobSpecExt* jobSpec) const;
     void SetIntermediateDataSource(NScheduler::NProto::TSchedulerJobSpecExt* jobSpec) const;
@@ -885,14 +855,6 @@ protected:
     void ValidateUserFileCount(NScheduler::TUserJobSpecPtr spec, const TString& operation);
 
     const std::vector<NScheduler::TExecNodeDescriptor>& GetExecNodeDescriptors();
-
-    virtual void RegisterUserJobMemoryDigest(EJobType jobType, double memoryReserveFactor, double minMemoryReserveFactor);
-    IDigest* GetUserJobMemoryDigest(EJobType jobType);
-
-    virtual void RegisterJobProxyMemoryDigest(EJobType jobType, const TLogDigestConfigPtr& config);
-    IDigest* GetJobProxyMemoryDigest(EJobType jobType);
-
-    i64 ComputeUserJobMemoryReserve(EJobType jobType, NScheduler::TUserJobSpecPtr jobSpec) const;
 
     void InferSchemaFromInput(const NTableClient::TKeyColumns& keyColumns = NTableClient::TKeyColumns());
     void InferSchemaFromInputOrdered();
@@ -920,6 +882,8 @@ protected:
 
     void SetOperationAlert(EOperationAlertType type, const TError& alert);
 
+    void AbortAllJoblets();
+
 private:
     typedef TOperationControllerBase TThis;
 
@@ -928,6 +892,8 @@ private:
     //! Scheduler incarnation that spawned this controller.
     //! This field is set in the constructor.
     const int SchedulerIncarnation_;
+
+    const i64 MemoryTag_;
 
     std::vector<NScheduler::TSchedulingTagFilter> PoolTreeSchedulingTagFilters_;
 
@@ -1018,10 +984,6 @@ private:
 
     const std::unique_ptr<NYson::IYsonConsumer> EventLogConsumer_;
 
-    typedef yhash<EJobType, std::unique_ptr<IDigest>> TMemoryDigestMap;
-    TMemoryDigestMap JobProxyMemoryDigests_;
-    TMemoryDigestMap UserJobMemoryDigests_;
-
     const TString CodicilData_;
 
     std::unique_ptr<IHistogram> EstimatedInputDataSizeHistogram_;
@@ -1087,6 +1049,8 @@ private:
 
     TOperationControllerInitializationAttributes InitializationAttributes_;
     NYson::TYsonString Attributes_;
+
+    ssize_t GetMemoryUsage() const;
 
     void BuildAndSaveProgress();
 
@@ -1160,9 +1124,7 @@ private:
 
     void AnalyzeBriefStatistics(
         const TJobletPtr& job,
-        TDuration suspiciousInactivityTimeout,
-        i64 suspiciousCpuUsageThreshold,
-        double suspiciousInputPipeIdleTimeFraction,
+        const TSuspiciousJobsOptionsPtr& options,
         const TErrorOr<TBriefJobStatisticsPtr>& briefStatisticsOrError);
 
     void UpdateSuspiciousJobsYson();
@@ -1170,7 +1132,6 @@ private:
     NScheduler::TJobPtr BuildJobFromJoblet(const TJobletPtr& joblet) const;
 
     void DoAbort();
-    void AbortAllJoblets();
 
     void WaitForHeartbeat();
 

@@ -88,9 +88,9 @@ public:
         this->TaskHost_->GetAutoMergeDirector()->SubscribeStateChanged(BIND(&TAutoMergeableOutputMixin::UpdateSelf, MakeWeak(this)));
     }
 
-    virtual TString GetId() const override
+    virtual TString GetTitle() const override
     {
-        return TUnderlyingTask::GetId() + " + AutoMergeableOutputMixin";
+        return TUnderlyingTask::GetTitle() + " + AutoMergeableOutputMixin";
     }
 
     virtual bool CanLoseJobs() const override

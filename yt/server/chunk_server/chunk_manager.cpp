@@ -1108,6 +1108,7 @@ private:
 
     bool NeedToRecomputeStatistics_ = false;
     bool NeedResetDataWeight_ = false;
+    bool NeedInitializeMediumConfig_ = false;
 
     TPeriodicExecutorPtr ProfilingExecutor_;
 
@@ -1913,6 +1914,8 @@ private:
         }
         //COMPAT(savrus)
         NeedResetDataWeight_ = context.GetVersion() < 612;
+        //COMPAT(savrus)
+        NeedInitializeMediumConfig_ = context.GetVersion() < 629;
     }
 
     virtual void OnBeforeSnapshotLoaded() override
@@ -1921,6 +1924,7 @@ private:
 
         NeedToRecomputeStatistics_ = false;
         NeedResetDataWeight_ = false;
+        NeedInitializeMediumConfig_ = false;
     }
 
     virtual void OnAfterSnapshotLoaded() override
@@ -1981,6 +1985,14 @@ private:
         if (NeedToRecomputeStatistics_) {
             RecomputeStatistics();
             NeedToRecomputeStatistics_ = false;
+        }
+
+        if (NeedInitializeMediumConfig_) {
+            for (const auto& pair : MediumMap_) {
+                auto* medium = pair.second;
+                InitializeMediumConfig(medium);
+            }
+            NeedInitializeMediumConfig_ = false;
         }
 
         LOG_INFO("Finished initializing chunks");
@@ -2613,6 +2625,7 @@ private:
 
         auto* medium = MediumMap_.Insert(id, std::move(mediumHolder));
         RegisterMedium(medium);
+        InitializeMediumConfig(medium);
 
         // Make the fake reference.
         YCHECK(medium->RefObject() == 1);
@@ -2644,6 +2657,14 @@ private:
         IndexToMediumMap_[mediumIndex] = nullptr;
     }
 
+    void InitializeMediumConfig(TMedium* medium)
+    {
+        medium->Config()->MaxReplicasPerRack = Config_->MaxReplicasPerRack;
+        medium->Config()->MaxRegularReplicasPerRack = Config_->MaxRegularReplicasPerRack;
+        medium->Config()->MaxJournalReplicasPerRack = Config_->MaxJournalReplicasPerRack;
+        medium->Config()->MaxErasureReplicasPerRack = Config_->MaxErasureReplicasPerRack;
+    }
+
     static void ValidateMediumName(const TString& name)
     {
         if (name.empty()) {
@@ -2657,6 +2678,7 @@ private:
             THROW_ERROR_EXCEPTION("Medium priority must be in range [0,%v]", MaxMediumPriority);
         }
     }
+
 };
 
 DEFINE_ENTITY_MAP_ACCESSORS(TChunkManager::TImpl, Chunk, TChunk, ChunkMap_)

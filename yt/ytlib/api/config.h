@@ -313,7 +313,7 @@ public:
         RegisterParameter("backoff_time", BackoffTime)
             .Default(TDuration::Seconds(5));
 
-        RegisterValidator([&] {
+        RegisterPostprocessor([&] {
             if (UntrimmedDataRowsLow > UntrimmedDataRowsHigh) {
                 THROW_ERROR_EXCEPTION("\"untrimmed_data_rows_low\" must not exceed \"untrimmed_data_rows_high\"");
             }

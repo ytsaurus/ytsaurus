@@ -275,6 +275,9 @@ private:
     //! Updates the data center of the local node.
     void UpdateDataCenter(const TNullable<TString>& dc);
 
+    //! Updates the tags of the local node.
+    void UpdateTags(std::vector<TString> tags);
+
     TChunksDelta* GetChunksDelta(NObjectClient::TCellTag cellTag);
     TChunksDelta* GetChunksDelta(const NObjectClient::TObjectId& id);
 

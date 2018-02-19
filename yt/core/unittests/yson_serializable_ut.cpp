@@ -70,7 +70,7 @@ public:
         RegisterParameter("sub_map", SubconfigMap).Default();
         RegisterParameter("nullable_int", NullableInt).Default(Null);
 
-        RegisterInitializer([&] () {
+        RegisterPreprocessor([&] () {
             MyString = "x";
             Subconfig->MyInt = 200;
         });
@@ -328,7 +328,7 @@ TEST(TYsonSerializableTest, ArithmeticOverflow)
     EXPECT_THROW(config->Load(configNode->AsMap()), std::exception);
 }
 
-TEST(TYsonSerializableTest, Validate)
+TEST(TYsonSerializableTest, Postprocess)
 {
     auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
     builder->BeginTree();
@@ -340,10 +340,10 @@ TEST(TYsonSerializableTest, Validate)
 
     auto config = New<TTestConfig>();
     config->Load(configNode, false);
-    EXPECT_THROW(config->Validate(), std::exception);
+    EXPECT_THROW(config->Postprocess(), std::exception);
 }
 
-TEST(TYsonSerializableTest, ValidateSubconfig)
+TEST(TYsonSerializableTest, PostprocessSubconfig)
 {
     auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
     builder->BeginTree();
@@ -358,10 +358,10 @@ TEST(TYsonSerializableTest, ValidateSubconfig)
 
     auto config = New<TTestConfig>();
     config->Load(configNode->AsMap(), false);
-    EXPECT_THROW(config->Validate(), std::exception);
+    EXPECT_THROW(config->Postprocess(), std::exception);
 }
 
-TEST(TYsonSerializableTest, ValidateSubconfigList)
+TEST(TYsonSerializableTest, PostprocessSubconfigList)
 {
     auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
     builder->BeginTree();
@@ -378,10 +378,10 @@ TEST(TYsonSerializableTest, ValidateSubconfigList)
 
     auto config = New<TTestConfig>();
     config->Load(configNode->AsMap(), false);
-    EXPECT_THROW(config->Validate(), std::exception);
+    EXPECT_THROW(config->Postprocess(), std::exception);
 }
 
-TEST(TYsonSerializableTest, ValidateSubconfigMap)
+TEST(TYsonSerializableTest, PostprocessSubconfigMap)
 {
     auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
     builder->BeginTree();
@@ -398,7 +398,7 @@ TEST(TYsonSerializableTest, ValidateSubconfigMap)
 
     auto config = New<TTestConfig>();
     config->Load(configNode->AsMap(), false);
-    EXPECT_THROW(config->Validate(), std::exception);
+    EXPECT_THROW(config->Postprocess(), std::exception);
 }
 
 TEST(TYsonSerializableTest, Save)

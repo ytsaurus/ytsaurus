@@ -64,7 +64,10 @@ public:
 
     virtual TMemoryStatistics GetMemoryStatistics() const override
     {
-        TMemoryStatistics memoryStatistics = {0, 0, 0};
+        TMemoryStatistics memoryStatistics;
+        memoryStatistics.Rss = 0;
+        memoryStatistics.MappedFile = 0;
+        memoryStatistics.MajorPageFaults = 0;
 
         if (!Process_ || Process_->GetProcessId() <= 0) {
             return memoryStatistics;

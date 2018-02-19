@@ -3,6 +3,8 @@
 #error "Direct inclusion of this file is not allowed, include new.h"
 #endif
 
+#include <yt/core/misc/memory_tag.h>
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////

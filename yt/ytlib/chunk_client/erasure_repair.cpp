@@ -382,7 +382,7 @@ public:
     TRepairingErasureReaderSession(
         ICodec* codec,
         const TPartIndexList& erasedIndices,
-        const std::vector<IChunkReaderPtr>& readers,
+        const std::vector<IChunkReaderAllowingRepairPtr>& readers,
         const TErasurePlacementExt& placementExt,
         const std::vector<int>& blockIndexes,
         const TWorkloadDescriptor& workloadDescriptor)
@@ -474,7 +474,7 @@ public:
 private:
     const ICodec* const Codec_;
     const TPartIndexList ErasedIndices_;
-    const std::vector<IChunkReaderPtr> Readers_;
+    const std::vector<IChunkReaderAllowingRepairPtr> Readers_;
     const TErasurePlacementExt PlacementExt_;
     const std::vector<int> BlockIndexes_;
     const TWorkloadDescriptor WorkloadDescriptor_;
@@ -546,7 +546,7 @@ public:
     TRepairReader(
         ICodec* codec,
         const TPartIndexList& erasedIndices,
-        const std::vector<IChunkReaderPtr>& readers)
+        const std::vector<IChunkReaderAllowingRepairPtr>& readers)
         : TErasureChunkReaderBase(codec, readers)
         , ErasedIndices_(erasedIndices)
     { }
@@ -594,12 +594,25 @@ private:
 IChunkReaderPtr CreateRepairingErasureReader(
     ICodec* codec,
     const TPartIndexList& erasedIndices,
-    const std::vector<IChunkReaderPtr>& readers)
+    const std::vector<IChunkReaderAllowingRepairPtr>& readers)
 {
     return New<TRepairReader>(
         codec,
         erasedIndices,
         readers);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TFuture<void> RepairErasedParts(
+    NErasure::ICodec* codec,
+    const NErasure::TPartIndexList& erasedIndices,
+    const std::vector<IChunkReaderAllowingRepairPtr>& readers,
+    const std::vector<IChunkWriterPtr>& writers,
+    const TWorkloadDescriptor& workloadDescriptor)
+{
+    std::vector<IChunkReaderPtr> simpleReaders(readers.begin(), readers.end());
+    return RepairErasedParts(codec, erasedIndices, simpleReaders, writers, workloadDescriptor);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

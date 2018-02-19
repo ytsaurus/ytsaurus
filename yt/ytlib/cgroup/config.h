@@ -20,7 +20,7 @@ public:
         RegisterParameter("supported_cgroups", SupportedCGroups)
             .Default();
 
-        RegisterValidator([&] () {
+        RegisterPostprocessor([&] () {
             for (const auto& type : SupportedCGroups) {
                 if (!IsValidCGroupType(type)) {
                     THROW_ERROR_EXCEPTION("Invalid cgroup type %Qv", type);

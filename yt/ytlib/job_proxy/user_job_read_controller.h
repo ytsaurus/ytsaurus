@@ -40,63 +40,25 @@ namespace NJobProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TUserJobReadController
+struct IUserJobReadController
     : public TRefCounted
 {
-public:
-    TUserJobReadController(
-        IJobSpecHelperPtr jobSpecHelper,
-        NApi::INativeClientPtr client,
-        IInvokerPtr invoker,
-        NNodeTrackerClient::TNodeDescriptor nodeDescriptor,
-        TClosure onNetworkRelease,
-        IUserJobIOFactoryPtr userJobIOFactory,
-        TNullable<TString> udfDirectory);
-
     //! Returns closure that launches data transfer to given async output.
-    TCallback<TFuture<void>()> PrepareJobInputTransfer(const NConcurrency::IAsyncOutputStreamPtr& asyncOutput);
+    virtual TCallback<TFuture<void>()> PrepareJobInputTransfer(const NConcurrency::IAsyncOutputStreamPtr& asyncOutput) = 0;
 
-    double GetProgress() const;
-    TFuture<std::vector<TBlob>> GetInputContext() const;
-    std::vector<NChunkClient::TChunkId> GetFailedChunkIds() const;
-    TNullable<NChunkClient::NProto::TDataStatistics> GetDataStatistics() const;
-    void InterruptReader();
-    NChunkClient::TInterruptDescriptor GetInterruptDescriptor() const;
-
-private:
-    TCallback<TFuture<void>()> PrepareInputActionsPassthrough(
-        const NFormats::TFormat& format,
-        const NConcurrency::IAsyncOutputStreamPtr& asyncOutput);
-
-    TCallback<TFuture<void>()> PrepareInputActionsQuery(
-        const NScheduler::NProto::TQuerySpec& querySpec,
-        const NFormats::TFormat& format,
-        const NConcurrency::IAsyncOutputStreamPtr& asyncOutput);
-
-    void InitializeReader();
-    void InitializeReader(NTableClient::TNameTablePtr nameTable, const NTableClient::TColumnFilter& columnFilter);
-
-private:
-    const IJobSpecHelperPtr JobSpecHelper_;
-    const NApi::INativeClientPtr Client_;
-    const IInvokerPtr SerializedInvoker_;
-    const NNodeTrackerClient::TNodeDescriptor NodeDescriptor_;
-    const TClosure OnNetworkRelease_;
-    const IUserJobIOFactoryPtr UserJobIOFactory_;
-    NTableClient::ISchemalessMultiChunkReaderPtr Reader_;
-    std::vector<NFormats::ISchemalessFormatWriterPtr> FormatWriters_;
-    TNullable<TString> UdfDirectory_;
-    std::atomic<bool> Initialized_ = {false};
-    std::atomic<bool> Interrupted_ = {false};
-
-    NLogging::TLogger Logger;
+    virtual double GetProgress() const = 0;
+    virtual TFuture<std::vector<TBlob>> GetInputContext() const = 0;
+    virtual std::vector<NChunkClient::TChunkId> GetFailedChunkIds() const = 0;
+    virtual TNullable<NChunkClient::NProto::TDataStatistics> GetDataStatistics() const = 0;
+    virtual void InterruptReader() = 0;
+    virtual NChunkClient::TInterruptDescriptor GetInterruptDescriptor() const = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(TUserJobReadController)
+DEFINE_REFCOUNTED_TYPE(IUserJobReadController);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TUserJobReadControllerPtr CreateUserJobReadController(
+IUserJobReadControllerPtr CreateUserJobReadController(
         IJobSpecHelperPtr jobSpecHelper,
         NApi::INativeClientPtr client,
         IInvokerPtr invoker,

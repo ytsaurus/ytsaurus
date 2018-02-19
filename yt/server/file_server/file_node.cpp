@@ -26,6 +26,52 @@ TFileNode::TFileNode(const TVersionedNodeId& id)
     : TChunkOwnerBase(id)
 { }
 
+TFileNode* TFileNode::GetTrunkNode()
+{
+    return TrunkNode_->As<TFileNode>();
+}
+
+const TFileNode* TFileNode::GetTrunkNode() const
+{
+    return TrunkNode_->As<TFileNode>();
+}
+
+void TFileNode::Save(NCellMaster::TSaveContext& context) const
+{
+    TChunkOwnerBase::Save(context);
+
+    using NYT::Save;
+    Save(context, MD5Hasher_);
+}
+
+void TFileNode::Load(NCellMaster::TLoadContext& context)
+{
+    TChunkOwnerBase::Load(context);
+
+    using NYT::Load;
+
+    // COMPAT(ostyakov)
+    if (context.GetVersion() >= 627) {
+        Load(context, MD5Hasher_);
+    }
+}
+
+void TFileNode::EndUpload(
+    const NChunkClient::NProto::TDataStatistics* statistics,
+    const NTableClient::TTableSchema& schema,
+    NTableClient::ETableSchemaMode schemaMode,
+    TNullable<NTableClient::EOptimizeFor> optimizeFor,
+    const TNullable<TMD5Hasher>& md5Hasher)
+{
+    SetMD5Hasher(md5Hasher);
+    TChunkOwnerBase::EndUpload(statistics, schema, schemaMode, optimizeFor, md5Hasher);
+}
+
+void TFileNode::GetUploadParams(TNullable<TMD5Hasher>* md5Hasher)
+{
+    md5Hasher->Assign(GetMD5Hasher());
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TFileNodeTypeHandler
@@ -76,7 +122,7 @@ protected:
 
         ValidateReplicationFactor(replicationFactor);
 
-        return DoCreateImpl(
+        auto nodeHolder = DoCreateImpl(
             id,
             cellTag,
             transaction,
@@ -86,6 +132,41 @@ protected:
             replicationFactor,
             compressionCodec,
             erasureCodec);
+
+        auto* node = nodeHolder.get();
+        node->SetMD5Hasher(TMD5Hasher());
+        return nodeHolder;
+    }
+
+    virtual void DoBranch(
+        const TFileNode* originatingNode,
+        TFileNode* branchedNode,
+        const NCypressServer::TLockRequest& lockRequest) override
+    {
+        TBase::DoBranch(originatingNode, branchedNode, lockRequest);
+
+        branchedNode->SetMD5Hasher(originatingNode->GetMD5Hasher());
+    }
+
+    virtual void DoMerge(
+        TFileNode* originatingNode,
+        TFileNode* branchedNode) override
+    {
+        TBase::DoMerge(originatingNode, branchedNode);
+
+        originatingNode->SetMD5Hasher(branchedNode->GetMD5Hasher());
+    }
+
+    virtual void DoClone(
+        TFileNode* sourceNode,
+        TFileNode* clonedNode,
+        NCypressServer::ICypressNodeFactory* factory,
+        NCypressServer::ENodeCloneMode mode,
+        NSecurityServer::TAccount* account) override
+    {
+        TBase::DoClone(sourceNode, clonedNode, factory, mode, account);
+
+        clonedNode->SetMD5Hasher(sourceNode->GetMD5Hasher());
     }
 };
 

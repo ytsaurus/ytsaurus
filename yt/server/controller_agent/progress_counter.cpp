@@ -313,14 +313,14 @@ void Serialize(const TProgressCounterPtr& counter, IYsonConsumer* consumer)
                 //.Item("total").Value(counter->GetAbortedTotal())
                 .Item("non_scheduled").BeginMap()
                     .DoFor(TEnumTraits<EAbortReason>::GetDomainValues(), [&] (TFluentMap fluent, EAbortReason reason) {
-                        if (IsSchedulingReason(reason)) {
+                        if (IsSchedulingReason(reason) || reason == EAbortReason::GetSpecFailed) {
                             fluent.Item(FormatEnum(reason)).Value(counter->GetAborted(reason));
                         }
                     })
                 .EndMap()
                 .Item("scheduled").BeginMap()
                     .DoFor(TEnumTraits<EAbortReason>::GetDomainValues(), [&] (TFluentMap fluent, EAbortReason reason) {
-                        if (IsNonSchedulingReason(reason)) {
+                        if (IsNonSchedulingReason(reason) && reason != EAbortReason::GetSpecFailed) {
                             fluent.Item(FormatEnum(reason)).Value(counter->GetAborted(reason));
                         }
                     })

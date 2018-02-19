@@ -59,6 +59,9 @@ struct TMutatingOptions;
 struct TSuppressableAccessTrackingOptions;
 struct TTabletRangeOptions;
 
+struct TGetFileFromCacheResult;
+struct TPutFileToCacheResult;
+
 DECLARE_REFCOUNTED_STRUCT(IConnection)
 DECLARE_REFCOUNTED_STRUCT(IAdmin)
 DECLARE_REFCOUNTED_STRUCT(IClientBase)

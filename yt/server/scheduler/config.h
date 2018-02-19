@@ -199,6 +199,8 @@ public:
     //! Maximum number of output tables times job count an operation can have.
     int MaxOutputTablesTimesJobsCount;
 
+    TJobSplitterConfigPtr JobSplitter;
+
     TOperationOptions();
 };
 
@@ -229,7 +231,6 @@ private:
 
 public:
     NControllerAgent::TJobSizeAdjusterConfigPtr JobSizeAdjuster;
-    TJobSplitterConfigPtr JobSplitter;
 
     TMapOperationOptions();
 };
@@ -278,7 +279,6 @@ private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TReduceOperationOptions, 0x91371bf5);
 
 public:
-    TJobSplitterConfigPtr JobSplitter;
 
     TReduceOperationOptions();
 };
@@ -364,6 +364,32 @@ DEFINE_REFCOUNTED_TYPE(TRemoteCopyOperationOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TVanillaOperationOptions
+    : public TOperationOptions
+{
+public:
+    //! Maximum number of tasks allowed.
+    int MaxTaskCount;
+
+    //! Maximum total number of jobs.
+    int MaxTotalJobCount;
+
+    TVanillaOperationOptions()
+    {
+        RegisterParameter("max_task_count", MaxTaskCount)
+            .Default(100);
+        RegisterParameter("max_total_job_count", MaxTotalJobCount)
+            .Default(100 * 1000);
+    }
+
+private:
+    DECLARE_DYNAMIC_PHOENIX_TYPE(TVanillaOperationOptions, 0x93998ffa);
+};
+
+DEFINE_REFCOUNTED_TYPE(TVanillaOperationOptions)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TTestingOptions
     : public NYTree::TYsonSerializable
 {
@@ -429,6 +455,32 @@ DEFINE_REFCOUNTED_TYPE(TOperationAlertsConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TSuspiciousJobsOptions
+    : public NYTree::TYsonSerializable
+{
+public:
+    //! Duration of no activity by job to be considered as suspicious.
+    TDuration InactivityTimeout;
+
+    //! Cpu usage delta that is considered insignificant when checking if job is suspicious.
+    i64 CpuUsageThreshold;
+
+    //! Time fraction spent in idle state of JobProxy -> UserJob pipe enough for job to be considered suspicious.
+    double InputPipeIdleTimeFraction;
+
+    //! Time fraction spent in idle state of UserJob -> JobProxy pipe enough for job to be considered suspicious.
+    double OutputPipeIdleTimeFraction;
+
+    //! Suspicious jobs per operation recalculation period.
+    TDuration UpdatePeriod;
+
+    TSuspiciousJobsOptions();
+};
+
+DEFINE_REFCOUNTED_TYPE(TSuspiciousJobsOptions)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TSchedulerConfig
     : public TFairShareStrategyConfig
     , public NChunkClient::TChunkTeleporterConfig
@@ -464,8 +516,6 @@ public:
     TDuration AlertsUpdatePeriod;
 
     TDuration ChunkUnstagePeriod;
-
-    TDuration NodeShardsUpdatePeriod;
 
     TDuration ResourceDemandSanityCheckPeriod;
 
@@ -582,12 +632,17 @@ public:
     //! for scheduling tag filter without access.
     TDuration NodeShardExecNodesCacheUpdatePeriod;
 
+    //! All update and completed jobs submitted to strategy with at least such frequency.
+    TDuration NodeShardSubmitJobsToStrategyPeriod;
+
     //! Maximum number of foreign chunks to locate per request.
     int MaxChunksPerLocateRequest;
 
     //! Limit on the number of concurrent core dumps that can be written because
     //! of failed safe assertions inside controllers.
     int MaxConcurrentSafeCoreDumps;
+
+	TSuspiciousJobsOptionsPtr SuspiciousJobs;
 
     //! Patch for all operation options.
     NYT::NYTree::INodePtr OperationOptions;
@@ -603,6 +658,7 @@ public:
     TMapReduceOperationOptionsPtr MapReduceOperationOptions;
     TSortOperationOptionsPtr SortOperationOptions;
     TRemoteCopyOperationOptionsPtr RemoteCopyOperationOptions;
+    TVanillaOperationOptionsPtr VanillaOperationOptions;
 
     //! Default environment variables set for every job.
     yhash<TString, TString> Environment;
@@ -675,13 +731,7 @@ public:
     double JobProxyMemoryReserveQuantile;
     double ResourceOverdraftFactor;
 
-    // Duration of no activity by job to be considered as suspicious.
-    TDuration SuspiciousInactivityTimeout;
 
-    // Cpu usage delta that is considered insignificant when checking if job is suspicious.
-    i64 SuspiciousCpuUsageThreshold;
-    // Time fraction spent in idle state enough for job to be considered suspicious.
-    double SuspiciousInputPipeIdleTimeFraction;
 
     // If user job iops threshold is exceeded, iops throttling is enabled via cgroups.
     TNullable<i32> IopsThreshold;
@@ -742,15 +792,10 @@ public:
     // Is applied on top of user layers if they are used.
     TNullable<TString> SystemLayerPath;
 
-    // Suspicious jobs per operation recalculation period.
-    TDuration SuspiciousJobsUpdatePeriod;
-
     // Running jobs cached YSON string update period.
     TDuration CachedRunningJobsUpdatePeriod;
 
     TSchedulerConfig();
-
-    virtual void OnLoaded() override;
 
 private:
     template <class TOptions>

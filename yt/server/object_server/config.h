@@ -61,7 +61,7 @@ class TMasterCacheServiceConfig
 public:
     TMasterCacheServiceConfig()
     {
-        RegisterInitializer([&] () {
+        RegisterPreprocessor([&] () {
             Capacity = 256_MB;
         });
     }

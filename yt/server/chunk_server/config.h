@@ -31,7 +31,7 @@ public:
         RegisterParameter("capacities", Capacities)
             .Default();
 
-        RegisterValidator([&] () {
+        RegisterPostprocessor([&] () {
             for (const auto& pair : Capacities) {
                 for (const auto& pair2 : pair.second) {
                     if (pair2.second < 0) {
@@ -43,6 +43,8 @@ public:
                     }
                 }
             }
+
+            CpuUpdateInterval = NProfiling::DurationToCpuDuration(UpdateInterval);
         });
     }
 
@@ -71,10 +73,6 @@ public:
     }
 
 private:
-    void OnLoaded() override
-    {
-        CpuUpdateInterval = NProfiling::DurationToCpuDuration(UpdateInterval);
-    }
 
     // src DC -> dst DC -> data size.
     // NB: that null DC is encoded as an empty string here.
@@ -292,7 +290,7 @@ public:
         RegisterParameter("max_misscheduled_seal_jobs_per_heartbeat", MaxMisscheduledSealJobsPerHeartbeat)
             .Default(128);
 
-        RegisterInitializer([&] () {
+        RegisterPreprocessor([&] () {
             JobThrottler->Limit = 10000;
         });
 
@@ -308,6 +306,44 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TChunkManagerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TMediumConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    //! Provides an additional bound for the number of replicas per rack for every chunk.
+    //! Currently used to simulate DC awareness.
+    int MaxReplicasPerRack;
+
+    //! Same as #MaxReplicasPerRack but only applies to regular chunks.
+    int MaxRegularReplicasPerRack;
+
+    //! Same as #MaxReplicasPerRack but only applies to journal chunks.
+    int MaxJournalReplicasPerRack;
+
+    //! Same as #MaxReplicasPerRack but only applies to erasure chunks.
+    int MaxErasureReplicasPerRack;
+
+    TMediumConfig()
+    {
+        RegisterParameter("max_replicas_per_rack", MaxReplicasPerRack)
+            .GreaterThanOrEqual(0)
+            .Default(std::numeric_limits<int>::max());
+        RegisterParameter("max_regular_replicas_per_rack", MaxRegularReplicasPerRack)
+            .GreaterThanOrEqual(0)
+            .Default(std::numeric_limits<int>::max());
+        RegisterParameter("max_journal_replicas_per_rack", MaxJournalReplicasPerRack)
+            .GreaterThanOrEqual(0)
+            .Default(std::numeric_limits<int>::max());
+        RegisterParameter("max_erasure_replicas_per_rack", MaxErasureReplicasPerRack)
+            .GreaterThanOrEqual(0)
+            .Default(std::numeric_limits<int>::max());
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TMediumConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

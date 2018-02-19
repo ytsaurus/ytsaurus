@@ -16,6 +16,11 @@ TLogger::TLogger(const char* categoryName)
     , Category_(LogManager_->GetCategory(categoryName))
 { }
 
+TLogger::operator bool() const
+{
+    return LogManager_;
+}
+
 const TLoggingCategory* TLogger::GetCategory() const
 {
     return Category_;

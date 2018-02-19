@@ -112,7 +112,7 @@ TFairShareStrategyTreeConfig::TFairShareStrategyTreeConfig()
     RegisterParameter("preemptive_scheduling_backoff", PreemptiveSchedulingBackoff)
         .Default(TDuration::Seconds(5));
 
-    RegisterValidator([&] () {
+    RegisterPostprocessor([&] () {
         if (AggressivePreemptionSatisfactionThreshold > PreemptionSatisfactionThreshold) {
             THROW_ERROR_EXCEPTION("Aggressive preemption satisfaction threshold must be less than preemption satisfaction threshold")
                 << TErrorAttribute("aggressive_threshold", AggressivePreemptionSatisfactionThreshold)
@@ -142,7 +142,11 @@ TFairShareStrategyConfig::TFairShareStrategyConfig()
 
     RegisterParameter("max_operation_count", MaxOperationCount)
         .Default(5000)
-        .GreaterThan(0);
+        .GreaterThan(0)
+        // This value corresponds to the maximum possible number of memory tags.
+        // It should be changed simultaneously with values of all `MaxTagValue`
+        // across the code base.
+        .LessThan(MaxMemoryTag);
 
     RegisterParameter("max_running_operation_count", MaxRunningOperationCount)
         .Alias("max_running_operations")
@@ -222,7 +226,10 @@ TOperationOptions::TOperationOptions()
         .Default(20 * 100000)
         .GreaterThanOrEqual(100000);
 
-    RegisterValidator([&] () {
+    RegisterParameter("job_splitter", JobSplitter)
+        .DefaultNew();
+
+    RegisterPostprocessor([&] () {
         if (MaxSliceDataWeight < MinSliceDataWeight) {
             THROW_ERROR_EXCEPTION("Minimum slice data weight must be less than or equal to maximum slice data size")
                 << TErrorAttribute("min_slice_data_weight", MinSliceDataWeight)
@@ -250,10 +257,8 @@ TMapOperationOptions::TMapOperationOptions()
 {
     RegisterParameter("job_size_adjuster", JobSizeAdjuster)
         .DefaultNew();
-    RegisterParameter("job_splitter", JobSplitter)
-        .DefaultNew();
 
-    RegisterInitializer([&] () {
+    RegisterPreprocessor([&] () {
         DataWeightPerJob = 128_MB;
     });
 }
@@ -262,10 +267,7 @@ TMapOperationOptions::TMapOperationOptions()
 
 TReduceOperationOptions::TReduceOperationOptions()
 {
-    RegisterParameter("job_splitter", JobSplitter)
-        .DefaultNew();
-
-    RegisterInitializer([&] () {
+    RegisterPreprocessor([&] () {
         DataWeightPerJob = 128_MB;
     });
 }
@@ -363,6 +365,22 @@ TOperationAlertsConfig::TOperationAlertsConfig()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TSuspiciousJobsOptions::TSuspiciousJobsOptions()
+{
+    RegisterParameter("inactivity_timeout", InactivityTimeout)
+        .Default(TDuration::Minutes(1));
+    RegisterParameter("cpu_usage_threshold", CpuUsageThreshold)
+        .Default(300);
+    RegisterParameter("input_pipe_time_idle_fraction", InputPipeIdleTimeFraction)
+        .Default(0.95);
+    RegisterParameter("output_pipe_time_idle_fraction", OutputPipeIdleTimeFraction)
+        .Default(0.95);
+    RegisterParameter("update_period", UpdatePeriod)
+        .Default(TDuration::Seconds(5));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TSchedulerConfig::TSchedulerConfig()
 {
     SetUnrecognizedStrategy(NYTree::EUnrecognizedStrategy::KeepRecursive);
@@ -397,8 +415,8 @@ TSchedulerConfig::TSchedulerConfig()
         .Default(TDuration::Seconds(1));
     RegisterParameter("chunk_unstage_period", ChunkUnstagePeriod)
         .Default(TDuration::MilliSeconds(100));
-    RegisterParameter("node_shards_update_period", NodeShardsUpdatePeriod)
-        .Default(TDuration::Seconds(10));
+    RegisterParameter("node_shard_submit_jobs_to_strategy_period", NodeShardSubmitJobsToStrategyPeriod)
+        .Default(TDuration::MilliSeconds(100));
 
     RegisterParameter("resource_demand_sanity_check_period", ResourceDemandSanityCheckPeriod)
         .Default(TDuration::Seconds(15));
@@ -553,6 +571,8 @@ TSchedulerConfig::TSchedulerConfig()
         .DefaultNew();
     RegisterParameter("remote_copy_operation_options", RemoteCopyOperationOptions)
         .DefaultNew();
+    RegisterParameter("vanilla_operation_options", VanillaOperationOptions)
+        .DefaultNew();
 
     RegisterParameter("environment", Environment)
         .Default(yhash<TString, TString>())
@@ -638,13 +658,6 @@ TSchedulerConfig::TSchedulerConfig()
         .InRange(1.0, 10.0)
         .Default(1.1);
 
-    RegisterParameter("suspicious_inactivity_timeout", SuspiciousInactivityTimeout)
-        .Default(TDuration::Minutes(1));
-    RegisterParameter("suspicious_cpu_usage_threshold", SuspiciousCpuUsageThreshold)
-        .Default(300);
-    RegisterParameter("suspicious_input_pipe_time_idle_fraction", SuspiciousInputPipeIdleTimeFraction)
-        .Default(0.95);
-
     RegisterParameter("static_orchid_cache_update_period", StaticOrchidCacheUpdatePeriod)
         .Default(TDuration::Seconds(1));
 
@@ -701,9 +714,6 @@ TSchedulerConfig::TSchedulerConfig()
     RegisterParameter("controller_agent_operation_rpc_timeout", ControllerAgentOperationRpcTimeout)
         .Default(TDuration::Seconds(1));
 
-    RegisterParameter("suspicious_jobs_update_period", SuspiciousJobsUpdatePeriod)
-        .Default(TDuration::Seconds(5));
-
     RegisterParameter("job_metrics_delta_report_backoff", JobMetricsDeltaReportBackoff)
         .Default(TDuration::Seconds(15));
 
@@ -713,7 +723,10 @@ TSchedulerConfig::TSchedulerConfig()
     RegisterParameter("cached_running_jobs_update_period", CachedRunningJobsUpdatePeriod)
         .Default();
 
-    RegisterInitializer([&] () {
+    RegisterParameter("suspicious_jobs", SuspiciousJobs)
+        .DefaultNew();
+
+    RegisterPreprocessor([&] () {
         ChunkLocationThrottler->Limit = 10000;
 
         EventLog->MaxRowWeight = 128_MB;
@@ -733,27 +746,24 @@ TSchedulerConfig::TSchedulerConfig()
         UnorderedMergeOperationOptions->MaxDataSlicesPerJob = 10000;
     });
 
-    RegisterValidator([&] () {
+    RegisterPostprocessor([&] () {
         if (SoftConcurrentHeartbeatLimit > HardConcurrentHeartbeatLimit) {
             THROW_ERROR_EXCEPTION("Soft limit on concurrent heartbeats must be less than or equal to hard limit on concurrent heartbeats")
                 << TErrorAttribute("soft_limit", SoftConcurrentHeartbeatLimit)
                 << TErrorAttribute("hard_limit", HardConcurrentHeartbeatLimit);
         }
-    });
-}
 
-void TSchedulerConfig::OnLoaded()
-{
-    UpdateOptions(&MapOperationOptions, OperationOptions);
-    UpdateOptions(&ReduceOperationOptions, OperationOptions);
-    UpdateOptions(&JoinReduceOperationOptions, OperationOptions);
-    UpdateOptions(&EraseOperationOptions, OperationOptions);
-    UpdateOptions(&OrderedMergeOperationOptions, OperationOptions);
-    UpdateOptions(&UnorderedMergeOperationOptions, OperationOptions);
-    UpdateOptions(&SortedMergeOperationOptions, OperationOptions);
-    UpdateOptions(&MapReduceOperationOptions, OperationOptions);
-    UpdateOptions(&SortOperationOptions, OperationOptions);
-    UpdateOptions(&RemoteCopyOperationOptions, OperationOptions);
+        UpdateOptions(&MapOperationOptions, OperationOptions);
+        UpdateOptions(&ReduceOperationOptions, OperationOptions);
+        UpdateOptions(&JoinReduceOperationOptions, OperationOptions);
+        UpdateOptions(&EraseOperationOptions, OperationOptions);
+        UpdateOptions(&OrderedMergeOperationOptions, OperationOptions);
+        UpdateOptions(&UnorderedMergeOperationOptions, OperationOptions);
+        UpdateOptions(&SortedMergeOperationOptions, OperationOptions);
+        UpdateOptions(&MapReduceOperationOptions, OperationOptions);
+        UpdateOptions(&SortOperationOptions, OperationOptions);
+        UpdateOptions(&RemoteCopyOperationOptions, OperationOptions);
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -771,6 +781,7 @@ DEFINE_DYNAMIC_PHOENIX_TYPE(TSortedMergeOperationOptions);
 DEFINE_DYNAMIC_PHOENIX_TYPE(TSortOperationOptions);
 DEFINE_DYNAMIC_PHOENIX_TYPE(TSortOperationOptionsBase);
 DEFINE_DYNAMIC_PHOENIX_TYPE(TUnorderedMergeOperationOptions);
+DEFINE_DYNAMIC_PHOENIX_TYPE(TVanillaOperationOptions);
 
 ////////////////////////////////////////////////////////////////////////////////
 

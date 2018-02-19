@@ -298,6 +298,8 @@ void TTablet::Save(TSaveContext& context) const
     Save(context, TrimmedRowCount_);
     Save(context, Replicas_);
     Save(context, RetainedTimestamp_);
+    Save(context, Errors_);
+    Save(context, ErrorCount_);
 }
 
 void TTablet::Load(TLoadContext& context)
@@ -340,6 +342,11 @@ void TTablet::Load(TLoadContext& context)
         LOG_ERROR("Broken prepared tablet found (TabletId: %v, TableId: %v)",
             Id_,
             Table_->GetId());
+    }
+    // COMPAT(iskhakovt)
+    if (context.GetVersion() >= 628) {
+        Load(context, Errors_);
+        Load(context, ErrorCount_);
     }
 }
 
@@ -465,6 +472,17 @@ void TTablet::SetTable(TTableNode* table)
         ++table->MutableTabletCountByState()[State_];
     }
     Table_ = table;
+}
+
+std::vector<TError> TTablet::GetErrors() const
+{
+    std::vector<TError> errors;
+    for (auto key : TEnumTraits<ETabletBackgroundActivity>::GetDomainValues()) {
+        if (!Errors()[key].IsOK()) {
+            errors.push_back(Errors()[key]);
+        }
+    }
+    return errors;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

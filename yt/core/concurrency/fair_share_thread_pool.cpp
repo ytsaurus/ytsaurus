@@ -138,12 +138,9 @@ public:
         std::shared_ptr<TEventCount> callbackEventCount,
         int threadCount,
         const TTagIdList& tagIds,
-        bool enableLogging,
         bool enableProfiling)
-        : CallbackEventCount_(callbackEventCount)
+        : CallbackEventCount_(std::move(callbackEventCount))
         , CurrentlyExecutingActionsByThread_(threadCount)
-        , EnableLogging_(enableLogging)
-        , EnableProfiling_(enableProfiling)
         , Profiler_("/fair_share_queue")
         , BucketCounter_("/buckets", tagIds)
         , SizeCounter_("/size", tagIds)
@@ -330,8 +327,6 @@ private:
     std::vector<THeapItem> Heap_;
     std::shared_ptr<TEventCount> CallbackEventCount_;
     std::vector<TExecution> CurrentlyExecutingActionsByThread_;
-    bool EnableLogging_;
-    bool EnableProfiling_;
 
     TSpinLock TagMappingSpinLock_;
     yhash<TFairShareThreadPoolTag, TWeakPtr<TBucket>> TagToBucket_;
@@ -469,7 +464,6 @@ public:
             CallbackEventCount_,
             threadCount,
             GetThreadTagIds(enableProfiling, threadNamePrefix),
-            enableLogging,
             enableProfiling))
     {
         YCHECK(threadCount > 0);

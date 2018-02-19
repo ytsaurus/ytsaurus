@@ -13,11 +13,11 @@ namespace NJobProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TUserJobIO
+class TUserJobWriteController
 {
 public:
-    explicit TUserJobIO(IJobHostPtr host);
-    ~TUserJobIO();
+    explicit TUserJobWriteController(IJobHostPtr host);
+    ~TUserJobWriteController();
 
     void Init();
 

@@ -128,7 +128,7 @@ struct TSerializableColumnSchema
         RegisterParameter("required", Required_)
             .Default(false);
 
-        RegisterValidator([&] () {
+        RegisterPostprocessor([&] () {
             // Name
             if (Name().empty()) {
                 THROW_ERROR_EXCEPTION("Column name cannot be empty");

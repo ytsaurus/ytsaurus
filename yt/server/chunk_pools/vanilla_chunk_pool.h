@@ -1,14 +1,14 @@
 #pragma once
 
+#include "chunk_pool.h"
+
 namespace NYT {
 namespace NChunkPools {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM(EStripeListExtractionOrder,
-    (DataSizeDescending)
-    (RowCountDescending)
-);
+// NB: Vanilla chunk pool implements only IChunkPoolOutput.
+std::unique_ptr<IChunkPoolOutput> CreateVanillaChunkPool(int jobCount);
 
 ////////////////////////////////////////////////////////////////////////////////
 
