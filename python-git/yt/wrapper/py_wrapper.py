@@ -213,9 +213,9 @@ class Tar(object):
         if self._compression_codec == "gzip":
             compression_level = get_config(self.client)["pickling"]["modules_archive_compression_level"]
             self._gz_fileobj = GzipFile(self.filename, "w", compresslevel=compression_level, mtime=0)
-            self.tar = TarFile(self.filename, "w", self._gz_fileobj, tarinfo=TarInfo)
+            self.tar = TarFile(self.filename, "w", self._gz_fileobj, tarinfo=TarInfo, dereference=True)
         else:
-            self.tar = TarFile(self.filename, "w", tarinfo=TarInfo)
+            self.tar = TarFile(self.filename, "w", tarinfo=TarInfo, dereference=True)
         self.tar.__enter__()
         return self
 
