@@ -145,7 +145,6 @@ protected:
 private:
     void TraceRequest(const NTracing::TTraceContext& traceContext);
     const TSharedRef& GetSerializedBody() const;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -156,37 +155,18 @@ class TTypedClientRequest
     , public TRequestMessage
 {
 public:
-    typedef TIntrusivePtr<TTypedClientRequest> TThisPtr;
+    using TThisPtr = TIntrusivePtr<TTypedClientRequest>;
 
     TTypedClientRequest(
         IChannelPtr channel,
         const TString& path,
         const TString& method,
-        int protocolVersion)
-        : TClientRequest(
-            std::move(channel),
-            path,
-            method,
-            protocolVersion)
-    { }
+        int protocolVersion);
 
-    TFuture<typename TResponse::TResult> Invoke()
-    {
-        auto context = CreateClientContext();
-        auto response = NYT::New<TResponse>(std::move(context));
-        auto promise = response->GetPromise();
-        auto requestControl = Send(std::move(response));
-        if (requestControl) {
-            promise.OnCanceled(BIND(&IClientRequestControl::Cancel, std::move(requestControl)));
-        }
-        return promise.ToFuture();
-    }
+    TFuture<typename TResponse::TResult> Invoke();
 
 private:
-    virtual TSharedRef SerializeBody() const override
-    {
-        return SerializeProtoToRefWithEnvelope(*this, Codec_, false);
-    }
+    virtual TSharedRef SerializeBody() const override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -292,35 +272,18 @@ class TTypedClientResponse
     , public TResponseMessage
 {
 public:
-    typedef TIntrusivePtr<TTypedClientResponse> TResult;
+    using TResult = TIntrusivePtr<TTypedClientResponse>;
 
-    explicit TTypedClientResponse(TClientContextPtr clientContext)
-        : TClientResponse(std::move(clientContext))
-    { }
+    explicit TTypedClientResponse(TClientContextPtr clientContext);
 
-    TPromise<TResult> GetPromise()
-    {
-        return Promise_;
-    }
+    TPromise<TResult> GetPromise();
 
 private:
     TPromise<TResult> Promise_ = NewPromise<TResult>();
 
 
-    virtual void SetPromise(const TError& error) override
-    {
-        if (error.IsOK()) {
-            Promise_.Set(this);
-        } else {
-            Promise_.Set(error);
-        }
-        Promise_.Reset();
-    }
-
-    virtual void DeserializeBody(const TRef& data) override
-    {
-        DeserializeProtoWithEnvelope(this, data);
-    }
+    virtual void SetPromise(const TError& error) override;
+    virtual void DeserializeBody(const TRef& data) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -363,11 +326,11 @@ struct TMethodDescriptor
 };
 
 #define DEFINE_RPC_PROXY_METHOD(ns, method, ...) \
-    typedef ::NYT::NRpc::TTypedClientResponse<ns::TRsp##method> TRsp##method; \
-    typedef ::NYT::NRpc::TTypedClientRequest<ns::TReq##method, TRsp##method> TReq##method; \
-    typedef ::NYT::TIntrusivePtr<TRsp##method> TRsp##method##Ptr; \
-    typedef ::NYT::TIntrusivePtr<TReq##method> TReq##method##Ptr; \
-    typedef ::NYT::TErrorOr<TRsp##method##Ptr> TErrorOrRsp##method##Ptr; \
+    using TRsp##method = ::NYT::NRpc::TTypedClientResponse<ns::TRsp##method>; \
+    using TReq##method = ::NYT::NRpc::TTypedClientRequest<ns::TReq##method, TRsp##method>; \
+    using TRsp##method##Ptr = ::NYT::TIntrusivePtr<TRsp##method>; \
+    using TReq##method##Ptr = ::NYT::TIntrusivePtr<TReq##method>; \
+    using TErrorOrRsp##method##Ptr = ::NYT::TErrorOr<TRsp##method##Ptr>; \
     \
     TReq##method##Ptr method() \
     { \
@@ -394,18 +357,7 @@ protected:
         const TServiceDescriptor& descriptor);
 
     template <class T>
-    TIntrusivePtr<T> CreateRequest(const TMethodDescriptor& methodDescriptor)
-    {
-        auto request = New<T>(
-            Channel_,
-            ServiceDescriptor_.ServiceName,
-            methodDescriptor.MethodName,
-            ServiceDescriptor_.ProtocolVersion);
-        request->SetTimeout(DefaultTimeout_);
-        request->SetRequestAck(DefaultRequestAck_);
-        request->SetMultiplexingBand(methodDescriptor.MultiplexingBand);
-        return request;
-    }
+    TIntrusivePtr<T> CreateRequest(const TMethodDescriptor& methodDescriptor);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -423,3 +375,7 @@ public:
 
 } // namespace NRpc
 } // namespace NYT
+
+#define CLIENT_INL_H_
+#include "client-inl.h"
+#undef CLIENT_INL_H_
