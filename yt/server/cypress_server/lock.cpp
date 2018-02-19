@@ -118,7 +118,7 @@ void TCypressNodeLockingState::Persist(TPersistenceContext& context)
     }
 }
 
-const TCypressNodeLockingState TCypressNodeLockingState::Empty;
+const TCypressNodeLockingState TCypressNodeLockingState::Empty = TCypressNodeLockingState();
 
 ////////////////////////////////////////////////////////////////////////////////
 

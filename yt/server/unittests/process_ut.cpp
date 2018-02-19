@@ -1,5 +1,7 @@
 #include <yt/core/test_framework/framework.h>
 
+#ifdef _linux_
+
 #include <yt/core/actions/bind.h>
 
 #include <yt/core/concurrency/action_queue.h>
@@ -17,8 +19,6 @@
 #include <yt/server/containers/instance.h>
 
 #include <util/system/platform.h>
-
-#ifdef _linux_
 
 namespace NYT {
 namespace {
