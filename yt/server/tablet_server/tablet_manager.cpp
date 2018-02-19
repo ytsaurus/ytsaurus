@@ -3501,6 +3501,9 @@ private:
     {
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
         auto* tablet = FindTablet(tabletId);
+        if (!IsObjectAlive(tablet)) {
+            return;
+        }
 
         if (tablet->GetStoresUpdatePreparedTransaction() != transaction) {
             LOG_DEBUG_UNLESS(IsRecovery(), "Tablet stores update commit for an improperly unprepared tablet; ignored "
@@ -3521,10 +3524,6 @@ private:
                 transaction->GetId(),
                 mountRevision,
                 tablet->GetMountRevision());
-            return;
-        }
-
-        if (!IsObjectAlive(tablet)) {
             return;
         }
 
