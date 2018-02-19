@@ -2005,8 +2005,13 @@ void TOperationControllerBase::SafeOnIntermediateChunkLocated(const TChunkId& ch
 
 void TOperationControllerBase::SafeOnInputChunkLocated(const TChunkId& chunkId, const TChunkReplicaList& replicas, bool missing)
 {
-    // We have locked all the relevant input chunks, they cannot be missing.
-    YCHECK(!missing);
+    if (missing) {
+        // We must have locked all the relevant input chunks, but when user transaction is aborted
+        // there can be a race between operation completion and chunk scraper.
+        OnOperationFailed(TError("Input chunk %v is missing", chunkId));
+        return;
+    }
+
     auto it = InputChunkMap.find(chunkId);
     YCHECK(it != InputChunkMap.end());
 
