@@ -646,7 +646,7 @@ public:
     virtual void Reset(IChunkPoolInput::TCookie cookie, TChunkStripePtr stripe, TInputChunkMappingPtr mapping) override
     {
         for (int index = 0; index < Stripes_.size(); ++index) {
-            auto newStripe = (index == cookie) ? stripe : mapping->GetMappedStripe(stripe);
+            auto newStripe = (index == cookie) ? stripe : mapping->GetMappedStripe(Stripes_[index].GetStripe());
             Stripes_[index].Reset(newStripe);
         }
         InvalidateCurrentJobs();
