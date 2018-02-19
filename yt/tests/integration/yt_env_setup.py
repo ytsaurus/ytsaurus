@@ -421,6 +421,7 @@ class YTEnvSetup(object):
             if driver is None:
                 continue
 
+            self._reset_nodes(driver=driver)
             if self.get_param("NUM_SCHEDULERS", cluster_index) > 0:
                 self._remove_operations(driver=driver)
                 self._wait_for_jobs_to_vanish(driver=driver)
@@ -434,7 +435,6 @@ class YTEnvSetup(object):
                                 "opaque": True
                                },
                                driver=driver)
-            self._reset_nodes(driver=driver)
             self._remove_accounts(driver=driver)
             self._remove_users(driver=driver)
             self._remove_groups(driver=driver)
