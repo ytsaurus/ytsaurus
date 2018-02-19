@@ -119,8 +119,8 @@ void TNode::SetStatistics(NNodeTrackerClient::NProto::TNodeStatistics&& statisti
 
 void TNode::ComputeFillFactors()
 {
-    TPerMediumArray<i64> freeSpace;
-    TPerMediumArray<i64> usedSpace;
+    TPerMediumArray<i64> freeSpace{};
+    TPerMediumArray<i64> usedSpace{};
 
     for (const auto& location : Statistics_.locations()) {
         auto mediumIndex = location.medium_index();

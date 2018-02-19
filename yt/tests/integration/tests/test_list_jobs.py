@@ -1,26 +1,12 @@
 from yt_env_setup import wait, YTEnvSetup
 from yt_commands import *
 import yt.environment.init_operation_archive as init_operation_archive
-from yt.wrapper.common import uuid_hash_pair
-from yt.common import date_string_to_timestamp_mcs
 from yt.wrapper.operation_commands import add_failed_operation_stderrs_to_error_message
 
 from operations_archive import clean_operations
 
-import __builtin__
-import datetime
-import itertools
-import pytest
-import shutil
-
 from time import sleep
 from collections import defaultdict
-
-def id_to_parts(id):
-    id_parts = id.split("-")
-    id_hi = long(id_parts[2], 16) << 32 | int(id_parts[3], 16)
-    id_lo = long(id_parts[0], 16) << 32 | int(id_parts[1], 16)
-    return id_hi, id_lo
 
 def validate_address_filter(op, include_archive, include_cypress, include_runtime):
     job_dict = defaultdict(list)
@@ -173,10 +159,10 @@ class TestListJobs(YTEnvSetup):
         res = list_jobs(op.id, include_archive=False, include_cypress=True, job_state="completed")["jobs"]
         assert sorted(completed_jobs) == sorted([job["id"] for job in res])
 
-        res = list_jobs(op.id, include_archive=False, include_cypress=True, has_stderr=True)["jobs"]
+        res = list_jobs(op.id, include_archive=False, include_cypress=True, with_stderr=True)["jobs"]
         assert sorted(jobs_with_stderr) == sorted([job["id"] for job in res])
 
-        res = list_jobs(op.id, include_archive=False, include_cypress=True, has_stderr=False)["jobs"]
+        res = list_jobs(op.id, include_archive=False, include_cypress=True, with_stderr=False)["jobs"]
         assert sorted(jobs_without_stderr) == sorted([job["id"] for job in res])
 
         validate_address_filter(op, False, True, False)
@@ -195,6 +181,10 @@ class TestListJobs(YTEnvSetup):
         assert len(res) == 2
         assert res == sorted(res, key=lambda item: item["start_time"], reverse=True)
 
+        res = list_jobs(op.id, offset=0, limit=2, sort_field="id")["jobs"]
+        assert len(res) == 2
+        assert res == sorted(res, key=lambda item: item["id"])
+
         res = list_jobs(op.id, job_state="completed")["jobs"]
         assert sorted(completed_jobs) == sorted([job["id"] for job in res])
 
@@ -210,10 +200,10 @@ class TestListJobs(YTEnvSetup):
         res = list_jobs(op.id, job_state="failed")["jobs"]
         assert sorted(map_failed_jobs) == sorted([job["id"] for job in res])
 
-        res = list_jobs(op.id, has_stderr=True)["jobs"]
+        res = list_jobs(op.id, with_stderr=True)["jobs"]
         assert sorted(jobs_with_stderr) == sorted([job["id"] for job in res])
 
-        res = list_jobs(op.id, has_stderr=False)["jobs"]
+        res = list_jobs(op.id, with_stderr=False)["jobs"]
         assert sorted(jobs_without_stderr) == sorted([job["id"] for job in res])
 
         validate_address_filter(op, True, False, False)
@@ -243,12 +233,12 @@ class TestListJobs(YTEnvSetup):
         for job in res["jobs"]:
             assert job["stderr_size"] == len("MAPPER-STDERR-OUTPUT\n")
 
-        res = list_jobs(op.id, include_runtime=True, include_archive=False, include_cypress=False, has_stderr=True)
+        res = list_jobs(op.id, include_runtime=True, include_archive=False, include_cypress=False, with_stderr=True)
         for job in res["jobs"]:
             assert job["stderr_size"] == len("MAPPER-STDERR-OUTPUT\n")
         assert sorted(job["id"] for job in res["jobs"]) == sorted(op.jobs)
 
-        res = list_jobs(op.id, include_runtime=True, include_archive=False, include_cypress=False, has_stderr=False)
+        res = list_jobs(op.id, include_runtime=True, include_archive=False, include_cypress=False, with_stderr=False)
         assert res["jobs"] == []
 
         events.notify_event("can_finish_mapper")

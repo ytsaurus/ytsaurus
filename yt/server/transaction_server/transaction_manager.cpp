@@ -132,13 +132,13 @@ public:
     TImpl(
         TTransactionManagerConfigPtr config,
         TBootstrap* bootstrap)
-        : TMasterAutomatonPart(bootstrap)
+        : TMasterAutomatonPart(bootstrap, NCellMaster::EAutomatonThreadQueue::TransactionManager)
         , Config_(config)
         , LeaseTracker_(New<TTransactionLeaseTracker>(
             Bootstrap_->GetHydraFacade()->GetTransactionTrackerInvoker(),
             TransactionServerLogger))
     {
-        VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(), AutomatonThread);
+        VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Default), AutomatonThread);
         VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetHydraFacade()->GetTransactionTrackerInvoker(), TrackerThread);
 
         Logger = TransactionServerLogger;

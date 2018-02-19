@@ -32,11 +32,13 @@ std::unique_ptr<NHydra::TLoadContext> TMasterAutomaton::CreateLoadContext(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TMasterAutomatonPart::TMasterAutomatonPart(TBootstrap* bootstrap)
+TMasterAutomatonPart::TMasterAutomatonPart(
+    TBootstrap* bootstrap,
+    EAutomatonThreadQueue queue)
     : TCompositeAutomatonPart(
         bootstrap->GetHydraFacade()->GetHydraManager(),
         bootstrap->GetHydraFacade()->GetAutomaton(),
-        bootstrap->GetHydraFacade()->GetAutomatonInvoker())
+        bootstrap->GetHydraFacade()->GetAutomatonInvoker(queue))
     , Bootstrap_(bootstrap)
 { }
 

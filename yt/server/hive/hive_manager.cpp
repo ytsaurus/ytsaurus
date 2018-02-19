@@ -52,6 +52,7 @@ using NHiveClient::NProto::TEncapsulatedMessage;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static const auto& Profiler = HiveServerProfiler;
 static const auto HiveTracingService = TString("HiveManager");
 static const auto ClientHostAnnotation = TString("client_host");
 
@@ -217,15 +218,16 @@ public:
     }
 
 
-    TFuture<void> SyncWith(const TCellId& cellId)
+    TFuture<void> SyncWith(TMailbox* mailbox)
     {
         YCHECK(EpochAutomatonInvoker_);
 
-        auto proxy = FindHiveProxy(cellId);
-        if (!proxy) {
+        const auto& cellId = mailbox->GetCellId();
+        auto channel = FindMailboxChannel(mailbox);
+        if (!channel) {
             return MakeFuture(TError(
                 NRpc::EErrorCode::Unavailable,
-                "Cannot synchronize with cell %v since it is not yet connected",
+                "Cannot synchronize with cell %v since it is not connected",
                 cellId));
         }
 
@@ -233,7 +235,8 @@ public:
             SelfCellId_,
             cellId);
 
-        auto req = proxy->Ping();
+        THiveServiceProxy proxy(std::move(channel));
+        auto req = proxy.Ping();
         req->SetTimeout(Config_->PingRpcTimeout);
         ToProto(req->mutable_src_cell_id(), SelfCellId_);
 
@@ -260,6 +263,8 @@ private:
 
     TEntityMap<TMailbox> MailboxMap_;
     yhash<TCellId, TMessageId> CellIdToNextTransientIncomingMessageId_;
+
+    NProfiling::TSimpleCounter PostingTimeCounter_{"/posting_time"};
 
 
     // RPC handlers.
@@ -499,9 +504,23 @@ private:
     }
 
 
-    std::unique_ptr<THiveServiceProxy> FindHiveProxy(TMailbox* mailbox)
+    NRpc::IChannelPtr FindMailboxChannel(TMailbox* mailbox)
     {
-        return FindHiveProxy(mailbox->GetCellId());
+        auto now = NProfiling::GetCpuInstant();
+        auto cachedChannel = mailbox->GetCachedChannel();
+        if (cachedChannel && now < mailbox->GetCachedChannelDeadline()) {
+            return cachedChannel;
+        }
+
+        auto channel = CellDirectory_->FindChannel(mailbox->GetCellId());
+        if (!channel) {
+            return nullptr;
+        }
+
+        mailbox->SetCachedChannel(channel);
+        mailbox->SetCachedChannelDeadline(now + NProfiling::DurationToCpuDuration(Config_->CachedChannelTimeout));
+
+        return channel;
     }
 
     std::unique_ptr<THiveServiceProxy> FindHiveProxy(const TCellId& cellId)
@@ -517,7 +536,7 @@ private:
 
     void ReliablePostMessage(const TMailboxList& mailboxes, const TRefCountedEncapsulatedMessagePtr& message)
     {
-        // A typical mistake is to try sending a Hive message outside of a mutation.
+        // A typical mistake is posting a reliable Hive message outside of a mutation.
         YCHECK(HasMutationContext());
 
         AnnotateWithTraceContext(message.Get());
@@ -541,19 +560,17 @@ private:
                 mailbox->GetCellId(),
                 messageId);
 
-            MaybePostOutcomingMessages(mailbox, false);
+            SchedulePostOutcomingMessages(mailbox);
         }
 
         logMessageBuilder.AppendString(STRINGBUF("})"));
         LOG_DEBUG_UNLESS(IsRecovery(), logMessageBuilder.Flush());
-
-        for (auto* mailbox : mailboxes) {
-            MaybePostOutcomingMessages(mailbox, false);
-        }
     }
 
     void UnreliablePostMessage(const TMailboxList& mailboxes, const TRefCountedEncapsulatedMessagePtr& message)
     {
+        NProfiling::TProfilingTimingGuard timingGuard(Profiler, &PostingTimeCounter_);
+
         TStringBuilder logMessageBuilder;
         logMessageBuilder.AppendFormat("Sending unreliable outcoming message (MutationType: %v, SrcCellId: %v, DstCellIds: [",
             message->type(),
@@ -564,8 +581,8 @@ private:
                 continue;
             }
 
-            auto proxy = FindHiveProxy(mailbox);
-            if (!proxy) {
+            auto channel = FindMailboxChannel(mailbox);
+            if (!channel) {
                 continue;
             }
 
@@ -574,10 +591,11 @@ private:
             }
             logMessageBuilder.AppendFormat("%v", mailbox->GetCellId());
 
-            auto req = proxy->SendMessages();
+            THiveServiceProxy proxy(std::move(channel));
+            auto req = proxy.SendMessages();
             req->SetTimeout(Config_->SendRpcTimeout);
             ToProto(req->mutable_src_cell_id(), SelfCellId_);
-            *req->add_messages() = *message;
+            req->add_messages()->CopyFrom(*message);
             AnnotateWithTraceContext(req->mutable_messages(0));
 
             req->Invoke().Subscribe(
@@ -605,7 +623,7 @@ private:
             SelfCellId_,
             mailbox->GetCellId());
 
-        MaybePostOutcomingMessages(mailbox, true);
+        PostOutcomingMessages(mailbox, true);
     }
 
     void SetMailboxDisconnected(TMailbox* mailbox)
@@ -632,6 +650,8 @@ private:
             auto* mailbox = pair.second;
             SetMailboxDisconnected(mailbox);
             mailbox->SetAcknowledgeInProgress(false);
+            mailbox->SetCachedChannel(nullptr);
+            mailbox->SetPostBatchingCookie(nullptr);
         }
         CellIdToNextTransientIncomingMessageId_.clear();
     }
@@ -708,8 +728,8 @@ private:
             return;
         }
 
-        auto proxy = FindHiveProxy(mailbox);
-        if (!proxy) {
+        auto channel = FindMailboxChannel(mailbox);
+        if (!channel) {
             // Let's register a dummy descriptor so as to ask about it during the next sync.
             CellDirectory_->RegisterCell(cellId);
             SchedulePeriodicPing(mailbox);
@@ -720,7 +740,8 @@ private:
             SelfCellId_,
             mailbox->GetCellId());
 
-        auto req = proxy->Ping();
+        THiveServiceProxy proxy(std::move(channel));
+        auto req = proxy.Ping();
         req->SetTimeout(Config_->PingRpcTimeout);
         ToProto(req->mutable_src_cell_id(), SelfCellId_);
 
@@ -812,16 +833,12 @@ private:
 
         auto it = syncRequests.find(messageId);
         if (it != syncRequests.end()) {
-            const auto& entry = it->second;
-            return entry.Promise.ToFuture();
+            return it->second.ToFuture();
         }
 
-        TMailbox::TSyncRequest request;
-        request.MessageId = messageId;
-        request.Promise = NewPromise<void>();
-
-        YCHECK(syncRequests.insert(std::make_pair(messageId, request)).second);
-        return request.Promise.ToFuture();
+        auto promise = NewPromise<void>();
+        YCHECK(syncRequests.emplace(messageId, promise).second);
+        return promise.ToFuture();
     }
 
     void FlushSyncRequests(TMailbox* mailbox)
@@ -834,28 +851,52 @@ private:
                 break;
             }
 
-            auto& request = it->second;
+            auto& promise = it->second;
 
             LOG_DEBUG("Synchronization complete (SrcCellId: %v, DstCellId: %v, MessageId: %v)",
                 SelfCellId_,
                 mailbox->GetCellId(),
                 messageId);
 
-            request.Promise.Set();
+            promise.Set();
             syncRequests.erase(it);
         }
     }
 
     void OnIdlePostOutcomingMessages(const TCellId& cellId)
     {
+        NProfiling::TProfilingTimingGuard timingGuard(Profiler, &PostingTimeCounter_);
+
         auto* mailbox = FindMailbox(cellId);
         if (!mailbox) {
             return;
         }
-        MaybePostOutcomingMessages(mailbox, true);
+
+        PostOutcomingMessages(mailbox, true);
     }
 
-    void MaybePostOutcomingMessages(TMailbox* mailbox, bool allowIdle)
+    void SchedulePostOutcomingMessages(TMailbox* mailbox)
+    {
+        if (mailbox->GetPostBatchingCookie()) {
+            return;
+        }
+
+        mailbox->SetPostBatchingCookie(TDelayedExecutor::Submit(
+            BIND([this, this_ = MakeStrong(this), cellId = mailbox->GetCellId()] {
+                NProfiling::TProfilingTimingGuard timingGuard(Profiler, &PostingTimeCounter_);
+
+                auto* mailbox = FindMailbox(cellId);
+                if (!mailbox) {
+                    return;
+                }
+
+                mailbox->SetPostBatchingCookie(nullptr);
+                PostOutcomingMessages(mailbox, false);
+            }).Via(EpochAutomatonInvoker_),
+            Config_->PostBatchingPeriod));
+    }
+
+    void PostOutcomingMessages(TMailbox* mailbox, bool allowIdle)
     {
         if (!IsLeader()) {
             return;
@@ -883,12 +924,13 @@ private:
             return;
         }
 
-        auto proxy = FindHiveProxy(mailbox);
-        if (!proxy) {
+        auto channel = FindMailboxChannel(mailbox);
+        if (!channel) {
             return;
         }
 
-        auto req = proxy->PostMessages();
+        THiveServiceProxy proxy(std::move(channel));
+        auto req = proxy.PostMessages();
         req->SetTimeout(Config_->PostRpcTimeout);
         ToProto(req->mutable_src_cell_id(), SelfCellId_);
         req->set_first_message_id(firstMessageId);
@@ -900,7 +942,7 @@ private:
                bytesToPost < Config_->MaxBytesPerPost)
         {
             const auto& message = outcomingMessages[firstMessageId + messagesToPost - mailbox->GetFirstOutcomingMessageId()];
-            *req->add_messages() = *message;
+            req->add_messages()->CopyFrom(*message);
             messagesToPost += 1;
             bytesToPost += message->ByteSize();
         }
@@ -925,8 +967,10 @@ private:
                 .Via(EpochAutomatonInvoker_));
     }
 
-    void OnPostMessagesResponse(const TCellId& cellId, const THiveServiceProxy::TErrorOrRspPostMessagesPtr& rspOrError)
+        void OnPostMessagesResponse(const TCellId& cellId, const THiveServiceProxy::TErrorOrRspPostMessagesPtr& rspOrError)
     {
+        NProfiling::TProfilingTimingGuard timingGuard(Profiler, &PostingTimeCounter_);
+
         auto* mailbox = FindMailbox(cellId);
         if (!mailbox) {
             return;
@@ -967,11 +1011,13 @@ private:
             return;
         }
 
-        MaybePostOutcomingMessages(mailbox, false);
+        SchedulePostOutcomingMessages(mailbox);
     }
 
     void OnSendMessagesResponse(const TCellId& cellId, const THiveServiceProxy::TErrorOrRspSendMessagesPtr& rspOrError)
     {
+        NProfiling::TProfilingTimingGuard timingGuard(Profiler, &PostingTimeCounter_);
+
         auto* mailbox = FindMailbox(cellId);
         if (!mailbox) {
             return;
@@ -1009,11 +1055,11 @@ private:
             this);
     }
 
-    std::unique_ptr<TMutation> CreateSendMessagesMutation(TCtxSendMessagesPtr context)
+    std::unique_ptr<TMutation> CreateSendMessagesMutation(const TCtxSendMessagesPtr& context)
     {
         return CreateMutation(
             HydraManager_,
-            std::move(context),
+            context,
             &TImpl::HydraSendMessages,
             this);
     }
@@ -1395,9 +1441,9 @@ void THiveManager::PostMessage(const TMailboxList& mailboxes, const ::google::pr
     Impl_->PostMessage(mailboxes, message, reliable);
 }
 
-TFuture<void> THiveManager::SyncWith(const TCellId& cellId)
+TFuture<void> THiveManager::SyncWith(TMailbox* mailbox)
 {
-    return Impl_->SyncWith(cellId);
+    return Impl_->SyncWith(mailbox);
 }
 
 IYPathServicePtr THiveManager::GetOrchidService()

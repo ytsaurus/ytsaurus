@@ -15,6 +15,8 @@
 #include <yt/core/misc/collection_helpers.h>
 #include <yt/core/misc/finally.h>
 
+#include <yt/core/concurrency/fiber.h>
+
 #include <unordered_set>
 
 namespace NYT {
@@ -1129,6 +1131,11 @@ struct TTypedExpressionBuilder
         ISchemaProxyPtr schema,
         std::set<TString>& usedAliases) const
     {
+        auto* scheduler = TryGetCurrentScheduler();
+        if (scheduler && !scheduler->GetCurrentFiber()->CheckFreeStackSpace(16_KB)) {
+            THROW_ERROR_EXCEPTION("Expression depth causes stack overflow");
+        }
+
         ++Depth;
         auto depthGuard = Finally([&] {
             --Depth;

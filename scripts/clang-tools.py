@@ -66,7 +66,6 @@ def get_translation_units(directory, filenames, shallow):
                 wd, path, args = get_compiler_args(compile_command)
                 os.chdir(wd)
                 tu = idx.parse(path, args, options=options)
-                ok = True
                 if len(tu.diagnostics) > 0:
                     logger.warn(
                         "There were %s diagnostic messages while parsing '%s'",
@@ -74,13 +73,7 @@ def get_translation_units(directory, filenames, shallow):
                         filename)
                     for item in tu.diagnostics:
                         logger.warn("  * %s", item)
-                        if item.severity >= Diagnostic.Error:
-                            ok = False
-                if ok:
-                    yield tu
-                else:
-                    logger.error("Skipping '%s' due to parsing errors", filename)
-
+                yield tu
 
 def get_compiler_args(compile_command):
     """Extracts proper compiler invocation arguments."""

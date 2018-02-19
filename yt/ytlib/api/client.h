@@ -648,6 +648,7 @@ DEFINE_ENUM(EJobSortField,
     ((Address)    (5))
     ((Duration)   (6))
     ((Progress)   (7))
+    ((Id)         (8))
 );
 
 DEFINE_ENUM(EJobSortDirection,
@@ -662,7 +663,7 @@ struct TListJobsOptions
     TNullable<NJobTrackerClient::EJobType> Type;
     TNullable<NJobTrackerClient::EJobState> State;
     TNullable<TString> Address;
-    TNullable<bool> HasStderr;
+    TNullable<bool> WithStderr;
 
     EJobSortField SortField = EJobSortField::None;
     EJobSortDirection SortOrder = EJobSortDirection::Ascending;

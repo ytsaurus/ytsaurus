@@ -4450,14 +4450,15 @@ private:
             builder.AddWhereExpression(Format("address = %Qv", *options.Address));
         }
 
-        if (options.HasStderr) {
-            if (*options.HasStderr) {
+        if (options.WithStderr) {
+            if (*options.WithStderr) {
                 builder.AddWhereExpression("(stderr_size != 0 AND NOT is_null(stderr_size))");
             } else {
                 builder.AddWhereExpression("(stderr_size = 0 OR is_null(stderr_size))");
             }
         }
 
+        // TODO(ignat): remove this code? (since we sort result later in DoListJobs implementation)
         if (options.SortField != EJobSortField::None) {
             switch (options.SortField) {
                 case EJobSortField::Type:
@@ -4480,6 +4481,13 @@ private:
                         "if(is_null(finish_time), %v, finish_time) - start_time",
                         TInstant::Now().MicroSeconds()));
                     break;
+                case EJobSortField::Progress:
+                    builder.SetOrderByExpression("progress");
+                    break;
+                // TODO: sort by string representation.
+                //case EJobSortField::Id:
+                //    builder.SetOrderByExpression("job_id_hi, job_id_lo");
+                //    break;
                 default:
                     break;
             }
@@ -4701,11 +4709,11 @@ private:
                     stderrSize = stderrNode->Attributes().Get<i64>("uncompressed_data_size");
                 }
 
-                if (options.HasStderr) {
-                    if (*options.HasStderr && stderrSize <= 0) {
+                if (options.WithStderr) {
+                    if (*options.WithStderr && stderrSize <= 0) {
                         continue;
                     }
-                    if (!(*options.HasStderr) && stderrSize > 0) {
+                    if (!(*options.WithStderr) && stderrSize > 0) {
                         continue;
                     }
                 }
@@ -4776,11 +4784,11 @@ private:
                 }
 
                 auto stderrSize = values->GetChild("stderr_size")->AsInt64()->GetValue();
-                if (options.HasStderr) {
-                    if (*options.HasStderr && stderrSize <= 0) {
+                if (options.WithStderr) {
+                    if (*options.WithStderr && stderrSize <= 0) {
                         continue;
                     }
-                    if (!(*options.HasStderr) && stderrSize > 0) {
+                    if (!(*options.WithStderr) && stderrSize > 0) {
                         continue;
                     }
                 }
@@ -4985,6 +4993,21 @@ private:
                             auto lhsDuration = (lhs.FinishTime ? *lhs.FinishTime : now) - lhs.StartTime;
                             auto rhsDuration = (rhs.FinishTime ? *rhs.FinishTime : now) - rhs.StartTime;
                             return lhsDuration > rhsDuration;
+                        };
+                        break;
+                }
+                break;
+
+            case EJobSortField::Id:
+                switch (options.SortOrder) {
+                    case EJobSortDirection::Ascending:
+                        comparer = [] (const TJob& lhs, const TJob& rhs) {
+                            return ToString(lhs.Id) < ToString(rhs.Id);
+                        };
+                        break;
+                    case EJobSortDirection::Descending:
+                        comparer = [] (const TJob& lhs, const TJob& rhs) {
+                            return ToString(lhs.Id) > ToString(rhs.Id);
                         };
                         break;
                 }
