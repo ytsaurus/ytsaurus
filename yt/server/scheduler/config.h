@@ -474,6 +474,9 @@ public:
     //! Suspicious jobs per operation recalculation period.
     TDuration UpdatePeriod;
 
+    //! Maximum number of suspicious jobs that are reported in Orchid for each job type.
+    i64 MaxOrchidEntryCountPerType;
+
     TSuspiciousJobsOptions();
 };
 

@@ -5962,12 +5962,30 @@ void TOperationControllerBase::UpdateSuspiciousJobsYson()
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvoker);
 
+    // We sort suspicious jobs by their last activity time and then
+    // leave top `MaxOrchidEntryCountPerType` for each job type.
+
+    std::vector<TJobletPtr> suspiciousJoblets;
+    for (const auto& pair : JobletMap) {
+        const auto& joblet = pair.second;
+        if (joblet->Suspicious) {
+            suspiciousJoblets.emplace_back(joblet);
+        }
+    }
+
+    std::sort(suspiciousJoblets.begin(), suspiciousJoblets.end(), [] (const TJobletPtr& lhs, const TJobletPtr& rhs) {
+        return lhs->LastActivityTime < rhs->LastActivityTime;
+    });
+
+    yhash<EJobType, int> suspiciousJobCountPerType;
+
     auto yson = BuildYsonStringFluently<EYsonType::MapFragment>()
         .DoFor(
-            JobletMap,
-            [&] (TFluentMap fluent, const std::pair<TJobId, TJobletPtr>& pair) {
-                const auto& joblet = pair.second;
-                if (joblet->Suspicious) {
+            suspiciousJoblets,
+            [&] (TFluentMap fluent, const TJobletPtr& joblet) {
+                auto& count = suspiciousJobCountPerType[joblet->JobType];
+                if (count < Config->SuspiciousJobs->MaxOrchidEntryCountPerType) {
+                    ++count;
                     fluent.Item(ToString(joblet->JobId))
                         .BeginMap()
                             .Item("operation_id").Value(ToString(OperationId))
