@@ -45,7 +45,7 @@ class TReadOperation
     : public IIOOperation
 {
 public:
-    explicit TReadOperation(const TSharedMutableRef& buffer, bool delayFirstRead)
+    TReadOperation(const TSharedMutableRef& buffer, bool delayFirstRead)
         : Buffer_(buffer)
         , DelayFirstRead_(delayFirstRead)
     { }
