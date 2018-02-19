@@ -83,7 +83,7 @@ fi
 # Initial cleanup
 clean
 
-VERSION=$(dpkg-parsechangelog | grep Version | awk '{print $2}')
+VERSION=$(dpkg-parsechangelog | grep Version -m 1 | awk '{print $2}')
 
 # Do not upload local version. If version endswith local it is assumed that
 # it will be built and uploaded manually.
