@@ -8,7 +8,7 @@
 #include "simple_sort_job.h"
 #include "sorted_merge_job.h"
 #include "user_job.h"
-#include "user_job_io.h"
+#include "user_job_write_controller.h"
 #include "user_job_synchronizer.h"
 
 #include <yt/server/containers/public.h>
@@ -463,7 +463,7 @@ TJobResult TJobProxy::DoRun()
             this,
             userJobSpec,
             JobId_,
-            std::make_unique<TUserJobIO>(this));
+            std::make_unique<TUserJobWriteController>(this));
     } else {
         Job_ = CreateBuiltinJob();
     }

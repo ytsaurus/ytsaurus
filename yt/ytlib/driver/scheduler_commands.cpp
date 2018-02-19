@@ -332,16 +332,13 @@ TPollJobShellCommand::TPollJobShellCommand()
 {
     RegisterParameter("job_id", JobId);
     RegisterParameter("parameters", Parameters);
-}
 
-void TPollJobShellCommand::OnLoaded()
-{
-    TCommandBase::OnLoaded();
-
-    // Compatibility with initial job shell protocol.
-    if (Parameters->GetType() == NYTree::ENodeType::String) {
-        Parameters = NYTree::ConvertToNode(NYson::TYsonString(Parameters->AsString()->GetValue()));
-    }
+    RegisterPostprocessor([&] {
+        // Compatibility with initial job shell protocol.
+        if (Parameters->GetType() == NYTree::ENodeType::String) {
+            Parameters = NYTree::ConvertToNode(NYson::TYsonString(Parameters->AsString()->GetValue()));
+        }
+    });
 }
 
 void TPollJobShellCommand::DoExecute(ICommandContextPtr context)
@@ -373,12 +370,19 @@ void TAbortJobCommand::DoExecute(ICommandContextPtr context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TStartOperationCommandBase::TStartOperationCommandBase()
+TStartOperationCommand::TStartOperationCommand()
 {
     RegisterParameter("spec", Spec);
+    RegisterParameter("operation_type", OperationType)
+        .Default();
 }
 
-void TStartOperationCommandBase::DoExecute(ICommandContextPtr context)
+EOperationType TStartOperationCommand::GetOperationType() const
+{
+    return OperationType;
+}
+
+void TStartOperationCommand::DoExecute(ICommandContextPtr context)
 {
     auto asyncOperationId = context->GetClient()->StartOperation(
         GetOperationType(),

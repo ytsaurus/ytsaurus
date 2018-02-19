@@ -113,7 +113,7 @@ public:
         RegisterParameter("resource_adjustment_period", ResourceAdjustmentPeriod)
             .Default(TDuration::Seconds(5));
 
-        RegisterInitializer([&] () {
+        RegisterPreprocessor([&] () {
             // 100 kB/sec * 1000 [nodes] = 100 MB/sec that corresponds to
             // approximate incoming bandwidth of 1Gbit/sec of the scheduler.
             StatisticsThrottler->Limit = 100_KB;

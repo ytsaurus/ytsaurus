@@ -1297,9 +1297,11 @@ class TestSchedulerSuspiciousJobs(YTEnvSetup):
 
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
-            "suspicious_inactivity_timeout": 2000,  # 2 sec
+            "suspicious_jobs": {
+                "inactivity_timeout": 2000,  # 2 sec
+                "update_period": 100,  # 100 msec
+            },
             "running_jobs_update_period": 100,  # 100 msec
-            "suspicious_jobs_update_period": 100,  # 100 msec
         }
     }
 
@@ -1352,15 +1354,85 @@ class TestSchedulerSuspiciousJobs(YTEnvSetup):
         suspicious1 = get("//sys/scheduler/orchid/scheduler/jobs/{0}/suspicious".format(job1_id))
         suspicious2 = get("//sys/scheduler/orchid/scheduler/jobs/{0}/suspicious".format(job2_id))
 
+        if suspicious1 or suspicious2:
+            print >>sys.stderr, "Some of jobs considered suspicious, their brief statistics are:"
+            for i in range(50):
+                if suspicious1 and exists("//sys/scheduler/orchid/scheduler/jobs/{0}/brief_statistics".format(job1_id)):
+                    print >>sys.stderr, "job1 brief statistics:", \
+                        get("//sys/scheduler/orchid/scheduler/jobs/{0}/brief_statistics".format(job1_id))
+                if suspicious2 and exists("//sys/scheduler/orchid/scheduler/jobs/{0}/brief_statistics".format(job2_id)):
+                    print >>sys.stderr, "job2 brief statistics:", \
+                        get("//sys/scheduler/orchid/scheduler/jobs/{0}/brief_statistics".format(job2_id))
+
         assert not suspicious1
         assert not suspicious2
 
         op1.abort()
         op2.abort()
 
+    def test_true_suspicious_jobs(self):
+        def get_running_jobs(op_id):
+            path = "//sys/scheduler/orchid/scheduler/operations/" + op_id
+            if not exists(path, verbose=False):
+                return []
+            else:
+                return get(path + "/running_jobs", verbose=False)
+
+        create("table", "//tmp/t_in", attributes={"replication_factor": 1})
+        create("table", "//tmp/t_out", attributes={"replication_factor": 1})
+
+        for i in range(15):
+            write_table("<append=%true>//tmp/t_in", {"a": i})
+        op = merge(
+            dont_track=True,
+            in_=["//tmp/t_in"],
+            out="//tmp/t_out",
+            spec={
+                "force_transform": True,
+                "mode": "ordered",
+                "job_io": {
+                    "testing_options": {"pipe_delay": 4000},
+                    "buffer_row_count": 1,
+                },
+                "enable_job_splitting": False,
+            })
+
+        running_jobs = None
+        for i in xrange(200):
+            running_jobs = get_running_jobs(op.id)
+            print >>sys.stderr, "running_jobs:", len(running_jobs)
+            if not running_jobs:
+                time.sleep(0.1)
+            else:
+                break
+
+        if not running_jobs:
+            assert False, "Failed to have running jobs"
+
+        time.sleep(5)
+
+        job_id = running_jobs.keys()[0]
+
+        # Most part of the time we should be suspicious, let's check that
+        for i in range(30):
+            suspicious = get("//sys/scheduler/orchid/scheduler/jobs/{0}/suspicious".format(job_id))
+            if suspicious:
+                break
+            time.sleep(0.1)
+
+        if not suspicious:
+            print >>sys.stderr, "Job is not considered suspicious, its brief statistics are:"
+            for i in range(50):
+                if suspicious and exists("//sys/scheduler/orchid/scheduler/jobs/{0}/brief_statistics".format(job_id)):
+                    print >>sys.stderr, "job brief statistics:", \
+                        get("//sys/scheduler/orchid/scheduler/jobs/{0}/brief_statistics".format(job_id))
+
+        assert suspicious
+        op.abort()
+
     @pytest.mark.xfail(reason="TODO(max42)")
     @require_ytserver_root_privileges
-    def test_true_suspicious_job(self):
+    def test_true_suspicious_jobs_old(self):
         # This test involves dirty hack to make lots of retries for fetching feasible
         # seeds from master making the job suspicious (as it doesn't give the input for the
         # user job for a long time).
@@ -1522,10 +1594,9 @@ class TestFairShareTreesReconfiguration(YTEnvSetup):
         assert exists("//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/default/fair_share_info")
 
         create("map_node", "//sys/pool_trees/other", attributes={"nodes_filter": "other"})
-        time.sleep(0.5)
-        assert exists("//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/other/fair_share_info")
-
-        assert not get("//sys/scheduler/@alerts")
+        
+        wait(lambda: exists("//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/other/fair_share_info"))
+        wait(lambda: not get("//sys/scheduler/@alerts"))
 
         # This tree intersects with default pool tree by nodes, should not be added
         create("map_node", "//sys/pool_trees/other_intersecting", attributes={"nodes_filter": ""})
@@ -1534,8 +1605,7 @@ class TestFairShareTreesReconfiguration(YTEnvSetup):
         assert get("//sys/scheduler/@alerts")
 
         remove("//sys/pool_trees/other_intersecting")
-        time.sleep(1.0)
-        assert "update_pools" not in get("//sys/scheduler/@alerts")
+        wait(lambda: "update_pools" not in get("//sys/scheduler/@alerts"))
 
     def test_abort_orphaned_operations(self):
         create("table", "//tmp/t_in")
@@ -1548,15 +1618,12 @@ class TestFairShareTreesReconfiguration(YTEnvSetup):
             out="//tmp/t_out",
             dont_track=True)
 
-        time.sleep(1.0)
+        wait(lambda: op.get_state() == "running")
 
         remove("//sys/pool_trees/@default_tree")
         remove("//sys/pool_trees/default")
 
-        time.sleep(0.5)
-        get("//sys/scheduler/@alerts")
-
-        assert op.get_state() in ["aborted", "aborting"]
+        wait(lambda: op.get_state() in ["aborted", "aborting"])
 
     def test_multitree_operations(self):
         create("table", "//tmp/t_in")
@@ -1654,12 +1721,11 @@ class TestFairShareTreesReconfiguration(YTEnvSetup):
         assert not exists("//sys/scheduler/orchid/scheduler/pools")
 
         set("//sys/pool_trees/@default_tree", "unexisting")
-        time.sleep(1.0)
-        assert get("//sys/scheduler/@alerts")
-        assert not exists("//sys/scheduler/orchid/scheduler/default_fair_share_tree")
+        wait(lambda: get("//sys/scheduler/@alerts"))
+        wait(lambda: not exists("//sys/scheduler/orchid/scheduler/default_fair_share_tree"))
 
         set("//sys/pool_trees/@default_tree", "default")
-        time.sleep(1.0)
+        wait(lambda: exists("//sys/scheduler/orchid/scheduler/default_fair_share_tree"))
         assert get("//sys/scheduler/orchid/scheduler/default_fair_share_tree") == "default"
         assert exists("//sys/scheduler/orchid/scheduler/pools")
         assert exists("//sys/scheduler/orchid/scheduler/fair_share_info")
@@ -1750,12 +1816,12 @@ class TestFairShareTreesReconfiguration(YTEnvSetup):
         assert op2.id in other_tree_operations
         assert op2.id not in default_tree_operations
 
-class TestFairShareOptionsPerTree(YTEnvSetup):
+class TestSchedulingOptionsPerTree(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 6
     NUM_SCHEDULERS = 1
 
-    def test_fair_share_options_per_tree(self):
+    def test_scheduling_options_per_tree(self):
         other_nodes = ls("//sys/nodes")[:3]
         for node in other_nodes:
             set("//sys/nodes/" + node + "/@user_tags/end", "other")
@@ -1775,7 +1841,7 @@ class TestFairShareOptionsPerTree(YTEnvSetup):
             out="//tmp/t_out",
             spec={
                 "pool_trees": ["default", "other"],
-                "fair_share_options_per_pool_tree": {
+                "scheduling_options_per_pool_tree": {
                     "default": {
                         "max_share_ratio": 0.4,
                         "min_share_ratio": 0.37,
@@ -1808,3 +1874,6 @@ class TestFairShareOptionsPerTree(YTEnvSetup):
         assert_almost_equal(get_value("other", op.id, "usage_ratio"), 0.66)
         assert_almost_equal(get_value("other", op.id, "usage_ratio"), 0.66)
         assert get_value("other", op.id, "pool") == "superpool"
+
+        assert get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/scheduling_info_per_pool_tree/other/pool"
+            .format(op.id)) == "superpool"

@@ -14,6 +14,7 @@ const TString JobUserName("job");
 const TString SchedulerUserName("scheduler");
 const TString ReplicatorUserName("replicator");
 const TString OwnerUserName("owner");
+const TString FileCacheUserName("file_cache");
 
 const TString EveryoneGroupName("everyone");
 const TString UsersGroupName("users");

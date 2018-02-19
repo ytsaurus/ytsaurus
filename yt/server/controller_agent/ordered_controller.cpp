@@ -114,7 +114,7 @@ protected:
             , Controller_(controller)
         {
             auto options = controller->GetOrderedChunkPoolOptions();
-            options.Task = GetId();
+            options.Task = GetTitle();
             ChunkPool_ = CreateOrderedChunkPool(options, controller->GetInputStreamDirectory());
         }
 
@@ -148,11 +148,6 @@ protected:
         TOrderedControllerBase* Controller_;
 
         std::unique_ptr<IChunkPool> ChunkPool_;
-
-        virtual TString GetId() const override
-        {
-            return Format("Ordered");
-        }
 
         virtual TTaskGroupPtr GetGroup() const override
         {
@@ -255,11 +250,6 @@ protected:
     virtual TCpuResource GetCpuLimit() const
     {
         return 1;
-    }
-
-    virtual i64 GetUserJobMemoryReserve() const
-    {
-        return 0;
     }
 
     virtual TUserJobSpecPtr GetUserJobSpec() const
@@ -365,23 +355,6 @@ protected:
         InitJobSpecTemplate();
     }
 
-    // Progress reporting.
-
-    virtual TString GetLoggingProgress() const override
-    {
-        return Format(
-            "Jobs = {T: %v, R: %v, C: %v, P: %v, F: %v, A: %v, I: %v}, "
-            "UnavailableInputChunks: %v",
-            JobCounter->GetTotal(),
-            JobCounter->GetRunning(),
-            JobCounter->GetCompletedTotal(),
-            GetPendingJobCount(),
-            JobCounter->GetFailed(),
-            JobCounter->GetAbortedTotal(),
-            JobCounter->GetInterruptedTotal(),
-            GetUnavailableInputChunkCount());
-    }
-
     //! Initializes #JobIOConfig.
     void InitJobIOConfig()
     {
@@ -461,6 +434,22 @@ protected:
         chunkPoolOptions.ShouldSliceByRowIndices = GetJobType() != EJobType::RemoteCopy;
         return chunkPoolOptions;
     }
+
+    virtual TJobSplitterConfigPtr GetJobSplitterConfig() const override
+    {
+        return IsJobInterruptible() && Config->EnableJobSplitting && Spec_->EnableJobSplitting
+               ? Options_->JobSplitter
+               : nullptr;
+    }
+
+    virtual bool IsJobInterruptible() const override
+    {
+        // We don't let jobs to be interrupted if MaxOutputTablesTimesJobCount is too much overdrafted.
+        return !IsExplicitJobCount_ &&
+               2 * Options_->MaxOutputTablesTimesJobsCount > JobCounter->GetTotal() * GetOutputTablePaths().size() &&
+               2 * Options_->MaxJobCount > JobCounter->GetTotal() &&
+               TOperationControllerBase::IsJobInterruptible();
+    }
 };
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TOrderedControllerBase::TOrderedTask);
@@ -477,9 +466,7 @@ public:
         TOperation* operation)
         : TOrderedControllerBase(spec, controllerAgent->GetConfig()->OrderedMergeOperationOptions, controllerAgent, operation)
         , Spec_(spec)
-    {
-        RegisterJobProxyMemoryDigest(EJobType::OrderedMerge, spec->JobProxyMemoryDigest);
-    }
+    { }
 
     virtual void Persist(const TPersistenceContext& context) override
     {
@@ -552,8 +539,6 @@ private:
         }
 
         SetInputDataSources(schedulerJobSpecExt);
-        schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
-        ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransaction->GetId());
         schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig_).GetData());
     }
 
@@ -612,11 +597,6 @@ private:
     {
         return Spec_;
     }
-
-    virtual bool IsJobInterruptible() const override
-    {
-        return false;
-    }
 };
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TOrderedMergeController);
@@ -643,10 +623,7 @@ public:
         : TOrderedControllerBase(spec, options, controllerAgent, operation)
         , Spec_(spec)
         , Options_(options)
-    {
-        RegisterJobProxyMemoryDigest(EJobType::OrderedMap, spec->JobProxyMemoryDigest);
-        RegisterUserJobMemoryDigest(EJobType::OrderedMap, spec->Mapper->UserJobMemoryDigestDefaultValue, spec->Mapper->UserJobMemoryDigestLowerBound);
-    }
+    { }
 
     virtual void Persist(const TPersistenceContext& context) override
     {
@@ -706,19 +683,6 @@ private:
         StartRowIndex_ += joblet->InputStripeList->TotalRowCount;
     }
 
-    virtual void CustomizeJobSpec(const TJobletPtr& joblet, TJobSpec* jobSpec) override
-    {
-        auto* schedulerJobSpecExt = jobSpec->MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
-        InitUserJobSpec(
-            schedulerJobSpecExt->mutable_user_job_spec(),
-            joblet);
-    }
-
-    virtual i64 GetUserJobMemoryReserve() const override
-    {
-        return ComputeUserJobMemoryReserve(EJobType::OrderedMap, Spec_->Mapper);
-    }
-
     virtual std::vector<TRichYPath> GetInputTablePaths() const override
     {
         return Spec_->InputTablePaths;
@@ -761,14 +725,12 @@ private:
             WriteInputQueryToJobSpec(schedulerJobSpecExt);
         }
 
-        schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
-        ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransaction->GetId());
         schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig_).GetData());
 
         InitUserJobSpecTemplate(
             schedulerJobSpecExt->mutable_user_job_spec(),
             Spec_->Mapper,
-            Files,
+            UserJobFiles_[Spec_->Mapper],
             Spec_->JobNodeAccount);
     }
 
@@ -782,21 +744,6 @@ private:
         if (Spec_->InputQuery) {
             ParseInputQuery(*Spec_->InputQuery, Spec_->InputSchema);
         }
-    }
-
-    virtual TJobSplitterConfigPtr GetJobSplitterConfig() const override
-    {
-        return IsJobInterruptible() && Config->EnableJobSplitting && Spec_->EnableJobSplitting
-            ? Options_->JobSplitter
-            : nullptr;
-    }
-
-    virtual bool IsJobInterruptible() const override
-    {
-        // We don't let jobs to be interrupted if MaxOutputTablesTimesJobCount is too much overdrafted.
-        return !IsExplicitJobCount_ &&
-               2 * Options_->MaxOutputTablesTimesJobsCount > JobCounter->GetTotal() * GetOutputTablePaths().size() &&
-               TOperationControllerBase::IsJobInterruptible();
     }
 
     virtual bool IsOutputLivePreviewSupported() const override
@@ -814,22 +761,9 @@ private:
         return {EJobType::OrderedMap};
     }
 
-    virtual std::vector<TPathWithStage> GetFilePaths() const override
+    virtual std::vector<TUserJobSpecPtr> GetUserJobSpecs() const override
     {
-        std::vector<TPathWithStage> result;
-        for (const auto& path : Spec_->Mapper->FilePaths) {
-            result.push_back(std::make_pair(path, EOperationStage::Map));
-        }
-        return result;
-    }
-
-    virtual std::vector<TPathWithStage> GetLayerPaths() const override
-    {
-        std::vector<TPathWithStage> result;
-        for (const auto& path : Spec_->Mapper->LayerPaths) {
-            result.push_back(std::make_pair(path, EOperationStage::Map));
-        }
-        return result;
+        return {Spec_->Mapper};
     }
 
     virtual void DoInitialize() override
@@ -867,9 +801,7 @@ public:
         TOperation* operation)
         : TOrderedControllerBase(spec, controllerAgent->GetConfig()->EraseOperationOptions, controllerAgent, operation)
         , Spec_(spec)
-    {
-        RegisterJobProxyMemoryDigest(EJobType::OrderedMerge, spec->JobProxyMemoryDigest);
-    }
+    { }
 
     virtual void Persist(const TPersistenceContext& context) override
     {
@@ -1013,8 +945,6 @@ private:
 
         SetInputDataSources(schedulerJobSpecExt);
 
-        schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
-        ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransaction->GetId());
         schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig_).GetData());
 
         auto* jobSpecExt = JobSpecTemplate_.MutableExtension(TMergeJobSpecExt::merge_job_spec_ext);
@@ -1032,11 +962,6 @@ private:
     virtual TYsonSerializablePtr GetTypedSpec() const override
     {
         return Spec_;
-    }
-
-    virtual bool IsJobInterruptible() const override
-    {
-        return false;
     }
 };
 
@@ -1063,11 +988,9 @@ public:
         : TOrderedControllerBase(spec, controllerAgent->GetConfig()->RemoteCopyOperationOptions, controllerAgent, operation)
         , Spec_(spec)
         , Options_(Config->RemoteCopyOperationOptions)
-    {
-        RegisterJobProxyMemoryDigest(EJobType::RemoteCopy, spec->JobProxyMemoryDigest);
-    }
+    { }
 
-    void Persist(const TPersistenceContext& context)
+    virtual void Persist(const TPersistenceContext& context) override
     {
         TOrderedControllerBase::Persist(context);
         using NYT::Persist;
@@ -1248,8 +1171,6 @@ private:
         auto* schedulerJobSpecExt = JobSpecTemplate_.MutableExtension(
             TSchedulerJobSpecExt::scheduler_job_spec_ext);
 
-        schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
-        ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransaction->GetId());
         schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig_).GetData());
         schedulerJobSpecExt->set_table_reader_options("");
         SetInputDataSources(schedulerJobSpecExt);

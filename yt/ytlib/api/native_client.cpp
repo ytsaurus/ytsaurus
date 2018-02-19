@@ -26,6 +26,9 @@
 #include <yt/ytlib/cypress_client/cypress_ypath_proxy.h>
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
 
+#include <yt/ytlib/file_client/file_chunk_writer.h>
+#include <yt/ytlib/file_client/file_ypath_proxy.h>
+
 #include <yt/ytlib/hive/cell_directory.h>
 #include <yt/ytlib/hive/cluster_directory.h>
 #include <yt/ytlib/hive/cluster_directory_synchronizer.h>
@@ -85,6 +88,8 @@
 #include <yt/core/concurrency/action_queue.h>
 #include <yt/core/concurrency/scheduler.h>
 
+#include <yt/core/crypto/crypto.h>
+
 #include <yt/core/profiling/timing.h>
 
 #include <yt/core/rpc/helpers.h>
@@ -107,6 +112,7 @@ using namespace NYson;
 using namespace NObjectClient;
 using namespace NObjectClient::NProto;
 using namespace NCypressClient;
+using namespace NFileClient;
 using namespace NTransactionClient;
 using namespace NRpc;
 using namespace NTableClient;
@@ -219,6 +225,20 @@ TUnversionedOwningRow CreateJobKey(const TJobId& jobId, const TNameTablePtr& nam
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
+constexpr int FileCacheHashDigitCount = 2;
+
+NYPath::TYPath GetFilePathInCache(const TString& md5, const NYPath::TYPath cachePath)
+{
+    auto lastDigits = md5.substr(md5.size() - FileCacheHashDigitCount);
+    return cachePath + "/" + lastDigits + "/" + md5;
+}
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
 TError TCheckPermissionResult::ToError(const TString& user, EPermission permission) const
 {
     switch (Action) {
@@ -262,7 +282,7 @@ class TJobInputReader
     : public NConcurrency::IAsyncZeroCopyInputStream
 {
 public:
-    TJobInputReader(NJobProxy::TUserJobReadControllerPtr userJobReadController, IInvokerPtr invoker)
+    TJobInputReader(NJobProxy::IUserJobReadControllerPtr userJobReadController, IInvokerPtr invoker)
         : Invoker_(std::move(invoker))
         , UserJobReadController_(std::move(userJobReadController))
         , AsyncStreamPipe_(New<TAsyncStreamPipe>())
@@ -288,7 +308,7 @@ public:
 
 private:
     const IInvokerPtr Invoker_;
-    const NJobProxy::TUserJobReadControllerPtr UserJobReadController_;
+    const NJobProxy::IUserJobReadControllerPtr UserJobReadController_;
     const NConcurrency::TAsyncStreamPipePtr AsyncStreamPipe_;
 
     TFuture<void> TransferResultFuture_;
@@ -404,6 +424,14 @@ public:
         }
 
         SchedulerChannel_ = wrapChannel(Connection_->GetSchedulerChannel());
+
+        for (auto kind : TEnumTraits<EMasterChannelKind>::GetDomainValues()) {
+            // NOTE(asaitgalin): Cache is tied to user so to utilize cache properly all Cypress
+            // requests for operations archive should be performed under the same user.
+            OperationsArchiveChannels_[kind] = CreateAuthenticatedChannel(
+                Connection_->GetMasterChannelOrThrow(kind, PrimaryMasterCellTag),
+                "application_operations");
+        }
 
         ChannelFactory_ = CreateNodeChannelFactory(
             wrapChannelFactory(Connection_->GetChannelFactory()),
@@ -746,6 +774,17 @@ public:
         return NApi::CreateTableWriter(this, path, options);
     }
 
+    IMPLEMENT_METHOD(TGetFileFromCacheResult, GetFileFromCache, (
+        const TString& md5,
+        const TGetFileFromCacheOptions& options),
+        (md5, options))
+
+    IMPLEMENT_METHOD(TPutFileToCacheResult, PutFileToCache, (
+        const NYPath::TYPath& path,
+        const TString& expectedMD5,
+        const TPutFileToCacheOptions& options),
+        (path, expectedMD5, options))
+
     IMPLEMENT_METHOD(void, AddMember, (
         const TString& group,
         const TString& member,
@@ -853,6 +892,7 @@ private:
 
     TEnumIndexedVector<yhash<TCellTag, IChannelPtr>, EMasterChannelKind> MasterChannels_;
     IChannelPtr SchedulerChannel_;
+    TEnumIndexedVector<IChannelPtr, EMasterChannelKind> OperationsArchiveChannels_;
     INodeChannelFactoryPtr ChannelFactory_;
     TTransactionManagerPtr TransactionManager_;
     TFunctionImplCachePtr FunctionImplCache_;
@@ -1349,10 +1389,14 @@ private:
         const std::vector<std::pair<NTableClient::TKey, int>>& keys)
     {
         yhash<TCellId, std::vector<TTabletId>> cellIdToTabletIds;
+        yhash_set<TTabletId> tabletIds;
         for (const auto& pair : keys) {
             auto key = pair.first;
             auto tabletInfo = GetSortedTabletForRow(tableInfo, key);
-            cellIdToTabletIds[tabletInfo->CellId].push_back(tabletInfo->TabletId);
+            const auto& tabletId = tabletInfo->TabletId;
+            if (tabletIds.insert(tabletId).second) {
+                cellIdToTabletIds[tabletInfo->CellId].push_back(tabletInfo->TabletId);
+            }
         }
         return PickInSyncReplicas(tableInfo, options, cellIdToTabletIds);
     }
@@ -1924,8 +1968,7 @@ private:
                     evaluator->EvaluateKeys(capturedKey, rowBuffer);
                 }
                 auto tabletInfo = tableInfo->GetTabletForRow(capturedKey);
-                if (tabletIds.count(tabletInfo->TabletId) == 0) {
-                    tabletIds.insert(tabletInfo->TabletId);
+                if (tabletIds.insert(tabletInfo->TabletId).second) {
                     ValidateTabletMountedOrFrozen(tableInfo, tabletInfo);
                     cellToTabletIds[tabletInfo->CellId].push_back(tabletInfo->TabletId);
                 }
@@ -1999,7 +2042,7 @@ private:
             auto tabletInfo = tableInfo->GetTabletByIndexOrThrow(tabletIndex);
             auto& subrequest = cellIdToSubrequest[tabletInfo->CellId];
             if (!subrequest.Request) {
-                auto channel = GetCellChannelOrThrow(tabletInfo->CellId);
+                auto channel = GetReadCellChannelOrThrow(tabletInfo->CellId);
                 TQueryServiceProxy proxy(channel);
                 proxy.SetDefaultTimeout(options.Timeout);
                 subrequest.Request = proxy.GetTabletInfo();
@@ -2867,6 +2910,201 @@ private:
         return FromProto<TObjectId>(rsp->object_id());
     }
 
+    TGetFileFromCacheResult DoGetFileFromCache(
+        const TString& md5,
+        const TGetFileFromCacheOptions& options)
+    {
+        TGetFileFromCacheResult result;
+        auto destination = GetFilePathInCache(md5, options.CachePath);
+
+        auto proxy = CreateReadProxy<TObjectServiceProxy>(options);
+        auto req = TYPathProxy::Get(destination + "/@");
+
+        std::vector<TString> attributeKeys{
+            "md5"
+        };
+        ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
+
+        SetTransactionId(req, options, true);
+
+        auto rspOrError = WaitFor(proxy->Execute(req));
+        if (!rspOrError.IsOK()) {
+            LOG_DEBUG(
+                rspOrError,
+                "File is missing "
+                "(Destination: %v, MD5: %v)",
+                destination,
+                md5);
+
+            return result;
+        }
+
+        auto rsp = rspOrError.Value();
+        auto attributes = ConvertToAttributes(TYsonString(rsp->value()));
+
+        auto originalMD5 = attributes->Get<TString>("md5", "");
+        if (md5 != originalMD5) {
+            LOG_DEBUG(
+                "File has incorrect md5 hash "
+                "(Destination: %v, expectedMD5: %v, originalMD5: %v)",
+                destination,
+                md5,
+                originalMD5);
+
+            return result;
+        }
+
+        result.Path = destination;
+        return result;
+    }
+
+
+    TPutFileToCacheResult DoPutFileToCache(
+        const NYPath::TYPath &path,
+        const TString &expectedMD5,
+        const TPutFileToCacheOptions &options)
+    {
+        NLogging::TLogger logger = Logger.AddTag("Path: %v", path).AddTag("Command: PutFileToCache");
+        auto Logger = logger;
+
+        TPutFileToCacheResult result;
+
+        // Start transaction.
+        ITransactionPtr transaction;
+        {
+            auto transactionStartOptions = TTransactionStartOptions();
+            transactionStartOptions.ParentId = GetTransactionId(options, true);
+            transactionStartOptions.Sticky = true;
+            auto attributes = CreateEphemeralAttributes();
+            attributes->Set("title", Format("Putting file %v to cache", path));
+            transactionStartOptions.Attributes = std::move(attributes);
+
+            auto asyncTransaction = StartTransaction(ETransactionType::Master, transactionStartOptions);
+            transaction = WaitFor(asyncTransaction)
+                .ValueOrThrow();
+
+            auto transactionAttachOptions = TTransactionAttachOptions();
+            transactionAttachOptions.AutoAbort = true;
+            transactionAttachOptions.PingAncestors = options.PingAncestors;
+            transaction = AttachTransaction(transaction->GetId(), transactionAttachOptions);
+
+            LOG_DEBUG(
+                "Transaction started (TransactionId: %v)",
+                transaction->GetId());
+        }
+
+        Logger.AddTag("TransactionId: %v", transaction->GetId());
+
+        // Acquire lock.
+        NYPath::TYPath objectIdPath;
+        {
+            TLockNodeOptions lockNodeOptions;
+            lockNodeOptions.TransactionId = transaction->GetId();
+            auto lockResult = DoLockNode(path, ELockMode::Exclusive, lockNodeOptions);
+            objectIdPath = FromObjectId(lockResult.NodeId);
+
+            LOG_DEBUG(
+                "Lock for node acquired (LockId: %v)",
+                lockResult.LockId);
+        }
+
+        // Check permissions.
+        {
+            auto checkPermissionOptions = TCheckPermissionOptions();
+            checkPermissionOptions.TransactionId = transaction->GetId();
+
+            auto readPermissionResult = DoCheckPermission(Options_.User, objectIdPath, EPermission::Read, checkPermissionOptions);
+            readPermissionResult.ToError(Options_.User, EPermission::Read)
+                .ThrowOnError();
+
+            auto removePermissionResult = DoCheckPermission(Options_.User, objectIdPath, EPermission::Remove, checkPermissionOptions);
+            removePermissionResult.ToError(Options_.User, EPermission::Remove)
+                .ThrowOnError();
+
+            auto usePermissionResult = DoCheckPermission(Options_.User, options.CachePath, EPermission::Use, checkPermissionOptions);
+            usePermissionResult.ToError(Options_.User, EPermission::Use)
+                .ThrowOnError();
+        }
+
+        // Check that MD5 hash is equal to the original MD5 hash of the file.
+        {
+            auto proxy = CreateReadProxy<TObjectServiceProxy>(options);
+            auto req = TYPathProxy::Get(objectIdPath + "/@");
+
+            std::vector<TString> attributeKeys{
+                "md5"
+            };
+            ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
+
+            NCypressClient::SetTransactionId(req, transaction->GetId());
+
+            auto rspOrError = WaitFor(proxy->Execute(req));
+            THROW_ERROR_EXCEPTION_IF_FAILED(
+                rspOrError,
+                "Error requesting md5 hash of file %v",
+                path);
+
+            auto rsp = rspOrError.Value();
+            auto attributes = ConvertToAttributes(TYsonString(rsp->value()));
+
+            auto md5 = attributes->Get<TString>("md5");
+            if (expectedMD5 != md5) {
+                THROW_ERROR_EXCEPTION(
+                    "MD5 mismatch; expected %v, got %v",
+                    expectedMD5,
+                    md5);
+            }
+
+            LOG_DEBUG(
+                "MD5 hash checked (MD5: %v)",
+                expectedMD5);
+        }
+
+        auto destination = GetFilePathInCache(expectedMD5, options.CachePath);
+        auto fileCacheClient = Connection_->CreateNativeClient(TClientOptions(NSecurityClient::FileCacheUserName));
+
+        // Move file.
+        {
+            auto moveOptions = TMoveNodeOptions();
+            moveOptions.TransactionId = transaction->GetId();
+            moveOptions.Recursive = true;
+            moveOptions.Force = true;
+            moveOptions.PrerequisiteRevisions = options.PrerequisiteRevisions;
+            moveOptions.PrerequisiteTransactionIds = options.PrerequisiteTransactionIds;
+
+            WaitFor(fileCacheClient->MoveNode(objectIdPath, destination, moveOptions))
+                .ValueOrThrow();
+
+            LOG_DEBUG(
+                "File has been moved to cache (Destination: %v)",
+                destination);
+        }
+
+        // Set /@touched attribute.
+        {
+            auto setNodeOptions = TSetNodeOptions();
+            setNodeOptions.PrerequisiteTransactionIds = options.PrerequisiteTransactionIds;
+            setNodeOptions.PrerequisiteRevisions = options.PrerequisiteRevisions;
+            setNodeOptions.TransactionId = transaction->GetId();
+
+            auto asyncResult = fileCacheClient->SetNode(destination + "/@touched", ConvertToYsonString(true), setNodeOptions);
+            auto rspOrError = WaitFor(asyncResult);
+
+            if (rspOrError.GetCode() != NCypressClient::EErrorCode::ConcurrentTransactionLockConflict) {
+                THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error setting /@touched attribute");
+            }
+
+            LOG_DEBUG(
+                "Attribute /@touched set (Destination: %v)",
+                destination);
+        }
+
+        WaitFor(transaction->Commit())
+            .ThrowOnError();
+
+        result.Path = destination;
+        return result;
+    }
 
     void DoAddMember(
         const TString& group,
@@ -3152,11 +3390,17 @@ private:
             deadline = options.Timeout->ToDeadLine();
         }
 
-        TGetNodeOptions optionsToCypress;
+        std::vector<TString> attributes;
         if (options.Attributes) {
-            optionsToCypress.Attributes = options.Attributes;
+            attributes.reserve(options.Attributes->size() + 1);
+            attributes.insert(attributes.begin(), options.Attributes->begin(), options.Attributes->end());
+            // NOTE(asaitgalin): This attribute helps to distinguish between
+            // different cypress storage modes of operation.
+            if (options.Attributes->find("state") == options.Attributes->end()) {
+                attributes.push_back("state");
+            }
         } else {
-            optionsToCypress.Attributes = {
+            attributes = {
                 "authenticated_user",
                 "brief_progress",
                 "brief_spec",
@@ -3171,21 +3415,60 @@ private:
                 "weight",
             };
         }
-        if (deadline) {
-            optionsToCypress.Timeout = *deadline - Now();
+
+        TObjectServiceProxy proxy(OperationsArchiveChannels_[options.ReadFrom]);
+        auto batchReq = proxy.ExecuteBatch();
+        SetBalancingHeader(batchReq, options);
+
+        {
+            auto req = TYPathProxy::Get(GetNewOperationPath(operationId) + "/@");
+            ToProto(req->mutable_attributes()->mutable_keys(), attributes);
+            batchReq->AddRequest(req, "get_operation_new");
         }
 
-
-        auto attrNodeOrError = WaitFor(GetNode(GetNewOperationPath(operationId) + "/@", optionsToCypress));
-        auto attrOldNodeOtError = WaitFor(GetNode(GetOperationPath(operationId) + "/@", optionsToCypress));
-        if (attrNodeOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
-            attrNodeOrError = attrOldNodeOtError;
-        } else if (attrNodeOrError.IsOK() && attrOldNodeOtError.IsOK()) {
-            attrNodeOrError.Value() = ConvertToYsonString(PatchNode(ConvertToNode(attrNodeOrError.Value()), ConvertToNode(attrOldNodeOtError.Value())));
+        {
+            auto req = TYPathProxy::Get(GetOperationPath(operationId) + "/@");
+            ToProto(req->mutable_attributes()->mutable_keys(), attributes);
+            batchReq->AddRequest(req, "get_operation");
         }
 
-        if (attrNodeOrError.IsOK()) {
-            auto attrNodeValue = attrNodeOrError.Value();
+        auto batchRsp = WaitFor(batchReq->Invoke())
+            .ValueOrThrow();
+
+        auto attrNodeOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_operation_new");
+        auto attrOldNodeOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_operation");
+
+        auto getCypressNode = [&] (const auto& rsp) -> INodePtr {
+            if (rsp.IsOK()) {
+                return ConvertToNode(TYsonString(rsp.Value()->value()));
+            }
+            if (!rsp.FindMatching(NYTree::EErrorCode::ResolveError)) {
+                THROW_ERROR rsp;
+            }
+            return nullptr;
+        };
+
+        INodePtr newCypressNode = getCypressNode(attrNodeOrError);
+        INodePtr oldCypressNode = getCypressNode(attrOldNodeOrError);
+        INodePtr cypressNode;
+        if (newCypressNode && oldCypressNode) {
+            cypressNode = PatchNode(oldCypressNode, newCypressNode);
+        } else if (newCypressNode) {
+            cypressNode = newCypressNode;
+
+            auto state = cypressNode->AsMap()->FindChild("state");
+            if (!state) {
+                cypressNode = nullptr;
+            }
+        } else {
+            cypressNode = oldCypressNode;
+        }
+
+        if (cypressNode) {
+            auto attrNode = cypressNode->AsMap();
+            if (options.Attributes && options.Attributes->find("state") == options.Attributes->end()) {
+                attrNode->RemoveChild("state");
+            }
 
             TGetNodeOptions optionsToScheduler;
             if (deadline) {
@@ -3206,11 +3489,10 @@ private:
 
                 if (schedulerProgressValueOrError.IsOK()) {
                     auto schedulerProgressNode = ConvertToNode(schedulerProgressValueOrError.Value());
-                    auto attrNode = ConvertToNode(attrNodeValue)->AsMap();
                     attrNode->RemoveChild("progress");
                     YCHECK(attrNode->AddChild(schedulerProgressNode, "progress"));
 
-                    attrNodeValue = ConvertToYsonString(attrNode);
+                    return ConvertToYsonString(attrNode);
                 } else if (schedulerProgressValueOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
                     LOG_DEBUG("No such operation %v in the scheduler", operationId);
                 } else {
@@ -3219,8 +3501,8 @@ private:
                 }
             }
 
-            return attrNodeValue;
-        } else if (attrNodeOrError.FindMatching(NYTree::EErrorCode::ResolveError) && IsArchiveExists()) {
+            return ConvertToYsonString(cypressNode);
+        } else if (IsArchiveExists()) {
             LOG_DEBUG("No such operation %v in Cypress", operationId);
 
             int version = DoGetOperationsArchiveVersion();
@@ -3231,8 +3513,9 @@ private:
 
             try {
                 auto result = DoGetOperationFromArchive(operationId, options);
-                if (result)
+                if (result) {
                     return result;
+                }
             } catch (const TErrorException& exception) {
                 auto matchedError = exception.Error().FindMatching(NYTree::EErrorCode::ResolveError);
 
@@ -3360,7 +3643,7 @@ private:
 
         auto jobSpecHelper = NJobProxy::CreateJobSpecHelper(jobSpec);
 
-        auto userJobReader = CreateUserJobReadController(
+        auto userJobReadController = CreateUserJobReadController(
             jobSpecHelper,
             MakeStrong(this),
             GetConnection()->GetInvoker(),
@@ -3368,7 +3651,7 @@ private:
             BIND([] { }),
             Null);
 
-        auto jobInputReader = New<TJobInputReader>(userJobReader, GetConnection()->GetInvoker());
+        auto jobInputReader = New<TJobInputReader>(std::move(userJobReadController), GetConnection()->GetInvoker());
         jobInputReader->Open();
         return jobInputReader;
     }
@@ -3633,8 +3916,7 @@ private:
             THROW_ERROR_EXCEPTION("Maximum result size exceedes allowed limit");
         }
 
-        TListNodeOptions listNodeOptions;
-        listNodeOptions.Attributes = {
+        std::vector<TString> attributes = {
             "authenticated_user",
             "brief_progress",
             "brief_spec",
@@ -3646,11 +3928,22 @@ private:
             "title",
             "weight"
         };
-        if (deadline) {
-            listNodeOptions.Timeout = *deadline - Now();
-        }
 
-        auto items = ConvertToNode(DoListNode(GetOperationsPath(), listNodeOptions))->AsList();
+        TObjectServiceProxy proxy(OperationsArchiveChannels_[options.ReadFrom]);
+        auto batchReq = proxy.ExecuteBatch();
+        SetBalancingHeader(batchReq, options);
+
+        auto req = TYPathProxy::List(GetOperationsPath());
+        SetCachingHeader(req, options);
+        ToProto(req->mutable_attributes()->mutable_keys(), attributes);
+        batchReq->AddRequest(req);
+
+        auto batchRsp = WaitFor(batchReq->Invoke())
+            .ValueOrThrow();
+        auto rsp = batchRsp->GetResponse<TYPathProxy::TRspList>(0)
+            .ValueOrThrow();
+
+        auto items = ConvertToNode(TYsonString(rsp->value()))->AsList();
 
         std::vector<TOperation> cypressOperations;
         for (const auto& item : items->GetChildren()) {
@@ -4325,7 +4618,7 @@ private:
         TNullable<TInstant> deadline,
         const TListJobsOptions& options)
     {
-        TObjectServiceProxy proxy(GetMasterChannelOrThrow(EMasterChannelKind::Follower));
+        TObjectServiceProxy proxy(OperationsArchiveChannels_[options.ReadFrom]);
 
         auto attributeFilter = std::vector<TString>{
             "job_type",

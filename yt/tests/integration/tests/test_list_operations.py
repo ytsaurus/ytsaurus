@@ -267,11 +267,12 @@ class TestListOperations(YTEnvSetup):
                 attr["brief_spec"]["title"] = "OK"
                 create("map_node", "//sys/operations/" + op_id, attributes=attr)
 
-        res = list_operations(include_archive=True, from_time="2016-02-25T23:50:00Z", to_time="2016-02-25T23:55:00Z")
-        assert sorted([(key, res["pool_counts"][key]) for key in res["pool_counts"].keys()]) == [("ignat", 1L)]
-        assert sorted([(key, res["user_counts"][key]) for key in res["user_counts"].keys()]) == [("ignat", 1L)]
-        assert sorted([(key, res["state_counts"][key]) for key in res["state_counts"].keys()]) == [("completed", 1L)]
-        assert sorted([(key, res["type_counts"][key]) for key in res["type_counts"].keys()]) == [("map", 1L)]
-        assert res["failed_jobs_count"] == 0L
-        assert [op["id"] for op in res["operations"]] == ["19b5c14-c41a6620-7fa0d708-29a241d2"]
-        assert res["operations"][0]["brief_spec"]["title"] == "OK"
+        for read_from in ("cache", "follower"):
+            res = list_operations(include_archive=True, from_time="2016-02-25T23:50:00Z", to_time="2016-02-25T23:55:00Z", read_from=read_from)
+            assert sorted([(key, res["pool_counts"][key]) for key in res["pool_counts"].keys()]) == [("ignat", 1L)]
+            assert sorted([(key, res["user_counts"][key]) for key in res["user_counts"].keys()]) == [("ignat", 1L)]
+            assert sorted([(key, res["state_counts"][key]) for key in res["state_counts"].keys()]) == [("completed", 1L)]
+            assert sorted([(key, res["type_counts"][key]) for key in res["type_counts"].keys()]) == [("map", 1L)]
+            assert res["failed_jobs_count"] == 0L
+            assert [op["id"] for op in res["operations"]] == ["19b5c14-c41a6620-7fa0d708-29a241d2"]
+            assert res["operations"][0]["brief_spec"]["title"] == "OK"

@@ -199,6 +199,12 @@ public:
         return { };
     }
 
+    virtual void Interrupt() override
+    {
+        THROW_ERROR_EXCEPTION("Interrupting is not supported for this type of jobs")
+            << TErrorAttribute("job_type", EJobType::RemoteCopy);
+    }
+
     virtual TStatistics GetStatistics() const override
     {
         TStatistics result;

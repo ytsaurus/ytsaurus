@@ -59,7 +59,7 @@ TCellMasterConfig::TCellMasterConfig()
     RegisterParameter("bus_client", BusClient)
         .DefaultNew();
 
-    RegisterValidator([&] () {
+    RegisterPostprocessor([&] () {
         if (SecondaryMasters.size() > MaxSecondaryMasterCells) {
             THROW_ERROR_EXCEPTION("Too many secondary master cells");
         }

@@ -46,7 +46,7 @@ public:
         RegisterParameter("addresses", Addresses)
             .Default();
 
-        RegisterInitializer([&] () {
+        RegisterPreprocessor([&] () {
             ResponseKeeper->EnableWarmup = false;
         });
     }

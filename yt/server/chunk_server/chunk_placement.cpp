@@ -281,7 +281,7 @@ TNodeList TChunkPlacement::GetWriteTargets(
     }
 
     int mediumIndex = medium->GetIndex();
-    int maxReplicasPerRack = GetMaxReplicasPerRack(mediumIndex, chunk, replicationFactorOverride);
+    int maxReplicasPerRack = GetMaxReplicasPerRack(medium, chunk, replicationFactorOverride);
     TTargetCollector collector(medium, chunk, maxReplicasPerRack, forbiddenNodes);
 
     auto tryAdd = [&] (TNode* node, bool enableRackAwareness) {
@@ -436,7 +436,7 @@ TNode* TChunkPlacement::GetBalancingTarget(
     }
 
     int mediumIndex = medium->GetIndex();
-    int maxReplicasPerRack = GetMaxReplicasPerRack(mediumIndex, chunk, Null);
+    int maxReplicasPerRack = GetMaxReplicasPerRack(medium, chunk, Null);
     TTargetCollector collector(medium, chunk, maxReplicasPerRack, nullptr);
 
     for (const auto& pair : MediumToFillFactorToNode_[mediumIndex]) {
@@ -621,19 +621,30 @@ void TChunkPlacement::AddSessionHint(TNode* node, int mediumIndex, ESessionType 
 }
 
 int TChunkPlacement::GetMaxReplicasPerRack(
+    const TMedium* medium,
+    TChunk* chunk,
+    TNullable<int> replicationFactorOverride)
+{
+    int result = chunk->GetMaxReplicasPerRack(medium->GetIndex(), replicationFactorOverride);
+    const auto& config = medium->Config();
+    result = std::min(result, config->MaxReplicasPerRack);
+    switch (chunk->GetType()) {
+        case EObjectType::Chunk:         result = std::min(result, config->MaxRegularReplicasPerRack); break;
+        case EObjectType::ErasureChunk:  result = std::min(result, config->MaxErasureReplicasPerRack); break;
+        case EObjectType::JournalChunk:  result = std::min(result, config->MaxJournalReplicasPerRack); break;
+        default:                         Y_UNREACHABLE();
+    }
+    return result;
+}
+
+int TChunkPlacement::GetMaxReplicasPerRack(
     int mediumIndex,
     TChunk* chunk,
     TNullable<int> replicationFactorOverride)
 {
-    int result = chunk->GetMaxReplicasPerRack(mediumIndex, replicationFactorOverride);
-    result = std::min(result, Config_->MaxReplicasPerRack);
-    switch (chunk->GetType()) {
-        case EObjectType::Chunk:         result = std::min(result, Config_->MaxRegularReplicasPerRack); break;
-        case EObjectType::ErasureChunk:  result = std::min(result, Config_->MaxErasureReplicasPerRack); break;
-        case EObjectType::JournalChunk:  result = std::min(result, Config_->MaxJournalReplicasPerRack); break;
-        default:                         Y_UNREACHABLE();
-    }
-    return result;
+    const auto& chunkManager = Bootstrap_->GetChunkManager();
+    const auto* medium = chunkManager->GetMediumByIndex(mediumIndex);
+    return GetMaxReplicasPerRack(medium, chunk, replicationFactorOverride);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

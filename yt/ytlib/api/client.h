@@ -511,9 +511,28 @@ struct TFileWriterOptions
     , public TPrerequisiteOptions
 {
     bool Append = true;
+    bool ComputeMD5 = false;
     TNullable<NCompression::ECodec> CompressionCodec;
     TNullable<NErasure::ECodec> ErasureCodec;
     TFileWriterConfigPtr Config;
+};
+
+struct TGetFileFromCacheOptions
+    : public TTimeoutOptions
+    , public TTransactionalOptions
+    , public TMasterReadOptions
+{
+    NYPath::TYPath CachePath;
+};
+
+struct TPutFileToCacheOptions
+    : public TTimeoutOptions
+    , public TTransactionalOptions
+    , public TMasterReadOptions
+    , public TMutatingOptions
+    , public TPrerequisiteOptions
+{
+    NYPath::TYPath CachePath;
 };
 
 struct TJournalReaderOptions
@@ -598,6 +617,7 @@ DEFINE_ENUM(EOperationSortDirection,
 
 struct TListOperationsOptions
     : public TTimeoutOptions
+    , public TMasterReadOptions
 {
     TNullable<TInstant> FromTime;
     TNullable<TInstant> ToTime;
@@ -612,6 +632,11 @@ struct TListOperationsOptions
     bool IncludeArchive = false;
     bool IncludeCounters = true;
     ui64 Limit = 100;
+
+    TListOperationsOptions()
+    {
+        ReadFrom = EMasterChannelKind::Cache;
+    }
 };
 
 DEFINE_ENUM(EJobSortField,
@@ -632,6 +657,7 @@ DEFINE_ENUM(EJobSortDirection,
 
 struct TListJobsOptions
     : public TTimeoutOptions
+    , public TMasterReadOptions
 {
     TNullable<NJobTrackerClient::EJobType> Type;
     TNullable<NJobTrackerClient::EJobState> State;
@@ -647,6 +673,11 @@ struct TListJobsOptions
     bool IncludeCypress = true;
     bool IncludeScheduler = true;
     bool IncludeArchive = true;
+
+    TListJobsOptions()
+    {
+        ReadFrom = EMasterChannelKind::Cache;
+    }
 };
 
 struct TStraceJobOptions
@@ -673,8 +704,12 @@ struct TAbortJobOptions
 
 struct TGetOperationOptions
     : public TTimeoutOptions
+    , public TMasterReadOptions
 {
-    TNullable<std::vector<TString>> Attributes;
+    TNullable<yhash_set<TString>> Attributes;
+
+    TGetOperationOptions()
+    { }
 };
 
 struct TGetJobOptions
@@ -753,6 +788,16 @@ struct TListJobsResult
     int CypressJobCount = -1;
     int SchedulerJobCount = -1;
     int ArchiveJobCount = -1;
+};
+
+struct TGetFileFromCacheResult
+{
+    NYPath::TYPath Path;
+};
+
+struct TPutFileToCacheResult
+{
+    NYPath::TYPath Path;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -870,7 +915,6 @@ struct IClientBase
         const NYPath::TYPath& path,
         const TFileWriterOptions& options = TFileWriterOptions()) = 0;
 
-
     // Journals
     virtual IJournalReaderPtr CreateJournalReader(
         const NYPath::TYPath& path,
@@ -970,6 +1014,16 @@ struct IClient
     virtual TFuture<TSkynetSharePartsLocationsPtr> LocateSkynetShare(
         const NYPath::TRichYPath& path,
         const TLocateSkynetShareOptions& options = TLocateSkynetShareOptions()) = 0;
+
+    // Files
+    virtual TFuture<TGetFileFromCacheResult> GetFileFromCache(
+        const TString& md5,
+        const TGetFileFromCacheOptions& options = TGetFileFromCacheOptions()) = 0;
+
+    virtual TFuture<TPutFileToCacheResult> PutFileToCache(
+        const NYPath::TYPath& path,
+        const TString& expectedMD5,
+        const TPutFileToCacheOptions& options = TPutFileToCacheOptions()) = 0;
 
     // Security
     virtual TFuture<void> AddMember(

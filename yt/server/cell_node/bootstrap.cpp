@@ -15,6 +15,7 @@
 #include <yt/server/data_node/journal_dispatcher.h>
 #include <yt/server/data_node/location.h>
 #include <yt/server/data_node/master_connector.h>
+#include <yt/server/data_node/peer_block_distributor.h>
 #include <yt/server/data_node/peer_block_table.h>
 #include <yt/server/data_node/peer_block_updater.h>
 #include <yt/server/data_node/private.h>
@@ -285,8 +286,8 @@ void TBootstrap::DoRun()
 
     BlockCache = CreateServerBlockCache(Config->DataNode, this);
 
-    PeerBlockTable = New<TPeerBlockTable>(Config->DataNode->PeerBlockTable);
-
+    PeerBlockDistributor = New<TPeerBlockDistributor>(Config->DataNode->PeerBlockDistributor, this);
+    PeerBlockTable = New<TPeerBlockTable>(Config->DataNode->PeerBlockTable, this);
     PeerBlockUpdater = New<TPeerBlockUpdater>(Config->DataNode, this);
 
     SessionManager = New<TSessionManager>(Config->DataNode, this);
@@ -461,6 +462,7 @@ void TBootstrap::DoRun()
     JobController->RegisterFactory(NJobAgent::EJobType::RemoteCopy,        createExecJob);
     JobController->RegisterFactory(NJobAgent::EJobType::OrderedMap,        createExecJob);
     JobController->RegisterFactory(NJobAgent::EJobType::JoinReduce,        createExecJob);
+    JobController->RegisterFactory(NJobAgent::EJobType::Vanilla,           createExecJob);
 
     auto createChunkJob = BIND([this] (
             const NJobAgent::TJobId& jobId,
@@ -548,10 +550,6 @@ void TBootstrap::DoRun()
         CreateVirtualNode(TabletSlotManager->GetOrchidService()));
     SetNodeByYPath(
         OrchidRoot,
-        "/chunk_blocks",
-        CreateVirtualNode(ChunkBlockManager->GetOrchidService()));
-    SetNodeByYPath(
-        OrchidRoot,
         "/job_controller",
         CreateVirtualNode(JobController->GetOrchidService()
             ->Via(GetControlInvoker())));
@@ -592,6 +590,7 @@ void TBootstrap::DoRun()
     JobController->Initialize();
     MonitoringManager_->Start();
     PeerBlockUpdater->Start();
+    PeerBlockDistributor->Start();
     MasterConnector->Start();
     SchedulerConnector->Start();
     StartStoreFlusher(Config->TabletNode, this);
@@ -728,9 +727,19 @@ const IBlockCachePtr& TBootstrap::GetBlockCache() const
     return BlockCache;
 }
 
+const TPeerBlockDistributorPtr& TBootstrap::GetPeerBlockDistributor() const
+{
+    return PeerBlockDistributor;
+}
+
 const TPeerBlockTablePtr& TBootstrap::GetPeerBlockTable() const
 {
     return PeerBlockTable;
+}
+
+const TPeerBlockUpdaterPtr& TBootstrap::GetPeerBlockUpdater() const
+{
+    return PeerBlockUpdater;
 }
 
 const TBlobReaderCachePtr& TBootstrap::GetBlobReaderCache() const
@@ -872,6 +881,11 @@ TNetworkPreferenceList TBootstrap::GetLocalNetworks()
     return Config->Addresses.empty()
         ? DefaultNetworkPreferences
         : GetIths<0>(Config->Addresses);
+}
+
+TNullable<TString> TBootstrap::GetDefaultNetworkName()
+{
+    return Config->BusServer->DefaultNetwork;
 }
 
 TJobProxyConfigPtr TBootstrap::BuildJobProxyConfig() const

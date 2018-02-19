@@ -184,8 +184,8 @@ public:
         auto operationId = state->GetHost()->GetId();
 
         auto clonedSpec = CloneYsonSerializable(spec);
-        auto optionsIt = spec->FairShareOptionsPerPoolTree.find(TreeId);
-        if (optionsIt != spec->FairShareOptionsPerPoolTree.end()) {
+        auto optionsIt = spec->SchedulingOptionsPerPoolTree.find(TreeId);
+        if (optionsIt != spec->SchedulingOptionsPerPoolTree.end()) {
             const auto& options = optionsIt->second;
             ReconfigureYsonSerializable(clonedSpec, ConvertToNode(options));
         }
@@ -2161,7 +2161,7 @@ public:
                         .Item("pool").Value(it->second);
                 }
             }))
-            .Item("fair_share_info_per_pool_tree").DoMapFor(pools, [&] (TFluentMap fluent, const auto& value) {
+            .Item("scheduling_info_per_pool_tree").DoMapFor(pools, [&] (TFluentMap fluent, const auto& value) {
                 fluent
                     .Item(value.first).BeginMap()
                         .Item("pool").Value(value.second)
@@ -2554,8 +2554,8 @@ private:
                     "valid pool trees are not specified and default fair-share tree is not configured");
             }
 
-            auto it = spec->FairShareOptionsPerPoolTree.find(*DefaultFairShareTree_);
-            if (it != spec->FairShareOptionsPerPoolTree.end()) {
+            auto it = spec->SchedulingOptionsPerPoolTree.find(*DefaultFairShareTree_);
+            if (it != spec->SchedulingOptionsPerPoolTree.end()) {
                 const auto& options = it->second;
                 if (options->Pool) {
                     return {{*DefaultFairShareTree_, *options->Pool}};
@@ -2572,10 +2572,10 @@ private:
         yhash<TString, TString> pools;
 
         for (const auto& treeId : trees) {
-            auto optionsIt = spec->FairShareOptionsPerPoolTree.find(treeId);
+            auto optionsIt = spec->SchedulingOptionsPerPoolTree.find(treeId);
 
             TNullable<TString> pool;
-            if (optionsIt != spec->FairShareOptionsPerPoolTree.end()) {
+            if (optionsIt != spec->SchedulingOptionsPerPoolTree.end()) {
                 const auto& options = optionsIt->second;
                 if (options->Pool) {
                     pool = options->Pool;
@@ -2670,7 +2670,7 @@ private:
         fluent
             .DoIf(DefaultFairShareTree_ && pools.find(*DefaultFairShareTree_) != pools.end(),
                   BIND(method, GetTree(*DefaultFairShareTree_), operationId))
-            .Item("fair_share_info_per_pool_tree")
+            .Item("scheduling_info_per_pool_tree")
                 .DoMapFor(pools, [&] (TFluentMap fluent, const std::pair<TString, TString>& value) {
                     const auto& treeId = value.first;
                     fluent

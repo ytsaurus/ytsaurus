@@ -6,8 +6,6 @@
 
 #include <yt/ytlib/api/config.h>
 
-#include <yt/ytlib/chunk_pools/public.h>
-
 #include <yt/ytlib/formats/format.h>
 #include <yt/ytlib/formats/config.h>
 
@@ -45,8 +43,6 @@ public:
     TBooleanFormula SchedulingTagFilter;
 
     TSupportsSchedulingTagsConfig();
-
-    virtual void OnLoaded() override;
 };
 
 DEFINE_REFCOUNTED_TYPE(TSupportsSchedulingTagsConfig)
@@ -143,7 +139,7 @@ public:
 
     //! This options have higher priority than Pool and other options
     //! defined in this class.
-    yhash<TString, TExtendedSchedulableConfigPtr> FairShareOptionsPerPoolTree;
+    yhash<TString, TExtendedSchedulableConfigPtr> SchedulingOptionsPerPoolTree;
 
     //! Pool trees to schedule operation in.
     //! Operation will be scheduled in default tree (if any) if this parameter
@@ -175,10 +171,26 @@ public:
 
     int PipeIOPoolSize;
 
+    class TTestingOptions
+        : public TYsonSerializable
+    {
+    public:
+        TDuration PipeDelay;
+
+        TTestingOptions()
+        {
+            RegisterParameter("pipe_delay", PipeDelay)
+                .Default(TDuration::Zero());
+        }
+    };
+
+    TIntrusivePtr<TTestingOptions> Testing;
+
     TJobIOConfig();
 };
 
 DEFINE_REFCOUNTED_TYPE(TJobIOConfig)
+DEFINE_REFCOUNTED_TYPE(TJobIOConfig::TTestingOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -318,6 +330,14 @@ public:
     //! to not appear in unrecognized spec.
     NYTree::IMapNodePtr StartedBy;
 
+    // TODO(max42): make this field per-task.
+    TLogDigestConfigPtr JobProxyMemoryDigest;
+
+    //! If set to true, any aborted/failed job will result in operation fail.
+    bool FailOnJobRestart;
+
+    bool EnableJobSplitting;
+
     TOperationSpecBase();
 
 private:
@@ -334,6 +354,8 @@ class TUserJobSpec
 {
 public:
     TString Command;
+
+    TString TaskTitle;
 
     std::vector<NYPath::TRichYPath> FilePaths;
     std::vector<NYPath::TRichYPath> LayerPaths;
@@ -381,6 +403,22 @@ DEFINE_REFCOUNTED_TYPE(TUserJobSpec)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TVanillaTaskSpec
+    : public TUserJobSpec
+{
+public:
+    //! Number of jobs that will be run in this task. This field is mandatory.
+    int JobCount;
+
+    TJobIOConfigPtr JobIO;
+
+    TVanillaTaskSpec();
+};
+
+DEFINE_REFCOUNTED_TYPE(TVanillaTaskSpec)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TInputlyQueryableSpec
     : public virtual NYTree::TYsonSerializable
 {
@@ -405,11 +443,7 @@ public:
     TNullable<NYPath::TRichYPath> CoreTablePath;
     NTableClient::TBlobTableWriterConfigPtr CoreTableWriterConfig;
 
-    bool EnableJobSplitting;
-
     TOperationWithUserJobSpec();
-
-    virtual void OnLoaded() override;
 };
 
 DEFINE_REFCOUNTED_TYPE(TOperationWithUserJobSpec)
@@ -432,12 +466,6 @@ public:
     TDuration LocalityTimeout;
     TJobIOConfigPtr JobIO;
 
-    NChunkPools::EStripeListExtractionOrder StripeListExtractionOrder;
-
-    // Operations inherited from this class produce the only kind
-    // of jobs. This option corresponds to jobs of this kind.
-    TLogDigestConfigPtr JobProxyMemoryDigest;
-
     TSimpleOperationSpecBase();
 
 private:
@@ -457,8 +485,6 @@ public:
     std::vector<NYPath::TRichYPath> InputTablePaths;
 
     TUnorderedOperationSpecBase();
-
-    virtual void OnLoaded() override;
 
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TUnorderedOperationSpecBase, 0x79aafe77);
@@ -480,7 +506,6 @@ public:
 
     TMapOperationSpec();
 
-    virtual void OnLoaded() override;
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TMapOperationSpec, 0x4aa00f9d);
 };
@@ -500,8 +525,6 @@ public:
     ESchemaInferenceMode SchemaInferenceMode;
 
     TUnorderedMergeOperationSpec();
-
-    virtual void OnLoaded() override;
 
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TUnorderedMergeOperationSpec, 0x969d7fbc);
@@ -532,8 +555,6 @@ public:
     ESchemaInferenceMode SchemaInferenceMode;
 
     TMergeOperationSpec();
-
-    virtual void OnLoaded() override;
 
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TMergeOperationSpec, 0x646bd8cb);
@@ -575,8 +596,6 @@ public:
 
     TEraseOperationSpec();
 
-    virtual void OnLoaded() override;
-
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TEraseOperationSpec, 0xbaec2ff5);
 };
@@ -599,8 +618,6 @@ public:
     bool ConsiderOnlyPrimarySize;
 
     TReduceOperationSpecBase();
-
-    virtual void OnLoaded() override;
 
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TReduceOperationSpecBase, 0x7353c0af);
@@ -636,8 +653,6 @@ class TJoinReduceOperationSpec
 {
 public:
     TJoinReduceOperationSpec();
-
-    virtual void OnLoaded() override;
 
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TJoinReduceOperationSpec, 0x788fac27);
@@ -706,16 +721,9 @@ public:
     //! unavailable chunk tactics).
     bool EnableIntermediateOutputRecalculation;
 
-    // For all kinds of sort jobs: simple_sort, intermediate_sort, final_sort.
-    TLogDigestConfigPtr SortJobProxyMemoryDigest;
-    // For partition and partition_map jobs.
-    TLogDigestConfigPtr PartitionJobProxyMemoryDigest;
-
     TNullable<i64> DataWeightPerSortedJob;
 
     TSortOperationSpecBase();
-
-    virtual void OnLoaded() override;
 
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TSortOperationSpecBase, 0xdd19ecde);
@@ -735,14 +743,9 @@ public:
     // Desired number of samples per partition.
     int SamplesPerPartition;
 
-    // For sorted_merge and unordered_merge jobs.
-    TLogDigestConfigPtr MergeJobProxyMemoryDigest;
-
     ESchemaInferenceMode SchemaInferenceMode;
 
     TSortOperationSpec();
-
-    virtual void OnLoaded() override;
 
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TSortOperationSpec, 0xa6709f80);
@@ -767,13 +770,6 @@ public:
     TUserJobSpecPtr ReduceCombiner;
     TUserJobSpecPtr Reducer;
 
-    // For sorted_reduce jobs.
-    TLogDigestConfigPtr SortedReduceJobProxyMemoryDigest;
-    // For partition_reduce jobs.
-    TLogDigestConfigPtr PartitionReduceJobProxyMemoryDigest;
-    // For reduce_combiner jobs.
-    TLogDigestConfigPtr ReduceCombinerJobProxyMemoryDigest;
-
     bool ForceReduceCombiners;
 
     // First `MapperOutputTableCount` tables will be constructed from
@@ -781,8 +777,6 @@ public:
     int MapperOutputTableCount;
 
     TMapReduceOperationSpec();
-
-    virtual void OnLoaded() override;
 
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TMapReduceOperationSpec, 0x99837bbc);
@@ -818,13 +812,29 @@ public:
 
     TRemoteCopyOperationSpec();
 
-    virtual void OnLoaded() override;
-
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TRemoteCopyOperationSpec, 0x3c0ce9c0);
 };
 
-DEFINE_REFCOUNTED_TYPE(TRemoteCopyOperationSpec);
+DEFINE_REFCOUNTED_TYPE(TRemoteCopyOperationSpec)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TVanillaOperationSpec
+    : public TOperationSpecBase
+    , public TOperationWithUserJobSpec
+{
+public:
+    //! Map consisting of pairs <task_name, task_spec>.
+    yhash<TString, TVanillaTaskSpecPtr> Tasks;
+
+    TVanillaOperationSpec();
+
+private:
+    DECLARE_DYNAMIC_PHOENIX_TYPE(TVanillaOperationSpec, 0x001004fe);
+};
+
+DEFINE_REFCOUNTED_TYPE(TVanillaOperationSpec)
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -24,6 +24,8 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(int, Priority, MediumDefaultPriority);
     DEFINE_BYVAL_RW_PROPERTY(bool, Transient, false);
     DEFINE_BYVAL_RW_PROPERTY(bool, Cache, false);
+    // TODO(savrus): Switch to BYVAL when generic property getter will return reference.
+    DEFINE_BYREF_RW_PROPERTY(TMediumConfigPtr, Config);
 
     DEFINE_BYREF_RW_PROPERTY(NSecurityServer::TAccessControlDescriptor, Acd);
 

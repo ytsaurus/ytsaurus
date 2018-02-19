@@ -50,6 +50,7 @@ private:
         TNullable<i64> MaxTabletSize;
         TNullable<i64> DesiredTabletSize;
         TNullable<int> DesiredTabletCount;
+        int TabletErrorCount = 0;
 
         TDynamicTableAttributes();
         void Save(NCellMaster::TSaveContext& context) const;
@@ -78,6 +79,7 @@ public:
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, MaxTabletSize);
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, DesiredTabletSize);
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, DesiredTabletCount);
+    DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, TabletErrorCount);
 
 public:
     explicit TTableNode(const NCypressServer::TVersionedNodeId& id);
@@ -92,7 +94,8 @@ public:
         const NChunkClient::NProto::TDataStatistics* statistics,
         const NTableClient::TTableSchema& schema,
         NTableClient::ETableSchemaMode schemaMode,
-        TNullable<NTableClient::EOptimizeFor> optimizeFor) override;
+        TNullable<NTableClient::EOptimizeFor> optimizeFor,
+        const TNullable<TMD5Hasher>& md5Hasher) override;
 
     virtual bool IsSorted() const override;
 

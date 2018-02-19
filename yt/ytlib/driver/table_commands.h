@@ -27,7 +27,6 @@ private:
     bool Unordered;
     bool StartRowIndexOnly;
 
-    virtual void OnLoaded() override;
     virtual void DoExecute(ICommandContextPtr context) override;
 };
 
@@ -50,7 +49,6 @@ private:
     i64 Offset;
     i64 PartSize;
 
-    virtual void OnLoaded() override;
     virtual void DoExecute(ICommandContextPtr context) override;
 };
 
@@ -65,7 +63,6 @@ public:
 private:
     NYPath::TRichYPath Path;
 
-    virtual void OnLoaded() override;
     virtual void DoExecute(ICommandContextPtr context) override;
 };
 
@@ -81,7 +78,6 @@ private:
     NYPath::TRichYPath Path;
     NYTree::INodePtr TableWriter;
 
-    virtual void OnLoaded() override;
     virtual void DoExecute(ICommandContextPtr context) override;
 };
 

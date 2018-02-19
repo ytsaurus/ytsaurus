@@ -2934,12 +2934,13 @@ private:
                 i64 prevValue = counter->Count;
                 auto timeDelta = std::max(1.0, (now - tablet->PerformanceCounters().Timestamp).SecondsFloat());
                 auto valueDelta = std::max(curValue, prevValue) - prevValue;
+                auto rate = valueDelta / timeDelta;
                 counter->Count = curValue;
-                counter->Rate = valueDelta / timeDelta;
+                counter->Rate = rate;
                 auto exp10 = std::exp(-timeDelta / (60 * 10 / 2));
-                counter->Rate10 = valueDelta * (1 - exp10) + counter->Rate10 * exp10;
+                counter->Rate10 = rate * (1 - exp10) + counter->Rate10 * exp10;
                 auto exp60 = std::exp(-timeDelta / (60 * 60 / 2));
-                counter->Rate60 = valueDelta * (1 - exp60) + counter->Rate60 * exp60;
+                counter->Rate60 = rate * (1 - exp60) + counter->Rate60 * exp60;
             };
 
             #define XX(name, Name) updatePerformanceCounter( \
@@ -2948,6 +2949,21 @@ private:
             ITERATE_TABLET_PERFORMANCE_COUNTERS(XX)
             #undef XX
             tablet->PerformanceCounters().Timestamp = now;
+
+            int errorCount = 0;
+            auto errors = FromProto<std::vector<TError>>(tabletInfo.errors());
+            for (auto errorKey : TEnumTraits<ETabletBackgroundActivity>::GetDomainValues()) {
+                size_t idx = static_cast<size_t>(errorKey);
+                if (idx < errors.size()) {
+                    tablet->Errors()[errorKey] = errors[idx];
+                    errorCount += !errors[idx].IsOK();
+                }
+            }
+
+            int restTabletErrorCount = table->GetTabletErrorCount() - tablet->GetErrorCount();
+            Y_ASSERT(restTabletErrorCount >= 0);
+            table->SetTabletErrorCount(restTabletErrorCount + errorCount);
+            tablet->SetErrorCount(errorCount);
 
             for (const auto& protoReplicaInfo : tabletInfo.replicas()) {
                 auto replicaId = FromProto<TTableReplicaId>(protoReplicaInfo.replica_id());

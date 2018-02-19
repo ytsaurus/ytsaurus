@@ -39,29 +39,19 @@ void TSortedJobOptions::Persist(const TPersistenceContext& context)
     Persist(context, EnablePeriodicYielder);
     Persist(context, PivotKeys);
     Persist(context, UseNewEndpointKeys);
-
-    // COMPAT(max42): remove this when snapshots older than v200564 are
-    // not supported.
-    if (context.GetVersion() >= 200564) {
-        Persist(context, MaxDataWeightPerJob);
-    }
+    Persist(context, MaxDataWeightPerJob);
 }
 
 void TSortedChunkPoolOptions::Persist(const TPersistenceContext& context)
 {
     using NYT::Persist;
 
-    Persist(context, ExtractionOrder);
     Persist(context, SortedJobOptions);
     Persist(context, MinTeleportChunkSize);
     Persist(context, JobSizeConstraints);
     Persist(context, SupportLocality);
     Persist(context, OperationId);
-
-    // COMPAT(max42)
-    if (context.GetVersion() >= 202044) {
-        Persist(context, Task);
-    }
+    Persist(context, Task);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -559,9 +549,7 @@ DECLARE_REFCOUNTED_TYPE(TSortedJobBuilder);
 
 class TSortedChunkPool
     : public TChunkPoolInputBase
-    // We delegate dealing with progress counters to the TJobManager class,
-    // so we can't inherit from TChunkPoolOutputBase since it binds all the
-    // interface methods to the progress counters stored as pool fields.
+    , public TChunkPoolOutputWithJobManagerBase
     , public IChunkPool
     , public NPhoenix::TFactoryTag<NPhoenix::TSimpleFactory>
     , public TRefTracked<TSortedChunkPool>
@@ -575,8 +563,7 @@ public:
         const TSortedChunkPoolOptions& options,
         IChunkSliceFetcherFactoryPtr chunkSliceFetcherFactory,
         TInputStreamDirectory inputStreamDirectory)
-        : JobManager_(New<TJobManager>(options.ExtractionOrder))
-        , SortedJobOptions_(options.SortedJobOptions)
+        : SortedJobOptions_(options.SortedJobOptions)
         , ChunkSliceFetcherFactory_(std::move(chunkSliceFetcherFactory))
         , EnableKeyGuarantee_(options.SortedJobOptions.EnableKeyGuarantee)
         , InputStreamDirectory_(std::move(inputStreamDirectory))
@@ -605,8 +592,6 @@ public:
             JobSizeConstraints_->GetPrimaryDataWeightPerJob(),
             JobSizeConstraints_->GetMaxDataSlicesPerJob());
     }
-
-    // IChunkPoolInput implementation.
 
     virtual IChunkPoolInput::TCookie Add(TChunkStripePtr stripe) override
     {
@@ -677,13 +662,6 @@ public:
         }
     }
 
-    // IChunkPoolOutput implementation.
-
-    virtual TChunkStripeStatisticsVector GetApproximateStripeStatistics() const override
-    {
-        return JobManager_->GetApproximateStripeStatistics();
-    }
-
     virtual bool IsCompleted() const override
     {
         return
@@ -693,41 +671,9 @@ public:
             JobManager_->GetSuspendedJobCount() == 0;
     }
 
-    virtual int GetTotalJobCount() const override
-    {
-        return JobManager_->JobCounter()->GetTotal();
-    }
-
-    virtual int GetPendingJobCount() const override
-    {
-        return CanScheduleJob() ? JobManager_->GetPendingJobCount() : 0;
-    }
-
-    virtual i64 GetLocality(TNodeId /* nodeId */) const override
-    {
-        if (SupportLocality_) {
-            // TODO(max42): YT-6551
-            Y_UNREACHABLE();
-        }
-        return 0;
-    }
-
-    virtual IChunkPoolOutput::TCookie Extract(TNodeId /* nodeId */) override
-    {
-        YCHECK(Finished);
-
-        return JobManager_->ExtractCookie();
-    }
-
     virtual TChunkStripeListPtr GetStripeList(IChunkPoolOutput::TCookie cookie) override
     {
         return ApplyChunkMappingToStripe(JobManager_->GetStripeList(cookie), InputChunkMapping_);
-    }
-
-    virtual int GetStripeListSliceCount(IChunkPoolOutput::TCookie cookie) const override
-    {
-        auto stripeList = JobManager_->GetStripeList(cookie);
-        return stripeList->TotalChunkCount;
     }
 
     virtual void Completed(IChunkPoolOutput::TCookie cookie, const TCompletedJobSummary& jobSummary) override
@@ -744,64 +690,15 @@ public:
         JobManager_->Completed(cookie, jobSummary.InterruptReason);
     }
 
-    virtual void Failed(IChunkPoolOutput::TCookie cookie) override
-    {
-        JobManager_->Failed(cookie);
-    }
-
-    virtual void Aborted(IChunkPoolOutput::TCookie cookie, EAbortReason reason) override
-    {
-        JobManager_->Aborted(cookie, reason);
-    }
-
-    virtual void Lost(IChunkPoolOutput::TCookie cookie) override
-    {
-        JobManager_->Lost(cookie);
-    }
-
-    virtual i64 GetTotalDataWeight() const override
-    {
-        return JobManager_->DataWeightCounter()->GetTotal();
-    }
-
-    virtual i64 GetRunningDataWeight() const override
-    {
-        return JobManager_->DataWeightCounter()->GetRunning();
-    }
-
-    virtual i64 GetCompletedDataWeight() const override
-    {
-        return JobManager_->DataWeightCounter()->GetCompletedTotal();
-    }
-
-    virtual i64 GetPendingDataWeight() const override
-    {
-        return JobManager_->DataWeightCounter()->GetPending();
-    }
-
-    virtual i64 GetTotalRowCount() const override
-    {
-        return JobManager_->RowCounter()->GetTotal();
-    }
-
     virtual i64 GetDataSliceCount() const override
     {
         return TotalDataSliceCount_;
     }
 
-    const TProgressCounterPtr& GetJobCounter() const
-    {
-        return JobManager_->JobCounter();
-    }
-
-    const std::vector<TInputChunkPtr>& GetTeleportChunks() const
-    {
-        return TeleportChunks_;
-    }
-
     virtual void Persist(const TPersistenceContext& context) final override
     {
         TChunkPoolInputBase::Persist(context);
+        TChunkPoolOutputWithJobManagerBase::Persist(context);
 
         using NYT::Persist;
         Persist(context, ForeignStripeCookiesByStreamIndex_);
@@ -814,16 +711,9 @@ public:
         Persist(context, MinTeleportChunkSize_);
         Persist(context, JobSizeConstraints_);
         Persist(context, ChunkSliceFetcherFactory_);
-        Persist(context, TeleportChunks_);
         Persist(context, SupportLocality_);
-        Persist(context, JobManager_);
         Persist(context, OperationId_);
-
-        // COMPAT(max42)
-        if (context.GetVersion() >= 202044) {
-            Persist(context, Task_);
-        }
-
+        Persist(context, Task_);
         Persist(context, ChunkPoolId_);
         Persist(context, SortedJobOptions_);
         Persist(context, ForeignStripeCookiesByStreamIndex_);
@@ -842,10 +732,6 @@ public:
 
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TSortedChunkPool, 0x91bca805);
-
-    //! A data structure responsible for keeping the prepared jobs, extracting them and dealing with suspend/resume
-    //! events.
-    TJobManagerPtr JobManager_;
 
     //! All options necessary for sorted job builder.
     TSortedJobOptions SortedJobOptions_;
@@ -881,9 +767,6 @@ private:
 
     //! Stores input cookies of all foreign stripes grouped by input stream index.
     std::vector<std::vector<int>> ForeignStripeCookiesByStreamIndex_;
-
-    //! Stores all input chunks to be teleported.
-    std::vector<TInputChunkPtr> TeleportChunks_;
 
     IJobSizeConstraintsPtr JobSizeConstraints_;
 
@@ -1300,9 +1183,9 @@ private:
     }
 };
 
-////////////////////////////////////////////////////////////////////////////////
-
 DEFINE_DYNAMIC_PHOENIX_TYPE(TSortedChunkPool);
+
+////////////////////////////////////////////////////////////////////////////////
 
 std::unique_ptr<IChunkPool> CreateSortedChunkPool(
     const TSortedChunkPoolOptions& options,

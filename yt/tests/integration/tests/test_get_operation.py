@@ -2,6 +2,7 @@ from yt_env_setup import YTEnvSetup
 from yt_commands import *
 
 import yt.environment.init_operation_archive as init_operation_archive
+from yt.environment.helpers import wait
 
 from operations_archive import clean_operations
 
@@ -11,11 +12,13 @@ def id_to_parts(id):
     id_lo = long(id_parts[0], 16) << 32 | int(id_parts[1], 16)
     return id_hi, id_lo
 
+def get_new_operation_path(op_id):
+    return "//sys/operations/{}/{}".format("%02x" % (long(op_id.split("-")[3], 16) % 256), op_id)
+
 def get_operation_path(op_id, storage_mode):
     if storage_mode == "hash_buckets":
-        return "//sys/operations/{}/{}".format("%02x" % (long(op_id.split("-")[3], 16) % 256), op_id)
-    else:
-        return "//sys/operations/" + op_id
+        return get_new_operation_path(op_id)
+    return "//sys/operations/" + op_id
 
 class TestGetOperation(YTEnvSetup):
     NUM_MASTERS = 1
@@ -62,6 +65,8 @@ class TestGetOperation(YTEnvSetup):
 
                 if ok1:
                     assert res1[key] == res2[key]
+
+        wait(lambda: exists(get_operation_path(op.id, storage_mode)))
 
         res_get_operation = get_operation(op.id)
         res_cypress = get(get_operation_path(op.id, storage_mode) + "/@")
@@ -120,12 +125,13 @@ class TestGetOperation(YTEnvSetup):
 
         assert list(get_operation(op.id, attributes=["state"])) == ["state"]
 
-        res_get_operation = get_operation(op.id, attributes=["progress", "state"])
-        res_cypress = get(get_operation_path(op.id, storage_mode) + "/@", attributes=["progress", "state"])
+        for read_from in ("cache", "follower"):
+            res_get_operation = get_operation(op.id, attributes=["progress", "state"], read_from=read_from)
+            res_cypress = get(get_operation_path(op.id, storage_mode) + "/@", attributes=["progress", "state"])
 
-        assert sorted(list(res_get_operation)) == ["progress", "state"]
-        assert sorted(list(res_cypress)) == ["progress", "state"]
-        assert res_get_operation["state"] == res_cypress["state"]
+            assert sorted(list(res_get_operation)) == ["progress", "state"]
+            assert sorted(list(res_cypress)) == ["progress", "state"]
+            assert res_get_operation["state"] == res_cypress["state"]
 
         op.resume_jobs()
         op.track()
@@ -138,3 +144,29 @@ class TestGetOperation(YTEnvSetup):
 
         with pytest.raises(YtError):
             get_operation(op.id, attributes=["abc"])
+
+    def test_get_operation_and_half_deleted_operation_node(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", [{"foo": "bar"}, {"foo": "baz"}, {"foo": "qux"}])
+
+        op = map(in_="//tmp/t1",
+            out="//tmp/t2",
+            command="cat",
+            spec={
+                "testing": {
+                    "cypress_storage_mode": "simple_hash_buckets"
+                }
+            })
+
+        tx = start_transaction(timeout=300 * 1000)
+        lock(get_new_operation_path(op.id),
+            mode="shared",
+            child_key="completion_transaction_id",
+            transaction_id=tx)
+
+        clean_operations(self.Env.create_native_client())
+        assert not exists("//sys/operations/" + op.id)
+        assert exists(get_new_operation_path(op.id))
+
+        assert "state" in get_operation(op.id)

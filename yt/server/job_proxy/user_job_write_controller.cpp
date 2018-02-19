@@ -1,4 +1,4 @@
-#include "user_job_io.h"
+#include "user_job_write_controller.h"
 #include "config.h"
 #include "job.h"
 
@@ -39,15 +39,15 @@ using NChunkClient::TDataSliceDescriptor;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TUserJobIO::TUserJobIO(IJobHostPtr host)
+TUserJobWriteController::TUserJobWriteController(IJobHostPtr host)
     : Host_(host)
     , Logger(host->GetLogger())
 { }
 
-TUserJobIO::~TUserJobIO()
+TUserJobWriteController::~TUserJobWriteController()
 { }
 
-void TUserJobIO::Init()
+void TUserJobWriteController::Init()
 {
     LOG_INFO("Opening writers");
 
@@ -114,16 +114,16 @@ void TUserJobIO::Init()
     }
 }
 
-std::vector<ISchemalessMultiChunkWriterPtr> TUserJobIO::GetWriters() const
+std::vector<ISchemalessMultiChunkWriterPtr> TUserJobWriteController::GetWriters() const
 {
     if (Initialized_) {
         return Writers_;
     } else {
-        return std::vector<ISchemalessMultiChunkWriterPtr>();
+        return {};
     }
 }
 
-IOutputStream* TUserJobIO::GetStderrTableWriter() const
+IOutputStream* TUserJobWriteController::GetStderrTableWriter() const
 {
     if (Initialized_) {
         return StderrTableWriter_.get();
@@ -132,7 +132,7 @@ IOutputStream* TUserJobIO::GetStderrTableWriter() const
     }
 }
 
-void TUserJobIO::PopulateResult(TSchedulerJobResultExt* schedulerJobResultExt)
+void TUserJobWriteController::PopulateResult(TSchedulerJobResultExt* schedulerJobResultExt)
 {
     std::vector<NChunkClient::NProto::TChunkSpec> writtenChunkSpecs;
     const auto& outputTableSpecs = Host_->GetJobSpecHelper()->GetSchedulerJobSpecExt().output_table_specs();
@@ -151,7 +151,7 @@ void TUserJobIO::PopulateResult(TSchedulerJobResultExt* schedulerJobResultExt)
     ToProto(schedulerJobResultExt->mutable_output_chunk_specs(), writtenChunkSpecs);
 }
 
-void TUserJobIO::PopulateStderrResult(NScheduler::NProto::TSchedulerJobResultExt* schedulerJobResultExt)
+void TUserJobWriteController::PopulateStderrResult(NScheduler::NProto::TSchedulerJobResultExt* schedulerJobResultExt)
 {
     if (StderrTableWriter_) {
         *schedulerJobResultExt->mutable_stderr_table_boundary_keys() = StderrTableWriter_->GetOutputResult();

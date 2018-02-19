@@ -68,6 +68,7 @@ using namespace NJobTrackerClient;
 using namespace NJobTrackerClient::NProto;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
+using namespace NTabletClient;
 using namespace NTabletClient::NProto;
 using namespace NTabletNode;
 using namespace NHydra;
@@ -752,6 +753,12 @@ void TMasterConnector::ReportIncrementalNodeHeartbeat(TCellTag cellTag)
             protoTabletStatistics->set_unflushed_timestamp(tabletSnapshot->RuntimeData->UnflushedTimestamp);
             protoTabletStatistics->set_dynamic_memory_pool_size(tabletSnapshot->RuntimeData->DynamicMemoryPoolSize);
 
+            TEnumIndexedVector<TError, ETabletBackgroundActivity> errors;
+            for (auto key : TEnumTraits<ETabletBackgroundActivity>::GetDomainValues()) {
+                errors[key] = tabletSnapshot->RuntimeData->Errors[key].Load();
+            }
+            ToProto(protoTabletInfo->mutable_errors(), std::vector<TError>(errors.begin(), errors.end()));
+
             for (const auto& pair : tabletSnapshot->Replicas) {
                 const auto& replicaId = pair.first;
                 const auto& replicaSnapshot = pair.second;
@@ -842,6 +849,9 @@ void TMasterConnector::ReportIncrementalNodeHeartbeat(TCellTag cellTag)
 
         auto dc = rsp->has_data_center() ? MakeNullable(rsp->data_center()) : Null;
         UpdateDataCenter(dc);
+
+        auto tags = FromProto<std::vector<TString>>(rsp->tags());
+        UpdateTags(std::move(tags));
 
         auto jobController = Bootstrap_->GetJobController();
         jobController->SetResourceLimitsOverrides(rsp->resource_limits_overrides());
@@ -1048,7 +1058,8 @@ void TMasterConnector::UpdateRack(const TNullable<TString>& rack)
     LocalDescriptor_ = TNodeDescriptor(
         RpcAddresses_,
         rack,
-        LocalDescriptor_.GetDataCenter());
+        LocalDescriptor_.GetDataCenter(),
+        LocalDescriptor_.GetTags());
 }
 
 void TMasterConnector::UpdateDataCenter(const TNullable<TString>& dc)
@@ -1057,7 +1068,18 @@ void TMasterConnector::UpdateDataCenter(const TNullable<TString>& dc)
     LocalDescriptor_ = TNodeDescriptor(
         RpcAddresses_,
         LocalDescriptor_.GetRack(),
-        dc);
+        dc,
+        LocalDescriptor_.GetTags());
+}
+
+void TMasterConnector::UpdateTags(std::vector<TString> tags)
+{
+    TGuard<TSpinLock> guard(LocalDescriptorLock_);
+    LocalDescriptor_ = TNodeDescriptor(
+        RpcAddresses_,
+        LocalDescriptor_.GetRack(),
+        LocalDescriptor_.GetDataCenter(),
+        std::move(tags));
 }
 
 TMasterConnector::TChunksDelta* TMasterConnector::GetChunksDelta(TCellTag cellTag)

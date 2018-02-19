@@ -26,12 +26,12 @@ public:
         RegisterParameter("cell_id", CellId)
             .Default();
 
-        RegisterInitializer([&] () {
+        RegisterPreprocessor([&] () {
             // Query all peers in parallel.
             MaxConcurrentDiscoverRequests = std::numeric_limits<int>::max();
         });
 
-        RegisterValidator([&] () {
+        RegisterPostprocessor([&] () {
            if (!CellId) {
                THROW_ERROR_EXCEPTION("\"cell_id\" cannot be equal to %v",
                    NullCellId);
@@ -100,7 +100,7 @@ public:
         RegisterParameter("changelog_primary_medium", ChangelogPrimaryMedium)
             .Default(NChunkClient::DefaultStoreMediumName);
 
-        RegisterValidator([&] () {
+        RegisterPostprocessor([&] () {
             if (ChangelogReadQuorum + ChangelogWriteQuorum < ChangelogReplicationFactor + 1) {
                 THROW_ERROR_EXCEPTION("Read/write quorums are not safe: changelog_read_quorum + changelog_write_quorum < changelog_replication_factor + 1");
             }

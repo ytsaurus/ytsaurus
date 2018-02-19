@@ -2,6 +2,7 @@
 
 #include "public.h"
 #include "chunk_reader.h"
+#include "chunk_reader_allowing_repair.h"
 #include "chunk_meta_extensions.h"
 
 #include <yt/core/actions/future.h>
@@ -180,7 +181,7 @@ class TErasureChunkReaderBase
     : public IChunkReader
 {
 public:
-    TErasureChunkReaderBase(NErasure::ICodec* codec, const std::vector<IChunkReaderPtr>& readers);
+    TErasureChunkReaderBase(NErasure::ICodec* codec, const std::vector<IChunkReaderAllowingRepairPtr>& readers);
 
     virtual TFuture<NProto::TChunkMeta> GetMeta(
         const TWorkloadDescriptor& workloadDescriptor,
@@ -194,7 +195,7 @@ protected:
     void OnGotPlacementMeta(const NProto::TErasurePlacementExt& placementExt);
 
     NErasure::ICodec* const Codec_;
-    const std::vector<IChunkReaderPtr> Readers_;
+    const std::vector<IChunkReaderAllowingRepairPtr> Readers_;
 
     TSpinLock PlacementExtLock_;
     TFuture<void> PlacementExtFuture_;

@@ -65,20 +65,15 @@ public:
         auto it = Map_.find(tabletInfo->TabletId);
         if (it != Map_.end()) {
             if (auto existingTabletInfo = it->second.Lock()) {
-                auto copyOwners = [] (TTabletInfoPtr& tabletInfo, const auto& owners) {
-                    for (const auto& owner : owners) {
-                        if (!owner.IsExpired()) {
-                            tabletInfo->Owners.push_back(owner);
-                        }
-                    }
-                };
-
                 if (tabletInfo->MountRevision < existingTabletInfo->MountRevision) {
-                    auto owners = std::move(tabletInfo->Owners);
-                    *tabletInfo = *existingTabletInfo;
-                    copyOwners(tabletInfo, owners);
-                } else {
-                    copyOwners(tabletInfo, existingTabletInfo->Owners);
+                    THROW_ERROR_EXCEPTION("Tablet mount revision %v is outdated",
+                        tabletInfo->MountRevision);
+                }
+
+                for (const auto& owner : existingTabletInfo->Owners) {
+                    if (!owner.IsExpired()) {
+                        tabletInfo->Owners.push_back(owner);
+                    }
                 }
             }
 
@@ -86,7 +81,6 @@ public:
         } else {
             YCHECK(Map_.insert({tabletInfo->TabletId, tabletInfo}).second);
         }
-        tabletInfo->UpdateTime = Now();
         return tabletInfo;
     }
 
@@ -375,6 +369,7 @@ private:
                     tabletInfo->TabletId = FromProto<TObjectId>(protoTabletInfo.tablet_id());
                     tabletInfo->MountRevision = protoTabletInfo.mount_revision();
                     tabletInfo->State = ETabletState(protoTabletInfo.state());
+                    tabletInfo->UpdateTime = Now();
 
                     if (tableInfo->IsSorted()) {
                         // Take the actual pivot from master response.

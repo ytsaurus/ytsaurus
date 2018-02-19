@@ -97,6 +97,38 @@ void CloseAllDescriptors(const std::vector<int>& exceptFor = std::vector<int>())
 //! Return true iff ytserver was started with root permissions (e.g. via sudo or with suid bit).
 bool HasRootPermissions();
 
+struct TNetworkInterfaceStatistics
+{
+    struct TReceiveStatistics
+    {
+        ui64 Bytes = 0;
+        ui64 Packets = 0;
+        ui64 Errs = 0;
+        ui64 Drop = 0;
+        ui64 Fifo = 0;
+        ui64 Frame = 0;
+        ui64 Compressed = 0;
+        ui64 Multicast = 0;
+    };
+    struct TTransmitStatistics
+    {
+        ui64 Bytes = 0;
+        ui64 Packets = 0;
+        ui64 Errs = 0;
+        ui64 Drop = 0;
+        ui64 Fifo = 0;
+        ui64 Colls = 0;
+        ui64 Carrier = 0;
+        ui64 Compressed = 0;
+    };
+
+    TReceiveStatistics Rx;
+    TTransmitStatistics Tx;
+};
+
+//! Return mapping from interface name to network statistics.
+yhash<TString, TNetworkInterfaceStatistics> GetNetworkInterfaceStatistics();
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TRemoveDirAsRootTool

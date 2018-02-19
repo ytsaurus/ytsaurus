@@ -66,9 +66,19 @@ TTask::TTask(ITaskHostPtr taskHost)
 void TTask::Initialize()
 {
     Logger.AddTag("OperationId: %v", TaskHost_->GetOperationId());
-    Logger.AddTag("Task: %v", GetId());
+    Logger.AddTag("Task: %v", GetTitle());
 
     SetupCallbacks();
+}
+
+TString TTask::GetTitle() const
+{
+    return ToString(GetJobType());
+}
+
+TDataFlowGraph::TVertexDescriptor TTask::GetVertexDescriptor() const
+{
+    return FormatEnum(GetJobType());
 }
 
 int TTask::GetPendingJobCount() const
@@ -144,6 +154,11 @@ i64 TTask::GetLocality(TNodeId nodeId) const
            : 0;
 }
 
+TDuration TTask::GetLocalityTimeout() const
+{
+    return TDuration::Zero();
+}
+
 bool TTask::HasInputLocality() const
 {
     return true;
@@ -171,10 +186,13 @@ void TTask::FinishInput()
 {
     LOG_DEBUG("Task input finished" );
 
-    GetChunkPoolInput()->Finish();
+    // GetChunkPoolInput() may return false on tasks that do not require input, such as for vanilla operation.
+    if (const auto& chunkPoolInput = GetChunkPoolInput()) {
+        chunkPoolInput->Finish();
+    }
     auto progressCounter = GetChunkPoolOutput()->GetJobCounter();
     if (!progressCounter->Parent()) {
-        progressCounter->SetParent(TaskHost_->DataFlowGraph().JobCounter(GetJobType()));
+        TaskHost_->DataFlowGraph().RegisterTask(GetVertexDescriptor(), progressCounter, GetJobType());
     }
     AddPendingHint();
     CheckCompleted();
@@ -298,11 +316,11 @@ void TTask::ScheduleJob(
     joblet->Restarted = restarted;
     joblet->JobType = jobType;
     joblet->NodeDescriptor = context->GetNodeDescriptor();
-    joblet->JobProxyMemoryReserveFactor = TaskHost_->GetJobProxyMemoryDigest(jobType)->GetQuantile(
+    joblet->JobProxyMemoryReserveFactor = GetJobProxyMemoryDigest()->GetQuantile(
         TaskHost_->SchedulerConfig()->JobProxyMemoryReserveQuantile);
     auto userJobSpec = GetUserJobSpec();
     if (userJobSpec) {
-        joblet->UserJobMemoryReserveFactor = TaskHost_->GetUserJobMemoryDigest(GetJobType())->GetQuantile(
+        joblet->UserJobMemoryReserveFactor = GetUserJobMemoryDigest()->GetQuantile(
             TaskHost_->SchedulerConfig()->UserJobMemoryReserveQuantile);
     }
 
@@ -408,6 +426,9 @@ void TTask::Persist(const TPersistenceContext& context)
 
     Persist(context, EdgeDescriptors_);
     Persist(context, InputVertex_);
+
+    Persist(context, UserJobMemoryDigest_);
+    Persist(context, JobProxyMemoryDigest_);
 }
 
 void TTask::PrepareJoblet(TJobletPtr /* joblet */)
@@ -451,21 +472,20 @@ void TTask::OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary)
                 "Input/output row count mismatch in completed job (Input: %v, Output: %v, Task: %v)",
                 inputStatistics.row_count(),
                 outputStatistics.row_count(),
-                GetId());
+                GetTitle());
             YCHECK(inputStatistics.row_count() == outputStatistics.row_count());
         }
 
-        YCHECK(InputVertex_ > TDataFlowGraph::TVertexDescriptor::SchedulerFirst);
-        YCHECK(InputVertex_ < TDataFlowGraph::TVertexDescriptor::SchedulerLast);
+        YCHECK(InputVertex_ != "");
 
-        auto vertex = GetJobType();
+        auto vertex = GetVertexDescriptor();
         TaskHost_->DataFlowGraph().RegisterFlow(InputVertex_, vertex, inputStatistics);
         // TODO(max42): rewrite this properly one day.
         for (int index = 0; index < EdgeDescriptors_.size(); ++index) {
             if (EdgeDescriptors_[index].IsFinalOutput) {
                 TaskHost_->DataFlowGraph().RegisterFlow(
                     vertex,
-                    TDataFlowGraph::TVertexDescriptor::Sink,
+                    TDataFlowGraph::SinkDescriptor,
                     outputStatisticsMap[index]);
             }
         }
@@ -563,7 +583,7 @@ void TTask::DoCheckResourceDemandSanity(
         // It seems nobody can satisfy the demand.
         TaskHost_->OnOperationFailed(
             TError("No online node can satisfy the resource demand")
-                << TErrorAttribute("task", GetId())
+                << TErrorAttribute("task", GetTitle())
                 << TErrorAttribute("needed_resources", neededResources));
     }
 }
@@ -592,6 +612,32 @@ void TTask::CheckResourceDemandSanity(
 void TTask::AddPendingHint()
 {
     TaskHost_->AddTaskPendingHint(this);
+}
+
+IDigest* TTask::GetUserJobMemoryDigest() const
+{
+    if (!UserJobMemoryDigest_) {
+        const auto& userJobSpec = GetUserJobSpec();
+        YCHECK(userJobSpec);
+
+        auto config = New<TLogDigestConfig>();
+        config->LowerBound = userJobSpec->UserJobMemoryDigestLowerBound;
+        config->DefaultValue = userJobSpec->UserJobMemoryDigestDefaultValue;
+        config->UpperBound = 1.0;
+        config->RelativePrecision = TaskHost_->SchedulerConfig()->UserJobMemoryDigestPrecision;
+        UserJobMemoryDigest_ = CreateLogDigest(std::move(config));
+    }
+
+    return UserJobMemoryDigest_.get();
+}
+
+IDigest* TTask::GetJobProxyMemoryDigest() const
+{
+    if (!JobProxyMemoryDigest_) {
+        JobProxyMemoryDigest_ = CreateLogDigest(TaskHost_->Spec()->JobProxyMemoryDigest);
+    }
+
+    return JobProxyMemoryDigest_.get();
 }
 
 void TTask::AddLocalityHint(TNodeId nodeId)
@@ -707,11 +753,11 @@ TJobResources TTask::ApplyMemoryReserve(const TExtendedJobResources& jobResource
     result.SetCpu(jobResources.GetCpu());
     result.SetUserSlots(jobResources.GetUserSlots());
     i64 memory = jobResources.GetFootprintMemory();
-    memory += jobResources.GetJobProxyMemory() * TaskHost_->GetJobProxyMemoryDigest(
-        GetJobType())->GetQuantile(TaskHost_->SchedulerConfig()->JobProxyMemoryReserveQuantile);
+    memory += jobResources.GetJobProxyMemory() * GetJobProxyMemoryDigest()
+        ->GetQuantile(TaskHost_->SchedulerConfig()->JobProxyMemoryReserveQuantile);
     if (GetUserJobSpec()) {
-        memory += jobResources.GetUserJobMemory() * TaskHost_->GetUserJobMemoryDigest(
-            GetJobType())->GetQuantile(TaskHost_->SchedulerConfig()->UserJobMemoryReserveQuantile);
+        memory += jobResources.GetUserJobMemory() * GetUserJobMemoryDigest()
+            ->GetQuantile(TaskHost_->SchedulerConfig()->UserJobMemoryReserveQuantile);
     } else {
         YCHECK(jobResources.GetUserJobMemory() == 0);
     }
@@ -737,7 +783,7 @@ void TTask::UpdateMaximumUsedTmpfsSize(const NJobTrackerClient::TStatistics& sta
 
 void TTask::FinishTaskInput(const TTaskPtr& task)
 {
-    task->FinishInput(GetJobType() /* inputVertex */);
+    task->FinishInput(GetVertexDescriptor() /* inputVertex */);
 }
 
 TSharedRef TTask::BuildJobSpecProto(TJobletPtr joblet)
