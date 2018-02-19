@@ -1,18 +1,4 @@
-SET(YT_SRCS
-  ${CMAKE_CURRENT_LIST_DIR}/buffered_stream.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/helpers.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/serialize.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/shutdown.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/stream.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/lazy_dict.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/object_builder.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/yson_lazy_map.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/lazy_list_fragment_parser.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/lazy_yson_consumer.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/lazy_dict_producer.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/lazy_parser.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/list_fragment_parser.cpp
-)
+include(Sources.txt)
 
 if (_is_gcc)
   set_source_files_properties(${CMAKE_CURRENT_LIST_DIR}/serialize.cpp PROPERTIES COMPILE_FLAGS -Wno-write-strings)
