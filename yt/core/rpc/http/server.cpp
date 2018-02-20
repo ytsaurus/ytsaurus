@@ -29,10 +29,6 @@ using namespace NYT::NRpc;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = HttpLogger;
-
-////////////////////////////////////////////////////////////////////////////////
-
 DECLARE_REFCOUNTED_CLASS(THttpReplyBus)
 DECLARE_REFCOUNTED_CLASS(THttpHandler)
 
@@ -166,9 +162,10 @@ class THttpHandler
     : public IHttpHandler
 {
 public:
-    THttpHandler(IServicePtr underlying, const TString& baseUrl)
+    THttpHandler(IServicePtr underlying, const TString& baseUrl, const NLogging::TLogger& logger)
         : Underlying_(std::move(underlying))
         , BaseUrl_(baseUrl)
+        , Logger(logger)
     { }
 
     virtual void HandleRequest(
@@ -211,6 +208,8 @@ public:
 private:
     IServicePtr Underlying_;
     const TString BaseUrl_;
+    const NLogging::TLogger Logger;
+
 
     TErrorOr<void> TranslateRequest(const IRequestPtr& req, NRpc::NProto::TRequestHeader* rpcHeader)
     {
@@ -276,7 +275,8 @@ class TServer
 {
 public:
     explicit TServer(NYT::NHttp::IServerPtr httpServer)
-        : TServerBase(HttpLogger)
+        : TServerBase(NLogging::TLogger(HttpLogger)
+            .AddTag("ServerId: %v", TGuid::Create()))
         , HttpServer_(std::move(httpServer))
     { }
 
@@ -299,13 +299,13 @@ private:
     virtual void DoRegisterService(const IServicePtr& service) override
     {
         auto baseUrl = Format("/%v/", service->GetServiceId().ServiceName);
-        HttpServer_->AddHandler(baseUrl, New<THttpHandler>(std::move(service), baseUrl));
+        HttpServer_->AddHandler(baseUrl, New<THttpHandler>(std::move(service), baseUrl, Logger));
 
         // XXX(babenko): remove this once fully migrated to new url scheme
         auto index = service->GetServiceId().ServiceName.find_last_of('.');
         if (index != TString::npos) {
             auto anotherBaseUrl = Format("/%v/", service->GetServiceId().ServiceName.substr(index + 1));
-            HttpServer_->AddHandler(anotherBaseUrl, New<THttpHandler>(std::move(service), anotherBaseUrl));
+            HttpServer_->AddHandler(anotherBaseUrl, New<THttpHandler>(std::move(service), anotherBaseUrl, Logger));
         }
     }
 
