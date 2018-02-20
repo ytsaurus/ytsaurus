@@ -2028,7 +2028,6 @@ private:
         PrepareLockedRows(transaction);
 
         THashMap<TTableReplicaInfo*, int> replicaToRowCount;
-        int syncReplicatedRowCount = 0;
         for (const auto& writeRecord : transaction->DelayedLocklessWriteLog()) {
             auto* tablet = GetTabletOrThrow(writeRecord.TabletId);
             if (!tablet->IsReplicated()) {
@@ -2045,7 +2044,6 @@ private:
                 ValidateReplicaWritable(tablet, replicaInfo);
                 if (replicaInfo.GetMode() == ETableReplicaMode::Sync) {
                     replicaToRowCount[&replicaInfo] += writeRecord.RowCount;
-                    syncReplicatedRowCount += writeRecord.RowCount;
                 }
             }
         }
@@ -2255,6 +2253,9 @@ private:
 
                 for (const auto& replicaId : writeRecord.SyncReplicaIds) {
                     auto* replicaInfo = tablet->FindReplicaInfo(replicaId);
+                    if (!replicaInfo) {
+                        continue;
+                    }
                     replicaToRowCount[replicaInfo] += writeRecord.RowCount;
                 }
             }
