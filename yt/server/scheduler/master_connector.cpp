@@ -218,9 +218,10 @@ public:
 
         auto batchReq = StartObjectBatchRequest();
 
+        bool isReviving = operation->GetState() == EOperationState::Reviving;
         auto attributes = ConvertToAttributes(BuildYsonStringFluently()
             .BeginMap()
-                .Do(BIND(&ISchedulerStrategy::BuildOperationAttributes, strategy, operationId))
+                .DoIf(!isReviving, BIND(&ISchedulerStrategy::BuildOperationAttributes, strategy, operationId))
                 .Do(BIND(&BuildFullOperationAttributes, operation))
                 .Item("brief_spec").BeginMap()
                     .Items(operation->ControllerAttributes().InitializationAttributes->BriefSpec)
