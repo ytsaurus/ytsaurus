@@ -1,8 +1,13 @@
-from yt.wrapper.common import get_value, require, update_inplace, generate_uuid, bool_to_string
+from yt.wrapper.common import get_value, require, generate_uuid, bool_to_string
 from yt.wrapper.http_helpers import get_retriable_errors, get_token, configure_ip
 from yt.wrapper.errors import hide_token
 from yt.wrapper.retries import Retrier
 from yt.wrapper import YtClient
+
+try:
+    from yt.wrapper.common import update_inplace
+except ImportError:
+    from yt.wrapper.common import update as update_inplace
 
 from yt.common import YtError, YtResponseError
 
