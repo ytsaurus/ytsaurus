@@ -76,6 +76,7 @@ DEFINE_RPC_SERVICE_METHOD(TSupervisorService, OnJobFinished)
         job->SetStatistics(ysonStatistics);
         statistics.SetStatistics(ysonStatistics);
     }
+    // TODO(ignat): migrate to new fields (node_start_time, node_finish_time)
     if (request->has_start_time()) {
         statistics.SetStartTime(FromProto<TInstant>(request->start_time()));
     }
