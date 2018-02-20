@@ -156,11 +156,12 @@ public class ApiServiceTransaction implements AutoCloseable {
             }
         }
 
-        return client.commitTransaction(id, sticky).thenAccept((unused) ->
-            setCommitted()
-        ).exceptionally((ex) -> {
-            setAborted();
-            return null;
+        return client.commitTransaction(id, sticky).whenComplete((result, error) -> {
+            if (error == null) {
+                setCommitted();
+            } else {
+                setAborted();
+            }
         });
     }
 
