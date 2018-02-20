@@ -2322,9 +2322,12 @@ public:
 
         std::vector<TString> progressParts;
 
-        for (const auto& pair : FairShareTrees_) {
-            const auto& tree = pair.second;
-            progressParts.push_back(tree->GetOperationLoggingProgress(operationId));
+        const auto& state = GetOperationState(operationId);
+        const auto& pools = state->TreeIdToPoolIdMap();
+
+        for (const auto& pair : pools) {
+            const auto& treeId = pair.first;
+            progressParts.push_back(GetTree(treeId)->GetOperationLoggingProgress(operationId));
         }
 
         return JoinToString(progressParts.begin(), progressParts.end(), STRINGBUF("; "));
