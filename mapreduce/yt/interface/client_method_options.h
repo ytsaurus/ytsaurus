@@ -116,6 +116,7 @@ struct TLinkOptions
 
     FLUENT_FIELD_DEFAULT(bool, Recursive, false);
     FLUENT_FIELD_DEFAULT(bool, IgnoreExisting, false);
+    FLUENT_FIELD_DEFAULT(bool, Force, false);
     FLUENT_FIELD_OPTION(TNode, Attributes);
 };
 
