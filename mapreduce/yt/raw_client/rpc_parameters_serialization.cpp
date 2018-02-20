@@ -178,6 +178,7 @@ TNode SerializeParamsForLink(
     result["link_path"] = AddPathPrefix(linkPath);
     result["recursive"] = options.Recursive_;
     result["ignore_existing"] = options.IgnoreExisting_;
+    result["force"] = options.Force_;
     if (options.Attributes_) {
         result["attributes"] = *options.Attributes_;
     }

@@ -261,11 +261,18 @@ SIMPLE_UNIT_TEST_SUITE(CypressClient) {
         auto client = CreateTestClient();
 
         client->Create("//testing/table", NT_TABLE);
+        client->Create("//testing/table2", NT_TABLE);
         client->Link("//testing/table", "//testing/table_link");
 
         UNIT_ASSERT_VALUES_EQUAL(client->Exists("//testing/table"), true);
         UNIT_ASSERT_VALUES_EQUAL(client->Exists("//testing/table_link"), true);
         UNIT_ASSERT_VALUES_EQUAL(client->Get("//testing/table_link&/@target_path"), "//testing/table");
+
+        UNIT_ASSERT_EXCEPTION(client->Link("//testing/table2", "//testing/table_link"), yexception);
+
+        client->Link("//testing/table2", "//testing/table_link", NYT::TLinkOptions().Force(true));
+        UNIT_ASSERT_VALUES_EQUAL(client->Exists("//testing/table2"), true);
+        UNIT_ASSERT_VALUES_EQUAL(client->Get("//testing/table_link&/@target_path"), "//testing/table2");
     }
 
     SIMPLE_UNIT_TEST(TestConcatenate)
