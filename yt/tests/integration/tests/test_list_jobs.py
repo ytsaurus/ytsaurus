@@ -276,3 +276,4 @@ class TestListJobs(YTEnvSetup):
         res = list_jobs(op.id)["jobs"]
         assert any(job["state"] == "aborted" for job in res)
         assert all((date_string_to_datetime(job["start_time"]) > now) for job in res)
+        assert all((date_string_to_datetime(job["finish_time"]) >= date_string_to_datetime(job["start_time"])) for job in res)
