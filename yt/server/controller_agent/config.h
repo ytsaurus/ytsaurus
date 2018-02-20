@@ -481,8 +481,6 @@ public:
 
     TDuration OperationLogProgressBackoff;
 
-    TDuration OperationLogFairSharePeriod;
-
     TDuration OperationControllerFailTimeout;
 
     TDuration AvailableExecNodesCheckPeriod;
