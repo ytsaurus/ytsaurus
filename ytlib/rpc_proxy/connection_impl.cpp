@@ -269,14 +269,9 @@ void TConnection::OnProxyListUpdated()
 
             Addresses_ = std::move(addresses);
             for (const auto& unavailableAddress : diff) {
-                if (unavailableAddress.StartsWith("localhost:")) {
-                    LOG_DEBUG("Keep localhost addresses as available");
-                    continue;
-                }
-
                 auto it = AddressToProviders_.find(unavailableAddress);
                 if (it == AddressToProviders_.end()) {
-                    break;  // break because both lists are sorted
+                    break;
                 }
 
                 LOG_DEBUG("Terminating operable channels (Address: %v)",
@@ -285,7 +280,7 @@ void TConnection::OnProxyListUpdated()
                 for (auto* operable : it->second) {
                     terminated.push_back(operable->Terminate(TError(
                         NRpc::EErrorCode::Unavailable,
-                        "Channel is unavailable")));
+                        "Channel is not unavailable")));
                 }
             }
         }
