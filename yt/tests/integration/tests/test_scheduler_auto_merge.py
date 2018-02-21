@@ -56,7 +56,7 @@ class TestSchedulerAutoMerge(YTEnvSetup):
 
     # Bugs in auto-merge usually lead to the operation being stuck without scheduling any new jobs.
     # This is why we use the pytest timeout decorator.
-    @pytest.mark.timeout(240)
+    @pytest.mark.timeout(360)
     def test_auto_merge_does_not_stuck(self):
         create("table", "//tmp/t_in")
         create("table", "//tmp/t_out")
