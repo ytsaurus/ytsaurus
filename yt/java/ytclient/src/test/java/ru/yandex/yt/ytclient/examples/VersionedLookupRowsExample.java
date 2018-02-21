@@ -3,6 +3,7 @@ package ru.yandex.yt.ytclient.examples;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import ru.yandex.inside.yt.kosher.ytree.YTreeMapNode;
 import ru.yandex.yt.ytclient.proxy.LookupRowsRequest;
 import ru.yandex.yt.ytclient.tables.ColumnSchema;
 import ru.yandex.yt.ytclient.tables.ColumnValueType;
@@ -11,7 +12,6 @@ import ru.yandex.yt.ytclient.wire.UnversionedValue;
 import ru.yandex.yt.ytclient.wire.VersionedRow;
 import ru.yandex.yt.ytclient.wire.VersionedRowset;
 import ru.yandex.yt.ytclient.wire.VersionedValue;
-import ru.yandex.yt.ytclient.ytree.YTreeMapNode;
 
 public class VersionedLookupRowsExample {
     private static final Logger logger = LoggerFactory.getLogger(VersionedLookupRowsExample.class);

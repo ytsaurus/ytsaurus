@@ -1,19 +1,26 @@
 package ru.yandex.yt.ytclient.tables;
 
+import java.io.ByteArrayInputStream;
+
 import org.junit.Test;
 
-import ru.yandex.yt.ytclient.ytree.YTreeNode;
+import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeTextSerializer;
+import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.is;
 
 public class TableSchemaTest {
+    private static YTreeNode parseString(String input) {
+        return YTreeTextSerializer.deserialize(new ByteArrayInputStream(input.getBytes()));
+    }
+
     private static final TableSchema KEY_VALUE_SCHEMA = new TableSchema.Builder()
             .addKey("key", ColumnValueType.STRING)
             .addValue("value", ColumnValueType.STRING)
             .build();
-    private static final YTreeNode KEY_VALUE_SCHEMA_YTREE = YTreeNode.parseString(
+    private static final YTreeNode KEY_VALUE_SCHEMA_YTREE = parseString(
             "<\"strict\"=%true;\"unique_keys\"=%true>[{\"name\"=\"key\";\"type\"=\"string\";\"sort_order\"=\"ascending\"};{\"name\"=\"value\";\"type\"=\"string\"}]");
 
     private static final TableSchema HASH_COLUMN_SCHEMA = new TableSchema.Builder()
@@ -25,7 +32,7 @@ public class TableSchemaTest {
             .addValue("b", ColumnValueType.STRING)
             .addValue("c", ColumnValueType.STRING)
             .build();
-    private static final YTreeNode HASH_COLUMN_SCHEMA_YTREE = YTreeNode.parseString(
+    private static final YTreeNode HASH_COLUMN_SCHEMA_YTREE = parseString(
             "<\"strict\"=%true;\"unique_keys\"=%true>[{\"name\"=\"h\";\"type\"=\"int64\";\"sort_order\"=\"ascending\";\"expression\"=\"hash(...)\"};{\"name\"=\"a\";\"type\"=\"string\";\"sort_order\"=\"ascending\"};{\"name\"=\"b\";\"type\"=\"string\"};{\"name\"=\"c\";\"type\"=\"string\"}]");
 
     @Test

@@ -1,24 +1,25 @@
 package ru.yandex.yt.ytclient.wire;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Objects;
 
-import com.google.protobuf.CodedInputStream;
-
+import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTree;
+import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder;
+import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeBinarySerializer;
+import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeConsumer;
+import ru.yandex.inside.yt.kosher.ytree.YTreeBooleanNode;
+import ru.yandex.inside.yt.kosher.ytree.YTreeDoubleNode;
+import ru.yandex.inside.yt.kosher.ytree.YTreeEntityNode;
+import ru.yandex.inside.yt.kosher.ytree.YTreeIntegerNode;
+import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
+import ru.yandex.inside.yt.kosher.ytree.YTreeStringNode;
+import ru.yandex.misc.lang.number.UnsignedLong;
 import ru.yandex.yt.ytclient.tables.ColumnValueType;
-import ru.yandex.yt.ytclient.yson.YsonBinaryDecoder;
-import ru.yandex.yt.ytclient.ytree.YTreeBooleanNode;
-import ru.yandex.yt.ytclient.ytree.YTreeBuilder;
-import ru.yandex.yt.ytclient.ytree.YTreeConsumer;
 import ru.yandex.yt.ytclient.ytree.YTreeConvertible;
-import ru.yandex.yt.ytclient.ytree.YTreeDoubleNode;
-import ru.yandex.yt.ytclient.ytree.YTreeEntityNode;
-import ru.yandex.yt.ytclient.ytree.YTreeIntNode;
-import ru.yandex.yt.ytclient.ytree.YTreeNode;
-import ru.yandex.yt.ytclient.ytree.YTreeStringNode;
 
 /**
  * Соответствует TUnversionedValue в C++
@@ -77,8 +78,8 @@ public class UnversionedValue implements YTreeConvertible {
             case INT64:
                 if (value == null || value instanceof Long) {
                     return value;
-                } else if (value instanceof YTreeIntNode) {
-                    return ((YTreeIntNode) value).longValue();
+                } else if (value instanceof YTreeIntegerNode) {
+                    return ((YTreeIntegerNode) value).longValue();
                 } else if (value instanceof Integer || value instanceof Short || value instanceof Byte) {
                     return ((Number) value).longValue();
                 } else if (value instanceof YTreeEntityNode) {
@@ -88,8 +89,8 @@ public class UnversionedValue implements YTreeConvertible {
             case UINT64:
                 if (value == null || value instanceof Long) {
                     return value;
-                } else if (value instanceof YTreeIntNode) {
-                    return ((YTreeIntNode) value).longValue();
+                } else if (value instanceof YTreeIntegerNode) {
+                    return ((YTreeIntegerNode) value).longValue();
                 } else if (value instanceof Integer) {
                     return Integer.toUnsignedLong((Integer) value);
                 } else if (value instanceof Short) {
@@ -115,7 +116,7 @@ public class UnversionedValue implements YTreeConvertible {
                 if (value == null || value instanceof Boolean) {
                     return value;
                 } else if (value instanceof YTreeBooleanNode) {
-                    return ((YTreeBooleanNode) value).booleanValue();
+                    return ((YTreeNode) value).boolValue();
                 } else if (value instanceof YTreeEntityNode) {
                     return null;
                 }
@@ -134,11 +135,15 @@ public class UnversionedValue implements YTreeConvertible {
             case ANY:
                 if (value == null || value instanceof byte[]) {
                     return value;
-                } else if (value instanceof YTreeNode) {
-                    return ((YTreeNode) value).toBinary();
-                } else {
-                    return new YTreeBuilder().value(value).build().toBinary();
                 }
+
+                YTreeNode node;
+                if (value instanceof YTreeNode) {
+                    node = (YTreeNode) value;
+                } else {
+                    node = YTree.builder().value(value).build();
+                }
+                return node.toBinary();
             default:
                 throw new IllegalArgumentException("Unexpected type " + type);
         }
@@ -310,23 +315,23 @@ public class UnversionedValue implements YTreeConvertible {
                 consumer.onEntity();
                 break;
             case INT64:
-                consumer.onInt64Scalar(longValue());
+                consumer.onInteger(longValue());
                 break;
             case UINT64:
-                consumer.onUint64Scalar(longValue());
+                consumer.onUnsignedInteger(UnsignedLong.valueOf(longValue()));
                 break;
             case DOUBLE:
-                consumer.onDoubleScalar(doubleValue());
+                consumer.onDouble(doubleValue());
                 break;
             case BOOLEAN:
-                consumer.onBooleanScalar(booleanValue());
+                consumer.onBoolean(booleanValue());
                 break;
             case STRING:
-                consumer.onStringScalar(bytesValue());
+                consumer.onBytes(bytesValue());
                 break;
             case ANY: {
                 try {
-                    YsonBinaryDecoder.parseNode(CodedInputStream.newInstance(bytesValue()), consumer);
+                    YTreeBinarySerializer.deserialize(new ByteArrayInputStream(bytesValue()), consumer);
                 } catch (IOException e) {
                     throw new UncheckedIOException(e);
                 }
@@ -342,7 +347,7 @@ public class UnversionedValue implements YTreeConvertible {
      */
     @Override
     public YTreeNode toYTree() {
-        YTreeBuilder builder = new YTreeBuilder();
+        YTreeBuilder builder = YTree.builder();
         writeTo(builder);
         return builder.build();
     }
