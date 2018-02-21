@@ -1833,12 +1833,12 @@ private:
             "/running_operation_count",
             element->RunningOperationCount(),
             EMetricType::Gauge,
-            {tag});
+            {tag, TreeIdProfilingTag});
         Profiler.Enqueue(
             "/total_operation_count",
             element->OperationCount(),
             EMetricType::Gauge,
-            {tag});
+            {tag, TreeIdProfilingTag});
     }
 
     void ProfileSchedulerElement(TSchedulerElementPtr element, const TString& profilingPrefix, const TTagIdList& tags) const
