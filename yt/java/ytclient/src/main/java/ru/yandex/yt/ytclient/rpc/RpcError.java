@@ -4,8 +4,9 @@ import java.util.Arrays;
 
 import com.google.protobuf.ByteString;
 
+import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeBinarySerializer;
+import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
 import ru.yandex.yt.TError;
-import ru.yandex.yt.ytclient.ytree.YTreeNode;
 import ru.yandex.yt.ytree.TAttribute;
 import ru.yandex.yt.ytree.TAttributeDictionary;
 
@@ -22,6 +23,10 @@ public class RpcError extends RuntimeException {
 
     public TError getError() {
         return error;
+    }
+
+    private static YTreeNode parseByteString(ByteString byteString) {
+        return YTreeBinarySerializer.deserialize(byteString.newInput());
     }
 
     private static String errorMessage(TError error) {
@@ -42,7 +47,7 @@ public class RpcError extends RuntimeException {
                 sb.append(attr.getKey()).append('=');
                 ByteString rawValue = attr.getValue();
                 try {
-                    sb.append(YTreeNode.parseByteString(rawValue).toString());
+                    sb.append(parseByteString(rawValue).toString());
                 } catch (RuntimeException e) {
                     sb.append("<failed to parse ").append(Arrays.toString(rawValue.toByteArray())).append(">");
                 }

@@ -12,9 +12,12 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import com.google.protobuf.ByteString;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeBinarySerializer;
+import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
 import ru.yandex.yt.rpcproxy.TReqAbortTransaction;
 import ru.yandex.yt.rpcproxy.TReqAlterTable;
 import ru.yandex.yt.rpcproxy.TReqCommitTransaction;
@@ -102,7 +105,6 @@ import ru.yandex.yt.ytclient.rpc.RpcUtil;
 import ru.yandex.yt.ytclient.tables.TableSchema;
 import ru.yandex.yt.ytclient.wire.UnversionedRowset;
 import ru.yandex.yt.ytclient.wire.VersionedRowset;
-import ru.yandex.yt.ytclient.ytree.YTreeNode;
 
 /**
  * Клиент для высокоуровневой работы с ApiService
@@ -134,6 +136,10 @@ public class ApiServiceClient {
 
     public ApiService getService() {
         return service;
+    }
+
+    private YTreeNode parseByteString(ByteString byteString) {
+        return YTreeBinarySerializer.deserialize(byteString.newInput());
     }
 
     public CompletableFuture<ApiServiceTransaction> startTransaction(ApiServiceTransactionOptions options) {
@@ -208,7 +214,7 @@ public class ApiServiceClient {
     public CompletableFuture<YTreeNode> getNode(GetNode req) {
         RpcClientRequestBuilder<TReqGetNode.Builder, RpcClientResponse<TRspGetNode>> builder = service.getNode();
         req.writeTo(builder.body());
-        return RpcUtil.apply(builder.invoke(), response -> YTreeNode.parseByteString(response.body().getValue()));
+        return RpcUtil.apply(builder.invoke(), response -> parseByteString(response.body().getValue()));
     }
 
     public CompletableFuture<YTreeNode> getNode(String path) {
@@ -218,7 +224,7 @@ public class ApiServiceClient {
     public CompletableFuture<YTreeNode> listNode(ListNode req) {
         RpcClientRequestBuilder<TReqListNode.Builder, RpcClientResponse<TRspListNode>> builder = service.listNode();
         req.writeTo(builder.body());
-        return RpcUtil.apply(builder.invoke(), response -> YTreeNode.parseByteString(response.body().getValue()));
+        return RpcUtil.apply(builder.invoke(), response -> parseByteString(response.body().getValue()));
     }
 
     public CompletableFuture<YTreeNode> listNode(String path) {

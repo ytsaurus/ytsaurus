@@ -1,7 +1,8 @@
 package ru.yandex.yt.ytclient.wire;
 
+import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeConsumer;
+import ru.yandex.misc.lang.number.UnsignedLong;
 import ru.yandex.yt.ytclient.tables.ColumnValueType;
-import ru.yandex.yt.ytclient.ytree.YTreeConsumer;
 
 public class VersionedValue extends UnversionedValue {
     private final long timestamp;
@@ -50,9 +51,9 @@ public class VersionedValue extends UnversionedValue {
     public void writeTo(YTreeConsumer consumer) {
         consumer.onBeginAttributes();
         consumer.onKeyedItem("timestamp");
-        consumer.onUint64Scalar(timestamp);
+        consumer.onUnsignedInteger(UnsignedLong.valueOf(timestamp));
         consumer.onKeyedItem("aggregate");
-        consumer.onBooleanScalar(isAggregate());
+        consumer.onBoolean(isAggregate());
         consumer.onEndAttributes();
         super.writeTo(consumer);
     }

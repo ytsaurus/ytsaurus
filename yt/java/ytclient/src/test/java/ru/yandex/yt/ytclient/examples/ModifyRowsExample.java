@@ -6,6 +6,8 @@ import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder;
+import ru.yandex.inside.yt.kosher.ytree.YTreeMapNode;
 import ru.yandex.yt.rpcproxy.ETransactionType;
 import ru.yandex.yt.ytclient.proxy.ApiServiceTransaction;
 import ru.yandex.yt.ytclient.proxy.ApiServiceTransactionOptions;
@@ -17,8 +19,6 @@ import ru.yandex.yt.ytclient.tables.TableSchema;
 import ru.yandex.yt.ytclient.wire.UnversionedRow;
 import ru.yandex.yt.ytclient.wire.UnversionedRowset;
 import ru.yandex.yt.ytclient.wire.UnversionedValue;
-import ru.yandex.yt.ytclient.ytree.YTreeBuilder;
-import ru.yandex.yt.ytclient.ytree.YTreeMapNode;
 
 public class ModifyRowsExample {
     private static final Logger logger = LoggerFactory.getLogger(ModifyRowsExample.class);
@@ -55,16 +55,14 @@ public class ModifyRowsExample {
                                         .key("host").value("n0344-sas.hahn.yt.yandex.net")
                                         .key("rack").value("SAS2.4.3-15")
                                         .key("data").value("XXX " + UUID.randomUUID().toString())
-                                        .buildMap()
-                                        .mapValue())
+                                        .buildMap().asMap())
                                 .addUpdate(new YTreeBuilder()
                                         .beginMap()
                                         .key("timestamp").value(1486190037953802L)
                                         .key("host").value("s03-sas.hahn.yt.yandex.net")
                                         .key("rack").value("SAS2.4.3-15")
                                         .key("data").value("XXX " + UUID.randomUUID().toString())
-                                        .buildMap()
-                                        .mapValue());
+                                        .buildMap().asMap());
                 long t0 = System.nanoTime();
                 transaction.modifyRows(request).join();
                 long t1 = System.nanoTime();

@@ -1,12 +1,12 @@
 package ru.yandex.yt.ytclient.tables;
 
 import java.util.Objects;
-import java.util.Optional;
 
-import ru.yandex.yt.ytclient.ytree.YTreeBuilder;
+import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTree;
+import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder;
+import ru.yandex.inside.yt.kosher.ytree.YTreeMapNode;
+import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
 import ru.yandex.yt.ytclient.ytree.YTreeConvertible;
-import ru.yandex.yt.ytclient.ytree.YTreeMapNode;
-import ru.yandex.yt.ytclient.ytree.YTreeNode;
 
 /**
  * TColumnSchema (yt/ytlib/table_client/schema.h)
@@ -70,7 +70,7 @@ public class ColumnSchema implements YTreeConvertible {
 
     @Override
     public YTreeNode toYTree() {
-        YTreeBuilder builder = new YTreeBuilder()
+        YTreeBuilder builder = YTree.builder()
                 .beginMap()
                 .key("name").value(name)
                 .key("type").value(type.getName());
@@ -93,16 +93,16 @@ public class ColumnSchema implements YTreeConvertible {
     }
 
     public static ColumnSchema fromYTree(YTreeNode node) {
-        YTreeMapNode map = (YTreeMapNode) node;
+        YTreeMapNode map = node.mapNode();
         String name = map.getOrThrow("name").stringValue();
         ColumnValueType type = ColumnValueType.fromName(map.getOrThrow("type").stringValue());
         ColumnSortOrder sortOrder =
-                Optional.ofNullable(map.get("sort_order")).map(YTreeNode::stringValue).map(ColumnSortOrder::fromName)
-                        .orElse(null);
-        String lock = Optional.ofNullable(map.get("lock")).map(YTreeNode::stringValue).orElse(null);
-        String expression = Optional.ofNullable(map.get("expression")).map(YTreeNode::stringValue).orElse(null);
-        String aggregate = Optional.ofNullable(map.get("aggregate")).map(YTreeNode::stringValue).orElse(null);
-        String group = Optional.ofNullable(map.get("group")).map(YTreeNode::stringValue).orElse(null);
+                map.get("sort_order").map(YTreeNode::stringValue).map(ColumnSortOrder::fromName)
+                        .getOrNull();
+        String lock = map.get("lock").map(YTreeNode::stringValue).getOrNull();
+        String expression = map.get("expression").map(YTreeNode::stringValue).getOrNull();
+        String aggregate = map.get("aggregate").map(YTreeNode::stringValue).getOrNull();
+        String group = map.get("group").map(YTreeNode::stringValue).getOrNull();
         return new ColumnSchema(name, type, sortOrder, lock, expression, aggregate, group);
     }
 

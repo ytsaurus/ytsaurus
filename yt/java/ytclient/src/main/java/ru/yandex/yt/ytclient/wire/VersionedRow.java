@@ -4,10 +4,12 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
+import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTree;
+import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder;
+import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeConsumer;
+import ru.yandex.inside.yt.kosher.ytree.YTreeMapNode;
+import ru.yandex.misc.lang.number.UnsignedLong;
 import ru.yandex.yt.ytclient.tables.TableSchema;
-import ru.yandex.yt.ytclient.ytree.YTreeBuilder;
-import ru.yandex.yt.ytclient.ytree.YTreeConsumer;
-import ru.yandex.yt.ytclient.ytree.YTreeMapNode;
 
 public class VersionedRow {
     private final List<Long> writeTimestamps;
@@ -88,14 +90,14 @@ public class VersionedRow {
         consumer.onBeginList();
         for (long writeTimestamp : writeTimestamps) {
             consumer.onListItem();
-            consumer.onUint64Scalar(writeTimestamp);
+            consumer.onUnsignedInteger(UnsignedLong.valueOf(writeTimestamp));
         }
         consumer.onEndList();
         consumer.onKeyedItem("delete_timestamps");
         consumer.onBeginList();
         for (long deleteTimestamp : deleteTimestamps) {
             consumer.onListItem();
-            consumer.onUint64Scalar(deleteTimestamp);
+            consumer.onUnsignedInteger(UnsignedLong.valueOf(deleteTimestamp));
         }
         consumer.onEndList();
         consumer.onEndAttributes();
@@ -128,8 +130,8 @@ public class VersionedRow {
     }
 
     public YTreeMapNode toYTreeMap(TableSchema schema) {
-        YTreeBuilder builder = new YTreeBuilder();
+        YTreeBuilder builder = YTree.builder();
         writeTo(builder, schema);
-        return (YTreeMapNode) builder.build();
+        return builder.build().mapNode();
     }
 }

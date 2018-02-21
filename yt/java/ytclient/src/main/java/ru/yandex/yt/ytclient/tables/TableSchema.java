@@ -7,11 +7,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
-import ru.yandex.yt.ytclient.ytree.YTreeBuilder;
+import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTree;
+import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
 import ru.yandex.yt.ytclient.ytree.YTreeConvertible;
-import ru.yandex.yt.ytclient.ytree.YTreeNode;
-import ru.yandex.yt.ytclient.ytree.YTreeUtil;
 
 /**
  * TTableSchema (yt/ytlib/table_client/schema.h)
@@ -261,22 +261,22 @@ public class TableSchema implements YTreeConvertible {
 
     @Override
     public YTreeNode toYTree() {
-        return new YTreeBuilder().beginAttributes()
+        return YTree.builder().beginAttributes()
                 .key("strict").value(strict)
                 .key("unique_keys").value(uniqueKeys)
                 .endAttributes()
-                .value(columns)
+                .value(columns.stream().map(ColumnSchema::toYTree).collect(Collectors.toList()))
                 .build();
     }
 
     public static TableSchema fromYTree(YTreeNode node) {
-        List<YTreeNode> list = node.listValue();
+        List<YTreeNode> list = node.listNode().asList();
         List<ColumnSchema> columns = new ArrayList<>();
         for (YTreeNode columnNode : list) {
             columns.add(ColumnSchema.fromYTree(columnNode));
         }
-        boolean strict = YTreeUtil.booleanValue(node.getAttribute("strict"), true);
-        boolean uniqueKeys = YTreeUtil.booleanValue(node.getAttribute("unique_keys"), false);
+        boolean strict = node.getAttribute("strict").map(YTreeNode::boolValue).getOrElse(true);
+        boolean uniqueKeys = node.getAttribute("unique_keys").map(YTreeNode::boolValue).getOrElse(false);
         return new TableSchema(columns, strict, uniqueKeys);
     }
 
