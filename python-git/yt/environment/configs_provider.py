@@ -636,6 +636,7 @@ class ConfigsProvider_19_2(ConfigsProvider):
             "rpc_port": next(ports_generator),
             "monitoring_port": next(ports_generator),
             "enable_authentication": False,
+            "address_resolver": {"localhost_fqdn": "localhost"},
         }
         config["cluster_connection"] = self._build_cluster_connection_config(master_connection_configs)
         config["logging"] = init_logging(config.get("logging"), proxy_logs_dir, "rpc-proxy", provision["enable_debug_logging"])
