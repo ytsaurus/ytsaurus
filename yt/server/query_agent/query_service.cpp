@@ -179,7 +179,7 @@ private:
             ExecuteRequestWithRetries(
                 Config_->MaxQueryRetries,
                 Logger,
-                [&]() {
+                [&] {
                     auto tabletSnapshot = slotManager->GetTabletSnapshotOrThrow(tabletId);
                     slotManager->ValidateTabletAccess(
                         tabletSnapshot,
@@ -206,8 +206,10 @@ private:
                     context->Reply();
                 });
         } catch (const TErrorException&) {
-            auto tabletSnapshot = slotManager->GetTabletSnapshotOrThrow(tabletId);
-            ++tabletSnapshot->PerformanceCounters->LookupErrorCount;
+            if (auto tabletSnapshot = slotManager->FindTabletSnapshot(tabletId)) {
+                ++tabletSnapshot->PerformanceCounters->LookupErrorCount;
+            }
+
             throw;
         }
     }
