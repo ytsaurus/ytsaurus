@@ -81,9 +81,9 @@ class TestListJobs(YTEnvSetup):
             label="list_jobs",
             in_="//tmp/t1",
             out="//tmp/t2",
-            precommand="echo STDERR-OUTPUT >&2",
+            precommand="echo STDERR-OUTPUT >&2; cat",
             mapper_command='test $YT_JOB_INDEX -eq "1" && exit 1',
-            reducer_command="cat",
+            reducer_command="echo foo >&2; cat",
             sort_by="foo",
             reduce_by="foo",
             spec={
@@ -91,7 +91,7 @@ class TestListJobs(YTEnvSetup):
                     "input_format": "json",
                     "output_format": "json"
                 },
-                "job_count" : 3
+                "map_job_count" : 3
             })
 
         job_ids = op.jobs[:]
@@ -103,6 +103,7 @@ class TestListJobs(YTEnvSetup):
         for job in job_ids:
             abort_job(job)
             aborted_jobs.append(job)
+            break
 
         sleep(1)
 
@@ -149,6 +150,36 @@ class TestListJobs(YTEnvSetup):
             else:
                 jobs_without_stderr.append(job_id)
 
+        res = list_jobs(op.id, include_archive=False, include_cypress=True)
+        for key in res["type_counts"]:
+            correct = 0
+            if key == "partition_reduce":
+                correct = 1
+            if key == "partition_map":
+                correct = 5
+            assert res["type_counts"][key] == correct
+        for key in res["state_counts"]:
+            correct = 0
+            if key == "completed":
+                correct = 4
+            if key == "failed" or key == "aborted":
+                correct = 1
+            assert res["state_counts"][key] == correct
+
+        res = list_jobs(op.id, include_archive=False, include_cypress=True, type="partition_reduce")
+        for key in res["type_counts"]:
+            correct = 0
+            if key == "partition_reduce":
+                correct = 1
+            if key == "partition_map":
+                correct = 5
+            assert res["type_counts"][key] == correct
+        for key in res["state_counts"]:
+            correct = 0
+            if key == "completed":
+                correct = 1
+            assert res["state_counts"][key] == correct
+
         res = list_jobs(op.id, include_archive=False, include_cypress=True, job_state="failed")["jobs"]
         assert sorted(map_failed_jobs) == sorted([job["id"] for job in res])
 
@@ -175,7 +206,7 @@ class TestListJobs(YTEnvSetup):
         res = list_jobs(op.id)["jobs"]
         assert sorted(jobs.keys()) == sorted([job["id"] for job in res])
 
-        res = list_jobs(op.id, offset=1, limit=3, sort_field="start_time")["jobs"]
+        res = list_jobs(op.id, offset=4, limit=3, sort_field="start_time")["jobs"]
         assert len(res) == 2
         assert res == sorted(res, key=lambda item: item["start_time"])
 
