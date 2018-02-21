@@ -326,7 +326,7 @@ void TListJobsCommand::DoExecute(ICommandContextPtr context)
                     }
                 })
             .EndMap()
-            .StateCountsItem("state_counts").BeginMap()
+            .Item("state_counts").BeginMap()
                 .DoFor(TEnumTraits<NJobTrackerClient::EJobState>::GetDomainValues(), [&] (TFluentMap fluent, const auto& item) {
                     i64 count = result.StateCounts[item];
                     if (count) {
