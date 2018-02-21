@@ -104,7 +104,7 @@ SERVICES = [
         "solomon_port": 10032,
         "bridge_rules": [
             "-/(action_queue|bus|lf_alloc|logging|monitoring|profiling|resource_tracker|rpc)",
-            "-/tablet_node/(write|commit|select|lookup|replica)/",
+            "-/tablet_node/",
             "+.*",
         ],
     },
@@ -126,7 +126,7 @@ SERVICES = [
         "yt_port": 10012,
         "solomon_port": 10052,
         "bridge_rules": [
-            "+/tablet_node/(write|commit|select|lookup|replica)/",
+            "+/tablet_node/",
             "-.*",
         ],
     },
@@ -169,7 +169,8 @@ SERVICES = [
         "type": "http_proxy",
         "solomon_id": "yt_http_proxy",
         "solomon_name": "yt_http_proxy",
-        "solomon_port": "10013",
+        "proxy_port": 10013,
+        "solomon_port": 10053,
     },
     # --- yp ---
     {
@@ -449,13 +450,20 @@ def get_conductor_groups(cluster, type):
 def bridge_conf():
     conf = {"sources": []}
     for service in SERVICES:
-        if "solomon_port" not in service:
-            continue
-        conf["sources"].append(dict(
-            solomon_id=service["solomon_id"],
-            solomon_port=service["solomon_port"],
-            url=("localhost:%s" % service["yt_port"]),
-            rules=service["bridge_rules"]))
+        if 'yt_port' in service:
+            conf["sources"].append(dict(
+                use_spack=True,
+                solomon_id=service["solomon_id"],
+                solomon_port=service["solomon_port"],
+                url=("localhost:%s" % service["yt_port"]),
+                rules=service["bridge_rules"]))
+        else:
+            conf["sources"].append(dict(
+                use_spack=True,
+                solomon_id=service["solomon_id"],
+                solomon_port=service["solomon_port"],
+                proxy_port=service["proxy_port"]))
+                
     json.dump(conf, sys.stdout, indent=2, sort_keys=True)
 
 
