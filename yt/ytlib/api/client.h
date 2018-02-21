@@ -807,6 +807,10 @@ struct TListJobsResult
     int CypressJobCount = -1;
     int SchedulerJobCount = -1;
     int ArchiveJobCount = -1;
+
+    yhash<TString, i64> AddressCounts;
+    TEnumIndexedVector<i64, NJobTrackerClient::EJobState> StateCounts;
+    TEnumIndexedVector<i64, NJobTrackerClient::EJobType> TypeCounts;
 };
 
 struct TGetFileFromCacheResult
