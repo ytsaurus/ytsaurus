@@ -4484,18 +4484,6 @@ private:
             operationId.Parts64[1]);
         builder.AddWhereExpression(operationIdExpression);
 
-        if (options.Type) {
-            builder.AddWhereExpression(Format("job_type = %Qv", FormatEnum(*options.Type)));
-        }
-
-        if (options.State) {
-            builder.AddWhereExpression(Format("job_state = %Qv", FormatEnum(*options.State)));
-        }
-
-        if (options.Address) {
-            builder.AddWhereExpression(Format("address = %Qv", *options.Address));
-        }
-
         if (options.WithStderr) {
             if (*options.WithStderr) {
                 builder.AddWhereExpression("(stderr_size != 0 AND NOT is_null(stderr_size))");
@@ -4736,19 +4724,8 @@ private:
                 auto id = TGuid::FromString(item.first);
 
                 auto type = ParseEnum<NJobTrackerClient::EJobType>(attributes.Get<TString>("job_type"));
-                if (options.Type && type != *options.Type) {
-                    continue;
-                }
-
                 auto state = ParseEnum<NJobTrackerClient::EJobState>(attributes.Get<TString>("state"));
-                if (options.State && state != *options.State) {
-                    continue;
-                }
-
                 auto address = attributes.Get<TString>("address");
-                if (options.Address && address != *options.Address) {
-                    continue;
-                }
 
                 i64 stderrSize = -1;
                 if (auto stderrNode = children->FindChild("stderr")) {
@@ -4814,20 +4791,9 @@ private:
 
                 auto type = ParseEnum<NJobTrackerClient::EJobType>(
                     values->GetChild("job_type")->AsString()->GetValue());
-                if (options.Type && type != *options.Type) {
-                    continue;
-                }
-
                 auto state = ParseEnum<NJobTrackerClient::EJobState>(
                     values->GetChild("state")->AsString()->GetValue());
-                if (options.State && state != *options.State) {
-                    continue;
-                }
-
                 auto address = values->GetChild("address")->AsString()->GetValue();
-                if (options.Address && address != *options.Address) {
-                    continue;
-                }
 
                 auto stderrSize = values->GetChild("stderr_size")->AsInt64()->GetValue();
                 if (options.WithStderr) {
@@ -4983,6 +4949,28 @@ private:
                 schedulerJobsOrError.ThrowOnError();
             }
         }
+
+        std::vector<TJob> filteredJobs;
+        for (const auto& job : result.Jobs) {
+            result.AddressCounts[job.Address] += 1;
+            if (options.Address && job.Address != *options.Address) {
+                continue;
+            }
+
+            result.TypeCounts[job.Type] += 1;
+            if (options.Type && job.Type != *options.Type) {
+                continue;
+            }
+
+            result.StateCounts[job.State] += 1;
+            if (options.State && job.State != *options.State) {
+                continue;
+            }
+
+            filteredJobs.push_back(job);
+        }
+
+        result.Jobs = filteredJobs;
 
         std::function<bool(const TJob&, const TJob&)> comparer;
         switch (options.SortField) {
