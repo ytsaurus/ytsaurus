@@ -1788,14 +1788,15 @@ private:
             }  // Else this'll be done later when the chunk is confirmed/sealed.
         }
 
-        for (const auto& pair : statMap) {
-            auto* account = pair.first;
+        for (const auto& pair : Accounts()) {
+            auto* account = pair.second;
 
             if (!IsObjectAlive(account)) {
                 continue;
             }
 
-            const auto& stat = pair.second;
+            // NB: statMap may contain no entry for an account if it has no nodes or chunks.
+            const auto& stat = statMap[account];
             bool log = false;
             const auto& expectedUsage = stat.NodeUsage;
             const auto& expectedCommittedUsage = stat.NodeCommittedUsage;
