@@ -374,7 +374,7 @@ public:
     {
         PyEval_InitThreads();
 
-        RegisterShutdown(BIND([=] () {
+        RegisterShutdown(BIND([] () {
             LOG_INFO("Module shutdown started");
             for (const auto& pair : ActiveDrivers) {
                 auto driver = pair.second.Lock();
