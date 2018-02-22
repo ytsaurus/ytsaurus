@@ -158,11 +158,11 @@ private:
                 }
             }
 
-            auto sleepTime = std::min(Config_->BackoffTimeout, deadline - TInstant::Now());
-            if (sleepTime == TDuration::Zero()) {
+            auto now = TInstant::Now();
+            if (now > deadline) {
                 break;
             }
-            Sleep(sleepTime);
+            Sleep(std::min(Config_->BackoffTimeout, deadline - now));
         }
 
         THROW_ERROR_EXCEPTION("Blackbox call failed")
