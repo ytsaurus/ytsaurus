@@ -7,8 +7,8 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.TimeUnit;
 
+import ru.yandex.inside.yt.kosher.common.GUID;
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
-import ru.yandex.yt.ytclient.misc.YtGuid;
 import ru.yandex.yt.ytclient.misc.YtTimestamp;
 import ru.yandex.yt.ytclient.proxy.request.ConcatenateNodes;
 import ru.yandex.yt.ytclient.proxy.request.CopyNode;
@@ -30,7 +30,7 @@ import ru.yandex.yt.ytclient.wire.VersionedRowset;
 
 public class ApiServiceTransaction implements AutoCloseable {
     private final ApiServiceClient client;
-    private final YtGuid id;
+    private final GUID id;
     private final YtTimestamp startTimestamp;
     private final boolean ping;
     private final boolean sticky;
@@ -51,7 +51,7 @@ public class ApiServiceTransaction implements AutoCloseable {
         return client;
     }
 
-    public YtGuid getId() {
+    public GUID getId() {
         return id;
     }
 
@@ -69,7 +69,7 @@ public class ApiServiceTransaction implements AutoCloseable {
 
     ApiServiceTransaction(
             ApiServiceClient client,
-            YtGuid id,
+            GUID id,
             YtTimestamp startTimestamp,
             boolean ping,
             boolean pingAncestors,
@@ -213,11 +213,11 @@ public class ApiServiceTransaction implements AutoCloseable {
 
     /* nodes */
 
-    public CompletableFuture<YtGuid> createNode(CreateNode req) {
+    public CompletableFuture<GUID> createNode(CreateNode req) {
         return client.createNode(req.setTransactionalOptions(transactionalOptions));
     }
 
-    public CompletableFuture<YtGuid> createNode(String path, ObjectType type) {
+    public CompletableFuture<GUID> createNode(String path, ObjectType type) {
         return createNode(new CreateNode(path, type));
     }
 
@@ -273,27 +273,27 @@ public class ApiServiceTransaction implements AutoCloseable {
         return lockNode(new LockNode(path, mode));
     }
 
-    public CompletableFuture<YtGuid> copyNode(CopyNode req) {
+    public CompletableFuture<GUID> copyNode(CopyNode req) {
         return client.copyNode(req.setTransactionalOptions(transactionalOptions));
     }
 
-    public CompletableFuture<YtGuid> copyNode(String src, String dst) {
+    public CompletableFuture<GUID> copyNode(String src, String dst) {
         return copyNode(new CopyNode(src, dst));
     }
 
-    public CompletableFuture<YtGuid> moveNode(MoveNode req) {
+    public CompletableFuture<GUID> moveNode(MoveNode req) {
         return client.moveNode(req.setTransactionalOptions(transactionalOptions));
     }
 
-    public CompletableFuture<YtGuid> moveNode(String from, String to) {
+    public CompletableFuture<GUID> moveNode(String from, String to) {
         return moveNode(new MoveNode(from, to));
     }
 
-    public CompletableFuture<YtGuid> linkNode(LinkNode req) {
+    public CompletableFuture<GUID> linkNode(LinkNode req) {
         return client.linkNode(req.setTransactionalOptions(transactionalOptions));
     }
 
-    public CompletableFuture<YtGuid> linkNode(String src, String dst) {
+    public CompletableFuture<GUID> linkNode(String src, String dst) {
         return linkNode(new LinkNode(src, dst));
     }
 

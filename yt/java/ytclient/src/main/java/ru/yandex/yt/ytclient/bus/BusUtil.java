@@ -1,8 +1,12 @@
 package ru.yandex.yt.ytclient.bus;
 
+import java.nio.ByteOrder;
 import java.util.concurrent.CompletableFuture;
 
+import io.netty.buffer.ByteBuf;
 import io.netty.util.concurrent.Future;
+
+import ru.yandex.inside.yt.kosher.common.GUID;
 
 /**
  * Полезные для работы с bus функции
@@ -76,5 +80,21 @@ public final class BusUtil {
             relayCancel(result, future);
         }
         return result;
+    }
+
+    public static void writeTo(ByteBuf out, GUID guid) {
+        out = out.order(ByteOrder.LITTLE_ENDIAN);
+        out.writeLong(guid.getFirst());
+        out.writeLong(guid.getSecond());
+    }
+
+    public static GUID readGuidFrom(ByteBuf in) {
+        if (in.readableBytes() < 16) {
+            throw new IllegalArgumentException("At least 16 bytes must be readable");
+        }
+        in = in.order(ByteOrder.LITTLE_ENDIAN);
+        long first = in.readLong();
+        long second = in.readLong();
+        return new GUID(first, second);
     }
 }

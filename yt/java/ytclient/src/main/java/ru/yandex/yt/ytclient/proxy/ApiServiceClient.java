@@ -16,6 +16,7 @@ import com.google.protobuf.ByteString;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import ru.yandex.inside.yt.kosher.common.GUID;
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeBinarySerializer;
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
 import ru.yandex.yt.rpcproxy.TReqAbortTransaction;
@@ -76,7 +77,6 @@ import ru.yandex.yt.rpcproxy.TRspTrimTable;
 import ru.yandex.yt.rpcproxy.TRspUnfreezeTable;
 import ru.yandex.yt.rpcproxy.TRspUnmountTable;
 import ru.yandex.yt.rpcproxy.TRspVersionedLookupRows;
-import ru.yandex.yt.ytclient.misc.YtGuid;
 import ru.yandex.yt.ytclient.misc.YtTimestamp;
 import ru.yandex.yt.ytclient.proxy.request.AlterTable;
 import ru.yandex.yt.ytclient.proxy.request.ConcatenateNodes;
@@ -151,10 +151,10 @@ public class ApiServiceClient {
             builder.body().setTimeout(ApiServiceUtil.durationToYtMicros(timeout));
         }
         if (options.getId() != null && !options.getId().isEmpty()) {
-            builder.body().setId(options.getId().toProto());
+            builder.body().setId(RpcUtil.toProto(options.getId()));
         }
         if (options.getParentId() != null && !options.getParentId().isEmpty()) {
-            builder.body().setParentId(options.getParentId().toProto());
+            builder.body().setParentId(RpcUtil.toProto(options.getParentId()));
         }
         if (options.getAutoAbort() != null) {
             builder.body().setAutoAbort(options.getAutoAbort());
@@ -180,32 +180,32 @@ public class ApiServiceClient {
         final Duration pingPeriod = options.getPingPeriod();
 
         return RpcUtil.apply(builder.invoke(), response -> {
-            YtGuid id = YtGuid.fromProto(response.body().getId());
+            GUID id = RpcUtil.fromProto(response.body().getId());
             YtTimestamp startTimestamp = YtTimestamp.valueOf(response.body().getStartTimestamp());
             return new ApiServiceTransaction(this, id, startTimestamp, ping, pingAncestors, sticky, pingPeriod);
         });
     }
 
-    public CompletableFuture<Void> pingTransaction(YtGuid id, boolean sticky) {
+    public CompletableFuture<Void> pingTransaction(GUID id, boolean sticky) {
         RpcClientRequestBuilder<TReqPingTransaction.Builder, RpcClientResponse<TRspPingTransaction>> builder =
                 service.pingTransaction();
-        builder.body().setTransactionId(id.toProto());
+        builder.body().setTransactionId(RpcUtil.toProto(id));
         builder.body().setSticky(sticky);
         return RpcUtil.apply(builder.invoke(), response -> null);
     }
 
-    public CompletableFuture<Void> commitTransaction(YtGuid id, boolean sticky) {
+    public CompletableFuture<Void> commitTransaction(GUID id, boolean sticky) {
         RpcClientRequestBuilder<TReqCommitTransaction.Builder, RpcClientResponse<TRspCommitTransaction>> builder =
                 service.commitTransaction();
-        builder.body().setTransactionId(id.toProto());
+        builder.body().setTransactionId(RpcUtil.toProto(id));
         builder.body().setSticky(sticky);
         return RpcUtil.apply(builder.invoke(), response -> null);
     }
 
-    public CompletableFuture<Void> abortTransaction(YtGuid id, boolean sticky) {
+    public CompletableFuture<Void> abortTransaction(GUID id, boolean sticky) {
         RpcClientRequestBuilder<TReqAbortTransaction.Builder, RpcClientResponse<TRspAbortTransaction>> builder =
                 service.abortTransaction();
-        builder.body().setTransactionId(id.toProto());
+        builder.body().setTransactionId(RpcUtil.toProto(id));
         builder.body().setSticky(sticky);
         return RpcUtil.apply(builder.invoke(), response -> null);
     }
@@ -256,16 +256,16 @@ public class ApiServiceClient {
         return existsNode(new ExistsNode(path));
     }
 
-    public CompletableFuture<YtGuid> createNode(CreateNode req) {
+    public CompletableFuture<GUID> createNode(CreateNode req) {
         RpcClientRequestBuilder<TReqCreateNode.Builder, RpcClientResponse<TRspCreateNode>> builder = service.createNode();
         req.writeTo(builder.body());
 
         return RpcUtil.apply(builder.invoke(),
                 response ->
-                        YtGuid.fromProto(response.body().getNodeId()));
+                        RpcUtil.fromProto(response.body().getNodeId()));
     }
 
-    public CompletableFuture<YtGuid> createNode(String path, ObjectType type) {
+    public CompletableFuture<GUID> createNode(String path, ObjectType type) {
         return createNode(new CreateNode(path, type));
     }
 
@@ -283,50 +283,50 @@ public class ApiServiceClient {
         RpcClientRequestBuilder<TReqLockNode.Builder, RpcClientResponse<TRspLockNode>> builder = service.lockNode();
         req.writeTo(builder.body());
         return RpcUtil.apply(builder.invoke(), response -> new LockNodeResult(
-                YtGuid.fromProto(response.body().getNodeId()),
-                YtGuid.fromProto(response.body().getLockId())));
+                RpcUtil.fromProto(response.body().getNodeId()),
+                RpcUtil.fromProto(response.body().getLockId())));
     }
 
     public CompletableFuture<LockNodeResult> lockNode(String path, LockMode mode) {
         return lockNode(new LockNode(path, mode));
     }
 
-    public CompletableFuture<YtGuid> copyNode(CopyNode req) {
+    public CompletableFuture<GUID> copyNode(CopyNode req) {
         RpcClientRequestBuilder<TReqCopyNode.Builder, RpcClientResponse<TRspCopyNode>> builder = service.copyNode();
         req.writeTo(builder.body());
 
         return RpcUtil.apply(builder.invoke(),
                 response ->
-                        YtGuid.fromProto(response.body().getNodeId()));
+                        RpcUtil.fromProto(response.body().getNodeId()));
     }
 
-    public CompletableFuture<YtGuid> copyNode(String src, String dst) {
+    public CompletableFuture<GUID> copyNode(String src, String dst) {
         return copyNode(new CopyNode(src, dst));
     }
 
-    public CompletableFuture<YtGuid> moveNode(MoveNode req) {
+    public CompletableFuture<GUID> moveNode(MoveNode req) {
         RpcClientRequestBuilder<TReqMoveNode.Builder, RpcClientResponse<TRspMoveNode>> builder = service.moveNode();
         req.writeTo(builder.body());
 
         return RpcUtil.apply(builder.invoke(),
                 response ->
-                        YtGuid.fromProto(response.body().getNodeId()));
+                        RpcUtil.fromProto(response.body().getNodeId()));
     }
 
-    public CompletableFuture<YtGuid> moveNode(String from, String to) {
+    public CompletableFuture<GUID> moveNode(String from, String to) {
         return moveNode(new MoveNode(from, to));
     }
 
-    public CompletableFuture<YtGuid> linkNode(LinkNode req) {
+    public CompletableFuture<GUID> linkNode(LinkNode req) {
         RpcClientRequestBuilder<TReqLinkNode.Builder, RpcClientResponse<TRspLinkNode>> builder = service.linkNode();
         req.writeTo(builder.body());
 
         return RpcUtil.apply(builder.invoke(),
                 response ->
-                        YtGuid.fromProto(response.body().getNodeId()));
+                        RpcUtil.fromProto(response.body().getNodeId()));
     }
 
-    public CompletableFuture<YtGuid> linkNode(String src, String dst) {
+    public CompletableFuture<GUID> linkNode(String src, String dst) {
         return linkNode(new LinkNode(src, dst));
     }
 
@@ -413,10 +413,10 @@ public class ApiServiceClient {
         });
     }
 
-    public CompletableFuture<Void> modifyRows(YtGuid transactionId, ModifyRowsRequest request) {
+    public CompletableFuture<Void> modifyRows(GUID transactionId, ModifyRowsRequest request) {
         RpcClientRequestBuilder<TReqModifyRows.Builder, RpcClientResponse<TRspModifyRows>> builder =
                 service.modifyRows();
-        builder.body().setTransactionId(transactionId.toProto());
+        builder.body().setTransactionId(RpcUtil.toProto(transactionId));
         builder.body().setPath(request.getPath());
         if (request.getRequireSyncReplica().isPresent()) {
             builder.body().setRequireSyncReplica(request.getRequireSyncReplica().get());
@@ -427,7 +427,7 @@ public class ApiServiceClient {
         return RpcUtil.apply(builder.invoke(), response -> null);
     }
 
-    public CompletableFuture<List<YtGuid>> getInSyncReplicas(GetInSyncReplicas request, YtTimestamp timestamp) {
+    public CompletableFuture<List<GUID>> getInSyncReplicas(GetInSyncReplicas request, YtTimestamp timestamp) {
         RpcClientRequestBuilder<TReqGetInSyncReplicas.Builder, RpcClientResponse<TRspGetInSyncReplicas>> builder =
                 service.getInSyncReplicas();
 
@@ -439,11 +439,11 @@ public class ApiServiceClient {
 
         return RpcUtil.apply(builder.invoke(),
                 response ->
-                        response.body().getReplicaIdsList().stream().map(YtGuid::fromProto).collect(Collectors.toList()));
+                        response.body().getReplicaIdsList().stream().map(RpcUtil::fromProto).collect(Collectors.toList()));
     }
 
     @Deprecated
-    public CompletableFuture<List<YtGuid>> getInSyncReplicas(
+    public CompletableFuture<List<GUID>> getInSyncReplicas(
             String path,
             YtTimestamp timestamp,
             TableSchema schema,
@@ -466,14 +466,14 @@ public class ApiServiceClient {
     }
 
     /* tables */
-    public CompletableFuture<Void> mountTable(String path, YtGuid cellId, boolean freeze) {
+    public CompletableFuture<Void> mountTable(String path, GUID cellId, boolean freeze) {
         RpcClientRequestBuilder<TReqMountTable.Builder, RpcClientResponse<TRspMountTable>> builder =
                 service.mountTable();
 
         builder.body().setPath(path);
         builder.body().setFreeze(freeze);
         if (cellId != null) {
-            builder.body().setCellId(cellId.toProto());
+            builder.body().setCellId(RpcUtil.toProto(cellId));
         }
         return RpcUtil.apply(builder.invoke(), response -> null);
     }

@@ -1,13 +1,14 @@
 package ru.yandex.yt.ytclient.proxy.request;
 
+import ru.yandex.inside.yt.kosher.common.GUID;
 import ru.yandex.yt.rpcproxy.TMutatingOptions;
-import ru.yandex.yt.ytclient.misc.YtGuid;
+import ru.yandex.yt.ytclient.rpc.RpcUtil;
 
 public class MutatingOptions {
-    private YtGuid id;
+    private GUID id;
     private Boolean retry;
 
-    public MutatingOptions setMutationId(YtGuid id) {
+    public MutatingOptions setMutationId(GUID id) {
         this.id = id;
         return this;
     }
@@ -19,7 +20,7 @@ public class MutatingOptions {
 
     public TMutatingOptions.Builder writeTo(TMutatingOptions.Builder builder) {
         if (id != null) {
-            builder.setMutationId(id.toProto());
+            builder.setMutationId(RpcUtil.toProto(id));
         }
         if (retry != null) {
             builder.setRetry(retry);

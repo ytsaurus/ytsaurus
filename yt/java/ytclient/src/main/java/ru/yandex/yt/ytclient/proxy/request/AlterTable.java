@@ -4,14 +4,15 @@ import java.util.Optional;
 
 import com.google.protobuf.ByteString;
 
+import ru.yandex.inside.yt.kosher.common.GUID;
 import ru.yandex.yt.rpcproxy.TReqAlterTable;
-import ru.yandex.yt.ytclient.misc.YtGuid;
+import ru.yandex.yt.ytclient.rpc.RpcUtil;
 import ru.yandex.yt.ytclient.tables.TableSchema;
 
 public class AlterTable extends TableReq<AlterTable> {
     private TableSchema schema;
     private Optional<Boolean> dynamic;
-    private YtGuid upstreamReplicaId;
+    private GUID upstreamReplicaId;
     private TransactionalOptions transactionalOptions;
 
     public AlterTable(String path) {
@@ -28,7 +29,7 @@ public class AlterTable extends TableReq<AlterTable> {
         return this;
     }
 
-    public AlterTable setUpstreamReplicaId(YtGuid guid) {
+    public AlterTable setUpstreamReplicaId(GUID guid) {
         this.upstreamReplicaId = guid;
         return this;
     }
@@ -48,7 +49,7 @@ public class AlterTable extends TableReq<AlterTable> {
         dynamic.ifPresent(x -> builder.setDynamic(x));
 
         if (upstreamReplicaId != null) {
-            builder.setUpstreamReplicaId(upstreamReplicaId.toProto());
+            builder.setUpstreamReplicaId(RpcUtil.toProto(upstreamReplicaId));
         }
 
         if (transactionalOptions != null) {

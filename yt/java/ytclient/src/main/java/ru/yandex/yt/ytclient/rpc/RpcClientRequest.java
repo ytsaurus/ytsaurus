@@ -3,8 +3,8 @@ package ru.yandex.yt.ytclient.rpc;
 import java.time.Duration;
 import java.util.List;
 
+import ru.yandex.inside.yt.kosher.common.GUID;
 import ru.yandex.yt.rpc.TRequestHeader;
-import ru.yandex.yt.ytclient.misc.YtGuid;
 
 /**
  * Базовый интерфейс для построения rpc запросов
@@ -30,8 +30,8 @@ public interface RpcClientRequest {
     /**
      * Возвращает id запроса
      */
-    default YtGuid getRequestId() {
-        return YtGuid.fromProto(header().getRequestIdOrBuilder());
+    default GUID getRequestId() {
+        return RpcUtil.fromProto(header().getRequestIdOrBuilder());
     }
 
     /**
@@ -51,15 +51,15 @@ public interface RpcClientRequest {
     /**
      * Возвращает id области
      */
-    default YtGuid getRealmId() {
-        return YtGuid.fromProto(header().getRealmIdOrBuilder());
+    default GUID getRealmId() {
+        return RpcUtil.fromProto(header().getRealmIdOrBuilder());
     }
 
     /**
      * Возвращает id мутации
      */
-    default YtGuid getMutationId() {
-        return YtGuid.fromProto(header().getMutationIdOrBuilder());
+    default GUID getMutationId() {
+        return RpcUtil.fromProto(header().getMutationIdOrBuilder());
     }
 
     /**

@@ -10,11 +10,11 @@ import io.netty.channel.ChannelPromise;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import ru.yandex.inside.yt.kosher.common.GUID;
 import ru.yandex.yt.ytclient.bus.Bus;
 import ru.yandex.yt.ytclient.bus.BusDeliveryTracking;
 import ru.yandex.yt.ytclient.bus.BusLifecycle;
 import ru.yandex.yt.ytclient.bus.BusListener;
-import ru.yandex.yt.ytclient.misc.YtGuid;
 
 public class BusProtocolHandler extends ChannelDuplexHandler {
     private static final Logger logger = LoggerFactory.getLogger(BusProtocolHandler.class);
@@ -24,15 +24,15 @@ public class BusProtocolHandler extends ChannelDuplexHandler {
     private final Deque<DeliveryEntry> deliveryQueue = new ArrayDeque<>();
 
     private static class DeliveryEntry {
-        private final YtGuid packetId;
+        private final GUID packetId;
         private final ChannelPromise promise;
 
-        public DeliveryEntry(YtGuid packetId, ChannelPromise promise) {
+        public DeliveryEntry(GUID packetId, ChannelPromise promise) {
             this.packetId = packetId;
             this.promise = promise;
         }
 
-        public YtGuid getPacketId() {
+        public GUID getPacketId() {
             return packetId;
         }
 
@@ -161,7 +161,7 @@ public class BusProtocolHandler extends ChannelDuplexHandler {
                 promise.tryFailure(new ClosedChannelException());
                 return;
             }
-            YtGuid packetId = outgoingMessage.getPacketId();
+            GUID packetId = outgoingMessage.getPacketId();
             short flags = BusPacketFlags.NONE;
             BusDeliveryTracking level = outgoingMessage.getLevel();
             ChannelPromise writePromise = promise;

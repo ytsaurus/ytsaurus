@@ -12,7 +12,7 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
-import ru.yandex.yt.ytclient.misc.YtGuid;
+import ru.yandex.inside.yt.kosher.common.GUID;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
@@ -30,7 +30,7 @@ public class BusPacketDecoderTest {
                 new Object[]{true}};
     }
 
-    private static final YtGuid SAMPLE_PACKET_ID = new YtGuid(0x0001020304050607L, 0x08090a0b0c0d0e0fL);
+    private static final GUID SAMPLE_PACKET_ID = new GUID(0x0001020304050607L, 0x08090a0b0c0d0e0fL);
 
     private static final String SAMPLE_PACKET_DATA
             = "4F6D6178" // signature

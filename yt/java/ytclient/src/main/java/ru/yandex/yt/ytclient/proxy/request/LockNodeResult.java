@@ -1,12 +1,12 @@
 package ru.yandex.yt.ytclient.proxy.request;
 
-import ru.yandex.yt.ytclient.misc.YtGuid;
+import ru.yandex.inside.yt.kosher.common.GUID;
 
 public class LockNodeResult {
-    public final YtGuid nodeId;
-    public final YtGuid lockId;
+    public final GUID nodeId;
+    public final GUID lockId;
 
-    public LockNodeResult(YtGuid n, YtGuid l) {
+    public LockNodeResult(GUID n, GUID l) {
         nodeId = n;
         lockId = l;
     }

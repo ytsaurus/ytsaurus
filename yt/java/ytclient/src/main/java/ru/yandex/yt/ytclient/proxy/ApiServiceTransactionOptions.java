@@ -3,10 +3,10 @@ package ru.yandex.yt.ytclient.proxy;
 import java.time.Duration;
 import java.util.Objects;
 
+import ru.yandex.inside.yt.kosher.common.GUID;
 import ru.yandex.yt.rpcproxy.EAtomicity;
 import ru.yandex.yt.rpcproxy.EDurability;
 import ru.yandex.yt.rpcproxy.ETransactionType;
-import ru.yandex.yt.ytclient.misc.YtGuid;
 
 /**
  * Опции для открытия транзакций
@@ -14,8 +14,8 @@ import ru.yandex.yt.ytclient.misc.YtGuid;
 public class ApiServiceTransactionOptions {
     private final ETransactionType type;
     private Duration timeout;
-    private YtGuid id;
-    private YtGuid parentId;
+    private GUID id;
+    private GUID parentId;
     private Boolean autoAbort;
     private Boolean ping;
     private Boolean pingAncestors;
@@ -36,11 +36,11 @@ public class ApiServiceTransactionOptions {
         return timeout;
     }
 
-    public YtGuid getId() {
+    public GUID getId() {
         return id;
     }
 
-    public YtGuid getParentId() {
+    public GUID getParentId() {
         return parentId;
     }
 
@@ -77,12 +77,12 @@ public class ApiServiceTransactionOptions {
         return this;
     }
 
-    public ApiServiceTransactionOptions setId(YtGuid id) {
+    public ApiServiceTransactionOptions setId(GUID id) {
         this.id = id;
         return this;
     }
 
-    public ApiServiceTransactionOptions setParentId(YtGuid parentId) {
+    public ApiServiceTransactionOptions setParentId(GUID parentId) {
         this.parentId = parentId;
         return this;
     }

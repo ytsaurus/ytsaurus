@@ -8,11 +8,12 @@ import java.util.Objects;
 
 import com.google.protobuf.MessageLite;
 
+import ru.yandex.inside.yt.kosher.common.GUID;
 import ru.yandex.yt.rpc.TRequestHeader;
-import ru.yandex.yt.ytclient.misc.YtGuid;
 import ru.yandex.yt.ytclient.rpc.RpcClient;
 import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
 import ru.yandex.yt.ytclient.rpc.RpcOptions;
+import ru.yandex.yt.ytclient.rpc.RpcUtil;
 
 /**
  * Реализация интерфейсов
@@ -42,7 +43,7 @@ public class RpcServiceClient implements InvocationHandler {
 
     private TRequestHeader.Builder createHeader(RpcServiceMethodDescriptor methodDescriptor) {
         TRequestHeader.Builder builder = TRequestHeader.newBuilder();
-        builder.setRequestId(YtGuid.create().toProto());
+        builder.setRequestId(RpcUtil.toProto(GUID.create()));
         builder.setService(serviceName);
         builder.setMethod(methodDescriptor.getMethodName());
         builder.setProtocolVersion(protocolVersion);

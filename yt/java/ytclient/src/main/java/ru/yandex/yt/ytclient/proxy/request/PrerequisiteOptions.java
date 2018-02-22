@@ -1,15 +1,16 @@
 package ru.yandex.yt.ytclient.proxy.request;
 
+import ru.yandex.inside.yt.kosher.common.GUID;
 import ru.yandex.yt.rpcproxy.TPrerequisiteOptions;
-import ru.yandex.yt.ytclient.misc.YtGuid;
+import ru.yandex.yt.ytclient.rpc.RpcUtil;
 
 public class PrerequisiteOptions {
     public class RevisionPrerequsite {
         public final String path;
         public final long revision;
-        public final YtGuid id;
+        public final GUID id;
 
-        public RevisionPrerequsite(String path, long revision, YtGuid id) {
+        public RevisionPrerequsite(String path, long revision, GUID id) {
             this.path = path;
             this.revision = revision;
             this.id = id;
@@ -20,10 +21,10 @@ public class PrerequisiteOptions {
         }
     }
 
-    private YtGuid [] transactionId;
+    private GUID [] transactionId;
     private RevisionPrerequsite [] revisions;
 
-    public PrerequisiteOptions setTransactionId(YtGuid [] transactionId) {
+    public PrerequisiteOptions setTransactionId(GUID [] transactionId) {
         this.transactionId = transactionId;
         return this;
     }
@@ -37,7 +38,7 @@ public class PrerequisiteOptions {
         if (transactionId != null) {
             for (int i = 0; i < transactionId.length; ++i) {
                 builder.addTransactions(TPrerequisiteOptions.TTransactionPrerequisite.newBuilder()
-                        .setTransactionId(transactionId[i].toProto()).build());
+                        .setTransactionId(RpcUtil.toProto(transactionId[i])).build());
             }
         }
         if (revisions != null) {
@@ -46,7 +47,7 @@ public class PrerequisiteOptions {
                 builder.addRevisions(TPrerequisiteOptions.TRevisionPrerequisite.newBuilder()
                         .setPath(rev.path)
                         .setRevision(rev.revision)
-                        .setTransactionId(rev.id.toProto())
+                        .setTransactionId(RpcUtil.toProto(rev.id))
                         .build());
             }
         }
