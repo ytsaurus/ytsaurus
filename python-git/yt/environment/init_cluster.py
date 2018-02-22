@@ -122,7 +122,10 @@ def initialize_world(client=None, idm=None, proxy_address=None, ui_address=None,
 
     add_acl("//sys/tokens", {"action": "allow", "subjects": ["admins"], "permissions": ["read", "write", "remove"]},
             client)
+    add_acl("//sys/tablet_cells", {"action": "allow", "subjects": ["admins"], "permissions": ["read", "write", "remove", "administer"]}, client)
+    add_acl("//sys/tablet_cells", {"action": "allow", "subjects": ["odin"], "permissions": ["read"]}, client)
     client.set("//sys/tokens/@inherit_acl", "false")
+    client.set("//sys/tablet_cells/@inherit_acl", "false")
 
     if not client.exists("//sys/accounts/tmp_files"):
         client.create("account", attributes={"name": "tmp_files",
