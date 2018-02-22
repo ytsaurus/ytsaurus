@@ -16,10 +16,10 @@ import io.netty.util.AttributeKey;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import ru.yandex.inside.yt.kosher.common.GUID;
 import ru.yandex.yt.ytclient.bus.internal.BusOutgoingMessage;
 import ru.yandex.yt.ytclient.bus.metrics.DefaultBusChannelMetricsHolder;
 import ru.yandex.yt.ytclient.bus.metrics.DefaultBusChannelMetricsHolderImpl;
-import ru.yandex.yt.ytclient.misc.YtGuid;
 
 /**
  * Канал, работающий по протоколу bus
@@ -111,7 +111,7 @@ public class DefaultBusChannel implements Bus, BusLifecycle {
         return result;
     }
 
-    private void logWriteResult(YtGuid packetId, Instant started) {
+    private void logWriteResult(GUID packetId, Instant started) {
         long elapsed = Duration.between(started, Instant.now()).toMillis();
         logger.debug("(DefaultBusChannel({}@{})) message `{}` sent in {} ms",
             channel.remoteAddress(), hashCode(), packetId, elapsed);
@@ -128,7 +128,7 @@ public class DefaultBusChannel implements Bus, BusLifecycle {
             result.completeExceptionally(connected.cause());
         } else {
             Instant started = Instant.now();
-            YtGuid packetId = outgoingMessage.getPacketId();
+            GUID packetId = outgoingMessage.getPacketId();
             logger.debug("(DefaultBusChannel({}@{})) sending message `{}`",
                 channel.remoteAddress(), hashCode(), packetId);
             ChannelFuture writeResult = channel.writeAndFlush(outgoingMessage);

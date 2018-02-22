@@ -6,8 +6,8 @@ import java.util.Objects;
 
 import io.netty.buffer.ByteBuf;
 
+import ru.yandex.inside.yt.kosher.common.GUID;
 import ru.yandex.yt.ytclient.bus.BusUtil;
-import ru.yandex.yt.ytclient.misc.YtGuid;
 
 /**
  * Десериализованное представление пакета bus
@@ -21,20 +21,20 @@ public class BusPacket {
 
     private final BusPacketType type;
     private final short flags;
-    private final YtGuid packetId;
+    private final GUID packetId;
     private final List<byte[]> message;
 
     /**
      * Создаёт пакет без приаттаченных данных
      */
-    public BusPacket(BusPacketType type, short flags, YtGuid packetId) {
+    public BusPacket(BusPacketType type, short flags, GUID packetId) {
         this(type, flags, packetId, Collections.emptyList());
     }
 
     /**
      * Создаёт пакет с опционально приаттаченным сообщением
      */
-    public BusPacket(BusPacketType type, short flags, YtGuid packetId, List<byte[]> message) {
+    public BusPacket(BusPacketType type, short flags, GUID packetId, List<byte[]> message) {
         this.type = Objects.requireNonNull(type);
         this.flags = flags;
         this.packetId = Objects.requireNonNull(packetId);
@@ -49,7 +49,7 @@ public class BusPacket {
         return flags;
     }
 
-    public YtGuid getPacketId() {
+    public GUID getPacketId() {
         return packetId;
     }
 

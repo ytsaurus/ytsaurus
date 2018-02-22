@@ -6,8 +6,8 @@ import joptsimple.OptionParser;
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
 
+import ru.yandex.inside.yt.kosher.common.GUID;
 import ru.yandex.yt.rpcproxy.ETransactionType;
-import ru.yandex.yt.ytclient.misc.YtGuid;
 import ru.yandex.yt.ytclient.proxy.ApiServiceTransaction;
 import ru.yandex.yt.ytclient.proxy.ApiServiceTransactionOptions;
 import ru.yandex.yt.ytclient.proxy.request.ObjectType;
@@ -56,7 +56,7 @@ public class CypressExample {
                         }
                     }).get();
 
-                    YtGuid guid = t.createNode(node, ObjectType.Table).get();
+                    GUID guid = t.createNode(node, ObjectType.Table).get();
                     /*
                     Map<String, YTreeNode> data = new HashMap<String, YTreeNode>();
                     data.put("k1", new YTreeInt64Node(10, new HashMap<>()));

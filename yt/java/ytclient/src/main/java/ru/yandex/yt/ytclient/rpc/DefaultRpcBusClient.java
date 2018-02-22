@@ -24,6 +24,7 @@ import io.netty.util.concurrent.ScheduledFuture;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import ru.yandex.inside.yt.kosher.common.GUID;
 import ru.yandex.yt.rpc.TRequestCancelationHeader;
 import ru.yandex.yt.rpc.TRequestHeaderOrBuilder;
 import ru.yandex.yt.rpc.TResponseHeader;
@@ -31,7 +32,6 @@ import ru.yandex.yt.ytclient.bus.Bus;
 import ru.yandex.yt.ytclient.bus.BusDeliveryTracking;
 import ru.yandex.yt.ytclient.bus.BusFactory;
 import ru.yandex.yt.ytclient.bus.BusListener;
-import ru.yandex.yt.ytclient.misc.YtGuid;
 import ru.yandex.yt.ytclient.rpc.metrics.DefaultRpcBusClientMetricsHolder;
 import ru.yandex.yt.ytclient.rpc.metrics.DefaultRpcBusClientMetricsHolderImpl;
 
@@ -91,7 +91,7 @@ public class DefaultRpcBusClient implements RpcClient {
      */
     private class Session implements BusListener {
         private final Bus bus;
-        private final ConcurrentHashMap<YtGuid, Request> activeRequests = new ConcurrentHashMap<>();
+        private final ConcurrentHashMap<GUID, Request> activeRequests = new ConcurrentHashMap<>();
         private final String sessionName = String.format("Session(%s@%s)", name, Integer.toHexString(hashCode()));
 
         public Session() {
@@ -134,7 +134,7 @@ public class DefaultRpcBusClient implements RpcClient {
                     } catch (RuntimeException | IOException e) {
                         throw new IllegalStateException("Failed to parse message header", e);
                     }
-                    YtGuid requestId = YtGuid.fromProto(header.getRequestId());
+                    GUID requestId = RpcUtil.fromProto(header.getRequestId());
                     Request request = activeRequests.get(requestId);
                     if (request == null) {
                         // Может произойти, если мы отменили запрос, но успели получить ответ
@@ -211,7 +211,7 @@ public class DefaultRpcBusClient implements RpcClient {
         private final Session session;
         private final RpcClientRequest request;
         private final RpcClientResponseHandler handler;
-        private final YtGuid requestId;
+        private final GUID requestId;
         private Instant started;
         private final Statistics stat;
 

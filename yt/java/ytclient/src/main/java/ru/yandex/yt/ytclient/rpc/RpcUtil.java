@@ -20,6 +20,9 @@ import com.google.protobuf.CodedOutputStream;
 import com.google.protobuf.MessageLite;
 import io.netty.buffer.ByteBuf;
 
+import ru.yandex.inside.yt.kosher.common.GUID;
+import ru.yandex.yt.TGuid;
+import ru.yandex.yt.TGuidOrBuilder;
 import ru.yandex.yt.TSerializedMessageEnvelope;
 import ru.yandex.yt.rpc.TRequestCancelationHeader;
 import ru.yandex.yt.rpc.TRequestHeader;
@@ -307,5 +310,13 @@ public class RpcUtil {
         long seconds = micros / MICROS_PER_SECOND;
         long nanos = (micros % MICROS_PER_SECOND) * NANOS_PER_MICROSECOND;
         return Instant.ofEpochSecond(seconds, nanos);
+    }
+
+    public static TGuid toProto(GUID guid) {
+        return TGuid.newBuilder().setFirst(guid.getFirst()).setSecond(guid.getSecond()).build();
+    }
+
+    public static GUID fromProto(TGuidOrBuilder guid) {
+        return new GUID(guid.getFirst(), guid.getSecond());
     }
 }

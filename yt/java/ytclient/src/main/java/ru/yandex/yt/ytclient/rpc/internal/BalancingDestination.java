@@ -4,12 +4,12 @@ import java.time.Duration;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 
+import ru.yandex.inside.yt.kosher.common.GUID;
 import ru.yandex.yt.rpcproxy.ETransactionType;
 import ru.yandex.yt.rpcproxy.TReqPingTransaction;
 import ru.yandex.yt.rpcproxy.TReqStartTransaction;
 import ru.yandex.yt.rpcproxy.TRspPingTransaction;
 import ru.yandex.yt.rpcproxy.TRspStartTransaction;
-import ru.yandex.yt.ytclient.misc.YtGuid;
 import ru.yandex.yt.ytclient.proxy.ApiService;
 import ru.yandex.yt.ytclient.proxy.ApiServiceUtil;
 import ru.yandex.yt.ytclient.rpc.RpcClient;
@@ -31,7 +31,7 @@ public class BalancingDestination {
     private int index;
 
     private final ApiService service;
-    private YtGuid transaction = null;
+    private GUID transaction = null;
 
     private final String destinationName;
 
@@ -88,7 +88,7 @@ public class BalancingDestination {
         client.close();
     }
 
-    public CompletableFuture<YtGuid> createTransaction(Duration timeout) {
+    public CompletableFuture<GUID> createTransaction(Duration timeout) {
         if (transaction == null) {
             RpcClientRequestBuilder<TReqStartTransaction.Builder, RpcClientResponse<TRspStartTransaction>> builder =
                 service.startTransaction();
@@ -96,7 +96,7 @@ public class BalancingDestination {
             builder.body().setType(ETransactionType.TT_TABLET);
             builder.body().setSticky(true);
             return RpcUtil.apply(builder.invoke(), response -> {
-                YtGuid id = YtGuid.fromProto(response.body().getId());
+                GUID id = RpcUtil.fromProto(response.body().getId());
                 return id;
             });
         } else {
@@ -104,10 +104,10 @@ public class BalancingDestination {
         }
     }
 
-    public CompletableFuture<Void> pingTransaction(YtGuid id) {
+    public CompletableFuture<Void> pingTransaction(GUID id) {
         RpcClientRequestBuilder<TReqPingTransaction.Builder, RpcClientResponse<TRspPingTransaction>> builder =
             service.pingTransaction();
-        builder.body().setTransactionId(id.toProto());
+        builder.body().setTransactionId(RpcUtil.toProto(id));
         builder.body().setSticky(true);
 
         long start = System.nanoTime();

@@ -5,8 +5,9 @@ import java.util.Objects;
 
 import io.netty.buffer.ByteBuf;
 
+import ru.yandex.inside.yt.kosher.common.GUID;
+import ru.yandex.yt.ytclient.bus.BusUtil;
 import ru.yandex.yt.ytclient.misc.YtCrc64;
-import ru.yandex.yt.ytclient.misc.YtGuid;
 
 public class BusPacketFixedHeader {
     /**
@@ -21,10 +22,10 @@ public class BusPacketFixedHeader {
 
     private final BusPacketType type;
     private final short flags;
-    private final YtGuid packetId;
+    private final GUID packetId;
     private final int partCount;
 
-    public BusPacketFixedHeader(BusPacketType type, short flags, YtGuid packetId, int partCount) {
+    public BusPacketFixedHeader(BusPacketType type, short flags, GUID packetId, int partCount) {
         this.type = Objects.requireNonNull(type);
         this.flags = flags;
         this.packetId = Objects.requireNonNull(packetId);
@@ -39,7 +40,7 @@ public class BusPacketFixedHeader {
         return flags;
     }
 
-    public YtGuid getPacketId() {
+    public GUID getPacketId() {
         return packetId;
     }
 
@@ -56,7 +57,7 @@ public class BusPacketFixedHeader {
         }
         BusPacketType type = BusPacketType.fromValue(in.readShort());
         short flags = in.readShort();
-        YtGuid packetId = YtGuid.readFrom(in);
+        GUID packetId = BusUtil.readGuidFrom(in);
         int partCount = in.readInt();
         int end = in.readerIndex();
         long checksum = in.readLong();
@@ -80,7 +81,7 @@ public class BusPacketFixedHeader {
         out.writeInt(BusPacket.PACKET_SIGNATURE);
         out.writeShort(type.getValue());
         out.writeShort(flags);
-        packetId.writeTo(out);
+        BusUtil.writeTo(out, packetId);
         out.writeInt(partCount);
         int end = out.writerIndex();
         long checksum = BusPacket.NULL_CHECKSUM;

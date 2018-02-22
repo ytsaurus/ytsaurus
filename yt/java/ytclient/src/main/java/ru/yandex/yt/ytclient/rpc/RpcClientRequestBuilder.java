@@ -6,8 +6,8 @@ import java.util.concurrent.CompletableFuture;
 
 import com.google.protobuf.MessageLite;
 
+import ru.yandex.inside.yt.kosher.common.GUID;
 import ru.yandex.yt.rpc.TRequestHeader;
-import ru.yandex.yt.ytclient.misc.YtGuid;
 
 /**
  * Позволяет построить и в дальнейшем сделать запрос
@@ -72,11 +72,11 @@ public interface RpcClientRequestBuilder<RequestType extends MessageLite.Builder
     /**
      * Выставляет id мутации
      */
-    default void setMutationId(YtGuid mutationId) {
+    default void setMutationId(GUID mutationId) {
         if (mutationId.isEmpty()) {
             header().clearMutationId();
         } else {
-            header().setMutationId(mutationId.toProto());
+            header().setMutationId(RpcUtil.toProto(mutationId));
         }
     }
 
