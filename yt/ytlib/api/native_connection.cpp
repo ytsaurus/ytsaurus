@@ -238,6 +238,17 @@ public:
         return it->second;
     }
 
+    virtual IChannelPtr GetMasterChannelOrThrow(
+        EMasterChannelKind kind,
+        const TCellId& cellId) override
+    {
+        if (ReplaceCellTagInId(cellId, 0) != ReplaceCellTagInId(PrimaryMasterCellId_, 0)) {
+            THROW_ERROR_EXCEPTION("Unknown master cell id %v",
+                cellId);
+        }
+        return GetMasterChannelOrThrow(kind, CellTagFromId(cellId));
+    }
+
     virtual const IChannelPtr& GetSchedulerChannel() override
     {
         return SchedulerChannel_;
