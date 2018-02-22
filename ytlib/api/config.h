@@ -272,6 +272,9 @@ public:
     //! The limit for the number of rows to be returned by #TPersistentQueuePoller::Poll call.
     i64 MaxRowsPerPoll;
 
+    //! The limit on maximum number of consumed but not yet trimmed row indexes. No new rows are fetched when the limit is reached.
+    i64 MaxFetchedUntrimmedRowCount;
+
     //! When trimming data table, keep the number of consumed but untrimmed rows about this level.
     i64 UntrimmedDataRowsLow;
 
@@ -302,6 +305,9 @@ public:
         RegisterParameter("max_rows_per_poll", MaxRowsPerPoll)
             .GreaterThan(0)
             .Default(1);
+        RegisterParameter("max_fetched_untrimmed_row_count", MaxFetchedUntrimmedRowCount)
+            .GreaterThan(0)
+            .Default(40000);
         RegisterParameter("untrimmed_data_rows_low", UntrimmedDataRowsLow)
             .Default(0);
         RegisterParameter("untrimmed_data_rows_high", UntrimmedDataRowsHigh)
