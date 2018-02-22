@@ -4916,8 +4916,13 @@ private:
         }
 
         if (options.IncludeArchive && isArchiveExists) {
-            auto archiveJobs = WaitFor(archiveJobsFuture)
-                .ValueOrThrow();
+            auto archiveJobsOrError = WaitFor(archiveJobsFuture);
+            if (!archiveJobsOrError.IsOK()) {
+                THROW_ERROR_EXCEPTION(EErrorCode::JobArchiveUnavailable, "Job archive is unavailable")
+                    << archiveJobsOrError;
+            }
+
+            auto archiveJobs = archiveJobsOrError.Value();
             result.ArchiveJobCount = archiveJobs.second;
             updateResultJobs(archiveJobs.first);
         }
