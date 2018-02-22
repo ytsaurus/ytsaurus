@@ -256,7 +256,7 @@ TInputChunkSlice::TInputChunkSlice(
     }
 }
 
-std::vector<TInputChunkSlicePtr> TInputChunkSlice::SliceEvenly(i64 sliceDataWeight, i64 sliceRowCount) const
+std::vector<TInputChunkSlicePtr> TInputChunkSlice::SliceEvenly(i64 sliceDataWeight, i64 sliceRowCount, TRowBufferPtr rowBuffer) const
 {
     YCHECK(sliceDataWeight > 0);
     YCHECK(sliceRowCount > 0);
@@ -280,6 +280,10 @@ std::vector<TInputChunkSlicePtr> TInputChunkSlice::SliceEvenly(i64 sliceDataWeig
                 sliceUpperRowIndex,
                 DivCeil(GetDataWeight(), count)));
         }
+    }
+    if (rowBuffer) {
+        result.front()->LowerLimit().Key = rowBuffer->Capture(LowerLimit_.Key);
+        result.back()->UpperLimit().Key = rowBuffer->Capture(UpperLimit_.Key);
     }
     return result;
 }

@@ -19,44 +19,23 @@ using namespace NJobTrackerClient::NProto;
 
 TAutoMergeChunkPoolAdapter::TAutoMergeChunkPoolAdapter(
     IChunkPoolInput* underlyingInput,
-    TAutoMergeTask* task,
-    i64 chunkSizeThreshold,
-    i64 maxDataWeightPerJob)
+    TAutoMergeTask* task)
     : TChunkPoolInputAdapterBase(underlyingInput)
     , Task_(task)
-    , ChunkSizeThreshold_(chunkSizeThreshold)
-    , MaxDataWeightPerJob_(maxDataWeightPerJob)
 { }
 
 IChunkPoolInput::TCookie TAutoMergeChunkPoolAdapter::AddWithKey(TChunkStripePtr stripe, TChunkStripeKey key)
 {
     // We perform an in-place filtration of all large chunks.
-    int firstUnusedIndex = 0;
-    for (const auto& slice : stripe->DataSlices) {
-        const auto& chunk = slice->GetSingleUnversionedChunkOrThrow();
-        if (chunk->IsLargeCompleteChunk(ChunkSizeThreshold_) ||
-            chunk->GetDataWeight() >= 0.5 * MaxDataWeightPerJob_)
-        {
-            Task_->RegisterTeleportChunk(chunk);
-        } else {
-            stripe->DataSlices[firstUnusedIndex++] = std::move(slice);
-        }
-    }
-    stripe->DataSlices.resize(firstUnusedIndex);
+    Task_->GetTaskHost()->GetAutoMergeDirector()->AccountMergeInputChunks(stripe->GetChunkCount() /* intermediateChunkCount */);
+    Task_->CurrentChunkCount_ += stripe->GetChunkCount();
 
-    Task_->GetTaskHost()->GetAutoMergeDirector()->AccountMergeInputChunks(firstUnusedIndex /* intermediateChunkCount */);
-    Task_->CurrentChunkCount_ += firstUnusedIndex;
-
-    if (stripe->DataSlices.empty()) {
-        return IChunkPoolInput::NullCookie;
-    } else {
-        auto cookie = TChunkPoolInputAdapterBase::AddWithKey(stripe, key);
-        if (CookieChunkCount_.size() <= cookie) {
-            CookieChunkCount_.resize(cookie + 1);
-        }
-        CookieChunkCount_[cookie] = stripe->GetChunkCount();
-        return cookie;
+    auto cookie = TChunkPoolInputAdapterBase::AddWithKey(stripe, key);
+    if (CookieChunkCount_.size() <= cookie) {
+        CookieChunkCount_.resize(cookie + 1);
     }
+    CookieChunkCount_[cookie] = stripe->GetChunkCount();
+    return cookie;
 }
 
 IChunkPoolInput::TCookie TAutoMergeChunkPoolAdapter::Add(TChunkStripePtr stripe)
@@ -79,13 +58,6 @@ void TAutoMergeChunkPoolAdapter::Persist(const TPersistenceContext& context)
     using NYT::Persist;
 
     Persist(context, Task_);
-    Persist(context, ChunkSizeThreshold_);
-
-    // COMPAT(max42)
-    if (context.GetVersion() >= 201999) {
-        Persist(context, MaxDataWeightPerJob_);
-    }
-
     Persist(context, CookieChunkCount_);
 }
 
@@ -98,7 +70,6 @@ TAutoMergeTask::TAutoMergeTask(
     int tableIndex,
     int maxChunksPerJob,
     i64 chunkSizeThreshold,
-    i64 desiredChunkSize,
     i64 dataWeightPerJob,
     i64 maxDataWeightPerJob,
     TEdgeDescriptor edgeDescriptor)
@@ -116,18 +87,23 @@ TAutoMergeTask::TAutoMergeTask(
         std::numeric_limits<i64>::max() /* inputSliceDataSize */,
         std::numeric_limits<i64>::max() /* inputSliceRowCount */);
 
+    TUnorderedChunkPoolOptions options;
+    options.Mode = EUnorderedChunkPoolMode::AutoMerge;
+    options.JobSizeConstraints = std::move(autoMergeJobSizeConstraints);
+    options.MinTeleportChunkDataWeight = 0.5 * maxDataWeightPerJob;
+    options.MinTeleportChunkSize = chunkSizeThreshold;
+    options.OperationId = TaskHost_->GetOperationId();
+    options.Task = GetTitle();
+
     ChunkPool_ = CreateUnorderedChunkPool(
-        autoMergeJobSizeConstraints,
-        nullptr /* jobSizeAdjusterConfig */,
-        EUnorderedChunkPoolMode::AutoMerge /* autoMergeMode */);
+        std::move(options),
+        TeleportableIntermediateInputStreamDirectory);
     TaskHost_->GetDataFlowGraph()
         ->RegisterCounter(GetVertexDescriptor(), ChunkPool_->GetJobCounter(), GetJobType());
 
     ChunkPoolInput_ = std::make_unique<TAutoMergeChunkPoolAdapter>(
         ChunkPool_.get(),
-        this,
-        chunkSizeThreshold,
-        maxDataWeightPerJob);
+        this);
 }
 
 TString TAutoMergeTask::GetTitle() const
@@ -194,6 +170,7 @@ void TAutoMergeTask::BuildJobSpec(TJobletPtr joblet, NJobTrackerClient::NProto::
 
 void TAutoMergeTask::UpdateSelf()
 {
+    RegisterNewTeleportChunks();
     CanScheduleJob_ = TaskHost_->GetAutoMergeDirector()
         ->CanScheduleMergeJob(CurrentChunkCount_);
     if (CanScheduleJob_) {
@@ -244,9 +221,13 @@ void TAutoMergeTask::OnJobFailed(TJobletPtr joblet, const TFailedJobSummary& job
     TaskHost_->GetAutoMergeDirector()->OnMergeJobFinished(0 /* unregisteredIntermediateChunkCount */);
 }
 
-void TAutoMergeTask::RegisterTeleportChunk(NChunkClient::TInputChunkPtr chunk)
+void TAutoMergeTask::RegisterNewTeleportChunks()
 {
-    TaskHost_->RegisterTeleportChunk(chunk, 0 /* key */, TableIndex_);
+    const auto& teleportChunks = ChunkPool_->GetTeleportChunks();
+    while (RegisteredTeleportChunkCount_ < teleportChunks.size()) {
+        TaskHost_->RegisterTeleportChunk(teleportChunks[RegisteredTeleportChunkCount_++], 0 /* key */, 0 /* tableIndex */);
+        --CurrentChunkCount_;
+    }
 }
 
 void TAutoMergeTask::SetupCallbacks()
@@ -266,6 +247,7 @@ void TAutoMergeTask::Persist(const TPersistenceContext& context)
     Persist(context, ChunkPoolInput_);
     Persist(context, TableIndex_);
     Persist(context, CurrentChunkCount_);
+    Persist(context, RegisteredTeleportChunkCount_);
 }
 
 bool TAutoMergeTask::SupportsInputPathYson() const

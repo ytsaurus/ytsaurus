@@ -40,8 +40,9 @@ TChunkStripe::TChunkStripe(bool foreign, bool solid)
     , Solid(solid)
 { }
 
-TChunkStripe::TChunkStripe(TInputDataSlicePtr dataSlice, bool foreign)
+TChunkStripe::TChunkStripe(TInputDataSlicePtr dataSlice, bool foreign, bool solid)
     : Foreign(foreign)
+    , Solid(solid)
 {
     DataSlices.emplace_back(std::move(dataSlice));
 }

@@ -47,6 +47,7 @@ void TInputStreamDescriptor::Persist(const TPersistenceContext& context)
 ////////////////////////////////////////////////////////////////////////////////
 
 TInputStreamDescriptor IntermediateInputStreamDescriptor(false /* isTeleportable */, true /* isPrimary */, false /* isVersioned */);
+TInputStreamDescriptor TeleportableIntermediateInputStreamDescriptor(true /* isTeleportable */, true /* isPrimary */, false /* isVersioned */);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -83,6 +84,7 @@ void TInputStreamDirectory::Persist(const TPersistenceContext& context)
 ////////////////////////////////////////////////////////////////////////////////
 
 TInputStreamDirectory IntermediateInputStreamDirectory({}, IntermediateInputStreamDescriptor);
+TInputStreamDirectory TeleportableIntermediateInputStreamDirectory({}, TeleportableIntermediateInputStreamDescriptor);
 
 ////////////////////////////////////////////////////////////////////////////////
 
