@@ -382,7 +382,7 @@ void TMapNodeMixin::SetChild(
 
             bool lastStep = (tokenizer.GetType() == NYPath::ETokenType::EndOfStream);
             if (!recursive && !lastStep) {
-                ThrowNoSuchChildKeySuggestRecursive(currentNode, key);
+                ThrowNoSuchChildKey(currentNode, key);
             }
 
             ValidateChildCount(GetPath(), currentNode->GetChildCount());
