@@ -13,7 +13,6 @@ namespace NYTree {
 
 void ThrowInvalidNodeType(IConstNodePtr node, ENodeType expectedType, ENodeType actualType);
 void ThrowNoSuchChildKey(IConstNodePtr node, const TString& key);
-void ThrowNoSuchChildKeySuggestRecursive(IConstNodePtr node, const TString& key);
 void ThrowNoSuchChildIndex(IConstNodePtr node, int index);
 void ThrowNoSuchAttribute(const TString& key);
 void ThrowNoSuchBuiltinAttribute(const TString& key);
