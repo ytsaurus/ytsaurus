@@ -19,6 +19,7 @@
 #include <yt/server/chunk_pools/chunk_pool.h>
 #include <yt/server/chunk_pools/public.h>
 #include <yt/server/chunk_pools/chunk_stripe_key.h>
+#include <yt/server/chunk_pools/input_stream.h>
 
 #include <yt/server/chunk_server/public.h>
 
@@ -785,20 +786,6 @@ protected:
     //! Returns the list of lists of all input chunks collected from all foreign input tables.
     std::vector<std::deque<NChunkClient::TInputDataSlicePtr>> CollectForeignInputDataSlices(int foreignKeyColumnCount) const;
 
-    //! Converts a list of input chunks into a list of chunk stripes for further
-    //! processing. Each stripe receives exactly one chunk (as suitable for most
-    //! jobs except merge). The resulting stripes are of approximately equal
-    //! size. The size per stripe is either |maxSliceDataSize| or
-    //! |TotalEstimateInputDataSize / jobCount|, whichever is smaller. If the resulting
-    //! list contains less than |jobCount| stripes then |jobCount| is decreased
-    //! appropriately.
-    void SliceUnversionedChunks(
-        const std::vector<NChunkClient::TInputChunkPtr>& unversionedChunks,
-        const IJobSizeConstraintsPtr& jobSizeConstraints,
-        std::vector<NChunkPools::TChunkStripePtr>* result) const;
-    void SlicePrimaryUnversionedChunks(
-        const IJobSizeConstraintsPtr& jobSizeConstraints,
-        std::vector<NChunkPools::TChunkStripePtr>* result) const;
     void SlicePrimaryVersionedChunks(
         const IJobSizeConstraintsPtr& jobSizeConstraints,
         std::vector<NChunkPools::TChunkStripePtr>* result);
@@ -861,6 +848,8 @@ protected:
     void SetOperationAlert(EOperationAlertType type, const TError& alert);
 
     void AbortAllJoblets();
+
+    NChunkPools::TInputStreamDirectory GetInputStreamDirectory() const;
 
 private:
     typedef TOperationControllerBase TThis;

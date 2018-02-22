@@ -266,16 +266,6 @@ protected:
         return nullptr;
     }
 
-    TInputStreamDirectory GetInputStreamDirectory() const
-    {
-        std::vector<TInputStreamDescriptor> inputStreams;
-        inputStreams.reserve(InputTables.size());
-        for (const auto& inputTable : InputTables) {
-            inputStreams.emplace_back(inputTable.IsTeleportable, true /* isPrimary */, inputTable.IsDynamic /* isVersioned */);
-        }
-        return TInputStreamDirectory(inputStreams);
-    }
-
     virtual bool IsCompleted() const override
     {
         return OrderedTask_->IsCompleted();
@@ -330,6 +320,7 @@ protected:
             InputSliceDataWeight_);
     }
 
+    // XXX(max42): this helper seems redundant.
     TChunkStripePtr CreateChunkStripe(TInputDataSlicePtr dataSlice)
     {
         TChunkStripePtr chunkStripe = New<TChunkStripe>(false /* foreign */);
@@ -349,7 +340,7 @@ protected:
             int sliceCount = 0;
             for (auto& slice : CollectPrimaryInputDataSlices(InputSliceDataWeight_)) {
                 ValidateInputDataSlice(slice);
-                RegisterInputStripe(CreateChunkStripe(std::move(slice)), OrderedTask_);
+                OrderedTask_->AddInput(CreateChunkStripe(std::move(slice)));
                 ++sliceCount;
                 yielder.TryYield();
             }

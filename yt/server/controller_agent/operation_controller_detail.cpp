@@ -976,6 +976,16 @@ void TOperationControllerBase::StartTransactions()
     }
 }
 
+TInputStreamDirectory TOperationControllerBase::GetInputStreamDirectory() const
+{
+    std::vector<TInputStreamDescriptor> inputStreams;
+    inputStreams.reserve(InputTables.size());
+    for (const auto& inputTable : InputTables) {
+        inputStreams.emplace_back(inputTable.IsTeleportable, inputTable.IsPrimary(), inputTable.IsDynamic /* isVersioned */);
+    }
+    return TInputStreamDirectory(std::move(inputStreams));
+}
+
 TTransactionId TOperationControllerBase::GetInputTransactionParentId()
 {
     return UserTransactionId;
@@ -1226,7 +1236,6 @@ bool TOperationControllerBase::TryInitAutoMerge(int outputChunkCountEstimate, do
                 index,
                 chunkCountPerMergeJob,
                 autoMergeSpec->ChunkSizeThreshold,
-                desiredChunkSize,
                 dataWeightPerJob,
                 Spec_->MaxDataWeightPerJob,
                 edgeDescriptor);
@@ -5308,60 +5317,6 @@ TString TOperationControllerBase::GetLoggingProgress() const
         JobCounter->GetAbortedTotal(),
         JobCounter->GetInterruptedTotal(),
         GetUnavailableInputChunkCount());
-}
-
-void TOperationControllerBase::SliceUnversionedChunks(
-    const std::vector<TInputChunkPtr>& unversionedChunks,
-    const IJobSizeConstraintsPtr& jobSizeConstraints,
-    std::vector<TChunkStripePtr>* result) const
-{
-    auto appendStripes = [&] (const std::vector<TInputChunkSlicePtr>& slices) {
-        for (const auto& slice : slices) {
-            result->push_back(New<TChunkStripe>(CreateUnversionedInputDataSlice(slice)));
-        }
-    };
-
-    LOG_DEBUG("Slicing unversioned chunks (SliceDataWeight: %v, SliceRowCount: %v, ChunkCount: %v)",
-        jobSizeConstraints->GetInputSliceDataWeight(),
-        jobSizeConstraints->GetInputSliceRowCount(),
-        unversionedChunks.size());
-
-    for (const auto& chunkSpec : unversionedChunks) {
-        int oldSize = result->size();
-
-        bool hasNontrivialLimits = !chunkSpec->IsCompleteChunk();
-
-        auto codecId = NErasure::ECodec(chunkSpec->GetErasureCodec());
-        if (hasNontrivialLimits || codecId == NErasure::ECodec::None || !Spec_->SliceErasureChunksByParts) {
-            auto slices = SliceChunkByRowIndexes(
-                chunkSpec,
-                jobSizeConstraints->GetInputSliceDataWeight(),
-                jobSizeConstraints->GetInputSliceRowCount());
-
-            appendStripes(slices);
-        } else {
-            for (const auto& slice : CreateErasureInputChunkSlices(chunkSpec, codecId)) {
-                auto slices = slice->SliceEvenly(
-                    jobSizeConstraints->GetInputSliceDataWeight(),
-                    jobSizeConstraints->GetInputSliceRowCount());
-
-                appendStripes(slices);
-            }
-        }
-
-        LOG_TRACE("Slicing chunk (ChunkId: %v, SliceCount: %v)",
-            chunkSpec->ChunkId(),
-            result->size() - oldSize);
-    }
-
-    LOG_DEBUG("Finished slicing unversioned chunks (SliceCount: %v)", result->size());
-}
-
-void TOperationControllerBase::SlicePrimaryUnversionedChunks(
-    const IJobSizeConstraintsPtr& jobSizeConstraints,
-    std::vector<TChunkStripePtr>* result) const
-{
-    SliceUnversionedChunks(CollectPrimaryUnversionedChunks(), jobSizeConstraints, result);
 }
 
 void TOperationControllerBase::SlicePrimaryVersionedChunks(
