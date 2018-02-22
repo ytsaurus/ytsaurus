@@ -134,6 +134,8 @@ class TestErasure(YTEnvSetup):
 
     def test_slow_read(self):
         replicas, _ = self._prepare_table()
+            
+        correct_data = read_table("//tmp/table")
 
         set("//sys/@config/enable_chunk_replicator", False)
         wait(lambda: not get("//sys/@chunk_replicator_enabled"))
@@ -145,7 +147,7 @@ class TestErasure(YTEnvSetup):
             time.sleep(1)
 
             start = time.time()
-            read_table("//tmp/table",
+            data = read_table("//tmp/table",
                        table_reader={
                            "block_rpc_timeout": 1000,
                            "meta_rpc_timeout": 1000,
@@ -157,7 +159,8 @@ class TestErasure(YTEnvSetup):
             end = time.time()
             time_passed = end - start
             self.set_node_banned(address_to_ban, False)
-            assert time_passed <= 5
+            assert time_passed <= 10
+            assert data == correct_data
         finally:
             set("//sys/@config/enable_chunk_replicator", True)
             wait(lambda: get("//sys/@chunk_replicator_enabled"))
