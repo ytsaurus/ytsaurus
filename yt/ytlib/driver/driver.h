@@ -54,6 +54,8 @@ struct TDriverRequest
     //! Must be filled before writing data to output stream.
     NYson::IYsonConsumer* ResponseParametersConsumer;
 
+    void Reset();
+
 private:
     using THolderPtr = TIntrusivePtr<TIntrinsicRefCounted>;
     THolderPtr Holder_;

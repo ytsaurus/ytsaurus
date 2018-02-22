@@ -50,6 +50,11 @@ TDriverRequest::TDriverRequest(THolderPtr holder)
     , Holder_(std::move(holder))
 { }
 
+void TDriverRequest::Reset()
+{
+    Holder_.Reset();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TCommandDescriptor IDriver::GetCommandDescriptor(const TString& commandName) const
@@ -333,6 +338,8 @@ private:
                 request.AuthenticatedUser);
         }
 
+        context->MutableRequest().Reset();
+
         THROW_ERROR_EXCEPTION_IF_FAILED(result);
     }
 
@@ -369,6 +376,11 @@ private:
         }
 
         virtual const TDriverRequest& Request() override
+        {
+            return Request_;
+        }
+
+        virtual TDriverRequest& MutableRequest() override
         {
             return Request_;
         }
@@ -422,7 +434,7 @@ private:
         const IClientPtr Client_;
         const TDriverConfigPtr Config_;
         const TCommandDescriptor Descriptor_;
-        const TDriverRequest Request_;
+        TDriverRequest Request_;
 
         TNullable<TFormat> InputFormat_;
         TNullable<TFormat> OutputFormat_;
