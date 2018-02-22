@@ -1,5 +1,5 @@
 from .helpers import (TEST_DIR, get_tests_location, get_tests_sandbox, get_test_file_path,
-                      get_environment_for_binary_test, set_config_option, yatest_common)
+                      get_environment_for_binary_test, set_config_option)
 
 from yt.wrapper.table_commands import copy_table, move_table
 from yt.wrapper.operation_commands import add_failed_operation_stderrs_to_error_message
@@ -17,6 +17,7 @@ import yt.wrapper as yt
 import pytest
 
 import os
+import uuid
 import string
 from itertools import starmap
 from functools import reduce
@@ -110,21 +111,18 @@ class TestYamrMode(object):
         env["FALSE"] = "false"
         env["TRUE"] = "true"
 
+        sandbox_dir = os.path.join(get_tests_sandbox(), "TestMapreduceBinary_" + uuid.uuid4().hex[:8])
+        makedirp(sandbox_dir)
         test_binary = os.path.join(get_tests_location(), "test_mapreduce.sh")
 
-        if yatest_common is None:
-            binaries_dir = os.path.join(os.path.dirname(get_tests_location()), "bin")
-        else:
-            binaries_dir = yatest_common.source_path("yt/python/yt/wrapper/bin")
-
         yt.remove("//home/wrapper_tests", recursive=True)
-        proc = subprocess.Popen([test_binary], env=env, cwd=binaries_dir)
+        proc = subprocess.Popen([test_binary], env=env, cwd=sandbox_dir)
         proc.communicate()
         assert proc.returncode == 0
 
         env["ENABLE_SCHEMA"] = "1"
         yt.remove("//home/wrapper_tests", recursive=True, force=True)
-        proc = subprocess.Popen([test_binary], env=env, cwd=binaries_dir)
+        proc = subprocess.Popen([test_binary], env=env, cwd=sandbox_dir)
         proc.communicate()
         assert proc.returncode == 0
 

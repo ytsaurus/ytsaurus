@@ -39,7 +39,11 @@ def pytest_ignore_collect(path, config):
 if yatest_common is not None:
     @pytest.fixture(scope="session", autouse=True)
     def prepare_path(request):
-        arcadia_interop.prepare_path()
+        destination = os.path.join(yatest_common.work_path(), "build")
+        os.makedirs(destination)
+        path, node_path = arcadia_interop.prepare_yt_environment(destination)
+        os.environ["PATH"] = os.pathsep.join([path, os.environ.get("PATH", "")])
+        os.environ["NODE_PATH"] = node_path
 
 def _pytest_finalize_func(environment, process_call_args):
     pytest.exit('Process run by command "{0}" is dead! Tests terminated.' \

@@ -1,14 +1,7 @@
 #!/bin/bash -eux
 
-set +u
-if [ -z "$1" ]; then
-    echo "Tests sandbox path should be specified" && exit 1
-fi
-set -u
-
-SANDBOX_DIR=$1
 PIDS=""
-YT="$PYTHON_BINARY ./yt"
+YT="$PYTHON_BINARY $YT_SCRIPT_PATH"
 
 add_pid_to_kill() {
     PIDS="$PIDS $1"
@@ -29,7 +22,7 @@ tear_down() {
         fi
     done
 
-    rm -f $SANDBOX_DIR/script.sh
+    rm -f script.sh
 }
 
 die() {
@@ -129,10 +122,10 @@ test_table_commands()
 # download and upload file, use it in map operation
 test_file_commands()
 {
-    echo "grep x" >$SANDBOX_DIR/script
-    chmod +x $SANDBOX_DIR/script
+    echo "grep x" >script
+    chmod +x script
 
-    cat $SANDBOX_DIR/script | $YT upload //home/wrapper_test/script --executable
+    cat script | $YT upload //home/wrapper_test/script --executable
 
     check "grep x" "$($YT download //home/wrapper_test/script)"
 
@@ -143,10 +136,10 @@ test_file_commands()
     check "value=x\n" "$($YT read //home/wrapper_test/output_table --format dsv)"
 
     $YT map "./script" --src //home/wrapper_test/input_table --dst //home/wrapper_test/output_table \
-        --local-file $SANDBOX_DIR/script --format dsv
+        --local-file script --format dsv
     check "value=x\n" "$($YT read //home/wrapper_test/output_table --format dsv)"
 
-    rm -f $SANDBOX_DIR/script
+    rm -f script
 }
 
 test_copy_move_link()
@@ -254,14 +247,14 @@ test_users()
 #TODO(ignat): move this test to python
 test_concurrent_upload_in_operation()
 {
-    echo "cat" > $SANDBOX_DIR/script.sh
-    chmod +x $SANDBOX_DIR/script.sh
+    echo "cat" > script.sh
+    chmod +x script.sh
 
     echo "x=y" | $YT write //home/wrapper_test/table --format dsv
 
-    $YT map "cat" --src "//home/wrapper_test/table" --dst "//home/wrapper_test/out1" --format dsv --local-file $SANDBOX_DIR/script.sh &
+    $YT map "cat" --src "//home/wrapper_test/table" --dst "//home/wrapper_test/out1" --format dsv --local-file script.sh &
     add_pid_to_kill "$!"
-    $YT map "cat" --src "//home/wrapper_test/table" --dst "//home/wrapper_test/out2" --format dsv --local-file $SANDBOX_DIR/script.sh &
+    $YT map "cat" --src "//home/wrapper_test/table" --dst "//home/wrapper_test/out2" --format dsv --local-file script.sh &
     add_pid_to_kill "$!"
 
     ok=0
@@ -473,13 +466,12 @@ test_sandbox_file_name_specification()
     local table="//home/wrapper_test/table"
     echo -ne "a=b\n" | $YT write "$table" --format "dsv"
 
-    echo "content" >$SANDBOX_DIR/script
-    local file_to_upload="$SANDBOX_DIR/script"
+    echo "content" >script
 
     $YT map "ls some_file >/dev/null && cat" \
         --src "$table" \
         --dst "$table" \
-        --local-file "<file_name=some_file>$file_to_upload" \
+        --local-file "<file_name=some_file>script" \
         --format dsv
 }
 
