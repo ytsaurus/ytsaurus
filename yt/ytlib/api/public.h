@@ -26,6 +26,7 @@ DEFINE_ENUM(EUserWorkloadCategory,
 
 DEFINE_ENUM(EErrorCode,
     ((TooManyConcurrentRequests)                         (1900))
+    ((JobArchiveUnavailable)                             (1910))
 );
 
 DEFINE_ENUM(ERowModificationType,
