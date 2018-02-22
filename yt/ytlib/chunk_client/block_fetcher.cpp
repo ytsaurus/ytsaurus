@@ -36,6 +36,7 @@ TBlockFetcher::TBlockFetcher(
         Config_->WorkloadDescriptor.GetPriority()))
     , AsyncSemaphore_(std::move(asyncSemaphore))
     , Codec_(NCompression::GetCodec(codecId))
+    , ReadSessionId_(sessionId)
     , Logger(ChunkClientLogger)
 {
     YCHECK(ChunkReader_);
@@ -43,8 +44,8 @@ TBlockFetcher::TBlockFetcher(
     YCHECK(!BlockInfos_.empty());
 
     Logger.AddTag("ChunkId: %v", ChunkReader_->GetChunkId());
-    if (sessionId) {
-        Logger.AddTag("ReadSessionId: %v", sessionId);
+    if (ReadSessionId_) {
+        Logger.AddTag("ReadSessionId: %v", ReadSessionId_);
     }
 
     std::sort(
@@ -294,7 +295,10 @@ void TBlockFetcher::RequestBlocks(
 
     TotalRemainingSize_ -= uncompressedSize;
 
-    auto blocksOrError = WaitFor(ChunkReader_->ReadBlocks(Config_->WorkloadDescriptor, blockIndexes));
+    auto blocksOrError = WaitFor(ChunkReader_->ReadBlocks(
+        Config_->WorkloadDescriptor,
+        ReadSessionId_,
+        blockIndexes));
 
     if (!blocksOrError.IsOK()) {
         MarkFailedBlocks(windowIndexes, blocksOrError);

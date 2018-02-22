@@ -34,15 +34,18 @@ public:
     // IReader implementation.
     virtual TFuture<std::vector<TBlock>> ReadBlocks(
         const TWorkloadDescriptor& workloadDescriptor,
+        const TReadSessionId& readSessionId,
         const std::vector<int>& blockIndexes) override;
 
     virtual TFuture<std::vector<TBlock>> ReadBlocks(
         const TWorkloadDescriptor& workloadDescriptor,
+        const TReadSessionId& readSessionId,
         int firstBlockIndex,
         int blockCount) override;
 
     virtual TFuture<NProto::TChunkMeta> GetMeta(
         const TWorkloadDescriptor& workloadDescriptor,
+        const TReadSessionId& readSessionId,
         const TNullable<int>& partitionTag = Null,
         const TNullable<std::vector<int>>& extensionTags = Null) override;
 

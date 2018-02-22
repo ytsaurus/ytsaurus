@@ -161,7 +161,7 @@ private:
     {
         LOG_INFO("Requesting chunk meta");
 
-        auto metaOrError = WaitFor(ChunkReader_->GetMeta(Config_->WorkloadDescriptor));
+        auto metaOrError = WaitFor(ChunkReader_->GetMeta(Config_->WorkloadDescriptor, ReadSessionId_));
         THROW_ERROR_EXCEPTION_IF_FAILED(metaOrError, "Failed to get file chunk meta");
 
         LOG_INFO("Chunk meta received");

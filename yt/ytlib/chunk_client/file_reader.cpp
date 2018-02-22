@@ -52,6 +52,7 @@ TFileReader::TFileReader(
 
 TFuture<std::vector<TBlock>> TFileReader::ReadBlocks(
     const TWorkloadDescriptor& /*workloadDescriptor*/,
+    const TReadSessionId& /*readSessionId*/,
     const std::vector<int>& blockIndexes)
 {
     std::vector<TFuture<std::vector<TBlock>>> futures;
@@ -101,6 +102,7 @@ TFuture<std::vector<TBlock>> TFileReader::ReadBlocks(
 
 TFuture<std::vector<TBlock>> TFileReader::ReadBlocks(
     const TWorkloadDescriptor& /*workloadDescriptor*/,
+    const TReadSessionId& /*readSessionId*/,
     int firstBlockIndex,
     int blockCount)
 {
@@ -115,6 +117,7 @@ TFuture<std::vector<TBlock>> TFileReader::ReadBlocks(
 
 TFuture<TChunkMeta> TFileReader::GetMeta(
     const TWorkloadDescriptor& /*workloadDescriptor*/,
+    const TReadSessionId& /*readSessionId*/,
     const TNullable<int>& partitionTag,
     const TNullable<std::vector<int>>& extensionTags)
 {

@@ -149,7 +149,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
     }
 
     auto chunkReader = GetChunkReader();
-    auto chunkState = PrepareCachedChunkState(chunkReader, workloadDescriptor);
+    auto chunkState = PrepareCachedChunkState(chunkReader, workloadDescriptor, sessionId);
 
     auto config = CloneYsonSerializable(ReaderConfig_);
     config->WorkloadDescriptor = workloadDescriptor;
@@ -231,7 +231,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
 
     auto blockCache = GetBlockCache();
     auto chunkReader = GetChunkReader();
-    auto chunkState = PrepareCachedChunkState(chunkReader, workloadDescriptor);
+    auto chunkState = PrepareCachedChunkState(chunkReader, workloadDescriptor, sessionId);
 
     auto config = CloneYsonSerializable(ReaderConfig_);
     config->WorkloadDescriptor = workloadDescriptor;
@@ -296,7 +296,10 @@ TError TSortedChunkStore::CheckRowLocks(
         << TErrorAttribute("key", RowToKey(row));
 }
 
-TChunkStatePtr TSortedChunkStore::PrepareCachedChunkState(IChunkReaderPtr chunkReader, const TWorkloadDescriptor& workloadDescriptor)
+TChunkStatePtr TSortedChunkStore::PrepareCachedChunkState(
+    IChunkReaderPtr chunkReader,
+    const TWorkloadDescriptor& workloadDescriptor,
+    const TReadSessionId& readSessionId)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -313,6 +316,7 @@ TChunkStatePtr TSortedChunkStore::PrepareCachedChunkState(IChunkReaderPtr chunkR
     auto asyncCachedMeta = TCachedVersionedChunkMeta::Load(
         chunkReader,
         workloadDescriptor,
+        readSessionId,
         Schema_,
         MemoryTracker_);
     auto cachedMeta = WaitFor(asyncCachedMeta)

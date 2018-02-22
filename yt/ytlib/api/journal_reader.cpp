@@ -28,15 +28,15 @@
 namespace NYT {
 namespace NApi {
 
+using namespace NChunkClient;
 using namespace NConcurrency;
-using namespace NYPath;
-using namespace NYTree;
+using namespace NCypressClient;
+using namespace NJournalClient;
 using namespace NNodeTrackerClient;
 using namespace NObjectClient;
-using namespace NJournalClient;
-using namespace NCypressClient;
 using namespace NTransactionClient;
-using namespace NChunkClient;
+using namespace NYPath;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -218,6 +218,7 @@ private:
 
             auto rowsOrError = WaitFor(CurrentChunkReader_->ReadBlocks(
                 Config_->WorkloadDescriptor,
+                TReadSessionId(),
                 CurrentRowIndex_,
                 EndRowIndex_ - CurrentRowIndex_));
             THROW_ERROR_EXCEPTION_IF_FAILED(rowsOrError);
