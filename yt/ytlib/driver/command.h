@@ -39,6 +39,7 @@ struct ICommandContext
     virtual const IDriverPtr& GetDriver() = 0;
 
     virtual const TDriverRequest& Request() = 0;
+    virtual TDriverRequest& MutableRequest() = 0;
 
     virtual const NFormats::TFormat& GetInputFormat() = 0;
     virtual const NFormats::TFormat& GetOutputFormat() = 0;
