@@ -442,10 +442,10 @@ void TDnsResolver::TImpl::OnSocketStateChanged(
     if (readable) {
         event.events |= EPOLLIN;
     }
-    if (write) {
+    if (writable) {
         event.events |= EPOLLOUT;
     }
-    if (!readable && !write) {
+    if (!readable && !writable) {
         op = EPOLL_CTL_DEL;
     }
     YCHECK(epoll_ctl(this_->EpollFD_, op, socket, &event) == 0);
