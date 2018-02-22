@@ -2,7 +2,7 @@
 #include "default_blackbox_service.h"
 #include "private.h"
 
-#include <yt/ytlib/formats/json_parser.h>
+#include <yt/core/json/json_parser.h>
 
 #include <library/http/simple/http_client.h>
 
@@ -33,7 +33,7 @@ public:
         , Invoker_(std::move(invoker))
     { }
 
-    virtual TFuture<INodePtr> Call(const TString& method, const yhash<TString, TString>& params) override
+    virtual TFuture<INodePtr> Call(const TString& method, const THashMap<TString, TString>& params) override
     {
         auto deadline = TInstant::Now() + Config_->RequestTimeout;
         return BIND(&TDefaultBlackboxService::DoCall, MakeStrong(this), method, params, deadline)
@@ -42,7 +42,7 @@ public:
     }
 
 private:
-    static std::pair<TString, TString> BuildUrl(const TString& method, const yhash<TString, TString>& params)
+    static std::pair<TString, TString> BuildUrl(const TString& method, const THashMap<TString, TString>& params)
     {
         TStringBuilder realUrl;
         TStringBuilder safeUrl;
@@ -95,7 +95,7 @@ private:
         return std::make_pair(realUrl.Flush(), safeUrl.Flush());
     }
 
-    INodePtr DoCall(const TString& method, const yhash<TString, TString>& params, TInstant deadline)
+    INodePtr DoCall(const TString& method, const THashMap<TString, TString>& params, TInstant deadline)
     {
         auto host = AddSchemePrefix(TString(GetHost(Config_->Host)), Config_->Secure ? "https" : "http");
         auto port = Config_->Port;
@@ -148,8 +148,8 @@ private:
                                     callId,
                                     attempt);
                                 THROW_ERROR_EXCEPTION("Blackbox has raised an exception")
-                                        << TErrorAttribute("call_id", callId)
-                                        << TErrorAttribute("attempt", attempt);
+                                    << TErrorAttribute("call_id", callId)
+                                    << TErrorAttribute("attempt", attempt);
                         }
                     }
                 } else {
@@ -158,7 +158,11 @@ private:
                 }
             }
 
-            Sleep(std::min(Config_->BackoffTimeout, Max(TDuration::Zero(), deadline - TInstant::Now())));
+            auto sleepTime = std::min(Config_->BackoffTimeout, deadline - TInstant::Now());
+            if (sleepTime == TDuration::Zero()) {
+                break;
+            }
+            Sleep(sleepTime);
         }
 
         THROW_ERROR_EXCEPTION("Blackbox call failed")
@@ -176,6 +180,11 @@ private:
         TInstant deadline)
     {
         auto timeout = std::min(deadline - TInstant::Now(), Config_->AttemptTimeout);
+
+        // XXX(babenko): setting timeout less than 1 sec will lead to no timeout set at all; YT-8474
+        if (timeout < TDuration::Seconds(1)) {
+            timeout = TDuration::Seconds(1);
+        }
 
         TString buffer;
         INodePtr result;
@@ -205,9 +214,9 @@ private:
             TStringInput inputStream(buffer);
             auto factory = NYTree::CreateEphemeralNodeFactory();
             auto builder = NYTree::CreateBuilderFromFactory(factory.get());
-            auto config = New<NFormats::TJsonFormatConfig>();
+            auto config = New<NJson::TJsonFormatConfig>();
             config->EncodeUtf8 = false; // Hipsters use real Utf8.
-            NFormats::ParseJson(&inputStream, builder.get(), std::move(config));
+            NJson::ParseJson(&inputStream, builder.get(), std::move(config));
             result = builder->EndTree();
         }
 
@@ -229,10 +238,10 @@ private:
     const TDefaultBlackboxServiceConfigPtr Config_;
     const IInvokerPtr Invoker_;
 
-    static const yhash_set<TString> PrivateUrlParams_;
+    static const THashSet<TString> PrivateUrlParams_;
 };
 
-const yhash_set<TString> TDefaultBlackboxService::PrivateUrlParams_ = {
+const THashSet<TString> TDefaultBlackboxService::PrivateUrlParams_ = {
     "userip",
     "oauth_token",
     "sessionid",
