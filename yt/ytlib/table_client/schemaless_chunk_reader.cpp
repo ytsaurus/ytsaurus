@@ -374,6 +374,7 @@ void THorizontalSchemalessChunkReaderBase::DownloadChunkMeta(std::vector<int> ex
     } else {
         auto asynChunkMeta = UnderlyingReader_->GetMeta(
             Config_->WorkloadDescriptor,
+            ReadSessionId_,
             partitionTag,
             extensionTags);
         ChunkMeta_ = WaitFor(asynChunkMeta)
@@ -1139,6 +1140,7 @@ private:
 
             auto asynChunkMeta = UnderlyingReader_->GetMeta(
                 TColumnarRangeChunkReaderBase::Config_->WorkloadDescriptor,
+                ReadSessionId_,
                 Null,
                 extensionTags);
             auto chunkMeta = WaitFor(asynChunkMeta)
@@ -1548,6 +1550,7 @@ private:
 
             auto asynChunkMeta = UnderlyingReader_->GetMeta(
                 TColumnarLookupChunkReaderBase::Config_->WorkloadDescriptor,
+                ReadSessionId_,
                 Null,
                 extensionTags);
             auto chunkMeta = WaitFor(asynChunkMeta)
@@ -2617,6 +2620,7 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
         auto asyncChunkMeta = TCachedVersionedChunkMeta::Load(
             remoteReader,
             config->WorkloadDescriptor,
+            sessionId,
             versionedReadSchema);
         auto chunkMeta = WaitFor(asyncChunkMeta)
             .ValueOrThrow();

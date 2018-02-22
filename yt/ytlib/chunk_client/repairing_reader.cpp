@@ -39,15 +39,18 @@ public:
 
     TFuture<TChunkMeta> GetMeta(
         const TWorkloadDescriptor& workloadDescriptor,
+        const TReadSessionId& readSessionId,
         const TNullable<int>& partitionTag,
-        const TNullable<std::vector<int>>& extensionTags);
+        const TNullable<std::vector<int>>& extensionTags) override;
 
     virtual TFuture<std::vector<TBlock>> ReadBlocks(
         const TWorkloadDescriptor& workloadDescriptor,
+        const TReadSessionId& readSessionId,
         const std::vector<int>& blockIndexes) override;
 
     virtual TFuture<std::vector<TBlock>> ReadBlocks(
         const TWorkloadDescriptor& workloadDescriptor,
+        const TReadSessionId& readSessionId,
         int firstBlockIndex,
         int blockCount) override;
 
@@ -65,7 +68,8 @@ private:
     TChunkMeta GetMetaAsync(
         const TWorkloadDescriptor& workloadDescriptor,
         const TNullable<int>& partitionTag,
-        const TNullable<std::vector<int>>& extensionTags);
+        const TNullable<std::vector<int>>& extensionTags,
+        const TReadSessionId& readSessionId);
 
     const TErasureReaderConfigPtr Config_;
     TLogger Logger;
@@ -89,6 +93,7 @@ public:
         const TErasurePlacementExt& placementExt,
         const std::vector<int>& blockIndexes,
         const TWorkloadDescriptor& workloadDescriptor,
+        const TReadSessionId& readSessionId,
         const TWeakPtr<TRepairingReader>& reader)
         : Codec_(codec)
         , Config_(config)
@@ -97,6 +102,7 @@ public:
         , PlacementExt_(placementExt)
         , BlockIndexes_(blockIndexes)
         , WorkloadDescriptor_(workloadDescriptor)
+        , ReadSessionId_(readSessionId)
         , DataBlocksPlacementInParts_(BuildDataBlocksPlacementInParts(BlockIndexes_, PlacementExt_))
         , Reader_(reader)
     {
@@ -122,6 +128,7 @@ private:
     const TErasurePlacementExt PlacementExt_;
     const std::vector<int> BlockIndexes_;
     const TWorkloadDescriptor WorkloadDescriptor_;
+    const TReadSessionId ReadSessionId_;
     TDataBlocksPlacementInParts DataBlocksPlacementInParts_;
     TWeakPtr<TRepairingReader> Reader_;
 
@@ -129,7 +136,7 @@ private:
     {
         if (!Config_->EnableAutoRepair) {
             auto reader = CreateRepairingErasureReader(Codec_, TPartIndexList(), Readers_);
-            return WaitFor(reader->ReadBlocks(WorkloadDescriptor_, BlockIndexes_))
+            return WaitFor(reader->ReadBlocks(WorkloadDescriptor_, ReadSessionId_, BlockIndexes_))
                 .ValueOrThrow();
         }
 
@@ -183,7 +190,7 @@ private:
             }
 
             auto repairingReader = CreateRepairingErasureReader(Codec_, bannedPartIndicesList, readers);
-            auto result = WaitFor(repairingReader->ReadBlocks(WorkloadDescriptor_, BlockIndexes_));
+            auto result = WaitFor(repairingReader->ReadBlocks(WorkloadDescriptor_, ReadSessionId_, BlockIndexes_));
 
             if (result.IsOK()) {
                 return result.Value();
@@ -229,6 +236,7 @@ TRepairingReader::TRepairingReader(
 
 TFuture<TChunkMeta> TRepairingReader::GetMeta(
     const TWorkloadDescriptor& workloadDescriptor,
+    const TReadSessionId& readSessionId,
     const TNullable<int>& partitionTag,
     const TNullable<std::vector<int>>& extensionTags)
 {
@@ -240,16 +248,23 @@ TFuture<TChunkMeta> TRepairingReader::GetMeta(
         }
     }
 
-    return BIND(&TRepairingReader::GetMetaAsync, MakeStrong(this), workloadDescriptor, partitionTag, extensionTags)
+    return BIND(
+        &TRepairingReader::GetMetaAsync,
+        MakeStrong(this),
+        workloadDescriptor,
+        partitionTag,
+        extensionTags,
+        readSessionId)
         .AsyncVia(TDispatcher::Get()->GetReaderInvoker())
         .Run();
 }
 
 TFuture<std::vector<TBlock>> TRepairingReader::ReadBlocks(
     const TWorkloadDescriptor& workloadDescriptor,
+    const TReadSessionId& readSessionId,
     const std::vector<int>& blockIndexes)
 {
-    return PreparePlacementMeta(workloadDescriptor).Apply(
+    return PreparePlacementMeta(workloadDescriptor, readSessionId).Apply(
         BIND([=, this_ = MakeStrong(this)] () {
             auto session = New<TRepairingReaderSession>(
                 Codec_,
@@ -259,6 +274,7 @@ TFuture<std::vector<TBlock>> TRepairingReader::ReadBlocks(
                 PlacementExt_,
                 blockIndexes,
                 workloadDescriptor,
+                readSessionId,
                 MakeStrong(this));
             return session->Run();
         }));
@@ -266,6 +282,7 @@ TFuture<std::vector<TBlock>> TRepairingReader::ReadBlocks(
 
 TFuture<std::vector<TBlock>> TRepairingReader::ReadBlocks(
     const TWorkloadDescriptor& workloadDescriptor,
+    const TReadSessionId& readSessionId,
     int firstBlockIndex,
     int blockCount)
 {
@@ -355,14 +372,15 @@ TError TRepairingReader::CheckPartReaderIsSlow(int partIndex, i64 bytesReceived,
 TChunkMeta TRepairingReader::GetMetaAsync(
     const TWorkloadDescriptor& workloadDescriptor,
     const TNullable<int>& partitionTag,
-    const TNullable<std::vector<int>>& extensionTags)
+    const TNullable<std::vector<int>>& extensionTags,
+    const TReadSessionId& readSessionId)
 {
     std::vector<TError> errors;
     for (int i = 0; i < Codec_->GetDataPartCount(); ++i) {
         if (!Readers_[i]->IsValid()) {
             continue;
         }
-        auto result = WaitFor(Readers_[i]->GetMeta(workloadDescriptor, partitionTag, extensionTags));
+        auto result = WaitFor(Readers_[i]->GetMeta(workloadDescriptor, readSessionId, partitionTag, extensionTags));
         if (result.IsOK()) {
             return result.Value();
         }

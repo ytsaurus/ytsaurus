@@ -162,15 +162,18 @@ public:
 
     virtual TFuture<std::vector<TBlock>> ReadBlocks(
         const TWorkloadDescriptor& workloadDescriptor,
+        const TReadSessionId& readSessionId,
         const std::vector<int>& blockIndexes) override;
 
     virtual TFuture<std::vector<TBlock>> ReadBlocks(
         const TWorkloadDescriptor& workloadDescriptor,
+        const TReadSessionId& readSessionId,
         int firstBlockIndex,
         int blockCount) override;
 
     virtual TFuture<NProto::TChunkMeta> GetMeta(
         const TWorkloadDescriptor& workloadDescriptor,
+        const TReadSessionId& readSessionId,
         const TNullable<int>& partitionTag,
         const TNullable<std::vector<int>>& extensionTags) override;
 
@@ -458,15 +461,17 @@ protected:
 
     TSessionBase(
         TReplicationReader* reader,
-        const TWorkloadDescriptor& workloadDescriptor)
+        const TWorkloadDescriptor& workloadDescriptor,
+        const TReadSessionId& readSessionId)
         : Reader_(reader)
         , Config_(reader->Config_)
         , WorkloadDescriptor_(Config_->EnableWorkloadFifoScheduling ? workloadDescriptor.SetCurrentInstant() : workloadDescriptor)
         , NodeDirectory_(reader->NodeDirectory_)
         , Networks_(reader->Networks_)
         , Logger(NLogging::TLogger(ChunkClientLogger)
-            .AddTag("SessionId: %v, ChunkId: %v",
+            .AddTag("SessionId: %v, ReadSessionId: %v, ChunkId: %v",
                 TGuid::Create(),
+                readSessionId,
                 reader->ChunkId_))
         , SessionInvoker_(CreateFixedPriorityInvoker(
             TDispatcher::Get()->GetPrioritizedCompressionPoolInvoker(),
@@ -921,8 +926,9 @@ public:
     TReadBlockSetSession(
         TReplicationReader* reader,
         const TWorkloadDescriptor& workloadDescriptor,
+        const TReadSessionId& readSessionId,
         const std::vector<int>& blockIndexes)
-        : TSessionBase(reader, workloadDescriptor)
+        : TSessionBase(reader, workloadDescriptor, readSessionId)
         , BlockIndexes_(blockIndexes)
     {
         Logger.AddTag("Blocks: %v", blockIndexes);
@@ -1324,11 +1330,12 @@ private:
 
 TFuture<std::vector<TBlock>> TReplicationReader::ReadBlocks(
     const TWorkloadDescriptor& workloadDescriptor,
+    const TReadSessionId& readSessionId,
     const std::vector<int>& blockIndexes)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    auto session = New<TReadBlockSetSession>(this, workloadDescriptor, blockIndexes);
+    auto session = New<TReadBlockSetSession>(this, workloadDescriptor, readSessionId, blockIndexes);
     return session->Run();
 }
 
@@ -1341,9 +1348,10 @@ public:
     TReadBlockRangeSession(
         TReplicationReader* reader,
         const TWorkloadDescriptor& workloadDescriptor,
+        const TReadSessionId& readSessionId,
         int firstBlockIndex,
         int blockCount)
-        : TSessionBase(reader, workloadDescriptor)
+        : TSessionBase(reader, workloadDescriptor, readSessionId)
         , FirstBlockIndex_(firstBlockIndex)
         , BlockCount_(blockCount)
     {
@@ -1537,12 +1545,13 @@ private:
 
 TFuture<std::vector<TBlock>> TReplicationReader::ReadBlocks(
     const TWorkloadDescriptor& workloadDescriptor,
+    const TReadSessionId& readSessionId,
     int firstBlockIndex,
     int blockCount)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    auto session = New<TReadBlockRangeSession>(this, workloadDescriptor, firstBlockIndex, blockCount);
+    auto session = New<TReadBlockRangeSession>(this, workloadDescriptor, readSessionId, firstBlockIndex, blockCount);
     return session->Run();
 }
 
@@ -1555,9 +1564,10 @@ public:
     TGetMetaSession(
         TReplicationReader* reader,
         const TWorkloadDescriptor& workloadDescriptor,
+        const TReadSessionId& readSessionId,
         const TNullable<int> partitionTag,
         const TNullable<std::vector<int>>& extensionTags)
-        : TSessionBase(reader, workloadDescriptor)
+        : TSessionBase(reader, workloadDescriptor, readSessionId)
         , PartitionTag_(partitionTag)
         , ExtensionTags_(extensionTags)
     { }
@@ -1694,12 +1704,13 @@ private:
 
 TFuture<NProto::TChunkMeta> TReplicationReader::GetMeta(
     const TWorkloadDescriptor& workloadDescriptor,
+    const TReadSessionId& readSessionId,
     const TNullable<int>& partitionTag,
     const TNullable<std::vector<int>>& extensionTags)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    auto session = New<TGetMetaSession>(this, workloadDescriptor, partitionTag, extensionTags);
+    auto session = New<TGetMetaSession>(this, workloadDescriptor, readSessionId, partitionTag, extensionTags);
     return session->Run();
 }
 

@@ -229,12 +229,15 @@ private:
         const IChunkStorePtr& store,
         const IStoreManagerPtr& storeManager)
     {
+        auto readSessionId = TReadSessionId::Create();
+
         NLogging::TLogger Logger(TabletNodeLogger);
-        Logger.AddTag("TabletId: %v, StoreId: %v, Mode: %v, ConfigRevision: %v",
+        Logger.AddTag("TabletId: %v, StoreId: %v, Mode: %v, ConfigRevision: %v, ReadSessionId: %v",
             tablet->GetId(),
             store->GetId(),
             mode,
-            configRevision);
+            configRevision,
+            readSessionId);
 
         try {
             // Fail quickly.
@@ -280,6 +283,7 @@ private:
             auto chunkData = PreloadInMemoryStore(
                 tabletSnapshot,
                 store,
+                readSessionId,
                 Bootstrap_->GetMemoryUsageTracker(),
                 CompressionInvoker_);
             // Now, check is the revision in still the same.
@@ -477,6 +481,7 @@ void TInMemoryManager::FinalizeChunk(
 TInMemoryChunkDataPtr PreloadInMemoryStore(
     const TTabletSnapshotPtr& tabletSnapshot,
     const IChunkStorePtr& store,
+    const TReadSessionId& readSessionId,
     TMemoryUsageTracker<EMemoryCategory>* memoryUsageTracker,
     const IInvokerPtr& compressionInvoker)
 {
@@ -485,15 +490,15 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
 
     NLogging::TLogger Logger(TabletNodeLogger);
     Logger.AddTag(
-        "TabletId: %v, StoreId: %v, Mode: %v, ConfigRevision: %v",
-        tabletSnapshot->TabletId, store->GetId(), mode, configRevision);
+        "TabletId: %v, StoreId: %v, Mode: %v, ConfigRevision: %v, ReadSessionId: %v",
+        tabletSnapshot->TabletId, store->GetId(), mode, configRevision, readSessionId);
 
     LOG_INFO("Store preload started");
 
     auto reader = store->GetChunkReader();
     auto workloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemTabletPreload);
 
-    auto meta = WaitFor(reader->GetMeta(TWorkloadDescriptor(workloadDescriptor)))
+    auto meta = WaitFor(reader->GetMeta(workloadDescriptor, readSessionId))
         .ValueOrThrow();
 
     auto miscExt = GetProtoExtension<TMiscExt>(meta.extensions());
@@ -538,6 +543,7 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
 
         auto compressedBlocks = WaitFor(reader->ReadBlocks(
             workloadDescriptor,
+            readSessionId,
             startBlockIndex,
             totalBlockCount - startBlockIndex))
             .ValueOrThrow();

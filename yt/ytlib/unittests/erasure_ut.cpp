@@ -61,23 +61,25 @@ public:
 
     virtual TFuture<std::vector<TBlock>> ReadBlocks(
         const TWorkloadDescriptor& workloadDescriptor,
+        const TReadSessionId& readSessionId,
         const std::vector<int>& blockIndexes) override
     {
         if (TryFail()) {
             return MakeFuture(MakeError());
         }
-        return TFileReader::ReadBlocks(workloadDescriptor, blockIndexes);
+        return TFileReader::ReadBlocks(workloadDescriptor, readSessionId, blockIndexes);
     }
 
     virtual TFuture<std::vector<TBlock>> ReadBlocks(
         const TWorkloadDescriptor& workloadDescriptor,
+        const TReadSessionId& readSessionId,
         int firstBlockIndex,
         int blockCount) override
     {
         if (TryFail()) {
             return MakeFuture(MakeError());
         }
-        return TFileReader::ReadBlocks(workloadDescriptor, firstBlockIndex, blockCount);
+        return TFileReader::ReadBlocks(workloadDescriptor, readSessionId, firstBlockIndex, blockCount);
     }
 
     virtual bool IsValid() const override
@@ -315,7 +317,7 @@ public:
     {
         auto check = [&] (std::vector<int> indexes) {
             std::random_shuffle(indexes.begin(), indexes.end());
-            auto result = WaitFor(repairReader->ReadBlocks(TWorkloadDescriptor(), indexes))
+            auto result = WaitFor(repairReader->ReadBlocks(TWorkloadDescriptor(), TReadSessionId(), indexes))
                 .ValueOrThrow();
             EXPECT_EQ(result.size(), indexes.size());
             for (int i = 0; i < indexes.size(); ++i) {
@@ -367,7 +369,11 @@ public:
     {
         int index = 0;
         for (const auto& ref : dataRefs) {
-            auto result = erasureReader->ReadBlocks(TWorkloadDescriptor(), std::vector<int>(1, index++)).Get();
+            auto result = erasureReader->ReadBlocks(
+                TWorkloadDescriptor(),
+                TReadSessionId(),
+                std::vector<int>(1, index++))
+                .Get();
             EXPECT_TRUE(result.IsOK());
             auto resultRef = result.ValueOrThrow().front();
 
@@ -466,7 +472,11 @@ TEST_F(TErasureMixture, ReaderTest)
         // Check blocks separately
         int index = 0;
         for (const auto& ref : dataRefs) {
-            auto result = erasureReader->ReadBlocks(TWorkloadDescriptor(), std::vector<int>(1, index++)).Get();
+            auto result = erasureReader->ReadBlocks(
+                TWorkloadDescriptor(),
+                TReadSessionId(),
+                std::vector<int>(1, index++))
+                .Get();
             EXPECT_TRUE(result.IsOK());
             auto resultRef = TBlock::Unwrap(result.ValueOrThrow()).front();
 
@@ -479,7 +489,11 @@ TEST_F(TErasureMixture, ReaderTest)
         std::vector<int> indices;
         indices.push_back(1);
         indices.push_back(3);
-        auto result = erasureReader->ReadBlocks(TWorkloadDescriptor(), indices).Get();
+        auto result = erasureReader->ReadBlocks(
+            TWorkloadDescriptor(),
+            TReadSessionId(),
+            indices)
+            .Get();
         EXPECT_TRUE(result.IsOK());
         auto resultRef = TBlock::Unwrap(result.ValueOrThrow());
         EXPECT_EQ(ToString(dataRefs[1]), ToString(resultRef[0]));
@@ -823,7 +837,7 @@ TEST_F(TErasureMixture, RepairingReaderUnrecoverable)
     std::vector<int> indexes(dataRefs.size());
     std::iota(indexes.begin(), indexes.end(), 0);
 
-    auto result = reader->ReadBlocks(TWorkloadDescriptor(), indexes).Get();
+    auto result = reader->ReadBlocks(TWorkloadDescriptor(), TReadSessionId(), indexes).Get();
     ASSERT_FALSE(result.IsOK());
 
     Cleanup(codec);

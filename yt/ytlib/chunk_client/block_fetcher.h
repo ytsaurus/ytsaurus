@@ -133,6 +133,8 @@ private:
 
     bool IsFetchingCompleted_ = false;
 
+    const TReadSessionId ReadSessionId_;
+
     NLogging::TLogger Logger;
 };
 
