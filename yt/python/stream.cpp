@@ -54,9 +54,16 @@ TOutputStreamWrap::~TOutputStreamWrap() noexcept
 void TOutputStreamWrap::DoWrite(const void* buf, size_t len)
 {
     TGilGuard guard;
-    WriteFunction_.apply(Py::TupleN(Py::Bytes(
-        reinterpret_cast<const char*>(buf),
-        len)));
+
+    size_t index = 0;
+    while (len > 0) {
+        size_t toWrite = std::min(len, static_cast<size_t>(1ll << 30));
+        WriteFunction_.apply(Py::TupleN(Py::Bytes(
+            reinterpret_cast<const char*>(buf) + index,
+            toWrite)));
+        len -= toWrite;
+        index += toWrite;
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
