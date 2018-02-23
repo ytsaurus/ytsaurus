@@ -38,6 +38,7 @@ struct TFileOffset
 struct IShareHost
     : virtual public TRefCounted
 {
+public:
     virtual IInvokerPtr GetInvoker() = 0;
 
     virtual std::pair<TSkynetShareMeta, std::vector<TFileOffset>> ReadMeta(
@@ -63,8 +64,6 @@ struct IShareHost
 DEFINE_REFCOUNTED_TYPE(IShareHost)
 
 ////////////////////////////////////////////////////////////////////////////////
-
-class TShareCache;
 
 DEFINE_ENUM(EShareState,
     (Creating)
@@ -120,7 +119,7 @@ DEFINE_REFCOUNTED_TYPE(TShareInfo)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TDiscoverInfo
+struct TDiscoveryInfo
 {
     TString Cluster;
     NYPath::TRichYPath TablePath;
@@ -143,7 +142,7 @@ public:
 
 private:
     const TDuration Ttl_;
-    size_t MaxSize_;
+    const int MaxSize_;
 
     struct TEntry
     {
@@ -171,13 +170,13 @@ public:
 
     void Unshare(const TShareKey& key);
 
-    TNullable<TDiscoverInfo> TryDiscover(const TStringBuf& rbTorrentId);
+    TNullable<TDiscoveryInfo> TryDiscover(const TStringBuf& rbTorrentId);
 
     std::vector<TShardName> ListShards();
     std::vector<TShareKey> ListActiveShares(const TShardName& shardName, const TString& cluster);
 
 private:
-    IShareHostPtr ShareHost_;
+    const IShareHostPtr ShareHost_;
 
     TSpinLock Lock_;
     THashMap<TShardName, THashMap<TString, TShareInfoPtr>> Shards_;

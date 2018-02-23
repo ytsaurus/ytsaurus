@@ -29,7 +29,7 @@ public:
     void Share(NHttp::IRequestPtr req, NHttp::IResponseWriterPtr rsp);
     void Discover(NHttp::IRequestPtr req, NHttp::IResponseWriterPtr rsp);
 
-    void RunCypressPullIteration(const TCluster& cluster);
+    void RunCypressSyncIteration(const TCluster& cluster);
     void RunTableScanIteration(const TCluster& cluster);
 
     TString FormatDiscoveryUrl(const TString& rbTorrentId);
@@ -38,7 +38,6 @@ public:
         const NYPath::TRichYPath& path);
 
     //! Overrides from IShareHost
-    
     virtual IInvokerPtr GetInvoker() override;
 
     virtual std::pair<TSkynetShareMeta, std::vector<TFileOffset>> ReadMeta(
@@ -61,7 +60,7 @@ public:
         const TString& rbTorrentId) override;
 
 private:
-    TBootstrap* Bootstrap_;
+    const TBootstrap* Bootstrap_;
 
     TSpinLock Lock_;
     THashSet<TString> SyncedClusters_;
@@ -96,13 +95,13 @@ void Serialize(const THttpReply& reply, NYson::IYsonConsumer* consumer);
 
 std::pair<TSkynetShareMeta, std::vector<TFileOffset>> ReadSkynetMetaFromTable(
     const NHttp::IClientPtr& httpClient,
-    const TString& proxyURL,
+    const TString& proxyUrl,
     const TString& oauthToken,
     const NYPath::TRichYPath& path);
 
 std::vector<THttpPartLocation> FetchSkynetPartsLocations(
     const NHttp::IClientPtr& httpClient,
-    const TString& proxyURL,
+    const TString& proxyUrl,
     const TString& oauthToken,
     const NYPath::TRichYPath& path,
     const std::vector<TFileOffset>& offsets);

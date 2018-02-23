@@ -176,7 +176,7 @@ void TBootstrap::DoRun()
     };
 
     for (const auto& cluster : Clusters) {
-        spawn([manager=Manager, Logger=SkynetManagerLogger, cluster] {
+        spawn([manager = Manager, Logger = SkynetManagerLogger, cluster] {
             while (true) {
                 try {
                     cluster.CypressSync->CreateCypressNodesIfNeeded();
@@ -193,14 +193,14 @@ void TBootstrap::DoRun()
                     .ThrowOnError();
 
                 try {
-                    manager->RunCypressPullIteration(cluster);
+                    manager->RunCypressSyncIteration(cluster);
                 } catch (const std::exception& ex) {
-                    LOG_ERROR(ex, "Cypress pull crashed (Cluster: %v)", cluster.Config->ClusterName);
+                    LOG_ERROR(ex, "Error synchronizing state with cypress (Cluster: %v)", cluster.Config->ClusterName);
                 }
             }
         });
 
-        spawn([manager=Manager, Logger=SkynetManagerLogger, cluster] {
+        spawn([manager = Manager, Logger = SkynetManagerLogger, cluster] {
             while (true) {
                 WaitFor(TDelayedExecutor::MakeDelayed(TDuration::Seconds(5)))
                     .ThrowOnError();
@@ -208,7 +208,7 @@ void TBootstrap::DoRun()
                 try {
                     manager->RunTableScanIteration(cluster);
                 } catch (const std::exception& ex) {
-                    LOG_ERROR(ex, "Deleted tables scan crashed (Cluster: %v)", cluster.Config->ClusterName);
+                    LOG_ERROR(ex, "Deleted tables scan failed (Cluster: %v)", cluster.Config->ClusterName);
                 }
             }
         });

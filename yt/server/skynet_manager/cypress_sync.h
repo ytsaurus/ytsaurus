@@ -46,13 +46,12 @@ public:
     void RemoveShare(const TString& rbTorrentId);
 
 private:
-    TClusterConnectionConfigPtr Config_;
-    NApi::IClientPtr Client_;
-    TString Name_;
+    const TClusterConnectionConfigPtr Config_;
+    const NApi::IClientPtr Client_;
+    const TString Name_;
+    const TShareCachePtr ShareCache_;
 
     std::map<TShardName, i64> LastSeenRevision_;
-
-    TShareCachePtr ShareCache_;
 
     NYPath::TYPath GetPath(const TString& rbTorrentId) const;
 };

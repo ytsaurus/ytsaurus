@@ -257,7 +257,7 @@ void TSkynetManager::RemoveResourceFromSkynet(const TString& rbTorrentId)
         .ThrowOnError();
 }
 
-void TSkynetManager::RunCypressPullIteration(const TCluster& cluster)
+void TSkynetManager::RunCypressSyncIteration(const TCluster& cluster)
 {
     try {
         auto& shareCache = Bootstrap_->ShareCache;
@@ -775,16 +775,16 @@ std::vector<THttpPartLocation> FetchSkynetPartsLocations(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void CleanSkynet(const ISkynetApiPtr& skynet, const TShareCachePtr& shareCache)
+void CleanSkynet(const ISkynetApiPtr& skynetApi, const TShareCachePtr& shareCache)
 {
-    auto resources = WaitFor(skynet->ListResources())
+    auto resources = WaitFor(skynetApi->ListResources())
         .ValueOrThrow();
 
     i64 count = 0;
     for (const auto& rbTorrentId : resources) {
         if (!shareCache->TryDiscover(rbTorrentId)) {
             ++count;
-            WaitFor(skynet->RemoveResource(rbTorrentId))
+            WaitFor(skynetApi->RemoveResource(rbTorrentId))
                 .ThrowOnError();
         }
     }

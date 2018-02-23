@@ -7,13 +7,16 @@
 #include <yt/server/skynet_manager/share_cache.h>
 #include <yt/server/skynet_manager/rb_torrent.h>
 
-using namespace NYT;
-using namespace NYT::NConcurrency;
-using namespace NYT::NSkynetManager;
+namespace NYT {
+namespace NSkynetManager {
+namespace {
 
-using namespace testing;
+using namespace ::testing;
 
-struct TShareHostMock : public IShareHost
+using namespace NConcurrency;
+
+struct TShareHostMock
+    : public IShareHost
 {
     IInvokerPtr Invoker;
 
@@ -36,7 +39,8 @@ struct TShareHostMock : public IShareHost
 DECLARE_REFCOUNTED_STRUCT(TShareHostMock)
 DEFINE_REFCOUNTED_TYPE(TShareHostMock)
 
-struct TShareCacheTest : public ::testing::Test
+struct TShareCacheTest
+    : public Test
 {
     TShareHostMockPtr HostMock;
     TTombstoneCacheConfigPtr Config;
@@ -205,3 +209,6 @@ TEST_F(TShareCacheTest, UnshareInTheMiddleOfShare)
     EXPECT_FALSE(cache->TryDiscover(rbTorrentId));
 }
 
+} // namespace
+} // namespace NSkynetManager
+} // namespace NYT
