@@ -124,6 +124,9 @@ b"""
 {
     cluster_connection = {
         enable_read_from_followers = %true;
+        scheduler = {
+            retry_backoff_time = 100;
+        }
     };
 
     node_directory_synchronizer = {
