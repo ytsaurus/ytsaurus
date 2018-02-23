@@ -19,44 +19,45 @@
 #include <yt/core/rpc/public.h>
 
 namespace NYT {
-namespace NScheduler {
+namespace NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TBootstrap
 {
 public:
-    TBootstrap(TSchedulerBootstrapConfigPtr config, NYTree::INodePtr configNode);
+    TBootstrap(TControllerAgentBootstrapConfigPtr config, NYTree::INodePtr configNode);
     ~TBootstrap();
 
-    const TSchedulerBootstrapConfigPtr& GetConfig() const;
+    const NControllerAgent::TAgentId& GetAgentId() const;
+    const TControllerAgentBootstrapConfigPtr& GetConfig() const;
     const NApi::INativeClientPtr& GetMasterClient() const;
     NNodeTrackerClient::TAddressMap GetLocalAddresses() const;
     NNodeTrackerClient::TNetworkPreferenceList GetLocalNetworks() const;
-    IInvokerPtr GetControlInvoker(EControlQueue queue = EControlQueue::Default) const;
-    const TSchedulerPtr& GetScheduler() const;
-    const TControllerAgentTrackerPtr& GetControllerAgentTracker() const;
-    const NRpc::TResponseKeeperPtr& GetResponseKeeper() const;
+    IInvokerPtr GetControlInvoker() const;
+    const NControllerAgent::TControllerAgentPtr& GetControllerAgent() const;
+    const NNodeTrackerClient::TNodeDirectoryPtr& GetNodeDirectory() const;
     const TCoreDumperPtr& GetCoreDumper() const;
 
     void Run();
 
     // XXX(babenko): finish separation
 //private:
-    const TSchedulerBootstrapConfigPtr Config_;
+    const TControllerAgentBootstrapConfigPtr Config_;
     const NYTree::INodePtr ConfigNode_;
 
+    NControllerAgent::TAgentId AgentId_;
     NMonitoring::TMonitoringManagerPtr MonitoringManager_;
     std::unique_ptr<NLFAlloc::TLFAllocProfiler> LFAllocProfiler_;
-    NConcurrency::TFairShareActionQueuePtr ControlQueue_;
+    NConcurrency::TActionQueuePtr ControlQueue_;
     NBus::IBusServerPtr BusServer_;
     NRpc::IServerPtr RpcServer_;
     NHttp::IServerPtr HttpServer_;
     NApi::INativeConnectionPtr Connection_;
     NApi::INativeClientPtr Client_;
-    TSchedulerPtr Scheduler_;
-    TControllerAgentTrackerPtr ControllerAgentTracker_;
-    NRpc::TResponseKeeperPtr ResponseKeeper_;
+    TControllerAgentPtr ControllerAgent_;
+    NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory_;
+    NNodeTrackerClient::TNodeDirectorySynchronizerPtr NodeDirectorySynchronizer_;
     TCoreDumperPtr CoreDumper_;
 
     void DoRun();
@@ -64,5 +65,5 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
+} // namespace NControllerAgent
 } // namespace NYT

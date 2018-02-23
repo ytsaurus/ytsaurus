@@ -1,8 +1,7 @@
 #include "job_spec_service.h"
 #include "controller_agent.h"
+#include "bootstrap.h"
 #include "private.h"
-
-#include <yt/server/scheduler/bootstrap.h>
 
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
 
@@ -38,8 +37,7 @@ class TJobSpecService
 public:
     explicit TJobSpecService(TBootstrap* bootstrap)
         : TServiceBase(
-            // TODO(babenko): better queue
-            bootstrap->GetControlInvoker(EControlQueue::Default),
+            bootstrap->GetControlInvoker(),
             TJobSpecServiceProxy::GetDescriptor(),
             ControllerAgentLogger)
         , Bootstrap_(bootstrap)

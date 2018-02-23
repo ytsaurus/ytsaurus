@@ -11,7 +11,7 @@ namespace NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////
 
-NRpc::IServicePtr CreateControllerAgentService(NScheduler::TBootstrap* bootstrap);
+NRpc::IServicePtr CreateControllerAgentService(TBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////
 

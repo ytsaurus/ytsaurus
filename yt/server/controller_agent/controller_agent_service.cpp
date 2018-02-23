@@ -1,9 +1,8 @@
 #include "controller_agent_service.h"
 #include "controller_agent.h"
 #include "controller_agent_service_proxy.h"
+#include "bootstrap.h"
 #include "private.h"
-
-#include <yt/server/scheduler/bootstrap.h>
 
 #include <yt/core/rpc/service_detail.h>
 
@@ -23,8 +22,7 @@ class TControllerAgentService
 public:
     explicit TControllerAgentService(TBootstrap* bootstrap)
         : TServiceBase(
-            // TODO(babenko): better queue
-            bootstrap->GetControlInvoker(EControlQueue::Default),
+            bootstrap->GetControlInvoker(),
             TControllerAgentServiceProxy::GetDescriptor(),
             ControllerAgentLogger)
         , Bootstrap_(bootstrap)

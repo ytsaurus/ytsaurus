@@ -19,14 +19,14 @@ class TSnapshotDownloader
 public:
     TSnapshotDownloader(
         TControllerAgentConfigPtr config,
-        NScheduler::TBootstrap* bootstrap,
+        TBootstrap* bootstrap,
         const TOperationId& operationId);
 
     TSharedRef Run(const NYTree::TYPath& snapshotPath);
 
 private:
     const TControllerAgentConfigPtr Config_;
-    NScheduler::TBootstrap* const Bootstrap_;
+    TBootstrap* const Bootstrap_;
     const TOperationId OperationId_;
 
     const NLogging::TLogger Logger;

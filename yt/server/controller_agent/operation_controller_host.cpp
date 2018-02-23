@@ -2,9 +2,8 @@
 #include "master_connector.h"
 #include "controller_agent.h"
 #include "operation.h"
+#include "bootstrap.h"
 #include "private.h"
-
-#include <yt/server/scheduler/bootstrap.h>
 
 namespace NYT {
 namespace NControllerAgent {
@@ -144,12 +143,12 @@ void TOperationControllerHost::AddChunkTreesToUnstageList(const std::vector<TChu
 
 const NApi::INativeClientPtr& TOperationControllerHost::GetClient()
 {
-    return Bootstrap_->GetControllerAgent()->GetClient();
+    return Bootstrap_->GetMasterClient();
 }
 
 const NNodeTrackerClient::TNodeDirectoryPtr& TOperationControllerHost::GetNodeDirectory()
 {
-    return Bootstrap_->GetControllerAgent()->GetNodeDirectory();
+    return Bootstrap_->GetNodeDirectory();
 }
 
 const TThrottlerManagerPtr& TOperationControllerHost::GetChunkLocationThrottlerManager()

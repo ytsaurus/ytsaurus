@@ -54,6 +54,20 @@ set_target_properties(ytserver-scheduler PROPERTIES LINK_FLAGS "-static-libstdc+
 
 ################################################################################
 
+add_executable(ytserver-controller-agent
+  ${CMAKE_CURRENT_LIST_DIR}/programs/controller_agent/main.cpp
+)
+
+target_link_libraries(ytserver-controller-agent
+  yt-library-server
+  deps-arcadia-library-getopt
+  deps-arcadia-library-lfalloc
+)
+
+set_target_properties(ytserver-controller-agent PROPERTIES LINK_FLAGS "-static-libstdc++")
+
+################################################################################
+
 add_executable(ytserver-proxy
   ${CMAKE_CURRENT_LIST_DIR}/cell_proxy_program/main.cpp
 )
@@ -152,11 +166,19 @@ install(
   COMPONENT cell_master
 )
 
+
 install(
   TARGETS ytserver-scheduler
   RUNTIME DESTINATION bin
   PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE SETUID
   COMPONENT scheduler
+)
+
+install(
+  TARGETS ytserver-controller-agent
+  RUNTIME DESTINATION bin
+  PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE SETUID
+  COMPONENT scheduler_agent
 )
 
 install(
