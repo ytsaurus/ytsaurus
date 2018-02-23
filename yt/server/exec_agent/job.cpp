@@ -85,7 +85,7 @@ public:
         const TOperationId& operationId,
         const TNodeResources& resourceUsage,
         TJobSpec&& jobSpec,
-        TBootstrap* bootstrap)
+        NCellNode::TBootstrap* bootstrap)
         : Id_(jobId)
         , OperationId_(operationId)
         , Bootstrap_(bootstrap)
@@ -1267,7 +1267,7 @@ NJobAgent::IJobPtr CreateUserJob(
     const TOperationId& operationId,
     const TNodeResources& resourceUsage,
     TJobSpec&& jobSpec,
-    TBootstrap* bootstrap)
+    NCellNode::TBootstrap* bootstrap)
 {
     return New<TJob>(
         jobId,

@@ -3,11 +3,9 @@
 #include "helpers.h"
 #include "scheduler.h"
 #include "scheduler_strategy.h"
+#include "bootstrap.h"
 
 #include <yt/server/controller_agent/helpers.h>
-
-#include <yt/server/cell_scheduler/bootstrap.h>
-#include <yt/server/cell_scheduler/config.h>
 
 #include <yt/server/misc/update_executor.h>
 
@@ -57,7 +55,6 @@ using namespace NRpc;
 using namespace NApi;
 using namespace NSecurityClient;
 using namespace NConcurrency;
-using namespace NCellScheduler;
 
 using NNodeTrackerClient::TAddressMap;
 using NNodeTrackerClient::GetDefaultAddress;
@@ -79,7 +76,7 @@ class TMasterConnector::TImpl
 public:
     TImpl(
         TSchedulerConfigPtr config,
-        NCellScheduler::TBootstrap* bootstrap)
+        TBootstrap* bootstrap)
         : Config_(config)
         , Bootstrap_(bootstrap)
     { }
@@ -119,7 +116,7 @@ public:
         DoDisconnect(error);
     }
 
-    const IInvokerPtr& GetCancelableControlInvoker(NCellScheduler::EControlQueue queue = NCellScheduler::EControlQueue::MasterConnector) const
+    const IInvokerPtr& GetCancelableControlInvoker(EControlQueue queue = EControlQueue::MasterConnector) const
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(State_ != EMasterConnectorState::Disconnected);
@@ -364,10 +361,10 @@ public:
 
 private:
     TSchedulerConfigPtr Config_;
-    NCellScheduler::TBootstrap* const Bootstrap_;
+    TBootstrap* const Bootstrap_;
 
     TCancelableContextPtr CancelableContext_;
-    TEnumIndexedVector<IInvokerPtr, NCellScheduler::EControlQueue> CancelableControlInvokers_;
+    TEnumIndexedVector<IInvokerPtr, EControlQueue> CancelableControlInvokers_;
 
     std::atomic<EMasterConnectorState> State_ = {EMasterConnectorState::Disconnected};
     std::atomic<TInstant> ConnectionTime_;
@@ -460,7 +457,7 @@ private:
         YCHECK(!CancelableContext_);
         CancelableContext_ = New<TCancelableContext>();
 
-        for (auto queue : TEnumTraits<NCellScheduler::EControlQueue>::GetDomainValues()) {
+        for (auto queue : TEnumTraits<EControlQueue>::GetDomainValues()) {
             YCHECK(!CancelableControlInvokers_[queue]);
             CancelableControlInvokers_[queue] = CancelableContext_->CreateInvoker(
                 Bootstrap_->GetControlInvoker(queue));
@@ -1571,7 +1568,7 @@ private:
 
 TMasterConnector::TMasterConnector(
     TSchedulerConfigPtr config,
-    NCellScheduler::TBootstrap* bootstrap)
+    TBootstrap* bootstrap)
     : Impl_(New<TImpl>(config, bootstrap))
 { }
 
@@ -1597,7 +1594,7 @@ void TMasterConnector::Disconnect(const TError& error)
     Impl_->Disconnect(error);
 }
 
-const IInvokerPtr& TMasterConnector::GetCancelableControlInvoker(NCellScheduler::EControlQueue queue) const
+const IInvokerPtr& TMasterConnector::GetCancelableControlInvoker(EControlQueue queue) const
 {
     return Impl_->GetCancelableControlInvoker(queue);
 }

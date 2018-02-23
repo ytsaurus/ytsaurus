@@ -25,25 +25,25 @@
 #include <yt/core/misc/public.h>
 
 namespace NYT {
-namespace NCellScheduler {
+namespace NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TBootstrap
 {
 public:
-    TBootstrap(TCellSchedulerConfigPtr config, NYTree::INodePtr configNode);
+    TBootstrap(TSchedulerBootstrapConfigPtr config, NYTree::INodePtr configNode);
     ~TBootstrap();
 
     // TODO(babenko): agent-specific
     const NControllerAgent::TAgentId& GetAgentId() const;
-    const TCellSchedulerConfigPtr& GetConfig() const;
+    const TSchedulerBootstrapConfigPtr& GetConfig() const;
     const NApi::INativeClientPtr& GetMasterClient() const;
     NNodeTrackerClient::TAddressMap GetLocalAddresses() const;
     NNodeTrackerClient::TNetworkPreferenceList GetLocalNetworks() const;
     IInvokerPtr GetControlInvoker(EControlQueue queue = EControlQueue::Default) const;
-    const NScheduler::TSchedulerPtr& GetScheduler() const;
-    const NScheduler::TControllerAgentTrackerPtr& GetControllerAgentTracker() const;
+    const TSchedulerPtr& GetScheduler() const;
+    const TControllerAgentTrackerPtr& GetControllerAgentTracker() const;
     const NControllerAgent::TControllerAgentPtr& GetControllerAgent() const;
     const NNodeTrackerClient::TNodeDirectoryPtr& GetNodeDirectory() const;
     const NRpc::TResponseKeeperPtr& GetResponseKeeper() const;
@@ -52,7 +52,7 @@ public:
     void Run();
 
 private:
-    const TCellSchedulerConfigPtr Config_;
+    const TSchedulerBootstrapConfigPtr Config_;
     const NYTree::INodePtr ConfigNode_;
 
     // TODO(babenko): agent-specific
@@ -65,8 +65,8 @@ private:
     NHttp::IServerPtr HttpServer_;
     NApi::INativeConnectionPtr Connection_;
     NApi::INativeClientPtr Client_;
-    NScheduler::TSchedulerPtr Scheduler_;
-    NScheduler::TControllerAgentTrackerPtr ControllerAgentTracker_;
+    TSchedulerPtr Scheduler_;
+    TControllerAgentTrackerPtr ControllerAgentTracker_;
     NControllerAgent::TControllerAgentPtr ControllerAgent_;
     NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory_;
     NNodeTrackerClient::TNodeDirectorySynchronizerPtr NodeDirectorySynchronizer_;
@@ -78,5 +78,5 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCellScheduler
+} // namespace NScheduler
 } // namespace NYT

@@ -1,8 +1,7 @@
 #include "job_prober_service.h"
 #include "private.h"
 #include "scheduler.h"
-
-#include <yt/server/cell_scheduler/bootstrap.h>
+#include "bootstrap.h"
 
 #include <yt/ytlib/api/client.h>
 
@@ -19,7 +18,6 @@ namespace NYT {
 namespace NScheduler {
 
 using namespace NRpc;
-using namespace NCellScheduler;
 using namespace NConcurrency;
 using namespace NYson;
 using namespace NYTree;

@@ -92,7 +92,7 @@ public:
         int id,
         TSchedulerConfigPtr config,
         INodeShardHost* host,
-        NCellScheduler::TBootstrap* bootstrap);
+        TBootstrap* bootstrap);
 
     int GetId() const;
     const IInvokerPtr& GetInvoker() const;
@@ -168,7 +168,7 @@ private:
     const int Id_;
     TSchedulerConfigPtr Config_;
     INodeShardHost* const Host_;
-    NCellScheduler::TBootstrap* const Bootstrap_;
+    TBootstrap* const Bootstrap_;
 
     const NConcurrency::TActionQueuePtr ActionQueue_;
     const NConcurrency::TPeriodicExecutorPtr CachedExecNodeDescriptorsRefresher_;

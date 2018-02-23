@@ -12,14 +12,13 @@
 #include "controller_agent_tracker.h"
 #include "controller_agent.h"
 #include "operation_controller.h"
+#include "bootstrap.h"
+#include "config.h"
 
 #include <yt/server/controller_agent/helpers.h>
 #include <yt/server/controller_agent/controller_agent_service_proxy.h>
 
 #include <yt/server/exec_agent/public.h>
-
-#include <yt/server/cell_scheduler/bootstrap.h>
-#include <yt/server/cell_scheduler/config.h>
 
 #include <yt/server/shell/config.h>
 
@@ -79,7 +78,6 @@ using namespace NYPath;
 using namespace NRpc;
 using namespace NNet;
 using namespace NApi;
-using namespace NCellScheduler;
 using namespace NObjectClient;
 using namespace NHydra;
 using namespace NJobTrackerClient;
@@ -570,7 +568,7 @@ public:
             user,
             spec->Owners,
             TInstant::Now(),
-            MasterConnector_->GetCancelableControlInvoker(NCellScheduler::EControlQueue::Operation));
+            MasterConnector_->GetCancelableControlInvoker(EControlQueue::Operation));
         operation->SetStateAndEnqueueEvent(EOperationState::Starting);
 
         auto codicilGuard = operation->MakeCodicilGuard();
@@ -619,7 +617,7 @@ public:
             return operation->GetFinished();
         }
 
-        MasterConnector_->GetCancelableControlInvoker(NCellScheduler::EControlQueue::Operation)->Invoke(
+        MasterConnector_->GetCancelableControlInvoker(EControlQueue::Operation)->Invoke(
             BIND(&TImpl::DoAbortOperation, MakeStrong(this), operation, error));
 
         return operation->GetFinished();
@@ -731,7 +729,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        MasterConnector_->GetCancelableControlInvoker(NCellScheduler::EControlQueue::Operation)->Invoke(
+        MasterConnector_->GetCancelableControlInvoker(EControlQueue::Operation)->Invoke(
             BIND(&TImpl::DoCompleteOperation, MakeStrong(this), operation));
     }
 
@@ -739,7 +737,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        MasterConnector_->GetCancelableControlInvoker(NCellScheduler::EControlQueue::Operation)->Invoke(
+        MasterConnector_->GetCancelableControlInvoker(EControlQueue::Operation)->Invoke(
             BIND(&TImpl::DoAbortOperation, MakeStrong(this), operation, error));
     }
 

@@ -29,8 +29,6 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/cell_node/bootstrap.cpp
   ${CMAKE_CURRENT_LIST_DIR}/cell_node/private.cpp
 
-  ${CMAKE_CURRENT_LIST_DIR}/cell_scheduler/bootstrap.cpp
-
   ${CMAKE_CURRENT_LIST_DIR}/cell_proxy/bootstrap.cpp
 
   ${CMAKE_CURRENT_LIST_DIR}/chunk_pools/chunk_pool.cpp
@@ -328,6 +326,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/rpc_proxy/proxy_coordinator.cpp
   ${CMAKE_CURRENT_LIST_DIR}/rpc_proxy/private.cpp
 
+  ${CMAKE_CURRENT_LIST_DIR}/scheduler/bootstrap.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/config.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/controller_agent_tracker_service.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/event_log.cpp

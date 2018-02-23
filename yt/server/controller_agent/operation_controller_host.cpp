@@ -4,7 +4,7 @@
 #include "operation.h"
 #include "private.h"
 
-#include <yt/server/cell_scheduler/bootstrap.h>
+#include <yt/server/scheduler/bootstrap.h>
 
 namespace NYT {
 namespace NControllerAgent {
@@ -22,9 +22,9 @@ static const auto& Logger = ControllerAgentLogger;
 TOperationControllerHost::TOperationControllerHost(
     TOperation* operation,
     IInvokerPtr cancelableControlInvoker,
-    TIntrusivePtr<NScheduler::TMessageQueueOutbox<TAgentToSchedulerOperationEvent>> operationEventsOutbox,
-    TIntrusivePtr<NScheduler::TMessageQueueOutbox<TAgentToSchedulerJobEvent>> jobEventsOutbox,
-    NCellScheduler::TBootstrap* bootstrap)
+    TIntrusivePtr<TMessageQueueOutbox<TAgentToSchedulerOperationEvent>> operationEventsOutbox,
+    TIntrusivePtr<TMessageQueueOutbox<TAgentToSchedulerJobEvent>> jobEventsOutbox,
+    TBootstrap* bootstrap)
     : OperationId_(operation->GetId())
     , CancelableControlInvoker_(std::move(cancelableControlInvoker))
     , OperationEventsOutbox_(std::move(operationEventsOutbox))

@@ -2,7 +2,7 @@
 #include "controller_agent.h"
 #include "private.h"
 
-#include <yt/server/cell_scheduler/bootstrap.h>
+#include <yt/server/scheduler/bootstrap.h>
 
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
 
@@ -22,7 +22,7 @@ namespace NYT {
 namespace NControllerAgent {
 
 using namespace NRpc;
-using namespace NCellScheduler;
+using namespace NScheduler;
 using namespace NApi;
 using namespace NYTree;
 using namespace NYson;

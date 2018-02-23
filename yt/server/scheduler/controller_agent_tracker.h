@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <yt/server/cell_scheduler/bootstrap.h>
-
 #include <yt/core/ytree/public.h>
+
+#include <yt/core/rpc/service_detail.h>
 
 namespace NYT {
 namespace NScheduler {
@@ -20,7 +20,7 @@ class TControllerAgentTracker
 public:
     TControllerAgentTracker(
         TSchedulerConfigPtr config,
-        NCellScheduler::TBootstrap* bootstrap);
+        TBootstrap* bootstrap);
     ~TControllerAgentTracker();
 
     void Initialize();

@@ -1,8 +1,7 @@
 #include "scheduler_service.h"
 #include "private.h"
 #include "scheduler.h"
-
-#include <yt/server/cell_scheduler/bootstrap.h>
+#include "bootstrap.h"
 
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
 
@@ -19,7 +18,6 @@ namespace NYT {
 namespace NScheduler {
 
 using namespace NRpc;
-using namespace NCellScheduler;
 using namespace NApi;
 using namespace NYTree;
 using namespace NYson;

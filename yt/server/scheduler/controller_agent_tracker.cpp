@@ -10,9 +10,8 @@
 #include "helpers.h"
 #include "controller_agent_tracker_service_proxy.h"
 #include "master_connector.h"
-
-#include <yt/server/cell_scheduler/bootstrap.h>
-#include <yt/server/cell_scheduler/config.h>
+#include "bootstrap.h"
+#include "config.h"
 
 #include <yt/server/controller_agent/controller_agent_service_proxy.h>
 
@@ -50,7 +49,7 @@ namespace {
 
 template <class TResponse, class TRequest>
 TFuture<TIntrusivePtr<TResponse>> InvokeAgent(
-    NCellScheduler::TBootstrap* bootstrap,
+    TBootstrap* bootstrap,
     const TOperationId& operationId,
     const TControllerAgentPtr& agent,
     const TIntrusivePtr<TRequest>& request)
@@ -82,7 +81,7 @@ class TOperationController
 {
 public:
     TOperationController(
-        NCellScheduler::TBootstrap* bootstrap,
+        TBootstrap* bootstrap,
         TSchedulerConfigPtr config,
         const TOperationPtr& operation)
         : Bootstrap_(bootstrap)
@@ -460,7 +459,7 @@ public:
     }
 
 private:
-    NCellScheduler::TBootstrap* const Bootstrap_;
+    TBootstrap* const Bootstrap_;
     const TOperationId OperationId_;
     const TOperationRuntimeDataPtr RuntimeData_;
 
@@ -556,7 +555,7 @@ class TControllerAgentTracker::TImpl
 public:
     TImpl(
         TSchedulerConfigPtr config,
-        NCellScheduler::TBootstrap* bootstrap)
+        TBootstrap* bootstrap)
         : Config_(std::move(config))
         , Bootstrap_(bootstrap)
     { }
@@ -984,7 +983,7 @@ public:
 
 private:
     const TSchedulerConfigPtr Config_;
-    NCellScheduler::TBootstrap* const Bootstrap_;
+    TBootstrap* const Bootstrap_;
 
     const TActionQueuePtr MessageOffloadQueue_ = New<TActionQueue>("MessageOffload");
 
@@ -1008,7 +1007,7 @@ private:
         agent->SetLease(TLeaseManager::CreateLease(
             Config_->ControllerAgentHeartbeatTimeout,
             BIND(&TImpl::OnAgentHeartbeatTimeout, MakeWeak(this), agent)
-                .Via(Bootstrap_->GetScheduler()->GetMasterConnector()->GetCancelableControlInvoker(NCellScheduler::EControlQueue::AgentTracker))));
+                .Via(Bootstrap_->GetScheduler()->GetMasterConnector()->GetCancelableControlInvoker(EControlQueue::AgentTracker))));
 
         LOG_INFO("Agent registered (AgentId: %v, IncarnationId: %v)",
             agent->GetId(),
@@ -1077,7 +1076,7 @@ private:
 
 TControllerAgentTracker::TControllerAgentTracker(
     TSchedulerConfigPtr config,
-    NCellScheduler::TBootstrap* bootstrap)
+    TBootstrap* bootstrap)
     : Impl_(New<TImpl>(std::move(config), bootstrap))
 { }
 

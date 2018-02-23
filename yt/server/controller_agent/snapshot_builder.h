@@ -3,7 +3,7 @@
 #include "private.h"
 #include "operation_controller.h"
 
-#include <yt/server/cell_scheduler/public.h>
+#include <yt/server/scheduler/public.h>
 
 #include <yt/server/misc/fork_executor.h>
 

@@ -1,8 +1,7 @@
 #include "controller_agent_tracker_service.h"
 #include "controller_agent_tracker.h"
+#include "bootstrap.h"
 #include "private.h"
-
-#include <yt/server/cell_scheduler/bootstrap.h>
 
 #include <yt/server/scheduler/controller_agent_tracker_service_proxy.h>
 
@@ -10,7 +9,6 @@ namespace NYT {
 namespace NScheduler {
 
 using namespace NRpc;
-using namespace NCellScheduler;
 
 ////////////////////////////////////////////////////////////////////////////////
 

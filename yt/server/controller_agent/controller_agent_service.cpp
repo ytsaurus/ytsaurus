@@ -3,7 +3,7 @@
 #include "controller_agent_service_proxy.h"
 #include "private.h"
 
-#include <yt/server/cell_scheduler/bootstrap.h>
+#include <yt/server/scheduler/bootstrap.h>
 
 #include <yt/core/rpc/service_detail.h>
 
@@ -13,7 +13,7 @@ namespace NControllerAgent {
 using namespace NRpc;
 using namespace NConcurrency;
 using namespace NTransactionClient;
-using namespace NCellScheduler;
+using namespace NScheduler;
 
 ////////////////////////////////////////////////////////////////////
 

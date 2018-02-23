@@ -5,10 +5,9 @@
 #include "scheduling_context.h"
 #include "operation_controller.h"
 #include "controller_agent.h"
+#include "bootstrap.h"
 
 #include <yt/server/exec_agent/public.h>
-
-#include <yt/server/cell_scheduler/bootstrap.h>
 
 #include <yt/server/scheduler/proto/controller_agent_tracker_service.pb.h>
 
@@ -33,7 +32,6 @@ namespace NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using namespace NCellScheduler;
 using namespace NChunkClient;
 using namespace NCypressClient;
 using namespace NConcurrency;

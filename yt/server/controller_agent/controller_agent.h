@@ -2,8 +2,6 @@
 
 #include "operation_controller.h"
 
-#include <yt/server/cell_scheduler/public.h>
-
 #include <yt/server/scheduler/public.h>
 
 #include <yt/ytlib/node_tracker_client/public.h>
@@ -44,7 +42,7 @@ class TControllerAgent
 public:
     TControllerAgent(
         NScheduler::TSchedulerConfigPtr config, // TODO(babenko): config
-        NCellScheduler::TBootstrap* bootstrap);
+        NScheduler::TBootstrap* bootstrap);
     ~TControllerAgent();
 
     void Initialize();

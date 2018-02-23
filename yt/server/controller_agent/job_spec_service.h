@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/server/cell_scheduler/public.h>
+#include <yt/server/scheduler/public.h>
 
 #include <yt/core/rpc/public.h>
 
@@ -11,7 +11,7 @@ namespace NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////
 
-NRpc::IServicePtr CreateJobSpecService(NCellScheduler::TBootstrap* bootstrap);
+NRpc::IServicePtr CreateJobSpecService(NScheduler::TBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////
 
