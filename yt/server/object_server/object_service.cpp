@@ -354,6 +354,7 @@ private:
             auto& subrequest = Subrequests_[CurrentSubrequestIndex_];
             if (!subrequest.Context) {
                 ExecuteEmptySubrequest(&subrequest, user);
+                ++CurrentSubrequestIndex_;
                 continue;
             }
 
