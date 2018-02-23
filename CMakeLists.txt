@@ -388,7 +388,7 @@ if(YT_CAN_BUILD_PACKAGE)
   # 3) debian/rules
   hook_for_debian(yandex-yt all_binaries)
   hook_for_debian(yandex-yt-master cell_master)
-  hook_for_debian(yandex-yt-scheduler cell_scheduler)
+  hook_for_debian(yandex-yt-scheduler scheduler)
   hook_for_debian(yandex-yt-node cell_node)
   hook_for_debian(yandex-yt-proxy cell_proxy)
   hook_for_debian(yandex-yt-src sources)

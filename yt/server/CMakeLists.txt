@@ -41,7 +41,7 @@ set_target_properties(ytserver-node PROPERTIES LINK_FLAGS "-static-libstdc++")
 ################################################################################
 
 add_executable(ytserver-scheduler
-  ${CMAKE_CURRENT_LIST_DIR}/cell_scheduler_program/main.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/programs/scheduler/main.cpp
 )
 
 target_link_libraries(ytserver-scheduler
