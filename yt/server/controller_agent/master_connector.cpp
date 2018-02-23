@@ -6,10 +6,10 @@
 #include "operation.h"
 #include "serialize.h"
 #include "helpers.h"
+#include "bootstrap.h"
 
 #include <yt/server/scheduler/config.h>
 #include <yt/server/scheduler/helpers.h>
-#include <yt/server/scheduler/bootstrap.h>
 
 #include <yt/server/misc/update_executor.h>
 
@@ -249,7 +249,7 @@ private:
         CancelableContext_ = New<TCancelableContext>();
 
         YCHECK(!CancelableControlInvoker_);
-        CancelableControlInvoker_ = CancelableContext_->CreateInvoker(Bootstrap_->GetControlInvoker(EControlQueue::MasterConnector));
+        CancelableControlInvoker_ = CancelableContext_->CreateInvoker(Bootstrap_->GetControlInvoker());
     }
 
     void OnSchedulerConnected()

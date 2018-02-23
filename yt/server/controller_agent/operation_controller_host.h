@@ -37,7 +37,7 @@ public:
         IInvokerPtr cancelableControlInvoker,
         TIntrusivePtr<NScheduler::TMessageQueueOutbox<TAgentToSchedulerOperationEvent>> operationEventsOutbox,
         TIntrusivePtr<NScheduler::TMessageQueueOutbox<TAgentToSchedulerJobEvent>> jobEventsOutbox,
-        NScheduler::TBootstrap* bootstrap);
+        TBootstrap* bootstrap);
 
     virtual void InterruptJob(const TJobId& jobId, EInterruptReason reason) override;
     virtual void AbortJob(const TJobId& jobId, const TError& error) override;
@@ -82,7 +82,7 @@ private:
     const IInvokerPtr CancelableControlInvoker_;
     const TIntrusivePtr<NScheduler::TMessageQueueOutbox<TAgentToSchedulerOperationEvent>> OperationEventsOutbox_;
     const TIntrusivePtr<NScheduler::TMessageQueueOutbox<TAgentToSchedulerJobEvent>> JobEventsOutbox_;
-    NScheduler::TBootstrap* const Bootstrap_;
+    TBootstrap* const Bootstrap_;
     const TIncarnationId IncarnationId_;
 };
 

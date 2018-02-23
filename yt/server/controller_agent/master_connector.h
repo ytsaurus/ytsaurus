@@ -20,14 +20,13 @@ namespace NControllerAgent {
 //! Mediates communication between controller agent and master.
 /*!
  *  \note Thread affinity: control unless noted otherwise
- *  XXX(babenko): check affinity
  */
 class TMasterConnector
 {
 public:
     TMasterConnector(
         TControllerAgentConfigPtr config,
-        NScheduler::TBootstrap* bootstrap);
+        TBootstrap* bootstrap);
     ~TMasterConnector();
 
     void Initialize();

@@ -76,6 +76,7 @@ SET(YT_SRCS
 
   ${CMAKE_CURRENT_LIST_DIR}/controller_agent/auto_merge_director.cpp
   ${CMAKE_CURRENT_LIST_DIR}/controller_agent/auto_merge_task.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/controller_agent/bootstrap.cpp
   ${CMAKE_CURRENT_LIST_DIR}/controller_agent/chunk_list_pool.cpp
   ${CMAKE_CURRENT_LIST_DIR}/controller_agent/chunk_pool_adapters.cpp
   ${CMAKE_CURRENT_LIST_DIR}/controller_agent/controller_agent.cpp

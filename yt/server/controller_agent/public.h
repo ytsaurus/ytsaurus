@@ -95,6 +95,7 @@ using TFailedJobSummary = TJobSummary;
 struct TRunningJobSummary;
 
 class TMasterConnector;
+class TBootstrap;
 
 DECLARE_REFCOUNTED_CLASS(TProgressCounter)
 
@@ -102,6 +103,10 @@ class TDataFlowGraph;
 
 using NScheduler::TIncarnationId;
 using NScheduler::TAgentId;
+
+// XXX(babenko): config
+using TControllerAgentBootstrapConfig = NScheduler::TSchedulerBootstrapConfig;
+using TControllerAgentBootstrapConfigPtr = NScheduler::TSchedulerBootstrapConfigPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -7,8 +7,8 @@
 #include "operation.h"
 #include "scheduling_context.h"
 #include "memory_tag_queue.h"
+#include "bootstrap.h"
 
-#include <yt/server/scheduler/bootstrap.h>
 #include <yt/server/scheduler/config.h>
 #include <yt/server/scheduler/cache.h>
 #include <yt/server/scheduler/message_queue.h>
@@ -134,7 +134,7 @@ public:
         , EventLogWriter_(New<TEventLogWriter>(
             Config_->EventLog,
             Bootstrap_->GetMasterClient(),
-            Bootstrap_->GetControlInvoker(EControlQueue::PeriodicActivity)))
+            Bootstrap_->GetControlInvoker()))
         , MasterConnector_(std::make_unique<TMasterConnector>(
             Config_,
             Bootstrap_))
@@ -155,7 +155,7 @@ public:
 
         auto staticOrchidProducer = BIND(&TImpl::BuildStaticOrchid, MakeStrong(this));
         return IYPathService::FromProducer(staticOrchidProducer)
-            ->Via(Bootstrap_->GetControlInvoker(EControlQueue::Orchid))
+            ->Via(Bootstrap_->GetControlInvoker())
             ->Cached(Config_->StaticOrchidCacheUpdatePeriod);
     }
 
@@ -235,20 +235,6 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         return Config_;
-    }
-
-    const NApi::INativeClientPtr& GetClient() const
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        return Bootstrap_->GetMasterClient();
-    }
-
-    const TNodeDirectoryPtr& GetNodeDirectory()
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        return Bootstrap_->GetNodeDirectory();
     }
 
     const TThrottlerManagerPtr& GetChunkLocationThrottlerManager() const
@@ -659,7 +645,7 @@ private:
 
         YCHECK(!CancelableContext_);
         CancelableContext_ = New<TCancelableContext>();
-        CancelableControlInvoker_ = CancelableContext_->CreateInvoker(Bootstrap_->GetControlInvoker(EControlQueue::Default));
+        CancelableControlInvoker_ = CancelableContext_->CreateInvoker(Bootstrap_->GetControlInvoker());
 
         SwitchTo(CancelableControlInvoker_);
 
@@ -1259,16 +1245,6 @@ void TControllerAgent::Disconnect(const TError& error)
 const TSchedulerConfigPtr& TControllerAgent::GetConfig() const // TODO(babenko): config
 {
     return Impl_->GetConfig();
-}
-
-const NApi::INativeClientPtr& TControllerAgent::GetClient() const
-{
-    return Impl_->GetClient();
-}
-
-const TNodeDirectoryPtr& TControllerAgent::GetNodeDirectory()
-{
-    return Impl_->GetNodeDirectory();
 }
 
 const TThrottlerManagerPtr& TControllerAgent::GetChunkLocationThrottlerManager() const

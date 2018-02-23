@@ -42,7 +42,7 @@ class TControllerAgent
 public:
     TControllerAgent(
         NScheduler::TSchedulerConfigPtr config, // TODO(babenko): config
-        NScheduler::TBootstrap* bootstrap);
+        TBootstrap* bootstrap);
     ~TControllerAgent();
 
     void Initialize();
@@ -61,16 +61,6 @@ public:
      *  \note Thread affinity: any
      */
     const IInvokerPtr& GetSnapshotIOInvoker();
-
-    /*!
-     *  \note Thread affinity: any
-     */
-    const NApi::INativeClientPtr& GetClient() const;
-
-    /*!
-     *  \note Thread affinity: any
-     */
-    const NNodeTrackerClient::TNodeDirectoryPtr& GetNodeDirectory();
 
     /*!
      *  \note Thread affinity: any
