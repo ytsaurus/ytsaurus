@@ -79,7 +79,7 @@ class TTombstoneCacheConfig
 {
 public:
     TDuration Ttl;
-    size_t MaxSize;
+    int MaxSize;
 
     TTombstoneCacheConfig()
     {

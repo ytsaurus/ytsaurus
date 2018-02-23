@@ -28,7 +28,11 @@ TStringBuf GetShardName(const TStringBuf& rbTorrentId)
 
 TString FormatShareKey(const TShareKey& shareKey)
 {
-    return Format("{%Qv, %Qv, %v}", std::get<0>(shareKey), std::get<1>(shareKey), std::get<2>(shareKey));
+    return Format(
+        "{%Qv, %Qv, %v}",
+        std::get<0>(shareKey),
+        std::get<1>(shareKey),
+        std::get<2>(shareKey));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -146,13 +150,17 @@ void TShareInfo::DoCreate(bool addToCypress)
     if (tailRemove) {
         DoRemove();
     } else {
-        LOG_INFO("Finished adding share to cache (Key: %v, RbTorrentId: %v)", FormatShareKey(Key_), RbTorrentId_);
+        LOG_INFO("Finished adding share to cache (Key: %v, RbTorrentId: %v)",
+            FormatShareKey(Key_),
+            RbTorrentId_);
     }
 }
 
 void TShareInfo::DoRemove()
 {
-    LOG_INFO("Removing share from cache (Key: %v, RbTorrentId: %v)", FormatShareKey(Key_), RbTorrentId_);
+    LOG_INFO("Removing share from cache (Key: %v, RbTorrentId: %v)",
+        FormatShareKey(Key_),
+        RbTorrentId_);
     try {
         if (RbTorrentId_) {
             Host_->RemoveResourceFromSkynet(*RbTorrentId_);
@@ -160,7 +168,8 @@ void TShareInfo::DoRemove()
         }
     } catch (const std::exception& ex) {
         LOG_ERROR(ex, "Error while removing share (Key: %v, RbTorrentId: %Qv)",
-            FormatShareKey(Key_), RbTorrentId_);
+            FormatShareKey(Key_),
+            RbTorrentId_);
     }
 
     {
@@ -170,7 +179,9 @@ void TShareInfo::DoRemove()
             Cache_->UnlinkByRbTorrentIdNoLock(*RbTorrentId_, this);
         }
     }
-    LOG_INFO("Finished removing share from cache (Key: %v, RbTorrentId: %v)", FormatShareKey(Key_), RbTorrentId_);
+    LOG_INFO("Finished removing share from cache (Key: %v, RbTorrentId: %v)",
+        FormatShareKey(Key_),
+        RbTorrentId_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -270,7 +281,7 @@ void TShareCache::Unshare(const TShareKey& key)
     }
 }
 
-TNullable<TDiscoverInfo> TShareCache::TryDiscover(
+TNullable<TDiscoveryInfo> TShareCache::TryDiscover(
     const TStringBuf& rbTorrentId)
 {
     auto guard = Guard(Lock_);
@@ -285,7 +296,7 @@ TNullable<TDiscoverInfo> TShareCache::TryDiscover(
     }
 
     if (it->second->GetOffsets()) {
-        TDiscoverInfo info;
+        TDiscoveryInfo info;
         info.Cluster = it->second->GetCluster();
         info.TablePath = it->second->GetTablePath();
         info.Offsets = it->second->GetOffsets();
@@ -324,7 +335,9 @@ void TShareCache::PutByRbTorrentIdNoLock(const TString& rbTorrentId, const TShar
 
     if (slot) {
         LOG_WARNING("Evicting share with duplicate content (RbTorrentId: %v, Evicted: %v, New: %v)",
-            rbTorrentId, FormatShareKey(slot->GetKey()), FormatShareKey(info->GetKey()));
+            rbTorrentId,
+            FormatShareKey(slot->GetKey()),
+            FormatShareKey(info->GetKey()));
         Shares_.erase(slot->GetKey());
     }
 

@@ -71,7 +71,7 @@ std::vector<std::pair<TShardName, i64>> TCypressSync::FindChangedShards()
     auto shardsNode = ConvertToNode(shardsYson);
 
     std::vector<std::pair<TShardName, i64>> changedShards;
-    for (auto& shard : shardsNode->AsList()->GetChildren()) {
+    for (const auto& shard : shardsNode->AsList()->GetChildren()) {
         auto shardName = shard->AsString()->GetValue();
         auto shardRevision = shard->Attributes().Get<i64>("revision");
 
@@ -94,7 +94,7 @@ std::vector<TCypressShareState> TCypressSync::ListShard(const TShardName& shardN
         .ValueOrThrow();
 
     std::vector<TCypressShareState> torrents;
-    for (auto& torrent : ConvertToNode(torrentsYson)->AsList()->GetChildren()) {
+    for (const auto& torrent : ConvertToNode(torrentsYson)->AsList()->GetChildren()) {
         auto rbTorrentId = torrent->AsString()->GetValue();
         auto tablePath = torrent->Attributes().Get<TYPath>("skynet_table_path");
         auto tableRevision = torrent->Attributes().Get<i64>("skynet_table_revision");
@@ -125,7 +125,7 @@ TErrorOr<i64> TCypressSync::CheckTableAttributes(const NYPath::TRichYPath& path)
     try {
         auto asyncGet = Client_->GetNode(path.Normalize().GetPath(), options);
         auto node = ConvertToNode(WaitFor(asyncGet).ValueOrThrow());
-        auto& attributes = node->Attributes();
+        const auto& attributes = node->Attributes();
  
         if (attributes.Get<NObjectClient::EObjectType>("type") != EObjectType::Table) {
             return TError("Cypress node is not a table");
@@ -147,7 +147,7 @@ TErrorOr<i64> TCypressSync::CheckTableAttributes(const NYPath::TRichYPath& path)
         }
 
         // TODO(prime): keep per-account usage statistics
-        TString account = attributes.Get<TString>("account");
+        auto account = attributes.Get<TString>("account");
 
         return attributes.Get<i64>("revision");
     } catch (const TErrorException& ex) {
@@ -168,7 +168,7 @@ void TCypressSync::AddShare(
     attributes->SetYson("skynet_table_revision", ConvertToYsonString(tableRevision));
 
     TCreateNodeOptions options;
-    options.Force = true; // Intentinally override node if exists.
+    options.Force = true; // intentinally override node if exists
     options.Recursive = true;
     options.Attributes = attributes;
 
