@@ -10,13 +10,13 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCellSchedulerProgram
+class TSchedulerProgram
     : public TProgram
     , public TProgramPdeathsigMixin
     , public TProgramConfigMixin<NCellScheduler::TCellSchedulerConfig>
 {
 public:
-    TCellSchedulerProgram()
+    TSchedulerProgram()
         : TProgramPdeathsigMixin(Opts_)
         , TProgramConfigMixin(Opts_)
     { }
@@ -58,6 +58,6 @@ protected:
 
 int main(int argc, const char** argv)
 {
-    return NYT::TCellSchedulerProgram().Run(argc, argv);
+    return NYT::TSchedulerProgram().Run(argc, argv);
 }
 
