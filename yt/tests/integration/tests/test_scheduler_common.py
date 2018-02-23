@@ -2703,6 +2703,12 @@ class TestResourceLimitsOverrides(YTEnvSetup):
         }
     }
 
+    def _wait_for_jobs(self, op_id):
+        jobs_path = "//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op_id)
+        wait(lambda: exists(jobs_path) and len(get(jobs_path)) > 0,
+             "Failed waiting for the first job")
+        return get(jobs_path)
+
     def test_cpu_override_with_preemption(self):
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")
@@ -2716,10 +2722,7 @@ class TestResourceLimitsOverrides(YTEnvSetup):
             out="//tmp/t_output",
             dont_track=True)
 
-        wait(lambda: len(get("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op.id))) > 0,
-             "Failed waiting for the first job")
-
-        jobs = get("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op.id))
+        jobs = self._wait_for_jobs(op.id)
         job_id = jobs.keys()[0]
         address = jobs[job_id]["address"]
 
@@ -2743,10 +2746,7 @@ class TestResourceLimitsOverrides(YTEnvSetup):
             spec={"mapper" : {"memory_limit" : 50 * 1024 * 1024}},
             dont_track=True)
 
-        wait(lambda: len(get("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op.id))) > 0,
-             "Failed waiting for the first job")
-
-        jobs = get("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op.id))
+        jobs = self._wait_for_jobs(op.id)
         job_id = jobs.keys()[0]
         address = jobs[job_id]["address"]
 
@@ -2848,9 +2848,8 @@ fi
         set(self._get_operation_path(op.id) + "/@resource_limits", {"user_slots": 1})
         set(self._get_new_operation_path(op.id) + "/@resource_limits", {"user_slots": 3})
 
-        time.sleep(1.0)
         orchid_path = "//sys/scheduler/orchid/scheduler/operations/{0}/progress/resource_limits/user_slots".format(op.id)
-        assert get(orchid_path.format(op.id)) == 1
+        wait(lambda: get(orchid_path) == 1)
 
     def test_inner_operation_nodes(self):
         create("table", "//tmp/t_input")
@@ -2911,7 +2910,6 @@ fi
         assert exists(get_fail_context_path(op, jobs[0]))
         assert read_file(get_stderr_path(op, jobs[0])) == "Oh no!\n"
         assert read_file(get_stderr_path_new(op, jobs[0])) == "Oh no!\n"
-        op.abort()
 
 ##################################################################
 
