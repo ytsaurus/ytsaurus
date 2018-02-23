@@ -2,6 +2,7 @@ from __future__ import print_function
 
 from .helpers import (TEST_DIR, PYTHONPATH, get_test_file_path, check, set_config_option, get_tests_sandbox,
                       ENABLE_JOB_CONTROL, dumps_yt_config, get_python)
+from .http_helpers import (make_request_with_retries)
 
 # Necessary for tests.
 try:
