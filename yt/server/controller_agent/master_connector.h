@@ -2,7 +2,7 @@
 
 #include "operation_controller.h"
 
-#include <yt/server/cell_scheduler/public.h>
+#include <yt/server/scheduler/public.h>
 
 #include <yt/ytlib/cypress_client/public.h>
 
@@ -27,7 +27,7 @@ class TMasterConnector
 public:
     TMasterConnector(
         TControllerAgentConfigPtr config,
-        NCellScheduler::TBootstrap* bootstrap);
+        NScheduler::TBootstrap* bootstrap);
     ~TMasterConnector();
 
     void Initialize();

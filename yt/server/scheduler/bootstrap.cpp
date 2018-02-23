@@ -75,7 +75,7 @@
 #include <yt/core/ytree/ypath_client.h>
 
 namespace NYT {
-namespace NCellScheduler {
+namespace NScheduler {
 
 using namespace NAdmin;
 using namespace NBus;
@@ -87,7 +87,6 @@ using namespace NChunkClient;
 using namespace NOrchid;
 using namespace NProfiling;
 using namespace NRpc;
-using namespace NScheduler;
 using namespace NTransactionClient;
 using namespace NYTree;
 using namespace NConcurrency;
@@ -103,7 +102,7 @@ static const NLogging::TLogger Logger("Bootstrap");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TBootstrap::TBootstrap(TCellSchedulerConfigPtr config, INodePtr configNode)
+TBootstrap::TBootstrap(TSchedulerBootstrapConfigPtr config, INodePtr configNode)
     : Config_(std::move(config))
     , ConfigNode_(std::move(configNode))
 {
@@ -250,7 +249,7 @@ const TAgentId& TBootstrap::GetAgentId() const
     return AgentId_;
 }
 
-const TCellSchedulerConfigPtr& TBootstrap::GetConfig() const
+const TSchedulerBootstrapConfigPtr& TBootstrap::GetConfig() const
 {
     return Config_;
 }
@@ -309,5 +308,5 @@ const TCoreDumperPtr& TBootstrap::GetCoreDumper() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCellScheduler
+} // namespace NScheduler
 } // namespace NYT

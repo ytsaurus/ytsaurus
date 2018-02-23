@@ -4,8 +4,6 @@
 
 #include <yt/server/controller_agent/public.h>
 
-#include <yt/server/cell_scheduler/public.h>
-
 #include <yt/server/chunk_server/public.h>
 
 #include <yt/ytlib/object_client/object_service_proxy.h>
@@ -41,7 +39,7 @@ class TMasterConnector
 public:
     TMasterConnector(
         TSchedulerConfigPtr config,
-        NCellScheduler::TBootstrap* bootstrap);
+        TBootstrap* bootstrap);
     ~TMasterConnector();
 
     /*!
@@ -59,7 +57,7 @@ public:
      */
     TInstant GetConnectionTime() const;
 
-    const IInvokerPtr& GetCancelableControlInvoker(NCellScheduler::EControlQueue queue = NCellScheduler::EControlQueue::Default) const;
+    const IInvokerPtr& GetCancelableControlInvoker(EControlQueue queue = EControlQueue::Default) const;
 
     void Disconnect(const TError& error);
 

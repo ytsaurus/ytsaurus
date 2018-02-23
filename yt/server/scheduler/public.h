@@ -49,6 +49,7 @@ DECLARE_REFCOUNTED_CLASS(TFairShareStrategyConfig)
 DECLARE_REFCOUNTED_CLASS(TFairShareStrategyOperationControllerConfig)
 DECLARE_REFCOUNTED_CLASS(TFairShareStrategyTreeConfig)
 DECLARE_REFCOUNTED_CLASS(TSchedulerConfig)
+DECLARE_REFCOUNTED_CLASS(TSchedulerBootstrapConfig)
 
 DECLARE_REFCOUNTED_CLASS(TScheduler)
 DECLARE_REFCOUNTED_CLASS(TControllerAgentTracker)
@@ -76,6 +77,8 @@ using TIncarnationId = TGuid;
 using TAgentId = TString;
 
 class TSchedulingTagFilter;
+
+class TBootstrap;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -129,6 +132,16 @@ DEFINE_ENUM(ESchedulerToAgentJobEventType,
 
 DEFINE_ENUM(ESchedulerToAgentOperationEventType,
     ((UpdateMinNeededJobResources)(0))
+);
+
+DEFINE_ENUM(EControlQueue,
+    (Default)
+    (UserRequest)
+    (MasterConnector)
+    (Orchid)
+    (PeriodicActivity)
+    (Operation)
+    (AgentTracker)
 );
 
 ////////////////////////////////////////////////////////////////////////////////

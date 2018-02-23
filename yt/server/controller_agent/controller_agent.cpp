@@ -8,9 +8,8 @@
 #include "scheduling_context.h"
 #include "memory_tag_queue.h"
 
-#include <yt/server/cell_scheduler/bootstrap.h>
-#include <yt/server/cell_scheduler/config.h>
-
+#include <yt/server/scheduler/bootstrap.h>
+#include <yt/server/scheduler/config.h>
 #include <yt/server/scheduler/cache.h>
 #include <yt/server/scheduler/message_queue.h>
 #include <yt/server/scheduler/exec_node.h>
@@ -39,7 +38,6 @@ namespace NYT {
 namespace NControllerAgent {
 
 using namespace NScheduler;
-using namespace NCellScheduler;
 using namespace NConcurrency;
 using namespace NYTree;
 using namespace NChunkClient;
@@ -118,8 +116,8 @@ class TControllerAgent::TImpl
 {
 public:
     TImpl(
-        NScheduler::TSchedulerConfigPtr config, // TODO(babenko): config
-        NCellScheduler::TBootstrap* bootstrap)
+        TSchedulerConfigPtr config, // TODO(babenko): config
+        TBootstrap* bootstrap)
         : Config_(config)
         , Bootstrap_(bootstrap)
         , ControllerThreadPool_(New<TThreadPool>(Config_->ControllerThreadCount, "Controller"))
@@ -232,7 +230,7 @@ public:
         return MasterConnector_.get();
     }
 
-    const NScheduler::TSchedulerConfigPtr& GetConfig() const // TODO(babenko): config
+    const TSchedulerConfigPtr& GetConfig() const // TODO(babenko): config
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -574,8 +572,8 @@ public:
     DEFINE_SIGNAL(void(), SchedulerDisconnected);
 
 private:
-    NScheduler::TSchedulerConfigPtr Config_; // TODO(babenko): config
-    NCellScheduler::TBootstrap* const Bootstrap_;
+    TSchedulerConfigPtr Config_; // TODO(babenko): config
+    TBootstrap* const Bootstrap_;
 
     const TThreadPoolPtr ControllerThreadPool_;
     const TActionQueuePtr SnapshotIOQueue_;
@@ -606,13 +604,13 @@ private:
     TInstant LastConfigUpdateTime_;
     TInstant LastOperationAlertsUpdateTime_;
 
-    TIntrusivePtr<NScheduler::TMessageQueueOutbox<TAgentToSchedulerOperationEvent>> OperationEventsOutbox_;
-    TIntrusivePtr<NScheduler::TMessageQueueOutbox<TAgentToSchedulerJobEvent>> JobEventsOutbox_;
-    TIntrusivePtr<NScheduler::TMessageQueueOutbox<TAgentToSchedulerScheduleJobResponse>> ScheduleJobResposesOutbox_;
+    TIntrusivePtr<TMessageQueueOutbox<TAgentToSchedulerOperationEvent>> OperationEventsOutbox_;
+    TIntrusivePtr<TMessageQueueOutbox<TAgentToSchedulerJobEvent>> JobEventsOutbox_;
+    TIntrusivePtr<TMessageQueueOutbox<TAgentToSchedulerScheduleJobResponse>> ScheduleJobResposesOutbox_;
 
-    std::unique_ptr<NScheduler::TMessageQueueInbox> JobEventsInbox_;
-    std::unique_ptr<NScheduler::TMessageQueueInbox> OperationEventsInbox_;
-    std::unique_ptr<NScheduler::TMessageQueueInbox> ScheduleJobRequestsInbox_;
+    std::unique_ptr<TMessageQueueInbox> JobEventsInbox_;
+    std::unique_ptr<TMessageQueueInbox> OperationEventsInbox_;
+    std::unique_ptr<TMessageQueueInbox> ScheduleJobRequestsInbox_;
 
     TPeriodicExecutorPtr HeartbeatExecutor_;
 
@@ -690,23 +688,23 @@ private:
         LOG_INFO("Scheduler connected (IncarnationId: %v)",
             IncarnationId_);
 
-        OperationEventsOutbox_ = New<NScheduler::TMessageQueueOutbox<TAgentToSchedulerOperationEvent>>(
+        OperationEventsOutbox_ = New<TMessageQueueOutbox<TAgentToSchedulerOperationEvent>>(
             NLogging::TLogger(ControllerAgentLogger)
                 .AddTag("Kind: AgentToSchedulerOperations, IncarnationId: %v", IncarnationId_));
-        JobEventsOutbox_ = New<NScheduler::TMessageQueueOutbox<TAgentToSchedulerJobEvent>>(
+        JobEventsOutbox_ = New<TMessageQueueOutbox<TAgentToSchedulerJobEvent>>(
             NLogging::TLogger(ControllerAgentLogger)
                 .AddTag("Kind: AgentToSchedulerJobs, IncarnationId: %v", IncarnationId_));
-        ScheduleJobResposesOutbox_ = New<NScheduler::TMessageQueueOutbox<TAgentToSchedulerScheduleJobResponse>>(
+        ScheduleJobResposesOutbox_ = New<TMessageQueueOutbox<TAgentToSchedulerScheduleJobResponse>>(
             NLogging::TLogger(ControllerAgentLogger)
                 .AddTag("Kind: AgentToSchedulerScheduleJobResponses, IncarnationId: %v", IncarnationId_));
 
-        JobEventsInbox_ = std::make_unique<NScheduler::TMessageQueueInbox>(
+        JobEventsInbox_ = std::make_unique<TMessageQueueInbox>(
             NLogging::TLogger(ControllerAgentLogger)
                 .AddTag("Kind: SchedulerToAgentJobs, IncarnationId: %v", IncarnationId_));
-        OperationEventsInbox_ = std::make_unique<NScheduler::TMessageQueueInbox>(
+        OperationEventsInbox_ = std::make_unique<TMessageQueueInbox>(
             NLogging::TLogger(ControllerAgentLogger)
                 .AddTag("Kind: SchedulerToAgentOperations, IncarnationId: %v", IncarnationId_));
-        ScheduleJobRequestsInbox_ = std::make_unique<NScheduler::TMessageQueueInbox>(
+        ScheduleJobRequestsInbox_ = std::make_unique<TMessageQueueInbox>(
             NLogging::TLogger(ControllerAgentLogger)
                 .AddTag("Kind: SchedulerToAgentScheduleJobRequests, IncarnationId: %v", IncarnationId_));
 
@@ -943,7 +941,7 @@ private:
         }
 
         if (rsp->has_config()) {
-            auto config = ConvertTo<NScheduler::TSchedulerConfigPtr>(TYsonString(rsp->config())); // TODO(babenko): config
+            auto config = ConvertTo<TSchedulerConfigPtr>(TYsonString(rsp->config())); // TODO(babenko): config
             UpdateConfig(config);
         }
 
@@ -1133,7 +1131,7 @@ private:
         return result;
     }
 
-    void UpdateConfig(const NScheduler::TSchedulerConfigPtr& config) // TODO(babenko): config
+    void UpdateConfig(const TSchedulerConfigPtr& config) // TODO(babenko): config
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -1196,8 +1194,8 @@ private:
 ////////////////////////////////////////////////////////////////////
 
 TControllerAgent::TControllerAgent(
-    NScheduler::TSchedulerConfigPtr config, // TODO(babenko): config
-    NCellScheduler::TBootstrap* bootstrap)
+    TSchedulerConfigPtr config, // TODO(babenko): config
+    TBootstrap* bootstrap)
     : Impl_(New<TImpl>(std::move(config), bootstrap))
 { }
 
@@ -1258,7 +1256,7 @@ void TControllerAgent::Disconnect(const TError& error)
     Impl_->Disconnect(error);
 }
 
-const NScheduler::TSchedulerConfigPtr& TControllerAgent::GetConfig() const // TODO(babenko): config
+const TSchedulerConfigPtr& TControllerAgent::GetConfig() const // TODO(babenko): config
 {
     return Impl_->GetConfig();
 }

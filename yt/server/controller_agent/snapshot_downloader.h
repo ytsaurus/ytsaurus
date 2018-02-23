@@ -2,7 +2,7 @@
 
 #include "private.h"
 
-#include <yt/server/cell_scheduler/public.h>
+#include <yt/server/scheduler/public.h>
 
 #include <yt/core/logging/log.h>
 
@@ -19,14 +19,14 @@ class TSnapshotDownloader
 public:
     TSnapshotDownloader(
         TControllerAgentConfigPtr config,
-        NCellScheduler::TBootstrap* bootstrap,
+        NScheduler::TBootstrap* bootstrap,
         const TOperationId& operationId);
 
     TSharedRef Run(const NYTree::TYPath& snapshotPath);
 
 private:
     const TControllerAgentConfigPtr Config_;
-    NCellScheduler::TBootstrap* const Bootstrap_;
+    NScheduler::TBootstrap* const Bootstrap_;
     const TOperationId OperationId_;
 
     const NLogging::TLogger Logger;

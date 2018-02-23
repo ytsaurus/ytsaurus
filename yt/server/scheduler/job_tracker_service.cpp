@@ -1,8 +1,7 @@
 #include "job_tracker_service.h"
 #include "private.h"
 #include "scheduler.h"
-
-#include <yt/server/cell_scheduler/bootstrap.h>
+#include "bootstrap.h"
 
 #include <yt/ytlib/job_tracker_client/job_tracker_service_proxy.h>
 
@@ -10,7 +9,6 @@ namespace NYT {
 namespace NScheduler {
 
 using namespace NRpc;
-using namespace NCellScheduler;
 using namespace NJobTrackerClient;
 using namespace NNodeTrackerClient;
 using namespace NNodeTrackerServer;

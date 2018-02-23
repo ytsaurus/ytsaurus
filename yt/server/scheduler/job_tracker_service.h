@@ -2,8 +2,6 @@
 
 #include "public.h"
 
-#include <yt/server/cell_scheduler/public.h>
-
 #include <yt/core/rpc/public.h>
 
 namespace NYT {
@@ -11,7 +9,7 @@ namespace NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NRpc::IServicePtr CreateJobTrackerService(NCellScheduler::TBootstrap* bootstrap);
+NRpc::IServicePtr CreateJobTrackerService(TBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 

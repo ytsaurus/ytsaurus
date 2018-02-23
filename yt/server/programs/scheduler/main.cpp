@@ -1,5 +1,5 @@
-#include <yt/server/cell_scheduler/bootstrap.h>
-#include <yt/server/cell_scheduler/config.h>
+#include <yt/server/scheduler/bootstrap.h>
+#include <yt/server/scheduler/config.h>
 
 #include <yt/ytlib/program/program.h>
 #include <yt/ytlib/program/program_config_mixin.h>
@@ -7,13 +7,14 @@
 #include <yt/ytlib/program/configure_singletons.h>
 
 namespace NYT {
+namespace NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSchedulerProgram
     : public TProgram
     , public TProgramPdeathsigMixin
-    , public TProgramConfigMixin<NCellScheduler::TCellSchedulerConfig>
+    , public TProgramConfigMixin<TSchedulerBootstrapConfig>
 {
 public:
     TSchedulerProgram()
@@ -47,17 +48,18 @@ protected:
         // TODO(babenko): This memory leak is intentional.
         // We should avoid destroying bootstrap since some of the subsystems
         // may be holding a reference to it and continue running some actions in background threads.
-        auto* bootstrap = new NCellScheduler::TBootstrap(std::move(config), std::move(configNode));
+        auto* bootstrap = new TBootstrap(std::move(config), std::move(configNode));
         bootstrap->Run();
     }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NScheduler
 } // namespace NYT
 
 int main(int argc, const char** argv)
 {
-    return NYT::TSchedulerProgram().Run(argc, argv);
+    return NYT::NScheduler::TSchedulerProgram().Run(argc, argv);
 }
 

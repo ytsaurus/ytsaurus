@@ -9,9 +9,7 @@
 
 #include <yt/server/scheduler/config.h>
 #include <yt/server/scheduler/helpers.h>
-
-#include <yt/server/cell_scheduler/bootstrap.h>
-#include <yt/server/cell_scheduler/config.h>
+#include <yt/server/scheduler/bootstrap.h>
 
 #include <yt/server/misc/update_executor.h>
 
@@ -56,7 +54,6 @@ using namespace NFileClient;
 using namespace NSecurityClient;
 using namespace NTransactionClient;
 using namespace NScheduler;
-using namespace NCellScheduler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -70,7 +67,7 @@ class TMasterConnector::TImpl
 public:
     TImpl(
         TControllerAgentConfigPtr config,
-        NCellScheduler::TBootstrap* bootstrap)
+        TBootstrap* bootstrap)
         : Config_(config)
         , Bootstrap_(bootstrap)
     { }
@@ -193,7 +190,7 @@ public:
 
 private:
     TControllerAgentConfigPtr Config_;
-    NCellScheduler::TBootstrap* const Bootstrap_;
+    TBootstrap* const Bootstrap_;
 
     TCancelableContextPtr CancelableContext_;
     IInvokerPtr CancelableControlInvoker_;
@@ -854,8 +851,8 @@ private:
     TOperationSnapshot DoDownloadSnapshot(const TOperationId& operationId)
     {
         std::vector<NYTree::TYPath> paths = {
-            NScheduler::GetNewSnapshotPath(operationId),
-            NScheduler::GetSnapshotPath(operationId)
+            GetNewSnapshotPath(operationId),
+            GetSnapshotPath(operationId)
         };
 
         auto batchReq = StartObjectBatchRequest();
@@ -942,7 +939,7 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         auto batchReq = StartObjectBatchRequest();
-        for (const auto& path : {NScheduler::GetSnapshotPath(operationId), NScheduler::GetNewSnapshotPath(operationId)}) {
+        for (const auto& path : {GetSnapshotPath(operationId), GetNewSnapshotPath(operationId)}) {
             auto req = TYPathProxy::Remove(path);
             req->set_force(true);
             batchReq->AddRequest(req, "remove_snapshot");
@@ -1055,7 +1052,7 @@ private:
 
 TMasterConnector::TMasterConnector(
     TControllerAgentConfigPtr config,
-    NCellScheduler::TBootstrap* bootstrap)
+    TBootstrap* bootstrap)
     : Impl_(New<TImpl>(std::move(config), bootstrap))
 { }
 

@@ -10,6 +10,8 @@
 
 #include <yt/ytlib/table_client/config.h>
 
+#include <yt/ytlib/node_tracker_client/config.h>
+
 #include <yt/ytlib/hive/config.h>
 
 #include <yt/ytlib/ypath/public.h>
@@ -256,6 +258,45 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TSchedulerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TSchedulerBootstrapConfig
+    : public TServerConfig
+{
+public:
+    //! Node-to-master connection.
+    NApi::TNativeConnectionConfigPtr ClusterConnection;
+
+    //! Node directory synchronization.
+    NNodeTrackerClient::TNodeDirectorySynchronizerConfigPtr NodeDirectorySynchronizer;
+
+    NScheduler::TSchedulerConfigPtr Scheduler;
+
+    NRpc::TResponseKeeperConfigPtr ResponseKeeper;
+
+    //! Known scheduler addresses.
+    NNodeTrackerClient::TNetworkAddressList Addresses;
+
+    TSchedulerBootstrapConfig()
+    {
+        RegisterParameter("cluster_connection", ClusterConnection);
+        RegisterParameter("node_directory_synchronizer", NodeDirectorySynchronizer)
+            .DefaultNew();
+        RegisterParameter("scheduler", Scheduler)
+            .DefaultNew();
+        RegisterParameter("response_keeper", ResponseKeeper)
+            .DefaultNew();
+        RegisterParameter("addresses", Addresses)
+            .Default();
+
+        RegisterPreprocessor([&] () {
+            ResponseKeeper->EnableWarmup = false;
+        });
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TSchedulerBootstrapConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

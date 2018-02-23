@@ -1,8 +1,7 @@
 #include "snapshot_downloader.h"
 
 #include <yt/server/scheduler/config.h>
-
-#include <yt/server/cell_scheduler/bootstrap.h>
+#include <yt/server/scheduler/bootstrap.h>
 
 #include <yt/ytlib/api/native_client.h>
 
@@ -19,7 +18,7 @@ using namespace NScheduler;
 
 TSnapshotDownloader::TSnapshotDownloader(
     TControllerAgentConfigPtr config,
-    NCellScheduler::TBootstrap* bootstrap,
+    TBootstrap* bootstrap,
     const TOperationId& operationId)
     : Config_(config)
     , Bootstrap_(bootstrap)

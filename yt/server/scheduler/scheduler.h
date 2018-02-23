@@ -2,8 +2,6 @@
 
 #include "public.h"
 
-#include <yt/server/cell_scheduler/public.h>
-
 #include <yt/ytlib/hydra/public.h>
 
 #include <yt/ytlib/node_tracker_client/node_directory.h>
@@ -28,7 +26,7 @@ class TScheduler
 public:
     TScheduler(
         TSchedulerConfigPtr config,
-        NCellScheduler::TBootstrap* bootstrap);
+        TBootstrap* bootstrap);
     ~TScheduler();
 
     void Initialize();

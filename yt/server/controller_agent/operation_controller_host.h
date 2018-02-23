@@ -2,8 +2,6 @@
 
 #include "operation_controller.h"
 
-#include <yt/server/cell_scheduler/public.h>
-
 #include <yt/server/scheduler/message_queue.h>
 
 #include <yt/ytlib/scheduler/job_resources.h>
@@ -39,7 +37,7 @@ public:
         IInvokerPtr cancelableControlInvoker,
         TIntrusivePtr<NScheduler::TMessageQueueOutbox<TAgentToSchedulerOperationEvent>> operationEventsOutbox,
         TIntrusivePtr<NScheduler::TMessageQueueOutbox<TAgentToSchedulerJobEvent>> jobEventsOutbox,
-        NCellScheduler::TBootstrap* bootstrap);
+        NScheduler::TBootstrap* bootstrap);
 
     virtual void InterruptJob(const TJobId& jobId, EInterruptReason reason) override;
     virtual void AbortJob(const TJobId& jobId, const TError& error) override;
@@ -84,7 +82,7 @@ private:
     const IInvokerPtr CancelableControlInvoker_;
     const TIntrusivePtr<NScheduler::TMessageQueueOutbox<TAgentToSchedulerOperationEvent>> OperationEventsOutbox_;
     const TIntrusivePtr<NScheduler::TMessageQueueOutbox<TAgentToSchedulerJobEvent>> JobEventsOutbox_;
-    NCellScheduler::TBootstrap* const Bootstrap_;
+    NScheduler::TBootstrap* const Bootstrap_;
     const TIncarnationId IncarnationId_;
 };
 
