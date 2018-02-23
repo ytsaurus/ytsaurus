@@ -157,10 +157,10 @@ class TestRacks(YTEnvSetup):
         chunk_id = chunk_ids[0]
 
         self._set_rack(nodes[0], "r2")
-        assert get("#" + chunk_id + "/@replication_status/default/unsafely_placed")
+        wait(lambda: get("#" + chunk_id + "/@replication_status/default/unsafely_placed"))
 
         self._reset_all_racks()
-        assert not get("#" + chunk_id + "/@replication_status/default/unsafely_placed")
+        wait(lambda: not get("#" + chunk_id + "/@replication_status/default/unsafely_placed"))
 
     def test_regular_move_to_safe_place(self):
         create("file", "//tmp/file")
