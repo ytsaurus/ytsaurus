@@ -2,7 +2,6 @@ from __future__ import print_function
 
 from .helpers import (TEST_DIR, PYTHONPATH, get_test_file_path, check, set_config_option, get_tests_sandbox,
                       ENABLE_JOB_CONTROL, dumps_yt_config, get_python)
-from .http_helpers import (make_request_with_retries)
 
 # Necessary for tests.
 try:
@@ -16,6 +15,7 @@ from yt.wrapper.common import parse_bool
 from yt.wrapper.operation_commands import add_failed_operation_stderrs_to_error_message, get_stderrs, get_operation_error
 from yt.wrapper.table import TablePath
 from yt.wrapper.spec_builders import MapSpecBuilder, MapReduceSpecBuilder
+from yt.wrapper.http_helpers import make_request_with_retries
 from yt.local import start, stop
 from yt.yson import YsonMap
 import yt.yson as yson
