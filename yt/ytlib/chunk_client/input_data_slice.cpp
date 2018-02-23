@@ -290,6 +290,27 @@ bool CompareDataSlicesByLowerLimit(const TInputDataSlicePtr& slice1, const TInpu
     return diff < 0;
 }
 
+bool CompareChunkSlicesByLowerLimit(const TInputChunkSlicePtr& slice1, const TInputChunkSlicePtr& slice2)
+{
+    const auto& limit1 = slice1->LowerLimit();
+    const auto& limit2 = slice2->LowerLimit();
+    i64 diff;
+
+    diff = slice1->GetInputChunk()->GetRangeIndex() - slice2->GetInputChunk()->GetRangeIndex();
+    if (diff != 0) {
+        return diff < 0;
+    }
+
+    diff = (limit1.RowIndex.Get(0) + slice1->GetInputChunk()->GetTableRowIndex()) -
+           (limit2.RowIndex.Get(0) + slice2->GetInputChunk()->GetTableRowIndex());
+    if (diff != 0) {
+        return diff < 0;
+    }
+
+    diff = CompareRows(limit1.Key, limit2.Key);
+    return diff < 0;
+}
+
 bool CanMergeSlices(const TInputDataSlicePtr& slice1, const TInputDataSlicePtr& slice2)
 {
     //FIXME(savrus) really&

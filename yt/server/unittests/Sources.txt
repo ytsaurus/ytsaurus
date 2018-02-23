@@ -26,4 +26,5 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/sorted_store_manager_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/stracer_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/sync_file_changelog_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/unordered_chunk_pool_ut.cpp
 )
