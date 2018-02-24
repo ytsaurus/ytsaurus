@@ -102,7 +102,12 @@ public:
     void OnMasterConnected();
     void OnMasterDisconnected();
 
-    void RegisterOperation(const TOperationId& operationId, const IOperationControllerPtr& controller, bool isReviving);
+    void RegisterOperation(
+        const TOperationId& operationId,
+        const IOperationControllerPtr& controller,
+        bool willRevive);
+    void StartOperationRevival(const TOperationId& operationId);
+    void FinishOperationRevival(const TOperationId& operationId, const std::vector<TJobPtr>& jobs);
     void UnregisterOperation(const TOperationId& operationId);
 
     void ProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& context);
@@ -138,8 +143,6 @@ public:
     void ReleaseJob(const TJobId& jobId);
 
     void BuildNodesYson(NYTree::TFluentMap fluent);
-
-    void RegisterRevivedJobs(const TOperationId& operationId, const std::vector<TJobPtr>& jobs);
 
     TOperationId FindOperationIdByJobId(const TJobId& job);
 
@@ -224,7 +227,8 @@ private:
         THashMap<TJobId, TJobPtr> Jobs;
         IOperationControllerPtr Controller;
         bool Terminated = false;
-        bool JobsAborted = false;
+        //! Raised to prevent races between suspension and scheduler strategy scheduling new jobs.
+        bool ForbidNewJobs = false;
         //! Flag showing that we already know about all jobs of this operation
         //! and it is OK to abort unknown jobs that claim to be a part of this operation.
         bool JobsReady = false;

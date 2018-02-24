@@ -9,6 +9,7 @@
 #include "memory_tag_queue.h"
 
 #include <yt/server/cell_scheduler/bootstrap.h>
+#include <yt/server/cell_scheduler/config.h>
 
 #include <yt/server/scheduler/cache.h>
 #include <yt/server/scheduler/message_queue.h>
@@ -117,7 +118,7 @@ class TControllerAgent::TImpl
 {
 public:
     TImpl(
-        TControllerAgentConfigPtr config,
+        NScheduler::TSchedulerConfigPtr config, // TODO(babenko): config
         NCellScheduler::TBootstrap* bootstrap)
         : Config_(config)
         , Bootstrap_(bootstrap)
@@ -139,27 +140,56 @@ public:
         , MasterConnector_(std::make_unique<TMasterConnector>(
             Config_,
             Bootstrap_))
-        , SchedulerProxy_(Bootstrap_->GetLocalRpcChannel())
-    {
-        SchedulerProxy_.SetDefaultTimeout(Config_->ControllerAgentHeartbeatRpcTimeout);
+        , SchedulerProxy_(Bootstrap_->GetMasterClient()->GetSchedulerChannel())
+    { }
 
-        MasterConnector_->SubscribeMasterConnecting(BIND(
-            &TImpl::OnMasterConnecting,
-            Unretained(this)));
-        MasterConnector_->SubscribeMasterConnected(BIND(
-            &TImpl::OnMasterConnected,
-            Unretained(this)));
-        MasterConnector_->SubscribeMasterDisconnected(BIND(
-            &TImpl::OnMasterDisconnected,
-            Unretained(this)));
+    void Initialize()
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        MasterConnector_->Initialize();
+        ScheduleConnect(true);
+    }
+
+    IYPathServicePtr GetOrchidService()
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        auto staticOrchidProducer = BIND(&TImpl::BuildStaticOrchid, MakeStrong(this));
+        return IYPathService::FromProducer(staticOrchidProducer)
+            ->Via(Bootstrap_->GetControlInvoker(EControlQueue::Orchid))
+            ->Cached(Config_->StaticOrchidCacheUpdatePeriod);
+    }
+
+    bool IsConnected() const
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        return Connected_;
+    }
+
+    TInstant GetConnectionTime() const
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return ConnectionTime_.load();
+    }
+
+    const TIncarnationId& GetIncarnationId() const
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        return IncarnationId_;
     }
 
     void ValidateConnected()
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        if (!MasterConnector_->IsConnected()) {
-            THROW_ERROR_EXCEPTION(GetMasterDisconnectedError());
+        if (!Connected_) {
+            THROW_ERROR_EXCEPTION(
+                NRpc::EErrorCode::Unavailable,
+                "Scheduler is not connected");
         }
     }
 
@@ -174,11 +204,11 @@ public:
         }
     }
 
-    TInstant GetConnectionTime() const
+    void Disconnect(const TError& error)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        VERIFY_THREAD_AFFINITY(ControlThread);
 
-        return MasterConnector_->GetConnectionTime();
+        DoDisconnect(error);
     }
 
     const IInvokerPtr& GetControllerThreadPoolInvoker()
@@ -202,7 +232,7 @@ public:
         return MasterConnector_.get();
     }
 
-    const TControllerAgentConfigPtr& GetConfig() const
+    const NScheduler::TSchedulerConfigPtr& GetConfig() const // TODO(babenko): config
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -251,48 +281,11 @@ public:
         return EventLogWriter_;
     }
 
-    void UpdateConfig(const TControllerAgentConfigPtr& config)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        auto oldConfigNode = ConvertToNode(Config_);
-        auto newConfigNode = ConvertToNode(config);
-        if (AreNodesEqual(oldConfigNode, newConfigNode)) {
-            return;
-        }
-
-        Config_ = config;
-
-        ChunkLocationThrottlerManager_->Reconfigure(Config_->ChunkLocationThrottler);
-
-        EventLogWriter_->UpdateConfig(Config_->EventLog);
-
-        SchedulerProxy_.SetDefaultTimeout(Config_->ControllerAgentHeartbeatRpcTimeout);
-
-        ReconfigurableJobSpecSliceThrottler_->Reconfigure(Config_->JobSpecSliceThrottler);
-
-        if (HeartbeatExecutor_) {
-            HeartbeatExecutor_->SetPeriod(Config_->ControllerAgentHeartbeatPeriod);
-        }
-
-        if (MasterConnector_) {
-            MasterConnector_->UpdateConfig(config);
-        }
-
-        for (const auto& pair : GetOperations()) {
-            const auto& operation = pair.second;
-            auto controller = operation->GetController();
-            controller->GetCancelableInvoker()->Invoke(
-                BIND(&IOperationController::UpdateConfig, controller, config));
-        }
-
-        LOG_INFO("Configuration updated");
-    }
-
 
     TOperationPtr FindOperation(const TOperationId& operationId)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
+        YCHECK(Connected_);
 
         auto it = IdToOperation_.find(operationId);
         return it == IdToOperation_.end() ? nullptr : it->second;
@@ -301,6 +294,7 @@ public:
     TOperationPtr GetOperation(const TOperationId& operationId)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
+        YCHECK(Connected_);
 
         auto operation = FindOperation(operationId);
         YCHECK(operation);
@@ -311,6 +305,7 @@ public:
     TOperationPtr GetOperationOrThrow(const TOperationId& operationId)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
+        YCHECK(Connected_);
 
         auto operation = FindOperation(operationId);
         if (!operation) {
@@ -322,6 +317,7 @@ public:
     const TOperationIdToOperationMap& GetOperations()
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
+        YCHECK(Connected_);
 
         return IdToOperation_;
     }
@@ -330,12 +326,13 @@ public:
     void RegisterOperation(const NProto::TOperationDescriptor& descriptor)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
+        YCHECK(Connected_);
 
         auto operation = New<TOperation>(descriptor);
         const auto& operationId = operation->GetId();
         auto host = New<TOperationControllerHost>(
             operation.Get(),
-            CancelableInvoker_,
+            CancelableControlInvoker_,
             OperationEventsOutbox_,
             JobEventsOutbox_,
             Bootstrap_);
@@ -361,6 +358,7 @@ public:
     void UnregisterOperation(const TOperationPtr& operation)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
+        YCHECK(Connected_);
 
         const auto& controller = operation->GetController();
         if (controller) {
@@ -379,6 +377,7 @@ public:
         const TNullable<TControllerTransactions>& transactions)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
+        YCHECK(Connected_);
 
         const auto& controller = operation->GetControllerOrThrow();
         auto callback = transactions
@@ -396,6 +395,7 @@ public:
     TFuture<TOperationControllerPrepareResult> PrepareOperation(const TOperationPtr& operation)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
+        YCHECK(Connected_);
 
         const auto& controller = operation->GetControllerOrThrow();
         return BIND(&IOperationControllerSchedulerHost::Prepare, controller)
@@ -406,6 +406,7 @@ public:
     TFuture<void> MaterializeOperation(const TOperationPtr& operation)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
+        YCHECK(Connected_);
 
         const auto& controller = operation->GetControllerOrThrow();
         return BIND(&IOperationControllerSchedulerHost::Materialize, controller)
@@ -416,6 +417,7 @@ public:
     TFuture<TOperationControllerReviveResult> ReviveOperation(const TOperationPtr& operation)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
+        YCHECK(Connected_);
 
         const auto& controller = operation->GetControllerOrThrow();
         return BIND(&IOperationControllerSchedulerHost::Revive, controller)
@@ -426,6 +428,7 @@ public:
     TFuture<void> CommitOperation(const TOperationPtr& operation)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
+        YCHECK(Connected_);
 
         const auto& controller = operation->GetControllerOrThrow();
         return BIND(&IOperationControllerSchedulerHost::Commit, controller)
@@ -436,6 +439,7 @@ public:
     TFuture<void> CompleteOperation(const TOperationPtr& operation)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
+        YCHECK(Connected_);
 
         operation->SetTransactions({});
 
@@ -448,6 +452,7 @@ public:
     TFuture<void> AbortOperation(const TOperationPtr& operation)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
+        YCHECK(Connected_);
 
         operation->SetTransactions({});
 
@@ -467,6 +472,7 @@ public:
     TFuture<void> DisposeOperation(const TOperationPtr& operation)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
+        YCHECK(Connected_);
 
         const auto& controller = operation->GetController();
         if (!controller) {
@@ -484,6 +490,7 @@ public:
     TFuture<std::vector<TErrorOr<TSharedRef>>> ExtractJobSpecs(const std::vector<TJobSpecRequest>& requests)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
+        YCHECK(Connected_);
 
         std::vector<TFuture<TSharedRef>> asyncJobSpecs;
         for (const auto& request : requests) {
@@ -514,6 +521,7 @@ public:
     TFuture<TOperationInfo> BuildOperationInfo(const TOperationId& operationId)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
+        YCHECK(Connected_);
 
         auto controller = GetOperationOrThrow(operationId)->GetController();
         return BIND(&IOperationController::BuildOperationInfo, controller)
@@ -526,6 +534,7 @@ public:
         const TJobId& jobId)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
+        YCHECK(Connected_);
 
         auto controller = GetOperationOrThrow(operationId)->GetController();
         return BIND(&IOperationController::BuildJobYson, controller)
@@ -560,8 +569,12 @@ public:
         return JobSpecSliceThrottler_;
     }
 
+    DEFINE_SIGNAL(void(), SchedulerConnecting);
+    DEFINE_SIGNAL(void(), SchedulerConnected);
+    DEFINE_SIGNAL(void(), SchedulerDisconnected);
+
 private:
-    TControllerAgentConfigPtr Config_;
+    NScheduler::TSchedulerConfigPtr Config_; // TODO(babenko): config
     NCellScheduler::TBootstrap* const Bootstrap_;
 
     const TThreadPoolPtr ControllerThreadPool_;
@@ -573,8 +586,13 @@ private:
     const TEventLogWriterPtr EventLogWriter_;
     const std::unique_ptr<TMasterConnector> MasterConnector_;
 
+    bool Connected_= false;
+    bool ConnectScheduled_ = false;
+    std::atomic<TInstant> ConnectionTime_ = {TInstant::Zero()};
+    TIncarnationId IncarnationId_;
+
     TCancelableContextPtr CancelableContext_;
-    IInvokerPtr CancelableInvoker_;
+    IInvokerPtr CancelableControlInvoker_;
 
     TOperationIdToOperationMap IdToOperation_;
 
@@ -587,8 +605,6 @@ private:
     TInstant LastExecNodesUpdateTime_;
     TInstant LastConfigUpdateTime_;
     TInstant LastOperationAlertsUpdateTime_;
-
-    TIncarnationId IncarnationId_;
 
     TIntrusivePtr<NScheduler::TMessageQueueOutbox<TAgentToSchedulerOperationEvent>> OperationEventsOutbox_;
     TIntrusivePtr<NScheduler::TMessageQueueOutbox<TAgentToSchedulerJobEvent>> JobEventsOutbox_;
@@ -605,19 +621,74 @@ private:
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
 
-    void OnMasterConnecting()
+    void ScheduleConnect(bool immediate)
+    {
+        if (ConnectScheduled_) {
+            return;
+        }
+
+        ConnectScheduled_ = true;
+        TDelayedExecutor::Submit(
+            BIND(&TImpl::DoConnect, MakeStrong(this))
+                .Via(Bootstrap_->GetControlInvoker()),
+            immediate ? TDuration::Zero() : Config_->ControllerAgentHandshakeFailureBackoff);
+    }
+
+    void DoConnect()
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
+        YCHECK(ConnectScheduled_);
+        ConnectScheduled_ = false;
+
+        try {
+            OnConnecting();
+            DoPerformHandshake();
+            OnConnected();
+        } catch (const std::exception& ex) {
+            LOG_WARNING(ex, "Error connecting to scheduler");
+            ScheduleConnect(false);
+        }
+    }
+
+    void OnConnecting()
+    {
         // NB: We cannot be sure the previous incarnation did a proper cleanup due to possible
         // fiber cancelation.
         DoCleanup();
 
-        CancelableContext_ = New<TCancelableContext>();
-        // TODO(babenko): better queue
-        CancelableInvoker_ = CancelableContext_->CreateInvoker(Bootstrap_->GetControlInvoker(EControlQueue::Default));
+        LOG_INFO("Connecting to scheduler");
 
-        IncarnationId_ = MasterConnector_->GetIncarnationId();
+        YCHECK(!CancelableContext_);
+        CancelableContext_ = New<TCancelableContext>();
+        CancelableControlInvoker_ = CancelableContext_->CreateInvoker(Bootstrap_->GetControlInvoker(EControlQueue::Default));
+
+        SwitchTo(CancelableControlInvoker_);
+
+        SchedulerConnecting_.Fire();
+    }
+
+    void DoPerformHandshake()
+    {
+        auto req = SchedulerProxy_.Handshake();
+        req->SetTimeout(Config_->ControllerAgentHandshakeRpcTimeout);
+        req->set_agent_id(Bootstrap_->GetAgentId());
+        ToProto(req->mutable_agent_addresses(), Bootstrap_->GetLocalAddresses());
+
+        auto rsp = WaitFor(req->Invoke())
+            .ValueOrThrow();
+
+        IncarnationId_ = FromProto<TIncarnationId>(rsp->incarnation_id());
+        // TODO(babenko): config
+        UpdateConfig(ConvertTo<TSchedulerConfigPtr>(TYsonString(rsp->config())));
+    }
+
+    void OnConnected()
+    {
+        Connected_ = true;
+
+        LOG_INFO("Scheduler connected (IncarnationId: %v)",
+            IncarnationId_);
 
         OperationEventsOutbox_ = New<NScheduler::TMessageQueueOutbox<TAgentToSchedulerOperationEvent>>(
             NLogging::TLogger(ControllerAgentLogger)
@@ -638,27 +709,45 @@ private:
         ScheduleJobRequestsInbox_ = std::make_unique<NScheduler::TMessageQueueInbox>(
             NLogging::TLogger(ControllerAgentLogger)
                 .AddTag("Kind: SchedulerToAgentScheduleJobRequests, IncarnationId: %v", IncarnationId_));
-    }
-
-    void OnMasterConnected()
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
 
         CachedExecNodeDescriptorsByTags_ = New<TExpiringCache<TSchedulingTagFilter, TRefCountedExecNodeDescriptorMapPtr>>(
             BIND(&TImpl::FilterExecNodes, MakeStrong(this)),
             Config_->SchedulingTagFilterExpireTimeout,
-            CancelableInvoker_);
+            CancelableControlInvoker_);
         CachedExecNodeDescriptorsByTags_->Start();
 
         HeartbeatExecutor_ = New<TPeriodicExecutor>(
-            CancelableInvoker_,
+            CancelableControlInvoker_,
             BIND(&TControllerAgent::TImpl::SendHeartbeat, MakeWeak(this)),
             Config_->ControllerAgentHeartbeatPeriod);
         HeartbeatExecutor_->Start();
+
+        SchedulerConnected_.Fire();
+    }
+
+    void DoDisconnect(const TError& error) noexcept
+    {
+        TForbidContextSwitchGuard contextSwitchGuard;
+
+        if (Connected_) {
+            LOG_WARNING(error, "Disconnecting scheduler");
+
+            SchedulerDisconnected_.Fire();
+
+            LOG_WARNING("Scheduler disconnected");
+        }
+
+        DoCleanup();
+
+        ScheduleConnect(true);
     }
 
     void DoCleanup()
     {
+        Connected_ = false;
+        ConnectionTime_.store(TInstant::Zero());
+        IncarnationId_ = {};
+
         for (const auto& pair : IdToOperation_) {
             const auto& operation = pair.second;
             auto controller = operation->GetController();
@@ -670,6 +759,7 @@ private:
             CancelableContext_->Cancel();
             CancelableContext_.Reset();
         }
+        CancelableControlInvoker_.Reset();
 
         if (CachedExecNodeDescriptorsByTags_) {
             CachedExecNodeDescriptorsByTags_->Stop();
@@ -680,8 +770,6 @@ private:
             HeartbeatExecutor_->Stop();
             HeartbeatExecutor_.Reset();
         }
-
-        IncarnationId_ = {};
 
         OperationEventsOutbox_.Reset();
         JobEventsOutbox_.Reset();
@@ -694,29 +782,16 @@ private:
         MemoryTagQueue_.Reset();
     }
 
-    void OnMasterDisconnected()
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        DoCleanup();
-    }
-
-    // TODO: Move this method to some common place to avoid copy/paste.
-    TError GetMasterDisconnectedError()
-    {
-        return TError(
-            NRpc::EErrorCode::Unavailable,
-            "Master is not connected");
-    }
-
     TControllerAgentTrackerServiceProxy::TReqHeartbeatPtr PrepareHeartbeatRequest(
         bool* execNodesRequested,
         bool* configRequested,
         bool* operationAlertsSent)
     {
         auto req = SchedulerProxy_.Heartbeat();
-
-        ToProto(req->mutable_agent_incarnation_id(), IncarnationId_);
+        req->SetTimeout(Config_->ControllerAgentHeartbeatRpcTimeout);
+        req->SetHeavy(true);
+        req->set_agent_id(Bootstrap_->GetAgentId());
+        ToProto(req->mutable_incarnation_id(), IncarnationId_);
 
         OperationEventsOutbox_->BuildOutcoming(
             req->mutable_agent_to_scheduler_operation_events(),
@@ -804,7 +879,7 @@ private:
                 }
             }
 
-            // TODO(ignat): add some backoff.
+            // XXX(babenko): avoid sending on each heartbeat
             protoOperation->set_suspicious_jobs(controller->GetSuspiciousJobsYson().GetData());
             protoOperation->set_pending_job_count(controller->GetPendingJobCount());
             ToProto(protoOperation->mutable_needed_resources(), controller->GetNeededResources());
@@ -833,8 +908,12 @@ private:
 
         auto rspOrError = WaitFor(req->Invoke());
         if (!rspOrError.IsOK()) {
-            LOG_WARNING(rspOrError, "Heartbeat failed; backing off and retrying");
-            Y_UNUSED(WaitFor(TDelayedExecutor::MakeDelayed(Config_->ControllerAgentHeartbeatFailureBackoff)));
+            if (NRpc::IsRetriableError(rspOrError)) {
+                LOG_WARNING(rspOrError, "Error reporting heartbeat to scheduler");
+                Y_UNUSED(WaitFor(TDelayedExecutor::MakeDelayed(Config_->ControllerAgentHeartbeatFailureBackoff)));
+            } else {
+                Disconnect(rspOrError);
+            }
             return;
         }
 
@@ -864,7 +943,7 @@ private:
         }
 
         if (rsp->has_config()) {
-            auto config = ConvertTo<TControllerAgentConfigPtr>(TYsonString(rsp->config()));
+            auto config = ConvertTo<NScheduler::TSchedulerConfigPtr>(TYsonString(rsp->config())); // TODO(babenko): config
             UpdateConfig(config);
         }
 
@@ -1053,17 +1132,86 @@ private:
 
         return result;
     }
+
+    void UpdateConfig(const NScheduler::TSchedulerConfigPtr& config) // TODO(babenko): config
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        auto oldConfigNode = ConvertToNode(Config_);
+        auto newConfigNode = ConvertToNode(config);
+        if (AreNodesEqual(oldConfigNode, newConfigNode)) {
+            return;
+        }
+
+        Config_ = config;
+
+        ChunkLocationThrottlerManager_->Reconfigure(Config_->ChunkLocationThrottler);
+
+        EventLogWriter_->UpdateConfig(Config_->EventLog);
+
+        ReconfigurableJobSpecSliceThrottler_->Reconfigure(Config_->JobSpecSliceThrottler);
+
+        if (HeartbeatExecutor_) {
+            HeartbeatExecutor_->SetPeriod(Config_->ControllerAgentHeartbeatPeriod);
+        }
+
+        if (MasterConnector_) {
+            MasterConnector_->UpdateConfig(config);
+        }
+
+        for (const auto& pair : IdToOperation_) {
+            const auto& operation = pair.second;
+            auto controller = operation->GetController();
+            controller->GetCancelableInvoker()->Invoke(
+                BIND(&IOperationController::UpdateConfig, controller, config));
+        }
+
+        LOG_INFO("Configuration updated");
+    }
+
+    void BuildStaticOrchid(IYsonConsumer* consumer)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        BuildYsonFluently(consumer)
+            .BeginMap()
+                .Item("connected").Value(Connected_)
+                .DoIf(Connected_, [&] (TFluentMap fluent) {
+                    fluent
+                        .Item("incarnation_id").Value(IncarnationId_)
+                        .Item("operations").DoMapFor(IdToOperation_, [&] (TFluentMap fluent, const auto& pair) {
+                            const auto& operation = pair.second;
+                            fluent
+                                .Item(ToString(pair.first)).BeginMap()
+                                .Item("type").Value(operation->GetType())
+                                .Item("spec").Value(operation->GetSpec())
+                                .EndMap();
+                        });
+                })
+                .Item("config").Value(Config_)
+            .EndMap();
+    }
 };
 
 ////////////////////////////////////////////////////////////////////
 
 TControllerAgent::TControllerAgent(
-    TControllerAgentConfigPtr config,
+    NScheduler::TSchedulerConfigPtr config, // TODO(babenko): config
     NCellScheduler::TBootstrap* bootstrap)
-    : Impl_(New<TImpl>(config, bootstrap))
+    : Impl_(New<TImpl>(std::move(config), bootstrap))
 { }
 
 TControllerAgent::~TControllerAgent() = default;
+
+void TControllerAgent::Initialize()
+{
+    Impl_->Initialize();
+}
+
+IYPathServicePtr TControllerAgent::GetOrchidService()
+{
+    return Impl_->GetOrchidService();
+}
 
 const IInvokerPtr& TControllerAgent::GetControllerThreadPoolInvoker()
 {
@@ -1080,6 +1228,21 @@ TMasterConnector* TControllerAgent::GetMasterConnector()
     return Impl_->GetMasterConnector();
 }
 
+bool TControllerAgent::IsConnected() const
+{
+    return Impl_->IsConnected();
+}
+
+const TIncarnationId& TControllerAgent::GetIncarnationId() const
+{
+    return Impl_->GetIncarnationId();
+}
+
+TInstant TControllerAgent::GetConnectionTime() const
+{
+    return Impl_->GetConnectionTime();
+}
+
 void TControllerAgent::ValidateConnected() const
 {
     Impl_->ValidateConnected();
@@ -1090,12 +1253,12 @@ void TControllerAgent::ValidateIncarnation(const TIncarnationId& incarnationId) 
     Impl_->ValidateIncarnation(incarnationId);
 }
 
-TInstant TControllerAgent::GetConnectionTime() const
+void TControllerAgent::Disconnect(const TError& error)
 {
-    return Impl_->GetConnectionTime();
+    Impl_->Disconnect(error);
 }
 
-const TControllerAgentConfigPtr& TControllerAgent::GetConfig() const
+const NScheduler::TSchedulerConfigPtr& TControllerAgent::GetConfig() const // TODO(babenko): config
 {
     return Impl_->GetConfig();
 }
@@ -1128,11 +1291,6 @@ const TAsyncSemaphorePtr& TControllerAgent::GetCoreSemaphore() const
 const TEventLogWriterPtr& TControllerAgent::GetEventLogWriter() const
 {
     return Impl_->GetEventLogWriter();
-}
-
-void TControllerAgent::UpdateConfig(const TControllerAgentConfigPtr& config)
-{
-    Impl_->UpdateConfig(config);
 }
 
 TOperationPtr TControllerAgent::FindOperation(const TOperationId& operationId)
@@ -1236,6 +1394,10 @@ const IThroughputThrottlerPtr& TControllerAgent::GetJobSpecSliceThrottler() cons
 {
     return Impl_->GetJobSpecSliceThrottler();
 }
+
+DELEGATE_SIGNAL(TControllerAgent, void(), SchedulerConnecting, *Impl_);
+DELEGATE_SIGNAL(TControllerAgent, void(), SchedulerConnected, *Impl_);
+DELEGATE_SIGNAL(TControllerAgent, void(), SchedulerDisconnected, *Impl_);
 
 ////////////////////////////////////////////////////////////////////
 

@@ -30,22 +30,7 @@ public:
         NCellScheduler::TBootstrap* bootstrap);
     ~TMasterConnector();
 
-    // TODO(babenko): get rid of these methods
-    void OnMasterConnecting(const TIncarnationId& incarnationId);
-    void OnMasterConnected();
-    void OnMasterDisconnected();
-
-    /*!
-     *  \note Thread affinity: any
-     */
-    bool IsConnected() const;
-
-    /*!
-     *  \note Thread affinity: any
-     */
-    TInstant GetConnectionTime() const;
-
-    const TIncarnationId& GetIncarnationId() const;
+    void Initialize();
 
     void StartOperationNodeUpdates(
         const TOperationId& operationId);
@@ -70,18 +55,6 @@ public:
         bool recursive);
 
     void UpdateConfig(const TControllerAgentConfigPtr& config);
-
-    //! Raised when connection process starts.
-    //! Subscribers may throw and yield.
-    DECLARE_SIGNAL(void(), MasterConnecting);
-
-    //! Raised when connection is complete.
-    //! Subscribers may throw but cannot yield.
-    DECLARE_SIGNAL(void(), MasterConnected);
-
-    //! Raised when disconnect happens.
-    //! Subscribers may yield but cannot throw.
-    DECLARE_SIGNAL(void(), MasterDisconnected);
 
 private:
     class TImpl;

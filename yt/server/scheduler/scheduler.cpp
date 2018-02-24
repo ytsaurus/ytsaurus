@@ -14,9 +14,6 @@
 #include "operation_controller.h"
 
 #include <yt/server/controller_agent/helpers.h>
-#include <yt/server/controller_agent/master_connector.h>
-#include <yt/server/controller_agent/controller_agent.h>
-#include <yt/server/controller_agent/operation.h>
 #include <yt/server/controller_agent/controller_agent_service_proxy.h>
 
 #include <yt/server/exec_agent/public.h>
@@ -362,6 +359,13 @@ public:
         }
     }
 
+    TMasterConnector* GetMasterConnector() const
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return MasterConnector_.get();
+    }
+
 
     void Disconnect(const TError& error)
     {
@@ -584,9 +588,8 @@ public:
         try {
             WaitFor(Strategy_->ValidateOperationStart(operation.Get()))
                 .ThrowOnError();
-            Strategy_->ValidateOperationCanBeRegistered(operation.Get());
         } catch (const std::exception& ex) {
-            auto wrappedError = TError("Operation failed to register in strategy")
+            auto wrappedError = TError("Operation has failed to start")
                 << ex;
             operation->SetStarted(wrappedError);
             THROW_ERROR(wrappedError);
@@ -616,10 +619,8 @@ public:
             return operation->GetFinished();
         }
 
-        MasterConnector_->GetCancelableControlInvoker()->Invoke(
-            BIND([=, this_ = MakeStrong(this)] {
-                DoAbortOperation(operation->GetId(), error);
-            }));
+        MasterConnector_->GetCancelableControlInvoker(NCellScheduler::EControlQueue::Operation)->Invoke(
+            BIND(&TImpl::DoAbortOperation, MakeStrong(this), operation, error));
 
         return operation->GetFinished();
     }
@@ -643,7 +644,7 @@ public:
         }
 
         DoSuspendOperation(
-            operation->GetId(),
+            operation,
             TError("Suspend operation by user request"),
             abortRunningJobs,
             /* setAlert */ false);
@@ -725,50 +726,64 @@ public:
         return operation->GetFinished();
     }
 
-    void OnOperationCompleted(const TOperationId& operationId)
+
+    void OnOperationCompleted(const TOperationPtr& operation)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        auto operation = FindOperation(operationId);
-        if (!operation) {
-            return;
-        }
-
-        operation->GetCancelableControlInvoker()->Invoke(BIND(
-            &TImpl::DoCompleteOperation,
-            MakeStrong(this),
-            operation));
+        MasterConnector_->GetCancelableControlInvoker(NCellScheduler::EControlQueue::Operation)->Invoke(
+            BIND(&TImpl::DoCompleteOperation, MakeStrong(this), operation));
     }
 
-    void OnOperationAborted(const TOperationId& operationId, const TError& error)
+    void OnOperationAborted(const TOperationPtr& operation, const TError& error)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        MasterConnector_->GetCancelableControlInvoker()->Invoke(BIND(
-            static_cast<void(TImpl::*)(const TOperationId&, const TError& error)>(&TImpl::DoAbortOperation),
-            MakeStrong(this),
-            operationId,
-            error));
+        MasterConnector_->GetCancelableControlInvoker(NCellScheduler::EControlQueue::Operation)->Invoke(
+            BIND(&TImpl::DoAbortOperation, MakeStrong(this), operation, error));
     }
 
-    void OnOperationFailed(const TOperationId& operationId, const TError& error)
+    void OnOperationFailed(const TOperationPtr& operation, const TError& error)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         MasterConnector_->GetCancelableControlInvoker()->Invoke(
-            BIND(&TImpl::DoFailOperation, MakeStrong(this), operationId, error));
+            BIND(&TImpl::DoFailOperation, MakeStrong(this), operation, error));
     }
 
-    void OnOperationSuspended(const TOperationId& operationId, const TError& error)
+    void OnOperationSuspended(const TOperationPtr& operation, const TError& error)
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
         MasterConnector_->GetCancelableControlInvoker()->Invoke(BIND(
             &TImpl::DoSuspendOperation,
             MakeStrong(this),
-            operationId,
+            operation,
             error,
         /* abortRunningJobs */ true,
         /* setAlert */ true));
     }
+
+    void OnOperationAgentUnregistered(const TOperationPtr& operation)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        const auto& controller = operation->GetController();
+        controller->RevokeAgent();
+
+        operation->Restart();
+        operation->SetStateAndEnqueueEvent(EOperationState::Orphaned);
+
+        for (const auto& nodeShard : NodeShards_) {
+            nodeShard->GetInvoker()->Invoke(BIND(
+                &TNodeShard::StartOperationRevival,
+                nodeShard,
+                operation->GetId()));
+        }
+
+        AddOperationToTransientQueue(operation);
+    }
+
 
     TFuture<TYsonString> Strace(const TJobId& jobId, const TString& user)
     {
@@ -907,7 +922,9 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        DoAbortOperation(operationId, error);
+        auto operation = GetOperation(operationId);
+
+        DoAbortOperation(operation, error);
     }
 
     void MaterializeOperation(const TOperationPtr& operation)
@@ -1299,10 +1316,6 @@ private:
         // fiber cancelation.
         DoCleanup();
 
-        // XXX(babenko)
-        Bootstrap_->GetControllerAgent()->GetMasterConnector()->OnMasterConnecting(NControllerAgent::TIncarnationId::Create());
-        Bootstrap_->GetControllerAgentTracker()->OnAgentConnected();
-
         // NB: Must start the keeper before registering operations.
         const auto& responseKeeper = Bootstrap_->GetResponseKeeper();
         responseKeeper->Start();
@@ -1343,7 +1356,7 @@ private:
                     responseKeeper->EndRequest(operation->GetMutationId(), responseMessage);
                 }
 
-                RegisterOperation(operation);
+                RegisterOperation(operation, true);
 
                 operation->SetStateAndEnqueueEvent(EOperationState::Orphaned);
                 AddOperationToTransientQueue(operation);
@@ -1354,10 +1367,6 @@ private:
     void OnMasterConnected()
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-
-        // XXX(babenko)
-        Bootstrap_->GetControllerAgent()->GetMasterConnector()->OnMasterConnected();
-        Bootstrap_->GetControllerAgent()->UpdateConfig(Config_);
 
         CachedExecNodeMemoryDistributionByTags_->Start();
 
@@ -1404,10 +1413,6 @@ private:
             TransientOperationQueueScanPeriodExecutor_->Stop();
             TransientOperationQueueScanPeriodExecutor_.Reset();
         }
-
-        // XXX(babenko)
-        Bootstrap_->GetControllerAgent()->GetMasterConnector()->OnMasterDisconnected();
-        Bootstrap_->GetControllerAgentTracker()->OnAgentDisconnected();
 
         CachedExecNodeMemoryDistributionByTags_->Stop();
 
@@ -1785,16 +1790,19 @@ private:
         try {
             WaitFor(MasterConnector_->CreateOperationNode(operation))
                 .ThrowOnError();
+
+            ValidateOperationState(operation, EOperationState::Starting);
+
+            // XXX(babenko): now we only validate this on start but not during revival
+            Strategy_->ValidateOperationCanBeRegistered(operation.Get());
         } catch (const std::exception& ex) {
-            auto wrappedError = TError("Failed to register operation")
+            auto wrappedError = TError("Operation has failed to start")
                 << ex;
             operation->SetStarted(wrappedError);
             return;
         }
 
-        ValidateOperationState(operation, EOperationState::Starting);
-
-        RegisterOperation(operation);
+        RegisterOperation(operation, false);
 
         operation->SetStateAndEnqueueEvent(EOperationState::WaitingForAgent);
         AddOperationToTransientQueue(operation);
@@ -1834,7 +1842,7 @@ private:
         } catch (const std::exception& ex) {
             auto wrappedError = TError("Operation has failed to initialize")
                 << ex;
-            OnOperationFailed(operation->GetId(), wrappedError);
+            OnOperationFailed(operation, wrappedError);
             return;
         }
 
@@ -1872,7 +1880,7 @@ private:
         } catch (const std::exception& ex) {
             auto wrappedError = TError("Operation has failed to prepare")
                 << ex;
-            OnOperationFailed(operation->GetId(), wrappedError);
+            OnOperationFailed(operation, wrappedError);
             return;
         }
 
@@ -1943,7 +1951,7 @@ private:
                 operationId);
             auto wrappedError = TError("Operation has failed to revive")
                 << ex;
-            OnOperationFailed(operationId, wrappedError);
+            OnOperationFailed(operation, wrappedError);
         }
     }
 
@@ -1955,7 +1963,7 @@ private:
             jobs.size());
 
         // First, register jobs in the strategy. Do this synchronously as we are in the scheduler control thread.
-        GetStrategy()->RegisterJobs(operation->GetId(), jobs);
+        Strategy_->RegisterJobs(operation->GetId(), jobs);
 
         // Second, register jobs on the corresponding node shards.
         std::vector<std::vector<TJobPtr>> jobsByShardId(NodeShards_.size());
@@ -1969,7 +1977,7 @@ private:
             if (jobsByShardId[shardId].empty()) {
                 continue;
             }
-            auto asyncResult = BIND(&TNodeShard::RegisterRevivedJobs, NodeShards_[shardId])
+            auto asyncResult = BIND(&TNodeShard::FinishOperationRevival, NodeShards_[shardId])
                 .AsyncVia(NodeShards_[shardId]->GetInvoker())
                 .Run(operation->GetId(), std::move(jobsByShardId[shardId]));
             asyncResults.emplace_back(std::move(asyncResult));
@@ -1977,39 +1985,16 @@ private:
         return Combine(asyncResults);
     }
 
-    void RegisterOperation(const TOperationPtr& operation)
+    void RegisterOperation(const TOperationPtr& operation, bool willRevive)
     {
         YCHECK(IdToOperation_.emplace(operation->GetId(), operation).second);
 
-        MasterConnector_->StartOperationNodeUpdates(operation);
-
-        LOG_DEBUG("Operation registered (OperationId: %v)",
-            operation->GetId());
-    }
-
-    void RegisterAssignedOperation(const TOperationPtr& operation)
-    {
-        LOG_DEBUG("Registering operation at strategy (OperationId: %v)",
-            operation->GetId());
-
-        auto agent = operation->GetAgentOrCancelFiber();
         const auto& agentTracker = Bootstrap_->GetControllerAgentTracker();
-
-        auto controller = agentTracker->CreateController(agent.Get(), operation.Get());
+        auto controller = agentTracker->CreateController(operation);
         operation->SetController(controller);
 
-        // TODO(babenko): consider joining these two calls
-        Strategy_->ValidateOperationCanBeRegistered(operation.Get());
         Strategy_->RegisterOperation(operation.Get());
-        // TODO(babenko): try getting rid of this dependency
         operation->PoolTreeSchedulingTagFilters() = Strategy_->GetOperationPoolTreeSchedulingTagFilters(operation->GetId());
-        operation->SetRegisteredAtSchedulerStrategy(true);
-
-        WaitFor(agentTracker->RegisterOperationAtAgent(operation))
-            .ThrowOnError();
-
-        LOG_DEBUG("Registering operation at node shards (OperationId: %v)",
-            operation->GetId());
 
         for (const auto& nodeShard : NodeShards_) {
             nodeShard->GetInvoker()->Invoke(BIND(
@@ -2017,9 +2002,25 @@ private:
                 nodeShard,
                 operation->GetId(),
                 operation->GetController(),
-                operation->RevivalDescriptor().operator bool()));
+                willRevive));
         }
-        operation->SetRegisteredAtNodeShards(true);
+
+        MasterConnector_->StartOperationNodeUpdates(operation);
+
+        LOG_DEBUG("Operation registered (OperationId: %v, WillRevive: %v)",
+            operation->GetId(),
+            willRevive);
+    }
+
+    void RegisterAssignedOperation(const TOperationPtr& operation)
+    {
+        auto agent = operation->GetAgentOrCancelFiber();
+        const auto& controller = operation->GetController();
+        controller->AssignAgent(agent);
+
+        const auto& agentTracker = Bootstrap_->GetControllerAgentTracker();
+        WaitFor(agentTracker->RegisterOperationAtAgent(operation))
+            .ThrowOnError();
 
         MasterConnector_->AddOperationWatcherRequester(
             operation,
@@ -2033,18 +2034,19 @@ private:
     {
         YCHECK(IdToOperation_.erase(operation->GetId()) == 1);
 
-        if (operation->GetRegisteredAtNodeShards()) {
-            for (const auto& nodeShard : NodeShards_) {
-                nodeShard->GetInvoker()->Invoke(
-                    BIND(&TNodeShard::UnregisterOperation, nodeShard, operation->GetId()));
-            }
-            operation->SetRegisteredAtNodeShards(false);
+        const auto& controller = operation->GetController();
+        if (controller) {
+            controller->RevokeAgent();
         }
 
-        if (operation->GetRegisteredAtSchedulerStrategy()) {
-            Strategy_->UnregisterOperation(operation.Get());
-            operation->SetRegisteredAtSchedulerStrategy(false);
+        for (const auto& nodeShard : NodeShards_) {
+            nodeShard->GetInvoker()->Invoke(BIND(
+                &TNodeShard::UnregisterOperation,
+                nodeShard,
+                operation->GetId()));
         }
+
+        Strategy_->UnregisterOperation(operation.Get());
 
         const auto& agentTracker = Bootstrap_->GetControllerAgentTracker();
         agentTracker->UnregisterOperationFromAgent(operation);
@@ -2198,7 +2200,7 @@ private:
 
             FinishOperation(operation);
         } catch (const std::exception& ex) {
-            OnOperationFailed(operation->GetId(), ex);
+            OnOperationFailed(operation, ex);
             return;
         }
 
@@ -2208,13 +2210,14 @@ private:
         LogOperationFinished(operation, ELogEventType::OperationCompleted, TError());
     }
 
-    void DoFailOperation(const TOperationId& operationId, const TError& error)
+    void DoFailOperation(
+        const TOperationPtr& operation,
+        const TError& error)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        auto operation = FindOperation(operationId);
         // NB: finishing state is ok, do not skip operation fail in this case.
-        if (!operation || operation->IsFinishedState()) {
+        if (operation->IsFinishedState()) {
             // Operation is already terminated.
             return;
         }
@@ -2236,6 +2239,12 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
+        // NB: finishing state is ok, do not skip operation abort in this case.
+        if (operation->IsFinishedState()) {
+            // Operation is already terminated.
+            return;
+        }
+
         auto codicilGuard = operation->MakeCodicilGuard();
 
         LOG_INFO(error, "Aborting operation (OperationId: %v, State: %v)",
@@ -2250,31 +2259,16 @@ private:
             error);
     }
 
-    void DoAbortOperation(const TOperationId& operationId, const TError& error)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        auto operation = FindOperation(operationId);
-        // NB: finishing state is ok, do not skip operation fail in this case.
-        if (!operation || operation->IsFinishedState()) {
-            // Operation is already terminated.
-            return;
-        }
-
-        DoAbortOperation(operation, error);
-    }
-
     void DoSuspendOperation(
-        const TOperationId& operationId,
+        const TOperationPtr& operation,
         const TError& error,
         bool abortRunningJobs,
         bool setAlert)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        auto operation = FindOperation(operationId);
         // NB: finishing state is ok, do not skip operation fail in this case.
-        if (!operation || operation->IsFinishedState()) {
+        if (operation->IsFinishedState()) {
             // Operation is already terminated.
             return;
         }
@@ -2295,7 +2289,7 @@ private:
         }
 
         LOG_INFO(error, "Operation suspended (OperationId: %v)",
-            operationId);
+            operation->GetId());
     }
 
 
@@ -2470,10 +2464,10 @@ private:
 
         RemoveExpiredResourceLimitsTags();
 
-        // XXX(babenko): list agents here
         BuildYsonFluently(consumer)
             .BeginMap()
                 .Item("connected").Value(IsConnected())
+                // COMPAT(babenko): deprecate cell in favor of cluster
                 .Item("cell").BeginMap()
                     .Item("resource_limits").Value(GetTotalResourceLimits())
                     .Item("resource_usage").Value(GetTotalResourceUsage())
@@ -2489,6 +2483,30 @@ private:
                             }
                         })
                 .EndMap()
+                .Item("cluster").BeginMap()
+                    .Item("resource_limits").Value(GetTotalResourceLimits())
+                    .Item("resource_usage").Value(GetTotalResourceUsage())
+                    .Item("exec_node_count").Value(GetExecNodeCount())
+                    .Item("total_node_count").Value(GetTotalNodeCount())
+                    .Item("nodes_memory_distribution").Value(GetExecNodeMemoryDistribution(TSchedulingTagFilter()))
+                    .Item("resource_limits_by_tags")
+                        .DoMapFor(CachedResourceLimitsByTags_, [] (TFluentMap fluent, const auto& pair) {
+                            const auto& filter = pair.first;
+                            const auto& record = pair.second;
+                            if (!filter.IsEmpty()) {
+                                fluent.Item(filter.GetBooleanFormula().GetFormula()).Value(record.second);
+                            }
+                        })
+                .EndMap()
+                .Item("controller_agents").DoMapFor(Bootstrap_->GetControllerAgentTracker()->GetAgents(), [] (TFluentMap fluent, const auto& agent) {
+                    fluent
+                        .Item(agent->GetId()).BeginMap()
+                            .Item("incarnation_id").Value(agent->GetIncarnationId())
+                            .Item("operation_ids").DoListFor(agent->Operations(), [] (TFluentList fluent, const auto& operation) {
+                                fluent.Item().Value(operation->GetId());
+                            })
+                        .EndMap();
+                })
                 .Item("suspicious_jobs").BeginMap()
                     .Items(BuildSuspiciousJobsYson())
                 .EndMap()
@@ -2512,27 +2530,44 @@ private:
     {
         static const auto emptyMapFragment = TYsonString(TString(), EYsonType::MapFragment);
 
+        auto replyNoOperation = [&] {
+            return TYsonString();
+        };
+
         // First fast check.
         auto operation = FindOperation(operationId);
         if (!operation) {
-            return TYsonString();
+            return replyNoOperation();
         }
 
         auto codicilGuard = operation->MakeCodicilGuard();
 
-        NControllerAgent::TControllerAgentServiceProxy proxy(Bootstrap_->GetLocalRpcChannel());
+        auto replyNoAgent = [&] {
+            return BuildYsonStringFluently()
+                .BeginMap()
+                    .Do(BIND(&NScheduler::BuildFullOperationAttributes, operation))
+                .EndMap();
+        };
+
+        auto agent = operation->FindAgent();
+        if (!agent) {
+            return replyNoAgent();
+        }
+
+        NControllerAgent::TControllerAgentServiceProxy proxy(agent->GetChannel());
         auto req = proxy.GetOperationInfo();
         req->SetTimeout(Config_->ControllerAgentLightRpcTimeout);
         ToProto(req->mutable_operation_id(), operationId);
         auto rspOrError = WaitFor(req->Invoke());
         auto rsp = rspOrError.IsOK() ? rspOrError.Value() : nullptr;
         if (!rsp) {
-            LOG_DEBUG(rspOrError, "Failed to get operation info from controller; assuming empty response");
+            LOG_DEBUG(rspOrError, "Failed to get operation info from controller; assuming empty response (OperationId: %v)",
+                operationId);
         }
 
         // Recheck to make sure operation is still alive.
         if (!FindOperation(operationId)) {
-            return TYsonString();
+            return replyNoOperation();
         }
 
         auto toYsonString = [] (const TProtoStringType& protoString) {
@@ -2545,22 +2580,18 @@ private:
         auto controllerJobSplitterInfo = rsp ? toYsonString(rsp->job_splitter()) : emptyMapFragment;
         auto controllerMemoryUsage = rsp ? MakeNullable(rsp->controller_memory_usage()) : Null;
 
-        auto agent = operation->FindAgent();
-
         return BuildYsonStringFluently()
             .BeginMap()
                 .Do(BIND(&NScheduler::BuildFullOperationAttributes, operation))
-                .DoIf(agent.operator bool(), [&] (TFluentMap fluent) {
-                    fluent.Item("agent_address").Value(agent->GetDefaultAddress());
-                })
+                .Item("agent_id").Value(agent->GetId())
                 .Item("progress").BeginMap()
-                    .DoIf(operation->GetRegisteredAtSchedulerStrategy(), [&] (TFluentMap fluent) {
+                    .Do([&] (TFluentMap fluent) {
                         Strategy_->BuildOperationProgress(operation->GetId(), fluent);
                     })
                     .Items(controllerProgress)
                 .EndMap()
                 .Item("brief_progress").BeginMap()
-                    .DoIf(operation->GetRegisteredAtSchedulerStrategy(), [&] (TFluentMap fluent) {
+                    .Do([&] (TFluentMap fluent) {
                         Strategy_->BuildBriefOperationProgress(operation->GetId(), fluent);
                     })
                     .Items(controllerBriefProgress)
@@ -2697,7 +2728,7 @@ private:
                 operationId);
             auto wrappedError = TError("Operation has failed to revive")
                 << ex;
-            OnOperationFailed(operation->GetId(), wrappedError);
+            OnOperationFailed(operation, wrappedError);
         }
     }
 
@@ -2863,10 +2894,10 @@ private:
                 THROW_ERROR_EXCEPTION("Job %v is missing", jobId);
             }
 
-            // Just a pre-check.
-            Scheduler_->GetOperationOrThrow(operationId);
+            auto operation = Scheduler_->GetOperationOrThrow(operationId);
+            auto agent = operation->GetAgentOrThrow();
 
-            NControllerAgent::TControllerAgentServiceProxy proxy(Scheduler_->Bootstrap_->GetLocalRpcChannel());
+            NControllerAgent::TControllerAgentServiceProxy proxy(agent->GetChannel());
             auto req = proxy.GetJobInfo();
             req->SetTimeout(Scheduler_->Config_->ControllerAgentLightRpcTimeout);
             ToProto(req->mutable_operation_id(), operationId);
@@ -2936,6 +2967,11 @@ void TScheduler::ValidateConnected()
     Impl_->ValidateConnected();
 }
 
+TMasterConnector* TScheduler::GetMasterConnector() const
+{
+    return Impl_->GetMasterConnector();
+}
+
 void TScheduler::Disconnect(const TError& error)
 {
     Impl_->Disconnect(error);
@@ -2997,24 +3033,29 @@ TFuture<void> TScheduler::CompleteOperation(
     return Impl_->CompleteOperation(operation, error, user);
 }
 
-void TScheduler::OnOperationCompleted(const TOperationId& operationId)
+void TScheduler::OnOperationCompleted(const TOperationPtr& operation)
 {
-    Impl_->OnOperationCompleted(operationId);
+    Impl_->OnOperationCompleted(operation);
 }
 
-void TScheduler::OnOperationAborted(const TOperationId& operationId, const TError& error)
+void TScheduler::OnOperationAborted(const TOperationPtr& operation, const TError& error)
 {
-    Impl_->OnOperationAborted(operationId, error);
+    Impl_->OnOperationAborted(operation, error);
 }
 
-void TScheduler::OnOperationFailed(const TOperationId& operationId, const TError& error)
+void TScheduler::OnOperationFailed(const TOperationPtr& operation, const TError& error)
 {
-    Impl_->OnOperationFailed(operationId, error);
+    Impl_->OnOperationFailed(operation, error);
 }
 
-void TScheduler::OnOperationSuspended(const TOperationId& operationId, const TError& error)
+void TScheduler::OnOperationSuspended(const TOperationPtr& operation, const TError& error)
 {
-    Impl_->OnOperationSuspended(operationId, error);
+    Impl_->OnOperationSuspended(operation, error);
+}
+
+void TScheduler::OnOperatonAgentUnregistered(const TOperationPtr& operation)
+{
+    Impl_->OnOperationAgentUnregistered(operation);
 }
 
 TFuture<void> TScheduler::DumpInputContext(const TJobId& jobId, const NYPath::TYPath& path, const TString& user)

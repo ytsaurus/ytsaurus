@@ -6,9 +6,6 @@
 #include "config.h"
 #include "operation.h"
 
-#include <yt/server/scheduler/scheduler.h>
-#include <yt/server/scheduler/operation.h>
-
 #include <yt/ytlib/api/file_writer.h>
 #include <yt/ytlib/api/transaction.h>
 

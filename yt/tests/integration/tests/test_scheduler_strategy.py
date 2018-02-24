@@ -151,7 +151,6 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
         for resource, limit in resource_limits.iteritems():
             resource_name = "user_memory" if resource == "memory" else resource
             assert assert_almost_equal(op_limits[resource_name], limit)
-        op.abort()
 
     def test_resource_limits_runtime(self):
         self._prepare_tables()
@@ -168,8 +167,6 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
 
         set("//sys/operations/{0}/@resource_limits".format(op.id), {"user_slots": 2})
         self._check_running_jobs(op.id, 2)
-
-        op.abort()
 
     def test_max_possible_resource_usage(self):
         create("map_node", "//sys/pools/low_cpu_pool", attributes={"resource_limits": {"cpu": 1}})
@@ -603,9 +600,6 @@ class TestSchedulerOperationLimits(YTEnvSetup):
         for i in xrange(3, 5):
             run(i, "production", False)
 
-        for op in ops:
-            op.abort()
-
     def test_pool_changes(self):
         create("map_node", "//sys/pools/research")
         create("map_node", "//sys/pools/research/subpool")
@@ -651,9 +645,6 @@ class TestSchedulerOperationLimits(YTEnvSetup):
 
         assert get("//sys/scheduler/orchid/scheduler/pools/production/running_operation_count") == 1
         assert get("//sys/scheduler/orchid/scheduler/pools/production/operation_count") == 3
-
-        for op in ops:
-            op.abort()
 
     def _test_pool_acl_prologue(self):
         create("table", "//tmp/t_in")
@@ -1440,7 +1431,6 @@ class TestSchedulerSuspiciousJobs(YTEnvSetup):
                         get("//sys/scheduler/orchid/scheduler/jobs/{0}/brief_statistics".format(job_id))
 
         assert suspicious
-        op.abort()
 
     @pytest.mark.xfail(reason="TODO(max42)")
     @require_ytserver_root_privileges

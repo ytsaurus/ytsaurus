@@ -248,6 +248,10 @@ public:
     // These may run for prolonged time periods (e.g. operation preparation).
     TDuration ControllerAgentHeavyRpcTimeout;
 
+    // If the agent does not report a heartbeat within this period,
+    // it is automatically unregistered.
+    TDuration ControllerAgentHeartbeatTimeout;
+
     TSchedulerConfig();
 };
 

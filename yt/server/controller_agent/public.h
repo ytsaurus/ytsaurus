@@ -94,14 +94,14 @@ struct TAbortedJobSummary;
 using TFailedJobSummary = TJobSummary;
 struct TRunningJobSummary;
 
-// XXX(babenko): move private
 class TMasterConnector;
 
 DECLARE_REFCOUNTED_CLASS(TProgressCounter)
 
 class TDataFlowGraph;
 
-using TIncarnationId = TGuid;
+using NScheduler::TIncarnationId;
+using NScheduler::TAgentId;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -123,6 +123,7 @@ DEFINE_ENUM(EScheduleJobFailReason,
     ((DataBalancingViolation)        (14))
     ((UnknownNode)                   (15))
     ((UnknownOperation)              (16))
+    ((NoAgentAssigned)               (17))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

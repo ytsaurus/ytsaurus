@@ -186,12 +186,6 @@ public:
     //! Scheduling tag filters of operation pool trees.
     DEFINE_BYREF_RW_PROPERTY(std::vector<TSchedulingTagFilter>, PoolTreeSchedulingTagFilters);
 
-    //! True if node shards are aware of this operation.
-    DEFINE_BYVAL_RW_PROPERTY(bool, RegisteredAtNodeShards);
-
-    //! True if scheduler strategy is aware of this operation.
-    DEFINE_BYVAL_RW_PROPERTY(bool, RegisteredAtSchedulerStrategy);
-
     //! Returns operation id.
     const TOperationId& GetId() const override;
 
@@ -248,9 +242,13 @@ public:
     //! Cancels the context of the invoker returned by #GetCancelableControlInvoker.
     void Cancel();
 
+    //! Invokes #Cancel and then recreates the context and the invoker.
+    void Restart();
+
     void SetAgent(const TControllerAgentPtr& agent);
     TControllerAgentPtr GetAgentOrCancelFiber();
     TControllerAgentPtr FindAgent();
+    TControllerAgentPtr GetAgentOrThrow();
 
     TOperation(
         const TOperationId& operationId,
@@ -272,10 +270,12 @@ private:
     const TInstant StartTime_;
     const TString AuthenticatedUser_;
     const NYTree::IMapNodePtr Spec_;
-
     const TString CodicilData_;
-    const TCancelableContextPtr CancelableContext_;
-    const IInvokerPtr CancelableInvoker_;
+    const IInvokerPtr ControlInvoker_;
+
+
+    TCancelableContextPtr CancelableContext_;
+    IInvokerPtr CancelableInvoker_;
 
     THashMap<TString, int> TreeIdToSlotIndex_;
 

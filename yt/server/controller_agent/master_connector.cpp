@@ -8,7 +8,6 @@
 #include "helpers.h"
 
 #include <yt/server/scheduler/config.h>
-#include <yt/server/scheduler/scheduler.h>
 #include <yt/server/scheduler/helpers.h>
 
 #include <yt/server/cell_scheduler/bootstrap.h>
@@ -76,106 +75,24 @@ public:
         , Bootstrap_(bootstrap)
     { }
 
-    void OnMasterConnecting(const TIncarnationId& incarnationId)
+    void Initialize()
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        // NB: We cannot be sure the previous incarnation did a proper cleanup due to possible
-        // fiber cancelation.
-        DoCleanup();
-
-        IncarnationId_ = incarnationId;
-
-        YCHECK(!CancelableContext_);
-        CancelableContext_ = New<TCancelableContext>();
-
-        YCHECK(!CancelableControlInvoker_);
-        CancelableControlInvoker_ = CancelableContext_->CreateInvoker(Bootstrap_->GetControlInvoker(EControlQueue::MasterConnector));
-
-        MasterConnecting_.Fire();
-    }
-
-    void OnMasterConnected()
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        YCHECK(!Connected_);
-        Connected_.store(true);
-        ConnectionTime_ = TInstant::Now();
-
-        YCHECK(!OperationNodesUpdateExecutor_);
-        OperationNodesUpdateExecutor_ = New<TUpdateExecutor<TOperationId, TOperationNodeUpdate>>(
-            CancelableControlInvoker_,
-            BIND(&TImpl::UpdateOperationNode, Unretained(this)),
-            BIND(&TImpl::IsOperationInFinishedState, Unretained(this)),
-            BIND(&TImpl::OnOperationUpdateFailed, Unretained(this)),
-            Config_->OperationsUpdatePeriod,
-            Logger);
-        OperationNodesUpdateExecutor_->Start();
-
-        YCHECK(!TransactionRefreshExecutor_);
-        TransactionRefreshExecutor_ = New<TPeriodicExecutor>(
-            CancelableControlInvoker_,
-            BIND(&TImpl::RefreshTransactions, MakeStrong(this)),
-            Config_->TransactionsRefreshPeriod,
-            EPeriodicExecutorMode::Automatic);
-        TransactionRefreshExecutor_->Start();
-
-        YCHECK(!SnapshotExecutor_);
-        SnapshotExecutor_= New<TPeriodicExecutor>(
-            CancelableControlInvoker_,
-            BIND(&TImpl::BuildSnapshot, MakeStrong(this)),
-            Config_->SnapshotPeriod,
-            EPeriodicExecutorMode::Automatic);
-        SnapshotExecutor_->Start();
-
-        YCHECK(!UnstageExecutor_);
-        UnstageExecutor_ = New<TPeriodicExecutor>(
-            CancelableControlInvoker_,
-            BIND(&TImpl::UnstageChunkTrees, MakeWeak(this)),
-            Config_->ChunkUnstagePeriod,
-            EPeriodicExecutorMode::Automatic);
-        UnstageExecutor_->Start();
-
-        MasterConnected_.Fire();
-    }
-
-    void OnMasterDisconnected()
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        DoCleanup();
-
-        MasterDisconnected_.Fire();
-    }
-
-    bool IsConnected() const
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        return Connected_.load();
-    }
-
-    TInstant GetConnectionTime() const
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        return ConnectionTime_.load();
-    }
-
-    const TIncarnationId& GetIncarnationId() const
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-        // XXX(babenko)
-        // YCHECK(Connected_);
-
-        return IncarnationId_;
+        const auto& controllerAgent = Bootstrap_->GetControllerAgent();
+        controllerAgent->SubscribeSchedulerConnecting(BIND(
+            &TImpl::OnSchedulerConnecting,
+            Unretained(this)));
+        controllerAgent->SubscribeSchedulerConnected(BIND(
+            &TImpl::OnSchedulerConnected,
+            Unretained(this)));
+        controllerAgent->SubscribeSchedulerDisconnected(BIND(
+            &TImpl::OnSchedulerDisconnected,
+            Unretained(this)));
     }
 
     void StartOperationNodeUpdates(const TOperationId& operationId)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(Connected_);
+        YCHECK(IsConnected());
 
         OperationNodesUpdateExecutor_->AddUpdate(
             operationId,
@@ -185,7 +102,7 @@ public:
     void CreateJobNode(const TOperationId& operationId, const TCreateJobNodeRequest& request)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(Connected_);
+        YCHECK(IsConnected());
 
         CancelableControlInvoker_->Invoke(BIND(
             &TImpl::DoCreateJobNode,
@@ -197,7 +114,7 @@ public:
     TFuture<void> FlushOperationNode(const TOperationId& operationId)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(Connected_);
+        YCHECK(IsConnected());
 
         LOG_INFO("Flushing operation node (OperationId: %v)",
             operationId);
@@ -212,7 +129,7 @@ public:
         const std::vector<TChunkTreeId>& childIds)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(Connected_);
+        YCHECK(IsConnected());
 
         return BIND(&TImpl::DoAttachToLivePreview, MakeStrong(this))
             .AsyncVia(CancelableControlInvoker_)
@@ -222,7 +139,7 @@ public:
     TFuture<TOperationSnapshot> DownloadSnapshot(const TOperationId& operationId)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(Connected_);
+        YCHECK(IsConnected());
 
         if (!Config_->EnableSnapshotLoading) {
             return MakeFuture<TOperationSnapshot>(TError("Snapshot loading is disabled in configuration"));
@@ -235,25 +152,18 @@ public:
 
     TFuture<void> RemoveSnapshot(const TOperationId& operationId)
     {
-        auto future = BIND(&TImpl::DoRemoveSnapshot, MakeStrong(this), operationId)
+        VERIFY_THREAD_AFFINITY(ControlThread);
+        YCHECK(IsConnected());
+
+        return BIND(&TImpl::DoRemoveSnapshot, MakeStrong(this), operationId)
             .AsyncVia(CancelableControlInvoker_)
             .Run();
-        return future.Apply(
-            BIND([operationId, this, this_ = MakeStrong(this)] (const TError& error) {
-                if (!error.IsOK()) {
-                    LOG_ERROR(error, "Failed to remove snapshot (OperationId: %v)", operationId);
-                    Y_UNUSED(WaitFor(BIND(&TScheduler::Disconnect, Bootstrap_->GetScheduler())
-                        .AsyncVia(Bootstrap_->GetControlInvoker())
-                        .Run(error)));
-                }
-            })
-            .AsyncVia(Bootstrap_->GetControlInvoker()));
     }
 
     void AddChunkTreesToUnstageList(std::vector<TChunkTreeId> chunkTreeIds, bool recursive)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(Connected_);
+        YCHECK(IsConnected());
 
         CancelableControlInvoker_->Invoke(BIND(&TImpl::DoAddChunkTreesToUnstageList,
             MakeWeak(this),
@@ -281,18 +191,9 @@ public:
         }
     }
 
-    DEFINE_SIGNAL(void(), MasterConnecting);
-    DEFINE_SIGNAL(void(), MasterConnected);
-    DEFINE_SIGNAL(void(), MasterDisconnected);
-
 private:
     TControllerAgentConfigPtr Config_;
     NCellScheduler::TBootstrap* const Bootstrap_;
-
-    std::atomic<bool> Connected_ = {false};
-    std::atomic<TInstant> ConnectionTime_;
-
-    TIncarnationId IncarnationId_;
 
     TCancelableContextPtr CancelableContext_;
     IInvokerPtr CancelableControlInvoker_;
@@ -334,11 +235,74 @@ private:
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
 
+    bool IsConnected() const
+    {
+        return Bootstrap_->GetControllerAgent()->IsConnected();
+    }
+
+    void OnSchedulerConnecting()
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        // NB: We cannot be sure the previous incarnation did a proper cleanup due to possible
+        // fiber cancelation.
+        DoCleanup();
+
+        YCHECK(!CancelableContext_);
+        CancelableContext_ = New<TCancelableContext>();
+
+        YCHECK(!CancelableControlInvoker_);
+        CancelableControlInvoker_ = CancelableContext_->CreateInvoker(Bootstrap_->GetControlInvoker(EControlQueue::MasterConnector));
+    }
+
+    void OnSchedulerConnected()
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        YCHECK(!OperationNodesUpdateExecutor_);
+        OperationNodesUpdateExecutor_ = New<TUpdateExecutor<TOperationId, TOperationNodeUpdate>>(
+            CancelableControlInvoker_,
+            BIND(&TImpl::UpdateOperationNode, Unretained(this)),
+            BIND(&TImpl::IsOperationInFinishedState, Unretained(this)),
+            BIND(&TImpl::OnOperationUpdateFailed, Unretained(this)),
+            Config_->OperationsUpdatePeriod,
+            Logger);
+        OperationNodesUpdateExecutor_->Start();
+
+        YCHECK(!TransactionRefreshExecutor_);
+        TransactionRefreshExecutor_ = New<TPeriodicExecutor>(
+            CancelableControlInvoker_,
+            BIND(&TImpl::RefreshTransactions, MakeStrong(this)),
+            Config_->TransactionsRefreshPeriod,
+            EPeriodicExecutorMode::Automatic);
+        TransactionRefreshExecutor_->Start();
+
+        YCHECK(!SnapshotExecutor_);
+        SnapshotExecutor_= New<TPeriodicExecutor>(
+            CancelableControlInvoker_,
+            BIND(&TImpl::BuildSnapshot, MakeStrong(this)),
+            Config_->SnapshotPeriod,
+            EPeriodicExecutorMode::Automatic);
+        SnapshotExecutor_->Start();
+
+        YCHECK(!UnstageExecutor_);
+        UnstageExecutor_ = New<TPeriodicExecutor>(
+            CancelableControlInvoker_,
+            BIND(&TImpl::UnstageChunkTrees, MakeWeak(this)),
+            Config_->ChunkUnstagePeriod,
+            EPeriodicExecutorMode::Automatic);
+        UnstageExecutor_->Start();
+    }
+
+    void OnSchedulerDisconnected()
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        DoCleanup();
+    }
+
     void DoCleanup()
     {
-        Connected_.store(false);
-        IncarnationId_ = {};
-
         if (CancelableContext_) {
             CancelableContext_->Cancel();
             CancelableContext_.Reset();
@@ -366,6 +330,7 @@ private:
             UnstageExecutor_.Reset();
         }
     }
+
 
     TObjectServiceProxy::TReqExecuteBatchPtr StartObjectBatchRequest(
         EMasterChannelKind channelKind = EMasterChannelKind::Leader,
@@ -986,7 +951,7 @@ private:
         auto batchRspOrError = WaitFor(batchReq->Invoke());
         auto error = GetCumulativeError(batchRspOrError);
         if (!error.IsOK()) {
-            Bootstrap_->GetScheduler()->Disconnect(TError("Failed to remove snapshot") << error);
+            Bootstrap_->GetControllerAgent()->Disconnect(TError("Failed to remove snapshot") << error);
         }
     }
 
@@ -1096,34 +1061,9 @@ TMasterConnector::TMasterConnector(
 
 TMasterConnector::~TMasterConnector() = default;
 
-void TMasterConnector::OnMasterConnecting(const TIncarnationId& incarnationId)
+void TMasterConnector::Initialize()
 {
-    Impl_->OnMasterConnecting(incarnationId);
-}
-
-void TMasterConnector::OnMasterConnected()
-{
-    Impl_->OnMasterConnected();
-}
-
-void TMasterConnector::OnMasterDisconnected()
-{
-    Impl_->OnMasterDisconnected();
-}
-
-bool TMasterConnector::IsConnected() const
-{
-    return Impl_->IsConnected();
-}
-
-TInstant TMasterConnector::GetConnectionTime() const
-{
-    return Impl_->GetConnectionTime();
-}
-
-const TIncarnationId& TMasterConnector::GetIncarnationId() const
-{
-    return Impl_->GetIncarnationId();
+    Impl_->Initialize();
 }
 
 void TMasterConnector::StartOperationNodeUpdates(const TOperationId& operationId)
@@ -1169,10 +1109,6 @@ void TMasterConnector::UpdateConfig(const TControllerAgentConfigPtr& config)
 {
     Impl_->UpdateConfig(config);
 }
-
-DELEGATE_SIGNAL(TMasterConnector, void(), MasterConnecting, *Impl_);
-DELEGATE_SIGNAL(TMasterConnector, void(), MasterConnected, *Impl_);
-DELEGATE_SIGNAL(TMasterConnector, void(), MasterDisconnected, *Impl_);
 
 ////////////////////////////////////////////////////////////////////////////////
 

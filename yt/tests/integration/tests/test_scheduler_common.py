@@ -1169,8 +1169,10 @@ class TestPreserveSlotIndexAfterRevive(YTEnvSetup, PrepareTables):
         self._create_table("//tmp/t_in")
         write_table("//tmp/t_in", [{"x": "y"}])
 
-        get_slot_index = lambda op_id: \
-            get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/slot_index".format(op_id))
+        def get_slot_index(op_id):
+            path = "//sys/scheduler/orchid/scheduler/operations/{0}/progress/slot_index".format(op_id)
+            wait(lambda: exists(path))
+            return get(path)
 
         for i in xrange(3):
             self._create_table("//tmp/t_out_" + str(i))
@@ -1348,7 +1350,17 @@ class TestSchedulerRevive(YTEnvSetup):
 
 ################################################################################
 
-class TestJobRevival(YTEnvSetup):
+class TestJobRevivalBase(YTEnvSetup):
+    def _wait_for_single_job(self, op_id):
+        path = "//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op_id)
+        wait(lambda: exists(path) and len(ls(path)) == 1, "Job did not start")
+        jobs = ls(path)
+        assert len(jobs) == 1
+        return jobs[0]
+
+################################################################################
+
+class TestJobRevival(TestJobRevivalBase):
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
@@ -1398,27 +1410,19 @@ class TestJobRevival(YTEnvSetup):
             command=map_cmd,
             in_="//tmp/t_in",
             out="//tmp/t_out")
-        orchid_path = "//sys/scheduler/orchid/scheduler/operations/{0}".format(op.id)
-        cypress_path = "//sys/operations/{0}".format(op.id)
 
-        wait(lambda: ls("{0}/running_jobs".format(orchid_path)),
-             "Job did not start")
-        jobs = ls("{0}/running_jobs".format(orchid_path))
-        assert len(jobs) == 1
-        job_id = jobs[0]
+        job_id = self._wait_for_single_job(op.id)
 
         events_on_fs().wait_event("snapshot_written")
         self.Env.kill_schedulers()
         self.Env.start_schedulers()
 
-        wait(lambda: exists(orchid_path),
-             "Operation did not re-appear within 30 seconds")
+        orchid_path = "//sys/scheduler/orchid/scheduler/operations/{0}".format(op.id)
+        cypress_path = "//sys/operations/{0}".format(op.id)
 
-        wait(lambda: get("{0}/running_jobs".format(orchid_path)),
-             "Job did not re-appear within 30 seconds")
-        jobs = get("{0}/running_jobs".format(orchid_path)).keys()
-        assert len(jobs) == 1
-        assert jobs[0] == job_id
+        wait(lambda: exists(orchid_path), "Operation did not re-appear")
+
+        assert self._wait_for_single_job(op.id) == job_id
 
         events_on_fs().notify_event("scheduler_reconnected")
         op.track()
@@ -1544,7 +1548,7 @@ class TestJobRevival(YTEnvSetup):
 
 ##################################################################
 
-class TestDisabledJobRevival(YTEnvSetup):
+class TestDisabledJobRevival(TestJobRevivalBase):
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
@@ -1584,29 +1588,20 @@ class TestDisabledJobRevival(YTEnvSetup):
             command=map_cmd,
             in_="//tmp/t_in",
             out="//tmp/t_out")
+
         orchid_path = "//sys/scheduler/orchid/scheduler/operations/{0}".format(op.id)
         cypress_path = "//sys/operations/{0}".format(op.id)
 
-        wait(lambda: ls("{0}/running_jobs".format(orchid_path)),
-             "Job did not start")
-        jobs = ls("{0}/running_jobs".format(orchid_path))
-        assert len(jobs) == 1
-        job_id = jobs[0]
+        job_id = self._wait_for_single_job(op.id)
 
         events_on_fs().wait_event("snapshot_written")
         self.Env.kill_schedulers()
         self.Env.start_schedulers()
 
-        wait(lambda: exists(orchid_path),
-             "Operation did not re-appear within 30 seconds")
-
-        wait(lambda: get("{0}/running_jobs".format(orchid_path)),
-             "Job did not re-appear within 30 seconds")
-        jobs = get("{0}/running_jobs".format(orchid_path)).keys()
-        assert len(jobs) == 1
+        wait(lambda: exists(orchid_path), "Operation did not re-appear")
 
         # Here is the difference from the test_job_revival_simple.
-        assert jobs[0] != job_id
+        assert self._wait_for_single_job(op.id) != job_id
 
         events_on_fs().notify_event("scheduler_reconnected")
         op.track()

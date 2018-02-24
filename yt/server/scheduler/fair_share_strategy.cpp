@@ -233,11 +233,7 @@ public:
         pool->IncreaseResourceUsage(operationElement->GetResourceUsage());
         operationElement->SetParent(pool.Get());
 
-        AssignOperationSlotIndex(state, poolId);
-
-        LOG_DEBUG("Slot index assigned to operation (SlotIndex: %v, OperationId: %v)",
-            state->GetHost()->GetSlotIndex(TreeId),
-            operationId);
+        AllocateOperationSlotIndex(state, poolId);
 
         TOperationRegistrationUnregistrationResult result;
 
@@ -266,7 +262,7 @@ public:
         auto* pool = static_cast<TPool*>(operationElement->GetParent());
 
         UnregisterSchedulingTagFilter(operationElement->GetSchedulingTagFilterIndex());
-        UnassignOperationPoolIndex(state, pool->GetId());
+        ReleaseOperationSlotIndex(state, pool->GetId());
 
         auto finalResourceUsage = operationElement->Finalize();
         YCHECK(OperationIdToElement.erase(operationId) == 1);
@@ -1421,7 +1417,7 @@ private:
             parent->GetId());
     }
 
-    bool TryOccupyPoolSlotIndex(const TString& poolName, int slotIndex)
+    bool TryAllocatePoolSlotIndex(const TString& poolName, int slotIndex)
     {
         auto minUnusedIndexIt = PoolToMinUnusedSlotIndex.find(poolName);
         YCHECK(minUnusedIndexIt != PoolToMinUnusedSlotIndex.end());
@@ -1441,21 +1437,19 @@ private:
         }
     }
 
-    void AssignOperationSlotIndex(const TFairShareStrategyOperationStatePtr& state, const TString& poolName)
+    void AllocateOperationSlotIndex(const TFairShareStrategyOperationStatePtr& state, const TString& poolName)
     {
         auto it = PoolToSpareSlotIndices.find(poolName);
         auto slotIndex = state->GetHost()->FindSlotIndex(TreeId);
 
         if (slotIndex) {
             // Revive case
-            if (TryOccupyPoolSlotIndex(poolName, *slotIndex)) {
+            if (TryAllocatePoolSlotIndex(poolName, *slotIndex)) {
                 return;
-            } else {
-                auto error = TError("Failed to assign slot index to operation during revive")
-                    << TErrorAttribute("operation_id", state->GetHost()->GetId())
-                    << TErrorAttribute("slot_index", *slotIndex);
-                LOG_ERROR(error);
             }
+            LOG_ERROR("Failed to reuse slot index during revive (OperationId: %v, SlotIndex: %v)",
+                state->GetHost()->GetId(),
+                *slotIndex);
         }
 
         if (it == PoolToSpareSlotIndices.end() || it->second.empty()) {
@@ -1470,9 +1464,13 @@ private:
         }
 
         state->GetHost()->SetSlotIndex(TreeId, *slotIndex);
+
+        LOG_DEBUG("Operation slot index allocated (OperationId: %v, SlotIndex: %v)",
+            state->GetHost()->GetId(),
+            *slotIndex);
     }
 
-    void UnassignOperationPoolIndex(const TFairShareStrategyOperationStatePtr& state, const TString& poolName)
+    void ReleaseOperationSlotIndex(const TFairShareStrategyOperationStatePtr& state, const TString& poolName)
     {
         auto slotIndex = state->GetHost()->FindSlotIndex(TreeId);
         YCHECK(slotIndex);
@@ -1482,7 +1480,12 @@ private:
             YCHECK(PoolToSpareSlotIndices.insert(std::make_pair(poolName, THashSet<int>{*slotIndex})).second);
         } else {
             it->second.insert(*slotIndex);
+
         }
+
+        LOG_DEBUG("Operation slot index released (OperationId: %v, SlotIndex: %v)",
+            state->GetHost()->GetId(),
+            *slotIndex);
     }
 
     void TryActivateOperationsFromQueue(std::vector<TOperationId>* operationsToActivate)
@@ -1797,9 +1800,6 @@ private:
 
     void DoValidateOperationStart(const IOperationStrategyHost* operation, const TString& poolId)
     {
-        ValidateOperationCountLimit(operation, poolId);
-        ValidateEphemeralPoolLimit(operation, poolId);
-
         TCompositeSchedulerElementPtr immediateParentPool = FindPool(poolId);
         // NB: Check is not performed if operation is started in default or unknown pool.
         if (immediateParentPool && immediateParentPool->AreImmediateOperationsFobidden()) {

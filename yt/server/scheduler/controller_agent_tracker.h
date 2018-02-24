@@ -4,6 +4,8 @@
 
 #include <yt/server/cell_scheduler/bootstrap.h>
 
+#include <yt/core/ytree/public.h>
+
 namespace NYT {
 namespace NScheduler {
 
@@ -21,16 +23,11 @@ public:
         NCellScheduler::TBootstrap* bootstrap);
     ~TControllerAgentTracker();
 
-    // TODO(babenko): multiagent support
-    void OnAgentConnected();
-    void OnAgentDisconnected();
+    void Initialize();
 
     std::vector<TControllerAgentPtr> GetAgents();
 
-    // TODO(babenko): eliminate
-    IOperationControllerPtr CreateController(
-        TControllerAgent* agent,
-        TOperation* operation);
+    IOperationControllerPtr CreateController(const TOperationPtr& operation);
 
     TControllerAgentPtr PickAgentForOperation(const TOperationPtr& operation);
     void AssignOperationToAgent(
@@ -39,6 +36,17 @@ public:
 
     TFuture<void> RegisterOperationAtAgent(const TOperationPtr& operation);
     void UnregisterOperationFromAgent(const TOperationPtr& operation);
+
+    /*!
+     *  Thread affinity: any
+     */
+    void HandleAgentFailure(const TControllerAgentPtr& agent, const TError& error);
+
+    using TCtxAgentHandshake = NRpc::TTypedServiceContext<
+        NScheduler::NProto::TReqHandshake,
+        NScheduler::NProto::TRspHandshake>;
+    using TCtxAgentHandshakePtr = TIntrusivePtr<TCtxAgentHandshake>;
+    void ProcessAgentHandshake(const TCtxAgentHandshakePtr& context);
 
     using TCtxAgentHeartbeat = NRpc::TTypedServiceContext<
         NScheduler::NProto::TReqHeartbeat,

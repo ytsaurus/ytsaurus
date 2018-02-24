@@ -134,6 +134,20 @@ message TEventQueueInbox
 
 ////////////////////////////////////////////////////////////////////////////////
 
+message TReqHandshake
+{
+    required string agent_id = 1;
+    required NYT.NNodeTrackerClient.NProto.TAddressMap agent_addresses = 2;
+}
+
+message TRspHandshake
+{
+    required NYT.NProto.TGuid incarnation_id = 1;
+    required bytes config = 2; // YSON
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 message TReqHeartbeat
 {
     message TAgentToSchedulerOperationEventsOutbox
@@ -154,21 +168,22 @@ message TReqHeartbeat
         repeated TScheduleJobResponse items = 2;
     }
 
-    required NYT.NProto.TGuid agent_incarnation_id = 1;
-    repeated TOperationInfo operations = 2;
+    required string agent_id = 1;
+    required NYT.NProto.TGuid incarnation_id = 2;
+    repeated TOperationInfo operations = 3;
 
-    required bool exec_nodes_requested = 3;
-    required bool config_requested = 11;
+    required bool exec_nodes_requested = 4;
+    required bool config_requested = 5;
 
-    optional bytes suspicious_jobs = 4;
+    optional bytes suspicious_jobs = 6;
 
-    required TAgentToSchedulerOperationEventsOutbox agent_to_scheduler_operation_events = 5;
-    required TAgentToSchedulerJobEventsOutbox agent_to_scheduler_job_events = 6;
+    required TAgentToSchedulerOperationEventsOutbox agent_to_scheduler_operation_events = 7;
+    required TAgentToSchedulerJobEventsOutbox agent_to_scheduler_job_events = 8;
     required TAgentToSchedulerScheduleJobResponsesOutbox agent_to_scheduler_schedule_job_responses = 9;
 
-    required TEventQueueInbox scheduler_to_agent_job_events = 7;
-    required TEventQueueInbox scheduler_to_agent_operation_events = 8;
-    required TEventQueueInbox scheduler_to_agent_schedule_job_requests = 10;
+    required TEventQueueInbox scheduler_to_agent_job_events = 10;
+    required TEventQueueInbox scheduler_to_agent_operation_events = 11;
+    required TEventQueueInbox scheduler_to_agent_schedule_job_requests = 12;
 }
 
 message TRspHeartbeat

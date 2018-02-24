@@ -11,6 +11,8 @@
 
 #include <yt/core/misc/property.h>
 
+#include <yt/core/concurrency/public.h>
+
 namespace NYT {
 namespace NScheduler {
 
@@ -62,9 +64,14 @@ class TControllerAgent
     : public TRefCounted
 {
 public:
-    explicit TControllerAgent(const NControllerAgent::TIncarnationId& incarnationId);
+    TControllerAgent(
+        const TAgentId& id,
+        const NNodeTrackerClient::TAddressMap& agentAddresses,
+        NRpc::IChannelPtr channel,
+        const TIncarnationId& incarnationId);
 
-    DEFINE_BYVAL_RO_PROPERTY(NControllerAgent::TIncarnationId, IncarnationId);
+    DEFINE_BYVAL_RW_PROPERTY(bool, Unregistered);
+    DEFINE_BYVAL_RW_PROPERTY(NConcurrency::TLease, Lease);
 
     DEFINE_BYVAL_RW_PROPERTY(NYson::TYsonString, SuspiciousJobsYson);
 
@@ -79,8 +86,28 @@ public:
     DEFINE_BYREF_RW_PROPERTY(THashSet<TOperationPtr>, Operations);
 
 public:
-    TString GetDefaultAddress() const;
+    /*
+     * \note Thread affinity: any
+     */
+    const TAgentId& GetId() const;
+    /*
+     * \note Thread affinity: any
+     */
+    const NNodeTrackerClient::TAddressMap& GetAgentAddresses() const;
+    /*
+     * \note Thread affinity: any
+     */
+    const NRpc::IChannelPtr& GetChannel() const;
+    /*
+     * \note Thread affinity: any
+     */
+    const TIncarnationId& GetIncarnationId() const;
 
+private:
+    const TAgentId Id_;
+    const NNodeTrackerClient::TAddressMap AgentAddresses_;
+    const NRpc::IChannelPtr Channel_;
+    const NControllerAgent::TIncarnationId IncarnationId_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TControllerAgent)

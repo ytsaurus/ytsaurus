@@ -68,10 +68,10 @@ TOperation::TOperation(
     , AuthenticatedUser_(authenticatedUser)
     , Spec_(spec)
     , CodicilData_(MakeOperationCodicilString(Id_))
-    , CancelableContext_(New<TCancelableContext>())
-    , CancelableInvoker_(CancelableContext_->CreateInvoker(controlInvoker))
+    , ControlInvoker_(std::move(controlInvoker))
 {
     YCHECK(Spec_);
+    Restart();
 }
 
 const TOperationId& TOperation::GetId() const
@@ -184,7 +184,16 @@ const IInvokerPtr& TOperation::GetCancelableControlInvoker()
 
 void TOperation::Cancel()
 {
-    CancelableContext_->Cancel();
+    if (CancelableContext_) {
+        CancelableContext_->Cancel();
+    }
+}
+
+void TOperation::Restart()
+{
+    Cancel();
+    CancelableContext_ = New<TCancelableContext>();
+    CancelableInvoker_ = CancelableContext_->CreateInvoker(ControlInvoker_);
 }
 
 void TOperation::SetAgent(const TControllerAgentPtr& agent)
@@ -204,6 +213,16 @@ TControllerAgentPtr TOperation::GetAgentOrCancelFiber()
 TControllerAgentPtr TOperation::FindAgent()
 {
     return Agent_.Lock();
+}
+
+TControllerAgentPtr TOperation::GetAgentOrThrow()
+{
+    auto agent = FindAgent();
+    if (!agent) {
+        THROW_ERROR_EXCEPTION("Operation %v is not assigned to any agent",
+            Id_);
+    }
+    return agent;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
