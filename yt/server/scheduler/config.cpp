@@ -728,6 +728,9 @@ TSchedulerConfig::TSchedulerConfig()
     RegisterParameter("suspicious_jobs", SuspiciousJobs)
         .DefaultNew();
 
+    RegisterParameter("tagged_memory_statistics_update_period", TaggedMemoryStatisticsUpdatePeriod)
+        .Default(TDuration::Seconds(5));
+
     RegisterPreprocessor([&] () {
         ChunkLocationThrottler->Limit = 10000;
 

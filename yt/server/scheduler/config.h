@@ -798,6 +798,9 @@ public:
     // Running jobs cached YSON string update period.
     TDuration CachedRunningJobsUpdatePeriod;
 
+    // Period of tagged memory statistics section update.
+    TDuration TaggedMemoryStatisticsUpdatePeriod;
+
     TSchedulerConfig();
 
 private:

@@ -3110,6 +3110,12 @@ class TestSchedulerDifferentOperationStorageModesArchivation(YTEnvSetup):
 class TestControllerMemoryUsage(YTEnvSetup):
     NUM_SCHEDULERS = 1
 
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "tagged_memory_statistics_update_period": 100,
+        }
+    }
+
     def test_controller_memory_usage(self):
         create("table", "//tmp/t_in")
         create("table", "//tmp/t_out")
@@ -3118,6 +3124,10 @@ class TestControllerMemoryUsage(YTEnvSetup):
             write_table("<append=%true>//tmp/t_in", [{"a": 0}])
 
         events = EventsOnFs()
+
+        for entry in get("//sys/scheduler/orchid/scheduler/tagged_memory_statistics", verbose=False):
+            assert entry["operation_id"] == YsonEntity()
+            assert entry["alive"] == False
 
         op = map(dont_track=True,
                  in_="//tmp/t_in",
@@ -3139,12 +3149,23 @@ class TestControllerMemoryUsage(YTEnvSetup):
             if state == "running":
                 try:
                     max_usage = max(max_usage, get("//sys/scheduler/orchid/scheduler/operations/{0}/controller_memory_usage".format(op.id)))
-                except YTError:
+                    statistics = get("//sys/scheduler/orchid/scheduler/tagged_memory_statistics/0")
+                    assert statistics["operation_id"] == op.id
+                except YtError:
                     pass
                 time.sleep(0.1)
             else:
                 break
         op.track()
+
+        time.sleep(3)
+
+        for i, entry in enumerate(get("//sys/scheduler/orchid/scheduler/tagged_memory_statistics", verbose=False)):
+            if i == 0:
+                assert entry["operation_id"] == op.id
+            else:
+                assert entry["operation_id"] == YsonEntity()
+            assert entry["alive"] == False
 
         print >>sys.stderr, "max_usage =", max_usage
         # After all jobs are finished, controller should contain at least 40 pairs of boundary keys of length 250kb,
