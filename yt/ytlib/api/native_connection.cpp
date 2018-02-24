@@ -312,6 +312,7 @@ public:
         CellDirectorySynchronizer_->Start();
         return NApi::CreateNativeTransactionParticipant(
             CellDirectory_,
+            CellDirectorySynchronizer_,
             TimestampProvider_,
             cellId,
             options);
