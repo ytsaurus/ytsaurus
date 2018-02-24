@@ -506,10 +506,12 @@ void TPartEncoder::Run()
 
 TFuture<NProto::TErasurePlacementExt> GetPlacementMeta(
     const IChunkReaderPtr& reader,
-    const TWorkloadDescriptor& workloadDescriptor)
+    const TWorkloadDescriptor& workloadDescriptor,
+    const TReadSessionId& readSessionId)
 {
     return reader->GetMeta(
         workloadDescriptor,
+        readSessionId,
         Null,
         std::vector<int>{
             TProtoExtensionTag<NProto::TErasurePlacementExt>::Value
@@ -608,6 +610,7 @@ TErasureChunkReaderBase::TErasureChunkReaderBase(
 
 TFuture<TChunkMeta> TErasureChunkReaderBase::GetMeta(
     const TWorkloadDescriptor& workloadDescriptor,
+    const TReadSessionId& readSessionId,
     const TNullable<int>& partitionTag,
     const TNullable<std::vector<int>>& extensionTags)
 {
@@ -620,7 +623,7 @@ TFuture<TChunkMeta> TErasureChunkReaderBase::GetMeta(
     }
 
     auto& reader = Readers_[RandomNumber(Readers_.size())];
-    return reader->GetMeta(workloadDescriptor, partitionTag, extensionTags);
+    return reader->GetMeta(workloadDescriptor, readSessionId, partitionTag, extensionTags);
 }
 
 TChunkId TErasureChunkReaderBase::GetChunkId() const
@@ -628,7 +631,9 @@ TChunkId TErasureChunkReaderBase::GetChunkId() const
     return Readers_.front()->GetChunkId();
 }
 
-TFuture<void> TErasureChunkReaderBase::PreparePlacementMeta(const TWorkloadDescriptor& workloadDescriptor)
+TFuture<void> TErasureChunkReaderBase::PreparePlacementMeta(
+    const TWorkloadDescriptor& workloadDescriptor,
+    const TReadSessionId& readSessionId)
 {
     if (PlacementExtFuture_) {
         return PlacementExtFuture_;
@@ -638,7 +643,7 @@ TFuture<void> TErasureChunkReaderBase::PreparePlacementMeta(const TWorkloadDescr
         TGuard<TSpinLock> guard(PlacementExtLock_);
 
         if (!PlacementExtFuture_) {
-            PlacementExtFuture_ = GetPlacementMeta(this, workloadDescriptor).Apply(
+            PlacementExtFuture_ = GetPlacementMeta(this, workloadDescriptor, readSessionId).Apply(
                 BIND(&TErasureChunkReaderBase::OnGotPlacementMeta, MakeStrong(this))
                     .AsyncVia(TDispatcher::Get()->GetReaderInvoker()));
         }

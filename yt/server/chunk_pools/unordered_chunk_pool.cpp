@@ -150,6 +150,7 @@ public:
     virtual void Resume(IChunkPoolInput::TCookie cookie) override
     {
         auto& suspendableStripe = Stripes[cookie];
+        suspendableStripe.Resume();
 
         auto outputCookie = suspendableStripe.GetExtractedCookie();
         if (outputCookie == IChunkPoolOutput::NullCookie) {

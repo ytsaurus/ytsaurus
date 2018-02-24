@@ -161,7 +161,7 @@ void TBlobChunkBase::DoReadMeta(
             auto readerCache = Bootstrap_->GetBlobReaderCache();
             auto reader = readerCache->GetReader(this);
             // NB: The reader is synchronous.
-            meta = reader->GetMeta(workloadDescriptor)
+            meta = reader->GetMeta(workloadDescriptor, TReadSessionId())
                 .Get()
                 .ValueOrThrow();
         } catch (const std::exception& ex) {
@@ -285,7 +285,12 @@ void TBlobChunkBase::DoReadBlockSet(
 
         TWallTimer timer;
         // NB: The reader is synchronous.
-        auto blocksOrError = reader->ReadBlocks(workloadDescriptor, firstBlockIndex, blocksToRead).Get();
+        auto blocksOrError = reader->ReadBlocks(
+            workloadDescriptor,
+            TReadSessionId(),
+            firstBlockIndex,
+            blocksToRead)
+            .Get();
         auto readTime = timer.GetElapsedTime();
 
         if (!blocksOrError.IsOK()) {

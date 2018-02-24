@@ -541,6 +541,7 @@ protected:
         auto asyncCachedMeta = TCachedVersionedChunkMeta::Load(
             MemoryReader_,
             TWorkloadDescriptor(),
+            TReadSessionId(),
             Schema_);
         auto chunkMeta = WaitFor(asyncCachedMeta)
             .ValueOrThrow();

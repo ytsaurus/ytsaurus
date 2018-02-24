@@ -764,6 +764,7 @@ private:
             while (currentRowCount < sealRowCount) {
                 auto asyncBlocks  = reader->ReadBlocks(
                     Config_->RepairReader->WorkloadDescriptor,
+                    TReadSessionId(),
                     currentRowCount,
                     sealRowCount - currentRowCount);
                 auto blocks = WaitFor(asyncBlocks)

@@ -289,13 +289,16 @@ public:
 
         auto rule = New<TRuleConfig>();
         rule->Writers.push_back(stderrWriterName);
+        rule->MinLevel = ELogLevel::Fatal;
 
         if (logLevelStr) {
             TString logLevel = logLevelStr;
-            logLevel.to_upper(0, std::min(logLevel.size(), static_cast<size_t>(1)));
-            rule->MinLevel = TEnumTraits<ELogLevel>::FromString(logLevel);
-        } else {
-            rule->MinLevel = ELogLevel::Fatal;
+            if (!logLevel.empty()) {
+                // This handles most typical casings like "DEBUG", "debug", "Debug".
+                logLevel.to_upper(0, 1);
+                logLevel.to_lower(1, logLevel.size() - 1);
+                rule->MinLevel = TEnumTraits<ELogLevel>::FromString(logLevel);
+            }
         }
 
         std::vector<TString> logExcludeCategories;

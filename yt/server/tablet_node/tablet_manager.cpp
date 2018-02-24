@@ -2112,6 +2112,7 @@ private:
             locklessRowCount);
 
         SmallVector<TTableReplicaInfo*, 16> syncReplicas;
+        SmallVector<TTablet*, 16> syncReplicaTablets;
         for (const auto& writeRecord : transaction->DelayedLocklessWriteLog()) {
             auto* tablet = FindTablet(writeRecord.TabletId);
             if (!tablet) {
@@ -2119,6 +2120,10 @@ private:
             }
 
             UpdateLastWriteTimestamp(tablet, transaction->GetCommitTimestamp());
+
+            if (!writeRecord.SyncReplicaIds.empty()) {
+                syncReplicaTablets.push_back(tablet);
+            }
 
             for (const auto& replicaId : writeRecord.SyncReplicaIds) {
                 auto* replicaInfo = tablet->FindReplicaInfo(replicaId);
@@ -2132,7 +2137,6 @@ private:
 
         std::sort(syncReplicas.begin(), syncReplicas.end());
         syncReplicas.erase(std::unique(syncReplicas.begin(), syncReplicas.end()), syncReplicas.end());
-
         for (auto* replicaInfo : syncReplicas) {
             auto oldCurrentReplicationTimestamp = replicaInfo->GetCurrentReplicationTimestamp();
             auto newCurrentReplicationTimestamp = std::max(oldCurrentReplicationTimestamp, transaction->GetCommitTimestamp());
@@ -2145,6 +2149,12 @@ private:
                 newCurrentReplicationTimestamp);
         }
 
+        std::sort(syncReplicaTablets.begin(), syncReplicaTablets.end());
+        syncReplicaTablets.erase(std::unique(syncReplicaTablets.begin(), syncReplicaTablets.end()), syncReplicaTablets.end());
+        for (auto* tablet : syncReplicaTablets) {
+            AdvanceReplicatedTrimmedRowCount(transaction, tablet);
+        }
+        
         if (transaction->DelayedLocklessWriteLog().Empty()) {
             UnlockLockedTablets(transaction);
         }

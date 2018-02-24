@@ -907,16 +907,23 @@ TStrategyOperationSpec::TStrategyOperationSpec()
         .Default();
 }
 
-TOperationStrategyRuntimeParams::TOperationStrategyRuntimeParams()
+TOperationFairShareStrategyTreeOptions::TOperationFairShareStrategyTreeOptions()
 {
     RegisterParameter("weight", Weight)
-        .Default(1.0)
+        .Default()
         .InRange(MinSchedulableWeight, MaxSchedulableWeight);
     RegisterParameter("resource_limits", ResourceLimits)
         .DefaultNew();
 }
 
-TOperationRuntimeParams::TOperationRuntimeParams()
+TOperationStrategyRuntimeParameters::TOperationStrategyRuntimeParameters()
+{
+    RegisterParameter("scheduling_options_per_pool_tree", SchedulingOptionsPerPoolTree)
+        .Default()
+        .MergeBy(NYTree::EMergeStrategy::Combine);
+}
+
+TOperationRuntimeParameters::TOperationRuntimeParameters()
 {
     RegisterParameter("owners", Owners)
         .Default();

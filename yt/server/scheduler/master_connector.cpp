@@ -254,6 +254,7 @@ public:
         return OperationNodesUpdateExecutor_->ExecuteUpdate(operation->GetId());
     }
 
+<<<<<<< HEAD
     TFuture<void> FetchOperationRevivalDescriptors(const std::vector<TOperationPtr>& operations)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -288,6 +289,54 @@ public:
         }
     }
 
+=======
+    TFuture<void> UpdateOperationRuntimeParameters(
+        TOperationPtr operation,
+        const TOperationRuntimeParametersPtr& params)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        return BIND(&TImpl::DoUpdateOperationRuntimeParameters, MakeStrong(this))
+            .AsyncVia(GetCancelableControlInvoker())
+            .Run(operation, params);
+    }
+
+    void DoUpdateOperationRuntimeParameters(
+        TOperationPtr operation,
+        const TOperationRuntimeParametersPtr& params)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+        YCHECK(Connected);
+
+        auto strategy = Bootstrap->GetScheduler()->GetStrategy();
+
+        auto batchReq = StartObjectBatchRequest();
+        auto paths = GetCompatibilityOperationPaths(operation->GetId(), operation->GetStorageMode());
+
+        auto node = BuildYsonNodeFluently()
+            .BeginMap()
+                .Do(BIND(&ISchedulerStrategy::BuildOperationRuntimeParams, strategy, operation->GetId(), params))
+            .EndMap();
+
+        auto mapNode = node->AsMap();
+
+        for (const auto& operationPath : paths) {
+            for (const auto& pair : mapNode->GetChildren()) {
+                const auto& key = pair.first;
+                const auto& value = pair.second;
+
+                auto req = TYPathProxy::Set(operationPath + "/@" + key);
+                req->set_value(ConvertToYsonString(value).GetData());
+
+                batchReq->AddRequest(req);
+            }
+        }
+
+        auto rspOrError = WaitFor(batchReq->Invoke());
+        auto error = GetCumulativeError(rspOrError);
+        THROW_ERROR_EXCEPTION_IF_FAILED(error, "Error updating operation %v runtime params", operation->GetId());
+    }
+>>>>>>> prestable/19.2
 
     void SetSchedulerAlert(ESchedulerAlertType alertType, const TError& alert)
     {
@@ -725,6 +774,7 @@ private:
         // - Recreate operation instance from fetched data.
         void RequestOperationAttributes()
         {
+            // Keep stuff below in sync with #TryCreateOperationFromAttributes.
             static const std::vector<TString> attributeKeys = {
                 "operation_type",
                 "mutation_id",
@@ -735,7 +785,8 @@ private:
                 "start_time",
                 "state",
                 "events",
-                "slot_index_per_pool_tree"
+                "slot_index_per_pool_tree",
+                "scheduling_options_per_pool_tree"
             };
 
             auto batchReq = Owner_->StartObjectBatchRequest(EMasterChannelKind::Follower);
@@ -743,11 +794,30 @@ private:
                 LOG_INFO("Fetching attributes and secure vaults for unfinished operations (UnfinishedOperationCount: %v)",
                     OperationIds_.size());
 
+<<<<<<< HEAD
                 for (const auto& operationId : OperationIds_) {
                     // Keep stuff below in sync with #TryCreateOperationFromAttributes.
 
                     auto  operationAttributesPath = GetOperationPath(operationId) + "/@";
                     auto secureVaultPath = GetSecureVaultPath(operationId);
+=======
+                for (const auto& operationInfo : RunningOperations) {
+                    // Keep stuff below in sync with CreateOperationFromAttributes.
+                    const auto& operationId = operationInfo.Id;
+
+                    NYTree::TYPath operationAttributesPath;
+                    NYTree::TYPath secureVaultPath;
+
+                    if (operationInfo.StorageMode == EOperationCypressStorageMode::Compatible ||
+                        operationInfo.StorageMode == EOperationCypressStorageMode::SimpleHashBuckets)
+                    {
+                        operationAttributesPath = GetOperationPath(operationId) + "/@";
+                        secureVaultPath = GetSecureVaultPath(operationId);
+                    } else {
+                        operationAttributesPath = GetNewOperationPath(operationId) + "/@";
+                        secureVaultPath = GetNewSecureVaultPath(operationId);
+                    }
+>>>>>>> prestable/19.2
 
                     // Retrieve operation attributes.
                     {
@@ -1160,10 +1230,41 @@ private:
 
         TForbidContextSwitchGuard contextSwitchGuard;
 
+<<<<<<< HEAD
         if (State_ == EMasterConnectorState::Connected) {
             LOG_WARNING(error, "Disconnecting master");
             MasterDisconnected_.Fire();
             LOG_WARNING("Master disconnected");
+=======
+        auto runtimeParams = New<TOperationRuntimeParameters>();
+        runtimeParams->Owners = attributes.Get<std::vector<TString>>("owners", operationSpec->Owners);
+        // Merge initial scheduling options and scheduling options set by user while operation was running.
+        auto schedulingOptions = attributes.Find<INodePtr>("scheduling_options_per_pool_tree");
+        if (schedulingOptions) {
+            Deserialize(runtimeParams->SchedulingOptionsPerPoolTree, schedulingOptions);
+        }
+
+        result.Operation = New<TOperation>(
+            operationId,
+            attributes.Get<EOperationType>("operation_type"),
+            attributes.Get<TMutationId>("mutation_id"),
+            userTransactionId,
+            spec,
+            runtimeParams,
+            attributes.Get<TString>("authenticated_user"),
+            attributes.Get<TInstant>("start_time"),
+            Bootstrap->GetControlInvoker(),
+            storageMode,
+            attributes.Get<EOperationState>("state"),
+            attributes.Get<bool>("suspended"),
+            attributes.Get<std::vector<TOperationEvent>>("events", {}));
+
+        auto slotIndexMap = attributes.Find<yhash<TString, int>>("slot_index_per_pool_tree");
+        if (slotIndexMap) {
+            for (const auto& pair : *slotIndexMap) {
+                result.Operation->SetSlotIndex(pair.first, pair.second);
+            }
+>>>>>>> prestable/19.2
         }
 
         DoCleanup();
@@ -1632,6 +1733,13 @@ void TMasterConnector::AttachJobContext(
     const TString& user)
 {
     return Impl_->AttachJobContext(path, chunkId, operationId, jobId, user);
+}
+
+TFuture<void> TMasterConnector::UpdateOperationRuntimeParameters(
+    TOperationPtr operation,
+    const TOperationRuntimeParametersPtr& params)
+{
+    return Impl->UpdateOperationRuntimeParameters(operation, params);
 }
 
 void TMasterConnector::SetSchedulerAlert(ESchedulerAlertType alertType, const TError& alert)

@@ -35,6 +35,9 @@ struct INativeConnection
     virtual NRpc::IChannelPtr GetMasterChannelOrThrow(
         EMasterChannelKind kind,
         NObjectClient::TCellTag cellTag = NObjectClient::PrimaryMasterCellTag) = 0;
+    virtual NRpc::IChannelPtr GetMasterChannelOrThrow(
+        EMasterChannelKind kind,
+        const NObjectClient::TCellId& cellId) = 0;
     virtual const NRpc::IChannelPtr& GetSchedulerChannel() = 0;
     virtual const NRpc::IChannelFactoryPtr& GetChannelFactory() = 0;
 

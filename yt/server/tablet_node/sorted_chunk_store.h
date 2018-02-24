@@ -92,7 +92,8 @@ private:
 
     NTableClient::TChunkStatePtr PrepareCachedChunkState(
         NChunkClient::IChunkReaderPtr chunkReader,
-        const TWorkloadDescriptor& workloadDescriptor);
+        const TWorkloadDescriptor& workloadDescriptor,
+        const NChunkClient::TReadSessionId& readSessionId);
 
     virtual void PrecacheProperties() override;
 

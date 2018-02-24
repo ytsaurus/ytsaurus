@@ -62,7 +62,11 @@ TFuture<void> TPartitionChunkReader::InitializeBlockSequence()
         TProtoExtensionTag<NProto::TKeyColumnsExt>::Value
     };
 
-    ChunkMeta_ = WaitFor(UnderlyingReader_->GetMeta(Config_->WorkloadDescriptor, PartitionTag_, extensionTags))
+    ChunkMeta_ = WaitFor(UnderlyingReader_->GetMeta(
+        Config_->WorkloadDescriptor,
+        ReadSessionId_,
+        PartitionTag_,
+        extensionTags))
         .ValueOrThrow();
 
     YCHECK(ChunkMeta_.version() == static_cast<int>(ETableChunkFormat::SchemalessHorizontal));

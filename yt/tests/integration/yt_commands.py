@@ -881,6 +881,10 @@ def resume_op(op_id, **kwargs):
     kwargs["operation_id"] = op_id
     execute_command("resume_op", kwargs)
 
+def update_op_parameters(op_id, **kwargs):
+    kwargs["operation_id"] = op_id
+    execute_command("update_op_parameters", kwargs)
+
 def map(**kwargs):
     change(kwargs, "ordered", ["spec", "ordered"])
     return start_op("map", **kwargs)

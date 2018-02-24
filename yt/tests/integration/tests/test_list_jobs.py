@@ -2,11 +2,13 @@ from yt_env_setup import wait, YTEnvSetup
 from yt_commands import *
 import yt.environment.init_operation_archive as init_operation_archive
 from yt.wrapper.operation_commands import add_failed_operation_stderrs_to_error_message
+from yt.common import date_string_to_datetime
 
 from operations_archive import clean_operations
 
 from time import sleep
 from collections import defaultdict
+from datetime import datetime
 
 def validate_address_filter(op, include_archive, include_cypress, include_runtime):
     job_dict = defaultdict(list)
@@ -67,9 +69,15 @@ class TestListJobs(YTEnvSetup):
             label="list_jobs",
             in_="//tmp/t1",
             out="//tmp/t2",
+<<<<<<< HEAD
             # Jobs write to stderr so they will be saved.
             mapper_command=with_breakpoint("""echo foo >&2 ; cat; test $YT_JOB_INDEX -eq "1" && exit 1 ; BREAKPOINT"""),
             reducer_command="echo foo >&2 ; cat",
+=======
+            precommand="echo STDERR-OUTPUT >&2; cat",
+            mapper_command='test $YT_JOB_INDEX -eq "1" && exit 1',
+            reducer_command="echo foo >&2; cat",
+>>>>>>> prestable/19.2
             sort_by="foo",
             reduce_by="foo",
             spec={
@@ -258,3 +266,35 @@ class TestListJobs(YTEnvSetup):
 
         release_breakpoint()
         op.track()
+
+    def test_aborted_jobs(self):
+        create("table", "//tmp/input")
+        create("table", "//tmp/output")
+
+        write_table("//tmp/input", [{"foo": "bar"}, {"foo": "baz"}, {"foo": "qux"}])
+
+        now = datetime.utcnow()
+
+        events = EventsOnFs()
+        op = map(
+            dont_track=True,
+            wait_for_jobs=True,
+            in_="//tmp/input",
+            out="//tmp/output",
+            command="cat ; {wait_cmd}".format(wait_cmd=events.wait_event_cmd("can_finish_mapper")),
+            spec={"job_count": 3})
+
+        jobs_path = "//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op.id)
+        jobs = get(jobs_path)
+        assert jobs
+        abort_job(jobs.keys()[0])
+
+        op.resume_jobs()
+
+        events.notify_event("can_finish_mapper")
+        op.track()
+
+        res = list_jobs(op.id)["jobs"]
+        assert any(job["state"] == "aborted" for job in res)
+        assert all((date_string_to_datetime(job["start_time"]) > now) for job in res)
+        assert all((date_string_to_datetime(job["finish_time"]) >= date_string_to_datetime(job["start_time"])) for job in res)
