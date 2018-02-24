@@ -571,6 +571,36 @@ void TCompleteOperationCommand::DoExecute(ICommandContextPtr context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TUpdateOperationParametersCommand::TUpdateOperationParametersCommand()
+{
+    RegisterParameter("operation_id", OperationId);
+    RegisterParameter("parameters", Parameters);
+
+    RegisterPostprocessor([&] {
+        auto parameters = Parameters->AsMap();
+
+        auto ownersNode = parameters->FindChild("owners");
+        if (ownersNode) {
+            std::vector<TString> owners;
+            Deserialize(owners, ownersNode);
+            Options.Owners = std::move(owners);
+        }
+
+        auto schedulingOptionsPerPoolTreeNode = parameters->FindChild("scheduling_options_per_pool_tree");
+        if (schedulingOptionsPerPoolTreeNode) {
+            Deserialize(Options.SchedulingOptionsPerPoolTree, schedulingOptionsPerPoolTreeNode);
+        }
+    });
+}
+
+void TUpdateOperationParametersCommand::DoExecute(ICommandContextPtr context)
+{
+    WaitFor(context->GetClient()->UpdateOperationParameters(OperationId, Options))
+        .ThrowOnError();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TGetOperationCommand::TGetOperationCommand()
 {
     RegisterParameter("operation_id", OperationId);

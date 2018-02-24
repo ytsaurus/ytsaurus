@@ -148,8 +148,8 @@ private:
                                     callId,
                                     attempt);
                                 THROW_ERROR_EXCEPTION("Blackbox has raised an exception")
-                                        << TErrorAttribute("call_id", callId)
-                                        << TErrorAttribute("attempt", attempt);
+                                    << TErrorAttribute("call_id", callId)
+                                    << TErrorAttribute("attempt", attempt);
                         }
                     }
                 } else {
@@ -158,7 +158,11 @@ private:
                 }
             }
 
-            Sleep(std::min(Config_->BackoffTimeout, Max(TDuration::Zero(), deadline - TInstant::Now())));
+            auto now = TInstant::Now();
+            if (now > deadline) {
+                break;
+            }
+            Sleep(std::min(Config_->BackoffTimeout, deadline - now));
         }
 
         THROW_ERROR_EXCEPTION("Blackbox call failed")
@@ -176,6 +180,11 @@ private:
         TInstant deadline)
     {
         auto timeout = std::min(deadline - TInstant::Now(), Config_->AttemptTimeout);
+
+        // XXX(babenko): setting timeout less than 1 sec will lead to no timeout set at all; YT-8474
+        if (timeout < TDuration::Seconds(1)) {
+            timeout = TDuration::Seconds(1);
+        }
 
         TString buffer;
         INodePtr result;

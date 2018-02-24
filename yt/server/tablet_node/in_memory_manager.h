@@ -76,6 +76,7 @@ DEFINE_REFCOUNTED_TYPE(TInMemoryManager)
 TInMemoryChunkDataPtr PreloadInMemoryStore(
     const TTabletSnapshotPtr& tabletSnapshot,
     const IChunkStorePtr& store,
+    const NChunkClient::TReadSessionId& readSessionId,
     TMemoryUsageTracker<NNodeTrackerClient::EMemoryCategory>* memoryUsageTracker,
     const IInvokerPtr& compressionInvoker);
 

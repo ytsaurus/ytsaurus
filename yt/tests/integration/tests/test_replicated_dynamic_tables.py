@@ -269,7 +269,7 @@ class TestReplicatedDynamicTables(YTEnvSetup):
         self.sync_disable_table_replica(replica_id)
         assert get("#{0}/@state".format(replica_id)) == "disabled"
 
-    def test_in_sync_relicas_simple(self):
+    def test_in_sync_replicas_simple(self):
         self._create_cells()
         self._create_replicated_table("//tmp/t")
 
@@ -325,7 +325,7 @@ class TestReplicatedDynamicTables(YTEnvSetup):
         assert get_in_sync_replicas("//tmp/t", keys, timestamp=timestamp0) == [replica_id]
         assert get_in_sync_replicas("//tmp/t", keys, timestamp=timestamp1) == [replica_id]
 
-    def test_in_sync_relicas_disabled(self):
+    def test_in_sync_replicas_disabled(self):
         self._create_cells()
         self._create_replicated_table("//tmp/t")
 
@@ -593,15 +593,18 @@ class TestReplicatedDynamicTables(YTEnvSetup):
             ([{"key": 2, "value1": "test", "value2": YsonEntity()}] if with_data else \
             [])
 
-    @pytest.mark.parametrize("ttl, chunk_count, trimmed_row_count", [
-        (0, 1, 1),
-        (60000, 2, 0)
-    ])
-    def test_replication_trim(self, ttl, chunk_count, trimmed_row_count):
+    @pytest.mark.parametrize("ttl, chunk_count, trimmed_row_count, mode",
+        [a + b
+            for a in [(0, 1, 1), (60000, 2, 0)]
+            for b in [("async",) , ("sync",)]
+        ]
+    )
+    def test_replication_trim(self, ttl, chunk_count, trimmed_row_count, mode):
         self._create_cells()
         self._create_replicated_table("//tmp/t", attributes={"min_replication_log_ttl": ttl})
         self.sync_mount_table("//tmp/t")
-        replica_id = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r")
+        replica_id = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r",
+            attributes={"mode": mode})
         self._create_replica_table("//tmp/r", replica_id)
 
         self.sync_enable_table_replica(replica_id)
@@ -616,6 +619,7 @@ class TestReplicatedDynamicTables(YTEnvSetup):
         assert get("//tmp/t/@tablets/0/trimmed_row_count") == 0
 
         self.sync_mount_table("//tmp/t")
+        sleep(1.0)
         insert_rows("//tmp/t", [{"key": 2, "value1": "test2"}], require_sync_replica=False)
         sleep(1.0)
         assert select_rows("* from [//tmp/r]", driver=self.replica_driver) == [{"key": 1, "value1": "test1", "value2": YsonEntity()}, {"key": 2, "value1": "test2", "value2": YsonEntity()}]

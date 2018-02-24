@@ -174,18 +174,17 @@ private:
         TAuthenticatedUserGuard userGuard(securityManager, user);
 
         const auto &slotManager = Bootstrap_->GetTabletSlotManager();
-        auto tabletSnapshot = slotManager->GetTabletSnapshotOrThrow(tabletId);
 
         try {
             ExecuteRequestWithRetries(
                 Config_->MaxQueryRetries,
                 Logger,
-                [&]() {
+                [&] {
+                    auto tabletSnapshot = slotManager->GetTabletSnapshotOrThrow(tabletId);
                     slotManager->ValidateTabletAccess(
                         tabletSnapshot,
                         EPermission::Read,
                         timestamp);
-
                     tabletSnapshot->ValidateMountRevision(mountRevision);
 
                     struct TLookupRowBufferTag { };
@@ -207,7 +206,10 @@ private:
                     context->Reply();
                 });
         } catch (const TErrorException&) {
-            ++tabletSnapshot->PerformanceCounters->LookupErrorCount;
+            if (auto tabletSnapshot = slotManager->FindTabletSnapshot(tabletId)) {
+                ++tabletSnapshot->PerformanceCounters->LookupErrorCount;
+            }
+
             throw;
         }
     }

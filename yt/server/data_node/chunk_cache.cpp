@@ -349,8 +349,8 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         auto Logger = DataNodeLogger;
-        auto sessionId = TReadSessionId::Create();
-        Logger.AddTag("Key: %v, ReadSessionId: %v", key, sessionId);
+        auto readSessionId = TReadSessionId::Create();
+        Logger.AddTag("Key: %v, ReadSessionId: %v", key, readSessionId);
 
         auto cookie = BeginInsert(key);
         auto cookieValue = cookie.GetValue();
@@ -391,7 +391,7 @@ public:
                 location,
                 chunkId,
                 nodeDirectory ? std::move(nodeDirectory) : New<TNodeDirectory>(),
-                sessionId,
+                readSessionId,
                 Passed(std::move(cookie)),
                 trafficMeter));
 
@@ -581,7 +581,7 @@ private:
         TCacheLocationPtr location,
         const TChunkId& chunkId,
         TNodeDirectoryPtr nodeDirectory,
-        const TReadSessionId& sessionId,
+        const TReadSessionId& readSessionId,
         TInsertCookie cookie,
         TTrafficMeterPtr trafficMeter)
     {
@@ -589,7 +589,7 @@ private:
         auto seedReplicas = FromProto<TChunkReplicaList>(chunkSpec.replicas());
 
         auto Logger = DataNodeLogger;
-        Logger.AddTag("ChunkId: %v, ReadSessionId: %v", chunkId, sessionId);
+        Logger.AddTag("ChunkId: %v, ReadSessionId: %v", chunkId, readSessionId);
 
         try {
             TSessionCounterGuard sessionCounterGuard(location);
@@ -619,7 +619,9 @@ private:
                 .ThrowOnError();
 
             LOG_DEBUG("Getting chunk meta");
-            auto chunkMeta = WaitFor(chunkReader->GetMeta(Config_->ArtifactCacheReader->WorkloadDescriptor))
+            auto chunkMeta = WaitFor(chunkReader->GetMeta(
+                Config_->ArtifactCacheReader->WorkloadDescriptor,
+                readSessionId))
                 .ValueOrThrow();
 
             // Download all blocks.
@@ -643,7 +645,7 @@ private:
                 chunkReader,
                 GetNullBlockCache(),
                 NCompression::ECodec::None,
-                sessionId);
+                readSessionId);
 
             for (int index = 0; index < blockCount; ++index) {
                 LOG_DEBUG("Downloading block (BlockIndex: %v)",
@@ -692,7 +694,7 @@ private:
         TCacheLocationPtr location,
         const TChunkId& chunkId,
         TNodeDirectoryPtr nodeDirectory,
-        const TReadSessionId& sessionId,
+        const TReadSessionId& readSessionId,
         TInsertCookie cookie,
         TTrafficMeterPtr trafficMeter)
     {
@@ -708,7 +710,7 @@ private:
             Bootstrap_->GetMasterConnector()->GetLocalDescriptor(),
             Bootstrap_->GetBlockCache(),
             nodeDirectory,
-            sessionId,
+            readSessionId,
             chunkSpecs,
             trafficMeter,
             Bootstrap_->GetArtifactCacheInThrottler());
@@ -749,7 +751,7 @@ private:
         TCacheLocationPtr location,
         const TChunkId& chunkId,
         TNodeDirectoryPtr nodeDirectory,
-        const TReadSessionId& sessionId,
+        const TReadSessionId& readSessionId,
         TInsertCookie cookie,
         TTrafficMeterPtr trafficMeter)
     {
@@ -807,7 +809,7 @@ private:
             dataSourceDirectory,
             std::move(dataSliceDescriptors),
             nameTable,
-            sessionId,
+            readSessionId,
             TColumnFilter(),
             TKeyColumns(),
             /* partitionTag */ Null,

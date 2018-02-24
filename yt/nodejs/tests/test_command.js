@@ -375,6 +375,7 @@ describe("YtCommand - command descriptors", function() {
             'remove_member',
             'reshard_table',
             'resume_op',
+            'update_op_parameters',
             'select_rows',
             'set',
             'sort',

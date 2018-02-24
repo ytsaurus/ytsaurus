@@ -9,6 +9,7 @@
 #include <yt/core/misc/mpsc_queue.h>
 
 #include <yt/core/concurrency/notification_handle.h>
+#include <yt/core/concurrency/delayed_executor.h>
 
 #include <yt/core/logging/log_manager.h>
 
@@ -28,6 +29,69 @@
 #else
 #include <sys/select.h>
 #endif
+
+////////////////////////////////////////////////////////////////////////////////
+
+void FormatValue(NYT::TStringBuilder* builder, struct hostent* hostent, const TStringBuf& spec)
+{
+    bool empty = true;
+
+    auto appendIf = [&] (bool condition, auto function) {
+        if (condition) {
+            if (!empty) {
+                builder->AppendString(", ");
+            }
+            function();
+            empty = false;
+        }
+    };
+
+    builder->AppendString("{");
+
+    appendIf(hostent->h_name, [&] {
+        builder->AppendString("Canonical: ");
+        builder->AppendString(hostent->h_name);
+    });
+
+    appendIf(hostent->h_aliases, [&] {
+        builder->AppendString("Aliases: {");
+        for (int i = 0; hostent->h_aliases[i]; ++i) {
+            if (i > 0) {
+                builder->AppendString(", ");
+            }
+            builder->AppendString(hostent->h_aliases[i]);
+        }
+        builder->AppendString("}");
+    });
+
+    appendIf(hostent->h_addr_list, [&] {
+        auto stringSize = 0;
+        if (hostent->h_addrtype == AF_INET) {
+            stringSize = INET_ADDRSTRLEN;
+        }
+        if (hostent->h_addrtype == AF_INET6) {
+            stringSize = INET6_ADDRSTRLEN;
+        }
+        builder->AppendString("Addresses: {");
+        for (int i = 0; hostent->h_addr_list[i]; ++i) {
+            if (i > 0) {
+                builder->AppendString(", ");
+            }
+            auto string = builder->Preallocate(stringSize);
+            ares_inet_ntop(
+                hostent->h_addrtype,
+                hostent->h_addr_list[i],
+                string,
+                stringSize);
+            builder->Advance(strlen(string));
+        }
+        builder->AppendString("}");
+    });
+
+    builder->AppendString("}");
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 namespace NYT {
 namespace NNet {
@@ -67,12 +131,13 @@ private:
     struct TNameRequest
     {
         TImpl* Owner;
+        TGuid RequestId;
         TPromise<TNetworkAddress> Promise;
         TString HostName;
         bool EnableIPv4;
         bool EnableIPv6;
-        NProfiling::TCpuInstant Start;
-        NProfiling::TCpuInstant Stop;
+        NProfiling::TWallTimer Timer;
+        TDelayedExecutorCookie TimeoutCookie;
 
         TMpscQueueHook QueueHook;
     };
@@ -96,10 +161,9 @@ private:
     static void* ResolverThreadMain(void* opaque);
     void ResolverThreadMain();
 
-    static int OnSocketCreated(int socket, int type, void* opaque);
-    static void OnSocketStateChanged(void* opaque, int socket, int read, int write);
+    static int OnSocketCreated(ares_socket_t socket, int type, void* opaque);
+    static void OnSocketStateChanged(void* opaque, ares_socket_t socket, int readable, int writable);
     static void OnNameResolution(void* opaque, int status, int timeouts, struct hostent* hostent);
-    static void OnNameResolutionDebugLog(TStringBuilder* info, bool* empty, struct hostent* hostent);
 };
 
 std::atomic_flag TDnsResolver::TImpl::LibraryLock_ = ATOMIC_FLAG_INIT;
@@ -196,23 +260,33 @@ TFuture<TNetworkAddress> TDnsResolver::TImpl::ResolveName(
         return MakeFuture<TNetworkAddress>(TError("DNS resolver is not alive"));
     }
 
-    LOG_DEBUG(
-        "Resolving host name (Host: %v, EnableIPv4: %v, EnableIPv6: %v)",
+    auto promise = NewPromise<TNetworkAddress>();
+    auto future = promise.ToFuture();
+
+    auto requestId = TGuid::Create();
+    auto timeoutCookie = TDelayedExecutor::Submit(
+        BIND([promise, requestId] () mutable {
+            LOG_WARNING("Resolve timed out (RequestId: %v)",
+                requestId);
+            promise.TrySet(TError("Resolve timed out"));
+        }),
+        MaxResolveTimeout_);
+
+    LOG_DEBUG("Resolving host name (RequestId: %v, Host: %v, EnableIPv4: %v, EnableIPv6: %v)",
+        requestId,
         hostName,
         enableIPv4,
         enableIPv6);
 
-    auto promise = NewPromise<TNetworkAddress>();
-    auto future = promise.ToFuture();
-
     auto request = std::unique_ptr<TNameRequest>{new TNameRequest{
         this,
+        requestId,
         std::move(promise),
         std::move(hostName),
         enableIPv4,
         enableIPv6,
-        NProfiling::GetCpuInstant(),
-        0,
+        {},
+        std::move(timeoutCookie),
         {}}};
 
     Queue_.Push(std::move(request));
@@ -234,7 +308,7 @@ void TDnsResolver::TImpl::ResolverThreadMain()
 
     constexpr size_t MaxRequestsPerDrain = 100;
 
-    auto drainQueue = [this] () -> bool {
+    auto drainQueue = [&] {
         for (size_t iteration = 0; iteration < MaxRequestsPerDrain; ++iteration) {
             auto request = Queue_.Pop();
             if (!request) {
@@ -264,23 +338,16 @@ void TDnsResolver::TImpl::ResolverThreadMain()
     };
 
     while (Alive_.load(std::memory_order_relaxed)) {
-        struct timeval* tvp, tv;
-        tvp = ares_timeout(Channel_, nullptr, &tv);
-
         bool drain = false;
+        constexpr int PollTimeoutMs = 1000;
 
-#ifdef YT_DNS_RESOLVER_USE_EPOLL
+    #ifdef YT_DNS_RESOLVER_USE_EPOLL
         constexpr size_t MaxEventsPerPoll = 10;
         struct epoll_event events[MaxEventsPerPoll];
+        int count = HandleEintr(epoll_wait, EpollFD_, events, MaxEventsPerPoll, PollTimeoutMs);
+        YCHECK(count >= 0);
 
-        int timeout = tvp
-            ? tvp->tv_sec * 1000 + (tvp->tv_usec + 999) / 1000
-            : -1;
-        int count = HandleEintr(epoll_wait, EpollFD_, events, MaxEventsPerPoll, timeout);
-
-        if (count < 0) {
-            LOG_FATAL(TError::FromSystem(), "epoll_wait() failed");
-        } else if (count == 0) {
+        if (count == 0) {
             ares_process_fd(Channel_, ARES_SOCKET_BAD, ARES_SOCKET_BAD);
         } else {
             // According to c-ares implementation this loop would cost O(#dns-servers-total * #dns-servers-active).
@@ -289,15 +356,11 @@ void TDnsResolver::TImpl::ResolverThreadMain()
                 int triggeredFD = events[i].data.fd;
                 if (triggeredFD == WakeupHandle_.GetFD()) {
                     drain = true;
-                    continue;
+                } else {
+                    int readFD = (events[i].events & EPOLLIN) ? triggeredFD : ARES_SOCKET_BAD;
+                    int writeFD = (events[i].events & EPOLLOUT) ? triggeredFD : ARES_SOCKET_BAD;
+                    ares_process_fd(Channel_, readFD, writeFD);
                 }
-
-                int read = (events[i].events & EPOLLIN) != 0;
-                int write = (events[i].events & EPOLLOUT) != 0;
-                ares_process_fd(
-                    Channel_,
-                    read ? triggeredFD : ARES_SOCKET_BAD,
-                    write ? triggeredFD : ARES_SOCKET_BAD);
             }
         }
 #else
@@ -312,7 +375,11 @@ void TDnsResolver::TImpl::ResolverThreadMain()
 
         YCHECK(nFDs <= FD_SETSIZE); // This is inherent limitation by select().
 
-        int result = select(nFDs, &readFDs, &writeFDs, nullptr, tvp);
+        timeval timeout;
+        timeout.tv_sec = PollTimeoutMs / 1000;
+        timeout.tv_usec = (PollTimeoutMs % 1000) * 1000;
+
+        int result = select(nFDs, &readFDs, &writeFDs, nullptr, &timeout);
         YCHECK(result >= 0);
 
         ares_process(Channel_, &readFDs, &writeFDs);
@@ -324,6 +391,7 @@ void TDnsResolver::TImpl::ResolverThreadMain()
 
         if (drain && drainQueue()) {
             WakeupHandle_.Clear();
+            while (!drainQueue());
         }
     }
 
@@ -335,7 +403,10 @@ void TDnsResolver::TImpl::ResolverThreadMain()
     ares_cancel(Channel_);
 }
 
-int TDnsResolver::TImpl::OnSocketCreated(int socket, int type, void* opaque)
+int TDnsResolver::TImpl::OnSocketCreated(
+    ares_socket_t socket,
+    int /*type*/,
+    void* opaque)
 {
     int result = 0;
 #ifdef YT_DNS_RESOLVER_USE_EPOLL
@@ -349,8 +420,7 @@ int TDnsResolver::TImpl::OnSocketCreated(int socket, int type, void* opaque)
     }
 #else
     if (socket >= FD_SETSIZE) {
-        LOG_WARNING(
-            "File descriptor is out of valid range (FD: %v, Limit: %v)",
+        LOG_WARNING("File descriptor is out of valid range (FD: %v, Limit: %v)",
             socket,
             FD_SETSIZE);
         result = -1;
@@ -359,20 +429,24 @@ int TDnsResolver::TImpl::OnSocketCreated(int socket, int type, void* opaque)
     return result;
 }
 
-void TDnsResolver::TImpl::OnSocketStateChanged(void* opaque, int socket, int read, int write)
+void TDnsResolver::TImpl::OnSocketStateChanged(
+    void* opaque,
+    ares_socket_t socket,
+    int readable,
+    int writable)
 {
 #ifdef YT_DNS_RESOLVER_USE_EPOLL
     auto this_ = static_cast<TDnsResolver::TImpl*>(opaque);
     struct epoll_event event{0, {0}};
     event.data.fd = socket;
     int op = EPOLL_CTL_MOD;
-    if (read) {
+    if (readable) {
         event.events |= EPOLLIN;
     }
-    if (write) {
+    if (writable) {
         event.events |= EPOLLOUT;
     }
-    if (!read && !write) {
+    if (!readable && !writable) {
         op = EPOLL_CTL_DEL;
     }
     YCHECK(epoll_ctl(this_->EpollFD_, op, socket, &event) == 0);
@@ -389,97 +463,39 @@ void TDnsResolver::TImpl::OnNameResolution(
 {
     // TODO(sandello): Protect against exceptions here?
     auto request = std::unique_ptr<TNameRequest>{static_cast<TNameRequest*>(opaque)};
-    request->Stop = NProfiling::GetCpuInstant();
 
-    auto duration = NProfiling::CpuDurationToDuration(request->Stop - request->Start);
-    if (duration > request->Owner->WarningTimeout_ || timeouts > 0) {
-        LOG_WARNING("DNS resolve took too long (HostName: %v, Duration: %v, Timeouts: %v)",
+    TDelayedExecutor::CancelAndClear(request->TimeoutCookie);
+
+    auto elapsed = request->Timer.GetElapsedTime();
+    if (elapsed > request->Owner->WarningTimeout_ || timeouts > 0) {
+        LOG_WARNING("Resolve took too long (RequestId: %v, HostName: %v, Duration: %v, Timeouts: %v)",
+            request->RequestId,
             request->HostName,
-            duration,
+            elapsed,
             timeouts);
     }
 
-    // We will be setting promise indirectly to avoid calling arbitrary code in resolver thread.
     if (status != ARES_SUCCESS) {
-        LOG_WARNING("DNS resolve failed (HostName: %v)", request->HostName);
-        request->Promise.Set(TError(ares_strerror(status)) << TErrorAttribute("host_name", request->HostName));
+        LOG_WARNING("Resolve failed (RequestId: %v, HostName: %v)",
+            request->RequestId,
+            request->HostName);
+        request->Promise.TrySet(TError("DNS resolve failed for %Qv",
+            request->HostName)
+            << TError(ares_strerror(status)));
         return;
     }
 
     YCHECK(hostent->h_addrtype == AF_INET || hostent->h_addrtype == AF_INET6);
     YCHECK(hostent->h_addr_list && hostent->h_addr_list[0]);
+
     TNetworkAddress result(hostent->h_addrtype, hostent->h_addr, hostent->h_length);
+    LOG_DEBUG("Host name resolved (RequestId: %v, HostName: %v, Result: %v, Hostent: %v)",
+        request->RequestId,
+        request->HostName,
+        result,
+        hostent);
 
-    if (Logger.IsLevelEnabled(NLogging::ELogLevel::Debug)) {
-        TStringBuilder info;
-        bool empty;
-        OnNameResolutionDebugLog(&info, &empty, hostent);
-        LOG_DEBUG(
-            "Host name resolved: %v -> %v (%v)",
-            request->HostName,
-            result,
-            info.GetBuffer());
-    }
-
-    request->Promise.Set(result);
-}
-
-void TDnsResolver::TImpl::OnNameResolutionDebugLog(
-    TStringBuilder* info,
-    bool* empty,
-    struct hostent* hostent)
-{
-    auto appendIf = [&] (bool condition, auto function) {
-        if (condition) {
-            if (!*empty) {
-                info->AppendString(", ");
-            }
-            function();
-            *empty = false;
-        }
-    };
-
-    *empty = true;
-
-    appendIf(hostent->h_name, [&] () {
-        info->AppendString("Canonical: ");
-        info->AppendString(hostent->h_name);
-    });
-
-    appendIf(hostent->h_aliases, [&] () {
-        info->AppendString("Aliases: {");
-        for (int i = 0; hostent->h_aliases[i]; ++i) {
-            if (i > 0) {
-                info->AppendString(", ");
-            }
-            info->AppendString(hostent->h_aliases[i]);
-        }
-        info->AppendString("}");
-    });
-
-    appendIf(hostent->h_addr_list, [&] () {
-        auto stringSize = 0;
-        if (hostent->h_addrtype == AF_INET) {
-            stringSize = INET_ADDRSTRLEN;
-        }
-        if (hostent->h_addrtype == AF_INET6) {
-            stringSize = INET6_ADDRSTRLEN;
-        }
-        info->AppendString("Addresses: {");
-        for (int i = 0; hostent->h_addr_list[i]; ++i) {
-            if (i > 0) {
-                info->AppendString(", ");
-            }
-            auto string = info->Preallocate(stringSize);
-            ares_inet_ntop(
-                hostent->h_addrtype,
-                hostent->h_addr_list[i],
-                string,
-                stringSize);
-            info->Advance(strlen(string));
-        }
-        info->AppendString("}");
-    });
+    request->Promise.TrySet(result);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -489,7 +505,11 @@ TDnsResolver::TDnsResolver(
     TDuration resolveTimeout,
     TDuration maxResolveTimeout,
     TDuration warningTimeout)
-    : Impl_{new TImpl{retries, resolveTimeout, maxResolveTimeout, warningTimeout}}
+    : Impl_(std::make_unique<TImpl>(
+        retries,
+        resolveTimeout,
+        maxResolveTimeout,
+        warningTimeout))
 { }
 
 TDnsResolver::~TDnsResolver() = default;

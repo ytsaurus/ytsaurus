@@ -46,10 +46,13 @@ TOperation::TOperation(
     const TMutationId& mutationId,
     const TTransactionId& userTransactionId,
     IMapNodePtr spec,
+<<<<<<< HEAD
     IMapNodePtr secureVault,
     TOperationRuntimeParamsPtr runtimeParams,
+=======
+    TOperationRuntimeParametersPtr runtimeParams,
+>>>>>>> prestable/19.2
     const TString& authenticatedUser,
-    const std::vector<TString>& owners,
     TInstant startTime,
     IInvokerPtr controlInvoker,
     EOperationState state,
@@ -58,10 +61,14 @@ TOperation::TOperation(
     , MutationId_(mutationId)
     , State_(state)
     , UserTransactionId_(userTransactionId)
+<<<<<<< HEAD
     , RuntimeParams_(std::move(runtimeParams))
     , RuntimeData_(New<TOperationRuntimeData>())
     , SecureVault_(std::move(secureVault))
     , Owners_(owners)
+=======
+    , RuntimeParameters_(std::move(runtimeParams))
+>>>>>>> prestable/19.2
     , Events_(events)
     , Id_(id)
     , StartTime_(startTime)
@@ -70,8 +77,18 @@ TOperation::TOperation(
     , CodicilData_(MakeOperationCodicilString(Id_))
     , ControlInvoker_(std::move(controlInvoker))
 {
+<<<<<<< HEAD
     YCHECK(Spec_);
     Restart();
+=======
+    auto parsedSpec = ConvertTo<TOperationSpecBasePtr>(Spec_);
+    SecureVault_ = std::move(parsedSpec->SecureVault);
+    Spec_->RemoveChild("secure_vault");
+
+    if (RuntimeParameters_->Owners) {
+        Owners_ = *RuntimeParameters_->Owners;
+    }
+>>>>>>> prestable/19.2
 }
 
 const TOperationId& TOperation::GetId() const

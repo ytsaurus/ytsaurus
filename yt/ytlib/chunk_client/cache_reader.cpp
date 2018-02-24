@@ -24,6 +24,7 @@ public:
 
     virtual TFuture<std::vector<TBlock>> ReadBlocks(
         const TWorkloadDescriptor& /*workloadDescriptor*/,
+        const TReadSessionId& /*readSessionId*/,
         const std::vector<int>& blockIndexes) override
     {
         std::vector<TBlock> blocks;
@@ -41,6 +42,7 @@ public:
 
     virtual TFuture<std::vector<TBlock>> ReadBlocks(
         const TWorkloadDescriptor& /*workloadDescriptor*/,
+        const TReadSessionId& /*readSessionId*/,
         int firstBlockIndex,
         int blockCount) override
     {
@@ -60,6 +62,7 @@ public:
 
     virtual TFuture<NProto::TChunkMeta> GetMeta(
         const TWorkloadDescriptor& /*workloadDescriptor*/,
+        const TReadSessionId& /*readSessionId*/,
         const TNullable<int>& partitionTag,
         const TNullable<std::vector<int>>& extensionTags) override
     {

@@ -50,11 +50,12 @@ TCachedVersionedChunkMetaPtr TCachedVersionedChunkMeta::Create(
 TFuture<TCachedVersionedChunkMetaPtr> TCachedVersionedChunkMeta::Load(
     IChunkReaderPtr chunkReader,
     const TWorkloadDescriptor& workloadDescriptor,
+    const TReadSessionId& readSessionId,
     const TTableSchema& schema,
     TNodeMemoryTracker* memoryTracker)
 {
     auto chunkId = chunkReader->GetChunkId();
-    return chunkReader->GetMeta(workloadDescriptor)
+    return chunkReader->GetMeta(workloadDescriptor, readSessionId)
         .Apply(BIND([=] (const NChunkClient::NProto::TChunkMeta& chunkMeta) {
             return TCachedVersionedChunkMeta::Create(chunkId, chunkMeta, schema, memoryTracker);
         }));

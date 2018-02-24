@@ -71,6 +71,7 @@ public:
         , WriterConfig_(Host_->GetJobSpecHelper()->GetJobIOConfig()->TableWriter)
         , RemoteCopyQueue_(New<TActionQueue>("RemoteCopy"))
         , CopySemaphore_(New<TAsyncSemaphore>(RemoteCopyJobSpecExt_.concurrency()))
+        , ReadSessionId_(TReadSessionId::Create())
     {
         YCHECK(SchedulerJobSpecExt_.input_table_specs_size() == 1);
         YCHECK(SchedulerJobSpecExt_.output_table_specs_size() == 1);
@@ -243,6 +244,8 @@ private:
 
     const TActionQueuePtr RemoteCopyQueue_;
     TAsyncSemaphorePtr CopySemaphore_;
+
+    const TReadSessionId ReadSessionId_;
 
     NChunkClient::TSessionId CreateOutputChunk(const TChunkSpec& inputChunkSpec)
     {
@@ -496,6 +499,7 @@ private:
 
             auto asyncResult = reader->ReadBlocks(
                 ReaderConfig_->WorkloadDescriptor,
+                ReadSessionId_,
                 beginBlockIndex,
                 endBlockIndex - beginBlockIndex);
 
@@ -534,7 +538,7 @@ private:
     // Request input chunk meta. Input and output chunk metas are the same.
     TChunkMeta GetChunkMeta(IChunkReaderPtr reader)
     {
-        auto asyncResult = reader->GetMeta(ReaderConfig_->WorkloadDescriptor);
+        auto asyncResult = reader->GetMeta(ReaderConfig_->WorkloadDescriptor, ReadSessionId_);
         auto result = WaitFor(asyncResult);
         if (!result.IsOK()) {
             FailedChunkId_ = reader->GetChunkId();

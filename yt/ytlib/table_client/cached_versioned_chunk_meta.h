@@ -46,6 +46,7 @@ public:
     static TFuture<TCachedVersionedChunkMetaPtr> Load(
         NChunkClient::IChunkReaderPtr chunkReader,
         const TWorkloadDescriptor& workloadDescriptor,
+        const NChunkClient::TReadSessionId& readSessionId,
         const TTableSchema& schema,
         NNodeTrackerClient::TNodeMemoryTracker* memoryTracker = nullptr);
 

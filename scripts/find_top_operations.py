@@ -114,7 +114,17 @@ class Operation(object):
         if orchid.is_ok():
             self._orchid = orchid.get_result()
         else:
+            self._orchid = None
             self.errors.append(orchid.get_error())
+    
+    def fetch_controller_memory_usage(self):
+        controller_memory_usage = self._batch_client.get("//sys/scheduler/orchid/scheduler/operations/{}/controller_memory_usage".format(self.operation_id))
+        yield
+        if controller_memory_usage.is_ok():
+            self._controller_memory_usage = controller_memory_usage.get_result()
+        else:
+            self._controller_memory_usage = None
+            self.errors.append(controller_memory_usage.get_error())
 
     def get_default_attrs(self):
         if self._attrs is None:
@@ -165,6 +175,11 @@ class Operation(object):
             return len(spec["output_table_paths"])
         else:
             return 1
+
+    def get_controller_memory_usage(self):
+        if self._controller_memory_usage is None:
+            return None
+        return self._controller_memory_usage
 
     def get_snapshot_size(self):
         return self._snapshot_size
@@ -225,7 +240,7 @@ if __name__ == "__main__":
     parser.add_argument("-k", type=int, default=10, help="Number of operation to show (default: 10)")
     parser.add_argument("--proxy", help='Proxy alias')
 
-    choices = ["job-count", "snapshot-size", "input-disk-usage", "output-chunks", "slice-count", "output-disk-space"]
+    choices = ["job-count", "snapshot-size", "input-disk-usage", "output-chunks", "slice-count", "output-disk-space", "controller-memory-usage"]
     parser.add_argument("--top-by", choices=choices, default="job-count")
 
     parser.add_argument("--in-account", help="Count resource usage only in this account")
@@ -263,6 +278,10 @@ if __name__ == "__main__":
             report_operations(operations, args.k, lambda op: op.get_output_chunks(), args.top_by)
         else:
             report_operations(operations, args.k, lambda op: op.get_output_disk_space(), args.top_by)
+    elif args.top_by == "controller-memory-usage":
+        fetch_batch(batch_client, operations, lambda op: op.fetch_controller_memory_usage())
+
+        report_operations(operations, args.k, lambda op: op.get_controller_memory_usage(), args.top_by)
 
     if args.show_errors:
         for op in operations:
