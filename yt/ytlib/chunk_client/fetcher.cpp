@@ -49,7 +49,7 @@ public:
         , Client_(client)
         , NodeDirectory_(nodeDirectory)
         , Logger(NLogging::TLogger(logger)
-            .AddTag("FetcherChunkScraper: %v", TGuid::Create()))
+            .AddTag("FetcherChunkScraperId: %v", TGuid::Create()))
     { }
 
     virtual TFuture<void> ScrapeChunks(const THashSet<TInputChunkPtr>& chunkSpecs) override
