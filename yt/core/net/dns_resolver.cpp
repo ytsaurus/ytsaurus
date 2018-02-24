@@ -391,7 +391,7 @@ void TDnsResolver::TImpl::ResolverThreadMain()
 
         if (drain && drainQueue()) {
             WakeupHandle_.Clear();
-            drainQueue();
+            while (!drainQueue());
         }
     }
 
