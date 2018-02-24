@@ -32,6 +32,7 @@ private:
 // implementations may be found in lf_allocX64.cpp.
 Y_WEAK void SetCurrentMemoryTag(TMemoryTag tag);
 Y_WEAK ssize_t GetMemoryUsageForTag(TMemoryTag tag);
+Y_WEAK void GetMemoryUsageForTagList(TMemoryTag* tagList, int count, ssize_t* result);
 
 ////////////////////////////////////////////////////////////////////////////////
 

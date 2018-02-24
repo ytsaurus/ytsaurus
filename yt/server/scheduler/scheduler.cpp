@@ -168,6 +168,7 @@ public:
             NProfiling::TProfiler(SchedulerProfiler.GetPathPrefix() + "/job_spec_slice_throttler")))
         , JobSpecSliceThrottler_(ReconfigurableJobSpecSliceThrottler_)
         , MasterConnector_(std::make_unique<TMasterConnector>(Config_, Bootstrap_))
+        , MemoryTagQueue_(Config_)
         , CachedExecNodeMemoryDistributionByTags_(New<TExpiringCache<TSchedulingTagFilter, TMemoryDistribution>>(
             BIND(&TImpl::CalculateMemoryDistribution, MakeStrong(this)),
             Config_->SchedulingTagFilterExpireTimeout,
@@ -1266,9 +1267,12 @@ private:
     class TMemoryTagQueue
     {
     public:
-        TMemoryTagQueue()
+        explicit TMemoryTagQueue(TSchedulerConfigPtr config)
+            : Config_(config)
+            , MaxUsedMemoryTag_(std::min<TMemoryTag>(MaxMemoryTag, 2 * config->MaxOperationCount))
         {
-            for (TMemoryTag tag = 1; tag < MaxMemoryTag; ++tag) {
+            TagToLastOperationId_.resize(MaxUsedMemoryTag_);
+            for (TMemoryTag tag = 1; tag < MaxUsedMemoryTag_; ++tag) {
                 AvailableTags_.push(tag);
             }
         }
@@ -1279,6 +1283,7 @@ private:
             auto tag = AvailableTags_.front();
             AvailableTags_.pop();
             OperationIdToTag_[operationId] = tag;
+            TagToLastOperationId_[tag] = operationId;
             LOG_DEBUG("Assigning memory tag to an operation (OperationId: %v, MemoryTag: %v, AvailableTagCount: %v)",
                 operationId,
                 tag,
@@ -1299,9 +1304,52 @@ private:
                 AvailableTags_.size());
         }
 
+        void BuildTaggedMemoryStatistics(TFluentList fluent)
+        {
+            auto now = NProfiling::GetInstant();
+
+            if (CachedTaggedMemoryStatisticsLastUpdateTime_ + Config_->TaggedMemoryStatisticsUpdatePeriod < now) {
+                UpdateStatistics();
+            }
+
+            fluent.GetConsumer()->OnRaw(CachedTaggedMemoryStatistics_);
+        }
+
     private:
+        TYsonString CachedTaggedMemoryStatistics_ = TYsonString("", EYsonType::ListFragment);
+        TInstant CachedTaggedMemoryStatisticsLastUpdateTime_;
         std::queue<TMemoryTag> AvailableTags_;
         yhash<TOperationId, TMemoryTag> OperationIdToTag_;
+        std::vector<TOperationId> TagToLastOperationId_;
+        const TSchedulerConfigPtr Config_;
+        const TMemoryTag MaxUsedMemoryTag_;
+
+        void UpdateStatistics()
+        {
+            auto fluent = BuildYsonStringFluently<EYsonType::ListFragment>();
+            std::vector<TMemoryTag> tags(MaxUsedMemoryTag_ - 1);
+            std::iota(tags.begin(), tags.end(), 1);
+            std::vector<ssize_t> usages(MaxUsedMemoryTag_ - 1);
+
+            LOG_INFO("Started building tagged memory statistics (EntryCount: %v)", tags.size());
+            GetMemoryUsageForTagList(tags.data(), tags.size(), usages.data());
+            LOG_INFO("Finished building tagged memory statistics (EntryCount: %v)", tags.size());
+
+            for (int index = 0; index < tags.size(); ++index) {
+                auto tag = tags[index];
+                auto usage = usages[index];
+                auto operationId = TagToLastOperationId_[tag] ? MakeNullable(TagToLastOperationId_[tag]) : Null;
+                auto alive = operationId && OperationIdToTag_.has(*operationId);
+                fluent
+                    .Item().BeginMap()
+                        .Item("usage").Value(usage)
+                        .Item("operation_id").Value(operationId)
+                        .Item("alive").Value(alive)
+                    .EndMap();
+            }
+            CachedTaggedMemoryStatistics_ = fluent.Finish();
+            CachedTaggedMemoryStatisticsLastUpdateTime_ = NProfiling::GetInstant();
+        }
     };
 
     TMemoryTagQueue MemoryTagQueue_;
@@ -2840,6 +2888,11 @@ private:
                 .EndMap()
                 .Item("config").Value(Config_)
                 .DoIf(Strategy_.operator bool(), BIND(&ISchedulerStrategy::BuildOrchid, Strategy_))
+                .Item("tagged_memory_statistics").BeginAttributes()
+                    .Item("opaque").Value(true)
+                .EndAttributes().DoList([&] (TFluentList fluent) {
+                    MemoryTagQueue_.BuildTaggedMemoryStatistics(fluent);
+                })
             .EndMap();
     }
 
