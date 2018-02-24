@@ -20,6 +20,8 @@
 
 #include <yt/core/misc/ref.h>
 
+#include <yt/core/actions/signal.h>
+
 namespace NYT {
 namespace NControllerAgent {
 
@@ -41,9 +43,16 @@ class TControllerAgent
 {
 public:
     TControllerAgent(
-        TControllerAgentConfigPtr config,
+        NScheduler::TSchedulerConfigPtr config, // TODO(babenko): config
         NCellScheduler::TBootstrap* bootstrap);
     ~TControllerAgent();
+
+    void Initialize();
+
+    /*!
+     *  \note Thread affinity: any
+     */
+    NYTree::IYPathServicePtr GetOrchidService();
 
     /*!
      *  \note Thread affinity: any
@@ -90,16 +99,20 @@ public:
      */
     TMasterConnector* GetMasterConnector();
 
-    void ValidateConnected() const;
-    void ValidateIncarnation(const TIncarnationId& incarnationId) const;
+    bool IsConnected() const;
+    const TIncarnationId& GetIncarnationId() const;
 
     /*!
      *  \note Thread affinity: any
      */
     TInstant GetConnectionTime() const;
 
-    const TControllerAgentConfigPtr& GetConfig() const;
-    void UpdateConfig(const TControllerAgentConfigPtr& config);
+    void ValidateConnected() const;
+    void ValidateIncarnation(const TIncarnationId& incarnationId) const;
+
+    void Disconnect(const TError& error);
+
+    const NScheduler::TSchedulerConfigPtr& GetConfig() const; // TODO(babenko): config
 
     TOperationPtr FindOperation(const TOperationId& operationId);
     TOperationPtr GetOperation(const TOperationId& operationId);
@@ -138,6 +151,18 @@ public:
      *  \note Thread affinity: any
      */
     const NConcurrency::IThroughputThrottlerPtr& GetJobSpecSliceThrottler() const;
+
+    //! Raised when connection prcoess starts.
+    //! Subscribers may throw and yield.
+    DECLARE_SIGNAL(void(), SchedulerConnecting);
+
+    //! Raised when connection is complete.
+    //! Subscribers may throw but cannot yield.
+    DECLARE_SIGNAL(void(), SchedulerConnected);
+
+    //! Raised when disconnect happens.
+    //! Subscribers cannot neither throw nor yield
+    DECLARE_SIGNAL(void(), SchedulerDisconnected);
 
 private:
     class TImpl;

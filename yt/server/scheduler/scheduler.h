@@ -64,10 +64,16 @@ public:
      *  \note Thread affinity: any
      */
     bool IsConnected() const;
+
     /*!
      *  \note Thread affinity: any
      */
     void ValidateConnected();
+
+    /*!
+     *  \note Thread affinity: any
+     */
+    TMasterConnector* GetMasterConnector() const;
 
     void Disconnect(const TError& error);
 
@@ -89,10 +95,11 @@ public:
         const TError& error,
         const TString& user);
 
-    void OnOperationCompleted(const TOperationId& operationId);
-    void OnOperationAborted(const TOperationId& operationId, const TError& error);
-    void OnOperationFailed(const TOperationId& operationId, const TError& error);
-    void OnOperationSuspended(const TOperationId& operationId, const TError& error);
+    void OnOperationCompleted(const TOperationPtr& operation);
+    void OnOperationAborted(const TOperationPtr& operation, const TError& error);
+    void OnOperationFailed(const TOperationPtr& operation, const TError& error);
+    void OnOperationSuspended(const TOperationPtr& operation, const TError& error);
+    void OnOperatonAgentUnregistered(const TOperationPtr& operation);
 
     TFuture<NYson::TYsonString> Strace(const TJobId& jobId, const TString& user);
     TFuture<void> DumpInputContext(const TJobId& jobId, const NYPath::TYPath& path, const TString& user);

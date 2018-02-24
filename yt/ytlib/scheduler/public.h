@@ -31,6 +31,8 @@ class TTreeTaggedJobMetrics;
 class TOperationJobMetrics;
 class TReqHeartbeat;
 class TRspHeartbeat;
+class TReqHandshake;
+class TRspHandshake;
 class TReqGetOperationInfo;
 class TRspGetOperationInfo;
 class TReqGetJobInfo;

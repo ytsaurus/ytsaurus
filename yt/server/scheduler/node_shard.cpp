@@ -4,6 +4,7 @@
 #include "scheduler_strategy.h"
 #include "scheduling_context.h"
 #include "operation_controller.h"
+#include "controller_agent.h"
 
 #include <yt/server/exec_agent/public.h>
 
@@ -178,21 +179,68 @@ void TNodeShard::DoCleanup()
 
     JobIdToAsyncScheduleResult_.clear();
 
-	SubmitJobsToStrategy();
+    SubmitJobsToStrategy();
 }
 
 void TNodeShard::RegisterOperation(
     const TOperationId& operationId,
     const IOperationControllerPtr& controller,
-    bool reviving)
+    bool willRevive)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
     YCHECK(Connected_);
 
     YCHECK(IdToOpertionState_.emplace(
         operationId,
-        TOperationState(controller, !reviving /* jobsReady */, CurrentEpoch_++)
+        TOperationState(controller, !willRevive /* jobsReady */, CurrentEpoch_++)
     ).second);
+
+    LOG_DEBUG("Operation registered at node shard (OperationId: %v, WillRevive: %v)",
+        operationId,
+        willRevive);
+}
+
+void TNodeShard::StartOperationRevival(const TOperationId& operationId)
+{
+    VERIFY_INVOKER_AFFINITY(GetInvoker());
+    YCHECK(Connected_);
+
+    auto& operationState = GetOperationState(operationId);
+    operationState.JobsReady = false;
+    operationState.Jobs.clear();
+
+    LOG_DEBUG("Operation revival started at node shard (OperationId: %v)",
+        operationId);
+}
+
+void TNodeShard::FinishOperationRevival(const TOperationId& operationId, const std::vector<TJobPtr>& jobs)
+{
+    auto& operationState = GetOperationState(operationId);
+
+    YCHECK(!operationState.JobsReady);
+    operationState.JobsReady = true;
+    operationState.ForbidNewJobs = false;
+    operationState.Terminated = false;
+
+    for (const auto& job : jobs) {
+        auto node = GetOrRegisterNode(
+            job->GetRevivalNodeId(),
+            TNodeDescriptor(job->GetRevivalNodeAddress()));
+        job->SetNode(node);
+        job->SetWaitingForConfirmation(true);
+        node->UnconfirmedJobIds().emplace(job->GetId());
+        RegisterJob(job);
+    }
+
+    LOG_DEBUG("Operation revival finished at node shard (OperationId: %v, RevivedJobCount: %v)",
+        operationId,
+        jobs.size());
+
+    // Give some time for nodes to confirm the jobs.
+    TDelayedExecutor::Submit(
+        BIND(&TNodeShard::AbortUnconfirmedJobs, MakeWeak(this), operationId, operationState.Epoch, jobs)
+            .Via(GetInvoker()),
+        Config_->JobRevivalAbortTimeout);
 }
 
 void TNodeShard::UnregisterOperation(const TOperationId& operationId)
@@ -209,6 +257,9 @@ void TNodeShard::UnregisterOperation(const TOperationId& operationId)
     }
 
     IdToOpertionState_.erase(it);
+
+    LOG_DEBUG("Operation unregistered from node shard (OperationId: %v)",
+        operationId);
 }
 
 void TNodeShard::ProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& context)
@@ -316,7 +367,7 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
             node,
             runningJobs);
 
-		SubmitJobsToStrategy();
+        SubmitJobsToStrategy();
 
         PROFILE_AGGREGATED_TIMING (StrategyJobProcessingTimeCounter) {
             SubmitJobsToStrategy();
@@ -336,7 +387,7 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
             schedulingContext,
             context);
 
-		SubmitJobsToStrategy();
+        SubmitJobsToStrategy();
 
         // NB: some jobs maybe considered aborted after processing scheduled jobs.
         PROFILE_AGGREGATED_TIMING (StrategyJobProcessingTimeCounter) {
@@ -489,7 +540,7 @@ void TNodeShard::AbortOperationJobs(const TOperationId& operationId, const TErro
     }
 
     operationState->Terminated = terminated;
-    operationState->JobsAborted = true;
+    operationState->ForbidNewJobs = true;
     auto jobs = operationState->Jobs;
     for (const auto& job : jobs) {
         auto status = JobStatusFromError(abortReason);
@@ -510,7 +561,7 @@ void TNodeShard::ResumeOperationJobs(const TOperationId& operationId)
         return;
     }
 
-    operationState->JobsAborted = false;
+    operationState->ForbidNewJobs = false;
 }
 
 TYsonString TNodeShard::StraceJob(const TJobId& jobId, const TString& user)
@@ -807,37 +858,6 @@ void TNodeShard::BuildNodesYson(TFluentMap fluent)
     for (const auto& pair : IdToNode_) {
         BuildNodeYson(pair.second, fluent);
     }
-}
-
-void TNodeShard::RegisterRevivedJobs(const TOperationId& operationId, const std::vector<TJobPtr>& jobs)
-{
-    auto* operationState = FindOperationState(operationId);
-    if (!operationState || operationState->JobsAborted) {
-        return;
-    }
-
-    YCHECK(!operationState->JobsReady);
-    operationState->JobsReady = true;
-
-    for (const auto& job : jobs) {
-        auto node = GetOrRegisterNode(
-            job->GetRevivalNodeId(),
-            TNodeDescriptor(job->GetRevivalNodeAddress()));
-        job->SetNode(node);
-        job->SetWaitingForConfirmation(true);
-        node->UnconfirmedJobIds().emplace(job->GetId());
-        RegisterJob(job);
-    }
-
-    LOG_INFO("Waiting for confirmation of operation jobs (OperationId: %v, RevivedJobCount: %v)",
-        operationId,
-        jobs.size());
-
-    // Give some time for nodes to confirm the jobs.
-    TDelayedExecutor::Submit(
-        BIND(&TNodeShard::AbortUnconfirmedJobs, MakeWeak(this), operationId, operationState->Epoch, jobs)
-            .Via(GetInvoker()),
-        Config_->JobRevivalAbortTimeout);
 }
 
 TOperationId TNodeShard::FindOperationIdByJobId(const TJobId& jobId)
@@ -1546,11 +1566,18 @@ void TNodeShard::ProcessScheduledJobs(
     std::vector<TFuture<TSharedRef>> asyncJobSpecs;
     for (const auto& job : schedulingContext->StartedJobs()) {
         auto* operationState = FindOperationState(job->GetOperationId());
-        if (!operationState || operationState->JobsAborted) {
-            LOG_DEBUG("Dangling started job found (JobId: %v, OperationId: %v)",
+        if (!operationState) {
+            LOG_DEBUG("Job cannot be started since operation is no longer known (JobId: %v, OperationId: %v)",
                 job->GetId(),
                 job->GetOperationId());
-            if (operationState && !operationState->Terminated) {
+            continue;
+        }
+
+        if (operationState->ForbidNewJobs) {
+            LOG_DEBUG("Job cannot be started since new jobs are forbidden (JobId: %v, OperationId: %v)",
+                job->GetId(),
+                job->GetOperationId());
+            if (!operationState->Terminated) {
                 const auto& controller = operationState->Controller;
                 controller->OnNonscheduledJobAborted(job->GetId(), EAbortReason::SchedulingOperationSuspended);
                 CompletedJobs_.emplace_back(job->GetOperationId(), job->GetId(), job->GetTreeId());
@@ -1558,22 +1585,30 @@ void TNodeShard::ProcessScheduledJobs(
             continue;
         }
 
+        const auto& controller = operationState->Controller;
+        auto agent = controller->FindAgent();
+        if (!agent) {
+            LOG_DEBUG("Cannot start job: agent is no longer known (JobId: %v, OperationId: %v)",
+                job->GetId(),
+                job->GetOperationId());
+            continue;
+        }
+
         RegisterJob(job);
         IncreaseProfilingCounter(job, 1);
 
-        const auto& controller = operationState->Controller;
         controller->OnJobStarted(job);
 
         auto* startInfo = response->add_jobs_to_start();
         ToProto(startInfo->mutable_job_id(), job->GetId());
         ToProto(startInfo->mutable_operation_id(), job->GetOperationId());
         *startInfo->mutable_resource_limits() = job->ResourceUsage().ToNodeResources();
-        ToProto(startInfo->mutable_spec_service_addresses(), Bootstrap_->GetLocalAddresses());
+        ToProto(startInfo->mutable_spec_service_addresses(), agent->GetAgentAddresses());
     }
 
     for (const auto& job : schedulingContext->PreemptedJobs()) {
         if (!FindOperationState(job->GetOperationId()) || job->GetHasPendingUnregistration()) {
-            LOG_DEBUG("Dangling preempted job found (JobId: %v, OperationId: %v)",
+            LOG_DEBUG("Cannot preempt job: operation is no longer known (JobId: %v, OperationId: %v)",
                 job->GetId(),
                 job->GetOperationId());
             continue;

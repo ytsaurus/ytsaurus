@@ -742,8 +742,4 @@ class TestSchedulerRevive(YTEnvSetup):
         self.Env.kill_schedulers()
         self.Env.start_schedulers()
 
-        # Waiting until orchid is built.
-        time.sleep(1.0)
-        assert exists(failed_jobs_path) and get(failed_jobs_path) >= 3
-
-        abort_op(op.id)
+        wait(lambda: exists(failed_jobs_path) and get(failed_jobs_path) >= 3)

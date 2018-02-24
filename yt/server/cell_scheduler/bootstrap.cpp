@@ -48,14 +48,13 @@
 #include <yt/core/bus/server.h>
 #include <yt/core/bus/tcp_server.h>
 
-#include <yt/core/rpc/local_channel.h>
-
 #include <yt/core/http/server.h>
 
 #include <yt/core/concurrency/fair_share_action_queue.h>
 #include <yt/core/concurrency/thread_pool.h>
 
 #include <yt/core/net/address.h>
+#include <yt/core/net/local_address.h>
 
 #include <yt/core/misc/core_dumper.h>
 #include <yt/core/misc/ref_counted_tracker.h>
@@ -128,8 +127,9 @@ void TBootstrap::Run()
 
 void TBootstrap::DoRun()
 {
-    LOG_INFO("Starting scheduler (MasterAddresses: %v)",
-        Config_->ClusterConnection->PrimaryMaster->Addresses);
+    AgentId_ = NNet::BuildServiceAddress(NNet::GetLocalHostName(), Config_->RpcPort);
+
+    LOG_INFO("Starting scheduler");
 
     if (Config_->Scheduler->ControlThreadPriority) {
         WaitFor(BIND([priority = *Config_->Scheduler->ControlThreadPriority] {
@@ -155,13 +155,10 @@ void TBootstrap::DoRun()
 
     RpcServer_ = CreateBusServer(BusServer_);
 
-    LocalRpcChannel_ = CreateLocalChannel(RpcServer_);
-
     Config_->MonitoringServer->Port = Config_->MonitoringPort;
     Config_->MonitoringServer->BindRetryCount = Config_->BusServer->BindRetryCount;
     Config_->MonitoringServer->BindRetryBackoff = Config_->BusServer->BindRetryBackoff;
-    HttpServer_ = NHttp::CreateServer(
-        Config_->MonitoringServer);
+    HttpServer_ = NHttp::CreateServer(Config_->MonitoringServer);
 
     NodeDirectory_ = New<TNodeDirectory>();
 
@@ -196,6 +193,8 @@ void TBootstrap::DoRun()
     LFAllocProfiler_ = std::make_unique<NLFAlloc::TLFAllocProfiler>();
 
     Scheduler_->Initialize();
+    ControllerAgent_->Initialize();
+    ControllerAgentTracker_->Initialize();
 
     auto orchidRoot = NYTree::GetEphemeralNodeFactory(true)->CreateMap();
     SetNodeByYPath(
@@ -213,9 +212,11 @@ void TBootstrap::DoRun()
     SetNodeByYPath(
         orchidRoot,
         "/scheduler",
-        CreateVirtualNode(
-            Scheduler_
-            ->GetOrchidService()));
+        CreateVirtualNode(Scheduler_->GetOrchidService()));
+    SetNodeByYPath(
+        orchidRoot,
+        "/controller_agent",
+        CreateVirtualNode(ControllerAgent_->GetOrchidService()));
 
     SetBuildAttributes(orchidRoot, "scheduler");
 
@@ -244,6 +245,11 @@ void TBootstrap::DoRun()
     RpcServer_->Start();
 }
 
+const TAgentId& TBootstrap::GetAgentId() const
+{
+    return AgentId_;
+}
+
 const TCellSchedulerConfigPtr& TBootstrap::GetConfig() const
 {
     return Config_;
@@ -252,11 +258,6 @@ const TCellSchedulerConfigPtr& TBootstrap::GetConfig() const
 const INativeClientPtr& TBootstrap::GetMasterClient() const
 {
     return Client_;
-}
-
-const NRpc::IChannelPtr TBootstrap::GetLocalRpcChannel() const
-{
-    return LocalRpcChannel_;
 }
 
 TAddressMap TBootstrap::GetLocalAddresses() const

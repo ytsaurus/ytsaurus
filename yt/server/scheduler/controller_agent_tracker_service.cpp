@@ -25,6 +25,7 @@ public:
             SchedulerLogger)
         , Bootstrap_(bootstrap)
     {
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(Handshake));
         RegisterMethod(
             RPC_SERVICE_METHOD_DESC(Heartbeat)
                 .SetHeavy(true)
@@ -33,6 +34,12 @@ public:
 
 private:
     TBootstrap* const Bootstrap_;
+
+    DECLARE_RPC_SERVICE_METHOD(NScheduler::NProto, Handshake)
+    {
+        const auto& controllerAgentTracker = Bootstrap_->GetControllerAgentTracker();
+        controllerAgentTracker->ProcessAgentHandshake(context);
+    }
 
     DECLARE_RPC_SERVICE_METHOD(NScheduler::NProto, Heartbeat)
     {

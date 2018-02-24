@@ -211,7 +211,7 @@ TSchedulerConfig::TSchedulerConfig()
         .Default(TDuration::MilliSeconds(100));
 
     RegisterParameter("operation_to_agent_assignment_backoff", OperationToAgentAssignmentBackoff)
-        .Default(TDuration::Seconds(10));
+        .Default(TDuration::Seconds(1));
 
     RegisterParameter("max_started_jobs_per_heartbeat", MaxStartedJobsPerHeartbeat)
         .Default()
@@ -257,6 +257,9 @@ TSchedulerConfig::TSchedulerConfig()
 
     RegisterParameter("controller_agent_heavy_rpc_timeout", ControllerAgentHeavyRpcTimeout)
         .Default(TDuration::Minutes(30));
+
+    RegisterParameter("controller_agent_heartbeat_timeout", ControllerAgentHeartbeatTimeout)
+        .Default(TDuration::Seconds(15));
 
     RegisterPreprocessor([&] () {
         ChunkLocationThrottler->Limit = 10000;

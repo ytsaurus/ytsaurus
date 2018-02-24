@@ -276,14 +276,17 @@ TControllerAgentConfig::TControllerAgentConfig()
     RegisterParameter("event_log", EventLog)
         .DefaultNew();
 
-    RegisterParameter("controller_agent_heartbeat_period", ControllerAgentHeartbeatPeriod)
-        .Default(TDuration::MilliSeconds(10));
+    RegisterParameter("controller_agent_handshake_rpc_timeout", ControllerAgentHandshakeRpcTimeout)
+        .Default(TDuration::Seconds(10));
+    RegisterParameter("controller_agent_handshake_failure_backoff", ControllerAgentHandshakeFailureBackoff)
+        .Default(TDuration::Seconds(1));
 
     RegisterParameter("controller_agent_heartbeat_rpc_timeout", ControllerAgentHeartbeatRpcTimeout)
         .Default(TDuration::Seconds(10));
-
     RegisterParameter("controller_agent_heartbeat_failure_backoff", ControllerAgentHeartbeatFailureBackoff)
         .Default(TDuration::MilliSeconds(100));
+    RegisterParameter("controller_agent_heartbeat_period", ControllerAgentHeartbeatPeriod)
+        .Default(TDuration::MilliSeconds(10));
 
     RegisterParameter("exec_nodes_update_period", ExecNodesUpdatePeriod)
         .Default(TDuration::Seconds(10));
@@ -430,8 +433,8 @@ TControllerAgentConfig::TControllerAgentConfig()
 
     RegisterParameter("additional_intermediate_data_acl", AdditionalIntermediateDataAcl)
         .Default(NYTree::BuildYsonNodeFluently()
-                     .BeginList()
-                     .EndList()->AsList());
+             .BeginList()
+             .EndList()->AsList());
 
     RegisterParameter("heavy_job_spec_slice_count_threshold", HeavyJobSpecSliceCountThreshold)
         .Default(1000)

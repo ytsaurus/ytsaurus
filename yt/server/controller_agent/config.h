@@ -435,14 +435,24 @@ public:
 
     NEventLog::TEventLogConfigPtr EventLog;
 
-    // Controller agent-to-scheduler heartbeat period.
-    TDuration ControllerAgentHeartbeatPeriod;
+    // TODO(babenko): config
+    //! Controller agent-to-scheduler heartbeat timeout.
+    TDuration ControllerAgentHandshakeRpcTimeout;
 
+    // TODO(babenko): config
+    //! Controller agent-to-scheduler handshake failure backoff.
+    TDuration ControllerAgentHandshakeFailureBackoff;
+
+    // TODO(babenko): config
     //! Controller agent-to-scheduler heartbeat timeout.
     TDuration ControllerAgentHeartbeatRpcTimeout;
 
+    // TODO(babenko): config
     //! Controller agent-to-scheduler heartbeat failure backoff.
     TDuration ControllerAgentHeartbeatFailureBackoff;
+
+    // Controller agent-to-scheduler heartbeat period.
+    TDuration ControllerAgentHeartbeatPeriod;
 
     //! Period for requesting exec nodes from scheduler.
     TDuration ExecNodesUpdatePeriod;

@@ -72,6 +72,9 @@ class TMasterConnector;
 using NJobTrackerClient::NProto::TJobResult;
 using NJobTrackerClient::NProto::TJobStatus;
 
+using TIncarnationId = TGuid;
+using TAgentId = TString;
+
 class TSchedulingTagFilter;
 
 ////////////////////////////////////////////////////////////////////////////////

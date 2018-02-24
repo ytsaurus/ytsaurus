@@ -30,7 +30,7 @@ TOperationControllerHost::TOperationControllerHost(
     , OperationEventsOutbox_(std::move(operationEventsOutbox))
     , JobEventsOutbox_(std::move(jobEventsOutbox))
     , Bootstrap_(bootstrap)
-    , IncarnationId_(Bootstrap_->GetControllerAgent()->GetMasterConnector()->GetIncarnationId())
+    , IncarnationId_(Bootstrap_->GetControllerAgent()->GetIncarnationId())
 { }
 
 void TOperationControllerHost::InterruptJob(const TJobId& jobId, EInterruptReason reason)

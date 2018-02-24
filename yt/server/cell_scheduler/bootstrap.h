@@ -35,9 +35,10 @@ public:
     TBootstrap(TCellSchedulerConfigPtr config, NYTree::INodePtr configNode);
     ~TBootstrap();
 
+    // TODO(babenko): agent-specific
+    const NControllerAgent::TAgentId& GetAgentId() const;
     const TCellSchedulerConfigPtr& GetConfig() const;
     const NApi::INativeClientPtr& GetMasterClient() const;
-    const NRpc::IChannelPtr GetLocalRpcChannel() const;
     NNodeTrackerClient::TAddressMap GetLocalAddresses() const;
     NNodeTrackerClient::TNetworkPreferenceList GetLocalNetworks() const;
     IInvokerPtr GetControlInvoker(EControlQueue queue = EControlQueue::Default) const;
@@ -54,12 +55,13 @@ private:
     const TCellSchedulerConfigPtr Config_;
     const NYTree::INodePtr ConfigNode_;
 
+    // TODO(babenko): agent-specific
+    NControllerAgent::TAgentId AgentId_;
     NMonitoring::TMonitoringManagerPtr MonitoringManager_;
     std::unique_ptr<NLFAlloc::TLFAllocProfiler> LFAllocProfiler_;
     NConcurrency::TFairShareActionQueuePtr ControlQueue_;
     NBus::IBusServerPtr BusServer_;
     NRpc::IServerPtr RpcServer_;
-    NRpc::IChannelPtr LocalRpcChannel_;
     NHttp::IServerPtr HttpServer_;
     NApi::INativeConnectionPtr Connection_;
     NApi::INativeClientPtr Client_;

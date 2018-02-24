@@ -4,9 +4,6 @@
 #include "scheduler.h"
 #include "scheduler_strategy.h"
 
-#include <yt/server/controller_agent/master_connector.h>
-#include <yt/server/controller_agent/controller_agent.h>
-#include <yt/server/controller_agent/operation_controller.h>
 #include <yt/server/controller_agent/helpers.h>
 
 #include <yt/server/cell_scheduler/bootstrap.h>
@@ -681,6 +678,8 @@ private:
         // - Request operations and their states.
         void ListOperations()
         {
+            LOG_INFO("Started listing existing operations");
+
             static const std::vector<TString> attributeKeys = {
                 "state"
             };
@@ -715,11 +714,14 @@ private:
                     auto state = operationNode->Attributes().Get<EOperationState>("state");
                     if (IsOperationInProgress(state)) {
                         OperationIds_.push_back(id);
+                        LOG_DEBUG("Found operation in Cypress (OperationId: %v, State: %v)",
+                            id,
+                            state);
                     }
                 }
             }
 
-            LOG_INFO("Operations list received (RunningOperationCount: %v)", OperationIds_.size());
+            LOG_INFO("Finished listing existing operations");
         }
 
         // - Request attributes for unfinished operations.
@@ -1152,6 +1154,7 @@ private:
         std::fill(CancelableControlInvokers_.begin(), CancelableControlInvokers_.end(), nullptr);
 
         State_.store(EMasterConnectorState::Disconnected);
+        ConnectionTime_.store(TInstant::Zero());
     }
 
     void DoDisconnect(const TError& error) noexcept

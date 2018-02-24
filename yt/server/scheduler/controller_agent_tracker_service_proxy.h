@@ -18,6 +18,7 @@ public:
     DEFINE_RPC_PROXY(TControllerAgentTrackerServiceProxy, ControllerAgentTrackerService,
         .SetProtocolVersion(1));
 
+    DEFINE_RPC_PROXY_METHOD(NProto, Handshake);
     DEFINE_RPC_PROXY_METHOD(NProto, Heartbeat);
 };
 
