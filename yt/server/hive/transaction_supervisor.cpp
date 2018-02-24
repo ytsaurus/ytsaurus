@@ -1485,15 +1485,7 @@ private:
 
     bool IsParticipantUp(const TError& error)
     {
-        if (error.IsOK()) {
-            return true;
-        }
-
-        if (error.FindMatching(NTransactionClient::EErrorCode::NoSuchTransaction)) {
-            return true;
-        }
-
-        return false;
+        return error.IsOK() || !IsChannelFailureError(error);
     }
 
     void OnParticipantResponse(
