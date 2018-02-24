@@ -855,7 +855,7 @@ private:
     using TTreeParameters = TOperationFairShareStrategyTreeOptionsPtr;
 
 public:
-    yhash<TString, TTreeParameters> SchedulingOptionsPerPoolTree;
+    THashMap<TString, TTreeParameters> SchedulingOptionsPerPoolTree;
 
     TOperationStrategyRuntimeParameters();
 };

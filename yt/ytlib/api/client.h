@@ -612,7 +612,7 @@ struct TUpdateOperationParametersOptions
     : public TTimeoutOptions
 {
     TNullable<std::vector<TString>> Owners;
-    yhash<TString, TSchedulingOptionsPtr> SchedulingOptionsPerPoolTree;
+    THashMap<TString, TSchedulingOptionsPtr> SchedulingOptionsPerPoolTree;
 };
 
 struct TDumpJobContextOptions
