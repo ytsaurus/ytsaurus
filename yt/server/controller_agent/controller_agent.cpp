@@ -19,6 +19,8 @@
 #include <yt/ytlib/api/transaction.h>
 #include <yt/ytlib/api/native_connection.h>
 
+#include <yt/ytlib/hive/cluster_directory_synchronizer.h>
+
 #include <yt/ytlib/chunk_client/throttler_manager.h>
 
 #include <yt/ytlib/object_client/helpers.h>
@@ -627,10 +629,12 @@ private:
 
         try {
             OnConnecting();
-            DoPerformHandshake();
+            SyncClusterDirectory();
+            PerformHandshake();
             OnConnected();
         } catch (const std::exception& ex) {
             LOG_WARNING(ex, "Error connecting to scheduler");
+            DoCleanup();
             ScheduleConnect(false);
         }
     }
@@ -652,8 +656,24 @@ private:
         SchedulerConnecting_.Fire();
     }
 
-    void DoPerformHandshake()
+    void SyncClusterDirectory()
     {
+        LOG_INFO("Synchronizing cluster directory");
+
+        WaitFor(Bootstrap_
+            ->GetMasterClient()
+            ->GetNativeConnection()
+            ->GetClusterDirectorySynchronizer()
+            ->Sync())
+            .ThrowOnError();
+
+        LOG_INFO("Cluster directory synchronized");
+    }
+
+    void PerformHandshake()
+    {
+        LOG_INFO("Sending handshake");
+
         auto req = SchedulerProxy_.Handshake();
         req->SetTimeout(Config_->ControllerAgentHandshakeRpcTimeout);
         req->set_agent_id(Bootstrap_->GetAgentId());
@@ -661,6 +681,8 @@ private:
 
         auto rsp = WaitFor(req->Invoke())
             .ValueOrThrow();
+
+        LOG_DEBUG("Handshake succeeded");
 
         IncarnationId_ = FromProto<TIncarnationId>(rsp->incarnation_id());
         // TODO(babenko): config
