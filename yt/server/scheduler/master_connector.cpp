@@ -254,7 +254,6 @@ public:
         return OperationNodesUpdateExecutor_->ExecuteUpdate(operation->GetId());
     }
 
-<<<<<<< HEAD
     TFuture<void> FetchOperationRevivalDescriptors(const std::vector<TOperationPtr>& operations)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -289,7 +288,6 @@ public:
         }
     }
 
-=======
     TFuture<void> UpdateOperationRuntimeParameters(
         TOperationPtr operation,
         const TOperationRuntimeParametersPtr& params)
@@ -306,12 +304,12 @@ public:
         const TOperationRuntimeParametersPtr& params)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(Connected);
+        YCHECK(State_ != EMasterConnectorState::Disconnected);
 
-        auto strategy = Bootstrap->GetScheduler()->GetStrategy();
+        auto strategy = Bootstrap_->GetScheduler()->GetStrategy();
 
         auto batchReq = StartObjectBatchRequest();
-        auto paths = GetCompatibilityOperationPaths(operation->GetId(), operation->GetStorageMode());
+        auto paths = GetCompatibilityOperationPaths(operation->GetId());
 
         auto node = BuildYsonNodeFluently()
             .BeginMap()
@@ -336,7 +334,6 @@ public:
         auto error = GetCumulativeError(rspOrError);
         THROW_ERROR_EXCEPTION_IF_FAILED(error, "Error updating operation %v runtime params", operation->GetId());
     }
->>>>>>> prestable/19.2
 
     void SetSchedulerAlert(ESchedulerAlertType alertType, const TError& alert)
     {
@@ -794,30 +791,11 @@ private:
                 LOG_INFO("Fetching attributes and secure vaults for unfinished operations (UnfinishedOperationCount: %v)",
                     OperationIds_.size());
 
-<<<<<<< HEAD
                 for (const auto& operationId : OperationIds_) {
                     // Keep stuff below in sync with #TryCreateOperationFromAttributes.
 
                     auto  operationAttributesPath = GetOperationPath(operationId) + "/@";
                     auto secureVaultPath = GetSecureVaultPath(operationId);
-=======
-                for (const auto& operationInfo : RunningOperations) {
-                    // Keep stuff below in sync with CreateOperationFromAttributes.
-                    const auto& operationId = operationInfo.Id;
-
-                    NYTree::TYPath operationAttributesPath;
-                    NYTree::TYPath secureVaultPath;
-
-                    if (operationInfo.StorageMode == EOperationCypressStorageMode::Compatible ||
-                        operationInfo.StorageMode == EOperationCypressStorageMode::SimpleHashBuckets)
-                    {
-                        operationAttributesPath = GetOperationPath(operationId) + "/@";
-                        secureVaultPath = GetSecureVaultPath(operationId);
-                    } else {
-                        operationAttributesPath = GetNewOperationPath(operationId) + "/@";
-                        secureVaultPath = GetNewSecureVaultPath(operationId);
-                    }
->>>>>>> prestable/19.2
 
                     // Retrieve operation attributes.
                     {
@@ -913,6 +891,14 @@ private:
                 return nullptr;
             }
 
+            auto runtimeParams = New<TOperationRuntimeParameters>();
+            runtimeParams->Owners = attributes.Get<std::vector<TString>>("owners", spec->Owners);
+            // Merge initial scheduling options and scheduling options set by user while operation was running.
+            auto schedulingOptions = attributes.Find<INodePtr>("scheduling_options_per_pool_tree");
+            if (schedulingOptions) {
+                Deserialize(runtimeParams->SchedulingOptionsPerPoolTree, schedulingOptions);
+            }
+
             auto operation = New<TOperation>(
                 operationId,
                 attributes.Get<EOperationType>("operation_type"),
@@ -920,9 +906,8 @@ private:
                 attributes.Get<TTransactionId>("user_transaction_id"),
                 specNode,
                 secureVault,
-                BuildOperationRuntimeParams(spec),
+                runtimeParams,
                 attributes.Get<TString>("authenticated_user"),
-                attributes.Get<std::vector<TString>>("owners", spec->Owners),
                 attributes.Get<TInstant>("start_time"),
                 Owner_->Bootstrap_->GetControlInvoker(),
                 attributes.Get<EOperationState>("state"),
@@ -1230,47 +1215,15 @@ private:
 
         TForbidContextSwitchGuard contextSwitchGuard;
 
-<<<<<<< HEAD
         if (State_ == EMasterConnectorState::Connected) {
             LOG_WARNING(error, "Disconnecting master");
             MasterDisconnected_.Fire();
             LOG_WARNING("Master disconnected");
-=======
-        auto runtimeParams = New<TOperationRuntimeParameters>();
-        runtimeParams->Owners = attributes.Get<std::vector<TString>>("owners", operationSpec->Owners);
-        // Merge initial scheduling options and scheduling options set by user while operation was running.
-        auto schedulingOptions = attributes.Find<INodePtr>("scheduling_options_per_pool_tree");
-        if (schedulingOptions) {
-            Deserialize(runtimeParams->SchedulingOptionsPerPoolTree, schedulingOptions);
-        }
-
-        result.Operation = New<TOperation>(
-            operationId,
-            attributes.Get<EOperationType>("operation_type"),
-            attributes.Get<TMutationId>("mutation_id"),
-            userTransactionId,
-            spec,
-            runtimeParams,
-            attributes.Get<TString>("authenticated_user"),
-            attributes.Get<TInstant>("start_time"),
-            Bootstrap->GetControlInvoker(),
-            storageMode,
-            attributes.Get<EOperationState>("state"),
-            attributes.Get<bool>("suspended"),
-            attributes.Get<std::vector<TOperationEvent>>("events", {}));
-
-        auto slotIndexMap = attributes.Find<yhash<TString, int>>("slot_index_per_pool_tree");
-        if (slotIndexMap) {
-            for (const auto& pair : *slotIndexMap) {
-                result.Operation->SetSlotIndex(pair.first, pair.second);
-            }
->>>>>>> prestable/19.2
         }
 
         DoCleanup();
         StartConnecting(true);
     }
-
 
     static void BuildOperationAcl(const TOperationPtr& operation, TFluentAny fluent)
     {
@@ -1739,7 +1692,7 @@ TFuture<void> TMasterConnector::UpdateOperationRuntimeParameters(
     TOperationPtr operation,
     const TOperationRuntimeParametersPtr& params)
 {
-    return Impl->UpdateOperationRuntimeParameters(operation, params);
+    return Impl_->UpdateOperationRuntimeParameters(operation, params);
 }
 
 void TMasterConnector::SetSchedulerAlert(ESchedulerAlertType alertType, const TError& alert)

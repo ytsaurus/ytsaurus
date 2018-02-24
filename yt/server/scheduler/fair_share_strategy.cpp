@@ -2036,7 +2036,7 @@ public:
                     params->Weight = optionsIt->second->Weight;
                     params->ResourceLimits = optionsIt->second->ResourceLimits;
                 } else {
-                    if (DefaultFairShareTree_ && treeId == *DefaultFairShareTree_) {
+                    if (DefaultTreeId_ && treeId == *DefaultTreeId_) {
                         params->Weight = spec->Weight;
                         params->ResourceLimits = spec->ResourceLimits;
                     }
@@ -2172,15 +2172,10 @@ public:
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
         const auto& state = GetOperationState(operationId);
-<<<<<<< HEAD
-        if (DefaultTreeId_ && state->TreeIdToPoolIdMap().find(*DefaultTreeId_)) {
-            GetTree(*DefaultTreeId_)->BuildOperationAttributes(operationId, fluent);
-=======
         const auto& pools = state->TreeIdToPoolIdMap();
 
-        if (DefaultFairShareTree_ && pools.find(*DefaultFairShareTree_) != pools.end()) {
-            GetTree(*DefaultFairShareTree_)->BuildOperationAttributes(operationId, fluent);
->>>>>>> prestable/19.2
+        if (DefaultTreeId_ && pools.find(*DefaultTreeId_) != pools.end()) {
+            GetTree(*DefaultTreeId_)->BuildOperationAttributes(operationId, fluent);
         }
     }
 
@@ -2197,8 +2192,8 @@ public:
         auto params = ConvertToAttributes(runtimeParams);
         fluent
             .Items(*params)
-            .DoIf(DefaultFairShareTree_ && pools.find(*DefaultFairShareTree_) != pools.end(), [&] (TFluentMap innerFluent) {
-                auto it = runtimeParams->SchedulingOptionsPerPoolTree.find(*DefaultFairShareTree_);
+            .DoIf(DefaultTreeId_ && pools.find(*DefaultTreeId_) != pools.end(), [&] (TFluentMap innerFluent) {
+                auto it = runtimeParams->SchedulingOptionsPerPoolTree.find(*DefaultTreeId_);
                 if (it == runtimeParams->SchedulingOptionsPerPoolTree.end()) {
                     return;
                 }
@@ -2317,16 +2312,16 @@ public:
         const auto& state = GetOperationState(operation->GetId());
         const auto& pools = state->TreeIdToPoolIdMap();
 
-        if (DefaultFairShareTree_ && pools.find(*DefaultFairShareTree_) != pools.end()) {
+        if (DefaultTreeId_ && pools.find(*DefaultTreeId_) != pools.end()) {
             auto params = operation->GetRuntimeParameters();
-            auto defaultTreeOptionsIt = params->SchedulingOptionsPerPoolTree.find(*DefaultFairShareTree_);
+            auto defaultTreeOptionsIt = params->SchedulingOptionsPerPoolTree.find(*DefaultTreeId_);
             YCHECK(defaultTreeOptionsIt != params->SchedulingOptionsPerPoolTree.end());
 
             ReconfigureYsonSerializable(
                 defaultTreeOptionsIt->second,
                 ConvertToNode(runtimeParams));
 
-            GetTree(*DefaultFairShareTree_)->UpdateOperationRuntimeParameters(operation->GetId(), runtimeParams);
+            GetTree(*DefaultTreeId_)->UpdateOperationRuntimeParameters(operation->GetId(), runtimeParams);
         }
     }
 
@@ -2336,18 +2331,12 @@ public:
 
         std::vector<TString> progressParts;
 
-<<<<<<< HEAD
-        for (const auto& pair : IdToTree_) {
-            const auto& tree = pair.second;
-            progressParts.push_back(tree->GetOperationLoggingProgress(operationId));
-=======
         const auto& state = GetOperationState(operationId);
         const auto& pools = state->TreeIdToPoolIdMap();
 
         for (const auto& pair : pools) {
             const auto& treeId = pair.first;
             progressParts.push_back(GetTree(treeId)->GetOperationLoggingProgress(operationId));
->>>>>>> prestable/19.2
         }
 
         return JoinToString(progressParts.begin(), progressParts.end(), STRINGBUF("; "));

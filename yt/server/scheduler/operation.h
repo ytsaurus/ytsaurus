@@ -256,12 +256,8 @@ public:
         const NRpc::TMutationId& mutationId,
         const NTransactionClient::TTransactionId& userTransactionId,
         NYTree::IMapNodePtr spec,
-<<<<<<< HEAD
         NYTree::IMapNodePtr secureVault,
-        TOperationRuntimeParamsPtr runtimeParams,
-=======
         TOperationRuntimeParametersPtr runtimeParams,
->>>>>>> prestable/19.2
         const TString& authenticatedUser,
         TInstant startTime,
         IInvokerPtr controlInvoker,

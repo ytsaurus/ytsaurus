@@ -124,17 +124,6 @@ TCodicilGuard MakeOperationCodicilGuard(const TOperationId& operationId)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TOperationRuntimeParamsPtr BuildOperationRuntimeParams(const TOperationSpecBasePtr& spec)
-{
-    auto result = New<TOperationRuntimeParams>();
-    result->Weight = spec->Weight.Get(1.0);
-    result->ResourceLimits = spec->ResourceLimits;
-    result->Owners = spec->Owners;
-    return result;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 TJobStatus JobStatusFromError(const TError& error)
 {
     auto status = TJobStatus();

@@ -93,18 +93,16 @@ public:
         const TError& error,
         const TString& user);
 
-<<<<<<< HEAD
+    void UpdateOperationParameters(
+        TOperationPtr operation,
+        const TString& user,
+        const TOperationRuntimeParametersPtr& parameters);
+
     void OnOperationCompleted(const TOperationPtr& operation);
     void OnOperationAborted(const TOperationPtr& operation, const TError& error);
     void OnOperationFailed(const TOperationPtr& operation, const TError& error);
     void OnOperationSuspended(const TOperationPtr& operation, const TError& error);
     void OnOperatonAgentUnregistered(const TOperationPtr& operation);
-=======
-    void UpdateOperationParameters(
-        TOperationPtr operation,
-        const TString& user,
-        const TOperationRuntimeParametersPtr& parameters);
->>>>>>> prestable/19.2
 
     TFuture<NYson::TYsonString> Strace(const TJobId& jobId, const TString& user);
     TFuture<void> DumpInputContext(const TJobId& jobId, const NYPath::TYPath& path, const TString& user);
