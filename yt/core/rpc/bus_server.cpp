@@ -82,12 +82,8 @@ private:
 
         auto requestId = FromProto<TRequestId>(header->request_id());
         const auto& serviceName = header->service();
-        const auto& methodName = header->method();
         auto realmId = FromProto<TRealmId>(header->realm_id());
-        auto timeout = header->has_timeout() ? MakeNullable(FromProto<TDuration>(header->timeout())) : Null;
-        auto tosLevel = header->has_tos_level() ? header->tos_level() : DefaultTosLevel;
-        auto startTime = header->has_start_time() ? MakeNullable(FromProto<TInstant>(header->start_time())) : Null;
-        bool isRetry = header->retry();
+        auto tosLevel = header->tos_level();
 
         if (message.Size() < 2) {
             LOG_ERROR("Too few request parts: expected >= 2, actual %v (RequestId: %v)",
@@ -96,18 +92,8 @@ private:
             return;
         }
 
-        LOG_DEBUG("Request received (Method: %v:%v, RealmId: %v, RequestId: %v, User: %v, "
-            "Timeout: %v, TosLevel: %x, Endpoint: %v, StartTime: %v, Retry: %v)",
-            serviceName,
-            methodName,
-            realmId,
-            requestId,
-            header->has_user() ? header->user() : RootUserName,
-            timeout,
-            tosLevel,
-            replyBus->GetEndpointDescription(),
-            startTime,
-            isRetry);
+        LOG_DEBUG("Request received (RequestId: %v)",
+            requestId);
 
         auto replyWithError = [&] (const TError& error) {
             LOG_DEBUG(error);

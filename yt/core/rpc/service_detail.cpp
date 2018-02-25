@@ -81,6 +81,7 @@ public:
         const NTracing::TTraceContext& traceContext,
         std::unique_ptr<NProto::TRequestHeader> header,
         TSharedRefArray requestMessage,
+        TString globalRequestInfo,
         const NLogging::TLogger& logger,
         NLogging::ELogLevel logLevel)
         : TServiceContextBase(
@@ -92,6 +93,7 @@ public:
         , RequestId_(requestId)
         , ReplyBus_(std::move(replyBus))
         , RuntimeInfo_(std::move(runtimeInfo))
+        , GlobalRequestInfo_(std::move(globalRequestInfo))
         , PerformanceCounters_(Service_->LookupMethodPerformanceCounters(RuntimeInfo_, User_))
         , TraceContext_(traceContext)
         , ArrivalInstant_(GetCpuInstant())
@@ -200,6 +202,7 @@ private:
     const TRequestId RequestId_;
     const IBusPtr ReplyBus_;
     const TRuntimeMethodInfoPtr RuntimeInfo_;
+    const TString GlobalRequestInfo_;
     TMethodPerformanceCounters* const PerformanceCounters_;
     const NTracing::TTraceContext TraceContext_;
 
@@ -219,6 +222,7 @@ private:
     std::atomic_flag TimedOutLatch_ = ATOMIC_FLAG_INIT;
     std::atomic_flag RunLatch_ = ATOMIC_FLAG_INIT;
     bool FinalizeLatch_ = false;
+
 
     void Initialize()
     {
@@ -397,41 +401,18 @@ private:
     virtual void LogRequest() override
     {
         TStringBuilder builder;
-        builder.AppendFormat("%v <- ",
+        builder.AppendFormat("%v:%v <- ",
+            GetService(),
             GetMethod());
 
         TDelimitedStringBuilderWrapper delimitedBuilder(&builder);
 
-        if (RequestId_) {
-            delimitedBuilder->AppendFormat("RequestId: %v", GetRequestId());
+        if (GlobalRequestInfo_) {
+            delimitedBuilder->AppendString(GlobalRequestInfo_);
         }
-
-        if (RealmId_) {
-            delimitedBuilder->AppendFormat("RealmId: %v", GetRealmId());
-        }
-
-        if (User_ != RootUserName) {
-            delimitedBuilder->AppendFormat("User: %v", User_);
-        }
-
-        auto mutationId = GetMutationId();
-        if (mutationId) {
-            delimitedBuilder->AppendFormat("MutationId: %v", mutationId);
-        }
-
-        delimitedBuilder->AppendFormat("Retry: %v", IsRetry());
-
-        if (RequestHeader_->has_timeout()) {
-            delimitedBuilder->AppendFormat("Timeout: %v", FromProto<TDuration>(RequestHeader_->timeout()));
-        }
-
-        delimitedBuilder->AppendFormat("BodySize: %v, AttachmentsSize: %v/%v",
-            GetMessageBodySize(RequestMessage_),
-            GetTotalMesageAttachmentSize(RequestMessage_),
-            GetMessageAttachmentCount(RequestMessage_));
 
         if (RequestInfo_) {
-            delimitedBuilder->AppendFormat("%v", RequestInfo_);
+            delimitedBuilder->AppendString(RequestInfo_);
         }
 
         LOG_EVENT(Logger, LogLevel_, builder.Flush());
@@ -440,7 +421,8 @@ private:
     virtual void LogResponse() override
     {
         TStringBuilder builder;
-        builder.AppendFormat("%v -> ",
+        builder.AppendFormat("%v:%v -> ",
+            GetService(),
             GetMethod());
 
         TDelimitedStringBuilderWrapper delimitedBuilder(&builder);
@@ -559,6 +541,11 @@ void TServiceBase::HandleRequest(
     auto traceContext = GetTraceContext(*header);
     NTracing::TTraceContextGuard traceContextGuard(traceContext);
 
+    auto globalRequestInfo = FormatRequestInfo(
+        message,
+        *header,
+        replyBus);
+
     auto context = New<TServiceContext>(
         this,
         requestId,
@@ -567,6 +554,7 @@ void TServiceBase::HandleRequest(
         traceContext,
         std::move(header),
         std::move(message),
+        std::move(globalRequestInfo),
         Logger,
         runtimeInfo->Descriptor.LogLevel);
 
@@ -890,6 +878,54 @@ std::vector<TString> TServiceBase::SuggestAddresses()
     VERIFY_THREAD_AFFINITY_ANY();
 
     return std::vector<TString>();
+}
+
+TString TServiceBase::FormatRequestInfo(
+    const TSharedRefArray& message,
+    const NProto::TRequestHeader& header,
+    const IBusPtr& replyBus)
+{
+    TStringBuilder builder;
+    TDelimitedStringBuilderWrapper delimitedBuilder(&builder);
+
+    if (header.has_request_id()) {
+        delimitedBuilder->AppendFormat("RequestId: %v", FromProto<TRequestId>(header.request_id()));
+    }
+
+    if (header.has_realm_id()) {
+        delimitedBuilder->AppendFormat("RealmId: %v", FromProto<TRealmId>(header.realm_id()));
+    }
+
+    if (header.has_user()) {
+        delimitedBuilder->AppendFormat("User: %v", header.user());
+    }
+
+    if (header.has_mutation_id()) {
+        delimitedBuilder->AppendFormat("MutationId: %v", FromProto<TMutationId>(header.mutation_id()));
+    }
+
+    if (header.has_start_time()) {
+        delimitedBuilder->AppendFormat("StartTime: %v", FromProto<TInstant>(header.start_time()));
+    }
+
+    delimitedBuilder->AppendFormat("Retry: %v", header.retry());
+
+    if (header.has_timeout()) {
+        delimitedBuilder->AppendFormat("Timeout: %v", FromProto<TDuration>(header.timeout()));
+    }
+
+    if (header.tos_level() != NBus::DefaultTosLevel) {
+        delimitedBuilder->AppendFormat("TosLevel: %x", header.tos_level());
+    }
+
+    delimitedBuilder->AppendFormat("Endpoint: %v", replyBus->GetEndpointDescription());
+
+    delimitedBuilder->AppendFormat("BodySize: %v, AttachmentsSize: %v/%v",
+        GetMessageBodySize(message),
+        GetTotalMesageAttachmentSize(message),
+        GetMessageAttachmentCount(message));
+
+    return builder.Flush();
 }
 
 DEFINE_RPC_SERVICE_METHOD(TServiceBase, Discover)

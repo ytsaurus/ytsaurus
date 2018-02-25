@@ -547,6 +547,10 @@ private:
         const TRuntimeMethodInfoPtr& runtimeInfo,
         const TString& user);
 
+    static TString FormatRequestInfo(
+        const TSharedRefArray& message,
+        const NProto::TRequestHeader& header,
+        const NBus::IBusPtr& replyBus);
 };
 
 DEFINE_REFCOUNTED_TYPE(TServiceBase)
