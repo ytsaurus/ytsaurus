@@ -169,7 +169,7 @@ public:
             .GreaterThanOrEqual(0)
             .Default(0);
         RegisterParameter("cell_scan_period", CellScanPeriod)
-            .Default(TDuration::Seconds(1));
+            .Default(TDuration::Seconds(5));
         RegisterParameter("tablet_data_size_footprint", TabletDataSizeFootprint)
             .GreaterThanOrEqual(0)
             .Default(64_MB);
