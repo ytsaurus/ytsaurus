@@ -556,7 +556,7 @@ void TBootstrap::DoInitialize()
         CellDirectory_,
         TabletManager_,
         HydraFacade_->GetHydraManager(),
-        HydraFacade_->GetAutomatonInvoker(EAutomatonThreadQueue::HiveManager));
+        HydraFacade_->GetAutomatonInvoker(EAutomatonThreadQueue::Periodic));
     CellDirectorySynchronizer_->Start();
 
     MonitoringManager_ = New<TMonitoringManager>();
