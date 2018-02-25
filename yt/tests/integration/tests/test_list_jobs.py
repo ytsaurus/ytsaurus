@@ -83,7 +83,7 @@ class TestListJobs(YTEnvSetup):
             out="//tmp/t2",
             precommand="echo STDERR-OUTPUT >&2; cat",
             mapper_command='test $YT_JOB_INDEX -eq "1" && exit 1',
-            reducer_command="echo foo >&2; cat",
+            reducer_command="echo foo >&2; sleep 10; cat",
             sort_by="foo",
             reduce_by="foo",
             spec={
@@ -93,6 +93,11 @@ class TestListJobs(YTEnvSetup):
                 },
                 "map_job_count" : 3
             })
+            
+        jobs_path = "//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op.id)
+
+        progress_path = "//sys/scheduler/orchid/scheduler/operations/{0}/progress/jobs".format(op.id)
+        wait(lambda: get(progress_path)["failed"] == 1)
 
         job_ids = op.jobs[:]
 
@@ -100,10 +105,14 @@ class TestListJobs(YTEnvSetup):
 
         aborted_jobs = []
 
+        job_aborted = False
         for job in job_ids:
-            abort_job(job)
-            aborted_jobs.append(job)
-            break
+            if job in get(jobs_path):
+                abort_job(job)
+                aborted_jobs.append(job)
+                job_aborted = True
+                break
+        assert job_aborted
 
         sleep(1)
 
