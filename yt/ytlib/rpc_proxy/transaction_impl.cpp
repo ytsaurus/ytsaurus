@@ -687,7 +687,7 @@ TFuture<void> TTransaction::SendPing()
                 GetState() == ETransactionState::Active)
             {
                 // Hard error.
-                LOG_WARNING("Transaction has expired or was aborted (TransactionId: %v)",
+                LOG_DEBUG("Transaction has expired or was aborted (TransactionId: %v)",
                     Id_);
                 auto error = TError("Transaction %v has expired or was aborted",
                     Id_);
@@ -695,7 +695,7 @@ TFuture<void> TTransaction::SendPing()
                 THROW_ERROR error;
             } else {
                 // Soft error.
-                LOG_WARNING(rspOrError, "Error pinging transaction (TransactionId: %v)",
+                LOG_DEBUG(rspOrError, "Error pinging transaction (TransactionId: %v)",
                     Id_);
                 THROW_ERROR_EXCEPTION("Failed to ping transaction %v",
                     Id_)
