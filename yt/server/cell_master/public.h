@@ -53,6 +53,7 @@ DEFINE_ENUM(EAutomatonThreadQueue,
     (TabletManager)
     (ExpirationTracker)
     (TabletBalancer)
+    (TabletTracker)
     (Periodic)
     (Mutation)
     (ChunkMaintenance)
