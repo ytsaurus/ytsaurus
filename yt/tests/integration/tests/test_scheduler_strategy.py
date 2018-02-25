@@ -9,6 +9,7 @@ import __builtin__
 import datetime
 
 import os
+import sys
 
 EPS = 1e-4
 
@@ -594,6 +595,14 @@ class TestSchedulerOperationLimits(YTEnvSetup):
 
         for i in xrange(3, 5):
             run(i, "production", False)
+
+        pools_path = "//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/default/fair_share_info/pools"
+        wait(lambda: get(pools_path + "/production/running_operation_count") == 1)
+        wait(lambda: get(pools_path + "/production/operation_count") == 2)
+        wait(lambda: get(pools_path + "/research/running_operation_count") == 1)
+        wait(lambda: get(pools_path + "/research/operation_count") == 3)
+        wait(lambda: get(pools_path + "/<Root>/running_operation_count") == 2)
+        wait(lambda: get(pools_path + "/<Root>/operation_count") == 5)
 
         for op in ops:
             op.abort()
