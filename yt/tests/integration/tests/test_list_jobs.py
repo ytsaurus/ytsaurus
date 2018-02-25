@@ -69,15 +69,9 @@ class TestListJobs(YTEnvSetup):
             label="list_jobs",
             in_="//tmp/t1",
             out="//tmp/t2",
-<<<<<<< HEAD
             # Jobs write to stderr so they will be saved.
             mapper_command=with_breakpoint("""echo foo >&2 ; cat; test $YT_JOB_INDEX -eq "1" && exit 1 ; BREAKPOINT"""),
             reducer_command="echo foo >&2 ; cat",
-=======
-            precommand="echo STDERR-OUTPUT >&2; cat",
-            mapper_command='test $YT_JOB_INDEX -eq "1" && exit 1',
-            reducer_command="echo foo >&2; cat",
->>>>>>> prestable/19.2
             sort_by="foo",
             reduce_by="foo",
             spec={
