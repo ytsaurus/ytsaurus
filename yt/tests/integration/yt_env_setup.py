@@ -174,6 +174,7 @@ class YTEnvSetup(object):
     ENABLE_MULTICELL_TEARDOWN = True
     NUM_NODES = 5
     NUM_SCHEDULERS = 0
+    NUM_CONTROLLER_AGENTS = None
     ENABLE_PROXY = False
     ENABLE_RPC_PROXY = False
     NUM_SKYNET_MANAGERS = 0
@@ -195,6 +196,10 @@ class YTEnvSetup(object):
 
     @classmethod
     def modify_scheduler_config(cls, config):
+        pass
+
+    @classmethod
+    def modify_controller_agent_config(cls, config):
         pass
 
     @classmethod
@@ -230,6 +235,7 @@ class YTEnvSetup(object):
             secondary_master_cell_count=cls.get_param("NUM_SECONDARY_MASTER_CELLS", index),
             node_count=cls.get_param("NUM_NODES", index),
             scheduler_count=cls.get_param("NUM_SCHEDULERS", index),
+            controller_agent_count=cls.get_param("NUM_CONTROLLER_AGENTS", index),
             has_proxy=cls.get_param("ENABLE_PROXY", index),
             has_rpc_proxy=cls.get_param("ENABLE_RPC_PROXY", index),
             skynet_manager_count=cls.get_param("NUM_SKYNET_MANAGERS", index),
@@ -336,6 +342,10 @@ class YTEnvSetup(object):
             # TODO(ignat): use update_inplace
             configs["scheduler"][index] = update(config, cls.get_param("DELTA_SCHEDULER_CONFIG", cluster_index))
             cls.modify_scheduler_config(configs["scheduler"][index])
+        for index, config in enumerate(configs["controller_agent"]):
+            # TODO(ignat): use update_inplace
+            configs["controller_agent"][index] = update(config, cls.get_param("DELTA_SCHEDULER_CONFIG", cluster_index))
+            cls.modify_controller_agent_config(configs["controller_agent"][index])
         for index, config in enumerate(configs["node"]):
             # TODO(ignat): use update_inplace
             configs["node"][index] = update(config, cls.get_param("DELTA_NODE_CONFIG", cluster_index))

@@ -106,8 +106,7 @@ void TBootstrap::Run()
         .Get()
         .ThrowOnError();
 
-    // XXX(babenko): finish separation
-    //Sleep(TDuration::Max());
+    Sleep(TDuration::Max());
 }
 
 void TBootstrap::DoRun()
