@@ -160,9 +160,7 @@ private:
             requestCodecId,
             responseCodecId,
             sessionId,
-            retentionConfig
-                ? ConvertToYsonString(retentionConfig, EYsonFormat::Text).GetData()
-                : TString("<nullptr>"));
+            retentionConfig);
 
         auto* requestCodec = NCompression::GetCodec(requestCodecId);
         auto* responseCodec = NCompression::GetCodec(responseCodecId);
