@@ -274,8 +274,8 @@ private:
     void DoSetAttribute(const TYPath& path, const NYson::TYsonString& newYson);
     void DoRemoveAttribute(const TYPath& path, bool force);
 
-    bool GuardedSetBuiltinAttribute(const TString& key, const NYson::TYsonString& value);
-    bool GuardedRemoveBuiltinAttribute(const TString& key);
+    bool GuardedSetBuiltinAttribute(TInternedAttributeKey key, const NYson::TYsonString& value);
+    bool GuardedRemoveBuiltinAttribute(TInternedAttributeKey key);
 
     void ValidateAttributeKey(const TString& key) const;
 };
@@ -285,11 +285,11 @@ private:
 class TBuiltinAttributeKeysCache
 {
 public:
-    const THashSet<const char*>& GetBuiltinAttributeKeys(ISystemAttributeProvider* provider);
+    const THashSet<TInternedAttributeKey>& GetBuiltinAttributeKeys(ISystemAttributeProvider* provider);
 
 private:
     bool Initialized_ = false;
-    THashSet<const char*> BuiltinKeys_;
+    THashSet<TInternedAttributeKey> BuiltinKeys_;
 
 };
 

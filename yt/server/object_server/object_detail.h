@@ -91,11 +91,11 @@ protected:
 
     // NYTree::ISystemAttributeProvider members
     virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override;
-    virtual const THashSet<const char*>& GetBuiltinAttributeKeys() override;
-    virtual bool GetBuiltinAttribute(const TString& key, NYson::IYsonConsumer* consumer) override;
-    virtual TFuture<NYson::TYsonString> GetBuiltinAttributeAsync(const TString& key) override;
-    virtual bool SetBuiltinAttribute(const TString& key, const NYson::TYsonString& value) override;
-    virtual bool RemoveBuiltinAttribute(const TString& key) override;
+    virtual const THashSet<NYTree::TInternedAttributeKey>& GetBuiltinAttributeKeys() override;
+    virtual bool GetBuiltinAttribute(NYTree::TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override;
+    virtual TFuture<NYson::TYsonString> GetBuiltinAttributeAsync(NYTree::TInternedAttributeKey key) override;
+    virtual bool SetBuiltinAttribute(NYTree::TInternedAttributeKey key, const NYson::TYsonString& value) override;
+    virtual bool RemoveBuiltinAttribute(NYTree::TInternedAttributeKey key) override;
 
     //! Called before attribute #key is updated (added, removed or changed).
     virtual void ValidateCustomAttributeUpdate(

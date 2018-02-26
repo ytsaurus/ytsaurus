@@ -48,127 +48,129 @@ private:
     {
         TBase::ListSystemAttributes(descriptors);
 
-        descriptors->push_back(TAttributeDescriptor("banned")
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Banned)
             .SetWritable(true)
             .SetReplicated(true));
-        descriptors->push_back(TAttributeDescriptor("request_rate_limit")
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::RequestRateLimit)
             .SetWritable(true)
             .SetReplicated(true));
-        descriptors->push_back(TAttributeDescriptor("request_queue_size_limit")
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::RequestQueueSizeLimit)
             .SetWritable(true)
             .SetReplicated(true));
-        descriptors->push_back("access_time");
-        descriptors->push_back("request_count");
-        descriptors->push_back("read_request_time");
-        descriptors->push_back("write_request_time");
-        descriptors->push_back(TAttributeDescriptor("multicell_statistics")
+        descriptors->push_back(EInternedAttributeKey::AccessTime);
+        descriptors->push_back(EInternedAttributeKey::RequestCount);
+        descriptors->push_back(EInternedAttributeKey::ReadRequestTime);
+        descriptors->push_back(EInternedAttributeKey::WriteRequestTime);
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::MulticellStatistics)
             .SetOpaque(true));
-        descriptors->push_back(TAttributeDescriptor("usable_accounts")
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::UsableAccounts)
             .SetOpaque(true));
     }
 
-    virtual bool GetBuiltinAttribute(const TString& key, NYson::IYsonConsumer* consumer) override
+    virtual bool GetBuiltinAttribute(TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override
     {
         auto* user = GetThisImpl();
 
-        if (key == "banned") {
-            BuildYsonFluently(consumer)
-                .Value(user->GetBanned());
-            return true;
-        }
+        switch (key) {
+            case EInternedAttributeKey::Banned:
+                BuildYsonFluently(consumer)
+                    .Value(user->GetBanned());
+                return true;
 
-        if (key == "request_rate_limit") {
-            BuildYsonFluently(consumer)
-                .Value(user->GetRequestRateLimit());
-            return true;
-        }
+            case EInternedAttributeKey::RequestRateLimit:
+                BuildYsonFluently(consumer)
+                    .Value(user->GetRequestRateLimit());
+                return true;
 
-        if (key == "request_queue_size_limit") {
-            BuildYsonFluently(consumer)
-                .Value(user->GetRequestQueueSizeLimit());
-            return true;
-        }
+            case EInternedAttributeKey::RequestQueueSizeLimit:
+                BuildYsonFluently(consumer)
+                    .Value(user->GetRequestQueueSizeLimit());
+                return true;
 
-        if (key == "access_time") {
-            BuildYsonFluently(consumer)
-                .Value(user->ClusterStatistics().AccessTime);
-            return true;
-        }
+            case EInternedAttributeKey::AccessTime:
+                BuildYsonFluently(consumer)
+                    .Value(user->ClusterStatistics().AccessTime);
+                return true;
 
-        if (key == "request_count") {
-            BuildYsonFluently(consumer)
-                .Value(user->ClusterStatistics().RequestCount);
-            return true;
-        }
+            case EInternedAttributeKey::RequestCount:
+                BuildYsonFluently(consumer)
+                    .Value(user->ClusterStatistics().RequestCount);
+                return true;
 
-        if (key == "read_request_time") {
-            BuildYsonFluently(consumer)
-                .Value(user->ClusterStatistics().ReadRequestTime);
-            return true;
-        }
+            case EInternedAttributeKey::ReadRequestTime:
+                BuildYsonFluently(consumer)
+                    .Value(user->ClusterStatistics().ReadRequestTime);
+                return true;
 
-        if (key == "write_request_time") {
-            BuildYsonFluently(consumer)
-                .Value(user->ClusterStatistics().WriteRequestTime);
-            return true;
-        }
+            case EInternedAttributeKey::WriteRequestTime:
+                BuildYsonFluently(consumer)
+                    .Value(user->ClusterStatistics().WriteRequestTime);
+                return true;
 
-        if (key == "multicell_statistics") {
-            BuildYsonFluently(consumer)
-                .DoMapFor(user->MulticellStatistics(), [] (TFluentMap fluent, const std::pair<TCellTag, const TUserStatistics&>& pair) {
-                    fluent.Item(ToString(pair.first)).Value(pair.second);
-                });
-            return true;
-        }
+            case EInternedAttributeKey::MulticellStatistics:
+                BuildYsonFluently(consumer)
+                    .DoMapFor(user->MulticellStatistics(), [] (TFluentMap fluent, const std::pair<TCellTag, const TUserStatistics&>& pair) {
+                        fluent.Item(ToString(pair.first)).Value(pair.second);
+                    });
+                return true;
 
-        if (key == "usable_accounts") {
-            const auto& securityManager = Bootstrap_->GetSecurityManager();
-            BuildYsonFluently(consumer)
-                .DoListFor(securityManager->Accounts(), [&] (TFluentList fluent, const std::pair<const TAccountId, TAccount*>& pair) {
-                    auto* account = pair.second;
+            case EInternedAttributeKey::UsableAccounts: {
+                const auto& securityManager = Bootstrap_->GetSecurityManager();
+                BuildYsonFluently(consumer)
+                    .DoListFor(securityManager->Accounts(), [&] (TFluentList fluent, const std::pair<const TAccountId, TAccount*>& pair) {
+                        auto* account = pair.second;
 
-                    if (!IsObjectAlive(account)) {
-                        return;
-                    }
+                        if (!IsObjectAlive(account)) {
+                            return;
+                        }
 
-                    auto permissionCheckResult = securityManager->CheckPermission(account, user, EPermission::Use);
-                    if (permissionCheckResult.Action == ESecurityAction::Allow) {
-                        fluent.Item().Value(account->GetName());
-                    }
-                });
-            return true;
+                        auto permissionCheckResult = securityManager->CheckPermission(account, user, EPermission::Use);
+                        if (permissionCheckResult.Action == ESecurityAction::Allow) {
+                            fluent.Item().Value(account->GetName());
+                        }
+                    });
+                return true;
+            }
+
+            default:
+                break;
         }
 
         return TBase::GetBuiltinAttribute(key, consumer);
     }
 
-    virtual bool SetBuiltinAttribute(const TString& key, const TYsonString& value) override
+    virtual bool SetBuiltinAttribute(TInternedAttributeKey key, const TYsonString& value) override
     {
         auto* user = GetThisImpl();
         const auto& securityManager = Bootstrap_->GetSecurityManager();
 
-        if (key == "banned") {
-            auto banned = ConvertTo<bool>(value);
-            securityManager->SetUserBanned(user, banned);
-            return true;
-        }
-
-        if (key == "request_rate_limit") {
-            auto limit = ConvertTo<double>(value);
-            if (limit < 0) {
-                THROW_ERROR_EXCEPTION("\"request_rate_limit\" cannot be negative");
+        switch (key) {
+            case EInternedAttributeKey::Banned: {
+                auto banned = ConvertTo<bool>(value);
+                securityManager->SetUserBanned(user, banned);
+                return true;
             }
-            securityManager->SetUserRequestRateLimit(user, limit);
-            return true;
-        }
 
-        if (key == "request_queue_size_limit") {
-            auto limit = ConvertTo<int>(value);
-            if (limit < 0) {
-                THROW_ERROR_EXCEPTION("\"request_queue_size_limit\" cannot be negative");
+            case EInternedAttributeKey::RequestRateLimit: {
+                auto limit = ConvertTo<double>(value);
+                if (limit < 0) {
+                    THROW_ERROR_EXCEPTION("\"request_rate_limit\" cannot be negative");
+                }
+                securityManager->SetUserRequestRateLimit(user, limit);
+                return true;
             }
-            securityManager->SetUserRequestQueueSizeLimit(user, limit);
-            return true;
+
+            case EInternedAttributeKey::RequestQueueSizeLimit: {
+                auto limit = ConvertTo<int>(value);
+                if (limit < 0) {
+                    THROW_ERROR_EXCEPTION("\"request_queue_size_limit\" cannot be negative");
+                }
+                securityManager->SetUserRequestQueueSizeLimit(user, limit);
+                return true;
+            }
+
+            default:
+                break;
         }
 
         return TBase::SetBuiltinAttribute(key, value);

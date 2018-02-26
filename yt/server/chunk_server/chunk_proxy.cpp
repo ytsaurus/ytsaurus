@@ -14,6 +14,7 @@
 #include <yt/server/node_tracker_server/node_directory_builder.h>
 #include <yt/server/node_tracker_server/node_tracker.h>
 
+#include <yt/server/object_server/interned_attributes.h>
 #include <yt/server/object_server/object_detail.h>
 
 #include <yt/server/security_server/account.h>
@@ -74,91 +75,91 @@ private:
         bool hasBoundaryKeysExt = HasProtoExtension<TBoundaryKeysExt>(chunk->ChunkMeta().extensions());
         auto isForeign = chunk->IsForeign();
 
-        descriptors->push_back(TAttributeDescriptor("cached_replicas")
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::CachedReplicas)
             .SetPresent(!isForeign));
-        descriptors->push_back(TAttributeDescriptor("stored_replicas")
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::StoredReplicas)
             .SetPresent(!isForeign));
-        descriptors->push_back(TAttributeDescriptor("last_seen_replicas")
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::LastSeenReplicas)
             .SetPresent(!isForeign));
-        descriptors->push_back(TAttributeDescriptor("movable")
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Movable)
             .SetPresent(!isForeign));
-        descriptors->push_back(TAttributeDescriptor("media")
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Media)
             .SetPresent(!isForeign));
-        descriptors->push_back(TAttributeDescriptor("vital")
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Vital)
             .SetPresent(!isForeign));
-        descriptors->push_back(TAttributeDescriptor("requisition")
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Requisition)
             .SetPresent(!isForeign));
-        descriptors->push_back(TAttributeDescriptor("local_requisition")
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::LocalRequisition)
             .SetPresent(!isForeign));
-        descriptors->push_back(TAttributeDescriptor("external_requisitions")
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ExternalRequisitions)
             .SetPresent(!isForeign));
-        descriptors->push_back(TAttributeDescriptor("replication_status")
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ReplicationStatus)
             .SetPresent(!isForeign));
-        descriptors->push_back(TAttributeDescriptor("available")
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Available)
             .SetPresent(!isForeign));
-        descriptors->push_back("confirmed");
-        descriptors->push_back(TAttributeDescriptor("erasure_codec")
+        descriptors->push_back(EInternedAttributeKey::Confirmed);
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ErasureCodec)
             .SetPresent(chunk->IsErasure()));
-        descriptors->push_back("master_meta_size");
-        descriptors->push_back(TAttributeDescriptor("parent_ids")
+        descriptors->push_back(EInternedAttributeKey::MasterMetaSize);
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ParentIds)
             .SetOpaque(true));
-        descriptors->push_back(TAttributeDescriptor("owning_nodes")
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::OwningNodes)
             .SetOpaque(true));
-        descriptors->push_back(TAttributeDescriptor("exports")
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Exports)
             .SetOpaque(true));
-        descriptors->push_back(TAttributeDescriptor("disk_space")
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::DiskSpace)
             .SetPresent(chunk->IsConfirmed()));
-        descriptors->push_back(TAttributeDescriptor("chunk_type")
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ChunkType)
             .SetPresent(chunk->IsConfirmed()));
-        descriptors->push_back(TAttributeDescriptor("table_chunk_format")
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::TableChunkFormat)
             .SetPresent(chunk->IsConfirmed() && EChunkType(chunk->ChunkMeta().type()) == EChunkType::Table));
-        descriptors->push_back(TAttributeDescriptor("meta_size")
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::MetaSize)
             .SetPresent(chunk->IsConfirmed() && miscExt.has_meta_size()));
-        descriptors->push_back(TAttributeDescriptor("compressed_data_size")
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::CompressedDataSize)
             .SetPresent(chunk->IsConfirmed() && miscExt.has_compressed_data_size()));
-        descriptors->push_back(TAttributeDescriptor("uncompressed_data_size")
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::UncompressedDataSize)
             .SetPresent(chunk->IsConfirmed() && miscExt.has_uncompressed_data_size()));
-        descriptors->push_back(TAttributeDescriptor("data_weight")
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::DataWeight)
             .SetPresent(chunk->IsConfirmed() && miscExt.has_data_weight()));
-        descriptors->push_back(TAttributeDescriptor("compression_codec")
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::CompressionCodec)
             .SetPresent(chunk->IsConfirmed() && miscExt.has_compression_codec()));
-        descriptors->push_back(TAttributeDescriptor("row_count")
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::RowCount)
             .SetPresent(chunk->IsConfirmed() && miscExt.has_row_count()));
-        descriptors->push_back(TAttributeDescriptor("max_block_size")
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::MaxBlockSize)
             .SetPresent(chunk->IsConfirmed() && miscExt.has_max_block_size()));
-        descriptors->push_back(TAttributeDescriptor("quorum_row_count")
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::QuorumRowCount)
             .SetPresent(chunk->IsJournal())
             .SetOpaque(true));
-        descriptors->push_back(TAttributeDescriptor("sealed")
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Sealed)
             .SetPresent(chunk->IsJournal()));
-        descriptors->push_back(TAttributeDescriptor("value_count")
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ValueCount)
             .SetPresent(chunk->IsConfirmed() && miscExt.has_value_count()));
-        descriptors->push_back(TAttributeDescriptor("sorted")
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Sorted)
             .SetPresent(chunk->IsConfirmed() && miscExt.has_sorted()));
-        descriptors->push_back(TAttributeDescriptor("min_timestamp")
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::MinTimestamp)
             .SetPresent(chunk->IsConfirmed() && miscExt.has_min_timestamp()));
-        descriptors->push_back(TAttributeDescriptor("max_timestamp")
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::MaxTimestamp)
             .SetPresent(chunk->IsConfirmed() && miscExt.has_max_timestamp()));
-        descriptors->push_back(TAttributeDescriptor("staging_transaction_id")
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::StagingTransactionId)
             .SetPresent(chunk->IsStaged()));
-        descriptors->push_back(TAttributeDescriptor("staging_account")
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::StagingAccount)
             .SetPresent(chunk->IsStaged()));
-        descriptors->push_back(TAttributeDescriptor("min_key")
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::MinKey)
             .SetPresent(hasBoundaryKeysExt));
-        descriptors->push_back(TAttributeDescriptor("max_key")
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::MaxKey)
             .SetPresent(hasBoundaryKeysExt));
-        descriptors->push_back(TAttributeDescriptor("read_quorum")
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ReadQuorum)
             .SetPresent(chunk->IsJournal()));
-        descriptors->push_back(TAttributeDescriptor("write_quorum")
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::WriteQuorum)
             .SetPresent(chunk->IsJournal()));
-        descriptors->push_back(TAttributeDescriptor("eden")
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Eden)
             .SetPresent(chunk->IsConfirmed()));
-        descriptors->push_back("scan_flags");
-        descriptors->push_back(TAttributeDescriptor("creation_time")
+        descriptors->push_back(EInternedAttributeKey::ScanFlags);
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::CreationTime)
             .SetPresent(miscExt.has_creation_time()));
     }
 
-    virtual bool GetBuiltinAttribute(const TString& key, IYsonConsumer* consumer) override
+    virtual bool GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer) override
     {
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         const auto& objectManager = Bootstrap_->GetObjectManager();
@@ -214,20 +215,33 @@ private:
                 .DoListFor(replicas, serializeLastSeenReplica);
         };
 
-        if (!isForeign) {
-            if (key == "cached_replicas") {
+        auto isConfirmed = chunk->IsConfirmed();
+        const auto& miscExt = chunk->MiscExt();
+
+        switch (key) {
+            case EInternedAttributeKey::CachedReplicas: {
+                if (isForeign) {
+                    break;
+                }
                 TNodePtrWithIndexesList replicas(chunk->CachedReplicas().begin(), chunk->CachedReplicas().end());
                 serializePhysicalReplicas(consumer, replicas);
                 return true;
             }
 
-            if (key == "stored_replicas") {
+            case EInternedAttributeKey::StoredReplicas: {
+                if (isForeign) {
+                    break;
+                }
                 TNodePtrWithIndexesList replicas(chunk->StoredReplicas().begin(), chunk->StoredReplicas().end());
                 serializePhysicalReplicas(consumer, replicas);
                 return true;
             }
 
-            if (key == "last_seen_replicas") {
+            case EInternedAttributeKey::LastSeenReplicas: {
+                if (isForeign) {
+                    break;
+                }
+
                 TNodePtrWithIndexesList replicas;
                 const auto& nodeTracker = Bootstrap_->GetNodeTracker();
                 auto addReplica = [&] (TNodeId nodeId, int replicaIndex) {
@@ -251,13 +265,20 @@ private:
                 return true;
             }
 
-            if (key == "movable") {
+            case EInternedAttributeKey::Movable:
+                if (isForeign) {
+                    break;
+                }
+
                 BuildYsonFluently(consumer)
                     .Value(chunk->GetMovable());
                 return true;
-            }
 
-            if (key == "replication_status") {
+            case EInternedAttributeKey::ReplicationStatus: {
+                if (isForeign) {
+                    break;
+                }
+
                 RequireLeader();
                 auto statuses = chunkManager->ComputeChunkStatuses(chunk);
 
@@ -287,288 +308,338 @@ private:
                 return true;
             }
 
-            if (key == "available") {
+            case EInternedAttributeKey::Available:
+                if (isForeign) {
+                    break;
+                }
                 BuildYsonFluently(consumer)
                     .Value(chunk->IsAvailable());
                 return true;
-            }
-        }
 
-        if (key == "vital" || key == "media" ) {
-            auto replication = chunk->ComputeReplication(chunkManager->GetChunkRequisitionRegistry());
-            if (!replication) {
-                replication = TChunkReplication();
-            }
+            case EInternedAttributeKey::Vital:
+            case EInternedAttributeKey::Media: {
+                auto replication = chunk->ComputeReplication(chunkManager->GetChunkRequisitionRegistry());
+                if (!replication) {
+                    replication = TChunkReplication();
+                }
 
-            if (key == "vital") {
-                BuildYsonFluently(consumer)
-                    .Value(replication->GetVital());
+                if (key == EInternedAttributeKey::Vital) {
+                    BuildYsonFluently(consumer)
+                        .Value(replication->GetVital());
+                } else {
+                    BuildYsonFluently(consumer)
+                        .Value(TSerializableChunkReplication(*replication, chunkManager));
+                }
                 return true;
-            } else {
+            }
+
+            case EInternedAttributeKey::Requisition: {
+                auto requisition = chunk->ComputeRequisition(chunkManager->GetChunkRequisitionRegistry());
                 BuildYsonFluently(consumer)
-                    .Value(TSerializableChunkReplication(*replication, chunkManager));
+                    .Value(TSerializableChunkRequisition(requisition, chunkManager));
                 return true;
             }
-        }
 
-        if (key == "requisition") {
-            auto requisition = chunk->ComputeRequisition(chunkManager->GetChunkRequisitionRegistry());
-            BuildYsonFluently(consumer)
-                .Value(TSerializableChunkRequisition(requisition, chunkManager));
-            return true;
-        }
+            case EInternedAttributeKey::LocalRequisition: {
+                const auto* requisitionRegistry = chunkManager->GetChunkRequisitionRegistry();
+                const auto& requisition = requisitionRegistry->GetRequisition(chunk->GetLocalRequisitionIndex());
+                BuildYsonFluently(consumer)
+                    .Value(TSerializableChunkRequisition(requisition, chunkManager));
+                return true;
+            }
 
-        if (key == "local_requisition") {
-            const auto* requisitionRegistry = chunkManager->GetChunkRequisitionRegistry();
-            const auto& requisition = requisitionRegistry->GetRequisition(chunk->GetLocalRequisitionIndex());
-            BuildYsonFluently(consumer)
-                .Value(TSerializableChunkRequisition(requisition, chunkManager));
-            return true;
-        }
+            case EInternedAttributeKey::ExternalRequisitions: {
+                const auto* requisitionRegistry = chunkManager->GetChunkRequisitionRegistry();
+                const auto& cellTags = multicellManager->GetRegisteredMasterCellTags();
+                BuildYsonFluently(consumer)
+                    .DoMapFor(0, static_cast<int>(cellTags.size()), [&] (TFluentMap fluent, int index) {
+                        auto cellTag = cellTags[index];
+                        const auto& exportData = chunk->GetExportData(index);
+                        if (exportData.RefCounter > 0) {
+                            auto requisitionIndex = exportData.ChunkRequisitionIndex;
+                            const auto& requisition = requisitionRegistry->GetRequisition(requisitionIndex);
+                            fluent
+                                .Item(ToString(cellTag)).Value(TSerializableChunkRequisition(requisition, chunkManager));
+                        }
+                    });
+                return true;
+            }
 
-        if (key == "external_requisitions") {
-            const auto* requisitionRegistry = chunkManager->GetChunkRequisitionRegistry();
-            const auto& cellTags = multicellManager->GetRegisteredMasterCellTags();
-            BuildYsonFluently(consumer)
-                .DoMapFor(0, static_cast<int>(cellTags.size()), [&] (TFluentMap fluent, int index) {
-                    auto cellTag = cellTags[index];
-                    const auto& exportData = chunk->GetExportData(index);
-                    if (exportData.RefCounter > 0) {
-                        auto requisitionIndex = exportData.ChunkRequisitionIndex;
-                        const auto& requisition = requisitionRegistry->GetRequisition(requisitionIndex);
+            case EInternedAttributeKey::ErasureCodec:
+                if (!chunk->IsErasure()) {
+                    break;
+                }
+                BuildYsonFluently(consumer)
+                    .Value(chunk->GetErasureCodec());
+                return true;
+
+            case EInternedAttributeKey::Confirmed:
+                BuildYsonFluently(consumer)
+                    .Value(isConfirmed);
+                return true;
+
+            case EInternedAttributeKey::MasterMetaSize:
+                BuildYsonFluently(consumer)
+                    .Value(chunk->ChunkMeta().ByteSize());
+                return true;
+
+            case EInternedAttributeKey::Exports: {
+                const auto& cellTags = multicellManager->GetRegisteredMasterCellTags();
+                const auto* requisitionRegistry = chunkManager->GetChunkRequisitionRegistry();
+                BuildYsonFluently(consumer)
+                    .DoMapFor(0, static_cast<int>(cellTags.size()), [&] (TFluentMap fluent, int index) {
+                        auto cellTag = cellTags[index];
+                        const auto& exportData = chunk->GetExportData(index);
+                        if (exportData.RefCounter > 0) {
+                            auto requisitionIndex = exportData.ChunkRequisitionIndex;
+                            const auto& replication = requisitionRegistry->GetReplication(requisitionIndex);
+                            fluent
+                                .Item(ToString(cellTag)).BeginMap()
+                                    .Item("ref_counter").Value(exportData.RefCounter)
+                                    .Item("vital").Value(replication.GetVital())
+                                    .Item("media").Value(TSerializableChunkReplication(replication, chunkManager))
+                                .EndMap();
+                        }
+                    });
+                return true;
+            }
+
+            case EInternedAttributeKey::Sealed:
+                BuildYsonFluently(consumer)
+                    .Value(chunk->IsSealed());
+                return true;
+
+            case EInternedAttributeKey::ParentIds:
+                BuildYsonFluently(consumer)
+                    .DoListFor(chunk->Parents(), [] (TFluentList fluent, const TChunkList* parent) {
                         fluent
-                            .Item(ToString(cellTag)).Value(TSerializableChunkRequisition(requisition, chunkManager));
-                    }
-                });
-            return true;
-        }
+                            .Item().Value(parent->GetId());
+                    });
+                return true;
 
-        if (chunk->IsErasure() && key == "erasure_codec") {
-            BuildYsonFluently(consumer)
-                .Value(chunk->GetErasureCodec());
-            return true;
-        }
-
-        if (key == "confirmed") {
-            BuildYsonFluently(consumer)
-                .Value(chunk->IsConfirmed());
-            return true;
-        }
-
-        if (key == "master_meta_size") {
-            BuildYsonFluently(consumer)
-                .Value(chunk->ChunkMeta().ByteSize());
-            return true;
-        }
-
-        if (key == "exports") {
-            const auto& cellTags = multicellManager->GetRegisteredMasterCellTags();
-            const auto* requisitionRegistry = chunkManager->GetChunkRequisitionRegistry();
-            BuildYsonFluently(consumer)
-                .DoMapFor(0, static_cast<int>(cellTags.size()), [&] (TFluentMap fluent, int index) {
-                    auto cellTag = cellTags[index];
-                    const auto& exportData = chunk->GetExportData(index);
-                    if (exportData.RefCounter > 0) {
-                        auto requisitionIndex = exportData.ChunkRequisitionIndex;
-                        const auto& replication = requisitionRegistry->GetReplication(requisitionIndex);
-                        fluent
-                            .Item(ToString(cellTag)).BeginMap()
-                                .Item("ref_counter").Value(exportData.RefCounter)
-                                .Item("vital").Value(replication.GetVital())
-                                .Item("media").Value(TSerializableChunkReplication(replication, chunkManager))
-                            .EndMap();
-                    }
-                });
-            return true;
-        }
-
-        if (key == "sealed") {
-            BuildYsonFluently(consumer)
-                .Value(chunk->IsSealed());
-            return true;
-        }
-
-        if (key == "parent_ids") {
-            BuildYsonFluently(consumer)
-                .DoListFor(chunk->Parents(), [] (TFluentList fluent, const TChunkList* parent) {
-                    fluent
-                        .Item().Value(parent->GetId());
-                });
-            return true;
-        }
-
-        if (chunk->IsConfirmed()) {
-            const auto& miscExt = chunk->MiscExt();
-
-            if (key == "disk_space") {
+            case EInternedAttributeKey::DiskSpace:
+                if (!isConfirmed) {
+                    break;
+                }
                 BuildYsonFluently(consumer)
                     .Value(chunk->ChunkInfo().disk_space());
                 return true;
-            }
 
-            if (key == "chunk_type") {
+            case EInternedAttributeKey::ChunkType: {
+                if (!isConfirmed) {
+                    break;
+                }
                 auto type = EChunkType(chunk->ChunkMeta().type());
                 BuildYsonFluently(consumer)
                     .Value(type);
                 return true;
             }
 
-            if (key == "table_chunk_format" && EChunkType(chunk->ChunkMeta().type()) == EChunkType::Table) {
+            case EInternedAttributeKey::TableChunkFormat: {
+                if (!isConfirmed || EChunkType(chunk->ChunkMeta().type()) != EChunkType::Table) {
+                    break;
+                }
                 auto format = ETableChunkFormat(chunk->ChunkMeta().version());
                 BuildYsonFluently(consumer)
                     .Value(format);
                 return true;
             }
 
-            if (key == "meta_size" && miscExt.has_meta_size()) {
+            case EInternedAttributeKey::MetaSize:
+                if (!isConfirmed || !miscExt.has_meta_size()) {
+                    break;
+                }
                 BuildYsonFluently(consumer)
                     .Value(miscExt.meta_size());
                 return true;
-            }
 
-            if (key == "compressed_data_size" && miscExt.has_compressed_data_size()) {
+            case EInternedAttributeKey::CompressedDataSize:
+                if (!isConfirmed || !miscExt.has_compressed_data_size()) {
+                    break;
+                }
                 BuildYsonFluently(consumer)
                     .Value(miscExt.compressed_data_size());
                 return true;
-            }
 
-            if (key == "uncompressed_data_size" && miscExt.has_uncompressed_data_size()) {
+            case EInternedAttributeKey::UncompressedDataSize:
+                if (!isConfirmed || !miscExt.has_uncompressed_data_size()) {
+                    break;
+                }
                 BuildYsonFluently(consumer)
                     .Value(miscExt.uncompressed_data_size());
                 return true;
-            }
 
-            if (key == "data_weight" && miscExt.has_data_weight()) {
+            case EInternedAttributeKey::DataWeight:
+                if (!isConfirmed || !miscExt.has_data_weight()) {
+                    break;
+                }
                 BuildYsonFluently(consumer)
                     .Value(miscExt.data_weight());
                 return true;
-            }
 
-            if (key == "compression_codec" && miscExt.has_compression_codec()) {
+            case EInternedAttributeKey::CompressionCodec:
+                if (!isConfirmed || !miscExt.has_compression_codec()) {
+                    break;
+                }
                 BuildYsonFluently(consumer)
                     .Value(NCompression::ECodec(miscExt.compression_codec()));
                 return true;
-            }
 
-            if (key == "row_count" && miscExt.has_row_count()) {
+            case EInternedAttributeKey::RowCount:
+                if (!isConfirmed || !miscExt.has_row_count()) {
+                    break;
+                }
                 BuildYsonFluently(consumer)
                     .Value(miscExt.row_count());
                 return true;
-            }
 
-            if (key == "value_count" && miscExt.has_value_count()) {
+            case EInternedAttributeKey::ValueCount:
+                if (!isConfirmed || !miscExt.has_value_count()) {
+                    break;
+                }
                 BuildYsonFluently(consumer)
                     .Value(miscExt.value_count());
                 return true;
-            }
 
-            if (key == "sorted" && miscExt.has_sorted()) {
+            case EInternedAttributeKey::Sorted:
+                if (!isConfirmed || !miscExt.has_sorted()) {
+                    break;
+                }
                 BuildYsonFluently(consumer)
                     .Value(miscExt.sorted());
                 return true;
-            }
 
-            if (key == "min_timestamp" && miscExt.has_min_timestamp()) {
+            case EInternedAttributeKey::MinTimestamp:
+                if (!isConfirmed || !miscExt.has_min_timestamp()) {
+                    break;
+                }
                 BuildYsonFluently(consumer)
                     .Value(miscExt.min_timestamp());
                 return true;
-            }
 
-            if (key == "max_timestamp" && miscExt.has_max_timestamp()) {
+            case EInternedAttributeKey::MaxTimestamp:
+                if (!isConfirmed || !miscExt.has_max_timestamp()) {
+                    break;
+                }
                 BuildYsonFluently(consumer)
                     .Value(miscExt.max_timestamp());
                 return true;
-            }
 
-            if (key == "max_block_size" && miscExt.has_max_block_size()) {
+            case EInternedAttributeKey::MaxBlockSize:
+                if (!isConfirmed || !miscExt.has_max_block_size()) {
+                    break;
+                }
                 BuildYsonFluently(consumer)
                     .Value(miscExt.max_block_size());
                 return true;
-            }
 
-            if (key == "read_quorum" && chunk->IsJournal()) {
+            case EInternedAttributeKey::ReadQuorum:
+                if (!isConfirmed || !chunk->IsJournal()) {
+                    break;
+                }
                 BuildYsonFluently(consumer)
                     .Value(chunk->GetReadQuorum());
                 return true;
-            }
 
-            if (key == "write_quorum" && chunk->IsJournal()) {
+            case EInternedAttributeKey::WriteQuorum:
+                if (!isConfirmed || !chunk->IsJournal()) {
+                    break;
+                }
                 BuildYsonFluently(consumer)
                     .Value(chunk->GetWriteQuorum());
                 return true;
-            }
 
-            if (key == "eden") {
+            case EInternedAttributeKey::Eden:
+                if (!isConfirmed) {
+                    break;
+                }
                 BuildYsonFluently(consumer)
                     .Value(miscExt.eden());
                 return true;
-            }
 
-            if (key == "creation_time" && miscExt.has_creation_time()) {
+            case EInternedAttributeKey::CreationTime:
+                if (!isConfirmed || !miscExt.has_creation_time()) {
+                    break;
+                }
                 BuildYsonFluently(consumer)
                     .Value(TInstant(miscExt.creation_time()));
                 return true;
-            }
-        }
 
-        if (chunk->IsStaged()) {
-            if (key == "staging_transaction_id") {
+            case EInternedAttributeKey::StagingTransactionId:
+                if (!chunk->IsStaged()) {
+                    break;
+                }
                 BuildYsonFluently(consumer)
                     .Value(chunk->GetStagingTransaction()->GetId());
                 return true;
-            }
 
-            if (key == "staging_account") {
+            case EInternedAttributeKey::StagingAccount:
+                if (!chunk->IsStaged()) {
+                    break;
+                }
                 BuildYsonFluently(consumer)
                     .Value(chunk->GetStagingAccount()->GetName());
                 return true;
-            }
-        }
 
-        auto boundaryKeysExt = FindProtoExtension<TBoundaryKeysExt>(chunk->ChunkMeta().extensions());
-        if (boundaryKeysExt) {
-            if (key == "min_key") {
+            case EInternedAttributeKey::MinKey: {
+                auto boundaryKeysExt = FindProtoExtension<TBoundaryKeysExt>(chunk->ChunkMeta().extensions());
+                if (boundaryKeysExt) {
+                    BuildYsonFluently(consumer)
+                        .Value(FromProto<TOwningKey>(boundaryKeysExt->min()));
+                    return true;
+                }
+                break;
+            }
+
+            case EInternedAttributeKey::MaxKey: {
+                auto boundaryKeysExt = FindProtoExtension<TBoundaryKeysExt>(chunk->ChunkMeta().extensions());
+                if (boundaryKeysExt) {
+                    BuildYsonFluently(consumer)
+                        .Value(FromProto<TOwningKey>(boundaryKeysExt->max()));
+                    return true;
+                }
+                break;
+            }
+
+            case EInternedAttributeKey::ScanFlags:
+                RequireLeader();
                 BuildYsonFluently(consumer)
-                    .Value(FromProto<TOwningKey>(boundaryKeysExt->min()));
+                    .DoMapFor(TEnumTraits<EChunkScanKind>::GetDomainValues(), [&] (TFluentMap fluent, EChunkScanKind kind) {
+                        if (kind != EChunkScanKind::None) {
+                            fluent
+                                .Item(FormatEnum(kind)).Value(chunk->GetScanFlag(kind, objectManager->GetCurrentEpoch()));
+                        }
+                    });
                 return true;
-            }
 
-            if (key == "max_key") {
-                BuildYsonFluently(consumer)
-                    .Value(FromProto<TOwningKey>(boundaryKeysExt->max()));
-                return true;
-            }
-        }
-
-        if (key == "scan_flags") {
-            RequireLeader();
-            BuildYsonFluently(consumer)
-                .DoMapFor(TEnumTraits<EChunkScanKind>::GetDomainValues(), [&] (TFluentMap fluent, EChunkScanKind kind) {
-                    if (kind != EChunkScanKind::None) {
-                        fluent
-                            .Item(FormatEnum(kind)).Value(chunk->GetScanFlag(kind, objectManager->GetCurrentEpoch()));
-                    }
-                });
-            return true;
+            default:
+                break;
         }
 
         return TBase::GetBuiltinAttribute(key, consumer);
     }
 
-    virtual TFuture<TYsonString> GetBuiltinAttributeAsync(const TString& key) override
+    virtual TFuture<TYsonString> GetBuiltinAttributeAsync(TInternedAttributeKey key) override
     {
         auto* chunk = GetThisImpl();
 
-        if (chunk->IsJournal() && key == "quorum_row_count") {
-            const auto& chunkManager = Bootstrap_->GetChunkManager();
-            auto rowCountResult = chunkManager->GetChunkQuorumInfo(chunk);
-            return rowCountResult.Apply(BIND([=] (const TMiscExt& miscExt) {
-                return MakeFuture(ConvertToYsonString(miscExt.row_count()));
-            }));
-        }
+        switch (key) {
+            case EInternedAttributeKey::QuorumRowCount: {
+                if (!chunk->IsJournal()) {
+                    break;
+                }
+                const auto& chunkManager = Bootstrap_->GetChunkManager();
+                auto rowCountResult = chunkManager->GetChunkQuorumInfo(chunk);
+                return rowCountResult.Apply(BIND([=] (const TMiscExt& miscExt) {
+                    return MakeFuture(ConvertToYsonString(miscExt.row_count()));
+                }));
+            }
 
-        if (key == "owning_nodes") {
-            return GetMulticellOwningNodes(Bootstrap_, chunk);
+            case EInternedAttributeKey::OwningNodes:
+                return GetMulticellOwningNodes(Bootstrap_, chunk);
+
+            default:
+                break;
         }
 
         return TBase::GetBuiltinAttributeAsync(key);

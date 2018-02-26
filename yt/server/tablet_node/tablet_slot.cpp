@@ -42,6 +42,8 @@
 
 #include <yt/server/cell_node/bootstrap.h>
 
+#include <yt/server/object_server/interned_attributes.h>
+
 #include <yt/ytlib/api/native_connection.h>
 #include <yt/ytlib/api/native_client.h>
 #include <yt/ytlib/api/connection.h>
@@ -84,6 +86,7 @@ using namespace NHiveClient;
 using namespace NHiveServer;
 using namespace NTabletClient::NProto;
 using namespace NObjectClient;
+using namespace NObjectServer;
 using namespace NApi;
 
 using NHydra::EPeerState;
@@ -676,7 +679,7 @@ private:
     IYPathServicePtr CreateOrchidService()
     {
         return New<TCompositeMapService>()
-            ->AddAttribute("opaque", BIND([] (IYsonConsumer* consumer) {
+            ->AddAttribute(EInternedAttributeKey::Opaque, BIND([] (IYsonConsumer* consumer) {
                     BuildYsonFluently(consumer)
                         .Value(true);
                 }))

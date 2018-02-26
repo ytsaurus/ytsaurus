@@ -4,6 +4,7 @@
 
 #include <yt/server/cell_master/bootstrap.h>
 
+#include <yt/server/object_server/interned_attributes.h>
 #include <yt/server/object_server/object_detail.h>
 
 #include <yt/server/chunk_server/chunk_manager.h>
@@ -52,94 +53,100 @@ private:
     {
         TBase::ListSystemAttributes(descriptors);
 
-        descriptors->push_back(TAttributeDescriptor("name")
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Name)
             .SetWritable(true)
             .SetReplicated(true)
             .SetMandatory(true));
-        descriptors->push_back("resource_usage");
-        descriptors->push_back("committed_resource_usage");
-        descriptors->push_back(TAttributeDescriptor("multicell_statistics")
+        descriptors->push_back(EInternedAttributeKey::ResourceUsage);
+        descriptors->push_back(EInternedAttributeKey::CommittedResourceUsage);
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::MulticellStatistics)
             .SetOpaque(true));
-        descriptors->push_back(TAttributeDescriptor("resource_limits")
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ResourceLimits)
             .SetWritable(true)
             .SetReplicated(true));
-        descriptors->push_back("violated_resource_limits");
+        descriptors->push_back(EInternedAttributeKey::ViolatedResourceLimits);
     }
 
-    virtual bool GetBuiltinAttribute(const TString& key, NYson::IYsonConsumer* consumer) override
+    virtual bool GetBuiltinAttribute(TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override
     {
         const auto* account = GetThisImpl();
 
-        if (key == "name") {
-            BuildYsonFluently(consumer)
-                .Value(account->GetName());
-            return true;
-        }
+        switch (key) {
+            case EInternedAttributeKey::Name:
+                BuildYsonFluently(consumer)
+                    .Value(account->GetName());
+                return true;
 
-        if (key == "resource_usage") {
-            SerializeClusterResources(account->ClusterStatistics().ResourceUsage, consumer);
-            return true;
-        }
+            case EInternedAttributeKey::ResourceUsage:
+                SerializeClusterResources(account->ClusterStatistics().ResourceUsage, consumer);
+                return true;
 
-        if (key == "committed_resource_usage") {
-            SerializeClusterResources(account->ClusterStatistics().CommittedResourceUsage, consumer);
-            return true;
-        }
+            case EInternedAttributeKey::CommittedResourceUsage:
+                SerializeClusterResources(account->ClusterStatistics().CommittedResourceUsage, consumer);
+                return true;
 
-        if (key == "multicell_statistics") {
-            const auto& chunkManager = Bootstrap_->GetChunkManager();
+            case EInternedAttributeKey::MulticellStatistics: {
+                const auto& chunkManager = Bootstrap_->GetChunkManager();
 
-            BuildYsonFluently(consumer)
-                .DoMapFor(account->MulticellStatistics(), [&] (TFluentMap fluent, const std::pair<TCellTag, const TAccountStatistics&>& pair) {
-                    fluent.Item(ToString(pair.first));
-                    Serialize(pair.second, fluent.GetConsumer(), chunkManager);
-                });
-            return true;
-        }
+                BuildYsonFluently(consumer)
+                    .DoMapFor(account->MulticellStatistics(), [&] (TFluentMap fluent, const std::pair<TCellTag, const TAccountStatistics&>& pair) {
+                        fluent.Item(ToString(pair.first));
+                        Serialize(pair.second, fluent.GetConsumer(), chunkManager);
+                    });
+                return true;
+            }
 
-        if (key == "resource_limits") {
-            SerializeClusterResources(account->ClusterResourceLimits(), consumer);
-            return true;
-        }
+            case EInternedAttributeKey::ResourceLimits:
+                SerializeClusterResources(account->ClusterResourceLimits(), consumer);
+                return true;
 
-        if (key == "violated_resource_limits") {
-            const auto& chunkManager = Bootstrap_->GetChunkManager();
-            BuildYsonFluently(consumer)
-                .BeginMap()
-                    .Item("disk_space").Value(account->IsDiskSpaceLimitViolated())
-                    .Item("disk_space_per_medium").DoMapFor(chunkManager->Media(),
-                        [&] (TFluentMap fluent, const std::pair<const TMediumId&, TMedium*>& pair) {
-                            const auto* medium = pair.second;
-                            fluent
-                                .Item(medium->GetName()).Value(account->IsDiskSpaceLimitViolated(medium->GetIndex()));
-                        })
-                    .Item("node_count").Value(account->IsNodeCountLimitViolated())
-                    .Item("chunk_count").Value(account->IsChunkCountLimitViolated())
-                    .Item("tablet_count").Value(account->IsTabletCountLimitViolated())
-                    .Item("tablet_static_memory").Value(account->IsTabletStaticMemoryLimitViolated())
-                .EndMap();
-            return true;
+            case EInternedAttributeKey::ViolatedResourceLimits: {
+                const auto& chunkManager = Bootstrap_->GetChunkManager();
+                BuildYsonFluently(consumer)
+                    .BeginMap()
+                        .Item("disk_space").Value(account->IsDiskSpaceLimitViolated())
+                        .Item("disk_space_per_medium").DoMapFor(chunkManager->Media(),
+                            [&] (TFluentMap fluent, const std::pair<const TMediumId&, TMedium*>& pair) {
+                                const auto* medium = pair.second;
+                                fluent
+                                    .Item(medium->GetName()).Value(account->IsDiskSpaceLimitViolated(medium->GetIndex()));
+                            })
+                        .Item("node_count").Value(account->IsNodeCountLimitViolated())
+                        .Item("chunk_count").Value(account->IsChunkCountLimitViolated())
+                        .Item("tablet_count").Value(account->IsTabletCountLimitViolated())
+                        .Item("tablet_static_memory").Value(account->IsTabletStaticMemoryLimitViolated())
+                    .EndMap();
+                return true;
+            }
+
+            default:
+                break;
         }
 
         return TBase::GetBuiltinAttribute(key, consumer);
     }
 
-    virtual bool SetBuiltinAttribute(const TString& key, const NYson::TYsonString& value) override
+    virtual bool SetBuiltinAttribute(TInternedAttributeKey key, const NYson::TYsonString& value) override
     {
         auto* account = GetThisImpl();
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         const auto& chunkManager = Bootstrap_->GetChunkManager();
 
-        if (key == "resource_limits") {
-            auto limits = ConvertTo<TSerializableClusterResourcesPtr>(value);
-            account->ClusterResourceLimits() = limits->ToClusterResources(chunkManager);
-            return true;
-        }
+        switch (key) {
+            case EInternedAttributeKey::ResourceLimits: {
+                auto limits = ConvertTo<TSerializableClusterResourcesPtr>(value);
+                account->ClusterResourceLimits() = limits->ToClusterResources(chunkManager);
+                return true;
+            }
 
-        if (key == "name") {
-            auto newName = ConvertTo<TString>(value);
-            securityManager->RenameAccount(account, newName);
-            return true;
+            case EInternedAttributeKey::Name: {
+                auto newName = ConvertTo<TString>(value);
+                securityManager->RenameAccount(account, newName);
+                return true;
+            }
+
+            default:
+                break;
         }
 
         return TBase::SetBuiltinAttribute(key, value);

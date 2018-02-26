@@ -16,6 +16,7 @@
 #include <yt/server/tablet_server/table_replica.h>
 #include <yt/server/tablet_server/tablet_manager.h>
 
+#include <yt/server/object_server/interned_attributes.h>
 #include <yt/server/object_server/object_manager.h>
 
 #include <yt/ytlib/chunk_client/read_limit.h>
@@ -81,99 +82,99 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* de
     bool isDynamic = table->IsDynamic();
     bool isSorted = table->IsSorted();
 
-    descriptors->push_back(TAttributeDescriptor("chunk_row_count"));
-    descriptors->push_back(TAttributeDescriptor("row_count")
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ChunkRowCount));
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::RowCount)
         .SetPresent(!isDynamic));
     // TODO(savrus) remove "unmerged_row_count" in 20.0
-    descriptors->push_back(TAttributeDescriptor("unmerged_row_count")
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::UnmergedRowCount)
         .SetPresent(isDynamic && isSorted));
-    descriptors->push_back("sorted");
-    descriptors->push_back(TAttributeDescriptor("key_columns")
+    descriptors->push_back(EInternedAttributeKey::Sorted);
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::KeyColumns)
         .SetReplicated(true));
-    descriptors->push_back(TAttributeDescriptor("schema")
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Schema)
         .SetReplicated(true));
-    descriptors->push_back(TAttributeDescriptor("sorted_by")
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::SortedBy)
         .SetPresent(isSorted));
-    descriptors->push_back("dynamic");
-    descriptors->push_back(TAttributeDescriptor("tablet_count")
+    descriptors->push_back(EInternedAttributeKey::Dynamic);
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::TabletCount)
         .SetPresent(isDynamic));
-    descriptors->push_back(TAttributeDescriptor("tablet_state")
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::TabletState)
         .SetPresent(isDynamic));
-    descriptors->push_back(TAttributeDescriptor("last_commit_timestamp")
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::LastCommitTimestamp)
         .SetPresent(isDynamic && isSorted));
-    descriptors->push_back(TAttributeDescriptor("tablets")
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Tablets)
         .SetPresent(isDynamic)
         .SetOpaque(true));
-    descriptors->push_back(TAttributeDescriptor("tablet_count_by_state")
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::TabletCountByState)
         .SetPresent(isDynamic)
         .SetOpaque(true));
-    descriptors->push_back(TAttributeDescriptor("pivot_keys")
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::PivotKeys)
         .SetPresent(isDynamic && isSorted)
         .SetOpaque(true));
-    descriptors->push_back(TAttributeDescriptor("retained_timestamp")
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::RetainedTimestamp)
         .SetPresent(isDynamic && isSorted));
-    descriptors->push_back(TAttributeDescriptor("unflushed_timestamp")
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::UnflushedTimestamp)
         .SetPresent(isDynamic && isSorted));
-    descriptors->push_back(TAttributeDescriptor("tablet_statistics")
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::TabletStatistics)
         .SetPresent(isDynamic)
         .SetOpaque(true));
-    descriptors->push_back(TAttributeDescriptor("tablet_errors")
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::TabletErrors)
         .SetPresent(isDynamic)
         .SetOpaque(true));
-    descriptors->push_back(TAttributeDescriptor("tablet_error_count")
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::TabletErrorCount)
         .SetPresent(isDynamic));
-    descriptors->push_back(TAttributeDescriptor("tablet_cell_bundle")
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::TabletCellBundle)
         .SetWritable(true)
         .SetPresent(table->GetTrunkNode()->GetTabletCellBundle()));
-    descriptors->push_back(TAttributeDescriptor("atomicity")
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Atomicity)
         .SetWritable(true));
-    descriptors->push_back(TAttributeDescriptor("commit_ordering")
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::CommitOrdering)
         .SetWritable(true)
         .SetPresent(!isSorted));
-    descriptors->push_back(TAttributeDescriptor("in_memory_mode")
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::InMemoryMode)
         .SetWritable(true));
-    descriptors->push_back(TAttributeDescriptor("optimize_for")
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::OptimizeFor)
         .SetWritable(true));
-    descriptors->push_back(TAttributeDescriptor("optimize_for_statistics")
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::OptimizeForStatistics)
         .SetExternal(table->IsExternal())
         .SetOpaque(true));
-    descriptors->push_back(TAttributeDescriptor("schema_mode"));
-    descriptors->push_back(TAttributeDescriptor("chunk_writer")
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::SchemaMode));
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ChunkWriter)
         .SetCustom(true));
-    descriptors->push_back(TAttributeDescriptor("upstream_replica_id")
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::UpstreamReplicaId)
         .SetPresent(isSorted && isDynamic));
-    descriptors->push_back(TAttributeDescriptor("table_chunk_format_statistics")
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::TableChunkFormatStatistics)
         .SetExternal(table->IsExternal())
         .SetOpaque(true));
-    descriptors->push_back(TAttributeDescriptor("enable_tablet_balancer")
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::EnableTabletBalancer)
         .SetWritable(true)
         .SetRemovable(true)
         .SetPresent(static_cast<bool>(table->GetEnableTabletBalancer())));
-    descriptors->push_back(TAttributeDescriptor("disable_tablet_balancer")
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::DisableTabletBalancer)
         .SetWritable(true)
         .SetRemovable(true)
         .SetPresent(static_cast<bool>(table->GetEnableTabletBalancer())));
-    descriptors->push_back(TAttributeDescriptor("min_tablet_size")
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::MinTabletSize)
         .SetWritable(true)
         .SetRemovable(true)
         .SetPresent(static_cast<bool>(table->GetMinTabletSize())));
-    descriptors->push_back(TAttributeDescriptor("max_tablet_size")
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::MaxTabletSize)
         .SetWritable(true)
         .SetRemovable(true)
         .SetPresent(static_cast<bool>(table->GetMaxTabletSize())));
-    descriptors->push_back(TAttributeDescriptor("desired_tablet_size")
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::DesiredTabletSize)
         .SetWritable(true)
         .SetRemovable(true)
         .SetPresent(static_cast<bool>(table->GetDesiredTabletSize())));
-    descriptors->push_back(TAttributeDescriptor("desired_tablet_count")
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::DesiredTabletCount)
         .SetWritable(true)
         .SetRemovable(true)
         .SetPresent(static_cast<bool>(table->GetDesiredTabletCount())));
-    descriptors->push_back(TAttributeDescriptor("flush_lag_time")
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::FlushLagTime)
         .SetPresent(isDynamic && isSorted));
 }
 
-bool TTableNodeProxy::GetBuiltinAttribute(const TString& key, IYsonConsumer* consumer)
+bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer)
 {
     const auto* table = GetThisImpl();
     const auto* trunkTable = table->GetTrunkNode();
@@ -185,452 +186,509 @@ bool TTableNodeProxy::GetBuiltinAttribute(const TString& key, IYsonConsumer* con
     const auto& timestampProvider = Bootstrap_->GetTimestampProvider();
     const auto& chunkManager = Bootstrap_->GetChunkManager();
 
-    if (key == "chunk_row_count") {
-        BuildYsonFluently(consumer)
-            .Value(statistics.row_count());
-        return true;
-    }
+    switch (key) {
+        case EInternedAttributeKey::ChunkRowCount:
+            BuildYsonFluently(consumer)
+                .Value(statistics.row_count());
+            return true;
 
-    if (key == "row_count" && !isDynamic) {
-        BuildYsonFluently(consumer)
-            .Value(statistics.row_count());
-        return true;
-    }
+        case EInternedAttributeKey::RowCount:
+            if (isDynamic) {
+                break;
+            }
+            BuildYsonFluently(consumer)
+                .Value(statistics.row_count());
+            return true;
 
-    if (key == "unmerged_row_count" && isDynamic && isSorted) {
-        BuildYsonFluently(consumer)
-            .Value(statistics.row_count());
-        return true;
-    }
+        case EInternedAttributeKey::UnmergedRowCount:
+            if (!isDynamic || !isSorted) {
+                break;
+            }
+            BuildYsonFluently(consumer)
+                .Value(statistics.row_count());
+            return true;
 
-    if (key == "sorted") {
-        BuildYsonFluently(consumer)
-            .Value(table->TableSchema().IsSorted());
-        return true;
-    }
+        case EInternedAttributeKey::Sorted:
+            BuildYsonFluently(consumer)
+                .Value(table->TableSchema().IsSorted());
+            return true;
 
-    if (key == "key_columns") {
-        BuildYsonFluently(consumer)
-            .Value(table->TableSchema().GetKeyColumns());
-        return true;
-    }
+        case EInternedAttributeKey::KeyColumns:
+            BuildYsonFluently(consumer)
+                .Value(table->TableSchema().GetKeyColumns());
+            return true;
 
-    if (key == "schema") {
-        BuildYsonFluently(consumer)
-            .Value(table->TableSchema());
-        return true;
-    }
+        case EInternedAttributeKey::Schema:
+            BuildYsonFluently(consumer)
+                .Value(table->TableSchema());
+            return true;
 
-    if (key == "schema_mode") {
-        BuildYsonFluently(consumer)
-            .Value(table->GetSchemaMode());
-        return true;
-    }
+        case EInternedAttributeKey::SchemaMode:
+            BuildYsonFluently(consumer)
+                .Value(table->GetSchemaMode());
+            return true;
 
-    if (key == "sorted_by" && isSorted) {
-        BuildYsonFluently(consumer)
-            .Value(table->TableSchema().GetKeyColumns());
-        return true;
-    }
+        case EInternedAttributeKey::SortedBy:
+            if (!isSorted) {
+                break;
+            }
+            BuildYsonFluently(consumer)
+                .Value(table->TableSchema().GetKeyColumns());
+            return true;
 
-    if (key == "dynamic") {
-        BuildYsonFluently(consumer)
-            .Value(table->IsDynamic());
-        return true;
-    }
+        case EInternedAttributeKey::Dynamic:
+            BuildYsonFluently(consumer)
+                .Value(table->IsDynamic());
+            return true;
 
-    if (key == "tablet_count" && isDynamic) {
-        BuildYsonFluently(consumer)
-            .Value(trunkTable->Tablets().size());
-        return true;
-    }
+        case EInternedAttributeKey::TabletCount:
+            if (!isDynamic) {
+                break;
+            }
+            BuildYsonFluently(consumer)
+                .Value(trunkTable->Tablets().size());
+            return true;
 
-    if (key == "tablet_count_by_state" && isDynamic) {
-        BuildYsonFluently(consumer)
-            .Value(trunkTable->TabletCountByState());
-        return true;
-    }
+        case EInternedAttributeKey::TabletCountByState:
+            if (!isDynamic) {
+                break;
+            }
+            BuildYsonFluently(consumer)
+                .Value(trunkTable->TabletCountByState());
+            return true;
 
-    if (key == "tablet_state" && isDynamic) {
-        BuildYsonFluently(consumer)
-            .Value(trunkTable->GetTabletState());
-        return true;
-    }
+        case EInternedAttributeKey::TabletState:
+            if (!isDynamic) {
+                break;
+            }
+            BuildYsonFluently(consumer)
+                .Value(trunkTable->GetTabletState());
+            return true;
 
-    if (key == "last_commit_timestamp" && isDynamic && isSorted) {
-        BuildYsonFluently(consumer)
-            .Value(trunkTable->GetLastCommitTimestamp());
-        return true;
-    }
+        case EInternedAttributeKey::LastCommitTimestamp:
+            if (!isDynamic || !isSorted) {
+                break;
+            }
+            BuildYsonFluently(consumer)
+                .Value(trunkTable->GetLastCommitTimestamp());
+            return true;
 
-    if (key == "tablets" && isDynamic) {
-        BuildYsonFluently(consumer)
-            .DoListFor(trunkTable->Tablets(), [&] (TFluentList fluent, TTablet* tablet) {
-                auto* cell = tablet->GetCell();
-                fluent
-                    .Item().BeginMap()
-                        .Item("index").Value(tablet->GetIndex())
-                        .Item("performance_counters").Value(tablet->PerformanceCounters())
-                        .DoIf(table->IsSorted(), [&] (TFluentMap fluent) {
-                            fluent
-                                .Item("pivot_key").Value(tablet->GetPivotKey());
-                        })
-                        .DoIf(!table->IsPhysicallySorted(), [&] (TFluentMap fluent) {
-                            const auto* chunkList = tablet->GetChunkList();
-                            fluent
-                                .Item("trimmed_row_count").Value(tablet->GetTrimmedRowCount())
-                                .Item("flushed_row_count").Value(chunkList->Statistics().LogicalRowCount);
-                        })
-                        .Item("state").Value(tablet->GetState())
-                        .Item("last_commit_timestamp").Value(tablet->NodeStatistics().last_commit_timestamp())
-                        .Item("statistics").Value(New<TSerializableTabletStatistics>(
-                            tabletManager->GetTabletStatistics(tablet),
-                            chunkManager))
-                        .Item("tablet_id").Value(tablet->GetId())
-                        .DoIf(cell, [&] (TFluentMap fluent) {
-                            fluent.Item("cell_id").Value(cell->GetId());
-                        })
-                        .Item("error_count").Value(tablet->GetErrorCount())
-                    .EndMap();
-            });
-        return true;
-    }
+        case EInternedAttributeKey::Tablets:
+            if (!isDynamic) {
+                break;
+            }
+            BuildYsonFluently(consumer)
+                .DoListFor(trunkTable->Tablets(), [&] (TFluentList fluent, TTablet* tablet) {
+                    auto* cell = tablet->GetCell();
+                    fluent
+                        .Item().BeginMap()
+                            .Item("index").Value(tablet->GetIndex())
+                            .Item("performance_counters").Value(tablet->PerformanceCounters())
+                            .DoIf(table->IsSorted(), [&] (TFluentMap fluent) {
+                                fluent
+                                    .Item("pivot_key").Value(tablet->GetPivotKey());
+                            })
+                            .DoIf(!table->IsPhysicallySorted(), [&] (TFluentMap fluent) {
+                                const auto* chunkList = tablet->GetChunkList();
+                                fluent
+                                    .Item("trimmed_row_count").Value(tablet->GetTrimmedRowCount())
+                                    .Item("flushed_row_count").Value(chunkList->Statistics().LogicalRowCount);
+                            })
+                            .Item("state").Value(tablet->GetState())
+                            .Item("last_commit_timestamp").Value(tablet->NodeStatistics().last_commit_timestamp())
+                            .Item("statistics").Value(New<TSerializableTabletStatistics>(
+                                tabletManager->GetTabletStatistics(tablet),
+                                chunkManager))
+                            .Item("tablet_id").Value(tablet->GetId())
+                            .DoIf(cell, [&] (TFluentMap fluent) {
+                                fluent.Item("cell_id").Value(cell->GetId());
+                            })
+                            .Item("error_count").Value(tablet->GetErrorCount())
+                        .EndMap();
+                });
+            return true;
 
-    if (key == "pivot_keys" && isDynamic && isSorted) {
-        BuildYsonFluently(consumer)
-            .DoListFor(trunkTable->Tablets(), [&] (TFluentList fluent, TTablet* tablet) {
-                fluent
-                    .Item().Value(tablet->GetPivotKey());
-            });
-        return true;
-    }
+        case EInternedAttributeKey::PivotKeys:
+            if (!isDynamic || !isSorted) {
+                break;
+            }
+            BuildYsonFluently(consumer)
+                .DoListFor(trunkTable->Tablets(), [&] (TFluentList fluent, TTablet* tablet) {
+                    fluent
+                        .Item().Value(tablet->GetPivotKey());
+                });
+            return true;
 
-    if (key == "retained_timestamp" && isDynamic && isSorted) {
-        BuildYsonFluently(consumer)
-            .Value(table->GetCurrentRetainedTimestamp());
-        return true;
-    }
+        case EInternedAttributeKey::RetainedTimestamp:
+            if (!isDynamic || !isSorted) {
+                break;
+            }
+            BuildYsonFluently(consumer)
+                .Value(table->GetCurrentRetainedTimestamp());
+            return true;
 
-    if (key == "unflushed_timestamp" && isDynamic && isSorted) {
-        BuildYsonFluently(consumer)
-            .Value(table->GetCurrentUnflushedTimestamp(timestampProvider->GetLatestTimestamp()));
-        return true;
-    }
+        case EInternedAttributeKey::UnflushedTimestamp:
+            if (!isDynamic || !isSorted) {
+                break;
+            }
+            BuildYsonFluently(consumer)
+                .Value(table->GetCurrentUnflushedTimestamp(timestampProvider->GetLatestTimestamp()));
+            return true;
 
-    if (key == "tablet_statistics" && isDynamic) {
-        TTabletStatistics tabletStatistics;
-        for (const auto& tablet : trunkTable->Tablets()) {
-            tabletStatistics += tabletManager->GetTabletStatistics(tablet);
-        }
-        BuildYsonFluently(consumer)
-            .Value(New<TSerializableTabletStatistics>(
-                tabletStatistics,
-                chunkManager));
-        return true;
-    }
-
-    if (key == "tablet_errors" && isDynamic) {
-        std::vector<TError> errors;
-        for (const auto& tablet : trunkTable->Tablets()) {
-            const auto& tabletErrors = tablet->GetErrors();
-            errors.insert(errors.end(), tabletErrors.begin(), tabletErrors.end());
-        }
-        BuildYsonFluently(consumer)
-            .Value(errors);
-        return true;
-    }
-
-    if (key == "tablet_error_count" && isDynamic) {
-        BuildYsonFluently(consumer)
-            .Value(trunkTable->GetTabletErrorCount());
-        return true;
-    }
-
-    if (key == "tablet_cell_bundle" && trunkTable->GetTabletCellBundle()) {
-        BuildYsonFluently(consumer)
-            .Value(trunkTable->GetTabletCellBundle()->GetName());
-        return true;
-    }
-
-    if (key == "atomicity") {
-        BuildYsonFluently(consumer)
-            .Value(trunkTable->GetAtomicity());
-        return true;
-    }
-
-    if (key == "commit_ordering") {
-        BuildYsonFluently(consumer)
-            .Value(trunkTable->GetCommitOrdering());
-        return true;
-    }
-
-    if (key == "optimize_for") {
-        BuildYsonFluently(consumer)
-            .Value(table->GetOptimizeFor());
-        return true;
-    }
-
-    if (key == "in_memory_mode") {
-        BuildYsonFluently(consumer)
-            .Value(table->GetInMemoryMode());
-        return true;
-    }
-
-    if (key == "upstream_replica_id" && isSorted && isDynamic) {
-        BuildYsonFluently(consumer)
-            .Value(trunkTable->GetUpstreamReplicaId());
-        return true;
-    }
-
-    if (key == "tablet_count" && isDynamic) {
-        BuildYsonFluently(consumer)
-            .Value(trunkTable->Tablets().size());
-        return true;
-    }
-
-    if (key == "enable_tablet_balancer" && static_cast<bool>(trunkTable->GetEnableTabletBalancer())) {
-        BuildYsonFluently(consumer)
-            .Value(*trunkTable->GetEnableTabletBalancer());
-        return true;
-    }
-
-    if (key == "disable_tablet_balancer" && static_cast<bool>(trunkTable->GetEnableTabletBalancer())) {
-        BuildYsonFluently(consumer)
-            .Value(!*trunkTable->GetEnableTabletBalancer());
-        return true;
-    }
-
-    if (key == "min_tablet_size" && static_cast<bool>(trunkTable->GetMinTabletSize())) {
-        BuildYsonFluently(consumer)
-            .Value(*trunkTable->GetMinTabletSize());
-        return true;
-    }
-
-    if (key == "max_tablet_size" && static_cast<bool>(trunkTable->GetMaxTabletSize())) {
-        BuildYsonFluently(consumer)
-            .Value(*trunkTable->GetMaxTabletSize());
-        return true;
-    }
-
-    if (key == "desired_tablet_size" && static_cast<bool>(trunkTable->GetDesiredTabletSize())) {
-        BuildYsonFluently(consumer)
-            .Value(*trunkTable->GetDesiredTabletSize());
-        return true;
-    }
-
-    if (key == "desired_tablet_count" && static_cast<bool>(trunkTable->GetDesiredTabletCount())) {
-        BuildYsonFluently(consumer)
-            .Value(*trunkTable->GetDesiredTabletCount());
-        return true;
-    }
-
-    if (key == "flush_lag_time" && isSorted && isDynamic) {
-        auto unflushedTimestamp = table->GetCurrentUnflushedTimestamp(
-            timestampProvider->GetLatestTimestamp());
-        auto lastCommitTimestamp = trunkTable->GetLastCommitTimestamp();
-
-        // NB: Proper order is not guaranteed.
-        auto duration = TDuration::Zero();
-        if (unflushedTimestamp <= lastCommitTimestamp) {
-            duration = NTransactionClient::TimestampDiffToDuration(
-                unflushedTimestamp,
-                lastCommitTimestamp)
-                .second;
+        case EInternedAttributeKey::TabletStatistics: {
+            if (!isDynamic) {
+                break;
+            }
+            TTabletStatistics tabletStatistics;
+            for (const auto& tablet : trunkTable->Tablets()) {
+                tabletStatistics += tabletManager->GetTabletStatistics(tablet);
+            }
+            BuildYsonFluently(consumer)
+                .Value(New<TSerializableTabletStatistics>(
+                    tabletStatistics,
+                    chunkManager));
+            return true;
         }
 
-        BuildYsonFluently(consumer)
-            .Value(duration);
-        return true;
+        case EInternedAttributeKey::TabletErrors: {
+            if (!isDynamic) {
+                break;
+            }
+            std::vector<TError> errors;
+            for (const auto& tablet : trunkTable->Tablets()) {
+                const auto& tabletErrors = tablet->GetErrors();
+                errors.insert(errors.end(), tabletErrors.begin(), tabletErrors.end());
+            }
+            BuildYsonFluently(consumer)
+                .Value(errors);
+            return true;
+        }
+
+        case EInternedAttributeKey::TabletErrorCount:
+            if (!isDynamic) {
+                break;
+            }
+            BuildYsonFluently(consumer)
+                .Value(trunkTable->GetTabletErrorCount());
+            return true;
+
+        case EInternedAttributeKey::TabletCellBundle:
+            if (!trunkTable->GetTabletCellBundle()) {
+                break;
+            }
+            BuildYsonFluently(consumer)
+                .Value(trunkTable->GetTabletCellBundle()->GetName());
+            return true;
+
+        case EInternedAttributeKey::Atomicity:
+            BuildYsonFluently(consumer)
+                .Value(trunkTable->GetAtomicity());
+            return true;
+
+        case EInternedAttributeKey::CommitOrdering:
+            BuildYsonFluently(consumer)
+                .Value(trunkTable->GetCommitOrdering());
+            return true;
+
+        case EInternedAttributeKey::OptimizeFor:
+            BuildYsonFluently(consumer)
+                .Value(table->GetOptimizeFor());
+            return true;
+
+        case EInternedAttributeKey::InMemoryMode:
+            BuildYsonFluently(consumer)
+                .Value(table->GetInMemoryMode());
+            return true;
+
+        case EInternedAttributeKey::UpstreamReplicaId:
+            if (!isSorted || !isDynamic) {
+                break;
+            }
+            BuildYsonFluently(consumer)
+                .Value(trunkTable->GetUpstreamReplicaId());
+            return true;
+
+        case EInternedAttributeKey::EnableTabletBalancer:
+            if (!static_cast<bool>(trunkTable->GetEnableTabletBalancer())) {
+                break;
+            }
+            BuildYsonFluently(consumer)
+                .Value(*trunkTable->GetEnableTabletBalancer());
+            return true;
+
+        case EInternedAttributeKey::DisableTabletBalancer:
+            if (!static_cast<bool>(trunkTable->GetEnableTabletBalancer())) {
+                break;
+            }
+            BuildYsonFluently(consumer)
+                .Value(!*trunkTable->GetEnableTabletBalancer());
+            return true;
+
+        case EInternedAttributeKey::MinTabletSize:
+            if (!static_cast<bool>(trunkTable->GetMinTabletSize())) {
+                break;
+            }
+            BuildYsonFluently(consumer)
+                .Value(*trunkTable->GetMinTabletSize());
+            return true;
+
+        case EInternedAttributeKey::MaxTabletSize:
+            if (!static_cast<bool>(trunkTable->GetMaxTabletSize())) {
+                break;
+            }
+            BuildYsonFluently(consumer)
+                .Value(*trunkTable->GetMaxTabletSize());
+            return true;
+
+        case EInternedAttributeKey::DesiredTabletSize:
+            if (!static_cast<bool>(trunkTable->GetDesiredTabletSize())) {
+                break;
+            }
+            BuildYsonFluently(consumer)
+                .Value(*trunkTable->GetDesiredTabletSize());
+            return true;
+
+        case EInternedAttributeKey::DesiredTabletCount:
+            if (!static_cast<bool>(trunkTable->GetDesiredTabletCount())) {
+                break;
+            }
+            BuildYsonFluently(consumer)
+                .Value(*trunkTable->GetDesiredTabletCount());
+            return true;
+
+        case EInternedAttributeKey::FlushLagTime: {
+            if (!isSorted || !isDynamic) {
+                break;
+            }
+            auto unflushedTimestamp = table->GetCurrentUnflushedTimestamp(
+                timestampProvider->GetLatestTimestamp());
+            auto lastCommitTimestamp = trunkTable->GetLastCommitTimestamp();
+
+            // NB: Proper order is not guaranteed.
+            auto duration = TDuration::Zero();
+            if (unflushedTimestamp <= lastCommitTimestamp) {
+                duration = NTransactionClient::TimestampDiffToDuration(
+                    unflushedTimestamp,
+                    lastCommitTimestamp)
+                    .second;
+            }
+
+            BuildYsonFluently(consumer)
+                .Value(duration);
+            return true;
+        }
+
+        default:
+            break;
     }
 
     return TBase::GetBuiltinAttribute(key, consumer);
 }
 
-TFuture<TYsonString> TTableNodeProxy::GetBuiltinAttributeAsync(const TString& key)
+TFuture<TYsonString> TTableNodeProxy::GetBuiltinAttributeAsync(TInternedAttributeKey key)
 {
     const auto* table = GetThisImpl();
     auto* chunkList = table->GetChunkList();
     auto isExternal = table->IsExternal();
 
     if (!isExternal) {
-        if (key == "table_chunk_format_statistics") {
-            return ComputeChunkStatistics(
-                Bootstrap_,
-                chunkList,
-                [] (const TChunk* chunk) { return ETableChunkFormat(chunk->ChunkMeta().version()); });
-        }
-        if (key == "optimize_for_statistics") {
-            auto optimizeForExtractor = [] (const TChunk* chunk) {
-                switch (static_cast<ETableChunkFormat>(chunk->ChunkMeta().version())) {
-                    case ETableChunkFormat::Old:
-                    case ETableChunkFormat::VersionedSimple:
-                    case ETableChunkFormat::Schemaful:
-                    case ETableChunkFormat::SchemalessHorizontal:
-                        return NTableClient::EOptimizeFor::Lookup;
-                    case ETableChunkFormat::VersionedColumnar:
-                    case ETableChunkFormat::UnversionedColumnar:
-                        return NTableClient::EOptimizeFor::Scan;
-                    default:
-                        Y_UNREACHABLE();
-                }
-            };
+        switch (key) {
+            case EInternedAttributeKey::TableChunkFormatStatistics:
+                return ComputeChunkStatistics(
+                    Bootstrap_,
+                    chunkList,
+                    [] (const TChunk* chunk) { return ETableChunkFormat(chunk->ChunkMeta().version()); });
 
-            return ComputeChunkStatistics(Bootstrap_, chunkList, optimizeForExtractor);
+            case EInternedAttributeKey::OptimizeForStatistics: {
+                auto optimizeForExtractor = [] (const TChunk* chunk) {
+                    switch (static_cast<ETableChunkFormat>(chunk->ChunkMeta().version())) {
+                        case ETableChunkFormat::Old:
+                        case ETableChunkFormat::VersionedSimple:
+                        case ETableChunkFormat::Schemaful:
+                        case ETableChunkFormat::SchemalessHorizontal:
+                            return NTableClient::EOptimizeFor::Lookup;
+                        case ETableChunkFormat::VersionedColumnar:
+                        case ETableChunkFormat::UnversionedColumnar:
+                            return NTableClient::EOptimizeFor::Scan;
+                        default:
+                            Y_UNREACHABLE();
+                    }
+                };
+
+                return ComputeChunkStatistics(Bootstrap_, chunkList, optimizeForExtractor);
+            }
+
+            default:
+                break;
         }
     }
 
     return TBase::GetBuiltinAttributeAsync(key);
 }
 
-bool TTableNodeProxy::RemoveBuiltinAttribute(const TString& key)
+bool TTableNodeProxy::RemoveBuiltinAttribute(TInternedAttributeKey key)
 {
-    if (key == "enable_tablet_balancer") {
-        auto* lockedTable = LockThisImpl();
-        lockedTable->SetEnableTabletBalancer(Null);
-        return true;
-    }
+    switch (key) {
+        case EInternedAttributeKey::EnableTabletBalancer: {
+            auto* lockedTable = LockThisImpl();
+            lockedTable->SetEnableTabletBalancer(Null);
+            return true;
+        }
 
-    if (key == "disable_tablet_balancer") {
-        auto* lockedTable = LockThisImpl();
-        lockedTable->SetEnableTabletBalancer(Null);
-        return true;
-    }
+        case EInternedAttributeKey::DisableTabletBalancer: {
+            auto* lockedTable = LockThisImpl();
+            lockedTable->SetEnableTabletBalancer(Null);
+            return true;
+        }
 
-    if (key == "min_tablet_size") {
-        auto* lockedTable = LockThisImpl();
-        lockedTable->SetMinTabletSize(Null);
-        return true;
-    }
+        case EInternedAttributeKey::MinTabletSize: {
+            auto* lockedTable = LockThisImpl();
+            lockedTable->SetMinTabletSize(Null);
+            return true;
+        }
 
-    if (key == "max_tablet_size") {
-        auto* lockedTable = LockThisImpl();
-        lockedTable->SetMaxTabletSize(Null);
-        return true;
-    }
+        case EInternedAttributeKey::MaxTabletSize: {
+            auto* lockedTable = LockThisImpl();
+            lockedTable->SetMaxTabletSize(Null);
+            return true;
+        }
 
-    if (key == "desired_tablet_size") {
-        auto* lockedTable = LockThisImpl();
-        lockedTable->SetDesiredTabletSize(Null);
-        return true;
-    }
+        case EInternedAttributeKey::DesiredTabletSize: {
+            auto* lockedTable = LockThisImpl();
+            lockedTable->SetDesiredTabletSize(Null);
+            return true;
+        }
 
-    if (key == "desired_tablet_count") {
-        auto* lockedTable = LockThisImpl();
-        lockedTable->SetDesiredTabletCount(Null);
-        return true;
+        case EInternedAttributeKey::DesiredTabletCount: {
+            auto* lockedTable = LockThisImpl();
+            lockedTable->SetDesiredTabletCount(Null);
+            return true;
+        }
+
+        default:
+            break;
     }
 
     return TBase::RemoveBuiltinAttribute(key);
 }
 
-bool TTableNodeProxy::SetBuiltinAttribute(const TString& key, const TYsonString& value)
+bool TTableNodeProxy::SetBuiltinAttribute(TInternedAttributeKey key, const TYsonString& value)
 {
     const auto* table = GetThisImpl();
 
-    if (key == "tablet_cell_bundle") {
-        ValidateNoTransaction();
+    switch (key) {
+        case EInternedAttributeKey::TabletCellBundle: {
+            ValidateNoTransaction();
 
-        auto name = ConvertTo<TString>(value);
-        const auto& tabletManager = Bootstrap_->GetTabletManager();
-        auto* cellBundle = tabletManager->GetTabletCellBundleByNameOrThrow(name);
+            auto name = ConvertTo<TString>(value);
+            const auto& tabletManager = Bootstrap_->GetTabletManager();
+            auto* cellBundle = tabletManager->GetTabletCellBundleByNameOrThrow(name);
 
-        auto* lockedTable = LockThisImpl();
-        tabletManager->SetTabletCellBundle(lockedTable, cellBundle);
+            auto* lockedTable = LockThisImpl();
+            tabletManager->SetTabletCellBundle(lockedTable, cellBundle);
 
-        return true;
-    }
-
-    if (key == "atomicity") {
-        ValidateNoTransaction();
-
-        auto* lockedTable = LockThisImpl();
-        auto tabletState = table->GetTabletState();
-        if (tabletState != ETabletState::Unmounted && tabletState != ETabletState::None) {
-            THROW_ERROR_EXCEPTION("Cannot change table atomicity mode since not all of its tablets are in %Qlv state",
-                ETabletState::Unmounted);
+            return true;
         }
 
-        auto atomicity = ConvertTo<NTransactionClient::EAtomicity>(value);
-        lockedTable->SetAtomicity(atomicity);
+        case EInternedAttributeKey::Atomicity: {
+            ValidateNoTransaction();
 
-        return true;
-    }
+            auto* lockedTable = LockThisImpl();
+            auto tabletState = table->GetTabletState();
+            if (tabletState != ETabletState::Unmounted && tabletState != ETabletState::None) {
+                THROW_ERROR_EXCEPTION("Cannot change table atomicity mode since not all of its tablets are in %Qlv state",
+                    ETabletState::Unmounted);
+            }
 
-    if (key == "commit_ordering" && !table->IsSorted()) {
-        ValidateNoTransaction();
+            auto atomicity = ConvertTo<NTransactionClient::EAtomicity>(value);
+            lockedTable->SetAtomicity(atomicity);
 
-        auto tabletState = table->GetTabletState();
-        if (tabletState != ETabletState::Unmounted && tabletState != ETabletState::None) {
-            THROW_ERROR_EXCEPTION("Cannot change table commit ordering mode since not all of its tablets are in %Qlv state",
-                ETabletState::Unmounted);
+            return true;
         }
 
-        auto* lockedTable = LockThisImpl();
-        auto ordering = ConvertTo<NTransactionClient::ECommitOrdering>(value);
-        lockedTable->SetCommitOrdering(ordering);
+        case EInternedAttributeKey::CommitOrdering: {
+            if (table->IsSorted()) {
+                break;
+            }
+            ValidateNoTransaction();
 
-        return true;
-    }
+            auto tabletState = table->GetTabletState();
+            if (tabletState != ETabletState::Unmounted && tabletState != ETabletState::None) {
+                THROW_ERROR_EXCEPTION("Cannot change table commit ordering mode since not all of its tablets are in %Qlv state",
+                    ETabletState::Unmounted);
+            }
 
-    if (key == "optimize_for") {
-        ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
+            auto* lockedTable = LockThisImpl();
+            auto ordering = ConvertTo<NTransactionClient::ECommitOrdering>(value);
+            lockedTable->SetCommitOrdering(ordering);
 
-        auto* lockedTable = LockThisImpl<TTableNode>(TLockRequest::MakeSharedAttribute(key));
-        lockedTable->SetOptimizeFor(ConvertTo<EOptimizeFor>(value));
-
-        return true;
-    }
-
-    if (key == "in_memory_mode") {
-        ValidateNoTransaction();
-
-        auto* lockedTable = LockThisImpl();
-        auto tabletState = table->GetTabletState();
-        if (tabletState != ETabletState::Unmounted && tabletState != ETabletState::None) {
-            THROW_ERROR_EXCEPTION("Cannot change table memory mode since not all of its tablets are in %Qlv state",
-                ETabletState::Unmounted);
+            return true;
         }
 
-        auto inMemoryMode = ConvertTo<EInMemoryMode>(value);
-        lockedTable->SetInMemoryMode(inMemoryMode);
+        case EInternedAttributeKey::OptimizeFor: {
+            ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
 
-        return true;
-    }
+            const auto& uninternedKey = GetUninternedAttributeKey(key);
+            auto* lockedTable = LockThisImpl<TTableNode>(TLockRequest::MakeSharedAttribute(uninternedKey));
+            lockedTable->SetOptimizeFor(ConvertTo<EOptimizeFor>(value));
 
-    if (key == "enable_tablet_balancer") {
-        auto* lockedTable = LockThisImpl();
-        lockedTable->SetEnableTabletBalancer(ConvertTo<bool>(value));
-        return true;
-    }
+            return true;
+        }
 
-    if (key == "disable_tablet_balancer") {
-        auto* lockedTable = LockThisImpl();
-        lockedTable->SetEnableTabletBalancer(!ConvertTo<bool>(value));
-        return true;
-    }
+        case EInternedAttributeKey::InMemoryMode: {
+            ValidateNoTransaction();
 
-    if (key == "min_tablet_size") {
-        auto* lockedTable = LockThisImpl();
-        lockedTable->SetMinTabletSize(ConvertTo<i64>(value));
-        return true;
-    }
+            auto* lockedTable = LockThisImpl();
+            auto tabletState = table->GetTabletState();
+            if (tabletState != ETabletState::Unmounted && tabletState != ETabletState::None) {
+                THROW_ERROR_EXCEPTION("Cannot change table memory mode since not all of its tablets are in %Qlv state",
+                    ETabletState::Unmounted);
+            }
 
-    if (key == "max_tablet_size") {
-        auto* lockedTable = LockThisImpl();
-        lockedTable->SetMaxTabletSize(ConvertTo<i64>(value));
-        return true;
-    }
+            auto inMemoryMode = ConvertTo<EInMemoryMode>(value);
+            lockedTable->SetInMemoryMode(inMemoryMode);
 
-    if (key == "desired_tablet_size") {
-        auto* lockedTable = LockThisImpl();
-        lockedTable->SetDesiredTabletSize(ConvertTo<i64>(value));
-        return true;
-    }
+            return true;
+        }
 
-    if (key == "desired_tablet_count") {
-        auto* lockedTable = LockThisImpl();
-        lockedTable->SetDesiredTabletCount(ConvertTo<int>(value));
-        return true;
+        case EInternedAttributeKey::EnableTabletBalancer: {
+            auto* lockedTable = LockThisImpl();
+            lockedTable->SetEnableTabletBalancer(ConvertTo<bool>(value));
+            return true;
+        }
+
+        case EInternedAttributeKey::DisableTabletBalancer: {
+            auto* lockedTable = LockThisImpl();
+            lockedTable->SetEnableTabletBalancer(!ConvertTo<bool>(value));
+            return true;
+        }
+
+        case EInternedAttributeKey::MinTabletSize: {
+            auto* lockedTable = LockThisImpl();
+            lockedTable->SetMinTabletSize(ConvertTo<i64>(value));
+            return true;
+        }
+
+        case EInternedAttributeKey::MaxTabletSize: {
+            auto* lockedTable = LockThisImpl();
+            lockedTable->SetMaxTabletSize(ConvertTo<i64>(value));
+            return true;
+        }
+
+        case EInternedAttributeKey::DesiredTabletSize: {
+            auto* lockedTable = LockThisImpl();
+            lockedTable->SetDesiredTabletSize(ConvertTo<i64>(value));
+            return true;
+        }
+
+        case EInternedAttributeKey::DesiredTabletCount: {
+            auto* lockedTable = LockThisImpl();
+            lockedTable->SetDesiredTabletCount(ConvertTo<int>(value));
+            return true;
+        }
+
+        default:
+            break;
     }
 
     return TBase::SetBuiltinAttribute(key, value);
@@ -641,9 +699,18 @@ void TTableNodeProxy::ValidateCustomAttributeUpdate(
     const TYsonString& oldValue,
     const TYsonString& newValue)
 {
-    if (key == "chunk_writer" && newValue) {
-        ConvertTo<TTableWriterConfigPtr>(newValue);
-        return;
+    auto internedKey = GetInternedAttributeKey(key);
+
+    switch (internedKey) {
+        case EInternedAttributeKey::ChunkWriter:
+            if (!newValue) {
+                break;
+            }
+            ConvertTo<TTableWriterConfigPtr>(newValue);
+            return;
+
+        default:
+            break;
     }
 
     TBase::ValidateCustomAttributeUpdate(key, oldValue, newValue);
@@ -1052,33 +1119,38 @@ void TReplicatedTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescr
 {
     TTableNodeProxy::ListSystemAttributes(descriptors);
 
-    descriptors->push_back(TAttributeDescriptor("replicas")
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Replicas)
         .SetOpaque(true));
 }
 
-bool TReplicatedTableNodeProxy::GetBuiltinAttribute(const TString& key, IYsonConsumer* consumer)
+bool TReplicatedTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer)
 {
     const auto* table = GetThisImpl<TReplicatedTableNode>();
     const auto& timestampProvider = Bootstrap_->GetTimestampProvider();
 
-    if (key == "replicas") {
-        const auto& objectManager = Bootstrap_->GetObjectManager();
-        BuildYsonFluently(consumer)
-            .DoMapFor(table->Replicas(), [&] (TFluentMap fluent, TTableReplica* replica) {
-                auto replicaProxy = objectManager->GetProxy(replica);
-                fluent
-                    .Item(ToString(replica->GetId()))
-                    .BeginMap()
-                        .Item("cluster_name").Value(replica->GetClusterName())
-                        .Item("replica_path").Value(replica->GetReplicaPath())
-                        .Item("state").Value(replica->GetState())
-                        .Item("mode").Value(replica->GetMode())
-                        .Item("replication_lag_time").Value(replica->ComputeReplicationLagTime(
-                            timestampProvider->GetLatestTimestamp()))
-                        .Item("errors").Value(replica->GetErrors())
-                    .EndMap();
-            });
-        return true;
+    switch (key) {
+        case EInternedAttributeKey::Replicas: {
+            const auto& objectManager = Bootstrap_->GetObjectManager();
+            BuildYsonFluently(consumer)
+                .DoMapFor(table->Replicas(), [&] (TFluentMap fluent, TTableReplica* replica) {
+                    auto replicaProxy = objectManager->GetProxy(replica);
+                    fluent
+                        .Item(ToString(replica->GetId()))
+                        .BeginMap()
+                            .Item("cluster_name").Value(replica->GetClusterName())
+                            .Item("replica_path").Value(replica->GetReplicaPath())
+                            .Item("state").Value(replica->GetState())
+                            .Item("mode").Value(replica->GetMode())
+                            .Item("replication_lag_time").Value(replica->ComputeReplicationLagTime(
+                                timestampProvider->GetLatestTimestamp()))
+                            .Item("errors").Value(replica->GetErrors())
+                        .EndMap();
+                });
+            return true;
+        }
+
+        default:
+            break;
     }
 
     return TTableNodeProxy::GetBuiltinAttribute(key, consumer);

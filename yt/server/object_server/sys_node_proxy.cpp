@@ -9,6 +9,8 @@
 
 #include <yt/server/chunk_server/chunk_manager.h>
 
+#include <yt/server/object_server/interned_attributes.h>
+
 #include <yt/server/cell_master/bootstrap.h>
 #include <yt/server/cell_master/config_manager.h>
 #include <yt/server/cell_master/hydra_facade.h>
@@ -48,83 +50,89 @@ private:
     {
         TBase::ListSystemAttributes(descriptors);
 
-        descriptors->push_back("cell_tag");
-        descriptors->push_back("primary_cell_tag");
-        descriptors->push_back("cell_id");
-        descriptors->push_back("primary_cell_id");
-        descriptors->push_back("current_commit_revision");
-        descriptors->push_back("chunk_replicator_enabled");
-        descriptors->push_back("registered_master_cell_tags");
-        descriptors->push_back(TAttributeDescriptor("config")
+        descriptors->push_back(EInternedAttributeKey::CellTag);
+        descriptors->push_back(EInternedAttributeKey::PrimaryCellTag);
+        descriptors->push_back(EInternedAttributeKey::CellId);
+        descriptors->push_back(EInternedAttributeKey::PrimaryCellId);
+        descriptors->push_back(EInternedAttributeKey::CurrentCommitRevision);
+        descriptors->push_back(EInternedAttributeKey::ChunkReplicatorEnabled);
+        descriptors->push_back(EInternedAttributeKey::RegisteredMasterCellTags);
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Config)
             .SetWritable(true)
             .SetOpaque(true));
     }
 
-    virtual bool GetBuiltinAttribute(const TString& key, IYsonConsumer* consumer) override
+    virtual bool GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer) override
     {
-        if (key == "cell_tag") {
-            BuildYsonFluently(consumer)
-                .Value(Bootstrap_->GetCellTag());
-            return true;
-        }
+        switch (key) {
+            case EInternedAttributeKey::CellTag:
+                BuildYsonFluently(consumer)
+                    .Value(Bootstrap_->GetCellTag());
+                return true;
 
-        if (key == "primary_cell_tag") {
-            BuildYsonFluently(consumer)
-                .Value(Bootstrap_->GetPrimaryCellTag());
-            return true;
-        }
+            case EInternedAttributeKey::PrimaryCellTag:
+                BuildYsonFluently(consumer)
+                    .Value(Bootstrap_->GetPrimaryCellTag());
+                return true;
 
-        if (key == "cell_id") {
-            BuildYsonFluently(consumer)
-                .Value(Bootstrap_->GetCellId());
-            return true;
-        }
+            case EInternedAttributeKey::CellId:
+                BuildYsonFluently(consumer)
+                    .Value(Bootstrap_->GetCellId());
+                return true;
 
-        if (key == "primary_cell_id") {
-            BuildYsonFluently(consumer)
-                .Value(Bootstrap_->GetPrimaryCellId());
-            return true;
-        }
+            case EInternedAttributeKey::PrimaryCellId:
+                BuildYsonFluently(consumer)
+                    .Value(Bootstrap_->GetPrimaryCellId());
+                return true;
 
-        if (key == "current_commit_revision") {
-            const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
-            BuildYsonFluently(consumer)
-                .Value(hydraManager->GetAutomatonVersion().ToRevision());
-            return true;
-        }
+            case EInternedAttributeKey::CurrentCommitRevision: {
+                const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
+                BuildYsonFluently(consumer)
+                    .Value(hydraManager->GetAutomatonVersion().ToRevision());
+                return true;
+            }
 
-        if (key == "chunk_replicator_enabled") {
-            RequireLeader();
-            const auto& chunkManager = Bootstrap_->GetChunkManager();
-            BuildYsonFluently(consumer)
-                .Value(chunkManager->IsReplicatorEnabled());
-            return true;
-        }
+            case EInternedAttributeKey::ChunkReplicatorEnabled: {
+                RequireLeader();
+                const auto& chunkManager = Bootstrap_->GetChunkManager();
+                BuildYsonFluently(consumer)
+                    .Value(chunkManager->IsReplicatorEnabled());
+                return true;
+            }
 
-        if (key == "registered_master_cell_tags") {
-            const auto& multicellManager = Bootstrap_->GetMulticellManager();
-            BuildYsonFluently(consumer)
-                .Value(multicellManager->GetRegisteredMasterCellTags());
-            return true;
-        }
+            case EInternedAttributeKey::RegisteredMasterCellTags: {
+                const auto& multicellManager = Bootstrap_->GetMulticellManager();
+                BuildYsonFluently(consumer)
+                    .Value(multicellManager->GetRegisteredMasterCellTags());
+                return true;
+            }
 
-        if (key == "config") {
-            const auto& configManager = Bootstrap_->GetConfigManager();
-            BuildYsonFluently(consumer)
-                .Value(configManager->GetConfig());
-            return true;
+            case EInternedAttributeKey::Config: {
+                const auto& configManager = Bootstrap_->GetConfigManager();
+                BuildYsonFluently(consumer)
+                    .Value(configManager->GetConfig());
+                return true;
+            }
+
+            default:
+                break;
         }
 
         return TBase::GetBuiltinAttribute(key, consumer);
     }
 
-    virtual bool SetBuiltinAttribute(const TString& key, const TYsonString& value) override
+    virtual bool SetBuiltinAttribute(TInternedAttributeKey key, const TYsonString& value) override
     {
-        if (key == "config") {
-            ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
-            const auto& configManager = Bootstrap_->GetConfigManager();
-            configManager->SetConfig(ConvertTo<TDynamicClusterConfigPtr>(value));
-            return true;
+        switch (key) {
+            case EInternedAttributeKey::Config: {
+                ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
+                const auto& configManager = Bootstrap_->GetConfigManager();
+                configManager->SetConfig(ConvertTo<TDynamicClusterConfigPtr>(value));
+                return true;
+            }
+
+            default:
+                break;
         }
 
         return TBase::SetBuiltinAttribute(key, value);

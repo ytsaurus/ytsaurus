@@ -308,7 +308,7 @@ std::vector<TString> TSupportsAttributes::TCombinedAttributeDictionary::List() c
         provider->ReserveAndListSystemAttributes(&descriptors);
         for (const auto& descriptor : descriptors) {
             if (descriptor.Present && !descriptor.Custom && !descriptor.Opaque) {
-                keys.push_back(descriptor.Key);
+                keys.push_back(GetUninternedAttributeKey(descriptor.InternedKey));
             }
         }
     }
@@ -326,9 +326,12 @@ TYsonString TSupportsAttributes::TCombinedAttributeDictionary::FindYson(const TS
 {
     auto* provider = Owner_->GetBuiltinAttributeProvider();
     if (provider) {
-        const auto& builtinKeys = provider->GetBuiltinAttributeKeys();
-        if (builtinKeys.find(key) != builtinKeys.end()) {
-            return provider->FindBuiltinAttribute(key);
+        auto internedKey = GetInternedAttributeKey(key);
+        if (internedKey != InvalidInternedAttribute) {
+            const auto& builtinKeys = provider->GetBuiltinAttributeKeys();
+            if (builtinKeys.find(internedKey) != builtinKeys.end()) {
+                return provider->FindBuiltinAttribute(internedKey);
+            }
         }
     }
 
@@ -343,12 +346,15 @@ void TSupportsAttributes::TCombinedAttributeDictionary::SetYson(const TString& k
 {
     auto* provider = Owner_->GetBuiltinAttributeProvider();
     if (provider) {
-        const auto& builtinKeys = provider->GetBuiltinAttributeKeys();
-        if (builtinKeys.find(key) != builtinKeys.end()) {
-            if (!provider->SetBuiltinAttribute(key, value)) {
-                ThrowCannotSetBuiltinAttribute(key);
+        auto internedKey = GetInternedAttributeKey(key);
+        if (internedKey != InvalidInternedAttribute) {
+            const auto& builtinKeys = provider->GetBuiltinAttributeKeys();
+            if (builtinKeys.find(internedKey) != builtinKeys.end()) {
+                if (!provider->SetBuiltinAttribute(internedKey, value)) {
+                    ThrowCannotSetBuiltinAttribute(key);
+                }
+                return;
             }
-            return;
         }
     }
 
@@ -363,9 +369,12 @@ bool TSupportsAttributes::TCombinedAttributeDictionary::Remove(const TString& ke
 {
     auto* provider = Owner_->GetBuiltinAttributeProvider();
     if (provider) {
-        const auto& builtinKeys = provider->GetBuiltinAttributeKeys();
-        if (builtinKeys.find(key) != builtinKeys.end()) {
-            return provider->RemoveBuiltinAttribute(key);
+        auto internedKey = GetInternedAttributeKey(key);
+        if (internedKey != InvalidInternedAttribute) {
+            const auto& builtinKeys = provider->GetBuiltinAttributeKeys();
+            if (builtinKeys.find(internedKey) != builtinKeys.end()) {
+                return provider->RemoveBuiltinAttribute(internedKey);
+            }
         }
     }
 
@@ -413,12 +422,16 @@ TFuture<TYsonString> TSupportsAttributes::DoFindAttribute(const TString& key)
     }
 
     if (builtinAttributeProvider) {
-        auto builtinYson = builtinAttributeProvider->FindBuiltinAttribute(key);
+        auto internedKey = GetInternedAttributeKey(key);
+        TYsonString builtinYson;
+        if (internedKey != InvalidInternedAttribute) {
+            builtinYson = builtinAttributeProvider->FindBuiltinAttribute(internedKey);
+        }
         if (builtinYson) {
             return MakeFuture(builtinYson);
         }
 
-        auto asyncResult = builtinAttributeProvider->GetBuiltinAttributeAsync(key);
+        auto asyncResult = builtinAttributeProvider->GetBuiltinAttributeAsync(internedKey);
         if (asyncResult) {
             return asyncResult;
         }
@@ -464,19 +477,19 @@ TFuture<TYsonString> TSupportsAttributes::DoGetAttribute(
                     if (!descriptor.Present)
                         continue;
 
-                    auto key = TString(descriptor.Key);
-                    TAttributeValueConsumer attributeValueConsumer(&writer, descriptor.Key);
+                    auto key = GetUninternedAttributeKey(descriptor.InternedKey);
+                    TAttributeValueConsumer attributeValueConsumer(&writer, key);
 
                     if (descriptor.Opaque) {
                         attributeValueConsumer.OnEntity();
                         continue;
                     }
 
-                    if (builtinAttributeProvider->GetBuiltinAttribute(key, &attributeValueConsumer)) {
+                    if (builtinAttributeProvider->GetBuiltinAttribute(descriptor.InternedKey, &attributeValueConsumer)) {
                         continue;
                     }
 
-                    auto asyncValue = builtinAttributeProvider->GetBuiltinAttributeAsync(key);
+                    auto asyncValue = builtinAttributeProvider->GetBuiltinAttributeAsync(descriptor.InternedKey);
                     if (asyncValue) {
                         attributeValueConsumer.OnRaw(std::move(asyncValue));
                     }
@@ -587,7 +600,7 @@ TFuture<TYsonString> TSupportsAttributes::DoListAttribute(const TYPath& path)
             for (const auto& descriptor : builtinDescriptors) {
                 if (descriptor.Present) {
                     writer.OnListItem();
-                    writer.OnStringScalar(descriptor.Key);
+                    writer.OnStringScalar(GetUninternedAttributeKey(descriptor.InternedKey));
                 }
             }
         }
@@ -671,10 +684,13 @@ TFuture<bool> TSupportsAttributes::DoExistsAttribute(const TYPath& path)
 
         auto* builtinAttributeProvider = GetBuiltinAttributeProvider();
         if (builtinAttributeProvider) {
-            auto maybeDescriptor = builtinAttributeProvider->FindBuiltinAttributeDescriptor(key);
-            if (maybeDescriptor) {
-                const auto& descriptor = *maybeDescriptor;
-                return descriptor.Present ? TrueFuture : FalseFuture;
+            auto internedKey = GetInternedAttributeKey(key);
+            if (internedKey != InvalidInternedAttribute) {
+                auto maybeDescriptor = builtinAttributeProvider->FindBuiltinAttributeDescriptor(internedKey);
+                if (maybeDescriptor) {
+                    const auto& descriptor = *maybeDescriptor;
+                    return descriptor.Present ? TrueFuture : FalseFuture;
+                }
             }
         }
 
@@ -724,7 +740,7 @@ void TSupportsAttributes::DoSetAttribute(const TYPath& path, const TYsonString& 
         case NYPath::ETokenType::EndOfStream: {
             auto newAttributes = ConvertToAttributes(newYson);
 
-            std::map<TString, ISystemAttributeProvider::TAttributeDescriptor> descriptorMap;
+            std::map<TInternedAttributeKey, ISystemAttributeProvider::TAttributeDescriptor> descriptorMap;
             if (builtinAttributeProvider) {
                 builtinAttributeProvider->ListSystemAttributes(&descriptorMap);
             }
@@ -744,7 +760,10 @@ void TSupportsAttributes::DoSetAttribute(const TYPath& path, const TYsonString& 
                 auto newAttributeKeys = newAttributes->List();
                 std::sort(newAttributeKeys.begin(), newAttributeKeys.end());
                 for (const auto& key : newAttributeKeys) {
-                    auto it = descriptorMap.find(key);
+                    auto internedKey = GetInternedAttributeKey(key);
+                    auto it = (internedKey != InvalidInternedAttribute)
+                        ? descriptorMap.find(internedKey)
+                        : descriptorMap.end();
                     if (it == descriptorMap.end() || it->second.Custom) {
                         permissionValidator.Validate(EPermission::Write);
 
@@ -758,7 +777,8 @@ void TSupportsAttributes::DoSetAttribute(const TYPath& path, const TYsonString& 
             // Set builtin attributes.
             if (builtinAttributeProvider) {
                 for (const auto& pair : descriptorMap) {
-                    const auto& key = pair.first;
+                    auto internedKey = pair.first;
+                    const auto& key = GetUninternedAttributeKey(internedKey);
                     const auto& descriptor = pair.second;
 
                     if (descriptor.Custom) {
@@ -773,7 +793,7 @@ void TSupportsAttributes::DoSetAttribute(const TYPath& path, const TYsonString& 
 
                         permissionValidator.Validate(descriptor.WritePermission);
 
-                        if (!GuardedSetBuiltinAttribute(key, newAttributeYson)) {
+                        if (!GuardedSetBuiltinAttribute(internedKey, newAttributeYson)) {
                             ThrowCannotSetBuiltinAttribute(key);
                         }
 
@@ -781,7 +801,7 @@ void TSupportsAttributes::DoSetAttribute(const TYPath& path, const TYsonString& 
                     } else if (descriptor.Removable) {
                         permissionValidator.Validate(descriptor.WritePermission);
 
-                        if (!GuardedRemoveBuiltinAttribute(key)) {
+                        if (!GuardedRemoveBuiltinAttribute(internedKey)) {
                             ThrowCannotRemoveAttribute(key);
                         }
                     }
@@ -799,10 +819,11 @@ void TSupportsAttributes::DoSetAttribute(const TYPath& path, const TYsonString& 
         case NYPath::ETokenType::Literal: {
             auto key = tokenizer.GetLiteralValue();
             ValidateAttributeKey(key);
+            auto internedKey = GetInternedAttributeKey(key);
 
             TNullable<ISystemAttributeProvider::TAttributeDescriptor> descriptor;
-            if (builtinAttributeProvider) {
-                descriptor = builtinAttributeProvider->FindBuiltinAttributeDescriptor(key);
+            if (builtinAttributeProvider && internedKey != InvalidInternedAttribute) {
+                descriptor = builtinAttributeProvider->FindBuiltinAttributeDescriptor(internedKey);
             }
 
             if (descriptor) {
@@ -813,11 +834,11 @@ void TSupportsAttributes::DoSetAttribute(const TYPath& path, const TYsonString& 
                 permissionValidator.Validate(descriptor->WritePermission);
 
                 if (tokenizer.Advance() == NYPath::ETokenType::EndOfStream) {
-                    if (!GuardedSetBuiltinAttribute(key, newYson)) {
+                    if (!GuardedSetBuiltinAttribute(internedKey, newYson)) {
                         ThrowCannotSetBuiltinAttribute(key);
                     }
                 } else {
-                    auto oldWholeYson = builtinAttributeProvider->FindBuiltinAttribute(key);
+                    auto oldWholeYson = builtinAttributeProvider->FindBuiltinAttribute(internedKey);
                     if (!oldWholeYson) {
                         ThrowNoSuchBuiltinAttribute(key);
                     }
@@ -826,7 +847,7 @@ void TSupportsAttributes::DoSetAttribute(const TYPath& path, const TYsonString& 
                     SyncYPathSet(oldWholeNode, TYPath(tokenizer.GetInput()), newYson);
                     auto newWholeYson = ConvertToYsonStringStable(oldWholeNode);
 
-                    if (!GuardedSetBuiltinAttribute(key, newWholeYson)) {
+                    if (!GuardedSetBuiltinAttribute(internedKey, newWholeYson)) {
                         ThrowCannotSetBuiltinAttribute(key);
                     }
                 }
@@ -904,6 +925,7 @@ void TSupportsAttributes::DoRemoveAttribute(const TYPath& path, bool force)
 
         case NYPath::ETokenType::Literal: {
             auto key = tokenizer.GetLiteralValue();
+            auto internedKey = GetInternedAttributeKey(key);
             auto customYson = customAttributes ? customAttributes->FindYson(key) : TYsonString();
             if (tokenizer.Advance() == NYPath::ETokenType::EndOfStream) {
                 if (customYson) {
@@ -918,7 +940,7 @@ void TSupportsAttributes::DoRemoveAttribute(const TYPath& path, bool force)
                         ThrowNoSuchCustomAttribute(key);
                     }
 
-                    auto descriptor = builtinAttributeProvider->FindBuiltinAttributeDescriptor(key);
+                    auto descriptor = builtinAttributeProvider->FindBuiltinAttributeDescriptor(internedKey);
                     if (!descriptor) {
                         if (force) {
                             return;
@@ -931,7 +953,7 @@ void TSupportsAttributes::DoRemoveAttribute(const TYPath& path, bool force)
 
                     permissionValidator.Validate(descriptor->WritePermission);
 
-                    if (!GuardedRemoveBuiltinAttribute(key)) {
+                    if (!GuardedRemoveBuiltinAttribute(internedKey)) {
                         ThrowNoSuchBuiltinAttribute(key);
                     }
                 }
@@ -952,7 +974,7 @@ void TSupportsAttributes::DoRemoveAttribute(const TYPath& path, bool force)
                         ThrowNoSuchAttribute(key);
                     }
 
-                    auto descriptor = builtinAttributeProvider->FindBuiltinAttributeDescriptor(key);
+                    auto descriptor = builtinAttributeProvider->FindBuiltinAttributeDescriptor(internedKey);
                     if (!descriptor) {
                         if (force) {
                             return;
@@ -966,7 +988,7 @@ void TSupportsAttributes::DoRemoveAttribute(const TYPath& path, bool force)
 
                     permissionValidator.Validate(descriptor->WritePermission);
 
-                    auto builtinYson = builtinAttributeProvider->FindBuiltinAttribute(key);
+                    auto builtinYson = builtinAttributeProvider->FindBuiltinAttribute(internedKey);
                     if (!builtinYson) {
                         if (force) {
                             return;
@@ -978,7 +1000,7 @@ void TSupportsAttributes::DoRemoveAttribute(const TYPath& path, bool force)
                     SyncYPathRemove(builtinNode, TYPath(tokenizer.GetInput()));
                     auto updatedSystemYson = ConvertToYsonStringStable(builtinNode);
 
-                    if (!GuardedSetBuiltinAttribute(key, updatedSystemYson)) {
+                    if (!GuardedSetBuiltinAttribute(internedKey, updatedSystemYson)) {
                         ThrowCannotSetBuiltinAttribute(key);
                     }
                 }
@@ -1071,7 +1093,7 @@ ISystemAttributeProvider* TSupportsAttributes::GetBuiltinAttributeProvider()
     return nullptr;
 }
 
-bool TSupportsAttributes::GuardedSetBuiltinAttribute(const TString& key, const TYsonString& yson)
+bool TSupportsAttributes::GuardedSetBuiltinAttribute(TInternedAttributeKey key, const TYsonString& yson)
 {
     auto* provider = GetBuiltinAttributeProvider();
 
@@ -1079,12 +1101,12 @@ bool TSupportsAttributes::GuardedSetBuiltinAttribute(const TString& key, const T
         return provider->SetBuiltinAttribute(key, yson);
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error setting builtin attribute %Qv",
-            ToYPathLiteral(key))
+            ToYPathLiteral(GetUninternedAttributeKey(key)))
             << ex;
     }
 }
 
-bool TSupportsAttributes::GuardedRemoveBuiltinAttribute(const TString& key)
+bool TSupportsAttributes::GuardedRemoveBuiltinAttribute(TInternedAttributeKey key)
 {
     auto* provider = GetBuiltinAttributeProvider();
 
@@ -1092,7 +1114,7 @@ bool TSupportsAttributes::GuardedRemoveBuiltinAttribute(const TString& key)
         return provider->RemoveBuiltinAttribute(key);
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error removing builtin attribute %Qv",
-            ToYPathLiteral(key))
+            ToYPathLiteral(GetUninternedAttributeKey(key)))
             << ex;
     }
 }
@@ -1106,7 +1128,7 @@ void TSupportsAttributes::ValidateAttributeKey(const TString& key) const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const THashSet<const char*>& TBuiltinAttributeKeysCache::GetBuiltinAttributeKeys(
+const THashSet<TInternedAttributeKey>& TBuiltinAttributeKeysCache::GetBuiltinAttributeKeys(
     ISystemAttributeProvider* provider)
 {
     if (!Initialized_) {
@@ -1115,7 +1137,7 @@ const THashSet<const char*>& TBuiltinAttributeKeysCache::GetBuiltinAttributeKeys
         BuiltinKeys_.reserve(descriptors.size());
         for (const auto& descriptor : descriptors) {
             if (!descriptor.Custom) {
-                YCHECK(BuiltinKeys_.insert(descriptor.Key).second);
+                YCHECK(BuiltinKeys_.insert(descriptor.InternedKey).second);
             }
         }
         Initialized_ = true;

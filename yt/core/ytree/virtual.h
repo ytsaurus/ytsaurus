@@ -1,5 +1,6 @@
 #pragma once
 
+#include "interned_attributes.h"
 #include "system_attribute_provider.h"
 #include "ypath_detail.h"
 
@@ -32,11 +33,11 @@ protected:
 
     // ISystemAttributeProvider overrides
     virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override;
-    virtual const THashSet<const char*>& GetBuiltinAttributeKeys() override;
-    virtual bool GetBuiltinAttribute(const TString& key, NYson::IYsonConsumer* consumer) override;
-    virtual TFuture<NYson::TYsonString> GetBuiltinAttributeAsync(const TString& key) override;
-    virtual bool SetBuiltinAttribute(const TString& key, const NYson::TYsonString& value) override;
-    virtual bool RemoveBuiltinAttribute(const TString& key) override;
+    virtual const THashSet<TInternedAttributeKey>& GetBuiltinAttributeKeys() override;
+    virtual bool GetBuiltinAttribute(TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override;
+    virtual TFuture<NYson::TYsonString> GetBuiltinAttributeAsync(TInternedAttributeKey key) override;
+    virtual bool SetBuiltinAttribute(TInternedAttributeKey key, const NYson::TYsonString& value) override;
+    virtual bool RemoveBuiltinAttribute(TInternedAttributeKey key) override;
 
 private:
     const INodePtr OwningNode_;
@@ -57,10 +58,10 @@ public:
     virtual i64 GetSize() const override;
     virtual IYPathServicePtr FindItemService(const TStringBuf& key) const override;
     virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override;
-    virtual bool GetBuiltinAttribute(const TString& key, NYson::IYsonConsumer* consumer) override;
+    virtual bool GetBuiltinAttribute(TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override;
 
     TIntrusivePtr<TCompositeMapService> AddChild(const TString& key, IYPathServicePtr service);
-    TIntrusivePtr<TCompositeMapService> AddAttribute(const TString& key, NYson::TYsonCallback producer);
+    TIntrusivePtr<TCompositeMapService> AddAttribute(TInternedAttributeKey key, NYson::TYsonCallback producer);
 
 private:
     class TImpl;

@@ -8,6 +8,8 @@
 #include <yt/server/chunk_server/chunk_manager.h>
 #include <yt/server/chunk_server/chunk_owner_node_proxy.h>
 
+#include <yt/server/object_server/interned_attributes.h>
+
 #include <yt/ytlib/journal_client/journal_ypath.pb.h>
 
 namespace NYT {
@@ -50,70 +52,79 @@ private:
         const auto* node = GetThisImpl();
         auto isExternal = node->IsExternal();
 
-        descriptors->push_back(TAttributeDescriptor("read_quorum")
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ReadQuorum)
             .SetReplicated(true));
-        descriptors->push_back(TAttributeDescriptor("write_quorum")
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::WriteQuorum)
             .SetReplicated(true));
-        descriptors->push_back("row_count");
-        descriptors->push_back(TAttributeDescriptor("quorum_row_count")
+        descriptors->push_back(EInternedAttributeKey::RowCount);
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::QuorumRowCount)
             .SetExternal(isExternal)
             .SetOpaque(true));
-        descriptors->push_back("sealed");
+        descriptors->push_back(EInternedAttributeKey::Sealed);
     }
 
-    virtual bool GetBuiltinAttribute(const TString& key, IYsonConsumer* consumer) override
+    virtual bool GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer) override
     {
         auto* node = GetThisImpl();
         auto statistics = node->ComputeTotalStatistics();
 
-        if (key == "read_quorum") {
-            BuildYsonFluently(consumer)
-                .Value(node->GetReadQuorum());
-            return true;
-        }
+        switch (key) {
+            case EInternedAttributeKey::ReadQuorum:
+                BuildYsonFluently(consumer)
+                    .Value(node->GetReadQuorum());
+                return true;
 
-        if (key == "write_quorum") {
-            BuildYsonFluently(consumer)
-                .Value(node->GetWriteQuorum());
-            return true;
-        }
+            case EInternedAttributeKey::WriteQuorum:
+                BuildYsonFluently(consumer)
+                    .Value(node->GetWriteQuorum());
+                return true;
 
-        if (key == "row_count") {
-            BuildYsonFluently(consumer)
-                .Value(statistics.row_count());
-            return true;
-        }
+            case EInternedAttributeKey::RowCount:
+                BuildYsonFluently(consumer)
+                    .Value(statistics.row_count());
+                return true;
 
-        if (key == "sealed") {
-            BuildYsonFluently(consumer)
-                .Value(node->GetSealed());
-            return true;
+            case EInternedAttributeKey::Sealed:
+                BuildYsonFluently(consumer)
+                    .Value(node->GetSealed());
+                return true;
+
+            default:
+                break;
         }
 
         return TBase::GetBuiltinAttribute(key, consumer);
     }
 
-    virtual TFuture<TYsonString> GetBuiltinAttributeAsync(const TString& key) override
+    virtual TFuture<TYsonString> GetBuiltinAttributeAsync(TInternedAttributeKey key) override
     {
         const auto* node = GetThisImpl();
         auto isExternal = node->IsExternal();
 
-        if (key == "quorum_row_count" && !isExternal) {
-            const auto* chunkList = node->GetChunkList();
-            if (chunkList->Children().empty()) {
-                return MakeFuture(ConvertToYsonString(0));
+        switch (key) {
+            case EInternedAttributeKey::QuorumRowCount: {
+                if (isExternal) {
+                    break;
+                }
+                const auto* chunkList = node->GetChunkList();
+                if (chunkList->Children().empty()) {
+                    return MakeFuture(ConvertToYsonString(0));
+                }
+
+                auto* chunk = chunkList->Children().back()->AsChunk();
+                const auto& cumulativeStatistics = chunkList->CumulativeStatistics();
+                i64 penultimateRowCount = cumulativeStatistics.empty() ? 0 : cumulativeStatistics.back().RowCount;
+
+                const auto& chunkManager = Bootstrap_->GetChunkManager();
+                return chunkManager
+                    ->GetChunkQuorumInfo(chunk)
+                    .Apply(BIND([=] (const NChunkClient::NProto::TMiscExt& miscExt) {
+                        return ConvertToYsonString(penultimateRowCount + miscExt.row_count());
+                    }));
             }
 
-            auto* chunk = chunkList->Children().back()->AsChunk();
-            const auto& cumulativeStatistics = chunkList->CumulativeStatistics();
-            i64 penultimateRowCount = cumulativeStatistics.empty() ? 0 : cumulativeStatistics.back().RowCount;
-
-            const auto& chunkManager = Bootstrap_->GetChunkManager();
-            return chunkManager
-                ->GetChunkQuorumInfo(chunk)
-                .Apply(BIND([=] (const NChunkClient::NProto::TMiscExt& miscExt) {
-                    return ConvertToYsonString(penultimateRowCount + miscExt.row_count());
-                }));
+            default:
+                break;
         }
 
         return TBase::GetBuiltinAttributeAsync(key);

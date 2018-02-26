@@ -17,6 +17,7 @@
 
 #include <yt/server/hydra/mutation_context.h>
 
+#include <yt/server/object_server/interned_attributes.h>
 #include <yt/server/object_server/object_manager.h>
 #include <yt/server/object_server/type_handler.h>
 
@@ -210,11 +211,12 @@ void TObjectProxyBase::DoWriteAttributesFragment(
                 continue;
             }
 
-            if (GetBuiltinAttribute(key, &attributeValueConsumer)) {
+            auto internedKey = GetInternedAttributeKey(key);
+            if (GetBuiltinAttribute(internedKey, &attributeValueConsumer)) {
                 continue;
             }
 
-            auto asyncValue = GetBuiltinAttributeAsync(key);
+            auto asyncValue = GetBuiltinAttributeAsync(internedKey);
             if (asyncValue) {
                 attributeValueConsumer.OnRaw(std::move(asyncValue));
                 continue; // just for the symmetry
@@ -235,7 +237,7 @@ void TObjectProxyBase::DoWriteAttributesFragment(
                 builtinAttributes.begin(),
                 builtinAttributes.end(),
                 [] (const ISystemAttributeProvider::TAttributeDescriptor& lhs, const ISystemAttributeProvider::TAttributeDescriptor& rhs) {
-                    return lhs.Key < rhs.Key;
+                    return lhs.InternedKey < rhs.InternedKey;
                 });
         }
 
@@ -246,8 +248,9 @@ void TObjectProxyBase::DoWriteAttributesFragment(
         }
 
         for (const auto& descriptor : builtinAttributes) {
-            auto key = TString(descriptor.Key);
-            TAttributeValueConsumer attributeValueConsumer(consumer, key);
+            auto key = descriptor.InternedKey;
+            auto uninternedKey = TString(GetUninternedAttributeKey(key));
+            TAttributeValueConsumer attributeValueConsumer(consumer, uninternedKey);
 
             if (descriptor.Opaque) {
                 attributeValueConsumer.OnEntity();
@@ -338,167 +341,178 @@ void TObjectProxyBase::ListSystemAttributes(std::vector<TAttributeDescriptor>* d
     bool hasOwner = acd && acd->GetOwner();
     bool isForeign = Object_->IsForeign();
 
-    descriptors->push_back("id");
-    descriptors->push_back("type");
-    descriptors->push_back("builtin");
-    descriptors->push_back("ref_counter");
-    descriptors->push_back("ephemeral_ref_counter");
-    descriptors->push_back("weak_ref_counter");
-    descriptors->push_back(TAttributeDescriptor("import_ref_counter")
+    descriptors->push_back(EInternedAttributeKey::Id);
+    descriptors->push_back(EInternedAttributeKey::Type);
+    descriptors->push_back(EInternedAttributeKey::Builtin);
+    descriptors->push_back(EInternedAttributeKey::RefCounter);
+    descriptors->push_back(EInternedAttributeKey::EphemeralRefCounter);
+    descriptors->push_back(EInternedAttributeKey::WeakRefCounter);
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ImportRefCounter)
         .SetPresent(isForeign));
-    descriptors->push_back("foreign");
-    descriptors->push_back(TAttributeDescriptor("inherit_acl")
+    descriptors->push_back(EInternedAttributeKey::Foreign);
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::InheritAcl)
         .SetPresent(hasAcd)
         .SetWritable(true)
         .SetWritePermission(EPermission::Administer)
         .SetReplicated(true));
-    descriptors->push_back(TAttributeDescriptor("acl")
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Acl)
         .SetPresent(hasAcd)
         .SetWritable(true)
         .SetWritePermission(EPermission::Administer)
         .SetReplicated(true));
-    descriptors->push_back(TAttributeDescriptor("owner")
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Owner)
         .SetWritable(true)
         .SetPresent(hasOwner));
-    descriptors->push_back(TAttributeDescriptor("effective_acl")
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::EffectiveAcl)
         .SetOpaque(true));
-    descriptors->push_back("user_attribute_keys");
-    descriptors->push_back(TAttributeDescriptor("life_stage")
+    descriptors->push_back(EInternedAttributeKey::UserAttributeKeys);
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::LifeStage)
         .SetReplicated(true));
 }
 
-const THashSet<const char*>& TObjectProxyBase::GetBuiltinAttributeKeys()
+const THashSet<TInternedAttributeKey>& TObjectProxyBase::GetBuiltinAttributeKeys()
 {
     return Metadata_->BuiltinAttributeKeysCache.GetBuiltinAttributeKeys(this);
 }
 
-bool TObjectProxyBase::GetBuiltinAttribute(const TString& key, IYsonConsumer* consumer)
+bool TObjectProxyBase::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer)
 {
     const auto& securityManager = Bootstrap_->GetSecurityManager();
     const auto& objectManager = Bootstrap_->GetObjectManager();
 
     bool isForeign = Object_->IsForeign();
-
-    if (key == "id") {
-        BuildYsonFluently(consumer)
-            .Value(ToString(GetId()));
-        return true;
-    }
-
-    if (key == "type") {
-        BuildYsonFluently(consumer)
-            .Value(TypeFromId(GetId()));
-        return true;
-    }
-
-    if (key == "builtin") {
-        BuildYsonFluently(consumer)
-            .Value(Object_->IsBuiltin());
-        return true;
-    }
-
-    if (key == "ref_counter") {
-        BuildYsonFluently(consumer)
-            .Value(objectManager->GetObjectRefCounter(Object_));
-        return true;
-    }
-
-    if (key == "ephemeral_ref_counter") {
-        BuildYsonFluently(consumer)
-            .Value(objectManager->GetObjectEphemeralRefCounter(Object_));
-        return true;
-    }
-
-    if (key == "weak_ref_counter") {
-        BuildYsonFluently(consumer)
-            .Value(objectManager->GetObjectWeakRefCounter(Object_));
-        return true;
-    }
-
-    if (isForeign && key == "import_ref_counter") {
-        BuildYsonFluently(consumer)
-            .Value(Object_->GetImportRefCounter());
-        return true;
-    }
-
-    if (key == "foreign") {
-        BuildYsonFluently(consumer)
-            .Value(isForeign);
-        return true;
-    }
-
     auto* acd = FindThisAcd();
-    if (acd) {
-        if (key == "inherit_acl") {
+
+    switch (key) {
+        case EInternedAttributeKey::Id:
+            BuildYsonFluently(consumer)
+                .Value(ToString(GetId()));
+            return true;
+
+        case EInternedAttributeKey::Type:
+            BuildYsonFluently(consumer)
+                .Value(TypeFromId(GetId()));
+            return true;
+
+        case EInternedAttributeKey::Builtin:
+            BuildYsonFluently(consumer)
+                .Value(Object_->IsBuiltin());
+            return true;
+
+        case EInternedAttributeKey::RefCounter:
+            BuildYsonFluently(consumer)
+                .Value(objectManager->GetObjectRefCounter(Object_));
+            return true;
+
+        case EInternedAttributeKey::EphemeralRefCounter:
+            BuildYsonFluently(consumer)
+                .Value(objectManager->GetObjectEphemeralRefCounter(Object_));
+            return true;
+
+        case EInternedAttributeKey::WeakRefCounter:
+            BuildYsonFluently(consumer)
+                .Value(objectManager->GetObjectWeakRefCounter(Object_));
+            return true;
+
+        case EInternedAttributeKey::ImportRefCounter:
+            if (!isForeign) {
+                break;
+            }
+            BuildYsonFluently(consumer)
+                .Value(Object_->GetImportRefCounter());
+            return true;
+
+        case EInternedAttributeKey::Foreign:
+            BuildYsonFluently(consumer)
+                .Value(isForeign);
+            return true;
+
+        case EInternedAttributeKey::InheritAcl:
+            if (!acd) {
+                break;
+            }
             BuildYsonFluently(consumer)
                 .Value(acd->GetInherit());
             return true;
-        }
 
-        if (key == "acl") {
+        case EInternedAttributeKey::Acl:
+            if (!acd) {
+                break;
+            }
             BuildYsonFluently(consumer)
                 .Value(acd->Acl());
             return true;
-        }
 
-        if (key == "owner" && acd->GetOwner()) {
+        case EInternedAttributeKey::Owner:
+            if (!acd || !acd->GetOwner()) {
+                break;
+            }
             BuildYsonFluently(consumer)
                 .Value(acd->GetOwner()->GetName());
             return true;
-        }
-    }
 
-    if (key == "effective_acl") {
-        BuildYsonFluently(consumer)
-            .Value(securityManager->GetEffectiveAcl(Object_));
-        return true;
-    }
+        case EInternedAttributeKey::EffectiveAcl:
+            BuildYsonFluently(consumer)
+                .Value(securityManager->GetEffectiveAcl(Object_));
+            return true;
 
-    if (key == "user_attribute_keys") {
-        std::vector<TAttributeDescriptor> systemAttributes;
-        ReserveAndListSystemAttributes(&systemAttributes);
+        case EInternedAttributeKey::UserAttributeKeys: {
+            std::vector<TAttributeDescriptor> systemAttributes;
+            ReserveAndListSystemAttributes(&systemAttributes);
 
-        auto customAttributes = GetCustomAttributes()->List();
-        THashSet<TString> customAttributesSet(customAttributes.begin(), customAttributes.end());
+            auto customAttributes = GetCustomAttributes()->List();
+            THashSet<TString> customAttributesSet(customAttributes.begin(), customAttributes.end());
 
-        for (const auto& attribute : systemAttributes) {
-            if (attribute.Custom) {
-                customAttributesSet.erase(attribute.Key);
+            for (const auto& attribute : systemAttributes) {
+                if (attribute.Custom) {
+                    customAttributesSet.erase(GetUninternedAttributeKey(attribute.InternedKey));
+                }
             }
+
+            BuildYsonFluently(consumer)
+                .Value(customAttributesSet);
+            return true;
         }
 
-        BuildYsonFluently(consumer)
-            .Value(customAttributesSet);
-        return true;
-    }
+        case EInternedAttributeKey::LifeStage:
+            BuildYsonFluently(consumer)
+                .Value(Object_->GetLifeStage());
+            return true;
 
-    if (key == "life_stage") {
-        BuildYsonFluently(consumer)
-            .Value(Object_->GetLifeStage());
-        return true;
+        default:
+            break;
     }
 
     return false;
 }
 
-TFuture<TYsonString> TObjectProxyBase::GetBuiltinAttributeAsync(const TString& /*key*/)
+TFuture<TYsonString> TObjectProxyBase::GetBuiltinAttributeAsync(TInternedAttributeKey /*key*/)
 {
     return Null;
 }
 
-bool TObjectProxyBase::SetBuiltinAttribute(const TString& key, const TYsonString& value)
+bool TObjectProxyBase::SetBuiltinAttribute(TInternedAttributeKey key, const TYsonString& value)
 {
     const auto& securityManager = Bootstrap_->GetSecurityManager();
     auto* acd = FindThisAcd();
-    if (acd) {
-        if (key == "inherit_acl") {
+
+    switch (key) {
+        case EInternedAttributeKey::InheritAcl:
+            if (!acd) {
+                break;
+            }
+
             ValidateNoTransaction();
 
             acd->SetInherit(ConvertTo<bool>(value));
             return true;
-        }
 
-        if (key == "acl") {
+
+        case EInternedAttributeKey::Acl: {
+            if (!acd) {
+                break;
+            }
+
             ValidateNoTransaction();
 
             auto valueNode = ConvertToNode(value);
@@ -513,7 +527,11 @@ bool TObjectProxyBase::SetBuiltinAttribute(const TString& key, const TYsonString
             return true;
         }
 
-        if (key == "owner") {
+        case EInternedAttributeKey::Owner: {
+            if (!acd) {
+                break;
+            }
+
             ValidateNoTransaction();
 
             auto name = ConvertTo<TString>(value);
@@ -530,12 +548,15 @@ bool TObjectProxyBase::SetBuiltinAttribute(const TString& key, const TYsonString
 
             return true;
         }
+
+        default:
+            break;
     }
 
     return false;
 }
 
-bool TObjectProxyBase::RemoveBuiltinAttribute(const TString& /*key*/)
+bool TObjectProxyBase::RemoveBuiltinAttribute(TInternedAttributeKey /*key*/)
 {
     return false;
 }
@@ -810,6 +831,15 @@ TAccessControlDescriptor* TNontemplateNonversionedObjectProxyBase::FindThisAcd()
     const auto& securityManager = Bootstrap_->GetSecurityManager();
     return securityManager->FindAcd(Object_);
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+#define XX(camelCaseName, snakeCaseName) \
+    REGISTER_INTERNED_ATTRIBUTE(snakeCaseName, EInternedAttributeKey::camelCaseName)
+
+FOR_EACH_INTERNED_ATTRIBUTE(XX)
+
+#undef XX
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -6,6 +6,7 @@
 
 #include <yt/server/cell_master/bootstrap.h>
 
+#include <yt/server/object_server/interned_attributes.h>
 #include <yt/server/object_server/object_detail.h>
 
 #include <yt/core/ytree/fluent.h>
@@ -40,82 +41,96 @@ private:
     {
         TBase::ListSystemAttributes(descriptors);
 
-        descriptors->push_back(TAttributeDescriptor("name")
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Name)
             .SetWritable(true)
             .SetReplicated(true)
             .SetMandatory(true));
-        descriptors->push_back(TAttributeDescriptor("data_center")
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::DataCenter)
             .SetPresent(GetThisImpl()->GetDataCenter())
             .SetWritable(true)
             .SetRemovable(true)
             .SetReplicated(true));
-        descriptors->push_back("index");
-        descriptors->push_back("nodes");
+        descriptors->push_back(EInternedAttributeKey::Index);
+        descriptors->push_back(EInternedAttributeKey::Nodes);
     }
 
-    virtual bool GetBuiltinAttribute(const TString& key, NYson::IYsonConsumer* consumer) override
+    virtual bool GetBuiltinAttribute(TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override
     {
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
         const auto* rack = GetThisImpl();
 
-        if (key == "name") {
-            BuildYsonFluently(consumer)
-                .Value(rack->GetName());
-            return true;
-        }
+        switch (key) {
+            case EInternedAttributeKey::Name:
+                BuildYsonFluently(consumer)
+                    .Value(rack->GetName());
+                return true;
 
-        if (key == "data_center" && rack->GetDataCenter()) {
-            BuildYsonFluently(consumer)
-                .Value(rack->GetDataCenter()->GetName());
-            return true;
-        }
+            case EInternedAttributeKey::DataCenter:
+                if (!rack->GetDataCenter()) {
+                    break;
+                }
+                BuildYsonFluently(consumer)
+                    .Value(rack->GetDataCenter()->GetName());
+                return true;
 
-        if (key == "index") {
-            BuildYsonFluently(consumer)
-                .Value(rack->GetIndex());
-            return true;
-        }
+            case EInternedAttributeKey::Index:
+                BuildYsonFluently(consumer)
+                    .Value(rack->GetIndex());
+                return true;
 
-        if (key == "nodes") {
-            auto nodes = nodeTracker->GetRackNodes(rack);
-            BuildYsonFluently(consumer)
-                .DoListFor(nodes, [] (TFluentList fluent, const TNode* node) {
-                    fluent.Item().Value(node->GetDefaultAddress());
-                });
-            return true;
+            case EInternedAttributeKey::Nodes: {
+                auto nodes = nodeTracker->GetRackNodes(rack);
+                BuildYsonFluently(consumer)
+                    .DoListFor(nodes, [] (TFluentList fluent, const TNode* node) {
+                        fluent.Item().Value(node->GetDefaultAddress());
+                    });
+                return true;
+            }
+
+            default:
+                break;
         }
 
         return TBase::GetBuiltinAttribute(key, consumer);
     }
 
-    virtual bool SetBuiltinAttribute(const TString& key, const TYsonString& value) override
+    virtual bool SetBuiltinAttribute(TInternedAttributeKey key, const TYsonString& value) override
     {
         auto* rack = GetThisImpl();
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
 
-        if (key == "name") {
-            auto newName = ConvertTo<TString>(value);
-            nodeTracker->RenameRack(rack, newName);
-            return true;
-        }
+        switch (key) {
+            case EInternedAttributeKey::Name: {
+                auto newName = ConvertTo<TString>(value);
+                nodeTracker->RenameRack(rack, newName);
+                return true;
+            }
 
-        if (key == "data_center") {
-            auto dcName = ConvertTo<TString>(value);
-            auto* dc = nodeTracker->GetDataCenterByNameOrThrow(dcName);
-            nodeTracker->SetRackDataCenter(rack, dc);
-            return true;
+            case EInternedAttributeKey::DataCenter: {
+                auto dcName = ConvertTo<TString>(value);
+                auto* dc = nodeTracker->GetDataCenterByNameOrThrow(dcName);
+                nodeTracker->SetRackDataCenter(rack, dc);
+                return true;
+            }
+
+            default:
+                break;
         }
 
         return TBase::SetBuiltinAttribute(key, value);
     }
 
-    virtual bool RemoveBuiltinAttribute(const TString& key) override {
+    virtual bool RemoveBuiltinAttribute(TInternedAttributeKey key) override {
         auto* rack = GetThisImpl();
         auto nodeTracker = Bootstrap_->GetNodeTracker();
 
-        if (key == "data_center") {
-            nodeTracker->SetRackDataCenter(rack, nullptr);
-            return true;
+        switch (key) {
+            case EInternedAttributeKey::DataCenter:
+                nodeTracker->SetRackDataCenter(rack, nullptr);
+                return true;
+
+            default:
+                break;
         }
 
         return TBase::RemoveBuiltinAttribute(key);

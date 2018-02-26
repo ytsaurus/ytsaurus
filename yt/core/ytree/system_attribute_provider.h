@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "interned_attributes.h"
 #include "permission.h"
 
 #include <yt/core/yson/consumer.h>
@@ -23,7 +24,7 @@ struct ISystemAttributeProvider
     //! Describes a system attribute.
     struct TAttributeDescriptor
     {
-        const char* Key = nullptr;
+        TInternedAttributeKey InternedKey = InvalidInternedAttribute;
         bool Present = true;
         bool Opaque = false;
         bool Custom = false;
@@ -88,8 +89,8 @@ struct ISystemAttributeProvider
             return *this;
         }
 
-        TAttributeDescriptor(const char* key)
-            : Key(key)
+        TAttributeDescriptor(TInternedAttributeKey key)
+            : InternedKey(key)
         { }
     };
 
@@ -103,31 +104,31 @@ struct ISystemAttributeProvider
     //! Returns a (typically cached) set consisting of all non-custom attributes keys.
     //! \see TAttributeDescriptor::Custom
     //! \see ListSystemAttributes
-    virtual const THashSet<const char*>& GetBuiltinAttributeKeys() = 0;
+    virtual const THashSet<TInternedAttributeKey>& GetBuiltinAttributeKeys() = 0;
 
     //! Gets the value of a builtin attribute.
     /*!
      *  \returns |false| if there is no builtin attribute with the given key.
      */
-    virtual bool GetBuiltinAttribute(const TString& key, NYson::IYsonConsumer* consumer) = 0;
+    virtual bool GetBuiltinAttribute(TInternedAttributeKey key, NYson::IYsonConsumer* consumer) = 0;
 
     //! Asynchronously gets the value of a builtin attribute.
     /*!
      *  \returns A future representing attribute value or null if there is no such async builtin attribute.
      */
-    virtual TFuture<NYson::TYsonString> GetBuiltinAttributeAsync(const TString& key) = 0;
+    virtual TFuture<NYson::TYsonString> GetBuiltinAttributeAsync(TInternedAttributeKey key) = 0;
 
     //! Sets the value of a builtin attribute.
     /*!
      *  \returns |false| if there is no writable builtin attribute with the given key.
      */
-    virtual bool SetBuiltinAttribute(const TString& key, const NYson::TYsonString& value) = 0;
+    virtual bool SetBuiltinAttribute(TInternedAttributeKey key, const NYson::TYsonString& value) = 0;
 
     //! Removes the builtin attribute.
     /*!
      *  \returns |false| if there is no removable builtin attribute with the given key.
      */
-    virtual bool RemoveBuiltinAttribute(const TString& key) = 0;
+    virtual bool RemoveBuiltinAttribute(TInternedAttributeKey key) = 0;
 
 
     // Extension methods.
@@ -136,18 +137,18 @@ struct ISystemAttributeProvider
     void ReserveAndListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors);
 
     //! Similar to its interface counterpart, but populates a map rather than a vector.
-    void ListSystemAttributes(std::map<TString, TAttributeDescriptor>* descriptors);
+    void ListSystemAttributes(std::map<TInternedAttributeKey, TAttributeDescriptor>* descriptors);
 
     //! Populates the list of all builtin attributes supported by this object.
     void ListBuiltinAttributes(std::vector<TAttributeDescriptor>* descriptors);
 
     //! Returns an instance of TAttributeDescriptor matching a given #key or |Null| if no such
     //! builtin attribute is known.
-    TNullable<TAttributeDescriptor> FindBuiltinAttributeDescriptor(const TString& key);
+    TNullable<TAttributeDescriptor> FindBuiltinAttributeDescriptor(TInternedAttributeKey key);
 
     //! Wraps #GetBuiltinAttribute and returns the YSON string instead
     //! of writing it into a consumer.
-    NYson::TYsonString FindBuiltinAttribute(const TString& key);
+    NYson::TYsonString FindBuiltinAttribute(TInternedAttributeKey key);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

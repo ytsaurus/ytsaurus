@@ -6,6 +6,8 @@
 
 #include <yt/server/cypress_server/node.h>
 
+#include <yt/server/object_server/interned_attributes.h>
+
 #include <yt/server/security_server/account.h>
 
 #include <yt/server/cell_master/bootstrap.h>
@@ -51,219 +53,216 @@ private:
 
         const auto* transaction = GetThisImpl();
 
-        descriptors->push_back("state");
-        descriptors->push_back("secondary_cell_tags");
-        descriptors->push_back(TAttributeDescriptor("timeout")
+        descriptors->push_back(EInternedAttributeKey::State);
+        descriptors->push_back(EInternedAttributeKey::SecondaryCellTags);
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Timeout)
             .SetPresent(transaction->GetTimeout().HasValue())
             .SetReplicated(true));
-        descriptors->push_back(TAttributeDescriptor("last_ping_time")
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::LastPingTime)
             .SetPresent(transaction->GetTimeout().HasValue()));
-        descriptors->push_back(TAttributeDescriptor("title")
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Title)
             .SetPresent(transaction->GetTitle().HasValue()));
-        descriptors->push_back(TAttributeDescriptor("parent_id")
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ParentId)
             .SetReplicated(true));
-        descriptors->push_back("start_time");
-        descriptors->push_back(TAttributeDescriptor("nested_transaction_ids")
+        descriptors->push_back(EInternedAttributeKey::StartTime);
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::NestedTransactionIds)
             .SetOpaque(true));
-        descriptors->push_back(TAttributeDescriptor("staged_object_ids")
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::StagedObjectIds)
             .SetOpaque(true));
-        descriptors->push_back(TAttributeDescriptor("exported_objects")
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ExportedObjects)
             .SetOpaque(true));
-        descriptors->push_back("exported_object_count");
-        descriptors->push_back(TAttributeDescriptor("imported_object_ids")
+        descriptors->push_back(EInternedAttributeKey::ExportedObjectCount);
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ImportedObjectIds)
             .SetOpaque(true));
-        descriptors->push_back("imported_object_count");
-        descriptors->push_back(TAttributeDescriptor("staged_node_ids")
+        descriptors->push_back(EInternedAttributeKey::ImportedObjectCount);
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::StagedNodeIds)
             .SetOpaque(true));
-        descriptors->push_back(TAttributeDescriptor("branched_node_ids")
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::BranchedNodeIds)
             .SetOpaque(true));
-        descriptors->push_back(TAttributeDescriptor("locked_node_ids")
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::LockedNodeIds)
             .SetOpaque(true));
-        descriptors->push_back(TAttributeDescriptor("lock_ids")
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::LockIds)
             .SetOpaque(true));
-        descriptors->push_back("resource_usage");
-        descriptors->push_back("multicell_resource_usage");
-        descriptors->push_back("is_system");
+        descriptors->push_back(EInternedAttributeKey::ResourceUsage);
+        descriptors->push_back(EInternedAttributeKey::MulticellResourceUsage);
+        descriptors->push_back(EInternedAttributeKey::System);
     }
 
-    virtual bool GetBuiltinAttribute(const TString& key, IYsonConsumer* consumer) override
+    virtual bool GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer) override
     {
         const auto* transaction = GetThisImpl();
 
-        if (key == "state") {
-            BuildYsonFluently(consumer)
-                .Value(transaction->GetState());
-            return true;
-        }
+        switch (key) {
+            case EInternedAttributeKey::State:
+                BuildYsonFluently(consumer)
+                    .Value(transaction->GetState());
+                return true;
 
-        if (key == "secondary_cell_tags") {
-            BuildYsonFluently(consumer)
-                .Value(transaction->SecondaryCellTags());
-            return true;
-        }
+            case EInternedAttributeKey::SecondaryCellTags:
+                BuildYsonFluently(consumer)
+                    .Value(transaction->SecondaryCellTags());
+                return true;
 
-        if (key == "timeout" && transaction->GetTimeout()) {
-            BuildYsonFluently(consumer)
-                .Value(*transaction->GetTimeout());
-            return true;
-        }
+            case EInternedAttributeKey::Timeout:
+                if (!transaction->GetTimeout()) {
+                    break;
+                }
+                BuildYsonFluently(consumer)
+                    .Value(*transaction->GetTimeout());
+                return true;
 
-        if (key == "title" && transaction->GetTitle()) {
-            BuildYsonFluently(consumer)
-                .Value(*transaction->GetTitle());
-            return true;
-        }
+            case EInternedAttributeKey::Title:
+                if (!transaction->GetTitle()) {
+                    break;
+                }
+                BuildYsonFluently(consumer)
+                    .Value(*transaction->GetTitle());
+                return true;
 
-        if (key == "parent_id") {
-            BuildYsonFluently(consumer)
-                .Value(GetObjectId(transaction->GetParent()));
-            return true;
-        }
+            case EInternedAttributeKey::ParentId:
+                BuildYsonFluently(consumer)
+                    .Value(GetObjectId(transaction->GetParent()));
+                return true;
 
-        if (key == "start_time") {
-            BuildYsonFluently(consumer)
-                .Value(transaction->GetStartTime());
-            return true;
-        }
+            case EInternedAttributeKey::StartTime:
+                BuildYsonFluently(consumer)
+                    .Value(transaction->GetStartTime());
+                return true;
 
-        if (key == "nested_transaction_ids") {
-            BuildYsonFluently(consumer)
-                .DoListFor(transaction->NestedTransactions(), [=] (TFluentList fluent, TTransaction* nestedTransaction) {
-                    fluent.Item().Value(nestedTransaction->GetId());
-                });
-            return true;
-        }
+            case EInternedAttributeKey::NestedTransactionIds:
+                BuildYsonFluently(consumer)
+                    .DoListFor(transaction->NestedTransactions(), [=] (TFluentList fluent, TTransaction* nestedTransaction) {
+                        fluent.Item().Value(nestedTransaction->GetId());
+                    });
+                return true;
 
-        if (key == "staged_node_ids") {
-            BuildYsonFluently(consumer)
-                .DoListFor(transaction->StagedNodes(), [=] (TFluentList fluent, const TCypressNodeBase* node) {
-                    fluent.Item().Value(node->GetId());
-                });
-            return true;
-        }
+            case EInternedAttributeKey::StagedNodeIds:
+                BuildYsonFluently(consumer)
+                    .DoListFor(transaction->StagedNodes(), [=] (TFluentList fluent, const TCypressNodeBase* node) {
+                        fluent.Item().Value(node->GetId());
+                    });
+                return true;
 
-        if (key == "branched_node_ids") {
-            BuildYsonFluently(consumer)
-                .DoListFor(transaction->BranchedNodes(), [=] (TFluentList fluent, const TCypressNodeBase* node) {
-                    fluent.Item().Value(node->GetId());
-                });
-            return true;
-        }
+            case EInternedAttributeKey::BranchedNodeIds:
+                BuildYsonFluently(consumer)
+                    .DoListFor(transaction->BranchedNodes(), [=] (TFluentList fluent, const TCypressNodeBase* node) {
+                        fluent.Item().Value(node->GetId());
+                    });
+                return true;
 
-        if (key == "locked_node_ids") {
-            BuildYsonFluently(consumer)
-                .DoListFor(transaction->LockedNodes(), [=] (TFluentList fluent, const TCypressNodeBase* node) {
-                    fluent.Item().Value(node->GetId());
-                });
-            return true;
-        }
+            case EInternedAttributeKey::LockedNodeIds:
+                BuildYsonFluently(consumer)
+                    .DoListFor(transaction->LockedNodes(), [=] (TFluentList fluent, const TCypressNodeBase* node) {
+                        fluent.Item().Value(node->GetId());
+                    });
+                return true;
 
-        if (key == "lock_ids") {
-            BuildYsonFluently(consumer)
-                .DoListFor(transaction->Locks(), [=] (TFluentList fluent, const TLock* lock) {
-                    fluent.Item().Value(lock->GetId());
-                });
-            return true;
-        }
+            case EInternedAttributeKey::LockIds:
+                BuildYsonFluently(consumer)
+                    .DoListFor(transaction->Locks(), [=] (TFluentList fluent, const TLock* lock) {
+                        fluent.Item().Value(lock->GetId());
+                    });
+                return true;
 
-        if (key == "system") {
-            BuildYsonFluently(consumer)
-                .Value(transaction->System());
-            return true;
+            case EInternedAttributeKey::System:
+                BuildYsonFluently(consumer)
+                    .Value(transaction->System());
+                return true;
+
+            default:
+                break;
         }
 
         return TBase::GetBuiltinAttribute(key, consumer);
     }
 
-    virtual TFuture<TYsonString> GetBuiltinAttributeAsync(const TString& key) override
+    virtual TFuture<TYsonString> GetBuiltinAttributeAsync(TInternedAttributeKey key) override
     {
         const auto* transaction = GetThisImpl();
         const auto& chunkManager = Bootstrap_->GetChunkManager();
 
-        if (key == "last_ping_time") {
-            RequireLeader();
-            return Bootstrap_
-                ->GetTransactionManager()
-                ->GetLastPingTime(transaction)
-                .Apply(BIND([] (TInstant value) {
-                    return ConvertToYsonString(value);
-                }));
-        }
+        switch (key) {
+            case EInternedAttributeKey::LastPingTime:
+                RequireLeader();
+                return Bootstrap_
+                    ->GetTransactionManager()
+                    ->GetLastPingTime(transaction)
+                    .Apply(BIND([] (TInstant value) {
+                        return ConvertToYsonString(value);
+                    }));
 
-        if (key == "resource_usage") {
-            return GetAggregatedResourceUsageMap().Apply(BIND([=] (const TAccountResourcesMap& usageMap) {
-                return BuildYsonStringFluently()
-                    .DoMapFor(usageMap, [=] (TFluentMap fluent, const TAccountResourcesMap::value_type& nameAndUsage) {
-                        fluent
-                            .Item(nameAndUsage.first)
-                            .Value(New<TSerializableClusterResources>(chunkManager, nameAndUsage.second));
-                    });
-            }).AsyncVia(GetCurrentInvoker()));
-        }
+            case EInternedAttributeKey::ResourceUsage:
+                return GetAggregatedResourceUsageMap().Apply(BIND([=] (const TAccountResourcesMap& usageMap) {
+                    return BuildYsonStringFluently()
+                        .DoMapFor(usageMap, [=] (TFluentMap fluent, const TAccountResourcesMap::value_type& nameAndUsage) {
+                            fluent
+                                .Item(nameAndUsage.first)
+                                .Value(New<TSerializableClusterResources>(chunkManager, nameAndUsage.second));
+                        });
+                }).AsyncVia(GetCurrentInvoker()));
 
-        if (key == "multicell_resource_usage") {
-            return GetMulticellResourceUsageMap().Apply(BIND([=] (const TMulticellAccountResourcesMap& multicellUsageMap) {
-                return BuildYsonStringFluently()
-                    .DoMapFor(multicellUsageMap, [=] (TFluentMap fluent, const TMulticellAccountResourcesMap::value_type& cellTagAndUsageMap) {
-                        fluent
-                            .Item(ToString(cellTagAndUsageMap.first))
-                            .DoMapFor(cellTagAndUsageMap.second, [=] (TFluentMap fluent, const TAccountResourcesMap::value_type& nameAndUsage) {
-                                fluent
-                                    .Item(nameAndUsage.first)
-                                    .Value(New<TSerializableClusterResources>(chunkManager, nameAndUsage.second));
-                            });
-                    });
-            }).AsyncVia(GetCurrentInvoker()));
-        }
+            case EInternedAttributeKey::MulticellResourceUsage:
+                return GetMulticellResourceUsageMap().Apply(BIND([=] (const TMulticellAccountResourcesMap& multicellUsageMap) {
+                    return BuildYsonStringFluently()
+                        .DoMapFor(multicellUsageMap, [=] (TFluentMap fluent, const TMulticellAccountResourcesMap::value_type& cellTagAndUsageMap) {
+                            fluent
+                                .Item(ToString(cellTagAndUsageMap.first))
+                                .DoMapFor(cellTagAndUsageMap.second, [=] (TFluentMap fluent, const TAccountResourcesMap::value_type& nameAndUsage) {
+                                    fluent
+                                        .Item(nameAndUsage.first)
+                                        .Value(New<TSerializableClusterResources>(chunkManager, nameAndUsage.second));
+                                });
+                        });
+                }).AsyncVia(GetCurrentInvoker()));
 
-        if (key == "staged_object_ids") {
-            return FetchMergeableAttribute(
-                key,
-                BIND([=, this_ = MakeStrong(this)] {
-                    return BuildYsonStringFluently().DoListFor(transaction->StagedObjects(), [] (TFluentList fluent, const TObjectBase* object) {
-                        fluent.Item().Value(object->GetId());
-                    });
-                }));
-        }
+            case EInternedAttributeKey::StagedObjectIds: {
+                return FetchMergeableAttribute(
+                    GetUninternedAttributeKey(key),
+                    BIND([=, this_ = MakeStrong(this)] {
+                        return BuildYsonStringFluently().DoListFor(transaction->StagedObjects(), [] (TFluentList fluent, const TObjectBase* object) {
+                            fluent.Item().Value(object->GetId());
+                        });
+                    }));
+            }
 
-        if (key == "imported_object_count") {
-            return FetchSummableAttribute(
-                key,
-                BIND([=, this_ = MakeStrong(this)] {
-                    return ConvertToYsonString(transaction->ImportedObjects().size());
-                }));
-        }
+            case EInternedAttributeKey::ImportedObjectCount:
+                return FetchSummableAttribute(
+                    GetUninternedAttributeKey(key),
+                    BIND([=, this_ = MakeStrong(this)] {
+                        return ConvertToYsonString(transaction->ImportedObjects().size());
+                    }));
 
-        if (key == "imported_object_ids") {
-            return FetchMergeableAttribute(
-                key,
-                BIND([=, this_ = MakeStrong(this)] {
-                    return BuildYsonStringFluently().DoListFor(transaction->ImportedObjects(), [] (TFluentList fluent, const TObjectBase* object) {
-                        fluent.Item().Value(object->GetId());
-                    });
-                }));
-        }
+            case EInternedAttributeKey::ImportedObjectIds:
+                return FetchMergeableAttribute(
+                    GetUninternedAttributeKey(key),
+                    BIND([=, this_ = MakeStrong(this)] {
+                        return BuildYsonStringFluently().DoListFor(transaction->ImportedObjects(), [] (TFluentList fluent, const TObjectBase* object) {
+                            fluent.Item().Value(object->GetId());
+                        });
+                    }));
 
-        if (key == "exported_object_count") {
-            return FetchSummableAttribute(
-                key,
-                BIND([=, this_ = MakeStrong(this)] {
-                    return ConvertToYsonString(transaction->ExportedObjects().size());
-                }));
-        }
+            case EInternedAttributeKey::ExportedObjectCount:
+                return FetchSummableAttribute(
+                    GetUninternedAttributeKey(key),
+                    BIND([=, this_ = MakeStrong(this)] {
+                        return ConvertToYsonString(transaction->ExportedObjects().size());
+                    }));
 
-        if (key == "exported_objects") {
-            return FetchMergeableAttribute(
-                key,
-                BIND([=, this_ = MakeStrong(this)] {
-                    return BuildYsonStringFluently().DoListFor(transaction->ExportedObjects(), [] (TFluentList fluent, const TTransaction::TExportEntry& entry) {
-                        fluent
-                            .Item().BeginMap()
-                                .Item("id").Value(entry.Object->GetId())
-                                .Item("destination_cell_tag").Value(entry.DestinationCellTag)
-                            .EndMap();
-                    });
-                }));
+            case EInternedAttributeKey::ExportedObjects:
+                return FetchMergeableAttribute(
+                    GetUninternedAttributeKey(key),
+                    BIND([=, this_ = MakeStrong(this)] {
+                        return BuildYsonStringFluently().DoListFor(transaction->ExportedObjects(), [] (TFluentList fluent, const TTransaction::TExportEntry& entry) {
+                            fluent
+                                .Item().BeginMap()
+                                    .Item("id").Value(entry.Object->GetId())
+                                    .Item("destination_cell_tag").Value(entry.DestinationCellTag)
+                                .EndMap();
+                        });
+                    }));
+
+            default:
+                break;
         }
 
         return Null;

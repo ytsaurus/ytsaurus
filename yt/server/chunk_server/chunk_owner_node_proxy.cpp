@@ -13,6 +13,7 @@
 
 #include <yt/server/node_tracker_server/node_directory_builder.h>
 
+#include <yt/server/object_server/interned_attributes.h>
 #include <yt/server/object_server/object.h>
 
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
@@ -424,47 +425,47 @@ void TChunkOwnerNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor
     const auto* node = GetThisImpl<TChunkOwnerBase>();
     auto isExternal = node->IsExternal();
 
-    descriptors->push_back(TAttributeDescriptor("chunk_list_id")
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ChunkListId)
         .SetExternal(isExternal)
         .SetOpaque(true));
-    descriptors->push_back(TAttributeDescriptor("chunk_ids")
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ChunkIds)
         .SetExternal(isExternal)
         .SetOpaque(true));
-    descriptors->push_back(TAttributeDescriptor("compression_statistics")
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::CompressionStatistics)
         .SetExternal(isExternal)
         .SetOpaque(true));
-    descriptors->push_back(TAttributeDescriptor("erasure_statistics")
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ErasureStatistics)
         .SetExternal(isExternal)
         .SetOpaque(true));
-    descriptors->push_back(TAttributeDescriptor("multicell_statistics")
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::MulticellStatistics)
         .SetExternal(isExternal)
         .SetOpaque(true));
-    descriptors->push_back("chunk_count");
-    descriptors->push_back("uncompressed_data_size");
-    descriptors->push_back("compressed_data_size");
-    descriptors->push_back(TAttributeDescriptor("data_weight")
+    descriptors->push_back(EInternedAttributeKey::ChunkCount);
+    descriptors->push_back(EInternedAttributeKey::UncompressedDataSize);
+    descriptors->push_back(EInternedAttributeKey::CompressedDataSize);
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::DataWeight)
         .SetPresent(node->HasDataWeight()));
-    descriptors->push_back("compression_ratio");
-    descriptors->push_back("update_mode");
-    descriptors->push_back(TAttributeDescriptor("replication_factor")
+    descriptors->push_back(EInternedAttributeKey::CompressionRatio);
+    descriptors->push_back(EInternedAttributeKey::UpdateMode);
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ReplicationFactor)
         .SetWritable(true));
-    descriptors->push_back(TAttributeDescriptor("vital")
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Vital)
         .SetWritable(true)
         .SetReplicated(true));
-    descriptors->push_back(TAttributeDescriptor("media")
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Media)
         .SetWritable(true)
         .SetReplicated(true));
-    descriptors->push_back(TAttributeDescriptor("primary_medium")
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::PrimaryMedium)
         .SetWritable(true)
         .SetReplicated(true));
-    descriptors->push_back(TAttributeDescriptor("compression_codec")
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::CompressionCodec)
         .SetWritable(true));
-    descriptors->push_back(TAttributeDescriptor("erasure_codec")
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ErasureCodec)
         .SetWritable(true));
 }
 
 bool TChunkOwnerNodeProxy::GetBuiltinAttribute(
-    const TString& key,
+    TInternedAttributeKey key,
     IYsonConsumer* consumer)
 {
     auto* node = GetThisImpl<TChunkOwnerBase>();
@@ -472,207 +473,227 @@ bool TChunkOwnerNodeProxy::GetBuiltinAttribute(
     auto statistics = node->ComputeTotalStatistics();
     auto isExternal = node->IsExternal();
 
-    if (!isExternal) {
-        if (key == "chunk_list_id") {
+    switch (key) {
+        case EInternedAttributeKey::ChunkListId:
+            if (isExternal) {
+                break;
+            }
             BuildYsonFluently(consumer)
                 .Value(chunkList->GetId());
             return true;
+
+        case EInternedAttributeKey::ChunkCount:
+            BuildYsonFluently(consumer)
+                .Value(statistics.chunk_count());
+            return true;
+
+        case EInternedAttributeKey::UncompressedDataSize:
+            BuildYsonFluently(consumer)
+                .Value(statistics.uncompressed_data_size());
+            return true;
+
+        case EInternedAttributeKey::CompressedDataSize:
+            BuildYsonFluently(consumer)
+                .Value(statistics.compressed_data_size());
+            return true;
+
+        case EInternedAttributeKey::DataWeight:
+            if (!node->HasDataWeight()) {
+                break;
+            }
+            BuildYsonFluently(consumer)
+                .Value(statistics.data_weight());
+            return true;
+
+        case EInternedAttributeKey::CompressionRatio: {
+            double ratio = statistics.uncompressed_data_size() > 0
+                ? static_cast<double>(statistics.compressed_data_size()) / statistics.uncompressed_data_size()
+                : 0;
+            BuildYsonFluently(consumer)
+                .Value(ratio);
+            return true;
         }
-    }
 
-    if (key == "chunk_count") {
-        BuildYsonFluently(consumer)
-            .Value(statistics.chunk_count());
-        return true;
-    }
+        case EInternedAttributeKey::UpdateMode:
+            BuildYsonFluently(consumer)
+                .Value(FormatEnum(node->GetUpdateMode()));
+            return true;
 
-    if (key == "uncompressed_data_size") {
-        BuildYsonFluently(consumer)
-            .Value(statistics.uncompressed_data_size());
-        return true;
-    }
+        case EInternedAttributeKey::Media: {
+            const auto& chunkManager = Bootstrap_->GetChunkManager();
+            const auto& replication = node->Replication();
+            BuildYsonFluently(consumer)
+                .Value(TSerializableChunkReplication(replication, chunkManager));
+            return true;
+        }
 
-    if (key == "compressed_data_size") {
-        BuildYsonFluently(consumer)
-            .Value(statistics.compressed_data_size());
-        return true;
-    }
+        case EInternedAttributeKey::ReplicationFactor: {
+            const auto& replication = node->Replication();
+            auto primaryMediumIndex = node->GetPrimaryMediumIndex();
+            BuildYsonFluently(consumer)
+                .Value(replication[primaryMediumIndex].GetReplicationFactor());
+            return true;
+        }
 
-    if (key == "data_weight" && node->HasDataWeight()) {
-        BuildYsonFluently(consumer)
-            .Value(statistics.data_weight());
-        return true;
-    }
+        case EInternedAttributeKey::Vital:
+            BuildYsonFluently(consumer)
+                .Value(node->Replication().GetVital());
+            return true;
 
-    if (key == "compression_ratio") {
-        double ratio = statistics.uncompressed_data_size() > 0
-            ? static_cast<double>(statistics.compressed_data_size()) / statistics.uncompressed_data_size()
-            : 0;
-        BuildYsonFluently(consumer)
-            .Value(ratio);
-        return true;
-    }
+        case EInternedAttributeKey::PrimaryMedium: {
+            const auto& chunkManager = Bootstrap_->GetChunkManager();
+            auto primaryMediumIndex = node->GetPrimaryMediumIndex();
+            auto* medium = chunkManager->GetMediumByIndex(primaryMediumIndex);
 
-    if (key == "update_mode") {
-        BuildYsonFluently(consumer)
-            .Value(FormatEnum(node->GetUpdateMode()));
-        return true;
-    }
+            BuildYsonFluently(consumer)
+                .Value(medium->GetName());
+            return true;
+        }
 
-    if (key == "media") {
-        const auto& chunkManager = Bootstrap_->GetChunkManager();
-        const auto& replication = node->Replication();
-        BuildYsonFluently(consumer)
-            .Value(TSerializableChunkReplication(replication, chunkManager));
-        return true;
-    }
+        case EInternedAttributeKey::CompressionCodec:
+            BuildYsonFluently(consumer)
+                .Value(node->GetCompressionCodec());
+            return true;
 
-    if (key == "replication_factor") {
-        const auto& replication = node->Replication();
-        auto primaryMediumIndex = node->GetPrimaryMediumIndex();
-        BuildYsonFluently(consumer)
-            .Value(replication[primaryMediumIndex].GetReplicationFactor());
-        return true;
-    }
+        case EInternedAttributeKey::ErasureCodec:
+            BuildYsonFluently(consumer)
+                .Value(node->GetErasureCodec());
+            return true;
 
-    if (key == "vital") {
-        BuildYsonFluently(consumer)
-            .Value(node->Replication().GetVital());
-        return true;
-    }
-
-    if (key == "primary_medium") {
-        const auto& chunkManager = Bootstrap_->GetChunkManager();
-        auto primaryMediumIndex = node->GetPrimaryMediumIndex();
-        auto* medium = chunkManager->GetMediumByIndex(primaryMediumIndex);
-
-        BuildYsonFluently(consumer)
-            .Value(medium->GetName());
-        return true;
-    }
-
-    if (key == "compression_codec") {
-        BuildYsonFluently(consumer)
-            .Value(node->GetCompressionCodec());
-        return true;
-    }
-
-    if (key == "erasure_codec") {
-        BuildYsonFluently(consumer)
-            .Value(node->GetErasureCodec());
-        return true;
+        default:
+            break;
     }
 
     return TNontemplateCypressNodeProxyBase::GetBuiltinAttribute(key, consumer);
 }
 
-TFuture<TYsonString> TChunkOwnerNodeProxy::GetBuiltinAttributeAsync(const TString& key)
+TFuture<TYsonString> TChunkOwnerNodeProxy::GetBuiltinAttributeAsync(TInternedAttributeKey key)
 {
     auto* node = GetThisImpl<TChunkOwnerBase>();
     auto* chunkList = node->GetChunkList();
     auto isExternal = node->IsExternal();
 
-    if (!isExternal) {
-        if (key == "chunk_ids") {
+    switch (key) {
+        case EInternedAttributeKey::ChunkIds: {
+            if (isExternal) {
+                break;
+            }
             auto visitor = New<TChunkIdsAttributeVisitor>(
                 Bootstrap_,
                 chunkList);
             return visitor->Run();
         }
 
-        if (key == "compression_statistics") {
+        case EInternedAttributeKey::CompressionStatistics:
+            if (isExternal) {
+                break;
+            }
             return ComputeChunkStatistics(
                 Bootstrap_,
                 chunkList,
                 [] (const TChunk* chunk) { return NCompression::ECodec(chunk->MiscExt().compression_codec()); });
-        }
 
-        if (key == "erasure_statistics") {
+        case EInternedAttributeKey::ErasureStatistics:
+            if (isExternal) {
+                break;
+            }
             return ComputeChunkStatistics(
                 Bootstrap_,
                 chunkList,
                 [] (const TChunk* chunk) { return chunk->GetErasureCodec(); });
-        }
 
-        if (key == "multicell_statistics") {
+        case EInternedAttributeKey::MulticellStatistics:
+            if (isExternal) {
+                break;
+            }
             return ComputeChunkStatistics(
                 Bootstrap_,
                 chunkList,
                 [] (const TChunk* chunk) { return CellTagFromId(chunk->GetId()); });
-        }
+
+        default:
+            break;
     }
 
     return TNontemplateCypressNodeProxyBase::GetBuiltinAttributeAsync(key);
 }
 
 bool TChunkOwnerNodeProxy::SetBuiltinAttribute(
-    const TString& key,
+    TInternedAttributeKey key,
     const TYsonString& value)
 {
     const auto& chunkManager = Bootstrap_->GetChunkManager();
 
     auto* node = GetThisImpl<TChunkOwnerBase>();
 
-    if (key == "replication_factor") {
-        ValidateStorageParametersUpdate();
-        int replicationFactor = ConvertTo<int>(value);
-        SetReplicationFactor(replicationFactor);
-        return true;
-    }
-
-    if (key == "vital") {
-        ValidateStorageParametersUpdate();
-        bool vital = ConvertTo<bool>(value);
-        SetVital(vital);
-        return true;
-    }
-
-    if (key == "primary_medium") {
-        ValidateStorageParametersUpdate();
-        auto mediumName = ConvertTo<TString>(value);
-        auto* medium = chunkManager->GetMediumByNameOrThrow(mediumName);
-        SetPrimaryMedium(medium);
-        return true;
-    }
-
-    if (key == "media") {
-        ValidateStorageParametersUpdate();
-        auto serializableReplication = ConvertTo<TSerializableChunkReplication>(value);
-        auto replication = node->Replication(); // Copying for modification.
-        // Preserves vitality.
-        serializableReplication.ToChunkReplication(&replication, chunkManager);
-        SetReplication(replication);
-        return true;
-    }
-
-    if (key == "compression_codec") {
-        ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
-
-        auto* node = LockThisImpl<TChunkOwnerBase>(TLockRequest::MakeSharedAttribute(key));
-        node->SetCompressionCodec(ConvertTo<NCompression::ECodec>(value));
-
-        return true;
-    }
-
-    if (key == "erasure_codec") {
-        ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
-
-        auto* node = LockThisImpl<TChunkOwnerBase>(TLockRequest::MakeSharedAttribute(key));
-        node->SetErasureCodec(ConvertTo<NErasure::ECodec>(value));
-
-        return true;
-    }
-
-    if (key == "account") {
-        if (!TNontemplateCypressNodeProxyBase::SetBuiltinAttribute(key, value)) {
-            return false;
+    switch (key) {
+        case EInternedAttributeKey::ReplicationFactor: {
+            ValidateStorageParametersUpdate();
+            int replicationFactor = ConvertTo<int>(value);
+            SetReplicationFactor(replicationFactor);
+            return true;
         }
 
-        auto* node = LockThisImpl<TChunkOwnerBase>(TLockRequest::MakeSharedAttribute(key));
-        if (!node->IsExternal()) {
-            chunkManager->ScheduleChunkRequisitionUpdate(node->GetChunkList());
+        case EInternedAttributeKey::Vital: {
+            ValidateStorageParametersUpdate();
+            bool vital = ConvertTo<bool>(value);
+            SetVital(vital);
+            return true;
         }
-        return true;
+
+        case EInternedAttributeKey::PrimaryMedium: {
+            ValidateStorageParametersUpdate();
+            auto mediumName = ConvertTo<TString>(value);
+            auto* medium = chunkManager->GetMediumByNameOrThrow(mediumName);
+            SetPrimaryMedium(medium);
+            return true;
+        }
+
+        case EInternedAttributeKey::Media: {
+            ValidateStorageParametersUpdate();
+            auto serializableReplication = ConvertTo<TSerializableChunkReplication>(value);
+            auto replication = node->Replication(); // Copying for modification.
+            // Preserves vitality.
+            serializableReplication.ToChunkReplication(&replication, chunkManager);
+            SetReplication(replication);
+            return true;
+        }
+
+        case EInternedAttributeKey::CompressionCodec: {
+            ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
+
+            const auto& uninternedKey = GetUninternedAttributeKey(key);
+            auto* node = LockThisImpl<TChunkOwnerBase>(TLockRequest::MakeSharedAttribute(uninternedKey));
+            node->SetCompressionCodec(ConvertTo<NCompression::ECodec>(value));
+
+            return true;
+        }
+
+        case EInternedAttributeKey::ErasureCodec: {
+            ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
+
+            const auto& uninternedKey = GetUninternedAttributeKey(key);
+            auto* node = LockThisImpl<TChunkOwnerBase>(TLockRequest::MakeSharedAttribute(uninternedKey));
+            node->SetErasureCodec(ConvertTo<NErasure::ECodec>(value));
+
+            return true;
+        }
+
+        case EInternedAttributeKey::Account: {
+            if (!TNontemplateCypressNodeProxyBase::SetBuiltinAttribute(key, value)) {
+                return false;
+            }
+
+            const auto& uninternedKey = GetUninternedAttributeKey(key);
+            auto* node = LockThisImpl<TChunkOwnerBase>(TLockRequest::MakeSharedAttribute(uninternedKey));
+            if (!node->IsExternal()) {
+                chunkManager->ScheduleChunkRequisitionUpdate(node->GetChunkList());
+            }
+            return true;
+        }
+
+        default:
+            break;
     }
 
     return TNontemplateCypressNodeProxyBase::SetBuiltinAttribute(key, value);

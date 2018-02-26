@@ -5,6 +5,7 @@
 
 #include <yt/core/ytree/fluent.h>
 
+#include <yt/server/object_server/interned_attributes.h>
 #include <yt/server/object_server/object_detail.h>
 
 #include <yt/server/cell_master/bootstrap.h>
@@ -42,115 +43,124 @@ private:
     {
         const auto* action = GetThisImpl();
 
-        attributes->push_back("kind");
-        attributes->push_back("state");
-        attributes->push_back(TAttributeDescriptor("keep_finished")
+        attributes->push_back(EInternedAttributeKey::Kind);
+        attributes->push_back(EInternedAttributeKey::State);
+        attributes->push_back(TAttributeDescriptor(EInternedAttributeKey::KeepFinished)
             .SetWritable(true));
-        attributes->push_back("skip_freezing");
-        attributes->push_back("freeze");
-        attributes->push_back("tablet_ids");
-        attributes->push_back(TAttributeDescriptor("cell_ids")
+        attributes->push_back(EInternedAttributeKey::SkipFreezing);
+        attributes->push_back(EInternedAttributeKey::Freeze);
+        attributes->push_back(EInternedAttributeKey::TabletIds);
+        attributes->push_back(TAttributeDescriptor(EInternedAttributeKey::CellIds)
             .SetPresent(!action->TabletCells().empty()));
-        attributes->push_back(TAttributeDescriptor("pivot_keys")
+        attributes->push_back(TAttributeDescriptor(EInternedAttributeKey::PivotKeys)
             .SetPresent(!action->PivotKeys().empty()));
-        attributes->push_back(TAttributeDescriptor("tablet_count")
+        attributes->push_back(TAttributeDescriptor(EInternedAttributeKey::TabletCount)
             .SetPresent(!!action->GetTabletCount()));
-        attributes->push_back(TAttributeDescriptor("error")
+        attributes->push_back(TAttributeDescriptor(EInternedAttributeKey::Error)
             .SetPresent(!action->Error().IsOK()));
 
         TBase::ListSystemAttributes(attributes);
     }
 
-    virtual bool GetBuiltinAttribute(const TString& key, IYsonConsumer* consumer) override
+    virtual bool GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer) override
     {
         const auto* action = GetThisImpl();
 
-        if (key == "kind") {
-            BuildYsonFluently(consumer)
-                .Value(action->GetKind());
-            return true;
-        }
+        switch (key) {
+            case EInternedAttributeKey::Kind:
+                BuildYsonFluently(consumer)
+                    .Value(action->GetKind());
+                return true;
 
-        if (key == "state") {
-            BuildYsonFluently(consumer)
-                .Value(action->GetState());
-            return true;
-        }
+            case EInternedAttributeKey::State:
+                BuildYsonFluently(consumer)
+                    .Value(action->GetState());
+                return true;
 
-        if (key == "keep_finished") {
-            BuildYsonFluently(consumer)
-                .Value(action->GetKeepFinished());
-            return true;
-        }
+            case EInternedAttributeKey::KeepFinished:
+                BuildYsonFluently(consumer)
+                    .Value(action->GetKeepFinished());
+                return true;
 
-        if (key == "skip_freezing") {
-            BuildYsonFluently(consumer)
-                .Value(action->GetSkipFreezing());
-            return true;
-        }
+            case EInternedAttributeKey::SkipFreezing:
+                BuildYsonFluently(consumer)
+                    .Value(action->GetSkipFreezing());
+                return true;
 
-        if (key == "freeze") {
-            BuildYsonFluently(consumer)
-                .Value(action->GetFreeze());
-            return true;
-        }
+            case EInternedAttributeKey::Freeze:
+                BuildYsonFluently(consumer)
+                    .Value(action->GetFreeze());
+                return true;
 
-        if (key == "tablet_ids") {
-            BuildYsonFluently(consumer)
-                .DoListFor(action->Tablets(), [] (TFluentList fluent, const TTablet* tablet) {
-                    fluent
-                        .Item().Value(tablet->GetId());
-                });
-            return true;
-        }
+            case EInternedAttributeKey::TabletIds:
+                BuildYsonFluently(consumer)
+                    .DoListFor(action->Tablets(), [] (TFluentList fluent, const TTablet* tablet) {
+                        fluent
+                            .Item().Value(tablet->GetId());
+                    });
+                return true;
 
-        if (key == "cell_ids" && !action->TabletCells().empty()) {
-            BuildYsonFluently(consumer)
-                .DoListFor(action->TabletCells(), [] (TFluentList fluent, const TTabletCell* cell) {
-                    fluent
-                        .Item().Value(cell->GetId());
-                });
-            return true;
-        }
+            case EInternedAttributeKey::CellIds:
+                if (action->TabletCells().empty()) {
+                    break;
+                }
+                BuildYsonFluently(consumer)
+                    .DoListFor(action->TabletCells(), [] (TFluentList fluent, const TTabletCell* cell) {
+                        fluent
+                            .Item().Value(cell->GetId());
+                    });
+                return true;
 
-        if (key == "pivot_keys" && !action->PivotKeys().empty()) {
-            BuildYsonFluently(consumer)
-                .DoListFor(action->PivotKeys(), [] (TFluentList fluent, TOwningKey key) {
-                    fluent
-                        .Item().Value(key);
-                });
-            return true;
-        }
+            case EInternedAttributeKey::PivotKeys:
+                if (action->PivotKeys().empty()) {
+                    break;
+                }
+                BuildYsonFluently(consumer)
+                    .DoListFor(action->PivotKeys(), [] (TFluentList fluent, TOwningKey key) {
+                        fluent
+                            .Item().Value(key);
+                    });
+                return true;
 
-        if (key == "tablet_count" && action->GetTabletCount()) {
-            BuildYsonFluently(consumer)
-                .Value(*action->GetTabletCount());
-            return true;
-        }
+            case EInternedAttributeKey::TabletCount:
+                if (!action->GetTabletCount()) {
+                    break;
+                }
+                BuildYsonFluently(consumer)
+                    .Value(*action->GetTabletCount());
+                return true;
 
-        if (key == "error" && !action->Error().IsOK()) {
-            BuildYsonFluently(consumer)
-                .Value(action->Error());
-            return true;
+            case EInternedAttributeKey::Error:
+                if (action->Error().IsOK()) {
+                    break;
+                }
+                BuildYsonFluently(consumer)
+                    .Value(action->Error());
+                return true;
+            default:
+                break;
         }
 
         return TBase::GetBuiltinAttribute(key, consumer);
     }
 
-    virtual bool SetBuiltinAttribute(const TString& key, const TYsonString& value) override
+    virtual bool SetBuiltinAttribute(TInternedAttributeKey key, const TYsonString& value) override
     {
         auto* action = GetThisImpl();
 
-        if (key == "keep_finished") {
-            if (action->GetState() == ETabletActionState::Completed ||
-                action->GetState() == ETabletActionState::Failed)
-            {
-                THROW_ERROR_EXCEPTION("Tablet action is already in %Qlv state",
-                    action->GetState());
-            }
+        switch (key) {
+            case EInternedAttributeKey::KeepFinished:
+                if (action->GetState() == ETabletActionState::Completed ||
+                    action->GetState() == ETabletActionState::Failed)
+                {
+                    THROW_ERROR_EXCEPTION("Tablet action is already in %Qlv state",
+                        action->GetState());
+                }
 
-            action->SetKeepFinished(ConvertTo<bool>(value));
-            return true;
+                action->SetKeepFinished(ConvertTo<bool>(value));
+                return true;
+            default:
+                break;
         }
 
         return TBase::SetBuiltinAttribute(key, value);

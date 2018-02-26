@@ -2,6 +2,7 @@
 #include "table_replica.h"
 #include "tablet_manager.h"
 
+#include <yt/server/object_server/interned_attributes.h>
 #include <yt/server/object_server/object_detail.h>
 
 #include <yt/server/cypress_server/cypress_manager.h>
@@ -54,90 +55,88 @@ private:
 
     virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* attributes) override
     {
-        attributes->push_back("cluster_name");
-        attributes->push_back("replica_path");
-        attributes->push_back("table_path");
-        attributes->push_back("start_replication_timestamp");
-        attributes->push_back("state");
-        attributes->push_back("mode");
-        attributes->push_back(TAttributeDescriptor("tablets")
+        attributes->push_back(EInternedAttributeKey::ClusterName);
+        attributes->push_back(EInternedAttributeKey::ReplicaPath);
+        attributes->push_back(EInternedAttributeKey::TablePath);
+        attributes->push_back(EInternedAttributeKey::StartReplicationTimestamp);
+        attributes->push_back(EInternedAttributeKey::State);
+        attributes->push_back(EInternedAttributeKey::Mode);
+        attributes->push_back(TAttributeDescriptor(EInternedAttributeKey::Tablets)
             .SetOpaque(true));
-        attributes->push_back(TAttributeDescriptor("replication_lag_time")
+        attributes->push_back(TAttributeDescriptor(EInternedAttributeKey::ReplicationLagTime)
             .SetOpaque(true));
 
         TBase::ListSystemAttributes(attributes);
     }
 
-    virtual bool GetBuiltinAttribute(const TString& key, IYsonConsumer* consumer) override
+    virtual bool GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer) override
     {
         auto* replica = GetThisImpl();
         auto* table = replica->GetTable();
         const auto& timestampProvider = Bootstrap_->GetTimestampProvider();
 
-        if (key == "cluster_name") {
-            BuildYsonFluently(consumer)
-                .Value(replica->GetClusterName());
-            return true;
-        }
+        switch (key) {
+            case EInternedAttributeKey::ClusterName:
+                BuildYsonFluently(consumer)
+                    .Value(replica->GetClusterName());
+                return true;
 
-        if (key == "replica_path") {
-            BuildYsonFluently(consumer)
-                .Value(replica->GetReplicaPath());
-            return true;
-        }
+            case EInternedAttributeKey::ReplicaPath:
+                BuildYsonFluently(consumer)
+                    .Value(replica->GetReplicaPath());
+                return true;
 
-        if (key == "start_replication_timestamp") {
-            BuildYsonFluently(consumer)
-                .Value(replica->GetStartReplicationTimestamp());
-            return true;
-        }
+            case EInternedAttributeKey::StartReplicationTimestamp:
+                BuildYsonFluently(consumer)
+                    .Value(replica->GetStartReplicationTimestamp());
+                return true;
 
-        if (key == "table_path") {
-            const auto& cypressManager = Bootstrap_->GetCypressManager();
-            BuildYsonFluently(consumer)
-                .Value(cypressManager->GetNodePath(replica->GetTable(), nullptr));
-            return true;
-        }
+            case EInternedAttributeKey::TablePath: {
+                const auto& cypressManager = Bootstrap_->GetCypressManager();
+                BuildYsonFluently(consumer)
+                    .Value(cypressManager->GetNodePath(replica->GetTable(), nullptr));
+                return true;
+            }
 
-        if (key == "state") {
-            BuildYsonFluently(consumer)
-                .Value(replica->GetState());
-            return true;
-        }
+            case EInternedAttributeKey::State:
+                BuildYsonFluently(consumer)
+                    .Value(replica->GetState());
+                return true;
 
-        if (key == "mode") {
-            BuildYsonFluently(consumer)
-                .Value(replica->GetMode());
-            return true;
-        }
+            case EInternedAttributeKey::Mode:
+                BuildYsonFluently(consumer)
+                    .Value(replica->GetMode());
+                return true;
 
-        if (key == "tablets") {
-            BuildYsonFluently(consumer)
-                .DoListFor(table->Tablets(), [=] (TFluentList fluent, TTablet* tablet) {
-                    const auto* chunkList = tablet->GetChunkList();
-                    const auto* replicaInfo = tablet->GetReplicaInfo(replica);
-                    fluent
-                        .Item().BeginMap()
-                            .Item("tablet_id").Value(tablet->GetId())
-                            .Item("state").Value(replicaInfo->GetState())
-                            .Item("current_replication_row_index").Value(replicaInfo->GetCurrentReplicationRowIndex())
-                            .Item("current_replication_timestamp").Value(replicaInfo->GetCurrentReplicationTimestamp())
-                            .Item("replication_lag_time").Value(tablet->ComputeReplicationLagTime(
-                                timestampProvider->GetLatestTimestamp(), *replicaInfo))
-                            .DoIf(!replicaInfo->Error().IsOK(), [&] (TFluentMap fluent) {
-                                fluent.Item("replication_error").Value(replicaInfo->Error());
-                            })
-                            .Item("trimmed_row_count").Value(tablet->GetTrimmedRowCount())
-                            .Item("flushed_row_count").Value(chunkList->Statistics().LogicalRowCount)
-                        .EndMap();
-                });
-            return true;
-        }
+            case EInternedAttributeKey::Tablets:
+                BuildYsonFluently(consumer)
+                    .DoListFor(table->Tablets(), [=] (TFluentList fluent, TTablet* tablet) {
+                        const auto* chunkList = tablet->GetChunkList();
+                        const auto* replicaInfo = tablet->GetReplicaInfo(replica);
+                        fluent
+                            .Item().BeginMap()
+                                .Item("tablet_id").Value(tablet->GetId())
+                                .Item("state").Value(replicaInfo->GetState())
+                                .Item("current_replication_row_index").Value(replicaInfo->GetCurrentReplicationRowIndex())
+                                .Item("current_replication_timestamp").Value(replicaInfo->GetCurrentReplicationTimestamp())
+                                .Item("replication_lag_time").Value(tablet->ComputeReplicationLagTime(
+                                    timestampProvider->GetLatestTimestamp(), *replicaInfo))
+                                .DoIf(!replicaInfo->Error().IsOK(), [&] (TFluentMap fluent) {
+                                    fluent.Item("replication_error").Value(replicaInfo->Error());
+                                })
+                                .Item("trimmed_row_count").Value(tablet->GetTrimmedRowCount())
+                                .Item("flushed_row_count").Value(chunkList->Statistics().LogicalRowCount)
+                            .EndMap();
+                    });
+                return true;
 
-        if (key == "replication_lag_time") {
-            BuildYsonFluently(consumer)
-                .Value(replica->ComputeReplicationLagTime(timestampProvider->GetLatestTimestamp()));
-            return true;
+            case EInternedAttributeKey::ReplicationLagTime:
+                BuildYsonFluently(consumer)
+                    .Value(replica->ComputeReplicationLagTime(timestampProvider->GetLatestTimestamp()));
+                return true;
+
+            default:
+                break;
         }
 
         return TBase::GetBuiltinAttribute(key, consumer);
