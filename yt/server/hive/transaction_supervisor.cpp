@@ -371,7 +371,8 @@ private:
 
         bool TrySendRequestImmediately(const TClosure& sender, TGuard<TSpinLock>* guard)
         {
-            if (!Up_) {
+            LOG_DEBUG("XXX %v %v", Up_, PendingSenders_.size());
+            if (!Up_ && !PendingSenders_.empty()) {
                 return false;
             }
 
@@ -1484,15 +1485,7 @@ private:
 
     bool IsParticipantUp(const TError& error)
     {
-        if (error.IsOK()) {
-            return true;
-        }
-
-        if (error.FindMatching(NTransactionClient::EErrorCode::NoSuchTransaction)) {
-            return true;
-        }
-
-        return false;
+        return error.IsOK() || !IsChannelFailureError(error);
     }
 
     void OnParticipantResponse(

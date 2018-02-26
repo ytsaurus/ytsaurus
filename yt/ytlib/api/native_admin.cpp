@@ -108,9 +108,8 @@ private:
         auto channel = GetCellChannelOrThrow(cellId);
 
         THydraServiceProxy proxy(channel);
-        proxy.SetDefaultTimeout(TDuration::Hours(1)); // effective infinity
-
         auto req = proxy.ForceBuildSnapshot();
+        req->SetTimeout(TDuration::Hours(1)); // effective infinity
         req->set_set_read_only(options.SetReadOnly);
 
         auto rsp = WaitFor(req->Invoke())
@@ -122,12 +121,11 @@ private:
     void DoGCCollect(const TGCCollectOptions& options)
     {
         auto cellId = options.CellId ? options.CellId : Connection_->GetPrimaryMasterCellId();
-        auto channel = GetCellChannelOrThrow(cellId);
+        auto channel = Connection_->GetMasterChannelOrThrow(EMasterChannelKind::Leader, cellId);
 
         TObjectServiceProxy proxy(channel);
-        proxy.SetDefaultTimeout(Null); // infinity
-
         auto req = proxy.GCCollect();
+        req->SetTimeout(TDuration::Hours(1)); // effective infinity
 
         WaitFor(req->Invoke())
             .ThrowOnError();

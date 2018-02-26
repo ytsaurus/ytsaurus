@@ -65,12 +65,20 @@ TChunkReplicaAddressFormatter::TChunkReplicaAddressFormatter(TNodeDirectoryPtr n
 
 void TChunkReplicaAddressFormatter::operator()(TStringBuilder* builder, TChunkReplica replica) const
 {
-    const auto& descriptor = NodeDirectory_->GetDescriptor(replica.GetNodeId());
-    builder->AppendFormat(
-        "%v/%v@%v",
-        descriptor.GetDefaultAddress(),
-        replica.GetReplicaIndex(),
-        replica.GetMediumIndex());
+    const auto* descriptor = NodeDirectory_->FindDescriptor(replica.GetNodeId());
+    if (descriptor) {
+        builder->AppendFormat(
+            "%v/%v@%v",
+            descriptor->GetDefaultAddress(),
+            replica.GetReplicaIndex(),
+            replica.GetMediumIndex());
+    } else {
+        builder->AppendFormat(
+            "<unresolved-%v>/%v@%v",
+            replica.GetNodeId(),
+            replica.GetReplicaIndex(),
+            replica.GetMediumIndex());
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

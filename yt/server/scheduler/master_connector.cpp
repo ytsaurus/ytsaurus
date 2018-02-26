@@ -288,6 +288,52 @@ public:
         }
     }
 
+    TFuture<void> UpdateOperationRuntimeParameters(
+        TOperationPtr operation,
+        const TOperationRuntimeParametersPtr& params)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        return BIND(&TImpl::DoUpdateOperationRuntimeParameters, MakeStrong(this))
+            .AsyncVia(GetCancelableControlInvoker())
+            .Run(operation, params);
+    }
+
+    void DoUpdateOperationRuntimeParameters(
+        TOperationPtr operation,
+        const TOperationRuntimeParametersPtr& params)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+        YCHECK(State_ != EMasterConnectorState::Disconnected);
+
+        auto strategy = Bootstrap_->GetScheduler()->GetStrategy();
+
+        auto batchReq = StartObjectBatchRequest();
+        auto paths = GetCompatibilityOperationPaths(operation->GetId());
+
+        auto node = BuildYsonNodeFluently()
+            .BeginMap()
+                .Do(BIND(&ISchedulerStrategy::BuildOperationRuntimeParams, strategy, operation->GetId(), params))
+            .EndMap();
+
+        auto mapNode = node->AsMap();
+
+        for (const auto& operationPath : paths) {
+            for (const auto& pair : mapNode->GetChildren()) {
+                const auto& key = pair.first;
+                const auto& value = pair.second;
+
+                auto req = TYPathProxy::Set(operationPath + "/@" + key);
+                req->set_value(ConvertToYsonString(value).GetData());
+
+                batchReq->AddRequest(req);
+            }
+        }
+
+        auto rspOrError = WaitFor(batchReq->Invoke());
+        auto error = GetCumulativeError(rspOrError);
+        THROW_ERROR_EXCEPTION_IF_FAILED(error, "Error updating operation %v runtime params", operation->GetId());
+    }
 
     void SetSchedulerAlert(ESchedulerAlertType alertType, const TError& alert)
     {
@@ -725,6 +771,7 @@ private:
         // - Recreate operation instance from fetched data.
         void RequestOperationAttributes()
         {
+            // Keep stuff below in sync with #TryCreateOperationFromAttributes.
             static const std::vector<TString> attributeKeys = {
                 "operation_type",
                 "mutation_id",
@@ -735,7 +782,8 @@ private:
                 "start_time",
                 "state",
                 "events",
-                "slot_index_per_pool_tree"
+                "slot_index_per_pool_tree",
+                "scheduling_options_per_pool_tree"
             };
 
             auto batchReq = Owner_->StartObjectBatchRequest(EMasterChannelKind::Follower);
@@ -843,6 +891,14 @@ private:
                 return nullptr;
             }
 
+            auto runtimeParams = New<TOperationRuntimeParameters>();
+            runtimeParams->Owners = attributes.Get<std::vector<TString>>("owners", spec->Owners);
+            // Merge initial scheduling options and scheduling options set by user while operation was running.
+            auto schedulingOptions = attributes.Find<INodePtr>("scheduling_options_per_pool_tree");
+            if (schedulingOptions) {
+                Deserialize(runtimeParams->SchedulingOptionsPerPoolTree, schedulingOptions);
+            }
+
             auto operation = New<TOperation>(
                 operationId,
                 attributes.Get<EOperationType>("operation_type"),
@@ -850,9 +906,8 @@ private:
                 attributes.Get<TTransactionId>("user_transaction_id"),
                 specNode,
                 secureVault,
-                BuildOperationRuntimeParams(spec),
+                runtimeParams,
                 attributes.Get<TString>("authenticated_user"),
-                attributes.Get<std::vector<TString>>("owners", spec->Owners),
                 attributes.Get<TInstant>("start_time"),
                 Owner_->Bootstrap_->GetControlInvoker(),
                 attributes.Get<EOperationState>("state"),
@@ -1169,7 +1224,6 @@ private:
         DoCleanup();
         StartConnecting(true);
     }
-
 
     static void BuildOperationAcl(const TOperationPtr& operation, TFluentAny fluent)
     {
@@ -1632,6 +1686,13 @@ void TMasterConnector::AttachJobContext(
     const TString& user)
 {
     return Impl_->AttachJobContext(path, chunkId, operationId, jobId, user);
+}
+
+TFuture<void> TMasterConnector::UpdateOperationRuntimeParameters(
+    TOperationPtr operation,
+    const TOperationRuntimeParametersPtr& params)
+{
+    return Impl_->UpdateOperationRuntimeParameters(operation, params);
 }
 
 void TMasterConnector::SetSchedulerAlert(ESchedulerAlertType alertType, const TError& alert)

@@ -55,6 +55,7 @@
 #include <yt/ytlib/query_client/query_service.pb.h>
 
 #include <yt/ytlib/scheduler/helpers.h>
+#include <yt/ytlib/scheduler/resource_limits.h>
 #include <yt/ytlib/scheduler/proto/job.pb.h>
 #include <yt/ytlib/scheduler/job_prober_service_proxy.h>
 #include <yt/ytlib/scheduler/scheduler_service_proxy.h>
@@ -823,6 +824,10 @@ public:
     IMPLEMENT_METHOD(void, CompleteOperation, (
         const TOperationId& operationId,
         const TCompleteOperationOptions& options),
+        (operationId, options))
+    IMPLEMENT_METHOD(void, UpdateOperationParameters, (
+        const TOperationId& operationId,
+        const TUpdateOperationParametersOptions& options),
         (operationId, options))
     IMPLEMENT_METHOD(TYsonString, GetOperation, (
         const NScheduler::TOperationId& operationId,
@@ -3226,6 +3231,36 @@ private:
     {
         auto req = SchedulerProxy_->CompleteOperation();
         ToProto(req->mutable_operation_id(), operationId);
+
+        WaitFor(req->Invoke())
+            .ThrowOnError();
+    }
+
+    void DoUpdateOperationParameters(
+        const TOperationId& operationId,
+        const TUpdateOperationParametersOptions& options)
+    {
+        auto req = SchedulerProxy_->UpdateOperationParameters();
+        ToProto(req->mutable_operation_id(), operationId);
+
+        for (const auto& pair : options.SchedulingOptionsPerPoolTree) {
+            const auto& treeId = pair.first;
+            const auto& schedulingOptions = pair.second;
+
+            auto* protoOptions = req->add_options();
+            protoOptions->set_tree_id(treeId);
+
+            auto* protoSchedulingOptions = protoOptions->mutable_scheduling_options();
+            if (schedulingOptions->Weight) {
+                protoSchedulingOptions->set_weight(*schedulingOptions->Weight);
+            }
+            ToProto(protoSchedulingOptions->mutable_resource_limits(),
+                *schedulingOptions->ResourceLimits);
+        }
+
+        if (options.Owners) {
+            ToProto(req->mutable_owner_list()->mutable_owners(), *options.Owners);
+        }
 
         WaitFor(req->Invoke())
             .ThrowOnError();

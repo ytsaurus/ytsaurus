@@ -33,10 +33,6 @@ TCodicilGuard MakeOperationCodicilGuard(const TOperationId& operationId);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TOperationRuntimeParamsPtr BuildOperationRuntimeParams(const TOperationSpecBasePtr& spec);
-
-////////////////////////////////////////////////////////////////////////////////
-
 TJobStatus JobStatusFromError(const TError& error);
 TJobId GenerateJobId(NObjectClient::TCellTag tag, NNodeTrackerClient::TNodeId nodeId);
 NNodeTrackerClient::TNodeId NodeIdFromJobId(const TJobId& jobId);

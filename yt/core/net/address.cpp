@@ -801,15 +801,7 @@ class TAddressResolver::TImpl
     , private TExpiringCache<TString, TNetworkAddress>
 {
 public:
-    TImpl(TAddressResolverConfigPtr config)
-        : TExpiringCache(config)
-        , Config_(config)
-        , DnsResolver_(config->Retries, config->ResolveTimeout, config->MaxResolveTimeout, config->WarningTimeout)
-    {
-        DnsResolver_.Start();
-
-        Configure(Config_);
-    }
+    explicit TImpl(TAddressResolverConfigPtr config);
 
     void Shutdown();
 
@@ -838,6 +830,20 @@ private:
 
     const std::vector<TNetworkAddress>& GetLocalAddresses();
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+TAddressResolver::TImpl::TImpl(TAddressResolverConfigPtr config)
+    : TExpiringCache(config)
+    , DnsResolver_(
+        config->Retries,
+        config->ResolveTimeout,
+        config->MaxResolveTimeout,
+        config->WarningTimeout)
+{
+    DnsResolver_.Start();
+    Configure(std::move(config));
+}
 
 void TAddressResolver::TImpl::Shutdown()
 {
