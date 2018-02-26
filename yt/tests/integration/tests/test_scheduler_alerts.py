@@ -332,4 +332,5 @@ class TestSchedulerJobSpecThrottlerOperationAlert(YTEnvSetup):
             out="//tmp/t_out2",
             dont_track=True)
 
-        wait(lambda: "excessive_job_spec_throttling" in get("//sys/operations/{0}/@alerts".format(op2.id)))
+        path = "//sys/operations/{0}/@alerts".format(op2.id)
+        wait(lambda: exists(path) and "excessive_job_spec_throttling" in get(path))
