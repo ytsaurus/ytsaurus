@@ -46,8 +46,7 @@ public:
 
     void RegisterOperation(
         const TOperationId& operationId,
-        NScheduler::EOperationCypressStorageMode storageMode,
-        const IOperationControllerPtr& controller);
+        NScheduler::EOperationCypressStorageMode storageMode);
     
     void UnregisterOperation(const TOperationId& operationId);
 
