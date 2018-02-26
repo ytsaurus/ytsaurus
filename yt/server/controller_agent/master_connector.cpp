@@ -121,10 +121,17 @@ public:
 
     void RegisterOperation(
         const TOperationId& operationId,
-        EOperationCypressStorageMode storageMode,
-        const IOperationControllerPtr& controller)
+        EOperationCypressStorageMode storageMode)
     {
-        BIND(&TImpl::DoRegisterOperation, MakeStrong(this), operationId, storageMode, controller)
+        //! NB (psushin): do not merge into prestable/19.3.
+        auto controller = Bootstrap_->GetControllerAgent()->FindController(operationId);
+        if (!controller) {
+            LOG_WARNING("Failed to register operation; controller has been forgotten by controller agent (OperationId: %v)",
+                operationId);
+            return;
+        }
+
+        BIND(&TImpl::DoRegisterOperation, MakeStrong(this), operationId, storageMode, std::move(controller))
             .AsyncVia(Invoker_)
             .Run()
             .Subscribe(
@@ -1176,10 +1183,9 @@ const IInvokerPtr& TMasterConnector::GetInvoker() const
 
 void TMasterConnector::RegisterOperation(
     const TOperationId& operationId,
-    EOperationCypressStorageMode storageMode,
-    const IOperationControllerPtr& controller)
+    EOperationCypressStorageMode storageMode)
 {
-    Impl_->RegisterOperation(operationId, storageMode, controller);
+    Impl_->RegisterOperation(operationId, storageMode);
 }
 
 void TMasterConnector::UnregisterOperation(const TOperationId& operationId)

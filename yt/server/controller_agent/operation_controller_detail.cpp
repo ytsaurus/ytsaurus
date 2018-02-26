@@ -385,7 +385,7 @@ void TOperationControllerBase::InitializeReviving(TControllerTransactionsPtr con
 
     FinishInitialization();
 
-    MasterConnector->RegisterOperation(OperationId, StorageMode, MakeStrong(this));
+    MasterConnector->RegisterOperation(OperationId, StorageMode);
 
     LOG_INFO("Operation initialized");
 }
@@ -413,7 +413,7 @@ void TOperationControllerBase::Initialize()
 
     FinishInitialization();
 
-    MasterConnector->RegisterOperation(OperationId, StorageMode, MakeStrong(this));
+    MasterConnector->RegisterOperation(OperationId, StorageMode);
 
     LOG_INFO("Operation initialized");
 }

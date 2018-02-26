@@ -50,6 +50,9 @@ public:
     const IInvokerPtr& GetControllerThreadPoolInvoker();
     const IInvokerPtr& GetSnapshotIOInvoker();
 
+    //! NB (psushin): do not merge into prestable/19.3.
+    IOperationControllerPtr FindController(const TOperationId& operationId) const;
+
     TMasterConnector* GetMasterConnector();
 
     const TSchedulerConfigPtr& GetConfig() const;
