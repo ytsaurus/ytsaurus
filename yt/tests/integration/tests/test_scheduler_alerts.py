@@ -290,8 +290,6 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
 
         assert "schedule_job_timed_out" in get("//sys/operations/{0}/@alerts".format(op.id))
 
-        op.abort()
-
 ##################################################################
 
 class TestSchedulerJobSpecThrottlerOperationAlert(YTEnvSetup):
