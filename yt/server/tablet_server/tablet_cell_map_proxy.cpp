@@ -2,11 +2,13 @@
 #include "tablet_manager.h"
 #include "tablet_cell.h"
 
-#include <yt/core/ytree/fluent.h>
+#include <yt/server/cypress_server/node_proxy_detail.h>
+
+#include <yt/server/object_server/interned_attributes.h>
 
 #include <yt/ytlib/object_client/helpers.h>
 
-#include <yt/server/cypress_server/node_proxy_detail.h>
+#include <yt/core/ytree/fluent.h>
 
 namespace NYT {
 namespace NTabletServer {
@@ -43,27 +45,32 @@ private:
     {
         TBase::ListSystemAttributes(descriptors);
 
-        descriptors->push_back("count_by_health");
+        descriptors->push_back(EInternedAttributeKey::CountByHealth);
     }
 
-    virtual bool GetBuiltinAttribute(const TString& key, IYsonConsumer* consumer) override
+    virtual bool GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer) override
     {
-        if (key == "count_by_health") {
-            const auto& tabletManager = Bootstrap_->GetTabletManager();
-            TEnumIndexedVector<int, ETabletCellHealth> counts;
-            for (const auto& pair : tabletManager->TabletCells()) {
-                const auto* cell = pair.second;
-                if (!IsObjectAlive(cell)) {
-                    continue;
+        switch (key) {
+            case EInternedAttributeKey::CountByHealth: {
+                const auto& tabletManager = Bootstrap_->GetTabletManager();
+                TEnumIndexedVector<int, ETabletCellHealth> counts;
+                for (const auto& pair : tabletManager->TabletCells()) {
+                    const auto* cell = pair.second;
+                    if (!IsObjectAlive(cell)) {
+                        continue;
+                    }
+                    ++counts[cell->GetHealth()];
                 }
-                ++counts[cell->GetHealth()];
+                BuildYsonFluently(consumer)
+                    .DoMapFor(TEnumTraits<ETabletCellHealth>::GetDomainValues(), [&] (TFluentMap fluent, ETabletCellHealth health) {
+                        fluent
+                            .Item(FormatEnum(health)).Value(counts[health]);
+                    });
+                return true;
             }
-            BuildYsonFluently(consumer)
-                .DoMapFor(TEnumTraits<ETabletCellHealth>::GetDomainValues(), [&] (TFluentMap fluent, ETabletCellHealth health) {
-                    fluent
-                        .Item(FormatEnum(health)).Value(counts[health]);
-                });
-            return true;
+
+            default:
+                break;
         }
 
         return TBase::GetBuiltinAttribute(key, consumer);

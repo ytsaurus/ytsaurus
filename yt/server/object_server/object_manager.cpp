@@ -2,6 +2,7 @@
 #include "private.h"
 #include "config.h"
 #include "garbage_collector.h"
+#include "interned_attributes.h"
 #include "master.h"
 #include "master_type_handler.h"
 
@@ -1384,9 +1385,9 @@ std::unique_ptr<NYTree::IAttributeDictionary> TObjectManager::GetReplicatedAttri
             continue;
         }
 
-        auto key = TString(descriptor.Key);
-        auto value = proxy->FindBuiltinAttribute(key);
+        auto value = proxy->FindBuiltinAttribute(descriptor.InternedKey);
         if (value) {
+            const auto& key = GetUninternedAttributeKey(descriptor.InternedKey);
             replicateKey(key, value);
         }
     }

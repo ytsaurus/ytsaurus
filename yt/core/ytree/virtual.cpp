@@ -166,26 +166,27 @@ void TVirtualMapBase::ListSelf(
 
 void TVirtualMapBase::ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors)
 {
-    descriptors->push_back("count");
+    descriptors->push_back(CountInternedAttribute);
 }
 
-const THashSet<const char*>& TVirtualMapBase::GetBuiltinAttributeKeys()
+const THashSet<TInternedAttributeKey>& TVirtualMapBase::GetBuiltinAttributeKeys()
 {
     return BuiltinAttributeKeysCache_.GetBuiltinAttributeKeys(this);
 }
 
-bool TVirtualMapBase::GetBuiltinAttribute(const TString& key, IYsonConsumer* consumer)
+bool TVirtualMapBase::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer)
 {
-    if (key == "count") {
-        BuildYsonFluently(consumer)
-            .Value(GetSize());
-        return true;
+    switch (key) {
+        case CountInternedAttribute:
+            BuildYsonFluently(consumer)
+                .Value(GetSize());
+            return true;
+        default:
+            return false;
     }
-
-    return false;
 }
 
-TFuture<TYsonString> TVirtualMapBase::GetBuiltinAttributeAsync(const TString& /*key*/)
+TFuture<TYsonString> TVirtualMapBase::GetBuiltinAttributeAsync(TInternedAttributeKey /*key*/)
 {
     return Null;
 }
@@ -195,12 +196,12 @@ ISystemAttributeProvider* TVirtualMapBase::GetBuiltinAttributeProvider()
     return this;
 }
 
-bool TVirtualMapBase::SetBuiltinAttribute(const TString& /*key*/, const TYsonString& /*value*/)
+bool TVirtualMapBase::SetBuiltinAttribute(TInternedAttributeKey /*key*/, const TYsonString& /*value*/)
 {
     return false;
 }
 
-bool TVirtualMapBase::RemoveBuiltinAttribute(const TString& /*key*/)
+bool TVirtualMapBase::RemoveBuiltinAttribute(TInternedAttributeKey /*key*/)
 {
     return false;
 }
@@ -238,11 +239,11 @@ public:
     void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) const
     {
         for (const auto& it : Attributes_) {
-            descriptors->push_back(TAttributeDescriptor(it.first.c_str()));
+            descriptors->push_back(TAttributeDescriptor(it.first));
         }
     }
 
-    bool GetBuiltinAttribute(const TString& key, NYson::IYsonConsumer* consumer) const
+    bool GetBuiltinAttribute(TInternedAttributeKey key, NYson::IYsonConsumer* consumer) const
     {
         auto it = Attributes_.find(key);
         if (it != Attributes_.end()) {
@@ -258,14 +259,14 @@ public:
         YCHECK(Services_.insert(std::make_pair(key, service)).second);
     }
 
-    void AddAttribute(const TString& key, TYsonCallback producer)
+    void AddAttribute(TInternedAttributeKey key, TYsonCallback producer)
     {
         YCHECK(Attributes_.insert(std::make_pair(key, producer)).second);
     }
 
 private:
     THashMap<TString, IYPathServicePtr> Services_;
-    THashMap<TString, TYsonCallback> Attributes_;
+    THashMap<TInternedAttributeKey, TYsonCallback> Attributes_;
 
 };
 
@@ -297,7 +298,7 @@ void TCompositeMapService::ListSystemAttributes(std::vector<TAttributeDescriptor
     TVirtualMapBase::ListSystemAttributes(descriptors);
 }
 
-bool TCompositeMapService::GetBuiltinAttribute(const TString& key, NYson::IYsonConsumer* consumer)
+bool TCompositeMapService::GetBuiltinAttribute(TInternedAttributeKey key, NYson::IYsonConsumer* consumer)
 {
     if (Impl_->GetBuiltinAttribute(key, consumer)) {
         return true;
@@ -312,7 +313,7 @@ TIntrusivePtr<TCompositeMapService> TCompositeMapService::AddChild(const TString
     return this;
 }
 
-TIntrusivePtr<TCompositeMapService> TCompositeMapService::AddAttribute(const TString& key, TYsonCallback producer)
+TIntrusivePtr<TCompositeMapService> TCompositeMapService::AddAttribute(TInternedAttributeKey key, TYsonCallback producer)
 {
     Impl_->AddAttribute(key, producer);
     return this;

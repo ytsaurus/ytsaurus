@@ -13,6 +13,7 @@
 #include <yt/server/cypress_server/node_proxy_detail.h>
 #include <yt/server/cypress_server/virtual.h>
 
+#include <yt/server/object_server/interned_attributes.h>
 #include <yt/server/object_server/object.h>
 
 #include <yt/server/tablet_server/tablet_cell.h>
@@ -156,130 +157,142 @@ private:
     {
         TMapNodeProxy::ListSystemAttributes(descriptors);
 
-        descriptors->push_back(TAttributeDescriptor("offline")
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Offline)
             .SetOpaque(true));
-        descriptors->push_back(TAttributeDescriptor("registered")
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Registered)
             .SetOpaque(true));
-        descriptors->push_back(TAttributeDescriptor("online")
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Online)
             .SetOpaque(true));
-        descriptors->push_back(TAttributeDescriptor("unregistered")
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Unregistered)
             .SetOpaque(true));
-        descriptors->push_back(TAttributeDescriptor("mixed")
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Mixed)
             .SetOpaque(true));
-        descriptors->push_back("available_space");
-        descriptors->push_back("used_space");
-        descriptors->push_back("available_space_per_medium");
-        descriptors->push_back("used_space_per_medium");
-        descriptors->push_back("chunk_replica_count");
-        descriptors->push_back("online_node_count");
-        descriptors->push_back("offline_node_count");
-        descriptors->push_back("banned_node_count");
-        descriptors->push_back("decommissioned_node_count");
-        descriptors->push_back("with_alerts_node_count");
-        descriptors->push_back("full_node_count");
+        descriptors->push_back(EInternedAttributeKey::AvailableSpace);
+        descriptors->push_back(EInternedAttributeKey::UsedSpace);
+        descriptors->push_back(EInternedAttributeKey::AvailableSpacePerMedium);
+        descriptors->push_back(EInternedAttributeKey::UsedSpacePerMedium);
+        descriptors->push_back(EInternedAttributeKey::ChunkReplicaCount);
+        descriptors->push_back(EInternedAttributeKey::OnlineNodeCount);
+        descriptors->push_back(EInternedAttributeKey::OfflineNodeCount);
+        descriptors->push_back(EInternedAttributeKey::BannedNodeCount);
+        descriptors->push_back(EInternedAttributeKey::DecommissionedNodeCount);
+        descriptors->push_back(EInternedAttributeKey::WithAlertsNodeCount);
+        descriptors->push_back(EInternedAttributeKey::FullNodeCount);
     }
 
-    virtual bool GetBuiltinAttribute(const TString& key, IYsonConsumer* consumer) override
+    virtual bool GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer) override
     {
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
         const auto& chunkManager = Bootstrap_->GetChunkManager();
 
-        if (key == "offline" || key == "registered" || key == "online" || key == "unregistered" || key == "mixed") {
-            auto state =
-                    key == "offline"      ? ENodeState::Offline :
-                    key == "registered"   ? ENodeState::Registered :
-                    key == "online"       ? ENodeState::Online :
-                    key == "unregistered" ? ENodeState::Unregistered :
-                    /* key == "mixed" */    ENodeState::Mixed;
-            BuildYsonFluently(consumer)
-                .DoListFor(nodeTracker->Nodes(), [=] (TFluentList fluent, const std::pair<const TObjectId&, TNode*>& pair) {
-                    auto* node = pair.second;
-                    if (node->GetAggregatedState() == state) {
-                        fluent.Item().Value(node->GetDefaultAddress());
-                    }
-                });
-            return true;
-        }
-
         auto statistics = nodeTracker->GetTotalNodeStatistics();
 
-        if (key == "available_space") {
-            BuildYsonFluently(consumer)
-                .Value(statistics.TotalSpace.Available);
-            return true;
-        }
-
-        if (key == "used_space") {
-            BuildYsonFluently(consumer)
-                .Value(statistics.TotalSpace.Used);
-            return true;
-        }
-
-        if (key == "available_space_per_medium") {
-            BuildYsonFluently(consumer)
-                .DoMapFor(chunkManager->Media(),
-                    [&] (TFluentMap fluent, const std::pair<const TMediumId&, TMedium*>& pair) {
-                        const auto* medium = pair.second;
-                        if (medium->GetCache()) {
-                            return;
+        switch (key) {
+            case EInternedAttributeKey::Offline:
+            case EInternedAttributeKey::Registered:
+            case EInternedAttributeKey::Online:
+            case EInternedAttributeKey::Unregistered:
+            case EInternedAttributeKey::Mixed: {
+                ENodeState state;
+                switch (key) {
+                    case EInternedAttributeKey::Offline:
+                        state = ENodeState::Offline;
+                        break;
+                    case EInternedAttributeKey::Registered:
+                        state = ENodeState::Registered;
+                        break;
+                    case EInternedAttributeKey::Online:
+                        state = ENodeState::Online;
+                        break;
+                    case EInternedAttributeKey::Unregistered:
+                        state = ENodeState::Unregistered;
+                        break;
+                    case EInternedAttributeKey::Mixed:
+                        state = ENodeState::Mixed;
+                        break;
+                    default:
+                        YCHECK(false);
+                }
+                BuildYsonFluently(consumer)
+                    .DoListFor(nodeTracker->Nodes(), [=] (TFluentList fluent, const std::pair<const TObjectId&, TNode*>& pair) {
+                        auto* node = pair.second;
+                        if (node->GetAggregatedState() == state) {
+                            fluent.Item().Value(node->GetDefaultAddress());
                         }
-                        fluent
-                            .Item(medium->GetName()).Value(statistics.SpacePerMedium[medium->GetIndex()].Available);
                     });
-            return true;
-        }
+                return true;
+            }
 
-        if (key == "used_space_per_medium") {
-            BuildYsonFluently(consumer)
-                .DoMapFor(chunkManager->Media(),
-                    [&] (TFluentMap fluent, const std::pair<const TMediumId&, TMedium*>& pair) {
-                        const auto* medium = pair.second;
-                        fluent
-                            .Item(medium->GetName()).Value(statistics.SpacePerMedium[medium->GetIndex()].Used);
-                    });
-            return true;
-        }
+            case EInternedAttributeKey::AvailableSpace:
+                BuildYsonFluently(consumer)
+                    .Value(statistics.TotalSpace.Available);
+                return true;
 
-        if (key == "chunk_replica_count") {
-            BuildYsonFluently(consumer)
-                .Value(statistics.ChunkReplicaCount);
-            return true;
-        }
+            case EInternedAttributeKey::UsedSpace:
+                BuildYsonFluently(consumer)
+                    .Value(statistics.TotalSpace.Used);
+                return true;
 
-        if (key == "online_node_count") {
-            BuildYsonFluently(consumer)
-                .Value(statistics.OnlineNodeCount);
-            return true;
-        }
+            case EInternedAttributeKey::AvailableSpacePerMedium:
+                BuildYsonFluently(consumer)
+                    .DoMapFor(chunkManager->Media(),
+                        [&] (TFluentMap fluent, const std::pair<const TMediumId&, TMedium*>& pair) {
+                            const auto* medium = pair.second;
+                            if (medium->GetCache()) {
+                                return;
+                            }
+                            fluent
+                                .Item(medium->GetName()).Value(statistics.SpacePerMedium[medium->GetIndex()].Available);
+                        });
+                return true;
 
-        if (key == "offline_node_count") {
-            BuildYsonFluently(consumer)
-                .Value(statistics.OfflineNodeCount);
-            return true;
-        }
+            case EInternedAttributeKey::UsedSpacePerMedium:
+                BuildYsonFluently(consumer)
+                    .DoMapFor(chunkManager->Media(),
+                        [&] (TFluentMap fluent, const std::pair<const TMediumId&, TMedium*>& pair) {
+                            const auto* medium = pair.second;
+                            fluent
+                                .Item(medium->GetName()).Value(statistics.SpacePerMedium[medium->GetIndex()].Used);
+                        });
+                return true;
 
-        if (key == "banned_node_count") {
-            BuildYsonFluently(consumer)
-                .Value(statistics.BannedNodeCount);
-            return true;
-        }
+            case EInternedAttributeKey::ChunkReplicaCount:
+                BuildYsonFluently(consumer)
+                    .Value(statistics.ChunkReplicaCount);
+                return true;
 
-        if (key == "decommissioned_node_count") {
-            BuildYsonFluently(consumer)
-                .Value(statistics.DecommissinedNodeCount);
-            return true;
-        }
+            case EInternedAttributeKey::OnlineNodeCount:
+                BuildYsonFluently(consumer)
+                    .Value(statistics.OnlineNodeCount);
+                return true;
 
-        if (key == "with_alerts_node_count") {
-            BuildYsonFluently(consumer)
-                .Value(statistics.WithAlertsNodeCount);
-            return true;
-        }
+            case EInternedAttributeKey::OfflineNodeCount:
+                BuildYsonFluently(consumer)
+                    .Value(statistics.OfflineNodeCount);
+                return true;
 
-        if (key == "full_node_count") {
-            BuildYsonFluently(consumer)
-                .Value(statistics.FullNodeCount);
-            return true;
+            case EInternedAttributeKey::BannedNodeCount:
+                BuildYsonFluently(consumer)
+                    .Value(statistics.BannedNodeCount);
+                return true;
+
+            case EInternedAttributeKey::DecommissionedNodeCount:
+                BuildYsonFluently(consumer)
+                    .Value(statistics.DecommissinedNodeCount);
+                return true;
+
+            case EInternedAttributeKey::WithAlertsNodeCount:
+                BuildYsonFluently(consumer)
+                    .Value(statistics.WithAlertsNodeCount);
+                return true;
+
+            case EInternedAttributeKey::FullNodeCount:
+                BuildYsonFluently(consumer)
+                    .Value(statistics.FullNodeCount);
+                return true;
+
+            default:
+                break;
         }
 
         return TMapNodeProxy::GetBuiltinAttribute(key, consumer);

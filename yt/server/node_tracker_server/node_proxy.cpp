@@ -10,6 +10,7 @@
 
 #include <yt/ytlib/node_tracker_client/helpers.h>
 
+#include <yt/server/object_server/interned_attributes.h>
 #include <yt/server/object_server/object_detail.h>
 
 #include <yt/server/transaction_server/transaction.h>
@@ -47,161 +48,162 @@ private:
 
         const auto* node = GetThisImpl();
 
-        descriptors->push_back(TAttributeDescriptor("banned")
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Banned)
             .SetWritable(true)
             .SetReplicated(true));
-        descriptors->push_back(TAttributeDescriptor("decommissioned")
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Decommissioned)
             .SetWritable(true)
             .SetReplicated(true));
-        descriptors->push_back(TAttributeDescriptor("disable_write_sessions")
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::DisableWriteSessions)
             .SetWritable(true)
             .SetReplicated(true));
-        descriptors->push_back(TAttributeDescriptor("disable_scheduler_jobs")
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::DisableSchedulerJobs)
             .SetWritable(true)
             .SetReplicated(true));
-        descriptors->push_back(TAttributeDescriptor("disable_tablet_cells")
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::DisableTabletCells)
             .SetWritable(true)
             .SetReplicated(true));
-        descriptors->push_back(TAttributeDescriptor("rack")
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Rack)
             .SetPresent(node->GetRack())
             .SetWritable(true)
             .SetRemovable(true)
             .SetReplicated(true));
-        descriptors->push_back("data_center");
-        descriptors->push_back("state");
-        descriptors->push_back("multicell_states");
-        descriptors->push_back(TAttributeDescriptor("user_tags")
+        descriptors->push_back(EInternedAttributeKey::DataCenter);
+        descriptors->push_back(EInternedAttributeKey::State);
+        descriptors->push_back(EInternedAttributeKey::MulticellStates);
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::UserTags)
             .SetWritable(true)
             .SetReplicated(true));
-        descriptors->push_back("tags");
-        descriptors->push_back("last_seen_time");
+        descriptors->push_back(EInternedAttributeKey::Tags);
+        descriptors->push_back(EInternedAttributeKey::LastSeenTime);
         bool isGood = node->GetLocalState() == ENodeState::Registered || node->GetLocalState() == ENodeState::Online;
-        descriptors->push_back(TAttributeDescriptor("register_time")
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::RegisterTime)
             .SetPresent(isGood));
-        descriptors->push_back(TAttributeDescriptor("lease_transaction_id")
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::LeaseTransactionId)
             .SetPresent(isGood && node->GetLeaseTransaction()));
-        descriptors->push_back(TAttributeDescriptor("statistics")
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Statistics)
             .SetPresent(isGood));
-        descriptors->push_back(TAttributeDescriptor("full")
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Full)
             .SetPresent(isGood));
-        descriptors->push_back(TAttributeDescriptor("addresses")
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Addresses)
             .SetPresent(isGood));
-        descriptors->push_back(TAttributeDescriptor("alerts")
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Alerts)
             .SetPresent(isGood));
-        descriptors->push_back(TAttributeDescriptor("alert_count")
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::AlertCount)
             .SetPresent(isGood));
-        descriptors->push_back(TAttributeDescriptor("tablet_slots")
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::TabletSlots)
             .SetPresent(isGood));
-        descriptors->push_back(TAttributeDescriptor("io_weights")
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::IoWeights)
             .SetPresent(isGood));
-        descriptors->push_back(TAttributeDescriptor("resource_usage")
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ResourceUsage)
             .SetPresent(isGood));
-        descriptors->push_back(TAttributeDescriptor("resource_limits")
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ResourceLimits)
             .SetPresent(isGood));
-        descriptors->push_back(TAttributeDescriptor("resource_limits_overrides")
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ResourceLimitsOverrides)
             .SetWritable(true)
             .SetReplicated(true));
     }
 
-    virtual bool GetBuiltinAttribute(const TString& key, IYsonConsumer* consumer) override
+    virtual bool GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer) override
     {
         const auto* node = GetThisImpl();
         auto state = node->GetLocalState();
         bool isGood = state == ENodeState::Registered || state == ENodeState::Online;
 
-        if (key == "banned") {
-            BuildYsonFluently(consumer)
-                .Value(node->GetBanned());
-            return true;
-        }
+        switch (key) {
+            case EInternedAttributeKey::Banned:
+                BuildYsonFluently(consumer)
+                    .Value(node->GetBanned());
+                return true;
 
-        if (key == "decommissioned") {
-            BuildYsonFluently(consumer)
-                .Value(node->GetDecommissioned());
-            return true;
-        }
+            case EInternedAttributeKey::Decommissioned:
+                BuildYsonFluently(consumer)
+                    .Value(node->GetDecommissioned());
+                return true;
 
-        if (key == "disable_write_sessions") {
-            BuildYsonFluently(consumer)
-                .Value(node->GetDisableWriteSessions());
-            return true;
-        }
+            case EInternedAttributeKey::DisableWriteSessions:
+                BuildYsonFluently(consumer)
+                    .Value(node->GetDisableWriteSessions());
+                return true;
 
-        if (key == "disable_scheduler_jobs") {
-            BuildYsonFluently(consumer)
-                .Value(node->GetDisableSchedulerJobs());
-            return true;
-        }
+            case EInternedAttributeKey::DisableSchedulerJobs:
+                BuildYsonFluently(consumer)
+                    .Value(node->GetDisableSchedulerJobs());
+                return true;
 
-        if (key == "disable_tablet_cells") {
-            BuildYsonFluently(consumer)
-                .Value(node->GetDisableTabletCells());
-            return true;
-        }
+            case EInternedAttributeKey::DisableTabletCells:
+                BuildYsonFluently(consumer)
+                    .Value(node->GetDisableTabletCells());
+                return true;
 
-        if (key == "rack" && node->GetRack()) {
-            BuildYsonFluently(consumer)
-                .Value(node->GetRack()->GetName());
-            return true;
-        }
+            case EInternedAttributeKey::Rack:
+                if (!node->GetRack()) {
+                    break;
+                }
+                BuildYsonFluently(consumer)
+                    .Value(node->GetRack()->GetName());
+                return true;
 
-        if (key == "data_center" &&
-            node->GetRack() && node->GetRack()->GetDataCenter())
-        {
-            BuildYsonFluently(consumer)
-                .Value(node->GetRack()->GetDataCenter()->GetName());
-            return true;
-        }
+            case EInternedAttributeKey::DataCenter:
+                if (!node->GetRack() || !node->GetRack()->GetDataCenter()) {
+                    break;
+                }
+                BuildYsonFluently(consumer)
+                    .Value(node->GetRack()->GetDataCenter()->GetName());
+                return true;
 
-        if (key == "state") {
-            auto state = Bootstrap_->IsPrimaryMaster()
-                ? node->GetAggregatedState()
-                : node->GetLocalState();
-            BuildYsonFluently(consumer)
-                .Value(state);
-            return true;
-        }
+            case EInternedAttributeKey::State: {
+                auto state = Bootstrap_->IsPrimaryMaster()
+                    ? node->GetAggregatedState()
+                    : node->GetLocalState();
+                BuildYsonFluently(consumer)
+                    .Value(state);
+                return true;
+            }
 
-        if (key == "multicell_states") {
-            BuildYsonFluently(consumer)
-                .DoMapFor(node->MulticellStates(), [] (TFluentMap fluent, const std::pair<TCellTag, ENodeState>& pair) {
-                    fluent.Item(ToString(pair.first)).Value(pair.second);
-                });
-            return true;
-        }
+            case EInternedAttributeKey::MulticellStates:
+                BuildYsonFluently(consumer)
+                    .DoMapFor(node->MulticellStates(), [] (TFluentMap fluent, const std::pair<TCellTag, ENodeState>& pair) {
+                        fluent.Item(ToString(pair.first)).Value(pair.second);
+                    });
+                return true;
 
-        if (key == "user_tags") {
-            BuildYsonFluently(consumer)
-                .Value(node->UserTags());
-            return true;
-        }
+            case EInternedAttributeKey::UserTags:
+                BuildYsonFluently(consumer)
+                    .Value(node->UserTags());
+                return true;
 
-        if (key == "tags") {
-            BuildYsonFluently(consumer)
-                .Value(node->Tags());
-            return true;
-        }
+            case EInternedAttributeKey::Tags:
+                BuildYsonFluently(consumer)
+                    .Value(node->Tags());
+                return true;
 
-        if (key == "last_seen_time") {
-            BuildYsonFluently(consumer)
-                .Value(node->GetLastSeenTime());
-            return true;
-        }
+            case EInternedAttributeKey::LastSeenTime:
+                BuildYsonFluently(consumer)
+                    .Value(node->GetLastSeenTime());
+                return true;
 
-        if (isGood) {
-            if (key == "register_time") {
+            case EInternedAttributeKey::RegisterTime:
+                if (!isGood) {
+                    break;
+                }
                 BuildYsonFluently(consumer)
                     .Value(node->GetRegisterTime());
                 return true;
-            }
 
-            if (key == "lease_transaction_id" && node->GetLeaseTransaction()) {
+            case EInternedAttributeKey::LeaseTransactionId:
+                if (!isGood || !node->GetLeaseTransaction()) {
+                    break;
+                }
                 BuildYsonFluently(consumer)
                     .Value(node->GetLeaseTransaction()->GetId());
                 return true;
-            }
 
-            if (key == "statistics") {
+            case EInternedAttributeKey::Statistics: {
+                if (!isGood) {
+                    break;
+                }
+
                 const auto& chunkManager = Bootstrap_->GetChunkManager();
                 const auto& statistics = node->Statistics();
                 BuildYsonFluently(consumer)
@@ -270,31 +272,43 @@ private:
                 return true;
             }
 
-            if (key == "full") {
+            case EInternedAttributeKey::Full:
+                if (!isGood) {
+                    break;
+                }
                 BuildYsonFluently(consumer)
                     .Value(node->Statistics().full());
                 return true;
-            }
 
-            if (key == "alerts") {
+            case EInternedAttributeKey::Alerts:
+                if (!isGood) {
+                    break;
+                }
                 BuildYsonFluently(consumer)
                     .Value(node->Alerts());
                 return true;
-            }
 
-            if (key == "alert_count") {
+            case EInternedAttributeKey::AlertCount:
+                if (!isGood) {
+                    break;
+                }
                 BuildYsonFluently(consumer)
                     .Value(node->Alerts().size());
                 return true;
-            }
 
-            if (key == "addresses") {
+            case EInternedAttributeKey::Addresses:
+                if (!isGood) {
+                    break;
+                }
                 BuildYsonFluently(consumer)
                     .Value(node->GetNodeAddresses());
                 return true;
-            }
 
-            if (key == "tablet_slots") {
+            case EInternedAttributeKey::TabletSlots:
+                if (!isGood) {
+                    break;
+                }
+
                 BuildYsonFluently(consumer)
                     .DoListFor(node->TabletSlots(), [] (TFluentList fluent, const TNode::TTabletSlot& slot) {
                         fluent
@@ -308,9 +322,12 @@ private:
                             .EndMap();
                     });
                 return true;
-            }
 
-            if (key == "io_weights") {
+            case EInternedAttributeKey::IoWeights: {
+                if (!isGood) {
+                    break;
+                }
+
                 RequireLeader();
                 const auto& chunkManager = Bootstrap_->GetChunkManager();
                 BuildYsonFluently(consumer)
@@ -326,93 +343,106 @@ private:
                 return true;
             }
 
-            if (key == "resource_usage") {
+            case EInternedAttributeKey::ResourceUsage:
+                if (!isGood) {
+                    break;
+                }
                 RequireLeader();
                 BuildYsonFluently(consumer)
                     .Value(node->ResourceUsage());
                 return true;
-            }
 
-            if (key == "resource_limits") {
+            case EInternedAttributeKey::ResourceLimits:
+                if (!isGood) {
+                    break;
+                }
                 RequireLeader();
                 BuildYsonFluently(consumer)
                     .Value(node->ResourceLimits());
                 return true;
-            }
-        }
 
-        if (key == "resource_limits_overrides") {
-            BuildYsonFluently(consumer)
-                .Value(node->ResourceLimitsOverrides());
-            return true;
+            case EInternedAttributeKey::ResourceLimitsOverrides:
+                BuildYsonFluently(consumer)
+                    .Value(node->ResourceLimitsOverrides());
+                return true;
+
+            default:
+                break;
         }
 
         return TNonversionedObjectProxyBase::GetBuiltinAttribute(key, consumer);
     }
 
-    virtual bool SetBuiltinAttribute(const TString& key, const TYsonString& value) override
+    virtual bool SetBuiltinAttribute(TInternedAttributeKey key, const TYsonString& value) override
     {
         auto* node = GetThisImpl();
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
 
-        if (key == "banned") {
-            auto banned = ConvertTo<bool>(value);
-            nodeTracker->SetNodeBanned(node, banned);
-            return true;
-        }
+        switch (key) {
+            case EInternedAttributeKey::Banned: {
+                auto banned = ConvertTo<bool>(value);
+                nodeTracker->SetNodeBanned(node, banned);
+                return true;
+            }
 
-        if (key == "decommissioned") {
-            auto decommissioned = ConvertTo<bool>(value);
-            nodeTracker->SetNodeDecommissioned(node, decommissioned);
-            return true;
-        }
+            case EInternedAttributeKey::Decommissioned: {
+                auto decommissioned = ConvertTo<bool>(value);
+                nodeTracker->SetNodeDecommissioned(node, decommissioned);
+                return true;
+            }
 
-        if (key == "disable_write_sessions") {
-            auto disableWriteSessions = ConvertTo<bool>(value);
-            nodeTracker->SetDisableWriteSessions(node, disableWriteSessions);
-            return true;
-        }
+            case EInternedAttributeKey::DisableWriteSessions: {
+                auto disableWriteSessions = ConvertTo<bool>(value);
+                nodeTracker->SetDisableWriteSessions(node, disableWriteSessions);
+                return true;
+            }
 
-        if (key == "disable_scheduler_jobs") {
-            auto disableSchedulerJobs = ConvertTo<bool>(value);
-            node->SetDisableSchedulerJobs(disableSchedulerJobs);
-            return true;
-        }
+            case EInternedAttributeKey::DisableSchedulerJobs: {
+                auto disableSchedulerJobs = ConvertTo<bool>(value);
+                node->SetDisableSchedulerJobs(disableSchedulerJobs);
+                return true;
+            }
 
-        if (key == "disable_tablet_cells") {
-            auto disableTabletCells = ConvertTo<bool>(value);
-            node->SetDisableTabletCells(disableTabletCells);
-            return true;
-        }
+            case EInternedAttributeKey::DisableTabletCells: {
+                auto disableTabletCells = ConvertTo<bool>(value);
+                node->SetDisableTabletCells(disableTabletCells);
+                return true;
+            }
 
-        if (key == "rack") {
-            auto rackName = ConvertTo<TString>(value);
-            auto* rack = nodeTracker->GetRackByNameOrThrow(rackName);
-            nodeTracker->SetNodeRack(node, rack);
-            return true;
-        }
+            case EInternedAttributeKey::Rack: {
+                auto rackName = ConvertTo<TString>(value);
+                auto* rack = nodeTracker->GetRackByNameOrThrow(rackName);
+                nodeTracker->SetNodeRack(node, rack);
+                return true;
+            }
 
-        if (key == "resource_limits_overrides") {
-            node->ResourceLimitsOverrides() = ConvertTo<TNodeResourceLimitsOverrides>(value);
-            return true;
-        }
+            case EInternedAttributeKey::ResourceLimitsOverrides:
+                node->ResourceLimitsOverrides() = ConvertTo<TNodeResourceLimitsOverrides>(value);
+                return true;
 
-        if (key == "user_tags") {
-            nodeTracker->SetNodeUserTags(node, ConvertTo<std::vector<TString>>(value));
-            return true;
+            case EInternedAttributeKey::UserTags:
+                nodeTracker->SetNodeUserTags(node, ConvertTo<std::vector<TString>>(value));
+                return true;
+
+            default:
+                break;
         }
 
         return TNonversionedObjectProxyBase::SetBuiltinAttribute(key, value);
     }
 
-    virtual bool RemoveBuiltinAttribute(const TString& key) override
+    virtual bool RemoveBuiltinAttribute(TInternedAttributeKey key) override
     {
         auto* node = GetThisImpl();
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
 
-        if (key == "rack") {
-            nodeTracker->SetNodeRack(node, nullptr);
-            return true;
+        switch (key) {
+            case EInternedAttributeKey::Rack:
+                nodeTracker->SetNodeRack(node, nullptr);
+                return true;
+
+            default:
+                break;
         }
 
         return false;

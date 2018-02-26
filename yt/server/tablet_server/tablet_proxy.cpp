@@ -8,6 +8,7 @@
 
 #include <yt/server/chunk_server/chunk_list.h>
 
+#include <yt/server/object_server/interned_attributes.h>
 #include <yt/server/object_server/object_detail.h>
 
 #include <yt/server/table_server/table_node.h>
@@ -47,39 +48,39 @@ private:
         const auto* tablet = GetThisImpl();
         const auto* table = tablet->GetTable();
 
-        descriptors->push_back("state");
-        descriptors->push_back("statistics");
-        descriptors->push_back(TAttributeDescriptor("table_path")
+        descriptors->push_back(EInternedAttributeKey::State);
+        descriptors->push_back(EInternedAttributeKey::Statistics);
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::TablePath)
             .SetOpaque(true));
-        descriptors->push_back(TAttributeDescriptor("trimmed_row_count")
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::TrimmedRowCount)
             .SetPresent(!table->IsPhysicallySorted()));
-        descriptors->push_back(TAttributeDescriptor("flushed_row_count")
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::FlushedRowCount)
             .SetPresent(!table->IsPhysicallySorted()));
-        descriptors->push_back("last_commit_timestamp");
-        descriptors->push_back("last_write_timestamp");
-        descriptors->push_back(TAttributeDescriptor("performance_counters")
+        descriptors->push_back(EInternedAttributeKey::LastCommitTimestamp);
+        descriptors->push_back(EInternedAttributeKey::LastWriteTimestamp);
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::PerformanceCounters)
             .SetPresent(tablet->GetCell()));
-        descriptors->push_back(TAttributeDescriptor("mount_revision")
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::MountRevision)
             .SetPresent(tablet->GetCell()));
-        descriptors->push_back(TAttributeDescriptor("stores_update_prepared")
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::StoresUpdatePrepared)
             .SetPresent(tablet->GetStoresUpdatePreparedTransaction() != nullptr));
-        descriptors->push_back("index");
-        descriptors->push_back("table_id");
-        descriptors->push_back(TAttributeDescriptor("pivot_key")
+        descriptors->push_back(EInternedAttributeKey::Index);
+        descriptors->push_back(EInternedAttributeKey::TableId);
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::PivotKey)
             .SetPresent(table->IsPhysicallySorted()));
-        descriptors->push_back("chunk_list_id");
-        descriptors->push_back("in_memory_mode");
-        descriptors->push_back(TAttributeDescriptor("cell_id")
+        descriptors->push_back(EInternedAttributeKey::ChunkListId);
+        descriptors->push_back(EInternedAttributeKey::InMemoryMode);
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::CellId)
             .SetPresent(tablet->GetCell()));
-        descriptors->push_back(TAttributeDescriptor("action_id")
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ActionId)
             .SetPresent(tablet->GetAction()));
-        descriptors->push_back("retained_timestamp");
-        descriptors->push_back("unflushed_timestamp");
-        descriptors->push_back(TAttributeDescriptor("errors")
+        descriptors->push_back(EInternedAttributeKey::RetainedTimestamp);
+        descriptors->push_back(EInternedAttributeKey::UnflushedTimestamp);
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Errors)
             .SetOpaque(true));
     }
 
-    virtual bool GetBuiltinAttribute(const TString& key, IYsonConsumer* consumer) override
+    virtual bool GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer) override
     {
         const auto* tablet = GetThisImpl();
         const auto* table = tablet->GetTable();
@@ -89,130 +90,135 @@ private:
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         const auto& cypressManager = Bootstrap_->GetCypressManager();
 
-        if (key == "state") {
-            BuildYsonFluently(consumer)
-                .Value(tablet->GetState());
-            return true;
-        }
+        switch (key) {
+            case EInternedAttributeKey::State:
+                BuildYsonFluently(consumer)
+                    .Value(tablet->GetState());
+                return true;
 
-        if (key == "statistics") {
-            BuildYsonFluently(consumer)
-                .Value(New<TSerializableTabletStatistics>(
-                    tabletManager->GetTabletStatistics(tablet),
-                    chunkManager));
-            return true;
-        }
+            case EInternedAttributeKey::Statistics:
+                BuildYsonFluently(consumer)
+                    .Value(New<TSerializableTabletStatistics>(
+                        tabletManager->GetTabletStatistics(tablet),
+                        chunkManager));
+                return true;
 
-        if (key == "table_path" && IsObjectAlive(tablet->GetTable())) {
-            BuildYsonFluently(consumer)
-                .Value(cypressManager->GetNodePath(
-                    tablet->GetTable()->GetTrunkNode(),
-                    nullptr));
-            return true;
-        }
+            case EInternedAttributeKey::TablePath:
+                if (!IsObjectAlive(tablet->GetTable())) {
+                    break;
+                }
+                BuildYsonFluently(consumer)
+                    .Value(cypressManager->GetNodePath(
+                        tablet->GetTable()->GetTrunkNode(),
+                        nullptr));
+                return true;
 
-        if (key == "trimmed_row_count") {
-            BuildYsonFluently(consumer)
-                .Value(tablet->GetTrimmedRowCount());
-            return true;
-        }
+            case EInternedAttributeKey::TrimmedRowCount:
+                BuildYsonFluently(consumer)
+                    .Value(tablet->GetTrimmedRowCount());
+                return true;
 
-        if (key == "flushed_row_count") {
-            BuildYsonFluently(consumer)
-                .Value(chunkList->Statistics().LogicalRowCount);
-            return true;
-        }
 
-        if (key == "last_commit_timestamp") {
-            BuildYsonFluently(consumer)
-                .Value(tablet->NodeStatistics().last_commit_timestamp());
-            return true;
-        }
+            case EInternedAttributeKey::FlushedRowCount:
+                BuildYsonFluently(consumer)
+                    .Value(chunkList->Statistics().LogicalRowCount);
+                return true;
 
-        if (key == "last_write_timestamp") {
-            BuildYsonFluently(consumer)
-                .Value(tablet->NodeStatistics().last_write_timestamp());
-            return true;
-        }
+            case EInternedAttributeKey::LastCommitTimestamp:
+                BuildYsonFluently(consumer)
+                    .Value(tablet->NodeStatistics().last_commit_timestamp());
+                return true;
 
-        if (tablet->GetCell()) {
-            if (key == "performance_counters") {
+            case EInternedAttributeKey::LastWriteTimestamp:
+                BuildYsonFluently(consumer)
+                    .Value(tablet->NodeStatistics().last_write_timestamp());
+                return true;
+
+            case EInternedAttributeKey::PerformanceCounters:
+                if (!tablet->GetCell()) {
+                    break;
+                }
                 BuildYsonFluently(consumer)
                     .Value(tablet->PerformanceCounters());
                 return true;
-            }
 
-            if (key == "mount_revision") {
+            case EInternedAttributeKey::MountRevision:
+                if (!tablet->GetCell()) {
+                    break;
+                }
                 BuildYsonFluently(consumer)
                     .Value(tablet->GetMountRevision());
                 return true;
-            }
-        }
 
-        if (key == "stores_update_prepared_transaction_id" && tablet->GetStoresUpdatePreparedTransaction()) {
-            BuildYsonFluently(consumer)
-                .Value(tablet->GetStoresUpdatePreparedTransaction()->GetId());
-            return true;
-        }
+            case EInternedAttributeKey::StoresUpdatePreparedTransactionId:
+                if (!tablet->GetStoresUpdatePreparedTransaction()) {
+                    break;
+                }
+                BuildYsonFluently(consumer)
+                    .Value(tablet->GetStoresUpdatePreparedTransaction()->GetId());
+                return true;
 
-        if (key == "index") {
-            BuildYsonFluently(consumer)
-                .Value(tablet->GetIndex());
-            return true;
-        }
+            case EInternedAttributeKey::Index:
+                BuildYsonFluently(consumer)
+                    .Value(tablet->GetIndex());
+                return true;
 
-        if (key == "table_id") {
-            BuildYsonFluently(consumer)
-                .Value(table->GetId());
-            return true;
-        }
+            case EInternedAttributeKey::TableId:
+                BuildYsonFluently(consumer)
+                    .Value(table->GetId());
+                return true;
 
-        if (key == "pivot_key" && table->IsPhysicallySorted()) {
-            BuildYsonFluently(consumer)
-                .Value(tablet->GetPivotKey());
-            return true;
-        }
+            case EInternedAttributeKey::PivotKey:
+                if (!table->IsPhysicallySorted()) {
+                    break;
+                }
+                BuildYsonFluently(consumer)
+                    .Value(tablet->GetPivotKey());
+                return true;
 
-        if (key == "chunk_list_id") {
-            BuildYsonFluently(consumer)
-                .Value(tablet->GetChunkList()->GetId());
-            return true;
-        }
+            case EInternedAttributeKey::ChunkListId:
+                BuildYsonFluently(consumer)
+                    .Value(tablet->GetChunkList()->GetId());
+                return true;
 
-        if (key == "in_memory_mode") {
-            BuildYsonFluently(consumer)
-                .Value(tablet->GetInMemoryMode());
-            return true;
-        }
+            case EInternedAttributeKey::InMemoryMode:
+                BuildYsonFluently(consumer)
+                    .Value(tablet->GetInMemoryMode());
+                return true;
 
-        if (key == "cell_id" && tablet->GetCell()) {
-            BuildYsonFluently(consumer)
-                .Value(tablet->GetCell()->GetId());
-            return true;
-        }
+            case EInternedAttributeKey::CellId:
+                if (!tablet->GetCell()) {
+                    break;
+                }
+                BuildYsonFluently(consumer)
+                    .Value(tablet->GetCell()->GetId());
+                return true;
 
-        if (key == "action_id" && tablet->GetAction()) {
-            BuildYsonFluently(consumer)
-                .Value(tablet->GetAction()->GetId());
-            return true;
-        }
+            case EInternedAttributeKey::ActionId:
+                if (!tablet->GetAction()) {
+                    break;
+                }
+                BuildYsonFluently(consumer)
+                    .Value(tablet->GetAction()->GetId());
+                return true;
 
-        if (key == "retained_timestamp") {
-            BuildYsonFluently(consumer)
-                .Value(tablet->GetRetainedTimestamp());
-            return true;
-        }
+            case EInternedAttributeKey::RetainedTimestamp:
+                BuildYsonFluently(consumer)
+                    .Value(tablet->GetRetainedTimestamp());
+                return true;
 
-        if (key == "unflushed_timestamp") {
-            BuildYsonFluently(consumer)
-                .Value(static_cast<TTimestamp>(tablet->NodeStatistics().unflushed_timestamp()));
-            return true;
-        }
+            case EInternedAttributeKey::UnflushedTimestamp:
+                BuildYsonFluently(consumer)
+                    .Value(static_cast<TTimestamp>(tablet->NodeStatistics().unflushed_timestamp()));
+                return true;
 
-        if (key == "errors") {
-            BuildYsonFluently(consumer)
-                .Value(tablet->GetErrors());
-            return true;
+            case EInternedAttributeKey::Errors:
+                BuildYsonFluently(consumer)
+                    .Value(tablet->GetErrors());
+                return true;
+
+            default:
+                break;
         }
 
         return TBase::GetBuiltinAttribute(key, consumer);

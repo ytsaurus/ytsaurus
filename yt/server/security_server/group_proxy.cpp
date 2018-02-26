@@ -3,6 +3,8 @@
 #include "security_manager.h"
 #include "subject_proxy_detail.h"
 
+#include <yt/server/object_server/interned_attributes.h>
+
 #include <yt/ytlib/security_client/group_ypath.pb.h>
 
 #include <yt/core/ytree/fluent.h>
@@ -42,20 +44,24 @@ private:
     {
         TBase::ListSystemAttributes(descriptors);
 
-        descriptors->push_back("members");
+        descriptors->push_back(EInternedAttributeKey::Members);
     }
 
-    virtual bool GetBuiltinAttribute(const TString& key, NYson::IYsonConsumer* consumer) override
+    virtual bool GetBuiltinAttribute(TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override
     {
         const auto* group = GetThisImpl();
 
-        if (key == "members") {
-            BuildYsonFluently(consumer)
-                .DoListFor(group->Members(), [] (TFluentList fluent, TSubject* subject) {
-                    fluent
-                        .Item().Value(subject->GetName());
-                });
-            return true;
+        switch (key) {
+            case EInternedAttributeKey::Members:
+                BuildYsonFluently(consumer)
+                    .DoListFor(group->Members(), [] (TFluentList fluent, TSubject* subject) {
+                        fluent
+                            .Item().Value(subject->GetName());
+                    });
+                return true;
+
+            default:
+                break;
         }
 
         return TBase::GetBuiltinAttribute(key, consumer);

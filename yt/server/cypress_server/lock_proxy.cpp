@@ -3,6 +3,7 @@
 #include "lock.h"
 #include "node.h"
 
+#include <yt/server/object_server/interned_attributes.h>
 #include <yt/server/object_server/object_detail.h>
 
 #include <yt/server/transaction_server/transaction.h>
@@ -39,62 +40,66 @@ private:
         const auto* lock = GetThisImpl();
         const auto& request = lock->Request();
 
-        descriptors->push_back("implicit");
-        descriptors->push_back("state");
-        descriptors->push_back("transaction_id");
-        descriptors->push_back("node_id");
-        descriptors->push_back("mode");
-        descriptors->push_back(TAttributeDescriptor("child_key")
+        descriptors->push_back(EInternedAttributeKey::Implicit);
+        descriptors->push_back(EInternedAttributeKey::State);
+        descriptors->push_back(EInternedAttributeKey::TransactionId);
+        descriptors->push_back(EInternedAttributeKey::NodeId);
+        descriptors->push_back(EInternedAttributeKey::Mode);
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ChildKey)
             .SetPresent(request.Key.Kind == ELockKeyKind::Child));
-        descriptors->push_back(TAttributeDescriptor("attribute_key")
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::AttributeKey)
             .SetPresent(request.Key.Kind == ELockKeyKind::Attribute));
     }
 
-    virtual bool GetBuiltinAttribute(const TString& key, IYsonConsumer* consumer) override
+    virtual bool GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer) override
     {
         const auto* lock = GetThisImpl();
         const auto& request = lock->Request();
 
-        if (key == "implicit") {
-            BuildYsonFluently(consumer)
-                .Value(lock->GetImplicit());
-            return true;
-        }
+        switch (key) {
+            case EInternedAttributeKey::Implicit:
+                BuildYsonFluently(consumer)
+                    .Value(lock->GetImplicit());
+                return true;
 
-        if (key == "state") {
-            BuildYsonFluently(consumer)
-                .Value(lock->GetState());
-            return true;
-        }
+            case EInternedAttributeKey::State:
+                BuildYsonFluently(consumer)
+                    .Value(lock->GetState());
+                return true;
 
-        if (key == "transaction_id") {
-            BuildYsonFluently(consumer)
-                .Value(lock->GetTransaction()->GetId());
-            return true;
-        }
+            case EInternedAttributeKey::TransactionId:
+                BuildYsonFluently(consumer)
+                    .Value(lock->GetTransaction()->GetId());
+                return true;
 
-        if (key == "node_id") {
-            BuildYsonFluently(consumer)
-                .Value(lock->GetTrunkNode()->GetId());
-            return true;
-        }
+            case EInternedAttributeKey::NodeId:
+                BuildYsonFluently(consumer)
+                    .Value(lock->GetTrunkNode()->GetId());
+                return true;
 
-        if (key == "mode") {
-            BuildYsonFluently(consumer)
-                .Value(lock->Request().Mode);
-            return true;
-        }
+            case EInternedAttributeKey::Mode:
+                BuildYsonFluently(consumer)
+                    .Value(lock->Request().Mode);
+                return true;
 
-        if (key == "child_key" && request.Key.Kind == ELockKeyKind::Child) {
-            BuildYsonFluently(consumer)
-                .Value(request.Key.Name);
-            return true;
-        }
+            case EInternedAttributeKey::ChildKey:
+                if (request.Key.Kind != ELockKeyKind::Child) {
+                    break;
+                }
+                BuildYsonFluently(consumer)
+                    .Value(request.Key.Name);
+                return true;
 
-        if (key == "attribute_key" && request.Key.Kind == ELockKeyKind::Attribute) {
-            BuildYsonFluently(consumer)
-                .Value(request.Key.Name);
-            return true;
+            case EInternedAttributeKey::AttributeKey:
+                if (request.Key.Kind != ELockKeyKind::Attribute) {
+                    break;
+                }
+                BuildYsonFluently(consumer)
+                    .Value(request.Key.Name);
+                return true;
+
+            default:
+                break;
         }
 
         return TBase::GetBuiltinAttribute(key, consumer);

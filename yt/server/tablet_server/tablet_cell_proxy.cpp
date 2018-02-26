@@ -8,6 +8,7 @@
 
 #include <yt/server/node_tracker_server/node.h>
 
+#include <yt/server/object_server/interned_attributes.h>
 #include <yt/server/object_server/object_detail.h>
 
 #include <yt/server/transaction_server/transaction.h>
@@ -57,111 +58,112 @@ private:
 
         const auto* cell = GetThisImpl();
 
-        descriptors->push_back("leading_peer_id");
-        descriptors->push_back("health");
-        descriptors->push_back("peers");
-        descriptors->push_back(TAttributeDescriptor("tablet_ids")
+        descriptors->push_back(EInternedAttributeKey::LeadingPeerId);
+        descriptors->push_back(EInternedAttributeKey::Health);
+        descriptors->push_back(EInternedAttributeKey::Peers);
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::TabletIds)
             .SetOpaque(true));
-        descriptors->push_back(TAttributeDescriptor("action_ids")
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ActionIds)
             .SetOpaque(true));
-        descriptors->push_back("tablet_count");
-        descriptors->push_back("config_version");
-        descriptors->push_back("total_statistics");
-        descriptors->push_back(TAttributeDescriptor("prerequisite_transaction_id")
+        descriptors->push_back(EInternedAttributeKey::TabletCount);
+        descriptors->push_back(EInternedAttributeKey::ConfigVersion);
+        descriptors->push_back(EInternedAttributeKey::TotalStatistics);
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::PrerequisiteTransactionId)
             .SetPresent(cell->GetPrerequisiteTransaction()));
-        descriptors->push_back(TAttributeDescriptor("tablet_cell_bundle")
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::TabletCellBundle)
             .SetReplicated(true)
             .SetMandatory(true));
     }
 
-    virtual bool GetBuiltinAttribute(const TString& key, NYson::IYsonConsumer* consumer) override
+    virtual bool GetBuiltinAttribute(TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override
     {
         const auto* cell = GetThisImpl();
 
         const auto& chunkManager = Bootstrap_->GetChunkManager();
 
-        if (key == "leading_peer_id") {
-            BuildYsonFluently(consumer)
-                .Value(cell->GetLeadingPeerId());
-            return true;
-        }
+        switch (key) {
+            case EInternedAttributeKey::LeadingPeerId:
+                BuildYsonFluently(consumer)
+                    .Value(cell->GetLeadingPeerId());
+                return true;
 
-        if (key == "health") {
-            BuildYsonFluently(consumer)
-                .Value(cell->GetHealth());
-            return true;
-        }
+            case EInternedAttributeKey::Health:
+                BuildYsonFluently(consumer)
+                    .Value(cell->GetHealth());
+                return true;
 
-        if (key == "peers") {
-            BuildYsonFluently(consumer)
-                .DoListFor(cell->Peers(), [&] (TFluentList fluent, const TTabletCell::TPeer& peer) {
-                    if (peer.Descriptor.IsNull()) {
+            case EInternedAttributeKey::Peers:
+                BuildYsonFluently(consumer)
+                    .DoListFor(cell->Peers(), [&] (TFluentList fluent, const TTabletCell::TPeer& peer) {
+                        if (peer.Descriptor.IsNull()) {
+                            fluent
+                                .Item().BeginMap()
+                                    .Item("state").Value(EPeerState::None)
+                                .EndMap();
+                        } else {
+                            const auto* slot = peer.Node ? peer.Node->GetTabletSlot(cell) : nullptr;
+                            auto state = slot ? slot->PeerState : EPeerState::None;
+                            fluent
+                                .Item().BeginMap()
+                                    .Item("address").Value(peer.Descriptor.GetDefaultAddress())
+                                    .Item("state").Value(state)
+                                    .Item("last_seen_time").Value(peer.LastSeenTime)
+                                .EndMap();
+                        }
+                    });
+                return true;
+
+            case EInternedAttributeKey::TabletIds:
+                BuildYsonFluently(consumer)
+                    .DoListFor(cell->Tablets(), [] (TFluentList fluent, const TTablet* tablet) {
                         fluent
-                            .Item().BeginMap()
-                                .Item("state").Value(EPeerState::None)
-                            .EndMap();
-                    } else {
-                        const auto* slot = peer.Node ? peer.Node->GetTabletSlot(cell) : nullptr;
-                        auto state = slot ? slot->PeerState : EPeerState::None;
+                            .Item().Value(tablet->GetId());
+                    });
+                return true;
+
+            case EInternedAttributeKey::ActionIds:
+                BuildYsonFluently(consumer)
+                    .DoListFor(cell->Actions(), [] (TFluentList fluent, const TTabletAction* action) {
                         fluent
-                            .Item().BeginMap()
-                                .Item("address").Value(peer.Descriptor.GetDefaultAddress())
-                                .Item("state").Value(state)
-                                .Item("last_seen_time").Value(peer.LastSeenTime)
-                            .EndMap();
-                    }
-                });
-            return true;
-        }
+                            .Item().Value(action->GetId());
+                    });
+                return true;
 
-        if (key == "tablet_ids") {
-            BuildYsonFluently(consumer)
-                .DoListFor(cell->Tablets(), [] (TFluentList fluent, const TTablet* tablet) {
-                    fluent
-                        .Item().Value(tablet->GetId());
-                });
-            return true;
-        }
+            case EInternedAttributeKey::TabletCount:
+                BuildYsonFluently(consumer)
+                    .Value(cell->Tablets().size());
+                return true;
 
-        if (key == "action_ids") {
-            BuildYsonFluently(consumer)
-                .DoListFor(cell->Actions(), [] (TFluentList fluent, const TTabletAction* action) {
-                    fluent
-                        .Item().Value(action->GetId());
-                });
-            return true;
-        }
+            case EInternedAttributeKey::ConfigVersion:
+                BuildYsonFluently(consumer)
+                    .Value(cell->GetConfigVersion());
+                return true;
 
-        if (key == "tablet_count") {
-            BuildYsonFluently(consumer)
-                .Value(cell->Tablets().size());
-            return true;
-        }
+            case EInternedAttributeKey::TotalStatistics:
+                BuildYsonFluently(consumer)
+                    .Value(New<TSerializableTabletCellStatistics>(
+                        cell->TotalStatistics(),
+                        chunkManager));
+                return true;
 
-        if (key == "config_version") {
-            BuildYsonFluently(consumer)
-                .Value(cell->GetConfigVersion());
-            return true;
-        }
+            case EInternedAttributeKey::PrerequisiteTransactionId:
+                if (!cell->GetPrerequisiteTransaction()) {
+                    break;
+                }
+                BuildYsonFluently(consumer)
+                    .Value(cell->GetPrerequisiteTransaction()->GetId());
+                return true;
 
-        if (key == "total_statistics") {
-            BuildYsonFluently(consumer)
-                .Value(New<TSerializableTabletCellStatistics>(
-                    cell->TotalStatistics(),
-                    chunkManager));
-            return true;
-        }
+            case EInternedAttributeKey::TabletCellBundle:
+                if (!cell->GetCellBundle()) {
+                    break;
+                }
+                BuildYsonFluently(consumer)
+                    .Value(cell->GetCellBundle()->GetName());
+                return true;
 
-        if (key == "prerequisite_transaction_id" && cell->GetPrerequisiteTransaction()) {
-            BuildYsonFluently(consumer)
-                .Value(cell->GetPrerequisiteTransaction()->GetId());
-            return true;
-        }
-
-        if (key == "tablet_cell_bundle" && cell->GetCellBundle()) {
-            BuildYsonFluently(consumer)
-                .Value(cell->GetCellBundle()->GetName());
-            return true;
+            default:
+                break;
         }
 
         return TBase::GetBuiltinAttribute(key, consumer);

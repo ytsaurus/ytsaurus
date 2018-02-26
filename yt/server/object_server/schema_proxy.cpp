@@ -4,6 +4,7 @@
 
 #include <yt/server/cell_master/bootstrap.h>
 
+#include <yt/server/object_server/interned_attributes.h>
 #include <yt/server/object_server/type_handler_detail.h>
 
 #include <yt/ytlib/object_client/helpers.h>
@@ -35,13 +36,18 @@ public:
 private:
     typedef TNonversionedObjectProxyBase<TSchemaObject> TBase;
 
-    virtual bool GetBuiltinAttribute(const TString& key, IYsonConsumer* consumer) override
+    virtual bool GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer) override
     {
-        if (key == "type") {
-            auto type = TypeFromSchemaType(TypeFromId(GetId()));
-            BuildYsonFluently(consumer)
-                .Value(Format("schema:%v", FormatEnum(type)));
-            return true;
+        switch (key) {
+            case EInternedAttributeKey::Type: {
+                auto type = TypeFromSchemaType(TypeFromId(GetId()));
+                BuildYsonFluently(consumer)
+                    .Value(Format("schema:%v", FormatEnum(type)));
+                return true;
+            }
+
+            default:
+                break;
         }
 
         return TBase::GetBuiltinAttribute(key, consumer);

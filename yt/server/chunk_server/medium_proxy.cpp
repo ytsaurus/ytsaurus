@@ -5,6 +5,7 @@
 
 #include <yt/server/cell_master/bootstrap.h>
 
+#include <yt/server/object_server/interned_attributes.h>
 #include <yt/server/object_server/object_detail.h>
 
 #include <yt/core/ytree/fluent.h>
@@ -36,87 +37,90 @@ private:
     {
         TBase::ListSystemAttributes(descriptors);
 
-        descriptors->push_back(TAttributeDescriptor("name")
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Name)
             .SetWritable(true)
             .SetReplicated(true)
             .SetMandatory(true));
-        descriptors->push_back(TAttributeDescriptor("index")
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Index)
             .SetMandatory(true));
-        descriptors->push_back(TAttributeDescriptor("transient")
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Transient)
             .SetReplicated(true));
-        descriptors->push_back(TAttributeDescriptor("cache")
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Cache)
             .SetReplicated(true));
-        descriptors->push_back(TAttributeDescriptor("priority")
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Priority)
             .SetWritable(true)
             .SetReplicated(true));
-        descriptors->push_back(TAttributeDescriptor("config")
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Config)
             .SetWritable(true)
             .SetReplicated(true));
     }
 
-    virtual bool GetBuiltinAttribute(const TString& key, NYson::IYsonConsumer* consumer) override
+    virtual bool GetBuiltinAttribute(TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override
     {
         const auto* medium = GetThisImpl();
 
-        if (key == "name") {
-            BuildYsonFluently(consumer)
-                .Value(medium->GetName());
-            return true;
-        }
+        switch (key) {
+            case EInternedAttributeKey::Name:
+                BuildYsonFluently(consumer)
+                    .Value(medium->GetName());
+                return true;
 
-        if (key == "index") {
-            BuildYsonFluently(consumer)
-                .Value(medium->GetIndex());
-            return true;
-        }
+            case EInternedAttributeKey::Index:
+                BuildYsonFluently(consumer)
+                    .Value(medium->GetIndex());
+                return true;
 
-        if (key == "transient") {
-            BuildYsonFluently(consumer)
-                .Value(medium->GetTransient());
-            return true;
-        }
+            case EInternedAttributeKey::Transient:
+                BuildYsonFluently(consumer)
+                    .Value(medium->GetTransient());
+                return true;
 
-        if (key == "cache") {
-            BuildYsonFluently(consumer)
-                .Value(medium->GetCache());
-            return true;
-        }
+            case EInternedAttributeKey::Cache:
+                BuildYsonFluently(consumer)
+                    .Value(medium->GetCache());
+                return true;
 
-        if (key == "priority") {
-            BuildYsonFluently(consumer)
-                .Value(medium->GetPriority());
-            return true;
-        }
+            case EInternedAttributeKey::Priority:
+                BuildYsonFluently(consumer)
+                    .Value(medium->GetPriority());
+                return true;
 
-        if (key == "config") {
-            BuildYsonFluently(consumer)
-                .Value(medium->Config());
-            return true;
+            case EInternedAttributeKey::Config:
+                BuildYsonFluently(consumer)
+                    .Value(medium->Config());
+                return true;
+
+            default:
+                break;
         }
 
         return TBase::GetBuiltinAttribute(key, consumer);
     }
 
-    virtual bool SetBuiltinAttribute(const TString& key, const TYsonString& value) override
+    virtual bool SetBuiltinAttribute(TInternedAttributeKey key, const TYsonString& value) override
     {
         auto* medium = GetThisImpl();
         const auto& chunkManager = Bootstrap_->GetChunkManager();
 
-        if (key == "name") {
-            auto newName = ConvertTo<TString>(value);
-            chunkManager->RenameMedium(medium, newName);
-            return true;
-        }
+        switch (key) {
+            case EInternedAttributeKey::Name: {
+                auto newName = ConvertTo<TString>(value);
+                chunkManager->RenameMedium(medium, newName);
+                return true;
+            }
 
-        if (key == "priority") {
-            auto newPriority = ConvertTo<int>(value);
-            chunkManager->SetMediumPriority(medium, newPriority);
-            return true;
-        }
+            case EInternedAttributeKey::Priority: {
+                auto newPriority = ConvertTo<int>(value);
+                chunkManager->SetMediumPriority(medium, newPriority);
+                return true;
+            }
 
-        if (key == "config") {
-            medium->Config() = ConvertTo<TMediumConfigPtr>(value);
-            return true;
+            case EInternedAttributeKey::Config:
+                medium->Config() = ConvertTo<TMediumConfigPtr>(value);
+                return true;
+
+            default:
+                break;
         }
 
         return TBase::SetBuiltinAttribute(key, value);

@@ -84,11 +84,11 @@ protected:
     virtual NSecurityServer::TAccessControlDescriptor* FindThisAcd() override;
 
     virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override;
-    virtual bool GetBuiltinAttribute(const TString& key, NYson::IYsonConsumer* consumer) override;
-    virtual TFuture<NYson::TYsonString> GetBuiltinAttributeAsync(const TString& key) override;
-    TFuture<NYson::TYsonString> GetExternalBuiltinAttributeAsync(const TString& key);
-    virtual bool SetBuiltinAttribute(const TString& key, const NYson::TYsonString& value) override;
-    virtual bool RemoveBuiltinAttribute(const TString& key) override;
+    virtual bool GetBuiltinAttribute(NYTree::TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override;
+    virtual TFuture<NYson::TYsonString> GetBuiltinAttributeAsync(NYTree::TInternedAttributeKey key) override;
+    TFuture<NYson::TYsonString> GetExternalBuiltinAttributeAsync(NYTree::TInternedAttributeKey key);
+    virtual bool SetBuiltinAttribute(NYTree::TInternedAttributeKey key, const NYson::TYsonString& value) override;
+    virtual bool RemoveBuiltinAttribute(NYTree::TInternedAttributeKey key) override;
 
     virtual void BeforeInvoke(const NRpc::IServiceContextPtr& context) override;
     virtual void AfterInvoke(const NRpc::IServiceContextPtr& context) override;
@@ -235,9 +235,9 @@ protected:
     using TNontemplateCypressNodeProxyBase::TNontemplateCypressNodeProxyBase;
 
     virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override;
-    virtual bool GetBuiltinAttribute(const TString& key, NYson::IYsonConsumer* consumer) override;
-    virtual bool SetBuiltinAttribute(const TString& key, const NYson::TYsonString& value) override;
-    virtual bool RemoveBuiltinAttribute(const TString& key) override;
+    virtual bool GetBuiltinAttribute(NYTree::TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override;
+    virtual bool SetBuiltinAttribute(NYTree::TInternedAttributeKey key, const NYson::TYsonString& value) override;
+    virtual bool RemoveBuiltinAttribute(NYTree::TInternedAttributeKey key) override;
 
     virtual bool CanHaveChildren() const override;
 
@@ -536,7 +536,7 @@ private:
     typedef TCypressNodeProxyBase<TNontemplateCypressNodeProxyBase, NYTree::IEntityNode, TLinkNode> TBase;
 
     virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override;
-    virtual bool GetBuiltinAttribute(const TString& key, NYson::IYsonConsumer* consumer) override;
+    virtual bool GetBuiltinAttribute(NYTree::TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override;
 
     bool IsBroken() const;
 
@@ -578,8 +578,8 @@ private:
     virtual void ExistsRecursive(const NYPath::TYPath& path, TReqExists* request, TRspExists* response, const TCtxExistsPtr& context) override;
 
     virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override;
-    virtual bool GetBuiltinAttribute(const TString& key, NYson::IYsonConsumer* consumer) override;
-    virtual bool SetBuiltinAttribute(const TString& key, const NYson::TYsonString& value) override;
+    virtual bool GetBuiltinAttribute(NYTree::TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override;
+    virtual bool SetBuiltinAttribute(NYTree::TInternedAttributeKey key, const NYson::TYsonString& value) override;
 
     void SetImplValue(const NYson::TYsonString& value);
 };

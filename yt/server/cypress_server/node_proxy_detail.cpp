@@ -13,6 +13,8 @@
 #include <yt/server/chunk_server/chunk_owner_base.h>
 #include <yt/server/chunk_server/medium.h>
 
+#include <yt/server/object_server/interned_attributes.h>
+
 #include <yt/server/security_server/account.h>
 #include <yt/server/security_server/security_manager.h>
 #include <yt/server/security_server/user.h>
@@ -307,11 +309,16 @@ IAttributeDictionary* TNontemplateCypressNodeProxyBase::MutableAttributes()
     return TObjectProxyBase::MutableAttributes();
 }
 
-TFuture<TYsonString> TNontemplateCypressNodeProxyBase::GetBuiltinAttributeAsync(const TString& key)
+TFuture<TYsonString> TNontemplateCypressNodeProxyBase::GetBuiltinAttributeAsync(TInternedAttributeKey key)
 {
-    if (key == "recursive_resource_usage") {
-        auto visitor = New<TResourceUsageVisitor>(Bootstrap_, this);
-        return visitor->Run();
+    switch (key) {
+        case EInternedAttributeKey::RecursiveResourceUsage: {
+            auto visitor = New<TResourceUsageVisitor>(Bootstrap_, this);
+            return visitor->Run();
+        }
+
+        default:
+            break;
     }
 
     auto asyncResult = GetExternalBuiltinAttributeAsync(key);
@@ -322,14 +329,14 @@ TFuture<TYsonString> TNontemplateCypressNodeProxyBase::GetBuiltinAttributeAsync(
     return TObjectProxyBase::GetBuiltinAttributeAsync(key);
 }
 
-TFuture<TYsonString> TNontemplateCypressNodeProxyBase::GetExternalBuiltinAttributeAsync(const TString& key)
+TFuture<TYsonString> TNontemplateCypressNodeProxyBase::GetExternalBuiltinAttributeAsync(TInternedAttributeKey internedKey)
 {
     const auto* node = GetThisImpl();
     if (!node->IsExternal()) {
         return Null;
     }
 
-    auto maybeDescriptor = FindBuiltinAttributeDescriptor(key);
+    auto maybeDescriptor = FindBuiltinAttributeDescriptor(internedKey);
     if (!maybeDescriptor) {
         return Null;
     }
@@ -347,6 +354,7 @@ TFuture<TYsonString> TNontemplateCypressNodeProxyBase::GetExternalBuiltinAttribu
         cellTag,
         NHydra::EPeerKind::LeaderOrFollower);
 
+    auto key = TString(GetUninternedAttributeKey(internedKey));
     auto req = TYPathProxy::Get(FromObjectId(versionedId.ObjectId) + "/@" + key);
     SetTransactionId(req, versionedId.TransactionId);
 
@@ -369,82 +377,91 @@ TFuture<TYsonString> TNontemplateCypressNodeProxyBase::GetExternalBuiltinAttribu
     }));
 }
 
-bool TNontemplateCypressNodeProxyBase::SetBuiltinAttribute(const TString& key, const TYsonString& value)
+bool TNontemplateCypressNodeProxyBase::SetBuiltinAttribute(TInternedAttributeKey key, const TYsonString& value)
 {
-    if (key == "account") {
-        ValidateNoTransaction();
+    switch (key) {
+        case EInternedAttributeKey::Account: {
+            ValidateNoTransaction();
 
-        const auto& securityManager = Bootstrap_->GetSecurityManager();
+            const auto& securityManager = Bootstrap_->GetSecurityManager();
 
-        auto name = ConvertTo<TString>(value);
-        auto* account = securityManager->GetAccountByNameOrThrow(name);
+            auto name = ConvertTo<TString>(value);
+            auto* account = securityManager->GetAccountByNameOrThrow(name);
 
-        ValidateStorageParametersUpdate();
-        ValidatePermission(account, EPermission::Use);
+            ValidateStorageParametersUpdate();
+            ValidatePermission(account, EPermission::Use);
 
-        auto* node = LockThisImpl();
-        if (node->GetAccount() != account) {
-            // TODO(savrus) See YT-7050
-            securityManager->ValidateResourceUsageIncrease(account, TClusterResources().SetNodeCount(1));
-            securityManager->SetAccount(node, node->GetAccount(), account, nullptr /* transaction */);
+            auto* node = LockThisImpl();
+            if (node->GetAccount() != account) {
+                // TODO(savrus) See YT-7050
+                securityManager->ValidateResourceUsageIncrease(account, TClusterResources().SetNodeCount(1));
+                securityManager->SetAccount(node, node->GetAccount(), account, nullptr /* transaction */);
+            }
+
+            return true;
         }
 
-        return true;
-    }
+        case EInternedAttributeKey::ExpirationTime: {
+            ValidateNoTransaction();
+            ValidatePermission(EPermissionCheckScope::This|EPermissionCheckScope::Descendants, EPermission::Remove);
 
-    if (key == "expiration_time") {
-        ValidateNoTransaction();
-        ValidatePermission(EPermissionCheckScope::This|EPermissionCheckScope::Descendants, EPermission::Remove);
+            auto* node = GetThisImpl();
+            const auto& cypressManager = Bootstrap_->GetCypressManager();
+            if (node == cypressManager->GetRootNode()) {
+                THROW_ERROR_EXCEPTION("Cannot set \"expiration_time\" for the root");
+            }
 
-        auto* node = GetThisImpl();
-        const auto& cypressManager = Bootstrap_->GetCypressManager();
-        if (node == cypressManager->GetRootNode()) {
-            THROW_ERROR_EXCEPTION("Cannot set \"expiration_time\" for the root");
+            auto time = ConvertTo<TInstant>(value);
+            cypressManager->SetExpirationTime(node, time);
+
+            return true;
         }
 
-        auto time = ConvertTo<TInstant>(value);
-        cypressManager->SetExpirationTime(node, time);
+        case EInternedAttributeKey::Opaque: {
+            ValidateNoTransaction();
+            ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
 
-        return true;
-    }
+            // NB: No locking, intentionally.
+            auto* node = GetThisImpl();
+            auto opaque = ConvertTo<bool>(value);
+            node->SetOpaque(opaque);
 
+            return true;
+        }
 
-    if (key == "opaque") {
-        ValidateNoTransaction();
-        ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
-
-        // NB: No locking, intentionally.
-        auto* node = GetThisImpl();
-        auto opaque = ConvertTo<bool>(value);
-        node->SetOpaque(opaque);
-
-        return true;
+        default:
+            break;
     }
 
     return TObjectProxyBase::SetBuiltinAttribute(key, value);
 }
 
-bool TNontemplateCypressNodeProxyBase::RemoveBuiltinAttribute(const TString& key)
+bool TNontemplateCypressNodeProxyBase::RemoveBuiltinAttribute(TInternedAttributeKey key)
 {
-    if (key == "expiration_time") {
-        ValidateNoTransaction();
+    switch (key) {
+        case EInternedAttributeKey::ExpirationTime: {
+            ValidateNoTransaction();
 
-        auto* node = GetThisImpl();
-        const auto& cypressManager = Bootstrap_->GetCypressManager();
-        cypressManager->SetExpirationTime(node, Null);
+            auto* node = GetThisImpl();
+            const auto& cypressManager = Bootstrap_->GetCypressManager();
+            cypressManager->SetExpirationTime(node, Null);
 
-        return true;
-    }
+            return true;
+        }
 
-    if (key == "opaque") {
-        ValidateNoTransaction();
-        ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
+        case EInternedAttributeKey::Opaque: {
+            ValidateNoTransaction();
+            ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
 
-        // NB: No locking, intentionally.
-        auto* node = GetThisImpl();
-        node->SetOpaque(false);
+            // NB: No locking, intentionally.
+            auto* node = GetThisImpl();
+            node->SetOpaque(false);
 
-        return true;
+            return true;
+        }
+
+        default:
+            break;
     }
 
     return TObjectProxyBase::RemoveBuiltinAttribute(key);
@@ -471,41 +488,41 @@ void TNontemplateCypressNodeProxyBase::ListSystemAttributes(std::vector<TAttribu
     bool hasKey = NodeHasKey(node);
     bool isExternal = node->IsExternal();
 
-    descriptors->push_back(TAttributeDescriptor("parent_id")
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ParentId)
         .SetPresent(node->GetParent()));
-    descriptors->push_back("external");
-    descriptors->push_back(TAttributeDescriptor("external_cell_tag")
+    descriptors->push_back(EInternedAttributeKey::External);
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ExternalCellTag)
         .SetPresent(isExternal));
-    descriptors->push_back(TAttributeDescriptor("locks")
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Locks)
         .SetOpaque(true));
-    descriptors->push_back("lock_count");
-    descriptors->push_back("lock_mode");
-    descriptors->push_back(TAttributeDescriptor("path")
+    descriptors->push_back(EInternedAttributeKey::LockCount);
+    descriptors->push_back(EInternedAttributeKey::LockMode);
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Path)
         .SetOpaque(true));
-    descriptors->push_back(TAttributeDescriptor("key")
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Key)
         .SetPresent(hasKey));
-    descriptors->push_back(TAttributeDescriptor("expiration_time")
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ExpirationTime)
         .SetPresent(trunkNode->GetExpirationTime().HasValue())
         .SetWritable(true)
         .SetRemovable(true));
-    descriptors->push_back("creation_time");
-    descriptors->push_back("modification_time");
-    descriptors->push_back("access_time");
-    descriptors->push_back("access_counter");
-    descriptors->push_back("revision");
-    descriptors->push_back("resource_usage");
-    descriptors->push_back(TAttributeDescriptor("recursive_resource_usage")
+    descriptors->push_back(EInternedAttributeKey::CreationTime);
+    descriptors->push_back(EInternedAttributeKey::ModificationTime);
+    descriptors->push_back(EInternedAttributeKey::AccessTime);
+    descriptors->push_back(EInternedAttributeKey::AccessCounter);
+    descriptors->push_back(EInternedAttributeKey::Revision);
+    descriptors->push_back(EInternedAttributeKey::ResourceUsage);
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::RecursiveResourceUsage)
         .SetOpaque(true));
-    descriptors->push_back(TAttributeDescriptor("account")
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Account)
         .SetWritable(true)
         .SetReplicated(true));
-    descriptors->push_back(TAttributeDescriptor("opaque")
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Opaque)
         .SetWritable(true)
         .SetRemovable(true));
 }
 
 bool TNontemplateCypressNodeProxyBase::GetBuiltinAttribute(
-    const TString& key,
+    TInternedAttributeKey key,
     IYsonConsumer* consumer)
 {
     const auto* node = GetThisImpl();
@@ -513,131 +530,134 @@ bool TNontemplateCypressNodeProxyBase::GetBuiltinAttribute(
     bool hasKey = NodeHasKey(node);
     bool isExternal = node->IsExternal();
 
-    if (key == "parent_id" && node->GetParent()) {
-        BuildYsonFluently(consumer)
-            .Value(node->GetParent()->GetId());
-        return true;
-    }
+    switch (key) {
+        case EInternedAttributeKey::ParentId:
+            if (!node->GetParent()) {
+                break;
+            }
+            BuildYsonFluently(consumer)
+                .Value(node->GetParent()->GetId());
+            return true;
 
-    if (key == "external") {
-        BuildYsonFluently(consumer)
-            .Value(isExternal);
-        return true;
-    }
+        case EInternedAttributeKey::External:
+            BuildYsonFluently(consumer)
+                .Value(isExternal);
+            return true;
 
-    if (key == "external_cell_tag" && isExternal) {
-        BuildYsonFluently(consumer)
-            .Value(node->GetExternalCellTag());
-        return true;
-    }
+        case EInternedAttributeKey::ExternalCellTag:
+            if (!isExternal) {
+                break;
+            }
+            BuildYsonFluently(consumer)
+                .Value(node->GetExternalCellTag());
+            return true;
 
-    if (key == "locks") {
-        auto printLock = [=] (TFluentList fluent, const TLock* lock) {
-            const auto& request = lock->Request();
-            fluent.Item()
-                .BeginMap()
-                    .Item("id").Value(lock->GetId())
-                    .Item("state").Value(lock->GetState())
-                    .Item("transaction_id").Value(lock->GetTransaction()->GetId())
-                    .Item("mode").Value(request.Mode)
-                    .DoIf(request.Key.Kind == ELockKeyKind::Child, [=] (TFluentMap fluent) {
-                        fluent
-                            .Item("child_key").Value(request.Key.Name);
-                    })
-                    .DoIf(request.Key.Kind == ELockKeyKind::Attribute, [=] (TFluentMap fluent) {
-                        fluent
-                            .Item("attribute_key").Value(request.Key.Name);
-                    })
-                .EndMap();
-        };
+        case EInternedAttributeKey::Locks: {
+            auto printLock = [=] (TFluentList fluent, const TLock* lock) {
+                const auto& request = lock->Request();
+                fluent.Item()
+                    .BeginMap()
+                        .Item("id").Value(lock->GetId())
+                        .Item("state").Value(lock->GetState())
+                        .Item("transaction_id").Value(lock->GetTransaction()->GetId())
+                        .Item("mode").Value(request.Mode)
+                        .DoIf(request.Key.Kind == ELockKeyKind::Child, [=] (TFluentMap fluent) {
+                            fluent
+                                .Item("child_key").Value(request.Key.Name);
+                        })
+                        .DoIf(request.Key.Kind == ELockKeyKind::Attribute, [=] (TFluentMap fluent) {
+                            fluent
+                                .Item("attribute_key").Value(request.Key.Name);
+                        })
+                    .EndMap();
+            };
 
-        BuildYsonFluently(consumer)
-            .BeginList()
-                .DoFor(trunkNode->LockingState().AcquiredLocks, printLock)
-                .DoFor(trunkNode->LockingState().PendingLocks, printLock)
-            .EndList();
-        return true;
-    }
+            BuildYsonFluently(consumer)
+                .BeginList()
+                    .DoFor(trunkNode->LockingState().AcquiredLocks, printLock)
+                    .DoFor(trunkNode->LockingState().PendingLocks, printLock)
+                .EndList();
+            return true;
+        }
 
-    if (key == "lock_count") {
-        BuildYsonFluently(consumer)
-            .Value(trunkNode->LockingState().AcquiredLocks.size() + trunkNode->LockingState().PendingLocks.size());
-        return true;
-    }
+        case EInternedAttributeKey::LockCount:
+            BuildYsonFluently(consumer)
+                .Value(trunkNode->LockingState().AcquiredLocks.size() + trunkNode->LockingState().PendingLocks.size());
+            return true;
 
-    if (key == "lock_mode") {
-        BuildYsonFluently(consumer)
-            .Value(FormatEnum(node->GetLockMode()));
-        return true;
-    }
+        case EInternedAttributeKey::LockMode:
+            BuildYsonFluently(consumer)
+                .Value(FormatEnum(node->GetLockMode()));
+            return true;
 
-    if (key == "path") {
-        BuildYsonFluently(consumer)
-            .Value(GetPath());
-        return true;
-    }
+        case EInternedAttributeKey::Path:
+            BuildYsonFluently(consumer)
+                .Value(GetPath());
+            return true;
 
-    if (hasKey && key == "key") {
-        static const TString NullKey("?");
-        BuildYsonFluently(consumer)
-            .Value(GetParent()->AsMap()->FindChildKey(this).Get(NullKey));
-        return true;
-    }
+        case EInternedAttributeKey::Key: {
+            if (!hasKey) {
+                break;
+            }
+            static const TString NullKey("?");
+            BuildYsonFluently(consumer)
+                .Value(GetParent()->AsMap()->FindChildKey(this).Get(NullKey));
+            return true;
+        }
 
-    if (key == "expiration_time" && trunkNode->GetExpirationTime()) {
-        BuildYsonFluently(consumer)
-            .Value(*trunkNode->GetExpirationTime());
-        return true;
-    }
+        case EInternedAttributeKey::ExpirationTime:
+            if (!trunkNode->GetExpirationTime()) {
+                break;
+            }
+            BuildYsonFluently(consumer)
+                .Value(*trunkNode->GetExpirationTime());
+            return true;
 
-    if (key == "creation_time") {
-        BuildYsonFluently(consumer)
-            .Value(node->GetCreationTime());
-        return true;
-    }
+        case EInternedAttributeKey::CreationTime:
+            BuildYsonFluently(consumer)
+                .Value(node->GetCreationTime());
+            return true;
 
-    if (key == "modification_time") {
-        BuildYsonFluently(consumer)
-            .Value(node->GetModificationTime());
-        return true;
-    }
+        case EInternedAttributeKey::ModificationTime:
+            BuildYsonFluently(consumer)
+                .Value(node->GetModificationTime());
+            return true;
 
-    if (key == "access_time") {
-        BuildYsonFluently(consumer)
-            .Value(trunkNode->GetAccessTime());
-        return true;
-    }
+        case EInternedAttributeKey::AccessTime:
+            BuildYsonFluently(consumer)
+                .Value(trunkNode->GetAccessTime());
+            return true;
 
-    if (key == "access_counter") {
-        BuildYsonFluently(consumer)
-            .Value(trunkNode->GetAccessCounter());
-        return true;
-    }
+        case EInternedAttributeKey::AccessCounter:
+            BuildYsonFluently(consumer)
+                .Value(trunkNode->GetAccessCounter());
+            return true;
 
-    if (key == "revision") {
-        BuildYsonFluently(consumer)
-            .Value(node->GetRevision());
-        return true;
-    }
+        case EInternedAttributeKey::Revision:
+            BuildYsonFluently(consumer)
+                .Value(node->GetRevision());
+            return true;
 
-    if (key == "resource_usage") {
-        const auto& chunkManager = Bootstrap_->GetChunkManager();
-        auto resourceSerializer = New<TSerializableClusterResources>(chunkManager, node->GetTotalResourceUsage());
-        BuildYsonFluently(consumer)
-            .Value(resourceSerializer);
-        return true;
-    }
+        case EInternedAttributeKey::ResourceUsage: {
+            const auto& chunkManager = Bootstrap_->GetChunkManager();
+            auto resourceSerializer = New<TSerializableClusterResources>(chunkManager, node->GetTotalResourceUsage());
+            BuildYsonFluently(consumer)
+                .Value(resourceSerializer);
+            return true;
+        }
 
-    if (key == "account") {
-        BuildYsonFluently(consumer)
-            .Value(node->GetAccount()->GetName());
-        return true;
-    }
+        case EInternedAttributeKey::Account:
+            BuildYsonFluently(consumer)
+                .Value(node->GetAccount()->GetName());
+            return true;
 
-    if (key == "opaque") {
-        BuildYsonFluently(consumer)
-            .Value(node->GetOpaque());
-        return true;
+        case EInternedAttributeKey::Opaque:
+            BuildYsonFluently(consumer)
+                .Value(node->GetOpaque());
+            return true;
+
+        default:
+            break;
     }
 
     return TObjectProxyBase::GetBuiltinAttribute(key, consumer);
@@ -1547,101 +1567,113 @@ void TNontemplateCompositeCypressNodeProxyBase::ListSystemAttributes(std::vector
 
     const auto* node = GetThisImpl<TCompositeNodeBase>();
 
-    descriptors->push_back("count");
+    descriptors->push_back(EInternedAttributeKey::Count);
 
-    descriptors->push_back(TAttributeDescriptor("compression_codec")
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::CompressionCodec)
         .SetPresent(node->GetCompressionCodec().HasValue())
         .SetWritable(true)
         .SetRemovable(true));
-    descriptors->push_back(TAttributeDescriptor("erasure_codec")
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ErasureCodec)
         .SetPresent(node->GetErasureCodec().HasValue())
         .SetWritable(true)
         .SetRemovable(true));
-    descriptors->push_back(TAttributeDescriptor("primary_medium")
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::PrimaryMedium)
         .SetPresent(node->GetPrimaryMediumIndex().HasValue())
         .SetWritable(true)
         .SetRemovable(true));
-    descriptors->push_back(TAttributeDescriptor("media")
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Media)
         .SetPresent(node->GetMedia().HasValue())
         .SetWritable(true)
         .SetRemovable(true));
-    descriptors->push_back(TAttributeDescriptor("vital")
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Vital)
         .SetPresent(node->GetVital().HasValue())
         .SetWritable(true)
         .SetRemovable(true));
-    descriptors->push_back(TAttributeDescriptor("replication_factor")
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ReplicationFactor)
         .SetPresent(node->GetReplicationFactor().HasValue())
         .SetWritable(true)
         .SetRemovable(true));
-    descriptors->push_back(TAttributeDescriptor("tablet_cell_bundle")
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::TabletCellBundle)
         .SetPresent(node->GetTabletCellBundle())
         .SetWritable(true)
         .SetRemovable(true));
-    descriptors->push_back(TAttributeDescriptor("atomicity")
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Atomicity)
         .SetPresent(node->GetAtomicity().HasValue())
         .SetWritable(true)
         .SetRemovable(true));
-    descriptors->push_back(TAttributeDescriptor("commit_ordering")
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::CommitOrdering)
         .SetPresent(node->GetCommitOrdering().HasValue())
         .SetWritable(true)
         .SetRemovable(true));
-    descriptors->push_back(TAttributeDescriptor("in_memory_mode")
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::InMemoryMode)
         .SetPresent(node->GetInMemoryMode().HasValue())
         .SetWritable(true)
         .SetRemovable(true));
-    descriptors->push_back(TAttributeDescriptor("optimize_for")
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::OptimizeFor)
         .SetPresent(node->GetOptimizeFor().HasValue())
         .SetWritable(true)
         .SetRemovable(true));
 }
 
-bool TNontemplateCompositeCypressNodeProxyBase::GetBuiltinAttribute(const TString& key, IYsonConsumer* consumer)
+bool TNontemplateCompositeCypressNodeProxyBase::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer)
 {
-    if (key == "count") {
-        BuildYsonFluently(consumer)
-            .Value(GetChildCount());
-        return true;
-    }
-
     const auto* node = GetThisImpl<TCompositeNodeBase>();
 
+    switch (key) {
+        case EInternedAttributeKey::Count:
+            BuildYsonFluently(consumer)
+                .Value(GetChildCount());
+            return true;
+
 #define XX(camelCaseName, snakeCaseName) \
-    if (key == #snakeCaseName && node->Get##camelCaseName()) { \
-        BuildYsonFluently(consumer) \
-            .Value(node->Get##camelCaseName()); \
-        return true; \
-    }
+        case EInternedAttributeKey::camelCaseName: \
+            if (!node->Get##camelCaseName()) { \
+                break; \
+            } \
+            BuildYsonFluently(consumer) \
+                .Value(node->Get##camelCaseName()); \
+            return true; \
 
-    FOR_EACH_SIMPLE_INHERITABLE_ATTRIBUTE(XX)
-
+        FOR_EACH_SIMPLE_INHERITABLE_ATTRIBUTE(XX)
 #undef XX
 
-    if (key == "primary_medium" && node->GetPrimaryMediumIndex()) {
-        const auto& chunkManager = Bootstrap_->GetChunkManager();
-        auto* medium = chunkManager->GetMediumByIndex(*node->GetPrimaryMediumIndex());
-        BuildYsonFluently(consumer)
-            .Value(medium->GetName());
-        return true;
-    }
+        case EInternedAttributeKey::PrimaryMedium: {
+            if (!node->GetPrimaryMediumIndex()) {
+                break;
+            }
+            const auto& chunkManager = Bootstrap_->GetChunkManager();
+            auto* medium = chunkManager->GetMediumByIndex(*node->GetPrimaryMediumIndex());
+            BuildYsonFluently(consumer)
+                .Value(medium->GetName());
+            return true;
+        }
 
-    if (key == "media" && node->GetMedia()) {
-        const auto& chunkManager = Bootstrap_->GetChunkManager();
-        BuildYsonFluently(consumer)
-            .Value(TSerializableChunkReplication(*node->GetMedia(), chunkManager));
-        return true;
-    }
+        case EInternedAttributeKey::Media: {
+            if (!node->GetMedia()) {
+                break;
+            }
+            const auto& chunkManager = Bootstrap_->GetChunkManager();
+            BuildYsonFluently(consumer)
+                .Value(TSerializableChunkReplication(*node->GetMedia(), chunkManager));
+            return true;
+        }
 
+        case EInternedAttributeKey::TabletCellBundle:
+            if (!node->GetTabletCellBundle()) {
+                break;
+            }
+            BuildYsonFluently(consumer)
+                .Value(node->GetTabletCellBundle()->GetName());
+            return true;
 
-    if (key == "tablet_cell_bundle" && node->GetTabletCellBundle()) {
-        BuildYsonFluently(consumer)
-            .Value(node->GetTabletCellBundle()->GetName());
-        return true;
+        default:
+            break;
     }
 
     return TNontemplateCypressNodeProxyBase::GetBuiltinAttribute(key, consumer);
 }
 
-bool TNontemplateCompositeCypressNodeProxyBase::SetBuiltinAttribute(const TString& key, const TYsonString& value)
+bool TNontemplateCompositeCypressNodeProxyBase::SetBuiltinAttribute(TInternedAttributeKey key, const TYsonString& value)
 {
     auto* node = GetThisImpl<TCompositeNodeBase>();
 
@@ -1664,171 +1696,188 @@ bool TNontemplateCompositeCypressNodeProxyBase::SetBuiltinAttribute(const TStrin
             medium->GetName());
     };
 
-    if (key == "primary_medium") {
-        ValidateNoTransaction();
+    switch (key) {
+        case EInternedAttributeKey::PrimaryMedium: {
+            ValidateNoTransaction();
 
-        auto mediumName = ConvertTo<TString>(value);
-        auto* medium = chunkManager->GetMediumByNameOrThrow(mediumName);
-        const auto mediumIndex = medium->GetIndex();
-        const auto replication = node->GetMedia();
-
-        if (!replication) {
-            ValidatePermission(medium, EPermission::Use);
-            node->SetPrimaryMediumIndex(mediumIndex);
-            return true;
-        }
-
-        TChunkReplication newReplication;
-        if (ValidatePrimaryMediumChange(
-            medium,
-            *replication,
-            node->GetPrimaryMediumIndex(), // may be null
-            &newReplication))
-        {
-            const auto replicationFactor = node->GetReplicationFactor();
-            if (replicationFactor &&
-                *replicationFactor != newReplication[mediumIndex].GetReplicationFactor())
-            {
-                throwReplicationFactorMismatch(mediumIndex);
-            }
-
-            node->SetMedia(newReplication);
-            node->SetPrimaryMediumIndex(mediumIndex);
-        } // else no change is required
-
-        return true;
-    }
-
-    if (key == "media") {
-        ValidateNoTransaction();
-
-        auto serializableReplication = ConvertTo<TSerializableChunkReplication>(value);
-        TChunkReplication replication;
-        serializableReplication.ToChunkReplication(&replication, chunkManager);
-
-        const auto oldReplication = node->GetMedia();
-
-        if (replication == oldReplication) {
-            return true;
-        }
-
-        const auto primaryMediumIndex = node->GetPrimaryMediumIndex();
-        const auto replicationFactor = node->GetReplicationFactor();
-        if (primaryMediumIndex && replicationFactor) {
-            if (replication[*primaryMediumIndex].GetReplicationFactor() != *replicationFactor) {
-                throwReplicationFactorMismatch(*primaryMediumIndex);
-            }
-        }
-
-        // NB: primary medium index may be null, in which case corresponding
-        // parts of validation will be skipped.
-        ValidateMediaChange(oldReplication, primaryMediumIndex, replication);
-        node->SetMedia(replication);
-
-        return true;
-    }
-
-    if (key == "replication_factor") {
-        ValidateNoTransaction();
-
-        auto replicationFactor = ConvertTo<int>(value);
-        if (replicationFactor == node->GetReplicationFactor()) {
-            return true;
-        }
-
-        if (replicationFactor == 0) {
-            THROW_ERROR_EXCEPTION("Inheritable replication factor must not be zero; consider removing the attribute altogether");
-        }
-
-        ValidateReplicationFactor(replicationFactor);
-
-        const auto mediumIndex = node->GetPrimaryMediumIndex();
-        if (mediumIndex) {
+            auto mediumName = ConvertTo<TString>(value);
+            auto* medium = chunkManager->GetMediumByNameOrThrow(mediumName);
+            const auto mediumIndex = medium->GetIndex();
             const auto replication = node->GetMedia();
-            if (replication) {
-                if ((*replication)[*mediumIndex].GetReplicationFactor() != replicationFactor) {
-                    throwReplicationFactorMismatch(*mediumIndex);
-                }
-            } else if (!node->GetReplicationFactor()) {
-                auto* medium = chunkManager->GetMediumByIndex(*mediumIndex);
+
+            if (!replication) {
                 ValidatePermission(medium, EPermission::Use);
+                node->SetPrimaryMediumIndex(mediumIndex);
+                return true;
             }
-        }
 
-        node->SetReplicationFactor(replicationFactor);
+            TChunkReplication newReplication;
+            if (ValidatePrimaryMediumChange(
+                medium,
+                *replication,
+                node->GetPrimaryMediumIndex(), // may be null
+                &newReplication))
+            {
+                const auto replicationFactor = node->GetReplicationFactor();
+                if (replicationFactor &&
+                    *replicationFactor != newReplication[mediumIndex].GetReplicationFactor())
+                {
+                    throwReplicationFactorMismatch(mediumIndex);
+                }
 
-        return true;
-    }
+                node->SetMedia(newReplication);
+                node->SetPrimaryMediumIndex(mediumIndex);
+            } // else no change is required
 
-    if (key == "tablet_cell_bundle") {
-        ValidateNoTransaction();
-
-        auto name = ConvertTo<TString>(value);
-
-        auto* oldBundle = node->GetTabletCellBundle();
-        const auto& tabletManager = Bootstrap_->GetTabletManager();
-        auto* newBundle = tabletManager->GetTabletCellBundleByNameOrThrow(name);
-
-        if (oldBundle == newBundle) {
             return true;
         }
 
-        const auto& objectManager = Bootstrap_->GetObjectManager();
+        case EInternedAttributeKey::Media: {
+            ValidateNoTransaction();
 
-        if (oldBundle) {
-            objectManager->UnrefObject(oldBundle);
+            auto serializableReplication = ConvertTo<TSerializableChunkReplication>(value);
+            TChunkReplication replication;
+            serializableReplication.ToChunkReplication(&replication, chunkManager);
+
+            const auto oldReplication = node->GetMedia();
+
+            if (replication == oldReplication) {
+                return true;
+            }
+
+            const auto primaryMediumIndex = node->GetPrimaryMediumIndex();
+            const auto replicationFactor = node->GetReplicationFactor();
+            if (primaryMediumIndex && replicationFactor) {
+                if (replication[*primaryMediumIndex].GetReplicationFactor() != *replicationFactor) {
+                    throwReplicationFactorMismatch(*primaryMediumIndex);
+                }
+            }
+
+            // NB: primary medium index may be null, in which case corresponding
+            // parts of validation will be skipped.
+            ValidateMediaChange(oldReplication, primaryMediumIndex, replication);
+            node->SetMedia(replication);
+
+            return true;
         }
 
-        node->SetTabletCellBundle(newBundle);
-        objectManager->RefObject(newBundle);
+        case EInternedAttributeKey::ReplicationFactor: {
+            ValidateNoTransaction();
 
-        return true;
-    }
+            auto replicationFactor = ConvertTo<int>(value);
+            if (replicationFactor == node->GetReplicationFactor()) {
+                return true;
+            }
+
+            if (replicationFactor == 0) {
+                THROW_ERROR_EXCEPTION("Inheritable replication factor must not be zero; consider removing the attribute altogether");
+            }
+
+            ValidateReplicationFactor(replicationFactor);
+
+            const auto mediumIndex = node->GetPrimaryMediumIndex();
+            if (mediumIndex) {
+                const auto replication = node->GetMedia();
+                if (replication) {
+                    if ((*replication)[*mediumIndex].GetReplicationFactor() != replicationFactor) {
+                        throwReplicationFactorMismatch(*mediumIndex);
+                    }
+                } else if (!node->GetReplicationFactor()) {
+                    auto* medium = chunkManager->GetMediumByIndex(*mediumIndex);
+                    ValidatePermission(medium, EPermission::Use);
+                }
+            }
+
+            node->SetReplicationFactor(replicationFactor);
+
+            return true;
+        }
+
+        case EInternedAttributeKey::TabletCellBundle: {
+            ValidateNoTransaction();
+
+            auto name = ConvertTo<TString>(value);
+
+            auto* oldBundle = node->GetTabletCellBundle();
+            const auto& tabletManager = Bootstrap_->GetTabletManager();
+            auto* newBundle = tabletManager->GetTabletCellBundleByNameOrThrow(name);
+
+            if (oldBundle == newBundle) {
+                return true;
+            }
+
+            const auto& objectManager = Bootstrap_->GetObjectManager();
+
+            if (oldBundle) {
+                objectManager->UnrefObject(oldBundle);
+            }
+
+            node->SetTabletCellBundle(newBundle);
+            objectManager->RefObject(newBundle);
+
+            return true;
+        }
 
 #define XX(camelCaseName, snakeCaseName) \
-    if (key == #snakeCaseName) { \
-        ValidateNoTransaction(); \
-        node->Set##camelCaseName(ConvertTo<decltype(node->Get##camelCaseName())>(value)); \
-        return true; \
-    }
+        case EInternedAttributeKey::camelCaseName: \
+            ValidateNoTransaction(); \
+            node->Set##camelCaseName(ConvertTo<decltype(node->Get##camelCaseName())>(value)); \
+            return true; \
 
-    // The order is important: "replication_factor" is a "simple" attribute. It must be handled before this foreach.
-    FOR_EACH_SIMPLE_INHERITABLE_ATTRIBUTE(XX);
-
+        // Can't use FOR_EACH_SIMPLE_INHERITABLE_ATTRIBUTE here as
+        // replication_factor is "simple" yet must be handled separately.
+        XX(CompressionCodec, compression_codec)
+        XX(ErasureCodec, erasure_codec)
+        XX(Vital, vital)
+        XX(Atomicity, atomicity)
+        XX(CommitOrdering, commit_ordering)
+        XX(InMemoryMode, in_memory_mode)
+        XX(OptimizeFor, optimize_for)
 #undef XX
+
+        default:
+            break;
+    }
 
     return TNontemplateCypressNodeProxyBase::SetBuiltinAttribute(key, value);
 }
 
-bool TNontemplateCompositeCypressNodeProxyBase::RemoveBuiltinAttribute(const TString& key)
+bool TNontemplateCompositeCypressNodeProxyBase::RemoveBuiltinAttribute(TInternedAttributeKey key)
 {
     auto* node = GetThisImpl<TCompositeNodeBase>();
 
+    switch (key) {
+
 #define XX(camelCaseName, snakeCaseName) \
-    if (key == #snakeCaseName) { \
-        ValidateNoTransaction(); \
-        node->Set##camelCaseName(Null); \
-        return true; \
-    }
+        case EInternedAttributeKey::camelCaseName: \
+            ValidateNoTransaction(); \
+            node->Set##camelCaseName(Null); \
+            return true; \
 
-    FOR_EACH_SIMPLE_INHERITABLE_ATTRIBUTE(XX);
-
-    XX(PrimaryMediumIndex, primary_medium);
-    XX(Media, media);
-
+        FOR_EACH_SIMPLE_INHERITABLE_ATTRIBUTE(XX);
+        XX(Media, media);
 #undef XX
 
-    if (key == "tablet_cell_bundle") {
-        ValidateNoTransaction();
+        case EInternedAttributeKey::PrimaryMedium:
+            ValidateNoTransaction();
+            node->SetPrimaryMediumIndex(Null);
+            return true;
 
-        auto* bundle = node->GetTabletCellBundle();
-        if (bundle) {
-            const auto& objectManager = Bootstrap_->GetObjectManager();
-            objectManager->UnrefObject(bundle);
-            node->SetTabletCellBundle(nullptr);
+        case EInternedAttributeKey::TabletCellBundle: {
+            ValidateNoTransaction();
+
+            auto* bundle = node->GetTabletCellBundle();
+            if (bundle) {
+                const auto& objectManager = Bootstrap_->GetObjectManager();
+                objectManager->UnrefObject(bundle);
+                node->SetTabletCellBundle(nullptr);
+            }
+
+            return true;
         }
 
-        return true;
+        default:
+            break;
     }
 
     return TNontemplateCypressNodeProxyBase::RemoveBuiltinAttribute(key);
@@ -2434,23 +2483,27 @@ void TLinkNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* des
 {
     TBase::ListSystemAttributes(descriptors);
 
-    descriptors->push_back("target_path");
-    descriptors->push_back("broken");
+    descriptors->push_back(EInternedAttributeKey::TargetPath);
+    descriptors->push_back(EInternedAttributeKey::Broken);
 }
 
-bool TLinkNodeProxy::GetBuiltinAttribute(const TString& key, IYsonConsumer* consumer)
+bool TLinkNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer)
 {
-    if (key == "target_path") {
-        const auto* impl = GetThisImpl();
-        BuildYsonFluently(consumer)
-            .Value(impl->GetTargetPath());
-        return true;
-    }
+    switch (key) {
+        case EInternedAttributeKey::TargetPath: {
+            const auto* impl = GetThisImpl();
+            BuildYsonFluently(consumer)
+                .Value(impl->GetTargetPath());
+            return true;
+        }
 
-    if (key == "broken") {
-        BuildYsonFluently(consumer)
-            .Value(IsBroken());
-        return true;
+        case EInternedAttributeKey::Broken:
+            BuildYsonFluently(consumer)
+                .Value(IsBroken());
+            return true;
+
+        default:
+            break;
     }
 
     return TBase::GetBuiltinAttribute(key, consumer);
@@ -2629,30 +2682,38 @@ void TDocumentNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>*
 {
     TBase::ListSystemAttributes(descriptors);
 
-    descriptors->push_back(TAttributeDescriptor("value")
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Value)
         .SetWritable(true)
         .SetOpaque(true)
         .SetReplicated(true));
 }
 
-bool TDocumentNodeProxy::GetBuiltinAttribute(const TString& key, IYsonConsumer* consumer)
+bool TDocumentNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer)
 {
     const auto* impl = GetThisImpl();
 
-    if (key == "value") {
-        BuildYsonFluently(consumer)
-            .Value(impl->GetValue());
-        return true;
+    switch (key) {
+        case EInternedAttributeKey::Value:
+            BuildYsonFluently(consumer)
+                .Value(impl->GetValue());
+            return true;
+
+        default:
+            break;
     }
 
     return TBase::GetBuiltinAttribute(key, consumer);
 }
 
-bool TDocumentNodeProxy::SetBuiltinAttribute(const TString& key, const TYsonString& value)
+bool TDocumentNodeProxy::SetBuiltinAttribute(TInternedAttributeKey key, const TYsonString& value)
 {
-    if (key == "value") {
-        SetImplValue(value);
-        return true;
+    switch (key) {
+        case EInternedAttributeKey::Value:
+            SetImplValue(value);
+            return true;
+
+        default:
+            break;
     }
 
     return TBase::SetBuiltinAttribute(key, value);

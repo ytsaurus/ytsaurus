@@ -4,6 +4,8 @@
 
 #include <yt/server/chunk_server/chunk_owner_node_proxy.h>
 
+#include <yt/server/object_server/interned_attributes.h>
+
 #include <yt/ytlib/chunk_client/chunk_meta.pb.h>
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/read_limit.h>
@@ -50,29 +52,34 @@ private:
 
         const auto* node = GetThisImpl<TFileNode>();
 
-        descriptors->push_back(TAttributeDescriptor("executable")
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Executable)
             .SetCustom(true)
             .SetReplicated(true));
-        descriptors->push_back(TAttributeDescriptor("file_name")
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::FileName)
             .SetCustom(true)
             .SetReplicated(true));
-        descriptors->push_back(TAttributeDescriptor("md5")
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::MD5)
             .SetPresent(node->GetMD5Hasher().HasValue())
             .SetReplicated(true));
     }
 
-    bool GetBuiltinAttribute(const TString& key, IYsonConsumer* consumer)
+    bool GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer)
     {
         const auto* node = GetThisImpl<TFileNode>();
 
-        if (key == "md5") {
-            auto hasher = node->GetMD5Hasher();
-            if (hasher) {
-                BuildYsonFluently(consumer)
-                    .Value(hasher->GetHexDigestLower());
-                return true;
+        switch (key) {
+            case EInternedAttributeKey::MD5: {
+                auto hasher = node->GetMD5Hasher();
+                if (hasher) {
+                    BuildYsonFluently(consumer)
+                        .Value(hasher->GetHexDigestLower());
+                    return true;
+                }
+                return false;
             }
-            return false;
+
+            default:
+                break;
         }
 
         return TBase::GetBuiltinAttribute(key, consumer);
@@ -83,14 +90,25 @@ private:
         const TYsonString& oldValue,
         const TYsonString& newValue) override
     {
-        if (key == "executable" && newValue) {
-            ConvertTo<bool>(newValue);
-            return;
-        }
+        auto internedKey = GetInternedAttributeKey(key);
 
-        if (key == "file_name" && newValue) {
-            ConvertTo<TString>(newValue);
-            return;
+        switch (internedKey) {
+            case EInternedAttributeKey::Executable:
+                if (!newValue) {
+                    break;
+                }
+                ConvertTo<bool>(newValue);
+                return;
+
+            case EInternedAttributeKey::FileName:
+                if (!newValue) {
+                    break;
+                }
+                ConvertTo<TString>(newValue);
+                return;
+
+            default:
+                break;
         }
 
         TBase::ValidateCustomAttributeUpdate(key, oldValue, newValue);

@@ -8,6 +8,7 @@
 
 #include <yt/server/cypress_server/cypress_manager.h>
 
+#include <yt/server/object_server/interned_attributes.h>
 #include <yt/server/object_server/object_detail.h>
 
 #include <yt/core/ytree/fluent.h>
@@ -41,17 +42,17 @@ private:
 
         const auto* chunkList = GetThisImpl();
 
-        descriptors->push_back("child_ids");
-        descriptors->push_back("child_count");
-        descriptors->push_back("trimmed_child_count");
-        descriptors->push_back("parent_ids");
-        descriptors->push_back("statistics");
-        descriptors->push_back("kind");
-        descriptors->push_back(TAttributeDescriptor("pivot_key")
+        descriptors->push_back(EInternedAttributeKey::ChildIds);
+        descriptors->push_back(EInternedAttributeKey::ChildCount);
+        descriptors->push_back(EInternedAttributeKey::TrimmedChildCount);
+        descriptors->push_back(EInternedAttributeKey::ParentIds);
+        descriptors->push_back(EInternedAttributeKey::Statistics);
+        descriptors->push_back(EInternedAttributeKey::Kind);
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::PivotKey)
             .SetPresent(chunkList->GetKind() == EChunkListKind::SortedDynamicTablet));
-        descriptors->push_back(TAttributeDescriptor("tree")
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Tree)
             .SetOpaque(true));
-        descriptors->push_back(TAttributeDescriptor("owning_nodes")
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::OwningNodes)
             .SetOpaque(true));
     }
 
@@ -91,73 +92,78 @@ private:
         }
     }
 
-    virtual bool GetBuiltinAttribute(const TString& key, NYson::IYsonConsumer* consumer) override
+    virtual bool GetBuiltinAttribute(TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override
     {
         auto* chunkList = GetThisImpl();
 
-        if (key == "child_ids") {
-            BuildYsonFluently(consumer)
-                .DoListFor(chunkList->Children(), [=] (TFluentList fluent, const TChunkTree* child) {
-                    if (child) {
-                        fluent
-                            .Item().Value(child->GetId());
-                    }
-                });
-            return true;
-        }
+        switch (key) {
+            case EInternedAttributeKey::ChildIds:
+                BuildYsonFluently(consumer)
+                    .DoListFor(chunkList->Children(), [=] (TFluentList fluent, const TChunkTree* child) {
+                        if (child) {
+                            fluent
+                                .Item().Value(child->GetId());
+                        }
+                    });
+                return true;
 
-        if (key == "child_count") {
-            BuildYsonFluently(consumer)
-                .Value(chunkList->Children().size());
-            return true;
-        }
+            case EInternedAttributeKey::ChildCount:
+                BuildYsonFluently(consumer)
+                    .Value(chunkList->Children().size());
+                return true;
 
-        if (key == "trimmed_child_count") {
-            BuildYsonFluently(consumer)
-                .Value(chunkList->GetTrimmedChildCount());
-            return true;
-        }
+            case EInternedAttributeKey::TrimmedChildCount:
+                BuildYsonFluently(consumer)
+                    .Value(chunkList->GetTrimmedChildCount());
+                return true;
 
-        if (key == "parent_ids") {
-            BuildYsonFluently(consumer)
-                .DoListFor(chunkList->Parents(), [=] (TFluentList fluent, const TChunkList* chunkList) {
-                    fluent.Item().Value(chunkList->GetId());
-                });
-            return true;
-        }
+            case EInternedAttributeKey::ParentIds:
+                BuildYsonFluently(consumer)
+                    .DoListFor(chunkList->Parents(), [=] (TFluentList fluent, const TChunkList* chunkList) {
+                        fluent.Item().Value(chunkList->GetId());
+                    });
+                return true;
 
-        if (key == "statistics") {
-            const auto& chunkManager = Bootstrap_->GetChunkManager();
-            Serialize(chunkList->Statistics(), consumer, chunkManager);
-            return true;
-        }
+            case EInternedAttributeKey::Statistics: {
+                const auto& chunkManager = Bootstrap_->GetChunkManager();
+                Serialize(chunkList->Statistics(), consumer, chunkManager);
+                return true;
+            }
 
-        if (key == "kind") {
-            BuildYsonFluently(consumer)
-                .Value(chunkList->GetKind());
-            return true;
-        }
+            case EInternedAttributeKey::Kind:
+                BuildYsonFluently(consumer)
+                    .Value(chunkList->GetKind());
+                return true;
 
-        if (key == "pivot_key" && chunkList->GetKind() == EChunkListKind::SortedDynamicTablet) {
-            BuildYsonFluently(consumer)
-                .Value(chunkList->GetPivotKey());
-            return true;
-        }
+            case EInternedAttributeKey::PivotKey:
+                if (chunkList->GetKind() != EChunkListKind::SortedDynamicTablet) {
+                    break;
+                }
+                BuildYsonFluently(consumer)
+                    .Value(chunkList->GetPivotKey());
+                return true;
 
-        if (key == "tree") {
-            TraverseTree(chunkList, consumer);
-            return true;
+            case EInternedAttributeKey::Tree:
+                TraverseTree(chunkList, consumer);
+                return true;
+
+            default:
+                break;
         }
 
         return TBase::GetBuiltinAttribute(key, consumer);
     }
 
-    virtual TFuture<TYsonString> GetBuiltinAttributeAsync(const TString& key) override
+    virtual TFuture<TYsonString> GetBuiltinAttributeAsync(TInternedAttributeKey key) override
     {
         auto* chunkList = GetThisImpl();
 
-        if (key == "owning_nodes") {
-            return GetMulticellOwningNodes(Bootstrap_, chunkList);
+        switch (key) {
+            case EInternedAttributeKey::OwningNodes:
+                return GetMulticellOwningNodes(Bootstrap_, chunkList);
+
+            default:
+                break;
         }
 
         return TBase::GetBuiltinAttributeAsync(key);

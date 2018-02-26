@@ -33,11 +33,11 @@ protected:
     typedef TCypressNodeProxyBase<TChunkOwnerNodeProxy, NYTree::IEntityNode, TTableNode> TBase;
 
     virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override;
-    virtual bool GetBuiltinAttribute(const TString& key, NYson::IYsonConsumer* consumer) override;
-    virtual TFuture<NYson::TYsonString> GetBuiltinAttributeAsync(const TString& key) override;
-    virtual bool RemoveBuiltinAttribute(const TString& key) override;
+    virtual bool GetBuiltinAttribute(NYTree::TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override;
+    virtual TFuture<NYson::TYsonString> GetBuiltinAttributeAsync(NYTree::TInternedAttributeKey key) override;
+    virtual bool RemoveBuiltinAttribute(NYTree::TInternedAttributeKey key) override;
 
-    virtual bool SetBuiltinAttribute(const TString& key, const NYson::TYsonString& value) override;
+    virtual bool SetBuiltinAttribute(NYTree::TInternedAttributeKey key, const NYson::TYsonString& value) override;
     virtual void ValidateCustomAttributeUpdate(
         const TString& key,
         const NYson::TYsonString& oldValue,
@@ -73,7 +73,7 @@ public:
 
 protected:
     virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override;
-    virtual bool GetBuiltinAttribute(const TString& key, NYson::IYsonConsumer* consumer) override;
+    virtual bool GetBuiltinAttribute(NYTree::TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override;
 
 };
 

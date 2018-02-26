@@ -8,6 +8,8 @@
 
 #include <yt/server/hydra/hydra_manager.h>
 
+#include <yt/server/object_server/interned_attributes.h>
+
 #include <yt/server/security_server/user.h>
 
 #include <yt/server/cell_master/bootstrap.h>
@@ -246,40 +248,43 @@ void TVirtualMulticellMapBase::ListSelf(
 
 void TVirtualMulticellMapBase::ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors)
 {
-    descriptors->push_back(TAttributeDescriptor("count")
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Count)
         .SetOpaque(true));
-    descriptors->push_back(TAttributeDescriptor("multicell_count")
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::MulticellCount)
         .SetOpaque(true));
 }
 
-const THashSet<const char*>& TVirtualMulticellMapBase::GetBuiltinAttributeKeys()
+const THashSet<TInternedAttributeKey>& TVirtualMulticellMapBase::GetBuiltinAttributeKeys()
 {
     return BuiltinAttributeKeysCache_.GetBuiltinAttributeKeys(this);
 }
 
-bool TVirtualMulticellMapBase::GetBuiltinAttribute(const TString& /*key*/, IYsonConsumer* /*consumer*/)
+bool TVirtualMulticellMapBase::GetBuiltinAttribute(TInternedAttributeKey /*key*/, IYsonConsumer* /*consumer*/)
 {
     return false;
 }
 
-TFuture<TYsonString> TVirtualMulticellMapBase::GetBuiltinAttributeAsync(const TString& key)
+TFuture<TYsonString> TVirtualMulticellMapBase::GetBuiltinAttributeAsync(TInternedAttributeKey key)
 {
-    if (key == "count") {
-        return FetchSizes().Apply(BIND([] (const std::vector<std::pair<TCellTag, i64>>& multicellSizes) {
-            i64 result = 0;
-            for (const auto& pair : multicellSizes) {
-                result += pair.second;
-            }
-            return ConvertToYsonString(result);
-        }));
-    }
+    switch (key) {
+        case EInternedAttributeKey::Count:
+            return FetchSizes().Apply(BIND([] (const std::vector<std::pair<TCellTag, i64>>& multicellSizes) {
+                i64 result = 0;
+                for (const auto& pair : multicellSizes) {
+                    result += pair.second;
+                }
+                return ConvertToYsonString(result);
+            }));
 
-    if (key == "multicell_count") {
-        return FetchSizes().Apply(BIND([] (const std::vector<std::pair<TCellTag, i64>>& multicellSizes) {
-            return BuildYsonStringFluently().DoMapFor(multicellSizes, [] (TFluentMap fluent, const std::pair<TCellTag, i64>& pair) {
-                fluent.Item(ToString(pair.first)).Value(pair.second);
-            });
-        }));
+        case EInternedAttributeKey::MulticellCount:
+            return FetchSizes().Apply(BIND([] (const std::vector<std::pair<TCellTag, i64>>& multicellSizes) {
+                return BuildYsonStringFluently().DoMapFor(multicellSizes, [] (TFluentMap fluent, const std::pair<TCellTag, i64>& pair) {
+                    fluent.Item(ToString(pair.first)).Value(pair.second);
+                });
+            }));
+
+        default:
+            break;
     }
 
     return Null;
@@ -290,12 +295,12 @@ ISystemAttributeProvider* TVirtualMulticellMapBase::GetBuiltinAttributeProvider(
     return this;
 }
 
-bool TVirtualMulticellMapBase::SetBuiltinAttribute(const TString& /*key*/, const TYsonString& /*value*/)
+bool TVirtualMulticellMapBase::SetBuiltinAttribute(TInternedAttributeKey /*key*/, const TYsonString& /*value*/)
 {
     return false;
 }
 
-bool TVirtualMulticellMapBase::RemoveBuiltinAttribute(const TString& /*key*/)
+bool TVirtualMulticellMapBase::RemoveBuiltinAttribute(TInternedAttributeKey /*key*/)
 {
     return false;
 }
@@ -626,7 +631,7 @@ private:
         TBase::ListSystemAttributes(descriptors);
     }
 
-    virtual bool GetBuiltinAttribute(const TString& key, IYsonConsumer* consumer) override
+    virtual bool GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer) override
     {
         auto service = GetService();
         auto* provider = GetTargetBuiltinAttributeProvider(service);
@@ -637,7 +642,7 @@ private:
         return TBase::GetBuiltinAttribute(key, consumer);
     }
 
-    virtual TFuture<TYsonString> GetBuiltinAttributeAsync(const TString& key) override
+    virtual TFuture<TYsonString> GetBuiltinAttributeAsync(TInternedAttributeKey key) override
     {
         auto service = GetService();
         auto* provider = GetTargetBuiltinAttributeProvider(service);
@@ -651,7 +656,7 @@ private:
         return TBase::GetBuiltinAttributeAsync(key);
     }
 
-    virtual bool SetBuiltinAttribute(const TString& key, const TYsonString& value) override
+    virtual bool SetBuiltinAttribute(TInternedAttributeKey key, const TYsonString& value) override
     {
         auto service = GetService();
         auto* provider = GetTargetBuiltinAttributeProvider(service);

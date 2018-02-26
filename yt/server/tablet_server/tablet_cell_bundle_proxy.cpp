@@ -7,6 +7,7 @@
 
 #include <yt/core/ytree/fluent.h>
 
+#include <yt/server/object_server/interned_attributes.h>
 #include <yt/server/object_server/object_detail.h>
 
 #include <yt/server/cell_master/bootstrap.h>
@@ -50,106 +51,112 @@ private:
     {
         const auto* cellBundle = GetThisImpl();
 
-        attributes->push_back(TAttributeDescriptor("name")
+        attributes->push_back(TAttributeDescriptor(EInternedAttributeKey::Name)
             .SetWritable(true)
             .SetReplicated(true)
             .SetMandatory(true));
-        attributes->push_back(TAttributeDescriptor("options")
+        attributes->push_back(TAttributeDescriptor(EInternedAttributeKey::Options)
             .SetWritable(true)
             .SetReplicated(true)
             .SetMandatory(true));
-        attributes->push_back(TAttributeDescriptor("node_tag_filter")
+        attributes->push_back(TAttributeDescriptor(EInternedAttributeKey::NodeTagFilter)
             .SetWritable(true)
             .SetReplicated(true)
             .SetPresent(!cellBundle->NodeTagFilter().IsEmpty()));
-        attributes->push_back(TAttributeDescriptor("tablet_balancer_config")
+        attributes->push_back(TAttributeDescriptor(EInternedAttributeKey::TabletBalancerConfig)
             .SetWritable(true)
             .SetReplicated(true)
             .SetMandatory(true));
-        attributes->push_back("tablet_cell_count");
-        attributes->push_back(TAttributeDescriptor("tablet_cell_ids")
+        attributes->push_back(EInternedAttributeKey::TabletCellCount);
+        attributes->push_back(TAttributeDescriptor(EInternedAttributeKey::TabletCellIds)
             .SetOpaque(true));
 
         TBase::ListSystemAttributes(attributes);
     }
 
-    virtual bool GetBuiltinAttribute(const TString& key, IYsonConsumer* consumer) override
+    virtual bool GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer) override
     {
         const auto* cellBundle = GetThisImpl();
 
-        if (key == "name") {
-            BuildYsonFluently(consumer)
-                .Value(cellBundle->GetName());
-            return true;
-        }
+        switch (key) {
+            case EInternedAttributeKey::Name:
+                BuildYsonFluently(consumer)
+                    .Value(cellBundle->GetName());
+                return true;
 
-        if (key == "options") {
-            BuildYsonFluently(consumer)
-                .Value(cellBundle->GetOptions());
-            return true;
-        }
+            case EInternedAttributeKey::Options:
+                BuildYsonFluently(consumer)
+                    .Value(cellBundle->GetOptions());
+                return true;
 
-        if (key == "node_tag_filter" && !cellBundle->NodeTagFilter().IsEmpty()) {
-            BuildYsonFluently(consumer)
-                .Value(cellBundle->NodeTagFilter().GetFormula());
-            return true;
-        }
+            case EInternedAttributeKey::NodeTagFilter:
+                if (cellBundle->NodeTagFilter().IsEmpty()) {
+                    break;
+                }
+                BuildYsonFluently(consumer)
+                    .Value(cellBundle->NodeTagFilter().GetFormula());
+                return true;
 
-        if (key == "tablet_cell_ids") {
-            BuildYsonFluently(consumer)
-                .DoListFor(cellBundle->TabletCells(), [] (TFluentList fluent, const TTabletCell* cell) {
-                    fluent
-                        .Item().Value(cell->GetId());
-                });
-            return true;
-        }
+            case EInternedAttributeKey::TabletCellIds:
+                BuildYsonFluently(consumer)
+                    .DoListFor(cellBundle->TabletCells(), [] (TFluentList fluent, const TTabletCell* cell) {
+                        fluent
+                            .Item().Value(cell->GetId());
+                    });
+                return true;
 
-        if (key == "tablet_cell_count") {
-            BuildYsonFluently(consumer)
-                .Value(cellBundle->TabletCells().size());
-            return true;
-        }
+            case EInternedAttributeKey::TabletCellCount:
+                BuildYsonFluently(consumer)
+                    .Value(cellBundle->TabletCells().size());
+                return true;
 
-        if (key == "tablet_balancer_config") {
-            BuildYsonFluently(consumer)
-                .Value(cellBundle->TabletBalancerConfig());
-            return true;
+            case EInternedAttributeKey::TabletBalancerConfig:
+                BuildYsonFluently(consumer)
+                    .Value(cellBundle->TabletBalancerConfig());
+                return true;
+
+            default:
+                break;
         }
 
         return TBase::GetBuiltinAttribute(key, consumer);
     }
 
-    virtual bool SetBuiltinAttribute(const TString& key, const TYsonString& value) override
+    virtual bool SetBuiltinAttribute(TInternedAttributeKey key, const TYsonString& value) override
     {
         const auto& tabletManager = Bootstrap_->GetTabletManager();
 
         auto* cellBundle = GetThisImpl();
 
-        if (key == "name") {
-            auto newName = ConvertTo<TString>(value);
-            tabletManager->RenameTabletCellBundle(cellBundle, newName);
-            return true;
-        }
-
-        if (key == "options") {
-            auto options = ConvertTo<TTabletCellOptionsPtr>(value);
-            if (!cellBundle->TabletCells().empty()) {
-                THROW_ERROR_EXCEPTION("Cannot change options since tablet cell bundle has %v tablet cell(s)",
-                    cellBundle->TabletCells().size());
+        switch (key) {
+            case EInternedAttributeKey::Name: {
+                auto newName = ConvertTo<TString>(value);
+                tabletManager->RenameTabletCellBundle(cellBundle, newName);
+                return true;
             }
-            cellBundle->SetOptions(options);
-            return true;
-        }
 
-        if (key == "node_tag_filter") {
-            auto formula = ConvertTo<TString>(value);
-            cellBundle->NodeTagFilter() = MakeBooleanFormula(formula);
-            return true;
-        }
+            case EInternedAttributeKey::Options: {
+                auto options = ConvertTo<TTabletCellOptionsPtr>(value);
+                if (!cellBundle->TabletCells().empty()) {
+                    THROW_ERROR_EXCEPTION("Cannot change options since tablet cell bundle has %v tablet cell(s)",
+                        cellBundle->TabletCells().size());
+                }
+                cellBundle->SetOptions(options);
+                return true;
+            }
 
-        if (key == "tablet_balancer_config") {
-            cellBundle->TabletBalancerConfig() = ConvertTo<TTabletBalancerConfigPtr>(value);
-            return true;
+            case EInternedAttributeKey::NodeTagFilter: {
+                auto formula = ConvertTo<TString>(value);
+                cellBundle->NodeTagFilter() = MakeBooleanFormula(formula);
+                return true;
+            }
+
+            case EInternedAttributeKey::TabletBalancerConfig:
+                cellBundle->TabletBalancerConfig() = ConvertTo<TTabletBalancerConfigPtr>(value);
+                return true;
+
+            default:
+                break;
         }
 
         return TBase::SetBuiltinAttribute(key, value);

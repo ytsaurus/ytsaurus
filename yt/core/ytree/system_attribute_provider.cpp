@@ -15,13 +15,13 @@ void ISystemAttributeProvider::ReserveAndListSystemAttributes(std::vector<TAttri
     ListSystemAttributes(descriptors);
 }
 
-void ISystemAttributeProvider::ListSystemAttributes(std::map<TString, TAttributeDescriptor>* descriptors)
+void ISystemAttributeProvider::ListSystemAttributes(std::map<TInternedAttributeKey, TAttributeDescriptor>* descriptors)
 {
     std::vector<TAttributeDescriptor> attributes;
     ReserveAndListSystemAttributes(&attributes);
 
     for (const auto& descriptor : attributes) {
-        YCHECK(descriptors->insert(std::make_pair(TString(descriptor.Key), descriptor)).second);
+        YCHECK(descriptors->insert(std::make_pair(descriptor.InternedKey, descriptor)).second);
     }
 }
 
@@ -38,7 +38,7 @@ void ISystemAttributeProvider::ListBuiltinAttributes(std::vector<TAttributeDescr
 }
 
 TNullable<ISystemAttributeProvider::TAttributeDescriptor> ISystemAttributeProvider::FindBuiltinAttributeDescriptor(
-    const TString& key)
+    TInternedAttributeKey key)
 {
     std::vector<TAttributeDescriptor> builtinAttributes;
     ListBuiltinAttributes(&builtinAttributes);
@@ -47,12 +47,13 @@ TNullable<ISystemAttributeProvider::TAttributeDescriptor> ISystemAttributeProvid
         builtinAttributes.begin(),
         builtinAttributes.end(),
         [&] (const ISystemAttributeProvider::TAttributeDescriptor& info) {
-            return info.Key == key;
+            // Suppress operator== overload for enums.
+            return static_cast<int>(info.InternedKey) == static_cast<int>(key);
         });
     return it == builtinAttributes.end() ? Null : MakeNullable(*it);
 }
 
-TYsonString ISystemAttributeProvider::FindBuiltinAttribute(const TString& key)
+TYsonString ISystemAttributeProvider::FindBuiltinAttribute(TInternedAttributeKey key)
 {
     TStringStream stream;
     TBufferedBinaryYsonWriter writer(&stream);
