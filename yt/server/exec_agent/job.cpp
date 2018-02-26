@@ -116,7 +116,8 @@ public:
                 .Type(GetType())
                 .State(GetState())
                 .Spec(JobSpec_)
-                .SpecVersion(0) // TODO: fill correct spec version
+                .StartTime(TInstant::Now()) // TODO(ignat): fill correct start time.
+                .SpecVersion(0) // TODO: fill correct spec version.
                 .Events(JobEvents_));
     }
 
@@ -585,7 +586,14 @@ private:
     void AddJobEvent(U&&... u)
     {
         JobEvents_.emplace_back(std::forward<U>(u)...);
-        ReportStatistics(TJobStatistics().Events(JobEvents_).State(JobState_));
+        auto statistics = TJobStatistics()
+            .Events(JobEvents_)
+            .State(JobState_);
+        if (FinishTime_) {
+            statistics.SetFinishTime(*FinishTime_);
+        }
+
+        ReportStatistics(std::move(statistics));
     }
 
     void SetJobState(EJobState state)

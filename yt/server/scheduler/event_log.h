@@ -25,6 +25,7 @@ DEFINE_ENUM(ELogEventType,
     (OperationPrepared)
     (ClusterInfo)
     (PoolsInfo)
+    (RuntimeParametersInfo)
 );
 
 ////////////////////////////////////////////////////////////////////////////////

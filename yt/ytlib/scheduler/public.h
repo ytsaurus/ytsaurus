@@ -39,6 +39,7 @@ class TReqGetJobInfo;
 class TRspGetJobInfo;
 class TOutputResult;
 class TUserJobSpec;
+class TResourceLimits;
 
 } // namespace NProto
 
@@ -180,9 +181,10 @@ DECLARE_REFCOUNTED_CLASS(TVanillaOperationSpec)
 DECLARE_REFCOUNTED_CLASS(TPoolConfig)
 DECLARE_REFCOUNTED_CLASS(TExtendedSchedulableConfig)
 DECLARE_REFCOUNTED_CLASS(TStrategyOperationSpec)
-DECLARE_REFCOUNTED_CLASS(TOperationStrategyRuntimeParams)
-DECLARE_REFCOUNTED_CLASS(TOperationRuntimeParams)
+DECLARE_REFCOUNTED_CLASS(TOperationStrategyRuntimeParameters)
+DECLARE_REFCOUNTED_CLASS(TOperationRuntimeParameters)
 DECLARE_REFCOUNTED_CLASS(TSchedulerConnectionConfig)
+DECLARE_REFCOUNTED_CLASS(TOperationFairShareStrategyTreeOptions)
 
 class TJobResources;
 

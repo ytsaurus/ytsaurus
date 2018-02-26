@@ -82,7 +82,7 @@ struct IOperationStrategyHost
 
     virtual NYTree::IMapNodePtr GetSpec() const = 0;
 
-    virtual TOperationRuntimeParamsPtr GetRuntimeParams() const = 0;
+    virtual TOperationRuntimeParametersPtr GetRuntimeParameters() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -143,7 +143,7 @@ public:
     //! User-supplied transaction where the operation resides.
     DEFINE_BYVAL_RO_PROPERTY(NTransactionClient::TTransactionId, UserTransactionId);
 
-    DEFINE_BYVAL_RW_PROPERTY(TOperationRuntimeParamsPtr, RuntimeParams);
+    DEFINE_BYVAL_RW_PROPERTY(TOperationRuntimeParametersPtr, RuntimeParameters);
 
     DEFINE_BYVAL_RO_PROPERTY(TOperationRuntimeDataPtr, RuntimeData);
 
@@ -257,9 +257,8 @@ public:
         const NTransactionClient::TTransactionId& userTransactionId,
         NYTree::IMapNodePtr spec,
         NYTree::IMapNodePtr secureVault,
-        TOperationRuntimeParamsPtr runtimeParams,
+        TOperationRuntimeParametersPtr runtimeParams,
         const TString& authenticatedUser,
-        const std::vector<TString>& owners,
         TInstant startTime,
         IInvokerPtr controlInvoker,
         EOperationState state = EOperationState::None,

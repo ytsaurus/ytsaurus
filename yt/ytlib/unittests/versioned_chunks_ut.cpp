@@ -168,6 +168,7 @@ protected:
         auto chunkMeta = TCachedVersionedChunkMeta::Load(
             MemoryReader,
             TWorkloadDescriptor(),
+            TReadSessionId(),
             Schema).Get().ValueOrThrow();
         {
             TChunkedMemoryPool pool;
@@ -362,6 +363,7 @@ protected:
         auto chunkMeta = TCachedVersionedChunkMeta::Load(
             memoryReader,
             TWorkloadDescriptor(),
+            TReadSessionId(),
             readSchema).Get().ValueOrThrow();
 
         auto chunkState = New<TChunkState>(

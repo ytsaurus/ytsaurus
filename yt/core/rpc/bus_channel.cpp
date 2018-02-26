@@ -512,9 +512,9 @@ private:
                 metadata->CancelTimeCounter = NProfiling::TAggregateCounter("/request_time/cancel", tagIds, NProfiling::EAggregateMode::All);
                 metadata->TotalTimeCounter = NProfiling::TAggregateCounter("/request_time/total", tagIds, NProfiling::EAggregateMode::All);
                 metadata->RequestMessageBodySizeCounter = NProfiling::TSimpleCounter("/request_message_body_bytes", tagIds);
-                metadata->RequestMessageBodySizeCounter = NProfiling::TSimpleCounter("/request_message_attachment_bytes", tagIds);
+                metadata->RequestMessageAttachmentSizeCounter = NProfiling::TSimpleCounter("/request_message_attachment_bytes", tagIds);
                 metadata->ResponseMessageBodySizeCounter = NProfiling::TSimpleCounter("/response_message_body_bytes", tagIds);
-                metadata->ResponseMessageBodySizeCounter = NProfiling::TSimpleCounter("/response_message_attachment_bytes", tagIds);
+                metadata->ResponseMessageAttachmentSizeCounter = NProfiling::TSimpleCounter("/response_message_attachment_bytes", tagIds);
 
                 TWriterGuard guard(CachedMethodMetadataLock_);
                 auto pair = CachedMethodMetadata_.emplace(key, std::move(metadata));

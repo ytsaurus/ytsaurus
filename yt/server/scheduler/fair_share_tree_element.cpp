@@ -1707,7 +1707,7 @@ const TOperationElementSharedState::TJobProperties* TOperationElementSharedState
 TOperationElement::TOperationElement(
     TFairShareStrategyTreeConfigPtr treeConfig,
     TStrategyOperationSpecPtr spec,
-    TOperationStrategyRuntimeParamsPtr runtimeParams,
+    TOperationFairShareStrategyTreeOptionsPtr runtimeParams,
     TFairShareStrategyOperationControllerPtr controller,
     TFairShareStrategyOperationControllerConfigPtr controllerConfig,
     ISchedulerStrategyHost* host,
@@ -1968,7 +1968,7 @@ bool TOperationElement::IsAggressiveStarvationPreemptionAllowed() const
 
 double TOperationElement::GetWeight() const
 {
-    return RuntimeParams_->Weight;
+    return RuntimeParams_->Weight.Get(1.0);
 }
 
 double TOperationElement::GetMinShareRatio() const

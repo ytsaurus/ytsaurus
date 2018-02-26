@@ -47,9 +47,8 @@ TOperation::TOperation(
     const TTransactionId& userTransactionId,
     IMapNodePtr spec,
     IMapNodePtr secureVault,
-    TOperationRuntimeParamsPtr runtimeParams,
+    TOperationRuntimeParametersPtr runtimeParams,
     const TString& authenticatedUser,
-    const std::vector<TString>& owners,
     TInstant startTime,
     IInvokerPtr controlInvoker,
     EOperationState state,
@@ -58,10 +57,9 @@ TOperation::TOperation(
     , MutationId_(mutationId)
     , State_(state)
     , UserTransactionId_(userTransactionId)
-    , RuntimeParams_(std::move(runtimeParams))
+    , RuntimeParameters_(std::move(runtimeParams))
     , RuntimeData_(New<TOperationRuntimeData>())
     , SecureVault_(std::move(secureVault))
-    , Owners_(owners)
     , Events_(events)
     , Id_(id)
     , StartTime_(startTime)
@@ -72,6 +70,10 @@ TOperation::TOperation(
 {
     YCHECK(Spec_);
     Restart();
+
+    if (RuntimeParameters_->Owners) {
+        Owners_ = *RuntimeParameters_->Owners;
+    }
 }
 
 const TOperationId& TOperation::GetId() const

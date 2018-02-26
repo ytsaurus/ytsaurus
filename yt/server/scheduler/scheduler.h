@@ -93,6 +93,11 @@ public:
         const TError& error,
         const TString& user);
 
+    void UpdateOperationParameters(
+        TOperationPtr operation,
+        const TString& user,
+        const TOperationRuntimeParametersPtr& parameters);
+
     void OnOperationCompleted(const TOperationPtr& operation);
     void OnOperationAborted(const TOperationPtr& operation, const TError& error);
     void OnOperationFailed(const TOperationPtr& operation, const TError& error);
