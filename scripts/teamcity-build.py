@@ -656,7 +656,7 @@ def clean_artifacts(options, build_context, n=10):
 @cleanup_step
 def clean_failed_tests(options, build_context, max_allowed_size=None):
     if options.is_bare_metal:
-        max_allowed_size = 500 * 1024 * 1024 * 1024
+        max_allowed_size = 700 * 1024 * 1024 * 1024
     else:
         max_allowed_size = 50 * 1024 * 1024 * 1024
 
