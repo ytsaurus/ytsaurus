@@ -835,6 +835,7 @@ private:
         TRootElementPtr RootElement;
         TOperationElementByIdMap OperationIdToElement;
         TFairShareStrategyTreeConfigPtr Config;
+        std::vector<TSchedulingTagFilter> RegisteredSchedulingTagFilters;
 
         TOperationElement* FindOperationElement(const TOperationId& operationId) const
         {
@@ -975,7 +976,7 @@ private:
             while (context.SchedulingContext->CanStartMoreJobs()) {
                 if (!prescheduleExecuted) {
                     TWallTimer prescheduleTimer;
-                    context.InitializeStructures(rootElement->GetTreeSize(), RegisteredSchedulingTagFilters);
+                    context.InitializeStructures(rootElement->GetTreeSize(), rootElementSnapshot->RegisteredSchedulingTagFilters);
                     rootElement->PrescheduleJob(context, /*starvingOnly*/ false, /*aggressiveStarvationEnabled*/ false);
                     prescheduleDuration = prescheduleTimer.GetElapsedTime();
                     Profiler.Update(NonPreemptiveProfilingCounters.PrescheduleJobTimeCounter, DurationToCpuDuration(prescheduleDuration));
@@ -1008,7 +1009,7 @@ private:
         auto& config = rootElementSnapshot->Config;
 
         if (!context.Initialized) {
-            context.InitializeStructures(rootElement->GetTreeSize(), RegisteredSchedulingTagFilters);
+            context.InitializeStructures(rootElement->GetTreeSize(), rootElementSnapshot->RegisteredSchedulingTagFilters);
         }
 
         if (!context.PrescheduledCalled) {
@@ -1649,6 +1650,7 @@ private:
         auto snapshot = New<TRootElementSnapshot>();
         snapshot->RootElement = RootElement->Clone();
         snapshot->RootElement->BuildOperationToElementMapping(&snapshot->OperationIdToElement);
+        snapshot->RegisteredSchedulingTagFilters = RegisteredSchedulingTagFilters;
         snapshot->Config = Config;
         return snapshot;
     }
