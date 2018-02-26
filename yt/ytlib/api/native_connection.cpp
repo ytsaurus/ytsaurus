@@ -314,6 +314,7 @@ public:
             CellDirectory_,
             CellDirectorySynchronizer_,
             TimestampProvider_,
+            this,
             cellId,
             options);
     }
@@ -367,6 +368,8 @@ public:
 
     virtual void Terminate() override
     {
+        Terminated_ = true;
+
         ThreadPool_->Shutdown();
 
         ClusterDirectory_->Clear();
@@ -374,6 +377,11 @@ public:
 
         CellDirectory_->Clear();
         CellDirectorySynchronizer_->Stop();
+    }
+
+    virtual bool IsTerminated() override
+    {
+        return Terminated_;
     }
 
 private:
@@ -403,6 +411,8 @@ private:
     TClusterDirectorySynchronizerPtr ClusterDirectorySynchronizer_;
 
     TThreadPoolPtr ThreadPool_;
+
+    std::atomic<bool> Terminated_ = {false};
 
     struct TStickyTransactionEntry
     {
