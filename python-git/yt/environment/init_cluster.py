@@ -184,6 +184,8 @@ def initialize_world(client=None, idm=None, proxy_address=None, ui_address=None,
                    {"action": "allow", "subjects": ["odin"], "permissions": ["write", "remove", "read"]}
                ])
 
+    client.create("map_node", "//sys/admin/lock/autorestart/nodes/disabled", recursive=True, ignore_existing=True)
+
     # add_acl to schemas
     for schema in ["user", "group", "tablet_cell"]:
         if client.exists("//sys/schemas/%s" % schema):
