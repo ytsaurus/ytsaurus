@@ -365,6 +365,16 @@ public:
         jobsToRelease->set_controller_scheduler_incarnation(controllerSchedulerIncarnation);
     }
 
+    IOperationControllerPtr FindController(const TOperationId& operationId) const
+    {
+        TReaderGuard guard(ControllersLock_);
+        auto it = Controllers_.find(operationId);
+        if (it == Controllers_.end()) {
+            return nullptr;
+        }
+        return it->second;
+    }
+
 private:
     TSchedulerConfigPtr Config_;
     NCellScheduler::TBootstrap* Bootstrap_;
@@ -408,16 +418,6 @@ private:
         return TError(
             NRpc::EErrorCode::Unavailable,
             "Master is not connected");
-    }
-
-    IOperationControllerPtr FindController(const TOperationId& operationId)
-    {
-        TReaderGuard guard(ControllersLock_);
-        auto it = Controllers_.find(operationId);
-        if (it == Controllers_.end()) {
-            return nullptr;
-        }
-        return it->second;
     }
 
     TControllersMap GetControllers()
@@ -702,6 +702,11 @@ void TControllerAgent::ReleaseJobs(
     int controllerSchedulerIncarnation)
 {
     Impl_->ReleaseJobs(std::move(jobIds), operationId, controllerSchedulerIncarnation);
+}
+
+IOperationControllerPtr TControllerAgent::FindController(const TOperationId& operationId) const
+{
+    return Impl_->FindController(operationId);
 }
 
 ////////////////////////////////////////////////////////////////////
