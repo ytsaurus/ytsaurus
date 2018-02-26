@@ -53,11 +53,6 @@ protected:
         // may be holding a reference to it and continue running some actions in background threads.
         auto* bootstrap = new TBootstrap(config, configNode);
         bootstrap->Run();
-
-        // XXX(babenko): finish separation
-        auto* agentBootstrap = new NControllerAgent::TBootstrap(config, configNode);
-        agentBootstrap->RpcServer_ = bootstrap->RpcServer_;
-        agentBootstrap->Run();
     }
 };
 

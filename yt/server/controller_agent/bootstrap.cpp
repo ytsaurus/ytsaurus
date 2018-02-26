@@ -117,17 +117,14 @@ void TBootstrap::DoRun()
     clientOptions.User = NSecurityClient::SchedulerUserName;
     Client_ = Connection_->CreateNativeClient(clientOptions);
 
-    // XXX(babenko): finish separation
-    //BusServer_ = CreateTcpBusServer(Config_->BusServer);
+    BusServer_ = CreateTcpBusServer(Config_->BusServer);
 
-    // XXX(babenko): finish separation
-    //RpcServer_ = CreateBusServer(BusServer_);
+    RpcServer_ = CreateBusServer(BusServer_);
 
-    // XXX(babenko): finish separation
-    //Config_->MonitoringServer->Port = Config_->MonitoringPort;
-    //Config_->MonitoringServer->BindRetryCount = Config_->BusServer->BindRetryCount;
-    //Config_->MonitoringServer->BindRetryBackoff = Config_->BusServer->BindRetryBackoff;
-    //HttpServer_ = NHttp::CreateServer(Config_->MonitoringServer);
+    Config_->MonitoringServer->Port = Config_->MonitoringPort;
+    Config_->MonitoringServer->BindRetryCount = Config_->BusServer->BindRetryCount;
+    Config_->MonitoringServer->BindRetryBackoff = Config_->BusServer->BindRetryBackoff;
+    HttpServer_ = NHttp::CreateServer(Config_->MonitoringServer);
 
     NodeDirectory_ = New<TNodeDirectory>();
 
@@ -153,53 +150,47 @@ void TBootstrap::DoRun()
 
     ControllerAgent_->Initialize();
 
-    // XXX(babenko): finish separation
-    //auto orchidRoot = NYTree::GetEphemeralNodeFactory(true)->CreateMap();
-    //SetNodeByYPath(
-    //    orchidRoot,
-    //    "/monitoring",
-    //    CreateVirtualNode(MonitoringManager_->GetService()));
-    //SetNodeByYPath(
-    //    orchidRoot,
-    //    "/profiling",
-    //    CreateVirtualNode(TProfileManager::Get()->GetService()));
-    //SetNodeByYPath(
-    //    orchidRoot,
-    //    "/config",
-    //    ConfigNode_);
-    //SetNodeByYPath(
-    //    orchidRoot,
-    //    "/controller_agent",
-    //    CreateVirtualNode(ControllerAgent_->GetOrchidService()));
+    auto orchidRoot = NYTree::GetEphemeralNodeFactory(true)->CreateMap();
+    SetNodeByYPath(
+        orchidRoot,
+        "/monitoring",
+        CreateVirtualNode(MonitoringManager_->GetService()));
+    SetNodeByYPath(
+        orchidRoot,
+        "/profiling",
+        CreateVirtualNode(TProfileManager::Get()->GetService()));
+    SetNodeByYPath(
+        orchidRoot,
+        "/config",
+        ConfigNode_);
+    SetNodeByYPath(
+        orchidRoot,
+        "/controller_agent",
+        CreateVirtualNode(ControllerAgent_->GetOrchidService()));
 
-    //SetBuildAttributes(orchidRoot, "controller_agent");
+    SetBuildAttributes(orchidRoot, "controller_agent");
 
-    // XXX(babenko): finish separation
-    //RpcServer_->RegisterService(CreateAdminService(
-    //    GetControlInvoker(),
-    //    CoreDumper_));
+    RpcServer_->RegisterService(CreateAdminService(
+        GetControlInvoker(),
+        CoreDumper_));
 
-    // XXX(babenko): finish separation
-    //RpcServer_->RegisterService(CreateOrchidService(
-    //    orchidRoot,
-    //    GetControlInvoker()));
+    RpcServer_->RegisterService(CreateOrchidService(
+        orchidRoot,
+        GetControlInvoker()));
 
-    // XXX(babenko): finish separation
-    //HttpServer_->AddHandler(
-    //    "/orchid/",
-    //    NMonitoring::GetOrchidYPathHttpHandler(orchidRoot->Via(GetControlInvoker())));
+    HttpServer_->AddHandler(
+        "/orchid/",
+        NMonitoring::GetOrchidYPathHttpHandler(orchidRoot->Via(GetControlInvoker())));
 
     RpcServer_->RegisterService(CreateJobSpecService(this));
     RpcServer_->RegisterService(CreateControllerAgentService(this));
 
-    // XXX(babenko): finish separation
-    //LOG_INFO("Listening for HTTP requests on port %v", Config_->MonitoringPort);
-    //HttpServer_->Start();
+    LOG_INFO("Listening for HTTP requests on port %v", Config_->MonitoringPort);
+    HttpServer_->Start();
 
-    // XXX(babenko): finish separation
-    //LOG_INFO("Listening for RPC requests on port %v", Config_->RpcPort);
-    //RpcServer_->Configure(Config_->RpcServer);
-    //RpcServer_->Start();
+    LOG_INFO("Listening for RPC requests on port %v", Config_->RpcPort);
+    RpcServer_->Configure(Config_->RpcServer);
+    RpcServer_->Start();
 }
 
 const TAgentId& TBootstrap::GetAgentId() const
