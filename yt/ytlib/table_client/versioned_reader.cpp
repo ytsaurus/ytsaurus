@@ -46,17 +46,17 @@ public:
 
     virtual NChunkClient::NProto::TDataStatistics GetDataStatistics() const override
     {
-        Y_UNREACHABLE();
+        return NChunkClient::NProto::TDataStatistics();
     }
 
     virtual bool IsFetchingCompleted() const override
     {
-        Y_UNREACHABLE();
+        return true;
     }
 
     virtual std::vector<TChunkId> GetFailedChunkIds() const override
     {
-        Y_UNREACHABLE();
+        return std::vector<TChunkId>();
     }
 
 private:
