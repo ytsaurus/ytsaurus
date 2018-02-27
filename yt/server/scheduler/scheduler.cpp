@@ -44,6 +44,7 @@
 #include <yt/ytlib/chunk_client/chunk_service_proxy.h>
 #include <yt/ytlib/chunk_client/helpers.h>
 
+#include <yt/core/concurrency/action_queue.h>
 #include <yt/core/concurrency/periodic_executor.h>
 #include <yt/core/concurrency/thread_affinity.h>
 #include <yt/core/concurrency/thread_pool.h>
@@ -1305,6 +1306,8 @@ private:
 
     TMemoryTagQueue MemoryTagQueue_;
 
+    TActionQueuePtr ControllerDtor_ = New<TActionQueue>("ControllerDtor");
+
     ISchedulerStrategyPtr Strategy_;
 
     TInstant ConnectionTime_;
@@ -1996,7 +1999,8 @@ private:
             operation->SetMemoryTag(MemoryTagQueue_.AssignTagToOperation(operation->GetId()));
             auto controller = CreateControllerForOperation(
                 Bootstrap_->GetControllerAgent(),
-                operation.Get());
+                operation.Get(),
+                ControllerDtor_->GetInvoker());
             operation->SetController(controller);
 
             Strategy_->ValidateOperationCanBeRegistered(operation.Get());
@@ -2135,7 +2139,8 @@ private:
             operation->SetMemoryTag(MemoryTagQueue_.AssignTagToOperation(operation->GetId()));
             controller = CreateControllerForOperation(
                 Bootstrap_->GetControllerAgent(),
-                operation.Get());
+                operation.Get(),
+                ControllerDtor_->GetInvoker());
             operation->SetController(controller);
 
             Strategy_->ValidateOperationCanBeRegistered(operation.Get());
