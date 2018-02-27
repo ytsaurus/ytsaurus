@@ -451,7 +451,6 @@ class TestLocalMode(object):
                     break
             else:
                 assert False, "RPC proxy failed to start in 30 seconds"
-        
 
     @pytest.mark.skipif(True, reason="st/YT-6227")
     def test_all_processes_are_killed(self):
