@@ -48,6 +48,7 @@ def main():
 
     args = parser.parse_args()
 
+    configure_logging()
     git = Git(repo=os.getcwd())
     svn = Svn()
     check_git_version(git)
