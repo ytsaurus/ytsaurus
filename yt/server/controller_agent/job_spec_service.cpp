@@ -64,6 +64,11 @@ private:
             jobSpecRequests.emplace_back(operationId, jobId);
         }
 
+        context->SetRequestInfo("JobSpecRequests: %v",
+            MakeFormattableRange(jobSpecRequests, [] (TStringBuilder* builder, const std::pair<TOperationId, TJobId>& pair) {
+                FormatValue(builder, pair.second, TStringBuf());
+            }));
+
         auto jobSpecResults = controllerAgent->GetJobSpecs(jobSpecRequests);
 
         std::vector<TSharedRef> jobSpecs;
