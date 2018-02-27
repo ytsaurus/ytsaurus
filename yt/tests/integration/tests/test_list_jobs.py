@@ -269,23 +269,19 @@ class TestListJobs(YTEnvSetup):
 
         now = datetime.utcnow()
 
-        events = EventsOnFs()
         op = map(
             dont_track=True,
-            wait_for_jobs=True,
             in_="//tmp/input",
             out="//tmp/output",
-            command="cat ; {wait_cmd}".format(wait_cmd=events.wait_event_cmd("can_finish_mapper")),
+            command=with_breakpoint("echo MAPPER-STDERR-OUTPUT >&2 ; cat ; BREAKPOINT"),
             spec={"job_count": 3})
+        
+        jobs = wait_breakpoint()
 
-        jobs_path = "//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op.id)
-        jobs = get(jobs_path)
         assert jobs
-        abort_job(jobs.keys()[0])
+        abort_job(jobs[0])
 
-        op.resume_jobs()
-
-        events.notify_event("can_finish_mapper")
+        release_breakpoint()
         op.track()
 
         res = list_jobs(op.id)["jobs"]
