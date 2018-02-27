@@ -271,7 +271,7 @@ public:
         , Query_(std::move(query))
         , Options_(std::move(options))
         , Logger(MakeQueryLogger(Query_))
-        , TabletSnapshots_(bootstrap->GetTabletSlotManager())
+        , TabletSnapshots_(Bootstrap_->GetTabletSlotManager())
         , Invoker_(Bootstrap_->GetQueryPoolInvoker(ToString(Options_.ReadSessionId)))
     { }
 
@@ -340,12 +340,9 @@ private:
         std::vector<TSubreaderCreator> subreaderCreators,
         std::vector<std::vector<TDataRanges>> readRanges)
     {
-        const auto& securityManager = Bootstrap_->GetSecurityManager();
-        auto maybeUser = securityManager->GetAuthenticatedUser();
-
         NApi::TClientOptions clientOptions;
-        if (maybeUser) {
-            clientOptions.User = maybeUser.Get();
+        if (MaybeUser_) {
+            clientOptions.User = MaybeUser_.Get();
         }
 
         auto client = Bootstrap_
@@ -554,7 +551,7 @@ private:
                 auto pipe = New<TSchemafulPipe>();
 
                 auto asyncStatistics = BIND(&TEvaluator::Run, Evaluator_)
-                    .AsyncVia(Bootstrap_->GetQueryPoolInvoker(ToString(Options_.ReadSessionId)))
+                    .AsyncVia(Invoker_)
                     .Run(
                         subquery,
                         mergingReader,
