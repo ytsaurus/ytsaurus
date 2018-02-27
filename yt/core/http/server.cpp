@@ -152,19 +152,25 @@ private:
         response->SetStatus(EStatusCode::InternalServerError);
 
         try {
-            auto handler = Handlers_.Match(request->GetUrl().Path);
-            if (handler) {
-                LOG_DEBUG("Received HTTP request (RequestId: %v, Address: %v, Method: %v, Path: %v)",
-                    requestId,
-                    connection->RemoteAddress(),
-                    request->GetMethod(),
-                    request->GetUrl().Path);
+            const auto& path = request->GetUrl().Path;
 
+            LOG_DEBUG("Received HTTP request (RequestId: %v, Address: %v, Method: %v, Path: %v)",
+                requestId,
+                connection->RemoteAddress(),
+                request->GetMethod(),
+                path);
+
+            auto handler = Handlers_.Match(path);
+            if (handler) {
                 handler->HandleRequest(request, response);
 
                 LOG_DEBUG("Finished handling HTTP request (RequestId: %v)",
                     requestId);
             } else {
+                LOG_DEBUG("Missing HTTP handler for given URL (RequestId: %v, Path: %v)",
+                    requestId,
+                    path);
+
                 response->SetStatus(EStatusCode::NotFound);
             }
         } catch (const std::exception& ex) {
