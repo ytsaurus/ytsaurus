@@ -54,7 +54,8 @@ public:
     , PeriodicExecutor_(New<TPeriodicExecutor>(
         invoker,
         BIND(&TScraperTask::LocateChunks, MakeWeak(this)),
-        TDuration::Zero()))
+        TDuration::Zero(),
+        EPeriodicExecutorMode::Manual))
     {
         Shuffle(ChunkIds_.begin(), ChunkIds_.end());
     }
@@ -115,6 +116,19 @@ private:
             return;
         }
 
+        auto chunkCount = std::min<int>(ChunkIds_.size(), Config_->MaxChunksPerRequest);
+
+        Throttler_->Throttle(chunkCount)
+            .Subscribe(BIND(&TScraperTask::DoLocateChunks, MakeWeak(this)));
+    }
+
+    void DoLocateChunks(const TError& error)
+    {
+        if (!error.IsOK()) {
+            LOG_WARNING(error, "Chunk scraper throttler failed unexpectedly");
+            return;
+        }
+
         if (NextChunkIndex_ >= ChunkIds_.size()) {
             NextChunkIndex_ = 0;
         }
@@ -134,9 +148,6 @@ private:
                 break;
             }
         }
-
-        auto throttleResult = WaitFor(Throttler_->Throttle(req->subrequests_size()));
-        YCHECK(throttleResult.IsOK());
 
         LOG_DEBUG("Locating chunks (Count: %v)", req->subrequests_size());
 
@@ -164,6 +175,8 @@ private:
                 OnChunkLocated_.Run(chunkId, replicas, false);
             }
         }
+
+        PeriodicExecutor_->ScheduleNext();
     }
 };
 
