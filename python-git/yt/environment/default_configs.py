@@ -232,6 +232,13 @@ b"""
         sync_directories_on_connect = %true;
     };
 
+    master_cache_service = {
+        expire_after_successful_update_time = 0;
+        expire_after_failed_update_time = 0;
+        expire_after_access_time = 0;
+        refresh_time = 0;
+    };
+
     exec_agent = {
         slot_manager = {
             job_environment = {
