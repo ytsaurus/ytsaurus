@@ -384,7 +384,8 @@ DEFINE_REFCOUNTED_TYPE(IOperationController)
 
 IOperationControllerPtr CreateControllerForOperation(
     TControllerAgentPtr controllerAgent,
-    NScheduler::TOperation* operation);
+    NScheduler::TOperation* operation,
+    const IInvokerPtr& dtorInvoker);
 
 ////////////////////////////////////////////////////////////////////////////////
 
