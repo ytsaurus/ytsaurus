@@ -1,5 +1,5 @@
 from .batch_helpers import batch_apply
-from .config import get_option, get_config, get_total_request_timeout, get_command_param
+from .config import get_config, get_total_request_timeout
 from .common import group_blobs_by_size
 from .cypress_commands import mkdir, concatenate, find_free_subpath, remove
 from .ypath import YPath, YPathSupportingAppend
@@ -10,7 +10,6 @@ from .heavy_commands import WriteRequestRetrier
 
 import copy
 import threading
-import time
 
 class ParallelWriter(object):
     def __init__(self, path, params, create_object, unordered, transaction_timeout,
