@@ -161,14 +161,14 @@ public:
     virtual const THeadersPtr& GetTrailers() override;
 
     void WriteRequest(EMethod method, const TString& path);
-    virtual void WriteHeaders(EStatusCode status) override;
+    virtual void SetStatus(EStatusCode status) override;
 
     virtual TFuture<void> Write(const TSharedRef& data) override;
     virtual TFuture<void> Close() override;
 
     virtual TFuture<void> WriteBody(const TSharedRef& smallBody) override;
 
-    void SendConnectionCloseHeader();
+    void AddConnectionCloseHeader();
 
 private:
     const NNet::IConnectionPtr Connection_;

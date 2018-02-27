@@ -53,7 +53,7 @@ public:
 
             TError error(ex);
             FillYTErrorHeaders(rsp, error);
-            rsp->WriteHeaders(EStatusCode::InternalServerError);
+            rsp->SetStatus(EStatusCode::InternalServerError);
 
             WaitFor(rsp->Close())
                 .ThrowOnError();
@@ -85,7 +85,7 @@ bool MaybeHandleCors(const IRequestPtr& req, const IResponseWriterPtr& rsp)
 
             if (req->GetMethod() == EMethod::Options) {
                 rsp->GetHeaders()->Add("Access-Control-Allow-Headers", headersWhitelist);
-                rsp->WriteHeaders(EStatusCode::Ok);
+                rsp->SetStatus(EStatusCode::Ok);
                 WaitFor(rsp->Close())
                     .ThrowOnError();
                 return true;

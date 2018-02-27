@@ -103,7 +103,7 @@ public:
 
         if (responseHeader.has_error() && responseHeader.error().code() != 0) {
             FillYTErrorHeaders(Rsp_, FromProto<TError>(responseHeader.error()));
-            Rsp_->WriteHeaders(EStatusCode::BadRequest);
+            Rsp_->SetStatus(EStatusCode::BadRequest);
             auto replySent = Rsp_->Close();
             replySent.Subscribe(BIND([this, this_ = MakeStrong(this)] (const TErrorOr<void>& result){
                 ReplySent_.Set(result);
@@ -117,7 +117,7 @@ public:
         }
 
         FillYTErrorHeaders(Rsp_, TError{});
-        Rsp_->WriteHeaders(EStatusCode::Ok);
+        Rsp_->SetStatus(EStatusCode::Ok);
         auto bodySent = Rsp_->WriteBody(PopEnvelope(message[1]));
         bodySent.Subscribe(BIND([this, this_ = MakeStrong(this)] (const TErrorOr<void>& result){
             ReplySent_.Set(result);
@@ -180,7 +180,7 @@ public:
         auto error = TranslateRequest(req, header.get());
         if (!error.IsOK()) {
             FillYTErrorHeaders(rsp, error);
-            rsp->WriteHeaders(EStatusCode::BadRequest);
+            rsp->SetStatus(EStatusCode::BadRequest);
             WaitFor(rsp->Close())
                 .ThrowOnError();
             return;

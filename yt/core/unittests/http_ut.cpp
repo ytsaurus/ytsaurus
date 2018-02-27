@@ -274,7 +274,7 @@ TEST(THttpOutputTest, Full)
             "Content-Length: 0\r\n"
             "\r\n",
             [] (THttpOutput* out) {
-                out->WriteHeaders(EStatusCode::Ok);
+                out->SetStatus(EStatusCode::Ok);
                 FinishBody(out);
             }
         },
@@ -285,7 +285,7 @@ TEST(THttpOutputTest, Full)
             "X-YT-Response-Code: 500\r\n"
             "\r\n",
             [] (THttpOutput* out) {
-                out->WriteHeaders(EStatusCode::BadRequest);
+                out->SetStatus(EStatusCode::BadRequest);
                 out->GetTrailers()->Add("X-YT-Response-Code", "500");
                 FinishBody(out);
             }
@@ -297,7 +297,7 @@ TEST(THttpOutputTest, Full)
             "\r\n"
             "fail",
             [] (THttpOutput* out) {
-                out->WriteHeaders(EStatusCode::InternalServerError);
+                out->SetStatus(EStatusCode::InternalServerError);
                 WriteBody(out, STRINGBUF("fail"));
             }
         },
@@ -313,7 +313,7 @@ TEST(THttpOutputTest, Full)
             "0\r\n"
             "\r\n",
             [] (THttpOutput* out) {
-                out->WriteHeaders(EStatusCode::Ok);
+                out->SetStatus(EStatusCode::Ok);
 
                 WriteChunk(out, STRINGBUF("X"));
                 WriteChunk(out, STRINGBUF("0123456789"));
@@ -488,7 +488,7 @@ class TOKHttpHandler
 public:
     virtual void HandleRequest(const IRequestPtr& req, const IResponseWriterPtr& rsp) override
     {
-        rsp->WriteHeaders(EStatusCode::Ok);
+        rsp->SetStatus(EStatusCode::Ok);
         WaitFor(rsp->Close()).ThrowOnError();
     }
 };
@@ -511,7 +511,7 @@ class TEchoHttpHandler
 public:
     virtual void HandleRequest(const IRequestPtr& req, const IResponseWriterPtr& rsp) override
     {
-        rsp->WriteHeaders(EStatusCode::Ok);
+        rsp->SetStatus(EStatusCode::Ok);
         while (true) {
             auto data = WaitFor(req->Read()).ValueOrThrow();
             if (data.Size() == 0) {
@@ -564,7 +564,7 @@ class TTestStatusCodeHandler
 public:
     virtual void HandleRequest(const IRequestPtr& req, const IResponseWriterPtr& rsp) override
     {
-        rsp->WriteHeaders(Code);
+        rsp->SetStatus(Code);
         WaitFor(rsp->Close()).ThrowOnError();
     }
 
@@ -607,7 +607,7 @@ public:
             rsp->GetHeaders()->Add(header.first, header.second);
         }
 
-        rsp->WriteHeaders(EStatusCode::Ok);
+        rsp->SetStatus(EStatusCode::Ok);
         WaitFor(rsp->Close()).ThrowOnError();
     }
 
@@ -694,7 +694,7 @@ class TForgetfulHandler
 public:
     virtual void HandleRequest(const IRequestPtr& req, const IResponseWriterPtr& rsp) override
     {
-        rsp->WriteHeaders(EStatusCode::Ok);
+        rsp->SetStatus(EStatusCode::Ok);
     }
 };
 
@@ -746,7 +746,7 @@ class TThrowingInTheMiddleHandler
 public:
     virtual void HandleRequest(const IRequestPtr& req, const IResponseWriterPtr& rsp) override
     {
-        rsp->WriteHeaders(EStatusCode::Ok);
+        rsp->SetStatus(EStatusCode::Ok);
         WaitFor(rsp->Write(TSharedRef::FromString(""))).ThrowOnError();
 
         THROW_ERROR_EXCEPTION("Your request is bad");
@@ -783,7 +783,7 @@ public:
         while (WaitFor(req->Read()).ValueOrThrow().Size() != 0)
         { }
 
-        rsp->WriteHeaders(EStatusCode::Ok);
+        rsp->SetStatus(EStatusCode::Ok);
         WaitFor(rsp->Close()).ThrowOnError();
     }
 };
@@ -808,7 +808,7 @@ class TStreamingHandler
 public:
     virtual void HandleRequest(const IRequestPtr& req, const IResponseWriterPtr& rsp) override
     {
-        rsp->WriteHeaders(EStatusCode::Ok);
+        rsp->SetStatus(EStatusCode::Ok);
         auto data = TSharedRef::FromString(TString(1024, 'f'));
         for (int i = 0; i < 16 * 1024; i++) {
             WaitFor(rsp->Write(data));
