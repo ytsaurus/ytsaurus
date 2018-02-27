@@ -83,7 +83,7 @@ void TSkynetManager::HealthCheck(IRequestPtr req, IResponseWriterPtr rsp)
             && SyncedClusters_.size() == Bootstrap_->Clusters.size();
     }
 
-    rsp->WriteHeaders(ok ? EStatusCode::Ok : EStatusCode::InternalServerError);
+    rsp->SetStatus(ok ? EStatusCode::Ok : EStatusCode::InternalServerError);
     WaitFor(rsp->Close())
         .ThrowOnError();
 }
@@ -91,7 +91,7 @@ void TSkynetManager::HealthCheck(IRequestPtr req, IResponseWriterPtr rsp)
 void TSkynetManager::Share(IRequestPtr req, IResponseWriterPtr rsp)
 {
     if (req->GetMethod() != EMethod::Post) {
-        rsp->WriteHeaders(EStatusCode::MethodNotAllowed);
+        rsp->SetStatus(EStatusCode::MethodNotAllowed);
         WaitFor(rsp->Close())
             .ThrowOnError();
         return;
@@ -103,7 +103,7 @@ void TSkynetManager::Share(IRequestPtr req, IResponseWriterPtr rsp)
     } catch (const std::exception& ex) {
         LOG_ERROR(ex, "Failed to parse request parameters");
 
-        rsp->WriteHeaders(EStatusCode::BadRequest);
+        rsp->SetStatus(EStatusCode::BadRequest);
         FillYTErrorHeaders(rsp, TError(ex));
         WaitFor(rsp->Close())
             .ThrowOnError();
@@ -115,7 +115,7 @@ void TSkynetManager::Share(IRequestPtr req, IResponseWriterPtr rsp)
 
     auto tableRevision = CheckTableAttributes(params.Cluster, params.Path);
     if (!tableRevision.IsOK()) {
-        rsp->WriteHeaders(EStatusCode::BadRequest);
+        rsp->SetStatus(EStatusCode::BadRequest);
         FillYTErrorHeaders(rsp, tableRevision);
         WaitFor(rsp->Close())
             .ThrowOnError();
@@ -129,7 +129,7 @@ void TSkynetManager::Share(IRequestPtr req, IResponseWriterPtr rsp)
     
     auto maybeRbTorrentId = Bootstrap_->ShareCache->TryShare(shareKey, true);
     if (!maybeRbTorrentId) {
-        rsp->WriteHeaders(EStatusCode::Accepted);
+        rsp->SetStatus(EStatusCode::Accepted);
         WaitFor(rsp->Close())
             .ThrowOnError();
         return;
@@ -139,7 +139,7 @@ void TSkynetManager::Share(IRequestPtr req, IResponseWriterPtr rsp)
     LOG_INFO("Share created (Key: %v, RbTorrentId: %v)", FormatShareKey(shareKey), rbTorrentId);
 
     rsp->GetHeaders()->Add("Content-Type", "text/plain");
-    rsp->WriteHeaders(EStatusCode::Ok);
+    rsp->SetStatus(EStatusCode::Ok);
     WaitFor(rsp->WriteBody(TSharedRef::FromString(rbTorrentId)))
         .ThrowOnError();
 }
@@ -153,7 +153,7 @@ void TSkynetManager::Discover(IRequestPtr req, IResponseWriterPtr rsp)
     auto discoverInfo = Bootstrap_->ShareCache->TryDiscover(rbTorrentId);
     if (!discoverInfo) {
         LOG_INFO("Discover failed, share not found (RbTorrentId: %v)", rbTorrentId);
-        rsp->WriteHeaders(EStatusCode::BadRequest);
+        rsp->SetStatus(EStatusCode::BadRequest);
         FillYTErrorHeaders(rsp, TError("Share information is missing")
             << TErrorAttribute("rb_torrent_id", rbTorrentId));
         WaitFor(rsp->Close())
@@ -182,7 +182,7 @@ void TSkynetManager::Discover(IRequestPtr req, IResponseWriterPtr rsp)
         discoverInfo->TablePath,
         reply.Parts.size());
 
-    rsp->WriteHeaders(EStatusCode::Ok);
+    rsp->SetStatus(EStatusCode::Ok);
     auto output = CreateBufferedSyncAdapter(rsp);
     auto json = NJson::CreateJsonConsumer(output.get());
 

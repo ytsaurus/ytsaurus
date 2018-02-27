@@ -223,7 +223,7 @@ struct IResponseWriter
     virtual const THeadersPtr& GetHeaders() = 0;
     virtual const THeadersPtr& GetTrailers() = 0;
 
-    virtual void WriteHeaders(EStatusCode status) = 0;
+    virtual void SetStatus(EStatusCode status) = 0;
 
     virtual TFuture<void> WriteBody(const TSharedRef& smallBody) = 0;
 };

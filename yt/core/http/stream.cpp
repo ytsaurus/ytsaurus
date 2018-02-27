@@ -431,7 +431,7 @@ const THeadersPtr& THttpOutput::GetTrailers()
     return Trailers_;
 }
 
-void THttpOutput::SendConnectionCloseHeader()
+void THttpOutput::AddConnectionCloseHeader()
 {
     YCHECK(MessageType_ == EMessageType::Response);
     ConnectionClose_ = true;
@@ -445,7 +445,7 @@ void THttpOutput::WriteRequest(EMethod method, const TString& path)
     Path_ = path;
 }
 
-void THttpOutput::WriteHeaders(EStatusCode status)
+void THttpOutput::SetStatus(EStatusCode status)
 {
     YCHECK(MessageType_ == EMessageType::Response);
 

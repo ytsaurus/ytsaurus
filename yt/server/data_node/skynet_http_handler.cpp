@@ -156,7 +156,7 @@ public:
             TString("data"),
             startPartIndex);
 
-        rsp->WriteHeaders(EStatusCode::Ok);
+        rsp->SetStatus(EStatusCode::Ok);
 
         auto throttler = Bootstrap_->GetSkynetOutThrottler();
         while (true) {

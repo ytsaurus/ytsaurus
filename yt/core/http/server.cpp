@@ -134,57 +134,61 @@ private:
             --ActiveClients_;
         });
 
+        auto requestId = TGuid::Create();
+
         auto request = New<THttpInput>(
             connection,
             connection->RemoteAddress(),
             Poller_->GetInvoker(),
             EMessageType::Request,
             Config_->ReadBufferSize);
+
+        LOG_DEBUG("Received HTTP request (RequestId: %v, Address: %v, Method: %v, Path: %v)",
+            requestId,
+            connection->RemoteAddress(),
+            request->GetMethod(),
+            request->GetUrl().Path);
+
         auto response = New<THttpOutput>(
             connection,
             EMessageType::Response,
             Config_->WriteBufferSize);
 
-        response->SendConnectionCloseHeader();
-        response->WriteHeaders(EStatusCode::InternalServerError);
+        response->AddConnectionCloseHeader();
+        response->SetStatus(EStatusCode::InternalServerError);
 
-        try {
-            auto requestId = TGuid::Create();
-            LOG_INFO("Received HTTP request (RequestId: %v, Method: %v, Path: %v)",
-                requestId,
-                request->GetMethod(),
-                request->GetUrl().Path);
+        auto handler = Handlers_.Match(request->GetUrl().Path);
+        if (handler) {
+            try {
+                handler->HandleRequest(request, response);
 
-            auto handler = Handlers_.Match(request->GetUrl().Path);
-            if (!handler) {
-                response->WriteHeaders(EStatusCode::NotFound);
-                WaitFor(response->Close())
-                    .ThrowOnError();
-                return;
+                LOG_DEBUG("Finished handling HTTP request (RequestId: %v)",
+                    requestId);
+            } catch (const std::exception& ex) {
+                LOG_DEBUG(ex, "Error handling HTTP request (RequestId: %v)",
+                    requestId);
+
+                if (!response->IsHeadersFlushed()) {
+                    response->SetStatus(EStatusCode::InternalServerError);
+                }
             }
-
-            handler->HandleRequest(request, response);
-            LOG_INFO("Finished handling HTTP request (RequestId: %v, Method: %v, Path: %v)",
-                requestId,
-                request->GetMethod(),
-                request->GetUrl().Path);
-        } catch (const std::exception& ex) {
-            LOG_ERROR(ex, "Error while handling HTTP request");
-
-            if (!response->IsHeadersFlushed()) {
-                response->WriteHeaders(EStatusCode::InternalServerError);
-                WaitFor(response->Close())
-                    .ThrowOnError();
-            }
+        } else {
+            response->SetStatus(EStatusCode::NotFound);
         }
 
-        try {
-            WaitFor(connection->Close())
-                .ThrowOnError();
-            LOG_DEBUG("Client connection closed (RemoteAddress: %v)",
-                connection->RemoteAddress());
-        } catch (const std::exception& ex) {
-            LOG_ERROR(ex, "Error closing HTTPP connection");
+        auto responseResult = WaitFor(response->Close());
+        if (!responseResult.IsOK()) {
+            LOG_DEBUG(responseResult, "Error flushing HTTP response stream (RequestId: %v)",
+                requestId);
+        }
+
+        auto connectionResult = WaitFor(connection->Close());
+        if (connectionResult.IsOK()) {
+            LOG_DEBUG("HTTP connection closed (RequestId: %v)",
+                requestId);
+        } else {
+            LOG_DEBUG(connectionResult, "Error closing HTTP connection (RequestId: %v)",
+                requestId);
         }
     }
 };
