@@ -8,6 +8,7 @@ from .errors import YtIncorrectResponse, YtError, YtRetriableError, YtResponseEr
 from .format import create_format, YsonFormat
 from .batch_response import apply_function_to_result
 from .heavy_commands import make_write_request, make_read_request
+from .parallel_writer import make_parallel_write_request
 from .response_stream import EmptyResponseStream, ResponseStreamWithReadRow
 from .table_helpers import (_prepare_source_tables, _are_default_empty_table, _prepare_table_writer,
                             _remove_tables, DEFAULT_EMPTY_TABLE, _to_chunk_stream, _prepare_format)
@@ -66,13 +67,13 @@ def _create_table(path, recursive=None, ignore_existing=False, attributes=None, 
     table = TablePath(path, client=client)
     attributes = get_value(attributes, {})
     if get_config(client)["create_table_attributes"] is not None:
-        attributes = update(deepcopy(get_config(client)["create_table_attributes"]), attributes)
+        attributes = update(get_config(client)["create_table_attributes"], attributes)
     if get_config(client)["yamr_mode"]["use_yamr_defaults"]:
         attributes = update({"compression_codec": "zlib_6"}, attributes)
     create("table", table, recursive=recursive, ignore_existing=ignore_existing,
            attributes=attributes, client=client)
 
-@deprecated()
+@deprecated(alternative='"create" with "table" type')
 def create_table(path, recursive=None, ignore_existing=False,
                  attributes=None, client=None):
     """Creates empty table. Shortcut for `create("table", ...)`.
@@ -161,7 +162,7 @@ def write_table(table, input_stream, format=None, table_writer=None,
     params["input_format"] = format.to_yson_type()
     set_param(params, "table_writer", table_writer)
 
-    def prepare_table(path):
+    def prepare_table(path, client):
         if not force_create:
             return
         _create_table(path, ignore_existing=True, client=client)
@@ -173,22 +174,39 @@ def write_table(table, input_stream, format=None, table_writer=None,
     if get_config(client)["write_retries"]["enable"] and not can_split_input:
         logger.warning("Cannot split input into rows. Write is processing by one request.")
 
+    enable_parallel_writing = get_config(client)["write_parallel"]["enable"] and \
+            can_split_input and \
+            not is_stream_compressed and \
+            not "sorted_by" in table.attributes
+
     input_stream = _to_chunk_stream(
         input_stream,
         format,
         raw,
-        split_rows=enable_retries,
+        split_rows=(enable_retries or enable_parallel_writing),
         chunk_size=get_config(client)["write_retries"]["chunk_size"])
 
-    make_write_request(
-        "write_table",
-        input_stream,
-        table,
-        params,
-        prepare_table,
-        use_retries=enable_retries,
-        is_stream_compressed=is_stream_compressed,
-        client=client)
+    if enable_parallel_writing:
+        force_create = True
+        make_parallel_write_request(
+            "write_table",
+            input_stream,
+            table,
+            params,
+            get_config(client)["write_parallel"]["unordered"],
+            prepare_table,
+            get_config(client)["remote_temp_files_directory"],
+            client=client)
+    else:
+        make_write_request(
+            "write_table",
+            input_stream,
+            table,
+            params,
+            prepare_table,
+            use_retries=enable_retries,
+            is_stream_compressed=is_stream_compressed,
+            client=client)
 
     if get_config(client)["yamr_mode"]["delete_empty_tables"] and is_empty(table, client=client):
         _remove_tables([table], client=client)
@@ -196,7 +214,7 @@ def write_table(table, input_stream, format=None, table_writer=None,
 def _prepare_table_path_for_read_blob_table(table, part_index_column_name, client=None):
     table = TablePath(table, client=client)
 
-    sorted_by = get_attribute(table, "sorted_by")
+    sorted_by = get_attribute(table, "sorted_by", client=client)
     if part_index_column_name not in sorted_by:
         raise YtError('Table should be sorted by "{0}"'.format(part_index_column_name))
 
@@ -297,7 +315,7 @@ def read_blob_table(table, part_index_column_name=None, data_column_name=None,
     return response
 
 def read_table(table, format=None, table_reader=None, control_attributes=None, unordered=None,
-               raw=None, response_parameters=None, client=None):
+               raw=None, response_parameters=None, enable_read_parallel=None, client=None):
     """Reads rows from table and parse (optionally).
 
     :param table: table to read.
@@ -339,8 +357,12 @@ def read_table(table, format=None, table_reader=None, control_attributes=None, u
     set_param(params, "table_reader", table_reader)
     set_param(params, "unordered", unordered)
 
-    if get_config(client)["read_parallel"]["enable"]:
-        if control_attributes is not None:
+    enable_read_parallel = get_value(enable_read_parallel, get_config(client)["read_parallel"]["enable"])
+
+    if enable_read_parallel:
+        if attributes.get("dynamic"):
+            logger.warning("Cannot read table in parallel since parallel reading for dynamic tables is not supported")
+        elif control_attributes is not None:
             logger.warning('Cannot read table in parallel since parameter "control_attributes" is specified')
         elif table.has_key_limit_in_ranges():
             logger.warning("Cannot read table in parallel since table path contains key limits")
@@ -362,6 +384,9 @@ def read_table(table, format=None, table_reader=None, control_attributes=None, u
         if response.response_parameters is None:
             raise YtIncorrectResponse("X-YT-Response-Parameters missing (bug in proxy)", response._get_response())
         set_response_parameters(response.response_parameters)
+
+    chaos_monkey_enabled = get_option("_ENABLE_READ_TABLE_CHAOS_MONKEY", client)
+    multiple_ranges_allowed = get_config(client)["read_retries"]["allow_multiple_ranges"]
 
     class RetriableState(object):
         def __init__(self):
@@ -404,7 +429,7 @@ def read_table(table, format=None, table_reader=None, control_attributes=None, u
                     fix_range(table.attributes)
             else:
                 if len(table.attributes["ranges"]) > 1:
-                    if get_config(client)["read_retries"]["allow_multiple_ranges"]:
+                    if multiple_ranges_allowed:
                         if "control_attributes" not in params:
                             params["control_attributes"] = {}
                         params["control_attributes"]["enable_row_index"] = True
@@ -425,14 +450,17 @@ def read_table(table, format=None, table_reader=None, control_attributes=None, u
 
             return params
 
-
         def iterate(self, response):
-            format_name = format.name()
+            format_for_raw_load = deepcopy(format)
+            if isinstance(format_for_raw_load, YsonFormat) and format_for_raw_load.attributes["lazy"]:
+                format_for_raw_load.attributes["lazy"] = False
+
+            format_for_raw_load_name = format_for_raw_load.name()
 
             def is_control_row(row):
-                if format_name == "yson":
+                if format_for_raw_load_name == "yson":
                     return row.endswith(b"#;")
-                elif format_name == "json":
+                elif format_for_raw_load_name == "json":
                     if b"$value" not in row:
                         return False
                     loaded_row = json.loads(row)
@@ -441,17 +469,17 @@ def read_table(table, format=None, table_reader=None, control_attributes=None, u
                     return False
 
             def load_control_row(row):
-                if format_name == "yson":
+                if format_for_raw_load_name == "yson":
                     return next(yson.loads(row, yson_type="list_fragment"))
-                elif format_name == "json":
+                elif format_for_raw_load_name == "json":
                     return yson.json_to_yson(json.loads(row))
                 else:
                     assert False, "Incorrect format"
 
             def dump_control_row(row):
-                if format_name == "yson":
+                if format_for_raw_load_name == "yson":
                     return yson.dumps([row], yson_type="list_fragment")
-                elif format_name == "json":
+                elif format_for_raw_load_name == "json":
                     row = json.dumps(yson.yson_to_json(row))
                     if PY3:
                         row = row.encode("utf-8")
@@ -466,8 +494,7 @@ def read_table(table, format=None, table_reader=None, control_attributes=None, u
                 self.next_row_index = response.response_parameters.get("start_row_index", None)
                 self.started = True
 
-            for row in format.load_rows(response, raw=True):
-                chaos_monkey_enabled = get_option("_ENABLE_READ_TABLE_CHAOS_MONKEY", client)
+            for row in format_for_raw_load.load_rows(response, raw=True):
                 if chaos_monkey_enabled and random.randint(1, 5) == 1:
                     raise YtRetriableError()
 

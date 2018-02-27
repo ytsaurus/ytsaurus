@@ -1,5 +1,30 @@
-from .driver import make_request
+from .driver import make_request, make_formatted_request
 from .common import set_param
+
+def list_jobs(operation_id,
+              job_type=None, job_state=None, address=None,
+              sort_field=None, sort_order=None,
+              limit=None, offset=None, with_stderr=None,
+              include_cypress=None, include_runtime=None, include_archive=None,
+              client=None):
+    """List jobs of operation."""
+    params = {"operation_id": operation_id}
+    set_param(params, "job_type", job_type)
+    set_param(params, "job_state", job_state)
+    set_param(params, "address", address)
+    set_param(params, "sort_field", sort_field)
+    set_param(params, "sort_order", sort_order)
+    set_param(params, "limit", limit)
+    set_param(params, "offset", offset)
+    set_param(params, "include_cypress", include_cypress)
+    set_param(params, "include_runtime", include_runtime)
+    set_param(params, "include_archive", include_archive)
+    return make_formatted_request(
+        "list_jobs",
+        params=params,
+        format=None,
+        client=client)
+
 
 def run_job_shell(job_id, timeout=None, command=None, client=None):
     """Runs interactive shell in the job sandbox.

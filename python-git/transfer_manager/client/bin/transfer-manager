@@ -6,7 +6,7 @@ import yt.transfer_manager.client as tm
 from yt.transfer_manager.client.global_client import init_client
 
 from yt.wrapper.cli_helpers import run_main
-from yt.common import YtError, get_value
+from yt.common import YtError
 import yt.json as json
 import yt.logger as logger
 
@@ -39,6 +39,18 @@ See also:
 
 logger.LOGGER.setLevel(logging.INFO)
 
+def _load_and_pop_task_params(kwargs):
+    params = kwargs.pop("params", None)
+    params_file = kwargs.pop("params_file", None)
+
+    if params is not None:
+        return json.loads(params)
+    elif params_file is not None:
+        with open(params_file, "r") as f:
+            return json.load(f)
+    else:
+        return {}
+
 def add_task_func(**kwargs):
     # Replace short names with long names
     kwargs["source_cluster"] = kwargs.pop("src_cluster")
@@ -46,8 +58,9 @@ def add_task_func(**kwargs):
     kwargs["destination_cluster"] = kwargs.pop("dst_cluster")
     kwargs["destination_table"] = kwargs.pop("dst_table")
 
-    params = get_value(kwargs.pop("params", None), "{}")
-    print(tm.add_task(params=json.loads(params), **kwargs))
+    task_params = _load_and_pop_task_params(kwargs)
+
+    print(tm.add_task(params=task_params, **kwargs))
 
 def add_tasks_func(**kwargs):
     # Replace short names with long names
@@ -56,14 +69,18 @@ def add_tasks_func(**kwargs):
     kwargs["destination_cluster"] = kwargs.pop("dst_cluster")
     kwargs["destination_pattern"] = kwargs.pop("dst_pattern")
 
-    params = get_value(kwargs.pop("params", None), "{}")
-    for task in tm.add_tasks(params=json.loads(params), **kwargs):
+    task_params = _load_and_pop_task_params(kwargs)
+
+    for task in tm.add_tasks(params=task_params, **kwargs):
         print(task)
 
 def _add_new_task_parameters(parser):
     parser.add_argument("--src-cluster", required=True, help="source cluster name, e.g. plato")
     parser.add_argument("--dst-cluster", required=True, help="destination cluster name, e.g. redwood")
-    parser.add_argument("--params", help="task parameters (in JSON format)")
+
+    task_params = parser.add_mutually_exclusive_group()
+    task_params.add_argument("--params", help="task parameters (in JSON format)")
+    task_params.add_argument("--params-file", help="path to file with task parameters (in JSON format)")
 
     parser.add_argument("--sync", action="store_true", default=False,
                         help="wait added tasks to be completed (default: False)")

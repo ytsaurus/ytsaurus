@@ -1,12 +1,17 @@
 import yt.logger as logger
 from .config import get_config, get_option
-from .common import require, chunk_iter_stream, chunk_iter_string, bool_to_string, parse_bool, set_param
-from .errors import YtError, YtResponseError
+from .common import require, chunk_iter_stream, chunk_iter_string, bool_to_string, parse_bool, set_param, get_value, \
+                    update, remove_nones_from_dict
+from .errors import YtError, YtResponseError, YtConcurrentTransactionLockConflict
+from .http_helpers import get_api_commands
 from .heavy_commands import make_write_request, make_read_request
 from .cypress_commands import (remove, exists, set_attribute, mkdir, find_free_subpath,
                                create, link, get, set)
+from .parallel_writer import make_parallel_write_request
+from .retries import Retrier
 from .ypath import FilePath, ypath_join, ypath_dirname
 from .local_mode import is_local_mode
+from .transaction_commands import _make_formatted_transactional_request
 
 from yt.common import to_native_str
 from yt.yson.parser import YsonParser
@@ -132,7 +137,7 @@ def read_file(path, file_reader=None, offset=None, length=None, client=None):
         retriable_state_class=RetriableState,
         client=client)
 
-def write_file(destination, stream, file_writer=None, is_stream_compressed=False, force_create=None, client=None):
+def write_file(destination, stream, file_writer=None, is_stream_compressed=False, force_create=None, compute_md5=False, client=None):
     """Uploads file to destination path from stream on local machine.
 
     :param destination: destination path in Cypress.
@@ -143,12 +148,13 @@ def write_file(destination, stream, file_writer=None, is_stream_compressed=False
     This data can be passed directly to proxy without recompression. Be careful! this option \
     disables write retries.
     :param bool force_create: unconditionally create file and ignores exsting file.
+    :param bool compute_md5: compute md5 of file content.
     """
 
     if force_create is None:
         force_create = True
 
-    def prepare_file(path):
+    def prepare_file(path, client):
         if not force_create:
             return
         create("file", path, ignore_existing=True, client=client)
@@ -181,28 +187,98 @@ def write_file(destination, stream, file_writer=None, is_stream_compressed=False
 
     params = {}
     set_param(params, "file_writer", file_writer)
+    set_param(params, "compute_md5", compute_md5)
 
     enable_retries = get_config(client)["write_retries"]["enable"]
     if not is_one_small_blob and is_stream_compressed:
         enable_retries = False
 
-    make_write_request(
-        "write_file",
-        stream,
-        destination,
-        params,
-        prepare_file,
-        enable_retries,
-        is_stream_compressed=is_stream_compressed,
-        client=client)
+    if get_config(client)["write_parallel"]["enable"] and not is_stream_compressed:
+        force_create = True
+        make_parallel_write_request(
+            "write_file",
+            stream,
+            destination,
+            params,
+            False,
+            prepare_file,
+            get_config(client)["remote_temp_tables_directory"],
+            client=client)
+    else:
+        make_write_request(
+            "write_file",
+            stream,
+            destination,
+            params,
+            prepare_file,
+            enable_retries,
+            is_stream_compressed=is_stream_compressed,
+            client=client)
+
+def _get_cache_path(client):
+    return ypath_join(get_config(client)["remote_temp_files_directory"], "new_cache")
+
+class PutFileToCacheRetrier(Retrier):
+    def __init__(self, params, client=None):
+        retry_config = {
+            "enable": get_config(client)["proxy"]["request_retry_enable"],
+            "count": get_config(client)["proxy"]["request_retry_count"],
+            "backoff": get_config(client)["retry_backoff"],
+        }
+        retry_config = update(get_config(client)["proxy"]["retries"], remove_nones_from_dict(retry_config))
+        timeout = get_value(get_config(client)["proxy"]["request_retry_timeout"],
+                            get_config(client)["proxy"]["request_timeout"])
+        retries_timeout = timeout[1] if isinstance(timeout, tuple) else timeout
+
+        super(PutFileToCacheRetrier, self).__init__(
+            retry_config=retry_config,
+            timeout=retries_timeout,
+            exceptions=(YtConcurrentTransactionLockConflict,),
+            chaos_monkey_enable=get_option("_ENABLE_HTTP_CHAOS_MONKEY", client))
+
+        self._params = params
+        self._client = client
+
+    def action(self):
+        return _make_formatted_transactional_request("put_file_to_cache", self._params, format=None, client=self._client)
+
+def put_file_to_cache(path, md5, cache_path=None, client=None):
+    """Puts file to cache
+
+    :param str path: path to file in Cypress
+    :param str md5: Expected MD5 hash of file
+    :param str cache_path: Path to file cache
+    :return: path to file in cache
+    """
+    cache_path = get_value(cache_path, _get_cache_path(client))
+    create("map_node", cache_path, ignore_existing=True, recursive=True, client=client)
+
+    params = {
+        "path": path,
+        "md5": md5,
+        "cache_path": cache_path}
+
+    retrier = PutFileToCacheRetrier(params, client)
+    return retrier.run()
+
+def get_file_from_cache(md5, cache_path=None, client=None):
+    """Gets file path in cache
+
+    :param str md5: MD5 hash of file
+    :param str cache_path: Path to file cache
+    :return: path to file in Cypress if it was found in cache and YsonEntity otherwise
+    """
+    cache_path = get_value(cache_path, _get_cache_path(client))
+    params = {
+        "md5": md5,
+        "cache_path": cache_path}
+
+    return _make_formatted_transactional_request("get_file_from_cache", params, format=None, client=client)
 
 def is_executable(filename, client=None):
     return os.access(filename, os.X_OK) or get_config(client)["yamr_mode"]["always_set_executable_flag_on_files"]
 
-def upload_file_to_cache(filename, hash=None, client=None):
-    if hash is None:
-        hash = md5sum(filename)
-
+def _upload_file_to_cache_legacy(filename, hash, client=None):
     last_two_digits_of_hash = ("0" + hash.split("-")[-1])[-2:]
 
     hash_path = ypath_join(get_config(client)["remote_temp_files_directory"], "hash")
@@ -259,11 +335,45 @@ def upload_file_to_cache(filename, hash=None, client=None):
                recursive=True,
                attributes=attributes,
                client=client)
-        write_file(real_destination, open(filename, "rb"), client=client)
+        write_file(real_destination, open(filename, "rb"), force_create=False, client=client)
         link(real_destination, destination, recursive=True, ignore_existing=True,
              attributes={"touched": bool_to_string(True)}, client=client)
 
     return destination
+
+def upload_file_to_cache(filename, hash=None, client=None):
+    if hash is None:
+        hash = md5sum(filename)
+
+    use_legacy = get_config(client)["use_legacy_file_cache"]
+    if use_legacy is None:
+        use_legacy = get_config(client)["backend"] == "native" or \
+                     "put_file_to_cache" not in get_api_commands(client) or \
+                     "get_file_from_cache" not in get_api_commands(client)
+
+    if use_legacy:
+        return _upload_file_to_cache_legacy(filename, hash, client)
+
+    file_path = get_file_from_cache(hash)
+    if file_path:
+        return file_path
+
+    temp_directory = get_config(client)["remote_temp_files_directory"]
+    if not temp_directory.endswith("/"):
+        temp_directory = temp_directory + "/"
+    real_destination = find_free_subpath(temp_directory, client=client)
+    if is_local_mode(client) or get_option("_is_testing_mode", client=client):
+        replication_factor = 1
+    else:
+        if get_config(client)["file_cache"]["replication_factor"] < 3:
+            raise YtError("File cache replication factor cannot be set less than 3")
+        replication_factor = get_config(client)["file_cache"]["replication_factor"]
+
+    create("file", real_destination, recursive=True, attributes={"replication_factor": replication_factor})
+    with open(filename, "rb") as stream:
+        write_file(real_destination, stream, compute_md5=True, force_create=False, client=client)
+
+    return put_file_to_cache(real_destination, hash, client=client)
 
 def smart_upload_file(filename, destination=None, yt_filename=None, placement_strategy=None,
                       ignore_set_attributes_error=True, hash=None, client=None):

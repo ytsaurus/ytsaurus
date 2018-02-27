@@ -1,15 +1,18 @@
-from .helpers import TEST_DIR
+from .helpers import TEST_DIR, get_test_file_path
 
-from yt.wrapper.common import parse_bool, update
+from yt.wrapper.common import parse_bool, update_inplace
 
 import yt.yson as yson
 
 from yt.packages.six.moves import reload_module
 
 import yt.wrapper as yt
+import yt.subprocess_wrapper as subprocess
 
+import os
 import time
 import pytest
+import signal
 from copy import deepcopy
 
 def test_heavy_proxies():
@@ -42,7 +45,7 @@ def test_heavy_proxies():
     finally:
         reload_module(yt.http_driver)
         reload_module(yt.config)
-        update(yt.config.config, config)
+        update_inplace(yt.config.config, config)
 
 @pytest.mark.usefixtures("yt_env")
 def test_process_params():
@@ -52,3 +55,33 @@ def test_process_params():
     table = TEST_DIR + "/dynamic_table"
     yt.create("table", table, attributes={"schema": schema})
     assert parse_bool(yt.get(table + "/@schema/@unique_keys"))
+
+@pytest.mark.usefixtures("yt_env")
+def test_catching_sigint(yt_env):
+    if yt.config["backend"] != "native":
+        pytest.skip()
+
+    driver_config_path = yt_env.env.config_paths["console_driver"][0]
+    binary = get_test_file_path("driver_catch_sigint.py")
+
+    process = subprocess.Popen(["python", binary, driver_config_path])
+
+    time.sleep(3)
+    os.kill(process.pid, signal.SIGINT)
+
+    try:
+        process.wait(2)
+    except:
+        os.kill(process.pid, signal.SIGKILL)
+        assert False, "Process hanged up for more than 2 seconds on SIGINT"
+
+    binary = get_test_file_path("driver_read_request_catch_sigint.py")
+    process = subprocess.Popen(["python", binary])
+
+    time.sleep(3)
+    os.kill(process.pid, signal.SIGINT)
+    try:
+        process.wait(2)
+    except:
+        os.kill(process.pid, signal.SIGKILL)
+        assert False, "Process hanged up for more than 2 seconds on SIGINT"

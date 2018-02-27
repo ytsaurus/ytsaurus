@@ -14,7 +14,7 @@ Simple examples::
 
     >>> import yson
     >>> b = [4, 5, 6]
-    >>> print yson.dumps({'a' : b, 'b' : b}, indent='  ')
+    >>> print yson.dumps({"a" : b, "b" : b}, indent="  ")
     {
       "a" : [
         4;
@@ -27,7 +27,7 @@ Simple examples::
         6;
       ];
     }
-    >>> print yson.dumps(('a', 'a'), indent='  ')
+    >>> print yson.dumps(("a", "a"), indent="  ")
     [
       "a";
       "a";
@@ -44,6 +44,7 @@ from . import yson_types
 from yt.packages.six.moves import map as imap
 from yt.packages.six import integer_types, text_type, binary_type, iteritems, PY3
 
+import math
 import re
 from collections import Iterable, Mapping
 
@@ -51,11 +52,11 @@ __all__ = ["dump", "dumps"]
 
 ESCAPE = re.compile(br'[\x00-\x1f\\"\b\f\n\r\t\x7f-\xff]')
 ESCAPE_DICT = {
-    b'\\': b'\\\\',
+    b"\\": b"\\\\",
     b'"': b'\\"',
-    b'\t': b'\\t',
-    b'\n': b'\\n',
-    b'\r': b'\\r',
+    b"\t": b"\\t",
+    b"\n": b"\\n",
+    b"\r": b"\\r",
 }
 
 def _escape_bytes(obj):
@@ -112,12 +113,12 @@ def dumps(object, yson_format=None, indent=None, check_circular=True, encoding="
     if yson_format is None:
         yson_format = "text"
     if yson_format not in ["pretty", "text"]:
-        raise YsonError("%s format is not supported" % yson_format)
+        raise YsonError("{0} format is not supported".format(yson_format))
     if yson_format == "text":
         indent = None
     if yson_type is not None:
         if yson_type not in ["list_fragment", "map_fragment", "node"]:
-            raise YsonError("YSON type %r is not supported" % yson_type)
+            raise YsonError("YSON type {0} is not supported".format(yson_type))
     else:
         yson_type = "node"
 
@@ -145,7 +146,7 @@ class Dumper(object):
         attributes = b""
         if hasattr(obj, "attributes") and obj.attributes is not None:
             if not isinstance(obj.attributes, dict):
-                _raise_error_with_context("Invalid field 'attributes': it must be string or None", context)
+                _raise_error_with_context('Invalid field "attributes": it must be string or None', context)
             if obj.attributes:
                 attributes = self._dump_attributes(obj.attributes, context)
 
@@ -177,7 +178,15 @@ class Dumper(object):
             if greater_than_max_int64 or isinstance(obj, yson_types.YsonUint64):
                 result += b"u"
         elif isinstance(obj, float):
-            result = str(obj).encode("ascii")
+            if math.isnan(obj):
+                result = b"%nan"
+            elif math.isinf(obj):
+                if obj > 0:
+                    result = b"%inf"
+                else:
+                    result = b"%-inf"
+            else:
+                result = str(obj).encode("ascii")
         elif isinstance(obj, (text_type, binary_type)):
             result = self._dump_string(obj, context)
         elif isinstance(obj, Mapping):
@@ -187,7 +196,7 @@ class Dumper(object):
         elif isinstance(obj, yson_types.YsonEntity) or obj is None:
             result = b"#"
         else:
-            _raise_error_with_context(repr(obj) + " is not Yson serializable.", context)
+            _raise_error_with_context("{0!r} is not Yson serializable".format(obj), context)
         self._level -= 1
         return attributes + result
 
@@ -195,16 +204,16 @@ class Dumper(object):
         result = [b'"']
         if isinstance(obj, binary_type):
             if self._encoding is not None and PY3:
-                _raise_error_with_context('Bytes object {0} cannot be encoded to {1}. To disable this behaviour '
+                _raise_error_with_context('Bytes object {0!r} cannot be encoded to {1}. To disable this behaviour '
                                           'and allow byte string dumping set "encoding" '
-                                          'parameter to None'.format(repr(obj), self._encoding),
+                                          'parameter to None'.format(obj, self._encoding),
                                           context)
             result.append(_escape_bytes(obj))
         elif isinstance(obj, text_type):
             if self._encoding is None:
-                _raise_error_with_context('Cannot encode unicode object {0} to bytes since "encoding" '
+                _raise_error_with_context('Cannot encode unicode object {0!r} to bytes since "encoding" '
                                           'parameter is None. Consider using byte strings '
-                                          'instead or specify encoding'.format(repr(obj)),
+                                          'instead or specify encoding'.format(obj),
                                           context)
             result.append(_escape_bytes(obj.encode(self._encoding)))
         else:
@@ -216,25 +225,25 @@ class Dumper(object):
         is_stream = self.yson_type == "map_fragment" and self._level == -1
         result = []
         if not is_stream:
-            result += [b'{', self._format.nextline()]
+            result += [b"{", self._format.nextline()]
 
         for k, v in iteritems(obj):
             if not isinstance(k, (text_type, binary_type)):
-                _raise_error_with_context("Only string can be Yson map key. Key: %s" % repr(k), context)
+                _raise_error_with_context("Only string can be Yson map key. Key: {0!r}".format(k), context)
 
             @self._circular_check(v)
             def process_item():
                 context.push(k)
                 item = [self._format.prefix(self._level + 1),
-                        self._dump_string(k, context), self._format.space(), b'=',
-                        self._format.space(), self.dumps(v, context), b';', self._format.nextline(is_stream)]
+                        self._dump_string(k, context), self._format.space(), b"=",
+                        self._format.space(), self.dumps(v, context), b";", self._format.nextline(is_stream)]
                 context.pop()
                 return item
 
             result += process_item()
 
         if not is_stream:
-            result += [self._format.prefix(self._level), b'}']
+            result += [self._format.prefix(self._level), b"}"]
 
         return b"".join(result)
 
@@ -242,7 +251,7 @@ class Dumper(object):
         is_stream = self.yson_type == "list_fragment" and self._level == -1
         result = []
         if not is_stream:
-            result += [b'[', self._format.nextline()]
+            result += [b"[", self._format.nextline()]
 
         for index, v in enumerate(obj):
             @self._circular_check(v)
@@ -252,7 +261,7 @@ class Dumper(object):
                 else:
                     context.push(index)
                 item = [self._format.prefix(self._level + 1),
-                        self.dumps(v, context), b';', self._format.nextline(is_stream)]
+                        self.dumps(v, context), b";", self._format.nextline(is_stream)]
                 if not is_stream:
                     context.pop()
                 return item
@@ -260,28 +269,28 @@ class Dumper(object):
             result += process_item()
 
         if not is_stream:
-            result += [self._format.prefix(self._level), b']']
+            result += [self._format.prefix(self._level), b"]"]
 
         return b"".join(result)
 
     def _dump_attributes(self, obj, context):
-        result = [b'<', self._format.nextline()]
+        result = [b"<", self._format.nextline()]
         for k, v in obj.items():
             if not isinstance(k, (text_type, binary_type)):
-                _raise_error_with_context("Only string can be Yson map key. Key: %s" % repr(obj), context)
+                _raise_error_with_context("Only string can be Yson map key. Key: {0!r}".format(obj), context)
 
             @self._circular_check(v)
             def process_item():
                 context.push("@" + k)
                 item = [self._format.prefix(self._level + 1),
-                        self._dump_string(k, context), self._format.space(), b'=',
-                        self._format.space(), self.dumps(v, context), b';', self._format.nextline()]
+                        self._dump_string(k, context), self._format.space(), b"=",
+                        self._format.space(), self.dumps(v, context), b";", self._format.nextline()]
                 context.pop()
                 return item
 
             result += process_item()
-        result += [self._format.prefix(self._level), b'>']
-        return b''.join(result)
+        result += [self._format.prefix(self._level), b">"]
+        return b"".join(result)
 
     def _circular_check(self, obj):
         def decorator(fn):
@@ -290,7 +299,7 @@ class Dumper(object):
                 if not self._seen_objects is None:
                     obj_id = id(obj)
                     if obj_id in self._seen_objects:
-                        raise YsonError("Circular reference detected. Object: %s" % repr(obj))
+                        raise YsonError("Circular reference detected. Object: {0!r}".format(obj))
                     else:
                         self._seen_objects[obj_id] = obj
 
@@ -310,18 +319,18 @@ class FormatDetails(object):
 
     def prefix(self, level):
         if self._indent:
-            return b''.join([self._indent] * level)
+            return b"".join([self._indent] * level)
         else:
-            return b''
+            return b""
 
     def nextline(self, force=False):
         if force or self._indent:
-            return b'\n'
+            return b"\n"
         else:
-            return b''
+            return b""
 
     def space(self):
         if self._indent:
-            return b' '
+            return b" "
         else:
-            return b''
+            return b""

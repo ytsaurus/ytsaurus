@@ -1,5 +1,5 @@
 from .common import update, get_value, remove_nones_from_dict, YtError, require
-from .config import get_config, get_option
+from .config import get_config, get_option, set_option
 from .errors import YtChunkUnavailable
 from .format import YtFormatReadError
 from .heavy_commands import process_read_exception, _get_read_response
@@ -24,7 +24,7 @@ class ParallelReadRetrier(Retrier):
             "count": get_config(client)["read_retries"]["retry_count"],
             "backoff": get_config(client)["retry_backoff"],
         }
-        retry_config = update(copy.deepcopy(get_config(client)["read_retries"]), remove_nones_from_dict(retry_config))
+        retry_config = update(get_config(client)["read_retries"], remove_nones_from_dict(retry_config))
         timeout = get_value(get_config(client)["proxy"]["heavy_request_retry_timeout"],
                             get_config(client)["proxy"]["heavy_request_timeout"])
 
@@ -39,7 +39,7 @@ class ParallelReadRetrier(Retrier):
     def action(self):
         response = _get_read_response("read_table", self._params, self._transaction_id, self._client)
         response._process_error(response._get_response())
-        return response, response.read()
+        return response.read()
 
     def except_action(self, exception, attempt):
         process_read_exception(exception)
@@ -84,7 +84,7 @@ class TableReader(object):
         return self._pool.imap(self.read_table_range, ranges)
 
     def read(self, ranges):
-        for _, data in self._read_iterator(ranges):
+        for data in self._read_iterator(ranges):
             yield data
 
     def close(self):

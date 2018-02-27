@@ -22,12 +22,14 @@ import yt.wrapper as yt
 import inspect
 import random
 import string
+import gc
 import os
 import sys
 import uuid
 import tempfile
 import time
 import pytest
+import shutil
 import collections
 from copy import deepcopy
 
@@ -89,7 +91,7 @@ def test_ypath_dirname():
     assert ypath_dirname("//a/b\\\\\\\\/c") == "//a/b\\\\\\\\"
     assert ypath_dirname("//\\\\a\\/b") == "/"
     assert ypath_dirname("//a/b\\\\\\/c/d/\\\\e") == "//a/b\\\\\\/c/d"
-    assert ypath_dirname("//a/b\\\\\\/c/d/\\\\\\e") == "//a/b\\\\\\/c/d"
+    assert ypath_dirname("//a/b\\\\\\/c/d/\\\\\\[") == "//a/b\\\\\\/c/d"
     assert ypath_dirname("//a/b\\/\\/c") == "//a"
     assert ypath_dirname("#a-b-c-d") == "#a-b-c-d"
     assert ypath_dirname("#a-b-c-d/a") == "#a-b-c-d"
@@ -319,6 +321,20 @@ class TestRetries(object):
     def test_read_ranges_parallel_with_retries(self, yt_env):
         with set_config_option("read_parallel/enable", True):
             self.test_read_ranges_with_retries(yt_env)
+
+    def test_read_has_no_leaks(self):
+        table = TEST_DIR + "/table"
+        yt.write_table(table, [{"a": "b"}])
+
+        def test_func():
+            client = yt.YtClient(config=deepcopy(yt.config.config))
+            for row in client.read_table(table):
+                pass
+            return id(client)
+
+        obj_id = test_func()
+        for obj in gc.get_objects():
+            assert id(obj) != obj_id
 
     def test_heavy_requests_with_retries(self):
         table = TEST_DIR + "/table"
@@ -703,3 +719,9 @@ class TestCellId(object):
             client.COMMAND_PARAMS["master_cell_id"] = cell_id
             assert client.get("//sys/@cell_id") == cell_id
 
+
+@pytest.mark.usefixtures("yt_env")
+class TestGenerateTimestamp(object):
+    def test_generate_timestamp(self):
+        ts = yt.generate_timestamp()
+        assert ts >= 0

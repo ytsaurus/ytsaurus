@@ -81,13 +81,13 @@ def get_default_resource_limits(client):
 
     return result
 
-def initialize_world(client=None, idm=None, proxy_address=None, ui_address=None):
+def initialize_world(client=None, idm=None, proxy_address=None, ui_address=None, configure_pool_trees=True):
     client = get_value(client, yt)
     users = ["odin", "cron", "cron_merge", "cron_compression", "nightly_tester", "application_operations", "robot-yt-mon"]
     groups = ["devs", "admins", "admin_snapshots"]
     if idm:
         groups.append("yandex")
-    everyone_group = "everyone" if not idm else "yandex"
+    everyone_group = "users" if not idm else "yandex"
 
     for user in users:
         create("user", user, client)
@@ -96,6 +96,10 @@ def initialize_world(client=None, idm=None, proxy_address=None, ui_address=None)
 
     for cron_user in ("cron", "cron_merge", "cron_compression"):
         add_member(cron_user, "superusers", client)
+        client.set("//sys/users/" + cron_user + "/@request_queue_size_limit", 500)
+
+    client.create("map_node", "//sys/cron")
+
     add_member("devs", "admins", client)
     add_member("robot-yt-mon", "admin_snapshots", client)
 
@@ -109,7 +113,7 @@ def initialize_world(client=None, idm=None, proxy_address=None, ui_address=None)
     add_acl("/", {"action": "allow", "subjects": [everyone_group], "permissions": ["read"]}, client)
     add_acl("/", {"action": "allow", "subjects": ["admins"], "permissions": ["write", "remove", "administer"]}, client)
 
-    add_acl("//sys", {"action": "allow", "subjects": [everyone_group], "permissions": ["read"]}, client)
+    add_acl("//sys", {"action": "allow", "subjects": ["users"], "permissions": ["read"]}, client)
     add_acl("//sys", {"action": "allow", "subjects": ["admins"], "permissions": ["write", "remove", "administer"]},
             client)
     client.set("//sys/@inherit_acl", "false")
@@ -118,7 +122,10 @@ def initialize_world(client=None, idm=None, proxy_address=None, ui_address=None)
 
     add_acl("//sys/tokens", {"action": "allow", "subjects": ["admins"], "permissions": ["read", "write", "remove"]},
             client)
+    add_acl("//sys/tablet_cells", {"action": "allow", "subjects": ["admins"], "permissions": ["read", "write", "remove", "administer"]}, client)
+    add_acl("//sys/tablet_cells", {"action": "allow", "subjects": ["odin"], "permissions": ["read"]}, client)
     client.set("//sys/tokens/@inherit_acl", "false")
+    client.set("//sys/tablet_cells/@inherit_acl", "false")
 
     if not client.exists("//sys/accounts/tmp_files"):
         client.create("account", attributes={"name": "tmp_files",
@@ -177,19 +184,21 @@ def initialize_world(client=None, idm=None, proxy_address=None, ui_address=None)
                    {"action": "allow", "subjects": ["odin"], "permissions": ["write", "remove", "read"]}
                ])
 
+    client.create("map_node", "//sys/admin/lock/autorestart/nodes/disabled", recursive=True, ignore_existing=True)
+
     # add_acl to schemas
     for schema in ["user", "group", "tablet_cell"]:
         if client.exists("//sys/schemas/%s" % schema):
             client.set("//sys/schemas/%s/@acl" % schema,
                        [
-                           {"action": "allow", "subjects": [everyone_group], "permissions": ["read"]},
+                           {"action": "allow", "subjects": ["users"], "permissions": ["read"]},
                            {"action": "allow", "subjects": ["admins"], "permissions": ["write", "remove", "create"]}
                        ])
 
     if client.exists("//sys/schemas/account"):
         client.set("//sys/schemas/account/@acl",
                    [
-                       {"action": "allow", "subjects": [everyone_group], "permissions": ["read"]},
+                       {"action": "allow", "subjects": ["users"], "permissions": ["read"]},
                        {"action": "allow", "subjects": ["admins"],
                         "permissions": ["write", "remove", "create", "administer", "use"]}
                    ])
@@ -198,20 +207,20 @@ def initialize_world(client=None, idm=None, proxy_address=None, ui_address=None)
         if client.exists("//sys/schemas/%s" % schema):
             client.set("//sys/schemas/%s/@acl" % schema,
                        [
-                           {"action": "allow", "subjects": [everyone_group], "permissions": ["read"]},
+                           {"action": "allow", "subjects": ["users"], "permissions": ["read"]},
                            {"action": "allow", "subjects": ["admins"],
                             "permissions": ["write", "remove", "create", "administer"]}
                        ])
     if client.exists("//sys/schemas/lock"):
         client.set("//sys/schemas/lock/@acl",
                    [
-                       {"action": "allow", "subjects": [everyone_group], "permissions": ["read"]},
+                       {"action": "allow", "subjects": ["users"], "permissions": ["read"]},
                    ])
 
     if client.exists("//sys/schemas/transaction"):
         client.set("//sys/schemas/transaction/@acl",
                [
-                   {"action": "allow", "subjects": [everyone_group], "permissions": ["read"]},
+                   {"action": "allow", "subjects": ["users"], "permissions": ["read"]},
                    {"action": "allow", "subjects": ["users"], "permissions": ["write", "create"]}
                ])
 
@@ -219,6 +228,8 @@ def initialize_world(client=None, idm=None, proxy_address=None, ui_address=None)
         yamr_table_schema = [{"name": name, "type": "any", "sort_order": "ascending"}
                              for name in ["key", "subkey"]] + [{"name": "value", "type": "any"}]
         client.create("table", "//sys/empty_yamr_table", attributes={"schema": yamr_table_schema})
+
+    add_acl("//tmp", {"action": "allow", "subjects": [everyone_group], "permissions": ["write", "remove", "read"]}, client)
 
     client.create("map_node",
                   "//tmp/yt_wrapper/file_storage",
@@ -229,12 +240,23 @@ def initialize_world(client=None, idm=None, proxy_address=None, ui_address=None)
                   "//tmp/yt_wrapper/table_storage",
                   recursive=True,
                   ignore_existing=True)
+    client.create("map_node",
+                  "//tmp/yt_regular/table_storage",
+                  recursive=True,
+                  ignore_existing=True)
+    client.set("//tmp/yt_regular/@acl", [
+        {
+            "action": "allow",
+            "subjects": ["admins"],
+            "permissions": ["read", "write", "remove", "administer"]
+        }
+    ])
+    client.set("//tmp/yt_regular/@inherit_acl", False)
 
     if not client.exists("//sys/tablet_cell_bundles/sys"):
         client.create("tablet_cell_bundle", attributes={
             "name": "sys",
-            "changelog_account": "sys",
-            "snapshot_account": "sys"})
+            "options": {"changelog_account": "sys", "snapshot_account": "sys"}})
     else:
         logger.warning('Tablet cell bundle "sys" already exists')
 
@@ -252,14 +274,14 @@ def initialize_world(client=None, idm=None, proxy_address=None, ui_address=None)
 
     client.link("//tmp/trash", "//trash", ignore_existing=True)
 
-    if client.exists("//sys/pools"):
-        if not client.exists("//sys/pools/research"):
-            client.create("map_node", "//sys/pools/research",
-                          attributes={"forbid_immediate_operations": "true"})
-        else:
-            logger.warning('Pool "research" already exists')
-    else:
-        logger.warning('Can not create pool "//sys/pools/research". "//sys/pools" does not exist')
+    if configure_pool_trees:
+        client.create("map_node", "//sys/pool_trees/physical", attributes={"nodes_filter": "internal"})
+        client.set("//sys/pool_trees/@default_tree", "physical")
+        client.link("//sys/pool_trees/physical", "//sys/pools")
+        # Configure research pool
+        client.create("map_node", "//sys/pool_trees/physical/research",
+                      attributes={"forbid_immediate_operations": True})
+        client.set("//sys/pool_trees/physical/@default_parent_pool", "research")
 
 def main():
     parser = argparse.ArgumentParser(description="new YT cluster init script")

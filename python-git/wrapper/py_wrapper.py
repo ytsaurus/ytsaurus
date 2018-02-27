@@ -3,12 +3,13 @@ from __future__ import print_function
 from . import config
 from .config import get_config
 from .pickling import Pickler
-from .common import get_python_version, YtError, chunk_iter_stream, chunk_iter_string, get_value, which, get_disk_size, is_arcadia_python
+from .common import get_python_version, YtError, chunk_iter_stream, get_value, which, get_disk_size, is_arcadia_python
 from .py_runner_helpers import process_rows
 from .local_mode import is_local_mode, enable_local_files_usage_in_job
 from ._py_runner import get_platform_version, main as run_py_runner
 
-from yt.zip import ZipFile
+from yt.tar import TarFile
+from yt.zip import GzipFile
 import yt.logger as logger
 import yt.subprocess_wrapper as subprocess
 
@@ -17,7 +18,7 @@ try:
 except ImportError:
     from yt.packages.importlib import import_module
 
-from yt.packages.six import iteritems, iterbytes, text_type, binary_type
+from yt.packages.six import iteritems, text_type, binary_type
 from yt.packages.six.moves import map as imap
 
 import re
@@ -26,6 +27,7 @@ import string
 import inspect
 import os
 import shutil
+import tarfile
 import tempfile
 import hashlib
 import sys
@@ -42,6 +44,15 @@ TMPFS_SIZE_ADDEND = 1024 * 1024
 OPERATION_REQUIRED_MODULES = ["yt.wrapper.py_runner_helpers"]
 
 SINGLE_INDEPENDENT_BINARY_CASE = None
+
+class TarInfo(tarfile.TarInfo):
+    @property
+    def mtime(self):
+        return 0
+
+    @mtime.setter
+    def mtime(self, value):
+        pass
 
 class WrapResult(object):
     __slots__ = ["cmd", "files", "tmpfs_size", "environment", "local_files_to_remove", "title"]
@@ -72,37 +83,12 @@ class OperationParameters(object):
         self.is_local_mode = is_local_mode
 
 # Md5 tools.
-def init_md5():
-    return []
-
 def calc_md5_from_file(filename):
     with open(filename, mode="rb") as fin:
         md5_hash = hashlib.md5()
         for buf in chunk_iter_stream(fin, 1024):
             md5_hash.update(buf)
-    return tuple(iterbytes(md5_hash.digest()))
-
-def calc_md5_from_string(string_obj):
-    if isinstance(string_obj, text_type):
-        string_obj = string_obj.encode("ascii")
-    md5_hash = hashlib.md5()
-    for buf in chunk_iter_string(string_obj, 1024):
-        md5_hash.update(buf)
-    return tuple(iterbytes(md5_hash.digest()))
-
-def merge_md5(lhs, rhs):
-    return lhs + [rhs]
-
-def hex_md5(md5_array):
-    def to_hex(md5):
-        # String "zip_salt_" is neccessary to distinguish empty archive from empty file.
-        return "zip_salt_" + "".join([hex(num)[2:] for num in md5])
-
-    md5_array.sort()
-    return to_hex(calc_md5_from_string("".join(imap(to_hex, md5_array))))
-
-def calc_md5_string_from_file(filename):
-    return hex_md5([calc_md5_from_file(filename)])
+    return md5_hash.hexdigest()
 
 def is_running_interactively():
     # Does not work in bpython
@@ -209,20 +195,28 @@ def list_dynamic_library_dependencies(library_path):
                 result.append(lib_path)
     return result
 
-class Zip(object):
+class Tar(object):
     def __init__(self, prefix, tempfiles_manager, client):
         self.prefix = prefix
+        self._compression_codec = get_config(client)["pickling"]["modules_archive_compression_codec"]
+        suffix = ".tar"
+        if self._compression_codec == "gzip":
+            suffix += ".gz"
         self.filename = tempfiles_manager.create_tempfile(dir=get_config(client)["local_temp_directory"],
-                                                          prefix=prefix, suffix=".zip")
+                                                          prefix=prefix, suffix=suffix)
         self.size = 0
         self.python_eggs = []
         self.dynamic_libraries = set()
-        self.hash = init_md5()
         self.client = client
 
     def __enter__(self):
-        self.zip = ZipFile(self.filename, "w")
-        self.zip.__enter__()
+        if self._compression_codec == "gzip":
+            compression_level = get_config(self.client)["pickling"]["modules_archive_compression_level"]
+            self._gz_fileobj = GzipFile(self.filename, "w", compresslevel=compression_level, mtime=0)
+            self.tar = TarFile(self.filename, "w", self._gz_fileobj, tarinfo=TarInfo, dereference=True)
+        else:
+            self.tar = TarFile(self.filename, "w", tarinfo=TarInfo, dereference=True)
+        self.tar.__enter__()
         return self
 
     def _append_dynamic_library_dependencies(self, filepath):
@@ -236,10 +230,9 @@ class Zip(object):
             if library_filter is not None and not library_filter(library):
                 continue
             relpath = os.path.join("_shared", os.path.basename(library))
-            self.zip.write(library, relpath)
+            self.tar.add(library, relpath)
             self.dynamic_libraries.add(library)
             self.size += get_disk_size(library)
-            self.update_hash(relpath, library)
 
     def append(self, filepath, relpath):
         if relpath.endswith(".egg"):
@@ -247,18 +240,19 @@ class Zip(object):
         if relpath.endswith(".so"):
             self._append_dynamic_library_dependencies(filepath)
 
-        self.zip.write(filepath, relpath)
+        self.tar.add(filepath, relpath)
         self.size += get_disk_size(filepath)
-        self.update_hash(relpath, filepath)
-
-    def update_hash(self, relpath, filepath):
-        hash_pair = [calc_md5_from_string(relpath), calc_md5_from_file(filepath)]
-        self.hash = merge_md5(self.hash, calc_md5_from_string(hex_md5(hash_pair)))
 
     def __exit__(self, type, value, traceback):
-        self.zip.__exit__(type, value, traceback)
+        if type is not None:
+            logger.error("Failed to write tar file %s", self.filename)
+
+        self.tar.__exit__(type, value, traceback)
+        if self._compression_codec == "gzip":
+            self._gz_fileobj.__exit__(type, value, traceback)
+
         if type is None:
-            self.md5 = hex_md5(self.hash)
+            self.md5 = calc_md5_from_file(self.filename)
 
 def load_function(func):
     if isinstance(func, str):
@@ -339,20 +333,20 @@ def create_modules_archive_default(tempfiles_manager, custom_python_used, client
                 files_to_compress[destination_name] = init_file
 
     now = time.time()
-    with Zip(prefix="modules", tempfiles_manager=tempfiles_manager, client=client) as zip:
-        with Zip(prefix="fresh_modules", tempfiles_manager=tempfiles_manager, client=client) as fresh_zip:
+    with Tar(prefix="modules", tempfiles_manager=tempfiles_manager, client=client) as tar:
+        with Tar(prefix="fresh_modules", tempfiles_manager=tempfiles_manager, client=client) as fresh_tar:
             for relpath, filepath in sorted(iteritems(files_to_compress)):
                 age = now - os.path.getmtime(filepath)
                 if age > get_config(client)["pickling"]["fresh_files_threshold"]:
-                    zip.append(filepath, relpath)
+                    tar.append(filepath, relpath)
                 else:
-                    fresh_zip.append(filepath, relpath)
+                    fresh_tar.append(filepath, relpath)
             for filepath, relpath in get_value(get_config(client)["pickling"]["additional_files_to_archive"], []):
-                zip.append(filepath, relpath)
+                tar.append(filepath, relpath)
 
-    archives = [zip]
-    if fresh_zip.size > 0:
-        archives.append(fresh_zip)
+    archives = [tar]
+    if fresh_tar.size > 0:
+        archives.append(fresh_tar)
 
     mount_sandbox_in_tmpfs = get_config(client)["mount_sandbox_in_tmpfs"]
     if isinstance(mount_sandbox_in_tmpfs, bool):  # COMPAT
@@ -478,7 +472,7 @@ def build_function_and_config_arguments(function, create_temp_file, file_argumen
 def build_modules_arguments(modules_info, create_temp_file, file_argument_builder, client):
     # COMPAT: previous version of create_modules_archive returns string.
     if isinstance(modules_info, (text_type, binary_type)):
-        modules_info = [{"filename": modules_info, "hash": calc_md5_string_from_file(modules_info), "tmpfs": False}]
+        modules_info = [{"filename": modules_info, "hash": calc_md5_from_file(modules_info), "tmpfs": False}]
 
     tmpfs_size = sum([info["size"] for info in modules_info if info["tmpfs"]])
     if tmpfs_size > 0:

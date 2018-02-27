@@ -14,8 +14,11 @@ from yt.wrapper.py_wrapper import create_modules_archive_default, TempfilesManag
 from yt.wrapper.common import parse_bool
 from yt.wrapper.operation_commands import add_failed_operation_stderrs_to_error_message, get_stderrs, get_operation_error
 from yt.wrapper.table import TablePath
-from yt.wrapper.spec_builders import MapSpecBuilder
+from yt.wrapper.spec_builders import MapSpecBuilder, MapReduceSpecBuilder
+from yt.wrapper.http_helpers import make_request_with_retries
 from yt.local import start, stop
+from yt.yson import YsonMap
+import yt.yson as yson
 import yt.logger as logger
 import yt.subprocess_wrapper as subprocess
 
@@ -392,7 +395,6 @@ class TestOperations(object):
         yt.write_table(table, [{"x": 1}, {"y": 2}])
         op = yt.run_map(write_statistics, table, table, format=None, sync=False)
         op.wait()
-        assert sorted(list(op.get_job_statistics()["custom"])) == ["row_count"]
         assert op.get_job_statistics()["custom"]["row_count"] == {"$": {"completed": {"map": {"count": 2, "max": 1, "sum": 2, "min": 1}}}}
         check(yt.read_table(table), [{"x": 1}, {"y": 2}], ordered=False)
 
@@ -411,11 +413,11 @@ class TestOperations(object):
         failures = 0
         for i in xrange(5):
             yt.run_map(func, input, output)
-            files_in_cache = list(yt.search("//tmp/yt_wrapper/file_storage", node_type="link"))
+            files_in_cache = list(yt.search("//tmp/yt_wrapper/file_storage", node_type="file"))
             assert len(files_in_cache) > 0
 
             yt.run_map(func, input, output)
-            files_in_cache_again = list(yt.search("//tmp/yt_wrapper/file_storage", node_type="link"))
+            files_in_cache_again = list(yt.search("//tmp/yt_wrapper/file_storage", node_type="file"))
             if sorted(files_in_cache) != sorted(files_in_cache_again):
                 failures += 1
 
@@ -1076,13 +1078,15 @@ print(op.id)
                                spec={"data_size_per_job": 1}, input_format=yt.JsonFormat())
 
         stderrs_list = get_stderrs(operation.id, False)
+        for stderr in stderrs_list:
+            assert stderr["stderr"] == "Job with stderr"
         assert len(stderrs_list) == 10
 
         assert yt.format_operation_stderrs(stderrs_list)
 
         old_timeout = yt.config["operation_tracker"]["stderr_download_timeout"]
         old_thread_count = yt.config["operation_tracker"]["stderr_download_thread_count"]
-        yt.config["operation_tracker"]["stderr_download_timeout"] = 100
+        yt.config["operation_tracker"]["stderr_download_timeout"] = 50
         yt.config["operation_tracker"]["stderr_download_thread_count"] = 1
 
         try:
@@ -1293,3 +1297,132 @@ print(op.id)
             with pytest.raises(yt.YtError):
                 yt.run_map("cat; echo 'Hello %username%!' >&2; exit 1", tableX, tableY)
 
+    def test_get_operation_command(self):
+        table = TEST_DIR + "/table"
+        yt.write_table(table, [{"x": 1}, {"x": 2}])
+
+        with set_config_option("enable_operations_api", True):
+            op = yt.run_map("cat; echo 'AAA' >&2", table, table)
+            check([{"x": 1}, {"x": 2}], list(yt.read_table(table)), ordered=False)
+
+            assert op.get_state() == "completed"
+
+            assert op.get_progress()["total"] == 1
+            assert op.get_progress()["completed"] == 1
+
+            op.get_job_statistics()
+
+            stderrs = op.get_stderrs()
+            assert len(stderrs) == 1
+            assert stderrs[0]["stderr"] == "AAA\n"
+
+    def test_list_operations(self):
+        assert yt.list_operations()["operations"] == []
+
+        table = TEST_DIR + "/table"
+        yt.write_table(table, [{"x": "0"}])
+        yt.run_map("cat; echo 'AAA' >&2", table, table)
+
+        operations = yt.list_operations()["operations"]
+        assert len(operations) == 1
+
+        operation = operations[0]
+        assert operation["state"] == "completed"
+        assert operation["type"] == "map"
+
+    def test_list_operations_compatibility(self, yt_env):
+        if yt.config["backend"] == "native" or yt_env.version <= "19.2":
+            pytest.skip()
+
+        table = TEST_DIR + "/table"
+        yt.write_table(table, [{"x": "0"}])
+        yt.run_map("cat; echo 'AAA' >&2", table, table)
+
+        operations_old = yson.json_to_yson(make_request_with_retries("GET", url="http://{0}/api/v3/_list_operations".format(yt.config["proxy"]["url"])).json())
+        operations_new = yt.list_operations(enable_ui_mode=True)
+        del operations_old["timings"]
+        for op in operations_new["operations"]:
+            op.attributes["weight"] = int(op.attributes["weight"])
+
+        assert operations_new == operations_old
+
+    #def test_get_operation_compatibility(self):
+    #    if yt.config["backend"] == "native":
+    #        pytest.skip()
+
+    #    table = TEST_DIR + "/table"
+    #    yt.write_table(table, [{"x": "0"}])
+    #    op = yt.run_map("cat; echo 'AAA' >&2", table, table)
+
+    #    operation_old = yson.json_to_yson(make_request_with_retries("GET", url="http://{0}/api/v3/_get_operation?id={1}".format(yt.config["proxy"]["url"], op.id)).json())
+    #    operation_new = yt.get_operation(op.id, attributes=["id"])
+    #
+    #    with open("/home/ignat/operation_old", "w") as fout:
+    #        yson.dump(operation_old, fout, yson_format="pretty")
+    #    with open("/home/ignat/operation_new", "w") as fout:
+    #        yson.dump(operation_new, fout, yson_format="pretty")
+
+    #    assert operation_old == operation_new
+
+    def test_lazy_yson(self):
+        def mapper(row):
+            assert not isinstance(row, (YsonMap, dict))
+            row["z"] = row["y"] + 1
+            yield row
+
+        def reducer(key, rows):
+            result = {"x": key["x"], "res": 0}
+            for row in rows:
+                assert not isinstance(row, (YsonMap, dict))
+                result["res"] += row["z"]
+            yield result
+
+        table = TEST_DIR + "/table"
+        output_table = TEST_DIR + "/table"
+        yt.write_table(table, [{"x": 1, "y": 2}, {"x": 1, "y": 3}, {"x": 3, "y": 4}])
+        yt.run_map_reduce(mapper, reducer, table, output_table, format="<lazy=%true>yson", reduce_by="x")
+
+        assert list(yt.read_table(output_table)) == [{"x": 1, "res": 7}, {"x": 3, "res": 5}]
+
+    def test_multiple_mapper_output_tables_in_mapreduce(self):
+        input_table = TEST_DIR + "/table"
+        mapper_output_table = TEST_DIR + "/mapper_output_table"
+        output_table = TEST_DIR + "/output_table"
+        yt.write_table(input_table, [{"x": 1}])
+
+        def mapper(rec):
+            recs = [{"a": "b"}, {"c": "d"}]
+            for i, rec in enumerate(recs):
+                rec["@table_index"] = i
+                yield rec
+
+        spec_builder = MapReduceSpecBuilder() \
+            .begin_mapper() \
+                .format(yt.YsonFormat(control_attributes_mode="row_fields")) \
+                .command(mapper) \
+            .end_mapper() \
+            .begin_reducer() \
+                .command("cat") \
+                .format("json") \
+            .end_reducer() \
+            .reduce_by(["a"]) \
+            .mapper_output_table_count(1) \
+            .input_table_paths(input_table) \
+            .output_table_paths([mapper_output_table, output_table])
+
+        yt.run_operation(spec_builder)
+        check([{"c": "d"}], list(yt.read_table(mapper_output_table)))
+        check([{"a": "b"}], list(yt.read_table(output_table)))
+
+    def test_empty_job_command(self):
+        table = TEST_DIR + "/table"
+        output_table = TEST_DIR + "/output_table"
+        yt.write_table(table, [{"x": 1}, {"y": 2}])
+
+        spec = {"mapper": {"copy_files": True}, "reduce_combiner": {"copy_files": True}}
+        yt.run_map_reduce(mapper=None, reduce_combiner="cat", reducer="cat", reduce_by=["x"],
+                          source_table=table, destination_table=output_table, spec=spec)
+        check([{"x": 1}, {"y": 2}], list(yt.read_table(table)))
+        yt.run_map_reduce(mapper=None, reducer="cat", reduce_by=["x"],
+                          source_table=table, destination_table=output_table, spec=spec)
+        check([{"x": 1}, {"y": 2}], list(yt.read_table(table)))

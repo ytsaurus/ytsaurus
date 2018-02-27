@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-from .helpers import TEST_DIR, set_config_option
+from .helpers import TEST_DIR, set_config_option, set_config_options
 
 import yt.zip as zip
 from yt.packages.six import PY3
@@ -39,10 +39,6 @@ class TestFileCommands(object):
         destinationB = yt.smart_upload_file(filename, placement_strategy="hash")
         assert destinationA == destinationB
 
-        # Lets break link
-        yt.remove(yt.get_attribute(destinationB + "&", "target_path"), force=True)
-        assert yt.smart_upload_file(filename, placement_strategy="hash") == destinationA
-
         destination = yt.smart_upload_file(filename, placement_strategy="random")
         path = os.path.join(os.path.basename(filename), yt.config["remote_temp_files_directory"])
         assert destination.startswith(path)
@@ -74,6 +70,17 @@ class TestFileCommands(object):
         with set_config_option("prefix", TEST_DIR + "/"):
             yt.smart_upload_file(filename, destination="subdir/abc", placement_strategy="replace")
             assert yt.read_file("subdir/abc").read() == b"some content"
+
+    @pytest.mark.parametrize("use_tmp_dir_for_intermediate_data", [True, False])
+    def test_parallel_write_file(self, use_tmp_dir_for_intermediate_data):
+        override_options = {
+            "write_parallel/concatenate_size": 7,
+            "write_parallel/enable": True,
+            "write_parallel/use_tmp_dir_for_intermediate_data": use_tmp_dir_for_intermediate_data,
+            "write_retries/chunk_size": 20
+        }
+        with set_config_options(override_options):
+            self.test_file_commands()
 
     def test_unicode(self):
         data = u"строка"

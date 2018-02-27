@@ -27,6 +27,18 @@ def porto_avaliable():
         logger.exception("Failed to connect to porto, '%s'", err)
         return False
 
+def remove_all_volumes(path):
+    if not porto_avaliable():
+        return
+
+    conn = Connection()
+
+    for volume in conn.ListVolumes():
+        if volume.path.startswith(path):
+            for c in volume.GetContainers():
+                volume.Unlink(c)
+
+
 class PortoSubprocess(object):
     @classmethod
     def Popen(cls, args, shell=None, close_fds=None, preexec_fn=None, cwd=None, stdout=None, stderr=None):

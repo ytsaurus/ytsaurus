@@ -54,7 +54,6 @@ import yt.logger as logger
 
 import sys
 import time
-from copy import deepcopy
 
 @forbidden_inside_job
 def run_erase(table, spec=None, sync=True, client=None):
@@ -200,9 +199,9 @@ def run_map_reduce(mapper, reducer, source_table, destination_table,
     """
 
     job_io = _prepare_job_io(job_io, table_writer)
-    declare_deprecated('option "map_files"', map_files is not None)
-    declare_deprecated('option "reduce_files"', reduce_files is not None)
-    declare_deprecated('option "reduce_combiner_files"', reduce_combiner_files is not None)
+    declare_deprecated('option "map_files"', '"map_local_files"', map_files is not None)
+    declare_deprecated('option "reduce_files"', '"reduce_local_files"', reduce_files is not None)
+    declare_deprecated('option "reduce_combiner_files"', '"reduce_combiner_local_files"', reduce_combiner_files is not None)
     map_file_paths = _prepare_operation_files(map_local_files, map_files, map_yt_files)
     reduce_file_paths = _prepare_operation_files(reduce_local_files, reduce_files, reduce_yt_files)
     reduce_combiner_file_paths = _prepare_operation_files(reduce_combiner_local_files, reduce_combiner_files,
@@ -270,7 +269,7 @@ def run_map(binary, source_table, destination_table,
     .. seealso::  :ref:`operation_parameters` and :func:`run_map_reduce <.run_map_reduce>`.
     """
 
-    declare_deprecated('option "files"', files is not None)
+    declare_deprecated('option "files"', '"local_files"', files is not None)
     job_io = _prepare_job_io(job_io, table_writer)
     file_paths = _prepare_operation_files(local_files, files, yt_files)
 
@@ -311,7 +310,7 @@ def run_reduce(binary, source_table, destination_table,
     .. seealso::  :ref:`operation_parameters` and :func:`run_map_reduce <.run_map_reduce>`.
     """
 
-    declare_deprecated('option "files"', files is not None)
+    declare_deprecated('option "files"', '"local_files"', files is not None)
     job_io = _prepare_job_io(job_io, table_writer)
     file_paths = _prepare_operation_files(local_files, files, yt_files)
 
@@ -358,7 +357,7 @@ def run_join_reduce(binary, source_table, destination_table,
     .. seealso::  :ref:`operation_parameters` and :func:`run_map_reduce <.run_map_reduce>`.
     """
 
-    declare_deprecated('option "files"', files is not None)
+    declare_deprecated('option "files"', '"local_files"', files is not None)
     job_io = _prepare_job_io(job_io, table_writer)
     file_paths = _prepare_operation_files(local_files, files, yt_files)
 
@@ -421,7 +420,7 @@ class OperationRequestRetrier(Retrier):
             "count": get_config(client)["start_operation_retries"]["retry_count"],
             "backoff": get_config(client)["retry_backoff"],
         }
-        retry_config = update(deepcopy(get_config(client)["start_operation_retries"]),
+        retry_config = update(get_config(client)["start_operation_retries"],
                               remove_nones_from_dict(retry_config))
         timeout = get_value(get_config(client)["start_operation_retries"]["retry_timeout"],
                             get_config(client)["start_operation_request_timeout"])

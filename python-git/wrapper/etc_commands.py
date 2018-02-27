@@ -33,3 +33,6 @@ def execute_batch(requests, concurrency=None, client=None):
     set_param(params, "concurrency", concurrency)
     return make_formatted_request("execute_batch", params=params, format=None, client=client)
 
+def generate_timestamp(client=None):
+    """Generates timestamp."""
+    return make_formatted_request("generate_timestamp", params={}, format=None, client=client)

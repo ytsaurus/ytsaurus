@@ -23,7 +23,7 @@ class ClientState(object):
         self._transaction_stack = None
         self._driver = None
         self._requests_session = None
-        self._heavy_proxy_provider = None
+        self._heavy_proxy_provider_state = None
 
         # socket.getfqdn can be slow so client fqdn is cached.
         self._fqdn = None
