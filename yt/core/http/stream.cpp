@@ -271,7 +271,7 @@ EStatusCode THttpInput::GetStatusCode()
 const THeadersPtr& THttpInput::GetTrailers()
 {
     if (Parser_.GetState() != EParserState::MessageFinished) {
-        THROW_ERROR_EXCEPTION("Can't access trailers while body is not fully consumed");
+        THROW_ERROR_EXCEPTION("Cannot access trailers while body is not fully consumed");
     }
 
     const auto& trailers = Parser_.GetTrailers();
@@ -320,7 +320,7 @@ void THttpInput::EnsureHeadersReceived()
 
         // HTTP parser does not treat EOF at message start as error.
         if (eof) {
-            THROW_ERROR_EXCEPTION("Unexpected EOF while parsing http message");
+            THROW_ERROR_EXCEPTION("Unexpected EOF while parsing HTTP message");
         }
     }
 }
