@@ -343,7 +343,8 @@ private:
 
 IOperationControllerPtr CreateControllerForOperation(
     TControllerAgentPtr controllerAgent,
-    TOperation* operation)
+    TOperation* operation,
+    const IInvokerPtr& dtorInvoker)
 {
     IOperationControllerPtr controller;
     switch (operation->GetType()) {
@@ -407,7 +408,7 @@ IOperationControllerPtr CreateControllerForOperation(
     return New<TOperationControllerWrapper>(
         operation->GetId(),
         controller,
-        controller->GetInvoker());
+        dtorInvoker);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
