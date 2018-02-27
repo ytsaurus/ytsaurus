@@ -94,9 +94,8 @@ class Retrier(object):
         pass
 
 class IteratorRetrier(Retrier):
-    def __init__(self, iterator, retry_config, timeout=None, exceptions=(YtError,), chaos_monkey_enabled=False):
+    def __init__(self, retry_config, timeout=None, exceptions=(YtError,), chaos_monkey_enabled=False):
         super(IteratorRetrier, self).__init__(retry_config, timeout, exceptions, chaos_monkey_enabled)
-        self._iterator = iterator
         self._iter = None
 
     def action(self):
@@ -127,3 +126,7 @@ class IteratorRetrier(Retrier):
 
                 self._iter = None
                 attempt += 1
+
+    @abc.abstractmethod
+    def _iterator(self):
+        pass

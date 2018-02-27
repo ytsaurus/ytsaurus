@@ -2,11 +2,11 @@ from .helpers import (get_tests_location, TEST_DIR, get_tests_sandbox, ENABLE_JO
                       sync_create_cell, get_test_file_path, get_tmpfs_path, get_port_locks_path, yatest_common)
 
 from yt.environment import YTInstance
+from yt.environment.job_events import JobEvents
 from yt.wrapper.config import set_option
 from yt.wrapper.default_config import get_default_config
-from yt.wrapper.common import update
-from yt.common import which, makedirp
-import yt.logger as logger
+from yt.wrapper.common import update, update_inplace
+from yt.common import which, makedirp, format_error
 import yt.environment.init_operation_archive as init_operation_archive
 import yt.subprocess_wrapper as subprocess
 
@@ -26,21 +26,15 @@ import sys
 import uuid
 from copy import deepcopy
 import shutil
+import tempfile
 import logging
 import pytest
+import stat
 
 def pytest_ignore_collect(path, config):
     path = str(path)
     return path.startswith(get_tests_sandbox()) or \
             path.startswith(os.path.join(get_tests_location(), "__pycache__"))
-
-if yatest_common is None:
-    @pytest.fixture(scope="session", autouse=True)
-    def interpreter():
-        pass
-
-    def pytest_generate_tests(metafunc):
-        metafunc.parametrize("interpreter", ["{0}.{1}".format(*sys.version_info[:2])])
 
 if yatest_common is not None:
     @pytest.fixture(scope="session", autouse=True)
@@ -74,25 +68,11 @@ class YtTestEnvironment(object):
         has_proxy = config["backend"] != "native"
 
         logging.getLogger("Yt.local").setLevel(logging.INFO)
-        logger.LOGGER.setLevel(logging.WARNING)
 
         run_id = uuid.uuid4().hex[:8]
         uniq_dir_name = os.path.join(self.test_name, "run_" + run_id)
         dir = os.path.join(get_tests_sandbox(), uniq_dir_name)
 
-        common_delta_proxy_config = {
-            "proxy": {
-                "driver": {
-                    # Disable cache
-                    "table_mount_cache": {
-                        "expire_after_successful_update_time": 0,
-                        "expire_after_failed_update_time": 0,
-                        "expire_after_access_time": 0,
-                        "refresh_time": 0
-                    }
-                }
-            }
-        }
         common_delta_node_config = {
             "exec_agent" : {
                 "enable_cgroups" : ENABLE_JOB_CONTROL,
@@ -110,15 +90,6 @@ class YtTestEnvironment(object):
                     }
                 ]
             },
-            "cluster_connection": {
-                # Disable cache
-                "table_mount_cache": {
-                    "expire_after_successful_update_time": 0,
-                    "expire_after_failed_update_time": 0,
-                    "expire_after_access_time": 0,
-                    "refresh_time": 0
-                }
-            },
         }
         common_delta_scheduler_config = {
             "scheduler" : {
@@ -133,17 +104,16 @@ class YtTestEnvironment(object):
 
         def modify_configs(configs, abi_version):
             for config in configs["scheduler"]:
-                update(config, common_delta_scheduler_config)
+                update_inplace(config, common_delta_scheduler_config)
                 if delta_scheduler_config:
-                    update(config, delta_scheduler_config)
+                    update_inplace(config, delta_scheduler_config)
             for config in configs["node"]:
-                update(config, common_delta_node_config)
+                update_inplace(config, common_delta_node_config)
                 if delta_node_config:
-                    update(config, delta_node_config)
+                    update_inplace(config, delta_node_config)
             for config in configs["proxy"]:
-                update(config, common_delta_proxy_config)
                 if delta_proxy_config:
-                    update(config, delta_proxy_config)
+                    update_inplace(config, delta_proxy_config)
 
         local_temp_directory = os.path.join(get_tests_sandbox(), "tmp_" + run_id)
         if not os.path.exists(local_temp_directory):
@@ -213,7 +183,7 @@ class YtTestEnvironment(object):
         self.config["pickling"]["module_filter"] = lambda module: hasattr(module, "__file__") and not "driver_lib" in module.__file__
         self.config["driver_config"] = self.env.configs["driver"]
         self.config["local_temp_directory"] = local_temp_directory
-        update(yt.config.config, self.config)
+        update_inplace(yt.config.config, self.config)
 
         os.environ["PATH"] = ".:" + os.environ["PATH"]
 
@@ -306,13 +276,31 @@ def test_environment_job_archive(request):
         }
     )
 
-    yt.create("user", attributes={"name": "application_operations"})
     sync_create_cell()
     init_operation_archive.create_tables_latest_version(yt)
 
     request.addfinalizer(lambda: environment.cleanup())
 
     return environment
+
+# TODO(ignat): fix this copypaste from yt_env_setup
+def _remove_operations():
+    if yt.get("//sys/scheduler/instances/@count") == 0:
+        return
+
+    operation_from_orchid = []
+    try:
+        operation_from_orchid = yt.list("//sys/scheduler/orchid/scheduler/operations")
+    except yt.YtError as err:
+        print >>sys.stderr, format_error(err)
+
+    for operation_id in operation_from_orchid:
+        try:
+            yt.abort_operation(operation_id)
+        except yt.YtError as err:
+            print >>sys.stderr, format_error(err)
+
+    yt.remove("//sys/operations/*")
 
 def test_method_teardown():
     if yt.config["backend"] == "proxy":
@@ -328,6 +316,8 @@ def test_method_teardown():
             pass
 
     yt.remove(TEST_DIR, recursive=True, force=True)
+
+    _remove_operations()
 
 @pytest.fixture(scope="function")
 def yt_env(request, test_environment):
@@ -403,3 +393,9 @@ def yt_env_job_archive(request, test_environment_job_archive):
     yt.mkdir(TEST_DIR, recursive=True)
     request.addfinalizer(test_method_teardown)
     return test_environment_job_archive
+
+@pytest.fixture(scope="function")
+def job_events(request):
+    tmpdir = tempfile.mkdtemp(prefix="job_events", dir=get_tests_sandbox())
+    os.chmod(tmpdir, stat.S_IRWXU | stat.S_IRWXG | stat.S_IRWXO)
+    return JobEvents(tmpdir)

@@ -1,7 +1,7 @@
 from __future__ import print_function
 
 from .helpers import (TEST_DIR, set_config_option, get_tests_sandbox, check, get_test_file_path, get_test_dir_path,
-                      build_python_egg, get_python, dumps_yt_config, PYTHONPATH, run_python_script_with_check)
+                      build_python_egg, get_python, dumps_yt_config, run_python_script_with_check)
 
 from yt.wrapper.operation_commands import add_failed_operation_stderrs_to_error_message
 import yt.subprocess_wrapper as subprocess

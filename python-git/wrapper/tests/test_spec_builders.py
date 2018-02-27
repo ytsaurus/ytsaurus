@@ -212,7 +212,7 @@ class TestSpecBuilders(object):
                 .input_table_paths(input) \
                 .output_table_paths(output)
             yt.run_operation(spec_builder)
-            files_in_cache = list(yt.search("//tmp/yt_wrapper/file_storage", node_type="link"))
+            files_in_cache = list(yt.search("//tmp/yt_wrapper/file_storage", node_type="file"))
             assert len(files_in_cache) > 0
 
             spec_builder = MapSpecBuilder() \
@@ -223,7 +223,7 @@ class TestSpecBuilders(object):
                 .input_table_paths(input) \
                 .output_table_paths(output)
             yt.run_operation(spec_builder)
-            files_in_cache_again = list(yt.search("//tmp/yt_wrapper/file_storage", node_type="link"))
+            files_in_cache_again = list(yt.search("//tmp/yt_wrapper/file_storage", node_type="file"))
             if sorted(files_in_cache) != sorted(files_in_cache_again):
                 failures += 1
 
@@ -244,14 +244,28 @@ class TestSpecBuilders(object):
         output_table = TEST_DIR + "/output"
         yt.write_table(input_table, [{"x": 1}, {"y": 2}])
 
-        with set_config_option("spec_defaults", {"mapper": {"memory_limit": 128 * 1024 * 1024, "cpu_limit": 0.5772156649}}):
-            with set_config_option("spec_overrides", {"mapper": {"memory_reserve_factor": 0.31}}):
+        spec_defaults = {
+            "mapper": {
+                "memory_limit": 128 * 1024 * 1024,
+                "cpu_limit": 0.5772156649,
+                "environment": {
+                    "var1": "1",
+                    "var2": "2"}}}
+
+        spec_overrides = {
+            "mapper": {
+                "memory_reserve_factor": 0.31,
+                "environment": {
+                    "var2": "5",
+                    "var3": "6"}}}
+
+        with set_config_option("spec_defaults", spec_defaults):
+            with set_config_option("spec_overrides", spec_overrides):
                 spec_builder = MapSpecBuilder() \
                     .begin_mapper() \
-                        .command("cat") \
-                        .format("json") \
-                        .memory_limit(256 * 1024 * 1024) \
-                        .memory_reserve_factor(0.2) \
+                    .command("cat") \
+                    .format("json") \
+                    .memory_limit(256 * 1024 * 1024) \
                     .end_mapper() \
                     .input_table_paths(input_table) \
                     .output_table_paths(output_table)
@@ -261,3 +275,6 @@ class TestSpecBuilders(object):
                 assert attributes["spec"]["mapper"]["memory_limit"] == 256 * 1024 * 1024
                 assert abs(attributes["spec"]["mapper"]["cpu_limit"] - 0.5772156649) < 1e-5
                 assert abs(attributes["spec"]["mapper"]["memory_reserve_factor"] - 0.31) < 1e-5
+                assert attributes["spec"]["mapper"]["environment"]["var1"] == "1"
+                assert attributes["spec"]["mapper"]["environment"]["var2"] == "5"
+                assert attributes["spec"]["mapper"]["environment"]["var3"] == "6"

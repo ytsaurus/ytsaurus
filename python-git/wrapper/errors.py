@@ -1,7 +1,7 @@
 """YT usage errors"""
 
 import yt.common
-from yt.common import YtError, PrettyPrintableDict
+from yt.common import YtError, PrettyPrintableDict, get_value
 import yt.json as json
 
 from copy import deepcopy
@@ -54,6 +54,8 @@ class YtResponseError(yt.common.YtResponseError):
             self.__class__ = YtMasterCommunicationError
         if self.is_chunk_unavailable():
             self.__class__ = YtChunkUnavailable
+        if self.is_concurrent_transaction_lock_conflict():
+            self.__class__ = YtConcurrentTransactionLockConflict
 
 class YtHttpResponseError(YtResponseError):
     """Reponse error recieved from http proxy with additional http request information."""
@@ -68,8 +70,8 @@ class YtHttpResponseError(YtResponseError):
         self.message = "Received HTTP response with error"
         self.attributes.update({
             "url": url,
-            "headers": PrettyPrintableDict(self.headers),
-            "params": PrettyPrintableDict(self.params),
+            "headers": PrettyPrintableDict(get_value(self.headers, {})),
+            "params": PrettyPrintableDict(get_value(self.params, {})),
             "transparent": True})
 
     def __reduce__(self):
@@ -110,9 +112,13 @@ class YtMasterCommunicationError(YtHttpResponseError):
 
 class YtChunkUnavailable(YtHttpResponseError):
     """Chunk unavalable error
-       It is use in read retries"""
+       It is used in read retries"""
     pass
 
+class YtConcurrentTransactionLockConflict(YtHttpResponseError):
+    """Concurrent transaction lock conflict error
+       It is used in upload_file_to_cache retries."""
+    pass
 
 class YtProxyUnavailable(YtError):
     """Proxy is under heavy load."""

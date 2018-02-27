@@ -144,6 +144,8 @@ default_config = {
 
     # This option allows to disable token.
     "enable_token": True,
+    # This option enables checking that token is specified.
+    "check_token": False,
     # This option allows to cache token value in client state.
     "cache_token": True,
     # If token specified than token_path ignored,
@@ -255,7 +257,11 @@ default_config = {
         # Enable using function name as operation title.
         "use_function_name_as_title": True,
         # Enable modules filtering if client and server OS/python versions are different.
-        "enable_modules_compatibility_filter": False
+        "enable_modules_compatibility_filter": False,
+        # Compression level of archive with modules (from 1 to 9)
+        "modules_archive_compression_level": 6,
+        # Compression codec for archive with modules
+        "modules_archive_compression_codec": "gzip"
     },
 
     # Enables special behavior if client works with local mode cluster.
@@ -318,6 +324,8 @@ default_config = {
     "remote_temp_files_directory": "//tmp/yt_wrapper/file_storage",
     "remote_temp_tables_directory": "//tmp/yt_wrapper/table_storage",
 
+    "use_legacy_file_cache": None,
+
     # Expiration timeout for temporary objects (in milliseconds).
     "temp_expiration_timeout": 7 * 24 * 60 * 60 * 1000,
 
@@ -356,6 +364,18 @@ default_config = {
         "data_size_per_thread": 8 * 1024 * 1024,
         # Always run read parallel if it is possible.
         "enable": False
+    },
+    "write_parallel": {
+        # Number of threads.
+        "max_thread_count": 10,
+        # Always run parallel writing if it is possible.
+        "enable": False,
+        # This option allows to write table in unordered mode.
+        "unordered": False,
+        # The restriction on the number of chunks which will be passed to concatenate command.
+        "concatenate_size": 100,
+        # This option allows to save intermediate data in remote_temp_files_directory / remote_temp_tables_directory.
+        "use_tmp_dir_for_intermediate_data": True
     },
 
     # Size of block to read from response stream.
@@ -492,7 +512,11 @@ default_config = {
     },
 
     "max_batch_size": 100,
-    "batch_requests_retries": retries_config(count=6, enable=True, backoff={"policy": "rounded_up_to_request_timeout"})
+    "batch_requests_retries": retries_config(count=6, enable=True, backoff={"policy": "rounded_up_to_request_timeout"}),
+
+    "enable_operations_api": False,
+
+    "skynet_manager_url": "http://skynet-manager.yt.yandex.net/api/v1",
 }
 
 # pydoc :: default_config :: end

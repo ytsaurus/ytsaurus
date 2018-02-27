@@ -184,7 +184,7 @@ class TestJobTool(object):
 
         shutil.rmtree(job_path)
 
-    def test_job_tool(self, yt_env_job_archive):
+    def test_job_tool(self, yt_env_job_archive, job_events):
         table = TEST_DIR + "/table"
         yt.write_table(table, [{"key": "1", "value": "2"}])
         yt.run_sort(table, sort_by=["key"])
@@ -213,8 +213,9 @@ class TestJobTool(object):
         self._check(op.id, yt_env_job_archive)
 
         # Should fallback on using input context
-        op = yt.run_map(self.get_ok_command() + "; sleep 1000", table, TEST_DIR + "/output", format=self.TEXT_YSON,
+        op = yt.run_map(self.get_ok_command() + ";" + job_events.breakpoint_cmd(), table, TEST_DIR + "/output", format=self.TEXT_YSON,
                         yt_files=[file_], sync=False)
+        job_events.wait_breakpoint()
         self._check(op.id, yt_env_job_archive, check_running=True)
         op.abort()
 

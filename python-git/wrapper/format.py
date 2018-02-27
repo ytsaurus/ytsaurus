@@ -11,7 +11,6 @@ from .yamr_record import Record, SimpleRecord, SubkeyedRecord
 from . import yson
 
 from yt.common import to_native_str
-import yt.logger as logger
 import yt.json as json
 
 from yt.packages.six import (iteritems, Iterator, add_metaclass, PY3, binary_type, text_type,
@@ -21,7 +20,6 @@ from yt.packages.six.moves import xrange, map as imap, zip as izip, filter as if
 import os
 from abc import ABCMeta, abstractmethod
 from codecs import getwriter
-from types import MethodType
 import copy
 import struct
 try:
@@ -58,6 +56,73 @@ class YtFormatError(YtError):
 class YtFormatReadError(YtFormatError):
     """Problem with parsing that can be caused by network problems."""
     pass
+
+# This class should not be put inside class method to avoid reference loop.
+class RowsIterator(Iterator):
+    def __init__(self, rows, extract_control_attributes, table_index_attribute_name, row_index_attribute_name, range_index_attribute_name):
+        self.rows = iter(rows)
+        self.extract_control_attributes = extract_control_attributes
+        self.table_index_attribute_name = table_index_attribute_name
+        self.row_index_attribute_name = row_index_attribute_name
+        self.range_index_attribute_name = range_index_attribute_name
+        self.table_index = None
+        self.row_index = None
+        self.range_index = None
+        self._increment_row_index = False
+
+    def __next__(self):
+        for row in self.rows:
+            attributes = self.extract_control_attributes(row)
+            if attributes is not None:
+                self._increment_row_index = False
+                if self.table_index_attribute_name in attributes:
+                    self.table_index = attributes[self.table_index_attribute_name]
+                if self.row_index_attribute_name in attributes:
+                    self.row_index = attributes[self.row_index_attribute_name]
+                if self.range_index_attribute_name in attributes:
+                    self.range_index = attributes[self.range_index_attribute_name]
+                continue
+            else:
+                if self._increment_row_index and self.row_index is not None:
+                    self.row_index += 1
+                self._increment_row_index = True
+                return row
+
+        raise StopIteration()
+
+    def __iter__(self):
+        return self
+
+# This function should not be put inside class method to avoid reference loop.
+def rows_generator(rows, extract_control_attributes,
+                   table_index_attribute_name, row_index_attribute_name, range_index_attribute_name,
+                   table_index_column_name, row_index_column_name, range_index_column_name):
+    table_index = None
+    row_index = None
+    range_index = None
+    for row in rows:
+        attributes = extract_control_attributes(row)
+        if attributes is not None:
+            if table_index_attribute_name in attributes:
+                table_index = attributes[table_index_attribute_name]
+            if row_index_attribute_name in attributes:
+                row_index = attributes[row_index_attribute_name]
+            if range_index_attribute_name in attributes:
+                range_index = attributes[range_index_attribute_name]
+            continue
+
+        if table_index_column_name is not None:
+            row[table_index_column_name] = table_index
+        if row_index is not None:
+            row[row_index_column_name] = row_index
+        if range_index is not None:
+            row[range_index_column_name] = range_index
+
+        yield row
+
+        if row_index is not None:
+            row_index += 1
+
 
 @add_metaclass(ABCMeta)
 class Format(object):
@@ -244,72 +309,20 @@ class Format(object):
         table_index_column_name, range_index_column_name, row_index_column_name = \
             list(imap(transform_column_name, [table_index_column_name, "@range_index", "@row_index"]))
 
-        def generator():
-            table_index = None
-            row_index = None
-            range_index = None
-            for row in rows:
-                attributes = extract_control_attributes(row)
-                if attributes is not None:
-                    if table_index_attribute_name in attributes:
-                        table_index = attributes[table_index_attribute_name]
-                    if row_index_attribute_name in attributes:
-                        row_index = attributes[row_index_attribute_name]
-                    if range_index_attribute_name in attributes:
-                        range_index = attributes[range_index_attribute_name]
-                    continue
-
-                if table_index_column_name is not None:
-                    row[table_index_column_name] = table_index
-                if range_index is not None:
-                    row[range_index_column_name] = range_index
-                if row_index is not None:
-                    row[row_index_column_name] = row_index
-
-                yield row
-
-                if row_index is not None:
-                    row_index += 1
-
-        class RowsIterator(Iterator):
-            def __init__(self):
-                self.table_index = None
-                self.row_index = None
-                self.range_index = None
-                self._increment_row_index = False
-
-            def __next__(self):
-                for row in rows:
-                    attributes = extract_control_attributes(row)
-                    if attributes is not None:
-                        self._increment_row_index = False
-                        if table_index_attribute_name in attributes:
-                            self.table_index = attributes[table_index_attribute_name]
-                        if row_index_attribute_name in attributes:
-                            self.row_index = attributes[row_index_attribute_name]
-                        if range_index_attribute_name in attributes:
-                            self.range_index = attributes[range_index_attribute_name]
-                        continue
-                    else:
-                        if self._increment_row_index and self.row_index is not None:
-                            self.row_index += 1
-                        self._increment_row_index = True
-                        return row
-
-                raise StopIteration()
-
-            def __iter__(self):
-                return self
-
         if process_table_index is None:
             if control_attributes_mode == "row_fields":
-                return generator()
+                return rows_generator(rows, extract_control_attributes,
+                                      table_index_attribute_name, row_index_attribute_name, range_index_attribute_name,
+                                      table_index_column_name, row_index_column_name, range_index_column_name)
             elif control_attributes_mode == "iterator":
-                return RowsIterator()
+                return RowsIterator(rows, extract_control_attributes,
+                                    table_index_attribute_name, row_index_attribute_name, range_index_attribute_name)
             else:
                 return rows
         elif process_table_index:
-            return generator()
+            return rows_generator(rows, extract_control_attributes,
+                                  table_index_attribute_name, row_index_attribute_name, range_index_attribute_name,
+                                  table_index_column_name, row_index_column_name, range_index_column_name)
         else:
             return rows
 
@@ -465,7 +478,7 @@ class YsonFormat(Format):
     def __init__(self, format=None, process_table_index=None, control_attributes_mode=None,
                  ignore_inner_attributes=None, boolean_as_string=None, table_index_column="@table_index",
                  attributes=None, raw=None, always_create_attributes=None, encoding=_ENCODING_SENTINEL,
-                 require_yson_bindings=None):
+                 require_yson_bindings=None, lazy=None):
         """
         :param str format: output format (must be one of ["text", "pretty", "binary"], "text" be default).
         :param bool process_table_index: DEPRECATED! process input and output table switchers in `dump_rows`\
@@ -479,11 +492,13 @@ class YsonFormat(Format):
         defaults = {"boolean_as_string": False,
                     "ignore_inner_attributes": False,
                     "always_create_attributes": False,
-                    "format": "binary"}
+                    "format": "binary",
+                    "lazy": False}
         options = {"boolean_as_string": boolean_as_string,
                    "ignore_inner_attributes": ignore_inner_attributes,
                    "always_create_attributes": always_create_attributes,
-                   "format": format}
+                   "format": format,
+                   "lazy": lazy}
 
         all_attributes = Format._make_attributes(get_value(attributes, {}), defaults, options)
         super(YsonFormat, self).__init__("yson", all_attributes, raw, encoding)
@@ -502,6 +517,8 @@ class YsonFormat(Format):
         self.table_index_column = table_index_column
 
         self.require_yson_bindings = get_value(require_yson_bindings, self.attributes.get("require_yson_bindings", True))
+        if lazy:
+            self.require_yson_bindings = True
         if "require_yson_bindings" in self.attributes:
             del self.attributes["require_yson_bindings"]
 
@@ -524,11 +541,16 @@ class YsonFormat(Format):
                 return row.attributes
 
         self._check_bindings()
+        kwargs = {}
+        if self.attributes["lazy"]:
+            kwargs["lazy"] = True
+
         rows = yson.load(stream,
                          yson_type="list_fragment",
                          always_create_attributes=self.attributes["always_create_attributes"],
                          raw=raw,
-                         encoding=self._encoding)
+                         encoding=self._encoding,
+                         **kwargs)
         if raw:
             return rows
         else:
@@ -657,7 +679,7 @@ class YamrFormat(Format):
                 continue
             setattr(result, attr_name, copy.deepcopy(attr_value, memo=memodict))
 
-        if result.lenval:
+        if self._load_row == self._read_lenval_values:
             result._load_row = result._read_lenval_values
         else:
             result._load_row = result._read_delimited_values
@@ -1119,7 +1141,8 @@ def create_format(yson_name, attributes=None, **kwargs):
     :param attributes: Deprecated! Don't use it! It will be removed!
     """
 
-    declare_deprecated('option "attributes"', attributes is not None)
+    declare_deprecated('option "attributes"', "attributes in format name (format name is an arbitrary yson string)",
+                       attributes is not None)
     attributes = get_value(attributes, {})
 
     yson_string = yson._loads_from_native_str(yson_name)

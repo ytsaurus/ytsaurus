@@ -6,7 +6,7 @@ from yt.yson.tokenizer import YsonTokenizer
 from yt.yson.parser import YsonParser
 from yt.yson.common import StreamWrap
 from yt.yson import YsonEntity
-from yt.common import flatten, update
+from yt.common import flatten, update_inplace
 
 from yt.packages.six import BytesIO, PY3
 
@@ -52,16 +52,14 @@ class RichYPath(object):
         parser = YsonParser(stream, encoding, True)
 
         if not parser._has_attributes():
-            return path.decode() if PY3 else path
+            return path
 
         parsed_attributes = parser._parse_attributes()
-        update(attributes, parsed_attributes)
+        update_inplace(attributes, parsed_attributes)
 
         str_without_attributes = stream.read()
         path_start = 0
-        if PY3:
-            str_without_attributes = str_without_attributes.decode()
-        while path_start != len(str_without_attributes) and str(str_without_attributes[path_start]).isspace():
+        while path_start != len(str_without_attributes) and str_without_attributes[path_start:path_start + 1].isspace():
             path_start += 1
         return str_without_attributes[path_start:]
 
@@ -176,7 +174,7 @@ class RichYPath(object):
             raise YPathError("Path should be non-empty")
 
         if PY3:
-            range_str = range_str.encode()
+            path = path.decode()
 
         if ypath_tokenizer.get_type() == TOKEN_RANGE:
             encoding = "utf-8" if PY3 else None

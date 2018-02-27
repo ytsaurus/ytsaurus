@@ -51,6 +51,7 @@ b"""
     timestamp_provider = {
         soft_backoff_time = 100;
         hard_backoff_time = 100;
+        update_period = 500;
     };
 
     changelogs = {
@@ -77,6 +78,8 @@ b"""
     };
 
     security_manager = {
+        user_statistics_gossip_period = 150;
+        account_statistics_gossip_period = 150;
         user_statistics_flush_period = 50;
         request_rate_smoothing_period = 60000;
     };
@@ -97,9 +100,19 @@ b"""
     };
 
     tablet_manager = {
+        cell_scan_period = 100;
+
         tablet_balancer = {
             enable_tablet_balancer = %false;
         };
+    };
+
+    multicell_manager = {
+        cell_statistics_gossip_period = 80;
+    };
+
+    cell_directory_synchronizer = {
+        sync_period = 500;
     };
 }
 """)
@@ -111,19 +124,9 @@ b"""
 {
     cluster_connection = {
         enable_read_from_followers = %true;
-
-        timestamp_provider = {
-            soft_backoff_time = 100;
-            hard_backoff_time = 100;
-        };
-
-        cell_directory_synchronizer = {
-            sync_period = 500;
-        };
-
-        cluster_directory_synchronizer = {
-            sync_period = 500;
-        };
+        scheduler = {
+            retry_backoff_time = 100;
+        }
     };
 
     node_directory_synchronizer = {
@@ -137,9 +140,8 @@ b"""
     };
 
     scheduler = {
-        strategy = fair_share;
         snapshot_period = 100000000;
-        lock_transaction_timeout = 5000;
+        lock_transaction_timeout = 10000;
         transactions_refresh_period = 500;
         operations_update_period = 500;
         fair_share_update_period = 500;
@@ -148,13 +150,15 @@ b"""
         update_exec_node_descriptors_period = 100;
         scheduling_tag_filter_expire_timeout = 100;
         node_shard_exec_nodes_cache_update_period = 100;
-        chunk_list_release_batch_delay = 100;
-        preemptive_scheduling_backoff = 0;
-        connect_grace_delay = 0;
-        forbid_immediate_operations_in_root = %false;
+        controller_update_exec_nodes_information_delay = 100;
+        safe_scheduler_online_time = 5000;
+
         environment = {
              PYTHONUSERBASE = "/tmp"
         };
+
+        static_orchid_cache_update_period = 100;
+        orchid_keys_update_period = 100;
 
         operation_options = {
             spec_template = {
@@ -165,18 +169,12 @@ b"""
 
         enable_snapshot_loading = %true;
 
-        enable_snapshot_cycle_after_materialization = %true;
         testing_options = {
             enable_snapshot_cycle_after_materialization = %true;
         };
 
         snapshot_timeout = 1000;
 
-        cluster_directory_synchronizer = {
-            sync_period = 500;
-        };
-
-        max_unpreemptable_running_job_count = 0;
         min_needed_resources_update_period = 100;
     };
 }
@@ -189,23 +187,12 @@ b"""
 {
     orchid_cache_update_period = 0;
 
-    cluster_directory_synchronizer = {
-        sync_period = 500;
+    node_directory_synchronizer = {
+        sync_period = 100;
     };
 
     cluster_connection = {
         enable_read_from_followers = %true;
-
-        master_cache = {
-            soft_backoff_time = 100;
-            hard_backoff_time = 100;
-            rpc_timeout = 5000;
-        };
-
-        timestamp_provider = {
-            soft_backoff_time = 100;
-            hard_backoff_time = 100;
-        };
 
         transaction_manager = {
             default_transaction_timeout = 3000;
@@ -215,18 +202,13 @@ b"""
             retry_backoff_time = 100;
         };
 
-        cell_directory_synchronizer = {
-            sync_period = 500;
-        };
-
-        cluster_directory_synchronizer = {
-            sync_period = 500;
-        };
-
         enable_udf = %true;
     };
 
     data_node = {
+        read_thread_count =  2;
+        write_thread_count = 2;
+
         multiplexed_changelog = {
             flush_period = 10;
         };
@@ -252,8 +234,14 @@ b"""
 
     exec_agent = {
         slot_manager = {
+            job_environment = {
+                type = simple;
+            };
+
             slot_initialization_failure_is_fatal = %true;
         };
+
+        node_directory_prepare_backoff_time = 100;
 
         scheduler_connector = {
             failed_heartbeat_backoff_time = 50;
@@ -287,12 +275,20 @@ b"""
         };
 
         job_controller = {
-            stored_jobs_send_period = 5000;
+            total_confirmation_period = 5000;
         }
     };
 
     tablet_node = {
         slot_scan_period = 100;
+
+        tablet_manager = {
+            preload_backoff_time = 100;
+            compaction_backoff_time = 100;
+            flush_backoff_time = 100;
+            replicator_soft_backoff_time = 100;
+            replicator_hard_backoff_time = 100;
+        };
 
         hive_manager = {
             ping_period = 1000;
@@ -339,17 +335,6 @@ b"""
 {
     enable_read_from_followers = %true;
 
-    timestamp_provider = {
-        soft_backoff_time = 100;
-        hard_backoff_time = 100;
-    };
-
-    table_mount_cache = {
-        success_expiration_time = 1000;
-        success_probation_time = 500;
-        failure_expiration_time = 1000;
-    };
-
     format_defaults = {
         structured = <
             format = text;
@@ -368,7 +353,6 @@ def get_proxy_config():
 """
 {
     "port" : -1,
-    "log_port" : -1,
     "address" : "::",
     "number_of_workers" : 1,
     "memory_limit" : 33554432,

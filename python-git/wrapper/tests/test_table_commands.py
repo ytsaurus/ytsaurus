@@ -1,6 +1,6 @@
 from __future__ import with_statement
 
-from .helpers import TEST_DIR, check, set_config_option, get_tests_sandbox
+from .helpers import TEST_DIR, check, set_config_option, get_tests_sandbox, set_config_options
 
 import yt.wrapper.py_wrapper as py_wrapper
 from yt.wrapper.driver import get_command_list
@@ -9,6 +9,7 @@ from yt.wrapper.table import TablePath, TempTable
 from yt.wrapper.common import parse_bool
 
 from yt.local import start, stop
+from yt.yson import YsonMap
 
 import yt.zip as zip
 
@@ -146,6 +147,12 @@ class TestTableCommands(object):
         with set_config_option("read_parallel/enable", True):
             self._test_read_write()
 
+    def test_parallel_write(self):
+        with set_config_option("write_parallel/enable", True):
+            with set_config_option("write_retries/chunk_size", 1):
+                with set_config_option("write_parallel/concatenate_size", 3):
+                    self._test_read_write()
+
     def test_empty_table(self):
         dir = TEST_DIR + "/dir"
         table = dir + "/table"
@@ -191,6 +198,21 @@ class TestTableCommands(object):
             for i in xrange(3):
                 yt.write_table("<append=%true>" + table, [{"x": 1}, {"y": 2}, {"z": 3}])
             assert yt.get(table + "/@chunk_count") == 9
+
+    @pytest.mark.parametrize("use_tmp_dir_for_intermediate_data", [True, False])
+    def test_write_parallel_huge_table(self, use_tmp_dir_for_intermediate_data):
+        override_options = {
+            "write_parallel/concatenate_size": 7,
+            "write_parallel/enable": True,
+            "write_parallel/use_tmp_dir_for_intermediate_data": use_tmp_dir_for_intermediate_data,
+            "write_retries/chunk_size": 1
+        }
+        with set_config_options(override_options):
+            table = TEST_DIR + "/table"
+            for i in xrange(3):
+                yt.write_table("<append=%true>" + table, [{"x": i, "y": j} for j in xrange(100)])
+            assert yt.get(table + "/@chunk_count") == 300
+            assert list(yt.read_table(table)) == [{"x": i, "y": j} for i in xrange(3) for j in xrange(100)]
 
     def test_binary_data_with_dsv(self):
         with set_config_option("tabular_data_format", yt.DsvFormat()):
@@ -321,6 +343,28 @@ class TestTableCommands(object):
             assert list(vanilla_client.select_rows("* from [{0}]".format(table), raw=False)) == [{"x": "a", "y": "a"}]
             assert list(vanilla_client.lookup_rows(table, [{"x": "a"}], raw=False)) == [{"x": "a", "y": "a"}]
 
+    def test_read_from_dynamic_table(self):
+        with set_config_option("tabular_data_format", None):
+            # Name must differ with name of table in select test because of metadata caches
+            table = TEST_DIR + "/table4"
+            yt.create("table", table, attributes={
+                "dynamic": True,
+                "schema": [
+                    {"name": "x", "type": "string", "sort_order": "ascending"},
+                    {"name": "y", "type": "string"}
+                ]})
+
+            tablet_id = yt.create("tablet_cell", attributes={"size": 1})
+            while yt.get("//sys/tablet_cells/{0}/@health".format(tablet_id)) != "good":
+                time.sleep(0.1)
+
+            yt.mount_table(table, sync=True)
+            yt.insert_rows(table, [{"x": "a", "y": "b"}], raw=False)
+            yt.unmount_table(table, sync=True)
+
+            assert list(yt.read_table(table)) == [{"x": "a", "y": "b"}]
+            with set_config_option("read_parallel/enable", True):
+                assert list(yt.read_table(table)) == [{"x": "a", "y": "b"}]
 
     def test_start_row_index(self):
         table = TEST_DIR + "/table"
@@ -853,3 +897,13 @@ class TestTableCommands(object):
         finally:
             if instance is not None:
                 stop(instance.id, path=dir)
+
+    def test_lazy_read(self):
+        table = TEST_DIR + "/test_lazy_read_table"
+        yt.write_table(table, [{"x": "abacaba", "y": 1}, {"z": 2}])
+        stream = yt.read_table(table, format="<lazy=%true>yson")
+        result = list(stream)
+
+        assert not isinstance(result[0], (YsonMap, dict))
+        assert result[0]["x"] == "abacaba"
+        assert result[1]["z"] == 2

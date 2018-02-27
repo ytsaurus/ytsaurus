@@ -3,6 +3,9 @@ from .common import YsonError
 from yt.common import flatten
 
 from yt.packages.six.moves import map as imap
+from yt.packages.six import PY3
+
+import string
 
 TOKEN_LITERAL = 0
 TOKEN_SLASH = 1
@@ -32,7 +35,7 @@ TOKEN_DOUBLE = 24
 TOKEN_BOOLEAN = 25
 TOKEN_SPECIAL = 26
 
-def char_to_token_type(char):
+def char_to_token_type(char_or_byte):
     tokens = {
         ";": TOKEN_SEMICOLON,
         "=": TOKEN_EQUALS,
@@ -52,9 +55,11 @@ def char_to_token_type(char):
         "&": TOKEN_AMPERSAND,
         "*": TOKEN_ASTERISK
     }
-    if char not in tokens:
+    if PY3:
+        char_or_byte = chr(char_or_byte)
+    if char_or_byte not in tokens:
         return TOKEN_END_OF_STREAM
-    return tokens[char]
+    return tokens[char_or_byte]
 
 def token_type_to_string(token):
     names = {
@@ -90,6 +95,20 @@ def token_type_to_string(token):
         return "Unknown"
     return names[token]
 
+def decode_token_value(value):
+    if not PY3 or not isinstance(value, bytes):
+        return value
+
+    chars = []
+    for byte in value:
+        char = chr(byte)
+        if char in string.printable:  # whitespaces cannot present in token
+            chars.append(char)
+        else:
+            chars.append("\\x" + hex(byte)[2:])
+
+    return "".join(chars)
+
 class YsonToken(object):
     def __init__(self, value="", type=TOKEN_END_OF_STREAM):
         self._value = value
@@ -111,14 +130,14 @@ class YsonToken(object):
         token_type = self.get_type()
         expected_types = flatten(type_or_types)
         if token_type is None:
-            raise YsonError("Unexpected '{0}' while parsing node".format(self.get_value()))
+            raise YsonError('Unexpected "{0}" while parsing node'.format(decode_token_value(self.get_value())))
 
         if token_type not in expected_types:
             if token_type == TOKEN_END_OF_STREAM:
                 raise YsonError("Unexpected end of stream; expected types are {0}".format(expected_types))
             else:
                 raise YsonError('Unexpected token "{0}" of type {1}; '
-                                'expected types are {2}'.format(self._value,
+                                'expected types are {2}'.format(decode_token_value(self.get_value()),
                                                                 token_type_to_string(token_type),
                                                                 list(imap(token_type_to_string, expected_types))))
 

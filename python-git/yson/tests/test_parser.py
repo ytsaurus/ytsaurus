@@ -11,6 +11,7 @@ from yt.packages.six import PY3
 from yt.packages.six.moves import xrange
 
 import copy
+import math
 import pytest
 
 try:
@@ -45,64 +46,78 @@ class YsonParserTestBase(object):
         self.assert_parse(b'"abc\\"\\n"', 'abc"\n')
 
     def test_unquoted_string(self):
-        self.assert_parse(b'abc10', 'abc10')
+        self.assert_parse(b"abc10", "abc10")
 
     def test_binary_string(self):
-        self.assert_parse(b'\x01\x06abc', 'abc')
+        self.assert_parse(b"\x01\x06abc", "abc")
 
     def test_int(self):
-        self.assert_parse(b'64', 64)
+        self.assert_parse(b"64", 64)
 
     def test_uint(self):
-        self.assert_parse(b'64u', 64)
+        self.assert_parse(b"64u", 64)
 
     def test_binary_int(self):
-        self.assert_parse(b'\x02\x81\x40', -(2 ** 12) - 1)
+        self.assert_parse(b"\x02\x81\x40", -(2 ** 12) - 1)
 
     def test_double(self):
-        self.assert_parse(b'1.5', 1.5)
+        self.assert_parse(b"1.5", 1.5)
+
+    def test_nan_and_inf(self):
+        assert math.isnan(self.loads(b"%nan"))
+        assert math.isnan(self.load(BytesIO(b"%nan")))
+        inf = float("inf")
+        self.assert_parse(b"%inf", inf)
+        self.assert_parse(b"%+inf", inf)
+        self.assert_parse(b"%-inf", -inf)
+        with pytest.raises(YsonError):
+            self.loads(b"%infi")
+        with pytest.raises(YsonError):
+            self.loads(b"%-nan")
+        with pytest.raises(YsonError):
+            self.loads(b"%nand")
 
     def test_exp_double(self):
-        self.assert_parse(b'1.73e23', 1.73e23)
+        self.assert_parse(b"1.73e23", 1.73e23)
 
     def test_binary_double(self):
-        self.assert_parse(b'\x03\x00\x00\x00\x00\x00\x00\xF8\x3F', 1.5)
+        self.assert_parse(b"\x03\x00\x00\x00\x00\x00\x00\xF8\x3F", 1.5)
 
     def test_boolean(self):
-        self.assert_parse(b'%false', False)
-        self.assert_parse(b'%true', True)
-        self.assert_parse(b'\x04', False)
-        self.assert_parse(b'\x05', True)
+        self.assert_parse(b"%false", False)
+        self.assert_parse(b"%true", True)
+        self.assert_parse(b"\x04", False)
+        self.assert_parse(b"\x05", True)
 
     def test_empty_list(self):
-        self.assert_parse(b'[ ]', [])
+        self.assert_parse(b"[ ]", [])
 
     def test_one_element_list(self):
-        self.assert_parse(b'[a]', ['a'])
+        self.assert_parse(b"[a]", ["a"])
 
     def test_list(self):
-        self.assert_parse(b'[1; 2]', [1, 2])
+        self.assert_parse(b"[1; 2]", [1, 2])
 
     def test_empty_map(self):
-        self.assert_parse(b'{ }', {})
+        self.assert_parse(b"{ }", {})
 
     def test_one_element_map(self):
-        self.assert_parse(b'{a=1}', {'a': 1})
+        self.assert_parse(b"{a=1}", {"a": 1})
 
     def test_map(self):
         self.assert_parse(
-            b'<attr1 = e; attr2 = f> {a = b; c = d}',
-            {'a': 'b', 'c': 'd'},
-            {'attr1': 'e', 'attr2': 'f'}
+            b"<attr1 = e; attr2 = f> {a = b; c = d}",
+            {"a": "b", "c": "d"},
+            {"attr1": "e", "attr2": "f"}
         )
 
     def test_entity(self):
-        self.assert_parse(b'#', None)
-        self.assert_parse(b'#', YsonEntity())
+        self.assert_parse(b"#", None)
+        self.assert_parse(b"#", YsonEntity())
 
     def test_nested(self):
         self.assert_parse(
-            b'''
+            b"""
             {
                 path = "/home/sandello";
                 mode = 755;
@@ -111,11 +126,11 @@ class YsonParserTestBase(object):
                         "*.py"
                        ]
             }
-            ''',
+            """,
             {
-                'path': '/home/sandello',
-                'mode': 755,
-                'read': ['*.sh', '*.py']
+                "path": "/home/sandello",
+                "mode": 755,
+                "read": ["*.sh", "*.py"]
             }
         )
 
@@ -236,13 +251,15 @@ if yt_yson_bindings:
             rows = list(self.loads(b'123;#;{a={b=[";"]}};<attr=10>0.1;', raw=True, yson_type="list_fragment"))
             assert [b"123;", b"#;", b'{a={b=[";"]}};', b"<attr=10>0.1;"] == rows
 
-            rows = list(self.loads(b"123;#", raw=True, yson_type="list_fragment"))
+            rows = list(self.loads(b"123;#;", raw=True, yson_type="list_fragment"))
             assert [b"123;", b"#;"] == rows
 
             with pytest.raises(Exception):
                 self.loads(b"{a=b")
             with pytest.raises(Exception):
                 self.loads(b"{a=b}{c=d}")
+            with pytest.raises(Exception):
+                self.loads(b"{a=b};{c=d}")
 
         def test_context(self):
             def check_context(error, context, context_pos):
@@ -349,7 +366,7 @@ if yt_yson_bindings:
             assert not result
 
         def test_list_fragment(self):
-            result = list(yt_yson_bindings.loads(b"{a=0};{a=1};{a=2}", lazy=True, yson_type="list_fragment"))
+            result = list(yt_yson_bindings.loads(b"{a=0};{a=1};{a=2};", lazy=True, yson_type="list_fragment"))
             assert len(result) == 3
 
             for i in xrange(3):
@@ -357,7 +374,7 @@ if yt_yson_bindings:
                 assert len(result[i]) == 1
                 assert not result[i].attributes
 
-            result = list(yt_yson_bindings.loads(b"{a=[];b=1};<testattr=abacaba>{a=2;b=3}",
+            result = list(yt_yson_bindings.loads(b"{a=[];b=1};<testattr=abacaba>{a=2;b=3};",
                                                  lazy=True, yson_type="list_fragment"))
             assert len(result) == 2
 

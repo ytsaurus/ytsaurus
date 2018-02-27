@@ -19,7 +19,6 @@ import sys
 import time
 import types
 import socket
-from copy import deepcopy
 from datetime import datetime
 from socket import error as SocketError
 from abc import ABCMeta, abstractmethod
@@ -81,9 +80,9 @@ def configure_ip(session, force_ipv4=False, force_ipv6=False):
                                                                  **kwargs)
         session.mount("http://", HTTPAdapter())
 
-def parse_error_from_headers(headers):
+def get_error_from_headers(headers):
     if int(headers.get("x-yt-response-code", 0)) != 0:
-        return json.loads(headers["x-yt-error"])
+        return headers["x-yt-error"]
     return None
 
 def get_header_format(client):
@@ -102,7 +101,10 @@ def check_response_is_decodable(response, format):
             raise YtIncorrectResponse("Response body can not be decoded from YSON", response)
 
 
-def create_response(response, request_info, client):
+def create_response(response, request_info, error_format, client):
+    if error_format is None:
+        error_format = "json"
+
     def loads(str):
         header_format = get_header_format(client)
         if header_format == "json":
@@ -116,11 +118,18 @@ def create_response(response, request_info, client):
         raise YtError("Incorrect header format: {0}".format(header_format))
 
     def get_error():
-        if not str(response.status_code).startswith("2"):
-            check_response_is_decodable(response, format="json")
-            return response.json()
-        else:
-            return parse_error_from_headers(response.headers)
+        error_content = get_error_from_headers(response.headers)
+        if error_content is None and not str(response.status_code).startswith("2"):
+            check_response_is_decodable(response, error_format)
+            error_content = response.content
+        if error_content is not None:
+            if error_format == "json":
+                error_content = json.loads(error_content)
+            elif error_format == "yson":
+                error_content = yson.loads(error_content)
+            else:
+                raise YtError("Incorrect error format: {0}".format(error_format))
+        return error_content
 
     def error(self):
         return self._error
@@ -162,13 +171,14 @@ def _raise_for_status(response, request_info):
 
 
 class RequestRetrier(Retrier):
-    def __init__(self, method, url=None, make_retries=True, response_format=None,
+    def __init__(self, method, url=None, make_retries=True, response_format=None, error_format=None,
                  params=None, timeout=None, retry_action=None, log_body=True, is_ping=False,
                  proxy_provider=None, client=None, **kwargs):
         self.method = method
         self.url = url
         self.make_retries = make_retries
         self.response_format = response_format
+        self.error_format = error_format
         self.params = params
         self.retry_action = retry_action
         self.log_body = log_body
@@ -186,7 +196,7 @@ class RequestRetrier(Retrier):
             "count": get_config(client)["proxy"]["request_retry_count"],
             "backoff": get_config(client)["retry_backoff"],
         }
-        retry_config = update(deepcopy(get_config(client)["proxy"]["retries"]), remove_nones_from_dict(retry_config))
+        retry_config = update(get_config(client)["proxy"]["retries"], remove_nones_from_dict(retry_config))
         if timeout is None:
             timeout = get_value(get_config(client)["proxy"]["request_retry_timeout"],
                                 get_config(client)["proxy"]["request_timeout"])
@@ -229,7 +239,7 @@ class RequestRetrier(Retrier):
             else:
                 timeout = self.requests_timeout / 1000.0
             response = create_response(session.request(self.method, url, timeout=timeout, **self.kwargs),
-                                       request_info, self.client)
+                                       request_info, self.error_format, self.client)
 
         except requests.ConnectionError as error:
             # Module requests patched to process response from YT proxy
@@ -240,7 +250,7 @@ class RequestRetrier(Retrier):
                 try:
                     # We should perform it under try..except due to response may be incomplete.
                     # See YT-4053.
-                    rsp = create_response(error.response, request_info, self.client)
+                    rsp = create_response(error.response, request_info, self.error_format, self.client)
                 except:
                     reraise(*exc_info)
                 _raise_for_status(rsp, request_info)
@@ -261,9 +271,8 @@ class RequestRetrier(Retrier):
         return response
 
     def except_action(self, error, attempt):
-        message = error.message if hasattr(error, "message") else str(error)
         logger.warning("HTTP %s request %s has failed with error %s, message: '%s', headers: %s",
-                       self.method, self.request_url, str(type(error)), message, str(hide_token(dict(self.headers))))
+                       self.method, self.request_url, str(type(error)), str(error), str(hide_token(dict(self.headers))))
         self.is_connection_timeout_error = isinstance(error, requests.exceptions.ConnectTimeout)
         if isinstance(error, YtError):
             logger.info("Full error message:\n%s", str(error))
@@ -305,7 +314,7 @@ def get_proxy_url(required=True, client=None):
 def _request_api(version=None, client=None):
     proxy = get_proxy_url(client=client)
     location = "api" if version is None else "api/" + version
-    return make_request_with_retries("get", "http://{0}/{1}".format(proxy, location), client=client).json()
+    return make_request_with_retries("get", "http://{0}/{1}".format(proxy, location), response_format="json", client=client).json()
 
 def get_api_version(client=None):
     api_version_option = get_option("_api_version", client)
@@ -369,44 +378,64 @@ def _get_token_by_ssh_session(client):
 
     return token
 
+def validate_token(token, client):
+    if token is not None:
+        require(all(33 <= ord(c) <= 126 for c in token),
+                lambda: YtTokenError("You have an improper authentication token"))
+
+    if token is None and get_config(client)["check_token"]:
+        raise YtTokenError("Token must be specified, to disable this check set 'check_token' option to False")
+
+def _get_token_from_config(client):
+    token = get_config(client)["token"]
+    if token is not None:
+        logger.debug("Token got from environment variable or config")
+        return token
+
+def _get_token_from_file(client):
+    token_path = get_config(client=client)["token_path"]
+    if token_path is None:
+        token_path = os.path.join(os.path.expanduser("~"), ".yt", "token")
+    if os.path.isfile(token_path):
+        with open(token_path, "r") as token_file:
+            token = token_file.read().strip()
+        logger.debug("Token got from file %s", token_path)
+        return token
+
 def get_token(token=None, client=None):
     """Extracts token from given `token` and `client` arguments. Also checks token for correctness."""
-    if token is None:
-        if not get_config(client)["enable_token"]:
-            return None
+    if token is not None:
+        validate_token(token, client)
+        return token
 
-        token = get_config(client)["token"]
-        if token is None:
-            token_path = get_config(client=client)["token_path"]
-            if token_path is None:
-                token_path = os.path.join(os.path.expanduser("~"), ".yt/token")
-            if os.path.isfile(token_path):
-                with open(token_path, "r") as token_file:
-                    token = token_file.read().strip()
-                logger.debug("Token got from file %s", token_path)
-        else:
-            logger.debug("Token got from environment variable or config")
+    if not get_config(client)["enable_token"]:
+        return None
+
+    # NB: config has higher priority than cache.
+    if not token:
+        token = _get_token_from_config(client)
+
+    if not token and get_option("_token_cached", client=client):
+        logger.debug("Token got from cache")
+        return get_option("_token", client=client)
 
     if not token:
-        if get_option("_token_cached", client=client):
-            return get_option("_token", client=client)
-
+        token = _get_token_from_file(client)
+    if not token:
         receive_token_by_ssh_session = get_config(client)["allow_receive_token_by_current_ssh_session"]
         if receive_token_by_ssh_session:
             token = _get_token_by_ssh_session(client)
-
-        if token is not None and get_config(client=client)["cache_token"]:
-            set_option("_token", token, client=client)
-            set_option("_token_cached", True, client=client)
 
     # Empty token considered as missing.
     if not token:
         token = None
 
-    # Validate token.
-    if token is not None:
-        require(all(33 <= ord(c) <= 126 for c in token),
-                lambda: YtTokenError("You have an improper authentication token"))
+    validate_token(token, client)
+
+    if token is not None and get_config(client=client)["cache_token"]:
+        set_option("_token", token, client=client)
+        set_option("_token_cached", True, client=client)
+
     return token
 
 def get_user_name(token=None, headers=None, client=None):

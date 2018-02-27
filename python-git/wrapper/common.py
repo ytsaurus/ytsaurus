@@ -1,4 +1,4 @@
-from yt.common import (require, flatten, update, which, YtError, update_from_env,
+from yt.common import (require, flatten, update, update_inplace, which, YtError, update_from_env,
                        unlist, get_value, filter_dict, date_string_to_timestamp, datetime_to_string)
 import yt.yson as yson
 
@@ -30,26 +30,38 @@ EMPTY_GENERATOR = (i for i in [])
 MB = 1024 * 1024
 GB = 1024 * MB
 
-DEFAULT_DEPRECATION_MESSAGE = "{0} is deprecated and will be removed in the next major release"
+
+class YtDeprecationWarning(DeprecationWarning):
+    """Custom warnings category, because built-in category is ignored by default."""
+
+warnings.simplefilter("default", category=YtDeprecationWarning)
+
+DEFAULT_DEPRECATION_MESSAGE = "{0} is deprecated and will be removed in the next major release, " \
+                              "use {1} instead"
 
 def compose(*args):
     def compose_two(f, g):
         return lambda x: f(g(x))
     return reduce(compose_two, args)
 
-def declare_deprecated(functional_name, condition=None, message=None):
+def declare_deprecated(functional_name, alternative_name, condition=None, message=None):
     if condition or condition is None:
-        message = get_value(message, DEFAULT_DEPRECATION_MESSAGE.format(functional_name))
-        warnings.warn(message, DeprecationWarning)
+        message = get_value(message, DEFAULT_DEPRECATION_MESSAGE.format(functional_name, alternative_name))
+        warnings.warn(message, YtDeprecationWarning)
 
-def deprecated(message=None):
+def deprecated_with_message(message):
     def function_decorator(func):
-        warn_message = get_value(message, DEFAULT_DEPRECATION_MESSAGE.format(func.__name__))
         @wraps(func)
         def deprecated_function(*args, **kwargs):
-            warnings.warn(warn_message, DeprecationWarning)
+            warnings.warn(message, YtDeprecationWarning)
             return func(*args, **kwargs)
         return deprecated_function
+    return function_decorator
+
+def deprecated(alternative):
+    def function_decorator(func):
+        warn_message = DEFAULT_DEPRECATION_MESSAGE.format(func.__name__, alternative)
+        return deprecated_with_message(warn_message)(func)
     return function_decorator
 
 def parse_bool(word):
@@ -122,6 +134,7 @@ def group_blobs_by_size(lines, chunk_size):
             yield chunk
             size = 0
             chunk = []
+
     yield chunk
 
 def chunk_iter_list(lines, chunk_size):

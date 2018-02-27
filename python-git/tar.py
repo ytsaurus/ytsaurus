@@ -1,11 +1,11 @@
 import sys
 
 if sys.version_info[:2] == (2, 6):
-    import gzip
+    import tarfile
 
-    class GzipFile(gzip.GzipFile):
+    class TarFile(tarfile.TarFile):
         def __init__(self, *args, **kwargs):
-            gzip.GzipFile.__init__(self, *args, **kwargs)
+            tarfile.TarFile.__init__(self, *args, **kwargs)
 
         def __enter__(self):
             return self
@@ -13,4 +13,6 @@ if sys.version_info[:2] == (2, 6):
         def __exit__(self, type, value, traceback):
             self.close()
 else:
-    from gzip import GzipFile
+    from tarfile import TarFile
+
+from tarfile import TarInfo
