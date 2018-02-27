@@ -1968,7 +1968,7 @@ bool TOperationElement::IsAggressiveStarvationPreemptionAllowed() const
 
 double TOperationElement::GetWeight() const
 {
-    return RuntimeParams_->Weight.Get(1.0);
+    return *RuntimeParams_->Weight;
 }
 
 double TOperationElement::GetMinShareRatio() const

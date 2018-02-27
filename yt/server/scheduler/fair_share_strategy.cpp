@@ -2033,11 +2033,11 @@ public:
                 // Intentionally not merging options from spec and from
                 // fair-share options per pool tree map here.
                 if (optionsIt != spec->SchedulingOptionsPerPoolTree.end()) {
-                    params->Weight = optionsIt->second->Weight;
+                    params->Weight = optionsIt->second->Weight.Get(1.0);
                     params->ResourceLimits = optionsIt->second->ResourceLimits;
                 } else {
                     if (DefaultTreeId_ && treeId == *DefaultTreeId_) {
-                        params->Weight = spec->Weight;
+                        params->Weight = spec->Weight.Get(1.0);
                         params->ResourceLimits = spec->ResourceLimits;
                     }
                 }
