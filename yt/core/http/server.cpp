@@ -151,9 +151,9 @@ private:
         response->AddConnectionCloseHeader();
         response->SetStatus(EStatusCode::InternalServerError);
 
-        auto handler = Handlers_.Match(request->GetUrl().Path);
-        if (handler) {
-            try {
+        try {
+            auto handler = Handlers_.Match(request->GetUrl().Path);
+            if (handler) {
                 LOG_DEBUG("Received HTTP request (RequestId: %v, Address: %v, Method: %v, Path: %v)",
                     requestId,
                     connection->RemoteAddress(),
@@ -164,16 +164,16 @@ private:
 
                 LOG_DEBUG("Finished handling HTTP request (RequestId: %v)",
                     requestId);
-            } catch (const std::exception& ex) {
-                LOG_DEBUG(ex, "Error handling HTTP request (RequestId: %v)",
-                    requestId);
-
-                if (!response->IsHeadersFlushed()) {
-                    response->SetStatus(EStatusCode::InternalServerError);
-                }
+            } else {
+                response->SetStatus(EStatusCode::NotFound);
             }
-        } else {
-            response->SetStatus(EStatusCode::NotFound);
+        } catch (const std::exception& ex) {
+            LOG_DEBUG(ex, "Error handling HTTP request (RequestId: %v)",
+                requestId);
+
+            if (!response->IsHeadersFlushed()) {
+                response->SetStatus(EStatusCode::InternalServerError);
+            }
         }
 
         auto responseResult = WaitFor(response->Close());
