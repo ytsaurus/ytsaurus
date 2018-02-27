@@ -151,6 +151,7 @@ private:
         response->AddConnectionCloseHeader();
         response->SetStatus(EStatusCode::InternalServerError);
 
+        bool closeResponse = true;
         try {
             const auto& path = request->GetUrl().Path;
 
@@ -162,6 +163,7 @@ private:
 
             auto handler = Handlers_.Match(path);
             if (handler) {
+                closeResponse = false;
                 handler->HandleRequest(request, response);
 
                 LOG_DEBUG("Finished handling HTTP request (RequestId: %v)",
@@ -174,6 +176,7 @@ private:
                 response->SetStatus(EStatusCode::NotFound);
             }
         } catch (const std::exception& ex) {
+            closeResponse = true;
             LOG_DEBUG(ex, "Error handling HTTP request (RequestId: %v)",
                 requestId);
 
@@ -182,10 +185,12 @@ private:
             }
         }
 
-        auto responseResult = WaitFor(response->Close());
-        if (!responseResult.IsOK()) {
-            LOG_DEBUG(responseResult, "Error flushing HTTP response stream (RequestId: %v)",
-                requestId);
+        if (closeResponse) {
+            auto responseResult = WaitFor(response->Close());
+            if (!responseResult.IsOK()) {
+                LOG_DEBUG(responseResult, "Error flushing HTTP response stream (RequestId: %v)",
+                    requestId);
+            }
         }
 
         auto connectionResult = WaitFor(connection->Close());
