@@ -143,12 +143,6 @@ private:
             EMessageType::Request,
             Config_->ReadBufferSize);
 
-        LOG_DEBUG("Received HTTP request (RequestId: %v, Address: %v, Method: %v, Path: %v)",
-            requestId,
-            connection->RemoteAddress(),
-            request->GetMethod(),
-            request->GetUrl().Path);
-
         auto response = New<THttpOutput>(
             connection,
             EMessageType::Response,
@@ -160,6 +154,12 @@ private:
         auto handler = Handlers_.Match(request->GetUrl().Path);
         if (handler) {
             try {
+                LOG_DEBUG("Received HTTP request (RequestId: %v, Address: %v, Method: %v, Path: %v)",
+                    requestId,
+                    connection->RemoteAddress(),
+                    request->GetMethod(),
+                    request->GetUrl().Path);
+
                 handler->HandleRequest(request, response);
 
                 LOG_DEBUG("Finished handling HTTP request (RequestId: %v)",
