@@ -1,3 +1,4 @@
+#include <util/random/shuffle.h>
 #include <yt/core/test_framework/framework.h>
 #include "table_client_helpers.h"
 
@@ -423,7 +424,7 @@ protected:
 
             builder.AddKey(MakeUnversionedBooleanValue(rowIndex % 2 == 1, 4)); // k4
 
-            std::random_shuffle(timestamps.begin(), timestamps.end());
+            Shuffle(timestamps.begin(), timestamps.end());
             int deleteTimestampCount = std::rand() % 3;
             std::vector<TTimestamp> deleteTimestamps(timestamps.begin(), timestamps.begin() + deleteTimestampCount);
             for (auto timestamp : deleteTimestamps) {
