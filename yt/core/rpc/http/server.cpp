@@ -225,27 +225,23 @@ private:
         rpcHeader->set_service(Underlying_->GetServiceId().ServiceName);
         rpcHeader->set_method(TString(url.Path.SubStr(BaseUrl_.Size())));
 
-        auto contentType = req->GetHeaders()->Find("Content-Type");
-        if (contentType) {
-            auto decodedType = FromHttpContentType(*contentType);
+        auto contentTypeString = req->GetHeaders()->Find("Content-Type");
+        if (contentTypeString) {
+            auto decodedType = FromHttpContentType(*contentTypeString);
             if (!decodedType) {
-                return TError("Invalid header value")
-                    << TErrorAttribute("header", "Content-Type")
-                    << TErrorAttribute("value", *contentType);
+                return TError("Invalid \"Content-Type\" header value")
+                    << TErrorAttribute("value", *contentTypeString);
             }
-
             rpcHeader->set_request_format(static_cast<i32>(*decodedType));
         }
 
-        auto accept = req->GetHeaders()->Find("Accept");
-        if (accept) {
-            auto decodedType = FromHttpContentType(*accept);
+        auto acceptString = req->GetHeaders()->Find("Accept");
+        if (acceptString) {
+            auto decodedType = FromHttpContentType(*acceptString);
             if (!decodedType) {
-                return TError("Invalid header value")
-                    << TErrorAttribute("header", "Accept")
-                    << TErrorAttribute("value", *accept);
+                return TError("Invalid \"Accept\" header value")
+                    << TErrorAttribute("value", *acceptString);
             }
-
             rpcHeader->set_response_format(static_cast<i32>(*decodedType));
         }
 
@@ -253,9 +249,8 @@ private:
         TRequestId requestId;
         if (requestIdString) {
             if (!TRequestId::FromString(*requestIdString, &requestId)) {
-                LOG_WARNING("Malformed request id, using a random one (MalformedRequestId: %v, RequestId: %v)",
-                    *requestIdString,
-                    requestId);
+                return TError("Invalid \"X-YT-Request-Id\" header value")
+                    << TErrorAttribute("value", *requestIdString);
             }
         } else {
             requestId = TRequestId::Create();
