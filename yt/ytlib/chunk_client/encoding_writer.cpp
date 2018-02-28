@@ -41,7 +41,7 @@ TEncodingWriter::TEncodingWriter(
     , Codec_(NCompression::GetCodec(options->CompressionCodec))
     , WritePendingBlockCallback_(BIND(
         &TEncodingWriter::WritePendingBlock,
-        MakeWeak(this)))
+        MakeWeak(this)).Via(CompressionInvoker_))
 { }
 
 void TEncodingWriter::WriteBlock(TSharedRef block)
@@ -83,7 +83,7 @@ void TEncodingWriter::EnsureOpen()
                 LOG_DEBUG("Underlying session for encoding writer opened (ChunkId: %v)",
                     ChunkWriter_->GetChunkId());
                 PendingBlocks_.Dequeue().Subscribe(
-                    WritePendingBlockCallback_.Via(CompressionInvoker_));
+                    WritePendingBlockCallback_);
             }
         }));
     }
@@ -191,8 +191,6 @@ void TEncodingWriter::VerifyBlock(
 // Serialized compression invoker affinity (don't use thread affinity because of thread pool).
 void TEncodingWriter::ProcessCompressedBlock(const TBlock& block, i64 sizeToRelease)
 {
-    CompressionRatio_ = double(CompressedSize_) / UncompressedSize_;
-
     if (sizeToRelease > 0) {
         Semaphore_->Release(sizeToRelease);
     } else {
@@ -217,15 +215,15 @@ void TEncodingWriter::WritePendingBlock(const TErrorOr<TBlock>& blockOrError)
         return;
     }
 
-    LOG_DEBUG("Writing pending block (Block: %v)", WrittenBlockIndex_);
-
-    auto isReady = ChunkWriter_->WriteBlock(block);
-
     // NB(psushin): We delay updating compressed size untill passing it to underlying invoker,
     // in order not to look suspicious when writing data is much slower than compression, but not completely stalled;
     // otherwise merge jobs on loaded cluster may seem suspicious.
     CompressedSize_ += block.Size();
+    CompressionRatio_ = double(CompressedSize_) / UncompressedSize_;
 
+    LOG_DEBUG("Writing pending block (Block: %v)", WrittenBlockIndex_);
+
+    auto isReady = ChunkWriter_->WriteBlock(block);
     ++WrittenBlockIndex_;
 
     auto finally = Finally([&] (){
@@ -241,7 +239,7 @@ void TEncodingWriter::WritePendingBlock(const TErrorOr<TBlock>& blockOrError)
     }
 
     PendingBlocks_.Dequeue().Subscribe(
-        WritePendingBlockCallback_.Via(CompressionInvoker_));
+        WritePendingBlockCallback_);
 }
 
 bool TEncodingWriter::IsReady() const
