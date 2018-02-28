@@ -5758,13 +5758,25 @@ void TOperationControllerBase::BuildAttributes(TFluentMap fluent) const
 
 void TOperationControllerBase::BuildBriefSpec(TFluentMap fluent) const
 {
+    std::vector<TYPath> inputPaths;
+    for (const auto& path : GetInputTablePaths()) {
+        inputPaths.push_back(path.GetPath());
+        break;
+    }
+
+    std::vector<TYPath> outputPaths;
+    for (const auto& path : GetOutputTablePaths()) {
+        outputPaths.push_back(path.GetPath());
+        break;
+    }
+
     fluent
         .DoIf(Spec_->Title.HasValue(), [&] (TFluentMap fluent) {
             fluent
                 .Item("title").Value(*Spec_->Title);
         })
-        .Item("input_table_paths").ListLimited(GetInputTablePaths(), 1)
-        .Item("output_table_paths").ListLimited(GetOutputTablePaths(), 1);
+        .Item("input_table_paths").Value(inputPaths)
+        .Item("output_table_paths").Value(outputPaths);
 }
 
 void TOperationControllerBase::BuildProgress(TFluentMap fluent) const
