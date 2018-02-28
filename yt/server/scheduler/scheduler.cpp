@@ -8,7 +8,7 @@
 #include "node_shard.h"
 #include "scheduler_strategy.h"
 #include "scheduling_tag.h"
-#include "cache.h"
+#include "sync_expiring_cache.h"
 #include "controller_agent_tracker.h"
 #include "controller_agent.h"
 #include "operation_controller.h"
@@ -168,10 +168,9 @@ public:
         , InitialConfig_(Config_)
         , Bootstrap_(bootstrap)
         , MasterConnector_(std::make_unique<TMasterConnector>(Config_, Bootstrap_))
-        , CachedExecNodeMemoryDistributionByTags_(New<TExpiringCache<TSchedulingTagFilter, TMemoryDistribution>>(
+        , CachedExecNodeMemoryDistributionByTags_(New<TSyncExpiringCache<TSchedulingTagFilter, TMemoryDistribution>>(
             BIND(&TImpl::CalculateMemoryDistribution, MakeStrong(this)),
-            Config_->SchedulingTagFilterExpireTimeout,
-            GetControlInvoker()))
+            Config_->SchedulingTagFilterExpireTimeout))
         , TotalResourceLimitsProfiler_(Profiler.GetPathPrefix() + "/total_resource_limits")
         , TotalResourceUsageProfiler_(Profiler.GetPathPrefix() + "/total_resource_usage")
         , TotalCompletedJobTimeCounter_("/total_completed_job_time")
@@ -1146,7 +1145,7 @@ private:
     TRefCountedExecNodeDescriptorMapPtr CachedExecNodeDescriptors_ = New<TRefCountedExecNodeDescriptorMap>();
 
     TMemoryDistribution CachedExecNodeMemoryDistribution_;
-    TIntrusivePtr<TExpiringCache<TSchedulingTagFilter, TMemoryDistribution>> CachedExecNodeMemoryDistributionByTags_;
+    TIntrusivePtr<TSyncExpiringCache<TSchedulingTagFilter, TMemoryDistribution>> CachedExecNodeMemoryDistributionByTags_;
 
     TProfiler TotalResourceLimitsProfiler_;
     TProfiler TotalResourceUsageProfiler_;
@@ -1404,8 +1403,6 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        CachedExecNodeMemoryDistributionByTags_->Start();
-
         TransientOperationQueueScanPeriodExecutor_ = New<TPeriodicExecutor>(
             MasterConnector_->GetCancelableControlInvoker(EControlQueue::PeriodicActivity),
             BIND(&TImpl::ScanTransientOperationQueue, MakeWeak(this)),
@@ -1449,8 +1446,6 @@ private:
             TransientOperationQueueScanPeriodExecutor_->Stop();
             TransientOperationQueueScanPeriodExecutor_.Reset();
         }
-
-        CachedExecNodeMemoryDistributionByTags_->Stop();
 
         Strategy_->OnMasterDisconnected();
     }
