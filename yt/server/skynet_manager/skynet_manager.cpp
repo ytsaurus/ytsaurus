@@ -122,7 +122,7 @@ void TSkynetManager::Share(IRequestPtr req, IResponseWriterPtr rsp)
         return;
     }
 
-    TShareKey shareKey = {params.Cluster, ToString(params.Path), tableRevision.ValueOrThrow()};
+    TShareKey shareKey{params.Cluster, ToString(params.Path), tableRevision.ValueOrThrow()};
 
     Bootstrap_->ShareCache->CheckTombstone(shareKey)
         .ThrowOnError();
