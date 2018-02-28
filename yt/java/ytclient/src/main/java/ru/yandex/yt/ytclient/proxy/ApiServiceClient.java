@@ -455,10 +455,13 @@ public class ApiServiceClient {
         return getInSyncReplicas(new GetInSyncReplicas(path, schema, keys), timestamp);
     }
 
-    public CompletableFuture<List<TabletInfo>> getTabletInfos(String path, int tabletIndices)
+    public CompletableFuture<List<TabletInfo>> getTabletInfos(String path, List<Integer> tabletIndices)
     {
         RpcClientRequestBuilder<TReqGetTabletInfos.Builder, RpcClientResponse<TRspGetTabletInfos>> builder =
                 service.getTabletInfos();
+
+        builder.body().setPath(path);
+        builder.body().addAllTabletIndexes(tabletIndices);
 
         return RpcUtil.apply(builder.invoke(),
                 response ->
