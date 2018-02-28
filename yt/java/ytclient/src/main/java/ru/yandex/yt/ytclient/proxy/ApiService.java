@@ -12,6 +12,7 @@ import ru.yandex.yt.rpcproxy.TReqFreezeTable;
 import ru.yandex.yt.rpcproxy.TReqGenerateTimestamps;
 import ru.yandex.yt.rpcproxy.TReqGetInSyncReplicas;
 import ru.yandex.yt.rpcproxy.TReqGetNode;
+import ru.yandex.yt.rpcproxy.TReqGetTabletInfos;
 import ru.yandex.yt.rpcproxy.TReqLinkNode;
 import ru.yandex.yt.rpcproxy.TReqListNode;
 import ru.yandex.yt.rpcproxy.TReqLockNode;
@@ -42,6 +43,7 @@ import ru.yandex.yt.rpcproxy.TRspFreezeTable;
 import ru.yandex.yt.rpcproxy.TRspGenerateTimestamps;
 import ru.yandex.yt.rpcproxy.TRspGetInSyncReplicas;
 import ru.yandex.yt.rpcproxy.TRspGetNode;
+import ru.yandex.yt.rpcproxy.TRspGetTabletInfos;
 import ru.yandex.yt.rpcproxy.TRspLinkNode;
 import ru.yandex.yt.rpcproxy.TRspListNode;
 import ru.yandex.yt.rpcproxy.TRspLockNode;
@@ -87,6 +89,8 @@ public interface ApiService extends DiscoverableRpcService {
     RpcClientRequestBuilder<TReqModifyRows.Builder, RpcClientResponse<TRspModifyRows>> modifyRows();
 
     RpcClientRequestBuilder<TReqGetInSyncReplicas.Builder, RpcClientResponse<TRspGetInSyncReplicas>> getInSyncReplicas();
+
+    RpcClientRequestBuilder<TReqGetTabletInfos.Builder, RpcClientResponse<TRspGetTabletInfos>> getTabletInfos();
 
     RpcClientRequestBuilder<TReqGenerateTimestamps.Builder, RpcClientResponse<TRspGenerateTimestamps>> generateTimestamps();
 

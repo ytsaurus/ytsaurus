@@ -30,6 +30,7 @@ import ru.yandex.yt.rpcproxy.TReqFreezeTable;
 import ru.yandex.yt.rpcproxy.TReqGenerateTimestamps;
 import ru.yandex.yt.rpcproxy.TReqGetInSyncReplicas;
 import ru.yandex.yt.rpcproxy.TReqGetNode;
+import ru.yandex.yt.rpcproxy.TReqGetTabletInfos;
 import ru.yandex.yt.rpcproxy.TReqLinkNode;
 import ru.yandex.yt.rpcproxy.TReqListNode;
 import ru.yandex.yt.rpcproxy.TReqLockNode;
@@ -59,6 +60,7 @@ import ru.yandex.yt.rpcproxy.TRspFreezeTable;
 import ru.yandex.yt.rpcproxy.TRspGenerateTimestamps;
 import ru.yandex.yt.rpcproxy.TRspGetInSyncReplicas;
 import ru.yandex.yt.rpcproxy.TRspGetNode;
+import ru.yandex.yt.rpcproxy.TRspGetTabletInfos;
 import ru.yandex.yt.rpcproxy.TRspLinkNode;
 import ru.yandex.yt.rpcproxy.TRspListNode;
 import ru.yandex.yt.rpcproxy.TRspLockNode;
@@ -97,6 +99,7 @@ import ru.yandex.yt.ytclient.proxy.request.RemountTable;
 import ru.yandex.yt.ytclient.proxy.request.RemoveNode;
 import ru.yandex.yt.ytclient.proxy.request.ReshardTable;
 import ru.yandex.yt.ytclient.proxy.request.SetNode;
+import ru.yandex.yt.ytclient.proxy.request.TabletInfo;
 import ru.yandex.yt.ytclient.rpc.RpcClient;
 import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
 import ru.yandex.yt.ytclient.rpc.RpcClientResponse;
@@ -450,6 +453,20 @@ public class ApiServiceClient {
             Iterable<? extends List<?>> keys)
     {
         return getInSyncReplicas(new GetInSyncReplicas(path, schema, keys), timestamp);
+    }
+
+    public CompletableFuture<List<TabletInfo>> getTabletInfos(String path, int tabletIndices)
+    {
+        RpcClientRequestBuilder<TReqGetTabletInfos.Builder, RpcClientResponse<TRspGetTabletInfos>> builder =
+                service.getTabletInfos();
+
+        return RpcUtil.apply(builder.invoke(),
+                response ->
+                        response.body()
+                                .getTabletsList()
+                                .stream()
+                                .map(x -> new TabletInfo(x.getTotalRowCount(), x.getTrimmedRowCount()))
+                .collect(Collectors.toList()));
     }
 
     public CompletableFuture<YtTimestamp> generateTimestamps(int count) {
