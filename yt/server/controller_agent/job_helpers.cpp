@@ -106,7 +106,10 @@ bool CheckJobActivity(
     wasActive |= lhs->ProcessedInputCompressedDataSize < rhs->ProcessedInputCompressedDataSize;
     wasActive |= lhs->ProcessedOutputRowCount < rhs->ProcessedOutputRowCount;
     wasActive |= lhs->ProcessedOutputUncompressedDataSize < rhs->ProcessedOutputUncompressedDataSize;
-    wasActive |= lhs->ProcessedOutputCompressedDataSize < rhs->ProcessedOutputCompressedDataSize;
+
+    //! NB(psushin): output compressed data size is an estimate for a running job (due to async compression),
+    //! so it can fluctuate (see #TEncodingWriter::GetCompressedSize).
+    wasActive |= lhs->ProcessedOutputCompressedDataSize != rhs->ProcessedOutputCompressedDataSize;
     if (lhs->JobProxyCpuUsage && rhs->JobProxyCpuUsage) {
         wasActive |= *lhs->JobProxyCpuUsage + options->CpuUsageThreshold < *rhs->JobProxyCpuUsage;
     }
