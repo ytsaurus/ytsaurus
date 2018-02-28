@@ -154,7 +154,7 @@ set_target_properties(ytserver-skynet-manager PROPERTIES LINK_FLAGS "-static-lib
 
 if(YT_BUILD_ENABLE_GDB_INDEX AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
   add_gdb_index(TARGETS
-      ytserver-master ytserver-scheduler ytserver-node
+      ytserver-master ytserver-scheduler ytserver-node ytserver-controller-agent
       ytserver-job-proxy ytserver-exec ytserver-core-forwarder ytserver-tools
   )
 endif()
@@ -178,7 +178,7 @@ install(
   TARGETS ytserver-controller-agent
   RUNTIME DESTINATION bin
   PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE SETUID
-  COMPONENT scheduler_agent
+  COMPONENT controller_agent
 )
 
 install(
@@ -200,7 +200,7 @@ install(
 
 install(
   TARGETS
-    ytserver-master ytserver-scheduler ytserver-node ytserver-proxy
+    ytserver-master ytserver-scheduler ytserver-node ytserver-proxy ytserver-controller-agent
     ytserver-job-proxy ytserver-exec ytserver-core-forwarder ytserver-tools
     ytserver-skynet-manager
   RUNTIME DESTINATION bin
