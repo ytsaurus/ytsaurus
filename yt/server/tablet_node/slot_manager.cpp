@@ -250,9 +250,13 @@ public:
         TWriterGuard guard(TabletSnapshotsSpinLock_);
         auto range = TabletIdToSnapshot_.equal_range(tablet->GetId());
         for (auto it = range.first; it != range.second; ++it) {
-            const auto& snapshot = it->second;
+            auto& snapshot = it->second;
             if (snapshot->CellId == slot->GetCellId()) {
+                auto deadSnapshot = std::move(snapshot);
                 TabletIdToSnapshot_.erase(it);
+                guard.Release();
+                // This is were deadSnapshot dies. It's also nice to have logging moved outside
+                // of a critical section.
                 LOG_DEBUG("Tablet snapshot unregistered (TabletId: %v, CellId: %v)",
                     tablet->GetId(),
                     slot->GetCellId());
