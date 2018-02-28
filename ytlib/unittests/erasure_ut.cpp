@@ -1,3 +1,4 @@
+#include <util/random/shuffle.h>
 #include <yt/core/test_framework/framework.h>
 
 #include <yt/ytlib/chunk_client/config.h>
@@ -314,7 +315,7 @@ public:
         TNullable<int> maskCount)
     {
         auto check = [&] (std::vector<int> indexes) {
-            std::random_shuffle(indexes.begin(), indexes.end());
+            Shuffle(indexes.begin(), indexes.end());
             auto result = WaitFor(repairReader->ReadBlocks(TWorkloadDescriptor(), indexes))
                 .ValueOrThrow();
             EXPECT_EQ(result.size(), indexes.size());
@@ -353,7 +354,7 @@ public:
                 for (int i = 0; i < dataRefs.size(); ++i) {
                     indexes.push_back(i);
                 }
-                std::random_shuffle(indexes.begin(), indexes.end());
+                Shuffle(indexes.begin(), indexes.end());
                 indexes.resize(1 + rand() % (dataRefs.size() - 1));
 
                 check(indexes);
