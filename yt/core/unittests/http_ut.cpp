@@ -739,36 +739,17 @@ public:
     }
 };
 
-
-class TThrowingInTheMiddleHandler
-    : public IHttpHandler
-{
-public:
-    virtual void HandleRequest(const IRequestPtr& req, const IResponseWriterPtr& rsp) override
-    {
-        rsp->SetStatus(EStatusCode::Ok);
-        WaitFor(rsp->Write(TSharedRef::FromString(""))).ThrowOnError();
-
-        THROW_ERROR_EXCEPTION("Your request is bad");
-    }
-};
-
 TEST_F(THttpServerTest, ThrowingHandler)
 {
     auto throwing = New<TThrowingHandler>();
-    auto throwingInTheMiddle = New<TThrowingInTheMiddleHandler>();
 
     Server->AddHandler("/throwing", throwing);
-    Server->AddHandler("/throwing_in_the_middle", throwingInTheMiddle);
     Server->Start();
 
     ASSERT_EQ(EStatusCode::InternalServerError,
         WaitFor(Client->Get(TestUrl + "/throwing"))
             .ValueOrThrow()
             ->GetStatusCode());
-    ASSERT_THROW(
-        ReadAll(WaitFor(Client->Get(TestUrl + "/throwing_in_the_middle")).ValueOrThrow()),
-        TErrorException);
 
     Server->Stop();
     Sleep(TDuration::MilliSeconds(10));
