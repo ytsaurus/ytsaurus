@@ -132,8 +132,6 @@ void TEncodingWriter::DoCompressVector(const std::vector<TSharedRef>& uncompress
     TBlock compressedBlock;
     compressedBlock.Data = Codec_->Compress(uncompressedVectorizedBlock);
 
-    CompressedSize_ += compressedBlock.Size();
-
     if (Config_->ComputeChecksum) {
         compressedBlock.Checksum = GetChecksum(compressedBlock.Data);
     }
