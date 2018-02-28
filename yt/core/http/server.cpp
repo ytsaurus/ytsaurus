@@ -134,7 +134,7 @@ private:
             --ActiveClients_;
         });
 
-        auto requestId = TGuid::Create();
+        auto connectionId = TGuid::Create();
 
         auto request = New<THttpInput>(
             connection,
@@ -155,8 +155,8 @@ private:
         try {
             const auto& path = request->GetUrl().Path;
 
-            LOG_DEBUG("Received HTTP request (RequestId: %v, Address: %v, Method: %v, Path: %v)",
-                requestId,
+            LOG_DEBUG("Received HTTP request (ConnectionId: %v, Address: %v, Method: %v, Path: %v)",
+                connectionId,
                 connection->RemoteAddress(),
                 request->GetMethod(),
                 path);
@@ -166,19 +166,19 @@ private:
                 closeResponse = false;
                 handler->HandleRequest(request, response);
 
-                LOG_DEBUG("Finished handling HTTP request (RequestId: %v)",
-                    requestId);
+                LOG_DEBUG("Finished handling HTTP request (ConnectionId: %v)",
+                    connectionId);
             } else {
-                LOG_DEBUG("Missing HTTP handler for given URL (RequestId: %v, Path: %v)",
-                    requestId,
+                LOG_DEBUG("Missing HTTP handler for given URL (ConnectionId: %v, Path: %v)",
+                    connectionId,
                     path);
 
                 response->SetStatus(EStatusCode::NotFound);
             }
         } catch (const std::exception& ex) {
             closeResponse = true;
-            LOG_DEBUG(ex, "Error handling HTTP request (RequestId: %v)",
-                requestId);
+            LOG_DEBUG(ex, "Error handling HTTP request (ConnectionId: %v)",
+                connectionId);
 
             if (!response->IsHeadersFlushed()) {
                 response->SetStatus(EStatusCode::InternalServerError);
@@ -188,18 +188,18 @@ private:
         if (closeResponse) {
             auto responseResult = WaitFor(response->Close());
             if (!responseResult.IsOK()) {
-                LOG_DEBUG(responseResult, "Error flushing HTTP response stream (RequestId: %v)",
-                    requestId);
+                LOG_DEBUG(responseResult, "Error flushing HTTP response stream (ConnectionId: %v)",
+                    connectionId);
             }
         }
 
         auto connectionResult = WaitFor(connection->Close());
         if (connectionResult.IsOK()) {
-            LOG_DEBUG("HTTP connection closed (RequestId: %v)",
-                requestId);
+            LOG_DEBUG("HTTP connection closed (ConnectionId: %v)",
+                connectionId);
         } else {
-            LOG_DEBUG(connectionResult, "Error closing HTTP connection (RequestId: %v)",
-                requestId);
+            LOG_DEBUG(connectionResult, "Error closing HTTP connection (ConnectionId: %v)",
+                connectionId);
         }
     }
 };
