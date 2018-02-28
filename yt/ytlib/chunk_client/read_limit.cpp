@@ -185,14 +185,14 @@ void TReadLimit::MergeLowerRowIndex(i64 rowIndex)
 {
     if (!HasRowIndex() || GetRowIndex() < rowIndex) {
         SetRowIndex(rowIndex);
-    }   
+    }
 }
 
 void TReadLimit::MergeUpperRowIndex(i64 rowIndex)
 {
     if (!HasRowIndex() || GetRowIndex() > rowIndex) {
         SetRowIndex(rowIndex);
-    }   
+    }
 }
 
 void TReadLimit::InitKey()
@@ -325,6 +325,12 @@ TNullable<T> FindReadLimitComponent(const std::unique_ptr<IAttributeDictionary>&
 
 void Deserialize(TReadLimit& readLimit, INodePtr node)
 {
+    if (node->GetType() != NYTree::ENodeType::Map) {
+        THROW_ERROR_EXCEPTION("Error parsing read limit: expected %Qlv, actual %Qlv",
+            NYTree::ENodeType::Map,
+            node->GetType());
+    }
+
     readLimit = TReadLimit();
     auto attributes = ConvertToAttributes(node);
 
@@ -449,6 +455,12 @@ TNullable<T> FindReadRangeComponent(const std::unique_ptr<IAttributeDictionary>&
 
 void Deserialize(TReadRange& readRange, NYTree::INodePtr node)
 {
+    if (node->GetType() != NYTree::ENodeType::Map) {
+        THROW_ERROR_EXCEPTION("Error parsing read range: expected %Qlv, actual %Qlv",
+            NYTree::ENodeType::Map,
+            node->GetType());
+    }
+
     readRange = TReadRange();
     auto attributes = ConvertToAttributes(node);
     auto maybeExact = FindReadRangeComponent<TReadLimit>(attributes, "exact");
