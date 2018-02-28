@@ -38,7 +38,7 @@ class TErrorWrappingHttpHandler
     : public virtual IHttpHandler
 {
 public:
-    TErrorWrappingHttpHandler(const IHttpHandlerPtr& underlying)
+    explicit TErrorWrappingHttpHandler(const IHttpHandlerPtr& underlying)
         : Underlying_(underlying)
     { }
 
@@ -49,9 +49,11 @@ public:
         try {
             Underlying_->HandleRequest(req, rsp);
         } catch(const std::exception& ex) {
-            LOG_ERROR(ex, "Error in %v", req->GetUrl().Path);
-
             TError error(ex);
+
+            LOG_DEBUG(error, "Error handling HTTP request (Path: %v)",
+                req->GetUrl().Path);
+
             FillYTErrorHeaders(rsp, error);
             rsp->SetStatus(EStatusCode::InternalServerError);
 
@@ -71,26 +73,25 @@ IHttpHandlerPtr WrapYTException(const IHttpHandlerPtr& underlying)
 
 bool MaybeHandleCors(const IRequestPtr& req, const IResponseWriterPtr& rsp)
 {
-    auto headersWhitelist = "Content-Type, Accept, X-YT-Error, X-YT-Response-Code, X-YT-Response-Message";
+    static const auto HeadersWhitelist = "Content-Type, Accept, X-YT-Error, X-YT-Response-Code, X-YT-Response-Message";
 
     auto origin = req->GetHeaders()->Find("Origin");
     if (origin) {
         auto url = ParseUrl(*origin);
         bool allow = url.Host == "localhost" || url.Host.EndsWith(".yandex-team.ru");
-
         if (allow) {
             rsp->GetHeaders()->Add("Access-Control-Allow-Origin", *origin);
             rsp->GetHeaders()->Add("Access-Control-Allow-Methods", "POST, OPTIONS");
             rsp->GetHeaders()->Add("Access-Control-Max-Age", "3600");
 
             if (req->GetMethod() == EMethod::Options) {
-                rsp->GetHeaders()->Add("Access-Control-Allow-Headers", headersWhitelist);
+                rsp->GetHeaders()->Add("Access-Control-Allow-Headers", HeadersWhitelist);
                 rsp->SetStatus(EStatusCode::Ok);
                 WaitFor(rsp->Close())
                     .ThrowOnError();
                 return true;
             } else {
-                rsp->GetHeaders()->Add("Access-Control-Expose-Headers", headersWhitelist);
+                rsp->GetHeaders()->Add("Access-Control-Expose-Headers", HeadersWhitelist);
             }
         }
     }
