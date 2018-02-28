@@ -5775,8 +5775,8 @@ void TOperationControllerBase::BuildBriefSpec(TFluentMap fluent) const
             fluent
                 .Item("title").Value(*Spec_->Title);
         })
-        .Item("input_table_paths").Value(inputPaths)
-        .Item("output_table_paths").Value(outputPaths);
+        .Item("input_table_paths").ListLimited(inputPaths, 1)
+        .Item("output_table_paths").ListLimited(outputPaths, 1);
 }
 
 void TOperationControllerBase::BuildProgress(TFluentMap fluent) const
