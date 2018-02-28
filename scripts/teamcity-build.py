@@ -215,6 +215,7 @@ def share_packages(options, version):
         "yandex-yt-proxy",
         "yandex-yt-master",
         "yandex-yt-scheduler",
+        "yandex-yt-controller-agent",
         "yandex-yt-node"
     ]
 
@@ -351,6 +352,7 @@ def run_sandbox_upload(options, build_context):
     yt_binary_upload_list = set((
         "ytserver-job-proxy",
         "ytserver-scheduler",
+        "ytserver-controller-agent",
         "ytserver-master",
         "ytserver-core-forwarder",
         "ytserver-exec",
