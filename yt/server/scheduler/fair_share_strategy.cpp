@@ -2028,6 +2028,8 @@ public:
                 YCHECK(emplaceResult.second);
 
                 auto& params = emplaceResult.first->second;
+                params->Weight = 1.0;
+
                 auto optionsIt = spec->SchedulingOptionsPerPoolTree.find(treeId);
 
                 // Intentionally not merging options from spec and from

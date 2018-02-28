@@ -1636,6 +1636,9 @@ private:
             }
 
             auto treeParams = ConvertTo<TOperationFairShareStrategyTreeOptionsPtr>(runtimeParamsNode);
+            if (!treeParams->Weight) {
+                treeParams->Weight = 1.0;
+            }
             Strategy_->UpdateOperationRuntimeParameters(operation.Get(), treeParams);
 
             if (operation->GetOwners() != ownerList) {
