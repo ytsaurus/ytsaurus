@@ -25,6 +25,8 @@
 
 #include <yt/core/concurrency/delayed_executor.h>
 
+#include <yt/core/concurrency/periodic_executor.h>
+
 #include <yt/core/actions/cancelable_context.h>
 
 namespace NYT {
@@ -75,10 +77,9 @@ TNodeShard::TNodeShard(
         GetInvoker(),
         BIND(&TNodeShard::UpdateExecNodeDescriptors, MakeWeak(this)),
         Config_->NodeShardExecNodesCacheUpdatePeriod))
-    , CachedResourceLimitsByTags_(New<TExpiringCache<TSchedulingTagFilter, TJobResources>>(
+    , CachedResourceLimitsByTags_(New<TSyncExpiringCache<TSchedulingTagFilter, TJobResources>>(
         BIND(&TNodeShard::CalculateResourceLimits, MakeStrong(this)),
-        Config_->SchedulingTagFilterExpireTimeout,
-        GetInvoker()))
+        Config_->SchedulingTagFilterExpireTimeout))
     , Logger(NLogging::TLogger(SchedulerLogger)
         .AddTag("NodeShardId: %v", Id_))
     , SubmitJobsToStrategyExecutor_(New<TPeriodicExecutor>(
@@ -118,7 +119,6 @@ void TNodeShard::OnMasterConnected()
     CancelableInvoker_ = CancelableContext_->CreateInvoker(GetInvoker());
 
     CachedExecNodeDescriptorsRefresher_->Start();
-    CachedResourceLimitsByTags_->Start();
 }
 
 void TNodeShard::OnMasterDisconnected()
@@ -140,7 +140,6 @@ void TNodeShard::DoCleanup()
     CancelableInvoker_.Reset();
 
     CachedExecNodeDescriptorsRefresher_->Stop();
-    CachedResourceLimitsByTags_->Stop();
 
     for (const auto& pair : IdToNode_) {
         const auto& node = pair.second;
@@ -1527,9 +1526,9 @@ void TNodeShard::UpdateNodeResources(
         TotalResourceUsage_ -= oldResourceUsage;
         TotalResourceUsage_ += node->GetResourceUsage();
 
-        // Force update cache if node has come with non-zero usage.
+        // Clear cache if node has come with non-zero usage.
         if (oldResourceLimits.GetUserSlots() == 0 && node->GetResourceUsage().GetUserSlots() > 0) {
-            CachedResourceLimitsByTags_->ForceUpdate();
+            CachedResourceLimitsByTags_->Clear();
         }
     }
 }

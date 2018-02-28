@@ -10,7 +10,7 @@
 #include "bootstrap.h"
 
 #include <yt/server/scheduler/config.h>
-#include <yt/server/scheduler/cache.h>
+#include <yt/server/scheduler/sync_expiring_cache.h>
 #include <yt/server/scheduler/message_queue.h>
 #include <yt/server/scheduler/exec_node.h>
 #include <yt/server/scheduler/helpers.h>
@@ -28,6 +28,7 @@
 #include <yt/ytlib/event_log/event_log.h>
 
 #include <yt/core/concurrency/async_semaphore.h>
+#include <yt/core/concurrency/periodic_executor.h>
 #include <yt/core/concurrency/thread_affinity.h>
 #include <yt/core/concurrency/thread_pool.h>
 #include <yt/core/concurrency/throughput_throttler.h>
@@ -584,7 +585,7 @@ private:
 
     TReaderWriterSpinLock ExecNodeDescriptorsLock_;
     TRefCountedExecNodeDescriptorMapPtr CachedExecNodeDescriptors_ = New<TRefCountedExecNodeDescriptorMap>();
-    TIntrusivePtr<TExpiringCache<TSchedulingTagFilter, TRefCountedExecNodeDescriptorMapPtr>> CachedExecNodeDescriptorsByTags_;
+    TIntrusivePtr<TSyncExpiringCache<TSchedulingTagFilter, TRefCountedExecNodeDescriptorMapPtr>> CachedExecNodeDescriptorsByTags_;
 
     TControllerAgentTrackerServiceProxy SchedulerProxy_;
 
@@ -716,11 +717,9 @@ private:
             NLogging::TLogger(ControllerAgentLogger)
                 .AddTag("Kind: SchedulerToAgentScheduleJobRequests, IncarnationId: %v", IncarnationId_));
 
-        CachedExecNodeDescriptorsByTags_ = New<TExpiringCache<TSchedulingTagFilter, TRefCountedExecNodeDescriptorMapPtr>>(
+        CachedExecNodeDescriptorsByTags_ = New<TSyncExpiringCache<TSchedulingTagFilter, TRefCountedExecNodeDescriptorMapPtr>>(
             BIND(&TImpl::FilterExecNodes, MakeStrong(this)),
-            Config_->SchedulingTagFilterExpireTimeout,
-            CancelableControlInvoker_);
-        CachedExecNodeDescriptorsByTags_->Start();
+            Config_->SchedulingTagFilterExpireTimeout);
 
         HeartbeatExecutor_ = New<TPeriodicExecutor>(
             CancelableControlInvoker_,
@@ -768,7 +767,6 @@ private:
         CancelableControlInvoker_.Reset();
 
         if (CachedExecNodeDescriptorsByTags_) {
-            CachedExecNodeDescriptorsByTags_->Stop();
             CachedExecNodeDescriptorsByTags_.Reset();
         }
 

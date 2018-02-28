@@ -3,7 +3,7 @@
 #include "private.h"
 #include "scheduler.h"
 #include "scheduling_tag.h"
-#include "cache.h"
+#include "sync_expiring_cache.h"
 
 #include <yt/ytlib/api/client.h>
 
@@ -172,7 +172,7 @@ private:
 
     const NConcurrency::TActionQueuePtr ActionQueue_;
     const NConcurrency::TPeriodicExecutorPtr CachedExecNodeDescriptorsRefresher_;
-    const TIntrusivePtr<TExpiringCache<TSchedulingTagFilter, TJobResources>> CachedResourceLimitsByTags_;
+    const TIntrusivePtr<TSyncExpiringCache<TSchedulingTagFilter, TJobResources>> CachedResourceLimitsByTags_;
 
     const NLogging::TLogger Logger;
 
