@@ -545,6 +545,7 @@ TTransaction::TTransaction(
             transactionId, // parent id
             options.Timeout_,
             options.PingAncestors_,
+            options.AutoPingable_,
             options.Title_,
             options.Attributes_)
         : nullptr)
@@ -586,6 +587,15 @@ void TTransaction::Abort()
         PingableTx_->Abort();
     } else {
         AbortTransaction(Auth_, TransactionId_);
+    }
+}
+
+void TTransaction::Ping()
+{
+    if (PingableTx_) {
+        PingableTx_->Ping();
+    } else {
+        PingTransaction(Auth_, TransactionId_);
     }
 }
 

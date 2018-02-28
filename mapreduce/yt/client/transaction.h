@@ -22,6 +22,7 @@ public:
         const TTransactionId& parentId,
         const TMaybe<TDuration>& timeout = Nothing(),
         bool pingAncestors = false,
+        bool autoPingable = true,
         const TMaybe<TString>& title = Nothing(),
         const TMaybe<TNode>& attributes = Nothing());
 
@@ -31,6 +32,7 @@ public:
 
     void Commit();
     void Abort();
+    void Ping();
 
 private:
     TAuth Auth_;
@@ -39,7 +41,7 @@ private:
     ::TIntrusivePtr<NDetail::TAbortableRegistry> AbortableRegistry_;
 
     std::atomic<bool> Running_{false};
-    TThread Thread_;
+    THolder<TThread> Thread_;
 
     void Stop(bool commit);
 

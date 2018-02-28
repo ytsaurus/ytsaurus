@@ -20,11 +20,11 @@ TPingableTransaction::TPingableTransaction(
     const TTransactionId& parentId,
     const TMaybe<TDuration>& timeout,
     bool pingAncestors,
+    bool autoPingable,
     const TMaybe<TString>& title,
     const TMaybe<TNode>& attributes)
     : Auth_(auth)
     , AbortableRegistry_(NDetail::TAbortableRegistry::Get())
-    , Thread_(TThread::TParams{Pinger, (void*)this}.SetName("pingable_tx"))
 {
     TransactionId_ = StartTransaction(
         auth,
@@ -39,7 +39,11 @@ TPingableTransaction::TPingableTransaction(
         ::MakeIntrusive<NDetail::TTransactionAbortable>(auth, TransactionId_));
 
     Running_ = true;
-    Thread_.Start();
+
+    if (autoPingable) {
+        Thread_ = MakeHolder<TThread>(TThread::TParams{Pinger, (void*)this}.SetName("pingable_tx"));
+        Thread_->Start();
+    }
 }
 
 TPingableTransaction::~TPingableTransaction()
@@ -65,6 +69,11 @@ void TPingableTransaction::Abort()
     Stop(false);
 }
 
+void TPingableTransaction::Ping()
+{
+    PingTransaction(Auth_, TransactionId_);
+}
+
 void TPingableTransaction::Stop(bool commit)
 {
     if (!Running_) {
@@ -73,7 +82,9 @@ void TPingableTransaction::Stop(bool commit)
 
     NDetail::TFinallyGuard g([&] {
         Running_ = false;
-        Thread_.Join();
+        if (Thread_) {
+            Thread_->Join();
+        }
     });
 
     if (commit) {
@@ -88,7 +99,12 @@ void TPingableTransaction::Stop(bool commit)
 void TPingableTransaction::Pinger()
 {
     while (Running_) {
-        PingTransaction(Auth_, TransactionId_);
+        try {
+            PingTransaction(Auth_, TransactionId_);
+        } catch (...) {
+            // Ignore errors in auto pings.
+        }
+
         TInstant t = Now();
         while (Running_ && Now() - t < TConfig::Get()->PingInterval) {
             NDetail::TWaitProxy::Sleep(TDuration::MilliSeconds(100));

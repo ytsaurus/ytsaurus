@@ -95,6 +95,10 @@ public:
     //
     // Abort transaction. All changes that are made by current transaction are lost.
     virtual void Abort() = 0;
+
+    //
+    // Ping transaction.
+    virtual void Ping() = 0;
 };
 
 class IClient

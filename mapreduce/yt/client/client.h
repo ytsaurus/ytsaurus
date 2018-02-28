@@ -252,6 +252,8 @@ public:
 
     void Abort() override;
 
+    void Ping() override;
+
     TClientPtr GetParentClient() override;
 
 private:

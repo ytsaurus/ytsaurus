@@ -44,6 +44,7 @@ namespace {
 
         void Commit() override {}
         void Abort() override {}
+        void Ping() override {}
 
     private:
         TTransactionId TransactionId_;

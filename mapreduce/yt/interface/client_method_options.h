@@ -206,6 +206,10 @@ struct TStartTransactionOptions
     FLUENT_FIELD_DEFAULT(bool, PingAncestors, false);
     FLUENT_FIELD_OPTION(TDuration, Timeout);
 
+    // When set to true library creates a thread that pings transaction.
+    // When set to false library doesn't ping transaction and it's user responsibility to ping it.
+    FLUENT_FIELD_DEFAULT(bool, AutoPingable, true);
+
     // Set the title attribute of transaction. If title was not specified
     // nither using `Title` option nor using `Attributes` option
     // wrapper will generate default title for transaction.
