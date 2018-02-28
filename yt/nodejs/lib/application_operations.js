@@ -741,7 +741,12 @@ function YtApplicationOperations$list(parameters)
             }
 
             // Now, extract main bits.
-            var pool = attributes.brief_spec.pool;
+            var pool;
+            if (attributes.brief_spec) {
+                pool = attributes.brief_spec.pool;
+            } else {
+                pool = null;
+            }
             var user = attributes.authenticated_user;
             var state = attributes.state;
             var type = attributes.operation_type;
@@ -802,8 +807,14 @@ function YtApplicationOperations$list(parameters)
                 } else {
                     // Reduce count here, because we have counted this one already
                     // while processing Cypress data.
+                    var pool;
+                    if (attributes.brief_spec) {
+                        pool = attributes.brief_spec.pool;
+                    } else {
+                        pool = null;
+                    }
                     register.filterAndCount(
-                        attributes.brief_spec.pool,
+                        pool,
                         attributes.authenticated_user,
                         attributes.state,
                         attributes.operation_type,
