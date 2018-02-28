@@ -46,6 +46,7 @@ public:
     , NodeDirectory_(nodeDirectory)
     , CellTag_(cellTag)
     , OnChunkLocated_(onChunkLocated)
+    , Invoker_(invoker)
     , ChunkIds_(std::move(chunkIds))
     , Logger(NLogging::TLogger(logger)
         .AddTag("ScraperTaskId: %v", TGuid::Create())
@@ -95,6 +96,7 @@ private:
     const NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory_;
     const TCellTag CellTag_;
     const TChunkLocatedHandler OnChunkLocated_;
+    IInvokerPtr Invoker_;
 
     //! Non-const since we would like to shuffle it, to avoid scraping the same chunks
     //! on every restart.
@@ -119,7 +121,8 @@ private:
         auto chunkCount = std::min<int>(ChunkIds_.size(), Config_->MaxChunksPerRequest);
 
         Throttler_->Throttle(chunkCount)
-            .Subscribe(BIND(&TScraperTask::DoLocateChunks, MakeWeak(this)));
+            .Subscribe(BIND(&TScraperTask::DoLocateChunks, MakeWeak(this))
+                .Via(Invoker_));
     }
 
     void DoLocateChunks(const TError& error)
