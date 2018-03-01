@@ -2975,11 +2975,7 @@ private:
     IStoreManagerPtr CreateStoreManager(TTablet* tablet)
     {
         if (tablet->IsReplicated()) {
-            if (tablet->TableSchema().IsSorted()) {
-                return DoCreateStoreManager<TReplicatedStoreManager>(tablet);
-            } else {
-                Y_UNREACHABLE();
-            }
+            return DoCreateStoreManager<TReplicatedStoreManager>(tablet);
         } else {
             if (tablet->IsPhysicallySorted()) {
                 return DoCreateStoreManager<TSortedStoreManager>(tablet);

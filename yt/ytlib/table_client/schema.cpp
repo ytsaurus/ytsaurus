@@ -540,16 +540,25 @@ TTableSchema TTableSchema::ToSorted(const TKeyColumns& keyColumns) const
 
 TTableSchema TTableSchema::ToReplicationLog() const
 {
-    YCHECK(IsSorted());
     std::vector<TColumnSchema> columns;
     columns.push_back(TColumnSchema(TimestampColumnName, ELogicalValueType::Uint64));
-    columns.push_back(TColumnSchema(TReplicationLogTable::ChangeTypeColumnName, ELogicalValueType::Int64));
-    for (const auto& column : Columns_) {
-        if (column.SortOrder()) {
-            columns.push_back(TColumnSchema(TReplicationLogTable::KeyColumnNamePrefix + column.Name(), column.LogicalType()));
-        } else {
-            columns.push_back(TColumnSchema(TReplicationLogTable::ValueColumnNamePrefix + column.Name(), column.LogicalType()));
-            columns.push_back(TColumnSchema(TReplicationLogTable::FlagsColumnNamePrefix + column.Name(), ELogicalValueType::Uint64));
+    if (IsSorted()) {
+        columns.push_back(TColumnSchema(TReplicationLogTable::ChangeTypeColumnName, ELogicalValueType::Int64));
+        for (const auto& column : Columns_) {
+            if (column.SortOrder()) {
+                columns.push_back(
+                    TColumnSchema(TReplicationLogTable::KeyColumnNamePrefix + column.Name(), column.LogicalType()));
+            } else {
+                columns.push_back(
+                    TColumnSchema(TReplicationLogTable::ValueColumnNamePrefix + column.Name(), column.LogicalType()));
+                columns.push_back(
+                    TColumnSchema(TReplicationLogTable::FlagsColumnNamePrefix + column.Name(), ELogicalValueType::Uint64));
+            }
+        }
+    } else {
+        for (const auto& column : Columns_) {
+            columns.push_back(
+                TColumnSchema(TReplicationLogTable::ValueColumnNamePrefix + column.Name(), column.LogicalType()));
         }
     }
     return TTableSchema(std::move(columns), true, false);

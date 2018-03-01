@@ -988,9 +988,6 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
         if (!dynamic) {
             THROW_ERROR_EXCEPTION("Upstream replica can only be set for dynamic tables");
         }
-        if (!schema.IsSorted()) {
-            THROW_ERROR_EXCEPTION("Upstream replica can only be set for sorted tables");
-        }
         if (table->IsReplicated()) {
             THROW_ERROR_EXCEPTION("Upstream replica cannot be explicitly set for replicated tables");
         }

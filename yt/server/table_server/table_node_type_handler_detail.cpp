@@ -75,9 +75,6 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
         if (!dynamic) {
             THROW_ERROR_EXCEPTION("Replicated table must be dynamic");
         }
-        if (!maybeSchema->IsSorted()) {
-            THROW_ERROR_EXCEPTION("Replicated table must be sorted");
-        }
     }
 
     if (maybeSchema) {
@@ -98,9 +95,6 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
     if (upstreamReplicaId) {
         if (!dynamic) {
             THROW_ERROR_EXCEPTION("Upstream replica can only be set for dynamic tables");
-        }
-        if (!maybeSchema->IsSorted()) {
-            THROW_ERROR_EXCEPTION("Upstream replica can only be set for sorted tables");
         }
         if (replicated) {
             THROW_ERROR_EXCEPTION("Upstream replica cannot be set for replicated tables");
