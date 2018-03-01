@@ -509,7 +509,7 @@ class ClientFactory(object):
 
 def clear_operations(soft_limit, hard_limit, grace_timeout, archive_timeout, execution_timeout,
                      max_operations_per_user, robots, archive, archive_jobs, thread_count,
-                     stderr_thread_count, push_metrics, remove_threshold, archive_batch_size, client):
+                     stderr_thread_count, push_metrics, remove_threshold, client):
 
     now = datetime.utcnow()
     end_time_limit = now + execution_timeout
@@ -659,7 +659,7 @@ def clear_operations(soft_limit, hard_limit, grace_timeout, archive_timeout, exe
                 OperationArchiver,
                 thread_count,
                 (client_factory, remove_queue, stderr_queue, version, archive_jobs, thread_safe_metrics),
-                batch_size=archive_batch_size,
+                batch_size=32,
                 failed_items=failed_to_archive)
             failed_to_archive.extend(wait_for_queue(archive_queue, "archive_operation", operation_archiving_time_limit))
 
