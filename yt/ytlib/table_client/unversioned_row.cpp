@@ -729,7 +729,8 @@ void ValidateClientRow(
     const TTableSchema& schema,
     const TNameTableToSchemaIdMapping& idMapping,
     const TNameTablePtr& nameTable,
-    bool isKey)
+    bool isKey,
+    const TNullable<int>& tabletIndexColumnId = TNullable<int>())
 {
     ValidateRowValueCount(row.GetCount());
     ValidateKeyColumnCount(schema.GetKeyColumnCount());
@@ -773,6 +774,13 @@ void ValidateClientRow(
         } else {
             ValidateDataValue(value);
         }
+    }
+
+    if (tabletIndexColumnId) {
+        YCHECK(idMapping.size() > tabletIndexColumnId.Get());
+        auto mappedId = idMapping[tabletIndexColumnId.Get()];
+        YCHECK(mappedId >= 0);
+        keyColumnSeen[mappedId] = true;
     }
 
     for (int index = 0; index < schema.GetKeyColumnCount(); ++index) {
@@ -1086,9 +1094,10 @@ void ValidateClientDataRow(
     TUnversionedRow row,
     const TTableSchema& schema,
     const TNameTableToSchemaIdMapping& idMapping,
-    const TNameTablePtr& nameTable)
+    const TNameTablePtr& nameTable,
+    const TNullable<int>& tabletIndexColumnId)
 {
-    ValidateClientRow(row, schema, idMapping, nameTable, false);
+    ValidateClientRow(row, schema, idMapping, nameTable, false, tabletIndexColumnId);
 }
 
 void ValidateClientKey(TKey key)

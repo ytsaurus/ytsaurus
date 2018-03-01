@@ -803,5 +803,136 @@ TEST_F(TVersionedWriteTest, TestWriteTypeChecking)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TOrderedDynamicTablesTest
+    : public TDynamicTablesTestBase
+{
+public:
+    static void SetUpTestCase()
+    {
+        TDynamicTablesTestBase::SetUpTestCase();
+
+        TClientOptions clientOptions;
+        clientOptions.User = NSecurityClient::RootUserName;
+        Client_ = Connection_->CreateNativeClient(clientOptions);
+
+        Table_ = TYPath("//tmp/write_ordered_test");
+        auto attributes = ConvertToNode(TYsonString(
+            "{dynamic=%true;schema=["
+            "{name=v1;type=int64};"
+            "{name=v2;type=int64};"
+            "{name=v3;type=int64}]}"));
+
+        TCreateNodeOptions options;
+        options.Attributes = ConvertToAttributes(attributes);
+
+        WaitFor(Client_->CreateNode(Table_, EObjectType::Table, options))
+            .ThrowOnError();
+
+        SyncMountTable(Table_);
+    }
+
+    static void TearDownTestCase()
+    {
+        SyncUnmountTable(Table_);
+        Client_.Reset();
+        TDynamicTablesTestBase::TearDownTestCase();
+    }
+
+protected:
+    static INativeClientPtr Client_;
+    static TYPath Table_;
+    TRowBufferPtr Buffer_ = New<TRowBuffer>();
+
+    static void WriteRow(
+        std::vector<TString> names,
+        const TString& valueYson)
+    {
+        auto preparedRow = PrepareRow(names, valueYson);
+        WriteRows(
+            std::get<1>(preparedRow),
+            std::get<0>(preparedRow));
+    }
+
+    static void WriteRows(
+        TNameTablePtr nameTable,
+        TSharedRange<TUnversionedRow> rows)
+    {
+        auto transaction = WaitFor(Client_->StartTransaction(NTransactionClient::ETransactionType::Tablet))
+            .ValueOrThrow();
+
+        transaction->WriteRows(
+            Table_,
+            nameTable,
+            rows);
+
+        auto commitResult = WaitFor(transaction->Commit())
+            .ValueOrThrow();
+    }
+
+    static std::tuple<TSharedRange<TUnversionedRow>, TNameTablePtr> PrepareRow(
+        const std::vector<TString>& names,
+        const TString& rowString)
+    {
+        auto nameTable = New<TNameTable>();
+        for (const auto& name : names) {
+            nameTable->GetIdOrRegisterName(name);
+        }
+
+        auto rowBuffer = New<TRowBuffer>();
+        auto owningRow = YsonToSchemalessRow(rowString);
+        std::vector<TUnversionedRow> rows{rowBuffer->Capture(owningRow.Get())};
+        return std::make_tuple(MakeSharedRange(rows, std::move(rowBuffer)), std::move(nameTable));
+    }
+};
+
+INativeClientPtr TOrderedDynamicTablesTest::Client_;
+TYPath TOrderedDynamicTablesTest::Table_;
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_F(TOrderedDynamicTablesTest, TestOrderedTableWrite)
+{
+    WriteRow(
+        {"v3", "v1", "v2"},
+        "<id=0> 15; <id=1> 13; <id=2> 14;");
+    WriteRow(
+        {"v2", "v3", "v1"},
+        "<id=0> 24; <id=1> 25; <id=2> 23;");
+
+    WriteRow(
+        {"v3", "v1", "v2", "$tablet_index"},
+        "<id=0> 15; <id=1> 13; <id=2> 14; <id=3> #;");
+    WriteRow(
+        {"v2", "v3", "v1", "$tablet_index"},
+        "<id=0> 24; <id=1> 25; <id=2> 23; <id=3> 0;");
+
+    auto res = WaitFor(Client_->SelectRows(Format("* from [%s]", Table_))).ValueOrThrow();
+    auto rows = res.Rowset->GetRows();
+
+    ASSERT_EQ(rows.Size(), 4);
+
+    auto actual = ToString(rows[0]);
+    auto expected = ToString(YsonToSchemalessRow(
+        "<id=0> 0; <id=1> 0; <id=2> 13; <id=3> 14; <id=4> 15;"));
+    EXPECT_EQ(actual, expected);
+
+    actual = ToString(rows[1]);
+    expected = ToString(YsonToSchemalessRow(
+        "<id=0> 0; <id=1> 1; <id=2> 23; <id=3> 24; <id=4> 25;"));
+    EXPECT_EQ(actual, expected);
+
+    actual = ToString(rows[2]);
+    expected = ToString(YsonToSchemalessRow(
+        "<id=0> 0; <id=1> 2; <id=2> 13; <id=3> 14; <id=4> 15;"));
+    EXPECT_EQ(actual, expected);
+
+    actual = ToString(rows[3]);
+    expected = ToString(YsonToSchemalessRow(
+        "<id=0> 0; <id=1> 3; <id=2> 23; <id=3> 24; <id=4> 25;"));
+    EXPECT_EQ(actual, expected);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace
 } // namespace NYT

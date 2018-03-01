@@ -547,7 +547,6 @@ private:
             , Connection_(std::move(connection))
             , Path_(path)
             , NameTable_(std::move(nameTable))
-            , TabletIndexColumnId_(NameTable_->FindId(TabletIndexColumnName))
             , Modifications_(std::move(modifications))
             , Options_(options)
             , Logger(Transaction_->Logger)
@@ -601,6 +600,11 @@ private:
                 }
             }
 
+            TNullable<int> tabletIndexColumnId;
+            if (!tableInfo->IsSorted()) {
+                tabletIndexColumnId = NameTable_->GetIdOrRegisterName(TabletIndexColumnName);
+            }
+
             const auto& primarySchema = tableInfo->Schemas[ETableSchemaKind::Primary];
             const auto& primaryIdMapping = Transaction_->GetColumnIdMapping(tableInfo, NameTable_, ETableSchemaKind::Primary);
 
@@ -623,7 +627,7 @@ private:
             for (const auto& modification : Modifications_) {
                 switch (modification.Type) {
                     case ERowModificationType::Write:
-                        ValidateClientDataRow(TUnversionedRow(modification.Row), writeSchema, writeIdMapping, NameTable_);
+                        ValidateClientDataRow(TUnversionedRow(modification.Row), writeSchema, writeIdMapping, NameTable_, tabletIndexColumnId);
                         break;
 
                     case ERowModificationType::VersionedWrite:
@@ -667,7 +671,7 @@ private:
                             tabletInfo = GetOrderedTabletForRow(
                                 tableInfo,
                                 randomTabletInfo,
-                                TabletIndexColumnId_,
+                                tabletIndexColumnId,
                                 TUnversionedRow(modification.Row),
                                 true);
                         }
@@ -700,7 +704,6 @@ private:
         const INativeConnectionPtr Connection_;
         const TYPath Path_;
         const TNameTablePtr NameTable_;
-        const TNullable<int> TabletIndexColumnId_;
         const TSharedRange<TRowModification> Modifications_;
         const TModifyRowsOptions Options_;
 
