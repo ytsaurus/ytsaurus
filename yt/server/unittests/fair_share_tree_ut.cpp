@@ -249,6 +249,9 @@ TEST(FairShareTree, TestAttributes)
     jobResources.SetCpu(1);
     jobResources.SetMemory(10);
 
+    auto operationOptions = New<TOperationFairShareStrategyTreeOptions>();
+    operationOptions->Weight = 1.0;
+
     auto config = New<TFairShareStrategyConfig>();
     auto treeConfig = New<TFairShareStrategyTreeConfig>();
     auto host = New<TSchedulerStrategyHostMock>(TJobResourcesWithQuotaList(10, nodeResources));
@@ -289,7 +292,7 @@ TEST(FairShareTree, TestAttributes)
     auto operationElementX = New<TOperationElement>(
         treeConfig,
         New<TStrategyOperationSpec>(),
-        New<TOperationFairShareStrategyTreeOptions>(),
+        operationOptions,
         operationControllerX,
         config,
         host.Get(),
@@ -325,6 +328,9 @@ TEST(FairShareTree, TestUpdatePreemptableJobsList)
     jobResources.SetCpu(1);
     jobResources.SetMemory(10);
 
+    auto operationOptions = New<TOperationFairShareStrategyTreeOptions>();
+    operationOptions->Weight = 1.0;
+
     auto config = New<TFairShareStrategyConfig>();
     auto treeConfig = New<TFairShareStrategyTreeConfig>();
     auto host = New<TSchedulerStrategyHostMock>(TJobResourcesWithQuotaList(10, nodeResources));
@@ -341,7 +347,7 @@ TEST(FairShareTree, TestUpdatePreemptableJobsList)
     auto operationElementX = New<TOperationElement>(
         treeConfig,
         New<TStrategyOperationSpec>(),
-        New<TOperationFairShareStrategyTreeOptions>(),
+        operationOptions,
         operationControllerX,
         config,
         host.Get(),
@@ -393,6 +399,9 @@ TEST(FairShareTree, TestBestAllocationRatio)
     jobResources.SetCpu(1);
     jobResources.SetMemory(150);
 
+    auto operationOptions = New<TOperationFairShareStrategyTreeOptions>();
+    operationOptions->Weight = 1.0;
+
     auto config = New<TFairShareStrategyConfig>();
     auto treeConfig = New<TFairShareStrategyTreeConfig>();
     auto host = New<TSchedulerStrategyHostMock>(TJobResourcesWithQuotaList({nodeResourcesA, nodeResourcesA, nodeResourcesB}));
@@ -409,7 +418,7 @@ TEST(FairShareTree, TestBestAllocationRatio)
     auto operationElementX = New<TOperationElement>(
         treeConfig,
         New<TStrategyOperationSpec>(),
-        New<TOperationFairShareStrategyTreeOptions>(),
+        operationOptions,
         operationControllerX,
         config,
         host.Get(),
