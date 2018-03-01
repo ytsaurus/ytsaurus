@@ -3492,7 +3492,7 @@ private:
             auto attrNode = cypressNode->AsMap();
 
             if (!attributes) {
-                auto userAttributeKeys = ConvertTo<THashSet<TString>>(attrNode->GetChild("user_attribute_keys"));
+                auto userAttributeKeys = ConvertTo<yhash_set<TString>>(attrNode->GetChild("user_attribute_keys"));
                 for (const auto& key : attrNode->GetKeys()) {
                     if (userAttributeKeys.find(key) == userAttributeKeys.end()) {
                         attrNode->RemoveChild(key);
