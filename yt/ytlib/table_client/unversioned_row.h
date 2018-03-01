@@ -386,7 +386,8 @@ void ValidateClientDataRow(
     TUnversionedRow row,
     const TTableSchema& schema,
     const TNameTableToSchemaIdMapping& idMapping,
-    const TNameTablePtr& nameTable);
+    const TNameTablePtr& nameTable,
+    const TNullable<int>& tabletIndexColumnId = TNullable<int>());
 
 //! Checks that #key is a valid client-side key. Throws on failure.
 /*! The components must pass #ValidateKeyValue check. */
