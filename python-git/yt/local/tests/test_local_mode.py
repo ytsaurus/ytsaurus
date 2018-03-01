@@ -257,7 +257,10 @@ class TestLocalMode(object):
     def test_commands_sanity(self):
         with local_yt() as environment:
             pids = _read_pids_file(environment.id)
-            assert len(pids) == 5
+            if environment.abi_version >= (19, 3):
+                assert len(pids) == 6
+            else:
+                assert len(pids) == 5
             # Should not delete running instance
             with pytest.raises(yt.YtError):
                 delete(environment.id)
