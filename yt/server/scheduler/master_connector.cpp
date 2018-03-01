@@ -1244,8 +1244,10 @@ private:
 
         auto paths = GetCompatibilityOperationPaths(operation->GetId(), operation->GetStorageMode());
         for (const auto& operationPath : paths) {
-            // Set operation acl.
-            {
+            // Set operation acl if needed.
+            if (operation->GetShouldFlushAcl()) {
+                operation->SetShouldFlushAcl(false);
+
                 auto aclBatchReq = StartObjectBatchRequest();
                 auto req = TYPathProxy::Set(operationPath + "/@acl");
                 req->set_value(BuildYsonStringFluently()
