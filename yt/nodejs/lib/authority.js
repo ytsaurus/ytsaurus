@@ -540,10 +540,7 @@ YtAuthority.prototype._ensureUserDomain = function(logger, name)
 
     return this.driver.executeSimple("get", {
         path: attributePath
-    }).then(
-    function(result) {
-        return result;
-    },
+    }).catch(
     function(error) {
         if (error.checkFor(500)) {
             return; // Resolve error, return 'undefined';
