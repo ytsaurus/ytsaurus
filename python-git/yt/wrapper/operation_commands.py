@@ -115,6 +115,13 @@ def list_operations(user=None, state=None, type=None, filter=None, pool=None, wi
         format=None,
         client=client)
 
+def update_operation_parameters(operation_id, parameters, client=None):
+    """Updates operation runtime parameters."""
+    return make_request(
+        "update_op_parameters",
+        {"operation_id": operation_id, "parameters": parameters},
+        client=client)
+
 # Helpers
 
 class OperationState(object):

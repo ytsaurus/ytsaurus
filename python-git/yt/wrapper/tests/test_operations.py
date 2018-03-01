@@ -16,7 +16,10 @@ from yt.wrapper.common import parse_bool
 from yt.wrapper.operation_commands import add_failed_operation_stderrs_to_error_message, get_stderrs, get_operation_error
 from yt.wrapper.table import TablePath
 from yt.wrapper.spec_builders import MapSpecBuilder, MapReduceSpecBuilder, VanillaSpecBuilder
+
+from yt.environment.helpers import assert_almost_equal
 from yt.local import start, stop
+
 from yt.yson import YsonMap
 import yt.logger as logger
 import yt.subprocess_wrapper as subprocess
@@ -1755,3 +1758,14 @@ if __name__ == "__main__":
         yt.run_map_reduce(mapper=None, reducer="cat", reduce_by=["x"],
                           source_table=table, destination_table=output_table, spec=spec)
         check([{"x": 1}, {"y": 2}], list(yt.read_table(table)))
+
+    def test_update_operation_parameters(self):
+        table = TEST_DIR + "/table"
+        output_table = TEST_DIR + "/output_table"
+        yt.write_table(table, [{"x": 1}, {"y": 2}])
+
+        op = yt.run_map("cat; sleep 100", table, output_table, spec={"weight": 5.0}, format="json", sync=False)
+        yt.update_operation_parameters(op.id, {"scheduling_options_per_pool_tree": {"default": {"weight": 10.0}}})
+        assert assert_almost_equal(
+            yt.get_operation(op.id)["progress"]["scheduling_info_per_pool_tree"]["default"]["weight"],
+            10.0)
