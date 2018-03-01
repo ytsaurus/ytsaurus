@@ -795,6 +795,9 @@ public:
     // Is applied on top of user layers if they are used.
     TNullable<TString> SystemLayerPath;
 
+    // Running jobs cached YSON string update period.
+    TDuration CachedRunningJobsUpdatePeriod;
+
     TSchedulerConfig();
 
 private:
