@@ -513,6 +513,7 @@ public:
         RegisterMethod(BIND(&TImpl::HydraCreateForeignNode, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraCloneForeignNode, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraRemoveExpiredNodes, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraLockForeignNode, Unretained(this)));
     }
 
     void Initialize()
@@ -1719,6 +1720,10 @@ private:
                 transaction->GetId());
         }
 
+        if (trunkNode->IsExternal() && Bootstrap_->IsPrimaryMaster()) {
+            PostLockForeignNodeRequest(lock);
+        }
+
         // Branch node, if needed.
         auto* branchedNode = FindNode(trunkNode, transaction);
         if (branchedNode) {
@@ -1929,6 +1934,30 @@ private:
                 DoAcquireLock(lock);
             }
         }
+    }
+
+    void PostLockForeignNodeRequest(const TLock* lock)
+    {
+        const auto* node = lock->GetTrunkNode();
+
+        NProto::TReqLockForeignNode request;
+        ToProto(request.mutable_transaction_id(), lock->GetTransaction()->GetId());
+        ToProto(request.mutable_node_id(), node->GetId());
+        request.set_mode(static_cast<int>(lock->Request().Mode));
+        switch (lock->Request().Key.Kind) {
+            case ELockKeyKind::None:
+                break;
+            case ELockKeyKind::Child:
+                request.set_child_key(lock->Request().Key.Name);
+                break;
+            case ELockKeyKind::Attribute:
+                request.set_attribute_key(lock->Request().Key.Name);
+                break;
+        }
+        request.set_timestamp(lock->Request().Timestamp);
+
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        multicellManager->PostToMaster(request, node->GetExternalCellTag());
     }
 
 
@@ -2287,6 +2316,59 @@ private:
                 ExpirationTracker_->OnNodeRemovalFailed(trunkNode);
             }
         }
+    }
+
+    void HydraLockForeignNode(NProto::TReqLockForeignNode* request) throw()
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YCHECK(Bootstrap_->IsSecondaryMaster());
+
+        auto transactionId = FromProto<TTransactionId>(request->transaction_id());
+        auto nodeId = FromProto<TNodeId>(request->node_id());
+
+        const auto& transactionManager = Bootstrap_->GetTransactionManager();
+        auto* transaction = transactionManager->FindTransaction(transactionId);
+        if (!IsObjectAlive(transaction)) {
+            LOG_ERROR("Unexpected error: lock transaction is missing (NodeId: %v, TransactionId: %v)",
+                nodeId,
+                transactionId);
+            return;
+        }
+
+        auto* trunkNode = FindNode(TVersionedObjectId(nodeId));
+        if (!IsObjectAlive(trunkNode)) {
+            LOG_ERROR("Unexpected error: lock node is missing (NodeId: %v, TransactionId: %v)",
+                nodeId,
+                transactionId);
+            return;
+        }
+
+        TLockRequest lockRequest;
+        if (request->has_child_key()) {
+            lockRequest = TLockRequest::MakeSharedChild(request->child_key());
+        } else if (request->has_attribute_key()) {
+            lockRequest = TLockRequest::MakeSharedAttribute(request->attribute_key());
+        } else {
+            lockRequest = TLockRequest(static_cast<ELockMode>(request->mode()));
+        }
+        lockRequest.Timestamp = static_cast<TTimestamp>(request->timestamp());
+
+        auto error = CheckLock(
+            trunkNode,
+            transaction,
+            lockRequest,
+            false);
+        if (!error.IsOK()) {
+            LOG_ERROR(error, "Unexpected error: cannot lock foreign node (NodeId: %v, TransactionId: %v, Mode: %v, Key: %v)",
+                nodeId,
+                transactionId,
+                lockRequest.Mode,
+                lockRequest.Key);
+            return;
+        }
+
+        auto* lock = DoCreateLock(trunkNode, transaction, lockRequest, false);
+        DoAcquireLock(lock);
     }
 };
 
