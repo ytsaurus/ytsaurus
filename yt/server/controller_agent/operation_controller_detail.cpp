@@ -1168,6 +1168,7 @@ void TOperationControllerBase::StartCompletionTransaction()
 
         auto path = GetNewOperationPath(OperationId) + "/@completion_transaction_id";
         auto req = TYPathProxy::Set(path);
+        req->set_recursive(true);
         req->set_value(ConvertToYsonString(CompletionTransaction->GetId()).GetData());
         WaitFor(proxy.Execute(req))
             .ThrowOnError();

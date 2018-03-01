@@ -149,15 +149,6 @@ public:
 
         auto batchReq = StartObjectBatchRequest();
 
-        {
-            auto req = TCypressYPathProxy::Create(GetNewOperationPath(operationId));
-            req->set_type(static_cast<int>(EObjectType::MapNode));
-            req->set_recursive(true);
-            req->set_force(true);
-            GenerateMutationId(req);
-            batchReq->AddRequest(req);
-        }
-
         auto operationYson = BuildYsonStringFluently()
             .BeginAttributes()
                 .Do(BIND(&ISchedulerStrategy::BuildOperationAttributes, strategy, operationId))
@@ -186,6 +177,7 @@ public:
         for (const auto& path : paths) {
             auto req = TYPathProxy::Set(path);
             req->set_value(operationYson);
+            req->set_recursive(true);
             GenerateMutationId(req);
             batchReq->AddRequest(req);
         }
