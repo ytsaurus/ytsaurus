@@ -330,6 +330,22 @@ void Serialize(const TProgressCounterPtr& counter, IYsonConsumer* consumer)
         .EndMap();
 }
 
+void SerializeBriefVersion(const TProgressCounterPtr& counter, NYTree::TFluentAny fluent)
+{
+    fluent
+        .BeginMap()
+            .DoIf(counter->IsTotalEnabled(), [&] (TFluentMap fluent) {
+                fluent
+                    .Item("total").Value(counter->GetTotal())
+                    .Item("pending").Value(counter->GetPending());
+            })
+            .Item("running").Value(counter->GetRunning())
+            .Item("completed").Value(counter->GetCompletedTotal())
+            .Item("failed").Value(counter->GetFailed())
+            .Item("aborted").Value(counter->GetAbortedScheduled())
+        .EndMap();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NControllerAgent
