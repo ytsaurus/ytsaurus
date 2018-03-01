@@ -117,6 +117,8 @@ private:
 
 
     TUnversionedRow BuildLogRow(TUnversionedRow row, NApi::ERowModificationType changeType);
+    TUnversionedRow BuildSortedLogRow(TUnversionedRow row, NApi::ERowModificationType changeType);
+    TUnversionedRow BuildOrderedLogRow(TUnversionedRow row, NApi::ERowModificationType changeType);
 
 };
 

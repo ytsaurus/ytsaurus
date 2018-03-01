@@ -295,6 +295,32 @@ TUnversionedRow TReplicatedStoreManager::BuildLogRow(
 {
     LogRowBuilder_.Reset();
     LogRowBuilder_.AddValue(MakeUnversionedSentinelValue(EValueType::Null, 0));
+
+    if (Tablet_->TableSchema().IsSorted()) {
+        return BuildSortedLogRow(row, changeType);
+    } else {
+        return BuildOrderedLogRow(row, changeType);
+    }
+}
+
+TUnversionedRow TReplicatedStoreManager::BuildOrderedLogRow(
+    TUnversionedRow row,
+    ERowModificationType changeType)
+{
+    YCHECK(changeType == ERowModificationType::Write);
+
+    for (int index = 0; index < row.GetCount(); ++index) {
+        auto value = row[index];
+        value.Id += 1;
+        LogRowBuilder_.AddValue(value);
+    }
+    return LogRowBuilder_.GetRow();
+}
+
+TUnversionedRow TReplicatedStoreManager::BuildSortedLogRow(
+    TUnversionedRow row,
+    ERowModificationType changeType)
+{
     LogRowBuilder_.AddValue(MakeUnversionedInt64Value(static_cast<int>(changeType), 1));
 
     int keyColumnCount = Tablet_->TableSchema().GetKeyColumnCount();
