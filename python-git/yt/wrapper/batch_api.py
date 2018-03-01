@@ -6,7 +6,7 @@ from .file_commands import LocalFile, put_file_to_cache, get_file_from_cache
 from .table_commands import create_table, row_count, is_sorted, is_empty, alter_table
 from .dynamic_table_commands import (mount_table, unmount_table, remount_table,
                                      freeze_table, unfreeze_table, reshard_table, trim_rows, alter_table_replica)
-from .operation_commands import suspend_operation, resume_operation, get_operation_attributes
+from .operation_commands import suspend_operation, resume_operation, get_operation_attributes, update_operation_parameters
 from .transaction_commands import start_transaction, abort_transaction, commit_transaction, ping_transaction
 from .job_commands import abort_job
 from .etc_commands import generate_timestamp
