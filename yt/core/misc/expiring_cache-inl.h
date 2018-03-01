@@ -72,7 +72,7 @@ TFuture<TValue> TExpiringCache<TKey, TValue>::Get(const TKey& key)
         auto weakEntry = MakeWeak(entry);
         YCHECK(Map_.insert(std::make_pair(key, std::move(entry))).second);
         guard.Release();
-        InvokeGet(weakEntry, key);
+        InvokeGet(weakEntry, key, false);
         return promise;
     }
 }
@@ -189,7 +189,6 @@ void TExpiringCache<TKey, TValue>::SetResult(const TWeakPtr<TEntry>& weakEntry, 
     } else {
         entry->Promise.Set(valueOrError);
     }
-    YCHECK(entry->Promise.IsSet());
 
     if (now > entry->AccessDeadline) {
         Map_.erase(key);
@@ -199,15 +198,15 @@ void TExpiringCache<TKey, TValue>::SetResult(const TWeakPtr<TEntry>& weakEntry, 
     if (valueOrError.IsOK()) {
         NTracing::TNullTraceContextGuard guard;
         entry->ProbationCookie = NConcurrency::TDelayedExecutor::Submit(
-            BIND(&TExpiringCache::InvokeGet, MakeWeak(this), MakeWeak(entry), key),
+            BIND(&TExpiringCache::InvokeGet, MakeWeak(this), MakeWeak(entry), key, true),
             Config_->RefreshTime);
     }
 }
 
 template <class TKey, class TValue>
-void TExpiringCache<TKey, TValue>::InvokeGet(const TWeakPtr<TEntry>& weakEntry, const TKey& key)
+void TExpiringCache<TKey, TValue>::InvokeGet(const TWeakPtr<TEntry>& weakEntry, const TKey& key, bool checkExpired)
 {
-    if (weakEntry.IsExpired()) {
+    if (checkExpired && TryEraseExpired(weakEntry, key)) {
         return;
     }
 
@@ -217,6 +216,22 @@ void TExpiringCache<TKey, TValue>::InvokeGet(const TWeakPtr<TEntry>& weakEntry, 
 
             SetResult(weakEntry, key, valueOrError);
         }));
+}
+
+template <class TKey, class TValue>
+bool TExpiringCache<TKey, TValue>::TryEraseExpired(const TWeakPtr<TEntry>& weakEntry, const TKey& key)
+{
+    auto entry = weakEntry.Lock();
+    if (!entry) {
+        return true;
+    }
+
+    if (NProfiling::GetCpuInstant() > entry->AccessDeadline) {
+        NConcurrency::TWriterGuard writerGuard(SpinLock_);
+        Map_.erase(key);
+        return true;
+    }
+    return false;
 }
 
 template <class TKey, class TValue>

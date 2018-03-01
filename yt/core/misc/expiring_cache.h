@@ -8,6 +8,8 @@
 
 #include <yt/core/profiling/public.h>
 
+#include <atomic>
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -39,7 +41,7 @@ private:
         : public TRefCounted
     {
         //! When this entry must be evicted with respect to access timeout.
-        NProfiling::TCpuInstant AccessDeadline;
+        std::atomic<NProfiling::TCpuInstant> AccessDeadline;
 
         //! When this entry must be evicted with respect to update timeout.
         NProfiling::TCpuInstant UpdateDeadline;
@@ -62,8 +64,8 @@ private:
 
     void SetResult(const TWeakPtr<TEntry>& entry, const TKey& key, const TErrorOr<TValue>& valueOrError);
     void InvokeGetMany(const std::vector<TWeakPtr<TEntry>>& entries, const std::vector<TKey>& keys);
-    void InvokeGet(const TWeakPtr<TEntry>& entry, const TKey& key);
-
+    void InvokeGet(const TWeakPtr<TEntry>& entry, const TKey& key, bool checkExpired);
+    bool TryEraseExpired(const TWeakPtr<TEntry>& weakEntry, const TKey& key);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

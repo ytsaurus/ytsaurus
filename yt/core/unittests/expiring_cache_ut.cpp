@@ -18,7 +18,7 @@ class TSimpleExpiringCache
     : public TExpiringCache<int, int>
 {
 public:
-    TSimpleExpiringCache(TExpiringCacheConfigPtr config, float successProbability = 1.0)
+    explicit TSimpleExpiringCache(TExpiringCacheConfigPtr config, float successProbability = 1.0)
         : TExpiringCache<int, int>(std::move(config))
         , Generator_(RandomDevice_())
         , Bernoulli_(successProbability)
@@ -87,14 +87,14 @@ private:
 
 TEST(TExpiringCacheTest, TestBackgroundUpdate)
 {
-    int interval = 100;
+    int interval = 10;
     auto config = New<TExpiringCacheConfig>();
     config->RefreshTime = TDuration::MilliSeconds(interval);
     auto cache = New<TSimpleExpiringCache>(config);
 
     auto start = Now();
     cache->Get(0);
-    Sleep(TDuration::Seconds(1));
+    Sleep(TDuration::MilliSeconds(100));
     int actual = cache->GetCount();
     auto end = Now();
 
@@ -116,7 +116,7 @@ TEST(TExpiringCacheTest, TestEntryRemoval)
 
     for (int i = 0; i < 10; ++i) {
         auto callback = BIND([=] () {
-            for (int i = 0; i < 1000; ++i) {
+            for (int j = 0; j < 1000; ++j) {
                 cache->Get(0);
 
                 if (rand() % 20 == 0) {
@@ -148,79 +148,84 @@ TEST(TExpiringCacheTest, TestEntryRemoval)
 TEST(TExpiringCacheTest, TestAccessTime1)
 {
     auto config = New<TExpiringCacheConfig>();
-    config->RefreshTime = TDuration::MilliSeconds(10);
+    config->RefreshTime = TDuration::MilliSeconds(1);
     config->ExpireAfterAccessTime = TDuration::MilliSeconds(0);
     auto cache = New<TSimpleExpiringCache>(config);
 
-    cache->Get(0);
-    Sleep(TDuration::Seconds(1));
-    int actual = cache->GetCount();
+    EXPECT_TRUE(cache->Get(0).IsSet());
+    Sleep(TDuration::MilliSeconds(10));
 
-    EXPECT_EQ(1, actual);
+    EXPECT_EQ(1, cache->GetCount());
 }
 
 TEST(TExpiringCacheTest, TestAccessTime2)
 {
     auto config = New<TExpiringCacheConfig>();
-    config->ExpireAfterAccessTime = TDuration::MilliSeconds(50);
+    config->ExpireAfterAccessTime = TDuration::MilliSeconds(5);
     auto cache = New<TSimpleExpiringCache>(config);
 
     for (int i = 0; i < 10; ++i) {
         cache->Get(0);
-        Sleep(TDuration::MilliSeconds(30));
+        Sleep(TDuration::MilliSeconds(3));
     }
 
-    int actual = cache->GetCount();
 
-    EXPECT_EQ(1, actual);
+    EXPECT_EQ(1, cache->GetCount());
 }
 
 TEST(TExpiringCacheTest, TestAccessTime3)
 {
     auto config = New<TExpiringCacheConfig>();
-    config->ExpireAfterAccessTime = TDuration::MilliSeconds(30);
+    config->ExpireAfterAccessTime = TDuration::MilliSeconds(3);
     auto cache = New<TSimpleExpiringCache>(config);
 
     for (int i = 0; i < 10; ++i) {
         cache->Get(0);
-        Sleep(TDuration::MilliSeconds(50));
+        Sleep(TDuration::MilliSeconds(5));
     }
 
-    int actual = cache->GetCount();
+    EXPECT_EQ(10, cache->GetCount());
+}
 
-    EXPECT_EQ(10, actual);
+TEST(TExpiringCacheTest, CacheDoesntRefreshExpiredItem)
+{
+    auto config = New<TExpiringCacheConfig>();
+    config->RefreshTime = TDuration::MilliSeconds(2);
+    config->ExpireAfterAccessTime = TDuration::MilliSeconds(1);
+    auto cache = New<TSimpleExpiringCache>(config);
+
+    EXPECT_TRUE(cache->Get(0).IsSet());
+    Sleep(TDuration::MilliSeconds(5));
+
+    EXPECT_EQ(1, cache->GetCount());
 }
 
 TEST(TExpiringCacheTest, TestUpdateTime1)
 {
     auto config = New<TExpiringCacheConfig>();
-    config->ExpireAfterSuccessfulUpdateTime = TDuration::MilliSeconds(30);
+    config->ExpireAfterSuccessfulUpdateTime = TDuration::MilliSeconds(3);
     auto cache = New<TSimpleExpiringCache>(config);
 
     for (int i = 0; i < 10; ++i) {
         cache->Get(0);
-        Sleep(TDuration::MilliSeconds(50));
+        Sleep(TDuration::MilliSeconds(5));
     }
 
-    int actual = cache->GetCount();
-
-    EXPECT_EQ(10, actual);
+    EXPECT_EQ(10, cache->GetCount());
 }
 
 TEST(TExpiringCacheTest, TestUpdateTime2)
 {
     auto config = New<TExpiringCacheConfig>();
-    config->ExpireAfterFailedUpdateTime = TDuration::MilliSeconds(30);
+    config->ExpireAfterFailedUpdateTime = TDuration::MilliSeconds(3);
     auto cache = New<TSimpleExpiringCache>(config, 0.0);
 
     for (int i = 0; i < 10; ++i) {
         cache->Get(0);
-        Sleep(TDuration::MilliSeconds(50));
+        Sleep(TDuration::MilliSeconds(5));
     }
 
-    int actual = cache->GetCount();
-
-    EXPECT_EQ(10, actual);
+    EXPECT_EQ(10, cache->GetCount());
 }
 
 TEST(TExpiringCacheTest, TestZeroCache1)
@@ -241,8 +246,7 @@ TEST(TExpiringCacheTest, TestZeroCache1)
         Sleep(TDuration::MilliSeconds(1));
     }
 
-    int actual = cache->GetCount();
-    EXPECT_EQ(10, actual);
+    EXPECT_EQ(10, cache->GetCount());
 }
 
 TEST(TExpiringCacheTest, TestZeroCache2)
@@ -258,14 +262,13 @@ TEST(TExpiringCacheTest, TestZeroCache2)
         futures.push_back(cache->Get(0));
     }
 
-    for (auto future : futures) {
+    for (const auto& future : futures) {
         auto result = future.Get();
         EXPECT_TRUE(result.IsOK());
         EXPECT_EQ(1, result.Value());
     }
 
-    int actual = cache->GetCount();
-    EXPECT_EQ(1, actual);
+    EXPECT_EQ(1, cache->GetCount());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
