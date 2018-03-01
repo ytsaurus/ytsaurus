@@ -1165,11 +1165,6 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Lock)
         lockId);
 
     context->Reply();
-
-    const auto* node = GetThisImpl();
-    if (node->IsExternal()) {
-        PostToMaster(context, node->GetExternalCellTag());
-    }
 }
 
 //! A combination of inherited and explicitly provided (by the user) attributes.

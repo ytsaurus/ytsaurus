@@ -49,4 +49,14 @@ message TReqRemoveExpiredNodes
 
 ////////////////////////////////////////////////////////////////////////////////
 
+message TReqLockForeignNode
+{
+    required NYT.NProto.TGuid transaction_id = 1;
+    required NYT.NProto.TGuid node_id = 2;
+    required int32 mode = 3; // ELockMode
+    optional string child_key = 4;
+    optional string attribute_key = 5;
+    optional uint64 timestamp = 6;
+}
 
+////////////////////////////////////////////////////////////////////////////////
