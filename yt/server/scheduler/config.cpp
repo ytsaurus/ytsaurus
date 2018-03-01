@@ -722,8 +722,11 @@ TSchedulerConfig::TSchedulerConfig()
     RegisterParameter("system_layer_path", SystemLayerPath)
         .Default(Null);
 
-	RegisterParameter("suspicious_jobs", SuspiciousJobs)
-		.DefaultNew();
+    RegisterParameter("cached_running_jobs_update_period", CachedRunningJobsUpdatePeriod)
+        .Default();
+
+    RegisterParameter("suspicious_jobs", SuspiciousJobs)
+        .DefaultNew();
 
     RegisterPreprocessor([&] () {
         ChunkLocationThrottler->Limit = 10000;

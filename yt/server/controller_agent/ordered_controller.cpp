@@ -388,11 +388,12 @@ protected:
 
         InitTeleportableInputTables();
 
-        for (const auto& table : InputTables) {
-            // If we verify sorted output, there is no need to keep output order inside
-            // ordered chunk pool since the output chunk lists will be reordered according to the
-            // boundary keys anyway.
-            if (!table.Schema.IsSorted() || !ShouldVerifySortedOutput()) {
+        if (!ShouldVerifySortedOutput()) {
+            OrderedOutputRequired_ = true;
+        }
+
+        for (const auto& table : OutputTables_) {
+            if (!table.TableUploadOptions.TableSchema.IsSorted()) {
                 OrderedOutputRequired_ = true;
             }
         }
