@@ -1698,7 +1698,7 @@ if __name__ == "__main__":
         assert operation["state"] == "completed"
         assert operation["type"] == "map"
 
-    def test_list_operations_compatibility(self):
+    def test_list_operations_compatibility(self, yt_env):
         if yt.config["backend"] == "native":
             pytest.skip()
 
@@ -1710,7 +1710,9 @@ if __name__ == "__main__":
         operations_new = yt.list_operations(enable_ui_mode=True)
         del operations_old["timings"]
         for op in operations_new["operations"]:
-            op.attributes["weight"] = int(op.attributes["weight"])
+            # TODO(asaitgalin): weight should always be presented in list operation response.
+            if "weight" in op.attributes:
+                op.attributes["weight"] = int(op.attributes["weight"])
 
         assert operations_new == operations_old
 
