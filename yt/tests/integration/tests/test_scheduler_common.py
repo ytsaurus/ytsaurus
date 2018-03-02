@@ -1292,9 +1292,9 @@ class TestSchedulerRevive(YTEnvSetup):
             out="//tmp/t2",
             spec={"data_size_per_job": 1})
 
-        operation_path = "//sys/operations/{0}".format(op.id)
+        operation_path = get_operation_path(op.id)
 
-        async_transaction_id = get(operation_path + "/@async_scheduler_transaction_id")
+        async_transaction_id = get("//sys/operations/" + op.id + "/@async_scheduler_transaction_id")
         assert exists(operation_path + "/output_0", tx=async_transaction_id)
 
         op.resume_job(op.jobs[0])
@@ -1313,7 +1313,7 @@ class TestSchedulerRevive(YTEnvSetup):
 
         wait(lambda: op.get_state() == "running")
 
-        new_async_transaction_id = get(operation_path + "/@async_scheduler_transaction_id")
+        new_async_transaction_id = get("//sys/operations/" + op.id + "/@async_scheduler_transaction_id")
         assert new_async_transaction_id != async_transaction_id
 
         async_transaction_id = new_async_transaction_id
@@ -1758,8 +1758,8 @@ class TestSchedulerMaxChildrenPerAttachRequest(YTEnvSetup):
                     break
             time.sleep(0.1)
 
-        operation_path = "//sys/operations/{0}".format(op.id)
-        transaction_id = get(operation_path + "/@async_scheduler_transaction_id")
+        operation_path = get_operation_path(op.id)
+        transaction_id = get("//sys/operations/" + op.id + "/@async_scheduler_transaction_id")
         assert len(read_table(operation_path + "/output_0", tx=transaction_id)) == 2
         assert get(operation_path + "/output_0/@row_count", tx=transaction_id) == 2
 
@@ -2816,9 +2816,6 @@ class TestSchedulerDifferentOperationStorageModes(YTEnvSetup):
         }
     }
 
-    def _get_new_operation_path(self, op_id):
-        return "//sys/operations/{0:02x}/{1}".format(int(op_id.split("-")[-1], 16) % 256, op_id)
-
     def _get_operation_path(self, op_id):
         return "//sys/operations/" + op_id
 
@@ -2874,7 +2871,7 @@ fi
 
         for mode, op in zip(self.STORAGE_MODES, ops):
             if mode == "hash_buckets":
-                wait(lambda: get(self._get_new_operation_path(op.id) + "/@state") == "running")
+                wait(lambda: get(get_operation_path(op.id) + "/@state") == "running")
             else:
                 wait(lambda: get(self._get_operation_path(op.id) + "/@state") == "running")
 
@@ -2885,25 +2882,25 @@ fi
 
         # Simple hash buckets
         assert get(self._get_operation_path(ops[0].id) + "/@state") == "running"
-        assert not exists(self._get_new_operation_path(ops[0].id) + "/@state")
+        assert not exists(get_operation_path(ops[0].id) + "/@state")
         complete_op(ops[0].id, authenticated_user="u")
-        assert exists(self._get_new_operation_path(ops[0].id) + "/@committed")
-        assert exists(self._get_new_operation_path(ops[0].id) + "/@completion_transaction_id")
+        assert exists(get_operation_path(ops[0].id) + "/@committed")
+        assert exists(get_operation_path(ops[0].id) + "/@completion_transaction_id")
 
         # Hash buckets
-        assert get(self._get_new_operation_path(ops[1].id) + "/@state") == "running"
+        assert get(get_operation_path(ops[1].id) + "/@state") == "running"
         assert not exists(self._get_operation_path(ops[1].id))
         complete_op(ops[1].id, authenticated_user="u")
-        assert exists(self._get_new_operation_path(ops[1].id) + "/@committed")
-        assert exists(self._get_new_operation_path(ops[1].id) + "/@completion_transaction_id")
+        assert exists(get_operation_path(ops[1].id) + "/@committed")
+        assert exists(get_operation_path(ops[1].id) + "/@completion_transaction_id")
 
         # Compatible
         assert get(self._get_operation_path(ops[2].id) + "/@state") == "running"
-        assert get(self._get_new_operation_path(ops[2].id) + "/@state") == "running"
+        assert get(get_operation_path(ops[2].id) + "/@state") == "running"
         complete_op(ops[2].id, authenticated_user="u")
         # NOTE: This attribute is moved to hash buckets unconditionally in all modes.
         assert not exists(self._get_operation_path(ops[2].id) + "/@committed")
-        assert exists(self._get_new_operation_path(ops[2].id) + "/@committed")
+        assert exists(get_operation_path(ops[2].id) + "/@committed")
 
     def test_runtime_params(self):
         create("table", "//tmp/t_input")
@@ -2931,7 +2928,7 @@ fi
 
         op = _run_op("hash_buckets")
 
-        set(self._get_new_operation_path(op.id) + "/@resource_limits", {"user_slots": 1})
+        set(get_operation_path(op.id) + "/@resource_limits", {"user_slots": 1})
 
         time.sleep(1.0)
         assert get(orchid_path.format(op.id)) == 1
@@ -2942,7 +2939,7 @@ fi
             op = _run_op("simple_hash_buckets")
 
             set(self._get_operation_path(op.id) + "/@resource_limits", {"user_slots": 1})
-            set(self._get_new_operation_path(op.id) + "/@resource_limits", {"user_slots": 3})
+            set(get_operation_path(op.id) + "/@resource_limits", {"user_slots": 3})
 
             time.sleep(1.0)
             assert get(orchid_path.format(op.id)) == 1
@@ -2986,23 +2983,22 @@ fi
             return op
 
         get_async_scheduler_tx_path = lambda op: self._get_operation_path(op.id) + "/@async_scheduler_transaction_id"
-        get_async_scheduler_tx_path_new = lambda op: self._get_new_operation_path(op.id) + "/@async_scheduler_transaction_id"
+        get_async_scheduler_tx_path_new = lambda op: get_operation_path(op.id) + "/@async_scheduler_transaction_id"
 
         get_output_path = lambda op: self._get_operation_path(op.id) + "/output_0"
-        get_output_path_new = lambda op: self._get_new_operation_path(op.id) + "/output_0"
+        get_output_path_new = lambda op: get_operation_path(op.id) + "/output_0"
 
         get_stderr_path = lambda op, job_id: self._get_operation_path(op.id) + "/jobs/" + job_id + "/stderr"
-        get_stderr_path_new = lambda op, job_id: self._get_new_operation_path(op.id) + "/jobs/" + job_id + "/stderr"
+        get_stderr_path_new = lambda op, job_id: get_operation_path(op.id) + "/jobs/" + job_id + "/stderr"
 
         get_fail_context_path = lambda op, job_id: self._get_operation_path(op.id) + "/jobs/" + job_id + "/fail_context"
-        get_fail_context_path_new = lambda op, job_id: self._get_new_operation_path(op.id) + "/jobs/" + job_id + "/fail_context"
+        get_fail_context_path_new = lambda op, job_id: get_operation_path(op.id) + "/jobs/" + job_id + "/fail_context"
 
         # Compatible mode or simple hash buckets mode.
         op = _run_op("compatible")
         assert exists(get_async_scheduler_tx_path(op))
         assert exists(get_async_scheduler_tx_path_new(op))
         async_tx_id = get(get_async_scheduler_tx_path(op))
-        assert exists(get_output_path(op), tx=async_tx_id)
         assert exists(get_output_path_new(op), tx=async_tx_id)
 
         jobs = ls(self._get_operation_path(op.id) + "/jobs")
@@ -3018,8 +3014,7 @@ fi
         assert exists(get_async_scheduler_tx_path(op))
         assert not exists(get_async_scheduler_tx_path_new(op))
         async_tx_id = get(get_async_scheduler_tx_path(op))
-        assert exists(get_output_path(op), tx=async_tx_id)
-        assert not exists(get_output_path_new(op), tx=async_tx_id)
+        assert exists(get_output_path_new(op), tx=async_tx_id)
 
         jobs = ls(self._get_operation_path(op.id) + "/jobs")
         assert len(jobs) == 1
@@ -3037,7 +3032,7 @@ fi
         assert not exists(get_output_path(op), tx=async_tx_id)
         assert exists(get_output_path_new(op), tx=async_tx_id)
 
-        jobs = ls(self._get_new_operation_path(op.id) + "/jobs")
+        jobs = ls(get_operation_path(op.id) + "/jobs")
         assert len(jobs) == 1
         assert exists(get_fail_context_path_new(op, jobs[0]))
         assert not exists(get_fail_context_path(op, jobs[0]))
@@ -3058,9 +3053,6 @@ class TestSchedulerDifferentOperationStorageModesArchivation(YTEnvSetup):
 
     def teardown(self):
         remove("//sys/operations_archive")
-
-    def _get_new_operation_path(self, op_id):
-        return "//sys/operations/{0:02x}/{1}".format(int(op_id.split("-")[-1], 16) % 256, op_id)
 
     def _get_operation_path(self, op_id):
         return "//sys/operations/" + op_id
@@ -3094,7 +3086,7 @@ class TestSchedulerDifferentOperationStorageModesArchivation(YTEnvSetup):
             op = self._run_op(mode)
             clean_operations(client)
             assert not exists(self._get_operation_path(op.id))
-            assert not exists(self._get_new_operation_path(op.id))
+            assert not exists(get_operation_path(op.id))
             _check_attributes(op)
 
     def test_get_job_stderr(self):
@@ -3104,13 +3096,13 @@ class TestSchedulerDifferentOperationStorageModesArchivation(YTEnvSetup):
             op = self._run_op(mode)
             if mode == "compatible":
                 jobs_old = ls(self._get_operation_path(op.id) + "/jobs")
-                jobs_new = ls(self._get_new_operation_path(op.id) + "/jobs")
+                jobs_new = ls(get_operation_path(op.id) + "/jobs")
                 assert __builtin__.set(jobs_old) == __builtin__.set(jobs_new)
                 job_id = jobs_new[-1]
             elif mode == "simple_hash_buckets":
                 job_id = ls(self._get_operation_path(op.id) + "/jobs")[-1]
             else:  # mode == "hash_buckets"
-                job_id = ls(self._get_new_operation_path(op.id) + "/jobs")[-1]
+                job_id = ls(get_operation_path(op.id) + "/jobs")[-1]
 
             clean_operations(client)
             assert get_job_stderr(op.id, job_id) == "STDERR-OUTPUT\n"
