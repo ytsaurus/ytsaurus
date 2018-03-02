@@ -366,10 +366,12 @@ struct IListNode
      *  \param index Original (possibly negative) index.
      *  \returns Adjusted (valid non-negative) index.
      */
-    int AdjustChildIndex(int index) const;
+    int AdjustChildIndexOrThrow(int index) const;
 };
 
 DEFINE_REFCOUNTED_TYPE(IListNode)
+
+std::optional<int> TryAdjustChildIndex(int index, int childCount);
 
 ////////////////////////////////////////////////////////////////////////////////
 

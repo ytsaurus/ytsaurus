@@ -192,4 +192,17 @@ void ValidateYTreeKey(TStringBuf key)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void ValidateYPathResolutionDepth(const TString& path, int depth)
+{
+    if (depth > MaxYPathResolveIterations) {
+        THROW_ERROR_EXCEPTION(
+            NYTree::EErrorCode::ResolveError,
+            "Path %v exceeds resolve depth limit",
+            path)
+            << TErrorAttribute("limit", MaxYPathResolveIterations);
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NYTree

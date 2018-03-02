@@ -138,6 +138,13 @@ class TestCypress(YTEnvSetup):
         set("//tmp/list/begin", "very_first")
         assert get("//tmp/list") == ["very_first","first",200,1,777,100,"last"]
 
+        assert exists("//tmp/list/0")
+        assert exists("//tmp/list/6")
+        assert exists("//tmp/list/-1")
+        assert exists("//tmp/list/-7")
+        assert not exists("//tmp/list/42")
+        assert not exists("//tmp/list/-42")
+
     def test_list_command(self):
         set("//tmp/map", {"a": 1, "b": 2, "c": 3})
         assert ls("//tmp/map") == ["a", "b", "c"]

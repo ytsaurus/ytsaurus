@@ -37,7 +37,7 @@ TCypressNodeBase* FindMapNodeChild(
     const TCypressManagerPtr& cypressManager,
     TCypressNodeBase* trunkNode,
     NTransactionServer::TTransaction* transaction,
-    const TString& key);
+    TStringBuf key);
 
 TStringBuf FindMapNodeChildKey(
     TMapNode* parentNode,
