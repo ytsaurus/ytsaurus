@@ -34,6 +34,7 @@ option(YT_USE_ASAN                        "Enable Address Sanitizer" FALSE)
 option(YT_USE_TSAN                        "Enable Thread Sanitizer" FALSE)
 option(YT_USE_MSAN                        "Enable Memory Sanitizer" FALSE)
 option(YT_ASAN_USE_DSO_RUNTIME            "Use shared Address Sanitizer runtime" FALSE)
+option(YT_ADD_HEADERS_TO_SRCS             "Add headers to YT_SRCS to let CLion analyze them" FALSE)
 
 ################################################################################
 # Include various CMake modules.

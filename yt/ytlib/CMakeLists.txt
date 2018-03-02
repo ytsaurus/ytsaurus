@@ -2,6 +2,11 @@ SET(PROTO_NAMESPACE yt/${YT_ABI})
 
 include(Sources.txt)
 
+if(YT_ADD_HEADERS_TO_SRCS)
+    file(GLOB_RECURSE HEADERS ${CMAKE_CURRENT_LIST_DIR}/*.h)
+    set(YT_SRCS ${YT_SRCS} ${HEADERS})
+endif()
+
 set(YT_SOURCE_FILES)
 protoc(${CMAKE_SOURCE_DIR}/mapreduce/yt/interface/protos/extension.proto YT_SOURCE_FILES)
 include(query_client/CMakeLists.txt)
