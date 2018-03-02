@@ -123,9 +123,13 @@ void TListOperationsCommand::BuildOperations(const TListOperationsResult& result
                         .Item("operation_type").Value(operation.OperationType)
                         .Item("state").Value(operation.OperationState)
                         .Item("authenticated_user").Value(operation.AuthenticatedUser)
-                        .Item("brief_progress").Value(operation.BriefProgress)
-                        .Item("brief_spec").Value(operation.BriefSpec)
                         .Item("start_time").Value(operation.StartTime)
+                        .DoIf(operation.BriefProgress.operator bool(), [&] (TFluentMap fluent) {
+                            fluent.Item("brief_progress").Value(operation.BriefProgress);
+                        })
+                        .DoIf(operation.BriefSpec.operator bool(), [&] (TFluentMap fluent) {
+                            fluent.Item("brief_spec").Value(operation.BriefSpec);
+                        })
                         .DoIf(operation.FinishTime.operator bool(), [&] (TFluentMap fluent) {
                             fluent.Item("finish_time").Value(operation.FinishTime);
                         })
@@ -167,9 +171,13 @@ void TListOperationsCommand::BuildOperations(const TListOperationsResult& result
                             .Item("type").Value(operation.OperationType)
                             .Item("state").Value(operation.OperationState)
                             .Item("authenticated_used").Value(operation.AuthenticatedUser)
-                            .Item("brief_progress").Value(operation.BriefProgress)
-                            .Item("brief_spec").Value(operation.BriefSpec)
                             .Item("start_time").Value(operation.StartTime)
+                            .DoIf(operation.BriefProgress.operator bool(), [&] (TFluentMap fluent) {
+                                fluent.Item("brief_progress").Value(operation.BriefProgress);
+                            })
+                            .DoIf(operation.BriefSpec.operator bool(), [&] (TFluentMap fluent) {
+                                fluent.Item("brief_spec").Value(operation.BriefSpec);
+                            })
                             .DoIf(operation.FinishTime.operator bool(), [&] (TFluentMap fluent) {
                                 fluent.Item("finish_time").Value(operation.FinishTime);
                             })
