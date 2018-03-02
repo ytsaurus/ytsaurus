@@ -783,7 +783,7 @@ protected:
 
     void AttachToLivePreview(
         NChunkClient::TChunkTreeId chunkTreeId,
-        const std::vector<NCypressClient::TNodeId>& tableIds);
+        NCypressClient::TNodeId tableId);
 
     virtual void RegisterTeleportChunk(
         NChunkClient::TInputChunkPtr chunkSpec,
