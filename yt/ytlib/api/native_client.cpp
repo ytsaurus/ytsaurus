@@ -4043,7 +4043,7 @@ private:
                 operation.FinishTime = ConvertTo<TInstant>(attributes.Get<TString>("finish_time"));
             }
             operation.AuthenticatedUser = attributes.Get<TString>("authenticated_user");
-            operation.BriefSpec = attributes.GetYson("brief_spec");
+            operation.BriefSpec = attributes.FindYson("brief_spec");
 
             auto briefSpecMapNode = ConvertToNode(operation.BriefSpec)->AsMap();
             auto poolNode = briefSpecMapNode->FindChild("pool");
@@ -4051,7 +4051,7 @@ private:
                 operation.Pool = poolNode->AsString()->GetValue();
             }
 
-            operation.BriefProgress = attributes.GetYson("brief_progress");
+            operation.BriefProgress = attributes.FindYson("brief_progress");
             operation.Suspended = attributes.Get<bool>("suspended");
             operation.Weight = attributes.Find<double>("weight");
             cypressOperations.push_back(operation);
@@ -4334,7 +4334,7 @@ private:
                 failedJobsCount += hasFailedJobs;
 
                 checkIsNotNull(row[6], "brief_spec");
-                operation.BriefSpec = TYsonString(row[6].Data.String, row[6].Length);
+                ocperation.BriefSpec = TYsonString(row[6].Data.String, row[6].Length);
 
                 checkIsNotNull(row[7], "start_time");
                 operation.StartTime = TInstant(row[7].Data.Int64);
