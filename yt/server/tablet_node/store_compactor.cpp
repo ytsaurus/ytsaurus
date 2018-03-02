@@ -783,14 +783,15 @@ private:
 
             LOG_INFO("Eden partitioning started (Slack: %v, FutureEffect: %v, Effect: %v, "
                 "PartitionCount: %v, DataSize: %v, "
-                "ChunkCount: %v, CurrentTimestamp: %llx)",
+                "ChunkCount: %v, CurrentTimestamp: %llx, RetentionConfig: %Qv)",
                 task->Slack,
                 task->FutureEffect,
                 task->Effect,
                 pivotKeys.size(),
                 dataSize,
                 stores.size(),
-                currentTimestamp);
+                currentTimestamp,
+                ConvertTo<TRetentionConfigPtr>(tabletSnapshot->Config));
 
             auto reader = CreateVersionedTabletReader(
                 tabletSnapshot,
@@ -1154,7 +1155,7 @@ private:
 
             LOG_INFO("Partition compaction started (Slack: %v, FutureEffect: %v, Effect: %v, "
                 "DataSize: %v, ChunkCount: %v, "
-                "CurrentTimestamp: %llx, MajorTimestamp: %llx, RetainedTimestamp: %llx)",
+                "CurrentTimestamp: %llx, MajorTimestamp: %llx, RetainedTimestamp: %llx, RetentionConfig: %Qv)",
                 task->Slack,
                 task->FutureEffect,
                 task->Effect,
@@ -1162,7 +1163,8 @@ private:
                 stores.size(),
                 currentTimestamp,
                 majorTimestamp,
-                retainedTimestamp);
+                retainedTimestamp,
+                ConvertTo<TRetentionConfigPtr>(tabletSnapshot->Config));
 
             auto reader = CreateVersionedTabletReader(
                 tabletSnapshot,

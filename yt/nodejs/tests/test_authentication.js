@@ -326,11 +326,21 @@ describe("YtAuthentication", function() {
         mock2
             .expects("executeSimple")
             .once()
+            .withExactArgs("exists", sinon.match({ path: "//sys/users/anakin" }))
+            .returns(Q.resolve(false));
+        mock2
+            .expects("executeSimple")
+            .once()
             .withExactArgs("create", sinon.match({
                 type: "user",
                 attributes: { name: "anakin" }
             }))
             .returns(Q.resolve("0-0-0-0"));
+        mock2
+            .expects("executeSimple")
+            .once()
+            .withExactArgs("get", sinon.match({path: "//sys/users/anakin/@upravlyator_managed"}))
+            .returns(Q.resolve(false));
         mock2
             .expects("executeSimple")
             .once()
@@ -363,16 +373,15 @@ describe("YtAuthentication", function() {
         mock2
             .expects("executeSimple")
             .once()
-            .withExactArgs("create", sinon.match({
-                type: "user",
-                attributes: { name: "anakin" }
+            .withExactArgs("exists", sinon.match({
+                path: "//sys/users/anakin",
             }))
-            .returns(Q.reject(new YtError("Already exists").withCode(501)));
+            .returns(Q.resolve(true));
         mock2
             .expects("executeSimple")
             .once()
-            .withExactArgs("set", sinon.match({path: "//sys/users/anakin/@upravlyator_managed"}), true)
-            .returns(Q.resolve());
+            .withExactArgs("get", sinon.match({path: "//sys/users/anakin/@upravlyator_managed"}))
+            .returns(Q.resolve(true));
         ask("GET", "/",
         { "Authorization": "OAuth some-token" },
         function(rsp) {
@@ -395,11 +404,10 @@ describe("YtAuthentication", function() {
         mock
             .expects("executeSimple")
             .once()
-            .withExactArgs("create", sinon.match({
-                type: "user",
-                attributes: { name: "unknown-user" }
+            .withExactArgs("exists", sinon.match({
+                path: "//sys/users/unknown-user"
             }))
-            .returns(Q.reject(new YtError("Already exists").withCode(501)));
+            .returns(Q.resolve(true));
         ask("GET", "/",
         { "Authorization": "OAuth unknown-token" },
         function(rsp) {
@@ -418,6 +426,13 @@ describe("YtAuthentication", function() {
                 path: "//sys/tokens/cypress-token"
             }))
             .returns(Q.resolve("cypress-user"));
+        mock
+            .expects("executeSimple")
+            .once()
+            .withExactArgs("exists", sinon.match({
+                path: "//sys/users/cypress-user"
+            }))
+            .returns(Q.resolve(false));
         mock
             .expects("executeSimple")
             .once()

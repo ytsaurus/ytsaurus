@@ -327,6 +327,8 @@ public:
 
 DEFINE_REFCOUNTED_TYPE(TRetentionConfig)
 
+TString ToString(const TRetentionConfigPtr& obj);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTypeConversionConfig

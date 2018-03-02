@@ -499,7 +499,7 @@ public:
             .Item("preemptable_job_count").Value(element->GetPreemptableJobCount())
             .Item("aggressively_preemptable_job_count").Value(element->GetAggressivelyPreemptableJobCount())
             .Item("fifo_index").Value(element->Attributes().FifoIndex)
-            .Do(BIND(&TFairShareTree::BuildElementYson, Unretained(this), element));
+            .Do(std::bind(&TFairShareTree::BuildElementYson, this, element, std::placeholders::_1));
     }
 
     void BuildBriefOperationProgress(const TOperationId& operationId, TFluentMap fluent)
@@ -686,31 +686,36 @@ public:
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
+        auto buildPoolInfo = [=] (const TCompositeSchedulerElementPtr pool, TFluentMap fluent) {
+            const auto& id = pool->GetId();
+            fluent
+                .Item(id).BeginMap()
+                    .Item("mode").Value(pool->GetMode())
+                    .Item("running_operation_count").Value(pool->RunningOperationCount())
+                    .Item("operation_count").Value(pool->OperationCount())
+                    .Item("max_running_operation_count").Value(pool->GetMaxRunningOperationCount())
+                    .Item("max_operation_count").Value(pool->GetMaxOperationCount())
+                    .Item("aggressive_starvation_enabled").Value(pool->IsAggressiveStarvationEnabled())
+                    .Item("forbid_immediate_operations").Value(pool->AreImmediateOperationsFobidden())
+                    .DoIf(pool->GetMode() == ESchedulingMode::Fifo, [&] (TFluentMap fluent) {
+                        fluent
+                            .Item("fifo_sort_parameters").Value(pool->GetFifoSortParameters());
+                    })
+                    .DoIf(pool->GetParent(), [&] (TFluentMap fluent) {
+                        fluent
+                            .Item("parent").Value(pool->GetParent()->GetId());
+                    })
+                    .Do(std::bind(&TFairShareTree::BuildElementYson, this, pool, std::placeholders::_1))
+                .EndMap();
+        };
+
         fluent
-            .Item("pools").DoMapFor(Pools, [&] (TFluentMap fluent, const TPoolMap::value_type& pair) {
-                const auto& id = pair.first;
-                const auto& pool = pair.second;
-                const auto& config = pool->GetConfig();
-                fluent
-                    .Item(id).BeginMap()
-                        .Item("mode").Value(config->Mode)
-                        .Item("running_operation_count").Value(pool->RunningOperationCount())
-                        .Item("operation_count").Value(pool->OperationCount())
-                        .Item("max_running_operation_count").Value(pool->GetMaxRunningOperationCount())
-                        .Item("max_operation_count").Value(pool->GetMaxOperationCount())
-                        .Item("aggressive_starvation_enabled").Value(pool->IsAggressiveStarvationEnabled())
-                        .Item("forbid_immediate_operations").Value(pool->AreImmediateOperationsFobidden())
-                        .DoIf(config->Mode == ESchedulingMode::Fifo, [&] (TFluentMap fluent) {
-                            fluent
-                                .Item("fifo_sort_parameters").Value(config->FifoSortParameters);
-                        })
-                        .DoIf(pool->GetParent(), [&] (TFluentMap fluent) {
-                            fluent
-                                .Item("parent").Value(pool->GetParent()->GetId());
-                        })
-                        .Do(BIND(&TFairShareTree::BuildElementYson, Unretained(this), pool))
-                    .EndMap();
-            });
+            .Item("pools").BeginMap()
+                .DoFor(Pools, [&] (TFluentMap fluent, const TPoolMap::value_type& pair) {
+                    buildPoolInfo(pair.second, fluent);
+                })
+                .Do(std::bind(buildPoolInfo, RootElement, std::placeholders::_1))
+            .EndMap();
     }
 
     void BuildStaticPoolsInformation(TFluentAny fluent)
@@ -833,6 +838,7 @@ private:
         TRootElementPtr RootElement;
         TOperationElementByIdMap OperationIdToElement;
         TFairShareStrategyTreeConfigPtr Config;
+        std::vector<TSchedulingTagFilter> RegisteredSchedulingTagFilters;
 
         TOperationElement* FindOperationElement(const TOperationId& operationId) const
         {
@@ -1651,6 +1657,7 @@ private:
         auto snapshot = New<TRootElementSnapshot>();
         snapshot->RootElement = RootElement->Clone();
         snapshot->RootElement->BuildOperationToElementMapping(&snapshot->OperationIdToElement);
+        snapshot->RegisteredSchedulingTagFilters = RegisteredSchedulingTagFilters;
         snapshot->Config = Config;
         return snapshot;
     }

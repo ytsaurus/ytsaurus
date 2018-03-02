@@ -397,8 +397,6 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
     auto inMemoryMode = GetInMemoryMode();
     auto inMemoryConfigRevision = GetInMemoryConfigRevision();
 
-
-
     return BIND([=, this_ = MakeStrong(this)] (ITransactionPtr transaction) {
         auto writerOptions = CloneYsonSerializable(tabletSnapshot->WriterOptions);
         writerOptions->ChunksEden = true;
@@ -443,6 +441,11 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
         std::vector<TVersionedRow> rows;
         rows.reserve(MaxRowsPerFlushRead);
 
+        LOG_DEBUG("Sorted store flush started (StoreId: %v, MergeRowsOnFlush: %v, RetentionConfig: %Qv)",
+            store->GetId(),
+            tabletSnapshot->Config->MergeRowsOnFlush,
+            ConvertTo<TRetentionConfigPtr>(tabletSnapshot->Config));
+
         while (true) {
             // NB: Memory store reader is always synchronous.
             reader->Read(&rows);
@@ -481,7 +484,7 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
             tabletSnapshot->WriterOptions->ReplicationFactor,
             dataStatistics.regular_disk_space(),
             dataStatistics.erasure_disk_space());
-        LOG_DEBUG("Flushed sorted store (StoreId: %v, ChunkId: %v DiskSpace: %v)",
+        LOG_DEBUG("Flushed sorted store (StoreId: %v, ChunkId: %v DiskSpace: %v, MergeRowsOnFlush: v)",
             store->GetId(),
             chunkWriter->GetChunkId(),
             diskSpace);

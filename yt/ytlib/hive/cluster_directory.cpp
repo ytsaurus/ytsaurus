@@ -108,6 +108,7 @@ void TClusterDirectory::UpdateCluster(const TString& name, INodePtr config)
     } else if (!AreNodesEqual(it->second.Config, config)) {
         auto cluster = CreateCluster(name, config);
         TGuard<TSpinLock> guard(Lock_);
+        it->second.Connection->Terminate();
         CellTagToCluster_.erase(GetCellTag(it->second));
         NameToCluster_.erase(it);
         addNewCluster(cluster);

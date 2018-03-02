@@ -1373,6 +1373,11 @@ int TPool::GetMaxOperationCount() const
     return Config_->MaxOperationCount.Get(TreeConfig_->MaxOperationCountPerPool);
 }
 
+std::vector<EFifoSortParameter> TPool::GetFifoSortParameters() const
+{
+    return FifoSortParameters_;
+}
+
 bool TPool::AreImmediateOperationsFobidden() const
 {
     return Config_->ForbidImmediateOperations;
@@ -2400,6 +2405,11 @@ int TRootElement::GetMaxRunningOperationCount() const
 int TRootElement::GetMaxOperationCount() const
 {
     return TreeConfig_->MaxOperationCount;
+}
+
+std::vector<EFifoSortParameter> TRootElement::GetFifoSortParameters() const
+{
+    Y_UNREACHABLE();
 }
 
 bool TRootElement::AreImmediateOperationsFobidden() const
