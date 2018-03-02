@@ -5832,7 +5832,7 @@ void TOperationControllerBase::BuildBriefProgress(TFluentMap fluent) const
     }
 
     fluent
-        .Item("jobs").Value(JobCounter);
+        .Item("jobs").Do(BIND(&SerializeBriefVersion, JobCounter));
 }
 
 void TOperationControllerBase::BuildAndSaveProgress()

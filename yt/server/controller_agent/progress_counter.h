@@ -5,6 +5,8 @@
 
 #include <yt/core/yson/public.h>
 
+#include <yt/core/ytree/fluent.h>
+
 namespace NYT {
 namespace NControllerAgent {
 
@@ -66,6 +68,8 @@ DEFINE_REFCOUNTED_TYPE(TProgressCounter)
 TString ToString(const TProgressCounterPtr& counter);
 
 void Serialize(const TProgressCounterPtr& counter, NYson::IYsonConsumer* consumer);
+
+void SerializeBriefVersion(const TProgressCounterPtr& counter, NYTree::TFluentAny fluent);
 
 ////////////////////////////////////////////////////////////////////////////////
 
