@@ -330,7 +330,7 @@ class TestJobStderr(YTEnvSetup):
             spec={"job_count": 10, "max_stderr_count": 0})
 
         def enough_jobs_completed():
-            progress = get("//sys/operations/{0}/@brief_progress".format(op.id))
+            progress = get("//sys/operations/{0}/@progress".format(op.id))
             if "jobs" in progress and "completed" in progress["jobs"]:
                 return progress["jobs"]["completed"]["total"] > 8
             return False
@@ -1437,7 +1437,7 @@ class TestJobRevival(YTEnvSetup):
             total_job_count = 0
             for op_id in get("//sys/operations", verbose=False).keys():
                 total_job_count += \
-                    get("//sys/operations/{0}/@brief_progress/jobs/{1}".format(op_id, category),
+                    get("//sys/operations/{0}/@progress/jobs/{1}".format(op_id, category),
                         default=0,
                         verbose=False)
             return total_job_count
@@ -1467,7 +1467,7 @@ class TestJobRevival(YTEnvSetup):
         if aborted_job_count != aborted_on_revival_job_count:
             print >>sys.stderr, "There were aborted jobs other than during the revival process:"
             for op in ops:
-                pprint.pprint(dict(get("//sys/operations/{0}/@brief_progress/jobs/aborted".format(op.id))), stream=sys.stderr)
+                pprint.pprint(dict(get("//sys/operations/{0}/@progress/jobs/aborted".format(op.id))), stream=sys.stderr)
 
         for output_table in output_tables:
             assert sorted(read_table(output_table, verbose=False)) == [{"a": i} for i in range(op_count)]
@@ -1509,7 +1509,7 @@ class TestJobRevival(YTEnvSetup):
         for i in xrange(1000):
             for j in xrange(10):
                 try:
-                    jobs = get("//sys/operations/{0}/@brief_progress/jobs".format(op.id), verbose=False)
+                    jobs = get("//sys/operations/{0}/@progress/jobs".format(op.id), verbose=False)
                     break
                 except:
                     time.sleep(0.1)
@@ -1751,9 +1751,9 @@ class TestSchedulerMaxChildrenPerAttachRequest(YTEnvSetup):
 
         operation_path = "//sys/operations/{0}".format(op.id)
         for iter in xrange(100):
-            jobs_exist = exists(operation_path + "/@brief_progress/jobs")
+            jobs_exist = exists(operation_path + "/@progress/jobs")
             if jobs_exist:
-                completed_jobs = get(operation_path + "/@brief_progress/jobs/completed/total")
+                completed_jobs = get(operation_path + "/@progress/jobs/completed/total")
                 if completed_jobs == 2:
                     break
             time.sleep(0.1)
