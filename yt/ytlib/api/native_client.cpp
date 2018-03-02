@@ -4334,7 +4334,7 @@ private:
                 failedJobsCount += hasFailedJobs;
 
                 checkIsNotNull(row[6], "brief_spec");
-                ocperation.BriefSpec = TYsonString(row[6].Data.String, row[6].Length);
+                operation.BriefSpec = TYsonString(row[6].Data.String, row[6].Length);
 
                 checkIsNotNull(row[7], "start_time");
                 operation.StartTime = TInstant(row[7].Data.Int64);
