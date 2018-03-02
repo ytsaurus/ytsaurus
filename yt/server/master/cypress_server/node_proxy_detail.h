@@ -243,6 +243,7 @@ protected:
     virtual bool RemoveBuiltinAttribute(NYTree::TInternedAttributeKey key) override;
 
     virtual bool CanHaveChildren() const override;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -99,7 +99,7 @@ TCypressNodeBase* FindMapNodeChild(
     const TCypressManagerPtr& cypressManager,
     TCypressNodeBase* trunkNode,
     TTransaction* transaction,
-    const TString& key)
+    TStringBuf key)
 {
     auto originators = cypressManager->GetNodeOriginators(transaction, trunkNode);
 

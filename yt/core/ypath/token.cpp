@@ -25,6 +25,15 @@ TStringBuf ExtractListIndex(TStringBuf token)
     }
 }
 
+std::optional<int> TryParseListIndex(TStringBuf token)
+{
+    auto result = 0;
+    if (TryFromString(token, result)) {
+        return result;
+    }
+    return std::nullopt;
+}
+
 int ParseListIndex(TStringBuf token)
 {
     try {

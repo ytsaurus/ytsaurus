@@ -18,7 +18,7 @@ namespace NDetail {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-TString GetSetStringRepresentation(const THashSet<T>& set) 
+TString GetSetStringRepresentation(const THashSet<T>& set)
 {
     TStringBuilder result;
     result.AppendString("{");
@@ -44,7 +44,7 @@ THashSet<ENodeType> TScalarTypeTraits<TString>::SetValueSupportedTypes = {
     ENodeType::String,
 };
 
-TString TScalarTypeTraits<TString>::GetValueSupportedTypesStringRepresentation = 
+TString TScalarTypeTraits<TString>::GetValueSupportedTypesStringRepresentation =
     GetSetStringRepresentation(TScalarTypeTraits<TString>::GetValueSupportedTypes);
 
 TString TScalarTypeTraits<TString>::SetValueSupportedTypesStringRepresentation =
@@ -265,11 +265,20 @@ int IListNode::GetChildIndexOrThrow(const IConstNodePtr& child)
     return *optionalIndex;
 }
 
-int IListNode::AdjustChildIndex(int index) const
+int IListNode::AdjustChildIndexOrThrow(int index) const
 {
-    int adjustedIndex = index >= 0 ? index : index + GetChildCount();
-    if (adjustedIndex < 0 || adjustedIndex >= GetChildCount()) {
+    auto adjustedIndex = TryAdjustChildIndex(index, GetChildCount());
+    if (!adjustedIndex) {
         ThrowNoSuchChildIndex(this, index);
+    }
+    return *adjustedIndex;
+}
+
+std::optional<int> TryAdjustChildIndex(int index, int childCount)
+{
+    int adjustedIndex = index >= 0 ? index : index + childCount;
+    if (adjustedIndex < 0 || adjustedIndex >= childCount) {
+        return std::nullopt;
     }
     return adjustedIndex;
 }

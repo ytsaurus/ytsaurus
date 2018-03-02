@@ -206,7 +206,6 @@ private:
             return TResolveResultThere{objectManager->GetMasterProxy(), TYPath()};
         }
 
-        const auto& cypressManager = Bootstrap_->GetCypressManager();
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
 
         auto transactionId = GetTransactionId(context);
@@ -214,16 +213,141 @@ private:
             ? transactionManager->GetTransactionOrThrow(transactionId)
             : nullptr;
 
+        return DoFastDescent(path, transaction, context->GetMethod());
+    }
+
+    //! Resolves several path segments in a single call.
+    /*!
+     *  This avoids creating a proxy object per every node down the path.
+     *  This optimizes a highly popular case of long chains of Cypress map nodes
+     *  (though list and link nodes are also supported).
+     */
+    TResolveResult DoFastDescent(
+        const TYPath& path,
+        TTransaction* transaction,
+        const TString& method)
+    {
+        static const auto emptyYPath = TYPath("");
+        static const auto slashYPath = TYPath("/");
+
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+
         NYPath::TTokenizer tokenizer(path);
+
+        auto resolvedRoot = ResolveRoot(tokenizer, method);
+        if (auto* resolveResultThere = std::get_if<TResolveResultThere>(&resolvedRoot)) {
+            return *resolveResultThere;
+        }
+
+        auto* currentObject = *std::get_if<TObjectBase*>(&resolvedRoot);
+
+        auto ampersandSkipped = false;
+        auto slashSkipped = false;
+
+        auto currentResolveResult = [&] () {
+            auto* trunkObject = currentObject->IsTrunk() ? currentObject : currentObject->As<TCypressNodeBase>()->GetTrunkNode();
+            auto proxy = objectManager->GetProxy(trunkObject, transaction);
+            auto path = TYPath(ampersandSkipped ? "&" : "") + (slashSkipped ? slashYPath : emptyYPath) + tokenizer.GetInput();
+
+            return TResolveResultThere{proxy, path};
+        };
+
+        for (auto i = 1; ; ++i) { // 1 because we've already resolved the starting segment
+            ValidateYPathResolutionDepth(path, i);
+
+            ampersandSkipped = tokenizer.Skip(NYPath::ETokenType::Ampersand);
+            slashSkipped = tokenizer.Skip(NYPath::ETokenType::Slash);
+
+            switch (currentObject->GetType()) {
+                case EObjectType::MapNode:
+                case EObjectType::ListNode: {
+                    if (!slashSkipped) {
+                        return currentResolveResult();
+                    }
+
+                    if (tokenizer.GetType() != NYPath::ETokenType::Literal) {
+                        return currentResolveResult();
+                    }
+
+                    auto token = tokenizer.GetToken();
+
+                    if (currentObject->GetType() == EObjectType::ListNode &&
+                        IsSpecialListKey(token))
+                    {
+                        return currentResolveResult();
+                    }
+
+                    auto* child = currentObject->GetType() == EObjectType::MapNode
+                        ? FindMapNodeChild(currentObject, transaction, token)
+                        : FindListNodeChild(currentObject, token);
+
+                    if (!IsObjectAlive(child)) {
+                        return currentResolveResult();
+                    }
+
+                    currentObject = child;
+                    tokenizer.Advance();
+
+                    break;
+                }
+
+                case EObjectType::Link: {
+                    if (ampersandSkipped) {
+                        return currentResolveResult();
+                    }
+
+                    if (!slashSkipped) {
+                        if (tokenizer.GetType() != NYPath::ETokenType::EndOfStream ||
+                            (method == "Remove" || method == "Create" || method == "Copy"))
+                        {
+                            return currentResolveResult();
+                        }
+                    }
+
+                    tokenizer.Reset(
+                        currentObject->As<TLinkNode>()->GetTargetPath() +
+                        (slashSkipped ? slashYPath : emptyYPath) +
+                        tokenizer.GetInput());
+
+                    auto resolvedRoot = ResolveRoot(tokenizer, method);
+                    if (auto* resolveResultThere = std::get_if<TResolveResultThere>(&resolvedRoot)) {
+                        return *resolveResultThere;
+                    }
+
+                    currentObject = *std::get_if<TObjectBase*>(&resolvedRoot);
+                    ++i;
+
+                    break;
+                }
+
+                default:
+                    return currentResolveResult();
+            }
+        }
+    }
+
+    using TResolveRootResult = std::variant<TObjectBase*, TResolveResultThere>;
+
+    //! Resolves a path's first segment.
+    /*!
+     *  If it designates a foreign object, or the resolved object is not alive,
+     *  an immediate "resolve there" result is returned. Otherwise, the resolved
+     *  root object is returned.
+     *
+     *  NB: May throw.
+     */
+    TResolveRootResult ResolveRoot(NYPath::TTokenizer& tokenizer, const TString& method)
+    {
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+
         switch (tokenizer.Advance()) {
             case NYPath::ETokenType::EndOfStream:
                 THROW_ERROR_EXCEPTION("YPath cannot be empty");
 
             case NYPath::ETokenType::Slash: {
-                auto root = cypressManager->GetNodeProxy(
-                    cypressManager->GetRootNode(),
-                    transaction);
-                return TResolveResultThere{std::move(root), TYPath(tokenizer.GetSuffix())};
+                const auto& cypressManager = Bootstrap_->GetCypressManager();
+                tokenizer.Advance();
+                return static_cast<TObjectBase*>(cypressManager->GetRootNode());
             }
 
             case NYPath::ETokenType::Literal: {
@@ -253,16 +377,18 @@ private:
 
                 IYPathServicePtr proxy;
                 if (foreign && !suppressRedirect) {
-                    proxy = objectManager->CreateRemoteProxy(objectId);
-                } else {
-                    auto* object = (context->GetMethod() == "Exists")
-                        ? objectManager->FindObject(objectId)
-                        : objectManager->GetObjectOrThrow(objectId);
-                    proxy = IsObjectAlive(object)
-                        ? objectManager->GetProxy(object, transaction)
-                        : TNonexistingService::Get();
+                    return TResolveResultThere{objectManager->CreateRemoteProxy(objectId), TYPath(tokenizer.GetInput())};
                 }
-                return TResolveResultThere{std::move(proxy), TYPath(tokenizer.GetInput())};
+
+                auto* root = (method == "Exists")
+                    ? objectManager->FindObject(objectId)
+                    : objectManager->GetObjectOrThrow(objectId);
+
+                if (!IsObjectAlive(root)) {
+                    return TResolveResultThere{TNonexistingService::Get(), TYPath(tokenizer.GetInput())};
+                }
+
+                return root;
             }
 
             default:
@@ -271,6 +397,33 @@ private:
         }
     }
 
+    TObjectBase* FindMapNodeChild(TObjectBase* map, TTransaction* transaction, TStringBuf key)
+    {
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
+        return NCypressServer::FindMapNodeChild(cypressManager, map->As<TMapNode>()->GetTrunkNode(), transaction, key);
+    }
+
+    TObjectBase* FindListNodeChild(TObjectBase* list, TStringBuf key)
+    {
+        auto& indexToChild = list->As<TListNode>()->IndexToChild();
+        auto indexStr = ExtractListIndex(key);
+        int index = ParseListIndex(indexStr);
+        auto adjustedIndex = TryAdjustChildIndex(index, static_cast<int>(indexToChild.size()));
+        if (!adjustedIndex) {
+            return nullptr;
+        }
+        return indexToChild[*adjustedIndex];
+
+    }
+
+    static bool IsSpecialListKey(TStringBuf key)
+    {
+        return
+            key == ListBeginToken ||
+            key == ListEndToken ||
+            key.StartsWith(ListBeforeToken) ||
+            key.StartsWith(ListAfterToken);
+    }
 
     void ForwardToLeader(const IServiceContextPtr& context)
     {
