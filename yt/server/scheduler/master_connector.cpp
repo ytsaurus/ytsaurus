@@ -149,7 +149,7 @@ public:
 
         auto batchReq = StartObjectBatchRequest();
 
-        {
+        if (operation->GetStorageMode() == EOperationCypressStorageMode::SimpleHashBuckets) {
             auto req = TCypressYPathProxy::Create(GetNewOperationPath(operationId));
             req->set_type(static_cast<int>(EObjectType::MapNode));
             req->set_recursive(true);
