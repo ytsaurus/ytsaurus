@@ -5,6 +5,11 @@ add_subdirectory(crypto)
 
 include(Sources.txt)
 
+if(YT_ADD_HEADERS_TO_SRCS)
+    file(GLOB_RECURSE HEADERS ${CMAKE_CURRENT_LIST_DIR}/*.h)
+    set(YT_SRCS ${YT_SRCS} ${HEADERS})
+endif()
+
 list(APPEND YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/concurrency/execution_context-supp.S
 )
