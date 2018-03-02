@@ -218,4 +218,4 @@ class TestJobCommands(object):
         op.wait()
 
         attrs = yt.get_operation_attributes(op.id)
-        assert attrs["brief_progress"]["jobs"]["aborted"]["total"] == 1
+        assert attrs["progress"]["jobs"]["aborted"]["total"] == 1
