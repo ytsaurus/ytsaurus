@@ -518,9 +518,9 @@ print row + table_index
             out="//tmp/t2",
             spec={"data_size_per_job": 1})
 
-        operation_path = "//sys/operations/{0}".format(op.id)
+        operation_path = get_operation_path(op.id)
 
-        async_transaction_id = get(operation_path + "/@async_scheduler_transaction_id")
+        async_transaction_id = get("//sys/operations/" + op.id + "/@async_scheduler_transaction_id")
         assert exists(operation_path + "/output_0", tx=async_transaction_id)
         assert effective_acl == get(operation_path + "/output_0/@acl", tx=async_transaction_id)
         assert schema == get(operation_path + "/output_0/@schema", tx=async_transaction_id)
