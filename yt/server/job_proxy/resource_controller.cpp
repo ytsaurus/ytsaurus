@@ -82,6 +82,13 @@ public:
 
                 memoryStatistics.Rss += memoryUsage.Rss - memoryUsage.Shared;
                 memoryStatistics.MappedFile += memoryUsage.Shared;
+
+                LOG_DEBUG("Pid: %v, ProcessName: %Qv, Rss: %v, Shared: %v",
+                    pid,
+                    GetProcessName(pid),
+                    memoryStatistics.Rss,
+                    memoryStatistics.MappedFile);
+
             } catch (const std::exception& ex) {
                 LOG_DEBUG(ex, "Failed to get memory usage (Pid: %v)", pid);
             }

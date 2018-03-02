@@ -1137,6 +1137,8 @@ private:
 
     const std::unique_ptr<TMasterConnector> MasterConnector_;
 
+    TActionQueuePtr ControllerDtor_ = New<TActionQueue>("ControllerDtor");
+
     ISchedulerStrategyPtr Strategy_;
 
     THashMap<TOperationId, TOperationPtr> IdToOperation_;

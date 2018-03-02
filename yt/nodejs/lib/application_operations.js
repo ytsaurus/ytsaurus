@@ -455,6 +455,7 @@ function YtApplicationOperations(logger, driver)
 {
     this.logger = logger;
     this.driver = driver;
+    this.in_progress = false;
 }
 
 YtApplicationOperations._idUint64ToString = idUint64ToString;
@@ -492,6 +493,26 @@ function getVersion()
 
 YtApplicationOperations.prototype.list = Q.method(
 function YtApplicationOperations$list(parameters)
+{
+    var self = this;
+    if (this.in_progress) {
+        throw new YtError("Another list_operation request is in progress");
+    }
+
+    this.in_progress = true;
+    try {
+        return this._listImpl(parameters)
+        .finally(
+        function() {
+            self.in_progress = false;
+        });
+    } finally {
+        this.in_progress = false;
+    }
+})
+
+YtApplicationOperations.prototype._listImpl = Q.method(
+function listImpl(parameters)
 {
     var from_time = optional(parameters, "from_time", validateDateTime);
     var to_time = optional(parameters, "to_time", validateDateTime);
@@ -677,6 +698,7 @@ function YtApplicationOperations$list(parameters)
     }
 
     var logger = this.logger;
+    var self = this;
 
     return Q.settle([version, cypress_data, archive_data, archive_counts])
     .spread(function(version, cypress_data, archive_data, archive_counts) {

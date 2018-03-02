@@ -179,6 +179,18 @@ const THashMap<TString, int>& TOperation::GetSlotIndices() const
     return TreeIdToSlotIndex_;
 }
 
+const std::vector<TString>& TOperation::GetOwners() const
+{
+    return Owners_;
+}
+
+void TOperation::SetOwners(std::vector<TString> owners)
+{
+    Owners_ = std::move(owners);
+    ShouldFlush_ = true;
+    ShouldFlushAcl_ = true;
+}
+
 const IInvokerPtr& TOperation::GetCancelableControlInvoker()
 {
     return CancelableInvoker_;

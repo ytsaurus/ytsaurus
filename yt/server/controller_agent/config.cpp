@@ -498,6 +498,9 @@ TControllerAgentConfig::TControllerAgentConfig()
     RegisterParameter("job_spec_slice_throttler", JobSpecSliceThrottler)
         .Default(New<NConcurrency::TThroughputThrottlerConfig>(500000));
 
+    RegisterParameter("cached_running_jobs_update_period", CachedRunningJobsUpdatePeriod)
+        .Default();
+
     RegisterPreprocessor([&] () {
         EventLog->MaxRowWeight = 128_MB;
         if (!EventLog->Path) {

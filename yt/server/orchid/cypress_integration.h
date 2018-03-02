@@ -30,7 +30,11 @@ struct TOrchidManifest
         RegisterParameter("remote_root", RemoteRoot)
             .Default("/");
         RegisterParameter("timeout", Timeout)
-            .Default(TDuration::Seconds(15));
+            .Default(TDuration::Seconds(60));
+
+        RegisterPostprocessor([&] {
+            RetryAttempts = 2;
+        });
     }
 };
 

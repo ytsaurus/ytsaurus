@@ -157,7 +157,8 @@ public:
     // sensitive information.
     DEFINE_BYVAL_RO_PROPERTY(NYTree::IMapNodePtr, SecureVault);
 
-    DEFINE_BYVAL_RW_PROPERTY_FORCE_FLUSH(std::vector<TString>, Owners);
+    //! Marks that operation ACL should be flushed to Cypress.
+    DEFINE_BYVAL_RW_PROPERTY(bool, ShouldFlushAcl);
 
     DEFINE_BYVAL_RW_PROPERTY_FORCE_FLUSH(TNullable<TInstant>, FinishTime);
 
@@ -176,7 +177,7 @@ public:
     //! Stores statistics about operation preparation and schedule job timings.
     DEFINE_BYREF_RW_PROPERTY(NJobTrackerClient::TStatistics, ControllerTimeStatistics);
 
-    //! Mark that operation attributes should be flushed to Cypress.
+    //! Marks that operation attributes should be flushed to Cypress.
     DEFINE_BYVAL_RW_PROPERTY(bool, ShouldFlush);
 
     //! If this operation needs revive, the corresponding revive descriptor is provided
@@ -236,6 +237,9 @@ public:
     void SetSlotIndex(const TString& treeId, int value) override;
     const THashMap<TString, int>& GetSlotIndices() const;
 
+    const std::vector<TString>& GetOwners() const;
+    void SetOwners(std::vector<TString> owners);
+
     //! Returns a cancelable control invoker corresponding to this operation.
     const IInvokerPtr& GetCancelableControlInvoker();
 
@@ -277,6 +281,8 @@ private:
     IInvokerPtr CancelableInvoker_;
 
     THashMap<TString, int> TreeIdToSlotIndex_;
+
+    std::vector<TString> Owners_;
 
     TPromise<void> StartedPromise_ = NewPromise<void>();
     TPromise<void> FinishedPromise_ = NewPromise<void>();

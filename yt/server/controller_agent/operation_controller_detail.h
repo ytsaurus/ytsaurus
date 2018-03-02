@@ -870,6 +870,9 @@ private:
     NConcurrency::TReaderWriterSpinLock CachedMinNeededResourcesJobLock;
     NScheduler::TJobResourcesWithQuotaList CachedMinNeededJobResources;
 
+    mutable TInstant CachedRunningJobsUpdateTime_;
+    mutable NYson::TYsonString CachedRunningJobsYson_ = NYson::TYsonString("", NYson::EYsonType::MapFragment);
+
     NYson::TYsonString CachedSuspiciousJobsYson_ = NYson::TYsonString("", NYson::EYsonType::MapFragment);
     NConcurrency::TReaderWriterSpinLock CachedSuspiciousJobsYsonLock_;
     NConcurrency::TPeriodicExecutorPtr SuspiciousJobsYsonUpdater_;

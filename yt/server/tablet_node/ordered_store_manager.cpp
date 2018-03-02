@@ -242,6 +242,9 @@ TStoreFlushCallback TOrderedStoreManager::MakeStoreFlushCallback(
 
         i64 rowCount = 0;
 
+        LOG_DEBUG("Ordered store flush started (StoreId: %v)",
+            store->GetId());
+
         while (true) {
             // NB: Memory store reader is always synchronous.
             reader->Read(&rows);

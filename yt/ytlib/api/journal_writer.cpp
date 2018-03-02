@@ -953,12 +953,18 @@ private:
             const TNodeWeakPtr& node_)
         {
             auto session = session_.Lock();
-            if (!session)
+            if (!session) {
                 return;
+            }
 
             auto node = node_.Lock();
-            if (!node)
+            if (!node) {
                 return;
+            }
+
+            if (!node->Started) {
+                return;
+            }
 
             LOG_DEBUG("Sending ping (Address: %v, ChunkId: %v)",
                 node->Descriptor.GetDefaultAddress(),

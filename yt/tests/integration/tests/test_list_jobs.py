@@ -69,9 +69,15 @@ class TestListJobs(YTEnvSetup):
             label="list_jobs",
             in_="//tmp/t1",
             out="//tmp/t2",
+<<<<<<< HEAD
             # Jobs write to stderr so they will be saved.
             mapper_command=with_breakpoint("""echo foo >&2 ; cat; test $YT_JOB_INDEX -eq "1" && exit 1 ; BREAKPOINT"""),
             reducer_command="echo foo >&2 ; cat",
+=======
+            precommand="echo STDERR-OUTPUT >&2; cat",
+            mapper_command='test $YT_JOB_INDEX -eq "1" && exit 1',
+            reducer_command="echo foo >&2; sleep 10; cat",
+>>>>>>> prestable/19.2
             sort_by="foo",
             reduce_by="foo",
             spec={
@@ -81,6 +87,11 @@ class TestListJobs(YTEnvSetup):
                 },
                 "map_job_count" : 3
             })
+            
+        jobs_path = "//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op.id)
+
+        progress_path = "//sys/scheduler/orchid/scheduler/operations/{0}/progress/jobs".format(op.id)
+        wait(lambda: get(progress_path)["failed"] == 1)
 
         job_ids = wait_breakpoint()
         assert job_ids
@@ -91,10 +102,14 @@ class TestListJobs(YTEnvSetup):
 
         aborted_jobs = []
 
+        job_aborted = False
         for job in job_ids:
-            abort_job(job)
-            aborted_jobs.append(job)
-            break
+            if job in get(jobs_path):
+                abort_job(job)
+                aborted_jobs.append(job)
+                job_aborted = True
+                break
+        assert job_aborted
 
         wait(lambda: op.get_job_count("running") > 0)
 
