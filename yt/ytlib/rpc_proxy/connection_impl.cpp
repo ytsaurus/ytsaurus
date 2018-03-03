@@ -143,6 +143,7 @@ TFuture<std::vector<TProxyInfo>> TConnection::DiscoverProxies(const TDiscoverPro
     TDiscoveryServiceProxy proxy(GetRandomPeerChannel());
 
     auto req = proxy.DiscoverProxies();
+    req->SetTimeout(Config_->RpcTimeout);
 
     return req->Invoke().Apply(BIND([] (const TDiscoveryServiceProxy::TRspDiscoverProxiesPtr& rsp) {
         std::vector<TProxyInfo> proxies;
