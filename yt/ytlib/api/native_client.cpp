@@ -3941,18 +3941,20 @@ private:
         pushTextFactor(ToString(operation.OperationState));
         pushTextFactor(ToString(operation.OperationType));
 
-        auto briefSpecMapNode = ConvertToNode(operation.BriefSpec)->AsMap();
-        if (briefSpecMapNode->FindChild("pool")) {
-            pushTextFactor(briefSpecMapNode->GetChild("pool")->AsString()->GetValue());
-        }
-        if (briefSpecMapNode->FindChild("title")) {
-            pushTextFactor(briefSpecMapNode->GetChild("title")->AsString()->GetValue());
-        }
-        if (briefSpecMapNode->FindChild("input_table_paths")) {
-            pushTextFactor(briefSpecMapNode->GetChild("input_table_paths")->AsList()->GetChildren()[0]->AsString()->GetValue());
-        }
-        if (briefSpecMapNode->FindChild("output_table_paths")) {
-            pushTextFactor(briefSpecMapNode->GetChild("output_table_paths")->AsList()->GetChildren()[0]->AsString()->GetValue());
+        if (operation.BriefSpec) {
+            auto briefSpecMapNode = ConvertToNode(operation.BriefSpec)->AsMap();
+            if (briefSpecMapNode->FindChild("pool")) {
+                pushTextFactor(briefSpecMapNode->GetChild("pool")->AsString()->GetValue());
+            }
+            if (briefSpecMapNode->FindChild("title")) {
+                pushTextFactor(briefSpecMapNode->GetChild("title")->AsString()->GetValue());
+            }
+            if (briefSpecMapNode->FindChild("input_table_paths")) {
+                pushTextFactor(briefSpecMapNode->GetChild("input_table_paths")->AsList()->GetChildren()[0]->AsString()->GetValue());
+            }
+            if (briefSpecMapNode->FindChild("output_table_paths")) {
+                pushTextFactor(briefSpecMapNode->GetChild("output_table_paths")->AsList()->GetChildren()[0]->AsString()->GetValue());
+            }
         }
 
         textFactor = to_lower(textFactor);
@@ -4048,10 +4050,12 @@ private:
             operation.AuthenticatedUser = attributes.Get<TString>("authenticated_user");
             operation.BriefSpec = attributes.FindYson("brief_spec");
 
-            auto briefSpecMapNode = ConvertToNode(operation.BriefSpec)->AsMap();
-            auto poolNode = briefSpecMapNode->FindChild("pool");
-            if (poolNode) {
-                operation.Pool = poolNode->AsString()->GetValue();
+            if (operation.BriefSpec) {
+                auto briefSpecMapNode = ConvertToNode(operation.BriefSpec)->AsMap();
+                auto poolNode = briefSpecMapNode->FindChild("pool");
+                if (poolNode) {
+                    operation.Pool = poolNode->AsString()->GetValue();
+                }
             }
 
             operation.BriefProgress = attributes.FindYson("brief_progress");
@@ -4125,11 +4129,14 @@ private:
                 continue;
             }
 
-            auto briefProgressMapNode = ConvertToNode(operation.BriefProgress)->AsMap();
-            bool hasFailedJobs =
-                briefProgressMapNode->FindChild("jobs") &&
-                briefProgressMapNode->GetChild("jobs")->AsMap()->
-                GetChild("failed")->AsInt64()->GetValue() > 0;
+            bool hasFailedJobs = false;
+            if (operation.BriefProgress) {
+                auto briefProgressMapNode = ConvertToNode(operation.BriefProgress)->AsMap();
+                hasFailedJobs =
+                    briefProgressMapNode->FindChild("jobs") &&
+                    briefProgressMapNode->GetChild("jobs")->AsMap()->
+                    GetChild("failed")->AsInt64()->GetValue() > 0;
+            }
 
             failedJobsCount += hasFailedJobs;
 
