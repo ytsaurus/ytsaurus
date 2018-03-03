@@ -46,6 +46,7 @@ public:
     , NodeDirectory_(nodeDirectory)
     , CellTag_(cellTag)
     , OnChunkLocated_(onChunkLocated)
+    , Invoker_(invoker)
     , ChunkIds_(std::move(chunkIds))
     , Logger(NLogging::TLogger(logger)
         .AddTag("ScraperTaskId: %v", TGuid::Create())
@@ -54,7 +55,8 @@ public:
     , PeriodicExecutor_(New<TPeriodicExecutor>(
         invoker,
         BIND(&TScraperTask::LocateChunks, MakeWeak(this)),
-        TDuration::Zero()))
+        TDuration::Zero(),
+        EPeriodicExecutorMode::Manual))
     {
         Shuffle(ChunkIds_.begin(), ChunkIds_.end());
     }
@@ -94,6 +96,7 @@ private:
     const NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory_;
     const TCellTag CellTag_;
     const TChunkLocatedHandler OnChunkLocated_;
+    IInvokerPtr Invoker_;
 
     //! Non-const since we would like to shuffle it, to avoid scraping the same chunks
     //! on every restart.
@@ -112,6 +115,20 @@ private:
     void LocateChunks()
     {
         if (ChunkIds_.empty()) {
+            return;
+        }
+
+        auto chunkCount = std::min<int>(ChunkIds_.size(), Config_->MaxChunksPerRequest);
+
+        Throttler_->Throttle(chunkCount)
+            .Subscribe(BIND(&TScraperTask::DoLocateChunks, MakeWeak(this))
+                .Via(Invoker_));
+    }
+
+    void DoLocateChunks(const TError& error)
+    {
+        if (!error.IsOK()) {
+            LOG_WARNING(error, "Chunk scraper throttler failed unexpectedly");
             return;
         }
 
@@ -134,9 +151,6 @@ private:
                 break;
             }
         }
-
-        auto throttleResult = WaitFor(Throttler_->Throttle(req->subrequests_size()));
-        YCHECK(throttleResult.IsOK());
 
         LOG_DEBUG("Locating chunks (Count: %v)", req->subrequests_size());
 
@@ -164,6 +178,8 @@ private:
                 OnChunkLocated_.Run(chunkId, replicas, false);
             }
         }
+
+        PeriodicExecutor_->ScheduleNext();
     }
 };
 

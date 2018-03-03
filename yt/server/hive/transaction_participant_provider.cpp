@@ -44,6 +44,7 @@ public:
             CellDirectory_,
             nullptr,
             TimestampProvider_,
+            nullptr,
             cellId,
             options);
     }

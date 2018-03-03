@@ -1,3 +1,4 @@
+#include "native_connection.h"
 #include "native_transaction_participant.h"
 
 #include <yt/ytlib/hive/cell_directory.h>
@@ -24,11 +25,13 @@ public:
         TCellDirectoryPtr cellDirectory,
         TCellDirectorySynchronizerPtr cellDirectorySynchronizer,
         ITimestampProviderPtr timestampProvider,
+        INativeConnectionPtr connection,
         const TCellId& cellId,
         const TTransactionParticipantOptions& options)
         : CellDirectory_(std::move(cellDirectory))
         , CellDirectorySynchronizer_(std::move(cellDirectorySynchronizer))
         , TimestampProvider_(std::move(timestampProvider))
+        , Connection_(std::move(connection))
         , CellId_(cellId)
         , Options_(options)
     { }
@@ -45,7 +48,8 @@ public:
 
     virtual bool IsValid() const override
     {
-        return !CellDirectory_->IsCellUnregistered(CellId_);
+        return (!Connection_ || !Connection_->IsTerminated()) &&
+            !CellDirectory_->IsCellUnregistered(CellId_);
     }
 
     virtual TFuture<void> PrepareTransaction(const TTransactionId& transactionId, TTimestamp prepareTimestamp) override
@@ -88,6 +92,7 @@ private:
     const TCellDirectoryPtr CellDirectory_;
     const TCellDirectorySynchronizerPtr CellDirectorySynchronizer_;
     const ITimestampProviderPtr TimestampProvider_;
+    const INativeConnectionPtr Connection_;
     const TCellId CellId_;
     const TTransactionParticipantOptions Options_;
 
@@ -138,6 +143,7 @@ ITransactionParticipantPtr CreateNativeTransactionParticipant(
     TCellDirectoryPtr cellDirectory,
     TCellDirectorySynchronizerPtr cellDirectorySynchronizer,
     ITimestampProviderPtr timestampProvider,
+    INativeConnectionPtr connection,
     const TCellId& cellId,
     const TTransactionParticipantOptions& options)
 {
@@ -145,6 +151,7 @@ ITransactionParticipantPtr CreateNativeTransactionParticipant(
         std::move(cellDirectory),
         std::move(cellDirectorySynchronizer),
         std::move(timestampProvider),
+        std::move(connection),
         cellId,
         options);
 }

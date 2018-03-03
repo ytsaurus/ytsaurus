@@ -497,22 +497,32 @@ YtAuthority.prototype._ensureUserExists = function(logger, name)
         return Q.resolve();
     }
 
-    return this.driver.executeSimple("create", {
-        type: "user",
-        attributes: {name: name}
-    })
-    .then(
-    function(created) {
-        logger.debug("User created", {name: name});
-        self.exist_cache.set(name, true);
-    },
-    function(error) {
-        if (error.checkFor(501)) {
-            logger.debug("User already exists", {name: name});
+    return this.driver.executeSimple("exists", {
+        path: "//sys/users/" + utils.escapeYPath(name)
+    }).then(
+    function(result) {
+        if (result) {
             self.exist_cache.set(name, true);
             return;
         } else {
-            return Q.reject(error);
+            return self.driver.executeSimple("create", {
+                type: "user",
+                attributes: {name: name}
+            })
+            .then(
+            function(created) {
+                logger.debug("User created", {name: name});
+                self.exist_cache.set(name, true);
+            },
+            function(error) {
+                if (error.checkFor(501)) {
+                    logger.debug("User already exists", {name: name});
+                    self.exist_cache.set(name, true);
+                    return;
+                } else {
+                    return Q.reject(error);
+                }
+            });
         }
     });
 };
@@ -522,18 +532,36 @@ YtAuthority.prototype._ensureUserDomain = function(logger, name)
     this.__DBG("_ensureUserDomain");
 
     var self = this;
+    var attributePath = "//sys/users/" + utils.escapeYPath(name) + "/@upravlyator_managed";
 
     if (this.domain_cache.get(name)) {
         return Q.resolve();
     }
 
-    return this.driver.executeSimple("set", {
-        path: "//sys/users/" + utils.escapeYPath(name) + "/@upravlyator_managed"
-    }, true)
-    .then(
-    function(set) {
-        logger.debug("User is in domain", {name: name});
-        self.domain_cache.set(name, true);
+    return this.driver.executeSimple("get", {
+        path: attributePath
+    }).catch(
+    function(error) {
+        if (error.checkFor(500)) {
+            return; // Resolve error, return 'undefined';
+        } else {
+            return Q.reject(error);
+        }
+    }).then(
+    function(result) {
+        if (result) {
+            logger.debug("User is in domain", {name: name});
+            self.domain_cache.set(name, true);
+        } else {
+            return self.driver.executeSimple("set", {
+                path: attributePath
+            }, true)
+            .then(
+            function(set) {
+                logger.debug("User is in domain", {name: name});
+                self.domain_cache.set(name, true);
+            });
+        }
     });
 };
 

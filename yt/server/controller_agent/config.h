@@ -621,11 +621,16 @@ public:
     // Is applied on top of user layers if they are used.
     TNullable<TString> SystemLayerPath;
 
+    // Running jobs cached YSON string update period.
+    TDuration CachedRunningJobsUpdatePeriod;
+
     //! Backoff between schedule job statistics logging.
     TDuration ScheduleJobStatisticsLogBackoff;
 
     //! Controls the rate at which jobs are scheduled in termes of slices per second.
     NConcurrency::TThroughputThrottlerConfigPtr JobSpecSliceThrottler;
+
+
 
     TControllerAgentConfig();
 

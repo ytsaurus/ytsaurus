@@ -15,6 +15,7 @@
 #include <yt/core/rpc/response_keeper.h>
 #include <yt/core/rpc/service_detail.h>
 
+#include <yt/core/misc/format.h>
 #include <yt/core/ytree/permission.h>
 
 namespace NYT {
@@ -60,6 +61,11 @@ private:
                 FromProto<TJobId>(jobSpecRequest.job_id())
             });
         }
+
+        context->SetRequestInfo("JobSpecRequests: %v",
+            MakeFormattableRange(jobSpecRequests, [] (TStringBuilder* builder, const TJobSpecRequest& req) {
+                FormatValue(builder, req.JobId, TStringBuf());
+            }));
 
         auto results = WaitFor(controllerAgent->ExtractJobSpecs(jobSpecRequests))
             .ValueOrThrow();

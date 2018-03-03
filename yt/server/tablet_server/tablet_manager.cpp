@@ -290,10 +290,14 @@ public:
                 SyncExecuteVerb(cellMapNodeProxy, req);
             }
 
+            auto attributes = CreateEphemeralAttributes();
+            attributes->Set("inherit_acl", false);
+
             // Create "snapshots" child.
             {
                 auto req = TCypressYPathProxy::Create(cellNodePath + "/snapshots");
                 req->set_type(static_cast<int>(EObjectType::MapNode));
+                ToProto(req->mutable_node_attributes(), *attributes);
 
                 SyncExecuteVerb(cellMapNodeProxy, req);
             }
@@ -302,6 +306,7 @@ public:
             {
                 auto req = TCypressYPathProxy::Create(cellNodePath + "/changelogs");
                 req->set_type(static_cast<int>(EObjectType::MapNode));
+                ToProto(req->mutable_node_attributes(), *attributes);
 
                 SyncExecuteVerb(cellMapNodeProxy, req);
             }

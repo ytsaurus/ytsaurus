@@ -81,6 +81,11 @@ class TestListJobs(YTEnvSetup):
                 },
                 "map_job_count" : 3
             })
+            
+        jobs_path = "//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op.id)
+
+        progress_path = "//sys/scheduler/orchid/scheduler/operations/{0}/progress/jobs".format(op.id)
+        wait(lambda: exists(progress_path) and get(progress_path)["failed"] == 1)
 
         job_ids = wait_breakpoint()
         assert job_ids
@@ -91,10 +96,14 @@ class TestListJobs(YTEnvSetup):
 
         aborted_jobs = []
 
+        job_aborted = False
         for job in job_ids:
-            abort_job(job)
-            aborted_jobs.append(job)
-            break
+            if job in get(jobs_path):
+                abort_job(job)
+                aborted_jobs.append(job)
+                job_aborted = True
+                break
+        assert job_aborted
 
         wait(lambda: op.get_job_count("running") > 0)
 

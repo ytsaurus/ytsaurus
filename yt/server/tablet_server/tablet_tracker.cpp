@@ -217,7 +217,7 @@ void TTabletTracker::Start()
 
     YCHECK(!PeriodicExecutor_);
     PeriodicExecutor_ = New<TPeriodicExecutor>(
-        Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Periodic),
+        Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::TabletTracker),
         BIND(&TTabletTracker::ScanCells, MakeWeak(this)),
         Config_->CellScanPeriod);
     PeriodicExecutor_->Start();

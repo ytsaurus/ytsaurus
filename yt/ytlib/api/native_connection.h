@@ -47,6 +47,7 @@ struct INativeConnection
     virtual INativeTransactionPtr GetStickyTransaction(const NTransactionClient::TTransactionId& transactionId) = 0;
 
     virtual void Terminate() = 0;
+    virtual bool IsTerminated() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(INativeConnection)
