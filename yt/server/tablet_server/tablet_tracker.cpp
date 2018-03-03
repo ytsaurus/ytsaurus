@@ -404,6 +404,10 @@ bool TTabletTracker::IsFailed(const TTabletCell* cell, TPeerId peerId, TDuration
             return true;
         }
 
+        if (node->GetDisableTabletCells()) {
+            return true;
+        }
+
         if (!cell->GetCellBundle()->NodeTagFilter().IsSatisfiedBy(node->Tags())) {
             return true;
         }
@@ -435,6 +439,10 @@ bool TTabletTracker::IsGood(const TNode* node)
     }
 
     if (node->GetDecommissioned()) {
+        return false;
+    }
+
+    if (node->GetDisableTabletCells()) {
         return false;
     }
 
