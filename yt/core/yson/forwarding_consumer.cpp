@@ -239,7 +239,6 @@ void TForwardingYsonConsumer::OnMyListItem()
 
 void TForwardingYsonConsumer::OnMyEndList()
 {
-
     Y_UNREACHABLE();
 }
 
@@ -255,7 +254,6 @@ void TForwardingYsonConsumer::OnMyKeyedItem(const TStringBuf& /*name*/)
 
 void TForwardingYsonConsumer::OnMyEndMap()
 {
-
     Y_UNREACHABLE();
 }
 
