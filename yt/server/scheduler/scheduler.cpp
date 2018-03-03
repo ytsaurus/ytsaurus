@@ -1836,19 +1836,19 @@ private:
         ValidateOperationState(operation, EOperationState::Starting);
 
         try {
-            WaitFor(MasterConnector_->CreateOperationNode(operation))
-                .ThrowOnError();
-
-            ValidateOperationState(operation, EOperationState::Starting);
-
             // XXX(babenko): now we only validate this on start but not during revival
             Strategy_->ValidateOperationCanBeRegistered(operation.Get());
+
+            WaitFor(MasterConnector_->CreateOperationNode(operation))
+                .ThrowOnError();
         } catch (const std::exception& ex) {
             auto wrappedError = TError("Operation has failed to start")
                 << ex;
             operation->SetStarted(wrappedError);
             return;
         }
+
+        ValidateOperationState(operation, EOperationState::Starting);
 
         RegisterOperation(operation, false);
 
