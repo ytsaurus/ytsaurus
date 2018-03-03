@@ -381,6 +381,11 @@ def main():
 
     try:
         args = parser.parse_args()
+
+        if yt.get_attribute("//sys", "disable_bundle_balance", default=False):
+            logging.info("Bundle balancer is disable by //sys/disable_bundle_balance")
+            return
+
         process(args.bundle, args.node_tag, dry_run=args.dry_run, flush_tag_filter=args.flush_tag_filter)
     except KeyboardInterrupt:
         logging.error("Interrupted.")
