@@ -250,6 +250,7 @@ void TNode::Save(NCellMaster::TSaveContext& context) const
     Save(context, Decommissioned_);
     Save(context, DisableWriteSessions_);
     Save(context, DisableSchedulerJobs_);
+    Save(context, DisableTabletCells_);
     Save(context, NodeAddresses_);
     Save(context, MulticellStates_);
     Save(context, UserTags_);
@@ -288,6 +289,11 @@ void TNode::Load(NCellMaster::TLoadContext& context)
     Load(context, Decommissioned_);
     Load(context, DisableWriteSessions_);
     Load(context, DisableSchedulerJobs_);
+
+    // COMPAT(savrus)
+    if (context.GetVersion() >= 703) {
+        Load(context, DisableTabletCells_);
+    }
 
     // COMPAT(prime)
     if (context.GetVersion() < 610) {

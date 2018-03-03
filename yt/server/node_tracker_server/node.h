@@ -117,6 +117,8 @@ public:
     // Used for graceful restart.
     DEFINE_BYVAL_RW_PROPERTY(bool, DisableSchedulerJobs);
 
+    DEFINE_BYVAL_RW_PROPERTY(bool, DisableTabletCells);
+
     // NB: Randomize replica hashing to avoid collisions during balancing.
     using TMediumReplicaSet = THashSet<TChunkPtrWithIndexes>;
     using TReplicaSet = TPerMediumArray<TMediumReplicaSet>;

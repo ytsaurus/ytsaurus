@@ -651,6 +651,14 @@ class TestDynamicTables(TestDynamicTablesBase):
         with pytest.raises(YtError):
             alter_table("//tmp/t2", schema=ordered_schema)
 
+    def test_disable_tablet_cells(self):
+        cell = self.sync_create_cells(1)[0]
+        peer_path = "#{0}/@peers/0/address".format(cell)
+        peer = get(peer_path)
+        set("//sys/nodes/{0}/@disable_tablet_cells".format(peer), True)
+        wait(lambda: get(peer_path) != peer)
+        assert get(peer_path) != peer
+
 ##################################################################
 
 class TestDynamicTablesResourceLimits(TestDynamicTablesBase):

@@ -59,6 +59,9 @@ private:
         descriptors->push_back(TAttributeDescriptor("disable_scheduler_jobs")
             .SetWritable(true)
             .SetReplicated(true));
+        descriptors->push_back(TAttributeDescriptor("disable_tablet_cells")
+            .SetWritable(true)
+            .SetReplicated(true));
         descriptors->push_back(TAttributeDescriptor("rack")
             .SetPresent(node->GetRack())
             .SetWritable(true)
@@ -127,6 +130,12 @@ private:
         if (key == "disable_scheduler_jobs") {
             BuildYsonFluently(consumer)
                 .Value(node->GetDisableSchedulerJobs());
+            return true;
+        }
+
+        if (key == "disable_tablet_cells") {
+            BuildYsonFluently(consumer)
+                .Value(node->GetDisableTabletCells());
             return true;
         }
 
@@ -367,6 +376,12 @@ private:
         if (key == "disable_scheduler_jobs") {
             auto disableSchedulerJobs = ConvertTo<bool>(value);
             node->SetDisableSchedulerJobs(disableSchedulerJobs);
+            return true;
+        }
+
+        if (key == "disable_tablet_cells") {
+            auto disableTabletCells = ConvertTo<bool>(value);
+            node->SetDisableTabletCells(disableTabletCells);
             return true;
         }
 
