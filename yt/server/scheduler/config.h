@@ -259,8 +259,6 @@ public:
 
 DEFINE_REFCOUNTED_TYPE(TSchedulerConfig)
 
-////////////////////////////////////////////////////////////////////////////////
-
 class TSchedulerBootstrapConfig
     : public TServerConfig
 {

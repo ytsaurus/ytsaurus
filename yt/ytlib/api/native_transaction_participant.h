@@ -17,6 +17,7 @@ NHiveClient::ITransactionParticipantPtr CreateNativeTransactionParticipant(
     NHiveClient::TCellDirectoryPtr cellDirectory,
     NHiveClient::TCellDirectorySynchronizerPtr cellDirectorySynchronizer,
     NTransactionClient::ITimestampProviderPtr timestampProvider,
+    INativeConnectionPtr connection,
     const NObjectClient::TCellId& cellId,
     const TTransactionParticipantOptions& options);
 

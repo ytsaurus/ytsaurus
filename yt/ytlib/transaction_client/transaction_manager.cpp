@@ -803,7 +803,7 @@ private:
                         GetState() == ETransactionState::Active)
                     {
                         // Hard error.
-                        LOG_WARNING("Transaction has expired or was aborted (TransactionId: %v, CellId: %v)",
+                        LOG_DEBUG("Transaction has expired or was aborted (TransactionId: %v, CellId: %v)",
                             Id_,
                             cellId);
                         auto error = TError("Transaction %v has expired or was aborted at cell %v",
@@ -813,7 +813,7 @@ private:
                         THROW_ERROR error;
                     } else {
                         // Soft error.
-                        LOG_WARNING(rspOrError, "Error pinging transaction (TransactionId: %v, CellId: %v)",
+                        LOG_DEBUG(rspOrError, "Error pinging transaction (TransactionId: %v, CellId: %v)",
                             Id_,
                             cellId);
                         THROW_ERROR_EXCEPTION("Failed to ping transaction %v at cell %v",

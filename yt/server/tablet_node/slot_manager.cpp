@@ -218,19 +218,25 @@ public:
 
         auto newSnapshot = tablet->BuildSnapshot(slot);
 
-        TWriterGuard guard(TabletSnapshotsSpinLock_);
-        auto range = TabletIdToSnapshot_.equal_range(tablet->GetId());
-        for (auto it = range.first; it != range.second; ++it) {
-            auto& snapshot = it->second;
-            if (snapshot->CellId == slot->GetCellId()) {
-                LOG_DEBUG("Tablet snapshot updated (TabletId: %v, CellId: %v)",
-                    tablet->GetId(),
-                    slot->GetCellId());
-                snapshot = newSnapshot;
-                return;
+        {
+            TWriterGuard guard(TabletSnapshotsSpinLock_);
+            auto range = TabletIdToSnapshot_.equal_range(tablet->GetId());
+            for (auto it = range.first; it != range.second; ++it) {
+                auto& snapshot = it->second;
+                if (snapshot->CellId == slot->GetCellId()) {
+                    auto deadSnapshot = std::move(snapshot);
+                    snapshot = std::move(newSnapshot);
+                    guard.Release();
+                    // This is were deadSnapshot dies. It's also nice to have logging moved outside
+                    // of a critical section.
+                    LOG_DEBUG("Tablet snapshot updated (TabletId: %v, CellId: %v)",
+                        tablet->GetId(),
+                        slot->GetCellId());
+                    return;
+                }
             }
+            TabletIdToSnapshot_.emplace(tablet->GetId(), newSnapshot);
         }
-        TabletIdToSnapshot_.emplace(tablet->GetId(), newSnapshot);
 
         LOG_DEBUG("Tablet snapshot registered (TabletId: %v, CellId: %v)",
             tablet->GetId(),
@@ -244,9 +250,13 @@ public:
         TWriterGuard guard(TabletSnapshotsSpinLock_);
         auto range = TabletIdToSnapshot_.equal_range(tablet->GetId());
         for (auto it = range.first; it != range.second; ++it) {
-            const auto& snapshot = it->second;
+            auto& snapshot = it->second;
             if (snapshot->CellId == slot->GetCellId()) {
+                auto deadSnapshot = std::move(snapshot);
                 TabletIdToSnapshot_.erase(it);
+                guard.Release();
+                // This is were deadSnapshot dies. It's also nice to have logging moved outside
+                // of a critical section.
                 LOG_DEBUG("Tablet snapshot unregistered (TabletId: %v, CellId: %v)",
                     tablet->GetId(),
                     slot->GetCellId());
@@ -260,18 +270,28 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        TWriterGuard guard(TabletSnapshotsSpinLock_);
-        for (auto it = TabletIdToSnapshot_.begin(); it != TabletIdToSnapshot_.end();) {
-            auto jt = it++;
-            const auto& snapshot = jt->second;
-            if (snapshot->CellId == slot->GetCellId()) {
-                LOG_DEBUG("Tablet snapshot unregistered (TabletId: %v, CellId: %v)",
-                    jt->first,
-                    slot->GetCellId());
-                TabletIdToSnapshot_.erase(jt);
+        std::vector<TTabletSnapshotPtr> deadSnapshots;
+
+        {
+            TWriterGuard guard(TabletSnapshotsSpinLock_);
+            for (auto it = TabletIdToSnapshot_.begin(); it != TabletIdToSnapshot_.end();) {
+                auto jt = it++;
+                auto& snapshot = jt->second;
+                if (snapshot->CellId == slot->GetCellId()) {
+                    deadSnapshots.emplace_back(std::move(snapshot));
+                    TabletIdToSnapshot_.erase(jt);
+                }
             }
+            // NB: It's fine not to find anything.
         }
-        // NB: It's fine not to find anything.
+
+        // This is were deadSnapshots die. It's also nice to have logging moved outside
+        // of a critical section.
+        for (const auto& snapshot : deadSnapshots) {
+            LOG_DEBUG("Tablet snapshot unregistered (TabletId: %v, CellId: %v)",
+                snapshot->TabletId,
+                snapshot->CellId);
+        }
     }
 
 

@@ -290,8 +290,6 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
 
         assert "schedule_job_timed_out" in get("//sys/operations/{0}/@alerts".format(op.id))
 
-        op.abort()
-
 ##################################################################
 
 class TestSchedulerJobSpecThrottlerOperationAlert(YTEnvSetup):
@@ -334,9 +332,5 @@ class TestSchedulerJobSpecThrottlerOperationAlert(YTEnvSetup):
             out="//tmp/t_out2",
             dont_track=True)
 
-        time.sleep(1.5)
-
-        assert "excessive_job_spec_throttling" in get("//sys/operations/{0}/@alerts".format(op2.id))
-
-        op1.abort()
-        op2.abort()
+        path = "//sys/operations/{0}/@alerts".format(op2.id)
+        wait(lambda: exists(path) and "excessive_job_spec_throttling" in get(path))
