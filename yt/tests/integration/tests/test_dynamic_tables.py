@@ -659,6 +659,18 @@ class TestDynamicTables(TestDynamicTablesBase):
         wait(lambda: get(peer_path) != peer)
         assert get(peer_path) != peer
 
+    def test_tablet_slot_charges_cpu_resource_limit(self):
+        get_cpu = lambda x: get("//sys/nodes/{0}/orchid/job_controller/resource_limits/cpu".format(x))
+
+        node = ls("//sys/nodes")[0]
+        empty_node_cpu = get_cpu(node)
+
+        cell = self.sync_create_cells(1)[0]
+        peer = get("#{0}/@peers/0/address".format(cell))
+        assigned_node_cpu = get_cpu(peer)
+
+        assert int(empty_node_cpu - assigned_node_cpu) == 1
+
 ##################################################################
 
 class TestDynamicTablesResourceLimits(TestDynamicTablesBase):

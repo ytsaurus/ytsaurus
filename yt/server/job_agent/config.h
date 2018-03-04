@@ -87,6 +87,8 @@ public:
 
     TDuration ResourceAdjustmentPeriod;
 
+    double CpuPerTabletSlot;
+
     TJobControllerConfig()
     {
         RegisterParameter("resource_limits", ResourceLimits)
@@ -112,6 +114,9 @@ public:
 
         RegisterParameter("resource_adjustment_period", ResourceAdjustmentPeriod)
             .Default(TDuration::Seconds(5));
+
+        RegisterParameter("cpu_per_tablet_slot", CpuPerTabletSlot)
+            .Default(1.0);
 
         RegisterPreprocessor([&] () {
             // 100 kB/sec * 1000 [nodes] = 100 MB/sec that corresponds to

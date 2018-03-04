@@ -12,6 +12,8 @@
 
 #include <yt/server/exec_agent/slot_manager.h>
 
+#include <yt/server/tablet_node/slot_manager.h>
+
 #include <yt/ytlib/job_tracker_client/job_spec_service_proxy.h>
 #include <yt/ytlib/job_tracker_client/job.pb.h>
 
@@ -312,6 +314,12 @@ TNodeResources TJobController::TImpl::GetResourceLimits() const
     auto maybeCpuLimit = Bootstrap_->GetExecSlotManager()->GetCpuLimit();
     if (maybeCpuLimit && !ResourceLimitsOverrides_.has_cpu()) {
         result.set_cpu(*maybeCpuLimit);
+    }
+
+    if (result.has_cpu()) {
+        const auto& tabletSlotManager = Bootstrap_->GetTabletSlotManager();
+        auto tabletCpu = tabletSlotManager->GetUsedTableSlotCount() * Config_->CpuPerTabletSlot;
+        result.set_cpu(std::max(0.0, result.cpu() - tabletCpu));
     }
 
     return result;
