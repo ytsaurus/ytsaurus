@@ -1546,6 +1546,9 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         self.sync_mount_table("//tmp/t")
         self.sync_compact_table("//tmp/t")
         statistics2 = get("#" + chunk_list_id + "/@statistics")
+        # Disk space is not stable since it includes meta
+        del statistics1["regular_disk_space"]
+        del statistics2["regular_disk_space"]
         assert statistics1 == statistics2
 
     def test_tablet_statistics(self):
