@@ -103,8 +103,6 @@ def initialize_world(client=None, idm=None, proxy_address=None, ui_address=None,
     add_member("devs", "admins", client)
     add_member("robot-yt-mon", "admin_snapshots", client)
 
-    if idm:
-        add_member("users", "yandex", client)
     add_member("application_operations", "superusers", client)
 
     for dir in ["//sys", "//tmp", "//sys/tokens"]:
