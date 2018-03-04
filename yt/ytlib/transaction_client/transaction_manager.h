@@ -86,6 +86,12 @@ public:
     //! to this call.
     void ConfirmParticipant(const NElection::TCellId& cellId);
 
+    //! Choose transaction coordinator.
+    void ChooseCoordinator(const TTransactionCommitOptions& options);
+
+    //! Check that all participants are healthy.
+    TFuture<void> ValidateNoDownedParticipants();
+
 
     //! Raised when the transaction is committed.
     DECLARE_SIGNAL(void(), Committed);

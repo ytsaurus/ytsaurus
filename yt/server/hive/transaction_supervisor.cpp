@@ -208,6 +208,12 @@ private:
             return !underlying || underlying->IsValid();
         }
 
+        bool IsUp()
+        {
+            auto guard = Guard(SpinLock_);
+            return Up_;
+        }
+
         ITimestampProviderPtr GetTimestampProviderOrThrow()
         {
             auto guard = Guard(SpinLock_);
@@ -472,6 +478,7 @@ private:
             TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(AbortTransaction));
             TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(PingTransaction)
                 .SetInvoker(owner->TrackerInvoker_));
+            TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(GetDownedParticipants));
         }
 
     private:
@@ -546,6 +553,25 @@ private:
 
             // Any exception thrown here is replied to the client.
             owner->TransactionManager_->PingTransaction(transactionId, pingAncestors);
+
+            context->Reply();
+        }
+
+        DECLARE_RPC_SERVICE_METHOD(NHiveClient::NProto::NTransactionSupervisor, GetDownedParticipants)
+        {
+            auto cellIds = FromProto<std::vector<TCellId>>(request->cell_ids());
+
+            context->SetRequestInfo("CellCount: %v",
+                cellIds.size());
+
+            auto owner = GetOwnerOrThrow();
+            auto downedCellIds = owner->GetDownedParticipants(cellIds);
+
+            auto* responseCellIds = context->Response().mutable_cell_ids();
+            ToProto(responseCellIds, downedCellIds);
+
+            context->SetResponseInfo("DownedCellCount: %v",
+                downedCellIds.size());
 
             context->Reply();
         }
@@ -745,6 +771,35 @@ private:
 
         return asyncResponseMessage;
     }
+
+    std::vector<TCellId> GetDownedParticipants(const std::vector<TCellId>& cellIds)
+    {
+        std::vector<TCellId> result;
+
+        auto considerParticipant = [&] (const auto& weakParticipant) {
+            if (auto participant = weakParticipant.Lock()) {
+                if (!participant->IsUp()) {
+                    result.push_back(participant->GetCellId());
+                }
+            }
+        };
+
+        if (cellIds.empty()) {
+            for (const auto& pair : WeakParticipantMap_) {
+                considerParticipant(pair.second);
+            }
+        } else {
+            for (const auto& cellId : cellIds) {
+                auto it = WeakParticipantMap_.find(cellId);
+                if (it != WeakParticipantMap_.end()) {
+                    considerParticipant(it->second);
+                }
+            }
+        }
+
+        return result;
+    }
+
 
     static TFuture<void> MessageToError(TFuture<TSharedRefArray> asyncMessage)
     {

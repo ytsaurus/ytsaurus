@@ -70,6 +70,7 @@ public:
 
 private:
     friend class TTransaction;
+    class TCellTracker;
 
     const TTransactionManagerConfigPtr Config_;
     const TCellId PrimaryCellId_;
@@ -77,6 +78,7 @@ private:
     const TString User_;
     const ITimestampProviderPtr TimestampProvider_;
     const TCellDirectoryPtr CellDirectory_;
+    const TIntrusivePtr<TCellTracker> DownedCellTracker_;
 
     TSpinLock SpinLock_;
     THashSet<TTransaction::TImpl*> AliveTransactions_;
@@ -91,6 +93,45 @@ private:
         proxy.SetDefaultTimeout(Config_->RpcTimeout);
         return proxy;
     }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TTransactionManager::TImpl::TCellTracker
+    : public TRefCounted
+{
+public:
+    std::vector<TCellId> Select(const std::vector<TCellId>& candidates)
+    {
+        auto guard = Guard(SpinLock_);
+
+        std::vector<TCellId> result;
+        result.reserve(candidates.size());
+
+        for (const auto& id : candidates) {
+            if (Cells_.find(id) != Cells_.end()) {
+                result.push_back(id);
+            }
+        }
+
+        return result;
+    }
+
+    void Update(const std::vector<TCellId>& toRemove, const std::vector<TCellId>& toAdd)
+    {
+        auto guard = Guard(SpinLock_);
+
+        for (const auto& id : toRemove) {
+            Cells_.erase(id);
+        }
+        for (const auto& id : toAdd) {
+            Cells_.insert(id);
+        }
+    }
+
+private:
+    TSpinLock SpinLock_;
+    THashSet<TCellId> Cells_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -386,6 +427,26 @@ public:
         }
     }
 
+    void ChooseCoordinator(const TTransactionCommitOptions& options)
+    {
+        YCHECK(!CoordinatorCellId_);
+
+        if (Atomicity_ != EAtomicity::Full || RegisteredParticipantIds_.empty()) {
+            return;
+        }
+
+        CoordinatorCellId_ = PickCoordinator(options);
+    }
+
+    TFuture<void> ValidateNoDownedParticipants()
+    {
+        if (Atomicity_ != EAtomicity::Full) {
+            return VoidFuture;
+        }
+
+        auto participantIds = Owner_->DownedCellTracker_->Select(GetRegisteredParticipantIds());
+        return CheckDownedParticipants(participantIds);
+    }
 
     void SubscribeCommitted(const TCallback<void()>& handler)
     {
@@ -438,6 +499,8 @@ private:
 
     THashSet<TCellId> RegisteredParticipantIds_;
     THashSet<TCellId> ConfirmedParticipantIds_;
+
+    TCellId CoordinatorCellId_;
 
     TError Error_;
 
@@ -687,20 +750,20 @@ private:
         }
 
         try {
-            auto coordinatorCellId = ChooseCoordinator(options);
+            YCHECK(CoordinatorCellId_);
 
             LOG_DEBUG("Committing transaction (TransactionId: %v, CoordinatorCellId: %v)",
                 Id_,
-                coordinatorCellId);
+                CoordinatorCellId_);
 
-            auto coordinatorChannel = Owner_->CellDirectory_->GetChannelOrThrow(coordinatorCellId);
+            auto coordinatorChannel = Owner_->CellDirectory_->GetChannelOrThrow(CoordinatorCellId_);
             auto proxy = Owner_->MakeSupervisorProxy(std::move(coordinatorChannel), true);
             auto req = proxy.CommitTransaction();
             req->SetUser(Owner_->User_);
             ToProto(req->mutable_transaction_id(), Id_);
             auto participantIds = GetRegisteredParticipantIds();
             for (const auto& cellId : participantIds) {
-                if (cellId != coordinatorCellId) {
+                if (cellId != CoordinatorCellId_) {
                     ToProto(req->add_participant_cell_ids(), cellId);
                 }
             }
@@ -710,7 +773,7 @@ private:
             SetOrGenerateMutationId(req, options.MutationId, options.Retry);
 
             return req->Invoke().Apply(
-                BIND(&TImpl::OnAtomicTransactionCommitted, MakeStrong(this), coordinatorCellId));
+                BIND(&TImpl::OnAtomicTransactionCommitted, MakeStrong(this), CoordinatorCellId_));
         } catch (const std::exception& ex) {
             return MakeFuture<TTransactionCommitResult>(TError(ex));
         }
@@ -723,7 +786,7 @@ private:
         return MakeFuture(result);
     }
 
-    TCellId ChooseCoordinator(const TTransactionCommitOptions& options)
+    TCellId PickCoordinator(const TTransactionCommitOptions& options)
     {
         if (Type_ == ETransactionType::Master) {
             return Owner_->PrimaryCellId_;
@@ -753,6 +816,54 @@ private:
         return feasibleParticipantIds[RandomNumber(feasibleParticipantIds.size())];
     }
 
+    void UpdateDownedParticipants()
+    {
+        auto participantIds = GetRegisteredParticipantIds();
+        CheckDownedParticipants(participantIds);
+    }
+
+    TFuture<void> CheckDownedParticipants(std::vector<TCellId> participantIds)
+    {
+        if (participantIds.empty()) {
+            return VoidFuture;
+        }
+
+        YCHECK(CoordinatorCellId_);
+        auto coordinatorChannel = Owner_->CellDirectory_->GetChannelOrThrow(CoordinatorCellId_);
+        auto proxy = Owner_->MakeSupervisorProxy(std::move(coordinatorChannel), true);
+        auto req = proxy.GetDownedParticipants();
+        req->SetUser(Owner_->User_);
+        ToProto(req->mutable_cell_ids(), participantIds);
+
+        return req->Invoke().Apply(
+            BIND([this, this_ = MakeStrong(this), participantIds = std::move(participantIds)] (
+                const TTransactionSupervisorServiceProxy::TErrorOrRspGetDownedParticipantsPtr& rspOrError)
+            {
+                if (rspOrError.IsOK()) {
+                    const auto& rsp = rspOrError.Value();
+                    auto downedParticipantIds = FromProto<std::vector<TCellId>>(rsp->cell_ids());
+                    Owner_->DownedCellTracker_->Update(participantIds, downedParticipantIds);
+
+                    if (!downedParticipantIds.empty()) {
+                        LOG_DEBUG("Participants are unable to participate (CellIds: %v)",
+                            downedParticipantIds);
+                        THROW_ERROR_EXCEPTION("Participants are unable to participate")
+                            << TErrorAttribute("downed_participants", downedParticipantIds);
+                    }
+                } else if (rspOrError.GetCode() == NYT::NRpc::EErrorCode::NoSuchMethod) {
+                    LOG_DEBUG("Method GetDownedParticipants is not implemented (CellId: %v)",
+                        CoordinatorCellId_);
+                } else {
+                    LOG_WARNING("Error updating downed participants (CellId: %v)",
+                        CoordinatorCellId_);
+                    THROW_ERROR_EXCEPTION("Error updating downed participants at cell %v",
+                        CoordinatorCellId_)
+                        << rspOrError;
+                }
+            }));
+    }
+
+
     TTransactionCommitResult OnAtomicTransactionCommitted(
         const TCellId& cellId,
         const TTransactionSupervisorServiceProxy::TErrorOrRspCommitTransactionPtr& rspOrError)
@@ -762,6 +873,7 @@ private:
                 Id_,
                 cellId)
                 << rspOrError;
+            UpdateDownedParticipants();
             OnFailure(error);
             THROW_ERROR error;
         }
@@ -963,6 +1075,7 @@ private:
         auto guard = Guard(SpinLock_);
         return RegisteredParticipantIds_.find(cellId) != RegisteredParticipantIds_.end();
     }
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -980,6 +1093,7 @@ TTransactionManager::TImpl::TImpl(
     , User_(user)
     , TimestampProvider_(timestampProvider)
     , CellDirectory_(cellDirectory)
+    , DownedCellTracker_(New<TCellTracker>())
 {
     YCHECK(Config_);
     YCHECK(MasterChannel_);
@@ -1101,6 +1215,16 @@ void TTransaction::RegisterParticipant(const TCellId& cellId)
 void TTransaction::ConfirmParticipant(const TCellId& cellId)
 {
     Impl_->ConfirmParticipant(cellId);
+}
+
+void TTransaction::ChooseCoordinator(const TTransactionCommitOptions& options)
+{
+    Impl_->ChooseCoordinator(options);
+}
+
+TFuture<void> TTransaction::ValidateNoDownedParticipants()
+{
+    return Impl_->ValidateNoDownedParticipants();
 }
 
 DELEGATE_SIGNAL(TTransaction, void(), Committed, *Impl_);
