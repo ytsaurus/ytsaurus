@@ -410,6 +410,32 @@ class TestLocks(YTEnvSetup):
         assert get("#" + lock_id3 + "/@state") == "pending"
         assert get("#" + lock_id4 + "/@state") == "acquired"
 
+    def test_waitable_lock13(self):
+        create("table", "//tmp/t")
+
+        tx1 = start_transaction()
+        tx2 = start_transaction()
+        tx3 = start_transaction()
+
+        lock_id1 = lock("//tmp/t", tx=tx1)
+        lock_id2 = lock("//tmp/t", tx=tx2, waitable=True)
+
+        assert get("#" + lock_id1 + "/@state") == "acquired"
+        assert get("#" + lock_id2 + "/@state") == "pending"
+
+        write_table("//tmp/t", {"foo": "bar1"}, tx = tx1)
+        commit_transaction(tx1)
+
+        assert get("#" + lock_id2 + "/@state") == "acquired"
+
+        lock_id3 = lock("//tmp/t", tx=tx3, waitable=True)
+        assert get("#" + lock_id3 + "/@state") == "pending"
+
+        write_table("<append=true>//tmp/t", {"foo": "bar2"}, tx = tx2)
+        commit_transaction(tx2)
+
+        assert read_table("//tmp/t") == [{"foo": "bar1"}, {"foo": "bar2"}]
+
     def test_yt_144(self):
         create("table", "//tmp/t")
 
