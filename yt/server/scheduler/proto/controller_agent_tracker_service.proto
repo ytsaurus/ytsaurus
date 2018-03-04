@@ -173,7 +173,6 @@ message TReqHeartbeat
     repeated TOperationInfo operations = 3;
 
     required bool exec_nodes_requested = 4;
-    required bool config_requested = 5;
 
     optional bytes suspicious_jobs = 6;
 

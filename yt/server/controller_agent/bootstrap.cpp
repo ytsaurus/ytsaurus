@@ -134,7 +134,7 @@ void TBootstrap::DoRun()
         NodeDirectory_);
     NodeDirectorySynchronizer_->Start();
 
-    ControllerAgent_ = New<TControllerAgent>(Config_->Scheduler, this);
+    ControllerAgent_ = New<TControllerAgent>(Config_->ControllerAgent, this);
 
     if (Config_->CoreDumper) {
         CoreDumper_ = New<TCoreDumper>(Config_->CoreDumper);

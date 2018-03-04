@@ -48,6 +48,7 @@ DECLARE_REFCOUNTED_CLASS(TControllerAgent)
 DECLARE_REFCOUNTED_CLASS(TFairShareStrategyConfig)
 DECLARE_REFCOUNTED_CLASS(TFairShareStrategyOperationControllerConfig)
 DECLARE_REFCOUNTED_CLASS(TFairShareStrategyTreeConfig)
+DECLARE_REFCOUNTED_CLASS(TTestingOptions)
 DECLARE_REFCOUNTED_CLASS(TSchedulerConfig)
 DECLARE_REFCOUNTED_CLASS(TSchedulerBootstrapConfig)
 

@@ -35,10 +35,15 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
 
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
-            "operation_time_limit_check_period": 100,
             "connect_retry_backoff_time": 100,
             "fair_share_update_period": 100,
             "fair_share_profiling_period": 100,
+        }
+    }
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "operation_time_limit_check_period": 100,
         }
     }
 
@@ -578,7 +583,9 @@ class TestSchedulerOperationLimits(YTEnvSetup):
                 with pytest.raises(YtError):
                     execute(False)
             else:
-                ops.append(execute(True))
+                op = execute(True)
+                wait(lambda: op.get_state() in ("pending", "running"))
+                ops.append(op)
 
         for i in xrange(3):
             run(i, "research", False)
@@ -1116,6 +1123,15 @@ class TestSchedulerPools(YTEnvSetup):
         }
     }
 
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "event_log": {
+                "flush_period": 300,
+                "retry_backoff_time": 300
+            }
+        }
+    }
+
     def setup_method(self, method):
         super(TestSchedulerPools, self).setup_method(method)
         set("//sys/pool_trees/default/@max_ephemeral_pools_per_user", 3)
@@ -1301,11 +1317,16 @@ class TestSchedulerSuspiciousJobs(YTEnvSetup):
 
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
+            "running_jobs_update_period": 100,  # 100 msec
+        }
+    }
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
             "suspicious_jobs": {
                 "inactivity_timeout": 2000,  # 2 sec
                 "update_period": 100,  # 100 msec
             },
-            "running_jobs_update_period": 100,  # 100 msec
         }
     }
 
@@ -1486,8 +1507,13 @@ class TestMinNeededResources(YTEnvSetup):
 
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
-            "safe_scheduler_online_time": 500,
             "min_needed_resources_update_period": 200
+        }
+    }
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "safe_scheduler_online_time": 500,
         }
     }
 
@@ -1883,8 +1909,8 @@ class TestSchedulingTagFilterOnPerPoolTreeConfiguration(YTEnvSetup):
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
 
-    DELTA_SCHEDULER_CONFIG = {
-        "scheduler": {
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
             "operation_options": {
                 "spec_template": {
                     "scheduling_options_per_pool_tree": {

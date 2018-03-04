@@ -183,6 +183,7 @@ class YTEnvSetup(object):
     DELTA_MASTER_CONFIG = {}
     DELTA_NODE_CONFIG = {}
     DELTA_SCHEDULER_CONFIG = {}
+    DELTA_CONTROLLER_AGENT_CONFIG = None
 
     USE_PORTO_FOR_SERVERS = False
     USE_DYNAMIC_TABLES = False
@@ -344,7 +345,10 @@ class YTEnvSetup(object):
             cls.modify_scheduler_config(configs["scheduler"][index])
         for index, config in enumerate(configs["controller_agent"]):
             # TODO(ignat): use update_inplace
-            configs["controller_agent"][index] = update(config, cls.get_param("DELTA_SCHEDULER_CONFIG", cluster_index))
+            delta_config = cls.get_param("DELTA_CONTROLLER_AGENT_CONFIG", cluster_index)
+            if delta_config is None:
+                delta_config = cls.get_param("DELTA_SCHEDULER_CONFIG", cluster_index)
+            configs["controller_agent"][index] = update(config, delta_config)
             cls.modify_controller_agent_config(configs["controller_agent"][index])
         for index, config in enumerate(configs["node"]):
             # TODO(ignat): use update_inplace

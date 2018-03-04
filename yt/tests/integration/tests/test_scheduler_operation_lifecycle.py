@@ -30,8 +30,6 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
 
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
-            "operation_time_limit_check_period": 100,
-            "operation_fail_timeout": 3000,
             "connect_retry_backoff_time": 100,
             "fair_share_update_period": 100,
             "profiling_update_period": 100,
@@ -40,6 +38,28 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
             # Unrecognized alert often interferes with the alerts that
             # are tested in this test suite.
             "enable_unrecognized_alert": False
+        }
+    }
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "operation_time_limit_check_period": 100,
+            "operation_controller_fail_timeout": 3000,
+        }
+    }
+
+    DELTA_NODE_CONFIG = {
+        "exec_agent": {
+            "slot_manager": {
+                "job_environment" : {
+                    "type" : "cgroups",
+                    "memory_watchdog_period" : 100,
+                    "supported_cgroups": [
+                        "cpuacct",
+                        "blkio",
+                        "cpu"],
+                },
+            }
         }
     }
 
@@ -201,7 +221,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         write_table("//tmp/in", [{"foo": i} for i in xrange(5)])
 
         op = map(dont_track=True,
-            command="sleep 3.0; cat >/dev/null",
+            command="sleep 1000.0; cat >/dev/null",
             in_=["//tmp/in"],
             out="//tmp/out",
             spec={"time_limit": 2000})
@@ -498,14 +518,19 @@ class TestSchedulerRevive(YTEnvSetup):
 
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
-            "operation_time_limit_check_period": 100,
             "connect_retry_backoff_time": 100,
             "fair_share_update_period": 100,
-            "operation_build_progress_period": 100,
-            "snapshot_period": 500,
             "testing_options": {
                 "finish_operation_transition_delay": 2000,
             },
+        }
+    }
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "snapshot_period": 500,
+            "operation_time_limit_check_period": 100,
+            "operation_build_progress_period": 100,
         }
     }
 
@@ -656,6 +681,8 @@ class TestSchedulerRevive(YTEnvSetup):
         else:
             correct_events = events_prefix + ["completed"]
 
+        print >>sys.stderr, "AAA", correct_events
+        print >>sys.stderr, "BBB", [event["state"] for event in events]
         assert correct_events == [event["state"] for event in events]
 
         assert "completed" == get("//sys/operations/" + op.id + "/@state")

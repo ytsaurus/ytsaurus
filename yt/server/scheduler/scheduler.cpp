@@ -538,12 +538,6 @@ public:
                 Config_->MaxOperationCount);
         }
 
-        // Merge operation spec with template
-        auto specTemplate = GetSpecTemplate(type, specNode);
-        if (specTemplate) {
-            specNode = PatchNode(specTemplate, specNode)->AsMap();
-        }
-
         TOperationSpecBasePtr spec;
         try {
             spec = ConvertTo<TOperationSpecBasePtr>(specNode);
@@ -2150,44 +2144,6 @@ private:
             UnregisterOperation(operation);
         }
     }
-
-    INodePtr GetSpecTemplate(EOperationType type, const IMapNodePtr& spec)
-    {
-        switch (type) {
-            case EOperationType::Map:
-                return Config_->MapOperationOptions->SpecTemplate;
-            case EOperationType::Merge: {
-                auto mergeSpec = NControllerAgent::ParseOperationSpec<TMergeOperationSpec>(spec);
-                switch (mergeSpec->Mode) {
-                    case EMergeMode::Unordered:
-                        return Config_->UnorderedMergeOperationOptions->SpecTemplate;
-                    case EMergeMode::Ordered:
-                        return Config_->OrderedMergeOperationOptions->SpecTemplate;
-                    case EMergeMode::Sorted:
-                        return Config_->SortedMergeOperationOptions->SpecTemplate;
-                    default:
-                        Y_UNREACHABLE();
-                }
-            }
-            case EOperationType::Erase:
-                return Config_->EraseOperationOptions->SpecTemplate;
-            case EOperationType::Sort:
-                return Config_->SortOperationOptions->SpecTemplate;
-            case EOperationType::Reduce:
-                return Config_->ReduceOperationOptions->SpecTemplate;
-            case EOperationType::JoinReduce:
-                return Config_->JoinReduceOperationOptions->SpecTemplate;
-            case EOperationType::MapReduce:
-                return Config_->MapReduceOperationOptions->SpecTemplate;
-            case EOperationType::RemoteCopy:
-                return Config_->RemoteCopyOperationOptions->SpecTemplate;
-            case EOperationType::Vanilla:
-                return Config_->VanillaOperationOptions->SpecTemplate;
-            default:
-                Y_UNREACHABLE();
-        }
-    }
-
 
     void DoCompleteOperation(const TOperationPtr& operation)
     {

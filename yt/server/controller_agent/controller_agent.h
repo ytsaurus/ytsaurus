@@ -41,7 +41,7 @@ class TControllerAgent
 {
 public:
     TControllerAgent(
-        NScheduler::TSchedulerConfigPtr config, // TODO(babenko): config
+        TControllerAgentConfigPtr config,
         TBootstrap* bootstrap);
     ~TControllerAgent();
 
@@ -100,7 +100,8 @@ public:
 
     void Disconnect(const TError& error);
 
-    const NScheduler::TSchedulerConfigPtr& GetConfig() const; // TODO(babenko): config
+    const TControllerAgentConfigPtr& GetConfig() const;
+    void UpdateConfig(const TControllerAgentConfigPtr& config);
 
     TOperationPtr FindOperation(const TOperationId& operationId);
     TOperationPtr GetOperation(const TOperationId& operationId);

@@ -7,6 +7,7 @@
 #include "serialize.h"
 #include "helpers.h"
 #include "bootstrap.h"
+#include "config.h"
 
 #include <yt/server/scheduler/config.h>
 #include <yt/server/scheduler/helpers.h>
@@ -44,6 +45,7 @@ using namespace NApi;
 using namespace NRpc;
 using namespace NYTree;
 using namespace NYson;
+using namespace NYPath;
 using namespace NConcurrency;
 using namespace NHiveClient;
 using namespace NChunkClient;
@@ -54,6 +56,8 @@ using namespace NFileClient;
 using namespace NSecurityClient;
 using namespace NTransactionClient;
 using namespace NScheduler;
+
+using NNodeTrackerClient::GetDefaultAddress;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -69,6 +73,7 @@ public:
         TControllerAgentConfigPtr config,
         TBootstrap* bootstrap)
         : Config_(config)
+        , InitialConfig_(Config_)
         , Bootstrap_(bootstrap)
     { }
 
@@ -168,28 +173,10 @@ public:
             recursive));
     }
 
-    void UpdateConfig(const TControllerAgentConfigPtr& config)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        Config_ = config;
-
-        if (OperationNodesUpdateExecutor_) {
-            OperationNodesUpdateExecutor_->SetPeriod(Config_->OperationsUpdatePeriod);
-        }
-        if (TransactionRefreshExecutor_) {
-            TransactionRefreshExecutor_->SetPeriod(Config_->TransactionsRefreshPeriod);
-        }
-        if (SnapshotExecutor_) {
-            SnapshotExecutor_->SetPeriod(Config_->SnapshotPeriod);
-        }
-        if (UnstageExecutor_) {
-            UnstageExecutor_->SetPeriod(Config_->ChunkUnstagePeriod);
-        }
-    }
-
 private:
     TControllerAgentConfigPtr Config_;
+    TControllerAgentConfigPtr InitialConfig_;
+
     TBootstrap* const Bootstrap_;
 
     TCancelableContextPtr CancelableContext_;
@@ -220,6 +207,11 @@ private:
     TPeriodicExecutorPtr TransactionRefreshExecutor_;
     TPeriodicExecutorPtr SnapshotExecutor_;
     TPeriodicExecutorPtr UnstageExecutor_;
+
+    TPeriodicExecutorPtr UpdateConfigExecutor_;
+    TPeriodicExecutorPtr AlertsExecutor_;
+
+    TEnumIndexedVector<TError, EControllerAgentAlertType> Alerts_;
 
     struct TUnstageRequest
     {
@@ -289,6 +281,23 @@ private:
             Config_->ChunkUnstagePeriod,
             EPeriodicExecutorMode::Automatic);
         UnstageExecutor_->Start();
+
+        YCHECK(!UpdateConfigExecutor_);
+        UpdateConfigExecutor_ = New<TPeriodicExecutor>(
+            CancelableControlInvoker_,
+            BIND(&TImpl::UpdateConfig, MakeWeak(this)),
+            Config_->ConfigUpdatePeriod,
+            EPeriodicExecutorMode::Automatic);
+        UpdateConfigExecutor_->Start();
+        
+        AlertsExecutor_ = New<TPeriodicExecutor>(
+            CancelableControlInvoker_,
+            BIND(&TImpl::UpdateAlerts, MakeWeak(this)),
+            Config_->AlertsUpdatePeriod,
+            EPeriodicExecutorMode::Automatic);
+        AlertsExecutor_->Start();
+
+        RegisterInstance();
     }
 
     void OnSchedulerDisconnected()
@@ -326,8 +335,52 @@ private:
             UnstageExecutor_->Stop();
             UnstageExecutor_.Reset();
         }
+
+        if (UpdateConfigExecutor_) {
+            UpdateConfigExecutor_->Stop();
+            UpdateConfigExecutor_.Reset();
+        }
+
+        if (AlertsExecutor_) {
+            AlertsExecutor_->Stop();
+            AlertsExecutor_.Reset();
+        }
     }
 
+    TYPath GetPath()
+    {
+        auto addresses = Bootstrap_->GetLocalAddresses();
+        return "//sys/controller_agents/instances/" + ToYPathLiteral(GetDefaultAddress(addresses));
+    }
+
+    void RegisterInstance()
+    {
+        TObjectServiceProxy proxy(Bootstrap_
+            ->GetMasterClient()
+            ->GetMasterChannelOrThrow(EMasterChannelKind::Leader));
+        auto batchReq = proxy.ExecuteBatch();
+        auto path = GetPath();
+        {
+            auto req = TCypressYPathProxy::Create(path);
+            req->set_ignore_existing(true);
+            req->set_type(static_cast<int>(EObjectType::MapNode));
+            GenerateMutationId(req);
+            batchReq->AddRequest(req);
+        }
+        {
+            auto req = TCypressYPathProxy::Create(path + "/orchid");
+            req->set_ignore_existing(true);
+            req->set_type(static_cast<int>(EObjectType::Orchid));
+            auto attributes = CreateEphemeralAttributes();
+            attributes->Set("remote_addresses", Bootstrap_->GetLocalAddresses());
+            ToProto(req->mutable_node_attributes(), *attributes);
+            GenerateMutationId(req);
+            batchReq->AddRequest(req);
+        }
+
+        auto batchRspOrError = WaitFor(batchReq->Invoke());
+        THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError));
+    }
 
     TObjectServiceProxy::TReqExecuteBatchPtr StartObjectBatchRequest(
         EMasterChannelKind channelKind = EMasterChannelKind::Leader,
@@ -1044,6 +1097,144 @@ private:
                 }));
         }
     }
+
+    void DoUpdateConfig(TControllerAgentConfigPtr& config)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        Config_ = config;
+
+        if (OperationNodesUpdateExecutor_) {
+            OperationNodesUpdateExecutor_->SetPeriod(Config_->OperationsUpdatePeriod);
+        }
+        if (TransactionRefreshExecutor_) {
+            TransactionRefreshExecutor_->SetPeriod(Config_->TransactionsRefreshPeriod);
+        }
+        if (SnapshotExecutor_) {
+            SnapshotExecutor_->SetPeriod(Config_->SnapshotPeriod);
+        }
+        if (UnstageExecutor_) {
+            UnstageExecutor_->SetPeriod(Config_->ChunkUnstagePeriod);
+        }
+        if (UpdateConfigExecutor_) {
+            UpdateConfigExecutor_->SetPeriod(Config_->ConfigUpdatePeriod);
+        }
+        if (AlertsExecutor_) {
+            AlertsExecutor_->SetPeriod(Config_->AlertsUpdatePeriod);
+        }
+    }
+
+
+
+    void ValidateConfig()
+    {
+        // First reset the alert.
+        SetControllerAgentAlert(EControllerAgentAlertType::UnrecognizedConfigOptions, TError());
+
+        if (!Config_->EnableUnrecognizedAlert) {
+            return;
+        }
+
+        auto unrecognized = Config_->GetUnrecognizedRecursively();
+        if (unrecognized && unrecognized->GetChildCount() > 0) {
+            LOG_WARNING("Controller agent config contains unrecognized options (Unrecognized: %v)",
+                ConvertToYsonString(unrecognized, EYsonFormat::Text));
+            SetControllerAgentAlert(
+                EControllerAgentAlertType::UnrecognizedConfigOptions,
+                TError("Controller agent config contains unrecognized options")
+                    << TErrorAttribute("unrecognized", unrecognized));
+        }
+    }
+
+    void UpdateConfig()
+    {
+        LOG_INFO("Updating config");
+
+        auto batchReq = StartObjectBatchRequest();
+
+        auto req = TYPathProxy::Get("//sys/controller_agents/config");
+        batchReq->AddRequest(req, "get_config");
+
+        auto batchRsp = WaitFor(batchReq->Invoke())
+            .ValueOrThrow();
+
+        auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_config");
+        if (rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
+            // No config in Cypress, just ignore.
+            SetControllerAgentAlert(EControllerAgentAlertType::UpdateConfig, TError());
+            return;
+        }
+        if (!rspOrError.IsOK()) {
+            LOG_ERROR(rspOrError, "Error getting controller agent configuration");
+            return;
+        }
+
+        auto newConfig = CloneYsonSerializable(InitialConfig_);
+        try {
+            const auto& rsp = rspOrError.Value();
+            auto configFromCypress = ConvertToNode(TYsonString(rsp->value()));
+            try {
+                newConfig->Load(configFromCypress, /* validate */ true, /* setDefaults */ false);
+            } catch (const std::exception& ex) {
+                auto error = TError("Error updating controller agent configuration")
+                    << ex;
+                LOG_WARNING(error);
+                SetControllerAgentAlert(EControllerAgentAlertType::UpdateConfig, error);
+                return;
+            }
+        } catch (const std::exception& ex) {
+            auto error = TError("Error parsing updated controller agent configuration")
+                << ex;
+            LOG_WARNING(error);
+            return;
+        }
+
+        SetControllerAgentAlert(EControllerAgentAlertType::UpdateConfig, TError());
+
+        auto oldConfigNode = ConvertToNode(Config_);
+        auto newConfigNode = ConvertToNode(newConfig);
+
+        if (!AreNodesEqual(oldConfigNode, newConfigNode)) {
+            LOG_INFO("Controller agent configuration updated");
+
+            ValidateConfig();
+
+            DoUpdateConfig(newConfig);
+            Bootstrap_->GetControllerAgent()->UpdateConfig(newConfig);
+        }
+    }
+
+    void SetControllerAgentAlert(EControllerAgentAlertType alertType, const TError& alert)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        Alerts_[alertType] = alert;
+    }
+
+    void UpdateAlerts()
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+        YCHECK(IsConnected());
+
+        std::vector<TError> alerts;
+        for (auto alertType : TEnumTraits<EControllerAgentAlertType>::GetDomainValues()) {
+            const auto& alert = Alerts_[alertType];
+            if (!alert.IsOK()) {
+                alerts.push_back(alert);
+            }
+        }
+
+        TObjectServiceProxy proxy(Bootstrap_
+            ->GetMasterClient()
+            ->GetMasterChannelOrThrow(EMasterChannelKind::Leader, PrimaryMasterCellTag));
+        auto req = TYPathProxy::Set(GetPath() + "/@alerts");
+        req->set_value(ConvertToYsonString(alerts).GetData());
+
+        auto rspOrError = WaitFor(proxy.Execute(req));
+        if (!rspOrError.IsOK()) {
+            LOG_WARNING(rspOrError, "Error updating controller agent alerts");
+        }
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1098,11 +1289,6 @@ TFuture<void> TMasterConnector::RemoveSnapshot(const TOperationId& operationId)
 void TMasterConnector::AddChunkTreesToUnstageList(std::vector<TChunkId> chunkTreeIds, bool recursive)
 {
     Impl_->AddChunkTreesToUnstageList(std::move(chunkTreeIds), recursive);
-}
-
-void TMasterConnector::UpdateConfig(const TControllerAgentConfigPtr& config)
-{
-    Impl_->UpdateConfig(config);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

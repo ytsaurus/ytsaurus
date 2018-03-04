@@ -86,8 +86,16 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
 
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
-            "operation_progress_analysis_period": 200,
             "operations_update_period": 100,
+            "schedule_job_time_limit": 3000,
+        }
+    }
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "iops_threshold": 50,
+            "operations_update_period": 100,
+            "operation_progress_analysis_period": 200,
             "operation_alerts": {
                 "tmpfs_alert_min_unused_space_threshold": 200,
                 "tmpfs_alert_max_unused_space_ratio": 0.3,
@@ -98,11 +106,9 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
                 "short_jobs_alert_min_job_count": 3,
                 "short_jobs_alert_min_job_duration": 5000
             },
-            "iops_threshold": 50,
             "map_reduce_operation_options": {
                 "min_uncompressed_block_size": 1
             },
-            "schedule_job_time_limit": 3000,
         }
     }
 
@@ -161,13 +167,11 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
             dont_track=True)
 
         wait(lambda: op.get_state() == "running")
-
-        assert "lost_input_chunks" in get("//sys/operations/{0}/@alerts".format(op.id))
+        wait(lambda: "lost_input_chunks" in get("//sys/operations/{0}/@alerts".format(op.id)))
 
         set_banned_flag(False, replicas)
-        time.sleep(1.0)
 
-        assert "lost_input_chunks" not in get("//sys/operations/{0}/@alerts".format(op.id))
+        wait(lambda: "lost_input_chunks" not in get("//sys/operations/{0}/@alerts".format(op.id)))
 
     @pytest.mark.skipif("True", reason="YT-6717")
     def test_woodpecker_jobs_alert(self):
@@ -300,8 +304,14 @@ class TestSchedulerJobSpecThrottlerOperationAlert(YTEnvSetup):
 
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
-            "operation_progress_analysis_period": 100,
             "operations_update_period": 100,
+        }
+    }
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "operations_update_period": 100,
+            "operation_progress_analysis_period": 100,
             "heavy_job_spec_slice_count_threshold": 1,
             "job_spec_slice_throttler": {
                 "limit": 1,

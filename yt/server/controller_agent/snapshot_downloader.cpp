@@ -1,5 +1,6 @@
 #include "snapshot_downloader.h"
 #include "bootstrap.h"
+#include "config.h"
 
 #include <yt/server/scheduler/config.h>
 

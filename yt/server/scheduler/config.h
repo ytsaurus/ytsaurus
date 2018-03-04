@@ -2,19 +2,17 @@
 
 #include "private.h"
 
-#include <yt/server/controller_agent/config.h>
-
 #include <yt/server/job_proxy/config.h>
 
 #include <yt/ytlib/chunk_client/config.h>
 
 #include <yt/ytlib/table_client/config.h>
 
-#include <yt/ytlib/node_tracker_client/config.h>
-
 #include <yt/ytlib/hive/config.h>
 
 #include <yt/ytlib/ypath/public.h>
+
+#include <yt/ytlib/event_log/config.h>
 
 #include <yt/core/concurrency/config.h>
 
@@ -153,9 +151,30 @@ DEFINE_REFCOUNTED_TYPE(TFairShareStrategyConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TTestingOptions
+    : public NYTree::TYsonSerializable
+{
+public:
+    // Testing options that enables random master disconnections.
+    bool EnableRandomMasterDisconnection;
+    TDuration RandomMasterDisconnectionMaxBackoff;
+
+    // Testing option that enables sleeping during master disconnect.
+    TNullable<TDuration> MasterDisconnectDelay;
+
+    // Testing option that enables sleeping between intermediate and final states of operation.
+    TNullable<TDuration> FinishOperationTransitionDelay;
+
+    TTestingOptions();
+};
+
+DEFINE_REFCOUNTED_TYPE(TTestingOptions)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TSchedulerConfig
     : public TFairShareStrategyConfig
-    , public NControllerAgent::TControllerAgentConfig
+    //, public NControllerAgent::TControllerAgentConfig
 {
 public:
     //! Priority of control thread.
@@ -253,6 +272,17 @@ public:
     // If the agent does not report a heartbeat within this period,
     // it is automatically unregistered.
     TDuration ControllerAgentHeartbeatTimeout;
+    
+    //! Timeout to store cached value of exec nodes information
+    //! for scheduling tag filter without access.
+    TDuration SchedulingTagFilterExpireTimeout;
+
+    TDuration OperationsUpdatePeriod;
+
+    //! Some special options for testing purposes.
+    TTestingOptionsPtr TestingOptions;
+    
+    NEventLog::TEventLogConfigPtr EventLog;
 
     TSchedulerConfig();
 };
@@ -266,9 +296,6 @@ public:
     //! Node-to-master connection.
     NApi::TNativeConnectionConfigPtr ClusterConnection;
 
-    //! Node directory synchronization.
-    NNodeTrackerClient::TNodeDirectorySynchronizerConfigPtr NodeDirectorySynchronizer;
-
     NScheduler::TSchedulerConfigPtr Scheduler;
 
     NRpc::TResponseKeeperConfigPtr ResponseKeeper;
@@ -279,8 +306,6 @@ public:
     TSchedulerBootstrapConfig()
     {
         RegisterParameter("cluster_connection", ClusterConnection);
-        RegisterParameter("node_directory_synchronizer", NodeDirectorySynchronizer)
-            .DefaultNew();
         RegisterParameter("scheduler", Scheduler)
             .DefaultNew();
         RegisterParameter("response_keeper", ResponseKeeper)

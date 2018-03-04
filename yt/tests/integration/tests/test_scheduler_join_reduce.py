@@ -18,6 +18,12 @@ class TestSchedulerJoinReduceCommands(YTEnvSetup):
             "watchers_update_period": 100,
             "operations_update_period" : 10,
             "running_jobs_update_period" : 10,
+        }
+    }
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "operations_update_period" : 10,
             "join_reduce_operation_options" : {
                 "job_splitter" : {
                     "min_job_time": 5000,

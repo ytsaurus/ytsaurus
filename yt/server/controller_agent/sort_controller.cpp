@@ -10,6 +10,7 @@
 #include "task.h"
 #include "operation.h"
 #include "scheduling_context.h"
+#include "config.h"
 
 #include <yt/server/chunk_pools/chunk_pool.h>
 #include <yt/server/chunk_pools/shuffle_chunk_pool.h>
@@ -2767,8 +2768,9 @@ IOperationControllerPtr CreateSortController(
     IOperationControllerHostPtr host,
     TOperation* operation)
 {
-    auto spec = ParseOperationSpec<TSortOperationSpec>(operation->GetSpec());
-    return New<TSortController>(spec, config, config->SortOperationOptions, host, operation);
+    auto options = config->SortOperationOptions;
+    auto spec = ParseOperationSpec<TSortOperationSpec>(UpdateSpec(options->SpecTemplate, operation->GetSpec()));
+    return New<TSortController>(spec, config, options, host, operation);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -3419,8 +3421,9 @@ IOperationControllerPtr CreateMapReduceController(
     IOperationControllerHostPtr host,
     TOperation* operation)
 {
-    auto spec = ParseOperationSpec<TMapReduceOperationSpec>(operation->GetSpec());
-    return New<TMapReduceController>(spec, config, config->MapReduceOperationOptions, host, operation);
+    auto options = config->MapReduceOperationOptions;
+    auto spec = ParseOperationSpec<TMapReduceOperationSpec>(UpdateSpec(options->SpecTemplate, operation->GetSpec()));
+    return New<TMapReduceController>(spec, config, options, host, operation);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -53,8 +53,6 @@ public:
         std::vector<NChunkClient::TChunkTreeId> chunkTreeIds,
         bool recursive);
 
-    void UpdateConfig(const TControllerAgentConfigPtr& config);
-
 private:
     class TImpl;
     const TIntrusivePtr<TImpl> Impl_;

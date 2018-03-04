@@ -1,7 +1,6 @@
 #include <yt/core/test_framework/framework.h>
 
-#include <yt/server/scheduler/config.h>
-
+#include <yt/server/controller_agent/config.h>
 #include <yt/server/controller_agent/job_size_adjuster.h>
 
 namespace NYT {

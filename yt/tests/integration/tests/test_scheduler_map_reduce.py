@@ -16,16 +16,16 @@ class TestSchedulerMapReduceCommands(YTEnvSetup):
     NUM_SCHEDULERS = 1
     USE_DYNAMIC_TABLES = True
 
-    DELTA_SCHEDULER_CONFIG = {
-      "scheduler" : {
-        "sort_operation_options" : {
-          "min_uncompressed_block_size" : 1
-        },
-        "map_reduce_operation_options" : {
-          "min_uncompressed_block_size" : 1,
-        },
-        "enable_partition_map_job_size_adjustment" : True
-      }
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent" : {
+            "sort_operation_options" : {
+                "min_uncompressed_block_size" : 1
+            },
+            "map_reduce_operation_options" : {
+                "min_uncompressed_block_size" : 1,
+            },
+            "enable_partition_map_job_size_adjustment" : True
+        }
     }
 
     def do_run_test(self, method):

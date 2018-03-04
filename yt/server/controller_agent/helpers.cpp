@@ -1,4 +1,5 @@
 #include "helpers.h"
+#include "config.h"
 
 #include "serialize.h"
 #include "table.h"
@@ -836,6 +837,16 @@ TString TrimCommandForBriefSpec(const TString& command)
         command.length() <= MaxBriefSpecCommandLength
         ? command
         : command.substr(0, MaxBriefSpecCommandLength) + "...";
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+NYTree::INodePtr UpdateSpec(NYTree::INodePtr templateSpec, NYTree::INodePtr originSpec)
+{
+    if (!templateSpec) {
+        return originSpec;
+    }
+    return PatchNode(templateSpec, originSpec);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
