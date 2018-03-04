@@ -963,9 +963,9 @@ public:
             }
         }
 
-        if (request->config_requested()) {
-            response->set_config(ConvertToYsonString(scheduler->GetConfig()).GetData());
-        }
+        //if (request->config_requested()) {
+        //    response->set_config(ConvertToYsonString(scheduler->GetConfig()).GetData());
+        //}
 
         auto error = WaitFor(Combine(asyncResults));
         if (!error.IsOK()) {

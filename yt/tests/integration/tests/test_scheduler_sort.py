@@ -14,8 +14,8 @@ class TestSchedulerSortCommands(YTEnvSetup):
     NUM_SCHEDULERS = 1
     USE_DYNAMIC_TABLES = True
 
-    DELTA_SCHEDULER_CONFIG = {
-        "scheduler" : {
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
             "sort_operation_options" : {
                 "min_uncompressed_block_size" : 1,
                 "min_partition_size" : 1,

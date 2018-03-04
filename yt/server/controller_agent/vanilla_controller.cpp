@@ -3,6 +3,7 @@
 #include "operation.h"
 #include "operation_controller_detail.h"
 #include "task.h"
+#include "config.h"
 
 #include <yt/server/chunk_pools/vanilla_chunk_pool.h>
 
@@ -305,7 +306,8 @@ IOperationControllerPtr CreateVanillaController(
     IOperationControllerHostPtr host,
     TOperation* operation)
 {
-    auto spec = ParseOperationSpec<TVanillaOperationSpec>(operation->GetSpec());
+    auto options = config->VanillaOperationOptions;
+    auto spec = ParseOperationSpec<TVanillaOperationSpec>(UpdateSpec(options->SpecTemplate, operation->GetSpec()));
     return New<TVanillaController>(spec, config, config->VanillaOperationOptions, host, operation);
 }
 

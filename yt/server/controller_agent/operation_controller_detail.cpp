@@ -7,6 +7,7 @@
 #include "task.h"
 #include "operation.h"
 #include "scheduling_context.h"
+#include "config.h"
 
 #include <yt/server/scheduler/helpers.h>
 #include <yt/server/scheduler/job.h>

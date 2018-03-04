@@ -8,6 +8,7 @@
 #include "operation_controller_detail.h"
 #include "task.h"
 #include "operation.h"
+#include "config.h"
 
 #include <yt/server/chunk_pools/unordered_chunk_pool.h>
 #include <yt/server/chunk_pools/chunk_pool.h>
@@ -665,8 +666,9 @@ IOperationControllerPtr CreateUnorderedMapController(
     IOperationControllerHostPtr host,
     TOperation* operation)
 {
-    auto spec = ParseOperationSpec<TMapOperationSpec>(operation->GetSpec());
-    return New<TMapController>(spec, config, config->MapOperationOptions, host, operation);
+    auto options = config->MapOperationOptions;
+    auto spec = ParseOperationSpec<TMapOperationSpec>(UpdateSpec(options->SpecTemplate, operation->GetSpec()));
+    return New<TMapController>(spec, config, options, host, operation);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -826,8 +828,9 @@ IOperationControllerPtr CreateUnorderedMergeController(
     IOperationControllerHostPtr host,
     TOperation* operation)
 {
-    auto spec = ParseOperationSpec<TUnorderedMergeOperationSpec>(operation->GetSpec());
-    return New<TUnorderedMergeController>(spec, config, config->UnorderedMergeOperationOptions, host, operation);
+    auto options = config->UnorderedMergeOperationOptions;
+    auto spec = ParseOperationSpec<TUnorderedMergeOperationSpec>(UpdateSpec(options->SpecTemplate, operation->GetSpec()));
+    return New<TUnorderedMergeController>(spec, config, options, host, operation);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

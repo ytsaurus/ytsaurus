@@ -1,5 +1,6 @@
 #include "job_splitter.h"
 #include "private.h"
+#include "config.h"
 
 #include <yt/server/chunk_pools/chunk_pool.h>
 

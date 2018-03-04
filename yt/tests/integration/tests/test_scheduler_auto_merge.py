@@ -18,10 +18,16 @@ class TestSchedulerAutoMerge(YTEnvSetup):
             "watchers_update_period": 100,
             "operations_update_period": 10,
             "running_jobs_update_period": 10,
-            "chunk_unstage_period": 10,
-            "snapshot_period": 3000,
             "job_revival_abort_timeout": 2000,
         },
+    }
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "snapshot_period": 3000,
+            "operations_update_period": 10,
+            "chunk_unstage_period": 10,
+        }
     }
 
     DELTA_MASTER_CONFIG = {

@@ -92,6 +92,14 @@ class TestEventLog(YTEnvSetup):
         }
     }
 
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "event_log": {
+                "flush_period": 1000
+            }
+        }
+    }
+
     DELTA_NODE_CONFIG = cgroups_delta_node_config
 
     def test_scheduler_event_log(self):
@@ -222,6 +230,12 @@ class TestJobStderr(YTEnvSetup):
             "watchers_update_period": 100,
             "operations_update_period": 10,
             "running_jobs_update_period": 10,
+        }
+    }
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "operations_update_period": 10,
             "map_operation_options": {
                 "job_splitter": {
                     "min_job_time": 5000,
@@ -436,6 +450,12 @@ class TestUserFiles(YTEnvSetup):
             "watchers_update_period": 100,
             "operations_update_period": 10,
             "running_jobs_update_period": 10,
+        }
+    }
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "operations_update_period": 10,
             "map_operation_options": {
                 "job_splitter": {
                     "min_job_time": 5000,
@@ -641,6 +661,12 @@ class TestSchedulerOperationNodeFlush(YTEnvSetup):
         }
     }
 
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "operations_update_period": 10,
+        }
+    }
+
     @unix_only
     def test_stderr_flush(self):
         create("table", "//tmp/in")
@@ -676,6 +702,12 @@ class TestSchedulerCommon(YTEnvSetup):
             "watchers_update_period": 100,
             "operations_update_period": 10,
             "running_jobs_update_period": 10,
+        }
+    }
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "operations_update_period": 10,
             "map_operation_options": {
                 "job_splitter": {
                     "min_job_time": 5000,
@@ -1158,11 +1190,16 @@ class TestPreserveSlotIndexAfterRevive(YTEnvSetup, PrepareTables):
 
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
-            "operation_time_limit_check_period": 100,
             "connect_retry_backoff_time": 100,
             "fair_share_update_period": 100,
             "profiling_update_period": 100,
             "fair_share_profiling_period": 100,
+        }
+    }
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "operation_time_limit_check_period": 100,
         }
     }
 
@@ -1209,15 +1246,20 @@ class TestSchedulerRevive(YTEnvSetup):
 
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
-            "operation_time_limit_check_period": 100,
             "connect_retry_backoff_time": 100,
             "fair_share_update_period": 100,
-            "snapshot_period": 3000,
             "testing_options": {
                 "enable_random_master_disconnection": False,
                 "random_master_disconnection_max_backoff": 10000,
                 "finish_operation_transition_delay": 1000,
             }
+        }
+    }
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "operation_time_limit_check_period": 100,
+            "snapshot_period": 3000,
         }
     }
 
@@ -1368,10 +1410,8 @@ class TestJobRevival(TestJobRevivalBase):
 
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
-            "operation_time_limit_check_period": 100,
             "connect_retry_backoff_time": 100,
             "fair_share_update_period": 100,
-            "snapshot_period": 500,
             "operations_update_period": 100,
             "job_revival_abort_timeout": 2000,
         },
@@ -1380,6 +1420,14 @@ class TestJobRevival(TestJobRevivalBase):
                 "default_transaction_timeout": 3000,
                 "default_ping_period": 200,
             }
+        }
+    }
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "operation_time_limit_check_period": 100,
+            "snapshot_period": 500,
+            "operations_update_period": 100,
         }
     }
 
@@ -1556,20 +1604,26 @@ class TestDisabledJobRevival(TestJobRevivalBase):
 
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
-            "operation_time_limit_check_period": 100,
             "connect_retry_backoff_time": 100,
             "fair_share_update_period": 100,
-            "snapshot_period": 500,
             "lock_transaction_timeout": 3000,
             "operations_update_period": 100,
             "job_revival_abort_timeout": 2000,
-            "enable_job_revival": False,
         },
         "cluster_connection" : {
             "transaction_manager": {
                 "default_transaction_timeout": 3000,
                 "default_ping_period": 200,
             }
+        }
+    }
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "snapshot_period": 500,
+            "operations_update_period": 100,
+            "operation_time_limit_check_period": 100,
+            "enable_job_revival": False,
         }
     }
 
@@ -1624,10 +1678,15 @@ class TestMultipleSchedulers(YTEnvSetup, PrepareTables):
             "connect_retry_backoff_time": 1000,
             "fair_share_update_period": 100,
             "profiling_update_period": 100,
-            "snapshot_period": 500,
             "testing_options": {
                 "master_disconnect_delay": 3000,
             },
+        }
+    }
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "snapshot_period": 500,
         }
     }
 
@@ -1677,8 +1736,8 @@ class TestSchedulerMaxChunkPerJob(YTEnvSetup):
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
 
-    DELTA_SCHEDULER_CONFIG = {
-        "scheduler": {
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
             "map_operation_options": {
                 "max_data_slices_per_job": 1,
             },
@@ -1726,8 +1785,8 @@ class TestSchedulerMaxChildrenPerAttachRequest(YTEnvSetup):
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
 
-    DELTA_SCHEDULER_CONFIG = {
-        "scheduler": {
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
             "max_children_per_attach_request": 1,
         }
     }
@@ -1791,6 +1850,15 @@ class TestSchedulingTags(YTEnvSetup):
                 "retry_backoff_time": 300
             },
             "safe_scheduler_online_time": 1000,
+        }
+    }
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "event_log": {
+                "flush_period": 300,
+                "retry_backoff_time": 300
+            },
         }
     }
 
@@ -1897,6 +1965,19 @@ class TestSchedulerConfig(YTEnvSetup):
                 "retry_backoff_time": 7,
                 "flush_period": 5000
             },
+        },
+        "addresses": [
+            ("ipv4", "127.0.0.1"),
+            ("ipv6", "::1")
+        ]
+    }
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "event_log": {
+                "retry_backoff_time": 7,
+                "flush_period": 5000
+            },
             "operation_options": {
                 "spec_template": {
                     "data_weight_per_job": 1000
@@ -1915,7 +1996,7 @@ class TestSchedulerConfig(YTEnvSetup):
         "addresses": [
             ("ipv4", "127.0.0.1"),
             ("ipv6", "::1")
-        ]
+        ],
     }
 
     def test_basic(self):
@@ -1947,8 +2028,9 @@ class TestSchedulerConfig(YTEnvSetup):
         create("table", "//tmp/t_out")
 
         op = map(command="sleep 1000", in_=["//tmp/t_in"], out="//tmp/t_out", dont_track=True)
-        time.sleep(1)
-        for spec_type in ("spec", "full_spec"):
+        wait(lambda: exists("//sys/operations/{0}/@full_spec".format(op.id)))
+        # XXX(ignat)
+        for spec_type in ("full_spec",):
             assert get("//sys/operations/{0}/@{1}/data_weight_per_job".format(op.id, spec_type)) == 2000
             assert get("//sys/scheduler/orchid/scheduler/operations/{0}/{1}/data_weight_per_job".format(op.id, spec_type)) == 2000
             assert get("//sys/scheduler/orchid/scheduler/operations/{0}/{1}/max_failed_job_count".format(op.id, spec_type)) == 10
@@ -1956,7 +2038,8 @@ class TestSchedulerConfig(YTEnvSetup):
 
         op = reduce(command="sleep 1000", in_=["//tmp/t_in"], out="//tmp/t_out", reduce_by=["foo"], dont_track=True)
         time.sleep(1)
-        for spec_type in ("spec", "full_spec"):
+        # XXX(ignat)
+        for spec_type in ("full_spec",):
             assert get("//sys/operations/{0}/@{1}/data_weight_per_job".format(op.id, spec_type)) == 1000
             assert get("//sys/scheduler/orchid/scheduler/operations/{0}/{1}/data_weight_per_job".format(op.id, spec_type)) == 1000
             assert get("//sys/scheduler/orchid/scheduler/operations/{0}/{1}/max_failed_job_count".format(op.id, spec_type)) == 10
@@ -1967,10 +2050,10 @@ class TestSchedulerConfig(YTEnvSetup):
         write_table("//tmp/t_in", [{"a": "b"}])
         create("table", "//tmp/t_out")
         op = map(command="sleep 1000", in_=["//tmp/t_in"], out="//tmp/t_out", dont_track=True, spec={"xxx": "yyy"})
-        
+
         wait(lambda: exists("//sys/operations/{0}/@unrecognized_spec".format(op.id)))
         assert get("//sys/operations/{0}/@unrecognized_spec".format(op.id)) == {"xxx": "yyy"}
-        
+
         op.abort()
 
     def test_brief_progress(self):
@@ -1990,22 +2073,26 @@ class TestSchedulerConfig(YTEnvSetup):
         create("table", "//tmp/t_out")
 
         op = map(command="cat", in_=["//tmp/t_in"], out="//tmp/t_out")
-        assert get("//sys/operations/{0}/@spec/data_weight_per_job".format(op.id)) == 2000
-        assert get("//sys/operations/{0}/@spec/max_failed_job_count".format(op.id)) == 10
+        assert get("//sys/operations/{0}/@full_spec/data_weight_per_job".format(op.id)) == 2000
+        assert get("//sys/operations/{0}/@full_spec/max_failed_job_count".format(op.id)) == 10
 
-        set("//sys/scheduler/config", {
+        set("//sys/controller_agents/config", {
             "map_operation_options": {"spec_template": {"max_failed_job_count": 50}},
             "environment": {"OTHER_VAR": "20"},
         })
-        time.sleep(0.5)
+        time.sleep(5.0)
+
+        instances = ls("//sys/controller_agents/instances")
+        for instance in instances:
+            environment = get("//sys/controller_agents/instances/{0}/orchid/controller_agent/config/environment".format(instance))
+            assert environment["TEST_VAR"] == "10"
+            assert environment["OTHER_VAR"] == "20"
+
+            assert get("//sys/controller_agents/instances/{0}/orchid/controller_agent/config/map_operation_options/spec_template/max_failed_job_count".format(instance)) == 50
 
         op = map(command="cat", in_=["//tmp/t_in"], out="//tmp/t_out")
-        assert get("//sys/operations/{0}/@spec/data_weight_per_job".format(op.id)) == 2000
-        assert get("//sys/operations/{0}/@spec/max_failed_job_count".format(op.id)) == 50
-
-        environment = get("//sys/scheduler/orchid/scheduler/config/environment")
-        assert environment["TEST_VAR"] == "10"
-        assert environment["OTHER_VAR"] == "20"
+        assert get("//sys/operations/{0}/@full_spec/data_weight_per_job".format(op.id)) == 2000
+        assert get("//sys/operations/{0}/@full_spec/max_failed_job_count".format(op.id)) == 50
 
 ##################################################################
 
@@ -2016,9 +2103,14 @@ class TestSchedulerSnapshots(YTEnvSetup):
 
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
+            "max_concurrent_controller_schedule_job_calls": 1,
+        }
+    }
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
             "snapshot_period": 500,
             "operation_controller_suspend_timeout": 2000,
-            "max_concurrent_controller_schedule_job_calls": 1,
         }
     }
 
@@ -2260,28 +2352,6 @@ class TestSchedulerJobStatistics(YTEnvSetup):
 
 ##################################################################
 
-class TestSchedulerCaching(YTEnvSetup):
-    NUM_MASTERS = 1
-    NUM_NODES = 3
-    NUM_SCHEDULERS = 1
-
-    DELTA_SCHEDULER_CONFIG = {
-        "scheduler": {
-            "watchers_update_period": 100,
-            "get_exec_nodes_information_delay": 3000,
-        }
-    }
-
-    def test_exec_node_descriptors_caching(self):
-        create("table", "//tmp/t_in")
-        create("table", "//tmp/t_out")
-        write_table("//tmp/t_in", [{"foo": i} for i in xrange(10)])
-
-        op = map(dont_track=True, command='cat', in_="//tmp/t_in", out="//tmp/t_out")
-        op.track()
-
-##################################################################
-
 class TestSecureVault(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
@@ -2379,8 +2449,8 @@ class TestSafeAssertionsMode(YTEnvSetup):
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
 
-    DELTA_SCHEDULER_CONFIG = {
-        "scheduler": {
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
             "enable_controller_failure_spec_option": True,
         },
         "core_dumper": {
@@ -2437,8 +2507,8 @@ class TestMaxTotalSliceCount(YTEnvSetup):
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
 
-    DELTA_SCHEDULER_CONFIG = {
-        "scheduler": {
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
             "max_total_slice_count": 3,
         }
     }
@@ -2472,11 +2542,16 @@ class TestPoolMetrics(YTEnvSetup):
 
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
-            "job_metrics_delta_report_backoff": 500,  # 3 sec
             "fair_share_update_period": 100,
             "profiling_update_period": 100,
             "fair_share_profiling_period": 100,
         },
+    }
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "job_metrics_delta_report_backoff": 500,
+        }
     }
 
     DELTA_NODE_CONFIG = {
@@ -2827,8 +2902,8 @@ class TestSchedulerOperationStorage(YTEnvSetup):
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
 
-    DELTA_SCHEDULER_CONFIG = {
-        "scheduler": {
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
             "snapshot_period": 500
         }
     }
@@ -3038,8 +3113,7 @@ class TestControllerMemoryUsage(YTEnvSetup):
         }
     }
 
-    # TODO(ignat): enable after configs split.
-    def DISABLED_test_controller_memory_usage(self):
+    def test_controller_memory_usage(self):
         create("table", "//tmp/t_in")
         create("table", "//tmp/t_out")
 
@@ -3048,10 +3122,10 @@ class TestControllerMemoryUsage(YTEnvSetup):
 
         events = EventsOnFs()
 
-        controller_agents = ls("//sys/controller_agent")
+        controller_agents = ls("//sys/controller_agents/instances")
         assert len(controller_agents) == 1
 
-        controller_agent_orchid = "//sys/controller_agents/{}/orchid/controller_agent".format(controller_agents[0])
+        controller_agent_orchid = "//sys/controller_agents/instances/{}/orchid/controller_agent".format(controller_agents[0])
 
         for entry in get(controller_agent_orchid + "/tagged_memory_statistics", verbose=False):
             assert entry["operation_id"] == YsonEntity()
@@ -3066,27 +3140,33 @@ class TestControllerMemoryUsage(YTEnvSetup):
                      "job_io": {"table_writer": {"max_key_weight": 256 * 1024}}
                  })
         time.sleep(2)
+
         usage_before = get("//sys/scheduler/orchid/scheduler/operations/{0}/controller_memory_usage".format(op.id))
         # Normal controller footprint should not exceed a few megabytes.
         assert usage_before < 2 * 10**6
         print >>sys.stderr, "usage_before =", usage_before
+
         events.notify_event("start")
-        max_usage = usage_before
-        while True:
+
+        def check():
             state = op.get_state()
-            if state == "running":
-                try:
-                    max_usage = max(max_usage, get("//sys/scheduler/orchid/scheduler/operations/{0}/controller_memory_usage".format(op.id)))
-                    statistics = get(controller_agent_orchid + "/tagged_memory_statistics/0")
-                    assert statistics["operation_id"] == op.id
-                except YtError:
-                    pass
-                time.sleep(0.1)
-            else:
-                break
+            if state != "running":
+                return False
+            statistics = get(controller_agent_orchid + "/tagged_memory_statistics/0")
+            if statistics["operation_id"] == YsonEntity():
+                return False
+            assert statistics["operation_id"] == op.id
+            return True
+
+        wait(check)
+
+        # After all jobs are finished, controller should contain at least 40 pairs of boundary keys of length 250kb,
+        # resulting in about 20mb of memory.
+        wait(lambda: get("//sys/scheduler/orchid/scheduler/operations/{0}/controller_memory_usage".format(op.id)) > 15 * 10**6)
+
         op.track()
 
-        time.sleep(3)
+        time.sleep(5)
 
         for i, entry in enumerate(get(controller_agent_orchid + "/tagged_memory_statistics", verbose=False)):
             if i == 0:
@@ -3095,7 +3175,3 @@ class TestControllerMemoryUsage(YTEnvSetup):
                 assert entry["operation_id"] == YsonEntity()
             assert entry["alive"] == False
 
-        print >>sys.stderr, "max_usage =", max_usage
-        # After all jobs are finished, controller should contain at least 40 pairs of boundary keys of length 250kb,
-        # resulting in about 20mb of memory.
-        assert max_usage > 15 * 10**6

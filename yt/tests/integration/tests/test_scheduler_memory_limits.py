@@ -129,7 +129,15 @@ class TestMemoryReserveFactor(YTEnvSetup):
             "event_log": {
                 "flush_period": 100
             },
-            "user_job_success_rate_quantile_precision" : 0.05
+        }
+    }
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "event_log": {
+                "flush_period": 100
+            },
+            "user_job_memory_digest_precision" : 0.05,
         }
     }
 

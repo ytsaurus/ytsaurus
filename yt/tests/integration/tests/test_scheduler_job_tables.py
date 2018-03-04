@@ -76,9 +76,9 @@ class TestStderrTable(YTEnvSetup):
     NUM_SCHEDULERS = 1
     NUM_SECONDARY_MASTER_CELLS = 2
 
-    DELTA_SCHEDULER_CONFIG = {
-        # We want to disable premature chunk list allocataion to expose YT-6219.
-        "scheduler": {
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            # We want to disable premature chunk list allocataion to expose YT-6219.
             "chunk_list_watermark_count": 0,
         }
     }

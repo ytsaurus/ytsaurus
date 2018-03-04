@@ -36,6 +36,12 @@ class TestSchedulerMapCommands(YTEnvSetup):
             "watchers_update_period": 100,
             "operations_update_period": 10,
             "running_jobs_update_period": 10,
+        }
+    }
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "operations_update_period": 10,
             "map_operation_options": {
                 "job_splitter": {
                     "min_job_time": 5000,
@@ -1022,12 +1028,12 @@ class TestJobSizeAdjuster(YTEnvSetup):
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
 
-    DELTA_SCHEDULER_CONFIG = {
-      "scheduler": {
-        "map_operation_options": {
-          "data_size_per_job": 1
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "map_operation_options": {
+              "data_size_per_job": 1
+            }
         }
-      }
     }
 
     @pytest.mark.skipif("True", reason="YT-8228")
@@ -1146,6 +1152,12 @@ class TestMapOnDynamicTables(YTEnvSetup):
             "watchers_update_period": 100,
             "operations_update_period": 10,
             "running_jobs_update_period": 10,
+        }
+    }
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "operations_update_period": 10,
             "map_operation_options": {
                 "job_splitter": {
                     "min_job_time": 5000,
@@ -1452,6 +1464,12 @@ class TestInputOutputFormats(YTEnvSetup):
             "watchers_update_period": 100,
             "operations_update_period": 10,
             "running_jobs_update_period": 10,
+        }
+    }
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "operations_update_period": 10,
             "map_operation_options": {
                 "job_splitter": {
                     "min_job_time": 5000,
