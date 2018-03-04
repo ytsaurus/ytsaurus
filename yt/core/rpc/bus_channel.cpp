@@ -15,6 +15,7 @@
 #include <yt/core/concurrency/thread_affinity.h>
 
 #include <yt/core/misc/singleton.h>
+#include <yt/core/misc/tls_cache.h>
 
 #include <yt/core/profiling/profile_manager.h>
 #include <yt/core/profiling/timing.h>
@@ -487,39 +488,42 @@ private:
             NProfiling::TSimpleCounter ResponseMessageAttachmentSizeCounter;
         };
 
-        TMethodMetadata* GetMethodMetadata(const TString& service, const TString& method)
+        struct TMethodMetadataProfilingTrait
         {
-            auto key = std::make_pair(service, method);
+            using TKey = std::pair<TString, TString>;
+            using TValue = TMethodMetadata;
 
+            static TKey ToKey(const TString& service, const TString& method)
             {
-                TReaderGuard guard(CachedMethodMetadataLock_);
-                auto it = CachedMethodMetadata_.find(key);
-                if (it != CachedMethodMetadata_.end()) {
-                    return it->second.get();
-                }
+                return std::make_pair(service, method);
             }
 
+            static TValue ToValue(const TString& service, const TString& method)
             {
+                TMethodMetadata metadata;
+
                 auto* profilingManager = NProfiling::TProfileManager::Get();
-                auto metadata = std::make_unique<TMethodMetadata>();
                 NProfiling::TTagIdList tagIds{
                     profilingManager->RegisterTag("service", TYsonString(service)),
                     profilingManager->RegisterTag("method", TYsonString(method))
                 };
-                metadata->AckTimeCounter = NProfiling::TAggregateCounter("/request_time/ack", tagIds, NProfiling::EAggregateMode::All);
-                metadata->ReplyTimeCounter = NProfiling::TAggregateCounter("/request_time/reply", tagIds, NProfiling::EAggregateMode::All);
-                metadata->TimeoutTimeCounter = NProfiling::TAggregateCounter("/request_time/timeout", tagIds, NProfiling::EAggregateMode::All);
-                metadata->CancelTimeCounter = NProfiling::TAggregateCounter("/request_time/cancel", tagIds, NProfiling::EAggregateMode::All);
-                metadata->TotalTimeCounter = NProfiling::TAggregateCounter("/request_time/total", tagIds, NProfiling::EAggregateMode::All);
-                metadata->RequestMessageBodySizeCounter = NProfiling::TSimpleCounter("/request_message_body_bytes", tagIds);
-                metadata->RequestMessageAttachmentSizeCounter = NProfiling::TSimpleCounter("/request_message_attachment_bytes", tagIds);
-                metadata->ResponseMessageBodySizeCounter = NProfiling::TSimpleCounter("/response_message_body_bytes", tagIds);
-                metadata->ResponseMessageAttachmentSizeCounter = NProfiling::TSimpleCounter("/response_message_attachment_bytes", tagIds);
+                metadata.AckTimeCounter = NProfiling::TAggregateCounter("/request_time/ack", tagIds, NProfiling::EAggregateMode::All);
+                metadata.ReplyTimeCounter = NProfiling::TAggregateCounter("/request_time/reply", tagIds, NProfiling::EAggregateMode::All);
+                metadata.TimeoutTimeCounter = NProfiling::TAggregateCounter("/request_time/timeout", tagIds, NProfiling::EAggregateMode::All);
+                metadata.CancelTimeCounter = NProfiling::TAggregateCounter("/request_time/cancel", tagIds, NProfiling::EAggregateMode::All);
+                metadata.TotalTimeCounter = NProfiling::TAggregateCounter("/request_time/total", tagIds, NProfiling::EAggregateMode::All);
+                metadata.RequestMessageBodySizeCounter = NProfiling::TSimpleCounter("/request_message_body_bytes", tagIds);
+                metadata.RequestMessageAttachmentSizeCounter = NProfiling::TSimpleCounter("/request_message_attachment_bytes", tagIds);
+                metadata.ResponseMessageBodySizeCounter = NProfiling::TSimpleCounter("/response_message_body_bytes", tagIds);
+                metadata.ResponseMessageAttachmentSizeCounter = NProfiling::TSimpleCounter("/response_message_attachment_bytes", tagIds);
 
-                TWriterGuard guard(CachedMethodMetadataLock_);
-                auto pair = CachedMethodMetadata_.emplace(key, std::move(metadata));
-                return pair.first->second.get();
+                return metadata;
             }
+        };
+
+        TMethodMetadata* GetMethodMetadata(const TString& service, const TString& method)
+        {
+            return &GetLocallyGloballyCachedValue<TMethodMetadataProfilingTrait>(service, method);
         }
 
     private:
@@ -532,9 +536,6 @@ private:
         TError TerminationError_;
         typedef yhash<TRequestId, TClientRequestControlPtr> TActiveRequestMap;
         TActiveRequestMap ActiveRequestMap_;
-
-        NConcurrency::TReaderWriterSpinLock CachedMethodMetadataLock_;
-        yhash<std::pair<TString, TString>, std::unique_ptr<TMethodMetadata>> CachedMethodMetadata_;
 
 
         void OnRequestSerialized(
