@@ -491,7 +491,7 @@ private:
         struct TMethodMetadataProfilingTrait
         {
             using TKey = std::pair<TString, TString>;
-            using TValue = TMethodMetadata;
+            using TValue = std::unique_ptr<TMethodMetadata>;
 
             static TKey ToKey(const TString& service, const TString& method)
             {
@@ -500,22 +500,22 @@ private:
 
             static TValue ToValue(const TString& service, const TString& method)
             {
-                TMethodMetadata metadata;
+                auto metadata = std::make_unique<TMethodMetadata>();
 
                 auto* profilingManager = NProfiling::TProfileManager::Get();
                 NProfiling::TTagIdList tagIds{
                     profilingManager->RegisterTag("service", TYsonString(service)),
                     profilingManager->RegisterTag("method", TYsonString(method))
                 };
-                metadata.AckTimeCounter = NProfiling::TAggregateCounter("/request_time/ack", tagIds, NProfiling::EAggregateMode::All);
-                metadata.ReplyTimeCounter = NProfiling::TAggregateCounter("/request_time/reply", tagIds, NProfiling::EAggregateMode::All);
-                metadata.TimeoutTimeCounter = NProfiling::TAggregateCounter("/request_time/timeout", tagIds, NProfiling::EAggregateMode::All);
-                metadata.CancelTimeCounter = NProfiling::TAggregateCounter("/request_time/cancel", tagIds, NProfiling::EAggregateMode::All);
-                metadata.TotalTimeCounter = NProfiling::TAggregateCounter("/request_time/total", tagIds, NProfiling::EAggregateMode::All);
-                metadata.RequestMessageBodySizeCounter = NProfiling::TSimpleCounter("/request_message_body_bytes", tagIds);
-                metadata.RequestMessageAttachmentSizeCounter = NProfiling::TSimpleCounter("/request_message_attachment_bytes", tagIds);
-                metadata.ResponseMessageBodySizeCounter = NProfiling::TSimpleCounter("/response_message_body_bytes", tagIds);
-                metadata.ResponseMessageAttachmentSizeCounter = NProfiling::TSimpleCounter("/response_message_attachment_bytes", tagIds);
+                metadata->AckTimeCounter = NProfiling::TAggregateCounter("/request_time/ack", tagIds, NProfiling::EAggregateMode::All);
+                metadata->ReplyTimeCounter = NProfiling::TAggregateCounter("/request_time/reply", tagIds, NProfiling::EAggregateMode::All);
+                metadata->TimeoutTimeCounter = NProfiling::TAggregateCounter("/request_time/timeout", tagIds, NProfiling::EAggregateMode::All);
+                metadata->CancelTimeCounter = NProfiling::TAggregateCounter("/request_time/cancel", tagIds, NProfiling::EAggregateMode::All);
+                metadata->TotalTimeCounter = NProfiling::TAggregateCounter("/request_time/total", tagIds, NProfiling::EAggregateMode::All);
+                metadata->RequestMessageBodySizeCounter = NProfiling::TSimpleCounter("/request_message_body_bytes", tagIds);
+                metadata->RequestMessageAttachmentSizeCounter = NProfiling::TSimpleCounter("/request_message_attachment_bytes", tagIds);
+                metadata->ResponseMessageBodySizeCounter = NProfiling::TSimpleCounter("/response_message_body_bytes", tagIds);
+                metadata->ResponseMessageAttachmentSizeCounter = NProfiling::TSimpleCounter("/response_message_attachment_bytes", tagIds);
 
                 return metadata;
             }
@@ -523,7 +523,7 @@ private:
 
         TMethodMetadata* GetMethodMetadata(const TString& service, const TString& method)
         {
-            return &GetLocallyGloballyCachedValue<TMethodMetadataProfilingTrait>(service, method);
+            return GetLocallyGloballyCachedValue<TMethodMetadataProfilingTrait>(service, method).get();
         }
 
     private:
