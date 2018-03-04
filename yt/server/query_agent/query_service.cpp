@@ -234,8 +234,7 @@ private:
 
                 auto lastReplicationTimestamp = replicaSnapshot->RuntimeData->LastReplicationTimestamp.load();
                 if (lastReplicationTimestamp == NullTimestamp) {
-                    auto replicationTimestamp = replicaSnapshot->RuntimeData->CurrentReplicationTimestamp.load();
-                    lastReplicationTimestamp = replicationTimestamp;
+                    lastReplicationTimestamp = replicaSnapshot->RuntimeData->CurrentReplicationTimestamp.load();
                 }
 
                 auto* protoReplicaInfo = protoTabletInfo->add_replicas();
