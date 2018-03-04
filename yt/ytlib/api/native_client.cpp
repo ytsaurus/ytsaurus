@@ -1956,11 +1956,11 @@ private:
         auto evaluatorCache = Connection_->GetColumnEvaluatorCache();
         auto evaluator = tableInfo->NeedKeyEvaluation ? evaluatorCache->Find(schema) : nullptr;
 
-        std::vector<TTableReplicaId> replicas;
+        std::vector<TTableReplicaId> replicaIds;
 
         if (keys.Empty()) {
             for (const auto& replica : tableInfo->Replicas) {
-                replicas.push_back(replica->ReplicaId);
+                replicaIds.push_back(replica->ReplicaId);
             }
         } else {
             yhash<TCellId, std::vector<TTabletId>> cellToTabletIds;
@@ -2010,17 +2010,17 @@ private:
                 const auto& replicaId = pair.first;
                 auto count = pair.second;
                 if (count == tabletIds.size()) {
-                    replicas.push_back(replicaId);
+                    replicaIds.push_back(replicaId);
                 }
             }
         }
 
         LOG_DEBUG("Got table in-sync replicas (TableId: %v, Replicas: %v, Timestamp: %llx)",
             tableInfo->TableId,
-            replicas,
+            replicaIds,
             options.Timestamp);
 
-        return replicas;
+        return replicaIds;
     }
 
     std::vector<TTabletInfo> DoGetTabletInfos(
