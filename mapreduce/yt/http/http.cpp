@@ -145,7 +145,7 @@ TString THttpHeader::GetUrl() const
     return url.Str();
 }
 
-TString THttpHeader::GetHeader(const TString& hostName, const TString& requestId) const
+TString THttpHeader::GetHeader(const TString& hostName, const TString& requestId, bool includeParameters) const
 {
     TStringStream header;
 
@@ -196,10 +196,17 @@ TString THttpHeader::GetHeader(const TString& hostName, const TString& requestId
     if (OutputFormat) {
         printYTHeader("X-YT-Output-Format", NodeToYsonString(OutputFormat->Config));
     }
-    printYTHeader("X-YT-Parameters", NodeToYsonString(Parameters));
+    if (includeParameters) {
+        printYTHeader("X-YT-Parameters", NodeToYsonString(Parameters));
+    }
 
     header << "\r\n";
     return header.Str();
+}
+
+const TString& THttpHeader::GetMethod() const
+{
+    return Method;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -610,21 +617,13 @@ void THttpRequest::Connect(TDuration socketTimeout)
         Connection->Id);
 }
 
-THttpOutput* THttpRequest::StartRequest(const THttpHeader& header)
+THttpOutput* THttpRequest::StartRequestImpl(const THttpHeader& header, bool includeParameters)
 {
-    auto strHeader = header.GetHeader(HostName, RequestId);
+    auto strHeader = header.GetHeader(HostName, RequestId, includeParameters);
     Url_ = header.GetUrl();
     LOG_DEBUG("REQ %s - %s",
         ~RequestId,
         ~Url_);
-
-    auto parameters = header.GetParameters();
-    if (!parameters.Empty()) {
-        auto parametersStr = NodeToYsonString(parameters);
-        LOG_DEBUG("REQ %s - X-YT-Parameters: %s",
-            ~RequestId,
-            ~parametersStr);
-    }
 
     auto outputFormat = header.GetOutputFormat();
     if (outputFormat && outputFormat->Type == EFormatType::YsonText) {
@@ -639,10 +638,45 @@ THttpOutput* THttpRequest::StartRequest(const THttpHeader& header)
     return Output.Get();
 }
 
+THttpOutput* THttpRequest::StartRequest(const THttpHeader& header)
+{
+    auto parameters = header.GetParameters();
+    if (!parameters.Empty()) {
+        auto parametersStr = NodeToYsonString(parameters);
+        LOG_DEBUG("REQ %s - X-YT-Parameters: %s",
+            ~RequestId,
+            ~parametersStr);
+    }
+    return StartRequestImpl(header, true);
+}
+
 void THttpRequest::FinishRequest()
 {
     Output->Flush();
     Output->Finish();
+}
+
+void THttpRequest::SmallRequest(const THttpHeader& header, TMaybe<TStringBuf> body)
+{
+    if (!body && (header.GetMethod() == "PUT" || header.GetMethod() == "POST")) {
+        auto parameters = header.GetParameters();
+        auto parametersStr = NodeToYsonString(parameters);
+        if (!parameters.Empty()) {
+            // Want to log parameters before request.
+            LOG_DEBUG("REQ %s - parameters (in body): %s",
+                ~RequestId,
+                ~parametersStr);
+        }
+        auto* output = StartRequestImpl(header, false);
+        output->Write(parametersStr);
+        FinishRequest();
+    } else {
+        auto* output = StartRequest(header);
+        if (body) {
+            output->Write(*body);
+        }
+        FinishRequest();
+    }
 }
 
 THttpResponse* THttpRequest::GetResponseStream()

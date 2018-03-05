@@ -77,7 +77,8 @@ void Set(
     THttpHeader header("PUT", "set");
     header.AddMutationId();
     header.MergeParameters(NDetail::SerializeParamsForSet(transactionId, path, options));
-    RetryRequest(auth, header, NodeToYsonString(value));
+    auto body = NodeToYsonString(value);
+    RetryRequest(auth, header, TStringBuf(body));
 }
 
 bool Exists(

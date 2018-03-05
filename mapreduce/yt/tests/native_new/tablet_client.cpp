@@ -203,6 +203,11 @@ SIMPLE_UNIT_TEST_SUITE(TabletClient) {
             auto result = client->LookupRows(tablePath, {TNode()("key", 42), TNode()("key", 1)});
             UNIT_ASSERT_VALUES_EQUAL(result, TNode::TListType({rows[1], rows[0]}));
         }
+        client->DeleteRows(tablePath, {});
+        {
+            auto result = client->LookupRows(tablePath, {TNode()("key", 42), TNode()("key", 1)});
+            UNIT_ASSERT_VALUES_EQUAL(result, TNode::TListType({rows[1], rows[0]}));
+        }
 
         client->DeleteRows(tablePath, {TNode()("key", 42)});
 

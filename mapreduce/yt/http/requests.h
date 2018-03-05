@@ -61,7 +61,7 @@ TString GetProxyForHeavyRequest(const TAuth& auth);
 TString RetryRequest(
     const TAuth& auth,
     THttpHeader& header,
-    const TString& body = "",
+    const TMaybe<TStringBuf>& body = Nothing(),
     bool isHeavy = false,
     bool isOperation = false);
 

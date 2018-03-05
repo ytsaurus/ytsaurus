@@ -752,7 +752,7 @@ TOperationId StartOperation(
     header.AddMutationId();
 
     TOperationId operationId = ParseGuidFromResponse(
-        RetryRequest(auth, header, ysonSpec, false, true));
+        RetryRequest(auth, header, TStringBuf(ysonSpec), false, true));
 
     LOG_INFO("Operation %s started (%s): http://%s/#page=operation&mode=detail&id=%s&tab=details",
         ~GetGuidAsString(operationId), ~operationName, ~auth.ServerName, ~GetGuidAsString(operationId));
