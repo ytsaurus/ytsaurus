@@ -135,6 +135,11 @@ public:
     {
         Impl->Parse(data, type);
     }
+
+    void Stop()
+    {
+        Impl->Stop();
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -153,6 +158,11 @@ TStatelessYsonParser::~TStatelessYsonParser()
 void TStatelessYsonParser::Parse(const TStringBuf& data, EYsonType type)
 {
     Impl->Parse(data, type);
+}
+
+void TStatelessYsonParser::Stop()
+{
+    Impl->Stop();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
