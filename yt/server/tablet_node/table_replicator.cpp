@@ -574,7 +574,7 @@ private:
 
         LOG_DEBUG("Finished building replication batch (StartRowIndex: %v, RowCount: %v, DataWeight: %v, "
             "NewReplicationRowIndex: %v, NewReplicationTimestamp: %llx)",
-            currentRowIndex,
+            startRowIndex,
             rowCount,
             dataWeight,
             *newReplicationRowIndex,
