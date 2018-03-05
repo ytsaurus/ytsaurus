@@ -92,6 +92,15 @@ SIMPLE_UNIT_TEST_SUITE(CypressClient) {
         }
     }
 
+    SIMPLE_UNIT_TEST(TestCreateHugeAttribute)
+    {
+        auto client = CreateTestClient();
+        const TString hugeAttribute(1024 * 1024, 'a');
+        client->Create("//testing/table", NT_TABLE,
+            TCreateOptions().Attributes(TNode()("huge_attribute", hugeAttribute)));
+        UNIT_ASSERT_EQUAL(client->Get("//testing/table/@huge_attribute").AsString(), hugeAttribute);
+    }
+
     SIMPLE_UNIT_TEST(TestRemove)
     {
         auto client = CreateTestClient();

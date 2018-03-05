@@ -50,7 +50,9 @@ public:
 
     TString GetCommand() const;
     TString GetUrl() const;
-    TString GetHeader(const TString& hostName, const TString& requestId) const;
+    TString GetHeader(const TString& hostName, const TString& requestId, bool includeParameters = true) const;
+
+    const TString& GetMethod() const;
 
 private:
     const TString Method;
@@ -166,13 +168,20 @@ public:
     TString GetRequestId() const;
 
     void Connect(TDuration socketTimeout = TDuration::Zero());
-    THttpOutput* StartRequest(const THttpHeader& request);
+
+    THttpOutput* StartRequest(const THttpHeader& header);
     void FinishRequest();
+
+    void SmallRequest(const THttpHeader& request, TMaybe<TStringBuf> data);
+
     THttpResponse* GetResponseStream();
 
     TString GetResponse();
 
     void InvalidateConnection();
+
+private:
+    THttpOutput* StartRequestImpl(const THttpHeader& header, bool includeParameters);
 
 private:
     TString HostName;

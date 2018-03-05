@@ -82,10 +82,7 @@ TResponseInfo RetryRequestWithPolicy(
             }
 
             request.Connect(config.SocketTimeout);
-
-            IOutputStream* output = request.StartRequest(header);
-            output->Write(body);
-            request.FinishRequest();
+            request.SmallRequest(header, body);
 
             TResponseInfo result;
             result.RequestId = requestId;

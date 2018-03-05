@@ -149,7 +149,7 @@ TTransactionId StartTransaction(
     return txId;
 }
 
-void TransactionRequest(
+static void TransactionRequest(
     const TAuth& auth,
     const TString& command,
     const TTransactionId& transactionId)
@@ -157,7 +157,7 @@ void TransactionRequest(
     THttpHeader header("POST", command);
     header.AddTransactionId(transactionId);
     header.AddMutationId();
-    RetryRequest(auth, header, "", false, false);
+    RetryRequest(auth, header, Nothing(), false, false);
 }
 
 void PingTransaction(
@@ -215,7 +215,7 @@ TString GetProxyForHeavyRequest(const TAuth& auth)
 TString RetryRequest(
     const TAuth& auth,
     THttpHeader& header,
-    const TString& body,
+    const TMaybe<TStringBuf>& body,
     bool isHeavy,
     bool isOperation)
 {
@@ -261,9 +261,7 @@ TString RetryRequest(
 
             request.Connect(socketTimeout);
             try {
-                IOutputStream* output = request.StartRequest(header);
-                output->Write(body);
-                request.FinishRequest();
+                request.SmallRequest(header, body);
             } catch (yexception&) {
                 // try to read error in response
             }

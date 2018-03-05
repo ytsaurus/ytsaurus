@@ -702,7 +702,7 @@ void TClient::InsertRows(
     header.MergeParameters(NDetail::SerializeParametersForInsertRows(path, options));
 
     auto body = NodeListToYsonString(rows);
-    RetryRequest(Auth_, header, body, true);
+    RetryRequest(Auth_, header, TStringBuf(body), true);
 }
 
 void TClient::DeleteRows(
@@ -715,7 +715,7 @@ void TClient::DeleteRows(
     header.MergeParameters(NDetail::SerializeParametersForDeleteRows(path, options));
 
     auto body = NodeListToYsonString(keys);
-    RetryRequest(Auth_, header, body, true);
+    RetryRequest(Auth_, header, TStringBuf(body), true);
 }
 
 void TClient::TrimRows(
@@ -728,7 +728,7 @@ void TClient::TrimRows(
     header.AddParameter("trimmed_row_count", rowCount);
     header.AddParameter("tablet_index", tabletIndex);
     header.MergeParameters(NDetail::SerializeParametersForTrimRows(path, options));
-    RetryRequest(Auth_, header, "", true);
+    RetryRequest(Auth_, header, Nothing(), true);
 }
 
 TNode::TListType TClient::LookupRows(
@@ -753,7 +753,7 @@ TNode::TListType TClient::LookupRows(
     .EndMap());
 
     auto body = NodeListToYsonString(keys);
-    auto response = RetryRequest(Auth_, header, body, true);
+    auto response = RetryRequest(Auth_, header, TStringBuf(body), true);
     return NodeFromYsonString(response, YT_LIST_FRAGMENT).AsList();
 }
 
@@ -782,7 +782,7 @@ TNode::TListType TClient::SelectRows(
         .Item("enable_code_cache").Value(options.EnableCodeCache_)
     .EndMap());
 
-    auto response = RetryRequest(Auth_, header, "", true);
+    auto response = RetryRequest(Auth_, header, Nothing(), true);
     return NodeFromYsonString(response, YT_LIST_FRAGMENT).AsList();
 }
 
@@ -811,7 +811,7 @@ void TClient::AlterTableReplica(const TReplicaId& replicaId, const TAlterTableRe
 ui64 TClient::GenerateTimestamp()
 {
     THttpHeader header("GET", "generate_timestamp");
-    auto response = RetryRequest(Auth_, header, "", true);
+    auto response = RetryRequest(Auth_, header, Nothing(), true);
     return NodeFromYsonString(response).AsUint64();
 }
 
