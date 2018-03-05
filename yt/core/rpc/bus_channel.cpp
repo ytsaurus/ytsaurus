@@ -629,7 +629,7 @@ private:
             requestControl->ProfileRequest(requestMessage);
 
             LOG_DEBUG("Request sent (RequestId: %v, Method: %v:%v, Timeout: %v, TrackingLevel: %v, "
-                "ChecksummedPartCount: %v, MultiplexingBand: %v, Endpoint: %v)",
+                "ChecksummedPartCount: %v, MultiplexingBand: %v, Endpoint: %v, AttachmentSize: %v)",
                 requestId,
                 requestControl->GetService(),
                 requestControl->GetMethod(),
@@ -637,7 +637,8 @@ private:
                 busOptions.TrackingLevel,
                 busOptions.ChecksummedPartCount,
                 options.MultiplexingBand,
-                bus->GetEndpointDescription());
+                bus->GetEndpointDescription(),
+                GetTotalMesageAttachmentSize(requestMessage));
         }
 
         void OnAcknowledgement(const TRequestId& requestId, const TError& error)
