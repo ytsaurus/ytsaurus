@@ -8,9 +8,6 @@ import uuid
 import signal
 import fcntl
 
-import pytest
-from _pytest.fixtures import FixtureLookupError
-
 import yatest.common
 
 import devtools.swag.daemon
@@ -538,13 +535,5 @@ class YtStuff(object):
                 shutil.copy(core_file, cores_dir)
 
 
-@pytest.fixture(scope="module")
-def yt_stuff(request):
-    try:
-        yt_config = request.getfixturevalue("yt_config")
-    except FixtureLookupError:
-        yt_config = None
-    yt = YtStuff(yt_config)
-    yt.start_local_yt()
-    request.addfinalizer(yt.stop_local_yt)
-    return yt
+def yt_stuff():
+    raise Exception("This should not be called (or imported). Just remove this import?")
