@@ -534,7 +534,7 @@ class TLexerBase
 private:
     typedef TCodedStream<TCharStream<TBlockStream, TPositionInfo<EnableLinePositionInfo>>> TBaseStream;
 
-    std::vector<char> Buffer_;
+    SmallVector<char, 256> Buffer_;
     const size_t MemoryLimit_;
 
     void Insert(const char* begin, const char* end)
@@ -552,11 +552,6 @@ private:
     void ReserverAndCheckMemoryLimit(size_t size)
     {
         auto minReserveSize = Buffer_.size() + size;
-        if (minReserveSize <= Buffer_.capacity()) {
-            return;
-        }
-
-        auto newDefaultCapacity = std::max(Buffer_.capacity(), size_t(1)) * 2;
 
         if (MemoryLimit_) {
             if (minReserveSize > MemoryLimit_) {
@@ -565,13 +560,9 @@ private:
                     minReserveSize,
                     MemoryLimit_);
             }
-
-            newDefaultCapacity = std::min(newDefaultCapacity, MemoryLimit_);
         }
 
-        auto reserveSize = std::max(newDefaultCapacity, minReserveSize);
-
-        Buffer_.reserve(reserveSize);
+        Buffer_.reserve(minReserveSize);
     }
 
 public:
