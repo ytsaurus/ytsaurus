@@ -7,6 +7,7 @@
 #include <yt/core/yson/writer.h>
 
 #include <yt/core/misc/error.h>
+#include <yt/core/misc/variant.h>
 
 namespace NYT {
 namespace NYTree {
@@ -17,6 +18,7 @@ using NYPath::TTokenizer;
 using NYson::IYsonConsumer;
 using NYson::TForwardingYsonConsumer;
 using NYson::EYsonType;
+using NYson::TStatelessYsonParser;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -29,21 +31,8 @@ DEFINE_ENUM(EExpectedItem,
     (Value)
 );
 
-class TCompleteParsingException
+struct TNullLiteralValue
 { };
-
-template <typename T>
-class TCompleteParsingWithResultException
-    : public TCompleteParsingException
-{
-public:
-    template <typename U>
-    TCompleteParsingWithResultException(U&& val)
-        : Result(val)
-    { }
-
-    T Result;
-};
 
 class TYPathResolver
     : public TForwardingYsonConsumer
@@ -52,6 +41,7 @@ public:
     TYPathResolver(const TYPath& path, bool isAny)
         : Tokenizer_(path)
         , IsAny_(isAny)
+        , Parser_(this)
     {
         if (isAny) {
             ResultWriter_ = std::make_unique<NYson::TBufferedBinaryYsonWriter>(&ResultStream_);
@@ -98,7 +88,8 @@ public:
                     try {
                         ListIndex_ = FromString<int>(Literal_);
                     } catch (const TBadCastException&) {
-                        throw TCompleteParsingException{};
+                        Parser_.Stop();
+                        return;
                     }
                     ++PathDepth_;
                     break;
@@ -108,7 +99,8 @@ public:
                     break;
 
                 default:
-                    throw TCompleteParsingException{};
+                    Parser_.Stop();
+                    break;
             }
         }
     }
@@ -117,12 +109,14 @@ public:
     {
         if (CurrentDepth_ == PathDepth_) {
             if (Expected_ != EExpectedItem::ListItem) {
-                throw TCompleteParsingException{};
+                Parser_.Stop();
+                return;
             }
             if (CurrentListIndex_ == ListIndex_) {
                 NextToken();
             } else if (CurrentListIndex_ > ListIndex_) {
-                throw TCompleteParsingException{};
+                Parser_.Stop();
+                return;
             }
             ++CurrentListIndex_;
         }
@@ -147,7 +141,8 @@ public:
                     break;
 
                 default:
-                    throw TCompleteParsingException{};
+                    Parser_.Stop();
+                    break;
             }
         }
     }
@@ -156,7 +151,8 @@ public:
     {
         if (CurrentDepth_ == PathDepth_) {
             if (Expected_ != EExpectedItem::Key) {
-                throw TCompleteParsingException{};
+                Parser_.Stop();
+                return;
             }
             if (Literal_ == key) {
                 NextToken();
@@ -182,7 +178,8 @@ public:
                     break;
 
                 default:
-                    throw TCompleteParsingException{};
+                    Parser_.Stop();
+                    break;
             }
         }
     }
@@ -194,6 +191,15 @@ public:
 
     virtual void OnMyRaw(const TStringBuf& yson, EYsonType type) override
     { }
+
+    void Parse(const TStringBuf& input)
+    {
+        Parser_.Parse(input);
+    }
+
+    typedef TVariant<TNullLiteralValue, bool, i64, ui64, double, TString> TResult;
+
+    DEFINE_BYREF_RO_PROPERTY(TResult, Result, TNullLiteralValue{});
 
 private:
     TTokenizer Tokenizer_;
@@ -209,10 +215,12 @@ private:
     TStringStream ResultStream_;
     std::unique_ptr<NYson::IFlushableYsonConsumer> ResultWriter_;
 
+    TStatelessYsonParser Parser_;
+
     void OnDecDepth()
     {
         if (--CurrentDepth_ < PathDepth_) {
-            throw TCompleteParsingException{};
+            Parser_.Stop();
         }
     }
 
@@ -220,14 +228,16 @@ private:
     void OnValue(const T& t)
     {
         if (Expected_ == EExpectedItem::Value) {
-            throw TCompleteParsingWithResultException<T>(t);
+            Result_ = t;
+            Parser_.Stop();
         }
     }
 
     void OnStringValue(const TStringBuf& t)
     {
         if (Expected_ == EExpectedItem::Value) {
-            throw TCompleteParsingWithResultException<TString>(t);
+            Result_ = TString(t);
+            Parser_.Stop();
         }
     }
 
@@ -250,7 +260,8 @@ private:
                     if (IsAny_) {
                         Forward(ResultWriter_.get(), [this] {
                             ResultWriter_->Flush();
-                            throw TCompleteParsingWithResultException<TString>(ResultStream_.Str());
+                            Result_ = ResultStream_.Str();
+                            Parser_.Stop();
                         });
                     } else {
                         Expected_ = EExpectedItem::Value;
@@ -298,16 +309,13 @@ private:
 template <typename T>
 TNullable<T> TryGetValue(const TStringBuf& yson, const TYPath& ypath, bool isAny = false)
 {
-    try {
-        TYPathResolver resolver(ypath, isAny);
-        ParseYsonStringBuffer(
-            yson,
-            EYsonType::Node,
-            &resolver);
-    } catch (const TCompleteParsingWithResultException<T>& value) {
-        return value.Result;
-    } catch (const TCompleteParsingException&) {
+    TYPathResolver resolver(ypath, isAny);
+    resolver.Parse(yson);
+
+    if (const auto* value = resolver.Result().TryAs<T>()) {
+        return *value;
     }
+
     return {};
 }
 
