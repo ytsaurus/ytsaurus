@@ -42,11 +42,11 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
         }
     }
 
-    def _check_running_jobs(self, op_id, desired_running_jobs):
+    def _check_running_jobs(self, op, desired_running_jobs):
         success_iter = 0
         min_success_iteration = 10
         for i in xrange(100):
-            running_jobs = get("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op_id))
+            running_jobs = op.get_running_jobs()
             if running_jobs:
                 assert len(running_jobs) <= desired_running_jobs
                 success_iter += 1
@@ -138,7 +138,7 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
             in_="//tmp/t_in",
             out="//tmp/t_out",
             spec={"job_count": 3, "pool": "test_pool", "mapper": {"memory_limit": memory_limit}, "testing": testing_options})
-        self._check_running_jobs(op.id, 1)
+        self._check_running_jobs(op, 1)
         op.abort()
 
         op = map(
@@ -147,7 +147,7 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
             in_="//tmp/t_in",
             out="//tmp/t_out",
             spec={"job_count": 3, "resource_limits": resource_limits, "mapper": {"memory_limit": memory_limit}, "testing": testing_options})
-        self._check_running_jobs(op.id, 1)
+        self._check_running_jobs(op, 1)
         op_limits = get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/resource_limits".format(op.id))
         for resource, limit in resource_limits.iteritems():
             resource_name = "user_memory" if resource == "memory" else resource
@@ -164,10 +164,10 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
             in_="//tmp/t_in",
             out="//tmp/t_out",
             spec={"job_count": 3, "resource_limits": {"user_slots": 1}})
-        self._check_running_jobs(op.id, 1)
+        self._check_running_jobs(op, 1)
 
         set("//sys/operations/{0}/@resource_limits".format(op.id), {"user_slots": 2})
-        self._check_running_jobs(op.id, 2)
+        self._check_running_jobs(op, 2)
 
     def test_max_possible_resource_usage(self):
         create("map_node", "//sys/pools/low_cpu_pool", attributes={"resource_limits": {"cpu": 1}})
@@ -978,9 +978,6 @@ class TestSchedulerAggressivePreemption(YTEnvSetup):
         get_usage_ratio = lambda op_id: \
             get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/usage_ratio".format(op_id))
 
-        get_running_job_count = lambda op_id: \
-            len(get("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op_id)))
-
         ops = []
         for index in xrange(2):
             create("table", "//tmp/t_out" + str(index))
@@ -992,7 +989,7 @@ class TestSchedulerAggressivePreemption(YTEnvSetup):
         for op in ops:
             assert assert_almost_equal(get_fair_share_ratio(op.id), 1.0 / 2.0)
             assert assert_almost_equal(get_usage_ratio(op.id), 1.0 / 2.0)
-            assert get_running_job_count(op.id) == 3
+            assert len(op.get_running_jobs()) == 3
 
         op = map(dont_track=True, command="sleep 1000; cat", in_=["//tmp/t_in"], out="//tmp/t_out",
                  spec={"pool": "special_pool", "job_count": 1, "locality_timeout": 0, "mapper": {"cpu_limit": 2}})
@@ -1000,7 +997,7 @@ class TestSchedulerAggressivePreemption(YTEnvSetup):
 
         assert assert_almost_equal(get_fair_share_ratio(op.id), 1.0 / 3.0)
         assert assert_almost_equal(get_usage_ratio(op.id), 1.0 / 3.0)
-        assert get_running_job_count(op.id) == 1
+        assert len(op.get_running_jobs()) == 1
 
 ##################################################################
 
@@ -1050,11 +1047,6 @@ class TestSchedulerAggressiveStarvationPreemption(YTEnvSetup):
         get_usage_ratio = lambda op_id: \
             get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/usage_ratio".format(op_id))
 
-        get_running_jobs = lambda op_id: \
-            get("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op_id))
-
-        get_running_job_count = lambda op_id: len(get_running_jobs(op_id))
-
         ops = []
         for index in xrange(4):
             create("table", "//tmp/t_out" + str(index))
@@ -1076,7 +1068,7 @@ class TestSchedulerAggressiveStarvationPreemption(YTEnvSetup):
         for op in ops:
             assert assert_almost_equal(get_fair_share_ratio(op.id), 1.0 / 4.0)
             assert assert_almost_equal(get_usage_ratio(op.id), 1.0 / 4.0)
-            assert get_running_job_count(op.id) == 3
+            assert len(op.get_running_jobs()) == 3
 
         special_op = ops[0]
         special_op_jobs = [
@@ -1084,7 +1076,7 @@ class TestSchedulerAggressiveStarvationPreemption(YTEnvSetup):
                 "id": key,
                 "start_time": datetime_str_to_ts(value["start_time"])
             }
-            for key, value in get_running_jobs(special_op.id).iteritems()]
+            for key, value in special_op.get_running_jobs().iteritems()]
 
         special_op_jobs.sort(key=lambda x: x["start_time"])
         preemtable_job_id = special_op_jobs[-1]["id"]
@@ -1103,12 +1095,12 @@ class TestSchedulerAggressiveStarvationPreemption(YTEnvSetup):
 
         time.sleep(3)
 
-        assert get_running_job_count(op.id) == 1
+        assert len(op.get_running_jobs()) == 1
 
-        special_op_running_job_count = get_running_job_count(special_op.id)
+        special_op_running_job_count = len(special_op.get_running_jobs())
         assert special_op_running_job_count >= 2
         if special_op_running_job_count == 2:
-            assert preemtable_job_id not in get_running_jobs(special_op.id)
+            assert preemtable_job_id not in special_op.get_running_jobs()
 
 ##################################################################
 
@@ -1322,13 +1314,6 @@ class TestSchedulerSuspiciousJobs(YTEnvSetup):
 
     @require_ytserver_root_privileges
     def test_false_suspicious_jobs(self):
-        def get_running_jobs(op_id):
-            path = "//sys/scheduler/orchid/scheduler/operations/" + op_id
-            if not exists(path, verbose=False):
-                return []
-            else:
-                return get(path + "/running_jobs", verbose=False)
-
         create("table", "//tmp/t", attributes={"replication_factor": 1})
         create("table", "//tmp/t1", attributes={"replication_factor": 1})
         create("table", "//tmp/t2", attributes={"replication_factor": 1})
@@ -1348,8 +1333,8 @@ class TestSchedulerSuspiciousJobs(YTEnvSetup):
             out="//tmp/t2")
 
         for i in xrange(200):
-            running_jobs1 = get_running_jobs(op1.id)
-            running_jobs2 = get_running_jobs(op2.id)
+            running_jobs1 = op1.get_running_jobs()
+            running_jobs2 = op2.get_running_jobs()
             print >>sys.stderr, "running_jobs1:", len(running_jobs1), "running_jobs2:", len(running_jobs2)
             if not running_jobs1 or not running_jobs2:
                 time.sleep(0.1)
@@ -1386,13 +1371,6 @@ class TestSchedulerSuspiciousJobs(YTEnvSetup):
         op2.abort()
 
     def test_true_suspicious_jobs(self):
-        def get_running_jobs(op_id):
-            path = "//sys/scheduler/orchid/scheduler/operations/" + op_id
-            if not exists(path, verbose=False):
-                return []
-            else:
-                return get(path + "/running_jobs", verbose=False)
-
         create("table", "//tmp/t_in", attributes={"replication_factor": 1})
         create("table", "//tmp/t_out", attributes={"replication_factor": 1})
 
@@ -1414,7 +1392,7 @@ class TestSchedulerSuspiciousJobs(YTEnvSetup):
 
         running_jobs = None
         for i in xrange(200):
-            running_jobs = get_running_jobs(op.id)
+            running_jobs = op.get_running_jobs()
             print >>sys.stderr, "running_jobs:", len(running_jobs)
             if not running_jobs:
                 time.sleep(0.1)
@@ -1483,7 +1461,7 @@ class TestSchedulerSuspiciousJobs(YTEnvSetup):
 
         while True:
             if exists("//sys/scheduler/orchid/scheduler/operations/{0}".format(op.id)):
-                running_jobs = get("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op.id))
+                running_jobs = op.get_running_jobs()
                 if len(running_jobs) > 0:
                     break
 
@@ -1608,7 +1586,7 @@ class TestFairShareTreesReconfiguration(YTEnvSetup):
         assert exists("//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/default/fair_share_info")
 
         create("map_node", "//sys/pool_trees/other", attributes={"nodes_filter": "other"})
-        
+
         wait(lambda: exists("//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/other/fair_share_info"))
         wait(lambda: not get("//sys/scheduler/@alerts"))
 
@@ -1683,7 +1661,7 @@ class TestFairShareTreesReconfiguration(YTEnvSetup):
             spec={"pool_trees": ["default", "other"], "data_size_per_job": 1},
             dont_track=True)
 
-        wait(lambda: len(ls("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op.id))) > 2)
+        wait(lambda: len(op.get_running_jobs()) > 2)
 
         self.Env.kill_schedulers()
         time.sleep(0.5)
@@ -1850,7 +1828,7 @@ class TestSchedulingOptionsPerTree(YTEnvSetup):
         create("table", "//tmp/t_out")
 
         op = map(
-            command="sleep 100; cat",
+            command=with_breakpoint("cat ; BREAKPOINT"),
             in_="//tmp/t_in",
             out="//tmp/t_out",
             spec={
@@ -1871,11 +1849,11 @@ class TestSchedulingOptionsPerTree(YTEnvSetup):
             },
             dont_track=True)
 
+        wait_breakpoint()
+
         def get_value(tree, op_id, value):
             return get("//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/{0}/fair_share_info/operations/{1}/{2}"
                        .format(tree, op_id, value))
-
-        time.sleep(1.0)
 
         assert_almost_equal(get_value("default", op.id, "min_share_ratio"), 0.37)
         assert_almost_equal(get_value("default", op.id, "max_share_ratio"), 0.4)
@@ -1891,3 +1869,58 @@ class TestSchedulingOptionsPerTree(YTEnvSetup):
 
         assert get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/scheduling_info_per_pool_tree/other/pool"
             .format(op.id)) == "superpool"
+
+        release_breakpoint()
+
+class TestSchedulingTagFilterOnCustomPoolTree(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "operation_options": {
+                "spec_template": {
+                    "scheduling_options_per_pool_tree": {
+                        "default": { "scheduling_tag_filter": "default_tag"},
+                        "custom_pool_tree": { "scheduling_tag_filter": "runnable_tag"}
+                    }
+                }
+            }
+        }
+    }
+
+    def test_scheduling_tag_filter_on_custom_pool_tree(self):
+        all_nodes = ls("//sys/nodes")
+        default_node = all_nodes[0]
+        custom_node = all_nodes[1]
+        runnable_custom_node = all_nodes[2]
+        set("//sys/nodes/" + default_node + "/@user_tags/end", "default_tag")
+        set("//sys/nodes/" + custom_node + "/@user_tags/end", "custom_tag")
+        set("//sys/nodes/" + runnable_custom_node + "/@user_tags", ["custom_tag", "runnable_tag"])
+
+        set("//sys/pool_trees/default/@nodes_filter", "default_tag")
+        create("map_node", "//sys/pool_trees/custom_pool_tree", attributes={"nodes_filter": "custom_tag"})
+
+        time.sleep(0.5)
+
+        create("table", "//tmp/t_in")
+        write_table("//tmp/t_in", [{"x": i} for i in xrange(7)])
+        create("table", "//tmp/t_out")
+
+        op = map(
+            command=with_breakpoint("cat ; BREAKPOINT"),
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            spec={
+                "pool_trees": ["custom_pool_tree"],
+            },
+            dont_track=True)
+
+        wait_breakpoint()
+
+        jobs = op.get_running_jobs()
+        assert len(jobs) == 1
+        assert jobs[jobs.keys()[0]]["address"] == runnable_custom_node
+
+        release_breakpoint()

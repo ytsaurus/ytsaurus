@@ -726,6 +726,10 @@ class Operation(object):
             return 0
         return get(path, verbose=False)
 
+    def get_running_jobs(self):
+        jobs_path = "//sys/scheduler/orchid/scheduler/operations/" + self.id + "/running_jobs"
+        return get(jobs_path, verbose=False, default=[])
+
     def get_state(self, **kwargs):
         try:
             return get(self._get_operation_path() + "/@state", verbose_error=False, **kwargs)
