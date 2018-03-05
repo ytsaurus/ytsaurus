@@ -48,6 +48,7 @@ public:
     ~TStatelessYsonParser();
 
     void Parse(const TStringBuf& data, EYsonType type = EYsonType::Node);
+    void Stop();
 
 private:
     class TImpl;
