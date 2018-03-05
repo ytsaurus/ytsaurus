@@ -74,7 +74,7 @@ public:
         const TJobId& jobId,
         const TString& usrt);
 
-    TFuture<void> UpdateOperationRuntimeParameters(
+    TFuture<void> FlushOperationRuntimeParameters(
         TOperationPtr operation,
         const TOperationRuntimeParametersPtr& params);
 

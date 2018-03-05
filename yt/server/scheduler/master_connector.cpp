@@ -280,23 +280,26 @@ public:
         }
     }
 
-    TFuture<void> UpdateOperationRuntimeParameters(
+    TFuture<void> FlushOperationRuntimeParameters(
         TOperationPtr operation,
         const TOperationRuntimeParametersPtr& params)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        return BIND(&TImpl::DoUpdateOperationRuntimeParameters, MakeStrong(this))
+        return BIND(&TImpl::DoFlushOperationRuntimeParameters, MakeStrong(this))
             .AsyncVia(GetCancelableControlInvoker())
             .Run(operation, params);
     }
 
-    void DoUpdateOperationRuntimeParameters(
+    void DoFlushOperationRuntimeParameters(
         TOperationPtr operation,
         const TOperationRuntimeParametersPtr& params)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(State_ != EMasterConnectorState::Disconnected);
+
+        LOG_INFO("Flushing operation runtime parameters (OperationId: %v)",
+            operation->GetId());
 
         auto strategy = Bootstrap_->GetScheduler()->GetStrategy();
 
@@ -325,6 +328,9 @@ public:
         auto rspOrError = WaitFor(batchReq->Invoke());
         auto error = GetCumulativeError(rspOrError);
         THROW_ERROR_EXCEPTION_IF_FAILED(error, "Error updating operation %v runtime params", operation->GetId());
+
+        LOG_INFO("Flushed operation runtime parameters (OperationId: %v)",
+            operation->GetId());
     }
 
     void SetSchedulerAlert(ESchedulerAlertType alertType, const TError& alert)
@@ -1680,11 +1686,11 @@ void TMasterConnector::AttachJobContext(
     return Impl_->AttachJobContext(path, chunkId, operationId, jobId, user);
 }
 
-TFuture<void> TMasterConnector::UpdateOperationRuntimeParameters(
+TFuture<void> TMasterConnector::FlushOperationRuntimeParameters(
     TOperationPtr operation,
     const TOperationRuntimeParametersPtr& params)
 {
-    return Impl_->UpdateOperationRuntimeParameters(operation, params);
+    return Impl_->FlushOperationRuntimeParameters(operation, params);
 }
 
 void TMasterConnector::SetSchedulerAlert(ESchedulerAlertType alertType, const TError& alert)
