@@ -221,7 +221,11 @@ private:
             const auto& tabletRuntimeData = tabletSnapshot->RuntimeData;
             const auto& replicaRuntimeData = replicaSnapshot->RuntimeData;
 
+            // YT-8542: Fetch the last barrier timestamp _first_ to ensure proper serialization between
+            // replicator and tablet slot threads.
+            auto lastBarrierTimestamp = Slot_->GetRuntimeData()->LastBarrierTimestamp.load();
             auto lastReplicationRowIndex = replicaRuntimeData->CurrentReplicationRowIndex.load();
+            auto lastReplicationTimestamp = replicaRuntimeData->LastReplicationTimestamp.load();
             auto totalRowCount = tabletRuntimeData->TotalRowCount.load();
             if (replicaRuntimeData->PreparedReplicationRowIndex > lastReplicationRowIndex) {
                 // Some log rows are prepared for replication, hence replication cannot proceed.
@@ -247,9 +251,9 @@ private:
 
             if (totalRowCount <= lastReplicationRowIndex) {
                 // All committed rows are replicated.
-                replicaRuntimeData->LastReplicationTimestamp.store(
-                    Slot_->GetRuntimeData()->MinPrepareTimestamp.load(std::memory_order_relaxed),
-                    std::memory_order_relaxed);
+                if (lastReplicationTimestamp < lastBarrierTimestamp) {
+                    replicaRuntimeData->LastReplicationTimestamp.store(lastBarrierTimestamp);
+                }
                 replicaRuntimeData->Error.Store(TError());
                 return;
             }
@@ -324,9 +328,13 @@ private:
             }
             LOG_DEBUG("Finished committing replication transaction");
 
-            replicaRuntimeData->LastReplicationTimestamp.store(
-                newReplicationTimestamp,
-                std::memory_order_relaxed);
+            if (lastReplicationTimestamp > newReplicationTimestamp) {
+                LOG_ERROR("Non-monotonic change to last replication timestamp attempted; ignored (LastReplicationTimestamp: %llx -> %llx)",
+                    lastReplicationTimestamp,
+                    newReplicationTimestamp);
+            } else {
+                replicaRuntimeData->LastReplicationTimestamp.store(newReplicationTimestamp);
+            }
             replicaRuntimeData->Error.Store(TError());
         } catch (const std::exception& ex) {
             TError error(ex);
