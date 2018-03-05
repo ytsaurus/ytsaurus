@@ -403,6 +403,7 @@ public:
     std::vector<TLayerLocationConfigPtr> LayerLocations;
     TDuration PortoRetryTimeout;
     TDuration PortoPollPeriod;
+    double CacheCapacityFraction;
 
     TVolumeManagerConfig()
     {
@@ -415,20 +416,11 @@ public:
         RegisterParameter("porto_poll_period", PortoPollPeriod)
             .Default(TDuration::MilliSeconds(200))
             .GreaterThan(TDuration::Zero());
-    }
 
-    i64 GetCacheCapacity() const
-    {
-        i64 result = 0;
-        for (const auto& location : LayerLocations) {
-            if (!location->Quota) {
-                // Infinite capacity.
-                return std::numeric_limits<i64>::max();
-            } else {
-                result += *location->Quota;
-            }
-        }
-        return result;
+        RegisterParameter("cache_capacity_fraction", CacheCapacityFraction)
+            .Default(0.8)
+            .GreaterThan(0)
+            .LessThanOrEqual(1);
     }
 };
 

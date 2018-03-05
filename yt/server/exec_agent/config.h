@@ -242,6 +242,27 @@ DEFINE_REFCOUNTED_TYPE(TSchedulerConnectorConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TBindConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    TString ExternalPath;
+    TString InternalPath;
+    bool ReadOnly;
+
+    TBindConfig()
+    {
+        RegisterParameter("external_path", ExternalPath);
+        RegisterParameter("internal_path", InternalPath);
+        RegisterParameter("read_only", ReadOnly)
+            .Default(true);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TBindConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TExecAgentConfig
     : public virtual NYTree::TYsonSerializable
 {
@@ -262,6 +283,8 @@ public:
     //! This is a special testing option.
     //! Instead of actually setting root fs, it just provides special environment variable.
     bool TestRootFS;
+
+    std::vector<TBindConfigPtr> RootFSBinds;
 
     int NodeDirectoryPrepareRetryCount;
     TDuration NodeDirectoryPrepareBackoffTime;
@@ -296,6 +319,9 @@ public:
 
         RegisterParameter("test_root_fs", TestRootFS)
             .Default(false);
+
+        RegisterParameter("root_fs_binds", RootFSBinds)
+            .Default();
 
         RegisterParameter("node_directory_prepare_retry_count", NodeDirectoryPrepareRetryCount)
             .Default(10);

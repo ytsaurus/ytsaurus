@@ -59,6 +59,7 @@ public:
 
     virtual TString GetPreparationPath() const override;
     virtual TString GetSlotPath() const override;
+    virtual TString AdjustPath(const TString& path) const override;
 
 private:
     const TJobProxyConfigPtr Config_;

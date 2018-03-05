@@ -208,11 +208,12 @@ public:
         }
 
         if (ResourceController_) {
+            YCHECK(host->GetConfig()->BusServer->UnixDomainName);
             YCHECK(UserId_);
             Process_ = ResourceController_->CreateControlledProcess(
                 ExecProgramName,
                 *UserId_,
-                CreateCoreDumpHandlerPath(host->GetConfig()->BusServer->UnixDomainName));
+                MakeNullable(UserJobSpec_.has_core_table_spec(), *host->GetConfig()->BusServer->UnixDomainName));
 
             BlockIOWatchdogExecutor_ = New<TPeriodicExecutor>(
                 AuxQueue_->GetInvoker(),
@@ -480,7 +481,7 @@ private:
         JobSatelliteConnection_.MakeConfig();
 
         Process_->AddArguments({"--command", UserJobSpec_.shell_command()});
-        Process_->AddArguments({"--config", JobSatelliteConnection_.GetConfigPath()});
+        Process_->AddArguments({"--config", Host_->AdjustPath(JobSatelliteConnection_.GetConfigPath())});
         Process_->AddArguments({"--job-id", ToString(JobSatelliteConnection_.GetJobId())});
         Process_->SetWorkingDirectory(NFS::CombinePaths(Host_->GetSlotPath(), SandboxDirectoryNames[ESandboxKind::User]));
 
@@ -762,14 +763,6 @@ private:
         }));
     }
 
-    TString AdjustPath(const TString& path) const
-    {
-        YCHECK(path.StartsWith(Host_->GetPreparationPath()));
-        auto pathSuffix = path.substr(Host_->GetPreparationPath().size() + 1);
-        auto adjustedPath = NFS::CombinePaths(Host_->GetSlotPath(), pathSuffix);
-        return adjustedPath;
-    }
-
     TAsyncReaderPtr PrepareOutputPipe(
         const std::vector<int>& jobDescriptors,
         IOutputStream* output,
@@ -779,8 +772,8 @@ private:
         auto pipe = TNamedPipe::Create(CreateNamedPipePath());
 
         for (auto jobDescriptor : jobDescriptors) {
-            // Since inside job container we see another rootfs, we must adjusst pipe path.
-            TNamedPipeConfig pipeId(AdjustPath(pipe->GetPath()), jobDescriptor, true);
+            // Since inside job container we see another rootfs, we must adjust pipe path.
+            TNamedPipeConfig pipeId(Host_->AdjustPath(pipe->GetPath()), jobDescriptor, true);
             Process_->AddArguments({"--pipe", ConvertToYsonString(pipeId, EYsonFormat::Text).GetData()});
         }
 
@@ -816,7 +809,7 @@ private:
         int jobDescriptor = 0;
         InputPipePath_= CreateNamedPipePath();
         auto pipe = TNamedPipe::Create(InputPipePath_);
-        TNamedPipeConfig pipeId(AdjustPath(pipe->GetPath()), jobDescriptor, false);
+        TNamedPipeConfig pipeId(Host_->AdjustPath(pipe->GetPath()), jobDescriptor, false);
         Process_->AddArguments({"--pipe", ConvertToYsonString(pipeId, EYsonFormat::Text).GetData()});
         auto format = ConvertTo<TFormat>(TYsonString(UserJobSpec_.input_format()));
 
@@ -1329,26 +1322,6 @@ private:
         } else {
             LOG_WARNING(TError::FromSystem(), "Failed to blink input pipe");
         }
-    }
-
-    TNullable<TString> CreateCoreDumpHandlerPath(
-        const TNullable<TString>& socketPath) const
-    {
-        if (JobEnvironmentType_ == EJobEnvironmentType::Porto &&
-            UserJobSpec_.has_core_table_spec() &&
-            socketPath)
-        {
-            // We do not want to rely on passing PATH environment to core handler container.
-            auto binaryPathOrError = ResolveBinaryPath("ytserver-core-forwarder");
-            if (binaryPathOrError.IsOK()) {
-                return binaryPathOrError.Value() + " \"${CORE_PID}\" 0 \"${CORE_TASK_NAME}\""
-                    " 1 /dev/null /dev/null " + socketPath.Get();
-            } else {
-                LOG_ERROR(binaryPathOrError,
-                    "Failed to resolve path for ytserver-core-forwarder");
-            }
-        }
-        return {};
     }
 };
 
