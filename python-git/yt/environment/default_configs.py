@@ -283,6 +283,7 @@ b"""
 
         job_controller = {
             total_confirmation_period = 5000;
+            cpu_per_tablet_slot = 0.0;
         }
     };
 
