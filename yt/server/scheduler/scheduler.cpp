@@ -507,7 +507,10 @@ public:
             const auto& result = resultOrError.Value();
             if (result.Action == ESecurityAction::Allow) {
                 ValidateConnected();
-                LOG_DEBUG("Operation permission successfully validated");
+                LOG_DEBUG("Operation permission successfully validated (Permission: %v, User: %v, OperationId: %v)",
+                    permission,
+                    user,
+                    operationId);
                 return;
             }
         }
@@ -798,7 +801,7 @@ public:
             operation->GetRuntimeParameters(), ConvertToNode(runtimeParams));
 
         // Not applying runtime params until they are persisted in Cypress.
-        auto resultOrError = MasterConnector_->UpdateOperationRuntimeParameters(operation, newRuntimeParams);
+        auto resultOrError = MasterConnector_->FlushOperationRuntimeParameters(operation, newRuntimeParams);
         WaitFor(resultOrError)
             .ThrowOnError();
 
