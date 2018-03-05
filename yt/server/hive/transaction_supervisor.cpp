@@ -371,7 +371,6 @@ private:
 
         bool TrySendRequestImmediately(const TClosure& sender, TGuard<TSpinLock>* guard)
         {
-            LOG_DEBUG("XXX %v %v", Up_, PendingSenders_.size());
             if (!Up_ && !PendingSenders_.empty()) {
                 return false;
             }
