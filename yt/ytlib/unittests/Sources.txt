@@ -51,7 +51,6 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/yamred_dsv_writer_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/yamr_parser_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/yamr_writer_ut.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/ypath_resolver_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/ypath_service_combiner_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/ypath_tokenizer_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/ypath_ut.cpp
