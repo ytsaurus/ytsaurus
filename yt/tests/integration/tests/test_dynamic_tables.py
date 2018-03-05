@@ -154,6 +154,14 @@ class TestDynamicTablesBase(YTEnvSetup):
 ##################################################################
 
 class TestDynamicTables(TestDynamicTablesBase):
+    DELTA_NODE_CONFIG = {
+        "exec_agent": {
+            "job_controller": {
+                "cpu_per_tablet_slot": 1.0,
+            },
+        },
+    }
+
     def test_force_unmount_on_remove(self):
         self.sync_create_cells(1)
         self._create_sorted_table("//tmp/t")
