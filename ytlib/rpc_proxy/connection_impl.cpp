@@ -138,20 +138,9 @@ TString TConnection::GetLocalAddress()
     return localAddressString;
 }
 
-TFuture<std::vector<TProxyInfo>> TConnection::DiscoverProxies(const TDiscoverProxyOptions& /*options*/)
+TFuture<std::vector<TProxyInfo>> TConnection::DiscoverProxies(const TDiscoverProxyOptions& options)
 {
-    TDiscoveryServiceProxy proxy(GetRandomPeerChannel());
-
-    auto req = proxy.DiscoverProxies();
-    req->SetTimeout(Config_->RpcTimeout);
-
-    return req->Invoke().Apply(BIND([] (const TDiscoveryServiceProxy::TRspDiscoverProxiesPtr& rsp) {
-        std::vector<TProxyInfo> proxies;
-        for (const auto& address : rsp->addresses()) {
-            proxies.push_back({address});
-        }
-        return proxies;
-    }));
+    return DiscoverProxies(GetRandomPeerChannel(), options);
 }
 
 const TConnectionConfigPtr& TConnection::GetConfig()
@@ -212,6 +201,7 @@ TFuture<std::vector<TProxyInfo>> TConnection::DiscoverProxies(const IChannelPtr&
     TDiscoveryServiceProxy proxy(channel);
 
     auto req = proxy.DiscoverProxies();
+    req->SetTimeout(Config_->RpcTimeout);
 
     return req->Invoke().Apply(BIND([] (const TDiscoveryServiceProxy::TRspDiscoverProxiesPtr& rsp) {
         std::vector<TProxyInfo> proxies;
