@@ -5761,13 +5761,11 @@ void TOperationControllerBase::BuildBriefSpec(TFluentMap fluent) const
     std::vector<TYPath> inputPaths;
     for (const auto& path : GetInputTablePaths()) {
         inputPaths.push_back(path.GetPath());
-        break;
     }
 
     std::vector<TYPath> outputPaths;
     for (const auto& path : GetOutputTablePaths()) {
         outputPaths.push_back(path.GetPath());
-        break;
     }
 
     fluent
