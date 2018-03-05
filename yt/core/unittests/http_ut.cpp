@@ -836,6 +836,8 @@ TEST_F(THttpServerTest, RequestHangUp)
     WaitFor(conn->Write(TSharedRef::FromString("POST /validating HTTP/1.1\r\nTransfer-Encoding: chunked\r\n\r\n")));
     WaitFor(conn->Close());
 
+    WaitFor(conn->Read(TSharedMutableRef::Allocate(1)));
+
     Server->Stop();
     Sleep(TDuration::MilliSeconds(10));
 
