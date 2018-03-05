@@ -3,15 +3,17 @@ import sys
 import pytest
 
 import yatest.common
-from mapreduce.yt.python.yt_stuff import yt_stuff, YtConfig
+from mapreduce.yt.python.yt_stuff import YtConfig
 
 BINARY_PATH = yatest.common.binary_path("mapreduce/yt/tests/rpc_proxy/test-rpc-proxy")
 
 TESTS_LIST = sorted(subprocess.check_output([BINARY_PATH, "--list-verbose"]).split())
 
+
 @pytest.fixture
 def yt_config(request):
     return YtConfig(yt_version="19_2")
+
 
 @pytest.mark.parametrize("test_name", TESTS_LIST)
 def test(yt_config, yt_stuff, test_name):

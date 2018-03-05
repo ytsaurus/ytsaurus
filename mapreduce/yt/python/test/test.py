@@ -1,6 +1,4 @@
-import yatest.common
-
-from mapreduce.yt.python.yt_stuff import YtStuff, yt_stuff
+from mapreduce.yt.python.yt_stuff import YtStuff
 
 from os import environ
 environ["YT_STUFF_MAX_START_RETRIES"] = "2"
@@ -12,8 +10,10 @@ def test_start_stop():
     yt.start_local_yt()
     yt.stop_local_yt()
 
+
 def test_fixture(yt_stuff):
     pass
+
 
 def test_mapreduce_yt(yt_stuff):
     yt_server = yt_stuff.get_server()
@@ -24,9 +24,11 @@ def test_mapreduce_yt(yt_stuff):
         check_exit_code=True
     )
 
+
 def test_yt_wrapper(yt_stuff):
     yt_wrapper = yt_stuff.get_yt_wrapper()
     assert not yt_wrapper.exists("//hello/world/path")
+
 
 def test_scheme(yt_stuff):
     wrapper = yt_stuff.yt_wrapper
@@ -41,4 +43,3 @@ def test_scheme(yt_stuff):
         format=wrapper.YsonFormat(),
         raw=True
     )
-
