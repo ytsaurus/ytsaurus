@@ -166,7 +166,7 @@ void TListOperationsCommand::BuildOperations(const TListOperationsResult& result
                             .Item("id").Value(operation.OperationId)
                             .Item("type").Value(operation.OperationType)
                             .Item("state").Value(operation.OperationState)
-                            .Item("authenticated_used").Value(operation.AuthenticatedUser)
+                            .Item("authenticated_user").Value(operation.AuthenticatedUser)
                             .Item("brief_progress").Value(operation.BriefProgress)
                             .Item("brief_spec").Value(operation.BriefSpec)
                             .Item("start_time").Value(operation.StartTime)
