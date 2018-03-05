@@ -170,7 +170,7 @@ void TListOperationsCommand::BuildOperations(const TListOperationsResult& result
                             .Item("id").Value(operation.OperationId)
                             .Item("type").Value(operation.OperationType)
                             .Item("state").Value(operation.OperationState)
-                            .Item("authenticated_used").Value(operation.AuthenticatedUser)
+                            .Item("authenticated_user").Value(operation.AuthenticatedUser)
                             .Item("start_time").Value(operation.StartTime)
                             .DoIf(operation.BriefProgress.operator bool(), [&] (TFluentMap fluent) {
                                 fluent.Item("brief_progress").Value(operation.BriefProgress);
