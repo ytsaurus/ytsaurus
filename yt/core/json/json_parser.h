@@ -3,8 +3,6 @@
 #include "public.h"
 #include "config.h"
 
-#include <yt/ytlib/formats/parser.h>
-
 #include <yt/core/yson/consumer.h>
 
 namespace NYT {

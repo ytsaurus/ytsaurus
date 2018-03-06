@@ -108,7 +108,7 @@ void TSkynetColumnEvaluator::ValidateAndComputeHashes(
     UnpackFields(fullRow, &filename, &data, &partIndex, &sha1, &md5, &dataSize);
 
     bool keySwitched = IsKeySwitched(fullRow, isLastRow);
-    
+
     //! Start new file.
     if (!LastFilename_ || *LastFilename_ != filename || keySwitched) {
         LastFilename_ = TString(filename);
@@ -157,13 +157,13 @@ void TSkynetColumnEvaluator::UnpackFields(
     *filename = TStringBuf(fullRow[FilenameId_].Data.String, fullRow[FilenameId_].Length);
 
     YCHECK(fullRow.GetCount() >= PartIndexId_);
-    if (fullRow[PartIndexId_].Type == EValueType::Int64) {
+    if (fullRow[PartIndexId_].Type != EValueType::Int64) {
         THROW_ERROR_EXCEPTION("Missing \"part_index\" column");
     }
     *partIndex = fullRow[PartIndexId_].Data.Int64;
 
     YCHECK(fullRow.GetCount() >= DataId_);
-    if (fullRow[DataId_].Type == EValueType::String) {
+    if (fullRow[DataId_].Type != EValueType::String) {
         THROW_ERROR_EXCEPTION("Missing \"data\" column");
     }
     *data = TStringBuf(fullRow[DataId_].Data.String, fullRow[DataId_].Length);
