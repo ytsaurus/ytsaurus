@@ -34,6 +34,13 @@ DEFINE_ENUM(ERowModificationType,
     ((VersionedWrite)   (2))
 );
 
+DEFINE_ENUM(ETransactionCoordinatorCommitMode,
+    // Success is reported when phase 2 starts (all participants have prepared but not yet committed).
+    ((Eager)  (0))
+    // Success is reported when transaction is finished (all participants have committed).
+    ((Lazy)   (1))
+);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TRow>
