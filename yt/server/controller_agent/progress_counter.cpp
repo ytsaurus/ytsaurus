@@ -343,6 +343,7 @@ void SerializeBriefVersion(const TProgressCounterPtr& counter, NYTree::TFluentAn
             .Item("completed").Value(counter->GetCompletedTotal())
             .Item("failed").Value(counter->GetFailed())
             .Item("aborted").Value(counter->GetAbortedScheduled())
+            .Item("lost").Value(counter->GetLost())
         .EndMap();
 }
 
