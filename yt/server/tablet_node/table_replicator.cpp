@@ -323,6 +323,7 @@ private:
                 TTransactionCommitOptions commitOptions;
                 commitOptions.CoordinatorCellId = Slot_->GetCellId();
                 commitOptions.Force2PC = true;
+                commitOptions.CoordinatorCommitMode = ETransactionCoordinatorCommitMode::Lazy;
                 WaitFor(localTransaction->Commit(commitOptions))
                     .ThrowOnError();
             }

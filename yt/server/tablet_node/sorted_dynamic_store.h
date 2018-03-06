@@ -78,8 +78,8 @@ public:
      *
      *  On lock failure, throws TErrorException explaining the cause.
      *
-     *  If a blocked row is encountered, fills the appropriate fields in #writeResult
-     *  and returns null; here #prelock must be |true|.
+     *  If a blocked row is encountered, fills the appropriate fields in #context
+     *  and returns null.
      */
     TSortedDynamicRow ModifyRow(
         NTableClient::TUnversionedRow row,

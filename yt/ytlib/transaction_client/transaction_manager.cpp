@@ -702,6 +702,7 @@ private:
             }
             req->set_force_2pc(options.Force2PC);
             req->set_inherit_commit_timestamp(options.InheritCommitTimestamp);
+            req->set_coordinator_commit_mode(static_cast<int>(options.CoordinatorCommitMode));
             SetOrGenerateMutationId(req, options.MutationId, options.Retry);
 
             return req->Invoke().Apply(
