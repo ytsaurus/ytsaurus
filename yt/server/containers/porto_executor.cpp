@@ -53,9 +53,11 @@ public:
     TPortoExecutor(
         std::unique_ptr<Porto::Connection> api,
         TDuration retryTime,
-        TDuration pollPeriod)
+        TDuration pollPeriod,
+        TDuration hardTimeout)
         : Api_(std::move(api))
         , RetryTime_(retryTime)
+        , HardTimeout_(hardTimeout)
     {
         PollExecutor_ = New<TPeriodicExecutor>(
             Queue_->GetInvoker(),
@@ -68,49 +70,56 @@ public:
     {
         return BIND(&TPortoExecutor::DoCreate, MakeStrong(this), name)
             .AsyncVia(Queue_->GetInvoker())
-            .Run();
+            .Run()
+            .WithTimeout(HardTimeout_);
     }
 
     virtual TFuture<void> SetProperty(const TString& name, const TString& key, const TString& value) override
     {
         return BIND(&TPortoExecutor::DoSetProperty, MakeStrong(this), name, key, value)
             .AsyncVia(Queue_->GetInvoker())
-            .Run();
+            .Run()
+            .WithTimeout(HardTimeout_);
     }
 
     virtual TFuture<void> DestroyContainer(const TString& name) override
     {
         return BIND(&TPortoExecutor::DoDestroy, MakeStrong(this), name)
             .AsyncVia(Queue_->GetInvoker())
-            .Run();
+            .Run()
+            .WithTimeout(HardTimeout_);
     }
 
     virtual TFuture<void> Start(const TString& name) override
     {
         return BIND(&TPortoExecutor::DoStart, MakeStrong(this), name)
             .AsyncVia(Queue_->GetInvoker())
-            .Run();
+            .Run()
+            .WithTimeout(HardTimeout_);
     }
 
     virtual TFuture<void> Kill(const TString& name, int signal) override
     {
         return BIND(&TPortoExecutor::DoKill, MakeStrong(this), name, signal)
             .AsyncVia(Queue_->GetInvoker())
-            .Run();
+            .Run()
+            .WithTimeout(HardTimeout_);
     }
 
     virtual TFuture<std::vector<TString>> ListContainers() override
     {
         return BIND(&TPortoExecutor::DoList, MakeStrong(this))
             .AsyncVia(Queue_->GetInvoker())
-            .Run();
+            .Run()
+            .WithTimeout(HardTimeout_);
     }
 
     virtual TFuture<int> AsyncPoll(const TString& name) override
     {
         return BIND(&TPortoExecutor::AddToPoll, MakeStrong(this), name)
             .AsyncVia(Queue_->GetInvoker())
-            .Run();
+            .Run()
+            .WithTimeout(HardTimeout_);
     }
 
     virtual void SubscribeFailed(const TCallback<void (const TError&)>& callback)
@@ -136,8 +145,9 @@ public:
             }
             return ParsePortoResult(name, portoResult);
         })
-        .AsyncVia(Queue_->GetInvoker())
-        .Run();
+            .AsyncVia(Queue_->GetInvoker())
+            .Run()
+            .WithTimeout(HardTimeout_);
     }
 
     virtual TFuture<TVolumeId> CreateVolume(
@@ -146,7 +156,8 @@ public:
     {
         return BIND(&TPortoExecutor::DoCreateVolume, MakeStrong(this), path, properties)
             .AsyncVia(Queue_->GetInvoker())
-            .Run();
+            .Run()
+            .WithTimeout(HardTimeout_);
     }
 
     virtual TFuture<void> LinkVolume(
@@ -155,7 +166,8 @@ public:
     {
         return BIND(&TPortoExecutor::DoLinkVolume, MakeStrong(this), path, name)
             .AsyncVia(Queue_->GetInvoker())
-            .Run();
+            .Run()
+            .WithTimeout(HardTimeout_);
     }
 
     virtual TFuture<void> UnlinkVolume(
@@ -164,19 +176,22 @@ public:
     {
         return BIND(&TPortoExecutor::DoUnlinkVolume, MakeStrong(this), path, name)
             .AsyncVia(Queue_->GetInvoker())
-            .Run();
+            .Run()
+            .WithTimeout(HardTimeout_);
     }
 
     virtual TFuture<std::vector<Porto::Volume>> ListVolumes() override
     {
         return BIND(&TPortoExecutor::DoListVolumes, MakeStrong(this))
             .AsyncVia(Queue_->GetInvoker())
-            .Run();
+            .Run()
+            .WithTimeout(HardTimeout_);
     }
 
 private:
     const std::unique_ptr<Porto::Connection> Api_;
     const TDuration RetryTime_;
+    const TDuration HardTimeout_;
 
     const TActionQueuePtr Queue_ = New<TActionQueue>("PortoQueue");
     TPeriodicExecutorPtr PollExecutor_;
@@ -389,10 +404,10 @@ const std::vector<TString> TPortoExecutor::ContainerRequestVars_ = {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IPortoExecutorPtr CreatePortoExecutor(TDuration retryTime, TDuration pollPeriod)
+IPortoExecutorPtr CreatePortoExecutor(TDuration retryTime, TDuration pollPeriod, TDuration hardTimeout)
 {
     std::unique_ptr<Porto::Connection> api(new Porto::Connection);
-    return New<TPortoExecutor>(std::move(api), retryTime, pollPeriod);
+    return New<TPortoExecutor>(std::move(api), retryTime, pollPeriod, hardTimeout);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
