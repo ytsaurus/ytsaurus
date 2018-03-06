@@ -1,0 +1,52 @@
+#pragma once
+
+#include "private.h"
+#include "operation_description.h"
+
+#include <yt/server/scheduler/operation.h>
+
+namespace NYT {
+namespace NSchedulerSimulator {
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TOperation
+    : public TIntrinsicRefCounted
+    , public NScheduler::IOperationStrategyHost
+{
+public:
+    DEFINE_BYVAL_RW_PROPERTY(NScheduler::EOperationState, State);
+    DEFINE_BYVAL_RW_PROPERTY(TOperationControllerPtr, Controller);
+
+public:
+    TOperation(const TOperationDescription& description);
+
+    virtual const NScheduler::TOperationId& GetId() const override;
+    virtual bool IsSchedulable() const override;
+    virtual TInstant GetStartTime() const override;
+    virtual TString GetAuthenticatedUser() const override;
+
+    virtual TNullable<int> FindSlotIndex(const TString& treeId) const override;
+    virtual int GetSlotIndex(const TString& treeId) const override;
+    virtual void SetSlotIndex(const TString&  treeId, int index) override;
+
+    virtual NScheduler::IOperationControllerStrategyHostPtr GetControllerStrategyHost() const override;
+
+    virtual NYTree::IMapNodePtr GetSpec() const override;
+
+    virtual NScheduler::TOperationRuntimeParametersPtr GetRuntimeParameters() const override;
+
+private:
+    const NScheduler::TOperationId Id_;
+    const NYTree::IMapNodePtr Spec_;
+    const TString AuthenticatedUser_;
+    const TInstant StartTime_;
+    const NScheduler::TOperationRuntimeParametersPtr RuntimeParams_;
+};
+
+DEFINE_REFCOUNTED_TYPE(TOperation)
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NSchedulerSimulator
+} // namespace NYT
