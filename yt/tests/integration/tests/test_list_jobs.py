@@ -232,10 +232,9 @@ class TestListJobs(YTEnvSetup):
             assert len(res) == 2
             assert res == sorted(res, key=lambda item: item["start_time"], reverse=True)
 
-            # Enable after fixing sort by id in archive.
-            #res = list_jobs(op.id, offset=0, limit=2, sort_field="id", **options)["jobs"]
-            #assert len(res) == 2
-            #assert res == sorted(res, key=lambda item: item["id"])
+            res = list_jobs(op.id, offset=0, limit=2, sort_field="id", **options)["jobs"]
+            assert len(res) == 2
+            assert res == sorted(res, key=lambda item: item["id"])
 
             res = list_jobs(op.id, job_state="completed", **options)["jobs"]
             assert sorted(completed_jobs) == sorted([job["id"] for job in res])

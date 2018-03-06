@@ -4573,14 +4573,10 @@ private:
                         "if(is_null(finish_time), %v, finish_time) - start_time",
                         TInstant::Now().MicroSeconds()));
                     break;
+                case EJobSortField::Id:
+                    itemsQueryBuilder.SetOrderByExpression("format_guid(job_id_hi, job_id_lo)");
+                    break;
                 // XXX: progress is not presented in archive table.
-                //case EJobSortField::Progress:
-                //    itemsQueryBuilder.SetOrderByExpression("progress");
-                //    break;
-                // TODO: sort by string representation.
-                //case EJobSortField::Id:
-                //    itemsQueryBuilder.SetOrderByExpression("job_id_hi, job_id_lo");
-                //    break;
                 default:
                     break;
             }
