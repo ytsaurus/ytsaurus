@@ -89,6 +89,7 @@ def set(path, value, format=None, recursive=False, client=None):
         client=client)
 
 def copy(source_path, destination_path,
+         source_transaction=None,
          recursive=None, preserve_account=None,
          preserve_expiration_time=None, preserve_creation_time=None,
          force=None, client=None):
@@ -98,6 +99,7 @@ def copy(source_path, destination_path,
     :type source_path: str or :class:`YPath <yt.wrapper.ypath.YPath>`
     :param destination_path: destination path.
     :type destination_path: str or :class:`YPath <yt.wrapper.ypath.YPath>`
+    :param str source_transaction: transaction id in the context of which the source_path is resolved.
     :param bool recursive: ``yt.wrapper.config["yamr_mode"]["create_recursive"]`` by default.
     :param bool preserve_account: preserve account.
     :param bool preserve_expiration_time: preserve expiration time.
@@ -110,6 +112,7 @@ def copy(source_path, destination_path,
               "destination_path": YPath(destination_path, client=client)}
 
     recursive = get_value(recursive, get_config(client)["yamr_mode"]["create_recursive"])
+    set_param(params, "source_transaction", source_transaction)
     set_param(params, "recursive", recursive, bool_to_string)
     set_param(params, "force", force, bool_to_string)
     set_param(params, "preserve_account", preserve_account, bool_to_string)
