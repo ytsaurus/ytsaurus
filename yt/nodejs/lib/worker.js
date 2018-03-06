@@ -113,7 +113,7 @@ var buffered_profiler = new yt.YtStatistics();
 
 setInterval(function() {
     buffered_profiler.mergeTo(unbuffered_profiler);
-}, 1000);
+}, 3000);
 
 // Setup periodic V8 info dump.
 var last_gc_scavenge_count = 0;
