@@ -114,7 +114,7 @@ struct ITaskHost
 
     virtual NTableClient::TRowBufferPtr GetRowBuffer() = 0;
 
-    virtual void AttachToIntermediateLivePreview(NChunkClient::TChunkId chunkId) = 0;
+    virtual void AttachToIntermediateLivePreview(const NChunkClient::TChunkId& chunkId) = 0;
 
     virtual void RegisterTeleportChunk(
         NChunkClient::TInputChunkPtr chunkSpec,
