@@ -1978,6 +1978,7 @@ private:
             if (registered) {
                 OnOperationFailed(operation->GetId(), wrappedError);
             } else {
+                MemoryTagQueue_.ReclaimOperationTag(operation->GetId());
                 operation->SetStarted(wrappedError);
             }
             THROW_ERROR(wrappedError);
