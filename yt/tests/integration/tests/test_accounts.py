@@ -1192,6 +1192,51 @@ class TestAccounts(YTEnvSetup):
         assert get("//sys/accounts/tmp/@resource_usage/node_count") == node_count
         assert get("//sys/accounts/tmp/@committed_resource_usage/node_count") == committed_node_count
 
+    def test_branched_nodes_not_checked_yt_8551(self):
+        create("table", "//tmp/t")
+
+        multicell_sleep()
+        node_count = get("//sys/accounts/tmp/@resource_usage/node_count")
+        committed_node_count = get("//sys/accounts/tmp/@committed_resource_usage/node_count")
+
+        tx1 = start_transaction()
+        copy("//tmp/t", "//tmp/t1", tx=tx1)
+
+        node_count += 3 # one for branched map node, one for cloned table, one for branched cloned table
+        committed_node_count += 1 # one for cloned table
+        multicell_sleep()
+        assert get("//sys/accounts/tmp/@resource_usage/node_count") == node_count
+        assert get("//sys/accounts/tmp/@committed_resource_usage/node_count") == committed_node_count
+
+        copy("//tmp/t", "//tmp/t2", tx=tx1)
+
+        node_count += 2 # one for cloned table, one for branched cloned table
+        committed_node_count += 1 # one for cloned table
+        multicell_sleep()
+        assert get("//sys/accounts/tmp/@resource_usage/node_count") == node_count
+        assert get("//sys/accounts/tmp/@committed_resource_usage/node_count") == committed_node_count
+
+        self._set_account_node_count_limit("tmp", committed_node_count)
+        with pytest.raises(YtError): copy("//tmp/t", "//tmp/t3", tx=tx1)
+
+        self._set_account_node_count_limit("tmp", committed_node_count + 1)
+        copy("//tmp/t", "//tmp/t3", tx=tx1)
+
+        node_count += 2
+        committed_node_count += 1
+        multicell_sleep()
+        assert get("//sys/accounts/tmp/@resource_usage/node_count") == node_count
+        assert get("//sys/accounts/tmp/@committed_resource_usage/node_count") == committed_node_count
+
+        self._set_account_node_count_limit("tmp", node_count + 2)
+        copy("//tmp/t", "//tmp/t4", tx=tx1)
+
+        node_count += 2
+        committed_node_count += 1
+        multicell_sleep()
+        assert get("//sys/accounts/tmp/@resource_usage/node_count") == node_count
+        assert get("//sys/accounts/tmp/@committed_resource_usage/node_count") == committed_node_count
+
 ##################################################################
 
 class TestAccountsMulticell(TestAccounts):
