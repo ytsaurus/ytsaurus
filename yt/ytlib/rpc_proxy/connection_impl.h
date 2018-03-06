@@ -84,6 +84,8 @@ private:
     NRpc::IChannelPtr GetRandomPeerChannel(NRpc::IRoamingChannelProvider* provider = nullptr);
     TString GetLocalAddress();
     void OnProxyListUpdated();
+
+    void SetProxyList(std::vector<TString> addresses);
 };
 
 DEFINE_REFCOUNTED_TYPE(TConnection)

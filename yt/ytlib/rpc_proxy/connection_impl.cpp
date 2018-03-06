@@ -138,19 +138,9 @@ TString TConnection::GetLocalAddress()
     return localAddressString;
 }
 
-TFuture<std::vector<TProxyInfo>> TConnection::DiscoverProxies(const TDiscoverProxyOptions& /*options*/)
+TFuture<std::vector<TProxyInfo>> TConnection::DiscoverProxies(const TDiscoverProxyOptions& options)
 {
-    TDiscoveryServiceProxy proxy(GetRandomPeerChannel());
-
-    auto req = proxy.DiscoverProxies();
-
-    return req->Invoke().Apply(BIND([] (const TDiscoveryServiceProxy::TRspDiscoverProxiesPtr& rsp) {
-        std::vector<TProxyInfo> proxies;
-        for (const auto& address : rsp->addresses()) {
-            proxies.push_back({address});
-        }
-        return proxies;
-    }));
+    return DiscoverProxies(GetRandomPeerChannel(), options);
 }
 
 const TConnectionConfigPtr& TConnection::GetConfig()
@@ -211,6 +201,7 @@ TFuture<std::vector<TProxyInfo>> TConnection::DiscoverProxies(const IChannelPtr&
     TDiscoveryServiceProxy proxy(channel);
 
     auto req = proxy.DiscoverProxies();
+    req->SetTimeout(Config_->RpcTimeout);
 
     return req->Invoke().Apply(BIND([] (const TDiscoveryServiceProxy::TRspDiscoverProxiesPtr& rsp) {
         std::vector<TProxyInfo> proxies;
@@ -226,9 +217,11 @@ void TConnection::ResetAddresses()
     LOG_INFO("Proxy address list reset (Addresses: %v)",
         Config_->Addresses);
 
-    auto guard = Guard(AddressSpinLock_);
-    Addresses_ = Config_->Addresses;
-    std::sort(Addresses_.begin(), Addresses_.end());
+    try {
+        SetProxyList(Config_->Addresses);
+    } catch (const std::exception& ex) {
+        LOG_ERROR(ex, "Error resetting proxy list");
+    }
 }
 
 void TConnection::OnProxyListUpdated()
@@ -251,42 +244,8 @@ void TConnection::OnProxyListUpdated()
         for (const auto& proxy : proxies) {
             addresses.push_back(proxy.Address);
         }
-        std::sort(addresses.begin(), addresses.end());
 
-        std::vector<TString> diff;
-        std::vector<TFuture<void>> terminated;
-        {
-            auto guard = Guard(AddressSpinLock_);
-            std::set_difference(
-                Addresses_.begin(),
-                Addresses_.end(),
-                addresses.begin(),
-                addresses.end(),
-                std::back_inserter(diff));
-
-            LOG_DEBUG("Proxy list updated (UnavailableAddresses: %v)",
-                diff);
-
-            Addresses_ = std::move(addresses);
-            for (const auto& unavailableAddress : diff) {
-                auto it = AddressToProviders_.find(unavailableAddress);
-                if (it == AddressToProviders_.end()) {
-                    break;
-                }
-
-                LOG_DEBUG("Terminating operable channels (Address: %v)",
-                    unavailableAddress);
-
-                for (auto* operable : it->second) {
-                    terminated.push_back(operable->Terminate(TError(
-                        NRpc::EErrorCode::Unavailable,
-                        "Channel is not unavailable")));
-                }
-            }
-        }
-
-        WaitFor(CombineAll(terminated))
-            .ThrowOnError();
+        SetProxyList(addresses);
     } catch (const std::exception& ex) {
         LOG_WARNING(ex, "Error updating proxy list");
         DiscoveryChannel_.Reset();
@@ -295,6 +254,47 @@ void TConnection::OnProxyListUpdated()
             ResetAddresses();
         }
     }
+}
+
+void TConnection::SetProxyList(std::vector<TString> addresses)
+{
+    std::vector<TString> diff;
+    std::vector<TFuture<void>> terminated;
+
+    std::sort(addresses.begin(), addresses.end());
+
+    {
+        auto guard = Guard(AddressSpinLock_);
+        std::set_difference(
+            Addresses_.begin(),
+            Addresses_.end(),
+            addresses.begin(),
+            addresses.end(),
+            std::back_inserter(diff));
+
+        LOG_DEBUG("Proxy list updated (UnavailableAddresses: %v)",
+            diff);
+
+        Addresses_ = std::move(addresses);
+        for (const auto& unavailableAddress : diff) {
+            auto it = AddressToProviders_.find(unavailableAddress);
+            if (it == AddressToProviders_.end()) {
+                continue;
+            }
+
+            LOG_DEBUG("Terminating operable channels (Address: %v)",
+                unavailableAddress);
+
+            for (auto* operable : it->second) {
+                terminated.push_back(operable->Terminate(TError(
+                        NRpc::EErrorCode::Unavailable,
+                        "Channel is not unavailable")));
+                }
+            }
+    }
+
+    WaitFor(CombineAll(terminated))
+        .ThrowOnError();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

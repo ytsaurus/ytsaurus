@@ -173,7 +173,7 @@ TFuture<TTransactionCommitResult> TTransaction::Commit(const TTransactionCommitO
         Id_);
 
     decltype(AsyncResults_) asyncResults;
-    {
+    try {
         auto guard = Guard(SpinLock_);
         Error_.ThrowOnError();
         switch (State_) {
@@ -197,7 +197,8 @@ TFuture<TTransactionCommitResult> TTransaction::Commit(const TTransactionCommitO
             default:
                 Y_UNREACHABLE();
         }
-
+    } catch (const std::exception& ex) {
+        return MakeFuture<TTransactionCommitResult>(ex);
     }
 
     return Combine(asyncResults).Apply(
