@@ -1,6 +1,6 @@
 set(NAME deps-arcadia-contrib-libs-c--ares)
 set(BASE ${CMAKE_SOURCE_DIR}/contrib/libs/c-ares)
-set(SRCS
+set(C_SRCS
   ${BASE}/ares__close_sockets.c
   ${BASE}/ares__get_hostent.c
   ${BASE}/ares__read_line.c
@@ -56,11 +56,11 @@ add_definitions(
   -DHAVE_CONFIG_H
 )
 
-set_source_files_properties(${SRCS} PROPERTIES LANGUAGE C)
+set_source_files_properties(${C_SRCS} PROPERTIES LANGUAGE C)
 
 include_directories(${BASE})
 
-add_library(${NAME} STATIC ${SRCS})
+add_library(${NAME} STATIC ${C_SRCS} ${BASE}/atomic.cpp)
 
 if (_is_gcc)
   set_target_properties(${NAME} PROPERTIES COMPILE_FLAGS -Wno-error)

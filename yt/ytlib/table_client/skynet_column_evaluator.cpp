@@ -108,7 +108,7 @@ void TSkynetColumnEvaluator::ValidateAndComputeHashes(
     UnpackFields(fullRow, &filename, &data, &partIndex, &sha1, &md5, &dataSize);
 
     bool keySwitched = IsKeySwitched(fullRow, isLastRow);
-    
+
     //! Start new file.
     if (!LastFilename_ || *LastFilename_ != filename || keySwitched) {
         LastFilename_ = TString(filename);

@@ -295,8 +295,7 @@ public:
             TString logLevel = logLevelStr;
             if (!logLevel.empty()) {
                 // This handles most typical casings like "DEBUG", "debug", "Debug".
-                logLevel.to_upper(0, 1);
-                logLevel.to_lower(1, logLevel.size() - 1);
+                logLevel.to_title();
                 rule->MinLevel = TEnumTraits<ELogLevel>::FromString(logLevel);
             }
         }
