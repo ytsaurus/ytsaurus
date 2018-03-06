@@ -529,7 +529,6 @@ public:
 
         codegenAggregate.Finalize = [
             this_ = MakeStrong(this),
-            stateType,
             name
         ] (TCGBaseContext& builder, Value* buffer, TCGValue aggState) {
             return aggState;

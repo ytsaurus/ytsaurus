@@ -292,7 +292,7 @@ public:
 
         if (logLevelStr) {
             TString logLevel = logLevelStr;
-            logLevel.to_upper(0, std::min(logLevel.size(), static_cast<size_t>(1)));
+            logLevel.to_title();
             rule->MinLevel = TEnumTraits<ELogLevel>::FromString(logLevel);
         } else {
             rule->MinLevel = ELogLevel::Fatal;
