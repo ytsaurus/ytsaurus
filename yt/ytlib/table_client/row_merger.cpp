@@ -522,8 +522,7 @@ TVersionedRow TVersionedRowMerger::BuildMergedRow()
             // Adjust safety limit by MinDataTtl.
             while (retentionBeginIt != ColumnValues_.begin()) {
                 auto timestamp = (retentionBeginIt - 1)->Timestamp;
-                if (CurrentTimestamp_ < MaxTimestamp &&
-                    timestamp < CurrentTimestamp_ &&
+                if (timestamp < CurrentTimestamp_ &&
                     TimestampDiffToDuration(timestamp, CurrentTimestamp_).first >= Config_->MinDataTtl)
                 {
                     break;
@@ -538,8 +537,7 @@ TVersionedRow TVersionedRowMerger::BuildMergedRow()
                 }
 
                 auto timestamp = (retentionBeginIt - 1)->Timestamp;
-                if (CurrentTimestamp_ < MaxTimestamp &&
-                    timestamp < CurrentTimestamp_ &&
+                if (timestamp < CurrentTimestamp_ &&
                     TimestampDiffToDuration(timestamp, CurrentTimestamp_).first > Config_->MaxDataTtl)
                 {
                     break;
