@@ -56,6 +56,7 @@ class YtTestEnvironment(object):
                  config=None,
                  env_options=None,
                  delta_scheduler_config=None,
+                 delta_controller_agent_config=None,
                  delta_node_config=None,
                  delta_proxy_config=None):
         self.test_name = test_name
@@ -94,6 +95,11 @@ class YtTestEnvironment(object):
         common_delta_scheduler_config = {
             "scheduler" : {
                 "max_operation_count": 5,
+            }
+        }
+
+        common_delta_controller_agent_config = {
+            "controller_agent" : {
                 "operation_options": {
                     "spec_template": {
                         "max_failed_job_count": 1
@@ -107,6 +113,10 @@ class YtTestEnvironment(object):
                 update_inplace(config, common_delta_scheduler_config)
                 if delta_scheduler_config:
                     update_inplace(config, delta_scheduler_config)
+            for config in configs["controller_agent"]:
+                update_inplace(config, common_delta_controller_agent_config)
+                if delta_controller_agent_config:
+                    update_inplace(config, delta_controller_agent_config)
             for config in configs["node"]:
                 update_inplace(config, common_delta_node_config)
                 if delta_node_config:
@@ -269,7 +279,6 @@ def test_environment_job_archive(request):
         },
         delta_scheduler_config={
             "scheduler": {
-                "enable_statistics_reporter": True,  # obsolete, need to cleanup after merging changes related to job_specs
                 "enable_job_reporter": True,
                 "enable_job_spec_reporter": True,
             },

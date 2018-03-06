@@ -866,10 +866,16 @@ class YTInstance(object):
                     return False, "No active scheduler found"
 
                 # TODO(ignat): /config/environment/primary_master_cell_id is temporary solution.
-                master_cell_id = client.get("//sys/@cell_id")
-                scheduler_cell_id = client.get(active_scheduler_orchid_path + "/config/environment/primary_master_cell_id")
-                if master_cell_id != scheduler_cell_id:
-                    return False, "Incorrect scheduler connected, its cell_id {0} does not match master cell {1}".format(scheduler_cell_id, master_cell_id)
+                try:
+                    master_cell_id = client.get("//sys/@cell_id")
+                    scheduler_cell_id = client.get(active_scheduler_orchid_path + "/config/environment/primary_master_cell_id")
+                    if master_cell_id != scheduler_cell_id:
+                        return False, "Incorrect scheduler connected, its cell_id {0} does not match master cell {1}".format(scheduler_cell_id, master_cell_id)
+                except YtResponseError as err:
+                    if err.is_resolve_error():
+                        return False, "Failed to request primary_master_cell_id from master and scheduler" + str(err)
+                    else:
+                        raise
 
                 nodes = list(itervalues(client.get(active_scheduler_orchid_path + "/nodes")))
                 return len(nodes) == self.node_count and all(node["state"] == "online" for node in nodes)
@@ -883,6 +889,38 @@ class YTInstance(object):
 
     def start_controller_agents(self, sync=True):
         self._run_yt_component("controller-agent", name="controller_agent")
+
+        def controller_agents_ready():
+            self._validate_processes_are_running("controller_agent")
+
+            client = self.create_client()
+            instances = client.list("//sys/controller_agents/instances")
+            if len(instances) != self.controller_agent_count:
+                return False, "Only {0} agents are registered in cypress".format(len(instances))
+
+            try:
+                active_agents_count = 0
+                for instance in instances:
+                    orchid_path = "//sys/controller_agents/instances/{0}/orchid".format(instance)
+                    path = orchid_path + "/controller_agent"
+                    try:
+                        client.set(orchid_path + "/@retry_backoff_time", 100)
+                        active_agents_count += client.get(path + "/connected")
+                    except YtError as err:
+                        if not err.is_resolve_error():
+                            raise
+
+                if active_agents_count < self.controller_agent_count:
+                    return False, "Only {0} agents are active".format(active_agents_count)
+
+                return True
+            except YtResponseError as err:
+                # Orchid connection refused
+                if not err.contains_code(105) and not err.contains_code(100):
+                    raise
+                return False, err
+
+        self._wait_or_skip(lambda: self._wait_for(controller_agents_ready, "controller_agent", max_wait_time=20), sync)
 
     def create_client(self):
         if self.has_proxy:
