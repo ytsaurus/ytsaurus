@@ -69,7 +69,8 @@ DEFINE_REFCOUNTED_TYPE(IPortoExecutor)
 
 IPortoExecutorPtr CreatePortoExecutor(
     TDuration retryTime = TDuration::Seconds(10),
-    TDuration pollPeriod = TDuration::MilliSeconds(100));
+    TDuration pollPeriod = TDuration::MilliSeconds(100),
+    TDuration hardTimeout = TDuration::Minutes(5));
 
 ////////////////////////////////////////////////////////////////////////////////
 
