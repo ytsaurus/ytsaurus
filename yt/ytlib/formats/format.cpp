@@ -1,4 +1,5 @@
 #include "format.h"
+#include "parser.h"
 #include "dsv_parser.h"
 #include "dsv_writer.h"
 #include "protobuf_parser.h"

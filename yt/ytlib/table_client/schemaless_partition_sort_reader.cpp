@@ -1,3 +1,4 @@
+#include <util/random/shuffle.h>
 #include "schemaless_partition_sort_reader.h"
 #include "private.h"
 #include "config.h"
@@ -78,7 +79,7 @@ public:
     {
         YCHECK(EstimatedRowCount_ <= std::numeric_limits<i32>::max());
 
-        std::random_shuffle(dataSliceDescriptors.begin(), dataSliceDescriptors.end());
+        Shuffle(dataSliceDescriptors.begin(), dataSliceDescriptors.end());
 
         auto options = New<NTableClient::TTableReaderOptions>();
         options->KeepInMemory = true;

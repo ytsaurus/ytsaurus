@@ -1,3 +1,4 @@
+#include <util/random/shuffle.h>
 #include <yt/core/test_framework/framework.h>
 
 #include <yt/ytlib/chunk_client/config.h>
@@ -257,7 +258,7 @@ public:
         auto repairIndices = *codec->GetRepairIndices(erasedIndices);
         std::set<int> repairIndicesSet(repairIndices.begin(), repairIndices.end());
 
-        auto ioEngine = CreateIOEngine(NDataNode::EIOEngineType::ThreadPool, NYTree::INodePtr());
+        auto ioEngine = CreateIOEngine(EIOEngineType::ThreadPool, NYTree::INodePtr());
         for (int i = 0; i < codec->GetTotalPartCount(); ++i) {
             auto filename = "part" + ToString(i + 1);
             if (repairWriters && erasedIndicesSet.find(i) != erasedIndicesSet.end()) {
@@ -281,7 +282,7 @@ public:
     static std::vector<IChunkReaderAllowingRepairPtr> GetFileReaders(int partCount)
     {
         std::vector<IChunkReaderAllowingRepairPtr> readers;
-        auto ioEngine = CreateIOEngine(NDataNode::EIOEngineType::ThreadPool, NYTree::INodePtr());
+        auto ioEngine = CreateIOEngine(EIOEngineType::ThreadPool, NYTree::INodePtr());
         readers.reserve(partCount);
         for (int i = 0; i < partCount; ++i) {
             auto filename = "part" + ToString(i + 1);
@@ -314,7 +315,7 @@ public:
         TNullable<int> maskCount)
     {
         auto check = [&] (std::vector<int> indexes) {
-            std::random_shuffle(indexes.begin(), indexes.end());
+            Shuffle(indexes.begin(), indexes.end());
             auto result = WaitFor(repairReader->ReadBlocks(TWorkloadDescriptor(), indexes))
                 .ValueOrThrow();
             EXPECT_EQ(result.size(), indexes.size());
@@ -353,7 +354,7 @@ public:
                 for (int i = 0; i < dataRefs.size(); ++i) {
                     indexes.push_back(i);
                 }
-                std::random_shuffle(indexes.begin(), indexes.end());
+                Shuffle(indexes.begin(), indexes.end());
                 indexes.resize(1 + rand() % (dataRefs.size() - 1));
 
                 check(indexes);
@@ -397,7 +398,7 @@ public:
 
         std::vector<IChunkReaderAllowingRepairPtr> readers;
         readers.reserve(partCount);
-        auto ioEngine = CreateIOEngine(NDataNode::EIOEngineType::ThreadPool, NYTree::INodePtr());
+        auto ioEngine = CreateIOEngine(EIOEngineType::ThreadPool, NYTree::INodePtr());
         for (int i = 0; i < partCount; ++i) {
             auto filename = "part" + ToString(i + 1);
             if (failingTimes[i] == 0) {
