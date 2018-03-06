@@ -490,6 +490,8 @@ def add_copy_parser(add_parser):
     add_ypath_argument(parser, "source_path", help="source address, path must exist", hybrid=True)
     add_ypath_argument(parser, "destination_path", help="destination address, path must not exist", hybrid=True)
 
+    parser.add_argument("--source-tx", dest="source_transaction",
+                        help="a transaction within which the source path is resolved")
     parser.add_argument("--preserve-account", action="store_true",
                         help="preserve account of copied nodes")
     parser.add_argument("--preserve-expiration-time", action="store_true",
