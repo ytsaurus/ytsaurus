@@ -488,8 +488,6 @@ class ConfigsProvider_19_2(ConfigsProvider):
 
             config["rpc_port"] = next(ports_generator)
             config["monitoring_port"] = next(ports_generator)
-            set_at(config, "scheduler/snapshot_temp_path", os.path.join(scheduler_dirs[index], "snapshots"))
-
             config["logging"] = init_logging(config.get("logging"), scheduler_logs_dir,
                                              "scheduler-" + str(index), provision["enable_debug_logging"])
 
@@ -737,11 +735,15 @@ class ConfigsProvider_19_3(ConfigsProvider_19_2):
 
         for config in configs:
             config["scheduler"]["operation_alerts_update_period"] = 100
-            config["scheduler"]["exec_nodes_update_period"] = 100
             config["scheduler"]["exec_node_descriptors_update_period"] = 100
-            config["scheduler"]["controller_exec_node_info_update_period"] = 100
             config["scheduler"]["operation_to_agent_assignment_backoff"] = 100
-            del config["scheduler"]["exec_nodes_request_period"]
+
+            for field in ("transactions_refresh_period", "update_exec_node_descriptors_period",
+                          "safe_scheduler_online_time", "operation_alerts_update_period",
+                          "snapshot_period", "enable_snapshot_loading", "operation_options", "snapshot_timeout",
+                          "exec_nodes_request_period"):
+                del config["scheduler"][field]
+
 
         return configs
 
@@ -749,9 +751,22 @@ class ConfigsProvider_19_3(ConfigsProvider_19_2):
                                         ports_generator, controller_agent_logs_dir):
         configs = []
 
-        # TODO(ignat): separate scheduler and controller agent configs.
+        # TODO(ignat): separate scheduler and controller agent configs after removing 19.2.
         for index in xrange(provision["controller_agent"]["count"]):
             config = default_configs.get_scheduler_config()
+            config["controller_agent"] = config["scheduler"]
+            del config["scheduler"]
+            
+            for field in ("orchid_keys_update_period", "nodes_attributes_update_period",
+                          "fair_share_update_period", "update_exec_node_descriptors_period",
+                          "min_needed_resources_update_period",
+                          "watchers_update_period", "node_shard_exec_nodes_cache_update_period"):
+                del config["controller_agent"][field]
+
+            config["controller_agent"]["operation_alerts_update_period"] = 100
+            config["controller_agent"]["config_update_period"] = 100
+            config["controller_agent"]["exec_nodes_update_period"] = 100
+            config["controller_agent"]["controller_exec_node_info_update_period"] = 100
 
             set_at(config, "address_resolver/localhost_fqdn", provision["fqdn"])
             config["cluster_connection"] = \
@@ -761,10 +776,8 @@ class ConfigsProvider_19_3(ConfigsProvider_19_2):
 
             config["rpc_port"] = next(ports_generator)
             config["monitoring_port"] = next(ports_generator)
-            set_at(config, "scheduler/snapshot_temp_path", os.path.join(controller_agent_dirs[index], "snapshots"))
-
             config["logging"] = init_logging(config.get("logging"), controller_agent_logs_dir,
-                                             "scheduler-" + str(index), provision["enable_debug_logging"])
+                                             "controller-agent-" + str(index), provision["enable_debug_logging"])
 
             _set_bind_retry_options(config, key="bus_server")
 
