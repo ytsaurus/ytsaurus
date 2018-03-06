@@ -144,6 +144,7 @@ private:
         THashSet<i64> ConsumedRowIndexes;
         i64 MaxConsumedRowIndex = std::numeric_limits<i64>::min();
         i64 FetchRowIndex = std::numeric_limits<i64>::max();
+        i64 LastTrimmedRowIndex = std::numeric_limits<i64>::min();
     };
 
     struct TState
@@ -291,6 +292,7 @@ private:
         for (auto& pair : state->TabletMap) {
             auto& tablet = pair.second;
             tablet.FetchRowIndex = 0;
+            tablet.LastTrimmedRowIndex = -1;
         }
 
         for (const auto& row : stateRows) {
@@ -303,6 +305,7 @@ private:
 
             if (row.State == ERowState::ConsumedAndTrimmed) {
                 tablet.FetchRowIndex = row.RowIndex;
+                tablet.LastTrimmedRowIndex = std::max(tablet.LastTrimmedRowIndex, row.RowIndex);
             }
         }
 
@@ -371,6 +374,13 @@ private:
         auto rowLimit = Config_->MaxRowsPerFetch;
         {
             TGuard<TSpinLock> guard(state->SpinLock);
+            if (tablet.FetchRowIndex > tablet.LastTrimmedRowIndex + Config_->MaxFetchedUntrimmedRowCount) {
+                LOG_ERROR("Number of fetched but trimmed rows exceeds the limit; fetching new rows suspended (TabletIndex: %v, RowCount: %v, Limit: %v)",
+                    tabletIndex,
+                    tablet.FetchRowIndex - tablet.LastTrimmedRowIndex,
+                    Config_->MaxFetchedUntrimmedRowCount);
+                return;
+            }
             if (state->BatchesDataWeight > Config_->MaxPrefetchDataWeight) {
                 return;
             }
@@ -750,6 +760,17 @@ private:
         }
 
         {
+            TGuard<TSpinLock> guard(state->SpinLock);
+            for (const auto& pair : tabletStatisticsMap) {
+                int tabletIndex = pair.first;
+                const auto& statistics = pair.second;
+                auto tabletIt = state->TabletMap.find(tabletIndex);
+                YCHECK(tabletIt != state->TabletMap.end());
+                tabletIt->second.LastTrimmedRowIndex = statistics.LastTrimmedRowIndex;
+            }
+        }
+
+        {
             auto nameTable = New<TNameTable>();
             auto tabletIndexColumnId = nameTable->RegisterName(TStateTable::TabletIndexColumnName);
             auto rowIndexColumnId = nameTable->RegisterName(TStateTable::RowIndexColumnName);
@@ -849,7 +870,7 @@ private:
     void OnStateFailed(const TStatePtr& state)
     {
         bool expected = false;
-        if (!state->Failed.compare_exchange_strong(expected, true)) {
+        if (state->Failed.compare_exchange_strong(expected, true)) {
             RecreateState(true);
         }
     }

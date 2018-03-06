@@ -4741,7 +4741,7 @@ private:
 
         auto batchRequestFuture = batchReq->Invoke();
 
-        return batchRequestFuture.Apply(BIND([operationId, options] (
+        return batchRequestFuture.Apply(BIND([options] (
             const TErrorOr<TObjectServiceProxy::TRspExecuteBatchPtr>& batchRspOrError)
         {
             const auto& batchRsp = batchRspOrError.ValueOrThrow();
@@ -4823,7 +4823,7 @@ private:
             proxy.SetDefaultTimeout(*deadline - Now());
         }
 
-        return proxy.Execute(getReq).Apply(BIND([operationId, options] (const TYPathProxy::TRspGetPtr& rsp) {
+        return proxy.Execute(getReq).Apply(BIND([options] (const TYPathProxy::TRspGetPtr& rsp) {
             std::pair<std::vector<TJob>, int> result;
             auto& jobs = result.first;
 

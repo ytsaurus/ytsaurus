@@ -582,13 +582,13 @@ IIOEnginePtr CreateIOEngine(const NYTree::INodePtr& ioConfig)
     return New<T>(config);
 }
 
-IIOEnginePtr CreateIOEngine(NDataNode::EIOEngineType ioType, const NYTree::INodePtr& ioConfig)
+IIOEnginePtr CreateIOEngine(EIOEngineType ioType, const NYTree::INodePtr& ioConfig)
 {
     switch (ioType) {
-        case NDataNode::EIOEngineType::ThreadPool:
+        case EIOEngineType::ThreadPool:
             return CreateIOEngine<TThreadedIOEngine>(ioConfig);
     #ifdef _linux_
-        case NDataNode::EIOEngineType::Aio:
+        case EIOEngineType::Aio:
             return CreateIOEngine<TAioEngine>(ioConfig);
     #endif
         default:

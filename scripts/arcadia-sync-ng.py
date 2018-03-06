@@ -67,7 +67,7 @@ PROJECT_PATH = os.path.abspath(os.path.join(SCRIPT_PATH, ".."))
 
 def get_abi_major_minor_from_git_branch(git):
     ref = git.call("rev-parse", "--abbrev-ref", "HEAD").strip()
-    match = re.match(r"^(?:pre)?stable/(\d+).(\d+)$", ref)
+    match = re.match(r"^(?:pre)?stable[^/]*/(\d+).(\d+)$", ref)
     if not match:
         raise CheckError("Current branch must be either 'prestable/X.Y' or 'stable/X.Y'")
     major, minor = map(int, [match.group(1), match.group(2)])
