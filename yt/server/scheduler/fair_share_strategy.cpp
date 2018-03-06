@@ -2007,10 +2007,12 @@ public:
         auto state = New<TFairShareStrategyOperationState>(operation);
         state->TreeIdToPoolIdMap() = ParseOperationPools(operation);
 
+        YCHECK(OperationIdToOperationState_.insert(
+            std::make_pair(operation->GetId(), state)).second);
+
         {
-            TWriterGuard guard(OperationIdToOperationStateLock_);
-            YCHECK(OperationIdToOperationState_.insert(
-                std::make_pair(operation->GetId(), state)).second);
+            TWriterGuard guard(RegisteredOperationsLock_);
+            YCHECK(RegisteredOperations_.insert(operation->GetId()).second);
         }
 
         auto runtimeParams = operation->GetRuntimeParameters();
@@ -2066,9 +2068,11 @@ public:
         }
 
         {
-            TWriterGuard guard(OperationIdToOperationStateLock_);
-            YCHECK(OperationIdToOperationState_.erase(operation->GetId()) == 1);
+            TWriterGuard guard(RegisteredOperationsLock_);
+            YCHECK(RegisteredOperations_.erase(operation->GetId()) == 1);
         }
+
+        YCHECK(OperationIdToOperationState_.erase(operation->GetId()) == 1);
     }
 
     virtual void UpdatePools(const INodePtr& poolsNode) override
@@ -2542,8 +2546,8 @@ public:
                 snapshot->ProcessCompletedJob(job);
             } else {
                 // If operation is not yet in snapshot let's push it back to completed jobs.
-                TReaderGuard guard(OperationIdToOperationStateLock_);
-                if (OperationIdToOperationState_.find(job.OperationId) != OperationIdToOperationState_.end()) {
+                TReaderGuard guard(RegisteredOperationsLock_);
+                if (RegisteredOperations_.find(job.OperationId) != RegisteredOperations_.end()) {
                     remainingCompletedJobs.push_back(job);
                 }
             }
@@ -2602,8 +2606,10 @@ private:
     TPeriodicExecutorPtr FairShareLoggingExecutor_;
     TPeriodicExecutorPtr MinNeededJobResourcesUpdateExecutor_;
 
-    TReaderWriterSpinLock OperationIdToOperationStateLock_;
     yhash<TOperationId, TFairShareStrategyOperationStatePtr> OperationIdToOperationState_;
+
+    TReaderWriterSpinLock RegisteredOperationsLock_;
+    yhash_set<TOperationId> RegisteredOperations_;
 
     TInstant LastProfilingTime_;
 
