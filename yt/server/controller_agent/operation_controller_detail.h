@@ -736,7 +736,7 @@ protected:
 
     const NObjectClient::TTransactionId& GetTransactionIdForOutputTable(const TOutputTable& table);
 
-    virtual void AttachToIntermediateLivePreview(NChunkClient::TChunkId chunkId) override;
+    virtual void AttachToIntermediateLivePreview(const NChunkClient::TChunkId& chunkId) override;
 
     void AttachToLivePreview(
         NChunkClient::TChunkTreeId chunkTreeId,

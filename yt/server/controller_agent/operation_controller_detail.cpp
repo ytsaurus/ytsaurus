@@ -5252,7 +5252,7 @@ bool TOperationControllerBase::IsBoundaryKeysFetchEnabled() const
     return false;
 }
 
-void TOperationControllerBase::AttachToIntermediateLivePreview(TChunkId chunkId)
+void TOperationControllerBase::AttachToIntermediateLivePreview(const TChunkId& chunkId)
 {
     if (IsIntermediateLivePreviewSupported()) {
         AttachToLivePreview(chunkId, IntermediateTable.LivePreviewTableIds);
