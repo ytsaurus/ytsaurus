@@ -682,6 +682,10 @@ private:
             batchReq->AddRequest(multisetReq, "update_op_node");
         }
 
+        // This is needed to prevent controller lifetime prolongation due to strong pointer
+        // being kept in the stack while waiting for a batch request being invoked.
+        controller.Reset();
+
         auto batchRspOrError = WaitFor(batchReq->Invoke());
         THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError));
     }
@@ -1054,18 +1058,22 @@ private:
             return;
         }
 
+        TOperationIdToWeakControllerMap weakControllerMap;
+
         const auto& controllerAgent = Bootstrap_->GetControllerAgent();
         auto controllerMap = controllerAgent->GetOperations();
+        for (const auto& pair : controllerMap) {
+            weakControllerMap.insert({pair.first, pair.second->GetController()});
+        }
 
         auto builder = New<TSnapshotBuilder>(
             Config_,
-            std::move(controllerMap),
             Bootstrap_->GetMasterClient(),
             Bootstrap_->GetControllerAgent()->GetSnapshotIOInvoker(),
             Bootstrap_->GetControllerAgent()->GetIncarnationId());
 
         // NB: Result is logged in the builder.
-        auto error = WaitFor(builder->Run());
+        auto error = WaitFor(builder->Run(weakControllerMap));
         if (error.IsOK()) {
             LOG_INFO("Snapshot builder finished");
         } else {
