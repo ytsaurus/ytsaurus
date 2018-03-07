@@ -20,21 +20,23 @@ if (_GIT AND EXISTS ${PROJECT_SOURCE_DIR}/.git)
 endif()
 
 if (NOT YT_BUILD_GIT_DEPTH)
+  set(YT_BUILD_GIT_DEPTH 0)
   if (_GIT)
-    execute_process(
-      COMMAND python git-depth.py
-      WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
-      OUTPUT_VARIABLE YT_BUILD_GIT_DEPTH
-      ERROR_VARIABLE GIT_ERROR
-      OUTPUT_STRIP_TRAILING_WHITESPACE)
-    if(GIT_ERROR)
-      message(WARNING
-        "Error running command `python git-depth.py` in source directory \
-        for getting local commit depth.\nStderr:\n${GIT_ERROR}")
-      set(YT_BUILD_GIT_DEPTH 0)
+    find_program(_PYTHON NAMES python)
+    if (_PYTHON)
+      execute_process(
+        COMMAND ${_PYTHON} git-depth.py
+        WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
+        OUTPUT_VARIABLE YT_BUILD_GIT_DEPTH
+        ERROR_VARIABLE GIT_ERROR
+        OUTPUT_STRIP_TRAILING_WHITESPACE)
+      if(GIT_ERROR)
+        message(WARNING
+          "Error running command `python git-depth.py` in source directory \
+          for getting local commit depth.\nStderr:\n${GIT_ERROR}")
+        set(YT_BUILD_GIT_DEPTH 0)
+      endif()
     endif()
-  else()
-    set(YT_BUILD_GIT_DEPTH 0)
   endif()
 endif()
 
