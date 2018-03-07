@@ -3564,7 +3564,7 @@ private:
             }
         }
 
-        THROW_ERROR_EXCEPTION("No such operation %v", operationId);
+        THROW_ERROR_EXCEPTION(EErrorCode::NoSuchOperation, "No such operation %v", operationId);
     }
 
     void DoDumpJobContext(
