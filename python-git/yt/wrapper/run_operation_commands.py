@@ -55,6 +55,7 @@ import yt.logger as logger
 import sys
 import time
 
+
 @forbidden_inside_job
 def run_erase(table, spec=None, sync=True, client=None):
     """Erases table or part of it.
