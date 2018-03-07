@@ -42,7 +42,8 @@ ACL commands:
     add-member, remove-member, check-permission
 Operation commands:
     map-reduce, map, sort, reduce, join-reduce, merge, erase,
-    remote-copy, abort-op, suspend-op, resume-op, track-op, complete-op
+    remote-copy, abort-op, suspend-op, resume-op, track-op, complete-op,
+    update-op-parameters
 Transaction commands:
     lock, start-tx, abort-tx, commit-tx, ping-tx
 Job commands:
@@ -850,8 +851,8 @@ For append mode in destination table add <append=true> modificator to path.
     parser.add_argument("--reduce-combiner-output-format", action=ParseFormat, help="see --format help")
     parser.add_argument("--async", action="store_true", default=False, help="do not track operation progress")
 
-def operation_id_args(parser):
-    add_hybrid_argument(parser, "operation", help="operation id")
+def operation_id_args(parser, **kwargs):
+    add_hybrid_argument(parser, "operation", help="operation id", **kwargs)
 
 def add_abort_op_parser(add_parser):
     parser = add_parser("abort-op", yt.abort_operation)
@@ -879,6 +880,11 @@ def add_track_op_parser(add_parser):
 def add_complete_op_parser(add_parser):
     parser = add_parser("complete-op", yt.complete_operation)
     operation_id_args(parser)
+
+def add_update_op_parameters_parser(add_parser):
+    parser = add_parser("update-op-parameters", yt.update_operation_parameters)
+    operation_id_args(parser, dest="operation_id")
+    add_structured_argument(parser, "parameters")
 
 @copy_docstring_from(yt.start_transaction)
 def start_tx(**args):
@@ -1127,6 +1133,7 @@ def main():
     add_resume_op_parser(add_parser)
     add_track_op_parser(add_parser)
     add_complete_op_parser(add_parser)
+    add_update_op_parameters_parser(add_parser)
 
     add_start_tx_parser(add_parser)
     add_abort_tx_parser(add_parser)
