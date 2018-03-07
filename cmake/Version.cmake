@@ -6,10 +6,6 @@ if (NOT YT_BUILD_NUMBER)
   set(YT_BUILD_NUMBER 0)
 endif()
 
-if (NOT YT_BUILD_GIT_DEPTH)
-  set(YT_BUILD_GIT_DEPTH 0)
-endif()
-
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
   set(YT_BUILD_TYPE "debug")
 endif()

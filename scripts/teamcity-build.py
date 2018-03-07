@@ -63,13 +63,8 @@ def prepare(options, build_context):
     os.environ["LANG"] = "en_US.UTF-8"
     os.environ["LC_ALL"] = "en_US.UTF-8"
 
-    script_directory = os.path.dirname(os.path.realpath(__file__))
-
     options.build_number = os.environ["BUILD_NUMBER"]
     options.build_vcs_number = os.environ["BUILD_VCS_NUMBER"]
-    options.build_git_depth = run_captured(
-        [os.path.join(script_directory, "git-depth.py")],
-        cwd=options.checkout_directory)
 
     options.build_enable_nodejs = parse_yes_no_bool(os.environ.get("BUILD_ENABLE_NODEJS", "YES"))
     options.build_enable_python_2_6 = parse_yes_no_bool(os.environ.get("BUILD_ENABLE_PYTHON_2_6", "YES"))
@@ -138,8 +133,8 @@ def prepare(options, build_context):
 
     # Enable cores.
     resource.setrlimit(
-	resource.RLIMIT_CORE,
-	(resource.RLIM_INFINITY, resource.RLIM_INFINITY))
+        resource.RLIMIT_CORE,
+        (resource.RLIM_INFINITY, resource.RLIM_INFINITY))
 
     mkdirp(options.sandbox_directory)
 
@@ -162,7 +157,6 @@ def configure(options, build_context):
         "-DYT_BUILD_NUMBER={0}".format(options.build_number),
         "-DYT_BUILD_VCS_NUMBER={0}".format(options.build_vcs_number[0:7]),
         "-DYT_BUILD_USERNAME=", # Empty string is used intentionally to suppress username in version identifier.
-        "-DYT_BUILD_GIT_DEPTH={0}".format(options.build_git_depth),
         "-DYT_BUILD_ENABLE_NODEJS={0}".format(format_yes_no(options.build_enable_nodejs)),
         "-DYT_BUILD_ENABLE_PYTHON_2_6={0}".format(format_yes_no(options.build_enable_python_2_6)),
         "-DYT_BUILD_ENABLE_PYTHON_2_7={0}".format(format_yes_no(options.build_enable_python_2_7)),
