@@ -6,6 +6,38 @@ if (NOT YT_BUILD_NUMBER)
   set(YT_BUILD_NUMBER 0)
 endif()
 
+find_program(_GIT NAMES git)
+
+if (_GIT AND EXISTS ${PROJECT_SOURCE_DIR}/.git)
+    # This is a VERY dirty hack to make make re-run cmake (pun intended)
+    # when a different commit is checked out.
+    configure_file(
+      ${PROJECT_SOURCE_DIR}/.git/logs/HEAD
+      ${CMAKE_CURRENT_BINARY_DIR}/git_logs_HEAD
+      COPYONLY)
+
+    set(_GIT ${_GIT} CACHE INTERNAL "")
+endif()
+
+if (NOT YT_BUILD_GIT_DEPTH)
+  if (_GIT)
+    execute_process(
+      COMMAND python git-depth.py
+      WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
+      OUTPUT_VARIABLE YT_BUILD_GIT_DEPTH
+      ERROR_VARIABLE GIT_ERROR
+      OUTPUT_STRIP_TRAILING_WHITESPACE)
+    if(GIT_ERROR)
+      message(WARNING
+        "Error running command `python git-depth.py` in source directory \
+        for getting local commit depth.\nStderr:\n${GIT_ERROR}")
+      set(YT_BUILD_GIT_DEPTH 0)
+    endif()
+  else()
+    set(YT_BUILD_GIT_DEPTH 0)
+  endif()
+endif()
+
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
   set(YT_BUILD_TYPE "debug")
 endif()
@@ -44,7 +76,6 @@ find_program(_HOSTNAME NAMES hostname)
 find_program(_UNAME NAMES uname)
 find_program(_DATE NAMES date)
 find_program(_WHOAMI NAMES whoami)
-find_program(_GIT NAMES git)
 
 if(_HOSTNAME)
   set(_HOSTNAME ${_HOSTNAME} CACHE INTERNAL "")
@@ -93,14 +124,6 @@ endif()
 
 if (NOT YT_BUILD_VCS_NUMBER)
   if (_GIT AND EXISTS ${PROJECT_SOURCE_DIR}/.git)
-    # This is a VERY dirty hack to make make re-run cmake (pun intended)
-    # when a different commit is checked out.
-    configure_file(
-      ${PROJECT_SOURCE_DIR}/.git/logs/HEAD
-      ${CMAKE_CURRENT_BINARY_DIR}/git_logs_HEAD
-      COPYONLY)
-
-    set(_GIT ${_GIT} CACHE INTERNAL "")
     execute_process(
       COMMAND ${_GIT} -C ${PROJECT_SOURCE_DIR} rev-parse HEAD
       OUTPUT_VARIABLE YT_BUILD_VCS_NUMBER
