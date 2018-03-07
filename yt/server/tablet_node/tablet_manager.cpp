@@ -1909,7 +1909,7 @@ private:
         replicaInfo->SetCurrentReplicationRowIndex(newCurrentReplicationRowIndex);
         replicaInfo->SetCurrentReplicationTimestamp(newCurrentReplicationTimestamp);
 
-        AdvanceReplicatedTrimmedRowCount(transaction, tablet);
+        AdvanceReplicatedTrimmedRowCount(tablet, transaction);
 
         LOG_DEBUG_UNLESS(IsRecovery(), "Async replicated rows committed (TabletId: %v, ReplicaId: %v, TransactionId: %v, "
             "CurrentReplicationRowIndex: %v -> %v, CurrentReplicationTimestamp: %llx -> %llx, TrimmedRowCount: %v -> %v)",
@@ -2154,7 +2154,7 @@ private:
         std::sort(syncReplicaTablets.begin(), syncReplicaTablets.end());
         syncReplicaTablets.erase(std::unique(syncReplicaTablets.begin(), syncReplicaTablets.end()), syncReplicaTablets.end());
         for (auto* tablet : syncReplicaTablets) {
-            AdvanceReplicatedTrimmedRowCount(transaction, tablet);
+            AdvanceReplicatedTrimmedRowCount(tablet, transaction);
         }
         
         if (transaction->DelayedLocklessWriteLog().Empty()) {
@@ -3127,6 +3127,7 @@ private:
 
         replicas.erase(it);
 
+        AdvanceReplicatedTrimmedRowCount(tablet, nullptr);
         UpdateTabletSnapshot(tablet);
 
         LOG_INFO_UNLESS(IsRecovery(), "Table replica removed (TabletId: %v, ReplicaId: %v)",
@@ -3210,7 +3211,7 @@ private:
             trimmedRowCount);
     }
 
-    void AdvanceReplicatedTrimmedRowCount(TTransaction* transaction, TTablet* tablet)
+    void AdvanceReplicatedTrimmedRowCount(TTablet* tablet, TTransaction* transaction)
     {
         YCHECK(tablet->IsReplicated());
 
@@ -3230,7 +3231,9 @@ private:
         }
 
         const auto& config = tablet->GetConfig();
-        auto retentionDeadline = TimestampToInstant(transaction->GetCommitTimestamp()).first - config->MinReplicationLogTtl;
+        auto retentionDeadline = transaction
+            ? TimestampToInstant(transaction->GetCommitTimestamp()).first - config->MinReplicationLogTtl
+            : TInstant::Max();
         auto it = storeRowIndexMap.find(tablet->GetTrimmedRowCount());
         YCHECK(it != storeRowIndexMap.end());
         while (it != storeRowIndexMap.end()) {
