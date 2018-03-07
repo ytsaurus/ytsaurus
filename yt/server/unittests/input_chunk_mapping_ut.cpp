@@ -119,8 +119,8 @@ protected:
         auto lhsChunkIds = ToChunkIds(lhs);
         auto rhsChunkIds = ToChunkIds(rhs);
         if (Mode_ == EChunkMappingMode::Unordered) {
-            sort(lhsChunkIds.begin(), lhsChunkIds.end());
-            sort(rhsChunkIds.begin(), rhsChunkIds.end());
+            std::sort(lhsChunkIds.begin(), lhsChunkIds.end());
+            std::sort(rhsChunkIds.begin(), rhsChunkIds.end());
         }
         return lhsChunkIds == rhsChunkIds;
     }
