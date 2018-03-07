@@ -840,7 +840,6 @@ protected:
     void ValidateOutputSchemaOrdered() const;
     void ValidateOutputSchemaCompatibility(bool ignoreSortOrder, bool validateComputedColumns = false) const;
 
-    virtual void BuildInitializeImmutableAttributes(NYTree::TFluentMap fluent) const;
     virtual void BuildInitializeMutableAttributes(NYTree::TFluentMap fluent) const;
     virtual void BuildPrepareAttributes(NYTree::TFluentMap fluent) const;
     virtual void BuildBriefSpec(NYTree::TFluentMap fluent) const;

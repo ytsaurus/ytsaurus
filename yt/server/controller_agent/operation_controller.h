@@ -48,9 +48,9 @@ using TOperationAlertMap = THashMap<EOperationAlertType, TError>;
 
 struct TOperationControllerInitializationAttributes
 {
-    NYson::TYsonString Immutable;
     NYson::TYsonString Mutable;
     NYson::TYsonString BriefSpec;
+    NYson::TYsonString FullSpec;
     NYson::TYsonString UnrecognizedSpec;
 };
 

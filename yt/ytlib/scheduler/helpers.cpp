@@ -263,6 +263,16 @@ bool IsOperationInProgress(EOperationState state)
         state == EOperationState::Aborting;
 }
 
+bool IsOperationWithUserJobs(EOperationType operationType)
+{
+    return
+        operationType == EOperationType::Map ||
+        operationType == EOperationType::Reduce ||
+        operationType == EOperationType::MapReduce ||
+        operationType == EOperationType::JoinReduce ||
+        operationType == EOperationType::Vanilla;
+}
+
 void ValidateEnvironmentVariableName(TStringBuf name)
 {
     static const int MaximumNameLength = 1 << 16; // 64 kilobytes.

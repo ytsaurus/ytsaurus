@@ -577,15 +577,13 @@ void TOperationControllerBase::InitUnrecognizedSpec()
 
 void TOperationControllerBase::FillInitializationResult(TOperationControllerInitializationResult* result)
 {
-    result->Attributes.Immutable = BuildYsonStringFluently<EYsonType::MapFragment>()
-        .Do(BIND(&TOperationControllerBase::BuildInitializeImmutableAttributes, Unretained(this)))
-        .Finish();
     result->Attributes.Mutable = BuildYsonStringFluently<EYsonType::MapFragment>()
         .Do(BIND(&TOperationControllerBase::BuildInitializeMutableAttributes, Unretained(this)))
         .Finish();
     result->Attributes.BriefSpec = BuildYsonStringFluently<EYsonType::MapFragment>()
         .Do(BIND(&TOperationControllerBase::BuildBriefSpec, Unretained(this)))
         .Finish();
+    result->Attributes.FullSpec = ConvertToYsonString(Spec_);
     result->Attributes.UnrecognizedSpec = ConvertToYsonString(UnrecognizedSpec_);
     result->Transactions = GetTransactions();
 }
@@ -5980,15 +5978,6 @@ bool TOperationControllerBase::HasProgress() const
         TGuard<TSpinLock> guard(ProgressLock_);
         return ProgressString_ && BriefProgressString_;
     }
-}
-
-void TOperationControllerBase::BuildInitializeImmutableAttributes(TFluentMap fluent) const
-{
-    VERIFY_INVOKER_AFFINITY(Invoker);
-
-    fluent
-        .Item("unrecognized_spec").Value(UnrecognizedSpec_)
-        .Item("full_spec").Value(Spec_);
 }
 
 void TOperationControllerBase::BuildInitializeMutableAttributes(TFluentMap fluent) const
