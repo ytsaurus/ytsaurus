@@ -70,6 +70,13 @@ void FinalizeChunkData(
             data->MemoryTrackerGuard.UpdateSize(data->LookupHashTable->GetByteSize());
         }
     }
+
+    ToProto(data->ChunkSpec.mutable_chunk_id(), id);
+    if (data->ChunkMeta->GetChunkFormat() == ETableChunkFormat::UnversionedColumnar ||
+        data->ChunkMeta->GetChunkFormat() == ETableChunkFormat::SchemalessHorizontal)
+    {
+        data->ChunkSpec.mutable_chunk_meta()->MergeFrom(meta);
+    }
 }
 
 } // namespace
