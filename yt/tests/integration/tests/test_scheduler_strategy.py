@@ -1586,7 +1586,7 @@ class TestFairShareTreesReconfiguration(YTEnvSetup):
         remove("//sys/pool_trees/*")
         create("map_node", "//sys/pool_trees/default")
         set("//sys/pool_trees/@default_tree", "default")
-        sleep(0.5)  # Give scheduler some time to reload trees
+        time.sleep(0.5)  # Give scheduler some time to reload trees
         super(TestFairShareTreesReconfiguration, self).teardown_method(method)
 
     def test_basic_sanity(self):
