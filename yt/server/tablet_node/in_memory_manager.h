@@ -5,6 +5,7 @@
 #include <yt/server/cell_node/public.h>
 
 #include <yt/ytlib/chunk_client/public.h>
+#include <yt/ytlib/chunk_client/chunk_spec.pb.h>
 
 #include <yt/ytlib/misc/memory_usage_tracker.h>
 
@@ -30,6 +31,7 @@ struct TInMemoryChunkData
     ui64 InMemoryConfigRevision = 0;
 
     std::vector<NChunkClient::TBlock> Blocks;
+    NChunkClient::NProto::TChunkSpec ChunkSpec;
     NTableClient::TCachedVersionedChunkMetaPtr ChunkMeta;
     NTableClient::IChunkLookupHashTablePtr LookupHashTable;
     NCellNode::TNodeMemoryTrackerGuard MemoryTrackerGuard;
