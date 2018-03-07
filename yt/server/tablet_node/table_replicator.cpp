@@ -229,8 +229,9 @@ private:
             auto totalRowCount = tabletRuntimeData->TotalRowCount.load();
             if (replicaRuntimeData->PreparedReplicationRowIndex > lastReplicationRowIndex) {
                 // Some log rows are prepared for replication, hence replication cannot proceed.
-                // Seeing this is unusual since we're waiting for the replication commit to complete (see below).
-                // However we may occasionally run into this check on epoch change.
+                // Seeing this is not typical since we're waiting for the replication commit to complete (see below).
+                // However we may occasionally run into this check on epoch change or when commit times out
+                // due to broken replica participant.
                 replicaRuntimeData->Error.Store(TError());
                 return;
             }
