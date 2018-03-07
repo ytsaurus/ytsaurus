@@ -289,9 +289,10 @@ class PrintOperationInfo(object):
 
     def log(self, *args, **kwargs):
         if logger.LOGGER.isEnabledFor(self.level):
+            old_formatter = logger.formatter
             logger.set_formatter(self.formatter)
             logger.log(self.level, *args, **kwargs)
-            logger.set_formatter(logger.BASIC_FORMATTER)
+            logger.set_formatter(old_formatter)
 
 def get_operation_state_monitor(operation, time_watcher, action=lambda: None, client=None):
     """
