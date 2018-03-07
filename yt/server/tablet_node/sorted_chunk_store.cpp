@@ -14,6 +14,7 @@
 
 #include <yt/ytlib/chunk_client/block_cache.h>
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/ytlib/chunk_client/chunk_reader.h>
 #include <yt/ytlib/chunk_client/read_limit.h>
 #include <yt/ytlib/chunk_client/ref_counted_proto.h>
 
@@ -310,28 +311,37 @@ TChunkStatePtr TSortedChunkStore::PrepareCachedChunkState(
         }
     }
 
-    LOG_DEBUG("Loading versioned chunk meta");
+    LOG_DEBUG("Loading versioned chunk meta (ReadSessionId: %v)", readSessionId);
+
+    auto protoMetaOrError = WaitFor(chunkReader->GetMeta(workloadDescriptor, readSessionId));
+    THROW_ERROR_EXCEPTION_IF_FAILED(protoMetaOrError, "Failed to load versioned chunk meta");
+    const auto& protoMeta = protoMetaOrError.Value();
 
     // TODO(babenko): do we need to make this workload descriptor configurable?
-    auto asyncCachedMeta = TCachedVersionedChunkMeta::Load(
-        chunkReader,
-        workloadDescriptor,
-        readSessionId,
+    auto cachedMeta = TCachedVersionedChunkMeta::Create(
+        chunkReader->GetChunkId(),
+        protoMeta,
         Schema_,
         MemoryTracker_);
-    auto cachedMeta = WaitFor(asyncCachedMeta)
-        .ValueOrThrow();
 
-    LOG_DEBUG("Got versioned chunk meta");
+    LOG_DEBUG("Got versioned chunk meta (ReadSessionId: %v)", readSessionId);
 
     TChunkSpec chunkSpec;
     ToProto(chunkSpec.mutable_chunk_id(), StoreId_);
+
+    if (cachedMeta->GetChunkFormat() == ETableChunkFormat::SchemalessHorizontal ||
+        cachedMeta->GetChunkFormat() == ETableChunkFormat::UnversionedColumnar)
+    {
+        // For unversioned chunks we must cache full chunk meta in proto format,
+        // because this is how schemaless readers work.
+        chunkSpec.mutable_chunk_meta()->MergeFrom(protoMeta);
+    }
 
     {
         TWriterGuard guard(SpinLock_);
         ChunkState_ = New<TChunkState>(
             BlockCache_,
-            chunkSpec,
+            std::move(chunkSpec),
             std::move(cachedMeta),
             nullptr,
             PerformanceCounters_,
