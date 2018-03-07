@@ -227,7 +227,7 @@ private:
             YCHECK(lastBarrierTimestamp > 0);
             // No transaction commit _before_ LastBarrierTimestamp is possible
             // however, exactly LastBarrierTimestamp is a possibility.
-            auto lastBarrierTimestsmpMinusOne = lastBarrierTimestamp - 1;
+            auto lastBarrierTimestampMinusOne = lastBarrierTimestamp - 1;
             auto lastReplicationRowIndex = replicaRuntimeData->CurrentReplicationRowIndex.load();
             auto lastReplicationTimestamp = replicaRuntimeData->LastReplicationTimestamp.load();
             auto totalRowCount = tabletRuntimeData->TotalRowCount.load();
