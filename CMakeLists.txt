@@ -56,6 +56,12 @@ include(DumpCMakeVariables)
 include(LocalFunctions)
 include(LocalConfiguration)
 
+execute_process(
+    COMMAND python git-depth.py
+    WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+    OUTPUT_VARIABLE YT_BUILD_GIT_DEPTH
+    OUTPUT_STRIP_TRAILING_WHITESPACE)
+
 include(Version)
 
 ################################################################################
