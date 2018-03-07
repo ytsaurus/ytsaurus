@@ -599,7 +599,7 @@ def run_python_libraries_tests(options, build_context):
 
     pytest_args = []
     if options.enable_parallel_testing:
-        pytest_args.extend(["--process-count", "4"])
+        pytest_args.extend(["--process-count", "15"])
 
     node_path = os.path.join(options.working_directory, "yt", "nodejs", "node_modules")
     run_pytest(options, "python_libraries", "{0}/python".format(options.checkout_directory),
