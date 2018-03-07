@@ -60,6 +60,7 @@ bool IsOperationFinishing(EOperationState state);
 bool IsOperationInProgress(EOperationState state);
 
 void ValidateEnvironmentVariableName(TStringBuf name);
+bool IsOperationWithUserJobs(EOperationType operationType);
 
 int GetJobSpecVersion();
 

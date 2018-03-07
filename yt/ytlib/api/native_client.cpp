@@ -3311,15 +3311,13 @@ private:
         TInstant deadline,
         const TGetOperationOptions& options)
     {
-        auto nameTable = New<TNameTable>();
-
-        TOrderedByIdTableDescriptor ids(nameTable);
+        TOrderedByIdTableDescriptor tableDescriptor;
         auto rowBuffer = New<TRowBuffer>();
 
         std::vector<TUnversionedRow> keys;
         auto key = rowBuffer->AllocateUnversioned(2);
-        key[0] = MakeUnversionedUint64Value(operationId.Parts64[0], ids.IdHi);
-        key[1] = MakeUnversionedUint64Value(operationId.Parts64[1], ids.IdLo);
+        key[0] = MakeUnversionedUint64Value(operationId.Parts64[0], tableDescriptor.Ids.IdHi);
+        key[1] = MakeUnversionedUint64Value(operationId.Parts64[1], tableDescriptor.Ids.IdLo);
         keys.push_back(key);
 
         TLookupRowsOptions lookupOptions;
@@ -3362,7 +3360,7 @@ private:
 
         int index = 0;
         for (const auto& field : fields) {
-            columnIndexes.push_back(nameTable->GetIdOrThrow(field));
+            columnIndexes.push_back(tableDescriptor.NameTable->GetIdOrThrow(field));
             fieldToIndex[field] = index++;
         }
 
@@ -3372,7 +3370,7 @@ private:
 
         auto rowset = WaitFor(LookupRows(
             "//sys/operations_archive/ordered_by_id",
-            nameTable,
+            tableDescriptor.NameTable,
             MakeSharedRange(std::move(keys), std::move(rowBuffer)),
             lookupOptions))
             .ValueOrThrow();
@@ -3851,27 +3849,25 @@ private:
         const TJobId& jobId)
     {
         try {
-            auto nameTable = New<TNameTable>();
-
-            TStderrArchiveIds ids(nameTable);
+            TStderrsTableDescriptor tableDescriptor;
 
             auto rowBuffer = New<TRowBuffer>();
 
             std::vector<TUnversionedRow> keys;
             auto key = rowBuffer->AllocateUnversioned(4);
-            key[0] = MakeUnversionedUint64Value(operationId.Parts64[0], ids.OperationIdHi);
-            key[1] = MakeUnversionedUint64Value(operationId.Parts64[1], ids.OperationIdLo);
-            key[2] = MakeUnversionedUint64Value(jobId.Parts64[0], ids.JobIdHi);
-            key[3] = MakeUnversionedUint64Value(jobId.Parts64[1], ids.JobIdLo);
+            key[0] = MakeUnversionedUint64Value(operationId.Parts64[0], tableDescriptor.Ids.OperationIdHi);
+            key[1] = MakeUnversionedUint64Value(operationId.Parts64[1], tableDescriptor.Ids.OperationIdLo);
+            key[2] = MakeUnversionedUint64Value(jobId.Parts64[0], tableDescriptor.Ids.JobIdHi);
+            key[3] = MakeUnversionedUint64Value(jobId.Parts64[1], tableDescriptor.Ids.JobIdLo);
             keys.push_back(key);
 
             TLookupRowsOptions lookupOptions;
-            lookupOptions.ColumnFilter = NTableClient::TColumnFilter({ids.Stderr});
+            lookupOptions.ColumnFilter = NTableClient::TColumnFilter({tableDescriptor.Ids.Stderr});
             lookupOptions.KeepMissingRows = true;
 
             auto rowset = WaitFor(LookupRows(
                 "//sys/operations_archive/stderrs",
-                nameTable,
+                tableDescriptor.NameTable,
                 MakeSharedRange(keys, rowBuffer),
                 lookupOptions))
                 .ValueOrThrow();
@@ -4377,7 +4373,7 @@ private:
 
             auto nameTable = New<TNameTable>();
 
-            TOrderedByIdTableDescriptor ids(nameTable);
+            TOrderedByIdTableDescriptor tableDescriptor;
             auto rowBuffer = New<TRowBuffer>();
 
             std::vector<TUnversionedRow> keys;
@@ -4389,29 +4385,29 @@ private:
 
             for (auto row : resultItemsIds) {
                 auto key = rowBuffer->AllocateUnversioned(2);
-                key[0] = MakeUnversionedUint64Value(row[0].Data.Uint64, ids.IdHi);
-                key[1] = MakeUnversionedUint64Value(row[1].Data.Uint64, ids.IdLo);
+                key[0] = MakeUnversionedUint64Value(row[0].Data.Uint64, tableDescriptor.Ids.IdHi);
+                key[1] = MakeUnversionedUint64Value(row[1].Data.Uint64, tableDescriptor.Ids.IdLo);
                 keys.push_back(key);
             }
 
             TLookupRowsOptions lookupOptions;
             lookupOptions.ColumnFilter = NTableClient::TColumnFilter({
-                ids.IdHi,
-                ids.IdLo,
-                ids.OperationType,
-                ids.State,
-                ids.AuthenticatedUser,
-                ids.BriefProgress,
-                ids.BriefSpec,
-                ids.StartTime,
-                ids.FinishTime,
+                tableDescriptor.Ids.IdHi,
+                tableDescriptor.Ids.IdLo,
+                tableDescriptor.Ids.OperationType,
+                tableDescriptor.Ids.State,
+                tableDescriptor.Ids.AuthenticatedUser,
+                tableDescriptor.Ids.BriefProgress,
+                tableDescriptor.Ids.BriefSpec,
+                tableDescriptor.Ids.StartTime,
+                tableDescriptor.Ids.FinishTime,
             });
             lookupOptions.KeepMissingRows = true;
             lookupOptions.Timeout = deadline - Now();
 
             auto rowset = WaitFor(LookupRows(
                 GetOperationsArchivePathOrderedById(),
-                nameTable,
+                tableDescriptor.NameTable,
                 MakeSharedRange(std::move(keys), std::move(rowBuffer)),
                 lookupOptions))
                 .ValueOrThrow();

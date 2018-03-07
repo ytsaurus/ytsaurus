@@ -13,6 +13,7 @@
 #include "operation_controller.h"
 #include "bootstrap.h"
 #include "config.h"
+#include "operations_cleaner.h"
 
 #include <yt/server/controller_agent/helpers.h>
 #include <yt/server/controller_agent/controller_agent_service_proxy.h>
@@ -94,6 +95,7 @@ using namespace NEventLog;
 
 using NControllerAgent::IOperationControllerSchedulerHost;
 using NControllerAgent::TOperationControllerHost;
+using NControllerAgent::TControllerAgentServiceProxy;
 
 using NNodeTrackerClient::TNodeId;
 using NNodeTrackerClient::TNodeDescriptor;
@@ -189,6 +191,8 @@ public:
                 Bootstrap_));
             CancelableNodeShardInvokers_.push_back(GetNullInvoker());
         }
+
+        OperationsCleaner_ = New<TOperationsCleaner>(Config_->OperationsCleaner, Bootstrap_);
 
         ServiceAddress_ = BuildServiceAddress(
             GetLocalHostName(),
@@ -1122,6 +1126,13 @@ public:
         return Strategy_;
     }
 
+    const TOperationsCleanerPtr& GetOperationsCleaner() const
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return OperationsCleaner_;
+    }
+
     TFuture<void> AttachJobContext(
         const NYTree::TYPath& path,
         const TChunkId& chunkId,
@@ -1169,6 +1180,8 @@ private:
     //! This field is incremented on each OnMasterConnected and
     //! should be accessed only from scheduler control thread.
     int SchedulerIncarnation_ = -1;
+
+    TOperationsCleanerPtr OperationsCleaner_;
 
     TActionQueuePtr ControllerDtor_ = New<TActionQueue>("ControllerDtor");
 
@@ -1387,6 +1400,8 @@ private:
         // NB: Must start the keeper before registering operations.
         const auto& responseKeeper = Bootstrap_->GetResponseKeeper();
         responseKeeper->Start();
+
+        OperationsCleaner_->Start();
     }
 
     void OnMasterHandshake(const TMasterHandshakeResult& result)
@@ -1486,6 +1501,7 @@ private:
         }
 
         Strategy_->OnMasterDisconnected();
+        OperationsCleaner_->Stop();
     }
 
     void OnMasterDisconnected()
@@ -1746,6 +1762,7 @@ private:
 
             Strategy_->UpdateConfig(Config_);
             MasterConnector_->UpdateConfig(Config_);
+            OperationsCleaner_->UpdateConfig(Config_->OperationsCleaner);
 
             ProfilingExecutor_->SetPeriod(Config_->ProfilingUpdatePeriod);
             LoggingExecutor_->SetPeriod(Config_->ClusterInfoLoggingPeriod);
@@ -1776,9 +1793,9 @@ private:
         }
 
         try {
-            OperationArchiveVersion_.store(
-                ConvertTo<int>(TYsonString(rspOrError.Value()->value())),
-                std::memory_order_relaxed);
+            auto version = ConvertTo<int>(TYsonString(rspOrError.Value()->value()));
+            OperationArchiveVersion_.store(version, std::memory_order_relaxed);
+            OperationsCleaner_->SetArchiveVersion(version);
             SetSchedulerAlert(ESchedulerAlertType::UpdateArchiveVersion, TError());
         } catch (const std::exception& ex) {
             auto error = TError("Error parsing operation archive version")
@@ -1786,7 +1803,6 @@ private:
             SetSchedulerAlert(ESchedulerAlertType::UpdateArchiveVersion, error);
         }
     }
-
 
     void UpdateExecNodeDescriptors()
     {
@@ -1899,6 +1915,16 @@ private:
         operation->SetStarted(TError());
     }
 
+    NYson::TYsonString BuildBriefSpec(const TOperationPtr& operation) const
+    {
+        auto briefSpec = BuildYsonStringFluently()
+            .BeginMap()
+                .Items(operation->ControllerAttributes().InitializationAttributes->BriefSpec)
+                .Do(BIND(&ISchedulerStrategy::BuildBriefSpec, Strategy_, operation->GetId()))
+            .EndMap();
+        return briefSpec;
+    }
+
     void DoInitializeOperation(const TOperationPtr& operation)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -1920,6 +1946,7 @@ private:
             ValidateOperationState(operation, EOperationState::Initializing);
 
             operation->ControllerAttributes().InitializationAttributes = initializationResult.Attributes;
+            operation->BriefSpec() = BuildBriefSpec(operation);
 
             WaitFor(MasterConnector_->UpdateInitializedOperationNode(operation))
                 .ThrowOnError();
@@ -2002,6 +2029,7 @@ private:
                     .ValueOrThrow();
 
                 operation->ControllerAttributes().InitializationAttributes = std::move(result.Attributes);
+                operation->BriefSpec() = BuildBriefSpec(operation);
             }
 
             ValidateOperationState(operation, EOperationState::Reviving);
@@ -2232,6 +2260,14 @@ private:
                 ValidateOperationState(operation, EOperationState::Completing);
             }
 
+            // Should be called before commit in controller.
+            auto operationInfoOrError = WaitFor(RequestOperationInfoFromControllerAgent(operation));
+            if (!operationInfoOrError.IsOK()) {
+                LOG_INFO(operationInfoOrError, "Failed to get operation info from controller agent "
+                    "during operation completion (OperationId: %v)",
+                    operation->GetId());
+            }
+
             {
                 const auto& controller = operation->GetController();
                 WaitFor(controller->Commit())
@@ -2246,6 +2282,10 @@ private:
 
             YCHECK(operation->GetState() == EOperationState::Completing);
             SetOperationFinalState(operation, EOperationState::Completed, TError());
+
+            SubmitOperationToCleaner(
+                operation,
+                operationInfoOrError.IsOK() ? operationInfoOrError.Value() : nullptr);
 
             // Second flush: ensure that state is changed to Completed.
             {
@@ -2350,6 +2390,44 @@ private:
             operation->GetId());
     }
 
+    TFuture<TControllerAgentServiceProxy::TRspGetOperationInfoPtr> RequestOperationInfoFromControllerAgent(
+        const TOperationPtr& operation) const
+    {
+        auto agent = operation->FindAgent();
+        YCHECK(agent);
+
+        NControllerAgent::TControllerAgentServiceProxy proxy(agent->GetChannel());
+        auto req = proxy.GetOperationInfo();
+        req->SetTimeout(Config_->ControllerAgentLightRpcTimeout);
+        ToProto(req->mutable_operation_id(), operation->GetId());
+
+        return req->Invoke();
+    }
+
+    void SubmitOperationToCleaner(
+        const TOperationPtr& operation,
+        TControllerAgentServiceProxy::TRspGetOperationInfoPtr operationInfo) const
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        TArchiveOperationRequest archivationReq;
+        archivationReq.InitializeFromOperation(operation);
+        if (operationInfo) {
+            // TODO(asaitgalin): Can we build map in controller instead of
+            // map fragment?
+            archivationReq.Progress = BuildYsonStringFluently()
+                .BeginMap()
+                    .Items(TYsonString(operationInfo->progress(), EYsonType::MapFragment))
+                .EndMap();
+
+            archivationReq.BriefProgress = BuildYsonStringFluently()
+                .BeginMap()
+                    .Items(TYsonString(operationInfo->brief_progress(), EYsonType::MapFragment))
+                .EndMap();
+        }
+
+        OperationsCleaner_->SubmitForArchivation(std::move(archivationReq));
+    }
 
     void TerminateOperation(
         const TOperationPtr& operation,
@@ -2394,6 +2472,18 @@ private:
             Sleep(*Config_->TestingOptions->FinishOperationTransitionDelay);
         }
 
+        TControllerAgentServiceProxy::TRspGetOperationInfoPtr operationInfo;
+        if (operation->FindAgent()) {
+            auto operationInfoOrError = WaitFor(RequestOperationInfoFromControllerAgent(operation));
+            if (operationInfoOrError.IsOK()) {
+                operationInfo = operationInfoOrError.Value();
+            } else {
+                LOG_INFO(operationInfoOrError, "Failed to get operation info from controller agent "
+                    "during operation termination (OperationId: %v)",
+                    operation->GetId());
+            }
+        }
+
         const auto& controller = operation->GetController();
         if (controller) {
             try {
@@ -2418,6 +2508,8 @@ private:
                 return;
             }
         }
+
+        SubmitOperationToCleaner(operation, operationInfo);
 
         if (controller) {
             // Notify controller that it is going to be disposed.
@@ -2581,6 +2673,9 @@ private:
                 .EndMap()
                 .Item("config").Value(Config_)
                 .Do(std::bind(&ISchedulerStrategy::BuildOrchid, Strategy_, _1))
+                .Item("operations_cleaner").BeginMap()
+                    .Do(std::bind(&TOperationsCleaner::BuildOrchid, OperationsCleaner_, _1))
+                .EndMap()
             .EndMap();
     }
 
@@ -2612,11 +2707,7 @@ private:
             return replyNoAgent();
         }
 
-        NControllerAgent::TControllerAgentServiceProxy proxy(agent->GetChannel());
-        auto req = proxy.GetOperationInfo();
-        req->SetTimeout(Config_->ControllerAgentLightRpcTimeout);
-        ToProto(req->mutable_operation_id(), operationId);
-        auto rspOrError = WaitFor(req->Invoke());
+        auto rspOrError = WaitFor(RequestOperationInfoFromControllerAgent(operation));
         auto rsp = rspOrError.IsOK() ? rspOrError.Value() : nullptr;
         if (!rsp) {
             LOG_DEBUG(rspOrError, "Failed to get operation info from controller; assuming empty response (OperationId: %v)",
@@ -2990,6 +3081,11 @@ void TScheduler::Initialize()
 ISchedulerStrategyPtr TScheduler::GetStrategy() const
 {
     return Impl_->GetStrategy();
+}
+
+const TOperationsCleanerPtr& TScheduler::GetOperationsCleaner() const
+{
+    return Impl_->GetOperationsCleaner();
 }
 
 IYPathServicePtr TScheduler::GetOrchidService() const

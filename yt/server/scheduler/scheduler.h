@@ -39,6 +39,11 @@ public:
     /*!
      *  \note Thread affinity: any
      */
+    const TOperationsCleanerPtr& GetOperationsCleaner() const;
+
+    /*!
+     *  \note Thread affinity: any
+     */
     NYTree::IYPathServicePtr GetOrchidService() const;
 
     /*!

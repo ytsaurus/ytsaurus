@@ -167,9 +167,9 @@ public:
             BIND([] (const TControllerAgentServiceProxy::TRspInitializeOperationPtr& rsp) {
                 return TOperationControllerInitializationResult{
                     TOperationControllerInitializationAttributes{
-                        TYsonString(rsp->immutable_attributes(), EYsonType::MapFragment),
                         TYsonString(rsp->mutable_attributes(), EYsonType::MapFragment),
                         TYsonString(rsp->brief_spec(), EYsonType::MapFragment),
+                        TYsonString(rsp->full_spec(), EYsonType::Node),
                         TYsonString(rsp->unrecognized_spec(), EYsonType::Node)
                     }
                 };
