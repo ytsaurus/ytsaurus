@@ -224,6 +224,10 @@ private:
             // YT-8542: Fetch the last barrier timestamp _first_ to ensure proper serialization between
             // replicator and tablet slot threads.
             auto lastBarrierTimestamp = Slot_->GetRuntimeData()->LastBarrierTimestamp.load();
+            YCHECK(lastBarrierTimestamp > 0);
+            // No transaction commit _before_ LastBarrierTimestamp is possible
+            // however, exactly LastBarrierTimestamp is a possibility.
+            auto lastBarrierTimestsmpMinusOne = lastBarrierTimestamp - 1;
             auto lastReplicationRowIndex = replicaRuntimeData->CurrentReplicationRowIndex.load();
             auto lastReplicationTimestamp = replicaRuntimeData->LastReplicationTimestamp.load();
             auto totalRowCount = tabletRuntimeData->TotalRowCount.load();
@@ -252,8 +256,8 @@ private:
 
             if (totalRowCount <= lastReplicationRowIndex) {
                 // All committed rows are replicated.
-                if (lastReplicationTimestamp < lastBarrierTimestamp) {
-                    replicaRuntimeData->LastReplicationTimestamp.store(lastBarrierTimestamp);
+                if (lastReplicationTimestamp < lastBarrierTimestampMinusOne) {
+                    replicaRuntimeData->LastReplicationTimestamp.store(lastBarrierTimestampMinusOne);
                 }
                 replicaRuntimeData->Error.Store(TError());
                 return;
