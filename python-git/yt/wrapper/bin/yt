@@ -878,7 +878,7 @@ def add_resume_op_parser(add_parser):
 @copy_docstring_from(yt.Operation.wait)
 def track_op(**args):
     yt.config["operation_tracker"]["abort_on_sigint"] = False
-    operation = yt.Operation("unknown", args["operation"])
+    operation = yt.Operation(args["operation"])
     operation.wait()
 
 def add_track_op_parser(add_parser):

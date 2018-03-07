@@ -452,7 +452,7 @@ def _make_operation_request(command_name, spec, sync,
     def _manage_operation(finalization_actions):
         retrier = OperationRequestRetrier(command_name=command_name, spec=spec, run_with_start_op=run_with_start_op, client=client)
         operation_id = retrier.run()
-        operation = Operation(command_name, operation_id, finalization_actions=finalization_actions, client=client)
+        operation = Operation(operation_id, type=command_name, finalization_actions=finalization_actions, client=client)
 
         if operation.url:
             logger.info("Operation started: %s", operation.url)
