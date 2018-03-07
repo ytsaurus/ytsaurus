@@ -869,7 +869,7 @@ Examples:
     if args.track is not None:
         config["detached"] = True
         config["operation_tracker"]["abort_on_sigint"] = False
-        operation = yt.Operation("unknown", args.track)
+        operation = yt.Operation(args.track)
         operation.wait()
 
     if args.transform:

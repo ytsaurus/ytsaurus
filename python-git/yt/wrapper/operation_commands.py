@@ -454,9 +454,9 @@ def get_operation_url(operation, client=None):
 
 class Operation(object):
     """Holds information about started operation."""
-    def __init__(self, type, id, finalization_actions=None, abort_exceptions=(KeyboardInterrupt,), client=None):
-        self.type = type
+    def __init__(self, id, type=None, finalization_actions=None, abort_exceptions=(KeyboardInterrupt,), client=None):
         self.id = id
+        self.type = type
         self.abort_exceptions = abort_exceptions
         self.finalization_actions = finalization_actions
         self.client = client
