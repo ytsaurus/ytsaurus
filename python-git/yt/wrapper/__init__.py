@@ -21,7 +21,7 @@ from .batch_execution import YtBatchRequestFailedError
 from .yamr_record import Record
 from .format import (DsvFormat, YamrFormat, YsonFormat, JsonFormat, SchemafulDsvFormat,
                      YamredDsvFormat, Format, create_format, dumps_row, loads_row, YtFormatError, create_table_switch)
-from .ypath import YPath, TablePath, FilePath, ypath_join, ypath_dirname
+from .ypath import YPath, TablePath, FilePath, ypath_join, ypath_dirname, ypath_split
 from .cypress_commands import escape_ypath_literal
 from .operation_commands import format_operation_stderrs, Operation
 from .operations_tracker import OperationsTracker, OperationsTrackerPool

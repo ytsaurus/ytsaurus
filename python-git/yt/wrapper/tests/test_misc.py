@@ -7,7 +7,7 @@ from yt.wrapper.exceptions_catcher import KeyboardInterruptsCatcher
 from yt.wrapper.response_stream import ResponseStream, EmptyResponseStream
 from yt.wrapper.retries import run_with_retries
 from yt.wrapper.mappings import VerifiedDict, FrozenDict
-from yt.wrapper.ypath import ypath_join, ypath_dirname
+from yt.wrapper.ypath import ypath_join, ypath_dirname, ypath_split
 from yt.common import makedirp
 from yt.yson import to_yson_type
 import yt.yson as yson
@@ -67,6 +67,16 @@ def test_ypath_join():
     assert ypath_join("/a", "/b", "/c") == "/a/b/c"
     assert ypath_join("/a", "/b", "c") == "/a/b/c"
     assert ypath_join("/a", "//b", "c") == "//b/c"
+
+def test_ypath_split():
+    assert ypath_split("/") == ("/", "")
+    assert ypath_split("//home") == ("/", "home")
+
+    with pytest.raises(yt.YtError):
+        ypath_split("//")
+
+    assert ypath_split("#a-b-c-d/a/b") == ("#a-b-c-d/a", "b")
+    assert ypath_split("//a/b\\\\\\/c") == ("//a", "b\\\\\\/c")
 
 def test_ypath_dirname():
     assert ypath_dirname("/") == "/"
