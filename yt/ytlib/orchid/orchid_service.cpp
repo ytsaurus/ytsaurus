@@ -30,7 +30,8 @@ public:
             OrchidLogger)
         , RootService_(CreateRootService(root))
     {
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(Execute));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(Execute)
+            .SetCancelable(true));
     }
 
 private:
