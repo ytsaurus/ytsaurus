@@ -183,11 +183,16 @@ public:
 
         auto operationId = state->GetHost()->GetId();
 
+        auto rootSchedulingTagFilter = spec->SchedulingTagFilter;
+
         auto clonedSpec = CloneYsonSerializable(spec);
         auto optionsIt = spec->SchedulingOptionsPerPoolTree.find(TreeId);
         if (optionsIt != spec->SchedulingOptionsPerPoolTree.end()) {
             const auto& options = optionsIt->second;
             ReconfigureYsonSerializable(clonedSpec, ConvertToNode(options));
+            if (!rootSchedulingTagFilter.IsEmpty()) {
+                clonedSpec->SchedulingTagFilter = rootSchedulingTagFilter;
+            }
         }
 
         auto operationElement = New<TOperationElement>(
