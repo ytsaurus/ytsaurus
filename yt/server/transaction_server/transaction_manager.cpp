@@ -216,7 +216,7 @@ public:
 
         transaction->SetState(ETransactionState::Active);
         transaction->SecondaryCellTags() = secondaryCellTags;
-        transaction->SetSystem(system || parent && parent->System());
+        transaction->SetSystem(system || parent && parent->GetSystem());
 
         bool foreign = (CellTagFromId(transactionId) != Bootstrap_->GetCellTag());
         if (foreign) {
@@ -259,7 +259,7 @@ public:
             if (title) {
                 startRequest.set_title(*title);
             }
-            startRequest.set_system(transaction->System());
+            startRequest.set_system(transaction->GetSystem());
 
             const auto& multicellManager = Bootstrap_->GetMulticellManager();
             multicellManager->PostToMasters(startRequest, replicateToCellTags);
@@ -272,7 +272,7 @@ public:
             transaction->SecondaryCellTags(),
             transaction->GetTimeout(),
             title,
-            transaction->System());
+            transaction->GetSystem());
 
         return transaction;
     }
