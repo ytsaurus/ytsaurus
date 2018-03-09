@@ -1720,7 +1720,7 @@ private:
                 transaction->GetId());
         }
 
-        if (trunkNode->IsExternal() && Bootstrap_->IsPrimaryMaster()) {
+        if (trunkNode->IsExternal() && Bootstrap_->IsPrimaryMaster() && !transaction->GetSystem()) {
             PostLockForeignNodeRequest(lock);
         }
 

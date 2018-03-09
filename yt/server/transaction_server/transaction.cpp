@@ -157,16 +157,6 @@ TYsonString TTransaction::GetErrorDescription() const
         .EndMap();
 }
 
-bool TTransaction::System() const
-{
-    return System_;
-}
-
-void TTransaction::SetSystem(bool system)
-{
-    System_ = system;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NTransactionServer
