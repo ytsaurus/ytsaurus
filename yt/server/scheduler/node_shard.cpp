@@ -182,19 +182,19 @@ void TNodeShard::DoCleanup()
 void TNodeShard::RegisterOperation(
     const TOperationId& operationId,
     const IOperationControllerPtr& controller,
-    bool willRevive)
+    bool jobsReady)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
     YCHECK(Connected_);
 
     YCHECK(IdToOpertionState_.emplace(
         operationId,
-        TOperationState(controller, !willRevive /* jobsReady */, CurrentEpoch_++)
+        TOperationState(controller, jobsReady, CurrentEpoch_++)
     ).second);
 
-    LOG_DEBUG("Operation registered at node shard (OperationId: %v, WillRevive: %v)",
+    LOG_DEBUG("Operation registered at node shard (OperationId: %v, JobsReady: %v)",
         operationId,
-        willRevive);
+        jobsReady);
 }
 
 void TNodeShard::StartOperationRevival(const TOperationId& operationId)

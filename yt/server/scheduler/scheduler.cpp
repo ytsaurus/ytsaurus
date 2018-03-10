@@ -775,6 +775,9 @@ public:
         const auto& controller = operation->GetController();
         controller->RevokeAgent();
 
+        Strategy_->UnregisterOperation(operation.Get());
+        Strategy_->RegisterOperation(operation.Get());
+
         operation->Restart();
         operation->SetStateAndEnqueueEvent(EOperationState::Orphaned);
 
@@ -967,44 +970,33 @@ public:
 
     void MaterializeOperation(const TOperationPtr& operation)
     {
-        // TODO(babenko): consider refactoring
         if (operation->GetState() != EOperationState::Pending) {
             // Operation can be in finishing state already.
             return;
         }
 
+        TFuture<void> asyncResult;
         if (operation->GetRevivedFromSnapshot()) {
             operation->SetStateAndEnqueueEvent(EOperationState::RevivingJobs);
-
-            RegisterJobsFromRevivedOperation(operation)
-                .Subscribe(
-                    BIND([operation, this, this_ = MakeStrong(this)] (const TError& error) {
-                        if (!error.IsOK()) {
-                            return;
-                        }
-                        if (operation->GetState() == EOperationState::RevivingJobs) {
-                            operation->SetStateAndEnqueueEvent(EOperationState::Running);
-                            Strategy_->OnOperationRunning(operation->GetId());
-                        }
-                    })
-                    .Via(operation->GetCancelableControlInvoker()));
+            asyncResult = RegisterJobsFromRevivedOperation(operation);
         } else {
             operation->SetStateAndEnqueueEvent(EOperationState::Materializing);
-
-            const auto& controller = operation->GetController();
-            controller->Materialize()
-                .Subscribe(
-                    BIND([operation, this, this_ = MakeStrong(this)] (const TError& error) {
-                        if (!error.IsOK()) {
-                            return;
-                        }
-                        if (operation->GetState() == EOperationState::Materializing) {
-                            operation->SetStateAndEnqueueEvent(EOperationState::Running);
-                            Strategy_->OnOperationRunning(operation->GetId());
-                        }
-                    })
-                    .Via(operation->GetCancelableControlInvoker()));
+            asyncResult = operation->GetController()->Materialize();
         }
+
+        auto expectedState = operation->GetState();
+        asyncResult.Subscribe(
+            BIND([=, this_ = MakeStrong(this)] (const TError& error) {
+                if (!error.IsOK()) {
+                    return;
+                }
+                if (operation->GetState() != expectedState) {
+                    return;
+                }
+                operation->SetStateAndEnqueueEvent(EOperationState::Running);
+                Strategy_->EnableOperation(operation.Get());
+            })
+            .Via(operation->GetCancelableControlInvoker()));
     }
 
     virtual std::vector<TNodeId> GetExecNodeIds(const TSchedulingTagFilter& filter) const override
@@ -1396,7 +1388,7 @@ private:
                     responseKeeper->EndRequest(operation->GetMutationId(), responseMessage);
                 }
 
-                RegisterOperation(operation, true);
+                RegisterOperation(operation, false);
 
                 operation->SetStateAndEnqueueEvent(EOperationState::Orphaned);
                 AddOperationToTransientQueue(operation);
@@ -1478,8 +1470,7 @@ private:
                     .Run());
             }
 
-            // NB: This is the only way we have to induce a barrier preventing a new incarnation
-            // of scheduler from interplaying with the previous one.
+            // XXX(babenko): fiber switch is forbidden here; do we actually need to wait for these results?
             Combine(asyncResults)
                 .Get();
 
@@ -1853,7 +1844,7 @@ private:
 
         ValidateOperationState(operation, EOperationState::Starting);
 
-        RegisterOperation(operation, false);
+        RegisterOperation(operation, true);
 
         operation->SetStateAndEnqueueEvent(EOperationState::WaitingForAgent);
         AddOperationToTransientQueue(operation);
@@ -2036,7 +2027,7 @@ private:
         return Combine(asyncResults);
     }
 
-    void RegisterOperation(const TOperationPtr& operation, bool willRevive)
+    void RegisterOperation(const TOperationPtr& operation, bool jobsReady)
     {
         YCHECK(IdToOperation_.emplace(operation->GetId(), operation).second);
 
@@ -2053,14 +2044,20 @@ private:
                 nodeShard,
                 operation->GetId(),
                 operation->GetController(),
-                willRevive));
+                jobsReady));
         }
 
         MasterConnector_->StartOperationNodeUpdates(operation);
+        MasterConnector_->AddOperationWatcherRequester(
+            operation,
+            BIND(&TImpl::RequestOperationRuntimeParams, Unretained(this), operation));
+        MasterConnector_->AddOperationWatcherHandler(
+            operation,
+            BIND(&TImpl::HandleOperationRuntimeParams, Unretained(this), operation));
 
-        LOG_DEBUG("Operation registered (OperationId: %v, WillRevive: %v)",
+        LOG_DEBUG("Operation registered (OperationId: %v, JobsReady: %v)",
             operation->GetId(),
-            willRevive);
+            jobsReady);
     }
 
     void RegisterAssignedOperation(const TOperationPtr& operation)
@@ -2072,13 +2069,6 @@ private:
         const auto& agentTracker = Bootstrap_->GetControllerAgentTracker();
         WaitFor(agentTracker->RegisterOperationAtAgent(operation))
             .ThrowOnError();
-
-        MasterConnector_->AddOperationWatcherRequester(
-            operation,
-            BIND(&TImpl::RequestOperationRuntimeParams, Unretained(this), operation));
-        MasterConnector_->AddOperationWatcherHandler(
-            operation,
-            BIND(&TImpl::HandleOperationRuntimeParams, Unretained(this), operation));
     }
 
     void UnregisterOperation(const TOperationPtr& operation)
@@ -2504,7 +2494,9 @@ private:
         const auto& controllerAgentTracker = Bootstrap_->GetControllerAgentTracker();
         auto agents = controllerAgentTracker->GetAgents();
         for (const auto& agent : agents) {
-            builder.AppendString(agent->GetSuspiciousJobsYson().GetData());
+            if (agent->GetState() == EControllerAgentState::Registered) {
+                builder.AppendString(agent->GetSuspiciousJobsYson().GetData());
+            }
         }
         return TYsonString(builder.Flush(), EYsonType::MapFragment);
     }
@@ -2552,7 +2544,10 @@ private:
                 .Item("controller_agents").DoMapFor(Bootstrap_->GetControllerAgentTracker()->GetAgents(), [] (TFluentMap fluent, const auto& agent) {
                     fluent
                         .Item(agent->GetId()).BeginMap()
-                            .Item("incarnation_id").Value(agent->GetIncarnationId())
+                            .Item("state").Value(agent->GetState())
+                            .DoIf(agent->GetState() == EControllerAgentState::Registered, [&] (TFluentMap fluent) {
+                                fluent.Item("incarnation_id").Value(agent->GetIncarnationId());
+                            })
                             .Item("operation_ids").DoListFor(agent->Operations(), [] (TFluentList fluent, const auto& operation) {
                                 fluent.Item().Value(operation->GetId());
                             })

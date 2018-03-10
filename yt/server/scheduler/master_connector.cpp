@@ -109,6 +109,13 @@ public:
         return ConnectionTime_.load();
     }
 
+    const NApi::ITransactionPtr& GetLockTransaction() const
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        return LockTransaction_;
+    }
+
     void Disconnect(const TError& error)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -1639,6 +1646,11 @@ EMasterConnectorState TMasterConnector::GetState() const
 TInstant TMasterConnector::GetConnectionTime() const
 {
     return Impl_->GetConnectionTime();
+}
+
+const NApi::ITransactionPtr& TMasterConnector::GetLockTransaction() const
+{
+    return Impl_->GetLockTransaction();
 }
 
 void TMasterConnector::Disconnect(const TError& error)

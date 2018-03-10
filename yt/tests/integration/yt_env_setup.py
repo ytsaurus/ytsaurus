@@ -560,6 +560,8 @@ class YTEnvSetup(object):
             id = str(tx)
             if "Scheduler lock" in title:
                 continue
+            if "Controller agent incarnation" in title:
+                continue
             if "Lease for node" in title:
                 continue
             try:
