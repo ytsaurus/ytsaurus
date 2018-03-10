@@ -3,7 +3,7 @@ from time import sleep
 from operator import itemgetter
 from copy import deepcopy
 
-from yt_env_setup import YTEnvSetup
+from yt_env_setup import YTEnvSetup, wait
 from yt_commands import *
 
 ##################################################################
@@ -510,6 +510,8 @@ class TestAccounts(YTEnvSetup):
 
         assert self._is_account_disk_space_limit_violated("max")
         with pytest.raises(YtError): write_table("//tmp/t", {"a" : "b"})
+        # Wait for upload tx to abort
+        wait(lambda: get("//tmp/b/a/f3/@locks") == [])
 
         set_account_disk_space_limit("max", get_account_disk_space("max") + 1)
         self._replicator_sleep()
@@ -575,6 +577,8 @@ class TestAccounts(YTEnvSetup):
         create("file", "//tmp/b/a/f3")
         # Writing new data should fail...
         with pytest.raises(YtError): write_file("//tmp/b/a/f3", content)
+        # Wait for upload tx to abort
+        wait(lambda: get("//tmp/b/a/f3/@locks") == [])
         remove("//tmp/b/a/f3")
         # ...but copying existing data should be ok...
         copy("//tmp/b/a/f2", "//tmp/b/a/f3")
@@ -1075,7 +1079,8 @@ class TestAccounts(YTEnvSetup):
 
     
     def test_create_with_invalid_attrs_yt_7093(self):
-        with pytest.raises(YtError):create_account("x", attributes={"resource_limits": 123})
+        with pytest.raises(YtError):
+            create_account("x", attributes={"resource_limits": 123})
         assert not exists("//sys/accounts/x")
 
     def test_requisitions(self):
