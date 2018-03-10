@@ -39,7 +39,7 @@ TComplexSchema<WireType>::TComplexSchema(TSkiffSchemaList elements)
 { }
 
 template <EWireType WireType>
-TSkiffSchemaList TComplexSchema<WireType>::GetChildren() const
+const TSkiffSchemaList& TComplexSchema<WireType>::GetChildren() const
 {
     return Elements_;
 }
