@@ -105,7 +105,7 @@ public:
     void RegisterOperation(
         const TOperationId& operationId,
         const IOperationControllerPtr& controller,
-        bool willRevive);
+        bool jobsReady);
     void StartOperationRevival(const TOperationId& operationId);
     void FinishOperationRevival(const TOperationId& operationId, const std::vector<TJobPtr>& jobs);
     void UnregisterOperation(const TOperationId& operationId);

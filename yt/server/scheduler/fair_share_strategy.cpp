@@ -2583,14 +2583,15 @@ public:
         }
     }
 
-    virtual void OnOperationRunning(const TOperationId& operationId) override
+    virtual void EnableOperation(IOperationStrategyHost* host) override
     {
+        const auto& operationId = host->GetId();
         const auto& state = GetOperationState(operationId);
         for (const auto& pair : state->TreeIdToPoolIdMap()) {
             const auto& treeId = pair.first;
             GetTree(treeId)->EnableOperation(operationId);
         }
-        if (state->GetHost()->IsSchedulable()) {
+        if (host->IsSchedulable()) {
             state->GetController()->UpdateMinNeededJobResources();
         }
     }

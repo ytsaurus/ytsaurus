@@ -199,7 +199,9 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         if (IncarnationId_ != incarnationId) {
-            THROW_ERROR_EXCEPTION("Invalid incarnation: expected %v, actual %v",
+            THROW_ERROR_EXCEPTION(
+                NRpc::EErrorCode::Unavailable,
+                "Invalid incarnation: expected %v, actual %v",
                 incarnationId,
                 IncarnationId_);
         }
@@ -908,6 +910,7 @@ private:
 
         LOG_DEBUG("Sending heartbeat (ExecNodesRequested: %v, ConfigRequested: %v, OperationAlertsSent: %v)",
             execNodesRequested,
+            configRequested,
             operationAlertsSent);
 
         auto rspOrError = WaitFor(req->Invoke());

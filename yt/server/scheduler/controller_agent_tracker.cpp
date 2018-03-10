@@ -594,7 +594,14 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        auto agents = GetAgents();
+        std::vector<TControllerAgentPtr> agents;
+        agents.reserve(IdToAgent_.size());
+        for (const auto& pair : IdToAgent_) {
+            const auto& agent = pair.second;
+            if (agent->GetState() == EControllerAgentState::Registered) {
+                agents.push_back(agent);
+            }
+        }
         return agents.empty() ? nullptr : agents[RandomNumber(agents.size())];
     }
 
@@ -658,15 +665,7 @@ public:
             agent->GetIncarnationId());
 
         Bootstrap_->GetControlInvoker()->Invoke(
-            BIND([=, this_ = MakeStrong(this)] {
-                VERIFY_THREAD_AFFINITY(ControlThread);
-
-                if (agent->GetUnregistered()) {
-                    return;
-                }
-
-                UnregisterAgent(agent);
-            }));
+            BIND(&TImpl::UnregisterAgent, MakeStrong(this), agent));
     }
 
 
@@ -717,31 +716,72 @@ public:
         const auto& agentId = request->agent_id();
         auto existingAgent = FindAgent(agentId);
         if (existingAgent) {
-            LOG_INFO("Kicking out agent due to id conflict (AgentId: %v, ExistingIncarnationId: %v)",
+            auto state = existingAgent->GetState();
+            if (state == EControllerAgentState::Registered) {
+                LOG_INFO("Kicking out agent due to id conflict (AgentId: %v, ExistingIncarnationId: %v)",
+                    agentId,
+                    existingAgent->GetIncarnationId());
+                UnregisterAgent(existingAgent);
+            }
+            
+            context->Reply(TError("Agent %Qv is in %Qlv state; please retry",
                 agentId,
-                existingAgent->GetIncarnationId());
-            UnregisterAgent(existingAgent);
+                state));
+            return;
         }
 
         auto addresses =  FromProto<NNodeTrackerClient::TAddressMap>(request->agent_addresses());
         auto address = NNodeTrackerClient::GetAddressOrThrow(addresses, Bootstrap_->GetLocalNetworks());
         auto channel = Bootstrap_->GetMasterClient()->GetChannelFactory()->CreateChannel(address);
-        auto incarnationId = TIncarnationId::Create();
 
         auto agent = New<TControllerAgent>(
             agentId,
             addresses,
-            std::move(channel),
-            incarnationId);
+            std::move(channel));
+        agent->SetState(EControllerAgentState::Registering);
         RegisterAgent(agent);
 
-        context->SetResponseInfo("IncarnationId: %v",
-            agent->GetIncarnationId());
-        ToProto(response->mutable_incarnation_id(), agent->GetIncarnationId());
-        response->set_config(ConvertToYsonString(Config_).GetData());
-        context->Reply();
-    }
+        LOG_INFO("Starting agent incarnation transaction (AgentId: %v)",
+            agentId);
 
+        NApi::TTransactionStartOptions options;
+        auto attributes = CreateEphemeralAttributes();
+        attributes->Set("title", Format("Controller agent incarnation for %v", agentId));
+        options.Attributes = std::move(attributes);
+        const auto& lockTransaction = Bootstrap_->GetScheduler()->GetMasterConnector()->GetLockTransaction();
+        lockTransaction->StartTransaction(NTransactionClient::ETransactionType::Master, options)
+            .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<NApi::ITransactionPtr>& transactionOrError) {
+                VERIFY_THREAD_AFFINITY(ControlThread);
+
+                if (!transactionOrError.IsOK()) {
+                    Bootstrap_->GetScheduler()->Disconnect(transactionOrError);
+                    return;
+                }
+
+                if (agent->GetState() != EControllerAgentState::Registering) {
+                    return;
+                }
+
+                const auto& transaction = transactionOrError.Value();
+                agent->SetIncarnationTransaction(transaction);
+                agent->SetState(EControllerAgentState::Registered);
+
+                transaction->SubscribeAborted(
+                    BIND(&TImpl::OnAgentIncarnationTransactionAborted, MakeWeak(this), MakeWeak(agent))
+                        .Via(GetCancelableControlInvoker()));
+
+                LOG_INFO("Agent incarnation transaction started (AgentId: %v, IncarnationId: %v)",
+                    agentId,
+                    agent->GetIncarnationId());
+
+                context->SetResponseInfo("IncarnationId: %v",
+                    agent->GetIncarnationId());
+                ToProto(response->mutable_incarnation_id(), agent->GetIncarnationId());
+                response->set_config(ConvertToYsonString(Config_).GetData());
+                context->Reply();
+            })
+            .Via(GetCancelableControlInvoker()));
+    }
 
     void ProcessAgentHeartbeat(const TCtxAgentHeartbeatPtr& context)
     {
@@ -762,11 +802,14 @@ public:
             request->operations_size());
 
         auto agent = GetAgentOrThrow(agentId);
-
+        if (agent->GetState() != EControllerAgentState::Registered) {
+            context->Reply(TError("Agent %Qv is in %Qlv state",
+                agentId,
+                agent->GetState()));
+            return;
+        }
         if (incarnationId != agent->GetIncarnationId()) {
-            context->Reply(TError(
-                NRpc::EErrorCode::Unavailable,
-                "Wrong agent incarnation id: expected %v, got %v",
+            context->Reply(TError("Wrong agent incarnation id: expected %v, got %v",
                 agent->GetIncarnationId(),
                 incarnationId));
             return;
@@ -821,7 +864,7 @@ public:
         RunInMessageOffloadThread([&] {
             const auto& nodeShards = scheduler->GetNodeShards();
             std::vector<std::vector<const NProto::TAgentToSchedulerJobEvent*>> groupedJobEvents(nodeShards.size());
-            agent->JobEventsInbox().HandleIncoming(
+            agent->GetJobEventsInbox()->HandleIncoming(
                 request->mutable_agent_to_scheduler_job_events(),
                 [&] (auto* protoEvent) {
                     auto jobId = FromProto<TJobId>(protoEvent->job_id());
@@ -861,7 +904,7 @@ public:
             }
 
             std::vector<std::vector<const NProto::TScheduleJobResponse*>> groupedScheduleJobResponses(nodeShards.size());
-            agent->ScheduleJobResponsesInbox().HandleIncoming(
+            agent->GetScheduleJobResponsesInbox()->HandleIncoming(
                 request->mutable_agent_to_scheduler_schedule_job_responses(),
                 [&] (auto* protoEvent) {
                     auto jobId = FromProto<TJobId>(protoEvent->job_id());
@@ -886,7 +929,7 @@ public:
             agent->GetScheduleJobRequestsOutbox()->HandleStatus(request->scheduler_to_agent_schedule_job_requests());
         });
 
-        agent->OperationEventsInbox().HandleIncoming(
+        agent->GetOperationEventsInbox()->HandleIncoming(
             request->mutable_agent_to_scheduler_operation_events(),
             [&] (auto* protoEvent) {
                 auto eventType = static_cast<EAgentToSchedulerOperationEventType>(protoEvent->event_type());
@@ -931,11 +974,11 @@ public:
             return;
         }
 
-        agent->OperationEventsInbox().ReportStatus(response->mutable_agent_to_scheduler_operation_events());
+        agent->GetOperationEventsInbox()->ReportStatus(response->mutable_agent_to_scheduler_operation_events());
 
         RunInMessageOffloadThread([&] {
-            agent->JobEventsInbox().ReportStatus(response->mutable_agent_to_scheduler_job_events());
-            agent->ScheduleJobResponsesInbox().ReportStatus(response->mutable_agent_to_scheduler_schedule_job_responses());
+            agent->GetJobEventsInbox()->ReportStatus(response->mutable_agent_to_scheduler_job_events());
+            agent->GetScheduleJobResponsesInbox()->ReportStatus(response->mutable_agent_to_scheduler_schedule_job_responses());
 
             agent->GetJobEventsOutbox()->BuildOutcoming(
                 response->mutable_scheduler_to_agent_job_events(),
@@ -1007,15 +1050,19 @@ private:
         agent->SetLease(TLeaseManager::CreateLease(
             Config_->ControllerAgentHeartbeatTimeout,
             BIND(&TImpl::OnAgentHeartbeatTimeout, MakeWeak(this), agent)
-                .Via(Bootstrap_->GetScheduler()->GetMasterConnector()->GetCancelableControlInvoker(EControlQueue::AgentTracker))));
-
-        LOG_INFO("Agent registered (AgentId: %v, IncarnationId: %v)",
-            agent->GetId(),
-            agent->GetIncarnationId());
+                .Via(GetCancelableControlInvoker())));
     }
 
     void UnregisterAgent(const TControllerAgentPtr& agent)
     {
+        if (agent->GetState() == EControllerAgentState::Unregistering ||
+            agent->GetState() == EControllerAgentState::Unregistered)
+        {
+            return;
+        }
+
+        YCHECK(agent->GetState() == EControllerAgentState::Registered);
+
         const auto& scheduler = Bootstrap_->GetScheduler();
         for (const auto& operation : agent->Operations()) {
             operation->SetAgent(nullptr);
@@ -1023,16 +1070,37 @@ private:
         }
 
         TerminateAgent(agent);
-        YCHECK(IdToAgent_.erase(agent->GetId()) == 1);
 
-        LOG_INFO("Agent unregistered (AgentId: %v, IncarnationId: %v)",
+        LOG_INFO("Aborting agent incarnation transaction (AgentId: %v, IncarnationId: %v)",
             agent->GetId(),
             agent->GetIncarnationId());
+
+        agent->SetState(EControllerAgentState::Unregistering);
+        agent->GetIncarnationTransaction()->Abort()
+            .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TError& error) {
+                VERIFY_THREAD_AFFINITY(ControlThread);
+
+                if (!error.IsOK()) {
+                    Bootstrap_->GetScheduler()->Disconnect(error);
+                    return;
+                }
+
+                if (agent->GetState() != EControllerAgentState::Unregistering) {
+                    return;
+                }
+
+                LOG_INFO("Agent unregistered (AgentId: %v, IncarnationId: %v)",
+                    agent->GetId(),
+                    agent->GetIncarnationId());
+
+                agent->SetState(EControllerAgentState::Unregistered);
+                YCHECK(IdToAgent_.erase(agent->GetId()) == 1);
+            })
+            .Via(GetCancelableControlInvoker()));
     }
 
     void TerminateAgent(const TControllerAgentPtr& agent)
     {
-        agent->SetUnregistered(true);
         TLeaseManager::CloseLease(agent->GetLease());
         agent->SetLease(TLease());
         agent->GetChannel()->Terminate(TError("Agent disconnected"));
@@ -1047,12 +1115,29 @@ private:
             agent->GetIncarnationId());
     }
 
+    void OnAgentIncarnationTransactionAborted(const TWeakPtr<TControllerAgent>& weakAgent)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        auto agent = weakAgent.Lock();
+        if (!agent) {
+            return;
+        }
+
+        LOG_WARNING("Agent incarnation transaction aborted; unregistering (AgentId: %v, IncarnationId: %v)",
+            agent->GetId(),
+            agent->GetIncarnationId());
+
+        UnregisterAgent(agent);
+    }
+
 
     void DoCleanup()
     {
         for (const auto& pair : IdToAgent_) {
             const auto& agent = pair.second;
             TerminateAgent(agent);
+            agent->SetState(EControllerAgentState::Unregistered);
         }
         IdToAgent_.clear();
     }
@@ -1069,6 +1154,14 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         DoCleanup();
+    }
+
+    const IInvokerPtr& GetCancelableControlInvoker()
+    {
+        return Bootstrap_
+            ->GetScheduler()
+            ->GetMasterConnector()
+            ->GetCancelableControlInvoker(EControlQueue::AgentTracker);
     }
 };
 
