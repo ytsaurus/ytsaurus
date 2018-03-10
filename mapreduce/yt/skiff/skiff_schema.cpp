@@ -85,9 +85,10 @@ const TString& TSkiffSchema::GetName() const
     return Name_;
 }
 
-TSkiffSchemaList TSkiffSchema::GetChildren() const
+const TSkiffSchemaList& TSkiffSchema::GetChildren() const
 {
-    return {};
+    static const TSkiffSchemaList schema = {};
+    return schema;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -38,7 +38,7 @@ public:
     TSkiffSchemaPtr SetName(TString name);
     const TString& GetName() const;
 
-    virtual TSkiffSchemaList GetChildren() const;
+    virtual const TSkiffSchemaList& GetChildren() const;
 
 protected:
     explicit TSkiffSchema(EWireType type);
@@ -66,7 +66,7 @@ class TComplexSchema
 public:
     explicit TComplexSchema(TSkiffSchemaList elements);
 
-    virtual TSkiffSchemaList GetChildren() const override;
+    virtual const TSkiffSchemaList& GetChildren() const override;
 
 private:
     const TSkiffSchemaList Elements_;
