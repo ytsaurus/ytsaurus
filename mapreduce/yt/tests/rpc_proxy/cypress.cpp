@@ -1,4 +1,5 @@
 #include <library/unittest/registar.h>
+#include <util/system/env.h>
 
 #include <yt/ytlib/api/client.h>
 #include <yt/ytlib/api/proxy_connection.h>
@@ -18,7 +19,7 @@ using namespace NYT::NNet;
 
 IClientPtr CreateTestRpcClient()
 {
-    auto proxyAddress = getenv("YT_RPC_PROXY");
+    auto proxyAddress = GetEnv("YT_RPC_PROXY");
     if (!proxyAddress) {
         THROW_ERROR_EXCEPTION("YT_RPC_PROXY environment variable is not set");
     }
