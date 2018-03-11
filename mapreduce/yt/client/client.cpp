@@ -1,4 +1,5 @@
 #include "client.h"
+#include <util/system/env.h>
 
 #include "batch_request_impl.h"
 #include "client_reader.h"
@@ -857,7 +858,7 @@ IClientPtr CreateClient(
     const TString& serverName,
     const TCreateClientOptions& options)
 {
-    bool mockRun = getenv("YT_CLIENT_MOCK_RUN") ? FromString<bool>(getenv("YT_CLIENT_MOCK_RUN")) : false;
+    bool mockRun = GetEnv("YT_CLIENT_MOCK_RUN") ? FromString<bool>(GetEnv("YT_CLIENT_MOCK_RUN")) : false;
     if (mockRun) {
         LOG_INFO("Running client in mock regime");
         return new TMockClient();
