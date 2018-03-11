@@ -3,6 +3,8 @@ from __future__ import print_function
 from yt.packages.six import iteritems, integer_types, text_type, binary_type, b
 from yt.packages.six.moves import map as imap, xrange
 
+from yt.environment.helpers import wait
+
 import yt.yson as yson
 import yt.subprocess_wrapper as subprocess
 
