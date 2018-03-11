@@ -511,7 +511,7 @@ class TestAccounts(YTEnvSetup):
         assert self._is_account_disk_space_limit_violated("max")
         with pytest.raises(YtError): write_table("//tmp/t", {"a" : "b"})
         # Wait for upload tx to abort
-        wait(lambda: get("//tmp/b/a/f3/@locks") == [])
+        wait(lambda: get("//tmp/t/@locks") == [])
 
         set_account_disk_space_limit("max", get_account_disk_space("max") + 1)
         self._replicator_sleep()
