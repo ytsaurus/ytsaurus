@@ -754,7 +754,8 @@ print(op.id)
                 reduce_by=["key"],
                 spec={"map_locality_timeout": 0, "reduce_locality_timeout": 0})
 
-            time.sleep(0.5)
+            wait(lambda: op.get_state() == "running")
+
             op.suspend()
             assert op.get_state() == "running"
             time.sleep(2.5)
