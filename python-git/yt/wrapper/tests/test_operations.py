@@ -17,6 +17,7 @@ from yt.wrapper.table import TablePath
 from yt.wrapper.spec_builders import MapSpecBuilder, MapReduceSpecBuilder
 from yt.wrapper.http_helpers import make_request_with_retries
 
+from yt.environment.helpers import assert_almost_equal
 from yt.local import start, stop
 
 from yt.yson import YsonMap
@@ -1433,8 +1434,6 @@ print(op.id)
         check([{"x": 1}, {"y": 2}], list(yt.read_table(table)))
 
     def test_update_operation_parameters(self):
-        EPS = 1e-4
-
         table = TEST_DIR + "/table"
         output_table = TEST_DIR + "/output_table"
         yt.write_table(table, [{"x": 1}, {"y": 2}])
@@ -1442,5 +1441,6 @@ print(op.id)
         op = yt.run_map("cat; sleep 100", table, output_table, spec={"weight": 5.0}, format="json", sync=False)
         wait(lambda: op.get_state() == "running")
         yt.update_operation_parameters(op.id, {"scheduling_options_per_pool_tree": {"default": {"weight": 10.0}}})
-        wait(lambda:
-            abs(yt.get_operation(op.id)["progress"]["scheduling_info_per_pool_tree"]["default"]["weight"] - 10.0) < EPS)
+        assert assert_almost_equal(
+            yt.get_operation(op.id)["progress"]["scheduling_info_per_pool_tree"]["default"]["weight"],
+            10.0)
