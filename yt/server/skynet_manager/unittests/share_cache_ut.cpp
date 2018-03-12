@@ -45,10 +45,10 @@ struct TShareCacheTest
     TShareHostMockPtr HostMock;
     TTombstoneCacheConfigPtr Config;
 
-    TShareKey TestTable42 = {"local", "//tmp/test_table", 42};
-    TShareKey TestTable43 = {"local", "//tmp/test_table", 43};
+    TShareKey TestTable42 = TShareKey{"local", "//tmp/test_table", 42};
+    TShareKey TestTable43 = TShareKey{"local", "//tmp/test_table", 43};
 
-    TShareKey DuplicateTable1234 = {"local", "//tmp/duplicate", 1234};
+    TShareKey DuplicateTable1234 = TShareKey{"local", "//tmp/duplicate", 1234};
 
     TShareCacheTest()
     {
