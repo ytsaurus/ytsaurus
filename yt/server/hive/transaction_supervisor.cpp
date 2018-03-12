@@ -998,7 +998,10 @@ private:
             return;
         }
 
-        if (commit->GetCoordinatorCommitMode() == ETransactionCoordinatorCommitMode::Lazy) {
+        // TODO(babenko): think about a better way of distinguishing between successful and failed commits
+        if (commit->GetCoordinatorCommitMode() == ETransactionCoordinatorCommitMode::Lazy &&
+            !commit->CommitTimestamps().Timestamps.empty())
+        {
             RunCoordinatorCommit(commit);
         }
 
