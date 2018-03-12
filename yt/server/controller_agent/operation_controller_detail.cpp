@@ -490,7 +490,8 @@ void TOperationControllerBase::InitializeStructures()
             TUserFile file;
             file.Path = path;
             file.IsLayer = true;
-            files.emplace_back(std::move(file));
+            // This must be the top layer, so insert in the beginning.
+            files.insert(files.begin(), std::move(file));
         }
     }
 
