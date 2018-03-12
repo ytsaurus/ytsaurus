@@ -577,9 +577,7 @@ print(op.id)
 
         op_id = subprocess.check_output([get_python(), file.name, table, table, PYTHONPATH],
                                         env=self.env, stderr=sys.stderr).strip()
-        time.sleep(3)
-
-        assert yt.get("//sys/operations/{0}/@state".format(op_id)) == "aborted"
+        wait(lambda: yt.get("//sys/operations/{0}/@state".format(op_id)) == "aborted")
 
     def test_abort_operation(self):
         table = TEST_DIR + "/table"
