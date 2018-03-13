@@ -1001,6 +1001,7 @@ private:
         proxyConfig->SlotIndex = Slot_->GetSlotIndex();
         if (RootVolume_) {
             proxyConfig->RootPath = RootVolume_->GetPath();
+            proxyConfig->Binds = Config_->RootFSBinds;
         }
 
         return proxyConfig;

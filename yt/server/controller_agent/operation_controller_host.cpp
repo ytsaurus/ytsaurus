@@ -120,7 +120,8 @@ void TOperationControllerHost::CreateJobNode(const TCreateJobNodeRequest& reques
 }
 
 TFuture<void> TOperationControllerHost::AttachChunkTreesToLivePreview(
-    const NTransactionClient::TTransactionId& transactionId, const std::vector<NCypressClient::TNodeId>& tableIds,
+    const NTransactionClient::TTransactionId& transactionId,
+    const NCypressClient::TNodeId& tableId,
     const std::vector<TChunkTreeId>& childIds)
 {
     return BIND(&NControllerAgent::TMasterConnector::AttachToLivePreview, Bootstrap_->GetControllerAgent()->GetMasterConnector())
@@ -128,7 +129,7 @@ TFuture<void> TOperationControllerHost::AttachChunkTreesToLivePreview(
         .Run(
             OperationId_,
             transactionId,
-            tableIds,
+            tableId,
             childIds);
 }
 

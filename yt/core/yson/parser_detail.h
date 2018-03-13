@@ -24,6 +24,7 @@ private:
     TConsumer* Consumer;
     int NestingLevel = 0;
     static const int NestingLevelLimit = 128;
+    bool Stopped_ = false;
 
 public:
     TParser(
@@ -36,6 +37,7 @@ public:
 
     void DoParse(EYsonType parsingMode)
     {
+        Stopped_ = false;
         try {
             switch (parsingMode) {
                 case EYsonType::Node:
@@ -52,6 +54,10 @@ public:
 
                 default:
                     Y_UNREACHABLE();
+            }
+
+            if (Stopped_) {
+                return;
             }
 
             while (!(TBase::IsFinished() && TBase::IsEmpty())) {
@@ -73,6 +79,11 @@ public:
         }
     }
 
+    void Stop()
+    {
+        Stopped_ = true;
+    }
+
 private:
 
     /// Parse routines
@@ -81,7 +92,15 @@ private:
         TBase::CheckpointContext();
         Consumer->OnBeginAttributes();
 
+        if (Stopped_) {
+            return;
+        }
+
         ParseMapFragment(EndAttributesSymbol);
+
+        if (Stopped_) {
+            return;
+        }
 
         TBase::CheckpointContext();
         TBase::SkipCharToken(EndAttributesSymbol);
@@ -93,7 +112,15 @@ private:
         TBase::CheckpointContext();
         Consumer->OnBeginMap();
 
+        if (Stopped_) {
+            return;
+        }
+
         ParseMapFragment(EndMapSymbol);
+
+        if (Stopped_) {
+            return;
+        }
 
         TBase::CheckpointContext();
         TBase::SkipCharToken(EndMapSymbol);
@@ -105,7 +132,15 @@ private:
         TBase::CheckpointContext();
         Consumer->OnBeginList();
 
+        if (Stopped_) {
+            return;
+        }
+
         ParseListFragment(EndListSymbol);
+
+        if (Stopped_) {
+            return;
+        }
 
         TBase::CheckpointContext();
         TBase::SkipCharToken(EndListSymbol);
@@ -137,6 +172,11 @@ private:
         if (ch == BeginAttributesSymbol) {
             TBase::Advance(1);
             ParseAttributes();
+
+            if (Stopped_) {
+                return;
+            }
+
             ch = TBase::SkipSpaceAndGetChar();
             TBase::CheckpointContext();
         }
@@ -272,6 +312,11 @@ private:
         char ch = TBase::template SkipSpaceAndGetChar<AllowFinish>();
         while (ch != endSymbol) {
             ParseKey(ch);
+
+            if (Stopped_) {
+                return;
+            }
+
             ch = TBase::template SkipSpaceAndGetChar<AllowFinish>();
             TBase::CheckpointContext();
             if (ch == KeyValueSeparatorSymbol) {
@@ -283,6 +328,11 @@ private:
                     << *this;
             }
             ParseNode<AllowFinish>();
+
+            if (Stopped_) {
+                return;
+            }
+
             ch = TBase::template SkipSpaceAndGetChar<AllowFinish>();
             TBase::CheckpointContext();
             if (ch == ItemSeparatorSymbol) {
@@ -310,7 +360,17 @@ private:
         while (ch != endSymbol) {
             TBase::CheckpointContext();
             Consumer->OnListItem();
+
+            if (Stopped_) {
+                return;
+            }
+
             ParseNode<AllowFinish>(ch);
+
+            if (Stopped_) {
+                return;
+            }
+
             ch = TBase::template SkipSpaceAndGetChar<AllowFinish>();
             TBase::CheckpointContext();
             if (ch == ItemSeparatorSymbol) {
@@ -432,6 +492,7 @@ class TStatelessYsonParserImplBase
 {
 public:
     virtual void Parse(const TStringBuf& data, EYsonType type = EYsonType::Node) = 0;
+    virtual void Stop() = 0;
 
     virtual ~TStatelessYsonParserImplBase()
     { }
@@ -456,6 +517,11 @@ public:
     {
         Parser.SetBuffer(data.begin(), data.end());
         Parser.DoParse(type);
+    }
+
+    void Stop() override
+    {
+        Parser.Stop();
     }
 };
 

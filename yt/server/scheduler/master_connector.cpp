@@ -917,6 +917,8 @@ private:
                 Owner_->Bootstrap_->GetControlInvoker(),
                 attributes.Get<EOperationState>("state"),
                 attributes.Get<std::vector<TOperationEvent>>("events", {}));
+        
+            operation->SetShouldFlushAcl(true);
 
             auto slotIndexMap = attributes.Find<THashMap<TString, int>>("slot_index_per_pool_tree");
             if (slotIndexMap) {

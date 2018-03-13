@@ -36,9 +36,9 @@ TFuture<TTimestamp> TTimestampProviderBase::OnGenerateTimestamps(
     }
 
     auto firstTimestamp = timestampOrError.Value();
-    auto lastTimestamp = firstTimestamp + count;
+    auto lastTimestamp = firstTimestamp + count - 1;
 
-    LOG_DEBUG("Fresh timestamps generated (Timestamps: %v-%v)",
+    LOG_DEBUG("Fresh timestamps generated (Timestamps: %llx-%llx)",
         firstTimestamp,
         lastTimestamp);
 

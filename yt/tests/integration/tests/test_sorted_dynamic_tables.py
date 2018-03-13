@@ -162,11 +162,12 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
             return (
                 tablet_profiling.get_counter("lookup/" + count_name),
                 tablet_profiling.get_counter("select/" + count_name),
+                tablet_profiling.get_counter("select/unmerged_" + count_name),
                 tablet_profiling.get_counter("write/" + count_name),
                 tablet_profiling.get_counter("commit/" + count_name))
 
-        assert get_all_counters("row_count") == (0, 0, 0, 0)
-        assert get_all_counters("data_weight") == (0, 0, 0, 0)
+        assert get_all_counters("row_count") == (0, 0, 0, 0, 0)
+        assert get_all_counters("data_weight") == (0, 0, 0, 0, 0)
         assert tablet_profiling.get_counter("lookup/cpu_time") == 0
         assert select_profiling.get_counter("select/cpu_time") == 0
 
@@ -176,8 +177,8 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
 
         sleep(2)
 
-        assert get_all_counters("row_count") == (0, 0, 1, 1)
-        assert get_all_counters("data_weight") == (0, 0, 10, 10)
+        assert get_all_counters("row_count") == (0, 0, 0, 1, 1)
+        assert get_all_counters("data_weight") == (0, 0, 0, 10, 10)
         assert tablet_profiling.get_counter("lookup/cpu_time") == 0
         assert select_profiling.get_counter("select/cpu_time") == 0
 
@@ -186,8 +187,8 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
 
         sleep(2)
 
-        assert get_all_counters("row_count") == (1, 0, 1, 1)
-        assert get_all_counters("data_weight") == (10, 0, 10, 10)
+        assert get_all_counters("row_count") == (1, 0, 0, 1, 1)
+        assert get_all_counters("data_weight") == (10, 0, 0, 10, 10)
         assert tablet_profiling.get_counter("lookup/cpu_time") > 0
         assert select_profiling.get_counter("select/cpu_time") == 0
 
@@ -196,8 +197,8 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
 
         sleep(2)
 
-        assert get_all_counters("row_count") == (1, 1, 1, 1)
-        assert get_all_counters("data_weight") == (10, 10, 10, 10)
+        assert get_all_counters("row_count") == (1, 1, 1, 1, 1)
+        assert get_all_counters("data_weight") == (10, 10, 25, 10, 10)
         assert tablet_profiling.get_counter("lookup/cpu_time") > 0
         assert select_profiling.get_counter("select/cpu_time") > 0
 
@@ -1540,6 +1541,9 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         self.sync_mount_table("//tmp/t")
         self.sync_compact_table("//tmp/t")
         statistics2 = get("#" + chunk_list_id + "/@statistics")
+        # Disk space is not stable since it includes meta
+        del statistics1["regular_disk_space"]
+        del statistics2["regular_disk_space"]
         assert statistics1 == statistics2
 
     def test_tablet_statistics(self):
