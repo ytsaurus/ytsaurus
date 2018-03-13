@@ -9,10 +9,9 @@
 
 #include <yt/ytlib/table_client/schemaful_writer.h>
 
-#include <yt/core/misc/async_cache.h>
-
 #include <yt/core/profiling/timing.h>
 
+#include <yt/core/misc/async_cache.h>
 #include <yt/core/misc/finally.h>
 
 #include <llvm/ADT/FoldingSet.h>
@@ -21,10 +20,11 @@
 
 namespace NYT {
 namespace NQueryClient {
-
 ////////////////////////////////////////////////////////////////////////////////
 
 using namespace NConcurrency;
+
+using NNodeTrackerClient::TNodeMemoryTracker;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -56,10 +56,14 @@ class TEvaluator::TImpl
 public:
     TImpl(
         TExecutorConfigPtr config,
-        const NProfiling::TProfiler& profiler)
+        const NProfiling::TProfiler& profiler,
+        IMemoryChunkProviderPtr memoryChunkProvider)
         : TAsyncSlruCacheBase(
             config->CGCache,
             profiler.GetPathPrefix() ? NProfiling::TProfiler(profiler.GetPathPrefix() + "/cg_cache") : NProfiling::TProfiler())
+        , MemoryChunkProvider_(memoryChunkProvider
+            ? std::move(memoryChunkProvider)
+            : CreateMemoryChunkProvider(PoolChunkSize))
     { }
 
     TQueryStatistics Run(
@@ -120,6 +124,7 @@ public:
                 executionContext.JoinRowLimit = options.OutputRowLimit;
                 executionContext.Limit = query->Limit;
                 executionContext.IsOrdered = query->IsOrdered();
+                executionContext.MemoryChunkProvider = MemoryChunkProvider_;
 
                 LOG_DEBUG("Evaluating query");
 
@@ -157,6 +162,8 @@ public:
     }
 
 private:
+    const IMemoryChunkProviderPtr MemoryChunkProvider_;
+
     TCGQueryCallback Codegen(
         TConstBaseQueryPtr query,
         TCGVariables& variables,
@@ -228,17 +235,18 @@ private:
         TValue* literals,
         void* const* opaqueValues,
         TExecutionContext* executionContext) = CallCGQuery;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TEvaluator::TEvaluator(
     TExecutorConfigPtr config,
-    const NProfiling::TProfiler& profiler)
+    const NProfiling::TProfiler& profiler,
+    IMemoryChunkProviderPtr memoryChunkProvider)
     : Impl_(New<TImpl>(
         std::move(config),
-        profiler))
+        profiler,
+        std::move(memoryChunkProvider)))
 { }
 
 TQueryStatistics TEvaluator::Run(

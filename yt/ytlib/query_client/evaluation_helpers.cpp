@@ -167,11 +167,12 @@ TJoinClosure::TJoinClosure(
 }
 
 TMultiJoinClosure::TItem::TItem(
+    IMemoryChunkProviderPtr chunkProvider,
     size_t keySize,
     TComparerFunction* prefixEqComparer,
     THasherFunction* lookupHasher,
     TComparerFunction* lookupEqComparer)
-    : Buffer(New<TRowBuffer>(TPermanentBufferTag(), PoolChunkSize, MaxSmallBlockRatio))
+    : Buffer(New<TRowBuffer>(TPermanentBufferTag(), std::move(chunkProvider)))
     , KeySize(keySize)
     , PrefixEqComparer(prefixEqComparer)
     , Lookup(
@@ -183,11 +184,12 @@ TMultiJoinClosure::TItem::TItem(
 }
 
 TGroupByClosure::TGroupByClosure(
+    IMemoryChunkProviderPtr chunkProvider,
     THasherFunction* groupHasher,
     TComparerFunction* groupComparer,
     int keySize,
     bool checkNulls)
-    : Buffer(New<TRowBuffer>(TPermanentBufferTag(), PoolChunkSize, MaxSmallBlockRatio))
+    : Buffer(New<TRowBuffer>(TPermanentBufferTag(), std::move(chunkProvider)))
     , Lookup(
         InitialGroupOpHashtableCapacity,
         groupHasher,

@@ -49,6 +49,7 @@ class TypeBuilder<re2::RE2*, Cross>
 
 ////////////////////////////////////////////////////////////////////////////////
 
+
 namespace NYT {
 namespace NQueryClient {
 namespace NRoutines {
@@ -826,12 +827,13 @@ void MultiJoinOpHelper(
     });
 
     TMultiJoinClosure closure;
-    closure.Buffer = New<TRowBuffer>(TPermanentBufferTag(), PoolChunkSize, MaxSmallBlockRatio);
+    closure.Buffer = New<TRowBuffer>(TPermanentBufferTag(), context->MemoryChunkProvider);
     closure.PrimaryRowSize = parameters->PrimaryRowSize;
     closure.BatchSize = parameters->BatchSize;
 
     for (size_t joinId = 0; joinId < parameters->Items.size(); ++joinId) {
         TMultiJoinClosure::TItem subclosure(
+            context->MemoryChunkProvider,
             parameters->Items[joinId].KeySize,
             comparers[joinId].PrefixEqComparer,
             comparers[joinId].SuffixHasher,
@@ -1148,7 +1150,7 @@ void GroupOpHelper(
         LOG_DEBUG("Finalizing group helper");
     });
 
-    TGroupByClosure closure(groupHasher, groupComparer, keySize, checkNulls);
+    TGroupByClosure closure(context->MemoryChunkProvider, groupHasher, groupComparer, keySize, checkNulls);
 
     try {
         collectRows(collectRowsClosure, &closure, closure.Buffer.Get());
