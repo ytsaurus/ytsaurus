@@ -82,6 +82,7 @@ public:
     TCounterBase& operator = (const TCounterBase& other);
 
     TValue GetCurrent() const;
+    TCpuInstant GetUpdateDeadline() const;
 
 private:
     TSpinLock SpinLock_;
@@ -131,16 +132,12 @@ public:
     TAggregateCounter(const TAggregateCounter& other);
     TAggregateCounter& operator = (const TAggregateCounter& other);
 
-    TValue GetMax();
-
 private:
     EAggregateMode Mode_;
     std::atomic<TValue> Min_;
     std::atomic<TValue> Max_;
     std::atomic<TValue> Sum_;
     std::atomic<int> SampleCount_;
-
-    std::atomic<TValue> LastMax_;
 
     void Reset();
 

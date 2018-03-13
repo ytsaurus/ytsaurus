@@ -9,6 +9,7 @@ namespace NYT {
 namespace NDataNode {
 
 using namespace NConcurrency;
+using namespace NProfiling;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -30,15 +31,14 @@ void TNetworkStatistics::IncrementReadThrottlingCounter(const TString& name)
 
         TWriterGuard guard(Lock_);
         if (Counters_.find(name) == Counters_.end()) {
-            NProfiling::TTagIdList tagIds{
-                NProfiling::TProfileManager::Get()->RegisterTag("network", name)
+            TTagIdList tagIds{
+                TProfileManager::Get()->RegisterTag("network", name)
             };
 
             auto& counters = Counters_[name];
-            counters.ThrottledReadsCounter = NProfiling::TAggregateCounter(
+            counters.ThrottledReadsCounter = TSimpleCounter(
                 "/net_throttled_reads",
                 tagIds,
-                NProfiling::EAggregateMode::Max,
                 Config_->NetOutThrottleCounterInterval);
         }
     }
@@ -50,7 +50,10 @@ void TNetworkStatistics::UpdateStatistics(NNodeTrackerClient::NProto::TNodeStati
     for (auto& counter : Counters_) {
         auto network = statistics->add_network();
         network->set_network(counter.first);
-        network->set_throttling_reads(counter.second.ThrottledReadsCounter.GetMax() > 0);
+
+        auto deadline = counter.second.ThrottledReadsCounter.GetUpdateDeadline();
+        network->set_throttling_reads(
+            GetCpuInstant() < deadline + 2 * DurationToCpuDuration(Config_->NetOutThrottleCounterInterval));
     }
 }
 

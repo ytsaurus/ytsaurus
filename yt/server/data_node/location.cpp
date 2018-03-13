@@ -35,6 +35,7 @@ using namespace NChunkClient;
 using namespace NCellNode;
 using namespace NConcurrency;
 using namespace NObjectClient;
+using namespace NProfiling;
 using namespace NHydra;
 using namespace NYTree;
 using namespace NYson;
@@ -64,8 +65,8 @@ TLocation::TLocation(
     , WriteThreadPool_(New<TThreadPool>(Bootstrap_->GetConfig()->DataNode->WriteThreadCount, Format("DataWrite:%v", Id_)))
     , WritePoolInvoker_(WriteThreadPool_->GetInvoker())
     , IOEngine_(CreateIOEngine(Config_->IOEngineType, Config_->IOConfig))
-    , ThrottledReadsCounter_("/throttled_reads", {}, NProfiling::EAggregateMode::Max, config->ThrottleCounterInterval)
-    , ThrottledWritesCounter_("/throttled_writes", {}, NProfiling::EAggregateMode::Max, config->ThrottleCounterInterval)
+    , ThrottledReadsCounter_("/throttled_reads", {}, config->ThrottleCounterInterval)
+    , ThrottledWritesCounter_("/throttled_writes", {}, config->ThrottleCounterInterval)
     , PutBlocksWallTimeCounter_("/put_blocks_wall_time", {}, NProfiling::EAggregateMode::All)
 {
     auto* profileManager = NProfiling::TProfileManager::Get();
@@ -484,7 +485,7 @@ IThroughputThrottlerPtr TLocation::GetOutThrottler(const TWorkloadDescriptor& de
             return TabletCompactionAndPartitioningOutThrottler_;
 
         case EWorkloadCategory::SystemTabletPreload:
-            return TabletPreloadOutThrottler_;
+             return TabletPreloadOutThrottler_;
 
         case EWorkloadCategory::SystemTabletRecovery:
             return TabletRecoveryOutThrottler_;
@@ -506,12 +507,14 @@ void TLocation::IncrementThrottledWritesCounter()
 
 bool TLocation::IsReadThrottling()
 {
-    return ThrottledReadsCounter_.GetMax() > 0;
+    auto deadline = ThrottledReadsCounter_.GetUpdateDeadline();
+    return GetCpuInstant() < deadline + 2 * DurationToCpuDuration(Config_->ThrottleCounterInterval);
 }
 
 bool TLocation::IsWriteThrottling()
 {
-    return ThrottledWritesCounter_.GetMax() > 0;
+    auto deadline = ThrottledWritesCounter_.GetUpdateDeadline();
+    return GetCpuInstant() < deadline + 2 * DurationToCpuDuration(Config_->ThrottleCounterInterval);
 }
 
 void TLocation::UpdatePutBlocksWallTimeCounter(NProfiling::TValue value)

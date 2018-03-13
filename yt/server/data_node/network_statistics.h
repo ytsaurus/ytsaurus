@@ -18,7 +18,7 @@ namespace NDataNode {
 struct TNetworkCounters
     : public TRefCounted
 {
-    NProfiling::TAggregateCounter ThrottledReadsCounter;
+    NProfiling::TSimpleCounter ThrottledReadsCounter;
 };
 
 DEFINE_REFCOUNTED_TYPE(TNetworkCounters)
