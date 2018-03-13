@@ -456,7 +456,10 @@ void TSchedulerThread::WaitFor(TFuture<void> future, IInvokerPtr invoker)
     auto fiber = CurrentFiber_.Get();
     YCHECK(fiber);
 
+// Check cancellation after wakeup to reduce sync execution time.
+#if 0
     CheckForCanceledFiber(fiber);
+#endif
 
     // Update scheduling state.
     YCHECK(!WaitForFuture_);
