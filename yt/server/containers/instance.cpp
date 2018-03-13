@@ -313,7 +313,10 @@ public:
         // In theory it is not necessarily to wait here, but in this case
         // error handling will be more difficult.
         auto error = WaitFor(startAction);
-        THROW_ERROR_EXCEPTION_IF_FAILED(error, "Unable to start container");
+        if (!error.IsOK()) {
+            THROW_ERROR_EXCEPTION(EErrorCode::FailedToStartContainer, "Unable to start container")
+                << error;
+        }
 
         return Executor_->AsyncPoll(Name_);
     }
