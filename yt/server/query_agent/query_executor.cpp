@@ -170,6 +170,11 @@ public:
         return Underlying_->GetDataStatistics();
     }
 
+    virtual NChunkClient::TCodecStatistics GetDecompressionStatistics() const override
+    {
+        return Underlying_->GetDecompressionStatistics();
+    }
+
     ~TProfilingReaderWrapper()
     {
         auto statistics = GetDataStatistics();

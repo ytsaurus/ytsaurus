@@ -93,6 +93,7 @@ public:
     virtual i64 GetSessionRowIndex() const override;
     virtual bool IsFetchingCompleted() const override;
     virtual NChunkClient::NProto::TDataStatistics GetDataStatistics() const override;
+    virtual NChunkClient::TCodecStatistics GetDecompressionStatistics() const override;
     virtual std::vector<TChunkId> GetFailedChunkIds() const override;
     virtual TInterruptDescriptor GetInterruptDescriptor(
         const TRange<TUnversionedRow>& unreadRows) const override;
@@ -296,7 +297,7 @@ void TSchemalessTableReader::DoOpen()
 
         std::vector<TDataSliceDescriptor> dataSliceDescriptors;
         for (auto& chunkSpec : chunkSpecs) {
-            dataSliceDescriptors.push_back(TDataSliceDescriptor(chunkSpec));
+            dataSliceDescriptors.emplace_back(chunkSpec);
         }
 
         auto factory = Unordered_
@@ -402,6 +403,12 @@ NChunkClient::NProto::TDataStatistics TSchemalessTableReader::GetDataStatistics(
 {
     YCHECK(UnderlyingReader_);
     return UnderlyingReader_->GetDataStatistics();
+}
+
+NChunkClient::TCodecStatistics TSchemalessTableReader::GetDecompressionStatistics() const
+{
+    YCHECK(UnderlyingReader_);
+    return UnderlyingReader_->GetDecompressionStatistics();
 }
 
 std::vector<TChunkId> TSchemalessTableReader::GetFailedChunkIds() const

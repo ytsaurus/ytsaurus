@@ -191,6 +191,16 @@ class TestSchedulerMapCommands(YTEnvSetup):
         row_count = get("//sys/operations/{0}/@progress/job_statistics/data/output/1/row_count/$/completed/map/sum".format(op.id))
         assert row_count == 1
 
+    def test_compression_statistics(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", [{"key": i} for i in xrange(100000)])  # so much is needed to see non-zero codec cpu usage
+
+        op = map(command="cat", in_="//tmp/t1", out="//tmp/t2")
+        op.track()
+        decode_time = get("//sys/operations/{0}/@progress/job_statistics/codec/cpu/decode/Lz4/$/completed/map/sum".format(op.id))
+        assert decode_time > 0
+
     @unix_only
     def test_sorted_output(self):
         create("table", "//tmp/t1")

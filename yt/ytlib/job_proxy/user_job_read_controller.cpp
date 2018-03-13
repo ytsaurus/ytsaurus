@@ -118,6 +118,14 @@ public:
         return Reader_->GetDataStatistics();
     }
 
+    virtual TNullable<TCodecStatistics> GetDecompressionStatistics() const override
+    {
+        if (!Initialized_) {
+            return Null;
+        }
+        return Reader_->GetDecompressionStatistics();
+    }
+
     virtual void InterruptReader() override
     {
         if (!Initialized_) {
@@ -277,6 +285,11 @@ public:
     }
 
     TNullable<NChunkClient::NProto::TDataStatistics> GetDataStatistics() const override
+    {
+        return Null;
+    }
+
+    TNullable<TCodecStatistics> GetDecompressionStatistics() const override
     {
         return Null;
     }

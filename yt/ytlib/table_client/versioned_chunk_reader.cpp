@@ -1290,6 +1290,11 @@ public:
         return UnderlyingReader_->GetDataStatistics();
     }
 
+    virtual TCodecStatistics GetDecompressionStatistics() const override
+    {
+        return UnderlyingReader_->GetDecompressionStatistics();
+    }
+
     virtual TFuture<void> Open() override
     {
         return UnderlyingReader_->Open();

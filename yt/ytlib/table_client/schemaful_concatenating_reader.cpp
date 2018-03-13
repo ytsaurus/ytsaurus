@@ -59,6 +59,15 @@ public:
         return dataStatistics;
     }
 
+    virtual NChunkClient::TCodecStatistics GetDecompressionStatistics() const override
+    {
+        NChunkClient::TCodecStatistics result;
+        for (const auto& reader : Readers_) {
+            result += reader->GetDecompressionStatistics();
+        }
+        return result;
+    }
+
 private:
     const std::vector<std::function<ISchemafulReaderPtr()>> UnderlyingReaderFactories_;
 

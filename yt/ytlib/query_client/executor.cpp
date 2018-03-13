@@ -102,6 +102,11 @@ public:
         return TDataStatistics();
     }
 
+    virtual NChunkClient::TCodecStatistics GetDecompressionStatistics() const override
+    {
+        Y_UNIMPLEMENTED();
+    }
+
 private:
     const TTableSchema Schema_;
     const NCompression::ECodec CodecId_;

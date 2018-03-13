@@ -938,6 +938,10 @@ IConnectionReaderPtr PrepareOutputPipe(
             statistics.AddSample("/data/input", *dataStatistics);
         }
 
+        if (const auto& codecStatistics = UserJobReadController_->GetDecompressionStatistics()) {
+            codecStatistics->DumpTo(&statistics, "/codec/cpu/decode/");
+        }
+
         int i = 0;
         for (const auto& writer : UserJobWriteController_->GetWriters()) {
             statistics.AddSample(

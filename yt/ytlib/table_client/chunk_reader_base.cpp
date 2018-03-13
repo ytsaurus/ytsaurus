@@ -330,6 +330,15 @@ TDataStatistics TChunkReaderBase::GetDataStatistics() const
     return dataStatistics;
 }
 
+TCodecStatistics TChunkReaderBase::GetDecompressionStatistics() const
+{
+    TCodecStatistics statistics;
+    if (SequentialBlockFetcher_) {
+        statistics.Append(SequentialBlockFetcher_->GetDecompressionTime());
+    }
+    return statistics;
+}
+
 bool TChunkReaderBase::IsFetchingCompleted() const
 {
     if (!SequentialBlockFetcher_) {

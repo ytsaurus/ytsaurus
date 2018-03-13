@@ -2,6 +2,7 @@
 
 #include "public.h"
 #include "chunk_reader.h"
+#include "data_statistics.h"
 
 #include <yt/core/actions/future.h>
 
@@ -75,6 +76,9 @@ public:
     //! Returns total compressed size of read blocks.
     i64 GetCompressedDataSize() const;
 
+    //! Returns codec and cpu time spent in compression.
+    TCodecTime GetDecompressionTime() const;
+
 private:
     std::atomic<i64> UncompressedDataSize_ = {0};
     std::atomic<i64> CompressedDataSize_ = {0};
@@ -136,6 +140,8 @@ private:
     const TReadSessionId ReadSessionId_;
 
     NLogging::TLogger Logger;
+
+    TDuration DecompressionTime;
 };
 
 DEFINE_REFCOUNTED_TYPE(TBlockFetcher)
@@ -162,6 +168,7 @@ public:
     using TBlockFetcher::IsFetchingCompleted;
     using TBlockFetcher::GetUncompressedDataSize;
     using TBlockFetcher::GetCompressedDataSize;
+    using TBlockFetcher::GetDecompressionTime;
 
 private:
     std::vector<TBlockInfo> OriginalOrderBlockInfos_;
