@@ -27,7 +27,7 @@ auto TObjectPool<T>::Allocate() -> TObjectPtr
     }
 
     if (!obj) {
-        obj = AllocateInstance();
+        obj = TPooledObjectTraits<T>::Allocate();
     }
 
     return TObjectPtr(obj, [] (T* obj) {
@@ -61,9 +61,14 @@ void TObjectPool<T>::Reclaim(T* obj)
 }
 
 template <class T>
-T* TObjectPool<T>::AllocateInstance()
+void TObjectPool<T>:: Release(size_t count)
 {
-    return new T();
+    T* obj;
+    while (PooledObjects_.Dequeue(&obj) && count) {
+        --PoolSize_;
+        FreeInstance(obj);
+        --count;
+    }
 }
 
 template <class T>
@@ -87,7 +92,7 @@ struct TPooledObjectTraits<
         NMpl::TIsConvertible<T&, ::google::protobuf::MessageLite&>
     >::TType
 >
-    : public TPooledObjectTraitsBase
+    : public TPooledObjectTraitsBase<T>
 {
     static void Clean(T* message)
     {
