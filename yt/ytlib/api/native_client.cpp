@@ -3865,10 +3865,16 @@ private:
             pushTextFactor(briefSpecMapNode->GetChild("title")->AsString()->GetValue());
         }
         if (briefSpecMapNode->FindChild("input_table_paths")) {
-            pushTextFactor(briefSpecMapNode->GetChild("input_table_paths")->AsList()->GetChildren()[0]->AsString()->GetValue());
+            auto inputTablesNode = briefSpecMapNode->GetChild("input_table_paths")->AsList();
+            if (inputTablesNode->GetChildCount() > 0) {
+                pushTextFactor(inputTablesNode->GetChildren()[0]->AsString()->GetValue());
+            }
         }
         if (briefSpecMapNode->FindChild("output_table_paths")) {
-            pushTextFactor(briefSpecMapNode->GetChild("output_table_paths")->AsList()->GetChildren()[0]->AsString()->GetValue());
+            auto outputTablesNode = briefSpecMapNode->GetChild("output_table_paths")->AsList();
+            if (outputTablesNode->GetChildCount() > 0) {
+                pushTextFactor(outputTablesNode->GetChildren()[0]->AsString()->GetValue());
+            }
         }
 
         textFactor = to_lower(textFactor);
