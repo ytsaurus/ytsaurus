@@ -78,6 +78,11 @@ TValue TCounterBase::GetCurrent() const
     return Current_.load(std::memory_order_relaxed);
 }
 
+TCpuInstant TCounterBase::GetUpdateDeadline() const
+{
+    return Deadline_.load(std::memory_order_relaxed);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TAggregateCounter::TAggregateCounter(
@@ -87,7 +92,6 @@ TAggregateCounter::TAggregateCounter(
     TDuration interval)
     : TCounterBase(path, tagIds, interval)
     , Mode_(mode)
-    , LastMax_(0)
 {
     Reset();
 }
@@ -112,11 +116,6 @@ void TAggregateCounter::Reset()
     Max_ = std::numeric_limits<TValue>::min();
     Sum_ = 0;
     SampleCount_ = 0;
-}
-
-TValue TAggregateCounter::GetMax()
-{
-    return LastMax_.load();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -368,8 +367,6 @@ void TProfiler::OnUpdated(TAggregateCounter& counter, TValue value) const
     counter.Deadline_ = now + counter.Interval_;
 
     guard.Release();
-
-    counter.LastMax_ = max;
 
     switch (counter.Mode_) {
         case EAggregateMode::All:
