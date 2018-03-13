@@ -20,38 +20,27 @@ namespace NYT {
 
 template <size_t Size, NNodeTrackerClient::EMemoryCategory PoolCategory>
 struct TTrackedAllocationHolder
-    : public TIntrinsicRefCounted
-    , public TWithExtraSpace<TTrackedAllocationHolder<Size, PoolCategory>>
+    : public TAllocationHolder
 {
-    explicit TTrackedAllocationHolder(TRefCountedTypeCookie cookie)
-#ifdef YT_ENABLE_REF_COUNTED_TRACKING
-        : Cookie(cookie)
-    {
-        TRefCountedTrackerFacade::AllocateTagInstance(Cookie);
-        TRefCountedTrackerFacade::AllocateSpace(Cookie, Size);
-    }
-
-    const TRefCountedTypeCookie Cookie;
-#else
-    { }
-#endif
-
-    TMutableRef GetRef()
-    {
-        return TMutableRef(this->GetExtraSpacePtr(), Size);
-    }
-
-    ~TTrackedAllocationHolder()
-    {
-#ifdef YT_ENABLE_REF_COUNTED_TRACKING
-        TRefCountedTrackerFacade::FreeTagInstance(Cookie);
-        TRefCountedTrackerFacade::FreeSpace(Cookie, Size);
-#endif
-    }
-
     NNodeTrackerClient::TNodeMemoryTrackerGuard MemoryTrackerGuard;
     NNodeTrackerClient::TNodeMemoryTracker* MemoryTracker = nullptr;
 };
+
+template <size_t Size, NNodeTrackerClient::EMemoryCategory PoolCategory>
+class TPeriodicDeleter
+{
+public:
+    TPeriodicDeleter();
+
+private:
+    NConcurrency::TActionQueuePtr PeriodicQueue_;
+    NConcurrency::TPeriodicExecutorPtr PeriodicExecutor_;
+
+    Y_DECLARE_SINGLETON_FRIEND();
+};
+
+template <size_t Size, NNodeTrackerClient::EMemoryCategory PoolCategory>
+TPeriodicDeleter<Size, PoolCategory>& PeriodicDeleter();
 
 template <size_t Size, NNodeTrackerClient::EMemoryCategory PoolCategory>
 class TPooledMemoryChunkProvider
@@ -62,7 +51,7 @@ public:
         NNodeTrackerClient::EMemoryCategory mainCategory,
         NNodeTrackerClient::TNodeMemoryTracker* memoryTracker = nullptr);
 
-    virtual TSharedMutableRef Allocate(TRefCountedTypeCookie cookie);
+    virtual std::shared_ptr<TMutableRef> Allocate(TRefCountedTypeCookie cookie);
 
     virtual size_t GetChunkSize() const;
 
@@ -70,6 +59,19 @@ private:
     NNodeTrackerClient::EMemoryCategory MainCategory_;
     NNodeTrackerClient::TNodeMemoryTracker* MemoryTracker_;
 
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+using NNodeTrackerClient::EMemoryCategory;
+
+template <size_t Size, NNodeTrackerClient::EMemoryCategory PoolCategory>
+struct TPooledObjectTraits<TTrackedAllocationHolder<Size, PoolCategory>>
+    : public TPooledObjectTraitsBase<TTrackedAllocationHolder<Size, PoolCategory>>
+{
+    static TTrackedAllocationHolder<Size, PoolCategory>* Allocate();
+    static void Clean(TTrackedAllocationHolder<Size, PoolCategory>* object);
+    static size_t GetMaxPoolSize();
 };
 
 ////////////////////////////////////////////////////////////////////////////////

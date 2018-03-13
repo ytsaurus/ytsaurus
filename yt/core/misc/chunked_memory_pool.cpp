@@ -18,9 +18,11 @@ public:
         : ChunkSize_(chunkSize)
     { }
 
-    virtual TSharedMutableRef Allocate(TRefCountedTypeCookie cookie) override
+    virtual std::shared_ptr<TMutableRef> Allocate(TRefCountedTypeCookie cookie) override
     {
-        return TSharedMutableRef::Allocate(ChunkSize_, false, cookie);
+        std::shared_ptr<TAllocationHolder> result(TAllocationHolder::Allocate<TAllocationHolder>(ChunkSize_));
+        result->SetCookie(cookie);
+        return result;
     }
 
     virtual size_t GetChunkSize() const
@@ -95,8 +97,8 @@ char* TChunkedMemoryPool::AllocateSlowCore(i64 size)
         auto chunk = ChunkProvider_->Allocate(TagCookie_);
 
         if (Chunks_.empty()) {
-            FirstChunkBegin_ = chunk.Begin();
-            FirstChunkEnd_ = chunk.End();
+            FirstChunkBegin_ = chunk->Begin();
+            FirstChunkEnd_ = chunk->End();
         }
         Chunks_.push_back(std::move(chunk));
 
@@ -140,8 +142,8 @@ void TChunkedMemoryPool::SetupFreeZone()
         FreeZoneEnd_ = nullptr;
     } else {
         auto& chunk = Chunks_[CurrentChunkIndex_];
-        FreeZoneBegin_ = chunk.Begin();
-        FreeZoneEnd_ = chunk.End();
+        FreeZoneBegin_ = chunk->Begin();
+        FreeZoneEnd_ = chunk->End();
     }
 }
 

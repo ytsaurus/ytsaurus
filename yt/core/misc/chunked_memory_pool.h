@@ -9,10 +9,68 @@ namespace NYT {
 
 struct TDefaultChunkedMemoryPoolTag { };
 
+class TAllocationHolder
+     : public TMutableRef
+{
+public:
+    TAllocationHolder() = default;
+    TAllocationHolder(const TAllocationHolder&) = delete;
+    TAllocationHolder(TAllocationHolder&&) = default;
+
+    template <class TDerived>
+    static TDerived* Allocate(size_t size)
+    {
+        auto totalSize = sizeof(TDerived) + size;
+        auto* ptr = ::malloc(totalSize);
+        auto* instance = static_cast<TDerived*>(ptr);
+
+        try {
+            new (instance) TDerived();
+            *static_cast<TMutableRef*>(instance) = TMutableRef(instance + 1, size);
+        } catch (const std::exception& ex) {
+            // Do not forget to free the memory.
+            ::free(ptr);
+            throw;
+        }
+
+        return instance;
+    }
+
+    void SetCookie(TRefCountedTypeCookie cookie)
+    {
+    #ifdef YT_ENABLE_REF_COUNTED_TRACKING
+        if (Cookie_ != NullRefCountedTypeCookie) {
+            TRefCountedTrackerFacade::FreeTagInstance(Cookie_);
+            TRefCountedTrackerFacade::FreeSpace(Cookie_, Size());
+        }
+        Cookie_ = cookie;
+        if (Cookie_ != NullRefCountedTypeCookie) {
+            TRefCountedTrackerFacade::AllocateTagInstance(Cookie_);
+            TRefCountedTrackerFacade::AllocateSpace(Cookie_, Size());
+        }
+    #endif
+    }
+
+    ~TAllocationHolder()
+    {
+    #ifdef YT_ENABLE_REF_COUNTED_TRACKING
+        if (Cookie_ != NullRefCountedTypeCookie) {
+            TRefCountedTrackerFacade::FreeTagInstance(Cookie_);
+            TRefCountedTrackerFacade::FreeSpace(Cookie_, Size());
+        }
+    #endif
+    }
+
+private:
+#ifdef YT_ENABLE_REF_COUNTED_TRACKING
+    TRefCountedTypeCookie Cookie_ = NullRefCountedTypeCookie;
+#endif
+};
+
 struct IMemoryChunkProvider
     : public TIntrinsicRefCounted
 {
-    virtual TSharedMutableRef Allocate(TRefCountedTypeCookie cookie) = 0;
+    virtual std::shared_ptr<TMutableRef> Allocate(TRefCountedTypeCookie cookie) = 0;
 
     virtual size_t GetChunkSize() const = 0;
 };
@@ -116,7 +174,7 @@ private:
 
 
 
-    std::vector<TSharedMutableRef> Chunks_;
+    std::vector<std::shared_ptr<TMutableRef>> Chunks_;
     std::vector<TSharedMutableRef> LargeBlocks_;
 
     char* AllocateUnalignedSlow(i64 size);
