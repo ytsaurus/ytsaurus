@@ -323,9 +323,16 @@ TDerived& TOperationIOSpec<TDerived>::SetOutput(size_t tableIndex, const TRichYP
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace NDetail {
+
+void ResetUseClientProtobuf(const char* methodName);
+
+} // namespace NDetail
+
 template <class TDerived>
 TDerived& TOperationIOSpec<TDerived>::AddProtobufInput_VerySlow_Deprecated(const TRichYPath& path)
 {
+    NDetail::ResetUseClientProtobuf("AddProtobufInput_VerySlow_Deprecated");
     TOperationIOSpecBase::TFormatAdder<Message>::Add(InputDesc_);
     Inputs_.push_back(path);
     return *static_cast<TDerived*>(this);
@@ -334,6 +341,7 @@ TDerived& TOperationIOSpec<TDerived>::AddProtobufInput_VerySlow_Deprecated(const
 template <class TDerived>
 TDerived& TOperationIOSpec<TDerived>::SetProtobufInput_VerySlow_Deprecated(size_t tableIndex, const TRichYPath& path)
 {
+    NDetail::ResetUseClientProtobuf("SetProtobufInput_VerySlow_Deprecated");
     TOperationIOSpecBase::TFormatAdder<Message>::Set(tableIndex, InputDesc_);
     NDetail::Assign(Inputs_, tableIndex, path);
     return *static_cast<TDerived*>(this);
@@ -342,6 +350,7 @@ TDerived& TOperationIOSpec<TDerived>::SetProtobufInput_VerySlow_Deprecated(size_
 template <class TDerived>
 TDerived& TOperationIOSpec<TDerived>::AddProtobufOutput_VerySlow_Deprecated(const TRichYPath& path)
 {
+    NDetail::ResetUseClientProtobuf("AddProtobufOutput_VerySlow_Deprecated");
     TOperationIOSpecBase::TFormatAdder<Message>::Add(OutputDesc_);
     Outputs_.push_back(path);
     return *static_cast<TDerived*>(this);
@@ -350,6 +359,7 @@ TDerived& TOperationIOSpec<TDerived>::AddProtobufOutput_VerySlow_Deprecated(cons
 template <class TDerived>
 TDerived& TOperationIOSpec<TDerived>::SetProtobufOutput_VerySlow_Deprecated(size_t tableIndex, const TRichYPath& path)
 {
+    NDetail::ResetUseClientProtobuf("SetProtobufOutput_VerySlow_Deprecated");
     TOperationIOSpecBase::TFormatAdder<Message>::Set(tableIndex, OutputDesc_);
     NDetail::Assign(Outputs_, tableIndex, path);
     return *static_cast<TDerived*>(this);

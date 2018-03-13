@@ -18,7 +18,7 @@ struct TMultiFormatDesc
         F_NONE,
         F_YSON,
         F_YAMR,
-        F_PROTO
+        F_PROTO,
     };
 
     EFormat Format = F_NONE;

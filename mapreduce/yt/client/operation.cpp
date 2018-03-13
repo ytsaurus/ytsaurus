@@ -2171,6 +2171,18 @@ TOperationPtr CreateOperationAndWaitIfRequired(const TOperationId& operationId, 
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void ResetUseClientProtobuf(const char* methodName)
+{
+    if (!TConfig::Get()->UseClientProtobuf) {
+        Cerr << "WARNING! OPTION `TConfig::UseClientProtobuf' IS RESET TO `true'; "
+            << "IT CAN DETERIORIATE YOUR CODE PERFORMANCE!!! DON'T USE DEPRECATED METHOD `"
+            << "TOperationIOSpec::" << methodName << "' TO AVOID THIS RESET" << Endl;
+    }
+    TConfig::Get()->UseClientProtobuf = true;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NDetail
 
 ////////////////////////////////////////////////////////////////////////////////
