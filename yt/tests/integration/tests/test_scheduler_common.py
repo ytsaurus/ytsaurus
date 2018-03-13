@@ -322,9 +322,9 @@ class TestJobStderr(YTEnvSetup):
             spec={"job_count": 10, "max_stderr_count": 0})
 
         def enough_jobs_completed():
-            if not exists("//sys/operations/{0}/@brief_progress".format(op.id)):
+            if not exists("//sys/operations/{0}/@progress".format(op.id)):
                 return False
-            progress = get("//sys/operations/{0}/@brief_progress".format(op.id))
+            progress = get("//sys/operations/{0}/@progress".format(op.id))
             if "jobs" in progress and "completed" in progress["jobs"]:
                 return progress["jobs"]["completed"]["total"] > 8
             return False
@@ -1316,9 +1316,9 @@ class TestSchedulerRevive(YTEnvSetup):
 
         jobs = wait_breakpoint(job_count=2)
 
-        operation_path = "//sys/operations/{0}".format(op.id)
+        operation_path = get_operation_path(op.id)
 
-        async_transaction_id = get(operation_path + "/@async_scheduler_transaction_id")
+        async_transaction_id = get("//sys/operations/" + op.id + "/@async_scheduler_transaction_id")
         assert exists(operation_path + "/output_0", tx=async_transaction_id)
 
         release_breakpoint(job_id=jobs[0])
@@ -1337,7 +1337,7 @@ class TestSchedulerRevive(YTEnvSetup):
 
         wait(lambda: op.get_state() == "running")
 
-        new_async_transaction_id = get(operation_path + "/@async_scheduler_transaction_id")
+        new_async_transaction_id = get("//sys/operations/" + op.id + "/@async_scheduler_transaction_id")
         assert new_async_transaction_id != async_transaction_id
 
         async_transaction_id = new_async_transaction_id
@@ -1461,7 +1461,7 @@ class TestJobRevival(TestJobRevivalBase):
             total_job_count = 0
             for op_id in get("//sys/operations", verbose=False).keys():
                 total_job_count += \
-                    get("//sys/operations/{0}/@brief_progress/jobs/{1}".format(op_id, category),
+                    get("//sys/operations/{0}/@progress/jobs/{1}".format(op_id, category),
                         default=0,
                         verbose=False)
             return total_job_count
@@ -1491,7 +1491,7 @@ class TestJobRevival(TestJobRevivalBase):
         if aborted_job_count != aborted_on_revival_job_count:
             print >>sys.stderr, "There were aborted jobs other than during the revival process:"
             for op in ops:
-                pprint.pprint(dict(get("//sys/operations/{0}/@brief_progress/jobs/aborted".format(op.id))), stream=sys.stderr)
+                pprint.pprint(dict(get("//sys/operations/{0}/@progress/jobs/aborted".format(op.id))), stream=sys.stderr)
 
         for output_table in output_tables:
             assert sorted(read_table(output_table, verbose=False)) == [{"a": i} for i in range(op_count)]
@@ -1531,7 +1531,7 @@ class TestJobRevival(TestJobRevivalBase):
         for i in xrange(1000):
             for j in xrange(10):
                 try:
-                    jobs = get("//sys/operations/{0}/@brief_progress/jobs".format(op.id), verbose=False)
+                    jobs = get("//sys/operations/{0}/@progress/jobs".format(op.id), verbose=False)
                     break
                 except:
                     time.sleep(0.1)
@@ -1763,17 +1763,16 @@ class TestSchedulerMaxChildrenPerAttachRequest(YTEnvSetup):
 
         operation_path = "//sys/operations/{0}".format(op.id)
         for iter in xrange(100):
-            jobs_exist = exists(operation_path + "/@brief_progress/jobs")
+            jobs_exist = exists(operation_path + "/@progress/jobs")
             if jobs_exist:
-                completed_jobs = get(operation_path + "/@brief_progress/jobs/completed/total")
+                completed_jobs = get(operation_path + "/@progress/jobs/completed/total")
                 if completed_jobs == 2:
                     break
             time.sleep(0.1)
 
-        operation_path = "//sys/operations/{0}".format(op.id)
-        transaction_id = get(operation_path + "/@async_scheduler_transaction_id")
+        operation_path = get_operation_path(op.id)
+        transaction_id = get("//sys/operations/" + op.id + "/@async_scheduler_transaction_id")
         wait(lambda: get(operation_path + "/output_0/@row_count", tx=transaction_id) == 2)
-        assert len(read_table(operation_path + "/output_0", tx=transaction_id)) == 2
 
         release_breakpoint()
         op.track()
@@ -2834,9 +2833,6 @@ class TestSchedulerOperationStorage(YTEnvSetup):
         }
     }
 
-    def _get_new_operation_path(self, op_id):
-        return "//sys/operations/{0:02x}/{1}".format(int(op_id.split("-")[-1], 16) % 256, op_id)
-
     def _get_operation_path(self, op_id):
         return "//sys/operations/" + op_id
 
@@ -2882,7 +2878,7 @@ fi
         self.Env.kill_schedulers()
         self.Env.start_schedulers()
 
-        wait(lambda: get(self._get_operation_path(op.id) + "/@state") == "running")
+        wait(lambda: get(get_operation_path(op.id) + "/@state") == "running")
 
         assert get(jobs_path)["failed"] == 1
 
@@ -2890,11 +2886,11 @@ fi
         op = self._run_operation()
 
         assert get(self._get_operation_path(op.id) + "/@state") == "running"
-        assert get(self._get_new_operation_path(op.id) + "/@state") == "running"
+        assert get(get_operation_path(op.id) + "/@state") == "running"
         complete_op(op.id, authenticated_user="u")
         # NOTE: This attribute is moved to hash buckets unconditionally in all modes.
         assert not exists(self._get_operation_path(op.id) + "/@committed")
-        assert exists(self._get_new_operation_path(op.id) + "/@committed")
+        assert exists(get_operation_path(op.id) + "/@committed")
 
     def test_runtime_params(self):
         create("table", "//tmp/t_input")
@@ -2911,7 +2907,7 @@ fi
         wait(lambda: exists(jobs_path) and len(ls(jobs_path)) == 1)
 
         set(self._get_operation_path(op.id) + "/@resource_limits", {"user_slots": 1})
-        set(self._get_new_operation_path(op.id) + "/@resource_limits", {"user_slots": 3})
+        set(get_operation_path(op.id) + "/@resource_limits", {"user_slots": 3})
 
         orchid_path = "//sys/scheduler/orchid/scheduler/operations/{0}/progress/resource_limits/user_slots".format(op.id)
         wait(lambda: get(orchid_path) == 1)
@@ -2950,23 +2946,22 @@ fi
             return op
 
         get_async_scheduler_tx_path = lambda op: self._get_operation_path(op.id) + "/@async_scheduler_transaction_id"
-        get_async_scheduler_tx_path_new = lambda op: self._get_new_operation_path(op.id) + "/@async_scheduler_transaction_id"
+        get_async_scheduler_tx_path_new = lambda op: get_operation_path(op.id) + "/@async_scheduler_transaction_id"
 
         get_output_path = lambda op: self._get_operation_path(op.id) + "/output_0"
-        get_output_path_new = lambda op: self._get_new_operation_path(op.id) + "/output_0"
+        get_output_path_new = lambda op: get_operation_path(op.id) + "/output_0"
 
         get_stderr_path = lambda op, job_id: self._get_operation_path(op.id) + "/jobs/" + job_id + "/stderr"
-        get_stderr_path_new = lambda op, job_id: self._get_new_operation_path(op.id) + "/jobs/" + job_id + "/stderr"
+        get_stderr_path_new = lambda op, job_id: get_operation_path(op.id) + "/jobs/" + job_id + "/stderr"
 
         get_fail_context_path = lambda op, job_id: self._get_operation_path(op.id) + "/jobs/" + job_id + "/fail_context"
-        get_fail_context_path_new = lambda op, job_id: self._get_new_operation_path(op.id) + "/jobs/" + job_id + "/fail_context"
+        get_fail_context_path_new = lambda op, job_id: get_operation_path(op.id) + "/jobs/" + job_id + "/fail_context"
 
         # Compatible mode or simple hash buckets mode.
         op = _run_op()
         assert exists(get_async_scheduler_tx_path(op))
         assert exists(get_async_scheduler_tx_path_new(op))
         async_tx_id = get(get_async_scheduler_tx_path(op))
-        assert exists(get_output_path(op), tx=async_tx_id)
         assert exists(get_output_path_new(op), tx=async_tx_id)
 
         jobs = ls(self._get_operation_path(op.id) + "/jobs")
@@ -2990,9 +2985,6 @@ class TestSchedulerOperationStorageArchivation(YTEnvSetup):
 
     def teardown(self):
         remove("//sys/operations_archive")
-
-    def _get_new_operation_path(self, op_id):
-        return "//sys/operations/{0:02x}/{1}".format(int(op_id.split("-")[-1], 16) % 256, op_id)
 
     def _get_operation_path(self, op_id):
         return "//sys/operations/" + op_id
@@ -3020,7 +3012,7 @@ class TestSchedulerOperationStorageArchivation(YTEnvSetup):
         op = self._run_op()
         clean_operations(client)
         assert not exists(self._get_operation_path(op.id))
-        assert not exists(self._get_new_operation_path(op.id))
+        assert not exists(get_operation_path(op.id))
         _check_attributes(op)
 
     def test_get_job_stderr(self):
@@ -3028,7 +3020,7 @@ class TestSchedulerOperationStorageArchivation(YTEnvSetup):
 
         op = self._run_op()
         jobs_old = ls(self._get_operation_path(op.id) + "/jobs")
-        jobs_new = ls(self._get_new_operation_path(op.id) + "/jobs")
+        jobs_new = ls(get_operation_path(op.id) + "/jobs")
         assert __builtin__.set(jobs_old) == __builtin__.set(jobs_new)
         job_id = jobs_new[-1]
 
@@ -3040,7 +3032,14 @@ class TestSchedulerOperationStorageArchivation(YTEnvSetup):
 class TestControllerMemoryUsage(YTEnvSetup):
     NUM_SCHEDULERS = 1
 
-    def test_controller_memory_usage(self):
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "tagged_memory_statistics_update_period": 100,
+        }
+    }
+
+    # TODO(ignat): enable after configs split.
+    def DISABLED_test_controller_memory_usage(self):
         create("table", "//tmp/t_in")
         create("table", "//tmp/t_out")
 
@@ -3048,6 +3047,15 @@ class TestControllerMemoryUsage(YTEnvSetup):
             write_table("<append=%true>//tmp/t_in", [{"a": 0}])
 
         events = EventsOnFs()
+
+        controller_agents = ls("//sys/controller_agent")
+        assert len(controller_agents) == 1
+
+        controller_agent_orchid = "//sys/controller_agents/{}/orchid/controller_agent".format(controller_agents[0])
+
+        for entry in get(controller_agent_orchid + "/tagged_memory_statistics", verbose=False):
+            assert entry["operation_id"] == YsonEntity()
+            assert entry["alive"] == False
 
         op = map(dont_track=True,
                  in_="//tmp/t_in",
@@ -3069,12 +3077,23 @@ class TestControllerMemoryUsage(YTEnvSetup):
             if state == "running":
                 try:
                     max_usage = max(max_usage, get("//sys/scheduler/orchid/scheduler/operations/{0}/controller_memory_usage".format(op.id)))
-                except YTError:
+                    statistics = get(controller_agent_orchid + "/tagged_memory_statistics/0")
+                    assert statistics["operation_id"] == op.id
+                except YtError:
                     pass
                 time.sleep(0.1)
             else:
                 break
         op.track()
+
+        time.sleep(3)
+
+        for i, entry in enumerate(get(controller_agent_orchid + "/tagged_memory_statistics", verbose=False)):
+            if i == 0:
+                assert entry["operation_id"] == op.id
+            else:
+                assert entry["operation_id"] == YsonEntity()
+            assert entry["alive"] == False
 
         print >>sys.stderr, "max_usage =", max_usage
         # After all jobs are finished, controller should contain at least 40 pairs of boundary keys of length 250kb,

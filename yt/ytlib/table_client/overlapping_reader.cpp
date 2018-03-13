@@ -111,6 +111,10 @@ TDataStatistics TSchemafulOverlappingLookupReader::GetDataStatistics() const
     for (const auto& session : Sessions_) {
         dataStatistics += session.Reader->GetDataStatistics();
     }
+
+    dataStatistics.set_unmerged_row_count(dataStatistics.row_count());
+    dataStatistics.set_unmerged_data_weight(dataStatistics.data_weight());
+
     dataStatistics.set_row_count(RowCount_);
     dataStatistics.set_data_weight(DataWeight_);
     return dataStatistics;
@@ -340,6 +344,9 @@ TDataStatistics TSchemafulOverlappingRangeReaderBase<TRowMerger>::DoGetDataStati
             dataStatistics += reader->GetDataStatistics();
         }
     }
+
+    dataStatistics.set_unmerged_row_count(dataStatistics.row_count());
+    dataStatistics.set_unmerged_data_weight(dataStatistics.data_weight());
 
     dataStatistics.set_row_count(RowCount_);
     dataStatistics.set_data_weight(DataWeight_);

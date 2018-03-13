@@ -1525,8 +1525,9 @@ private:
 
         auto nameTable = TNameTable::FromSchema(rowset->Schema());
 
-        context->SetRequestInfo("Path: %v, RowCount: %v",
+        context->SetRequestInfo("Path: %v, Timestamp: %llx, RowCount: %v",
             path,
+            options.Timestamp,
             rowset->GetRows().Size());
 
         CompleteCallWith(

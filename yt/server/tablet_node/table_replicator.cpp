@@ -222,12 +222,17 @@ private:
             const auto& tabletRuntimeData = tabletSnapshot->RuntimeData;
             const auto& replicaRuntimeData = replicaSnapshot->RuntimeData;
 
+            // YT-8542: Fetch the last barrier timestamp _first_ to ensure proper serialization between
+            // replicator and tablet slot threads.
+            auto lastBarrierTimestamp = Slot_->GetRuntimeData()->LastBarrierTimestamp.load();
             auto lastReplicationRowIndex = replicaRuntimeData->CurrentReplicationRowIndex.load();
+            auto lastReplicationTimestamp = replicaRuntimeData->LastReplicationTimestamp.load();
             auto totalRowCount = tabletRuntimeData->TotalRowCount.load();
             if (replicaRuntimeData->PreparedReplicationRowIndex > lastReplicationRowIndex) {
                 // Some log rows are prepared for replication, hence replication cannot proceed.
-                // Seeing this is unusual since we're waiting for the replication commit to complete (see below).
-                // However we may occasionally run into this check on epoch change.
+                // Seeing this is not typical since we're waiting for the replication commit to complete (see below).
+                // However we may occasionally run into this check on epoch change or when commit times out
+                // due to broken replica participant.
                 replicaRuntimeData->Error.Store(TError());
                 return;
             }
@@ -248,9 +253,9 @@ private:
 
             if (totalRowCount <= lastReplicationRowIndex) {
                 // All committed rows are replicated.
-                replicaRuntimeData->LastReplicationTimestamp.store(
-                    Slot_->GetRuntimeData()->MinPrepareTimestamp.load(std::memory_order_relaxed),
-                    std::memory_order_relaxed);
+                if (lastReplicationTimestamp < lastBarrierTimestamp) {
+                    replicaRuntimeData->LastReplicationTimestamp.store(lastBarrierTimestamp);
+                }
                 replicaRuntimeData->Error.Store(TError());
                 return;
             }
@@ -320,14 +325,19 @@ private:
                 TTransactionCommitOptions commitOptions;
                 commitOptions.CoordinatorCellId = Slot_->GetCellId();
                 commitOptions.Force2PC = true;
+                commitOptions.CoordinatorCommitMode = ETransactionCoordinatorCommitMode::Lazy;
                 WaitFor(localTransaction->Commit(commitOptions))
                     .ThrowOnError();
             }
             LOG_DEBUG("Finished committing replication transaction");
 
-            replicaRuntimeData->LastReplicationTimestamp.store(
-                newReplicationTimestamp,
-                std::memory_order_relaxed);
+            if (lastReplicationTimestamp > newReplicationTimestamp) {
+                LOG_ERROR("Non-monotonic change to last replication timestamp attempted; ignored (LastReplicationTimestamp: %llx -> %llx)",
+                    lastReplicationTimestamp,
+                    newReplicationTimestamp);
+            } else {
+                replicaRuntimeData->LastReplicationTimestamp.store(newReplicationTimestamp);
+            }
             replicaRuntimeData->Error.Store(TError());
         } catch (const std::exception& ex) {
             TError error(ex);
@@ -564,7 +574,7 @@ private:
 
         LOG_DEBUG("Finished building replication batch (StartRowIndex: %v, RowCount: %v, DataWeight: %v, "
             "NewReplicationRowIndex: %v, NewReplicationTimestamp: %llx)",
-            currentRowIndex,
+            startRowIndex,
             rowCount,
             dataWeight,
             *newReplicationRowIndex,

@@ -1334,7 +1334,7 @@ done
 
         time.sleep(2)
 
-        operation_path = "//sys/operations/{0}".format(op.id)
+        operation_path = get_operation_path(op.id)
         scheduler_transaction_id = get(operation_path + "/@async_scheduler_transaction_id")
         wait(lambda: exists(operation_path + "/output_0", tx=scheduler_transaction_id))
 

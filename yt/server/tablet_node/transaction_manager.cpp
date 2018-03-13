@@ -873,6 +873,10 @@ private:
             ExtractHeap(SerializingTransactionHeap_.begin(), SerializingTransactionHeap_.end(), SerializingTransactionHeapComparer);
             SerializingTransactionHeap_.pop_back();
         }
+
+        // YT-8542: It is important to update this timestamp only _after_ all relevant transactions are serialized.
+        // See TTableReplicator.
+        Slot_->GetRuntimeData()->LastBarrierTimestamp.store(barrierTimestamp);
     }
 
 
@@ -923,7 +927,6 @@ private:
         }
 
         auto minPrepareTimestamp = GetMinPrepareTimestamp();
-        Slot_->GetRuntimeData()->MinPrepareTimestamp.store(minPrepareTimestamp, std::memory_order_relaxed);
         if (minPrepareTimestamp <= TransientBarrierTimestamp_) {
             return;
         }

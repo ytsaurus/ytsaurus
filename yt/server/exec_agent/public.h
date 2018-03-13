@@ -77,6 +77,8 @@ DECLARE_REFCOUNTED_CLASS(TSlotManagerConfig)
 DECLARE_REFCOUNTED_CLASS(TSchedulerConnectorConfig)
 DECLARE_REFCOUNTED_CLASS(TExecAgentConfig)
 
+DECLARE_REFCOUNTED_CLASS(TBindConfig)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NExecAgent

@@ -11,6 +11,7 @@
 
 #include <yt/core/logging/log_manager.h>
 
+#include <yt/core/misc/fs.h>
 #include <yt/core/misc/proc.h>
 
 #include <yt/core/ytree/convert.h>
@@ -149,9 +150,9 @@ public:
         return New<TCGroupResourceController>(CGroupsConfig_, Path_ + name);
     }
 
-    virtual TProcessBasePtr CreateControlledProcess(const TString& path, int uid, const TNullable<TString>& coreDumpHandler) override
+    virtual TProcessBasePtr CreateControlledProcess(const TString& path, int uid, const TNullable<TString>& coreHandlerSocketPath) override
     {
-        YCHECK(!coreDumpHandler);
+        Y_UNUSED(coreHandlerSocketPath);
         YCHECK(!Process_);
 
         UserId_ = uid;
@@ -236,7 +237,10 @@ class TPortoResourceController
 public:
     static IResourceControllerPtr Create(TPortoJobEnvironmentConfigPtr config, const TNullable<TRootFS>& rootFS)
     {
-        auto resourceController = New<TPortoResourceController>(config->BlockIOWatchdogPeriod, config->UseResourceLimits, rootFS);
+        auto resourceController = New<TPortoResourceController>(
+            config->BlockIOWatchdogPeriod,
+            config->UseResourceLimits,
+            rootFS);
         resourceController->Init(config->PortoWaitTime, config->PortoPollPeriod);
         return resourceController;
     }
@@ -341,15 +345,36 @@ public:
         return New<TPortoResourceController>(ContainerManager_, instance, BlockIOWatchdogPeriod_, UseResourceLimits_);
     }
 
-    virtual TProcessBasePtr CreateControlledProcess(const TString& path, int uid, const TNullable<TString>& coreDumpHandler) override
+    virtual TProcessBasePtr CreateControlledProcess(const TString& path, int uid, const TNullable<TString>& coreHandlerSocketPath) override
     {
-        if (coreDumpHandler) {
-            LOG_DEBUG("Enable core forwarding for porto container (CoreHandler: %v)",
-                coreDumpHandler.Get());
-            Container_->SetCoreDumpHandler(coreDumpHandler.Get());
+        static const TString RootFSBinaryDirectory("/ext_bin/");
+
+        if (coreHandlerSocketPath) {
+            // We do not want to rely on passing PATH environment to core handler container.
+            auto binaryPathOrError = Container_->HasRoot()
+                ? TErrorOr<TString>(RootFSBinaryDirectory + "ytserver-core-forwarder")
+                : ResolveBinaryPath("ytserver-core-forwarder");
+
+            if (binaryPathOrError.IsOK()) {
+                auto coreHandler = binaryPathOrError.Value() + " \"${CORE_PID}\" 0 \"${CORE_TASK_NAME}\""
+                    " 1 /dev/null /dev/null " + coreHandlerSocketPath.Get();
+
+                LOG_DEBUG("Enable core forwarding for porto container (CoreHandler: %v)",
+                    coreHandler);
+                Container_->SetCoreDumpHandler(coreHandler);
+            } else {
+                LOG_ERROR(binaryPathOrError,
+                    "Failed to resolve path for ytserver-core-forwarder");
+            }
         }
-        auto process = New<TPortoProcess>(path, Container_, false);
+
+        auto adjustedPath = Container_->HasRoot()
+            ? RootFSBinaryDirectory + path
+            : path;
+
+        auto process = New<TPortoProcess>(adjustedPath, Container_, false);
         process->AddArguments({"--uid", ::ToString(uid)});
+
         return process;
     }
 

@@ -51,6 +51,9 @@ ssize_t GetMemoryUsageForTag(TMemoryTag /* tag */)
     return 0;
 }
 
+void GetMemoryUsageForTagList(TMemoryTag* tagList, int count, ssize_t* result)
+{ }
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
