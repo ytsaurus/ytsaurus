@@ -698,8 +698,11 @@ SIMPLE_UNIT_TEST_SUITE(Operations)
         UNIT_ASSERT(briefProgress->Total > 0);
     }
 
-    SIMPLE_UNIT_TEST(MapWithProtobuf)
+    void MapWithProtobuf(bool useDeprecatedAddInput, bool useClientProtobuf)
     {
+        TConfigSaverGuard configGuard;
+        TConfig::Get()->UseClientProtobuf = useClientProtobuf;
+
         auto client = CreateTestClient();
         auto inputTable = TRichYPath("//testing/input");
         auto outputTable = TRichYPath("//testing/output");
@@ -710,11 +713,18 @@ SIMPLE_UNIT_TEST_SUITE(Operations)
             writer->AddRow(TNode()("StringField", "tri"));
             writer->Finish();
         }
-        client->Map(
-            TMapOperationSpec()
+        TMapOperationSpec spec;
+        if (useDeprecatedAddInput) {
+            spec
+                .AddProtobufInput_VerySlow_Deprecated(inputTable)
+                .AddProtobufOutput_VerySlow_Deprecated(outputTable);
+        } else {
+            spec
                 .AddInput<TAllTypesMessage>(inputTable)
-                .AddOutput<TAllTypesMessage>(outputTable),
-            new TProtobufMapper);
+                .AddOutput<TAllTypesMessage>(outputTable);
+        }
+
+        client->Map(spec, new TProtobufMapper);
 
         TVector<TNode> expected = {
             TNode()("StringField", "raz mapped"),
@@ -723,6 +733,26 @@ SIMPLE_UNIT_TEST_SUITE(Operations)
         };
         auto actual = ReadTable(client, outputTable.Path_);
         UNIT_ASSERT_VALUES_EQUAL(expected, actual);
+    }
+
+    SIMPLE_UNIT_TEST(ProtobufMap_NativeProtobuf)
+    {
+        MapWithProtobuf(false, false);
+    }
+
+    SIMPLE_UNIT_TEST(ProtobufMap_ClientProtobuf)
+    {
+        MapWithProtobuf(false, true);
+    }
+
+    SIMPLE_UNIT_TEST(ProtobufMap_Input_VerySlow_Deprecated_NativeProtobuf)
+    {
+        MapWithProtobuf(true, false);
+    }
+
+    SIMPLE_UNIT_TEST(ProtobufMap_Input_VerySlow_Deprecated_ClientProtobuf)
+    {
+        MapWithProtobuf(true, true);
     }
 
     SIMPLE_UNIT_TEST(JobPrefix)
