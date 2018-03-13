@@ -47,6 +47,11 @@ struct SchemafulReaderMock
     {
         return TDataStatistics();
     }
+
+    virtual NChunkClient::TCodecStatistics GetDecompressionStatistics() const override
+    {
+        Y_UNIMPLEMENTED();
+    }
 };
 
 TEST_F(TUnorderedReaderTest, Simple)

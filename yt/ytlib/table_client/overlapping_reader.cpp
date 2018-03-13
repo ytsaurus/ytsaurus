@@ -40,6 +40,8 @@ public:
 
     virtual TDataStatistics GetDataStatistics() const override;
 
+    virtual TCodecStatistics GetDecompressionStatistics() const override;
+
 private:
     struct TSession
     {
@@ -118,6 +120,15 @@ TDataStatistics TSchemafulOverlappingLookupReader::GetDataStatistics() const
     dataStatistics.set_row_count(RowCount_);
     dataStatistics.set_data_weight(DataWeight_);
     return dataStatistics;
+}
+
+TCodecStatistics TSchemafulOverlappingLookupReader::GetDecompressionStatistics() const
+{
+    TCodecStatistics result;
+    for (const auto& session : Sessions_) {
+        result += session.Reader->GetDecompressionStatistics();
+    }
+    return result;
 }
 
 bool TSchemafulOverlappingLookupReader::Read(std::vector<TUnversionedRow>* rows)
@@ -236,6 +247,8 @@ public:
 
     TDataStatistics DoGetDataStatistics() const;
 
+    TCodecStatistics DoGetDecompressionStatistics() const;
+
     bool DoIsFetchingCompleted() const;
 
     std::vector<TChunkId> DoGetFailedChunkIds() const;
@@ -257,6 +270,7 @@ private:
     int NextSession_ = 0;
 
     TDataStatistics DataStatistics_;
+    TCodecStatistics DecompressionStatistics_;
     i64 RowCount_ = 0;
     i64 DataWeight_ = 0;
 
@@ -351,6 +365,23 @@ TDataStatistics TSchemafulOverlappingRangeReaderBase<TRowMerger>::DoGetDataStati
     dataStatistics.set_row_count(RowCount_);
     dataStatistics.set_data_weight(DataWeight_);
     return dataStatistics;
+}
+
+template<class TRowMerger>
+TCodecStatistics TSchemafulOverlappingRangeReaderBase<TRowMerger>::DoGetDecompressionStatistics() const
+{
+    auto result = DecompressionStatistics_;
+    for (const auto& session : Sessions_) {
+        IVersionedReaderPtr reader;
+        {
+            TReaderGuard guard(SpinLock_);
+            reader = session.Reader;
+        }
+        if (reader) {
+            result += reader->GetDecompressionStatistics();
+        }
+    }
+    return result;
 }
 
 template <class TRowMerger>
@@ -532,9 +563,11 @@ bool TSchemafulOverlappingRangeReaderBase<TRowMerger>::RefillSession(TSession* s
         AdjustHeapBack(ActiveSessions_.begin(), ActiveSessions_.end(), SessionComparer_);
     } else if (finished) {
         auto dataStatistics = session->Reader->GetDataStatistics();
+        auto decompressionStatistics = session->Reader->GetDecompressionStatistics();
         {
             TWriterGuard guard(SpinLock_);
             DataStatistics_ += dataStatistics;
+            DecompressionStatistics_ += decompressionStatistics;
             session->Reader.Reset();
         }
     } else {
@@ -624,6 +657,11 @@ public:
         return DoGetDataStatistics();
     }
 
+    virtual NChunkClient::TCodecStatistics GetDecompressionStatistics() const override
+    {
+        return DoGetDecompressionStatistics();
+    }
+
 private:
     TSchemafulOverlappingRangeReader(
         const std::vector<TOwningKey>& boundaries,
@@ -698,6 +736,11 @@ public:
     virtual TDataStatistics GetDataStatistics() const override
     {
         return DoGetDataStatistics();
+    }
+
+    virtual TCodecStatistics GetDecompressionStatistics() const override
+    {
+        return DoGetDecompressionStatistics();
     }
 
     virtual bool IsFetchingCompleted() const override

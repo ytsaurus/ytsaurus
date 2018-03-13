@@ -110,6 +110,11 @@ public:
         return dataStatistics;
     }
 
+    TCodecStatistics GetDecompressionStatistics() const override
+    {
+        return TCodecStatistics();
+    }
+
 private:
     const TOrderedDynamicStorePtr Store_;
     const int TabletIndex_;

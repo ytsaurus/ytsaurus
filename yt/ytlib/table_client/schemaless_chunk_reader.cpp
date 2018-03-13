@@ -2218,6 +2218,11 @@ public:
         return UnderlyingReader_->GetDataStatistics();
     }
 
+    virtual TCodecStatistics GetDecompressionStatistics() const override
+    {
+        return UnderlyingReader_->GetDecompressionStatistics();
+    }
+
     virtual std::vector<TChunkId> GetFailedChunkIds() const override
     {
         // ToDo(psushin): every reader must implement this method eventually.

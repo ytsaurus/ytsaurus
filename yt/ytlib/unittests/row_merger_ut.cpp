@@ -1272,6 +1272,11 @@ public:
         return TDataStatistics();
     }
 
+    virtual TCodecStatistics GetDecompressionStatistics() const override
+    {
+        return TCodecStatistics();
+    }
+
     virtual bool IsFetchingCompleted() const override
     {
         return true;

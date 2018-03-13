@@ -152,5 +152,32 @@ TString ToString(const TDataStatistics& statistics)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NProto
+
+TCodecStatistics& TCodecStatistics::Append(TCodecTime codecTime)
+{
+    auto it = map.find(codecTime.first);
+    if (it == map.end()) {
+        map.insert(codecTime);
+    } else {
+        it->second += codecTime.second;
+    }
+    return *this;
+}
+
+TCodecStatistics& TCodecStatistics::operator+=(const TCodecStatistics& other)
+{
+    for (const auto& pair : other.map) {
+        Append(pair);
+    }
+    return *this;
+}
+
+void TCodecStatistics::DumpTo(NJobTrackerClient::TStatistics *statistics, const TString& prefix) const
+{
+    for (const auto& pair : map) {
+        statistics->AddSample(prefix + TEnumTraits<NCompression::ECodec>::ToString(pair.first), pair.second);
+    }
+}
+
 } // namespace NChunkClient
 } // namespace NYT

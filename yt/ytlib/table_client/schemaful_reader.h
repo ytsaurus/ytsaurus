@@ -32,6 +32,8 @@ struct ISchemafulReader
     virtual TFuture<void> GetReadyEvent() = 0;
 
     virtual NChunkClient::NProto::TDataStatistics GetDataStatistics() const = 0;
+
+    virtual NChunkClient::TCodecStatistics GetDecompressionStatistics() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ISchemafulReader)

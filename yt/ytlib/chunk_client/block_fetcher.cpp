@@ -10,8 +10,6 @@
 
 #include <yt/core/concurrency/action_queue.h>
 
-#include <yt/core/misc/string.h>
-
 namespace NYT {
 namespace NChunkClient {
 
@@ -183,7 +181,11 @@ void TBlockFetcher::DecompressBlocks(
             blockIndex,
             windowIndex);
 
-        auto uncompressedBlock = Codec_->Decompress(compressedBlock.Data);
+        TSharedRef uncompressedBlock;
+        {
+            NProfiling::TCpuTimingGuard timer(&DecompressionTime);
+            uncompressedBlock = Codec_->Decompress(compressedBlock.Data);
+        }
         YCHECK(uncompressedBlock.Size() == blockInfo.UncompressedDataSize);
 
         auto& windowSlot = Window_[windowIndex];
@@ -328,6 +330,11 @@ i64 TBlockFetcher::GetUncompressedDataSize() const
 i64 TBlockFetcher::GetCompressedDataSize() const
 {
     return CompressedDataSize_;
+}
+
+TCodecTime TBlockFetcher::GetDecompressionTime() const
+{
+    return std::make_pair(Codec_->GetId(), DecompressionTime);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
