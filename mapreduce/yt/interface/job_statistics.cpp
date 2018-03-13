@@ -10,6 +10,7 @@
 #include <util/generic/ptr.h>
 #include <util/stream/file.h>
 #include <util/string/cast.h>
+#include <util/string/subst.h>
 #include <util/system/file.h>
 
 namespace NYT {
@@ -111,7 +112,13 @@ public:
                 if (!childPath.empty()) {
                     childPath.push_back('/');
                 }
-                childPath += key;
+                if (key.find_first_of('/') != key.npos) {
+                    TString keyCopy(key);
+                    SubstGlobal(keyCopy, "/", "\\/");
+                    childPath += keyCopy;
+                } else {
+                    childPath += key;
+                }
                 ParseNode(value, childPath, output);
             }
         }
@@ -238,6 +245,7 @@ namespace {
 
 constexpr int USER_STATISTICS_FILE_DESCRIPTOR = 5;
 constexpr char PATH_DELIMITER = '/';
+constexpr char ESCAPE = '\\';
 
 IOutputStream* GetStatisticsStream()
 {
@@ -252,12 +260,24 @@ void WriteCustomStatisticsAny(TStringBuf path, const T& value)
     TYsonWriter writer(GetStatisticsStream(), YF_BINARY, YT_LIST_FRAGMENT);
     int depth = 0;
     TStringBuf pathPart;
-    do {
-        writer.OnBeginMap();
-        path.NextTok(PATH_DELIMITER, pathPart);
-        writer.OnKeyedItem(pathPart);
-        ++depth;
-    } while (!path.Empty());
+    size_t begin = 0;
+    size_t end = 0;
+    TVector<TString> items;
+    while (end <= path.Size()) {
+        if (end + 1 < path.Size() && path[end] == ESCAPE && path[end + 1] == PATH_DELIMITER) {
+            end += 2;
+            continue;
+        }
+        if (end == path.size() || path[end] == PATH_DELIMITER) {
+            writer.OnBeginMap();
+            items.emplace_back(path.Data() + begin, end - begin);
+            SubstGlobal(items.back(), "\\/", "/");
+            writer.OnKeyedItem(TStringBuf(items.back()));
+            ++depth;
+            begin = end + 1;
+        }
+        ++end;
+    }
     Serialize(value, &writer);
     while (depth > 0) {
         writer.OnEndMap();

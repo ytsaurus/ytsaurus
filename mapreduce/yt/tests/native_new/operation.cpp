@@ -290,6 +290,9 @@ public:
             ("second", TNode()("second-and-half", i64(-142)))
             ("third", i64(42));
         WriteCustomStatistics(node);
+        WriteCustomStatistics("another/path/to/stat\\/with\\/escaping", i64(43));
+        WriteCustomStatistics("ambigious/path", i64(7331));
+        WriteCustomStatistics("ambigious\\/path", i64(1337));
     }
 };
 REGISTER_MAPPER(TMapperThatWritesCustomStatistics);
@@ -675,6 +678,15 @@ SIMPLE_UNIT_TEST_SUITE(Operations)
 
         auto second = jobStatistics.GetCustomStatistics("second/second-and-half").Max();
         UNIT_ASSERT(*second == -142);
+
+        auto another = jobStatistics.GetCustomStatistics("another/path/to/stat\\/with\\/escaping").Max();
+        UNIT_ASSERT(*another == 43);
+
+        auto unescaped = jobStatistics.GetCustomStatistics("ambigious/path").Max();
+        UNIT_ASSERT(*unescaped == 7331);
+
+        auto escaped = jobStatistics.GetCustomStatistics("ambigious\\/path").Max();
+        UNIT_ASSERT(*escaped == 1337);
     }
 
     SIMPLE_UNIT_TEST(GetBriefProgress)
