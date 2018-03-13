@@ -122,6 +122,10 @@ def prepare(options, build_context):
         if os.path.exists(sandbox_storage):
             rmtree(sandbox_storage)
 
+    if options.use_asan:
+        options.asan_build_directory = os.path.join(options.working_directory, "asan-build")
+        mkdirp(options.asan_build_directory)
+
     cleanup_cgroups()
 
     clear_system_tmp()
@@ -142,8 +146,7 @@ def prepare(options, build_context):
 
     teamcity_message(pprint.pformat(options.__dict__))
 
-@build_step
-def configure(options, build_context):
+def _configure(options, build_context, build_directory, use_asan=False, build_server=True, build_tests=True):
     run([
         "cmake",
         "-DCMAKE_INSTALL_PREFIX=/usr",
@@ -157,12 +160,12 @@ def configure(options, build_context):
         "-DYT_BUILD_NUMBER={0}".format(options.build_number),
         "-DYT_BUILD_VCS_NUMBER={0}".format(options.build_vcs_number[0:7]),
         "-DYT_BUILD_USERNAME=", # Empty string is used intentionally to suppress username in version identifier.
-        "-DYT_BUILD_ENABLE_NODEJS={0}".format(format_yes_no(options.build_enable_nodejs)),
-        "-DYT_BUILD_ENABLE_PYTHON_2_6={0}".format(format_yes_no(options.build_enable_python_2_6)),
-        "-DYT_BUILD_ENABLE_PYTHON_2_7={0}".format(format_yes_no(options.build_enable_python_2_7)),
-        "-DYT_BUILD_ENABLE_PYTHON_SKYNET={0}".format(format_yes_no(options.build_enable_python_skynet)),
-        "-DYT_BUILD_ENABLE_PERL={0}".format(format_yes_no(options.build_enable_perl)),
-        "-DYT_USE_ASAN={0}".format(format_yes_no(options.use_asan)),
+        "-DYT_BUILD_ENABLE_NODEJS={0}".format(format_yes_no(options.build_enable_nodejs and not use_asan)),
+        "-DYT_BUILD_ENABLE_PYTHON_2_6={0}".format(format_yes_no(options.build_enable_python_2_6 and not use_asan)),
+        "-DYT_BUILD_ENABLE_PYTHON_2_7={0}".format(format_yes_no(options.build_enable_python_2_7 and not use_asan)),
+        "-DYT_BUILD_ENABLE_PYTHON_SKYNET={0}".format(format_yes_no(options.build_enable_python_skynet and not use_asan)),
+        "-DYT_BUILD_ENABLE_PERL={0}".format(format_yes_no(options.build_enable_perl and not use_asan)),
+        "-DYT_USE_ASAN={0}".format(format_yes_no(use_asan)),
         "-DYT_USE_TSAN={0}".format(format_yes_no(options.use_tsan)),
         "-DYT_USE_MSAN={0}".format(format_yes_no(options.use_msan)),
         "-DYT_USE_LTO={0}".format(format_yes_no(options.use_lto)),
@@ -170,13 +173,26 @@ def configure(options, build_context):
         "-DCMAKE_C_COMPILER={0}".format(options.cc),
         "-DBUILD_SHARED_LIBS=OFF",
         options.checkout_directory],
-        cwd=options.working_directory)
+        cwd=build_directory)
 
+@build_step
+def configure(options, build_context):
+    if options.use_asan:
+        _configure(options, build_context, options.working_directory, use_asan=False, build_server=False, build_tests=False)
+        _configure(options, build_context, options.asan_build_directory, use_asan=True, build_server=True, build_tests=True)
+    else:
+        _configure(options, build_context, options.working_directory)
 
 @build_step
 def build(options, build_context):
     cpus = int(os.sysconf("SC_NPROCESSORS_ONLN"))
     run(["make", "-j", str(cpus)], cwd=options.working_directory, silent_stdout=True)
+    if options.use_asan:
+        run(["make", "-j", str(cpus)], cwd=options.asan_build_directory, silent_stdout=True)
+        run(["cp"] +
+            glob.glob(os.path.join(options.asan_build_directory, "bin", "ytserver-*")) +
+            glob.glob(os.path.join(options.asan_build_directory, "bin", "unittester-*")) +
+            [os.path.join(options.working_directory, "bin")])
 
 @build_step
 def set_suid_bit(options, build_context):
