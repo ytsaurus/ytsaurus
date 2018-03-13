@@ -57,6 +57,8 @@
 
 #include <yt/ytlib/tablet_client/public.h>
 
+#include <yt/ytlib/misc/memory_chunk_provider.h>
+
 #include <yt/core/concurrency/scheduler.h>
 
 #include <yt/core/misc/string.h>
@@ -1202,7 +1204,12 @@ public:
             config->FunctionImplCache,
             bootstrap->GetMasterClient()))
         , Bootstrap_(bootstrap)
-        , Evaluator_(New<TEvaluator>(Config_, QueryAgentProfiler))
+        , Evaluator_(New<TEvaluator>(
+            Config_,
+            QueryAgentProfiler,
+            New<TPooledMemoryChunkProvider<PoolChunkSize, EMemoryCategory::QueryCache>>(
+                EMemoryCategory::Query,
+                Bootstrap_->GetMemoryUsageTracker())))
         , ColumnEvaluatorCache_(Bootstrap_
             ->GetMasterClient()
             ->GetNativeConnection()
@@ -1240,6 +1247,7 @@ private:
     TBootstrap* const Bootstrap_;
     const TEvaluatorPtr Evaluator_;
     const TColumnEvaluatorCachePtr ColumnEvaluatorCache_;
+
 };
 
 ISubexecutorPtr CreateQuerySubexecutor(

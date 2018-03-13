@@ -28,7 +28,7 @@ public:
         : TRange<char>(static_cast<const char*>(begin), static_cast<const char*>(end))
     { }
 
-    
+
     //! Creates a non-owning TRef for a given blob.
     static TRef FromBlob(const TBlob& blob)
     {
@@ -393,17 +393,6 @@ public:
         return TSharedMutableRef(begin, end, Holder_);
     }
 
-private:
-    class TBlobHolder
-        : public TIntrinsicRefCounted
-    {
-    public:
-        explicit TBlobHolder(TBlob&& blob);
-
-    private:
-        const TBlob Blob_;
-    };
-
     class TAllocationHolder
         : public TIntrinsicRefCounted
         , public TWithExtraSpace<TAllocationHolder>
@@ -420,6 +409,18 @@ private:
         const TRefCountedTypeCookie Cookie_;
 #endif
     };
+
+private:
+    class TBlobHolder
+        : public TIntrinsicRefCounted
+    {
+    public:
+        explicit TBlobHolder(TBlob&& blob);
+
+    private:
+        const TBlob Blob_;
+    };
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
