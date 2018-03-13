@@ -7,6 +7,8 @@
 #include <yt/server/cell_node/bootstrap.h>
 #include <yt/server/cell_node/config.h>
 
+#include <yt/server/containers/public.h>
+
 #include <yt/server/data_node/artifact.h>
 #include <yt/server/data_node/chunk.h>
 #include <yt/server/data_node/chunk_cache.h>
@@ -1197,6 +1199,7 @@ private:
             resultError.FindMatching(NExecAgent::EErrorCode::RootVolumePreparationFailed) ||
             resultError.FindMatching(NExecAgent::EErrorCode::NotEnoughDiskSpace) ||
             resultError.FindMatching(NJobProxy::EErrorCode::MemoryCheckFailed) ||
+            resultError.FindMatching(NContainers::EErrorCode::FailedToStartContainer) ||
             resultError.FindMatching(EProcessErrorCode::CannotResolveBinary))
         {
             return EAbortReason::Other;
