@@ -207,6 +207,14 @@ public class ApiServiceTransaction implements AutoCloseable {
         return client.versionedLookupRows(request, startTimestamp);
     }
 
+    public CompletableFuture<UnversionedRowset> selectRows(String query) {
+        return selectRows(SelectRowsRequest.of(query));
+    }
+
+    public CompletableFuture<UnversionedRowset> selectRows(SelectRowsRequest request) {
+        return client.selectRows(request.setTimestamp(startTimestamp));
+    }
+
     public CompletableFuture<Void> modifyRows(ModifyRowsRequest request) {
         return client.modifyRows(id, request);
     }
