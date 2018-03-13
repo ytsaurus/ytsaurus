@@ -1941,7 +1941,7 @@ private:
     {
         auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_operation_archive_version");
         if (!rspOrError.IsOK()) {
-            LOG_WARNING(rspOrError, "Error getting operation archive version");
+            LOG_INFO(rspOrError, "Error getting operation archive version");
             return;
         }
 

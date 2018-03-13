@@ -88,6 +88,7 @@ struct TJobTableDescriptor
         const int TransientState;
         const int StartTime;
         const int FinishTime;
+        const int UpdateTime;
         const int Address;
         const int Error;
         const int Statistics;
