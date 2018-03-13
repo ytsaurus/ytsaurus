@@ -4494,6 +4494,13 @@ private:
             operationId.Parts64[1]);
         builder.AddWhereExpression(operationIdExpression);
 
+        if (archiveVersion >= 18) {
+            auto updateTimeExpression = Format(
+                "(job_state != \"running\" OR (NOT is_null(update_time) AND update_time >= %v))",
+                (TInstant::Now() - options.RunningJobsLookbehindPeriod).MicroSeconds());
+            builder.AddWhereExpression(updateTimeExpression);
+        }
+
         if (options.WithStderr) {
             if (*options.WithStderr) {
                 builder.AddWhereExpression("(stderr_size != 0 AND NOT is_null(stderr_size))");

@@ -268,6 +268,9 @@ TListJobsCommand::TListJobsCommand()
         .Optional();
     RegisterParameter("include_archive", Options.IncludeArchive)
         .Optional();
+
+    RegisterParameter("running_jobs_lookbehind_period", Options.RunningJobsLookbehindPeriod)
+        .Optional();
 }
 
 void TListJobsCommand::DoExecute(ICommandContextPtr context)

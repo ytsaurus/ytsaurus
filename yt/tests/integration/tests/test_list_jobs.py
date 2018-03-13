@@ -93,7 +93,7 @@ class TestListJobs(YTEnvSetup):
                 },
                 "map_job_count" : 3
             })
-            
+
         jobs_path = "//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op.id)
 
         progress_path = "//sys/scheduler/orchid/scheduler/operations/{0}/progress/jobs".format(op.id)
@@ -317,3 +317,42 @@ class TestListJobs(YTEnvSetup):
         assert any(job["state"] == "aborted" for job in res)
         assert all((date_string_to_datetime(job["start_time"]) > now) for job in res)
         assert all((date_string_to_datetime(job["finish_time"]) >= date_string_to_datetime(job["start_time"])) for job in res)
+
+    def test_running_aborted_jobs(self):
+        create("table", "//tmp/input")
+        create("table", "//tmp/output")
+
+        write_table("//tmp/input", [{"foo": "bar"}])
+
+        op = map(
+            dont_track=True,
+            in_="//tmp/input",
+            out="//tmp/output",
+            command='if [ "$YT_JOB_INDEX" = "0" ]; then sleep 1000; fi;')
+
+        jobs_path = "//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op.id)
+        wait(lambda: get(jobs_path))
+        wait(lambda: len(list_jobs(op.id, include_archive=True, include_scheduler=False)["jobs"]) == 1)
+
+        unmount_table("//sys/operations_archive/jobs")
+        wait(lambda: get("//sys/operations_archive/jobs/@tablet_state") == "unmounted")
+
+        self.Env.kill_nodes()
+        self.Env.start_nodes()
+
+        clear_metadata_caches()
+
+        self.wait_for_cells(ls("//sys/tablet_cells"))
+
+        mount_table("//sys/operations_archive/jobs")
+        wait(lambda: get("//sys/operations_archive/jobs/@tablet_state") == "mounted")
+
+        op.track()
+
+        get("//sys/operations/" + op.id + "/jobs")
+
+        time.sleep(1)
+
+        jobs = list_jobs(op.id, running_jobs_lookbehind_period=1000)["jobs"]
+        assert len(jobs) == 1
+

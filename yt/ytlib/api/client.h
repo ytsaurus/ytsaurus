@@ -700,6 +700,8 @@ struct TListJobsOptions
     bool IncludeScheduler = true;
     bool IncludeArchive = true;
 
+    TDuration RunningJobsLookbehindPeriod = TDuration::Minutes(1);
+
     TListJobsOptions()
     {
         ReadFrom = EMasterChannelKind::Cache;
