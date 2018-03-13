@@ -4,6 +4,7 @@ import sys
 
 import yt.wrapper as yt
 
+from yt.yson.yson_types import YsonEntity
 
 class Operation(object):
     def __init__(self, operation_id, cluster, batch_client):
@@ -122,6 +123,8 @@ class Operation(object):
         yield
         if controller_memory_usage.is_ok():
             self._controller_memory_usage = controller_memory_usage.get_result()
+            if self._controller_memory_usage == YsonEntity():
+                self._controller_memory_usage  = None
         else:
             self._controller_memory_usage = None
             self.errors.append(controller_memory_usage.get_error())
