@@ -1,4 +1,4 @@
-#include "lib.h"
+#include "yt_unittest_lib.h"
 
 #include <mapreduce/yt/common/config.h>
 #include <mapreduce/yt/common/debug_metrics.h>

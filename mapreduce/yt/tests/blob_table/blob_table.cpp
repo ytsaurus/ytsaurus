@@ -1,4 +1,4 @@
-#include "lib.h"
+#include <mapreduce/yt/tests/yt_unittest_lib/yt_unittest_lib.h>
 
 #include <mapreduce/yt/library/blob_table/blob_table.h>
 #include <library/unittest/registar.h>

@@ -27,6 +27,7 @@ TVector<TNode> ReadTable(const IClientBasePtr& client, const TString& tablePath)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO: should be removed, usages should be replaced with TConfigSaverGuard
 class TZeroWaitLockPollIntervalGuard
 {
 public:
@@ -87,4 +88,3 @@ template <>
 void Out<NYT::NTesting::TOwningYaMRRow>(IOutputStream& out, const NYT::NTesting::TOwningYaMRRow& row);
 
 ////////////////////////////////////////////////////////////////////////////////
-
