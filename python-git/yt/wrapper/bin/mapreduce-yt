@@ -554,9 +554,6 @@ Examples:
     if args.maxjobfails is not None:
         spec["max_failed_job_count"] = args.maxjobfails
 
-    if ordered_map:
-        spec["ordered"] = True
-
     opt_items = []
     opt_items += os.environ.get("MR_OPT", "").split(",")
     for option in get_value(args.opt, []):
@@ -596,6 +593,8 @@ Examples:
         elif name == "stderrlevel":
             pass
 
+    if ordered_map:
+        spec["ordered"] = True
 
     job_io = None
     if args.tablerecordindex:
