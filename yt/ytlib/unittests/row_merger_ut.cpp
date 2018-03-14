@@ -1201,11 +1201,24 @@ TEST_F(TVersionedRowMergerTest, OneValueColumnFilter)
 
 TEST_F(TVersionedRowMergerTest, YT_6800)
 {
+    auto merger = GetTypicalMerger(nullptr, SyncLastCommittedTimestamp, MaxTimestamp);
+
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=1;ts=100000000000>1"));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=1;ts=200000000000>2"));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=1;ts=300000000000>3"));
+
+    EXPECT_EQ(
+        BuildVersionedRow("<id=0> 0", "<id=1;ts=100000000000>1;<id=1;ts=200000000000>2;<id=1;ts=300000000000>3"),
+        merger->BuildMergedRow());
+}
+
+TEST_F(TVersionedRowMergerTest, SyncLastCommittedRetention)
+{
     auto config = GetRetentionConfig();
     config->MinDataTtl = TDuration::Zero();
-    config->MinDataVersions = 0;
+    config->MinDataVersions = 1;
     config->MaxDataTtl = TimestampToDuration(10000000000000ULL);
-    config->MaxDataVersions = 1000;
+    config->MaxDataVersions = 1;
 
     auto merger = GetTypicalMerger(config, SyncLastCommittedTimestamp, MaxTimestamp);
 
@@ -1214,7 +1227,7 @@ TEST_F(TVersionedRowMergerTest, YT_6800)
     merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=1;ts=300000000000>3"));
 
     EXPECT_EQ(
-        BuildVersionedRow("<id=0> 0", "<id=1;ts=100000000000>1;<id=1;ts=200000000000>2;<id=1;ts=300000000000>3"),
+        BuildVersionedRow("<id=0> 0", "<id=1;ts=300000000000>3"),
         merger->BuildMergedRow());
 }
 

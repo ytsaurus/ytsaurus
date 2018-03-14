@@ -501,6 +501,9 @@ TControllerAgentConfig::TControllerAgentConfig()
     RegisterParameter("cached_running_jobs_update_period", CachedRunningJobsUpdatePeriod)
         .Default();
 
+    RegisterParameter("tagged_memory_statistics_update_period", TaggedMemoryStatisticsUpdatePeriod)
+        .Default(TDuration::Seconds(5));
+
     RegisterPreprocessor([&] () {
         EventLog->MaxRowWeight = 128_MB;
         if (!EventLog->Path) {

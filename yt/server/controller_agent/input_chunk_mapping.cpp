@@ -45,12 +45,26 @@ TChunkStripePtr TInputChunkMapping::GetMappedStripe(const TChunkStripePtr& strip
                 mappedStripe->DataSlices.emplace_back(dataSlice);
             } else {
                 const auto& substitutes = iterator->second;
-                YCHECK(!dataSlice->HasLimits() || substitutes.empty());
-                for (const auto& substituteChunk : substitutes) {
+                if (substitutes.empty()) {
+                    continue;
+                }
+
+                if (dataSlice->HasLimits()) {
+                    YCHECK(substitutes.size() == 1);
+                    auto substituteChunk = substitutes.front();
                     mappedStripe->DataSlices.emplace_back(New<TInputDataSlice>(
                         dataSlice->Type,
-                        TInputDataSlice::TChunkSliceList{CreateInputChunkSlice(substituteChunk)} ));
+                        TInputDataSlice::TChunkSliceList{CreateInputChunkSlice(substituteChunk)},
+                        dataSlice->LowerLimit(),
+                        dataSlice->UpperLimit()));
                     mappedStripe->DataSlices.back()->InputStreamIndex = dataSlice->InputStreamIndex;
+                } else {
+                    for (const auto& substituteChunk : substitutes) {
+                        mappedStripe->DataSlices.emplace_back(New<TInputDataSlice>(
+                            dataSlice->Type,
+                            TInputDataSlice::TChunkSliceList{CreateInputChunkSlice(substituteChunk)} ));
+                        mappedStripe->DataSlices.back()->InputStreamIndex = dataSlice->InputStreamIndex;
+                    }
                 }
             }
         } else {

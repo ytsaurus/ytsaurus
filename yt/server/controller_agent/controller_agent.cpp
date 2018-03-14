@@ -142,6 +142,7 @@ public:
             Config_,
             Bootstrap_))
         , SchedulerProxy_(Bootstrap_->GetMasterClient()->GetSchedulerChannel())
+        , MemoryTagQueue_(Config_)
     { }
 
     void Initialize()
@@ -784,8 +785,7 @@ private:
         JobEventsInbox_.reset();
         OperationEventsInbox_.reset();
         ScheduleJobRequestsInbox_.reset();
-
-        MemoryTagQueue_.Reset();
+        //MemoryTagQueue_.Reset();
     }
 
     TControllerAgentTrackerServiceProxy::TReqHeartbeatPtr PrepareHeartbeatRequest(
@@ -1196,6 +1196,11 @@ private:
                         });
                 })
                 .Item("config").Value(Config_)
+                .Item("tagged_memory_statistics").BeginAttributes()
+                    .Item("opaque").Value(true)
+                .EndAttributes().DoList([&] (TFluentList fluent) {
+                    MemoryTagQueue_.BuildTaggedMemoryStatistics(fluent);
+                })
             .EndMap();
     }
 };

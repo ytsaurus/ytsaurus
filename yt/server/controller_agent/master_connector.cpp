@@ -122,7 +122,7 @@ public:
     TFuture<void> AttachToLivePreview(
         const TOperationId& operationId,
         const TTransactionId& transactionId,
-        const std::vector<TNodeId>& tableIds,
+        TNodeId tableId,
         const std::vector<TChunkTreeId>& childIds)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -130,7 +130,7 @@ public:
 
         return BIND(&TImpl::DoAttachToLivePreview, MakeStrong(this))
             .AsyncVia(CancelableControlInvoker_)
-            .Run(operationId, transactionId, tableIds, childIds);
+            .Run(operationId, transactionId, tableId, childIds);
     }
 
     TFuture<TOperationSnapshot> DownloadSnapshot(const TOperationId& operationId)
@@ -820,7 +820,7 @@ private:
     void DoAttachToLivePreview(
         const TOperationId& operationId,
         const TTransactionId& transactionId,
-        const std::vector<TNodeId>& tableIds,
+        TNodeId tableId,
         const std::vector<TChunkTreeId>& childIds)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -836,15 +836,13 @@ private:
         YCHECK(!update->LivePreviewTransactionId || update->LivePreviewTransactionId == transactionId);
         update->LivePreviewTransactionId = transactionId;
 
-        LOG_TRACE("Attaching live preview chunk trees (OperationId: %v, TableIds: %v, ChildCount: %v)",
+        LOG_TRACE("Attaching live preview chunk trees (OperationId: %v, TableId: %v, ChildCount: %v)",
             operationId,
-            tableIds,
+            tableId,
             childIds.size());
 
-        for (const auto& tableId : tableIds) {
-            for (const auto& childId : childIds) {
-                update->LivePreviewRequests.push_back(TLivePreviewRequest{tableId, childId});
-            }
+        for (const auto& childId : childIds) {
+            update->LivePreviewRequests.push_back(TLivePreviewRequest{tableId, childId});
         }
     }
 
@@ -1081,10 +1079,10 @@ TFuture<void> TMasterConnector::FlushOperationNode(const TOperationId& operation
 TFuture<void> TMasterConnector::AttachToLivePreview(
     const TOperationId& operationId,
     const TTransactionId& transactionId,
-    const std::vector<TNodeId>& tableIds,
+    TNodeId tableId,
     const std::vector<TChunkTreeId>& childIds)
 {
-    return Impl_->AttachToLivePreview(operationId, transactionId, tableIds, childIds);
+    return Impl_->AttachToLivePreview(operationId, transactionId, tableId, childIds);
 }
 
 TFuture<TOperationSnapshot> TMasterConnector::DownloadSnapshot(const TOperationId& operationId)

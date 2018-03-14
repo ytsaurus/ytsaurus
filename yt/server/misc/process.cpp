@@ -54,8 +54,9 @@ void TPortoProcess::DoSpawn()
 
     try {
         // First argument must be path to binary.
-        ResolvedPath_ = ResolveBinaryPath(Args_[0])
-            .ValueOrThrow();
+        ResolvedPath_ = ContainerInstance_->HasRoot()
+            ? Path_  // Do not resolve if inside rootfs
+            : ResolveBinaryPath(Args_[0]).ValueOrThrow();
         Args_[0] = ResolvedPath_.c_str();
         execFuture = ContainerInstance_->Exec(Args_, Env_);
         try {

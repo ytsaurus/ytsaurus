@@ -160,7 +160,8 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
             },
             dont_track=True)
 
-        time.sleep(1.0)
+        wait(lambda: op.get_state() == "running")
+
         assert "lost_input_chunks" in get("//sys/operations/{0}/@alerts".format(op.id))
 
         set_banned_flag(False, replicas)
@@ -303,7 +304,7 @@ class TestSchedulerJobSpecThrottlerOperationAlert(YTEnvSetup):
             "operations_update_period": 100,
             "heavy_job_spec_slice_count_threshold": 1,
             "job_spec_slice_throttler": {
-                "limit": 3,
+                "limit": 1,
                 "period": 1000
             },
             "operation_alerts": {
@@ -318,19 +319,13 @@ class TestSchedulerJobSpecThrottlerOperationAlert(YTEnvSetup):
             write_table("<append=%true>//tmp/t_in", [{"x": letter}])
 
         create("table", "//tmp/t_out")
-        create("table", "//tmp/t_out2")
 
-        op1 = map(
+        op = map(
             command="sleep 100; cat",
             in_="//tmp/t_in",
             out="//tmp/t_out",
+            spec={"job_count": 3},
             dont_track=True)
 
-        op2 = map(
-            command="sleep 1; cat",
-            in_="//tmp/t_in",
-            out="//tmp/t_out2",
-            dont_track=True)
-
-        path = "//sys/operations/{0}/@alerts".format(op2.id)
+        path = "//sys/operations/{0}/@alerts".format(op.id)
         wait(lambda: exists(path) and "excessive_job_spec_throttling" in get(path))

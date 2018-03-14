@@ -461,11 +461,8 @@ class TestSchedulerOperationLimits(YTEnvSetup):
                 dont_track=True)
             ops.append(op)
 
-        # time for orchid to be updated.
-        time.sleep(0.2)
-
-        assert get("//sys/scheduler/orchid/scheduler/pools/research/operation_count") == 3
-        assert get("//sys/scheduler/orchid/scheduler/pools/research/running_operation_count") == 3
+        wait(lambda: get("//sys/scheduler/orchid/scheduler/pools/research/operation_count") == 3)
+        wait(lambda: get("//sys/scheduler/orchid/scheduler/pools/research/running_operation_count") == 3)
 
     def test_pending_operations_after_revive(self):
         create("table", "//tmp/in")
@@ -636,11 +633,11 @@ class TestSchedulerOperationLimits(YTEnvSetup):
 
         time.sleep(0.5)
 
-        assert get("//sys/scheduler/orchid/scheduler/pools/subpool/running_operation_count") == 1
-        assert get("//sys/scheduler/orchid/scheduler/pools/subpool/operation_count") == 3
+        wait(lambda: get("//sys/scheduler/orchid/scheduler/pools/subpool/running_operation_count") == 1)
+        wait(lambda: get("//sys/scheduler/orchid/scheduler/pools/subpool/operation_count") == 3)
 
-        assert get("//sys/scheduler/orchid/scheduler/pools/research/running_operation_count") == 1
-        assert get("//sys/scheduler/orchid/scheduler/pools/research/operation_count") == 3
+        wait(lambda: get("//sys/scheduler/orchid/scheduler/pools/research/running_operation_count") == 1)
+        wait(lambda: get("//sys/scheduler/orchid/scheduler/pools/research/operation_count") == 3)
 
         assert get("//sys/scheduler/orchid/scheduler/pools/production/running_operation_count") == 0
         assert get("//sys/scheduler/orchid/scheduler/pools/production/operation_count") == 0
@@ -652,11 +649,11 @@ class TestSchedulerOperationLimits(YTEnvSetup):
         assert get("//sys/scheduler/orchid/scheduler/pools/subpool/running_operation_count") == 1
         assert get("//sys/scheduler/orchid/scheduler/pools/subpool/operation_count") == 3
 
-        assert get("//sys/scheduler/orchid/scheduler/pools/research/running_operation_count") == 0
-        assert get("//sys/scheduler/orchid/scheduler/pools/research/operation_count") == 0
+        wait(lambda: get("//sys/scheduler/orchid/scheduler/pools/research/running_operation_count") == 0)
+        wait(lambda: get("//sys/scheduler/orchid/scheduler/pools/research/operation_count") == 0)
 
-        assert get("//sys/scheduler/orchid/scheduler/pools/production/running_operation_count") == 1
-        assert get("//sys/scheduler/orchid/scheduler/pools/production/operation_count") == 3
+        wait(lambda: get("//sys/scheduler/orchid/scheduler/pools/production/running_operation_count") == 1)
+        wait(lambda: get("//sys/scheduler/orchid/scheduler/pools/production/operation_count") == 3)
 
     def _test_pool_acl_prologue(self):
         create("table", "//tmp/t_in")
@@ -1680,10 +1677,8 @@ class TestFairShareTreesReconfiguration(YTEnvSetup):
     def test_incorrect_node_tags(self):
         create("map_node", "//sys/pool_trees/supertree1", attributes={"nodes_filter": "x|y"})
         create("map_node", "//sys/pool_trees/supertree2", attributes={"nodes_filter": "y|z"})
-        time.sleep(0.5)
-        info = get("//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree")
-        assert "supertree1" in info
-        assert "supertree2" in info
+        wait(lambda: "supertree1" in ls("//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree"))
+        wait(lambda: "supertree2" in ls("//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree"))
 
         node = ls("//sys/nodes")[0]
         assert get("//sys/scheduler/orchid/scheduler/nodes/" + node + "/state") == "online"
@@ -1691,9 +1686,7 @@ class TestFairShareTreesReconfiguration(YTEnvSetup):
 
         set("//sys/nodes/" + node + "/@user_tags/end", "y")
 
-        time.sleep(0.5)
-
-        assert get("//sys/scheduler/orchid/scheduler/nodes/" + node + "/state") == "offline"
+        wait(lambda: get("//sys/scheduler/orchid/scheduler/nodes/" + node + "/state") == "offline")
         assert get("//sys/scheduler/orchid/scheduler/cell/resource_limits/user_slots") == 2
 
     def test_default_tree_manipulations(self):
@@ -1781,7 +1774,6 @@ class TestFairShareTreesReconfiguration(YTEnvSetup):
         set("//sys/nodes/" + node + "/@user_tags/end", "other")
         set("//sys/pool_trees/default/@nodes_filter", "!other")
         create("map_node", "//sys/pool_trees/other", attributes={"nodes_filter": "other"})
-        set("//sys/pool_trees/default/@nodes_filter", "!other")
         time.sleep(0.5)
 
         create("table", "//tmp/t_in")
@@ -1796,8 +1788,7 @@ class TestFairShareTreesReconfiguration(YTEnvSetup):
         wait(lambda: op1.get_state() == "running")
 
         set("//sys/pool_trees/@default_tree", "other")
-        time.sleep(0.5)
-        assert get("//sys/scheduler/orchid/scheduler/default_fair_share_tree") == "other"
+        wait(lambda: get("//sys/scheduler/orchid/scheduler/default_fair_share_tree") == "other")
         assert op1.get_state() == "running"
 
         create("table", "//tmp/t_out_2")
@@ -1808,8 +1799,15 @@ class TestFairShareTreesReconfiguration(YTEnvSetup):
             dont_track=True)
         wait(lambda: op2.get_state() == "running")
 
-        default_tree_operations = get("//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/default/fair_share_info/operations")
-        other_tree_operations = get("//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/other/fair_share_info/operations")
+        operations_path = "//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/{}/fair_share_info/operations"
+        default_operations_path = operations_path.format("default")
+        other_operations_path = operations_path.format("other")
+
+        wait(lambda: len(ls(default_operations_path)) == 1)
+        wait(lambda: len(ls(other_operations_path)) == 1)
+
+        default_tree_operations = get(default_operations_path)
+        other_tree_operations = get(other_operations_path)
         assert op1.id in default_tree_operations
         assert op1.id not in other_tree_operations
         assert op2.id in other_tree_operations
