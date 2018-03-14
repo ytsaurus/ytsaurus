@@ -1,0 +1,11 @@
+SET(YT_SRCS
+  lazy_dict.cpp
+  lazy_dict_producer.cpp
+  lazy_list_fragment_parser.cpp
+  lazy_yson_consumer.cpp
+  lazy_parser.cpp
+  list_fragment_parser.cpp
+  object_builder.cpp
+  serialize.cpp
+  yson_lazy_map.cpp
+)
