@@ -2630,7 +2630,7 @@ void TOperationControllerBase::AnalyzeJobsDuration()
     if (!innerErrors.empty()) {
         error = TError("Operation has jobs with duration is less than %v seconds, "
                        "that leads to large overhead costs for scheduling",
-                       Config->OperationAlertsConfig->ShortJobsAlertMinJobDuration)
+                       Config->OperationAlertsConfig->ShortJobsAlertMinJobDuration.Seconds())
             << innerErrors;
     }
 
