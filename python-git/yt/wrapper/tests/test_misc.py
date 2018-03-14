@@ -583,7 +583,7 @@ def test_frozen_dict():
     with pytest.raises(NotImplementedError):
         fdict.pop("a")
 
-    fdict.pop("c", default=1) == 1
+    assert fdict.pop("c", default=1) == 1
 
     assert fdict == FrozenDict({"a": 1, "b": 2})
     assert fdict != {"c": 1}
