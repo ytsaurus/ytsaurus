@@ -348,6 +348,7 @@ class TestOperations(object):
                 .command("echo 'aaa' >&2")\
                 .job_count(1)\
             .end_task()
+        op = yt.run_operation(vanilla_spec)
         check(op)
 
     @add_failed_operation_stderrs_to_error_message
