@@ -13,6 +13,8 @@ from .format import YtFormatReadError
 
 import yt.logger as logger
 
+from copy import deepcopy
+
 import time
 
 def process_read_exception(exception):
