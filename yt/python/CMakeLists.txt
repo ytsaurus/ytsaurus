@@ -1,27 +1,71 @@
-include(Sources.txt)
+function(GET_PYTHON_KIND_SPECIFIC_CONSTANTS python_kind output_python_kind_dashed output_target_name_prefix)
+  string(TOLOWER ${python_kind} _python_kind_lower_)
+  string(REPLACE "_" "-" _python_kind_dashed_ ${_python_kind_lower_})
+  set(_target_name_prefix_ "yt-python-${_python_kind_dashed_}-")
 
-if (_is_gcc)
-  set_source_files_properties(${CMAKE_CURRENT_LIST_DIR}/serialize.cpp PROPERTIES COMPILE_FLAGS -Wno-write-strings)
-  set_source_files_properties(${CMAKE_CURRENT_LIST_DIR}/yson_lazy_map.cpp PROPERTIES COMPILE_FLAGS -Wno-write-strings)
-  if (_is_clang)
-    set_source_files_properties(${CMAKE_CURRENT_LIST_DIR}/serialize.cpp PROPERTIES COMPILE_FLAGS "-Wno-parentheses-equality -Wno-writable-strings")
+  set(${output_python_kind_dashed} ${_python_kind_dashed_} PARENT_SCOPE)
+  set(${output_target_name_prefix} ${_target_name_prefix_} PARENT_SCOPE)
+endfunction()
+
+function(BUILD_AND_INSTALL_PYTHON_LIBRARY python_kind target_name component)
+  string(TOLOWER ${python_kind} PYTHON_KIND_LOWER)
+  string(REPLACE "_" "-" PYTHON_KIND_DASHED ${PYTHON_KIND_LOWER})
+
+  set(PYTHON_LINK_FLAGS "-static-libstdc++")
+
+  get_filename_component(PYTHON_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR} DIRECTORY)
+
+  if(CMAKE_SYSTEM_NAME MATCHES "Darwin")
+    set(
+      PYTHON_LINK_FLAGS
+      "${PYTHON_LINK_FLAGS} -Wl,-exported_symbols_list,${PYTHON_SOURCE_DIR}/linker.map.darwin")
+  else()
+    set(
+      PYTHON_LINK_FLAGS
+      "${PYTHON_LINK_FLAGS} -Wl,--version-script=${PYTHON_SOURCE_DIR}/linker.map")
   endif()
-endif()
 
-execute_process(COMMAND lsb_release --codename --short
-                OUTPUT_VARIABLE LSB_RELEASE)
+  execute_process(COMMAND lsb_release --codename --short OUTPUT_VARIABLE LSB_RELEASE)
 
-set(PYTHON_LINK_FLAGS "-static-libstdc++")
+  set(IS_NATIVE_SYSTEM_PYTHON False)
+  if(${python_kind} MATCHES "^2_7$")
+    if(${LSB_RELEASE} MATCHES "precise")
+      set(IS_NATIVE_SYSTEM_PYTHON True)
+    endif()
+    if(${LSB_RELEASE} MATCHES "trusty")
+      set(IS_NATIVE_SYSTEM_PYTHON True)
+    endif()
+    if(${LSB_RELEASE} MATCHES "xenial")
+      set(IS_NATIVE_SYSTEM_PYTHON True)
+    endif()
+  endif()
 
-if(CMAKE_SYSTEM_NAME MATCHES "Darwin")
-  set(
-    PYTHON_LINK_FLAGS
-    "${PYTHON_LINK_FLAGS} -Wl,-exported_symbols_list,${CMAKE_CURRENT_SOURCE_DIR}/linker.map.darwin")
-else()
-  set(
-    PYTHON_LINK_FLAGS
-    "${PYTHON_LINK_FLAGS} -Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/linker.map")
-endif()
+  target_compile_definitions(${target_name} PUBLIC -DPy_LIMITED_API=0x03040000)
+
+  set_target_properties(${target_name}
+    PROPERTIES
+    LIBRARY_OUTPUT_NAME "${component}_lib"
+    LIBRARY_OUTPUT_DIRECTORY "${LIBRARY_OUTPUT_PATH}/pyshared-${PYTHON_KIND_DASHED}"
+    PREFIX ""
+    SUFFIX "${CMAKE_SHARED_MODULE_SUFFIX}"
+    LINK_FLAGS "${PYTHON_LINK_FLAGS} ${CMAKE_SHARED_LINKER_FLAGS}"
+  )
+
+  install(
+    TARGETS ${target_name}
+    DESTINATION lib/pyshared-${PYTHON_KIND_DASHED}/yt_${component}_bindings
+    COMPONENT ${target_name}
+  )
+
+  if(${IS_NATIVE_SYSTEM_PYTHON})
+    exec_program(
+      ${CMAKE_COMMAND} ARGS -E create_symlink
+      ${LIBRARY_OUTPUT_PATH}/pyshared-${PYTHON_KIND_DASHED}/${component}_lib${CMAKE_SHARED_MODULE_SUFFIX}
+      ${CMAKE_SOURCE_DIR}/python/yt_${component}_bindings/${component}_lib${CMAKE_SHARED_MODULE_SUFFIX}
+    )
+  endif()
+
+endfunction()
 
 set(PYCXX_BASE ${CMAKE_SOURCE_DIR}/contrib/libs/pycxx)
 set(PYCXX_SRCS
@@ -38,24 +82,6 @@ foreach(PYTHON_KIND IN LISTS PYTHON_KINDS)
   string(REPLACE "_" "-" PYTHON_KIND_DASHED ${PYTHON_KIND_LOWER})
   set(TARGET_NAME_PREFIX "yt-python-${PYTHON_KIND_DASHED}-")
 
-  set(IS_NATIVE_SYSTEM_PYTHON False)
-  if(${PYTHON_KIND} MATCHES "^2_7$")
-    if(${LSB_RELEASE} MATCHES "precise")
-      set(IS_NATIVE_SYSTEM_PYTHON True)
-    endif()
-    if(${LSB_RELEASE} MATCHES "trusty")
-      set(IS_NATIVE_SYSTEM_PYTHON True)
-    endif()
-    if(${LSB_RELEASE} MATCHES "xenial")
-      set(IS_NATIVE_SYSTEM_PYTHON True)
-    endif()
-  endif()
-  if(${PYTHON_KIND} MATCHES "^2_6$")
-    if(${LSB_RELEASE} MATCHES "lucid")
-      set(IS_NATIVE_SYSTEM_PYTHON True)
-    endif()
-  endif()
-
   add_library(${TARGET_NAME_PREFIX}pycxx STATIC ${PYCXX_SRCS})
   target_include_directories(${TARGET_NAME_PREFIX}pycxx PUBLIC ${PYCXX_BASE} ${PYTHON_${PYTHON_KIND}_INCLUDE_DIR})
   target_compile_definitions(${TARGET_NAME_PREFIX}pycxx
@@ -64,61 +90,9 @@ foreach(PYTHON_KIND IN LISTS PYTHON_KINDS)
       -DPYCXX_6_2_COMPATIBILITY
       -DPy_LIMITED_API=0x03040000)
 
-  add_library(${TARGET_NAME_PREFIX}common STATIC ${YT_SRCS})
-  target_link_libraries(${TARGET_NAME_PREFIX}common yt-core ${TARGET_NAME_PREFIX}pycxx)
-
-  add_library(${TARGET_NAME_PREFIX}yson
-    MODULE
-    ${CMAKE_CURRENT_LIST_DIR}/yson.cpp
-  )
-
-  target_link_libraries(${TARGET_NAME_PREFIX}yson ${TARGET_NAME_PREFIX}common)
-
-  add_library(${TARGET_NAME_PREFIX}driver
-    MODULE
-    ${CMAKE_CURRENT_LIST_DIR}/driver.cpp
-    ${CMAKE_CURRENT_LIST_DIR}/descriptor.cpp
-    ${CMAKE_CURRENT_LIST_DIR}/response.cpp
-  )
-
-  target_link_libraries(${TARGET_NAME_PREFIX}driver yt-library-client ${TARGET_NAME_PREFIX}common)
-
-  foreach(COMPONENT "yson" "driver")
-    set(TARGET_NAME "${TARGET_NAME_PREFIX}${COMPONENT}")
-
-    target_compile_definitions(${TARGET_NAME} PUBLIC -DPy_LIMITED_API=0x03040000)
-
-    set_target_properties(${TARGET_NAME}
-      PROPERTIES
-      LIBRARY_OUTPUT_NAME "${COMPONENT}_lib"
-      LIBRARY_OUTPUT_DIRECTORY "${LIBRARY_OUTPUT_PATH}/pyshared-${PYTHON_KIND_DASHED}"
-      PREFIX ""
-      SUFFIX "${CMAKE_SHARED_MODULE_SUFFIX}"
-      LINK_FLAGS "${PYTHON_LINK_FLAGS} ${CMAKE_SHARED_LINKER_FLAGS}"
-    )
-
-    install(
-      TARGETS ${TARGET_NAME}
-      DESTINATION lib/pyshared-${PYTHON_KIND_DASHED}/yt_${COMPONENT}_bindings
-      COMPONENT ${TARGET_NAME}
-    )
-
-    if(${IS_NATIVE_SYSTEM_PYTHON})
-      exec_program(
-        ${CMAKE_COMMAND} ARGS -E create_symlink
-        ${LIBRARY_OUTPUT_PATH}/pyshared-${PYTHON_KIND_DASHED}/${COMPONENT}_lib${CMAKE_SHARED_MODULE_SUFFIX}
-        ${CMAKE_SOURCE_DIR}/python/yt_${COMPONENT}_bindings/${COMPONENT}_lib${CMAKE_SHARED_MODULE_SUFFIX}
-      )
-    endif()
-  endforeach()
-
-  install(
-    FILES
-      ${CMAKE_SOURCE_DIR}/python/yt_driver_bindings/__init__.py
-      ${CMAKE_SOURCE_DIR}/python/yt_driver_bindings/driver.py
-    DESTINATION
-      lib/pyshared-${PYTHON_KIND_DASHED}/yt_driver_bindings
-      COMPONENT ${TARGET_NAME_PREFIX}driver
-  )
-
 endforeach()
+
+add_subdirectory(common)
+add_subdirectory(driver)
+add_subdirectory(yson)
+add_subdirectory(yson_shared)

@@ -1,8 +1,9 @@
 #pragma once
 
-#include "object_builder.h"
-#include "serialize.h"
-#include "stream.h"
+#include <yt/python/common/stream.h>
+
+#include <yt/python/yson/object_builder.h>
+#include <yt/python/yson/serialize.h>
 
 #include <yt/ytlib/driver/driver.h>
 

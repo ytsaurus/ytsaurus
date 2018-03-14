@@ -1,42 +1,26 @@
-#include "public.h"
-#include "buffered_stream.h"
 #include "descriptor.h"
-#include "helpers.h"
 #include "response.h"
-#include "serialize.h"
-#include "shutdown.h"
-#include "stream.h"
+
+#include <yt/python/common/shutdown.h>
+#include <yt/python/common/buffered_stream.h>
+#include <yt/python/common/helpers.h>
 
 #include <yt/ytlib/api/admin.h>
-#include <yt/ytlib/api/connection.h>
 #include <yt/ytlib/api/transaction.h>
 
 #include <yt/ytlib/driver/config.h>
-#include <yt/ytlib/driver/driver.h>
-
-#include <yt/ytlib/formats/format.h>
 
 #include <yt/ytlib/hydra/hydra_service_proxy.h>
 
 #include <yt/ytlib/object_client/object_service_proxy.h>
 
-#include <yt/ytlib/tablet_client/public.h>
-
-#include <yt/core/concurrency/async_stream.h>
-
 #include <yt/core/logging/log_manager.h>
 #include <yt/core/logging/config.h>
 
-#include <yt/core/misc/intrusive_ptr.h>
 #include <yt/core/misc/crash_handler.h>
 
 #include <yt/core/tracing/trace_manager.h>
 #include <yt/core/tracing/config.h>
-
-#include <yt/core/ytree/convert.h>
-
-#include <contrib/libs/pycxx/Extensions.hxx>
-#include <contrib/libs/pycxx/Objects.hxx>
 
 namespace NYT {
 namespace NPython {
