@@ -773,14 +773,19 @@ SIMPLE_UNIT_TEST_SUITE(TableIo) {
         UNIT_ASSERT_VALUES_EQUAL(actual, expectedData);
     }
 
-    SIMPLE_UNIT_TEST(ComplressionCodecIdentity)
+    SIMPLE_UNIT_TEST(CompressionCodecIdentity)
     {
         TestCompressionCodec(E_IDENTITY);
     }
 
-    SIMPLE_UNIT_TEST(ComplressionCodecGzip)
+    SIMPLE_UNIT_TEST(CompressionCodecGzip)
     {
         TestCompressionCodec(E_GZIP);
+    }
+
+    SIMPLE_UNIT_TEST(CompressionCodecBrotli)
+    {
+        TestCompressionCodec(E_BROTLI);
     }
 
     SIMPLE_UNIT_TEST(AbortWriter)

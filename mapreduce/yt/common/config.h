@@ -11,6 +11,7 @@ namespace NYT {
 enum EEncoding : int {
     E_IDENTITY  /* "identity" */,
     E_GZIP      /* "gzip" */,
+    E_BROTLI    /* "br" */,
 };
 
 ////////////////////////////////////////////////////////////////////////////////
