@@ -41,6 +41,7 @@
 
 #include <yt/core/logging/log_manager.h>
 
+#include <yt/core/misc/fs.h>
 #include <yt/core/misc/lfalloc_helpers.h>
 #include <yt/core/misc/proc.h>
 #include <yt/core/misc/ref_counted_tracker.h>
@@ -383,6 +384,14 @@ IJobPtr TJobProxy::CreateBuiltinJob()
     }
 }
 
+TString TJobProxy::AdjustPath(const TString& path) const
+{
+    YCHECK(path.StartsWith(GetPreparationPath()));
+    auto pathSuffix = path.substr(GetPreparationPath().size() + 1);
+    auto adjustedPath = NFS::CombinePaths(GetSlotPath(), pathSuffix);
+    return adjustedPath;
+}
+
 TJobResult TJobProxy::DoRun()
 {
     try {
@@ -405,6 +414,14 @@ TJobResult TJobProxy::DoRun()
             rootFS.IsRootReadOnly = true;
             rootFS.RootPath = *Config_->RootPath;
             rootFS.Binds.emplace_back(TBind {NFs::CurrentWorkingDirectory(), SlotBindPath, false});
+
+            for (const auto& bind : Config_->Binds) {
+                rootFS.Binds.emplace_back(TBind {bind->ExternalPath, bind->InternalPath, bind->ReadOnly});
+            }
+
+            if (Config_->TmpfsPath) {
+                rootFS.Binds.emplace_back(TBind {*Config_->TmpfsPath, AdjustPath(*Config_->TmpfsPath), false});
+            }
 
             return rootFS;
         };

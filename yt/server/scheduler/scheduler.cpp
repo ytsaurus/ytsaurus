@@ -1131,6 +1131,14 @@ private:
     TBootstrap* const Bootstrap_;
 
     const std::unique_ptr<TMasterConnector> MasterConnector_;
+    std::atomic<bool> IsConnected_ = {false};
+
+    //! Ordinal number of this scheduler incarnation. It is used
+    //! to discard late callbacks that are submitted by still
+    //! running controllers.
+    //! This field is incremented on each OnMasterConnected and
+    //! should be accessed only from scheduler control thread.
+    int SchedulerIncarnation_ = -1;
 
     TActionQueuePtr ControllerDtor_ = New<TActionQueue>("ControllerDtor");
 

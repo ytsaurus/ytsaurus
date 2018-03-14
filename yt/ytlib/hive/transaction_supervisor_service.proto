@@ -11,6 +11,7 @@ message TReqCommitTransaction
     repeated NYT.NProto.TGuid participant_cell_ids = 2;
     required bool force_2pc = 3;
     required bool inherit_commit_timestamp = 4;
+    optional int32 coordinator_commit_mode = 5; // ETransactionCoordinatorCommitMode
 }
 
 message TRspCommitTransaction

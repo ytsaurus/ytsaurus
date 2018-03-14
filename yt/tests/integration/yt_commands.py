@@ -1135,6 +1135,9 @@ def make_ace(action, subjects, permissions, inheritance_mode="object_and_descend
         "inheritance_mode": inheritance_mode
     }
 
+def get_operation_path(op_id):
+    return "//sys/operations/{0:02x}/{1}".format(int(op_id.split("-")[-1], 16) % 256, op_id)
+
 #########################################
 
 def get_last_profiling_values(orchid_path, metrics):

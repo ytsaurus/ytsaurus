@@ -128,10 +128,14 @@ struct TSelectReadCounters
     TSelectReadCounters(const TTagIdList& list)
         : RowCount("/select/row_count", list)
         , DataWeight("/select/data_weight", list)
+        , UnmergedRowCount("/select/unmerged_row_count", list)
+        , UnmergedDataWeight("/select/unmerged_data_weight", list)
     { }
 
     TSimpleCounter RowCount;
     TSimpleCounter DataWeight;
+    TSimpleCounter UnmergedRowCount;
+    TSimpleCounter UnmergedDataWeight;
 };
 
 using TSelectReadProfilerTrait = TTabletProfilerTrait<TSelectReadCounters>;
@@ -170,6 +174,8 @@ public:
         auto& counters = GetLocallyGloballyCachedValue<TSelectReadProfilerTrait>(Tags_);
         TabletNodeProfiler.Increment(counters.RowCount, statistics.row_count());
         TabletNodeProfiler.Increment(counters.DataWeight, statistics.data_weight());
+        TabletNodeProfiler.Increment(counters.UnmergedRowCount, statistics.unmerged_row_count());
+        TabletNodeProfiler.Increment(counters.UnmergedDataWeight, statistics.unmerged_data_weight());
     }
 
 };

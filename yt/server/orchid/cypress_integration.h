@@ -33,7 +33,7 @@ struct TOrchidManifest
             .Default(TDuration::Seconds(60));
 
         RegisterPostprocessor([&] {
-            RetryAttempts = 2;
+            RetryAttempts = 1;
         });
     }
 };

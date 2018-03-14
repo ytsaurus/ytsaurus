@@ -134,646 +134,639 @@ static TNullOutput NullOutput;
 
 static TString CreateNamedPipePath()
 {
-    const TString& name = CreateGuidAsString();
-    return NFS::GetRealPath(NFS::CombinePaths("./pipes", name));
+const TString& name = CreateGuidAsString();
+return NFS::GetRealPath(NFS::CombinePaths("./pipes", name));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 const TString& GetCGroupUserJobBase()
 {
-    return CGroupBase;
+return CGroupBase;
 }
 
 const TString& GetCGroupUserJobPrefix()
 {
-    return CGroupPrefix;
+return CGroupPrefix;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TUserJob
-    : public TJob
+: public TJob
 {
 public:
-    TUserJob(
-        IJobHostPtr host,
-        const TUserJobSpec& userJobSpec,
-        const TJobId& jobId,
-        std::unique_ptr<TUserJobWriteController> userJobWriteController,
-        IResourceControllerPtr resourceController)
-        : TJob(host)
-        , Logger(Host_->GetLogger())
-        , UserJobWriteController_(std::move(userJobWriteController))
-        , UserJobSpec_(userJobSpec)
-        , Config_(Host_->GetConfig())
-        , JobIOConfig_(Host_->GetJobSpecHelper()->GetJobIOConfig())
-        , ResourceController_(resourceController)
-        , JobErrorPromise_(NewPromise<void>())
-        , JobEnvironmentType_(ConvertTo<TJobEnvironmentConfigPtr>(Config_->JobEnvironment)->Type)
-        , PipeIOPool_(New<TThreadPool>(JobIOConfig_->PipeIOPoolSize, "PipeIO"))
-        , AuxQueue_(New<TActionQueue>("JobAux"))
-        , ReadStderrInvoker_(CreateSerializedInvoker(PipeIOPool_->GetInvoker()))
-        , JobSatelliteConnection_(
-            jobId,
-            host->GetConfig()->BusServer,
-            JobEnvironmentType_)
-    {
-        Synchronizer_ = New<TUserJobSynchronizer>();
-        Host_->GetRpcServer()->RegisterService(CreateUserJobSynchronizerService(Logger, Synchronizer_, AuxQueue_->GetInvoker()));
-        JobProberClient_ = NJobProberClient::CreateJobProbe(JobSatelliteConnection_.GetRpcClientConfig(), jobId);
-        auto jobEnvironmentConfig = ConvertTo<TJobEnvironmentConfigPtr>(Config_->JobEnvironment);
-        MemoryWatchdogPeriod_ = jobEnvironmentConfig->MemoryWatchdogPeriod;
+TUserJob(
+    IJobHostPtr host,
+    const TUserJobSpec& userJobSpec,
+    const TJobId& jobId,
+    std::unique_ptr<TUserJobWriteController> userJobWriteController,
+    IResourceControllerPtr resourceController)
+    : TJob(host)
+    , Logger(Host_->GetLogger())
+    , UserJobWriteController_(std::move(userJobWriteController))
+    , UserJobSpec_(userJobSpec)
+    , Config_(Host_->GetConfig())
+    , JobIOConfig_(Host_->GetJobSpecHelper()->GetJobIOConfig())
+    , ResourceController_(resourceController)
+    , JobErrorPromise_(NewPromise<void>())
+    , JobEnvironmentType_(ConvertTo<TJobEnvironmentConfigPtr>(Config_->JobEnvironment)->Type)
+    , PipeIOPool_(New<TThreadPool>(JobIOConfig_->PipeIOPoolSize, "PipeIO"))
+    , AuxQueue_(New<TActionQueue>("JobAux"))
+    , ReadStderrInvoker_(CreateSerializedInvoker(PipeIOPool_->GetInvoker()))
+    , JobSatelliteConnection_(
+        jobId,
+        host->GetConfig()->BusServer,
+        JobEnvironmentType_)
+{
+    Synchronizer_ = New<TUserJobSynchronizer>();
+    Host_->GetRpcServer()->RegisterService(CreateUserJobSynchronizerService(Logger, Synchronizer_, AuxQueue_->GetInvoker()));
+    JobProberClient_ = NJobProberClient::CreateJobProbe(JobSatelliteConnection_.GetRpcClientConfig(), jobId);
+    auto jobEnvironmentConfig = ConvertTo<TJobEnvironmentConfigPtr>(Config_->JobEnvironment);
+    MemoryWatchdogPeriod_ = jobEnvironmentConfig->MemoryWatchdogPeriod;
 
-        UserJobReadController_ = CreateUserJobReadController(
-            Host_->GetJobSpecHelper(),
-            Host_->GetClient(),
-            PipeIOPool_->GetInvoker(),
-            Host_->LocalDescriptor(),
-            BIND(&IJobHost::ReleaseNetwork, Host_),
-            SandboxDirectoryNames[ESandboxKind::Udf],
-            Host_->GetTrafficMeter());
+    UserJobReadController_ = CreateUserJobReadController(
+        Host_->GetJobSpecHelper(),
+        Host_->GetClient(),
+        PipeIOPool_->GetInvoker(),
+        Host_->LocalDescriptor(),
+        BIND(&IJobHost::ReleaseNetwork, Host_),
+        SandboxDirectoryNames[ESandboxKind::Udf],
+        Host_->GetTrafficMeter());
 
-        InputPipeBlinker_ = New<TPeriodicExecutor>(
+    InputPipeBlinker_ = New<TPeriodicExecutor>(
+        AuxQueue_->GetInvoker(),
+        BIND(&TUserJob::BlinkInputPipe, MakeWeak(this)),
+        Config_->InputPipeBlinkerPeriod);
+
+    MemoryWatchdogExecutor_ = New<TPeriodicExecutor>(
+        AuxQueue_->GetInvoker(),
+        BIND(&TUserJob::CheckMemoryUsage, MakeWeak(this)),
+        MemoryWatchdogPeriod_);
+
+    if (HasRootPermissions()) {
+        UserId_ = jobEnvironmentConfig->StartUid + Config_->SlotIndex;
+    }
+
+    if (ResourceController_) {
+        YCHECK(host->GetConfig()->BusServer->UnixDomainName);
+        YCHECK(UserId_);
+        Process_ = ResourceController_->CreateControlledProcess(
+            ExecProgramName,
+            *UserId_,
+            MakeNullable(UserJobSpec_.has_core_table_spec(), *host->GetConfig()->BusServer->UnixDomainName));
+
+        BlockIOWatchdogExecutor_ = New<TPeriodicExecutor>(
             AuxQueue_->GetInvoker(),
-            BIND(&TUserJob::BlinkInputPipe, MakeWeak(this)),
-            Config_->InputPipeBlinkerPeriod);
+            BIND(&TUserJob::CheckBlockIOUsage, MakeWeak(this)),
+            ResourceController_->GetBlockIOWatchdogPeriod());
+    } else {
+        Process_ = New<TSimpleProcess>(ExecProgramName, false);
+        if (UserId_) {
+            Process_->AddArguments({"--uid", ::ToString(*UserId_)});
+        }
+    }
 
-        MemoryWatchdogExecutor_ = New<TPeriodicExecutor>(
+    if (UserJobSpec_.has_core_table_spec()) {
+        const auto& coreTableSpec = UserJobSpec_.core_table_spec();
+
+        auto tableWriterOptions = ConvertTo<TTableWriterOptionsPtr>(
+            TYsonString(coreTableSpec.output_table_spec().table_writer_options()));
+        tableWriterOptions->EnableValidationOptions();
+        auto chunkList = FromProto<TChunkListId>(coreTableSpec.output_table_spec().chunk_list_id());
+        auto blobTableWriterConfig = ConvertTo<TBlobTableWriterConfigPtr>(TYsonString(coreTableSpec.blob_table_writer_config()));
+        auto transactionId = FromProto<TTransactionId>(
+            Host_->GetJobSpecHelper()->GetSchedulerJobSpecExt().output_transaction_id());
+
+        CoreProcessorService_ = New<TCoreProcessorService>(
+            Host_,
+            blobTableWriterConfig,
+            tableWriterOptions,
+            transactionId,
+            chunkList,
             AuxQueue_->GetInvoker(),
-            BIND(&TUserJob::CheckMemoryUsage, MakeWeak(this)),
-            MemoryWatchdogPeriod_);
+            Config_->CoreForwarderTimeout);
 
-        if (HasRootPermissions()) {
-            UserId_ = jobEnvironmentConfig->StartUid + Config_->SlotIndex;
-        }
-
-        if (ResourceController_) {
-            YCHECK(UserId_);
-            Process_ = ResourceController_->CreateControlledProcess(
-                ExecProgramName,
-                *UserId_,
-                CreateCoreDumpHandlerPath(host->GetConfig()->BusServer->UnixDomainName));
-
-            BlockIOWatchdogExecutor_ = New<TPeriodicExecutor>(
-                AuxQueue_->GetInvoker(),
-                BIND(&TUserJob::CheckBlockIOUsage, MakeWeak(this)),
-                ResourceController_->GetBlockIOWatchdogPeriod());
-        } else {
-            Process_ = New<TSimpleProcess>(ExecProgramName, false);
-            if (UserId_) {
-                Process_->AddArguments({"--uid", ::ToString(*UserId_)});
-            }
-        }
-
-        if (UserJobSpec_.has_core_table_spec()) {
-            const auto& coreTableSpec = UserJobSpec_.core_table_spec();
-
-            auto tableWriterOptions = ConvertTo<TTableWriterOptionsPtr>(
-                TYsonString(coreTableSpec.output_table_spec().table_writer_options()));
-            tableWriterOptions->EnableValidationOptions();
-            auto chunkList = FromProto<TChunkListId>(coreTableSpec.output_table_spec().chunk_list_id());
-            auto blobTableWriterConfig = ConvertTo<TBlobTableWriterConfigPtr>(TYsonString(coreTableSpec.blob_table_writer_config()));
-            auto transactionId = FromProto<TTransactionId>(
-                Host_->GetJobSpecHelper()->GetSchedulerJobSpecExt().output_transaction_id());
-
-            CoreProcessorService_ = New<TCoreProcessorService>(
-                Host_,
-                blobTableWriterConfig,
-                tableWriterOptions,
-                transactionId,
-                chunkList,
-                AuxQueue_->GetInvoker(),
-                Config_->CoreForwarderTimeout);
-
-            Host_->GetRpcServer()->RegisterService(CoreProcessorService_);
-        }
+        Host_->GetRpcServer()->RegisterService(CoreProcessorService_);
     }
+}
 
-    virtual void Initialize() override
-    { }
+virtual void Initialize() override
+{ }
 
-    virtual TJobResult Run() override
-    {
-        LOG_DEBUG("Starting job process");
+virtual TJobResult Run() override
+{
+    LOG_DEBUG("Starting job process");
 
-        UserJobWriteController_->Init();
+    UserJobWriteController_->Init();
 
-        Prepare();
+    Prepare();
 
-        bool expected = false;
-        if (Prepared_.compare_exchange_strong(expected, true)) {
-            ProcessFinished_ = Process_->Spawn();
-            LOG_INFO("Job process started");
+    bool expected = false;
+    if (Prepared_.compare_exchange_strong(expected, true)) {
+        ProcessFinished_ = Process_->Spawn();
+        LOG_INFO("Job process started");
 
-            if (BlockIOWatchdogExecutor_) {
-                BlockIOWatchdogExecutor_->Start();
-            }
+        if (BlockIOWatchdogExecutor_) {
+            BlockIOWatchdogExecutor_->Start();
+        }
 
-            TDelayedExecutorCookie timeLimitCookie;
-            if (UserJobSpec_.has_job_time_limit()) {
-                const TDuration timeLimit = TDuration::MilliSeconds(UserJobSpec_.job_time_limit());
-                LOG_INFO("Setting job time limit to %v", timeLimit);
-                timeLimitCookie = TDelayedExecutor::Submit(
-                    BIND(&TUserJob::OnJobTimeLimitExceeded, MakeWeak(this)).Via(AuxQueue_->GetInvoker()),
-                    timeLimit);
-            }
+        TDelayedExecutorCookie timeLimitCookie;
+        if (UserJobSpec_.has_job_time_limit()) {
+            const TDuration timeLimit = TDuration::MilliSeconds(UserJobSpec_.job_time_limit());
+            LOG_INFO("Setting job time limit to %v", timeLimit);
+            timeLimitCookie = TDelayedExecutor::Submit(
+                BIND(&TUserJob::OnJobTimeLimitExceeded, MakeWeak(this)).Via(AuxQueue_->GetInvoker()),
+                timeLimit);
+        }
 
-            DoJobIO();
+        DoJobIO();
 
-            TDelayedExecutor::CancelAndClear(timeLimitCookie);
-            WaitFor(InputPipeBlinker_->Stop())
+        TDelayedExecutor::CancelAndClear(timeLimitCookie);
+        WaitFor(InputPipeBlinker_->Stop())
+            .ThrowOnError();
+
+        if (!JobErrorPromise_.IsSet()) {
+            FinalizeJobIO();
+        }
+        UploadStderrFile();
+
+        CleanupUserProcesses();
+
+        if (BlockIOWatchdogExecutor_) {
+            WaitFor(BlockIOWatchdogExecutor_->Stop())
                 .ThrowOnError();
+        }
+        WaitFor(MemoryWatchdogExecutor_->Stop())
+            .ThrowOnError();
+    } else {
+        JobErrorPromise_.TrySet(TError("Job aborted"));
+    }
 
-            if (!JobErrorPromise_.IsSet()) {
-                FinalizeJobIO();
+    auto jobResultError = JobErrorPromise_.TryGet();
+
+    std::vector<TError> innerErrors;
+
+    if (jobResultError)  {
+        innerErrors.push_back(*jobResultError);
+    }
+
+    TJobResult result;
+    auto* schedulerResultExt = result.MutableExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
+
+    SaveErrorChunkId(schedulerResultExt);
+    UserJobWriteController_->PopulateStderrResult(schedulerResultExt);
+
+    if (jobResultError) {
+        try {
+            DumpFailContexts(schedulerResultExt);
+        } catch (const std::exception& ex) {
+            LOG_ERROR(ex, "Failed to dump input context");
+        }
+    } else {
+        UserJobWriteController_->PopulateResult(schedulerResultExt);
+    }
+
+    if (UserJobSpec_.has_core_table_spec()) {
+        bool coreDumped = jobResultError.HasValue() && jobResultError->Attributes().Get("core_dumped", false /* defaultValue */);
+        auto coreResult = CoreProcessorService_->Finalize(coreDumped ? Config_->CoreForwarderTimeout : TDuration::Zero());
+
+        LOG_INFO("User job produced %v core files", coreResult.CoreInfos.size());
+        if (!coreResult.CoreInfos.empty()) {
+            for (const auto& coreInfo : coreResult.CoreInfos) {
+                LOG_DEBUG("Core file (Pid: %v, ExecutableName: %v, Size: %v)",
+                    coreInfo.process_id(),
+                    coreInfo.executable_name(),
+                    coreInfo.size());
             }
-            UploadStderrFile();
-
-            CleanupUserProcesses();
-
-            if (BlockIOWatchdogExecutor_) {
-                WaitFor(BlockIOWatchdogExecutor_->Stop())
-                    .ThrowOnError();
-            }
-            WaitFor(MemoryWatchdogExecutor_->Stop())
-                .ThrowOnError();
-        } else {
-            JobErrorPromise_.TrySet(TError("Job aborted"));
+            innerErrors.push_back(TError("User job produced core files")
+                    << TErrorAttribute("core_infos", coreResult.CoreInfos));
         }
 
-        auto jobResultError = JobErrorPromise_.TryGet();
-
-        std::vector<TError> innerErrors;
-
-        if (jobResultError)  {
-            innerErrors.push_back(*jobResultError);
-        }
-
-        TJobResult result;
-        auto* schedulerResultExt = result.MutableExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
-
-        SaveErrorChunkId(schedulerResultExt);
-        UserJobWriteController_->PopulateStderrResult(schedulerResultExt);
-
-        if (jobResultError) {
-            try {
-                DumpFailContexts(schedulerResultExt);
-            } catch (const std::exception& ex) {
-                LOG_ERROR(ex, "Failed to dump input context");
-            }
-        } else {
-            UserJobWriteController_->PopulateResult(schedulerResultExt);
-        }
-
-        if (UserJobSpec_.has_core_table_spec()) {
-            bool coreDumped = jobResultError.HasValue() && jobResultError->Attributes().Get("core_dumped", false /* defaultValue */);
-            auto coreResult = CoreProcessorService_->Finalize(coreDumped ? Config_->CoreForwarderTimeout : TDuration::Zero());
-
-            LOG_INFO("User job produced %v core files", coreResult.CoreInfos.size());
-            if (!coreResult.CoreInfos.empty()) {
-                for (const auto& coreInfo : coreResult.CoreInfos) {
-                    LOG_DEBUG("Core file (Pid: %v, ExecutableName: %v, Size: %v)",
-                        coreInfo.process_id(),
-                        coreInfo.executable_name(),
-                        coreInfo.size());
-                }
-                innerErrors.push_back(TError("User job produced core files")
-                        << TErrorAttribute("core_infos", coreResult.CoreInfos));
-            }
-
-            ToProto(schedulerResultExt->mutable_core_infos(), coreResult.CoreInfos);
-            YCHECK(coreResult.BoundaryKeys.empty() || coreResult.BoundaryKeys.sorted());
-            ToProto(schedulerResultExt->mutable_core_table_boundary_keys(), coreResult.BoundaryKeys);
-        }
-
-        auto jobError = innerErrors.empty()
-            ? TError()
-            : TError(EErrorCode::UserJobFailed, "User job failed") << innerErrors;
-
-        ToProto(result.mutable_error(), jobError);
-
-        return result;
+        ToProto(schedulerResultExt->mutable_core_infos(), coreResult.CoreInfos);
+        YCHECK(coreResult.BoundaryKeys.empty() || coreResult.BoundaryKeys.sorted());
+        ToProto(schedulerResultExt->mutable_core_table_boundary_keys(), coreResult.BoundaryKeys);
     }
 
-    virtual void Cleanup() override
-    {
-        bool expected = true;
-        if (Prepared_.compare_exchange_strong(expected, false)) {
-            // Job has been prepared.
-            CleanupUserProcesses();
-        }
-    }
+    auto jobError = innerErrors.empty()
+        ? TError()
+        : TError(EErrorCode::UserJobFailed, "User job failed") << innerErrors;
 
-    virtual double GetProgress() const override
-    {
-        return UserJobReadController_->GetProgress();
-    }
+    ToProto(result.mutable_error(), jobError);
 
-    virtual ui64 GetStderrSize() const override
-    {
-        if (!Prepared_) {
-            return 0;
-        }
-        auto result = WaitFor(BIND([=] () { return ErrorOutput_->GetCurrentSize(); })
-            .AsyncVia(ReadStderrInvoker_)
-            .Run());
-        THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error collecting job stderr size");
-        return result.Value();
-    }
+    return result;
+}
 
-    virtual std::vector<TChunkId> GetFailedChunkIds() const override
-    {
-        return UserJobReadController_->GetFailedChunkIds();
+virtual void Cleanup() override
+{
+    bool expected = true;
+    if (Prepared_.compare_exchange_strong(expected, false)) {
+        // Job has been prepared.
+        CleanupUserProcesses();
     }
+}
 
-    virtual TInterruptDescriptor GetInterruptDescriptor() const override
-    {
-        return UserJobReadController_->GetInterruptDescriptor();
+virtual double GetProgress() const override
+{
+    return UserJobReadController_->GetProgress();
+}
+
+virtual ui64 GetStderrSize() const override
+{
+    if (!Prepared_) {
+        return 0;
     }
+    auto result = WaitFor(BIND([=] () { return ErrorOutput_->GetCurrentSize(); })
+        .AsyncVia(ReadStderrInvoker_)
+        .Run());
+    THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error collecting job stderr size");
+    return result.Value();
+}
+
+virtual std::vector<TChunkId> GetFailedChunkIds() const override
+{
+    return UserJobReadController_->GetFailedChunkIds();
+}
+
+virtual TInterruptDescriptor GetInterruptDescriptor() const override
+{
+    return UserJobReadController_->GetInterruptDescriptor();
+}
 
 private:
-    const NLogging::TLogger Logger;
+const NLogging::TLogger Logger;
 
-    const std::unique_ptr<TUserJobWriteController> UserJobWriteController_;
-    IUserJobReadControllerPtr UserJobReadController_;
+const std::unique_ptr<TUserJobWriteController> UserJobWriteController_;
+IUserJobReadControllerPtr UserJobReadController_;
 
-    const TUserJobSpec& UserJobSpec_;
+const TUserJobSpec& UserJobSpec_;
 
-    const TJobProxyConfigPtr Config_;
-    const NScheduler::TJobIOConfigPtr JobIOConfig_;
-    const IResourceControllerPtr ResourceController_;
+const TJobProxyConfigPtr Config_;
+const NScheduler::TJobIOConfigPtr JobIOConfig_;
+const IResourceControllerPtr ResourceController_;
 
-    mutable TPromise<void> JobErrorPromise_;
+mutable TPromise<void> JobErrorPromise_;
 
-    EJobEnvironmentType JobEnvironmentType_;
+EJobEnvironmentType JobEnvironmentType_;
 
-    const TThreadPoolPtr PipeIOPool_;
-    const TActionQueuePtr AuxQueue_;
-    const IInvokerPtr ReadStderrInvoker_;
+const TThreadPoolPtr PipeIOPool_;
+const TActionQueuePtr AuxQueue_;
+const IInvokerPtr ReadStderrInvoker_;
 
-    TProcessBasePtr Process_;
-    TJobSatelliteConnection JobSatelliteConnection_;
+TProcessBasePtr Process_;
+TJobSatelliteConnection JobSatelliteConnection_;
 
-    TString InputPipePath_;
+TString InputPipePath_;
 
-    TNullable<int> UserId_;
+TNullable<int> UserId_;
 
-    std::atomic<bool> Prepared_ = { false };
-    std::atomic<bool> IsWoodpecker_ = { false };
-    std::atomic<bool> JobStarted_ = { false };
+std::atomic<bool> Prepared_ = { false };
+std::atomic<bool> IsWoodpecker_ = { false };
+std::atomic<bool> JobStarted_ = { false };
 
-    std::atomic_flag Stracing_ = ATOMIC_FLAG_INIT;
+std::atomic_flag Stracing_ = ATOMIC_FLAG_INIT;
 
-    i64 CumulativeMemoryUsageMbSec_ = 0;
+i64 CumulativeMemoryUsageMbSec_ = 0;
 
-    std::atomic<i64> MaximumTmpfsSize_ = {0};
+std::atomic<i64> MaximumTmpfsSize_ = {0};
 
-    TDuration MemoryWatchdogPeriod_;
+TDuration MemoryWatchdogPeriod_;
 
-    std::vector<std::unique_ptr<IOutputStream>> TableOutputs_;
-    std::vector<std::unique_ptr<TWritingValueConsumer>> WritingValueConsumers_;
+std::vector<std::unique_ptr<IOutputStream>> TableOutputs_;
+std::vector<std::unique_ptr<TWritingValueConsumer>> WritingValueConsumers_;
 
-    // Writes stderr data to Cypress file.
-    std::unique_ptr<TStderrWriter> ErrorOutput_;
+// Writes stderr data to Cypress file.
+std::unique_ptr<TStderrWriter> ErrorOutput_;
 
-    // StderrCombined_ is set only if stderr table is specified.
-    // It redirects data to both ErrorOutput_ and stderr table writer.
-    std::unique_ptr<TTeeOutput> StderrCombined_;
+// StderrCombined_ is set only if stderr table is specified.
+// It redirects data to both ErrorOutput_ and stderr table writer.
+std::unique_ptr<TTeeOutput> StderrCombined_;
 
-    std::unique_ptr<TTableOutput> StatisticsOutput_;
-    std::unique_ptr<IYsonConsumer> StatisticsConsumer_;
+std::unique_ptr<TTableOutput> StatisticsOutput_;
+std::unique_ptr<IYsonConsumer> StatisticsConsumer_;
 
-    std::vector<IConnectionReaderPtr> TablePipeReaders_;
-    std::vector<IConnectionWriterPtr> TablePipeWriters_;
-    IConnectionReaderPtr StatisticsPipeReader_;
-    IConnectionReaderPtr StderrPipeReader_;
+std::vector<IConnectionReaderPtr> TablePipeReaders_;
+std::vector<IConnectionWriterPtr> TablePipeWriters_;
+IConnectionReaderPtr StatisticsPipeReader_;
+IConnectionReaderPtr StderrPipeReader_;
 
-    std::vector<ISchemalessFormatWriterPtr> FormatWriters_;
+std::vector<ISchemalessFormatWriterPtr> FormatWriters_;
 
-    // Actually InputActions_ has only one element,
-    // but use vector to reuse runAction code
-    std::vector<TCallback<void()>> InputActions_;
-    std::vector<TCallback<void()>> OutputActions_;
-    std::vector<TCallback<void()>> StderrActions_;
-    std::vector<TCallback<void()>> FinalizeActions_;
+// Actually InputActions_ has only one element,
+// but use vector to reuse runAction code
+std::vector<TCallback<void()>> InputActions_;
+std::vector<TCallback<void()>> OutputActions_;
+std::vector<TCallback<void()>> StderrActions_;
+std::vector<TCallback<void()>> FinalizeActions_;
 
-    TFuture<void> ProcessFinished_;
-    std::vector<TString> Environment_;
+TFuture<void> ProcessFinished_;
+std::vector<TString> Environment_;
 
-    NJobProberClient::IJobProbePtr JobProberClient_;
+NJobProberClient::IJobProbePtr JobProberClient_;
 
-    TPeriodicExecutorPtr MemoryWatchdogExecutor_;
-    TPeriodicExecutorPtr BlockIOWatchdogExecutor_;
-    TPeriodicExecutorPtr InputPipeBlinker_;
+TPeriodicExecutorPtr MemoryWatchdogExecutor_;
+TPeriodicExecutorPtr BlockIOWatchdogExecutor_;
+TPeriodicExecutorPtr InputPipeBlinker_;
 
-    TIntrusivePtr<TUserJobSynchronizer> Synchronizer_;
+TIntrusivePtr<TUserJobSynchronizer> Synchronizer_;
 
-    TSpinLock StatisticsLock_;
-    TStatistics CustomStatistics_;
+TSpinLock StatisticsLock_;
+TStatistics CustomStatistics_;
 
-    TCoreProcessorServicePtr CoreProcessorService_;
+TCoreProcessorServicePtr CoreProcessorService_;
 
-    void Prepare()
-    {
-        PreparePipes();
+void Prepare()
+{
+    PreparePipes();
 
-        JobSatelliteConnection_.MakeConfig();
+    JobSatelliteConnection_.MakeConfig();
 
-        Process_->AddArguments({"--command", UserJobSpec_.shell_command()});
-        Process_->AddArguments({"--config", JobSatelliteConnection_.GetConfigPath()});
-        Process_->AddArguments({"--job-id", ToString(JobSatelliteConnection_.GetJobId())});
-        Process_->SetWorkingDirectory(NFS::CombinePaths(Host_->GetSlotPath(), SandboxDirectoryNames[ESandboxKind::User]));
+    Process_->AddArguments({"--command", UserJobSpec_.shell_command()});
+    Process_->AddArguments({"--config", Host_->AdjustPath(JobSatelliteConnection_.GetConfigPath())});
+    Process_->AddArguments({"--job-id", ToString(JobSatelliteConnection_.GetJobId())});
+    Process_->SetWorkingDirectory(NFS::CombinePaths(Host_->GetSlotPath(), SandboxDirectoryNames[ESandboxKind::User]));
 
-        if (UserJobSpec_.has_core_table_spec()) {
-            Process_->AddArgument("--enable-core-dump");
+    if (UserJobSpec_.has_core_table_spec()) {
+        Process_->AddArgument("--enable-core-dump");
+    }
+
+    // Init environment variables.
+    TPatternFormatter formatter;
+    formatter.AddProperty(
+        "SandboxPath",
+        NFS::CombinePaths(Host_->GetSlotPath(), SandboxDirectoryNames[ESandboxKind::User]));
+
+    for (int i = 0; i < UserJobSpec_.environment_size(); ++i) {
+        Environment_.emplace_back(formatter.Format(UserJobSpec_.environment(i)));
+    }
+
+    if (Host_->GetConfig()->TestRootFS && Host_->GetConfig()->RootPath) {
+        Environment_.push_back(Format("YT_ROOT_FS=%v", *Host_->GetConfig()->RootPath));
+    }
+
+    // Copy environment to process arguments
+    for (const auto& var : Environment_) {
+        Process_->AddArguments({"--env", var});
+    }
+}
+
+void CleanupUserProcesses() const
+{
+    BIND(&TUserJob::DoCleanupUserProcesses, MakeWeak(this))
+        .Via(PipeIOPool_->GetInvoker())
+        .Run();
+}
+
+void DoCleanupUserProcesses() const
+{
+    if (ResourceController_) {
+        ResourceController_->KillAll();
+    }
+}
+
+void KillUserProcesses()
+{
+    if (JobEnvironmentType_ == EJobEnvironmentType::Simple) {
+        return;
+    }
+
+    BIND(&TUserJob::DoKillUserProcesses, MakeWeak(this))
+        .Via(PipeIOPool_->GetInvoker())
+        .Run();
+}
+
+void DoKillUserProcesses()
+{
+    try {
+        SignalJob("SIGKILL");
+    } catch (const std::exception& ex) {
+        LOG_DEBUG(ex, "Failed to kill user processes");
+    }
+}
+
+IOutputStream* CreateStatisticsOutput()
+{
+    StatisticsConsumer_.reset(new TStatisticsConsumer(
+        BIND(&TUserJob::AddCustomStatistics, Unretained(this))));
+    auto parser = CreateParserForFormat(
+        TFormat(EFormatType::Yson),
+        EDataType::Tabular,
+        StatisticsConsumer_.get());
+    StatisticsOutput_.reset(new TTableOutput(std::move(parser)));
+    return StatisticsOutput_.get();
+}
+
+TMultiChunkWriterOptionsPtr CreateFileOptions()
+{
+    auto options = New<TMultiChunkWriterOptions>();
+    options->Account = UserJobSpec_.has_file_account()
+        ? UserJobSpec_.file_account()
+        : NSecurityClient::TmpAccountName;
+    options->ReplicationFactor = 1;
+    options->ChunksVital = false;
+    return options;
+}
+
+IOutputStream* CreateErrorOutput()
+{
+    ErrorOutput_.reset(new TStderrWriter(
+        UserJobSpec_.max_stderr_size()));
+
+    auto* stderrTableWriter = UserJobWriteController_->GetStderrTableWriter();
+    if (stderrTableWriter) {
+        StderrCombined_.reset(new TTeeOutput(ErrorOutput_.get(), stderrTableWriter));
+        return StderrCombined_.get();
+    } else {
+        return ErrorOutput_.get();
+    }
+}
+
+void SaveErrorChunkId(TSchedulerJobResultExt* schedulerResultExt)
+{
+    if (!ErrorOutput_) {
+        return;
+    }
+
+    auto errorChunkId = ErrorOutput_->GetChunkId();
+    if (errorChunkId) {
+        ToProto(schedulerResultExt->mutable_stderr_chunk_id(), errorChunkId);
+        LOG_INFO("Stderr chunk generated (ChunkId: %v)", errorChunkId);
+    }
+}
+
+void DumpFailContexts(TSchedulerJobResultExt* schedulerResultExt)
+{
+    auto contexts = WaitFor(UserJobReadController_->GetInputContext())
+        .ValueOrThrow();
+
+    auto contextChunkIds = DoDumpInputContext(contexts);
+
+    YCHECK(contextChunkIds.size() <= 1);
+    if (!contextChunkIds.empty()) {
+        ToProto(schedulerResultExt->mutable_fail_context_chunk_id(), contextChunkIds.front());
+    }
+}
+
+virtual std::vector<TChunkId> DumpInputContext() override
+{
+    ValidatePrepared();
+
+    auto result = WaitFor(UserJobReadController_->GetInputContext());
+    THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error collecting job input context");
+    const auto& contexts = result.Value();
+
+    auto chunks = DoDumpInputContext(contexts);
+    YCHECK(chunks.size() == 1);
+
+    if (chunks.front() == NullChunkId) {
+        THROW_ERROR_EXCEPTION("Cannot dump job context: reading has not started yet");
+    }
+
+    return chunks;
+}
+
+std::vector<TChunkId> DoDumpInputContext(const std::vector<TBlob>& contexts)
+{
+    std::vector<TChunkId> result;
+
+    auto transactionId = FromProto<TTransactionId>(UserJobSpec_.debug_output_transaction_id());
+    for (int index = 0; index < contexts.size(); ++index) {
+        TFileChunkOutput contextOutput(
+            JobIOConfig_->ErrorFileWriter,
+            CreateFileOptions(),
+            Host_->GetClient(),
+            transactionId,
+            Host_->GetTrafficMeter());
+
+        const auto& context = contexts[index];
+        contextOutput.Write(context.Begin(), context.Size());
+        contextOutput.Finish();
+
+        auto contextChunkId = contextOutput.GetChunkId();
+        LOG_INFO("Input context chunk generated (ChunkId: %v, InputIndex: %v)",
+            contextChunkId,
+            index);
+
+        result.push_back(contextChunkId);
+    }
+
+    return result;
+}
+
+virtual TString GetStderr() override
+{
+    ValidatePrepared();
+
+    auto result = WaitFor(BIND([=] () { return ErrorOutput_->GetCurrentData(); })
+        .AsyncVia(ReadStderrInvoker_)
+        .Run());
+    THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error collecting job stderr");
+    return result.Value();
+}
+
+virtual TYsonString StraceJob() override
+{
+    return JobProberClient_->StraceJob();
+}
+
+virtual void SignalJob(const TString& signalName) override
+{
+    JobProberClient_->SignalJob(signalName);
+}
+
+virtual TYsonString PollJobShell(const TYsonString& parameters) override
+{
+    return JobProberClient_->PollJobShell(parameters);
+}
+
+virtual void Interrupt() override
+{
+    ValidatePrepared();
+
+    UserJobReadController_->InterruptReader();
+}
+
+virtual void Fail() override
+{
+    auto error = TError("Job failed by external request");
+    CleanupUserProcesses();
+    JobErrorPromise_.TrySet(error);
+}
+
+void ValidatePrepared()
+{
+    if (!Prepared_) {
+        THROW_ERROR_EXCEPTION(EErrorCode::JobNotPrepared, "Cannot operate on job: job has not been prepared yet");
+    }
+}
+
+std::vector<IValueConsumer*> CreateValueConsumers(TTypeConversionConfigPtr typeConversionConfig)
+{
+    std::vector<IValueConsumer*> valueConsumers;
+    for (const auto& writer : UserJobWriteController_->GetWriters()) {
+        WritingValueConsumers_.emplace_back(new TWritingValueConsumer(writer, typeConversionConfig));
+        valueConsumers.push_back(WritingValueConsumers_.back().get());
+    }
+    return valueConsumers;
+}
+
+void UploadStderrFile()
+{
+    if (JobErrorPromise_.IsSet() || UserJobSpec_.upload_stderr_if_completed()) {
+        ErrorOutput_->Upload(
+            JobIOConfig_->ErrorFileWriter,
+            CreateFileOptions(),
+            Host_->GetClient(),
+            FromProto<TTransactionId>(UserJobSpec_.debug_output_transaction_id()),
+            Host_->GetTrafficMeter());
+    }
+}
+
+void PrepareOutputTablePipes()
+{
+    auto format = ConvertTo<TFormat>(TYsonString(UserJobSpec_.output_format()));
+
+    const auto& writers = UserJobWriteController_->GetWriters();
+
+    TableOutputs_.resize(writers.size());
+    for (int i = 0; i < writers.size(); ++i) {
+        auto valueConsumers = CreateValueConsumers(ConvertTo<TTypeConversionConfigPtr>(format.Attributes()));
+        auto parser = CreateParserForFormat(format, valueConsumers, i);
+        TableOutputs_[i].reset(new TTableOutput(std::move(parser)));
+
+        int jobDescriptor = UserJobSpec_.use_yamr_descriptors()
+            ? 3 + i
+            : 3 * i + 1;
+
+        // In case of YAMR jobs dup 1 and 3 fd for YAMR compatibility
+        auto wrappingError = TError("Error writing to output table %v", i);
+        auto reader = (UserJobSpec_.use_yamr_descriptors() && jobDescriptor == 3)
+            ? PrepareOutputPipe({1, jobDescriptor}, TableOutputs_[i].get(), &OutputActions_, wrappingError)
+            : PrepareOutputPipe({jobDescriptor}, TableOutputs_[i].get(), &OutputActions_, wrappingError);
+        TablePipeReaders_.push_back(reader);
+    }
+
+    FinalizeActions_.push_back(BIND([=] () {
+        auto checkErrors = [&] (const std::vector<TFuture<void>>& asyncErrors) {
+            auto error = WaitFor(Combine(asyncErrors));
+            THROW_ERROR_EXCEPTION_IF_FAILED(error, "Error closing table output");
+        };
+
+        std::vector<TFuture<void>> flushResults;
+        for (const auto& valueConsumer : WritingValueConsumers_) {
+            flushResults.push_back(valueConsumer->Flush());
         }
+        checkErrors(flushResults);
 
-        // Init environment variables.
-        TPatternFormatter formatter;
-        formatter.AddProperty(
-            "SandboxPath",
-            NFS::CombinePaths(Host_->GetSlotPath(), SandboxDirectoryNames[ESandboxKind::User]));
-
-        for (int i = 0; i < UserJobSpec_.environment_size(); ++i) {
-            Environment_.emplace_back(formatter.Format(UserJobSpec_.environment(i)));
+        std::vector<TFuture<void>> closeResults;
+        for (auto writer : UserJobWriteController_->GetWriters()) {
+            closeResults.push_back(writer->Close());
         }
+        checkErrors(closeResults);
+    }));
+}
 
-        if (Host_->GetConfig()->TestRootFS && Host_->GetConfig()->RootPath) {
-            Environment_.push_back(Format("YT_ROOT_FS=%v", *Host_->GetConfig()->RootPath));
-        }
-
-        // Copy environment to process arguments
-        for (const auto& var : Environment_) {
-            Process_->AddArguments({"--env", var});
-        }
-    }
-
-    void CleanupUserProcesses() const
-    {
-        BIND(&TUserJob::DoCleanupUserProcesses, MakeWeak(this))
-            .Via(PipeIOPool_->GetInvoker())
-            .Run();
-    }
-
-    void DoCleanupUserProcesses() const
-    {
-        if (ResourceController_) {
-            ResourceController_->KillAll();
-        }
-    }
-
-    void KillUserProcesses()
-    {
-        if (JobEnvironmentType_ == EJobEnvironmentType::Simple) {
-            return;
-        }
-
-        BIND(&TUserJob::DoKillUserProcesses, MakeWeak(this))
-            .Via(PipeIOPool_->GetInvoker())
-            .Run();
-    }
-
-    void DoKillUserProcesses()
-    {
-        try {
-            SignalJob("SIGKILL");
-        } catch (const std::exception& ex) {
-            LOG_DEBUG(ex, "Failed to kill user processes");
-        }
-    }
-
-    IOutputStream* CreateStatisticsOutput()
-    {
-        StatisticsConsumer_.reset(new TStatisticsConsumer(
-            BIND(&TUserJob::AddCustomStatistics, Unretained(this))));
-        auto parser = CreateParserForFormat(
-            TFormat(EFormatType::Yson),
-            EDataType::Tabular,
-            StatisticsConsumer_.get());
-        StatisticsOutput_.reset(new TTableOutput(std::move(parser)));
-        return StatisticsOutput_.get();
-    }
-
-    TMultiChunkWriterOptionsPtr CreateFileOptions()
-    {
-        auto options = New<TMultiChunkWriterOptions>();
-        options->Account = UserJobSpec_.has_file_account()
-            ? UserJobSpec_.file_account()
-            : NSecurityClient::TmpAccountName;
-        options->ReplicationFactor = 1;
-        options->ChunksVital = false;
-        return options;
-    }
-
-    IOutputStream* CreateErrorOutput()
-    {
-        ErrorOutput_.reset(new TStderrWriter(
-            UserJobSpec_.max_stderr_size()));
-
-        auto* stderrTableWriter = UserJobWriteController_->GetStderrTableWriter();
-        if (stderrTableWriter) {
-            StderrCombined_.reset(new TTeeOutput(ErrorOutput_.get(), stderrTableWriter));
-            return StderrCombined_.get();
-        } else {
-            return ErrorOutput_.get();
-        }
-    }
-
-    void SaveErrorChunkId(TSchedulerJobResultExt* schedulerResultExt)
-    {
-        if (!ErrorOutput_) {
-            return;
-        }
-
-        auto errorChunkId = ErrorOutput_->GetChunkId();
-        if (errorChunkId) {
-            ToProto(schedulerResultExt->mutable_stderr_chunk_id(), errorChunkId);
-            LOG_INFO("Stderr chunk generated (ChunkId: %v)", errorChunkId);
-        }
-    }
-
-    void DumpFailContexts(TSchedulerJobResultExt* schedulerResultExt)
-    {
-        auto contexts = WaitFor(UserJobReadController_->GetInputContext())
-            .ValueOrThrow();
-
-        auto contextChunkIds = DoDumpInputContext(contexts);
-
-        YCHECK(contextChunkIds.size() <= 1);
-        if (!contextChunkIds.empty()) {
-            ToProto(schedulerResultExt->mutable_fail_context_chunk_id(), contextChunkIds.front());
-        }
-    }
-
-    virtual std::vector<TChunkId> DumpInputContext() override
-    {
-        ValidatePrepared();
-
-        auto result = WaitFor(UserJobReadController_->GetInputContext());
-        THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error collecting job input context");
-        const auto& contexts = result.Value();
-
-        auto chunks = DoDumpInputContext(contexts);
-        YCHECK(chunks.size() == 1);
-
-        if (chunks.front() == NullChunkId) {
-            THROW_ERROR_EXCEPTION("Cannot dump job context: reading has not started yet");
-        }
-
-        return chunks;
-    }
-
-    std::vector<TChunkId> DoDumpInputContext(const std::vector<TBlob>& contexts)
-    {
-        std::vector<TChunkId> result;
-
-        auto transactionId = FromProto<TTransactionId>(UserJobSpec_.debug_output_transaction_id());
-        for (int index = 0; index < contexts.size(); ++index) {
-            TFileChunkOutput contextOutput(
-                JobIOConfig_->ErrorFileWriter,
-                CreateFileOptions(),
-                Host_->GetClient(),
-                transactionId,
-                Host_->GetTrafficMeter());
-
-            const auto& context = contexts[index];
-            contextOutput.Write(context.Begin(), context.Size());
-            contextOutput.Finish();
-
-            auto contextChunkId = contextOutput.GetChunkId();
-            LOG_INFO("Input context chunk generated (ChunkId: %v, InputIndex: %v)",
-                contextChunkId,
-                index);
-
-            result.push_back(contextChunkId);
-        }
-
-        return result;
-    }
-
-    virtual TString GetStderr() override
-    {
-        ValidatePrepared();
-
-        auto result = WaitFor(BIND([=] () { return ErrorOutput_->GetCurrentData(); })
-            .AsyncVia(ReadStderrInvoker_)
-            .Run());
-        THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error collecting job stderr");
-        return result.Value();
-    }
-
-    virtual TYsonString StraceJob() override
-    {
-        return JobProberClient_->StraceJob();
-    }
-
-    virtual void SignalJob(const TString& signalName) override
-    {
-        JobProberClient_->SignalJob(signalName);
-    }
-
-    virtual TYsonString PollJobShell(const TYsonString& parameters) override
-    {
-        return JobProberClient_->PollJobShell(parameters);
-    }
-
-    virtual void Interrupt() override
-    {
-        ValidatePrepared();
-
-        UserJobReadController_->InterruptReader();
-    }
-
-    virtual void Fail() override
-    {
-        auto error = TError("Job failed by external request");
-        CleanupUserProcesses();
-        JobErrorPromise_.TrySet(error);
-    }
-
-    void ValidatePrepared()
-    {
-        if (!Prepared_) {
-            THROW_ERROR_EXCEPTION(EErrorCode::JobNotPrepared, "Cannot operate on job: job has not been prepared yet");
-        }
-    }
-
-    std::vector<IValueConsumer*> CreateValueConsumers(TTypeConversionConfigPtr typeConversionConfig)
-    {
-        std::vector<IValueConsumer*> valueConsumers;
-        for (const auto& writer : UserJobWriteController_->GetWriters()) {
-            WritingValueConsumers_.emplace_back(new TWritingValueConsumer(writer, typeConversionConfig));
-            valueConsumers.push_back(WritingValueConsumers_.back().get());
-        }
-        return valueConsumers;
-    }
-
-    void UploadStderrFile()
-    {
-        if (JobErrorPromise_.IsSet() || UserJobSpec_.upload_stderr_if_completed()) {
-            ErrorOutput_->Upload(
-                JobIOConfig_->ErrorFileWriter,
-                CreateFileOptions(),
-                Host_->GetClient(),
-                FromProto<TTransactionId>(UserJobSpec_.debug_output_transaction_id()),
-                Host_->GetTrafficMeter());
-        }
-    }
-
-    void PrepareOutputTablePipes()
-    {
-        auto format = ConvertTo<TFormat>(TYsonString(UserJobSpec_.output_format()));
-
-        const auto& writers = UserJobWriteController_->GetWriters();
-
-        TableOutputs_.resize(writers.size());
-        for (int i = 0; i < writers.size(); ++i) {
-            auto valueConsumers = CreateValueConsumers(ConvertTo<TTypeConversionConfigPtr>(format.Attributes()));
-            auto parser = CreateParserForFormat(format, valueConsumers, i);
-            TableOutputs_[i].reset(new TTableOutput(std::move(parser)));
-
-            int jobDescriptor = UserJobSpec_.use_yamr_descriptors()
-                ? 3 + i
-                : 3 * i + 1;
-
-            // In case of YAMR jobs dup 1 and 3 fd for YAMR compatibility
-            auto wrappingError = TError("Error writing to output table %v", i);
-            auto reader = (UserJobSpec_.use_yamr_descriptors() && jobDescriptor == 3)
-                ? PrepareOutputPipe({1, jobDescriptor}, TableOutputs_[i].get(), &OutputActions_, wrappingError)
-                : PrepareOutputPipe({jobDescriptor}, TableOutputs_[i].get(), &OutputActions_, wrappingError);
-            TablePipeReaders_.push_back(reader);
-        }
-
-        FinalizeActions_.push_back(BIND([=] () {
-            auto checkErrors = [&] (const std::vector<TFuture<void>>& asyncErrors) {
-                auto error = WaitFor(Combine(asyncErrors));
-                THROW_ERROR_EXCEPTION_IF_FAILED(error, "Error closing table output");
-            };
-
-            std::vector<TFuture<void>> flushResults;
-            for (const auto& valueConsumer : WritingValueConsumers_) {
-                flushResults.push_back(valueConsumer->Flush());
-            }
-            checkErrors(flushResults);
-
-            std::vector<TFuture<void>> closeResults;
-            for (auto writer : UserJobWriteController_->GetWriters()) {
-                closeResults.push_back(writer->Close());
-            }
-            checkErrors(closeResults);
-        }));
-    }
-
-    TString AdjustPath(const TString& path) const
-    {
-        YCHECK(path.StartsWith(Host_->GetPreparationPath()));
-        auto pathSuffix = path.substr(Host_->GetPreparationPath().size() + 1);
-        auto adjustedPath = NFS::CombinePaths(Host_->GetSlotPath(), pathSuffix);
-        return adjustedPath;
-    }
-
-    IConnectionReaderPtr PrepareOutputPipe(
+IConnectionReaderPtr PrepareOutputPipe(
         const std::vector<int>& jobDescriptors,
         IOutputStream* output,
         std::vector<TCallback<void()>>* actions,
@@ -782,8 +775,8 @@ private:
         auto pipe = TNamedPipe::Create(CreateNamedPipePath());
 
         for (auto jobDescriptor : jobDescriptors) {
-            // Since inside job container we see another rootfs, we must adjusst pipe path.
-            TNamedPipeConfig pipeId(AdjustPath(pipe->GetPath()), jobDescriptor, true);
+            // Since inside job container we see another rootfs, we must adjust pipe path.
+            TNamedPipeConfig pipeId(Host_->AdjustPath(pipe->GetPath()), jobDescriptor, true);
             Process_->AddArguments({"--pipe", ConvertToYsonString(pipeId, EYsonFormat::Text).GetData()});
         }
 
@@ -819,7 +812,7 @@ private:
         int jobDescriptor = 0;
         InputPipePath_= CreateNamedPipePath();
         auto pipe = TNamedPipe::Create(InputPipePath_);
-        TNamedPipeConfig pipeId(AdjustPath(pipe->GetPath()), jobDescriptor, false);
+        TNamedPipeConfig pipeId(Host_->AdjustPath(pipe->GetPath()), jobDescriptor, false);
         Process_->AddArguments({"--pipe", ConvertToYsonString(pipeId, EYsonFormat::Text).GetData()});
         auto format = ConvertTo<TFormat>(TYsonString(UserJobSpec_.input_format()));
 
@@ -1334,26 +1327,6 @@ private:
         } else {
             LOG_WARNING(TError::FromSystem(), "Failed to blink input pipe (Path: %v)", InputPipePath_);
         }
-    }
-
-    TNullable<TString> CreateCoreDumpHandlerPath(
-        const TNullable<TString>& socketPath) const
-    {
-        if (JobEnvironmentType_ == EJobEnvironmentType::Porto &&
-            UserJobSpec_.has_core_table_spec() &&
-            socketPath)
-        {
-            // We do not want to rely on passing PATH environment to core handler container.
-            auto binaryPathOrError = ResolveBinaryPath("ytserver-core-forwarder");
-            if (binaryPathOrError.IsOK()) {
-                return binaryPathOrError.Value() + " \"${CORE_PID}\" 0 \"${CORE_TASK_NAME}\""
-                    " 1 /dev/null /dev/null " + socketPath.Get();
-            } else {
-                LOG_ERROR(binaryPathOrError,
-                    "Failed to resolve path for ytserver-core-forwarder");
-            }
-        }
-        return {};
     }
 };
 

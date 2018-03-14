@@ -22,15 +22,14 @@ TCommit::TCommit(
     const TMutationId& mutationId,
     const std::vector<TCellId>& participantCellIds,
     bool distributed,
-    bool inheritCommitTimstamp)
+    bool inheritCommitTimstamp,
+    NApi::ETransactionCoordinatorCommitMode coordinatorCommitMode)
     : TransactionId_(transationId)
     , MutationId_(mutationId)
     , ParticipantCellIds_(participantCellIds)
     , Distributed_(distributed)
     , InheritCommitTimestamp_(inheritCommitTimstamp)
-    , Persistent_(false)
-    , TransientState_(ECommitState::Start)
-    , PersistentState_(ECommitState::Start)
+    , CoordinatorCommitMode_(coordinatorCommitMode)
 { }
 
 TFuture<TSharedRefArray> TCommit::GetAsyncResponseMessage()
@@ -55,6 +54,7 @@ void TCommit::Save(TSaveContext& context) const
     Save(context, InheritCommitTimestamp_);
     Save(context, CommitTimestamps_);
     Save(context, PersistentState_);
+    Save(context, CoordinatorCommitMode_);
 }
 
 void TCommit::Load(TLoadContext& context)
@@ -69,6 +69,12 @@ void TCommit::Load(TLoadContext& context)
     Load(context, InheritCommitTimestamp_);
     Load(context, CommitTimestamps_);
     Load(context, PersistentState_);
+    // COMPAT(babenko)
+    if (context.GetVersion() >= 4) {
+        Load(context, CoordinatorCommitMode_);
+    } else {
+        CoordinatorCommitMode_ = NApi::ETransactionCoordinatorCommitMode::Eager;
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

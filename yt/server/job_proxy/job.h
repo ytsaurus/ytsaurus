@@ -62,6 +62,8 @@ struct IJobHost
     virtual TString GetSlotPath() const = 0;
 
     virtual NChunkClient::TTrafficMeterPtr GetTrafficMeter() const = 0;
+
+    virtual TString AdjustPath(const TString& path) const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IJobHost)

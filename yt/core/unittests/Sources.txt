@@ -80,6 +80,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/yson_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/ytree_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/yson_writer_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/ypath_resolver_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/ytree_fluent_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/yverify_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/weak_ptr_ut.cpp
