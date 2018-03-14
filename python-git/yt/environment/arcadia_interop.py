@@ -3,88 +3,43 @@ import subprocess
 
 import yatest.common
 
+YT_ABI = "19_2"
 
-def _extract_tar(tgz, where):
-    subprocess.check_output(["tar", "-xf", tgz], cwd=where, stderr=subprocess.STDOUT)
+def prepare_yt_binaries(destination):
+    for binary, server_dir in [("master", "cell_master_program"),
+                               ("scheduler", "cell_scheduler_program"),
+                               ("node", "cell_node_program"),
+                               ("job-proxy", "job_proxy_program"),
+                               ("exec", "exec_program"),
+                               ("tools", "tools_program")]:
+        binary_path = yatest.common.binary_path("yt/packages/{0}/yt/{0}/yt/server/{1}/ytserver-{2}"
+                                                .format(YT_ABI, server_dir, binary))
+        os.symlink(binary_path, os.path.join(destination, "ytserver-" + binary))
 
+    watcher_path = yatest.common.binary_path("yt/python/yt/environment/bin/yt_env_watcher_make/yt_env_watcher")
+    os.symlink(watcher_path, os.path.join(destination, "yt_env_watcher"))
 
-def get_yt_versions():
-    return os.listdir(yatest.common.build_path("yt/packages"))
+def prepare_nodejs(destination):
+    path = yatest.common.binary_path("yt/packages/{0}/yt/{0}/yt/nodejs/targets/bin/ytnode".format(YT_ABI))
+    os.symlink(path, os.path.join(destination, "nodejs"))
 
+def prepare_nodejs_modules(destination):
+    path = yatest.common.binary_path("yt/packages/{0}/yt/{0}/yt/node_modules/resource.tar.gz".format(YT_ABI))
+    subprocess.check_output(["tar", "-xf", path], cwd=destination, stderr=subprocess.STDOUT)
 
-def save_yt_binaries(dest, version):
-    if version == "18_5":
-        ytserver_path = yatest.common.binary_path("yt/packages/18_5/yt/18_5/yt/server/ytserver_program/ytserver")
-        yt_server_custom_path = yatest.common.get_param("yt_ytserver_path")
-        os.symlink(yt_server_custom_path or ytserver_path, os.path.join(dest, "ytserver"))
-    else:
-        for binary, server_dir in [("master", "cell_master_program"),
-                                   ("scheduler", "cell_scheduler_program"),
-                                   ("node", "cell_node_program"),
-                                   ("job-proxy", "job_proxy_program"),
-                                   ("exec", "exec_program")]:
-            binary_path = yatest.common.binary_path("yt/packages/{0}/yt/{0}/yt/server/{1}/ytserver-{2}"
-                                                    .format(version, server_dir, binary))
-            os.symlink(binary_path, os.path.join(dest, "ytserver-" + binary))
+def prepare_nodejs_yt_package(destination):
+    path = yatest.common.binary_path("yt/packages/{0}/yt/{0}/yt/nodejs/targets/package".format(YT_ABI))
+    os.symlink(path, os.path.join(destination, "yt"))
 
-        if version == "19_2":
-            tools_binary_path = yatest.common.binary_path("yt/packages/19_2/yt/19_2/yt/server/tools_program/ytserver-tools")
-            os.symlink(tools_binary_path, os.path.join(dest, "ytserver-tools"))
+def prepare_yt_environment(destination):
+    bin_dir = os.path.join(destination, "bin")
+    node_modules_dir = os.path.join(destination, "node_modules")
+    for dir_ in (bin_dir, node_modules_dir):
+        os.makedirs(dir_)
 
-def save_yt_node(dest, version):
-    yt_node_arcadia_path = yatest.common.binary_path("yt/packages/{0}/yt/{0}/yt/nodejs/targets/bin/ytnode".format(version))
-    os.symlink(yt_node_arcadia_path, os.path.join(dest, "nodejs"))
+    prepare_yt_binaries(bin_dir)
+    prepare_nodejs(bin_dir)
+    prepare_nodejs_modules(destination)
+    prepare_nodejs_yt_package(node_modules_dir)
 
-
-def save_yt_node_modules(dest, version):
-    node_modules_archive_path = yatest.common.binary_path("yt/packages/{0}/yt/{0}/yt/node_modules/resource.tar.gz".format(version))
-    _extract_tar(node_modules_archive_path, dest)
-
-
-def save_yt_nodejs_package(dest, version):
-    yt_node_path = yatest.common.binary_path("yt/packages/{0}/yt/{0}/yt/nodejs/targets/package".format(version))
-    os.symlink(yt_node_path, os.path.join(dest, "yt"))
-
-
-def save_yt_thor(dest, version):
-    yt_archive_path = yatest.common.binary_path("yt/packages/{0}/yt/packages/{0}/yt_thor.tar".format(version))
-    _extract_tar(yt_archive_path, dest)
-
-def prepare_path():
-    version = "19_2"
-    yt_build_dir = yatest.common.work_path("yt_build")
-    os.mkdir(yt_build_dir)
-    yt_build_bin_dir = os.path.join(yt_build_dir, "bin")
-    os.mkdir(yt_build_bin_dir)
-    save_yt_binaries(yt_build_bin_dir, version)
-
-    os.symlink(yatest.common.binary_path(
-        "yt/python/yt/environment/bin/yt_env_watcher_make/yt_env_watcher"),
-        os.path.join(yt_build_bin_dir, "yt_env_watcher")
-    )
-
-    yt_build_node_dir = os.path.join(yt_build_dir, "node")
-    os.mkdir(yt_build_node_dir)
-    save_yt_node(yt_build_node_dir, version)
-
-    save_yt_node_modules(yt_build_dir, version)
-
-    yt_build_node_modules_dir = os.path.join(yt_build_dir, "node_modules")
-    save_yt_nodejs_package(yt_build_node_modules_dir, version)
-
-    path = os.pathsep.join([
-        yt_build_dir,
-        yt_build_bin_dir,
-        yt_build_node_dir
-    ])
-
-    if "PATH" in os.environ:
-        os.environ["PATH"] = os.pathsep.join([path, os.environ["PATH"]])
-    else:
-        os.environ["PATH"] = path
-
-    os.environ["NODE_PATH"] = ":".join([
-        yt_build_node_dir,
-        yt_build_node_modules_dir
-    ])
-
+    return bin_dir, node_modules_dir

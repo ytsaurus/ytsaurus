@@ -24,7 +24,7 @@ class BatchRequestRetrier(Retrier):
             "count": get_config(client)["proxy"]["request_retry_count"],
             "backoff": get_config(client)["retry_backoff"],
         }
-        retry_config = update(deepcopy(get_config(client)["batch_requests_retries"]),
+        retry_config = update(get_config(client)["batch_requests_retries"],
                               remove_nones_from_dict(retry_config))
         request_timeout = get_value(get_config(client)["proxy"]["request_retry_timeout"],
                                     get_config(client)["proxy"]["request_timeout"])

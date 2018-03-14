@@ -67,7 +67,7 @@ def _create_table(path, recursive=None, ignore_existing=False, attributes=None, 
     table = TablePath(path, client=client)
     attributes = get_value(attributes, {})
     if get_config(client)["create_table_attributes"] is not None:
-        attributes = update(deepcopy(get_config(client)["create_table_attributes"]), attributes)
+        attributes = update(get_config(client)["create_table_attributes"], attributes)
     if get_config(client)["yamr_mode"]["use_yamr_defaults"]:
         attributes = update({"compression_codec": "zlib_6"}, attributes)
     create("table", table, recursive=recursive, ignore_existing=ignore_existing,

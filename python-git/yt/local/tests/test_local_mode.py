@@ -86,8 +86,12 @@ def _wait_instance_to_become_ready(process, instance_id):
 @pytest.fixture(scope="session", autouse=True)
 def prepare_path():
     try:
-        import yt.environment.arcadia_interop
-        yt.environment.arcadia_interop.prepare_path()
+        import yt.environment.arcadia_interop as arcadia_interop
+        destination = os.path.join(yatest_common.work_path(), "build")
+        os.makedirs(destination)
+        path, node_path = arcadia_interop.prepare_yt_environment(destination)
+        os.environ["NODE_PATH"] = node_path
+        os.environ["PATH"] = os.pathsep.join([path, os.environ.get("PATH", "")])
     except ImportError:
         pass
 
@@ -253,7 +257,10 @@ class TestLocalMode(object):
     def test_commands_sanity(self):
         with local_yt() as environment:
             pids = _read_pids_file(environment.id)
-            assert len(pids) == 5
+            if environment.abi_version >= (19, 3):
+                assert len(pids) == 6
+            else:
+                assert len(pids) == 5
             # Should not delete running instance
             with pytest.raises(yt.YtError):
                 delete(environment.id)
@@ -269,19 +276,26 @@ class TestLocalMode(object):
             start(master_count=0)
 
         with local_yt(master_count=3, node_count=0, scheduler_count=0) as environment:
-            assert len(_read_pids_file(environment.id)) == 5 # + proxy
+            assert len(_read_pids_file(environment.id)) == 5
             assert len(environment.configs["master"]) == 3
 
         with local_yt(node_count=5, scheduler_count=2, start_proxy=False) as environment:
             assert len(environment.configs["node"]) == 5
             assert len(environment.configs["scheduler"]) == 2
             assert len(environment.configs["master"]) == 1
-            assert len(_read_pids_file(environment.id)) == 9
+            if environment.abi_version >= (19, 3):
+                assert len(environment.configs["controller_agent"]) == 1
+                assert len(_read_pids_file(environment.id)) == 10
+            else:
+                assert len(_read_pids_file(environment.id)) == 9
             with pytest.raises(yt.YtError):
                 environment.get_proxy_address()
 
         with local_yt(node_count=1) as environment:
-            assert len(_read_pids_file(environment.id)) == 5  # + proxy
+            if environment.abi_version >= (19, 3):
+                assert len(_read_pids_file(environment.id)) == 6
+            else:
+                assert len(_read_pids_file(environment.id)) == 5
 
         with local_yt(node_count=0, scheduler_count=0, start_proxy=False) as environment:
             assert len(_read_pids_file(environment.id)) == 2
@@ -447,7 +461,6 @@ class TestLocalMode(object):
                     break
             else:
                 assert False, "RPC proxy failed to start in 30 seconds"
-        
 
     @pytest.mark.skipif(True, reason="st/YT-6227")
     def test_all_processes_are_killed(self):

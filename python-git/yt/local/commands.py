@@ -27,14 +27,19 @@ logger = logging.getLogger("Yt.local")
 
 YT_LOCAL_STOP_WAIT_TIME = 5
 
-def _load_config(path, is_proxy_config=False):
-    if path is None:
+def _load_config(config, is_proxy_config=False):
+    if config is None:
         return {}
-    with open(path, "rb") as f:
+
+    if isinstance(config, dict):
+        return config
+
+    path = config
+    with open(path, "rb") as fin:
         if not is_proxy_config:
-            return yson.load(f)
+            return yson.load(fin)
         else:
-            return json.load(codecs.getreader("utf-8")(f))
+            return json.load(codecs.getreader("utf-8")(fin))
 
 def get_root_path(path=None):
     if path is not None:
@@ -171,7 +176,11 @@ def _initialize_world(client, environment, wait_tablet_cell_initialization,
         proxy_address = environment.configs["proxy"]["fqdn"]
         ui_address = "http://{0}/ui/".format(proxy_address)
 
-    initialize_world(client, proxy_address=proxy_address, ui_address=ui_address)
+    initialize_world(
+        client,
+        proxy_address=proxy_address,
+        ui_address=ui_address,
+        configure_pool_trees=False)
 
     tablet_cell_attributes = {
         "changelog_replication_factor": 1,

@@ -16,7 +16,7 @@ class PyTest(TestCommand):
         pytest.main(self.test_args)
 
 def main():
-    requires = ["yandex-yt >= 0.8.11"]
+    requires = ["yandex-yt >= 0.8.25"]
 
     if sys.version_info[:2] <= (2, 6):
         requires.append("argparse")

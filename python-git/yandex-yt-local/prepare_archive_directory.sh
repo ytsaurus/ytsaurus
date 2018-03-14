@@ -32,7 +32,10 @@ prepare_archive_directory() {
     cd "$tmp_dir"
 
     dpkg -x yandex-yt-local_*.deb "yandex-yt-local"
-    download_and_extract yandex-yt $yt_version
+    download_and_extract yandex-yt-node $yt_version
+    download_and_extract yandex-yt-proxy $yt_version
+    download_and_extract yandex-yt-master $yt_version
+    download_and_extract yandex-yt-scheduler $yt_version
     download_and_extract yandex-yt-http-proxy $yt_version
     download_and_extract yandex-yt-python-driver $yt_version
     download_and_extract yandex-yt-python $yt_python_version
@@ -47,8 +50,10 @@ prepare_archive_directory() {
     mkdir -p "$archive_dir/yt-thor"
     mkdir -p "$archive_dir/node"
 
-    for binary in $(find yandex-yt/usr/bin -name "ytserver*"); do
-        cp -r "$binary" "$archive_dir/bin"
+    for dir in yandex-yt-master yandex-yt-scheduler yandex-yt-proxy yandex-yt-node; do
+        for binary in $(find $dir/usr/bin -name "ytserver*"); do
+            cp -r "$binary" "$archive_dir/bin"
+        done
     done
 
     cp -r yandex-yt-http-proxy/usr/lib/node_modules "$archive_dir"

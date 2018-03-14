@@ -1,8 +1,13 @@
-from yt.wrapper.common import get_value, require, update, generate_uuid, bool_to_string
+from yt.wrapper.common import get_value, require, generate_uuid, bool_to_string
 from yt.wrapper.http_helpers import get_retriable_errors, get_token, configure_ip
 from yt.wrapper.errors import hide_token
 from yt.wrapper.retries import Retrier
 from yt.wrapper import YtClient
+
+try:
+    from yt.wrapper.common import update_inplace
+except ImportError:
+    from yt.wrapper.common import update as update_inplace
 
 from yt.common import YtError, YtResponseError
 
@@ -100,7 +105,7 @@ class HTTPRequestRetrier(Retrier):
                 self.params["retry"] = bool_to_string(True)
 
     def action(self):
-        update(self.headers, {"X-TM-Parameters": json.dumps(self.params)})
+        update_inplace(self.headers, {"X-TM-Parameters": json.dumps(self.params)})
         response = self.session.request(self.method, self.url, headers=self.headers,
                                         timeout=self.timeout / 1000.0, data=self.data)
         _raise_for_status(response)
@@ -392,7 +397,7 @@ class TransferManager(object):
                         params=None):
         data = get_value(params, {})
 
-        update(data, {
+        update_inplace(data, {
             "source_cluster": source_cluster,
             "source_table": source_table,
             "destination_cluster": destination_cluster

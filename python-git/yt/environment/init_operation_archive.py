@@ -480,10 +480,11 @@ def add_attributes(path, attributes):
     table = "{0}/{1}".format(BASE_PATH, path)
 
     def action(client):
+        client.unmount_table(table, sync=True)
         logging.info("Adding attributes %s to table %s", attributes, table)
         for attribute, value in attributes.items():
             client.set("{0}/@{1}".format(table, attribute), value)
-        client.remount_table(table)
+        client.mount_table(table, sync=True)
 
     return action
 
@@ -602,6 +603,35 @@ TRANSFORMS[16] = [
                 ("type", "string"),
             ],
             attributes={"atomicity": "none"})),
+]
+
+TRANSFORMS[17] = [
+    Convert(
+        "ordered_by_id",
+        table_info=TableInfo([
+                ("id_hash", "uint64", "farm_hash(id_hi, id_lo)"),
+                ("id_hi", "uint64"),
+                ("id_lo", "uint64"),
+            ], [
+                ("state", "string"),
+                ("authenticated_user", "string"),
+                ("operation_type", "string"),
+                ("progress", "any"),
+                ("spec", "any"),
+                ("brief_progress", "any"),
+                ("brief_spec", "any"),
+                ("start_time", "int64"),
+                ("finish_time", "int64"),
+                ("filter_factors", "string"),
+                ("result", "any"),
+                ("events", "any"),
+                ("alerts", "any"),
+                ("slot_index", "int64"),
+                ("unrecognized_spec", "any"),
+                ("full_spec", "any"),
+            ],
+            in_memory=True,
+            get_pivot_keys=get_default_pivots))
 ]
 
 def swap_table(client, target, source, version):

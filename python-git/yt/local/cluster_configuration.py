@@ -1,5 +1,17 @@
 from yt.wrapper.common import MB, GB
+
+# TODO(asaitgalin): Remove it when new version of yt.wrapper
+# is built and deployed.
+from copy import deepcopy
 from yt.common import update
+try:
+    from yt.common import update_inplace
+except ImportError:
+    update_inplace = update
+    del update
+
+    def update(obj, patch):
+        return update_inplace(deepcopy(obj), patch)
 
 from yt.packages.six import iteritems, itervalues
 
@@ -74,7 +86,6 @@ SCHEDULER_CONFIG_PATCH = {
         "watchers_update_period": 300,
         "connect_grace_delay": None,
         "lock_transaction_timeout": 30000,
-        "max_running_operation_count_per_pool": 1,
         "sort_operation_options": {
             "spec_template": {
                 "partition_data_size": 512 * MB
@@ -148,12 +159,7 @@ NODE_CONFIG_PATCHES = [
                     "capacity": 500 * MB
                 }
             },
-            "incremental_heartbeat_period": 300,
-            "store_locations": [
-                {
-                    "enable_journals": True
-                }
-            ]
+            "incremental_heartbeat_period": 300
         },
         "exec_agent": {
             "scheduler_connector": None
@@ -230,27 +236,27 @@ def modify_cluster_configuration(cluster_configuration, abi_version,
     for tag in [master["primary_cell_tag"]] + master["secondary_cell_tags"]:
         for config in master[tag]:
             for patch in MASTER_CONFIG_PATCHES:
-                update(config, patch)
+                update_inplace(config, patch)
 
             if master_config_patch:
-                update(config, master_config_patch)
+                update_inplace(config, master_config_patch)
 
     for config in itervalues(cluster_configuration["driver"]):
-        update(config, DRIVER_CONFIG_PATCH)
+        update_inplace(config, DRIVER_CONFIG_PATCH)
 
     for config in cluster_configuration["scheduler"]:
-        update(config, SCHEDULER_CONFIG_PATCH)
+        update_inplace(config, SCHEDULER_CONFIG_PATCH)
         if scheduler_config_patch:
-            update(config, scheduler_config_patch)
+            update_inplace(config, scheduler_config_patch)
 
     for config in cluster_configuration["node"]:
         for patch in NODE_CONFIG_PATCHES:
-            update(config, patch)
+            update_inplace(config, patch)
 
         if node_config_patch:
-            update(config, node_config_patch)
+            update_inplace(config, node_config_patch)
 
     if proxy_config_patch:
-        update(cluster_configuration["proxy"], proxy_config_patch)
+        update_inplace(cluster_configuration["proxy"], proxy_config_patch)
 
     _remove_none_fields(cluster_configuration)

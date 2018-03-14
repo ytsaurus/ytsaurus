@@ -13,7 +13,6 @@ import codecs
 import logging
 import errno
 import time
-import pytest
 
 logger = logging.getLogger("Yt.local")
 
@@ -256,10 +255,16 @@ def canonize_uuid(uuid):
         return part
     return "-".join(map(canonize_part, uuid.split("-")))
 
-def wait(predicate, iter=100, sleep_backoff=0.3):
+class WaitFailed(Exception):
+    pass
+
+def wait(predicate, error_message=None, iter=100, sleep_backoff=0.3):
     for _ in xrange(iter):
         if predicate():
             return
         time.sleep(sleep_backoff)
-    pytest.fail("wait failed")
 
+    if error_message is None:
+        error_message = "Wait failed"
+    error_message += " (timeout = {0})".format(iter * sleep_backoff)
+    raise WaitFailed(error_message)

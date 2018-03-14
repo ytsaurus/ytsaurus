@@ -127,7 +127,8 @@ def _get_cgroup_path(cgroup_type, *args):
 
 class YTInstance(object):
     def __init__(self, path, master_count=1, nonvoting_master_count=0, secondary_master_cell_count=0,
-                 node_count=1, scheduler_count=1, has_proxy=False, proxy_port=None, has_rpc_proxy=False,
+                 node_count=1, scheduler_count=1, controller_agent_count=None,
+                 has_proxy=False, proxy_port=None, has_rpc_proxy=False,
                  rpc_proxy_port=None, cell_tag=0, skynet_manager_count=0,
                  enable_debug_logging=True, preserve_working_dir=False, tmpfs_path=None,
                  port_locks_path=None, port_range_start=None, fqdn=None, jobs_memory_limit=None,
@@ -216,6 +217,12 @@ class YTInstance(object):
         self.secondary_master_cell_count = secondary_master_cell_count
         self.node_count = node_count
         self.scheduler_count = scheduler_count
+        if controller_agent_count is None:
+            if self.abi_version >= (19, 3) and scheduler_count > 0:
+                controller_agent_count = 1
+            else:
+                controller_agent_count = 0
+        self.controller_agent_count = controller_agent_count
         self.has_proxy = has_proxy
         self.has_rpc_proxy = has_rpc_proxy
         self.skynet_manager_count = skynet_manager_count
@@ -269,6 +276,10 @@ class YTInstance(object):
         for dir_ in scheduler_dirs:
             makedirp(dir_)
 
+        controller_agent_dirs = [os.path.join(self.runtime_data_path, "controller_agent", str(i)) for i in xrange(self.controller_agent_count)]
+        for dir_ in controller_agent_dirs:
+            makedirp(dir_)
+
         node_dirs = [os.path.join(self.runtime_data_path, "node", str(i)) for i in xrange(self.node_count)]
         for dir_ in node_dirs:
             makedirp(dir_)
@@ -289,15 +300,16 @@ class YTInstance(object):
         for dir_ in skynet_manager_dirs:
             makedirp(dir_)
 
-        return master_dirs, master_tmpfs_dirs, scheduler_dirs, node_dirs, node_tmpfs_dirs, proxy_dir, rpc_proxy_dir, skynet_manager_dirs
+        return master_dirs, master_tmpfs_dirs, scheduler_dirs, controller_agent_dirs, node_dirs, node_tmpfs_dirs, proxy_dir, rpc_proxy_dir, skynet_manager_dirs
 
     def _prepare_environment(self, jobs_memory_limit, jobs_cpu_limit, jobs_user_slot_count, node_chunk_store_quota,
                              node_memory_limit_addition, allow_chunk_storage_in_tmpfs, port_range_start, proxy_port, rpc_proxy_port,
                              modify_configs_func):
         logger.info("Preparing cluster instance as follows:")
-        logger.info("  masters          %d (%d nonvoting)", self.master_count, self.nonvoting_master_count)
-        logger.info("  nodes            %d", self.node_count)
-        logger.info("  schedulers       %d", self.scheduler_count)
+        logger.info("  masters            %d (%d nonvoting)", self.master_count, self.nonvoting_master_count)
+        logger.info("  nodes              %d", self.node_count)
+        logger.info("  schedulers         %d", self.scheduler_count)
+        logger.info("  controller_agents  %d", self.controller_agent_count)
 
         if self.secondary_master_cell_count > 0:
             logger.info("  secondary cells  %d", self.secondary_master_cell_count)
@@ -319,6 +331,7 @@ class YTInstance(object):
         provision["master"]["primary_cell_tag"] = self._cell_tag
         provision["master"]["cell_nonvoting_master_count"] = self.nonvoting_master_count
         provision["scheduler"]["count"] = self.scheduler_count
+        provision["controller_agent"]["count"] = self.controller_agent_count
         provision["node"]["count"] = self.node_count
         if jobs_memory_limit is not None:
             provision["node"]["jobs_resource_limits"]["memory"] = jobs_memory_limit
@@ -337,12 +350,13 @@ class YTInstance(object):
         provision["fqdn"] = self._hostname
         provision["enable_debug_logging"] = self._enable_debug_logging
 
-        master_dirs, master_tmpfs_dirs, scheduler_dirs, node_dirs, node_tmpfs_dirs, proxy_dir, rpc_proxy_dir, skynet_manager_dirs = self._prepare_directories()
+        master_dirs, master_tmpfs_dirs, scheduler_dirs, controller_agent_dirs, node_dirs, node_tmpfs_dirs, proxy_dir, rpc_proxy_dir, skynet_manager_dirs = self._prepare_directories()
         cluster_configuration = configs_provider.build_configs(
             self._get_ports_generator(port_range_start),
             master_dirs,
             master_tmpfs_dirs,
             scheduler_dirs,
+            controller_agent_dirs,
             node_dirs,
             node_tmpfs_dirs,
             proxy_dir,
@@ -362,6 +376,8 @@ class YTInstance(object):
             self._prepare_nodes(cluster_configuration["node"], node_dirs)
         if self.scheduler_count > 0:
             self._prepare_schedulers(cluster_configuration["scheduler"], scheduler_dirs)
+        if self.controller_agent_count > 0:
+            self._prepare_controller_agents(cluster_configuration["controller_agent"], controller_agent_dirs)
         if self.has_proxy:
             self._prepare_proxy(cluster_configuration["proxy"], cluster_configuration["ui"], proxy_dir)
         if self.has_rpc_proxy:
@@ -402,6 +418,12 @@ class YTInstance(object):
                 for func in self._wait_functions:
                     func()
 
+            # TODO(asaitgalin): Create this user inside master.
+            client = self.create_client()
+            if not client.exists("//sys/users/application_operations"):
+                client.create("user", attributes={"name": "application_operations"})
+                client.add_member("application_operations", "superusers")
+
             self._wait_functions = []
             if on_masters_started_func is not None:
                 on_masters_started_func()
@@ -409,6 +431,8 @@ class YTInstance(object):
                 self.start_nodes(sync=False)
             if self.scheduler_count > 0:
                 self.start_schedulers(sync=False)
+            if self.controller_agent_count > 0:
+                self.start_controller_agents(sync=False)
             if self.has_rpc_proxy:
                 self.start_rpc_proxy(sync=False)
             if self.skynet_manager_count > 0:
@@ -440,7 +464,7 @@ class YTInstance(object):
         self.kill_service("watcher")
         killed_services.add("watcher")
 
-        for name in ["proxy", "node", "scheduler", "master", "rpc_proxy", "skynet_manager"]:
+        for name in ["proxy", "node", "scheduler", "controller_agent", "master", "rpc_proxy", "skynet_manager"]:
             if name in self.configs:
                 self.kill_service(name)
                 killed_services.add(name)
@@ -508,6 +532,9 @@ class YTInstance(object):
 
     def kill_schedulers(self):
         self.kill_service("scheduler")
+
+    def kill_controller_agents(self):
+        self.kill_service("controller_agent")
 
     def kill_nodes(self):
         self.kill_service("node")
@@ -692,7 +719,7 @@ class YTInstance(object):
         self._run_yt_component("master", name=master_name)
 
         def quorum_ready():
-            self._validate_processes_is_running(master_name)
+            self._validate_processes_are_running(master_name)
 
             logger = logging.getLogger("Yt")
             old_level = logger.level
@@ -764,7 +791,7 @@ class YTInstance(object):
         native_client = self.create_client()
 
         def nodes_ready():
-            self._validate_processes_is_running("node")
+            self._validate_processes_are_running("node")
 
             nodes = native_client.list("//sys/nodes", attributes=["state"])
             return len(nodes) == self.node_count and all(node.attributes["state"] == "online" for node in nodes)
@@ -788,6 +815,22 @@ class YTInstance(object):
             self.configs["scheduler"].append(config)
             self.config_paths["scheduler"].append(config_path)
 
+    def _prepare_controller_agents(self, controller_agent_configs, controller_agent_dirs):
+        for controller_agent_index in xrange(self.controller_agent_count):
+            controller_agent_config_name = "controller_agent-" + str(controller_agent_index) + ".yson"
+            config_path = os.path.join(self.configs_path, controller_agent_config_name)
+            if self._load_existing_environment:
+                if not os.path.isfile(config_path):
+                    raise YtError("Controller agent config {0} not found. It is possible that you requested "
+                                  "more controller agents than configs exist".format(config_path))
+                config = read_config(config_path)
+            else:
+                config = controller_agent_configs[controller_agent_index]
+                write_config(config, config_path)
+
+            self.configs["controller_agent"].append(config)
+            self.config_paths["controller_agent"].append(config_path)
+
     def start_schedulers(self, sync=True):
         self._remove_scheduler_lock()
 
@@ -800,7 +843,7 @@ class YTInstance(object):
         self._run_yt_component("scheduler")
 
         def schedulers_ready():
-            self._validate_processes_is_running("scheduler")
+            self._validate_processes_are_running("scheduler")
 
             instances = client.list("//sys/scheduler/instances")
             if len(instances) != self.scheduler_count:
@@ -809,8 +852,10 @@ class YTInstance(object):
             try:
                 active_scheduler_orchid_path = None
                 for instance in instances:
-                    path = "//sys/scheduler/instances/{0}/orchid/scheduler".format(instance)
+                    orchid_path = "//sys/scheduler/instances/{0}/orchid".format(instance)
+                    path = orchid_path + "/scheduler"
                     try:
+                        client.set(orchid_path + "/@retry_backoff_time", 100)
                         if client.get(path + "/connected"):
                             active_scheduler_orchid_path = path
                     except YtError as err:
@@ -835,6 +880,9 @@ class YTInstance(object):
                 return False, err
 
         self._wait_or_skip(lambda: self._wait_for(schedulers_ready, "scheduler"), sync)
+
+    def start_controller_agents(self, sync=True):
+        self._run_yt_component("controller-agent", name="controller_agent")
 
     def create_client(self):
         if self.has_proxy:
@@ -999,7 +1047,7 @@ class YTInstance(object):
                        "proxy")
 
         def proxy_ready():
-            self._validate_processes_is_running("proxy")
+            self._validate_processes_are_running("proxy")
 
             try:
                 address = "127.0.0.1:{0}".format(self.get_proxy_address().split(":")[1])
@@ -1018,7 +1066,7 @@ class YTInstance(object):
         native_client = self.create_client()
 
         def rpc_proxy_ready():
-            self._validate_processes_is_running("rpc_proxy")
+            self._validate_processes_are_running("rpc_proxy")
 
             return len(native_client.list("//sys/rpc_proxies")) == 1
 
@@ -1030,7 +1078,7 @@ class YTInstance(object):
         native_client = self.create_client()
 
         def skynet_manager_ready():
-            self._validate_processes_is_running("skynet_manager")
+            self._validate_processes_are_running("skynet_manager")
 
             return ("skynet_manager" in native_client.list("//sys") and
                 len(native_client.list("//sys/skynet_manager/managers")) == self.skynet_manager_count)
@@ -1049,7 +1097,7 @@ class YTInstance(object):
                           "If the problem is reproducible please report to yt@yandex-team.ru mailing list."
                           .format(name_with_number, process.returncode))
 
-    def _validate_processes_is_running(self, name):
+    def _validate_processes_are_running(self, name):
         if name == "proxy":
             self._validate_process_is_running(self._process_to_kill[name][-1], name)
         else:
@@ -1151,3 +1199,8 @@ class YTInstance(object):
                    "--logrotate-interval", str(self.watcher_config["logs_rotate_interval"]),
                    "--log-path", os.path.join(self.logs_path, "watcher.log")],
                    "watcher")
+
+        def watcher_lock_created():
+            return os.path.exists(os.path.join(self.path, "lock_file"))
+
+        self._wait_for(watcher_lock_created, "watcher")
