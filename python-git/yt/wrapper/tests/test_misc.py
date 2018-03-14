@@ -498,15 +498,6 @@ def test_wrapped_streams():
         sys.stdout.write("")
 
 def test_keyboard_interrupts_catcher():
-    result = []
-
-    def action():
-
-        raise KeyboardInterrupt()
-        result.append(True)
-        if len(result) in [1, 3, 4, 5]:
-            raise KeyboardInterrupt()
-
     with pytest.raises(KeyboardInterrupt):
         with KeyboardInterruptsCatcher(lambda: None):
             raise KeyboardInterrupt()
