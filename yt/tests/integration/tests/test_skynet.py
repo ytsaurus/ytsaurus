@@ -185,6 +185,7 @@ class TestSkynetIntegration(YTEnvSetup):
             "enable_skynet_sharing": True,
             "optimize_for": "scan",
             "schema": SKYNET_TABLE_SCHEMA,
+            "chunk_writer": {"desired_chunk_weight": 4 * 4 * 1024 * 1024},
         })
 
         def to_skynet_chunk(data):
@@ -197,8 +198,6 @@ class TestSkynetIntegration(YTEnvSetup):
             {"filename": "c", "part_index": 0, "data": to_skynet_chunk("c1")},
             {"filename": "c", "part_index": 1, "data": to_skynet_chunk("c2")},
             {"filename": "c", "part_index": 2, "data": to_skynet_chunk("c3")},
-        ])
-        write_table("<append=%true>//tmp/table", [
             {"filename": "c", "part_index": 3, "data": to_skynet_chunk("c4")},
             {"filename": "c", "part_index": 4, "data": to_skynet_chunk("c5")},
             {"filename": "c", "part_index": 5, "data": "c6"},
@@ -295,19 +294,18 @@ class TestSkynetManager(YTEnvSetup):
         create("table", table_path, attributes={
             "enable_skynet_sharing": True,
             "schema": SKYNET_TABLE_SCHEMA,
+            "chunk_writer": {"desired_chunk_weight": 1 * 1024 * 1024},
         })
         write_table(table_path, [
             {"filename": "test.txt", "part_index": 0, "data": "testtesttest"}
         ])
 
-        for i in range(3):
-            write_table("<append=%true>" + table_path, [
-                {
-                    "filename": "test.bin",
-                    "part_index": i,
-                    "data": ''.join(random.choice(string.ascii_uppercase) * 1024 for _ in range(4 * 1024))
-                }
-            ])
+        write_table("<append=%true>" + table_path, [
+            {
+                "filename": "test.bin",
+                "part_index": i,
+                "data": ''.join(random.choice(string.ascii_uppercase) * 1024 for _ in range(4 * 1024))
+            } for i in range(3)])
 
     def share(self, path):
         url = "http://localhost:{}/api/v1/share".format(self.Env.configs["skynet_manager"][0]["port"])

@@ -113,9 +113,18 @@ void TSkynetColumnEvaluator::ValidateAndComputeHashes(
     if (!LastFilename_ || *LastFilename_ != filename || keySwitched) {
         LastFilename_ = TString(filename);
         LastDataSize_ = SkynetDataSize;
+        NextPartIndex_ = 0;
 
         HashState_.reset(new TSkynetHashState());
     }
+
+    if (partIndex != NextPartIndex_) {
+        THROW_ERROR_EXCEPTION("Invalid part_index")
+            << TErrorAttribute("filename", filename)
+            << TErrorAttribute("expected", NextPartIndex_)
+            << TErrorAttribute("actual", partIndex);
+    }
+    NextPartIndex_++;
 
     if (LastDataSize_ != SkynetDataSize) {
         THROW_ERROR_EXCEPTION("Data block with size %v found in the middle of the file; all but last file blocks in skynet shared table must be exactly 4Mb in size",
