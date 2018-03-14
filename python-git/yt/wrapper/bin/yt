@@ -16,7 +16,7 @@ import yt.wrapper.job_tool as yt_job_tool
 import yt.wrapper.completers as completers
 import yt.json as json
 
-from yt.packages.six import PY3
+from yt.packages.six import PY3, iteritems
 from yt.packages.six.moves import builtins, map as imap
 
 import yt.wrapper as yt
@@ -810,7 +810,7 @@ def add_remote_copy_parser(add_parser):
 def run_vanilla_operation(sync, tasks):
     """Run vanilla operation."""
     spec_builder = VanillaSpecBuilder()
-    for name, description in tasks.iteritems():
+    for name, description in iteritems(tasks):
         spec_builder.task(name, description)
     yt.run_operation(spec_builder, sync=sync)
 
