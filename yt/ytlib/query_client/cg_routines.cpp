@@ -59,13 +59,13 @@ using namespace NTableClient;
 
 static const auto& Logger = QueryClientLogger;
 
+static constexpr auto YieldThreshold = TDuration::MilliSeconds(100);
+
 class TYielder
     : public NProfiling::TWallTimer
     , private NConcurrency::TContextSwitchGuard
 {
 public:
-    static constexpr int YieldThreshold = 300;
-
     TYielder()
         : NConcurrency::TContextSwitchGuard(
             [this] () noexcept { Stop(); },
@@ -74,7 +74,7 @@ public:
 
     void Checkpoint(size_t processedRows)
     {
-        if (GetElapsedTime().MilliSeconds() > YieldThreshold) {
+        if (GetElapsedTime() > YieldThreshold) {
             LOG_DEBUG("Yielding fiber (ProcessedRows: %v, SyncTime: %v)",
                 processedRows,
                 GetElapsedTime());
