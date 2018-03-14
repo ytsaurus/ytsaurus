@@ -361,18 +361,6 @@ class UserJobSpecBuilder(object):
                 result[key] = self._spec[key]
         return result
 
-    def __deepcopy__(self, memodict=None):
-        # Fix python2.6 bug http://bugs.python.org/issue1515
-        result = type(self)()
-
-        for attr_name, attr_value in iteritems(self.__dict__):
-            if attr_name == "_spec":
-                continue
-            setattr(result, attr_name, deepcopy(attr_value, memo=memodict))
-
-        result._spec = self._deepcopy_spec()
-        return result
-
     def _end_script(self):
         assert self._spec_builder is not None
         spec_builder = self._spec_builder
