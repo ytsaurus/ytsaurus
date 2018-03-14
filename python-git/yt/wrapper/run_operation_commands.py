@@ -54,7 +54,6 @@ import yt.logger as logger
 
 import sys
 import time
-from copy import deepcopy
 
 @forbidden_inside_job
 def run_erase(table, spec=None, sync=True, client=None):
@@ -422,7 +421,7 @@ class OperationRequestRetrier(Retrier):
             "count": get_config(client)["start_operation_retries"]["retry_count"],
             "backoff": get_config(client)["retry_backoff"],
         }
-        retry_config = update(deepcopy(get_config(client)["start_operation_retries"]),
+        retry_config = update(get_config(client)["start_operation_retries"],
                               remove_nones_from_dict(retry_config))
         timeout = get_value(get_config(client)["start_operation_retries"]["retry_timeout"],
                             get_config(client)["start_operation_request_timeout"])

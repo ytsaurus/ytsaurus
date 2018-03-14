@@ -444,7 +444,7 @@ def build_caller_arguments(is_standalone_binary, use_local_python_in_jobs, file_
     if use_py_runner:
         arguments.append(file_argument_builder(os.path.join(LOCATION, "_py_runner.py")))
     else:
-        environment["Y_PYTHON_ENTRY_POINT"] = "yt.wrapper.__yt_entry_point__"
+        environment["Y_PYTHON_ENTRY_POINT"] = "__yt_entry_point__"
 
     return arguments
 

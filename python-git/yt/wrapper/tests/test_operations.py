@@ -1,9 +1,6 @@
 from __future__ import print_function
 
-from yt.wrapper.http_helpers import make_request_with_retries
-
-from .helpers import (TEST_DIR, PYTHONPATH, get_test_dir_path, get_test_file_path, check,
-                      set_config_option, build_python_egg, get_tests_sandbox, run_python_script_with_check,
+from .helpers import (TEST_DIR, PYTHONPATH, get_test_file_path, check, set_config_option, get_tests_sandbox,
                       ENABLE_JOB_CONTROL, dumps_yt_config, get_python, wait)
 
 # Necessary for tests.
@@ -17,7 +14,8 @@ from yt.wrapper.py_wrapper import create_modules_archive_default, TempfilesManag
 from yt.wrapper.common import parse_bool
 from yt.wrapper.operation_commands import add_failed_operation_stderrs_to_error_message, get_stderrs, get_operation_error
 from yt.wrapper.table import TablePath
-from yt.wrapper.spec_builders import MapSpecBuilder, MapReduceSpecBuilder, VanillaSpecBuilder
+from yt.wrapper.spec_builders import MapSpecBuilder, MapReduceSpecBuilder
+from yt.wrapper.http_helpers import make_request_with_retries
 
 from yt.environment.helpers import assert_almost_equal
 from yt.local import start, stop
@@ -283,20 +281,6 @@ class TestOperations(object):
         for r in row_list:
             assert r["data"] == "map\n"
 
-
-    def test_run_standalone_binary(self):
-        if sys.version_info[0] >= 3:
-            pytest.skip()
-
-        table = TEST_DIR + "/table"
-        other_table = TEST_DIR + "/other_table"
-        yt.write_table(table, [{"x": 1}, {"x": 2}])
-
-        binary = get_test_file_path("standalone_binary.py")
-
-        subprocess.check_call(["python", binary, table, other_table], env=self.env, stderr=sys.stderr)
-        check([{"x": 1}, {"x": 2}], yt.read_table(other_table))
-
     @add_failed_operation_stderrs_to_error_message
     def test_run_join_operation(self, yt_env):
         table1 = TEST_DIR + "/first"
@@ -368,89 +352,6 @@ class TestOperations(object):
 
     @add_failed_operation_stderrs_to_error_message
     def test_python_operations(self, yt_env):
-        test_script = """\
-from __future__ import print_function
-import yt.wrapper as yt
-
-import yt.yson as yson
-import sys
-
-{mapper_code}
-
-if __name__ == "__main__":
-    stdin = sys.stdin
-    if sys.version_info[0] >= 3:
-        stdin = sys.stdin.buffer
-
-    yt.update_config(yson.load(stdin, always_create_attributes=False))
-    yt.config["pickling"]["enable_tmpfs_archive"] = False
-    print(yt.run_map({mapper}, "{source_table}", "{destination_table}", format="json").id)
-"""
-
-        methods_pickling_test = ("""\
-class C(object):
-    {decorator}
-    def do({self}):
-        return 0
-
-    def __call__(self, rec):
-        self.do()
-        yield rec
-""", "C()")
-
-        metaclass_pickling_test = ("""\
-from yt.packages.six import add_metaclass
-from abc import ABCMeta, abstractmethod
-
-@add_metaclass(ABCMeta)
-class AbstractClass(object):
-    @abstractmethod
-    def __init__(self):
-        pass
-
-class DoSomething(AbstractClass):
-    def __init__(self):
-        pass
-
-    def do_something(self, rec):
-        if "x" in rec:
-            rec["x"] = int(rec["x"]) + 1
-        return rec
-
-class MapperWithMetaclass(object):
-    def __init__(self):
-        self.some_external_code = DoSomething()
-
-    def map(self, rec):
-        yield self.some_external_code.do_something(rec)
-""", 'MapperWithMetaclass().map')
-
-        simple_pickling_test = ("""\
-def mapper(rec):
-    yield rec
-""", "mapper")
-
-        methods_call_order_test = ("""\
-class Mapper(object):
-    def __init__(self):
-        self.x = 42
-
-    def start(self):
-        self.x = 666
-
-    def finish(self):
-        self.x = 100500
-
-    def __call__(self, rec):
-        rec["x"] = self.x
-        self.x += 1
-        yield rec
-""", "Mapper()")
-
-        def _format_script(script, **kwargs):
-            kwargs.update(dict(zip(("mapper_code", "mapper"), script)))
-            return test_script.format(**kwargs)
-
         def change_x(rec):
             if "x" in rec:
                 rec["x"] = int(rec["x"]) + 1
@@ -497,33 +398,6 @@ class Mapper(object):
         yt.run_map(change_x, table, table)
         check(yt.read_table(table),  [{"x": 2}, {"y": 2}])
 
-        yt.write_table(table, [{"x": 1}, {"x": 2}, {"x": 3}])
-        run_python_script_with_check(
-            yt_env,
-            _format_script(simple_pickling_test, source_table=table, destination_table=table))
-        check(yt.read_table(table), [{"x": 1}, {"x": 2}, {"x": 3}])
-
-        for decorator, self_ in [("", "self"), ("@staticmethod", ""), ("@classmethod", "cls")]:
-            yt.write_table(table, [{"x": 1}, {"y": 2}])
-            script = (methods_pickling_test[0].format(decorator=decorator, self=self_),
-                      methods_pickling_test[1])
-            run_python_script_with_check(
-                yt_env,
-                _format_script(script, source_table=table, destination_table=table))
-            check(yt.read_table(table), [{"x": 1}, {"y": 2}], ordered=False)
-
-        yt.write_table(table, [{"x": 1}, {"y": 2}])
-        run_python_script_with_check(
-            yt_env,
-            _format_script(metaclass_pickling_test, source_table=table, destination_table=table))
-        check(yt.read_table(table), [{"x": 2}, {"y": 2}], ordered=False)
-
-        yt.write_table(table, [{"x": 1}, {"x": 2}, {"x": 3}])
-        run_python_script_with_check(
-            yt_env,
-            _format_script(methods_call_order_test, source_table=table, destination_table=table))
-        assert list(yt.read_table(table)) == [{"x": 666}, {"x": 667}, {"x": 668}]
-
         yt.write_table(table, [{"x": 2}, {"x": 2, "y": 2}])
         yt.run_sort(table, sort_by=["x"])
         yt.run_reduce(sum_y, table, table, reduce_by=["x"])
@@ -544,7 +418,6 @@ class Mapper(object):
         yt.write_table(table, [{"x": 1}, {"y": 2}])
         op = yt.run_map(write_statistics, table, table, format=None, sync=False)
         op.wait()
-        assert sorted(list(op.get_job_statistics()["custom"])) == sorted(["row_count", "python_job_preparation_time"])
         assert op.get_job_statistics()["custom"]["row_count"] == {"$": {"completed": {"map": {"count": 2, "max": 1, "sum": 2, "min": 1}}}}
         check(yt.read_table(table), [{"x": 1}, {"y": 2}], ordered=False)
 
@@ -902,25 +775,6 @@ print(op.id)
             yt.config["pickling"]["create_modules_archive_function"] = None
 
     @add_failed_operation_stderrs_to_error_message
-    def test_pickling(self):
-        def foo(rec):
-            import my_test_module
-            assert my_test_module.TEST == 1
-            yield rec
-
-        with tempfile.NamedTemporaryFile(mode="w",
-                                         suffix=".py",
-                                         dir=get_tests_sandbox(),
-                                         prefix="test_pickling",
-                                         delete=False) as f:
-            f.write("TEST = 1")
-
-        with set_config_option("pickling/additional_files_to_archive", [(f.name, "my_test_module.py")]):
-            table = TEST_DIR + "/table"
-            yt.write_table(table, [{"x": 1}])
-            yt.run_map(foo, table, table)
-
-    @add_failed_operation_stderrs_to_error_message
     def test_is_inside_job(self):
         table = TEST_DIR + "/table"
         yt.write_table(table, [{"x": 1}])
@@ -974,7 +828,7 @@ print(op.id)
             key["x"] = int(rec["y"]) + 10
             yield key
 
-        def reducer_that_yileds_key(key, recs):
+        def reducer_that_yields_key(key, recs):
             for rec in recs:
                 pass
             yield key
@@ -986,65 +840,8 @@ print(op.id)
         with pytest.raises(yt.YtOperationFailedError):
             yt.run_reduce(reducer, table, TEST_DIR + "/other", reduce_by=["x"], format="json")
 
-        yt.run_reduce(reducer_that_yileds_key, table, TEST_DIR + "/other", reduce_by=["x"], format="json")
+        yt.run_reduce(reducer_that_yields_key, table, TEST_DIR + "/other", reduce_by=["x"], format="json")
         check([{"x": 1}, {"x": 2}], yt.read_table(TEST_DIR + "/other"), ordered=False)
-
-    def test_disable_yt_accesses_from_job(self, yt_env):
-        if yt.config["backend"] == "native":
-            pytest.skip()
-
-        first_script = """\
-from __future__ import print_function
-
-import yt.wrapper as yt
-
-def mapper(rec):
-    yield rec
-
-yt.config["proxy"]["url"] = "{0}"
-yt.config["pickling"]["enable_tmpfs_archive"] = False
-print(yt.run_map(mapper, "{1}", "{2}", sync=False).id)
-"""
-        second_script = """\
-from __future__ import print_function
-
-import yt.wrapper as yt
-
-def mapper(rec):
-    yt.get("//@")
-    yield rec
-
-if __name__ == "__main__":
-    yt.config["proxy"]["url"] = "{0}"
-    yt.config["pickling"]["enable_tmpfs_archive"] = False
-    print(yt.run_map(mapper, "{1}", "{2}", sync=False).id)
-"""
-        table = TEST_DIR + "/table"
-        yt.write_table(table, [{"x": 1}, {"x": 2}])
-
-        dir_ = yt_env.env.path
-        for script in [first_script, second_script]:
-            with tempfile.NamedTemporaryFile("w", dir=dir_, prefix="mapper", delete=False) as f:
-                mapper = script.format(yt.config["proxy"]["url"],
-                                       table,
-                                       TEST_DIR + "/other_table")
-                f.write(mapper)
-
-            op_id = subprocess.check_output([get_python(), f.name],
-                                            env={"PYTHONPATH": PYTHONPATH}).strip()
-            op_path = "//sys/operations/{0}".format(op_id)
-            while not yt.exists(op_path) \
-                    or yt.get(op_path + "/@state") not in ["aborted", "failed", "completed"]:
-                time.sleep(0.2)
-            assert yt.get(op_path + "/@state") == "failed"
-
-            job_id = yt.list(op_path + "/jobs", attributes=["error"])[0]
-            stderr_path = os.path.join(op_path, "jobs", job_id, "stderr")
-
-            while not yt.exists(stderr_path):
-                time.sleep(0.2)
-
-            assert b"Did you forget to surround" in yt.read_file(stderr_path).read()
 
     @add_failed_operation_stderrs_to_error_message
     def test_table_and_row_index_from_job(self):
@@ -1085,43 +882,6 @@ if __name__ == "__main__":
         yt.run_sort(table, sort_by=["x", "y"])
         op = yt.run_reduce("cat", table, table, format=yt.JsonFormat(), reduce_by=["x"], sort_by=["x", "y"])
         assert "sort_by" in op.get_attributes()["spec"]
-
-    @add_failed_operation_stderrs_to_error_message
-    def test_eggs_file_usage_from_operation(self, yt_env):
-        script = """\
-from __future__ import print_function
-
-import yt.wrapper as yt
-from module_in_egg import hello_provider
-
-def mapper(rec):
-    yield {{"x": hello_provider.get_message()}}
-
-if __name__ == "__main__":
-    yt.config["pickling"]["enable_tmpfs_archive"] = False
-    print(yt.run_map(mapper, "{1}", "{2}", sync=False).id)
-"""
-        yt.write_table(TEST_DIR + "/table", [{"x": 1, "y": 1}])
-
-        dir_ = yt_env.env.path
-        with tempfile.NamedTemporaryFile("w", dir=dir_, prefix="mapper", delete=False) as f:
-            mapper = script.format(yt.config["proxy"]["url"],
-                                   TEST_DIR + "/table",
-                                   TEST_DIR + "/other_table")
-            f.write(mapper)
-
-        module_egg = build_python_egg(get_test_file_path("yt_test_module"), temp_dir=dir_)
-
-        env = {
-            "YT_CONFIG_PATCHES": dumps_yt_config(),
-            "PYTHONPATH": os.pathsep.join([module_egg, PYTHONPATH])
-        }
-
-        operation_id = subprocess.check_output([get_python(), f.name], env=env).strip()
-
-        op = yt.Operation(operation_id)
-        op.wait()
-        assert list(yt.read_table(TEST_DIR + "/other_table")) == [{"x": "hello"}]
 
     def test_operations_tracker(self):
         tracker = yt.OperationsTracker()
@@ -1256,33 +1016,6 @@ if __name__ == "__main__":
         finally:
             logger.LOGGER.setLevel(old_level)
 
-    @pytest.mark.usefixtures("test_dynamic_library")
-    @add_failed_operation_stderrs_to_error_message
-    def test_enable_dynamic_libraries_collection(self, test_dynamic_library):
-        libs_dir, so_file = test_dynamic_library
-        def mapper(rec):
-            assert "_shared" in os.environ["LD_LIBRARY_PATH"]
-            for root, dirs, files in os.walk("."):
-                if so_file in files:
-                    break
-            else:
-                assert False, "Dependency {0} not collected".format(so_file)
-            yield rec
-
-        table = TEST_DIR + "/table"
-        yt.write_table(table, [{"x": 1, "y": 1}])
-
-        old_ld_library_path = os.environ.get("LD_LIBRARY_PATH", "")
-        os.environ["LD_LIBRARY_PATH"] = os.pathsep.join([old_ld_library_path, libs_dir])
-        try:
-            with set_config_option("pickling/dynamic_libraries/enable_auto_collection", True):
-                 with set_config_option("pickling/dynamic_libraries/library_filter",
-                                        lambda lib: not lib.startswith("/lib")):
-                    yt.run_map(mapper, table, TEST_DIR + "/out")
-        finally:
-            if old_ld_library_path:
-                os.environ["LD_LIBRARY_PATH"] = old_ld_library_path
-
     @add_failed_operation_stderrs_to_error_message
     def test_mount_tmpfs_in_sandbox(self, yt_env):
         if not ENABLE_JOB_CONTROL:
@@ -1355,12 +1088,6 @@ if __name__ == "__main__":
         yt.run_map(mapper_table_index, [input, input2], output, format=yt.YsonFormat(control_attributes_mode="iterator"))
         check(yt.read_table(output), [{"table_index": 0}, {"table_index": 1}], ordered=False)
 
-    def test_relative_imports_with_run_module(self, yt_env):
-        yt.write_table("//tmp/input_table", [{"value": 0}])
-        subprocess.check_call([sys.executable, "-m", "test_rel_import_module.run"],
-                               cwd=get_test_dir_path(), env=self.env)
-        check(yt.read_table("//tmp/output_table"), [{"value": 0, "constant": 10}])
-
     def test_download_job_stderr_messages(self):
         def mapper(row):
             sys.stderr.write("Job with stderr")
@@ -1392,50 +1119,19 @@ if __name__ == "__main__":
             yt.config["operation_tracker"]["stderr_download_thread_count"] = old_thread_count
 
         binary = get_test_file_path("stderr_download.py")
-        process = subprocess.Popen(["python", binary, operation.id], env=self.env, stderr=subprocess.PIPE)
+        process = subprocess.Popen([get_python(), binary, operation.id], env=self.env, stderr=subprocess.PIPE)
 
         time.sleep(0.5)
         os.kill(process.pid, signal.SIGINT)
-        process.wait(3)
 
-    @add_failed_operation_stderrs_to_error_message
-    def test_module_filter(self):
-        assert has_test_module
-
-        def mapper_test_module(row):
-            import yt.wrapper.tests.test_module
-            assert yt.wrapper.tests.test_module
-
-            yield row
-
-        def mapper_no_test_module(row):
-            try:
-                import yt.wrapper.tests.test_module
-                assert yt.wrapper.tests.test_module
-                print("NOT OK", file=sys.stderr)
-                raise Exception()
-            except ImportError:
-                print("OK", file=sys.stderr)
-
-            yield row
-
-        table = TEST_DIR + "/table"
-
-        yt.write_table(table, [{"x": 1}, {"y": 2}])
-
-        filter = lambda module: hasattr(module, "__file__") and not "test_module" in module.__file__
-        filter_string = 'lambda module: hasattr(module, "__file__") and not "test_module" in module.__file__'
-
-        yt.run_map(mapper_test_module, table, table)
-        check(yt.read_table(table), [{"x": 1}, {"y": 2}], ordered=False)
-
-        with set_config_option("pickling/module_filter", filter):
-            yt.run_map(mapper_no_test_module, table, table)
-        check(yt.read_table(table), [{"x": 1}, {"y": 2}], ordered=False)
-
-        with set_config_option("pickling/module_filter", filter_string):
-            yt.run_map(mapper_no_test_module, table, table)
-        check(yt.read_table(table), [{"x": 1}, {"y": 2}], ordered=False)
+        timeout = 3.0
+        start_time = time.time()
+        while time.time() - start_time < timeout:
+            if process.poll() is not None:
+                break
+            time.sleep(0.05)
+        else:
+            assert False, "Process did not terminate after {0:.2f} seconds".format(timeout)
 
     @add_failed_operation_stderrs_to_error_message
     def test_sandbox_file_name_specification(self, yt_env):
@@ -1452,48 +1148,6 @@ if __name__ == "__main__":
 
         yt.run_map(mapper, table, table, files=['<file_name="cool_name.dat">' + f.name])
         check(yt.read_table(table), [{"k": "etwas"}])
-
-    @pytest.mark.usefixtures("test_dynamic_library")
-    @add_failed_operation_stderrs_to_error_message
-    def test_modules_compatibility_filter(self, test_dynamic_library):
-        libs_dir, so_file = test_dynamic_library
-        def check_platforms_are_different(rec):
-            assert "_shared" in os.environ["LD_LIBRARY_PATH"]
-            for root, dirs, files in os.walk("."):
-                if so_file in files:
-                    assert False, "Dependency {0} is collected".format(so_file)
-            yield rec
-
-        def check_platforms_are_same(rec):
-            assert "_shared" in os.environ["LD_LIBRARY_PATH"]
-            for root, dirs, files in os.walk("."):
-                if so_file in files:
-                    break
-            else:
-                assert False, "Dependency {0} is not collected".format(so_file)
-            yield rec
-
-        old_platform = sys.platform
-        sys.platform = "linux_test_platform"
-
-        table = TEST_DIR + "/table"
-        yt.write_table(table, [{"x": 1, "y": 1}])
-
-        old_ld_library_path = os.environ.get("LD_LIBRARY_PATH", "")
-        os.environ["LD_LIBRARY_PATH"] = os.pathsep.join([old_ld_library_path, libs_dir])
-        try:
-            with set_config_option("pickling/dynamic_libraries/enable_auto_collection", True):
-                with set_config_option("pickling/enable_modules_compatibility_filter", True):
-                    yt.run_map(check_platforms_are_different, table, TEST_DIR + "/out")
-                yt.run_map(check_platforms_are_same, table, TEST_DIR + "/out")
-
-                sys.platform = old_platform
-                with set_config_option("pickling/enable_modules_compatibility_filter", True):
-                    yt.run_map(check_platforms_are_same, table, TEST_DIR + "/out")
-        finally:
-            if old_ld_library_path:
-                os.environ["LD_LIBRARY_PATH"] = old_ld_library_path
-            sys.platform = old_platform
 
     def test_remote_copy(self):
         mode = yt.config["backend"]

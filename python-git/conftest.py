@@ -8,12 +8,17 @@ except ImportError:
 from collections import defaultdict
 import re
 import sys
+import pytest
 
 pytest_plugins = "yt.tests_runner.plugin"
 
 if yatest_common is None:
+    @pytest.fixture(scope="session", autouse=True)
+    def interpreter():
+        pass
+
     def pytest_generate_tests(metafunc):
-        metafunc.parametrize("interpreter", ["{0}.{1}".format(*sys.version_info[:2])], indirect=True)
+        metafunc.parametrize("interpreter", ["{0}.{1}".format(*sys.version_info[:2])])
 
 def pytest_configure(config):
     def scheduling_func(test_items, process_count):

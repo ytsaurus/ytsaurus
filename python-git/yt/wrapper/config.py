@@ -280,7 +280,7 @@ class Config(types.ModuleType, client_state.ClientState):
         self.config[key] = value
 
     def update_config(self, patch):
-        self.common_module.update(self.config, patch)
+        self.common_module.update_inplace(self.config, patch)
 
     def _check_deprecations(self, config):
         declare_deprecated = self.common_module.declare_deprecated
