@@ -5,7 +5,6 @@
 
 int main(int argc, const char** argv)
 {
-    NYT::TConfig::Get()->WaitLockPollInterval = TDuration::Zero();
     NYT::TConfig::Get()->LogLevel = "debug";
     NYT::Initialize(argc, argv);
     return NUnitTest::RunMain(argc, const_cast<char**>(argv));

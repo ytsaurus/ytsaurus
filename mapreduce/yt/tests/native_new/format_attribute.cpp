@@ -1,4 +1,4 @@
-#include "lib.h"
+#include <mapreduce/yt/tests/yt_unittest_lib/yt_unittest_lib.h>
 
 #include <mapreduce/yt/tests/lib/owning_yamr_row.h>
 #include <mapreduce/yt/interface/client.h>

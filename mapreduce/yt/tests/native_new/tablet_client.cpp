@@ -1,4 +1,4 @@
-#include "lib.h"
+#include <mapreduce/yt/tests/yt_unittest_lib/yt_unittest_lib.h>
 
 #include <mapreduce/yt/interface/errors.h>
 #include <mapreduce/yt/util/wait_for_tablets_state.h>
