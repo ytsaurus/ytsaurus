@@ -19,7 +19,7 @@ from yt.packages.six.moves import builtins, filter as ifilter, map as imap
 
 import logging
 from datetime import datetime
-from time import sleep
+from time import sleep, time
 from multiprocessing import TimeoutError
 
 try:
@@ -462,7 +462,7 @@ def get_operation_url(operation, client=None):
 
 class Operation(object):
     """Holds information about started operation."""
-    def __init__(self, id, type=None, finalization_actions=None, abort_exceptions=(KeyboardInterrupt,), client=None):
+    def __init__(self, id, type=None, finalization_actions=None, abort_exceptions=(KeyboardInterrupt, TimeoutError), client=None):
         self.id = id
         self.type = type
         self.abort_exceptions = abort_exceptions
@@ -557,9 +557,13 @@ class Operation(object):
                 finalize_function(state)
 
         abort_on_sigint = get_config(self.client)["operation_tracker"]["abort_on_sigint"]
+
         with ExceptionCatcher(self.abort_exceptions, abort, enable=abort_on_sigint):
+            start_time = time()
             for state in self.get_state_monitor(time_watcher):
                 print_info(state)
+                if timeout is not None and time() - start_time > timeout / 1000.0:
+                    raise TimeoutError("Timed out while waiting for finishing operation")
 
             for finalize_function in finalization_actions:
                 finalize_function(state)
