@@ -16,10 +16,10 @@ int main(int argc, const char** argv) {
     // такие права (права на монтирование таблиц) на каком-нибудь кластере YT.
     if (argc != 3) {
         Cerr << "Usage:\n";
-        Cerr << '\t' << argv[0] << "<server-name> <path-to-dynamic-table>\n";
+        Cerr << '\t' << argv[0] << " <server-name> <path-to-dynamic-table>\n";
         Cerr << '\n';
         Cerr << "For example:\n";
-        Cerr << '\t' << argv[0] << "freud //home/ermolovd/test-dyntable" << Endl;
+        Cerr << '\t' << argv[0] << " freud //home/ermolovd/test-dyntable" << Endl;
         return 1;
     }
 
@@ -62,7 +62,7 @@ int main(int argc, const char** argv) {
     client->InsertRows(dynamicTablePath, {
         TNode()("key", 1)("value", "один"),
         TNode()("key", 42)("value", "сорок два"),
-        TNode()("key", 100500)("value", "стопятсот"),
+        TNode()("key", 100500)("value", "стопятьсот"),
     });
 
     // Получать значения из динтаблицы можно с помощью LookupRows,
