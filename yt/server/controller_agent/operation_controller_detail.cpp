@@ -1758,7 +1758,8 @@ void TOperationControllerBase::SafeOnJobFailed(std::unique_ptr<TFailedJobSummary
     CheckFailedJobsStatusReceived();
 
     if (Spec_->FailOnJobRestart) {
-        OnOperationFailed(TError("Job failed; operation failed because spec option fail_on_job_restart is set")
+        OnOperationFailed(TError(NScheduler::EErrorCode::OperationFailedOnJobRestart,
+            "Job failed; operation failed because spec option fail_on_job_restart is set")
             << TErrorAttribute("job_id", joblet->JobId)
             << error);
     }
