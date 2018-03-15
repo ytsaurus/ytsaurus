@@ -186,6 +186,7 @@ public:
         for (const auto& path : paths) {
             auto req = TYPathProxy::Set(path);
             req->set_value(operationYson);
+            req->set_recursive(true);
             GenerateMutationId(req);
             batchReq->AddRequest(req);
         }
