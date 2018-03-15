@@ -42,7 +42,6 @@ TOperation::TOperation(
     , Prepared_(false)
     , UserTransactionId_(userTransactionId)
     , RuntimeParams_(New<TOperationRuntimeParams>())
-    , Owners_(owners)
     , Events_(events)
     , StorageMode_(storageMode)
     , Id_(id)
@@ -52,6 +51,7 @@ TOperation::TOperation(
     , CodicilData_(MakeOperationCodicilString(Id_))
     , CancelableContext_(New<TCancelableContext>())
     , CancelableInvoker_(CancelableContext_->CreateInvoker(controlInvoker))
+    , Owners_(owners)
 {
     auto parsedSpec = ConvertTo<TOperationSpecBasePtr>(Spec_);
     SecureVault_ = std::move(parsedSpec->SecureVault);
