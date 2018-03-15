@@ -1,5 +1,5 @@
-#include <mapreduce/yt/tests/operations/id_map.h>
-#include <mapreduce/yt/tests/operations/id_reduce.h>
+#include "id_map.h"
+#include "id_reduce.h"
 
 #include <mapreduce/yt/tests/lib/lib.h>
 
