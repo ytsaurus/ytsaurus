@@ -133,7 +133,7 @@ public:
     TExpiringCacheConfigPtr FunctionRegistryCache;
     TSlruCacheConfigPtr FunctionImplCache;
 
-    int ThreadPoolSize;
+    TNullable<int> ThreadPoolSize;
 
     int MaxConcurrentRequests;
 
