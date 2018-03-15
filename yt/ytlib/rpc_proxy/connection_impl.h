@@ -34,7 +34,8 @@ public:
 
     virtual const NTabletClient::ITableMountCachePtr& GetTableMountCache() override;
     virtual const NTransactionClient::ITimestampProviderPtr& GetTimestampProvider() override;
-    virtual const IInvokerPtr& GetInvoker() override;
+
+    virtual IInvokerPtr GetInvoker() override;
 
     virtual NApi::IAdminPtr CreateAdmin(const NApi::TAdminOptions& options) override;
     virtual NApi::IClientPtr CreateClient(const NApi::TClientOptions& options) override;
