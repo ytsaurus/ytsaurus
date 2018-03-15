@@ -1,6 +1,6 @@
 #include <mapreduce/yt/tests/yt_unittest_lib/yt_unittest_lib.h>
 
-#include <mapreduce/yt/tests/native_new/row.pb.h>
+#include <mapreduce/yt/tests/native/proto_lib/row.pb.h>
 
 #include <library/unittest/registar.h>
 

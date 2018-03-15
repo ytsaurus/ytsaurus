@@ -1,6 +1,6 @@
 #include <mapreduce/yt/tests/yt_unittest_lib/yt_unittest_lib.h>
 
-#include <mapreduce/yt/tests/native_new/all_types.pb.h>
+#include <mapreduce/yt/tests/native/proto_lib/all_types.pb.h>
 
 #include <mapreduce/yt/interface/client.h>
 #include <mapreduce/yt/common/config.h>
