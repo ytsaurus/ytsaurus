@@ -69,7 +69,7 @@ const NTransactionClient::ITimestampProviderPtr& TConnection::GetTimestampProvid
     return TimestampProvider_;
 }
 
-const IInvokerPtr& TConnection::GetInvoker()
+IInvokerPtr TConnection::GetInvoker()
 {
     return ActionQueue_->GetInvoker();
 }

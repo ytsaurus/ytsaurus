@@ -75,7 +75,9 @@ public:
 
     void Initialize()
     {
-        ThreadPool_ = New<TThreadPool>(Config_->ThreadPoolSize, "Client");
+        if (Config_->ThreadPoolSize) {
+            ThreadPool_ = New<TThreadPool>(*Config_->ThreadPoolSize, "Connection");
+        }
 
         PrimaryMasterCellId_ = Config_->PrimaryMaster->CellId;
         PrimaryMasterCellTag_ = CellTagFromId(PrimaryMasterCellId_);
@@ -178,9 +180,9 @@ public:
         return TimestampProvider_;
     }
 
-    virtual const IInvokerPtr& GetInvoker() override
+    virtual IInvokerPtr GetInvoker() override
     {
-        return ThreadPool_->GetInvoker();
+        return ThreadPool_ ? ThreadPool_->GetInvoker() : GetCurrentInvoker();
     }
 
     virtual IAdminPtr CreateAdmin(const TAdminOptions& options) override
@@ -370,7 +372,9 @@ public:
     {
         Terminated_ = true;
 
-        ThreadPool_->Shutdown();
+        if (ThreadPool_) {
+            ThreadPool_->Shutdown();
+        }
 
         ClusterDirectory_->Clear();
         ClusterDirectorySynchronizer_->Stop();
