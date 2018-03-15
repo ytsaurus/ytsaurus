@@ -364,6 +364,20 @@ def run_sandbox_upload(options, build_context):
         missing_file_string = ", ".join(yt_binary_upload_list - processed_files)
         teamcity_message("Missing files in sandbox upload: {0}".format(missing_file_string), "WARNING")
 
+    # Also, inject python libraries and bindings as debs
+    artifacts_directory = os.path.join(options.working_directory, "./ARTIFACTS")
+    inject_packages = [
+        "yandex-yt-python-skynet-driver",
+        "yandex-yt-python-driver",
+    ]
+    for pkg in inject_packages:
+        paths = glob.glob("{0}/{1}_*.deb".format(artifacts_directory, pkg))
+        if len(paths) != 1:
+            teamcity_message("Failed to find package {0}, found files {1}".format(pkg, paths), "WARNING")
+            continue
+        destination_path = os.path.join(binary_distribution_folder, os.path.basename(paths[0]))
+        os.symlink(paths[0], destination_path)
+
     rbtorrent = sky_share(
             os.path.basename(binary_distribution_folder),
             os.path.dirname(binary_distribution_folder))
@@ -386,18 +400,23 @@ def run_sandbox_upload(options, build_context):
     # Start sandbox task
     #
 
-    version_by_teamcity = "{0}@{1}-{2}".format(options.git_branch, options.build_number, options.build_vcs_number[:7])
     cli = sandbox_client.SandboxClient(oauth_token=os.environ["TEAMCITY_SANDBOX_TOKEN"])
     task_description = """
-    Build id: {0}
-    Build type: {1}
-    Source host: {2}
-    Teamcity build type id: {3}
+    YT version: {0}
+    Teamcity build id: {1}
+    Teamcity build type: {2}
+    Teamcity host: {3}
+    Teamcity build type id: {4}
+    Git branch: {5}
+    Git commit: {6}
     """.format(
-        version_by_teamcity,
+        build_context["yt_version"],
+        options.build_number,
         options.type,
         socket.getfqdn(),
         options.btid,
+        options.git_branch,
+        options.build_vcs_number,
     )
 
     task_id = cli.create_task(
@@ -741,7 +760,6 @@ def main():
     options.enable_parallel_testing = options.is_bare_metal
 
     teamcity_main(options)
-
 
 if __name__ == "__main__":
     main()
