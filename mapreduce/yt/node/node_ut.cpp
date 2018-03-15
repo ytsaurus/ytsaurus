@@ -260,4 +260,17 @@ SIMPLE_UNIT_TEST_SUITE(YtNodeTest) {
         UNIT_ASSERT_EXCEPTION(TNode("random").ConvertTo<bool>(), TFromStringException);
         UNIT_ASSERT_EXCEPTION(TNode("").ConvertTo<bool>(), TFromStringException);
     }
+
+    SIMPLE_UNIT_TEST(TestCanonicalSerialization) {
+        auto node = TNode()
+            ("ca", "ca")("c", "c")("a", "a")("b", "b")
+            ("bb", TNode()
+                ("ii", "ii")("i", "i")("jj", "jj"));
+        node.Attributes() = TNode()("za", "za")("z", "z")("xxx", "xxx")("xx", "xx");
+        UNIT_ASSERT_VALUES_EQUAL(NodeToCanonicalYsonString(node),
+            "<\"xx\"=\"xx\";\"xxx\"=\"xxx\";\"z\"=\"z\";\"za\"=\"za\">"
+            "{\"a\"=\"a\";\"b\"=\"b\";\"bb\"="
+                "{\"i\"=\"i\";\"ii\"=\"ii\";\"jj\"=\"jj\"};"
+            "\"c\"=\"c\";\"ca\"=\"ca\"}");
+    }
 }
