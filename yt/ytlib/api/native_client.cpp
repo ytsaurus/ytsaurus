@@ -3344,6 +3344,8 @@ private:
                 "operation_type",
                 "progress",
                 "spec",
+                "full_spec",
+                "unrecognized_spec",
                 "brief_progress",
                 "brief_spec",
                 "start_time",
@@ -3404,6 +3406,8 @@ private:
                     SET_ITEM_STRING_VALUE("operation_type")
                     SET_ITEM_YSON_STRING_VALUE("progress")
                     SET_ITEM_YSON_STRING_VALUE("spec")
+                    SET_ITEM_YSON_STRING_VALUE("full_spec")
+                    SET_ITEM_YSON_STRING_VALUE("unrecognized_spec")
                     SET_ITEM_YSON_STRING_VALUE("brief_progress")
                     SET_ITEM_YSON_STRING_VALUE("brief_spec")
                     SET_ITEM_INSTANT_VALUE("start_time")
@@ -3496,6 +3500,12 @@ private:
 
         if (cypressNode) {
             auto attrNode = cypressNode->AsMap();
+
+            // XXX(ignat): remove opaque from node. Make option to ignore it in conversion methods.
+            auto fullSpecNode = attrNode->FindChild("full_spec");
+            if (fullSpecNode) {
+                fullSpecNode->MutableAttributes()->Remove("opaque");
+            }
 
             if (!attributes) {
                 auto userAttributeKeys = ConvertTo<yhash_set<TString>>(attrNode->GetChild("user_attribute_keys"));

@@ -20,6 +20,8 @@ struct TOrderedByIdTableDescriptor
         , OperationType(nameTable->RegisterName("operation_type"))
         , Progress(nameTable->RegisterName("progress"))
         , Spec(nameTable->RegisterName("spec"))
+        , FullSpec(nameTable->RegisterName("full_spec"))
+        , UnrecognizedSpec(nameTable->RegisterName("unrecognized_spec"))
         , BriefProgress(nameTable->RegisterName("brief_progress"))
         , BriefSpec(nameTable->RegisterName("brief_spec"))
         , StartTime(nameTable->RegisterName("start_time"))
@@ -37,6 +39,8 @@ struct TOrderedByIdTableDescriptor
     const int OperationType;
     const int Progress;
     const int Spec;
+    const int FullSpec;
+    const int UnrecognizedSpec;
     const int BriefProgress;
     const int BriefSpec;
     const int StartTime;
