@@ -45,7 +45,7 @@ void TObjectPool<T>::Reclaim(T* obj)
         if (poolSize >= TPooledObjectTraits<T>::GetMaxPoolSize()) {
             FreeInstance(obj);
             break;
-        } else if (PoolSize_.compare_exchange_strong(poolSize, poolSize + 1)){
+        } else if (PoolSize_.compare_exchange_strong(poolSize, poolSize + 1)) {
             PooledObjects_.Enqueue(obj);
             break;
         }
@@ -64,7 +64,7 @@ template <class T>
 void TObjectPool<T>:: Release(size_t count)
 {
     T* obj;
-    while (PooledObjects_.Dequeue(&obj) && count) {
+    while (count > 0 && PooledObjects_.Dequeue(&obj)) {
         --PoolSize_;
         FreeInstance(obj);
         --count;
