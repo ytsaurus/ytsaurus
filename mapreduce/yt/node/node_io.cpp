@@ -95,6 +95,13 @@ TString NodeToYsonString(const TNode& node, EYsonFormat format)
     return stream.Str();
 }
 
+TString NodeToCanonicalYsonString(const TNode& node, EYsonFormat format)
+{
+    TStringStream stream;
+    NodeToCanonicalYsonStream(node, &stream, format);
+    return stream.Str();
+}
+
 TNode NodeFromYsonStream(IInputStream* input, EYsonType type)
 {
     TNode result = CreateEmptyNodeByType(type);
@@ -109,6 +116,13 @@ void NodeToYsonStream(const TNode& node, IOutputStream* output, EYsonFormat form
 {
     TYsonWriter writer(output, format);
     TNodeVisitor visitor(&writer);
+    visitor.Visit(node);
+}
+
+void NodeToCanonicalYsonStream(const TNode& node, IOutputStream* output, EYsonFormat format)
+{
+    TYsonWriter writer(output, format);
+    TNodeVisitor visitor(&writer, /*sortMapKeys*/ true);
     visitor.Visit(node);
 }
 
