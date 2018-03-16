@@ -145,6 +145,8 @@ DECLARE_REFCOUNTED_CLASS(TSetThreadPriorityConfig)
 DECLARE_REFCOUNTED_CLASS(TFSQuotaConfig)
 DECLARE_REFCOUNTED_CLASS(TChownChmodConfig)
 
+DECLARE_REFCOUNTED_STRUCT(IMemoryChunkProvider)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT

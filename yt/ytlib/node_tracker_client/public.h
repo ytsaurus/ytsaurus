@@ -93,6 +93,8 @@ DEFINE_ENUM(EMemoryCategory,
     ((BlobSession)                 (6))
     ((CachedVersionedChunkMeta)    (7))
     ((SystemJobs)                  (8))
+    ((Query)                       (9))
+    ((QueryCache)                 (10))
 );
 
 using TNodeMemoryTracker = TMemoryUsageTracker<EMemoryCategory>;

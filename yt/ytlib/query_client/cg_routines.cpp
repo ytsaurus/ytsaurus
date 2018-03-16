@@ -49,6 +49,7 @@ class TypeBuilder<re2::RE2*, Cross>
 
 ////////////////////////////////////////////////////////////////////////////////
 
+
 namespace NYT {
 namespace NQueryClient {
 namespace NRoutines {
@@ -58,13 +59,13 @@ using namespace NTableClient;
 
 static const auto& Logger = QueryClientLogger;
 
+static constexpr auto YieldThreshold = TDuration::MilliSeconds(100);
+
 class TYielder
     : public NProfiling::TWallTimer
     , private NConcurrency::TContextSwitchGuard
 {
 public:
-    static constexpr int YieldThreshold = 300;
-
     TYielder()
         : NConcurrency::TContextSwitchGuard(
             [this] () noexcept { Stop(); },
@@ -73,7 +74,7 @@ public:
 
     void Checkpoint(size_t processedRows)
     {
-        if (GetElapsedTime().MilliSeconds() > YieldThreshold) {
+        if (GetElapsedTime() > YieldThreshold) {
             LOG_DEBUG("Yielding fiber (ProcessedRows: %v, SyncTime: %v)",
                 processedRows,
                 GetElapsedTime());
@@ -137,7 +138,7 @@ void WriteRow(TExecutionContext* context, TWriteOpClosure* closure, TValue* valu
 void ScanOpHelper(
     TExecutionContext* context,
     void** consumeRowsClosure,
-    void (*consumeRows)(void** closure, TRowBuffer*, const TValue** rows, i64 size))
+    void (*consumeRows)(void** closure, TExpressionContext*, const TValue** rows, i64 size))
 {
     auto finalLogger = Finally([&] () {
         LOG_DEBUG("Finalizing scan helper");
@@ -267,7 +268,7 @@ void InsertJoinRow(
 }
 
 
-char* AllocateAlignedBytes(TRowBuffer* buffer, size_t byteCount)
+char* AllocateAlignedBytes(TExpressionContext* buffer, size_t byteCount)
 {
     return buffer
         ->GetPool()
@@ -363,7 +364,7 @@ class TJoinBatchState
 public:
     TJoinBatchState(
         void** consumeRowsClosure,
-        void (*consumeRows)(void** closure, TRowBuffer*, const TValue** rows, i64 size),
+        void (*consumeRows)(void** closure, TExpressionContext*, const TValue** rows, i64 size),
         const std::vector<size_t>& selfColumns,
         const std::vector<size_t>& foreignColumns)
         : ConsumeRowsClosure(consumeRowsClosure)
@@ -626,7 +627,7 @@ public:
 
 private:
     void** const ConsumeRowsClosure;
-    void (* const ConsumeRows)(void** closure, TRowBuffer*, const TValue** rows, i64 size);
+    void (* const ConsumeRows)(void** closure, TExpressionContext*, const TValue** rows, i64 size);
 
     std::vector<size_t> SelfColumns;
     std::vector<size_t> ForeignColumns;
@@ -652,9 +653,9 @@ void JoinOpHelper(
     void (*collectRows)(
         void** closure,
         TJoinClosure* joinClosure,
-        TRowBuffer* buffer),
+        TExpressionContext* buffer),
     void** consumeRowsClosure,
-    void (*consumeRows)(void** closure, TRowBuffer*, const TValue** rows, i64 size))
+    void (*consumeRows)(void** closure, TExpressionContext*, const TValue** rows, i64 size))
 {
     TJoinClosure closure(
         lookupHasher,
@@ -817,21 +818,22 @@ void MultiJoinOpHelper(
     void (*collectRows)(
         void** closure,
         TMultiJoinClosure* joinClosure,
-        TRowBuffer* buffer),
+        TExpressionContext* buffer),
     void** consumeRowsClosure,
-    void (*consumeRows)(void** closure, TRowBuffer*, const TValue** rows, i64 size))
+    void (*consumeRows)(void** closure, TExpressionContext*, const TValue** rows, i64 size))
 {
     auto finalLogger = Finally([&] () {
         LOG_DEBUG("Finalizing multijoin helper");
     });
 
     TMultiJoinClosure closure;
-    closure.Buffer = New<TRowBuffer>(TPermanentBufferTag(), PoolChunkSize, MaxSmallBlockRatio);
+    closure.Buffer = New<TRowBuffer>(TPermanentBufferTag(), context->MemoryChunkProvider);
     closure.PrimaryRowSize = parameters->PrimaryRowSize;
     closure.BatchSize = parameters->BatchSize;
 
     for (size_t joinId = 0; joinId < parameters->Items.size(); ++joinId) {
         TMultiJoinClosure::TItem subclosure(
+            context->MemoryChunkProvider,
             parameters->Items[joinId].KeySize,
             comparers[joinId].PrefixEqComparer,
             comparers[joinId].SuffixHasher,
@@ -867,6 +869,8 @@ void MultiJoinOpHelper(
             closure.Items[joinId].Lookup.clear();
             closure.Items[joinId].LastKey = nullptr;
         }
+
+        TYielder yielder;
 
         std::vector<std::vector<TValue*>> sortedForeignSequences;
         for (size_t joinId = 0; joinId < closure.Items.size(); ++joinId) {
@@ -935,6 +939,8 @@ void MultiJoinOpHelper(
                 }
             };
 
+            TDuration sortingForeignTime;
+
             while (currentKey != orderedKeys.end()) {
                 bool hasMoreData;
                 {
@@ -948,14 +954,19 @@ void MultiJoinOpHelper(
                     foreignValues.push_back(closure.Buffer->Capture(foreignRows[rowIndex]).Begin());
                 }
 
-                if (isPartiallySorted) {
-                    processForeignSequence(foreignValues.begin(), foreignValues.end());
-                } else {
-                    sortedForeignSequence.insert(
-                        sortedForeignSequence.end(),
-                        foreignValues.begin(),
-                        foreignValues.end());
+                {
+                    NProfiling::TCpuTimingGuard timingGuard(&sortingForeignTime);
+                    if (isPartiallySorted) {
+                        processForeignSequence(foreignValues.begin(), foreignValues.end());
+                    } else {
+                        sortedForeignSequence.insert(
+                            sortedForeignSequence.end(),
+                            foreignValues.begin(),
+                            foreignValues.end());
+                    }
                 }
+
+                yielder.Checkpoint(sortedForeignSequence.size());
 
                 foreignRows.clear();
                 foreignValues.clear();
@@ -971,22 +982,27 @@ void MultiJoinOpHelper(
                 }
             }
 
-            if (isPartiallySorted) {
-                std::sort(
-                    sortedForeignSequence.begin() + unsortedOffset,
-                    sortedForeignSequence.end(),
-                    foreignSuffixLessComparer);
+            {
+                NProfiling::TCpuTimingGuard timingGuard(&sortingForeignTime);
+
+                if (isPartiallySorted) {
+                    std::sort(
+                        sortedForeignSequence.begin() + unsortedOffset,
+                        sortedForeignSequence.end(),
+                        foreignSuffixLessComparer);
+                }
+
+                processSortedForeignSequence();
             }
 
-            processSortedForeignSequence();
-
             sortedForeignSequences.push_back(std::move(sortedForeignSequence));
+
+            LOG_DEBUG("Finished precessing foreign rowset (SortingTime: %v)", sortingForeignTime);
         }
 
         auto intermediateBuffer = New<TRowBuffer>(TIntermediateBufferTag());
         std::vector<const TValue*> joinedRows;
 
-        TYielder yielder;
         size_t processedRows = 0;
 
         auto consumeJoinedRows = [&] () {
@@ -1126,15 +1142,15 @@ void GroupOpHelper(
     void (*collectRows)(
         void** closure,
         TGroupByClosure* groupByClosure,
-        TRowBuffer* buffer),
+        TExpressionContext* buffer),
     void** consumeRowsClosure,
-    void (*consumeRows)(void** closure, TRowBuffer*, const TValue** rows, i64 size))
+    void (*consumeRows)(void** closure, TExpressionContext*, const TValue** rows, i64 size))
 {
     auto finalLogger = Finally([&] () {
         LOG_DEBUG("Finalizing group helper");
     });
 
-    TGroupByClosure closure(groupHasher, groupComparer, keySize, checkNulls);
+    TGroupByClosure closure(context->MemoryChunkProvider, groupHasher, groupComparer, keySize, checkNulls);
 
     try {
         collectRows(collectRowsClosure, &closure, closure.Buffer.Get());
@@ -1161,7 +1177,7 @@ void GroupOpHelper(
     }
 }
 
-void AllocatePermanentRow(TExecutionContext* context, TRowBuffer* buffer, int valueCount, TValue** row)
+void AllocatePermanentRow(TExecutionContext* context, TExpressionContext* buffer, int valueCount, TValue** row)
 {
     CHECK_STACK();
 
@@ -1179,7 +1195,7 @@ void OrderOpHelper(
     void** collectRowsClosure,
     void (*collectRows)(void** closure, TTopCollector* topCollector),
     void** consumeRowsClosure,
-    void (*consumeRows)(void** closure, TRowBuffer*, const TValue** rows, i64 size),
+    void (*consumeRows)(void** closure, TExpressionContext*, const TValue** rows, i64 size),
     size_t rowSize)
 {
     auto finalLogger = Finally([&] () {
@@ -1225,17 +1241,20 @@ void WriteOpHelper(
         // Continue
     }
 
+    auto& batch = closure.OutputRowsBatch;
+    auto& writer = context->Writer;
+
     LOG_DEBUG("Flushing writer");
-    if (!closure.OutputRowsBatch.empty()) {
+    if (!batch.empty()) {
         bool shouldNotWait;
         {
             NProfiling::TCpuTimingGuard timingGuard(&context->Statistics->WriteTime);
-            shouldNotWait = context->Writer->Write(closure.OutputRowsBatch);
+            shouldNotWait = writer->Write(batch);
         }
 
         if (!shouldNotWait) {
             NProfiling::TWallTimingGuard timingGuard(&context->Statistics->WaitOnReadyEventTime);
-            WaitFor(context->Writer->GetReadyEvent())
+            WaitFor(writer->GetReadyEvent())
                 .ThrowOnError();
         }
     }

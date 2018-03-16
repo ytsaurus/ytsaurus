@@ -57,7 +57,7 @@ class TestGetOperation(YTEnvSetup):
         wait_breakpoint()
 
         def check(res1, res2):
-            for key in ["authenticated_user", "brief_progress", "brief_spec", "finish_time", "operation_type", "result", "start_time", "state", "suspended", "title", "weight"]:
+            for key in ["authenticated_user", "brief_progress", "brief_spec", "finish_time", "operation_type", "result", "start_time", "state", "suspended", "title", "weight", "spec", "unrecognized_spec", "full_spec"]:
                 ok1 = key in res1
                 ok2 = key in res2
                 assert ok1 == ok2, "{0} is missing in one of [res1, res2]".format(key)
@@ -69,6 +69,8 @@ class TestGetOperation(YTEnvSetup):
 
         res_get_operation = get_operation(op.id)
         res_cypress = get(get_operation_path(op.id, storage_mode) + "/@")
+        if "full_spec" in res_cypress:
+            res_cypress["full_spec"].attributes.pop("opaque", None)
         res_orchid_progress = get("//sys/scheduler/orchid/scheduler/operations/{0}/progress".format(op.id))
 
         check(res_get_operation, res_cypress)
@@ -83,6 +85,8 @@ class TestGetOperation(YTEnvSetup):
         op.track()
 
         res_cypress_finished = get(get_operation_path(op.id, storage_mode) + "/@")
+        if "full_spec" in res_cypress_finished:
+            res_cypress_finished["full_spec"].attributes.pop("opaque", None)
 
         clean_operations(self.Env.create_native_client())
 

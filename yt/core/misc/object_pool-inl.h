@@ -27,7 +27,7 @@ auto TObjectPool<T>::Allocate() -> TObjectPtr
     }
 
     if (!obj) {
-        obj = AllocateInstance();
+        obj = TPooledObjectTraits<T>::Allocate();
     }
 
     return TObjectPtr(obj, [] (T* obj) {
@@ -45,7 +45,7 @@ void TObjectPool<T>::Reclaim(T* obj)
         if (poolSize >= TPooledObjectTraits<T>::GetMaxPoolSize()) {
             FreeInstance(obj);
             break;
-        } else if (PoolSize_.compare_exchange_strong(poolSize, poolSize + 1)){
+        } else if (PoolSize_.compare_exchange_strong(poolSize, poolSize + 1)) {
             PooledObjects_.Enqueue(obj);
             break;
         }
@@ -61,9 +61,14 @@ void TObjectPool<T>::Reclaim(T* obj)
 }
 
 template <class T>
-T* TObjectPool<T>::AllocateInstance()
+void TObjectPool<T>:: Release(size_t count)
 {
-    return new T();
+    T* obj;
+    while (count > 0 && PooledObjects_.Dequeue(&obj)) {
+        --PoolSize_;
+        FreeInstance(obj);
+        --count;
+    }
 }
 
 template <class T>
@@ -87,7 +92,7 @@ struct TPooledObjectTraits<
         NMpl::TIsConvertible<T&, ::google::protobuf::MessageLite&>
     >::TType
 >
-    : public TPooledObjectTraitsBase
+    : public TPooledObjectTraitsBase<T>
 {
     static void Clean(T* message)
     {

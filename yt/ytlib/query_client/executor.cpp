@@ -148,9 +148,15 @@ class TQueryExecutor
 public:
     TQueryExecutor(
         INativeConnectionPtr connection,
+        IInvokerPtr invoker,
+        TColumnEvaluatorCachePtr columnEvaluatorCache,
+        TEvaluatorPtr evaluator,
         INodeChannelFactoryPtr nodeChannelFactory,
         TFunctionImplCachePtr functionImplCache)
         : Connection_(std::move(connection))
+        , Invoker_(std::move(invoker))
+        , ColumnEvaluatorCache(std::move(columnEvaluatorCache))
+        , Evaluator_(std::move(evaluator))
         , NodeChannelFactory_(std::move(nodeChannelFactory))
         , FunctionImplCache_(std::move(functionImplCache))
     { }
@@ -169,7 +175,7 @@ public:
                 : &TQueryExecutor::DoExecute;
 
             return BIND(execute, MakeStrong(this))
-                .AsyncVia(Connection_->GetInvoker())
+                .AsyncVia(Invoker_)
                 .Run(
                     std::move(query),
                     std::move(externalCGInfo),
@@ -181,6 +187,9 @@ public:
 
 private:
     const INativeConnectionPtr Connection_;
+    const IInvokerPtr Invoker_;
+    const TColumnEvaluatorCachePtr ColumnEvaluatorCache;
+    const TEvaluatorPtr Evaluator_;
     const INodeChannelFactoryPtr NodeChannelFactory_;
     const TFunctionImplCachePtr FunctionImplCache_;
 
@@ -311,7 +320,7 @@ private:
                     tableId,
                     ranges,
                     rowBuffer,
-                    Connection_->GetColumnEvaluatorCache(),
+                    ColumnEvaluatorCache,
                     BuiltinRangeExtractorMap,
                     options);
 
@@ -500,8 +509,7 @@ private:
             },
             [&] (TConstFrontQueryPtr topQuery, ISchemafulReaderPtr reader, ISchemafulWriterPtr writer) {
                 LOG_DEBUG("Evaluating top query (TopQueryId: %v)", topQuery->Id);
-                auto evaluator = Connection_->GetQueryEvaluator();
-                return evaluator->Run(
+                return Evaluator_->Run(
                     std::move(topQuery),
                     std::move(reader),
                     std::move(writer),
@@ -677,11 +685,17 @@ DEFINE_REFCOUNTED_TYPE(TQueryExecutor)
 
 IExecutorPtr CreateQueryExecutor(
     INativeConnectionPtr connection,
+    IInvokerPtr invoker,
+    TColumnEvaluatorCachePtr columnEvaluatorCache,
+    TEvaluatorPtr evaluator,
     INodeChannelFactoryPtr nodeChannelFactory,
     TFunctionImplCachePtr functionImplCache)
 {
     return New<TQueryExecutor>(
         std::move(connection),
+        std::move(invoker),
+        std::move(columnEvaluatorCache),
+        std::move(evaluator),
         std::move(nodeChannelFactory),
         std::move(functionImplCache));
 }
