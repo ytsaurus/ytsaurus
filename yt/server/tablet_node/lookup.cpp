@@ -8,6 +8,7 @@
 #include <yt/server/tablet_node/config.h>
 
 #include <yt/ytlib/chunk_client/public.h>
+#include <yt/ytlib/chunk_client/data_statistics.h>
 
 #include <yt/ytlib/table_client/config.h>
 #include <yt/ytlib/table_client/row_merger.h>
@@ -55,11 +56,15 @@ struct TLookupCounters
     TLookupCounters(const TTagIdList& list)
         : RowCount("/lookup/row_count", list)
         , DataWeight("/lookup/data_weight", list)
+        , UnmergedRowCount("/lookup/unmerged_row_count", list)
+        , UnmergedDataWeight("/lookup/unmerged_data_weight", list)
         , CpuTime("/lookup/cpu_time", list)
     { }
 
     TSimpleCounter RowCount;
     TSimpleCounter DataWeight;
+    TSimpleCounter UnmergedRowCount;
+    TSimpleCounter UnmergedDataWeight;
     TSimpleCounter CpuTime;
 };
 
@@ -132,12 +137,16 @@ public:
             currentIt = nextIt;
         }
 
+        UpdateUnmergedStatistics(EdenSessions_);
+
         auto cpuTime = timer.GetElapsedValue();
 
         if (IsProfilingEnabled()) {
             auto& counters = GetLocallyGloballyCachedValue<TLookupProfilerTrait>(Tags_);
             TabletNodeProfiler.Increment(counters.RowCount, FoundRowCount_);
             TabletNodeProfiler.Increment(counters.DataWeight, FoundDataWeight_);
+            TabletNodeProfiler.Increment(counters.UnmergedRowCount, UnmergedRowCount_);
+            TabletNodeProfiler.Increment(counters.UnmergedDataWeight, UnmergedDataWeight_);
             TabletNodeProfiler.Increment(counters.CpuTime, cpuTime);
         }
 
@@ -177,6 +186,11 @@ private:
             return Rows_[RowIndex_];
         }
 
+        NChunkClient::NProto::TDataStatistics GetDataStatistics() const
+        {
+            return Reader_->GetDataStatistics();
+        }
+
     private:
         const IVersionedReaderPtr Reader_;
 
@@ -201,6 +215,8 @@ private:
 
     int FoundRowCount_ = 0;
     size_t FoundDataWeight_ = 0;
+    int UnmergedRowCount_ = 0;
+    size_t UnmergedDataWeight_ = 0;
 
     TTagIdList Tags_;
 
@@ -268,6 +284,17 @@ private:
             auto statistics = onRow();
             FoundRowCount_ += statistics.first;
             FoundDataWeight_ += statistics.second;
+        }
+
+        UpdateUnmergedStatistics(PartitionSessions_);
+    }
+
+    void UpdateUnmergedStatistics(const TReadSessionList& sessions)
+    {
+        for (const auto& session : sessions) {
+            auto statistics = session.GetDataStatistics();
+            UnmergedRowCount_ += statistics.row_count();
+            UnmergedDataWeight_ += statistics.data_weight();
         }
     }
 };

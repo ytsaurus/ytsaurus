@@ -205,6 +205,8 @@ void TSchedulerThread::ThreadMainStep()
 
     YCHECK(CurrentFiber_);
 
+    auto savedFiberId = CurrentFiber_->GetId();
+
     switch (CurrentFiber_->GetState()) {
         case EFiberState::Sleeping:
             maybeReleaseIdleFiber();
@@ -231,7 +233,9 @@ void TSchedulerThread::ThreadMainStep()
     }
 
     // Finish sync part of the execution.
+    SetCurrentFiberId(savedFiberId);
     EndExecute();
+    SetCurrentFiberId(InvalidFiberId);
 
     // Check for a clear scheduling state.
     Y_ASSERT(!CurrentFiber_);
@@ -452,7 +456,10 @@ void TSchedulerThread::WaitFor(TFuture<void> future, IInvokerPtr invoker)
     auto fiber = CurrentFiber_.Get();
     YCHECK(fiber);
 
+// Check cancellation after wakeup to reduce sync execution time.
+#if 0
     CheckForCanceledFiber(fiber);
+#endif
 
     // Update scheduling state.
     YCHECK(!WaitForFuture_);

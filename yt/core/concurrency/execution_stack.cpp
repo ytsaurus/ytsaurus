@@ -164,7 +164,7 @@ namespace NYT {
 
 template <NConcurrency::EExecutionStackKind Kind, size_t Size>
 struct TPooledObjectTraits<NConcurrency::TPooledExecutionStack<Kind, Size>, void>
-    : public TPooledObjectTraitsBase
+    : public TPooledObjectTraitsBase<NConcurrency::TPooledExecutionStack<Kind, Size>>
 {
     typedef NConcurrency::TPooledExecutionStack<Kind, Size> TStackType;
 

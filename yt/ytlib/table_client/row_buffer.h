@@ -35,6 +35,15 @@ public:
         : TRowBuffer(chunkSize, maxSmallBlockRatio, GetRefCountedTypeCookie<TTag>())
     { }
 
+    template <class TTag>
+    TRowBuffer(
+        TTag,
+        IMemoryChunkProviderPtr chunkProvider)
+        : Pool_(
+            GetRefCountedTypeCookie<TTag>(),
+            std::move(chunkProvider))
+    { }
+
     TChunkedMemoryPool* GetPool();
 
     TMutableUnversionedRow AllocateUnversioned(int valueCount);
