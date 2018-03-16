@@ -588,6 +588,10 @@ void TBootstrap::DoInitialize()
         orchidRoot,
         "/config",
         ConfigNode_);
+    SetNodeByYPath(
+        orchidRoot,
+        "/chunk_manager",
+        CreateVirtualNode(ChunkManager_->GetOrchidService()));
 
     OrchidHttpHandler_ = NMonitoring::GetOrchidYPathHttpHandler(orchidRoot->Via(GetControlInvoker()));
 

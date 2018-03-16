@@ -199,6 +199,8 @@ public:
     //! Limits data size to be replicated/repaired along an inter-DC edge at any given moment.
     TInterDCLimitsConfigPtr InterDCLimits;
 
+    TDuration StaticOrchidCacheUpdatePeriod;
+
     TChunkManagerConfig()
     {
         RegisterParameter("safe_online_node_count", SafeOnlineNodeCount)
@@ -302,6 +304,9 @@ public:
 
         RegisterParameter("inter_dc_limits", InterDCLimits)
             .DefaultNew();
+
+        RegisterParameter("static_orchid_cache_update_period", StaticOrchidCacheUpdatePeriod)
+            .Default(TDuration::Seconds(5));
     }
 };
 

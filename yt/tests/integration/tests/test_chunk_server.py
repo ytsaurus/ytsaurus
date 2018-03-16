@@ -5,6 +5,7 @@ from yt.yson import to_yson_type
 from yt.environment.helpers import assert_items_equal, wait
 
 import json
+from time import sleep
 
 ##################################################################
 
@@ -13,7 +14,8 @@ class TestChunkServer(YTEnvSetup):
     NUM_NODES = 20
     DELTA_MASTER_CONFIG = {
         "chunk_manager": {
-            "safe_online_node_count": 3
+            "safe_online_node_count": 3,
+            "static_orchid_cache_update_period": 100,
         }
     }
 
@@ -121,6 +123,26 @@ class TestChunkServer(YTEnvSetup):
         for c in json.loads(chunks_json):
             assert isinstance(c, basestring)
 
+    def test_chunk_requisition_registry_orchid(self):
+        create("table", "//tmp/t")
+        write_table("//tmp/t", {"a" : "b"})
+
+        master = ls("//sys/primary_masters")[0]
+        master_orchid_path = "//sys/primary_masters/{0}/orchid/chunk_manager/requisition_registry".format(master)
+
+        known_requisition_indexes = frozenset(ls(master_orchid_path))
+        set("//tmp/t/@replication_factor", 4)
+        sleep(0.3)
+        new_requisition_indexes = frozenset(ls(master_orchid_path)) - known_requisition_indexes
+        assert len(new_requisition_indexes) == 1
+        new_requisition_index = next(iter(new_requisition_indexes))
+
+        new_requisition = get("{0}/{1}".format(master_orchid_path, new_requisition_index))
+        assert new_requisition["ref_counter"] == 1
+        assert new_requisition["vital"]
+        assert len(new_requisition["entries"]) == 1
+        assert new_requisition["entries"][0]["replication_policy"]["replication_factor"] == 4
+
 ##################################################################
 
 class TestChunkServerMulticell(TestChunkServer):
@@ -150,3 +172,6 @@ class TestChunkServerMulticell(TestChunkServer):
         assert_items_equal(
             get("#" + chunk_id + "/@owning_nodes"),
             ["//tmp/t0", "//tmp/t1", "//tmp/t2"])
+
+    def test_chunk_requisition_registry_orchid(self):
+        pass

@@ -446,6 +446,23 @@ public:
         ProfilingExecutor_->Start();
     }
 
+    IYPathServicePtr GetOrchidService()
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return IYPathService::FromProducer(BIND(&TImpl::BuildOrchidYson, MakeStrong(this)))
+            ->Via(Bootstrap_->GetControlInvoker())
+            ->Cached(Config_->StaticOrchidCacheUpdatePeriod);
+    }
+
+    void BuildOrchidYson(NYson::IYsonConsumer* consumer)
+    {
+        BuildYsonFluently(consumer)
+            .BeginMap()
+                .Item("requisition_registry").Value(TSerializableChunkRequisitionRegistry(Bootstrap_->GetChunkManager()))
+            .EndMap();
+    }
+
     std::unique_ptr<TMutation> CreateUpdateChunkRequisitionMutation(const NProto::TReqUpdateChunkRequisition& request)
     {
         return CreateMutation(
@@ -1177,6 +1194,7 @@ private:
     bool NeedToRecomputeStatistics_ = false;
     bool NeedResetDataWeight_ = false;
     bool NeedInitializeMediumConfig_ = false;
+    bool NeedRecomputeRequisitionRefCounts_ = false;
 
     TPeriodicExecutorPtr ProfilingExecutor_;
 
@@ -2060,6 +2078,9 @@ private:
 
         //COMPAT(savrus)
         NeedInitializeMediumConfig_ = context.GetVersion() < 629;
+
+        // COMPAT(shakurov)
+        NeedRecomputeRequisitionRefCounts_ = context.GetVersion() < 704;
     }
 
     virtual void OnBeforeSnapshotLoaded() override
@@ -2127,9 +2148,11 @@ private:
         InitBuiltins();
 
         // Recompute requisitions' ref counts.
-        for (const auto& pair : ChunkMap_) {
-            const auto* chunk = pair.second;
-            chunk->RefUsedRequisitions(GetChunkRequisitionRegistry());
+        if (NeedRecomputeRequisitionRefCounts_) {
+            for (const auto& pair : ChunkMap_) {
+                const auto* chunk = pair.second;
+                chunk->RefUsedRequisitions(GetChunkRequisitionRegistry());
+            }
         }
 
         if (NeedToRecomputeStatistics_) {
@@ -3027,6 +3050,11 @@ TNodeList TChunkManager::AllocateWriteTargets(
         replicationFactorOverride,
         forbiddenNodes,
         preferredHostName);
+}
+
+NYTree::IYPathServicePtr TChunkManager::GetOrchidService()
+{
+    return Impl_->GetOrchidService();
 }
 
 std::unique_ptr<TMutation> TChunkManager::CreateUpdateChunkRequisitionMutation(const NProto::TReqUpdateChunkRequisition& request)
