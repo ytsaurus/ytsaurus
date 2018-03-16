@@ -106,11 +106,15 @@ inline void TChunk::SetJob(TJobPtr job)
 inline void TChunk::RefUsedRequisitions(TChunkRequisitionRegistry* registry) const
 {
     registry->Ref(LocalRequisitionIndex_);
-    // Don't check TChunk::ExportCounter_ or TChunkExportData::RefCounter here:
-    // for those cells into which the chunk isn't exported, EmptyChunkRequisitionIndex is used.
-    // And we should Ref() that, too.
-    for (const auto& exportData : ExportDataList_) {
-        registry->Ref(exportData.ChunkRequisitionIndex);
+
+    if (ExportCounter_ == 0) {
+        return;
+    }
+
+    for (const auto& data : ExportDataList_) {
+        if (data.RefCounter != 0) {
+            registry->Ref(data.ChunkRequisitionIndex);
+        }
     }
 }
 
@@ -119,8 +123,15 @@ inline void TChunk::UnrefUsedRequisitions(
     const NObjectServer::TObjectManagerPtr& objectManager) const
 {
     registry->Unref(LocalRequisitionIndex_, objectManager);
-    for (const auto& exportData : ExportDataList_) {
-        registry->Unref(exportData.ChunkRequisitionIndex, objectManager);
+
+    if (ExportCounter_ == 0) {
+        return;
+    }
+
+    for (const auto& data : ExportDataList_) {
+        if (data.RefCounter != 0) {
+            registry->Unref(data.ChunkRequisitionIndex, objectManager);
+        }
     }
 }
 
@@ -152,10 +163,11 @@ inline void TChunk::SetExternalRequisitionIndex(
     TChunkRequisitionRegistry* registry,
     const NObjectServer::TObjectManagerPtr& objectManager)
 {
-    auto& exportData = ExportDataList_[cellIndex];
-    registry->Unref(exportData.ChunkRequisitionIndex, objectManager);
-    exportData.ChunkRequisitionIndex = requisitionIndex;
-    registry->Ref(exportData.ChunkRequisitionIndex);
+    auto& data = ExportDataList_[cellIndex];
+    YCHECK(data.RefCounter != 0);
+    registry->Unref(data.ChunkRequisitionIndex, objectManager);
+    data.ChunkRequisitionIndex = requisitionIndex;
+    registry->Ref(data.ChunkRequisitionIndex);
 }
 
 inline TChunkRequisition TChunk::ComputeRequisition(const TChunkRequisitionRegistry* registry) const

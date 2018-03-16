@@ -482,11 +482,14 @@ const TChunkExportData& TChunk::GetExportData(int cellIndex) const
     return ExportDataList_[cellIndex];
 }
 
-void TChunk::Export(int cellIndex)
+void TChunk::Export(int cellIndex, TChunkRequisitionRegistry* registry)
 {
     auto& data = ExportDataList_[cellIndex];
     if (++data.RefCounter == 1) {
         ++ExportCounter_;
+
+        YCHECK(data.ChunkRequisitionIndex == EmptyChunkRequisitionIndex);
+        registry->Ref(data.ChunkRequisitionIndex);
     }
 }
 
@@ -498,10 +501,9 @@ void TChunk::Unexport(
 {
     auto& data = ExportDataList_[cellIndex];
     if ((data.RefCounter -= importRefCounter) == 0) {
-        // NB: Reset the entry to the neutral state as it affects ComputeReplication() etc.
         registry->Unref(data.ChunkRequisitionIndex, objectManager);
-        data.ChunkRequisitionIndex = EmptyChunkRequisitionIndex;
-        registry->Ref(EmptyChunkRequisitionIndex);
+        data.ChunkRequisitionIndex = EmptyChunkRequisitionIndex; // just in case
+
         --ExportCounter_;
     }
 }
