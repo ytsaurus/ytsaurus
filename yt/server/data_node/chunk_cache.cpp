@@ -610,7 +610,7 @@ private:
                 Bootstrap_->GetArtifactCacheInThrottler());
 
             auto fileName = location->GetChunkPath(chunkId);
-            auto chunkWriter = New<TFileWriter>(chunkId, fileName);
+            auto chunkWriter = New<TFileWriter>(location->GetIOEngine(), chunkId, fileName);
             auto checkedChunkWriter = New<TErrorInterceptingChunkWriter>(location, chunkWriter);
 
             LOG_DEBUG("Opening chunk writer");
