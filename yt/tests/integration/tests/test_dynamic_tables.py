@@ -361,11 +361,14 @@ class TestDynamicTables(TestDynamicTablesBase):
         assert exists("//sys/tablet_cells/{0}/snapshots".format(id))
 
     def test_tablet_cell_journal_acl(self):
-        cell_id = create_tablet_cell()
+        acl = [make_ace("allow", "u", "read")]
+        create_tablet_cell_bundle("b", attributes={
+            "options": {"snapshot_acl" : acl, "changelog_acl": acl}})
+        cell_id = self.sync_create_cells(1, tablet_cell_bundle="b")[0]
         assert get("//sys/tablet_cells/{0}/changelogs/@inherit_acl".format(cell_id)) == False
         assert get("//sys/tablet_cells/{0}/snapshots/@inherit_acl".format(cell_id)) == False
-        assert get("//sys/tablet_cells/{0}/changelogs/@effective_acl".format(cell_id)) == []
-        assert get("//sys/tablet_cells/{0}/snapshots/@effective_acl".format(cell_id)) == []
+        assert get("//sys/tablet_cells/{0}/changelogs/@effective_acl".format(cell_id)) == acl
+        assert get("//sys/tablet_cells/{0}/snapshots/@effective_acl".format(cell_id)) == acl
 
     def test_tablet_cell_bundle_create_permission(self):
         create_user("u")
