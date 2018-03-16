@@ -8,7 +8,7 @@ import time
 from mapreduce.yt.python.yt_stuff import yt_stuff
 import yatest.common
 
-TEST_PROGRAM = yatest.common.binary_path('mapreduce/yt/tests/check_initialized/test_program/test_program')
+TEST_PROGRAM = yatest.common.binary_path('mapreduce/yt/tests/native/check_initialized/test_program/test_program')
 
 def test_check_initialized(yt_stuff):
     yt_wrapper = yt_stuff.get_yt_wrapper()

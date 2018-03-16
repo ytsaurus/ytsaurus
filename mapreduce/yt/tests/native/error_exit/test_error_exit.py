@@ -8,7 +8,7 @@ import time
 from mapreduce.yt.python.yt_stuff import yt_stuff
 import yatest.common
 
-TEST_PROGRAM = yatest.common.binary_path('mapreduce/yt/tests/error_exit/test_program/test_program')
+TEST_PROGRAM = yatest.common.binary_path('mapreduce/yt/tests/native/error_exit/test_program/test_program')
 
 def get_operation_by_cmd_pattern(yt_wrapper, pattern, attributes=None):
     if attributes is None:
