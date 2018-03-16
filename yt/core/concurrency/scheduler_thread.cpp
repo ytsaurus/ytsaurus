@@ -88,7 +88,12 @@ void TSchedulerThread::Start()
         if ((epoch & ShutdownEpochMask) == 0x0) {
             LOG_DEBUG_IF(EnableLogging_, "Starting thread (Name: %v)", ThreadName_);
 
-            Thread_.Start();
+            try {
+                Thread_.Start();
+            } catch (const std::exception& ex) {
+                LOG_FATAL(ex, "Error starting %v thread", ThreadName_);
+            }
+
             ThreadId_ = TThreadId(Thread_.Id());
 
             OnStart();
@@ -131,7 +136,12 @@ void TSchedulerThread::Shutdown()
 
             // Avoid deadlock.
             YCHECK(TThread::CurrentThreadId() != ThreadId_);
-            Thread_.Join();
+
+            try {
+                Thread_.Join();
+            } catch (const std::exception& ex) {
+                LOG_FATAL(ex, "Error joining %v thread", ThreadName_);
+            }
 
             AfterShutdown();
         } else {
