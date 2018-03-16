@@ -249,11 +249,17 @@ SIMPLE_UNIT_TEST_SUITE(BatchRequestSuite)
             "pending");
 
         auto waitableAcquired = waitableLockRes.GetValue()->GetAcquiredFuture();
-        UNIT_ASSERT(!waitableAcquired.Wait(TDuration::MilliSeconds(500)));
+
+        //
+        // 1 second wait should be enough to detect problems with our code.
+        UNIT_ASSERT(!waitableAcquired.Wait(TDuration::Seconds(1)));
 
         otherTx->Abort();
 
-        UNIT_ASSERT_NO_EXCEPTION(waitableAcquired.GetValue(TDuration::MilliSeconds(500)));
+        //
+        // We wait here a little bit longer to avoid flaky results in autobuild.
+        // (Occasionally autobuild is slow and we don't want to have flaky tests because of this).
+        UNIT_ASSERT_NO_EXCEPTION(waitableAcquired.GetValue(TDuration::Seconds(5)));
     }
 
     SIMPLE_UNIT_TEST(TestWaitableLock)
