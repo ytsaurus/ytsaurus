@@ -42,6 +42,7 @@ public:
     TChunkId GetChunkId() const;
 
     NProto::TDataStatistics GetDataStatistics() const;
+    TCodecStatistics GetCompressionStatistics() const;
 
 private:
     const IChunkWriterPtr ChunkWriter_;

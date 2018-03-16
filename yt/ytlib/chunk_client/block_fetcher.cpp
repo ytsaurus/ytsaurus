@@ -332,9 +332,9 @@ i64 TBlockFetcher::GetCompressedDataSize() const
     return CompressedDataSize_;
 }
 
-TCodecTime TBlockFetcher::GetDecompressionTime() const
+TCodecDuration TBlockFetcher::GetDecompressionTime() const
 {
-    return std::make_pair(Codec_->GetId(), DecompressionTime);
+    return TCodecDuration{Codec_->GetId(), DecompressionTime};
 }
 
 ////////////////////////////////////////////////////////////////////////////////

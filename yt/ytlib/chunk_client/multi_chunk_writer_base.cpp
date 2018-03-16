@@ -122,6 +122,16 @@ TDataStatistics TNontemplateMultiChunkWriterBase::GetDataStatistics() const
     return result;
 }
 
+TCodecStatistics TNontemplateMultiChunkWriterBase::GetCompressionStatistics() const
+{
+    TGuard<TSpinLock> guard(SpinLock_);
+    auto result = CodecStatistics;
+    if (CurrentSession_.IsActive()) {
+        result += CurrentSession_.TemplateWriter->GetCompressionStatistics();
+    }
+    return result;
+}
+
 void TNontemplateMultiChunkWriterBase::SwitchSession()
 {
     SwitchingSession_ = true;
@@ -161,6 +171,7 @@ void TNontemplateMultiChunkWriterBase::FinishSession()
 
     TGuard<TSpinLock> guard(SpinLock_);
     DataStatistics_ += CurrentSession_.TemplateWriter->GetDataStatistics();
+    CodecStatistics += CurrentSession_.TemplateWriter->GetCompressionStatistics();
     CurrentSession_.Reset();
 }
 

@@ -157,6 +157,11 @@ public:
         return EncodingChunkWriter_->GetDataStatistics();
     }
 
+    virtual TCodecStatistics GetCompressionStatistics() const override
+    {
+        return EncodingChunkWriter_->GetCompressionStatistics();
+    }
+
     virtual i64 GetDataWeight() const override
     {
         return DataWeight_;

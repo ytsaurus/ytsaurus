@@ -28,17 +28,18 @@ TEncodingWriter::TEncodingWriter(
     IChunkWriterPtr chunkWriter,
     IBlockCachePtr blockCache,
     const NLogging::TLogger& logger)
-    : Config_(config)
-    , Options_(options)
-    , ChunkWriter_(chunkWriter)
-    , BlockCache_(blockCache)
+    : Config_(std::move(config))
+    , Options_(std::move(options))
+    , ChunkWriter_(std::move(chunkWriter))
+    , BlockCache_(std::move(blockCache))
     , Logger(logger)
+    , CodecTime_({Options_->CompressionCodec, TDuration(0)})
     , CompressionRatio_(Config_->DefaultCompressionRatio)
     , CompressionInvoker_(CreateSerializedInvoker(CreateFixedPriorityInvoker(
         TDispatcher::Get()->GetPrioritizedCompressionPoolInvoker(),
         Config_->WorkloadDescriptor.GetPriority())))
     , Semaphore_(New<TAsyncSemaphore>(Config_->EncodeWindowSize))
-    , Codec_(NCompression::GetCodec(options->CompressionCodec))
+    , Codec_(NCompression::GetCodec(Options_->CompressionCodec))
     , WritePendingBlockCallback_(BIND(
         &TEncodingWriter::WritePendingBlock,
         MakeWeak(this)).Via(CompressionInvoker_))
@@ -102,8 +103,10 @@ void TEncodingWriter::DoCompressBlock(const TSharedRef& uncompressedBlock)
     LOG_DEBUG("Compressing block (Block: %v)", AddedBlockIndex_);
 
     TBlock compressedBlock;
-    compressedBlock.Data = Codec_->Compress(uncompressedBlock);
-
+    {
+        NProfiling::TCpuTimingGuard guard(&CodecTime_.CpuDuration);
+        compressedBlock.Data = Codec_->Compress(uncompressedBlock);
+    }
     if (Config_->ComputeChecksum) {
         compressedBlock.Checksum = GetChecksum(compressedBlock.Data);
     }
@@ -130,8 +133,10 @@ void TEncodingWriter::DoCompressVector(const std::vector<TSharedRef>& uncompress
     LOG_DEBUG("Compressing block (Block: %v)", AddedBlockIndex_);
 
     TBlock compressedBlock;
-    compressedBlock.Data = Codec_->Compress(uncompressedVectorizedBlock);
-
+    {
+        NProfiling::TCpuTimingGuard guard(&CodecTime_.CpuDuration);
+        compressedBlock.Data = Codec_->Compress(uncompressedVectorizedBlock);
+    }
     if (Config_->ComputeChecksum) {
         compressedBlock.Checksum = GetChecksum(compressedBlock.Data);
     }
@@ -279,6 +284,11 @@ i64 TEncodingWriter::GetCompressedSize() const
 double TEncodingWriter::GetCompressionRatio() const
 {
     return CompressionRatio_.load();
+}
+
+const TCodecDuration& TEncodingWriter::GetCompressionTime() const
+{
+    return CodecTime_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

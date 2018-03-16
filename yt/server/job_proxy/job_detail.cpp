@@ -187,13 +187,12 @@ TStatistics TSimpleJobBase::GetStatistics() const
     TStatistics result;
     if (Reader_) {
         result.AddSample("/data/input", Reader_->GetDataStatistics());
-        Reader_->GetDecompressionStatistics().DumpTo(&result, "/codec/cpu/decode/");
+        Reader_->GetDecompressionStatistics().DumpTo(&result, "/codec/cpu/decode");
     }
 
     if (Writer_) {
-        result.AddSample(
-            "/data/output/" + NYPath::ToYPathLiteral(0),
-            Writer_->GetDataStatistics());
+        result.AddSample("/data/output/0", Writer_->GetDataStatistics());
+        Writer_->GetCompressionStatistics().DumpTo(&result, "/codec/cpu/encode/0");
     }
 
     return result;

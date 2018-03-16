@@ -107,6 +107,11 @@ public:
         return UnderlyingWriter_->GetDataStatistics();
     }
 
+    virtual TCodecStatistics GetCompressionStatistics() const override
+    {
+        return UnderlyingWriter_->GetCompressionStatistics();
+    }
+
 protected:
     const TInMemoryManagerPtr InMemoryManager_;
     const TTabletSnapshotPtr TabletSnapshot_;
@@ -230,6 +235,11 @@ public:
     virtual TDataStatistics GetDataStatistics() const override
     {
         return UnderlyingWriter_->GetDataStatistics();
+    }
+
+    virtual TCodecStatistics GetCompressionStatistics() const override
+    {
+        return UnderlyingWriter_->GetCompressionStatistics();
     }
 
 private:

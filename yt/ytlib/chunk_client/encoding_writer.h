@@ -2,6 +2,7 @@
 
 #include "public.h"
 #include "block.h"
+#include "data_statistics.h"
 
 #include <yt/core/compression/public.h>
 
@@ -40,6 +41,8 @@ public:
     // Future is set when all block get written to underlying writer.
     TFuture<void> Flush();
 
+    const TCodecDuration& GetCompressionTime() const;
+
 private:
     const TEncodingWriterConfigPtr Config_;
     const TEncodingWriterOptionsPtr Options_;
@@ -47,6 +50,7 @@ private:
     const IBlockCachePtr BlockCache_;
 
     NLogging::TLogger Logger;
+    NChunkClient::TCodecDuration CodecTime_;
 
     std::atomic<i64> UncompressedSize_ = {0};
     std::atomic<i64> CompressedSize_ = {0};

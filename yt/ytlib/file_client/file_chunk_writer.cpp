@@ -57,6 +57,7 @@ public:
     virtual TChunkId GetChunkId() const override;
 
     virtual TDataStatistics GetDataStatistics() const override;
+    virtual TCodecStatistics GetCompressionStatistics() const override;
 
 private:
     NLogging::TLogger Logger;
@@ -211,6 +212,11 @@ TChunkId TFileChunkWriter::GetChunkId() const
 TDataStatistics TFileChunkWriter::GetDataStatistics() const
 {
     return EncodingChunkWriter_->GetDataStatistics();
+}
+
+TCodecStatistics TFileChunkWriter::GetCompressionStatistics() const
+{
+    return EncodingChunkWriter_->GetCompressionStatistics();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
