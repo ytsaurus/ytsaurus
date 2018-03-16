@@ -283,7 +283,7 @@ public:
         return ChunkLocationThrottlerManager_;
     }
 
-    const TCoreDumperPtr& GetCoreDumper() const
+    const ICoreDumperPtr& GetCoreDumper() const
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -1265,7 +1265,7 @@ const TThrottlerManagerPtr& TControllerAgent::GetChunkLocationThrottlerManager()
     return Impl_->GetChunkLocationThrottlerManager();
 }
 
-const TCoreDumperPtr& TControllerAgent::GetCoreDumper() const
+const ICoreDumperPtr& TControllerAgent::GetCoreDumper() const
 {
     return Impl_->GetCoreDumper();
 }

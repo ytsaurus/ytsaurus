@@ -37,7 +37,7 @@ public:
     IInvokerPtr GetControlInvoker() const;
     const NControllerAgent::TControllerAgentPtr& GetControllerAgent() const;
     const NNodeTrackerClient::TNodeDirectoryPtr& GetNodeDirectory() const;
-    const TCoreDumperPtr& GetCoreDumper() const;
+    const ICoreDumperPtr& GetCoreDumper() const;
 
     void Run();
 
@@ -58,7 +58,7 @@ public:
     TControllerAgentPtr ControllerAgent_;
     NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory_;
     NNodeTrackerClient::TNodeDirectorySynchronizerPtr NodeDirectorySynchronizer_;
-    TCoreDumperPtr CoreDumper_;
+    ICoreDumperPtr CoreDumper_;
 
     void DoRun();
 };

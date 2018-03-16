@@ -23,7 +23,7 @@ class TAdminService
 public:
     TAdminService(
         IInvokerPtr invoker,
-        TCoreDumperPtr coreDumper)
+        ICoreDumperPtr coreDumper)
         : TServiceBase(
             std::move(invoker),
             TAdminServiceProxy::GetDescriptor(),
@@ -35,7 +35,7 @@ public:
     }
 
 private:
-    const TCoreDumperPtr CoreDumper_;
+    const ICoreDumperPtr CoreDumper_;
 
     void ValidateRoot(const TStringBuf& user)
     {
@@ -73,7 +73,7 @@ private:
 
 IServicePtr CreateAdminService(
     IInvokerPtr invoker,
-    TCoreDumperPtr coreDumper)
+    ICoreDumperPtr coreDumper)
 {
     return New<TAdminService>(std::move(invoker), std::move(coreDumper));
 }

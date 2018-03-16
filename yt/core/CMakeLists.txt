@@ -43,7 +43,6 @@ target_link_libraries(yt-core
 )
 
 if(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
-  target_link_libraries(yt-core deps-yt-contrib-coredumper)
   target_link_libraries(yt-core deps-yt-contrib-portoapi)
 endif()
 

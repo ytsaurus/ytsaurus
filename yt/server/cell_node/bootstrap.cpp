@@ -86,6 +86,8 @@
 #include <yt/ytlib/node_tracker_client/node_directory.h>
 #include <yt/ytlib/node_tracker_client/node_directory_synchronizer.h>
 
+#include <yt/ytlib/core_dump/core_dumper.h>
+
 #include <yt/core/bus/config.h>
 #include <yt/core/bus/server.h>
 #include <yt/core/bus/tcp_server.h>
@@ -302,7 +304,7 @@ void TBootstrap::DoRun()
     MasterConnector->SubscribeMasterDisconnected(BIND(&TBootstrap::OnMasterDisconnected, this));
 
     if (Config->CoreDumper) {
-        CoreDumper = New<TCoreDumper>(Config->CoreDumper);
+        CoreDumper = NCoreDump::CreateCoreDumper(Config->CoreDumper);
     }
 
     ChunkStore = New<NDataNode::TChunkStore>(Config->DataNode, this);

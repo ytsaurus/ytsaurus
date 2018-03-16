@@ -1,6 +1,6 @@
 #include "helpers.h"
 
-#include <yt/ytlib/core_dump/core_info.pb.h>
+#include <yt/ytlib/core_dump/proto/core_info.pb.h>
 
 #include <yt/core/ytree/fluent.h>
 

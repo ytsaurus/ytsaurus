@@ -32,7 +32,7 @@ class TSafeAssertionsGuard
 public:
     TSafeAssertionsGuard() = default;
     TSafeAssertionsGuard(
-        TCoreDumperPtr coreDumper,
+        ICoreDumperPtr coreDumper,
         NConcurrency::TAsyncSemaphorePtr coreSemaphore,
         std::vector<TString> coreNotes = {});
     ~TSafeAssertionsGuard();
@@ -52,13 +52,13 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 void PushSafeAssertionsFrame(
-    TCoreDumperPtr coreDumper,
+    ICoreDumperPtr coreDumper,
     NConcurrency::TAsyncSemaphorePtr coreSemaphore,
     std::vector<TString> coreNotes);
 
 bool SafeAssertionsModeEnabled();
 
-TCoreDumperPtr GetSafeAssertionsCoreDumper();
+ICoreDumperPtr GetSafeAssertionsCoreDumper();
 
 NConcurrency::TAsyncSemaphorePtr GetSafeAssertionsCoreSemaphore();
 

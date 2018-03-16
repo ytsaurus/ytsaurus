@@ -63,7 +63,7 @@ public:
     virtual const NChunkClient::TThrottlerManagerPtr& GetChunkLocationThrottlerManager() override;
     virtual const IInvokerPtr& GetControllerThreadPoolInvoker() override;
     virtual const NEventLog::TEventLogWriterPtr& GetEventLogWriter() override;
-    virtual const TCoreDumperPtr& GetCoreDumper() override;
+    virtual const ICoreDumperPtr& GetCoreDumper() override;
     virtual const NConcurrency::TAsyncSemaphorePtr& GetCoreSemaphore() override;
     virtual const NConcurrency::IThroughputThrottlerPtr& GetJobSpecSliceThrottler() override;
 

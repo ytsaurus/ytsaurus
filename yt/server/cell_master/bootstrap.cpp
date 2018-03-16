@@ -79,6 +79,8 @@
 
 #include <yt/ytlib/object_client/helpers.h>
 
+#include <yt/ytlib/core_dump/core_dumper.h>
+
 #include <yt/core/bus/config.h>
 #include <yt/core/bus/server.h>
 #include <yt/core/bus/tcp_server.h>
@@ -446,7 +448,7 @@ void TBootstrap::DoInitialize()
     Config_->MonitoringServer->BindRetryBackoff = Config_->BusServer->BindRetryBackoff;
 
     if (Config_->CoreDumper) {
-        CoreDumper_ = New<TCoreDumper>(Config_->CoreDumper);
+        CoreDumper_ = NCoreDump::CreateCoreDumper(Config_->CoreDumper);
     }
 
     auto busServer = CreateTcpBusServer(Config_->BusServer);

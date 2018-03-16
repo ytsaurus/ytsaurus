@@ -21,7 +21,7 @@ TAssertionFailedException::TAssertionFailedException(
 
 struct TSafeAssertionsFrame
 {
-    TCoreDumperPtr CoreDumper;
+    ICoreDumperPtr CoreDumper;
     TAsyncSemaphorePtr CoreSemaphore;
     std::vector<TString> CoreNotes;
 };
@@ -30,7 +30,7 @@ struct TSafeAssertionsFrame
 //! `CoreDumper` and `CoreSemaphore` are taken from the last frame, the resulting `CoreNotes` is
 //! a union of `CoreNotes` for all frames.
 //! If the vector is empty, safe assertions mode is disabled.
-typedef std::vector<TSafeAssertionsFrame> TSafeAssertionsContext;
+using TSafeAssertionsContext = std::vector<TSafeAssertionsFrame>;
 
 TSafeAssertionsContext& SafeAssertionsContext()
 {
@@ -41,7 +41,7 @@ TSafeAssertionsContext& SafeAssertionsContext()
 ////////////////////////////////////////////////////////////////////////////////
 
 TSafeAssertionsGuard::TSafeAssertionsGuard(
-    TCoreDumperPtr coreDumper,
+    ICoreDumperPtr coreDumper,
     TAsyncSemaphorePtr coreSemaphore,
     std::vector<TString> coreNotes)
 {
@@ -83,7 +83,10 @@ void TSafeAssertionsGuard::Release()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void PushSafeAssertionsFrame(TCoreDumperPtr coreDumper, TAsyncSemaphorePtr coreSemaphore, std::vector<TString> coreNotes)
+void PushSafeAssertionsFrame(
+    ICoreDumperPtr coreDumper,
+    TAsyncSemaphorePtr coreSemaphore,
+    std::vector<TString> coreNotes)
 {
     SafeAssertionsContext().emplace_back(
         TSafeAssertionsFrame{std::move(coreDumper), std::move(coreSemaphore), std::move(coreNotes)});
@@ -94,7 +97,7 @@ bool SafeAssertionsModeEnabled()
     return !SafeAssertionsContext().empty();
 }
 
-TCoreDumperPtr GetSafeAssertionsCoreDumper()
+ICoreDumperPtr GetSafeAssertionsCoreDumper()
 {
     return SafeAssertionsContext().back().CoreDumper;
 }

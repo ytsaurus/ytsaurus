@@ -212,7 +212,7 @@ struct IOperationControllerHost
     virtual const NChunkClient::TThrottlerManagerPtr& GetChunkLocationThrottlerManager() = 0;
     virtual const IInvokerPtr& GetControllerThreadPoolInvoker() = 0;
     virtual const NEventLog::TEventLogWriterPtr& GetEventLogWriter() = 0;
-    virtual const TCoreDumperPtr& GetCoreDumper() = 0;
+    virtual const ICoreDumperPtr& GetCoreDumper() = 0;
     virtual const NConcurrency::TAsyncSemaphorePtr& GetCoreSemaphore() = 0;
     virtual const NConcurrency::IThroughputThrottlerPtr& GetJobSpecSliceThrottler() = 0;
 
