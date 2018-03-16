@@ -161,8 +161,6 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/profiling/resource_tracker.cpp
   ${CMAKE_CURRENT_LIST_DIR}/profiling/timing.cpp
 
-  ${CMAKE_CURRENT_LIST_DIR}/re2/re2.cpp
-
   ${CMAKE_CURRENT_LIST_DIR}/rpc/balancing_channel.cpp
   ${CMAKE_CURRENT_LIST_DIR}/rpc/caching_channel_factory.cpp
   ${CMAKE_CURRENT_LIST_DIR}/rpc/channel_detail.cpp
