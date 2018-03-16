@@ -3,6 +3,7 @@ add_subdirectory(rpc/grpc)
 add_subdirectory(rpc/http)
 add_subdirectory(crypto)
 add_subdirectory(re2)
+add_subdirectory(skiff)
 
 include(Sources.txt)
 
