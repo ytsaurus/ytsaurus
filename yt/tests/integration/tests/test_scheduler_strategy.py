@@ -1909,14 +1909,12 @@ class TestSchedulingTagFilterOnPerPoolTreeConfiguration(YTEnvSetup):
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
 
-    DELTA_CONTROLLER_AGENT_CONFIG = {
-        "controller_agent": {
-            "operation_options": {
-                "spec_template": {
-                    "scheduling_options_per_pool_tree": {
-                        "default": {"scheduling_tag_filter": "default_tag"},
-                        "custom_pool_tree": {"scheduling_tag_filter": "runnable_tag"}
-                    }
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "spec_template": {
+                "scheduling_options_per_pool_tree": {
+                    "default": {"scheduling_tag_filter": "default_tag"},
+                    "custom_pool_tree": {"scheduling_tag_filter": "runnable_tag"}
                 }
             }
         }

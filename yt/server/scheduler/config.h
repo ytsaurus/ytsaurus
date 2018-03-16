@@ -284,6 +284,8 @@ public:
     
     NEventLog::TEventLogConfigPtr EventLog;
 
+    NYTree::IMapNodePtr SpecTemplate;
+
     TSchedulerConfig();
 };
 
