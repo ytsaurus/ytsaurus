@@ -1,16 +1,12 @@
-#include "skiff_schema_match.h"
+#include "schema_match.h"
 
-#include "config.h"
-
-#include <yt/core/misc/error.h>
 #include <yt/core/ytree/node.h>
 #include <yt/core/ytree/serialize.h>
+#include <yt/core/ytree/yson_serializable.h>
 
 namespace NYT {
-namespace NFormats {
+namespace NSkiff {
 
-using namespace NTableClient;
-using namespace NSkiff;
 using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -28,12 +24,10 @@ static const TSkiffSchemaPtr OptionalInt64 = CreateVariant8Schema({
 static bool IsOptionalInt64(TSkiffSchemaPtr skiffSchema);
 static bool IsSkiffSpecialColumn(TStringBuf columnName);
 static TSkiffTableDescription CreateTableDescription(const NSkiff::TSkiffSchemaPtr& skiffSchema);
-static void MatchSkiffColumnSchema(const TColumnSchema& tableSchema, NSkiff::TSkiffSchemaPtr skiffSchema);
-static void MatchSkiffDenseColumnSchema(const TColumnSchema& tableSchema, NSkiff::TSkiffSchemaPtr skiffSchema);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static bool ThrowInvalidSkiffTypeError(const TString& columnName, TSkiffSchemaPtr expectedType, TSkiffSchemaPtr actualType)
+static void ThrowInvalidSkiffTypeError(const TString& columnName, TSkiffSchemaPtr expectedType, TSkiffSchemaPtr actualType)
 {
     THROW_ERROR_EXCEPTION("Column %Qv has unexpected Skiff type: expected %Qv, found type %Qv",
         columnName,
@@ -58,16 +52,17 @@ static bool IsOptionalInt64(TSkiffSchemaPtr skiffSchema)
     return true;
 }
 
-static bool IsSkiffSpecialColumn(TStringBuf columnName)
+static bool IsSkiffSpecialColumn(
+    TStringBuf columnName,
+    const TString& rangeIndexColumnName,
+    const TString& rowIndexColumnName)
 {
     static const yhash_set<TString> specialColumns = {
         KeySwitchColumnName,
         OtherColumnsName,
-        SparseColumnsName,
-        RangeIndexColumnName,
-        RowIndexColumnName,
+        SparseColumnsName
     };
-    return specialColumns.has(columnName);
+    return specialColumns.has(columnName) || columnName == rangeIndexColumnName || columnName == rowIndexColumnName;
 }
 
 static std::pair<TSkiffSchemaPtr, bool> DeoptionalizeSchema(TSkiffSchemaPtr skiffSchema)
@@ -109,7 +104,10 @@ static void ValidateColumnSchema(const TString& columnName, TSkiffSchemaPtr skif
     }
 }
 
-static TSkiffTableDescription CreateTableDescription(const NSkiff::TSkiffSchemaPtr& skiffSchema)
+static TSkiffTableDescription CreateTableDescription(
+    const NSkiff::TSkiffSchemaPtr& skiffSchema,
+    const TString& rangeIndexColumnName,
+    const TString& rowIndexColumnName)
 {
     TSkiffTableDescription result;
     yhash_set<TString> topLevelNames;;
@@ -174,7 +172,7 @@ static TSkiffTableDescription CreateTableDescription(const NSkiff::TSkiffSchemaP
                     child);
             }
             result.KeySwitchFieldIndex = i;
-        } else if (childName == RowIndexColumnName) {
+        } else if (childName == rowIndexColumnName) {
             if (!IsOptionalInt64(child)) {
                 ThrowInvalidSkiffTypeError(
                     childName,
@@ -182,7 +180,7 @@ static TSkiffTableDescription CreateTableDescription(const NSkiff::TSkiffSchemaP
                     child);
             }
             result.RowIndexFieldIndex = i;
-        } else if (childName == RangeIndexColumnName) {
+        } else if (childName == rangeIndexColumnName) {
             if (!IsOptionalInt64(child)) {
                 ThrowInvalidSkiffTypeError(
                     childName,
@@ -206,7 +204,7 @@ static TSkiffTableDescription CreateTableDescription(const NSkiff::TSkiffSchemaP
                 THROW_ERROR_EXCEPTION("Children of %Qv must have nonempty name",
                     SparseColumnsName);
             }
-            if (IsSkiffSpecialColumn(name)) {
+            if (IsSkiffSpecialColumn(name, rangeIndexColumnName, rowIndexColumnName)) {
                 THROW_ERROR_EXCEPTION("Skiff special column %Qv cannot be a child of %Qv",
                     name,
                     SparseColumnsName);
@@ -225,11 +223,17 @@ static TSkiffTableDescription CreateTableDescription(const NSkiff::TSkiffSchemaP
     return result;
 }
 
-std::vector<TSkiffTableDescription> CreateTableDescriptionList(const std::vector<NSkiff::TSkiffSchemaPtr>& skiffSchemas)
+std::vector<TSkiffTableDescription> CreateTableDescriptionList(
+    const std::vector<NSkiff::TSkiffSchemaPtr>& skiffSchemas,
+    const TString& rangeIndexColumnName,
+    const TString& rowIndexColumnName)
 {
     std::vector<TSkiffTableDescription> result;
-    for (const auto& schema : skiffSchemas) {
-        result.emplace_back(CreateTableDescription(schema));
+    for (ui16 index = 0; index < skiffSchemas.size(); ++index) {
+        result.emplace_back(CreateTableDescription(
+            skiffSchemas[index],
+            rangeIndexColumnName,
+            rowIndexColumnName));
     }
     return result;
 }
@@ -338,12 +342,13 @@ NSkiff::TSkiffSchemaPtr ParseSchema(
     }
 }
 
-std::vector<NSkiff::TSkiffSchemaPtr> ParseSkiffSchemas(const TSkiffFormatConfigPtr& config)
+std::vector<NSkiff::TSkiffSchemaPtr> ParseSkiffSchemas(
+    const NYTree::IMapNodePtr& skiffSchemaRegistry,
+    const NYTree::IListNodePtr& tableSkiffSchemas)
 {
     yhash<TString, TSkiffSchemaPtr> parsedRegistry;
-    auto skiffSchemaRegistry = config->SkiffSchemaRegistry;
     std::vector<NSkiff::TSkiffSchemaPtr> result;
-    for (const auto& node : config->TableSkiffSchemas->GetChildren()) {
+    for (const auto& node : tableSkiffSchemas->GetChildren()) {
         yhash_set<TString> parseInProgressNames;
         auto skiffSchema = ParseSchema(node, skiffSchemaRegistry, &parsedRegistry, &parseInProgressNames);
         result.push_back(skiffSchema);
@@ -369,5 +374,5 @@ TSparseFieldDescription::TSparseFieldDescription(TString name, const NSkiff::TSk
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NFormats
+} // namespace NSkiff
 } // namespace NYT

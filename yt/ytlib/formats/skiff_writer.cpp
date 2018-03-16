@@ -1,8 +1,6 @@
 #include "skiff_writer.h"
 #include "config.h"
 
-#include "skiff_schema_match.h"
-
 #include "schemaless_writer_adapter.h"
 
 #include <yt/ytlib/table_client/name_table.h>
@@ -13,6 +11,8 @@
 
 #include <yt/core/skiff/skiff.h>
 #include <yt/core/skiff/skiff_schema.h>
+
+#include <yt/core/skiff/schema_match.h>
 
 #include <yt/core/yson/writer.h>
 
@@ -175,7 +175,7 @@ public:
         auto streamSchema = CreateVariant16Schema(tableSkiffSchemas);
         SkiffWriter_.Emplace(streamSchema, GetOutputStream());
 
-        auto tableDescriptionList = CreateTableDescriptionList(tableSkiffSchemas);
+        auto tableDescriptionList = CreateTableDescriptionList(tableSkiffSchemas, RangeIndexColumnName, RowIndexColumnName);
         for (const auto& commonTableDescription : tableDescriptionList) {
             TableDescriptionList_.emplace_back();
             auto& writerTableDescription = TableDescriptionList_.back();
@@ -316,7 +316,7 @@ private:
                 const auto& value = row[valueIndex];
 
                 const auto columnId = value.Id;
-                static const TSkiffEncodingInfo unknownField;
+                static const TSkiffEncodingInfo unknownField = TSkiffEncodingInfo();
                 const auto& encodingInfo = columnId < knownFields.size() ? knownFields[columnId] : unknownField;
                 switch (encodingInfo.EncodingPart) {
                     case ESkiffWriterColumnType::Dense:
@@ -528,7 +528,7 @@ ISchemalessFormatWriterPtr CreateSchemalessWriterForSkiff(
     int keyColumnCount)
 {
     auto config = NYTree::ConvertTo<TSkiffFormatConfigPtr>(attributes);
-    auto skiffSchemas = ParseSkiffSchemas(config);
+    auto skiffSchemas = ParseSkiffSchemas(config->SkiffSchemaRegistry, config->TableSkiffSchemas);
     return CreateSchemalessWriterForSkiff(
         skiffSchemas,
         nameTable,

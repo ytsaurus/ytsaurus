@@ -1,6 +1,7 @@
 add_subdirectory(codegen)
 add_subdirectory(grpc)
 add_subdirectory(crypto)
+add_subdirectory(skiff)
 
 include(Sources.txt)
 
