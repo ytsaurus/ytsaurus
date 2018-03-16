@@ -6,7 +6,7 @@ import pytest
 import yatest.common
 from mapreduce.yt.python.yt_stuff import yt_stuff
 
-BINARY_PATH = yatest.common.binary_path("mapreduce/yt/tests/job_on_exit_function/job_on_exit_function")
+BINARY_PATH = yatest.common.binary_path("mapreduce/yt/tests/native/job_on_exit_function/job_on_exit_function")
 
 def test(yt_stuff):
     # We save stderr of our test to file, so it's easy to find it on sandbox.
