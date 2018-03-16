@@ -1,9 +1,7 @@
 import yt.yson as yson
 from yt_driver_bindings import Driver, Request
 import yt_driver_bindings
-from yt.common import YtError, YtResponseError, flatten, update
-
-import __builtin__
+from yt.common import YtError, YtResponseError, flatten, update_inplace
 
 import copy as pycopy
 import os, stat
@@ -96,8 +94,7 @@ def prepare_path(path):
     if isinstance(path, yson.YsonString):
         attributes = path.attributes
     result = yson.loads(execute_command("parse_ypath", parameters={"path": path}, verbose=False))
-    # TODO(ignat): use update_inplace
-    result.attributes = update(result.attributes, attributes)
+    update_inplace(result.attributes, attributes)
     return result
 
 def prepare_paths(paths):
