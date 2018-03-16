@@ -113,10 +113,15 @@ class YtTestEnvironment(object):
                 update_inplace(config, common_delta_scheduler_config)
                 if delta_scheduler_config:
                     update_inplace(config, delta_scheduler_config)
-            for config in configs["controller_agent"]:
-                update_inplace(config, common_delta_controller_agent_config)
-                if delta_controller_agent_config:
-                    update_inplace(config, delta_controller_agent_config)
+                if configs.get("controller_agent") is None:
+                    update_inplace(config["scheduler"], common_delta_controller_agent_config["controller_agent"])
+
+            if configs.get("controller_agent") is not None:
+                for config in configs["controller_agent"]:
+                    update_inplace(config, common_delta_controller_agent_config)
+                    if delta_controller_agent_config:
+                        update_inplace(config, delta_controller_agent_config)
+
             for config in configs["node"]:
                 update_inplace(config, common_delta_node_config)
                 if delta_node_config:
