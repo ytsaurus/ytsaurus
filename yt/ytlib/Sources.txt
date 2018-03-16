@@ -171,6 +171,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/hive/cell_directory_synchronizer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/hive/timestamp_map.cpp
 
+  ${CMAKE_CURRENT_LIST_DIR}/hydra/config.cpp
   ${CMAKE_CURRENT_LIST_DIR}/hydra/hydra_manager.proto
   ${CMAKE_CURRENT_LIST_DIR}/hydra/hydra_service.proto
   ${CMAKE_CURRENT_LIST_DIR}/hydra/peer_channel.cpp
