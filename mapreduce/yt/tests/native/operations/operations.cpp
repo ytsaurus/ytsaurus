@@ -967,6 +967,48 @@ SIMPLE_UNIT_TEST_SUITE(Operations)
                 new TIdMapper());
         }
     }
+
+    SIMPLE_UNIT_TEST(LockConflictWhileTouchingCachedFiles)
+    {
+        auto client = CreateTestClient();
+        client->Create("//testing/file_storage", NT_MAP);
+
+        CreateTableWithFooColumn(client, "//testing/input");
+
+        { // Load files to cache
+            client->Map(
+                TMapOperationSpec()
+                    .AddInput<TNode>("//testing/input")
+                    .AddOutput<TNode>("//testing/output_1"),
+                new TIdMapper(),
+                TOperationOptions()
+                    .FileStorage("//testing/file_storage"));
+        }
+
+        auto tx1 = client->StartTransaction();
+        { // Now operation will touch files using tx1
+            client->Map(
+                TMapOperationSpec()
+                    .AddInput<TNode>("//testing/input")
+                    .AddOutput<TNode>("//testing/output_1"),
+                new TIdMapper(),
+                TOperationOptions()
+                    .FileStorage("//testing/file_storage")
+                    .FileStorageTransactionId(tx1->GetId()));
+        }
+
+        auto tx2 = client->StartTransaction();
+        { // Second operation will touch files using tx2, but they are still holded by tx1
+            client->Map(
+                TMapOperationSpec()
+                    .AddInput<TNode>("//testing/input")
+                    .AddOutput<TNode>("//testing/output_1"),
+                new TIdMapper(),
+                TOperationOptions()
+                    .FileStorage("//testing/file_storage")
+                    .FileStorageTransactionId(tx2->GetId()));
+        }
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
