@@ -29,6 +29,8 @@
 
 #include <yt/ytlib/security_client/public.h>
 
+#include <yt/ytlib/core_dump/core_dumper.h>
+
 #include <yt/core/bus/config.h>
 #include <yt/core/bus/server.h>
 #include <yt/core/bus/tcp_server.h>
@@ -153,7 +155,7 @@ void TBootstrap::DoRun()
         SchedulerProfiler);
 
     if (Config_->CoreDumper) {
-        CoreDumper_ = New<TCoreDumper>(Config_->CoreDumper);
+        CoreDumper_ = NCoreDump::CreateCoreDumper(Config_->CoreDumper);
     }
 
     MonitoringManager_ = New<TMonitoringManager>();
@@ -254,7 +256,7 @@ const TResponseKeeperPtr& TBootstrap::GetResponseKeeper() const
     return ResponseKeeper_;
 }
 
-const TCoreDumperPtr& TBootstrap::GetCoreDumper() const
+const ICoreDumperPtr& TBootstrap::GetCoreDumper() const
 {
     return CoreDumper_;
 }

@@ -13,7 +13,7 @@ namespace NAdmin {
 
 NRpc::IServicePtr CreateAdminService(
     IInvokerPtr invoker,
-    TCoreDumperPtr coreDumper);
+    ICoreDumperPtr coreDumper);
 
 ////////////////////////////////////////////////////////////////////////////////
 

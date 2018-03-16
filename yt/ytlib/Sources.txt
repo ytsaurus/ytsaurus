@@ -94,8 +94,11 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/medium_directory.proto
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/medium_directory.cpp
 
-  ${CMAKE_CURRENT_LIST_DIR}/core_dump/core_info.proto
+  ${CMAKE_CURRENT_LIST_DIR}/core_dump/proto/core_info.proto
+
   ${CMAKE_CURRENT_LIST_DIR}/core_dump/helpers.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/core_dump/core_dumper.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/core_dump/private.cpp
 
   ${CMAKE_CURRENT_LIST_DIR}/event_log/config.cpp
   ${CMAKE_CURRENT_LIST_DIR}/event_log/event_log.cpp

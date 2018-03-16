@@ -70,7 +70,7 @@ public:
     /*!
      *  \note Thread affinity: any
      */
-    const TCoreDumperPtr& GetCoreDumper() const;
+    const ICoreDumperPtr& GetCoreDumper() const;
 
     /*!
      *  \note Thread affinity: any

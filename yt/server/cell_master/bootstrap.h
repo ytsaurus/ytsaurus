@@ -135,7 +135,7 @@ private:
     NHiveClient::TCellDirectoryPtr CellDirectory_;
     NHiveServer::TCellDirectorySynchronizerPtr CellDirectorySynchronizer_;
     NConcurrency::TActionQueuePtr ControlQueue_;
-    TCoreDumperPtr CoreDumper_;
+    ICoreDumperPtr CoreDumper_;
 
     NNodeTrackerClient::INodeChannelFactoryPtr NodeChannelFactory_;
 

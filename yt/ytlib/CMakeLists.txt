@@ -24,3 +24,7 @@ target_link_libraries(yt-library-client
   yt-core-crypto
   yt-core-skiff
 )
+
+if(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
+    target_link_libraries(yt-library-client deps-yt-contrib-coredumper)
+endif()

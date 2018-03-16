@@ -1,23 +1,18 @@
 #pragma once
 
-#include "public.h"
+#include <yt/core/logging/log.h>
 
-#include <yt/core/yson/public.h>
-
-#include <yt/core/misc/core_dumper.h>
+#include <yt/core/misc/public.h>
 
 namespace NYT {
 namespace NCoreDump {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace NProto {
-
-void Serialize(const TCoreInfo& coreInfo, NYson::IYsonConsumer* consumer);
-
-} // namespace NProto
+extern const NLogging::TLogger CoreDumpLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NCoreDump
 } // namespace NYT
+

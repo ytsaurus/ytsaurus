@@ -37,7 +37,7 @@ public:
     const TSchedulerPtr& GetScheduler() const;
     const TControllerAgentTrackerPtr& GetControllerAgentTracker() const;
     const NRpc::TResponseKeeperPtr& GetResponseKeeper() const;
-    const TCoreDumperPtr& GetCoreDumper() const;
+    const ICoreDumperPtr& GetCoreDumper() const;
 
     void Run();
 
@@ -57,7 +57,7 @@ public:
     TSchedulerPtr Scheduler_;
     TControllerAgentTrackerPtr ControllerAgentTracker_;
     NRpc::TResponseKeeperPtr ResponseKeeper_;
-    TCoreDumperPtr CoreDumper_;
+    ICoreDumperPtr CoreDumper_;
 
     void DoRun();
 };

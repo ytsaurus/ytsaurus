@@ -29,6 +29,8 @@
 #include <yt/ytlib/node_tracker_client/node_directory.h>
 #include <yt/ytlib/node_tracker_client/node_directory_synchronizer.h>
 
+#include <yt/ytlib/core_dump/core_dumper.h>
+
 #include <yt/core/bus/config.h>
 #include <yt/core/bus/server.h>
 #include <yt/core/bus/tcp_server.h>
@@ -137,7 +139,7 @@ void TBootstrap::DoRun()
     ControllerAgent_ = New<TControllerAgent>(Config_->ControllerAgent, this);
 
     if (Config_->CoreDumper) {
-        CoreDumper_ = New<TCoreDumper>(Config_->CoreDumper);
+        CoreDumper_ = NCoreDump::CreateCoreDumper(Config_->CoreDumper);
     }
 
     MonitoringManager_ = New<TMonitoringManager>();
@@ -235,7 +237,7 @@ const TNodeDirectoryPtr& TBootstrap::GetNodeDirectory() const
     return NodeDirectory_;
 }
 
-const TCoreDumperPtr& TBootstrap::GetCoreDumper() const
+const ICoreDumperPtr& TBootstrap::GetCoreDumper() const
 {
     return CoreDumper_;
 }

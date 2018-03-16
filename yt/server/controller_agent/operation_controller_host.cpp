@@ -167,7 +167,7 @@ const NEventLog::TEventLogWriterPtr& TOperationControllerHost::GetEventLogWriter
     return Bootstrap_->GetControllerAgent()->GetEventLogWriter();
 }
 
-const TCoreDumperPtr& TOperationControllerHost::GetCoreDumper()
+const ICoreDumperPtr& TOperationControllerHost::GetCoreDumper()
 {
     return Bootstrap_->GetControllerAgent()->GetCoreDumper();
 }

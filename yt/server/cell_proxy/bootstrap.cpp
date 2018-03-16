@@ -23,6 +23,8 @@
 
 #include <yt/ytlib/orchid/orchid_service.h>
 
+#include <yt/ytlib/core_dump/core_dumper.h>
+
 #include <yt/core/bus/config.h>
 #include <yt/core/bus/server.h>
 #include <yt/core/bus/tcp_server.h>
@@ -125,7 +127,7 @@ void TBootstrap::DoRun()
         Config_->MonitoringServer);
 
     if (Config_->CoreDumper) {
-        CoreDumper_ = New<TCoreDumper>(Config_->CoreDumper);
+        CoreDumper_ = NCoreDump::CreateCoreDumper(Config_->CoreDumper);
     }
 
     MonitoringManager_ = New<TMonitoringManager>();
