@@ -91,7 +91,11 @@ private:
             .SetPresent(!isForeign));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::LocalRequisition)
             .SetPresent(!isForeign));
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::LocalRequisitionIndex)
+            .SetPresent(!isForeign));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ExternalRequisitions)
+            .SetPresent(!isForeign));
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ExternalRequisitionIndexes)
             .SetPresent(!isForeign));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ReplicationStatus)
             .SetPresent(!isForeign));
@@ -318,6 +322,10 @@ private:
 
             case EInternedAttributeKey::Vital:
             case EInternedAttributeKey::Media: {
+                if (isForeign) {
+                    break;
+                }
+
                 auto replication = chunk->ComputeReplication(chunkManager->GetChunkRequisitionRegistry());
                 if (!replication) {
                     replication = TChunkReplication();
@@ -334,6 +342,10 @@ private:
             }
 
             case EInternedAttributeKey::Requisition: {
+                if (isForeign) {
+                    break;
+                }
+
                 auto requisition = chunk->ComputeRequisition(chunkManager->GetChunkRequisitionRegistry());
                 BuildYsonFluently(consumer)
                     .Value(TSerializableChunkRequisition(requisition, chunkManager));
@@ -341,6 +353,10 @@ private:
             }
 
             case EInternedAttributeKey::LocalRequisition: {
+                if (isForeign) {
+                    break;
+                }
+
                 const auto* requisitionRegistry = chunkManager->GetChunkRequisitionRegistry();
                 const auto& requisition = requisitionRegistry->GetRequisition(chunk->GetLocalRequisitionIndex());
                 BuildYsonFluently(consumer)
@@ -348,7 +364,21 @@ private:
                 return true;
             }
 
+            case EInternedAttributeKey::LocalRequisitionIndex: {
+                if (isForeign) {
+                    break;
+                }
+
+                BuildYsonFluently(consumer)
+                    .Value(chunk->GetLocalRequisitionIndex());
+                return true;
+            }
+
             case EInternedAttributeKey::ExternalRequisitions: {
+                if (isForeign) {
+                    break;
+                }
+
                 const auto* requisitionRegistry = chunkManager->GetChunkRequisitionRegistry();
                 const auto& cellTags = multicellManager->GetRegisteredMasterCellTags();
                 BuildYsonFluently(consumer)
@@ -360,6 +390,24 @@ private:
                             const auto& requisition = requisitionRegistry->GetRequisition(requisitionIndex);
                             fluent
                                 .Item(ToString(cellTag)).Value(TSerializableChunkRequisition(requisition, chunkManager));
+                        }
+                    });
+                return true;
+            }
+
+            case EInternedAttributeKey::ExternalRequisitionIndexes: {
+                if (isForeign) {
+                    break;
+                }
+
+                const auto& cellTags = multicellManager->GetRegisteredMasterCellTags();
+                BuildYsonFluently(consumer)
+                    .DoMapFor(0, static_cast<int>(cellTags.size()), [&] (TFluentMap fluent, int index) {
+                        auto cellTag = cellTags[index];
+                        const auto& exportData = chunk->GetExportData(index);
+                        if (exportData.RefCounter > 0) {
+                            fluent
+                                .Item(ToString(cellTag)).Value(exportData.ChunkRequisitionIndex);
                         }
                     });
                 return true;
