@@ -637,7 +637,7 @@ print(op.id)
             time.sleep(2.5)
             assert op.get_state() == "running"
             op.resume()
-            op.wait(timeout=10)
+            op.wait(timeout=20 * 1000)
             assert op.get_state() == "completed"
         finally:
             if op.get_state() not in ["completed", "failed", "aborted"]:
