@@ -369,6 +369,7 @@ class TestDynamicTables(TestDynamicTablesBase):
         assert exists("//sys/tablet_cells/{0}/snapshots".format(id))
 
     def test_tablet_cell_journal_acl(self):
+        create_user("u")
         acl = [make_ace("allow", "u", "read")]
         create_tablet_cell_bundle("b", attributes={
             "options": {"snapshot_acl" : acl, "changelog_acl": acl}})
