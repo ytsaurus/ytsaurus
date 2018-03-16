@@ -13,7 +13,7 @@
 #include <yt/core/misc/singleton.h>
 #include <yt/core/misc/shutdown.h>
 
-#include <yt/core/rpc/bus_channel.h>
+#include <yt/core/rpc/bus/channel.h>
 
 #include <util/network/init.h>
 
@@ -66,7 +66,7 @@ public:
 
         if (Config_->Address) {
             Endpoint_ = GetLocalEndpoint();
-            Channel_ = CreateBusChannelFactory(Config_->BusClient)->CreateChannel(*Config_->Address);
+            Channel_ = NRpc::NBus::CreateBusChannelFactory(Config_->BusClient)->CreateChannel(*Config_->Address);
 
             SendExecutor_ = New<TPeriodicExecutor>(
                 InvokerQueue_,

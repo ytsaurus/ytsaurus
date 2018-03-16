@@ -20,7 +20,7 @@
 #include <yt/core/misc/fs.h>
 #include <yt/core/misc/process.h>
 
-#include <yt/core/rpc/bus_server.h>
+#include <yt/core/rpc/bus/server.h>
 #include <yt/core/rpc/server.h>
 
 #include <yt/core/tools/tools.h>
@@ -54,7 +54,7 @@ namespace NYT {
 namespace NJobProxy {
 
 using namespace NRpc;
-using namespace NBus;
+using namespace NYT::NBus;
 using namespace NConcurrency;
 using namespace NShell;
 using namespace NTools;
@@ -489,7 +489,7 @@ void TJobSatellite::Run()
 {
     JobProxyControl_ = CreateUserJobSynchronizerClient(SatelliteConnectionConfig_->JobProxyRpcClientConfig);
 
-    RpcServer_ = CreateBusServer(CreateTcpBusServer(SatelliteConnectionConfig_->SatelliteRpcServerConfig));
+    RpcServer_ = NRpc::NBus::CreateBusServer(CreateTcpBusServer(SatelliteConnectionConfig_->SatelliteRpcServerConfig));
 
     auto jobSatelliteService = New<TJobSatelliteWorker>(
         RootPid_,

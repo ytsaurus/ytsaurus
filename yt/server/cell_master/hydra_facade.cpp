@@ -43,7 +43,7 @@
 
 #include <yt/core/misc/fs.h>
 
-#include <yt/core/rpc/bus_channel.h>
+#include <yt/core/rpc/bus/channel.h>
 #include <yt/core/rpc/response_keeper.h>
 #include <yt/core/rpc/server.h>
 

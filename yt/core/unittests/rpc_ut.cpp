@@ -11,8 +11,11 @@
 
 #include <yt/core/misc/error.h>
 
-#include <yt/core/rpc/bus_channel.h>
-#include <yt/core/rpc/bus_server.h>
+#include <yt/core/bus/public.h>
+
+#include <yt/core/rpc/bus/channel.h>
+#include <yt/core/rpc/bus/server.h>
+
 #include <yt/core/rpc/client.h>
 #include <yt/core/rpc/server.h>
 #include <yt/core/rpc/service_detail.h>
@@ -28,7 +31,8 @@ namespace NYT {
 namespace NRpc {
 namespace {
 
-using namespace NBus;
+using namespace NYT::NBus;
+using namespace NYT::NRpc::NBus;
 using namespace NConcurrency;
 
 static const TString DefaultAddress = "localhost:2000";
@@ -284,7 +288,7 @@ public:
     static IServerPtr CreateServer()
     {
         auto busServer = MakeBusServer();
-        return CreateBusServer(busServer);
+        return NRpc::NBus::CreateBusServer(busServer);
     }
 
     static IChannelPtr CreateChannel(const TString& address)
@@ -306,7 +310,7 @@ public:
     static IChannelPtr CreateChannel(const TString& address)
     {
         auto client = CreateTcpBusClient(TTcpBusClientConfig::CreateTcp(address));
-        return CreateBusChannel(client);
+        return NRpc::NBus::CreateBusChannel(client);
     }
 
     static IBusServerPtr MakeBusServer()
@@ -521,7 +525,7 @@ public:
         auto clientConfig = TTcpBusClientConfig::CreateUnixDomain(
             address == DefaultAddress ? "unix_domain" : address);
         auto client = CreateTcpBusClient(clientConfig);
-        return CreateBusChannel(client);
+        return NRpc::NBus::CreateBusChannel(client);
     }
 };
 

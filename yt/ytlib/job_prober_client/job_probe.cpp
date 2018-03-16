@@ -5,7 +5,7 @@
 
 #include <yt/core/concurrency/scheduler.h>
 
-#include <yt/core/rpc/bus_channel.h>
+#include <yt/core/rpc/bus/channel.h>
 
 #include <yt/ytlib/job_tracker_client/public.h>
 
@@ -123,7 +123,7 @@ private:
     {
         if (!JobProberProxy_) {
             auto client = CreateTcpBusClient(TcpBusClientConfig_);
-            auto channel = NRpc::CreateBusChannel(std::move(client));
+            auto channel = NRpc::NBus::CreateBusChannel(std::move(client));
             JobProberProxy_.Emplace(std::move(channel));
         }
     }

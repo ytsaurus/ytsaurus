@@ -14,7 +14,7 @@
 #include <yt/core/concurrency/action_queue.h>
 #include <yt/core/concurrency/periodic_executor.h>
 
-#include <yt/core/rpc/bus_channel.h>
+#include <yt/core/rpc/bus/channel.h>
 #include <yt/core/rpc/roaming_channel.h>
 
 namespace NYT {
@@ -33,7 +33,7 @@ using namespace NConcurrency;
 TConnection::TConnection(TConnectionConfigPtr config)
     : Config_(std::move(config))
     , ActionQueue_(New<TActionQueue>("RpcProxyConn"))
-    , ChannelFactory_(CreateBusChannelFactory(Config_->BusClient))
+    , ChannelFactory_(NRpc::NBus::CreateBusChannelFactory(Config_->BusClient))
     , Logger(NLogging::TLogger(RpcProxyClientLogger)
         .AddTag("ConnectionId: %v", TGuid::Create()))
     , UpdateProxyListExecutor_(New<TPeriodicExecutor>(

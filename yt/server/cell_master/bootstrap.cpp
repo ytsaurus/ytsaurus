@@ -94,9 +94,9 @@
 #include <yt/core/profiling/profile_manager.h>
 
 #include <yt/core/rpc/caching_channel_factory.h>
-#include <yt/core/rpc/bus_channel.h>
+#include <yt/core/rpc/bus/channel.h>
 #include <yt/core/rpc/local_channel.h>
-#include <yt/core/rpc/bus_server.h>
+#include <yt/core/rpc/bus/server.h>
 #include <yt/core/rpc/server.h>
 
 #include <yt/core/ytree/ephemeral_node_factory.h>
@@ -424,7 +424,7 @@ void TBootstrap::DoInitialize()
             localPeerId);
     }
 
-    auto channelFactory = CreateCachingChannelFactory(CreateBusChannelFactory(Config_->BusClient));
+    auto channelFactory = CreateCachingChannelFactory(NRpc::NBus::CreateBusChannelFactory(Config_->BusClient));
 
     const auto& networks = Config_->Networks;
 
@@ -451,7 +451,7 @@ void TBootstrap::DoInitialize()
 
     auto busServer = CreateTcpBusServer(Config_->BusServer);
 
-    RpcServer_ = CreateBusServer(busServer);
+    RpcServer_ = NRpc::NBus::CreateBusServer(busServer);
 
     LocalRpcChannel_ = CreateRealmChannel(
         CreateLocalChannel(RpcServer_),
