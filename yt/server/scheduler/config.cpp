@@ -287,6 +287,9 @@ TSchedulerConfig::TSchedulerConfig()
     RegisterParameter("event_log", EventLog)
         .DefaultNew();
 
+    RegisterParameter("spec_template", SpecTemplate)
+        .Default();
+
     RegisterPreprocessor([&] () {
         EventLog->MaxRowWeight = 128_MB;
         if (!EventLog->Path) {

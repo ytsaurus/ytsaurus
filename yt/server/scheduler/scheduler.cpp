@@ -538,6 +538,10 @@ public:
                 Config_->MaxOperationCount);
         }
 
+        if (Config_->SpecTemplate) {
+            specNode = PatchNode(Config_->SpecTemplate, specNode)->AsMap();
+        }
+
         TOperationSpecBasePtr spec;
         try {
             spec = ConvertTo<TOperationSpecBasePtr>(specNode);
