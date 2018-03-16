@@ -470,8 +470,16 @@ private:
                     if (linkAttrs["type"] == "link" &&
                         (!linkAttrs.HasKey("broken") || !linkAttrs["broken"].AsBool()))
                     {
-                        NYT::NDetail::Set(Auth_, Options_.FileStorageTransactionId_, symlinkPath + "/@touched", "true");
-                        NYT::NDetail::Set(Auth_, Options_.FileStorageTransactionId_, symlinkPath + "&/@touched", "true");
+                        try {
+                            NYT::NDetail::Set(Auth_, Options_.FileStorageTransactionId_, symlinkPath + "&/@touched", "true");
+                            NYT::NDetail::Set(Auth_, Options_.FileStorageTransactionId_, symlinkPath + "/@touched", "true");
+                        } catch (const TErrorResponse& e) {
+                            if (!e.IsConcurrentTransactionLockConflict()) {
+                                // We might have lock conflict if FileStorageTransactionId is used,
+                                // ignore this error, other transaction is probably touched file.
+                                throw;
+                            }
+                        }
                         return symlinkPath;
                     } else {
                         NYT::NDetail::Remove(Auth_, Options_.FileStorageTransactionId_, symlinkPath + "&",
