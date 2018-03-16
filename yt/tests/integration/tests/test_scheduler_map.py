@@ -192,14 +192,15 @@ class TestSchedulerMapCommands(YTEnvSetup):
         assert row_count == 1
 
     def test_compression_statistics(self):
-        create("table", "//tmp/t1")
-        create("table", "//tmp/t2")
-        write_table("//tmp/t1", [{"key": i} for i in xrange(100000)])  # so much is needed to see non-zero codec cpu usage
+        create("table", "//tmp/t1", attributes={"compression_codec": "lzma_9"})
+        create("table", "//tmp/t2", attributes={"compression_codec": "lzma_9"})
+        write_table("//tmp/t1", {"key": 1})
 
         op = map(command="cat", in_="//tmp/t1", out="//tmp/t2")
-        op.track()
-        decode_time = get("//sys/operations/{0}/@progress/job_statistics/codec/cpu/decode/Lz4/$/completed/map/sum".format(op.id))
+        decode_time = get("//sys/operations/{0}/@progress/job_statistics/codec/cpu/decode/lzma_9/$/completed/map/sum".format(op.id))
+        encode_time = get("//sys/operations/{0}/@progress/job_statistics/codec/cpu/encode/0/lzma_9/$/completed/map/sum".format(op.id))
         assert decode_time > 0
+        assert encode_time > 0
 
     @unix_only
     def test_sorted_output(self):

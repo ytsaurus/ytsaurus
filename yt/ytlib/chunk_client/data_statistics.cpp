@@ -153,7 +153,12 @@ TString ToString(const TDataStatistics& statistics)
 
 } // namespace NProto
 
-TCodecStatistics& TCodecStatistics::Append(TCodecTime codecTime)
+TCodecStatistics& TCodecStatistics::Append(const TCodecDuration& codecTime)
+{
+    return Append(std::make_pair(codecTime.Codec, codecTime.CpuDuration));
+}
+
+TCodecStatistics& TCodecStatistics::Append(const std::pair<NCompression::ECodec, TDuration>& codecTime)
 {
     auto it = map.find(codecTime.first);
     if (it == map.end()) {
@@ -172,10 +177,11 @@ TCodecStatistics& TCodecStatistics::operator+=(const TCodecStatistics& other)
     return *this;
 }
 
-void TCodecStatistics::DumpTo(NJobTrackerClient::TStatistics *statistics, const TString& prefix) const
+void TCodecStatistics::DumpTo(NJobTrackerClient::TStatistics *statistics, const TString& path) const
 {
     for (const auto& pair : map) {
-        statistics->AddSample(prefix + TEnumTraits<NCompression::ECodec>::ToString(pair.first), pair.second);
+        TString codecStr = to_lower(TEnumTraits<NCompression::ECodec>::ToString(pair.first));
+        statistics->AddSample(path + '/' + codecStr, pair.second);
     }
 }
 

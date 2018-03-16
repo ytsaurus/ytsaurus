@@ -77,7 +77,7 @@ public:
     i64 GetCompressedDataSize() const;
 
     //! Returns codec and cpu time spent in compression.
-    TCodecTime GetDecompressionTime() const;
+    TCodecDuration GetDecompressionTime() const;
 
 private:
     std::atomic<i64> UncompressedDataSize_ = {0};

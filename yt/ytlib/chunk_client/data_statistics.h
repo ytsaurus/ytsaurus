@@ -31,19 +31,25 @@ TString ToString(const TDataStatistics& statistics);
 
 } // namespace NProto
 
-using TCodecTime = std::pair<NCompression::ECodec, TDuration>;
+struct TCodecDuration
+{
+    NCompression::ECodec Codec;
+    TDuration CpuDuration;
+};
 
 class TCodecStatistics
 {
 public:
-    TCodecStatistics& Append(TCodecTime codecTime);
+    TCodecStatistics& Append(const TCodecDuration& codecTime);
 
     TCodecStatistics& operator+=(const TCodecStatistics& other);
 
-    void DumpTo(NJobTrackerClient::TStatistics *statistics, const TString& prefix) const;
+    void DumpTo(NJobTrackerClient::TStatistics *statistics, const TString& path) const;
 
 private:
     THashMap<NCompression::ECodec, TDuration> map;
+
+    TCodecStatistics& Append(const std::pair<NCompression::ECodec, TDuration>& codecTime);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

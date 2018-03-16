@@ -939,14 +939,13 @@ IConnectionReaderPtr PrepareOutputPipe(
         }
 
         if (const auto& codecStatistics = UserJobReadController_->GetDecompressionStatistics()) {
-            codecStatistics->DumpTo(&statistics, "/codec/cpu/decode/");
+            codecStatistics->DumpTo(&statistics, "/codec/cpu/decode");
         }
 
         int i = 0;
         for (const auto& writer : UserJobWriteController_->GetWriters()) {
-            statistics.AddSample(
-                "/data/output/" + NYPath::ToYPathLiteral(i),
-                writer->GetDataStatistics());
+            statistics.AddSample("/data/output/" + ToString(i), writer->GetDataStatistics());
+            writer->GetCompressionStatistics().DumpTo(&statistics, "/codec/cpu/encode/" + ToString(i));
             ++i;
         }
 

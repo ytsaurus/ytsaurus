@@ -50,7 +50,7 @@ struct SchemafulReaderMock
 
     virtual NChunkClient::TCodecStatistics GetDecompressionStatistics() const override
     {
-        Y_UNIMPLEMENTED();
+        return NChunkClient::TCodecStatistics();
     }
 };
 

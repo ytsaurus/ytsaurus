@@ -274,7 +274,7 @@ private:
 
             NProfiling::TCpuTimer timer;
             auto uncompressedBlock = codec->Decompress(compressedBlock.Data);
-            DecompressionStatistics.Append(std::make_pair(codecId, timer.GetElapsedTime()));
+            DecompressionStatistics.Append(TCodecDuration{codecId, timer.GetElapsedTime()});
 
             if (codecId != NCompression::ECodec::None) {
                 blockCache->Put(blockId, EBlockType::UncompressedData, TBlock(uncompressedBlock), Null);
