@@ -1,10 +1,11 @@
-#include "bus_channel.h"
-#include "private.h"
-#include "client.h"
-#include "dispatcher.h"
-#include "message.h"
+#include "channel.h"
 
 #include <yt/core/actions/future.h>
+
+#include <yt/core/rpc/client.h>
+#include <yt/core/rpc/dispatcher.h>
+#include <yt/core/rpc/message.h>
+#include <yt/core/rpc/private.h>
 
 #include <yt/core/bus/bus.h>
 #include <yt/core/bus/config.h>
@@ -26,8 +27,9 @@
 
 namespace NYT {
 namespace NRpc {
+namespace NBus {
 
-using namespace NBus;
+using namespace NYT::NBus;
 using namespace NYPath;
 using namespace NYTree;
 using namespace NYson;
@@ -916,5 +918,6 @@ IChannelFactoryPtr CreateBusChannelFactory(TTcpBusConfigPtr config)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NBus
 } // namespace NRpc
 } // namespace NYT

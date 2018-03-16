@@ -46,10 +46,10 @@
 #include <yt/core/misc/proc.h>
 #include <yt/core/misc/ref_counted_tracker.h>
 
-#include <yt/core/rpc/bus_channel.h>
+#include <yt/core/rpc/bus/channel.h>
 #include <yt/core/rpc/helpers.h>
 #include <yt/core/rpc/server.h>
-#include <yt/core/rpc/bus_server.h>
+#include <yt/core/rpc/bus/server.h>
 
 #include <yt/core/ytree/public.h>
 
@@ -433,12 +433,12 @@ TJobResult TJobProxy::DoRun()
         TrafficMeter_ = New<TTrafficMeter>(LocalDescriptor_.GetDataCenter());
         TrafficMeter_->Start();
 
-        RpcServer_ = CreateBusServer(CreateTcpBusServer(Config_->BusServer));
+        RpcServer_ = NRpc::NBus::CreateBusServer(CreateTcpBusServer(Config_->BusServer));
         RpcServer_->RegisterService(CreateJobProberService(this));
         RpcServer_->Start();
 
         auto supervisorClient = CreateTcpBusClient(Config_->SupervisorConnection);
-        auto supervisorChannel = CreateBusChannel(supervisorClient);
+        auto supervisorChannel = NRpc::NBus::CreateBusChannel(supervisorClient);
 
         SupervisorProxy_.reset(new TSupervisorServiceProxy(supervisorChannel));
         SupervisorProxy_->SetDefaultTimeout(Config_->SupervisorRpcTimeout);

@@ -4,13 +4,13 @@
 
 #include <yt/core/rpc/service_detail.h>
 #include <yt/core/bus/tcp_client.h>
-#include <yt/core/rpc/bus_channel.h>
+#include <yt/core/rpc/bus/channel.h>
 
 namespace NYT {
 namespace NJobProxy {
 
 using namespace NRpc;
-using namespace NBus;
+using namespace NYT::NBus;
 using namespace NConcurrency;
 using namespace NYson;
 using namespace NYTree;
@@ -77,10 +77,10 @@ class TUserJobSynchronizerClient
     : public IUserJobSynchronizerClient
 {
 public:
-    explicit TUserJobSynchronizerClient(NBus::TTcpBusClientConfigPtr config)
+    explicit TUserJobSynchronizerClient(TTcpBusClientConfigPtr config)
     {
         auto client = CreateTcpBusClient(config);
-        auto channel = NRpc::CreateBusChannel(std::move(client));
+        auto channel = NRpc::NBus::CreateBusChannel(std::move(client));
         ControlServiceProxy_.reset(new TUserJobSynchronizerServiceProxy(channel));
     }
 
@@ -121,7 +121,7 @@ NRpc::IServicePtr CreateUserJobSynchronizerService(
     return New<TUserJobSynchronizerService>(logger, jobControl, controlInvoker);
 }
 
-IUserJobSynchronizerClientPtr CreateUserJobSynchronizerClient(NBus::TTcpBusClientConfigPtr config)
+IUserJobSynchronizerClientPtr CreateUserJobSynchronizerClient(TTcpBusClientConfigPtr config)
 {
     return New<TUserJobSynchronizerClient>(config);
 }

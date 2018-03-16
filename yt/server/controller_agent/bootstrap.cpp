@@ -47,8 +47,8 @@
 
 #include <yt/core/profiling/profile_manager.h>
 
-#include <yt/core/rpc/bus_channel.h>
-#include <yt/core/rpc/bus_server.h>
+#include <yt/core/rpc/bus/channel.h>
+#include <yt/core/rpc/bus/server.h>
 #include <yt/core/rpc/server.h>
 
 #include <yt/core/ytree/virtual.h>
@@ -119,7 +119,7 @@ void TBootstrap::DoRun()
 
     BusServer_ = CreateTcpBusServer(Config_->BusServer);
 
-    RpcServer_ = CreateBusServer(BusServer_);
+    RpcServer_ = NRpc::NBus::CreateBusServer(BusServer_);
 
     Config_->MonitoringServer->Port = Config_->MonitoringPort;
     Config_->MonitoringServer->BindRetryCount = Config_->BusServer->BindRetryCount;

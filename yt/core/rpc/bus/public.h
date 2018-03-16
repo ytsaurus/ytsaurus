@@ -1,17 +1,15 @@
 #pragma once
 
-#include "public.h"
-
-#include <yt/core/bus/public.h>
+#include <yt/core/rpc/public.h>
 
 namespace NYT {
 namespace NRpc {
+namespace NBus {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IServerPtr CreateBusServer(NBus::IBusServerPtr busServer);
-
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NBus
 } // namespace NRpc
 } // namespace NYT
