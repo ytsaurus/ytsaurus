@@ -81,6 +81,10 @@ public:
         , ReplicaId_(replicaInfo->GetId())
         , ClusterName_(replicaInfo->GetClusterName())
         , ReplicaPath_(replicaInfo->GetReplicaPath())
+        , Logger(NLogging::TLogger(TabletNodeLogger)
+            .AddTag("TabletId: %v, ReplicaId: %v",
+                TabletId_,
+                ReplicaId_))
         , MountConfigUpdateExecutor_(New<TPeriodicExecutor>(
             Slot_->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Read),
             BIND(&TImpl::OnUpdateMountConfig, MakeWeak(this)),
@@ -89,10 +93,6 @@ public:
             tablet->GetConfig()->ReplicationThrottler,
             Logger,
             replicaInfo->GetReplicatorProfiler()))
-        , Logger(NLogging::TLogger(TabletNodeLogger)
-            .AddTag("TabletId: %v, ReplicaId: %v",
-                TabletId_,
-                ReplicaId_))
     {
         MountConfigUpdateExecutor_->Start();
     }
@@ -132,10 +132,10 @@ private:
     const TString ClusterName_;
     const TYPath ReplicaPath_;
 
+    const NLogging::TLogger Logger;
+
     const TPeriodicExecutorPtr MountConfigUpdateExecutor_;
     const IReconfigurableThroughputThrottlerPtr Throttler_;
-
-    const NLogging::TLogger Logger;
 
     TFuture<void> FiberFuture_;
 
