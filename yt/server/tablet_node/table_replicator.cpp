@@ -84,15 +84,14 @@ public:
             Slot_->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Read),
             BIND(&TImpl::OnUpdateMountConfig, MakeWeak(this)),
             MountConfigUpdatePeriod))
+        , Throttler_(CreateReconfigurableThroughputThrottler(
+            tablet->GetConfig()->ReplicationThrottler,
+            Logger,
+            replicaInfo->GetReplicatorProfiler()))
         , Logger(NLogging::TLogger(TabletNodeLogger)
             .AddTag("TabletId: %v, ReplicaId: %v",
                 TabletId_,
                 ReplicaId_))
-        , Throttler_(
-            CreateReconfigurableThroughputThrottler(
-                tablet->GetConfig()->ReplicationThrottler,
-                Logger,
-                replicaInfo->GetReplicatorProfiler()))
     {
         MountConfigUpdateExecutor_->Start();
     }
@@ -132,9 +131,9 @@ private:
     const TYPath ReplicaPath_;
 
     const TPeriodicExecutorPtr MountConfigUpdateExecutor_;
-    const NLogging::TLogger Logger;
+    const IReconfigurableThroughputThrottlerPtr Throttler_;
 
-    IReconfigurableThroughputThrottlerPtr Throttler_;
+    const NLogging::TLogger Logger;
 
     TFuture<void> FiberFuture_;
 
@@ -173,7 +172,7 @@ private:
         }
     }
 
-    bool KeepDataProcessing(i64 dataWeight)
+    bool CheckThrottler(i64 dataWeight)
     {
         Throttler_->Acquire(dataWeight);
         if (Throttler_->IsOverdraft()) {
@@ -213,7 +212,7 @@ private:
             }
 
             if (Throttler_->IsOverdraft()) {
-                LOG_DEBUG("Bandwidth limit is reached, skipping iteration (TotalCount: %v)",
+                LOG_DEBUG("Bandwidth limit reached; skipping iteration (TotalCount: %v)",
                     Throttler_->GetQueueTotalCount());
                 return;
             }
@@ -499,6 +498,27 @@ private:
         // This default only makes sence if the batch turns out to be empty.
         auto prevTimestamp = replicaSnapshot->RuntimeData->CurrentReplicationTimestamp.load();
 
+        // Throttling control.
+        i64 dataWeightToAcquire = 0;
+        auto flushThrottler = [&] {
+            Throttler_->Acquire(dataWeightToAcquire);
+            dataWeightToAcquire = 0;
+        };
+        auto acquireThrottler = [&] (i64 dataWeight) {
+            dataWeightToAcquire += dataWeight;
+            if (dataWeightToAcquire >= 64_KB) {
+                flushThrottler();
+            }
+        };
+        auto isThrottlerOverdraft = [&] {
+            if (!Throttler_->IsOverdraft()) {
+                return false;
+            }
+            LOG_DEBUG("Bandwidth limit reached; interrupting batch (QueueTotalCount: %v)",
+                Throttler_->GetQueueTotalCount());
+            return true;
+        };
+
         bool tooMuch = false;
         while (!tooMuch) {
             if (!reader->Read(&readerRows)) {
@@ -517,7 +537,6 @@ private:
                 currentRowIndex,
                 readerRows.size());
 
-            i64 lastDataWeight = dataWeight;
             for (auto row : readerRows) {
                 TVersionedRow replicationRow;
                 i64 rowIndex;
@@ -550,9 +569,9 @@ private:
                 if (timestamp != prevTimestamp) {
                     if (rowCount >= mountConfig->MaxRowsPerReplicationCommit ||
                         dataWeight >= mountConfig->MaxDataWeightPerReplicationCommit ||
-                        timestampCount >= mountConfig->MaxTimestampsPerReplicationCommit)
+                        timestampCount >= mountConfig->MaxTimestampsPerReplicationCommit ||
+                        isThrottlerOverdraft())
                     {
-                        KeepDataProcessing(dataWeight - lastDataWeight);
                         tooMuch = true;
                         break;
                     }
@@ -562,14 +581,17 @@ private:
 
                 ++currentRowIndex;
                 ++rowCount;
-                dataWeight += GetDataWeight(row);
+
+                auto rowDataWeight = GetDataWeight(row);
+                acquireThrottler(rowDataWeight);
+                dataWeight += rowDataWeight;
+
                 replicationRows->push_back(replicationRow);
                 prevTimestamp = timestamp;
             }
-            if (!KeepDataProcessing(dataWeight - lastDataWeight)) {
-                break;
-            }
         }
+
+        flushThrottler();
 
         *newReplicationRowIndex = startRowIndex + rowCount;
         *newReplicationTimestamp = prevTimestamp;
