@@ -457,10 +457,17 @@ public:
 
     void BuildOrchidYson(NYson::IYsonConsumer* consumer)
     {
-        BuildYsonFluently(consumer)
-            .BeginMap()
-                .Item("requisition_registry").Value(TSerializableChunkRequisitionRegistry(Bootstrap_->GetChunkManager()))
-            .EndMap();
+        auto fluent = BuildYsonFluently(consumer);
+        if (DefaultStoreMedium_) { // Builtins are initialized.
+            fluent
+                .BeginMap()
+                    .Item("requisition_registry").Value(TSerializableChunkRequisitionRegistry(Bootstrap_->GetChunkManager()))
+                .EndMap();
+        } else {
+            fluent
+                .BeginMap()
+                .EndMap();
+        }
     }
 
     std::unique_ptr<TMutation> CreateUpdateChunkRequisitionMutation(const NProto::TReqUpdateChunkRequisition& request)
