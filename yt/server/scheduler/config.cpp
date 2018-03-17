@@ -191,6 +191,10 @@ TJobSplitterConfig::TJobSplitterConfig()
     RegisterParameter("max_jobs_per_split", MaxJobsPerSplit)
         .GreaterThan(0)
         .Default(5);
+
+    RegisterParameter("max_input_table_count", MaxInputTableCount)
+        .GreaterThan(0)
+        .Default(100);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -225,6 +229,10 @@ TOperationOptions::TOperationOptions()
     RegisterParameter("max_output_tables_times_jobs_count", MaxOutputTablesTimesJobsCount)
         .Default(20 * 100000)
         .GreaterThanOrEqual(100000);
+
+    RegisterParameter("max_input_table_count", MaxInputTableCount)
+        .Default(3000)
+        .GreaterThan(0);
 
     RegisterParameter("job_splitter", JobSplitter)
         .DefaultNew();
