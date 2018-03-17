@@ -387,7 +387,7 @@ public:
 
     // Only applicable to ordered tablets.
     i64 GetTotalRowCount() const;
-    void SetTotalRowCount(i64 value);
+    void UpdateTotalRowCount();
 
     // Only applicable to ordered tablets.
     i64 GetTrimmedRowCount() const;

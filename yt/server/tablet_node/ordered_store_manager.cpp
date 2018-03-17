@@ -72,14 +72,7 @@ TOrderedStoreManager::TOrderedStoreManager(
 void TOrderedStoreManager::Mount(const std::vector<TAddStoreDescriptor>& storeDescriptors)
 {
     TStoreManagerBase::Mount(storeDescriptors);
-
-    // Compute total row row.
-    if (Tablet_->StoreRowIndexMap().empty()) {
-        Tablet_->SetTotalRowCount(0);
-    } else {
-        auto lastStore = (--Tablet_->StoreRowIndexMap().end())->second;
-        Tablet_->SetTotalRowCount(lastStore->GetStartingRowIndex() + lastStore->GetRowCount());
-    }
+    Tablet_->UpdateTotalRowCount();
 }
 
 bool TOrderedStoreManager::ExecuteWrites(
@@ -109,7 +102,6 @@ TOrderedDynamicRowRef TOrderedStoreManager::WriteRow(
     TWriteContext* context)
 {
     auto dynamicRow = ActiveStore_->WriteRow(row, context);
-    Tablet_->SetTotalRowCount(Tablet_->GetTotalRowCount() + 1);
     return TOrderedDynamicRowRef(
         ActiveStore_.Get(),
         this,
