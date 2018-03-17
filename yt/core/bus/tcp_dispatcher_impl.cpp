@@ -21,7 +21,7 @@ using namespace NNet;
 static const auto& Profiler = BusProfiler;
 
 static constexpr auto XferThreadCount = 8;
-static constexpr auto ProfilingPeriod = TDuration::MilliSeconds(100);
+static constexpr auto ProfilingPeriod = TDuration::Seconds(1);
 
 ////////////////////////////////////////////////////////////////////////////////
 
