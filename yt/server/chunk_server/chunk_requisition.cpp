@@ -569,9 +569,7 @@ void Deserialize(TSerializableChunkRequisition& serializer, NYTree::INodePtr nod
 void TChunkRequisitionRegistry::TIndexedItem::Save(NCellMaster::TSaveContext& context) const
 {
     using NYT::Save;
-    if (context.GetVersion() >= 704) {
-        Save(context, RefCount);
-    } // Else refcounts are recomputed by the chunk manager.
+    Save(context, RefCount);
     Save(context, Requisition);
     // Replication is not persisted as it's restored from Requisition.
 }
@@ -579,7 +577,9 @@ void TChunkRequisitionRegistry::TIndexedItem::Save(NCellMaster::TSaveContext& co
 void TChunkRequisitionRegistry::TIndexedItem::Load(NCellMaster::TLoadContext& context)
 {
     using NYT::Load;
-    Load(context, RefCount);
+    if (context.GetVersion() >= 704) {
+        Load(context, RefCount);
+    } // Else refcounts are recomputed by the chunk manager.
     Load(context, Requisition);
     Replication = Requisition.ToReplication();
 }
@@ -677,6 +677,11 @@ void TChunkRequisitionRegistry::Load(NCellMaster::TLoadContext& context)
     YCHECK(IndexToItem_.has(MigrationChunkRequisitionIndex));
     YCHECK(IndexToItem_.has(MigrationRF2ChunkRequisitionIndex));
     YCHECK(IndexToItem_.has(MigrationErasureChunkRequisitionIndex));
+
+    // COMPAT(shakurov)
+    if (context.GetVersion() < 704) {
+        FakeRefBuiltinRequisitions();
+    }
 
     Load(context, NextIndex_);
 
