@@ -35,6 +35,7 @@ static TProfiler ProfilingProfiler("/profiling", EmptyTagIds, true);
 // TODO(babenko): make configurable
 static const auto MaxKeepInterval = TDuration::Minutes(5);
 static const auto DequeuePeriod = TDuration::MilliSeconds(100);
+static const auto SampleRateLimit = TDuration::MilliSeconds(500);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -54,6 +55,7 @@ public:
         , Root(GetEphemeralNodeFactory(true)->CreateMap())
         , EnqueuedCounter("/enqueued")
         , DequeuedCounter("/dequeued")
+        , DroppedCounter("/dropped")
     {
 #ifdef _linux_
         ResourceTracker = New<TResourceTracker>(GetInvoker());
@@ -177,8 +179,14 @@ private:
         typedef std::pair<TSamplesIterator, TSamplesIterator> TSamplesRange;
 
         //! Adds a new sample to the bucket inserting in at an appropriate position.
-        void AddSample(const TStoredSample& sample)
+        bool AddSample(const TStoredSample& sample)
         {
+            auto& lastTime = LastSampleTime[sample.TagIds];
+            if (lastTime && sample.Time < lastTime + SampleRateLimit) {
+                return false;
+            }
+            lastTime = sample.Time;
+        
             // Samples are ordered by time.
             // Search for an appropriate insertion point starting from the the back,
             // this should usually be fast.
@@ -187,6 +195,7 @@ private:
                 --index;
             }
             Samples.insert(Samples.begin() + index, sample);
+            return true;
         }
 
         //! Removes the oldest samples keeping [minTime,maxTime] interval no larger than #maxKeepInterval.
@@ -223,6 +232,7 @@ private:
 
     private:
         std::deque<TStoredSample> Samples;
+        std::map<TTagIdList, TInstant> LastSampleTime;
 
         virtual bool DoInvoke(const NRpc::IServiceContextPtr& context) override
         {
@@ -328,6 +338,7 @@ private:
     IMapNodePtr Root;
     TSimpleCounter EnqueuedCounter;
     TSimpleCounter DequeuedCounter;
+    TSimpleCounter DroppedCounter;
 
     TMultipleProducerSingleConsumerLockFreeStack<TQueuedSample> SampleQueue;
     THashMap<TYPath, TBucketPtr> PathToBucket;
@@ -398,7 +409,10 @@ private:
         storedSample.TagIds = queuedSample.TagIds;
         storedSample.MetricType = queuedSample.MetricType;
 
-        bucket->AddSample(storedSample);
+        if (!bucket->AddSample(storedSample)) {
+            LOG_DEBUG("Profiling sample dropped (Path: %v)", queuedSample.Path);
+            ProfilingProfiler.Increment(DroppedCounter);
+        }
         bucket->TrimSamples(MaxKeepInterval);
     }
 };
