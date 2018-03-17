@@ -257,7 +257,12 @@ public:
         const auto& objectManager = Bootstrap_->GetObjectManager();
         objectManager->FillAttributes(trunkNode, *attributes);
 
-        cypressManager->LockNode(trunkNode, Transaction_, ELockMode::Exclusive);
+        cypressManager->LockNode(
+            trunkNode,
+            Transaction_,
+            ELockMode::Exclusive,
+            false,
+            true);
 
         if (isExternal) {
             NProto::TReqCreateForeignNode replicationRequest;
@@ -305,7 +310,12 @@ public:
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto* clonedTrunkNode = cypressManager->CloneNode(sourceNode, this, mode);
-        auto* clonedNode = cypressManager->LockNode(clonedTrunkNode, Transaction_, ELockMode::Exclusive);
+        auto* clonedNode = cypressManager->LockNode(
+            clonedTrunkNode,
+            Transaction_,
+            ELockMode::Exclusive,
+            false,
+            true);
 
         // NB: No need to call RegisterCreatedNode since
         // cloning a node involves calling ICypressNodeFactory::InstantiateNode,
@@ -814,7 +824,8 @@ public:
         TCypressNodeBase* trunkNode,
         TTransaction* transaction,
         const TLockRequest& request,
-        bool recursive = false)
+        bool recursive = false,
+        bool dontLockForeign = false)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         Y_ASSERT(trunkNode->IsTrunk());
@@ -845,7 +856,7 @@ public:
         TCypressNodeBase* lockedNode = nullptr;
         for (auto* child : childrenToLock) {
             auto* lock = DoCreateLock(child, transaction, request, true);
-            auto* lockedChild = DoAcquireLock(lock);
+            auto* lockedChild = DoAcquireLock(lock, dontLockForeign);
             if (child == trunkNode) {
                 lockedNode = lockedChild;
             }
@@ -1669,7 +1680,9 @@ private:
             !IsParentTransaction(requestingTransaction, existingTransaction);
     }
 
-    TCypressNodeBase* DoAcquireLock(TLock* lock)
+    TCypressNodeBase* DoAcquireLock(
+        TLock* lock,
+        bool dontLockForeign = false)
     {
         auto* trunkNode = lock->GetTrunkNode();
         auto* transaction = lock->GetTransaction();
@@ -1720,7 +1733,7 @@ private:
                 transaction->GetId());
         }
 
-        if (trunkNode->IsExternal() && Bootstrap_->IsPrimaryMaster() && !transaction->GetSystem()) {
+        if (trunkNode->IsExternal() && Bootstrap_->IsPrimaryMaster() && !dontLockForeign) {
             PostLockForeignNodeRequest(lock);
         }
 
@@ -2551,9 +2564,10 @@ TCypressNodeBase* TCypressManager::LockNode(
     TCypressNodeBase* trunkNode,
     TTransaction* transaction,
     const TLockRequest& request,
-    bool recursive)
+    bool recursive,
+    bool dontLockForeign)
 {
-    return Impl_->LockNode(trunkNode, transaction, request, recursive);
+    return Impl_->LockNode(trunkNode, transaction, request, recursive, dontLockForeign);
 }
 
 TLock* TCypressManager::CreateLock(

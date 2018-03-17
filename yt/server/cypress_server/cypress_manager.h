@@ -125,7 +125,8 @@ public:
         TCypressNodeBase* trunkNode,
         NTransactionServer::TTransaction* transaction,
         const TLockRequest& request,
-        bool recursive = false);
+        bool recursive = false,
+        bool dontLockForeign = false);
 
     TLock* CreateLock(
         TCypressNodeBase* trunkNode,
