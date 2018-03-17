@@ -898,9 +898,14 @@ i64 TTablet::GetTotalRowCount() const
     return RuntimeData_->TotalRowCount;
 }
 
-void TTablet::SetTotalRowCount(i64 value)
+void TTablet::UpdateTotalRowCount()
 {
-    RuntimeData_->TotalRowCount = value;
+    if (StoreRowIndexMap_.empty()) {
+        RuntimeData_->TotalRowCount = 0;
+    } else {
+        auto it = StoreRowIndexMap_.rbegin();
+        RuntimeData_->TotalRowCount = it->first + it->second->GetRowCount();
+    }
 }
 
 i64 TTablet::GetTrimmedRowCount() const
