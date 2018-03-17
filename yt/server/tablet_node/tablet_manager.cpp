@@ -1379,8 +1379,10 @@ private:
                 TWriteContext context;
                 context.Phase = EWritePhase::Commit;
                 context.CommitTimestamp = TimestampFromTransactionId(transactionId);
-                UpdateLastCommitTimestamp(tablet, nullptr, context.CommitTimestamp);
+
                 YCHECK(storeManager->ExecuteWrites(&reader, &context));
+
+                FinishTabletCommit(tablet, nullptr, context.CommitTimestamp);
 
                 LOG_DEBUG_UNLESS(IsRecovery(), "Non-atomic rows committed (TransactionId: %v, TabletId: %v, "
                     "RowCount: %v, WriteRecordSize: %v, Signature: %x)",
@@ -2067,6 +2069,8 @@ private:
 
     void OnTransactionCommitted(TTransaction* transaction) noexcept
     {
+        auto commitTimestamp =  transaction->GetCommitTimestamp();
+
         YCHECK(transaction->PrelockedRows().empty());
         auto& lockedRows = transaction->LockedRows();
         int lockedRowCount = 0;
@@ -2076,7 +2080,7 @@ private:
             }
 
             ++lockedRowCount;
-            UpdateLastCommitTimestamp(rowRef.Store->GetTablet(), transaction, transaction->GetCommitTimestamp());
+            FinishTabletCommit(rowRef.Store->GetTablet(), transaction, commitTimestamp);
             rowRef.StoreManager->CommitRow(transaction, rowRef);
         }
         lockedRows.clear();
@@ -2085,24 +2089,30 @@ private:
         CheckIfImmediateLockedTabletsFullyUnlocked(transaction);
 
         int locklessRowCount = 0;
+        SmallVector<TTablet*, 16> locklessTablets;
         for (const auto& record : transaction->ImmediateLocklessWriteLog()) {
             auto* tablet = FindTablet(record.TabletId);
             if (!tablet) {
                 continue;
             }
 
+            locklessTablets.push_back(tablet);
+
             TWriteContext context;
             context.Phase = EWritePhase::Commit;
             context.Transaction = transaction;
-            context.CommitTimestamp = transaction->GetCommitTimestamp();
+            context.CommitTimestamp = commitTimestamp;
 
             TWireProtocolReader reader(record.Data);
 
-            UpdateLastCommitTimestamp(tablet, transaction, context.CommitTimestamp);
             const auto& storeManager = tablet->GetStoreManager();
             YCHECK(storeManager->ExecuteWrites(&reader, &context));
 
             locklessRowCount += context.RowCount;
+        }
+
+        for (auto* tablet : locklessTablets) {
+            FinishTabletCommit(tablet, transaction, commitTimestamp);
         }
 
         LOG_DEBUG_UNLESS(IsRecovery() || lockedRowCount + locklessRowCount == 0,
@@ -2119,7 +2129,7 @@ private:
                 continue;
             }
 
-            UpdateLastWriteTimestamp(tablet, transaction->GetCommitTimestamp());
+            tablet->UpdateLastWriteTimestamp(commitTimestamp);
 
             if (!writeRecord.SyncReplicaIds.empty()) {
                 syncReplicaTablets.push_back(tablet);
@@ -2139,7 +2149,7 @@ private:
         syncReplicas.erase(std::unique(syncReplicas.begin(), syncReplicas.end()), syncReplicas.end());
         for (auto* replicaInfo : syncReplicas) {
             auto oldCurrentReplicationTimestamp = replicaInfo->GetCurrentReplicationTimestamp();
-            auto newCurrentReplicationTimestamp = std::max(oldCurrentReplicationTimestamp, transaction->GetCommitTimestamp());
+            auto newCurrentReplicationTimestamp = std::max(oldCurrentReplicationTimestamp, commitTimestamp);
             replicaInfo->SetCurrentReplicationTimestamp(newCurrentReplicationTimestamp);
             LOG_DEBUG_UNLESS(IsRecovery(),
                 "Sync replicated rows committed (TransactionId: %v, ReplicaId: %v, CurrentReplicationTimestamp: %llx -> %llx)",
@@ -2195,25 +2205,33 @@ private:
             return;
         }
 
+        auto commitTimestamp = transaction->GetCommitTimestamp();
+
         int rowCount = 0;
+        SmallVector<TTablet*, 16> locklessTablets;
         for (const auto& record : transaction->DelayedLocklessWriteLog()) {
             auto* tablet = FindTablet(record.TabletId);
             if (!tablet) {
                 continue;
             }
 
+            locklessTablets.push_back(tablet);
+
             TWriteContext context;
             context.Phase = EWritePhase::Commit;
             context.Transaction = transaction;
-            context.CommitTimestamp = transaction->GetCommitTimestamp();
+            context.CommitTimestamp = commitTimestamp;
 
             TWireProtocolReader reader(record.Data);
 
-            UpdateLastCommitTimestamp(tablet, transaction, context.CommitTimestamp);
             const auto& storeManager = tablet->GetStoreManager();
             YCHECK(storeManager->ExecuteWrites(&reader, &context));
 
             rowCount += context.RowCount;
+        }
+
+        for (auto* tablet : locklessTablets) {
+            FinishTabletCommit(tablet, transaction, commitTimestamp);
         }
 
         LOG_DEBUG_UNLESS(IsRecovery() || rowCount == 0,
@@ -2302,8 +2320,7 @@ private:
         }
     }
 
-
-    void UpdateLastCommitTimestamp(
+    void FinishTabletCommit(
         TTablet* tablet,
         TTransaction* transaction,
         TTimestamp timestamp)
@@ -2315,14 +2332,12 @@ private:
         {
             YCHECK(tablet->GetUnflushedTimestamp() <= timestamp);
         }
-        tablet->UpdateLastCommitTimestamp(timestamp);
-    }
 
-    void UpdateLastWriteTimestamp(
-        TTablet* tablet,
-        TTimestamp timestamp)
-    {
-        tablet->UpdateLastWriteTimestamp(timestamp);
+        tablet->UpdateLastCommitTimestamp(timestamp);
+
+        if (tablet->IsPhysicallyOrdered()) {
+            tablet->UpdateTotalRowCount();
+        }
     }
 
 
