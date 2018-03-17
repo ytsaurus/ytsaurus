@@ -495,7 +495,9 @@ void TOperationControllerBase::InitializeStructures()
         }
     }
 
-    if (InputTables.size() > Config->MaxInputTableCount) {
+    auto maxInputTableCount = std::min(Config->MaxInputTableCount, Options->MaxInputTableCount);
+
+    if (InputTables.size() > maxInputTableCount) {
         THROW_ERROR_EXCEPTION(
             "Too many input tables: maximum allowed %v, actual %v",
             Config->MaxInputTableCount,

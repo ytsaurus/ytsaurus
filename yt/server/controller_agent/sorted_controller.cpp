@@ -512,7 +512,11 @@ protected:
 
     virtual TJobSplitterConfigPtr GetJobSplitterConfig() const override
     {
-        return IsJobInterruptible() && Config->EnableJobSplitting && Spec_->EnableJobSplitting
+        return
+            IsJobInterruptible() &&
+            Config->EnableJobSplitting &&
+            Spec_->EnableJobSplitting &&
+             InputTables.size() <= Options_->JobSplitter->MaxInputTableCount
             ? Options_->JobSplitter
             : nullptr;
     }
