@@ -22,8 +22,7 @@ public:
     TValue Get(const TKey& key)
     {
         auto future = TExpiringCache<TKey, TValue>::Get(key);
-        YCHECK(future.IsSet());
-        return future.Get().ValueOrThrow();
+        return NConcurrency::WaitFor(future).ValueOrThrow();
     }
 
 protected:
