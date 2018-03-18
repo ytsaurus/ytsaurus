@@ -1,8 +1,11 @@
 import pytest
-import sys
 
 from yt_env_setup import YTEnvSetup, unix_only, patch_porto_env_only
 from yt_commands import *
+
+from flaky import flaky
+
+import sys
 
 
 ##################################################################
@@ -141,6 +144,8 @@ class TestMemoryReserveFactor(YTEnvSetup):
         }
     }
 
+    # TODO: remove after fix of YT-8597.
+    @flaky(max_runs=5)
     @unix_only
     def test_memory_reserve_factor(self):
         job_count = 30
