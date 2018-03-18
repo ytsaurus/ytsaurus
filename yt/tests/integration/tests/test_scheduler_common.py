@@ -909,8 +909,6 @@ class TestSchedulerCommon(YTEnvSetup):
         with pytest.raises(YtError):
             map(in_="//tmp/t1", out="//tmp/t2", command="cat", spec={"attribute": "really_large" * (2 * 10 ** 6)}, verbose=False)
 
-    # NB(psushin): remove flaky flag from 19.2 and further.
-    @flaky(max_runs=5)
     def test_job_with_exit_immediately_flag(self):
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")
