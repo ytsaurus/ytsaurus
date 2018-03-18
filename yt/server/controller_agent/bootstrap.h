@@ -41,8 +41,7 @@ public:
 
     void Run();
 
-    // XXX(babenko): finish separation
-//private:
+private:
     const TControllerAgentBootstrapConfigPtr Config_;
     const NYTree::INodePtr ConfigNode_;
 

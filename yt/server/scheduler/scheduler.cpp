@@ -1836,7 +1836,7 @@ private:
         ValidateOperationState(operation, EOperationState::Starting);
 
         try {
-            // XXX(babenko): now we only validate this on start but not during revival
+            // NB(babenko): now we only validate this on start but not during revival
             Strategy_->ValidateOperationCanBeRegistered(operation.Get());
 
             WaitFor(MasterConnector_->CreateOperationNode(operation))
