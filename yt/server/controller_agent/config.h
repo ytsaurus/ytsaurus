@@ -119,6 +119,7 @@ public:
     TDuration MedianExcessDuration;
     double CandidatePercentile;
     int MaxJobsPerSplit;
+    int MaxInputTableCount;
 
     TJobSplitterConfig();
 };
@@ -174,6 +175,8 @@ public:
 
     i64 MaxSliceDataWeight;
     i64 MinSliceDataWeight;
+
+    int MaxInputTableCount;
 
     //! Maximum number of output tables times job count an operation can have.
     int MaxOutputTablesTimesJobsCount;

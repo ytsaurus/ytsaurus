@@ -92,6 +92,10 @@ TJobSplitterConfig::TJobSplitterConfig()
     RegisterParameter("max_jobs_per_split", MaxJobsPerSplit)
         .GreaterThan(0)
         .Default(5);
+
+    RegisterParameter("max_input_table_count", MaxInputTableCount)
+        .GreaterThan(0)
+        .Default(100);
 }
 
 TSuspiciousJobsOptions::TSuspiciousJobsOptions()
@@ -135,6 +139,10 @@ TOperationOptions::TOperationOptions()
     RegisterParameter("min_slice_data_weight", MinSliceDataWeight)
         .Alias("min_slice_data_size")
         .Default(1_MB)
+        .GreaterThan(0);
+
+    RegisterParameter("max_input_table_count", MaxInputTableCount)
+        .Default(3000)
         .GreaterThan(0);
 
     RegisterParameter("max_output_tables_times_jobs_count", MaxOutputTablesTimesJobsCount)
