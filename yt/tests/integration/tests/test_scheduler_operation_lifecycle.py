@@ -437,12 +437,9 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
 
         create("map_node", "//sys/pools/some_pool")
         op1 = map(command="sleep 1000; cat", in_="//tmp/t_in", out="//tmp/t_out_1", spec={"pool": "some_pool"}, dont_track=True)
+        wait(lambda: op1.get_job_count("running") == 1)
         op2 = map(command="sleep 1000; cat", in_="//tmp/t_in", out="//tmp/t_out_2", spec={"pool": "some_pool"}, dont_track=True)
-
-        time.sleep(1.0)
-
-        assert op1.get_state() == "running"
-        assert op2.get_state() == "running"
+        wait(lambda: op2.get_state() == "running")
 
         get_slot_index = lambda op_id: \
             get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/slot_index".format(op_id))
@@ -452,32 +449,32 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
 
         range_ = (49999, 50000, 50001)
 
-        assert self._get_operation_last_metric_value("fair_share_ratio_x100000", "some_pool", 0) in range_
-        assert self._get_operation_last_metric_value("usage_ratio_x100000", "some_pool", 0) == 100000
-        assert self._get_operation_last_metric_value("demand_ratio_x100000", "some_pool", 0) == 100000
-        assert self._get_operation_last_metric_value("guaranteed_resource_ratio_x100000", "some_pool", 0) in range_
-        assert self._get_operation_last_metric_value("resource_usage/cpu", "some_pool", 0) == 1
-        assert self._get_operation_last_metric_value("resource_usage/user_slots", "some_pool", 0) == 1
-        assert self._get_operation_last_metric_value("resource_demand/cpu", "some_pool", 0) == 1
-        assert self._get_operation_last_metric_value("resource_demand/user_slots", "some_pool", 0) == 1
+        wait(lambda: self._get_operation_last_metric_value("fair_share_ratio_x100000", "some_pool", 0) in range_)
+        wait(lambda: self._get_operation_last_metric_value("usage_ratio_x100000", "some_pool", 0) == 100000)
+        wait(lambda: self._get_operation_last_metric_value("demand_ratio_x100000", "some_pool", 0) == 100000)
+        wait(lambda: self._get_operation_last_metric_value("guaranteed_resource_ratio_x100000", "some_pool", 0) in range_)
+        wait(lambda: self._get_operation_last_metric_value("resource_usage/cpu", "some_pool", 0) == 1)
+        wait(lambda: self._get_operation_last_metric_value("resource_usage/user_slots", "some_pool", 0) == 1)
+        wait(lambda: self._get_operation_last_metric_value("resource_demand/cpu", "some_pool", 0) == 1)
+        wait(lambda: self._get_operation_last_metric_value("resource_demand/user_slots", "some_pool", 0) == 1)
 
-        assert self._get_operation_last_metric_value("fair_share_ratio_x100000", "some_pool", 1) in range_
-        assert self._get_operation_last_metric_value("usage_ratio_x100000", "some_pool", 1) == 0
-        assert self._get_operation_last_metric_value("demand_ratio_x100000", "some_pool", 1) == 100000
-        assert self._get_operation_last_metric_value("guaranteed_resource_ratio_x100000", "some_pool", 1) in range_
-        assert self._get_operation_last_metric_value("resource_usage/cpu", "some_pool", 1) == 0
-        assert self._get_operation_last_metric_value("resource_usage/user_slots", "some_pool", 1) == 0
-        assert self._get_operation_last_metric_value("resource_demand/cpu", "some_pool", 1) == 1
-        assert self._get_operation_last_metric_value("resource_demand/user_slots", "some_pool", 1) == 1
+        wait(lambda: self._get_operation_last_metric_value("fair_share_ratio_x100000", "some_pool", 1) in range_)
+        wait(lambda: self._get_operation_last_metric_value("usage_ratio_x100000", "some_pool", 1) == 0)
+        wait(lambda: self._get_operation_last_metric_value("demand_ratio_x100000", "some_pool", 1) == 100000)
+        wait(lambda: self._get_operation_last_metric_value("guaranteed_resource_ratio_x100000", "some_pool", 1) in range_)
+        wait(lambda: self._get_operation_last_metric_value("resource_usage/cpu", "some_pool", 1) == 0)
+        wait(lambda: self._get_operation_last_metric_value("resource_usage/user_slots", "some_pool", 1) == 0)
+        wait(lambda: self._get_operation_last_metric_value("resource_demand/cpu", "some_pool", 1) == 1)
+        wait(lambda: self._get_operation_last_metric_value("resource_demand/user_slots", "some_pool", 1) == 1)
 
         op1.abort()
 
         time.sleep(2.0)
 
-        assert self._get_operation_last_metric_value("fair_share_ratio_x100000", "some_pool", 1) == 100000
-        assert self._get_operation_last_metric_value("usage_ratio_x100000", "some_pool", 1) == 100000
-        assert self._get_operation_last_metric_value("demand_ratio_x100000", "some_pool", 1) == 100000
-        assert self._get_operation_last_metric_value("guaranteed_resource_ratio_x100000", "some_pool", 1) == 100000
+        wait(lambda: self._get_operation_last_metric_value("fair_share_ratio_x100000", "some_pool", 1) == 100000)
+        wait(lambda: self._get_operation_last_metric_value("usage_ratio_x100000", "some_pool", 1) == 100000)
+        wait(lambda: self._get_operation_last_metric_value("demand_ratio_x100000", "some_pool", 1) == 100000)
+        wait(lambda: self._get_operation_last_metric_value("guaranteed_resource_ratio_x100000", "some_pool", 1) == 100000)
 
     def test_suspend_resume(self):
         self._create_table("//tmp/t_in")
