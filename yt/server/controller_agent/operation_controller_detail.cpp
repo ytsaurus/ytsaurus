@@ -3373,8 +3373,7 @@ void TOperationControllerBase::OnOperationFailed(const TError& error, bool flush
 
 void TOperationControllerBase::OnOperationAborted(const TError& error)
 {
-    // XXX(babenko): cancelable controller invoker?
-    VERIFY_THREAD_AFFINITY_ANY();
+    VERIFY_INVOKER_AFFINITY(Invoker);
 
     // Cf. OnOperationFailed.
     if (State == EControllerState::Finished) {
