@@ -582,7 +582,7 @@ import yt.wrapper as yt
 import sys
 
 input, output, pythonpath = sys.argv[1:4]
-yt.config["proxy"]["request_retry_timeout"] = 2000
+yt.config["proxy"]["request_retry_timeout"] = 5000
 yt.config["proxy"]["request_retry_count"] = 1
 yt.config["detached"] = False
 op = yt.run_map("sleep 1000", input, output, format="json", spec={"mapper": {"environment": {"PYTHONPATH": pythonpath}}}, sync=False)
