@@ -165,7 +165,7 @@ private:
     const NLogging::TLogger Logger;
     const NProfiling::TProfiler Profiler;
 
-    NProfiling::TAggregateCounter ValueCounter_;
+    NProfiling::TSimpleCounter ValueCounter_;
 
     std::atomic<i64> Available_ = {0};
     std::atomic<bool> HasLimit_ = {true};
