@@ -2851,6 +2851,9 @@ private:
                 dataStatistics = rsp.statistics();
             }
 
+            uploadTransaction->Ping();
+            uploadTransaction->Detach();
+
             // End upload.
             {
                 auto proxy = CreateWriteProxy<TObjectServiceProxy>();
@@ -2867,8 +2870,6 @@ private:
                 auto rspOrError = WaitFor(proxy->Execute(req));
                 THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error finishing upload to %v", dstPath);
             }
-
-            uploadTransaction->Detach();
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error concatenating %v to %v",
                 srcPaths,
