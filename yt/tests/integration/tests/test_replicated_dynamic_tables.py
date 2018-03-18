@@ -29,6 +29,9 @@ class TestReplicatedDynamicTables(YTEnvSetup):
             "timestamp_provider": {
                 "update_period": 500,
             }
+        },
+        "tablet_node": {
+            "replicator_data_weight_throttling_granularity": 1
         }
     }
 
