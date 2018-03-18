@@ -4414,6 +4414,11 @@ private:
             return WhereExpressions_.size() - 1;
         }
 
+        void SetGroupByExpression(const TString& expression)
+        {
+            GroupByExpression_ = expression;
+        }
+
         void SetOrderByExpression(const TString& expression)
         {
             OrderByExpression_ = expression;
@@ -4446,6 +4451,10 @@ private:
                     clauses.push_back(OrderByDirection_);
                 }
             }
+            if (!GroupByExpression_.empty()) {
+                clauses.push_back("GROUP BY");
+                clauses.push_back(GroupByExpression_);
+            }
             if (Limit_ >= 0) {
                 clauses.push_back(Format("LIMIT %v", Limit_));
             }
@@ -4458,10 +4467,31 @@ private:
         std::vector<TString> WhereExpressions_;
         TString OrderByExpression_;
         TString OrderByDirection_;
+        TString GroupByExpression_;
+
         int Limit_ = -1;
     };
 
-    TFuture<std::pair<std::vector<TJob>, int>> DoListJobsFromArchive(
+    TFuture<bool> DoOperationExistsInCypress(const TOperationId& operationId)
+    {
+        TObjectServiceProxy proxy(GetMasterChannelOrThrow(EMasterChannelKind::Follower));
+        auto path = GetOperationPath(operationId);
+        auto req = TYPathProxy::Get(path);
+        auto rspFuture = proxy.Execute(req);
+
+        return rspFuture.Apply(BIND([&] (const TErrorOr<TYPathProxy::TRspGetPtr>& rsp) {
+            if (rsp.IsOK()) {
+                return true;
+            } else if (rsp.FindMatching(NYTree::EErrorCode::ResolveError)) {
+                return false;
+            } else {
+                THROW_ERROR_EXCEPTION("Failed to request operation from cypress")
+                    << rsp;
+            }
+        }));
+    }
+
+    TFuture<std::pair<std::vector<TJob>, TListJobsStatistics>> DoListJobsFromArchive(
         const TOperationId& operationId,
         TNullable<TInstant> deadline,
         const TListJobsOptions& options)
@@ -4470,94 +4500,120 @@ private:
 
         int archiveVersion = DoGetOperationsArchiveVersion();
 
-        TQueryBuilder builder;
+        TQueryBuilder itemsQueryBuilder;
 
-        builder.SetSource(GetOperationsArchiveJobsPath());
-        builder.SetLimit(options.Offset + options.Limit);
+        itemsQueryBuilder.SetSource(GetOperationsArchiveJobsPath());
+        itemsQueryBuilder.SetLimit(options.Offset + options.Limit);
 
-        auto jobIdHiIndex = builder.AddSelectExpression("job_id_hi");
-        auto jobIdLoIndex = builder.AddSelectExpression("job_id_lo");
-        auto typeIndex = builder.AddSelectExpression("type AS job_type");
+        auto jobIdHiIndex = itemsQueryBuilder.AddSelectExpression("job_id_hi");
+        auto jobIdLoIndex = itemsQueryBuilder.AddSelectExpression("job_id_lo");
+        auto typeIndex = itemsQueryBuilder.AddSelectExpression("type AS job_type");
         auto stateIndex = archiveVersion >= 16
-            ? builder.AddSelectExpression("if(is_null(state), transient_state, state) AS job_state")
-            : builder.AddSelectExpression("state AS job_state");
-        auto startTimeIndex = builder.AddSelectExpression("start_time");
-        auto finishTimeIndex = builder.AddSelectExpression("finish_time");
-        auto addressIndex = builder.AddSelectExpression("address");
-        auto errorIndex = builder.AddSelectExpression("error");
-        auto statisticsIndex = builder.AddSelectExpression("statistics");
-        auto stderrSizeIndex = builder.AddSelectExpression("stderr_size");
+            ? itemsQueryBuilder.AddSelectExpression("if(is_null(state), transient_state, state) AS job_state")
+            : itemsQueryBuilder.AddSelectExpression("state AS job_state");
+        auto startTimeIndex = itemsQueryBuilder.AddSelectExpression("start_time");
+        auto finishTimeIndex = itemsQueryBuilder.AddSelectExpression("finish_time");
+        auto addressIndex = itemsQueryBuilder.AddSelectExpression("address");
+        auto errorIndex = itemsQueryBuilder.AddSelectExpression("error");
+        auto statisticsIndex = itemsQueryBuilder.AddSelectExpression("statistics");
+        auto stderrSizeIndex = itemsQueryBuilder.AddSelectExpression("stderr_size");
 
         auto operationIdExpression = Format(
             "(operation_id_hi, operation_id_lo) = (%vu, %vu)",
             operationId.Parts64[0],
             operationId.Parts64[1]);
-        builder.AddWhereExpression(operationIdExpression);
+        itemsQueryBuilder.AddWhereExpression(operationIdExpression);
 
         if (archiveVersion >= 18) {
             auto updateTimeExpression = Format(
                 "(job_state != \"running\" OR (NOT is_null(update_time) AND update_time >= %v))",
                 (TInstant::Now() - options.RunningJobsLookbehindPeriod).MicroSeconds());
-            builder.AddWhereExpression(updateTimeExpression);
+            itemsQueryBuilder.AddWhereExpression(updateTimeExpression);
         }
 
         if (options.WithStderr) {
             if (*options.WithStderr) {
-                builder.AddWhereExpression("(stderr_size != 0 AND NOT is_null(stderr_size))");
+                itemsQueryBuilder.AddWhereExpression("(stderr_size != 0 AND NOT is_null(stderr_size))");
             } else {
-                builder.AddWhereExpression("(stderr_size = 0 OR is_null(stderr_size))");
+                itemsQueryBuilder.AddWhereExpression("(stderr_size = 0 OR is_null(stderr_size))");
             }
         }
 
-        // TODO(ignat): remove this code? (since we sort result later in DoListJobs implementation)
+        if (options.Address) {
+            itemsQueryBuilder.AddWhereExpression(Format("address = %Qv", *options.Address));
+        }
+
+        if (options.Type) {
+            itemsQueryBuilder.AddWhereExpression(Format("job_type = %Qv", FormatEnum(*options.Type)));
+        }
+
+        if (options.State) {
+            itemsQueryBuilder.AddWhereExpression(Format("job_state = %Qv", FormatEnum(*options.State)));
+        }
+
         if (options.SortField != EJobSortField::None) {
             switch (options.SortField) {
                 case EJobSortField::Type:
-                    builder.SetOrderByExpression("job_type");
+                    itemsQueryBuilder.SetOrderByExpression("job_type");
                     break;
                 case EJobSortField::State:
-                    builder.SetOrderByExpression("job_state");
+                    itemsQueryBuilder.SetOrderByExpression("job_state");
                     break;
                 case EJobSortField::StartTime:
-                    builder.SetOrderByExpression("start_time");
+                    itemsQueryBuilder.SetOrderByExpression("start_time");
                     break;
                 case EJobSortField::FinishTime:
-                    builder.SetOrderByExpression("finish_time");
+                    itemsQueryBuilder.SetOrderByExpression("finish_time");
                     break;
                 case EJobSortField::Address:
-                    builder.SetOrderByExpression("address");
+                    itemsQueryBuilder.SetOrderByExpression("address");
                     break;
                 case EJobSortField::Duration:
-                    builder.SetOrderByExpression(Format(
+                    itemsQueryBuilder.SetOrderByExpression(Format(
                         "if(is_null(finish_time), %v, finish_time) - start_time",
                         TInstant::Now().MicroSeconds()));
                     break;
                 // XXX: progress is not presented in archive table.
                 //case EJobSortField::Progress:
-                //    builder.SetOrderByExpression("progress");
+                //    itemsQueryBuilder.SetOrderByExpression("progress");
                 //    break;
                 // TODO: sort by string representation.
                 //case EJobSortField::Id:
-                //    builder.SetOrderByExpression("job_id_hi, job_id_lo");
+                //    itemsQueryBuilder.SetOrderByExpression("job_id_hi, job_id_lo");
                 //    break;
                 default:
                     break;
             }
             switch (options.SortOrder) {
                 case EJobSortDirection::Ascending:
-                    builder.SetOrderByDirection("ASC");
+                    itemsQueryBuilder.SetOrderByDirection("ASC");
                     break;
                 case EJobSortDirection::Descending:
-                    builder.SetOrderByDirection("DESC");
+                    itemsQueryBuilder.SetOrderByDirection("DESC");
                     break;
             }
         }
 
-        auto itemsQuery = builder.Build();
-        auto countQuery = Format(
-            "SUM(1) AS count FROM [%v] WHERE %v GROUP BY 1",
-            GetOperationsArchiveJobsPath(),
-            operationIdExpression);
+        auto itemsQuery = itemsQueryBuilder.Build();
+
+        LOG_DEBUG("ITEMS QUERY: %v", itemsQuery);
+
+        TQueryBuilder statisticsQueryBuilder;
+        statisticsQueryBuilder.SetSource(GetOperationsArchiveJobsPath());
+        if (options.Address) {
+            statisticsQueryBuilder.AddWhereExpression(Format("address = %Qv", *options.Address));
+        }
+        statisticsQueryBuilder.AddSelectExpression("type as job_type");
+        if (archiveVersion >= 16) {
+            statisticsQueryBuilder.AddSelectExpression("if(is_null(state), transient_state, state) AS job_state");
+        } else {
+            statisticsQueryBuilder.AddSelectExpression("state as job_state");
+        }
+        statisticsQueryBuilder.AddSelectExpression("SUM(1) AS count");
+        statisticsQueryBuilder.SetGroupByExpression("job_type, job_state");
+        auto statisticsQuery = statisticsQueryBuilder.Build();
+
+        LOG_DEBUG("STATISTICS QUERY: %v", statisticsQuery);
 
         TSelectRowsOptions selectRowsOptions;
         selectRowsOptions.Timestamp = AsyncLastCommittedTimestamp;
@@ -4648,28 +4704,42 @@ private:
             return jobs;
         }));
 
-        auto countFuture = SelectRows(countQuery, selectRowsOptions).Apply(BIND([=] (const TSelectRowsResult& result) {
+        auto statisticsFuture = SelectRows(statisticsQuery, selectRowsOptions).Apply(BIND([=] (const TSelectRowsResult& result) {
+            TListJobsStatistics statistics;
+
             auto rows = result.Rowset->GetRows();
-            if (rows.Size() == 0) {
-                return 0;
+            for (const auto& row : rows) {
+                auto jobType = ParseEnum<EJobType>(TString(row[0].Data.String, row[0].Length));
+                auto jobState = ParseEnum<EJobState>(TString(row[1].Data.String, row[1].Length));
+                i64 count = row[2].Data.Int64;
+
+                statistics.TypeCounts[jobType] += count;
+                if (options.Type && *options.Type != jobType) {
+                    continue;
+                }
+
+                statistics.StateCounts[jobState] += count;
+                if (options.State && *options.State != jobState) {
+                    continue;
+                }
             }
-            YCHECK(rows.Size() == 1);
-            YCHECK(rows[0][0].Type == EValueType::Int64);
-            return static_cast<int>(rows[0][0].Data.Int64);
+            return statistics;
         }));
 
         return
-            CombineAll(std::vector<TFuture<void>>{itemsFuture.As<void>(), countFuture.As<void>()})
-            .Apply(BIND([itemsFuture, countFuture] (const std::vector<TError>&) {
+            CombineAll(std::vector<TFuture<void>>{itemsFuture.As<void>(), statisticsFuture.As<void>()})
+            .Apply(BIND([itemsFuture, statisticsFuture] (const std::vector<TError>&) {
                 const auto& items = itemsFuture.Get();
-                const auto& count = countFuture.Get();
+                const auto& statistics = statisticsFuture.Get();
                 if (!items.IsOK()) {
-                    THROW_ERROR_EXCEPTION("Failed to get jobs from the operation archive") << items;
+                    THROW_ERROR_EXCEPTION("Failed to get jobs from the operation archive")
+                        << items;
                 }
-                if (!count.IsOK()) {
-                    THROW_ERROR_EXCEPTION("Failed to get job count from the operation archive") << count;
+                if (!statistics.IsOK()) {
+                    THROW_ERROR_EXCEPTION("Failed to get job statistics from the operation archive")
+                        << statistics;
                 }
-                return std::make_pair(items.Value(), count.Value());
+                return std::make_pair(items.Value(), statistics.Value());
             }));
     }
 
@@ -4713,7 +4783,7 @@ private:
 
         auto batchRequestFuture = batchReq->Invoke();
 
-        return batchRequestFuture.Apply(BIND([operationId, options] (
+        return batchRequestFuture.Apply(BIND([this, operationId, options] (
             const TErrorOr<TObjectServiceProxy::TRspExecuteBatchPtr>& batchRspOrError)
         {
             const auto& batchRsp = batchRspOrError.ValueOrThrow();
@@ -4842,18 +4912,89 @@ private:
         }));
     }
 
-
-    TListJobsResult DoListJobs(
-        const TOperationId& operationId,
-        const TListJobsOptions& options)
+    std::function<bool(const TJob&, const TJob&)> GetJobsComparator(EJobSortField sortField, EJobSortDirection sortOrder)
     {
-        TListJobsResult result;
+        switch (sortField) {
+#define XX(field) \
+            case EJobSortField::field: \
+                switch (sortOrder) { \
+                    case EJobSortDirection::Ascending: \
+                        return [] (const TJob& lhs, const TJob& rhs) { \
+                            return LessNullable(lhs.field, rhs.field); \
+                        }; \
+                        break; \
+                    case EJobSortDirection::Descending: \
+                        return [&] (const TJob& lhs, const TJob& rhs) { \
+                            return LessNullable(rhs.field, lhs.field); \
+                        }; \
+                        break; \
+                } \
+                break;
 
-        TNullable<TInstant> deadline;
-        if (options.Timeout) {
-            deadline = options.Timeout->ToDeadLine();
+            XX(Type);
+            XX(State);
+            XX(StartTime);
+            XX(FinishTime);
+            XX(Address);
+            XX(Progress);
+#undef XX
+
+            case EJobSortField::None:
+                switch (sortOrder) {
+                    case EJobSortDirection::Ascending:
+                        return [] (const TJob& lhs, const TJob& rhs) {
+                            return lhs.Id < rhs.Id;
+                        };
+                        break;
+                    case EJobSortDirection::Descending:
+                        return [] (const TJob& lhs, const TJob& rhs) {
+                            return !(lhs.Id < rhs.Id || lhs.Id == rhs.Id);
+                        };
+                        break;
+                }
+                break;
+
+            case EJobSortField::Duration:
+                switch (sortOrder) {
+                    case EJobSortDirection::Ascending:
+                        return [now = TInstant::Now()] (const TJob& lhs, const TJob& rhs) {
+                            auto lhsDuration = (lhs.FinishTime ? *lhs.FinishTime : now) - lhs.StartTime;
+                            auto rhsDuration = (rhs.FinishTime ? *rhs.FinishTime : now) - rhs.StartTime;
+                            return lhsDuration < rhsDuration;
+                        };
+                        break;
+                    case EJobSortDirection::Descending:
+                        return [now = TInstant::Now()] (const TJob& lhs, const TJob& rhs) {
+                            auto lhsDuration = (lhs.FinishTime ? *lhs.FinishTime : now) - lhs.StartTime;
+                            auto rhsDuration = (rhs.FinishTime ? *rhs.FinishTime : now) - rhs.StartTime;
+                            return lhsDuration > rhsDuration;
+                        };
+                        break;
+                }
+                break;
+
+            case EJobSortField::Id:
+                switch (sortOrder) {
+                    case EJobSortDirection::Ascending:
+                        return [] (const TJob& lhs, const TJob& rhs) {
+                            return ToString(lhs.Id) < ToString(rhs.Id);
+                        };
+                        break;
+                    case EJobSortDirection::Descending:
+                        return [] (const TJob& lhs, const TJob& rhs) {
+                            return ToString(lhs.Id) > ToString(rhs.Id);
+                        };
+                        break;
+                }
+                break;
+
+            default:
+                Y_UNREACHABLE();
         }
+    }
 
+    void UpdateJobsList(const std::vector<TJob>& delta, std::vector<TJob>* result)
+    {
         auto mergeJob = [] (TJob* target, const TJob& source) {
 #define MERGE_FIELD(name) target->name = source.name
 #define MERGE_NULLABLE_FIELD(name) \
@@ -4905,47 +5046,112 @@ private:
             return result;
         };
 
-        auto updateResultJobs = [&] (const std::vector<TJob>& delta) {
-            auto sortedDelta = delta;
-            std::sort(
-                sortedDelta.begin(),
-                sortedDelta.end(),
-                [] (const TJob& lhs, const TJob& rhs) {
-                    return lhs.Id < rhs.Id;
-                });
-            result.Jobs = mergeJobs(result.Jobs, sortedDelta);
-        };
+        if (result->empty()) {
+            *result = delta;
+            return;
+        }
 
-        TFuture<std::pair<std::vector<TJob>, int>> archiveJobsFuture, cypressJobsFuture, schedulerJobsFuture;
+        auto sortedDelta = delta;
+        std::sort(
+            sortedDelta.begin(),
+            sortedDelta.end(),
+            [] (const TJob& lhs, const TJob& rhs) {
+                return lhs.Id < rhs.Id;
+            });
+        *result = mergeJobs(*result, sortedDelta);
+    }
+
+    TListJobsResult DoListJobs(
+        const TOperationId& operationId,
+        const TListJobsOptions& options)
+    {
+        TListJobsResult result;
+
+        TNullable<TInstant> deadline;
+        if (options.Timeout) {
+            deadline = options.Timeout->ToDeadLine();
+        }
+
+        auto dataSource = options.DataSource;
+        if (dataSource == EDataSource::Auto) {
+            auto operationExists = WaitFor(DoOperationExistsInCypress(operationId))
+                .ValueOrThrow();
+            if (operationExists) {
+                dataSource = EDataSource::Runtime;
+            } else {
+                dataSource = EDataSource::Archive;
+            }
+        }
+
+        bool includeCypress;
+        bool includeScheduler;
+        bool includeArchive;
+
+        switch (dataSource) {
+            case EDataSource::Archive:
+                includeCypress = false;
+                includeScheduler = false;
+                includeArchive = true;
+                break;
+            case EDataSource::Runtime:
+                includeCypress = true;
+                includeScheduler = true;
+                includeArchive = false;
+                break;
+            case EDataSource::Manual:
+                // NB: if 'cypress'/'scheduler' included simultanously with 'archive' then pagintaion may be broken.
+                includeCypress = options.IncludeCypress;
+                includeScheduler = options.IncludeScheduler;
+                includeArchive = options.IncludeArchive;
+                break;
+            default:
+                Y_UNREACHABLE();
+        }
+
+        LOG_DEBUG("Starting list jobs (IncludeCypress: %v, IncludeScheduler: %v, IncludeScheduler: %v)",
+            includeCypress,
+            includeScheduler,
+            includeArchive);
+
+        TFuture<std::pair<std::vector<TJob>, int>> cypressJobsFuture;
+        TFuture<std::pair<std::vector<TJob>, int>> schedulerJobsFuture;
+        TFuture<std::pair<std::vector<TJob>, TListJobsStatistics>> archiveJobsFuture;
+
+        TNullable<TListJobsStatistics> statistics;
 
         bool isArchiveExists = IsArchiveExists();
 
         // Issue the requests in parallel.
-        if (options.IncludeArchive && isArchiveExists) {
+        if (includeArchive && isArchiveExists) {
             archiveJobsFuture = DoListJobsFromArchive(operationId, deadline, options);
         }
 
-        if (options.IncludeCypress) {
+        if (includeCypress) {
             cypressJobsFuture = DoListJobsFromCypress(operationId, deadline, options);
         }
 
-        if (options.IncludeScheduler) {
+        if (includeScheduler) {
             schedulerJobsFuture = DoListJobsFromScheduler(operationId, deadline, options);
         }
 
-        if (options.IncludeArchive && isArchiveExists) {
+        if (includeArchive && isArchiveExists) {
             auto archiveJobs = WaitFor(archiveJobsFuture)
                 .ValueOrThrow();
-            result.ArchiveJobCount = archiveJobs.second;
-            updateResultJobs(archiveJobs.first);
+            statistics = archiveJobs.second;
+            UpdateJobsList(archiveJobs.first, &result.Jobs);
+
+            result.ArchiveJobCount = 0;
+            for (const auto& count : archiveJobs.second.TypeCounts) {
+                *result.ArchiveJobCount += count;
+            }
         }
 
-        if (options.IncludeCypress) {
+        if (includeCypress) {
             auto cypressJobsOrError = WaitFor(cypressJobsFuture);
             if (cypressJobsOrError.IsOK()) {
-                const auto& pair = cypressJobsOrError.Value();
-                result.CypressJobCount = pair.second;
-                updateResultJobs(pair.first);
+                const auto& cypressJobs = cypressJobsOrError.Value();
+                result.CypressJobCount = cypressJobs.second;
+                UpdateJobsList(cypressJobs.first, &result.Jobs);
             } else if (cypressJobsOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
                 // No such operation in Cypress.
                 result.CypressJobCount = 0;
@@ -4954,12 +5160,12 @@ private:
             }
         }
 
-        if (options.IncludeScheduler) {
+        if (includeScheduler) {
             auto schedulerJobsOrError = WaitFor(schedulerJobsFuture);
             if (schedulerJobsOrError.IsOK()) {
-                const auto& pair = schedulerJobsOrError.Value();
-                result.SchedulerJobCount = pair.second;
-                updateResultJobs(pair.first);
+                const auto& schedulerJobs = schedulerJobsOrError.Value();
+                result.SchedulerJobCount = schedulerJobs.second;
+                UpdateJobsList(schedulerJobs.first, &result.Jobs);
             } else if (schedulerJobsOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
                 // No such operation in the scheduler.
                 result.SchedulerJobCount = 0;
@@ -4968,116 +5174,43 @@ private:
             }
         }
 
-        std::vector<TJob> filteredJobs;
-        for (const auto& job : result.Jobs) {
-            result.AddressCounts[job.Address] += 1;
-            if (options.Address && job.Address != *options.Address) {
-                continue;
+        if (options.DataSource != EDataSource::Archive) {
+            statistics = TListJobsStatistics();
+
+            std::vector<TJob> filteredJobs;
+            for (const auto& job : result.Jobs) {
+                if (options.Address && job.Address != *options.Address) {
+                    continue;
+                }
+
+                statistics->TypeCounts[job.Type] += 1;
+                if (options.Type && job.Type != *options.Type) {
+                    continue;
+                }
+
+                statistics->StateCounts[job.State] += 1;
+                if (options.State && job.State != *options.State) {
+                    continue;
+                }
+
+                filteredJobs.push_back(job);
             }
 
-            result.TypeCounts[job.Type] += 1;
-            if (options.Type && job.Type != *options.Type) {
-                continue;
-            }
+            result.Jobs = filteredJobs;
+            result.Statistics = *statistics;
 
-            result.StateCounts[job.State] += 1;
-            if (options.State && job.State != *options.State) {
-                continue;
-            }
+            auto comparer = GetJobsComparator(options.SortField, options.SortOrder);
+            std::sort(result.Jobs.begin(), result.Jobs.end(), comparer);
 
-            filteredJobs.push_back(job);
+            auto beginIt = result.Jobs.begin() + std::min(options.Offset,
+                std::distance(result.Jobs.begin(), result.Jobs.end()));
+            auto endIt = beginIt + std::min(options.Limit,
+                std::distance(beginIt, result.Jobs.end()));
+
+            result.Jobs = std::vector<TJob>(beginIt, endIt);
+        } else {
+            result.Jobs = std::vector<TJob>(std::min(result.Jobs.end(), result.Jobs.begin() + options.Offset), result.Jobs.end());
         }
-
-        result.Jobs = filteredJobs;
-
-        std::function<bool(const TJob&, const TJob&)> comparer;
-        switch (options.SortField) {
-#define XX(field) \
-            case EJobSortField::field: \
-                switch (options.SortOrder) { \
-                    case EJobSortDirection::Ascending: \
-                        comparer = [] (const TJob& lhs, const TJob& rhs) { \
-                            return LessNullable(lhs.field, rhs.field); \
-                        }; \
-                        break; \
-                    case EJobSortDirection::Descending: \
-                        comparer = [&] (const TJob& lhs, const TJob& rhs) { \
-                            return LessNullable(rhs.field, lhs.field); \
-                        }; \
-                        break; \
-                } \
-                break;
-
-            XX(Type);
-            XX(State);
-            XX(StartTime);
-            XX(FinishTime);
-            XX(Address);
-            XX(Progress);
-#undef XX
-
-            case EJobSortField::None:
-                switch (options.SortOrder) {
-                    case EJobSortDirection::Ascending:
-                        comparer = [] (const TJob& lhs, const TJob& rhs) {
-                            return lhs.Id < rhs.Id;
-                        };
-                        break;
-                    case EJobSortDirection::Descending:
-                        comparer = [] (const TJob& lhs, const TJob& rhs) {
-                            return !(lhs.Id < rhs.Id || lhs.Id == rhs.Id);
-                        };
-                        break;
-                }
-                break;
-
-            case EJobSortField::Duration:
-                switch (options.SortOrder) {
-                    case EJobSortDirection::Ascending:
-                        comparer = [now = TInstant::Now()] (const TJob& lhs, const TJob& rhs) {
-                            auto lhsDuration = (lhs.FinishTime ? *lhs.FinishTime : now) - lhs.StartTime;
-                            auto rhsDuration = (rhs.FinishTime ? *rhs.FinishTime : now) - rhs.StartTime;
-                            return lhsDuration < rhsDuration;
-                        };
-                        break;
-                    case EJobSortDirection::Descending:
-                        comparer = [now = TInstant::Now()] (const TJob& lhs, const TJob& rhs) {
-                            auto lhsDuration = (lhs.FinishTime ? *lhs.FinishTime : now) - lhs.StartTime;
-                            auto rhsDuration = (rhs.FinishTime ? *rhs.FinishTime : now) - rhs.StartTime;
-                            return lhsDuration > rhsDuration;
-                        };
-                        break;
-                }
-                break;
-
-            case EJobSortField::Id:
-                switch (options.SortOrder) {
-                    case EJobSortDirection::Ascending:
-                        comparer = [] (const TJob& lhs, const TJob& rhs) {
-                            return ToString(lhs.Id) < ToString(rhs.Id);
-                        };
-                        break;
-                    case EJobSortDirection::Descending:
-                        comparer = [] (const TJob& lhs, const TJob& rhs) {
-                            return ToString(lhs.Id) > ToString(rhs.Id);
-                        };
-                        break;
-                }
-                break;
-
-            default:
-                Y_UNREACHABLE();
-        }
-
-        std::sort(result.Jobs.begin(), result.Jobs.end(), comparer);
-
-        auto beginIt = result.Jobs.begin() + std::min(options.Offset,
-            std::distance(result.Jobs.begin(), result.Jobs.end()));
-
-        auto endIt = beginIt + std::min(options.Limit,
-            std::distance(beginIt, result.Jobs.end()));
-
-        result.Jobs = std::vector<TJob>(beginIt, endIt);
 
         return result;
     }
