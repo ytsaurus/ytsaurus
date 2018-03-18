@@ -506,7 +506,7 @@ private:
         };
         auto acquireThrottler = [&] (i64 dataWeight) {
             dataWeightToAcquire += dataWeight;
-            if (dataWeightToAcquire >= 64_KB) {
+            if (dataWeightToAcquire >= 1) {
                 flushThrottler();
             }
         };
