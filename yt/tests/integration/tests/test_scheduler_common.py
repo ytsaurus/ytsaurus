@@ -2615,8 +2615,9 @@ class TestPoolMetrics(YTEnvSetup):
             command=map_cmd,
             spec={"job_count": 2, "pool": "child2"},
         )
-        # Give scheduler some time to update metrics in the orchid.
-        time.sleep(1)
+
+        # Wait metrics update.
+        wait(lambda: get_pool_metrics("disk_writes")["parent"] > 0)
 
         pool_metrics = get_pool_metrics("disk_writes")
 
@@ -2662,15 +2663,17 @@ class TestPoolMetrics(YTEnvSetup):
         assert len(running_jobs) == 1
         abort_job(running_jobs[0])
 
-        # Give scheduler some time to update metrics in the orchid.
-        time.sleep(1)
+        # Wait metrics update.
+        wait(lambda: get_pool_metrics("time_completed")["child"] > 0)
 
         completed_metrics = get_pool_metrics("time_completed")
         aborted_metrics = get_pool_metrics("time_aborted")
 
         for p in ("parent", "child"):
-            assert completed_metrics[p] > 0
-            assert aborted_metrics[p] > 0
+            if completed_metrics[p] == 0:
+                return False
+            if aborted_metrics[p] == 0:
+                return False
 
         assert completed_metrics["parent"] == completed_metrics["child"]
         assert aborted_metrics["parent"] == aborted_metrics["child"]
