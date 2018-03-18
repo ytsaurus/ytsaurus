@@ -17,6 +17,12 @@ class TestReplicatedDynamicTables(YTEnvSetup):
     NUM_REMOTE_CLUSTERS = 1
     USE_DYNAMIC_TABLES = True
 
+    DELTA_NODE_CONFIG = {
+        "tablet_node": {
+            "replicator_data_weight_throttling_granularity": 1
+        }
+    }
+
     SIMPLE_SCHEMA = [
         {"name": "key", "type": "int64", "sort_order": "ascending"},
         {"name": "value1", "type": "string"},
