@@ -50,6 +50,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
                     "median_excess_duration": 3000,
                     "candidate_percentile": 0.8,
                     "max_jobs_per_split": 3,
+                    "max_input_table_count": 5,
                 },
             },
         }
@@ -990,6 +991,25 @@ done
         for row in got:
             del row["data"]
         assert sorted(got) == sorted(expected)
+
+    def test_job_splitter_max_input_table_count(self):
+        create("table", "//tmp/in_1")
+        write_table(
+            "//tmp/in_1",
+            [{"key": "%08d" % i, "value": "(t_1)", "data": "a" * (1024 * 1024)} for i in range(20)])
+
+        input_ = "//tmp/in_1"
+        output = "//tmp/output"
+        create("table", output)
+
+        op = map(
+            in_=[input_] * 10,
+            out=output,
+            command="sleep 5; echo '{a=1}'",
+            dont_track=True)
+        time.sleep(2.0)
+        assert len(get("//sys/scheduler/orchid/scheduler/operations/{0}/job_splitter".format(op.id))) == 0
+        op.track()
 
 ##################################################################
 
