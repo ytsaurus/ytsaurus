@@ -4969,9 +4969,10 @@ void TOperationControllerBase::SliceUnversionedChunks(
         }
     };
 
-    LOG_DEBUG("Slicing unversioned chunks (SliceDataWeight: %v, SliceRowCount: %v)",
+    LOG_DEBUG("Slicing unversioned chunks (SliceDataWeight: %v, SliceRowCount: %v, ChunkCount: %v)",
         jobSizeConstraints->GetInputSliceDataWeight(),
-        jobSizeConstraints->GetInputSliceRowCount());
+        jobSizeConstraints->GetInputSliceRowCount(),
+        unversionedChunks.size());
 
     for (const auto& chunkSpec : unversionedChunks) {
         int oldSize = result->size();
@@ -4979,7 +4980,7 @@ void TOperationControllerBase::SliceUnversionedChunks(
         bool hasNontrivialLimits = !chunkSpec->IsCompleteChunk();
 
         auto codecId = NErasure::ECodec(chunkSpec->GetErasureCodec());
-        if (hasNontrivialLimits || codecId == NErasure::ECodec::None) {
+        if (hasNontrivialLimits || codecId == NErasure::ECodec::None || !Spec_->SliceErasureChunksByParts) {
             auto slices = SliceChunkByRowIndexes(
                 chunkSpec,
                 jobSizeConstraints->GetInputSliceDataWeight(),
@@ -5000,6 +5001,8 @@ void TOperationControllerBase::SliceUnversionedChunks(
             chunkSpec->ChunkId(),
             result->size() - oldSize);
     }
+
+    LOG_DEBUG("Finished slicing unversioned chunks (SliceCount: %v)", result->size());
 }
 
 void TOperationControllerBase::SlicePrimaryUnversionedChunks(

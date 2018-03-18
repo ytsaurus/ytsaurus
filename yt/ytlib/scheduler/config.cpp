@@ -200,6 +200,9 @@ TOperationSpecBase::TOperationSpecBase()
     RegisterParameter("enable_job_splitting", EnableJobSplitting)
         .Default(true);
 
+    RegisterParameter("slice_erasure_chunks_by_parts", SliceErasureChunksByParts)
+        .Default(false);
+
     RegisterPostprocessor([&] () {
         if (UnavailableChunkStrategy == EUnavailableChunkAction::Wait &&
             UnavailableChunkTactics == EUnavailableChunkAction::Skip)
