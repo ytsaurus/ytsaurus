@@ -67,6 +67,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/small_vector_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/string_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/subprocess_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/sync_expiring_cache_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/thread_affinity_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/timer_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/tree_builder_ut.cpp
