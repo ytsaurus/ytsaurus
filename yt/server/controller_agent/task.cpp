@@ -243,7 +243,8 @@ void TTask::ScheduleJob(
     }
 
     int jobIndex = TaskHost_->NextJobIndex();
-    auto joblet = New<TJoblet>(this, jobIndex, treeId);
+    int taskJobIndex = TaskJobIndexGenerator_.Next();
+    auto joblet = New<TJoblet>(this, jobIndex, taskJobIndex, treeId);
 
     const auto& nodeResourceLimits = context->ResourceLimits();
     auto nodeId = context->GetNodeDescriptor().Id;
@@ -436,6 +437,11 @@ void TTask::Persist(const TPersistenceContext& context)
     Persist(context, JobProxyMemoryDigest_);
 
     Persist(context, InputChunkMapping_);
+
+    // COMPAT(max42)
+    if (context.IsSave() || context.GetVersion() >= 202195) {
+        Persist(context, TaskJobIndexGenerator_);
+    }
 }
 
 void TTask::PrepareJoblet(TJobletPtr /* joblet */)

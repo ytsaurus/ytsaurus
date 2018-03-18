@@ -31,9 +31,10 @@ TJoblet::TJoblet()
     , OutputCookie(-1)
 { }
 
-TJoblet::TJoblet(TTask* task, int jobIndex, const TString& treeId)
+TJoblet::TJoblet(TTask* task, int jobIndex, int taskJobIndex, const TString& treeId)
     : Task(std::move(task))
     , JobIndex(jobIndex)
+    , TaskJobIndex(taskJobIndex)
     , TreeId(treeId)
     , OutputCookie(IChunkPoolOutput::NullCookie)
 { }
@@ -55,6 +56,12 @@ void TJoblet::Persist(const TPersistenceContext& context)
 
     using NYT::Persist;
     Persist(context, Task);
+
+    // COMPAT(max42)
+    if (context.IsSave() || context.GetVersion() >= 202195) {
+        Persist(context, TaskJobIndex);
+    }
+
     Persist(context, JobIndex);
     Persist(context, StartRowIndex);
     Persist(context, Restarted);
