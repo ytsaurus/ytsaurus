@@ -681,6 +681,14 @@ DEFINE_ENUM(EJobSortDirection,
     ((Descending) (1))
 );
 
+DEFINE_ENUM(EDataSource,
+    ((Archive) (0))
+    ((Runtime) (1))
+    ((Auto)    (2))
+    // Should be used only in tests.
+    ((Manual)  (3))
+);
+
 struct TListJobsOptions
     : public TTimeoutOptions
     , public TMasterReadOptions
@@ -696,9 +704,11 @@ struct TListJobsOptions
     i64 Limit = 1000;
     i64 Offset = 0;
 
-    bool IncludeCypress = true;
-    bool IncludeScheduler = true;
-    bool IncludeArchive = true;
+    bool IncludeCypress = false;
+    bool IncludeScheduler = false;
+    bool IncludeArchive = false;
+
+    EDataSource DataSource = EDataSource::Auto;
 
     TDuration RunningJobsLookbehindPeriod = TDuration::Minutes(1);
 
@@ -810,16 +820,20 @@ struct TJob
     NYson::TYsonString CoreInfos;
 };
 
+struct TListJobsStatistics
+{
+    TEnumIndexedVector<i64, NJobTrackerClient::EJobState> StateCounts;
+    TEnumIndexedVector<i64, NJobTrackerClient::EJobType> TypeCounts;
+};
+
 struct TListJobsResult
 {
     std::vector<TJob> Jobs;
-    int CypressJobCount = -1;
-    int SchedulerJobCount = -1;
-    int ArchiveJobCount = -1;
+    TNullable<int> CypressJobCount;
+    TNullable<int> SchedulerJobCount;
+    TNullable<int> ArchiveJobCount;
 
-    yhash<TString, i64> AddressCounts;
-    TEnumIndexedVector<i64, NJobTrackerClient::EJobState> StateCounts;
-    TEnumIndexedVector<i64, NJobTrackerClient::EJobType> TypeCounts;
+    TListJobsStatistics Statistics;
 };
 
 struct TGetFileFromCacheResult
