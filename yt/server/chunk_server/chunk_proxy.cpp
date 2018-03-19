@@ -610,7 +610,7 @@ private:
                     break;
                 }
                 BuildYsonFluently(consumer)
-                    .Value(TInstant(miscExt.creation_time()));
+                    .Value(TInstant::MicroSeconds(miscExt.creation_time()));
                 return true;
 
             case EInternedAttributeKey::StagingTransactionId:
