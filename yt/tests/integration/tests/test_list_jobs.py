@@ -123,6 +123,11 @@ class TestListJobs(YTEnvSetup):
         res = list_jobs(op.id, data_source="manual", include_cypress=True, include_scheduler=False, include_archive=False, job_state="completed")["jobs"]
         assert len(res) == 0
 
+        res = list_jobs(op.id, data_source="manual", include_cypress=False, include_scheduler=True, include_archive=False)["jobs"]
+        assert len(res) == 3
+        assert all(job["state"] == "running" for job in res)
+        assert all(job["type"] == "partition_map" for job in res)
+
         op.resume_jobs()
         op.track()
 
@@ -178,6 +183,9 @@ class TestListJobs(YTEnvSetup):
                 if key == "failed" or key == "aborted":
                     correct = 1
                 assert res["state_counts"][key] == correct
+            assert res["cypress_job_count"] == 6
+            assert res["scheduler_job_count"] == 0
+            assert res["archive_job_count"] == yson.YsonEntity()
 
             res = list_jobs(op.id, type="partition_reduce", **options)
             for key in res["type_counts"]:
@@ -192,6 +200,9 @@ class TestListJobs(YTEnvSetup):
                 if key == "completed":
                     correct = 1
                 assert res["state_counts"][key] == correct
+            assert res["cypress_job_count"] == 6
+            assert res["scheduler_job_count"] == 0
+            assert res["archive_job_count"] == yson.YsonEntity()
 
             res = list_jobs(op.id, job_state="failed", **options)["jobs"]
             assert sorted(map_failed_jobs) == sorted([job["id"] for job in res])
@@ -221,7 +232,12 @@ class TestListJobs(YTEnvSetup):
         auto_options = dict(data_source="auto")
 
         for options in (manual_options, archive_options, auto_options):
-            res = list_jobs(op.id, **options)["jobs"]
+            res = list_jobs(op.id, **options)
+            assert res["cypress_job_count"] == yson.YsonEntity()
+            assert res["scheduler_job_count"] == yson.YsonEntity()
+            assert res["archive_job_count"] == 6
+
+            res = res["jobs"]
             assert sorted(jobs.keys()) == sorted([job["id"] for job in res])
 
             res = list_jobs(op.id, offset=4, limit=3, sort_field="start_time", **options)["jobs"]
