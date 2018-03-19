@@ -15,6 +15,7 @@ import tempfile
 import shutil
 import pytest
 import time
+import json
 
 ORCHID_JOB_PATH_PATTERN = "//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs/{1}"
 NODE_ORCHID_JOB_PATH_PATTERN = "//sys/nodes/{0}/orchid/job_controller/active_jobs/scheduler/{1}"
@@ -167,7 +168,7 @@ class TestJobTool(object):
         run_config = os.path.join(job_path, "run_config")
         assert os.path.exists(run_config)
         with open(run_config, "rb") as fin:
-            config = yson.load(fin)
+            config = json.load(fin)
         assert config["operation_id"] == operation_id
         assert config["job_id"] == job_id
 
@@ -176,7 +177,7 @@ class TestJobTool(object):
             proc.wait()
 
             if expect_ok_return_code:
-                assert proc.returncode == 0
+                assert proc.returncode == 0, proc.stderr.read()
             else:
                 assert proc.returncode != 0
                 assert "ERROR_INTENDED_BY_TEST" in to_native_str(proc.stderr.read())

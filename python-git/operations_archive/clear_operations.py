@@ -9,7 +9,7 @@ from yt.wrapper.http_helpers import _get_session
 import yt.logger as logger
 import yt.wrapper as yt
 import yt.yson as yson
-import yt.json as json
+import yt.json_wrapper as json
 
 import yt.packages.requests as requests
 

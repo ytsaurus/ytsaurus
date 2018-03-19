@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 from yt.wrapper.cli_helpers import die
-import yt.json as json
+import yt.json_wrapper as json
 
 from yt.packages.six import iteritems
 from yt.packages.six.moves import xrange, map as imap

@@ -12,7 +12,7 @@ Usage::
 """
 from __future__ import with_statement
 import sys
-import yt.json as json
+import yt.json_wrapper as json
 
 def main():
     if len(sys.argv) == 1:

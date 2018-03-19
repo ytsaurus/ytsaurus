@@ -10,7 +10,7 @@ from yt.common import YT_NULL_TRANSACTION_ID
 
 import yt.logger as logger
 import yt.yson as yson
-import yt.json as json
+import yt.json_wrapper as json
 from yt.yson.convert import json_to_yson
 
 from yt.packages.six import iteritems
