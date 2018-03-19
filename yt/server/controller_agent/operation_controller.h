@@ -450,6 +450,7 @@ struct TOperationInfo
     NYson::TYsonString RunningJobs;
     NYson::TYsonString JobSplitter;
     ssize_t MemoryUsage;
+    EControllerState ControllerState;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

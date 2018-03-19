@@ -79,13 +79,6 @@ DEFINE_ENUM(EInputChunkState,
     (Waiting)
 );
 
-DEFINE_ENUM(EControllerState,
-    (Preparing)
-    (Running)
-    (Failing)
-    (Finished)
-);
-
 DEFINE_ENUM(ETransactionType,
     (Async)
     (Input)

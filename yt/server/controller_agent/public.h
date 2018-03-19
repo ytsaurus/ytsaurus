@@ -22,6 +22,15 @@ DEFINE_ENUM(EControllerAgentAlertType,
     (UnrecognizedConfigOptions)
 );
 
+DEFINE_ENUM(EControllerState,
+    ((Preparing)(0))
+    ((Running)(1))
+    ((Failing)(2))
+    ((Finished)(3))
+);
+
+////////////////////////////////////////////////////////////////////////////////
+
 using NScheduler::TOperationId;
 using NScheduler::TJobId;
 using NScheduler::TJobResources;

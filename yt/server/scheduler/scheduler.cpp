@@ -2593,6 +2593,7 @@ private:
         auto controllerRunningJobs = rsp ? toYsonString(rsp->running_jobs()) : emptyMapFragment;
         auto controllerJobSplitterInfo = rsp ? toYsonString(rsp->job_splitter()) : emptyMapFragment;
         auto controllerMemoryUsage = rsp ? MakeNullable(rsp->controller_memory_usage()) : Null;
+        auto controllerState = rsp ? MakeNullable(static_cast<NControllerAgent::EControllerState>(rsp->controller_state())  ) : Null;
 
         return BuildYsonStringFluently()
             .BeginMap()
@@ -2625,6 +2626,7 @@ private:
                         .Items(controllerJobSplitterInfo)
                     .EndMap()
                 .Item("controller_memory_usage").Value(controllerMemoryUsage)
+                .Item("controller_state").Value(controllerState)
                 .DoIf(!rspOrError.IsOK(), [&] (TFluentMap fluent) {
                     fluent.Item("controller_error").Value(TError(rspOrError));
                 })
