@@ -22,7 +22,7 @@ public:
     TValue Get(const TKey& key)
     {
         auto future = TExpiringCache<TKey, TValue>::Get(key);
-        return NConcurrency::WaitFor(future).ValueOrThrow();
+        return future.Get().ValueOrThrow();
     }
 
 protected:
