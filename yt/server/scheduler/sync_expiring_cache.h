@@ -26,7 +26,7 @@ public:
     }
 
 protected:
-    TFuture<TValue> DoGet(const TKey& key) override
+    virtual TFuture<TValue> DoGet(const TKey& key) override
     {
         return MakeFuture(CalculateValueAction_(key));
     }
