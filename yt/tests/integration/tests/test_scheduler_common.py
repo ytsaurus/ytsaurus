@@ -9,13 +9,13 @@ from yt.environment.helpers import assert_almost_equal
 
 from operations_archive import clean_operations
 
-from flaky import flaky
+import pytest
 
 import pprint
-import pytest
+import random
+import sys
 import time
 import __builtin__
-import sys
 
 ##################################################################
 
@@ -1335,6 +1335,40 @@ class TestSchedulerRevive(YTEnvSetup):
         finally:
             set("//sys/scheduler/config", {"testing_options": {"enable_random_master_disconnection": False}})
             time.sleep(2)
+
+    def test_many_operations_controller_disconnections(self):
+        self._prepare_tables()
+
+        ops = []
+        for index in xrange(self.OP_COUNT):
+            op = map(
+                dont_track=True,
+                command="sleep 20; echo 'AAA' >&2; cat",
+                in_="//tmp/t_in",
+                out="//tmp/t_out" + str(index),
+                spec={
+                    "stderr_table_path": "//tmp/t_err" + str(index),
+                    "testing": {
+                        "delay_inside_revive": 2000,
+                    }
+                })
+            ops.append(op)
+
+        ok = False
+        for iter in xrange(100):
+            time.sleep(random.randint(1, 10) * 0.5)
+            self.Env.kill_controller_agents()
+            self.Env.start_controller_agents()
+
+            completed_count = 0
+            for index, op in enumerate(ops):
+                assert op.get_state() not in ("aborted", "failed")
+                if op.get_state() == "completed":
+                    completed_count += 1
+            if completed_count == len(ops):
+                ok = True
+                break
+        assert ok
 
     def test_live_preview(self):
         create_user("u")

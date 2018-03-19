@@ -448,11 +448,11 @@ void DoRun(const char* configFilename)
                 }
 
                 std::vector<NScheduler::TUpdatedJob> updateJobs;
-                std::vector<NScheduler::TCompletedJob> completedJobs({
-                    NScheduler::TCompletedJob(job->GetOperationId(), job->GetId(), job->GetTreeId())
+                std::vector<NScheduler::TFinishedJob> completedJobs({
+                    NScheduler::TFinishedJob(job->GetOperationId(), job->GetId(), job->GetTreeId())
                 });
                 std::vector<TJobId> jobsToAbort;
-                fairShareStrategy->ProcessUpdatedAndCompletedJobs(
+                fairShareStrategy->ProcessUpdatedAndFinishedJobs(
                     &updateJobs,
                     &completedJobs,
                     &jobsToAbort);

@@ -208,7 +208,7 @@ private:
     TCompletedJobCounter CompletedJobCounter_;
 
     std::vector<TUpdatedJob> UpdatedJobs_;
-    std::vector<TCompletedJob> CompletedJobs_;
+    std::vector<TFinishedJob> FinishedJobs_;
 
     THashMap<TJobId, TPromise<NControllerAgent::TScheduleJobResultPtr>> JobIdToAsyncScheduleResult_;
 
@@ -305,8 +305,7 @@ private:
     void SetJobState(const TJobPtr& job, EJobState state);
 
     void RegisterJob(const TJobPtr& job);
-    void UnregisterJob(const TJobPtr& job);
-    void DoUnregisterJob(const TJobPtr& job);
+    void UnregisterJob(const TJobPtr& job, bool enableLogging = true, bool removeFromStrategy = true);
 
     void SetJobWaitingForConfirmation(const TJobPtr& job);
     void ResetJobWaitingForConfirmation(const TJobPtr& job);

@@ -170,7 +170,7 @@ void TNodeShard::DoCleanup()
     }
 
     UpdatedJobs_.clear();
-    CompletedJobs_.clear();
+    FinishedJobs_.clear();
 
     ConcurrentHeartbeatCount_ = 0;
 
@@ -210,21 +210,13 @@ void TNodeShard::StartOperationRevival(const TOperationId& operationId)
         operationId,
         operationState.Jobs.size());
 
-    for (const auto& pair : operationState.Jobs) {
+    auto jobs = operationState.Jobs;
+    for (const auto& pair : jobs) {
         const auto& job = pair.second;
-        const auto& node = job->GetNode();
-        // Cf. UnregisterJob.
-        if (node->GetHasOngoingJobsScheduling()) {
-            job->SetHasPendingUnregistration(true);
-        } else {
-            YCHECK(node->Jobs().erase(job) == 1);
-            YCHECK(node->IdToJob().erase(job->GetId()) == 1);
-            --ActiveJobCount_;
-
-            ResetJobWaitingForConfirmation(job);
-        }
+        //UnregisterJob(job, /* enableLogging */ false);
+        UnregisterJob(job, /* enableLogging */ true, /* removeFromTree */ false);
     }
-    operationState.Jobs.clear();
+    YCHECK(operationState.Jobs.empty());
 }
 
 void TNodeShard::FinishOperationRevival(const TOperationId& operationId, const std::vector<TJobPtr>& jobs)
@@ -266,7 +258,7 @@ void TNodeShard::UnregisterOperation(const TOperationId& operationId)
     auto& operationState = it->second;
 
     for (const auto& job : operationState.Jobs) {
-        YCHECK(job.second->GetHasPendingUnregistration());
+        YCHECK(job.second->GetUnregistered());
     }
 
     IdToOpertionState_.erase(it);
@@ -380,8 +372,6 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
             node,
             runningJobs);
 
-        SubmitJobsToStrategy();
-
         PROFILE_AGGREGATED_TIMING (StrategyJobProcessingTimeCounter) {
             SubmitJobsToStrategy();
         }
@@ -399,8 +389,6 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
         ProcessScheduledJobs(
             schedulingContext,
             context);
-
-        SubmitJobsToStrategy();
 
         // NB: some jobs maybe considered aborted after processing scheduled jobs.
         PROFILE_AGGREGATED_TIMING (StrategyJobProcessingTimeCounter) {
@@ -550,7 +538,7 @@ void TNodeShard::AbortOperationJobs(const TOperationId& operationId, const TErro
     }
 
     for (const auto& job : operationState->Jobs) {
-        YCHECK(job.second->GetHasPendingUnregistration());
+        YCHECK(job.second->GetUnregistered());
     }
 }
 
@@ -1192,7 +1180,6 @@ void TNodeShard::ProcessHeartbeatJobs(
 
     for (const auto& job : node->Jobs()) {
         // Verify that all flags are in the initial state.
-        YCHECK(!job->GetHasPendingUnregistration());
         YCHECK(!checkMissingJobs || !job->GetFoundOnNode());
     }
 
@@ -1554,17 +1541,6 @@ void TNodeShard::EndNodeHeartbeatProcessing(const TExecNodePtr& node)
     ConcurrentHeartbeatCount_ -= 1;
     node->SetLastSeenTime(TInstant::Now());
 
-    std::vector<TJobPtr> jobsWithPendingUnregistration;
-    for (const auto& job : node->Jobs()) {
-        if (job->GetHasPendingUnregistration()) {
-            jobsWithPendingUnregistration.push_back(job);
-        }
-    }
-
-    for (const auto& job : jobsWithPendingUnregistration) {
-        DoUnregisterJob(job);
-    }
-
     if (node->GetHasPendingUnregistration()) {
         DoUnregisterNode(node);
     }
@@ -1593,7 +1569,7 @@ void TNodeShard::ProcessScheduledJobs(
             if (!operationState->Terminated) {
                 const auto& controller = operationState->Controller;
                 controller->OnNonscheduledJobAborted(job->GetId(), EAbortReason::SchedulingOperationSuspended);
-                CompletedJobs_.emplace_back(job->GetOperationId(), job->GetId(), job->GetTreeId());
+                FinishedJobs_.emplace_back(job->GetOperationId(), job->GetId(), job->GetTreeId());
             }
             continue;
         }
@@ -1620,7 +1596,7 @@ void TNodeShard::ProcessScheduledJobs(
     }
 
     for (const auto& job : schedulingContext->PreemptedJobs()) {
-        if (!FindOperationState(job->GetOperationId()) || job->GetHasPendingUnregistration()) {
+        if (!FindOperationState(job->GetOperationId()) || job->GetUnregistered()) {
             LOG_DEBUG("Cannot preempt job: operation is no longer known (JobId: %v, OperationId: %v)",
                 job->GetId(),
                 job->GetOperationId());
@@ -1697,9 +1673,9 @@ void TNodeShard::OnJobCompleted(const TJobPtr& job, TJobStatus* status, bool aba
             const auto& controller = operationState->Controller;
             controller->OnJobCompleted(job, status, abandoned);
         }
-    }
 
-    UnregisterJob(job);
+        UnregisterJob(job);
+    }
 }
 
 void TNodeShard::OnJobFailed(const TJobPtr& job, TJobStatus* status)
@@ -1719,9 +1695,9 @@ void TNodeShard::OnJobFailed(const TJobPtr& job, TJobStatus* status)
             const auto& controller = operationState->Controller;
             controller->OnJobFailed(job, status);
         }
-    }
 
-    UnregisterJob(job);
+        UnregisterJob(job);
+    }
 }
 
 void TNodeShard::OnJobAborted(const TJobPtr& job, TJobStatus* status, bool operationTerminated)
@@ -1746,9 +1722,9 @@ void TNodeShard::OnJobAborted(const TJobPtr& job, TJobStatus* status, bool opera
             const auto& controller = operationState->Controller;
             controller->OnJobAborted(job, status);
         }
-    }
 
-    UnregisterJob(job);
+        UnregisterJob(job);
+    }
 }
 
 void TNodeShard::OnJobFinished(const TJobPtr& job)
@@ -1777,12 +1753,12 @@ void TNodeShard::OnJobFinished(const TJobPtr& job)
 void TNodeShard::SubmitJobsToStrategy()
 {
     PROFILE_AGGREGATED_TIMING (StrategyJobProcessingTimeCounter) {
-        if (!UpdatedJobs_.empty() || !CompletedJobs_.empty()) {
+        if (!UpdatedJobs_.empty() || !FinishedJobs_.empty()) {
             std::vector<TJobId> jobsToAbort;
 
-            Host_->GetStrategy()->ProcessUpdatedAndCompletedJobs(
+            Host_->GetStrategy()->ProcessUpdatedAndFinishedJobs(
                 &UpdatedJobs_,
-                &CompletedJobs_,
+                &FinishedJobs_,
                 &jobsToAbort);
 
             for (const auto& jobId : jobsToAbort) {
@@ -1830,23 +1806,16 @@ void TNodeShard::RegisterJob(const TJobPtr& job)
         job->GetOperationId());
 }
 
-void TNodeShard::UnregisterJob(const TJobPtr& job)
+void TNodeShard::UnregisterJob(const TJobPtr& job, bool enableLogging, bool removeFromTree)
 {
-    auto node = job->GetNode();
-
-    if (node->GetHasOngoingJobsScheduling()) {
-        job->SetHasPendingUnregistration(true);
-    } else {
-        DoUnregisterJob(job);
+    if (job->GetUnregistered()) {
+        return;
     }
-}
 
-void TNodeShard::DoUnregisterJob(const TJobPtr& job)
-{
+    job->SetUnregistered(true);
+
     auto* operationState = FindOperationState(job->GetOperationId());
     const auto& node = job->GetNode();
-
-    YCHECK(!node->GetHasOngoingJobsScheduling());
 
     YCHECK(node->Jobs().erase(job) == 1);
     YCHECK(node->IdToJob().erase(job->GetId()) == 1);
@@ -1854,17 +1823,19 @@ void TNodeShard::DoUnregisterJob(const TJobPtr& job)
 
     ResetJobWaitingForConfirmation(job);
 
-    if (operationState) {
-        YCHECK(operationState->Jobs.erase(job->GetId()) == 1);
+    if (operationState && operationState->Jobs.erase(job->GetId())) {
+        // TODO(ignat): make job unregistration checks in strategy.
+        // This seems not safe.
+        if (removeFromTree) {
+            FinishedJobs_.emplace_back(job->GetOperationId(), job->GetId(), job->GetTreeId());
+        }
 
-        CompletedJobs_.emplace_back(job->GetOperationId(), job->GetId(), job->GetTreeId());
-
-        LOG_DEBUG("Job unregistered (JobId: %v, OperationId: %v, State: %v)",
+        LOG_DEBUG_UNLESS(enableLogging, "Job unregistered (JobId: %v, OperationId: %v, State: %v)",
             job->GetId(),
             job->GetOperationId(),
             job->GetState());
     } else {
-        LOG_DEBUG("Dangling job unregistered (JobId: %v, OperationId: %v, State: %v)",
+        LOG_DEBUG_UNLESS(enableLogging, "Dangling job unregistered (JobId: %v, OperationId: %v, State: %v)",
             job->GetId(),
             job->GetOperationId(),
             job->GetState());
