@@ -561,7 +561,7 @@ void TChunkStoreBase::BuildOrchidYson(TFluentMap fluent)
         .Item("compressed_data_size").Value(MiscExt_.compressed_data_size())
         .Item("uncompressed_data_size").Value(MiscExt_.uncompressed_data_size())
         .Item("row_count").Value(MiscExt_.row_count())
-        .Item("creation_time").Value(TInstant(MiscExt_.creation_time()))
+        .Item("creation_time").Value(TInstant::MicroSeconds(MiscExt_.creation_time()))
         .DoIf(backingStore.operator bool(), [&] (TFluentMap fluent) {
             fluent.Item("backing_store_id").Value(backingStore->GetId());
         });
@@ -869,7 +869,7 @@ bool TChunkStoreBase::ValidateBlockCachePreloaded()
 
 TInstant TChunkStoreBase::GetCreationTime() const
 {
-    return TInstant(MiscExt_.creation_time());
+    return TInstant::MicroSeconds(MiscExt_.creation_time());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

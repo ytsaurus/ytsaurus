@@ -3381,7 +3381,7 @@ private:
 #define SET_ITEM_YSON_STRING_VALUE(itemKey) \
             SET_ITEM_VALUE(itemKey, TYsonString(rows[0][index].Data.String, rows[0][index].Length))
 #define SET_ITEM_INSTANT_VALUE(itemKey) \
-            SET_ITEM_VALUE(itemKey, TInstant(rows[0][index].Data.Int64))
+            SET_ITEM_VALUE(itemKey, TInstant::MicroSeconds(rows[0][index].Data.Int64))
 #define SET_ITEM_VALUE(itemKey, operation) \
             .DoIf(fields.find(itemKey) != fields.end() && rows[0][GET_INDEX(itemKey)].Type != EValueType::Null, [&] (TFluentMap fluent) { \
                 auto index = GET_INDEX(itemKey); \
@@ -4347,10 +4347,10 @@ private:
                 operation.BriefSpec = TYsonString(row[6].Data.String, row[6].Length);
 
                 checkIsNotNull(row[7], "start_time");
-                operation.StartTime = TInstant(row[7].Data.Int64);
+                operation.StartTime = TInstant::MicroSeconds(row[7].Data.Int64);
 
                 if (row[8].Type != EValueType::Null) {
-                    operation.FinishTime = TInstant(row[8].Data.Int64);
+                    operation.FinishTime = TInstant::MicroSeconds(row[8].Data.Int64);
                 }
 
                 archiveData.push_back(operation);
@@ -4624,11 +4624,11 @@ private:
                 job.State = ParseEnum<EJobState>(TString(row[stateIndex].Data.String, row[stateIndex].Length));
 
                 if (row[startTimeIndex].Type != EValueType::Null) {
-                    job.StartTime = TInstant(row[startTimeIndex].Data.Int64);
+                    job.StartTime = TInstant::MicroSeconds(row[startTimeIndex].Data.Int64);
                 }
 
                 if (row[finishTimeIndex].Type != EValueType::Null) {
-                    job.FinishTime = TInstant(row[finishTimeIndex].Data.Int64);
+                    job.FinishTime = TInstant::MicroSeconds(row[finishTimeIndex].Data.Int64);
                 }
 
                 if (row[addressIndex].Type != EValueType::Null) {
@@ -5190,7 +5190,7 @@ private:
 #define SET_ITEM_YSON_STRING_VALUE(itemKey) \
             SET_ITEM_VALUE(itemKey, TYsonString(rows[0][index].Data.String, rows[0][index].Length))
 #define SET_ITEM_INSTANT_VALUE(itemKey) \
-            SET_ITEM_VALUE(itemKey, TInstant(rows[0][index].Data.Int64))
+            SET_ITEM_VALUE(itemKey, TInstant::MicroSeconds(rows[0][index].Data.Int64))
 #define SET_ITEM_VALUE(itemKey, operation) \
             .DoIf(fields.find(itemKey) != fields.end() && rows[0][GET_INDEX(itemKey)].Type != EValueType::Null, [&] (TFluentMap fluent) { \
                 auto index = GET_INDEX(itemKey); \
