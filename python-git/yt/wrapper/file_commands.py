@@ -352,9 +352,9 @@ def upload_file_to_cache(filename, hash=None, client=None):
                      "get_file_from_cache" not in get_api_commands(client)
 
     if use_legacy:
-        return _upload_file_to_cache_legacy(filename, hash, client)
+        return _upload_file_to_cache_legacy(filename, hash, client=client)
 
-    file_path = get_file_from_cache(hash)
+    file_path = get_file_from_cache(hash, client=client)
     if file_path:
         return file_path
 
