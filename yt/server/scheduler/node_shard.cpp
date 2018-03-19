@@ -1874,13 +1874,13 @@ void TNodeShard::DoUnregisterJob(const TJobPtr& job)
 void TNodeShard::SetJobWaitingForConfirmation(const TJobPtr& job)
 {
     job->SetWaitingForConfirmation(true);
-    node->UnconfirmedJobIds().insert(job->GetId());
+    job->GetNode()->UnconfirmedJobIds().insert(job->GetId());
 }
 
 void TNodeShard::ResetJobWaitingForConfirmation(const TJobPtr& job)
 {
     job->SetWaitingForConfirmation(false);
-    node->UnconfirmedJobIds().erase(job->GetId());
+    job->GetNode()->UnconfirmedJobIds().erase(job->GetId());
 }
 
 void TNodeShard::PreemptJob(const TJobPtr& job, TNullable<TCpuDuration> interruptTimeout)
