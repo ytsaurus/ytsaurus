@@ -53,8 +53,8 @@ class TJob
     //! The time when the job was finished.
     DEFINE_BYVAL_RW_PROPERTY(TNullable<TInstant>, FinishTime);
 
-    //! True if job was unregistered during heartbeat.
-    DEFINE_BYVAL_RW_PROPERTY(bool, HasPendingUnregistration);
+    //! True if job was already unregistered.
+    DEFINE_BYVAL_RW_PROPERTY(bool, Unregistered, false);
 
     //! Current state of the job.
     DEFINE_BYVAL_RW_PROPERTY(EJobState, State, EJobState::None);

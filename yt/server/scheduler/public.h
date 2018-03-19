@@ -35,7 +35,7 @@ DECLARE_REFCOUNTED_CLASS(TJob)
 using TJobList = std::list<TJobPtr>;
 
 struct TUpdatedJob;
-struct TCompletedJob;
+struct TFinishedJob;
 
 struct TExecNodeDescriptor;
 using TExecNodeDescriptorMap = THashMap<NNodeTrackerClient::TNodeId, TExecNodeDescriptor>;

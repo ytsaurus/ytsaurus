@@ -622,7 +622,7 @@ public:
             return operation->GetFinished();
         }
 
-        MasterConnector_->GetCancelableControlInvoker(EControlQueue::Operation)->Invoke(
+        operation->GetCancelableControlInvoker()->Invoke(
             BIND(&TImpl::DoAbortOperation, MakeStrong(this), operation, error));
 
         return operation->GetFinished();
@@ -733,7 +733,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        MasterConnector_->GetCancelableControlInvoker(EControlQueue::Operation)->Invoke(
+        operation->GetCancelableControlInvoker()->Invoke(
             BIND(&TImpl::DoCompleteOperation, MakeStrong(this), operation));
     }
 
@@ -741,7 +741,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        MasterConnector_->GetCancelableControlInvoker(EControlQueue::Operation)->Invoke(
+        operation->GetCancelableControlInvoker()->Invoke(
             BIND(&TImpl::DoAbortOperation, MakeStrong(this), operation, error));
     }
 
@@ -749,7 +749,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        MasterConnector_->GetCancelableControlInvoker()->Invoke(
+        operation->GetCancelableControlInvoker()->Invoke(
             BIND(&TImpl::DoFailOperation, MakeStrong(this), operation, error));
     }
 
@@ -757,7 +757,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        MasterConnector_->GetCancelableControlInvoker()->Invoke(BIND(
+        operation->GetCancelableControlInvoker()->Invoke(BIND(
             &TImpl::DoSuspendOperation,
             MakeStrong(this),
             operation,
