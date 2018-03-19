@@ -221,10 +221,7 @@ void TNodeShard::StartOperationRevival(const TOperationId& operationId)
             YCHECK(node->IdToJob().erase(job->GetId()) == 1);
             --ActiveJobCount_;
 
-            // TODO(babenko): extract
-            // We should not attempt to unregister this job again as an unconfirmed job.
-            job->SetWaitingForConfirmation(false);
-            node->UnconfirmedJobIds().erase(job->GetId());
+            ResetJobWaitingForConfirmation(job);
         }
     }
     operationState.Jobs.clear();
@@ -244,8 +241,7 @@ void TNodeShard::FinishOperationRevival(const TOperationId& operationId, const s
             job->GetRevivalNodeId(),
             TNodeDescriptor(job->GetRevivalNodeAddress()));
         job->SetNode(node);
-        job->SetWaitingForConfirmation(true);
-        node->UnconfirmedJobIds().emplace(job->GetId());
+        SetJobWaitingForConfirmation(job);
         RegisterJob(job);
     }
 
@@ -1161,7 +1157,7 @@ void TNodeShard::AbortUnconfirmedJobs(
             job->GetId());
         OnJobAborted(job, &status);
         if (auto node = job->GetNode()) {
-            node->UnconfirmedJobIds().erase(job->GetId());
+            ResetJobWaitingForConfirmation(job);
         }
     }
 }
@@ -1287,9 +1283,11 @@ void TNodeShard::ProcessHeartbeatJobs(
             // (like confirmation timeout).
             continue;
         }
+
         auto status = JobStatusFromError(TError("Job not confirmed by node"));
         OnJobAborted(job, &status);
-        node->UnconfirmedJobIds().erase(jobId);
+
+        ResetJobWaitingForConfirmation(job);
     }
 }
 
@@ -1399,8 +1397,7 @@ TJobPtr TNodeShard::ProcessJobHeartbeat(
         LOG_DEBUG("Job confirmed (JobId: %v, State: %v)",
             jobId,
             state);
-        job->SetWaitingForConfirmation(false);
-        node->UnconfirmedJobIds().erase(job->GetId());
+        ResetJobWaitingForConfirmation(job);
     }
 
     bool shouldLogJob = (state != job->GetState()) || forceJobsLogging;
@@ -1848,17 +1845,15 @@ void TNodeShard::UnregisterJob(const TJobPtr& job)
 void TNodeShard::DoUnregisterJob(const TJobPtr& job)
 {
     auto* operationState = FindOperationState(job->GetOperationId());
-    auto node = job->GetNode();
+    const auto& node = job->GetNode();
 
     YCHECK(!node->GetHasOngoingJobsScheduling());
 
     YCHECK(node->Jobs().erase(job) == 1);
     YCHECK(node->IdToJob().erase(job->GetId()) == 1);
     --ActiveJobCount_;
-    
-    // We should not attempt to unregister this job again as an unconfirmed job.
-    job->SetWaitingForConfirmation(false);
-    node->UnconfirmedJobIds().erase(job->GetId());
+
+    ResetJobWaitingForConfirmation(job);
 
     if (operationState) {
         YCHECK(operationState->Jobs.erase(job->GetId()) == 1);
@@ -1875,6 +1870,18 @@ void TNodeShard::DoUnregisterJob(const TJobPtr& job)
             job->GetOperationId(),
             job->GetState());
     }
+}
+
+void TNodeShard::SetJobWaitingForConfirmation(const TJobPtr& job)
+{
+    job->SetWaitingForConfirmation(true);
+    node->UnconfirmedJobIds().insert(job->GetId());
+}
+
+void TNodeShard::ResetJobWaitingForConfirmation(const TJobPtr& job)
+{
+    job->SetWaitingForConfirmation(false);
+    node->UnconfirmedJobIds().erase(job->GetId());
 }
 
 void TNodeShard::PreemptJob(const TJobPtr& job, TNullable<TCpuDuration> interruptTimeout)

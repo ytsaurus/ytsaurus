@@ -306,8 +306,10 @@ private:
 
     void RegisterJob(const TJobPtr& job);
     void UnregisterJob(const TJobPtr& job);
-
     void DoUnregisterJob(const TJobPtr& job);
+
+    void SetJobWaitingForConfirmation(const TJobPtr& job);
+    void ResetJobWaitingForConfirmation(const TJobPtr& job);
 
     void PreemptJob(const TJobPtr& job, TNullable<NProfiling::TCpuDuration> interruptTimeout);
 
@@ -320,15 +322,12 @@ private:
     TExecNodePtr FindNodeByJob(const TJobId& jobId);
 
     TJobPtr FindJob(const TJobId& jobId, const TExecNodePtr& node);
-
     TJobPtr FindJob(const TJobId& jobId);
-
     TJobPtr GetJobOrThrow(const TJobId& jobId);
 
     NJobProberClient::TJobProberServiceProxy CreateJobProberProxy(const TJobPtr& job);
 
     TOperationState* FindOperationState(const TOperationId& operationId);
-
     TOperationState& GetOperationState(const TOperationId& operationId);
 
     void BuildNodeYson(const TExecNodePtr& node, NYTree::TFluentMap consumer);
