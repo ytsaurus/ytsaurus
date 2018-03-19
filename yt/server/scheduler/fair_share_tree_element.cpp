@@ -1546,7 +1546,7 @@ void TOperationElementSharedState::UpdatePreemptableJobsList(
     }
 }
 
-bool TOperationElementSharedState::IsJobExisting(const TJobId& jobId) const
+bool TOperationElementSharedState::IsJobKnown(const TJobId& jobId) const
 {
     TReaderGuard guard(JobPropertiesMapLock_);
 
@@ -2094,9 +2094,9 @@ void TOperationElement::IncreaseJobResourceUsage(const TJobId& jobId, const TJob
     UpdatePreemptableJobsList();
 }
 
-bool TOperationElement::IsJobExisting(const TJobId& jobId) const
+bool TOperationElement::IsJobKnown(const TJobId& jobId) const
 {
-    return SharedState_->IsJobExisting(jobId);
+    return SharedState_->IsJobKnown(jobId);
 }
 
 bool TOperationElement::IsJobPreemptable(const TJobId& jobId, bool aggressivePreemptionEnabled) const
