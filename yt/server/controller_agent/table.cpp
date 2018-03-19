@@ -11,18 +11,6 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TLivePreviewTableBase::Persist(const TPersistenceContext& context)
-{
-    using NYT::Persist;
-    using NYT::Load;
-
-    if (context.IsLoad() && context.GetVersion() < 202194) {
-        Load<std::vector<NCypressClient::TNodeId>>(context.LoadContext());
-    }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 bool TInputTable::IsForeign() const
 {
     return Path.GetForeign();
@@ -55,7 +43,6 @@ bool TOutputTable::IsBeginUploadCompleted() const
 void TOutputTable::Persist(const TPersistenceContext& context)
 {
     TUserObject::Persist(context);
-    TLivePreviewTableBase::Persist(context);
 
     using NYT::Persist;
     Persist(context, TableUploadOptions);
@@ -89,9 +76,7 @@ TEdgeDescriptor TOutputTable::GetEdgeDescriptorTemplate()
 ////////////////////////////////////////////////////////////////////////////////
 
 void TIntermediateTable::Persist(const TPersistenceContext& context)
-{
-    TLivePreviewTableBase::Persist(context);
-}
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 
