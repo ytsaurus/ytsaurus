@@ -5565,6 +5565,8 @@ TOperationInfo TOperationControllerBase::BuildOperationInfo()
 
     result.MemoryUsage = GetMemoryUsage();
 
+    result.ControllerState = State;
+
     return result;
 }
 

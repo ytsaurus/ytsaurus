@@ -1393,11 +1393,21 @@ class TestSchedulerRevive(YTEnvSetup):
 
 class TestJobRevivalBase(YTEnvSetup):
     def _wait_for_single_job(self, op_id):
-        path = "//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op_id)
-        wait(lambda: exists(path) and len(ls(path)) == 1, "Job did not start")
-        jobs = ls(path)
-        assert len(jobs) == 1
-        return jobs[0]
+        path = "//sys/scheduler/orchid/scheduler/operations/{0}".format(op_id)
+        while True:
+            if get(path + "/controller_state", default=None) == "running":
+                jobs = ls(path + "/running_jobs")
+                if len(jobs) > 0:
+                    assert len(jobs) == 1
+                    return jobs[0]
+
+    def _kill_and_start(self, components):
+        if "controller_agents" in components:
+            self.Env.kill_controller_agents()
+            self.Env.start_controller_agents()
+        if "schedulers" in components:
+            self.Env.kill_schedulers()
+            self.Env.start_schedulers()
 
 ################################################################################
 
@@ -1441,7 +1451,8 @@ class TestJobRevival(TestJobRevivalBase):
         }
     }
 
-    def test_job_revival_simple(self):
+    @pytest.mark.parametrize("components_to_kill", [["schedulers"], ["controller_agents"], ["schedulers", "controller_agents"]])
+    def test_job_revival_simple(self, components_to_kill):
         create("table", "//tmp/t_in")
         create("table", "//tmp/t_out")
 
@@ -1461,8 +1472,8 @@ class TestJobRevival(TestJobRevivalBase):
         job_id = self._wait_for_single_job(op.id)
 
         events_on_fs().wait_event("snapshot_written")
-        self.Env.kill_schedulers()
-        self.Env.start_schedulers()
+
+        self._kill_and_start(components_to_kill)
 
         orchid_path = "//sys/scheduler/orchid/scheduler/operations/{0}".format(op.id)
         cypress_path = "//sys/operations/{0}".format(op.id)
@@ -1523,8 +1534,12 @@ class TestJobRevival(TestJobRevivalBase):
                 print >>sys.stderr, "aborted_job_count =", aborted_job_count
                 print >>sys.stderr, "aborted_on_revival_job_count =", aborted_on_revival_job_count
                 if completed_job_count >= switch_job_count:
-                    self.Env.kill_schedulers()
-                    self.Env.start_schedulers()
+                    if (switch_job_count // 40) % 2 == 0:
+                        self.Env.kill_schedulers()
+                        self.Env.start_schedulers()
+                    else:
+                        self.Env.kill_controller_agents()
+                        self.Env.start_controller_agents()
                     if switch_job_count % 3 == 0:
                         self.Env.kill_nodes()
                         self.Env.start_nodes()
@@ -1542,7 +1557,8 @@ class TestJobRevival(TestJobRevivalBase):
         for output_table in output_tables:
             assert sorted(read_table(output_table, verbose=False)) == [{"a": i} for i in range(op_count)]
 
-    def test_user_slots_limit(self):
+    @pytest.mark.parametrize("components_to_kill", [["schedulers"], ["controller_agents"], ["schedulers", "controller_agents"]])
+    def test_user_slots_limit(self, components_to_kill):
         create("table", "//tmp/t_in")
         create("table", "//tmp/t_out")
 
@@ -1571,8 +1587,9 @@ class TestJobRevival(TestJobRevivalBase):
         # Comment about '+5' - we need some additional room for jobs that can be aborted.
         wait(lambda: sum([events_on_fs().check_event("ready_for_revival_" + str(i)) for i in xrange(user_slots_limit + 5)]) == user_slots_limit)
 
-        self.Env.kill_schedulers()
-        self.Env.start_schedulers()
+        self._kill_and_start(components_to_kill)
+        self.Env.kill_controller_agents()
+        self.Env.start_controller_agents()
 
         for i in xrange(1000):
             for j in xrange(10):
@@ -1625,7 +1642,8 @@ class TestDisabledJobRevival(TestJobRevivalBase):
         }
     }
 
-    def test_disabled_job_revival(self):
+    @pytest.mark.parametrize("components_to_kill", [["schedulers"], ["controller_agents"], ["schedulers", "controller_agents"]])
+    def test_disabled_job_revival(self, components_to_kill):
         create("table", "//tmp/t_in")
         create("table", "//tmp/t_out")
 
@@ -1648,8 +1666,7 @@ class TestDisabledJobRevival(TestJobRevivalBase):
         job_id = self._wait_for_single_job(op.id)
 
         events_on_fs().wait_event("snapshot_written")
-        self.Env.kill_schedulers()
-        self.Env.start_schedulers()
+        self._kill_and_start(components_to_kill)
 
         wait(lambda: exists(orchid_path), "Operation did not re-appear")
 
@@ -1660,7 +1677,7 @@ class TestDisabledJobRevival(TestJobRevivalBase):
         op.track()
 
         # And here.
-        assert get("{0}/@progress/jobs/aborted/total".format(cypress_path)) == 1
+        assert get("{0}/@progress/jobs/aborted/total".format(cypress_path)) >= 1
         assert read_table("//tmp/t_out") == [{"a": 1}]
 
 
