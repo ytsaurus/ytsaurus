@@ -33,7 +33,7 @@ TEncodingWriter::TEncodingWriter(
     , ChunkWriter_(std::move(chunkWriter))
     , BlockCache_(std::move(blockCache))
     , Logger(logger)
-    , CodecTime_({Options_->CompressionCodec, TDuration(0)})
+    , CodecTime_({Options_->CompressionCodec, TDuration::MicroSeconds(0)})
     , CompressionRatio_(Config_->DefaultCompressionRatio)
     , CompressionInvoker_(CreateSerializedInvoker(CreateFixedPriorityInvoker(
         TDispatcher::Get()->GetPrioritizedCompressionPoolInvoker(),
