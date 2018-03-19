@@ -404,7 +404,7 @@ void DoRun(const char* configFilename)
 
                 // Notify scheduler.
                 fairShareStrategy->RegisterOperation(operation.Get());
-                fairShareStrategy->OnOperationRunning(operation->GetId());
+                fairShareStrategy->EnableOperation(operation.Get());
 
                 ++startedOperationCount;
 
