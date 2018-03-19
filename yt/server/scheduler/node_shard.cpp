@@ -410,17 +410,6 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
         response->set_scheduling_skipped(false);
     }
 
-    std::vector<TJobPtr> jobsWithPendingUnregistration;
-    for (const auto& job : node->Jobs()) {
-        if (job->GetHasPendingUnregistration()) {
-            jobsWithPendingUnregistration.push_back(job);
-        }
-    }
-
-    for (const auto& job : jobsWithPendingUnregistration) {
-        DoUnregisterJob(job);
-    }
-
     context->Reply();
 }
 
@@ -1201,11 +1190,10 @@ void TNodeShard::ProcessHeartbeatJobs(
         // them.
     }
 
-    if (checkMissingJobs) {
-        // Verify that all flags are in initial state.
-        for (const auto& job : node->Jobs()) {
-            YCHECK(!job->GetFoundOnNode());
-        }
+    for (const auto& job : node->Jobs()) {
+        // Verify that all flags are in the initial state.
+        YCHECK(!job->GetHasPendingUnregistration());
+        YCHECK(!checkMissingJobs || !job->GetFoundOnNode());
     }
 
     {
@@ -1565,6 +1553,17 @@ void TNodeShard::EndNodeHeartbeatProcessing(const TExecNodePtr& node)
 
     ConcurrentHeartbeatCount_ -= 1;
     node->SetLastSeenTime(TInstant::Now());
+
+    std::vector<TJobPtr> jobsWithPendingUnregistration;
+    for (const auto& job : node->Jobs()) {
+        if (job->GetHasPendingUnregistration()) {
+            jobsWithPendingUnregistration.push_back(job);
+        }
+    }
+
+    for (const auto& job : jobsWithPendingUnregistration) {
+        DoUnregisterJob(job);
+    }
 
     if (node->GetHasPendingUnregistration()) {
         DoUnregisterNode(node);
