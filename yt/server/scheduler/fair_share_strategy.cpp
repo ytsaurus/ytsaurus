@@ -1030,7 +1030,7 @@ private:
         PROFILE_AGGREGATED_TIMING(AnalyzePreemptableJobsTimeCounter) {
             for (const auto& job : context->SchedulingContext->RunningJobs()) {
                 auto* operationElement = rootElementSnapshot->FindOperationElement(job->GetOperationId());
-                if (!operationElement || !operationElement->IsJobExisting(job->GetId())) {
+                if (!operationElement || !operationElement->IsJobKnown(job->GetId())) {
                     LOG_DEBUG("Dangling running job found (JobId: %v, OperationId: %v)",
                         job->GetId(),
                         job->GetOperationId());
@@ -1150,7 +1150,7 @@ private:
 
         for (const auto& job : preemptableJobs) {
             auto* operationElement = rootElementSnapshot->FindOperationElement(job->GetOperationId());
-            if (!operationElement || !operationElement->IsJobExisting(job->GetId())) {
+            if (!operationElement || !operationElement->IsJobKnown(job->GetId())) {
                 LOG_DEBUG("Dangling preemptable job found (JobId: %v, OperationId: %v)",
                     job->GetId(),
                     job->GetOperationId());
