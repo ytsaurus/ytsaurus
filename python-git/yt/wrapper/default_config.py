@@ -514,7 +514,7 @@ default_config = {
     "max_batch_size": 100,
     "batch_requests_retries": retries_config(count=6, enable=True, backoff={"policy": "rounded_up_to_request_timeout"}),
 
-    "enable_operations_api": False,
+    "enable_operations_api": True,
 
     "skynet_manager_url": "http://skynet-manager.yt.yandex.net/api/v1",
 }
