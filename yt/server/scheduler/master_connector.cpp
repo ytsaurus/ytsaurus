@@ -610,6 +610,7 @@ private:
             ListOperations();
             RequestOperationAttributes();
             FireHandshake();
+            SyncOperationNodes();
         }
 
     private:
@@ -617,6 +618,7 @@ private:
         const TAddressMap ServiceAddresses_;
 
         std::vector<TOperationId> OperationIds_;
+        std::vector<TOperationId> OperationIdsToSync_;
         TMasterHandshakeResult Result_;
 
         void FireConnecting()
@@ -740,8 +742,33 @@ private:
                 batchReq->AddRequest(req, "list_operations_" + hashStr);
             }
 
+            {
+                auto req = TYPathProxy::List("//sys/operations");
+                ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
+                batchReq->AddRequest(req, "list_operations");
+            }
+
             auto batchRsp = WaitFor(batchReq->Invoke())
                 .ValueOrThrow();
+
+            THashMap<TOperationId, EOperationState> rootOperationIdToState;
+
+            auto rootOperationsRspOrError = batchRsp->GetResponse<TYPathProxy::TRspList>("list_operations");
+            auto rootOperationsRsp = rootOperationsRspOrError.ValueOrThrow();
+            auto rootOperationList = ConvertToNode(TYsonString(rootOperationsRsp->value()))->AsList();
+
+            for (const auto& operationNode : rootOperationList->GetChildren()) {
+                auto idStr = operationNode->GetValue<TString>();
+                // Hash-bucket case
+                if (idStr.size() == 2) {
+                    continue;
+                }
+
+                auto id = TOperationId::FromString(idStr);
+                auto state = operationNode->Attributes().Get<EOperationState>("state");
+                YCHECK(rootOperationIdToState.emplace(id, state).second);
+            }
+
 
             for (int hash = 0x0; hash <= 0xFF; ++hash) {
                 auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspList>(
@@ -765,6 +792,11 @@ private:
                         LOG_DEBUG("Found operation in Cypress (OperationId: %v, State: %v)",
                             id,
                             state);
+                    } else {
+                        auto it = rootOperationIdToState.find(id);
+                        if (it != rootOperationIdToState.end() && state != it->second) {
+                            OperationIdsToSync_.push_back(id);
+                        }
                     }
                 }
             }
@@ -917,7 +949,7 @@ private:
                 Owner_->Bootstrap_->GetControlInvoker(),
                 attributes.Get<EOperationState>("state"),
                 attributes.Get<std::vector<TOperationEvent>>("events", {}));
-        
+
             operation->SetShouldFlushAcl(true);
 
             auto slotIndexMap = attributes.Find<THashMap<TString, int>>("slot_index_per_pool_tree");
@@ -954,6 +986,23 @@ private:
         void FireHandshake()
         {
             Owner_->MasterHandshake_.Fire(Result_);
+        }
+
+        void SyncOperationNodes()
+        {
+            LOG_INFO("Synchronizing operation nodes (UnsynchronizedCount: %v)", OperationIdsToSync_.size());
+
+            auto batchReq = Owner_->StartObjectBatchRequest(EMasterChannelKind::Leader);
+
+            for (const auto& operationId : OperationIdsToSync_) {
+                auto req = TCypressYPathProxy::Copy(GetOperationPath(operationId));
+                req->set_source_path(GetNewOperationPath(operationId));
+                req->set_force(true);
+                batchReq->AddRequest(req, "copy_operation_node");
+            }
+
+            auto batchRspOrError = WaitFor(batchReq->Invoke());
+            THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError));
         }
     };
 
