@@ -4924,6 +4924,8 @@ private:
                             return LessNullable(rhs.field, lhs.field); \
                         }; \
                         break; \
+                    default: \
+                        Y_UNREACHABLE(); \
                 } \
                 break;
 
@@ -4947,6 +4949,8 @@ private:
                             return !(lhs.Id < rhs.Id || lhs.Id == rhs.Id);
                         };
                         break;
+                    default:
+                        Y_UNREACHABLE();
                 }
                 break;
 
@@ -4966,6 +4970,8 @@ private:
                             return lhsDuration > rhsDuration;
                         };
                         break;
+                    default:
+                        Y_UNREACHABLE();
                 }
                 break;
 
@@ -4981,6 +4987,8 @@ private:
                             return ToString(lhs.Id) > ToString(rhs.Id);
                         };
                         break;
+                    default:
+                        Y_UNREACHABLE();
                 }
                 break;
 
