@@ -204,10 +204,30 @@ void TNodeShard::StartOperationRevival(const TOperationId& operationId)
 
     auto& operationState = GetOperationState(operationId);
     operationState.JobsReady = false;
-    operationState.Jobs.clear();
 
-    LOG_DEBUG("Operation revival started at node shard (OperationId: %v)",
-        operationId);
+
+    LOG_DEBUG("Operation revival started at node shard (OperationId: %v, JobCount: %v)",
+        operationId,
+        operationState.Jobs.size());
+
+    for (const auto& pair : operationState.Jobs) {
+        const auto& job = pair.second;
+        const auto& node = job->GetNode();
+        // Cf. UnregisterJob.
+        if (node->GetHasOngoingJobsScheduling()) {
+            job->SetHasPendingUnregistration(true);
+        } else {
+            YCHECK(node->Jobs().erase(job) == 1);
+            YCHECK(node->IdToJob().erase(job->GetId()) == 1);
+            --ActiveJobCount_;
+
+            // TODO(babenko): extract
+            // We should not attempt to unregister this job again as an unconfirmed job.
+            job->SetWaitingForConfirmation(false);
+            node->UnconfirmedJobIds().erase(job->GetId());
+        }
+    }
+    operationState.Jobs.clear();
 }
 
 void TNodeShard::FinishOperationRevival(const TOperationId& operationId, const std::vector<TJobPtr>& jobs)
@@ -1835,8 +1855,10 @@ void TNodeShard::DoUnregisterJob(const TJobPtr& job)
     YCHECK(node->Jobs().erase(job) == 1);
     YCHECK(node->IdToJob().erase(job->GetId()) == 1);
     --ActiveJobCount_;
+    
     // We should not attempt to unregister this job again as an unconfirmed job.
     job->SetWaitingForConfirmation(false);
+    node->UnconfirmedJobIds().erase(job->GetId());
 
     if (operationState) {
         YCHECK(operationState->Jobs.erase(job->GetId()) == 1);
