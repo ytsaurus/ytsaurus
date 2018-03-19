@@ -309,15 +309,15 @@ class YTInstance(object):
         logger.info("  masters            %d (%d nonvoting)", self.master_count, self.nonvoting_master_count)
         logger.info("  nodes              %d", self.node_count)
         logger.info("  schedulers         %d", self.scheduler_count)
-        logger.info("  controller_agents  %d", self.controller_agent_count)
+        logger.info("  controller agents  %d", self.controller_agent_count)
 
         if self.secondary_master_cell_count > 0:
             logger.info("  secondary cells  %d", self.secondary_master_cell_count)
 
-        logger.info("  proxies          %d", int(self.has_proxy))
-        logger.info("  rpc proxies      %d", int(self.has_rpc_proxy))
-        logger.info("  skynet managers  %d", self.skynet_manager_count)
-        logger.info("  working dir      %s", self.path)
+        logger.info("  HTTP proxies       %d", int(self.has_proxy))
+        logger.info("  RPC proxies        %d", int(self.has_rpc_proxy))
+        logger.info("  skynet managers    %d", self.skynet_manager_count)
+        logger.info("  working dir        %s", self.path)
 
         if self.master_count == 0:
             logger.warning("Master count is zero. Instance is not prepared.")
