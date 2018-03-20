@@ -112,11 +112,11 @@ ICookieAuthenticatorPtr CreateCookieAuthenticator(
 
 class TCachingCookieAuthenticator
     : public ICookieAuthenticator
-    , private TExpiringCache<TCookieCredentials, TAuthenticationResult>
+    , private TAsyncExpiringCache<TCookieCredentials, TAuthenticationResult>
 {
 public:
     TCachingCookieAuthenticator(TExpiringCacheConfigPtr config, ICookieAuthenticatorPtr cookieAuthenticator)
-        : TExpiringCache(std::move(config))
+        : TAsyncExpiringCache(std::move(config))
         , CookieAuthenticator_(std::move(cookieAuthenticator))
     { }
 

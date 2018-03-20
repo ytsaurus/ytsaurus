@@ -227,7 +227,7 @@ void TTableMountInfo::ValidateReplicated() const
 
 class TTableMountCache
     : public ITableMountCache
-    , public TExpiringCache<TYPath, TTableMountInfoPtr>
+    , public TAsyncExpiringCache<TYPath, TTableMountInfoPtr>
 {
 public:
     TTableMountCache(
@@ -235,7 +235,7 @@ public:
         IChannelPtr masterChannel,
         TCellDirectoryPtr cellDirectory,
         const NLogging::TLogger& logger)
-        : TExpiringCache(config)
+        : TAsyncExpiringCache(config)
         , Config_(std::move(config))
         , CellDirectory_(std::move(cellDirectory))
         , Logger(logger)
@@ -244,7 +244,7 @@ public:
 
     virtual TFuture<TTableMountInfoPtr> GetTableInfo(const TYPath& path) override
     {
-        return TExpiringCache::Get(path);
+        return TAsyncExpiringCache::Get(path);
     }
 
     virtual TTabletInfoPtr FindTablet(const TTabletId& tabletId) override
@@ -300,7 +300,7 @@ public:
 
     virtual void Clear()
     {
-        TExpiringCache::Clear();
+        TAsyncExpiringCache::Clear();
         LOG_DEBUG("Table mount info cache cleared");
     }
 

@@ -798,7 +798,7 @@ void Serialize(const TIP6Network& value, IYsonConsumer* consumer)
 //! Performs asynchronous host name resolution.
 class TAddressResolver::TImpl
     : public virtual TRefCounted
-    , private TExpiringCache<TString, TNetworkAddress>
+    , private TAsyncExpiringCache<TString, TNetworkAddress>
 {
 public:
     explicit TImpl(TAddressResolverConfigPtr config);
@@ -834,7 +834,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TAddressResolver::TImpl::TImpl(TAddressResolverConfigPtr config)
-    : TExpiringCache(config)
+    : TAsyncExpiringCache(config)
     , DnsResolver_(
         config->Retries,
         config->ResolveTimeout,

@@ -11,14 +11,14 @@ template <class TKey, class TValue>
 TSyncExpiringCache<TKey, TValue>::TSyncExpiringCache(
     TCallback<TValue(TKey)> calculateValueAction,
     TDuration expirationTimeout)
-    : TExpiringCache<TKey, TValue>(MakeConfig(expirationTimeout))
+    : TAsyncExpiringCache<TKey, TValue>(MakeConfig(expirationTimeout))
     , CalculateValueAction_(calculateValueAction)
 { }
 
 template <class TKey, class TValue>
 TValue TSyncExpiringCache<TKey, TValue>::Get(const TKey& key)
 {
-    auto future = TExpiringCache<TKey, TValue>::Get(key);
+    auto future = TAsyncExpiringCache<TKey, TValue>::Get(key);
     return future.Get().ValueOrThrow();
 }
 

@@ -358,11 +358,11 @@ DEFINE_REFCOUNTED_TYPE(IFunctionRegistry)
 namespace {
 
 class TCypressFunctionRegistry
-    : public TExpiringCache<TString, TExternalFunctionSpec>
+    : public TAsyncExpiringCache<TString, TExternalFunctionSpec>
     , public IFunctionRegistry
 {
 public:
-    typedef TExpiringCache<TString, TExternalFunctionSpec> TBase;
+    typedef TAsyncExpiringCache<TString, TExternalFunctionSpec> TBase;
 
     TCypressFunctionRegistry(
         const TString& registryPath,

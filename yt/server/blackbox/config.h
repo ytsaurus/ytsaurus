@@ -64,7 +64,7 @@ DEFINE_REFCOUNTED_TYPE(TTokenAuthenticatorConfig)
 class TCachingTokenAuthenticatorConfig
     : public TTokenAuthenticatorConfig
     , public TExpiringCacheConfig
-{};
+{ };
 
 DEFINE_REFCOUNTED_TYPE(TCachingTokenAuthenticatorConfig)
 

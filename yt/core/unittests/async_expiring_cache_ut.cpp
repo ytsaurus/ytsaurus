@@ -15,11 +15,11 @@ using namespace NConcurrency;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSimpleExpiringCache
-    : public TExpiringCache<int, int>
+    : public TAsyncExpiringCache<int, int>
 {
 public:
     explicit TSimpleExpiringCache(TExpiringCacheConfigPtr config, float successProbability = 1.0)
-        : TExpiringCache<int, int>(std::move(config))
+        : TAsyncExpiringCache<int, int>(std::move(config))
         , Generator_(RandomDevice_())
         , Bernoulli_(successProbability)
     { }
@@ -56,11 +56,11 @@ TFuture<T> MakeDelayedFuture(const TDuration& duration, T x)
 }
 
 class TDelayedExpiringCache
-    : public TExpiringCache<int, int>
+    : public TAsyncExpiringCache<int, int>
 {
 public:
     TDelayedExpiringCache(TExpiringCacheConfigPtr config, const TDuration& delay)
-        : TExpiringCache<int, int>(std::move(config))
+        : TAsyncExpiringCache<int, int>(std::move(config))
         , Delay_(delay)
     { }
 
@@ -85,7 +85,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TExpiringCacheTest, TestBackgroundUpdate)
+TEST(TAsyncExpiringCacheTest, TestBackgroundUpdate)
 {
     int interval = 10;
     auto config = New<TExpiringCacheConfig>();
@@ -104,7 +104,7 @@ TEST(TExpiringCacheTest, TestBackgroundUpdate)
     EXPECT_EQ(expected, actual);
 }
 
-TEST(TExpiringCacheTest, TestEntryRemoval)
+TEST(TAsyncExpiringCacheTest, TestEntryRemoval)
 {
     int interval = 20;
     auto config = New<TExpiringCacheConfig>();
@@ -145,7 +145,7 @@ TEST(TExpiringCacheTest, TestEntryRemoval)
     EXPECT_GE(expected, actual);
 }
 
-TEST(TExpiringCacheTest, TestAccessTime1)
+TEST(TAsyncExpiringCacheTest, TestAccessTime1)
 {
     auto config = New<TExpiringCacheConfig>();
     config->RefreshTime = TDuration::MilliSeconds(1);
@@ -158,7 +158,7 @@ TEST(TExpiringCacheTest, TestAccessTime1)
     EXPECT_EQ(1, cache->GetCount());
 }
 
-TEST(TExpiringCacheTest, TestAccessTime2)
+TEST(TAsyncExpiringCacheTest, TestAccessTime2)
 {
     auto config = New<TExpiringCacheConfig>();
     config->ExpireAfterAccessTime = TDuration::MilliSeconds(5);
@@ -173,7 +173,7 @@ TEST(TExpiringCacheTest, TestAccessTime2)
     EXPECT_EQ(1, cache->GetCount());
 }
 
-TEST(TExpiringCacheTest, TestAccessTime3)
+TEST(TAsyncExpiringCacheTest, TestAccessTime3)
 {
     auto config = New<TExpiringCacheConfig>();
     config->ExpireAfterAccessTime = TDuration::MilliSeconds(3);
@@ -187,7 +187,7 @@ TEST(TExpiringCacheTest, TestAccessTime3)
     EXPECT_EQ(10, cache->GetCount());
 }
 
-TEST(TExpiringCacheTest, CacheDoesntRefreshExpiredItem)
+TEST(TAsyncExpiringCacheTest, CacheDoesntRefreshExpiredItem)
 {
     auto config = New<TExpiringCacheConfig>();
     config->RefreshTime = TDuration::MilliSeconds(2);
@@ -200,7 +200,7 @@ TEST(TExpiringCacheTest, CacheDoesntRefreshExpiredItem)
     EXPECT_EQ(1, cache->GetCount());
 }
 
-TEST(TExpiringCacheTest, TestUpdateTime1)
+TEST(TAsyncExpiringCacheTest, TestUpdateTime1)
 {
     auto config = New<TExpiringCacheConfig>();
     config->ExpireAfterSuccessfulUpdateTime = TDuration::MilliSeconds(3);
@@ -214,7 +214,7 @@ TEST(TExpiringCacheTest, TestUpdateTime1)
     EXPECT_EQ(10, cache->GetCount());
 }
 
-TEST(TExpiringCacheTest, TestUpdateTime2)
+TEST(TAsyncExpiringCacheTest, TestUpdateTime2)
 {
     auto config = New<TExpiringCacheConfig>();
     config->ExpireAfterFailedUpdateTime = TDuration::MilliSeconds(3);
@@ -228,7 +228,7 @@ TEST(TExpiringCacheTest, TestUpdateTime2)
     EXPECT_EQ(10, cache->GetCount());
 }
 
-TEST(TExpiringCacheTest, TestZeroCache1)
+TEST(TAsyncExpiringCacheTest, TestZeroCache1)
 {
     auto config = New<TExpiringCacheConfig>();
     config->ExpireAfterAccessTime = TDuration::Seconds(0);
@@ -249,7 +249,7 @@ TEST(TExpiringCacheTest, TestZeroCache1)
     EXPECT_EQ(10, cache->GetCount());
 }
 
-TEST(TExpiringCacheTest, TestZeroCache2)
+TEST(TAsyncExpiringCacheTest, TestZeroCache2)
 {
     auto config = New<TExpiringCacheConfig>();
     config->ExpireAfterAccessTime = TDuration::Seconds(0);
