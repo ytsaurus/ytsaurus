@@ -28,7 +28,7 @@
 
 #include <yt/core/misc/guid.h>
 #include <yt/core/misc/async_cache.h>
-#include <yt/core/misc/expiring_cache.h>
+#include <yt/core/misc/async_expiring_cache.h>
 
 #include <yt/core/ytree/yson_serializable.h>
 

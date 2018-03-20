@@ -3,7 +3,7 @@
 #include <yt/core/concurrency/thread_pool.h>
 #include <yt/core/concurrency/scheduler.h>
 
-#include <yt/core/misc/expiring_cache.h>
+#include <yt/core/misc/async_expiring_cache.h>
 
 #include <random>
 

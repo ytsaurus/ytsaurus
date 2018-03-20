@@ -22,7 +22,7 @@
 #include <yt/core/concurrency/delayed_executor.h>
 #include <yt/core/concurrency/rw_spinlock.h>
 
-#include <yt/core/misc/expiring_cache.h>
+#include <yt/core/misc/async_expiring_cache.h>
 #include <yt/core/misc/string.h>
 
 #include <yt/core/rpc/proto/rpc.pb.h>
