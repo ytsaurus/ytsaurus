@@ -13,9 +13,15 @@ import ru.yandex.yt.ytclient.rpc.RpcUtil;
 
 public class DiscoveryServiceClient {
     private final DiscoveryService service;
+    private final RpcClient client;
 
     public DiscoveryServiceClient(RpcClient client, RpcOptions options) {
+        this.client = client;
         this.service = client.getService(DiscoveryService.class, options);
+    }
+
+    public RpcClient getClient() {
+        return client;
     }
 
     public CompletableFuture<List<String>> discoverProxies() {

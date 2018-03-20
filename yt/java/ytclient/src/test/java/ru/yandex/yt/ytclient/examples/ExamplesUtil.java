@@ -43,6 +43,10 @@ public final class ExamplesUtil {
         // static class
     }
 
+    public static String[] getHosts() {
+        return hosts;
+    }
+
     public static BusConnector createConnector() {
         return createConnector(0);
     }
