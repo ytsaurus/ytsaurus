@@ -12,6 +12,7 @@ from .parallel_writer import make_parallel_write_request
 from .response_stream import EmptyResponseStream, ResponseStreamWithReadRow
 from .table_helpers import (_prepare_source_tables, _are_default_empty_table, _prepare_table_writer,
                             _remove_tables, DEFAULT_EMPTY_TABLE, _to_chunk_stream, _prepare_format)
+from .file_commands import _get_remote_temp_files_directory
 from .table_read_parallel import make_read_parallel_request
 from .ypath import TablePath, ypath_join
 
@@ -195,7 +196,7 @@ def write_table(table, input_stream, format=None, table_writer=None,
             params,
             get_config(client)["write_parallel"]["unordered"],
             prepare_table,
-            get_config(client)["remote_temp_files_directory"],
+            _get_remote_temp_files_directory(client),
             client=client)
     else:
         make_write_request(
