@@ -1,4 +1,4 @@
-from .helpers import TEST_DIR, get_test_file_path
+from .helpers import TEST_DIR, get_test_file_path, yatest_common
 
 from yt.wrapper.common import parse_bool, update_inplace
 
@@ -58,7 +58,7 @@ def test_process_params():
 
 @pytest.mark.usefixtures("yt_env")
 def test_catching_sigint(yt_env):
-    if yt.config["backend"] != "native":
+    if yt.config["backend"] != "native" or yatest_common is not None:
         pytest.skip()
 
     driver_config_path = yt_env.env.config_paths["console_driver"][0]

@@ -1,5 +1,5 @@
 from yt.common import to_native_str, YtError
-import yt.json as json
+import yt.json_wrapper as json
 import yt.yson as yson
 
 from yt.packages.six import iteritems, PY3, text_type, Iterator

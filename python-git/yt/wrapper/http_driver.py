@@ -8,7 +8,7 @@ from .http_helpers import (make_request_with_retries, get_token, get_api_version
 from .response_stream import ResponseStream
 
 import yt.logger as logger
-import yt.json as json
+import yt.json_wrapper as json
 
 from yt.packages.requests.auth import AuthBase
 from yt.packages.six import iteritems, text_type, binary_type, iterbytes, int2byte, byte2int, PY3

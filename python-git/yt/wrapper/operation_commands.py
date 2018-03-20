@@ -418,7 +418,7 @@ def format_operation_stderrs(jobs_with_stderr):
 def add_failed_operation_stderrs_to_error_message(func):
     def _add_failed_operation_stderrs_to_error_message(func, *args, **kwargs):
         try:
-            func(*args, **kwargs)
+            return func(*args, **kwargs)
         except YtOperationFailedError as error:
             if "stderrs" in error.attributes:
                 error.message = error.message + format_operation_stderrs(error.attributes["stderrs"])

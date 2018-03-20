@@ -15,7 +15,7 @@ from .table_helpers import (_prepare_source_tables, _are_default_empty_table, _p
 from .table_read_parallel import make_read_parallel_request
 from .ypath import TablePath, ypath_join
 
-import yt.json as json
+import yt.json_wrapper as json
 import yt.yson as yson
 import yt.logger as logger
 from yt.packages.six import PY3
