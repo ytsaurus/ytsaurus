@@ -4592,10 +4592,9 @@ private:
 
         auto itemsQuery = itemsQueryBuilder.Build();
 
-        LOG_DEBUG("ITEMS QUERY: %v", itemsQuery);
-
         TQueryBuilder statisticsQueryBuilder;
         statisticsQueryBuilder.SetSource(GetOperationsArchiveJobsPath());
+        statisticsQueryBuilder.AddWhereExpression(operationIdExpression);
         if (options.Address) {
             statisticsQueryBuilder.AddWhereExpression(Format("address = %Qv", *options.Address));
         }
@@ -4608,8 +4607,6 @@ private:
         statisticsQueryBuilder.AddSelectExpression("SUM(1) AS count");
         statisticsQueryBuilder.SetGroupByExpression("job_type, job_state");
         auto statisticsQuery = statisticsQueryBuilder.Build();
-
-        LOG_DEBUG("STATISTICS QUERY: %v", statisticsQuery);
 
         TSelectRowsOptions selectRowsOptions;
         selectRowsOptions.Timestamp = AsyncLastCommittedTimestamp;
