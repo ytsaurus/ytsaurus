@@ -26,6 +26,8 @@
 
 #include <yt/core/profiling/profile_manager.h>
 
+#include <yt/core/logging/log_manager.h>
+
 #include <yt/core/concurrency/thread_pool.h>
 
 namespace NYT {
@@ -226,6 +228,8 @@ void TLocation::Disable(const TError& reason)
         // Exit anyway.
     }
 
+    LOG_ERROR("Location is disabled; Terminating");
+    NLogging::TLogManager::Get()->Shutdown();
     _exit(1);
 }
 
@@ -498,33 +502,6 @@ void TLocation::ForceHashDirectories(const TString& rootPath)
         auto hashDirectory = Format("%02x", hashByte);
         NFS::MakeDirRecursive(NFS::CombinePaths(rootPath, hashDirectory), ChunkFilesPermissions);
     }
-}
-
-void TLocation::ValidateLockFile()
-{
-    LOG_INFO("Checking lock file");
-
-    auto lockFilePath = NFS::CombinePaths(GetPath(), DisabledLockFileName);
-    if (!NFS::Exists(lockFilePath)) {
-        return;
-    }
-
-    TFile file(lockFilePath, OpenExisting | RdOnly | Seq | CloseOnExec);
-    TBufferedFileInput fileInput(file);
-
-    auto errorData = fileInput.ReadAll();
-    if (errorData.Empty()) {
-        THROW_ERROR_EXCEPTION("Empty lock file found");
-    }
-
-    TError error;
-    try {
-        error = ConvertTo<TError>(TYsonString(errorData));
-    } catch (const std::exception& ex) {
-        THROW_ERROR_EXCEPTION("Error parsing lock file contents")
-            << ex;
-    }
-    THROW_ERROR error;
 }
 
 void TLocation::ValidateWritable()

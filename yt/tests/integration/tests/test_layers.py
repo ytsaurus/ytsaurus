@@ -41,6 +41,23 @@ class TestLayers(YTEnvSetup):
         set("//tmp/static_cat/@executable", True)
 
     @require_ytserver_root_privileges
+    def test_disabled_layer_locations(self):
+        self.Env.kill_nodes()
+
+        for node in self.Env.configs["node"]:
+            for layer_location in node["data_node"]["volume_manager"]["layer_locations"]:
+                try:
+                    os.mkdir(layer_location["path"])
+                except OSError:
+                    pass
+                open(layer_location["path"] + "/disabled", "w")
+
+        self.Env.start_nodes(sync=True)
+
+        create("table", "//tmp/t")
+        write_table("//tmp/t", [{"k": 0}])
+
+    @require_ytserver_root_privileges
     def test_one_layer(self):
         self.setup_files()
 
