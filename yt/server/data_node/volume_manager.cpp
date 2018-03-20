@@ -464,8 +464,15 @@ private:
             extractTarConfig->DirectoryPath = tempLayerDirectory;
             extractTarConfig->ArchivePath = archivePath;
 
-            LOG_DEBUG("Unpack layer (Config: %v)", ConvertToYsonString(extractTarConfig, EYsonFormat::Text));
-            RunTool<TExtractTarAsRootTool>(extractTarConfig);
+            try {
+                LOG_DEBUG("Unpack layer (Config: %v)", ConvertToYsonString(extractTarConfig, EYsonFormat::Text));
+                RunTool<TExtractTarAsRootTool>(extractTarConfig);
+            } catch (const std::exception& ex) {
+                LOG_ERROR(ex, "Layer unpacking failed (LayerId: %v, ArchivePath: %v)", id, archivePath);
+                RunTool<TRemoveDirAsRootTool>(tempLayerDirectory);
+                THROW_ERROR_EXCEPTION(EErrorCode::LayerUnpackingFailed, "Layer unpacking failed")
+                    << ex;
+            }
 
             auto layerSize = NFS::GetDirectorySize(tempLayerDirectory);
 
@@ -514,6 +521,12 @@ private:
         } catch (const std::exception& ex) {
             auto error = TError("Failed to import layer %v", id)
                 << ex;
+
+            auto innerError = TError(ex);
+            if (innerError.GetCode() == EErrorCode::LayerUnpackingFailed) {
+                THROW_ERROR error;
+            }
+
             Disable(error);
             Y_UNREACHABLE();
         }
