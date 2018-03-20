@@ -1,6 +1,6 @@
 #pragma once
 
-#include "expiring_cache.h"
+#include "async_expiring_cache.h"
 
 namespace NYT {
 

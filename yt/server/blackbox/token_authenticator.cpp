@@ -2,7 +2,7 @@
 #include "helpers.h"
 #include "private.h"
 
-#include <yt/core/misc/expiring_cache.h>
+#include <yt/core/misc/async_expiring_cache.h>
 #include <yt/core/crypto/crypto.h>
 
 #include <util/string/split.h>

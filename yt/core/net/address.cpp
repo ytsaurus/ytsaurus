@@ -12,7 +12,7 @@
 
 #include <yt/core/misc/lazy_ptr.h>
 #include <yt/core/misc/singleton.h>
-#include <yt/core/misc/expiring_cache.h>
+#include <yt/core/misc/async_expiring_cache.h>
 #include <yt/core/misc/shutdown.h>
 
 #include <yt/core/profiling/profiler.h>

@@ -73,6 +73,6 @@ private:
 } // namespace NYT
 
 #define EXPIRING_CACHE_INL_H_
-#include "expiring_cache-inl.h"
+#include "async_expiring_cache-inl.h"
 #undef EXPIRING_CACHE_INL_H_
 

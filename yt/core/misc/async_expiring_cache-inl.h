@@ -1,6 +1,6 @@
 #pragma once
 #ifndef EXPIRING_CACHE_INL_H_
-#error "Direct inclusion of this file is not allowed, include expiring_cache.h"
+#error "Direct inclusion of this file is not allowed, include async_expiring_cache.h"
 #endif
 
 #include "config.h"
