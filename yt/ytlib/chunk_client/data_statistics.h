@@ -56,12 +56,12 @@ private:
     {
         static inline NCompression::ECodec getEmptyKey()
         {
-            return static_cast<TEnumTraits<NCompression::ECodec>::TType>(~0);
+            return static_cast<TEnumTraits<NCompression::ECodec>::TType>(-1);
         }
 
         static inline NCompression::ECodec getTombstoneKey()
         {
-            return static_cast<TEnumTraits<NCompression::ECodec>::TType>(~0U - 1);
+            return static_cast<TEnumTraits<NCompression::ECodec>::TType>(-2);
         }
 
         static unsigned getHashValue(const NCompression::ECodec& key)
