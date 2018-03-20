@@ -233,12 +233,19 @@ class TestSchedulerSimulator(YTEnvSetup, PrepareTables):
 
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
-            "operation_time_limit_check_period": 100,
             "connect_retry_backoff_time": 100,
             "fair_share_update_period": 100,
             "fair_share_profiling_period": 100,
             "event_log" : {
-                "flush_period": 500,
+                "flush_period": 100,
+            }
+        }
+    }
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "event_log" : {
+                "flush_period": 100,
             }
         }
     }
