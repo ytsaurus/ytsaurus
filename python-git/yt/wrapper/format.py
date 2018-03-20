@@ -11,7 +11,7 @@ from .yamr_record import Record, SimpleRecord, SubkeyedRecord
 from . import yson
 
 from yt.common import to_native_str
-import yt.json as json
+import yt.json_wrapper as json
 
 from yt.packages.six import (iteritems, Iterator, add_metaclass, PY3, binary_type, text_type,
                              indexbytes, int2byte)

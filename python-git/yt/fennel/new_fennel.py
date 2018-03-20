@@ -5,7 +5,7 @@ from yt.packages.six.moves import xrange, map as imap
 from yt.packages.six.moves.queue import Queue
 
 import yt.packages.requests as requests
-import yt.json as json
+import yt.json_wrapper as json
 import yt.wrapper as yt
 
 import os

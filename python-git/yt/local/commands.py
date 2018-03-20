@@ -7,7 +7,7 @@ from yt.wrapper.common import generate_uuid, GB
 from yt.common import YtError, require, get_value, is_process_alive
 
 import yt.yson as yson
-import yt.json as json
+import yt.json_wrapper as json
 
 from yt.packages.six.moves import map as imap, filter as ifilter
 

@@ -1,26 +1,35 @@
 #!/usr/bin/env python
 
-from yt.common import makedirp
-from yt.wrapper.common import MB, chunk_iter_stream
-from yt.wrapper.cli_helpers import run_main
+from __future__ import print_function
 
-import yt.logger as logger
-import yt.yson as yson
-
-from yt.packages.six.moves import xrange
-from yt.packages.six import iteritems
-
-import yt.wrapper as yt
+# NOTE(asaitgalin): This script should not depend on YT Python library.
 
 import os
 import sys
 import stat
+import json
+import errno
 import argparse
 import subprocess
 import shutil
 from functools import partial
 
+PY3 = sys.version_info[0] == 3
 SCRIPT_DIR = os.path.dirname(__file__)
+
+if PY3:
+    def iteritems(d):
+        return iter(d.items())
+else:
+    def iteritems(d):
+        return d.iteritems()
+
+def chunk_iter_stream(stream, chunk_size):
+    while True:
+        chunk = stream.read(chunk_size)
+        if not chunk:
+            break
+        yield chunk
 
 def get_output_descriptor_list(output_table_count, use_yamr_descriptors):
     if use_yamr_descriptors:
@@ -40,21 +49,25 @@ def preexec_dup2(new_fds, output_path):
 
 def main():
     parser = argparse.ArgumentParser(description="Job runner for yt-job-tool")
-    parser.add_argument("--config-path", help="path to YSON config")
+    parser.add_argument("--config-path", help="path to JSON config")
     args = parser.parse_args()
 
     if args.config_path is None:
         args.config_path = os.path.join(SCRIPT_DIR, "run_config")
 
     with open(args.config_path, "rb") as f:
-        config = yson.load(f)
+        config = json.load(f)
 
     with open(config["command_path"], "r") as fin:
         command = fin.read()
 
     new_fds = get_output_descriptor_list(config["output_table_count"], config["use_yamr_descriptors"])
 
-    makedirp(config["output_path"])
+    try:
+        os.makedirs(config["output_path"])
+    except OSError as err:
+        if err.errno != errno.EEXIST:
+            raise
 
     env = {
         "YT_JOB_INDEX": "0",
@@ -68,10 +81,9 @@ def main():
     process = subprocess.Popen(command, shell=True, close_fds=False, stdin=subprocess.PIPE,
                                preexec_fn=partial(preexec_dup2, new_fds=new_fds, output_path=config["output_path"]),
                                cwd=config["sandbox_path"], env=env)
-    logger.info("Started job process")
 
     with open(config["input_path"], "rb") as fin:
-        for chunk in chunk_iter_stream(fin, 16 * MB):
+        for chunk in chunk_iter_stream(fin, 16 * 1024 * 1024):
             if not chunk:
                 break
             process.stdin.write(chunk)
@@ -80,12 +92,9 @@ def main():
 
     if process.returncode != 0:
         with open(os.path.join(config["output_path"], "2"), "rb") as f:
-            stderr = f.read()
-        raise yt.YtError("User job exited with non-zero exit code {0} with stderr:\n{1}"
-                         .format(process.returncode, stderr))
-
-    logger.info("Job process exited successfully. Job output (file names correspond to file descriptors) "
-                "can be found in %s", config["output_path"])
+            print("User job exited with non-zero exit code {} and stderr:\n{}".format(process.returncode, f.read()),
+                  file=sys.stderr)
+            sys.exit(1)
 
 def make_run_script(destination_dir):
     path = os.path.realpath(__file__)
@@ -103,4 +112,4 @@ def make_run_script(destination_dir):
     os.chmod(destination_path, os.stat(destination_path).st_mode | stat.S_IXUSR)
 
 if __name__ == "__main__":
-    run_main(main)
+    main()

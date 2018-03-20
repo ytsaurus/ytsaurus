@@ -11,7 +11,7 @@ from yt.wrapper.ypath import ypath_join, ypath_dirname, ypath_split
 from yt.common import makedirp
 from yt.yson import to_yson_type
 import yt.yson as yson
-import yt.json as json
+import yt.json_wrapper as json
 import yt.subprocess_wrapper as subprocess
 
 from yt.packages.six import iterkeys, itervalues, iteritems, PY3, Iterator, b
