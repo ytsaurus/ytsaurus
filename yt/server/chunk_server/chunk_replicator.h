@@ -164,6 +164,8 @@ private:
 
     TChunkRequisitionCache ChunkRequisitionCache_;
 
+    TEphemeralRequisitionRegistry TmpRequisitionRegistry_;
+
     const TChunkManagerConfigPtr Config_;
     NCellMaster::TBootstrap* const Bootstrap_;
     const TChunkPlacementPtr ChunkPlacement_;
