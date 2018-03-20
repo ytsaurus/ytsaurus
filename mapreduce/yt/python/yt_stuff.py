@@ -29,7 +29,7 @@ class YtConfig(object):
                  save_all_logs=None, yt_work_dir=None, keep_yt_work_dir=None, ram_drive_path=None,
                  local_cypress_dir=None, wait_tablet_cell_initialization=None, jobs_memory_limit=None,
                  jobs_cpu_limit=None, jobs_user_slot_count=None, forbid_chunk_storage_in_tmpfs=None,
-                 yt_version=None, cell_tag=None):
+                 yt_version=None, cell_tag=None, python_binary=None):
         self.fqdn = get_value(fqdn, "localhost")
         self.yt_id = yt_id
 
@@ -84,12 +84,15 @@ class YtConfig(object):
             self.yt_version = yt_version
 
         self.cell_tag = cell_tag
+        self.python_binary = python_binary
 
 
 class YtStuff(object):
     def __init__(self, config=None):
         self.config = config or YtConfig()
         self.version = self.config.yt_version
+
+        self.python_binary = self.config.python_binary or yatest.common.python_path()
 
         self.yt_id = self.config.yt_id or str(uuid.uuid4())
         self.yt_proxy_port = None
@@ -117,10 +120,12 @@ class YtStuff(object):
 
     @_timing
     def _extract_tar(self, tgz, where):
-        # import tarfile
-        # tarfile.open(tgz).extractall(path=where)
-        import subprocess
-        subprocess.check_output(['tar', '-xf', tgz], cwd=where, stderr=subprocess.STDOUT)
+        try:
+            import subprocess
+            subprocess.check_output(['tar', '-xf', tgz], cwd=where, stderr=subprocess.STDOUT)
+        except OSError:
+            import tarfile
+            tarfile.open(tgz).extractall(path=where)
 
     @_timing
     def _pack_tar(self, archive_path, file_path):
@@ -143,8 +148,8 @@ class YtStuff(object):
         self.yt_node_modules_path = os.path.join(self.yt_path, "node_modules")
         self.yt_thor_path = os.path.join(self.yt_path, "yt-thor")
         # Binaries
-        self.mapreduce_yt_path = [yatest.common.python_path(), os.path.join(self.yt_bins_path, "mapreduce-yt")]
-        self.yt_local_path = [yatest.common.python_path(), os.path.join(self.yt_bins_path, "yt_local")]
+        self.mapreduce_yt_path = [self.python_binary, os.path.join(self.yt_bins_path, "mapreduce-yt")]
+        self.yt_local_path = [self.python_binary, os.path.join(self.yt_bins_path, "yt_local")]
 
         yt_archive_path = yatest.common.binary_path('yt/packages/{0}/yt/packages/{0}/yt_thor.tar'.format(self.version))
         self._extract_tar(yt_archive_path, self.yt_path)
@@ -242,11 +247,11 @@ class YtStuff(object):
 
         self.yt_wrapper = yt.wrapper
         self.yt_wrapper.config["prefix"] = _YT_PREFIX
-        self.yt_wrapper.config["pickling"]["python_binary"] = yatest.common.python_path()
+        self.yt_wrapper.config["pickling"]["python_binary"] = self.python_binary
 
         self.yt_client = yt.wrapper.YtClient()
         self.yt_client.config["prefix"] = _YT_PREFIX
-        self.yt_client.config["pickling"]["python_binary"] = yatest.common.python_path()
+        self.yt_client.config["pickling"]["python_binary"] = self.python_binary
 
     def _start_local_yt(self):
         self._log("Try to start local YT with id=%s", self.yt_id)
