@@ -75,6 +75,9 @@ class TestListJobs(YTEnvSetup):
 
         write_table("//tmp/t1", [{"foo": "bar"}, {"foo": "baz"}, {"foo": "qux"}])
 
+        # Fake operation to check filtration by operation.
+        map(in_="//tmp/t1", out="//tmp/t2", command="cat")
+
         op = map_reduce(
             dont_track=True,
             wait_for_jobs=True,
@@ -236,6 +239,21 @@ class TestListJobs(YTEnvSetup):
             assert res["cypress_job_count"] == yson.YsonEntity()
             assert res["scheduler_job_count"] == yson.YsonEntity()
             assert res["archive_job_count"] == 6
+
+            for key in res["type_counts"]:
+                correct = 0
+                if key == "partition_reduce":
+                    correct = 1
+                if key == "partition_map":
+                    correct = 5
+                assert res["type_counts"][key] == correct
+            for key in res["state_counts"]:
+                correct = 0
+                if key == "completed":
+                    correct = 4
+                if key == "failed" or key == "aborted":
+                    correct = 1
+                assert res["state_counts"][key] == correct
 
             res = res["jobs"]
             assert sorted(jobs.keys()) == sorted([job["id"] for job in res])
