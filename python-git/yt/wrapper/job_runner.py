@@ -2,7 +2,7 @@
 
 from __future__ import print_function
 
-# NOTE(asaitgalin): This script should depend on YT Python library.
+# NOTE(asaitgalin): This script should not depend on YT Python library.
 
 import os
 import sys
