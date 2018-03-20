@@ -2147,6 +2147,7 @@ private:
             operation->SetController(nullptr);
             UnregisterOperation(operation);
         }
+        operation->Cancel();
     }
 
     void DoCompleteOperation(const TOperationPtr& operation)
@@ -2344,8 +2345,6 @@ private:
         if (Config_->TestingOptions->FinishOperationTransitionDelay) {
             Sleep(*Config_->TestingOptions->FinishOperationTransitionDelay);
         }
-
-        operation->Cancel();
 
         const auto& controller = operation->GetController();
         if (controller) {
