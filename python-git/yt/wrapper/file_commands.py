@@ -369,7 +369,7 @@ def upload_file_to_cache(filename, hash=None, client=None):
             raise YtError("File cache replication factor cannot be set less than 3")
         replication_factor = get_config(client)["file_cache"]["replication_factor"]
 
-    create("file", real_destination, recursive=True, attributes={"replication_factor": replication_factor})
+    create("file", real_destination, recursive=True, attributes={"replication_factor": replication_factor}, client=client)
     with open(filename, "rb") as stream:
         write_file(real_destination, stream, compute_md5=True, force_create=False, client=client)
 
