@@ -8,7 +8,6 @@
 #include "node_shard.h"
 #include "scheduler_strategy.h"
 #include "scheduling_tag.h"
-#include "sync_expiring_cache.h"
 #include "controller_agent_tracker.h"
 #include "controller_agent.h"
 #include "operation_controller.h"
@@ -57,6 +56,7 @@
 #include <yt/core/misc/finally.h>
 #include <yt/core/misc/numeric_helpers.h>
 #include <yt/core/misc/size_literals.h>
+#include <yt/core/misc/sync_expiring_cache.h>
 
 #include <yt/core/net/local_address.h>
 
