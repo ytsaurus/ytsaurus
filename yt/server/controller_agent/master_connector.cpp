@@ -347,7 +347,7 @@ private:
         }
     }
 
-    TYPath GetPath()
+    TYPath GetInstancePath()
     {
         auto addresses = Bootstrap_->GetLocalAddresses();
         return "//sys/controller_agents/instances/" + ToYPathLiteral(GetDefaultAddress(addresses));
@@ -359,7 +359,7 @@ private:
             ->GetMasterClient()
             ->GetMasterChannelOrThrow(EMasterChannelKind::Leader));
         auto batchReq = proxy.ExecuteBatch();
-        auto path = GetPath();
+        auto path = GetInstancePath();
         {
             auto req = TCypressYPathProxy::Create(path);
             req->set_ignore_existing(true);
@@ -1227,7 +1227,7 @@ private:
         TObjectServiceProxy proxy(Bootstrap_
             ->GetMasterClient()
             ->GetMasterChannelOrThrow(EMasterChannelKind::Leader, PrimaryMasterCellTag));
-        auto req = TYPathProxy::Set(GetPath() + "/@alerts");
+        auto req = TYPathProxy::Set(GetInstancePath() + "/@alerts");
         req->set_value(ConvertToYsonString(alerts).GetData());
 
         auto rspOrError = WaitFor(proxy.Execute(req));

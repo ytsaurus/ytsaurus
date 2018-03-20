@@ -841,12 +841,12 @@ TString TrimCommandForBriefSpec(const TString& command)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NYTree::INodePtr UpdateSpec(NYTree::INodePtr templateSpec, NYTree::INodePtr originSpec)
+NYTree::INodePtr UpdateSpec(NYTree::INodePtr templateSpec, NYTree::INodePtr originalSpec)
 {
     if (!templateSpec) {
-        return originSpec;
+        return originalSpec;
     }
-    return PatchNode(templateSpec, originSpec);
+    return PatchNode(templateSpec, originalSpec);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
