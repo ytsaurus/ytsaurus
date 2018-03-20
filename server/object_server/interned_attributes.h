@@ -79,6 +79,7 @@
     XX(Exports, exports) \
     XX(External, external) \
     XX(ExternalCellTag, external_cell_tag) \
+    XX(ExternalRequisitionIndexes, external_requisition_indexes) \
     XX(ExternalRequisitions, external_requisitions) \
     XX(FileName, file_name) \
     XX(FlushLagTime, flush_lag_time) \
@@ -110,6 +111,7 @@
     XX(LeaseTransactionId, lease_transaction_id) \
     XX(LifeStage, life_stage) \
     XX(LocalRequisition, local_requisition) \
+    XX(LocalRequisitionIndex, local_requisition_index) \
     XX(LockCount, lock_count) \
     XX(LockIds, lock_ids) \
     XX(LockMode, lock_mode) \

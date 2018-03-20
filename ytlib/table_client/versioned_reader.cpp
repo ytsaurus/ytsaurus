@@ -49,6 +49,11 @@ public:
         return NChunkClient::NProto::TDataStatistics();
     }
 
+    virtual TCodecStatistics GetDecompressionStatistics() const override
+    {
+        return NChunkClient::TCodecStatistics();
+    }
+
     virtual bool IsFetchingCompleted() const override
     {
         return true;

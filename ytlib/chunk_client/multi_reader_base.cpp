@@ -63,10 +63,20 @@ TDataStatistics TMultiReaderBase::GetDataStatistics() const
 {
     TGuard<TSpinLock> guard(ActiveReadersLock_);
     auto dataStatistics = DataStatistics_;
-    for (auto reader : ActiveReaders_) {
+    for (const auto& reader : ActiveReaders_) {
         dataStatistics += reader->GetDataStatistics();
     }
     return dataStatistics;
+}
+
+TCodecStatistics TMultiReaderBase::GetDecompressionStatistics() const
+{
+    TGuard<TSpinLock> guard(ActiveReadersLock_);
+    auto result = DecompressionStatistics_;
+    for (const auto& reader : ActiveReaders_) {
+        result += reader->GetDecompressionStatistics();
+    }
+    return result;
 }
 
 bool TMultiReaderBase::IsFetchingCompleted() const
@@ -164,6 +174,7 @@ void TMultiReaderBase::OnReaderFinished()
     {
         TGuard<TSpinLock> guard(ActiveReadersLock_);
         DataStatistics_ += CurrentSession_.Reader->GetDataStatistics();
+        DecompressionStatistics_ += CurrentSession_.Reader->GetDecompressionStatistics();
         YCHECK(ActiveReaders_.erase(CurrentSession_.Reader));
     }
 

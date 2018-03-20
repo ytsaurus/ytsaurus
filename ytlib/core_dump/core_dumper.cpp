@@ -1,10 +1,15 @@
 #include "core_dumper.h"
-
+#include "private.h"
 #include "config.h"
 
 #include <yt/core/concurrency/action_queue.h>
 
-#include <yt/core/logging/log.h>
+#include <yt/core/actions/future.h>
+
+#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/core_dumper.h>
+
+#include <util/system/mutex.h>
 
 #ifdef _linux_
     #include <yt/contrib/coredumper/coredumper.h>
@@ -13,37 +18,28 @@
 #include <util/system/getpid.h>
 
 namespace NYT {
+namespace NCoreDump {
 
 using namespace NConcurrency;
 
-NLogging::TLogger Logger("CoreDumper");
+static const auto& Logger = CoreDumpLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void RedirectCoreDumpToFile(
-    TUnbufferedFileInput&& coreInput,
-    TUnbufferedFileOutput&& coreOutput,
-    TGuid id)
+class TCoreDumper
+    : public ICoreDumper
 {
-    LOG_INFO("Started transferring core dump data (Id: %v)", id);
-    auto size = TransferData(&coreInput, &coreOutput);
-    LOG_INFO("Finished transferring core dump data (Id: %v, Size: %v)", id, size);
-}
+public:
+    explicit TCoreDumper(TCoreDumperConfigPtr config)
+        : Config_(std::move(config))
+    { }
 
-////////////////////////////////////////////////////////////////////////////////
-
-TCoreDumper::TCoreDumper(const TCoreDumperConfigPtr& config)
-    : Config_(config)
-    , ActionQueue_(New<TActionQueue>("CoreDumper"))
-{ }
-
-TCoreDump TCoreDumper::WriteCoreDump(const std::vector<TString>& notes)
-{
-    auto id = TGuid::Create();
-    LOG_INFO("Writing core dump (Id: %v, Notes: %v)", id, notes);
-
+    virtual TCoreDump WriteCoreDump(const std::vector<TString>& notes) override
+    {
+        auto id = TGuid::Create();
+        LOG_INFO("Writing core dump (Id: %v, Notes: %v)", id, notes);
 #ifdef _linux_
-    try {
+            try {
         CoreDumpParameters parameters;
         ClearCoreDumpParameters(&parameters);
 
@@ -91,10 +87,34 @@ TCoreDump TCoreDumper::WriteCoreDump(const std::vector<TString>& notes)
             << ex;
     }
 #else
-    THROW_ERROR_EXCEPTION("Unsupported platform");
+        THROW_ERROR_EXCEPTION("Unsupported platform");
 #endif
+    }
+
+private:
+    const TCoreDumperConfigPtr Config_;
+    const NConcurrency::TActionQueuePtr ActionQueue_ = New<TActionQueue>("CoreDumper");
+
+    TMutex Mutex_;
+
+private:
+    static void RedirectCoreDumpToFile(
+        TUnbufferedFileInput&& coreInput,
+        TUnbufferedFileOutput&& coreOutput,
+        const TGuid& id)
+    {
+        LOG_INFO("Started transferring core dump data (Id: %v)", id);
+        auto size = TransferData(&coreInput, &coreOutput);
+        LOG_INFO("Finished transferring core dump data (Id: %v, Size: %v)", id, size);
+    }
+};
+
+ICoreDumperPtr CreateCoreDumper(TCoreDumperConfigPtr config)
+{
+    return New<TCoreDumper>(std::move(config));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NCoreDump
 } // namespace NYT

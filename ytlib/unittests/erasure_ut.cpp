@@ -213,9 +213,10 @@ public:
         config->ErasureWindowSize = erasureWindowSize;
 
         std::vector<IChunkWriterPtr> writers;
+        auto ioEngine = CreateIOEngine(NChunkClient::EIOEngineType::ThreadPool, NYTree::INodePtr());
         for (int i = 0; i < codec->GetTotalPartCount(); ++i) {
             auto filename = "part" + ToString(i + 1);
-            writers.push_back(NYT::New<TFileWriter>(NullChunkId, filename));
+            writers.push_back(NYT::New<TFileWriter>(ioEngine, NullChunkId, filename));
         }
 
         NChunkClient::NProto::TChunkMeta meta;
@@ -264,7 +265,7 @@ public:
         for (int i = 0; i < codec->GetTotalPartCount(); ++i) {
             auto filename = "part" + ToString(i + 1);
             if (repairWriters && erasedIndicesSet.find(i) != erasedIndicesSet.end()) {
-                repairWriters->push_back(NYT::New<TFileWriter>(NullChunkId, filename));
+                repairWriters->push_back(NYT::New<TFileWriter>(ioEngine, NullChunkId, filename));
             }
             if (repairReaders && repairIndicesSet.find(i) != repairIndicesSet.end()) {
                 auto reader = NYT::New<TTestingFileReader>(ioEngine, NullChunkId, filename);

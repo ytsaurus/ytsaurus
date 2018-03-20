@@ -121,6 +121,12 @@ public:
         return dataStatistics;
     }
 
+    virtual TCodecStatistics GetDecompressionStatistics() const override
+    {
+        YCHECK(SequentialBlockFetcher_);
+        return TCodecStatistics().Append(SequentialBlockFetcher_->GetDecompressionTime());
+    }
+
     virtual bool IsFetchingCompleted() const override
     {
         YCHECK(SequentialBlockFetcher_);

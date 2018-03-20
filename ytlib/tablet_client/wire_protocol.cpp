@@ -1054,6 +1054,11 @@ public:
         Y_UNREACHABLE();
     }
 
+    virtual NChunkClient::TCodecStatistics GetDecompressionStatistics() const override
+    {
+        Y_UNIMPLEMENTED();
+    }
+
 private:
     const std::vector<TSharedRef> CompressedBlocks_;
     NCompression::ICodec* const Codec_;

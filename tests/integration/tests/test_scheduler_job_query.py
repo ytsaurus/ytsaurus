@@ -14,8 +14,8 @@ class TestJobQuery(YTEnvSetup):
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
 
-    DELTA_SCHEDULER_CONFIG = {
-        "scheduler": {
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
             "udf_registry_path": "//tmp/udfs"
         }
     }

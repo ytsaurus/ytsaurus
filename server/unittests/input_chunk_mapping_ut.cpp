@@ -132,6 +132,51 @@ protected:
     }
 };
 
+TEST_F(TInputChunkMappingTest, SkippedInputChunk)
+{
+    InitChunkMapping(EChunkMappingMode::Sorted);
+
+    auto chunkA = CreateChunk();
+    auto chunkB = CreateChunk();
+
+    chunkA->LowerLimit() = std::make_unique<TReadLimit>();
+    chunkA->LowerLimit()->SetRowIndex(50);
+    chunkB->UpperLimit() = std::make_unique<TReadLimit>();
+    chunkB->UpperLimit()->SetRowIndex(200);
+
+    auto stripeAB = CreateStripe({chunkA, chunkB});
+    auto stripeB = CreateStripe({chunkB});
+    auto stripeNone = CreateStripe({});
+
+    ChunkMapping_->Add(42, stripeAB);
+    EXPECT_TRUE(CheckMapping(stripeAB, stripeAB));
+    ChunkMapping_->OnChunkDisappeared(chunkA);
+    EXPECT_TRUE(CheckMapping(stripeAB, stripeB));
+    ChunkMapping_->OnChunkDisappeared(chunkB);
+    EXPECT_TRUE(CheckMapping(stripeAB, stripeNone));
+}
+
+TEST_F(TInputChunkMappingTest, RegeneratedIntermediateChunk)
+{
+    InitChunkMapping(EChunkMappingMode::Sorted);
+
+    auto chunkA1 = CreateChunk();
+    auto chunkA2 = CreateChunk();
+
+    chunkA1->LowerLimit() = std::make_unique<TReadLimit>();
+    chunkA1->LowerLimit()->SetRowIndex(50);
+    chunkA2->LowerLimit() = std::make_unique<TReadLimit>();
+    chunkA2->LowerLimit()->SetRowIndex(50);
+
+    auto stripeA1 = CreateStripe({chunkA1});
+    auto stripeA2 = CreateStripe({chunkA2});
+
+    ChunkMapping_->Add(42, stripeA1);
+    EXPECT_TRUE(CheckMapping(stripeA1, stripeA1));
+    ChunkMapping_->OnStripeRegenerated(42, stripeA2);
+    EXPECT_TRUE(CheckMapping(stripeA1, stripeA2));
+}
+
 TEST_F(TInputChunkMappingTest, UnorderedSimple)
 {
     InitChunkMapping(EChunkMappingMode::Unordered);

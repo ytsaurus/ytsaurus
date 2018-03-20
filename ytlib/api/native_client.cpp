@@ -324,8 +324,11 @@ class TQueryPreparer
     , public IPrepareCallbacks
 {
 public:
-    explicit TQueryPreparer(INativeConnectionPtr connection)
-        : Connection_(std::move(connection))
+    TQueryPreparer(
+        NTabletClient::ITableMountCachePtr mountTableCache,
+        IInvokerPtr invoker)
+        : MountTableCache_(std::move(mountTableCache))
+        , Invoker_(std::move(invoker))
     { }
 
     // IPrepareCallbacks implementation.
@@ -335,12 +338,13 @@ public:
         TTimestamp timestamp) override
     {
         return BIND(&TQueryPreparer::DoGetInitialSplit, MakeStrong(this))
-            .AsyncVia(Connection_->GetInvoker())
+            .AsyncVia(Invoker_)
             .Run(path, timestamp);
     }
 
 private:
-    const INativeConnectionPtr Connection_;
+    const NTabletClient::ITableMountCachePtr MountTableCache_;
+    const IInvokerPtr Invoker_;
 
     TTableSchema GetTableSchema(
         const TRichYPath& path,
@@ -360,8 +364,7 @@ private:
         const TRichYPath& path,
         TTimestamp timestamp)
     {
-        const auto& tableMountCache = Connection_->GetTableMountCache();
-        auto tableInfo = WaitFor(tableMountCache->GetTableInfo(path.GetPath()))
+        auto tableInfo = WaitFor(MountTableCache_->GetTableInfo(path.GetPath()))
             .ValueOrThrow();
 
         tableInfo->ValidateNotReplicated();
@@ -1845,10 +1848,13 @@ private:
             AppendUdfDescriptors(typeInferrers, externalCGInfo, externalNames, descriptors);
         };
 
-        auto queryPreparer = New<TQueryPreparer>(Connection_);
+        auto queryPreparer = New<TQueryPreparer>(Connection_->GetTableMountCache(), Connection_->GetInvoker());
 
         auto queryExecutor = CreateQueryExecutor(
             Connection_,
+            Connection_->GetInvoker(),
+            Connection_->GetColumnEvaluatorCache(),
+            Connection_->GetQueryEvaluator(),
             ChannelFactory_,
             FunctionImplCache_);
 
@@ -1957,11 +1963,11 @@ private:
         auto evaluatorCache = Connection_->GetColumnEvaluatorCache();
         auto evaluator = tableInfo->NeedKeyEvaluation ? evaluatorCache->Find(schema) : nullptr;
 
-        std::vector<TTableReplicaId> replicas;
+        std::vector<TTableReplicaId> replicaIds;
 
         if (keys.Empty()) {
             for (const auto& replica : tableInfo->Replicas) {
-                replicas.push_back(replica->ReplicaId);
+                replicaIds.push_back(replica->ReplicaId);
             }
         } else {
             THashMap<TCellId, std::vector<TTabletId>> cellToTabletIds;
@@ -2011,17 +2017,17 @@ private:
                 const auto& replicaId = pair.first;
                 auto count = pair.second;
                 if (count == tabletIds.size()) {
-                    replicas.push_back(replicaId);
+                    replicaIds.push_back(replicaId);
                 }
             }
         }
 
         LOG_DEBUG("Got table in-sync replicas (TableId: %v, Replicas: %v, Timestamp: %llx)",
             tableInfo->TableId,
-            replicas,
+            replicaIds,
             options.Timestamp);
 
-        return replicas;
+        return replicaIds;
     }
 
     std::vector<TTabletInfo> DoGetTabletInfos(
@@ -2845,6 +2851,9 @@ private:
                 dataStatistics = rsp.statistics();
             }
 
+            uploadTransaction->Ping();
+            uploadTransaction->Detach();
+
             // End upload.
             {
                 auto proxy = CreateWriteProxy<TObjectServiceProxy>();
@@ -2861,8 +2870,6 @@ private:
                 auto rspOrError = WaitFor(proxy->Execute(req));
                 THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error finishing upload to %v", dstPath);
             }
-
-            uploadTransaction->Detach();
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error concatenating %v to %v",
                 srcPaths,
@@ -3341,6 +3348,8 @@ private:
                 "operation_type",
                 "progress",
                 "spec",
+                "full_spec",
+                "unrecognized_spec",
                 "brief_progress",
                 "brief_spec",
                 "start_time",
@@ -3401,6 +3410,8 @@ private:
                     SET_ITEM_STRING_VALUE("operation_type")
                     SET_ITEM_YSON_STRING_VALUE("progress")
                     SET_ITEM_YSON_STRING_VALUE("spec")
+                    SET_ITEM_YSON_STRING_VALUE("full_spec")
+                    SET_ITEM_YSON_STRING_VALUE("unrecognized_spec")
                     SET_ITEM_YSON_STRING_VALUE("brief_progress")
                     SET_ITEM_YSON_STRING_VALUE("brief_spec")
                     SET_ITEM_INSTANT_VALUE("start_time")
@@ -3494,6 +3505,12 @@ private:
         if (cypressNode) {
             auto attrNode = cypressNode->AsMap();
 
+            // XXX(ignat): remove opaque from node. Make option to ignore it in conversion methods.
+            auto fullSpecNode = attrNode->FindChild("full_spec");
+            if (fullSpecNode) {
+                fullSpecNode->MutableAttributes()->Remove("opaque");
+            }
+
             if (!attributes) {
                 auto userAttributeKeys = ConvertTo<THashSet<TString>>(attrNode->GetChild("user_attribute_keys"));
                 for (const auto& key : attrNode->GetKeys()) {
@@ -3564,7 +3581,7 @@ private:
             }
         }
 
-        THROW_ERROR_EXCEPTION("No such operation %v", operationId);
+        THROW_ERROR_EXCEPTION(EErrorCode::NoSuchOperation, "No such operation %v", operationId);
     }
 
     void DoDumpJobContext(
@@ -3950,10 +3967,16 @@ private:
                 pushTextFactor(briefSpecMapNode->GetChild("title")->AsString()->GetValue());
             }
             if (briefSpecMapNode->FindChild("input_table_paths")) {
-                pushTextFactor(briefSpecMapNode->GetChild("input_table_paths")->AsList()->GetChildren()[0]->AsString()->GetValue());
+                auto inputTablesNode = briefSpecMapNode->GetChild("input_table_paths")->AsList();
+                if (inputTablesNode->GetChildCount() > 0) {
+                    pushTextFactor(inputTablesNode->GetChildren()[0]->AsString()->GetValue());
+                }
             }
             if (briefSpecMapNode->FindChild("output_table_paths")) {
-                pushTextFactor(briefSpecMapNode->GetChild("output_table_paths")->AsList()->GetChildren()[0]->AsString()->GetValue());
+                auto outputTablesNode = briefSpecMapNode->GetChild("output_table_paths")->AsList();
+                if (outputTablesNode->GetChildCount() > 0) {
+                    pushTextFactor(outputTablesNode->GetChildren()[0]->AsString()->GetValue());
+                }
             }
         }
 
@@ -4528,6 +4551,13 @@ private:
             operationId.Parts64[0],
             operationId.Parts64[1]);
         builder.AddWhereExpression(operationIdExpression);
+
+        if (archiveVersion >= 18) {
+            auto updateTimeExpression = Format(
+                "(job_state != \"running\" OR (NOT is_null(update_time) AND update_time >= %v))",
+                (TInstant::Now() - options.RunningJobsLookbehindPeriod).MicroSeconds());
+            builder.AddWhereExpression(updateTimeExpression);
+        }
 
         if (options.WithStderr) {
             if (*options.WithStderr) {

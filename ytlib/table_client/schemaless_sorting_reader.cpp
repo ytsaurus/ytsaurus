@@ -113,6 +113,12 @@ public:
         return dataStatistics;
     }
 
+    TCodecStatistics GetDecompressionStatistics() const override
+    {
+        YCHECK(UnderlyingReader_);
+        return UnderlyingReader_->GetDecompressionStatistics();
+    }
+
     virtual std::vector<TChunkId> GetFailedChunkIds() const override
     {
         YCHECK(UnderlyingReader_);

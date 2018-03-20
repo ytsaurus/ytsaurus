@@ -9,7 +9,7 @@ namespace NControllerAgent {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TSpec>
-TIntrusivePtr<TSpec> ParseOperationSpec(NYTree::IMapNodePtr specNode)
+TIntrusivePtr<TSpec> ParseOperationSpec(NYTree::INodePtr specNode)
 {
     auto spec = New<TSpec>();
     try {

@@ -30,8 +30,6 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
 
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
-            "operation_time_limit_check_period": 100,
-            "operation_fail_timeout": 3000,
             "connect_retry_backoff_time": 100,
             "fair_share_update_period": 100,
             "profiling_update_period": 100,
@@ -40,6 +38,28 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
             # Unrecognized alert often interferes with the alerts that
             # are tested in this test suite.
             "enable_unrecognized_alert": False
+        }
+    }
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "operation_time_limit_check_period": 100,
+            "operation_controller_fail_timeout": 3000,
+        }
+    }
+
+    DELTA_NODE_CONFIG = {
+        "exec_agent": {
+            "slot_manager": {
+                "job_environment" : {
+                    "type" : "cgroups",
+                    "memory_watchdog_period" : 100,
+                    "supported_cgroups": [
+                        "cpuacct",
+                        "blkio",
+                        "cpu"],
+                },
+            }
         }
     }
 
@@ -201,7 +221,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         write_table("//tmp/in", [{"foo": i} for i in xrange(5)])
 
         op = map(dont_track=True,
-            command="sleep 3.0; cat >/dev/null",
+            command="sleep 1000.0; cat >/dev/null",
             in_=["//tmp/in"],
             out="//tmp/out",
             spec={"time_limit": 2000})
@@ -417,12 +437,9 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
 
         create("map_node", "//sys/pools/some_pool")
         op1 = map(command="sleep 1000; cat", in_="//tmp/t_in", out="//tmp/t_out_1", spec={"pool": "some_pool"}, dont_track=True)
+        wait(lambda: op1.get_job_count("running") == 1)
         op2 = map(command="sleep 1000; cat", in_="//tmp/t_in", out="//tmp/t_out_2", spec={"pool": "some_pool"}, dont_track=True)
-
-        time.sleep(1.0)
-
-        assert op1.get_state() == "running"
-        assert op2.get_state() == "running"
+        wait(lambda: op2.get_state() == "running")
 
         get_slot_index = lambda op_id: \
             get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/slot_index".format(op_id))
@@ -432,32 +449,32 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
 
         range_ = (49999, 50000, 50001)
 
-        assert self._get_operation_last_metric_value("fair_share_ratio_x100000", "some_pool", 0) in range_
-        assert self._get_operation_last_metric_value("usage_ratio_x100000", "some_pool", 0) == 100000
-        assert self._get_operation_last_metric_value("demand_ratio_x100000", "some_pool", 0) == 100000
-        assert self._get_operation_last_metric_value("guaranteed_resource_ratio_x100000", "some_pool", 0) in range_
-        assert self._get_operation_last_metric_value("resource_usage/cpu", "some_pool", 0) == 1
-        assert self._get_operation_last_metric_value("resource_usage/user_slots", "some_pool", 0) == 1
-        assert self._get_operation_last_metric_value("resource_demand/cpu", "some_pool", 0) == 1
-        assert self._get_operation_last_metric_value("resource_demand/user_slots", "some_pool", 0) == 1
+        wait(lambda: self._get_operation_last_metric_value("fair_share_ratio_x100000", "some_pool", 0) in range_)
+        wait(lambda: self._get_operation_last_metric_value("usage_ratio_x100000", "some_pool", 0) == 100000)
+        wait(lambda: self._get_operation_last_metric_value("demand_ratio_x100000", "some_pool", 0) == 100000)
+        wait(lambda: self._get_operation_last_metric_value("guaranteed_resource_ratio_x100000", "some_pool", 0) in range_)
+        wait(lambda: self._get_operation_last_metric_value("resource_usage/cpu", "some_pool", 0) == 1)
+        wait(lambda: self._get_operation_last_metric_value("resource_usage/user_slots", "some_pool", 0) == 1)
+        wait(lambda: self._get_operation_last_metric_value("resource_demand/cpu", "some_pool", 0) == 1)
+        wait(lambda: self._get_operation_last_metric_value("resource_demand/user_slots", "some_pool", 0) == 1)
 
-        assert self._get_operation_last_metric_value("fair_share_ratio_x100000", "some_pool", 1) in range_
-        assert self._get_operation_last_metric_value("usage_ratio_x100000", "some_pool", 1) == 0
-        assert self._get_operation_last_metric_value("demand_ratio_x100000", "some_pool", 1) == 100000
-        assert self._get_operation_last_metric_value("guaranteed_resource_ratio_x100000", "some_pool", 1) in range_
-        assert self._get_operation_last_metric_value("resource_usage/cpu", "some_pool", 1) == 0
-        assert self._get_operation_last_metric_value("resource_usage/user_slots", "some_pool", 1) == 0
-        assert self._get_operation_last_metric_value("resource_demand/cpu", "some_pool", 1) == 1
-        assert self._get_operation_last_metric_value("resource_demand/user_slots", "some_pool", 1) == 1
+        wait(lambda: self._get_operation_last_metric_value("fair_share_ratio_x100000", "some_pool", 1) in range_)
+        wait(lambda: self._get_operation_last_metric_value("usage_ratio_x100000", "some_pool", 1) == 0)
+        wait(lambda: self._get_operation_last_metric_value("demand_ratio_x100000", "some_pool", 1) == 100000)
+        wait(lambda: self._get_operation_last_metric_value("guaranteed_resource_ratio_x100000", "some_pool", 1) in range_)
+        wait(lambda: self._get_operation_last_metric_value("resource_usage/cpu", "some_pool", 1) == 0)
+        wait(lambda: self._get_operation_last_metric_value("resource_usage/user_slots", "some_pool", 1) == 0)
+        wait(lambda: self._get_operation_last_metric_value("resource_demand/cpu", "some_pool", 1) == 1)
+        wait(lambda: self._get_operation_last_metric_value("resource_demand/user_slots", "some_pool", 1) == 1)
 
         op1.abort()
 
         time.sleep(2.0)
 
-        assert self._get_operation_last_metric_value("fair_share_ratio_x100000", "some_pool", 1) == 100000
-        assert self._get_operation_last_metric_value("usage_ratio_x100000", "some_pool", 1) == 100000
-        assert self._get_operation_last_metric_value("demand_ratio_x100000", "some_pool", 1) == 100000
-        assert self._get_operation_last_metric_value("guaranteed_resource_ratio_x100000", "some_pool", 1) == 100000
+        wait(lambda: self._get_operation_last_metric_value("fair_share_ratio_x100000", "some_pool", 1) == 100000)
+        wait(lambda: self._get_operation_last_metric_value("usage_ratio_x100000", "some_pool", 1) == 100000)
+        wait(lambda: self._get_operation_last_metric_value("demand_ratio_x100000", "some_pool", 1) == 100000)
+        wait(lambda: self._get_operation_last_metric_value("guaranteed_resource_ratio_x100000", "some_pool", 1) == 100000)
 
     def test_suspend_resume(self):
         self._create_table("//tmp/t_in")
@@ -498,14 +515,19 @@ class TestSchedulerRevive(YTEnvSetup):
 
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
-            "operation_time_limit_check_period": 100,
             "connect_retry_backoff_time": 100,
             "fair_share_update_period": 100,
-            "operation_build_progress_period": 100,
-            "snapshot_period": 500,
             "testing_options": {
                 "finish_operation_transition_delay": 2000,
             },
+        }
+    }
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "snapshot_period": 500,
+            "operation_time_limit_check_period": 100,
+            "operation_build_progress_period": 100,
         }
     }
 
@@ -656,6 +678,8 @@ class TestSchedulerRevive(YTEnvSetup):
         else:
             correct_events = events_prefix + ["completed"]
 
+        print >>sys.stderr, "AAA", correct_events
+        print >>sys.stderr, "BBB", [event["state"] for event in events]
         assert correct_events == [event["state"] for event in events]
 
         assert "completed" == get("//sys/operations/" + op.id + "/@state")

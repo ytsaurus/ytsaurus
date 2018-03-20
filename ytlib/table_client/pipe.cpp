@@ -116,6 +116,11 @@ public:
         return TDataStatistics();
     }
 
+    virtual NChunkClient::TCodecStatistics GetDecompressionStatistics() const override
+    {
+        return NChunkClient::TCodecStatistics();
+    }
+
 private:
     const TDataPtr Data_;
 

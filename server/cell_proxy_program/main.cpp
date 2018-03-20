@@ -6,6 +6,8 @@
 #include <yt/ytlib/program/program_pdeathsig_mixin.h>
 #include <yt/ytlib/program/configure_singletons.h>
 
+#include <util/system/mlock.h>
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -29,6 +31,12 @@ protected:
         ConfigureUids();
         ConfigureSignals();
         ConfigureCrashHandler();
+
+        try {
+            LockAllMemory(ELockAllMemoryFlag::LockCurrentMemory | ELockAllMemoryFlag::LockFutureMemory);
+        } catch (const std::exception& ex) {
+            OnError(Format("Failed to lock memory: %v", ex.what()));
+        }
 
         if (HandlePdeathsigOptions()) {
             return;

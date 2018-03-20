@@ -62,8 +62,6 @@ public:
             BIND(&TImpl::OnCheckConfig, MakeWeak(this)),
             Config_->ConfigCheckPeriod))
         , Profiler("/tablet_server/tablet_balancer")
-        , MemoryMoveCounter_("/in_memory_moves")
-        , MergeCounter_("/tablet_merges")
         , QueueSizeCounter_("/queue_size")
     { }
 
@@ -129,11 +127,7 @@ private:
     THashSet<const TTablet*> TouchedTablets_;
 
     const NProfiling::TProfiler Profiler;
-    NProfiling::TSimpleCounter MemoryMoveCounter_;
-    NProfiling::TSimpleCounter MergeCounter_;
     NProfiling::TSimpleCounter QueueSizeCounter_;
-
-    int MergeCount_ = 0;
 
     bool BalanceCells_ = false;
 
@@ -329,14 +323,14 @@ private:
         TouchedTablets_.clear();
 
         Profiler.Update(QueueSizeCounter_, TabletIdQueue_.size());
-        Profiler.Update(MergeCounter_, MergeCount_);
-        MergeCount_ = 0;
     }
 
     void DoBalanceTablets()
     {
         // TODO(savrus) limit duration of single execution.
         const auto& tabletManager = Bootstrap_->GetTabletManager();
+
+        THashMap<TTabletCellBundle*, int> actionCounts;
 
         while (!TabletIdQueue_.empty()) {
             auto tabletId = TabletIdQueue_.front();
@@ -351,8 +345,16 @@ private:
             auto size = GetTabletSize(tablet);
             auto bounds = GetTabletSizeConfig(tablet);
             if (size < bounds.MinTabletSize || size > bounds.MaxTabletSize) {
-                MergeSplitTablet(tablet, bounds);
+                MergeSplitTablet(tablet, bounds, &actionCounts);
             }
+        }
+
+        for (const auto& pair : actionCounts) {
+            Profiler.Enqueue(
+                "/tablet_merges",
+                pair.second,
+                NProfiling::EMetricType::Gauge,
+                {pair.first->GetProfilingTag()});
         }
     }
 
@@ -370,7 +372,7 @@ private:
         return TouchedTablets_.find(tablet) == TouchedTablets_.end();
     }
 
-    void MergeSplitTablet(TTablet* tablet, const TTabletSizeConfig& bounds)
+    void MergeSplitTablet(TTablet* tablet, const TTabletSizeConfig& bounds, THashMap<TTabletCellBundle*, int>* actionCounts)
     {
         auto* table = tablet->GetTable();
 
@@ -442,7 +444,8 @@ private:
         const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
         CreateMutation(hydraManager, request)
             ->CommitAndLog(Logger);
-        ++MergeCount_;
+
+        (*actionCounts)[table->GetTabletCellBundle()] += 1;
     }
 
     TTabletSizeConfig GetTabletSizeConfig(TTablet* tablet)

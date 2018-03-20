@@ -569,14 +569,17 @@ void Deserialize(TSerializableChunkRequisition& serializer, NYTree::INodePtr nod
 void TChunkRequisitionRegistry::TIndexedItem::Save(NCellMaster::TSaveContext& context) const
 {
     using NYT::Save;
+    Save(context, RefCount);
     Save(context, Requisition);
     // Replication is not persisted as it's restored from Requisition.
-    // RefCount is not persisted as it's recalculated by chunk manager.
 }
 
 void TChunkRequisitionRegistry::TIndexedItem::Load(NCellMaster::TLoadContext& context)
 {
     using NYT::Load;
+    if (context.GetVersion() >= 704) {
+        Load(context, RefCount);
+    } // Else refcounts are recomputed by the chunk manager.
     Load(context, Requisition);
     Replication = Requisition.ToReplication();
 }
@@ -675,9 +678,10 @@ void TChunkRequisitionRegistry::Load(NCellMaster::TLoadContext& context)
     YCHECK(IndexToItem_.has(MigrationRF2ChunkRequisitionIndex));
     YCHECK(IndexToItem_.has(MigrationErasureChunkRequisitionIndex));
 
-    // Since requisitions' refcounts aren't stored but recalculated by chunk
-    // manager we need to restore fake references to builtin requisitions.
-    FakeRefBuiltinRequisitions();
+    // COMPAT(shakurov)
+    if (context.GetVersion() < 704) {
+        FakeRefBuiltinRequisitions();
+    }
 
     Load(context, NextIndex_);
 
@@ -732,6 +736,55 @@ void TChunkRequisitionRegistry::Erase(
     for (const auto& entry : requisition) {
         objectManager->WeakUnrefObject(entry.Account);
     }
+}
+
+void TChunkRequisitionRegistry::Serialize(
+    NYson::IYsonConsumer* consumer,
+    const TChunkManagerPtr& chunkManager) const
+{
+    using TSortedIndexItem = std::pair<TChunkRequisitionIndex, TIndexedItem>;
+
+    std::vector<TSortedIndexItem> sortedIndex(IndexToItem_.begin(), IndexToItem_.end());
+    std::sort(
+        sortedIndex.begin(),
+        sortedIndex.end(),
+        [] (const TSortedIndexItem& lhs, const TSortedIndexItem& rhs) {
+            return lhs.first < rhs.first;
+        });
+
+    BuildYsonFluently(consumer)
+        .DoMapFor(sortedIndex, [&] (TFluentMap fluent, const TSortedIndexItem& pair) {
+            auto index = pair.first;
+            const auto& item = pair.second;
+            const auto& requisition = item.Requisition;
+            auto refCount = item.RefCount;
+            TSerializableChunkRequisition requisitionSerializer(requisition, chunkManager);
+            fluent
+                .Item(ToString(index))
+                .BeginMap()
+                    .Item("ref_counter").Value(refCount)
+                    .Item("vital").Value(requisition.GetVital())
+                    .Item("entries").Value(requisitionSerializer)
+                .EndMap();
+        });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TSerializableChunkRequisitionRegistry::TSerializableChunkRequisitionRegistry(
+    const TChunkManagerPtr& chunkManager)
+    : ChunkManager_(chunkManager)
+{ }
+
+void TSerializableChunkRequisitionRegistry::Serialize(NYson::IYsonConsumer* consumer) const
+{
+    auto* const registry = ChunkManager_->GetChunkRequisitionRegistry();
+    registry->Serialize(consumer, ChunkManager_);
+}
+
+void Serialize(const TSerializableChunkRequisitionRegistry& serializer, NYson::IYsonConsumer* consumer)
+{
+    serializer.Serialize(consumer);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

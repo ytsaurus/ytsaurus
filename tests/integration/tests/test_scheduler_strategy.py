@@ -35,10 +35,15 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
 
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
-            "operation_time_limit_check_period": 100,
             "connect_retry_backoff_time": 100,
             "fair_share_update_period": 100,
             "fair_share_profiling_period": 100,
+        }
+    }
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "operation_time_limit_check_period": 100,
         }
     }
 
@@ -461,11 +466,8 @@ class TestSchedulerOperationLimits(YTEnvSetup):
                 dont_track=True)
             ops.append(op)
 
-        # time for orchid to be updated.
-        time.sleep(0.2)
-
-        assert get("//sys/scheduler/orchid/scheduler/pools/research/operation_count") == 3
-        assert get("//sys/scheduler/orchid/scheduler/pools/research/running_operation_count") == 3
+        wait(lambda: get("//sys/scheduler/orchid/scheduler/pools/research/operation_count") == 3)
+        wait(lambda: get("//sys/scheduler/orchid/scheduler/pools/research/running_operation_count") == 3)
 
     def test_pending_operations_after_revive(self):
         create("table", "//tmp/in")
@@ -581,7 +583,9 @@ class TestSchedulerOperationLimits(YTEnvSetup):
                 with pytest.raises(YtError):
                     execute(False)
             else:
-                ops.append(execute(True))
+                op = execute(True)
+                wait(lambda: op.get_state() in ("pending", "running"))
+                ops.append(op)
 
         for i in xrange(3):
             run(i, "research", False)
@@ -636,11 +640,11 @@ class TestSchedulerOperationLimits(YTEnvSetup):
 
         time.sleep(0.5)
 
-        assert get("//sys/scheduler/orchid/scheduler/pools/subpool/running_operation_count") == 1
-        assert get("//sys/scheduler/orchid/scheduler/pools/subpool/operation_count") == 3
+        wait(lambda: get("//sys/scheduler/orchid/scheduler/pools/subpool/running_operation_count") == 1)
+        wait(lambda: get("//sys/scheduler/orchid/scheduler/pools/subpool/operation_count") == 3)
 
-        assert get("//sys/scheduler/orchid/scheduler/pools/research/running_operation_count") == 1
-        assert get("//sys/scheduler/orchid/scheduler/pools/research/operation_count") == 3
+        wait(lambda: get("//sys/scheduler/orchid/scheduler/pools/research/running_operation_count") == 1)
+        wait(lambda: get("//sys/scheduler/orchid/scheduler/pools/research/operation_count") == 3)
 
         assert get("//sys/scheduler/orchid/scheduler/pools/production/running_operation_count") == 0
         assert get("//sys/scheduler/orchid/scheduler/pools/production/operation_count") == 0
@@ -652,11 +656,11 @@ class TestSchedulerOperationLimits(YTEnvSetup):
         assert get("//sys/scheduler/orchid/scheduler/pools/subpool/running_operation_count") == 1
         assert get("//sys/scheduler/orchid/scheduler/pools/subpool/operation_count") == 3
 
-        assert get("//sys/scheduler/orchid/scheduler/pools/research/running_operation_count") == 0
-        assert get("//sys/scheduler/orchid/scheduler/pools/research/operation_count") == 0
+        wait(lambda: get("//sys/scheduler/orchid/scheduler/pools/research/running_operation_count") == 0)
+        wait(lambda: get("//sys/scheduler/orchid/scheduler/pools/research/operation_count") == 0)
 
-        assert get("//sys/scheduler/orchid/scheduler/pools/production/running_operation_count") == 1
-        assert get("//sys/scheduler/orchid/scheduler/pools/production/operation_count") == 3
+        wait(lambda: get("//sys/scheduler/orchid/scheduler/pools/production/running_operation_count") == 1)
+        wait(lambda: get("//sys/scheduler/orchid/scheduler/pools/production/operation_count") == 3)
 
     def _test_pool_acl_prologue(self):
         create("table", "//tmp/t_in")
@@ -1119,6 +1123,15 @@ class TestSchedulerPools(YTEnvSetup):
         }
     }
 
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "event_log": {
+                "flush_period": 300,
+                "retry_backoff_time": 300
+            }
+        }
+    }
+
     def setup_method(self, method):
         super(TestSchedulerPools, self).setup_method(method)
         set("//sys/pool_trees/default/@max_ephemeral_pools_per_user", 3)
@@ -1304,11 +1317,16 @@ class TestSchedulerSuspiciousJobs(YTEnvSetup):
 
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
+            "running_jobs_update_period": 100,  # 100 msec
+        }
+    }
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
             "suspicious_jobs": {
                 "inactivity_timeout": 2000,  # 2 sec
                 "update_period": 100,  # 100 msec
             },
-            "running_jobs_update_period": 100,  # 100 msec
         }
     }
 
@@ -1489,8 +1507,13 @@ class TestMinNeededResources(YTEnvSetup):
 
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
-            "safe_scheduler_online_time": 500,
             "min_needed_resources_update_period": 200
+        }
+    }
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "safe_scheduler_online_time": 500,
         }
     }
 
@@ -1586,7 +1609,7 @@ class TestFairShareTreesReconfiguration(YTEnvSetup):
         remove("//sys/pool_trees/*")
         create("map_node", "//sys/pool_trees/default")
         set("//sys/pool_trees/@default_tree", "default")
-        sleep(0.5)  # Give scheduler some time to reload trees
+        time.sleep(0.5)  # Give scheduler some time to reload trees
         super(TestFairShareTreesReconfiguration, self).teardown_method(method)
 
     def test_basic_sanity(self):
@@ -1680,10 +1703,8 @@ class TestFairShareTreesReconfiguration(YTEnvSetup):
     def test_incorrect_node_tags(self):
         create("map_node", "//sys/pool_trees/supertree1", attributes={"nodes_filter": "x|y"})
         create("map_node", "//sys/pool_trees/supertree2", attributes={"nodes_filter": "y|z"})
-        time.sleep(0.5)
-        info = get("//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree")
-        assert "supertree1" in info
-        assert "supertree2" in info
+        wait(lambda: "supertree1" in ls("//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree"))
+        wait(lambda: "supertree2" in ls("//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree"))
 
         node = ls("//sys/nodes")[0]
         assert get("//sys/scheduler/orchid/scheduler/nodes/" + node + "/state") == "online"
@@ -1691,9 +1712,7 @@ class TestFairShareTreesReconfiguration(YTEnvSetup):
 
         set("//sys/nodes/" + node + "/@user_tags/end", "y")
 
-        time.sleep(0.5)
-
-        assert get("//sys/scheduler/orchid/scheduler/nodes/" + node + "/state") == "offline"
+        wait(lambda: get("//sys/scheduler/orchid/scheduler/nodes/" + node + "/state") == "offline")
         assert get("//sys/scheduler/orchid/scheduler/cell/resource_limits/user_slots") == 2
 
     def test_default_tree_manipulations(self):
@@ -1781,7 +1800,6 @@ class TestFairShareTreesReconfiguration(YTEnvSetup):
         set("//sys/nodes/" + node + "/@user_tags/end", "other")
         set("//sys/pool_trees/default/@nodes_filter", "!other")
         create("map_node", "//sys/pool_trees/other", attributes={"nodes_filter": "other"})
-        set("//sys/pool_trees/default/@nodes_filter", "!other")
         time.sleep(0.5)
 
         create("table", "//tmp/t_in")
@@ -1796,8 +1814,7 @@ class TestFairShareTreesReconfiguration(YTEnvSetup):
         wait(lambda: op1.get_state() == "running")
 
         set("//sys/pool_trees/@default_tree", "other")
-        time.sleep(0.5)
-        assert get("//sys/scheduler/orchid/scheduler/default_fair_share_tree") == "other"
+        wait(lambda: get("//sys/scheduler/orchid/scheduler/default_fair_share_tree") == "other")
         assert op1.get_state() == "running"
 
         create("table", "//tmp/t_out_2")
@@ -1808,8 +1825,15 @@ class TestFairShareTreesReconfiguration(YTEnvSetup):
             dont_track=True)
         wait(lambda: op2.get_state() == "running")
 
-        default_tree_operations = get("//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/default/fair_share_info/operations")
-        other_tree_operations = get("//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/other/fair_share_info/operations")
+        operations_path = "//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/{}/fair_share_info/operations"
+        default_operations_path = operations_path.format("default")
+        other_operations_path = operations_path.format("other")
+
+        wait(lambda: len(ls(default_operations_path)) == 1)
+        wait(lambda: len(ls(other_operations_path)) == 1)
+
+        default_tree_operations = get(default_operations_path)
+        other_tree_operations = get(other_operations_path)
         assert op1.id in default_tree_operations
         assert op1.id not in other_tree_operations
         assert op2.id in other_tree_operations
@@ -1879,25 +1903,24 @@ class TestSchedulingOptionsPerTree(YTEnvSetup):
 
         release_breakpoint()
 
-class TestSchedulingTagFilterOnCustomPoolTree(YTEnvSetup):
+
+class TestSchedulingTagFilterOnPerPoolTreeConfiguration(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
 
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
-            "operation_options": {
-                "spec_template": {
-                    "scheduling_options_per_pool_tree": {
-                        "default": { "scheduling_tag_filter": "default_tag"},
-                        "custom_pool_tree": { "scheduling_tag_filter": "runnable_tag"}
-                    }
+            "spec_template": {
+                "scheduling_options_per_pool_tree": {
+                    "default": {"scheduling_tag_filter": "default_tag"},
+                    "custom_pool_tree": {"scheduling_tag_filter": "runnable_tag"}
                 }
             }
         }
     }
 
-    def test_scheduling_tag_filter_on_custom_pool_tree(self):
+    def test_scheduling_tag_filter_applies_from_per_pool_tree_config(self):
         all_nodes = ls("//sys/nodes")
         default_node = all_nodes[0]
         custom_node = all_nodes[1]
@@ -1912,16 +1935,14 @@ class TestSchedulingTagFilterOnCustomPoolTree(YTEnvSetup):
         time.sleep(0.5)
 
         create("table", "//tmp/t_in")
-        write_table("//tmp/t_in", [{"x": i} for i in xrange(7)])
+        write_table("//tmp/t_in", [{"x": 1}])
         create("table", "//tmp/t_out")
 
         op = map(
             command=with_breakpoint("cat ; BREAKPOINT"),
             in_="//tmp/t_in",
             out="//tmp/t_out",
-            spec={
-                "pool_trees": ["custom_pool_tree"],
-            },
+            spec={"pool_trees": ["custom_pool_tree"]},
             dont_track=True)
 
         wait_breakpoint()
@@ -1931,3 +1952,43 @@ class TestSchedulingTagFilterOnCustomPoolTree(YTEnvSetup):
         assert jobs[jobs.keys()[0]]["address"] == runnable_custom_node
 
         release_breakpoint()
+
+    def test_explicit_scheduling_tag_filter_overrides_per_pool_tree_config(self):
+        all_nodes = ls("//sys/nodes")
+        default_node = all_nodes[0]
+        explicit_node = all_nodes[1]
+        runnable_node = all_nodes[2]
+        set("//sys/nodes/" + default_node + "/@user_tags", ["default_tag"])
+        set("//sys/nodes/" + explicit_node + "/@user_tags", ["custom_tag", "explicit_tag"])
+        set("//sys/nodes/" + runnable_node + "/@user_tags", ["custom_tag", "runnable_tag"])
+
+        set("//sys/pool_trees/default/@nodes_filter", "default_tag")
+        create("map_node", "//sys/pool_trees/custom_pool_tree", attributes={"nodes_filter": "custom_tag"})
+
+        time.sleep(0.5)
+
+        create("table", "//tmp/t_in")
+        write_table("//tmp/t_in", [{"x": 1}])
+        create("table", "//tmp/t_out")
+
+        op = map(
+            command=with_breakpoint("cat ; BREAKPOINT"),
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            spec={
+                "pool_trees": ["custom_pool_tree"],
+                "scheduling_tag_filter": "explicit_tag"
+            },
+            dont_track=True)
+
+        wait_breakpoint()
+
+        jobs = op.get_running_jobs()
+        assert len(jobs) == 1
+        assert jobs[jobs.keys()[0]]["address"] == explicit_node
+
+        release_breakpoint()
+
+    def teardown_method(self, method):
+        remove("//sys/pool_trees/custom_pool_tree")
+        super(TestSchedulingTagFilterOnPerPoolTreeConfiguration, self).teardown_method(method)

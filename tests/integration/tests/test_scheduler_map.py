@@ -36,6 +36,12 @@ class TestSchedulerMapCommands(YTEnvSetup):
             "watchers_update_period": 100,
             "operations_update_period": 10,
             "running_jobs_update_period": 10,
+        }
+    }
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "operations_update_period": 10,
             "map_operation_options": {
                 "job_splitter": {
                     "min_job_time": 5000,
@@ -44,6 +50,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
                     "median_excess_duration": 3000,
                     "candidate_percentile": 0.8,
                     "max_jobs_per_split": 3,
+                    "max_input_table_count": 5,
                 },
             },
         }
@@ -183,6 +190,17 @@ class TestSchedulerMapCommands(YTEnvSetup):
         assert row_count == 5
         row_count = get("//sys/operations/{0}/@progress/job_statistics/data/output/1/row_count/$/completed/map/sum".format(op.id))
         assert row_count == 1
+
+    def test_compression_statistics(self):
+        create("table", "//tmp/t1", attributes={"compression_codec": "lzma_9"})
+        create("table", "//tmp/t2", attributes={"compression_codec": "lzma_9"})
+        write_table("//tmp/t1", {"key": 1})
+
+        op = map(command="cat", in_="//tmp/t1", out="//tmp/t2")
+        decode_time = get("//sys/operations/{0}/@progress/job_statistics/codec/cpu/decode/lzma_9/$/completed/map/sum".format(op.id))
+        encode_time = get("//sys/operations/{0}/@progress/job_statistics/codec/cpu/encode/0/lzma_9/$/completed/map/sum".format(op.id))
+        assert decode_time > 0
+        assert encode_time > 0
 
     @unix_only
     def test_sorted_output(self):
@@ -518,9 +536,9 @@ print row + table_index
             spec={"data_size_per_job": 1})
         jobs = wait_breakpoint(job_count=2)
 
-        operation_path = "//sys/operations/{0}".format(op.id)
+        operation_path = get_operation_path(op.id)
 
-        async_transaction_id = get(operation_path + "/@async_scheduler_transaction_id")
+        async_transaction_id = get("//sys/operations/" + op.id + "/@async_scheduler_transaction_id")
         assert exists(operation_path + "/output_0", tx=async_transaction_id)
         assert effective_acl == get(operation_path + "/output_0/@acl", tx=async_transaction_id)
         assert schema == get(operation_path + "/output_0/@schema", tx=async_transaction_id)
@@ -985,6 +1003,25 @@ done
             del row["data"]
         assert sorted(got) == sorted(expected)
 
+    def test_job_splitter_max_input_table_count(self):
+        create("table", "//tmp/in_1")
+        write_table(
+            "//tmp/in_1",
+            [{"key": "%08d" % i, "value": "(t_1)", "data": "a" * (1024 * 1024)} for i in range(20)])
+
+        input_ = "//tmp/in_1"
+        output = "//tmp/output"
+        create("table", output)
+
+        op = map(
+            in_=[input_] * 10,
+            out=output,
+            command="sleep 5; echo '{a=1}'",
+            dont_track=True)
+        time.sleep(2.0)
+        assert len(get("//sys/scheduler/orchid/scheduler/operations/{0}/job_splitter".format(op.id))) == 0
+        op.track()
+
 ##################################################################
 
 @patch_porto_env_only(TestSchedulerMapCommands)
@@ -1022,12 +1059,12 @@ class TestJobSizeAdjuster(YTEnvSetup):
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
 
-    DELTA_SCHEDULER_CONFIG = {
-      "scheduler": {
-        "map_operation_options": {
-          "data_size_per_job": 1
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "map_operation_options": {
+              "data_size_per_job": 1
+            }
         }
-      }
     }
 
     @pytest.mark.skipif("True", reason="YT-8228")
@@ -1146,6 +1183,12 @@ class TestMapOnDynamicTables(YTEnvSetup):
             "watchers_update_period": 100,
             "operations_update_period": 10,
             "running_jobs_update_period": 10,
+        }
+    }
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "operations_update_period": 10,
             "map_operation_options": {
                 "job_splitter": {
                     "min_job_time": 5000,
@@ -1452,6 +1495,12 @@ class TestInputOutputFormats(YTEnvSetup):
             "watchers_update_period": 100,
             "operations_update_period": 10,
             "running_jobs_update_period": 10,
+        }
+    }
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "operations_update_period": 10,
             "map_operation_options": {
                 "job_splitter": {
                     "min_job_time": 5000,

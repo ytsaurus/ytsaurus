@@ -5,6 +5,8 @@
 
 #include <yt/core/profiling/profiler.h>
 
+#include <yt/ytlib/node_tracker_client/public.h>
+
 namespace NYT {
 namespace NQueryClient {
 
@@ -16,7 +18,8 @@ class TEvaluator
 public:
     explicit TEvaluator(
         TExecutorConfigPtr config,
-        const NProfiling::TProfiler& profiler = NProfiling::TProfiler());
+        const NProfiling::TProfiler& profiler = NProfiling::TProfiler(),
+        IMemoryChunkProviderPtr memoryChunkProvider = nullptr);
 
     TQueryStatistics Run(
         TConstBaseQueryPtr fragment,

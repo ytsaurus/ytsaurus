@@ -173,7 +173,6 @@ message TReqHeartbeat
     repeated TOperationInfo operations = 3;
 
     required bool exec_nodes_requested = 4;
-    required bool config_requested = 5;
 
     optional bytes suspicious_jobs = 6;
 
@@ -212,7 +211,6 @@ message TRspHeartbeat
     }
 
     optional TExecNodeDescriptorList exec_nodes = 1;
-    optional bytes config = 9; // YSON
 
     required TEventQueueInbox agent_to_scheduler_operation_events = 2;
     required TEventQueueInbox agent_to_scheduler_job_events = 3;

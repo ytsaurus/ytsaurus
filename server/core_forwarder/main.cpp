@@ -8,7 +8,7 @@
 #include <yt/core/bus/config.h>
 #include <yt/core/bus/tcp_client.h>
 
-#include <yt/core/rpc/bus_channel.h>
+#include <yt/core/rpc/bus/channel.h>
 
 #include <util/system/file.h>
 #include <util/stream/file.h>
@@ -118,7 +118,7 @@ protected:
         syslog(LOG_INFO, "Sending core to job proxy (SocketName: %s)", socketName.c_str());
 
         auto coreProcessorClient = CreateTcpBusClient(TTcpBusClientConfig::CreateUnixDomain(socketName));
-        auto coreProcessorChannel = CreateBusChannel(coreProcessorClient);
+        auto coreProcessorChannel = NRpc::NBus::CreateBusChannel(coreProcessorClient);
 
         TCoreProcessorServiceProxy proxy(coreProcessorChannel);
 

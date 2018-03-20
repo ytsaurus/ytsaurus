@@ -41,6 +41,8 @@ public:
 
     void Initialize();
 
+    NYTree::IYPathServicePtr GetOrchidService();
+
     std::unique_ptr<NHydra::TMutation> CreateUpdateChunkRequisitionMutation(
         const NProto::TReqUpdateChunkRequisition& request);
 

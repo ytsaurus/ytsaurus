@@ -8,6 +8,8 @@
 
 #include <yt/ytlib/object_client/object_service_proxy.h>
 
+#include <yt/ytlib/api/public.h>
+
 #include <yt/core/actions/signal.h>
 
 namespace NYT {
@@ -56,6 +58,8 @@ public:
      *  \note Thread affinity: any
      */
     TInstant GetConnectionTime() const;
+
+    const NApi::ITransactionPtr& GetLockTransaction() const;
 
     const IInvokerPtr& GetCancelableControlInvoker(EControlQueue queue = EControlQueue::Default) const;
 

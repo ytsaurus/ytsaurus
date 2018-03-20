@@ -392,6 +392,9 @@ private:
             if (statistics.Events()) {
                 builder.AddValue(MakeUnversionedAnyValue(*statistics.Events(), Table_.Ids.Events));
             }
+            if (GetSharedData()->GetOperationArchiveVersion() >= 18) {
+                builder.AddValue(MakeUnversionedInt64Value(TInstant::Now().MicroSeconds(), Table_.Ids.UpdateTime));
+            }
             rows.push_back(rowBuffer->Capture(builder.GetRow()));
             dataWeight += GetDataWeight(rows.back());
         }

@@ -86,6 +86,8 @@
 #include <yt/ytlib/node_tracker_client/node_directory.h>
 #include <yt/ytlib/node_tracker_client/node_directory_synchronizer.h>
 
+#include <yt/ytlib/core_dump/core_dumper.h>
+
 #include <yt/core/bus/config.h>
 #include <yt/core/bus/server.h>
 #include <yt/core/bus/tcp_server.h>
@@ -104,8 +106,8 @@
 
 #include <yt/core/profiling/profile_manager.h>
 
-#include <yt/core/rpc/bus_channel.h>
-#include <yt/core/rpc/bus_server.h>
+#include <yt/core/rpc/bus/channel.h>
+#include <yt/core/rpc/bus/server.h>
 #include <yt/core/rpc/caching_channel_factory.h>
 #include <yt/core/rpc/channel.h>
 #include <yt/core/rpc/redirector_service.h>
@@ -236,7 +238,7 @@ void TBootstrap::DoRun()
 
     BusServer = CreateTcpBusServer(Config->BusServer);
 
-    RpcServer = CreateBusServer(BusServer);
+    RpcServer = NRpc::NBus::CreateBusServer(BusServer);
 
     Config->MonitoringServer->Port = Config->MonitoringPort;
     Config->MonitoringServer->BindRetryCount = Config->BusServer->BindRetryCount;
@@ -302,7 +304,7 @@ void TBootstrap::DoRun()
     MasterConnector->SubscribeMasterDisconnected(BIND(&TBootstrap::OnMasterDisconnected, this));
 
     if (Config->CoreDumper) {
-        CoreDumper = New<TCoreDumper>(Config->CoreDumper);
+        CoreDumper = NCoreDump::CreateCoreDumper(Config->CoreDumper);
     }
 
     ChunkStore = New<NDataNode::TChunkStore>(Config->DataNode, this);
@@ -408,7 +410,7 @@ void TBootstrap::DoRun()
         patchMasterConnectionConfig(config);
     }
 
-    JobProxyConfigTemplate->SupervisorConnection = New<NBus::TTcpBusClientConfig>();
+    JobProxyConfigTemplate->SupervisorConnection = New<NYT::NBus::TTcpBusClientConfig>();
 
     JobProxyConfigTemplate->SupervisorConnection->Address = localAddress;
 

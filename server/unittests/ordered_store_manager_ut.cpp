@@ -36,14 +36,10 @@ protected:
         TTransaction* transaction,
         TUnversionedRow row)
     {
-        auto oldTotalRowCount = Tablet_->GetTotalRowCount();
-
         TWriteContext context;
         context.Phase = EWritePhase::Commit;
         context.Transaction = transaction;
-        auto rowRef = StoreManager_->WriteRow(row, &context);
-        EXPECT_EQ(oldTotalRowCount + 1, Tablet_->GetTotalRowCount());
-        return rowRef;
+        return StoreManager_->WriteRow(row, &context);
     }
 
     TOrderedDynamicRowRef WriteRow(const TUnversionedOwningRow& row)

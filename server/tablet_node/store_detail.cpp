@@ -826,16 +826,13 @@ void TChunkStoreBase::Preload(TInMemoryChunkDataPtr chunkData)
 
     TWriterGuard guard(SpinLock_);
 
-    TChunkSpec chunkSpec;
-    ToProto(chunkSpec.mutable_chunk_id(), StoreId_);
-
     YCHECK(chunkData->InMemoryMode == InMemoryMode_);
     YCHECK(chunkData->InMemoryConfigRevision == InMemoryConfigRevision_);
 
     PreloadedBlockCache_->Preload(chunkData);
     ChunkState_ = New<TChunkState>(
         PreloadedBlockCache_,
-        chunkSpec,
+        chunkData->ChunkSpec,
         chunkData->ChunkMeta,
         chunkData->LookupHashTable,
         PerformanceCounters_,

@@ -244,7 +244,7 @@ public:
     int ExportCounter() const;
 
     //! Increments export ref counter.
-    void Export(int cellIndex);
+    void Export(int cellIndex, TChunkRequisitionRegistry* registry);
 
     //! Decrements export ref counter.
     void Unexport(

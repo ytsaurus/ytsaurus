@@ -7,6 +7,10 @@ namespace NContainers {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(EErrorCode,
+    ((FailedToStartContainer)  (13000))
+);
+
 struct TBind
 {
     TString SourcePath;

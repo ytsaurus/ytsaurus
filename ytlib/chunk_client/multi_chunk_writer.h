@@ -22,6 +22,8 @@ struct IMultiChunkWriter
     virtual NNodeTrackerClient::TNodeDirectoryPtr GetNodeDirectory() const = 0;
 
     virtual NProto::TDataStatistics GetDataStatistics() const = 0;
+
+    virtual TCodecStatistics GetCompressionStatistics() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IMultiChunkWriter)

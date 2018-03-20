@@ -19,6 +19,12 @@ class TestSchedulerReduceCommands(YTEnvSetup):
             "watchers_update_period": 100,
             "operations_update_period" : 10,
             "running_jobs_update_period" : 10,
+        }
+    }
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "operations_update_period" : 10,
             "reduce_operation_options" : {
                 "job_splitter" : {
                     "min_job_time": 5000,
@@ -1334,7 +1340,7 @@ done
 
         time.sleep(2)
 
-        operation_path = "//sys/operations/{0}".format(op.id)
+        operation_path = get_operation_path(op.id)
         scheduler_transaction_id = get(operation_path + "/@async_scheduler_transaction_id")
         wait(lambda: exists(operation_path + "/output_0", tx=scheduler_transaction_id))
 

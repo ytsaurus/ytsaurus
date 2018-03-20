@@ -36,7 +36,7 @@
 #include <yt/core/concurrency/thread_pool.h>
 #include <yt/core/concurrency/lease_manager.h>
 
-#include <yt/core/rpc/bus_channel.h>
+#include <yt/core/rpc/bus/channel.h>
 #include <yt/core/rpc/caching_channel_factory.h>
 #include <yt/core/rpc/retrying_channel.h>
 
@@ -70,12 +70,14 @@ public:
             .AddTag("PrimaryCellTag: %v, ConnectionId: %",
                 CellTagFromId(Config_->PrimaryMaster->CellId),
                 TGuid::Create()))
-        , ChannelFactory_(CreateCachingChannelFactory(CreateBusChannelFactory(Config_->BusClient)))
+        , ChannelFactory_(CreateCachingChannelFactory(NRpc::NBus::CreateBusChannelFactory(Config_->BusClient)))
     { }
 
     void Initialize()
     {
-        ThreadPool_ = New<TThreadPool>(Config_->ThreadPoolSize, "Client");
+        if (Config_->ThreadPoolSize) {
+            ThreadPool_ = New<TThreadPool>(*Config_->ThreadPoolSize, "Connection");
+        }
 
         PrimaryMasterCellId_ = Config_->PrimaryMaster->CellId;
         PrimaryMasterCellTag_ = CellTagFromId(PrimaryMasterCellId_);
@@ -178,9 +180,9 @@ public:
         return TimestampProvider_;
     }
 
-    virtual const IInvokerPtr& GetInvoker() override
+    virtual IInvokerPtr GetInvoker() override
     {
-        return ThreadPool_->GetInvoker();
+        return ThreadPool_ ? ThreadPool_->GetInvoker() : GetCurrentInvoker();
     }
 
     virtual IAdminPtr CreateAdmin(const TAdminOptions& options) override
@@ -370,7 +372,9 @@ public:
     {
         Terminated_ = true;
 
-        ThreadPool_->Shutdown();
+        if (ThreadPool_) {
+            ThreadPool_->Shutdown();
+        }
 
         ClusterDirectory_->Clear();
         ClusterDirectorySynchronizer_->Stop();

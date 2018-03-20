@@ -7,6 +7,10 @@
 #include <yt/core/misc/fs.h>
 #include <yt/core/misc/checksum.h>
 
+#include <yt/ytlib/chunk_client/io_engine.h>
+
+#include <util/system/align.h>
+
 namespace NYT {
 namespace NChunkClient {
 
@@ -26,15 +30,23 @@ static const auto FileMode =
 ////////////////////////////////////////////////////////////////////////////////
 
 TFileWriter::TFileWriter(
+    const IIOEnginePtr& ioEngine,
     const TChunkId& chunkId,
     const TString& fileName,
     bool syncOnClose,
     bool enableWriteDirectIO)
-    : ChunkId_(chunkId)
+    : IOEngine_(ioEngine)
+    , ChunkId_(chunkId)
     , FileName_(fileName)
     , SyncOnClose_(syncOnClose)
     , EnableWriteDirectIO_(enableWriteDirectIO)
-{ }
+{
+    size_t size = 1_MB;
+    auto data = TSharedMutableRef::Allocate<TNull>(size + Alignment_, false);
+    data = data.Slice(AlignUp(data.Begin(), Alignment_), data.End());
+    data = data.Slice(data.Begin(), data.Begin() + size);
+    Buffer_ = data;
+}
 
 TFuture<void> TFileWriter::Open()
 {
@@ -43,17 +55,14 @@ TFuture<void> TFileWriter::Open()
 
     try {
         NFS::ExpectIOErrors([&] () {
-            if (!EnableWriteDirectIO_) {
-                // NB: Races are possible between file creation and a call to flock.
-                // Unfortunately in Linux we can't create'n'flock a file atomically.
-                DataFile_.reset(new TFile(FileName_ + NFS::TempFileSuffix, FileMode));
-                DataFile_->Flock(LOCK_EX);
-            } else {
-                DirectIOFile_.reset(new TDirectIOBufferedFile(
-                    FileName_ + NFS::TempFileSuffix,
-                    FileMode | Direct));
-                DirectIOFile_->GetHandle().Flock(LOCK_EX);
+            auto mode = FileMode;
+            if (EnableWriteDirectIO_) {
+                mode |= DirectAligned;
             }
+            // NB: Races are possible between file creation and a call to flock.
+            // Unfortunately in Linux we can't create'n'flock a file atomically.
+            DataFile_ = IOEngine_->Open(FileName_ + NFS::TempFileSuffix, mode);
+            DataFile_->Flock(LOCK_EX);
         });
     } catch (const std::exception& ex) {
         return MakeFuture(TError(
@@ -76,25 +85,46 @@ bool TFileWriter::WriteBlock(const TBlock& block)
 
     try {
         auto* blockInfo = BlocksExt_.add_blocks();
-        if (!EnableWriteDirectIO_) {
-            blockInfo->set_offset(DataFile_->GetPosition());
-        } else {
-            blockInfo->set_offset(DirectIOFile_->GetWritePosition());
-        }
+        blockInfo->set_offset(DataSize_);
 
         blockInfo->set_size(static_cast<int>(block.Size()));
 
         blockInfo->set_checksum(block.GetOrComputeChecksum());
 
-        NFS::ExpectIOErrors([&] () {
-            if (!EnableWriteDirectIO_) {
-                DataFile_->Write(block.Data.Begin(), block.Size());
-            } else {
-                DirectIOFile_->Write(block.Data.Begin(), block.Size());
+        const char* p = block.Data.Begin();
+        const char* pe = p + block.Size();
+
+        auto filePosition = DataSize_;
+        while (p != pe) {
+            auto size = Min<size_t>(pe - p, Buffer_.Size() - BufferPosition_);
+            ::memcpy(Buffer_.Begin() + BufferPosition_, p, size);
+
+            auto offset = ::AlignDown(filePosition, Alignment_);
+            auto start = ::AlignDown(Buffer_.Begin() + BufferPosition_, Alignment_);
+            auto end = start + ::AlignUp<size_t>(size, Alignment_);
+            auto data = Buffer_.Slice(start, end);
+
+            YCHECK(offset >= 0 && offset <= filePosition);
+            YCHECK(start >= Buffer_.Begin() && end <= Buffer_.End());
+            YCHECK(filePosition - offset == Buffer_.Begin() + BufferPosition_ - start);
+
+            IOEngine_->Pwrite(DataFile_, data, offset).Get().ThrowOnError();
+
+            filePosition += size;
+
+            BufferPosition_ += size;
+            p += size;
+
+            YCHECK(BufferPosition_ <= Buffer_.Size());
+
+            if (BufferPosition_ == Buffer_.Size()) {
+                BufferPosition_ = 0;
             }
-        });
+        }
 
         DataSize_ += block.Size();
+
+        YCHECK(filePosition == DataSize_);
     } catch (const std::exception& ex) {
         Error_ = TError(
             "Failed to write chunk data file %v",
@@ -138,16 +168,12 @@ TFuture<void> TFileWriter::Close(const NChunkClient::NProto::TChunkMeta& chunkMe
 
     try {
         NFS::ExpectIOErrors([&] () {
-            if (!DirectIOFile_) {
-                if (SyncOnClose_) {
-                    DataFile_->Flush();
-                }
-                DataFile_->Close();
-                DataFile_.reset();
-            } else {
-                DirectIOFile_->Finish();
-                DirectIOFile_.reset();
+            DataFile_->Resize(DataSize_);
+            if (SyncOnClose_) {
+                DataFile_->Flush();
             }
+            DataFile_->Close();
+            DataFile_.reset();
         });
     } catch (const std::exception& ex) {
         return MakeFuture(TError(
@@ -210,11 +236,7 @@ void TFileWriter::Abort()
     IsClosed_ = true;
     IsOpen_ = false;
 
-    if (!EnableWriteDirectIO_) {
-        DataFile_.reset();
-    } else {
-        DirectIOFile_.reset();
-    }
+    DataFile_.reset();
 
     NFS::Remove(FileName_ + NFS::TempFileSuffix);
 }

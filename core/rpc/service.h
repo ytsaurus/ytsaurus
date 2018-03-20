@@ -44,7 +44,7 @@ struct IServiceContext
     /*!
      *  For implementations not using bus, returns all zeroes.
      */
-    virtual NBus::TTcpDispatcherStatistics GetBusStatistics() const = 0;
+    virtual NYT::NBus::TTcpDispatcherStatistics GetBusStatistics() const = 0;
 
     virtual const NYTree::IAttributeDictionary& GetEndpointAttributes() const = 0;
 
@@ -220,7 +220,7 @@ struct IService
     virtual void HandleRequest(
         std::unique_ptr<NProto::TRequestHeader> header,
         TSharedRefArray message,
-        NBus::IBusPtr replyBus) = 0;
+        NYT::NBus::IBusPtr replyBus) = 0;
 
     //! Handles request cancelation.
     virtual void HandleRequestCancelation(

@@ -10,6 +10,7 @@
 #include "task.h"
 #include "operation.h"
 #include "scheduling_context.h"
+#include "config.h"
 
 #include <yt/server/chunk_pools/chunk_pool.h>
 #include <yt/server/chunk_pools/shuffle_chunk_pool.h>
@@ -227,11 +228,11 @@ protected:
             if (!controller->SimpleSort) {
                 UnorderedMergeTask = New<TUnorderedMergeTask>(controller, this, controller->GetFinalEdgeDescriptors());
                 controller->RegisterTask(UnorderedMergeTask);
-                UnorderedMergeTask->SetInputVertex(ToString(controller->GetPartitionJobType()));
+                UnorderedMergeTask->SetInputVertex(FormatEnum(controller->GetPartitionJobType()));
             }
 
-            SortTask->SetInputVertex(ToString(controller->GetPartitionJobType()));
-            SortedMergeTask->SetInputVertex(ToString(controller->GetIntermediateSortJobType()));
+            SortTask->SetInputVertex(FormatEnum(controller->GetPartitionJobType()));
+            SortedMergeTask->SetInputVertex(FormatEnum(controller->GetIntermediateSortJobType()));
         }
 
         //! Sequential index (zero based).
@@ -2319,8 +2320,8 @@ private:
         Partitions.push_back(partition);
         partition->ChunkPoolOutput = SimpleSortPool.get();
         partition->SortTask->AddInput(stripes);
-        partition->SortTask->SetInputVertex(ToString(GetPartitionJobType()));
-        partition->SortedMergeTask->SetInputVertex(ToString(GetIntermediateSortJobType()));
+        partition->SortTask->SetInputVertex(FormatEnum(GetPartitionJobType()));
+        partition->SortedMergeTask->SetInputVertex(FormatEnum(GetIntermediateSortJobType()));
 
         partition->SortTask->FinishInput();
 
@@ -2767,8 +2768,9 @@ IOperationControllerPtr CreateSortController(
     IOperationControllerHostPtr host,
     TOperation* operation)
 {
-    auto spec = ParseOperationSpec<TSortOperationSpec>(operation->GetSpec());
-    return New<TSortController>(spec, config, config->SortOperationOptions, host, operation);
+    auto options = config->SortOperationOptions;
+    auto spec = ParseOperationSpec<TSortOperationSpec>(UpdateSpec(options->SpecTemplate, operation->GetSpec()));
+    return New<TSortController>(spec, config, options, host, operation);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -3419,8 +3421,9 @@ IOperationControllerPtr CreateMapReduceController(
     IOperationControllerHostPtr host,
     TOperation* operation)
 {
-    auto spec = ParseOperationSpec<TMapReduceOperationSpec>(operation->GetSpec());
-    return New<TMapReduceController>(spec, config, config->MapReduceOperationOptions, host, operation);
+    auto options = config->MapReduceOperationOptions;
+    auto spec = ParseOperationSpec<TMapReduceOperationSpec>(UpdateSpec(options->SpecTemplate, operation->GetSpec()));
+    return New<TMapReduceController>(spec, config, options, host, operation);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

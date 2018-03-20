@@ -58,7 +58,7 @@ class TypeBuilder<TGroupByClosure*, Cross>
 { };
 
 template <bool Cross>
-class TypeBuilder<TRowBuffer*, Cross>
+class TypeBuilder<TExpressionContext*, Cross>
     : public TypeBuilder<void*, Cross>
 { };
 
@@ -217,7 +217,7 @@ public:
         return StructType::get(
             llvm::ArrayType::get(TypeBuilder<TValue, false>::get(context), size),
             TypeBuilder<void* const*, Cross>::get(context),
-            TypeBuilder<TRowBuffer*, Cross>::get(context),
+            TypeBuilder<TExpressionContext*, Cross>::get(context),
             nullptr);
     }
 };

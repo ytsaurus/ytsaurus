@@ -2,6 +2,8 @@ add_subdirectory(codegen)
 add_subdirectory(rpc/grpc)
 add_subdirectory(rpc/http)
 add_subdirectory(crypto)
+add_subdirectory(re2)
+add_subdirectory(skiff)
 
 include(Sources.txt)
 
@@ -39,11 +41,6 @@ target_link_libraries(yt-core
   yt-contrib-jerasure
   deps-arcadia-contrib-libs-zlib # duplicate zlib dependency here, because LLVM depends on zlib
 )
-
-if(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
-  target_link_libraries(yt-core deps-yt-contrib-coredumper)
-  target_link_libraries(yt-core deps-yt-contrib-portoapi)
-endif()
 
 if(CMAKE_COMPILER_IS_CLANG AND NOT APPLE)
   target_link_libraries(yt-core -latomic -ldl)

@@ -1,0 +1,16 @@
+#pragma once
+
+#include <yt/core/misc/intrusive_ptr.h>
+
+namespace NYT {
+namespace NSchedulerSimulator {
+
+////////////////////////////////////////////////////////////////////////////////
+
+DECLARE_REFCOUNTED_CLASS(TOperation)
+DECLARE_REFCOUNTED_CLASS(TOperationController)
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NSchedulerSimulator
+} // namespace NYT

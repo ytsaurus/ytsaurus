@@ -163,6 +163,11 @@ public:
         return dataStatistics;
     }
 
+    virtual TCodecStatistics GetDecompressionStatistics() const override
+    {
+        return DecompressionStatistics_;
+    }
+
     virtual bool IsFetchingCompleted() const override
     {
         Y_UNREACHABLE();
@@ -182,6 +187,8 @@ protected:
 
     i64 RowCount_ = 0;
     i64 DataWeight_ = 0;
+
+    TCodecStatistics DecompressionStatistics_;
 
     //! Returns |false| on EOF.
     virtual bool DoRead(std::vector<TVersionedRow>* rows) = 0;
@@ -255,9 +262,9 @@ private:
 
         TBlockId blockId(chunkMeta->GetChunkId(), blockIndex);
 
-        auto uncompressedBlock = blockCache->Find(blockId, EBlockType::UncompressedData);
-        if (uncompressedBlock) {
-            return uncompressedBlock.Data;
+        auto cachedBlock = blockCache->Find(blockId, EBlockType::UncompressedData);
+        if (cachedBlock) {
+            return cachedBlock.Data;
         }
 
         auto compressedBlock = blockCache->Find(blockId, EBlockType::CompressedData);
@@ -265,7 +272,10 @@ private:
             auto codecId = NCompression::ECodec(chunkMeta->Misc().compression_codec());
             auto* codec = NCompression::GetCodec(codecId);
 
+            NProfiling::TCpuTimer timer;
             auto uncompressedBlock = codec->Decompress(compressedBlock.Data);
+            DecompressionStatistics_.Append(TCodecDuration{codecId, timer.GetElapsedTime()});
+
             if (codecId != NCompression::ECodec::None) {
                 blockCache->Put(blockId, EBlockType::UncompressedData, TBlock(uncompressedBlock), Null);
             }

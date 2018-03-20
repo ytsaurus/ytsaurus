@@ -41,14 +41,15 @@
 
 #include <yt/core/logging/log_manager.h>
 
+#include <yt/core/misc/fs.h>
 #include <yt/core/misc/lfalloc_helpers.h>
 #include <yt/core/misc/proc.h>
 #include <yt/core/misc/ref_counted_tracker.h>
 
-#include <yt/core/rpc/bus_channel.h>
+#include <yt/core/rpc/bus/channel.h>
 #include <yt/core/rpc/helpers.h>
 #include <yt/core/rpc/server.h>
-#include <yt/core/rpc/bus_server.h>
+#include <yt/core/rpc/bus/server.h>
 
 #include <yt/core/ytree/public.h>
 
@@ -383,6 +384,14 @@ IJobPtr TJobProxy::CreateBuiltinJob()
     }
 }
 
+TString TJobProxy::AdjustPath(const TString& path) const
+{
+    YCHECK(path.StartsWith(GetPreparationPath()));
+    auto pathSuffix = path.substr(GetPreparationPath().size() + 1);
+    auto adjustedPath = NFS::CombinePaths(GetSlotPath(), pathSuffix);
+    return adjustedPath;
+}
+
 TJobResult TJobProxy::DoRun()
 {
     try {
@@ -406,6 +415,14 @@ TJobResult TJobProxy::DoRun()
             rootFS.RootPath = *Config_->RootPath;
             rootFS.Binds.emplace_back(TBind {NFs::CurrentWorkingDirectory(), SlotBindPath, false});
 
+            for (const auto& bind : Config_->Binds) {
+                rootFS.Binds.emplace_back(TBind {bind->ExternalPath, bind->InternalPath, bind->ReadOnly});
+            }
+
+            if (Config_->TmpfsPath) {
+                rootFS.Binds.emplace_back(TBind {*Config_->TmpfsPath, AdjustPath(*Config_->TmpfsPath), false});
+            }
+
             return rootFS;
         };
 
@@ -416,12 +433,12 @@ TJobResult TJobProxy::DoRun()
         TrafficMeter_ = New<TTrafficMeter>(LocalDescriptor_.GetDataCenter());
         TrafficMeter_->Start();
 
-        RpcServer_ = CreateBusServer(CreateTcpBusServer(Config_->BusServer));
+        RpcServer_ = NRpc::NBus::CreateBusServer(CreateTcpBusServer(Config_->BusServer));
         RpcServer_->RegisterService(CreateJobProberService(this));
         RpcServer_->Start();
 
         auto supervisorClient = CreateTcpBusClient(Config_->SupervisorConnection);
-        auto supervisorChannel = CreateBusChannel(supervisorClient);
+        auto supervisorChannel = NRpc::NBus::CreateBusChannel(supervisorClient);
 
         SupervisorProxy_.reset(new TSupervisorServiceProxy(supervisorChannel));
         SupervisorProxy_->SetDefaultTimeout(Config_->SupervisorRpcTimeout);

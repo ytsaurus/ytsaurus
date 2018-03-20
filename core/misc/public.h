@@ -118,8 +118,7 @@ DECLARE_REFCOUNTED_CLASS(TProcessBase)
 const ui32 YTCoreNoteType = 0x5f59545f; // = hex("_YT_") ;)
 extern const TString YTCoreNoteName;
 
-DECLARE_REFCOUNTED_CLASS(TCoreDumperConfig)
-DECLARE_REFCOUNTED_CLASS(TCoreDumper)
+DECLARE_REFCOUNTED_STRUCT(ICoreDumper)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -144,6 +143,8 @@ DECLARE_REFCOUNTED_CLASS(TExtractTarConfig)
 DECLARE_REFCOUNTED_CLASS(TSetThreadPriorityConfig)
 DECLARE_REFCOUNTED_CLASS(TFSQuotaConfig)
 DECLARE_REFCOUNTED_CLASS(TChownChmodConfig)
+
+DECLARE_REFCOUNTED_STRUCT(IMemoryChunkProvider)
 
 ////////////////////////////////////////////////////////////////////////////////
 

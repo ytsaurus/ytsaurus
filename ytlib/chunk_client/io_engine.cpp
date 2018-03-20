@@ -101,7 +101,7 @@ public:
                 fName,
                 oMode) << TError::FromSystem();
         }
-        if (UseDirectIO_) {
+        if (UseDirectIO_ || oMode & DirectAligned) {
             fh->SetDirect();
         }
         return fh;
@@ -116,9 +116,10 @@ public:
 
     virtual TFuture<void> Pwrite(const std::shared_ptr<TFileHandle>& fh, const TSharedMutableRef& data, i64 offset) override
     {
-        YCHECK(!UseDirectIO_ || IsAligned(reinterpret_cast<ui64>(data.Begin()), Alignment_));
-        YCHECK(!UseDirectIO_ || IsAligned(data.Size(), Alignment_));
-        YCHECK(!UseDirectIO_ || IsAligned(offset, Alignment_));
+        auto useDirectIO = UseDirectIO_ || IsDirectAligned(fh);
+        YCHECK(!useDirectIO || IsAligned(reinterpret_cast<ui64>(data.Begin()), Alignment_));
+        YCHECK(!useDirectIO || IsAligned(data.Size(), Alignment_));
+        YCHECK(!useDirectIO || IsAligned(offset, Alignment_));
         return BIND(&TThreadedIOEngine::DoPwrite, MakeStrong(this), fh, data, offset)
             .AsyncVia(ThreadPool_.GetInvoker())
             .Run();
@@ -153,6 +154,16 @@ private:
     bool UseDirectIO_;
     const i64 Alignment_ = 4_KB;
 
+    bool IsDirectAligned(const std::shared_ptr<TFileHandle>& fh)
+    {
+#ifdef _linux_
+        const long flags = ::fcntl(*fh, F_GETFL);
+        return flags & O_DIRECT;
+#else
+        return false;
+#endif
+    }
+
     bool DoFlushData(const std::shared_ptr<TFileHandle>& fh)
     {
         return fh->FlushData();
@@ -169,7 +180,7 @@ private:
         i64 from = offset;
         i64 to = offset + numBytes;
 
-        if (UseDirectIO_) {
+        if (UseDirectIO_ || IsDirectAligned(fh)) {
             data = data.Slice(AlignUp(data.Begin(), Alignment_), data.End());
             from = ::AlignDown(offset, Alignment_);
             to = ::AlignUp(to, Alignment_);

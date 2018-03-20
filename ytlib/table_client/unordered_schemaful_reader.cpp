@@ -131,11 +131,24 @@ public:
         return dataStatistics;
     }
 
+    virtual NChunkClient::TCodecStatistics GetDecompressionStatistics() const override
+    {
+        TReaderGuard guard(SpinLock_);
+        auto result = DecompressionStatistics_;
+        for (const auto& session : Sessions_) {
+            if (session.Reader) {
+                result += session.Reader->GetDecompressionStatistics();
+            }
+        }
+        return result;
+    }
+
 private:
     std::function<ISchemafulReaderPtr()> GetNextReader_;
     std::vector<TSession> Sessions_;
     bool Exhausted_;
     TDataStatistics DataStatistics_;
+    NChunkClient::TCodecStatistics DecompressionStatistics_;
 
     TPromise<void> ReadyEvent_ = MakePromise<void>(TError());
     const TCancelableContextPtr CancelableContext_ = New<TCancelableContext>();
@@ -157,9 +170,11 @@ private:
     bool RefillSession(TSession& session)
     {
         auto dataStatistics = session.Reader->GetDataStatistics();
+        auto cpuCompressionStatistics = session.Reader->GetDecompressionStatistics();
         {
             TWriterGuard guard(SpinLock_);
             DataStatistics_ += dataStatistics;
+            DecompressionStatistics_ += cpuCompressionStatistics;
             session.Reader.Reset();
         }
 

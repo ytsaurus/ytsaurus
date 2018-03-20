@@ -209,6 +209,11 @@ public:
         return dataStatistics;
     }
 
+    virtual TCodecStatistics GetCompressionStatistics() const override
+    {
+        return EncodingChunkWriter_->GetCompressionStatistics();
+    }
+
     virtual const TNameTablePtr& GetNameTable() const override
     {
         return ChunkNameTable_;

@@ -43,7 +43,7 @@ public:
     TFuture<void> AttachToLivePreview(
         const TOperationId& operationId,
         const NObjectClient::TTransactionId& transactionId,
-        const std::vector<NCypressClient::TNodeId>& tableIds,
+        NCypressClient::TNodeId tableId,
         const std::vector<NChunkClient::TChunkTreeId>& childIds);
 
     TFuture<TOperationSnapshot> DownloadSnapshot(const TOperationId& operationId);
@@ -52,8 +52,6 @@ public:
     void AddChunkTreesToUnstageList(
         std::vector<NChunkClient::TChunkTreeId> chunkTreeIds,
         bool recursive);
-
-    void UpdateConfig(const TControllerAgentConfigPtr& config);
 
 private:
     class TImpl;

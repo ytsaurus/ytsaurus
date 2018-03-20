@@ -8,6 +8,8 @@
 
 #include <yt/ytlib/table_client/unversioned_row.h>
 
+#include <yt/ytlib/node_tracker_client/public.h>
+
 #include <yt/core/codegen/function.h>
 
 #include <yt/core/misc/chunked_memory_pool.h>
@@ -22,10 +24,10 @@
 namespace NYT {
 namespace NQueryClient {
 
-const i64 PoolChunkSize = 64 * 1024;
+constexpr size_t PoolChunkSize = 128 * 1024;
 const double MaxSmallBlockRatio = 1.0;
-const size_t RowsetProcessingSize = 1024;
-const size_t WriteRowsetSize = 64 * RowsetProcessingSize;
+constexpr size_t RowsetProcessingSize = 1024;
+constexpr size_t WriteRowsetSize = 64 * RowsetProcessingSize;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -194,6 +196,7 @@ struct TMultiJoinClosure
         TValue* LastKey = nullptr;
 
         TItem(
+            IMemoryChunkProviderPtr chunkProvider,
             size_t keySize,
             TComparerFunction* prefixEqComparer,
             THasherFunction* lookupHasher,
@@ -217,6 +220,7 @@ struct TGroupByClosure
     bool CheckNulls;
 
     TGroupByClosure(
+        IMemoryChunkProviderPtr chunkProvider,
         THasherFunction* groupHasher,
         TComparerFunction* groupComparer,
         int keySize,
@@ -262,6 +266,8 @@ struct TExecutionContext
         CHECK_STACK();
     }
     bool IsOrdered = false;
+
+    IMemoryChunkProviderPtr MemoryChunkProvider;
 
 };
 

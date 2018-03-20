@@ -234,8 +234,8 @@ private:
     std::vector<NProfiling::TSimpleCounter> PendingIOSizeCounters_;
     std::vector<NProfiling::TSimpleCounter> CompletedIOSizeCounters_;
 
-    NProfiling::TAggregateCounter ThrottledReadsCounter_;
-    NProfiling::TAggregateCounter ThrottledWritesCounter_;
+    NProfiling::TSimpleCounter ThrottledReadsCounter_;
+    NProfiling::TSimpleCounter ThrottledWritesCounter_;
 
     NProfiling::TAggregateCounter PutBlocksWallTimeCounter_;
 

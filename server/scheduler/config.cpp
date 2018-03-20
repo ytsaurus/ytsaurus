@@ -162,6 +162,20 @@ TFairShareStrategyConfig::TFairShareStrategyConfig()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TTestingOptions::TTestingOptions()
+{
+    RegisterParameter("enable_random_master_disconnection", EnableRandomMasterDisconnection)
+        .Default(false);
+    RegisterParameter("random_master_disconnection_max_backoff", RandomMasterDisconnectionMaxBackoff)
+        .Default(TDuration::Seconds(5));
+    RegisterParameter("master_disconnect_delay", MasterDisconnectDelay)
+        .Default(Null);
+    RegisterParameter("finish_operation_transition_delay", FinishOperationTransitionDelay)
+        .Default(Null);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TSchedulerConfig::TSchedulerConfig()
 {
     SetUnrecognizedStrategy(NYTree::EUnrecognizedStrategy::KeepRecursive);
@@ -261,24 +275,26 @@ TSchedulerConfig::TSchedulerConfig()
     RegisterParameter("controller_agent_heartbeat_timeout", ControllerAgentHeartbeatTimeout)
         .Default(TDuration::Seconds(15));
 
+    RegisterParameter("scheduling_tag_filter_expire_timeout", SchedulingTagFilterExpireTimeout)
+        .Default(TDuration::Seconds(10));
+
+    RegisterParameter("operations_update_period", OperationsUpdatePeriod)
+        .Default(TDuration::Seconds(3));
+
+    RegisterParameter("testing_options", TestingOptions)
+        .DefaultNew();
+
+    RegisterParameter("event_log", EventLog)
+        .DefaultNew();
+
+    RegisterParameter("spec_template", SpecTemplate)
+        .Default();
+
     RegisterPreprocessor([&] () {
-        ChunkLocationThrottler->Limit = 10000;
-
         EventLog->MaxRowWeight = 128_MB;
-
         if (!EventLog->Path) {
             EventLog->Path = "//sys/scheduler/event_log";
         }
-
-        // Value in options is an upper bound hint on uncompressed data size for merge jobs.
-        OrderedMergeOperationOptions->DataWeightPerJob = 20_GB;
-        OrderedMergeOperationOptions->MaxDataSlicesPerJob = 10000;
-
-        SortedMergeOperationOptions->DataWeightPerJob = 20_GB;
-        SortedMergeOperationOptions->MaxDataSlicesPerJob = 10000;
-
-        UnorderedMergeOperationOptions->DataWeightPerJob = 20_GB;
-        UnorderedMergeOperationOptions->MaxDataSlicesPerJob = 10000;
     });
 
     RegisterPostprocessor([&] () {

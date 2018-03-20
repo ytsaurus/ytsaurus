@@ -39,6 +39,7 @@ private:
 
     TNullable<TString> LastFilename_;
     i64 LastDataSize_ = 0;
+    i64 NextPartIndex_ = 0;
 
     TUnversionedRow LastKey_;
     TOwningKey LastKeyHolder_;

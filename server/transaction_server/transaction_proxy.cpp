@@ -166,7 +166,7 @@ private:
 
             case EInternedAttributeKey::System:
                 BuildYsonFluently(consumer)
-                    .Value(transaction->System());
+                    .Value(transaction->GetSystem());
                 return true;
 
             default:

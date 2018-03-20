@@ -449,6 +449,8 @@ public:
         TChunkRequisitionIndex index,
         const NObjectServer::TObjectManagerPtr& objectManager);
 
+    void Serialize(NYson::IYsonConsumer* consumer, const TChunkManagerPtr& chunkManager) const;
+
 private:
     struct TIndexedItem
     {
@@ -477,6 +479,22 @@ private:
 
     void FakeRefBuiltinRequisitions();
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+// NB: used only for Orchid and thus doesn't support deserialization.
+class TSerializableChunkRequisitionRegistry
+{
+public:
+    explicit TSerializableChunkRequisitionRegistry(const TChunkManagerPtr& chunkManager);
+
+    void Serialize(NYson::IYsonConsumer* consumer) const;
+
+private:
+    TChunkManagerPtr ChunkManager_;
+};
+
+void Serialize(const TSerializableChunkRequisitionRegistry& serializer, NYson::IYsonConsumer* consumer);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -28,7 +28,7 @@ public:
 
     virtual void Shutdown() override;
 
-    NBus::TTosLevel GetTosLevelForBand(EMultiplexingBand band);
+    NYT::NBus::TTosLevel GetTosLevelForBand(EMultiplexingBand band);
 
     //! Returns the invoker for the single thread used to dispatch light callbacks
     //! (e.g. discovery or request cancelation).

@@ -57,6 +57,8 @@
 
 #include <yt/ytlib/tablet_client/public.h>
 
+#include <yt/ytlib/misc/memory_chunk_provider.h>
+
 #include <yt/core/concurrency/scheduler.h>
 
 #include <yt/core/misc/string.h>
@@ -128,10 +130,16 @@ struct TSelectReadCounters
     TSelectReadCounters(const TTagIdList& list)
         : RowCount("/select/row_count", list)
         , DataWeight("/select/data_weight", list)
+        , UnmergedRowCount("/select/unmerged_row_count", list)
+        , UnmergedDataWeight("/select/unmerged_data_weight", list)
+        , DecompressionCpuTime("/select/decompression_cpu_time", list)
     { }
 
     TSimpleCounter RowCount;
     TSimpleCounter DataWeight;
+    TSimpleCounter UnmergedRowCount;
+    TSimpleCounter UnmergedDataWeight;
+    TSimpleCounter DecompressionCpuTime;
 };
 
 using TSelectReadProfilerTrait = TTabletProfilerTrait<TSelectReadCounters>;
@@ -164,14 +172,22 @@ public:
         return Underlying_->GetDataStatistics();
     }
 
+    virtual NChunkClient::TCodecStatistics GetDecompressionStatistics() const override
+    {
+        return Underlying_->GetDecompressionStatistics();
+    }
+
     ~TProfilingReaderWrapper()
     {
         auto statistics = GetDataStatistics();
+        auto decompressionCputTime = GetDecompressionStatistics().GetTotalDuration();
         auto& counters = GetLocallyGloballyCachedValue<TSelectReadProfilerTrait>(Tags_);
         TabletNodeProfiler.Increment(counters.RowCount, statistics.row_count());
         TabletNodeProfiler.Increment(counters.DataWeight, statistics.data_weight());
+        TabletNodeProfiler.Increment(counters.UnmergedRowCount, statistics.unmerged_row_count());
+        TabletNodeProfiler.Increment(counters.UnmergedDataWeight, statistics.unmerged_data_weight());
+        TabletNodeProfiler.Increment(counters.DecompressionCpuTime, DurationToValue(decompressionCputTime));
     }
-
 };
 
 } // namespace
@@ -253,18 +269,20 @@ public:
         TQueryAgentConfigPtr config,
         TFunctionImplCachePtr functionImplCache,
         TBootstrap* const bootstrap,
-        const TEvaluatorPtr evaluator,
+        TColumnEvaluatorCachePtr columnEvaluatorCache,
+        TEvaluatorPtr evaluator,
         TConstQueryPtr query,
         const TQueryOptions& options)
         : Config_(std::move(config))
         , FunctionImplCache_(std::move(functionImplCache))
         , Bootstrap_(bootstrap)
+        , ColumnEvaluatorCache_(std::move(columnEvaluatorCache))
         , Evaluator_(std::move(evaluator))
         , Query_(std::move(query))
         , Options_(std::move(options))
         , Logger(MakeQueryLogger(Query_))
-        , TabletSnapshots_(bootstrap->GetTabletSlotManager())
-
+        , TabletSnapshots_(Bootstrap_->GetTabletSlotManager())
+        , Invoker_(Bootstrap_->GetQueryPoolInvoker(ToString(Options_.ReadSessionId)))
     { }
 
     TFuture<TQueryStatistics> Execute(
@@ -288,7 +306,7 @@ public:
         MaybeUser_ = securityManager->GetAuthenticatedUser();
 
         return BIND(&TQueryExecution::DoExecute, MakeStrong(this))
-            .AsyncVia(Bootstrap_->GetQueryPoolInvoker(ToString(Options_.ReadSessionId)))
+            .AsyncVia(Invoker_)
             .Run(
                 std::move(externalCGInfo),
                 std::move(dataSources),
@@ -299,6 +317,7 @@ private:
     const TQueryAgentConfigPtr Config_;
     const TFunctionImplCachePtr FunctionImplCache_;
     TBootstrap* const Bootstrap_;
+    const TColumnEvaluatorCachePtr ColumnEvaluatorCache_;
     const TEvaluatorPtr Evaluator_;
 
     const TConstQueryPtr Query_;
@@ -307,6 +326,7 @@ private:
     const NLogging::TLogger Logger;
 
     TTabletSnapshotCache TabletSnapshots_;
+    const IInvokerPtr Invoker_;
 
     TNullable<TString> MaybeUser_;
 
@@ -330,12 +350,9 @@ private:
         std::vector<TSubreaderCreator> subreaderCreators,
         std::vector<std::vector<TDataRanges>> readRanges)
     {
-        const auto& securityManager = Bootstrap_->GetSecurityManager();
-        auto maybeUser = securityManager->GetAuthenticatedUser();
-
         NApi::TClientOptions clientOptions;
-        if (maybeUser) {
-            clientOptions.User = maybeUser.Get();
+        if (MaybeUser_) {
+            clientOptions.User = MaybeUser_.Get();
         }
 
         auto client = Bootstrap_
@@ -345,6 +362,9 @@ private:
 
         auto remoteExecutor = CreateQueryExecutor(
             client->GetNativeConnection(),
+            Invoker_,
+            ColumnEvaluatorCache_,
+            Evaluator_,
             client->GetChannelFactory(),
             FunctionImplCache_);
 
@@ -541,7 +561,7 @@ private:
                 auto pipe = New<TSchemafulPipe>();
 
                 auto asyncStatistics = BIND(&TEvaluator::Run, Evaluator_)
-                    .AsyncVia(Bootstrap_->GetQueryPoolInvoker(ToString(Options_.ReadSessionId)))
+                    .AsyncVia(Invoker_)
                     .Run(
                         subquery,
                         mergingReader,
@@ -1192,7 +1212,12 @@ public:
             config->FunctionImplCache,
             bootstrap->GetMasterClient()))
         , Bootstrap_(bootstrap)
-        , Evaluator_(New<TEvaluator>(Config_, QueryAgentProfiler))
+        , Evaluator_(New<TEvaluator>(
+            Config_,
+            QueryAgentProfiler,
+            New<TPooledMemoryChunkProvider<PoolChunkSize, EMemoryCategory::QueryCache>>(
+                EMemoryCategory::Query,
+                Bootstrap_->GetMemoryUsageTracker())))
         , ColumnEvaluatorCache_(Bootstrap_
             ->GetMasterClient()
             ->GetNativeConnection()
@@ -1213,6 +1238,7 @@ public:
             Config_,
             FunctionImplCache_,
             Bootstrap_,
+            ColumnEvaluatorCache_,
             Evaluator_,
             std::move(query),
             options);
@@ -1229,6 +1255,7 @@ private:
     TBootstrap* const Bootstrap_;
     const TEvaluatorPtr Evaluator_;
     const TColumnEvaluatorCachePtr ColumnEvaluatorCache_;
+
 };
 
 ISubexecutorPtr CreateQuerySubexecutor(

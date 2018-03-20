@@ -1088,6 +1088,7 @@ public:
         ValidateLifeStage(account);
 
         const auto& usage = account->ClusterStatistics().ResourceUsage;
+        const auto& committedUsage = account->ClusterStatistics().CommittedResourceUsage;
         const auto& limits = account->ClusterResourceLimits();
 
         for (int index = 0; index < NChunkClient::MaxMediumCount; ++index) {
@@ -1103,12 +1104,17 @@ public:
                     << TErrorAttribute("limit", limits.DiskSpace);
             }
         }
-        if (delta.NodeCount > 0 && usage.NodeCount + delta.NodeCount > limits.NodeCount) {
+        // Branched nodes are usually "paid for" by the originating node's
+        // account, which is wrong, but can't be easily avoided. To mitigate the
+        // issue, only committed node count is checked here. All this does is
+        // effectively ignores non-trunk nodes, which constitute the majority of
+        // problematic nodes.
+        if (delta.NodeCount > 0 && committedUsage.NodeCount + delta.NodeCount > limits.NodeCount) {
             THROW_ERROR_EXCEPTION(
                 NSecurityClient::EErrorCode::AccountLimitExceeded,
                 "Account %Qv is over Cypress node count limit",
                 account->GetName())
-                << TErrorAttribute("usage", usage.NodeCount)
+                << TErrorAttribute("usage", committedUsage.NodeCount)
                 << TErrorAttribute("limit", limits.NodeCount);
         }
         if (delta.ChunkCount > 0 && usage.ChunkCount + delta.ChunkCount > limits.ChunkCount) {

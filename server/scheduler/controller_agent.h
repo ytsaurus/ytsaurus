@@ -5,6 +5,8 @@
 
 #include <yt/server/controller_agent/public.h>
 
+#include <yt/ytlib/api/public.h>
+
 #include <yt/ytlib/scheduler/job_resources.h>
 
 #include <yt/core/rpc/public.h>
@@ -56,6 +58,13 @@ using TScheduleJobRequestPtr = std::unique_ptr<TScheduleJobRequest>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(EControllerAgentState,
+    (Registering)
+    (Registered)
+    (Unregistering)
+    (Unregistered)
+);
+
 //! Scheduler-side representation of a controller agent.
 /*!
  *  Thread affinity: Control thread (unless noted otherwise)
@@ -67,21 +76,12 @@ public:
     TControllerAgent(
         const TAgentId& id,
         const NNodeTrackerClient::TAddressMap& agentAddresses,
-        NRpc::IChannelPtr channel,
-        const TIncarnationId& incarnationId);
+        NRpc::IChannelPtr channel);
 
-    DEFINE_BYVAL_RW_PROPERTY(bool, Unregistered);
+    DEFINE_BYVAL_RW_PROPERTY(EControllerAgentState, State);
     DEFINE_BYVAL_RW_PROPERTY(NConcurrency::TLease, Lease);
 
     DEFINE_BYVAL_RW_PROPERTY(NYson::TYsonString, SuspiciousJobsYson);
-
-    DEFINE_BYREF_RW_PROPERTY_NO_INIT(TMessageQueueInbox, OperationEventsInbox);
-    DEFINE_BYREF_RW_PROPERTY_NO_INIT(TMessageQueueInbox, JobEventsInbox);
-    DEFINE_BYREF_RW_PROPERTY_NO_INIT(TMessageQueueInbox, ScheduleJobResponsesInbox);
-
-    DEFINE_BYVAL_RO_PROPERTY(TIntrusivePtr<TMessageQueueOutbox<TSchedulerToAgentJobEvent>>, JobEventsOutbox);
-    DEFINE_BYVAL_RO_PROPERTY(TIntrusivePtr<TMessageQueueOutbox<TSchedulerToAgentOperationEvent>>, OperationEventsOutbox);
-    DEFINE_BYVAL_RO_PROPERTY(TIntrusivePtr<TMessageQueueOutbox<TScheduleJobRequestPtr>>, ScheduleJobRequestsOutbox);
 
     DEFINE_BYREF_RW_PROPERTY(THashSet<TOperationPtr>, Operations);
 
@@ -103,11 +103,31 @@ public:
      */
     const TIncarnationId& GetIncarnationId() const;
 
+    const NApi::ITransactionPtr& GetIncarnationTransaction() const;
+    void SetIncarnationTransaction(NApi::ITransactionPtr transaction);
+
+    TMessageQueueInbox* GetOperationEventsInbox();
+    TMessageQueueInbox* GetJobEventsInbox();
+    TMessageQueueInbox* GetScheduleJobResponsesInbox();
+
+    const TIntrusivePtr<TMessageQueueOutbox<TSchedulerToAgentJobEvent>>& GetJobEventsOutbox();
+    const TIntrusivePtr<TMessageQueueOutbox<TSchedulerToAgentOperationEvent>>& GetOperationEventsOutbox();
+    const TIntrusivePtr<TMessageQueueOutbox<TScheduleJobRequestPtr>>& GetScheduleJobRequestsOutbox();
+
 private:
     const TAgentId Id_;
     const NNodeTrackerClient::TAddressMap AgentAddresses_;
     const NRpc::IChannelPtr Channel_;
-    const NControllerAgent::TIncarnationId IncarnationId_;
+
+    NApi::ITransactionPtr IncarnationTransaction_;
+
+    std::unique_ptr<TMessageQueueInbox> OperationEventsInbox_;
+    std::unique_ptr<TMessageQueueInbox> JobEventsInbox_;
+    std::unique_ptr<TMessageQueueInbox> ScheduleJobResponsesInbox_;
+
+    TIntrusivePtr<TMessageQueueOutbox<TSchedulerToAgentJobEvent>> JobEventsOutbox_;
+    TIntrusivePtr<TMessageQueueOutbox<TSchedulerToAgentOperationEvent>> OperationEventsOutbox_;
+    TIntrusivePtr<TMessageQueueOutbox<TScheduleJobRequestPtr>> ScheduleJobRequestsOutbox_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TControllerAgent)

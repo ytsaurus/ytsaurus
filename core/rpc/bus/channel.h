@@ -6,16 +6,18 @@
 
 namespace NYT {
 namespace NRpc {
+namespace NBus {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Creates a channel implemented via Bus.
-IChannelPtr CreateBusChannel(NBus::IBusClientPtr client);
+IChannelPtr CreateBusChannel(NYT::NBus::IBusClientPtr client);
 
 //! Creates a factory for creating Bus channels.
-IChannelFactoryPtr CreateBusChannelFactory(NBus::TTcpBusConfigPtr config);
+IChannelFactoryPtr CreateBusChannelFactory(NYT::NBus::TTcpBusConfigPtr config);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NBus
 } // namespace NRpc
 } // namespace NYT

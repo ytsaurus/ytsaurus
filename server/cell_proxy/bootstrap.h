@@ -52,7 +52,7 @@ private:
     NBus::IBusServerPtr BusServer_;
     NRpc::IServerPtr RpcServer_;
     NHttp::IServerPtr HttpServer_;
-    TCoreDumperPtr CoreDumper_;
+    ICoreDumperPtr CoreDumper_;
 
     NApi::INativeConnectionPtr NativeConnection_;
     NApi::INativeClientPtr NativeClient_;

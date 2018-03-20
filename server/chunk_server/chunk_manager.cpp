@@ -446,6 +446,30 @@ public:
         ProfilingExecutor_->Start();
     }
 
+    IYPathServicePtr GetOrchidService()
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return IYPathService::FromProducer(BIND(&TImpl::BuildOrchidYson, MakeStrong(this)))
+            ->Via(Bootstrap_->GetControlInvoker())
+            ->Cached(Config_->StaticOrchidCacheUpdatePeriod);
+    }
+
+    void BuildOrchidYson(NYson::IYsonConsumer* consumer)
+    {
+        auto fluent = BuildYsonFluently(consumer);
+        if (DefaultStoreMedium_) { // Builtins are initialized.
+            fluent
+                .BeginMap()
+                    .Item("requisition_registry").Value(TSerializableChunkRequisitionRegistry(Bootstrap_->GetChunkManager()))
+                .EndMap();
+        } else {
+            fluent
+                .BeginMap()
+                .EndMap();
+        }
+    }
+
     std::unique_ptr<TMutation> CreateUpdateChunkRequisitionMutation(const NProto::TReqUpdateChunkRequisition& request)
     {
         return CreateMutation(
@@ -804,6 +828,13 @@ public:
         if (chunk->IsErasure() && ChunkReplicator_) {
             ChunkReplicator_->TouchChunk(chunk);
         }
+    }
+
+    void ExportChunk(TChunk* chunk, TCellTag destinationCellTag)
+    {
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        auto cellIndex = multicellManager->GetRegisteredMasterCellIndex(destinationCellTag);
+        chunk->Export(cellIndex, GetChunkRequisitionRegistry());
     }
 
     void UnexportChunk(TChunk* chunk, TCellTag destinationCellTag, int importRefCounter)
@@ -1177,6 +1208,7 @@ private:
     bool NeedToRecomputeStatistics_ = false;
     bool NeedResetDataWeight_ = false;
     bool NeedInitializeMediumConfig_ = false;
+    bool NeedRecomputeRequisitionRefCounts_ = false;
 
     TPeriodicExecutorPtr ProfilingExecutor_;
 
@@ -1228,6 +1260,7 @@ private:
         auto chunkHolder = std::make_unique<TChunk>(chunkId);
         auto* chunk = ChunkMap_.Insert(chunkId, std::move(chunkHolder));
         RegisterChunk(chunk);
+        chunk->RefUsedRequisitions(GetChunkRequisitionRegistry());
         ChunksCreated_++;
         return chunk;
     }
@@ -1727,7 +1760,6 @@ private:
                 chunk->SetForeign();
                 chunk->Confirm(importData.mutable_info(), importData.mutable_meta());
                 chunk->SetErasureCodec(NErasure::ECodec(importData.erasure_codec()));
-                chunk->RefUsedRequisitions(GetChunkRequisitionRegistry());
                 YCHECK(ForeignChunks_.insert(chunk).second);
             }
 
@@ -1844,7 +1876,6 @@ private:
         chunk->SetWriteQuorum(writeQuorum);
         chunk->SetErasureCodec(erasureCodecId);
         chunk->SetMovable(subrequest->movable());
-        chunk->RefUsedRequisitions(GetChunkRequisitionRegistry());
 
         Y_ASSERT(chunk->GetLocalRequisitionIndex() ==
                  (isErasure
@@ -2060,6 +2091,9 @@ private:
 
         //COMPAT(savrus)
         NeedInitializeMediumConfig_ = context.GetVersion() < 629;
+
+        // COMPAT(shakurov)
+        NeedRecomputeRequisitionRefCounts_ = context.GetVersion() < 704;
     }
 
     virtual void OnBeforeSnapshotLoaded() override
@@ -2127,9 +2161,11 @@ private:
         InitBuiltins();
 
         // Recompute requisitions' ref counts.
-        for (const auto& pair : ChunkMap_) {
-            const auto* chunk = pair.second;
-            chunk->RefUsedRequisitions(GetChunkRequisitionRegistry());
+        if (NeedRecomputeRequisitionRefCounts_) {
+            for (const auto& pair : ChunkMap_) {
+                const auto* chunk = pair.second;
+                chunk->RefUsedRequisitions(GetChunkRequisitionRegistry());
+            }
         }
 
         if (NeedToRecomputeStatistics_) {
@@ -2891,9 +2927,7 @@ void TChunkManager::TChunkTypeHandlerBase::DoExportObject(
     TChunk* chunk,
     TCellTag destinationCellTag)
 {
-    const auto& multicellManager = Bootstrap_->GetMulticellManager();
-    auto cellIndex = multicellManager->GetRegisteredMasterCellIndex(destinationCellTag);
-    chunk->Export(cellIndex);
+    Owner_->ExportChunk(chunk, destinationCellTag);
 }
 
 void TChunkManager::TChunkTypeHandlerBase::DoUnexportObject(
@@ -3027,6 +3061,11 @@ TNodeList TChunkManager::AllocateWriteTargets(
         replicationFactorOverride,
         forbiddenNodes,
         preferredHostName);
+}
+
+NYTree::IYPathServicePtr TChunkManager::GetOrchidService()
+{
+    return Impl_->GetOrchidService();
 }
 
 std::unique_ptr<TMutation> TChunkManager::CreateUpdateChunkRequisitionMutation(const NProto::TReqUpdateChunkRequisition& request)
