@@ -88,8 +88,13 @@ def main():
                 break
             process.stdin.write(chunk)
     process.stdin.close()
+    process.wait()
 
-    sys.exit(process.wait())
+    if process.returncode != 0:
+        with open(os.path.join(config["output_path"], "2"), "rb") as f:
+            print("User job exited with non-zero exit code {} and stderr:\n{}".format(process.returncode, f.read()),
+                  file=sys.stderr)
+            sys.exit(1)
 
 def make_run_script(destination_dir):
     path = os.path.realpath(__file__)
