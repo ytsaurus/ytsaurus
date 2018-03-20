@@ -166,7 +166,7 @@ class TestJobTool(object):
 
         run_config = os.path.join(job_path, "run_config")
         assert os.path.exists(run_config)
-        with open(run_config, "rb") as fin:
+        with open(run_config, "r") as fin:
             config = json.load(fin)
         assert config["operation_id"] == operation_id
         assert config["job_id"] == job_id
