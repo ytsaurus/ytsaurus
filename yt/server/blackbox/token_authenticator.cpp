@@ -134,7 +134,7 @@ class TCachingTokenAuthenticator
     , private TAsyncExpiringCache<TTokenCredentials, TAuthenticationResult>
 {
 public:
-    TCachingTokenAuthenticator(TExpiringCacheConfigPtr config, ITokenAuthenticatorPtr tokenAuthenticator)
+    TCachingTokenAuthenticator(TAsyncExpiringCacheConfigPtr config, ITokenAuthenticatorPtr tokenAuthenticator)
         : TAsyncExpiringCache(std::move(config))
         , TokenAuthenticator_(std::move(tokenAuthenticator))
     { }
@@ -154,7 +154,7 @@ private:
 };
 
 ITokenAuthenticatorPtr CreateCachingTokenAuthenticator(
-    TExpiringCacheConfigPtr config,
+    TAsyncExpiringCacheConfigPtr config,
     ITokenAuthenticatorPtr authenticator)
 {
     return New<TCachingTokenAuthenticator>(std::move(config), std::move(authenticator));

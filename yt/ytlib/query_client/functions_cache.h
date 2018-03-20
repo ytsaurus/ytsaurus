@@ -70,7 +70,7 @@ struct IFunctionRegistry
 
 IFunctionRegistryPtr CreateFunctionRegistryCache(
     const TString& udfRegistryPath,
-    TExpiringCacheConfigPtr config,
+    TAsyncExpiringCacheConfigPtr config,
     TWeakPtr<NApi::INativeClient> client,
     IInvokerPtr invoker);
 

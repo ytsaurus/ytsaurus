@@ -27,7 +27,7 @@ bool TAsyncExpiringCache<TKey, TValue>::TEntry::IsExpired(NProfiling::TCpuInstan
 }
 
 template <class TKey, class TValue>
-TAsyncExpiringCache<TKey, TValue>::TAsyncExpiringCache(TExpiringCacheConfigPtr config)
+TAsyncExpiringCache<TKey, TValue>::TAsyncExpiringCache(TAsyncExpiringCacheConfigPtr config)
     : Config_(std::move(config))
 { }
 

@@ -21,7 +21,7 @@ class TAsyncExpiringCache
 public:
     typedef typename TFutureCombineTraits<TValue>::TCombinedVector TCombinedValue;
 
-    explicit TAsyncExpiringCache(TExpiringCacheConfigPtr config);
+    explicit TAsyncExpiringCache(TAsyncExpiringCacheConfigPtr config);
 
     TFuture<TValue> Get(const TKey& key);
     TFuture<TCombinedValue> Get(const std::vector<TKey>& keys);
@@ -35,7 +35,7 @@ protected:
     virtual TFuture<TCombinedValue> DoGetMany(const std::vector<TKey>& keys);
 
 private:
-    const TExpiringCacheConfigPtr Config_;
+    const TAsyncExpiringCacheConfigPtr Config_;
 
     struct TEntry
         : public TRefCounted

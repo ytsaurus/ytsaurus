@@ -96,7 +96,7 @@ class TTablePermissionCache
 {
 public:
     TTablePermissionCache(
-        TExpiringCacheConfigPtr config,
+        TAsyncExpiringCacheConfigPtr config,
         NCellNode::TBootstrap* bootstrap)
         : TAsyncExpiringCache(std::move(config))
         , Bootstrap_(bootstrap)
@@ -185,7 +185,7 @@ class TResourceLimitsCache
 {
 public:
     TResourceLimitsCache(
-        TExpiringCacheConfigPtr config,
+        TAsyncExpiringCacheConfigPtr config,
         NCellNode::TBootstrap* bootstrap)
         : TAsyncExpiringCache(std::move(config))
         , Bootstrap_(bootstrap)

@@ -50,7 +50,7 @@ DEFINE_REFCOUNTED_TYPE(TDialerConfig)
 
 //! Configuration for TAddressResolver singleton.
 class TAddressResolverConfig
-    : public TExpiringCacheConfig
+    : public TAsyncExpiringCacheConfig
 {
 public:
     bool EnableIPv4;
