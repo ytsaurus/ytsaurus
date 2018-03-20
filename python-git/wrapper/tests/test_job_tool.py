@@ -1,7 +1,6 @@
 from .helpers import get_tests_sandbox, TEST_DIR, get_tests_location, wait_record_in_job_archive, get_python, yatest_common
 
 from yt.common import makedirp, to_native_str
-import yt.yson as yson
 import yt.subprocess_wrapper as subprocess
 
 from yt.packages.six.moves import map as imap
@@ -28,7 +27,7 @@ class TestJobRunner(object):
 
     def _start_job_runner(self, config):
         with tempfile.NamedTemporaryFile(dir=get_tests_sandbox(), prefix="job_runner", delete=False) as fout:
-            yson.dump(config, fout, yson_format="pretty")
+            json.dump(config, fout)
         return subprocess.Popen(
             [get_python(), "-m", "yt.wrapper.job_runner", "--config-path", fout.name],
             stderr=subprocess.PIPE)
