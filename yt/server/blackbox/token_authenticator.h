@@ -23,7 +23,7 @@ ITokenAuthenticatorPtr CreateBlackboxTokenAuthenticator(
     IBlackboxServicePtr blackbox);
 
 ITokenAuthenticatorPtr CreateCachingTokenAuthenticator(
-    TExpiringCacheConfigPtr config,
+    TAsyncExpiringCacheConfigPtr config,
     ITokenAuthenticatorPtr authenticator);
 
 ////////////////////////////////////////////////////////////////////////////////

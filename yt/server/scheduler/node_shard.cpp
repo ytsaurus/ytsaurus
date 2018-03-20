@@ -79,7 +79,8 @@ TNodeShard::TNodeShard(
         Config_->NodeShardExecNodesCacheUpdatePeriod))
     , CachedResourceLimitsByTags_(New<TSyncExpiringCache<TSchedulingTagFilter, TJobResources>>(
         BIND(&TNodeShard::CalculateResourceLimits, MakeStrong(this)),
-        Config_->SchedulingTagFilterExpireTimeout))
+        Config_->SchedulingTagFilterExpireTimeout,
+        GetInvoker()))
     , Logger(NLogging::TLogger(SchedulerLogger)
         .AddTag("NodeShardId: %v", Id_))
     , SubmitJobsToStrategyExecutor_(New<TPeriodicExecutor>(

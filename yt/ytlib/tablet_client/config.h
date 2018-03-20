@@ -50,7 +50,7 @@ DEFINE_REFCOUNTED_TYPE(TTabletCellConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTableMountCacheConfig
-    : public TExpiringCacheConfig
+    : public TAsyncExpiringCacheConfig
 {  };
 
 DEFINE_REFCOUNTED_TYPE(TTableMountCacheConfig)

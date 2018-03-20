@@ -115,7 +115,7 @@ class TCachingCookieAuthenticator
     , private TAsyncExpiringCache<TCookieCredentials, TAuthenticationResult>
 {
 public:
-    TCachingCookieAuthenticator(TExpiringCacheConfigPtr config, ICookieAuthenticatorPtr cookieAuthenticator)
+    TCachingCookieAuthenticator(TAsyncExpiringCacheConfigPtr config, ICookieAuthenticatorPtr cookieAuthenticator)
         : TAsyncExpiringCache(std::move(config))
         , CookieAuthenticator_(std::move(cookieAuthenticator))
     { }
@@ -135,7 +135,7 @@ private:
 };
 
 ICookieAuthenticatorPtr CreateCachingCookieAuthenticator(
-    TExpiringCacheConfigPtr config,
+    TAsyncExpiringCacheConfigPtr config,
     ICookieAuthenticatorPtr authenticator)
 {
     return New<TCachingCookieAuthenticator>(std::move(config), std::move(authenticator));

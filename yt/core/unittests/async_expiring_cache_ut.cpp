@@ -18,7 +18,7 @@ class TSimpleExpiringCache
     : public TAsyncExpiringCache<int, int>
 {
 public:
-    explicit TSimpleExpiringCache(TExpiringCacheConfigPtr config, float successProbability = 1.0)
+    explicit TSimpleExpiringCache(TAsyncExpiringCacheConfigPtr config, float successProbability = 1.0)
         : TAsyncExpiringCache<int, int>(std::move(config))
         , Generator_(RandomDevice_())
         , Bernoulli_(successProbability)
@@ -59,7 +59,7 @@ class TDelayedExpiringCache
     : public TAsyncExpiringCache<int, int>
 {
 public:
-    TDelayedExpiringCache(TExpiringCacheConfigPtr config, const TDuration& delay)
+    TDelayedExpiringCache(TAsyncExpiringCacheConfigPtr config, const TDuration& delay)
         : TAsyncExpiringCache<int, int>(std::move(config))
         , Delay_(delay)
     { }
@@ -88,7 +88,7 @@ private:
 TEST(TAsyncExpiringCacheTest, TestBackgroundUpdate)
 {
     int interval = 10;
-    auto config = New<TExpiringCacheConfig>();
+    auto config = New<TAsyncExpiringCacheConfig>();
     config->RefreshTime = TDuration::MilliSeconds(interval);
     auto cache = New<TSimpleExpiringCache>(config);
 
@@ -107,7 +107,7 @@ TEST(TAsyncExpiringCacheTest, TestBackgroundUpdate)
 TEST(TAsyncExpiringCacheTest, TestEntryRemoval)
 {
     int interval = 20;
-    auto config = New<TExpiringCacheConfig>();
+    auto config = New<TAsyncExpiringCacheConfig>();
     config->RefreshTime = TDuration::MilliSeconds(interval);
     auto cache = New<TSimpleExpiringCache>(config, 0.9);
 
@@ -147,7 +147,7 @@ TEST(TAsyncExpiringCacheTest, TestEntryRemoval)
 
 TEST(TAsyncExpiringCacheTest, TestAccessTime1)
 {
-    auto config = New<TExpiringCacheConfig>();
+    auto config = New<TAsyncExpiringCacheConfig>();
     config->RefreshTime = TDuration::MilliSeconds(1);
     config->ExpireAfterAccessTime = TDuration::MilliSeconds(0);
     auto cache = New<TSimpleExpiringCache>(config);
@@ -160,7 +160,7 @@ TEST(TAsyncExpiringCacheTest, TestAccessTime1)
 
 TEST(TAsyncExpiringCacheTest, TestAccessTime2)
 {
-    auto config = New<TExpiringCacheConfig>();
+    auto config = New<TAsyncExpiringCacheConfig>();
     config->ExpireAfterAccessTime = TDuration::MilliSeconds(5);
     auto cache = New<TSimpleExpiringCache>(config);
 
@@ -175,7 +175,7 @@ TEST(TAsyncExpiringCacheTest, TestAccessTime2)
 
 TEST(TAsyncExpiringCacheTest, TestAccessTime3)
 {
-    auto config = New<TExpiringCacheConfig>();
+    auto config = New<TAsyncExpiringCacheConfig>();
     config->ExpireAfterAccessTime = TDuration::MilliSeconds(3);
     auto cache = New<TSimpleExpiringCache>(config);
 
@@ -189,7 +189,7 @@ TEST(TAsyncExpiringCacheTest, TestAccessTime3)
 
 TEST(TAsyncExpiringCacheTest, CacheDoesntRefreshExpiredItem)
 {
-    auto config = New<TExpiringCacheConfig>();
+    auto config = New<TAsyncExpiringCacheConfig>();
     config->RefreshTime = TDuration::MilliSeconds(2);
     config->ExpireAfterAccessTime = TDuration::MilliSeconds(1);
     auto cache = New<TSimpleExpiringCache>(config);
@@ -202,7 +202,7 @@ TEST(TAsyncExpiringCacheTest, CacheDoesntRefreshExpiredItem)
 
 TEST(TAsyncExpiringCacheTest, TestUpdateTime1)
 {
-    auto config = New<TExpiringCacheConfig>();
+    auto config = New<TAsyncExpiringCacheConfig>();
     config->ExpireAfterSuccessfulUpdateTime = TDuration::MilliSeconds(3);
     auto cache = New<TSimpleExpiringCache>(config);
 
@@ -216,7 +216,7 @@ TEST(TAsyncExpiringCacheTest, TestUpdateTime1)
 
 TEST(TAsyncExpiringCacheTest, TestUpdateTime2)
 {
-    auto config = New<TExpiringCacheConfig>();
+    auto config = New<TAsyncExpiringCacheConfig>();
     config->ExpireAfterFailedUpdateTime = TDuration::MilliSeconds(3);
     auto cache = New<TSimpleExpiringCache>(config, 0.0);
 
@@ -230,7 +230,7 @@ TEST(TAsyncExpiringCacheTest, TestUpdateTime2)
 
 TEST(TAsyncExpiringCacheTest, TestZeroCache1)
 {
-    auto config = New<TExpiringCacheConfig>();
+    auto config = New<TAsyncExpiringCacheConfig>();
     config->ExpireAfterAccessTime = TDuration::Seconds(0);
     config->ExpireAfterSuccessfulUpdateTime = TDuration::Seconds(0);
     config->ExpireAfterFailedUpdateTime = TDuration::Seconds(0);
@@ -251,7 +251,7 @@ TEST(TAsyncExpiringCacheTest, TestZeroCache1)
 
 TEST(TAsyncExpiringCacheTest, TestZeroCache2)
 {
-    auto config = New<TExpiringCacheConfig>();
+    auto config = New<TAsyncExpiringCacheConfig>();
     config->ExpireAfterAccessTime = TDuration::Seconds(0);
     config->ExpireAfterSuccessfulUpdateTime = TDuration::Seconds(0);
     config->ExpireAfterFailedUpdateTime = TDuration::Seconds(0);

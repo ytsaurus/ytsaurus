@@ -50,7 +50,7 @@ DEFINE_REFCOUNTED_TYPE(TSlruCacheConfig)
 
 //! Cache which removes entries after a while.
 /*!
- * TAsyncExpiringCache and TSyncExpiringCache actlike a proxy between a client and a remote service:
+ * TAsyncExpiringCache acts like a proxy between a client and a remote service:
  * requests are sent to the service and responses are saved in the cache as entries.
  * Next time the client makes a request, the response can be taken from the cache
  * unless it is expired.
@@ -66,7 +66,7 @@ DEFINE_REFCOUNTED_TYPE(TSlruCacheConfig)
  * If request was unsuccessful, the entry (which contains error response) will be expired
  * after expire_after_failed_update_time.
  */
-class TExpiringCacheConfig
+class TAsyncExpiringCacheConfig
     : public virtual NYTree::TYsonSerializable
 {
 public:
@@ -82,7 +82,7 @@ public:
     //! Time before next (background) update.
     TDuration RefreshTime;
 
-    TExpiringCacheConfig()
+    TAsyncExpiringCacheConfig()
     {
         RegisterParameter("expire_after_access_time", ExpireAfterAccessTime)
             .Default(TDuration::Seconds(300));
@@ -104,7 +104,7 @@ public:
     }
 };
 
-DEFINE_REFCOUNTED_TYPE(TExpiringCacheConfig)
+DEFINE_REFCOUNTED_TYPE(TAsyncExpiringCacheConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

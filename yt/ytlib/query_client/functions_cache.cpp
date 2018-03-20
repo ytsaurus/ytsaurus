@@ -366,7 +366,7 @@ public:
 
     TCypressFunctionRegistry(
         const TString& registryPath,
-        TExpiringCacheConfigPtr config,
+        TAsyncExpiringCacheConfigPtr config,
         TWeakPtr<INativeClient> client,
         IInvokerPtr invoker)
         : TBase(config)
@@ -407,7 +407,7 @@ private:
 
 IFunctionRegistryPtr CreateFunctionRegistryCache(
     const TString& registryPath,
-    TExpiringCacheConfigPtr config,
+    TAsyncExpiringCacheConfigPtr config,
     TWeakPtr<INativeClient> client,
     IInvokerPtr invoker)
 {

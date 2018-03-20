@@ -753,7 +753,8 @@ private:
 
         CachedExecNodeDescriptorsByTags_ = New<TSyncExpiringCache<TSchedulingTagFilter, TRefCountedExecNodeDescriptorMapPtr>>(
             BIND(&TImpl::FilterExecNodes, MakeStrong(this)),
-            Config_->SchedulingTagFilterExpireTimeout);
+            Config_->SchedulingTagFilterExpireTimeout,
+            CancelableControlInvoker_);
 
         HeartbeatExecutor_ = New<TPeriodicExecutor>(
             CancelableControlInvoker_,

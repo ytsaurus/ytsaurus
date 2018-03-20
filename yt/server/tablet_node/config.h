@@ -517,8 +517,8 @@ class TSecurityManagerConfig
     : public NYTree::TYsonSerializable
 {
 public:
-    TExpiringCacheConfigPtr TablePermissionCache;
-    TExpiringCacheConfigPtr ResourceLimitsCache;
+    TAsyncExpiringCacheConfigPtr TablePermissionCache;
+    TAsyncExpiringCacheConfigPtr ResourceLimitsCache;
 
     TSecurityManagerConfig()
     {
