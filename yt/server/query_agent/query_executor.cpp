@@ -132,12 +132,14 @@ struct TSelectReadCounters
         , DataWeight("/select/data_weight", list)
         , UnmergedRowCount("/select/unmerged_row_count", list)
         , UnmergedDataWeight("/select/unmerged_data_weight", list)
+        , DecompressionCpuTime("/select/decompression_cpu_time", list)
     { }
 
     TSimpleCounter RowCount;
     TSimpleCounter DataWeight;
     TSimpleCounter UnmergedRowCount;
     TSimpleCounter UnmergedDataWeight;
+    TSimpleCounter DecompressionCpuTime;
 };
 
 using TSelectReadProfilerTrait = TTabletProfilerTrait<TSelectReadCounters>;
@@ -178,13 +180,14 @@ public:
     ~TProfilingReaderWrapper()
     {
         auto statistics = GetDataStatistics();
+        auto decompressionCputTime = GetDecompressionStatistics().GetTotalDuration();
         auto& counters = GetLocallyGloballyCachedValue<TSelectReadProfilerTrait>(Tags_);
         TabletNodeProfiler.Increment(counters.RowCount, statistics.row_count());
         TabletNodeProfiler.Increment(counters.DataWeight, statistics.data_weight());
         TabletNodeProfiler.Increment(counters.UnmergedRowCount, statistics.unmerged_row_count());
         TabletNodeProfiler.Increment(counters.UnmergedDataWeight, statistics.unmerged_data_weight());
+        TabletNodeProfiler.Increment(counters.DecompressionCpuTime, DurationToValue(decompressionCputTime));
     }
-
 };
 
 } // namespace

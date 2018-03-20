@@ -153,6 +153,8 @@ TString ToString(const TDataStatistics& statistics)
 
 } // namespace NProto
 
+////////////////////////////////////////////////////////////////////////////////
+
 TCodecStatistics& TCodecStatistics::Append(const TCodecDuration& codecTime)
 {
     return Append(std::make_pair(codecTime.Codec, codecTime.CpuDuration));
@@ -160,12 +162,8 @@ TCodecStatistics& TCodecStatistics::Append(const TCodecDuration& codecTime)
 
 TCodecStatistics& TCodecStatistics::Append(const std::pair<NCompression::ECodec, TDuration>& codecTime)
 {
-    auto it = map.find(codecTime.first);
-    if (it == map.end()) {
-        map.insert(codecTime);
-    } else {
-        it->second += codecTime.second;
-    }
+    map[codecTime.first] += codecTime.second;
+    TotalDuration_ += codecTime.second;
     return *this;
 }
 
@@ -184,6 +182,13 @@ void TCodecStatistics::DumpTo(NJobTrackerClient::TStatistics *statistics, const 
         statistics->AddSample(path + '/' + codecStr, pair.second);
     }
 }
+
+TDuration TCodecStatistics::GetTotalDuration() const
+{
+    return TotalDuration_;
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NChunkClient
 } // namespace NYT
