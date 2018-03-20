@@ -298,5 +298,52 @@ inline TChunkRequisitionIndex TChunkRequisitionRegistry::GenerateIndex()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+inline TChunkRequisitionIndex TEphemeralRequisitionRegistry::Insert(const TChunkRequisition& requisition)
+{
+    auto index = GenerateIndex();
+
+    YCHECK(IndexToRequisition_.emplace(index, requisition).second);
+    YCHECK(RequisitionToIndex_.emplace(requisition, index).second);
+
+    return index;
+}
+
+inline TChunkRequisitionIndex TEphemeralRequisitionRegistry::GenerateIndex()
+{
+    auto result = NextIndex_++;
+    while (IndexToRequisition_.has(NextIndex_)) {
+        ++NextIndex_;
+    }
+    return result;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <typename T>
+void FillChunkRequisitionDict(NProto::TReqUpdateChunkRequisition* request, const T& requisitionRegistry)
+{
+    YCHECK(request->chunk_requisition_dict_size() == 0);
+
+    if (request->updates_size() == 0) {
+        return;
+    }
+
+    std::vector<TChunkRequisitionIndex> indexes;
+    for (const auto& update : request->updates()) {
+        indexes.push_back(update.chunk_requisition_index());
+    }
+    std::sort(indexes.begin(), indexes.end());
+    indexes.erase(std::unique(indexes.begin(), indexes.end()), indexes.end());
+
+    for (auto index : indexes) {
+        const auto& requisition = requisitionRegistry.GetRequisition(index);
+        auto* protoDictItem = request->add_chunk_requisition_dict();
+        protoDictItem->set_index(index);
+        ToProto(protoDictItem->mutable_requisition(), requisition);
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NChunkServer
 } // namespace NYT

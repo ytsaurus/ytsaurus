@@ -1165,29 +1165,6 @@ public:
         return &ChunkRequisitionRegistry_;
     }
 
-    void FillChunkRequisitionDict(NProto::TReqUpdateChunkRequisition* request)
-    {
-        YCHECK(request->chunk_requisition_dict_size() == 0);
-
-        if (request->updates_size() == 0) {
-            return;
-        }
-
-        std::vector<TChunkRequisitionIndex> indexes;
-        for (const auto& update : request->updates()) {
-            indexes.push_back(update.chunk_requisition_index());
-        }
-        std::sort(indexes.begin(), indexes.end());
-        indexes.erase(std::unique(indexes.begin(), indexes.end()), indexes.end());
-
-        for (auto index : indexes) {
-            const auto& requisition = ChunkRequisitionRegistry_.GetRequisition(index);
-            auto* protoDictItem = request->add_chunk_requisition_dict();
-            protoDictItem->set_index(index);
-            ToProto(protoDictItem->mutable_requisition(), requisition);
-        }
-    }
-
     DECLARE_ENTITY_MAP_ACCESSORS(Chunk, TChunk);
     DECLARE_ENTITY_MAP_ACCESSORS(ChunkList, TChunkList);
     DECLARE_ENTITY_WITH_IRREGULAR_PLURAL_MAP_ACCESSORS(Medium, Media, TMedium)
@@ -1584,12 +1561,6 @@ private:
 
     void HydraUpdateChunkRequisition(NProto::TReqUpdateChunkRequisition* request)
     {
-        // NB: this is necessary even for local requests as it makes sure all
-        // the requisitions referred to by the request exist. (They may be
-        // removed between sending and receiving the request, and re-inserting
-        // them back will most likely assign a different index.)
-        auto translateRequisitionIndex = BuildChunkRequisitionIndexTranslator(*request);
-
         // NB: Ordered map is a must to make the behavior deterministic.
         std::map<TCellTag, NProto::TReqUpdateChunkRequisition> crossCellRequestMap;
         auto getCrossCellRequest = [&] (const TChunk* chunk) -> NProto::TReqUpdateChunkRequisition& {
@@ -1606,28 +1577,21 @@ private:
         auto local = request->cell_tag() == Bootstrap_->GetCellTag();
         int cellIndex = local ? -1 : multicellManager->GetRegisteredMasterCellIndex(request->cell_tag());
 
-        auto forEachChunk = [&] (auto doChunk) {
-            for (const auto& update : request->updates()) {
-                auto chunkId = FromProto<TChunkId>(update.chunk_id());
-                auto* chunk = FindChunk(chunkId);
-                if (!IsObjectAlive(chunk)) {
-                    continue;
-                }
-
-                auto newRequisitionIndex = translateRequisitionIndex(update.chunk_requisition_index());
-                doChunk(chunkId, chunk, newRequisitionIndex);
-            }
-        };
+        const auto updates = TranslateChunkRequisitionUpdateRequest(request);
 
         // Below, we ref chunks' new requisitions and unref old ones. Such unreffing may
         // remove a requisition which may happen to be the new requisition of subsequent chunks.
         // To avoid such thrashing, ref everything here and unref it afterwards.
-        forEachChunk([&] (const TChunkId&, TChunk*, TChunkRequisitionIndex newRequisitionIndex) {
-            ChunkRequisitionRegistry_.Ref(newRequisitionIndex);
-        });
+        for (const auto& update : updates) {
+            ChunkRequisitionRegistry_.Ref(update.TranslatedRequisitionIndex_);
+        }
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
-        forEachChunk([&] (const TChunkId& chunkId, TChunk* chunk, TChunkRequisitionIndex newRequisitionIndex) {
+
+        for (const auto& update : updates) {
+            auto* chunk = update.Chunk;
+            auto newRequisitionIndex = update.TranslatedRequisitionIndex_;
+
             auto curRequisitionIndex = local ? chunk->GetLocalRequisitionIndex() : chunk->GetExternalRequisitionIndex(cellIndex);
             if (newRequisitionIndex == curRequisitionIndex) {
                 return;
@@ -1647,7 +1611,7 @@ private:
                 Y_ASSERT(local);
                 auto& crossCellRequest = getCrossCellRequest(chunk);
                 auto* crossCellUpdate = crossCellRequest.add_updates();
-                ToProto(crossCellUpdate->mutable_chunk_id(), chunkId);
+                ToProto(crossCellUpdate->mutable_chunk_id(), chunk->GetId());
                 crossCellUpdate->set_chunk_requisition_index(newRequisitionIndex);
             } else {
                 if (chunk->IsDiskSizeFinal()) {
@@ -1657,32 +1621,74 @@ private:
 
                 ScheduleChunkRefresh(chunk);
             }
-        });
+        }
 
         for (auto& pair : crossCellRequestMap) {
             auto cellTag = pair.first;
             auto& request = pair.second;
-            FillChunkRequisitionDict(&request);
+            FillChunkRequisitionDict(&request, ChunkRequisitionRegistry_);
             multicellManager->PostToMaster(request, cellTag);
             LOG_DEBUG_UNLESS(IsRecovery(), "Requesting to update requisition of imported chunks (CellTag: %v, Count: %v)",
                 cellTag,
                 request.updates_size());
         }
 
-        forEachChunk([&] (const TChunkId&, TChunk*, TChunkRequisitionIndex newRequisitionIndex) {
-            ChunkRequisitionRegistry_.Unref(newRequisitionIndex, objectManager);
-        });
+        for (const auto& update : updates) {
+            ChunkRequisitionRegistry_.Unref(update.TranslatedRequisitionIndex_, objectManager);
+        }
     }
 
-    std::function<TChunkRequisitionIndex(TChunkRequisitionIndex)> BuildChunkRequisitionIndexTranslator(const NProto::TReqUpdateChunkRequisition& request)
+    struct TRequisitionUpdate
     {
-        THashMap<TChunkRequisitionIndex, TChunkRequisitionIndex> remoteToLocalIndexMap;
+        TChunk* Chunk;
+        TChunkRequisitionIndex TranslatedRequisitionIndex_;
+    };
+
+    std::vector<TRequisitionUpdate> TranslateChunkRequisitionUpdateRequest(NProto::TReqUpdateChunkRequisition* request)
+    {
+        // NB: this is necessary even for local requests as requisition indexes
+        // in the request are different from those in the registry.
+        auto translateRequisitionIndex = BuildChunkRequisitionIndexTranslator(*request);
+
+        std::vector<TRequisitionUpdate> updates;
+        updates.reserve(request->updates_size());
+
+        for (const auto& update : request->updates()) {
+            auto chunkId = FromProto<TChunkId>(update.chunk_id());
+            auto* chunk = FindChunk(chunkId);
+            if (!IsObjectAlive(chunk)) {
+                continue;
+            }
+
+            auto newRequisitionIndex = translateRequisitionIndex(update.chunk_requisition_index());
+            if (!newRequisitionIndex) {
+                // Requisition update is no longer valid (some account has been removed). Re-request.
+                ScheduleChunkRequisitionUpdate(chunk);
+                continue;
+            }
+
+            updates.emplace_back(TRequisitionUpdate{chunk, *newRequisitionIndex});
+        }
+
+        return updates;
+    }
+
+    std::function<TNullable<TChunkRequisitionIndex>(TChunkRequisitionIndex)>
+    BuildChunkRequisitionIndexTranslator(const NProto::TReqUpdateChunkRequisition& request)
+    {
+        THashMap<TChunkRequisitionIndex, TNullable<TChunkRequisitionIndex>> remoteToLocalIndexMap;
         remoteToLocalIndexMap.reserve(request.chunk_requisition_dict_size());
         for (const auto& pair : request.chunk_requisition_dict()) {
             auto remoteIndex = pair.index();
 
-            auto requisition = FromProto<TChunkRequisition>(pair.requisition(), Bootstrap_->GetSecurityManager());
-            auto localIndex = ChunkRequisitionRegistry_.GetIndex(requisition, Bootstrap_->GetObjectManager());
+            TChunkRequisition requisition;
+            TNullable<TChunkRequisitionIndex> localIndex;
+            if (FromProto(&requisition, pair.requisition(), Bootstrap_->GetSecurityManager())) {
+                localIndex = ChunkRequisitionRegistry_.GetOrCreateIndex(requisition, Bootstrap_->GetObjectManager());
+            }
+            // Else deserialization failed. Some account has been removed.
+            // A requisition update will be re-requested for affected chunks.
+
             YCHECK(remoteToLocalIndexMap.emplace(remoteIndex, localIndex).second);
         }
 
@@ -1889,7 +1895,7 @@ private:
             false /* committed */);
         requisition.SetVital(subrequest->vital());
         const auto& objectManager = Bootstrap_->GetObjectManager();
-        auto requisitionIndex = ChunkRequisitionRegistry_.GetIndex(requisition, objectManager);
+        auto requisitionIndex = ChunkRequisitionRegistry_.GetOrCreateIndex(requisition, objectManager);
         chunk->SetLocalRequisitionIndex(requisitionIndex, GetChunkRequisitionRegistry(), objectManager);
 
         auto sessionId = TSessionId(chunk->GetId(), mediumIndex);
@@ -3265,11 +3271,6 @@ TMedium* TChunkManager::GetMediumByNameOrThrow(const TString& name) const
 TChunkRequisitionRegistry* TChunkManager::GetChunkRequisitionRegistry()
 {
     return Impl_->GetChunkRequisitionRegistry();
-}
-
-void TChunkManager::FillChunkRequisitionDict(NProto::TReqUpdateChunkRequisition* request)
-{
-    return Impl_->FillChunkRequisitionDict(request);
 }
 
 DELEGATE_ENTITY_MAP_ACCESSORS(TChunkManager, Chunk, TChunk, *Impl_)

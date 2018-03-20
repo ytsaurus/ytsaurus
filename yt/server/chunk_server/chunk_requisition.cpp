@@ -320,7 +320,7 @@ void ToProto(NProto::TReqUpdateChunkRequisition::TChunkRequisition* protoRequisi
     }
 }
 
-void FromProto(
+bool FromProto(
     TChunkRequisition* requisition,
     const NProto::TReqUpdateChunkRequisition::TChunkRequisition& protoRequisition,
     const NSecurityServer::TSecurityManagerPtr& securityManager)
@@ -329,12 +329,20 @@ void FromProto(
 
     for (const auto& entry : protoRequisition.entries()) {
         auto* account = securityManager->FindAccount(FromProto<NSecurityServer::TAccountId>(entry.account_id()));
+
+        // NB: an account may be removed between replicator sending a requisition and chunk manager receiving it.
+        if (!account) {
+            return false;
+        }
+
         requisition->AddEntry(
             account,
             entry.medium_index(),
             TReplicationPolicy(entry.replication_factor(), entry.data_parts_only()),
             entry.committed());
     }
+
+    return true;
 }
 
 void TChunkRequisition::Save(NCellMaster::TSaveContext& context) const
@@ -688,7 +696,7 @@ void TChunkRequisitionRegistry::Load(NCellMaster::TLoadContext& context)
     YCHECK(!IndexToItem_.has(NextIndex_));
 }
 
-TChunkRequisitionIndex TChunkRequisitionRegistry::GetIndex(
+TChunkRequisitionIndex TChunkRequisitionRegistry::GetOrCreateIndex(
     const TChunkRequisition& requisition,
     const NObjectServer::TObjectManagerPtr& objectManager)
 {
@@ -785,6 +793,33 @@ void TSerializableChunkRequisitionRegistry::Serialize(NYson::IYsonConsumer* cons
 void Serialize(const TSerializableChunkRequisitionRegistry& serializer, NYson::IYsonConsumer* consumer)
 {
     serializer.Serialize(consumer);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+const TChunkRequisition& TEphemeralRequisitionRegistry::GetRequisition(TChunkRequisitionIndex index) const
+{
+    auto it = IndexToRequisition_.find(index);
+    YCHECK(it != IndexToRequisition_.end());
+    return it->second;
+}
+
+TChunkRequisitionIndex TEphemeralRequisitionRegistry::GetOrCreateIndex(const TChunkRequisition& requisition)
+{
+    auto it = RequisitionToIndex_.find(requisition);
+    if (it != RequisitionToIndex_.end()) {
+        Y_ASSERT(IndexToRequisition_.find(it->second) != IndexToRequisition_.end());
+        return it->second;
+    }
+
+    return Insert(requisition);
+}
+
+void TEphemeralRequisitionRegistry::Clear()
+{
+    IndexToRequisition_.clear();
+    RequisitionToIndex_.clear();
+    NextIndex_ = 0;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -2015,6 +2015,7 @@ void TChunkReplicator::OnRequisitionUpdate()
 
     LOG_DEBUG("Chunk requisition update iteration started");
 
+    TmpRequisitionRegistry_.Clear();
     PROFILE_AGGREGATED_TIMING (RequisitionUpdateTimeCounter) {
         ClearChunkRequisitionCache();
         while (totalCount < Config_->MaxChunksPerRequisitionUpdate &&
@@ -2035,7 +2036,7 @@ void TChunkReplicator::OnRequisitionUpdate()
         }
     }
 
-    Bootstrap_->GetChunkManager()->FillChunkRequisitionDict(&request);
+    FillChunkRequisitionDict(&request, TmpRequisitionRegistry_);
 
     LOG_DEBUG("Chunk requisition update iteration completed (TotalCount: %v, AliveCount: %v, UpdateCount: %v)",
         totalCount,
@@ -2124,7 +2125,7 @@ TChunkRequisitionIndex TChunkReplicator::ComputeChunkRequisition(const TChunk* c
     TChunkRequisitionIndex result;
     if (found) {
         Y_ASSERT(requisition.ToReplication().IsValid());
-        result = GetChunkRequisitionRegistry()->GetIndex(requisition, Bootstrap_->GetObjectManager());
+        result = TmpRequisitionRegistry_.GetOrCreateIndex(requisition);
     } else {
         result = chunk->GetStagingTransaction() ? chunk->GetLocalRequisitionIndex() : EmptyChunkRequisitionIndex;
     }

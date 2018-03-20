@@ -333,7 +333,8 @@ private:
         TReplicationPolicy replicationPolicy,
         bool committed);
 
-    friend void FromProto(
+    // NB: may fail and return false.
+    friend bool FromProto(
         TChunkRequisition* requisition,
         const NProto::TReqUpdateChunkRequisition::TChunkRequisition& protoRequsition,
         const NSecurityServer::TSecurityManagerPtr& securityManager);
@@ -342,10 +343,6 @@ private:
 void ToProto(
     NProto::TReqUpdateChunkRequisition::TChunkRequisition* protoRequisition,
     const TChunkRequisition& requisition);
-void FromProto(
-    TChunkRequisition* requisition,
-    const NProto::TReqUpdateChunkRequisition::TChunkRequisition& protoRequisition,
-    const NSecurityServer::TSecurityManagerPtr& securityManager);
 
 void FormatValue(TStringBuilder* builder, const TChunkRequisition& requisition, const TStringBuf& /*spec*/ = {});
 TString ToString(const TChunkRequisition& requisition);
@@ -438,7 +435,7 @@ public:
      *  Newly allocated indexes are not automatically Ref()ed and should be
      *  Ref()ed manually.
      */
-    TChunkRequisitionIndex GetIndex(
+    TChunkRequisitionIndex GetOrCreateIndex(
         const TChunkRequisition& requisition,
         const NObjectServer::TObjectManagerPtr& objectManager);
 
@@ -495,6 +492,32 @@ private:
 };
 
 void Serialize(const TSerializableChunkRequisitionRegistry& serializer, NYson::IYsonConsumer* consumer);
+
+////////////////////////////////////////////////////////////////////////////////
+
+// A temporary requisition registry that just manages the index-to-requisition
+// mapping and does not deal with refcounting or persistence.
+class TEphemeralRequisitionRegistry
+{
+public:
+    const TChunkRequisition& GetRequisition(TChunkRequisitionIndex index) const;
+    TChunkRequisitionIndex GetOrCreateIndex(const TChunkRequisition& requisition);
+
+    void Clear();
+
+private:
+    TChunkRequisitionIndex Insert(const TChunkRequisition& requisition);
+    TChunkRequisitionIndex GenerateIndex();
+
+    THashMap<TChunkRequisitionIndex, TChunkRequisition> IndexToRequisition_;
+    THashMap<TChunkRequisition, TChunkRequisitionIndex> RequisitionToIndex_;
+    TChunkRequisitionIndex NextIndex_ = 0;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <typename T>
+void FillChunkRequisitionDict(NProto::TReqUpdateChunkRequisition* request, const T& requisitionRegistry);
 
 ////////////////////////////////////////////////////////////////////////////////
 
