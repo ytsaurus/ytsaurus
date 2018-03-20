@@ -374,7 +374,13 @@ protected:
                 }
                 RegisterTask(UnorderedTask);
 
-                UnorderedTask->AddInput(stripes);
+                for (auto stripe : stripes) {
+                    yielder.TryYield();
+                    if (stripe) {
+                        UnorderedTask->AddInput(stripe);
+                    }
+                }
+
                 FinishTaskInput(UnorderedTask);
                 for (int index = 0; index < AutoMergeTasks.size(); ++index) {
                     if (AutoMergeTasks[index]) {
