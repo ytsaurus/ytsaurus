@@ -31,7 +31,7 @@ from yt.wrapper.common import flatten, first_not_none, bool_to_string, get_value
                               get_binary_std_stream, chunk_iter_rows
 import yt.wrapper.config as config
 import yt.yson as yson
-import yt.json as json
+import yt.json_wrapper as json
 
 from yt.packages.six.moves import map as imap, zip as izip, filter as ifilter
 

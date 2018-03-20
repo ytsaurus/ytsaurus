@@ -5,7 +5,7 @@ from __future__ import print_function
 from .helpers import TEST_DIR
 
 from yt.wrapper.common import parse_bool
-import yt.json as json
+import yt.json_wrapper as json
 import yt.yson as yson
 
 import yt.wrapper as yt
