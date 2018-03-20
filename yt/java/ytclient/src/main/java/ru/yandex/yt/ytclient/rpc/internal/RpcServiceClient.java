@@ -22,7 +22,6 @@ public class RpcServiceClient implements InvocationHandler {
     private static final Object[] EMPTY_ARGS = new Object[0];
 
     private final RpcClient client;
-    private final Class<?> interfaceClass;
     private final RpcServiceDescriptor serviceDescriptor;
     private final String serviceName;
     private final int protocolVersion;
@@ -31,7 +30,6 @@ public class RpcServiceClient implements InvocationHandler {
 
     private RpcServiceClient(RpcClient client, Class<?> interfaceClass, RpcOptions options) {
         this.client = Objects.requireNonNull(client);
-        this.interfaceClass = Objects.requireNonNull(interfaceClass);
         this.serviceDescriptor = RpcServiceDescriptor.forInterface(interfaceClass);
         this.serviceName =
                 options.getServiceName() != null ? options.getServiceName() : serviceDescriptor.getServiceName();
