@@ -165,7 +165,7 @@ public:
 
     virtual TCodecStatistics GetDecompressionStatistics() const override
     {
-        return DecompressionStatistics;
+        return DecompressionStatistics_;
     }
 
     virtual bool IsFetchingCompleted() const override
@@ -188,7 +188,7 @@ protected:
     i64 RowCount_ = 0;
     i64 DataWeight_ = 0;
 
-    TCodecStatistics DecompressionStatistics;
+    TCodecStatistics DecompressionStatistics_;
 
     //! Returns |false| on EOF.
     virtual bool DoRead(std::vector<TVersionedRow>* rows) = 0;
@@ -274,7 +274,7 @@ private:
 
             NProfiling::TCpuTimer timer;
             auto uncompressedBlock = codec->Decompress(compressedBlock.Data);
-            DecompressionStatistics.Append(TCodecDuration{codecId, timer.GetElapsedTime()});
+            DecompressionStatistics_.Append(TCodecDuration{codecId, timer.GetElapsedTime()});
 
             if (codecId != NCompression::ECodec::None) {
                 blockCache->Put(blockId, EBlockType::UncompressedData, TBlock(uncompressedBlock), Null);

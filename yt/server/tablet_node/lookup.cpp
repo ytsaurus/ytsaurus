@@ -38,6 +38,7 @@ namespace NYT {
 namespace NTabletNode {
 
 using namespace NChunkClient;
+using namespace NChunkClient::NProto;
 using namespace NConcurrency;
 using namespace NProfiling;
 using namespace NTableClient;
@@ -59,6 +60,7 @@ struct TLookupCounters
         , UnmergedRowCount("/lookup/unmerged_row_count", list)
         , UnmergedDataWeight("/lookup/unmerged_data_weight", list)
         , CpuTime("/lookup/cpu_time", list)
+        , DecompressionCpuTime("/lookup/decompression_cpu_time", list)
     { }
 
     TSimpleCounter RowCount;
@@ -66,6 +68,7 @@ struct TLookupCounters
     TSimpleCounter UnmergedRowCount;
     TSimpleCounter UnmergedDataWeight;
     TSimpleCounter CpuTime;
+    TSimpleCounter DecompressionCpuTime;
 };
 
 using TLookupProfilerTrait = TTabletProfilerTrait<TLookupCounters>;
@@ -148,14 +151,17 @@ public:
             TabletNodeProfiler.Increment(counters.UnmergedRowCount, UnmergedRowCount_);
             TabletNodeProfiler.Increment(counters.UnmergedDataWeight, UnmergedDataWeight_);
             TabletNodeProfiler.Increment(counters.CpuTime, cpuTime);
+            TabletNodeProfiler.Increment(counters.DecompressionCpuTime, DurationToValue(DecompressionCpuTime_));
         }
 
-        LOG_DEBUG("Tablet lookup completed (TabletId: %v, CellId: %v, FoundRowCount: %v, FoundDataWeight: %v, CpuTime: %v, ReadSessionId: %v)",
+        LOG_DEBUG("Tablet lookup completed (TabletId: %v, CellId: %v, FoundRowCount: %v, "
+            "FoundDataWeight: %v, CpuTime: %v, DecompressionCpuTime: %v ReadSessionId: %v)",
             TabletSnapshot_->TabletId,
             TabletSnapshot_->CellId,
             FoundRowCount_,
             FoundDataWeight_,
             ValueToDuration(cpuTime),
+            DecompressionCpuTime_,
             SessionId_);
     }
 
@@ -191,6 +197,11 @@ private:
             return Reader_->GetDataStatistics();
         }
 
+        TCodecStatistics GetDecompressionStatistics() const
+        {
+            return Reader_->GetDecompressionStatistics();
+        }
+
     private:
         const IVersionedReaderPtr Reader_;
 
@@ -217,6 +228,7 @@ private:
     size_t FoundDataWeight_ = 0;
     int UnmergedRowCount_ = 0;
     size_t UnmergedDataWeight_ = 0;
+    TDuration DecompressionCpuTime_;
 
     TTagIdList Tags_;
 
@@ -295,6 +307,7 @@ private:
             auto statistics = session.GetDataStatistics();
             UnmergedRowCount_ += statistics.row_count();
             UnmergedDataWeight_ += statistics.data_weight();
+            DecompressionCpuTime_ += session.GetDecompressionStatistics().GetTotalDuration();
         }
     }
 };

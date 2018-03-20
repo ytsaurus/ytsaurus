@@ -46,8 +46,11 @@ public:
 
     void DumpTo(NJobTrackerClient::TStatistics *statistics, const TString& path) const;
 
+    TDuration GetTotalDuration() const;
+
 private:
     THashMap<NCompression::ECodec, TDuration> map;
+    TDuration TotalDuration_;
 
     TCodecStatistics& Append(const std::pair<NCompression::ECodec, TDuration>& codecTime);
 };
