@@ -2127,7 +2127,13 @@ TChunkRequisitionIndex TChunkReplicator::ComputeChunkRequisition(const TChunk* c
         Y_ASSERT(requisition.ToReplication().IsValid());
         result = TmpRequisitionRegistry_.GetOrCreateIndex(requisition);
     } else {
-        result = chunk->GetStagingTransaction() ? chunk->GetLocalRequisitionIndex() : EmptyChunkRequisitionIndex;
+        // Don't mix up true (global) and temporary (ephemeral) requisition indexes.
+        auto globalRequisitionIndex = chunk->GetStagingTransaction()
+            ? chunk->GetLocalRequisitionIndex()
+            : EmptyChunkRequisitionIndex;
+        auto* globalRegistry = GetChunkRequisitionRegistry();
+        const auto& requisition = globalRegistry->GetRequisition(globalRequisitionIndex);
+        result = TmpRequisitionRegistry_.GetOrCreateIndex(requisition);
     }
 
     CacheRequisition(chunk, result);
