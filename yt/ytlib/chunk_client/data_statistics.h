@@ -4,6 +4,9 @@
 #include <yt/ytlib/job_tracker_client/statistics.h>
 
 #include <yt/core/compression/public.h>
+
+#include <yt/core/misc/dense_map.h>
+
 #include <yt/core/yson/public.h>
 
 #include <yt/core/ytree/public.h>
@@ -49,7 +52,29 @@ public:
     TDuration GetTotalDuration() const;
 
 private:
-    THashMap<NCompression::ECodec, TDuration> map;
+    struct TDenseMapInfo
+    {
+        static inline NCompression::ECodec getEmptyKey()
+        {
+            return static_cast<TEnumTraits<NCompression::ECodec>::TType>(~0);
+        }
+
+        static inline NCompression::ECodec getTombstoneKey()
+        {
+            return static_cast<TEnumTraits<NCompression::ECodec>::TType>(~0U - 1);
+        }
+
+        static unsigned getHashValue(const NCompression::ECodec& key)
+        {
+            return static_cast<unsigned>(key);
+        }
+
+        static bool isEqual(const NCompression::ECodec& lhs, const NCompression::ECodec& rhs) {
+            return lhs == rhs;
+        }
+    };
+
+    SmallDenseMap<NCompression::ECodec, TDuration, 1, TDenseMapInfo> Map_;
     TDuration TotalDuration_;
 
     TCodecStatistics& Append(const std::pair<NCompression::ECodec, TDuration>& codecTime);
