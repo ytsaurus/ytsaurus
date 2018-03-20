@@ -174,7 +174,6 @@ DEFINE_REFCOUNTED_TYPE(TTestingOptions)
 
 class TSchedulerConfig
     : public TFairShareStrategyConfig
-    //, public NControllerAgent::TControllerAgentConfig
 {
 public:
     //! Priority of control thread.
@@ -273,13 +272,12 @@ public:
     // it is automatically unregistered.
     TDuration ControllerAgentHeartbeatTimeout;
     
-    //! Timeout to store cached value of exec nodes information
-    //! for scheduling tag filter without access.
+    //! Timeout of cached exec nodes information entries
+    //! per scheduling tag filters.
     TDuration SchedulingTagFilterExpireTimeout;
 
     TDuration OperationsUpdatePeriod;
 
-    //! Some special options for testing purposes.
     TTestingOptionsPtr TestingOptions;
     
     NEventLog::TEventLogConfigPtr EventLog;

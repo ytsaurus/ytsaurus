@@ -111,7 +111,7 @@ IJobSizeConstraintsPtr CreateExplicitJobSizeConstraints(
 template <class TSpec>
 TIntrusivePtr<TSpec> ParseOperationSpec(NYTree::INodePtr specNode);
 
-NYTree::INodePtr UpdateSpec(NYTree::INodePtr templateSpec, NYTree::INodePtr originSpec);
+NYTree::INodePtr UpdateSpec(NYTree::INodePtr templateSpec, NYTree::INodePtr originalSpec);
 
 ////////////////////////////////////////////////////////////////////////////////
 

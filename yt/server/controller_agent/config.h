@@ -606,7 +606,6 @@ public:
     //! Chunk size in per-controller row buffers.
     i64 ControllerRowBufferChunkSize;
 
-    //! Some special options for testing purposes.
     TTestingOptionsPtr TestingOptions;
 
     NCompression::ECodec JobSpecCodec;
