@@ -56,7 +56,7 @@ def main():
     if args.config_path is None:
         args.config_path = os.path.join(SCRIPT_DIR, "run_config")
 
-    with open(args.config_path, "rb") as f:
+    with open(args.config_path, "r") as f:
         config = json.load(f)
 
     with open(config["command_path"], "r") as fin:
