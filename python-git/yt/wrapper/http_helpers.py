@@ -9,7 +9,7 @@ from .command import parse_commands
 
 import yt.logger as logger
 import yt.yson as yson
-import yt.json as json
+import yt.json_wrapper as json
 
 from yt.packages.six import reraise, add_metaclass, PY3
 from yt.packages.six.moves import map as imap

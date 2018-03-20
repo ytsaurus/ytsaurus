@@ -11,7 +11,7 @@ except ImportError:
     import client_state
 
 import yt.yson as yson
-import yt.json as json
+import yt.json_wrapper as json
 
 import yt.packages.six as six
 

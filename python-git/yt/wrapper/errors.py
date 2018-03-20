@@ -2,7 +2,7 @@
 
 import yt.common
 from yt.common import YtError, PrettyPrintableDict, get_value
-import yt.json as json
+import yt.json_wrapper as json
 
 from copy import deepcopy
 

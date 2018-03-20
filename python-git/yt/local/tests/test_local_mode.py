@@ -12,7 +12,7 @@ from yt.packages.six.moves import map as imap, xrange
 from yt.packages.six import iteritems
 
 import yt.yson as yson
-import yt.json as json
+import yt.json_wrapper as json
 
 import yt.wrapper as yt
 

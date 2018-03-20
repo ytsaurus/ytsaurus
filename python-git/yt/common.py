@@ -1,6 +1,6 @@
 from yt.packages.six import iteritems, PY3, text_type, binary_type, string_types
 from yt.packages.six.moves import map as imap
-import yt.json as json
+import yt.json_wrapper as json
 
 from collections import Mapping
 from datetime import datetime

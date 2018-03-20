@@ -1,7 +1,6 @@
 from .helpers import get_tests_sandbox, TEST_DIR, get_tests_location, wait_record_in_job_archive, get_python, yatest_common
 
 from yt.common import makedirp, to_native_str
-import yt.yson as yson
 import yt.subprocess_wrapper as subprocess
 
 from yt.packages.six.moves import map as imap
@@ -15,6 +14,7 @@ import tempfile
 import shutil
 import pytest
 import time
+import json
 
 ORCHID_JOB_PATH_PATTERN = "//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs/{1}"
 NODE_ORCHID_JOB_PATH_PATTERN = "//sys/nodes/{0}/orchid/job_controller/active_jobs/scheduler/{1}"
@@ -27,7 +27,7 @@ class TestJobRunner(object):
 
     def _start_job_runner(self, config):
         with tempfile.NamedTemporaryFile(dir=get_tests_sandbox(), prefix="job_runner", delete=False) as fout:
-            yson.dump(config, fout, yson_format="pretty")
+            json.dump(config, fout)
         return subprocess.Popen(
             [get_python(), "-m", "yt.wrapper.job_runner", "--config-path", fout.name],
             stderr=subprocess.PIPE)
@@ -167,7 +167,7 @@ class TestJobTool(object):
         run_config = os.path.join(job_path, "run_config")
         assert os.path.exists(run_config)
         with open(run_config, "rb") as fin:
-            config = yson.load(fin)
+            config = json.load(fin)
         assert config["operation_id"] == operation_id
         assert config["job_id"] == job_id
 
@@ -176,7 +176,7 @@ class TestJobTool(object):
             proc.wait()
 
             if expect_ok_return_code:
-                assert proc.returncode == 0
+                assert proc.returncode == 0, proc.stderr.read()
             else:
                 assert proc.returncode != 0
                 assert "ERROR_INTENDED_BY_TEST" in to_native_str(proc.stderr.read())

@@ -14,7 +14,7 @@ from yt.wrapper.spec_builders import MapSpecBuilder, ReduceSpecBuilder, MapReduc
                                      MergeSpecBuilder, SortSpecBuilder, JoinReduceSpecBuilder, RemoteCopySpecBuilder, VanillaSpecBuilder
 import yt.wrapper.job_tool as yt_job_tool
 import yt.wrapper.completers as completers
-import yt.json as json
+import yt.json_wrapper as json
 
 from yt.packages.six import PY3, iteritems
 from yt.packages.six.moves import builtins, map as imap
