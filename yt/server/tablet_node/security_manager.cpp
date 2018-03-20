@@ -92,13 +92,13 @@ struct TTablePermissionKey
 DECLARE_REFCOUNTED_CLASS(TTablePermissionCache)
 
 class TTablePermissionCache
-    : public TExpiringCache<TTablePermissionKey, void>
+    : public TAsyncExpiringCache<TTablePermissionKey, void>
 {
 public:
     TTablePermissionCache(
         TExpiringCacheConfigPtr config,
         NCellNode::TBootstrap* bootstrap)
-        : TExpiringCache(std::move(config))
+        : TAsyncExpiringCache(std::move(config))
         , Bootstrap_(bootstrap)
     { }
 
@@ -181,13 +181,13 @@ struct TResourceLimitsKey
 DECLARE_REFCOUNTED_CLASS(TResourceLimitsCache)
 
 class TResourceLimitsCache
-    : public TExpiringCache<TResourceLimitsKey, void>
+    : public TAsyncExpiringCache<TResourceLimitsKey, void>
 {
 public:
     TResourceLimitsCache(
         TExpiringCacheConfigPtr config,
         NCellNode::TBootstrap* bootstrap)
-        : TExpiringCache(std::move(config))
+        : TAsyncExpiringCache(std::move(config))
         , Bootstrap_(bootstrap)
     { }
 

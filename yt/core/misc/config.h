@@ -50,7 +50,7 @@ DEFINE_REFCOUNTED_TYPE(TSlruCacheConfig)
 
 //! Cache which removes entries after a while.
 /*!
- * TExpiringCache acts like a proxy between a client and a remote service:
+ * TAsyncExpiringCache and TSyncExpiringCache actlike a proxy between a client and a remote service:
  * requests are sent to the service and responses are saved in the cache as entries.
  * Next time the client makes a request, the response can be taken from the cache
  * unless it is expired.

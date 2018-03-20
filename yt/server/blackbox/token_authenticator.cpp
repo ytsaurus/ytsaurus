@@ -131,11 +131,11 @@ ITokenAuthenticatorPtr CreateBlackboxTokenAuthenticator(
 
 class TCachingTokenAuthenticator
     : public ITokenAuthenticator
-    , private TExpiringCache<TTokenCredentials, TAuthenticationResult>
+    , private TAsyncExpiringCache<TTokenCredentials, TAuthenticationResult>
 {
 public:
     TCachingTokenAuthenticator(TExpiringCacheConfigPtr config, ITokenAuthenticatorPtr tokenAuthenticator)
-        : TExpiringCache(std::move(config))
+        : TAsyncExpiringCache(std::move(config))
         , TokenAuthenticator_(std::move(tokenAuthenticator))
     { }
 

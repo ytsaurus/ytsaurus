@@ -15,13 +15,13 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TKey, class TValue>
-class TExpiringCache
+class TAsyncExpiringCache
     : public virtual TRefCounted
 {
 public:
     typedef typename TFutureCombineTraits<TValue>::TCombinedVector TCombinedValue;
 
-    explicit TExpiringCache(TExpiringCacheConfigPtr config);
+    explicit TAsyncExpiringCache(TExpiringCacheConfigPtr config);
 
     TFuture<TValue> Get(const TKey& key);
     TFuture<TCombinedValue> Get(const std::vector<TKey>& keys);

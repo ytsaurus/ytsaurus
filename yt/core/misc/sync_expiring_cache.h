@@ -9,7 +9,7 @@ namespace NYT {
 // TODO(babenko): this should be redone
 template <class TKey, class TValue>
 class TSyncExpiringCache
-    : public TExpiringCache<TKey, TValue>
+    : public TAsyncExpiringCache<TKey, TValue>
 {
 public:
     TSyncExpiringCache(
