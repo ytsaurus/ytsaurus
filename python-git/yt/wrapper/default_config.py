@@ -321,7 +321,7 @@ default_config = {
     "local_temp_directory": tempfile.gettempdir(),
 
     # Path to remote directories for temporary files and tables.
-    "remote_temp_files_directory": "//tmp/yt_wrapper/file_storage",
+    "remote_temp_files_directory": None,
     "remote_temp_tables_directory": "//tmp/yt_wrapper/table_storage",
 
     "use_legacy_file_cache": None,

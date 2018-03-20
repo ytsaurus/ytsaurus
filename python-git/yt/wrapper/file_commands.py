@@ -215,8 +215,14 @@ def write_file(destination, stream, file_writer=None, is_stream_compressed=False
             is_stream_compressed=is_stream_compressed,
             client=client)
 
+def _get_remote_temp_files_directory(client=None):
+    path = get_config(client)["remote_temp_files_directory"]
+    if path is not None:
+        return path
+    return "//tmp/yt_wrapper/file_storage"
+
 def _get_cache_path(client):
-    return ypath_join(get_config(client)["remote_temp_files_directory"], "new_cache")
+    return ypath_join(_get_remote_temp_files_directory(client), "new_cache")
 
 class PutFileToCacheRetrier(Retrier):
     def __init__(self, params, client=None):
@@ -281,7 +287,7 @@ def is_executable(filename, client=None):
 def _upload_file_to_cache_legacy(filename, hash, client=None):
     last_two_digits_of_hash = ("0" + hash.split("-")[-1])[-2:]
 
-    hash_path = ypath_join(get_config(client)["remote_temp_files_directory"], "hash")
+    hash_path = ypath_join(_get_remote_temp_files_directory(client), "hash")
     destination = ypath_join(hash_path, last_two_digits_of_hash, hash)
 
     attributes = None
@@ -315,7 +321,7 @@ def _upload_file_to_cache_legacy(filename, hash, client=None):
 
     if should_upload_file:
         logger.debug("Link %s of file %s missing, uploading file", destination, filename)
-        prefix = ypath_join(get_config(client)["remote_temp_files_directory"], last_two_digits_of_hash, os.path.basename(filename))
+        prefix = ypath_join(_get_remote_temp_files_directory(client), last_two_digits_of_hash, os.path.basename(filename))
         # NB: In local mode we have only one node and default replication factor equal to one for all tables and files.
         if is_local_mode(client) or get_option("_is_testing_mode", client=client):
             replication_factor = 1
@@ -349,7 +355,8 @@ def upload_file_to_cache(filename, hash=None, client=None):
     if use_legacy is None:
         use_legacy = get_config(client)["backend"] == "native" or \
                      "put_file_to_cache" not in get_api_commands(client) or \
-                     "get_file_from_cache" not in get_api_commands(client)
+                     "get_file_from_cache" not in get_api_commands(client) or \
+                     get_config(client)["remote_temp_files_directory"] is not None
 
     if use_legacy:
         return _upload_file_to_cache_legacy(filename, hash, client=client)
@@ -358,7 +365,7 @@ def upload_file_to_cache(filename, hash=None, client=None):
     if file_path:
         return file_path
 
-    temp_directory = get_config(client)["remote_temp_files_directory"]
+    temp_directory = _get_remote_temp_files_directory(client)
     if not temp_directory.endswith("/"):
         temp_directory = temp_directory + "/"
     real_destination = find_free_subpath(temp_directory, client=client)
@@ -424,8 +431,8 @@ def smart_upload_file(filename, destination=None, yt_filename=None, placement_st
     else:
         if destination is None:
             # create file storage dir and hash subdir
-            mkdir(ypath_join(get_config(client)["remote_temp_files_directory"], "hash"), recursive=True, client=client)
-            prefix = ypath_join(get_config(client)["remote_temp_files_directory"], os.path.basename(filename))
+            mkdir(ypath_join(_get_remote_temp_files_directory(client), "hash"), recursive=True, client=client)
+            prefix = ypath_join(_get_remote_temp_files_directory(client), os.path.basename(filename))
             destination = prefix
             if placement_strategy == "random":
                 destination = find_free_subpath(prefix, client=client)
