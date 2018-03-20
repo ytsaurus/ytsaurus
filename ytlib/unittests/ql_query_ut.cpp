@@ -636,6 +636,11 @@ public:
     {
         return TDataStatistics();
     }
+
+    virtual NChunkClient::TCodecStatistics GetDecompressionStatistics() const override
+    {
+        Y_UNIMPLEMENTED();
+    }
 };
 
 class TWriterMock

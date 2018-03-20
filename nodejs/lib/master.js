@@ -22,6 +22,8 @@ var TIMEOUT_COOLDOWN  = 60000;
 
 var MEMORY_PRESSURE_HIT_COOLDOWN = 60000;
 var MEMORY_PRESSURE_HIT_TIMESTAMP = 0;
+var MEMORY_PRESSURE_CHECK_TIMESTAMP = 0;
+var MEMORY_PRESSURE_CHECK_INTERVAL = 100;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -143,7 +145,15 @@ YtClusterHandle.prototype.handleMessage = function(message)
 
 YtClusterHandle.prototype.handleLog = function(level, json)
 {
-    if (process.memoryUsage().rss < this.rss_limit) {
+    var time_now = +(new Date());
+    var memory_good = true;
+
+    if (time_now > MEMORY_PRESSURE_CHECK_TIMESTAMP) {
+        memory_good = process.memoryUsage().rss < this.rss_limit;
+        MEMORY_PRESSURE_CHECK_TIMESTAMP = time_now + MEMORY_PRESSURE_CHECK_INTERVAL;
+    }
+
+    if (memory_good) {
         this.logger._logRawString(level, json);
     } else {
         var time_now = +(new Date());

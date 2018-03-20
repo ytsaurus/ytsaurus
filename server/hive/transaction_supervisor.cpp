@@ -139,6 +139,7 @@ public:
                 participantCellIds,
                 false,
                 false,
+                ETransactionCoordinatorCommitMode::Eager,
                 NullMutationId));
     }
 
@@ -371,7 +372,6 @@ private:
 
         bool TrySendRequestImmediately(const TClosure& sender, TGuard<TSpinLock>* guard)
         {
-            LOG_DEBUG("XXX %v %v", Up_, PendingSenders_.size());
             if (!Up_ && !PendingSenders_.empty()) {
                 return false;
             }
@@ -483,13 +483,15 @@ private:
             auto participantCellIds = FromProto<std::vector<TCellId>>(request->participant_cell_ids());
             auto force2PC = request->force_2pc();
             auto inheritCommitTimestamp = request->inherit_commit_timestamp();
+            auto coordinatorCommitMode = static_cast<ETransactionCoordinatorCommitMode>(request->coordinator_commit_mode());
 
             context->SetRequestInfo("TransactionId: %v, ParticipantCellIds: %v, Force2PC: %v, "
-                "InheritCommitTimestamp: %v",
+                "InheritCommitTimestamp: %v, CoordinatorCommitMode: %v",
                 transactionId,
                 participantCellIds,
                 force2PC,
-                inheritCommitTimestamp);
+                inheritCommitTimestamp,
+                coordinatorCommitMode);
 
             auto owner = GetOwnerOrThrow();
 
@@ -502,6 +504,7 @@ private:
                 participantCellIds,
                 force2PC,
                 inheritCommitTimestamp,
+                coordinatorCommitMode,
                 context->GetMutationId());
             context->ReplyFrom(asyncResponseMessage);
         }
@@ -634,6 +637,7 @@ private:
         const std::vector<TCellId>& participantCellIds,
         bool force2PC,
         bool inheritCommitTimestamp,
+        ETransactionCoordinatorCommitMode coordinatorCommitMode,
         const TMutationId& mutationId)
     {
         YCHECK(!HasMutationContext());
@@ -649,7 +653,8 @@ private:
             mutationId,
             participantCellIds,
             force2PC || !participantCellIds.empty(),
-            inheritCommitTimestamp);
+            inheritCommitTimestamp,
+            coordinatorCommitMode);
 
         // Commit instance may die below.
         auto asyncResponseMessage = commit->GetAsyncResponseMessage();
@@ -695,6 +700,7 @@ private:
         ToProto(request.mutable_mutation_id(), commit->GetMutationId());
         ToProto(request.mutable_participant_cell_ids(), commit->ParticipantCellIds());
         request.set_inherit_commit_timestamp(commit->GetInheritCommitTimestamp());
+        request.set_coordinator_commit_mode(static_cast<int>(commit->GetCoordinatorCommitMode()));
         request.set_prepare_timestamp(TimestampProvider_->GetLatestTimestamp());
         CreateMutation(HydraManager_, request)
             ->CommitAndLog(Logger);
@@ -795,7 +801,8 @@ private:
                 mutationId,
                 std::vector<TCellId>(),
                 false,
-                false);
+                false,
+                ETransactionCoordinatorCommitMode::Eager);
             commit->CommitTimestamps() = commitTimestamps;
         }
 
@@ -809,6 +816,7 @@ private:
         auto mutationId = FromProto<TMutationId>(request->mutation_id());
         auto participantCellIds = FromProto<std::vector<TCellId>>(request->participant_cell_ids());
         auto inheritCommitTimestamp = request->inherit_commit_timestamp();
+        auto coordindatorCommitMode = static_cast<ETransactionCoordinatorCommitMode>(request->coordinator_commit_mode());
         auto prepareTimestamp = request->has_prepare_timestamp() ? request->prepare_timestamp() : MinTimestamp;
 
         // Ensure commit existence (possibly moving it from transient to persistent).
@@ -817,7 +825,8 @@ private:
             mutationId,
             participantCellIds,
             true,
-            inheritCommitTimestamp);
+            inheritCommitTimestamp,
+            coordindatorCommitMode);
 
         if (commit && commit->GetPersistentState() != ECommitState::Start) {
             LOG_DEBUG_UNLESS(IsRecovery(), "Requested to commit distributed transaction in wrong state; ignored (TransactionId: %v, State: %v)",
@@ -893,22 +902,9 @@ private:
         ChangeCommitPersistentState(commit, ECommitState::Commit);
         ChangeCommitTransientState(commit, ECommitState::Commit);
 
-        SetCommitSucceeded(commit);
-
-        try {
-            // Any exception thrown here is caught below.
-            auto commitTimestamp = commitTimestamps.GetTimestamp(CellTagFromId(SelfCellId_));
-            TransactionManager_->CommitTransaction(transactionId, commitTimestamp);
-        } catch (const std::exception& ex) {
-            LOG_ERROR_UNLESS(IsRecovery(), ex, "Unexpected error: coordinator failure; ignored (TransactionId: %v, State: %v)",
-                transactionId,
-                ECommitState::Commit);
-            return;
+        if (commit->GetCoordinatorCommitMode() == ETransactionCoordinatorCommitMode::Eager) {
+            RunCoordinatorCommit(commit);
         }
-
-        LOG_DEBUG_UNLESS(IsRecovery(), "Coordinator success (TransactionId: %v, State: %v)",
-            transactionId,
-            ECommitState::Commit);
     }
 
     void HydraCoordinatorAbortDistributedTransactionPhaseTwo(NHiveServer::NProto::TReqCoordinatorAbortDistributedTransactionPhaseTwo* request)
@@ -1000,6 +996,13 @@ private:
             LOG_DEBUG_UNLESS(IsRecovery(), "Requested to finish a non-existing transaction commit; ignored (TransactionId: %v)",
                 transactionId);
             return;
+        }
+
+        // TODO(babenko): think about a better way of distinguishing between successful and failed commits
+        if (commit->GetCoordinatorCommitMode() == ETransactionCoordinatorCommitMode::Lazy &&
+            !commit->CommitTimestamps().Timestamps.empty())
+        {
+            RunCoordinatorCommit(commit);
         }
 
         RemovePersistentCommit(commit);
@@ -1094,14 +1097,16 @@ private:
         const TMutationId& mutationId,
         const std::vector<TCellId>& participantCellIds,
         bool distributed,
-        bool inheritCommitTimestamp)
+        bool inheritCommitTimestamp,
+        ETransactionCoordinatorCommitMode coordinatorCommitMode)
     {
         auto commitHolder = std::make_unique<TCommit>(
             transactionId,
             mutationId,
             participantCellIds,
             distributed,
-            inheritCommitTimestamp);
+            inheritCommitTimestamp,
+            coordinatorCommitMode);
         return TransientCommitMap_.Insert(transactionId, std::move(commitHolder));
     }
 
@@ -1110,7 +1115,8 @@ private:
         const TMutationId& mutationId,
         const std::vector<TCellId>& participantCellIds,
         bool distributed,
-        bool inheritCommitTimstamp)
+        bool inheritCommitTimstamp,
+        ETransactionCoordinatorCommitMode coordinatorCommitMode)
     {
         auto* commit = FindCommit(transactionId);
         std::unique_ptr<TCommit> commitHolder;
@@ -1123,7 +1129,8 @@ private:
                 mutationId,
                 participantCellIds,
                 distributed,
-                inheritCommitTimstamp);
+                inheritCommitTimstamp,
+                coordinatorCommitMode);
         }
         commitHolder->SetPersistent(true);
         return PersistentCommitMap_.Insert(transactionId, std::move(commitHolder));
@@ -1173,6 +1180,27 @@ private:
         }
 
         commit->SetResponseMessage(std::move(responseMessage));
+    }
+
+
+    void RunCoordinatorCommit(TCommit* commit)
+    {
+        const auto& transactionId = commit->GetTransactionId();
+        SetCommitSucceeded(commit);
+
+        try {
+            // Any exception thrown here is caught below.
+            auto commitTimestamp = commit->CommitTimestamps().GetTimestamp(CellTagFromId(SelfCellId_));
+            TransactionManager_->CommitTransaction(transactionId, commitTimestamp);
+
+            LOG_DEBUG_UNLESS(IsRecovery(), "Coordinator success (TransactionId: %v, State: %v)",
+                transactionId,
+                commit->GetPersistentState());
+        } catch (const std::exception& ex) {
+            LOG_ERROR_UNLESS(IsRecovery(), ex, "Unexpected error: coordinator failure; ignored (TransactionId: %v, State: %v)",
+                transactionId,
+                commit->GetPersistentState());
+        }
     }
 
 
@@ -1596,14 +1624,13 @@ private:
     virtual bool ValidateSnapshotVersion(int version) override
     {
         return
-            version == 1 ||
-            version == 2 ||
-            version == 3;
+            version == 3 ||
+            version == 4;
     }
 
     virtual int GetCurrentSnapshotVersion() override
     {
-        return 3;
+        return 4;
     }
 
 

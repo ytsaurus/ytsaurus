@@ -113,7 +113,7 @@ struct IFairShareTreeSnapshot
 {
     virtual TFuture<void> ScheduleJobs(const ISchedulingContextPtr& schedulingContext) = 0;
     virtual void ProcessUpdatedJob(const TUpdatedJob& updatedJob) = 0;
-    virtual void ProcessCompletedJob(const TCompletedJob& updatedJob) = 0;
+    virtual void ProcessFinishedJob(const TFinishedJob& updatedJob) = 0;
     virtual bool HasOperation(const TOperationId& operationId) const = 0;
     virtual void ApplyJobMetricsDelta(const TOperationId& operationId, const TJobMetrics& jobMetricsDelta) = 0;
     virtual const TSchedulingTagFilter& GetNodesFilter() const = 0;
@@ -183,11 +183,16 @@ public:
 
         auto operationId = state->GetHost()->GetId();
 
+        auto rootSchedulingTagFilter = spec->SchedulingTagFilter;
+
         auto clonedSpec = CloneYsonSerializable(spec);
         auto optionsIt = spec->SchedulingOptionsPerPoolTree.find(TreeId);
         if (optionsIt != spec->SchedulingOptionsPerPoolTree.end()) {
             const auto& options = optionsIt->second;
             ReconfigureYsonSerializable(clonedSpec, ConvertToNode(options));
+            if (!rootSchedulingTagFilter.IsEmpty()) {
+                clonedSpec->SchedulingTagFilter = rootSchedulingTagFilter;
+            }
         }
 
         auto operationElement = New<TOperationElement>(
@@ -878,11 +883,11 @@ private:
             }
         }
 
-        virtual void ProcessCompletedJob(const TCompletedJob& completedJob) override
+        virtual void ProcessFinishedJob(const TFinishedJob& finishedJob) override
         {
-            auto* operationElement = RootElementSnapshot->FindOperationElement(completedJob.OperationId);
+            auto* operationElement = RootElementSnapshot->FindOperationElement(finishedJob.OperationId);
             if (operationElement) {
-                operationElement->OnJobFinished(completedJob.JobId);
+                operationElement->OnJobFinished(finishedJob.JobId);
             }
         }
 
@@ -1025,7 +1030,7 @@ private:
         PROFILE_AGGREGATED_TIMING(AnalyzePreemptableJobsTimeCounter) {
             for (const auto& job : context->SchedulingContext->RunningJobs()) {
                 auto* operationElement = rootElementSnapshot->FindOperationElement(job->GetOperationId());
-                if (!operationElement || !operationElement->IsJobExisting(job->GetId())) {
+                if (!operationElement || !operationElement->IsJobKnown(job->GetId())) {
                     LOG_DEBUG("Dangling running job found (JobId: %v, OperationId: %v)",
                         job->GetId(),
                         job->GetOperationId());
@@ -1145,7 +1150,7 @@ private:
 
         for (const auto& job : preemptableJobs) {
             auto* operationElement = rootElementSnapshot->FindOperationElement(job->GetOperationId());
-            if (!operationElement || !operationElement->IsJobExisting(job->GetId())) {
+            if (!operationElement || !operationElement->IsJobKnown(job->GetId())) {
                 LOG_DEBUG("Dangling preemptable job found (JobId: %v, OperationId: %v)",
                     job->GetId(),
                     job->GetOperationId());
@@ -1950,10 +1955,11 @@ public:
         MinNeededJobResourcesUpdateExecutor_->Stop();
 
         {
-            TWriterGuard guard(OperationIdToOperationStateLock_);
-            OperationIdToOperationState_.clear();
+            TWriterGuard guard(RegisteredOperationsLock_);
+            RegisteredOperations_.clear();
         }
 
+        OperationIdToOperationState_.clear();
         IdToTree_.clear();
 
         DefaultTreeId_.Reset();
@@ -2016,10 +2022,12 @@ public:
         auto state = New<TFairShareStrategyOperationState>(operation);
         state->TreeIdToPoolIdMap() = ParseOperationPools(operation);
 
+        YCHECK(OperationIdToOperationState_.insert(
+            std::make_pair(operation->GetId(), state)).second);
+
         {
-            TWriterGuard guard(OperationIdToOperationStateLock_);
-            YCHECK(OperationIdToOperationState_.insert(
-                std::make_pair(operation->GetId(), state)).second);
+            TWriterGuard guard(RegisteredOperationsLock_);
+            YCHECK(RegisteredOperations_.insert(operation->GetId()).second);
         }
 
         auto runtimeParams = operation->GetRuntimeParameters();
@@ -2077,9 +2085,11 @@ public:
         }
 
         {
-            TWriterGuard guard(OperationIdToOperationStateLock_);
-            YCHECK(OperationIdToOperationState_.erase(operation->GetId()) == 1);
+            TWriterGuard guard(RegisteredOperationsLock_);
+            YCHECK(RegisteredOperations_.erase(operation->GetId()) == 1);
         }
+
+        YCHECK(OperationIdToOperationState_.erase(operation->GetId()) == 1);
     }
 
     virtual void UpdatePools(const INodePtr& poolsNode) override
@@ -2519,9 +2529,9 @@ public:
         }
     }
 
-    virtual void ProcessUpdatedAndCompletedJobs(
+    virtual void ProcessUpdatedAndFinishedJobs(
         std::vector<TUpdatedJob>* updatedJobs,
-        std::vector<TCompletedJob>* completedJobs,
+        std::vector<TFinishedJob>* finishedJobs,
         std::vector<TJobId>* jobsToAbort) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -2544,25 +2554,25 @@ public:
         }
         updatedJobs->clear();
 
-        std::vector<TCompletedJob> remainingCompletedJobs;
-        for (const auto& job : *completedJobs) {
+        std::vector<TFinishedJob> remainingFinishedJobs;
+        for (const auto& job : *finishedJobs) {
             auto snapshotIt = snapshots.find(job.TreeId);
             if (snapshotIt == snapshots.end()) {
-                // Job is completed but tree does not exist, nothing to do.
+                // Job is finished but tree does not exist, nothing to do.
                 continue;
             }
             const auto& snapshot = snapshotIt->second;
             if (snapshot->HasOperation(job.OperationId)) {
-                snapshot->ProcessCompletedJob(job);
+                snapshot->ProcessFinishedJob(job);
             } else {
-                // If operation is not yet in snapshot let's push it back to completed jobs.
-                TReaderGuard guard(OperationIdToOperationStateLock_);
-                if (OperationIdToOperationState_.find(job.OperationId) != OperationIdToOperationState_.end()) {
-                    remainingCompletedJobs.push_back(job);
+                // If operation is not yet in snapshot let's push it back to finished jobs.
+                TReaderGuard guard(RegisteredOperationsLock_);
+                if (RegisteredOperations_.find(job.OperationId) != RegisteredOperations_.end()) {
+                    remainingFinishedJobs.push_back(job);
                 }
             }
         }
-        *completedJobs = remainingCompletedJobs;
+        *finishedJobs = remainingFinishedJobs;
     }
 
     virtual void RegisterJobs(const TOperationId& operationId, const std::vector<TJobPtr>& jobs) override
@@ -2583,14 +2593,15 @@ public:
         }
     }
 
-    virtual void OnOperationRunning(const TOperationId& operationId) override
+    virtual void EnableOperation(IOperationStrategyHost* host) override
     {
+        const auto& operationId = host->GetId();
         const auto& state = GetOperationState(operationId);
         for (const auto& pair : state->TreeIdToPoolIdMap()) {
             const auto& treeId = pair.first;
             GetTree(treeId)->EnableOperation(operationId);
         }
-        if (state->GetHost()->IsSchedulable()) {
+        if (host->IsSchedulable()) {
             state->GetController()->UpdateMinNeededJobResources();
         }
     }
@@ -2628,8 +2639,10 @@ private:
     TPeriodicExecutorPtr FairShareLoggingExecutor_;
     TPeriodicExecutorPtr MinNeededJobResourcesUpdateExecutor_;
 
-    TReaderWriterSpinLock OperationIdToOperationStateLock_;
     THashMap<TOperationId, TFairShareStrategyOperationStatePtr> OperationIdToOperationState_;
+
+    TReaderWriterSpinLock RegisteredOperationsLock_;
+    THashSet<TOperationId> RegisteredOperations_;
 
     TInstant LastProfilingTime_;
 

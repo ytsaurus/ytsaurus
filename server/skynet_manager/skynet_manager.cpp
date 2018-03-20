@@ -126,7 +126,7 @@ void TSkynetManager::Share(IRequestPtr req, IResponseWriterPtr rsp)
 
     Bootstrap_->ShareCache->CheckTombstone(shareKey)
         .ThrowOnError();
-    
+
     auto maybeRbTorrentId = Bootstrap_->ShareCache->TryShare(shareKey, true);
     if (!maybeRbTorrentId) {
         rsp->SetStatus(EStatusCode::Accepted);
@@ -509,7 +509,7 @@ public:
 
     virtual void OnEndMap() override
     {
-        auto checkColumn = [this] (auto column, TStringBuf name) {
+        auto checkColumn = [] (auto column, TStringBuf name) {
             if (!column) {
                 THROW_ERROR_EXCEPTION("Column is missing")
                     << TErrorAttribute("column_name", name);
@@ -693,7 +693,7 @@ std::vector<THttpPartLocation> FetchSkynetPartsLocations(
 
         nodeAddresses[nodeId] = address;
     }
-    
+
     auto chunks = ysonResponse->AsMap()->GetChild("chunk_specs")->AsList();
 
     // Loop is moving two iterators through table. One iterator is

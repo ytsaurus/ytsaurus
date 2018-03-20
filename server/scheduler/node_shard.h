@@ -3,7 +3,6 @@
 #include "private.h"
 #include "scheduler.h"
 #include "scheduling_tag.h"
-#include "sync_expiring_cache.h"
 
 #include <yt/ytlib/api/client.h>
 
@@ -20,6 +19,8 @@
 #include <yt/core/ytree/fluent.h>
 
 #include <yt/core/yson/public.h>
+
+#include <yt/core/misc/sync_expiring_cache.h>
 
 namespace NYT {
 namespace NScheduler {
@@ -105,7 +106,7 @@ public:
     void RegisterOperation(
         const TOperationId& operationId,
         const IOperationControllerPtr& controller,
-        bool willRevive);
+        bool jobsReady);
     void StartOperationRevival(const TOperationId& operationId);
     void FinishOperationRevival(const TOperationId& operationId, const std::vector<TJobPtr>& jobs);
     void UnregisterOperation(const TOperationId& operationId);
@@ -208,7 +209,7 @@ private:
     TCompletedJobCounter CompletedJobCounter_;
 
     std::vector<TUpdatedJob> UpdatedJobs_;
-    std::vector<TCompletedJob> CompletedJobs_;
+    std::vector<TFinishedJob> FinishedJobs_;
 
     THashMap<TJobId, TPromise<NControllerAgent::TScheduleJobResultPtr>> JobIdToAsyncScheduleResult_;
 
@@ -305,9 +306,10 @@ private:
     void SetJobState(const TJobPtr& job, EJobState state);
 
     void RegisterJob(const TJobPtr& job);
-    void UnregisterJob(const TJobPtr& job);
+    void UnregisterJob(const TJobPtr& job, bool enableLogging = true, bool removeFromStrategy = true);
 
-    void DoUnregisterJob(const TJobPtr& job);
+    void SetJobWaitingForConfirmation(const TJobPtr& job);
+    void ResetJobWaitingForConfirmation(const TJobPtr& job);
 
     void PreemptJob(const TJobPtr& job, TNullable<NProfiling::TCpuDuration> interruptTimeout);
 
@@ -320,15 +322,12 @@ private:
     TExecNodePtr FindNodeByJob(const TJobId& jobId);
 
     TJobPtr FindJob(const TJobId& jobId, const TExecNodePtr& node);
-
     TJobPtr FindJob(const TJobId& jobId);
-
     TJobPtr GetJobOrThrow(const TJobId& jobId);
 
     NJobProberClient::TJobProberServiceProxy CreateJobProberProxy(const TJobPtr& job);
 
     TOperationState* FindOperationState(const TOperationId& operationId);
-
     TOperationState& GetOperationState(const TOperationId& operationId);
 
     void BuildNodeYson(const TExecNodePtr& node, NYTree::TFluentMap consumer);

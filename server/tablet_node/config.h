@@ -337,6 +337,7 @@ public:
     int ReplicatorThreadPoolSize;
     TDuration ReplicatorSoftBackoffTime;
     TDuration ReplicatorHardBackoffTime;
+    i64 ReplicatorDataWeightThrottlingGranularity;
 
     TTabletManagerConfig()
     {
@@ -371,6 +372,8 @@ public:
             .Default(TDuration::Seconds(3));
         RegisterParameter("replicator_hard_backoff_time", ReplicatorHardBackoffTime)
             .Default(TDuration::Seconds(60));
+        RegisterParameter("replicator_data_weight_throttling_granularity", ReplicatorDataWeightThrottlingGranularity)
+            .Default(64_KB);
     }
 };
 

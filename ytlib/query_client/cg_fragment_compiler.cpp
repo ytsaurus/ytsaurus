@@ -1929,7 +1929,7 @@ size_t MakeCodegenScanOp(
     ] (TCGOperatorContext& builder) {
         codegenSource(builder);
 
-        auto consume = MakeClosure<void(TRowBuffer*, TValue**, i64)>(builder, "ScanOpInner", [&] (
+        auto consume = MakeClosure<void(TExpressionContext*, TValue**, i64)>(builder, "ScanOpInner", [&] (
             TCGOperatorContext& builder,
             Value* buffer,
             Value* rows,
@@ -2037,7 +2037,7 @@ size_t MakeCodegenJoinOp(
         // TODO(lukyan): Do not fill in consumer
         std::vector<EValueType> lookupKeyTypes(lookupKeySize);
 
-        auto collectRows = MakeClosure<void(TJoinClosure*, TRowBuffer*)>(builder, "CollectRows", [&] (
+        auto collectRows = MakeClosure<void(TJoinClosure*, TExpressionContext*)>(builder, "CollectRows", [&] (
             TCGOperatorContext& builder,
             Value* joinClosure,
             Value* buffer
@@ -2109,7 +2109,7 @@ size_t MakeCodegenJoinOp(
             builder->CreateRetVoid();
         });
 
-        auto consumeJoinedRows = MakeClosure<void(TRowBuffer*, TValue**, i64)>(builder, "ConsumeJoinedRows", [&] (
+        auto consumeJoinedRows = MakeClosure<void(TExpressionContext*, TValue**, i64)>(builder, "ConsumeJoinedRows", [&] (
             TCGOperatorContext& builder,
             Value* buffer,
             Value* joinedRows,
@@ -2181,7 +2181,7 @@ size_t MakeCodegenMultiJoinOp(
         MOVE(primaryColumns),
         codegenSource = std::move(*codegenSource)
     ] (TCGOperatorContext& builder) {
-        auto collectRows = MakeClosure<void(TJoinClosure*, TRowBuffer*)>(builder, "CollectRows", [&] (
+        auto collectRows = MakeClosure<void(TJoinClosure*, TExpressionContext*)>(builder, "CollectRows", [&] (
             TCGOperatorContext& builder,
             Value* joinClosure,
             Value* buffer
@@ -2272,7 +2272,7 @@ size_t MakeCodegenMultiJoinOp(
             builder->CreateRetVoid();
         });
 
-        auto consumeJoinedRows = MakeClosure<void(TRowBuffer*, TValue**, i64)>(builder, "ConsumeJoinedRows", [&] (
+        auto consumeJoinedRows = MakeClosure<void(TExpressionContext*, TValue**, i64)>(builder, "ConsumeJoinedRows", [&] (
             TCGOperatorContext& builder,
             Value* buffer,
             Value* joinedRows,
@@ -2578,7 +2578,7 @@ size_t MakeCodegenGroupOp(
         checkNulls,
         MOVE(comparerManager)
     ] (TCGOperatorContext& builder) {
-        auto collect = MakeClosure<void(TGroupByClosure*, TRowBuffer*)>(builder, "CollectGroups", [&] (
+        auto collect = MakeClosure<void(TGroupByClosure*, TExpressionContext*)>(builder, "CollectGroups", [&] (
             TCGOperatorContext& builder,
             Value* groupByClosure,
             Value* buffer
@@ -2691,7 +2691,7 @@ size_t MakeCodegenGroupOp(
             builder->CreateRetVoid();
         });
 
-        auto consume = MakeClosure<void(TRowBuffer*, TValue**, i64)>(builder, "ConsumeGroupedRows", [&] (
+        auto consume = MakeClosure<void(TExpressionContext*, TValue**, i64)>(builder, "ConsumeGroupedRows", [&] (
             TCGOperatorContext& builder,
             Value* buffer,
             Value* finalGroupedRows,
@@ -2843,7 +2843,7 @@ size_t MakeCodegenOrderOp(
             builder->CreateRetVoid();
         });
 
-        auto consumeOrderedRows = MakeClosure<void(TRowBuffer*, TValue**, i64)>(builder, "ConsumeOrderedRows",
+        auto consumeOrderedRows = MakeClosure<void(TExpressionContext*, TValue**, i64)>(builder, "ConsumeOrderedRows",
         [&] (
             TCGOperatorContext& builder,
             Value* buffer,

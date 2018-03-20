@@ -23,6 +23,7 @@
 #include <yt/core/misc/common.h>
 
 #include <vector>
+#include <yt/ytlib/chunk_client/data_statistics.h>
 
 namespace NYT {
 
@@ -50,6 +51,7 @@ struct IUserJobReadController
     virtual TFuture<std::vector<TBlob>> GetInputContext() const = 0;
     virtual std::vector<NChunkClient::TChunkId> GetFailedChunkIds() const = 0;
     virtual TNullable<NChunkClient::NProto::TDataStatistics> GetDataStatistics() const = 0;
+    virtual TNullable<NChunkClient::TCodecStatistics> GetDecompressionStatistics() const = 0;
     virtual void InterruptReader() = 0;
     virtual NChunkClient::TInterruptDescriptor GetInterruptDescriptor() const = 0;
 };

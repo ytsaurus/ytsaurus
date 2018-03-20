@@ -1,6 +1,7 @@
-#include "bus_server.h"
-#include "private.h"
-#include "server_detail.h"
+#include "server.h"
+
+#include <yt/core/rpc/server_detail.h>
+#include <yt/core/rpc/private.h>
 
 #include <yt/core/bus/bus.h>
 #include <yt/core/bus/server.h>
@@ -12,9 +13,10 @@
 
 namespace NYT {
 namespace NRpc {
+namespace NBus {
 
 using namespace NConcurrency;
-using namespace NBus;
+using namespace NYT::NBus;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -171,5 +173,6 @@ IServerPtr CreateBusServer(NBus::IBusServerPtr busServer)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NBus
 } // namespace NRpc
 } // namespace NYT

@@ -26,6 +26,7 @@ namespace NJobProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+
 class TJobProxyConfig
     : public TServerConfig
 {
@@ -34,6 +35,7 @@ public:
     int SlotIndex;
 
     TNullable<TString> TmpfsPath;
+    std::vector<NExecAgent::TBindConfigPtr> Binds;
 
     //! Path for container root.
     TNullable<TString> RootPath;
@@ -68,6 +70,9 @@ public:
             .Default();
 
         RegisterParameter("root_path", RootPath)
+            .Default();
+
+        RegisterParameter("binds", Binds)
             .Default();
 
         RegisterParameter("cluster_connection", ClusterConnection);

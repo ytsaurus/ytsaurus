@@ -11,7 +11,7 @@
 
 #include <yt/core/bus/tcp_client.h>
 
-#include <yt/core/rpc/bus_channel.h>
+#include <yt/core/rpc/bus/channel.h>
 
 #include <yt/core/concurrency/action_queue.h>
 

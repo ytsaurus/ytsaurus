@@ -72,9 +72,9 @@ struct TUpdatedJob
     TString TreeId;
 };
 
-struct TCompletedJob
+struct TFinishedJob
 {
-    TCompletedJob(const TOperationId& operationId, const TJobId& jobId, const TString& treeId)
+    TFinishedJob(const TOperationId& operationId, const TJobId& jobId, const TString& treeId)
         : OperationId(operationId)
         , JobId(jobId)
         , TreeId(treeId)
@@ -132,6 +132,9 @@ struct ISchedulerStrategy
      */
     virtual void RegisterOperation(IOperationStrategyHost* operation) = 0;
 
+    //! Must be called for a registered operation after it is materialized.
+    virtual void EnableOperation(IOperationStrategyHost* operation) = 0;
+
     //! Unregister operation in strategy.
     /*!
      *  The implementation must throw no exceptions.
@@ -140,12 +143,10 @@ struct ISchedulerStrategy
 
     //! Register jobs that are already created somewhere outside strategy.
     virtual void RegisterJobs(const TOperationId& operationId, const std::vector<TJobPtr>& job) = 0;
-    
-    virtual void OnOperationRunning(const TOperationId& operationId) = 0;
 
-    virtual void ProcessUpdatedAndCompletedJobs(
+    virtual void ProcessUpdatedAndFinishedJobs(
         std::vector<TUpdatedJob>* updatedJobs,
-        std::vector<NScheduler::TCompletedJob>* completedJobs,
+        std::vector<NScheduler::TFinishedJob>* finishedJobs,
         std::vector<TJobId>* jobsToAbort) = 0;
 
     virtual void ApplyJobMetricsDelta(const TOperationIdToOperationJobMetrics& operationIdToOperationJobMetrics) = 0;

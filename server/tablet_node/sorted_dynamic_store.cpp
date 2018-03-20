@@ -612,6 +612,11 @@ public:
         return dataStatistics;
     }
 
+    virtual TCodecStatistics GetDecompressionStatistics() const override
+    {
+        return TCodecStatistics();
+    }
+
     virtual bool IsFetchingCompleted() const override
     {
         return true;
@@ -756,6 +761,11 @@ public:
         dataStatistics.set_row_count(RowCount_);
         dataStatistics.set_data_weight(DataWeight_);
         return dataStatistics;
+    }
+
+    virtual TCodecStatistics GetDecompressionStatistics() const override
+    {
+        return TCodecStatistics();
     }
 
     virtual bool IsFetchingCompleted() const override

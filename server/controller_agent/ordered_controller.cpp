@@ -6,6 +6,7 @@
 #include "job_memory.h"
 #include "operation_controller_detail.h"
 #include "operation.h"
+#include "config.h"
 
 #include <yt/server/chunk_pools/chunk_pool.h>
 #include <yt/server/chunk_pools/ordered_chunk_pool.h>
@@ -443,9 +444,13 @@ protected:
 
     virtual TJobSplitterConfigPtr GetJobSplitterConfig() const override
     {
-        return IsJobInterruptible() && Config->EnableJobSplitting && Spec_->EnableJobSplitting
-               ? Options_->JobSplitter
-               : nullptr;
+        return
+            IsJobInterruptible() &&
+            Config->EnableJobSplitting &&
+            Spec_->EnableJobSplitting &&
+            InputTables.size() <= Options_->JobSplitter->MaxInputTableCount
+            ? Options_->JobSplitter
+            : nullptr;
     }
 
     virtual bool IsJobInterruptible() const override
@@ -619,8 +624,9 @@ IOperationControllerPtr CreateOrderedMergeController(
     IOperationControllerHostPtr host,
     TOperation* operation)
 {
-    auto spec = ParseOperationSpec<TOrderedMergeOperationSpec>(operation->GetSpec());
-    return New<TOrderedMergeController>(spec, config, config->OrderedMergeOperationOptions, host, operation);
+    auto options = config->OrderedMergeOperationOptions;
+    auto spec = ParseOperationSpec<TOrderedMergeOperationSpec>(UpdateSpec(options->SpecTemplate, operation->GetSpec()));
+    return New<TOrderedMergeController>(spec, config, options, host, operation);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -806,8 +812,9 @@ IOperationControllerPtr CreateOrderedMapController(
     IOperationControllerHostPtr host,
     TOperation* operation)
 {
-    auto spec = ParseOperationSpec<TMapOperationSpec>(operation->GetSpec());
-    return New<TOrderedMapController>(spec, config, config->MapOperationOptions, host, operation);
+    auto options = config->MapOperationOptions;
+    auto spec = ParseOperationSpec<TMapOperationSpec>(UpdateSpec(options->SpecTemplate, operation->GetSpec()));
+    return New<TOrderedMapController>(spec, config, options, host, operation);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1000,8 +1007,9 @@ IOperationControllerPtr CreateEraseController(
     IOperationControllerHostPtr host,
     TOperation* operation)
 {
-    auto spec = ParseOperationSpec<TEraseOperationSpec>(operation->GetSpec());
-    return New<TEraseController>(spec, config, config->EraseOperationOptions, host, operation);
+    auto options = config->EraseOperationOptions;
+    auto spec = ParseOperationSpec<TEraseOperationSpec>(UpdateSpec(options->SpecTemplate, operation->GetSpec()));
+    return New<TEraseController>(spec, config, options, host, operation);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1291,8 +1299,9 @@ IOperationControllerPtr CreateRemoteCopyController(
     IOperationControllerHostPtr host,
     TOperation* operation)
 {
-    auto spec = ParseOperationSpec<TRemoteCopyOperationSpec>(operation->GetSpec());
-    return New<TRemoteCopyController>(spec, config, config->RemoteCopyOperationOptions, host, operation);
+    auto options = config->RemoteCopyOperationOptions;
+    auto spec = ParseOperationSpec<TRemoteCopyOperationSpec>(UpdateSpec(options->SpecTemplate, operation->GetSpec()));
+    return New<TRemoteCopyController>(spec, config, options, host, operation);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

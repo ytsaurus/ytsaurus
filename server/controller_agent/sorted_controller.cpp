@@ -7,6 +7,7 @@
 #include "operation_controller_detail.h"
 #include "task.h"
 #include "operation.h"
+#include "config.h"
 
 #include <yt/server/chunk_pools/chunk_pool.h>
 #include <yt/server/chunk_pools/sorted_chunk_pool.h>
@@ -518,7 +519,11 @@ protected:
 
     virtual TJobSplitterConfigPtr GetJobSplitterConfig() const override
     {
-        return IsJobInterruptible() && Config->EnableJobSplitting && Spec_->EnableJobSplitting
+        return
+            IsJobInterruptible() &&
+            Config->EnableJobSplitting &&
+            Spec_->EnableJobSplitting &&
+             InputTables.size() <= Options_->JobSplitter->MaxInputTableCount
             ? Options_->JobSplitter
             : nullptr;
     }
@@ -737,8 +742,9 @@ IOperationControllerPtr CreateSortedMergeController(
     IOperationControllerHostPtr host,
     TOperation* operation)
 {
-    auto spec = ParseOperationSpec<TSortedMergeOperationSpec>(operation->GetSpec());
-    return New<TSortedMergeController>(spec, config, config->SortedMergeOperationOptions, host, operation);
+    auto options = config->SortedMergeOperationOptions;
+    auto spec = ParseOperationSpec<TSortedMergeOperationSpec>(UpdateSpec(options->SpecTemplate, operation->GetSpec()));
+    return New<TSortedMergeController>(spec, config, options, host, operation);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1086,8 +1092,9 @@ IOperationControllerPtr CreateSortedReduceController(
     IOperationControllerHostPtr host,
     TOperation* operation)
 {
-    auto spec = ParseOperationSpec<TReduceOperationSpec>(operation->GetSpec());
-    return New<TSortedReduceController>(spec, config, config->ReduceOperationOptions, host, operation);
+    auto options = config->ReduceOperationOptions;
+    auto spec = ParseOperationSpec<TReduceOperationSpec>(UpdateSpec(options->SpecTemplate, operation->GetSpec()));
+    return New<TSortedReduceController>(spec, config, options, host, operation);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1204,8 +1211,9 @@ IOperationControllerPtr CreateJoinReduceController(
     IOperationControllerHostPtr host,
     TOperation* operation)
 {
-    auto spec = ParseOperationSpec<TJoinReduceOperationSpec>(operation->GetSpec());
-    return New<TJoinReduceController>(spec, config, config->ReduceOperationOptions, host, operation);
+    auto options = config->JoinReduceOperationOptions;
+    auto spec = ParseOperationSpec<TJoinReduceOperationSpec>(UpdateSpec(options->SpecTemplate, operation->GetSpec()));
+    return New<TJoinReduceController>(spec, config, options, host, operation);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

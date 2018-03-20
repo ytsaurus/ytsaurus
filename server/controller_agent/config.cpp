@@ -25,16 +25,8 @@ TIntermediateChunkScraperConfig::TIntermediateChunkScraperConfig()
 
 TTestingOptions::TTestingOptions()
 {
-    RegisterParameter("enable_random_master_disconnection", EnableRandomMasterDisconnection)
-        .Default(false);
-    RegisterParameter("random_master_disconnection_max_backoff", RandomMasterDisconnectionMaxBackoff)
-        .Default(TDuration::Seconds(5));
-    RegisterParameter("master_disconnect_delay", MasterDisconnectDelay)
-        .Default(Null);
     RegisterParameter("enable_snapshot_cycle_after_materialization", EnableSnapshotCycleAfterMaterialization)
         .Default(false);
-    RegisterParameter("finish_operation_transition_delay", FinishOperationTransitionDelay)
-        .Default(Null);
 }
 
 TOperationAlertsConfig::TOperationAlertsConfig()
@@ -100,6 +92,10 @@ TJobSplitterConfig::TJobSplitterConfig()
     RegisterParameter("max_jobs_per_split", MaxJobsPerSplit)
         .GreaterThan(0)
         .Default(5);
+
+    RegisterParameter("max_input_table_count", MaxInputTableCount)
+        .GreaterThan(0)
+        .Default(100);
 }
 
 TSuspiciousJobsOptions::TSuspiciousJobsOptions()
@@ -143,6 +139,10 @@ TOperationOptions::TOperationOptions()
     RegisterParameter("min_slice_data_weight", MinSliceDataWeight)
         .Alias("min_slice_data_size")
         .Default(1_MB)
+        .GreaterThan(0);
+
+    RegisterParameter("max_input_table_count", MaxInputTableCount)
+        .Default(3000)
         .GreaterThan(0);
 
     RegisterParameter("max_output_tables_times_jobs_count", MaxOutputTablesTimesJobsCount)
@@ -265,6 +265,9 @@ TControllerAgentConfig::TControllerAgentConfig()
         .Default(TDuration::Seconds(3));
     RegisterParameter("chunk_unstage_period", ChunkUnstagePeriod)
         .Default(TDuration::MilliSeconds(100));
+
+    RegisterParameter("enable_unrecognized_alert", EnableUnrecognizedAlert)
+        .Default(true);
 
     RegisterParameter("max_children_per_attach_request", MaxChildrenPerAttachRequest)
         .Default(10000)
@@ -498,8 +501,17 @@ TControllerAgentConfig::TControllerAgentConfig()
     RegisterParameter("job_spec_slice_throttler", JobSpecSliceThrottler)
         .Default(New<NConcurrency::TThroughputThrottlerConfig>(500000));
 
+    RegisterParameter("static_orchid_cache_update_period", StaticOrchidCacheUpdatePeriod)
+        .Default(TDuration::Seconds(1));
+
     RegisterParameter("cached_running_jobs_update_period", CachedRunningJobsUpdatePeriod)
         .Default();
+
+    RegisterParameter("tagged_memory_statistics_update_period", TaggedMemoryStatisticsUpdatePeriod)
+        .Default(TDuration::Seconds(5));
+
+    RegisterParameter("alerts_update_period", AlertsUpdatePeriod)
+        .Default(TDuration::Seconds(1));
 
     RegisterPreprocessor([&] () {
         EventLog->MaxRowWeight = 128_MB;
@@ -531,6 +543,7 @@ TControllerAgentConfig::TControllerAgentConfig()
         UpdateOptions(&MapReduceOperationOptions, OperationOptions);
         UpdateOptions(&SortOperationOptions, OperationOptions);
         UpdateOptions(&RemoteCopyOperationOptions, OperationOptions);
+        UpdateOptions(&VanillaOperationOptions, OperationOptions);
     });
 }
 

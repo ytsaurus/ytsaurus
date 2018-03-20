@@ -10,7 +10,6 @@
 #include "bootstrap.h"
 
 #include <yt/server/scheduler/config.h>
-#include <yt/server/scheduler/sync_expiring_cache.h>
 #include <yt/server/scheduler/message_queue.h>
 #include <yt/server/scheduler/exec_node.h>
 #include <yt/server/scheduler/helpers.h>
@@ -32,6 +31,8 @@
 #include <yt/core/concurrency/thread_affinity.h>
 #include <yt/core/concurrency/thread_pool.h>
 #include <yt/core/concurrency/throughput_throttler.h>
+
+#include <yt/core/misc/sync_expiring_cache.h>
 
 #include <yt/core/actions/cancelable_context.h>
 
@@ -119,7 +120,7 @@ class TControllerAgent::TImpl
 {
 public:
     TImpl(
-        TSchedulerConfigPtr config, // TODO(babenko): config
+        TControllerAgentConfigPtr config,
         TBootstrap* bootstrap)
         : Config_(config)
         , Bootstrap_(bootstrap)
@@ -142,6 +143,7 @@ public:
             Config_,
             Bootstrap_))
         , SchedulerProxy_(Bootstrap_->GetMasterClient()->GetSchedulerChannel())
+        , MemoryTagQueue_(Config_)
     { }
 
     void Initialize()
@@ -199,7 +201,9 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         if (IncarnationId_ != incarnationId) {
-            THROW_ERROR_EXCEPTION("Invalid incarnation: expected %v, actual %v",
+            THROW_ERROR_EXCEPTION(
+                NRpc::EErrorCode::Unavailable,
+                "Invalid incarnation: expected %v, actual %v",
                 incarnationId,
                 IncarnationId_);
         }
@@ -233,12 +237,45 @@ public:
         return MasterConnector_.get();
     }
 
-    const TSchedulerConfigPtr& GetConfig() const // TODO(babenko): config
+    const TControllerAgentConfigPtr& GetConfig() const
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         return Config_;
     }
+
+    void UpdateConfig(const TControllerAgentConfigPtr& config)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        auto oldConfigNode = ConvertToNode(Config_);
+        auto newConfigNode = ConvertToNode(config);
+        if (AreNodesEqual(oldConfigNode, newConfigNode)) {
+            return;
+        }
+
+        Config_ = config;
+
+        ChunkLocationThrottlerManager_->Reconfigure(Config_->ChunkLocationThrottler);
+
+        EventLogWriter_->UpdateConfig(Config_->EventLog);
+
+        ReconfigurableJobSpecSliceThrottler_->Reconfigure(Config_->JobSpecSliceThrottler);
+
+        if (HeartbeatExecutor_) {
+            HeartbeatExecutor_->SetPeriod(Config_->ControllerAgentHeartbeatPeriod);
+        }
+
+        for (const auto& pair : IdToOperation_) {
+            const auto& operation = pair.second;
+            auto controller = operation->GetController();
+            controller->GetCancelableInvoker()->Invoke(
+                BIND(&IOperationController::UpdateConfig, controller, config));
+        }
+
+        LOG_INFO("Configuration updated");
+    }
+
 
     const TThrottlerManagerPtr& GetChunkLocationThrottlerManager() const
     {
@@ -247,7 +284,7 @@ public:
         return ChunkLocationThrottlerManager_;
     }
 
-    const TCoreDumperPtr& GetCoreDumper() const
+    const ICoreDumperPtr& GetCoreDumper() const
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -561,7 +598,7 @@ public:
     DEFINE_SIGNAL(void(), SchedulerDisconnected);
 
 private:
-    TSchedulerConfigPtr Config_; // TODO(babenko): config
+    TControllerAgentConfigPtr Config_;
     TBootstrap* const Bootstrap_;
 
     const TThreadPoolPtr ControllerThreadPool_;
@@ -590,7 +627,6 @@ private:
     TControllerAgentTrackerServiceProxy SchedulerProxy_;
 
     TInstant LastExecNodesUpdateTime_;
-    TInstant LastConfigUpdateTime_;
     TInstant LastOperationAlertsUpdateTime_;
 
     TIntrusivePtr<TMessageQueueOutbox<TAgentToSchedulerOperationEvent>> OperationEventsOutbox_;
@@ -686,8 +722,6 @@ private:
         LOG_DEBUG("Handshake succeeded");
 
         IncarnationId_ = FromProto<TIncarnationId>(rsp->incarnation_id());
-        // TODO(babenko): config
-        UpdateConfig(ConvertTo<TSchedulerConfigPtr>(TYsonString(rsp->config())));
     }
 
     void OnConnected()
@@ -782,13 +816,11 @@ private:
         JobEventsInbox_.reset();
         OperationEventsInbox_.reset();
         ScheduleJobRequestsInbox_.reset();
-
-        MemoryTagQueue_.Reset();
+        //MemoryTagQueue_.Reset();
     }
 
     TControllerAgentTrackerServiceProxy::TReqHeartbeatPtr PrepareHeartbeatRequest(
         bool* execNodesRequested,
-        bool* configRequested,
         bool* operationAlertsSent)
     {
         auto req = SchedulerProxy_.Heartbeat();
@@ -856,7 +888,6 @@ private:
 
         auto now = TInstant::Now();
         *execNodesRequested = LastExecNodesUpdateTime_ + Config_->ExecNodesUpdatePeriod < now;
-        *configRequested = LastConfigUpdateTime_ + Config_->ConfigUpdatePeriod < now;
         *operationAlertsSent = LastOperationAlertsUpdateTime_ + Config_->OperationAlertsUpdatePeriod < now;
 
         for (const auto& pair : GetOperations()) {
@@ -891,7 +922,6 @@ private:
         }
 
         req->set_exec_nodes_requested(*execNodesRequested);
-        req->set_config_requested(*configRequested);
 
         return req;
     }
@@ -899,14 +929,12 @@ private:
     void SendHeartbeat()
     {
         bool execNodesRequested;
-        bool configRequested;
         bool operationAlertsSent;
         auto req = PrepareHeartbeatRequest(
             &execNodesRequested,
-            &configRequested,
             &operationAlertsSent);
 
-        LOG_DEBUG("Sending heartbeat (ExecNodesRequested: %v, ConfigRequested: %v, OperationAlertsSent: %v)",
+        LOG_DEBUG("Sending heartbeat (ExecNodesRequested: %v, OperationAlertsSent: %v)",
             execNodesRequested,
             operationAlertsSent);
 
@@ -946,11 +974,6 @@ private:
             LOG_DEBUG("Exec node descriptors updated");
         }
 
-        if (rsp->has_config()) {
-            auto config = ConvertTo<TSchedulerConfigPtr>(TYsonString(rsp->config())); // TODO(babenko): config
-            UpdateConfig(config);
-        }
-
         for (const auto& protoOperationId : rsp->operation_ids_to_unregister()) {
             auto operationId = FromProto<TOperationId>(protoOperationId);
             auto operation = FindOperation(operationId);
@@ -965,9 +988,6 @@ private:
         auto now = TInstant::Now();
         if (execNodesRequested) {
             LastExecNodesUpdateTime_ = now;
-        }
-        if (configRequested) {
-            LastConfigUpdateTime_ = now;
         }
         if (operationAlertsSent) {
             LastOperationAlertsUpdateTime_ = now;
@@ -1137,42 +1157,6 @@ private:
         return result;
     }
 
-    void UpdateConfig(const TSchedulerConfigPtr& config) // TODO(babenko): config
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        auto oldConfigNode = ConvertToNode(Config_);
-        auto newConfigNode = ConvertToNode(config);
-        if (AreNodesEqual(oldConfigNode, newConfigNode)) {
-            return;
-        }
-
-        Config_ = config;
-
-        ChunkLocationThrottlerManager_->Reconfigure(Config_->ChunkLocationThrottler);
-
-        EventLogWriter_->UpdateConfig(Config_->EventLog);
-
-        ReconfigurableJobSpecSliceThrottler_->Reconfigure(Config_->JobSpecSliceThrottler);
-
-        if (HeartbeatExecutor_) {
-            HeartbeatExecutor_->SetPeriod(Config_->ControllerAgentHeartbeatPeriod);
-        }
-
-        if (MasterConnector_) {
-            MasterConnector_->UpdateConfig(config);
-        }
-
-        for (const auto& pair : IdToOperation_) {
-            const auto& operation = pair.second;
-            auto controller = operation->GetController();
-            controller->GetCancelableInvoker()->Invoke(
-                BIND(&IOperationController::UpdateConfig, controller, config));
-        }
-
-        LOG_INFO("Configuration updated");
-    }
-
     void BuildStaticOrchid(IYsonConsumer* consumer)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -1193,6 +1177,11 @@ private:
                         });
                 })
                 .Item("config").Value(Config_)
+                .Item("tagged_memory_statistics").BeginAttributes()
+                    .Item("opaque").Value(true)
+                .EndAttributes().DoList([&] (TFluentList fluent) {
+                    MemoryTagQueue_.BuildTaggedMemoryStatistics(fluent);
+                })
             .EndMap();
     }
 };
@@ -1200,7 +1189,7 @@ private:
 ////////////////////////////////////////////////////////////////////
 
 TControllerAgent::TControllerAgent(
-    TSchedulerConfigPtr config, // TODO(babenko): config
+    TControllerAgentConfigPtr config,
     TBootstrap* bootstrap)
     : Impl_(New<TImpl>(std::move(config), bootstrap))
 { }
@@ -1262,9 +1251,14 @@ void TControllerAgent::Disconnect(const TError& error)
     Impl_->Disconnect(error);
 }
 
-const TSchedulerConfigPtr& TControllerAgent::GetConfig() const // TODO(babenko): config
+const TControllerAgentConfigPtr& TControllerAgent::GetConfig() const
 {
     return Impl_->GetConfig();
+}
+
+void TControllerAgent::UpdateConfig(const TControllerAgentConfigPtr& config)
+{
+    Impl_->UpdateConfig(config);
 }
 
 const TThrottlerManagerPtr& TControllerAgent::GetChunkLocationThrottlerManager() const
@@ -1272,7 +1266,7 @@ const TThrottlerManagerPtr& TControllerAgent::GetChunkLocationThrottlerManager()
     return Impl_->GetChunkLocationThrottlerManager();
 }
 
-const TCoreDumperPtr& TControllerAgent::GetCoreDumper() const
+const ICoreDumperPtr& TControllerAgent::GetCoreDumper() const
 {
     return Impl_->GetCoreDumper();
 }

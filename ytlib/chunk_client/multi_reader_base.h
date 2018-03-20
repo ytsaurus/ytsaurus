@@ -36,6 +36,8 @@ public:
 
     virtual NProto::TDataStatistics GetDataStatistics() const override;
 
+    virtual TCodecStatistics GetDecompressionStatistics() const;
+
     virtual std::vector<TChunkId> GetFailedChunkIds() const override;
 
     virtual bool IsFetchingCompleted() const override;
@@ -101,6 +103,7 @@ protected:
 
     TSpinLock ActiveReadersLock_;
     NProto::TDataStatistics DataStatistics_;
+    TCodecStatistics DecompressionStatistics_;
     std::atomic<int> ActiveReaderCount_ = { 0 };
     THashSet<IReaderBasePtr> ActiveReaders_;
     THashSet<int> NonOpenedReaderIndexes_;

@@ -69,11 +69,14 @@ TSchedulerThread::~TSchedulerThread()
 
 void TSchedulerThread::Start()
 {
-    ui64 epoch = Epoch_.load(std::memory_order_acquire);
+    bool alreadyDone = false;
+    ui64 epoch;
     while (true) {
+        epoch = Epoch_.load(std::memory_order_acquire);
         if ((epoch & StartedEpochMask) != 0x0) {
             // Startup already in progress.
-            goto await;
+            alreadyDone = true;
+            break;
         }
         // Acquire startup lock.
         if (Epoch_.compare_exchange_strong(epoch, epoch | StartedEpochMask, std::memory_order_release)) {
@@ -81,58 +84,73 @@ void TSchedulerThread::Start()
         }
     }
 
-    if ((epoch & ShutdownEpochMask) == 0x0) {
-        LOG_DEBUG_IF(EnableLogging_, "Starting thread (Name: %v)", ThreadName_);
+    if (!alreadyDone) {
+        if ((epoch & ShutdownEpochMask) == 0x0) {
+            LOG_DEBUG_IF(EnableLogging_, "Starting thread (Name: %v)", ThreadName_);
 
-        Thread_.Start();
-        ThreadId_ = TThreadId(Thread_.Id());
+            try {
+                Thread_.Start();
+            } catch (const std::exception& ex) {
+                LOG_FATAL(ex, "Error starting %v thread", ThreadName_);
+            }
 
-        OnStart();
-    } else {
-        // Pretend that thread was started and (immediately) stopped.
-        ThreadStartedEvent_.NotifyAll();
+            ThreadId_ = TThreadId(Thread_.Id());
+
+            OnStart();
+        } else {
+            // Pretend that thread was started and (immediately) stopped.
+            ThreadStartedEvent_.NotifyAll();
+        }
     }
 
-await:
     ThreadStartedEvent_.Wait();
 }
 
 void TSchedulerThread::Shutdown()
 {
-    ui64 epoch = Epoch_.load(std::memory_order_acquire);
+    bool alreadyDone = false;
+    ui64 epoch;
     while (true) {
+        epoch = Epoch_.load(std::memory_order_acquire);
         if ((epoch & ShutdownEpochMask) != 0x0) {
             // Shutdown requested; await.
-            goto await;
+            alreadyDone = true;
+            break;
         }
         if (Epoch_.compare_exchange_strong(epoch, epoch | ShutdownEpochMask, std::memory_order_release)) {
             break;
         }
     }
 
-    if ((epoch & StartedEpochMask) != 0x0) {
-        // There is a tiny chance that thread is not started yet, and call to TThread::Join may fail
-        // in this case. Ensure proper event sequencing by synchronizing with thread startup.
-        ThreadStartedEvent_.Wait();
+    if (!alreadyDone) {
+        if ((epoch & StartedEpochMask) != 0x0) {
+            // There is a tiny chance that thread is not started yet, and call to TThread::Join may fail
+            // in this case. Ensure proper event sequencing by synchronizing with thread startup.
+            ThreadStartedEvent_.Wait();
 
-        LOG_DEBUG_IF(EnableLogging_, "Stopping thread (Name: %v)", ThreadName_);
+            LOG_DEBUG_IF(EnableLogging_, "Stopping thread (Name: %v)", ThreadName_);
 
-        CallbackEventCount_->NotifyAll();
+            CallbackEventCount_->NotifyAll();
 
-        BeforeShutdown();
+            BeforeShutdown();
 
-        // Avoid deadlock.
-        YCHECK(TThread::CurrentThreadId() != ThreadId_);
-        Thread_.Join();
+            // Avoid deadlock.
+            YCHECK(TThread::CurrentThreadId() != ThreadId_);
 
-        AfterShutdown();
-    } else {
-        // Thread was not started at all.
+            try {
+                Thread_.Join();
+            } catch (const std::exception& ex) {
+                LOG_FATAL(ex, "Error joining %v thread", ThreadName_);
+            }
+
+            AfterShutdown();
+        } else {
+            // Thread was not started at all.
+        }
+
+        ThreadShutdownEvent_.NotifyAll();
     }
 
-    ThreadShutdownEvent_.NotifyAll();
-
-await:
     ThreadShutdownEvent_.Wait();
 }
 
@@ -205,6 +223,8 @@ void TSchedulerThread::ThreadMainStep()
 
     YCHECK(CurrentFiber_);
 
+    auto savedFiberId = CurrentFiber_->GetId();
+
     switch (CurrentFiber_->GetState()) {
         case EFiberState::Sleeping:
             maybeReleaseIdleFiber();
@@ -231,7 +251,9 @@ void TSchedulerThread::ThreadMainStep()
     }
 
     // Finish sync part of the execution.
+    SetCurrentFiberId(savedFiberId);
     EndExecute();
+    SetCurrentFiberId(InvalidFiberId);
 
     // Check for a clear scheduling state.
     Y_ASSERT(!CurrentFiber_);
@@ -452,7 +474,10 @@ void TSchedulerThread::WaitFor(TFuture<void> future, IInvokerPtr invoker)
     auto fiber = CurrentFiber_.Get();
     YCHECK(fiber);
 
+// Check cancellation after wakeup to reduce sync execution time.
+#if 0
     CheckForCanceledFiber(fiber);
+#endif
 
     // Update scheduling state.
     YCHECK(!WaitForFuture_);

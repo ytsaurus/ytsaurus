@@ -1290,6 +1290,11 @@ public:
         return UnderlyingReader_->GetDataStatistics();
     }
 
+    virtual TCodecStatistics GetDecompressionStatistics() const override
+    {
+        return UnderlyingReader_->GetDecompressionStatistics();
+    }
+
     virtual TFuture<void> Open() override
     {
         return UnderlyingReader_->Open();
@@ -1462,11 +1467,6 @@ IVersionedReaderPtr CreateVersionedChunkReader(
             YCHECK(!ranges.Empty());
 
             auto schemalessReaderFactory = [&] (TNameTablePtr nameTable, const TColumnFilter& columnFilter) {
-                TChunkSpec chunkSpec;
-                auto* protoMeta = chunkSpec.mutable_chunk_meta();
-                protoMeta->set_type(static_cast<int>(chunkMeta->GetChunkType()));
-                protoMeta->set_version(static_cast<int>(chunkMeta->GetChunkFormat()));
-
                 auto options = New<TTableReaderOptions>();
                 options->DynamicTable = true;
 
@@ -1474,16 +1474,8 @@ IVersionedReaderPtr CreateVersionedChunkReader(
                     TReadLimit(TOwningKey(ranges.Front().first)),
                     TReadLimit(TOwningKey(ranges.Back().second)));
 
-                auto chunkState = New<TChunkState>(
-                    blockCache,
-                    chunkSpec,
-                    chunkMeta,
-                    nullptr,
-                    nullptr,
-                    nullptr);
-
                 return CreateSchemalessChunkReader(
-                    std::move(chunkState),
+                    chunkState,
                     config,
                     options,
                     chunkReader,
@@ -1594,24 +1586,11 @@ IVersionedReaderPtr CreateVersionedChunkReader(
             }
 
             auto schemalessReaderFactory = [&] (TNameTablePtr nameTable, const TColumnFilter& columnFilter) {
-                TChunkSpec chunkSpec;
-                auto* protoMeta = chunkSpec.mutable_chunk_meta();
-                protoMeta->set_type(static_cast<int>(chunkMeta->GetChunkType()));
-                protoMeta->set_version(static_cast<int>(chunkMeta->GetChunkFormat()));
-
                 auto options = New<TTableReaderOptions>();
                 options->DynamicTable = true;
 
-                auto chunkState = New<TChunkState>(
-                    blockCache,
-                    chunkSpec,
-                    chunkMeta,
-                    nullptr,
-                    nullptr,
-                    nullptr);
-
                 return CreateSchemalessChunkReader(
-                    std::move(chunkState),
+                    chunkState,
                     config,
                     options,
                     chunkReader,

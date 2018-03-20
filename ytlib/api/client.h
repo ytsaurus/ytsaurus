@@ -292,6 +292,9 @@ struct TTransactionCommitOptions
     //! If |true| then two-phase-commit protocol is executed regardless of the number of participants.
     bool Force2PC = false;
 
+    //! For 2PC, controls is success is reported eagerly or lazyly.
+    ETransactionCoordinatorCommitMode CoordinatorCommitMode = ETransactionCoordinatorCommitMode::Eager;
+
     //! If |true| then all participants will use the commit timestamp provided by the coordinator.
     //! If |false| then the participants will use individual commit timestamps based on their cell tag.
     bool InheritCommitTimestamp = true;
@@ -697,6 +700,8 @@ struct TListJobsOptions
     bool IncludeCypress = true;
     bool IncludeScheduler = true;
     bool IncludeArchive = true;
+
+    TDuration RunningJobsLookbehindPeriod = TDuration::Minutes(1);
 
     TListJobsOptions()
     {

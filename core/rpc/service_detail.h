@@ -280,7 +280,7 @@ public:
     virtual void HandleRequest(
         std::unique_ptr<NProto::TRequestHeader> header,
         TSharedRefArray message,
-        NBus::IBusPtr replyBus) override;
+        NYT::NBus::IBusPtr replyBus) override;
 
     virtual void HandleRequestCancelation(const TRequestId& requestId) override;
 
@@ -535,7 +535,7 @@ private:
 
     TSpinLock CancelableRequestLock_;
     THashMap<TRequestId, TServiceContext*> IdToContext_;
-    THashMap<NBus::IBusPtr, THashSet<TServiceContext*>> ReplyBusToContexts_;
+    THashMap<NYT::NBus::IBusPtr, THashSet<TServiceContext*>> ReplyBusToContexts_;
 
     std::atomic<bool> Stopped_ = {false};
     TPromise<void> StopResult_ = NewPromise<void>();
@@ -543,7 +543,7 @@ private:
 
 
     void OnRequestTimeout(const TRequestId& requestId, bool aborted);
-    void OnReplyBusTerminated(NBus::IBusPtr bus, const TError& error);
+    void OnReplyBusTerminated(NYT::NBus::IBusPtr bus, const TError& error);
 
     static bool TryAcquireRequestSemaphore(const TRuntimeMethodInfoPtr& runtimeInfo);
     static void ReleaseRequestSemaphore(const TRuntimeMethodInfoPtr& runtimeInfo);
@@ -565,7 +565,7 @@ private:
     static TString FormatRequestInfo(
         const TSharedRefArray& message,
         const NProto::TRequestHeader& header,
-        const NBus::IBusPtr& replyBus);
+        const NYT::NBus::IBusPtr& replyBus);
 };
 
 DEFINE_REFCOUNTED_TYPE(TServiceBase)

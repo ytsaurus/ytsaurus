@@ -40,6 +40,8 @@ public:
 
     virtual TDataStatistics GetDataStatistics() const override;
 
+    virtual TCodecStatistics GetDecompressionStatistics() const override;
+
     virtual bool IsFetchingCompleted() const override;
 
     virtual std::vector<TChunkId> GetFailedChunkIds() const override;
@@ -173,6 +175,15 @@ TDataStatistics TSchemalessSortedMergingReaderBase::GetDataStatistics() const
     dataStatistics.set_data_weight(DataWeight_);
 
     return dataStatistics;
+}
+
+TCodecStatistics TSchemalessSortedMergingReaderBase::GetDecompressionStatistics() const
+{
+    TCodecStatistics result;
+    for (const auto& session : SessionHolder_) {
+        result += session.Reader->GetDecompressionStatistics();
+    }
+    return result;
 }
 
 bool TSchemalessSortedMergingReaderBase::IsFetchingCompleted() const

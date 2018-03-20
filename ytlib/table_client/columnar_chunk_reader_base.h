@@ -59,6 +59,7 @@ protected:
 
     virtual TFuture<void> GetReadyEvent() override;
     virtual NChunkClient::NProto::TDataStatistics GetDataStatistics() const override;
+    virtual NChunkClient::TCodecStatistics GetDecompressionStatistics() const override;
     virtual bool IsFetchingCompleted() const override;
     virtual std::vector<NChunkClient::TChunkId> GetFailedChunkIds() const override;
 

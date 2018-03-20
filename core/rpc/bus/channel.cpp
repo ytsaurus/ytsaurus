@@ -1,10 +1,11 @@
-#include "bus_channel.h"
-#include "private.h"
-#include "client.h"
-#include "dispatcher.h"
-#include "message.h"
+#include "channel.h"
 
 #include <yt/core/actions/future.h>
+
+#include <yt/core/rpc/client.h>
+#include <yt/core/rpc/dispatcher.h>
+#include <yt/core/rpc/message.h>
+#include <yt/core/rpc/private.h>
 
 #include <yt/core/bus/bus.h>
 #include <yt/core/bus/config.h>
@@ -15,6 +16,7 @@
 #include <yt/core/concurrency/thread_affinity.h>
 
 #include <yt/core/misc/singleton.h>
+#include <yt/core/misc/tls_cache.h>
 
 #include <yt/core/profiling/profile_manager.h>
 #include <yt/core/profiling/timing.h>
@@ -25,8 +27,9 @@
 
 namespace NYT {
 namespace NRpc {
+namespace NBus {
 
-using namespace NBus;
+using namespace NYT::NBus;
 using namespace NYPath;
 using namespace NYTree;
 using namespace NYson;
@@ -487,21 +490,21 @@ private:
             NProfiling::TSimpleCounter ResponseMessageAttachmentSizeCounter;
         };
 
-        TMethodMetadata* GetMethodMetadata(const TString& service, const TString& method)
+        struct TMethodMetadataProfilingTrait
         {
-            auto key = std::make_pair(service, method);
+            using TKey = std::pair<TString, TString>;
+            using TValue = std::unique_ptr<TMethodMetadata>;
 
+            static TKey ToKey(const TString& service, const TString& method)
             {
-                TReaderGuard guard(CachedMethodMetadataLock_);
-                auto it = CachedMethodMetadata_.find(key);
-                if (it != CachedMethodMetadata_.end()) {
-                    return it->second.get();
-                }
+                return std::make_pair(service, method);
             }
 
+            static TValue ToValue(const TString& service, const TString& method)
             {
-                auto* profilingManager = NProfiling::TProfileManager::Get();
                 auto metadata = std::make_unique<TMethodMetadata>();
+
+                auto* profilingManager = NProfiling::TProfileManager::Get();
                 NProfiling::TTagIdList tagIds{
                     profilingManager->RegisterTag("service", TYsonString(service)),
                     profilingManager->RegisterTag("method", TYsonString(method))
@@ -516,10 +519,13 @@ private:
                 metadata->ResponseMessageBodySizeCounter = NProfiling::TSimpleCounter("/response_message_body_bytes", tagIds);
                 metadata->ResponseMessageAttachmentSizeCounter = NProfiling::TSimpleCounter("/response_message_attachment_bytes", tagIds);
 
-                TWriterGuard guard(CachedMethodMetadataLock_);
-                auto pair = CachedMethodMetadata_.emplace(key, std::move(metadata));
-                return pair.first->second.get();
+                return metadata;
             }
+        };
+
+        TMethodMetadata* GetMethodMetadata(const TString& service, const TString& method)
+        {
+            return GetLocallyGloballyCachedValue<TMethodMetadataProfilingTrait>(service, method).get();
         }
 
     private:
@@ -532,10 +538,6 @@ private:
         TError TerminationError_;
         typedef THashMap<TRequestId, TClientRequestControlPtr> TActiveRequestMap;
         TActiveRequestMap ActiveRequestMap_;
-
-        NConcurrency::TReaderWriterSpinLock CachedMethodMetadataLock_;
-        THashMap<std::pair<TString, TString>, std::unique_ptr<TMethodMetadata>> CachedMethodMetadata_;
-
 
         void OnRequestSerialized(
             const TClientRequestControlPtr& requestControl,
@@ -628,7 +630,7 @@ private:
             requestControl->ProfileRequest(requestMessage);
 
             LOG_DEBUG("Request sent (RequestId: %v, Method: %v:%v, Timeout: %v, TrackingLevel: %v, "
-                "ChecksummedPartCount: %v, MultiplexingBand: %v, Endpoint: %v)",
+                "ChecksummedPartCount: %v, MultiplexingBand: %v, Endpoint: %v, AttachmentSize: %v)",
                 requestId,
                 requestControl->GetService(),
                 requestControl->GetMethod(),
@@ -636,7 +638,8 @@ private:
                 busOptions.TrackingLevel,
                 busOptions.ChecksummedPartCount,
                 options.MultiplexingBand,
-                bus->GetEndpointDescription());
+                bus->GetEndpointDescription(),
+                GetTotalMesageAttachmentSize(requestMessage));
         }
 
         void OnAcknowledgement(const TRequestId& requestId, const TError& error)
@@ -915,5 +918,6 @@ IChannelFactoryPtr CreateBusChannelFactory(TTcpBusConfigPtr config)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NBus
 } // namespace NRpc
 } // namespace NYT

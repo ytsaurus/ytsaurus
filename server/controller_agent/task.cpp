@@ -1,6 +1,7 @@
 #include "task.h"
 
 #include "chunk_list_pool.h"
+#include "config.h"
 #include "job_info.h"
 #include "job_splitter.h"
 #include "job_memory.h"

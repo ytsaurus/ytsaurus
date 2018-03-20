@@ -88,6 +88,11 @@ public:
         Y_UNREACHABLE();
     }
 
+    virtual TCodecStatistics GetDecompressionStatistics() const override
+    {
+        Y_UNIMPLEMENTED();
+    }
+
     virtual bool IsFetchingCompleted() const
     {
         return true;

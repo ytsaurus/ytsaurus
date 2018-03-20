@@ -35,7 +35,7 @@ namespace NTabletNode {
 struct TRuntimeTabletCellData
     : public TIntrinsicRefCounted
 {
-    std::atomic<TTimestamp> MinPrepareTimestamp = {MinTimestamp};
+    std::atomic<TTimestamp> LastBarrierTimestamp = {MinTimestamp};
 };
 
 DEFINE_REFCOUNTED_TYPE(TRuntimeTabletCellData)

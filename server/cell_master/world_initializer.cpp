@@ -205,6 +205,15 @@ private:
                     .EndMap());
 
             ScheduleCreateNode(
+                "//sys/controller_agents",
+                transactionId,
+                EObjectType::MapNode,
+                BuildYsonStringFluently()
+                    .BeginMap()
+                        .Item("opaque").Value(true)
+                    .EndMap());
+
+            ScheduleCreateNode(
                 "//sys/pool_trees",
                 transactionId,
                 EObjectType::MapNode,
@@ -255,6 +264,29 @@ private:
 
             ScheduleCreateNode(
                 "//sys/scheduler/event_log",
+                transactionId,
+                EObjectType::Table,
+                BuildYsonStringFluently()
+                    .BeginMap()
+                        .Item("external").Value(false)
+                    .EndMap());
+            
+            ScheduleCreateNode(
+                "//sys/controller_agents/instances",
+                transactionId,
+                EObjectType::MapNode,
+                BuildYsonStringFluently()
+                    .BeginMap()
+                        .Item("opaque").Value(true)
+                    .EndMap());
+
+            ScheduleCreateNode(
+                "//sys/controller_agents/orchid",
+                transactionId,
+                EObjectType::Orchid);
+
+            ScheduleCreateNode(
+                "//sys/controller_agents/event_log",
                 transactionId,
                 EObjectType::Table,
                 BuildYsonStringFluently()

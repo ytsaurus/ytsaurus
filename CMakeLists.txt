@@ -8,6 +8,7 @@ add_subdirectory(core/test_framework)
 add_subdirectory(ytlib)
 add_subdirectory(run_codec)
 add_subdirectory(python)
+add_subdirectory(tools)
 
 if(YT_BUILD_ENABLE_SERVER_BINARIES)
   add_subdirectory(server)

@@ -8,7 +8,6 @@
 #include "node_shard.h"
 #include "scheduler_strategy.h"
 #include "scheduling_tag.h"
-#include "sync_expiring_cache.h"
 #include "controller_agent_tracker.h"
 #include "controller_agent.h"
 #include "operation_controller.h"
@@ -57,6 +56,7 @@
 #include <yt/core/misc/finally.h>
 #include <yt/core/misc/numeric_helpers.h>
 #include <yt/core/misc/size_literals.h>
+#include <yt/core/misc/sync_expiring_cache.h>
 
 #include <yt/core/net/local_address.h>
 
@@ -538,10 +538,8 @@ public:
                 Config_->MaxOperationCount);
         }
 
-        // Merge operation spec with template
-        auto specTemplate = GetSpecTemplate(type, specNode);
-        if (specTemplate) {
-            specNode = PatchNode(specTemplate, specNode)->AsMap();
+        if (Config_->SpecTemplate) {
+            specNode = PatchNode(Config_->SpecTemplate, specNode)->AsMap();
         }
 
         TOperationSpecBasePtr spec;
@@ -624,7 +622,7 @@ public:
             return operation->GetFinished();
         }
 
-        MasterConnector_->GetCancelableControlInvoker(EControlQueue::Operation)->Invoke(
+        operation->GetCancelableControlInvoker()->Invoke(
             BIND(&TImpl::DoAbortOperation, MakeStrong(this), operation, error));
 
         return operation->GetFinished();
@@ -735,7 +733,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        MasterConnector_->GetCancelableControlInvoker(EControlQueue::Operation)->Invoke(
+        operation->GetCancelableControlInvoker()->Invoke(
             BIND(&TImpl::DoCompleteOperation, MakeStrong(this), operation));
     }
 
@@ -743,7 +741,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        MasterConnector_->GetCancelableControlInvoker(EControlQueue::Operation)->Invoke(
+        operation->GetCancelableControlInvoker()->Invoke(
             BIND(&TImpl::DoAbortOperation, MakeStrong(this), operation, error));
     }
 
@@ -751,7 +749,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        MasterConnector_->GetCancelableControlInvoker()->Invoke(
+        operation->GetCancelableControlInvoker()->Invoke(
             BIND(&TImpl::DoFailOperation, MakeStrong(this), operation, error));
     }
 
@@ -759,7 +757,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        MasterConnector_->GetCancelableControlInvoker()->Invoke(BIND(
+        operation->GetCancelableControlInvoker()->Invoke(BIND(
             &TImpl::DoSuspendOperation,
             MakeStrong(this),
             operation,
@@ -774,6 +772,9 @@ public:
 
         const auto& controller = operation->GetController();
         controller->RevokeAgent();
+
+        Strategy_->UnregisterOperation(operation.Get());
+        Strategy_->RegisterOperation(operation.Get());
 
         operation->Restart();
         operation->SetStateAndEnqueueEvent(EOperationState::Orphaned);
@@ -967,44 +968,33 @@ public:
 
     void MaterializeOperation(const TOperationPtr& operation)
     {
-        // TODO(babenko): consider refactoring
         if (operation->GetState() != EOperationState::Pending) {
             // Operation can be in finishing state already.
             return;
         }
 
+        TFuture<void> asyncResult;
         if (operation->GetRevivedFromSnapshot()) {
             operation->SetStateAndEnqueueEvent(EOperationState::RevivingJobs);
-
-            RegisterJobsFromRevivedOperation(operation)
-                .Subscribe(
-                    BIND([operation, this, this_ = MakeStrong(this)] (const TError& error) {
-                        if (!error.IsOK()) {
-                            return;
-                        }
-                        if (operation->GetState() == EOperationState::RevivingJobs) {
-                            operation->SetStateAndEnqueueEvent(EOperationState::Running);
-                            Strategy_->OnOperationRunning(operation->GetId());
-                        }
-                    })
-                    .Via(operation->GetCancelableControlInvoker()));
+            asyncResult = RegisterJobsFromRevivedOperation(operation);
         } else {
             operation->SetStateAndEnqueueEvent(EOperationState::Materializing);
-
-            const auto& controller = operation->GetController();
-            controller->Materialize()
-                .Subscribe(
-                    BIND([operation, this, this_ = MakeStrong(this)] (const TError& error) {
-                        if (!error.IsOK()) {
-                            return;
-                        }
-                        if (operation->GetState() == EOperationState::Materializing) {
-                            operation->SetStateAndEnqueueEvent(EOperationState::Running);
-                            Strategy_->OnOperationRunning(operation->GetId());
-                        }
-                    })
-                    .Via(operation->GetCancelableControlInvoker()));
+            asyncResult = operation->GetController()->Materialize();
         }
+
+        auto expectedState = operation->GetState();
+        asyncResult.Subscribe(
+            BIND([=, this_ = MakeStrong(this)] (const TError& error) {
+                if (!error.IsOK()) {
+                    return;
+                }
+                if (operation->GetState() != expectedState) {
+                    return;
+                }
+                operation->SetStateAndEnqueueEvent(EOperationState::Running);
+                Strategy_->EnableOperation(operation.Get());
+            })
+            .Via(operation->GetCancelableControlInvoker()));
     }
 
     virtual std::vector<TNodeId> GetExecNodeIds(const TSchedulingTagFilter& filter) const override
@@ -1139,6 +1129,14 @@ private:
     TBootstrap* const Bootstrap_;
 
     const std::unique_ptr<TMasterConnector> MasterConnector_;
+    std::atomic<bool> IsConnected_ = {false};
+
+    //! Ordinal number of this scheduler incarnation. It is used
+    //! to discard late callbacks that are submitted by still
+    //! running controllers.
+    //! This field is incremented on each OnMasterConnected and
+    //! should be accessed only from scheduler control thread.
+    int SchedulerIncarnation_ = -1;
 
     TActionQueuePtr ControllerDtor_ = New<TActionQueue>("ControllerDtor");
 
@@ -1396,7 +1394,7 @@ private:
                     responseKeeper->EndRequest(operation->GetMutationId(), responseMessage);
                 }
 
-                RegisterOperation(operation, true);
+                RegisterOperation(operation, false);
 
                 operation->SetStateAndEnqueueEvent(EOperationState::Orphaned);
                 AddOperationToTransientQueue(operation);
@@ -1478,8 +1476,7 @@ private:
                     .Run());
             }
 
-            // NB: This is the only way we have to induce a barrier preventing a new incarnation
-            // of scheduler from interplaying with the previous one.
+            // XXX(babenko): fiber switch is forbidden here; do we actually need to wait for these results?
             Combine(asyncResults)
                 .Get();
 
@@ -1736,7 +1733,7 @@ private:
     {
         auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_operation_archive_version");
         if (!rspOrError.IsOK()) {
-            LOG_WARNING(rspOrError, "Error getting operation archive version");
+            LOG_INFO(rspOrError, "Error getting operation archive version");
             return;
         }
 
@@ -1839,7 +1836,7 @@ private:
         ValidateOperationState(operation, EOperationState::Starting);
 
         try {
-            // XXX(babenko): now we only validate this on start but not during revival
+            // NB(babenko): now we only validate this on start but not during revival
             Strategy_->ValidateOperationCanBeRegistered(operation.Get());
 
             WaitFor(MasterConnector_->CreateOperationNode(operation))
@@ -1853,7 +1850,7 @@ private:
 
         ValidateOperationState(operation, EOperationState::Starting);
 
-        RegisterOperation(operation, false);
+        RegisterOperation(operation, true);
 
         operation->SetStateAndEnqueueEvent(EOperationState::WaitingForAgent);
         AddOperationToTransientQueue(operation);
@@ -2036,7 +2033,7 @@ private:
         return Combine(asyncResults);
     }
 
-    void RegisterOperation(const TOperationPtr& operation, bool willRevive)
+    void RegisterOperation(const TOperationPtr& operation, bool jobsReady)
     {
         YCHECK(IdToOperation_.emplace(operation->GetId(), operation).second);
 
@@ -2053,14 +2050,20 @@ private:
                 nodeShard,
                 operation->GetId(),
                 operation->GetController(),
-                willRevive));
+                jobsReady));
         }
 
         MasterConnector_->StartOperationNodeUpdates(operation);
+        MasterConnector_->AddOperationWatcherRequester(
+            operation,
+            BIND(&TImpl::RequestOperationRuntimeParams, Unretained(this), operation));
+        MasterConnector_->AddOperationWatcherHandler(
+            operation,
+            BIND(&TImpl::HandleOperationRuntimeParams, Unretained(this), operation));
 
-        LOG_DEBUG("Operation registered (OperationId: %v, WillRevive: %v)",
+        LOG_DEBUG("Operation registered (OperationId: %v, JobsReady: %v)",
             operation->GetId(),
-            willRevive);
+            jobsReady);
     }
 
     void RegisterAssignedOperation(const TOperationPtr& operation)
@@ -2072,13 +2075,6 @@ private:
         const auto& agentTracker = Bootstrap_->GetControllerAgentTracker();
         WaitFor(agentTracker->RegisterOperationAtAgent(operation))
             .ThrowOnError();
-
-        MasterConnector_->AddOperationWatcherRequester(
-            operation,
-            BIND(&TImpl::RequestOperationRuntimeParams, Unretained(this), operation));
-        MasterConnector_->AddOperationWatcherHandler(
-            operation,
-            BIND(&TImpl::HandleOperationRuntimeParams, Unretained(this), operation));
     }
 
     void UnregisterOperation(const TOperationPtr& operation)
@@ -2152,44 +2148,6 @@ private:
             UnregisterOperation(operation);
         }
     }
-
-    INodePtr GetSpecTemplate(EOperationType type, const IMapNodePtr& spec)
-    {
-        switch (type) {
-            case EOperationType::Map:
-                return Config_->MapOperationOptions->SpecTemplate;
-            case EOperationType::Merge: {
-                auto mergeSpec = NControllerAgent::ParseOperationSpec<TMergeOperationSpec>(spec);
-                switch (mergeSpec->Mode) {
-                    case EMergeMode::Unordered:
-                        return Config_->UnorderedMergeOperationOptions->SpecTemplate;
-                    case EMergeMode::Ordered:
-                        return Config_->OrderedMergeOperationOptions->SpecTemplate;
-                    case EMergeMode::Sorted:
-                        return Config_->SortedMergeOperationOptions->SpecTemplate;
-                    default:
-                        Y_UNREACHABLE();
-                }
-            }
-            case EOperationType::Erase:
-                return Config_->EraseOperationOptions->SpecTemplate;
-            case EOperationType::Sort:
-                return Config_->SortOperationOptions->SpecTemplate;
-            case EOperationType::Reduce:
-                return Config_->ReduceOperationOptions->SpecTemplate;
-            case EOperationType::JoinReduce:
-                return Config_->JoinReduceOperationOptions->SpecTemplate;
-            case EOperationType::MapReduce:
-                return Config_->MapReduceOperationOptions->SpecTemplate;
-            case EOperationType::RemoteCopy:
-                return Config_->RemoteCopyOperationOptions->SpecTemplate;
-            case EOperationType::Vanilla:
-                return Config_->VanillaOperationOptions->SpecTemplate;
-            default:
-                Y_UNREACHABLE();
-        }
-    }
-
 
     void DoCompleteOperation(const TOperationPtr& operation)
     {
@@ -2504,7 +2462,9 @@ private:
         const auto& controllerAgentTracker = Bootstrap_->GetControllerAgentTracker();
         auto agents = controllerAgentTracker->GetAgents();
         for (const auto& agent : agents) {
-            builder.AppendString(agent->GetSuspiciousJobsYson().GetData());
+            if (agent->GetState() == EControllerAgentState::Registered) {
+                builder.AppendString(agent->GetSuspiciousJobsYson().GetData());
+            }
         }
         return TYsonString(builder.Flush(), EYsonType::MapFragment);
     }
@@ -2552,7 +2512,10 @@ private:
                 .Item("controller_agents").DoMapFor(Bootstrap_->GetControllerAgentTracker()->GetAgents(), [] (TFluentMap fluent, const auto& agent) {
                     fluent
                         .Item(agent->GetId()).BeginMap()
-                            .Item("incarnation_id").Value(agent->GetIncarnationId())
+                            .Item("state").Value(agent->GetState())
+                            .DoIf(agent->GetState() == EControllerAgentState::Registered, [&] (TFluentMap fluent) {
+                                fluent.Item("incarnation_id").Value(agent->GetIncarnationId());
+                            })
                             .Item("operation_ids").DoListFor(agent->Operations(), [] (TFluentList fluent, const auto& operation) {
                                 fluent.Item().Value(operation->GetId());
                             })
@@ -2630,6 +2593,7 @@ private:
         auto controllerRunningJobs = rsp ? toYsonString(rsp->running_jobs()) : emptyMapFragment;
         auto controllerJobSplitterInfo = rsp ? toYsonString(rsp->job_splitter()) : emptyMapFragment;
         auto controllerMemoryUsage = rsp ? MakeNullable(rsp->controller_memory_usage()) : Null;
+        auto controllerState = rsp ? MakeNullable(static_cast<NControllerAgent::EControllerState>(rsp->controller_state())  ) : Null;
 
         return BuildYsonStringFluently()
             .BeginMap()
@@ -2662,6 +2626,7 @@ private:
                         .Items(controllerJobSplitterInfo)
                     .EndMap()
                 .Item("controller_memory_usage").Value(controllerMemoryUsage)
+                .Item("controller_state").Value(controllerState)
                 .DoIf(!rspOrError.IsOK(), [&] (TFluentMap fluent) {
                     fluent.Item("controller_error").Value(TError(rspOrError));
                 })

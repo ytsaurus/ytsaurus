@@ -2,16 +2,14 @@
 
 #include "public.h"
 
-#include <yt/core/bus/public.h>
-
 namespace NYT {
-namespace NRpc {
+namespace NCoreDump {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IServerPtr CreateBusServer(NBus::IBusServerPtr busServer);
+ICoreDumperPtr CreateCoreDumper(TCoreDumperConfigPtr config);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NRpc
+} // namespace NCoreDump
 } // namespace NYT

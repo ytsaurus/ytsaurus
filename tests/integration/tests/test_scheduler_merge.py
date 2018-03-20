@@ -20,6 +20,12 @@ class TestSchedulerMergeCommands(YTEnvSetup):
             "watchers_update_period": 100,
             "operations_update_period": 10,
             "running_jobs_update_period": 10,
+        }
+    }
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "operations_update_period": 10,
             "sorted_merge_operation_options": {
                 "job_splitter": {
                     "min_job_time": 3000,
@@ -1059,10 +1065,9 @@ class TestSchedulerMergeCommands(YTEnvSetup):
             })
         while True:
             jobs = ls("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op.id))
-            if len(jobs) == 0:
-                sleep(0.1)
-            else:
+            if jobs:
                 break
+            sleep(0.1)
         # Make reader read at least several blocks.
         sleep(0.5)
         assert len(jobs) == 1

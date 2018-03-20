@@ -6,7 +6,7 @@
 
 #include <yt/ytlib/program/config.h>
 
-#include <yt/ytlib/misc/config.h>
+#include <yt/ytlib/core_dump/config.h>
 
 #include <yt/core/net/address.h>
 
@@ -32,7 +32,7 @@ class TServerConfig
 public:
     NBus::TTcpBusServerConfigPtr BusServer;
     NRpc::TServerConfigPtr RpcServer;
-    TCoreDumperConfigPtr CoreDumper;
+    NCoreDump::TCoreDumperConfigPtr CoreDumper;
 
     //! RPC interface port number.
     int RpcPort;

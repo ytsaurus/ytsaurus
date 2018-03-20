@@ -16,16 +16,16 @@ class TestSchedulerMapReduceCommands(YTEnvSetup):
     NUM_SCHEDULERS = 1
     USE_DYNAMIC_TABLES = True
 
-    DELTA_SCHEDULER_CONFIG = {
-      "scheduler" : {
-        "sort_operation_options" : {
-          "min_uncompressed_block_size" : 1
-        },
-        "map_reduce_operation_options" : {
-          "min_uncompressed_block_size" : 1,
-        },
-        "enable_partition_map_job_size_adjustment" : True
-      }
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent" : {
+            "sort_operation_options" : {
+                "min_uncompressed_block_size" : 1
+            },
+            "map_reduce_operation_options" : {
+                "min_uncompressed_block_size" : 1,
+            },
+            "enable_partition_map_job_size_adjustment" : True
+        }
     }
 
     def do_run_test(self, method):
@@ -310,8 +310,8 @@ print "x={0}\ty={1}".format(x, y)
 
         time.sleep(2)
 
-        operation_path = "//sys/operations/{0}".format(op.id)
-        scheduler_transaction_id = get(operation_path + "/@async_scheduler_transaction_id")
+        operation_path = get_operation_path(op.id)
+        scheduler_transaction_id = get("//sys/operations/" + op.id + "/@async_scheduler_transaction_id")
         assert exists(operation_path + "/intermediate", tx=scheduler_transaction_id)
 
         intermediate_acl = get(operation_path + "/intermediate/@acl", tx=scheduler_transaction_id)
@@ -343,9 +343,8 @@ print "x={0}\ty={1}".format(x, y)
                         in_="//tmp/t1", out="//tmp/t2",
                         sort_by=["foo"], spec={"intermediate_compression_codec": "brotli_3"})
         time.sleep(1)
-        operation_path = "//sys/operations/{0}".format(op.id)
-        async_transaction_id = get(operation_path + "/@async_scheduler_transaction_id")
-        assert "brotli_3" == get("//sys/operations/{0}/intermediate/@compression_codec".format(op.id), tx=async_transaction_id)
+        async_transaction_id = get("//sys/operations/" + op.id + "/@async_scheduler_transaction_id")
+        assert "brotli_3" == get(get_operation_path(op.id) + "/intermediate/@compression_codec".format(op.id), tx=async_transaction_id)
         op.abort()
 
     @unix_only

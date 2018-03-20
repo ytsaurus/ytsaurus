@@ -4,12 +4,6 @@
 
 #include <yt/core/actions/future.h>
 
-#include <yt/core/concurrency/public.h>
-
-#include <yt/core/misc/nullable.h>
-
-#include <util/system/mutex.h>
-
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -22,21 +16,13 @@ struct TCoreDump
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCoreDumper
-    : public TRefCounted
+struct ICoreDumper
+    : public virtual TRefCounted
 {
-public:
-    explicit TCoreDumper(const TCoreDumperConfigPtr& config);
-
-    TCoreDump WriteCoreDump(const std::vector<TString>& notes);
-
-private:
-    const TCoreDumperConfigPtr Config_;
-    const NConcurrency::TActionQueuePtr ActionQueue_;
-    TMutex Mutex_;
+    virtual TCoreDump WriteCoreDump(const std::vector<TString>& notes) = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(TCoreDumper)
+DEFINE_REFCOUNTED_TYPE(ICoreDumper)
 
 ////////////////////////////////////////////////////////////////////////////////
 

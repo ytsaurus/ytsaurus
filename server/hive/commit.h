@@ -14,6 +14,7 @@
 #include <yt/core/misc/ref_tracked.h>
 
 #include <yt/core/rpc/public.h>
+#include <yt/ytlib/api/public.h>
 
 namespace NYT {
 namespace NHiveServer {
@@ -40,10 +41,11 @@ public:
     DEFINE_BYREF_RO_PROPERTY(std::vector<TCellId>, ParticipantCellIds);
     DEFINE_BYVAL_RO_PROPERTY(bool, Distributed);
     DEFINE_BYVAL_RO_PROPERTY(bool, InheritCommitTimestamp);
+    DEFINE_BYVAL_RO_PROPERTY(NApi::ETransactionCoordinatorCommitMode, CoordinatorCommitMode);
     DEFINE_BYVAL_RW_PROPERTY(bool, Persistent);
     DEFINE_BYREF_RW_PROPERTY(NHiveClient::TTimestampMap, CommitTimestamps);
-    DEFINE_BYVAL_RW_PROPERTY(ECommitState, TransientState);
-    DEFINE_BYVAL_RW_PROPERTY(ECommitState, PersistentState);
+    DEFINE_BYVAL_RW_PROPERTY(ECommitState, TransientState, ECommitState::Start);
+    DEFINE_BYVAL_RW_PROPERTY(ECommitState, PersistentState, ECommitState::Start);
     DEFINE_BYREF_RW_PROPERTY(THashSet<TCellId>, RespondedCellIds);
 
 public:
@@ -53,7 +55,8 @@ public:
         const NRpc::TMutationId& mutationId,
         const std::vector<TCellId>& participantCellIds,
         bool distributed,
-        bool inheritCommitTimestamp);
+        bool inheritCommitTimestamp,
+        NApi::ETransactionCoordinatorCommitMode coordinatorCommitMode);
 
     TFuture<TSharedRefArray> GetAsyncResponseMessage();
     void SetResponseMessage(TSharedRefArray message);

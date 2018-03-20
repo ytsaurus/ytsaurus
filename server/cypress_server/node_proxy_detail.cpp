@@ -1458,7 +1458,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Copy)
         ThrowCannotMoveFromAnotherTransaction();
     }
 
-    if (sourceTransaction && sourceTransaction->System()) {
+    if (sourceTransaction && sourceTransaction->GetSystem()) {
         ThrowCannotCopyFromSystemTransaction();
     }
 

@@ -527,7 +527,7 @@ public:
         double aggressivePreemptionSatisfactionThreshold,
         int* moveCount);
 
-    bool IsJobExisting(const TJobId& jobId) const;
+    bool IsJobKnown(const TJobId& jobId) const;
 
     bool IsJobPreemptable(const TJobId& jobId, bool aggressivePreemptionEnabled) const;
 
@@ -722,7 +722,7 @@ public:
 
     void IncreaseJobResourceUsage(const TJobId& jobId, const TJobResources& resourcesDelta);
 
-    bool IsJobExisting(const TJobId& jobId) const;
+    bool IsJobKnown(const TJobId& jobId) const;
 
     bool IsJobPreemptable(const TJobId& jobId, bool aggressivePreemptionEnabled) const;
 

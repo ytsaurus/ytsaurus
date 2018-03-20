@@ -1,8 +1,11 @@
 import pytest
-import sys
 
 from yt_env_setup import YTEnvSetup, unix_only, patch_porto_env_only
 from yt_commands import *
+
+from flaky import flaky
+
+import sys
 
 
 ##################################################################
@@ -129,10 +132,20 @@ class TestMemoryReserveFactor(YTEnvSetup):
             "event_log": {
                 "flush_period": 100
             },
-            "user_job_success_rate_quantile_precision" : 0.05
         }
     }
 
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "event_log": {
+                "flush_period": 100
+            },
+            "user_job_memory_digest_precision" : 0.05,
+        }
+    }
+
+    # TODO: remove after fix of YT-8597.
+    @flaky(max_runs=5)
     @unix_only
     def test_memory_reserve_factor(self):
         job_count = 30

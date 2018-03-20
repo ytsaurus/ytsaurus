@@ -27,12 +27,20 @@ DEFINE_ENUM(EUserWorkloadCategory,
 DEFINE_ENUM(EErrorCode,
     ((TooManyConcurrentRequests)                         (1900))
     ((JobArchiveUnavailable)                             (1910))
+    ((NoSuchOperation)                                   (1915))
 );
 
 DEFINE_ENUM(ERowModificationType,
     ((Write)            (0))
     ((Delete)           (1))
     ((VersionedWrite)   (2))
+);
+
+DEFINE_ENUM(ETransactionCoordinatorCommitMode,
+    // Success is reported when phase 2 starts (all participants have prepared but not yet committed).
+    ((Eager)  (0))
+    // Success is reported when transaction is finished (all participants have committed).
+    ((Lazy)   (1))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

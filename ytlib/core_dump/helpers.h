@@ -4,6 +4,8 @@
 
 #include <yt/core/yson/public.h>
 
+#include <yt/core/misc/core_dumper.h>
+
 namespace NYT {
 namespace NCoreDump {
 

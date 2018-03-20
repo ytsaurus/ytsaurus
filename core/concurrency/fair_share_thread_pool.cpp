@@ -15,6 +15,8 @@ namespace NConcurrency {
 
 using namespace NProfiling;
 
+static const auto& Logger = ConcurrencyLogger;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace {
@@ -126,6 +128,8 @@ bool operator < (const THeapItem& lhs, const THeapItem& rhs)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+static constexpr auto LogDurationThreshold = TDuration::Seconds(1);
 
 DECLARE_REFCOUNTED_TYPE(TFairShareQueue)
 
@@ -287,10 +291,26 @@ public:
         int queueSize = QueueSize_.fetch_sub(1, std::memory_order_relaxed) - 1;
         Profiler_.Update(SizeCounter_, queueSize);
 
-        auto timeFromStart = CpuDurationToValue(action->FinishedAt - action->StartedAt);
-        auto timeFromEnqueue = CpuDurationToValue(action->FinishedAt - action->EnqueuedAt);
-        Profiler_.Update(ExecTimeCounter_, timeFromStart);
-        Profiler_.Update(TotalTimeCounter_, timeFromEnqueue);
+        auto timeFromStart = CpuDurationToDuration(action->FinishedAt - action->StartedAt);
+        auto timeFromEnqueue = CpuDurationToDuration(action->FinishedAt - action->EnqueuedAt);
+        Profiler_.Update(ExecTimeCounter_, DurationToValue(timeFromStart));
+        Profiler_.Update(TotalTimeCounter_, DurationToValue(timeFromEnqueue));
+
+        if (timeFromStart > LogDurationThreshold) {
+            LOG_DEBUG("Long execution time (Wait: %v, Execution: %v, Total: %v)",
+                CpuDurationToDuration(action->StartedAt - action->EnqueuedAt),
+                timeFromStart,
+                timeFromEnqueue);
+        }
+
+        auto waitTime = CpuDurationToDuration(action->StartedAt - action->EnqueuedAt);
+
+        if (waitTime > LogDurationThreshold) {
+            LOG_DEBUG("Long wait time (Wait: %v, Execution: %v, Total: %v)",
+                waitTime,
+                timeFromStart,
+                timeFromEnqueue);
+        }
 
         action->Finished = true;
 

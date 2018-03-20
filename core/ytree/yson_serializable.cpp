@@ -96,7 +96,9 @@ void TYsonSerializableLite::Load(
 
     if (UnrecognizedStrategy != EUnrecognizedStrategy::Drop) {
         auto registeredKeys = GetRegisteredKeys();
-        Unrecognized = GetEphemeralNodeFactory()->CreateMap();
+        if (!Unrecognized) {
+            Unrecognized = GetEphemeralNodeFactory()->CreateMap();
+        }
         for (const auto& pair : mapNode->GetChildren()) {
             const auto& key = pair.first;
             auto child = pair.second;

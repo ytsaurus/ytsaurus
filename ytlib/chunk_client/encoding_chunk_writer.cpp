@@ -18,7 +18,7 @@ TEncodingChunkWriter::TEncodingChunkWriter(
     IChunkWriterPtr chunkWriter,
     IBlockCachePtr blockCache,
     const NLogging::TLogger& logger)
-    : ChunkWriter_(chunkWriter)
+    : ChunkWriter_(std::move(chunkWriter))
     , EncodingWriter_(New<TEncodingWriter>(
         config,
         options,
@@ -100,6 +100,11 @@ NProto::TDataStatistics TEncodingChunkWriter::GetDataStatistics() const
         }
         return result;
     }
+}
+
+TCodecStatistics TEncodingChunkWriter::GetCompressionStatistics() const
+{
+    return TCodecStatistics().Append(EncodingWriter_->GetCompressionTime());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

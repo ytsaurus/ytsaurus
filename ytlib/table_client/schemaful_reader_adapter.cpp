@@ -101,6 +101,11 @@ public:
         return UnderlyingReader_->GetDataStatistics();
     }
 
+    NChunkClient::TCodecStatistics GetDecompressionStatistics() const override
+    {
+        return UnderlyingReader_->GetDecompressionStatistics();
+    }
+
 private:
     const ISchemalessReaderPtr UnderlyingReader_;
     const TTableSchema ReaderSchema_;

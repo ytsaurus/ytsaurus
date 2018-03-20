@@ -28,9 +28,9 @@ TColumnarChunkReaderBase::TColumnarChunkReaderBase(
     IChunkReaderPtr underlyingReader,
     IBlockCachePtr blockCache,
     const TReadSessionId& sessionId)
-    : Config_(config)
-    , UnderlyingReader_(underlyingReader)
-    , BlockCache_(blockCache)
+    : Config_(std::move(config))
+    , UnderlyingReader_(std::move(underlyingReader))
+    , BlockCache_(std::move(blockCache))
     , ReadSessionId_(sessionId)
     , Semaphore_(New<TAsyncSemaphore>(Config_->WindowSize))
 { }
@@ -46,6 +46,13 @@ TDataStatistics TColumnarChunkReaderBase::GetDataStatistics() const
     dataStatistics.set_uncompressed_data_size(BlockFetcher_->GetUncompressedDataSize());
     dataStatistics.set_compressed_data_size(BlockFetcher_->GetCompressedDataSize());
     return dataStatistics;
+}
+
+TCodecStatistics TColumnarChunkReaderBase::GetDecompressionStatistics() const
+{
+    return BlockFetcher_
+        ? TCodecStatistics().Append(BlockFetcher_->GetDecompressionTime())
+        : TCodecStatistics();
 }
 
 bool TColumnarChunkReaderBase::IsFetchingCompleted() const

@@ -51,6 +51,8 @@ public:
 
     virtual NProto::TDataStatistics GetDataStatistics() const override;
 
+    virtual TCodecStatistics GetCompressionStatistics() const override;
+
 protected:
     NLogging::TLogger Logger;
     const NApi::INativeClientPtr Client_;
@@ -96,6 +98,7 @@ private:
 
     TSpinLock SpinLock_;
     NProto::TDataStatistics DataStatistics_;
+    TCodecStatistics CodecStatistics;
     std::vector<NChunkClient::NProto::TChunkSpec> WrittenChunks_;
     std::vector<NChunkClient::NProto::TChunkSpec> WrittenChunksFullMeta_;
 

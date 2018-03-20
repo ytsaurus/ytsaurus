@@ -17,6 +17,20 @@ class TOperationDescriptor;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(EControllerAgentAlertType,
+    (UpdateConfig)
+    (UnrecognizedConfigOptions)
+);
+
+DEFINE_ENUM(EControllerState,
+    ((Preparing)(0))
+    ((Running)(1))
+    ((Failing)(2))
+    ((Finished)(3))
+);
+
+////////////////////////////////////////////////////////////////////////////////
+
 using NScheduler::TOperationId;
 using NScheduler::TJobId;
 using NScheduler::TJobResources;
@@ -67,6 +81,7 @@ DECLARE_REFCOUNTED_CLASS(TSuspiciousJobsOptions)
 
 DECLARE_REFCOUNTED_CLASS(TControllerAgent)
 DECLARE_REFCOUNTED_CLASS(TControllerAgentConfig)
+DECLARE_REFCOUNTED_CLASS(TControllerAgentBootstrapConfig)
 
 DECLARE_REFCOUNTED_STRUCT(IOperationControllerHost)
 DECLARE_REFCOUNTED_STRUCT(IOperationController)
@@ -103,10 +118,6 @@ class TDataFlowGraph;
 
 using NScheduler::TIncarnationId;
 using NScheduler::TAgentId;
-
-// XXX(babenko): config
-using TControllerAgentBootstrapConfig = NScheduler::TSchedulerBootstrapConfig;
-using TControllerAgentBootstrapConfigPtr = NScheduler::TSchedulerBootstrapConfigPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 

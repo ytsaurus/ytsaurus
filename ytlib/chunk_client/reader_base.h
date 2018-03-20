@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include "data_statistics.h"
+
 #include <yt/core/actions/future.h>
 
 #include <yt/ytlib/table_client/unversioned_row.h>
@@ -18,6 +20,8 @@ struct IReaderBase
     virtual TFuture<void> GetReadyEvent() = 0;
 
     virtual NProto::TDataStatistics GetDataStatistics() const = 0;
+
+    virtual TCodecStatistics GetDecompressionStatistics() const = 0;
 
     virtual bool IsFetchingCompleted() const = 0;
 

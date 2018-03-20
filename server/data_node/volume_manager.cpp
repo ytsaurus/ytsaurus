@@ -249,6 +249,11 @@ public:
         return GetAvailableSpace() < Config_->LowWatermark;
     }
 
+    i64 GetCapacity()
+    {
+        return std::max<i64>(0, UsedSpace_ + GetAvailableSpace() - Config_->LowWatermark);
+    }
+
 private:
     const TLayerLocationConfigPtr Config_;
     const NCellNode::TBootstrap* Bootstrap_;
@@ -300,7 +305,7 @@ private:
 
     THashSet<TLayerId> LoadLayerIds()
     {
-        auto fileNames = NFS::EnumerateFiles(LayersPath_, std::numeric_limits<int>::max());
+        auto fileNames = NFS::EnumerateFiles(LayersPath_);
         THashSet<TGuid> fileIds;
         for (const auto& fileName : fileNames) {
             if (fileName.EndsWith(NFS::TempFileSuffix)) {
@@ -494,8 +499,9 @@ private:
                 Layers_[id] = layerMeta;
             }
 
-            LOG_DEBUG("Finished importing layer (LayerId: %v, UsedSpace: %v, AvailableSpace: %v)",
+            LOG_INFO("Finished importing layer (LayerId: %v, LayerPath: %v, UsedSpace: %v, AvailableSpace: %v)",
                 id,
+                layerDirectory,
                 UsedSpace_,
                 AvailableSpace_);
 
@@ -521,7 +527,7 @@ private:
         auto layerMetaPath = GetLayerMetaPath(layerId);
 
         try {
-            LOG_DEBUG("Removing layer (LayerId: %v)", layerId);
+            LOG_INFO("Removing layer (LayerId: %v, LayerPath: %v)", layerId, layerPath);
 
             RunTool<TRemoveDirAsRootTool>(layerPath);
             NFS::Remove(layerMetaPath);
@@ -577,7 +583,7 @@ private:
 
             YCHECK(volumeId.Path == mountPath);
 
-            LOG_DEBUG("Volume created (VolumeId: %v)", id);
+            LOG_INFO("Volume created (VolumeId: %v, VolumeMountPath: %v)", id, mountPath);
 
             TVolumeMeta volumeMeta;
             for (const auto& layer : layers) {
@@ -608,7 +614,7 @@ private:
 
             NFS::Rename(tempVolumeMetaFileName, volumeMetaFileName);
 
-            LOG_DEBUG("Volume meta created (VolumeId: %v)", id);
+            LOG_INFO("Volume meta created (VolumeId: %v, MetaFileName: %v)", id, volumeMetaFileName);
 
             auto guard = Guard(SpinLock);
             YCHECK(Volumes_.insert(std::make_pair(id, volumeMeta)).second);
@@ -645,7 +651,10 @@ private:
             RunTool<TRemoveDirAsRootTool>(volumePath);
             NFS::Remove(volumeMetaPath);
 
-            LOG_DEBUG("Volume directory and meta removed (VolumeId: %v)", volumeId);
+            LOG_INFO("Volume directory and meta removed (VolumeId: %v, VolumePath: %v, VolumeMetaPath: %v)",
+                volumeId,
+                volumePath,
+                volumeMetaPath);
 
             auto guard = Guard(SpinLock);
             YCHECK(Volumes_.erase(volumeId) == 1);
@@ -663,23 +672,39 @@ DECLARE_REFCOUNTED_CLASS(TLayerLocation)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+i64 GetCacheCapacity(const std::vector<TLayerLocationPtr>& layerLocations)
+{
+    i64 result = 0;
+    for (const auto& location : layerLocations) {
+        result += location->GetCapacity();
+    }
+    return result;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TLayerLocationPtr DoPickLocation(
     const std::vector<TLayerLocationPtr> locations,
     std::function<bool(const TLayerLocationPtr&, const TLayerLocationPtr&)> isBetter)
 {
     TLayerLocationPtr location;
     for (const auto& candidate : locations) {
-        if (!candidate->IsEnabled() || candidate->IsFull()) {
+        if (!candidate->IsEnabled()) {
             continue;
         }
 
-        if (!location || isBetter(candidate, location)) {
+        if (!location) {
+            location = candidate;
+            continue;
+        }
+
+        if (!candidate->IsFull() && isBetter(candidate, location)) {
             location = candidate;
         }
     }
 
     if (!location) {
-        THROW_ERROR_EXCEPTION("Failed to get layer location; all locations are either disabled of full");
+        THROW_ERROR_EXCEPTION("Failed to get layer location; all locations are disabled");
     }
 
     return location;
@@ -699,7 +724,7 @@ public:
 
     ~TLayer()
     {
-        LOG_DEBUG("Layer is destroyed (LayerId: %v)", LayerMeta_.Id);
+        LOG_INFO("Layer is destroyed (LayerId: %v, LayerPath: %v)", LayerMeta_.Id, LayerMeta_.Path);
         Location_->RemoveLayer(LayerMeta_.Id);
     }
 
@@ -755,7 +780,7 @@ public:
         const std::vector<TLayerLocationPtr>& layerLocations,
         const TBootstrap* bootstrap)
         : TAsyncSlruCacheBase(
-            New<TSlruCacheConfig>(config->GetCacheCapacity()),
+            New<TSlruCacheConfig>(GetCacheCapacity(layerLocations) * config->CacheCapacityFraction),
             NProfiling::TProfiler(DataNodeProfiler.GetPathPrefix() + "/layer_cache"))
         , Bootstrap_(bootstrap)
         , LayerLocations_(layerLocations)
@@ -795,7 +820,10 @@ public:
                     } catch (const std::exception& ex) {
                         cookie_.Cancel(ex);
                     }
-                }));
+                })
+                // We must pass this action through invoker to avoid synchronous execution.
+                // WaitFor calls inside this action can ruin context-switch-free handlers inside TJob.
+                .Via(GetCurrentInvoker()));
         }
 
         return value;
@@ -1017,12 +1045,15 @@ public:
             layerFutures.push_back(LayerCache_->PrepareLayer(layerKey));
         }
 
+        // ToDo(psushin): choose proper invoker.
+        // Avoid sync calls to WaitFor, to please job preparation context switch guards.
         Combine(layerFutures)
             .Subscribe(BIND(
                 &TPortoVolumeManager::OnLayersPrepared,
                 MakeStrong(this),
                 promise,
-                volumeKey));
+                volumeKey)
+            .Via(GetCurrentInvoker()));
 
         // This promise is intentionally uncancelable. If we decide to abort job cancel job preparation
         // this volume will hopefully be reused by another job.
@@ -1096,7 +1127,7 @@ DEFINE_REFCOUNTED_TYPE(TPortoVolumeManager)
 // This dtor is defined after TPortoVolumeManager since it calls RemoveVolume.
 TVolumeState::~TVolumeState()
 {
-    LOG_DEBUG("Destroying volume (VolumeId: %v)", VolumeMeta_.Id);
+    LOG_INFO("Destroying volume (VolumeId: %v)", VolumeMeta_.Id);
 
     std::vector<TArtifactKey> layerKeys;
     for (const auto& layerKey : VolumeMeta_.layer_artifact_keys()) {

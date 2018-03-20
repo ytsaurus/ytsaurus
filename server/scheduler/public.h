@@ -35,7 +35,7 @@ DECLARE_REFCOUNTED_CLASS(TJob)
 using TJobList = std::list<TJobPtr>;
 
 struct TUpdatedJob;
-struct TCompletedJob;
+struct TFinishedJob;
 
 struct TExecNodeDescriptor;
 using TExecNodeDescriptorMap = THashMap<NNodeTrackerClient::TNodeId, TExecNodeDescriptor>;
@@ -48,6 +48,7 @@ DECLARE_REFCOUNTED_CLASS(TControllerAgent)
 DECLARE_REFCOUNTED_CLASS(TFairShareStrategyConfig)
 DECLARE_REFCOUNTED_CLASS(TFairShareStrategyOperationControllerConfig)
 DECLARE_REFCOUNTED_CLASS(TFairShareStrategyTreeConfig)
+DECLARE_REFCOUNTED_CLASS(TTestingOptions)
 DECLARE_REFCOUNTED_CLASS(TSchedulerConfig)
 DECLARE_REFCOUNTED_CLASS(TSchedulerBootstrapConfig)
 

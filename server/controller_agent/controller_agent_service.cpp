@@ -62,6 +62,7 @@ private:
         response->set_running_jobs(result.RunningJobs.GetData());
         response->set_job_splitter(result.JobSplitter.GetData());
         response->set_controller_memory_usage(result.MemoryUsage);
+        response->set_controller_state(static_cast<i32>(result.ControllerState));
 
         context->Reply();
     }

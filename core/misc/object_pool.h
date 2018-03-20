@@ -22,6 +22,7 @@ namespace NYT {
  * Both the pool and the references are thread-safe.
  *
  */
+
 template <class TObject>
 class TObjectPool
 {
@@ -33,14 +34,20 @@ public:
     //! Either creates a fresh instance or returns a pooled one.
     TObjectPtr Allocate();
 
-    //! Calls #TPooledObjectTraits::Clean and returns the instance back into the pool.
-    void Reclaim(TObject* obj);
+    int GetSize() const
+    {
+        return PoolSize_;
+    }
+
+    void Release(size_t count);
 
 private:
     TLockFreeStack<TObject*> PooledObjects_;
     std::atomic<int> PoolSize_ = {0};
 
-    TObject* AllocateInstance();
+    //! Calls #TPooledObjectTraits::Clean and returns the instance back into the pool.
+    void Reclaim(TObject* obj);
+
     void FreeInstance(TObject* obj);
 
     Y_DECLARE_SINGLETON_FRIEND();
@@ -63,13 +70,18 @@ struct TPooledObjectTraits
 { };
 
 //! Basic version of traits. Others may consider inheriting from it.
+template <class TObject>
 struct TPooledObjectTraitsBase
 {
-    template <class TObject>
+    static TObject* Allocate()
+    {
+        return new TObject();
+    }
+
     static void Clean(TObject*)
     { }
 
-    static int GetMaxPoolSize()
+    static size_t GetMaxPoolSize()
     {
         return 256;
     }

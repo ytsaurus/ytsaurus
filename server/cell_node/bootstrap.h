@@ -157,7 +157,7 @@ private:
     NDataNode::TMasterConnectorPtr MasterConnector;
     NHiveClient::TClusterDirectoryPtr ClusterDirectory;
     NHiveClient::TClusterDirectorySynchronizerPtr ClusterDirectorySynchronizer;
-    TCoreDumperPtr CoreDumper;
+    ICoreDumperPtr CoreDumper;
 
     NConcurrency::IThroughputThrottlerPtr TotalInThrottler;
     NConcurrency::IThroughputThrottlerPtr TotalOutThrottler;

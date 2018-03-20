@@ -66,6 +66,11 @@ public:
         return UnderlyingReader_->GetDataStatistics();
     }
 
+    virtual TCodecStatistics GetDecompressionStatistics() const override
+    {
+        return UnderlyingReader_->GetDecompressionStatistics();
+    }
+
     virtual bool IsFetchingCompleted() const override
     {
         Y_UNREACHABLE();

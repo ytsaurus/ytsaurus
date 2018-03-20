@@ -29,6 +29,8 @@
 
 #include <yt/ytlib/security_client/public.h>
 
+#include <yt/ytlib/core_dump/core_dumper.h>
+
 #include <yt/core/bus/config.h>
 #include <yt/core/bus/server.h>
 #include <yt/core/bus/tcp_server.h>
@@ -48,8 +50,8 @@
 
 #include <yt/core/profiling/profile_manager.h>
 
-#include <yt/core/rpc/bus_channel.h>
-#include <yt/core/rpc/bus_server.h>
+#include <yt/core/rpc/bus/channel.h>
+#include <yt/core/rpc/bus/server.h>
 #include <yt/core/rpc/response_keeper.h>
 #include <yt/core/rpc/retrying_channel.h>
 #include <yt/core/rpc/server.h>
@@ -135,7 +137,7 @@ void TBootstrap::DoRun()
 
     BusServer_ = CreateTcpBusServer(Config_->BusServer);
 
-    RpcServer_ = CreateBusServer(BusServer_);
+    RpcServer_ = NRpc::NBus::CreateBusServer(BusServer_);
 
     Config_->MonitoringServer->Port = Config_->MonitoringPort;
     Config_->MonitoringServer->BindRetryCount = Config_->BusServer->BindRetryCount;
@@ -153,7 +155,7 @@ void TBootstrap::DoRun()
         SchedulerProfiler);
 
     if (Config_->CoreDumper) {
-        CoreDumper_ = New<TCoreDumper>(Config_->CoreDumper);
+        CoreDumper_ = NCoreDump::CreateCoreDumper(Config_->CoreDumper);
     }
 
     MonitoringManager_ = New<TMonitoringManager>();
@@ -254,7 +256,7 @@ const TResponseKeeperPtr& TBootstrap::GetResponseKeeper() const
     return ResponseKeeper_;
 }
 
-const TCoreDumperPtr& TBootstrap::GetCoreDumper() const
+const ICoreDumperPtr& TBootstrap::GetCoreDumper() const
 {
     return CoreDumper_;
 }

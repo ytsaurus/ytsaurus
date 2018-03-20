@@ -2,11 +2,15 @@
 
 #include "public.h"
 
+#include <yt/server/misc/config.h>
+
 #include <yt/ytlib/chunk_client/config.h>
 
 #include <yt/ytlib/api/config.h>
 
 #include <yt/ytlib/event_log/config.h>
+
+#include <yt/ytlib/node_tracker_client/config.h>
 
 #include <yt/core/concurrency/config.h>
 
@@ -49,23 +53,12 @@ DEFINE_REFCOUNTED_TYPE(TIntermediateChunkScraperConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO(babenko): split further
 class TTestingOptions
     : public NYTree::TYsonSerializable
 {
 public:
-    // Testing options that enables random master disconnections.
-    bool EnableRandomMasterDisconnection;
-    TDuration RandomMasterDisconnectionMaxBackoff;
-
-    // Testing option that enables sleeping during master disconnect.
-    TNullable<TDuration> MasterDisconnectDelay;
-
     // Testing option that enables snapshot build/load cycle after operation materialization.
     bool EnableSnapshotCycleAfterMaterialization;
-
-    // Testing option that enables sleeping between intermediate and final states of operation.
-    TNullable<TDuration> FinishOperationTransitionDelay;
 
     TTestingOptions();
 };
@@ -126,6 +119,7 @@ public:
     TDuration MedianExcessDuration;
     double CandidatePercentile;
     int MaxJobsPerSplit;
+    int MaxInputTableCount;
 
     TJobSplitterConfig();
 };
@@ -181,6 +175,8 @@ public:
 
     i64 MaxSliceDataWeight;
     i64 MinSliceDataWeight;
+
+    int MaxInputTableCount;
 
     //! Maximum number of output tables times job count an operation can have.
     int MaxOutputTablesTimesJobsCount;
@@ -427,6 +423,8 @@ public:
     TDuration OperationsUpdatePeriod;
     TDuration ChunkUnstagePeriod;
 
+    bool EnableUnrecognizedAlert;
+
     //! Maximum number of chunk trees to attach per request.
     int MaxChildrenPerAttachRequest;
 
@@ -608,7 +606,6 @@ public:
     //! Chunk size in per-controller row buffers.
     i64 ControllerRowBufferChunkSize;
 
-    //! Some special options for testing purposes.
     TTestingOptionsPtr TestingOptions;
 
     NCompression::ECodec JobSpecCodec;
@@ -630,7 +627,12 @@ public:
     //! Controls the rate at which jobs are scheduled in termes of slices per second.
     NConcurrency::TThroughputThrottlerConfigPtr JobSpecSliceThrottler;
 
+    // Period of tagged memory statistics section update.
+    TDuration TaggedMemoryStatisticsUpdatePeriod;
 
+    TDuration StaticOrchidCacheUpdatePeriod;
+
+    TDuration AlertsUpdatePeriod;
 
     TControllerAgentConfig();
 
@@ -640,6 +642,37 @@ private:
 };
 
 DEFINE_REFCOUNTED_TYPE(TControllerAgentConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TControllerAgentBootstrapConfig
+    : public TServerConfig
+{
+public:
+    //! Node-to-master connection.
+    NApi::TNativeConnectionConfigPtr ClusterConnection;
+
+    //! Node directory synchronization.
+    NNodeTrackerClient::TNodeDirectorySynchronizerConfigPtr NodeDirectorySynchronizer;
+
+    NControllerAgent::TControllerAgentConfigPtr ControllerAgent;
+
+    //! Known scheduler addresses.
+    NNodeTrackerClient::TNetworkAddressList Addresses;
+
+    TControllerAgentBootstrapConfig()
+    {
+        RegisterParameter("cluster_connection", ClusterConnection);
+        RegisterParameter("node_directory_synchronizer", NodeDirectorySynchronizer)
+            .DefaultNew();
+        RegisterParameter("controller_agent", ControllerAgent)
+            .DefaultNew();
+        RegisterParameter("addresses", Addresses)
+            .Default();
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TControllerAgentBootstrapConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

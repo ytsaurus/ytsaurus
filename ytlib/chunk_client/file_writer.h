@@ -7,7 +7,6 @@
 #include <yt/ytlib/chunk_client/chunk_meta.pb.h>
 
 #include <util/system/file.h>
-#include <util/system/direct_io.h>
 
 namespace NYT {
 namespace NChunkClient {
@@ -20,6 +19,7 @@ class TFileWriter
 {
 public:
     TFileWriter(
+        const IIOEnginePtr& ioEngine,
         const TChunkId& chunkId,
         const TString& fileName,
         bool syncOnClose = true,
@@ -59,6 +59,7 @@ public:
     i64 GetDataSize() const;
 
 private:
+    const IIOEnginePtr IOEngine_;
     const TChunkId ChunkId_;
     const TString FileName_;
     const bool SyncOnClose_;
@@ -68,9 +69,11 @@ private:
     bool IsClosed_ = false;
     i64 DataSize_ = 0;
 
-    // Classes don't share common interface.
-    std::unique_ptr<TFile> DataFile_;
-    std::unique_ptr<TDirectIOBufferedFile> DirectIOFile_;
+    TSharedMutableRef Buffer_;
+    i64 BufferPosition_ = 0;
+    const i64 Alignment_ = 4096;
+
+    std::shared_ptr<TFileHandle> DataFile_;
 
     NChunkClient::NProto::TChunkInfo ChunkInfo_;
     NChunkClient::NProto::TBlocksExt BlocksExt_;
