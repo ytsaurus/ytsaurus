@@ -5,20 +5,19 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 
 import com.google.common.collect.Sets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import ru.yandex.bolts.collection.Tuple2;
-import ru.yandex.misc.ExceptionUtils;
 import ru.yandex.yt.ytclient.bus.BusConnector;
 import ru.yandex.yt.ytclient.bus.DefaultBusFactory;
 import ru.yandex.yt.ytclient.rpc.DefaultRpcBusClient;
@@ -31,25 +30,49 @@ public class PeriodicDiscovery {
     private final Map<String, DiscoveryServiceClient> proxies;
     private final Duration updatePeriod;
     private final Random rnd;
+    private final List<String> initialAddresses;
 
     public PeriodicDiscovery(List<String> initialAddresses, BusConnector connector, Duration updatePeriod) {
         this.connector = connector;
         this.updatePeriod = updatePeriod;
         this.rnd = new Random();
+        this.initialAddresses = initialAddresses;
+        this.proxies = new HashMap<>();
 
-        proxies = initialAddresses.stream().map(x -> {
-            try {
-                return new Tuple2<>(x, createDiscoveryServiceClient(x));
-            } catch (Exception e) {
-                throw ExceptionUtils.translate(e);
-            }
-        }).collect(Collectors.toMap(Tuple2::get1, Tuple2::get2));
-
+        addProxies(initialAddresses);
         updateProxies();
     }
 
     public Set<String> getAddresses() {
         return proxies.keySet();
+    }
+
+    private void removeProxies(Collection<String> list) {
+        for (String addr : list) {
+            try {
+                DiscoveryServiceClient client = proxies.remove(addr);
+                if (client != null) {
+                    logger.info("Proxy removed: {}", addr);
+                    client.getClient().close();
+                } else {
+                    logger.warn("Cannot remove proxy: {}", addr);
+                }
+            } catch (Throwable e) {
+                logger.error("Error on proxy remove {}: {}", addr, e);
+            }
+        }
+    }
+
+    private void addProxies(Collection<String> list) {
+        for (String addr : list) {
+            try {
+                DiscoveryServiceClient client = createDiscoveryServiceClient(addr);
+                logger.info("New proxy added: {}", addr);
+                proxies.put(addr, client);
+            } catch (Throwable e) {
+                logger.error("Error on address parse {}: {}", addr, e);
+            }
+        }
     }
 
     private DiscoveryServiceClient createDiscoveryServiceClient(String addr) throws URISyntaxException {
@@ -81,28 +104,12 @@ public class PeriodicDiscovery {
         Set<String> removed = Sets.difference(addresses, list).immutableCopy();
         Set<String> added = Sets.difference(list, addresses).immutableCopy();
 
-        for (String addr : removed) {
-            try {
-                DiscoveryServiceClient client = proxies.remove(addr);
-                if (client != null) {
-                    logger.info("Proxy removed: {}", addr);
-                    client.getClient().close();
-                } else {
-                    logger.warn("Cannot remove proxy: {}", addr);
-                }
-            } catch (Throwable e) {
-                logger.error("Error on proxy remove {}: {}", addr, e);
-            }
-        }
+        removeProxies(removed);
+        addProxies(added);
 
-        for (String addr : added) {
-            try {
-                DiscoveryServiceClient client = createDiscoveryServiceClient(addr);
-                logger.info("New proxy added: {}", addr);
-                proxies.put(addr, client);
-            } catch (Throwable e) {
-                logger.error("Error on address parse {}: {}", addr, e);
-            }
+        if (proxies.isEmpty()) {
+            logger.warn("Empty proxies list. Bootstraping from the initial list: {}", initialAddresses);
+            addProxies(initialAddresses);
         }
     }
 
