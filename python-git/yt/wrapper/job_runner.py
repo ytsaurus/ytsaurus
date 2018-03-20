@@ -20,6 +20,7 @@ SCRIPT_DIR = os.path.dirname(__file__)
 if PY3:
     def iteritems(d):
         return iter(d.items())
+    xrange = range
 else:
     def iteritems(d):
         return d.iteritems()
