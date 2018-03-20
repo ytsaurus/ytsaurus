@@ -240,7 +240,6 @@ private:
     void DecreasePendingIOSize(EIODirection direction, EIOCategory category, i64 delta);
     void UpdatePendingIOSize(EIODirection direction, EIOCategory category, i64 delta);
 
-    void ValidateLockFile();
     void ValidateWritable();
 
     void OnHealthCheckFailed(const TError& error);
