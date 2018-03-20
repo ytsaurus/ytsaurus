@@ -21,6 +21,8 @@
 
 #include <yt/core/concurrency/action_queue.h>
 
+#include <yt/core/logging/log_manager.h>
+
 #include <yt/core/misc/async_cache.h>
 #include <yt/core/misc/checksum.h>
 #include <yt/core/misc/fs.h>
@@ -136,6 +138,8 @@ public:
             Logger);
 
         try {
+            ValidateLockFile();
+
             // Volumes are not expected to be used since all jobs must be dead by now.
             auto volumes = WaitFor(Executor_->ListVolumes())
                 .ValueOrThrow();
@@ -160,10 +164,8 @@ public:
 
             LoadLayers();
         } catch (const std::exception& ex) {
-            auto error = TError("Failed to initialize layer location %v", Config_->Path)
+            THROW_ERROR_EXCEPTION("Failed to initialize layer location %v", Config_->Path)
                 << ex;
-            Disable(error);
-            return;
         }
 
         HealthChecker_->SubscribeFailed(BIND(&TLayerLocation::Disable, MakeWeak(this))
@@ -213,8 +215,9 @@ public:
 
     void Disable(const TError& error)
     {
-        if (!Enabled_.exchange(false))
-            return;
+        if (!Enabled_.exchange(false)) {
+            Sleep(TDuration::Max());
+        }
 
         // Save the reason in a file and exit.
         // Location will be disabled during the scan in the restart process.
@@ -229,6 +232,8 @@ public:
             // Exit anyway.
         }
 
+        LOG_ERROR("Volume manager disabled; Terminating");
+        NLogging::TLogManager::Get()->Shutdown();
         _exit(1);
     }
 
@@ -987,15 +992,17 @@ public:
         for (int index = 0; index < config->LayerLocations.size(); ++index) {
             const auto& locationConfig = config->LayerLocations[index];
             auto id = Format("layers_%v", index);
-            auto location = New<TLayerLocation>(
-                locationConfig,
-                bootstrap->GetConfig()->DataNode->DiskHealthChecker,
-                Executor_,
-                id);
-            if (location->IsEnabled()) {
+
+            try {
+                auto location = New<TLayerLocation>(
+                    locationConfig,
+                    bootstrap->GetConfig()->DataNode->DiskHealthChecker,
+                    Executor_,
+                    id);
                 Locations_.push_back(location);
-            } else {
-                auto error = TError("Layer location at %v is disabled", locationConfig->Path);
+            } catch (const std::exception& ex) {
+                auto error = TError("Layer location at %v is disabled", locationConfig->Path)
+                    << ex;
                 LOG_WARNING(error);
                 auto masterConnector = bootstrap->GetMasterConnector();
                 masterConnector->RegisterAlert(error);
