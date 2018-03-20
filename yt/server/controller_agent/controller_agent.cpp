@@ -10,7 +10,6 @@
 #include "bootstrap.h"
 
 #include <yt/server/scheduler/config.h>
-#include <yt/server/scheduler/sync_expiring_cache.h>
 #include <yt/server/scheduler/message_queue.h>
 #include <yt/server/scheduler/exec_node.h>
 #include <yt/server/scheduler/helpers.h>
@@ -32,6 +31,8 @@
 #include <yt/core/concurrency/thread_affinity.h>
 #include <yt/core/concurrency/thread_pool.h>
 #include <yt/core/concurrency/throughput_throttler.h>
+
+#include <yt/core/misc/sync_expiring_cache.h>
 
 #include <yt/core/actions/cancelable_context.h>
 

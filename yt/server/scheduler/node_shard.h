@@ -3,7 +3,6 @@
 #include "private.h"
 #include "scheduler.h"
 #include "scheduling_tag.h"
-#include "sync_expiring_cache.h"
 
 #include <yt/ytlib/api/client.h>
 
@@ -20,6 +19,8 @@
 #include <yt/core/ytree/fluent.h>
 
 #include <yt/core/yson/public.h>
+
+#include <yt/core/misc/sync_expiring_cache.h>
 
 namespace NYT {
 namespace NScheduler {
