@@ -3069,7 +3069,7 @@ void TScheduler::OnOperationSuspended(const TOperationPtr& operation, const TErr
     Impl_->OnOperationSuspended(operation, error);
 }
 
-void TScheduler::OnOperatonAgentUnregistered(const TOperationPtr& operation)
+void TScheduler::OnOperationAgentUnregistered(const TOperationPtr& operation)
 {
     Impl_->OnOperationAgentUnregistered(operation);
 }
