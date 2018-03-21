@@ -193,7 +193,7 @@ TConfig::TConfig()
 
     JobBinary = GetEnv("YT_JOB_BINARY");
 
-    UseClientProtobuf = GetBool("YT_USE_CLIENT_PROTOBUF", true);
+    UseClientProtobuf = GetBool("YT_USE_CLIENT_PROTOBUF", false);
 
     MountSandboxInTmpfs = GetBool("YT_MOUNT_SANDBOX_IN_TMPFS");
 

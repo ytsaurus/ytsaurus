@@ -17,6 +17,7 @@
 #include <util/folder/dirut.h>
 #include <util/generic/singleton.h>
 #include <util/string/cast.h>
+#include <util/string/type.h>
 #include <util/system/env.h>
 
 namespace NYT {
@@ -151,6 +152,11 @@ void Initialize(int argc, const char* argv[], const TInitializeOptions& options)
         WriteVersionToLog();
         return;
     }
+
+    // Now we are definitely in job.
+    // We take this setting from environment variable to
+    // be consistent with client code.
+    TConfig::Get()->UseClientProtobuf = IsTrue(GetEnv("YT_USE_CLIENT_PROTOBUF", ""));
 
     TString jobType = argv[1];
     if (argc != 5 || jobType != "--yt-map" && jobType != "--yt-reduce") {
