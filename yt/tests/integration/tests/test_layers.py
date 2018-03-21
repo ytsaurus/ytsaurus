@@ -6,6 +6,7 @@ from yt.environment.porto_helpers import porto_avaliable
 import pytest
 import inspect
 import os
+import time
 
 @pytest.mark.skip_if('not porto_avaliable()')
 class TestLayers(YTEnvSetup):
@@ -65,6 +66,8 @@ class TestLayers(YTEnvSetup):
         os.unlink(disabled_path + "/disabled")
         self.Env.start_nodes(sync=True)
         self.wait_for_nodes()
+
+        time.sleep(5)
 
     @require_ytserver_root_privileges
     def test_corrupted_layer(self):
