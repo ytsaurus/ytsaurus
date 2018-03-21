@@ -756,7 +756,7 @@ class ConfigsProvider_19_3(ConfigsProvider_19_2):
             config = default_configs.get_scheduler_config()
             config["controller_agent"] = config["scheduler"]
             del config["scheduler"]
-            
+
             for field in ("orchid_keys_update_period", "nodes_attributes_update_period",
                           "fair_share_update_period", "update_exec_node_descriptors_period",
                           "min_needed_resources_update_period",
