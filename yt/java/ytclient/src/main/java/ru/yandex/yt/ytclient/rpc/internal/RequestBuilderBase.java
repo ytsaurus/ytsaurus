@@ -6,24 +6,29 @@ import java.util.concurrent.CompletableFuture;
 
 import com.google.protobuf.MessageLite;
 
+import ru.yandex.bolts.collection.Option;
+import ru.yandex.bolts.collection.Tuple2;
 import ru.yandex.yt.rpc.TRequestHeader;
 import ru.yandex.yt.ytclient.rpc.RpcClient;
 import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
 import ru.yandex.yt.ytclient.rpc.RpcClientRequestControl;
 import ru.yandex.yt.ytclient.rpc.RpcClientResponseHandler;
+import ru.yandex.yt.ytclient.rpc.RpcOptions;
 import ru.yandex.yt.ytclient.rpc.RpcUtil;
 
 public abstract class RequestBuilderBase<RequestType extends MessageLite.Builder, ResponseType> implements RpcClientRequestBuilder<RequestType, ResponseType> {
-    private final RpcClient client;
+    private final Option<RpcClient> clientOpt;
     private final TRequestHeader.Builder header;
     private final RequestType body;
     private final List<byte[]> attachments = new ArrayList<>();
     private boolean requestAck = true;
+    private final RpcOptions options;
 
-    protected RequestBuilderBase(RpcClient client, TRequestHeader.Builder header, RequestType body) {
-        this.client = client;
+    protected RequestBuilderBase(Option<RpcClient> clientOpt, TRequestHeader.Builder header, RequestType body, RpcOptions options) {
+        this.clientOpt = clientOpt;
         this.header = header;
         this.body = body;
+        this.options = options;
     }
 
     @Override
@@ -60,9 +65,52 @@ public abstract class RequestBuilderBase<RequestType extends MessageLite.Builder
     public CompletableFuture<ResponseType> invoke() {
         CompletableFuture<ResponseType> result = new CompletableFuture<>();
         RpcClientResponseHandler handler = createHandler(result);
-        RpcClientRequestControl control = client.send(this, handler);
+        if (clientOpt.isPresent()) {
+            RpcClientRequestControl control = clientOpt.get().send(this, handler);
+            result.whenComplete((ignoredResult, ignoredException) -> control.cancel());
+            return result;
+        } else {
+            throw new IllegalStateException("client is not set");
+        }
+    }
+
+    @Override
+    public CompletableFuture<ResponseType> invokeVia(List<RpcClient> clients) {
+        CompletableFuture<ResponseType> result = new CompletableFuture<>();
+        RpcClientResponseHandler handler = createHandler(result);
+        RpcClientRequestControl control = sendVia(handler, clients);
         result.whenComplete((ignoredResult, ignoredException) -> control.cancel());
         return result;
+    }
+
+    private RpcClientRequestControl sendVia(RpcClientResponseHandler handler, List<RpcClient> clients)
+    {
+        CompletableFuture<Tuple2<RpcClient, List<byte[]>>> f = new CompletableFuture<>();
+
+        if (clients.isEmpty()) {
+            throw new IllegalStateException("empty client list");
+        }
+
+        BalancingResponseHandler h = new BalancingResponseHandler(
+                clients.get(0).executor(),
+                options.getFailoverPolicy(),
+                options.getGlobalTimeout(),
+                options.getFailoverTimeout(),
+                f,
+                this,
+                clients,
+                options.getMetricsHolder());
+
+        f.whenComplete((result, error) -> {
+            h.cancel();
+            if (error == null) {
+                handler.onResponse(result.get1(), result.get2());
+            } else {
+                handler.onError(result.get1(), error);
+            }
+        });
+
+        return () -> f.cancel(true);
     }
 
     protected abstract RpcClientResponseHandler createHandler(CompletableFuture<ResponseType> result);

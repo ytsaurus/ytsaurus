@@ -1,9 +1,7 @@
 package ru.yandex.yt.ytclient.rpc.internal;
 
 import java.util.Objects;
-import java.util.concurrent.Callable;
-import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.ScheduledExecutorService;
 
 import ru.yandex.yt.rpc.TRequestHeader;
 import ru.yandex.yt.rpcproxy.TCredentialsExt;
@@ -32,7 +30,7 @@ public class TokenAuthentication implements RpcClient {
     }
 
     @Override
-    public RpcClientRequestControl send(RpcClientRequest request, RpcClientResponseHandler handler) {
+    public RpcClientRequestControl send(RpcClient sender, RpcClientRequest request, RpcClientResponseHandler handler) {
         TRequestHeader.Builder header = request.header();
         if (!header.hasUser()) {
             header.setUser(user);
@@ -43,7 +41,7 @@ public class TokenAuthentication implements RpcClient {
                     .setUserIp(getLocalAddress())
                     .build());
         }
-        return client.send(request, handler);
+        return client.send(this, request, handler);
     }
 
     private static String getLocalAddress() {
@@ -62,10 +60,7 @@ public class TokenAuthentication implements RpcClient {
     }
 
     @Override
-    public <V> ScheduledFuture<V> schedule(
-            Callable<V> callable,
-            long delay, TimeUnit unit)
-    {
-        return client.schedule(callable, delay, unit);
+    public ScheduledExecutorService executor() {
+        return client.executor();
     }
 }

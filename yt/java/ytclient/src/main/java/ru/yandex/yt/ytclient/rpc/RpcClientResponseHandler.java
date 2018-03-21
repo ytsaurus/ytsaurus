@@ -13,15 +13,15 @@ public interface RpcClientResponseHandler {
      * <p>
      * Вызов метода не гарантируется, может быть вызван параллельно с onResponse/onError
      */
-    void onAcknowledgement();
+    void onAcknowledgement(RpcClient sender);
 
     /**
      * Вызывается при получении сырого успешного ответа
      */
-    void onResponse(List<byte[]> attachments);
+    void onResponse(RpcClient sender, List<byte[]> attachments);
 
     /**
      * Вызывается в случае ошибок
      */
-    void onError(Throwable error);
+    void onError(RpcClient sender, Throwable error);
 }

@@ -2,10 +2,8 @@ package ru.yandex.yt.ytclient.rpc.internal;
 
 import java.util.Arrays;
 import java.util.List;
-import java.util.concurrent.Callable;
 import java.util.concurrent.CompletionException;
-import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.ScheduledExecutorService;
 
 import org.junit.Rule;
 import org.junit.Test;
@@ -46,9 +44,9 @@ public class RpcServiceClientTest {
         }
 
         @Override
-        public RpcClientRequestControl send(RpcClientRequest request, RpcClientResponseHandler handler) {
+        public RpcClientRequestControl send(RpcClient unused, RpcClientRequest request, RpcClientResponseHandler handler) {
             request.serialize();
-            handler.onResponse(attachments);
+            handler.onResponse(this, attachments);
             return () -> false;
         }
 
@@ -58,10 +56,7 @@ public class RpcServiceClientTest {
         }
 
         @Override
-        public <V> ScheduledFuture<V> schedule(
-                Callable<V> callable,
-                long delay, TimeUnit unit)
-        {
+        public ScheduledExecutorService executor() {
             throw new IllegalArgumentException("unreachable");
         }
     }
@@ -79,9 +74,9 @@ public class RpcServiceClientTest {
         }
 
         @Override
-        public RpcClientRequestControl send(RpcClientRequest request, RpcClientResponseHandler handler) {
+        public RpcClientRequestControl send(RpcClient unused, RpcClientRequest request, RpcClientResponseHandler handler) {
             request.serialize();
-            handler.onError(error);
+            handler.onError(this, error);
             return () -> false;
         }
 
@@ -91,10 +86,7 @@ public class RpcServiceClientTest {
         }
 
         @Override
-        public <V> ScheduledFuture<V> schedule(
-                Callable<V> callable,
-                long delay, TimeUnit unit)
-        {
+        public ScheduledExecutorService executor() {
             throw new IllegalArgumentException("unreachable");
         }
     }

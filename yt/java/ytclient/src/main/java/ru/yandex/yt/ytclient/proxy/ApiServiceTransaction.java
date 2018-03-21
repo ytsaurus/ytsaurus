@@ -25,6 +25,8 @@ import ru.yandex.yt.ytclient.proxy.request.ObjectType;
 import ru.yandex.yt.ytclient.proxy.request.RemoveNode;
 import ru.yandex.yt.ytclient.proxy.request.SetNode;
 import ru.yandex.yt.ytclient.proxy.request.TransactionalOptions;
+import ru.yandex.yt.ytclient.rpc.RpcClient;
+import ru.yandex.yt.ytclient.rpc.RpcOptions;
 import ru.yandex.yt.ytclient.wire.UnversionedRowset;
 import ru.yandex.yt.ytclient.wire.VersionedRowset;
 
@@ -67,6 +69,7 @@ public class ApiServiceTransaction implements AutoCloseable {
         return sticky;
     }
 
+
     ApiServiceTransaction(
             ApiServiceClient client,
             GUID id,
@@ -76,7 +79,7 @@ public class ApiServiceTransaction implements AutoCloseable {
             boolean sticky,
             Duration pingPeriod)
     {
-        this.client = Objects.requireNonNull(client);
+        this.client = client;
         this.id = Objects.requireNonNull(id);
         this.startTimestamp = Objects.requireNonNull(startTimestamp);
         this.ping = ping;
@@ -88,6 +91,27 @@ public class ApiServiceTransaction implements AutoCloseable {
         if (ping && ! pingPeriod.isZero() && ! pingPeriod.isNegative()) {
             runPeriodicPings();
         }
+    }
+
+    ApiServiceTransaction(
+            RpcClient rpcClient,
+            RpcOptions rpcOptions,
+            GUID id,
+            YtTimestamp startTimestamp,
+            boolean ping,
+            boolean pingAncestors,
+            boolean sticky,
+            Duration pingPeriod)
+    {
+        this(
+                new ApiServiceClient(Objects.requireNonNull(rpcClient), rpcOptions),
+                id,
+                startTimestamp,
+                ping,
+                pingAncestors,
+                sticky,
+                pingPeriod
+        );
     }
 
     private State getState() {

@@ -7,10 +7,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
-import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -19,6 +17,7 @@ import com.google.common.collect.ImmutableMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import ru.yandex.bolts.collection.Tuple2;
 import ru.yandex.yt.ytclient.bus.BusConnector;
 import ru.yandex.yt.ytclient.rpc.internal.BalancingDestination;
 import ru.yandex.yt.ytclient.rpc.internal.BalancingResponseHandler;
@@ -244,10 +243,10 @@ public class BalancingRpcClient implements RpcClient {
     }
 
     @Override
-    public RpcClientRequestControl send(RpcClientRequest request, RpcClientResponseHandler handler) {
+    public RpcClientRequestControl send(RpcClient unused, RpcClientRequest request, RpcClientResponseHandler handler) {
         List<RpcClient> destinations = selectDestinations(dataCenters, 3, localDataCenter != null, rnd, ! failoverPolicy.randomizeDcs());
 
-        CompletableFuture<List<byte[]>> f = new CompletableFuture<>();
+        CompletableFuture<Tuple2<RpcClient, List<byte[]>>> f = new CompletableFuture<>();
 
         BalancingResponseHandler h = new BalancingResponseHandler(
             executorService,
@@ -262,9 +261,9 @@ public class BalancingRpcClient implements RpcClient {
         f.whenComplete((result, error) -> {
             h.cancel();
             if (error == null) {
-                handler.onResponse(result);
+                handler.onResponse(result.get1(), result.get2());
             } else {
-                handler.onError(error);
+                handler.onError(result.get1(), error);
             }
         });
 
@@ -276,10 +275,7 @@ public class BalancingRpcClient implements RpcClient {
     }
 
     @Override
-    public <V> ScheduledFuture<V> schedule(
-            Callable<V> callable,
-            long delay, TimeUnit unit)
-    {
-        return executorService.schedule(callable, delay, unit);
+    public ScheduledExecutorService executor() {
+        return executorService;
     }
 }
