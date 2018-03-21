@@ -34,13 +34,13 @@ class TestFileCommands(object):
             fout.write("some content")
 
         destinationA = yt.smart_upload_file(filename, placement_strategy="hash")
-        assert destinationA.startswith(yt.config["remote_temp_files_directory"])
+        assert destinationA.startswith(yt.file_commands._get_remote_temp_files_directory())
 
         destinationB = yt.smart_upload_file(filename, placement_strategy="hash")
         assert destinationA == destinationB
 
         destination = yt.smart_upload_file(filename, placement_strategy="random")
-        path = os.path.join(os.path.basename(filename), yt.config["remote_temp_files_directory"])
+        path = os.path.join(os.path.basename(filename), yt.file_commands._get_remote_temp_files_directory())
         assert destination.startswith(path)
 
         destination = TEST_DIR + "/file_dir/some_file"

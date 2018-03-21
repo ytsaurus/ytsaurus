@@ -26,7 +26,7 @@ class TestJobRunner(object):
         makedirp(get_tests_sandbox())
 
     def _start_job_runner(self, config):
-        with tempfile.NamedTemporaryFile(dir=get_tests_sandbox(), prefix="job_runner", delete=False) as fout:
+        with tempfile.NamedTemporaryFile(mode="w", dir=get_tests_sandbox(), prefix="job_runner", delete=False) as fout:
             json.dump(config, fout)
         return subprocess.Popen(
             [get_python(), "-m", "yt.wrapper.job_runner", "--config-path", fout.name],
@@ -166,7 +166,7 @@ class TestJobTool(object):
 
         run_config = os.path.join(job_path, "run_config")
         assert os.path.exists(run_config)
-        with open(run_config, "rb") as fin:
+        with open(run_config, "r") as fin:
             config = json.load(fin)
         assert config["operation_id"] == operation_id
         assert config["job_id"] == job_id

@@ -14,9 +14,13 @@ else:
 
 BASIC_FORMATTER = logging.Formatter(logger_config.LOG_PATTERN)
 
-def set_formatter(formatter):
+formatter = None
+
+def set_formatter(new_formatter):
+    global formatter
+    formatter = new_formatter
     for handler in LOGGER.handlers:
-        handler.setFormatter(formatter)
+        handler.setFormatter(new_formatter)
 
 set_formatter(BASIC_FORMATTER)
 

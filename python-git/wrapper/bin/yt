@@ -11,12 +11,12 @@ from yt.wrapper.common import parse_bool, bool_to_string, chunk_iter_stream, upd
 from yt.wrapper.cli_helpers import write_silently, run_main
 from yt.wrapper.default_config import get_default_config
 from yt.wrapper.spec_builders import MapSpecBuilder, ReduceSpecBuilder, MapReduceSpecBuilder, EraseSpecBuilder, \
-                                     MergeSpecBuilder, SortSpecBuilder, JoinReduceSpecBuilder, RemoteCopySpecBuilder
+                                     MergeSpecBuilder, SortSpecBuilder, JoinReduceSpecBuilder, RemoteCopySpecBuilder, VanillaSpecBuilder
 import yt.wrapper.job_tool as yt_job_tool
 import yt.wrapper.completers as completers
 import yt.json_wrapper as json
 
-from yt.packages.six import PY3
+from yt.packages.six import PY3, iteritems
 from yt.packages.six.moves import builtins, map as imap
 
 import yt.wrapper as yt
@@ -42,7 +42,8 @@ ACL commands:
     add-member, remove-member, check-permission
 Operation commands:
     map-reduce, map, sort, reduce, join-reduce, merge, erase,
-    remote-copy, abort-op, suspend-op, resume-op, track-op, complete-op
+    remote-copy, abort-op, suspend-op, resume-op, track-op, complete-op,
+    update-op-parameters
 Transaction commands:
     lock, start-tx, abort-tx, commit-tx, ping-tx
 Job commands:
@@ -489,6 +490,8 @@ def add_copy_parser(add_parser):
     add_ypath_argument(parser, "source_path", help="source address, path must exist", hybrid=True)
     add_ypath_argument(parser, "destination_path", help="destination address, path must not exist", hybrid=True)
 
+    parser.add_argument("--source-tx", dest="source_transaction",
+                        help="a transaction within which the source path is resolved")
     parser.add_argument("--preserve-account", action="store_true",
                         help="preserve account of copied nodes")
     parser.add_argument("--preserve-expiration-time", action="store_true",
@@ -804,6 +807,31 @@ def add_remote_copy_parser(add_parser):
     add_structured_argument(parser, "--cluster-connection")
     add_structured_argument(parser, "--spec")
 
+def run_vanilla_operation(sync, tasks):
+    """Run vanilla operation."""
+    spec_builder = VanillaSpecBuilder()
+    for name, description in iteritems(tasks):
+        spec_builder.task(name, description)
+    yt.run_operation(spec_builder, sync=sync)
+
+def add_vanilla_parser(add_parser):
+    parser = add_parser("vanilla", operation_handler(run_vanilla_operation))
+    add_structured_argument(parser, "--tasks", help="task descriptions")
+
+@copy_docstring_from(yt.shuffle_table)
+def shuffle_handler(*args, **kwargs):
+    if "temp_column_name" in kwargs and kwargs["temp_column_name"] is None:
+        del kwargs["temp_column_name"]
+
+    operation_handler(yt.shuffle_table)(*args, **kwargs)
+
+def add_shuffle_parser(add_parser):
+    parser = add_parser("shuffle", shuffle_handler)
+    parser.add_argument("--table", required=True)
+    parser.add_argument("--temp-column-name")
+    parser.add_argument("--print-statistics", action="store_true", default=False)
+    parser.add_argument("--async", action="store_true", default=False, help="do not track operation progress")
+
 def add_map_reduce_parser(add_parser):
     MAP_REDUCE_EPILOG = '''Options --mapper, --reducer, --combiner specify bash commands to run.
 --mapper and --reduce-combiner suboperations are optional. Only --reducer is required!
@@ -848,8 +876,8 @@ For append mode in destination table add <append=true> modificator to path.
     parser.add_argument("--reduce-combiner-output-format", action=ParseFormat, help="see --format help")
     parser.add_argument("--async", action="store_true", default=False, help="do not track operation progress")
 
-def operation_id_args(parser):
-    add_hybrid_argument(parser, "operation", help="operation id")
+def operation_id_args(parser, **kwargs):
+    add_hybrid_argument(parser, "operation", help="operation id", **kwargs)
 
 def add_abort_op_parser(add_parser):
     parser = add_parser("abort-op", yt.abort_operation)
@@ -867,7 +895,7 @@ def add_resume_op_parser(add_parser):
 @copy_docstring_from(yt.Operation.wait)
 def track_op(**args):
     yt.config["operation_tracker"]["abort_on_sigint"] = False
-    operation = yt.Operation("unknown", args["operation"])
+    operation = yt.Operation(args["operation"])
     operation.wait()
 
 def add_track_op_parser(add_parser):
@@ -877,6 +905,11 @@ def add_track_op_parser(add_parser):
 def add_complete_op_parser(add_parser):
     parser = add_parser("complete-op", yt.complete_operation)
     operation_id_args(parser)
+
+def add_update_op_parameters_parser(add_parser):
+    parser = add_parser("update-op-parameters", yt.update_operation_parameters)
+    operation_id_args(parser, dest="operation_id")
+    add_structured_argument(parser, "parameters")
 
 @copy_docstring_from(yt.start_transaction)
 def start_tx(**args):
@@ -1119,12 +1152,15 @@ def main():
     add_join_reduce_parser(add_parser)
     add_map_reduce_parser(add_parser)
     add_remote_copy_parser(add_parser)
+    add_vanilla_parser(add_parser)
+    add_shuffle_parser(add_parser)
 
     add_abort_op_parser(add_parser)
     add_suspend_op_parser(add_parser)
     add_resume_op_parser(add_parser)
     add_track_op_parser(add_parser)
     add_complete_op_parser(add_parser)
+    add_update_op_parameters_parser(add_parser)
 
     add_start_tx_parser(add_parser)
     add_abort_tx_parser(add_parser)

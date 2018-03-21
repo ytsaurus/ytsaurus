@@ -253,6 +253,7 @@ class RequestRetrier(Retrier):
                     rsp = create_response(error.response, request_info, self.error_format, self.client)
                 except:
                     reraise(*exc_info)
+                check_response_is_decodable(rsp, "json")
                 _raise_for_status(rsp, request_info)
             raise
 
