@@ -49,7 +49,6 @@ def stop():
 
 if __name__ == "__main__":
     args = library.python.testing.recipe.get_options()
-    print yatest.common.context.sanitize
     if args[0] == library.python.testing.recipe.RECIPE_START_OPTION:
         start(args[1:])
     elif args[0] == library.python.testing.recipe.RECIPE_STOP_OPTION:
