@@ -1,6 +1,7 @@
 package ru.yandex.yt.ytclient.rpc;
 
 import java.util.concurrent.Callable;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
@@ -22,7 +23,14 @@ public interface RpcClient extends AutoCloseable {
      * <p>
      * Сериализация запроса происходит в текущем потоке
      */
-    RpcClientRequestControl send(RpcClientRequest request, RpcClientResponseHandler handler);
+    RpcClientRequestControl send(RpcClient sender, RpcClientRequest request, RpcClientResponseHandler handler);
+
+    default
+    RpcClientRequestControl send(RpcClientRequest request, RpcClientResponseHandler handler)
+    {
+        return send(this, request, handler);
+    }
+
 
     /**
      * Возвращает клиент с аутентификацией запросов по токену
@@ -47,7 +55,12 @@ public interface RpcClient extends AutoCloseable {
 
     String destinationName();
 
-    <V> ScheduledFuture<V> schedule(
+    ScheduledExecutorService executor();
+
+    default <V> ScheduledFuture<V> schedule(
             Callable<V> callable,
-            long delay, TimeUnit unit);
+            long delay, TimeUnit unit)
+    {
+        return executor().schedule(callable, delay, unit);
+    }
 }

@@ -31,7 +31,7 @@ public class ModifyRowsExample {
                 .addValue("utc_time", ColumnValueType.STRING)
                 .addValue("data", ColumnValueType.STRING)
                 .build();
-        ExamplesUtil.runExample(client -> {
+        ExamplesUtil.runExampleWithBalancing(client -> {
             ApiServiceTransactionOptions transactionOptions =
                     new ApiServiceTransactionOptions(ETransactionType.TT_MASTER)
                             .setSticky(true);

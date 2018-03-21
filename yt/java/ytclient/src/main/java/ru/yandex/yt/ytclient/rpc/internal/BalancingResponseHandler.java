@@ -8,6 +8,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
+import ru.yandex.bolts.collection.Tuple2;
 import ru.yandex.yt.ytclient.rpc.RpcClient;
 import ru.yandex.yt.ytclient.rpc.RpcClientRequest;
 import ru.yandex.yt.ytclient.rpc.RpcClientRequestControl;
@@ -23,7 +24,7 @@ public class BalancingResponseHandler implements RpcClientResponseHandler {
     // TODO: move somewhere to core
     private final BalancingResponseHandlerMetricsHolder metricsHolder;
 
-    private final CompletableFuture<List<byte[]>> f;
+    private final CompletableFuture<Tuple2<RpcClient, List<byte[]>>> f;
     private List<RpcClient> clients;
     private final RpcClientRequest request;
     private int step;
@@ -40,7 +41,7 @@ public class BalancingResponseHandler implements RpcClientResponseHandler {
         RpcFailoverPolicy failoverPolicy,
         Duration globalTimeout,
         Duration failoverTimeout,
-        CompletableFuture<List<byte[]>> f,
+        CompletableFuture<Tuple2<RpcClient, List<byte[]>>> f,
         RpcClientRequest request,
         List<RpcClient> clients)
     {
@@ -53,7 +54,7 @@ public class BalancingResponseHandler implements RpcClientResponseHandler {
             RpcFailoverPolicy failoverPolicy,
             Duration globalTimeout,
             Duration failoverTimeout,
-            CompletableFuture<List<byte[]>> f,
+            CompletableFuture<Tuple2<RpcClient, List<byte[]>>> f,
             RpcClientRequest request,
             List<RpcClient> clients,
             BalancingResponseHandlerMetricsHolder metricsHolder)
@@ -135,19 +136,19 @@ public class BalancingResponseHandler implements RpcClientResponseHandler {
     }
 
     @Override
-    public void onAcknowledgement() { }
+    public void onAcknowledgement(RpcClient sender) { }
 
     @Override
-    public void onResponse(List<byte[]> attachments) {
+    public void onResponse(RpcClient sender, List<byte[]> attachments) {
         synchronized (f) {
             if (!f.isDone()) {
-                f.complete(attachments);
+                f.complete(new Tuple2<>(sender, attachments));
             }
         }
     }
 
     @Override
-    public void onError(Throwable error) {
+    public void onError(RpcClient sender, Throwable error) {
         synchronized (f) {
             if (!f.isDone()) {
                 // maybe use other proxy here?

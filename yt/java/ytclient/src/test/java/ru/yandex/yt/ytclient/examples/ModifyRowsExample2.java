@@ -23,7 +23,7 @@ public class ModifyRowsExample2 {
                 .addKey("key", ColumnValueType.STRING)
                 .addValue("value", ColumnValueType.STRING)
                 .build();
-        ExamplesUtil.runExample(client -> {
+        ExamplesUtil.runExampleWithBalancing(client -> {
             ApiServiceTransactionOptions transactionOptions =
                     new ApiServiceTransactionOptions(ETransactionType.TT_TABLET)
                             .setSticky(true);

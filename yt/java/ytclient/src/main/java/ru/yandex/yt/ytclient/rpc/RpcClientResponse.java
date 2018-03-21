@@ -16,4 +16,6 @@ public interface RpcClientResponse<ResponseType> {
      * Приаттаченные к ответу данные
      */
     List<byte[]> attachments();
+
+    RpcClient sender();
 }

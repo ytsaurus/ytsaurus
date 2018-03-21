@@ -95,4 +95,6 @@ public interface RpcClientRequestBuilder<RequestType extends MessageLite.Builder
      * Делает асинхронное выполнение запроса
      */
     CompletableFuture<ResponseType> invoke();
+
+    CompletableFuture<ResponseType> invokeVia(List<RpcClient> clients);
 }

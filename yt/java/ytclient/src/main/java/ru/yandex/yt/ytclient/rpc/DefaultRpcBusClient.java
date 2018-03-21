@@ -9,10 +9,10 @@ import java.time.Instant;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
-import java.util.concurrent.Callable;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.locks.Lock;
@@ -208,6 +208,7 @@ public class DefaultRpcBusClient implements RpcClient {
     private static class Request implements RpcClientRequestControl {
         private final Lock lock = new ReentrantLock();
         private RequestState state = RequestState.INITIALIZING;
+        private final RpcClient sender;
         private final Session session;
         private final RpcClientRequest request;
         private final RpcClientResponseHandler handler;
@@ -218,7 +219,8 @@ public class DefaultRpcBusClient implements RpcClient {
         // Подписка на событие с таймаутом, если он есть
         private ScheduledFuture<?> timeoutFuture;
 
-        public Request(Session session, RpcClientRequest request, RpcClientResponseHandler handler, Statistics stat) {
+        public Request(RpcClient sender, Session session, RpcClientRequest request, RpcClientResponseHandler handler, Statistics stat) {
+            this.sender = Objects.requireNonNull(sender);
             this.session = Objects.requireNonNull(session);
             this.request = Objects.requireNonNull(request);
             this.handler = Objects.requireNonNull(handler);
@@ -330,7 +332,7 @@ public class DefaultRpcBusClient implements RpcClient {
             }
             try {
                 // Вызываем обработчик onError, сигнализируя завершение обработки
-                handler.onError(new CancellationException());
+                handler.onError(sender, new CancellationException());
             } finally {
                 if (session.unregister(this)) {
                     // Отправляем сообщение на сервер, но только если пользователь ещё не успел
@@ -356,7 +358,7 @@ public class DefaultRpcBusClient implements RpcClient {
                 lock.unlock();
             }
             try {
-                handler.onAcknowledgement();
+                handler.onAcknowledgement(sender);
             } catch (Throwable e) {
                 error(e);
             }
@@ -378,7 +380,7 @@ public class DefaultRpcBusClient implements RpcClient {
                 lock.unlock();
             }
             try {
-                handler.onError(cause);
+                handler.onError(sender, cause);
             } finally {
                 session.unregister(this);
             }
@@ -410,9 +412,9 @@ public class DefaultRpcBusClient implements RpcClient {
             }
             try {
                 try {
-                    handler.onResponse(attachments);
+                    handler.onResponse(sender, attachments);
                 } catch (Throwable e) {
-                    handler.onError(e);
+                    handler.onError(sender, e);
                 }
             } finally {
                 session.unregister(this);
@@ -479,17 +481,15 @@ public class DefaultRpcBusClient implements RpcClient {
     }
 
     @Override
-    public RpcClientRequestControl send(RpcClientRequest request, RpcClientResponseHandler handler) {
-        Request pendingRequest = new Request(getSession(), request, handler, stats);
+    public RpcClientRequestControl send(RpcClient sender, RpcClientRequest request, RpcClientResponseHandler handler) {
+        Request pendingRequest = new Request(sender, getSession(), request, handler, stats);
         pendingRequest.start();
         return pendingRequest;
     }
 
     @Override
-    public <V> java.util.concurrent.ScheduledFuture<V> schedule(
-            Callable<V> callable,
-            long delay, TimeUnit unit)
+    public ScheduledExecutorService executor()
     {
-        return getSession().eventLoop().schedule(callable, delay, unit);
+        return getSession().eventLoop();
     }
 }

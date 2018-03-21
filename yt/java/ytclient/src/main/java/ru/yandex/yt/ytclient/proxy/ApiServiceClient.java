@@ -118,19 +118,21 @@ public class ApiServiceClient {
     private final ApiService service;
     private final Executor heavyExecutor;
     private final RpcClient rpcClient;
+    private final RpcOptions rpcOptions;
 
-    private ApiServiceClient(RpcClient client, ApiService service, Executor heavyExecutor) {
+    private ApiServiceClient(RpcClient client, RpcOptions options, ApiService service, Executor heavyExecutor) {
         this.service = Objects.requireNonNull(service);
         this.heavyExecutor = Objects.requireNonNull(heavyExecutor);
         this.rpcClient = client;
+        this.rpcOptions = options;
     }
 
-    private ApiServiceClient(RpcClient client, ApiService service) {
-        this(client, service, ForkJoinPool.commonPool());
+    private ApiServiceClient(RpcClient client, RpcOptions options, ApiService service) {
+        this(client, options, service, ForkJoinPool.commonPool());
     }
 
     public ApiServiceClient(RpcClient client, RpcOptions options) {
-        this(client, client.getService(ApiService.class, options));
+        this(client, options, client.getService(ApiService.class, options));
     }
 
     public ApiServiceClient(RpcClient client) {
@@ -185,7 +187,11 @@ public class ApiServiceClient {
         return RpcUtil.apply(builder.invoke(), response -> {
             GUID id = RpcUtil.fromProto(response.body().getId());
             YtTimestamp startTimestamp = YtTimestamp.valueOf(response.body().getStartTimestamp());
-            return new ApiServiceTransaction(this, id, startTimestamp, ping, pingAncestors, sticky, pingPeriod);
+            if (rpcClient == this) {
+                return new ApiServiceTransaction(this, id, startTimestamp, ping, pingAncestors, sticky, pingPeriod);
+            } else {
+                return new ApiServiceTransaction(response.sender(), rpcOptions, id, startTimestamp, ping, pingAncestors, sticky, pingPeriod);
+            }
         });
     }
 

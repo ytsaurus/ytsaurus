@@ -2,10 +2,8 @@ package ru.yandex.yt.ytclient.rpc.internal;
 
 import java.time.Duration;
 import java.util.Objects;
-import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.ScheduledExecutorService;
 
 import ru.yandex.inside.yt.kosher.common.GUID;
 import ru.yandex.yt.rpcproxy.ETransactionType;
@@ -66,7 +64,7 @@ public class BalancingDestination {
             public void close() { }
 
             @Override
-            public RpcClientRequestControl send(RpcClientRequest request, RpcClientResponseHandler handler) {
+            public RpcClientRequestControl send(RpcClient unused, RpcClientRequest request, RpcClientResponseHandler handler) {
                 return null;
             }
 
@@ -76,7 +74,7 @@ public class BalancingDestination {
             }
 
             @Override
-            public <V> ScheduledFuture<V> schedule(Callable<V> callable, long delay, TimeUnit unit) {
+            public ScheduledExecutorService executor() {
                 return null;
             }
 

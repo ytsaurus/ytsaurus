@@ -3,11 +3,11 @@ package ru.yandex.yt.ytclient.rpc.internal;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
-import java.time.Duration;
 import java.util.Objects;
 
 import com.google.protobuf.MessageLite;
 
+import ru.yandex.bolts.collection.Option;
 import ru.yandex.inside.yt.kosher.common.GUID;
 import ru.yandex.yt.rpc.TRequestHeader;
 import ru.yandex.yt.ytclient.rpc.RpcClient;
@@ -21,22 +21,20 @@ import ru.yandex.yt.ytclient.rpc.RpcUtil;
 public class RpcServiceClient implements InvocationHandler {
     private static final Object[] EMPTY_ARGS = new Object[0];
 
-    private final RpcClient client;
+    private final Option<RpcClient> clientOpt;
     private final RpcServiceDescriptor serviceDescriptor;
     private final String serviceName;
     private final int protocolVersion;
-    private final Duration defaultTimeout;
-    private final boolean defaultRequestAck;
+    private final RpcOptions options;
 
-    private RpcServiceClient(RpcClient client, Class<?> interfaceClass, RpcOptions options) {
-        this.client = Objects.requireNonNull(client);
+    private RpcServiceClient(Option<RpcClient> clientOpt, Class<?> interfaceClass, RpcOptions options) {
+        this.clientOpt = Objects.requireNonNull(clientOpt);
         this.serviceDescriptor = RpcServiceDescriptor.forInterface(interfaceClass);
         this.serviceName =
                 options.getServiceName() != null ? options.getServiceName() : serviceDescriptor.getServiceName();
         this.protocolVersion = options.getProtocolVersion() != 0 ? options.getProtocolVersion()
                 : serviceDescriptor.getProtocolVersion();
-        this.defaultTimeout = options.getDefaultTimeout();
-        this.defaultRequestAck = options.getDefaultRequestAck();
+        this.options = options;
     }
 
     private TRequestHeader.Builder createHeader(RpcServiceMethodDescriptor methodDescriptor) {
@@ -49,10 +47,10 @@ public class RpcServiceClient implements InvocationHandler {
     }
 
     @SuppressWarnings("unchecked")
-    private RpcClientRequestBuilder<?, ?> createBuilder(RpcServiceMethodDescriptor methodDescriptor) {
-        return new RequestWithResponseBuilder(client, createHeader(methodDescriptor),
+    private RpcClientRequestBuilder<?, ?> createBuilder(RpcServiceMethodDescriptor methodDescriptor, RpcOptions options) {
+        return new RequestWithResponseBuilder(clientOpt, createHeader(methodDescriptor),
                 (MessageLite.Builder) methodDescriptor.getRequestBodyCreator().get(),
-                methodDescriptor.getResponseBodyParser());
+                methodDescriptor.getResponseBodyParser(), options);
     }
 
     @Override
@@ -77,9 +75,7 @@ public class RpcServiceClient implements InvocationHandler {
             throw new IllegalStateException("Unimplemented method: " + method);
         }
         RpcClientRequestBuilder<?, ?> builder;
-        builder = createBuilder(methodDescriptor);
-        builder.setTimeout(defaultTimeout);
-        builder.setRequestAck(defaultRequestAck);
+        builder = createBuilder(methodDescriptor, options);
         return builder;
     }
 
@@ -95,7 +91,11 @@ public class RpcServiceClient implements InvocationHandler {
      */
     @SuppressWarnings("unchecked")
     public static <T> T create(RpcClient client, Class<T> interfaceClass, RpcOptions options) {
-        InvocationHandler handler = new RpcServiceClient(client, interfaceClass, options);
+        return create(Option.of(client), interfaceClass, options);
+    }
+
+    public static <T> T create(Option<RpcClient> clientOpt, Class<T> interfaceClass, RpcOptions options) {
+        InvocationHandler handler = new RpcServiceClient(clientOpt, interfaceClass, options);
         return (T) Proxy.newProxyInstance(interfaceClass.getClassLoader(), new Class[]{interfaceClass}, handler);
     }
 }
