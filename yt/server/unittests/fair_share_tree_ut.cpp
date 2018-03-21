@@ -89,7 +89,8 @@ struct TSchedulerStrategyHostMock
     virtual TFuture<void> SetOperationAlert(
         const TOperationId& operationId,
         EOperationAlertType alertType,
-        const TError& alert) override
+        const TError& alert,
+        TNullable<TDuration> timeout) override
     {
         return VoidFuture;
     }

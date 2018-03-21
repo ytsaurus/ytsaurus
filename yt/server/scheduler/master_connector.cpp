@@ -1406,12 +1406,10 @@ private:
                         auto error = TError("Failed to set operation ACL")
                             << TErrorAttribute("operation_id", operation->GetId())
                             << rspOrErr;
-                        operation->MutableAlerts()[EOperationAlertType::InvalidAcl] = error;
+                        operation->SetAlert(EOperationAlertType::InvalidAcl, error);
                         LOG_INFO(error);
                     } else {
-                        if (!operation->Alerts()[EOperationAlertType::InvalidAcl].IsOK()) {
-                            operation->MutableAlerts()[EOperationAlertType::InvalidAcl] = TError();
-                        }
+                        operation->ResetAlert(EOperationAlertType::InvalidAcl);
                     }
                 }
 
@@ -1461,15 +1459,7 @@ private:
                 {
                     auto req = multisetReq->add_subrequests();
                     req->set_key("alerts");
-                    const auto& alerts = operation->Alerts();
-                    req->set_value(BuildYsonStringFluently()
-                        .DoMapFor(TEnumTraits<EOperationAlertType>::GetDomainValues(),
-                            [&] (TFluentMap fluent, EOperationAlertType alertType) {
-                                if (!alerts[alertType].IsOK()) {
-                                    fluent.Item(FormatEnum(alertType)).Value(alerts[alertType]);
-                                }
-                            })
-                        .GetData());
+                    req->set_value(operation->BuildAlertsString().GetData());
                 }
 
                 batchReq->AddRequest(multisetReq, "update_op_node");

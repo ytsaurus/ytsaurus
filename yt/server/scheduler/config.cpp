@@ -16,6 +16,9 @@ TFairShareStrategyOperationControllerConfig::TFairShareStrategyOperationControll
 
     RegisterParameter("schedule_job_fail_backoff_time", ScheduleJobFailBackoffTime)
         .Default(TDuration::MilliSeconds(100));
+
+    RegisterParameter("schedule_job_timeout_alert_reset_time", ScheduleJobTimeoutAlertResetTime)
+        .Default(TDuration::Minutes(15));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

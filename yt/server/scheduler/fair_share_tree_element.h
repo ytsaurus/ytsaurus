@@ -283,7 +283,8 @@ protected:
     void SetOperationAlert(
         const TOperationId& operationId,
         EOperationAlertType alertType,
-        const TError& alert);
+        const TError& alert,
+        TNullable<TDuration> timeout);
 
 private:
     void UpdateAttributes();

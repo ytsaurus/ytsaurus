@@ -48,7 +48,8 @@ struct ISchedulerStrategyHost
     virtual TFuture<void> SetOperationAlert(
         const TOperationId& operationId,
         EOperationAlertType alertType,
-        const TError& alert) = 0;
+        const TError& alert,
+        TNullable<TDuration> timeout = Null) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
