@@ -27,8 +27,13 @@ public:
     void Read(TStringBuf data);
     void Finish();
 
+    ui64 GetReadBytesCount();
+
 private:
     using TParserCoroutine = NConcurrency::TCoroutine<void(TStringBuf)>;
+
+    class TImpl;
+    std::unique_ptr<TImpl> ParserImpl_;
 
     TParserCoroutine ParserCoroutine_;
 };

@@ -165,7 +165,7 @@ void SerializeMapFragment(
     }
 
     auto items = Py::Object(PyDict_CheckExact(*map) ? PyDict_Items(*map) : PyMapping_Items(*map), true);
-    auto iterator = Py::Object(PyObject_GetIter(*items), true);
+    auto iterator = CreateIterator(items);
     while (auto* item = PyIter_Next(*iterator)) {
         auto itemGuard = Finally([item] () { Py::_XDECREF(item); });
 

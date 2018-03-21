@@ -33,6 +33,8 @@ Object GetAttr(const Object& obj, const std::string& fieldName);
 i64 ConvertToLongLong(const Object& obj);
 std::string Repr(const Object& obj);
 
+Object CreateIterator(const Object& object);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace Py
