@@ -359,9 +359,9 @@ def upload_file_to_cache(filename, hash=None, client=None):
                      get_config(client)["remote_temp_files_directory"] is not None
 
     if use_legacy:
-        return _upload_file_to_cache_legacy(filename, hash, client)
+        return _upload_file_to_cache_legacy(filename, hash, client=client)
 
-    file_path = get_file_from_cache(hash)
+    file_path = get_file_from_cache(hash, client=client)
     if file_path:
         return file_path
 
@@ -376,7 +376,7 @@ def upload_file_to_cache(filename, hash=None, client=None):
             raise YtError("File cache replication factor cannot be set less than 3")
         replication_factor = get_config(client)["file_cache"]["replication_factor"]
 
-    create("file", real_destination, recursive=True, attributes={"replication_factor": replication_factor})
+    create("file", real_destination, recursive=True, attributes={"replication_factor": replication_factor}, client=client)
     with open(filename, "rb") as stream:
         write_file(real_destination, stream, compute_md5=True, force_create=False, client=client)
 
