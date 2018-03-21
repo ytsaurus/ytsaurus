@@ -1,0 +1,55 @@
+package NYP.NClient.NApi.NProto;
+
+option java_package = "ru.yandex.yp.client.discovery";
+option java_outer_classname = "Discovery";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqGetMasters
+{ }
+
+message TRspGetMasters
+{
+    message TMasterInfo
+    {
+        // FQDN without port.
+        required string fqdn = 1;
+
+        // FQDN + GRPC port.
+        // Can be passed to GRPC client to open a channel.
+        required string grpc_address = 2;
+
+        // FQDN + HTTP port.
+        // Can be passed to HTTP client to open a channel.
+        // Note that HTTP transport is not available for agents.
+        optional string http_address = 6;
+
+        // Per-cluster unique master instance tag.
+        required int32 instance_tag = 3;
+
+        // Is this master considered alive?
+        // If true the master is ready to serve the requests (both reads and writes).
+        // If false the master is not usable in any way.
+        required bool alive = 4;
+
+        // Is this master leading?
+        // Exactly one master is leading most of time.
+        required bool leading = 5;
+    }
+
+    // All known masters (both dead and alive).
+    repeated TMasterInfo master_infos = 1;
+
+    // Globally-unique cluster tag.
+    required int32 cluster_tag = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+service DiscoveryService
+{
+    // Retrieves the list of all master servers.
+    rpc GetMasters (TReqGetMasters) returns (TRspGetMasters);
+}
+
+////////////////////////////////////////////////////////////////////////////////

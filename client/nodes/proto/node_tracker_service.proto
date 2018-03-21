@@ -1,0 +1,147 @@
+package NYP.NClient.NNodes.NProto;
+
+import "yp/client/api/proto/data_model.proto";
+import "yt/core/misc/proto/error.proto";
+
+option java_package = "ru.yandex.yp.client.nodes";
+option java_outer_classname = "NodeTracker";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqHandshake
+{
+    // Id (==fqdn) of the node.
+    required string node_id = 1;
+
+    // GRPC address of AgentService.
+    required string address = 2;
+}
+
+message TRspHandshake
+{
+    // TODO(babenko): drop
+    // Unique (and opaque) node id.
+    required string node_id = 1;
+
+    // Unique (and opaque) epoch id.
+    required string epoch_id = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TPodStatus
+{
+    // A YP-opaque ISS-compatible pod status exposed via status/iss_payload attribute.
+    optional bytes iss_payload = 1;
+
+    // The current state of POD's FSM at the agent.
+    required NYP.NClient.NApi.NProto.EPodCurrentState current_state = 2;
+
+    // If given, contains the error occurred during pod lifecycle at agent.
+    optional NYT.NProto.TError error = 3;
+}
+
+message TPodSpec
+{
+    // A YP-opaque ISS-compatible pod spec configured via spec/iss_payload attribute.
+    optional bytes iss_payload = 1;
+
+    message TProperty
+    {
+        required string key = 1;
+        required string value = 2;
+    }
+
+    // Passed as-is to Porto.
+    repeated TProperty porto_properties = 2;
+
+    // Controls pod state transitions.
+    // If target_state == ETargetState.Removed and current_state == ECurrentState.Stopped then
+    // the master is allowed to forget about the pod and stop passing it in hearbeat responses.
+    required NYP.NClient.NApi.NProto.EPodTargetState target_state = 3;
+
+    // The following section of fields contains values obtained from pod spec/status.
+    repeated NYP.NClient.NApi.NProto.TPodSpec.TIP6AddressRequest ip6_address_requests = 4;
+    repeated NYP.NClient.NApi.NProto.TPodStatus.TIP6AddressAllocation ip6_address_allocations = 5;
+
+    repeated NYP.NClient.NApi.NProto.TPodSpec.TIP6SubnetRequest ip6_subnet_requests = 6;
+    repeated NYP.NClient.NApi.NProto.TPodStatus.TIP6SubnetAllocation ip6_subnet_allocations = 7;
+
+    optional NYP.NClient.NApi.NProto.TPodStatus.TDns dns = 8;
+}
+
+message TReqHeartbeat
+{
+    message TPodEntry
+    {
+        // Unique (and opaque) pod id.
+        required string pod_id = 1;
+
+        // Describes pod spec timestamp known to the agent.
+        // If this is missing or corresponds to an outdated spec, the master will send an update.
+        optional uint64 spec_timestamp = 2;
+
+        // If present, requests the master to update pod status.
+        // The agent is encouraged to leave this null if no status change happens since last successful heartbeat.
+        optional TPodStatus status = 4;
+    }
+
+    // The id of the node issuing the request; cf. TRspHeartbeat.node_id.
+    required string node_id = 1;
+
+    // The epoch id; cf. TRspHeartbeat.epoch_id.
+    required string epoch_id = 2;
+
+    // Must start from 1 and increase monotonically with each heartbeat (either successful or not).
+    required uint64 sequence_number = 3;
+
+    // All pods currently residing on this node together with their statuses.
+    // Some status payloads may be missing (if the agent has no relevant changes)
+    // but all pod ids must be listed.
+    repeated TPodEntry pods = 4;
+}
+
+message TRspHeartbeat
+{
+    message TPodEntry
+    {
+        // Unique (and opaque) pod id.
+        required string pod_id = 1;
+
+        // Describes pod spec timestamp known to the master.
+        // The agent is expected to be passing this timestamp in TPodStatus upon subseqent heartbeats
+        // to minimize master-to-agent traffic.
+        // The agent is also expected to silently drop spec update requests with revisions
+        // less than the current one.
+        // If this is null then the agent must unconditionally accept spec update.
+        // This is useful for forcing removal of pods.
+        optional uint64 spec_timestamp = 2;
+
+        // If present, requests the needed pod spec updates.
+        // In particular, this is always present when the pod is first started.
+        optional TPodSpec spec = 3;
+    }
+
+    // Describes all pods that are expected to be present at the node.
+    // If the node has some pod that is missing in this list, the pod must be dropped.
+    // If the node does not have some pod that is present in this list, the pod must be started.
+    // Otherwise (for those pods that are both present at the node and in this list)
+    // some spec updates may be needed.
+    repeated TPodEntry pods = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Node-to-master communication.
+service NodeTrackerService
+{
+    // Called once upon agent initialization to establish the connection
+    // and obtain the node id.
+    rpc Handshake (TReqHandshake) returns (TRspHandshake);
+
+    // Called periodically to notify the master about pod status changes and
+    // to request pod spec updates.
+    rpc Heartbeat (TReqHeartbeat) returns (TRspHeartbeat);
+}
+
+////////////////////////////////////////////////////////////////////////////////

@@ -1,0 +1,65 @@
+SET(YP_SRCS
+  ${CMAKE_CURRENT_LIST_DIR}/api/private.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/api/object_service.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/api/discovery_service.cpp
+
+  ${CMAKE_CURRENT_LIST_DIR}/master/bootstrap.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/master/yt_connector.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/master/service_detail.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/master/private.cpp
+
+  ${CMAKE_CURRENT_LIST_DIR}/nodes/private.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/nodes/node_tracker_service.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/nodes/node_tracker.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/nodes/porto.cpp
+
+  ${CMAKE_CURRENT_LIST_DIR}/objects/attribute_schema.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/objects/private.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/objects/public.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/objects/object_manager.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/objects/object.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/objects/pod.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/objects/pod_set.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/objects/endpoint.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/objects/endpoint_set.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/objects/node.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/objects/network_project.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/objects/node_segment.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/objects/transaction.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/objects/persistence.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/objects/db_schema.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/objects/pod_type_handler.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/objects/endpoint_type_handler.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/objects/pod_set_type_handler.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/objects/endpoint_set_type_handler.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/objects/resource.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/objects/resource_type_handler.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/objects/network_project_type_handler.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/objects/node_type_handler.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/objects/node_segment_type_handler.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/objects/type_handler_detail.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/objects/transaction_manager.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/objects/type_handler.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/objects/helpers.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/objects/proto/objects.proto
+
+  ${CMAKE_CURRENT_LIST_DIR}/scheduler/public.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/scheduler/private.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/scheduler/resource_manager.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/scheduler/helpers.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/scheduler/pod.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/scheduler/pod_set.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/scheduler/node.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/scheduler/object.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/scheduler/cluster.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/scheduler/schedule_queue.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/scheduler/scheduler.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/scheduler/allocation_plan.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/scheduler/label_filter_cache.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/scheduler/topology_zone.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/scheduler/node_segment.cpp
+
+  ${CMAKE_CURRENT_LIST_DIR}/net/private.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/net/net_manager.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/net/helpers.cpp
+)

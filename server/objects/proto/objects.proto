@@ -1,0 +1,38 @@
+package NYP.NServer.NObjects.NProto;
+
+import "yp/client/api/proto/data_model.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Cf. NYP.NClient.NApi.NProto.TNodeStatus
+message TNodeStatusOther
+{
+    optional NYP.NClient.NApi.NProto.TNodeStatus.THfsm hfsm = 5;
+    optional NYP.NClient.NApi.NProto.TNodeStatus.TMaintenance maintenance = 6;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Cf. NYP.NClient.NApi.NProto.TPodSpec
+message TPodSpecOther
+{
+    optional NYP.NClient.NApi.NProto.TPodSpec.TResourceRequests resource_requests = 3;
+    repeated NYP.NClient.NApi.NProto.TPodSpec.TIP6AddressRequest ip6_address_requests = 6;
+    repeated NYP.NClient.NApi.NProto.TPodSpec.TIP6SubnetRequest ip6_subnet_requests = 4;
+    optional string node_filter = 8;
+    repeated NYP.NClient.NApi.NProto.TPodSpec.THostDevice host_devices = 10;
+    repeated NYP.NClient.NApi.NProto.TPodSpec.TSysctlProperty sysctl_properties = 11;
+}
+
+// Cf. NYP.NClient.NApi.NProto.TPodStatus
+message TPodStatusOther
+{
+    repeated NYP.NClient.NApi.NProto.TPodStatus.TResourceAllocation scheduled_resource_allocations = 4;
+    repeated NYP.NClient.NApi.NProto.TPodStatus.TIP6AddressAllocation ip6_address_allocations = 5;
+    repeated NYP.NClient.NApi.NProto.TPodStatus.TIP6SubnetAllocation ip6_subnet_allocations = 6;
+    required NYP.NClient.NApi.NProto.TPodStatus.TDns dns = 7;
+    required NYP.NClient.NApi.NProto.TPodStatus.TEviction eviction = 8;
+    required NYP.NClient.NApi.NProto.TPodStatus.TScheduling scheduling = 9;
+}
+
+////////////////////////////////////////////////////////////////////////////////

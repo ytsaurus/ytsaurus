@@ -1,0 +1,46 @@
+#include <yt/build/build.h>
+
+namespace NYT {
+
+////////////////////////////////////////////////////////////////////////////////
+
+// These override weak definitions from yt/build.
+int GetVersionMajor()
+{
+    return @YP_VERSION_MAJOR@;
+}
+
+int GetVersionMinor()
+{
+    return @YP_VERSION_MINOR@;
+}
+
+int GetVersionPatch()
+{
+    return @YP_VERSION_PATCH@;
+}
+
+const char* GetVersion()
+{
+    return "@YP_VERSION@";
+}
+
+const char* GetBuildHost()
+{
+    return "@YP_BUILD_HOST@";
+}
+
+const char* GetBuildMachine()
+{
+    return "@YP_BUILD_MACHINE@";
+}
+
+const char* GetBuildTime()
+{
+    return "@YP_BUILD_TIME@";
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT
+

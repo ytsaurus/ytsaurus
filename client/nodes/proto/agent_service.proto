@@ -1,0 +1,24 @@
+package NYP.NClient.NNodes.NProto;
+
+option java_package = "ru.yandex.yp.client.nodes";
+option java_outer_classname = "Agent";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqNotify
+{ }
+
+message TRspNotify
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Master-to-node communication.
+service AgentService
+{
+    // Invoked by the master to notify the agent that some of its pods
+    // have just changed; the agent must schedule a heartbeat ASAP.
+    rpc Notify (TReqNotify) returns (TRspNotify);
+}
+
+////////////////////////////////////////////////////////////////////////////////

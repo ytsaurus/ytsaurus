@@ -1,0 +1,416 @@
+package NYP.NClient.NApi.NProto;
+
+import "yt/core/yson/proto/protobuf_interop.proto";
+
+import "yp/client/api/proto/data_model.proto";
+
+option java_package = "ru.yandex.yp.client.api";
+option java_outer_classname = "Object";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TAttributeSelector
+{
+    // YPaths of requested attributes.
+    // If a path refers to a nonexisting attribute (or its sub-attribute)
+    // the result is null.
+    repeated string paths = 1;
+}
+
+message TAttributeValueList
+{
+    // Values are in YSON; nulls are encoded as empty strings.
+    // Value order coincides with that of TAttributeSelector.paths.
+    repeated bytes values = 1 [(NYT.NYson.NProto.yson_string) = true];
+}
+
+message TObjectFilter
+{
+    // Textual query string (YP dialect).
+    required string query = 1;
+}
+
+message TSelectLimit
+{
+    // Maximum number of results to fetch.
+    required int64 value = 1;
+}
+
+message TSelectOffset
+{
+    // Number of leading results to skip.
+    required int64 value = 1;
+}
+
+message TEvent
+{
+    // The timestamp of the event.
+    required uint64 timestamp = 1;
+
+    // Event type.
+    required EEventType event_type = 2;
+
+    // Event attributes (cf. TReqWatchObjects.selector).
+    required TAttributeValueList attributes = 3;
+}
+
+message TSetUpdate
+{
+    // YPath pointing to the attribute to set.
+    required string path = 1;
+
+    // Attribute value; in YSON.
+    required bytes value = 2 [(NYT.NYson.NProto.yson_string) = true];
+
+    // If true then missing intermediate
+    optional bool recursive = 3;
+}
+
+message TRemoveUpdate
+{
+    // YPath pointing to the attribute to remove.
+    required string path = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqGenerateTimestamp
+{ }
+
+message TRspGenerateTimestamp
+{
+    // A new (unique) timestamp.
+    required uint64 timestamp = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqStartTransaction
+{ }
+
+message TRspStartTransaction
+{
+    // Transaction id.
+    required string transaction_id = 1;
+
+    // Start timestamp of the transaction.
+    required uint64 start_timestamp = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqCommitTransaction
+{
+    // Transaction id.
+    required string transaction_id = 1;
+}
+
+message TRspCommitTransaction
+{
+    // Commit timestamp of the transaction.
+    required uint64 commit_timestamp = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqAbortTransaction
+{
+    // Transaction id.
+    required string transaction_id = 1;
+}
+
+message TRspAbortTransaction
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqCreateObject
+{
+    // Transaction id.
+    // If missing, just creates the object w/o any transaction.
+    optional string transaction_id = 1;
+
+    // Type of the object to create.
+    required EObjectType object_type = 2;
+
+    // Object attributes; in YSON.
+    optional bytes attributes = 3 [(NYT.NYson.NProto.yson_string) = true];
+}
+
+message TRspCreateObject
+{
+    // Object id.
+    required string object_id = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqCreateObjects
+{
+    // Transaction id.
+    // If missing, just creates the objects w/o any transaction.
+    optional string transaction_id = 1;
+
+    message TSubrequest
+    {
+        // Type of the object to create.
+        required EObjectType object_type = 1;
+
+        // Object attributes; in YSON.
+        optional bytes attributes = 2 [(NYT.NYson.NProto.yson_string) = true];
+    }
+    repeated TSubrequest subrequests = 2;
+}
+
+message TRspCreateObjects
+{
+    message TSubresponse
+    {
+        // Object id.
+        required string object_id = 1;
+    }
+
+    repeated TSubresponse subresponses = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqRemoveObject
+{
+    // Transaction id.
+    // If missing, just removes the object w/o any transaction.
+    optional string transaction_id = 1;
+
+    // Id of the object to remove.
+    required string object_id = 2;
+
+    // Type of the object to remove.
+    required EObjectType object_type = 3;
+}
+
+message TRspRemoveObject
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqRemoveObjects
+{
+    // Transaction id.
+    // If missing, just removes the objects w/o any transaction.
+    optional string transaction_id = 1;
+
+    message TSubrequest
+    {
+        // Type of the object to remove.
+        required EObjectType object_type = 1;
+
+        // Id of the object to remove.
+        required string object_id = 2;
+    }
+    repeated TSubrequest subrequests = 2;
+}
+
+message TRspRemoveObjects
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqUpdateObject
+{
+    // Transaction id.
+    // If missing, just updates the object w/o any transaction.
+    optional string transaction_id = 1;
+
+    // Id of the object to update.
+    required string object_id = 2;
+
+    // Type of the object to update.
+    required EObjectType object_type = 5;
+
+    // Describes set-like updates.
+    repeated TSetUpdate set_updates = 3;
+
+    // Describes remove-like updates.
+    repeated TRemoveUpdate remove_updates = 4;
+}
+
+message TRspUpdateObject
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqUpdateObjects
+{
+    // Transaction id.
+    // If missing, just updates the objects w/o any transaction.
+    optional string transaction_id = 1;
+
+    message TSubrequest
+    {
+        // Type of the object to update.
+        required EObjectType object_type = 1;
+
+        // Id of the object to update.
+        required string object_id = 2;
+
+        // Describes set-like updates.
+        repeated TSetUpdate set_updates = 3;
+
+        // Describes remove-like updates.
+        repeated TRemoveUpdate remove_updates = 4;
+    }
+    repeated TSubrequest subrequests = 2;
+}
+
+message TRspUpdateObjects
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqGetObject
+{
+    // Provides snapshot isolation.
+    // If omitted then reads the latest state.
+    optional uint64 timestamp = 1;
+
+    // Id of the object to get.
+    required string object_id = 2;
+
+    // Type of the object to get.
+    required EObjectType object_type = 4;
+
+    // Describes which attributes are to fetched.
+    // TRspGetObject.result.attributes will contain exactly this number of attributes.
+    required TAttributeSelector selector = 3;
+}
+
+message TRspGetObject
+{
+    // The result: if present then contains the requested attributes.
+    // If absent then there is no object with the given id.
+    optional TAttributeValueList result = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqSelectObjects
+{
+    // Provides snapshot isolation.
+    // If omitted then reads the latest state.
+    optional uint64 timestamp = 1;
+
+    // Type of objects to select.
+    required EObjectType object_type = 2;
+
+    // Provides means for filtering certain objects.
+    optional TObjectFilter filter = 3;
+
+    // Describes which attributes to fetch.
+    // TRspSelectObjects.results.attributes will contain exactly this number of attributes.
+    required TAttributeSelector selector = 4;
+
+    // Enables limiting the number of results.
+    optional TSelectLimit limit = 5;
+
+    // Enables skipping a number of leading results.
+    optional TSelectOffset offset = 6;
+}
+
+message TRspSelectObjects
+{
+    // The result set: each element of this list corresponds to a single
+    // matching object.
+    repeated TAttributeValueList results = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqWatchObjects
+{
+    // Only fetches events with timestamp > start_timestamp.
+    required uint64 start_timestamp = 1;
+
+    // Type of objects to watch.
+    required EObjectType object_type = 2;
+
+    // Maximum number of events to wait for.
+    // If omitted then no limit is imposed.
+    optional int32 event_count_limit = 3;
+
+    // If some events are already available, WatchObjects call just returns them.
+    // Otherwise it waits up to time_limit ms (if given).
+    // If no events (matching the filter) occurred then it returns zero events.
+    // TRspWatchObjects.end_timestamp is always filled properly to enable another
+    // call to WatchObjects with TReqWatchObjects.start_timestamp == TRspWatchObjects.end_timestamp
+    // to proceed along the event queue.
+    // If omitted then no limit is imposed.
+    optional int32 time_limit = 4;
+
+    // Provides means for filtering certain events.
+    optional TObjectFilter filter = 5;
+
+    // Describes which attributes are to be fetched.
+    // TRspWatchObjects.events.attributes will contain exactly this number of attributes.
+    optional TAttributeSelector selector = 6;
+}
+
+message TRspWatchObjects
+{
+    // Events read so far.
+    repeated TEvent events = 1;
+
+    // If events is not empty then this is the timestamp of the last one.
+    // If no events are returned then this is a properly chosen timestamp (which is typically close to the current one).
+    // In the latter case it is guaranteed that no event in (start_timestamp, end_timestamp] range
+    // conforms to the filter.
+    required uint64 end_timestamp = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+service ObjectService
+{
+    // Generates a fresh monotoically increasing timestamp.
+    rpc GenerateTimestamp (TReqGenerateTimestamp) returns (TRspGenerateTimestamp);
+
+    // Starts a new transaction.
+    // Transaction ids are opaque strings.
+    // Transaction changes are transient (until commit); transactions are maintained by individual masters.
+    // Clients must be choosing masters in a sticky way; cf. GetMasters.
+    rpc StartTransaction (TReqStartTransaction) returns (TRspStartTransaction);
+
+    // Commits an existing transaction.
+    rpc CommitTransaction (TReqCommitTransaction) returns (TRspCommitTransaction);
+
+    // Aborts an existing transaction.
+    rpc AbortTransaction (TReqAbortTransaction) returns (TRspAbortTransaction);
+
+    // Creates a new object.
+    rpc CreateObject (TReqCreateObject) returns (TRspCreateObject);
+
+    // Creates new objects.
+    rpc CreateObjects (TReqCreateObjects) returns (TRspCreateObjects);
+
+    // Removes an existing object.
+    rpc RemoveObject (TReqRemoveObject) returns (TRspRemoveObject);
+
+    // Removes existing objects.
+    rpc RemoveObjects (TReqRemoveObjects) returns (TRspRemoveObjects);
+
+    // Updates an existing object.
+    rpc UpdateObject (TReqUpdateObject) returns (TRspUpdateObject);
+
+    // Updates existing objects.
+    rpc UpdateObjects (TReqUpdateObjects) returns (TRspUpdateObjects);
+
+    // Fetches object attributes by object id.
+    rpc GetObject (TReqGetObject) returns (TRspGetObject);
+
+    // Executes a query and fetches attributes for relevant objects.
+    rpc SelectObjects (TReqSelectObjects) returns (TRspSelectObjects);
+
+    // Reads updates from event queue.
+    rpc WatchObjects (TReqWatchObjects) returns (TRspWatchObjects);
+}
+
+////////////////////////////////////////////////////////////////////////////////
