@@ -1,17 +1,15 @@
-from .helpers import ENABLE_JOB_CONTROL, TEST_DIR, get_tests_sandbox
+from .helpers import ENABLE_JOB_CONTROL, TEST_DIR
 
 from yt.wrapper.job_shell import JobShell
 from yt.wrapper.driver import get_command_list
 
 import yt.wrapper as yt
 
+from flaky import flaky
+
 import os
-import sys
-import stat
 import pytest
 import re
-import tempfile
-import time
 
 @pytest.mark.usefixtures("yt_env")
 class TestJobCommands(object):
@@ -37,6 +35,8 @@ class TestJobCommands(object):
                 return output
             raise
 
+    # Remove after YT-8596
+    @flaky(max_runs=5)
     def test_job_shell(self, job_events):
         if yt.config["backend"] == "native":
             pytest.skip()
@@ -140,4 +140,4 @@ class TestJobCommands(object):
         op.wait()
 
         attrs = yt.get_operation_attributes(op.id)
-        assert attrs["brief_progress"]["jobs"]["aborted"]["total"] == 1
+        assert attrs["progress"]["jobs"]["aborted"]["total"] == 1

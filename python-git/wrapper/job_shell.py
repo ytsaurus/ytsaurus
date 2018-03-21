@@ -184,7 +184,7 @@ class JobShell(object):
         rsp = yson.loads(rsp.body, encoding=None)
         if b"consumed_offset" in rsp:
             consumed_offset = rsp[b"consumed_offset"]
-            if consumed_offset > self.input_offset and consumed_offset <= self.input_offset + len(self.key_buffer):
+            if self.input_offset < consumed_offset <= self.input_offset + len(self.key_buffer):
                 self.key_buffer = self.key_buffer[consumed_offset-self.input_offset:]
                 self.input_offset = consumed_offset
 
@@ -211,7 +211,7 @@ class JobShell(object):
     def _spawn_shell(self, command=None):
         if command:
             self.terminal_mode = False
-        rsp = self.make_request("spawn", callback=self._on_spawn_response, term=os.environ["TERM"], command=command)
+        self.make_request("spawn", callback=self._on_spawn_response, term=os.environ["TERM"], command=command)
 
     def _poll_shell(self):
         self.make_request("poll", callback=self._on_poll_response)

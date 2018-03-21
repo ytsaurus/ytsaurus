@@ -150,7 +150,6 @@ b"""
         update_exec_node_descriptors_period = 100;
         scheduling_tag_filter_expire_timeout = 100;
         node_shard_exec_nodes_cache_update_period = 100;
-        controller_update_exec_nodes_information_delay = 100;
         safe_scheduler_online_time = 5000;
 
         environment = {
@@ -232,6 +231,13 @@ b"""
         sync_directories_on_connect = %true;
     };
 
+    master_cache_service = {
+        expire_after_successful_update_time = 0;
+        expire_after_failed_update_time = 0;
+        expire_after_access_time = 0;
+        refresh_time = 0;
+    };
+
     exec_agent = {
         slot_manager = {
             job_environment = {
@@ -276,6 +282,7 @@ b"""
 
         job_controller = {
             total_confirmation_period = 5000;
+            cpu_per_tablet_slot = 0.0;
         }
     };
 

@@ -163,7 +163,7 @@ if __name__ == "__main__":
 
         operation_id = subprocess.check_output([get_python(), f.name], env=env).strip()
 
-        op = yt.Operation("map", operation_id)
+        op = yt.Operation(operation_id, "map")
         op.wait()
         assert list(yt.read_table(TEST_DIR + "/other_table")) == [{"x": "hello"}]
 

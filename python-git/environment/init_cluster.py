@@ -83,7 +83,7 @@ def get_default_resource_limits(client):
 
 def initialize_world(client=None, idm=None, proxy_address=None, ui_address=None, configure_pool_trees=True):
     client = get_value(client, yt)
-    users = ["odin", "cron", "cron_merge", "cron_compression", "nightly_tester", "application_operations", "robot-yt-mon"]
+    users = ["odin", "cron", "cron_merge", "cron_compression", "nightly_tester", "application_operations", "robot-yt-mon", "transfer_manager", "fennel"]
     groups = ["devs", "admins", "admin_snapshots"]
     if idm:
         groups.append("yandex")
@@ -103,8 +103,6 @@ def initialize_world(client=None, idm=None, proxy_address=None, ui_address=None,
     add_member("devs", "admins", client)
     add_member("robot-yt-mon", "admin_snapshots", client)
 
-    if idm:
-        add_member("users", "yandex", client)
     add_member("application_operations", "superusers", client)
 
     for dir in ["//sys", "//tmp", "//sys/tokens"]:

@@ -1,7 +1,7 @@
 from __future__ import print_function
 
 from .helpers import (TEST_DIR, PYTHONPATH, get_test_file_path, check, set_config_option, get_tests_sandbox,
-                      ENABLE_JOB_CONTROL, dumps_yt_config, get_python)
+                      ENABLE_JOB_CONTROL, dumps_yt_config, get_python, wait)
 
 # Necessary for tests.
 try:
@@ -14,9 +14,12 @@ from yt.wrapper.py_wrapper import create_modules_archive_default, TempfilesManag
 from yt.wrapper.common import parse_bool
 from yt.wrapper.operation_commands import add_failed_operation_stderrs_to_error_message, get_stderrs, get_operation_error
 from yt.wrapper.table import TablePath
-from yt.wrapper.spec_builders import MapSpecBuilder, MapReduceSpecBuilder
+from yt.wrapper.spec_builders import MapSpecBuilder, MapReduceSpecBuilder, VanillaSpecBuilder
 from yt.wrapper.http_helpers import make_request_with_retries
+
+from yt.environment.helpers import assert_almost_equal
 from yt.local import start, stop
+
 from yt.yson import YsonMap
 import yt.yson as yson
 import yt.logger as logger
@@ -328,6 +331,27 @@ class TestOperations(object):
             yt.run_reduce("cat", [table1, table2], table, join_by=["x"])
 
     @add_failed_operation_stderrs_to_error_message
+    def test_vanilla_operation(self, yt_env):
+        def check(op):
+            stderrs = op.get_stderrs()
+            assert len(stderrs) == 1
+            assert stderrs[0]["stderr"] == "aaa\n"
+
+        op = yt.run_operation(VanillaSpecBuilder().task("sample", {"command": "echo 'aaa' >&2", "job_count": 1}))
+        check(op)
+
+        vanilla_spec = VanillaSpecBuilder().tasks({"sample": {"command": "echo 'aaa' >&2", "job_count": 1}})
+        op = yt.run_operation(vanilla_spec)
+        check(op)
+
+        vanilla_spec = VanillaSpecBuilder().begin_task("sample")\
+                .command("echo 'aaa' >&2")\
+                .job_count(1)\
+            .end_task()
+        op = yt.run_operation(vanilla_spec)
+        check(op)
+
+    @add_failed_operation_stderrs_to_error_message
     def test_python_operations(self, yt_env):
         def change_x(rec):
             if "x" in rec:
@@ -558,10 +582,10 @@ import yt.wrapper as yt
 import sys
 
 input, output, pythonpath = sys.argv[1:4]
-yt.config["proxy"]["request_retry_timeout"] = 2000
+yt.config["proxy"]["request_retry_timeout"] = 5000
 yt.config["proxy"]["request_retry_count"] = 1
 yt.config["detached"] = False
-op = yt.run_map("sleep 100", input, output, format="json", spec={"mapper": {"environment": {"PYTHONPATH": pythonpath}}}, sync=False)
+op = yt.run_map("sleep 1000", input, output, format="json", spec={"mapper": {"environment": {"PYTHONPATH": pythonpath}}}, sync=False)
 print(op.id)
 
 """
@@ -574,9 +598,7 @@ print(op.id)
 
         op_id = subprocess.check_output([get_python(), file.name, table, table, PYTHONPATH],
                                         env=self.env, stderr=sys.stderr).strip()
-        time.sleep(3)
-
-        assert yt.get("//sys/operations/{0}/@state".format(op_id)) == "aborted"
+        wait(lambda: yt.get("//sys/operations/{0}/@state".format(op_id)) == "aborted")
 
     def test_abort_operation(self):
         table = TEST_DIR + "/table"
@@ -608,13 +630,14 @@ print(op.id)
                 reduce_by=["key"],
                 spec={"map_locality_timeout": 0, "reduce_locality_timeout": 0})
 
-            time.sleep(0.5)
+            wait(lambda: op.get_state() == "running")
+
             op.suspend()
             assert op.get_state() == "running"
             time.sleep(2.5)
             assert op.get_state() == "running"
             op.resume()
-            op.wait(timeout=10)
+            op.wait(timeout=20 * 1000)
             assert op.get_state() == "completed"
         finally:
             if op.get_state() not in ["completed", "failed", "aborted"]:
@@ -1135,6 +1158,7 @@ print(op.id)
         test_name = "TestYtWrapper" + mode.capitalize()
         dir = os.path.join(get_tests_sandbox(), test_name)
         id = "run_" + uuid.uuid4().hex[:8]
+        instance = None
         try:
             instance = start(path=dir, id=id, node_count=3, enable_debug_logging=True, cell_tag=1)
             second_cluster_client = instance.create_client()
@@ -1164,7 +1188,8 @@ print(op.id)
                    yt.get(table + "/@compressed_data_size")
 
         finally:
-            stop(instance.id, path=dir)
+            if instance is not None:
+                stop(instance.id, path=dir)
 
     @add_failed_operation_stderrs_to_error_message
     def test_yson_several_output_tables(self):
@@ -1331,7 +1356,7 @@ print(op.id)
         assert operation["type"] == "map"
 
     def test_list_operations_compatibility(self, yt_env):
-        if yt.config["backend"] == "native" or yt_env.version <= "19.2":
+        if yt.config["backend"] == "native":
             pytest.skip()
 
         table = TEST_DIR + "/table"
@@ -1342,7 +1367,9 @@ print(op.id)
         operations_new = yt.list_operations(enable_ui_mode=True)
         del operations_old["timings"]
         for op in operations_new["operations"]:
-            op.attributes["weight"] = int(op.attributes["weight"])
+            # TODO(asaitgalin): weight should always be presented in list operation response.
+            if "weight" in op.attributes:
+                op.attributes["weight"] = int(op.attributes["weight"])
 
         assert operations_new == operations_old
 
@@ -1426,3 +1453,15 @@ print(op.id)
         yt.run_map_reduce(mapper=None, reducer="cat", reduce_by=["x"],
                           source_table=table, destination_table=output_table, spec=spec)
         check([{"x": 1}, {"y": 2}], list(yt.read_table(table)))
+
+    def test_update_operation_parameters(self):
+        table = TEST_DIR + "/table"
+        output_table = TEST_DIR + "/output_table"
+        yt.write_table(table, [{"x": 1}, {"y": 2}])
+
+        op = yt.run_map("cat; sleep 100", table, output_table, spec={"weight": 5.0}, format="json", sync=False)
+        wait(lambda: op.get_state() == "running")
+        yt.update_operation_parameters(op.id, {"scheduling_options_per_pool_tree": {"default": {"weight": 10.0}}})
+        assert assert_almost_equal(
+            yt.get_operation(op.id)["progress"]["scheduling_info_per_pool_tree"]["default"]["weight"],
+            10.0)

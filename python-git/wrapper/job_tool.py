@@ -3,6 +3,7 @@ from __future__ import print_function
 from yt.common import makedirp
 from yt.wrapper.common import parse_bool, DoNotReplaceAction, chunk_iter_stream, MB
 from yt.wrapper.job_runner import make_run_script, get_output_descriptor_list
+from yt.wrapper.file_commands import _get_remote_temp_files_directory
 import yt.logger as logger
 import yt.yson as yson
 import yt.wrapper as yt
@@ -129,7 +130,7 @@ def run_job(job_path):
 def download_job_input(operation_id, job_id, job_input_path, mode):
     if mode == "running":
         logger.info("Job is running, using its input context as local input")
-        output_path = yt.find_free_subpath(yt.config["remote_temp_files_directory"])
+        output_path = yt.find_free_subpath(_get_remote_temp_files_directory(client=None))
         yt.dump_job_context(job_id, output_path)
         try:
             download_file(output_path, job_input_path)
@@ -305,7 +306,7 @@ def prepare_job_environment(operation_id, job_id, job_path, run=False, full=Fals
         "operation_id": operation_id,
         "environment": job_environment,
     }
-    with open(os.path.join(job_path, "run_config"), "wb") as fout:
+    with open(os.path.join(job_path, "run_config"), "w") as fout:
         json.dump(run_config, fout)
     make_run_script(job_path)
     make_run_sh(

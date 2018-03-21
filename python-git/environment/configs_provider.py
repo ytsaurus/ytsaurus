@@ -93,6 +93,9 @@ _default_provision = {
     "scheduler": {
         "count": 1
     },
+    "controller_agent": {
+        "count": 0
+    },
     "node": {
         "count": 1,
         "jobs_resource_limits": {
@@ -125,7 +128,7 @@ def get_default_provision():
 
 @add_metaclass(abc.ABCMeta)
 class ConfigsProvider(object):
-    def build_configs(self, ports_generator, master_dirs, master_tmpfs_dirs=None, scheduler_dirs=None,
+    def build_configs(self, ports_generator, master_dirs, master_tmpfs_dirs=None, scheduler_dirs=None, controller_agent_dirs=None,
                       node_dirs=None, node_tmpfs_dirs=None, proxy_dir=None, rpc_proxy_dir=None, skynet_manager_dirs=None,
                       logs_dir=None, provision=None):
         provision = get_value(provision, get_default_provision())
@@ -141,6 +144,9 @@ class ConfigsProvider(object):
 
         scheduler_configs = self._build_scheduler_configs(provision, scheduler_dirs, deepcopy(connection_configs),
                                                           ports_generator, logs_dir)
+
+        controller_agent_configs = self._build_controller_agent_configs(provision, controller_agent_dirs, deepcopy(connection_configs),
+                                                                        ports_generator, logs_dir)
 
         node_configs, node_addresses = self._build_node_configs(
             provision,
@@ -175,6 +181,7 @@ class ConfigsProvider(object):
             "master": master_configs,
             "driver": driver_configs,
             "scheduler": scheduler_configs,
+            "controller_agent": controller_agent_configs,
             "node": node_configs,
             "proxy": proxy_config,
             "ui": ui_config,
@@ -192,6 +199,11 @@ class ConfigsProvider(object):
     @abc.abstractmethod
     def _build_scheduler_configs(self, provision, scheduler_dirs, master_connection_configs,
                                  ports_generator, scheduler_logs_dir):
+        pass
+
+    @abc.abstractmethod
+    def _build_controller_agent_configs(self, provision, controller_agent_dirs, master_connection_configs,
+                                        ports_generator, controller_agent_logs_dir):
         pass
 
     @abc.abstractmethod
@@ -476,8 +488,6 @@ class ConfigsProvider_19_2(ConfigsProvider):
 
             config["rpc_port"] = next(ports_generator)
             config["monitoring_port"] = next(ports_generator)
-            set_at(config, "scheduler/snapshot_temp_path", os.path.join(scheduler_dirs[index], "snapshots"))
-
             config["logging"] = init_logging(config.get("logging"), scheduler_logs_dir,
                                              "scheduler-" + str(index), provision["enable_debug_logging"])
 
@@ -491,6 +501,11 @@ class ConfigsProvider_19_2(ConfigsProvider):
             configs.append(config)
 
         return configs
+
+    def _build_controller_agent_configs(self, provision, controller_agent_dirs, master_connection_configs,
+                                        ports_generator, controller_agent_logs_dir):
+        if controller_agent_dirs:
+            assert False, "Controller agents are not supported in 19.2"
 
     def _build_proxy_config(self, provision, proxy_dir, master_connection_configs, ports_generator, proxy_logs_dir, master_cache_nodes):
         driver_config = default_configs.get_driver_config()
@@ -720,11 +735,53 @@ class ConfigsProvider_19_3(ConfigsProvider_19_2):
 
         for config in configs:
             config["scheduler"]["operation_alerts_update_period"] = 100
-            config["scheduler"]["exec_nodes_update_period"] = 100
             config["scheduler"]["exec_node_descriptors_update_period"] = 100
-            config["scheduler"]["controller_exec_node_info_update_period"] = 100
             config["scheduler"]["operation_to_agent_assignment_backoff"] = 100
-            del config["scheduler"]["exec_nodes_request_period"]
+
+            for field in ("transactions_refresh_period", "update_exec_node_descriptors_period",
+                          "safe_scheduler_online_time", "operation_alerts_update_period",
+                          "snapshot_period", "enable_snapshot_loading", "operation_options", "snapshot_timeout",
+                          "exec_nodes_request_period"):
+                del config["scheduler"][field]
+
+
+        return configs
+
+    def _build_controller_agent_configs(self, provision, controller_agent_dirs, master_connection_configs,
+                                        ports_generator, controller_agent_logs_dir):
+        configs = []
+
+        # TODO(ignat): separate scheduler and controller agent configs after removing 19.2.
+        for index in xrange(provision["controller_agent"]["count"]):
+            config = default_configs.get_scheduler_config()
+            config["controller_agent"] = config["scheduler"]
+            del config["scheduler"]
+            
+            for field in ("orchid_keys_update_period", "nodes_attributes_update_period",
+                          "fair_share_update_period", "update_exec_node_descriptors_period",
+                          "min_needed_resources_update_period",
+                          "watchers_update_period", "node_shard_exec_nodes_cache_update_period"):
+                del config["controller_agent"][field]
+
+            config["controller_agent"]["operation_alerts_update_period"] = 100
+            config["controller_agent"]["config_update_period"] = 100
+            config["controller_agent"]["exec_nodes_update_period"] = 100
+            config["controller_agent"]["controller_exec_node_info_update_period"] = 100
+
+            set_at(config, "address_resolver/localhost_fqdn", provision["fqdn"])
+            config["cluster_connection"] = \
+                self._build_cluster_connection_config(
+                    master_connection_configs,
+                    config_template=config["cluster_connection"])
+
+            config["rpc_port"] = next(ports_generator)
+            config["monitoring_port"] = next(ports_generator)
+            config["logging"] = init_logging(config.get("logging"), controller_agent_logs_dir,
+                                             "controller-agent-" + str(index), provision["enable_debug_logging"])
+
+            _set_bind_retry_options(config, key="bus_server")
+
+            configs.append(config)
 
         return configs
 

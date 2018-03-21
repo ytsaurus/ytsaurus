@@ -2,7 +2,7 @@
 
 from __future__ import print_function
 
-# NOTE(asaitgalin): This script should depend on YT Python library.
+# NOTE(asaitgalin): This script should not depend on YT Python library.
 
 import os
 import sys
@@ -20,6 +20,7 @@ SCRIPT_DIR = os.path.dirname(__file__)
 if PY3:
     def iteritems(d):
         return iter(d.items())
+    xrange = range
 else:
     def iteritems(d):
         return d.iteritems()
@@ -55,7 +56,7 @@ def main():
     if args.config_path is None:
         args.config_path = os.path.join(SCRIPT_DIR, "run_config")
 
-    with open(args.config_path, "rb") as f:
+    with open(args.config_path, "r") as f:
         config = json.load(f)
 
     with open(config["command_path"], "r") as fin:
@@ -88,8 +89,13 @@ def main():
                 break
             process.stdin.write(chunk)
     process.stdin.close()
+    process.wait()
 
-    sys.exit(process.wait())
+    if process.returncode != 0:
+        with open(os.path.join(config["output_path"], "2"), "rb") as f:
+            print("User job exited with non-zero exit code {} and stderr:\n{}".format(process.returncode, f.read()),
+                  file=sys.stderr)
+            sys.exit(1)
 
 def make_run_script(destination_dir):
     path = os.path.realpath(__file__)

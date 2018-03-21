@@ -491,6 +491,11 @@ test_brotli_write()
     check "x=1\nx=2\nx=3\nx=4\n" "$($YT read "$table_path" --format dsv | sort)"
 }
 
+test_vanilla_operations()
+{
+    $YT vanilla --tasks '{sample={command="echo AAA >&2";job_count=1}}'
+}
+
 tear_down
 run_test test_cypress_commands
 run_test test_list_long_format
@@ -513,3 +518,4 @@ run_test test_dynamic_table_commands
 run_test test_sandbox_file_name_specification
 run_test test_execute
 run_test test_brotli_write
+run_test test_vanilla_operations

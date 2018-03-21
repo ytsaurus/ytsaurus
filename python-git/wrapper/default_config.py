@@ -321,7 +321,7 @@ default_config = {
     "local_temp_directory": tempfile.gettempdir(),
 
     # Path to remote directories for temporary files and tables.
-    "remote_temp_files_directory": "//tmp/yt_wrapper/file_storage",
+    "remote_temp_files_directory": None,
     "remote_temp_tables_directory": "//tmp/yt_wrapper/table_storage",
 
     "use_legacy_file_cache": None,
@@ -514,7 +514,7 @@ default_config = {
     "max_batch_size": 100,
     "batch_requests_retries": retries_config(count=6, enable=True, backoff={"policy": "rounded_up_to_request_timeout"}),
 
-    "enable_operations_api": False,
+    "enable_operations_api": True,
 
     "skynet_manager_url": "http://skynet-manager.yt.yandex.net/api/v1",
 }

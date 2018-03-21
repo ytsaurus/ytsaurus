@@ -19,7 +19,7 @@ from yt.packages.six.moves import builtins, filter as ifilter, map as imap
 
 import logging
 from datetime import datetime
-from time import sleep
+from time import sleep, time
 from multiprocessing import TimeoutError
 
 try:
@@ -114,6 +114,13 @@ def list_operations(user=None, state=None, type=None, filter=None, pool=None, wi
         "list_operations",
         params=params,
         format=None,
+        client=client)
+
+def update_operation_parameters(operation_id, parameters, client=None):
+    """Updates operation runtime parameters."""
+    return make_request(
+        "update_op_parameters",
+        {"operation_id": operation_id, "parameters": parameters},
         client=client)
 
 # Helpers
@@ -290,9 +297,10 @@ class PrintOperationInfo(object):
 
     def log(self, *args, **kwargs):
         if logger.LOGGER.isEnabledFor(self.level):
+            old_formatter = logger.formatter
             logger.set_formatter(self.formatter)
             logger.log(self.level, *args, **kwargs)
-            logger.set_formatter(logger.BASIC_FORMATTER)
+            logger.set_formatter(old_formatter)
 
 def get_operation_state_monitor(operation, time_watcher, action=lambda: None, client=None):
     """
@@ -454,9 +462,9 @@ def get_operation_url(operation, client=None):
 
 class Operation(object):
     """Holds information about started operation."""
-    def __init__(self, type, id, finalization_actions=None, abort_exceptions=(KeyboardInterrupt,), client=None):
-        self.type = type
+    def __init__(self, id, type=None, finalization_actions=None, abort_exceptions=(KeyboardInterrupt, TimeoutError), client=None):
         self.id = id
+        self.type = type
         self.abort_exceptions = abort_exceptions
         self.finalization_actions = finalization_actions
         self.client = client
@@ -549,9 +557,13 @@ class Operation(object):
                 finalize_function(state)
 
         abort_on_sigint = get_config(self.client)["operation_tracker"]["abort_on_sigint"]
+
         with ExceptionCatcher(self.abort_exceptions, abort, enable=abort_on_sigint):
+            start_time = time()
             for state in self.get_state_monitor(time_watcher):
                 print_info(state)
+                if timeout is not None and time() - start_time > timeout / 1000.0:
+                    raise TimeoutError("Timed out while waiting for finishing operation")
 
             for finalize_function in finalization_actions:
                 finalize_function(state)

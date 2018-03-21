@@ -412,7 +412,7 @@ class TestCypressCommands(object):
         with yt.Transaction():
             yt.write_table(table, [{"x": 5}])
             time.sleep(3)
-            read_table(new_client) == [{"x": 4}]
+            assert read_table(new_client) == [{"x": 4}]
 
         assert read_table() == [{"x": 5}]
         assert read_table(new_client) == [{"x": 5}]
