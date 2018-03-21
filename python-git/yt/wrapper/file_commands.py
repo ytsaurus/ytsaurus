@@ -7,6 +7,7 @@ from .http_helpers import get_api_commands
 from .heavy_commands import make_write_request, make_read_request
 from .cypress_commands import (remove, exists, set_attribute, mkdir, find_free_subpath,
                                create, link, get, set)
+from .parallel_reader import make_read_parallel_request
 from .parallel_writer import make_parallel_write_request
 from .retries import Retrier
 from .ypath import FilePath, ypath_join, ypath_dirname
@@ -88,7 +89,27 @@ class LocalFile(object):
     def file_name(self):
         return self._file_name
 
-def read_file(path, file_reader=None, offset=None, length=None, client=None):
+def _prepare_ranges_for_parallel_read(offset, length, data_size, data_size_per_thread):
+    offset = get_value(offset, 0)
+    offset = min(offset, data_size)
+
+    length = get_value(length, data_size)
+    length = min(length, data_size - offset)
+
+    result = []
+    while offset < data_size and length > 0:
+        range_size = min(data_size_per_thread, length)
+        result.append((offset, range_size))
+        offset += range_size
+        length -= range_size
+
+    return result
+
+def _prepare_params_for_parallel_read(params, range):
+    params["offset"], params["length"] = range[0], range[1]
+    return params
+
+def read_file(path, file_reader=None, offset=None, length=None, enable_read_parallel=None, client=None):
     """Downloads file from path in Cypress to local machine.
 
     :param path: path to file in Cypress.
@@ -103,6 +124,25 @@ def read_file(path, file_reader=None, offset=None, length=None, client=None):
     set_param(params, "file_reader", file_reader)
     set_param(params, "length", length)
     set_param(params, "offset", offset)
+
+    enable_read_parallel = get_value(enable_read_parallel, get_config(client)["read_parallel"]["enable"])
+
+    if enable_read_parallel:
+        data_size = get(path + "/@uncompressed_data_size", client=client)
+        ranges = _prepare_ranges_for_parallel_read(
+            offset,
+            length,
+            data_size,
+            get_config(client)["read_parallel"]["data_size_per_thread"])
+        return make_read_parallel_request(
+            "read_file",
+            path,
+            ranges,
+            params,
+            _prepare_params_for_parallel_read,
+            unordered=False,
+            response_parameters=None,
+            client=client)
 
     def process_response(response):
         pass
