@@ -228,7 +228,7 @@ void TLocation::Disable(const TError& reason)
         // Exit anyway.
     }
 
-    LOG_ERROR("Location is disabled; Terminating");
+    LOG_ERROR("Location is disabled; terminating");
     NLogging::TLogManager::Get()->Shutdown();
     _exit(1);
 }

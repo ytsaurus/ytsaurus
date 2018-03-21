@@ -57,6 +57,7 @@ class TestLayers(YTEnvSetup):
                 open(layer_location["path"] + "/disabled", "w")
 
         self.Env.start_nodes(sync=True)
+        self.wait_for_nodes()
 
     @require_ytserver_root_privileges
     def test_corrupted_layer(self):

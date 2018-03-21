@@ -138,7 +138,8 @@ public:
             Logger);
 
         try {
-            ValidateLockFile();
+            WaitFor(HealthChecker_->RunCheck())
+                .ThrowOnError();
 
             // Volumes are not expected to be used since all jobs must be dead by now.
             auto volumes = WaitFor(Executor_->ListVolumes())
@@ -158,7 +159,6 @@ public:
             NFS::MakeDirRecursive(VolumesPath_, 0755);
             NFS::MakeDirRecursive(LayersPath_, 0755);
 
-            HealthChecker_->RunCheck();
 
             ValidateMinimumSpace();
 
@@ -232,7 +232,7 @@ public:
             // Exit anyway.
         }
 
-        LOG_ERROR("Volume manager disabled; Terminating");
+        LOG_ERROR("Volume manager disabled; terminating");
         NLogging::TLogManager::Get()->Shutdown();
         _exit(1);
     }
