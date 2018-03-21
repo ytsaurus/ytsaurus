@@ -6,8 +6,9 @@ from yt.environment.helpers import assert_items_equal, assert_almost_equal
 from flaky import flaky
 
 import pytest
+import random
+import string
 import time
-
 ##################################################################
 
 porto_delta_node_config = {
@@ -191,14 +192,18 @@ class TestSchedulerMapCommands(YTEnvSetup):
         row_count = get("//sys/operations/{0}/@progress/job_statistics/data/output/1/row_count/$/completed/map/sum".format(op.id))
         assert row_count == 1
 
-    def test_compression_statistics(self):
+    def test_codec_statistics(self):
         create("table", "//tmp/t1", attributes={"compression_codec": "lzma_9"})
-        create("table", "//tmp/t2", attributes={"compression_codec": "lzma_9"})
-        write_table("//tmp/t1", {"key": 1})
+        create("table", "//tmp/t2", attributes={"compression_codec": "lzma_1"})
+
+        def random_string(n):
+            return ''.join(random.choice(string.printable) for _ in xrange(n))
+
+        write_table("//tmp/t1", [{str(i): random_string(1000)} for i in xrange(100)])  # so much to see non-zero decode cpu usage in release mode
 
         op = map(command="cat", in_="//tmp/t1", out="//tmp/t2")
         decode_time = get("//sys/operations/{0}/@progress/job_statistics/codec/cpu/decode/lzma_9/$/completed/map/sum".format(op.id))
-        encode_time = get("//sys/operations/{0}/@progress/job_statistics/codec/cpu/encode/0/lzma_9/$/completed/map/sum".format(op.id))
+        encode_time = get("//sys/operations/{0}/@progress/job_statistics/codec/cpu/encode/0/lzma_1/$/completed/map/sum".format(op.id))
         assert decode_time > 0
         assert encode_time > 0
 
