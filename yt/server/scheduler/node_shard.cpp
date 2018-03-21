@@ -235,6 +235,8 @@ void TNodeShard::FinishOperationRevival(const TOperationId& operationId, const s
             TNodeDescriptor(job->GetRevivalNodeAddress()));
         job->SetNode(node);
         SetJobWaitingForConfirmation(job);
+        auto& recentlyCompletedJobIds = node->RecentlyCompletedJobIds();
+        recentlyCompletedJobIds.erase(job->GetId());
         RegisterJob(job);
     }
 
