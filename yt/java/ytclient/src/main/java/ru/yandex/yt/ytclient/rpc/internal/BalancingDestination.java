@@ -2,7 +2,10 @@ package ru.yandex.yt.ytclient.rpc.internal;
 
 import java.time.Duration;
 import java.util.Objects;
+import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 
 import ru.yandex.inside.yt.kosher.common.GUID;
 import ru.yandex.yt.rpcproxy.ETransactionType;
@@ -13,8 +16,11 @@ import ru.yandex.yt.rpcproxy.TRspStartTransaction;
 import ru.yandex.yt.ytclient.proxy.ApiService;
 import ru.yandex.yt.ytclient.proxy.ApiServiceUtil;
 import ru.yandex.yt.ytclient.rpc.RpcClient;
+import ru.yandex.yt.ytclient.rpc.RpcClientRequest;
 import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
+import ru.yandex.yt.ytclient.rpc.RpcClientRequestControl;
 import ru.yandex.yt.ytclient.rpc.RpcClientResponse;
+import ru.yandex.yt.ytclient.rpc.RpcClientResponseHandler;
 import ru.yandex.yt.ytclient.rpc.RpcUtil;
 import ru.yandex.yt.ytclient.rpc.internal.metrics.BalancingDestinationMetricsHolder;
 import ru.yandex.yt.ytclient.rpc.internal.metrics.BalancingDestinationMetricsHolderImpl;
@@ -54,7 +60,31 @@ public class BalancingDestination {
     /* for testing only */
     public BalancingDestination(String dc, int index) {
         this.dc = dc;
-        this.client = null;
+        BalancingDestination parent = this;
+        this.client = new RpcClient() {
+            @Override
+            public void close() { }
+
+            @Override
+            public RpcClientRequestControl send(RpcClientRequest request, RpcClientResponseHandler handler) {
+                return null;
+            }
+
+            @Override
+            public String destinationName() {
+                return null;
+            }
+
+            @Override
+            public <V> ScheduledFuture<V> schedule(Callable<V> callable, long delay, TimeUnit unit) {
+                return null;
+            }
+
+            @Override
+            public String toString() {
+                return parent.toString();
+            }
+        };
         this.id = String.format("%s/%d", dc, index);
         this.index = index;
 

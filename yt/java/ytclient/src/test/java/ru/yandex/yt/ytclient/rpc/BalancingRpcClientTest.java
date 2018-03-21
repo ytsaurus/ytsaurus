@@ -54,7 +54,7 @@ public class BalancingRpcClientTest {
 
         Random rnd = new Random(0);
 
-        List<BalancingDestination> res;
+        List<RpcClient> res;
 
         res = BalancingRpcClient.selectDestinations(dcs, 3, true, rnd);
         assertThat(res.toString(), is("[dc1/9, dc1/2, dc3/5]"));

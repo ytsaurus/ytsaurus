@@ -24,7 +24,7 @@ public class BalancingResponseHandler implements RpcClientResponseHandler {
     private final BalancingResponseHandlerMetricsHolder metricsHolder;
 
     private final CompletableFuture<List<byte[]>> f;
-    private List<BalancingDestination> clients;
+    private List<RpcClient> clients;
     private final RpcClientRequest request;
     private int step;
     private final List<RpcClientRequestControl> cancelation;
@@ -42,7 +42,7 @@ public class BalancingResponseHandler implements RpcClientResponseHandler {
         Duration failoverTimeout,
         CompletableFuture<List<byte[]>> f,
         RpcClientRequest request,
-        List<BalancingDestination> clients)
+        List<RpcClient> clients)
     {
         this(executorService, failoverPolicy, globalTimeout, failoverTimeout, f, request, clients,
                 new BalancingResponseHandlerMetricsHolderImpl());
@@ -55,7 +55,7 @@ public class BalancingResponseHandler implements RpcClientResponseHandler {
             Duration failoverTimeout,
             CompletableFuture<List<byte[]>> f,
             RpcClientRequest request,
-            List<BalancingDestination> clients,
+            List<RpcClient> clients,
             BalancingResponseHandlerMetricsHolder metricsHolder)
     {
         this.executorService = executorService;
@@ -87,10 +87,8 @@ public class BalancingResponseHandler implements RpcClientResponseHandler {
             return;
         }
 
-        RpcClient client;
-        BalancingDestination dst = clients.get(0);
+        RpcClient client = clients.get(0);
         clients = clients.subList(1, clients.size());
-        client = dst.getClient();
 
         if (step > 0) {
            metricsHolder.failoverInc();

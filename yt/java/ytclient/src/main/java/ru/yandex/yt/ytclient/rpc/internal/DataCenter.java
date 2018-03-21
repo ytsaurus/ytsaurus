@@ -14,6 +14,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import ru.yandex.yt.ytclient.rpc.BalancingRpcClient;
+import ru.yandex.yt.ytclient.rpc.RpcClient;
 import ru.yandex.yt.ytclient.rpc.internal.metrics.DataCenterMetricsHolder;
 import ru.yandex.yt.ytclient.rpc.internal.metrics.DataCenterMetricsHolderImpl;
 
@@ -110,14 +111,14 @@ public final class DataCenter {
         backends[j].setIndex(j);
     }
 
-    public List<BalancingDestination> getAliveDestinations() {
+    public List<RpcClient> getAliveDestinations() {
         synchronized (backends) {
-            return Arrays.stream(backends, 0, aliveCount).collect(Collectors.toList());
+            return Arrays.stream(backends, 0, aliveCount).map(BalancingDestination::getClient).collect(Collectors.toList());
         }
     }
 
-    public List<BalancingDestination> selectDestinations(final int maxSelect, Random rnd) {
-        final ArrayList<BalancingDestination> result = new ArrayList<>();
+    public List<RpcClient> selectDestinations(final int maxSelect, Random rnd) {
+        final ArrayList<RpcClient> result = new ArrayList<>();
         result.ensureCapacity(maxSelect);
 
         synchronized (backends) {
@@ -125,7 +126,7 @@ public final class DataCenter {
 
             while (count != 0 && result.size() < maxSelect) {
                 int idx = rnd.nextInt(count);
-                result.add(backends[idx]);
+                result.add(backends[idx].getClient());
                 swap(idx, count-1);
                 --count;
             }
