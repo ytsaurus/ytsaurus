@@ -737,7 +737,8 @@ public:
         auto agent = New<TControllerAgent>(
             agentId,
             addresses,
-            std::move(channel));
+            std::move(channel),
+            Bootstrap_->GetControlInvoker());
         agent->SetState(EControllerAgentState::Registering);
         RegisterAgent(agent);
 
@@ -816,6 +817,8 @@ public:
         }
 
         TLeaseManager::RenewLease(agent->GetLease());
+
+        SwitchTo(agent->GetCancelableInvoker());
 
         TOperationIdToOperationJobMetrics operationIdToOperationJobMetrics;
         std::vector<TString> suspiciousJobsYsons;
@@ -1061,8 +1064,7 @@ private:
 
         const auto& scheduler = Bootstrap_->GetScheduler();
         for (const auto& operation : agent->Operations()) {
-            operation->SetAgent(nullptr);
-            scheduler->OnOperatonAgentUnregistered(operation);
+            scheduler->OnOperationAgentUnregistered(operation);
         }
 
         TerminateAgent(agent);
@@ -1100,6 +1102,7 @@ private:
         TLeaseManager::CloseLease(agent->GetLease());
         agent->SetLease(TLease());
         agent->GetChannel()->Terminate(TError("Agent disconnected"));
+        agent->Cancel();
     }
 
     void OnAgentHeartbeatTimeout(const TControllerAgentPtr& agent)

@@ -102,7 +102,7 @@ public:
     void OnOperationAborted(const TOperationPtr& operation, const TError& error);
     void OnOperationFailed(const TOperationPtr& operation, const TError& error);
     void OnOperationSuspended(const TOperationPtr& operation, const TError& error);
-    void OnOperatonAgentUnregistered(const TOperationPtr& operation);
+    void OnOperationAgentUnregistered(const TOperationPtr& operation);
 
     TFuture<NYson::TYsonString> Strace(const TJobId& jobId, const TString& user);
     TFuture<void> DumpInputContext(const TJobId& jobId, const NYPath::TYPath& path, const TString& user);
