@@ -465,9 +465,10 @@ void TSchedulerElement::CheckForStarvationImpl(
 void TSchedulerElement::SetOperationAlert(
     const TOperationId& operationId,
     EOperationAlertType alertType,
-    const TError& alert)
+    const TError& alert,
+    TNullable<TDuration> timeout)
 {
-    Host_->SetOperationAlert(operationId, alertType, alert);
+    Host_->SetOperationAlert(operationId, alertType, alert, timeout);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2293,13 +2294,14 @@ TScheduleJobResultPtr TOperationElement::DoScheduleJob(
             scheduleJobResult->RecordFail(EScheduleJobFailReason::ResourceOvercommit);
         }
     } else if (scheduleJobResult->Failed[EScheduleJobFailReason::Timeout] > 0) {
-        LOG_DEBUG("Job scheduling timed out (OperationId: %v)",
+        LOG_WARNING("Job scheduling timed out (OperationId: %v)",
             OperationId_);
 
         SetOperationAlert(
             OperationId_,
             EOperationAlertType::ScheduleJobTimedOut,
-            TError("Job scheduling timed out: either scheduler is under heavy load or operation is too heavy"));
+            TError("Job scheduling timed out: either scheduler is under heavy load or operation is too heavy"),
+            ControllerConfig_->ScheduleJobTimeoutAlertResetTime);
     }
 
     return scheduleJobResult;

@@ -158,7 +158,8 @@ public:
     virtual TFuture<void> SetOperationAlert(
         const NScheduler::TOperationId& operationId,
         NScheduler::EOperationAlertType alertType,
-        const TError& alert) override
+        const TError& alert,
+        TNullable<TDuration> timeout) override
     {
         return VoidFuture;
     }

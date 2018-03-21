@@ -38,6 +38,9 @@ public:
     //! Backoff time after controller schedule job failure.
     TDuration ScheduleJobFailBackoffTime;
 
+    //! Timeout after which "schedule job timed out" alert is expired and unset.
+    TDuration ScheduleJobTimeoutAlertResetTime;
+
     TFairShareStrategyOperationControllerConfig();
 };
 
@@ -271,7 +274,7 @@ public:
     // If the agent does not report a heartbeat within this period,
     // it is automatically unregistered.
     TDuration ControllerAgentHeartbeatTimeout;
-    
+
     //! Timeout of cached exec nodes information entries
     //! per scheduling tag filters.
     TDuration SchedulingTagFilterExpireTimeout;
@@ -282,7 +285,7 @@ public:
     TDuration OperationsUpdatePeriod;
 
     TTestingOptionsPtr TestingOptions;
-    
+
     NEventLog::TEventLogConfigPtr EventLog;
 
     NYTree::IMapNodePtr SpecTemplate;

@@ -93,7 +93,6 @@ using namespace NShell;
 using namespace NEventLog;
 
 using NControllerAgent::IOperationControllerSchedulerHost;
-using NControllerAgent::TOperationAlertMap;
 using NControllerAgent::TOperationControllerHost;
 
 using NNodeTrackerClient::TNodeId;
@@ -437,11 +436,12 @@ public:
     virtual TFuture<void> SetOperationAlert(
         const TOperationId& operationId,
         EOperationAlertType alertType,
-        const TError& alert) override
+        const TError& alert,
+        TNullable<TDuration> timeout = Null) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        return BIND(&TImpl::DoSetOperationAlert, MakeStrong(this), operationId, alertType, alert.Sanitize())
+        return BIND(&TImpl::DoSetOperationAlert, MakeStrong(this), operationId, alertType, alert, timeout)
             .AsyncVia(GetControlInvoker())
             .Run();
     }
@@ -683,11 +683,7 @@ public:
             .ThrowOnError();
 
         operation->SetSuspended(false);
-
-        SetOperationAlert(
-            operation->GetId(),
-            EOperationAlertType::OperationSuspended,
-            TError());
+        operation->ResetAlert(EOperationAlertType::OperationSuspended);
 
         LOG_INFO("Operation resumed (OperationId: %v)",
             operation->GetId());
@@ -1219,7 +1215,8 @@ private:
     void DoSetOperationAlert(
         const TOperationId& operationId,
         EOperationAlertType alertType,
-        const TError& alert)
+        const TError& alert,
+        TNullable<TDuration> timeout)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -1228,11 +1225,7 @@ private:
             return;
         }
 
-        if (operation->Alerts()[alertType] == alert) {
-            return;
-        }
-
-        operation->MutableAlerts()[alertType] = alert;
+        operation->SetAlert(alertType, alert, timeout);
     }
 
     const TNodeShardPtr& GetNodeShard(TNodeId nodeId) const
@@ -2312,10 +2305,7 @@ private:
         }
 
         if (setAlert) {
-            SetOperationAlert(
-                operation->GetId(),
-                EOperationAlertType::OperationSuspended,
-                error);
+            operation->SetAlert(EOperationAlertType::OperationSuspended, error);
         }
 
         LOG_INFO(error, "Operation suspended (OperationId: %v)",

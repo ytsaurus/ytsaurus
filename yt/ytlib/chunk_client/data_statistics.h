@@ -54,29 +54,12 @@ public:
     TDuration GetTotalDuration() const;
 
 private:
-    struct TDenseMapInfo
-    {
-        static inline NCompression::ECodec getEmptyKey()
-        {
-            return static_cast<TEnumTraits<NCompression::ECodec>::TType>(-1);
-        }
+    SmallDenseMap<
+        NCompression::ECodec,
+        TDuration,
+        1,
+        TEnumTraits<NCompression::ECodec>::TDenseMapInfo> Map_;
 
-        static inline NCompression::ECodec getTombstoneKey()
-        {
-            return static_cast<TEnumTraits<NCompression::ECodec>::TType>(-2);
-        }
-
-        static unsigned getHashValue(const NCompression::ECodec& key)
-        {
-            return static_cast<unsigned>(key);
-        }
-
-        static bool isEqual(const NCompression::ECodec& lhs, const NCompression::ECodec& rhs) {
-            return lhs == rhs;
-        }
-    };
-
-    SmallDenseMap<NCompression::ECodec, TDuration, 1, TDenseMapInfo> Map_;
     TDuration TotalDuration_;
 
     TCodecStatistics& Append(const std::pair<NCompression::ECodec, TDuration>& codecTime);
