@@ -62,7 +62,6 @@ namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-
 // This methods allow use methods ConvertTo* with Py::Object.
 void Serialize(
     const Py::Object& obj,
