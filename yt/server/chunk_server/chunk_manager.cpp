@@ -457,8 +457,6 @@ public:
 
     void BuildOrchidYson(NYson::IYsonConsumer* consumer)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
-
         auto fluent = BuildYsonFluently(consumer);
         if (DefaultStoreMedium_) { // Builtins are initialized.
             fluent
