@@ -28,10 +28,16 @@ prepare_archive_directory() {
     trap "rm -rf \"$tmp_dir\" \"$archive_dir\"" EXIT
 
     local yt_local_version=$(dpkg-parsechangelog | grep Version | awk '{print $2}')
-    find "$(pwd)/.." -name 'yandex-yt-local_'"${yt_local_version}"'_*.deb' -exec cp -r {} $tmp_dir \;
-    cd "$tmp_dir"
 
-    dpkg -x yandex-yt-local_*.deb "yandex-yt-local"
+    local local_package_dir="$(pwd)/.."
+    local local_package_pattern='yandex-yt-local_'"${yt_local_version}"'_*.deb'
+    cd "$tmp_dir"
+    if [ $(find "$local_package_dir" -name $local_package_pattern | wc -l) -gt 0 ] then
+        find "$local_package_dir" -name $local_package_pattern -exec cp -r {} $tmp_dir \;
+        dpkg -x yandex-yt-local_*.deb "yandex-yt-local"
+    else
+        download_and_extract yandex-yt-local $yt_local_version
+    fi
     download_and_extract yandex-yt-node $yt_version
     download_and_extract yandex-yt-proxy $yt_version
     download_and_extract yandex-yt-master $yt_version
