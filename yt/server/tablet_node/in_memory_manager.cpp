@@ -217,7 +217,7 @@ private:
                     MakeStrong(this),
                     Passed(std::move(guard)),
                     slot,
-                    tablet->GetId(),
+                    tablet,
                     mode,
                     configRevision,
                     store,
@@ -230,28 +230,27 @@ private:
     void PreloadStore(
         TAsyncSemaphoreGuard /*guard*/,
         const TTabletSlotPtr& slot,
-        TTabletId tabletId,
+        TTablet* tablet,
         EInMemoryMode mode,
         ui64 configRevision,
         const IChunkStorePtr& store,
         const IStoreManagerPtr& storeManager)
     {
-        const auto& slotManager = Bootstrap_->GetTabletSlotManager();
-        auto tabletSnapshot = slotManager->FindTabletSnapshot(tabletId);
-        if (!tabletSnapshot) {
-            THROW_ERROR_EXCEPTION("Tablet snapshot is missing");
-        }
-
-        auto* tablet = store->GetTablet();
         auto readSessionId = TReadSessionId::Create();
 
         NLogging::TLogger Logger(TabletNodeLogger);
         Logger.AddTag("TabletId: %v, StoreId: %v, Mode: %v, ConfigRevision: %v, ReadSessionId: %v",
-            tabletId,
+            tablet->GetId(),
             store->GetId(),
             mode,
             configRevision,
             readSessionId);
+
+        const auto& slotManager = Bootstrap_->GetTabletSlotManager();
+        auto tabletSnapshot = slotManager->FindTabletSnapshot(tablet->GetId());
+        if (!tabletSnapshot) {
+            THROW_ERROR_EXCEPTION("Tablet snapshot is missing");
+        }
 
         try {
             // Fail quickly.
