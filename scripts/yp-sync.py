@@ -15,15 +15,20 @@ import tempfile
 from xml.etree import ElementTree
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "git-svn"))
-from git_svn_lib import (Git)
+from git_svn_lib import (Git, Svn, init_git_svn, fetch_git_svn, pull_git_svn)
 
 logger = logging.getLogger("Yt.GitSvn")
 
 SCRIPT_PATH = os.path.dirname(os.path.realpath(__file__))
 PROJECT_PATH = os.path.abspath(os.path.join(SCRIPT_PATH, ".."))
 
-YP_GIT_PATHSPEC = ":/yp"
+YP_GIT_PATH = "yp"
+YP_GIT_PATHSPEC = ":/" + YP_GIT_PATH
 YP_SVN_PATH = "yp"
+ARCADIA_URL = "svn+ssh://arcadia.yandex.ru/arc/trunk/arcadia" 
+YP_ARCADIA_URL = ARCADIA_URL + "/" + YP_SVN_PATH
+
+YP_GIT_SVN_REMOTE_ID = "arcadia_yp"
 
 class YpSyncError(RuntimeError):
     pass
@@ -131,7 +136,46 @@ def notify_svn(svn, base_path, rel_files):
             continue
         raise RuntimeError, "Don't know what to do with file: '{}' status: '{}'".format(file, status)
 
-def copy_to_local_svn(args):
+def verify_svn_match_git(git, svn):
+    git_rel_paths = set(git.ls_files(YP_GIT_PATHSPEC))
+    svn_status = list(svn.iter_status(YP_SVN_PATH))
+
+    svn_tracked_rel_paths = set(item.relpath
+                                for item in svn_status
+                                if (
+                                    item.status in ["normal", "modified", "added"]
+                                    and not os.path.isdir(item.abspath)))
+
+    only_in_git = git_rel_paths - svn_tracked_rel_paths
+    only_in_svn = svn_tracked_rel_paths - git_rel_paths
+    if only_in_git or only_in_svn:
+        raise YpSyncError(
+            "svn working copy doesn't match git repo\n"
+            "files that are in git and not in svn:\n\n"
+            "{only_in_git}\n"
+            "files that are in svn and not in git:\n\n"
+            "{only_in_svn}").format(
+                only_in_git=idented_lines(only_in_git),
+                only_in_svn=idented_lines(only_in_svn),
+            )
+
+    # 1. Смотрим на файлы в git'е
+    # 2. Убеждаемся, что все файлы гита добавлены в svn.
+    # 3. Убеждаемся, что нет файлов в svn'е не содержащихся в git'е.
+    # 4. Сравниваем файлы на совпадение.
+    diffed = []
+    for relpath in git_rel_paths:
+        svn_path = svn.abspath(relpath)
+        git_path = git.abspath(relpath)
+        if not filecmp.cmp(svn_path, git_path):
+            diffed.append(relpath)
+    if diffed:
+        raise YpSyncError(
+            "Some files in svn working copy differs from corresponding files from git repo:\n"
+            "{diffed}\n".format(
+                diffed=idented_lines(diffed)))
+
+def subcommand_copy_to_local_svn(args):
     git = Git(PROJECT_PATH)
     local_git = LocalGit(PROJECT_PATH)
     svn = LocalSvn(args.arcadia)
@@ -185,46 +229,8 @@ def copy_to_local_svn(args):
         print >>sys.stderr, "WARNING:", e
         print >>sys.stderr, "You can check for compileability but you will need to push changes to github before commit"
 
-def verify_svn_match_git(git, svn):
-    git_rel_paths = set(git.ls_files(YP_GIT_PATHSPEC))
-    svn_status = list(svn.iter_status(YP_SVN_PATH))
 
-    svn_tracked_rel_paths = set(item.relpath
-                                for item in svn_status
-                                if (
-                                    item.status in ["normal", "modified", "added"]
-                                    and not os.path.isdir(item.abspath)))
-
-    only_in_git = git_rel_paths - svn_tracked_rel_paths
-    only_in_svn = svn_tracked_rel_paths - git_rel_paths
-    if only_in_git or only_in_svn:
-        raise YpSyncError(
-            "svn working copy doesn't match git repo\n"
-            "files that are in git and not in svn:\n\n"
-            "{only_in_git}\n"
-            "files that are in svn and not in git:\n\n"
-            "{only_in_svn}").format(
-                only_in_git=idented_lines(only_in_git),
-                only_in_svn=idented_lines(only_in_svn),
-            )
-
-    # 1. Смотрим на файлы в git'е
-    # 2. Убеждаемся, что все файлы гита добавлены в svn.
-    # 3. Убеждаемся, что нет файлов в svn'е не содержащихся в git'е.
-    # 4. Сравниваем файлы на совпадение.
-    diffed = []
-    for relpath in git_rel_paths:
-        svn_path = svn.abspath(relpath)
-        git_path = git.abspath(relpath)
-        if not filecmp.cmp(svn_path, git_path):
-            diffed.append(relpath)
-    if diffed:
-        raise YpSyncError(
-            "Some files in svn working copy differs from corresponding files from git repo:\n"
-            "{diffed}\n".format(
-                diffed=idented_lines(diffed)))
-
-def svn_commit(args):
+def subcommand_svn_commit(args):
     git = Git(PROJECT_PATH)
     local_git = LocalGit(PROJECT_PATH)
     svn = LocalSvn(args.arcadia)
@@ -257,6 +263,20 @@ def svn_commit(args):
         arcadia_yp_path=svn.abspath(YP_SVN_PATH),
         commit_message_file_name=commit_message_file_name)
 
+def subcommand_init(args):
+    git = Git(PROJECT_PATH)
+    init_git_svn(git, YP_GIT_SVN_REMOTE_ID, YP_ARCADIA_URL)
+
+def subcommand_fetch(args):
+    git = Git(PROJECT_PATH)
+    svn = Svn()
+    fetch_git_svn(git, svn, YP_GIT_SVN_REMOTE_ID, one_by_one=True)
+
+def subcommand_pull(args):
+    git = Git(PROJECT_PATH)
+    svn = Svn()
+    pull_git_svn(git, svn, YP_ARCADIA_URL, YP_GIT_SVN_REMOTE_ID, YP_GIT_PATH, YP_SVN_PATH, revision=args.revision)
+
 def main():
     parser = argparse.ArgumentParser()
 
@@ -266,13 +286,28 @@ def main():
     copy_to_local_svn_parser = subparsers.add_parser("copy-to-local-svn")
     copy_to_local_svn_parser.add_argument("--force", default=False, action="store_true")
     copy_to_local_svn_parser.add_argument("-a", "--arcadia", required=True)
-    copy_to_local_svn_parser.set_defaults(subcommand=copy_to_local_svn)
+    copy_to_local_svn_parser.set_defaults(subcommand=subcommand_copy_to_local_svn)
 
     # local-svn-commit
     svn_commit_parser = subparsers.add_parser("svn-commit")
     svn_commit_parser.add_argument("-a", "--arcadia", required=True)
     svn_commit_parser.add_argument("--no-review", dest='review', default=True, action='store_false')
-    svn_commit_parser.set_defaults(subcommand=svn_commit)
+    svn_commit_parser.set_defaults(subcommand=subcommand_svn_commit)
+
+    # init
+    init_parser = subparsers.add_parser("init")
+    init_parser.set_defaults(subcommand=subcommand_init)
+
+    # fetch 
+    fetch_parser = subparsers.add_parser("fetch")
+    fetch_parser.set_defaults(subcommand=subcommand_fetch)
+
+    # pull 
+    pull_parser = subparsers.add_parser("pull")
+    pull_parser.add_argument(
+        "-r", "--revision",
+        help="revision to merge (by default most recent revision will be merged)", type=int)
+    pull_parser.set_defaults(subcommand=subcommand_pull)
 
     # Logging options
     logging_parser = parser.add_mutually_exclusive_group()
