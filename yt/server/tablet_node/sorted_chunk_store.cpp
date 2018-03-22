@@ -155,6 +155,8 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
     auto config = CloneYsonSerializable(ReaderConfig_);
     config->WorkloadDescriptor = workloadDescriptor;
 
+    ValidateBlockSize(chunkState, workloadDescriptor);
+
     return CreateVersionedChunkReader(
         std::move(config),
         std::move(chunkReader),
@@ -236,6 +238,8 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
 
     auto config = CloneYsonSerializable(ReaderConfig_);
     config->WorkloadDescriptor = workloadDescriptor;
+
+    ValidateBlockSize(chunkState, workloadDescriptor);
 
     return CreateVersionedChunkReader(
         std::move(config),
@@ -347,6 +351,26 @@ TChunkStatePtr TSortedChunkStore::PrepareCachedChunkState(
             PerformanceCounters_,
             GetKeyComparer());
         return ChunkState_;
+    }
+}
+
+void TSortedChunkStore::ValidateBlockSize(
+    const TChunkStatePtr& chunkState,
+    const TWorkloadDescriptor& workloadDescriptor)
+{
+    if ((workloadDescriptor.Category == EWorkloadCategory::UserInteractive ||
+        workloadDescriptor.Category == EWorkloadCategory::UserRealtime) &&
+        (chunkState->ChunkMeta->GetChunkFormat() == ETableChunkFormat::SchemalessHorizontal ||
+        chunkState->ChunkMeta->GetChunkFormat() == ETableChunkFormat::UnversionedColumnar))
+    {
+        // For unversioned chunks verify that block size is correct
+        auto miscExt = FindProtoExtension<TMiscExt>(chunkState->ChunkSpec.chunk_meta().extensions());
+        if (miscExt && miscExt->max_block_size() > Tablet_->GetConfig()->MaxUnversionedBlockSize) {
+            THROW_ERROR_EXCEPTION("Maximum block size limit violated")
+                << TErrorAttribute("chunk_id", GetId())
+                << TErrorAttribute("block_size", miscExt->max_block_size())
+                << TErrorAttribute("block_size_limit", Tablet_->GetConfig()->MaxUnversionedBlockSize);
+        }
     }
 }
 
