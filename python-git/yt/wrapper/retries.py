@@ -126,6 +126,8 @@ class IteratorRetrier(Retrier):
 
                 self._iter = None
                 attempt += 1
+            except StopIteration:
+                return
 
     @abc.abstractmethod
     def _iterator(self):
