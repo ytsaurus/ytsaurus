@@ -1519,7 +1519,6 @@ void TOperationControllerBase::SafeOnJobStarted(std::unique_ptr<TStartedJobSumma
     LOG_DEBUG("Job started (JobId: %v)", jobId);
 
     auto joblet = GetJoblet(jobId);
-    joblet->StartTime = jobSummary->StartTime;
     joblet->LastActivityTime = jobSummary->StartTime;
 
     LogEventFluently(ELogEventType::JobStarted)

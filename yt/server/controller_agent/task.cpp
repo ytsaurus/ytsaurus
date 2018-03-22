@@ -244,6 +244,7 @@ void TTask::ScheduleJob(
 
     int jobIndex = TaskHost_->NextJobIndex();
     auto joblet = New<TJoblet>(this, jobIndex, treeId);
+    joblet->StartTime = TInstant::Now();
 
     const auto& nodeResourceLimits = context->ResourceLimits();
     auto nodeId = context->GetNodeDescriptor().Id;
