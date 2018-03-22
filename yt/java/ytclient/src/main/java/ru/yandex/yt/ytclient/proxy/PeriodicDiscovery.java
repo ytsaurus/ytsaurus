@@ -16,6 +16,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.Sets;
+import org.omg.CORBA.Object;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -32,6 +33,7 @@ public class PeriodicDiscovery implements AutoCloseable {
     private static final Logger logger = LoggerFactory.getLogger(PeriodicDiscovery.class);
 
     private final BusConnector connector;
+    private final String datacenterName;
     private final Map<HostPort, DiscoveryServiceClient> proxies;
     private final Duration updatePeriod;
     private final RpcOptions options;
@@ -42,6 +44,7 @@ public class PeriodicDiscovery implements AutoCloseable {
     private final AtomicBoolean running = new AtomicBoolean(true);
 
     public PeriodicDiscovery(
+            String datacenterName,
             List<String> initialAddresses,
             BusConnector connector,
             RpcOptions options,
@@ -49,6 +52,7 @@ public class PeriodicDiscovery implements AutoCloseable {
             PeriodicDiscoveryListener listener)
     {
         this.connector = Objects.requireNonNull(connector);
+        this.datacenterName = Objects.requireNonNull(datacenterName);
         this.updatePeriod = options.getProxyUpdateTimeout();
         this.options = Objects.requireNonNull(options);
         this.rnd = new Random();
@@ -62,11 +66,12 @@ public class PeriodicDiscovery implements AutoCloseable {
     }
 
     public PeriodicDiscovery(
+            String datacenterName,
             List<String> initialAddresses,
             BusConnector connector,
             RpcOptions options)
     {
-        this(initialAddresses, connector, options, new RpcCredentials(), null);
+        this(datacenterName, initialAddresses, connector, options, new RpcCredentials(), null);
     }
 
     public Set<String> getAddresses() {
@@ -78,8 +83,7 @@ public class PeriodicDiscovery implements AutoCloseable {
     }
 
     private void removeProxies(Collection<HostPort> list) {
-        final ArrayList<RpcClient> removeList = new ArrayList<>();
-        removeList.ensureCapacity(list.size());
+        final Set<RpcClient> removeList = new HashSet<>();
         for (HostPort addr : list) {
             try {
                 DiscoveryServiceClient client = proxies.remove(addr);
@@ -105,8 +109,7 @@ public class PeriodicDiscovery implements AutoCloseable {
     }
 
     private void addProxies(Collection<HostPort> list) {
-        final ArrayList<RpcClient> addList = new ArrayList<>();
-        addList.ensureCapacity(list.size());
+        final Set<RpcClient> addList = new HashSet<>();
         for (HostPort addr : list) {
             try {
                 DiscoveryServiceClient client = createDiscoveryServiceClient(addr);
@@ -131,7 +134,7 @@ public class PeriodicDiscovery implements AutoCloseable {
         final String host = addr.getHost();
         final int port = addr.getPort();
         RpcClient rpcClient = new DefaultRpcBusClient(
-                new DefaultBusFactory(connector, () -> new InetSocketAddress(host, port)), addr.toString());
+                new DefaultBusFactory(connector, () -> new InetSocketAddress(host, port)), datacenterName);
         if (!credentials.isEmpty()) {
             rpcClient = rpcClient.withTokenAuthentication(credentials);
         }

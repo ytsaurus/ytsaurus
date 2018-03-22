@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -66,18 +67,19 @@ public class YtClient extends ApiServiceClient implements AutoCloseable {
 
             final PeriodicDiscoveryListener listener = new PeriodicDiscoveryListener() {
                 @Override
-                public void onProxiesAdded(List<RpcClient> proxies) {
+                public void onProxiesAdded(Set<RpcClient> proxies) {
                     dc.addProxies(proxies);
                 }
 
                 @Override
-                public void onProxiesRemoved(List<RpcClient> proxies) {
+                public void onProxiesRemoved(Set<RpcClient> proxies) {
                     dc.removeProxies(proxies);
                 }
             };
 
             discovery.add(
                     new PeriodicDiscovery(
+                            dataCenterName,
                             entry.getValue(),
                             connector,
                             options,

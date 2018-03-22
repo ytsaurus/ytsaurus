@@ -17,7 +17,7 @@ public class PeriodicDiscoveryExample {
             Collections.addAll(initialHosts, ExamplesUtil.getHosts());
 
             Duration interval = Duration.ofSeconds(15);
-            PeriodicDiscovery pd = new PeriodicDiscovery(initialHosts, connector,
+            PeriodicDiscovery pd = new PeriodicDiscovery("unknown", initialHosts, connector,
                     new RpcOptions()
                             .setProxyUpdateTimeout(interval)
                             .setDefaultTimeout(interval.dividedBy(2)));
