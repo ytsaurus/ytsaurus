@@ -206,7 +206,6 @@ void TNodeShard::StartOperationRevival(const TOperationId& operationId)
     auto& operationState = GetOperationState(operationId);
     operationState.JobsReady = false;
 
-
     LOG_DEBUG("Operation revival started at node shard (OperationId: %v, JobCount: %v)",
         operationId,
         operationState.Jobs.size());
@@ -214,8 +213,7 @@ void TNodeShard::StartOperationRevival(const TOperationId& operationId)
     auto jobs = operationState.Jobs;
     for (const auto& pair : jobs) {
         const auto& job = pair.second;
-        //UnregisterJob(job, /* enableLogging */ false);
-        UnregisterJob(job, /* enableLogging */ true, /* removeFromTree */ false);
+        UnregisterJob(job, /* enableLogging */ false, /* removeFromTree */ false);
     }
     YCHECK(operationState.Jobs.empty());
 }
@@ -235,8 +233,7 @@ void TNodeShard::FinishOperationRevival(const TOperationId& operationId, const s
             TNodeDescriptor(job->GetRevivalNodeAddress()));
         job->SetNode(node);
         SetJobWaitingForConfirmation(job);
-        auto& recentlyCompletedJobIds = node->RecentlyCompletedJobIds();
-        recentlyCompletedJobIds.erase(job->GetId());
+        node->RecentlyCompletedJobIds().erase(job->GetId());
         RegisterJob(job);
     }
 
@@ -1308,13 +1305,15 @@ TJobPtr TNodeShard::ProcessJobHeartbeat(
         // TJob structures of the operation are materialized. Also we should
         // not remove the completed jobs that were not saved to the snapshot.
         if (operation && !operation->JobsReady) {
-            LOG_DEBUG("Job is skipped because operations jobs are not ready yet");
+            LOG_DEBUG("Job is skipped since operation jobs are not ready yet");
             return nullptr;
         }
+
         if (node->RecentlyCompletedJobIds().has(jobId)) {
-            LOG_DEBUG("Job is skipped because it was recently completed and not persisted to snapshot yet");
+            LOG_DEBUG("Job is skipped since it was recently completed and not persisted to snapshot yet");
             return nullptr;
         }
+
         switch (state) {
             case EJobState::Completed:
                 LOG_DEBUG("Unknown job has completed, removal scheduled");
@@ -1834,6 +1833,7 @@ void TNodeShard::UnregisterJob(const TJobPtr& job, bool enableLogging, bool remo
 
     YCHECK(node->Jobs().erase(job) == 1);
     YCHECK(node->IdToJob().erase(job->GetId()) == 1);
+    node->RecentlyCompletedJobIds().erase(job->GetId());
     --ActiveJobCount_;
 
     ResetJobWaitingForConfirmation(job);
@@ -1845,12 +1845,12 @@ void TNodeShard::UnregisterJob(const TJobPtr& job, bool enableLogging, bool remo
             FinishedJobs_.emplace_back(job->GetOperationId(), job->GetId(), job->GetTreeId());
         }
 
-        LOG_DEBUG_UNLESS(enableLogging, "Job unregistered (JobId: %v, OperationId: %v, State: %v)",
+        LOG_DEBUG_IF(enableLogging, "Job unregistered (JobId: %v, OperationId: %v, State: %v)",
             job->GetId(),
             job->GetOperationId(),
             job->GetState());
     } else {
-        LOG_DEBUG_UNLESS(enableLogging, "Dangling job unregistered (JobId: %v, OperationId: %v, State: %v)",
+        LOG_DEBUG_IF(enableLogging, "Dangling job unregistered (JobId: %v, OperationId: %v, State: %v)",
             job->GetId(),
             job->GetOperationId(),
             job->GetState());
