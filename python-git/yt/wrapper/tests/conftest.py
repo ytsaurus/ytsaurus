@@ -1,3 +1,5 @@
+from __future__ import print_function
+
 from .helpers import (get_tests_location, TEST_DIR, get_tests_sandbox, ENABLE_JOB_CONTROL,
                       sync_create_cell, get_test_file_path, get_tmpfs_path, get_port_locks_path, yatest_common)
 
@@ -306,13 +308,13 @@ def _remove_operations():
     try:
         operation_from_orchid = yt.list("//sys/scheduler/orchid/scheduler/operations")
     except yt.YtError as err:
-        print >>sys.stderr, format_error(err)
+        print(format_error(err), file=sys.stderr)
 
     for operation_id in operation_from_orchid:
         try:
             yt.abort_operation(operation_id)
         except yt.YtError as err:
-            print >>sys.stderr, format_error(err)
+            print(format_error(err), file=sys.stderr)
 
     yt.remove("//sys/operations/*")
 
