@@ -1148,62 +1148,53 @@ private:
 
     void UpdateConfig()
     {
-        LOG_INFO("Updating config");
+        LOG_INFO("Updating controller agent configuration");
 
-        auto batchReq = StartObjectBatchRequest();
-
-        auto req = TYPathProxy::Get("//sys/controller_agents/config");
-        batchReq->AddRequest(req, "get_config");
-
-        auto batchRsp = WaitFor(batchReq->Invoke())
-            .ValueOrThrow();
-
-        auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_config");
-        if (rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
-            // No config in Cypress, just ignore.
-            SetControllerAgentAlert(EControllerAgentAlertType::UpdateConfig, TError());
-            return;
-        }
-        if (!rspOrError.IsOK()) {
-            LOG_ERROR(rspOrError, "Error getting controller agent configuration");
-            return;
-        }
-
-        auto newConfig = CloneYsonSerializable(InitialConfig_);
         try {
-            const auto& rsp = rspOrError.Value();
-            auto configFromCypress = ConvertToNode(TYsonString(rsp->value()));
-            try {
-                newConfig->Load(configFromCypress, /* validate */ true, /* setDefaults */ false);
-            } catch (const std::exception& ex) {
-                auto error = TError("Error updating controller agent configuration")
-                    << ex;
-                LOG_WARNING(error);
-                SetControllerAgentAlert(EControllerAgentAlertType::UpdateConfig, error);
+            auto batchReq = StartObjectBatchRequest();
+            auto req = TYPathProxy::Get("//sys/controller_agents/config");
+            batchReq->AddRequest(req, "get_config");
+
+            auto batchRsp = WaitFor(batchReq->Invoke())
+                .ValueOrThrow();
+
+            auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_config");
+            if (rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
+                LOG_INFO("No configuration found in Cypress");
+                SetControllerAgentAlert(EControllerAgentAlertType::UpdateConfig, TError());
                 return;
             }
+
+            TControllerAgentConfigPtr newConfig;
+            try {
+                const auto& rsp = rspOrError.ValueOrThrow();
+
+                newConfig = CloneYsonSerializable(InitialConfig_);
+                newConfig->Load(ConvertToNode(TYsonString(rsp->value())), /* validate */ true, /* setDefaults */ false);
+            } catch (const std::exception& ex) {
+                THROW_ERROR_EXCEPTION("Error loading controller agent configuration")
+                    << ex;
+            }
+
+            SetControllerAgentAlert(EControllerAgentAlertType::UpdateConfig, TError());
+
+            auto oldConfigNode = ConvertToNode(Config_);
+            auto newConfigNode = ConvertToNode(newConfig);
+            if (AreNodesEqual(oldConfigNode, newConfigNode)) {
+                return;
+            }
+
+            ValidateConfig();
+
+            DoUpdateConfig(newConfig);
+            Bootstrap_->GetControllerAgent()->UpdateConfig(newConfig);
+
+            LOG_INFO("Controller agent configuration updated");
         } catch (const std::exception& ex) {
-            auto error = TError("Error parsing updated controller agent configuration")
-                << ex;
-            LOG_WARNING(error);
-            return;
+            auto error = TError(ex);
+            SetControllerAgentAlert(EControllerAgentAlertType::UpdateConfig, error);
+            LOG_WARNING(error, "Error updating controller agent configuration");
         }
-
-        SetControllerAgentAlert(EControllerAgentAlertType::UpdateConfig, TError());
-
-        auto oldConfigNode = ConvertToNode(Config_);
-        auto newConfigNode = ConvertToNode(newConfig);
-
-        if (AreNodesEqual(oldConfigNode, newConfigNode)) {
-            return;
-        }
-
-        ValidateConfig();
-
-        DoUpdateConfig(newConfig);
-        Bootstrap_->GetControllerAgent()->UpdateConfig(newConfig);
-
-        LOG_INFO("Controller agent configuration updated");
     }
 
     void SetControllerAgentAlert(EControllerAgentAlertType alertType, const TError& alert)
