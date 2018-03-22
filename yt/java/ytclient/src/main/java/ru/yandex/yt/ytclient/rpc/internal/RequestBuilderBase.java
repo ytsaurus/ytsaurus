@@ -29,6 +29,9 @@ public abstract class RequestBuilderBase<RequestType extends MessageLite.Builder
         this.header = header;
         this.body = body;
         this.options = options;
+
+        setTimeout(options.getDefaultTimeout());
+        setRequestAck(options.getDefaultRequestAck());
     }
 
     @Override
