@@ -8,6 +8,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -20,9 +21,7 @@ import ru.yandex.yt.ytclient.rpc.BalancingRpcClient;
 import ru.yandex.yt.ytclient.rpc.RpcClient;
 import ru.yandex.yt.ytclient.rpc.RpcOptions;
 import ru.yandex.yt.ytclient.rpc.internal.metrics.BalancingDestinationMetricsHolder;
-import ru.yandex.yt.ytclient.rpc.internal.metrics.BalancingDestinationMetricsHolderImpl;
 import ru.yandex.yt.ytclient.rpc.internal.metrics.DataCenterMetricsHolder;
-import ru.yandex.yt.ytclient.rpc.internal.metrics.DataCenterMetricsHolderImpl;
 
 /**
  * @author aozeritsky
@@ -118,7 +117,7 @@ public final class DataCenter {
         }
     }
 
-    public void addProxies(List<RpcClient> proxies) {
+    public void addProxies(Set<RpcClient> proxies) {
         synchronized (backends) {
             backends.ensureCapacity(backends.size() + proxies.size());
 
@@ -134,17 +133,12 @@ public final class DataCenter {
         }
     }
 
-    public void removeProxies(List<RpcClient> proxies) {
-        final Map<String, RpcClient> hash = new HashMap<>();
-        for (RpcClient client : proxies) {
-            hash.put(client.destinationName(), client);
-        }
-
+    public void removeProxies(Set<RpcClient> proxies) {
         final ArrayList<BalancingDestination> removeList = new ArrayList<>();
         synchronized (backends) {
             removeList.ensureCapacity(proxies.size());
             for (BalancingDestination dest : backends) {
-                if (hash.containsKey(dest.getClient().destinationName())) {
+                if (proxies.contains(dest.getClient())) {
                     removeList.add(dest);
                 }
             }

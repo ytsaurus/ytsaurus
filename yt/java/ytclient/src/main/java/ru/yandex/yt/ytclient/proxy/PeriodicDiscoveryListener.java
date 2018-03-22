@@ -1,10 +1,10 @@
 package ru.yandex.yt.ytclient.proxy;
 
-import java.util.List;
+import java.util.Set;
 
 import ru.yandex.yt.ytclient.rpc.RpcClient;
 
 public interface PeriodicDiscoveryListener {
-    void onProxiesAdded(List<RpcClient> proxies);
-    void onProxiesRemoved(List<RpcClient> proxies);
+    void onProxiesAdded(Set<RpcClient> proxies);
+    void onProxiesRemoved(Set<RpcClient> proxies);
 }
