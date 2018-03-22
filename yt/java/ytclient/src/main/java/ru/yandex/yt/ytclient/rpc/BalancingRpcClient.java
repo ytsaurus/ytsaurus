@@ -184,7 +184,7 @@ public class BalancingRpcClient implements RpcClient {
         return selectDestinations(dataCenters, maxSelect, hasLocal, rnd, false);
     }
 
-    static List<RpcClient> selectDestinations(DataCenter [] dataCenters, int maxSelect, boolean hasLocal, Random rnd, boolean sortDcByPing) {
+    public static List<RpcClient> selectDestinations(DataCenter [] dataCenters, int maxSelect, boolean hasLocal, Random rnd, boolean sortDcByPing) {
         List<RpcClient> r = new ArrayList<>();
 
         int n = dataCenters.length;

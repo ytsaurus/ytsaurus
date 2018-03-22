@@ -9,19 +9,23 @@ import ru.yandex.yt.ytclient.rpc.RpcClient;
 import ru.yandex.yt.ytclient.rpc.RpcClientRequest;
 import ru.yandex.yt.ytclient.rpc.RpcClientRequestControl;
 import ru.yandex.yt.ytclient.rpc.RpcClientResponseHandler;
+import ru.yandex.yt.ytclient.rpc.RpcCredentials;
 
 /**
  * Декоратор для RpcClient, добавляющий аутентификацию по токену
  */
 public class TokenAuthentication implements RpcClient {
     private final RpcClient client;
-    private final String user;
-    private final String token;
+    private final RpcCredentials credentials;
 
-    public TokenAuthentication(RpcClient client, String user, String token) {
+    public TokenAuthentication(RpcClient client, RpcCredentials credentials) {
         this.client = Objects.requireNonNull(client);
-        this.user = user;
-        this.token = token;
+        this.credentials = Objects.requireNonNull(credentials);
+    }
+
+    @Deprecated
+    public TokenAuthentication(RpcClient client, String user, String token) {
+        this(client, new RpcCredentials(user, token));
     }
 
     @Override
@@ -33,11 +37,11 @@ public class TokenAuthentication implements RpcClient {
     public RpcClientRequestControl send(RpcClient sender, RpcClientRequest request, RpcClientResponseHandler handler) {
         TRequestHeader.Builder header = request.header();
         if (!header.hasUser()) {
-            header.setUser(user);
+            header.setUser(credentials.getUser());
         }
         if (!header.hasExtension(TCredentialsExt.credentialsExt)) {
             header.setExtension(TCredentialsExt.credentialsExt, TCredentialsExt.newBuilder()
-                    .setToken(token)
+                    .setToken(credentials.getToken())
                     .setUserIp(getLocalAddress())
                     .build());
         }

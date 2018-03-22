@@ -31,9 +31,15 @@ public interface RpcClient extends AutoCloseable {
 
     /**
      * Возвращает клиент с аутентификацией запросов по токену
+     * @deprecated {@see #withTokenAuthentication}
      */
+    @Deprecated
     default RpcClient withTokenAuthentication(String user, String token) {
-        return new TokenAuthentication(this, user, token);
+        return withTokenAuthentication(new RpcCredentials(user, token));
+    }
+
+    default RpcClient withTokenAuthentication(RpcCredentials credentials) {
+        return new TokenAuthentication(this, credentials);
     }
 
     /**

@@ -17,14 +17,17 @@ import java.util.stream.Collectors;
 import com.google.common.collect.ImmutableMap;
 import io.netty.channel.nio.NioEventLoopGroup;
 
+import ru.yandex.bolts.collection.Cf;
 import ru.yandex.yt.ytclient.bus.BusConnector;
 import ru.yandex.yt.ytclient.bus.DefaultBusConnector;
 import ru.yandex.yt.ytclient.bus.DefaultBusFactory;
 import ru.yandex.yt.ytclient.proxy.ApiServiceClient;
+import ru.yandex.yt.ytclient.proxy.YtClient;
 import ru.yandex.yt.ytclient.rpc.BalancingRpcClient;
 import ru.yandex.yt.ytclient.rpc.DefaultRpcBusClient;
 import ru.yandex.yt.ytclient.rpc.DefaultRpcFailoverPolicy;
 import ru.yandex.yt.ytclient.rpc.RpcClient;
+import ru.yandex.yt.ytclient.rpc.RpcCredentials;
 import ru.yandex.yt.ytclient.rpc.RpcOptions;
 
 public final class ExamplesUtil {
@@ -75,6 +78,11 @@ public final class ExamplesUtil {
         return token;
     }
 
+    public static RpcCredentials getCredentials()
+    {
+        return new RpcCredentials(getUser(), getToken());
+    }
+
     static String getRandomHost() {
         return hosts[random.nextInt(hosts.length)];
     }
@@ -95,6 +103,7 @@ public final class ExamplesUtil {
         return client.withTokenAuthentication(user, token);
     }
 
+    @Deprecated
     public static RpcClient createBalancingRpcClient(BusConnector connector, String user, String token)
     {
         List<RpcClient> clients = Arrays.asList(hosts).stream()
@@ -134,13 +143,10 @@ public final class ExamplesUtil {
         runExample(consumer, getUser(), getToken());
     }
 
-    public static void runExampleWithBalancing(Consumer<ApiServiceClient> consumer) {
+    public static void runExampleWithBalancing(Consumer<YtClient> consumer) {
         try (BusConnector connector = createConnector()) {
-            try (RpcClient rpcClient = createBalancingRpcClient(connector, getUser(), getToken())) {
-                ApiServiceClient serviceClient = new ApiServiceClient(rpcClient,
-                        new RpcOptions().setDefaultTimeout(Duration.ofSeconds(5)));
-                consumer.accept(serviceClient);
-            }
+            YtClient client = new YtClient(connector, Cf.list(getHosts()), getCredentials(), new RpcOptions());
+            consumer.accept(client);
         }
     }
 }
