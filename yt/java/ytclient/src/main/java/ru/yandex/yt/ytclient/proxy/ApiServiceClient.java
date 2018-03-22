@@ -188,9 +188,9 @@ public class ApiServiceClient {
             GUID id = RpcUtil.fromProto(response.body().getId());
             YtTimestamp startTimestamp = YtTimestamp.valueOf(response.body().getStartTimestamp());
             if (rpcClient == this) {
-                return new ApiServiceTransaction(this, id, startTimestamp, ping, pingAncestors, sticky, pingPeriod);
+                return new ApiServiceTransaction(this, id, startTimestamp, ping, pingAncestors, sticky, pingPeriod, rpcClient.executor());
             } else {
-                return new ApiServiceTransaction(response.sender(), rpcOptions, id, startTimestamp, ping, pingAncestors, sticky, pingPeriod);
+                return new ApiServiceTransaction(response.sender(), rpcOptions, id, startTimestamp, ping, pingAncestors, sticky, pingPeriod, response.sender().executor());
             }
         });
     }
@@ -593,13 +593,5 @@ public class ApiServiceClient {
     private <T, Response> CompletableFuture<T> handleHeavyResponse(CompletableFuture<Response> future,
                                                                    Function<Response, T> fn) {
         return RpcUtil.applyAsync(future, fn, heavyExecutor);
-    }
-
-
-    <V> ScheduledFuture<V> schedule(
-            Callable<V> callable,
-            long delay, TimeUnit unit)
-    {
-        return rpcClient.schedule(callable, delay, unit);
     }
 }

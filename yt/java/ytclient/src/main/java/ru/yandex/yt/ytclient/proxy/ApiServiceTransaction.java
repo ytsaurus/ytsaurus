@@ -5,6 +5,7 @@ import java.util.Objects;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 import ru.yandex.inside.yt.kosher.common.GUID;
@@ -38,6 +39,7 @@ public class ApiServiceTransaction implements AutoCloseable {
     private final boolean sticky;
     private final TransactionalOptions transactionalOptions;
     private final Duration pingPeriod;
+    private final ScheduledExecutorService executor;
 
     enum State {
         ACTIVE,
@@ -77,7 +79,8 @@ public class ApiServiceTransaction implements AutoCloseable {
             boolean ping,
             boolean pingAncestors,
             boolean sticky,
-            Duration pingPeriod)
+            Duration pingPeriod,
+            ScheduledExecutorService executor)
     {
         this.client = client;
         this.id = Objects.requireNonNull(id);
@@ -87,6 +90,7 @@ public class ApiServiceTransaction implements AutoCloseable {
         this.transactionalOptions = new TransactionalOptions(id, ping, pingAncestors, sticky);
         this.state = State.ACTIVE;
         this.pingPeriod = pingPeriod;
+        this.executor = executor;
 
         if (ping && ! pingPeriod.isZero() && ! pingPeriod.isNegative()) {
             runPeriodicPings();
@@ -101,7 +105,8 @@ public class ApiServiceTransaction implements AutoCloseable {
             boolean ping,
             boolean pingAncestors,
             boolean sticky,
-            Duration pingPeriod)
+            Duration pingPeriod,
+            ScheduledExecutorService executor)
     {
         this(
                 new ApiServiceClient(Objects.requireNonNull(rpcClient), rpcOptions),
@@ -110,7 +115,8 @@ public class ApiServiceTransaction implements AutoCloseable {
                 ping,
                 pingAncestors,
                 sticky,
-                pingPeriod
+                pingPeriod,
+                executor
         );
     }
 
@@ -135,7 +141,7 @@ public class ApiServiceTransaction implements AutoCloseable {
                 return;
             }
 
-            client.schedule(() -> {
+            executor.schedule(() -> {
                 runPeriodicPings();
                 return null;
             }, pingPeriod.toMillis(), TimeUnit.MILLISECONDS);
