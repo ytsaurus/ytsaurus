@@ -57,6 +57,8 @@ int main(int argc, const char** argv) {
                     TRichYPath("//home/ermolovd/yt-tutorial/is_robot_unsorted") // Тут указываем таблицу, которую нам надо доставить.
                     .Format("yson") // Это формат, в котором таблица будет прочитана, нам нужен yson, чтобы TNode-читатель в джобе смог прочитать файл.
                     .FileName("robot_table") // Это имя файла, с дампом таблицы.
+                    // Тут же можно было бы указать фильтрацию по колонкам или фильтрацию по номерам строк таблицы
+                    // с помощью соответсвтующих методов TRichYPath, но нам ничего этого не надо.
                 ))
             .AddInput<TNode>("//home/ermolovd/yt-tutorial/staff_unsorted")
             .AddOutput<TNode>(outputTable),
