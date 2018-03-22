@@ -59,9 +59,10 @@ using TListProfilerTrait = TProfilerTrait<TListProfilerTraitBase, TCounters>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ProfileDiskPressure(
+void ProfileChunkWriter(
     TTabletSnapshotPtr tabletSnapshot,
     const NChunkClient::NProto::TDataStatistics&,
+    const NChunkClient::TCodecStatistics& codecStatistics,
     NProfiling::TTagId methodTag);
 
 ////////////////////////////////////////////////////////////////////////////////

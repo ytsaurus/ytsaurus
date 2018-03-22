@@ -64,28 +64,33 @@ struct TDiskBytesWrittenCounters
     TDiskBytesWrittenCounters(const TTagIdList& list)
         : DiskBytesWritten("/disk_bytes_written", list)
         , DiskDataWeightWritten("/disk_data_weight_written", list)
+        , CompressionCpuTime("/chunk_writer/compression_cpu_time", list)
     { }
 
     TSimpleCounter DiskBytesWritten;
     TSimpleCounter DiskDataWeightWritten;
+    TSimpleCounter CompressionCpuTime;
 };
 
 using TDiskBytesWrittenProfilerTrait = TListProfilerTrait<TDiskBytesWrittenCounters>;
 
-void ProfileDiskPressure(
+void ProfileChunkWriter(
     TTabletSnapshotPtr tabletSnapshot,
     const TDataStatistics& dataStatistics,
+    const TCodecStatistics& codecStatistics,
     TTagId methodTag)
 {
     auto diskSpace = CalculateDiskSpaceUsage(
         tabletSnapshot->WriterOptions->ReplicationFactor,
         dataStatistics.regular_disk_space(),
         dataStatistics.erasure_disk_space());
+    auto compressionCpuTime = codecStatistics.GetTotalDuration();
     auto tags = tabletSnapshot->DiskProfilerTags;
     tags.push_back(methodTag);
     auto& counters = GetLocallyGloballyCachedValue<TDiskBytesWrittenProfilerTrait>(tags);
     TabletNodeProfiler.Increment(counters.DiskBytesWritten, diskSpace);
     TabletNodeProfiler.Increment(counters.DiskDataWeightWritten, dataStatistics.data_weight());
+    TabletNodeProfiler.Increment(counters.CompressionCpuTime, DurationToValue(compressionCpuTime));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

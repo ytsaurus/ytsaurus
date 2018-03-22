@@ -248,6 +248,8 @@ struct TDataSliceDescriptor;
 
 struct TInterruptDescriptor;
 
+class TCodecStatistics;
+
 DECLARE_REFCOUNTED_CLASS(TKeySetWriter)
 
 using TDataCenterName = TNullable<TString>;

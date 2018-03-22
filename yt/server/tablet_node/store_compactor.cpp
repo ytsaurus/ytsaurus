@@ -876,9 +876,10 @@ private:
 
                 tabletSnapshot->PerformanceCounters->PartitioningDataWeightCount += writer->GetDataStatistics().data_weight();
 
-                ProfileDiskPressure(
+                ProfileChunkWriter(
                     tabletSnapshot,
                     writer->GetDataStatistics(),
+                    writer->GetCompressionStatistics(),
                     PartitioningTag_);
             }
 
@@ -1249,9 +1250,10 @@ private:
 
             tabletSnapshot->PerformanceCounters->CompactionDataWeightCount += writer->GetDataStatistics().data_weight();
 
-            ProfileDiskPressure(
+            ProfileChunkWriter(
                 tabletSnapshot,
                 writer->GetDataStatistics(),
+                writer->GetCompressionStatistics(),
                 CompactionTag_);
 
             LOG_INFO("Partition compaction completed (RowCount: %v, StoreIdsToAdd: %v, StoreIdsToRemove: %v, WallTime: %v)",
