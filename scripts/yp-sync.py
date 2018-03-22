@@ -72,13 +72,23 @@ class LocalGit(object):
         return output.strip('\000').split('\000')
 
     def abspath(self, path):
-        return os.path.realpath(os.path.join(self.root, path))
+        return os.path.join(self.root, path)
 
     def rev_parse(self, rev="HEAD"):
 	ret = self.git.call("rev-parse", rev).rstrip('\n')
 	assert re.match('^[0-9a-f]{40}$', ret)
         return ret
 
+def git_iter_files_to_sync(git, pathspec):
+    for relpath in git.ls_files(pathspec):
+        if os.path.islink(git.abspath(relpath)):
+            warn = (
+                "Skipping symlink file: `{}'\n"
+                "(To be honest author of this script doubts that keeping symlink in repo is a good idea\n"
+                "and encourages you to remove it to mute this annoing warning)").format(relpath)
+            logger.warning(warn)
+            continue
+        yield relpath
 
 class LocalSvn(object):
     def __init__(self, root):
@@ -103,7 +113,7 @@ class LocalSvn(object):
             yield SvnStatusEntry(abspath, relpath, wc_status.get("item"))
 
     def abspath(self, path):
-        return os.path.realpath(os.path.join(self.root, path))
+        return os.path.join(self.root, path)
 
     def revert(self, path):
         subprocess.check_call(["svn", "revert", "--recursive", self.abspath(path)])
@@ -134,10 +144,10 @@ def notify_svn(svn, base_path, rel_files):
             continue
         if os.path.isdir(svn.abspath(relpath)):
             continue
-        raise RuntimeError, "Don't know what to do with file: '{}' status: '{}'".format(file, status)
+        raise RuntimeError, "Don't know what to do with file: '{}' status: '{}'".format(relpath, status)
 
 def verify_svn_match_git(git, svn):
-    git_rel_paths = set(git.ls_files(YP_GIT_PATHSPEC))
+    git_rel_paths = set(git_iter_files_to_sync(git, YP_GIT_PATHSPEC))
     svn_status = list(svn.iter_status(YP_SVN_PATH))
 
     svn_tracked_rel_paths = set(item.relpath
@@ -194,7 +204,7 @@ def subcommand_copy_to_local_svn(args):
     logger.info("copying files to arcadia directory")
     rmrf(svn.abspath(YP_SVN_PATH))
     # Copy files
-    rel_files = set(local_git.ls_files(YP_GIT_PATHSPEC))
+    rel_files = list(git_iter_files_to_sync(local_git, YP_GIT_PATHSPEC))
     for rel_file in rel_files:
         git_file = local_git.abspath(rel_file)
         svn_file = svn.abspath(rel_file)
@@ -245,16 +255,17 @@ def subcommand_svn_commit(args):
     verify_svn_match_git(local_git, svn)
 
     logger.info("prepare commit")
-    # Создать времменный файл,
     head = local_git.rev_parse()
     fd, commit_message_file_name = tempfile.mkstemp("-yp-commit-message", text=True)
     print commit_message_file_name
     with os.fdopen(fd, 'w') as outf:
         outf.write(
-            "Push yp to arcadia\n"
+            "Push {yp_path}/ to arcadia\n"
             "\n"
             "__BYPASS_CHECKS__\n"
-            "yt:git_commit:{head}\n".format(head=head))
+            "yt:git_commit:{head}\n".format(
+                yp_path=YP_SVN_PATH,
+                head=head))
         if args.review:
             outf.write("\nREVIEW:new\n")
 
