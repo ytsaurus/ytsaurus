@@ -510,6 +510,19 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
 
     auto miscExt = GetProtoExtension<TMiscExt>(meta.extensions());
     auto blocksExt = GetProtoExtension<TBlocksExt>(meta.extensions());
+    auto format = ETableChunkFormat(meta.version());
+
+    if (format == ETableChunkFormat::SchemalessHorizontal ||
+        format == ETableChunkFormat::UnversionedColumnar)
+    {
+        // For unversioned chunks verify that block size is correct
+        if (miscExt.max_block_size() > tabletSnapshot->Config->MaxUnversionedBlockSize) {
+            THROW_ERROR_EXCEPTION("Maximum block size limit violated")
+                << TErrorAttribute("chunk_id", store->GetId())
+                << TErrorAttribute("block_size", miscExt.max_block_size())
+                << TErrorAttribute("block_size_limit", tabletSnapshot->Config->MaxUnversionedBlockSize);
+        }
+    }
 
     auto erasureCodec = NErasure::ECodec(miscExt.erasure_codec());
     if (erasureCodec != NErasure::ECodec::None) {
