@@ -1141,12 +1141,6 @@ void TTablet::FillProfilerTags(const TCellId& cellId)
 {
     ProfilerTags_.clear();
 
-    if (Config_->EnableProfiling) {
-        ProfilerTags_.assign({
-            TProfileManager::Get()->RegisterTag("tablet_id", Id_),
-            TProfileManager::Get()->RegisterTag("cell_id", cellId)});
-    }
-
     DiskProfilerTags_.assign({
         TProfileManager::Get()->RegisterTag("account", WriterOptions_->Account),
         TProfileManager::Get()->RegisterTag("medium", WriterOptions_->MediumName)});
