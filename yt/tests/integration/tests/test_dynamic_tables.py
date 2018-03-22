@@ -668,8 +668,7 @@ class TestDynamicTables(TestDynamicTablesBase):
         peer_path = "#{0}/@peers/0/address".format(cell)
         peer = get(peer_path)
         set("//sys/nodes/{0}/@disable_tablet_cells".format(peer), True)
-        wait(lambda: get(peer_path) != peer)
-        assert get(peer_path) != peer
+        wait(lambda: exists(peer_path) and get(peer_path) != peer)
 
     def test_tablet_slot_charges_cpu_resource_limit(self):
         get_cpu = lambda x: get("//sys/nodes/{0}/orchid/job_controller/resource_limits/cpu".format(x))
