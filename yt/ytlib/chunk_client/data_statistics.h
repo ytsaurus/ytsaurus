@@ -34,6 +34,8 @@ TString ToString(const TDataStatistics& statistics);
 
 } // namespace NProto
 
+////////////////////////////////////////////////////////////////////////////////
+
 struct TCodecDuration
 {
     NCompression::ECodec Codec;

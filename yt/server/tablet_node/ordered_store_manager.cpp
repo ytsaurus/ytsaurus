@@ -258,9 +258,10 @@ TStoreFlushCallback TOrderedStoreManager::MakeStoreFlushCallback(
         WaitFor(tableWriter->Close())
             .ThrowOnError();
 
-        ProfileDiskPressure(
+        ProfileChunkWriter(
             tabletSnapshot,
             tableWriter->GetDataStatistics(),
+            tableWriter->GetCompressionStatistics(),
             StoreFlushTag_);
 
         auto dataStatistics = tableWriter->GetDataStatistics();
