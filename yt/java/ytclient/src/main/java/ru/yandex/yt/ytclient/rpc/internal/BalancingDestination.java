@@ -19,12 +19,15 @@ import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
 import ru.yandex.yt.ytclient.rpc.RpcClientRequestControl;
 import ru.yandex.yt.ytclient.rpc.RpcClientResponse;
 import ru.yandex.yt.ytclient.rpc.RpcClientResponseHandler;
+import ru.yandex.yt.ytclient.rpc.RpcOptions;
 import ru.yandex.yt.ytclient.rpc.RpcUtil;
 import ru.yandex.yt.ytclient.rpc.internal.metrics.BalancingDestinationMetricsHolder;
 import ru.yandex.yt.ytclient.rpc.internal.metrics.BalancingDestinationMetricsHolderImpl;
 
 /**
  * @author aozeritsky
+ *
+ * TODO: move to proxy
  */
 public class BalancingDestination {
     private final BalancingDestinationMetricsHolder metricsHolder;
@@ -44,6 +47,10 @@ public class BalancingDestination {
     }
 
     public BalancingDestination(String dc, RpcClient client, int index, BalancingDestinationMetricsHolder metricsHolder) {
+        this(dc, client, index, metricsHolder, new RpcOptions());
+    }
+
+    public BalancingDestination(String dc, RpcClient client, int index, BalancingDestinationMetricsHolder metricsHolder, RpcOptions options) {
         this.dc = dc;
         this.client = Objects.requireNonNull(client);
         this.index = index;
@@ -52,7 +59,7 @@ public class BalancingDestination {
         this.destinationName = client.destinationName();
         this.metricsHolder = metricsHolder;
 
-        service = client.getService(ApiService.class);
+        service = client.getService(ApiService.class, options);
     }
 
     /* for testing only */
