@@ -101,6 +101,7 @@ TAggregateCounter::TAggregateCounter(const TAggregateCounter& other)
 TAggregateCounter& TAggregateCounter::operator=(const TAggregateCounter& other)
 {
     static_cast<TCounterBase&>(*this) = static_cast<const TCounterBase&>(other);
+    Mode_ = other.Mode_;
     Reset();
     return *this;
 }
