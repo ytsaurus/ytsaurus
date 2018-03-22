@@ -83,9 +83,10 @@ struct TReplicationLogTable
 };
 
 DEFINE_ENUM(ETabletBackgroundActivity,
-    (Compaction)
-    (Flush)
-    (Partitioning)
+    ((Compaction)     (0))
+    ((Flush)          (1))
+    ((Partitioning)   (2))
+    ((Preload)        (3))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
