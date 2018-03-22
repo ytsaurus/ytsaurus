@@ -91,7 +91,7 @@ public:
             Unretained(this)));
     }
 
-    void StartOperationNodeUpdates(const TOperationId& operationId)
+    void RegisterOperation(const TOperationId& operationId)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(IsConnected());
@@ -99,6 +99,14 @@ public:
         OperationNodesUpdateExecutor_->AddUpdate(
             operationId,
             TOperationNodeUpdate(operationId));
+    }
+
+    void UnregisterOperation(const TOperationId& operationId)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+        YCHECK(IsConnected());
+
+        OperationNodesUpdateExecutor_->RemoveUpdate(operationId);
     }
 
     void CreateJobNode(const TOperationId& operationId, const TCreateJobNodeRequest& request)
@@ -252,7 +260,7 @@ private:
         OperationNodesUpdateExecutor_ = New<TUpdateExecutor<TOperationId, TOperationNodeUpdate>>(
             CancelableControlInvoker_,
             BIND(&TImpl::UpdateOperationNode, Unretained(this)),
-            BIND(&TImpl::IsOperationInFinishedState, Unretained(this)),
+            BIND([] (const TOperationNodeUpdate*) { return false; }),
             BIND(&TImpl::OnOperationUpdateFailed, Unretained(this)),
             Config_->OperationsUpdatePeriod,
             Logger);
@@ -1245,9 +1253,14 @@ void TMasterConnector::Initialize()
     Impl_->Initialize();
 }
 
-void TMasterConnector::StartOperationNodeUpdates(const TOperationId& operationId)
+void TMasterConnector::RegisterOperation(const TOperationId& operationId)
 {
-    Impl_->StartOperationNodeUpdates(operationId);
+    Impl_->RegisterOperation(operationId);
+}
+
+void TMasterConnector::UnregisterOperation(const TOperationId& operationId)
+{
+    Impl_->UnregisterOperation(operationId);
 }
 
 void TMasterConnector::CreateJobNode(const TOperationId& operationId, const TCreateJobNodeRequest& request)

@@ -372,7 +372,7 @@ public:
 
         YCHECK(IdToOperation_.emplace(operationId, operation).second);
 
-        MasterConnector_->StartOperationNodeUpdates(operationId);
+        MasterConnector_->RegisterOperation(operationId);
 
         LOG_DEBUG("Operation registered (OperationId: %v)", operationId);
     }
@@ -387,11 +387,14 @@ public:
             controller->Cancel();
         }
 
-        YCHECK(IdToOperation_.erase(operation->GetId()) == 1);
+        auto operationId = operation->GetId();
+        YCHECK(IdToOperation_.erase(operationId) == 1);
 
-        LOG_DEBUG("Operation unregistered (OperationId: %v)", operation->GetId());
+        MasterConnector_->UnregisterOperation(operationId);
 
-        MemoryTagQueue_.ReclaimOperationTag(operation->GetId());
+        MemoryTagQueue_.ReclaimOperationTag(operationId);
+
+        LOG_DEBUG("Operation unregistered (OperationId: %v)", operationId);
     }
 
     TFuture<TOperationControllerInitializationResult> InitializeOperation(

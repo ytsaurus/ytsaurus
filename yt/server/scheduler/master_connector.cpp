@@ -131,12 +131,20 @@ public:
         return CancelableControlInvokers_[queue];
     }
 
-    void StartOperationNodeUpdates(const TOperationPtr& operation)
+    void RegisterOperation(const TOperationPtr& operation)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(State_ != EMasterConnectorState::Disconnected);
 
         OperationNodesUpdateExecutor_->AddUpdate(operation->GetId(), TOperationNodeUpdate(operation));
+    }
+
+    void UnregisterOperation(const TOperationPtr& operation)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+        YCHECK(State_ != EMasterConnectorState::Disconnected);
+
+        OperationNodesUpdateExecutor_->RemoveUpdate(operation->GetId());
     }
 
     TFuture<void> CreateOperationNode(TOperationPtr operation)
@@ -517,7 +525,7 @@ private:
         OperationNodesUpdateExecutor_ = New<TUpdateExecutor<TOperationId, TOperationNodeUpdate>>(
             GetCancelableControlInvoker(),
             BIND(&TImpl::UpdateOperationNode, Unretained(this)),
-            BIND(&TImpl::IsOperationInFinishedState, Unretained(this)),
+            BIND([] (const TOperationNodeUpdate*) { return false; }),
             BIND(&TImpl::OnOperationUpdateFailed, Unretained(this)),
             Config_->OperationsUpdatePeriod,
             Logger);
@@ -1360,14 +1368,6 @@ private:
     }
 
 
-    bool IsOperationInFinishedState(const TOperationNodeUpdate* update) const
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        const auto& operation = update->Operation;
-        return operation->IsFinishedState();
-    }
-
     void OnOperationUpdateFailed(const TError& error)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -1714,9 +1714,14 @@ const IInvokerPtr& TMasterConnector::GetCancelableControlInvoker(EControlQueue q
     return Impl_->GetCancelableControlInvoker(queue);
 }
 
-void TMasterConnector::StartOperationNodeUpdates(const TOperationPtr& operation)
+void TMasterConnector::RegisterOperation(const TOperationPtr& operation)
 {
-    Impl_->StartOperationNodeUpdates(operation);
+    Impl_->RegisterOperation(operation);
+}
+
+void TMasterConnector::UnregisterOperation(const TOperationPtr& operation)
+{
+    Impl_->UnregisterOperation(operation);
 }
 
 TFuture<void> TMasterConnector::CreateOperationNode(const TOperationPtr& operation)

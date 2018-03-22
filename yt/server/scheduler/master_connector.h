@@ -65,7 +65,9 @@ public:
 
     void Disconnect(const TError& error);
 
-    void StartOperationNodeUpdates(const TOperationPtr& operation);
+    void RegisterOperation(const TOperationPtr& operation);
+    void UnregisterOperation(const TOperationPtr& operation);
+
     TFuture<void> CreateOperationNode(const TOperationPtr& operation);
     TFuture<void> UpdateInitializedOperationNode(const TOperationPtr& operation);
     TFuture<void> FlushOperationNode(const TOperationPtr& operation);
