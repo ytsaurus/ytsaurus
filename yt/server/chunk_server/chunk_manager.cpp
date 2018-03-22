@@ -451,12 +451,14 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         return IYPathService::FromProducer(BIND(&TImpl::BuildOrchidYson, MakeStrong(this)))
-            ->Via(Bootstrap_->GetControlInvoker())
+            ->Via(Bootstrap_->GetHydraFacade()->GetGuardedAutomatonInvoker(EAutomatonThreadQueue::ChunkManager))
             ->Cached(Config_->StaticOrchidCacheUpdatePeriod);
     }
 
     void BuildOrchidYson(NYson::IYsonConsumer* consumer)
     {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
         auto fluent = BuildYsonFluently(consumer);
         if (DefaultStoreMedium_) { // Builtins are initialized.
             fluent
