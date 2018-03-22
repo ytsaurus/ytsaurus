@@ -65,6 +65,12 @@ void ProfileChunkWriter(
     const NChunkClient::TCodecStatistics& codecStatistics,
     NProfiling::TTagId methodTag);
 
+void ProfileChunkReader(
+    TTabletSnapshotPtr tabletSnapshot,
+    const NChunkClient::NProto::TDataStatistics& dataStatistics,
+    const NChunkClient::TCodecStatistics& codecStatistics,
+    NProfiling::TTagId methodTag);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NTabletNode

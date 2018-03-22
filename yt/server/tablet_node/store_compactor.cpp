@@ -883,6 +883,12 @@ private:
                     PartitioningTag_);
             }
 
+            ProfileChunkReader(
+                tabletSnapshot,
+                reader->GetDataStatistics(),
+                reader->GetDecompressionStatistics(),
+                PartitioningTag_);
+
             LOG_INFO("Eden partitioning completed (RowCount: %v, StoreIdsToAdd: %v, StoreIdsToRemove: %v, WallTime: %v)",
                 rowCount,
                 storeIdsToAdd,
@@ -1254,6 +1260,12 @@ private:
                 tabletSnapshot,
                 writer->GetDataStatistics(),
                 writer->GetCompressionStatistics(),
+               CompactionTag_);
+
+            ProfileChunkReader(
+                tabletSnapshot,
+                reader->GetDataStatistics(),
+                reader->GetDecompressionStatistics(),
                 CompactionTag_);
 
             LOG_INFO("Partition compaction completed (RowCount: %v, StoreIdsToAdd: %v, StoreIdsToRemove: %v, WallTime: %v)",
