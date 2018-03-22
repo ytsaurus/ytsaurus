@@ -56,11 +56,4 @@ public interface RpcClient extends AutoCloseable {
     String destinationName();
 
     ScheduledExecutorService executor();
-
-    default <V> ScheduledFuture<V> schedule(
-            Callable<V> callable,
-            long delay, TimeUnit unit)
-    {
-        return executor().schedule(callable, delay, unit);
-    }
 }
