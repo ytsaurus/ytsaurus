@@ -47,9 +47,7 @@ public class BalancingRpcClient implements RpcClient {
     final private ScheduledExecutorService executorService;
     final private RpcFailoverPolicy failoverPolicy;
 
-    final private BalancingDestinationMetricsHolder balancingDestinationMetricsHolder;
     final private BalancingResponseHandlerMetricsHolder balancingResponseHandlerMetricsHolder;
-    final private DataCenterMetricsHolder dataCenterMetricsHolder;
 
     public BalancingRpcClient(
         Duration failoverTimeout,
@@ -116,9 +114,7 @@ public class BalancingRpcClient implements RpcClient {
     {
         assert failoverTimeout.compareTo(globalTimeout) <= 0;
 
-        this.balancingDestinationMetricsHolder = balancingDestinationMetricsHolder;
         this.balancingResponseHandlerMetricsHolder = balancingResponseHandlerMetricsHolder;
-        this.dataCenterMetricsHolder = dataCenterMetricsHolder;
 
         this.dataCenterName = dataCenter;
         this.failoverPolicy = failoverPolicy;
