@@ -570,8 +570,7 @@ class TestAccounts(YTEnvSetup):
         set_account_disk_space_limit("max", disk_space * 2)
         copy("//tmp/a", "//tmp/b/a")
 
-        self._replicator_sleep()
-        assert get_account_disk_space("max") == disk_space * 2
+        wait(lambda: get_account_disk_space("max") == disk_space * 2)
         assert exists("//tmp/b/a")
 
         create("file", "//tmp/b/a/f3")
@@ -583,16 +582,12 @@ class TestAccounts(YTEnvSetup):
         # ...but copying existing data should be ok...
         copy("//tmp/b/a/f2", "//tmp/b/a/f3")
 
-        self._replicator_sleep()
         # ...and shouldn't increase disk space usage.
-        assert get_account_disk_space("max") == disk_space * 2
+        wait(lambda: get_account_disk_space("max") == disk_space * 2)
 
         remove("//tmp/b/a")
 
-        gc_collect()
-        self._replicator_sleep()
-        assert get_account_disk_space("max") == 0
-        assert self._get_account_node_count("max") == 1
+        wait(lambda: get_account_disk_space("max") == 0 and self._get_account_node_count("max") == 1)
 
         assert not exists("//tmp/b/a")
 
