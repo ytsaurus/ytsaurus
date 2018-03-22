@@ -86,6 +86,10 @@ public class RpcServiceClient implements InvocationHandler {
         return create(client, interfaceClass, new RpcOptions());
     }
 
+    public static <T> T create(Class<T> interfaceClass, RpcOptions options) {
+        return create(Option.empty(), interfaceClass, options);
+    }
+
     /**
      * Создаёт реализацию interfaceClass для вызова методов через client
      */

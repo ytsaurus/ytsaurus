@@ -90,28 +90,32 @@ public abstract class RequestBuilderBase<RequestType extends MessageLite.Builder
     {
         CompletableFuture<Tuple2<RpcClient, List<byte[]>>> f = new CompletableFuture<>();
 
-        if (clients.isEmpty()) {
-            throw new IllegalStateException("empty client list");
-        }
-
-        BalancingResponseHandler h = new BalancingResponseHandler(
-                clients.get(0).executor(),
-                options.getFailoverPolicy(),
-                options.getGlobalTimeout(),
-                options.getFailoverTimeout(),
-                f,
-                this,
-                clients,
-                options.getMetricsHolder());
-
-        f.whenComplete((result, error) -> {
-            h.cancel();
-            if (error == null) {
-                handler.onResponse(result.get1(), result.get2());
-            } else {
-                handler.onError(result.get1(), error);
+        try {
+            if (clients.isEmpty()) {
+                throw new IllegalStateException("empty client list");
             }
-        });
+
+            BalancingResponseHandler h = new BalancingResponseHandler(
+                    clients.get(0).executor(),
+                    options.getFailoverPolicy(),
+                    options.getGlobalTimeout(),
+                    options.getFailoverTimeout(),
+                    f,
+                    this,
+                    clients,
+                    options.getResponseMetricsHolder());
+
+            f.whenComplete((result, error) -> {
+                h.cancel();
+                if (error == null) {
+                    handler.onResponse(result.get1(), result.get2());
+                } else {
+                    handler.onError(result == null ? null : result.get1(), error);
+                }
+            });
+        } catch (Throwable e) {
+            handler.onError(null, e);
+        }
 
         return () -> f.cancel(true);
     }

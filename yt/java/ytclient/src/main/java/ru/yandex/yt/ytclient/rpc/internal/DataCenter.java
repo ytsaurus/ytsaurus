@@ -55,9 +55,19 @@ public final class DataCenter {
     }
 
     public DataCenter(String dc, BalancingDestination[] backends, double weight) {
-        this(dc, backends, weight, DataCenterMetricsHolderImpl.instance, BalancingDestinationMetricsHolderImpl.instance, new RpcOptions());
+        this(dc, backends, weight, new RpcOptions());
     }
 
+    public DataCenter(
+            String dc,
+            BalancingDestination[] backends,
+            double weight,
+            RpcOptions options)
+    {
+        this(dc, backends, weight, options.getDataCenterMetricsHolder(), options.getDestinationMetricsHolder(), options);
+    }
+
+    @Deprecated
     public DataCenter(
             String dc,
             BalancingDestination[] backends,
@@ -113,8 +123,13 @@ public final class DataCenter {
             backends.ensureCapacity(backends.size() + proxies.size());
 
             int index = proxies.size();
+            int size = backends.size();
             for (RpcClient proxy : proxies) {
                 backends.add(new BalancingDestination(dc, proxy, index ++, destMetricsHolder, options));
+            }
+
+            if (size == aliveCount) {
+                aliveCount = backends.size();
             }
         }
     }

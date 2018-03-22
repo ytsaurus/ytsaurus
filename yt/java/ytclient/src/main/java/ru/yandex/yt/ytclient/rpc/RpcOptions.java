@@ -2,8 +2,12 @@ package ru.yandex.yt.ytclient.rpc;
 
 import java.time.Duration;
 
+import ru.yandex.yt.ytclient.rpc.internal.metrics.BalancingDestinationMetricsHolder;
+import ru.yandex.yt.ytclient.rpc.internal.metrics.BalancingDestinationMetricsHolderImpl;
 import ru.yandex.yt.ytclient.rpc.internal.metrics.BalancingResponseHandlerMetricsHolder;
 import ru.yandex.yt.ytclient.rpc.internal.metrics.BalancingResponseHandlerMetricsHolderImpl;
+import ru.yandex.yt.ytclient.rpc.internal.metrics.DataCenterMetricsHolder;
+import ru.yandex.yt.ytclient.rpc.internal.metrics.DataCenterMetricsHolderImpl;
 
 /**
  * Опции для создания rpc клиентов
@@ -16,8 +20,13 @@ public class RpcOptions {
 
     private Duration globalTimeout = Duration.ofMillis(60000);
     private Duration failoverTimeout = Duration.ofMillis(30000);
+    private Duration proxyUpdateTimeout = Duration.ofMillis(60000);
+    private Duration pingTimeout = Duration.ofMillis(5000);
+
     private RpcFailoverPolicy failoverPolicy = new DefaultRpcFailoverPolicy();
-    private BalancingResponseHandlerMetricsHolder metricsHolder = new BalancingResponseHandlerMetricsHolderImpl();
+    private BalancingResponseHandlerMetricsHolder responseMetricsHolder = new BalancingResponseHandlerMetricsHolderImpl();
+    private DataCenterMetricsHolder dataCenterMetricsHolder = DataCenterMetricsHolderImpl.instance;
+    private BalancingDestinationMetricsHolder destinationMetricsHolder = new BalancingDestinationMetricsHolderImpl();
 
     public RpcOptions() {
         // nothing
@@ -77,6 +86,24 @@ public class RpcOptions {
         return this;
     }
 
+    public Duration getProxyUpdateTimeout() {
+        return proxyUpdateTimeout;
+    }
+
+    public RpcOptions setProxyUpdateTimeout(Duration timeout) {
+        this.proxyUpdateTimeout = timeout;
+        return this;
+    }
+
+    public Duration getPingTimeout() {
+        return pingTimeout;
+    }
+
+    public RpcOptions setPingTimeout(Duration timeout) {
+        this.pingTimeout = timeout;
+        return this;
+    }
+
     public RpcFailoverPolicy getFailoverPolicy() {
         return failoverPolicy;
     }
@@ -86,12 +113,30 @@ public class RpcOptions {
         return this;
     }
 
-    public RpcOptions setMetricsHolder(BalancingResponseHandlerMetricsHolder metricsHolder) {
-        this.metricsHolder = metricsHolder;
+    public RpcOptions setResponseMetricsHolder(BalancingResponseHandlerMetricsHolder responseMetricsHolder) {
+        this.responseMetricsHolder = responseMetricsHolder;
         return this;
     }
 
-    public BalancingResponseHandlerMetricsHolder getMetricsHolder() {
-        return metricsHolder;
+    public BalancingResponseHandlerMetricsHolder getResponseMetricsHolder() {
+        return responseMetricsHolder;
+    }
+
+    public RpcOptions setDataCenterMetricsHolder(DataCenterMetricsHolder holder) {
+        this.dataCenterMetricsHolder = holder;
+        return this;
+    }
+
+    public DataCenterMetricsHolder getDataCenterMetricsHolder() {
+        return dataCenterMetricsHolder;
+    }
+
+    public RpcOptions setDestinationMetricsHolder(BalancingDestinationMetricsHolder holder) {
+        this.destinationMetricsHolder = holder;
+        return this;
+    }
+
+    public BalancingDestinationMetricsHolder getDestinationMetricsHolder() {
+        return destinationMetricsHolder;
     }
 }
