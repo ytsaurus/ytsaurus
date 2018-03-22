@@ -382,20 +382,16 @@ class TestReplicatedDynamicTables(YTEnvSetup):
         self.sync_enable_table_replica(replica_id)
 
         insert_rows("//tmp/t", [{"key": 1, "value1": "test", "value2": 123}], require_sync_replica=False)
-        sleep(1.0)
-        assert select_rows("* from [//tmp/r]", driver=self.replica_driver) == [{"key": 1, "value1": "test", "value2": 123}]
+        wait(lambda: select_rows("* from [//tmp/r]", driver=self.replica_driver) == [{"key": 1, "value1": "test", "value2": 123}])
 
         insert_rows("//tmp/t", [{"key": 1, "value1": "new_test"}], update=True, require_sync_replica=False)
-        sleep(1.0)
-        assert select_rows("* from [//tmp/r]", driver=self.replica_driver) == [{"key": 1, "value1": "new_test", "value2": 123}]
+        wait(lambda: select_rows("* from [//tmp/r]", driver=self.replica_driver) == [{"key": 1, "value1": "new_test", "value2": 123}])
 
         insert_rows("//tmp/t", [{"key": 1, "value2": 456}], update=True, require_sync_replica=False)
-        sleep(1.0)
-        assert select_rows("* from [//tmp/r]", driver=self.replica_driver) == [{"key": 1, "value1": "new_test", "value2": 456}]
+        wait(lambda: select_rows("* from [//tmp/r]", driver=self.replica_driver) == [{"key": 1, "value1": "new_test", "value2": 456}])
 
         delete_rows("//tmp/t", [{"key": 1}], require_sync_replica=False)
-        sleep(1.0)
-        assert select_rows("* from [//tmp/r]", driver=self.replica_driver) == []
+        wait(lambda: select_rows("* from [//tmp/r]", driver=self.replica_driver) == [])
 
     def test_async_replication_ordered(self):
         self._create_cells()
@@ -966,13 +962,10 @@ class TestReplicatedDynamicTables(YTEnvSetup):
         self.sync_enable_table_replica(replica_id)
 
         insert_rows("//tmp/t", [{"key": 1, "value1": "test", "value2": 10}], require_sync_replica=False)
-        sleep(1.0)
-        get("//tmp/t/@replicas")
-        assert select_rows("* from [//tmp/r]", driver=self.replica_driver) == [{"key": 1, "value1": "test", "value2": 10}]
+        wait(lambda: select_rows("* from [//tmp/r]", driver=self.replica_driver) == [{"key": 1, "value1": "test", "value2": 10}])
 
         delete_rows("//tmp/t", [{"key": 1}], require_sync_replica=False)
-        sleep(1.0)
-        assert select_rows("* from [//tmp/r]", driver=self.replica_driver) == []
+        wait(lambda: select_rows("* from [//tmp/r]", driver=self.replica_driver) == [])
 
 ##################################################################
 
