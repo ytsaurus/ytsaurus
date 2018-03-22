@@ -138,7 +138,13 @@ public class BalancingRpcClient implements RpcClient {
                 index = j++;
                 destinations[index] = new BalancingDestination(dcName, client, index, balancingDestinationMetricsHolder);
             }
-            DataCenter dc = new DataCenter(dcName, destinations, dataCenterMetricsHolder);
+            DataCenter dc = new DataCenter(
+                    dcName,
+                    destinations,
+                    -1.0,
+                    dataCenterMetricsHolder,
+                    balancingDestinationMetricsHolder,
+                    new RpcOptions());
 
             index = i++;
             this.dataCenters[index] = dc;
