@@ -272,8 +272,6 @@ public:
             controller->GetCancelableInvoker()->Invoke(
                 BIND(&IOperationController::UpdateConfig, controller, config));
         }
-
-        LOG_INFO("Configuration updated");
     }
 
 

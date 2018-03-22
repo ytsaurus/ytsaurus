@@ -1194,14 +1194,16 @@ private:
         auto oldConfigNode = ConvertToNode(Config_);
         auto newConfigNode = ConvertToNode(newConfig);
 
-        if (!AreNodesEqual(oldConfigNode, newConfigNode)) {
-            LOG_INFO("Controller agent configuration updated");
-
-            ValidateConfig();
-
-            DoUpdateConfig(newConfig);
-            Bootstrap_->GetControllerAgent()->UpdateConfig(newConfig);
+        if (AreNodesEqual(oldConfigNode, newConfigNode)) {
+            return;
         }
+
+        ValidateConfig();
+
+        DoUpdateConfig(newConfig);
+        Bootstrap_->GetControllerAgent()->UpdateConfig(newConfig);
+
+        LOG_INFO("Controller agent configuration updated");
     }
 
     void SetControllerAgentAlert(EControllerAgentAlertType alertType, const TError& alert)
