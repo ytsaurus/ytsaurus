@@ -52,6 +52,8 @@ class TTableMountConfig
     : public NTableClient::TRetentionConfig
 {
 public:
+    TString TabletCellBundle;
+
     i64 MaxDynamicStoreRowCount;
     i64 MaxDynamicStoreValueCount;
     i64 MaxDynamicStoreTimestampCount;
@@ -113,6 +115,8 @@ public:
 
     TTableMountConfig()
     {
+        RegisterParameter("tablet_cell_bundle", TabletCellBundle)
+            .Optional();
         RegisterParameter("max_dynamic_store_row_count", MaxDynamicStoreRowCount)
             .GreaterThan(0)
             .Default(1000000);

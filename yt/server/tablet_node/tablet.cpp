@@ -1147,11 +1147,17 @@ void TTablet::FillProfilerTags(const TCellId& cellId)
             TProfileManager::Get()->RegisterTag("cell_id", cellId)});
     }
 
-    auto addProfilingTag = [&] (const TString& tag, const TString& value) {
-        ProfilerTags_.push_back(TProfileManager::Get()->RegisterTag(
-            tag,
-            value ? value : UnknownProfilingTag));
+    DiskProfilerTags_.assign({
+        TProfileManager::Get()->RegisterTag("account", WriterOptions_->Account),
+        TProfileManager::Get()->RegisterTag("medium", WriterOptions_->MediumName)});
+
+    auto addProfilingTag = [&] (const TString& tag, const TString& rawValue) {
+        const auto& value = rawValue ? rawValue : UnknownProfilingTag;
+        ProfilerTags_.push_back(TProfileManager::Get()->RegisterTag(tag, value));
+        DiskProfilerTags_.push_back(TProfileManager::Get()->RegisterTag(tag, value));
     };
+
+    addProfilingTag("tablet_cell_bundle", Config_->TabletCellBundle);
 
     switch (Config_->ProfilingMode) {
         case EDynamicTableProfilingMode::Path:
@@ -1165,11 +1171,6 @@ void TTablet::FillProfilerTags(const TCellId& cellId)
         default:
             break;
     }
-
-    const auto& writerOptions = WriterOptions_;
-    DiskProfilerTags_.assign({
-        TProfileManager::Get()->RegisterTag("account", writerOptions->Account),
-        TProfileManager::Get()->RegisterTag("medium", writerOptions->MediumName)});
 }
 
 void TTablet::UpdateReplicaCounters()
