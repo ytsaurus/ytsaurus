@@ -141,7 +141,6 @@ struct TTabletSnapshot
 
     THashMap<TTableReplicaId, TTableReplicaSnapshotPtr> Replicas;
 
-    //! Profiler tags is empty iff EnableProfiling is false.
     NProfiling::TTagIdList ProfilerTags;
     NProfiling::TTagIdList DiskProfilerTags;
 
