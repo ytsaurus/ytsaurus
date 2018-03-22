@@ -2054,7 +2054,7 @@ private:
                 jobsReady));
         }
 
-        MasterConnector_->StartOperationNodeUpdates(operation);
+        MasterConnector_->RegisterOperation(operation);
         MasterConnector_->AddOperationWatcherRequester(
             operation,
             BIND(&TImpl::RequestOperationRuntimeParams, Unretained(this), operation));
@@ -2098,6 +2098,8 @@ private:
 
         const auto& agentTracker = Bootstrap_->GetControllerAgentTracker();
         agentTracker->UnregisterOperationFromAgent(operation);
+
+        MasterConnector_->UnregisterOperation(operation);
 
         LOG_DEBUG("Operation unregistered (OperationId: %v)",
             operation->GetId());
