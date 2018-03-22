@@ -910,6 +910,11 @@ void TTask::RegisterStripe(
         const auto& chunkMapping = edgeDescriptor.ChunkMapping;
         YCHECK(chunkMapping);
 
+        LOG_DEBUG("Registering stripe in a direction that requires recovery info (JobId: %v, Restarted: %v, JobType: %v)",
+            joblet->JobId,
+            joblet->Restarted,
+            joblet->JobType);
+
         IChunkPoolInput::TCookie inputCookie = IChunkPoolInput::NullCookie;
         auto lostIt = LostJobCookieMap.find(TCookieAndPool(joblet->OutputCookie, edgeDescriptor.DestinationPool));
         if (lostIt == LostJobCookieMap.end()) {
@@ -926,6 +931,10 @@ void TTask::RegisterStripe(
             YCHECK(inputCookie != IChunkPoolInput::NullCookie);
             try {
                 chunkMapping->OnStripeRegenerated(inputCookie, stripe);
+                LOG_DEBUG("Successfully registered recovered stripe in chunk mapping (JobId: %v, JobType: %v, InputCookie: %v)",
+                    joblet->JobId,
+                    joblet->JobType,
+                    inputCookie);
             } catch (const std::exception& ex) {
                 auto error = TError("Failure while registering result stripe of a restarted job in a chunk mapping")
                     << ex
