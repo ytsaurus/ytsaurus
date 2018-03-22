@@ -256,6 +256,7 @@ struct TScheduleJobResult
     TNullable<TJobStartDescriptor> StartDescriptor;
     TEnumIndexedVector<int, EScheduleJobFailReason> Failed;
     TDuration Duration;
+    TIncarnationId IncarnationId;
 };
 
 DEFINE_REFCOUNTED_TYPE(TScheduleJobResult)

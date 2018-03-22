@@ -979,7 +979,9 @@ TFuture<TScheduleJobResultPtr> TNodeShard::BeginScheduleJob(const TJobId& jobId)
     return promise.ToFuture();
 }
 
-void TNodeShard::EndScheduleJob(const NProto::TScheduleJobResponse& response)
+void TNodeShard::EndScheduleJob(
+    const TIncarnationId& incarnationId,
+    const NProto::TScheduleJobResponse& response)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
 
@@ -1000,6 +1002,7 @@ void TNodeShard::EndScheduleJob(const NProto::TScheduleJobResponse& response)
         result->Failed[static_cast<EScheduleJobFailReason>(protoCounter.reason())] = protoCounter.value();
     }
     FromProto(&result->Duration, response.duration());
+    result->IncarnationId = incarnationId;
 
     auto it = JobIdToAsyncScheduleResult_.find(jobId);
     YCHECK(it != JobIdToAsyncScheduleResult_.end());
@@ -1583,6 +1586,15 @@ void TNodeShard::ProcessScheduledJobs(
             LOG_DEBUG("Cannot start job: agent is no longer known (JobId: %v, OperationId: %v)",
                 job->GetId(),
                 job->GetOperationId());
+            continue;
+        }
+        if (agent->GetIncarnationId() != job->GetIncarnationId()) {
+            LOG_DEBUG("Cannot start job: wrong agent incarnation (JobId: %v, OperationId: %v, ExpectedIncarnationId: %v, "
+                "ActualIncarnationId: %v)",
+                job->GetId(),
+                job->GetOperationId(),
+                job->GetIncarnationId(),
+                agent->GetIncarnationId());
             continue;
         }
 
