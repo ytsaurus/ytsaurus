@@ -52,9 +52,12 @@ TChunkStripePtr TInputChunkMapping::GetMappedStripe(const TChunkStripePtr& strip
                 if (dataSlice->HasLimits()) {
                     YCHECK(substitutes.size() == 1);
                     auto substituteChunk = substitutes.front();
+                    auto chunkSlice = CreateInputChunkSlice(substituteChunk);
+                    chunkSlice->LowerLimit() = dataSlice->ChunkSlices[0]->LowerLimit();
+                    chunkSlice->UpperLimit() = dataSlice->ChunkSlices[0]->UpperLimit();
                     mappedStripe->DataSlices.emplace_back(New<TInputDataSlice>(
                         dataSlice->Type,
-                        TInputDataSlice::TChunkSliceList{CreateInputChunkSlice(substituteChunk)},
+                        TInputDataSlice::TChunkSliceList{std::move(chunkSlice)},
                         dataSlice->LowerLimit(),
                         dataSlice->UpperLimit()));
                     mappedStripe->DataSlices.back()->InputStreamIndex = dataSlice->InputStreamIndex;
