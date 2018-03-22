@@ -35,6 +35,9 @@ class TJob
     //! The id of operation the job belongs to.
     DEFINE_BYVAL_RO_PROPERTY(TOperationId, OperationId);
 
+    //! The incarnation of the controller agent responsible for this job.
+    DEFINE_BYVAL_RO_PROPERTY(TIncarnationId, IncarnationId);
+
     //! Exec node where the job is running.
     DEFINE_BYVAL_RW_PROPERTY(TExecNodePtr, Node);
 
@@ -97,6 +100,7 @@ public:
         const TJobId& id,
         EJobType type,
         const TOperationId& operationId,
+        const TIncarnationId& incarnationId,
         TExecNodePtr node,
         TInstant startTime,
         const TJobResources& resourceLimits,

@@ -162,8 +162,11 @@ public:
     int GetExecNodeCount();
     int GetTotalNodeCount();
 
-    TFuture<NControllerAgent::TScheduleJobResultPtr> BeginScheduleJob(const TJobId& jobId);
-    void EndScheduleJob(const NProto::TScheduleJobResponse& response);
+    TFuture<NControllerAgent::TScheduleJobResultPtr> BeginScheduleJob(
+        const TJobId& jobId);
+    void EndScheduleJob(
+        const TIncarnationId& incarnationId,
+        const NProto::TScheduleJobResponse& response);
 
 private:
     const int Id_;

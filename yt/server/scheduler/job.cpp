@@ -15,6 +15,7 @@ TJob::TJob(
     const TJobId& id,
     EJobType type,
     const TOperationId& operationId,
+    const TIncarnationId& incarnationId,
     TExecNodePtr node,
     TInstant startTime,
     const TJobResources& resourceLimits,
@@ -25,6 +26,7 @@ TJob::TJob(
     : Id_(id)
     , Type_(type)
     , OperationId_(operationId)
+    , IncarnationId_(incarnationId)
     , Node_(std::move(node))
     , RevivalNodeId_(revivalNodeId)
     , RevivalNodeAddress_(std::move(revivalNodeAddress))

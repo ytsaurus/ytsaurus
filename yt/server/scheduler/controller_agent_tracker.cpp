@@ -96,8 +96,8 @@ public:
 
         auto guard = Guard(SpinLock_);
 
-        YCHECK(!AgentAssigned_);
-        AgentAssigned_ = true;
+        YCHECK(!IncarnationId_);
+        IncarnationId_ = agent->GetIncarnationId();
         Agent_ = agent;
 
         AgentProxy_ = std::make_unique<TControllerAgentServiceProxy>(agent->GetChannel());
@@ -121,11 +121,11 @@ public:
 
         auto guard = Guard(SpinLock_);
 
-        if (!AgentAssigned_) {
+        if (!IncarnationId_) {
             return;
         }
 
-        AgentAssigned_ = false;
+        IncarnationId_ = {};
         Agent_.Reset();
         YCHECK(PostponedJobEvents_.empty());
     }
@@ -141,7 +141,7 @@ public:
     virtual TFuture<TOperationControllerInitializationResult> Initialize(const TNullable<TOperationRevivalDescriptor>& descriptor) override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(AgentAssigned_);
+        YCHECK(IncarnationId_);
 
         auto req = AgentProxy_->InitializeOperation();
         ToProto(req->mutable_operation_id(), OperationId_);
@@ -175,7 +175,7 @@ public:
     virtual TFuture<TOperationControllerPrepareResult> Prepare() override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(AgentAssigned_);
+        YCHECK(IncarnationId_);
 
         auto req = AgentProxy_->PrepareOperation();
         ToProto(req->mutable_operation_id(), OperationId_);
@@ -190,7 +190,7 @@ public:
     virtual TFuture<void> Materialize() override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(AgentAssigned_);
+        YCHECK(IncarnationId_);
 
         auto req = AgentProxy_->MaterializeOperation();
         ToProto(req->mutable_operation_id(), OperationId_);
@@ -200,12 +200,21 @@ public:
     virtual TFuture<TOperationControllerReviveResult> Revive() override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(AgentAssigned_);
+        YCHECK(IncarnationId_);
+
+        auto agent = Agent_.Lock();
+        if (!agent) {
+            throw TFiberCanceledException();
+        }
 
         auto req = AgentProxy_->ReviveOperation();
         ToProto(req->mutable_operation_id(), OperationId_);
         return InvokeAgent<TControllerAgentServiceProxy::TRspReviveOperation>(req).Apply(
-            BIND([operationId = OperationId_] (const TControllerAgentServiceProxy::TRspReviveOperationPtr& rsp) {
+            BIND([
+                operationId = OperationId_,
+                incarnationId = agent->GetIncarnationId()
+            ] (const TControllerAgentServiceProxy::TRspReviveOperationPtr& rsp)
+            {
                 TOperationControllerReviveResult result;
                 result.Attributes = TYsonString(rsp->attributes(), EYsonType::MapFragment);
                 result.RevivedFromSnapshot = rsp->revived_from_snapshot();
@@ -214,6 +223,7 @@ public:
                         FromProto<TJobId>(protoJob.job_id()),
                         static_cast<EJobType>(protoJob.job_type()),
                         operationId,
+                        incarnationId,
                         nullptr /* execNode */,
                         FromProto<TInstant>(protoJob.start_time()),
                         FromProto<TJobResources>(protoJob.resource_limits()),
@@ -231,7 +241,7 @@ public:
     virtual TFuture<void> Commit() override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(AgentAssigned_);
+        YCHECK(IncarnationId_);
 
         auto req = AgentProxy_->CommitOperation();
         ToProto(req->mutable_operation_id(), OperationId_);
@@ -243,7 +253,7 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         // XXX(babenko): this may not be quite OK since transactions are left behind
-        if (!AgentAssigned_) {
+        if (!IncarnationId_) {
             LOG_WARNING("Operation has no agent assigned; control abort request ignored (OperationId: %v)",
                 OperationId_);
             return VoidFuture;
@@ -257,7 +267,7 @@ public:
     virtual TFuture<void> Complete() override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(AgentAssigned_);
+        YCHECK(IncarnationId_);
 
         auto req = AgentProxy_->CompleteOperation();
         ToProto(req->mutable_operation_id(), OperationId_);
@@ -268,7 +278,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        if (!AgentAssigned_) {
+        if (!IncarnationId_) {
             return VoidFuture;
         }
 
@@ -397,9 +407,10 @@ public:
         request->NodeResourceLimits = context->ResourceLimits();
         request->NodeDiskInfo = context->DiskInfo();
 
+        TIncarnationId incarnationId;
         {
             auto guard = Guard(SpinLock_);
-            if (!AgentAssigned_) {
+            if (!IncarnationId_) {
                 guard.Release();
 
                 LOG_DEBUG("Job schedule request cannot be served since no agent is assigned (OperationId: %v, JobId: %v)",
@@ -412,6 +423,7 @@ public:
                 return MakeFuture(result);
             }
 
+            incarnationId = IncarnationId_;
             ScheduleJobRequestsOutbox_->Enqueue(std::move(request));
         }
 
@@ -465,7 +477,7 @@ private:
 
     TSpinLock SpinLock_;
 
-    bool AgentAssigned_ = false;
+    TIncarnationId IncarnationId_;
     TWeakPtr<TControllerAgent> Agent_;
     std::unique_ptr<TControllerAgentServiceProxy> AgentProxy_;
 
@@ -480,7 +492,7 @@ private:
     bool EnqueueJobEvent(TSchedulerToAgentJobEvent&& event, bool postponeIfNoAgent = true)
     {
         auto guard = Guard(SpinLock_);
-        if (AgentAssigned_) {
+        if (IncarnationId_) {
             JobEventsOutbox_->Enqueue(std::move(event));
             return true;
         } else {
@@ -493,13 +505,13 @@ private:
 
     void EnqueueOperationEvent(TSchedulerToAgentOperationEvent&& event)
     {
-        YCHECK(AgentAssigned_);
+        YCHECK(IncarnationId_);
         OperationEventsOutbox_->Enqueue(std::move(event));
     }
 
     void EnqueueScheduleJobRequest(TScheduleJobRequestPtr&& event)
     {
-        YCHECK(AgentAssigned_);
+        YCHECK(IncarnationId_);
         ScheduleJobRequestsOutbox_->Enqueue(std::move(event));
     }
 
@@ -918,9 +930,14 @@ public:
             for (size_t shardId = 0; shardId < nodeShards.size(); ++shardId) {
                 const auto& nodeShard = nodeShards[shardId];
                 asyncResults.push_back(
-                    BIND([context, nodeShard, protoResponses = std::move(groupedScheduleJobResponses[shardId])] {
+                    BIND([
+                        context,
+                        nodeShard,
+                        incarnationId,
+                        protoResponses = std::move(groupedScheduleJobResponses[shardId])
+                    ] {
                         for (const auto* protoResponse : protoResponses) {
-                            nodeShard->EndScheduleJob(*protoResponse);
+                            nodeShard->EndScheduleJob(incarnationId, *protoResponse);
                         }
                     })
                         .AsyncVia(nodeShard->GetInvoker())

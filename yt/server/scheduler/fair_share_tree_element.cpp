@@ -1951,7 +1951,11 @@ bool TOperationElement::ScheduleJob(TFairShareContext* context)
     const auto& startDescriptor = *scheduleJobResult->StartDescriptor;
     context->SchedulingContext->ResourceUsage() += startDescriptor.ResourceLimits;
     OnJobStarted(startDescriptor.Id, startDescriptor.ResourceLimits);
-    context->SchedulingContext->StartJob(GetTreeId(), OperationId_, startDescriptor);
+    context->SchedulingContext->StartJob(
+        GetTreeId(),
+        OperationId_,
+        scheduleJobResult->IncarnationId,
+        startDescriptor);
 
     UpdateDynamicAttributes(context->DynamicAttributesList);
     updateAncestorsAttributes();
