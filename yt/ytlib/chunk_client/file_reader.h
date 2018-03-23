@@ -79,6 +79,11 @@ private:
         const TNullable<int>& partitionTag,
         const TNullable<std::vector<int>>& extensionTags);
     NProto::TChunkMeta OnMetaDataBlock(const TString& metaFileName, const TSharedMutableRef& data);
+    void DumpBrokenBlock(
+        int blockIndex,
+        const NProto::TBlockInfo& blockInfo,
+        const TRef& block) const;
+    void DumpBrokenMeta(const TRef& block) const;
 
     const NProto::TBlocksExt& GetBlockExts();
     const std::shared_ptr<TFileHandle>& GetDataFile();
