@@ -199,8 +199,17 @@ private:
                 from += reallyRead;
                 readPortion -= reallyRead;
 
-                if (reallyRead < toRead) { // file exausted
+                if (reallyRead == 0) {
+                    // End of file.
                     break;
+                }
+
+                // FIXME(savrus) Allow pread to break on page boundaries.
+                if (reallyRead < toRead && UseDirectIO_) {
+                    THROW_ERROR_EXCEPTION("Pread finished early")
+                        << TErrorAttribute("use_direct_io", UseDirectIO_)
+                        << TErrorAttribute("requested_bytes", toRead)
+                        << TErrorAttribute("read_bytes", reallyRead);
                 }
             }
 
