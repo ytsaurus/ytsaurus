@@ -8,13 +8,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.Duration;
-import java.util.Arrays;
-import java.util.List;
 import java.util.Random;
 import java.util.function.Consumer;
-import java.util.stream.Collectors;
 
-import com.google.common.collect.ImmutableMap;
 import io.netty.channel.nio.NioEventLoopGroup;
 
 import ru.yandex.bolts.collection.Cf;
@@ -23,9 +19,7 @@ import ru.yandex.yt.ytclient.bus.DefaultBusConnector;
 import ru.yandex.yt.ytclient.bus.DefaultBusFactory;
 import ru.yandex.yt.ytclient.proxy.ApiServiceClient;
 import ru.yandex.yt.ytclient.proxy.YtClient;
-import ru.yandex.yt.ytclient.rpc.BalancingRpcClient;
 import ru.yandex.yt.ytclient.rpc.DefaultRpcBusClient;
-import ru.yandex.yt.ytclient.rpc.DefaultRpcFailoverPolicy;
 import ru.yandex.yt.ytclient.rpc.RpcClient;
 import ru.yandex.yt.ytclient.rpc.RpcCredentials;
 import ru.yandex.yt.ytclient.rpc.RpcOptions;
