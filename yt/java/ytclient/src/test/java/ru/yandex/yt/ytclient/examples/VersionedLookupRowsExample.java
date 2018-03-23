@@ -25,7 +25,7 @@ public class VersionedLookupRowsExample {
                 .addKey("OrderID", ColumnValueType.UINT64)
                 .addKey("UpdateTime", ColumnValueType.INT64)
                 .build();
-        ExamplesUtil.runExample(client -> {
+        ExamplesUtil.runExampleWithBalancing(client -> {
             long t0 = System.nanoTime();
             LookupRowsRequest request = new LookupRowsRequest("//yabs/GPStat3.dynamic", schema)
                     .addFilter(8102567, 16145160, 1158063745, 844923, 7590772, 1452978000)

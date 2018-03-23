@@ -18,10 +18,10 @@ public class RpcOptions {
     private Duration defaultTimeout = null;
     private boolean defaultRequestAck = true;
 
-    private Duration globalTimeout = Duration.ofMillis(60000);
-    private Duration failoverTimeout = Duration.ofMillis(30000);
+    private Duration globalTimeout = Duration.ofMillis(60000);  // fails request after this timeout
+    private Duration failoverTimeout = Duration.ofMillis(30000); // sends fallback request to other proxy after this timeout
     private Duration proxyUpdateTimeout = Duration.ofMillis(60000);
-    private Duration pingTimeout = Duration.ofMillis(5000);
+    private Duration pingTimeout = Duration.ofMillis(5000); // marks proxy as dead/live after this timeout
 
     private RpcFailoverPolicy failoverPolicy = new DefaultRpcFailoverPolicy();
     private BalancingResponseHandlerMetricsHolder responseMetricsHolder = new BalancingResponseHandlerMetricsHolderImpl();

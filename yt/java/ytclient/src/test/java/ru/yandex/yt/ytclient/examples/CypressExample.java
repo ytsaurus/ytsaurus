@@ -78,7 +78,7 @@ public class CypressExample {
                     e.printStackTrace();
                     System.exit(-1);
                 }
-            }, ExamplesUtil.getUser(), ExamplesUtil.getToken(), host);
+            }, ExamplesUtil.getCredentials(), host);
 
             System.exit(0);
         } catch (Throwable e) {
