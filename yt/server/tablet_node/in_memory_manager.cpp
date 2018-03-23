@@ -590,13 +590,9 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
                 for (auto& compressedBlock : compressedBlocks) {
                     asyncUncompressedBlocks.push_back(
                         BIND([&] {
-                                TDuration decompressionTime;
-                                TSharedRef uncompressedBlock;
-                                {
-                                    NProfiling::TCpuTimingGuard timer(&decompressionTime);
-                                    uncompressedBlock = codec->Decompress(compressedBlock.Data);
-                                }
-                                return std::make_pair(uncompressedBlock, decompressionTime);
+                                NProfiling::TCpuTimer timer;
+                                auto block = codec->Decompress(compressedBlock.Data);
+                                return std::make_pair(std::move(block), timer.GetElapsedTime());
                             })
                             .AsyncVia(compressionInvoker)
                             .Run());

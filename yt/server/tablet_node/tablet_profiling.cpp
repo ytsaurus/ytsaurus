@@ -61,7 +61,7 @@ TListProfilerTraitBase::TKey TListProfilerTraitBase::ToKey(const TTagIdList& lis
 
 struct TChunkWriteCounters
 {
-    TChunkWriteCounters(const TTagIdList& list)
+    explicit TChunkWriteCounters(const TTagIdList& list)
         : DiskBytesWritten("/disk_bytes_written", list)
         , DiskDataWeightWritten("/disk_data_weight_written", list)
         , CompressionCpuTime("/chunk_writer/compression_cpu_time", list)
@@ -95,7 +95,7 @@ void ProfileChunkWriter(
 
 struct TChunkReadCounters
 {
-    TChunkReadCounters(const TTagIdList& list)
+    explicit TChunkReadCounters(const TTagIdList& list)
         : CompressedDataSize("/chunk_reader/compressed_data_size", list)
         , UnmergedDataWeight("/chunk_reader/unmerged_data_weight", list)
         , CompressionCpuTime("/chunk_reader/compression_cpu_time", list)
@@ -122,7 +122,6 @@ void ProfileChunkReader(
     TabletNodeProfiler.Increment(counters.UnmergedDataWeight, dataStatistics.data_weight());
     TabletNodeProfiler.Increment(counters.CompressionCpuTime, DurationToValue(compressionCpuTime));
 }
-
 
 ////////////////////////////////////////////////////////////////////////////////
 

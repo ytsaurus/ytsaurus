@@ -116,7 +116,7 @@ struct TRangeFormatter
 
 struct TSelectCpuCounters
 {
-    TSelectCpuCounters(const TTagIdList& list)
+    explicit TSelectCpuCounters(const TTagIdList& list)
         : CpuTime("/select/cpu_time", list)
     { }
 
@@ -127,7 +127,7 @@ using TSelectCpuProfilerTrait = TSimpleProfilerTrait<TSelectCpuCounters>;
 
 struct TSelectReadCounters
 {
-    TSelectReadCounters(const TTagIdList& list)
+    explicit TSelectReadCounters(const TTagIdList& list)
         : RowCount("/select/row_count", list)
         , DataWeight("/select/data_weight", list)
         , UnmergedRowCount("/select/unmerged_row_count", list)
