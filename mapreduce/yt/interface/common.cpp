@@ -98,6 +98,19 @@ bool IsTrivial(const TReadLimit& readLimit)
     return !readLimit.Key_ && !readLimit.RowIndex_ && !readLimit.Offset_;
 }
 
+EValueType NodeTypeToValueType(TNode::EType nodeType)
+{
+    switch (nodeType) {
+        case TNode::EType::Int64: return VT_INT64;
+        case TNode::EType::Uint64: return VT_UINT64;
+        case TNode::EType::String: return VT_STRING;
+        case TNode::EType::Double: return VT_DOUBLE;
+        case TNode::EType::Bool: return VT_BOOLEAN;
+        default:
+            ythrow yexception() << "Cannot convert TNode type " << nodeType << " to EValueType";
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT

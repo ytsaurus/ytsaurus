@@ -22,7 +22,7 @@ TTableSchema CreateYtSchema(const TBlobTableSchema& blobSchema)
 static bool IsSortedSchema(const TNode& tableSchema, const TBlobTableSchema& blobTableSchema)
 {
     if (!tableSchema.IsList()) {
-        ythrow yexception() << "Corrupted schema unexpected type: " << TNode::TypeToString(tableSchema.GetType());
+        ythrow yexception() << "Corrupted schema unexpected type: " << tableSchema.GetType();
     }
     const auto blobIdColumnCount = blobTableSchema.BlobIdColumns_.size();
     if (blobIdColumnCount > tableSchema.AsList().size() + 1) {

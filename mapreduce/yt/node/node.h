@@ -193,8 +193,6 @@ public:
     void Save(IOutputStream* output) const;
     void Load(IInputStream* input);
 
-    static const TString& TypeToString(EType type);
-
 private:
     void Copy(const TNode& rhs);
     void Move(TNode&& rhs);
@@ -235,7 +233,7 @@ inline ui64 TNode::IntCast<ui64>() const {
             }
             return AsInt64();
         default:
-            ythrow TTypeError() << "IntCast() called for type " << TypeToString(GetType());
+            ythrow TTypeError() << "IntCast() called for type " << GetType();
     }
 }
 
@@ -250,7 +248,7 @@ inline i64 TNode::IntCast<i64>() const {
         case TNode::Int64:
             return AsInt64();
         default:
-            ythrow TTypeError() << "IntCast() called for type " << TypeToString(GetType());
+            ythrow TTypeError() << "IntCast() called for type " << GetType();
     }
 }
 
@@ -276,7 +274,7 @@ inline TString TNode::ConvertTo<TString>() const {
         case NYT::TNode::Map:
         case NYT::TNode::Null:
         case NYT::TNode::Undefined:
-            ythrow TTypeError() << "ConvertTo<TString>() called for type " << TypeToString(GetType());
+            ythrow TTypeError() << "ConvertTo<TString>() called for type " << GetType();
     }
 }
 
@@ -300,7 +298,7 @@ inline ui64 TNode::ConvertTo<ui64>() const {
         case NYT::TNode::Map:
         case NYT::TNode::Null:
         case NYT::TNode::Undefined:
-            ythrow TTypeError() << "ConvertTo<ui64>() called for type " << TypeToString(GetType());
+            ythrow TTypeError() << "ConvertTo<ui64>() called for type " << GetType();
     }
 }
 
@@ -324,7 +322,7 @@ inline i64 TNode::ConvertTo<i64>() const {
         case NYT::TNode::Map:
         case NYT::TNode::Null:
         case NYT::TNode::Undefined:
-            ythrow TTypeError() << "ConvertTo<i64>() called for type " << TypeToString(GetType());
+            ythrow TTypeError() << "ConvertTo<i64>() called for type " << GetType();
     }
 }
 
@@ -345,7 +343,7 @@ inline double TNode::ConvertTo<double>() const {
         case NYT::TNode::Map:
         case NYT::TNode::Null:
         case NYT::TNode::Undefined:
-            ythrow TTypeError() << "ConvertTo<double>() called for type " << TypeToString(GetType());
+            ythrow TTypeError() << "ConvertTo<double>() called for type " << GetType();
     }
 }
 
@@ -366,7 +364,7 @@ inline bool TNode::ConvertTo<bool>() const {
         case NYT::TNode::Map:
         case NYT::TNode::Null:
         case NYT::TNode::Undefined:
-            ythrow TTypeError() << "ConvertTo<bool>() called for type " << TypeToString(GetType());
+            ythrow TTypeError() << "ConvertTo<bool>() called for type " << GetType();
     }
 }
 

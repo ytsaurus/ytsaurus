@@ -47,7 +47,8 @@ void TNodeVisitor::VisitAny(const TNode& node)
         Iterate(node.GetAttributes().AsMap(), SortMapKeys_, [&](const std::pair<TString, TNode>& item) {
             Consumer_->OnKeyedItem(item.first);
             if (item.second.IsUndefined()) {
-                ythrow TNode::TTypeError() << "unable to visit attribute value of type UNDEFINED; attribute name: `" << item.first << '\'' ;
+                ythrow TNode::TTypeError() << "unable to visit attribute value of type "
+                    << TNode::EType::Undefined << "; attribute name: `" << item.first << '\'' ;
             }
             VisitAny(item.second);
         });
@@ -80,9 +81,7 @@ void TNodeVisitor::VisitAny(const TNode& node)
             VisitEntity();
             break;
         case TNode::Undefined:
-            ythrow TNode::TTypeError()
-                << Sprintf("unable to visit TNode of type %s",
-                    ~TNode::TypeToString(node.GetType()));
+            ythrow TNode::TTypeError() << "unable to visit TNode of type " << node.GetType();
         default:
             Y_FAIL("Unexpected type: %d", node.GetType());
     }
@@ -120,7 +119,8 @@ void TNodeVisitor::VisitList(const TNode::TListType& nodeList)
     for (const auto& item : nodeList) {
         Consumer_->OnListItem();
         if (item.IsUndefined()) {
-            ythrow TNode::TTypeError() << "unable to visit list node child of type UNDEFINED; list index: " << index;
+            ythrow TNode::TTypeError() << "unable to visit list node child of type "
+                << TNode::EType::Undefined << "; list index: " << index;
         }
         VisitAny(item);
         ++index;
@@ -134,7 +134,8 @@ void TNodeVisitor::VisitMap(const TNode::TMapType& nodeMap)
     Iterate(nodeMap, SortMapKeys_, [&](const std::pair<TString, TNode>& item) {
         Consumer_->OnKeyedItem(item.first);
         if (item.second.IsUndefined()) {
-            ythrow TNode::TTypeError() << "unable to visit map node child of type UNDEFINED; map key: `" << item.first << '\'' ;
+            ythrow TNode::TTypeError() << "unable to visit map node child of type "
+                << TNode::EType::Undefined << "; map key: `" << item.first << '\'' ;
         }
         VisitAny(item.second);
     });

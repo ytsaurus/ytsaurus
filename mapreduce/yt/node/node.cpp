@@ -172,7 +172,7 @@ bool TNode::Empty() const
         case Map:
             return Value_.As<TMapType>().empty();
         default:
-            ythrow TTypeError() << "Empty() called for type " << TypeToString(GetType());
+            ythrow TTypeError() << "Empty() called for type " << GetType();
     }
 }
 
@@ -186,7 +186,7 @@ size_t TNode::Size() const
         case Map:
             return Value_.As<TMapType>().size();
         default:
-            ythrow TTypeError() << "Size() called for type " << TypeToString(GetType());
+            ythrow TTypeError() << "Size() called for type " << GetType();
     }
 }
 
@@ -477,22 +477,6 @@ void TNode::MoveWithoutAttributes(TNode&& rhs)
     rhs.Clear();
 }
 
-const TString& TNode::TypeToString(EType type)
-{
-    static TString typeNames[] = {
-        "UNDEFINED",
-        "STRING",
-        "INT64",
-        "UINT64",
-        "DOUBLE",
-        "BOOL",
-        "LIST",
-        "MAP",
-        "ENTITY"
-    };
-    return typeNames[type];
-}
-
 void TNode::Copy(const TNode& rhs)
 {
     if (rhs.Attributes_) {
@@ -514,7 +498,7 @@ void TNode::Move(TNode&& rhs)
 void TNode::CheckType(EType type) const
 {
     Y_ENSURE_EX(GetType() == type,
-        TTypeError() << "TNode type " << TypeToString(type) <<  " expected, actual type " << TypeToString(GetType());
+        TTypeError() << "TNode type " << type <<  " expected, actual type " << GetType();
     );
 }
 

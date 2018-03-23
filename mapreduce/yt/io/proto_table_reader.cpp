@@ -41,9 +41,8 @@ void ReadMessageFromNode(const TNode& node, Message* row)
 
         auto checkType = [&columnName] (TNode::EType expected, TNode::EType actual) {
             if (expected != actual) {
-                ythrow TNode::TTypeError()
-                    << Sprintf("expected node type %s, actual %s for node %s",
-                        ~TNode::TypeToString(expected), ~TNode::TypeToString(actual), ~columnName);
+                ythrow TNode::TTypeError() << "expected node type " << expected
+                    << ", actual " << actual << " for node " << ~columnName;
             }
         };
 
