@@ -605,9 +605,8 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
                 auto results = WaitFor(Combine(asyncUncompressedBlocks))
                     .ValueOrThrow();
 
-                std::vector<TBlock> cachedBlocks;
                 for (const auto& pair : results) {
-                    cachedBlocks.emplace_back(pair.first);
+                    cachedBlocks.emplace_back(std::move(pair.first));
                     decompressionTime += pair.second;
                 }
 
