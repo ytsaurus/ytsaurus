@@ -1356,7 +1356,7 @@ class TestSchedulerRevive(YTEnvSetup):
 
         ok = False
         for iter in xrange(100):
-            time.sleep(random.randint(1, 10) * 0.5)
+            time.sleep(random.randint(5, 10) * 0.5)
             self.Env.kill_controller_agents()
             self.Env.start_controller_agents()
 
