@@ -665,10 +665,18 @@ class TestDynamicTables(TestDynamicTablesBase):
 
     def test_disable_tablet_cells(self):
         cell = self.sync_create_cells(1)[0]
-        peer_path = "#{0}/@peers/0/address".format(cell)
-        peer = get(peer_path)
+        peer = get("#{0}/@peers/0/address".format(cell))
         set("//sys/nodes/{0}/@disable_tablet_cells".format(peer), True)
-        wait(lambda: exists(peer_path) and get(peer_path) != peer)
+        def check():
+            peers = get("#{0}/@peers".format(cell))
+            if len(peers) == 0:
+                return False
+            if "address" not in peers[0]:
+                return False
+            if peers[0]["address"] == peer:
+                return False
+            return True
+        wait(check)
 
     def test_tablet_slot_charges_cpu_resource_limit(self):
         get_cpu = lambda x: get("//sys/nodes/{0}/orchid/job_controller/resource_limits/cpu".format(x))
