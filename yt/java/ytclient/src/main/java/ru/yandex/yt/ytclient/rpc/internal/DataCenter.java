@@ -10,6 +10,7 @@ import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
@@ -177,13 +178,21 @@ public final class DataCenter {
     }
 
     public List<RpcClient> getAliveDestinations() {
+        return getAliveDestinations(BalancingDestination::getClient);
+    }
+
+    public <T> List<T> getAliveDestinations(Function<BalancingDestination, T> func) {
         synchronized (backends) {
-            return backends.subList(0, aliveCount).stream().map(BalancingDestination::getClient).collect(Collectors.toList());
+            return backends.subList(0, aliveCount).stream().map(func).collect(Collectors.toList());
         }
     }
 
     public List<RpcClient> selectDestinations(final int maxSelect, Random rnd) {
-        final ArrayList<RpcClient> result = new ArrayList<>();
+        return selectDestinations(maxSelect, rnd, BalancingDestination::getClient);
+    }
+
+    public <T> List<T> selectDestinations(final int maxSelect, Random rnd, Function<BalancingDestination, T> func) {
+        final ArrayList<T> result = new ArrayList<>();
         result.ensureCapacity(maxSelect);
 
         synchronized (backends) {
@@ -191,7 +200,7 @@ public final class DataCenter {
 
             while (count != 0 && result.size() < maxSelect) {
                 int idx = rnd.nextInt(count);
-                result.add(backends.get(idx).getClient());
+                result.add(func.apply(backends.get(idx)));
                 swap(idx, count-1);
                 --count;
             }
@@ -201,7 +210,7 @@ public final class DataCenter {
     }
 
     private CompletableFuture<Void> ping(BalancingDestination client, ScheduledExecutorService executorService, Duration pingTimeout) {
-        CompletableFuture<Void> f = client.createTransaction(pingTimeout).thenCompose(id -> client.pingTransaction(id))
+        CompletableFuture<Void> f = client.createTransaction(pingTimeout).thenCompose(tx -> client.pingTransaction(tx))
             .thenAccept(unused -> setAlive(client))
             .exceptionally(ex -> {
                 setDead(client, ex);

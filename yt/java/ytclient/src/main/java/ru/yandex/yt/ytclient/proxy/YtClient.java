@@ -1,6 +1,7 @@
 package ru.yandex.yt.ytclient.proxy;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
@@ -127,6 +128,14 @@ public class YtClient extends ApiServiceClient implements AutoCloseable {
         }
 
         schedulePing();
+    }
+
+    public Map<String, List<ApiServiceClient>> getAliveDestinations() {
+        final Map<String, List<ApiServiceClient>> result = new HashMap<>();
+        for (DataCenter dc : dataCenters) {
+            result.put(dc.getName(), dc.getAliveDestinations(BalancingDestination::getService));
+        }
+        return result;
     }
 
     private List<RpcClient> selectDestinations() {
