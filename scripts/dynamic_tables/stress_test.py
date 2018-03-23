@@ -331,7 +331,7 @@ def create_dynamic_table_from_data(data_table, table, schema, attributes, tablet
     attributes["schema"] = yschema
     attributes["external"] = False
     yt.create_table(table, attributes=attributes)
-    yt.run_merge(data_table, table, mode="ordered")
+    yt.run_merge(data_table, table, mode="ordered", spec={"job_io": {"table_writer": {"block_size": 256 * 2**10}}})
     yt.alter_table(table, dynamic=True)
     owner = yt.get(table + "/@owner")
     yt.set(table + "/@acl", [{"permissions": ["mount"], "action": "allow", "subjects": [owner]}])
