@@ -152,10 +152,10 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
 
     def test_sorted_tablet_node_profiling(self):
         self.sync_create_cells(1)
-        self._create_simple_table("//tmp/t", enable_profiling=True)
+        self._create_simple_table("//tmp/t")
         self.sync_mount_table("//tmp/t")
 
-        tablet_profiling = self._get_tablet_profiling("//tmp/t")
+        tablet_profiling = self._get_table_profiling("//tmp/t")
         select_profiling = self._get_profiling("//tmp/t")
 
         def get_all_counters(count_name):
@@ -238,48 +238,6 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         assert get_all_counters("row_count") == (1, 1, 1)
         assert get_all_counters("data_weight") == (10, 10, 10)
         assert table_profiling.get_counter("lookup/cpu_time") > 0
-
-    def test_sorted_tablet_node_profiling_remount(self):
-        self.sync_create_cells(1)
-        self._create_simple_table("//tmp/t")
-        self.sync_mount_table("//tmp/t")
-
-        keys = [{"key": 1}]
-        insert_rows("//tmp/t", [{"key": 1, "value": "1"}])
-
-        profiling = self._get_tablet_profiling("//tmp/t")
-
-        def get_lookup_row_counter():
-            return profiling.get_counter("lookup/row_count")
-
-        lookup_rows("//tmp/t", keys)
-        sleep(2)
-        assert get_lookup_row_counter() == 0
-
-        set("//tmp/t/@enable_profiling", True)
-        lookup_rows("//tmp/t", keys)
-        sleep(2)
-        assert get_lookup_row_counter() == 0
-
-        remount_table("//tmp/t")
-        sleep(1)
-        lookup_rows("//tmp/t", keys)
-        sleep(2)
-        assert get_lookup_row_counter() == 1
-
-        set("//tmp/t/@enable_profiling", False)
-        remount_table("//tmp/t")
-        sleep(1)
-        lookup_rows("//tmp/t", keys)
-        sleep(2)
-        assert get_lookup_row_counter() == 1
-
-        set("//tmp/t/@enable_profiling", True)
-        remount_table("//tmp/t")
-        sleep(1)
-        lookup_rows("//tmp/t", keys)
-        sleep(2)
-        assert get_lookup_row_counter() == 2
 
     def test_reshard_unmounted(self):
         self.sync_create_cells(1)

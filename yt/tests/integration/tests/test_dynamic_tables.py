@@ -145,9 +145,6 @@ class TestDynamicTablesBase(YTEnvSetup):
 
         return Profiling()
 
-    def _get_tablet_profiling(self, table):
-        return self._get_profiling(table, "tablet_id")
-
     def _get_table_profiling(self, table):
         return self._get_profiling(table, "table_path", filter_table=True)
 
