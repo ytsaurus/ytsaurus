@@ -111,7 +111,7 @@ public:
             fh->SetDirect();
         }
 
-        LOG_DEBUG("Open file (FileName: %Qv, Mode: %v, DirecIO: %v Fd: %v",
+        LOG_DEBUG("Open file (FileName: %Qv, Mode: %v, DirecIO: %v Fd: %v)",
             fName,
             oMode,
             UseDirectIO_,
@@ -238,7 +238,7 @@ private:
 
         auto answer = data.Slice(delta, delta + Min(result, numBytes));
 
-        LOG_DEBUG("Read file (Fd: %v, Offset: %v, Bytes: %v, DirectIO: %v, ResultSize: %v",
+        LOG_DEBUG("Read file (Fd: %v, Offset: %v, Bytes: %v, DirectIO: %v, ResultSize: %v)",
             static_cast<FHANDLE>(*fh),
             offset,
             numBytes,
