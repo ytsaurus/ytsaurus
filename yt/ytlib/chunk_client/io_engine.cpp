@@ -111,7 +111,7 @@ public:
             fh->SetDirect();
         }
 
-        LOG_DEBUG("Open file (FileName: %Qv, Mode: %v, DirecIO: %v Fd: %v)",
+        LOG_DEBUG("Open file (FileName: %Qv, Mode: %v, DirectIO: %v Fd: %v)",
             fName,
             oMode,
             UseDirectIO_,
