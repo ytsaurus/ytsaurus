@@ -3533,7 +3533,7 @@ private:
                 shouldRequestProgress = true;
             }
 
-            if (shouldRequestProgress) {
+            if (options.IncludeScheduler && shouldRequestProgress) {
                 auto asyncSchedulerProgressValue = GetNode(GetOperationProgressFromOrchid(operationId), optionsToScheduler);
                 auto schedulerProgressValueOrError = WaitFor(asyncSchedulerProgressValue);
 

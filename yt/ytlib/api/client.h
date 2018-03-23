@@ -745,6 +745,7 @@ struct TGetOperationOptions
     , public TMasterReadOptions
 {
     TNullable<yhash_set<TString>> Attributes;
+    bool IncludeScheduler = false;
 
     TGetOperationOptions()
     { }

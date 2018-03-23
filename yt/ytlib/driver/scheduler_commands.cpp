@@ -607,6 +607,8 @@ TGetOperationCommand::TGetOperationCommand()
     RegisterParameter("operation_id", OperationId);
     RegisterParameter("attributes", Options.Attributes)
         .Optional();
+    RegisterParameter("include_scheduler", Options.IncludeScheduler)
+        .Optional();
 }
 
 void TGetOperationCommand::DoExecute(ICommandContextPtr context)
