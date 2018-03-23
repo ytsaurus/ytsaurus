@@ -44,7 +44,7 @@ struct TProfilerTrait
 
     static TValue ToValue(const NProfiling::TTagIdList& list)
     {
-        return {list};
+        return TValue{list};
     }
 };
 

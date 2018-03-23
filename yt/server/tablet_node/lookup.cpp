@@ -54,7 +54,7 @@ static const size_t RowBufferCapacity = 1000;
 
 struct TLookupCounters
 {
-    TLookupCounters(const TTagIdList& list)
+    explicit TLookupCounters(const TTagIdList& list)
         : RowCount("/lookup/row_count", list)
         , DataWeight("/lookup/data_weight", list)
         , UnmergedRowCount("/lookup/unmerged_row_count", list)
