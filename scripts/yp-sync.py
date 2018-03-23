@@ -47,12 +47,13 @@ def git_verify_head_pushed(git):
     if not output:
         raise YpSyncError("remote repo doesn't contain HEAD")
 
-def svn_verify_tree_clean(svn, path):
+def verify_svn_tree_clean(svn, path):
     changed_item_list = [status for status in svn.iter_status(path) if status.status not in ("normal", "unversioned")]
     if changed_item_list:
         changed_files = idented_lines(["{} {}".format(s.status, s.relpath) for s in changed_item_list])
         raise YpSyncError("svn repository has unstaged changed:\n"
-                          "{changed_files}\n".format(changed_files=changed_files))
+                          "{changed_files}\n"
+                          "Use --ignore-svn-modifications to ignore them.\n".format(changed_files=changed_files))
 
 def svn_get_last_modified_revision(url):
     svn = Svn()
@@ -67,7 +68,8 @@ def verify_svn_revision_merged(git, git_svn_id, svn_revision):
     git_log_pattern = "^git-svn-id: {}@{}".format(svn_url, svn_revision)
     log = git.call("log", "--grep", git_log_pattern)
     if not log.strip():
-        raise YpSyncError("Svn revision {} is not merged to git".format(svn_revision))
+        raise YpSyncError("Svn revision {} is not merged to git.\n"
+                          "Use --ignore-unmerged-svn-commits flag to skip this check.\n".format(svn_revision))
 
 def verify_recent_svn_revision_merged(git, git_svn_id):
     svn_url = get_svn_url_for_git_svn_remote(git, git_svn_id)
@@ -104,8 +106,8 @@ def git_iter_files_to_sync(git, pathspec):
         if os.path.islink(git.abspath(relpath)):
             warn = (
                 "Skipping symlink file: `{}'\n"
-                "(To be honest author of this script doubts that keeping symlink in repo is a good idea\n"
-                "and encourages you to remove it to mute this annoing warning)").format(relpath)
+                "(To be honest author of this script doubts that keeping symlink in a repo is a good idea.\n"
+                "He encourages you to remove symlink file in order to mute this annoing warning.)").format(relpath)
             logger.warning(warn)
             continue
         yield relpath
@@ -120,6 +122,8 @@ class LocalSvn(object):
         possible statuses:
             - normal -- not changed
             - unversioned -- svn doesn't know about file
+            - missing -- file removed localy but present in svn
+            ...
         """
         SvnStatusEntry = collections.namedtuple("SvnStatusEntry", ["abspath", "relpath", "status"])
 
@@ -198,10 +202,6 @@ def verify_svn_match_git(git, svn):
                 only_in_svn=idented_lines(only_in_svn),
             )
 
-    # 1. Смотрим на файлы в git'е
-    # 2. Убеждаемся, что все файлы гита добавлены в svn.
-    # 3. Убеждаемся, что нет файлов в svn'е не содержащихся в git'е.
-    # 4. Сравниваем файлы на совпадение.
     diffed = []
     for relpath in git_rel_paths:
         svn_path = svn.abspath(relpath)
@@ -219,17 +219,18 @@ def subcommand_copy_to_local_svn(args):
     local_git = LocalGit(PROJECT_PATH)
     svn = LocalSvn(args.arcadia)
 
-    logger.info("check that svn doesn't have any commits that unmerged to github")
-    verify_recent_svn_revision_merged(git, YP_GIT_SVN_REMOTE_ID)
+    if args.check_unmerged_svn_commits:
+        logger.info("check that svn doesn't have any commits that are not merged to github")
+        verify_recent_svn_revision_merged(git, YP_GIT_SVN_REMOTE_ID)
 
     logger.info("check for local modifications in git repo")
     git_verify_tree_clean(git, YP_GIT_PATHSPEC)
 
     logger.info("check svn repository for local modifications")
     try:
-        svn_verify_tree_clean(svn, YP_SVN_PATH)
+        verify_svn_tree_clean(svn, YP_SVN_PATH)
     except YpSyncError:
-        if not args.force:
+        if not args.ignore_svn_modifications:
             raise
         svn.revert(YP_SVN_PATH)
 
@@ -277,8 +278,9 @@ def subcommand_svn_commit(args):
     local_git = LocalGit(PROJECT_PATH)
     svn = LocalSvn(args.arcadia)
 
-    logger.info("check that svn doesn't have any commits that unmerged to github")
-    verify_recent_svn_revision_merged(git, YP_GIT_SVN_REMOTE_ID)
+    if args.check_unmerged_svn_commits:
+        logger.info("check that svn doesn't have any commits that are not merged to github")
+        verify_recent_svn_revision_merged(git, YP_GIT_SVN_REMOTE_ID)
 
     logger.info("check for local modifications in git repo")
     git_verify_tree_clean(git, YP_GIT_PATHSPEC)
@@ -328,16 +330,27 @@ def main():
 
     subparsers = parser.add_subparsers()
 
+    def add_arcadia_argument(p):
+        p.add_argument("-a", "--arcadia", required=True, help="path to local svn working copy")
+
+    def add_ignore_unmerged_svn_commits_argument(p):
+        p.add_argument("--ignore-unmerged-svn-commits", dest="check_unmerged_svn_commits", default=True, action="store_false",
+                       help="do not complain when svn has commits that are not merged into github")
+
     # copy-to-local-svn subcommand
     copy_to_local_svn_parser = subparsers.add_parser("copy-to-local-svn")
-    copy_to_local_svn_parser.add_argument("--force", default=False, action="store_true")
-    copy_to_local_svn_parser.add_argument("-a", "--arcadia", required=True)
+    copy_to_local_svn_parser.add_argument("--ignore-svn-modifications", default=False, action="store_true",
+                                          help="ignore and override changes in svn working copy")
+    add_arcadia_argument(copy_to_local_svn_parser)
+    add_ignore_unmerged_svn_commits_argument(copy_to_local_svn_parser)
     copy_to_local_svn_parser.set_defaults(subcommand=subcommand_copy_to_local_svn)
 
     # local-svn-commit
     svn_commit_parser = subparsers.add_parser("svn-commit")
-    svn_commit_parser.add_argument("-a", "--arcadia", required=True)
-    svn_commit_parser.add_argument("--no-review", dest='review', default=True, action='store_false')
+    add_arcadia_argument(svn_commit_parser)
+    add_ignore_unmerged_svn_commits_argument(svn_commit_parser)
+    svn_commit_parser.add_argument("--no-review", dest='review', default=True, action='store_false',
+                                   help="do not create review, commit right away")
     svn_commit_parser.set_defaults(subcommand=subcommand_svn_commit)
 
     # init
