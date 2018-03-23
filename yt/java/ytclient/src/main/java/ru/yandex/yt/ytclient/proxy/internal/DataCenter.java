@@ -1,4 +1,4 @@
-package ru.yandex.yt.ytclient.rpc.internal;
+package ru.yandex.yt.ytclient.proxy.internal;
 
 import java.time.Duration;
 import java.util.ArrayList;
@@ -24,8 +24,6 @@ import ru.yandex.yt.ytclient.rpc.internal.metrics.DataCenterMetricsHolder;
 
 /**
  * @author aozeritsky
- *
- * TODO: move to proxy
  */
 public final class DataCenter {
     private static final Logger logger = LoggerFactory.getLogger(BalancingRpcClient.class);

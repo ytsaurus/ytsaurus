@@ -1,4 +1,4 @@
-package ru.yandex.yt.ytclient.rpc.internal;
+package ru.yandex.yt.ytclient.proxy.internal;
 
 import java.time.Duration;
 import java.util.ArrayList;
@@ -21,7 +21,6 @@ import ru.yandex.yt.ytclient.rpc.internal.metrics.BalancingResponseHandlerMetric
  * @author aozeritsky
  */
 public class BalancingResponseHandler implements RpcClientResponseHandler {
-    // TODO: move somewhere to core
     private final BalancingResponseHandlerMetricsHolder metricsHolder;
 
     private final CompletableFuture<Tuple2<RpcClient, List<byte[]>>> f;
