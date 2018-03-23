@@ -78,7 +78,7 @@ private:
     TFuture<NProto::TChunkMeta> DoGetMeta(
         const TNullable<int>& partitionTag,
         const TNullable<std::vector<int>>& extensionTags);
-    NProto::TChunkMeta OnMetaDataBlock(const TString& metaFileName, const TSharedMutableRef& data);
+    NProto::TChunkMeta OnMetaDataBlock(const TString& metaFileName, const TSharedMutableRef& data, i64 metaFileLength);
     void DumpBrokenBlock(
         int blockIndex,
         const NProto::TBlockInfo& blockInfo,
