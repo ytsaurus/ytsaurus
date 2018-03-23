@@ -295,6 +295,8 @@ struct TAttributeFilter
 
 bool IsTrivial(const TReadLimit& readLimit);
 
+EValueType NodeTypeToValueType(TNode::EType nodeType);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace NDetail {

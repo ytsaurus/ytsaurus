@@ -38,8 +38,7 @@ static void EnsureNothing(const TMaybe<TNode>& node)
 {
     if (node) {
         ythrow yexception()
-            << "Internal error: expected to have no response got response of type: "
-            << TNode::TypeToString(node->GetType());
+            << "Internal error: expected to have no response, but got response of type " << node->GetType();
     }
 }
 
@@ -47,7 +46,7 @@ static void EnsureSomething(const TMaybe<TNode>& node)
 {
     if (!node) {
         ythrow yexception()
-            << "Internal error: expected to have response of any type got no response.";
+            << "Internal error: expected to have response of any type, but got no response.";
     }
 }
 
@@ -55,8 +54,7 @@ static void EnsureType(const TNode& node, TNode::EType type)
 {
     if (node.GetType() != type) {
         ythrow yexception() << "Internal error: unexpected response type. "
-            << "Expected: " << TNode::TypeToString(type)
-            << " actual: " << TNode::TypeToString(node.GetType());
+            << "Expected: " << type << ", actual: " << node.GetType();
     }
 }
 
@@ -64,8 +62,7 @@ static void EnsureType(const TMaybe<TNode>& node, TNode::EType type)
 {
     if (!node) {
         ythrow yexception()
-            << "Internal error: expected to have response of type "
-            << TNode::TypeToString(type) << " got no response.";
+            << "Internal error: expected to have response of type " << type << ", but got no response.";
     }
 
     EnsureType(*node, type);
