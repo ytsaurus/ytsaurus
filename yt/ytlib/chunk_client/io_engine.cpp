@@ -86,10 +86,10 @@ class TThreadedIOEngine
     : public IIOEngine
 {
 public:
-    using TConfigType = TThreadedIOEngineConfig;
+    using TConfig = TThreadedIOEngineConfig;
 
-    explicit TThreadedIOEngine(const TConfigType& config)
-        : ThreadPool_(config.Threads, "DiskIO")
+    explicit TThreadedIOEngine(const TConfig& config)
+        : ThreadPool_(New<NConcurrency::TThreadPool>(config.Threads, "DiskIO"))
         , UseDirectIO_(config.UseDirectIO)
     { }
 
@@ -110,7 +110,7 @@ public:
     virtual TFuture<TSharedMutableRef> Pread(const std::shared_ptr<TFileHandle>& fh, size_t len, i64 offset) override
     {
         return BIND(&TThreadedIOEngine::DoPread, MakeStrong(this), fh, len, offset)
-            .AsyncVia(ThreadPool_.GetInvoker())
+            .AsyncVia(ThreadPool_->GetInvoker())
             .Run();
     }
 
@@ -121,7 +121,7 @@ public:
         YCHECK(!useDirectIO || IsAligned(data.Size(), Alignment_));
         YCHECK(!useDirectIO || IsAligned(offset, Alignment_));
         return BIND(&TThreadedIOEngine::DoPwrite, MakeStrong(this), fh, data, offset)
-            .AsyncVia(ThreadPool_.GetInvoker())
+            .AsyncVia(ThreadPool_->GetInvoker())
             .Run();
     }
 
@@ -131,7 +131,7 @@ public:
             return TrueFuture;
         } else {
             return BIND(&TThreadedIOEngine::DoFlushData, MakeStrong(this), fh)
-                .AsyncVia(ThreadPool_.GetInvoker())
+                .AsyncVia(ThreadPool_->GetInvoker())
                 .Run();
         }
     }
@@ -142,17 +142,18 @@ public:
             return TrueFuture;
         } else {
             return BIND(&TThreadedIOEngine::DoFlush, MakeStrong(this), fh)
-                .AsyncVia(ThreadPool_.GetInvoker())
+                .AsyncVia(ThreadPool_->GetInvoker())
                 .Run();
         }
     }
 
 private:
-    const size_t MaxPortion_ = size_t(1 << 30);
-    NConcurrency::TThreadPool ThreadPool_;
+    const size_t MaxBytesPerRead = 1_GB;
+    const NConcurrency::TThreadPoolPtr ThreadPool_;
 
-    bool UseDirectIO_;
+    const bool UseDirectIO_;
     const i64 Alignment_ = 4_KB;
+
 
     bool IsDirectAligned(const std::shared_ptr<TFileHandle>& fh)
     {
@@ -195,8 +196,8 @@ private:
         YCHECK(readPortion <= data.Size());
 
         NFS::ExpectIOErrors([&]() {
-            while (readPortion) {
-                const i32 toRead = static_cast<i32>(Min(MaxPortion_, readPortion));
+            while (readPortion > 0) {
+                const i32 toRead = static_cast<i32>(Min(MaxBytesPerRead, readPortion));
                 const i32 reallyRead = fh->Pread(buf, toRead, from);
 
                 if (reallyRead < 0) {
@@ -229,7 +230,7 @@ private:
 
         NFS::ExpectIOErrors([&]() {
             while (numBytes) {
-                const i32 toWrite = static_cast<i32>(Min(MaxPortion_, numBytes));
+                const i32 toWrite = static_cast<i32>(Min(MaxBytesPerRead, numBytes));
                 const i32 reallyWritten = fh->Pwrite(buf, toWrite, offset);
 
                 if (reallyWritten < 0) {
@@ -418,7 +419,7 @@ class TAioEngine
     : public IIOEngine
 {
 public:
-    using TConfigType = TAioEngineConfig;
+    using TConfig = TAioEngineConfig;
 
     explicit TAioEngine(const TAioEngineConfig& config)
         : MaxQueueSize_(config.MaxQueueSize)
@@ -482,9 +483,10 @@ private:
     NConcurrency::TAsyncSemaphore Semaphore_;
     std::atomic<bool> Alive_ = {true};
 
-    const i64 Alignment_ = 4_KB;
+    const size_t Alignment_ = 4_KB;
 
     TThread Thread_;
+
 
     void Loop()
     {
@@ -584,7 +586,7 @@ private:
 template <typename T>
 IIOEnginePtr CreateIOEngine(const NYTree::INodePtr& ioConfig)
 {
-    typename T::TConfigType config;
+    typename T::TConfig config;
     config.SetDefaults();
     if (ioConfig) {
         config.Load(ioConfig);
