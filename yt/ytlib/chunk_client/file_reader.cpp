@@ -244,7 +244,7 @@ NProto::TChunkMeta TFileReader::OnMetaDataBlock(const TString& metaFileName, con
             break;
 
         default:
-            THROW_ERROR_EXCEPTION("Incorrect header signature %x in chunk meta file %v",
+            THROW_ERROR_EXCEPTION("Incorrect header signature %llx in chunk meta file %v",
                 metaHeaderBase->Signature,
                 FileName_);
     }
