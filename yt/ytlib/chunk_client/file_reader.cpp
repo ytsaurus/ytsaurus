@@ -229,7 +229,7 @@ void TFileReader::DumpBrokenMeta(const TRef& block) const
     file.Flush();
 }
 
-NProto::TChunkMeta TFileReader::OnMetaDataBlock(const TString& metaFileName, const TSharedMutableRef& metaFileBlob, i64 metaFileLength)
+NProto::TChunkMeta TFileReader::OnMetaDataBlock(const TString& metaFileName, i64 metaFileLength, const TSharedMutableRef& metaFileBlob)
 {
     TChunkMetaHeader_2 metaHeader;
     TRef metaBlob;
