@@ -5,22 +5,15 @@ import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 
-import ru.yandex.inside.yt.kosher.common.GUID;
 import ru.yandex.yt.rpcproxy.ETransactionType;
-import ru.yandex.yt.rpcproxy.TReqPingTransaction;
-import ru.yandex.yt.rpcproxy.TReqStartTransaction;
-import ru.yandex.yt.rpcproxy.TRspPingTransaction;
-import ru.yandex.yt.rpcproxy.TRspStartTransaction;
-import ru.yandex.yt.ytclient.proxy.ApiService;
-import ru.yandex.yt.ytclient.proxy.ApiServiceUtil;
+import ru.yandex.yt.ytclient.proxy.ApiServiceClient;
+import ru.yandex.yt.ytclient.proxy.ApiServiceTransaction;
+import ru.yandex.yt.ytclient.proxy.ApiServiceTransactionOptions;
 import ru.yandex.yt.ytclient.rpc.RpcClient;
 import ru.yandex.yt.ytclient.rpc.RpcClientRequest;
-import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
 import ru.yandex.yt.ytclient.rpc.RpcClientRequestControl;
-import ru.yandex.yt.ytclient.rpc.RpcClientResponse;
 import ru.yandex.yt.ytclient.rpc.RpcClientResponseHandler;
 import ru.yandex.yt.ytclient.rpc.RpcOptions;
-import ru.yandex.yt.ytclient.rpc.RpcUtil;
 import ru.yandex.yt.ytclient.rpc.internal.metrics.BalancingDestinationMetricsHolder;
 import ru.yandex.yt.ytclient.rpc.internal.metrics.BalancingDestinationMetricsHolderImpl;
 
@@ -37,8 +30,8 @@ public class BalancingDestination {
     private final String id;
     private int index;
 
-    private final ApiService service;
-    private GUID transaction = null;
+    private final ApiServiceClient service;
+    private ApiServiceTransaction transaction = null;
 
     private final String destinationName;
 
@@ -59,7 +52,7 @@ public class BalancingDestination {
         this.destinationName = client.destinationName();
         this.metricsHolder = metricsHolder;
 
-        service = client.getService(ApiService.class, options);
+        service = new ApiServiceClient(client, options);
     }
 
     /* for testing only */
@@ -119,36 +112,30 @@ public class BalancingDestination {
         return client;
     }
 
+    public ApiServiceClient getService() {
+        return service;
+    }
+
     public void close() {
         client.close();
     }
 
-    public CompletableFuture<GUID> createTransaction(Duration timeout) {
+    CompletableFuture<ApiServiceTransaction> createTransaction(Duration timeout) {
         if (transaction == null) {
-            RpcClientRequestBuilder<TReqStartTransaction.Builder, RpcClientResponse<TRspStartTransaction>> builder =
-                service.startTransaction();
-            builder.body().setTimeout(ApiServiceUtil.durationToYtMicros(timeout.multipliedBy(2)));
-            builder.body().setType(ETransactionType.TT_TABLET);
-            builder.body().setSticky(true);
-            return RpcUtil.apply(builder.invoke(), response -> {
-                GUID id = RpcUtil.fromProto(response.body().getId());
-                return id;
-            });
+            return service.startTransaction(
+                    new ApiServiceTransactionOptions(ETransactionType.TT_TABLET)
+                        .setSticky(true)
+                        .setTimeout(timeout.multipliedBy(2)));
         } else {
             return CompletableFuture.completedFuture(transaction);
         }
     }
 
-    public CompletableFuture<Void> pingTransaction(GUID id) {
-        RpcClientRequestBuilder<TReqPingTransaction.Builder, RpcClientResponse<TRspPingTransaction>> builder =
-            service.pingTransaction();
-        builder.body().setTransactionId(RpcUtil.toProto(id));
-        builder.body().setSticky(true);
-
+    CompletableFuture<Void> pingTransaction(ApiServiceTransaction tx) {
         long start = System.nanoTime();
 
-        return RpcUtil.apply(builder.invoke(), response -> null).thenAccept(unused -> {
-            transaction = id;
+        return tx.ping().thenAccept(unused -> {
+            transaction = tx;
 
             long end = System.nanoTime();
             long interval = (end - start) / 1000000;
@@ -157,10 +144,11 @@ public class BalancingDestination {
         });
     }
 
-    public void resetTransaction() {
+    void resetTransaction() {
         transaction = null;
     }
 
+    @Override
     public String toString() {
         return id;
     }
