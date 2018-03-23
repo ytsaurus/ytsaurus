@@ -138,6 +138,22 @@ bool TFileReader::IsValid() const
     return true;
 }
 
+void TFileReader::DumpBrokenBlock(
+    int blockIndex,
+    const TBlockInfo& blockInfo,
+    const TRef& block) const
+{
+    auto fileName = FileName_ + ".broken." +
+        ToString(blockIndex) + "." +
+        ToString(blockInfo.offset()) + "." +
+        ToString(blockInfo.size()) + "." +
+        ToString(blockInfo.checksum());
+
+    TFile file(fileName, CreateAlways | WrOnly);
+    file.Write(block.Begin(), block.Size());
+    file.Flush();
+}
+
 std::vector<TBlock> TFileReader::OnDataBlock(
     int firstBlockIndex,
     int blockCount,
@@ -160,6 +176,7 @@ std::vector<TBlock> TFileReader::OnDataBlock(
         if (ValidateBlockChecksums_) {
             auto checksum = GetChecksum(block);
             if (checksum != blockInfo.checksum()) {
+                DumpBrokenBlock(blockIndex, blockInfo, block);
                 THROW_ERROR_EXCEPTION(
                     "Incorrect checksum of block %v in chunk data file %Qv: expected %v, actual %v",
                     blockIndex,
@@ -202,6 +219,14 @@ TFuture<std::vector<TBlock>> TFileReader::DoReadBlocks(
         .Apply(BIND(&TFileReader::OnDataBlock, MakeStrong(this), firstBlockIndex, blockCount));
 }
 
+void TFileReader::DumpBrokenMeta(const TRef& block) const
+{
+    auto fileName = FileName_ + ".broken.meta";
+    TFile file(fileName, CreateAlways | WrOnly);
+    file.Write(block.Begin(), block.Size());
+    file.Flush();
+}
+
 NProto::TChunkMeta TFileReader::OnMetaDataBlock(const TString& metaFileName, const TSharedMutableRef& metaFileBlob)
 {
     TChunkMetaHeader_2 metaHeader;
@@ -226,6 +251,7 @@ NProto::TChunkMeta TFileReader::OnMetaDataBlock(const TString& metaFileName, con
 
     auto checksum = GetChecksum(metaBlob);
     if (checksum != metaHeader.Checksum) {
+        DumpBrokenMeta(metaBlob);
         THROW_ERROR_EXCEPTION("Incorrect checksum in chunk meta file %v: expected %v, actual %v",
             metaFileName,
             metaHeader.Checksum,
