@@ -182,7 +182,9 @@ std::vector<TBlock> TFileReader::OnDataBlock(
                     blockIndex,
                     FileName_,
                     blockInfo.checksum(),
-                    checksum);
+                    checksum)
+                    << TErrorAttribute("first_block_index", firstBlockIndex)
+                    << TErrorAttribute("block_count", blockCount);
             }
         }
         blocks.push_back(TBlock(block, blockInfo.checksum()));
