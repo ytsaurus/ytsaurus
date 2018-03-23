@@ -19,9 +19,9 @@ import org.slf4j.LoggerFactory;
 
 import ru.yandex.bolts.collection.Tuple2;
 import ru.yandex.yt.ytclient.bus.BusConnector;
-import ru.yandex.yt.ytclient.rpc.internal.BalancingDestination;
-import ru.yandex.yt.ytclient.rpc.internal.BalancingResponseHandler;
-import ru.yandex.yt.ytclient.rpc.internal.DataCenter;
+import ru.yandex.yt.ytclient.proxy.internal.BalancingDestination;
+import ru.yandex.yt.ytclient.proxy.internal.BalancingResponseHandler;
+import ru.yandex.yt.ytclient.proxy.internal.DataCenter;
 import ru.yandex.yt.ytclient.rpc.internal.metrics.BalancingDestinationMetricsHolder;
 import ru.yandex.yt.ytclient.rpc.internal.metrics.BalancingDestinationMetricsHolderImpl;
 import ru.yandex.yt.ytclient.rpc.internal.metrics.BalancingResponseHandlerMetricsHolder;

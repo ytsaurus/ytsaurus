@@ -7,8 +7,8 @@ import java.util.Random;
 import com.google.common.collect.ImmutableMap;
 import org.junit.Test;
 
-import ru.yandex.yt.ytclient.rpc.internal.BalancingDestination;
-import ru.yandex.yt.ytclient.rpc.internal.DataCenter;
+import ru.yandex.yt.ytclient.proxy.internal.BalancingDestination;
+import ru.yandex.yt.ytclient.proxy.internal.DataCenter;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;

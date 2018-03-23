@@ -1,4 +1,4 @@
-package ru.yandex.yt.ytclient.rpc.internal;
+package ru.yandex.yt.ytclient.proxy.internal;
 
 import java.time.Duration;
 import java.util.Objects;
@@ -19,8 +19,6 @@ import ru.yandex.yt.ytclient.rpc.internal.metrics.BalancingDestinationMetricsHol
 
 /**
  * @author aozeritsky
- *
- * TODO: move to proxy
  */
 public class BalancingDestination {
     private final BalancingDestinationMetricsHolder metricsHolder;

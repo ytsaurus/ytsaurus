@@ -21,8 +21,8 @@ import ru.yandex.yt.ytclient.rpc.RpcClient;
 import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
 import ru.yandex.yt.ytclient.rpc.RpcCredentials;
 import ru.yandex.yt.ytclient.rpc.RpcOptions;
-import ru.yandex.yt.ytclient.rpc.internal.BalancingDestination;
-import ru.yandex.yt.ytclient.rpc.internal.DataCenter;
+import ru.yandex.yt.ytclient.proxy.internal.BalancingDestination;
+import ru.yandex.yt.ytclient.proxy.internal.DataCenter;
 
 public class YtClient extends ApiServiceClient implements AutoCloseable {
     private static final Logger logger = LoggerFactory.getLogger(ApiServiceClient.class);
