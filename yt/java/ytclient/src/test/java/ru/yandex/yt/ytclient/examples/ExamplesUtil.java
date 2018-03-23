@@ -87,51 +87,29 @@ public final class ExamplesUtil {
         return hosts[random.nextInt(hosts.length)];
     }
 
-    public static RpcClient createRpcClient(BusConnector connector, String user, String token) {
-        return createRpcClient(connector, user, token, getRandomHost(), YT_PORT);
+    public static RpcClient createRpcClient(BusConnector connector, RpcCredentials credentials) {
+        return createRpcClient(connector, credentials, getRandomHost(), YT_PORT);
     }
 
-    public static RpcClient createRpcClient(BusConnector connector, String user, String token, String host, int port) {
+    public static RpcClient createRpcClient(BusConnector connector, RpcCredentials credentials, String host, int port) {
         RpcClient client = new DefaultRpcBusClient(
                 new DefaultBusFactory(connector, () -> new InetSocketAddress(host, port)));
-        return client.withTokenAuthentication(user, token);
+        return client.withTokenAuthentication(credentials);
     }
 
-    public static RpcClient createRpcClient(BusConnector connector, String user, String token, String host, int port, String shortName) {
+    public static RpcClient createRpcClient(BusConnector connector, RpcCredentials credentials, String host, int port, String shortName) {
         RpcClient client = new DefaultRpcBusClient(
             new DefaultBusFactory(connector, () -> new InetSocketAddress(host, port)), shortName);
-        return client.withTokenAuthentication(user, token);
+        return client.withTokenAuthentication(credentials);
     }
 
-    @Deprecated
-    public static RpcClient createBalancingRpcClient(BusConnector connector, String user, String token)
-    {
-        List<RpcClient> clients = Arrays.asList(hosts).stream()
-                .map(host -> createRpcClient(connector, user, token, host, YT_PORT, host))
-                .collect(Collectors.toList());
-
-        RpcClient rpcClient = new BalancingRpcClient(
-                Duration.ofMillis(60),  // sends fallback request to other proxy after this timeout
-                Duration.ofMillis(5000), // fails request after this timeout
-                Duration.ofSeconds(1),  // marks proxy as dead/live after this timeout
-                connector,
-                new DefaultRpcFailoverPolicy(),
-                "man", // our local datacenter
-                ImmutableMap.of(
-                        "man", // cluster datacenter
-                        clients)
-        );
-
-        return rpcClient;
+    public static void runExample(Consumer<ApiServiceClient> consumer, RpcCredentials credentials) {
+        runExample(consumer, credentials, getRandomHost());
     }
 
-    public static void runExample(Consumer<ApiServiceClient> consumer, String user, String token) {
-        runExample(consumer, user, token, getRandomHost());
-    }
-
-    public static void runExample(Consumer<ApiServiceClient> consumer, String user, String token, String host) {
+    public static void runExample(Consumer<ApiServiceClient> consumer, RpcCredentials credentials, String host) {
         try (BusConnector connector = createConnector()) {
-            try (RpcClient rpcClient = createRpcClient(connector, user, token, host, YT_PORT)) {
+            try (RpcClient rpcClient = createRpcClient(connector, credentials, host, YT_PORT)) {
                 ApiServiceClient serviceClient = new ApiServiceClient(rpcClient,
                         new RpcOptions().setDefaultTimeout(Duration.ofSeconds(5)));
                 consumer.accept(serviceClient);
@@ -140,7 +118,7 @@ public final class ExamplesUtil {
     }
 
     public static void runExample(Consumer<ApiServiceClient> consumer) {
-        runExample(consumer, getUser(), getToken());
+        runExample(consumer, getCredentials());
     }
 
     public static void runExampleWithBalancing(Consumer<YtClient> consumer) {
