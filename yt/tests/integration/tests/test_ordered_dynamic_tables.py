@@ -75,10 +75,10 @@ class TestOrderedDynamicTables(TestDynamicTablesBase):
     def test_ordered_tablet_node_profiling(self):
         path = "//tmp/x"
         self.sync_create_cells(1)
-        self._create_simple_table(path, enable_profiling=True)
+        self._create_simple_table(path)
         self.sync_mount_table(path)
 
-        tablet_profiling = self._get_tablet_profiling(path)
+        tablet_profiling = self._get_table_profiling(path)
         select_profiling = self._get_profiling(path)
 
         def get_all_counters(count_name):
