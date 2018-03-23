@@ -33,7 +33,9 @@ import static java.lang.Integer.min;
 
 /**
  * @author aozeritsky
+ * @deprecated {@link ru.yandex.yt.ytclient.proxy.YtClient}
  */
+@Deprecated
 public class BalancingRpcClient implements RpcClient {
     private static final Logger logger = LoggerFactory.getLogger(BalancingRpcClient.class);
 
@@ -77,6 +79,7 @@ public class BalancingRpcClient implements RpcClient {
             ImmutableMap.of("unknown", Arrays.stream(destinations).collect(Collectors.toList()))
         );
     }
+
     public BalancingRpcClient(
             Duration failoverTimeout,
             Duration globalTimeout,
