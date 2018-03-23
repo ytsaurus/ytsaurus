@@ -15,7 +15,7 @@ import tempfile
 from xml.etree import ElementTree
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "git-svn"))
-from git_svn_lib import (Git, Svn, init_git_svn, fetch_git_svn, pull_git_svn)
+from git_svn_lib import (Git, Svn, init_git_svn, fetch_git_svn, pull_git_svn, get_svn_url_for_git_svn_remote)
 
 logger = logging.getLogger("Yt.GitSvn")
 
@@ -53,6 +53,26 @@ def svn_verify_tree_clean(svn, path):
         changed_files = idented_lines(["{} {}".format(s.status, s.relpath) for s in changed_item_list])
         raise YpSyncError("svn repository has unstaged changed:\n"
                           "{changed_files}\n".format(changed_files=changed_files))
+
+def svn_get_last_modified_revision(url):
+    svn = Svn()
+    xml_svn_info = svn.call("info", "--xml", url)
+    tree = ElementTree.fromstring(xml_svn_info)
+    commit_lst = tree.findall("entry/commit")
+    assert len(commit_lst) == 1
+    return commit_lst[0].get("revision")
+
+def verify_svn_revision_merged(git, git_svn_id, svn_revision):
+    svn_url = get_svn_url_for_git_svn_remote(git, git_svn_id)
+    git_log_pattern = "^git-svn-id: {}@{}".format(svn_url, svn_revision)
+    log = git.call("log", "--grep", git_log_pattern)
+    if not log.strip():
+        raise YpSyncError("Svn revision {} is not merged to git".format(svn_revision))
+
+def verify_recent_svn_revision_merged(git, git_svn_id):
+    svn_url = get_svn_url_for_git_svn_remote(git, git_svn_id)
+    recent_revision = svn_get_last_modified_revision(svn_url)
+    verify_svn_revision_merged(git, git_svn_id, recent_revision)
 
 def rmrf(path):
     if os.path.exists(path):
@@ -123,6 +143,11 @@ class LocalSvn(object):
             raise ValueError("Path '{}' must be relative to svn root".format(path))
         subprocess.check_call(["svn", "add", "--parents", self.abspath(path)])
 
+    def remove(self, path):
+        if path.startswith('/'):
+            raise ValueError("Path '{}' must be relative to svn root".format(path))
+        subprocess.check_call(["svn", "remove", self.abspath(path)])
+
 def notify_svn(svn, base_path, rel_files):
     rel_files = frozenset(rel_files)
 
@@ -144,7 +169,11 @@ def notify_svn(svn, base_path, rel_files):
             continue
         if os.path.isdir(svn.abspath(relpath)):
             continue
-        raise RuntimeError, "Don't know what to do with file: '{}' status: '{}'".format(relpath, status)
+
+        if status == "missing":
+            svn.remove(relpath)
+        else:
+            raise RuntimeError, "Don't know what to do with file: '{}' status: '{}'".format(relpath, status)
 
 def verify_svn_match_git(git, svn):
     git_rel_paths = set(git_iter_files_to_sync(git, YP_GIT_PATHSPEC))
@@ -189,6 +218,9 @@ def subcommand_copy_to_local_svn(args):
     git = Git(PROJECT_PATH)
     local_git = LocalGit(PROJECT_PATH)
     svn = LocalSvn(args.arcadia)
+
+    logger.info("check that svn doesn't have any commits that unmerged to github")
+    verify_recent_svn_revision_merged(git, YP_GIT_SVN_REMOTE_ID)
 
     logger.info("check for local modifications in git repo")
     git_verify_tree_clean(git, YP_GIT_PATHSPEC)
@@ -244,6 +276,9 @@ def subcommand_svn_commit(args):
     git = Git(PROJECT_PATH)
     local_git = LocalGit(PROJECT_PATH)
     svn = LocalSvn(args.arcadia)
+
+    logger.info("check that svn doesn't have any commits that unmerged to github")
+    verify_recent_svn_revision_merged(git, YP_GIT_SVN_REMOTE_ID)
 
     logger.info("check for local modifications in git repo")
     git_verify_tree_clean(git, YP_GIT_PATHSPEC)
