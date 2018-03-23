@@ -229,7 +229,7 @@ void TFileReader::DumpBrokenMeta(const TRef& block) const
     file.Flush();
 }
 
-NProto::TChunkMeta TFileReader::OnMetaDataBlock(const TString& metaFileName, const TSharedMutableRef& metaFileBlob)
+NProto::TChunkMeta TFileReader::OnMetaDataBlock(const TString& metaFileName, const TSharedMutableRef& metaFileBlob, i64 metaFileLength)
 {
     TChunkMetaHeader_2 metaHeader;
     TRef metaBlob;
@@ -257,7 +257,8 @@ NProto::TChunkMeta TFileReader::OnMetaDataBlock(const TString& metaFileName, con
         THROW_ERROR_EXCEPTION("Incorrect checksum in chunk meta file %v: expected %v, actual %v",
             metaFileName,
             metaHeader.Checksum,
-            checksum);
+            checksum)
+            << TErrorAttribute("meta_file_length", metaFileLength);
     }
 
     if (ChunkId_ != NullChunkId && metaHeader.ChunkId != ChunkId_) {
@@ -298,7 +299,7 @@ TFuture<TChunkMeta> TFileReader::DoGetMeta(
     }
 
     return IOEngine_->Pread(metaFile, metaFile->GetLength(), 0)
-        .Apply(BIND(&TFileReader::OnMetaDataBlock, MakeStrong(this), metaFileName));
+        .Apply(BIND(&TFileReader::OnMetaDataBlock, MakeStrong(this), metaFileName, metaFile->GetLength()));
 }
 
 const TBlocksExt& TFileReader::GetBlockExts()
