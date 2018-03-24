@@ -279,16 +279,16 @@ TControllerAgentConfig::TControllerAgentConfig()
     RegisterParameter("event_log", EventLog)
         .DefaultNew();
 
-    RegisterParameter("controller_agent_handshake_rpc_timeout", ControllerAgentHandshakeRpcTimeout)
+    RegisterParameter("scheduler_handshake_rpc_timeout", SchedulerHandshakeRpcTimeout)
         .Default(TDuration::Seconds(10));
-    RegisterParameter("controller_agent_handshake_failure_backoff", ControllerAgentHandshakeFailureBackoff)
+    RegisterParameter("scheudler_failure_backoff", SchedulerHandshakeFailureBackoff)
         .Default(TDuration::Seconds(1));
 
-    RegisterParameter("controller_agent_heartbeat_rpc_timeout", ControllerAgentHeartbeatRpcTimeout)
+    RegisterParameter("scheduler_heartbeat_rpc_timeout", SchedulerHeartbeatRpcTimeout)
         .Default(TDuration::Seconds(10));
-    RegisterParameter("controller_agent_heartbeat_failure_backoff", ControllerAgentHeartbeatFailureBackoff)
+    RegisterParameter("scheduler_failure_backoff", SchedulerHeartbeatFailureBackoff)
         .Default(TDuration::MilliSeconds(100));
-    RegisterParameter("controller_agent_heartbeat_period", ControllerAgentHeartbeatPeriod)
+    RegisterParameter("scheduler_heartbeat_period", SchedulerHeartbeatPeriod)
         .Default(TDuration::MilliSeconds(10));
 
     RegisterParameter("config_update_period", ConfigUpdatePeriod)
