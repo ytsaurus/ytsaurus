@@ -289,7 +289,7 @@ TControllerAgentConfig::TControllerAgentConfig()
     RegisterParameter("scheduler_failure_backoff", SchedulerHeartbeatFailureBackoff)
         .Default(TDuration::MilliSeconds(100));
     RegisterParameter("scheduler_heartbeat_period", SchedulerHeartbeatPeriod)
-        .Default(TDuration::MilliSeconds(10));
+        .Default(TDuration::MilliSeconds(100));
 
     RegisterParameter("config_update_period", ConfigUpdatePeriod)
         .Default(TDuration::Seconds(10));
