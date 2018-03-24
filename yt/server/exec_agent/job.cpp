@@ -169,7 +169,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControllerThread);
 
-        LOG_INFO(error, "Job abort requested (Phase %v)", JobPhase_);
+        LOG_INFO(error, "Job abort requested (Phase: %v)", JobPhase_);
 
         switch (JobPhase_) {
             case EJobPhase::Created:
