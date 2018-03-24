@@ -629,6 +629,7 @@ private:
 
     TInstant LastExecNodesUpdateTime_;
     TInstant LastOperationAlertsUpdateTime_;
+    TInstant LastSuspiciousJobsUpdateTime_;
 
     TIntrusivePtr<TMessageQueueOutbox<TAgentToSchedulerOperationEvent>> OperationEventsOutbox_;
     TIntrusivePtr<TMessageQueueOutbox<TAgentToSchedulerJobEvent>> JobEventsOutbox_;
@@ -818,12 +819,12 @@ private:
         JobEventsInbox_.reset();
         OperationEventsInbox_.reset();
         ScheduleJobRequestsInbox_.reset();
-        //MemoryTagQueue_.Reset();
     }
 
     TControllerAgentTrackerServiceProxy::TReqHeartbeatPtr PrepareHeartbeatRequest(
         bool* execNodesRequested,
-        bool* operationAlertsSent)
+        bool* operationAlertsSent,
+        bool* suspiciousJobsSent)
     {
         auto req = SchedulerProxy_.Heartbeat();
         req->SetTimeout(Config_->ControllerAgentHeartbeatRpcTimeout);
@@ -891,6 +892,7 @@ private:
         auto now = TInstant::Now();
         *execNodesRequested = LastExecNodesUpdateTime_ + Config_->ExecNodesUpdatePeriod < now;
         *operationAlertsSent = LastOperationAlertsUpdateTime_ + Config_->OperationAlertsUpdatePeriod < now;
+        *suspiciousJobsSent = LastSuspiciousJobsUpdateTime_ + Config_->SuspiciousJobsUpdatePeriod < now;
 
         for (const auto& pair : GetOperations()) {
             const auto& operationId = pair.first;
@@ -916,8 +918,10 @@ private:
                 }
             }
 
-            // XXX(babenko): avoid sending on each heartbeat
-            protoOperation->set_suspicious_jobs(controller->GetSuspiciousJobsYson().GetData());
+            if (suspiciousJobsSent) {
+                protoOperation->set_suspicious_jobs(controller->GetSuspiciousJobsYson().GetData());
+            }
+
             protoOperation->set_pending_job_count(controller->GetPendingJobCount());
             ToProto(protoOperation->mutable_needed_resources(), controller->GetNeededResources());
             ToProto(protoOperation->mutable_min_needed_job_resources(), controller->GetMinNeededJobResources());
@@ -932,13 +936,16 @@ private:
     {
         bool execNodesRequested;
         bool operationAlertsSent;
+        bool suspiciousJobsSent;
         auto req = PrepareHeartbeatRequest(
             &execNodesRequested,
-            &operationAlertsSent);
+            &operationAlertsSent,
+            &suspiciousJobsSent);
 
-        LOG_DEBUG("Sending heartbeat (ExecNodesRequested: %v, OperationAlertsSent: %v)",
+        LOG_DEBUG("Sending heartbeat (ExecNodesRequested: %v, OperationAlertsSent: %v, SuspiciousJobsSent: %v)",
             execNodesRequested,
-            operationAlertsSent);
+            operationAlertsSent,
+            suspiciousJobsSent);
 
         auto rspOrError = WaitFor(req->Invoke());
         if (!rspOrError.IsOK()) {
