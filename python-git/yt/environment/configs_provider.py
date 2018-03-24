@@ -738,7 +738,7 @@ class ConfigsProvider_19_3(ConfigsProvider_19_2):
             config["scheduler"]["operation_to_agent_assignment_backoff"] = 100
 
             for field in ("transactions_refresh_period", "update_exec_node_descriptors_period",
-                          "safe_scheduler_online_time", "operation_alerts_update_period",
+                          "safe_scheduler_online_time",
                           "snapshot_period", "enable_snapshot_loading", "operation_options", "snapshot_timeout",
                           "exec_nodes_request_period"):
                 del config["scheduler"][field]
