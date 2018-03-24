@@ -174,8 +174,6 @@ message TReqHeartbeat
 
     required bool exec_nodes_requested = 4;
 
-    optional bytes suspicious_jobs = 6;
-
     required TAgentToSchedulerOperationEventsOutbox agent_to_scheduler_operation_events = 7;
     required TAgentToSchedulerJobEventsOutbox agent_to_scheduler_job_events = 8;
     required TAgentToSchedulerScheduleJobResponsesOutbox agent_to_scheduler_schedule_job_responses = 9;
