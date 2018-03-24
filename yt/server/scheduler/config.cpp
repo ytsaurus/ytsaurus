@@ -606,8 +606,10 @@ TSchedulerConfig::TSchedulerConfig()
     RegisterParameter("snapshot_writer", SnapshotWriter)
         .DefaultNew();
 
-    RegisterParameter("enable_job_revival", EnableJobRevival)
-        .Default(true);
+    // TODO(max42): Job revival is broken, see YT-8635 for details.
+    EnableJobRevival = false;
+    //RegisterParameter("enable_job_revival", EnableJobRevival)
+    //    .Default(true);
 
     RegisterParameter("enable_locality", EnableLocality)
         .Default(true);
