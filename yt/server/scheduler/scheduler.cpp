@@ -929,6 +929,8 @@ public:
                 BIND(&TNodeShard::FailJob, nodeShard, jobId));
         }
 
+        // TODO(max42): Job revival is broken, see YT-8635 for details.
+        /*
         for (const auto& jobsToRelease : request->jobs_to_release()) {
             MasterConnector_->GetCancelableControlInvoker()->Invoke(
                 BIND(
@@ -938,6 +940,7 @@ public:
                     FromProto<std::vector<TJobId>>(jobsToRelease.job_ids()),
                     jobsToRelease.controller_scheduler_incarnation()));
         }
+        */
 
         for (const auto& protoOperationId: request->completed_operation_ids()) {
             auto operationId = FromProto<TOperationId>(protoOperationId);
@@ -2747,7 +2750,8 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         // Prepare reviving process on node shards.
-        {
+        if (Config_->EnableJobRevival) {
+            LOG_INFO("Preparing job revival");
             std::vector<TFuture<void>> prepareFutures;
             for (auto& shard : NodeShards_) {
                 auto prepareFuture = BIND(&TNodeShard::PrepareReviving, shard)
@@ -2760,6 +2764,8 @@ private:
                 THROW_ERROR_EXCEPTION("Failed to prepare node shard for revive")
                     << error;
             }
+        } else {
+            LOG_INFO("Skipping job revival");
         }
 
         std::vector<TFuture<void>> reviveFutures;
@@ -2793,7 +2799,8 @@ private:
         }
 
         // Start reviving process on node shards.
-        {
+        if (Config_->EnableJobRevival) {
+            LOG_INFO("Starting job revival");
             std::vector<TFuture<void>> startFutures;
             for (auto& shard : NodeShards_) {
                 auto startFuture = BIND(&TNodeShard::StartReviving, shard)

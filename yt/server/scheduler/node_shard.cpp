@@ -1220,10 +1220,16 @@ TJobPtr TNodeShard::ProcessJobHeartbeat(
     bool shouldLogJob = (state != job->GetState()) || forceJobsLogging;
     switch (state) {
         case EJobState::Completed: {
-            LOG_DEBUG("Job completed, storage scheduled");
-            YCHECK(RevivalState_->RecentlyCompletedJobIds().insert(jobId).second);
-            OnJobCompleted(job, jobStatus);
-            ToProto(response->add_jobs_to_store(), jobId);
+            if (Config_->EnableJobRevival) {
+                LOG_DEBUG("Job completed, storage scheduled (EnableJobRevival: %v)", Config_->EnableJobRevival);
+                YCHECK(RevivalState_->RecentlyCompletedJobIds().insert(jobId).second);
+                OnJobCompleted(job, jobStatus);
+                ToProto(response->add_jobs_to_store(), jobId);
+            } else {
+                LOG_DEBUG("Job completed, removal scheduled (EnableJobRevival: %v)", Config_->EnableJobRevival);
+                OnJobCompleted(job, jobStatus);
+                ToProto(response->add_jobs_to_remove(), jobId);
+            }
             break;
         }
 
