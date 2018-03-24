@@ -291,11 +291,14 @@ TControllerAgentConfig::TControllerAgentConfig()
     RegisterParameter("controller_agent_heartbeat_period", ControllerAgentHeartbeatPeriod)
         .Default(TDuration::MilliSeconds(10));
 
-    RegisterParameter("exec_nodes_update_period", ExecNodesUpdatePeriod)
-        .Default(TDuration::Seconds(10));
     RegisterParameter("config_update_period", ConfigUpdatePeriod)
         .Default(TDuration::Seconds(10));
+
+    RegisterParameter("exec_nodes_update_period", ExecNodesUpdatePeriod)
+        .Default(TDuration::Seconds(10));
     RegisterParameter("operation_alerts_update_period", OperationAlertsUpdatePeriod)
+        .Default(TDuration::Seconds(3));
+    RegisterParameter("suspicious_jobs_update_period", SuspiciousJobsUpdatePeriod)
         .Default(TDuration::Seconds(3));
 
     RegisterParameter("controller_thread_count", ControllerThreadCount)

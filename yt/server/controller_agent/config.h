@@ -461,6 +461,9 @@ public:
     //! Period for pushing operation alerts from agent to scheduler.
     TDuration OperationAlertsUpdatePeriod;
 
+    //! Period for pushing suspicious jobs from agent to scheduler.
+    TDuration SuspiciousJobsUpdatePeriod;
+
     //! Number of threads for running controllers invokers.
     int ControllerThreadCount;
 
