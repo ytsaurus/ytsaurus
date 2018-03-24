@@ -1498,6 +1498,12 @@ class TestCypress(YTEnvSetup):
         remove("//tmp/a", tx=tx)
         assert get("#{}/@path".format(node_id), tx=tx) == "#{}".format(node_id)
 
+    def test_create_invalid_type(self):
+        with pytest.raises(YtError):
+            create("some_invalid_type", "//tmp/s")
+        with pytest.raises(YtError):
+            create("sorted_dynamic_tablet_store", "//tmp/s")
+
 ##################################################################
 
 class TestCypressMulticell(TestCypress):
