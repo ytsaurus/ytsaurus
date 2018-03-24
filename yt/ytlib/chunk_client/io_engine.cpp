@@ -28,11 +28,6 @@ namespace NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const NLogging::TLogger IOEngineLogger("IOEngine");
-static const auto& Logger = IOEngineLogger;
-
-////////////////////////////////////////////////////////////////////////////////
-
 struct TAioEngineDataBufferTag {};
 struct TDefaultEngineDataBufferTag {};
 
@@ -110,13 +105,6 @@ public:
         if (UseDirectIO_) {
             fh->SetDirect();
         }
-
-        LOG_DEBUG("Open file (FileName: %Qv, Mode: %v, DirectIO: %v Fd: %v)",
-            fName,
-            oMode,
-            UseDirectIO_,
-            static_cast<FHANDLE>(*fh));
-
         return fh;
     }
 
@@ -213,39 +201,24 @@ private:
                 from += reallyRead;
                 readPortion -= reallyRead;
 
-                if (reallyRead < toRead) { // file exausted
-                    LOG_DEBUG("Pread finished early (Fd: %v, DirectIO: %v, ToRead: %v, ReallyRead: %v)",
-                        static_cast<FHANDLE>(*fh),
-                        UseDirectIO_,
-                        toRead,
-                        reallyRead);
-
-                    // FIXME(savrus) remove this.
-                    if (UseDirectIO_) {
-                        break;
-                    }
-                }
-
                 if (reallyRead == 0) {
                     // End of file.
                     break;
                 }
 
+                // FIXME(savrus) Allow pread to break on page boundaries.
+                if (reallyRead < toRead && UseDirectIO_) {
+                    THROW_ERROR_EXCEPTION("Pread finished early")
+                        << TErrorAttribute("use_direct_io", UseDirectIO_)
+                        << TErrorAttribute("requested_bytes", toRead)
+                        << TErrorAttribute("read_bytes", reallyRead);
+                }
             }
 
             result = buf - reinterpret_cast<ui8*>(data.Begin()) - delta;
         });
 
-        auto answer = data.Slice(delta, delta + Min(result, numBytes));
-
-        LOG_DEBUG("Read file (Fd: %v, Offset: %v, Bytes: %v, DirectIO: %v, ResultSize: %v)",
-            static_cast<FHANDLE>(*fh),
-            offset,
-            numBytes,
-            UseDirectIO_,
-            answer.Size());
-
-        return answer;
+        return data.Slice(delta, delta + Min(result, numBytes));
     }
 
     void DoPwrite(const std::shared_ptr<TFileHandle>& fh, const TSharedMutableRef& data, i64 offset)
