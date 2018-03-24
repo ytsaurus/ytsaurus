@@ -779,6 +779,11 @@ public:
                 agent->SetIncarnationTransaction(transaction);
                 agent->SetState(EControllerAgentState::Registered);
 
+                agent->SetLease(TLeaseManager::CreateLease(
+                    Config_->ControllerAgentHeartbeatTimeout,
+                    BIND(&TImpl::OnAgentHeartbeatTimeout, MakeWeak(this), MakeWeak(agent))
+                        .Via(GetCancelableControlInvoker())));
+
                 transaction->SubscribeAborted(
                     BIND(&TImpl::OnAgentIncarnationTransactionAborted, MakeWeak(this), MakeWeak(agent))
                         .Via(GetCancelableControlInvoker()));
@@ -1063,10 +1068,6 @@ private:
     void RegisterAgent(const TControllerAgentPtr& agent)
     {
         YCHECK(IdToAgent_.emplace(agent->GetId(), agent).second);
-        agent->SetLease(TLeaseManager::CreateLease(
-            Config_->ControllerAgentHeartbeatTimeout,
-            BIND(&TImpl::OnAgentHeartbeatTimeout, MakeWeak(this), agent)
-                .Via(GetCancelableControlInvoker())));
     }
 
     void UnregisterAgent(const TControllerAgentPtr& agent)
@@ -1122,13 +1123,20 @@ private:
         agent->Cancel();
     }
 
-    void OnAgentHeartbeatTimeout(const TControllerAgentPtr& agent)
+    void OnAgentHeartbeatTimeout(const TWeakPtr<TControllerAgent>& weakAgent)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
+
+        auto agent = weakAgent.Lock();
+        if (!agent) {
+            return;
+        }
 
         LOG_WARNING("Agent heartbeat timeout; unregistering (AgentId: %v, IncarnationId: %v)",
             agent->GetId(),
             agent->GetIncarnationId());
+
+        UnregisterAgent(agent);
     }
 
     void OnAgentIncarnationTransactionAborted(const TWeakPtr<TControllerAgent>& weakAgent)
