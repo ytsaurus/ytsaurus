@@ -2,6 +2,7 @@
 
 #include "private.h"
 #include "scheduler.h"
+#include "scheduler_strategy.h"
 #include "scheduling_tag.h"
 
 #include <yt/ytlib/api/client.h>
@@ -211,8 +212,7 @@ private:
     TAbortedJobCounter AbortedJobCounter_;
     TCompletedJobCounter CompletedJobCounter_;
 
-    std::vector<TUpdatedJob> UpdatedJobs_;
-    std::vector<TFinishedJob> FinishedJobs_;
+    THashMap<TJobId, TJobUpdate> JobsToSubmitInStrategy_;
 
     THashMap<TJobId, TPromise<NControllerAgent::TScheduleJobResultPtr>> JobIdToAsyncScheduleResult_;
 
@@ -309,7 +309,7 @@ private:
     void SetJobState(const TJobPtr& job, EJobState state);
 
     void RegisterJob(const TJobPtr& job);
-    void UnregisterJob(const TJobPtr& job, bool enableLogging = true, bool removeFromStrategy = true);
+    void UnregisterJob(const TJobPtr& job, bool enableLogging = true);
 
     void SetJobWaitingForConfirmation(const TJobPtr& job);
     void ResetJobWaitingForConfirmation(const TJobPtr& job);

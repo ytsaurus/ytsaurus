@@ -447,17 +447,21 @@ void DoRun(const char* configFilename)
                     operation->SetState(NScheduler::EOperationState::Completed);
                 }
 
-                std::vector<NScheduler::TUpdatedJob> updateJobs;
-                std::vector<NScheduler::TFinishedJob> completedJobs({
-                    NScheduler::TFinishedJob(job->GetOperationId(), job->GetId(), job->GetTreeId())
-                });
+                std::vector<NScheduler::TJobUpdate> jobUpdates({TJobUpdate{
+                    NScheduler::EJobUpdateStatus::Finished,
+                    job->GetOperationId(),
+                    job->GetId(),
+                    job->GetTreeId(),
+                    TJobResources(),
+                }});
+
+                std::vector<TJobId> jobsToRemove;
                 std::vector<TJobId> jobsToAbort;
-                fairShareStrategy->ProcessUpdatedAndFinishedJobs(
-                    &updateJobs,
-                    &completedJobs,
+                fairShareStrategy->ProcessJobUpdates(
+                    jobUpdates,
+                    &jobsToRemove,
                     &jobsToAbort);
-                YCHECK(updateJobs.empty());
-                YCHECK(completedJobs.empty());
+                YCHECK(jobsToRemove.size() == 1);
                 YCHECK(jobsToAbort.empty());
 
                 // Schedule out of band heartbeat.

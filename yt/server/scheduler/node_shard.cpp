@@ -170,8 +170,7 @@ void TNodeShard::DoCleanup()
         }
     }
 
-    UpdatedJobs_.clear();
-    FinishedJobs_.clear();
+    JobsToSubmitInStrategy_.clear();
 
     ConcurrentHeartbeatCount_ = 0;
 
@@ -213,7 +212,8 @@ void TNodeShard::StartOperationRevival(const TOperationId& operationId)
     auto jobs = operationState.Jobs;
     for (const auto& pair : jobs) {
         const auto& job = pair.second;
-        UnregisterJob(job, /* enableLogging */ false, /* removeFromTree */ false);
+        UnregisterJob(job, /* enableLogging */ false);
+        JobsToSubmitInStrategy_.erase(job->GetId());
     }
     YCHECK(operationState.Jobs.empty());
 }
@@ -1574,7 +1574,14 @@ void TNodeShard::ProcessScheduledJobs(
             if (!operationState->Terminated) {
                 const auto& controller = operationState->Controller;
                 controller->OnNonscheduledJobAborted(job->GetId(), EAbortReason::SchedulingOperationSuspended);
-                FinishedJobs_.emplace_back(job->GetOperationId(), job->GetId(), job->GetTreeId());
+                JobsToSubmitInStrategy_.emplace(
+                    job->GetId(),
+                    TJobUpdate{
+                        EJobUpdateStatus::Finished,
+                        job->GetOperationId(),
+                        job->GetId(),
+                        job->GetTreeId(),
+                        TJobResources()});
             }
             continue;
         }
@@ -1645,7 +1652,14 @@ void TNodeShard::OnJobRunning(const TJobPtr& job, TJobStatus* status)
     job->SetRunningJobUpdateDeadline(now + DurationToCpuDuration(Config_->RunningJobsUpdatePeriod));
 
     auto delta = status->resource_usage() - job->ResourceUsage();
-    UpdatedJobs_.emplace_back(job->GetOperationId(), job->GetId(), delta, job->GetTreeId());
+    JobsToSubmitInStrategy_.emplace(
+        job->GetId(),
+        TJobUpdate{
+            EJobUpdateStatus::Running,
+            job->GetOperationId(),
+            job->GetId(),
+            job->GetTreeId(),
+            delta});
     job->ResourceUsage() = status->resource_usage();
 
     auto* operationState = FindOperationState(job->GetOperationId());
@@ -1767,16 +1781,25 @@ void TNodeShard::OnJobFinished(const TJobPtr& job)
 void TNodeShard::SubmitJobsToStrategy()
 {
     PROFILE_AGGREGATED_TIMING (StrategyJobProcessingTimeCounter) {
-        if (!UpdatedJobs_.empty() || !FinishedJobs_.empty()) {
+        if (!JobsToSubmitInStrategy_.empty()) {
             std::vector<TJobId> jobsToAbort;
+            std::vector<TJobId> jobsToRemove;
 
-            Host_->GetStrategy()->ProcessUpdatedAndFinishedJobs(
-                &UpdatedJobs_,
-                &FinishedJobs_,
+            std::vector<TJobUpdate> jobUpdates;
+            for (const auto& pair : JobsToSubmitInStrategy_) {
+                jobUpdates.push_back(pair.second);
+            }
+
+            Host_->GetStrategy()->ProcessJobUpdates(
+                jobUpdates,
+                &jobsToRemove,
                 &jobsToAbort);
 
             for (const auto& jobId : jobsToAbort) {
                 AbortJob(jobId, TError("Aborting job by strategy request"));
+            }
+            for (const auto& jobId : jobsToRemove) {
+                YCHECK(JobsToSubmitInStrategy_.erase(jobId) == 1);
             }
         }
     }
@@ -1820,7 +1843,7 @@ void TNodeShard::RegisterJob(const TJobPtr& job)
         job->GetOperationId());
 }
 
-void TNodeShard::UnregisterJob(const TJobPtr& job, bool enableLogging, bool removeFromTree)
+void TNodeShard::UnregisterJob(const TJobPtr& job, bool enableLogging)
 {
     if (job->GetUnregistered()) {
         return;
@@ -1839,11 +1862,14 @@ void TNodeShard::UnregisterJob(const TJobPtr& job, bool enableLogging, bool remo
     ResetJobWaitingForConfirmation(job);
 
     if (operationState && operationState->Jobs.erase(job->GetId())) {
-        // TODO(ignat): make job unregistration checks in strategy.
-        // This seems not safe.
-        if (removeFromTree) {
-            FinishedJobs_.emplace_back(job->GetOperationId(), job->GetId(), job->GetTreeId());
-        }
+        JobsToSubmitInStrategy_.emplace(
+            job->GetId(),
+            TJobUpdate{
+                EJobUpdateStatus::Finished,
+                job->GetOperationId(),
+                job->GetId(),
+                job->GetTreeId(),
+                TJobResources()});
 
         LOG_DEBUG_IF(enableLogging, "Job unregistered (JobId: %v, OperationId: %v, State: %v)",
             job->GetId(),

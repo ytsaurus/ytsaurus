@@ -53,36 +53,18 @@ struct ISchedulerStrategyHost
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TUpdatedJob
-{
-    TUpdatedJob(
-        const TOperationId& operationId,
-        const TJobId& jobId,
-        const TJobResources& delta,
-        const TString& treeId)
-        : OperationId(operationId)
-        , JobId(jobId)
-        , Delta(delta)
-        , TreeId(treeId)
-    { }
+DEFINE_ENUM(EJobUpdateStatus,
+    (Running)
+    (Finished)
+);
 
+struct TJobUpdate
+{
+    EJobUpdateStatus Status;
     TOperationId OperationId;
     TJobId JobId;
+    TString TreeId;
     TJobResources Delta;
-    TString TreeId;
-};
-
-struct TFinishedJob
-{
-    TFinishedJob(const TOperationId& operationId, const TJobId& jobId, const TString& treeId)
-        : OperationId(operationId)
-        , JobId(jobId)
-        , TreeId(treeId)
-    { }
-
-    TOperationId OperationId;
-    TJobId JobId;
-    TString TreeId;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -144,9 +126,9 @@ struct ISchedulerStrategy
     //! Register jobs that are already created somewhere outside strategy.
     virtual void RegisterJobs(const TOperationId& operationId, const std::vector<TJobPtr>& job) = 0;
 
-    virtual void ProcessUpdatedAndFinishedJobs(
-        std::vector<TUpdatedJob>* updatedJobs,
-        std::vector<NScheduler::TFinishedJob>* finishedJobs,
+    virtual void ProcessJobUpdates(
+        const std::vector<TJobUpdate>& jobUpdates,
+        std::vector<TJobId>* successfullyUpdatedJobs,
         std::vector<TJobId>* jobsToAbort) = 0;
 
     virtual void ApplyJobMetricsDelta(const TOperationIdToOperationJobMetrics& operationIdToOperationJobMetrics) = 0;

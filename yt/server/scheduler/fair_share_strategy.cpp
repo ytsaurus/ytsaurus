@@ -112,8 +112,8 @@ struct IFairShareTreeSnapshot
     : public TIntrinsicRefCounted
 {
     virtual TFuture<void> ScheduleJobs(const ISchedulingContextPtr& schedulingContext) = 0;
-    virtual void ProcessUpdatedJob(const TUpdatedJob& updatedJob) = 0;
-    virtual void ProcessFinishedJob(const TFinishedJob& updatedJob) = 0;
+    virtual void ProcessUpdatedJob(const TOperationId& operationId, const TJobId& jobId, const TJobResources& delta) = 0;
+    virtual void ProcessFinishedJob(const TOperationId& operationId, const TJobId& jobId) = 0;
     virtual bool HasOperation(const TOperationId& operationId) const = 0;
     virtual void ApplyJobMetricsDelta(const TOperationId& operationId, const TJobMetrics& jobMetricsDelta) = 0;
     virtual const TSchedulingTagFilter& GetNodesFilter() const = 0;
@@ -875,19 +875,19 @@ private:
                 .Run();
         }
 
-        virtual void ProcessUpdatedJob(const TUpdatedJob& updatedJob)
+        virtual void ProcessUpdatedJob(const TOperationId& operationId, const TJobId& jobId, const TJobResources& delta)
         {
-            auto* operationElement = RootElementSnapshot->FindOperationElement(updatedJob.OperationId);
+            auto* operationElement = RootElementSnapshot->FindOperationElement(operationId);
             if (operationElement) {
-                operationElement->IncreaseJobResourceUsage(updatedJob.JobId, updatedJob.Delta);
+                operationElement->IncreaseJobResourceUsage(jobId, delta);
             }
         }
 
-        virtual void ProcessFinishedJob(const TFinishedJob& finishedJob) override
+        virtual void ProcessFinishedJob(const TOperationId& operationId, const TJobId& jobId) override
         {
-            auto* operationElement = RootElementSnapshot->FindOperationElement(finishedJob.OperationId);
+            auto* operationElement = RootElementSnapshot->FindOperationElement(operationId);
             if (operationElement) {
-                operationElement->OnJobFinished(finishedJob.JobId);
+                operationElement->OnJobFinished(jobId);
             }
         }
 
@@ -2529,12 +2529,15 @@ public:
         }
     }
 
-    virtual void ProcessUpdatedAndFinishedJobs(
-        std::vector<TUpdatedJob>* updatedJobs,
-        std::vector<TFinishedJob>* finishedJobs,
+    virtual void ProcessJobUpdates(
+        const std::vector<TJobUpdate>& jobUpdates,
+        std::vector<TJobId>* successfullyUpdatedJobs,
         std::vector<TJobId>* jobsToAbort) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
+
+        YCHECK(successfullyUpdatedJobs->empty());
+        YCHECK(jobsToAbort->empty());
 
         THashMap<TString, IFairShareTreeSnapshotPtr> snapshots;
         {
@@ -2542,37 +2545,43 @@ public:
             snapshots = TreeIdToSnapshot_;
         }
 
-        for (const auto& job : *updatedJobs) {
-            auto snapshotIt = snapshots.find(job.TreeId);
-            if (snapshotIt == snapshots.end()) {
-                // Job is orphaned (does not belong to any tree), aborting it.
-                jobsToAbort->push_back(job.JobId);
-            } else {
-                const auto& snapshot = snapshotIt->second;
-                snapshot->ProcessUpdatedJob(job);
-            }
-        }
-        updatedJobs->clear();
+        THashSet<TJobId> jobsToSave;
 
-        std::vector<TFinishedJob> remainingFinishedJobs;
-        for (const auto& job : *finishedJobs) {
-            auto snapshotIt = snapshots.find(job.TreeId);
-            if (snapshotIt == snapshots.end()) {
-                // Job is finished but tree does not exist, nothing to do.
-                continue;
-            }
-            const auto& snapshot = snapshotIt->second;
-            if (snapshot->HasOperation(job.OperationId)) {
-                snapshot->ProcessFinishedJob(job);
-            } else {
-                // If operation is not yet in snapshot let's push it back to finished jobs.
-                TReaderGuard guard(RegisteredOperationsLock_);
-                if (RegisteredOperations_.find(job.OperationId) != RegisteredOperations_.end()) {
-                    remainingFinishedJobs.push_back(job);
+        for (const auto& job : jobUpdates) {
+            if (job.Status == EJobUpdateStatus::Running) {
+                auto snapshotIt = snapshots.find(job.TreeId);
+                if (snapshotIt == snapshots.end()) {
+                    // Job is orphaned (does not belong to any tree), aborting it.
+                    jobsToAbort->push_back(job.JobId);
+                } else {
+                    // XXX(ignat): check snapshot->HasOperation(job.OperationId) ?
+                    const auto& snapshot = snapshotIt->second;
+                    snapshot->ProcessUpdatedJob(job.OperationId, job.JobId, job.Delta);
+                }
+            } else { // EJobUpdateStatus::Finished
+                auto snapshotIt = snapshots.find(job.TreeId);
+                if (snapshotIt == snapshots.end()) {
+                    // Job is finished but tree does not exist, nothing to do.
+                    continue;
+                }
+                const auto& snapshot = snapshotIt->second;
+                if (snapshot->HasOperation(job.OperationId)) {
+                    snapshot->ProcessFinishedJob(job.OperationId, job.JobId);
+                } else {
+                    // If operation is not yet in snapshot let's push it back to finished jobs.
+                    TReaderGuard guard(RegisteredOperationsLock_);
+                    if (RegisteredOperations_.find(job.OperationId) != RegisteredOperations_.end()) {
+                        jobsToSave.insert(job.JobId);
+                    }
                 }
             }
         }
-        *finishedJobs = remainingFinishedJobs;
+
+        for (const auto& job : jobUpdates) {
+            if (!jobsToSave.has(job.JobId)) {
+                successfullyUpdatedJobs->push_back(job.JobId);
+            }
+        }
     }
 
     virtual void RegisterJobs(const TOperationId& operationId, const std::vector<TJobPtr>& jobs) override
