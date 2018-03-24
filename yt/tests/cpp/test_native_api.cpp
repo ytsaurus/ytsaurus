@@ -96,6 +96,12 @@ TEST_F(TApiTestBase, TestClusterConnection)
     EXPECT_TRUE(resOrError.Get().IsOK());
 }
 
+TEST_F(TApiTestBase, TestCreateInvalidNode)
+{
+    auto resOrError = Client_->CreateNode(TYPath("//tmp/a"), EObjectType::SortedDynamicTabletStore);
+    EXPECT_FALSE(resOrError.Get().IsOK());
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TDynamicTablesTestBase
