@@ -263,7 +263,7 @@ public:
         ReconfigurableJobSpecSliceThrottler_->Reconfigure(Config_->JobSpecSliceThrottler);
 
         if (HeartbeatExecutor_) {
-            HeartbeatExecutor_->SetPeriod(Config_->ControllerAgentHeartbeatPeriod);
+            HeartbeatExecutor_->SetPeriod(Config_->SchedulerHeartbeatPeriod);
         }
 
         for (const auto& pair : IdToOperation_) {
@@ -656,7 +656,7 @@ private:
         TDelayedExecutor::Submit(
             BIND(&TImpl::DoConnect, MakeStrong(this))
                 .Via(Bootstrap_->GetControlInvoker()),
-            immediate ? TDuration::Zero() : Config_->ControllerAgentHandshakeFailureBackoff);
+            immediate ? TDuration::Zero() : Config_->SchedulerHandshakeFailureBackoff);
     }
 
     void DoConnect()
@@ -714,7 +714,7 @@ private:
         LOG_INFO("Sending handshake");
 
         auto req = SchedulerProxy_.Handshake();
-        req->SetTimeout(Config_->ControllerAgentHandshakeRpcTimeout);
+        req->SetTimeout(Config_->SchedulerHandshakeRpcTimeout);
         req->set_agent_id(Bootstrap_->GetAgentId());
         ToProto(req->mutable_agent_addresses(), Bootstrap_->GetLocalAddresses());
 
@@ -761,7 +761,7 @@ private:
         HeartbeatExecutor_ = New<TPeriodicExecutor>(
             CancelableControlInvoker_,
             BIND(&TControllerAgent::TImpl::SendHeartbeat, MakeWeak(this)),
-            Config_->ControllerAgentHeartbeatPeriod);
+            Config_->SchedulerHeartbeatPeriod);
         HeartbeatExecutor_->Start();
 
         SchedulerConnected_.Fire();
@@ -827,7 +827,7 @@ private:
         bool* suspiciousJobsSent)
     {
         auto req = SchedulerProxy_.Heartbeat();
-        req->SetTimeout(Config_->ControllerAgentHeartbeatRpcTimeout);
+        req->SetTimeout(Config_->SchedulerHeartbeatRpcTimeout);
         req->SetHeavy(true);
         req->set_agent_id(Bootstrap_->GetAgentId());
         ToProto(req->mutable_incarnation_id(), IncarnationId_);
@@ -951,7 +951,7 @@ private:
         if (!rspOrError.IsOK()) {
             if (NRpc::IsRetriableError(rspOrError)) {
                 LOG_WARNING(rspOrError, "Error reporting heartbeat to scheduler");
-                Y_UNUSED(WaitFor(TDelayedExecutor::MakeDelayed(Config_->ControllerAgentHeartbeatFailureBackoff)));
+                Y_UNUSED(WaitFor(TDelayedExecutor::MakeDelayed(Config_->SchedulerHeartbeatFailureBackoff)));
             } else {
                 Disconnect(rspOrError);
             }
