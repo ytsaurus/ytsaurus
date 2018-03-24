@@ -1,5 +1,7 @@
 import pytest
 
+from test_dynamic_tables import TestDynamicTablesBase
+
 from yt_env_setup import YTEnvSetup
 from yt_commands import *
 from time import sleep
@@ -10,12 +12,8 @@ from flaky import flaky
 
 ##################################################################
 
-class TestReplicatedDynamicTables(YTEnvSetup):
-    NUM_MASTERS = 3
-    NUM_NODES = 3
-    NUM_SCHEDULERS = 0
+class TestReplicatedDynamicTables(TestDynamicTablesBase):
     NUM_REMOTE_CLUSTERS = 1
-    USE_DYNAMIC_TABLES = True
 
     DELTA_NODE_CONFIG = {
         "tablet_node": {
@@ -87,12 +85,6 @@ class TestReplicatedDynamicTables(YTEnvSetup):
         self.sync_create_cells(1)
         self.sync_create_cells(1, driver=self.replica_driver)
 
-    def _get_tablet_addresses(self, table):
-        return [get("#%s/@peers/0/address" % tablet["cell_id"]) for tablet in get("//tmp/t/@tablets")]
-
-    def _get_tablet_node_profiling_counter(self, node, counter_name):
-        return get("//sys/nodes/%s/orchid/profiling/tablet_node/%s" % (node, counter_name))[-1]["value"]
-
 
     def test_replicated_table_must_be_dynamic(self):
         with pytest.raises(YtError): create("replicated_table", "//tmp/t")
@@ -111,23 +103,20 @@ class TestReplicatedDynamicTables(YTEnvSetup):
         self._create_cells()
         self._create_replicated_table("//tmp/t", schema, attributes={"enable_profiling": True})
 
-        insert_rows("//tmp/t", [{"key": 1, "value1": "test"}], require_sync_replica=False)
+        tablet_profiling = self._get_table_profiling("//tmp/t")
+        def get_all_counters():
+            return (
+                tablet_profiling.get_counter("write/row_count"),
+                tablet_profiling.get_counter("commit/row_count"),
+                tablet_profiling.get_counter("write/data_weight"),
+                tablet_profiling.get_counter("commit/data_weight"))
 
+        assert get_all_counters() == (0, 0, 0, 0)
+
+        insert_rows("//tmp/t", [{"key": 1, "value1": "test"}], require_sync_replica=False)
         sleep(2)
 
-        addresses = self._get_tablet_addresses("//tmp/t")
-        assert len(addresses) == 1
-
-        def get_counter(counter_name):
-            return self._get_tablet_node_profiling_counter(addresses[0], counter_name)
-
-        def get_all_counters(count_name):
-            return (
-                get_counter("write/" + count_name),
-                get_counter("commit/" + count_name))
-
-        assert get_all_counters("row_count") == (1, 1)
-        assert get_all_counters("data_weight") == (13, 13)
+        assert get_all_counters() == (1, 1, 13, 13)
 
     @flaky(max_runs=5)
     @pytest.mark.parametrize("schema", [SIMPLE_SCHEMA, SIMPLE_SCHEMA_ORDERED])
@@ -137,17 +126,13 @@ class TestReplicatedDynamicTables(YTEnvSetup):
         replica_id = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r")
         self._create_replica_table("//tmp/r", replica_id, schema)
 
-        addresses = self._get_tablet_addresses("//tmp/t")
-        assert len(addresses) == 1
-
-        def get_counter(counter_name):
-            return self._get_tablet_node_profiling_counter(addresses[0], counter_name)
+        tablet_profiling = self._get_table_profiling("//tmp/t")
 
         def get_lag_row_count():
-            return get_counter("replica/lag_row_count")
+            return tablet_profiling.get_counter("replica/lag_row_count")
 
         def get_lag_time():
-            return get_counter("replica/lag_time") / 1e6 # conversion from us to s
+            return tablet_profiling.get_counter("replica/lag_time") / 1e6 # conversion from us to s
 
         self.sync_enable_table_replica(replica_id)
         sleep(2)
