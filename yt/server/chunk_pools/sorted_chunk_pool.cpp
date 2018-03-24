@@ -649,8 +649,10 @@ public:
             auto newStripe = (index == cookie) ? stripe : mapping->GetMappedStripe(Stripes_[index].GetStripe());
             Stripes_[index].Reset(newStripe);
         }
-        InvalidateCurrentJobs();
-        DoFinish();
+        if (Finished) {
+            InvalidateCurrentJobs();
+            DoFinish();
+        }
     }
 
     virtual bool IsCompleted() const override
