@@ -655,6 +655,11 @@ protected:
             return false;
         }
 
+        virtual TInputChunkMappingPtr GetChunkMapping() const override
+        {
+            return Controller->ShuffleChunkMapping_;
+        }
+
     protected:
         TSortControllerBase* Controller;
         TPartition* Partition;
@@ -744,11 +749,6 @@ protected:
             // Let's live like this a bit, and then maybe move it inside pool.
             descriptor.DestinationPool->Reset(cookie, stripe, descriptor.ChunkMapping);
             descriptor.ChunkMapping->Reset(cookie, stripe);
-        }
-
-        virtual TInputChunkMappingPtr GetChunkMapping() const override
-        {
-            return Controller->ShuffleChunkMapping_;
         }
 
     protected:
