@@ -68,7 +68,7 @@ class TestGetOperation(YTEnvSetup):
 
         wait(lambda: exists(get_operation_path(op.id, storage_mode)))
 
-        res_get_operation = get_operation(op.id)
+        res_get_operation = get_operation(op.id, include_scheduler=True)
         res_cypress = get(get_operation_path(op.id, storage_mode) + "/@")
         if "full_spec" in res_cypress:
             res_cypress["full_spec"].attributes.pop("opaque", None)
@@ -130,7 +130,7 @@ class TestGetOperation(YTEnvSetup):
         assert list(get_operation(op.id, attributes=["state"])) == ["state"]
 
         for read_from in ("cache", "follower"):
-            res_get_operation = get_operation(op.id, attributes=["progress", "state"], read_from=read_from)
+            res_get_operation = get_operation(op.id, attributes=["progress", "state"], include_scheduler=True, read_from=read_from)
             res_cypress = get(get_operation_path(op.id, storage_mode) + "/@", attributes=["progress", "state"])
 
             assert sorted(list(res_get_operation)) == ["progress", "state"]
