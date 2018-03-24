@@ -885,7 +885,7 @@ void TJobController::TImpl::ProcessHeartbeatResponse(
             auto maybeAddress = FindAddress(addresses, Bootstrap_->GetLocalNetworks());
             if (maybeAddress) {
                 const auto& address = *maybeAddress;
-                LOG_DEBUG("Job spec will fetched (OperationId: %v, JobId: %v, SpecServiceAddress: %v)",
+                LOG_DEBUG("Job spec will be fetched (OperationId: %v, JobId: %v, SpecServiceAddress: %v)",
                     operationId,
                     jobId,
                     address);
