@@ -138,6 +138,8 @@ class TestDynamicTablesBase(YTEnvSetup):
                 return 0
 
             def get_counter(self, counter_name):
+                # Get difference since last query since typically we are interested in couter rate.
+                # (Same table name is shared between tests and there is no way to reset couters.)
                 result = self._get_counter_impl(counter_name)
                 if counter_name not in self._shifts:
                     self._shifts[counter_name] = result
