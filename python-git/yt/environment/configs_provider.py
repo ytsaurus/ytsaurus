@@ -734,7 +734,6 @@ class ConfigsProvider_19_3(ConfigsProvider_19_2):
             ports_generator, scheduler_logs_dir)
 
         for config in configs:
-            config["scheduler"]["operation_alerts_update_period"] = 100
             config["scheduler"]["exec_node_descriptors_update_period"] = 100
             config["scheduler"]["operation_to_agent_assignment_backoff"] = 100
 
@@ -764,6 +763,7 @@ class ConfigsProvider_19_3(ConfigsProvider_19_2):
                 del config["controller_agent"][field]
 
             config["controller_agent"]["operation_alerts_update_period"] = 100
+            config["controller_agent"]["suspicious_jobs_update_period"] = 100
             config["controller_agent"]["config_update_period"] = 100
             config["controller_agent"]["exec_nodes_update_period"] = 100
             config["controller_agent"]["controller_exec_node_info_update_period"] = 100
