@@ -488,7 +488,7 @@ public:
     void Serialize(NYson::IYsonConsumer* consumer) const;
 
 private:
-    TChunkManagerPtr ChunkManager_;
+    const TChunkManagerPtr ChunkManager_;
 };
 
 void Serialize(const TSerializableChunkRequisitionRegistry& serializer, NYson::IYsonConsumer* consumer);

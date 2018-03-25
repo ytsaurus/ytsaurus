@@ -817,7 +817,7 @@ TSerializableChunkRequisitionRegistry::TSerializableChunkRequisitionRegistry(
 
 void TSerializableChunkRequisitionRegistry::Serialize(NYson::IYsonConsumer* consumer) const
 {
-    auto* const registry = ChunkManager_->GetChunkRequisitionRegistry();
+    const auto* registry = ChunkManager_->GetChunkRequisitionRegistry();
     registry->Serialize(consumer, ChunkManager_);
 }
 
