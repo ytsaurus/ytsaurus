@@ -33,7 +33,7 @@ public class YtClient extends ApiServiceClient implements AutoCloseable {
     final private DataCenter[] dataCenters;
     final private ScheduledExecutorService executorService;
     final private RpcOptions options;
-    private DataCenter localDataCenter = null;
+    final private DataCenter localDataCenter;
 
     public YtClient(
            BusConnector connector,
@@ -51,10 +51,12 @@ public class YtClient extends ApiServiceClient implements AutoCloseable {
 
         int dataCenterIndex = 0;
 
+        DataCenter localDataCenter = null;
+
         for (Map.Entry<String, List<String>> entry : initialAddresses.entrySet()) {
             final String dataCenterName = entry.getKey();
 
-            DataCenter dc = new DataCenter(
+            final DataCenter dc = new DataCenter(
                     dataCenterName,
                     new BalancingDestination[0],
                     -1.0,
@@ -87,6 +89,8 @@ public class YtClient extends ApiServiceClient implements AutoCloseable {
                             credentials,
                             listener));
         }
+
+        this.localDataCenter = localDataCenter;
 
         pingDataCenters();
     }
