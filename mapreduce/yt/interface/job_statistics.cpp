@@ -60,8 +60,8 @@ public:
 
     static void ParseNode(const TNode& node, TState2Type2Data* output)
     {
-        auto getInt = [] (const TNode& node, TStringBuf key) {
-            const auto& nodeAsMap = node.AsMap();
+        auto getInt = [] (const TNode& theNode, TStringBuf key) {
+            const auto& nodeAsMap = theNode.AsMap();
             auto it = nodeAsMap.find(key);
             if (it == nodeAsMap.end()) {
                 ythrow yexception() << "Key '" << key << "' is not found";
