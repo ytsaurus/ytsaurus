@@ -204,6 +204,7 @@ void TNodeShard::StartOperationRevival(const TOperationId& operationId)
 
     auto& operationState = GetOperationState(operationId);
     operationState.JobsReady = false;
+    operationState.ForbidNewJobs = false;
 
     LOG_DEBUG("Operation revival started at node shard (OperationId: %v, JobCount: %v)",
         operationId,
