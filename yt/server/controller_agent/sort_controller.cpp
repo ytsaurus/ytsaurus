@@ -1347,6 +1347,11 @@ protected:
             return EJobType::UnorderedMerge;
         }
 
+        virtual TInputChunkMappingPtr GetChunkMapping() const override
+        {
+            return Controller->ShuffleChunkMapping_;
+        }
+
     private:
         DECLARE_DYNAMIC_PHOENIX_TYPE(TUnorderedMergeTask, 0xbba17c0f);
 
