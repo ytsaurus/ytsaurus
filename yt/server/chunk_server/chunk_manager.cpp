@@ -1594,7 +1594,7 @@ private:
 
             auto curRequisitionIndex = local ? chunk->GetLocalRequisitionIndex() : chunk->GetExternalRequisitionIndex(cellIndex);
             if (newRequisitionIndex == curRequisitionIndex) {
-                return;
+                continue;
             }
 
             auto requisitionBefore = chunk->IsForeign()

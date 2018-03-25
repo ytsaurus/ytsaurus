@@ -2,6 +2,7 @@
 
 #include "chunk_manager.h"
 #include "medium.h"
+#include "private.h"
 
 #include <yt/server/cell_master/automaton.h>
 #include <yt/server/cell_master/bootstrap.h>
@@ -22,6 +23,8 @@ using namespace NYTree;
 
 using NYT::ToProto;
 using NYT::FromProto;
+
+static const auto& Logger = ChunkServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -331,7 +334,7 @@ bool FromProto(
         auto* account = securityManager->FindAccount(FromProto<NSecurityServer::TAccountId>(entry.account_id()));
 
         // NB: an account may be removed between replicator sending a requisition and chunk manager receiving it.
-        if (!account) {
+        if (!IsObjectAlive(account)) {
             return false;
         }
 
@@ -726,6 +729,8 @@ TChunkRequisitionIndex TChunkRequisitionRegistry::Insert(
         objectManager->WeakRefObject(entry.Account);
     }
 
+    LOG_DEBUG("Requisition created (RequisitionIndex: %v, Requisition: %v)", index, requisition);
+
     return index;
 }
 
@@ -738,11 +743,37 @@ void TChunkRequisitionRegistry::Erase(
     // accounts to hash requisitions when erasing them.
     auto requisition = it->second.Requisition;
 
-    RequisitionToIndex_.erase(requisition);
+    YCHECK(RequisitionToIndex_.erase(requisition) == 1);
     IndexToItem_.erase(it);
 
     for (const auto& entry : requisition) {
         objectManager->WeakUnrefObject(entry.Account);
+    }
+
+    LOG_DEBUG("Requisition removed (RequisitionIndex: %v, Requisition: %v)", index, requisition);
+}
+
+void TChunkRequisitionRegistry::Ref(TChunkRequisitionIndex index)
+{
+    auto it = IndexToItem_.find(index);
+    YCHECK(it != IndexToItem_.end());
+    ++it->second.RefCount;
+    LOG_TRACE("Requisition reffed (RequisitionIndex: %v, RefCount: %v)", index, it->second.RefCount);
+}
+
+void TChunkRequisitionRegistry::Unref(
+    TChunkRequisitionIndex index,
+    const NObjectServer::TObjectManagerPtr& objectManager)
+{
+    auto it = IndexToItem_.find(index);
+    YCHECK(it != IndexToItem_.end());
+    YCHECK(it->second.RefCount != 0);
+    --it->second.RefCount;
+
+    LOG_TRACE("Requisition unreffed (RequisitionIndex: %v, RefCount: %v)", index, it->second.RefCount);
+
+    if (it->second.RefCount == 0) {
+        Erase(index, objectManager);
     }
 }
 

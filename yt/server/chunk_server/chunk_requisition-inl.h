@@ -266,27 +266,6 @@ inline const TChunkReplication& TChunkRequisitionRegistry::GetReplication(TChunk
     return it->second.Replication;
 }
 
-inline void TChunkRequisitionRegistry::Ref(TChunkRequisitionIndex index)
-{
-    auto it = IndexToItem_.find(index);
-    YCHECK(it != IndexToItem_.end());
-    ++it->second.RefCount;
-}
-
-inline void TChunkRequisitionRegistry::Unref(
-    TChunkRequisitionIndex index,
-    const NObjectServer::TObjectManagerPtr& objectManager)
-{
-    auto it = IndexToItem_.find(index);
-    YCHECK(it != IndexToItem_.end());
-    YCHECK(it->second.RefCount != 0);
-    --it->second.RefCount;
-
-    if (it->second.RefCount == 0) {
-        Erase(index, objectManager);
-    }
-}
-
 inline TChunkRequisitionIndex TChunkRequisitionRegistry::GenerateIndex()
 {
     auto result = NextIndex_++;
