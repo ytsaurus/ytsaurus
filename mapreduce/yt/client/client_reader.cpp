@@ -64,8 +64,8 @@ TClientReader::TClientReader(
     }
 
     if (Format_ && Format_->Type == EFormatType::YaMRLenval) {
-        auto transactionId = ReadTransaction_ ? ReadTransaction_->GetId() : ParentTransactionId_;
-        auto newFormat = GetTableFormat(Auth_, transactionId, Path_);
+        auto transactionId2 = ReadTransaction_ ? ReadTransaction_->GetId() : ParentTransactionId_;
+        auto newFormat = GetTableFormat(Auth_, transactionId2, Path_);
         if (newFormat) {
             Format_->Config = *newFormat;
         }
