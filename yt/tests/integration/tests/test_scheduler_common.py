@@ -1361,6 +1361,7 @@ class TestJobRevival(YTEnvSetup):
         }
     }
 
+    @pytest.mark.skipif("True", reason="YT-8635")
     def test_job_revival_simple(self):
         create("table", "//tmp/t_in")
         create("table", "//tmp/t_out")
@@ -1407,6 +1408,7 @@ class TestJobRevival(YTEnvSetup):
         assert get("{0}/@progress/jobs/aborted/total".format(cypress_path)) == 0
         assert read_table("//tmp/t_out") == [{"a": 1}]
 
+    @pytest.mark.skipif("True", reason="YT-8635")
     @pytest.mark.timeout(600)
     def test_many_jobs_and_operations(self):
         create("table", "//tmp/t_in")
@@ -1472,6 +1474,7 @@ class TestJobRevival(YTEnvSetup):
         for output_table in output_tables:
             assert sorted(read_table(output_table, verbose=False)) == [{"a": i} for i in range(op_count)]
 
+    @pytest.mark.skipif("True", reason="YT-8635")
     def test_user_slots_limit(self):
         create("table", "//tmp/t_in")
         create("table", "//tmp/t_out")
@@ -1551,6 +1554,7 @@ class TestDisabledJobRevival(YTEnvSetup):
         }
     }
 
+    @pytest.mark.skipif("True", reason="YT-8635")
     def test_disabled_job_revival(self):
         create("table", "//tmp/t_in")
         create("table", "//tmp/t_out")
