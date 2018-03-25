@@ -18,7 +18,7 @@ import ru.yandex.bolts.collection.Cf;
 import ru.yandex.yt.ytclient.bus.BusConnector;
 import ru.yandex.yt.ytclient.proxy.internal.BalancingDestination;
 import ru.yandex.yt.ytclient.proxy.internal.DataCenter;
-import ru.yandex.yt.ytclient.rpc.BalancingRpcClient;
+import ru.yandex.yt.ytclient.proxy.internal.Manifold;
 import ru.yandex.yt.ytclient.rpc.RpcClient;
 import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
 import ru.yandex.yt.ytclient.rpc.RpcCredentials;
@@ -143,7 +143,7 @@ public class YtClient extends ApiServiceClient implements AutoCloseable {
     }
 
     private List<RpcClient> selectDestinations() {
-        return BalancingRpcClient.selectDestinations(
+        return Manifold.selectDestinations(
                 dataCenters, 3,
                 localDataCenter != null,
                 rnd,
