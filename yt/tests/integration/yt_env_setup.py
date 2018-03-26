@@ -489,7 +489,7 @@ class YTEnvSetup(object):
                     return False
                 node = cell.attributes["peers"][0]["address"]
                 try:
-                    return yt_commands.exists("//sys/nodes/{0}/orchid/tablet_cells/{1}".format(node, cell.attributes["id"]))
+                    return yt_commands.exists("//sys/nodes/{0}/orchid/tablet_cells/{1}".format(node, cell.attributes["id"]), driver=driver)
                 except yt_commands.YtResponseError:
                     return False
 
