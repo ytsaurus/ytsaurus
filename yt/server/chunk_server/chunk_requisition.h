@@ -435,7 +435,7 @@ public:
      *  Newly allocated indexes are not automatically Ref()ed and should be
      *  Ref()ed manually.
      */
-    TChunkRequisitionIndex GetOrCreateIndex(
+    TChunkRequisitionIndex GetOrCreate(
         const TChunkRequisition& requisition,
         const NObjectServer::TObjectManagerPtr& objectManager);
 
@@ -462,7 +462,7 @@ private:
     THashMap<TChunkRequisitionIndex, TIndexedItem> IndexToItem_;
     THashMap<TChunkRequisition, TChunkRequisitionIndex> RequisitionToIndex_;
 
-    TChunkRequisitionIndex NextIndex_;
+    TChunkRequisitionIndex NextIndex_ = EmptyChunkRequisitionIndex;
 
     TChunkRequisitionIndex GenerateIndex();
 
