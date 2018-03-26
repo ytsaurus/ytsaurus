@@ -12,13 +12,13 @@ from datetime import datetime
 
 def validate_address_filter(op, include_archive, include_cypress, include_runtime):
     job_dict = defaultdict(list)
-    res = list_jobs(op.id, include_archive=include_archive, include_cypress=include_cypress, include_runtime=include_runtime)["jobs"]
+    res = list_jobs(op.id, include_archive=include_archive, include_cypress=include_cypress, include_runtime=include_runtime, data_source="manual")["jobs"]
     for job in res:
         address = job["address"]
         job_dict[address].append(job["id"])
 
     for address in job_dict.keys():
-        res = list_jobs(op.id, include_archive=include_archive, include_cypress=include_cypress, include_runtime=include_runtime, address=address)["jobs"]
+        res = list_jobs(op.id, include_archive=include_archive, include_cypress=include_cypress, include_runtime=include_runtime, data_source="manual", address=address)["jobs"]
         assert sorted([job["id"] for job in res]) == sorted(job_dict[address])
 
 class TestListJobs(YTEnvSetup):
@@ -64,6 +64,9 @@ class TestListJobs(YTEnvSetup):
 
         write_table("//tmp/t1", [{"foo": "bar"}, {"foo": "baz"}, {"foo": "qux"}])
 
+        # Fake operation to check filtration by operation.
+        map(in_="//tmp/t1", out="//tmp/t2", command="cat")
+
         op = map_reduce(
             dont_track=True,
             label="list_jobs",
@@ -107,10 +110,18 @@ class TestListJobs(YTEnvSetup):
 
         wait(lambda: op.get_job_count("running") > 0)
 
-        res = list_jobs(op.id, include_archive=False, include_cypress=True, job_state="completed")["jobs"]
+        res = list_jobs(op.id, data_source="manual", include_cypress=True, include_scheduler=False, include_archive=False, job_state="completed")["jobs"]
         assert len(res) == 0
 
+        wait(lambda: op.get_job_count("running") == 3)
+
+        res = list_jobs(op.id, data_source="manual", include_cypress=False, include_scheduler=True, include_archive=False)["jobs"]
+        assert len(res) == 3
+        assert all(job["state"] == "running" for job in res)
+        assert all(job["type"] == "partition_map" for job in res)
+
         release_breakpoint()
+
         op.track()
 
         jobs = get("//sys/operations/{}/jobs".format(op.id), attributes=[
@@ -146,96 +157,131 @@ class TestListJobs(YTEnvSetup):
             else:
                 jobs_without_stderr.append(job_id)
 
-        res = list_jobs(op.id, include_archive=False, include_cypress=True)
-        for key in res["type_counts"]:
-            correct = 0
-            if key == "partition_reduce":
-                correct = 1
-            if key == "partition_map":
-                correct = 5
-            assert res["type_counts"][key] == correct
-        for key in res["state_counts"]:
-            correct = 0
-            if key == "completed":
-                correct = 4
-            if key == "failed" or key == "aborted":
-                correct = 1
-            assert res["state_counts"][key] == correct
+        manual_options = dict(data_source="manual", include_cypress=True, include_scheduler=True, include_archive=False)
+        runtime_options = dict(data_source="runtime")
+        auto_options = dict(data_source="auto")
+        for options in (manual_options, runtime_options, auto_options):
+            res = list_jobs(op.id, **options)
+            for key in res["type_counts"]:
+                correct = 0
+                if key == "partition_reduce":
+                    correct = 1
+                if key == "partition_map":
+                    correct = 5
+                assert res["type_counts"][key] == correct
+            for key in res["state_counts"]:
+                correct = 0
+                if key == "completed":
+                    correct = 4
+                if key == "failed" or key == "aborted":
+                    correct = 1
+                assert res["state_counts"][key] == correct
+            assert res["cypress_job_count"] == 6
+            assert res["scheduler_job_count"] == 0
+            assert res["archive_job_count"] == yson.YsonEntity()
 
-        res = list_jobs(op.id, include_archive=False, include_cypress=True, type="partition_reduce")
-        for key in res["type_counts"]:
-            correct = 0
-            if key == "partition_reduce":
-                correct = 1
-            if key == "partition_map":
-                correct = 5
-            assert res["type_counts"][key] == correct
-        for key in res["state_counts"]:
-            correct = 0
-            if key == "completed":
-                correct = 1
-            assert res["state_counts"][key] == correct
+            res = list_jobs(op.id, type="partition_reduce", **options)
+            for key in res["type_counts"]:
+                correct = 0
+                if key == "partition_reduce":
+                    correct = 1
+                if key == "partition_map":
+                    correct = 5
+                assert res["type_counts"][key] == correct
+            for key in res["state_counts"]:
+                correct = 0
+                if key == "completed":
+                    correct = 1
+                assert res["state_counts"][key] == correct
+            assert res["cypress_job_count"] == 6
+            assert res["scheduler_job_count"] == 0
+            assert res["archive_job_count"] == yson.YsonEntity()
 
-        res = list_jobs(op.id, include_archive=False, include_cypress=True, job_state="failed")["jobs"]
-        assert sorted(map_failed_jobs) == sorted([job["id"] for job in res])
+            res = list_jobs(op.id, job_state="failed", **options)["jobs"]
+            assert sorted(map_failed_jobs) == sorted([job["id"] for job in res])
 
-        res = list_jobs(op.id, include_archive=False, include_cypress=True, job_type="partition_map")["jobs"]
-        assert sorted(map_jobs) == sorted([job["id"] for job in res])
+            res = list_jobs(op.id, job_type="partition_map", **options)["jobs"]
+            assert sorted(map_jobs) == sorted([job["id"] for job in res])
 
-        res = list_jobs(op.id, include_archive=False, include_cypress=True, job_type="partition_reduce")["jobs"]
-        assert sorted(reduce_jobs) == sorted([job["id"] for job in res])
+            res = list_jobs(op.id, job_type="partition_reduce", **options)["jobs"]
+            assert sorted(reduce_jobs) == sorted([job["id"] for job in res])
 
-        res = list_jobs(op.id, include_archive=False, include_cypress=True, job_state="completed")["jobs"]
-        assert sorted(completed_jobs) == sorted([job["id"] for job in res])
+            res = list_jobs(op.id, job_state="completed", **options)["jobs"]
+            assert sorted(completed_jobs) == sorted([job["id"] for job in res])
 
-        res = list_jobs(op.id, include_archive=False, include_cypress=True, with_stderr=True)["jobs"]
-        assert sorted(jobs_with_stderr) == sorted([job["id"] for job in res])
+            res = list_jobs(op.id,  with_stderr=True, **options)["jobs"]
+            assert sorted(jobs_with_stderr) == sorted([job["id"] for job in res])
 
-        res = list_jobs(op.id, include_archive=False, include_cypress=True, with_stderr=False)["jobs"]
-        assert sorted(jobs_without_stderr) == sorted([job["id"] for job in res])
+            res = list_jobs(op.id, with_stderr=False, **options)["jobs"]
+            assert sorted(jobs_without_stderr) == sorted([job["id"] for job in res])
 
-        validate_address_filter(op, False, True, False)
+            validate_address_filter(op, False, True, False)
 
         clean_operations(self.Env.create_native_client())
-
         sleep(1)  # statistics_reporter
-        res = list_jobs(op.id)["jobs"]
-        assert sorted(jobs.keys()) == sorted([job["id"] for job in res])
 
-        res = list_jobs(op.id, offset=4, limit=3, sort_field="start_time")["jobs"]
-        assert len(res) == 2
-        assert res == sorted(res, key=lambda item: item["start_time"])
+        manual_options = dict(data_source="manual", include_cypress=False, include_scheduler=False, include_archive=True)
+        archive_options = dict(data_source="archive")
+        auto_options = dict(data_source="auto")
 
-        res = list_jobs(op.id, offset=0, limit=2, sort_field="start_time", sort_order="descending")["jobs"]
-        assert len(res) == 2
-        assert res == sorted(res, key=lambda item: item["start_time"], reverse=True)
+        for options in (manual_options, archive_options, auto_options):
+            res = list_jobs(op.id, **options)
+            assert res["cypress_job_count"] == yson.YsonEntity()
+            assert res["scheduler_job_count"] == yson.YsonEntity()
+            assert res["archive_job_count"] == 6
 
-        res = list_jobs(op.id, offset=0, limit=2, sort_field="id")["jobs"]
-        assert len(res) == 2
-        assert res == sorted(res, key=lambda item: item["id"])
+            for key in res["type_counts"]:
+                correct = 0
+                if key == "partition_reduce":
+                    correct = 1
+                if key == "partition_map":
+                    correct = 5
+                assert res["type_counts"][key] == correct
+            for key in res["state_counts"]:
+                correct = 0
+                if key == "completed":
+                    correct = 4
+                if key == "failed" or key == "aborted":
+                    correct = 1
+                assert res["state_counts"][key] == correct
 
-        res = list_jobs(op.id, job_state="completed")["jobs"]
-        assert sorted(completed_jobs) == sorted([job["id"] for job in res])
+            res = res["jobs"]
+            assert sorted(jobs.keys()) == sorted([job["id"] for job in res])
 
-        res = list_jobs(op.id, job_state="aborted")["jobs"]
-        assert sorted(aborted_jobs) == sorted([job["id"] for job in res])
+            res = list_jobs(op.id, offset=4, limit=3, sort_field="start_time", **options)["jobs"]
+            assert len(res) == 2
+            assert res == sorted(res, key=lambda item: item["start_time"])
 
-        res = list_jobs(op.id, job_type="partition_map")["jobs"]
-        assert sorted(map_jobs) == sorted([job["id"] for job in res])
+            res = list_jobs(op.id, offset=0, limit=2, sort_field="start_time", sort_order="descending", **options)["jobs"]
+            assert len(res) == 2
+            assert res == sorted(res, key=lambda item: item["start_time"], reverse=True)
 
-        res = list_jobs(op.id, job_type="partition_reduce")["jobs"]
-        assert sorted(reduce_jobs) == sorted([job["id"] for job in res])
+            res = list_jobs(op.id, offset=0, limit=2, sort_field="id", **options)["jobs"]
+            assert len(res) == 2
+            assert res == sorted(res, key=lambda item: item["id"])
 
-        res = list_jobs(op.id, job_state="failed")["jobs"]
-        assert sorted(map_failed_jobs) == sorted([job["id"] for job in res])
+            res = list_jobs(op.id, job_state="completed", **options)["jobs"]
+            assert sorted(completed_jobs) == sorted([job["id"] for job in res])
 
-        res = list_jobs(op.id, with_stderr=True)["jobs"]
-        assert sorted(jobs_with_stderr) == sorted([job["id"] for job in res])
+            res = list_jobs(op.id, job_state="aborted", **options)["jobs"]
+            assert sorted(aborted_jobs) == sorted([job["id"] for job in res])
 
-        res = list_jobs(op.id, with_stderr=False)["jobs"]
-        assert sorted(jobs_without_stderr) == sorted([job["id"] for job in res])
+            res = list_jobs(op.id, job_type="partition_map", **options)["jobs"]
+            assert sorted(map_jobs) == sorted([job["id"] for job in res])
 
-        validate_address_filter(op, True, False, False)
+            res = list_jobs(op.id, job_type="partition_reduce", **options)["jobs"]
+            assert sorted(reduce_jobs) == sorted([job["id"] for job in res])
+
+            res = list_jobs(op.id, job_state="failed", **options)["jobs"]
+            assert sorted(map_failed_jobs) == sorted([job["id"] for job in res])
+
+            res = list_jobs(op.id, with_stderr=True, **options)["jobs"]
+            assert sorted(jobs_with_stderr) == sorted([job["id"] for job in res])
+
+            res = list_jobs(op.id, with_stderr=False, **options)["jobs"]
+            assert sorted(jobs_without_stderr) == sorted([job["id"] for job in res])
+
+            validate_address_filter(op, True, False, False)
 
     def test_running_jobs_stderr_size(self):
         create("table", "//tmp/input")
@@ -254,17 +300,19 @@ class TestListJobs(YTEnvSetup):
             return get("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs/{1}/stderr_size".format(op.id, jobs[0]))
         wait(lambda: get_stderr_size() == len("MAPPER-STDERR-OUTPUT\n"))
 
-        res = list_jobs(op.id, include_runtime=True, include_archive=False, include_cypress=False)
+        options = dict(data_source="manual", include_cypress=False, include_scheduler=True, include_archive=False)
+
+        res = list_jobs(op.id, **options)
         assert sorted(job["id"] for job in res["jobs"]) == sorted(jobs)
         for job in res["jobs"]:
             assert job["stderr_size"] == len("MAPPER-STDERR-OUTPUT\n")
 
-        res = list_jobs(op.id, include_runtime=True, include_archive=False, include_cypress=False, with_stderr=True)
+        res = list_jobs(op.id, with_stderr=True, **options)
         for job in res["jobs"]:
             assert job["stderr_size"] == len("MAPPER-STDERR-OUTPUT\n")
         assert sorted(job["id"] for job in res["jobs"]) == sorted(jobs)
 
-        res = list_jobs(op.id, include_runtime=True, include_archive=False, include_cypress=False, with_stderr=False)
+        res = list_jobs(op.id, with_stderr=False, **options)
         assert res["jobs"] == []
 
         release_breakpoint()
@@ -293,7 +341,9 @@ class TestListJobs(YTEnvSetup):
         release_breakpoint()
         op.track()
 
-        res = list_jobs(op.id)["jobs"]
+        options = dict(data_source="manual", include_cypress=True, include_scheduler=True, include_archive=True)
+
+        res = list_jobs(op.id, **options)["jobs"]
         assert any(job["state"] == "aborted" for job in res)
         assert all((date_string_to_datetime(job["start_time"]) > now) for job in res)
         assert all((date_string_to_datetime(job["finish_time"]) >= date_string_to_datetime(job["start_time"])) for job in res)
@@ -312,7 +362,7 @@ class TestListJobs(YTEnvSetup):
 
         jobs_path = "//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op.id)
         wait(lambda: get(jobs_path))
-        wait(lambda: len(list_jobs(op.id, include_archive=True, include_scheduler=False)["jobs"]) == 1)
+        wait(lambda: len(list_jobs(op.id, include_archive=True, include_cypress=False, include_scheduler=False, data_source="manual")["jobs"]) == 1)
 
         unmount_table("//sys/operations_archive/jobs")
         wait(lambda: get("//sys/operations_archive/jobs/@tablet_state") == "unmounted")
@@ -333,6 +383,8 @@ class TestListJobs(YTEnvSetup):
 
         time.sleep(1)
 
-        jobs = list_jobs(op.id, running_jobs_lookbehind_period=1000)["jobs"]
+        options = dict(data_source="manual", include_cypress=False, include_scheduler=False, include_archive=True)
+        select_rows("* from [//sys/operations_archive/jobs]")
+        jobs = list_jobs(op.id, running_jobs_lookbehind_period=1000, **options)["jobs"]
         assert len(jobs) == 1
 

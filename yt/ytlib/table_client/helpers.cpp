@@ -107,7 +107,7 @@ void PipeReaderToWriter(
                 .ThrowOnError();
         }
 
-        if (!rows.empty()) {
+        if (!rows.empty() && options.PipeDelay) {
             WaitFor(TDelayedExecutor::MakeDelayed(options.PipeDelay))
                 .ThrowOnError();
         }
