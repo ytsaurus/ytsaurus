@@ -197,21 +197,24 @@ private:
                     ythrow TFileError();
                 }
 
+                if (reallyRead == 0) { // file exausted
+                    break;
+                }
+
                 buf += reallyRead;
                 from += reallyRead;
                 readPortion -= reallyRead;
 
-                if (reallyRead == 0) {
-                    // End of file.
-                    break;
-                }
-
-                // FIXME(savrus) Allow pread to break on page boundaries.
-                if (reallyRead < toRead && UseDirectIO_) {
-                    THROW_ERROR_EXCEPTION("Pread finished early")
-                        << TErrorAttribute("use_direct_io", UseDirectIO_)
-                        << TErrorAttribute("requested_bytes", toRead)
-                        << TErrorAttribute("read_bytes", reallyRead);
+                if (UseDirectIO_ && reallyRead < toRead) {
+                    if (reallyRead != ::AlignUp<i32>(reallyRead, Alignment_)) {
+                        if (from == fh->GetLength()) {
+                            break;
+                        } else {
+                            THROW_ERROR_EXCEPTION("Unaligned pread")
+                                << TErrorAttribute("requested_bytes", toRead)
+                                << TErrorAttribute("read_bytes", reallyRead);
+                        }
+                    }
                 }
             }
 
