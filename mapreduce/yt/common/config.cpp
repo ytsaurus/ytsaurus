@@ -153,12 +153,6 @@ void TConfig::LoadTimings()
 
     StartOperationRetryInterval = GetDuration("YT_START_OPERATION_RETRY_INTERVAL",
         TDuration::Seconds(60));
-
-    TxClientTimeout = GetDuration("YT_CLIENT_TIMEOUT", // common
-        TDuration::Seconds(60));
-
-    TxOperationTimeout = GetDuration("YT_OPERATION_TIMEOUT", // common
-        TDuration::Seconds(180));
 }
 
 TConfig::TConfig()
@@ -198,13 +192,6 @@ TConfig::TConfig()
     MountSandboxInTmpfs = GetBool("YT_MOUNT_SANDBOX_IN_TMPFS");
 
     ConnectionPoolSize = GetInt("YT_CONNECTION_POOL_SIZE", 16);
-
-    OrderGuarantees = GetBool("YT_STRICTLY_TESTABLE") // common
-        ? OG_STRICTLY_TESTABLE
-        : GetBool("YT_TESTABLE") ? OG_TESTABLE : OG_STANDARD;
-
-    DisableClientSubTransactions = GetBool("YT_DISABLE_CLIENT_SUB_TRANSACTIONS"); // common
-    CreateTablesUnderTransaction = GetBool("YT_CREATE_TABLES_UNDER_TRANSACTION", true); // common
 }
 
 TConfig* TConfig::Get()
