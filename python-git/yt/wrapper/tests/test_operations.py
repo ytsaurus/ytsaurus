@@ -1454,7 +1454,10 @@ print(op.id)
                           source_table=table, destination_table=output_table, spec=spec)
         check([{"x": 1}, {"y": 2}], list(yt.read_table(table)))
 
-    def test_update_operation_parameters(self):
+    def test_update_operation_parameters(self, yt_env):
+        if yt_env.version <= "19.2":
+            pytest.skip()
+
         table = TEST_DIR + "/table"
         output_table = TEST_DIR + "/output_table"
         yt.write_table(table, [{"x": 1}, {"y": 2}])
