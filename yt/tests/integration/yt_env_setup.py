@@ -477,11 +477,23 @@ class YTEnvSetup(object):
     def wait_for_cells(self, cell_ids=None, driver=None):
         print >>sys.stderr, "Waiting for tablet cells to become healthy..."
         def get_cells():
-            cells = yt_commands.ls("//sys/tablet_cells", attributes=["health", "id"], driver=driver)
+            cells = yt_commands.ls("//sys/tablet_cells", attributes=["health", "id", "peers"], driver=driver)
             if cell_ids == None:
                 return cells
             return [cell for cell in cells if cell.attributes["id"] in cell_ids]
-        wait(lambda: all(c.attributes["health"] == "good" for c in get_cells()))
+
+        def check_cells():
+            cells = get_cells()
+            for cell in cells:
+                if cell.attributes["health"] != "good":
+                    return False
+                node = cell.attributes["peers"][0]["address"]
+                try:
+                    return yt_commands.exists("//sys/nodes/{0}/orchid/tablet_cells/{1}".format(node, cell.attributes["id"]))
+                except yt_commands.YtResponseError:
+                    return False
+
+        wait(check_cells)
 
     def sync_create_cells(self, cell_count, tablet_cell_bundle="default", driver=None):
         cell_ids = []

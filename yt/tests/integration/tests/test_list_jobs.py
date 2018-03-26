@@ -284,7 +284,7 @@ class TestListJobs(YTEnvSetup):
             out="//tmp/output",
             command=with_breakpoint("echo MAPPER-STDERR-OUTPUT >&2 ; cat ; BREAKPOINT"),
             spec={"job_count": 3})
-        
+
         jobs = wait_breakpoint()
 
         assert jobs
@@ -323,9 +323,6 @@ class TestListJobs(YTEnvSetup):
         clear_metadata_caches()
 
         self.wait_for_cells(ls("//sys/tablet_cells"))
-
-        # Attempt to overcome error 'No healthy tablet cells in bundle "default"'
-        time.sleep(1)
 
         mount_table("//sys/operations_archive/jobs")
         wait(lambda: get("//sys/operations_archive/jobs/@tablet_state") == "mounted")
