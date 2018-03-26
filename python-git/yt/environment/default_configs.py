@@ -154,6 +154,7 @@ b"""
         scheduling_tag_filter_expire_timeout = 100;
         node_shard_exec_nodes_cache_update_period = 100;
         safe_scheduler_online_time = 5000;
+        schedule_job_time_limit = 5000;
 
         environment = {
              PYTHONUSERBASE = "/tmp"
