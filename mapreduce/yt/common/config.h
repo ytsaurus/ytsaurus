@@ -67,24 +67,6 @@ struct TConfig
 
     bool MountSandboxInTmpfs;
 
-    // common wrapper
-
-    TDuration TxClientTimeout;
-    TDuration TxOperationTimeout;
-
-    enum EOrderGuarantees {
-        // Each mode implies the ones preceding it
-        OG_STANDARD,          // standard Map-Reduce
-        OG_TESTABLE,          // values are taken into account for resolving ties (sorting by KSV)
-        // keeps invariant: all KS-sorted in OG_STANDARD tables are KSV-sorted in this mode.
-        // may require preparing external tables
-        OG_STRICTLY_TESTABLE,
-    };
-    EOrderGuarantees OrderGuarantees;
-
-    bool DisableClientSubTransactions;
-    bool CreateTablesUnderTransaction;
-
     // Testing options, should never be used in user programs.
     bool UseAbortableResponse = false;
     bool EnableDebugMetrics = false;
