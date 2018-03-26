@@ -1,11 +1,11 @@
 package ru.yandex.yt.ytclient.proxy.internal;
 
-import ru.yandex.yt.ytclient.rpc.RpcClient;
-
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Random;
+
+import ru.yandex.yt.ytclient.rpc.RpcClient;
 
 public class Manifold {
     public static List<RpcClient> selectDestinations(DataCenter [] dataCenters, int maxSelect, boolean hasLocal, Random rnd) {
