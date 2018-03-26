@@ -1060,7 +1060,7 @@ public:
     TMedium* GetMediumByNameOrThrow(const TString& name) const
     {
         auto* medium = FindMediumByName(name);
-        if (!medium) {
+        if (!IsObjectAlive(medium)) {
             THROW_ERROR_EXCEPTION(
                 NChunkClient::EErrorCode::NoSuchMedium,
                 "No such medium %Qv",
@@ -1079,7 +1079,7 @@ public:
     TMedium* GetMediumByIndexOrThrow(int index) const
     {
         auto* medium = FindMediumByIndex(index);
-        if (!medium) {
+        if (!IsObjectAlive(medium)) {
             THROW_ERROR_EXCEPTION(
                 NChunkClient::EErrorCode::NoSuchMedium,
                 "No such medium %v",
@@ -1579,14 +1579,14 @@ private:
         // remove a requisition which may happen to be the new requisition of subsequent chunks.
         // To avoid such thrashing, ref everything here and unref it afterwards.
         for (const auto& update : updates) {
-            ChunkRequisitionRegistry_.Ref(update.TranslatedRequisitionIndex_);
+            ChunkRequisitionRegistry_.Ref(update.TranslatedRequisitionIndex);
         }
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
 
         for (const auto& update : updates) {
             auto* chunk = update.Chunk;
-            auto newRequisitionIndex = update.TranslatedRequisitionIndex_;
+            auto newRequisitionIndex = update.TranslatedRequisitionIndex;
 
             auto curRequisitionIndex = local ? chunk->GetLocalRequisitionIndex() : chunk->GetExternalRequisitionIndex(cellIndex);
             if (newRequisitionIndex == curRequisitionIndex) {
@@ -1630,14 +1630,14 @@ private:
         }
 
         for (const auto& update : updates) {
-            ChunkRequisitionRegistry_.Unref(update.TranslatedRequisitionIndex_, objectManager);
+            ChunkRequisitionRegistry_.Unref(update.TranslatedRequisitionIndex, objectManager);
         }
     }
 
     struct TRequisitionUpdate
     {
         TChunk* Chunk;
-        TChunkRequisitionIndex TranslatedRequisitionIndex_;
+        TChunkRequisitionIndex TranslatedRequisitionIndex;
     };
 
     std::vector<TRequisitionUpdate> TranslateChunkRequisitionUpdateRequest(NProto::TReqUpdateChunkRequisition* request)
@@ -1680,7 +1680,7 @@ private:
             TChunkRequisition requisition;
             TNullable<TChunkRequisitionIndex> localIndex;
             if (FromProto(&requisition, pair.requisition(), Bootstrap_->GetSecurityManager())) {
-                localIndex = ChunkRequisitionRegistry_.GetOrCreateIndex(requisition, Bootstrap_->GetObjectManager());
+                localIndex = ChunkRequisitionRegistry_.GetOrCreate(requisition, Bootstrap_->GetObjectManager());
             }
             // Else deserialization failed. Some account has been removed.
             // A requisition update will be re-requested for affected chunks.
@@ -1891,7 +1891,7 @@ private:
             false /* committed */);
         requisition.SetVital(subrequest->vital());
         const auto& objectManager = Bootstrap_->GetObjectManager();
-        auto requisitionIndex = ChunkRequisitionRegistry_.GetOrCreateIndex(requisition, objectManager);
+        auto requisitionIndex = ChunkRequisitionRegistry_.GetOrCreate(requisition, objectManager);
         chunk->SetLocalRequisitionIndex(requisitionIndex, GetChunkRequisitionRegistry(), objectManager);
 
         auto sessionId = TSessionId(chunk->GetId(), mediumIndex);
@@ -2590,7 +2590,7 @@ private:
         TChunkIdWithIndexes chunkIdWithIndexes(chunkIdWithIndex, chunkAddInfo.medium_index());
 
         auto* medium = FindMediumByIndex(chunkIdWithIndexes.MediumIndex);
-        if (!medium) {
+        if (!IsObjectAlive(medium)) {
             LOG_DEBUG_UNLESS(IsRecovery(), "Cannot add chunk with unknown medium (NodeId: %v, Address: %v, ChunkId: %v)",
                 nodeId,
                 node->GetDefaultAddress(),
@@ -2651,7 +2651,7 @@ private:
         TChunkIdWithIndexes chunkIdWithIndexes(chunkIdWithIndex, chunkInfo.medium_index());
 
         auto* medium = FindMediumByIndex(chunkIdWithIndexes.MediumIndex);
-        if (!medium) {
+        if (!IsObjectAlive(medium)) {
             LOG_WARNING_UNLESS(IsRecovery(), "Cannot remove chunk with unknown medium (NodeId: %v, Address: %v, ChunkId: %v)",
                 nodeId,
                 node->GetDefaultAddress(),

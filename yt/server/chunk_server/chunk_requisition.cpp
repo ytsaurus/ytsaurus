@@ -246,7 +246,7 @@ void ValidateChunkReplication(
 
     for (int index = 0; index < MaxMediumCount; ++index) {
         const auto* medium = chunkManager->FindMediumByIndex(index);
-        if (!medium) {
+        if (!IsObjectAlive(medium)) {
             continue;
         }
 
@@ -673,8 +673,7 @@ void TChunkRequisitionRegistry::Load(NCellMaster::TLoadContext& context)
     using NYT::Load;
     using TSortedIndexItem = std::pair<TChunkRequisitionIndex, TIndexedItem>;
 
-    std::vector<TSortedIndexItem> sortedIndex;
-    Load(context, sortedIndex);
+    auto sortedIndex =  Load<std::vector<TSortedIndexItem>>(context);
 
     IndexToItem_.reserve(sortedIndex.size());
     RequisitionToIndex_.reserve(sortedIndex.size());
@@ -699,7 +698,7 @@ void TChunkRequisitionRegistry::Load(NCellMaster::TLoadContext& context)
     YCHECK(!IndexToItem_.has(NextIndex_));
 }
 
-TChunkRequisitionIndex TChunkRequisitionRegistry::GetOrCreateIndex(
+TChunkRequisitionIndex TChunkRequisitionRegistry::GetOrCreate(
     const TChunkRequisition& requisition,
     const NObjectServer::TObjectManagerPtr& objectManager)
 {
