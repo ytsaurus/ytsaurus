@@ -7,6 +7,8 @@ from yt_commands import *
 
 from yt.environment.helpers import assert_items_equal
 
+from flaky import flaky
+
 from time import sleep
 
 ##################################################################
@@ -72,6 +74,8 @@ class TestOrderedDynamicTables(TestDynamicTablesBase):
         assert select_rows("a from [//tmp/t]") == rows
         with pytest.raises(YtError): insert_rows("//tmp/t", rows)
 
+    # TODO(savrus): fix flaps.
+    @flaky(max_runs=3)
     def test_ordered_tablet_node_profiling(self):
         path = "//tmp/x"
         self.sync_create_cells(1)
