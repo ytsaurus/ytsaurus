@@ -97,7 +97,7 @@
     XX(InMemoryMode, in_memory_mode) \
     XX(Index, index) \
     XX(InheritAcl, inherit_acl) \
-    XX(IoWeights, io_weights) \
+    XX(IOWeights, io_weights) \
     XX(KeepFinished, keep_finished) \
     XX(Key, key) \
     XX(KeyColumns, key_columns) \
