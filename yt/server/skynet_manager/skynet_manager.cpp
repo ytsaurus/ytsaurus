@@ -12,6 +12,10 @@
 
 #include <yt/ytlib/chunk_client/read_limit.h>
 
+#include <yt/ytlib/table_client/value_consumer.h>
+#include <yt/ytlib/table_client/table_consumer.h>
+#include <yt/ytlib/table_client/name_table.h>
+
 #include <yt/core/json/json_writer.h>
 #include <yt/core/json/config.h>
 
@@ -39,6 +43,8 @@ using namespace NYson;
 using namespace NYTree;
 using namespace NYPath;
 using namespace NHttp;
+using namespace NChunkClient;
+using namespace NTableClient;
 
 static auto& Logger = SkynetManagerLogger;
 
@@ -416,166 +422,142 @@ void CheckTrailers(const IResponsePtr& rsp)
     }
 }
 
-DEFINE_ENUM(ESkynetTableColumn,
-    (NoColumn)
-    (Filename)
-    (DataSize)
-    (Sha1)
-    (Md5)
-);
-
-class TSkynetTableConsumer
-    : public IYsonConsumer
+class TSkynetTableValueConsumer
+    : public IValueConsumer
 {
 public:
-    TSkynetTableConsumer(i64 startRowIndex)
-        : Meta_{}
+    TSkynetTableValueConsumer(
+        i64 startRowIndex,
+        const std::vector<TString>& keyColumns)
+        : NameTable_(New<TNameTable>())
         , RowIndex_(startRowIndex)
-        , CurrentFile_{Meta_.Files.end()}
-    { }
-
-    virtual void OnStringScalar(const TStringBuf& value) override
     {
-        if (Column_ == ESkynetTableColumn::Filename) {
-            Filename_ = TString(value);
-        } else if (Column_ == ESkynetTableColumn::Sha1) {
-            Sha1_ = SHA1FromString(value);
-        } else if (Column_ == ESkynetTableColumn::Md5) {
-            Md5_ = MD5FromString(value);
+        for (auto keyColumnName : keyColumns) {
+            KeyColumns_.push_back(NameTable_->GetIdOrRegisterName(keyColumnName));
         }
+        FilenameId_ = NameTable_->GetIdOrRegisterName("filename");
+        Sha1Id_ = NameTable_->GetIdOrRegisterName("sha1");
+        Md5Id_ = NameTable_->GetIdOrRegisterName("md5");
+        DataSizeId_ = NameTable_->GetIdOrRegisterName("data_size");
     }
 
-    virtual void OnInt64Scalar(i64 value) override
+    virtual const TNameTablePtr& GetNameTable() const override
     {
-        if (Column_ == ESkynetTableColumn::DataSize) {
-            DataSize_ = value;
-        }
+        return NameTable_;
     }
 
-    virtual void OnUint64Scalar(ui64 value) override
+    virtual bool GetAllowUnknownColumns() const override
     {
-        THROW_ERROR_EXCEPTION("Not implemented");
+        return false;
     }
 
-    virtual void OnDoubleScalar(double value) override
+    virtual void OnBeginRow() override
     {
-        THROW_ERROR_EXCEPTION("Not implemented");
-    }
-
-    virtual void OnBooleanScalar(bool value) override
-    {
-        THROW_ERROR_EXCEPTION("Not implemented");
-    }
-
-    virtual void OnEntity() override
-    {
-        THROW_ERROR_EXCEPTION("Not implemented");
-    }
-
-    virtual void OnBeginList() override
-    {
-        THROW_ERROR_EXCEPTION("Not implemented");
-    }
-
-    virtual void OnListItem() override
-    {
-        Column_ = ESkynetTableColumn::NoColumn;
         Filename_.Reset();
         DataSize_.Reset();
-        Sha1_.Reset();
         Md5_.Reset();
+        Sha1_.Reset();
     }
-
-    virtual void OnEndList() override
+    
+    virtual void OnValue(const TUnversionedValue& value)
     {
-        THROW_ERROR_EXCEPTION("Not implemented");
-    }
-
-    virtual void OnBeginMap() override
-    { }
-
-    virtual void OnKeyedItem(const TStringBuf& key) override
-    {
-        if (key == "filename") {
-            Column_ = ESkynetTableColumn::Filename;
-        } else if (key == "data_size") {
-            Column_ = ESkynetTableColumn::DataSize;
-        } else if (key == "md5") {
-            Column_ = ESkynetTableColumn::Md5;
-        } else if (key == "sha1") {
-            Column_ = ESkynetTableColumn::Sha1;
-        }
-    }
-
-    virtual void OnEndMap() override
-    {
-        auto checkColumn = [] (auto column, TStringBuf name) {
-            if (!column) {
-                THROW_ERROR_EXCEPTION("Column is missing")
-                    << TErrorAttribute("column_name", name);
+        auto valueToString = [&] (auto columnName) {
+            if (value.Type != EValueType::String) {
+                THROW_ERROR_EXCEPTION("Invalid column type")
+                    << TErrorAttribute("column", columnName);
             }
+
+            return TStringBuf(value.Data.String, value.Length);
         };
 
-        checkColumn(Filename_, "filename");
-        checkColumn(DataSize_, "data_size");
-        checkColumn(Sha1_, "sha1");
-        checkColumn(Md5_, "md5");
-
-        if (CurrentFile_ == Meta_.Files.end() || *Filename_ != CurrentFile_->first) {
-            bool ok = false;
-            std::tie(CurrentFile_, ok) = Meta_.Files.emplace(*Filename_, TFileMeta{});
-            if (!ok) {
-                THROW_ERROR_EXCEPTION("Duplicate filenames are not allowed")
-                    << TErrorAttribute("filename", *Filename_);
+        auto valueToInt = [&] (auto columnName) {
+            if (value.Type != EValueType::Int64) {
+                THROW_ERROR_EXCEPTION("Invalid column type")
+                    << TErrorAttribute("column", columnName);
             }
 
-            FileOffsets_.emplace_back();
-            FileOffsets_.back().FilePath = *Filename_;
-            FileOffsets_.back().StartRow = RowIndex_;
+            return value.Data.Int64;
+        };
+    
+        if (value.Id == FilenameId_) {
+            Filename_ = TString(valueToString("filename"));
+        } else if (value.Id == Sha1Id_) {
+            Sha1_ = SHA1FromString(valueToString("sha1"));
+        } else if (value.Id == Md5Id_) {
+            Md5_ = MD5FromString(valueToString("md5"));
+        } else if (value.Id == DataSizeId_) {
+            DataSize_ = valueToInt("data_size");
+        } else {
+            if (!std::binary_search(KeyColumns_.begin(), KeyColumns_.end(), value.Id)) {
+                THROW_ERROR_EXCEPTION("Unknown column")
+                    << TErrorAttribute("id", value.Id);
+            }
+
+            KeyBuilder_.AddValue(value);
+        }
+    }
+
+    virtual void OnEndRow()
+    {
+        // Key changed
+        auto key = KeyBuilder_.FinishRow();
+        if (!Filename_ || !DataSize_ || !Md5_ || !Sha1_ || key.GetCount() != KeyColumns_.size()) {
+            THROW_ERROR_EXCEPTION("Missing columns");
+        }
+    
+        if (Shards_.empty() || Shards_.back().Key != key) {
+            Shards_.emplace_back();
+            Shards_.back().Key = key;
+            CurrentFile_.Reset();
         }
 
-        CurrentFile_->second.FileSize += *DataSize_;
-        CurrentFile_->second.MD5 = *Md5_;
-        CurrentFile_->second.SHA1.emplace_back(*Sha1_);
+        // File changed
+        if (!CurrentFile_ || *CurrentFile_ != *Filename_) {
+            CurrentFile_ = Filename_;
 
-        ++FileOffsets_.back().RowCount;
-        FileOffsets_.back().FileSize += *DataSize_;
+            auto& offsets = Shards_.back().Offsets;
+            offsets.emplace_back();
+            offsets.back().FilePath = *Filename_;
+            offsets.back().StartRow = RowIndex_;
+        }
 
-        ++RowIndex_;
+        auto& file = Shards_.back().Meta.Files[*CurrentFile_];
+        
+        file.FileSize += *DataSize_;
+        file.MD5 = *Md5_;
+        file.SHA1.emplace_back(*Sha1_);
+
+        Shards_.back().Offsets.back().RowCount++;
+        Shards_.back().Offsets.back().FileSize += *DataSize_;
+        
+        RowIndex_++;
     }
 
-    virtual void OnBeginAttributes() override
+    std::vector<TTableShard> Finish()
     {
-        THROW_ERROR_EXCEPTION("Not implemented");
-    }
-
-    virtual void OnEndAttributes() override
-    {
-        THROW_ERROR_EXCEPTION("Not implemented");
-    }
-
-    virtual void OnRaw(const TStringBuf& yson, EYsonType type) override
-    {
-        THROW_ERROR_EXCEPTION("Not implemented");
-    }
-
-    std::pair<TSkynetShareMeta, std::vector<TFileOffset>> Finish()
-    {
-        return {std::move(Meta_), std::move(FileOffsets_)};
+        return std::move(Shards_);
     }
 
 private:
-    TSkynetShareMeta Meta_;
-    std::vector<TFileOffset> FileOffsets_;
+    TNameTablePtr NameTable_;
+    i64 RowIndex_ = 0;
 
-    i64 RowIndex_;
-    std::map<TString, TFileMeta>::iterator CurrentFile_;
+    std::vector<int> KeyColumns_;
+    int FilenameId_;
+    int Sha1Id_;
+    int Md5Id_;
+    int DataSizeId_;
+
     TNullable<TString> Filename_;
     TNullable<i64> DataSize_;
     TNullable<TMD5Hash> Md5_;
     TNullable<TSHA1Hash> Sha1_;
 
-    ESkynetTableColumn Column_ = ESkynetTableColumn::NoColumn;
+    TUnversionedOwningRowBuilder KeyBuilder_;
+
+    TNullable<TString> CurrentFile_;
+
+    std::vector<TTableShard> Shards_;
 };
 
 std::pair<TSkynetShareMeta, std::vector<TFileOffset>> ReadSkynetMetaFromTable(
@@ -598,21 +580,25 @@ std::pair<TSkynetShareMeta, std::vector<TFileOffset>> ReadSkynetMetaFromTable(
 
     auto responseAttributes = ConvertToNode(TYsonString(response->GetHeaders()->Get("X-Yt-Response-Parameters")));
     auto rowIndex = responseAttributes->AsMap()->GetChild("start_row_index")->AsInt64()->GetValue();
-    TSkynetTableConsumer consumer{rowIndex};
 
-    ParseYson(input, &consumer);
+    TSkynetTableValueConsumer consumer{rowIndex, {}};
+    TTableConsumer tableConsumer{&consumer};
+    ParseYson(input, &tableConsumer);
 
     CheckTrailers(response);
 
-    auto meta = consumer.Finish();
+    auto shards = consumer.Finish();
+    if (shards.size() != 1) {
+        THROW_ERROR_EXCEPTION("Can't share empty table");
+    }
+    auto meta = shards[0].Meta;
 
-    if (meta.first.Files.empty()) {
+    if (meta.Files.empty()) {
         THROW_ERROR_EXCEPTION("Can't share empty table");
     }
 
-    LOG_INFO("Finished reading share meta (Path: %v, NumFiles: %v)", path, meta.first.Files.size());
-
-    return meta;
+    LOG_INFO("Finished reading share meta (Path: %v, NumFiles: %v)", path, meta.Files.size());
+    return {shards[0].Meta, shards[0].Offsets};
 }
 
 TString MakeFileUrl(
@@ -666,7 +652,17 @@ std::vector<THttpPartLocation> FetchSkynetPartsLocations(
     std::vector<THttpPartLocation> locations;
 
     TRequestParams params;
-    params.Path = path;
+    params.Path = path.Normalize();
+
+    if (fileOffsets.empty()) {
+        THROW_ERROR_EXCEPTION("Empty offsets");
+    }
+    params.Path.SetRanges({
+        TReadRange{
+            TReadLimit().SetRowIndex(fileOffsets[0].StartRow),
+            TReadLimit().SetRowIndex(fileOffsets.back().StartRow + fileOffsets.back().RowCount)
+        }
+    });
 
     auto headers = New<THeaders>();
     headers->Add("X-Yt-Header-Format", "<format=text>yson");
@@ -713,6 +709,7 @@ std::vector<THttpPartLocation> FetchSkynetPartsLocations(
         ui64 currentRowIndex = spec.RowIndex;
         if (spec.LowerLimit.HasRowIndex()) {
             currentRowIndex += spec.LowerLimit.GetRowIndex();
+            spec.RowCount += spec.LowerLimit.GetRowIndex();
         }
 
         if (currentFile == fileOffsets.end()) {
@@ -726,12 +723,12 @@ std::vector<THttpPartLocation> FetchSkynetPartsLocations(
             if (currentRowIndex == spec.RowIndex + spec.RowCount) {
                 break;
             }
-            YCHECK(currentRowIndex < spec.RowIndex + spec.RowCount);
 
             ui64 nextRowIndex = currentRowIndex;
             nextRowIndex += std::min(
                 currentFile->RowCount - currentFileRow,
                 spec.RowCount - (currentRowIndex - spec.RowIndex));
+            YCHECK(nextRowIndex != currentRowIndex);
 
             THttpPartLocation location;
             location.Filename = currentFile->FilePath;
