@@ -145,8 +145,8 @@ class TestMemoryReserveFactor(YTEnvSetup):
     }
 
     # TODO: remove after fix of YT-8597.
-    @flaky(max_runs=5)
     @unix_only
+    @flaky(max_runs=5)
     def test_memory_reserve_factor(self):
         job_count = 30
 
