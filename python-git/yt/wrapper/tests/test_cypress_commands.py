@@ -271,10 +271,7 @@ class TestCypressCommands(object):
             yt.link(table, link)
         yt.link(table, link, ignore_existing=True)
 
-        if yt_env.version >= "19.0":
-            expected = link
-        else:
-            expected = table
+        expected = link
 
         other_link = TEST_DIR + "/other_link"
         yt.link(link, other_link, recursive=False)
@@ -478,14 +475,9 @@ class TestCypressCommands(object):
 
         assert len(yt.get(dir + "/@locks")) == 0
         with yt.Transaction():
-            if yt_env.version >= "19.0":
-                yt.lock(dir, waitable=True)
-                yt.lock(dir, waitable=True, wait_for=1000)
-                assert len(yt.get(dir + "/@locks")) == 2
-            else:
-                assert yt.lock(dir, waitable=True) != "0-0-0-0"
-                assert yt.lock(dir, waitable=True) == "0-0-0-0"
-                assert yt.lock(dir, waitable=True, wait_for=1000) == "0-0-0-0"
+            yt.lock(dir, waitable=True)
+            yt.lock(dir, waitable=True, wait_for=1000)
+            assert len(yt.get(dir + "/@locks")) == 2
 
         tx = yt.start_transaction()
         yt.config.COMMAND_PARAMS["transaction_id"] = tx
