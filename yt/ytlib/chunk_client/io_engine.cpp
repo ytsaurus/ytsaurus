@@ -181,7 +181,9 @@ private:
         i64 from = offset;
         i64 to = offset + numBytes;
 
-        if (UseDirectIO_ || IsDirectAligned(fh)) {
+        bool useDirectIO = UseDirectIO_ || IsDirectAligned(fh);
+
+        if (useDirectIO) {
             data = data.Slice(AlignUp(data.Begin(), Alignment_), data.End());
             from = ::AlignDown(offset, Alignment_);
             to = ::AlignUp(to, Alignment_);
@@ -208,12 +210,24 @@ private:
                     ythrow TFileError();
                 }
 
+                if (reallyRead == 0) { // file exausted
+                    break;
+                }
+
                 buf += reallyRead;
                 from += reallyRead;
                 readPortion -= reallyRead;
 
-                if (reallyRead < toRead) { // file exausted
-                    break;
+                if (useDirectIO && reallyRead < toRead) {
+                    if (reallyRead != ::AlignUp<i32>(reallyRead, Alignment_)) {
+                        if (from == fh->GetLength()) {
+                            break;
+                        } else {
+                            THROW_ERROR_EXCEPTION("Unaligned pread")
+                                << TErrorAttribute("requested_bytes", toRead)
+                                << TErrorAttribute("read_bytes", reallyRead);
+                        }
+                    }
                 }
             }
 
