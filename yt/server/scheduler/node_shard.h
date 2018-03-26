@@ -164,6 +164,7 @@ public:
     int GetTotalNodeCount();
 
     TFuture<NControllerAgent::TScheduleJobResultPtr> BeginScheduleJob(
+        const TOperationId& operationId,
         const TJobId& jobId);
     void EndScheduleJob(
         const TIncarnationId& incarnationId,
@@ -214,7 +215,7 @@ private:
 
     THashMap<TJobId, TJobUpdate> JobsToSubmitInStrategy_;
 
-    THashMap<TJobId, TPromise<NControllerAgent::TScheduleJobResultPtr>> JobIdToAsyncScheduleResult_;
+    THashMap<std::pair<TOperationId, TJobId>, TPromise<NControllerAgent::TScheduleJobResultPtr>> AsyncScheduleJobResults_;
 
     NConcurrency::TPeriodicExecutorPtr SubmitJobsToStrategyExecutor_;
 

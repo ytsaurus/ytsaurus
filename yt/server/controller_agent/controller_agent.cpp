@@ -63,6 +63,7 @@ static const auto& Logger = ControllerAgentLogger;
 struct TAgentToSchedulerScheduleJobResponse
 {
     TJobId JobId;
+    TOperationId OperationId;
     TScheduleJobResultPtr Result;
 };
 
@@ -868,6 +869,7 @@ private:
             [] (auto* protoResponse, const auto& response) {
                 const auto& scheduleJobResult = *response.Result;
                 ToProto(protoResponse->mutable_job_id(), response.JobId);
+                ToProto(protoResponse->mutable_operation_id(), response.OperationId);
                 if (scheduleJobResult.StartDescriptor) {
                     const auto& startDescriptor = *scheduleJobResult.StartDescriptor;
                     Y_ASSERT(response.JobId == startDescriptor.Id);
@@ -1077,9 +1079,10 @@ private:
     {
         auto outbox = ScheduleJobResposesOutbox_;
 
-        auto replyWithFailure = [=] (const TJobId& jobId, EScheduleJobFailReason reason) {
+        auto replyWithFailure = [=] (const TOperationId& operationId, const TJobId& jobId, EScheduleJobFailReason reason) {
             TAgentToSchedulerScheduleJobResponse response;
             response.JobId = jobId;
+            response.OperationId = operationId;
             response.Result = New<TScheduleJobResult>();
             response.Result->RecordFail(EScheduleJobFailReason::UnknownNode);
             outbox->Enqueue(std::move(response));
@@ -1092,7 +1095,7 @@ private:
                 auto operationId = FromProto<TOperationId>(protoRequest->operation_id());
                 auto operation = this->FindOperation(operationId);
                 if (!operation) {
-                    replyWithFailure(jobId, EScheduleJobFailReason::UnknownOperation);
+                    replyWithFailure(operationId, jobId, EScheduleJobFailReason::UnknownOperation);
                     LOG_DEBUG("Failed to schedule job due to unknown operation (OperationId: %v, JobId: %v)",
                         operationId,
                         jobId);
@@ -1106,7 +1109,7 @@ private:
                         auto nodeId = NodeIdFromJobId(jobId);
                         auto descriptorIt = execNodeDescriptors->find(nodeId);
                         if (descriptorIt == execNodeDescriptors->end()) {
-                            replyWithFailure(jobId, EScheduleJobFailReason::UnknownNode);
+                            replyWithFailure(operationId, jobId, EScheduleJobFailReason::UnknownNode);
                             LOG_DEBUG("Failed to schedule job due to unknown node (OperationId: %v, JobId: %v, NodeId: %v)",
                                 operationId,
                                 jobId,
@@ -1119,6 +1122,7 @@ private:
 
                         TAgentToSchedulerScheduleJobResponse response;
                         TSchedulingContext context(protoRequest, descriptorIt->second);
+                        response.OperationId = operationId;
                         response.JobId = jobId;
                         response.Result = controller->ScheduleJob(
                             &context,
@@ -1134,7 +1138,7 @@ private:
                             jobId);
                     }),
                     BIND([=, this_ = MakeStrong(this)] {
-                        replyWithFailure(jobId, EScheduleJobFailReason::UnknownOperation);
+                        replyWithFailure(operationId, jobId, EScheduleJobFailReason::UnknownOperation);
                         LOG_DEBUG("Failed to schedule job due to operation cancelation (OperationId: %v, JobId: %v)",
                             operationId,
                             jobId);

@@ -434,7 +434,7 @@ public:
         const auto& scheduler = Bootstrap_->GetScheduler();
         auto shardId = scheduler->GetNodeShardId(nodeId);
         const auto& nodeShard = scheduler->GetNodeShards()[shardId];
-        return nodeShard->BeginScheduleJob(jobId);
+        return nodeShard->BeginScheduleJob(OperationId_, jobId);
     }
 
     virtual TJobResources GetNeededResources() const override
