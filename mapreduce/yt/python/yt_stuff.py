@@ -10,6 +10,8 @@ import fcntl
 
 import yatest.common
 
+import yt.yson as yson
+
 import devtools.swag.daemon
 import devtools.swag.ports
 
@@ -29,7 +31,8 @@ class YtConfig(object):
                  save_all_logs=None, yt_work_dir=None, keep_yt_work_dir=None, ram_drive_path=None,
                  local_cypress_dir=None, wait_tablet_cell_initialization=None, jobs_memory_limit=None,
                  jobs_cpu_limit=None, jobs_user_slot_count=None, forbid_chunk_storage_in_tmpfs=None,
-                 yt_version=None, cell_tag=None, python_binary=None):
+                 node_chunk_store_quota=None, yt_version=None, cell_tag=None, python_binary=None,
+                 enable_debug_logging=None, enable_rpc_proxy=None):
         self.fqdn = get_value(fqdn, "localhost")
         self.yt_id = yt_id
 
@@ -70,6 +73,10 @@ class YtConfig(object):
         self.jobs_cpu_limit = jobs_cpu_limit
         self.jobs_user_slot_count = jobs_user_slot_count
         self.forbid_chunk_storage_in_tmpfs = forbid_chunk_storage_in_tmpfs
+        self.node_chunk_store_quota = node_chunk_store_quota
+
+        self.enable_debug_logging = enable_debug_logging
+        self.enable_rpc_proxy = enable_rpc_proxy
 
         yt_package_versions = os.listdir(yatest.common.build_path("yt/packages"))
         if len(yt_package_versions) != 1:
@@ -189,24 +196,19 @@ class YtStuff(object):
         self.yt_local_path = [yatest.common.binary_path('yt/packages/{}/contrib/python/yt_local/bin/local/yt_local'.format(self.version))]
         self.yt_env_watcher_dir_path = yatest.common.binary_path('yt/packages/{}/contrib/python/yt_local/bin/watcher'.format(self.version))
 
-        if self.version == "18_5":
-            ytserver_path = yatest.common.binary_path('yt/packages/18_5/yt/18_5/yt/server/ytserver_program/ytserver')
-            yt_server_custom_path = yatest.common.get_param('yt_ytserver_path')
-            os.symlink(yt_server_custom_path or ytserver_path, os.path.join(self.yt_bins_path, 'ytserver'))
-        else:
-            for binary, server_dir in [('master', 'cell_master_program'),
-                                       ('scheduler', 'cell_scheduler_program'),
-                                       ('node', 'cell_node_program'),
-                                       ('job-proxy', 'job_proxy_program'),
-                                       ('exec', 'exec_program'),
-                                       ('proxy', 'cell_proxy_program')]:
-                binary_path = yatest.common.binary_path('yt/packages/{0}/yt/{0}/yt/server/{1}/ytserver-{2}'
-                                                        .format(self.version, server_dir, binary))
-                os.symlink(binary_path, os.path.join(self.yt_bins_path, 'ytserver-' + binary))
+        for binary, server_dir in [('master', 'cell_master_program'),
+                                   ('scheduler', 'cell_scheduler_program'),
+                                   ('node', 'cell_node_program'),
+                                   ('job-proxy', 'job_proxy_program'),
+                                   ('exec', 'exec_program'),
+                                   ('proxy', 'cell_proxy_program')]:
+            binary_path = yatest.common.binary_path('yt/packages/{0}/yt/{0}/yt/server/{1}/ytserver-{2}'
+                                                    .format(self.version, server_dir, binary))
+            os.symlink(binary_path, os.path.join(self.yt_bins_path, 'ytserver-' + binary))
 
-            if self.version == '19_2':
-                tools_binary_path = yatest.common.binary_path('yt/packages/19_2/yt/19_2/yt/server/tools_program/ytserver-tools')
-                os.symlink(tools_binary_path, os.path.join(self.yt_bins_path, 'ytserver-tools'))
+        if self.version == '19_2':
+            tools_binary_path = yatest.common.binary_path('yt/packages/19_2/yt/19_2/yt/server/tools_program/ytserver-tools')
+            os.symlink(tools_binary_path, os.path.join(self.yt_bins_path, 'ytserver-tools'))
 
         yt_node_arcadia_path = yatest.common.binary_path('yt/packages/{0}/yt/{0}/yt/nodejs/targets/bin/ytnode'.format(self.version))
         os.symlink(yt_node_arcadia_path, os.path.join(self.yt_node_bin_path, 'nodejs'))
@@ -264,10 +266,12 @@ class YtStuff(object):
                 "--path", self.yt_work_dir,
                 "--fqdn", self.config.fqdn,
                 "--jobs-memory-limit", str(self.config.jobs_memory_limit),
-                "--enable-debug-logging",
             ]
 
-            if self.version != "18_5":
+            if get_value(self.config.enable_debug_logging, True):
+                args += ["--enable-debug-logging"]
+
+            if get_value(self.config.enable_rpc_proxy, True):
                 args += ["--rpc-proxy"]
 
             if self.config.jobs_cpu_limit:
@@ -279,6 +283,8 @@ class YtStuff(object):
                 args += ["--wait-tablet-cell-initialization"]
             if self.config.forbid_chunk_storage_in_tmpfs:
                 args += ["--forbid-chunk-storage-in-tmpfs"]
+            if self.config.node_chunk_store_quota:
+                args += ["--node-chunk-store-quota"]
 
             if self.config.proxy_port is not None:
                 self.yt_proxy_port = self.config.proxy_port
@@ -335,16 +341,14 @@ class YtStuff(object):
                 return False
             if self.config.proxy_port is None:
                 info_yson_file = os.path.join(self.yt_work_dir, self.yt_id, "info.yson")
-                import yt.yson
                 with open(info_yson_file) as f:
-                    info = yt.yson.load(f)
+                    info = yson.load(f)
                 self.yt_proxy_port = int(info["proxy"]["address"].split(":")[1])
 
-            if self.version != "18_5":
+            if get_value(self.config.enable_rpc_proxy, True):
                 rpc_proxy_config_file = os.path.join(self.yt_work_dir, self.yt_id, "configs", "rpc-client.yson")
-                import yt.yson
                 with open(rpc_proxy_config_file) as f:
-                    self.yt_rpc_proxy = yt.yson.load(f)["addresses"][0]
+                    self.yt_rpc_proxy = yson.load(f)["addresses"][0]
         except Exception, e:
             self._log("Failed to start local YT:\n%s", str(e))
             for pid in self.get_pids():
