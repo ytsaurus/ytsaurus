@@ -174,7 +174,8 @@ void TNodeShard::DoCleanup()
 
     ConcurrentHeartbeatCount_ = 0;
 
-    AsyncScheduleJobResults_.clear();
+    JobIdToScheduleEntry_.clear();
+    OperationIdToJobIterators_.clear();
 
     SubmitJobsToStrategy();
 }
@@ -218,16 +219,11 @@ void TNodeShard::StartOperationRevival(const TOperationId& operationId)
     }
 
     {
-        std::vector<TJobId> scheduleJobRequestsToAbort;
-        for (const auto& pair : AsyncScheduleJobResults_) {
-            if (pair.first.first == operationId) {
-                scheduleJobRequestsToAbort.push_back(pair.first.second);
-            }
+        auto range = OperationIdToJobIterators_.equal_range(operationId);
+        for (auto it = range.first; it != range.second; ++it) {
+            JobIdToScheduleEntry_.erase(it->second);
         }
-
-        for (const auto& jobId : scheduleJobRequestsToAbort) {
-            YCHECK(AsyncScheduleJobResults_.erase(std::make_pair(operationId, jobId)) == 1);
-        }
+        OperationIdToJobIterators_.erase(operationId);
     }
 
     YCHECK(operationState.Jobs.empty());
@@ -982,18 +978,25 @@ int TNodeShard::GetTotalNodeCount()
     return TotalNodeCount_;
 }
 
-TFuture<TScheduleJobResultPtr> TNodeShard::BeginScheduleJob(const TOperationId& operationId, const TJobId& jobId)
+TFuture<TScheduleJobResultPtr> TNodeShard::BeginScheduleJob(
+    const TIncarnationId& incarnationId,
+    const TOperationId& operationId,
+    const TJobId& jobId)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
 
-    auto promise = NewPromise<TScheduleJobResultPtr>();
-    YCHECK(AsyncScheduleJobResults_.emplace(std::make_pair(operationId, jobId), promise).second);
-    return promise.ToFuture();
+    auto pair = JobIdToScheduleEntry_.emplace(jobId, TScheduleJobEntry());
+    YCHECK(pair.second);
+
+    auto& entry = pair.first->second;
+    entry.Promise = NewPromise<TScheduleJobResultPtr>();
+    entry.IncarnationId = incarnationId;
+    entry.OperationId = operationId;
+    entry.OperationIdToJobIdsIterator = OperationIdToJobIterators_.emplace(operationId, pair.first);
+    return entry.Promise.ToFuture();
 }
 
-void TNodeShard::EndScheduleJob(
-    const TIncarnationId& incarnationId,
-    const NProto::TScheduleJobResponse& response)
+void TNodeShard::EndScheduleJob(const NProto::TScheduleJobResponse& response)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
 
@@ -1003,6 +1006,11 @@ void TNodeShard::EndScheduleJob(
         operationId,
         jobId,
         response.has_job_type());
+
+    auto it = JobIdToScheduleEntry_.find(jobId);
+    YCHECK(it != JobIdToScheduleEntry_.end());
+    auto& entry = it->second;
+    YCHECK(operationId == entry.OperationId);
 
     auto result = New<TScheduleJobResult>();
     if (response.has_job_type()) {
@@ -1016,12 +1024,12 @@ void TNodeShard::EndScheduleJob(
         result->Failed[static_cast<EScheduleJobFailReason>(protoCounter.reason())] = protoCounter.value();
     }
     FromProto(&result->Duration, response.duration());
-    result->IncarnationId = incarnationId;
+    result->IncarnationId = entry.IncarnationId;
 
-    auto it = AsyncScheduleJobResults_.find(std::make_pair(operationId, jobId));
-    YCHECK(it != AsyncScheduleJobResults_.end());
-    it->second.Set(result);
-    AsyncScheduleJobResults_.erase(it);
+    entry.Promise.Set(std::move(result));
+
+    OperationIdToJobIterators_.erase(entry.OperationIdToJobIdsIterator);
+    JobIdToScheduleEntry_.erase(it);
 }
 
 TExecNodePtr TNodeShard::GetOrRegisterNode(TNodeId nodeId, const TNodeDescriptor& descriptor)

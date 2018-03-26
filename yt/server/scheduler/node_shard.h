@@ -164,10 +164,10 @@ public:
     int GetTotalNodeCount();
 
     TFuture<NControllerAgent::TScheduleJobResultPtr> BeginScheduleJob(
+        const TIncarnationId& incarnationId,
         const TOperationId& operationId,
         const TJobId& jobId);
     void EndScheduleJob(
-        const TIncarnationId& incarnationId,
         const NProto::TScheduleJobResponse& response);
 
 private:
@@ -215,7 +215,17 @@ private:
 
     THashMap<TJobId, TJobUpdate> JobsToSubmitInStrategy_;
 
-    THashMap<std::pair<TOperationId, TJobId>, TPromise<NControllerAgent::TScheduleJobResultPtr>> AsyncScheduleJobResults_;
+    struct TScheduleJobEntry
+    {
+        TOperationId OperationId;
+        TIncarnationId IncarnationId;
+        TPromise<NControllerAgent::TScheduleJobResultPtr> Promise;
+        THashMultiMap<TOperationId, THashMap<TJobId, TScheduleJobEntry>::iterator>::iterator OperationIdToJobIdsIterator;
+    };
+    // NB: It is important to use THash* instead of std::unordered_* since we rely on
+    // iterators not to be uninvalidated.
+    THashMap<TJobId, TScheduleJobEntry> JobIdToScheduleEntry_;
+    THashMultiMap<TOperationId, THashMap<TJobId, TScheduleJobEntry>::iterator> OperationIdToJobIterators_;
 
     NConcurrency::TPeriodicExecutorPtr SubmitJobsToStrategyExecutor_;
 

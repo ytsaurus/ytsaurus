@@ -434,7 +434,7 @@ public:
         const auto& scheduler = Bootstrap_->GetScheduler();
         auto shardId = scheduler->GetNodeShardId(nodeId);
         const auto& nodeShard = scheduler->GetNodeShards()[shardId];
-        return nodeShard->BeginScheduleJob(OperationId_, jobId);
+        return nodeShard->BeginScheduleJob(incarnationId, OperationId_, jobId);
     }
 
     virtual TJobResources GetNeededResources() const override
@@ -938,11 +938,10 @@ public:
                     BIND([
                         context,
                         nodeShard,
-                        incarnationId,
                         protoResponses = std::move(groupedScheduleJobResponses[shardId])
                     ] {
                         for (const auto* protoResponse : protoResponses) {
-                            nodeShard->EndScheduleJob(incarnationId, *protoResponse);
+                            nodeShard->EndScheduleJob(*protoResponse);
                         }
                     })
                         .AsyncVia(nodeShard->GetInvoker())
