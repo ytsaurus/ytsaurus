@@ -2135,7 +2135,7 @@ class TestSchedulerConfig(YTEnvSetup):
         instances = ls("//sys/controller_agents/instances")
         for instance in instances:
             config_path = "//sys/controller_agents/instances/{0}/orchid/controller_agent/config".format(instance)
-            wait(lambda: get(config_path + "/environment/OTHER_VAR") == "20")
+            wait(lambda: exists(config_path + "/environment/OTHER_VAR") and get(config_path + "/environment/OTHER_VAR") == "20")
 
             environment = get(config_path + "/environment")
             assert environment["TEST_VAR"] == "10"
@@ -2698,18 +2698,18 @@ class TestPoolMetrics(YTEnvSetup):
         write_table("<append=%true>//tmp/t_input", [{"key": i} for i in xrange(2)])
 
         op = map(
-            command='cat; if [ "$YT_JOB_INDEX" = "0" ]; then sleep 2; else sleep 100500; fi',
+            command=with_breakpoint("cat; BREAKPOINT"),
             in_="//tmp/t_input",
             out="//tmp/t_output",
-            dont_track=True,
-            spec={"data_size_per_job": 1, "pool": "child"}
-        )
+            spec={"data_size_per_job": 1, "pool": "child"},
+            dont_track=True)
 
-        orchid_path = "//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op.id)
+        jobs = wait_breakpoint()
 
-        # Wait until both jobs started.
-        wait(lambda: exists(orchid_path) and len(ls(orchid_path)) == 2)
+        release_breakpoint(job_id=jobs[0])
+
         # Wait until short job is completed.
+        orchid_path = "//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op.id)
         wait(lambda: len(ls(orchid_path)) == 1)
 
         running_jobs = ls(orchid_path)
@@ -2730,6 +2730,8 @@ class TestPoolMetrics(YTEnvSetup):
 
         assert completed_metrics["parent"] == completed_metrics["child"]
         assert aborted_metrics["parent"] == aborted_metrics["child"]
+
+        op.abort()
 
     def test_runtime_parameters(self):
         create_user("u")
