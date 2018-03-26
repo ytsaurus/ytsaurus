@@ -27,6 +27,7 @@ protected:
     std::atomic<bool> Enabled_ = {false};
 
     void ValidateMinimumSpace() const;
+    void ValidateLockFile() const;
 
     i64 GetTotalSpace() const;
 

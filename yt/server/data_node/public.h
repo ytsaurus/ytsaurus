@@ -86,6 +86,7 @@ DECLARE_REFCOUNTED_STRUCT(IPlainVolumeManager)
 
 DEFINE_ENUM(EErrorCode,
     ((LocalChunkReaderFailed)    (1300))
+    ((LayerUnpackingFailed)      (1301))
 );
 
 DEFINE_ENUM(EDirectIOPolicy,

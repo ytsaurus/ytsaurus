@@ -156,28 +156,28 @@ class TUserJob
 : public TJob
 {
 public:
-TUserJob(
-    IJobHostPtr host,
-    const TUserJobSpec& userJobSpec,
-    const TJobId& jobId,
-    std::unique_ptr<TUserJobWriteController> userJobWriteController,
-    IResourceControllerPtr resourceController)
-    : TJob(host)
-    , Logger(Host_->GetLogger())
-    , UserJobWriteController_(std::move(userJobWriteController))
-    , UserJobSpec_(userJobSpec)
-    , Config_(Host_->GetConfig())
-    , JobIOConfig_(Host_->GetJobSpecHelper()->GetJobIOConfig())
-    , ResourceController_(resourceController)
-    , JobErrorPromise_(NewPromise<void>())
-    , JobEnvironmentType_(ConvertTo<TJobEnvironmentConfigPtr>(Config_->JobEnvironment)->Type)
-    , PipeIOPool_(New<TThreadPool>(JobIOConfig_->PipeIOPoolSize, "PipeIO"))
-    , AuxQueue_(New<TActionQueue>("JobAux"))
-    , ReadStderrInvoker_(CreateSerializedInvoker(PipeIOPool_->GetInvoker()))
-    , JobSatelliteConnection_(
-        jobId,
-        host->GetConfig()->BusServer,
-        JobEnvironmentType_)
+    TUserJob(
+        IJobHostPtr host,
+        const TUserJobSpec& userJobSpec,
+        const TJobId& jobId,
+        std::unique_ptr<TUserJobWriteController> userJobWriteController,
+        IResourceControllerPtr resourceController)
+        : TJob(host)
+        , Logger(Host_->GetLogger())
+        , UserJobWriteController_(std::move(userJobWriteController))
+        , UserJobSpec_(userJobSpec)
+        , Config_(Host_->GetConfig())
+        , JobIOConfig_(Host_->GetJobSpecHelper()->GetJobIOConfig())
+        , ResourceController_(resourceController)
+        , JobErrorPromise_(NewPromise<void>())
+        , JobEnvironmentType_(ConvertTo<TJobEnvironmentConfigPtr>(Config_->JobEnvironment)->Type)
+        , PipeIOPool_(New<TThreadPool>(JobIOConfig_->PipeIOPoolSize, "PipeIO"))
+        , AuxQueue_(New<TActionQueue>("JobAux"))
+        , ReadStderrInvoker_(CreateSerializedInvoker(PipeIOPool_->GetInvoker()))
+        , JobSatelliteConnection_(
+            jobId,
+            host->GetConfig()->BusServer,
+            JobEnvironmentType_)
 {
     Synchronizer_ = New<TUserJobSynchronizer>();
     Host_->GetRpcServer()->RegisterService(CreateUserJobSynchronizerService(Logger, Synchronizer_, AuxQueue_->GetInvoker()));

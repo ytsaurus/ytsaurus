@@ -16,6 +16,18 @@ class TestReplicatedDynamicTables(TestDynamicTablesBase):
     NUM_REMOTE_CLUSTERS = 1
 
     DELTA_NODE_CONFIG = {
+        "cluster_connection": {
+            # Disable cache
+            "table_mount_cache": {
+                "expire_after_successful_update_time": 0,
+                "expire_after_failed_update_time": 0,
+                "expire_after_access_time": 0,
+                "refresh_time": 0
+            },
+            "timestamp_provider": {
+                "update_period": 500,
+            }
+        },
         "tablet_node": {
             "replicator_data_weight_throttling_granularity": 1
         }
