@@ -2131,15 +2131,17 @@ class TestSchedulerConfig(YTEnvSetup):
             "map_operation_options": {"spec_template": {"max_failed_job_count": 50}},
             "environment": {"OTHER_VAR": "20"},
         })
-        time.sleep(5.0)
 
         instances = ls("//sys/controller_agents/instances")
         for instance in instances:
-            environment = get("//sys/controller_agents/instances/{0}/orchid/controller_agent/config/environment".format(instance))
+            config_path = "//sys/controller_agents/instances/{0}/orchid/controller_agent/config".format(instance)
+            wait(lambda: get(config_path + "/environment/OTHER_VAR") == "20")
+
+            environment = get(config_path + "/environment")
             assert environment["TEST_VAR"] == "10"
             assert environment["OTHER_VAR"] == "20"
 
-            assert get("//sys/controller_agents/instances/{0}/orchid/controller_agent/config/map_operation_options/spec_template/max_failed_job_count".format(instance)) == 50
+            assert get(config_path + "/map_operation_options/spec_template/max_failed_job_count".format(instance)) == 50
 
         op = map(command="cat", in_=["//tmp/t_in"], out="//tmp/t_out")
         assert get("//sys/operations/{0}/@full_spec/data_weight_per_job".format(op.id)) == 2000
