@@ -324,6 +324,9 @@ class TestListJobs(YTEnvSetup):
 
         self.wait_for_cells(ls("//sys/tablet_cells"))
 
+        # Attempt to overcome error 'No healthy tablet cells in bundle "default"'
+        time.sleep(1)
+
         mount_table("//sys/operations_archive/jobs")
         wait(lambda: get("//sys/operations_archive/jobs/@tablet_state") == "mounted")
 
