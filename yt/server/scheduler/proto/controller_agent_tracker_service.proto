@@ -125,6 +125,7 @@ message TScheduleJobResponse
     optional bool interruptible = 4;
     repeated TFailedCounter failed = 5;
     required uint64 duration = 6;
+    required NYT.NProto.TGuid operation_id = 7;
 }
 
 message TEventQueueInbox

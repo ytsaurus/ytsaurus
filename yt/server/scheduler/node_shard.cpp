@@ -174,7 +174,7 @@ void TNodeShard::DoCleanup()
 
     ConcurrentHeartbeatCount_ = 0;
 
-    JobIdToAsyncScheduleResult_.clear();
+    AsyncScheduleJobResults_.clear();
 
     SubmitJobsToStrategy();
 }
@@ -216,6 +216,20 @@ void TNodeShard::StartOperationRevival(const TOperationId& operationId)
         UnregisterJob(job, /* enableLogging */ false);
         JobsToSubmitInStrategy_.erase(job->GetId());
     }
+
+    {
+        std::vector<TJobId> scheduleJobRequestsToAbort;
+        for (const auto& pair : AsyncScheduleJobResults_) {
+            if (pair.first.first == operationId) {
+                scheduleJobRequestsToAbort.push_back(pair.first.second);
+            }
+        }
+
+        for (const auto& jobId : scheduleJobRequestsToAbort) {
+            YCHECK(AsyncScheduleJobResults_.erase(std::make_pair(operationId, jobId)) == 1);
+        }
+    }
+
     YCHECK(operationState.Jobs.empty());
 }
 
@@ -968,12 +982,12 @@ int TNodeShard::GetTotalNodeCount()
     return TotalNodeCount_;
 }
 
-TFuture<TScheduleJobResultPtr> TNodeShard::BeginScheduleJob(const TJobId& jobId)
+TFuture<TScheduleJobResultPtr> TNodeShard::BeginScheduleJob(const TOperationId& operationId, const TJobId& jobId)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
 
     auto promise = NewPromise<TScheduleJobResultPtr>();
-    YCHECK(JobIdToAsyncScheduleResult_.emplace(jobId, promise).second);
+    YCHECK(AsyncScheduleJobResults_.emplace(std::make_pair(operationId, jobId), promise).second);
     return promise.ToFuture();
 }
 
@@ -984,7 +998,9 @@ void TNodeShard::EndScheduleJob(
     VERIFY_INVOKER_AFFINITY(GetInvoker());
 
     auto jobId = FromProto<TJobId>(response.job_id());
-    LOG_DEBUG("Job schedule response received (JobId: %v, Success: %v)",
+    auto operationId = FromProto<TOperationId>(response.operation_id());
+    LOG_DEBUG("Job schedule response received (OperationId: %v, JobId: %v, Success: %v)",
+        operationId,
         jobId,
         response.has_job_type());
 
@@ -1002,10 +1018,10 @@ void TNodeShard::EndScheduleJob(
     FromProto(&result->Duration, response.duration());
     result->IncarnationId = incarnationId;
 
-    auto it = JobIdToAsyncScheduleResult_.find(jobId);
-    YCHECK(it != JobIdToAsyncScheduleResult_.end());
+    auto it = AsyncScheduleJobResults_.find(std::make_pair(operationId, jobId));
+    YCHECK(it != AsyncScheduleJobResults_.end());
     it->second.Set(result);
-    JobIdToAsyncScheduleResult_.erase(it);
+    AsyncScheduleJobResults_.erase(it);
 }
 
 TExecNodePtr TNodeShard::GetOrRegisterNode(TNodeId nodeId, const TNodeDescriptor& descriptor)
