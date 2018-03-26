@@ -458,24 +458,24 @@ class YTEnvSetup(object):
     def set_node_banned(self, address, flag, driver=None):
         yt_commands.set("//sys/nodes/%s/@banned" % address, flag, driver=driver)
         ban, state = ("banned", "offline") if flag else ("unbanned", "online")
-        print "Waiting for node %s to become %s..." % (address, ban)
+        print >>sys.stderr, "Waiting for node %s to become %s..." % (address, ban)
         wait(lambda: yt_commands.get("//sys/nodes/%s/@state" % address, driver=driver) == state)
 
     def set_node_decommissioned(self, address, flag, driver=None):
         yt_commands.set("//sys/nodes/%s/@decommissioned" % address, flag, driver=driver)
-        print "Node %s is %s" % (address, "decommissioned" if flag else "not decommissioned")
+        print >>sys.stderr, "Node %s is %s" % (address, "decommissioned" if flag else "not decommissioned")
 
     def wait_for_nodes(self, driver=None):
-        print "Waiting for nodes to become online..."
+        print >>sys.stderr, "Waiting for nodes to become online..."
         wait(lambda: all(n.attributes["state"] == "online"
                          for n in yt_commands.ls("//sys/nodes", attributes=["state"], driver=driver)))
 
     def wait_for_chunk_replicator(self, driver=None):
-        print "Waiting for chunk replicator to become enabled..."
+        print >>sys.stderr, "Waiting for chunk replicator to become enabled..."
         wait(lambda: yt_commands.get("//sys/@chunk_replicator_enabled", driver=driver))
 
     def wait_for_cells(self, cell_ids=None, driver=None):
-        print "Waiting for tablet cells to become healthy..."
+        print >>sys.stderr, "Waiting for tablet cells to become healthy..."
         def get_cells():
             cells = yt_commands.ls("//sys/tablet_cells", attributes=["health", "id"], driver=driver)
             if cell_ids == None:
@@ -494,7 +494,7 @@ class YTEnvSetup(object):
         return cell_ids
 
     def wait_for_tablet_state(self, path, states, driver=None):
-        print "Waiting for tablets to become %s..." % ", ".join(str(state) for state in states)
+        print >>sys.stderr, "Waiting for tablets to become %s..." % ", ".join(str(state) for state in states)
         wait(lambda: all(any(x["state"] == state for state in states)
                         for x in yt_commands.get(path + "/@tablets", driver=driver)))
 
@@ -512,25 +512,25 @@ class YTEnvSetup(object):
     def sync_mount_table(self, path, freeze=False, **kwargs):
         yt_commands.mount_table(path, freeze=freeze, **kwargs)
 
-        print "Waiting for tablets to become mounted..."
+        print >>sys.stderr, "Waiting for tablets to become mounted..."
         self._wait_for_tablets(path, "frozen" if freeze else "mounted", **kwargs)
 
     def sync_unmount_table(self, path, **kwargs):
         yt_commands.unmount_table(path, **kwargs)
 
-        print "Waiting for tablets to become unmounted..."
+        print >>sys.stderr, "Waiting for tablets to become unmounted..."
         self._wait_for_tablets(path, "unmounted", **kwargs)
 
     def sync_freeze_table(self, path, **kwargs):
         yt_commands.freeze_table(path, **kwargs)
 
-        print "Waiting for tablets to become frozen..."
+        print >>sys.stderr, "Waiting for tablets to become frozen..."
         self._wait_for_tablets(path, "frozen", **kwargs)
 
     def sync_unfreeze_table(self, path, **kwargs):
         yt_commands.unfreeze_table(path, **kwargs)
 
-        print "Waiting for tablets to become mounted..."
+        print >>sys.stderr, "Waiting for tablets to become mounted..."
         self._wait_for_tablets(path, "mounted", **kwargs)
 
     def sync_flush_table(self, path, driver=None):
@@ -545,7 +545,7 @@ class YTEnvSetup(object):
                         yt_commands.get(path + "/@revision", driver=driver), driver=driver)
         yt_commands.remount_table(path, driver=driver)
 
-        print "Waiting for tablets to become compacted..."
+        print >>sys.stderr, "Waiting for tablets to become compacted..."
         wait(lambda: len(chunk_ids.intersection(__builtin__.set(yt_commands.get(path + "/@chunk_ids", driver=driver)))) == 0)
 
     def _abort_transactions(self, driver=None):
@@ -566,13 +566,13 @@ class YTEnvSetup(object):
     def sync_enable_table_replica(self, replica_id, driver=None):
         yt_commands.alter_table_replica(replica_id, enabled=True, driver=driver)
 
-        print "Waiting for replica to become enabled..."
+        print >>sys.stderr, "Waiting for replica to become enabled..."
         wait(lambda: yt_commands.get("#{0}/@state".format(replica_id), driver=driver) == "enabled")
 
     def sync_disable_table_replica(self, replica_id, driver=None):
         yt_commands.alter_table_replica(replica_id, enabled=False, driver=driver)
 
-        print "Waiting for replica to become disabled..."
+        print >>sys.stderr, "Waiting for replica to become disabled..."
         wait(lambda: yt_commands.get("#{0}/@state".format(replica_id), driver=driver) == "disabled")
 
     def _reset_nodes(self, driver=None):
