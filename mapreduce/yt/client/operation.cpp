@@ -58,6 +58,12 @@ namespace NDetail {
 
 namespace {
 
+////////////////////////////////////////////////////////////////////////////////
+
+constexpr bool USE_GET_OPERATION = true;
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TSmallJobFile
 {
     TString FileName;
@@ -602,6 +608,65 @@ private:
     }
 };
 
+////////////////////////////////////////////////////////////////////
+
+struct TOperationAttributes
+{
+    EOperationStatus Status = OS_IN_PROGRESS;
+    TMaybe<TYtError> Error;
+    TMaybe<TJobStatistics> JobStatistics;
+    TMaybe<TOperationBriefProgress> BriefProgress;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+TOperationAttributes ParseOperationInfo(const TNode& node)
+{
+    TOperationAttributes result;
+
+    const auto& state = node["state"].AsString();
+    // We don't use FromString here, because OS_IN_PROGRESS unites many states: "initializing", "running", etc.
+    if (state == "completed") {
+        result.Status = OS_COMPLETED;
+    } else if (state == "aborted") {
+        result.Status = OS_ABORTED;
+    } else if (state == "failed") {
+        result.Status = OS_FAILED;
+    }
+    if (result.Status == OS_ABORTED || result.Status == OS_FAILED) {
+        result.Error = TYtError(node["result"]["error"]);
+    }
+
+    if (node.HasKey("progress")) {
+        const auto& jobStatisticsNode = node["progress"]["job_statistics"];
+        if (jobStatisticsNode.IsUndefined()) {
+            result.JobStatistics.ConstructInPlace();
+        } else {
+            result.JobStatistics.ConstructInPlace(jobStatisticsNode);
+        }
+    }
+
+    if (node.HasKey("brief_progress") && node["brief_progress"].HasKey("jobs")) {
+        const auto& jobs = node["brief_progress"]["jobs"];
+        result.BriefProgress.ConstructInPlace();
+        auto load = [] (const TNode& item) {
+            // Backward compatibility with old YT versions
+            return item.IsInt64()
+                ? item.AsInt64()
+                : item["total"].AsInt64();
+        };
+        result.BriefProgress->Aborted = load(jobs["aborted"]);
+        result.BriefProgress->Completed = load(jobs["completed"]);
+        result.BriefProgress->Running = jobs["running"].AsInt64();
+        result.BriefProgress->Total = jobs["total"].AsInt64();
+        result.BriefProgress->Failed = jobs["failed"].AsInt64();
+        result.BriefProgress->Lost = jobs["lost"].AsInt64();
+        result.BriefProgress->Pending = jobs["pending"].AsInt64();
+    }
+
+    return result;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TVector<TFailedJobInfo> GetFailedJobInfo(
@@ -612,57 +677,77 @@ TVector<TFailedJobInfo> GetFailedJobInfo(
     const size_t maxJobCount = options.MaxJobCount_;
     const i64 stderrTailSize = options.StderrTailSize_;
 
-    const auto operationPath = "//sys/operations/" + GetGuidAsString(operationId);
-    const auto jobsPath = operationPath + "/jobs";
+    if (USE_GET_OPERATION) {
+        const auto jobList = ListJobs(auth, operationId, TListJobsOptions()
+            .JobState(EJobState::Failed)
+            .Limit(maxJobCount))["jobs"].AsList();
+        TVector<TFailedJobInfo> result;
+        for (const auto& jobNode : jobList) {
+            const auto& jobMap = jobNode.AsMap();
+            TFailedJobInfo info;
+            info.JobId = GetGuid(jobMap.at("id").AsString());
+            auto errorIt = jobMap.find("error");
+            info.Error = TYtError(errorIt == jobMap.end() ? "" : errorIt->second["message"].AsString());
+            info.Stderr = GetJobStderr(auth, operationId, info.JobId);
+            if (info.Stderr.Size() > static_cast<size_t>(stderrTailSize)) {
+                info.Stderr = TString(info.Stderr.Data() + info.Stderr.Size() - stderrTailSize, stderrTailSize);
+            }
+            result.push_back(std::move(info));
+        }
+        return result;
+    } else {
+        const auto operationPath = "//sys/operations/" + GetGuidAsString(operationId);
+        const auto jobsPath = operationPath + "/jobs";
 
-    if (!Exists(auth, TTransactionId(), jobsPath)) {
-        return {};
+        if (!Exists(auth, TTransactionId(), jobsPath)) {
+            return {};
+        }
+
+        auto jobList = List(auth, TTransactionId(), jobsPath, TListOptions().AttributeFilter(
+            TAttributeFilter()
+                .AddAttribute("state")
+                .AddAttribute("error")));
+
+        TVector<TFailedJobInfo> result;
+        for (const auto& job : jobList) {
+            if (result.size() >= maxJobCount) {
+                break;
+            }
+
+            const auto& jobId = job.AsString();
+            auto jobPath = jobsPath + "/" + jobId;
+            auto& attributes = job.GetAttributes().AsMap();
+
+            const auto stateIt = attributes.find("state");
+            if (stateIt == attributes.end() || stateIt->second.AsString() != "failed") {
+                continue;
+            }
+            result.push_back(TFailedJobInfo());
+            auto& cur = result.back();
+            cur.JobId = GetGuid(job.AsString());
+
+            auto errorIt = attributes.find("error");
+            if (errorIt != attributes.end()) {
+                cur.Error = TYtError(errorIt->second);
+            }
+
+            auto stderrPath = jobPath + "/stderr";
+            if (!Exists(auth, TTransactionId(), stderrPath)) {
+                continue;
+            }
+
+            TRichYPath path(stderrPath);
+            i64 stderrSize = Get(auth, TTransactionId(), stderrPath + "/@uncompressed_data_size").AsInt64();
+            if (stderrSize > stderrTailSize) {
+                path.AddRange(
+                    TReadRange().LowerLimit(
+                        TReadLimit().Offset(stderrSize - stderrTailSize)));
+            }
+            IFileReaderPtr reader = new TFileReader(path, auth, TTransactionId());
+            cur.Stderr = reader->ReadAll();
+        }
+        return result;
     }
-
-    auto jobList = List(auth, TTransactionId(), jobsPath, TListOptions().AttributeFilter(
-        TAttributeFilter()
-            .AddAttribute("state")
-            .AddAttribute("error")));
-
-    TVector<TFailedJobInfo> result;
-    for (const auto& job : jobList) {
-        if (result.size() >= maxJobCount) {
-            break;
-        }
-
-        const auto& jobId = job.AsString();
-        auto jobPath = jobsPath + "/" + jobId;
-        auto& attributes = job.GetAttributes().AsMap();
-
-        const auto stateIt = attributes.find("state");
-        if (stateIt == attributes.end() || stateIt->second.AsString() != "failed") {
-            continue;
-        }
-        result.push_back(TFailedJobInfo());
-        auto& cur = result.back();
-        cur.JobId = GetGuid(job.AsString());
-
-        auto errorIt = attributes.find("error");
-        if (errorIt != attributes.end()) {
-            cur.Error = TYtError(errorIt->second);
-        }
-
-        auto stderrPath = jobPath + "/stderr";
-        if (!Exists(auth, TTransactionId(), stderrPath)) {
-            continue;
-        }
-
-        TRichYPath path(stderrPath);
-        i64 stderrSize = Get(auth, TTransactionId(), stderrPath + "/@uncompressed_data_size").AsInt64();
-        if (stderrSize > stderrTailSize) {
-            path.AddRange(
-                TReadRange().LowerLimit(
-                    TReadLimit().Offset(stderrSize - stderrTailSize)));
-        }
-        IFileReaderPtr reader = new TFileReader(path, auth, TTransactionId());
-        cur.Stderr = reader->ReadAll();
-    }
-    return result;
 }
 
 void DumpJobInfoForException(
@@ -774,45 +859,74 @@ EOperationStatus CheckOperation(
     const TAuth& auth,
     const TOperationId& operationId)
 {
-    auto opIdStr = GetGuidAsString(operationId);
-    auto opPath = Sprintf("//sys/operations/%s", ~opIdStr);
-    auto statePath = opPath + "/@state";
+    if (USE_GET_OPERATION) {
+        const auto opInfo = GetOperation(auth, operationId,
+            TGetOperationOptions().AttributeFilter(
+                TOperationAttributeFilter()
+                .AddAttribute(OA_STATE)
+                .AddAttribute(OA_RESULT)));
+        auto attributes = ParseOperationInfo(opInfo);
+        if (attributes.Status == OS_COMPLETED) {
+            return OS_COMPLETED;
+        } else if (attributes.Status == OS_ABORTED || attributes.Status == OS_FAILED) {
+            LOG_ERROR("Operation %s %s (%s)",
+                ~GetGuidAsString(operationId),
+                ~::ToString(attributes.Status),
+                ~ToString(TOperationExecutionTimeTracker::Get()->Finish(operationId)));
 
-    if (!Exists(auth, TTransactionId(), opPath)) {
-        ythrow yexception() << "Operation " << opIdStr << " does not exist";
-    }
+            TStringStream jobErrors;
+            auto failedJobInfoList = GetFailedJobInfo(auth, operationId, TGetFailedJobInfoOptions());
+            DumpJobInfoForException(jobErrors, failedJobInfoList);
 
-    TString state = Get(auth, TTransactionId(), statePath).AsString();
+            ythrow TOperationFailedError(
+                attributes.Status == OS_ABORTED ?
+                    TOperationFailedError::Aborted :
+                    TOperationFailedError::Failed,
+                operationId,
+                *attributes.Error) << jobErrors.Str();
+        }
+        return OS_IN_PROGRESS;
+    } else {
+        auto opIdStr = GetGuidAsString(operationId);
+        auto opPath = Sprintf("//sys/operations/%s", ~opIdStr);
+        auto statePath = opPath + "/@state";
 
-    if (state == "completed") {
-        return OS_COMPLETED;
-
-    } else if (state == "aborted" || state == "failed") {
-        LOG_ERROR("Operation %s %s (%s)",
-            ~opIdStr,
-            ~state,
-            ~ToString(TOperationExecutionTimeTracker::Get()->Finish(operationId)));
-
-        auto errorPath = opPath + "/@result/error";
-        TYtError ytError(TString("unknown operation error"));
-        if (Exists(auth, TTransactionId(), errorPath)) {
-            ytError = TYtError(Get(auth, TTransactionId(), errorPath));
+        if (!Exists(auth, TTransactionId(), opPath)) {
+            ythrow yexception() << "Operation " << opIdStr << " does not exist";
         }
 
-        TStringStream jobErrors;
+        TString state = Get(auth, TTransactionId(), statePath).AsString();
 
-        auto failedJobInfoList = GetFailedJobInfo(auth, operationId, TGetFailedJobInfoOptions());
-        DumpJobInfoForException(jobErrors, failedJobInfoList);
+        if (state == "completed") {
+            return OS_COMPLETED;
 
-        ythrow TOperationFailedError(
-            state == "aborted" ?
-                TOperationFailedError::Aborted :
-                TOperationFailedError::Failed,
-            operationId,
-            ytError) << jobErrors.Str();
+        } else if (state == "aborted" || state == "failed") {
+            LOG_ERROR("Operation %s %s (%s)",
+                ~opIdStr,
+                ~state,
+                ~ToString(TOperationExecutionTimeTracker::Get()->Finish(operationId)));
+
+            auto errorPath = opPath + "/@result/error";
+            TYtError ytError(TString("unknown operation error"));
+            if (Exists(auth, TTransactionId(), errorPath)) {
+                ytError = TYtError(Get(auth, TTransactionId(), errorPath));
+            }
+
+            TStringStream jobErrors;
+
+            auto failedJobInfoList = GetFailedJobInfo(auth, operationId, TGetFailedJobInfoOptions());
+            DumpJobInfoForException(jobErrors, failedJobInfoList);
+
+            ythrow TOperationFailedError(
+                state == "aborted" ?
+                    TOperationFailedError::Aborted :
+                    TOperationFailedError::Failed,
+                operationId,
+                ytError) << jobErrors.Str();
+        }
+
+        return OS_IN_PROGRESS;
     }
-
-    return OS_IN_PROGRESS;
 }
 
 void WaitForOperation(
@@ -1781,60 +1895,6 @@ TOperationId ExecuteErase(
     return operationId;
 }
 
-////////////////////////////////////////////////////////////////////
-
-struct TOperationAttributes
-{
-    EOperationStatus Status = OS_IN_PROGRESS;
-    TMaybe<TYtError> Error;
-    TMaybe<TJobStatistics> JobStatistics;
-    TMaybe<TOperationBriefProgress> BriefProgress;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-TOperationAttributes ParseAttributes(const TNode& node)
-{
-    TOperationAttributes result;
-
-    const auto& state = node["state"].AsString();
-    if (state == "completed") {
-        result.Status = OS_COMPLETED;
-    } else if (state == "aborted") {
-        result.Status = OS_ABORTED;
-        result.Error = TYtError(node["result"]["error"]);
-    } else if (state == "failed") {
-        result.Status = OS_FAILED;
-        result.Error = TYtError(node["result"]["error"]);
-    }
-    if (node.HasKey("progress")) {
-        const auto& jobStatisticsNode = node["progress"]["job_statistics"];
-        if (jobStatisticsNode.IsUndefined()) {
-            result.JobStatistics.ConstructInPlace();
-        } else {
-            result.JobStatistics.ConstructInPlace(jobStatisticsNode);
-        }
-    }
-    if (node.HasKey("brief_progress") && node["brief_progress"].HasKey("jobs")) {
-        const auto& jobs = node["brief_progress"]["jobs"];
-        result.BriefProgress.ConstructInPlace();
-        auto load = [] (const TNode& item) {
-            // Backward compatibility with old YT versions
-            return item.IsInt64()
-                ? item.AsInt64()
-                : item["total"].AsInt64();
-        };
-        result.BriefProgress->Aborted = load(jobs["aborted"]);
-        result.BriefProgress->Completed = load(jobs["completed"]);
-        result.BriefProgress->Running = jobs["running"].AsInt64();
-        result.BriefProgress->Total = jobs["total"].AsInt64();
-        result.BriefProgress->Failed = jobs["failed"].AsInt64();
-        result.BriefProgress->Lost = jobs["lost"].AsInt64();
-        result.BriefProgress->Pending = jobs["pending"].AsInt64();
-    }
-    return result;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 class TOperation::TOperationImpl
@@ -1887,20 +1947,31 @@ public:
 
     virtual void PrepareRequest(TRawBatchRequest* batchRequest) override
     {
-        // NOTE: we don't request progress/job_statistics here, because it is huge.
-        OperationState_ = batchRequest->Get(TTransactionId(), OperationAttrPath_,
-            TGetOptions().AttributeFilter(
-                TAttributeFilter()
-                .AddAttribute("result")
-                .AddAttribute("state")
-                .AddAttribute("brief_progress")));
+        if (USE_GET_OPERATION) {
+            OperationState_ = batchRequest->GetOperation(
+                OperationImpl_->GetId(),
+                TGetOperationOptions().AttributeFilter(
+                    TOperationAttributeFilter()
+                    .AddAttribute(OA_RESULT)
+                    .AddAttribute(OA_STATE)
+                    .AddAttribute(OA_BRIEF_PROGRESS)));
+        } else {
+            // NOTE: we don't request progress/job_statistics here, because it is huge.
+            OperationState_ = batchRequest->Get(TTransactionId(), OperationAttrPath_,
+                TGetOptions().AttributeFilter(
+                    TAttributeFilter()
+                    .AddAttribute("result")
+                    .AddAttribute("state")
+                    .AddAttribute("brief_progress")));
+        }
     }
 
     virtual EStatus OnRequestExecuted() override
     {
         try {
             const auto& info = OperationState_.GetValue();
-            auto attributes = ParseAttributes(info);
+            TOperationAttributes attributes;
+            attributes = ParseOperationInfo(info);
             if (attributes.Status != OS_IN_PROGRESS) {
                 OperationImpl_->AsyncFinishOperation(attributes);
                 return PollBreak;
@@ -1924,6 +1995,7 @@ private:
     ::TIntrusivePtr<TOperation::TOperationImpl> OperationImpl_;
     NThreading::TFuture<TNode> OperationState_;
 };
+
 ////////////////////////////////////////////////////////////////////////////////
 
 const TOperationId& TOperation::TOperationImpl::GetId() const
@@ -1974,7 +2046,9 @@ TJobStatistics TOperation::TOperationImpl::GetJobStatistics()
 {
     TJobStatistics result;
     UpdateAttributesAndCall(true, [&] (const TOperationAttributes& attributes) {
-        result = std::move(*attributes.JobStatistics);
+        if (attributes.JobStatistics) {
+            result = *attributes.JobStatistics;
+        }
     });
     return result;
 }
@@ -2013,14 +2087,27 @@ void TOperation::TOperationImpl::UpdateAttributesAndCall(bool needJobStatistics,
         }
     }
 
-    auto node = NYT::NDetail::Get(Auth_, TTransactionId(), "//sys/operations/" + GetGuidAsString(Id_) + "/@",
-        TGetOptions().AttributeFilter(
-            TAttributeFilter()
-            .AddAttribute("result")
-            .AddAttribute("progress")
-            .AddAttribute("state")
-            .AddAttribute("brief_progress")));
-    auto attributes = ParseAttributes(node);
+    TOperationAttributes attributes;
+    if (USE_GET_OPERATION) {
+        const auto info = NDetail::GetOperation(Auth_, Id_,
+            TGetOperationOptions().AttributeFilter(
+                TOperationAttributeFilter()
+                .AddAttribute(OA_RESULT)
+                .AddAttribute(OA_PROGRESS)
+                .AddAttribute(OA_STATE)
+                .AddAttribute(OA_BRIEF_PROGRESS)));
+        attributes = ParseOperationInfo(info);
+    } else {
+        auto node = NYT::NDetail::Get(Auth_, TTransactionId(), "//sys/operations/" + GetGuidAsString(Id_) + "/@",
+            TGetOptions().AttributeFilter(
+                TAttributeFilter()
+                .AddAttribute("result")
+                .AddAttribute("progress")
+                .AddAttribute("state")
+                .AddAttribute("brief_progress")));
+        attributes = ParseOperationInfo(node);
+    }
+
     func(attributes);
 
     if (attributes.Status != OS_IN_PROGRESS) {

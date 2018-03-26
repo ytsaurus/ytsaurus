@@ -417,4 +417,117 @@ struct TAlterTableReplicaOptions
     FLUENT_FIELD_OPTION(ETableReplicaMode, Mode);
 };
 
+namespace NDetail {
+
+////////////////////////////////////////////////////////////////////////////////
+
+enum EOperationAttribute : int
+{
+    OA_RESULT          /* "result" */,
+    OA_PROGRESS        /* "progress" */,
+    OA_STATE           /* "state" */,
+    OA_BRIEF_PROGRESS  /* "brief_progress" */
+};
+
+struct TOperationAttributeFilter
+{
+    using TSelf = TOperationAttributeFilter;
+
+    FLUENT_VECTOR_FIELD(EOperationAttribute, Attribute);
+};
+
+struct TGetOperationOptions
+{
+    using TSelf = TGetOperationOptions;
+
+    FLUENT_FIELD_OPTION(TOperationAttributeFilter, AttributeFilter);
+};
+
+enum class EJobType : int
+{
+    SchedulerFirst    /* "scheduler_first" */,
+    Map               /* "map" */,
+    PartitionMap      /* "partition_map" */,
+    SortedMerge       /* "sorted_merge" */,
+    OrderedMerge      /* "ordered_merge" */,
+    UnorderedMerge    /* "unordered_merge" */,
+    Partition         /* "partition" */,
+    SimpleSort        /* "simple_sort" */,
+    FinalSort         /* "final_sort" */,
+    SortedReduce      /* "sorted_reduce" */,
+    PartitionReduce   /* "partition_reduce" */,
+    ReduceCombiner    /* "reduce_combiner" */,
+    RemoteCopy        /* "remote_copy" */,
+    IntermediateSort  /* "intermediate_sort" */,
+    OrderedMap        /* "ordered_map" */,
+    JoinReduce        /* "join_reduce" */,
+    Vanilla           /* "vanilla" */,
+    SchedulerUnknown  /* "scheduler_unknown" */,
+    SchedulerLast     /* "scheduler_last" */,
+    ReplicatorFirst   /* "replicator_first" */,
+    ReplicateChunk    /* "replicate_chunk" */,
+    RemoveChunk       /* "remove_chunk" */,
+    RepairChunk       /* "repair_chunk" */,
+    SealChunk         /* "seal_chunk" */,
+    ReplicatorLast    /* "replicator_last" */,
+};
+
+enum class EJobState : int
+{
+    None       /* "none" */,
+    Waiting    /* "waiting" */,
+    Running    /* "running" */,
+    Aborting   /* "aborting" */,
+    Completed  /* "completed" */,
+    Failed     /* "failed" */,
+    Aborted    /* "aborted" */,
+    Lost       /* "lost" */,
+};
+
+enum class EJobSortField : int
+{
+    None       /* "none" */,
+    Type       /* "type" */,
+    State      /* "state" */,
+    StartTime  /* "start_time" */,
+    FinishTime /* "finish_time" */,
+    Address    /* "address" */,
+    Duration   /* "duration" */,
+    Progress   /* "progress" */,
+    Id         /* "id" */,
+};
+
+enum class EJobSortDirection : int
+{
+    Ascending /* "ascending" */,
+    Descending /* "descending" */,
+};
+
+struct TListJobsOptions
+{
+    using TSelf = TListJobsOptions;
+
+    // Choose only jobs with given value of parameter (type, state, address and existence of stderr).
+    // If a field is Nothing, choose jobs with all possible values of the corresponding parameter.
+    FLUENT_FIELD_OPTION(EJobType, JobType);
+    FLUENT_FIELD_OPTION(EJobState, JobState);
+    FLUENT_FIELD_OPTION(TString, Address);
+    FLUENT_FIELD_OPTION(bool, WithStderr);
+
+    FLUENT_FIELD_OPTION(EJobSortField, SortField);
+    FLUENT_FIELD_OPTION(EJobSortDirection, SortDirection);
+
+    // Skip `Offset' first jobs and return not more than `Limit' of remaining.
+    FLUENT_FIELD_OPTION(i64, Limit);
+    FLUENT_FIELD_OPTION(i64, Offset);
+};
+
+struct TGetJobStderrOptions
+{
+    using TSelf = TGetJobStderrOptions;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NDetail
 } // namespace NYT

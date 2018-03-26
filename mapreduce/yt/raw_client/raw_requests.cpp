@@ -160,5 +160,37 @@ TLockId Lock(
     return ParseGuidFromResponse(RetryRequest(auth, header));
 }
 
+TNode GetOperation(
+    const TAuth& auth,
+    const TOperationId& operationId,
+    const TGetOperationOptions& options)
+{
+    THttpHeader header("GET", "get_operation");
+    header.MergeParameters(NDetail::SerializeParamsForGetOperation(operationId, options));
+    return NodeFromYsonString(RetryRequest(auth, header));
+}
+
+TNode ListJobs(
+    const TAuth& auth,
+    const TOperationId& operationId,
+    const TListJobsOptions& options)
+{
+    THttpHeader header("GET", "list_jobs");
+    header.MergeParameters(NDetail::SerializeParamsForListJobs(operationId, options));
+    return NodeFromYsonString(RetryRequest(auth, header));
+}
+
+TString GetJobStderr(
+    const TAuth& auth,
+    const TOperationId& operationId,
+    const TJobId& jobId,
+    const TGetJobStderrOptions& /* options */)
+{
+    THttpHeader header("GET", "get_job_stderr");
+    header.AddOperationId(operationId);
+    header.AddParameter("job_id", GetGuidAsString(jobId));
+    return RetryRequest(auth, header);
+}
+
 } // namespace NDetail
 } // namespace NYT

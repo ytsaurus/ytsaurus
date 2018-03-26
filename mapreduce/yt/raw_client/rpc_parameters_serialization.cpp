@@ -38,6 +38,15 @@ static TNode SerializeAttributeFilter(const TAttributeFilter& attributeFilter)
     return result;
 }
 
+static TNode SerializeAttributeFilter(const TOperationAttributeFilter& attributeFilter)
+{
+    TNode result;
+    for (const auto& attribute : attributeFilter.Attributes_) {
+        result.Add(::ToString(attribute));
+    }
+    return result;
+}
+
 ////////////////////////////////////////////////////////////////////
 
 TNode SerializeParamsForCreate(
@@ -201,6 +210,52 @@ TNode SerializeParamsForLock(
     }
     if (options.ChildKey_) {
         result["child_key"] = *options.ChildKey_;
+    }
+    return result;
+}
+
+TNode SerializeParamsForGetOperation(
+    const TOperationId& operationId,
+    const TGetOperationOptions& options)
+{
+    TNode result;
+    result["operation_id"] = GetGuidAsString(operationId);
+    if (options.AttributeFilter_) {
+        result["attributes"] = SerializeAttributeFilter(*options.AttributeFilter_);
+    }
+
+    return result;
+}
+
+TNode SerializeParamsForListJobs(
+    const TOperationId& operationId,
+    const TListJobsOptions& options)
+{
+    TNode result;
+    result["operation_id"] = GetGuidAsString(operationId);
+    if (options.JobType_) {
+        result["job_type"] = ::ToString(*options.JobType_);
+    }
+    if (options.JobState_) {
+        result["job_state"] = ::ToString(*options.JobState_);
+    }
+    if (options.Address_) {
+        result["address"] = *options.Address_;
+    }
+    if (options.WithStderr_) {
+        result["with_stderr"] = *options.WithStderr_;
+    }
+    if (options.SortField_) {
+        result["sort_field"] = ::ToString(*options.SortField_);
+    }
+    if (options.SortDirection_) {
+        result["sort_order"] = ::ToString(*options.SortDirection_);
+    }
+    if (options.Offset_) {
+        result["offset"] = *options.Offset_;
+    }
+    if (options.Limit_) {
+        result["limit"] = *options.Limit_;
     }
     return result;
 }

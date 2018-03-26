@@ -453,8 +453,8 @@ SIMPLE_UNIT_TEST_SUITE(Operations)
         }
 
         auto getJobCount = [=] (const TOperationId& operationId) {
-            TYPath operationPath = "//sys/operations/" + GetGuidAsString(operationId) + "/@brief_progress/jobs/completed";
-            return client->Get(operationPath).AsMap()["total"].AsInt64();
+            auto result = client->Get("//sys/operations/" + GetGuidAsString(operationId) + "/@brief_progress/jobs/completed");
+            return (result.IsInt64() ? result : result["total"]).AsInt64();
         };
 
         std::function<TOperationId(ui32,ui64)> runOperationFunctionList[] = {
@@ -906,7 +906,7 @@ SIMPLE_UNIT_TEST_SUITE(Operations)
         auto client = CreateTestClient();
 
         size_t maxOperationCount = 1;
-        client->Create("//sys/pools/research/testing", NT_MAP, TCreateOptions().IgnoreExisting(true));
+        client->Create("//sys/pools/research/testing", NT_MAP, TCreateOptions().IgnoreExisting(true).Recursive(true));
         client->Set("//sys/pools/research/testing/@max_operation_count", maxOperationCount);
 
         CreateTableWithFooColumn(client, "//testing/input");

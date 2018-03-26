@@ -82,6 +82,22 @@ TLockId Lock(
     ELockMode mode,
     const TLockOptions& options = TLockOptions());
 
+TNode GetOperation(
+    const TAuth& auth,
+    const TOperationId& operationId,
+    const TGetOperationOptions& options = TGetOperationOptions());
+
+TNode ListJobs(
+    const TAuth& auth,
+    const TOperationId& operationId,
+    const TListJobsOptions& options = TListJobsOptions());
+
+TString GetJobStderr(
+    const TAuth& auth,
+    const TOperationId& operationId,
+    const TJobId& jobId,
+    const TGetJobStderrOptions& options = TGetJobStderrOptions());
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NDetail
