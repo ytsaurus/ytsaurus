@@ -93,7 +93,7 @@ private:
             .SetPresent(isGood));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::TabletSlots)
             .SetPresent(isGood));
-        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::IoWeights)
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::IOWeights)
             .SetPresent(isGood));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ResourceUsage)
             .SetPresent(isGood));
@@ -323,7 +323,7 @@ private:
                     });
                 return true;
 
-            case EInternedAttributeKey::IoWeights: {
+            case EInternedAttributeKey::IOWeights: {
                 if (!isGood) {
                     break;
                 }
