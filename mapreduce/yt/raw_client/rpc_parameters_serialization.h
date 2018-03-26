@@ -1,6 +1,7 @@
 #pragma once
 
 #include <mapreduce/yt/interface/fwd.h>
+#include <mapreduce/yt/interface/client_method_options.h>
 
 namespace NYT {
 namespace NDetail {
@@ -60,6 +61,14 @@ TNode SerializeParamsForLock(
     const TYPath& path,
     ELockMode mode,
     const TLockOptions& options);
+
+TNode SerializeParamsForGetOperation(
+    const TOperationId& operationId,
+    const TGetOperationOptions& options);
+
+TNode SerializeParamsForListJobs(
+    const TOperationId& operationId,
+    const TListJobsOptions& options);
 
 TNode SerializeParametersForInsertRows(
     const TYPath& path,

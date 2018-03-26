@@ -104,6 +104,9 @@ public:
         const TTransactionId& transaction,
         const TYPath& path,
         ELockMode mode, const TLockOptions& options);
+    NThreading::TFuture<TNode> GetOperation(
+        const TOperationId& operationId,
+        const TGetOperationOptions& options);
     NThreading::TFuture<TRichYPath> CanonizeYPath(const TRichYPath& path);
 
 private:

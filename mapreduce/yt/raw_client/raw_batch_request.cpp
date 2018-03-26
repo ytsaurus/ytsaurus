@@ -369,6 +369,17 @@ TFuture<TLockId> TRawBatchRequest::Lock(
         Nothing());
 }
 
+TFuture<TNode> TRawBatchRequest::GetOperation(
+    const TOperationId& operationId,
+    const TGetOperationOptions& options)
+{
+    return AddRequest<TGetResponseParser>(
+        "get_operation",
+        SerializeParamsForGetOperation(operationId, options),
+        Nothing());
+}
+
+
 TFuture<TRichYPath> TRawBatchRequest::CanonizeYPath(const TRichYPath& path)
 {
     if (path.Path_.find_first_of("<>{}[]") != TString::npos) {

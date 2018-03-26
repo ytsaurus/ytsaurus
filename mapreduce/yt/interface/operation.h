@@ -634,10 +634,10 @@ public:
 
 enum EOperationStatus : int
 {
-    OS_IN_PROGRESS,
-    OS_COMPLETED,
-    OS_ABORTED,
-    OS_FAILED,
+    OS_IN_PROGRESS   /* "in_progress" */,
+    OS_COMPLETED     /* "completed" */,
+    OS_ABORTED       /* "aborted" */,
+    OS_FAILED        /* "failed" */
 };
 
 ////////////////////////////////////////////////////////////////////
