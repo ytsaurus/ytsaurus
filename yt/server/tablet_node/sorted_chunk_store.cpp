@@ -367,6 +367,7 @@ void TSortedChunkStore::ValidateBlockSize(
         auto miscExt = FindProtoExtension<TMiscExt>(chunkState->ChunkSpec.chunk_meta().extensions());
         if (miscExt && miscExt->max_block_size() > Tablet_->GetConfig()->MaxUnversionedBlockSize) {
             THROW_ERROR_EXCEPTION("Maximum block size limit violated")
+                << TErrorAttribute("tablet_id", TabletId_)
                 << TErrorAttribute("chunk_id", GetId())
                 << TErrorAttribute("block_size", miscExt->max_block_size())
                 << TErrorAttribute("block_size_limit", Tablet_->GetConfig()->MaxUnversionedBlockSize);
