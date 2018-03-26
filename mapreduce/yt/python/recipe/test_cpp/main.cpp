@@ -10,7 +10,6 @@ SIMPLE_UNIT_TEST_SUITE(Suite)
         TString port;
         f.ReadLine(port);
 
-        NYT::Initialize(0, nullptr);
         auto client = NYT::CreateClient("localhost:" + port);
 
         UNIT_ASSERT(!client->Exists("//tmp/table"));
