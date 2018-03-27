@@ -1,3 +1,5 @@
+import random
+
 import pytest
 
 from yt_env_setup import YTEnvSetup, require_ytserver_root_privileges, wait
@@ -772,10 +774,12 @@ class TestSchedulerPreemption(YTEnvSetup):
         create("table", "//tmp/t_in")
         write_table(
             "//tmp/t_in",
-            [{"key": "%08d" % i, "value": "(foo)", "data": "a" * (2 * 1024 * 1024)} for i in range(6)],
+            [{"key": "%08d" % i, "value": "(foo)", "data": str(random.randint(0, 10**10000))} for i in range(6)],
             table_writer={
                 "block_size": 1024,
                 "desired_chunk_size": 1024})
+
+        assert get("//tmp/t_in/@chunk_count") == 6
 
         create("table", "//tmp/t_out1")
         create("table", "//tmp/t_out2")
