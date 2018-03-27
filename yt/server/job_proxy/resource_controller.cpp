@@ -84,7 +84,7 @@ public:
                 memoryStatistics.Rss += memoryUsage.Rss - memoryUsage.Shared;
                 memoryStatistics.MappedFile += memoryUsage.Shared;
 
-                LOG_DEBUG("Pid: %v, ProcessName: %Qv, Rss: %v, Shared: %v",
+                LOG_DEBUG("Memory statistics collected (Pid: %v, ProcessName: %v, Rss: %v, Shared: %v)",
                     pid,
                     GetProcessName(pid),
                     memoryStatistics.Rss,
