@@ -42,15 +42,18 @@ private:
         auto parentId = FromProto<TTransactionId>(request->parent_id());
         auto timeout = FromProto<TDuration>(request->timeout());
         auto title = request->has_title() ? MakeNullable(request->title()) : Null;
+        auto prerequisiteTransactionIds = FromProto<std::vector<TTransactionId>>(request->prerequisite_transaction_ids());
 
-        context->SetRequestInfo("ParentId: %v, Timeout: %v, Title: %v",
+        context->SetRequestInfo("ParentId: %v, PrerequisiteTransactionIds: %v, Timeout: %v, Title: %v",
             parentId,
+            prerequisiteTransactionIds,
             timeout,
             title);
 
         NTransactionServer::NProto::TReqStartTransaction hydraRequest;
         hydraRequest.mutable_attributes()->Swap(request->mutable_attributes());
         hydraRequest.mutable_parent_id()->Swap(request->mutable_parent_id());
+        hydraRequest.mutable_prerequisite_transaction_ids()->Swap(request->mutable_prerequisite_transaction_ids());
         hydraRequest.set_timeout(request->timeout());
         hydraRequest.set_user_name(context->GetUser());
         if (title) {

@@ -674,13 +674,15 @@ class TestSchedulerRevive(YTEnvSetup):
             "orphaned"
         ]
         if stage <= "stage5":
-            correct_events = events_prefix + ["waiting_for_agent", "reviving", "pending", "reviving_jobs", "running", "completing", "completed"]
+            expected_events = events_prefix + ["waiting_for_agent", "reviving", "pending", "reviving_jobs", "running", "completing", "completed"]
         else:
-            correct_events = events_prefix + ["completed"]
+            expected_events = events_prefix + ["completed"]
 
-        print >>sys.stderr, "AAA", correct_events
-        print >>sys.stderr, "BBB", [event["state"] for event in events]
-        assert correct_events == [event["state"] for event in events]
+        actual_events = [event["state"] for event in events]
+
+        print >>sys.stderr, "Expected: ", expected_events
+        print >>sys.stderr, "Actual:   ", actual_events
+        assert expected_events == actual_events
 
         assert "completed" == get("//sys/operations/" + op.id + "/@state")
 

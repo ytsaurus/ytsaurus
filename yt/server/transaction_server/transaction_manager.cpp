@@ -181,6 +181,7 @@ public:
 
     TTransaction* StartTransaction(
         TTransaction* parent,
+        std::vector<TTransaction*> prerequisiteTransactions,
         const TCellTagList& secondaryCellTags,
         const TCellTagList& replicateToCellTags,
         TNullable<TDuration> timeout,
@@ -217,6 +218,12 @@ public:
         transaction->SetState(ETransactionState::Active);
         transaction->SecondaryCellTags() = secondaryCellTags;
         transaction->SetSystem(system || parent && parent->GetSystem());
+
+        transaction->PrerequisiteTransactions() = std::move(prerequisiteTransactions);
+        for (auto* prerequisiteTransaction : transaction->PrerequisiteTransactions()) {
+            // NB: Duplicates are fine; prerequisite transactions may be duplicated.
+            prerequisiteTransaction->DependentTransactions().insert(transaction);
+        }
 
         bool foreign = (CellTagFromId(transactionId) != Bootstrap_->GetCellTag());
         if (foreign) {
@@ -265,10 +272,13 @@ public:
             multicellManager->PostToMasters(startRequest, replicateToCellTags);
         }
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Transaction started (TransactionId: %v, ParentId: %v, "
+        LOG_DEBUG_UNLESS(IsRecovery(), "Transaction started (TransactionId: %v, ParentId: %v, PrerequisiteTransactionIds: %v, "
             "SecondaryCellTags: %v, Timeout: %v, Title: %v, System: %v)",
             transactionId,
             GetObjectId(parent),
+            MakeFormattableRange(transaction->PrerequisiteTransactions(), [] (auto* builder, const auto* prerequisiteTransaction) {
+                FormatValue(builder, prerequisiteTransaction->GetId(), TStringBuf());
+            }),
             transaction->SecondaryCellTags(),
             transaction->GetTimeout(),
             title,
@@ -359,7 +369,8 @@ public:
 
     void AbortTransaction(
         TTransaction* transaction,
-        bool force)
+        bool force,
+        bool validatePermissions = true)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -374,8 +385,10 @@ public:
             transaction->ThrowInvalidState();
         }
 
-        const auto& securityManager = Bootstrap_->GetSecurityManager();
-        securityManager->ValidatePermission(transaction, EPermission::Write);
+        if (validatePermissions) {
+            const auto& securityManager = Bootstrap_->GetSecurityManager();
+            securityManager->ValidatePermission(transaction, EPermission::Write);
+        }
 
         auto transactionId = transaction->GetId();
 
@@ -393,7 +406,7 @@ public:
             transaction->NestedTransactions().end());
         std::sort(nestedTransactions.begin(), nestedTransactions.end(), TObjectRefComparer::Compare);
         for (auto* nestedTransaction : nestedTransactions) {
-            AbortTransaction(nestedTransaction, force);
+            AbortTransaction(nestedTransaction, force, false);
         }
         YCHECK(transaction->NestedTransactions().empty());
 
@@ -655,6 +668,24 @@ private:
         auto parentId = FromProto<TTransactionId>(request->parent_id());
         auto* parent = parentId ? GetTransactionOrThrow(parentId) : nullptr;
 
+        auto prerequisiteTransactionIds = FromProto<std::vector<TTransactionId>>(request->prerequisite_transaction_ids());
+        std::vector<TTransaction*> prerequisiteTransactions;
+        for (const auto& id : prerequisiteTransactionIds) {
+            auto* prerequisiteTransaction = FindTransaction(id);
+            if (!prerequisiteTransaction) {
+                THROW_ERROR_EXCEPTION(NObjectClient::EErrorCode::PrerequisiteCheckFailed,
+                    "Prerequisite check failed: transaction %v is missing",
+                    id);
+            }
+            if (prerequisiteTransaction->GetState() != ETransactionState::Active) {
+                THROW_ERROR_EXCEPTION(NObjectClient::EErrorCode::PrerequisiteCheckFailed,
+                    "Prerequisite check failed: transaction %v is in %Qlv state",
+                    id,
+                    prerequisiteTransaction);
+            }
+            prerequisiteTransactions.push_back(prerequisiteTransaction);
+        }
+
         auto attributes = request->has_attributes()
             ? FromProto(request->attributes())
             : CreateEphemeralAttributes();
@@ -673,6 +704,7 @@ private:
 
         auto* transaction = StartTransaction(
             parent,
+            prerequisiteTransactions,
             secondaryCellTags,
             secondaryCellTags,
             timeout,
@@ -765,6 +797,23 @@ private:
         } else {
             YCHECK(TopmostTransactions_.erase(transaction) == 1);
         }
+
+        for (auto* prerequisiteTransaction : transaction->PrerequisiteTransactions()) {
+            // NB: Duplicates are fine; prerequisite transactions may be duplicated.
+            prerequisiteTransaction->DependentTransactions().erase(transaction);
+        }
+
+        SmallVector<TTransaction*, 16> dependentTransactions(
+            transaction->DependentTransactions().begin(),
+            transaction->DependentTransactions().end());
+        std::sort(dependentTransactions.begin(), dependentTransactions.end(), TObjectRefComparer::Compare);
+        for (auto* dependentTransaction : dependentTransactions) {
+            LOG_DEBUG("Aborting dependent transaction (DependentTransactionId: %v, PrerequisiteTransactionId: %v)",
+                dependentTransaction->GetId(),
+                transaction->GetId());
+            AbortTransaction(dependentTransaction, true, false);
+        }
+        transaction->DependentTransactions().clear();
 
         // Kill the fake reference thus destroying the object.
         objectManager->UnrefObject(transaction);
@@ -930,6 +979,7 @@ void TTransactionManager::Initialize()
 
 TTransaction* TTransactionManager::StartTransaction(
     TTransaction* parent,
+    std::vector<TTransaction*> prerequisiteTransactions,
     const TCellTagList& secondaryCellTags,
     const TCellTagList& replicateToCellTags,
     TNullable<TDuration> timeout,
@@ -940,6 +990,7 @@ TTransaction* TTransactionManager::StartTransaction(
 {
     return Impl_->StartTransaction(
         parent,
+        std::move(prerequisiteTransactions),
         secondaryCellTags,
         replicateToCellTags,
         timeout,

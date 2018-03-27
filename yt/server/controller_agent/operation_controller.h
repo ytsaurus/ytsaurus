@@ -219,6 +219,7 @@ struct IOperationControllerHost
     virtual int GetExecNodeCount() = 0;
     virtual TRefCountedExecNodeDescriptorMapPtr GetExecNodeDescriptors(const NScheduler::TSchedulingTagFilter& filter) = 0;
     virtual TInstant GetConnectionTime() = 0;
+    virtual const NScheduler::TIncarnationId& GetIncarnationId() = 0;
 
     virtual void OnOperationCompleted() = 0;
     virtual void OnOperationAborted(const TError& error) = 0;

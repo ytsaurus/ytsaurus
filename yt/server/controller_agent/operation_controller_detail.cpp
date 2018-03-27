@@ -866,11 +866,13 @@ TAutoMergeDirector* TOperationControllerBase::GetAutoMergeDirector()
 TFuture<ITransactionPtr> TOperationControllerBase::StartTransaction(
     ETransactionType type,
     INativeClientPtr client,
-    const TTransactionId& parentTransactionId)
+    const TTransactionId& parentTransactionId,
+    const TTransactionId& prerequisiteTransactionId)
 {
-    LOG_INFO("Starting transaction (Type: %v, ParentId: %v)",
+    LOG_INFO("Starting transaction (Type: %v, ParentId: %v, PrerequisiteTransactionId: %v)",
         type,
-        parentTransactionId);
+        parentTransactionId,
+        prerequisiteTransactionId);
 
     TTransactionStartOptions options;
     options.AutoAbort = false;
@@ -887,6 +889,9 @@ TFuture<ITransactionPtr> TOperationControllerBase::StartTransaction(
     }
     options.Attributes = std::move(attributes);
     options.ParentId = parentTransactionId;
+    if (prerequisiteTransactionId) {
+        options.PrerequisiteTransactionIds.push_back(prerequisiteTransactionId);
+    }
     options.Timeout = Config->OperationTransactionTimeout;
 
     auto transactionFuture = client->StartTransaction(NTransactionClient::ETransactionType::Master, options);
@@ -1159,7 +1164,8 @@ void TOperationControllerBase::StartOutputCompletionTransaction()
     OutputCompletionTransaction = WaitFor(StartTransaction(
         ETransactionType::OutputCompletion,
         OutputClient,
-        OutputTransaction->GetId()))
+        OutputTransaction->GetId(),
+        Host->GetIncarnationId()))
         .ValueOrThrow();
 
     // Set transaction id to Cypress.
@@ -1208,7 +1214,8 @@ void TOperationControllerBase::StartDebugCompletionTransaction()
     DebugCompletionTransaction = WaitFor(StartTransaction(
         ETransactionType::DebugCompletion,
         OutputClient,
-        DebugTransaction->GetId()))
+        DebugTransaction->GetId(),
+        Host->GetIncarnationId()))
         .ValueOrThrow();
 
     // Set transaction id to Cypress.

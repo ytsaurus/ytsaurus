@@ -439,7 +439,8 @@ protected:
     TFuture<NApi::ITransactionPtr> StartTransaction(
         ETransactionType type,
         NApi::INativeClientPtr client,
-        const NTransactionClient::TTransactionId& parentTransactionId = NTransactionClient::NullTransactionId);
+        const NTransactionClient::TTransactionId& parentTransactionId = {},
+        const NTransactionClient::TTransactionId& prerequisiteTransactionId = {});
 
     void RegisterTask(TTaskPtr task);
     void RegisterTaskGroup(TTaskGroupPtr group);

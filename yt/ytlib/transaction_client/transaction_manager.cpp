@@ -483,6 +483,9 @@ private:
         if (options.ParentId) {
             THROW_ERROR_EXCEPTION("Tablet transaction cannot have a parent");
         }
+        if (!options.PrerequisiteTransactionIds.empty()) {
+            THROW_ERROR_EXCEPTION("Tablet transaction cannot have prerequisites");
+        }
         if (options.Id) {
             auto type = TypeFromId(options.Id);
             if (type != EObjectType::AtomicTabletTransaction) {
@@ -571,6 +574,7 @@ private:
         if (options.ParentId) {
             ToProto(req->mutable_parent_id(), options.ParentId);
         }
+        ToProto(req->mutable_prerequisite_transaction_ids(), options.PrerequisiteTransactionIds);
         SetOrGenerateMutationId(req, options.MutationId, options.Retry);
 
         return req->Invoke().Apply(
