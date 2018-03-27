@@ -526,7 +526,7 @@ class TestDynamicTables(TestDynamicTablesBase):
         for peer in get("#{0}/@peers".format(default_cell)):
             assert peer["address"] != node
 
-    @pytest.mark.skip(reason="no way of currently testing this")
+    @flaky(max_runs=5)
     def test_cell_bundle_distribution(self):
         create_tablet_cell_bundle("custom")
         nodes = ls("//sys/nodes")
