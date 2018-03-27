@@ -1,13 +1,10 @@
 #pragma once
 
 #include "public.h"
-
-#include <yt/core/skiff/skiff_schema.h>
-
-#include <yt/ytlib/table_client/schema.h>
+#include "skiff_schema.h"
 
 namespace NYT {
-namespace NFormats {
+namespace NSkiff {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -57,11 +54,24 @@ struct TSkiffTableDescription
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<TSkiffTableDescription> CreateTableDescriptionList(const std::vector<NSkiff::TSkiffSchemaPtr>& skiffSchema);
-
-std::vector<NSkiff::TSkiffSchemaPtr> ParseSkiffSchemas(const TSkiffFormatConfigPtr& config);
+struct TSkiffTableColumnIds
+{
+    std::vector<ui16> DenseFieldColumnIds;
+    std::vector<ui16> SparseFieldColumnIds;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NFormats
+std::vector<TSkiffTableDescription> CreateTableDescriptionList(
+    const std::vector<NSkiff::TSkiffSchemaPtr>& skiffSchema,
+    const TString& rangeIndexColumnName,
+    const TString& rowIndexColumnName);
+
+std::vector<NSkiff::TSkiffSchemaPtr> ParseSkiffSchemas(
+    const NYTree::IMapNodePtr& skiffSchemaRegistry,
+    const NYTree::IListNodePtr& tableSkiffSchemas);
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NSkiff
 } // namespace NYT

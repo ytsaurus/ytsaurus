@@ -51,13 +51,55 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
         assert get("//sys/operations/{0}/@progress/data_flow_graph/vertices/slave/job_type".format(op.id)) ==  "vanilla"
         assert get("//sys/operations/{0}/@progress/data_flow_graph/vertices/slave/job_counter/completed/total".format(op.id)) == 2
 
+    def test_task_job_index(self):
+        master_command = " ; ".join([
+            events_on_fs().notify_event_cmd("job_started_master_${YT_TASK_JOB_INDEX}"),
+            events_on_fs().wait_event_cmd("finish")
+        ])
+
+        slave_command = " ; ".join([
+            events_on_fs().notify_event_cmd("job_started_slave_${YT_TASK_JOB_INDEX}"),
+            events_on_fs().wait_event_cmd("finish")
+        ])
+
+        op = vanilla(
+            dont_track=True,
+            spec={
+                "tasks": {
+                    "master": {
+                        "job_count": 1,
+                        "command": master_command,
+                    },
+                    "slave": {
+                        "job_count": 3,
+                        "command": slave_command,
+                    },
+                },
+            })
+
+        # Ensure that all three jobs have started.
+        events_on_fs().wait_event("job_started_master_0", timeout=datetime.timedelta(1000))
+        events_on_fs().wait_event("job_started_slave_0", timeout=datetime.timedelta(1000))
+        events_on_fs().wait_event("job_started_slave_1", timeout=datetime.timedelta(1000))
+        events_on_fs().wait_event("job_started_slave_2", timeout=datetime.timedelta(1000))
+
+        events_on_fs().notify_event("finish")
+
+        op.track()
+
+        get("//sys/operations/{0}/@progress/data_flow_graph".format(op.id))
+        assert get("//sys/operations/{0}/@progress/data_flow_graph/vertices/master/job_type".format(op.id)) == "vanilla"
+        assert get("//sys/operations/{0}/@progress/data_flow_graph/vertices/master/job_counter/completed/total".format(op.id)) == 1
+        assert get("//sys/operations/{0}/@progress/data_flow_graph/vertices/slave/job_type".format(op.id)) ==  "vanilla"
+        assert get("//sys/operations/{0}/@progress/data_flow_graph/vertices/slave/job_counter/completed/total".format(op.id)) == 3
+
     def test_files(self):
         create("file", "//tmp/a")
         write_file("//tmp/a", "data_a")
         create("file", "//tmp/b")
         write_file("//tmp/b", "data_b")
 
-        op = vanilla(
+        vanilla(
             spec={
                 "tasks": {
                     "task_a": {

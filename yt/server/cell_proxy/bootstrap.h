@@ -12,13 +12,17 @@
 
 #include <yt/core/bus/public.h>
 
-#include <yt/core/concurrency/action_queue.h>
+#include <yt/core/actions/public.h>
+
+#include <yt/core/concurrency/public.h>
 
 #include <yt/core/misc/public.h>
 
 #include <yt/core/rpc/public.h>
 
 #include <yt/core/http/public.h>
+
+#include <yt/core/ytree/public.h>
 
 namespace NYT {
 namespace NCellProxy {
@@ -33,6 +37,7 @@ public:
 
     const TCellProxyConfigPtr& GetConfig() const;
     const IInvokerPtr& GetControlInvoker() const;
+    const IInvokerPtr& GetWorkerInvoker() const;
     const NApi::INativeConnectionPtr& GetNativeConnection() const;
     const NApi::INativeClientPtr& GetNativeClient() const;
     const NBlackbox::ITokenAuthenticatorPtr& GetTokenAuthenticator() const;
@@ -46,7 +51,9 @@ private:
     const TCellProxyConfigPtr Config_;
     const NYTree::INodePtr ConfigNode_;
 
-    NConcurrency::TActionQueuePtr ControlQueue_;
+    const NConcurrency::TActionQueuePtr ControlQueue_;
+    const NConcurrency::TThreadPoolPtr WorkerPool_;
+
     NMonitoring::TMonitoringManagerPtr MonitoringManager_;
     std::unique_ptr<NLFAlloc::TLFAllocProfiler> LFAllocProfiler_;
     NBus::IBusServerPtr BusServer_;

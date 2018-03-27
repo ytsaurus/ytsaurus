@@ -269,6 +269,9 @@ TListJobsCommand::TListJobsCommand()
     RegisterParameter("offset", Options.Offset)
         .Optional();
 
+    RegisterParameter("data_source", Options.DataSource)
+        .Optional();
+
     RegisterParameter("include_cypress", Options.IncludeCypress)
         .Optional();
     RegisterParameter("include_scheduler", Options.IncludeScheduler)
@@ -324,14 +327,9 @@ void TListJobsCommand::DoExecute(ICommandContextPtr context)
             .Item("cypress_job_count").Value(result.CypressJobCount)
             .Item("scheduler_job_count").Value(result.SchedulerJobCount)
             .Item("archive_job_count").Value(result.ArchiveJobCount)
-            .Item("address_counts").BeginMap()
-                .DoFor(result.AddressCounts, [] (TFluentMap fluent, const auto& item) {
-                    fluent.Item(item.first).Value(item.second);
-                })
-            .EndMap()
             .Item("type_counts").BeginMap()
                 .DoFor(TEnumTraits<NJobTrackerClient::EJobType>::GetDomainValues(), [&] (TFluentMap fluent, const auto& item) {
-                    i64 count = result.TypeCounts[item];
+                    i64 count = result.Statistics.TypeCounts[item];
                     if (count) {
                         fluent.Item(FormatEnum(item)).Value(count);
                     }
@@ -339,7 +337,7 @@ void TListJobsCommand::DoExecute(ICommandContextPtr context)
             .EndMap()
             .Item("state_counts").BeginMap()
                 .DoFor(TEnumTraits<NJobTrackerClient::EJobState>::GetDomainValues(), [&] (TFluentMap fluent, const auto& item) {
-                    i64 count = result.StateCounts[item];
+                    i64 count = result.Statistics.StateCounts[item];
                     if (count) {
                         fluent.Item(FormatEnum(item)).Value(count);
                     }
@@ -616,6 +614,8 @@ TGetOperationCommand::TGetOperationCommand()
 {
     RegisterParameter("operation_id", OperationId);
     RegisterParameter("attributes", Options.Attributes)
+        .Optional();
+    RegisterParameter("include_scheduler", Options.IncludeScheduler)
         .Optional();
 }
 
