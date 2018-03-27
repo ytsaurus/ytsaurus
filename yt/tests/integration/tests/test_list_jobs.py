@@ -113,7 +113,7 @@ class TestListJobs(YTEnvSetup):
         res = list_jobs(op.id, data_source="manual", include_cypress=True, include_scheduler=False, include_archive=False, job_state="completed")["jobs"]
         assert len(res) == 0
 
-        wait(lambda: op.get_job_count("running") == 3)
+        wait(lambda: len(op.get_running_jobs()) == 3)
 
         res = list_jobs(op.id, data_source="manual", include_cypress=False, include_scheduler=True, include_archive=False)["jobs"]
         assert len(res) == 3
@@ -360,8 +360,7 @@ class TestListJobs(YTEnvSetup):
             out="//tmp/output",
             command='if [ "$YT_JOB_INDEX" = "0" ]; then sleep 1000; fi;')
 
-        jobs_path = "//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op.id)
-        wait(lambda: get(jobs_path))
+        wait(lambda: op.get_running_jobs())
         wait(lambda: len(list_jobs(op.id, include_archive=True, include_cypress=False, include_scheduler=False, data_source="manual")["jobs"]) == 1)
 
         unmount_table("//sys/operations_archive/jobs")
