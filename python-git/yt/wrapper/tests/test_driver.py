@@ -70,18 +70,19 @@ def test_catching_sigint(yt_env):
     os.kill(process.pid, signal.SIGINT)
 
     try:
-        process.wait(2)
+        process.wait(5)
     except:
         os.kill(process.pid, signal.SIGKILL)
-        assert False, "Process hanged up for more than 2 seconds on SIGINT"
+        assert False, "Process hanged up for more than 5 seconds on SIGINT"
 
     binary = get_test_file_path("driver_read_request_catch_sigint.py")
     process = subprocess.Popen(["python", binary])
 
     time.sleep(3)
     os.kill(process.pid, signal.SIGINT)
+
     try:
-        process.wait(2)
+        process.wait(5)
     except:
         os.kill(process.pid, signal.SIGKILL)
-        assert False, "Process hanged up for more than 2 seconds on SIGINT"
+        assert False, "Process hanged up for more than 5 seconds on SIGINT"
