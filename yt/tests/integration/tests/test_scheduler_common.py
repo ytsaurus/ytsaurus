@@ -1250,7 +1250,8 @@ class TestSchedulerRevive(YTEnvSetup):
                 "enable_random_master_disconnection": False,
                 "random_master_disconnection_max_backoff": 10000,
                 "finish_operation_transition_delay": 1000,
-            }
+            },
+            "finished_job_storing_timeout": 15000,
         }
     }
 
@@ -1258,6 +1259,14 @@ class TestSchedulerRevive(YTEnvSetup):
         "controller_agent": {
             "operation_time_limit_check_period": 100,
             "snapshot_period": 3000,
+        }
+    }
+
+    DELTA_NODE_CONFIG = {
+        "exec_agent": {
+            "job_controller": {
+                "total_confirmation_period": 5000
+            }
         }
     }
 

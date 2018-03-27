@@ -77,7 +77,10 @@ public:
 
     //! Ids of jobs that were completed recently and are yet to be saved to the snapshot.
     //! We remember them in order to not remove them as unknown jobs.
-    DEFINE_BYREF_RW_PROPERTY(THashSet<TJobId>, RecentlyCompletedJobIds);
+    //! We store an eviction deadline for every job id to make sure
+    //! that no job is stored infinitely.
+    using TJobIdToEvictionDeadline = THashMap<TJobId, NProfiling::TCpuInstant>;
+    DEFINE_BYREF_RW_PROPERTY(TJobIdToEvictionDeadline, RecentlyCompletedJobIdToEvictionDeadline);
 
     //! Jobs that are to be removed with a next heartbeat response.
     DEFINE_BYREF_RW_PROPERTY(std::vector<TJobId>, JobIdsToRemove);
