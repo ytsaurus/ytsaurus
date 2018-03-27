@@ -998,7 +998,7 @@ void TOperationControllerBase::InitIntermediateChunkScraper()
         Logger);
 }
 
-void TOperationControllerBase::InitAutoMerge(int outputChunkCountEstimate, double dataWeightRatio)
+bool TOperationControllerBase::TryInitAutoMerge(int outputChunkCountEstimate, double dataWeightRatio)
 {
     InitAutoMergeJobSpecTemplates();
 
@@ -1013,11 +1013,11 @@ void TOperationControllerBase::InitAutoMerge(int outputChunkCountEstimate, doubl
         LOG_INFO("Output chunk count estimate does not exceed 1, force disabling auto merge "
             "(OutputChunkCountEstimate: %v)",
             outputChunkCountEstimate);
-        return;
+        return false;
     }
 
     if (mode == EAutoMergeMode::Disabled) {
-        return;
+        return false;
     }
 
     AutoMergeTasks.reserve(OutputTables_.size());
@@ -1043,6 +1043,16 @@ void TOperationControllerBase::InitAutoMerge(int outputChunkCountEstimate, doubl
     i64 desiredChunkDataWeight = desiredChunkSize / dataWeightRatio;
     i64 dataWeightPerJob = std::min(1_GB, desiredChunkDataWeight);
 
+    // NB: if row count limit is set on any output table, we do not
+    // enable auto merge as it prematurely stops the operation
+    // because wrong statistics are currently used when checking row count.
+    for (int index = 0; index < OutputTables_.size(); ++index) {
+        if (OutputTables_[index].Path.GetRowCountLimit()) {
+            LOG_INFO("Output table has row count limit, force disabling auto merge (TableIndex: %v)", index);
+            return false;
+        }
+    }
+
     LOG_INFO("Auto merge parameters calculated ("
         "Mode: %v, OutputChunkCountEstimate: %v, MaxIntermediateChunkCount: %v, ChunkCountPerMergeJob: %v,"
         "ChunkSizeThreshold: %v, DesiredChunkSize: %v, DesiredChunkDataWeight: %v, IntermediateChunkUnstageMode: %v)",
@@ -1060,21 +1070,12 @@ void TOperationControllerBase::InitAutoMerge(int outputChunkCountEstimate, doubl
         chunkCountPerMergeJob,
         OperationId);
 
-    // NB: if row count limit is set on any output table, we do not
-    // enable auto merge as it prematurely stops the operation
-    // because wrong statistics are currently used when checking row count.
-    bool autoMergeEnabled = true;
-    for (int index = 0; index < OutputTables_.size(); ++index) {
-        if (OutputTables_[index].Path.GetRowCountLimit()) {
-            autoMergeEnabled = false;
-        }
-    }
+    bool autoMergeEnabled = false;
 
     auto standardEdgeDescriptors = GetStandardEdgeDescriptors();
     for (int index = 0; index < OutputTables_.size(); ++index) {
         const auto& outputTable = OutputTables_[index];
-        if (autoMergeEnabled &&
-            outputTable.Path.GetAutoMerge() &&
+        if (outputTable.Path.GetAutoMerge() &&
             !outputTable.TableUploadOptions.TableSchema.IsSorted())
         {
             auto edgeDescriptor = standardEdgeDescriptors[index];
@@ -1093,10 +1094,30 @@ void TOperationControllerBase::InitAutoMerge(int outputChunkCountEstimate, doubl
                 edgeDescriptor);
             RegisterTask(task);
             AutoMergeTasks.emplace_back(std::move(task));
+            autoMergeEnabled = true;
         } else {
             AutoMergeTasks.emplace_back(nullptr);
         }
     }
+
+    return autoMergeEnabled;
+}
+
+std::vector<TEdgeDescriptor> TOperationControllerBase::GetAutoMergeEdgeDescriptors()
+{
+    auto edgeDescriptors = GetStandardEdgeDescriptors();
+    YCHECK(GetAutoMergeDirector());
+    YCHECK(AutoMergeTasks.size() == edgeDescriptors.size());
+    for (int index = 0; index < edgeDescriptors.size(); ++index) {
+        if (AutoMergeTasks[index]) {
+            edgeDescriptors[index].DestinationPool = AutoMergeTasks[index]->GetChunkPoolInput();
+            edgeDescriptors[index].ChunkMapping = AutoMergeTasks[index]->GetChunkMapping();
+            edgeDescriptors[index].ImmediatelyUnstageChunkLists = true;
+            edgeDescriptors[index].RequiresRecoveryInfo = true;
+            edgeDescriptors[index].IsFinalOutput = false;
+        }
+    }
+    return edgeDescriptors;
 }
 
 THashSet<TChunkId> TOperationControllerBase::GetAliveIntermediateChunks() const
