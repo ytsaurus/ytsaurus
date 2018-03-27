@@ -681,7 +681,7 @@ private:
                 THROW_ERROR_EXCEPTION(NObjectClient::EErrorCode::PrerequisiteCheckFailed,
                     "Prerequisite check failed: transaction %v is in %Qlv state",
                     id,
-                    prerequisiteTransaction);
+                    prerequisiteTransaction->GetState());
             }
             prerequisiteTransactions.push_back(prerequisiteTransaction);
         }
