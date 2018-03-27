@@ -12,7 +12,7 @@ message TReqStartTransaction
 
     optional NYT.NProto.TGuid hint_id = 2;
     optional NYT.NProto.TGuid parent_id = 3;
-    repeated NYT.NProto.TGuid  prerequisite_transaction_ids = 8;
+    repeated NYT.NProto.TGuid prerequisite_transaction_ids = 8;
 
     required int64 timeout = 4;
     required string user_name = 5;
