@@ -1,0 +1,722 @@
+package NYP.NClient.NApi.NProto;
+
+import "proto/yp/client/api/proto/cluster_api.proto";
+import "proto/yt/core/yson/proto/protobuf_interop.proto";
+import "proto/yt/core/ytree/proto/attributes.proto";
+import "proto/yt/core/misc/proto/error.proto";
+
+option java_package = "ru.yandex.yp.client.api";
+option java_outer_classname = "DataModel";
+
+////////////////////////////////////////////////////////////////////////////////
+
+enum EObjectType
+{
+    OT_NODE = 0
+    [(NYT.NYson.NProto.enum_value_name) = "node"];
+
+    OT_POD = 1
+    [(NYT.NYson.NProto.enum_value_name) = "pod"];
+
+    OT_POD_SET = 2
+    [(NYT.NYson.NProto.enum_value_name) = "pod_set"];
+
+    OT_RESOURCE = 3
+    [(NYT.NYson.NProto.enum_value_name) = "resource"];
+
+    OT_NETWORK_PROJECT = 4
+    [(NYT.NYson.NProto.enum_value_name) = "network_project"];
+
+    OT_ENDPOINT = 5
+    [(NYT.NYson.NProto.enum_value_name) = "endpoint"];
+
+    OT_ENDPOINT_SET = 6
+    [(NYT.NYson.NProto.enum_value_name) = "endpoint_set"];
+
+    OT_NODE_SEGMENT = 7
+    [(NYT.NYson.NProto.enum_value_name) = "node_segment"];
+}
+
+enum EEventType
+{
+    ET_OBJECT_CREATED = 0
+    [(NYT.NYson.NProto.enum_value_name) = "object_created"];
+
+    ET_OBJECT_REMOVED = 1
+    [(NYT.NYson.NProto.enum_value_name) = "object_removed"];
+
+    ET_OBJECT_UPDATED = 2
+    [(NYT.NYson.NProto.enum_value_name) = "object_updated"];
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+enum EResourceKind
+{
+    RK_CPU = 0
+    [(NYT.NYson.NProto.enum_value_name) = "cpu"];
+
+    RK_MEMORY = 1
+    [(NYT.NYson.NProto.enum_value_name) = "memory"];
+
+    RK_DISK = 2
+    [(NYT.NYson.NProto.enum_value_name) = "disk"];
+}
+
+message TResourceMeta
+{
+    optional string id = 1;
+    optional EObjectType type = 2;
+    optional uint64 creation_time = 3;
+
+    required string node_id = 4;
+}
+
+message TResourceSpec
+{
+    required EResourceKind kind = 1;
+    required uint64 total_capacity = 2;
+}
+
+message TResourceStatus
+{
+    message TAllocation
+    {
+        optional string pod_id = 1;
+        optional uint64 capacity = 2;
+    }
+    repeated TAllocation scheduled_allocations = 1;
+    repeated TAllocation actual_allocations = 2;
+}
+
+message TResource
+{
+    optional TResourceMeta meta = 1;
+    optional TResourceSpec spec = 2;
+    optional TResourceStatus status = 3;
+    optional NYT.NYTree.NProto.TAttributeDictionary labels = 4;
+    optional NYT.NYTree.NProto.TAttributeDictionary annotations = 5;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+enum EHfsmState
+{
+    HS_UNKNOWN = 0
+    [(NYT.NYson.NProto.enum_value_name) = "unknown"];
+
+    HS_INITIAL = 100
+    [(NYT.NYson.NProto.enum_value_name) = "initial"];
+
+    HS_UP = 200
+    [(NYT.NYson.NProto.enum_value_name) = "up"];
+
+    HS_DOWN = 300
+    [(NYT.NYson.NProto.enum_value_name) = "down"];
+
+    HS_SUSPECTED = 400
+    [(NYT.NYson.NProto.enum_value_name) = "suspected"];
+
+    HS_PREPARE_MAINTENANCE = 500
+    [(NYT.NYson.NProto.enum_value_name) = "prepare_maintenance"];
+
+    HS_MAINTENANCE = 600
+    [(NYT.NYson.NProto.enum_value_name) = "maintenance"];
+
+    HS_PROBATION = 700
+    [(NYT.NYson.NProto.enum_value_name) = "probation"];
+}
+
+enum ENodeMaintenanceState
+{
+    NMS_NONE = 0
+    [(NYT.NYson.NProto.enum_value_name) = "none"];
+
+    NMS_REQUESTED = 100
+    [(NYT.NYson.NProto.enum_value_name) = "requested"];
+
+    NMS_ACKNOWLEDGED = 200
+    [(NYT.NYson.NProto.enum_value_name) = "acknowledged"];
+
+    NMS_IN_PROGRESS = 300
+    [(NYT.NYson.NProto.enum_value_name) = "in_progress"];
+}
+
+message TNodeMeta
+{
+    optional string id = 1;
+    optional EObjectType type = 2;
+    optional uint64 creation_time = 3;
+}
+
+message TNodeSpec
+{
+    message TIP6Subnet
+    {
+        // IP6 /64-subnet, in textual form.
+        required string subnet = 1;
+
+        // E.g. backbone or fastbone.
+        required string vlan_id = 2;
+    }
+    // MTN subnets.
+    repeated TIP6Subnet ip6_subnets = 1;
+
+    message TIP6Address
+    {
+        // IP6 address, in textual form.
+        required string address = 1;
+
+        // E.g. backbone or fastbone.
+        required string vlan_id = 2;
+    }
+    // Host (dom0) IP6 addresses.
+    repeated TIP6Address ip6_addresses = 2;
+
+    // Used to construct /pod/status/transient_fqdn.
+    // Typically this is the first part of the node's FQDN, i.e.
+    // "sas1-3329" for "sas1-3329.search.yandex.net".
+    optional string short_name = 3;
+
+    // Calibrated compute power of a single "physical" CPU core.
+    // Typically "physical" CPU cores are, in fact, HT threads.
+    optional double cpu_to_vcpu_factor = 4;
+
+    message THfsm
+    {
+        // Setting this to false prevents automatic HFSM status updates.
+        optional bool enable_sync = 2;
+    }
+    // HFSM controls.
+    optional THfsm hfsm = 5;
+}
+
+message TNodeStatus
+{
+    // Current epoch used for master-agent communication.
+    optional string epoch_id = 1;
+
+    // Timestamp of last agent heartbeat.
+    optional uint64 last_seen_time = 2;
+
+    // Used for properly sequencing master-agent communication.
+    optional uint64 heartbeat_sequence_number = 3;
+
+    // Address of GPRC service at agent used for out-of-band notifications.
+    optional string agent_address = 4;
+
+    message THfsm
+    {
+        // Current HFSM state.
+        optional EHfsmState state = 1;
+
+        // Timestamp of last change.
+        optional uint64 last_updated = 2;
+
+        // Comment for the last change.
+        optional string message = 3;
+    }
+    // HFSM info.
+    optional THfsm hfsm = 5;
+
+    message TMaintenance
+    {
+        // Current maintenance state.
+        optional ENodeMaintenanceState state = 1;
+
+        // Timestamp of last change.
+        optional uint64 last_updated = 2;
+
+        // Comment for the last change.
+        optional string message = 3;
+    }
+    // Maintenance workflow.
+    optional TMaintenance maintenance = 6;
+}
+
+message TNodeControl
+{
+    message TUpdateHfsmState
+    {
+        // New HFSM state.
+        optional EHfsmState state = 1;
+
+        // Comment for changing HFSM state.
+        optional string message = 2;
+    }
+
+    // Enables updating HFSM state.
+    optional TUpdateHfsmState update_hfsm_state = 1;
+}
+
+message TNode
+{
+    optional TNodeMeta meta = 1;
+    optional TNodeSpec spec = 2;
+    optional TNodeStatus status = 3;
+    optional NYT.NYTree.NProto.TAttributeDictionary labels = 4;
+    optional NYT.NYTree.NProto.TAttributeDictionary annotations = 5;
+    optional TNodeControl control = 6;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+enum EPodCurrentState
+{
+    PCS_UNKNOWN = 0
+    [(NYT.NYson.NProto.enum_value_name) = "unknown"];
+
+    PCS_START_PENDING = 100
+    [(NYT.NYson.NProto.enum_value_name) = "start_pending"];
+
+    PCS_STARTED = 200
+    [(NYT.NYson.NProto.enum_value_name) = "started"];
+
+    PCS_STOP_PENDING = 300
+    [(NYT.NYson.NProto.enum_value_name) = "stop_pending"];
+
+    PCS_STOPPED = 400
+    [(NYT.NYson.NProto.enum_value_name) = "stopped"];
+}
+
+enum EPodTargetState
+{
+    PTS_UNKNOWN = 0
+    [(NYT.NYson.NProto.enum_value_name) = "unknown"];
+
+    PTS_REMOVED = 1
+    [(NYT.NYson.NProto.enum_value_name) = "removed"];
+
+    PTS_ACTIVE = 100
+    [(NYT.NYson.NProto.enum_value_name) = "active"];
+}
+
+message TPodMeta
+{
+    optional string id = 1;
+    optional EObjectType type = 2;
+    optional uint64 creation_time = 3;
+
+    required string pod_set_id = 4;
+}
+
+message TPodSpec
+{
+    // Raw ISS payload to be delivered to agent.
+    optional bytes iss_payload = 1;
+
+    // Structured ISS spec.
+    optional NYP.NClient.NApi.NClusterApiProto.HostConfiguration iss = 9;
+
+    // Node id this pod must be assigned to.
+    // WILL BE REMOVED SOON. DON'T USE.
+    optional string node_id = 2;
+
+    message TResourceRequests
+    {
+        optional uint64 vcpu_guarantee = 1;
+        optional uint64 vcpu_limit = 2;
+
+        optional uint64 memory_guarantee = 3;
+        optional uint64 memory_limit = 4;
+        optional uint64 anonymous_memory_limit = 5;
+        optional uint64 dirty_memory_limit = 6;
+    };
+    optional TResourceRequests resource_requests = 3;
+
+    message TIP6AddressRequest
+    {
+        // Id of network_project.
+        // Could be omitted if manual_address is given.
+        optional string network_id = 1;
+
+        // Will be matched against /node/spec/ip6_subnets/*/vlan_id.
+        required string vlan_id = 2;
+
+        // These labels get propagated to /node/status/ip6_address_allocations/*/labels
+        optional NYT.NYTree.NProto.TAttributeDictionary labels = 3;
+
+        // If given, specifies the exact IP6 address to use thus disabling IP Broker.
+        // This feature will only be used for migration and will be deprecated afterwards.
+        optional string manual_address = 4;
+
+        // If true, this address is published to DNS.
+        optional bool enable_dns = 5;
+
+        // If non-empty, full DNS name is prepended with this string (plus dot).
+        optional string dns_prefix = 6;
+    }
+    repeated TIP6AddressRequest ip6_address_requests = 5;
+
+    message TIP6SubnetRequest
+    {
+        // Will be matched against /node/spec/ip6_subnets/*/vlan_id.
+        required string vlan_id = 1;
+
+        // These labels get propagated to /node/status/ip6_subnet_allocations/*/labels
+        optional NYT.NYTree.NProto.TAttributeDictionary labels = 2;
+    }
+    repeated TIP6SubnetRequest ip6_subnet_requests = 6;
+
+    // If false then YP will not be scheduling this pod.
+    optional bool enable_scheduling = 7;
+
+    // If given, controls which nodes are eligible for this pod.
+    // Filter is a query language predicate; it can only refer to node labels, not other attributes.
+    optional string node_filter = 8;
+
+    message THostDevice
+    {
+        // E.g. /dev/kvm
+        required string path = 1;
+
+        // E.g. "r", "rw"
+        required string mode = 2;
+    }
+
+    // Host devices to configure.
+    // https://wiki.yandex-team.ru/porto/propertiesanddata/#resursy
+    repeated THostDevice host_devices = 10;
+
+    message TSysctlProperty
+    {
+        required string name = 1;
+        required string value = 2;
+    }
+
+    // Sysctl properties to configure.
+    repeated TSysctlProperty sysctl_properties = 11;
+}
+
+enum EEvictionState
+{
+    ES_NONE = 0
+    [(NYT.NYson.NProto.enum_value_name) = "none"];
+
+    ES_REQUESTED = 100
+    [(NYT.NYson.NProto.enum_value_name) = "requested"];
+
+    ES_ACKNOWLEDGED = 200
+    [(NYT.NYson.NProto.enum_value_name) = "acknowledged"];
+}
+
+enum EEvictionReason
+{
+    ER_NONE = 0
+    [(NYT.NYson.NProto.enum_value_name) = "none"];
+
+    ER_HFSM = 100
+    [(NYT.NYson.NProto.enum_value_name) = "hfsm"];
+
+    ER_SCHEDULER = 200
+    [(NYT.NYson.NProto.enum_value_name) = "scheduler"];
+}
+
+enum ESchedulingState
+{
+    SS_NONE = 0
+    [(NYT.NYson.NProto.enum_value_name) = "none"];
+
+    SS_DISABLED = 100
+    [(NYT.NYson.NProto.enum_value_name) = "disabled"];
+
+    SS_PENDING = 200
+    [(NYT.NYson.NProto.enum_value_name) = "pending"];
+
+    SS_ASSIGNED = 300
+    [(NYT.NYson.NProto.enum_value_name) = "assigned"];
+}
+
+message TPodStatus
+{
+    // Node where this pod currently belongs to.
+    optional string node_id = 1;
+
+    message TAgent
+    {
+        // ISS pod state.
+        optional EPodCurrentState state = 1;
+
+        // Raw ISS payload received from agent.
+        optional bytes iss_payload = 3;
+
+        // Structured ISS status.
+        optional NYP.NClient.NApi.NClusterApiProto.HostCurrentState iss = 4;
+    }
+    optional TAgent agent = 2;
+
+    message TResourceAllocation
+    {
+        optional string resource_id = 1;
+    }
+    repeated TResourceAllocation scheduled_resource_allocations = 4;
+
+    message TIP6AddressAllocation
+    {
+        // IP6 address assigned by YP, in textual form.
+        optional string address = 1;
+
+        // Copied from /pod/spec/ip6_addresses/*/vlan_id.
+        optional string vlan_id = 2;
+
+        // Copied from /node/spec/ip6_subnet_requests/*/labels
+        optional NYT.NYTree.NProto.TAttributeDictionary labels = 3;
+
+        // True if the the address was manually specified via /pod/spec/ip6_address_allocations/*/manual_address.
+        optional bool manual = 4;
+
+        // Persistent DNS name assigned to this address (if any) of the form:
+        // [<dns_prefix>.]<pod-id>.<suffix>
+        // This FQDN never changes.
+        optional string persistent_fqdn = 5;
+
+        // Transient DNS name assigned to this address (if any) of the form:
+        // [<dns_prefix>.]<node-short-name>-<generation-number>.<pod-id>.<suffix>
+        // This FQDN changes each time pod gets reassigned to another node.
+        optional string transient_fqdn = 6;
+    }
+    repeated TIP6AddressAllocation ip6_address_allocations = 5;
+
+    message TIP6SubnetAllocation
+    {
+        // IP6 /112-subnet assigned by YP, in textual form.
+        optional string subnet = 1;
+
+        // Copied from /pod/spec/ip6_addresses/*/vlan_id.
+        optional string vlan_id = 2;
+
+        // Copied from /node/spec/ip6_address_requests/*/labels
+        optional NYT.NYTree.NProto.TAttributeDictionary labels = 3;
+    }
+    repeated TIP6SubnetAllocation ip6_subnet_allocations = 6;
+
+    message TDns
+    {
+        // Persistent FQDN of the form:
+        // <pod-id>.<suffix>
+        // This FQDN never changes.
+        optional string persistent_fqdn = 7;
+
+        // Transient FQDN of the form:
+        // <node-short-name>-<generation-number>.<pod-id>.<suffix>
+        // This FQDN changes each time pod gets reassigned to another node.
+        optional string transient_fqdn = 8;
+    }
+    optional TDns dns = 7;
+
+    message TEviction
+    {
+        optional EEvictionState state = 1;
+        optional EEvictionReason reason = 2;
+        optional uint64 last_updated = 3;
+        optional string message = 4;
+    }
+    optional TEviction eviction = 8;
+
+    message TScheduling
+    {
+        optional ESchedulingState state = 1;
+        optional string node_id = 2;
+        optional uint64 last_updated = 3;
+        optional string message = 4;
+        optional NYT.NProto.TError error = 5;
+    }
+    optional TScheduling scheduling = 9;
+
+    // Increased each time the pod is being assigned to another node.
+    optional uint64 generation_number = 10;
+
+    // Timestamp of the last spec update.
+    optional uint64 master_spec_timestamp = 11;
+
+    // Timestamp of the spec as reported by agent.
+    optional uint64 agent_spec_timestamp = 12;
+}
+
+message TPodControl
+{
+    message TAcknowledgeEviction
+    {
+        // Comment for the acknowledgement.
+        optional string message = 1;
+    }
+
+    // Acknowledges eviction of a pod.
+    // Pod must have /status/eviction/state == "requested" prior to this call and
+    // the latter changes it to "acknowledged".
+    optional TAcknowledgeEviction acknowledge_eviction = 1;
+}
+
+message TPod
+{
+    optional TPodMeta meta = 1;
+    optional TPodSpec spec = 2;
+    optional TPodStatus status = 3;
+    optional NYT.NYTree.NProto.TAttributeDictionary labels = 4;
+    optional NYT.NYTree.NProto.TAttributeDictionary annotations = 5;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TPodSetMeta
+{
+    optional string id = 1;
+    optional EObjectType type = 2;
+    optional uint64 creation_time = 3;
+}
+
+message TPodSetSpec
+{
+    message TAntiaffinityConstraint
+    {
+        // Topology zone key.
+        // Node zones are specified via /node/labels/topology/key=value labels.
+        // and are filled on node's import.
+        // Supported zone keys are: node, rack, dc.
+        required string key = 1;
+
+        // Maximum number of pods that can be placed in the same zone.
+        required int64 max_pods = 2;
+
+        // Describes the pods this constraint applies to.
+        optional string pod_filter = 3;
+    }
+
+    // Limits placing pods of this pod set to the same topology zone (e.g. node, rack, DC).
+    repeated TAntiaffinityConstraint antiaffinity_constraints = 1;
+
+    // Specifies a node segment where all pods of this pod set must be scheduled to.
+    optional string node_segment_id = 2;
+}
+
+message TPodSetStatus
+{ }
+
+message TPodSet
+{
+    optional TPodSetMeta meta = 1;
+    optional TPodSetSpec spec = 2;
+    optional TPodSetStatus status = 3;
+    optional NYT.NYTree.NProto.TAttributeDictionary labels = 4;
+    optional NYT.NYTree.NProto.TAttributeDictionary annotations = 5;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TEndpointMeta
+{
+    optional string id = 1;
+    optional EObjectType type = 2;
+    optional uint64 creation_time = 3;
+
+    required string endpoint_set_id = 4;
+}
+
+message TEndpointSpec
+{
+    optional string protocol = 1;
+    optional string fqdn = 2;
+    optional string ip4_address = 3;
+    optional string ip6_address = 4;
+    optional int32 port = 5;
+}
+
+message TEndpointStatus
+{ }
+
+message TEndpoint
+{
+    optional TEndpointMeta meta = 1;
+    optional TEndpointSpec spec = 2;
+    optional TEndpointStatus status = 3;
+    optional NYT.NYTree.NProto.TAttributeDictionary labels = 4;
+    optional NYT.NYTree.NProto.TAttributeDictionary annotations = 5;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TEndpointSetMeta
+{
+    optional string id = 1;
+    optional EObjectType type = 2;
+    optional uint64 creation_time = 3;
+}
+
+message TEndpointSetSpec
+{
+    // If given, for each pod matching this filter, an endpoint will be created.
+    optional string pod_filter = 1;
+
+    // If given, this value will be propagated to /endpoint/spec/protocol of each created endpoint.
+    optional string protocol = 2;
+
+    // If given, this value will be propagated to /endpoint/spec/port of each created endpoint.
+    optional int32 port = 3;
+}
+
+message TEndpointSetStatus
+{ }
+
+message TEndpointSet
+{
+    optional TEndpointSetMeta meta = 1;
+    optional TEndpointSetSpec spec = 2;
+    optional TEndpointSetStatus status = 3;
+    optional NYT.NYTree.NProto.TAttributeDictionary labels = 4;
+    optional NYT.NYTree.NProto.TAttributeDictionary annotations = 5;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TNetworkProjectMeta
+{
+    optional string id = 1;
+    optional EObjectType type = 2;
+    optional uint64 creation_time = 3;
+}
+
+message TNetworkProjectSpec
+{
+    // "Project id" part of IPv6 addresses.
+    required uint32 project_id = 1;
+}
+
+message TNetworkProjectStatus
+{ }
+
+message TNetworkProject
+{
+    optional TNetworkProjectMeta meta = 1;
+    optional TNetworkProjectSpec spec = 2;
+    optional TNetworkProjectStatus status = 3;
+    optional NYT.NYTree.NProto.TAttributeDictionary labels = 4;
+    optional NYT.NYTree.NProto.TAttributeDictionary annotations = 5;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TNodeSegmentMeta
+{
+    optional string id = 1;
+    optional EObjectType type = 2;
+    optional uint64 creation_time = 3;
+}
+
+message TNodeSegmentSpec
+{
+    required string node_filter = 1;
+}
+
+message TNodeSegmentStatus
+{ }
+
+message TNodeSegment
+{
+    optional TResourceMeta meta = 1;
+    optional TResourceSpec spec = 2;
+    optional TResourceStatus status = 3;
+    optional NYT.NYTree.NProto.TAttributeDictionary labels = 4;
+    optional NYT.NYTree.NProto.TAttributeDictionary annotations = 5;
+}
+
+////////////////////////////////////////////////////////////////////////////////

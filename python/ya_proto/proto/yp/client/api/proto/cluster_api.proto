@@ -1,0 +1,1057 @@
+// IMPORTED AS-IS, DO NOT EDIT!
+
+syntax = "proto3";
+
+package NYP.NClient.NApi.NClusterApiProto;
+
+option java_package = "ru.yandex.schedulers.cluster.api.protobuf";
+option java_outer_classname = "ClusterApi";
+
+message Entity {
+    oneof kind {
+        Instance instance = 1;
+        Job job = 2;
+    }
+}
+
+message ExtendedGroupId {
+    string id = 1;
+    string capiId = 2;
+}
+
+//------------------------------- Описания запускаемых сущностей (демоны и задачи) ------------------------------------
+
+// Демон, он же инстанс - после завершения сущность перезапускается каждый раз, пока не будет удалена с кластера
+// Подробнее здесь - https://wiki.yandex-team.ru/iss3/Specifications/configuration/instance/
+message Instance {
+    // Ограничения для всех хуков
+    Container container = 1;
+    repeated Volume volumes = 2;
+    // <имя ресурса> -> <описание ресурса>
+    map<string, Resourcelike> resources = 3;
+    // <имя хука> -> <временные лимиты>
+    // Имена хуков см https://wiki.yandex-team.ru/iss3/Specifications/configuration/instance/#naznacheniexukov
+    map<string, TimeLimit> timeLimits = 4;
+    // Точка монтирования, в которой создается рабочая директория инстанса.
+    // По умолчанию - "/".
+    string storage = 5;
+    // ACL-идентификатор владельца шаред-вольюмов
+    // Нужно для data locality ISS-3660
+    string project = 6;
+    // ссылки на внешние шаред-вольюмы
+    // Нужно для data locality ISS-3660
+    repeated VolumeRef volumeRefs = 7;
+}
+
+// Задача, она же джоб - выполняется один раз и не перезапускается. Поля те же, что и у демона
+// https://wiki.yandex-team.ru/iss3/specifications/configuration/job/
+// Поля копируют содержимое Instance на случай будущих изменений, если эти классы разойдутся
+message Job {
+    Container container = 1;
+    repeated Volume volumes = 2;
+    map<string, Resourcelike> resources = 3;
+    map<string, TimeLimit> timeLimits = 4;
+    string storage = 5;
+    string project = 6;
+    repeated VolumeRef volumeRefs = 7;
+}
+
+// Ограничения на время исполнения и интервал между запусками хука. Все времена в миллисекундах.
+// maxExecutionTimeMs - ограничение на время выполнения.
+// Интервал между запусками рассчитывается по формуле
+// min(maxRestartPeriodMs, minRestartPeriodMs + restartPeriodScaleMs * (restartPeriodBackoff ^ step))
+// step считается с 0
+message TimeLimit {
+    uint64 restartPeriodScaleMs = 1;
+    uint64 restartPeriodBackOff = 2;
+    uint64 maxRestartPeriodMs = 3;
+    uint64 minRestartPeriodMs = 4;
+    uint64 maxExecutionTimeMs = 5;
+}
+
+// Описание контейнера, в котором запускается хук.
+// https://wiki.yandex-team.ru/iss3/specifications/configuration/container/
+message Container {
+    reserved 1, 2;
+    reserved "id";
+    // Свойства porto-контейнеров хуков, задаваемые непосредственно.
+    map<string, string> constraints = 3;
+
+    // Пытаться применять изменения в constraints без рестарта контейнера (аналогично portoctl set на запущенный контейнер)
+    // https://wiki.yandex-team.ru/iss3/specifications/configuration/container/#dinamicheskoeizmeneniesvojjstvkontejjnera
+    bool withDynamicProperties = 4;
+}
+
+// Уникальный идентификатор задачи
+message WorkloadId {
+    Slot slot = 1;
+    // Название конфигурации в формате <семейство>#<имя конфигурации в семействе>
+    ConfigurationId configuration = 2;
+}
+
+// Место под сервис на хосте
+// Если две сущности используют один слот, то только одна из них может быть активной в каждый момент времени
+message Slot {
+    // Идентификатор сервиса на хосте, например (но не обязательно), порт
+    string service = 1;
+    // FQDN хоста
+    string host = 2;
+}
+
+// Идентификатор конфигурации - описания целевого состояния группы задач.
+message ConfigurationId {
+    // Группа, в которую входит задача - берется из GroupTransition.
+    // ConfigurationId.family в кешере
+    string groupId = 1;
+    // вариант id для meta-clusterapi
+    ExtendedGroupId extendedGroupId = 3;
+    // Идентификатор целевого состояния группы. Произвольная строка.
+    // ConfigurationId.id в кешере
+    string groupStateFingerprint = 2;
+}
+
+//------------------------------------------------ Данные -------------------------------------------------------------
+
+// Раздел porto
+// Подробное описание здесь https://wiki.yandex-team.ru/iss3/specifications/configuration/instance/volumes/
+message Volume {
+    // Квота на размер корневого раздела
+    uint64 quotaBytes = 1;
+    // Квота на размер рабочей директории
+    uint64 quotaCwdBytes = 2;
+    // точка монтирования
+    string mountPoint = 3;
+    // Сейчас определено только свойство bind
+    // https://wiki.yandex-team.ru/iss3/specifications/configuration/instance/volumes/#polzovatelskijjbind
+    map<string, string> properties = 4;
+    // Слои, из которых собирается корневой раздел
+    repeated Resource layers = 5;
+    // Указывается при создании shared-volume
+    string uuid = 6;
+    // Точка монтирования, в которой будет создан volume, будут храниться его данные и распаковываться слои.
+    // По умолчанию создается под "/", данные хранятся в стандартных директориях porto.
+    string storage = 7;
+    // список проектов, имеющих доступ на чтение данного шаред-вольюма
+    // Нужно для data locality ISS-3660
+    repeated string readerProjects = 8;
+}
+
+// Ссылка на шаред-вольюм
+message VolumeRef {
+    // идентификатор шаред-вольюма
+    string uuid = 1;
+}
+
+// Базовый класс ресурса
+message Resourcelike {
+    oneof kind {
+        Resource resource = 1;
+        DynamicResource dynamicResource = 2;
+        Shard shard = 3;
+    }
+}
+
+// Обычный ресурс - набор данных
+message Resource {
+    // Уникальный идентификатор (произвольная строка)
+    string uuid = 1;
+    // Имя очереди закачки (пустое - качается без очереди)
+    // https://wiki.yandex-team.ru/iss3/specifications/agent/downloadqueues/
+    string queue = 2;
+    Verification verification = 3;
+    // Ссылки на реурс, например, "rbtorrent:2f83ff0f5b98b315ce356e129ce1e00d7b67ec7d", "http://cmsearch.yandex.ru/res"
+    repeated string urls = 4;
+    // Размер ресурса в байтах
+    uint64 sizeBytes = 5;
+    // Является ли ресурс закешированным
+    // https://wiki.yandex-team.ru/iss3/Specifications/ShardTracker/#upravleniesvobodnymmestom
+    bool cached = 6;
+
+    // Точка монтирования, в которой будет скачан ресурс (см. Instance.storage)
+    string storage = 7;
+
+    // Ограничение скорости закачки
+    TrafficClass trafficClass = 8;
+}
+
+// Динамический ресурс
+// Может обновляться без перезапуска демона, при обновлении запускается iss_hook_notify
+// https://wiki.yandex-team.ru/iss3/specifications/configuration/resource/#dinamicheskijjresurs
+// Поля те же, что и у ресурса
+message DynamicResource {
+    string uuid = 1;
+    string queue = 2;
+    Verification verification = 3;
+    repeated string urls = 4;
+    uint64 sizeBytes = 5;
+    bool cached = 6;
+    string storage = 7;
+    // Ограничение скорости закачки
+    TrafficClass trafficClass = 8;
+}
+
+// Проверки целостности ресурса
+message Verification {
+    // Контрольная сумма, формат <схема>:<значение> Поддерживаемые схемы "MD5:", "EMPTY:" - case sensitive
+    string checksum = 1;
+    // Периодичность проверки контрольной суммы. При значении 0d0h0m проверка будет выполнена только 1 раз.
+    string checkPeriod = 2;
+}
+
+// Шард - данные + специальный сценарий подготовки
+// Подробности https://wiki.yandex-team.ru/iss3/specifications/shardtracker/
+message Shard {
+    // Уникальный идентификатор шарда
+    string shardId = 1;
+    // Является ли шард закешированным (аналогично ресурсу)
+    bool cached = 3;
+    // Ограничения на хуки шарда. Отличаются от ограничений сущности правилами распределения между хуками
+    // TODO: актуализировать после ISS-3052
+    Container container = 4;
+    // Очередь, в которой выполняются закачка, инсталляция и расшаривание (при необходимости) шарда.
+    string queue = 5;
+    // Режим дедупликации скачиваемых данных скайнетом
+    DeduplicationMode deduplicationMode = 6;
+    // Точка монтирования, в которой будет скачан и инсталлирован шард (см. Instance.storage)
+    string storage = 7;
+    // Ограничение скорости закачки
+    TrafficClass trafficClass = 8;
+}
+
+message TrafficClass {
+    int64 downloadSpeedLimit = 1;
+    string trafficTag = 2;
+}
+
+enum DeduplicationMode {
+    // На одинаковые файлы будут создаваться жесткие ссылки. Режим по умолчанию.
+    HARDLINK = 0;
+    // Не дедуплицировать.
+    NO = 1;
+    // На одинаковые файлы будут создаваться символьные ссылки.
+    SYMLINK = 2;
+}
+
+//----------------------------------------------- Обратная связь -----------------------------------------------------
+
+// Текущее состояние сущности
+message DetailedCurrentState {
+    WorkloadId workloadId = 1;
+    // Строковое описание состояния, может принимать произвольные значения, в том числе весь список целевых состояний
+    string currentState = 2;
+
+    CurrentStateFeedback feedback = 3;
+    // Момент отправки сообщения с агента
+    uint64 hostTimestamp = 4;
+    // Момент сохранения сообщения сервером
+    uint64 serverTimestamp = 5;
+
+    // Enum состояниe
+    MasterState masterState = 6;
+
+    // Внутренние поля iss для использования в веб-интерфейсе
+    string targetState = 10;
+    InstanceType instanceType = 11;
+    string entityDir = 12;
+}
+
+message CurrentStateFeedback {
+    // Поле для служебных сообщений в случае проблем с сохранением (например, слишком большое сообщение)
+    string specialMessage = 1 [deprecated = true];
+    // porto-метрики
+    repeated FeedbackMessage metrics = 2 [deprecated = true];
+    // сообщения о незавершенных операциях
+    repeated FeedbackMessage pendingStateMessages = 3 [deprecated = true];
+    repeated FeedbackMessage info = 4 [deprecated = true];
+    repeated FeedbackMessage warnings = 5 [deprecated = true];
+    repeated FeedbackMessage failures = 6 [deprecated = true];
+
+    // --- состояние в обратной связи (ISS-3228) ---
+    // Счетчики метаконтейнера
+    map<string, string> counters = 7;
+
+    // Состояния хуков
+    HooksState hooks = 8;
+
+    // Состояния ресурсов.
+    repeated ResourceState resources = 9;
+}
+
+enum InstanceType {
+    ENTITY = 0;
+    INSTANCE = 1;
+    JOB = 2;
+}
+
+//Состояние инстанса
+enum MasterState {
+    INIT = 0;
+
+    DOWNLOADING = 1;
+    DOWNLOADED = 2;
+
+    PREPARING = 3;
+    VALIDATING = 4;
+    PREPARED = 5;
+
+    ACTIVATING = 6;
+    ACTIVE = 7;
+
+    IN_PROGRESS = 8;
+    DONE = 9;
+    FAILED = 10;
+
+    DEACTIVATING = 11;
+    REMOVING = 12;
+    REMOVED = 13;
+
+    INVALID = 14;
+
+    // this value will never be set by agent due to ISS-3921
+    // but it was kept for backward compatibility
+    PREEMPTED_ON_AGENT = 15;
+}
+
+// Отдельное сообщение обратной связи от агента
+message FeedbackMessage {
+    oneof kind {
+        CountersFeedback countersFeedback = 1;
+        FeedbackMergeMessage feedbackMergeMessage = 2;
+        FeedbackOkMessage feedbackOkMessage = 3;
+        Progress progress = 4;
+        Lock lock = 6;
+        ProcessFeedback processFeedback = 7;
+        SelfHelp selfHelp = 8;
+        ChecksumVerificationFailure checksumVerificationFailure = 9;
+        ChecksumProgress checksumProgress = 10;
+        DaemonFailure daemonFailure = 11;
+        DownloadFailed downloadFailed = 12;
+        ResourcesNotReady resourcesNotReady = 13;
+        ValidationFailed validationFailed = 14;
+        DirectoryFailure directoryFailure = 15;
+        CachedResourceNotRemoved cachedResourceNotRemoved = 16;
+        WaitingForFreeSpace waitingForFreeSpace = 17;
+        HookFailure hookFailure = 18;
+        CountLimit countLimit = 20;
+        FrequencyLimit frequencyLimit = 21;
+        PendingDriverRemove pendingRemove = 22;
+        TimeLimitViolation timeLimitViolation = 23;
+        ShardFailure shardFailure = 25;
+        FeedbackFailMessage failMessage = 27;
+        HookInProgress hookInProgress = 28;
+        NetworkNotReady networkNotReady = 29;
+        PortoValueHookFailure portoValueHookFailure = 30;
+        HookConstraintsFailure hookConstraintsFailure = 31;
+        DownloadFinished downloadFinished = 32;
+        PortoRelatedDaemonFailure portoValueDaemonFailure = 33;
+    }
+}
+
+// Базовое сообщение для всех поломок
+message FeedbackFailMessage {
+    // Тип проблемы, например, HOOK_FAILED
+    string state = 1;
+    // Подробное описание
+    string failReason = 2;
+}
+
+message PortoValueHookFailure {
+    string hook = 1;
+
+    string state = 2;
+
+    string property = 3;
+
+    string value = 4;
+
+    string portoMessage = 5;
+}
+
+message PortoRelatedDaemonFailure {
+    string state = 1;
+
+    string failReason = 2;
+
+    string property = 3;
+
+    string value = 4;
+
+    string portoMessage = 5;
+}
+
+message HookConstraintsFailure {
+    string hook = 1;
+
+    string state = 2;
+
+    string property = 3;
+
+    string value = 4;
+
+    string portoMessage = 5;
+}
+
+// Хук в процессе выполнения
+message HookInProgress {
+    string state = 1;
+    // Имя хука
+    string hook = 2;
+    // true сразу после запуска агента, false если агент рапортует об уже работающем хуке
+    bool justCreated = 3;
+}
+
+// Ip-адрес ещё не готов (не прописан в фаерволле)
+message NetworkNotReady {
+    string state = 1;
+    string ip = 2;
+    // дополнительное описание причины
+    string message = 3;
+}
+
+// Счетчики от порто
+message CountersFeedback {
+    string state = 1;
+    map<string, string> counters = 2;
+    uint64 timestamp = 3;
+    string container = 4;
+}
+
+// Информация о слиянии в агенте данных, полученных из разных кешеров
+message FeedbackMergeMessage {
+    string state = 1;
+}
+
+message FeedbackOkMessage {
+    string state = 2;
+}
+
+// Идет скачивание данных
+message Progress {
+    // Ссылка, по которой качается
+    string from = 1;
+    // Целевая директория
+    string to = 2;
+    int64 bytesDone = 3;
+    int64 bytesTotal = 4;
+    string state = 5;
+    string localname = 6;
+}
+
+message DownloadFinished {
+    // Ссылка, по которой качается
+    string from = 1;
+    // Целевая директория
+    string to = 2;
+    int64 bytesDone = 3;
+    int64 bytesTotal = 4;
+    string state = 5;
+    string localname = 6;
+}
+
+// Операция не смогла взять блокировку (например, для очереди закачки)
+message Lock {
+    string state = 1;
+    // Имя блокировки
+    string lock = 2;
+    // Текущий владелец блокировки
+    string lockedBy = 3;
+    // Драйвер, который заблокировался
+    string requestedBy = 4;
+}
+
+// Завершение процесса
+message ProcessFeedback {
+    // DAEMON_EXITED - старт-хук демона завершился с кодом 0
+    // DAEMON_WAS_TERMINATED_EXTERNALLY - старт-хук демона завершился с кодом не-0
+    // HOOK_CANCELLED - хук/задачу убили 9-кой
+    // HOOK_FAILED - хук/задача завершились самостоятельно с кодом 1-31
+    // HOOK_SEMI_FAILED - хук упал с кодом 32-63
+    // HOOK_EXITED - хук/задача завершились с кодом 0
+    // Подробности про коды https://wiki.yandex-team.ru/iss3/specifications/configuration/instance/#naznacheniexukov
+    string state = 1;
+    // Имя завершившегося хука
+    string executableName = 2;
+    // Хвост stdout
+    string stdOut = 3;
+    // Хвост stderr
+    string stdErr = 4;
+    // Код завершения процесса
+    uint32 exitCode = 5;
+    // Номер сигнала, по которому завершился процесс.
+    // Темная магия агента старается обработать случай, когда процесс является шеллом
+    // и сигнализирует о завершении дочернего процесса по сигналу согласно http://www.tldp.org/LDP/abs/html/exitcodes.html
+    uint32 signalNumber = 6;
+    // Был ли процесс завершен из-за нехватки памяти
+    bool outOfMemory = 7;
+}
+
+// Отладочное сообщение
+message SelfHelp {
+    string cause = 1;
+    // Ссылка на ресурс, послуживший причиной
+    string url = 2;
+    // Локальное имя файла
+    string localName = 3;
+    // Затронутые сущности
+    repeated string affected = 4;
+    string customLines = 5;
+    string state = 6;
+}
+
+// Контрольная сумма ресурса не совпала с ожидаемой
+message ChecksumVerificationFailure {
+    string state = 1;
+    string expected = 2;
+    string calculated = 3;
+    string targetFile = 4;
+}
+
+// Идет вычисление контрольной суммы
+message ChecksumProgress {
+    string state = 1;
+    string targetFile = 2;
+}
+
+// Прочие проблемы со старт-хуком
+message DaemonFailure {
+    string state = 1;
+    string failReason = 3;
+    string hook = 4;
+}
+
+// Скачивание ресурса завершилось с ошибкой
+message DownloadFailed {
+    string state = 1;
+    string failReason = 3;
+    // Ссылка на ресурс
+    string from = 4;
+    // Путь к результату скачивания
+    string to = 5;
+}
+
+// Ресурсы сущности не готовы
+message ResourcesNotReady {
+    string state = 1;
+    // <имя не готового ресурса> -> <текущее состояние>
+    map<string, string> states = 2;
+    string failReason = 4;
+}
+
+// Не удалось проверить контрольную сумму ресурса
+message ValidationFailed {
+    string state = 1;
+    string failReason = 3;
+    // Отсутствующий файл ресурса
+    string missingFile = 4;
+    // Директория, в которой должен находиться файл
+    string targetDir = 5;
+    // Ссылка на ресурс
+    string from = 6;
+    // Путь к результату скачивания
+    string to = 7;
+}
+
+// Ошибка в агенте при работе с директориями
+message DirectoryFailure {
+    string state = 1;
+    string failReason = 3;
+    string directory = 4;
+}
+
+// Ресурс не удален, т.к. выставлено свойство cached = true
+message CachedResourceNotRemoved {
+    string state = 1;
+    // Свободное место в байтах
+    uint64 availableBytes = 4;
+    // Нижняя граница свободного места в байтах
+    uint64 spaceToLeaveOnDiskBytes = 5;
+    // Драйвер, владеющий резервацией
+    string reserver = 6;
+}
+
+// Ресурс ожидает свободного места на диске
+message WaitingForFreeSpace {
+    string state = 1;
+    // Драйвер, запрашивающий резервацию
+    string reserver = 4;
+    // Запрашиваемое место в байтах
+    uint64 requiredBytes = 5;
+    // Уже занятое место в байтах (например, ресурс частично скачался, потом агент перезапустился)
+    uint64 consumedBytes = 6;
+    // Размер дискового раздела в байтах
+    uint64 totalBytes = 7;
+    // Доступное место в байтах
+    uint64 availableBytes = 8;
+    // Нижняя граница свободного места в байтах
+    uint64 spaceToLeaveOnDiskBytes = 9;
+}
+
+// Ошибка операции над хуком (например, не найден файл хука, потерялся контейнер)
+message HookFailure {
+    string state = 1;
+    // Имя хука
+    string hook = 4;
+}
+
+// Внутренняя логика - нарушено ограничение на число повторений операции
+message CountLimit {
+    string state = 1;
+    // Разрешенное число повторений
+    uint32 maxAttempts = 4;
+    // Текущее число повторений
+    uint32 attempts = 5;
+}
+
+// Внутренняя логика - нарушено ограничение на частоту запуска операции
+message FrequencyLimit {
+    string state = 1;
+    // Время последнего запуска
+    string lastRun = 4;
+    // Время возникновения ошибки
+    string now = 5;
+    // Разрешенный интервал между запусками
+    string invocationGap = 6;
+}
+
+// Драйвер не может быть удален, так как на него еще есть ссылки
+message PendingDriverRemove {
+    string state = 1;
+    // Удаляемый драйвер
+    string id = 4;
+    // Удаляющий драйвер
+    string requesterId = 5;
+    // Класс удаляемого драйвера
+    string clazz = 6;
+    // Строковое описание удаляемого драйвера
+    string payload = 7;
+}
+
+// Внутренняя логика - нарушено ограничение на время выполнения операции
+message TimeLimitViolation {
+    string state = 1;
+    // Время запуска
+    string firstRun = 4;
+    // Ограничение на время выполнения
+    string duration = 5;
+    // Время, прошедшее с момента запуска
+    string durationFromFirstRun = 6;
+}
+
+// Ошибка при подготовке шарда
+message ShardFailure {
+    string state = 1;
+    string failReason = 3;
+    string shardId = 4;
+}
+
+//------------------------------------------ Состояние в обратной связи (ISS-3228)-------------------------------------
+// Варианты использования:
+
+// Про хуки:
+//   - Текущий stdout выполняющегося хука?
+//      hooks.inProgress[name=iss_hook_start].progress.stdout
+//   - Текущие счетчики порто хука?
+//      hooks.inProgress[name=iss_hook_status].progress.counters
+//   - retcode последнего выполнения хука?
+//      hooks.finished[name=iss_hook_start].executions.retcode
+//   - Количество провалов хука?
+//      hooks.finished[name=iss_hook_status].executions.numFailures
+//   - Упал ли последний раз хук по oom?
+//      hooks.finished[name=iss_hook_start].executions.history[0].result == OUT_OF_MEMORY
+//   - Что вывел хук в stdout в прошлый раз?
+//      hooks.finished[name=iss_hook_status].executions.history[0].stdout
+//   - Какой хук выполнялся последним?
+//      hooks.history[0].hookName
+//   - Когда последний раз завершился хук?
+//      hooks.finished[name=iss_hook_status].executions.history[0].finishTimestamp
+//   - Какие текущие счетчики порто у выполняющегося хука?
+//      hooks.inProgess[name=iss_hook_start].progress.counters
+//   - Почему рестартанул iss_hook_start?
+//      hooks.finished[name=iss_hook_start].executions.history[0].result
+
+// Состояние хуков
+message HooksState {
+    // Когда произошло последнее событие
+    uint64 updateTimestamp = 1;
+
+    // Агрегированные данные про каждый хук.
+    repeated FinishedHookExecutions finished = 2;
+
+    // Данные о текущих запущенных хуках.
+    repeated HookInProcess inProgress = 3;
+
+    // Список истории выполняемых хуков. Хранится последние N запусков хуков, но не более чем 1 для каждого хука. Нужно для восстановления порядка.
+    repeated HookHistoryEntry history = 4;
+
+    // Операции над свойствами запущенных контейнеров хуков
+    repeated HookContainerEvents events = 5;
+}
+
+// Агрегированая информация о предыдущих результатах работы хука
+message FinishedHookExecutions {
+    HookName name = 1;
+    FinishedProcessExecutions executions = 2;
+}
+
+message HookContainerEvents {
+    HookName name = 1;
+    repeated ContainerEvent events = 2;
+}
+
+// Прогресс выполнения хука
+message HookInProcess {
+    HookName name = 1;
+    ProcessProgress progress = 2;
+}
+
+// Запись истории выполнения хуков
+message HookHistoryEntry {
+    // Когда произошло событие
+    uint64 eventTimestamp = 1;
+
+    // Какой хук запускался
+    HookName hookName = 2;
+
+    // Выполняется ли хук сейчас
+    bool inProgress = 3;
+
+    // Успешно ли завершился
+    bool isSuccessful = 4;
+}
+
+// Имена хуков
+enum HookName {
+    HOOK_UNKNOWN = 0;
+    HOOK_INSTALL = 1;
+    HOOK_VALIDATE = 2;
+    HOOK_START = 3;
+    HOOK_STATUS = 4;
+    HOOK_STOP = 5;
+    HOOK_NOTIFY = 6;
+    HOOK_UNINSTALL = 7;
+    HOOK_META = 8;
+    HOOK_SHARD_INSTALL = 9;
+    HOOK_SHARD_UNINSTALL = 10;
+    HOOK_SHARD_SHARE = 11;
+    SERVICE_META = 12;
+}
+
+message ContainerEvent {
+    ContainerEventName name = 1;
+
+    string description = 2;
+
+    uint64 timestamp = 3;
+}
+
+enum ContainerEventName {
+    CONTAINER_EVENT_UNKNOWN = 0;
+    PROPERTIES_CHANGED_WITHOUT_RESTART = 1;
+    DESTROYED_TO_CHANGE_PROPERTIES = 2;
+    PROPERTIES_CHANGE_SYSTEM_FAILURE = 3;
+}
+
+// Про ресурсы:
+//  - Готов ли ресурс?
+//      resources[name="my_resources"].prepared = true
+//  - Какой прогресс скачки ресурса?
+//      resources[name="my_resources"].inProgressStage.bytesTotal - всего байт
+//      resources[name="my_resources"].inProgressStages.bytesDone - закачано байт
+//      resources[name="my_resources"].inProgressStages.state - PREPARE_STAGE_DOWNLOAD текущая стадия
+//  - Почему последняя скачка провалилась?
+//      resources[name="my_resources"].history[0].success - false если был провал
+//      resources[name="my_resources"].history[0].stage - какая была стадия
+//      resources[name="my_resources"].finishedStages[stage=<что за стадия>].executions.history[0].description - причина падения
+//  - Что выдал провалившийся хук инсталляции?
+//      resources[name="my_resources"].finishedStages[stage=install].executions.history[0].stdout
+//  - Что пишет сейчас хук инсталляции в stderr?
+//      resources[name="my_resources"].inProgressStages[stage=install].process.stderr
+//  - Сколько раз падала валидация ресурса?
+//      resources[name="my_resources"].finishedStages[stage=validation].executions.numFailures
+//  - Сколько раз падала инсталляция по OOM?
+//      resources[name="my_resources"].finishedStages[stage=install].executions.numOutOfMemory
+
+message ResourceState {
+    // имя ресурса из конфигурации
+    string id = 1;
+
+    //Текущий url. Может меняеться
+    string url = 2;
+
+    string name = 3;
+
+    // Когда произошло последнее событие
+    uint64 updateTimestamp = 4;
+
+    // готов ли ресурс
+    bool prepared = 5;
+
+    // Завершенные стадии подготовки ресурса. Хранится информация о всех стадиях.
+    repeated FinishedPrepareStage finishedStages = 6;
+
+    // Стадия подготовки в процессе.
+    ResourcePrepareStageInProgress inProgressStage = 7;
+
+    // история запуска стадий
+    repeated ResourcePrepareStageHistoryEntry history = 8;
+}
+
+// Агрегированное состояние выполненных стадий
+message FinishedPrepareStage {
+    // Имя стадии
+    ResourcePrepareStageName stage = 1;
+
+    // Человекочитаемая причина неудачного выполнения. Возможно, в будущем, стоит заменить на код ошибки
+    string failReason = 2;
+
+    // Счётчик успешных выполнений стадии: хуки + без хуков
+    uint64 successCount = 3;
+
+    // Счётчик провалов стадии: хуки (общий счётчик провалов) + без хуков
+    uint64 failuresCount = 4;
+
+    // Данные по завершенным запускам хуков
+    FinishedProcessExecutions executions = 5;
+
+    // Размер ресурса в байтах на момент успешного завершения скачивания. -1, если не применимо.
+    int64 bytesTotal = 6;
+
+    // Число скачaнных байт ресурса на момент успешного завершения скачивания. -1, если неприменимо.
+    // В идеальном мире пони и единорогов число скачанных байт и общее число байт должны совпадать.
+    int64 bytesDone = 7;
+}
+
+message ResourcePrepareStageInProgress {
+    // Какая идет стадия
+    ResourcePrepareStageName stage = 1;
+
+    // Когда произошло последнее событие
+    uint64 updateTimestamp = 2;
+
+    // Время начала
+    uint64 startTimestamp = 3;
+
+    // Размер ресурса в байтах. -1, если не применимо.
+    int64 bytesTotal = 4;
+
+    // Число скачанных байт ресурса. -1, если не применимо.
+    int64 bytesDone = 5;
+
+    // Данные о выполнении связанного процесса - sky run, инсталляция и т.д.
+    ProcessProgress process = 6;
+}
+
+// Запись истории о текущих или завершенных стадиях подготовки ресурса
+message ResourcePrepareStageHistoryEntry {
+
+    // Когда произошло событие
+    uint64 eventTimestamp = 1;
+
+    // Какая стадия запускалась
+    ResourcePrepareStageName stage = 2;
+
+    // Человекочитаемая причина неудачного выполнения. Возможно, в будущем, стоит заменить на код ошибки
+    string failReason = 3;
+
+    // В прогрессе ли хук сейчас
+    bool inProgress = 4;
+
+    // true если стадия прошла успешно
+    bool success = 5;
+
+    // Размер ресурса в байтах. -1, если не применимо.
+    int64 bytesTotal = 6;
+
+    // Число скачанных байт ресурса. -1, если не применимо.
+    int64 bytesDone = 7;
+}
+
+// Имя стадии подготовки ресурса
+enum ResourcePrepareStageName {
+    PREPARE_STAGE_UNKNOWN = 0;
+
+    // Ресурс скачивается
+    PREPARE_STAGE_DOWNLOAD = 1;
+
+    // Ресурс в очереди
+    PREPARE_STAGE_BLOCKED = 2;
+
+    // Ресурс валидируется
+    PREPARE_STAGE_VALIDATE = 3;
+
+    // Ресурс расшаривается (только шарды)
+    PREPARE_STAGE_SHARE = 4;
+
+    // Ресурс инсталлируется (только шарды)
+    PREPARE_STAGE_INSTALL = 5;
+
+    // Ресурс удаляется (только шарды)
+    PREPARE_STAGE_UNINSTALL = 6;
+}
+
+message FinishedProcessExecutions {
+    // история последних выполнений процесса. Содержит последние N записей.
+    repeated ProcessExecutionResult history = 1;
+
+    // Сколько раз выполнялся.
+    uint32 executionsCount = 2;
+
+    // Сколько раз провалился = сумма всех причин падений
+    uint32 failuresCount = 3;
+
+    // Сколько раз вернул ненулевой код возврата
+    uint32 nonZeroRetcodesCount = 4;
+
+    // Сколько раз падал из-за OOM.
+    uint32 outOfMemoryCount = 5;
+
+    // Сколько раз падал из-за превышения таймаута
+    uint32 timeoutsCount = 6;
+
+    // Сколько раз падал из-за того, что его убили извне
+    uint32 externalKillsCount = 7;
+
+    // Сколько раз падал из-за ошибки порто, агента и т.п.
+    uint32 systemFailuresCount = 8;
+
+    //флаг невозможности запуска хука из за его отсутствия
+    uint32 hookNotExistsCount = 9;
+}
+
+// Описание результата выполнения процесса. Используется для описания хуков, запусков закачки и т.п.
+message ProcessExecutionResult {
+    // Когда процесс завершился
+    uint64 finishTimestamp = 1;
+
+    // Результат выполнения.
+    uint32 exitCode = 2;
+
+    // Последние N строк stderr, но не более 500 символов в сумме.
+    string stdout = 3;
+
+    // Последние N строк stderr, но не более 500 символов в сумме.
+    string stderr = 4;
+
+    // Cчетчики порто
+    map<string, string> counters = 5;
+
+    // Номер сигнала, по которому завершился процесс.
+    // Темная магия агента старается обработать случай, когда процесс является шеллом
+    // и сигнализирует о завершении дочернего процесса по сигналу согласно http://www.tldp.org/LDP/abs/html/exitcodes.html
+    // если сигнала не было - 0
+    uint32 signalNumber = 6;
+
+    // Как завершился процесс
+    ProcessExecutionResultName result = 7;
+
+    // Текстовое описание результата. Содержит текстовое представление result и опционально дополнительную информацию (например текст ошибки porto).
+    string description = 8;
+}
+
+// Описание результата выполнения хука
+enum ProcessExecutionResultName {
+    UNKNOWN = 0;
+
+    // Процесс завершился с нулевым кодом возврата
+    SUCCESS = 1;
+
+    // Процесс завершился с ненулевым кодом возврата
+    NON_ZERO_RETCODE = 2;
+
+    // Процесс убили из-за превышения памяти
+    OUT_OF_MEMORY = 3;
+
+    HOOK_NOT_EXISTS = 4;
+
+    // Произошел таймаут выполенния
+    TIMEOUT = 5;
+
+    // Процесс был убит из вне (кто-то вызвал kill или destroy)
+    KILLED_EXTERNALLY = 6;
+
+    // Произошла системная ошибка (например ошибка от порто или т.п.)
+    SYSTEM_FAILURE = 7;
+
+    //Подробнее о semi_failed хуках можно почитать здесь
+    //https://wiki.yandex-team.ru/iss3/specifications/configuration/instance/
+    //Засчитывается в FinishedProcessExecutions::nonZeroRetcodesCount
+    SEMI_FAILED = 8;
+}
+
+// Данные о прогрессе выполнения процесса. Используется для описания прогресса хуков, программ-закачки и т.п.
+message ProcessProgress {
+    // Когда произошло последнее событие
+    uint64 updateTimestamp = 1;
+
+    // Время начала
+    uint64 startTimestamp = 2;
+
+    // Последняя строка stdout, но не более 1k в сумме.
+    string stdout = 3;
+
+    //  Последняя строка stderr, но не более 1k в сумме.
+    string stderr = 4;
+
+    // Текущие счетчики порто
+    map<string, string> counters = 5;
+}
+
+//-------------------------------------------- Конфигурация агента ---------------------------------------------------
+
+message QueueControl {
+    bool blockedDownload = 1;
+}
+
+//----------------------------- Внутренний протокол обмена агент-сервер (кешер/capi) ----------------------------------
+
+message ToAgent {
+    oneof payload {
+        KeepAlive keepAlive = 1;
+        HostConfiguration hostConfiguration = 2;
+    }
+}
+
+message ToServer {
+    oneof payload {
+        AgentHandshake handshake = 1;
+        KeepAlive keepAlive = 2;
+        DetailedCurrentState currentState = 3;
+    }
+}
+
+// Целевое состояние хоста и агента
+message HostConfiguration {
+    repeated HostConfigurationInstance instances = 1;
+}
+
+// Обертка для job/instance
+message HostConfigurationInstance {
+    WorkloadId id = 1;
+    Entity entity = 2;
+
+    // Пользовательские свойства
+    // Пробрасываются хукам через переменные среды
+    map<string, string> properties = 3;
+    // Целевое состояние - одно из "ACTIVE", "PREPARED", "REMOVED"
+    string targetState = 4;
+    // Момент задания целевого состояния в формате UNIX timestamp
+    uint64 transitionTimestamp = 5;
+
+    // Свойства, изменения которых не приводят к перезапуску. ISS-4434
+    // Не должны пересекаться по ключам c properties
+    map<string, string> dynamicProperties = 6;
+}
+
+// Сообщение, отправляемое агентом при установлении соединения
+message AgentHandshake {
+    string fqdn = 1;
+}
+
+// Сообщение для поддержания живости соединения
+message KeepAlive {
+}
+
+// Текущее состояние хоста. Сообщение используется только в grpc.
+message HostCurrentState {
+    repeated DetailedCurrentState currentStates = 1;
+}

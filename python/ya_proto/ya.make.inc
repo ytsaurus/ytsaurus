@@ -1,0 +1,14 @@
+SET(PROTO_SRCS
+proto/yt/core/misc/proto/error.proto
+proto/yt/core/misc/proto/guid.proto
+proto/yt/core/misc/proto/protobuf_helpers.proto
+proto/yt/core/yson/proto/protobuf_interop.proto
+proto/yt/core/ytree/proto/attributes.proto
+proto/yt/core/ytree/proto/ypath.proto
+proto/yt/core/rpc/proto/rpc.proto
+proto/yt/core/rpc/grpc/proto/grpc.proto
+proto/yp/client/api/proto/cluster_api.proto
+proto/yp/client/api/proto/data_model.proto
+proto/yp/client/api/proto/discovery_service.proto
+proto/yp/client/api/proto/object_service.proto
+)
