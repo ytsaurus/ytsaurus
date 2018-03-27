@@ -13,6 +13,7 @@
 #include "udf/farm_hash.h" // Y_IGNORE
 #include "udf/make_map.h" // Y_IGNORE
 #include "udf/first.h" // Y_IGNORE
+#include "udf/format_guid.h" // Y_IGNORE
 #include "udf/hyperloglog.h" // Y_IGNORE
 #include "udf/is_substr.h" // Y_IGNORE
 #include "udf/lower.h" // Y_IGNORE
@@ -827,7 +828,7 @@ void RegisterBuiltinFunctions(
         EValueType::String,
         UDF_BC(dates),
         ECallingConvention::Simple);
-
+    
     std::vector<TString> timestampFloorFunctions = {
         "timestamp_floor_hour",
         "timestamp_floor_day",
@@ -843,6 +844,13 @@ void RegisterBuiltinFunctions(
             UDF_BC(dates),
             ECallingConvention::Simple);
     }
+
+    builder.RegisterFunction(
+        "format_guid",
+        std::vector<TType>{EValueType::Uint64, EValueType::Uint64},
+        EValueType::String,
+        UDF_BC(format_guid),
+        ECallingConvention::Simple);
 
     std::vector<std::pair<TString, EValueType>> ypathGetFunctions = {
         {"try_get_int64", EValueType::Int64},

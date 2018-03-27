@@ -1522,6 +1522,7 @@ class TestJobRevival(TestJobRevivalBase):
         assert get("{0}/@progress/jobs/aborted/total".format(cypress_path)) == 0
         assert read_table("//tmp/t_out") == [{"a": 1}]
 
+    @pytest.mark.skipif("True", reason="YT-8635")
     @pytest.mark.timeout(600)
     def test_many_jobs_and_operations(self):
         create("table", "//tmp/t_in")

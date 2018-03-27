@@ -1746,6 +1746,12 @@ class TestCypress(YTEnvSetup):
         gc_collect()
         assert get("//sys/tablet_cell_bundles/b1/@ref_counter") == 1
 
+    def test_create_invalid_type(self):
+        with pytest.raises(YtError):
+            create("some_invalid_type", "//tmp/s")
+        with pytest.raises(YtError):
+            create("sorted_dynamic_tablet_store", "//tmp/s")
+
 ##################################################################
 
 class TestCypressMulticell(TestCypress):

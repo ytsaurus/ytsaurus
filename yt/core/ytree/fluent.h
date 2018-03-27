@@ -637,8 +637,8 @@ public:
     typedef NYson::TYsonString TValue;
 
     TFluentYsonWriterState(NYson::EYsonFormat format, NYson::EYsonType type)
-        : Writer(&Output, format, type)
-        , Type(type)
+        : Writer(&Output, format, type, true /* enableRaw */)
+        , Type(type)    
     { }
 
     NYson::TYsonString GetValue()

@@ -14,6 +14,8 @@
 
 #include <yt/core/ytree/yson_serializable.h>
 
+#include <yt/core/logging/log.h>
+
 #include <yt/core/misc/align.h>
 #include <yt/core/misc/fs.h>
 
@@ -228,7 +230,7 @@ private:
                                 << TErrorAttribute("read_bytes", reallyRead);
                         }
                     }
-                }
+               }
             }
 
             result = buf - reinterpret_cast<ui8*>(data.Begin()) - delta;

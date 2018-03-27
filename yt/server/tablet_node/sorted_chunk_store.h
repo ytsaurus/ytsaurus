@@ -95,6 +95,10 @@ private:
         const TWorkloadDescriptor& workloadDescriptor,
         const NChunkClient::TReadSessionId& readSessionId);
 
+    void ValidateBlockSize(
+        const NTableClient::TChunkStatePtr& chunkState,
+        const TWorkloadDescriptor& workloadDescriptor);
+
     virtual void PrecacheProperties() override;
 
     virtual NTableClient::TKeyComparer GetKeyComparer() override;

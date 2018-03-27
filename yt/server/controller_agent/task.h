@@ -159,6 +159,10 @@ protected:
 
     //! Outgoing edges in data flow graph.
     std::vector<TEdgeDescriptor> EdgeDescriptors_;
+
+    //! Increments each time a new job in this task is scheduled.
+    TIdGenerator TaskJobIndexGenerator_;
+
     virtual TNullable<EScheduleJobFailReason> GetScheduleFailReason(
         ISchedulingContext* context,
         const TJobResources& jobLimits);

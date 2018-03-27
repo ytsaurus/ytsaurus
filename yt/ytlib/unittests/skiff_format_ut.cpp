@@ -5,11 +5,12 @@
 #include <yt/ytlib/formats/config.h>
 #include <yt/ytlib/formats/parser.h>
 #include <yt/ytlib/formats/skiff_parser.h>
-#include <yt/ytlib/formats/skiff_schema_match.h>
 #include <yt/ytlib/formats/skiff_writer.h>
 #include <yt/ytlib/formats/format.h>
 #include <yt/ytlib/table_client/public.h>
 #include <yt/ytlib/table_client/name_table.h>
+
+#include <yt/core/skiff/schema_match.h>
 
 #include <yt/core/skiff/skiff.h>
 #include <yt/core/skiff/skiff_schema.h>
@@ -33,7 +34,7 @@ using namespace NYson;
 TString ConvertToSkiffSchemaShortDebugString(INodePtr node)
 {
     auto skiffFormatConfig = ConvertTo<TSkiffFormatConfigPtr>(node);
-    auto skiffSchemas = ParseSkiffSchemas(skiffFormatConfig);
+    auto skiffSchemas = ParseSkiffSchemas(skiffFormatConfig->SkiffSchemaRegistry, skiffFormatConfig->TableSkiffSchemas);
     TStringStream result;
     result << '{';
     for (const auto& schema : skiffSchemas) {
@@ -196,7 +197,7 @@ TEST(TSkiffSchemaDescription, TestDescriptionDerivation)
         })->SetName("Bar"),
     });
 
-    auto tableDescriptionList = CreateTableDescriptionList({schema});
+    auto tableDescriptionList = CreateTableDescriptionList({schema}, RangeIndexColumnName, RowIndexColumnName);
     EXPECT_EQ(tableDescriptionList.size(), 1);
     EXPECT_EQ(tableDescriptionList[0].HasOtherColumns, false);
     EXPECT_EQ(tableDescriptionList[0].SparseFieldDescriptionList.empty(), true);
@@ -216,7 +217,7 @@ TEST(TSkiffSchemaDescription, TestKeySwitchColumn)
             CreateSimpleTypeSchema(EWireType::Boolean)->SetName("$key_switch"),
         });
 
-        auto tableDescriptionList = CreateTableDescriptionList({schema});
+        auto tableDescriptionList = CreateTableDescriptionList({schema}, RangeIndexColumnName, RowIndexColumnName);
         EXPECT_EQ(tableDescriptionList.size(), 1);
         EXPECT_EQ(tableDescriptionList[0].KeySwitchFieldIndex, TNullable<size_t>(1));
     }
@@ -226,7 +227,7 @@ TEST(TSkiffSchemaDescription, TestKeySwitchColumn)
         });
 
         try {
-            auto tableDescriptionList = CreateTableDescriptionList({schema});
+            auto tableDescriptionList = CreateTableDescriptionList({schema}, RangeIndexColumnName, RowIndexColumnName);
             ADD_FAILURE();
         } catch (const std::exception& e) {
             EXPECT_THAT(e.what(), testing::HasSubstr("Column \"$key_switch\" has unexpected Skiff type"));
@@ -242,7 +243,7 @@ TEST(TSkiffSchemaDescription, TestDisallowEmptyNames)
     });
 
     try {
-        CreateTableDescriptionList({schema});
+        CreateTableDescriptionList({schema}, RangeIndexColumnName, RowIndexColumnName);
         ADD_FAILURE();
     } catch (const std::exception& e) {
         EXPECT_THAT(e.what(), testing::HasSubstr("must have a name"));
@@ -257,7 +258,7 @@ TEST(TSkiffSchemaDescription, TestWrongRowType)
     });
 
     try {
-        CreateTableDescriptionList({schema});
+        CreateTableDescriptionList({schema}, RangeIndexColumnName, RowIndexColumnName);
         ADD_FAILURE();
     } catch (const std::exception& e) {
         EXPECT_THAT(e.what(), testing::HasSubstr("Invalid wire type for table row"));
@@ -272,7 +273,7 @@ TEST(TSkiffSchemaDescription, TestOtherColumnsOk)
         CreateSimpleTypeSchema(EWireType::Yson32)->SetName("$other_columns"),
     });
 
-    auto tableDescriptionList = CreateTableDescriptionList({schema});
+    auto tableDescriptionList = CreateTableDescriptionList({schema}, RangeIndexColumnName, RowIndexColumnName);
     ASSERT_EQ(tableDescriptionList.size(), 1);
     ASSERT_EQ(tableDescriptionList[0].HasOtherColumns, true);
 }
@@ -286,7 +287,7 @@ TEST(TSkiffSchemaDescription, TestOtherColumnsWrongType)
     });
 
     try {
-        CreateTableDescriptionList({schema});
+        CreateTableDescriptionList({schema}, RangeIndexColumnName, RowIndexColumnName);
         ADD_FAILURE();
     } catch (const std::exception& e) {
         EXPECT_THAT(e.what(), testing::HasSubstr("Invalid wire type for column \"$other_columns\""));
@@ -302,7 +303,7 @@ TEST(TSkiffSchemaDescription, TestOtherColumnsWrongPlace)
     });
 
     try {
-        CreateTableDescriptionList({schema});
+        CreateTableDescriptionList({schema}, RangeIndexColumnName, RowIndexColumnName);
         ADD_FAILURE();
     } catch (const std::exception& e) {
         EXPECT_THAT(e.what(), testing::HasSubstr("Invalid placement of special column \"$other_columns\""));
@@ -1410,6 +1411,37 @@ TEST(TSkiffParser, TestEmptyInput)
         parser->Finish();
         ASSERT_EQ(collectedRows.Size(), 0);
     }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(TSkiffParser, ColumnIds)
+{
+    auto skiffSchema = CreateTupleSchema({
+        CreateSimpleTypeSchema(EWireType::Int64)->SetName("field_a"),
+        CreateSimpleTypeSchema(EWireType::Uint64)->SetName("field_b")
+    });
+
+    TCollectingValueConsumer collectedRows;
+    collectedRows.GetNameTable()->GetIdOrRegisterName("field_b");
+    auto parser = CreateParserForSkiff(skiffSchema, &collectedRows);
+
+    TStringStream dataStream;
+    TCheckedSkiffWriter checkedSkiffWriter(CreateVariant16Schema({skiffSchema}), &dataStream);
+
+    checkedSkiffWriter.WriteVariant16Tag(0);
+    checkedSkiffWriter.WriteInt64(-1);
+    checkedSkiffWriter.WriteUint64(2);
+
+    checkedSkiffWriter.Finish();
+
+    parser->Read(dataStream.Str());
+    parser->Finish();
+
+    ASSERT_EQ(collectedRows.Size(), 1);
+
+    ASSERT_EQ(GetInt64(collectedRows.GetRowValue(0, "field_a")), -1);
+    ASSERT_EQ(GetUint64(collectedRows.GetRowValue(0, "field_b")), 2);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
