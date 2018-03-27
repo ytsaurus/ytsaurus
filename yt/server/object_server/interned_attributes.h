@@ -56,6 +56,7 @@
     XX(DataWeight, data_weight) \
     XX(Decommissioned, decommissioned) \
     XX(DecommissionedNodeCount, decommissioned_node_count) \
+    XX(DependentTransactionIds, DependentTransactionIds) \
     XX(DesiredTabletCount, desired_tablet_count) \
     XX(DesiredTabletSize, desired_tablet_size) \
     XX(DisableSchedulerJobs, disable_scheduler_jobs) \
@@ -163,6 +164,7 @@
     XX(PivotKey, pivot_key) \
     XX(PivotKeys, pivot_keys) \
     XX(PrerequisiteTransactionId, prerequisite_transaction_id) \
+    XX(PrerequisiteTransactionIds, PrerequisiteTransactionIds) \
     XX(PrimaryCellId, primary_cell_id) \
     XX(PrimaryCellTag, primary_cell_tag) \
     XX(PrimaryMedium, primary_medium) \

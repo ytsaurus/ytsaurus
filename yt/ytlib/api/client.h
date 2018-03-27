@@ -242,7 +242,6 @@ struct TCheckPermissionResult
 // TODO(lukyan): Use TTransactionalOptions as base class
 struct TTransactionStartOptions
     : public TMutatingOptions
-    , public TPrerequisiteOptions
 {
     TNullable<TDuration> Timeout;
 
@@ -251,6 +250,7 @@ struct TTransactionStartOptions
     NTransactionClient::TTransactionId Id;
 
     NTransactionClient::TTransactionId ParentId;
+    std::vector<NTransactionClient::TTransactionId> PrerequisiteTransactionIds;
 
     bool AutoAbort = true;
     bool Sticky = false;

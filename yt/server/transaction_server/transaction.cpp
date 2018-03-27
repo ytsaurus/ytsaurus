@@ -62,6 +62,8 @@ void TTransaction::Save(NCellMaster::TSaveContext& context) const
     Save(context, AccountResourceUsage_);
     Save(context, Acd_);
     Save(context, System_);
+    Save(context, PrerequisiteTransactions_);
+    Save(context, DependentTransactions_);
 }
 
 void TTransaction::Load(NCellMaster::TLoadContext& context)
@@ -75,6 +77,7 @@ void TTransaction::Load(NCellMaster::TLoadContext& context)
     using NYT::Load;
     Load(context, State_);
     Load(context, Timeout_);
+    // COMPAT(shakurov)
     if (context.GetVersion() < 700) {
         Load<bool>(context); // drop AccountingEnabled_
     }
@@ -92,8 +95,14 @@ void TTransaction::Load(NCellMaster::TLoadContext& context)
     Load(context, StagedNodes_);
     Load(context, AccountResourceUsage_);
     Load(context, Acd_);
+    // COMPAT(shakurov)
     if (context.GetVersion() >= 702) {
         Load(context, System_);
+    }
+    // COMPAT(babenko)
+    if (context.GetVersion() >= 706) {
+        Load(context, PrerequisiteTransactions_);
+        Load(context, DependentTransactions_);
     }
 }
 

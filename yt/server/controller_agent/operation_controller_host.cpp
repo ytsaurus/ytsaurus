@@ -192,6 +192,11 @@ TInstant TOperationControllerHost::GetConnectionTime()
     return Bootstrap_->GetControllerAgent()->GetConnectionTime();
 }
 
+const TIncarnationId& TOperationControllerHost::GetIncarnationId()
+{
+    return IncarnationId_;
+}
+
 const NConcurrency::IThroughputThrottlerPtr& TOperationControllerHost::GetJobSpecSliceThrottler()
 {
     return Bootstrap_->GetControllerAgent()->GetJobSpecSliceThrottler();

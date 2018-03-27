@@ -58,12 +58,14 @@ TSnapshotBuilder::TSnapshotBuilder(
     TControllerAgentConfigPtr config,
     TOperationIdToOperationMap operations,
     IClientPtr client,
-    IInvokerPtr ioInvoker)
+    IInvokerPtr ioInvoker,
+    const TIncarnationId& incarnationId)
     : Config_(config)
     , Operations_(std::move(operations))
     , Client_(client)
     , IOInvoker_(ioInvoker)
     , ControlInvoker_(GetCurrentInvoker())
+    , IncarnationId_(incarnationId)
     , Profiler(ControllerAgentProfiler.GetPathPrefix() + "/snapshot")
 {
     YCHECK(Config_);
@@ -320,6 +322,7 @@ void TSnapshotBuilder::UploadSnapshot(const TSnapshotJobPtr& job)
                 Format("Snapshot upload for operation %v", operationId));
             options.Attributes = std::move(attributes);
             options.Timeout = Config_->SnapshotTimeout;
+            options.PrerequisiteTransactionIds = {IncarnationId_};
             auto transactionOrError = WaitFor(
                 Client_->StartTransaction(
                     NTransactionClient::ETransactionType::Master,
@@ -392,6 +395,7 @@ void TSnapshotBuilder::UploadSnapshot(const TSnapshotJobPtr& job)
         {
             TMoveNodeOptions options;
             options.Force = true;
+            options.PrerequisiteTransactionIds = {IncarnationId_};
 
             WaitFor(Client_->MoveNode(
                 snapshotUploadPath,
@@ -409,6 +413,7 @@ void TSnapshotBuilder::UploadSnapshot(const TSnapshotJobPtr& job)
             TCopyNodeOptions options;
             options.Recursive = false;
             options.Force = true;
+            options.PrerequisiteTransactionIds = {IncarnationId_};
 
             auto snapshotOldPath = GetSnapshotPath(operationId);
 

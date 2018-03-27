@@ -397,7 +397,12 @@ private:
         TObjectServiceProxy proxy(Bootstrap_
             ->GetMasterClient()
             ->GetMasterChannelOrThrow(channelKind, cellTag));
-        return proxy.ExecuteBatch();
+        auto batchReq = proxy.ExecuteBatch();
+
+        auto* prerequisitesExt = batchReq->Header().MutableExtension(NObjectClient::NProto::TPrerequisitesExt::prerequisites_ext);
+        ToProto(prerequisitesExt->add_transactions()->mutable_transaction_id(), Bootstrap_->GetControllerAgent()->GetIncarnationId());
+
+        return batchReq;
     }
 
     TChunkServiceProxy::TReqExecuteBatchPtr StartChunkBatchRequest(TCellTag cellTag = PrimaryMasterCellTag)
@@ -1033,7 +1038,8 @@ private:
             Config_,
             std::move(controllerMap),
             Bootstrap_->GetMasterClient(),
-            Bootstrap_->GetControllerAgent()->GetSnapshotIOInvoker());
+            Bootstrap_->GetControllerAgent()->GetSnapshotIOInvoker(),
+            Bootstrap_->GetControllerAgent()->GetIncarnationId());
 
         // NB: Result is logged in the builder.
         auto error = WaitFor(builder->Run());
