@@ -309,6 +309,21 @@ class TestMasterTransactions(YTEnvSetup):
         tx = start_transaction(authenticated_user = "u")
         assert get("#{0}/@owner".format(tx)) == "u"
 
+    def test_prerequisite_transactions(self):
+        tx_a = start_transaction()
+        tx_b = start_transaction(prerequisite_transaction_ids=[tx_a])
+
+        assert exists("//sys/transactions/" + tx_a)
+        assert exists("//sys/transactions/" + tx_b)
+
+        ping_transaction(tx_a)
+        ping_transaction(tx_b)
+
+        abort_transaction(tx_a)
+
+        assert not exists("//sys/transactions/" + tx_a)
+        assert not exists("//sys/transactions/" + tx_b)
+
 ##################################################################
 
 class TestMasterTransactionsMulticell(TestMasterTransactions):
