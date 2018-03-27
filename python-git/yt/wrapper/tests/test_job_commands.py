@@ -77,6 +77,8 @@ class TestJobCommands(object):
         job_events.release_breakpoint()
         op.wait()
 
+    # Remove after YT-8596
+    @flaky(max_runs=5)
     def test_job_shell_command(self, yt_env, job_events):
         if yt.config["backend"] == "native":
             pytest.skip()
