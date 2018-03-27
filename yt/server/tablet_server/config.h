@@ -271,6 +271,26 @@ DEFINE_REFCOUNTED_TYPE(TDynamicTabletBalancerMasterConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TDynamicTabletCellBalancerMasterConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    bool EnableTabletCellBalancer;
+    bool EnableVerboseLogging;
+
+    TDynamicTabletCellBalancerMasterConfig()
+    {
+        RegisterParameter("enable_tablet_cell_balancer", EnableTabletCellBalancer)
+            .Default(true);
+        RegisterParameter("enable_verbose_logging", EnableVerboseLogging)
+            .Default(false);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TDynamicTabletCellBalancerMasterConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TReplicatedTableManagerConfig
     : public NYTree::TYsonSerializable
 {
@@ -323,6 +343,7 @@ public:
     NTabletNode::EDynamicTableProfilingMode DynamicTableProfilingMode;
 
     TDynamicTabletBalancerMasterConfigPtr TabletBalancer;
+    TDynamicTabletCellBalancerMasterConfigPtr TabletCellBalancer;
 
     TDynamicReplicatedTableManagerConfigPtr ReplicatedTableManager;
 
@@ -333,6 +354,8 @@ public:
         RegisterParameter("dynamic_table_profiling_mode", DynamicTableProfilingMode)
             .Default(NTabletNode::EDynamicTableProfilingMode::Path);
         RegisterParameter("tablet_balancer", TabletBalancer)
+            .DefaultNew();
+        RegisterParameter("tablet_cell_balancer", TabletCellBalancer)
             .DefaultNew();
         RegisterParameter("replicated_table_manager", ReplicatedTableManager)
             .DefaultNew();
