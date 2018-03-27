@@ -1629,6 +1629,18 @@ class TestFairShareTreesReconfiguration(YTEnvSetup):
         remove("//sys/pool_trees/other_intersecting")
         wait(lambda: "update_pools" not in get("//sys/scheduler/@alerts"))
 
+    def test_missing_cloud_pool_tree(self):
+        create("table", "//tmp/t_in")
+        write_table("//tmp/t_in", [{"x": 1}])
+        create("table", "//tmp/t_out")
+
+        with pytest.raises(YtError):
+            map(command="sleep 1000; cat",
+                in_="//tmp/t_in",
+                out="//tmp/t_out",
+                # It is treated as cloud pool tree and we should fail.
+                spec={"scheduling_tag_filter": "external"})
+
     def test_abort_orphaned_operations(self):
         create("table", "//tmp/t_in")
         write_table("//tmp/t_in", [{"x": 1}])
