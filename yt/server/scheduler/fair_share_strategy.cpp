@@ -303,6 +303,19 @@ public:
         return result;
     }
 
+    void ResetOperation(const TFairShareStrategyOperationStatePtr& state)
+    {
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
+
+        auto operationId = state->GetHost()->GetId();
+        auto operationElement = GetOperationElement(operationId);
+
+        auto* parent = operationElement->GetParent();
+        parent->DisableChild(operationElement);
+
+        operationElement->ResetJobs();
+    }
+
     void EnableOperation(const TOperationId& operationId)
     {
         const auto& operationElement = GetOperationElement(operationId);
@@ -2090,6 +2103,17 @@ public:
         }
 
         YCHECK(OperationIdToOperationState_.erase(operation->GetId()) == 1);
+    }
+
+    virtual void ResetOperation(IOperationStrategyHost* operation) override
+    {
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
+
+        const auto& state = GetOperationState(operation->GetId());
+        for (const auto& pair : state->TreeIdToPoolIdMap()) {
+            const auto& treeId = pair.first;
+            GetTree(treeId)->ResetOperation(state);
+        }
     }
 
     virtual void UpdatePools(const INodePtr& poolsNode) override

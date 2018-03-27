@@ -774,8 +774,7 @@ public:
         const auto& controller = operation->GetController();
         controller->RevokeAgent();
 
-        Strategy_->UnregisterOperation(operation.Get());
-        Strategy_->RegisterOperation(operation.Get());
+        Strategy_->ResetOperation(operation.Get());
 
         operation->Restart();
         operation->SetStateAndEnqueueEvent(EOperationState::Orphaned);

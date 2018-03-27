@@ -854,6 +854,18 @@ void TCompositeSchedulerElement::EnableChild(const TSchedulerElementPtr& child)
     AddChild(&EnabledChildToIndex_, &EnabledChildren_, child);
 }
 
+void TCompositeSchedulerElement::DisableChild(const TSchedulerElementPtr& child)
+{
+    YCHECK(!Cloned_);
+
+    if (EnabledChildToIndex_.find(child) == EnabledChildToIndex_.end()) {
+        return;
+    }
+
+    RemoveChild(&EnabledChildToIndex_, &EnabledChildren_, child);
+    AddChild(&DisabledChildToIndex_, &DisabledChildren_, child);
+}
+
 void TCompositeSchedulerElement::RemoveChild(const TSchedulerElementPtr& child)
 {
     YCHECK(!Cloned_);
@@ -1640,6 +1652,33 @@ TJobResources TOperationElementSharedState::RemoveJob(const TJobId& jobId)
     return resourceUsage;
 }
 
+TJobResources TOperationElementSharedState::ClearJobs()
+{
+    TWriterGuard guard(JobPropertiesMapLock_);
+
+    TJobResources resourceUsage = ZeroJobResources();
+
+    for (const auto& jobId : PreemptableJobs_) {
+        auto* properties = GetJobProperties(jobId);
+        resourceUsage += properties->ResourceUsage;
+    }
+    for (const auto& jobId : AggressivelyPreemptableJobs_) {
+        auto* properties = GetJobProperties(jobId);
+        resourceUsage += properties->ResourceUsage;
+    }
+    for (const auto& jobId : NonpreemptableJobs_) {
+        auto* properties = GetJobProperties(jobId);
+        resourceUsage += properties->ResourceUsage;
+    }
+
+    PreemptableJobs_.clear();
+    AggressivelyPreemptableJobs_.clear();
+    NonpreemptableJobs_.clear();
+    JobPropertiesMap_.clear();
+
+    return resourceUsage;
+}
+
 bool TOperationElement::TryStartScheduleJob(
     NProfiling::TCpuInstant now,
     const TJobResources& jobLimits,
@@ -2144,6 +2183,12 @@ void TOperationElement::OnJobFinished(const TJobId& jobId)
     IncreaseResourceUsage(-delta);
 
     UpdatePreemptableJobsList();
+}
+
+void TOperationElement::ResetJobs()
+{
+    auto delta = SharedState_->ClearJobs();
+    IncreaseResourceUsage(-delta);
 }
 
 void TOperationElement::BuildOperationToElementMapping(TOperationElementByIdMap* operationElementByIdMap)
