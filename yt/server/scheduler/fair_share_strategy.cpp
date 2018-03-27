@@ -2784,7 +2784,10 @@ private:
         std::vector<TFuture<void>> futures;
 
         for (const auto& pair : pools) {
-            auto tree = GetTree(pair.first);
+            auto tree = FindTree(pair.first);
+            if (!tree) {
+                THROW_ERROR_EXCEPTION("Pool tree %Qv is missing", pair.first);
+            }
             futures.push_back(tree->ValidateOperationStart(operation, pair.second));
         }
 
