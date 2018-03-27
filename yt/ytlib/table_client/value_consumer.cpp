@@ -199,10 +199,6 @@ void TValueConsumerBase::ThrowConversionException(const TUnversionedValue& value
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const i64 MaxBufferSize = 1_MB;
-
-////////////////////////////////////////////////////////////////////////////////
-
 TBuildingValueConsumer::TBuildingValueConsumer(
     const TTableSchema& schema,
     const TTypeConversionConfigPtr& typeConversionConfig)
@@ -326,11 +322,11 @@ struct TWritingValueConsumerBufferTag
 TWritingValueConsumer::TWritingValueConsumer(
     ISchemalessWriterPtr writer,
     const TTypeConversionConfigPtr& typeConversionConfig,
-    bool flushImmediately)
+    i64 maxRowBufferSize)
     : TValueConsumerBase(writer->GetSchema(), typeConversionConfig)
     , Writer_(writer)
-    , FlushImmediately_(flushImmediately)
     , RowBuffer_(New<TRowBuffer>(TWritingValueConsumerBufferTag()))
+    , MaxRowBufferSize_(maxRowBufferSize)
 {
     YCHECK(Writer_);
     InitializeIdToTypeMapping();
@@ -372,7 +368,7 @@ void TWritingValueConsumer::OnEndRow()
     Values_.clear();
     Rows_.push_back(row);
 
-    if (RowBuffer_->GetSize() > MaxBufferSize || FlushImmediately_) {
+    if (RowBuffer_->GetSize() >= MaxRowBufferSize_) {
         auto error = WaitFor(Flush());
         THROW_ERROR_EXCEPTION_IF_FAILED(error, "Table writer failed")
     }
