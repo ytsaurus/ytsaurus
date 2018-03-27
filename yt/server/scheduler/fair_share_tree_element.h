@@ -358,6 +358,7 @@ public:
 
     void AddChild(const TSchedulerElementPtr& child, bool enabled = true);
     void EnableChild(const TSchedulerElementPtr& child);
+    void DisableChild(const TSchedulerElementPtr& child);
     void RemoveChild(const TSchedulerElementPtr& child);
 
     bool IsEmpty() const;
@@ -537,6 +538,7 @@ public:
 
     TJobResources AddJob(const TJobId& jobId, const TJobResources& resourceUsage);
     TJobResources RemoveJob(const TJobId& jobId);
+    TJobResources ClearJobs();
 
     TJobResources Finalize();
 
@@ -605,6 +607,12 @@ private:
         bool empty() const
         {
             return Size_ == 0;
+        }
+
+        void clear()
+        {
+            Impl_.clear();
+            Size_ = 0;
         }
 
     private:
@@ -734,6 +742,7 @@ public:
 
     void OnJobStarted(const TJobId& jobId, const TJobResources& resourceUsage);
     void OnJobFinished(const TJobId& jobId);
+    void ResetJobs();
 
     virtual void BuildOperationToElementMapping(TOperationElementByIdMap* operationElementByIdMap) override;
 
