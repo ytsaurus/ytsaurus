@@ -281,6 +281,9 @@ TSchedulerConfig::TSchedulerConfig()
     RegisterParameter("operations_update_period", OperationsUpdatePeriod)
         .Default(TDuration::Seconds(3));
 
+    RegisterParameter("finished_job_storing_timeout", FinishedJobStoringTimeout)
+        .Default(TDuration::Minutes(30));
+
     RegisterParameter("testing_options", TestingOptions)
         .DefaultNew();
 

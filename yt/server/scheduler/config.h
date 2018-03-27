@@ -276,6 +276,9 @@ public:
     //! per scheduling tag filters.
     TDuration SchedulingTagFilterExpireTimeout;
 
+    //! Timeout of finished job storing before forced removal.
+    TDuration FinishedJobStoringTimeout;
+
     TDuration OperationsUpdatePeriod;
 
     TTestingOptionsPtr TestingOptions;
