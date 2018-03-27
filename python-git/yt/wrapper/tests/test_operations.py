@@ -1460,5 +1460,5 @@ print(op.id)
         wait(lambda: op.get_state() == "running")
         yt.update_operation_parameters(op.id, {"scheduling_options_per_pool_tree": {"default": {"weight": 10.0}}})
         assert assert_almost_equal(
-            yt.get_operation(op.id)["progress"]["scheduling_info_per_pool_tree"]["default"]["weight"],
+            yt.get_operation(op.id, include_scheduler=True)["progress"]["scheduling_info_per_pool_tree"]["default"]["weight"],
             10.0)

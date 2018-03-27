@@ -72,11 +72,12 @@ def complete_operation(operation, client=None):
         return
     make_request("complete_op", {"operation_id": operation}, client=client)
 
-def get_operation(operation_id, attributes=None, client=None):
+def get_operation(operation_id, attributes=None, include_scheduler=None, client=None):
     """Get operation attributes through API.
     """
     params={"operation_id": operation_id}
     set_param(params, "attributes", attributes)
+    set_param(params, "include_scheduler", include_scheduler)
     return make_formatted_request(
         "get_operation",
         params,
