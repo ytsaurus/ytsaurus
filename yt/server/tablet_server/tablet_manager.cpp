@@ -2971,7 +2971,7 @@ private:
         }
 
         // Figure out and analyze the reality.
-        THashSet<TTabletCell*> actualCells;
+        THashSet<const TTabletCell*> actualCells;
         for (int slotIndex = 0; slotIndex < request->tablet_slots_size(); ++slotIndex) {
             // Pre-erase slot.
             auto& slot = node->TabletSlots()[slotIndex];
