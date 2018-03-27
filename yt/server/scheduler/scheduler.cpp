@@ -1513,7 +1513,8 @@ private:
     {
         static const TPoolTreeKeysHolder PoolTreeKeysHolder;
 
-        LOG_INFO("Updating pools");
+        LOG_INFO("Requesting pools configuration");
+
         auto req = TYPathProxy::Get(GetPoolsPath());
         ToProto(req->mutable_attributes()->mutable_keys(), PoolTreeKeysHolder.Keys);
         batchReq->AddRequest(req, "get_pools");
@@ -1523,7 +1524,7 @@ private:
     {
         auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_pools");
         if (!rspOrError.IsOK()) {
-            LOG_ERROR(rspOrError, "Error getting pools configuration");
+            LOG_WARNING(rspOrError, "Error getting pools configuration");
             return;
         }
 
@@ -1544,7 +1545,7 @@ private:
 
     void RequestNodesAttributes(TObjectServiceProxy::TReqExecuteBatchPtr batchReq)
     {
-        LOG_INFO("Updating exec nodes information");
+        LOG_INFO("Requesting exec nodes information");
 
         auto req = TYPathProxy::List("//sys/nodes");
         std::vector<TString> attributeKeys{
@@ -1561,7 +1562,7 @@ private:
     {
         auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspList>("get_nodes");
         if (!rspOrError.IsOK()) {
-            LOG_ERROR(rspOrError, "Error updating exec nodes information");
+            LOG_WARNING(rspOrError, "Error getting exec nodes information");
             return;
         }
 
@@ -1587,11 +1588,11 @@ private:
             }
             WaitFor(Combine(shardFutures))
                 .ThrowOnError();
-        } catch (const std::exception& ex) {
-            LOG_ERROR(ex, "Error updating exec nodes information");
-        }
 
-        LOG_INFO("Exec nodes information updated");
+            LOG_INFO("Exec nodes information updated");
+        } catch (const std::exception& ex) {
+            LOG_WARNING(ex, "Error updating exec nodes information");
+        }
     }
 
     // COMPAT(asaitgalin): Runtime params updates from Cypress will be replaced
@@ -1616,9 +1617,8 @@ private:
         const TObjectServiceProxy::TRspExecuteBatchPtr& batchRsp)
     {
         auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_runtime_params");
-
         if (!rspOrError.IsOK()) {
-            LOG_WARNING(rspOrError, "Error updating operation runtime parameters (OperationId: %v)",
+            LOG_WARNING(rspOrError, "Error getting operation runtime parameters (OperationId: %v)",
                 operation->GetId());
 		}
 
@@ -1646,7 +1646,7 @@ private:
             LOG_INFO("Operation runtime parameters updated from Cypress (OperationId: %v)",
                 operation->GetId());
         } catch (const std::exception& ex) {
-            LOG_ERROR(ex, "Error parsing operation runtime parameters (OperationId: %v)",
+            LOG_WARNING(ex, "Error parsing operation runtime parameters (OperationId: %v)",
                 operation->GetId());
         }
     }
@@ -1654,7 +1654,7 @@ private:
 
     void RequestConfig(const TObjectServiceProxy::TReqExecuteBatchPtr& batchReq)
     {
-        LOG_INFO("Updating scheduler configuration");
+        LOG_INFO("Requesting scheduler configuration");
 
         auto req = TYPathProxy::Get("//sys/scheduler/config");
         batchReq->AddRequest(req, "get_config");
@@ -1669,7 +1669,7 @@ private:
             return;
         }
         if (!rspOrError.IsOK()) {
-            LOG_ERROR(rspOrError, "Error getting scheduler configuration");
+            LOG_WARNING(rspOrError, "Error getting scheduler configuration");
             return;
         }
 
@@ -1725,7 +1725,8 @@ private:
 
     void RequestOperationArchiveVersion(TObjectServiceProxy::TReqExecuteBatchPtr batchReq)
     {
-        LOG_INFO("Updating operation archive version");
+        LOG_INFO("Requesting operation archive version");
+
         auto req = TYPathProxy::Get(GetOperationsArchiveVersionPath());
         batchReq->AddRequest(req, "get_operation_archive_version");
     }
