@@ -316,6 +316,9 @@ class TestMasterTransactions(YTEnvSetup):
         assert exists("//sys/transactions/" + tx_a)
         assert exists("//sys/transactions/" + tx_b)
 
+        assert get("//sys/transactions/{}/@prerequisite_transaction_ids".format(tx_b)) == [tx_a]
+        assert get("//sys/transactions/{}/@dependent_transaction_ids".format(tx_a)) == [tx_b]
+
         ping_transaction(tx_a)
         ping_transaction(tx_b)
 
