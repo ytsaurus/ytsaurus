@@ -77,6 +77,7 @@ public:
 private:
     NYPath::TRichYPath Path;
     NYTree::INodePtr TableWriter;
+    i64 MaxRowBufferSize;
 
     virtual void DoExecute(ICommandContextPtr context) override;
 };
