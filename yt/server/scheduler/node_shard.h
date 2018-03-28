@@ -240,6 +240,7 @@ private:
         { }
 
         THashMap<TJobId, TJobPtr> Jobs;
+        THashSet<TJobId> RecentlyCompletedJobIds;
         IOperationControllerPtr Controller;
         bool Terminated = false;
         //! Raised to prevent races between suspension and scheduler strategy scheduling new jobs.
@@ -326,6 +327,8 @@ private:
 
     void SetJobWaitingForConfirmation(const TJobPtr& job);
     void ResetJobWaitingForConfirmation(const TJobPtr& job);
+
+    void RemoveRecentlyCompletedJob(const TJobId& jobId, bool removeFromOperationState = true);
 
     void PreemptJob(const TJobPtr& job, TNullable<NProfiling::TCpuDuration> interruptTimeout);
 
