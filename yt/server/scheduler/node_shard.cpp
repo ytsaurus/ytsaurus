@@ -258,7 +258,7 @@ void TNodeShard::FinishOperationRevival(const TOperationId& operationId, const s
             TNodeDescriptor(job->GetRevivalNodeAddress()));
         job->SetNode(node);
         SetJobWaitingForConfirmation(job);
-        node->RecentlyCompletedJobIdToEvictionDeadline().erase(job->GetId());
+        RemoveRecentlyCompletedJob(job->GetId());
         RegisterJob(job);
     }
 
@@ -559,6 +559,10 @@ void TNodeShard::AbortOperationJobs(const TOperationId& operationId, const TErro
     for (const auto& job : jobs) {
         auto status = JobStatusFromError(abortReason);
         OnJobAborted(job.second, &status, terminated);
+    }
+
+    for (const auto& jobId : operationState->RecentlyCompletedJobIds) {
+        RemoveRecentlyCompletedJob(jobId, /* removeFromOperationState */ false);
     }
 
     for (const auto& job : operationState->Jobs) {
@@ -1259,7 +1263,7 @@ void TNodeShard::ProcessHeartbeatJobs(
                 jobId,
                 nodeId,
                 nodeAddress);
-            node->RecentlyCompletedJobIdToEvictionDeadline().erase(jobId);
+            RemoveRecentlyCompletedJob(jobId);
             ToProto(response->add_jobs_to_remove(), jobId);
         }
         node->JobIdsToRemove().clear();
@@ -1268,19 +1272,21 @@ void TNodeShard::ProcessHeartbeatJobs(
     {
         auto now = GetCpuInstant();
         std::vector<TJobId> RecentlyCompletedJobsToRemove;
-        for (const auto& jobIdAndEvictionDeadline : node->RecentlyCompletedJobIdToEvictionDeadline()) {
-            if (now > jobIdAndEvictionDeadline.second) {
+        for (const auto& pair : node->RecentlyCompletedJobs()) {
+            const auto& jobId = pair.first;
+            const auto& jobInfo = pair.second;
+            if (now > jobInfo.EvictionDeadline) {
                 LOG_DEBUG("Removing job from recently completed due to timeout for release "
                     "(JobId: %v, NodeId: %v, NodeAddress: %v)",
-                    jobIdAndEvictionDeadline.first,
+                    jobId,
                     nodeId,
                     nodeAddress);
-                RecentlyCompletedJobsToRemove.push_back(jobIdAndEvictionDeadline.first);
+                RecentlyCompletedJobsToRemove.push_back(jobId);
             }
         }
         for (const auto& jobId : RecentlyCompletedJobsToRemove) {
             node->UnconfirmedJobIds().insert(jobId);
-            node->RecentlyCompletedJobIdToEvictionDeadline().erase(jobId);
+            RemoveRecentlyCompletedJob(jobId);
         }
     }
 
@@ -1394,7 +1400,7 @@ TJobPtr TNodeShard::ProcessJobHeartbeat(
             return nullptr;
         }
 
-        if (node->RecentlyCompletedJobIdToEvictionDeadline().has(jobId)) {
+        if (node->RecentlyCompletedJobs().has(jobId)) {
             LOG_DEBUG("Job is skipped since it was recently completed and not persisted to snapshot yet");
             return nullptr;
         }
@@ -1469,8 +1475,14 @@ TJobPtr TNodeShard::ProcessJobHeartbeat(
     switch (state) {
         case EJobState::Completed: {
             LOG_DEBUG("Job completed, storage scheduled");
-            YCHECK(node->RecentlyCompletedJobIdToEvictionDeadline().insert(
-                {jobId, GetCpuInstant() + DurationToCpuDuration(Config_->FinishedJobStoringTimeout)}).second);
+
+            auto* operationState = FindOperationState(job->GetOperationId());
+            if (operationState) {
+                auto evictionDeadline = GetCpuInstant() + DurationToCpuDuration(Config_->FinishedJobStoringTimeout);
+                YCHECK(node->RecentlyCompletedJobs().insert(
+                    {jobId, TRecentlyCompletedJobInfo{job->GetOperationId(), evictionDeadline}}).second);
+                YCHECK(operationState->RecentlyCompletedJobIds.insert(jobId).second);
+            }
             OnJobCompleted(job, jobStatus);
             ToProto(response->add_jobs_to_store(), jobId);
             break;
@@ -1978,6 +1990,26 @@ void TNodeShard::ResetJobWaitingForConfirmation(const TJobPtr& job)
 {
     job->SetWaitingForConfirmation(false);
     job->GetNode()->UnconfirmedJobIds().erase(job->GetId());
+}
+
+void TNodeShard::RemoveRecentlyCompletedJob(const TJobId& jobId, bool removeFromOperationState)
+{
+    auto node = FindNodeByJob(jobId);
+    if (!node) {
+        return;
+    }
+
+    auto it = node->RecentlyCompletedJobs().find(jobId);
+    if (it != node->RecentlyCompletedJobs().end()) {
+        if (removeFromOperationState) {
+            const auto& jobInfo = it->second;
+            auto* operationState = FindOperationState(jobInfo.OperationId);
+            if (operationState) {
+                operationState->RecentlyCompletedJobIds.erase(jobId);
+            }
+        }
+        node->RecentlyCompletedJobs().erase(it);
+    }
 }
 
 void TNodeShard::PreemptJob(const TJobPtr& job, TNullable<TCpuDuration> interruptTimeout)
