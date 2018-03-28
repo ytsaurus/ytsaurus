@@ -371,6 +371,7 @@ private:
         {
             auto req = TCypressYPathProxy::Create(path);
             req->set_ignore_existing(true);
+            req->set_recursive(true);
             req->set_type(static_cast<int>(EObjectType::MapNode));
             GenerateMutationId(req);
             batchReq->AddRequest(req);
@@ -378,6 +379,7 @@ private:
         {
             auto req = TCypressYPathProxy::Create(path + "/orchid");
             req->set_ignore_existing(true);
+            req->set_recursive(true);
             req->set_type(static_cast<int>(EObjectType::Orchid));
             auto attributes = CreateEphemeralAttributes();
             attributes->Set("remote_addresses", Bootstrap_->GetLocalAddresses());
@@ -1236,6 +1238,7 @@ private:
             ->GetMasterChannelOrThrow(EMasterChannelKind::Leader, PrimaryMasterCellTag));
         auto req = TYPathProxy::Set(GetInstancePath() + "/@alerts");
         req->set_value(ConvertToYsonString(alerts).GetData());
+        req->set_recursive(true);
 
         auto rspOrError = WaitFor(proxy.Execute(req));
         if (!rspOrError.IsOK()) {
