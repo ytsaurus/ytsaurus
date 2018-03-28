@@ -313,7 +313,7 @@ void THttpInput::EnsureHeadersReceived()
 
         // HTTP parser does not treat EOF at message start as error.
         if (eof) {
-            THROW_ERROR_EXCEPTION("Unexpected EOF while parsing http message");
+            THROW_ERROR_EXCEPTION("Unexpected EOF while parsing HTTP message");
         }
     }
 }
