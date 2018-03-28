@@ -1079,7 +1079,7 @@ IConnectionReaderPtr PrepareOutputPipe(
             try {
                 auto userJobError = Synchronizer_->GetUserProcessStatus();
 
-                LOG_DEBUG("Process finished, user status %v, satellite %v",
+                LOG_DEBUG("Process finished (UserJobError: %v, SatelliteError: %v)",
                     userJobError,
                     satelliteError);
 
