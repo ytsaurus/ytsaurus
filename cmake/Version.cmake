@@ -8,7 +8,7 @@ endif()
 
 find_program(_GIT NAMES git)
 
-if (_GIT AND EXISTS ${PROJECT_SOURCE_DIR}/.git)
+if (_GIT AND EXISTS ${PROJECT_SOURCE_DIR}/.git AND IS_DIRECTORY ${PROJECT_SOURCE_DIR}/.git)
     # This is a VERY dirty hack to make make re-run cmake (pun intended)
     # when a different commit is checked out.
     configure_file(
