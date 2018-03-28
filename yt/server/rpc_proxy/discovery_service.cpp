@@ -53,7 +53,7 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const TString RpcProxyPath = "//sys/rpc_proxies";
+static const TString RpcProxiesPath = "//sys/rpc_proxies";
 static const TString AliveName = "alive";
 static const TString BannedAttributeName = "banned";
 static const TString BanMessageAttributeName = "ban_message";
@@ -76,7 +76,7 @@ public:
         , Config_(bootstrap->GetConfig()->DiscoveryService)
         , Coordinator_(bootstrap->GetProxyCoordinator())
         , RootClient_(bootstrap->GetNativeClient())
-        , ProxyPath_(RpcProxyPath + "/" + BuildServiceAddress(
+        , ProxyPath_(RpcProxiesPath + "/" + BuildServiceAddress(
             GetLocalHostName(),
             Bootstrap_->GetConfig()->RpcPort))
         , AliveUpdateExecutor_(New<TPeriodicExecutor>(
@@ -108,7 +108,8 @@ private:
     TSpinLock ProxySpinLock_;
     std::vector<TString> AvailableProxies_;
 
-    bool IsInitialized_ = false;
+    bool Initialized_ = false;
+
 
     void Initialize()
     {
@@ -120,6 +121,7 @@ private:
     {
         auto channel = RootClient_->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
         TObjectServiceProxy proxy(channel);
+
         auto batchReq = proxy.ExecuteBatch();
         {
             auto req = TCypressYPathProxy::Create(ProxyPath_);
@@ -170,7 +172,7 @@ private:
                     Config_->BackoffPeriod);
                 LOG_WARNING(ex, "Failed to perform update, backing off (Duration: %v)", backoffDuration);
                 if (!IsAvailable() && Coordinator_->SetAvailableState(false)) {
-                    IsInitialized_ = false;
+                    Initialized_ = false;
                     LOG_WARNING("Connectivity lost");
                 }
                 WaitFor(TDelayedExecutor::MakeDelayed(backoffDuration))
@@ -181,9 +183,9 @@ private:
 
     void UpdateLiveness()
     {
-        if (!IsInitialized_) {
+        if (!Initialized_) {
             CreateProxyNode();
-            IsInitialized_ = true;
+            Initialized_ = true;
         }
 
         auto channel = RootClient_->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
@@ -213,7 +215,9 @@ private:
     {
         auto channel = RootClient_->GetMasterChannelOrThrow(EMasterChannelKind::Cache);
         TObjectServiceProxy proxy(channel);
+
         auto batchReq = proxy.ExecuteBatch();
+
         {
             auto req = TYPathProxy::Get(ProxyPath_ + "/@");
             ToProto(
@@ -222,10 +226,19 @@ private:
             batchReq->AddRequest(req, "get_ban");
         }
         {
-            auto req = TYPathProxy::Get(RpcProxyPath);
+            auto req = TYPathProxy::Get(RpcProxiesPath);
             ToProto(
                 req->mutable_attributes()->mutable_keys(),
                 std::vector<TString>{BannedAttributeName});
+
+            auto* cachingHeaderExt = request->Header().MutableExtension(NYTree::NProto::TCachingHeaderExt::caching_header_ext);
+            cachingHeaderExt->set_success_expiration_time(ToProto<i64>(Config_->ProxyUpdatePeriod));
+            cachingHeaderExt->set_failure_expiration_time(ToProto<i64>(Config_->ProxyUpdatePeriod));
+
+            auto* balancingHeaderExt = request->Header().MutableExtension(NRpc::NProto::TBalancingExt::balancing_ext);
+            balancingHeaderExt->set_enable_stickness(true);
+            balancingHeaderExt->set_sticky_group_size(1);
+
             batchReq->AddRequest(req, "get_proxies");
         }
 
