@@ -296,7 +296,12 @@ void TNodeShard::ProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& contex
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
 
-    ValidateConnected();
+    try {
+        ValidateConnected();
+    } catch (const TErrorException& error) {
+        context->Reply(error);
+        return;
+    }
 
     CancelableInvoker_->Invoke(BIND(&TNodeShard::DoProcessHeartbeat, MakeStrong(this), context));
 }

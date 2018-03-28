@@ -674,6 +674,7 @@ private:
             OnConnected();
         } catch (const std::exception& ex) {
             LOG_WARNING(ex, "Error connecting to scheduler");
+            SchedulerDisconnected_.Fire();
             DoCleanup();
             ScheduleConnect(false);
         }
@@ -731,7 +732,7 @@ private:
     {
         Connected_ = true;
 
-        LOG_INFO("Scheduler connected (IncarnationId: %v)",
+        LOG_INFO("Controller agent connected (IncarnationId: %v)",
             IncarnationId_);
 
         OperationEventsOutbox_ = New<TMessageQueueOutbox<TAgentToSchedulerOperationEvent>>(
