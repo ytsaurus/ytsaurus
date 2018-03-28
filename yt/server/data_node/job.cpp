@@ -70,6 +70,7 @@ class TChunkJobBase
 {
 public:
     DEFINE_SIGNAL(void(const TNodeResources& resourcesDelta), ResourcesUpdated);
+    DEFINE_SIGNAL(void(), PortsReleased);
 
 public:
     TChunkJobBase(
@@ -141,6 +142,11 @@ public:
         return JobSpec_;
     }
 
+    virtual int GetPortCount() const override
+    {
+        return 0;
+    }
+
     virtual EJobState GetState() const override
     {
         return JobState_;
@@ -154,6 +160,16 @@ public:
     virtual TNodeResources GetResourceUsage() const override
     {
         return ResourceLimits_;
+    }
+
+    std::vector<int> GetPorts() const override
+    {
+        Y_UNREACHABLE();
+    }
+
+    void SetPorts(const std::vector<int>&) override
+    {
+        Y_UNREACHABLE();
     }
 
     virtual void SetResourceUsage(const TNodeResources& /*newUsage*/) override

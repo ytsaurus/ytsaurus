@@ -3241,3 +3241,91 @@ class TestControllerMemoryUsage(YTEnvSetup):
                 assert entry["operation_id"] == YsonEntity()
             assert entry["alive"] == False
 
+
+class TestPorts(YTEnvSetup):
+    NUM_SCHEDULERS = 1
+    NUM_NODES = 1
+
+    DELTA_NODE_CONFIG = {
+        "exec_agent": {
+            "job_controller": {
+                "start_port": 20000,
+                "port_count": 3,
+                "waiting_jobs_timeout": 1000,
+                "resource_limits": {
+                    "user_slots": 2,
+                    "cpu": 2
+                }
+            },
+        },
+    }
+
+    def test_simple(self):
+        create("table", "//tmp/t_in", attributes={"replication_factor": 1})
+        write_table("//tmp/t_in", [{"a": 0}])
+
+        create("table", "//tmp/t_out", attributes={"replication_factor": 1})
+        create("table", "//tmp/t_out_other", attributes={"replication_factor": 1})
+
+        op = map(
+            dont_track=True,
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            command=with_breakpoint("echo $YT_PORT_0 >&2; echo $YT_PORT_1 >&2; if [ -n \"$YT_PORT_2\" ]; then echo 'FAILED' >&2; fi; cat; BREAKPOINT"),
+            spec={
+                "mapper": {
+                    "port_count": 2,
+                }
+            })
+
+        jobs = wait_breakpoint()
+        assert len(jobs) == 1
+
+        ## Not enough ports
+        with pytest.raises(YtError):
+            map(
+                in_="//tmp/t_in",
+                out="//tmp/t_out_other",
+                command="cat",
+                spec={
+                    "mapper": {
+                        "port_count": 2,
+                    },
+                    "max_failed_job_count": 1,
+                    "fail_on_job_restart": True,
+                })
+
+        release_breakpoint()
+        op.track()
+
+        stderr = read_file(op._get_new_operation_path() + "/jobs/" + jobs[0] + "/stderr")
+        assert "FAILED" not in stderr
+        ports = __builtin__.map(int, stderr.split())
+        assert len(ports) == 2
+        assert ports[0] != ports[1]
+
+        assert all(port >= 20000 and port < 20003 for port in ports)
+
+
+        map(
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            command="echo $YT_PORT_0 >&2; echo $YT_PORT_1 >&2; if [ -n \"$YT_PORT_2\" ]; then echo 'FAILED' >&2; fi; cat",
+            spec={
+                "mapper": {
+                    "port_count": 2,
+                }
+            })
+
+        jobs_path = op._get_new_operation_path() + "/jobs"
+        assert exists(jobs_path)
+        jobs = ls(jobs_path)
+        assert len(jobs) == 1
+
+        stderr = read_file(op._get_new_operation_path() + "/jobs/" + jobs[0] + "/stderr")
+        assert "FAILED" not in stderr
+        ports = __builtin__.map(int, stderr.split())
+        assert len(ports) == 2
+        assert ports[0] != ports[1]
+
+        assert all(port >= 20000 and port < 20003 for port in ports)

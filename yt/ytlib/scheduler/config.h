@@ -369,6 +369,7 @@ public:
     THashMap<TString, TString> Environment;
 
     double CpuLimit;
+    int PortCount;
     TNullable<TDuration> JobTimeLimit;
     i64 MemoryLimit;
     double UserJobMemoryDigestDefaultValue;

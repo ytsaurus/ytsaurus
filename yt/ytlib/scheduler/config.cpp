@@ -241,6 +241,10 @@ TUserJobSpec::TUserJobSpec()
     RegisterParameter("cpu_limit", CpuLimit)
         .Default(1)
         .GreaterThanOrEqual(0);
+    RegisterParameter("port_count", PortCount)
+        .Default(0)
+        .GreaterThanOrEqual(0)
+        .LessThanOrEqual(50);
     RegisterParameter("job_time_limit", JobTimeLimit)
         .Default()
         .GreaterThanOrEqual(TDuration::Seconds(1));
