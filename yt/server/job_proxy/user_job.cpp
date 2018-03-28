@@ -134,8 +134,8 @@ static TNullOutput NullOutput;
 
 static TString CreateNamedPipePath()
 {
-const TString& name = CreateGuidAsString();
-return NFS::GetRealPath(NFS::CombinePaths("./pipes", name));
+    const TString& name = CreateGuidAsString();
+    return NFS::GetRealPath(NFS::CombinePaths("./pipes", name));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -160,6 +160,7 @@ public:
         IJobHostPtr host,
         const TUserJobSpec& userJobSpec,
         const TJobId& jobId,
+        const std::vector<int>& ports,
         std::unique_ptr<TUserJobWriteController> userJobWriteController,
         IResourceControllerPtr resourceController)
         : TJob(host)
@@ -169,6 +170,7 @@ public:
         , Config_(Host_->GetConfig())
         , JobIOConfig_(Host_->GetJobSpecHelper()->GetJobIOConfig())
         , ResourceController_(resourceController)
+        , Ports_(ports)
         , JobErrorPromise_(NewPromise<void>())
         , JobEnvironmentType_(ConvertTo<TJobEnvironmentConfigPtr>(Config_->JobEnvironment)->Type)
         , PipeIOPool_(New<TThreadPool>(JobIOConfig_->PipeIOPoolSize, "PipeIO"))
@@ -393,7 +395,7 @@ public:
         return UserJobReadController_->GetInterruptDescriptor();
     }
 
-    private:
+private:
     const NLogging::TLogger Logger;
 
     const std::unique_ptr<TUserJobWriteController> UserJobWriteController_;
@@ -404,6 +406,8 @@ public:
     const TJobProxyConfigPtr Config_;
     const NScheduler::TJobIOConfigPtr JobIOConfig_;
     const IResourceControllerPtr ResourceController_;
+
+    std::vector<int> Ports_;
 
     mutable TPromise<void> JobErrorPromise_;
 
@@ -507,6 +511,10 @@ public:
         // Copy environment to process arguments
         for (const auto& var : Environment_) {
             Process_->AddArguments({"--env", var});
+        }
+
+        for (int index = 0; index < Ports_.size(); ++index) {
+            Process_->AddArguments({"--env", Format("YT_PORT_%v=%v", index, Ports_[index])});
         }
     }
 
@@ -1339,6 +1347,7 @@ IJobPtr CreateUserJob(
     IJobHostPtr host,
     const TUserJobSpec& userJobSpec,
     const TJobId& jobId,
+    const std::vector<int>& ports,
     std::unique_ptr<TUserJobWriteController> userJobWriteController)
 {
     auto subcontroller = host->GetResourceController()
@@ -1348,6 +1357,7 @@ IJobPtr CreateUserJob(
         host,
         userJobSpec,
         jobId,
+        std::move(ports),
         std::move(userJobWriteController),
         subcontroller);
 }
@@ -1358,6 +1368,7 @@ IJobPtr CreateUserJob(
     IJobHostPtr host,
     const TUserJobSpec& UserJobSpec_,
     const TJobId& jobId,
+    const std::vector<int>& ports,
     std::unique_ptr<TUserJobWriteController> userJobWriteController)
 {
     THROW_ERROR_EXCEPTION("Streaming jobs are supported only under Unix");

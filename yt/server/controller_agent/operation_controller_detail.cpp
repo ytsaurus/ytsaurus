@@ -6219,6 +6219,8 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
     jobSpec->set_copy_files(config->CopyFiles);
     jobSpec->set_file_account(fileAccount);
 
+    jobSpec->set_port_count(config->PortCount);
+
     if (config->TmpfsPath && Config->EnableTmpfs) {
         auto tmpfsSize = config->TmpfsSize.Get(config->MemoryLimit);
         jobSpec->set_tmpfs_size(tmpfsSize);

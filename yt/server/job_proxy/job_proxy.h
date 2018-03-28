@@ -116,6 +116,8 @@ private:
 
     IJobSpecHelperPtr JobSpecHelper_;
 
+    std::vector<int> Ports_;
+
     NChunkClient::TTrafficMeterPtr TrafficMeter_;
 
     void ValidateJobId(const NJobTrackerClient::TJobId& jobId);

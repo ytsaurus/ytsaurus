@@ -15,6 +15,7 @@ namespace NJobProxy {
 IJobPtr CreateUserJob(IJobHostPtr host,
     const NScheduler::NProto::TUserJobSpec& userJobSpec,
     const NJobAgent::TJobId& jobId,
+    const std::vector<int>& ports,
     std::unique_ptr<TUserJobWriteController> userJobWriteController);
 
 const TString& GetCGroupUserJobBase();

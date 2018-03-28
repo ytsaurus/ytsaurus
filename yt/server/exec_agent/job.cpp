@@ -70,7 +70,6 @@ using namespace NConcurrency;
 using namespace NApi;
 
 using NNodeTrackerClient::TNodeDirectory;
-using NScheduler::NProto::TUserJobSpec;
 using NChunkClient::TDataSliceDescriptor;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -80,6 +79,7 @@ class TJob
 {
 public:
     DEFINE_SIGNAL(void(const TNodeResources&), ResourcesUpdated);
+    DEFINE_SIGNAL(void(), PortsReleased);
 
 public:
     TJob(
@@ -96,7 +96,6 @@ public:
         , StartTime_(TInstant::Now())
         , ResourceUsage_(resourceUsage)
         , TrafficMeter_(New<TTrafficMeter>(Bootstrap_->GetMasterConnector()->GetLocalDescriptor().GetDataCenter()))
-
     {
         VERIFY_THREAD_AFFINITY(ControllerThread);
 
@@ -248,6 +247,23 @@ public:
         return JobSpec_;
     }
 
+    virtual int GetPortCount() const override
+    {
+        VERIFY_THREAD_AFFINITY(ControllerThread);
+
+        const auto& schedulerJobSpecExt = JobSpec_.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
+        if (schedulerJobSpecExt.has_user_job_spec()) {
+            return schedulerJobSpecExt.user_job_spec().port_count();
+        }
+
+        return 0;
+    }
+
+    virtual void SetPorts(const std::vector<int>& ports) override
+    {
+        Ports_ = ports;
+    }
+
     virtual EJobState GetState() const override
     {
         VERIFY_THREAD_AFFINITY(ControllerThread);
@@ -311,6 +327,13 @@ public:
         VERIFY_THREAD_AFFINITY(ControllerThread);
 
         return ResourceUsage_;
+    }
+
+    virtual std::vector<int> GetPorts() const override
+    {
+        VERIFY_THREAD_AFFINITY(ControllerThread);
+
+        return Ports_;
     }
 
     virtual TJobResult GetResult() const override
@@ -569,6 +592,8 @@ private:
     IVolumePtr RootVolume_;
 
     TNodeResources ResourceUsage_;
+    std::vector<int> Ports_;
+
     EJobState JobState_ = EJobState::Waiting;
     EJobPhase JobPhase_ = EJobPhase::Created;
 
@@ -879,6 +904,7 @@ private:
 
         if (JobState_ != EJobState::Waiting) {
             ResourcesUpdated_.Fire(resourceDelta);
+            PortsReleased_.Fire();
         }
 
         auto error = FromProto<TError>(JobResult_->error());
