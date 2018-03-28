@@ -254,6 +254,8 @@ private:
     THashMap<TOperationId, TOperationState> IdToOpertionState_;
     TEpoch CurrentEpoch_ = 0;
 
+    void ValidateConnected();
+
     void DoCleanup();
 
     void DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& context);

@@ -129,6 +129,17 @@ void TNodeShard::OnMasterDisconnected()
     DoCleanup();
 }
 
+void TNodeShard::ValidateConnected()
+{
+    VERIFY_INVOKER_AFFINITY(GetInvoker());
+
+    if (!Connected_) {
+        THROW_ERROR_EXCEPTION(
+            NRpc::EErrorCode::Unavailable,
+            "Node shard is not connected");
+    }
+}
+
 void TNodeShard::DoCleanup()
 {
     Connected_ = false;
@@ -231,6 +242,9 @@ void TNodeShard::StartOperationRevival(const TOperationId& operationId)
 
 void TNodeShard::FinishOperationRevival(const TOperationId& operationId, const std::vector<TJobPtr>& jobs)
 {
+    VERIFY_INVOKER_AFFINITY(GetInvoker());
+    YCHECK(Connected_);
+
     auto& operationState = GetOperationState(operationId);
 
     YCHECK(!operationState.JobsReady);
@@ -282,12 +296,7 @@ void TNodeShard::ProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& contex
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
 
-    if (!Connected_) {
-        context->Reply(TError(
-            NRpc::EErrorCode::Unavailable,
-            "Scheduler is not able to accept node heartbeats"));
-        return;
-    }
+    ValidateConnected();
 
     CancelableInvoker_->Invoke(BIND(&TNodeShard::DoProcessHeartbeat, MakeStrong(this), context));
 }
@@ -414,6 +423,8 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
 
 TRefCountedExecNodeDescriptorMapPtr TNodeShard::GetExecNodeDescriptors()
 {
+    VERIFY_INVOKER_AFFINITY(GetInvoker());
+
     UpdateExecNodeDescriptors();
 
     {
@@ -535,6 +546,8 @@ void TNodeShard::AbortOperationJobs(const TOperationId& operationId, const TErro
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
 
+    ValidateConnected();
+
     auto* operationState = FindOperationState(operationId);
     if (!operationState) {
         return;
@@ -557,6 +570,8 @@ void TNodeShard::ResumeOperationJobs(const TOperationId& operationId)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
 
+    ValidateConnected();
+
     auto* operationState = FindOperationState(operationId);
     if (!operationState || operationState->Terminated) {
         return;
@@ -568,6 +583,8 @@ void TNodeShard::ResumeOperationJobs(const TOperationId& operationId)
 TYsonString TNodeShard::StraceJob(const TJobId& jobId, const TString& user)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
+
+    ValidateConnected();
 
     auto job = GetJobOrThrow(jobId);
 
@@ -597,6 +614,8 @@ TYsonString TNodeShard::StraceJob(const TJobId& jobId, const TString& user)
 void TNodeShard::DumpJobInputContext(const TJobId& jobId, const TYPath& path, const TString& user)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
+
+    ValidateConnected();
 
     auto job = GetJobOrThrow(jobId);
 
@@ -636,6 +655,9 @@ void TNodeShard::DumpJobInputContext(const TJobId& jobId, const TYPath& path, co
 TNodeDescriptor TNodeShard::GetJobNode(const TJobId& jobId, const TString& user)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
+
+    ValidateConnected();
+
     auto job = GetJobOrThrow(jobId);
 
     Host_->ValidateOperationPermission(user, job->GetOperationId(), EPermission::Write);
@@ -646,6 +668,8 @@ TNodeDescriptor TNodeShard::GetJobNode(const TJobId& jobId, const TString& user)
 void TNodeShard::SignalJob(const TJobId& jobId, const TString& signalName, const TString& user)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
+
+    ValidateConnected();
 
     auto job = GetJobOrThrow(jobId);
 
@@ -674,6 +698,8 @@ void TNodeShard::SignalJob(const TJobId& jobId, const TString& signalName, const
 void TNodeShard::AbandonJob(const TJobId& jobId, const TString& user)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
+
+    ValidateConnected();
 
     auto job = GetJobOrThrow(jobId);
 
@@ -716,6 +742,8 @@ TYsonString TNodeShard::PollJobShell(const TJobId& jobId, const TYsonString& par
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
 
+    ValidateConnected();
+
     auto job = GetJobOrThrow(jobId);
 
     TShellParameters shellParameters;
@@ -748,6 +776,8 @@ TYsonString TNodeShard::PollJobShell(const TJobId& jobId, const TYsonString& par
 void TNodeShard::AbortJobByUserRequest(const TJobId& jobId, TNullable<TDuration> interruptTimeout, const TString& user)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
+
+    ValidateConnected();
 
     auto job = GetJobOrThrow(jobId);
 
@@ -802,11 +832,14 @@ void TNodeShard::AbortJob(const TJobId& jobId, const TError& error)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
 
+    ValidateConnected();
+
     auto job = FindJob(jobId);
     if (!job) {
-        LOG_DEBUG("Cannot abort an unknown job (JobId: %v)", jobId);
+        LOG_DEBUG("Requested to abort an unknown job, ignored (JobId: %v)", jobId);
         return;
     }
+
     LOG_DEBUG(error, "Aborting job by internal request (JobId: %v, OperationId: %v)",
         jobId,
         job->GetOperationId());
@@ -819,9 +852,11 @@ void TNodeShard::FailJob(const TJobId& jobId)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
 
+    ValidateConnected();
+
     auto job = FindJob(jobId);
     if (!job) {
-        LOG_DEBUG("Cannot fail an unknown job (JobId: %v)", jobId);
+        LOG_DEBUG("Requested fail an unknown job, ignored (JobId: %v)", jobId);
         return;
     }
 
@@ -835,6 +870,8 @@ void TNodeShard::FailJob(const TJobId& jobId)
 void TNodeShard::ReleaseJob(const TJobId& jobId)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
+
+    ValidateConnected();
 
     // NB: While we kept job id in operation controller, its execution node
     // could have been unregistered.
@@ -985,6 +1022,8 @@ TFuture<TScheduleJobResultPtr> TNodeShard::BeginScheduleJob(
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
 
+    ValidateConnected();
+
     auto pair = JobIdToScheduleEntry_.emplace(jobId, TScheduleJobEntry());
     YCHECK(pair.second);
 
@@ -999,6 +1038,8 @@ TFuture<TScheduleJobResultPtr> TNodeShard::BeginScheduleJob(
 void TNodeShard::EndScheduleJob(const NProto::TScheduleJobResponse& response)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
+
+    ValidateConnected();
 
     auto jobId = FromProto<TJobId>(response.job_id());
     auto operationId = FromProto<TOperationId>(response.operation_id());
