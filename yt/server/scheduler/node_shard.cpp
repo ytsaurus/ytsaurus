@@ -567,7 +567,7 @@ void TNodeShard::AbortOperationJobs(const TOperationId& operationId, const TErro
     }
 
     for (const auto& jobId : operationState->RecentlyCompletedJobIds) {
-        RemoveRecentlyCompletedJob(jobId, /* removeFromOperationState */ false);
+        RemoveRecentlyCompletedJob(jobId);
     }
 
     for (const auto& job : operationState->Jobs) {
@@ -1997,7 +1997,7 @@ void TNodeShard::ResetJobWaitingForConfirmation(const TJobPtr& job)
     job->GetNode()->UnconfirmedJobIds().erase(job->GetId());
 }
 
-void TNodeShard::RemoveRecentlyCompletedJob(const TJobId& jobId, bool removeFromOperationState)
+void TNodeShard::RemoveRecentlyCompletedJob(const TJobId& jobId)
 {
     auto node = FindNodeByJob(jobId);
     if (!node) {
@@ -2006,12 +2006,10 @@ void TNodeShard::RemoveRecentlyCompletedJob(const TJobId& jobId, bool removeFrom
 
     auto it = node->RecentlyCompletedJobs().find(jobId);
     if (it != node->RecentlyCompletedJobs().end()) {
-        if (removeFromOperationState) {
-            const auto& jobInfo = it->second;
-            auto* operationState = FindOperationState(jobInfo.OperationId);
-            if (operationState) {
-                operationState->RecentlyCompletedJobIds.erase(jobId);
-            }
+        const auto& jobInfo = it->second;
+        auto* operationState = FindOperationState(jobInfo.OperationId);
+        if (operationState) {
+            operationState->RecentlyCompletedJobIds.erase(jobId);
         }
         node->RecentlyCompletedJobs().erase(it);
     }
