@@ -91,7 +91,11 @@ void TSchedulerThread::Start()
             try {
                 Thread_.Start();
             } catch (const std::exception& ex) {
-                LOG_FATAL(ex, "Error starting %v thread", ThreadName_);
+                // NB: Cannot use logging here since it relies on us.
+                auto error = TError("Error starting %v thread", ThreadName_)
+                    << ex;
+                fprintf(stderr, "%s\n", ToString(error).c_str());
+                _exit(100);
             }
 
             ThreadId_ = TThreadId(Thread_.Id());
@@ -137,11 +141,7 @@ void TSchedulerThread::Shutdown()
             // Avoid deadlock.
             YCHECK(TThread::CurrentThreadId() != ThreadId_);
 
-            try {
-                Thread_.Join();
-            } catch (const std::exception& ex) {
-                LOG_FATAL(ex, "Error joining %v thread", ThreadName_);
-            }
+            Thread_.Join();
 
             AfterShutdown();
         } else {
