@@ -214,8 +214,6 @@ class TestSchedulerControllerThrottling(YTEnvSetup):
                 pass
             time.sleep(1)
 
-        op.abort()
-
 ##################################################################
 
 @unix_only
@@ -348,8 +346,6 @@ class TestJobStderr(YTEnvSetup):
         stderr_tx = get("//sys/operations/{}/@async_scheduler_transaction_id".format(op.id))
         staged_objects = get("//sys/transactions/{}/@staged_object_ids".format(stderr_tx))
         assert sum(len(ids) for ids in staged_objects.values()) == 0, str(staged_objects)
-
-        op.abort()
 
     def test_stderr_of_failed_jobs(self):
         create("table", "//tmp/t1")
@@ -2113,8 +2109,6 @@ class TestSchedulerConfig(YTEnvSetup):
         wait(lambda: exists("//sys/operations/{0}/@unrecognized_spec".format(op.id)))
         assert get("//sys/operations/{0}/@unrecognized_spec".format(op.id)) == {"xxx": "yyy"}
 
-        op.abort()
-
     def test_brief_progress(self):
         create("table", "//tmp/t_in")
         write_table("//tmp/t_in", [{"a": "b"}])
@@ -2123,8 +2117,6 @@ class TestSchedulerConfig(YTEnvSetup):
 
         wait(lambda: exists("//sys/operations/{0}/@brief_progress".format(op.id)))
         assert list(get("//sys/operations/{0}/@brief_progress".format(op.id))) == ["jobs"]
-
-        op.abort()
 
     def test_cypress_config(self):
         create("table", "//tmp/t_in")
@@ -2322,8 +2314,6 @@ class TestSchedulerHeterogeneousConfiguration(YTEnvSetup):
 
         assert get("//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/default/resource_limits/user_slots") == 2
         assert get("//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/default/resource_usage/user_slots") == 2
-
-        op.abort()
 
 ##################################################################
 
@@ -2693,6 +2683,7 @@ class TestPoolMetrics(YTEnvSetup):
         jobs_11 = ls("//sys/operations/{0}/jobs".format(op11.id))
         assert len(jobs_11) >= 2
 
+
     def test_time_metrics(self):
         create("map_node", "//sys/pools/parent")
         create("map_node", "//sys/pools/parent/child")
@@ -2738,8 +2729,6 @@ class TestPoolMetrics(YTEnvSetup):
 
         assert completed_metrics["parent"] == completed_metrics["child"]
         assert aborted_metrics["parent"] == aborted_metrics["child"]
-
-        op.abort()
 
     def test_runtime_parameters(self):
         create_user("u")
@@ -2888,8 +2877,6 @@ class TestGetJobSpecFailed(YTEnvSetup):
 
         jobs = get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/jobs".format(op.id), verbose=False)
         assert jobs["aborted"]["non_scheduled"]["get_spec_failed"] > 0
-
-        op.abort()
 
 ##################################################################
 
