@@ -297,7 +297,7 @@ private:
             Config_->ConfigUpdatePeriod,
             EPeriodicExecutorMode::Automatic);
         UpdateConfigExecutor_->Start();
-        
+
         AlertsExecutor_ = New<TPeriodicExecutor>(
             CancelableControlInvoker_,
             BIND(&TImpl::UpdateAlerts, MakeWeak(this)),
@@ -656,6 +656,13 @@ private:
                 auto req = multisetReq->add_subrequests();
                 req->set_key("brief_progress");
                 req->set_value(briefProgress.GetData());
+            }
+
+            // Set controller agent address.
+            {
+                auto req = multisetReq->add_subrequests();
+                req->set_key("controller_agent_address");
+                req->set_value(ConvertToYsonString(GetDefaultAddress(Bootstrap_->GetLocalAddresses())).GetData());
             }
 
             batchReq->AddRequest(multisetReq, "update_op_node");
