@@ -118,7 +118,7 @@ struct ISchedulerStrategy
     /*!
      *  The implementation must throw no exceptions.
      */
-    virtual void ResetOperation(IOperationStrategyHost* operation) = 0;
+    virtual void DisableOperation(IOperationStrategyHost* operation) = 0;
 
     //! Must be called for a registered operation after it is materialized.
     virtual void EnableOperation(IOperationStrategyHost* operation) = 0;

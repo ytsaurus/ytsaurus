@@ -1432,12 +1432,15 @@ TOperationElementFixedState::TOperationElementFixedState(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TJobResources TOperationElementSharedState::Finalize()
+TJobResources TOperationElementSharedState::Disable()
 {
     TWriterGuard guard(JobPropertiesMapLock_);
 
-    YCHECK(!Finalized_);
-    Finalized_ = true;
+    if (!Enabled_) {
+        return ZeroJobResources();
+    }
+
+    Enabled_ = false;
 
     auto totalResourceUsage = ZeroJobResources();
     for (const auto& pair : JobPropertiesMap_) {
@@ -1446,13 +1449,21 @@ TJobResources TOperationElementSharedState::Finalize()
     return totalResourceUsage;
 }
 
+void TOperationElementSharedState::Enable()
+{
+    TWriterGuard guard(JobPropertiesMapLock_);
+
+    YCHECK(!Enabled_);
+    Enabled_ = true;
+}
+
 TJobResources TOperationElementSharedState::IncreaseJobResourceUsage(
     const TJobId& jobId,
     const TJobResources& resourcesDelta)
 {
     TWriterGuard guard(JobPropertiesMapLock_);
 
-    if (Finalized_) {
+    if (!Enabled_) {
         return ZeroJobResources();
     }
 
@@ -1592,11 +1603,11 @@ int TOperationElementSharedState::GetAggressivelyPreemptableJobCount() const
     return AggressivelyPreemptableJobs_.size();
 }
 
-TJobResources TOperationElementSharedState::AddJob(const TJobId& jobId, const TJobResources& resourceUsage)
+TJobResources TOperationElementSharedState::AddJob(const TJobId& jobId, const TJobResources& resourceUsage, bool force)
 {
     TWriterGuard guard(JobPropertiesMapLock_);
 
-    if (Finalized_) {
+    if (!Enabled_ && !force) {
         return ZeroJobResources();
     }
 
@@ -1617,16 +1628,21 @@ TJobResources TOperationElementSharedState::AddJob(const TJobId& jobId, const TJ
     return resourceUsage;
 }
 
-TJobResources TOperationElement::Finalize()
+TJobResources TOperationElement::Disable()
 {
-    return SharedState_->Finalize();
+    return SharedState_->Disable();
+}
+
+void TOperationElement::Enable()
+{
+    return SharedState_->Enable();
 }
 
 TJobResources TOperationElementSharedState::RemoveJob(const TJobId& jobId)
 {
     TWriterGuard guard(JobPropertiesMapLock_);
 
-    if (Finalized_) {
+    if (!Enabled_) {
         return ZeroJobResources();
     }
 
@@ -2169,9 +2185,9 @@ int TOperationElement::GetSlotIndex() const
     return *slotIndex;
 }
 
-void TOperationElement::OnJobStarted(const TJobId& jobId, const TJobResources& resourceUsage)
+void TOperationElement::OnJobStarted(const TJobId& jobId, const TJobResources& resourceUsage, bool force)
 {
-    auto delta = SharedState_->AddJob(jobId, resourceUsage);
+    auto delta = SharedState_->AddJob(jobId, resourceUsage, force);
     IncreaseResourceUsage(delta);
 
     UpdatePreemptableJobsList();
