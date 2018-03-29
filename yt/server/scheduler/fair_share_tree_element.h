@@ -536,11 +536,12 @@ public:
     int GetPreemptableJobCount() const;
     int GetAggressivelyPreemptableJobCount() const;
 
-    TJobResources AddJob(const TJobId& jobId, const TJobResources& resourceUsage);
+    TJobResources AddJob(const TJobId& jobId, const TJobResources& resourceUsage, bool force);
     TJobResources RemoveJob(const TJobId& jobId);
     TJobResources ClearJobs();
 
-    TJobResources Finalize();
+    TJobResources Disable();
+    void Enable();
 
 private:
     template <typename T>
@@ -659,7 +660,7 @@ private:
     THashMap<TJobId, TJobProperties> JobPropertiesMap_;
     NConcurrency::TReaderWriterSpinLock JobPropertiesMapLock_;
 
-    bool Finalized_ = false;
+    bool Enabled_ = false;
 
     void IncreaseJobResourceUsage(TJobProperties* properties, const TJobResources& resourcesDelta);
 
@@ -740,7 +741,7 @@ public:
 
     int GetSlotIndex() const;
 
-    void OnJobStarted(const TJobId& jobId, const TJobResources& resourceUsage);
+    void OnJobStarted(const TJobId& jobId, const TJobResources& resourceUsage, bool force = false);
     void OnJobFinished(const TJobId& jobId);
     void ResetJobs();
 
@@ -748,7 +749,8 @@ public:
 
     virtual TSchedulerElementPtr Clone(TCompositeSchedulerElement* clonedParent) override;
 
-    TJobResources Finalize();
+    TJobResources Disable();
+    void Enable();
 
     DEFINE_BYVAL_RW_PROPERTY(TOperationFairShareStrategyTreeOptionsPtr, RuntimeParams);
 

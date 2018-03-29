@@ -269,7 +269,7 @@ public:
         UnregisterSchedulingTagFilter(operationElement->GetSchedulingTagFilterIndex());
         ReleaseOperationSlotIndex(state, pool->GetId());
 
-        auto finalResourceUsage = operationElement->Finalize();
+        auto finalResourceUsage = operationElement->Disable();
         YCHECK(OperationIdToElement.erase(operationId) == 1);
         operationElement->SetAlive(false);
         pool->RemoveChild(operationElement);
@@ -303,7 +303,7 @@ public:
         return result;
     }
 
-    void ResetOperation(const TFairShareStrategyOperationStatePtr& state)
+    void DisableOperation(const TFairShareStrategyOperationStatePtr& state)
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
@@ -314,13 +314,20 @@ public:
         parent->DisableChild(operationElement);
 
         operationElement->ResetJobs();
+        YCHECK(operationElement->Disable() == ZeroJobResources());
     }
 
-    void EnableOperation(const TOperationId& operationId)
+    void EnableOperation(const TFairShareStrategyOperationStatePtr& state)
     {
-        const auto& operationElement = GetOperationElement(operationId);
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
+
+        auto operationId = state->GetHost()->GetId();
+        auto operationElement = GetOperationElement(operationId);
+
         auto* parent = operationElement->GetParent();
         parent->EnableChild(operationElement);
+
+        operationElement->Enable();
     }
 
     TPoolsUpdateResult UpdatePools(const INodePtr& poolsNode)
@@ -696,7 +703,7 @@ public:
 
         const auto& element = FindOperationElement(operationId);
         for (const auto& job : jobs) {
-            element->OnJobStarted(job->GetId(), job->ResourceUsage());
+            element->OnJobStarted(job->GetId(), job->ResourceUsage(), /* force */ true);
         }
     }
 
@@ -2105,14 +2112,14 @@ public:
         YCHECK(OperationIdToOperationState_.erase(operation->GetId()) == 1);
     }
 
-    virtual void ResetOperation(IOperationStrategyHost* operation) override
+    virtual void DisableOperation(IOperationStrategyHost* operation) override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
         const auto& state = GetOperationState(operation->GetId());
         for (const auto& pair : state->TreeIdToPoolIdMap()) {
             const auto& treeId = pair.first;
-            GetTree(treeId)->ResetOperation(state);
+            GetTree(treeId)->DisableOperation(state);
         }
     }
 
@@ -2632,7 +2639,7 @@ public:
         const auto& state = GetOperationState(operationId);
         for (const auto& pair : state->TreeIdToPoolIdMap()) {
             const auto& treeId = pair.first;
-            GetTree(treeId)->EnableOperation(operationId);
+            GetTree(treeId)->EnableOperation(state);
         }
         if (host->IsSchedulable()) {
             state->GetController()->UpdateMinNeededJobResources();

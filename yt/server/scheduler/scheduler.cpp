@@ -774,7 +774,7 @@ public:
         const auto& controller = operation->GetController();
         controller->RevokeAgent();
 
-        Strategy_->ResetOperation(operation.Get());
+        Strategy_->DisableOperation(operation.Get());
 
         operation->Restart();
         operation->SetStateAndEnqueueEvent(EOperationState::Orphaned);
@@ -2011,7 +2011,7 @@ private:
             operation->GetId(),
             jobs.size());
 
-        // First, register jobs in the strategy. Do this synchronously as we are in the scheduler control thread.
+        // First, unfreeze operation and register jobs in strategy. Do this synchronously as we are in the scheduler control thread.
         Strategy_->RegisterJobs(operation->GetId(), jobs);
 
         // Second, register jobs on the corresponding node shards.
