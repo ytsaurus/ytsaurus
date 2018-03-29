@@ -566,7 +566,8 @@ void TNodeShard::AbortOperationJobs(const TOperationId& operationId, const TErro
         OnJobAborted(job.second, &status, terminated);
     }
 
-    for (const auto& jobId : operationState->RecentlyCompletedJobIds) {
+    auto jobIdsToRemove = operationState->RecentlyCompletedJobIds;
+    for (const auto& jobId : jobIdsToRemove) {
         RemoveRecentlyCompletedJob(jobId);
     }
 
