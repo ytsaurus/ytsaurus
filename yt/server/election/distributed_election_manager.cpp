@@ -150,7 +150,7 @@ private:
             return;
         }
 
-        LOG_DEBUG("Sending ping to follower %v", peerId);
+        LOG_DEBUG("Sending ping to follower (PeerId: %v)", peerId);
 
         TElectionServiceProxy proxy(channel);
         auto req = proxy.PingFollower();
@@ -187,13 +187,13 @@ private:
 
     void OnPingResponseSuccess(TPeerId id, TElectionServiceProxy::TRspPingFollowerPtr rsp)
     {
-        LOG_DEBUG("Ping reply from follower %v", id);
+        LOG_DEBUG("Ping reply from follower (PeerId: %v)", id);
 
         if (Owner->PotentialFollowers.find(id) != Owner->PotentialFollowers.end()) {
-            LOG_INFO("Follower %v is up, first success", id);
+            LOG_INFO("Follower is up, first success (PeerId: %v)", id);
             YCHECK(Owner->PotentialFollowers.erase(id) == 1);
         } else if (Owner->AliveFollowers.find(id) == Owner->AliveFollowers.end()) {
-            LOG_INFO("Follower %v is up", id);
+            LOG_INFO("Follower is up (PeerId: %v)", id);
             YCHECK(Owner->AliveFollowers.insert(id).second);
         }
 
@@ -399,7 +399,7 @@ private:
             return false;
         }
 
-        LOG_DEBUG("Candidate %v has quorum: %v >= %v",
+        LOG_DEBUG("Candidate has quorum (PeerId: %v, VoteCount: %v, QuorumCount: %v)",
             candidateId,
             voteCount,
             quorumCount);
