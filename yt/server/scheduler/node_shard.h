@@ -328,7 +328,7 @@ private:
     void SetJobWaitingForConfirmation(const TJobPtr& job);
     void ResetJobWaitingForConfirmation(const TJobPtr& job);
 
-    void RemoveRecentlyCompletedJob(const TJobId& jobId, bool removeFromOperationState = true);
+    void RemoveRecentlyCompletedJob(const TJobId& jobId);
 
     void PreemptJob(const TJobPtr& job, TNullable<NProfiling::TCpuDuration> interruptTimeout);
 
