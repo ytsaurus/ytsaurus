@@ -4058,32 +4058,11 @@ private:
             "weight"
         };
 
-        TObjectServiceProxy proxy(OperationsArchiveChannels_[options.ReadFrom]);
-        auto batchReq = proxy.ExecuteBatch();
-        SetBalancingHeader(batchReq, options);
-
-        auto req = TYPathProxy::List(GetOperationsPath());
-        SetCachingHeader(req, options);
-        ToProto(req->mutable_attributes()->mutable_keys(), attributes);
-        batchReq->AddRequest(req);
-
-        auto batchRsp = WaitFor(batchReq->Invoke())
-            .ValueOrThrow();
-        auto rsp = batchRsp->GetResponse<TYPathProxy::TRspList>(0)
-            .ValueOrThrow();
-
-        auto items = ConvertToNode(TYsonString(rsp->value()))->AsList();
-
-        std::vector<TOperation> cypressOperations;
-        for (const auto& item : items->GetChildren()) {
-            const auto& attributes = item->Attributes();
-
-            if (item->AsString()->GetValue().Size() == 2) {
-                continue;
-            }
+        auto createOperationFromNode = [&] (const INodePtr& node) {
+            const auto& attributes = node->Attributes();
 
             TOperation operation;
-            operation.OperationId = TGuid::FromString(item->AsString()->GetValue());
+            operation.OperationId = TGuid::FromString(node->AsString()->GetValue());
             operation.OperationType = ParseEnum<NScheduler::EOperationType>(attributes.Get<TString>("operation_type"));
             operation.OperationState = ParseEnum<NScheduler::EOperationState>(attributes.Get<TString>("state"));
             operation.StartTime = ConvertTo<TInstant>(attributes.Get<TString>("start_time"));
@@ -4102,7 +4081,79 @@ private:
             operation.BriefProgress = attributes.GetYson("brief_progress");
             operation.Suspended = attributes.Get<bool>("suspended");
             operation.Weight = attributes.Find<double>("weight");
-            cypressOperations.push_back(operation);
+            return operation;
+        };
+
+        TObjectServiceProxy proxy(OperationsArchiveChannels_[options.ReadFrom]);
+        auto batchReq = proxy.ExecuteBatch();
+        SetBalancingHeader(batchReq, options);
+
+        {
+            auto req = TYPathProxy::List(GetOperationsPath());
+            SetCachingHeader(req, options);
+            ToProto(req->mutable_attributes()->mutable_keys(), attributes);
+            batchReq->AddRequest(req, "list_operations");
+        }
+
+        for (int hash = 0x0; hash <= 0xFF; ++hash) {
+            auto hashStr = Format("%02x", hash);
+            auto req = TYPathProxy::List("//sys/operations/" + hashStr);
+            SetCachingHeader(req, options);
+            ToProto(req->mutable_attributes()->mutable_keys(), attributes);
+            batchReq->AddRequest(req, "list_operations_" + hashStr);
+        }
+
+        auto batchRsp = WaitFor(batchReq->Invoke())
+            .ValueOrThrow();
+
+        std::vector<TOperation> cypressOperations;
+        yhash<TOperationId, INodePtr> rootOperations;
+
+        auto rootOperationsRsp = batchRsp->GetResponse<TYPathProxy::TRspList>("list_operations")
+            .ValueOrThrow();
+        auto rootOperationsList = ConvertToNode(TYsonString(rootOperationsRsp->value()))->AsList();
+
+        for (const auto& item : rootOperationsList->GetChildren()) {
+            auto idStr = item->AsString()->GetValue();
+
+            // Hash-bucket case
+            if (idStr.size() == 2) {
+                continue;
+            }
+
+            auto operationId = TGuid::FromString(idStr);
+            YCHECK(rootOperations.emplace(operationId, item).second);
+        }
+
+        for (int hash = 0x0; hash <= 0xFF; ++hash) {
+            auto hashStr = Format("%02x", hash);
+            auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspList>("list_operations_" + hashStr);
+
+            if (rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
+                continue;
+            }
+
+            auto rsp = rspOrError.ValueOrThrow();
+            auto items = ConvertToNode(TYsonString(rsp->value()))->AsList();
+
+            for (const auto& item : items->GetChildren()) {
+                auto operationId = TGuid::FromString(item->AsString()->GetValue());
+                if (item->Attributes().Contains("state")) {
+                    cypressOperations.push_back(createOperationFromNode(item));
+                    rootOperations.erase(operationId);
+                } else {
+                    auto it = rootOperations.find(operationId);
+                    if (it != rootOperations.end()) {
+                        cypressOperations.push_back(createOperationFromNode(it->second));
+                        rootOperations.erase(it);
+                    }
+                }
+            }
+        }
+
+        for (const auto& pair : rootOperations) {
+            cypressOperations.push_back(createOperationFromNode(pair.second));
+            YCHECK(cypressOperations.back().OperationId == pair.first);
         }
 
         auto filterAndCount =
