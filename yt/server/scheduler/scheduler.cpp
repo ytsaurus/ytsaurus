@@ -224,10 +224,10 @@ public:
     void Initialize()
     {
         MasterConnector_->AddGlobalWatcherRequester(BIND(
-            &TImpl::RequestPools,
+            &TImpl::RequestPoolTrees,
             Unretained(this)));
         MasterConnector_->AddGlobalWatcherHandler(BIND(
-            &TImpl::HandlePools,
+            &TImpl::HandlePoolTrees,
             Unretained(this)));
 
         MasterConnector_->AddGlobalWatcher(
@@ -1518,37 +1518,37 @@ private:
     }
 
 
-    void RequestPools(TObjectServiceProxy::TReqExecuteBatchPtr batchReq)
+    void RequestPoolTrees(TObjectServiceProxy::TReqExecuteBatchPtr batchReq)
     {
         static const TPoolTreeKeysHolder PoolTreeKeysHolder;
 
-        LOG_INFO("Requesting pools configuration");
+        LOG_INFO("Requesting pool trees");
 
         auto req = TYPathProxy::Get(GetPoolsPath());
         ToProto(req->mutable_attributes()->mutable_keys(), PoolTreeKeysHolder.Keys);
-        batchReq->AddRequest(req, "get_pools");
+        batchReq->AddRequest(req, "get_pool_trees");
     }
 
-    void HandlePools(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
+    void HandlePoolTrees(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
     {
-        auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_pools");
+        auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_pool_trees");
         if (!rspOrError.IsOK()) {
-            LOG_WARNING(rspOrError, "Error getting pools configuration");
+            LOG_WARNING(rspOrError, "Error getting pool trees");
             return;
         }
 
         const auto& rsp = rspOrError.Value();
-        INodePtr poolsNode;
+        INodePtr poolTreesNode;
         try {
-            poolsNode = ConvertToNode(TYsonString(rsp->value()));
+            poolTreesNode = ConvertToNode(TYsonString(rsp->value()));
         } catch (const std::exception& ex) {
-            auto error = TError("Error parsing pools configuration")
+            auto error = TError("Error parsing pool trees")
                 << ex;
             SetSchedulerAlert(ESchedulerAlertType::UpdatePools, error);
             return;
         }
 
-        Strategy_->UpdatePools(poolsNode);
+        Strategy_->UpdatePoolTrees(poolTreesNode);
     }
 
 
