@@ -22,7 +22,7 @@ public:
     void Initialize();
     void OnAfterSnapshotLoaded();
 
-    const THashSet<NNodeTrackerServer::TNode*>& GetPossibleBundleNodes(const TTabletCellBundle* bundle) const;
+    const THashSet<NNodeTrackerServer::TNode*>& GetBundleNodes(const TTabletCellBundle* bundle) const;
 
 private:
     class TImpl;

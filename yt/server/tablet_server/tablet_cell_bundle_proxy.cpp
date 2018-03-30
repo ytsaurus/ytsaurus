@@ -124,7 +124,7 @@ private:
             case EInternedAttributeKey::Nodes: {
                 const auto& bundleTracker = Bootstrap_->GetTabletManager()->GetBundleNodeTracker();
                 BuildYsonFluently(consumer)
-                    .DoListFor(bundleTracker->GetPossibleBundleNodes(cellBundle), [] (TFluentList fluent, const TNode* node) {
+                    .DoListFor(bundleTracker->GetBundleNodes(cellBundle), [] (TFluentList fluent, const TNode* node) {
                         fluent
                             .Item().Value(node->GetDefaultAddress());
                     });
