@@ -1,7 +1,5 @@
 #include "node_table_reader.h"
 
-#include "proxy_input.h"
-
 #include <library/yson/parser.h>
 
 #include <mapreduce/yt/common/node_builder.h>
@@ -234,7 +232,7 @@ void TRowBuilder::Finalize()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TNodeTableReader::TNodeTableReader(::TIntrusivePtr<TProxyInput> input, size_t sizeLimit)
+TNodeTableReader::TNodeTableReader(::TIntrusivePtr<TRawTableReader> input, size_t sizeLimit)
     : Input_(std::move(input))
     , RowQueue_(sizeLimit)
 {

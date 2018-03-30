@@ -6,7 +6,7 @@
 
 namespace NYT {
 
-class TProxyInput;
+class TRawTableReader;
 class TNodeTableReader;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -16,7 +16,7 @@ class TProtoTableReader
 {
 public:
     explicit TProtoTableReader(
-        ::TIntrusivePtr<TProxyInput> input,
+        ::TIntrusivePtr<TRawTableReader> input,
         TVector<const ::google::protobuf::Descriptor*>&& descriptors);
     ~TProtoTableReader() override;
 
@@ -41,7 +41,7 @@ class TLenvalProtoTableReader
 {
 public:
     explicit TLenvalProtoTableReader(
-        ::TIntrusivePtr<TProxyInput> input,
+        ::TIntrusivePtr<TRawTableReader> input,
         TVector<const ::google::protobuf::Descriptor*>&& descriptors);
     ~TLenvalProtoTableReader() override;
 

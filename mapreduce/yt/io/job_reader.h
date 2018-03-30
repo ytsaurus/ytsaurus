@@ -1,6 +1,6 @@
 #pragma once
 
-#include "proxy_input.h"
+#include <mapreduce/yt/interface/io.h>
 
 #include <util/stream/buffered.h>
 #include <util/stream/file.h>
@@ -11,11 +11,14 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TJobReader
-    : public TProxyInput
+    : public TRawTableReader
 {
 public:
     explicit TJobReader(int fd);
     explicit TJobReader(const TFile& file);
+
+    virtual bool Retry( const TMaybe<ui32>& /*rangeIndex*/, const TMaybe<ui64>& /*rowIndex*/) override;
+    virtual bool HasRangeIndices() const override;
 
 protected:
     size_t DoRead(void* buf, size_t len) override;

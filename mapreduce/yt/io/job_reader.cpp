@@ -16,6 +16,16 @@ TJobReader::TJobReader(const TFile& file)
     , BufferedInput_(&FdInput_, BUFFER_SIZE)
 { }
 
+bool TJobReader::Retry(const TMaybe<ui32>& /*rangeIndex*/, const TMaybe<ui64>& /*rowIndex*/)
+{
+    return false;
+}
+
+bool TJobReader::HasRangeIndices() const
+{
+    return false;
+}
+
 size_t TJobReader::DoRead(void* buf, size_t len)
 {
     return BufferedInput_.Read(buf, len);

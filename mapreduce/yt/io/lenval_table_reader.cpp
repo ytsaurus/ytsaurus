@@ -1,7 +1,5 @@
 #include "lenval_table_reader.h"
 
-#include "proxy_input.h"
-
 #include <mapreduce/yt/common/helpers.h>
 #include <mapreduce/yt/common/log.h>
 
@@ -18,7 +16,7 @@ const i32 CONTROL_ATTR_ROW_INDEX   = -4;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TLenvalTableReader::TLenvalTableReader(::TIntrusivePtr<TProxyInput> input)
+TLenvalTableReader::TLenvalTableReader(::TIntrusivePtr<TRawTableReader> input)
     : Input_(std::move(input))
 {
     TLenvalTableReader::Next();

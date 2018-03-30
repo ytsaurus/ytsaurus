@@ -1,4 +1,3 @@
-#include <mapreduce/yt/io/proxy_input.h>
 #include <mapreduce/yt/io/yamr_table_reader.h>
 
 #include <library/unittest/registar.h>
@@ -50,17 +49,17 @@ private:
     TVector<TString> RowList_;
 };
 
-class TTestProxyInput
-    : public TProxyInput
+class TTestRawTableReader
+    : public TRawTableReader
 {
 public:
-    TTestProxyInput(const TRowCollection& rowCollection)
+    TTestRawTableReader(const TRowCollection& rowCollection)
         : RowCollection_(rowCollection)
         , DataToRead_(RowCollection_.GetStreamDataStartFromRow(0))
         , Input_(MakeHolder<TStringStream>(DataToRead_))
     { }
 
-    TTestProxyInput(const TRowCollection& rowCollection, size_t breakPoint)
+    TTestRawTableReader(const TRowCollection& rowCollection, size_t breakPoint)
         : RowCollection_(rowCollection)
         , DataToRead_(RowCollection_.GetStreamDataStartFromRow(0).substr(0, breakPoint))
         , Input_(MakeHolder<TStringStream>(DataToRead_))
@@ -91,6 +90,11 @@ public:
         return true;
     }
 
+    bool HasRangeIndices() const override
+    {
+        return false;
+    }
+
 private:
     TRowCollection RowCollection_;
     TString DataToRead_;
@@ -117,14 +121,14 @@ SIMPLE_UNIT_TEST_SUITE(TestYamrTableReader)
         ssize_t streamSize = rowCollection.ComputeTotalStreamSize();
 
         for (ssize_t breakPoint = -1; breakPoint < streamSize; ++breakPoint) {
-            ::TIntrusivePtr<TProxyInput> proxyInput;
+            ::TIntrusivePtr<TRawTableReader> rawReader;
             if (breakPoint == -1) {
-                proxyInput = ::MakeIntrusive<TTestProxyInput>(rowCollection);
+                rawReader = ::MakeIntrusive<TTestRawTableReader>(rowCollection);
             } else {
-                proxyInput = ::MakeIntrusive<TTestProxyInput>(rowCollection, static_cast<size_t>(breakPoint));
+                rawReader = ::MakeIntrusive<TTestRawTableReader>(rowCollection, static_cast<size_t>(breakPoint));
             }
 
-            TYaMRTableReader tableReader(proxyInput);
+            TYaMRTableReader tableReader(rawReader);
             TVector<std::tuple<TString, TString, TString>> actualResult;
             for (; tableReader.IsValid(); tableReader.Next()) {
                 auto row = tableReader.GetRow();
@@ -151,14 +155,14 @@ SIMPLE_UNIT_TEST_SUITE(TestYamrTableReader)
 
         for (ssize_t breakPoint = -1; breakPoint < streamSize; ++breakPoint) {
             try {
-                ::TIntrusivePtr<TProxyInput> proxyInput;
+                ::TIntrusivePtr<TRawTableReader> rawReader;
                 if (breakPoint == -1) {
-                    proxyInput = ::MakeIntrusive<TTestProxyInput>(rowCollection);
+                    rawReader = ::MakeIntrusive<TTestRawTableReader>(rowCollection);
                 } else {
-                    proxyInput = ::MakeIntrusive<TTestProxyInput>(rowCollection, static_cast<size_t>(breakPoint));
+                    rawReader = ::MakeIntrusive<TTestRawTableReader>(rowCollection, static_cast<size_t>(breakPoint));
                 }
 
-                TYaMRTableReader tableReader(proxyInput);
+                TYaMRTableReader tableReader(rawReader);
                 ui32 rowCount = 0;
                 for (; tableReader.IsValid(); tableReader.Next()) {
                     ++rowCount;

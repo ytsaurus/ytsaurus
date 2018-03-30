@@ -1,7 +1,5 @@
 #pragma once
 
-#include <mapreduce/yt/io/proxy_input.h>
-
 #include <mapreduce/yt/interface/io.h>
 
 #include <mapreduce/yt/http/requests.h>
@@ -14,7 +12,7 @@ class TPingableTransaction;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TClientReader
-    : public TProxyInput
+    : public TRawTableReader
 {
 public:
     TClientReader(
