@@ -232,8 +232,8 @@ private:
         }
 
         auto operation = scheduler->GetOperationOrThrow(operationId);
-        scheduler->UpdateOperationParameters(operation, context->GetUser(), parameters);
-        context->Reply();
+        auto asyncResult = scheduler->UpdateOperationParameters(operation, context->GetUser(), parameters);
+        context->ReplyFrom(asyncResult);
     }
 };
 
