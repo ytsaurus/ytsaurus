@@ -3446,7 +3446,7 @@ private:
             attributes->insert(attributes->begin(), options.Attributes->begin(), options.Attributes->end());
             // NOTE(asaitgalin): This attribute helps to distinguish between
             // different cypress storage modes of operation.
-            if (options.Attributes->find("state") == options.Attributes->end()) {
+            if (!options.Attributes->has("state")) {
                 attributes->push_back("state");
             }
         }
@@ -3491,8 +3491,8 @@ private:
             return nullptr;
         };
 
-        INodePtr newCypressNode = getCypressNode(attrNodeOrError);
-        INodePtr oldCypressNode = getCypressNode(attrOldNodeOrError);
+        auto newCypressNode = getCypressNode(attrNodeOrError);
+        auto oldCypressNode = getCypressNode(attrOldNodeOrError);
         INodePtr cypressNode;
         if (newCypressNode && oldCypressNode) {
             cypressNode = PatchNode(oldCypressNode, newCypressNode);
@@ -3524,12 +3524,12 @@ private:
                 attrNode->RemoveChild("state");
             }
 
-            TGetNodeOptions optionsToScheduler;
+            TGetNodeOptions schedulerOptions;
             if (deadline) {
-                optionsToScheduler.Timeout = *deadline - Now();
+                schedulerOptions.Timeout = *deadline - Now();
             }
 
-            bool shouldRequestProgress = false;
+            bool shouldRequestProgress;
             if (options.Attributes) {
                 const auto& attributes = *options.Attributes;
                 shouldRequestProgress = std::find(attributes.begin(), attributes.end(), "progress") != attributes.end();
@@ -3538,7 +3538,7 @@ private:
             }
 
             if (options.IncludeScheduler && shouldRequestProgress) {
-                auto asyncSchedulerProgressValue = GetNode(GetOperationProgressFromOrchid(operationId), optionsToScheduler);
+                auto asyncSchedulerProgressValue = GetNode(GetOperationProgressFromOrchid(operationId), schedulerOptions);
                 auto schedulerProgressValueOrError = WaitFor(asyncSchedulerProgressValue);
 
                 if (schedulerProgressValueOrError.IsOK()) {
@@ -3548,21 +3548,26 @@ private:
 
                     return ConvertToYsonString(attrNode);
                 } else if (schedulerProgressValueOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
-                    LOG_DEBUG("No such operation %v in the scheduler", operationId);
+                    LOG_DEBUG("Operation is missing in scheduler Orchid (OperationId: %v)",
+                        operationId);
                 } else {
-                    THROW_ERROR_EXCEPTION("Failed to get operation %v from the scheduler", operationId)
+                    THROW_ERROR_EXCEPTION("Failed to get operation %v from scheduler",
+                        operationId)
                         << schedulerProgressValueOrError;
                 }
             }
 
             return ConvertToYsonString(cypressNode);
         } else if (IsArchiveExists()) {
-            LOG_DEBUG("No such operation %v in Cypress", operationId);
+            LOG_DEBUG("Operation is missing in Cypress (OperationId: %v)",
+                operationId);
 
             int version = DoGetOperationsArchiveVersion();
-
-            if (version < 7) {
-                THROW_ERROR_EXCEPTION("Failed to get operation: operations archive version is too old: expected >= 7, got %v", version);
+            const int MinVersion = 7;
+            if (version < MinVersion) {
+                THROW_ERROR_EXCEPTION("Operation archive version is too old: expected >= %v, got %v",
+                    MinVersion,
+                    version);
             }
 
             try {
@@ -3570,18 +3575,19 @@ private:
                 if (result) {
                     return result;
                 }
-            } catch (const TErrorException& exception) {
-                auto matchedError = exception.Error().FindMatching(NYTree::EErrorCode::ResolveError);
-
-                if (!matchedError) {
-                    THROW_ERROR_EXCEPTION("Failed to get operation from archive")
-                        << TErrorAttribute("operation_id", operationId)
-                        << exception.Error();
+            } catch (const TErrorException& ex) {
+                if (!ex.Error().FindMatching(NYTree::EErrorCode::ResolveError)) {
+                    THROW_ERROR_EXCEPTION("Failed to get operation %v from archive",
+                        operationId)
+                        << ex;
                 }
             }
         }
 
-        THROW_ERROR_EXCEPTION(EErrorCode::NoSuchOperation, "No such operation %v", operationId);
+        THROW_ERROR_EXCEPTION(
+            NApi::EErrorCode::NoSuchOperation,
+            "No such operation %v",
+            operationId);
     }
 
     void DoDumpJobContext(
