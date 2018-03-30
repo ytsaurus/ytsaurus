@@ -15,7 +15,6 @@ import ru.yandex.yt.ytclient.rpc.internal.metrics.DataCenterMetricsHolderImpl;
 public class RpcOptions {
     private String serviceName = null;
     private int protocolVersion = 0;
-    private Duration defaultTimeout = null;
     private boolean defaultRequestAck = true;
 
     private Duration globalTimeout = Duration.ofMillis(60000);  // fails request after this timeout
@@ -40,8 +39,14 @@ public class RpcOptions {
         return protocolVersion;
     }
 
+    @Deprecated
     public Duration getDefaultTimeout() {
-        return defaultTimeout;
+        return getGlobalTimeout();
+    }
+
+    @Deprecated
+    public RpcOptions setDefaultTimeout(Duration defaultTimeout) {
+        return setGlobalTimeout(defaultTimeout);
     }
 
     public boolean getDefaultRequestAck() {
@@ -55,11 +60,6 @@ public class RpcOptions {
 
     public RpcOptions setProtocolVersion(int protocolVersion) {
         this.protocolVersion = protocolVersion;
-        return this;
-    }
-
-    public RpcOptions setDefaultTimeout(Duration defaultTimeout) {
-        this.defaultTimeout = defaultTimeout;
         return this;
     }
 

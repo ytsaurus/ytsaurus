@@ -31,7 +31,7 @@ public abstract class RequestBuilderBase<RequestType extends MessageLite.Builder
         this.body = body;
         this.options = options;
 
-        setTimeout(options.getDefaultTimeout());
+        setTimeout(options.getGlobalTimeout());
         setRequestAck(options.getDefaultRequestAck());
     }
 
