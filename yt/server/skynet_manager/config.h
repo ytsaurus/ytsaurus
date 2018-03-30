@@ -102,6 +102,7 @@ public:
     //! Passed to skynet daemon, so it can call us back.
     TString SelfUrl;
 
+    bool EnableSkynetMds;
     TString SkynetPythonInterpreterPath;
     TString SkynetMdsToolPath;
 
@@ -120,6 +121,8 @@ public:
     {
         RegisterParameter("self_url", SelfUrl);
 
+        RegisterParameter("enable_skynet_mds", EnableSkynetMds)
+            .Default(true);
         RegisterParameter("skynet_mds_tool_path", SkynetMdsToolPath)
             .Default("/skynet/tools/skybone-mds-ctl");
         RegisterParameter("skynet_python_interpreter_path", SkynetPythonInterpreterPath)
