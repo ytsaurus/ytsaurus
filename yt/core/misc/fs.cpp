@@ -141,6 +141,9 @@ TString GetRealPath(const TString& path)
             parts.pop_back();
         }
         curPath = GetDirectoryName(curPath);
+        if (curPath.Empty()) {
+            break;
+        }
     }
     parts.push_back(RealPath(curPath));
 
@@ -150,6 +153,41 @@ TString GetRealPath(const TString& path)
     reverse(parts.begin(), parts.end());
 #endif
     return CombinePaths(parts);
+}
+
+bool CheckPathIsRelativeAndGoesInside(const TString& path)
+{
+    std::vector<TString> parts;
+
+    TString currentPath = path;
+    while (true) {
+        size_t slashPosition = currentPath.find_last_of(LOCSLASH_C);
+        if (slashPosition == TString::npos) {
+            if (currentPath.empty()) {
+                // Path is absolute.
+                return false;
+            } else {
+                parts.push_back(currentPath);
+                break;
+            }
+        } else {
+            parts.push_back(currentPath.substr(slashPosition + 1));
+            currentPath = currentPath.substr(0, slashPosition);
+        }
+    }
+
+    int inCount = 0;
+    int outCount = 0;
+    for (const auto& part : parts) {
+        if (part == ".") {
+            continue;
+        } else if (part == "..") {
+            ++outCount;
+        } else {
+            ++inCount;
+        }
+    }
+    return inCount >= outCount;
 }
 
 TString GetFileExtension(const TString& path)

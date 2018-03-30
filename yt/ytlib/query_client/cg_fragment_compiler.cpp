@@ -2369,11 +2369,11 @@ size_t MakeCodegenFilterOp(
             nullptr,
             "expressionClosurePtr");
 
-        builder[producerSlot] = [&] (TCGContext& builder, Value* row) {
+        builder[producerSlot] = [&] (TCGContext& builder, Value* values) {
             auto rowBuilder = TCGExprContext::Make(
                 builder,
                 *fragmentInfos,
-                row,
+                values,
                 builder.Buffer,
                 builder->ViaClosure(expressionClosurePtr));
 
@@ -2391,7 +2391,88 @@ size_t MakeCodegenFilterOp(
                 endIfBB);
 
             builder->SetInsertPoint(ifBB);
-            builder[consumerSlot](builder, row);
+            builder[consumerSlot](builder, values);
+            builder->CreateBr(endIfBB);
+
+            builder->SetInsertPoint(endIfBB);
+        };
+
+        codegenSource(builder);
+    };
+
+    return consumerSlot;
+}
+
+size_t MakeCodegenFilterFinalizedOp(
+    TCodegenSource* codegenSource,
+    size_t* slotCount,
+    size_t producerSlot,
+    TCodegenFragmentInfosPtr fragmentInfos,
+    size_t predicateId,
+    size_t keySize,
+    std::vector<TCodegenAggregate> codegenAggregates,
+    std::vector<EValueType> stateTypes)
+{
+    size_t consumerSlot = (*slotCount)++;
+
+    *codegenSource = [
+        consumerSlot,
+        producerSlot,
+        MOVE(fragmentInfos),
+        predicateId,
+        keySize,
+        MOVE(codegenAggregates),
+        MOVE(stateTypes),
+        codegenSource = std::move(*codegenSource)
+    ] (TCGOperatorContext& builder) {
+        Value* expressionClosurePtr = builder->CreateAlloca(
+            TClosureTypeBuilder::get(builder->getContext(), fragmentInfos->Functions.size()),
+            nullptr,
+            "expressionClosurePtr");
+
+        Value* finalizedValues = CodegenAllocateValues(builder, keySize + codegenAggregates.size());
+
+        builder[producerSlot] = [&] (TCGContext& builder, Value* values) {
+            Value* finalizedValuesRef = builder->ViaClosure(finalizedValues);
+
+            builder->CreateMemCpy(
+                builder->CreatePointerCast(finalizedValuesRef, builder->getInt8PtrTy()),
+                builder->CreatePointerCast(values, builder->getInt8PtrTy()),
+                keySize * sizeof(TValue), 8);
+
+            for (int index = 0; index < codegenAggregates.size(); index++) {
+                auto value = TCGValue::CreateFromRowValues(
+                    builder,
+                    values,
+                    keySize + index,
+                    stateTypes[index]);
+
+                codegenAggregates[index].Finalize(builder, builder.Buffer, value)
+                    .StoreToValues(builder, finalizedValuesRef, keySize + index);
+            }
+
+            auto rowBuilder = TCGExprContext::Make(
+                builder,
+                *fragmentInfos,
+                finalizedValuesRef,
+                builder.Buffer,
+                builder->ViaClosure(expressionClosurePtr));
+
+            auto predicateResult = CodegenFragment(rowBuilder, predicateId);
+
+            auto* ifBB = builder->CreateBBHere("if");
+            auto* endIfBB = builder->CreateBBHere("endIf");
+
+            auto* notIsNull = builder->CreateNot(predicateResult.GetIsNull(builder));
+            auto* isTrue = predicateResult.GetTypedData(builder);
+
+            builder->CreateCondBr(
+                builder->CreateAnd(notIsNull, isTrue),
+                ifBB,
+                endIfBB);
+
+            builder->SetInsertPoint(ifBB);
+            builder[consumerSlot](builder, values);
             builder->CreateBr(endIfBB);
 
             builder->SetInsertPoint(endIfBB);

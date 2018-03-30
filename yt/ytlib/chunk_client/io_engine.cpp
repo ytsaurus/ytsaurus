@@ -230,7 +230,7 @@ private:
                                 << TErrorAttribute("read_bytes", reallyRead);
                         }
                     }
-               }
+                }
             }
 
             result = buf - reinterpret_cast<ui8*>(data.Begin()) - delta;
