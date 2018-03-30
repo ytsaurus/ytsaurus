@@ -81,6 +81,23 @@ void TGetJobStderrCommand::DoExecute(ICommandContextPtr context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TGetJobFailContextCommand::TGetJobFailContextCommand()
+{
+    RegisterParameter("operation_id", OperationId);
+    RegisterParameter("job_id", JobId);
+}
+
+void TGetJobFailContextCommand::DoExecute(ICommandContextPtr context)
+{
+    auto result = WaitFor(context->GetClient()->GetJobFailContext(OperationId, JobId, Options))
+        .ValueOrThrow();
+
+    auto output = context->Request().OutputStream;
+    output->Write(result);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TListOperationsCommand::TListOperationsCommand()
 {
     RegisterParameter("from_time", Options.FromTime)

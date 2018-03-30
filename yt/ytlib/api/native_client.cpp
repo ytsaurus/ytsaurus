@@ -849,6 +849,11 @@ public:
         const TJobId& jobId,
         const TGetJobStderrOptions& options),
         (operationId, jobId, options))
+    IMPLEMENT_METHOD(TSharedRef, GetJobFailContext, (
+        const TOperationId& operationId,
+        const TJobId& jobId,
+        const TGetJobFailContextOptions& options),
+        (operationId, jobId, options))
     IMPLEMENT_METHOD(TListOperationsResult, ListOperations, (
         const TListOperationsOptions& options),
         (options))
@@ -3876,6 +3881,74 @@ private:
         }
 
         THROW_ERROR_EXCEPTION(NScheduler::EErrorCode::NoSuchJob, "Job stderr is not found")
+            << TErrorAttribute("operation_id", operationId)
+            << TErrorAttribute("job_id", jobId);
+    }
+
+    TSharedRef DoGetJobFailContextFromCypress(
+        const TOperationId& operationId,
+        const TJobId& jobId)
+    {
+        auto createFileReader = [&] (const NYPath::TYPath& path) {
+            return WaitFor(static_cast<IClientBase*>(this)->CreateFileReader(path));
+        };
+
+        try {
+            auto fileReaderOrError = createFileReader(NScheduler::GetNewFailContextPath(operationId, jobId));
+            // COMPAT
+            if (fileReaderOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
+                fileReaderOrError = createFileReader(NScheduler::GetFailContextPath(operationId, jobId));
+            }
+
+            auto fileReader = fileReaderOrError.ValueOrThrow();
+
+            std::vector<TSharedRef> blocks;
+            while (true) {
+                auto block = WaitFor(fileReader->Read())
+                    .ValueOrThrow();
+
+                if (!block) {
+                    break;
+                }
+
+                blocks.push_back(std::move(block));
+            }
+
+            i64 size = GetByteSize(blocks);
+            YCHECK(size);
+            auto failContextFile = TSharedMutableRef::Allocate(size);
+            auto memoryOutput = TMemoryOutput(failContextFile.Begin(), size);
+
+            for (const auto& block : blocks) {
+                memoryOutput.Write(block.Begin(), block.Size());
+            }
+
+            return failContextFile;
+        } catch (const TErrorException& exception) {
+            auto matchedError = exception.Error().FindMatching(NYTree::EErrorCode::ResolveError);
+
+            if (!matchedError) {
+                THROW_ERROR_EXCEPTION("Failed to get job fail context from Cypress")
+                    << TErrorAttribute("operation_id", operationId)
+                    << TErrorAttribute("job_id", jobId)
+                    << exception.Error();
+            }
+        }
+
+        return TSharedRef();
+    }
+
+    TSharedRef DoGetJobFailContext(
+        const TOperationId& operationId,
+        const TJobId& jobId,
+        const TGetJobFailContextOptions& /*options*/)
+    {
+        auto failContextRef = DoGetJobFailContextFromCypress(operationId, jobId);
+        if (failContextRef) {
+            return failContextRef;
+        }
+
+        THROW_ERROR_EXCEPTION(NScheduler::EErrorCode::NoSuchJob, "Job fail context is not found")
             << TErrorAttribute("operation_id", operationId)
             << TErrorAttribute("job_id", jobId);
     }

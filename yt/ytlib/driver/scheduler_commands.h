@@ -57,6 +57,21 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TGetJobFailContextCommand
+    : public TTypedCommand<NApi::TGetJobFailContextOptions>
+{
+public:
+    TGetJobFailContextCommand();
+
+private:
+    NJobTrackerClient::TOperationId OperationId;
+    NJobTrackerClient::TJobId JobId;
+
+    virtual void DoExecute(ICommandContextPtr context) override;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TListOperationsCommand
     : public TTypedCommand<NApi::TListOperationsOptions>
 {

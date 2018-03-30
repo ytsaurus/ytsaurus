@@ -91,6 +91,13 @@ TYPath GetFailContextPath(const TOperationId& operationId, const TJobId& jobId)
         + "/fail_context";
 }
 
+TYPath GetNewFailContextPath(const TOperationId& operationId, const TJobId& jobId)
+{
+    return
+        GetNewJobPath(operationId, jobId)
+        + "/fail_context";
+}
+
 TYPath GetSnapshotPath(const TOperationId& operationId)
 {
     return
