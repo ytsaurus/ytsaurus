@@ -2123,22 +2123,22 @@ public:
         }
     }
 
-    virtual void UpdatePools(const INodePtr& poolsNode) override
+    virtual void UpdatePoolTrees(const INodePtr& poolTreesNode) override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
         LOG_INFO("Updating pool trees");
 
-        if (poolsNode->GetType() != NYTree::ENodeType::Map) {
+        if (poolTreesNode->GetType() != NYTree::ENodeType::Map) {
             auto error = TError("Pool trees node has invalid type")
                 << TErrorAttribute("expected_type", NYTree::ENodeType::Map)
-                << TErrorAttribute("actual_type", poolsNode->GetType());
+                << TErrorAttribute("actual_type", poolTreesNode->GetType());
             LOG_WARNING(error);
             Host->SetSchedulerAlert(ESchedulerAlertType::UpdatePools, error);
             return;
         }
 
-        auto poolsMap = poolsNode->AsMap();
+        auto poolsMap = poolTreesNode->AsMap();
 
         std::vector<TError> errors;
 

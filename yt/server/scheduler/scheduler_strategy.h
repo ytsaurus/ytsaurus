@@ -140,7 +140,7 @@ struct ISchedulerStrategy
 
     virtual void ApplyJobMetricsDelta(const TOperationIdToOperationJobMetrics& operationIdToOperationJobMetrics) = 0;
 
-    virtual void UpdatePools(const NYTree::INodePtr& poolsNode) = 0;
+    virtual void UpdatePoolTrees(const NYTree::INodePtr& poolTreesNode) = 0;
 
     virtual void ValidateNodeTags(const THashSet<TString>& tags) = 0;
 
