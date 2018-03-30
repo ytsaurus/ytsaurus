@@ -663,6 +663,7 @@ class ConfigsProvider_19_2(ConfigsProvider):
             config = {
                 "port": next(ports_generator),
                 "monitoring_port": next(ports_generator),
+                "enable_skybone_mds": manager_index == 0,
             }
             config["self_url"] = "http://localhost:{}".format(config["port"])
             config["clusters"] = [
