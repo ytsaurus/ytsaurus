@@ -261,7 +261,7 @@ void TMasterConnector::ResetAndScheduleRegisterAtMaster()
     TDelayedExecutor::Submit(
         BIND(&TMasterConnector::RegisterAtMaster, MakeStrong(this))
             .Via(HeartbeatInvoker_),
-        Config_->RegisterRetryPeriod);
+        Config_->RegisterRetryPeriod + RandomDuration(Config_->RegisterRetrySplay));
 }
 
 void TMasterConnector::RegisterAtMaster()
