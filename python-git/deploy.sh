@@ -69,6 +69,11 @@ init_vars
 # Copy package files to the python root
 # NB: Symbolic links doesn't work correctly with `sdist upload`
 cp -r $PACKAGE_PATH/debian $PACKAGE_PATH/setup.py .
+
+if [ -f "$PACKAGE_PATH/stable_versions" ]; then
+    cp $PACKAGE_PATH/stable_versions .
+fi
+
 # NB: On Lucid packages have special lucid version of debian
 # directory but changelog from original package should be used to avoid duplication.
 cp $PACKAGE/debian/changelog debian
@@ -161,3 +166,7 @@ fi
 # Final cleanup
 clean
 rm -rf debian setup.py MANIFEST.in requirements.txt dist __pycache__
+
+if [ -f "stable_versions" ]; then
+    rm stable_versions
+fi
