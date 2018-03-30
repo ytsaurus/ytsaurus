@@ -165,8 +165,4 @@ fi
 
 # Final cleanup
 clean
-rm -rf debian setup.py MANIFEST.in requirements.txt dist __pycache__
-
-if [ -f "stable_versions" ]; then
-    rm stable_versions
-fi
+rm -rf debian setup.py MANIFEST.in requirements.txt dist __pycache__ stable_versions
