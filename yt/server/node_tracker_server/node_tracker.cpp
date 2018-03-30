@@ -331,6 +331,8 @@ public:
     DEFINE_SIGNAL(void(TNode* node), NodeDisposed);
     DEFINE_SIGNAL(void(TNode* node), NodeBanChanged);
     DEFINE_SIGNAL(void(TNode* node), NodeDecommissionChanged);
+    DEFINE_SIGNAL(void(TNode* node), NodeDisableTabletCellsChanged);
+    DEFINE_SIGNAL(void(TNode* node), NodeTagsChanged);
     DEFINE_SIGNAL(void(TNode* node, TRack*), NodeRackChanged);
     DEFINE_SIGNAL(void(TNode* node, TDataCenter*), NodeDataCenterChanged);
     DEFINE_SIGNAL(void(TNode* node, TReqFullHeartbeat* request), FullHeartbeat);
@@ -492,6 +494,23 @@ public:
         }
     }
 
+    void SetDisableTabletCells(TNode* node, bool value)
+    {
+        if (node->GetDisableTabletCells() != value) {
+            node->SetDisableTabletCells(value);
+            if (value) {
+                LOG_INFO_UNLESS(IsRecovery(), "Disabled tablet cells on node (NodeId: %v, Address: %v)",
+                    node->GetId(),
+                    node->GetDefaultAddress());
+            } else {
+                LOG_INFO_UNLESS(IsRecovery(), "Enabled tablet cells on node (NodeId: %v, Address: %v)",
+                    node->GetId(),
+                    node->GetDefaultAddress());
+            }
+            NodeDisableTabletCellsChanged_.Fire(node);
+        }
+    }
+
     void SetNodeRack(TNode* node, TRack* rack)
     {
         if (node->GetRack() != rack) {
@@ -502,12 +521,14 @@ public:
                 node->GetDefaultAddress(),
                 rack ? MakeNullable(rack->GetName()) : Null);
             NodeRackChanged_.Fire(node, oldRack);
+            NodeTagsChanged_.Fire(node);
         }
     }
 
     void SetNodeUserTags(TNode* node, const std::vector<TString>& tags)
     {
         node->SetUserTags(tags);
+        NodeTagsChanged_.Fire(node);
     }
 
 
@@ -1735,6 +1756,11 @@ void TNodeTracker::SetDisableWriteSessions(TNode* node, bool value)
     Impl_->SetDisableWriteSessions(node, value);
 }
 
+void TNodeTracker::SetDisableTabletCells(TNode* node, bool value)
+{
+    Impl_->SetDisableTabletCells(node, value);
+}
+
 void TNodeTracker::SetNodeRack(TNode* node, TRack* rack)
 {
     Impl_->SetNodeRack(node, rack);
@@ -1834,6 +1860,8 @@ DELEGATE_SIGNAL(TNodeTracker, void(TNode*), NodeUnregistered, *Impl_);
 DELEGATE_SIGNAL(TNodeTracker, void(TNode*), NodeDisposed, *Impl_);
 DELEGATE_SIGNAL(TNodeTracker, void(TNode*), NodeBanChanged, *Impl_);
 DELEGATE_SIGNAL(TNodeTracker, void(TNode*), NodeDecommissionChanged, *Impl_);
+DELEGATE_SIGNAL(TNodeTracker, void(TNode*), NodeDisableTabletCellsChanged, *Impl_);
+DELEGATE_SIGNAL(TNodeTracker, void(TNode*), NodeTagsChanged, *Impl_);
 DELEGATE_SIGNAL(TNodeTracker, void(TNode*, TRack*), NodeRackChanged, *Impl_);
 DELEGATE_SIGNAL(TNodeTracker, void(TNode*, TDataCenter*), NodeDataCenterChanged, *Impl_);
 DELEGATE_SIGNAL(TNodeTracker, void(TNode*, TReqFullHeartbeat*), FullHeartbeat, *Impl_);

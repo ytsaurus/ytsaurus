@@ -71,6 +71,12 @@ public:
     //! Fired when node "decommissioned" flag changes.
     DECLARE_SIGNAL(void(TNode* node), NodeDecommissionChanged);
 
+    //! Fired when node "disable_tablet_cells" flag changes.
+    DECLARE_SIGNAL(void(TNode* node), NodeDisableTabletCellsChanged);
+
+    //! Fired when node tags change.
+    DECLARE_SIGNAL(void(TNode* node), NodeTagsChanged);
+
     //! Fired when node rack changes.
     DECLARE_SIGNAL(void(TNode* node, TRack* oldRack), NodeRackChanged);
 
@@ -152,6 +158,9 @@ public:
 
     //! Sets the flag disabling write sessions at the node.
     void SetDisableWriteSessions(TNode* node, bool value);
+
+    //! Sets the flag disabling tablet cells at the node.
+    void SetDisableTabletCells(TNode* node, bool value);
 
     //! Creates a new rack with a given name. Throws on name conflict.
     TRack* CreateRack(const TString& name);

@@ -405,7 +405,7 @@ private:
 
             case EInternedAttributeKey::DisableTabletCells: {
                 auto disableTabletCells = ConvertTo<bool>(value);
-                node->SetDisableTabletCells(disableTabletCells);
+                nodeTracker->SetDisableTabletCells(node, disableTabletCells);
                 return true;
             }
 
