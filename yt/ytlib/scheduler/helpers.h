@@ -61,7 +61,7 @@ bool IsSchedulingReason(EAbortReason reason);
 bool IsNonSchedulingReason(EAbortReason reason);
 bool IsSentinelReason(EAbortReason reason);
 
-TError GetSchedulerTransactionAbortedError(const NObjectClient::TTransactionId& transactionId);
+TError GetSchedulerTransactionsAbortedError(const std::vector<NObjectClient::TTransactionId>& transactionIds);
 TError GetUserTransactionAbortedError(const NObjectClient::TTransactionId& transactionId);
 
 ////////////////////////////////////////////////////////////////////////////////

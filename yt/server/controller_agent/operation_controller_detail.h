@@ -189,7 +189,7 @@ public:
     virtual TOperationControllerInitializationResult InitializeClean() override;
     virtual TOperationControllerInitializationResult InitializeReviving(const TControllerTransactions& transactions) override;
 
-    virtual void OnTransactionAborted(const NTransactionClient::TTransactionId& transactionId) override;
+    virtual void OnTransactionsAborted(const std::vector<NTransactionClient::TTransactionId>& transactionIds) override;
 
     virtual void UpdateConfig(const TControllerAgentConfigPtr& config) override;
 

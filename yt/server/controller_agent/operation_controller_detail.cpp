@@ -2284,36 +2284,32 @@ bool TOperationControllerBase::IsIntermediateLivePreviewSupported() const
     return false;
 }
 
-void TOperationControllerBase::OnTransactionAborted(const TTransactionId& transactionId)
+void TOperationControllerBase::OnTransactionsAborted(const std::vector<TTransactionId>& transactionIds)
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvoker);
 
-    // Double-check transaction ownership to avoid races with commits and aborts.
-    auto transactions = GetTransactions();
-    if (std::find_if(
-            transactions.begin(),
-            transactions.end(),
-            [&] (const auto& transaction) { return transaction->GetId() == transactionId; }) ==
-        transactions.end())
-    {
-        return;
+    // Check if the user transaction is still alive to determine the exact abort reason.
+    bool userTransactionAborted = false;
+    if (UserTransaction) {
+        auto result = WaitFor(UserTransaction->Ping());
+        if (result.FindMatching(NTransactionClient::EErrorCode::NoSuchTransaction)) {
+            userTransactionAborted = true;
+        }
     }
 
-    if (transactionId == UserTransactionId) {
+    if (userTransactionAborted) {
         OnOperationAborted(
-            GetUserTransactionAbortedError(transactionId));
+            GetUserTransactionAbortedError(UserTransaction->GetId()));
     } else {
         OnOperationFailed(
-            GetSchedulerTransactionAbortedError(transactionId),
+            GetSchedulerTransactionsAbortedError(transactionIds),
             /* flush */ false);
     }
 }
 
 std::vector<ITransactionPtr> TOperationControllerBase::GetTransactions()
 {
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    std::vector<ITransactionPtr> transactions = {
+    std::vector<ITransactionPtr> transactions{
         UserTransaction,
         AsyncTransaction,
         InputTransaction,
