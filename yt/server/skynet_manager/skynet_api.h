@@ -30,6 +30,8 @@ ISkynetApiPtr CreateShellSkynetApi(
     const TString& pythonInterpreterPath,
     const TString& mdsToolPath);
 
+ISkynetApiPtr CreateNullSkynetApi();
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NSkynetManager

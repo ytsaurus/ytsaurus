@@ -69,13 +69,13 @@ public:
 TSkynetManager::TSkynetManager(TBootstrap* bootstrap)
     : Bootstrap_(bootstrap)
 {
-    bootstrap->HttpServer->AddHandler("/api/v1/share",
+    bootstrap->GetHttpServer()->AddHandler("/api/v1/share",
         WrapYTException(New<TCallbackHandler>(BIND(&TSkynetManager::Share, MakeStrong(this)))));
 
-    bootstrap->HttpServer->AddHandler("/api/v1/discover",
+    bootstrap->GetHttpServer()->AddHandler("/api/v1/discover",
         WrapYTException(New<TCallbackHandler>(BIND(&TSkynetManager::Discover, MakeStrong(this)))));
 
-    bootstrap->HttpServer->AddHandler("/debug/healthcheck",
+    bootstrap->GetHttpServer()->AddHandler("/debug/healthcheck",
         BIND(&TSkynetManager::HealthCheck, MakeStrong(this)));
 }
 
@@ -86,7 +86,7 @@ void TSkynetManager::HealthCheck(IRequestPtr req, IResponseWriterPtr rsp)
         auto guard = Guard(Lock_);
         ok = CypressPullErrors_.empty()
             && TablesScanErrors_.empty()
-            && SyncedClusters_.size() == Bootstrap_->Clusters.size();
+            && SyncedClusters_.size() == Bootstrap_->GetClustersCount();
     }
 
     rsp->SetStatus(ok ? EStatusCode::Ok : EStatusCode::InternalServerError);
@@ -130,10 +130,10 @@ void TSkynetManager::Share(IRequestPtr req, IResponseWriterPtr rsp)
 
     TShareKey shareKey{params.Cluster, ToString(params.Path), tableRevision.ValueOrThrow()};
 
-    Bootstrap_->ShareCache->CheckTombstone(shareKey)
+    Bootstrap_->GetShareCache()->CheckTombstone(shareKey)
         .ThrowOnError();
 
-    auto maybeRbTorrentId = Bootstrap_->ShareCache->TryShare(shareKey, true);
+    auto maybeRbTorrentId = Bootstrap_->GetShareCache()->TryShare(shareKey, true);
     if (!maybeRbTorrentId) {
         rsp->SetStatus(EStatusCode::Accepted);
         WaitFor(rsp->Close())
@@ -156,7 +156,7 @@ void TSkynetManager::Discover(IRequestPtr req, IResponseWriterPtr rsp)
     auto rbTorrentId = params.Get("rb_torrent_id");
 
     LOG_INFO("Start serving discover (RbTorrentId: %v)", rbTorrentId);
-    auto discoverInfo = Bootstrap_->ShareCache->TryDiscover(rbTorrentId);
+    auto discoverInfo = Bootstrap_->GetShareCache()->TryDiscover(rbTorrentId);
     if (!discoverInfo) {
         LOG_INFO("Discover failed, share not found (RbTorrentId: %v)", rbTorrentId);
         rsp->SetStatus(EStatusCode::BadRequest);
@@ -176,7 +176,7 @@ void TSkynetManager::Discover(IRequestPtr req, IResponseWriterPtr rsp)
 
     THttpReply reply;
     reply.Parts = FetchSkynetPartsLocations(
-        Bootstrap_->HttpClient,
+        Bootstrap_->GetHttpClient(),
         cluster.Config->ProxyUrl,
         cluster.Config->OAuthToken,
         discoverInfo->TablePath,
@@ -204,13 +204,13 @@ TString TSkynetManager::FormatDiscoveryUrl(const TString& rbTorrentId)
 {
     return Format(
         "%v/api/v1/discover?rb_torrent_id=%v",
-        Bootstrap_->Config->SelfUrl,
+        Bootstrap_->GetConfig()->SelfUrl,
         rbTorrentId);
 }
 
 IInvokerPtr TSkynetManager::GetInvoker()
 {
-    return Bootstrap_->SkynetApiActionQueue->GetInvoker();
+    return Bootstrap_->GetInvoker();
 }
 
 std::pair<TSkynetShareMeta, std::vector<TFileOffset>> TSkynetManager::ReadMeta(
@@ -219,7 +219,7 @@ std::pair<TSkynetShareMeta, std::vector<TFileOffset>> TSkynetManager::ReadMeta(
 {
     auto& cluster = Bootstrap_->GetCluster(clusterName);
     return ReadSkynetMetaFromTable(
-        Bootstrap_->HttpClient,
+        Bootstrap_->GetHttpClient(),
         cluster.Config->ProxyUrl,
         cluster.Config->OAuthToken,
         path);
@@ -250,7 +250,7 @@ void TSkynetManager::RemoveShareFromCypress(const TString& clusterName, const TS
 
 void TSkynetManager::AddResourceToSkynet(const TString& rbTorrentId, const TString& rbTorrent)
 {
-    WaitFor(Bootstrap_->SkynetApi->AddResource(
+    WaitFor(Bootstrap_->GetSkynetApi()->AddResource(
         rbTorrentId,
         FormatDiscoveryUrl(rbTorrentId),
         rbTorrent))
@@ -259,14 +259,14 @@ void TSkynetManager::AddResourceToSkynet(const TString& rbTorrentId, const TStri
 
 void TSkynetManager::RemoveResourceFromSkynet(const TString& rbTorrentId)
 {
-    WaitFor(Bootstrap_->SkynetApi->RemoveResource(rbTorrentId))
+    WaitFor(Bootstrap_->GetSkynetApi()->RemoveResource(rbTorrentId))
         .ThrowOnError();
 }
 
 void TSkynetManager::RunCypressSyncIteration(const TCluster& cluster)
 {
     try {
-        auto& shareCache = Bootstrap_->ShareCache;
+        auto& shareCache = Bootstrap_->GetShareCache();
 
         cluster.ThrottleBackground();
         for (const auto& shardName : cluster.CypressSync->FindChangedShards()) {
@@ -311,7 +311,7 @@ void TSkynetManager::RunCypressSyncIteration(const TCluster& cluster)
 
 void TSkynetManager::RunTableScanIteration(const TCluster& cluster)
 {
-    auto& shareCache = Bootstrap_->ShareCache;
+    auto& shareCache = Bootstrap_->GetShareCache();
     try {
         cluster.ThrottleBackground();
         for (const auto& shardName : shareCache->ListShards()) {

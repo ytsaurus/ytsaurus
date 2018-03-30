@@ -161,5 +161,35 @@ ISkynetApiPtr CreateShellSkynetApi(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TNullSkynetApi
+    : public ISkynetApi
+{
+public:
+    virtual TFuture<void> AddResource(const TString&, const TString&, const TString& )
+    {
+        return VoidFuture;
+    }
+
+    virtual TFuture<void> RemoveResource(const TString& )
+    {
+        return VoidFuture;
+    }
+
+    virtual TFuture<std::vector<TString>> ListResources()
+    {
+        return MakeFuture(std::vector<TString>{});
+    }
+};    
+
+DEFINE_REFCOUNTED_TYPE(TNullSkynetApi)
+DECLARE_REFCOUNTED_TYPE(TNullSkynetApi)
+
+ISkynetApiPtr CreateNullSkynetApi()
+{
+    return New<TNullSkynetApi>();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NSkynetManager
 } // namespace NYT

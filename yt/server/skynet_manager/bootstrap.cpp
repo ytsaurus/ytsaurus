@@ -54,52 +54,56 @@ void TCluster::ThrottleBackground() const
 ////////////////////////////////////////////////////////////////////////////////
 
 TBootstrap::TBootstrap(TSkynetManagerConfigPtr config)
-    : Config(std::move(config))
+    : Config_(std::move(config))
 {
-    WarnForUnrecognizedOptions(Logger, Config);
+    WarnForUnrecognizedOptions(Logger, Config_);
 
-    Poller = CreateThreadPoolPoller(Config->IOPoolSize, "Poller");
+    Poller_ = CreateThreadPoolPoller(Config_->IOPoolSize, "Poller");
 
-    SkynetApiActionQueue = New<TActionQueue>("SkynetApi");
-    SkynetApi = CreateShellSkynetApi(
-        SkynetApiActionQueue->GetInvoker(),
-        Config->SkynetPythonInterpreterPath,
-        Config->SkynetMdsToolPath);
+    SkynetApiActionQueue_ = New<TActionQueue>("SkynetApi");
+    if (Config_->EnableSkynetMds) {
+        SkynetApi_ = CreateShellSkynetApi(
+            SkynetApiActionQueue_->GetInvoker(),
+            Config_->SkynetPythonInterpreterPath,
+            Config_->SkynetMdsToolPath);
+    } else {
+        SkynetApi_ = CreateNullSkynetApi();
+    }
 
-    HttpListener = CreateListener(TNetworkAddress::CreateIPv6Any(Config->Port), Poller);
-    HttpServer = CreateServer(Config->HttpServer, HttpListener, Poller);
+    HttpListener_ = CreateListener(TNetworkAddress::CreateIPv6Any(Config_->Port), Poller_);
+    HttpServer_ = CreateServer(Config_->HttpServer, HttpListener_, Poller_);
 
-    HttpClient = CreateClient(Config->HttpClient, Poller);
+    HttpClient_ = CreateClient(Config_->HttpClient, Poller_);
 
-    Manager = New<TSkynetManager>(this);
-    ShareCache = New<TShareCache>(Manager, Config->TombstoneCache);
+    Manager_ = New<TSkynetManager>(this);
+    ShareCache_ = New<TShareCache>(Manager_, Config_->TombstoneCache);
 
-    MonitoringManager = New<TMonitoringManager>();
-    MonitoringManager->Register(
+    MonitoringManager_ = New<TMonitoringManager>();
+    MonitoringManager_->Register(
         "/ref_counted",
         TRefCountedTracker::Get()->GetMonitoringProducer());
 
-    OrchidRoot = GetEphemeralNodeFactory(true)->CreateMap();
+    OrchidRoot_ = GetEphemeralNodeFactory(true)->CreateMap();
     SetNodeByYPath(
-        OrchidRoot,
+        OrchidRoot_,
         "/monitoring",
-        CreateVirtualNode(MonitoringManager->GetService()));
+        CreateVirtualNode(MonitoringManager_->GetService()));
     SetNodeByYPath(
-        OrchidRoot,
+        OrchidRoot_,
         "/profiling",
         CreateVirtualNode(TProfileManager::Get()->GetService()));
 
-    if (Config->MonitoringServer) {
-        Config->MonitoringServer->Port = Config->MonitoringPort;
-        MonitoringHttpServer = NHttp::CreateServer(
-            Config->MonitoringServer);
+    if (Config_->MonitoringServer) {
+        Config_->MonitoringServer->Port = Config_->MonitoringPort;
+        MonitoringHttpServer_ = NHttp::CreateServer(
+            Config_->MonitoringServer);
 
-        MonitoringHttpServer->AddHandler(
+        MonitoringHttpServer_->AddHandler(
             "/orchid/",
-            GetOrchidYPathHttpHandler(OrchidRoot));
+            GetOrchidYPathHttpHandler(OrchidRoot_));
     }
 
-    for (const auto& clusterConfig : Config->Clusters) {
+    for (const auto& clusterConfig : Config_->Clusters) {
         auto connection = CreateConnection(clusterConfig->Connection);
 
         TClientOptions options;
@@ -120,15 +124,15 @@ TBootstrap::TBootstrap(TSkynetManagerConfigPtr config)
         cluster.CypressSync = New<TCypressSync>(
             clusterConfig,
             std::move(client),
-            Format("%s:%d", GetLocalHostName(), Config->Port),
-            ShareCache);
-        Clusters.emplace_back(std::move(cluster));
+            Format("%s:%d", GetLocalHostName(), Config_->Port),
+            ShareCache_);
+        Clusters_.emplace_back(std::move(cluster));
     }
 }
 
 const TCluster& TBootstrap::GetCluster(const TString& name) const
 {
-    for (const auto& cluster : Clusters) {
+    for (const auto& cluster : Clusters_) {
         if (cluster.Config->ClusterName == name) {
             return cluster;
         }
@@ -140,14 +144,14 @@ const TCluster& TBootstrap::GetCluster(const TString& name) const
 void TBootstrap::Run()
 {
     std::vector<TFuture<void>> tasks;
-    HttpServer->Start();
+    HttpServer_->Start();
 
-    if (MonitoringHttpServer) {
-        MonitoringHttpServer->Start();
+    if (MonitoringHttpServer_) {
+        MonitoringHttpServer_->Start();
     }
 
     tasks.emplace_back(BIND(&TBootstrap::DoRun, MakeStrong(this))
-        .AsyncVia(SkynetApiActionQueue->GetInvoker())
+        .AsyncVia(SkynetApiActionQueue_->GetInvoker())
         .Run());
 
     WaitFor(Combine(tasks))
@@ -157,7 +161,7 @@ void TBootstrap::Run()
 void TBootstrap::DoRun()
 {
     while (true) {
-        auto asyncSkynetList = SkynetApi->ListResources();
+        auto asyncSkynetList = SkynetApi_->ListResources();
         if (WaitFor(asyncSkynetList).IsOK()) {
             break;
         } else {
@@ -170,13 +174,13 @@ void TBootstrap::DoRun()
     std::vector<TFuture<void>> syncTasks;
     auto spawn = [&] (auto fn) {
         auto task = BIND(fn)
-            .AsyncVia(SkynetApiActionQueue->GetInvoker())
+            .AsyncVia(SkynetApiActionQueue_->GetInvoker())
             .Run();
         syncTasks.emplace_back(task);
     };
 
-    for (const auto& cluster : Clusters) {
-        spawn([manager = Manager, Logger = SkynetManagerLogger, cluster] {
+    for (const auto& cluster : Clusters_) {
+        spawn([manager = Manager_, Logger = SkynetManagerLogger, cluster] {
             while (true) {
                 try {
                     cluster.CypressSync->CreateCypressNodesIfNeeded();
@@ -200,7 +204,7 @@ void TBootstrap::DoRun()
             }
         });
 
-        spawn([manager = Manager, Logger = SkynetManagerLogger, cluster] {
+        spawn([manager = Manager_, Logger = SkynetManagerLogger, cluster] {
             while (true) {
                 WaitFor(TDelayedExecutor::MakeDelayed(TDuration::Seconds(5)))
                     .ThrowOnError();
@@ -219,6 +223,42 @@ void TBootstrap::DoRun()
 
     THROW_ERROR_EXCEPTION("Sync tasks stopped");
 }
+
+size_t TBootstrap::GetClustersCount() const
+{
+    return Clusters_.size();
+}
+
+IInvokerPtr TBootstrap::GetInvoker() const
+{
+    return SkynetApiActionQueue_->GetInvoker();
+}
+
+const ISkynetApiPtr& TBootstrap::GetSkynetApi() const
+{
+    return SkynetApi_;
+}
+
+const TSkynetManagerConfigPtr& TBootstrap::GetConfig() const
+{
+    return Config_;
+}
+
+const NHttp::IServerPtr& TBootstrap::GetHttpServer() const
+{
+    return HttpServer_;
+}
+
+const NHttp::IClientPtr& TBootstrap::GetHttpClient() const
+{
+    return HttpClient_;
+}
+
+const TShareCachePtr& TBootstrap::GetShareCache() const
+{
+    return ShareCache_;
+}
+
 
 ////////////////////////////////////////////////////////////////////////////////
 
