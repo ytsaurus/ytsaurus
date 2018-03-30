@@ -1,3 +1,4 @@
+#include "bundle_node_tracker.h"
 #include "config.h"
 #include "private.h"
 #include "tablet_cell.h"
@@ -12,6 +13,8 @@
 
 #include <yt/server/cell_master/bootstrap.h>
 
+#include <yt/server/node_tracker_server/node.h>
+
 #include <yt/ytlib/tablet_client/config.h>
 
 namespace NYT {
@@ -20,6 +23,7 @@ namespace NTabletServer {
 using namespace NYTree;
 using namespace NYson;
 using namespace NObjectServer;
+using namespace NNodeTrackerServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -70,6 +74,8 @@ private:
         attributes->push_back(EInternedAttributeKey::TabletCellCount);
         attributes->push_back(TAttributeDescriptor(EInternedAttributeKey::TabletCellIds)
             .SetOpaque(true));
+        attributes->push_back(TAttributeDescriptor(EInternedAttributeKey::Nodes)
+            .SetOpaque(true));
 
         TBase::ListSystemAttributes(attributes);
     }
@@ -115,6 +121,16 @@ private:
                     .Value(cellBundle->TabletBalancerConfig());
                 return true;
 
+            case EInternedAttributeKey::Nodes: {
+                const auto& bundleTracker = Bootstrap_->GetTabletManager()->GetBundleNodeTracker();
+                BuildYsonFluently(consumer)
+                    .DoListFor(bundleTracker->GetPossibleBundleNodes(cellBundle), [] (TFluentList fluent, const TNode* node) {
+                        fluent
+                            .Item().Value(node->GetDefaultAddress());
+                    });
+                return true;
+            }
+
             default:
                 break;
         }
@@ -147,7 +163,7 @@ private:
 
             case EInternedAttributeKey::NodeTagFilter: {
                 auto formula = ConvertTo<TString>(value);
-                cellBundle->NodeTagFilter() = MakeBooleanFormula(formula);
+                tabletManager->SetTabletCellBundleNodeTagFilter(cellBundle, ConvertTo<TString>(value));
                 return true;
             }
 

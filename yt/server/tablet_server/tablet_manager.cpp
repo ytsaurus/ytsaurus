@@ -1,3 +1,4 @@
+#include "bundle_node_tracker.h"
 #include "config.h"
 #include "cypress_integration.h"
 #include "private.h"
@@ -123,6 +124,11 @@ class TTabletManager::TImpl
     : public TMasterAutomatonPart
 {
 public:
+    DEFINE_SIGNAL(void(TTabletCellBundle* bundle), TabletCellBundleCreated);
+    DEFINE_SIGNAL(void(TTabletCellBundle* bundle), TabletCellBundleDestroyed);
+    DEFINE_SIGNAL(void(TTabletCellBundle* bundle), TabletCellBundleNodeTagFilterChanged);
+
+public:
     explicit TImpl(
         TTabletManagerConfigPtr config,
         NCellMaster::TBootstrap* bootstrap)
@@ -130,6 +136,7 @@ public:
         , Config_(config)
         , TabletTracker_(New<TTabletTracker>(Config_, Bootstrap_))
         , TabletBalancer_(New<TTabletBalancer>(Config_->TabletBalancer, Bootstrap_))
+        , BundleNodeTracker_(New<TBundleNodeTracker>(Bootstrap_))
     {
         VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::Default), AutomatonThread);
 
@@ -195,6 +202,8 @@ public:
             multicellManager->SubscribeReplicateValuesToSecondaryMaster(
                 BIND(&TImpl::OnReplicateValuesToSecondaryMaster, MakeWeak(this)));
         }
+
+        BundleNodeTracker_->Initialize();
     }
 
     TTabletCellBundle* CreateTabletCellBundle(
@@ -233,6 +242,8 @@ public:
         const auto& objectManager = Bootstrap_->GetObjectManager();
         objectManager->RefObject(cellBundle);
 
+        TabletCellBundleCreated_.Fire(cellBundle);
+
         return cellBundle;
     }
 
@@ -242,6 +253,8 @@ public:
 
         // Remove tablet cell bundle from maps.
         YCHECK(NameToTabletCellBundleMap_.erase(cellBundle->GetName()) == 1);
+
+        TabletCellBundleDestroyed_.Fire(cellBundle);
     }
 
     TTabletCell* CreateTabletCell(TTabletCellBundle* cellBundle, const TObjectId& hintId)
@@ -2338,6 +2351,10 @@ public:
             table->GetId());
     }
 
+    const TBundleNodeTrackerPtr& GetBundleNodeTracker()
+    {
+        return BundleNodeTracker_;
+    }
 
     TTablet* GetTabletOrThrow(const TTabletId& id)
     {
@@ -2402,6 +2419,12 @@ public:
         cellBundle->SetName(newName);
     }
 
+    void SetTabletCellBundleNodeTagFilter(TTabletCellBundle* bundle, const TString& formula)
+    {
+        bundle->NodeTagFilter() = MakeBooleanFormula(formula);
+        TabletCellBundleNodeTagFilterChanged_.Fire(bundle);
+    }
+
     TTabletCellBundle* GetDefaultTabletCellBundle()
     {
         return GetBuiltin(DefaultTabletCellBundle_);
@@ -2449,6 +2472,7 @@ private:
 
     const TTabletTrackerPtr TabletTracker_;
     const TTabletBalancerPtr TabletBalancer_;
+    const TBundleNodeTrackerPtr BundleNodeTracker_;
 
     TEntityMap<TTabletCellBundle> TabletCellBundleMap_;
     TEntityMap<TTabletCell> TabletCellMap_;
@@ -2565,6 +2589,7 @@ private:
         }
 
         InitBuiltins();
+        BundleNodeTracker_->OnAfterSnapshotLoaded();
 
         // COMPAT(babenko)
         if (InitializeCellBundles_) {
@@ -4598,6 +4623,11 @@ void TTabletManager::MakeTableStatic(TTableNode* table)
     Impl_->MakeTableStatic(table);
 }
 
+const TBundleNodeTrackerPtr& TTabletManager::GetBundleNodeTracker()
+{
+    return Impl_->GetBundleNodeTracker();
+}
+
 TTablet* TTabletManager::GetTabletOrThrow(const TTabletId& id)
 {
     return Impl_->GetTabletOrThrow(id);
@@ -4621,6 +4651,11 @@ TTabletCellBundle* TTabletManager::GetTabletCellBundleByNameOrThrow(const TStrin
 void TTabletManager::RenameTabletCellBundle(TTabletCellBundle* cellBundle, const TString& newName)
 {
     return Impl_->RenameTabletCellBundle(cellBundle, newName);
+}
+
+void TTabletManager::SetTabletCellBundleNodeTagFilter(TTabletCellBundle* bundle, const TString& formula)
+{
+    return Impl_->SetTabletCellBundleNodeTagFilter(bundle, formula);
 }
 
 TTabletCellBundle* TTabletManager::GetDefaultTabletCellBundle()
@@ -4724,6 +4759,10 @@ DELEGATE_ENTITY_MAP_ACCESSORS(TTabletManager, TabletCell, TTabletCell, *Impl_)
 DELEGATE_ENTITY_MAP_ACCESSORS(TTabletManager, Tablet, TTablet, *Impl_)
 DELEGATE_ENTITY_MAP_ACCESSORS(TTabletManager, TableReplica, TTableReplica, *Impl_)
 DELEGATE_ENTITY_MAP_ACCESSORS(TTabletManager, TabletAction, TTabletAction, *Impl_)
+
+DELEGATE_SIGNAL(TTabletManager, void(TTabletCellBundle*), TabletCellBundleCreated, *Impl_);
+DELEGATE_SIGNAL(TTabletManager, void(TTabletCellBundle*), TabletCellBundleDestroyed, *Impl_);
+DELEGATE_SIGNAL(TTabletManager, void(TTabletCellBundle*), TabletCellBundleNodeTagFilterChanged, *Impl_);
 
 ////////////////////////////////////////////////////////////////////////////////
 

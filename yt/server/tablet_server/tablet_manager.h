@@ -99,10 +99,13 @@ public:
     void SetTableReplicaEnabled(TTableReplica* replica, bool enabled);
     void SetTableReplicaMode(TTableReplica* replica, ETableReplicaMode mode);
 
+    const TBundleNodeTrackerPtr& GetBundleNodeTracker();
+
     DECLARE_ENTITY_MAP_ACCESSORS(TabletCellBundle, TTabletCellBundle);
     TTabletCellBundle* FindTabletCellBundleByName(const TString& name);
     TTabletCellBundle* GetTabletCellBundleByNameOrThrow(const TString& name);
     void RenameTabletCellBundle(TTabletCellBundle* cellBundle, const TString& newName);
+    void SetTabletCellBundleNodeTagFilter(TTabletCellBundle* bundle, const TString& formula);
     TTabletCellBundle* GetDefaultTabletCellBundle();
     void SetTabletCellBundle(NTableServer::TTableNode* table, TTabletCellBundle* cellBundle);
 
@@ -114,6 +117,10 @@ public:
 
     DECLARE_ENTITY_MAP_ACCESSORS(TableReplica, TTableReplica);
     DECLARE_ENTITY_MAP_ACCESSORS(TabletAction, TTabletAction);
+
+    DECLARE_SIGNAL(void(TTabletCellBundle* bundle), TabletCellBundleCreated);
+    DECLARE_SIGNAL(void(TTabletCellBundle* bundle), TabletCellBundleDestroyed);
+    DECLARE_SIGNAL(void(TTabletCellBundle* bundle), TabletCellBundleNodeTagFilterChanged);
 
 private:
     template <class TImpl>
