@@ -699,7 +699,7 @@ class TestDynamicTables(TestDynamicTablesBase):
         set("//sys/nodes/{0}/@banned".format(node), True)
         assert get("//sys/tablet_cell_bundles/b/@nodes") == []
         set("//sys/nodes/{0}/@banned".format(node), False)
-        get("//sys/nodes/{0}/@".format(node))
+        wait(lambda: get("//sys/nodes/{0}/@state".format(node)) == "online")
         assert get("//sys/tablet_cell_bundles/b/@nodes") == [node]
 
         set("//sys/nodes/{0}/@decommissioned".format(node), True)
