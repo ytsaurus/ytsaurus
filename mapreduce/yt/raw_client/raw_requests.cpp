@@ -186,10 +186,13 @@ TString GetJobStderr(
     const TJobId& jobId,
     const TGetJobStderrOptions& /* options */)
 {
+    auto heavyProxy = GetProxyForHeavyRequest(auth);
+    TAuth authForHeavyRequest{heavyProxy, auth.Token};
+
     THttpHeader header("GET", "get_job_stderr");
     header.AddOperationId(operationId);
     header.AddParameter("job_id", GetGuidAsString(jobId));
-    return RetryRequest(auth, header);
+    return RetryRequest(authForHeavyRequest, header);
 }
 
 } // namespace NDetail
