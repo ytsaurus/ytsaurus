@@ -502,7 +502,7 @@ struct IOperationController
     virtual int GetPendingJobCount() const = 0;
 
     //! Invokes controller finalization due to aborted or expired transaction.
-    virtual void OnTransactionAborted(const NTransactionClient::TTransactionId& transactionId) = 0;
+    virtual void OnTransactionsAborted(const std::vector<NTransactionClient::TTransactionId>& transactionIds) = 0;
 
     //! Cancels the controller context
     /*!

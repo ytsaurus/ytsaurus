@@ -489,14 +489,15 @@ private:
         for (const auto& pair : controllerAgent->GetOperations()) {
             const auto& operation = pair.second;
             auto controller = operation->GetController();
+            std::vector<TTransactionId> locallyDeadTransactionIds;
             for (const auto& transaction : operation->GetTransactions()) {
                 if (deadTransactionIds.find(transaction->GetId()) != deadTransactionIds.end()) {
-                    controller->GetCancelableInvoker()->Invoke(BIND(
-                        &IOperationController::OnTransactionAborted,
-                        controller,
-                        transaction->GetId()));
-                    break;
+                    locallyDeadTransactionIds.push_back(transaction->GetId());
                 }
+                controller->GetCancelableInvoker()->Invoke(BIND(
+                    &IOperationController::OnTransactionsAborted,
+                    controller,
+                    locallyDeadTransactionIds));
             }
         }
     }

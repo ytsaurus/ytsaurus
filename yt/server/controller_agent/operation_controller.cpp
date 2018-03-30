@@ -230,9 +230,9 @@ public:
         Underlying_->Dispose();
     }
 
-    virtual void OnTransactionAborted(const TTransactionId& transactionId) override
+    virtual void OnTransactionsAborted(const std::vector<TTransactionId>& transactionIds) override
     {
-        Underlying_->OnTransactionAborted(transactionId);
+        Underlying_->OnTransactionsAborted(transactionIds);
     }
 
     virtual TCancelableContextPtr GetCancelableContext() const override
