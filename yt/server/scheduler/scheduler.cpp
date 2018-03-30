@@ -789,28 +789,24 @@ public:
         AddOperationToTransientQueue(operation);
     }
 
-    void UpdateOperationParameters(
+    void DoUpdateOperationParameters(
         TOperationPtr operation,
-        const TString& user,
         const TOperationRuntimeParametersPtr& runtimeParams)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        ValidateOperationPermission(user, operation->GetId(), EPermission::Write);
-
-        auto newRuntimeParams = UpdateYsonSerializable(
-            operation->GetRuntimeParameters(), ConvertToNode(runtimeParams));
+        auto codicilGuard = operation->MakeCodicilGuard();
 
         // Not applying runtime params until they are persisted in Cypress.
-        auto resultOrError = MasterConnector_->FlushOperationRuntimeParameters(operation, newRuntimeParams);
+        auto resultOrError = MasterConnector_->FlushOperationRuntimeParameters(operation, runtimeParams);
         WaitFor(resultOrError)
             .ThrowOnError();
 
-        if (newRuntimeParams->Owners && operation->GetOwners() != *newRuntimeParams->Owners) {
-            operation->SetOwners(*newRuntimeParams->Owners);
+        if (runtimeParams->Owners && operation->GetOwners() != *runtimeParams->Owners) {
+            operation->SetOwners(*runtimeParams->Owners);
         }
 
-        operation->SetRuntimeParameters(newRuntimeParams);
+        operation->SetRuntimeParameters(runtimeParams);
         Strategy_->UpdateOperationRuntimeParameters(operation.Get());
 
         // Updating ACL and other attributes.
@@ -818,10 +814,31 @@ public:
             .ThrowOnError();
 
         LogEventFluently(ELogEventType::RuntimeParametersInfo)
-            .Item("runtime_params").Value(newRuntimeParams);
+            .Item("runtime_params").Value(runtimeParams);
 
         LOG_INFO("Operation runtime parameters updated (OperationId: %v)",
             operation->GetId());
+    }
+
+    TFuture<void> UpdateOperationParameters(
+        TOperationPtr operation,
+        const TString& user,
+        const TOperationRuntimeParametersPtr& runtimeParams)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        auto codicilGuard = operation->MakeCodicilGuard();
+
+        ValidateOperationPermission(user, operation->GetId(), EPermission::Write);
+
+        auto newRuntimeParams = UpdateYsonSerializable(
+            operation->GetRuntimeParameters(), ConvertToNode(runtimeParams));
+
+        auto updateFuture = BIND(&TImpl::DoUpdateOperationParameters, MakeStrong(this))
+            .AsyncVia(operation->GetCancelableControlInvoker())
+            .Run(operation, newRuntimeParams);
+
+        return updateFuture;
     }
 
     TFuture<TYsonString> Strace(const TJobId& jobId, const TString& user)
@@ -1619,10 +1636,10 @@ private:
         if (!rspOrError.IsOK()) {
             LOG_WARNING(rspOrError, "Error getting operation runtime parameters (OperationId: %v)",
                 operation->GetId());
-		}
+        }
 
         const auto& rsp = rspOrError.Value();
-		auto runtimeParamsNode = ConvertToNode(TYsonString(rsp->value()));
+        auto runtimeParamsNode = ConvertToNode(TYsonString(rsp->value()));
 
         try {
             auto runtimeParamsMap = runtimeParamsNode->AsMap();
@@ -3076,7 +3093,7 @@ void TScheduler::OnOperationAgentUnregistered(const TOperationPtr& operation)
     Impl_->OnOperationAgentUnregistered(operation);
 }
 
-void TScheduler::UpdateOperationParameters(
+TFuture<void> TScheduler::UpdateOperationParameters(
     TOperationPtr operation,
     const TString& user,
     const TOperationRuntimeParametersPtr& runtimeParams)
