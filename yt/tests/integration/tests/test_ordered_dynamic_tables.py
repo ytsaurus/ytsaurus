@@ -166,6 +166,7 @@ class TestOrderedDynamicTables(TestDynamicTablesBase):
             self.sync_mount_table("//tmp/t")
 
         assert select_rows("* from [//tmp/t]") == query_rows
+        assert select_rows("[$row_index], a from [//tmp/t]") == [{"$row_index": row["$row_index"], "a": row["a"]} for row in query_rows]
         assert select_rows("c, b from [//tmp/t]") == [{"b": i * 0.5, "c" : "payload" + str(i)} for i in xrange(100)]
         assert select_rows("* from [//tmp/t] where [$row_index] between 10 and 20") == query_rows[10:21]
         assert select_rows("* from [//tmp/t] where [$tablet_index] in (-10, 20)") == []
