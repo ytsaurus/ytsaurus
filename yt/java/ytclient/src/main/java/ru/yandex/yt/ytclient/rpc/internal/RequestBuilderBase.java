@@ -68,22 +68,30 @@ public abstract class RequestBuilderBase<RequestType extends MessageLite.Builder
     @Override
     public CompletableFuture<ResponseType> invoke() {
         CompletableFuture<ResponseType> result = new CompletableFuture<>();
-        RpcClientResponseHandler handler = createHandler(result);
-        if (clientOpt.isPresent()) {
-            RpcClientRequestControl control = clientOpt.get().send(this, handler);
-            result.whenComplete((ignoredResult, ignoredException) -> control.cancel());
-            return result;
-        } else {
-            throw new IllegalStateException("client is not set");
+        try {
+            RpcClientResponseHandler handler = createHandler(result);
+            if (clientOpt.isPresent()) {
+                RpcClientRequestControl control = clientOpt.get().send(this, handler);
+                result.whenComplete((ignoredResult, ignoredException) -> control.cancel());
+            } else {
+                throw new IllegalStateException("client is not set");
+            }
+        } catch (Throwable e) {
+            result.completeExceptionally(e);
         }
+        return result;
     }
 
     @Override
     public CompletableFuture<ResponseType> invokeVia(List<RpcClient> clients) {
         CompletableFuture<ResponseType> result = new CompletableFuture<>();
-        RpcClientResponseHandler handler = createHandler(result);
-        RpcClientRequestControl control = sendVia(handler, clients);
-        result.whenComplete((ignoredResult, ignoredException) -> control.cancel());
+        try {
+            RpcClientResponseHandler handler = createHandler(result);
+            RpcClientRequestControl control = sendVia(handler, clients);
+            result.whenComplete((ignoredResult, ignoredException) -> control.cancel());
+        } catch (Throwable e) {
+            result.completeExceptionally(e);
+        }
         return result;
     }
 
