@@ -11,15 +11,25 @@ namespace NYT {
 namespace {
 
 class TInputStreamProxy
-    : public TProxyInput
+    : public TRawTableReader
 {
 public:
     TInputStreamProxy(IInputStream* stream)
         : Stream_(stream)
     { }
 
+    bool Retry(const TMaybe<ui32>& /* rangeIndex */, const TMaybe<ui64>& /* rowIndex */) override
+    {
+        return false;
+    }
+
+    bool HasRangeIndices() const override
+    {
+        return false;
+    }
+
 protected:
-    size_t DoRead(void* buf, size_t len)
+    size_t DoRead(void* buf, size_t len) override
     {
         return Stream_->Read(buf, len);
     }

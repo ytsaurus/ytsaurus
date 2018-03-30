@@ -1,7 +1,5 @@
 #pragma once
 
-#include "proxy_input.h"
-
 #include <mapreduce/yt/interface/io.h>
 
 namespace NYT {
@@ -11,7 +9,7 @@ namespace NYT {
 class TLenvalTableReader
 {
 public:
-    explicit TLenvalTableReader(::TIntrusivePtr<TProxyInput> input);
+    explicit TLenvalTableReader(::TIntrusivePtr<TRawTableReader> input);
     virtual ~TLenvalTableReader();
 
 protected:
@@ -43,7 +41,7 @@ protected:
     virtual void SkipRow() = 0;
 
 protected:
-    ::TIntrusivePtr<TProxyInput> Input_;
+    ::TIntrusivePtr<TRawTableReader> Input_;
 
     bool Valid_ = true;
     bool Finished_ = false;

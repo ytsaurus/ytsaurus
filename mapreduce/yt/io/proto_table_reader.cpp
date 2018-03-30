@@ -1,7 +1,7 @@
 #include "proto_table_reader.h"
 
 #include "node_table_reader.h"
-#include "proxy_input.h"
+
 #include "proto_helpers.h"
 
 #include <mapreduce/yt/interface/protos/extension.pb.h>
@@ -114,7 +114,7 @@ void ReadMessageFromNode(const TNode& node, Message* row)
 ////////////////////////////////////////////////////////////////////////////////
 
 TProtoTableReader::TProtoTableReader(
-    ::TIntrusivePtr<TProxyInput> input,
+    ::TIntrusivePtr<TRawTableReader> input,
     TVector<const Descriptor*>&& descriptors)
     : NodeReader_(new TNodeTableReader(std::move(input)))
     , Descriptors_(std::move(descriptors))
@@ -157,7 +157,7 @@ void TProtoTableReader::NextKey()
 ////////////////////////////////////////////////////////////////////////////////
 
 TLenvalProtoTableReader::TLenvalProtoTableReader(
-    ::TIntrusivePtr<TProxyInput> input,
+    ::TIntrusivePtr<TRawTableReader> input,
     TVector<const Descriptor*>&& descriptors)
     : TLenvalTableReader(std::move(input))
     , Descriptors_(std::move(descriptors))

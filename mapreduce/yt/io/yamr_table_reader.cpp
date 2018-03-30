@@ -1,7 +1,5 @@
 #include "yamr_table_reader.h"
 
-#include "proxy_input.h"
-
 #include <mapreduce/yt/common/helpers.h>
 #include <mapreduce/yt/raw_client/raw_requests.h>
 
@@ -101,7 +99,7 @@ TMaybe<TNode> GetTableFormats(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TYaMRTableReader::TYaMRTableReader(::TIntrusivePtr<TProxyInput> input)
+TYaMRTableReader::TYaMRTableReader(::TIntrusivePtr<TRawTableReader> input)
     : TLenvalTableReader(std::move(input))
 { }
 

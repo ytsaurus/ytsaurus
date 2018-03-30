@@ -6,7 +6,7 @@
 
 namespace NYT {
 
-class TProxyInput;
+class TRawTableReader;
 struct TAuth;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -31,7 +31,7 @@ class TYaMRTableReader
     , public TLenvalTableReader
 {
 public:
-    explicit TYaMRTableReader(::TIntrusivePtr<TProxyInput> input);
+    explicit TYaMRTableReader(::TIntrusivePtr<TRawTableReader> input);
     ~TYaMRTableReader() override;
 
     const TYaMRRow& GetRow() const override;

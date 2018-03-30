@@ -11,7 +11,7 @@
 
 namespace NYT {
 
-class TProxyInput;
+class TRawTableReader;
 class TRowBuilder;
 class TYsonParser;
 
@@ -67,7 +67,7 @@ class TNodeTableReader
     : public INodeReaderImpl
 {
 public:
-    explicit TNodeTableReader(::TIntrusivePtr<TProxyInput> input, size_t sizeLimit = 4 << 20);
+    explicit TNodeTableReader(::TIntrusivePtr<TRawTableReader> input, size_t sizeLimit = 4 << 20);
     ~TNodeTableReader() override;
 
     const TNode& GetRow() const override;
@@ -88,7 +88,7 @@ private:
     static void* FetchThread(void* opaque);
 
 private:
-    ::TIntrusivePtr<TProxyInput> Input_;
+    ::TIntrusivePtr<TRawTableReader> Input_;
 
     bool Valid_ = true;
     bool Finished_ = false;
