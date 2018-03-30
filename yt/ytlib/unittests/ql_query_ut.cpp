@@ -1704,6 +1704,14 @@ TEST_F(TQueryEvaluateTest, GroupWithTotals)
     Evaluate("x, sum(b) as t FROM [//t] where a > 1 group by a % 2 = 1 as x with totals having t > 200", split,
         source, ResultMatcher(resultWithTotalsBeforeHaving));
 
+    auto resultWithTotalsBeforeHaving2 = YsonToRows({
+        "x=%false;t=200",
+        "t=440"
+    }, resultSplit);
+
+    Evaluate("x, sum(b) as t FROM [//t] where a > 1 group by a % 2 = 1 as x with totals having t < 220", split,
+        source, ResultMatcher(resultWithTotalsBeforeHaving2));
+
     SUCCEED();
 }
 
@@ -4782,6 +4790,107 @@ TEST_F(TQueryEvaluateTest, CardinalityAggregate)
     }, resultSplit);
 
     Evaluate("cardinality(a) < 2020 as upper, cardinality(a) > 1980 as lower from [//t] group by 1", split, source, ResultMatcher(result));
+}
+
+TEST_F(TQueryEvaluateTest, CardinalityAggregateTotals)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64}
+    });
+
+    std::vector<TString> source;
+    for (int i = 0; i < 4; i++) {
+        for (int j = 0; j < 2000; j++) {
+            source.push_back("a=" + ToString(j));
+        }
+    }
+
+    auto resultSplit = MakeSplit({
+        {"upper", EValueType::Boolean},
+        {"lower", EValueType::Boolean},
+    });
+
+    auto result = YsonToRows({
+        "upper=%true;lower=%true",
+        "upper=%true;lower=%true"
+    }, resultSplit);
+
+    Evaluate(
+        "cardinality(a) < 2020 as upper, cardinality(a) > 1980 as lower from [//t] group by 1 with totals",
+        split,
+        source,
+        ResultMatcher(result));
+}
+
+TEST_F(TQueryEvaluateTest, CardinalityAggregateTotals2)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64},
+        {"b", EValueType::Int64}
+    });
+
+    std::vector<TString> source;
+    for (int i = 0; i < 12; i++) {
+        for (int j = 0; j < 1000 * (i % 3 + 1); j++) {
+            source.push_back("a=" + ToString(j) + "; b=" + ToString(i % 3 + 1));
+        }
+    }
+
+    auto resultSplit = MakeSplit({
+        {"result", EValueType::Boolean},
+        {"total", EValueType::Boolean},
+        {"b", EValueType::Int64},
+    });
+
+    auto result = YsonToRows({
+        "result=%true;total=%false;b=2",
+        "result=%true;total=%true;b=3",
+        "result=%true;total=%true"
+    }, resultSplit);
+
+    Evaluate(
+        "(int64(cardinality(a)) - b * 1000) between (-b * 10) and (b * 10) as result,"
+        "(int64(cardinality(a)) - 3000) between -30 and 30 as total, b "
+        "from [//t] group by b having cardinality(a) > 1500 with totals",
+        split,
+        source,
+        ResultMatcher(result));
+}
+
+TEST_F(TQueryEvaluateTest, CardinalityAggregateTotals3)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64},
+        {"b", EValueType::Int64}
+    });
+
+    std::vector<TString> source;
+    for (int i = 0; i < 16; i++) {
+        for (int j = 0; j < 500; j++) {
+            source.push_back("a=" + ToString(j + 1000 * (i % 3)) + "; b=" + ToString(i % 3));
+        }
+    }
+
+    auto resultSplit = MakeSplit({
+        {"result", EValueType::Boolean},
+        {"total", EValueType::Boolean},
+        {"b", EValueType::Int64},
+    });
+
+    auto result = YsonToRows({
+        "result=%true;total=%false;b=1",
+        "result=%true;total=%false;b=2",
+        "result=%false;total=%true"
+    }, resultSplit);
+
+    Evaluate(
+        "int64(cardinality(a)) between 490 and 510 as result,"
+        "int64(cardinality(a)) between 990 and 1010 as total, b "
+        "from [//t] group by b having min(a) > 400 with totals",
+        split,
+        source,
+        ResultMatcher(result));
+
 }
 
 TEST_F(TQueryEvaluateTest, TestCasts)
