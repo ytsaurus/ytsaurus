@@ -141,6 +141,8 @@ public:
 
         PYCXX_ADD_KEYWORDS_METHOD(get_config, GetConfig, "Get config");
 
+        PYCXX_ADD_VARARGS_METHOD(__deepcopy__, DeepCopy, "Deep copy Driver object");
+
         behaviors().readyType();
     }
 
@@ -340,7 +342,7 @@ public:
     }
     PYCXX_KEYWORDS_METHOD_DECL(TDriver, ClearMetadataCaches)
 
-    Py::Object GetConfig(Py::Tuple& args, Py::Dict& kwargs)
+    Py::Object GetConfig(const Py::Tuple& args, const Py::Dict& kwargs)
     {
         ValidateArgumentsEmpty(args, kwargs);
 
@@ -353,6 +355,14 @@ public:
         return object;
     }
     PYCXX_KEYWORDS_METHOD_DECL(TDriver, GetConfig)
+
+    Py::Object DeepCopy(const Py::Tuple& args)
+    {
+        Py::Callable classType(TDriver::type());
+        auto configDict = GetConfig(Py::Tuple(), Py::Dict());
+        return classType.apply(Py::TupleN(configDict), Py::Dict());
+    }
+    PYCXX_VARARGS_METHOD_DECL(TDriver, DeepCopy)
 
 private:
     const TGuid Id_;
