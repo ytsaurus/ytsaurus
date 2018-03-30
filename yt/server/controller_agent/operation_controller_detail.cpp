@@ -4658,11 +4658,6 @@ void TOperationControllerBase::CollectTotals()
         for (const auto& inputChunk : table.Chunks) {
             if (IsUnavailable(inputChunk, CheckParityReplicas())) {
                 const auto& chunkId = inputChunk->ChunkId();
-                if (table.IsDynamic && table.Schema.IsSorted()) {
-                    THROW_ERROR_EXCEPTION("Input chunk %v of sorted dynamic table %v is unavailable",
-                        chunkId,
-                        table.Path.GetPath());
-                }
 
                 switch (Spec_->UnavailableChunkStrategy) {
                     case EUnavailableChunkAction::Fail:
@@ -4740,7 +4735,7 @@ std::vector<TInputChunkPtr> TOperationControllerBase::CollectPrimaryChunks(bool 
     for (const auto& table : InputTables) {
         if (!table.IsForeign() && ((table.IsDynamic && table.Schema.IsSorted()) == versioned)) {
             for (const auto& chunk : table.Chunks) {
-                if (!table.IsDynamic && IsUnavailable(chunk, CheckParityReplicas())) {
+                if (IsUnavailable(chunk, CheckParityReplicas())) {
                     switch (Spec_->UnavailableChunkStrategy) {
                         case EUnavailableChunkAction::Skip:
                             continue;
@@ -4822,6 +4817,12 @@ std::vector<TInputDataSlicePtr> TOperationControllerBase::CollectPrimaryVersione
                 Logger);
 
             for (const auto& chunk : table.Chunks) {
+                if (IsUnavailable(chunk, CheckParityReplicas()) &&
+                    Spec_->UnavailableChunkStrategy == EUnavailableChunkAction::Skip)
+                {
+                    continue;
+                }
+
                 fetcher->AddChunk(chunk);
             }
 
