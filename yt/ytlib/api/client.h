@@ -630,6 +630,10 @@ struct TGetJobStderrOptions
     : public TTimeoutOptions
 { };
 
+struct TGetJobFailContextOptions
+    : public TTimeoutOptions
+{ };
+
 DEFINE_ENUM(EOperationSortDirection,
     ((None)   (0))
     ((Past)   (1))
@@ -1133,6 +1137,11 @@ struct IClient
         const NJobTrackerClient::TOperationId& operationId,
         const NJobTrackerClient::TJobId& jobId,
         const TGetJobStderrOptions& options = TGetJobStderrOptions()) = 0;
+
+    virtual TFuture<TSharedRef> GetJobFailContext(
+        const NJobTrackerClient::TOperationId& operationId,
+        const NJobTrackerClient::TJobId& jobId,
+        const TGetJobFailContextOptions& options = TGetJobFailContextOptions()) = 0;
 
     virtual TFuture<TListOperationsResult> ListOperations(
         const TListOperationsOptions& options = TListOperationsOptions()) = 0;

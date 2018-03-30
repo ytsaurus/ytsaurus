@@ -816,6 +816,7 @@ class TestSchedulerCommon(YTEnvSetup):
         jobs_path = "//sys/operations/" + op.id + "/jobs"
         for job_id in ls(jobs_path):
             assert len(read_file(jobs_path + "/" + job_id + "/fail_context")) > 0
+            assert read_file(jobs_path + "/" + job_id + "/fail_context") == get_job_fail_context(op.id, job_id)
 
     def test_dump_job_context(self):
         create("table", "//tmp/t1")
