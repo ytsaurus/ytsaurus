@@ -57,7 +57,7 @@ public:
         }
     }
 
-    const THashSet<TNode*>& GetPossibleBundleNodes(const TTabletCellBundle* bundle) const
+    const THashSet<TNode*>& GetBundleNodes(const TTabletCellBundle* bundle) const
     {
         auto it = NodeMap_.find(bundle);
         YCHECK(it != NodeMap_.end());
@@ -166,9 +166,9 @@ void TBundleNodeTracker::OnAfterSnapshotLoaded()
     Impl_->OnAfterSnapshotLoaded();
 }
 
-const THashSet<TNode*>& TBundleNodeTracker::GetPossibleBundleNodes(const TTabletCellBundle* bundle) const
+const THashSet<TNode*>& TBundleNodeTracker::GetBundleNodes(const TTabletCellBundle* bundle) const
 {
-    return Impl_->GetPossibleBundleNodes(bundle);
+    return Impl_->GetBundleNodes(bundle);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
