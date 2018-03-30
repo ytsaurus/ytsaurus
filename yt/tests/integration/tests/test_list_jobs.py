@@ -152,6 +152,8 @@ class TestListJobs(YTEnvSetup):
         reduce_jobs = []
         jobs_with_stderr = []
         jobs_without_stderr = []
+        jobs_with_fail_context = []
+        jobs_without_fail_context = []
 
         for job_id, job in jobs.iteritems():
             if job.attributes["job_type"] == "partition_map":
@@ -166,6 +168,10 @@ class TestListJobs(YTEnvSetup):
                 jobs_with_stderr.append(job_id)
             else:
                 jobs_without_stderr.append(job_id)
+            if "fail_context" in job:
+                jobs_with_fail_context.append(job_id)
+            else:
+                jobs_without_fail_context.append(job_id)
 
         manual_options = dict(data_source="manual", include_cypress=True, include_scheduler=True, include_archive=False)
         runtime_options = dict(data_source="runtime")
@@ -224,6 +230,12 @@ class TestListJobs(YTEnvSetup):
 
             res = list_jobs(op.id, with_stderr=False, **options)["jobs"]
             assert sorted(jobs_without_stderr) == sorted([job["id"] for job in res])
+
+            res = list_jobs(op.id,  with_fail_context=True, **options)["jobs"]
+            assert sorted(jobs_with_fail_context) == sorted([job["id"] for job in res])
+
+            res = list_jobs(op.id, with_fail_context=False, **options)["jobs"]
+            assert sorted(jobs_without_fail_context) == sorted([job["id"] for job in res])
 
             validate_address_filter(op, False, True, False)
 
