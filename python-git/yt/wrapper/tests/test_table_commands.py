@@ -82,9 +82,12 @@ class TestTableCommands(object):
                 iterator = yt.read_table(table)
 
                 for transaction in yt.search("//sys/transactions", attributes=["tittle"]):
-                    attributes = yt.get(transaction + "/@")
-                    if attributes.get("title", "").startswith("Python wrapper: read"):
-                        yt.abort_transaction(attributes["id"])
+                    try:
+                        attributes = yt.get(transaction + "/@")
+                        if attributes.get("title", "").startswith("Python wrapper: read"):
+                            yt.abort_transaction(attributes["id"])
+                    except yt.YtError:
+                        pass
 
                 time.sleep(1)
                 with pytest.raises(yt.YtError):
