@@ -428,6 +428,7 @@ private:
             Serialize(yson, consumer.get());
 
             consumer->Flush();
+            syncOutputStream->Flush();
         }
 
     private:
