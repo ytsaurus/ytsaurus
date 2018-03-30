@@ -92,7 +92,7 @@ public class YtClient extends ApiServiceClient implements AutoCloseable {
 
         this.localDataCenter = localDataCenter;
 
-        pingDataCenters();
+        schedulePing();
     }
 
     public YtClient(
