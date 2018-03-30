@@ -11,6 +11,7 @@ namespace NYT {
 namespace NTabletServer {
 
 using namespace NNodeTrackerServer;
+using namespace NNodeTrackerServer::NProto;
 using namespace NCellMaster;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -37,6 +38,7 @@ public:
         nodeTracker->SubscribeNodeDecommissionChanged(BIND(&TImpl::OnNodeChanged, MakeWeak(this)));
         nodeTracker->SubscribeNodeDisableTabletCellsChanged(BIND(&TImpl::OnNodeChanged, MakeWeak(this)));
         nodeTracker->SubscribeNodeTagsChanged(BIND(&TImpl::OnNodeChanged, MakeWeak(this)));
+        nodeTracker->SubscribeFullHeartbeat(BIND(&TImpl::OnNodeFullHeartbeat, MakeWeak(this)));
 
         const auto& tabletManager = Bootstrap_->GetTabletManager();
         tabletManager->SubscribeTabletCellBundleCreated(BIND(&TImpl::OnTabletCellBundleCreated, MakeWeak(this)));
@@ -93,6 +95,11 @@ private:
         YCHECK(NodeMap_.erase(bundle) > 0);
     }
 
+    void OnNodeFullHeartbeat(TNode* node, TReqFullHeartbeat* /*request*/)
+    {
+        OnNodeChanged(node);
+    }
+
     void OnNodeChanged(TNode* node)
     {
         const auto& tabletManager = Bootstrap_->GetTabletManager();
@@ -130,7 +137,9 @@ private:
             return false;
         }
 
-        // NB: Intentionally don't check if node is online sinse it is transient state.
+        if (node->GetLocalState() != ENodeState::Online) {
+            return false;
+        }
 
         if (node->GetBanned()) {
             return false;
