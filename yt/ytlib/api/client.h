@@ -701,6 +701,7 @@ struct TListJobsOptions
     TNullable<NJobTrackerClient::EJobState> State;
     TNullable<TString> Address;
     TNullable<bool> WithStderr;
+    TNullable<bool> WithFailContext;
 
     EJobSortField SortField = EJobSortField::None;
     EJobSortDirection SortOrder = EJobSortDirection::Ascending;
@@ -819,6 +820,7 @@ struct TJob
     TString Address;
     TNullable<double> Progress;
     TNullable<ui64> StderrSize;
+    TNullable<ui64> FailContextSize;
     NYson::TYsonString Error;
     NYson::TYsonString BriefStatistics;
     NYson::TYsonString InputPaths;

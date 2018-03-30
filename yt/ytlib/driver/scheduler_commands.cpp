@@ -267,6 +267,8 @@ TListJobsCommand::TListJobsCommand()
         .Optional();
     RegisterParameter("with_stderr", Options.WithStderr)
         .Optional();
+    RegisterParameter("with_fail_context", Options.WithFailContext)
+        .Optional();
 
     RegisterParameter("sort_field", Options.SortField)
         .Optional();
@@ -317,6 +319,9 @@ void TListJobsCommand::DoExecute(ICommandContextPtr context)
                             })
                             .DoIf(job.StderrSize.operator bool(), [&] (TFluentMap fluent) {
                                 fluent.Item("stderr_size").Value(*job.StderrSize);
+                            })
+                            .DoIf(job.FailContextSize.operator bool(), [&] (TFluentMap fluent) {
+                                fluent.Item("fail_context_size").Value(*job.FailContextSize);
                             })
                             .DoIf(job.Error.operator bool(), [&] (TFluentMap fluent) {
                                 fluent.Item("error").Value(job.Error);

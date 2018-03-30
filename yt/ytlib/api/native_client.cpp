@@ -4895,6 +4895,20 @@ private:
                     }
                 }
 
+                i64 failContextSize = -1;
+                if (auto failContextNode = children->FindChild("fail_context")) {
+                    failContextSize = failContextNode->Attributes().Get<i64>("uncompressed_data_size");
+                }
+
+                if (options.WithFailContext) {
+                    if (*options.WithFailContext && failContextSize <= 0) {
+                        continue;
+                    }
+                    if (!(*options.WithFailContext) && failContextSize > 0) {
+                        continue;
+                    }
+                }
+
                 jobs.emplace_back();
                 auto& job = jobs.back();
 
@@ -4906,6 +4920,9 @@ private:
                 job.Address = address;
                 if (stderrSize >= 0) {
                     job.StderrSize = stderrSize;
+                }
+                if (failContextSize >= 0) {
+                    job.FailContextSize = failContextSize;
                 }
                 job.Error = attributes.FindYson("error");
                 job.BriefStatistics = attributes.FindYson("brief_statistics");
