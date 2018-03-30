@@ -6,14 +6,18 @@ from yt.environment.helpers import wait
 
 from operations_archive import clean_operations
 
-def id_to_parts(id):
-    id_parts = id.split("-")
-    id_hi = long(id_parts[2], 16) << 32 | int(id_parts[3], 16)
-    id_lo = long(id_parts[0], 16) << 32 | int(id_parts[1], 16)
-    return id_hi, id_lo
-
-def get_operation_path(op_id):
+def _get_operation_cypress_path(op_id):
     return "//sys/operations/{}/{}".format("%02x" % (long(op_id.split("-")[3], 16) % 256), op_id)
+
+def _get_orchid_operation_path(op_id):
+    return "//sys/scheduler/orchid/scheduler/operations/{0}/progress".format(op_id)
+
+def _get_operation_from_cypress(op_id):
+    result = get(_get_operation_cypress_path(op_id) + "/@")
+    if "full_spec" in result:
+        result["full_spec"].attributes.pop("opaque", None)
+    del result["id"]
+    return result
 
 class TestGetOperation(YTEnvSetup):
     NUM_MASTERS = 1
@@ -47,13 +51,11 @@ class TestGetOperation(YTEnvSetup):
             })
         wait_breakpoint()
 
-        wait(lambda: exists(get_operation_path(op.id)))
+        wait(lambda: exists(_get_operation_cypress_path(op.id)))
 
         res_get_operation = get_operation(op.id, include_scheduler=True)
-        res_cypress = get(get_operation_path(op.id) + "/@")
-        if "full_spec" in res_cypress:
-            res_cypress["full_spec"].attributes.pop("opaque", None)
-        res_orchid_progress = get("//sys/scheduler/orchid/scheduler/operations/{0}/progress".format(op.id))
+        res_cypress = _get_operation_from_cypress(op.id)
+        res_orchid_progress = get(_get_orchid_operation_path(op.id))
 
         def filter_attrs(attrs):
             PROPER_ATTRS = ["authenticated_user",
@@ -82,21 +84,19 @@ class TestGetOperation(YTEnvSetup):
         release_breakpoint()
         op.track()
 
-        res_cypress_finished = get(get_operation_path(op.id) + "/@")
-        if "full_spec" in res_cypress_finished:
-            res_cypress_finished["full_spec"].attributes.pop("opaque", None)
-        del res_cypress_finished["progress"]["build_time"]
-
+        res_cypress_finished = _get_operation_from_cypress(op.id)
+        
         clean_operations(self.Env.create_native_client())
 
         res_get_operation_archive = get_operation(op.id)
+        
+        del res_cypress_finished["progress"]["build_time"]
         del res_get_operation_archive["progress"]["build_time"]
-
         for key in res_get_operation_archive.keys():
             if key in res_cypress:
                 assert res_get_operation_archive[key] == res_cypress_finished[key]
 
-    def test_attributes(self, storage_mode):
+    def test_attributes(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
         write_table("//tmp/t1", [{"foo": "bar"}, {"foo": "baz"}, {"foo": "qux"}])
@@ -119,7 +119,7 @@ class TestGetOperation(YTEnvSetup):
 
         for read_from in ("cache", "follower"):
             res_get_operation = get_operation(op.id, attributes=["progress", "state"], include_scheduler=True, read_from=read_from)
-            res_cypress = get(get_operation_path(op.id) + "/@", attributes=["progress", "state"])
+            res_cypress = get(_get_operation_cypress_path(op.id) + "/@", attributes=["progress", "state"])
 
             assert sorted(list(res_get_operation)) == ["progress", "state"]
             assert sorted(list(res_cypress)) == ["progress", "state"]
@@ -147,12 +147,12 @@ class TestGetOperation(YTEnvSetup):
             command="cat")
 
         tx = start_transaction(timeout=300 * 1000)
-        lock(get_operation_path(op.id),
+        lock(_get_operation_cypress_path(op.id),
             mode="shared",
             child_key="completion_transaction_id",
             transaction_id=tx)
 
         clean_operations(self.Env.create_native_client())
         assert not exists("//sys/operations/" + op.id)
-        assert exists(get_operation_path(op.id))
+        assert exists(_get_operation_cypress_path(op.id))
         assert "state" in get_operation(op.id)
