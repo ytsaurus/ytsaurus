@@ -2718,14 +2718,6 @@ private:
         }
 
         if (trees.empty()) {
-            // TODO(asaitgalin): Remove when all users are specified pool trees in spec.
-            if (spec->SchedulingTagFilter == MakeBooleanFormula("external")) {
-                if (spec->Pool) {
-                    return {{"cloud", *spec->Pool}};
-                }
-                return {{"cloud", operation->GetAuthenticatedUser()}};
-            }
-
             if (!DefaultTreeId_) {
                 THROW_ERROR_EXCEPTION("Failed to determine fair-share tree for operation since "
                     "valid pool trees are not specified and default fair-share tree is not configured");
@@ -2791,10 +2783,7 @@ private:
         std::vector<TFuture<void>> futures;
 
         for (const auto& pair : pools) {
-            auto tree = FindTree(pair.first);
-            if (!tree) {
-                THROW_ERROR_EXCEPTION("Pool tree %Qv is missing", pair.first);
-            }
+            auto tree = GetTree(pair.first);
             futures.push_back(tree->ValidateOperationStart(operation, pair.second));
         }
 
