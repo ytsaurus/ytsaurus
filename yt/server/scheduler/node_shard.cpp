@@ -181,7 +181,7 @@ void TNodeShard::DoCleanup()
         }
     }
 
-    JobsToSubmitInStrategy_.clear();
+    JobsToSubmitToStrategy_.clear();
 
     ConcurrentHeartbeatCount_ = 0;
 
@@ -226,7 +226,7 @@ void TNodeShard::StartOperationRevival(const TOperationId& operationId)
     for (const auto& pair : jobs) {
         const auto& job = pair.second;
         UnregisterJob(job, /* enableLogging */ false);
-        JobsToSubmitInStrategy_.erase(job->GetId());
+        JobsToSubmitToStrategy_.erase(job->GetId());
     }
 
     {
@@ -1678,7 +1678,7 @@ void TNodeShard::ProcessScheduledJobs(
             if (!operationState->Terminated) {
                 const auto& controller = operationState->Controller;
                 controller->OnNonscheduledJobAborted(job->GetId(), EAbortReason::SchedulingOperationSuspended);
-                JobsToSubmitInStrategy_.emplace(
+                JobsToSubmitToStrategy_.emplace(
                     job->GetId(),
                     TJobUpdate{
                         EJobUpdateStatus::Finished,
@@ -1756,7 +1756,7 @@ void TNodeShard::OnJobRunning(const TJobPtr& job, TJobStatus* status)
     job->SetRunningJobUpdateDeadline(now + DurationToCpuDuration(Config_->RunningJobsUpdatePeriod));
 
     auto delta = status->resource_usage() - job->ResourceUsage();
-    JobsToSubmitInStrategy_.emplace(
+    JobsToSubmitToStrategy_.emplace(
         job->GetId(),
         TJobUpdate{
             EJobUpdateStatus::Running,
@@ -1885,15 +1885,10 @@ void TNodeShard::OnJobFinished(const TJobPtr& job)
 void TNodeShard::SubmitJobsToStrategy()
 {
     PROFILE_AGGREGATED_TIMING (StrategyJobProcessingTimeCounter) {
-        if (!JobsToSubmitInStrategy_.empty()) {
+        if (!JobsToSubmitToStrategy_.empty()) {
             std::vector<TJobId> jobsToAbort;
             std::vector<TJobId> jobsToRemove;
-
-            std::vector<TJobUpdate> jobUpdates;
-            for (const auto& pair : JobsToSubmitInStrategy_) {
-                jobUpdates.push_back(pair.second);
-            }
-
+            auto jobUpdates = GetValues(JobsToSubmitToStrategy_);
             Host_->GetStrategy()->ProcessJobUpdates(
                 jobUpdates,
                 &jobsToRemove,
@@ -1902,8 +1897,9 @@ void TNodeShard::SubmitJobsToStrategy()
             for (const auto& jobId : jobsToAbort) {
                 AbortJob(jobId, TError("Aborting job by strategy request"));
             }
+
             for (const auto& jobId : jobsToRemove) {
-                YCHECK(JobsToSubmitInStrategy_.erase(jobId) == 1);
+                YCHECK(JobsToSubmitToStrategy_.erase(jobId) == 1);
             }
         }
     }
@@ -1965,7 +1961,7 @@ void TNodeShard::UnregisterJob(const TJobPtr& job, bool enableLogging)
     ResetJobWaitingForConfirmation(job);
 
     if (operationState && operationState->Jobs.erase(job->GetId())) {
-        JobsToSubmitInStrategy_.emplace(
+        JobsToSubmitToStrategy_.emplace(
             job->GetId(),
             TJobUpdate{
                 EJobUpdateStatus::Finished,

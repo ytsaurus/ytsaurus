@@ -213,7 +213,7 @@ private:
     TAbortedJobCounter AbortedJobCounter_;
     TCompletedJobCounter CompletedJobCounter_;
 
-    THashMap<TJobId, TJobUpdate> JobsToSubmitInStrategy_;
+    THashMap<TJobId, TJobUpdate> JobsToSubmitToStrategy_;
 
     struct TScheduleJobEntry
     {
