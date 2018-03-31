@@ -269,11 +269,10 @@ public:
         UnregisterSchedulingTagFilter(operationElement->GetSchedulingTagFilterIndex());
         ReleaseOperationSlotIndex(state, pool->GetId());
 
-        auto finalResourceUsage = operationElement->Disable();
+        operationElement->Disable();
         YCHECK(OperationIdToElement.erase(operationId) == 1);
         operationElement->SetAlive(false);
         pool->RemoveChild(operationElement);
-        pool->IncreaseResourceUsage(-finalResourceUsage);
         pool->IncreaseOperationCount(-1);
 
         LOG_INFO("Operation removed from pool (OperationId: %v, Pool: %v)",
@@ -310,11 +309,10 @@ public:
         auto operationId = state->GetHost()->GetId();
         auto operationElement = GetOperationElement(operationId);
 
+        operationElement->Disable();
+
         auto* parent = operationElement->GetParent();
         parent->DisableChild(operationElement);
-
-        operationElement->ResetJobs();
-        YCHECK(operationElement->Disable() == ZeroJobResources());
     }
 
     void EnableOperation(const TFairShareStrategyOperationStatePtr& state)

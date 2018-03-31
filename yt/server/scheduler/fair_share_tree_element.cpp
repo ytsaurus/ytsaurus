@@ -1443,11 +1443,17 @@ TJobResources TOperationElementSharedState::Disable()
 
     Enabled_ = false;
 
-    auto totalResourceUsage = ZeroJobResources();
+    TJobResources resourceUsage = ZeroJobResources();
     for (const auto& pair : JobPropertiesMap_) {
-        totalResourceUsage += pair.second.ResourceUsage;
+        resourceUsage += pair.second.ResourceUsage;
     }
-    return totalResourceUsage;
+
+    PreemptableJobs_.clear();
+    AggressivelyPreemptableJobs_.clear();
+    NonpreemptableJobs_.clear();
+    JobPropertiesMap_.clear();
+
+    return resourceUsage;
 }
 
 void TOperationElementSharedState::Enable()
@@ -1629,9 +1635,10 @@ TJobResources TOperationElementSharedState::AddJob(const TJobId& jobId, const TJ
     return resourceUsage;
 }
 
-TJobResources TOperationElement::Disable()
+void TOperationElement::Disable()
 {
-    return SharedState_->Disable();
+    auto delta = SharedState_->Disable();
+    IncreaseResourceUsage(-delta);
 }
 
 void TOperationElement::Enable()
@@ -1665,33 +1672,6 @@ TJobResources TOperationElementSharedState::RemoveJob(const TJobId& jobId)
     IncreaseJobResourceUsage(properties, -resourceUsage);
 
     JobPropertiesMap_.erase(it);
-
-    return resourceUsage;
-}
-
-TJobResources TOperationElementSharedState::ClearJobs()
-{
-    TWriterGuard guard(JobPropertiesMapLock_);
-
-    TJobResources resourceUsage = ZeroJobResources();
-
-    for (const auto& jobId : PreemptableJobs_) {
-        auto* properties = GetJobProperties(jobId);
-        resourceUsage += properties->ResourceUsage;
-    }
-    for (const auto& jobId : AggressivelyPreemptableJobs_) {
-        auto* properties = GetJobProperties(jobId);
-        resourceUsage += properties->ResourceUsage;
-    }
-    for (const auto& jobId : NonpreemptableJobs_) {
-        auto* properties = GetJobProperties(jobId);
-        resourceUsage += properties->ResourceUsage;
-    }
-
-    PreemptableJobs_.clear();
-    AggressivelyPreemptableJobs_.clear();
-    NonpreemptableJobs_.clear();
-    JobPropertiesMap_.clear();
 
     return resourceUsage;
 }
@@ -2200,12 +2180,6 @@ void TOperationElement::OnJobFinished(const TJobId& jobId)
     IncreaseResourceUsage(-delta);
 
     UpdatePreemptableJobsList();
-}
-
-void TOperationElement::ResetJobs()
-{
-    auto delta = SharedState_->ClearJobs();
-    IncreaseResourceUsage(-delta);
 }
 
 void TOperationElement::BuildOperationToElementMapping(TOperationElementByIdMap* operationElementByIdMap)

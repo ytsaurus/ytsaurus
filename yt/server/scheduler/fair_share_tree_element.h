@@ -539,7 +539,6 @@ public:
 
     TJobResources AddJob(const TJobId& jobId, const TJobResources& resourceUsage, bool force);
     TJobResources RemoveJob(const TJobId& jobId);
-    TJobResources ClearJobs();
 
     TJobResources Disable();
     void Enable();
@@ -744,13 +743,12 @@ public:
 
     void OnJobStarted(const TJobId& jobId, const TJobResources& resourceUsage, bool force = false);
     void OnJobFinished(const TJobId& jobId);
-    void ResetJobs();
 
     virtual void BuildOperationToElementMapping(TOperationElementByIdMap* operationElementByIdMap) override;
 
     virtual TSchedulerElementPtr Clone(TCompositeSchedulerElement* clonedParent) override;
 
-    TJobResources Disable();
+    void Disable();
     void Enable();
 
     DEFINE_BYVAL_RW_PROPERTY(TOperationFairShareStrategyTreeOptionsPtr, RuntimeParams);
