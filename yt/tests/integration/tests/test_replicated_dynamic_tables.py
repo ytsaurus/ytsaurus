@@ -298,23 +298,21 @@ class TestReplicatedDynamicTables(TestDynamicTablesBase):
         timestamp0 = generate_timestamp()
         assert get_in_sync_replicas("//tmp/t", [], timestamp=timestamp0) == [replica_id]
 
-        sleep(1.0)  # wait for last timestamp update
-        assert get_in_sync_replicas("//tmp/t", keys, timestamp=timestamp0) == [replica_id]
+        wait(lambda: get_in_sync_replicas("//tmp/t", keys, timestamp=timestamp0) == [replica_id])
 
         insert_rows("//tmp/t", rows, require_sync_replica=False)
         timestamp1 = generate_timestamp()
         assert get_in_sync_replicas("//tmp/t", keys, timestamp=timestamp0) == [replica_id]
-        sleep(1.0)  # wait for replica update
-        assert get_in_sync_replicas("//tmp/t", keys, timestamp=timestamp0) == [replica_id]
-        assert get_in_sync_replicas("//tmp/t", keys, timestamp=timestamp1) == [replica_id]
+
+        wait(lambda: get_in_sync_replicas("//tmp/t", keys, timestamp=timestamp0) == [replica_id])
+        wait(lambda: get_in_sync_replicas("//tmp/t", keys, timestamp=timestamp1) == [replica_id])
 
         timestamp2 = generate_timestamp()
         assert get_in_sync_replicas("//tmp/t", keys, timestamp=timestamp0) == [replica_id]
         assert get_in_sync_replicas("//tmp/t", keys, timestamp=timestamp1) == [replica_id]
 
-        sleep(1.0)  # wait for last timestamp update
-        assert get_in_sync_replicas("//tmp/t", keys, timestamp=timestamp2) == [replica_id]
-        assert get_in_sync_replicas("//tmp/t", [], timestamp=timestamp0) == [replica_id]
+        wait(lambda: get_in_sync_replicas("//tmp/t", keys, timestamp=timestamp2) == [replica_id])
+        wait(lambda: get_in_sync_replicas("//tmp/t", [], timestamp=timestamp0) == [replica_id])
 
     def test_in_sync_relicas_expression(self):
         self._create_cells()
@@ -331,10 +329,9 @@ class TestReplicatedDynamicTables(TestDynamicTablesBase):
         keys = [{"key": 1}]
         insert_rows("//tmp/t", rows, require_sync_replica=False)
         timestamp1 = generate_timestamp()
-        sleep(1.0)  # wait for replica update
-        assert select_rows("* from [//tmp/r]", driver=self.replica_driver) == [{"hash": 1, "key": 1, "value": 2}]
-        assert get_in_sync_replicas("//tmp/t", keys, timestamp=timestamp0) == [replica_id]
-        assert get_in_sync_replicas("//tmp/t", keys, timestamp=timestamp1) == [replica_id]
+        wait(lambda: select_rows("* from [//tmp/r]", driver=self.replica_driver) == [{"hash": 1, "key": 1, "value": 2}])
+        wait(lambda: get_in_sync_replicas("//tmp/t", keys, timestamp=timestamp0) == [replica_id])
+        wait(lambda: get_in_sync_replicas("//tmp/t", keys, timestamp=timestamp1) == [replica_id])
 
     def test_in_sync_replicas_disabled(self):
         self._create_cells()
@@ -359,13 +356,11 @@ class TestReplicatedDynamicTables(TestDynamicTablesBase):
 
         assert_items_equal(get_in_sync_replicas("//tmp/t", [], timestamp=timestamp), [replica_id1, replica_id2])
 
-        sleep(1.0)
-        assert get_in_sync_replicas("//tmp/t", keys, timestamp=timestamp) == [replica_id1]
+        wait(lambda: get_in_sync_replicas("//tmp/t", keys, timestamp=timestamp) == [replica_id1])
 
         self.sync_enable_table_replica(replica_id2)
-        sleep(1.0)
-        assert_items_equal(get_in_sync_replicas("//tmp/t", keys, timestamp=timestamp), [replica_id1, replica_id2])
-        assert_items_equal(get_in_sync_replicas("//tmp/t", [], timestamp=timestamp), [replica_id1, replica_id2])
+        wait(lambda: set(get_in_sync_replicas("//tmp/t", keys, timestamp=timestamp)) == set([replica_id1, replica_id2]))
+        wait(lambda: set(get_in_sync_replicas("//tmp/t", [], timestamp=timestamp)) == set([replica_id1, replica_id2]))
 
     def test_async_replication_sorted(self):
         self._create_cells()
