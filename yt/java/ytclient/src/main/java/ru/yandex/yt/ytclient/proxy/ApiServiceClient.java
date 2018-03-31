@@ -605,4 +605,9 @@ public class ApiServiceClient {
     {
         return builder.invoke();
     }
+
+    @Override
+    public String toString() {
+        return rpcClient.toString();
+    }
 }
