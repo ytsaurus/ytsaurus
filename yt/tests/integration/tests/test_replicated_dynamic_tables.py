@@ -673,8 +673,6 @@ class TestReplicatedDynamicTables(TestDynamicTablesBase):
         if with_data:
             insert_rows("//tmp/t", [{"key": 2, "value1": "test"}], require_sync_replica=False)
 
-        sleep(1.0)
-
         def _maybe_add_system_fields(dict):
             if (schema is self.SIMPLE_SCHEMA_ORDERED):
                 dict['$tablet_index'] = 0
@@ -683,9 +681,9 @@ class TestReplicatedDynamicTables(TestDynamicTablesBase):
             else:
                 return dict
 
-        assert select_rows("* from [//tmp/r]", driver=self.replica_driver) == \
+        wait(lambda: select_rows("* from [//tmp/r]", driver=self.replica_driver) == \
             ([_maybe_add_system_fields({"key": 2, "value1": "test", "value2": YsonEntity()})] if with_data else \
-            [])
+            []))
 
     @pytest.mark.parametrize("ttl, chunk_count, trimmed_row_count, mode",
         [a + b
