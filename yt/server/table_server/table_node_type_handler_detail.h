@@ -20,12 +20,30 @@ public:
 
     explicit TTableNodeTypeHandlerBase(NCellMaster::TBootstrap* bootstrap);
 
+    virtual bool IsSupportedInheritableAttribute(const TString& key) const
+    {
+        static const THashSet<TString> supportedInheritableAttributes = {
+            "atomicity",
+            "commit_ordering",
+            "in_memory_mode",
+            "optimize_for",
+            "tablet_cell_bundle"
+        };
+
+        if (supportedInheritableAttributes.has(key)) {
+            return true;
+        }
+
+        return TBase::IsSupportedInheritableAttribute(key);
+    }
+
 protected:
     virtual std::unique_ptr<TImpl> DoCreate(
         const NCypressServer::TVersionedNodeId& id,
         NObjectClient::TCellTag cellTag,
         NTransactionServer::TTransaction* transaction,
-        NYTree::IAttributeDictionary* attributes,
+        NYTree::IAttributeDictionary* inheritedAttributes,
+        NYTree::IAttributeDictionary* explicitAttributes,
         NSecurityServer::TAccount* account) override;
 
     virtual void DoDestroy(TImpl* table) override;

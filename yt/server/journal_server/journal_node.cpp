@@ -160,14 +160,16 @@ protected:
         const TVersionedNodeId& id,
         TCellTag cellTag,
         TTransaction* transaction,
-        IAttributeDictionary* attributes,
+        IAttributeDictionary* inheritedAttributes,
+        IAttributeDictionary* explicitAttributes,
         NSecurityServer::TAccount* account) override
     {
         const auto& config = Bootstrap_->GetConfig()->CypressManager;
 
-        auto replicationFactor = attributes->GetAndRemove<int>("replication_factor", config->DefaultJournalReplicationFactor);
-        auto readQuorum = attributes->GetAndRemove<int>("read_quorum", config->DefaultJournalReadQuorum);
-        auto writeQuorum = attributes->GetAndRemove<int>("write_quorum", config->DefaultJournalWriteQuorum);
+        auto combinedAttributes = OverlayAttributeDictionaries(explicitAttributes, inheritedAttributes);
+        auto replicationFactor = combinedAttributes.GetAndRemove<int>("replication_factor", config->DefaultJournalReplicationFactor);
+        auto readQuorum = combinedAttributes.GetAndRemove<int>("read_quorum", config->DefaultJournalReadQuorum);
+        auto writeQuorum = combinedAttributes.GetAndRemove<int>("write_quorum", config->DefaultJournalWriteQuorum);
 
         ValidateReplicationFactor(replicationFactor);
         if (readQuorum > replicationFactor) {
@@ -184,7 +186,8 @@ protected:
             id,
             cellTag,
             transaction,
-            attributes,
+            inheritedAttributes,
+            explicitAttributes,
             account,
             replicationFactor,
             NCompression::ECodec::None,

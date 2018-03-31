@@ -45,27 +45,29 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
     const TVersionedNodeId& id,
     TCellTag cellTag,
     TTransaction* transaction,
-    IAttributeDictionary* attributes,
+    IAttributeDictionary* inheritedAttributes,
+    IAttributeDictionary* explicitAttributes,
     TAccount* account)
 {
     const auto& config = this->Bootstrap_->GetConfig()->CypressManager;
 
-    auto maybeTabletCellBundleName = attributes->FindAndRemove<TString>("tablet_cell_bundle");
-    auto optimizeFor = attributes->GetAndRemove<EOptimizeFor>("optimize_for", EOptimizeFor::Lookup);
-    auto replicationFactor = attributes->GetAndRemove("replication_factor", config->DefaultTableReplicationFactor);
-    auto compressionCodec = attributes->GetAndRemove<NCompression::ECodec>("compression_codec", NCompression::ECodec::Lz4);
-    auto erasureCodec = attributes->GetAndRemove<NErasure::ECodec>("erasure_codec", NErasure::ECodec::None);
+    auto combinedAttributes = OverlayAttributeDictionaries(explicitAttributes, inheritedAttributes);
+    auto maybeTabletCellBundleName = combinedAttributes.FindAndRemove<TString>("tablet_cell_bundle");
+    auto optimizeFor = combinedAttributes.GetAndRemove<EOptimizeFor>("optimize_for", EOptimizeFor::Lookup);
+    auto replicationFactor = combinedAttributes.GetAndRemove("replication_factor", config->DefaultTableReplicationFactor);
+    auto compressionCodec = combinedAttributes.GetAndRemove<NCompression::ECodec>("compression_codec", NCompression::ECodec::Lz4);
+    auto erasureCodec = combinedAttributes.GetAndRemove<NErasure::ECodec>("erasure_codec", NErasure::ECodec::None);
 
     ValidateReplicationFactor(replicationFactor);
 
-    bool dynamic = attributes->GetAndRemove<bool>("dynamic", false);
+    bool dynamic = combinedAttributes.GetAndRemove<bool>("dynamic", false);
     bool replicated = TypeFromId(id.ObjectId) == EObjectType::ReplicatedTable;
 
     if (replicated && !dynamic) {
         THROW_ERROR_EXCEPTION("Replicated table must be dynamic");
     }
 
-    auto maybeSchema = attributes->FindAndRemove<TTableSchema>("schema");
+    auto maybeSchema = combinedAttributes.FindAndRemove<TTableSchema>("schema");
 
     if (dynamic && !maybeSchema) {
         THROW_ERROR_EXCEPTION("\"schema\" is mandatory for dynamic tables");
@@ -86,12 +88,12 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
         ValidateTableSchemaUpdate(TTableSchema(), *maybeSchema, dynamic, true);
     }
 
-    auto maybeTabletCount = attributes->FindAndRemove<int>("tablet_count");
-    auto maybePivotKeys = attributes->FindAndRemove<std::vector<TOwningKey>>("pivot_keys");
+    auto maybeTabletCount = combinedAttributes.FindAndRemove<int>("tablet_count");
+    auto maybePivotKeys = combinedAttributes.FindAndRemove<std::vector<TOwningKey>>("pivot_keys");
     if (maybeTabletCount && maybePivotKeys) {
         THROW_ERROR_EXCEPTION("Cannot specify both \"tablet_count\" and \"pivot_keys\"");
     }
-    auto upstreamReplicaId = attributes->GetAndRemove<TTableReplicaId>("upstream_replica_id", TTableReplicaId());
+    auto upstreamReplicaId = combinedAttributes.GetAndRemove<TTableReplicaId>("upstream_replica_id", TTableReplicaId());
     if (upstreamReplicaId) {
         if (!dynamic) {
             THROW_ERROR_EXCEPTION("Upstream replica can only be set for dynamic tables");
@@ -110,7 +112,8 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
         id,
         cellTag,
         transaction,
-        attributes,
+        inheritedAttributes,
+        explicitAttributes,
         account,
         replicationFactor,
         compressionCodec,

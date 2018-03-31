@@ -1546,7 +1546,13 @@ class TestCypress(YTEnvSetup):
         create("table", "//tmp/dir1/t2", attributes={"compression_codec": "zstd_17"})
         assert get("//tmp/dir1/t2/@compression_codec") == "zstd_17"
 
+        # Composite nodes don't inherit...
         create("map_node", "//tmp/dir1/dir2")
+        assert not exists("//tmp/dir1/dir2/@compression_codec")
+
+        # ...and neither do other types of nodes.
+        create("document", "//tmp/dir1/doc")
+        assert not exists("//tmp/dir1/doc/@compression_codec")
 
         # ancestor inheritance
         create("table", "//tmp/dir1/dir2/t1")
@@ -1745,6 +1751,31 @@ class TestCypress(YTEnvSetup):
         remove("//tmp/dir3_move")
         gc_collect()
         assert get("//sys/tablet_cell_bundles/b1/@ref_counter") == 1
+
+    def test_inheritable_attributes_no_extraneous_inheritance(self):
+        create("map_node", "//tmp/dir1")
+
+        # Most inheritable attributes are inheritable by all chunk owners.
+        # These, however, are only inheritable by tables (values don't matter):
+        attrs = (("commit_ordering", "strong"), ("in_memory_mode", "uncompressed"), ("optimize_for", "scan"), ("tablet_cell_bundle", "b"))
+        create_tablet_cell_bundle("b3")
+        for attr_name, attr_val in attrs:
+            set("//tmp/dir1/@" + attr_name, attr_val)
+
+        # Inheritable by all.
+        set("//tmp/dir1/@compression_codec", "lz4")
+
+        create("table", "//tmp/dir1/t1")
+        create("file", "//tmp/dir1/f1")
+        create("journal", "//tmp/dir1/j1")
+
+        for node in ("t1", "f1", "j1"):
+            assert get("//tmp/dir1/{0}/@compression_codec".format(node)) == "lz4"
+
+        for attr_name, attr_val in attrs:
+            assert get("//tmp/dir1/t1/@" + attr_name) == attr_val
+            assert not exists("//tmp/dir1/f1/@" + attr_name)
+            assert not exists("//tmp/dir1/j1/@" + attr_name)
 
 ##################################################################
 
