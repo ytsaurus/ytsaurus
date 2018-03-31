@@ -86,14 +86,6 @@ using TReplicaProfilerTrait = TTabletProfilerTrait<TReplicaCounters>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTabletCounters::TTabletCounters(const NProfiling::TTagIdList& list)
-    : OverlappingStoreCount("/tablet/overlapping_store_count", list)
-{ }
-
-using TTabletInternalProfilerTrait = TTabletProfilerTrait<TTabletCounters>;
-
-////////////////////////////////////////////////////////////////////////////////
-
 std::pair<TTabletSnapshot::TPartitionListIterator, TTabletSnapshot::TPartitionListIterator>
 TTabletSnapshot::GetIntersectingPartitions(
     const TKey& lowerBound,
@@ -1178,10 +1170,6 @@ void TTablet::FillProfilerTags(const TCellId& cellId)
     DiskProfilerTags_.assign({
         TProfileManager::Get()->RegisterTag("account", writerOptions->Account),
         TProfileManager::Get()->RegisterTag("medium", writerOptions->MediumName)});
-
-    ProfilerCounters_ = !ProfilerTags_.empty()
-        ? &GetGloballyCachedValue<TTabletInternalProfilerTrait>(ProfilerTags_)
-        : nullptr;
 }
 
 void TTablet::UpdateReplicaCounters()
@@ -1259,10 +1247,6 @@ void TTablet::UpdateOverlappingStoreCount()
     overlappingStoreCount += Eden_->Stores().size();
     OverlappingStoreCount_ = overlappingStoreCount;
     CriticalPartitionCount_ = criticalPartitionCount;
-
-    if (ProfilerCounters_) {
-        TabletNodeProfiler.Update(ProfilerCounters_->OverlappingStoreCount, OverlappingStoreCount_);
-    }
 }
 
 void TTablet::UpdateUnflushedTimestamp() const
