@@ -3051,7 +3051,7 @@ private:
         const std::vector<TExecNodeDescriptor>& descriptors,
         TFluentMap fluent)
     {
-        TJobResources resourceLimits = ZeroJobResources();
+        auto resourceLimits = ZeroJobResources();
         for (const auto& descriptor : descriptors) {
             resourceLimits += descriptor.ResourceLimits;
         }

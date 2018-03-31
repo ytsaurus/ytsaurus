@@ -1443,7 +1443,7 @@ TJobResources TOperationElementSharedState::Disable()
 
     Enabled_ = false;
 
-    TJobResources resourceUsage = ZeroJobResources();
+    auto resourceUsage = ZeroJobResources();
     for (const auto& pair : JobPropertiesMap_) {
         resourceUsage += pair.second.ResourceUsage;
     }
