@@ -42,7 +42,7 @@ std::vector<NYPath::TYPath> GetCompatibilityOperationPaths(
     const TOperationId& operationId,
     const TString& resourceName = {});
 
-const NYPath::TYPath& GetPoolsPath();
+const NYPath::TYPath& GetPoolTreesPath();
 const NYPath::TYPath& GetOperationsArchivePathOrderedById();
 const NYPath::TYPath& GetOperationsArchivePathOrderedByStartTime();
 const NYPath::TYPath& GetOperationsArchiveVersionPath();

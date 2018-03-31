@@ -177,7 +177,7 @@ std::vector<NYPath::TYPath> GetCompatibilityOperationPaths(
     };
 }
 
-const TYPath& GetPoolsPath()
+const TYPath& GetPoolTreesPath()
 {
     static TYPath path =  "//sys/pool_trees";
     return path;
