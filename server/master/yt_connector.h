@@ -22,6 +22,8 @@ struct TMasterDiscoveryInfo
 {
     TString Fqdn;
     TString ClientGrpcAddress;
+    // COMPAT(babenko)
+    TString SecureClientGrpcAddress;
     TString ClientHttpAddress;
     TString AgentGrpcAddress;
     TMasterInstanceTag InstanceTag = 0;

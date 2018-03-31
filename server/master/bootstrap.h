@@ -36,6 +36,8 @@ public:
 
     const TString& GetFqdn();
     const TString& GetClientGrpcAddress();
+    // COMPAT(babenko)
+    const TString& GetSecureClientGrpcAddress();
     const TString& GetClientHttpAddress();
     const TString& GetAgentGrpcAddress();
 

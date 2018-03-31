@@ -122,6 +122,11 @@ public:
         return ClientGrpcAddress_;
     }
 
+    const TString& GetSecureClientGrpcAddress()
+    {
+        return SecureClientGrpcAddress_;
+    }
+
     const TString& GetClientHttpAddress()
     {
         return ClientHttpAddress_;
@@ -161,6 +166,8 @@ private:
 
     NRpc::IServicePtr ObjectService_;
     NRpc::IServicePtr ClientDiscoveryService_;
+    // COMPAT(babenko)
+    NRpc::IServicePtr SecureClientDiscoveryService_;
     NRpc::IServicePtr AgentDiscoveryService_;
     NRpc::IServicePtr NodeTrackerService_;
 
@@ -168,10 +175,14 @@ private:
     NHttp::IServerPtr ClientHttpServer_;
     NRpc::IServerPtr RpcClientHttpServer_;
     NRpc::IServerPtr ClientGrpcServer_;
+    // COMPAT(babenko)
+    NRpc::IServerPtr SecureClientGrpcServer_;
     NRpc::IServerPtr AgentGrpcServer_;
 
     TString Fqdn_;
     TString ClientGrpcAddress_;
+    // COMPAT(babenko)
+    TString SecureClientGrpcAddress_;
     TString ClientHttpAddress_;
     TString AgentGrpcAddress_;
 
@@ -194,6 +205,10 @@ private:
     {
         Fqdn_ = GetLocalHostName();
         ClientGrpcAddress_ = BuildGrpcAddress(Config_->ClientGrpcServer);
+        // COMPAT(babenko)
+        if (Config_->SecureClientGrpcServer) {
+            SecureClientGrpcAddress_ = BuildGrpcAddress(Config_->SecureClientGrpcServer);
+        }
         ClientHttpAddress_ = BuildHttpAddress(Config_->ClientHttpServer);
         AgentGrpcAddress_ = BuildGrpcAddress(Config_->AgentGrpcServer);
 
@@ -244,6 +259,8 @@ private:
 
         ObjectService_ = NApi::CreateObjectService(Bootstrap_);
         ClientDiscoveryService_ = NApi::CreateDiscoveryService(Bootstrap_, EMasterInterface::Client);
+        // COMPAT(babenko)
+        SecureClientDiscoveryService_ = NApi::CreateDiscoveryService(Bootstrap_, EMasterInterface::SecureClient);
         AgentDiscoveryService_ = NApi::CreateDiscoveryService(Bootstrap_, EMasterInterface::Agent);
         NodeTrackerService_ = NNodes::CreateNodeTrackerService(Bootstrap_, Config_->NodeTracker);
 
@@ -255,10 +272,19 @@ private:
         }
 
         ClientGrpcServer_ = NYT::NRpc::NGrpc::CreateServer(Config_->ClientGrpcServer);
+        // COMPAT(babenko)
+        if (Config_->SecureClientGrpcServer) {
+            SecureClientGrpcServer_ = NYT::NRpc::NGrpc::CreateServer(Config_->SecureClientGrpcServer);
+        }
         ClientGrpcServer_->RegisterService(ObjectService_);
         ClientGrpcServer_->RegisterService(ClientDiscoveryService_);
-        // XXX(babenko)
+        // COMPAT(babenko)
         ClientGrpcServer_->RegisterService(NodeTrackerService_);
+        // COMPAT(babenko)
+        if (SecureClientGrpcServer_) {
+            SecureClientGrpcServer_->RegisterService(ObjectService_);
+            SecureClientGrpcServer_->RegisterService(SecureClientDiscoveryService_);
+        }
 
         AgentGrpcServer_ = NYT::NRpc::NGrpc::CreateServer(Config_->AgentGrpcServer);
         AgentGrpcServer_->RegisterService(NodeTrackerService_);
@@ -268,6 +294,10 @@ private:
 
         RpcClientHttpServer_->Start();
         ClientGrpcServer_->Start();
+        // COMPAT(babenko)
+        if (SecureClientGrpcServer_) {
+            SecureClientGrpcServer_->Start();
+        }
         AgentGrpcServer_->Start();
         HttpMonitoringServer_->Start();
         MonitoringManager_->Start();
@@ -339,6 +369,12 @@ const TString& TBootstrap::GetFqdn()
 const TString& TBootstrap::GetClientGrpcAddress()
 {
     return Impl_->GetClientGrpcAddress();
+}
+
+// COMPAT(babenko)
+const TString& TBootstrap::GetSecureClientGrpcAddress()
+{
+    return Impl_->GetSecureClientGrpcAddress();
 }
 
 const TString& TBootstrap::GetClientHttpAddress()

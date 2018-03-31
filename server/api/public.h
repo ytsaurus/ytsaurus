@@ -10,6 +10,8 @@ namespace NApi {
 
 DEFINE_ENUM(EMasterInterface,
     (Client)
+    // COMPAT(babenko)
+    (SecureClient)
     (Agent)
 );
 

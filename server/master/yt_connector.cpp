@@ -229,6 +229,8 @@ private:
             auto attributes = CreateEphemeralAttributes();
             attributes->Set("instance_tag", GetInstanceTag());
             attributes->Set("client_grpc_address", Bootstrap_->GetClientGrpcAddress());
+            // COMPAT(babenko)
+            attributes->Set("secure_client_grpc_address", Bootstrap_->GetSecureClientGrpcAddress());
             attributes->Set("client_http_address", Bootstrap_->GetClientHttpAddress());
             attributes->Set("agent_grpc_address", Bootstrap_->GetAgentGrpcAddress());
             options.Attributes = std::move(attributes);
@@ -496,6 +498,8 @@ private:
                 options.Attributes = std::vector<TString>{
                     "instance_tag",
                     "client_grpc_address",
+                    // COMPAT(babenko)
+                    "secure_client_grpc_address",
                     "client_http_address",
                     "agent_grpc_address",
                     "lock_count"
@@ -510,6 +514,8 @@ private:
                 TMasterDiscoveryInfo info;
                 info.Fqdn = child->GetValue<TString>();
                 info.ClientGrpcAddress = child->Attributes().Get<TString>("client_grpc_address");
+                // COMPAT(babenko)
+                info.SecureClientGrpcAddress = child->Attributes().Get<TString>("secure_client_grpc_address", "");
                 info.ClientHttpAddress = child->Attributes().Get<TString>("client_http_address");
                 info.AgentGrpcAddress = child->Attributes().Get<TString>("agent_grpc_address");
                 info.InstanceTag = child->Attributes().Get<TMasterInstanceTag>("instance_tag");

@@ -75,6 +75,8 @@ class TMasterConfig
 public:
     NHttp::TServerConfigPtr MonitoringServer;
     NYT::NRpc::NGrpc::TServerConfigPtr ClientGrpcServer;
+    // COMPAT(babenko)
+    NYT::NRpc::NGrpc::TServerConfigPtr SecureClientGrpcServer;
     NYT::NRpc::NGrpc::TServerConfigPtr AgentGrpcServer;
     NYT::NHttp::TServerConfigPtr ClientHttpServer;
     TYTConnectorConfigPtr YTConnector;
@@ -89,6 +91,9 @@ public:
     {
         RegisterParameter("monitoring_server", MonitoringServer);
         RegisterParameter("client_grpc_server", ClientGrpcServer);
+        // COMPAT(babenko)
+        RegisterParameter("secure_client_grpc_server", SecureClientGrpcServer)
+            .Optional();
         RegisterParameter("agent_grpc_server", AgentGrpcServer);
         RegisterParameter("client_http_server", ClientHttpServer);
         RegisterParameter("yt_connector", YTConnector);
@@ -103,6 +108,7 @@ public:
         RegisterParameter("scheduler", Scheduler)
             .DefaultNew();
         RegisterParameter("worker_thread_pool_size", WorkerThreadPoolSize)
+            .GreaterThan(0)
             .Default(8);
 
         RegisterPostprocessor([&] {

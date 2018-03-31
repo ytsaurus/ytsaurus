@@ -33,6 +33,9 @@ def main():
         name = "yandex-yp",
         version = version,
         packages = ["yp"] + recursive("yp/packages") + recursive("proto"),
+        package_data = {
+            "yandex-yp": ["yp/YandexInternalRootCA.crt"],
+        },
         scripts = scripts,
 
         install_requires = requires,
@@ -44,7 +47,9 @@ def main():
 
         long_description = "TODO",
 
-        data_files = data_files
+        data_files = data_files,
+
+        include_package_data=True,
     )
 
 if __name__ == "__main__":
