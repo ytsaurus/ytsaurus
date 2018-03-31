@@ -34,11 +34,15 @@ DEFINE_ENUM(ETypeCategory,
 class TTypeSet
 {
 public:
-    explicit TTypeSet(ui64 value = 0)
+    TTypeSet()
+        : Value_(0)
+    { }
+
+    explicit TTypeSet(ui64 value)
         : Value_(value)
     { }
 
-    explicit TTypeSet(std::initializer_list<EValueType> values)
+    TTypeSet(std::initializer_list<EValueType> values)
         : Value_(0)
     {
         Assign(values.begin(), values.end());
