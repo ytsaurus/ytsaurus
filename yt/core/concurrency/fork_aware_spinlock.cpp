@@ -16,43 +16,16 @@ static TReaderWriterSpinLock ForkLock;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TForkAwareSpinLock::TImpl
-{
-public:
-    void Acquire()
-    {
-        ForkLock.AcquireReader();
-        SpinLock_.Acquire();
-    }
-
-    void Release()
-    {
-        SpinLock_.Release();
-        ForkLock.ReleaseReader();
-    }
-
-private:
-    TSpinLock SpinLock_;
-
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-TForkAwareSpinLock::TForkAwareSpinLock()
-    : Impl_(new TImpl())
-{ }
-
-TForkAwareSpinLock::~TForkAwareSpinLock()
-{ }
-
 void TForkAwareSpinLock::Acquire()
 {
-    Impl_->Acquire();
+    ForkLock.AcquireReader();
+    SpinLock_.Acquire();
 }
 
 void TForkAwareSpinLock::Release()
 {
-    Impl_->Release();
+    SpinLock_.Release();
+    ForkLock.ReleaseReader();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -94,7 +67,6 @@ private:
     {
         ForkLock.ReleaseWriter();
     }
-
 };
 
 static TForkProtector ForkProtector;
