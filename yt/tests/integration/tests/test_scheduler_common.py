@@ -2683,7 +2683,6 @@ class TestPoolMetrics(YTEnvSetup):
         jobs_11 = ls("//sys/operations/{0}/jobs".format(op11.id))
         assert len(jobs_11) >= 2
 
-
     def test_time_metrics(self):
         create("map_node", "//sys/pools/parent")
         create("map_node", "//sys/pools/parent/child")
@@ -2715,7 +2714,7 @@ class TestPoolMetrics(YTEnvSetup):
         assert len(running_jobs) == 1
         abort_job(running_jobs[0])
 
-        # Wait metrics update.
+        # Wait for metrics update.
         wait(lambda: get_pool_metrics("time_completed")["child"] > 0)
 
         completed_metrics = get_pool_metrics("time_completed")
