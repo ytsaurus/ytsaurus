@@ -220,7 +220,7 @@ void TOperationControllerHost::OnOperationAborted(const TError& error)
         OperationId_,
         error
     });
-    LOG_DEBUG("Operation abort notification enqueued (OperationId: %v, Error: %v)",
+    LOG_DEBUG(error, "Operation abort notification enqueued (OperationId: %v)",
         OperationId_,
         error);
 }
@@ -232,9 +232,8 @@ void TOperationControllerHost::OnOperationFailed(const TError& error)
         OperationId_,
         error
     });
-    LOG_DEBUG("Operation failure notification enqueued (OperationId: %v, Error: %v)",
-        OperationId_,
-        error);
+    LOG_DEBUG(error, "Operation failure notification enqueued (OperationId: %v)",
+        OperationId_);
 }
 
 void TOperationControllerHost::OnOperationSuspended(const TError& error)
@@ -244,9 +243,8 @@ void TOperationControllerHost::OnOperationSuspended(const TError& error)
         OperationId_,
         error
     });
-    LOG_DEBUG("Operation suspension notification enqueued (OperationId: %v, Error: %v)",
-        OperationId_,
-        error);
+    LOG_DEBUG(error, "Operation suspension notification enqueued (OperationId: %v)",
+        OperationId_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
