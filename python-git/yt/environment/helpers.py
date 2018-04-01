@@ -19,8 +19,6 @@ import time
 
 logger = logging.getLogger("Yt.local")
 
-WEB_INTERFACE_RESOURCES_PATH = os.environ.get("YT_LOCAL_THOR_PATH", "/usr/share/yt-thor")
-
 class OpenPortIterator(Iterator):
     GEN_PORT_ATTEMPTS = 10
     START_PORT = 10000
