@@ -811,7 +811,9 @@ private:
                         LOG_DEBUG("Transaction has expired or was aborted (TransactionId: %v, CellId: %v)",
                             Id_,
                             cellId);
-                        auto error = TError("Transaction %v has expired or was aborted at cell %v",
+                        auto error = TError(
+                            NTransactionClient::EErrorCode::NoSuchTransaction,
+                            "Transaction %v has expired or was aborted at cell %v",
                             Id_,
                             cellId);
                         OnFailure(error);
