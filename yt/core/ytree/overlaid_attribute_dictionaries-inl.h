@@ -9,7 +9,7 @@ namespace NYTree {
 
 template <class T>
 template <class... Args>
-TOverlaidAttributeDictionaries<T>::TOverlaidAttributeDictionaries(
+TOverlaidAttributeDictionary<T>::TOverlaidAttributeDictionary(
     Args&&... underlyingDicts)
 {
     UnderlyingDictionaries_.reserve(sizeof...(underlyingDicts));
@@ -18,14 +18,14 @@ TOverlaidAttributeDictionaries<T>::TOverlaidAttributeDictionaries(
 
 template <class T>
 template <class U>
-void TOverlaidAttributeDictionaries<T>::PushBottom(U&& underlyingDict)
+void TOverlaidAttributeDictionary<T>::PushBottom(U&& underlyingDict)
 {
     UnderlyingDictionaries_.emplace_back(std::forward<U>(underlyingDict));
 }
 
 template <class T>
 template <class U, class... Args>
-void TOverlaidAttributeDictionaries<T>::PushBottom(
+void TOverlaidAttributeDictionary<T>::PushBottom(
     U&& underlyingDictsHead,
     Args&&... underlyingDictsTail)
 {
@@ -34,7 +34,7 @@ void TOverlaidAttributeDictionaries<T>::PushBottom(
 }
 
 template <class T>
-std::vector<TString> TOverlaidAttributeDictionaries<T>::List() const
+std::vector<TString> TOverlaidAttributeDictionary<T>::List() const
 {
     std::vector<TString> result;
     for (const auto& dict : UnderlyingDictionaries_) {
@@ -52,7 +52,7 @@ std::vector<TString> TOverlaidAttributeDictionaries<T>::List() const
 }
 
 template <class T>
-NYson::TYsonString TOverlaidAttributeDictionaries<T>::FindYson(const TString& key) const
+NYson::TYsonString TOverlaidAttributeDictionary<T>::FindYson(const TString& key) const
 {
     for (const auto& dict : UnderlyingDictionaries_) {
         auto maybeResult = dict ? dict->FindYson(key) : NYson::TYsonString();
@@ -65,7 +65,7 @@ NYson::TYsonString TOverlaidAttributeDictionaries<T>::FindYson(const TString& ke
 }
 
 template <class T>
-void TOverlaidAttributeDictionaries<T>::SetYson(const TString& key, const NYson::TYsonString& value)
+void TOverlaidAttributeDictionary<T>::SetYson(const TString& key, const NYson::TYsonString& value)
 {
     auto set = false;
     for (const auto& dict : UnderlyingDictionaries_) {
@@ -87,7 +87,7 @@ void TOverlaidAttributeDictionaries<T>::SetYson(const TString& key, const NYson:
 }
 
 template <class T>
-bool TOverlaidAttributeDictionaries<T>::Remove(const TString& key)
+bool TOverlaidAttributeDictionary<T>::Remove(const TString& key)
 {
     auto removed = false;
     for (const auto& dict : UnderlyingDictionaries_) {
@@ -103,7 +103,7 @@ bool TOverlaidAttributeDictionaries<T>::Remove(const TString& key)
 }
 
 template <class T>
-void TOverlaidAttributeDictionaries<T>::SetYson(
+void TOverlaidAttributeDictionary<T>::SetYson(
     IAttributeDictionary& dict,
     const TString& key,
     const NYson::TYsonString& value)
@@ -112,7 +112,7 @@ void TOverlaidAttributeDictionaries<T>::SetYson(
 }
 
 template <class T>
-void TOverlaidAttributeDictionaries<T>::SetYson(
+void TOverlaidAttributeDictionary<T>::SetYson(
     const IAttributeDictionary& dict,
     const TString& key,
     const NYson::TYsonString& value)
@@ -123,7 +123,7 @@ void TOverlaidAttributeDictionaries<T>::SetYson(
 }
 
 template <class T>
-bool TOverlaidAttributeDictionaries<T>::Remove(
+bool TOverlaidAttributeDictionary<T>::Remove(
     IAttributeDictionary& dict,
     const TString& key)
 {
@@ -131,7 +131,7 @@ bool TOverlaidAttributeDictionaries<T>::Remove(
 }
 
 template <class T>
-bool TOverlaidAttributeDictionaries<T>::Remove(
+bool TOverlaidAttributeDictionary<T>::Remove(
     const IAttributeDictionary& dict,
     const TString& key)
 {
@@ -141,12 +141,12 @@ bool TOverlaidAttributeDictionaries<T>::Remove(
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T, class... Args>
-TOverlaidAttributeDictionaries<typename std::remove_reference<T>::type>
+TOverlaidAttributeDictionary<typename std::remove_reference<T>::type>
 OverlayAttributeDictionaries(
     T&& topmostUnderlyingDict,
     Args&&... underlyingDicts)
 {
-    return TOverlaidAttributeDictionaries<typename std::remove_reference<T>::type>(
+    return TOverlaidAttributeDictionary<typename std::remove_reference<T>::type>(
         std::forward<T>(topmostUnderlyingDict),
         std::forward<Args>(underlyingDicts)...);
 }

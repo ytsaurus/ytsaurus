@@ -138,7 +138,7 @@ public:
         objectManager->FillAttributes(trunkNode, combinedAttributes);
     }
 
-    virtual bool IsSupportedInheritableAttribute(const TString& key) const
+    virtual bool IsSupportedInheritableAttribute(const TString& /*key*/) const
     {
         // NB: most node types don't inherit attributes. That would lead to
         // a lot of pseudo-user attributes.
