@@ -508,22 +508,28 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        auto* update = OperationNodesUpdateExecutor_->FindUpdate(operationId);
-        if (!update) {
-            return;
+        std::vector<TCreateJobNodeRequest> jobRequests;
+        std::vector<TLivePreviewRequest> livePreviewRequests;
+        TTransactionId livePreviewTransactionId;
+        {
+            auto* update = OperationNodesUpdateExecutor_->FindUpdate(operationId);
+            if (!update) {
+                return;
+            }
+            std::swap(jobRequests, update->JobRequests);
+            std::swap(livePreviewRequests, update->LivePreviewRequests);
+            livePreviewTransactionId = update->LivePreviewTransactionId;
         }
 
         LOG_DEBUG("Started updating operation node (OperationId: %v, JobRequestCount: %v, "
             "LivePreviewTransactionId: %v, LivePreviewRequestCount: %v)",
             operationId,
-            update->JobRequests.size(),
-            update->LivePreviewTransactionId,
-            update->LivePreviewRequests.size());
+            jobRequests.size(),
+            livePreviewTransactionId,
+            livePreviewRequests.size());
 
         std::vector<TCreateJobNodeRequest> successfulJobRequests;
         try {
-            std::vector<TCreateJobNodeRequest> jobRequests;
-            std::swap(jobRequests, update->JobRequests);
             successfulJobRequests = CreateJobNodes(operationId, jobRequests);
         } catch (const std::exception& ex) {
             LOG_WARNING(ex, "Error creating job nodes (OperationId: %v)",
@@ -571,9 +577,7 @@ private:
         }
 
         try {
-            std::vector<TLivePreviewRequest> livePreviewRequests;
-            std::swap(livePreviewRequests, update->LivePreviewRequests);
-            AttachLivePreviewChunks(operationId, update->LivePreviewTransactionId, livePreviewRequests);
+            AttachLivePreviewChunks(operationId, livePreviewTransactionId, livePreviewRequests);
         } catch (const std::exception& ex) {
             // NB: Don' treat this as a critical error.
             // Some of these chunks could go missing for a number of reasons.
