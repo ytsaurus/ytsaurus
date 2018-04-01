@@ -56,7 +56,7 @@ private:
     virtual bool DoInvoke(const NRpc::IServiceContextPtr& context) override
     {
         DISPATCH_YPATH_SERVICE_METHOD(CreateObject);
-        DISPATCH_YPATH_SERVICE_METHOD(GetClusterMeta);
+        DISPATCH_YPATH_HEAVY_SERVICE_METHOD(GetClusterMeta);
         return TBase::DoInvoke(context);
     }
 
