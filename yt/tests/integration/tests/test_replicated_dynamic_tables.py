@@ -359,8 +359,8 @@ class TestReplicatedDynamicTables(TestDynamicTablesBase):
         wait(lambda: get_in_sync_replicas("//tmp/t", keys, timestamp=timestamp) == [replica_id1])
 
         self.sync_enable_table_replica(replica_id2)
-        wait(lambda: set(get_in_sync_replicas("//tmp/t", keys, timestamp=timestamp)) == set([replica_id1, replica_id2]))
-        wait(lambda: set(get_in_sync_replicas("//tmp/t", [], timestamp=timestamp)) == set([replica_id1, replica_id2]))
+        wait(lambda: sorted(get_in_sync_replicas("//tmp/t", keys, timestamp=timestamp)) == sorted([replica_id1, replica_id2]))
+        wait(lambda: sorted(get_in_sync_replicas("//tmp/t", [], timestamp=timestamp)) == sorted([replica_id1, replica_id2]))
 
     def test_async_replication_sorted(self):
         self._create_cells()
