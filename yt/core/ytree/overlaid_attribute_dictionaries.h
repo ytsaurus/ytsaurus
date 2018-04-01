@@ -30,13 +30,13 @@ namespace NYTree {
  *  in the topmost underlying dictionary and removes it from everywhere else.
  */
 template <class T>
-class TOverlaidAttributeDictionaries
+class TOverlaidAttributeDictionary
     : public IAttributeDictionary
 {
 public:
     // Parameters go from topmost to bottommost (i.e. highest to lowest priority).
     template <class... Args>
-    explicit TOverlaidAttributeDictionaries(Args&&... underlyingDicts);
+    explicit TOverlaidAttributeDictionary(Args&&... underlyingDicts);
 
     template <class U, class... Args>
     void PushBottom(U&& topmostUnderlyingDict, Args&&... underlyingDicts);
@@ -64,7 +64,7 @@ private:
 
 // Type deduction helper. All arguments are expected to be of same time.
 template <class T, class... Args>
-TOverlaidAttributeDictionaries<typename std::remove_reference<T>::type> OverlayAttributeDictionaries(
+TOverlaidAttributeDictionary<typename std::remove_reference<T>::type> OverlayAttributeDictionaries(
     T&& topmostUnderlyingDict,
     Args&&... underlyingDicts);
 

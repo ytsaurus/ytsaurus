@@ -250,7 +250,7 @@ class TInheritedAttributeDictionary
     : public NYTree::IAttributeDictionary
 {
 public:
-    TInheritedAttributeDictionary(NCellMaster::TBootstrap* bootstrap);
+    explicit TInheritedAttributeDictionary(NCellMaster::TBootstrap* bootstrap);
 
     virtual std::vector<TString> List() const override;
     virtual NYson::TYsonString FindYson(const TString& key) const override;
