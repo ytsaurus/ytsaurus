@@ -494,6 +494,8 @@ private:
                 if (deadTransactionIds.find(transaction->GetId()) != deadTransactionIds.end()) {
                     locallyDeadTransactionIds.push_back(transaction->GetId());
                 }
+            }
+            if (!locallyDeadTransactionIds.empty()) {
                 controller->GetCancelableInvoker()->Invoke(BIND(
                     &IOperationController::OnTransactionsAborted,
                     controller,
