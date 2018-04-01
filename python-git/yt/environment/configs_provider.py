@@ -1,5 +1,5 @@
 from . import default_configs
-from .helpers import canonize_uuid, WEB_INTERFACE_RESOURCES_PATH
+from .helpers import canonize_uuid
 
 from yt.wrapper.common import MB, GB
 from yt.wrapper.mappings import VerifiedDict
@@ -161,7 +161,6 @@ class ConfigsProvider(object):
         driver_configs = self._build_driver_configs(provision, deepcopy(connection_configs),
                                                     master_cache_nodes=node_addresses)
         proxy_address = "{0}:{1}".format(provision["fqdn"], proxy_config["port"])
-        ui_config = self._build_ui_config(provision, deepcopy(connection_configs), proxy_address)
 
         rpc_proxy_config = None
         rpc_client_config = None
@@ -184,7 +183,6 @@ class ConfigsProvider(object):
             "controller_agent": controller_agent_configs,
             "node": node_configs,
             "proxy": proxy_config,
-            "ui": ui_config,
             "rpc_proxy": rpc_proxy_config,
             "rpc_client": rpc_client_config,
             "skynet_manager": skynet_manager_configs,
@@ -216,10 +214,6 @@ class ConfigsProvider(object):
 
     @abc.abstractmethod
     def _build_driver_configs(self, provision, master_connection_configs, master_cache_nodes):
-        pass
-
-    @abc.abstractmethod
-    def _build_ui_config(self, provision, master_connection_configs, proxy_address):
         pass
 
     @abc.abstractmethod
@@ -286,7 +280,6 @@ def _generate_common_proxy_config(proxy_dir, proxy_port, enable_debug_logging, f
     proxy_config = default_configs.get_proxy_config()
     proxy_config["port"] = proxy_port if proxy_port else next(ports_generator)
     proxy_config["fqdn"] = "{0}:{1}".format(fqdn, proxy_config["port"])
-    proxy_config["static"].append(["/ui", os.path.join(proxy_dir, "ui")])
 
     logging_config = get_at(proxy_config, "proxy/logging")
     set_at(proxy_config, "proxy/logging",
@@ -684,32 +677,6 @@ class ConfigsProvider_19_2(ConfigsProvider):
             configs.append(config)
 
         return configs
-
-    def _build_ui_config(self, provision, master_connection_configs, proxy_address):
-        address_blocks = []
-        # Primary masters cell index is 0
-        for cell_index in xrange(provision["master"]["secondary_cell_count"] + 1):
-            if cell_index == 0:
-                cell_tag = master_connection_configs["primary_cell_tag"]
-                cell_addresses = master_connection_configs[cell_tag]["addresses"]
-            else:
-                cell_tag = master_connection_configs["secondary_cell_tags"][cell_index - 1]
-                cell_addresses = master_connection_configs[cell_tag]["addresses"]
-            block = "{{ addresses: [ '{0}' ], cellTag: {1} }}"\
-                .format("', '".join(cell_addresses), int(cell_tag))
-            address_blocks.append(block)
-        masters = "primaryMaster: {0}".format(address_blocks[0])
-        if provision["master"]["secondary_cell_count"]:
-            masters += ", secondaryMasters: [ '{0}' ]".format("', '".join(address_blocks[1:]))
-
-        template_conf_path = os.path.join(WEB_INTERFACE_RESOURCES_PATH, "configs/localmode.js.tmpl")
-        if os.path.exists(template_conf_path):
-            return open(template_conf_path).read()\
-                .replace("%%proxy%%", "'{0}'".format(proxy_address))
-        else:
-            return default_configs.get_ui_config()\
-                .replace("%%proxy_address%%", "'{0}'".format(proxy_address))\
-                .replace("%%masters%%", masters)
 
 class ConfigsProvider_19_3(ConfigsProvider_19_2):
     def _build_master_configs(self, provision, master_dirs, master_tmpfs_dirs, ports_generator, master_logs_dir):

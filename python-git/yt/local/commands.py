@@ -174,15 +174,9 @@ def _initialize_world(client, environment, wait_tablet_cell_initialization,
     cluster_connection = environment.configs["driver"]
 
     proxy_address = None
-    ui_address = None
-    if "proxy" in environment.configs:
-        proxy_address = environment.configs["proxy"]["fqdn"]
-        ui_address = "http://{0}/ui/".format(proxy_address)
-
     initialize_world(
         client,
         proxy_address=proxy_address,
-        ui_address=ui_address,
         configure_pool_trees=False)
 
     tablet_cell_attributes = {
