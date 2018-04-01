@@ -710,19 +710,31 @@ class TestReplicatedDynamicTables(YTEnvSetup):
         sleep(1.0)
         assert get_lag_time() == 0
 
-    def test_expression_replication(self):
+    def _test_expression_replication(self, dynamic):
         self._create_cells()
         self._create_replicated_table("//tmp/t", schema=self.EXPRESSION_SCHEMA)
         replica_id = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r")
         self._create_replica_table("//tmp/r", replica_id, schema=self.EXPRESSION_SCHEMA)
 
-        self.sync_enable_table_replica(replica_id)
-
+        if dynamic:
+            self.sync_enable_table_replica(replica_id)
         insert_rows("//tmp/t", [{"key": 1, "value": 2}], require_sync_replica=False)
+        if not dynamic:
+            self.sync_unmount_table("//tmp/t")
+            self.sync_mount_table("//tmp/t")
+            self.sync_enable_table_replica(replica_id)
+
         sleep(1.0)
         assert select_rows("* from [//tmp/r]", driver=self.replica_driver) == [{"hash": 1, "key": 1, "value": 2}]
 
+        if not dynamic:
+            self.sync_disable_table_replica(replica_id)
         insert_rows("//tmp/t", [{"key": 12, "value": 12}], require_sync_replica=False)
+        if not dynamic:
+            self.sync_unmount_table("//tmp/t")
+            self.sync_mount_table("//tmp/t")
+            self.sync_enable_table_replica(replica_id)
+
         sleep(1.0)
         assert select_rows("* from [//tmp/r]", driver=self.replica_driver) == [
             {"hash": 1, "key": 1, "value": 2},
@@ -731,6 +743,12 @@ class TestReplicatedDynamicTables(YTEnvSetup):
         delete_rows("//tmp/t", [{"key": 1}], require_sync_replica=False)
         sleep(1.0)
         assert select_rows("* from [//tmp/r]", driver=self.replica_driver) == [{"hash": 2, "key": 12, "value": 12}]
+
+    def test_expression_replication_dynamic(self):
+        self._test_expression_replication(dynamic=True)
+
+    def test_expression_replication_chunk(self):
+        self._test_expression_replication(dynamic=False)
 
     def test_shard_replication(self):
         self._create_cells()
