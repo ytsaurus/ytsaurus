@@ -154,7 +154,7 @@ public:
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
-        return New<TFairShareTreeSnapshot>(this, RootElementSnapshot);
+        return New<TFairShareTreeSnapshot>(this, RootElementSnapshot, Logger);
     }
 
     TFuture<void> ValidateOperationStart(const IOperationStrategyHost* operation, const TString& poolId)
@@ -877,9 +877,10 @@ private:
         : public IFairShareTreeSnapshot
     {
     public:
-        TFairShareTreeSnapshot(TFairShareTreePtr tree, TRootElementSnapshotPtr rootElementSnapshot)
+        TFairShareTreeSnapshot(TFairShareTreePtr tree, TRootElementSnapshotPtr rootElementSnapshot, const NLogging::TLogger& logger)
             : Tree(std::move(tree))
             , RootElementSnapshot(std::move(rootElementSnapshot))
+            , Logger(logger)
             , NodesFilter(Tree->GetNodesFilter())
         { }
 
@@ -895,6 +896,8 @@ private:
 
         virtual void ProcessUpdatedJob(const TOperationId& operationId, const TJobId& jobId, const TJobResources& delta)
         {
+            // XXX(ignat): remove before deploy on production clusters.
+            LOG_DEBUG("Processing updated job (OperationId: %v, JobId: %v)", operationId, jobId);
             auto* operationElement = RootElementSnapshot->FindOperationElement(operationId);
             if (operationElement) {
                 operationElement->IncreaseJobResourceUsage(jobId, delta);
@@ -903,6 +906,8 @@ private:
 
         virtual void ProcessFinishedJob(const TOperationId& operationId, const TJobId& jobId) override
         {
+            // XXX(ignat): remove before deploy on production clusters.
+            LOG_DEBUG("Processing finished job (OperationId: %v, JobId: %v)", operationId, jobId);
             auto* operationElement = RootElementSnapshot->FindOperationElement(operationId);
             if (operationElement) {
                 operationElement->OnJobFinished(jobId);
@@ -931,6 +936,7 @@ private:
     private:
         const TIntrusivePtr<TFairShareTree> Tree;
         const TRootElementSnapshotPtr RootElementSnapshot;
+        const NLogging::TLogger Logger;
         const TSchedulingTagFilter NodesFilter;
     };
 
@@ -2564,6 +2570,8 @@ public:
         std::vector<TJobId>* jobsToAbort) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
+
+        LOG_DEBUG("Processing job updates to strategy");
 
         YCHECK(successfullyUpdatedJobs->empty());
         YCHECK(jobsToAbort->empty());

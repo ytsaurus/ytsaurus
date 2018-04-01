@@ -1637,12 +1637,16 @@ TJobResources TOperationElementSharedState::AddJob(const TJobId& jobId, const TJ
 
 void TOperationElement::Disable()
 {
+    LOG_DEBUG("Operation element disabled in strategy (OperationId: %v)", OperationId_);
+
     auto delta = SharedState_->Disable();
     IncreaseResourceUsage(-delta);
 }
 
 void TOperationElement::Enable()
 {
+    LOG_DEBUG("Operation element enabled in strategy (OperationId: %v)", OperationId_);
+
     return SharedState_->Enable();
 }
 
@@ -2168,6 +2172,9 @@ int TOperationElement::GetSlotIndex() const
 
 void TOperationElement::OnJobStarted(const TJobId& jobId, const TJobResources& resourceUsage, bool force)
 {
+    // XXX(ignat): remove before deploy on production clusters.
+    LOG_DEBUG("Adding job to strategy (JobId: %v)", jobId);
+
     auto delta = SharedState_->AddJob(jobId, resourceUsage, force);
     IncreaseResourceUsage(delta);
 
@@ -2176,6 +2183,9 @@ void TOperationElement::OnJobStarted(const TJobId& jobId, const TJobResources& r
 
 void TOperationElement::OnJobFinished(const TJobId& jobId)
 {
+    // XXX(ignat): remove before deploy on production clusters.
+    LOG_DEBUG("Removing job from strategy (JobId: %v)", jobId);
+
     auto delta = SharedState_->RemoveJob(jobId);
     IncreaseResourceUsage(-delta);
 
