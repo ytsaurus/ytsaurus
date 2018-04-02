@@ -115,6 +115,8 @@ public:
 
         using NYT::Persist;
 
+        Persist(context, Spec);
+
         Persist(context, CompletedPartitionCount);
         Persist(context, SortedMergeJobCounter);
         Persist(context, UnorderedMergeJobCounter);

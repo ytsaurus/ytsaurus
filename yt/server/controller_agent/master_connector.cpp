@@ -181,6 +181,13 @@ public:
             recursive));
     }
 
+    TFuture<void> UpdateConfig()
+    {
+        return BIND(&TImpl::ExecuteUpdateConfig, MakeStrong(this))
+            .AsyncVia(CancelableControlInvoker_)
+            .Run();
+    }
+
 private:
     TControllerAgentConfigPtr Config_;
     TControllerAgentConfigPtr InitialConfig_;
@@ -293,7 +300,7 @@ private:
         YCHECK(!UpdateConfigExecutor_);
         UpdateConfigExecutor_ = New<TPeriodicExecutor>(
             CancelableControlInvoker_,
-            BIND(&TImpl::UpdateConfig, MakeWeak(this)),
+            BIND(&TImpl::ExecuteUpdateConfig, MakeWeak(this)),
             Config_->ConfigUpdatePeriod,
             EPeriodicExecutorMode::Automatic);
         UpdateConfigExecutor_->Start();
@@ -1176,7 +1183,7 @@ private:
         }
     }
 
-    void UpdateConfig()
+    void ExecuteUpdateConfig()
     {
         LOG_INFO("Updating controller agent configuration");
 
@@ -1318,6 +1325,11 @@ TFuture<void> TMasterConnector::RemoveSnapshot(const TOperationId& operationId)
 void TMasterConnector::AddChunkTreesToUnstageList(std::vector<TChunkId> chunkTreeIds, bool recursive)
 {
     Impl_->AddChunkTreesToUnstageList(std::move(chunkTreeIds), recursive);
+}
+
+TFuture<void> TMasterConnector::UpdateConfig()
+{
+    return Impl_->UpdateConfig();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
