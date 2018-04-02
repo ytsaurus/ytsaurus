@@ -100,7 +100,7 @@ def patch_subclass(parent, skip_condition, reason=""):
 linux_only = pytest.mark.skipif('not sys.platform.startswith("linux")')
 unix_only = pytest.mark.skipif('not sys.platform.startswith("linux") and not sys.platform.startswith("darwin")')
 
-patch_porto_env_only = lambda parent: patch_subclass(parent, False, reason="you need configured porto to run it")
+patch_porto_env_only = lambda parent: patch_subclass(parent, not porto_avaliable(), reason="you need configured porto to run it")
 
 def skip_if_porto(func):
     def wrapped_func(self, *args, **kwargs):
