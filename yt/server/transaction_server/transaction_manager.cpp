@@ -802,6 +802,7 @@ private:
             // NB: Duplicates are fine; prerequisite transactions may be duplicated.
             prerequisiteTransaction->DependentTransactions().erase(transaction);
         }
+        transaction->PrerequisiteTransactions().clear();
 
         SmallVector<TTransaction*, 16> dependentTransactions(
             transaction->DependentTransactions().begin(),
