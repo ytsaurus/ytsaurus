@@ -517,6 +517,7 @@ class TestSchedulerRevive(YTEnvSetup):
         "scheduler": {
             "connect_retry_backoff_time": 100,
             "fair_share_update_period": 100,
+            "controller_agent_heartbeat_timeout": 2000,
             "testing_options": {
                 "finish_operation_transition_delay": 2000,
             },
@@ -754,3 +755,98 @@ class TestSchedulerRevive(YTEnvSetup):
         self.Env.start_schedulers()
 
         wait(lambda: exists(failed_jobs_path) and get(failed_jobs_path) >= 3)
+
+    def test_abort_operation_without_controller_agent(self):
+        self._create_table("//tmp/t_in")
+        self._create_table("//tmp/t_out")
+        write_table("//tmp/t_in", {"foo": "bar"})
+
+        op = map(
+            command="sleep 1000",
+            in_=["//tmp/t_in"],
+            out="//tmp/t_out",
+            dont_track=True)
+
+        self._wait_for_state(op, "running")
+
+        self.Env.kill_controller_agents()
+
+        op.abort()
+
+        self.Env.start_controller_agents()
+
+        self._wait_for_state(op, "aborted")
+
+    def test_complete_operation_without_controller_agent(self):
+        self._create_table("//tmp/t_in")
+        self._create_table("//tmp/t_out")
+        write_table("//tmp/t_in", {"foo": "bar"})
+
+        op = map(
+            command="sleep 1000",
+            in_=["//tmp/t_in"],
+            out="//tmp/t_out",
+            dont_track=True)
+        self._wait_for_state(op, "running")
+
+        self.Env.kill_controller_agents()
+
+        with pytest.raises(YtError):
+            op.complete()
+
+        self.Env.start_controller_agents()
+
+        self._wait_for_state(op, "running")
+        op.complete()
+        self._wait_for_state(op, "completed")
+
+    def test_complete_operation_on_controller_agent_connection(self):
+        self._create_table("//tmp/t_in")
+        self._create_table("//tmp/t_out")
+        write_table("//tmp/t_in", {"foo": "bar"})
+
+        op = map(
+            command="sleep 1000",
+            in_=["//tmp/t_in"],
+            out="//tmp/t_out",
+            spec={
+                "testing": {
+                    "delay_inside_revive": 10000,
+                }
+            },
+            dont_track=True)
+        self._wait_for_state(op, "running")
+
+        self.Env.kill_controller_agents()
+        self.Env.start_controller_agents()
+
+        with pytest.raises(YtError):
+            op.complete()
+
+        self._wait_for_state(op, "running")
+        op.complete()
+
+        self._wait_for_state(op, "completed")
+
+    def test_abort_operation_on_controller_agent_connection(self):
+        self._create_table("//tmp/t_in")
+        self._create_table("//tmp/t_out")
+        write_table("//tmp/t_in", {"foo": "bar"})
+
+        op = map(
+            command="sleep 1000",
+            in_=["//tmp/t_in"],
+            out="//tmp/t_out",
+            spec={
+                "testing": {
+                    "delay_inside_revive": 10000,
+                }
+            },
+            dont_track=True)
+        self._wait_for_state(op, "running")
+
+        self.Env.kill_controller_agents()
+        self.Env.start_controller_agents()
+
+        op.abort()
+        self._wait_for_state(op, "aborted")

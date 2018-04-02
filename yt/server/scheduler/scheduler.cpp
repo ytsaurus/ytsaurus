@@ -721,7 +721,11 @@ public:
             operation->GetState());
 
         const auto& controller = operation->GetController();
-        Y_UNUSED(controller->Complete());
+        auto completeError = WaitFor(controller->Complete());
+        if (!completeError.IsOK()) {
+            THROW_ERROR_EXCEPTION("Failed to complete operation %v", operation->GetId())
+                << completeError;
+        }
 
         return operation->GetFinished();
     }
