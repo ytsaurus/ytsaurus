@@ -579,14 +579,10 @@ class TFetcherConfig
     : public virtual NYTree::TYsonSerializable
 {
 public:
-    NRpc::TRetryingChannelConfigPtr NodeChannel;
-
     TDuration NodeRpcTimeout;
 
     TFetcherConfig()
     {
-        RegisterParameter("node_channel", NodeChannel)
-            .DefaultNew();
         RegisterParameter("node_rpc_timeout", NodeRpcTimeout)
             .Default(TDuration::Seconds(30));
     }
