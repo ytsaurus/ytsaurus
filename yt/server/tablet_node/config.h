@@ -113,6 +113,8 @@ public:
 
     bool MergeRowsOnFlush;
 
+    i64 MaxUnversionedBlockSize;
+
     TTableMountConfig()
     {
         RegisterParameter("tablet_cell_bundle", TabletCellBundle)
@@ -245,6 +247,9 @@ public:
 
         RegisterParameter("merge_rows_on_flush", MergeRowsOnFlush)
             .Default(false);
+
+        RegisterParameter("max_unversioned_block_size", MaxUnversionedBlockSize)
+            .Default(512_KB);
 
         RegisterPostprocessor([&] () {
             if (MaxDynamicStoreRowCount > MaxDynamicStoreValueCount) {

@@ -483,6 +483,9 @@ private:
         if (options.ParentId) {
             THROW_ERROR_EXCEPTION("Tablet transaction cannot have a parent");
         }
+        if (!options.PrerequisiteTransactionIds.empty()) {
+            THROW_ERROR_EXCEPTION("Tablet transaction cannot have prerequisites");
+        }
         if (options.Id) {
             auto type = TypeFromId(options.Id);
             if (type != EObjectType::AtomicTabletTransaction) {
@@ -571,6 +574,7 @@ private:
         if (options.ParentId) {
             ToProto(req->mutable_parent_id(), options.ParentId);
         }
+        ToProto(req->mutable_prerequisite_transaction_ids(), options.PrerequisiteTransactionIds);
         SetOrGenerateMutationId(req, options.MutationId, options.Retry);
 
         return req->Invoke().Apply(
@@ -807,7 +811,9 @@ private:
                         LOG_DEBUG("Transaction has expired or was aborted (TransactionId: %v, CellId: %v)",
                             Id_,
                             cellId);
-                        auto error = TError("Transaction %v has expired or was aborted at cell %v",
+                        auto error = TError(
+                            NTransactionClient::EErrorCode::NoSuchTransaction,
+                            "Transaction %v has expired or was aborted at cell %v",
                             Id_,
                             cellId);
                         OnFailure(error);

@@ -18,8 +18,10 @@
 #include <yt/core/misc/property.h>
 #include <yt/core/misc/ref.h>
 #include <yt/core/misc/crash_handler.h>
+#include <yt/core/misc/dense_map.h>
 
 #include <yt/core/concurrency/rw_spinlock.h>
+#include <yt/core/concurrency/delayed_executor.h>
 
 #include <yt/core/ytree/node.h>
 
@@ -61,6 +63,20 @@ struct TOperationRevivalDescriptor
     bool OperationCommitted = false;
     bool ShouldCommitOutputTransaction = false;
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TOperationAlert
+{
+    TError Error;
+    NConcurrency::TDelayedExecutorCookie ResetCookie;
+};
+
+using TOperationAlertMap = SmallDenseMap<
+    EOperationAlertType,
+    TOperationAlert,
+    2,
+    TEnumTraits<EOperationAlertType>::TDenseMapInfo>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -165,10 +181,6 @@ public:
     //! List of events that happened to operation.
     DEFINE_BYREF_RW_PROPERTY(std::vector<TOperationEvent>, Events);
 
-    //! List of operation alerts.
-    using TAlerts = TEnumIndexedVector<TError, EOperationAlertType>;
-    DEFINE_BYREF_RW_PROPERTY_FORCE_FLUSH(TAlerts, Alerts);
-
     DEFINE_BYVAL_RW_PROPERTY(IOperationControllerPtr, Controller);
 
     //! Operation result, becomes set when the operation finishes.
@@ -240,6 +252,10 @@ public:
     const std::vector<TString>& GetOwners() const;
     void SetOwners(std::vector<TString> owners);
 
+    NYson::TYsonString BuildAlertsString() const;
+    void SetAlert(EOperationAlertType alertType, const TError& error, TNullable<TDuration> timeout = Null);
+    void ResetAlert(EOperationAlertType alertType);
+
     //! Returns a cancelable control invoker corresponding to this operation.
     const IInvokerPtr& GetCancelableControlInvoker();
 
@@ -283,6 +299,8 @@ private:
     THashMap<TString, int> TreeIdToSlotIndex_;
 
     std::vector<TString> Owners_;
+
+    TOperationAlertMap Alerts_;
 
     TPromise<void> StartedPromise_ = NewPromise<void>();
     TPromise<void> FinishedPromise_ = NewPromise<void>();

@@ -172,14 +172,14 @@ public:
         IAttributeDictionary* inheritedAttributes = nullptr,
         IAttributeDictionary* explicitAttributes = nullptr) override
     {
-        ValidateCreatedNodeType(type);
-
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         const auto& handler = cypressManager->FindHandler(type);
         if (!handler) {
             THROW_ERROR_EXCEPTION("Unknown object type %Qlv",
                 type);
         }
+
+        ValidateCreatedNodeTypePermission(type);
 
         std::unique_ptr<IAttributeDictionary> explicitAttributeHolder;
         if (!explicitAttributes) {
@@ -191,7 +191,6 @@ public:
             inheritedAttributeHolder = CreateEphemeralAttributes();
             inheritedAttributes = inheritedAttributeHolder.get();
         }
-
 
         // TODO(babenko): this is a temporary workaround until dynamic tables become fully supported in
         // multicell mode
@@ -305,7 +304,7 @@ public:
         TCypressNodeBase* sourceNode,
         ENodeCloneMode mode) override
     {
-        ValidateCreatedNodeType(sourceNode->GetType());
+        ValidateCreatedNodeTypePermission(sourceNode->GetType());
 
         auto* clonedAccount = GetClonedNodeAccount(sourceNode);
         // Resource limit check must be suppressed when moving nodes
@@ -360,7 +359,7 @@ private:
     std::vector<TCypressNodeBase*> CreatedNodes_;
 
 
-    void ValidateCreatedNodeType(EObjectType type)
+    void ValidateCreatedNodeTypePermission(EObjectType type)
     {
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto* schema = objectManager->GetSchema(type);
@@ -2078,7 +2077,7 @@ private:
 
         auto* trunkNode = branchedNode->GetTrunkNode();
         auto branchedNodeId = branchedNode->GetVersionedId();
-        
+
         if (branchedNode->GetLockMode() != ELockMode::Snapshot) {
             auto* originatingNode = branchedNode->GetOriginator();
 
@@ -2129,7 +2128,7 @@ private:
 
         auto* trunkNode = branchedNode->GetTrunkNode();
         auto branchedNodeId = branchedNode->GetVersionedId();
-        
+
         // Drop the implicit reference to the originator.
         objectManager->UnrefObject(trunkNode);
 
@@ -2184,7 +2183,7 @@ private:
         if (factory->ShouldPreserveExpirationTime() && expirationTime) {
             SetExpirationTime(clonedNode, *expirationTime);
         }
-        
+
         // Copy creation time.
         if (factory->ShouldPreserveCreationTime()) {
             clonedNode->SetCreationTime(sourceNode->GetTrunkNode()->GetCreationTime());

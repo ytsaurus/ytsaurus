@@ -43,7 +43,8 @@ public:
         TControllerAgentConfigPtr config,
         TOperationIdToOperationMap operations,
         NApi::IClientPtr client,
-        IInvokerPtr ioInvoker);
+        IInvokerPtr ioInvoker,
+        const TIncarnationId& incarnationId);
 
     TFuture<void> Run();
 
@@ -53,6 +54,7 @@ private:
     const NApi::IClientPtr Client_;
     const IInvokerPtr IOInvoker_;
     const IInvokerPtr ControlInvoker_;
+    const TIncarnationId IncarnationId_;
 
     std::vector<TSnapshotJobPtr> Jobs_;
 

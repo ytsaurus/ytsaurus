@@ -333,6 +333,11 @@ public:
 
     bool EnableJobSplitting;
 
+    //! If set to true, erasure chunks are forcefully sliced into data parts,
+    //! and only then sliced by row indices. This should deal with locality issues,
+    //! but leads to an 12x memory consumption in controller at worst case scenario.
+    bool SliceErasureChunksByParts;
+
     TOperationSpecBase();
 
 private:

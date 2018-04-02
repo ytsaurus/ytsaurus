@@ -297,7 +297,7 @@ private:
             Config_->ConfigUpdatePeriod,
             EPeriodicExecutorMode::Automatic);
         UpdateConfigExecutor_->Start();
-        
+
         AlertsExecutor_ = New<TPeriodicExecutor>(
             CancelableControlInvoker_,
             BIND(&TImpl::UpdateAlerts, MakeWeak(this)),
@@ -371,6 +371,7 @@ private:
         {
             auto req = TCypressYPathProxy::Create(path);
             req->set_ignore_existing(true);
+            req->set_recursive(true);
             req->set_type(static_cast<int>(EObjectType::MapNode));
             GenerateMutationId(req);
             batchReq->AddRequest(req);
@@ -378,6 +379,7 @@ private:
         {
             auto req = TCypressYPathProxy::Create(path + "/orchid");
             req->set_ignore_existing(true);
+            req->set_recursive(true);
             req->set_type(static_cast<int>(EObjectType::Orchid));
             auto attributes = CreateEphemeralAttributes();
             attributes->Set("remote_addresses", Bootstrap_->GetLocalAddresses());
@@ -397,7 +399,12 @@ private:
         TObjectServiceProxy proxy(Bootstrap_
             ->GetMasterClient()
             ->GetMasterChannelOrThrow(channelKind, cellTag));
-        return proxy.ExecuteBatch();
+        auto batchReq = proxy.ExecuteBatch();
+
+        auto* prerequisitesExt = batchReq->Header().MutableExtension(NObjectClient::NProto::TPrerequisitesExt::prerequisites_ext);
+        ToProto(prerequisitesExt->add_transactions()->mutable_transaction_id(), Bootstrap_->GetControllerAgent()->GetIncarnationId());
+
+        return batchReq;
     }
 
     TChunkServiceProxy::TReqExecuteBatchPtr StartChunkBatchRequest(TCellTag cellTag = PrimaryMasterCellTag)
@@ -482,14 +489,17 @@ private:
         for (const auto& pair : controllerAgent->GetOperations()) {
             const auto& operation = pair.second;
             auto controller = operation->GetController();
+            std::vector<TTransactionId> locallyDeadTransactionIds;
             for (const auto& transaction : operation->GetTransactions()) {
                 if (deadTransactionIds.find(transaction->GetId()) != deadTransactionIds.end()) {
-                    controller->GetCancelableInvoker()->Invoke(BIND(
-                        &IOperationController::OnTransactionAborted,
-                        controller,
-                        transaction->GetId()));
-                    break;
+                    locallyDeadTransactionIds.push_back(transaction->GetId());
                 }
+            }
+            if (!locallyDeadTransactionIds.empty()) {
+                controller->GetCancelableInvoker()->Invoke(BIND(
+                    &IOperationController::OnTransactionsAborted,
+                    controller,
+                    locallyDeadTransactionIds));
             }
         }
     }
@@ -498,22 +508,28 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        auto* update = OperationNodesUpdateExecutor_->FindUpdate(operationId);
-        if (!update) {
-            return;
+        std::vector<TCreateJobNodeRequest> jobRequests;
+        std::vector<TLivePreviewRequest> livePreviewRequests;
+        TTransactionId livePreviewTransactionId;
+        {
+            auto* update = OperationNodesUpdateExecutor_->FindUpdate(operationId);
+            if (!update) {
+                return;
+            }
+            std::swap(jobRequests, update->JobRequests);
+            std::swap(livePreviewRequests, update->LivePreviewRequests);
+            livePreviewTransactionId = update->LivePreviewTransactionId;
         }
 
         LOG_DEBUG("Started updating operation node (OperationId: %v, JobRequestCount: %v, "
             "LivePreviewTransactionId: %v, LivePreviewRequestCount: %v)",
             operationId,
-            update->JobRequests.size(),
-            update->LivePreviewTransactionId,
-            update->LivePreviewRequests.size());
+            jobRequests.size(),
+            livePreviewTransactionId,
+            livePreviewRequests.size());
 
         std::vector<TCreateJobNodeRequest> successfulJobRequests;
         try {
-            std::vector<TCreateJobNodeRequest> jobRequests;
-            std::swap(jobRequests, update->JobRequests);
             successfulJobRequests = CreateJobNodes(operationId, jobRequests);
         } catch (const std::exception& ex) {
             LOG_WARNING(ex, "Error creating job nodes (OperationId: %v)",
@@ -561,9 +577,7 @@ private:
         }
 
         try {
-            std::vector<TLivePreviewRequest> livePreviewRequests;
-            std::swap(livePreviewRequests, update->LivePreviewRequests);
-            AttachLivePreviewChunks(operationId, update->LivePreviewTransactionId, livePreviewRequests);
+            AttachLivePreviewChunks(operationId, livePreviewTransactionId, livePreviewRequests);
         } catch (const std::exception& ex) {
             // NB: Don' treat this as a critical error.
             // Some of these chunks could go missing for a number of reasons.
@@ -649,6 +663,13 @@ private:
                 auto req = multisetReq->add_subrequests();
                 req->set_key("brief_progress");
                 req->set_value(briefProgress.GetData());
+            }
+
+            // Set controller agent address.
+            {
+                auto req = multisetReq->add_subrequests();
+                req->set_key("controller_agent_address");
+                req->set_value(ConvertToYsonString(GetDefaultAddress(Bootstrap_->GetLocalAddresses())).GetData());
             }
 
             batchReq->AddRequest(multisetReq, "update_op_node");
@@ -1033,7 +1054,8 @@ private:
             Config_,
             std::move(controllerMap),
             Bootstrap_->GetMasterClient(),
-            Bootstrap_->GetControllerAgent()->GetSnapshotIOInvoker());
+            Bootstrap_->GetControllerAgent()->GetSnapshotIOInvoker(),
+            Bootstrap_->GetControllerAgent()->GetIncarnationId());
 
         // NB: Result is logged in the builder.
         auto error = WaitFor(builder->Run());
@@ -1230,6 +1252,7 @@ private:
             ->GetMasterChannelOrThrow(EMasterChannelKind::Leader, PrimaryMasterCellTag));
         auto req = TYPathProxy::Set(GetInstancePath() + "/@alerts");
         req->set_value(ConvertToYsonString(alerts).GetData());
+        req->set_recursive(true);
 
         auto rspOrError = WaitFor(proxy.Execute(req));
         if (!rspOrError.IsOK()) {

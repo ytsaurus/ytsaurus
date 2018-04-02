@@ -56,6 +56,7 @@
     XX(DataWeight, data_weight) \
     XX(Decommissioned, decommissioned) \
     XX(DecommissionedNodeCount, decommissioned_node_count) \
+    XX(DependentTransactionIds, dependent_transaction_ids) \
     XX(DesiredTabletCount, desired_tablet_count) \
     XX(DesiredTabletSize, desired_tablet_size) \
     XX(DisableSchedulerJobs, disable_scheduler_jobs) \
@@ -97,7 +98,7 @@
     XX(InMemoryMode, in_memory_mode) \
     XX(Index, index) \
     XX(InheritAcl, inherit_acl) \
-    XX(IoWeights, io_weights) \
+    XX(IOWeights, io_weights) \
     XX(KeepFinished, keep_finished) \
     XX(Key, key) \
     XX(KeyColumns, key_columns) \
@@ -163,6 +164,7 @@
     XX(PivotKey, pivot_key) \
     XX(PivotKeys, pivot_keys) \
     XX(PrerequisiteTransactionId, prerequisite_transaction_id) \
+    XX(PrerequisiteTransactionIds, prerequisite_transaction_ids) \
     XX(PrimaryCellId, primary_cell_id) \
     XX(PrimaryCellTag, primary_cell_tag) \
     XX(PrimaryMedium, primary_medium) \

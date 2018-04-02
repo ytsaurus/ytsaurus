@@ -35,6 +35,8 @@ TStartTransactionCommand::TStartTransactionCommand()
         .Optional();
     RegisterParameter("ping_ancestor_transactions", Options.PingAncestors)
         .Optional();
+    RegisterParameter("prerequisite_transaction_ids", Options.PrerequisiteTransactionIds)
+        .Optional();
     RegisterParameter("atomicity", Options.Atomicity)
         .Optional();
     RegisterParameter("durability", Options.Durability)

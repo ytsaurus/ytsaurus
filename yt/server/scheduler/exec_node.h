@@ -23,6 +23,12 @@ namespace NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TRecentlyCompletedJobInfo
+{
+    TOperationId OperationId;
+    NProfiling::TCpuInstant EvictionDeadline;
+};
+
 //! Scheduler-side representation of an execution node.
 /*!
  *  Thread affinity: ControlThread (unless noted otherwise)
@@ -77,7 +83,10 @@ public:
 
     //! Ids of jobs that were completed recently and are yet to be saved to the snapshot.
     //! We remember them in order to not remove them as unknown jobs.
-    DEFINE_BYREF_RW_PROPERTY(THashSet<TJobId>, RecentlyCompletedJobIds);
+    //! We store an eviction deadline for every job id to make sure
+    //! that no job is stored infinitely.
+    using TRecentlyCompletedJobIdToInfo = THashMap<TJobId, TRecentlyCompletedJobInfo>;
+    DEFINE_BYREF_RW_PROPERTY(TRecentlyCompletedJobIdToInfo, RecentlyCompletedJobs);
 
     //! Jobs that are to be removed with a next heartbeat response.
     DEFINE_BYREF_RW_PROPERTY(std::vector<TJobId>, JobIdsToRemove);

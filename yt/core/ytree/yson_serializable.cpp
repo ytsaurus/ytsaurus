@@ -103,6 +103,7 @@ void TYsonSerializableLite::Load(
             const auto& key = pair.first;
             auto child = pair.second;
             if (registeredKeys.find(key) == registeredKeys.end()) {
+                Unrecognized->RemoveChild(key);
                 YCHECK(Unrecognized->AddChild(ConvertToNode(child), key));
             }
         }

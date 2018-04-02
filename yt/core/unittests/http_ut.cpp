@@ -834,9 +834,10 @@ TEST_F(THttpServerTest, RequestHangUp)
     auto conn = WaitFor(dialer->Dial(TNetworkAddress::CreateIPv6Loopback(TestPort)))
         .ValueOrThrow();
     WaitFor(conn->Write(TSharedRef::FromString("POST /validating HTTP/1.1\r\nTransfer-Encoding: chunked\r\n\r\n")));
-    WaitFor(conn->Close());
+    WaitFor(conn->CloseWrite());
 
-    WaitFor(conn->Read(TSharedMutableRef::Allocate(1)));
+    auto result = WaitFor(conn->Read(TSharedMutableRef::Allocate(1)));
+    ASSERT_EQ(0, result.ValueOrThrow());
 
     Server->Stop();
     Sleep(TDuration::MilliSeconds(10));

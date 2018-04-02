@@ -29,7 +29,7 @@
 
 #include <yt/core/rpc/retrying_channel.h>
 
-#include <yt/core/misc/nullable.h>
+#include <yt/core/net/local_address.h>
 
 #include <atomic>
 #include <deque>
@@ -41,6 +41,7 @@ using namespace NConcurrency;
 using namespace NNodeTrackerClient;
 using namespace NRpc;
 using namespace NApi;
+using namespace NNet;
 using namespace NObjectClient;
 
 // Don't use NChunkClient::NProto as a whole: avoid ambiguity with NProto::TSessionId.
@@ -69,8 +70,7 @@ struct TNode
     const int Index;
     const TNodeDescriptor Descriptor;
     const TChunkReplica ChunkReplica;
-    const IChannelPtr LightChannel;
-    const IChannelPtr HeavyChannel;
+    const IChannelPtr Channel;
 
     TError Error;
     TPeriodicExecutorPtr PingExecutor;
@@ -85,14 +85,12 @@ struct TNode
         int index,
         const TNodeDescriptor& descriptor,
         TChunkReplica chunkReplica,
-        IChannelPtr lightChannel,
-        IChannelPtr heavyChannel,
+        IChannelPtr channel,
         NLogging::TLogger logger)
         : Index(index)
         , Descriptor(descriptor)
         , ChunkReplica(chunkReplica)
-        , LightChannel(std::move(lightChannel))
-        , HeavyChannel(std::move(heavyChannel))
+        , Channel(std::move(channel))
         , Logger(logger)
     { }
 
@@ -106,7 +104,7 @@ struct TNode
         LOG_DEBUG("Sending ping (Address: %v)",
             Descriptor.GetDefaultAddress());
 
-        TDataNodeServiceProxy proxy(LightChannel);
+        TDataNodeServiceProxy proxy(Channel);
         auto req = proxy.PingSession();
         req->SetTimeout(rpcTimeout);
         ToProto(req->mutable_session_id(), sessionId);
@@ -630,7 +628,7 @@ private:
             blockIndex,
             node->Descriptor.GetDefaultAddress());
 
-        TDataNodeServiceProxy proxy(node->LightChannel);
+        TDataNodeServiceProxy proxy(node->Channel);
         auto req = proxy.FlushBlocks();
         req->SetTimeout(Config_->NodeRpcTimeout);
         ToProto(req->mutable_session_id(), SessionId_);
@@ -663,15 +661,14 @@ private:
         auto address = nodeDescriptor.GetAddressOrThrow(Networks_);
         LOG_DEBUG("Starting write session (Address: %v)", address);
 
-        auto lightChannel = Client_->GetChannelFactory()->CreateChannel(address);
-        auto heavyChannel = CreateRetryingChannel(
+        auto channel = CreateRetryingChannel(
             Config_->NodeChannel,
-            lightChannel,
+            Client_->GetChannelFactory()->CreateChannel(address),
             BIND([] (const TError& error) {
                 return error.FindMatching(NChunkClient::EErrorCode::WriteThrottlingActive).HasValue();
             }));
 
-        TDataNodeServiceProxy proxy(lightChannel);
+        TDataNodeServiceProxy proxy(channel);
         auto req = proxy.StartChunk();
         req->SetTimeout(Config_->NodeRpcTimeout);
         ToProto(req->mutable_session_id(), SessionId_);
@@ -692,8 +689,7 @@ private:
             Nodes_.size(),
             nodeDescriptor,
             target,
-            lightChannel,
-            heavyChannel,
+            channel,
             Logger);
 
         node->PingExecutor = New<TPeriodicExecutor>(
@@ -732,7 +728,7 @@ private:
         LOG_DEBUG("Finishing chunk (Address: %v)",
             node->Descriptor.GetDefaultAddress());
 
-        TDataNodeServiceProxy proxy(node->LightChannel);
+        TDataNodeServiceProxy proxy(node->Channel);
         auto req = proxy.FinishChunk();
         req->SetTimeout(Config_->NodeRpcTimeout);
         ToProto(req->mutable_session_id(), SessionId_);
@@ -797,7 +793,7 @@ private:
         node->PingExecutor->Stop();
 
         if (!node->IsFinished) {
-            TDataNodeServiceProxy proxy(node->LightChannel);
+            TDataNodeServiceProxy proxy(node->Channel);
             auto req = proxy.CancelChunk();
             ToProto(req->mutable_session_id(), SessionId_);
             req->Invoke();
@@ -921,15 +917,29 @@ void TGroup::PutGroup(TReplicationWriterPtr writer)
 {
     VERIFY_THREAD_AFFINITY(writer->WriterThread);
 
-    int nodeIndex = 0;
-    while (!writer->Nodes_[nodeIndex]->IsAlive()) {
-        ++nodeIndex;
-        YCHECK(nodeIndex < writer->Nodes_.size());
+    TNullable<int> selectedIndex;
+    for (int index = 0; index < writer->Nodes_.size(); ++index) {
+        const auto& node = writer->Nodes_[index];
+
+        if (!node->IsAlive()) {
+            continue;
+        }
+
+        if (!selectedIndex) {
+            selectedIndex = index;
+        }
+
+        if (node->Descriptor.GetDefaultAddress() == GetLocalHostName()) {
+            // If we are on the same host - this is always the best candidate.
+            selectedIndex = index;
+            break;
+        }
     }
 
-    auto node = writer->Nodes_[nodeIndex];
+    YCHECK(selectedIndex);
+    auto node = writer->Nodes_[*selectedIndex];
 
-    TDataNodeServiceProxy proxy(node->HeavyChannel);
+    TDataNodeServiceProxy proxy(node->Channel);
     auto req = proxy.PutBlocks();
     req->SetMultiplexingBand(EMultiplexingBand::Heavy);
     req->SetTimeout(writer->Config_->NodeRpcTimeout);
@@ -989,7 +999,7 @@ void TGroup::SendGroup(TReplicationWriterPtr writer, TNodePtr srcNode)
             srcNode->Descriptor.GetDefaultAddress(),
             dstNode->Descriptor.GetDefaultAddress());
 
-        TDataNodeServiceProxy proxy(srcNode->LightChannel);
+        TDataNodeServiceProxy proxy(srcNode->Channel);
         auto req = proxy.SendBlocks();
         // Set double timeout for SendBlocks since executing it implies another (src->dst) RPC call.
         req->SetTimeout(writer->Config_->NodeRpcTimeout * 2);

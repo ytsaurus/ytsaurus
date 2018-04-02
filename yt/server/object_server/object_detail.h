@@ -127,7 +127,6 @@ protected:
         NYTree::EPermission permission);
 
     bool IsRecovery() const;
-    bool IsMutating() const;
     bool IsLeader() const;
     bool IsFollower() const;
     void RequireLeader() const;

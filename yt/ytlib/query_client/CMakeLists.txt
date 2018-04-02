@@ -35,6 +35,7 @@ udf_bc_header(
 udf_bc_header( ${CMAKE_CURRENT_LIST_DIR}/udf/avg.c YT_SOURCE_FILES )
 udf_bc_header( ${CMAKE_CURRENT_LIST_DIR}/udf/concat.c YT_SOURCE_FILES )
 udf_bc_header( ${CMAKE_CURRENT_LIST_DIR}/udf/first.c YT_SOURCE_FILES )
+udf_bc_header( ${CMAKE_CURRENT_LIST_DIR}/udf/format_guid.c YT_SOURCE_FILES )
 udf_bc_header( ${CMAKE_CURRENT_LIST_DIR}/udf/is_prefix.c YT_SOURCE_FILES )
 udf_bc_header( ${CMAKE_CURRENT_LIST_DIR}/udf/is_substr.c YT_SOURCE_FILES )
 udf_bc_header( ${CMAKE_CURRENT_LIST_DIR}/udf/max.c YT_SOURCE_FILES )

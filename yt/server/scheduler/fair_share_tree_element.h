@@ -283,7 +283,8 @@ protected:
     void SetOperationAlert(
         const TOperationId& operationId,
         EOperationAlertType alertType,
-        const TError& alert);
+        const TError& alert,
+        TNullable<TDuration> timeout);
 
 private:
     void UpdateAttributes();
@@ -358,6 +359,7 @@ public:
 
     void AddChild(const TSchedulerElementPtr& child, bool enabled = true);
     void EnableChild(const TSchedulerElementPtr& child);
+    void DisableChild(const TSchedulerElementPtr& child);
     void RemoveChild(const TSchedulerElementPtr& child);
 
     bool IsEmpty() const;
@@ -535,10 +537,11 @@ public:
     int GetPreemptableJobCount() const;
     int GetAggressivelyPreemptableJobCount() const;
 
-    TJobResources AddJob(const TJobId& jobId, const TJobResources& resourceUsage);
+    TJobResources AddJob(const TJobId& jobId, const TJobResources& resourceUsage, bool force);
     TJobResources RemoveJob(const TJobId& jobId);
 
-    TJobResources Finalize();
+    TJobResources Disable();
+    void Enable();
 
 private:
     template <typename T>
@@ -607,6 +610,12 @@ private:
             return Size_ == 0;
         }
 
+        void clear()
+        {
+            Impl_.clear();
+            Size_ = 0;
+        }
+
     private:
         std::list<T> Impl_;
         size_t Size_ = 0;
@@ -651,7 +660,7 @@ private:
     THashMap<TJobId, TJobProperties> JobPropertiesMap_;
     NConcurrency::TReaderWriterSpinLock JobPropertiesMapLock_;
 
-    bool Finalized_ = false;
+    bool Enabled_ = false;
 
     void IncreaseJobResourceUsage(TJobProperties* properties, const TJobResources& resourcesDelta);
 
@@ -732,14 +741,15 @@ public:
 
     int GetSlotIndex() const;
 
-    void OnJobStarted(const TJobId& jobId, const TJobResources& resourceUsage);
+    void OnJobStarted(const TJobId& jobId, const TJobResources& resourceUsage, bool force = false);
     void OnJobFinished(const TJobId& jobId);
 
     virtual void BuildOperationToElementMapping(TOperationElementByIdMap* operationElementByIdMap) override;
 
     virtual TSchedulerElementPtr Clone(TCompositeSchedulerElement* clonedParent) override;
 
-    TJobResources Finalize();
+    void Disable();
+    void Enable();
 
     DEFINE_BYVAL_RW_PROPERTY(TOperationFairShareStrategyTreeOptionsPtr, RuntimeParams);
 

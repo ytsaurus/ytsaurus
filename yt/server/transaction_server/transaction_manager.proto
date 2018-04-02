@@ -8,11 +8,14 @@ import "yt/core/ytree/proto/attributes.proto";
 message TReqStartTransaction
 {
     optional NYT.NYTree.NProto.TAttributeDictionary attributes = 1;
+    optional string title = 6;
+
     optional NYT.NProto.TGuid hint_id = 2;
     optional NYT.NProto.TGuid parent_id = 3;
+    repeated NYT.NProto.TGuid prerequisite_transaction_ids = 8;
+
     required int64 timeout = 4;
     required string user_name = 5;
-    optional string title = 6;
     optional bool system = 7;
 }
 

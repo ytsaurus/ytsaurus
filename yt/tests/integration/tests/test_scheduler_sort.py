@@ -43,6 +43,28 @@ class TestSchedulerSortCommands(YTEnvSetup):
         assert get("//tmp/t_out/@sorted") ==  True
         assert get("//tmp/t_out/@sorted_by") ==  ["key"]
 
+    def test_sort_with_sampling(self):
+        create("table", "//tmp/t_in")
+
+        n = 1003
+        write_table("//tmp/t_in", [{"a": (42 * x) % n} for x in range(n)])
+
+        create("table", "//tmp/t_out")
+
+        op = sort(in_="//tmp/t_in",
+                  out="//tmp/t_out",
+                  sort_by="a",
+                  spec={
+                      "partition_job_io": {"table_reader": {"sampling_rate": 0.5}},
+                      "partition_count": 10,
+                  })
+
+        print get("//sys/operations/{0}/@unrecognized_spec".format(op.id))
+
+        result = read_table("//tmp/t_out")
+
+        assert n * 0.5 - 100 <= len(result) <= n * 0.5 + 100
+
     def test_simple_read_limits(self):
         v1 = {"key" : "aaa", "value" : "2"}
         v2 = {"key" : "bb", "value" : "5"}

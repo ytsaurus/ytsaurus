@@ -129,13 +129,13 @@ TSchedulerSimulatorConfigPtr LoadConfig(const char* configFilename)
     return config;
 }
 
-INodePtr LoadPools(const TString& poolsFilename)
+INodePtr LoadPoolTrees(const TString& poolTreesFilename)
 {
     try {
-        TIFStream configStream(poolsFilename);
+        TIFStream configStream(poolTreesFilename);
         return ConvertToNode(&configStream);
     } catch (const std::exception& ex) {
-        THROW_ERROR_EXCEPTION("Error reading pools configuration") << ex;
+        THROW_ERROR_EXCEPTION("Error reading pool trees ") << ex;
     }
 }
 
@@ -274,7 +274,7 @@ void DoRun(const char* configFilename)
     TSchedulerStrategyHost strategyHost(execNodes, &eventLogFile);
 
     auto fairShareStrategy = CreateFairShareStrategy(config->SchedulerConfig, &strategyHost, {GetCurrentInvoker()});
-    fairShareStrategy->UpdatePools(LoadPools(config->PoolsFilename));
+    fairShareStrategy->UpdatePoolTrees(LoadPoolTrees(config->PoolTreesFilename));
 
     LOG_WARNING("Simulating");
 
