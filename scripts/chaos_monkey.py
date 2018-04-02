@@ -27,6 +27,10 @@ def restart_scheduler(address):
 	print "*** Restarting {0}".format(address)
 	call(["ssh", address, "sudo sv restart yt_scheduler"])
 
+def restart_controller_agent(address):
+	print "*** Restarting {0}".format(address)
+	call(["ssh", address, "sudo sv restart yt_controller_agent"])
+
 def get_addresses(cluster, role):
     output = check_output(["curl", "-qs", "http://c.yandex-team.ru/api/groups2hosts/yt_{0}_{1}".format(cluster, role)])
     return output.strip().split()
@@ -35,6 +39,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Randomly restart nodes and possibly schedulers.")
     parser.add_argument("--restart-nodes", action="store_true", default=False, help="Restart nodes")
     parser.add_argument("--restart-schedulers", action="store_true", default=False, help="Restart schedulers")
+    parser.add_argument("--restart-controller-agents", action="store_true", default=False, help="Restart controller agents")
     parser.add_argument("--sleep-time", type=float, default=2, help="Sleep time in seconds (float)")
     parser.add_argument("cluster", type=str, help="Lowercase cluster name")
 
@@ -47,10 +52,18 @@ if __name__ == "__main__":
     up_nodes = set(get_addresses(cluster, "nodes") + get_addresses(cluster, "data_proxy"))
     down_nodes = set()
     schedulers = set(get_addresses(cluster, "schedulers"))
+    #controller_agents = set(get_addresses(cluster, "controller_agents"))
+    controller_agents = schedulers
 
     print datetime.datetime.now().isoformat()
     while True:
-        mode = randint(0, 60) // 20
+        r = randint(0, 16)
+        if r < 15:
+            mode = r // 5
+        elif r == 15:
+            mode = 3
+        else:
+            mode = 4
         if mode == 0:
             if not restart_nodes:
                 continue
@@ -82,6 +95,11 @@ if __name__ == "__main__":
                 continue
             scheduler = choice(list(schedulers))
             restart_scheduler(scheduler)
+        elif mode == 4:
+            if not restart_controller_agent:
+                continue
+            controller_agent = choice(list(controller_agents))
+            restart_controller_agent(controller_agent)
 
         sleep(sleep_time * (0.75 + 0.5 * random()))
         print datetime.datetime.now().isoformat()
