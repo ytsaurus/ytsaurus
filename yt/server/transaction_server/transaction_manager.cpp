@@ -809,6 +809,12 @@ private:
             transaction->DependentTransactions().end());
         std::sort(dependentTransactions.begin(), dependentTransactions.end(), TObjectRefComparer::Compare);
         for (auto* dependentTransaction : dependentTransactions) {
+            if (!IsObjectAlive(dependentTransaction)) {
+                continue;
+            }
+            if (dependentTransaction->GetPersistentState() != ETransactionState::Active) {
+                continue;
+            }
             LOG_DEBUG("Aborting dependent transaction (DependentTransactionId: %v, PrerequisiteTransactionId: %v)",
                 dependentTransaction->GetId(),
                 transaction->GetId());
