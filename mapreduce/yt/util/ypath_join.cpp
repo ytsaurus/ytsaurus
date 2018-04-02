@@ -6,7 +6,7 @@ namespace NYT {
 
 namespace {
 
-constexpr TStringBuf SLASH = STRINGBUF("/");
+constexpr TStringBuf SLASH = AsStringBuf("/");
 
 bool EndsWithSlash(const TYPath& path)
 {

@@ -105,7 +105,7 @@ public:
         for (const auto& child : node.AsMap()) {
             const auto& key = child.first;
             const auto& value = child.second;
-            if (key == STRINGBUF("$")) {
+            if (key == AsStringBuf("$")) {
                 ParseNode(value, &(*output)[curPath]);
             } else {
                 TString childPath = curPath;

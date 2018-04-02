@@ -92,7 +92,7 @@ static void StopAndDumpProfile(TData& d) {
         if (__llvm_profile_write_file()) {
             return;
         }
-        const auto profileFileName = TString{STRINGBUF("default.profraw")};
+        const auto profileFileName = TString{AsStringBuf("default.profraw")};
         if (NFs::Exists(profileFileName)) {
             profileToUpload = TFileInput{profileFileName}.ReadAll();
             NFs::Remove(profileFileName);
