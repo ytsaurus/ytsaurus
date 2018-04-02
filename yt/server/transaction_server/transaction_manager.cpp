@@ -672,7 +672,7 @@ private:
         std::vector<TTransaction*> prerequisiteTransactions;
         for (const auto& id : prerequisiteTransactionIds) {
             auto* prerequisiteTransaction = FindTransaction(id);
-            if (!prerequisiteTransaction) {
+            if (!IsObjectAlive(prerequisiteTransaction)) {
                 THROW_ERROR_EXCEPTION(NObjectClient::EErrorCode::PrerequisiteCheckFailed,
                     "Prerequisite check failed: transaction %v is missing",
                     id);
