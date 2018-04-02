@@ -116,9 +116,9 @@ size_t FloatToStringWithNanInf(double value, char* buf, size_t size)
         return FloatToString(value, buf, size);
     }
 
-    static const auto nanLiteral = STRINGBUF("%nan");
-    static const auto infLiteral = STRINGBUF("%inf");
-    static const auto negativeInfLiteral = STRINGBUF("%-inf");
+    static const auto nanLiteral = AsStringBuf("%nan");
+    static const auto infLiteral = AsStringBuf("%inf");
+    static const auto negativeInfLiteral = AsStringBuf("%-inf");
 
     TStringBuf str;
     if (std::isnan(value)) {
@@ -263,14 +263,14 @@ void TYsonWriter::OnDoubleScalar(double value)
 void TYsonWriter::OnBooleanScalar(bool value)
 {
     if (BooleanAsString_) {
-        OnStringScalar(value ? STRINGBUF("true") : STRINGBUF("false"));
+        OnStringScalar(value ? AsStringBuf("true") : AsStringBuf("false"));
         return;
     }
 
     if (Format_ == EYsonFormat::Binary) {
         Stream_->Write(value ? NDetail::TrueMarker : NDetail::FalseMarker);
     } else {
-        Stream_->Write(value ? STRINGBUF("%true") : STRINGBUF("%false"));
+        Stream_->Write(value ? AsStringBuf("%true") : AsStringBuf("%false"));
     }
     EndNode();
 }
@@ -472,7 +472,7 @@ void TBufferedBinaryYsonWriter::OnDoubleScalar(double value)
 void TBufferedBinaryYsonWriter::OnBooleanScalar(bool value)
 {
     if (Y_UNLIKELY(BooleanAsString_)) {
-        OnStringScalar(value ? STRINGBUF("true") : STRINGBUF("false"));
+        OnStringScalar(value ? AsStringBuf("true") : AsStringBuf("false"));
     } else {
         EnsureSpace(2);
         *BufferCursor_++ = (value ? NDetail::TrueMarker : NDetail::FalseMarker);

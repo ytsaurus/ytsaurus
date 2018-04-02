@@ -904,55 +904,55 @@ private:
             const auto* field = FieldStack_.back().Field;
             switch (field->GetType()) {
                 case FieldDescriptor::TYPE_INT32: {
-                    auto i32Value = CheckedCast<i32>(value, STRINGBUF("i32"));
+                    auto i32Value = CheckedCast<i32>(value, AsStringBuf("i32"));
                     BodyCodedStream_.WriteVarint32SignExtended(i32Value);
                     break;
                 }
 
                 case FieldDescriptor::TYPE_INT64: {
-                    auto i64Value = CheckedCast<i64>(value, STRINGBUF("i64"));
+                    auto i64Value = CheckedCast<i64>(value, AsStringBuf("i64"));
                     BodyCodedStream_.WriteVarint64(static_cast<ui64>(i64Value));
                     break;
                 }
 
                 case FieldDescriptor::TYPE_SINT32: {
-                    auto i32Value = CheckedCast<i32>(value, STRINGBUF("i32"));
+                    auto i32Value = CheckedCast<i32>(value, AsStringBuf("i32"));
                     BodyCodedStream_.WriteVarint64(ZigZagEncode64(i32Value));
                     break;
                 }
 
                 case FieldDescriptor::TYPE_SINT64: {
-                    auto i64Value = CheckedCast<i64>(value, STRINGBUF("i64"));
+                    auto i64Value = CheckedCast<i64>(value, AsStringBuf("i64"));
                     BodyCodedStream_.WriteVarint64(ZigZagEncode64(i64Value));
                     break;
                 }
 
                 case FieldDescriptor::TYPE_UINT32: {
-                    auto ui32Value = CheckedCast<ui32>(value, STRINGBUF("ui32"));
+                    auto ui32Value = CheckedCast<ui32>(value, AsStringBuf("ui32"));
                     BodyCodedStream_.WriteVarint32(ui32Value);
                     break;
                 }
 
                 case FieldDescriptor::TYPE_UINT64: {
-                    auto ui64Value = CheckedCast<ui64>(value, STRINGBUF("ui64"));
+                    auto ui64Value = CheckedCast<ui64>(value, AsStringBuf("ui64"));
                     BodyCodedStream_.WriteVarint64(ui64Value);
                     break;
                 }
 
                 case FieldDescriptor::TYPE_FIXED32: {
-                    auto ui32Value = CheckedCast<ui32>(value, STRINGBUF("ui32"));
+                    auto ui32Value = CheckedCast<ui32>(value, AsStringBuf("ui32"));
                     BodyCodedStream_.WriteRaw(&ui32Value, sizeof(ui32Value));
                     break;
                 }
 
                 case FieldDescriptor::TYPE_FIXED64: {
-                    auto ui64Value = CheckedCast<ui64>(value, STRINGBUF("ui64"));
+                    auto ui64Value = CheckedCast<ui64>(value, AsStringBuf("ui64"));
                     BodyCodedStream_.WriteRaw(&ui64Value, sizeof(ui64Value));
                     break;
                 }
 
                 case FieldDescriptor::TYPE_ENUM: {
-                    auto i32Value = CheckedCast<i32>(value, STRINGBUF("i32"));
+                    auto i32Value = CheckedCast<i32>(value, AsStringBuf("i32"));
                     const auto* enumType = field->GetEnumType();
                     auto literal = enumType->FindLiteralByValue(i32Value);
                     if (!literal) {
