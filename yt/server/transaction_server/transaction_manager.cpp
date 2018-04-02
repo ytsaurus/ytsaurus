@@ -677,7 +677,7 @@ private:
                     "Prerequisite check failed: transaction %v is missing",
                     id);
             }
-            if (prerequisiteTransaction->GetState() != ETransactionState::Active) {
+            if (prerequisiteTransaction->GetPersistentState() != ETransactionState::Active) {
                 THROW_ERROR_EXCEPTION(NObjectClient::EErrorCode::PrerequisiteCheckFailed,
                     "Prerequisite check failed: transaction %v is in %Qlv state",
                     id,
