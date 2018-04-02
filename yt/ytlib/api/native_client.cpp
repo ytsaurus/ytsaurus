@@ -4663,6 +4663,11 @@ private:
             }
         }
 
+        // TODO(ignat): add 'fail_context_size' to archive.
+        if (options.WithFailContext && *options.WithFailContext) {
+            itemsQueryBuilder.AddWhereExpression("false");
+        }
+
         if (options.Address) {
             itemsQueryBuilder.AddWhereExpression(Format("address = %Qv", *options.Address));
         }
@@ -5025,6 +5030,10 @@ private:
                     if (!(*options.WithStderr) && stderrSize > 0) {
                         continue;
                     }
+                }
+
+                if (options.WithFailContext && *options.WithFailContext) {
+                    continue;
                 }
 
                 jobs.emplace_back();
