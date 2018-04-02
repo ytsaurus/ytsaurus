@@ -182,7 +182,7 @@ TString ToString(TVersionedRow row)
     builder.AppendChar('[');
     for (int index = 0; index < row.GetKeyCount(); ++index) {
         if (index > 0) {
-            builder.AppendString(STRINGBUF(","));
+            builder.AppendString(AsStringBuf(","));
         }
         const auto& value = row.BeginKeys()[index];
         builder.AppendFormat("%v", value);
@@ -190,7 +190,7 @@ TString ToString(TVersionedRow row)
     builder.AppendChar('|');
     for (int index = 0; index < row.GetValueCount(); ++index) {
         if (index > 0) {
-            builder.AppendString(STRINGBUF(","));
+            builder.AppendString(AsStringBuf(","));
         }
         const auto& value = row.BeginValues()[index];
         builder.AppendFormat("%v", value);
@@ -198,14 +198,14 @@ TString ToString(TVersionedRow row)
     builder.AppendChar('|');
     for (int index = 0; index < row.GetWriteTimestampCount(); ++index) {
         if (index > 0) {
-            builder.AppendString(STRINGBUF(","));
+            builder.AppendString(AsStringBuf(","));
         }
         builder.AppendFormat("%llx", row.BeginWriteTimestamps()[index]);
     }
     builder.AppendChar('|');
     for (int index = 0; index < row.GetDeleteTimestampCount(); ++index) {
         if (index > 0) {
-            builder.AppendString(STRINGBUF(","));
+            builder.AppendString(AsStringBuf(","));
         }
         builder.AppendFormat("%llx", row.BeginDeleteTimestamps()[index]);
     }

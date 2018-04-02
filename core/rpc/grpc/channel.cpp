@@ -224,7 +224,7 @@ private:
             LOG_DEBUG("Request canceled (RequestId: %v)", Request_->GetRequestId());
 
             NotifyError(
-                STRINGBUF("Request canceled"),
+                AsStringBuf("Request canceled"),
                 TError(NYT::EErrorCode::Canceled, "Request canceled"));
         }
 
@@ -267,7 +267,7 @@ private:
         {
             if (!success) {
                 NotifyError(
-                    STRINGBUF("Failed to send request"),
+                    AsStringBuf("Failed to send request"),
                     TError(NRpc::EErrorCode::TransportError, "Failed to send request"));
                 Unref();
                 return;
@@ -294,7 +294,7 @@ private:
         {
             if (!success) {
                 NotifyError(
-                    STRINGBUF("Failed to receive initial response metadata"),
+                    AsStringBuf("Failed to receive initial response metadata"),
                     TError(NRpc::EErrorCode::TransportError, "Failed to receive initial response metadata"));
                 Unref();
                 return;
@@ -327,7 +327,7 @@ private:
         {
             if (!success) {
                 NotifyError(
-                    STRINGBUF("Failed to receive response"),
+                    AsStringBuf("Failed to receive response"),
                     TError(NRpc::EErrorCode::TransportError, "Failed to receive response"));
                 Unref();
                 return;
@@ -348,7 +348,7 @@ private:
                     NotifyResponse(std::move(responseMessage));
                 } else {
                     auto error = TError(NRpc::EErrorCode::ProtocolError, "Empty response body");
-                    NotifyError(STRINGBUF("Request failed"), error);
+                    NotifyError(AsStringBuf("Request failed"), error);
                 }
             } else {
                 TError error;
@@ -359,7 +359,7 @@ private:
                     error = TError(NRpc::EErrorCode::TransportError, "GRPC error")
                         << TErrorAttribute("details", TString(ResponseStatusDetails_));
                 }
-                NotifyError(STRINGBUF("Request failed"), error);
+                NotifyError(AsStringBuf("Request failed"), error);
             }
 
             Unref();

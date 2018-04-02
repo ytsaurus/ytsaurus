@@ -30,7 +30,7 @@ TEST(TFormatTest, MultipleArgs)
 TEST(TFormatTest, Strings)
 {
     EXPECT_EQ("test", Format("%s", "test"));
-    EXPECT_EQ("test", Format("%s", STRINGBUF("test")));
+    EXPECT_EQ("test", Format("%s", AsStringBuf("test")));
     EXPECT_EQ("test", Format("%s", TString("test")));
 
     EXPECT_EQ("   abc", Format("%6s", TString("abc")));
