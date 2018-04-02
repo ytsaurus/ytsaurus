@@ -517,7 +517,6 @@ class TestSchedulerRevive(YTEnvSetup):
         "scheduler": {
             "connect_retry_backoff_time": 100,
             "fair_share_update_period": 100,
-            "controller_agent_heartbeat_timeout": 2000,
             "testing_options": {
                 "finish_operation_transition_delay": 2000,
             },
@@ -755,6 +754,36 @@ class TestSchedulerRevive(YTEnvSetup):
         self.Env.start_schedulers()
 
         wait(lambda: exists(failed_jobs_path) and get(failed_jobs_path) >= 3)
+
+class TestControllerAgent(YTEnvSetup):
+    NUM_MASTERS = 3
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "connect_retry_backoff_time": 100,
+            "fair_share_update_period": 100,
+            "controller_agent_heartbeat_timeout": 2000,
+            "testing_options": {
+                "finish_operation_transition_delay": 2000,
+            },
+        }
+    }
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "snapshot_period": 500,
+            "operation_time_limit_check_period": 100,
+            "operation_build_progress_period": 100,
+        }
+    }
+
+    def _create_table(self, table):
+        create("table", table, attributes={"replication_factor": 1})
+
+    def _wait_for_state(self, op, state):
+        wait(lambda: get("//sys/operations/" + op.id + "/@state") == state)
 
     def test_abort_operation_without_controller_agent(self):
         self._create_table("//tmp/t_in")
