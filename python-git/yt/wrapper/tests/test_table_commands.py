@@ -78,20 +78,17 @@ class TestTableCommands(object):
         yt.write_table(table, [{"x": i} for i in xrange(10)])
         with set_config_option("read_parallel/max_thread_count", 2):
             with set_config_option("proxy/request_timeout", 100):
-                iterator = yt.read_table(table)
+                with set_config_option("proxy/retries/count", 1):
+                    iterator = yt.read_table(table)
 
-                for transaction in yt.search("//sys/transactions", attributes=["tittle"]):
-                    try:
-                        attributes = yt.get(transaction + "/@")
-                        if attributes.get("title", "").startswith("Python wrapper: read"):
-                            yt.abort_transaction(attributes["id"])
-                    except yt.YtError:
-                        pass
+                    for transaction in yt.search("//sys/transactions", attributes=["title", "id"]):
+                        if transaction.attributes.get("title", "").startswith("Python wrapper: read"):
+                            yt.abort_transaction(transaction.attributes["id"])
 
-                time.sleep(1)
-                with pytest.raises(yt.YtError):
-                    for _ in iterator:
-                        pass
+                    time.sleep(1)
+                    with pytest.raises(yt.YtError):
+                        for _ in iterator:
+                            pass
 
     def test_table_path(self, yt_env):
         path = yt.TablePath("//path/to/table", attributes={"my_attr": 10})
