@@ -117,6 +117,10 @@ void TOperation::SetFinished()
 {
     FinishedPromise_.Set();
     Suspended_ = false;
+    for (auto& pair : Alerts_) {
+        NConcurrency::TDelayedExecutor::CancelAndClear(pair.second.ResetCookie);
+    }
+    Alerts_.clear();
 }
 
 bool TOperation::IsFinishedState() const
@@ -189,6 +193,52 @@ void TOperation::SetOwners(std::vector<TString> owners)
     Owners_ = std::move(owners);
     ShouldFlush_ = true;
     ShouldFlushAcl_ = true;
+}
+
+TYsonString TOperation::BuildAlertsString() const
+{
+    auto result = BuildYsonStringFluently()
+        .DoMapFor(Alerts_, [&] (TFluentMap fluent, const auto& pair) {
+            const auto& alertType = pair.first;
+            const auto& alert = pair.second;
+
+            fluent
+                .Item(FormatEnum(alertType)).Value(alert.Error);
+        });
+
+    return result;
+}
+
+void TOperation::SetAlert(EOperationAlertType alertType, const TError& error, TNullable<TDuration> timeout)
+{
+    auto& alert = Alerts_[alertType];
+
+    if (alert.Error.Sanitize() == error.Sanitize()) {
+        return;
+    }
+
+    alert.Error = error;
+    NConcurrency::TDelayedExecutor::CancelAndClear(alert.ResetCookie);
+
+    if (timeout) {
+        auto resetCallback = BIND(&TOperation::ResetAlert, MakeStrong(this), alertType)
+            .Via(CancelableInvoker_);
+
+        alert.ResetCookie = NConcurrency::TDelayedExecutor::Submit(resetCallback, *timeout);
+    }
+
+    ShouldFlush_ = true;
+}
+
+void TOperation::ResetAlert(EOperationAlertType alertType)
+{
+    auto it = Alerts_.find(alertType);
+    if (it == Alerts_.end()) {
+        return;
+    }
+    NConcurrency::TDelayedExecutor::CancelAndClear(it->second.ResetCookie);
+    Alerts_.erase(it);
+    ShouldFlush_ = true;
 }
 
 const IInvokerPtr& TOperation::GetCancelableControlInvoker()

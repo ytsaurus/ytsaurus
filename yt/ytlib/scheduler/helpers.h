@@ -42,7 +42,7 @@ std::vector<NYPath::TYPath> GetCompatibilityOperationPaths(
     const TOperationId& operationId,
     const TString& resourceName = {});
 
-const NYPath::TYPath& GetPoolsPath();
+const NYPath::TYPath& GetPoolTreesPath();
 const NYPath::TYPath& GetOperationsArchivePathOrderedById();
 const NYPath::TYPath& GetOperationsArchivePathOrderedByStartTime();
 const NYPath::TYPath& GetOperationsArchiveVersionPath();
@@ -61,7 +61,7 @@ bool IsSchedulingReason(EAbortReason reason);
 bool IsNonSchedulingReason(EAbortReason reason);
 bool IsSentinelReason(EAbortReason reason);
 
-TError GetSchedulerTransactionAbortedError(const NObjectClient::TTransactionId& transactionId);
+TError GetSchedulerTransactionsAbortedError(const std::vector<NObjectClient::TTransactionId>& transactionIds);
 TError GetUserTransactionAbortedError(const NObjectClient::TTransactionId& transactionId);
 
 ////////////////////////////////////////////////////////////////////////////////

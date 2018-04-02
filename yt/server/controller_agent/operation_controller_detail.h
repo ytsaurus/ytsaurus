@@ -189,7 +189,7 @@ public:
     virtual TOperationControllerInitializationResult InitializeClean() override;
     virtual TOperationControllerInitializationResult InitializeReviving(const TControllerTransactions& transactions) override;
 
-    virtual void OnTransactionAborted(const NTransactionClient::TTransactionId& transactionId) override;
+    virtual void OnTransactionsAborted(const std::vector<NTransactionClient::TTransactionId>& transactionIds) override;
 
     virtual void UpdateConfig(const TControllerAgentConfigPtr& config) override;
 
@@ -439,7 +439,8 @@ protected:
     TFuture<NApi::ITransactionPtr> StartTransaction(
         ETransactionType type,
         NApi::INativeClientPtr client,
-        const NTransactionClient::TTransactionId& parentTransactionId = NTransactionClient::NullTransactionId);
+        const NTransactionClient::TTransactionId& parentTransactionId = {},
+        const NTransactionClient::TTransactionId& prerequisiteTransactionId = {});
 
     void RegisterTask(TTaskPtr task);
     void RegisterTaskGroup(TTaskGroupPtr group);

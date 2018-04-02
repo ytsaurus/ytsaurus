@@ -93,7 +93,6 @@ using namespace NShell;
 using namespace NEventLog;
 
 using NControllerAgent::IOperationControllerSchedulerHost;
-using NControllerAgent::TOperationAlertMap;
 using NControllerAgent::TOperationControllerHost;
 
 using NNodeTrackerClient::TNodeId;
@@ -225,10 +224,10 @@ public:
     void Initialize()
     {
         MasterConnector_->AddGlobalWatcherRequester(BIND(
-            &TImpl::RequestPools,
+            &TImpl::RequestPoolTrees,
             Unretained(this)));
         MasterConnector_->AddGlobalWatcherHandler(BIND(
-            &TImpl::HandlePools,
+            &TImpl::HandlePoolTrees,
             Unretained(this)));
 
         MasterConnector_->AddGlobalWatcher(
@@ -437,11 +436,12 @@ public:
     virtual TFuture<void> SetOperationAlert(
         const TOperationId& operationId,
         EOperationAlertType alertType,
-        const TError& alert) override
+        const TError& alert,
+        TNullable<TDuration> timeout = Null) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        return BIND(&TImpl::DoSetOperationAlert, MakeStrong(this), operationId, alertType, alert.Sanitize())
+        return BIND(&TImpl::DoSetOperationAlert, MakeStrong(this), operationId, alertType, alert, timeout)
             .AsyncVia(GetControlInvoker())
             .Run();
     }
@@ -459,7 +459,7 @@ public:
             path);
 
         const auto& client = GetMasterClient();
-        auto result = WaitFor(client->CheckPermission(user, GetPoolsPath() + path, permission))
+        auto result = WaitFor(client->CheckPermission(user, GetPoolTreesPath() + path, permission))
             .ValueOrThrow();
         if (result.Action == ESecurityAction::Deny) {
             THROW_ERROR_EXCEPTION(
@@ -683,11 +683,7 @@ public:
             .ThrowOnError();
 
         operation->SetSuspended(false);
-
-        SetOperationAlert(
-            operation->GetId(),
-            EOperationAlertType::OperationSuspended,
-            TError());
+        operation->ResetAlert(EOperationAlertType::OperationSuspended);
 
         LOG_INFO("Operation resumed (OperationId: %v)",
             operation->GetId());
@@ -774,8 +770,7 @@ public:
         const auto& controller = operation->GetController();
         controller->RevokeAgent();
 
-        Strategy_->UnregisterOperation(operation.Get());
-        Strategy_->RegisterOperation(operation.Get());
+        Strategy_->DisableOperation(operation.Get());
 
         operation->Restart();
         operation->SetStateAndEnqueueEvent(EOperationState::Orphaned);
@@ -790,28 +785,24 @@ public:
         AddOperationToTransientQueue(operation);
     }
 
-    void UpdateOperationParameters(
+    void DoUpdateOperationParameters(
         TOperationPtr operation,
-        const TString& user,
         const TOperationRuntimeParametersPtr& runtimeParams)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        ValidateOperationPermission(user, operation->GetId(), EPermission::Write);
-
-        auto newRuntimeParams = UpdateYsonSerializable(
-            operation->GetRuntimeParameters(), ConvertToNode(runtimeParams));
+        auto codicilGuard = operation->MakeCodicilGuard();
 
         // Not applying runtime params until they are persisted in Cypress.
-        auto resultOrError = MasterConnector_->FlushOperationRuntimeParameters(operation, newRuntimeParams);
+        auto resultOrError = MasterConnector_->FlushOperationRuntimeParameters(operation, runtimeParams);
         WaitFor(resultOrError)
             .ThrowOnError();
 
-        if (newRuntimeParams->Owners && operation->GetOwners() != *newRuntimeParams->Owners) {
-            operation->SetOwners(*newRuntimeParams->Owners);
+        if (runtimeParams->Owners && operation->GetOwners() != *runtimeParams->Owners) {
+            operation->SetOwners(*runtimeParams->Owners);
         }
 
-        operation->SetRuntimeParameters(newRuntimeParams);
+        operation->SetRuntimeParameters(runtimeParams);
         Strategy_->UpdateOperationRuntimeParameters(operation.Get());
 
         // Updating ACL and other attributes.
@@ -819,10 +810,31 @@ public:
             .ThrowOnError();
 
         LogEventFluently(ELogEventType::RuntimeParametersInfo)
-            .Item("runtime_params").Value(newRuntimeParams);
+            .Item("runtime_params").Value(runtimeParams);
 
         LOG_INFO("Operation runtime parameters updated (OperationId: %v)",
             operation->GetId());
+    }
+
+    TFuture<void> UpdateOperationParameters(
+        TOperationPtr operation,
+        const TString& user,
+        const TOperationRuntimeParametersPtr& runtimeParams)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        auto codicilGuard = operation->MakeCodicilGuard();
+
+        ValidateOperationPermission(user, operation->GetId(), EPermission::Write);
+
+        auto newRuntimeParams = UpdateYsonSerializable(
+            operation->GetRuntimeParameters(), ConvertToNode(runtimeParams));
+
+        auto updateFuture = BIND(&TImpl::DoUpdateOperationParameters, MakeStrong(this))
+            .AsyncVia(operation->GetCancelableControlInvoker())
+            .Run(operation, newRuntimeParams);
+
+        return updateFuture;
     }
 
     TFuture<TYsonString> Strace(const TJobId& jobId, const TString& user)
@@ -1203,7 +1215,8 @@ private:
     void DoSetOperationAlert(
         const TOperationId& operationId,
         EOperationAlertType alertType,
-        const TError& alert)
+        const TError& alert,
+        TNullable<TDuration> timeout)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -1212,11 +1225,7 @@ private:
             return;
         }
 
-        if (operation->Alerts()[alertType] == alert) {
-            return;
-        }
-
-        operation->MutableAlerts()[alertType] = alert;
+        operation->SetAlert(alertType, alert, timeout);
     }
 
     const TNodeShardPtr& GetNodeShard(TNodeId nodeId) const
@@ -1509,42 +1518,43 @@ private:
     }
 
 
-    void RequestPools(TObjectServiceProxy::TReqExecuteBatchPtr batchReq)
+    void RequestPoolTrees(TObjectServiceProxy::TReqExecuteBatchPtr batchReq)
     {
         static const TPoolTreeKeysHolder PoolTreeKeysHolder;
 
-        LOG_INFO("Updating pools");
-        auto req = TYPathProxy::Get(GetPoolsPath());
+        LOG_INFO("Requesting pool trees");
+
+        auto req = TYPathProxy::Get(GetPoolTreesPath());
         ToProto(req->mutable_attributes()->mutable_keys(), PoolTreeKeysHolder.Keys);
-        batchReq->AddRequest(req, "get_pools");
+        batchReq->AddRequest(req, "get_pool_trees");
     }
 
-    void HandlePools(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
+    void HandlePoolTrees(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
     {
-        auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_pools");
+        auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_pool_trees");
         if (!rspOrError.IsOK()) {
-            LOG_ERROR(rspOrError, "Error getting pools configuration");
+            LOG_WARNING(rspOrError, "Error getting pool trees");
             return;
         }
 
         const auto& rsp = rspOrError.Value();
-        INodePtr poolsNode;
+        INodePtr poolTreesNode;
         try {
-            poolsNode = ConvertToNode(TYsonString(rsp->value()));
+            poolTreesNode = ConvertToNode(TYsonString(rsp->value()));
         } catch (const std::exception& ex) {
-            auto error = TError("Error parsing pools configuration")
+            auto error = TError("Error parsing pool trees")
                 << ex;
             SetSchedulerAlert(ESchedulerAlertType::UpdatePools, error);
             return;
         }
 
-        Strategy_->UpdatePools(poolsNode);
+        Strategy_->UpdatePoolTrees(poolTreesNode);
     }
 
 
     void RequestNodesAttributes(TObjectServiceProxy::TReqExecuteBatchPtr batchReq)
     {
-        LOG_INFO("Updating exec nodes information");
+        LOG_INFO("Requesting exec nodes information");
 
         auto req = TYPathProxy::List("//sys/nodes");
         std::vector<TString> attributeKeys{
@@ -1561,7 +1571,7 @@ private:
     {
         auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspList>("get_nodes");
         if (!rspOrError.IsOK()) {
-            LOG_ERROR(rspOrError, "Error updating exec nodes information");
+            LOG_WARNING(rspOrError, "Error getting exec nodes information");
             return;
         }
 
@@ -1587,11 +1597,11 @@ private:
             }
             WaitFor(Combine(shardFutures))
                 .ThrowOnError();
-        } catch (const std::exception& ex) {
-            LOG_ERROR(ex, "Error updating exec nodes information");
-        }
 
-        LOG_INFO("Exec nodes information updated");
+            LOG_INFO("Exec nodes information updated");
+        } catch (const std::exception& ex) {
+            LOG_WARNING(ex, "Error updating exec nodes information");
+        }
     }
 
     // COMPAT(asaitgalin): Runtime params updates from Cypress will be replaced
@@ -1616,14 +1626,13 @@ private:
         const TObjectServiceProxy::TRspExecuteBatchPtr& batchRsp)
     {
         auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_runtime_params");
-
         if (!rspOrError.IsOK()) {
-            LOG_WARNING(rspOrError, "Error updating operation runtime parameters (OperationId: %v)",
+            LOG_WARNING(rspOrError, "Error getting operation runtime parameters (OperationId: %v)",
                 operation->GetId());
-		}
+        }
 
         const auto& rsp = rspOrError.Value();
-		auto runtimeParamsNode = ConvertToNode(TYsonString(rsp->value()));
+        auto runtimeParamsNode = ConvertToNode(TYsonString(rsp->value()));
 
         try {
             auto runtimeParamsMap = runtimeParamsNode->AsMap();
@@ -1646,7 +1655,7 @@ private:
             LOG_INFO("Operation runtime parameters updated from Cypress (OperationId: %v)",
                 operation->GetId());
         } catch (const std::exception& ex) {
-            LOG_ERROR(ex, "Error parsing operation runtime parameters (OperationId: %v)",
+            LOG_WARNING(ex, "Error parsing operation runtime parameters (OperationId: %v)",
                 operation->GetId());
         }
     }
@@ -1654,7 +1663,7 @@ private:
 
     void RequestConfig(const TObjectServiceProxy::TReqExecuteBatchPtr& batchReq)
     {
-        LOG_INFO("Updating scheduler configuration");
+        LOG_INFO("Requesting scheduler configuration");
 
         auto req = TYPathProxy::Get("//sys/scheduler/config");
         batchReq->AddRequest(req, "get_config");
@@ -1669,7 +1678,7 @@ private:
             return;
         }
         if (!rspOrError.IsOK()) {
-            LOG_ERROR(rspOrError, "Error getting scheduler configuration");
+            LOG_WARNING(rspOrError, "Error getting scheduler configuration");
             return;
         }
 
@@ -1725,7 +1734,8 @@ private:
 
     void RequestOperationArchiveVersion(TObjectServiceProxy::TReqExecuteBatchPtr batchReq)
     {
-        LOG_INFO("Updating operation archive version");
+        LOG_INFO("Requesting operation archive version");
+
         auto req = TYPathProxy::Get(GetOperationsArchiveVersionPath());
         batchReq->AddRequest(req, "get_operation_archive_version");
     }
@@ -2011,7 +2021,7 @@ private:
             operation->GetId(),
             jobs.size());
 
-        // First, register jobs in the strategy. Do this synchronously as we are in the scheduler control thread.
+        // First, unfreeze operation and register jobs in strategy. Do this synchronously as we are in the scheduler control thread.
         Strategy_->RegisterJobs(operation->GetId(), jobs);
 
         // Second, register jobs on the corresponding node shards.
@@ -2295,10 +2305,7 @@ private:
         }
 
         if (setAlert) {
-            SetOperationAlert(
-                operation->GetId(),
-                EOperationAlertType::OperationSuspended,
-                error);
+            operation->SetAlert(EOperationAlertType::OperationSuspended, error);
         }
 
         LOG_INFO(error, "Operation suspended (OperationId: %v)",
@@ -3076,7 +3083,7 @@ void TScheduler::OnOperationAgentUnregistered(const TOperationPtr& operation)
     Impl_->OnOperationAgentUnregistered(operation);
 }
 
-void TScheduler::UpdateOperationParameters(
+TFuture<void> TScheduler::UpdateOperationParameters(
     TOperationPtr operation,
     const TString& user,
     const TOperationRuntimeParametersPtr& runtimeParams)

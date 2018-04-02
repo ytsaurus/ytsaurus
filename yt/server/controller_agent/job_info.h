@@ -55,11 +55,12 @@ class TJoblet
 public:
     //! Default constructor is for serialization only.
     TJoblet();
-    TJoblet(TTask* task, int jobIndex, const TString& treeId);
+    TJoblet(TTask* task, int jobIndex, int taskJobIndex, const TString& treeId);
 
     // Controller encapsulates lifetime of both, tasks and joblets.
     TTask* Task;
     int JobIndex;
+    int TaskJobIndex = 0;
     i64 StartRowIndex = -1;
     bool Restarted = false;
     bool Revived = false;

@@ -866,11 +866,13 @@ TAutoMergeDirector* TOperationControllerBase::GetAutoMergeDirector()
 TFuture<ITransactionPtr> TOperationControllerBase::StartTransaction(
     ETransactionType type,
     INativeClientPtr client,
-    const TTransactionId& parentTransactionId)
+    const TTransactionId& parentTransactionId,
+    const TTransactionId& prerequisiteTransactionId)
 {
-    LOG_INFO("Starting transaction (Type: %v, ParentId: %v)",
+    LOG_INFO("Starting transaction (Type: %v, ParentId: %v, PrerequisiteTransactionId: %v)",
         type,
-        parentTransactionId);
+        parentTransactionId,
+        prerequisiteTransactionId);
 
     TTransactionStartOptions options;
     options.AutoAbort = false;
@@ -887,6 +889,9 @@ TFuture<ITransactionPtr> TOperationControllerBase::StartTransaction(
     }
     options.Attributes = std::move(attributes);
     options.ParentId = parentTransactionId;
+    if (prerequisiteTransactionId) {
+        options.PrerequisiteTransactionIds.push_back(prerequisiteTransactionId);
+    }
     options.Timeout = Config->OperationTransactionTimeout;
 
     auto transactionFuture = client->StartTransaction(NTransactionClient::ETransactionType::Master, options);
@@ -1159,7 +1164,8 @@ void TOperationControllerBase::StartOutputCompletionTransaction()
     OutputCompletionTransaction = WaitFor(StartTransaction(
         ETransactionType::OutputCompletion,
         OutputClient,
-        OutputTransaction->GetId()))
+        OutputTransaction->GetId(),
+        Host->GetIncarnationId()))
         .ValueOrThrow();
 
     // Set transaction id to Cypress.
@@ -1208,7 +1214,8 @@ void TOperationControllerBase::StartDebugCompletionTransaction()
     DebugCompletionTransaction = WaitFor(StartTransaction(
         ETransactionType::DebugCompletion,
         OutputClient,
-        DebugTransaction->GetId()))
+        DebugTransaction->GetId(),
+        Host->GetIncarnationId()))
         .ValueOrThrow();
 
     // Set transaction id to Cypress.
@@ -2277,36 +2284,32 @@ bool TOperationControllerBase::IsIntermediateLivePreviewSupported() const
     return false;
 }
 
-void TOperationControllerBase::OnTransactionAborted(const TTransactionId& transactionId)
+void TOperationControllerBase::OnTransactionsAborted(const std::vector<TTransactionId>& transactionIds)
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvoker);
 
-    // Double-check transaction ownership to avoid races with commits and aborts.
-    auto transactions = GetTransactions();
-    if (std::find_if(
-            transactions.begin(),
-            transactions.end(),
-            [&] (const auto& transaction) { return transaction->GetId() == transactionId; }) ==
-        transactions.end())
-    {
-        return;
+    // Check if the user transaction is still alive to determine the exact abort reason.
+    bool userTransactionAborted = false;
+    if (UserTransaction) {
+        auto result = WaitFor(UserTransaction->Ping());
+        if (result.FindMatching(NTransactionClient::EErrorCode::NoSuchTransaction)) {
+            userTransactionAborted = true;
+        }
     }
 
-    if (transactionId == UserTransactionId) {
+    if (userTransactionAborted) {
         OnOperationAborted(
-            GetUserTransactionAbortedError(transactionId));
+            GetUserTransactionAbortedError(UserTransaction->GetId()));
     } else {
         OnOperationFailed(
-            GetSchedulerTransactionAbortedError(transactionId),
+            GetSchedulerTransactionsAbortedError(transactionIds),
             /* flush */ false);
     }
 }
 
 std::vector<ITransactionPtr> TOperationControllerBase::GetTransactions()
 {
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    std::vector<ITransactionPtr> transactions = {
+    std::vector<ITransactionPtr> transactions{
         UserTransaction,
         AsyncTransaction,
         InputTransaction,
@@ -4536,7 +4539,7 @@ void TOperationControllerBase::GetUserFilesAttributes()
                         THROW_ERROR_EXCEPTION("Empty user file name for %v", path);
                     }
 
-                    if (!NFS::GetRealPath(NFS::CombinePaths("sandbox", fileName)).StartsWith(NFS::GetRealPath("sandbox"))) {
+                    if (!NFS::CheckPathIsRelativeAndGoesInside(fileName)) {
                         THROW_ERROR_EXCEPTION("User file name cannot reference outside of sandbox directory")
                             << TErrorAttribute("file_name", fileName);
                     }
@@ -4651,11 +4654,6 @@ void TOperationControllerBase::CollectTotals()
         for (const auto& inputChunk : table.Chunks) {
             if (IsUnavailable(inputChunk, CheckParityReplicas())) {
                 const auto& chunkId = inputChunk->ChunkId();
-                if (table.IsDynamic && table.Schema.IsSorted()) {
-                    THROW_ERROR_EXCEPTION("Input chunk %v of sorted dynamic table %v is unavailable",
-                        chunkId,
-                        table.Path.GetPath());
-                }
 
                 switch (Spec_->UnavailableChunkStrategy) {
                     case EUnavailableChunkAction::Fail:
@@ -4733,7 +4731,7 @@ std::vector<TInputChunkPtr> TOperationControllerBase::CollectPrimaryChunks(bool 
     for (const auto& table : InputTables) {
         if (!table.IsForeign() && ((table.IsDynamic && table.Schema.IsSorted()) == versioned)) {
             for (const auto& chunk : table.Chunks) {
-                if (!table.IsDynamic && IsUnavailable(chunk, CheckParityReplicas())) {
+                if (IsUnavailable(chunk, CheckParityReplicas())) {
                     switch (Spec_->UnavailableChunkStrategy) {
                         case EUnavailableChunkAction::Skip:
                             continue;
@@ -4815,6 +4813,12 @@ std::vector<TInputDataSlicePtr> TOperationControllerBase::CollectPrimaryVersione
                 Logger);
 
             for (const auto& chunk : table.Chunks) {
+                if (IsUnavailable(chunk, CheckParityReplicas()) &&
+                    Spec_->UnavailableChunkStrategy == EUnavailableChunkAction::Skip)
+                {
+                    continue;
+                }
+
                 fetcher->AddChunk(chunk);
             }
 
@@ -4981,9 +4985,10 @@ void TOperationControllerBase::SliceUnversionedChunks(
         }
     };
 
-    LOG_DEBUG("Slicing unversioned chunks (SliceDataWeight: %v, SliceRowCount: %v)",
+    LOG_DEBUG("Slicing unversioned chunks (SliceDataWeight: %v, SliceRowCount: %v, ChunkCount: %v)",
         jobSizeConstraints->GetInputSliceDataWeight(),
-        jobSizeConstraints->GetInputSliceRowCount());
+        jobSizeConstraints->GetInputSliceRowCount(),
+        unversionedChunks.size());
 
     for (const auto& chunkSpec : unversionedChunks) {
         int oldSize = result->size();
@@ -4991,7 +4996,7 @@ void TOperationControllerBase::SliceUnversionedChunks(
         bool hasNontrivialLimits = !chunkSpec->IsCompleteChunk();
 
         auto codecId = NErasure::ECodec(chunkSpec->GetErasureCodec());
-        if (hasNontrivialLimits || codecId == NErasure::ECodec::None) {
+        if (hasNontrivialLimits || codecId == NErasure::ECodec::None || !Spec_->SliceErasureChunksByParts) {
             auto slices = SliceChunkByRowIndexes(
                 chunkSpec,
                 jobSizeConstraints->GetInputSliceDataWeight(),
@@ -5012,6 +5017,8 @@ void TOperationControllerBase::SliceUnversionedChunks(
             chunkSpec->ChunkId(),
             result->size() - oldSize);
     }
+
+    LOG_DEBUG("Finished slicing unversioned chunks (SliceCount: %v)", result->size());
 }
 
 void TOperationControllerBase::SlicePrimaryUnversionedChunks(
@@ -6293,6 +6300,7 @@ void TOperationControllerBase::InitUserJobSpec(
     jobSpec->set_memory_reserve(memoryReserve);
 
     jobSpec->add_environment(Format("YT_JOB_INDEX=%v", joblet->JobIndex));
+    jobSpec->add_environment(Format("YT_TASK_JOB_INDEX=%v", joblet->TaskJobIndex));
     jobSpec->add_environment(Format("YT_JOB_ID=%v", joblet->JobId));
     if (joblet->StartRowIndex >= 0) {
         jobSpec->add_environment(Format("YT_START_ROW_INDEX=%v", joblet->StartRowIndex));

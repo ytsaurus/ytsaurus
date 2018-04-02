@@ -88,9 +88,9 @@ def patch_subclass(parent, skip_condition, reason=""):
             if attr.startswith("test_"):
                 setattr(cls, attr, build_skipped_method(parent.__dict__[attr],
                                                         cls, skip_condition, reason))
-                if "parametrize" in parent.__dict__[attr].__dict__:
-                    parent.__dict__[attr].__dict__["parametrize"]
-                    cls.__dict__[attr].__dict__["parametrize"] = parent.__dict__[attr].__dict__["parametrize"]
+                for key in parent.__dict__[attr].__dict__:
+                    if key == "parametrize" or "flaky" in key or "skip" in key:
+                        cls.__dict__[attr].__dict__[key] = parent.__dict__[attr].__dict__[key]
         return cls
 
     return patcher
@@ -100,7 +100,7 @@ def patch_subclass(parent, skip_condition, reason=""):
 linux_only = pytest.mark.skipif('not sys.platform.startswith("linux")')
 unix_only = pytest.mark.skipif('not sys.platform.startswith("linux") and not sys.platform.startswith("darwin")')
 
-patch_porto_env_only = lambda parent: patch_subclass(parent, not porto_avaliable(), reason="you need configured porto to run it")
+patch_porto_env_only = lambda parent: patch_subclass(parent, False, reason="you need configured porto to run it")
 
 def skip_if_porto(func):
     def wrapped_func(self, *args, **kwargs):
@@ -489,9 +489,11 @@ class YTEnvSetup(object):
                     return False
                 node = cell.attributes["peers"][0]["address"]
                 try:
-                    return yt_commands.exists("//sys/nodes/{0}/orchid/tablet_cells/{1}".format(node, cell.attributes["id"]), driver=driver)
+                    if not yt_commands.exists("//sys/nodes/{0}/orchid/tablet_cells/{1}".format(node, cell.attributes["id"]), driver=driver):
+                        return False
                 except yt_commands.YtResponseError:
                     return False
+            return True
 
         wait(check_cells)
 

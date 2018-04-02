@@ -434,6 +434,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/tablet_node/replicated_store_manager.cpp
   ${CMAKE_CURRENT_LIST_DIR}/tablet_node/table_replicator.cpp
 
+  ${CMAKE_CURRENT_LIST_DIR}/tablet_server/bundle_node_tracker.cpp
   ${CMAKE_CURRENT_LIST_DIR}/tablet_server/cypress_integration.cpp
   ${CMAKE_CURRENT_LIST_DIR}/tablet_server/private.cpp
   ${CMAKE_CURRENT_LIST_DIR}/tablet_server/public.cpp

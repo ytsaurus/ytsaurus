@@ -270,12 +270,22 @@ protected:
         return ChunkPool_->Add(stripe);
     }
 
+    TChunkStripePtr CreateStripe(const std::vector<TInputChunkPtr>& chunks)
+    {
+        auto stripe = New<TChunkStripe>();
+        for (const auto& chunk : chunks) {
+            auto dataSlice = CreateUnversionedInputDataSlice(CreateInputChunkSlice(chunk));
+            ActiveChunks_.insert(chunk->ChunkId());
+            InferLimitsFromBoundaryKeys(dataSlice, RowBuffer_);
+            stripe->DataSlices.emplace_back(std::move(dataSlice));
+        }
+        return stripe;
+    }
+
     IChunkPoolInput::TCookie AddChunk(const TInputChunkPtr& chunk)
     {
-        auto dataSlice = CreateUnversionedInputDataSlice(CreateInputChunkSlice(chunk));
-        ActiveChunks_.insert(chunk->ChunkId());
-        InferLimitsFromBoundaryKeys(dataSlice, RowBuffer_);
-        auto cookie = ChunkPool_->Add(New<TChunkStripe>(dataSlice));
+        auto stripe = CreateStripe({chunk});
+        auto cookie = ChunkPool_->Add(std::move(stripe));
         InputCookieToChunkId_[cookie] = chunk->ChunkId();
         return cookie;
     }
@@ -2533,6 +2543,44 @@ TEST_F(TSortedChunkPoolTest, CartesianProductViaJoinReduce)
     EXPECT_THAT(teleportChunks, IsEmpty());
     EXPECT_GE(stripeLists.size(), 90);
     EXPECT_LE(stripeLists.size(), 110);
+}
+
+TEST_F(TSortedChunkPoolTest, ResetBeforeFinish)
+{
+    Options_.SortedJobOptions.EnableKeyGuarantee = false;
+    InitTables(
+        {false, false, false} /* isForeign */,
+        {true, true, true} /* isTeleportable */,
+        {false, false, false} /* isVersioned */
+    );
+    Options_.SortedJobOptions.PrimaryPrefixLength = 1;
+    Options_.MinTeleportChunkSize = 0;
+    InitJobConstraints();
+
+    auto chunkA = CreateChunk(BuildRow({3}), BuildRow({3}), 0);
+    auto chunkB = CreateChunk(BuildRow({2}), BuildRow({15}), 1);
+    auto chunkC1 = CreateChunk(BuildRow({0}), BuildRow({2}), 2);
+    auto chunkC2 = CreateChunk(BuildRow({2}), BuildRow({3}), 2);
+    auto chunkC1Replayed = CreateChunk(BuildRow({0}), BuildRow({1}), 2);
+    auto chunkC2Replayed = CreateChunk(BuildRow({1}), BuildRow({3}), 2);
+
+    CreateChunkPool();
+
+    AddChunk(chunkA);
+    AddChunk(chunkB);
+    auto stripeC = CreateStripe({chunkC1, chunkC2});
+    auto cookie = ChunkPool_->Add(stripeC);
+    auto stripeCReplayed = CreateStripe({chunkC1Replayed, chunkC2Replayed});
+    ChunkPool_->Reset(cookie, stripeCReplayed, IdentityChunkMapping);
+
+    ChunkPool_->Finish();
+
+    ExtractOutputCookiesWhilePossible();
+    auto stripeLists = GetAllStripeLists();
+    const auto& teleportChunks = ChunkPool_->GetTeleportChunks();
+
+    EXPECT_EQ(teleportChunks, std::vector<TInputChunkPtr>{chunkC1Replayed});
+    EXPECT_EQ(1, stripeLists.size());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

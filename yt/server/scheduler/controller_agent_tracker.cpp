@@ -735,7 +735,7 @@ public:
                     existingAgent->GetIncarnationId());
                 UnregisterAgent(existingAgent);
             }
-            
+
             context->Reply(TError("Agent %Qv is in %Qlv state; please retry",
                 agentId,
                 state));
@@ -854,8 +854,10 @@ public:
                 for (const auto& protoAlert : protoOperation.alerts().alerts()) {
                     auto alertType = EOperationAlertType(protoAlert.type());
                     auto alert = FromProto<TError>(protoAlert.error());
-                    if (operation->Alerts()[alertType] != alert) {
-                        operation->MutableAlerts()[alertType] = alert;
+                    if (alert.IsOK()) {
+                        operation->ResetAlert(alertType);
+                    } else {
+                        operation->SetAlert(alertType, alert);
                     }
                 }
             }

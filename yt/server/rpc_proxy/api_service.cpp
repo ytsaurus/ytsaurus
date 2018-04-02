@@ -175,7 +175,7 @@ public:
     explicit TApiService(
         NCellProxy::TBootstrap* bootstrap)
         : TServiceBase(
-            bootstrap->GetNativeConnection()->GetInvoker(), // TODO(sandello): Better threading here.
+            bootstrap->GetWorkerInvoker(),
             TApiServiceProxy::GetDescriptor(),
             RpcProxyLogger)
         , Bootstrap_(bootstrap)

@@ -214,8 +214,6 @@ class TestSchedulerControllerThrottling(YTEnvSetup):
                 pass
             time.sleep(1)
 
-        op.abort()
-
 ##################################################################
 
 @unix_only
@@ -348,8 +346,6 @@ class TestJobStderr(YTEnvSetup):
         stderr_tx = get("//sys/operations/{}/@async_scheduler_transaction_id".format(op.id))
         staged_objects = get("//sys/transactions/{}/@staged_object_ids".format(stderr_tx))
         assert sum(len(ids) for ids in staged_objects.values()) == 0, str(staged_objects)
-
-        op.abort()
 
     def test_stderr_of_failed_jobs(self):
         create("table", "//tmp/t1")
@@ -1250,7 +1246,8 @@ class TestSchedulerRevive(YTEnvSetup):
                 "enable_random_master_disconnection": False,
                 "random_master_disconnection_max_backoff": 10000,
                 "finish_operation_transition_delay": 1000,
-            }
+            },
+            "finished_job_storing_timeout": 15000,
         }
     }
 
@@ -1258,6 +1255,14 @@ class TestSchedulerRevive(YTEnvSetup):
         "controller_agent": {
             "operation_time_limit_check_period": 100,
             "snapshot_period": 3000,
+        }
+    }
+
+    DELTA_NODE_CONFIG = {
+        "exec_agent": {
+            "job_controller": {
+                "total_confirmation_period": 5000
+            }
         }
     }
 
@@ -1356,15 +1361,13 @@ class TestSchedulerRevive(YTEnvSetup):
 
         ok = False
         for iter in xrange(100):
-            time.sleep(random.randint(5, 10) * 0.5)
+            time.sleep(random.randint(5, 15) * 0.5)
             self.Env.kill_controller_agents()
             self.Env.start_controller_agents()
 
             completed_count = 0
             for index, op in enumerate(ops):
-                assert op.get_state() not in ("aborted")
-                # TODO(ignat): uncomment after https://st.yandex-team.ru/YT-8201.
-                #assert op.get_state() not in ("aborted", "failed")
+                assert op.get_state() not in ("aborted", "failed")
                 if op.get_state() == "completed":
                     completed_count += 1
             if completed_count == len(ops):
@@ -1524,6 +1527,7 @@ class TestJobRevival(TestJobRevivalBase):
         assert get("{0}/@progress/jobs/aborted/total".format(cypress_path)) == 0
         assert read_table("//tmp/t_out") == [{"a": 1}]
 
+    @pytest.mark.skipif("True", reason="YT-8635")
     @pytest.mark.timeout(600)
     def test_many_jobs_and_operations(self):
         create("table", "//tmp/t_in")
@@ -2105,8 +2109,6 @@ class TestSchedulerConfig(YTEnvSetup):
         wait(lambda: exists("//sys/operations/{0}/@unrecognized_spec".format(op.id)))
         assert get("//sys/operations/{0}/@unrecognized_spec".format(op.id)) == {"xxx": "yyy"}
 
-        op.abort()
-
     def test_brief_progress(self):
         create("table", "//tmp/t_in")
         write_table("//tmp/t_in", [{"a": "b"}])
@@ -2115,8 +2117,6 @@ class TestSchedulerConfig(YTEnvSetup):
 
         wait(lambda: exists("//sys/operations/{0}/@brief_progress".format(op.id)))
         assert list(get("//sys/operations/{0}/@brief_progress".format(op.id))) == ["jobs"]
-
-        op.abort()
 
     def test_cypress_config(self):
         create("table", "//tmp/t_in")
@@ -2314,8 +2314,6 @@ class TestSchedulerHeterogeneousConfiguration(YTEnvSetup):
 
         assert get("//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/default/resource_limits/user_slots") == 2
         assert get("//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/default/resource_usage/user_slots") == 2
-
-        op.abort()
 
 ##################################################################
 
@@ -2603,7 +2601,7 @@ class TestPoolMetrics(YTEnvSetup):
 
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "controller_agent": {
-            "job_metrics_delta_report_backoff": 500,
+            "job_metrics_delta_report_backoff": 100,
         }
     }
 
@@ -2647,7 +2645,7 @@ class TestPoolMetrics(YTEnvSetup):
         # - writes (and syncs) something to disk
         # - works for some time (to ensure that it sends several heartbeats
         # - writes something to stderr because we want to find our jobs in //sys/operations later
-        map_cmd = """for i in $(seq 10) ; do echo 5 > foo$i ; sync ; sleep 0.5 ; done ; cat ; sleep 5; echo done > /dev/stderr"""
+        map_cmd = """for i in $(seq 10) ; do echo 5 > foo$i ; sync ; sleep 0.5 ; done ; cat ; sleep 10; echo done > /dev/stderr"""
 
         op11 = map(
             in_="//t_input",
@@ -2716,7 +2714,7 @@ class TestPoolMetrics(YTEnvSetup):
         assert len(running_jobs) == 1
         abort_job(running_jobs[0])
 
-        # Wait metrics update.
+        # Wait for metrics update.
         wait(lambda: get_pool_metrics("time_completed")["child"] > 0)
 
         completed_metrics = get_pool_metrics("time_completed")
@@ -2730,8 +2728,6 @@ class TestPoolMetrics(YTEnvSetup):
 
         assert completed_metrics["parent"] == completed_metrics["child"]
         assert aborted_metrics["parent"] == aborted_metrics["child"]
-
-        op.abort()
 
     def test_runtime_parameters(self):
         create_user("u")
@@ -2880,8 +2876,6 @@ class TestGetJobSpecFailed(YTEnvSetup):
 
         jobs = get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/jobs".format(op.id), verbose=False)
         assert jobs["aborted"]["non_scheduled"]["get_spec_failed"] > 0
-
-        op.abort()
 
 ##################################################################
 

@@ -213,7 +213,7 @@ private:
     TAbortedJobCounter AbortedJobCounter_;
     TCompletedJobCounter CompletedJobCounter_;
 
-    THashMap<TJobId, TJobUpdate> JobsToSubmitInStrategy_;
+    THashMap<TJobId, TJobUpdate> JobsToSubmitToStrategy_;
 
     struct TScheduleJobEntry
     {
@@ -240,6 +240,7 @@ private:
         { }
 
         THashMap<TJobId, TJobPtr> Jobs;
+        THashSet<TJobId> RecentlyCompletedJobIds;
         IOperationControllerPtr Controller;
         bool Terminated = false;
         //! Raised to prevent races between suspension and scheduler strategy scheduling new jobs.
@@ -253,6 +254,8 @@ private:
 
     THashMap<TOperationId, TOperationState> IdToOpertionState_;
     TEpoch CurrentEpoch_ = 0;
+
+    void ValidateConnected();
 
     void DoCleanup();
 
@@ -324,6 +327,8 @@ private:
 
     void SetJobWaitingForConfirmation(const TJobPtr& job);
     void ResetJobWaitingForConfirmation(const TJobPtr& job);
+
+    void RemoveRecentlyCompletedJob(const TJobId& jobId);
 
     void PreemptJob(const TJobPtr& job, TNullable<NProfiling::TCpuDuration> interruptTimeout);
 

@@ -781,11 +781,13 @@ class TestQuery(YTEnvSetup):
         insert_rows("//tmp/card", data)
         insert_rows("//tmp/card", data)
 
-        actual = select_rows("cardinality(a) as b from [//tmp/card] group by a % 2 as k")
+        actual = select_rows("cardinality(a) as b from [//tmp/card] group by a % 2 as k with totals")
         assert actual[0]["b"] > .95 * 10000
         assert actual[0]["b"] < 1.05 * 10000
         assert actual[1]["b"] > .95 * 10000
         assert actual[1]["b"] < 1.05 * 10000
+        assert actual[2]["b"] > 1.95 * 10000
+        assert actual[2]["b"] < 2.05 * 10000
 
     def test_yt_2375(self):
         self.sync_create_cells(1)

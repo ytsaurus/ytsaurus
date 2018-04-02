@@ -69,7 +69,7 @@ public:
     TDiscoveryService(
         NCellProxy::TBootstrap* bootstrap)
         : TServiceBase(
-            bootstrap->GetNativeConnection()->GetInvoker(), // TODO(sandello): Better threading here.
+            bootstrap->GetWorkerInvoker(),
             TDiscoveryServiceProxy::GetDescriptor(),
             RpcProxyLogger)
         , Bootstrap_(bootstrap)

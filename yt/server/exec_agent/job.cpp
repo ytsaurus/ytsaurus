@@ -1268,7 +1268,8 @@ private:
             error.FindMatching(NTableClient::EErrorCode::UnhashableType) ||
             error.FindMatching(NTableClient::EErrorCode::CorruptedNameTable) ||
             error.FindMatching(NTableClient::EErrorCode::RowWeightLimitExceeded) ||
-            error.FindMatching(NTableClient::EErrorCode::InvalidColumnFilter);
+            error.FindMatching(NTableClient::EErrorCode::InvalidColumnFilter) ||
+            error.FindMatching(NDataNode::EErrorCode::LayerUnpackingFailed);
     }
 };
 

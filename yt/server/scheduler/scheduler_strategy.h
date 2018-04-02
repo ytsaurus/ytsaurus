@@ -48,7 +48,8 @@ struct ISchedulerStrategyHost
     virtual TFuture<void> SetOperationAlert(
         const TOperationId& operationId,
         EOperationAlertType alertType,
-        const TError& alert) = 0;
+        const TError& alert,
+        TNullable<TDuration> timeout = Null) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -114,6 +115,12 @@ struct ISchedulerStrategy
      */
     virtual void RegisterOperation(IOperationStrategyHost* operation) = 0;
 
+    //! Disable operation. Remove all operation jobs from tree.
+    /*!
+     *  The implementation must throw no exceptions.
+     */
+    virtual void DisableOperation(IOperationStrategyHost* operation) = 0;
+
     //! Must be called for a registered operation after it is materialized.
     virtual void EnableOperation(IOperationStrategyHost* operation) = 0;
 
@@ -133,7 +140,7 @@ struct ISchedulerStrategy
 
     virtual void ApplyJobMetricsDelta(const TOperationIdToOperationJobMetrics& operationIdToOperationJobMetrics) = 0;
 
-    virtual void UpdatePools(const NYTree::INodePtr& poolsNode) = 0;
+    virtual void UpdatePoolTrees(const NYTree::INodePtr& poolTreesNode) = 0;
 
     virtual void ValidateNodeTags(const THashSet<TString>& tags) = 0;
 

@@ -85,6 +85,80 @@ TEST_P(TWriteTest, Simple)
     EXPECT_EQ(file.GetLength(), block1.Size() + block2.Size() + block3.Size() + block4.Size() + block5.Size());
 }
 
+TEST_P(TWriteTest, Specific)
+{
+    std::vector<TBlock> blocks;
+    const auto& args = GetParam();
+    const auto& type = std::get<0>(args);
+    const auto config = NYTree::ConvertTo<NYTree::INodePtr>(
+        NYson::TYsonString(std::get<1>(args), NYson::EYsonType::Node));
+
+    auto engine = CreateIOEngine(type, config);
+    TString fileName = GenerateRandomFileName("TFileWriterTestSpecific");
+    TString tmpFileName = fileName + NFS::TempFileSuffix;
+
+    TFileWriter writer(engine, TGuid::Create(), fileName);
+
+    writer.Open().Get().ThrowOnError();
+
+    TFile tmpFile(tmpFileName, RdOnly);
+
+    //int maxBlocks = 10;
+    int maxBlocks = 3;
+    blocks.reserve(maxBlocks);
+    srand(time(0));
+
+    int sizes[] = {1338, 1495, 1457};
+
+    for (int i = 0; i < maxBlocks; ++i) {
+        int blockSize = sizes[i];
+        TBlock block = RandomBlock(blockSize);
+        blocks.push_back(block);
+        EXPECT_EQ(writer.WriteBlock(block), true);
+
+        tmpFile.Seek(0, sSet);
+        for (int j = 0; j < blocks.size(); ++j) {
+            EXPECT_TRUE(CheckBlock(tmpFile, blocks[j]));
+        }
+    }
+}
+
+TEST_P(TWriteTest, Random)
+{
+    std::vector<TBlock> blocks;
+
+    const auto& args = GetParam();
+    const auto& type = std::get<0>(args);
+    const auto config = NYTree::ConvertTo<NYTree::INodePtr>(
+        NYson::TYsonString(std::get<1>(args), NYson::EYsonType::Node));
+
+    auto engine = CreateIOEngine(type, config);
+    TString fileName = GenerateRandomFileName("TFileWriterTestRandom");
+    TString tmpFileName = fileName + NFS::TempFileSuffix;
+
+    TFileWriter writer(engine, TGuid::Create(), fileName);
+
+    writer.Open().Get().ThrowOnError();
+
+    TFile tmpFile(tmpFileName, RdOnly);
+
+    int maxBlocks = 10;
+    blocks.reserve(maxBlocks);
+    srand(time(0));
+
+    for (int i = 0; i < maxBlocks; ++i) {
+        int blockSize = 1_MB * ((double) rand() / RAND_MAX + 1);
+        TBlock block = RandomBlock(blockSize);
+        blocks.push_back(block);
+        EXPECT_EQ(writer.WriteBlock(block), true);
+
+        tmpFile.Seek(0, sSet);
+        for (int j = 0; j < blocks.size(); ++j) {
+            EXPECT_TRUE(CheckBlock(tmpFile, blocks[j]));
+        }
+    }
+}
+
 INSTANTIATE_TEST_CASE_P(
     TWriteTest,
     TWriteTest,

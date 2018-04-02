@@ -93,7 +93,7 @@ public:
         const TError& error,
         const TString& user);
 
-    void UpdateOperationParameters(
+    TFuture<void> UpdateOperationParameters(
         TOperationPtr operation,
         const TString& user,
         const TOperationRuntimeParametersPtr& parameters);

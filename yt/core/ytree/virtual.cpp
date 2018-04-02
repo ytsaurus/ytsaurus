@@ -74,7 +74,9 @@ void TVirtualMapBase::GetSelf(
         ? request->limit()
         : DefaultVirtualChildLimit;
 
-    context->SetRequestInfo("Limit: %v", limit);
+    context->SetRequestInfo("AttributeKeys: %v, Limit: %v",
+        attributeKeys,
+        limit);
 
     auto keys = GetKeys(limit);
     i64 size = GetSize();
@@ -96,11 +98,19 @@ void TVirtualMapBase::GetSelf(
     }
 
     writer.OnBeginMap();
-    for (const auto& key : keys) {
-        auto service = FindItemService(key);
-        if (service) {
+
+    if (attributeKeys && !attributeKeys->empty()) {
+        for (const auto& key : keys) {
+            auto service = FindItemService(key);
+            if (service) {
+                writer.OnKeyedItem(key);
+                service->WriteAttributes(&writer, attributeKeys, false);
+                writer.OnEntity();
+            }
+        }
+    } else {
+        for (const auto& key : keys) {
             writer.OnKeyedItem(key);
-            service->WriteAttributes(&writer, attributeKeys, false);
             writer.OnEntity();
         }
     }
@@ -129,7 +139,9 @@ void TVirtualMapBase::ListSelf(
         ? request->limit()
         : DefaultVirtualChildLimit;
 
-    context->SetRequestInfo("Limit: %v", limit);
+    context->SetRequestInfo("AttributeKeys: %v, Limit: %v",
+        attributeKeys,
+        limit);
 
     auto keys = GetKeys(limit);
     i64 size = GetSize();
@@ -144,11 +156,18 @@ void TVirtualMapBase::ListSelf(
     }
 
     writer.OnBeginList();
-    for (const auto& key : keys) {
-        auto service = FindItemService(key);
-        if (service) {
+    if (attributeKeys && !attributeKeys->empty()) {
+        for (const auto& key : keys) {
+            auto service = FindItemService(key);
+            if (service) {
+                writer.OnListItem();
+                service->WriteAttributes(&writer, attributeKeys, false);
+                writer.OnStringScalar(key);
+            }
+        }
+    } else {
+        for (const auto& key : keys) {
             writer.OnListItem();
-            service->WriteAttributes(&writer, attributeKeys, false);
             writer.OnStringScalar(key);
         }
     }

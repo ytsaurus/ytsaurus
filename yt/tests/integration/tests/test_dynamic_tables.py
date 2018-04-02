@@ -689,6 +689,36 @@ class TestDynamicTables(TestDynamicTablesBase):
 
         assert int(empty_node_cpu - assigned_node_cpu) == 1
 
+    def test_bundle_node_list(self):
+        create_tablet_cell_bundle("b", attributes={"node_tag_filter": "b"})
+
+        node = ls("//sys/nodes")[0]
+        set("//sys/nodes/{0}/@user_tags".format(node), ["b"])
+        assert get("//sys/tablet_cell_bundles/b/@nodes") == [node]
+
+        set("//sys/nodes/{0}/@banned".format(node), True)
+        assert get("//sys/tablet_cell_bundles/b/@nodes") == []
+        set("//sys/nodes/{0}/@banned".format(node), False)
+        wait(lambda: get("//sys/nodes/{0}/@state".format(node)) == "online")
+        assert get("//sys/tablet_cell_bundles/b/@nodes") == [node]
+
+        set("//sys/nodes/{0}/@decommissioned".format(node), True)
+        assert get("//sys/tablet_cell_bundles/b/@nodes") == []
+        set("//sys/nodes/{0}/@decommissioned".format(node), False)
+        assert get("//sys/tablet_cell_bundles/b/@nodes") == [node]
+
+        set("//sys/nodes/{0}/@disable_tablet_cells".format(node), True)
+        assert get("//sys/tablet_cell_bundles/b/@nodes") == []
+        set("//sys/nodes/{0}/@disable_tablet_cells".format(node), False)
+        assert get("//sys/tablet_cell_bundles/b/@nodes") == [node]
+
+        build_snapshot(cell_id=None)
+        self.Env.kill_master_cell()
+        self.Env.start_master_cell()
+
+        assert get("//sys/tablet_cell_bundles/b/@nodes") == [node]
+
+
 ##################################################################
 
 class TestDynamicTablesResourceLimits(TestDynamicTablesBase):
