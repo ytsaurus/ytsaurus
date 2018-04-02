@@ -670,6 +670,7 @@ private:
         try {
             OnConnecting();
             SyncClusterDirectory();
+            UpdateConfig();
             PerformHandshake();
             OnConnected();
         } catch (const std::exception& ex) {
@@ -709,6 +710,16 @@ private:
             .ThrowOnError();
 
         LOG_INFO("Cluster directory synchronized");
+    }
+
+    void UpdateConfig()
+    {
+        LOG_INFO("Updating config");
+
+        WaitFor(MasterConnector_->UpdateConfig())
+            .ThrowOnError();
+
+        LOG_INFO("Config updates");
     }
 
     void PerformHandshake()

@@ -228,6 +228,7 @@ public:
         TOperationControllerBase::Persist(context);
 
         using NYT::Persist;
+        Persist(context, Spec);
         Persist(context, JobIOConfig);
         Persist(context, JobSpecTemplate);
         Persist(context, IsExplicitJobCount);
@@ -529,6 +530,7 @@ public:
         TUnorderedControllerBase::Persist(context);
 
         using NYT::Persist;
+        Persist(context, Spec);
         Persist(context, StartRowIndex);
     }
 

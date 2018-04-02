@@ -2092,12 +2092,25 @@ class TestSchedulerConfig(YTEnvSetup):
         op.abort()
 
         op = reduce(command="sleep 1000", in_=["//tmp/t_in"], out="//tmp/t_out", reduce_by=["foo"], dont_track=True)
+        wait(lambda: op.get_state() == "running")
         time.sleep(1)
         # XXX(ignat)
         for spec_type in ("full_spec",):
             assert get("//sys/operations/{0}/@{1}/data_weight_per_job".format(op.id, spec_type)) == 1000
             assert get("//sys/scheduler/orchid/scheduler/operations/{0}/{1}/data_weight_per_job".format(op.id, spec_type)) == 1000
             assert get("//sys/scheduler/orchid/scheduler/operations/{0}/{1}/max_failed_job_count".format(op.id, spec_type)) == 10
+
+        self.Env.kill_controller_agents()
+        self.Env.start_controller_agents()
+        time.sleep(1)
+
+        wait(lambda: op.get_state() == "running")
+        # XXX(ignat)
+        for spec_type in ("full_spec",):
+            assert get("//sys/operations/{0}/@{1}/data_weight_per_job".format(op.id, spec_type)) == 1000
+            assert get("//sys/scheduler/orchid/scheduler/operations/{0}/{1}/data_weight_per_job".format(op.id, spec_type)) == 1000
+            assert get("//sys/scheduler/orchid/scheduler/operations/{0}/{1}/max_failed_job_count".format(op.id, spec_type)) == 10
+
         op.abort()
 
     def test_unrecognized_spec(self):

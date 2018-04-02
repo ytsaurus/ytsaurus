@@ -53,6 +53,8 @@ public:
         std::vector<NChunkClient::TChunkTreeId> chunkTreeIds,
         bool recursive);
 
+    TFuture<void> UpdateConfig();
+
 private:
     class TImpl;
     const TIntrusivePtr<TImpl> Impl_;
