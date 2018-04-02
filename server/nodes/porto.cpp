@@ -160,7 +160,7 @@ std::vector<std::pair<TString, TString>> BuildPortoProperties(TNode* node, TPod*
             [] (TStringBuilder* builder, const auto& allocation) {
                 builder->AppendFormat("veth %v", allocation.address());
             },
-            STRINGBUF(";")));
+            AsStringBuf(";")));
     }
 
     // Host devices
@@ -172,7 +172,7 @@ std::vector<std::pair<TString, TString>> BuildPortoProperties(TNode* node, TPod*
             [] (TStringBuilder* builder, const auto& device) {
                 builder->AppendFormat("%v %v", device.path(), device.mode());
             },
-            STRINGBUF(";")));
+            AsStringBuf(";")));
     }
 
     // Sysctl properties
@@ -184,7 +184,7 @@ std::vector<std::pair<TString, TString>> BuildPortoProperties(TNode* node, TPod*
             [] (TStringBuilder* builder, const auto& property) {
                 builder->AppendFormat("%v:%v", property.name(), property.value());
             },
-            STRINGBUF(";")));
+            AsStringBuf(";")));
     }
 
     return result;

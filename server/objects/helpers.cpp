@@ -442,21 +442,21 @@ TStringBuf GetCapitalizedHumanReadableTypeName(EObjectType type)
 {
     switch (type) {
         case EObjectType::Node:
-            return STRINGBUF("Node");
+            return AsStringBuf("Node");
         case EObjectType::PodSet:
-            return STRINGBUF("Pod set");
+            return AsStringBuf("Pod set");
         case EObjectType::Pod:
-            return STRINGBUF("Pod");
+            return AsStringBuf("Pod");
         case EObjectType::Resource:
-            return STRINGBUF("Resource");
+            return AsStringBuf("Resource");
         case EObjectType::NetworkProject:
-            return STRINGBUF("Network project");
+            return AsStringBuf("Network project");
         case EObjectType::Endpoint:
-            return STRINGBUF("Endpoint");
+            return AsStringBuf("Endpoint");
         case EObjectType::EndpointSet:
-            return STRINGBUF("Endpoint set");
+            return AsStringBuf("Endpoint set");
         case EObjectType::NodeSegment:
-            return STRINGBUF("Node segment");
+            return AsStringBuf("Node segment");
         default:
             Y_UNREACHABLE();
     }
@@ -466,21 +466,21 @@ TStringBuf GetLowercaseHumanReadableTypeName(EObjectType type)
 {
     switch (type) {
         case EObjectType::Node:
-            return STRINGBUF("node");
+            return AsStringBuf("node");
         case EObjectType::PodSet:
-            return STRINGBUF("pod set");
+            return AsStringBuf("pod set");
         case EObjectType::Pod:
-            return STRINGBUF("pod");
+            return AsStringBuf("pod");
         case EObjectType::Resource:
-            return STRINGBUF("resource");
+            return AsStringBuf("resource");
         case EObjectType::NetworkProject:
-            return STRINGBUF("network project");
+            return AsStringBuf("network project");
         case EObjectType::Endpoint:
-            return STRINGBUF("endpoint");
+            return AsStringBuf("endpoint");
         case EObjectType::EndpointSet:
-            return STRINGBUF("endpoint set");
+            return AsStringBuf("endpoint set");
         case EObjectType::NodeSegment:
-            return STRINGBUF("node segment");
+            return AsStringBuf("node segment");
         default:
             Y_UNREACHABLE();
     }
