@@ -4596,23 +4596,47 @@ private:
         int Limit_ = -1;
     };
 
-    TFuture<bool> DoOperationExistsInCypress(const TOperationId& operationId)
+    bool DoOperationExistsInCypress(const TOperationId& operationId)
     {
-        TObjectServiceProxy proxy(GetMasterChannelOrThrow(EMasterChannelKind::Follower));
-        auto path = GetOperationPath(operationId);
-        auto req = TYPathProxy::Get(path);
-        auto rspFuture = proxy.Execute(req);
+        static const std::vector<TString> attributes = {"state"};
 
-        return rspFuture.Apply(BIND([&] (const TErrorOr<TYPathProxy::TRspGetPtr>& rsp) {
+        TObjectServiceProxy proxy(GetMasterChannelOrThrow(EMasterChannelKind::Follower));
+
+        auto batchReq = proxy.ExecuteBatch();
+
+        {
+            auto req = TYPathProxy::Get(GetNewOperationPath(operationId) + "/@");
+            ToProto(req->mutable_attributes()->mutable_keys(), attributes);
+            batchReq->AddRequest(req, "get_operation");
+        }
+
+        {
+            auto req = TYPathProxy::Get(GetOperationPath(operationId) + "/@");
+            ToProto(req->mutable_attributes()->mutable_keys(), attributes);
+            batchReq->AddRequest(req, "get_operation");
+        }
+
+        auto batchRsp = WaitFor(batchReq->Invoke())
+            .ValueOrThrow();
+
+        auto responses = batchRsp->GetResponses<TYPathProxy::TRspGet>("get_operation");
+        for (const auto& rsp : responses) {
             if (rsp.IsOK()) {
-                return true;
-            } else if (rsp.FindMatching(NYTree::EErrorCode::ResolveError)) {
-                return false;
+                auto node = ConvertToNode(TYsonString(rsp.Value()->value()));
+                if (node->AsMap()->FindChild("state")) {
+                    return true;
+                }
             } else {
+                if (rsp.FindMatching(NYTree::EErrorCode::ResolveError)) {
+                    continue;
+                }
+
                 THROW_ERROR_EXCEPTION("Failed to request operation from cypress")
                     << rsp;
             }
-        }));
+        }
+
+        return false;
     }
 
     TFuture<std::pair<std::vector<TJob>, TListJobsStatistics>> DoListJobsFromArchive(
@@ -5225,8 +5249,7 @@ private:
 
         auto dataSource = options.DataSource;
         if (dataSource == EDataSource::Auto) {
-            auto operationExists = WaitFor(DoOperationExistsInCypress(operationId))
-                .ValueOrThrow();
+            auto operationExists = DoOperationExistsInCypress(operationId);
             if (operationExists) {
                 dataSource = EDataSource::Runtime;
             } else {
