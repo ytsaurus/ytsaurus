@@ -27,7 +27,7 @@ import ru.yandex.yt.ytclient.rpc.RpcOptions;
 public class YtClient extends ApiServiceClient implements AutoCloseable {
     private static final Logger logger = LoggerFactory.getLogger(ApiServiceClient.class);
 
-    private final List<PeriodicDiscovery> discovery; // TODO: stop
+    private final List<PeriodicDiscovery> discovery;
     private final Random rnd = new Random();
 
     final private DataCenter[] dataCenters;
