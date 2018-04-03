@@ -10,6 +10,9 @@ from time import sleep
 from collections import defaultdict
 from datetime import datetime
 
+def get_new_operation_path(op_id):
+    return "//sys/operations/{}/{}".format("%02x" % (long(op_id.split("-")[3], 16) % 256), op_id)
+
 def validate_address_filter(op, include_archive, include_cypress, include_runtime):
     job_dict = defaultdict(list)
     res = list_jobs(op.id, include_archive=include_archive, include_cypress=include_cypress, include_runtime=include_runtime, data_source="manual")["jobs"]
@@ -417,3 +420,20 @@ class TestListJobs(YTEnvSetup):
         jobs = list_jobs(op.id, running_jobs_lookbehind_period=1000, **options)["jobs"]
         assert len(jobs) == 1
 
+    def test_stderrs_and_hash_buckets_storage(self):
+        create("table", "//tmp/input")
+        create("table", "//tmp/output")
+
+        write_table("//tmp/input", [{"foo": "bar"}])
+
+        op = map(
+            dont_track=True,
+            in_="//tmp/input",
+            out="//tmp/output",
+            command="echo foo >&2; false",
+            spec={"max_failed_job_count": 1, "testing": {"cypress_storage_mode": "hash_buckets"}})
+
+        wait(lambda: get(get_new_operation_path(op.id) + "/@state") == "failed")
+        jobs = list_jobs(op.id, data_source="auto")["jobs"]
+        assert len(jobs) == 1
+        assert jobs[0]["stderr_size"] > 0
