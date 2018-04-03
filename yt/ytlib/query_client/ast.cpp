@@ -344,7 +344,7 @@ void FormatExpression(TStringBuilder* builder, const TExpression& expr, bool exp
     } else if (auto* typedExpr = expr.As<TUnaryOpExpression>()) {
         builder->AppendString(GetUnaryOpcodeLexeme(typedExpr->Opcode));
         builder->AppendChar('(');
-        FormatExpression(builder, typedExpr->Operand, expandAliases);
+        FormatExpressions(builder, typedExpr->Operand, expandAliases);
         builder->AppendChar(')');
     } else if (auto* typedExpr = expr.As<TBinaryOpExpression>()) {
         builder->AppendChar('(');
@@ -390,8 +390,14 @@ void FormatExpression(TStringBuilder* builder, const TExpression& expr, bool exp
 
 void FormatExpression(TStringBuilder* builder, const TExpressionList& exprs, bool expandAliases)
 {
-    YCHECK(exprs.size() == 1);
-    FormatExpression(builder, *exprs[0], expandAliases);
+    YCHECK(exprs.size() > 0);
+    if (exprs.size() > 1) {
+        builder->AppendChar('(');
+    }
+    FormatExpressions(builder, exprs, expandAliases);
+    if (exprs.size() > 1) {
+        builder->AppendChar(')');
+    }
 }
 
 void FormatExpressions(TStringBuilder* builder, const TExpressionList& exprs, bool expandAliases)
@@ -526,8 +532,9 @@ TString FormatExpression(const TExpression& expr)
 
 TString FormatExpression(const TExpressionList& exprs)
 {
-    YCHECK(exprs.size() == 1);
-    return FormatExpression(*exprs[0]);
+    TStringBuilder builder;
+    FormatExpression(&builder, exprs, true);
+    return builder.Flush();
 }
 
 TString FormatJoin(const TJoin& join)
