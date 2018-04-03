@@ -111,7 +111,7 @@ public:
 
     bool MergeRowsOnFlush;
 
-    i64 MaxUnversionedBlockSize;
+    TNullable<i64> MaxUnversionedBlockSize;
 
     TTableMountConfig()
     {
@@ -245,7 +245,7 @@ public:
             .Default(false);
 
         RegisterParameter("max_unversioned_block_size", MaxUnversionedBlockSize)
-            .Default(512_KB);
+            .Optional();
 
         RegisterPostprocessor([&] () {
             if (MaxDynamicStoreRowCount > MaxDynamicStoreValueCount) {
