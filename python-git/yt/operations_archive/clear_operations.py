@@ -703,9 +703,9 @@ def clear_operations(soft_limit, hard_limit, grace_timeout, archive_timeout, exe
                 thread_safe_metrics.add("failed_to_archive_stderr_count", failed_stderr_count)
 
         if len(failed_to_archive) > remove_threshold:
-            remove_queue.put_many(failed_to_archive[remove_threshold:])
+            remove_queue.put_many([op.id for op in failed_to_archive[remove_threshold:]])
     else:
-        remove_queue = NonBlockingQueue(operations_to_archive)
+        remove_queue = NonBlockingQueue([op.id for op in operations_to_archive])
 
     remove_count = len(remove_queue)
     logger.info("Removing %d operations", len(remove_queue))
