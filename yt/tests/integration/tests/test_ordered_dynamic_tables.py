@@ -151,7 +151,8 @@ class TestOrderedDynamicTables(TestDynamicTablesBase):
         for i in xrange(10):
             assert select_rows("a from [//tmp/t] where [$tablet_index] = " + str(i)) == [{"a": i}]
 
-    def _test_select_from_single_tablet(self, dynamic):
+    @pytest.mark.parametrize("dynamic", [True, False])
+    def test_select_from_single_tablet(self, dynamic):
         self.sync_create_cells(1)
         self._create_simple_table("//tmp/t")
         self.sync_mount_table("//tmp/t")
@@ -172,12 +173,6 @@ class TestOrderedDynamicTables(TestDynamicTablesBase):
         assert select_rows("* from [//tmp/t] where [$tablet_index] in (-10, 20)") == []
         assert select_rows("a from [//tmp/t]") == [{"a": a} for a in xrange(100)]
         assert select_rows("a + 1 as aa from [//tmp/t] where a < 10") == [{"aa": a} for a in xrange(1, 11)]
-
-    def test_select_from_dynamic_single_tablet(self):
-        self._test_select_from_single_tablet(dynamic=True)
-
-    def test_select_from_chunk_single_tablet(self):
-        self._test_select_from_single_tablet(dynamic=False)
 
     def test_select_from_dynamic_multi_tablet(self):
         self.sync_create_cells(1)
