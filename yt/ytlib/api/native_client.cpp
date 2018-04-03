@@ -4196,19 +4196,10 @@ private:
 
             auto user = operation.AuthenticatedUser;
 
-            EOperationState state;
-            switch(operation.OperationState) {
-                case EOperationState::Initializing:
-                case EOperationState::Preparing:
-                case EOperationState::Reviving:
-                case EOperationState::Completing:
-                case EOperationState::Aborting:
-                case EOperationState::Failing:
-                    state = EOperationState::Running;
-                    break;
-                default:
-                    state = operation.OperationState;
-            };
+            EOperationState state = operation.OperationState;
+            if (state != EOperationState::Pending && IsOperationInProgress(state)) {
+                state = EOperationState::Running;
+            }
 
             auto type = operation.OperationType;
 
