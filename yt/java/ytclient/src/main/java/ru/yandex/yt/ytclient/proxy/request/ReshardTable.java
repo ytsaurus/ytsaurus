@@ -7,7 +7,7 @@ import ru.yandex.yt.ytclient.proxy.ApiServiceUtil;
 import ru.yandex.yt.ytclient.tables.TableSchema;
 
 public class ReshardTable extends TableReq<ReshardTable> {
-    private Optional<Integer> tableCount = Optional.empty();
+    private Optional<Integer> tabletCount = Optional.empty();
     private TableSchema schema;
 
     public ReshardTable(String path) {
@@ -19,8 +19,8 @@ public class ReshardTable extends TableReq<ReshardTable> {
         return this;
     }
 
-    public ReshardTable setTableCount(int tableCount) {
-        this.tableCount = Optional.of(tableCount);
+    public ReshardTable setTabletCount(int tabletCount) {
+        this.tabletCount = Optional.of(tabletCount);
         return this;
     }
 
@@ -29,7 +29,7 @@ public class ReshardTable extends TableReq<ReshardTable> {
         if (schema != null) {
             builder.setRowsetDescriptor(ApiServiceUtil.makeRowsetDescriptor(schema));
         }
-        tableCount.ifPresent(x -> builder.setTabletCount(x));
+        tabletCount.ifPresent(x -> builder.setTabletCount(x));
         return builder;
     }
 }
