@@ -4767,18 +4767,22 @@ private:
             selectRowsOptions.Timeout = *deadline - Now();
         }
 
+        auto checkIsNotNull = [&] (const TUnversionedValue& value, const TStringBuf& name, const TJobId& jobId = TJobId()) {
+            if (value.Type == EValueType::Null) {
+                auto error = TError("Unexpected null value in column %Qv in job archive", name)
+                    << TErrorAttribute("operation_id", operationId);
+                if (jobId) {
+                    error = error
+                        << TErrorAttribute("job_id", jobId);
+                }
+                THROW_ERROR error;
+            }
+        };
+
         auto itemsFuture = SelectRows(itemsQuery, selectRowsOptions).Apply(BIND([=] (const TSelectRowsResult& result) {
             std::vector<TJob> jobs;
 
             auto rows = result.Rowset->GetRows();
-
-            auto checkIsNotNull = [&] (const TUnversionedValue& value, const TStringBuf& name, const TGuid& jobId) {
-                if (value.Type == EValueType::Null) {
-                    THROW_ERROR_EXCEPTION("Unexpected null value in column %Qv in job archive", name)
-                        << TErrorAttribute("operation_id", operationId)
-                        << TErrorAttribute("job_id", jobId);
-                }
-            };
 
             for (auto row : rows) {
                 checkIsNotNull(row[jobIdHiIndex], "job_id_hi", TGuid());
@@ -4855,6 +4859,8 @@ private:
 
             auto rows = result.Rowset->GetRows();
             for (const auto& row : rows) {
+                checkIsNotNull(row[0], "type");
+                checkIsNotNull(row[1], "state");
                 auto jobType = ParseEnum<EJobType>(TString(row[0].Data.String, row[0].Length));
                 auto jobState = ParseEnum<EJobState>(TString(row[1].Data.String, row[1].Length));
                 i64 count = row[2].Data.Int64;
