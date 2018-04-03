@@ -196,6 +196,9 @@ void TListOperationsCommand::BuildOperations(const TListOperationsResult& result
                             .DoIf(operation.Weight.operator bool(), [&] (TFluentMap fluent) {
                                 fluent.Item("weight").Value(operation.Weight);
                             })
+                            .DoIf(operation.Pool.operator bool(), [&] (TFluentMap fluent) {
+                                fluent.Item("pool").Value(operation.Pool);
+                            })
                         .EndMap();
                 })
             .EndList()
