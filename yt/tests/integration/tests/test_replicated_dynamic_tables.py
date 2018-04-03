@@ -710,7 +710,8 @@ class TestReplicatedDynamicTables(YTEnvSetup):
         sleep(1.0)
         assert get_lag_time() == 0
 
-    def _test_expression_replication(self, dynamic):
+    @pytest.mark.parametrize("dynamic", [True, False])
+    def test_expression_replication(self, dynamic):
         self._create_cells()
         self._create_replicated_table("//tmp/t", schema=self.EXPRESSION_SCHEMA)
         replica_id = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r")
@@ -743,12 +744,6 @@ class TestReplicatedDynamicTables(YTEnvSetup):
         delete_rows("//tmp/t", [{"key": 1}], require_sync_replica=False)
         sleep(1.0)
         assert select_rows("* from [//tmp/r]", driver=self.replica_driver) == [{"hash": 2, "key": 12, "value": 12}]
-
-    def test_expression_replication_dynamic(self):
-        self._test_expression_replication(dynamic=True)
-
-    def test_expression_replication_chunk(self):
-        self._test_expression_replication(dynamic=False)
 
     def test_shard_replication(self):
         self._create_cells()
