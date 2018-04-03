@@ -132,19 +132,7 @@ public:
         auto id = static_cast<TTagId>(IdToTag.size());
         IdToTag.push_back(tag);
         YCHECK(TagToId.insert(std::make_pair(pair, id)).second);
-
         TagKeyToValues[tag.Key].push_back(tag.Value);
-
-        auto tags = BuildYsonStringFluently()
-            .DoMapFor(TagKeyToValues, [] (TFluentMap fluent, const TTagKeyToValues::value_type& pair) {
-                fluent
-                    .Item(pair.first)
-                    .DoListFor(pair.second, [] (TFluentList fluent, const TString& value) {
-                        fluent
-                            .Item().Value(value);
-                    });
-            });
-        SyncYPathSet(Root, "/@tags", tags);
 
         return id;
     }
