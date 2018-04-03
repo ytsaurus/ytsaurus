@@ -364,13 +364,15 @@ void TSortedChunkStore::ValidateBlockSize(
         chunkState->ChunkMeta->GetChunkFormat() == ETableChunkFormat::UnversionedColumnar))
     {
         // For unversioned chunks verify that block size is correct
-        auto miscExt = FindProtoExtension<TMiscExt>(chunkState->ChunkSpec.chunk_meta().extensions());
-        if (miscExt && miscExt->max_block_size() > Tablet_->GetConfig()->MaxUnversionedBlockSize) {
-            THROW_ERROR_EXCEPTION("Maximum block size limit violated")
-                << TErrorAttribute("tablet_id", TabletId_)
-                << TErrorAttribute("chunk_id", GetId())
-                << TErrorAttribute("block_size", miscExt->max_block_size())
-                << TErrorAttribute("block_size_limit", Tablet_->GetConfig()->MaxUnversionedBlockSize);
+        if (auto blockSizeLimit = Tablet_->GetConfig()->MaxUnversionedBlockSize) {
+            auto miscExt = FindProtoExtension<TMiscExt>(chunkState->ChunkSpec.chunk_meta().extensions());
+            if (miscExt && miscExt->max_block_size() > *blockSizeLimit) {
+                THROW_ERROR_EXCEPTION("Maximum block size limit violated")
+                    << TErrorAttribute("tablet_id", TabletId_)
+                    << TErrorAttribute("chunk_id", GetId())
+                    << TErrorAttribute("block_size", miscExt->max_block_size())
+                    << TErrorAttribute("block_size_limit", *blockSizeLimit);
+            }
         }
     }
 }
