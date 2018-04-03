@@ -103,6 +103,16 @@ TEST_F(TQueryPrepareTest, BadSyntax)
         HasSubstr("syntax error"));
 }
 
+TEST_F(TQueryPrepareTest, BadWhere)
+{
+    EXPECT_CALL(PrepareMock_, GetInitialSplit("//t", _))
+        .WillOnce(Return(MakeFuture(MakeSimpleSplit("//t"))));
+
+    ExpectPrepareThrowsWithDiagnostics(
+        "* from [//t] where (a = 1, b = 2)",
+        HasSubstr("Expecting scalar expression"));
+}
+
 TEST_F(TQueryPrepareTest, BadTableName)
 {
     EXPECT_CALL(PrepareMock_, GetInitialSplit("//bad/table", _))
