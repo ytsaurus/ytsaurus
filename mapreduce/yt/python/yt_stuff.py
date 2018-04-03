@@ -287,7 +287,7 @@ class YtStuff(object):
             if self.config.forbid_chunk_storage_in_tmpfs:
                 args += ["--forbid-chunk-storage-in-tmpfs"]
             if self.config.node_chunk_store_quota:
-                args += ["--node-chunk-store-quota"]
+                args += ["--node-chunk-store-quota", str(self.config.node_chunk_store_quota)]
 
             if self.config.proxy_port is not None:
                 self.yt_proxy_port = self.config.proxy_port
