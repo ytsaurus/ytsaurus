@@ -477,22 +477,20 @@ void TAbortJobCommand::DoExecute(ICommandContextPtr context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TStartOperationCommand::TStartOperationCommand()
+TStartOperationCommand::TStartOperationCommand(TNullable<NScheduler::EOperationType> operationType)
 {
     RegisterParameter("spec", Spec);
-    RegisterParameter("operation_type", OperationType)
-        .Default();
-}
-
-EOperationType TStartOperationCommand::GetOperationType() const
-{
-    return OperationType;
+    if (operationType) {
+        OperationType = *operationType;
+    } else {
+        RegisterParameter("operation_type", OperationType);
+    }
 }
 
 void TStartOperationCommand::DoExecute(ICommandContextPtr context)
 {
     auto asyncOperationId = context->GetClient()->StartOperation(
-        GetOperationType(),
+        OperationType,
         ConvertToYsonString(Spec),
         Options);
 
@@ -505,59 +503,51 @@ void TStartOperationCommand::DoExecute(ICommandContextPtr context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-EOperationType TMapCommand::GetOperationType() const
-{
-    return EOperationType::Map;
-}
+TMapCommand::TMapCommand()
+    : TStartOperationCommand(EOperationType::Map)
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-EOperationType TMergeCommand::GetOperationType() const
-{
-    return EOperationType::Merge;
-}
+TMergeCommand::TMergeCommand()
+    : TStartOperationCommand(EOperationType::Merge)
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-EOperationType TSortCommand::GetOperationType() const
-{
-    return EOperationType::Sort;
-}
+TSortCommand::TSortCommand()
+    : TStartOperationCommand(EOperationType::Sort)
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-EOperationType TEraseCommand::GetOperationType() const
-{
-    return EOperationType::Erase;
-}
+TEraseCommand::TEraseCommand()
+    : TStartOperationCommand(EOperationType::Erase)
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-EOperationType TReduceCommand::GetOperationType() const
-{
-    return EOperationType::Reduce;
-}
+TReduceCommand::TReduceCommand()
+    : TStartOperationCommand(EOperationType::Reduce)
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-EOperationType TJoinReduceCommand::GetOperationType() const
-{
-    return EOperationType::JoinReduce;
-}
+TJoinReduceCommand::TJoinReduceCommand()
+    : TStartOperationCommand(EOperationType::JoinReduce)
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-EOperationType TMapReduceCommand::GetOperationType() const
-{
-    return EOperationType::MapReduce;
-}
+TMapReduceCommand::TMapReduceCommand()
+    : TStartOperationCommand(EOperationType::MapReduce)
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-EOperationType TRemoteCopyCommand::GetOperationType() const
-{
-    return EOperationType::RemoteCopy;
-}
+TRemoteCopyCommand::TRemoteCopyCommand()
+    : TStartOperationCommand(EOperationType::RemoteCopy)
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 
