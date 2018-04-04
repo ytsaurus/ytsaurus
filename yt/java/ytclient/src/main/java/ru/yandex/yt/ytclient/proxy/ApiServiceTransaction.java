@@ -48,6 +48,11 @@ public class ApiServiceTransaction implements AutoCloseable {
         ABORTED
     }
 
+    @Override
+    public String toString() {
+        return "Transaction(" + client + ")@" + id;
+    }
+
     private final Object stateLock = new Object();
     private State state;
 
