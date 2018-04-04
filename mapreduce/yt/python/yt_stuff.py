@@ -352,6 +352,17 @@ class YtStuff(object):
                 rpc_proxy_config_file = os.path.join(self.yt_work_dir, self.yt_id, "configs", "rpc-client.yson")
                 with open(rpc_proxy_config_file) as f:
                     self.yt_rpc_proxy = yson.load(f)["addresses"][0]
+            self.cluster_config = dict()
+            with open(os.path.join(self.yt_work_dir, self.yt_id, "configs", "master-0-0.yson")) as f:
+                v = yson.load(f)
+                for field in ["primary_master", "secondary_masters", "timestamp_provider", "transaction_manager"]:
+                    if field in v:
+                        self.cluster_config[field] = v[field]
+            with open(os.path.join(self.yt_work_dir, self.yt_id, "configs", "driver-0.yson")) as f:
+                v = yson.load(f)
+                for field in ["table_mount_cache", "cell_directory_synchronizer", "cluster_directory_synchronizer"]:
+                    if field in v:
+                        self.cluster_config[field] = v[field]
         except Exception, e:
             self._log("Failed to start local YT:\n%s", str(e))
             for pid in self.get_pids():
@@ -397,6 +408,9 @@ class YtStuff(object):
 
     def get_rpc_proxy(self):
         return self.yt_rpc_proxy
+
+    def get_cluster_config(self):
+        return self.cluster_config
 
     def get_env(self):
         return self.env
