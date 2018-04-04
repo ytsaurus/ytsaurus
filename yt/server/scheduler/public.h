@@ -104,6 +104,7 @@ DEFINE_ENUM(EOperationAlertType,
     (ExcessiveJobSpecThrottling)
     (ScheduleJobTimedOut)
     (InvalidAcl)
+    (LowCpuUsage)
 );
 
 ////////////////////////////////////////////////////////////////////////////////
