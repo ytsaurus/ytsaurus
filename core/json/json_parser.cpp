@@ -131,7 +131,8 @@ public:
                 Consumer_,
                 Type_,
                 TUtf8Transcoder(Config_->EncodeUtf8),
-                Config_->MemoryLimit);
+                Config_->MemoryLimit,
+                Config_->AttributesMode);
         }
         YajlHandle_ = yajl_alloc(&YajlCallbacks, nullptr, Callbacks_.get());
 
