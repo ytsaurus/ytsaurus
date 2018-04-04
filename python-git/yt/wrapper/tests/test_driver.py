@@ -68,7 +68,6 @@ def test_catching_sigint(yt_env):
 
     time.sleep(3)
     os.kill(process.pid, signal.SIGINT)
-
     try:
         process.wait(5)
     except:
@@ -80,7 +79,6 @@ def test_catching_sigint(yt_env):
 
     time.sleep(3)
     os.kill(process.pid, signal.SIGINT)
-
     try:
         process.wait(5)
     except:
