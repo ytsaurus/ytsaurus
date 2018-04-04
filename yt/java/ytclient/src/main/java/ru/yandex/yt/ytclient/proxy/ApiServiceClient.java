@@ -120,11 +120,6 @@ public class ApiServiceClient {
     private final Option<RpcClient> rpcClient;
     private final RpcOptions rpcOptions;
 
-    @Override
-    public String toString() {
-        return "ApiServiceClient(" + rpcClient.toString() + ")";
-    }
-
     private ApiServiceClient(Option<RpcClient> client, RpcOptions options, ApiService service, Executor heavyExecutor) {
         this.service = Objects.requireNonNull(service);
         this.heavyExecutor = Objects.requireNonNull(heavyExecutor);
