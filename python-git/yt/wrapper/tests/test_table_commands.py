@@ -78,15 +78,15 @@ class TestTableCommands(object):
         yt.write_table(table, [{"x": i} for i in xrange(10)])
         client = yt.YtClient(config=deepcopy(yt.config.config))
         with set_config_option("read_parallel/max_thread_count", 2):
-            with set_config_option("proxy/request_timeout", 100):
-                with set_config_option("proxy/retries/count", 1):
+            with set_config_option("proxy/request_timeout", 1000):
+                with set_config_option("proxy/retries/count", 3):
                     iterator = yt.read_table(table)
 
                     for transaction in client.search("//sys/transactions", attributes=["title", "id"]):
                         if transaction.attributes.get("title", "").startswith("Python wrapper: read"):
                             client.abort_transaction(transaction.attributes["id"])
 
-                    time.sleep(1)
+                    time.sleep(5)
                     with pytest.raises(yt.YtError):
                         for _ in iterator:
                             pass
