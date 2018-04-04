@@ -128,7 +128,7 @@ public class ApiServiceTransaction implements AutoCloseable {
 
     private boolean isPingableState() {
         State state = getState();
-        return state == State.ACTIVE || state == State.COMMITTING;
+        return state == State.ACTIVE /*|| state == State.COMMITTING*/;
     }
 
     private void runPeriodicPings() {
