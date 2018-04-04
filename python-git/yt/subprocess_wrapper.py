@@ -1,6 +1,9 @@
 from yt.common import to_native_str
 
-import subprocess
+try:
+    import subprocess32 as subprocess
+except ImportError:
+    import subprocess
 
 Popen = subprocess.Popen
 PIPE = subprocess.PIPE
