@@ -101,6 +101,15 @@ public:
     // count is above this threshold.
     i64 JobSpecThrottlingAlertActivationCountThreshold;
 
+    // Minimum total time sum to analyze operation
+    TDuration LowCpuUsageAlertMinExecTime;
+
+    // Minimum average job time to analyze operation
+    TDuration LowCpuUsageAlertMinAverageJobTime;
+
+    // Cpu usage threshold to send an alert
+    double LowCpuUsageAlertCpuUsageThreshold;
+
     TOperationAlertsConfig();
 };
 

@@ -468,6 +468,7 @@ protected:
     void AnalyzeInputStatistics();
     void AnalyzeAbortedJobs();
     void AnalyzeJobsIOUsage();
+    void AnalyzeJobsCpuUsage();
     void AnalyzeJobsDuration();
     void AnalyzeScheduleJobStatistics();
 

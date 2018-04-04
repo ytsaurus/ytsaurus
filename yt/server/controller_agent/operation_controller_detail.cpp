@@ -72,6 +72,8 @@
 
 #include <yt/core/logging/log.h>
 
+#include <util/generic/vector.h>
+
 #include <functional>
 
 namespace NYT {
@@ -310,7 +312,7 @@ TOperationControllerInitializationResult TOperationControllerBase::InitializeRev
                 return;
             }
 
-            asyncCheckResults.push_back(std::make_pair(transaction, transaction->Ping()));
+            asyncCheckResults.emplace_back(transaction, transaction->Ping());
         };
 
         // NB: Async transaction is not checked.
@@ -2444,7 +2446,7 @@ void TOperationControllerBase::AnalyzeTmpfsUsage()
         return;
     }
 
-    THashMap<EJobType, i64> maximumUsedTmfpsSizePerJobType;
+    THashMap<EJobType, i64> maximumUsedTmpfsSizePerJobType;
     THashMap<EJobType, TUserJobSpecPtr> userJobSpecPerJobType;
 
     for (const auto& task : Tasks) {
@@ -2460,9 +2462,9 @@ void TOperationControllerBase::AnalyzeTmpfsUsage()
 
         auto jobType = task->GetJobType();
 
-        auto it = maximumUsedTmfpsSizePerJobType.find(jobType);
-        if (it == maximumUsedTmfpsSizePerJobType.end()) {
-            maximumUsedTmfpsSizePerJobType[jobType] = *maxUsedTmpfsSize;
+        auto it = maximumUsedTmpfsSizePerJobType.find(jobType);
+        if (it == maximumUsedTmpfsSizePerJobType.end()) {
+            maximumUsedTmpfsSizePerJobType[jobType] = *maxUsedTmpfsSize;
         } else {
             it->second = std::max(it->second, *maxUsedTmpfsSize);
         }
@@ -2474,7 +2476,7 @@ void TOperationControllerBase::AnalyzeTmpfsUsage()
 
     double minUnusedSpaceRatio = 1.0 - Config->OperationAlerts->TmpfsAlertMaxUnusedSpaceRatio;
 
-    for (const auto& pair : maximumUsedTmfpsSizePerJobType) {
+    for (const auto& pair : maximumUsedTmpfsSizePerJobType) {
         const auto& userJobSpecPtr = userJobSpecPerJobType[pair.first];
         auto maxUsedTmpfsSize = pair.second;
 
@@ -2484,7 +2486,7 @@ void TOperationControllerBase::AnalyzeTmpfsUsage()
             minUnusedSpaceRatio * userJobSpecPtr->TmpfsSize.Get();
 
         if (minUnusedSpaceThresholdOvercome && minUnusedSpaceRatioViolated) {
-            auto error = TError(
+            TError error(
                 "Jobs of type %Qlv use less than %.1f%% of requested tmpfs size",
                 pair.first, minUnusedSpaceRatio * 100.0);
             innerErrors.push_back(error
@@ -2591,6 +2593,63 @@ void TOperationControllerBase::AnalyzeJobsIOUsage()
     SetOperationAlert(EOperationAlertType::ExcessiveDiskUsage, error);
 }
 
+void TOperationControllerBase::AnalyzeJobsCpuUsage()
+{
+    static const TVector<TString> allCpuStatistics = {
+        "/job_proxy/cpu/system/$/completed/",
+        "/job_proxy/cpu/user/$/completed/",
+        "/user_job/cpu/system/$/completed/",
+        "/user_job/cpu/user/$/completed/"
+    };
+
+    TVector<TError> innerErrors;
+    for (const auto& task : Tasks) {
+        const auto& userJobSpecPtr = task->GetUserJobSpec();
+        if (!userJobSpecPtr) {
+            continue;
+        }
+        auto jobType = task->GetJobType();
+        auto summary = FindSummary(JobStatistics, "/time/exec/$/completed/" + FormatEnum(jobType));
+        if (!summary) {
+            continue;
+        }
+        i64 totalExecutionTime = summary->GetSum();
+        i64 jobCount = summary->GetCount();
+        double cpuLimit = userJobSpecPtr->CpuLimit;
+        if (jobCount == 0 || totalExecutionTime == 0 || cpuLimit == 0) {
+            continue;
+        }
+        i64 cpuUsage = 0;
+        for (const TString& stat : allCpuStatistics) {
+            auto value = FindNumericValue(JobStatistics, stat + FormatEnum(jobType));
+            cpuUsage += value ? *value : 0;
+        }
+        TDuration averageJobDuration = TDuration::MilliSeconds(totalExecutionTime / jobCount);
+        TDuration totalExecutionDuration = TDuration::MilliSeconds(totalExecutionTime);
+        double cpuRatio = static_cast<double>(cpuUsage) / (totalExecutionTime * cpuLimit);
+
+        if (totalExecutionDuration > Config->OperationAlerts->LowCpuUsageAlertMinExecTime &&
+            averageJobDuration > Config->OperationAlerts->LowCpuUsageAlertMinAverageJobTime &&
+            cpuRatio < Config->OperationAlerts->LowCpuUsageAlertCpuUsageThreshold)
+        {
+            auto error = TError("Jobs of type %Qlv use %.2f%% of requested cpu limit", jobType, 100 * cpuRatio)
+                << TErrorAttribute("cpu_time", cpuUsage)
+                << TErrorAttribute("exec_time", totalExecutionDuration)
+                << TErrorAttribute("cpu_limit", cpuLimit);
+            innerErrors.push_back(error);
+        }
+    }
+
+    TError error;
+    if (!innerErrors.empty()) {
+        error = TError(
+            "Average cpu usage of some of your job types is significantly lower than requested 'cpu_limit'. "
+            "Consider decreasing cpu_limit in spec of your operation"
+        ) << innerErrors;
+    }
+    SetOperationAlert(EOperationAlertType::LowCpuUsage, error);
+}
+
 void TOperationControllerBase::AnalyzeJobsDuration()
 {
     if (OperationType == EOperationType::RemoteCopy || OperationType == EOperationType::Erase) {
@@ -2650,7 +2709,7 @@ void TOperationControllerBase::AnalyzeScheduleJobStatistics()
     if (jobSpecThrottlerActivationCount > activationCountThreshold) {
         error = TError(
             "Excessive job spec throttling is detected. Usage ratio of operation can be "
-            "significatly less than fair share ratio")
+            "significantly less than fair share ratio")
                 << TErrorAttribute("job_spec_throttler_activation_count", jobSpecThrottlerActivationCount);
     }
 
@@ -2667,6 +2726,7 @@ void TOperationControllerBase::AnalyzeOperationProgress()
     AnalyzePartitionHistogram();
     AnalyzeAbortedJobs();
     AnalyzeJobsIOUsage();
+    AnalyzeJobsCpuUsage();
     AnalyzeJobsDuration();
     AnalyzeScheduleJobStatistics();
 }
