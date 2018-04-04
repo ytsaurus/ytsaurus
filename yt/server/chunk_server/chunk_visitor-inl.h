@@ -27,8 +27,14 @@ public:
 private:
     const TKeyExtractor KeyExtractor_;
 
+    struct TStatistics
+    {
+        TChunkTreeStatistics ChunkTreeStatistics;
+        i64 MaxBlockSize = 0;
+    };
+
     using TKey = typename std::result_of<TKeyExtractor(const TChunk*)>::type;
-    using TStatiticsMap = yhash<TKey, TChunkTreeStatistics>;
+    using TStatiticsMap = yhash<TKey, TStatistics>;
     TStatiticsMap StatisticsMap_;
 
     virtual bool OnChunk(
@@ -39,7 +45,9 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        StatisticsMap_[KeyExtractor_(chunk)].Accumulate(chunk->GetStatistics());
+        auto& statistics = StatisticsMap_[KeyExtractor_(chunk)];
+        statistics.ChunkTreeStatistics.Accumulate(chunk->GetStatistics());
+        statistics.MaxBlockSize = std::max(statistics.MaxBlockSize, chunk->MiscExt().max_block_size());
         return true;
     }
 
@@ -53,10 +61,11 @@ private:
                 // TODO(panin): maybe use here the same method as in attributes
                 fluent
                     .Item(FormatKey(pair.first)).BeginMap()
-                        .Item("chunk_count").Value(statistics.ChunkCount)
-                        .Item("uncompressed_data_size").Value(statistics.UncompressedDataSize)
-                        .Item("compressed_data_size").Value(statistics.CompressedDataSize)
-                        .Item("data_weight").Value(statistics.DataWeight)
+                        .Item("chunk_count").Value(statistics.ChunkTreeStatistics.ChunkCount)
+                        .Item("uncompressed_data_size").Value(statistics.ChunkTreeStatistics.UncompressedDataSize)
+                        .Item("compressed_data_size").Value(statistics.ChunkTreeStatistics.CompressedDataSize)
+                        .Item("data_weight").Value(statistics.ChunkTreeStatistics.DataWeight)
+                        .Item("max_block_size").Value(statistics.MaxBlockSize)
                     .EndMap();
             });
         Promise_.Set(result);
