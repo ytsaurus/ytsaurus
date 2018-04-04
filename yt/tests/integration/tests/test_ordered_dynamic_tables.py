@@ -155,7 +155,8 @@ class TestOrderedDynamicTables(TestDynamicTablesBase):
         for i in xrange(10):
             assert select_rows("a from [//tmp/t] where [$tablet_index] = " + str(i)) == [{"a": i}]
 
-    def _test_select_from_single_tablet(self, dynamic):
+    @pytest.mark.parametrize("dynamic", [True, False])
+    def test_select_from_single_tablet(self, dynamic):
         self.sync_create_cells(1)
         self._create_simple_table("//tmp/t")
         self.sync_mount_table("//tmp/t")
@@ -170,17 +171,12 @@ class TestOrderedDynamicTables(TestDynamicTablesBase):
             self.sync_mount_table("//tmp/t")
 
         assert select_rows("* from [//tmp/t]") == query_rows
+        assert select_rows("[$row_index], a from [//tmp/t]") == [{"$row_index": row["$row_index"], "a": row["a"]} for row in query_rows]
         assert select_rows("c, b from [//tmp/t]") == [{"b": i * 0.5, "c" : "payload" + str(i)} for i in xrange(100)]
         assert select_rows("* from [//tmp/t] where [$row_index] between 10 and 20") == query_rows[10:21]
         assert select_rows("* from [//tmp/t] where [$tablet_index] in (-10, 20)") == []
         assert select_rows("a from [//tmp/t]") == [{"a": a} for a in xrange(100)]
         assert select_rows("a + 1 as aa from [//tmp/t] where a < 10") == [{"aa": a} for a in xrange(1, 11)]
-
-    def test_select_from_dynamic_single_tablet(self):
-        self._test_select_from_single_tablet(dynamic=True)
-
-    def test_select_from_chunk_single_tablet(self):
-        self._test_select_from_single_tablet(dynamic=False)
 
     def test_select_from_dynamic_multi_tablet(self):
         self.sync_create_cells(1)

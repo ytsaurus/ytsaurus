@@ -15,6 +15,8 @@
 
 #include <yt/core/tools/tools.h>
 
+#include <util/string/vector.h>
+
 namespace NYT {
 namespace NExecAgent {
 
@@ -78,8 +80,22 @@ public:
             }
         }
 
+        // Sort from longest paths, to shortest.
+        std::sort(toRelease.begin(), toRelease.end(), [] (const TString& lhs, const TString& rhs) {
+            return SplitStroku(lhs, "/").size() > SplitStroku(rhs, "/").size();
+        });
+
         std::vector<TFuture<void>> asyncUnlinkResults;
         for (const auto& path : toRelease) {
+            LOG_DEBUG("Releasing porto volume (Path: %v)", path);
+            try {
+                // NB(psushin): it is important to clean volume contents before removal.
+                // Otherwise porto can hang up in sync call for a long time during unlink of quota backend.
+                RunTool<TRemoveDirContentAsRootTool>(path);
+            } catch (const std::exception& ex) {
+                LOG_WARNING(ex, "Failed to remove directory contents for porto volume (Path: %v)", path);
+            }
+
             asyncUnlinkResults.emplace_back(Executor_->UnlinkVolume(path, "self"));
         }
 
@@ -214,7 +230,13 @@ public:
                 it = Directories_.erase(it);
             }
 
+            // Sort from longest paths, to shortest.
+            std::sort(toRelease.begin(), toRelease.end(), [] (const TString& lhs, const TString& rhs) {
+                return SplitStroku(lhs, "/").size() > SplitStroku(rhs, "/").size();
+            });
+
             for (const auto& path : toRelease) {
+                LOG_DEBUG("Removing mount point (Path: %v)", path);
                 try {
                     // Due to bug in the kernel, this can sometimes fail with "Directory is not empty" error.
                     // More info: https://bugzilla.redhat.com/show_bug.cgi?id=1066751

@@ -850,6 +850,11 @@ public:
         const TJobId& jobId,
         const TGetJobStderrOptions& options),
         (operationId, jobId, options))
+    IMPLEMENT_METHOD(TSharedRef, GetJobFailContext, (
+        const TOperationId& operationId,
+        const TJobId& jobId,
+        const TGetJobFailContextOptions& options),
+        (operationId, jobId, options))
     IMPLEMENT_METHOD(TListOperationsResult, ListOperations, (
         const TListOperationsOptions& options),
         (options))
@@ -3937,6 +3942,74 @@ private:
             << TErrorAttribute("job_id", jobId);
     }
 
+    TSharedRef DoGetJobFailContextFromCypress(
+        const TOperationId& operationId,
+        const TJobId& jobId)
+    {
+        auto createFileReader = [&] (const NYPath::TYPath& path) {
+            return WaitFor(static_cast<IClientBase*>(this)->CreateFileReader(path));
+        };
+
+        try {
+            auto fileReaderOrError = createFileReader(NScheduler::GetNewFailContextPath(operationId, jobId));
+            // COMPAT
+            if (fileReaderOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
+                fileReaderOrError = createFileReader(NScheduler::GetFailContextPath(operationId, jobId));
+            }
+
+            auto fileReader = fileReaderOrError.ValueOrThrow();
+
+            std::vector<TSharedRef> blocks;
+            while (true) {
+                auto block = WaitFor(fileReader->Read())
+                    .ValueOrThrow();
+
+                if (!block) {
+                    break;
+                }
+
+                blocks.push_back(std::move(block));
+            }
+
+            i64 size = GetByteSize(blocks);
+            YCHECK(size);
+            auto failContextFile = TSharedMutableRef::Allocate(size);
+            auto memoryOutput = TMemoryOutput(failContextFile.Begin(), size);
+
+            for (const auto& block : blocks) {
+                memoryOutput.Write(block.Begin(), block.Size());
+            }
+
+            return failContextFile;
+        } catch (const TErrorException& exception) {
+            auto matchedError = exception.Error().FindMatching(NYTree::EErrorCode::ResolveError);
+
+            if (!matchedError) {
+                THROW_ERROR_EXCEPTION("Failed to get job fail context from Cypress")
+                    << TErrorAttribute("operation_id", operationId)
+                    << TErrorAttribute("job_id", jobId)
+                    << exception.Error();
+            }
+        }
+
+        return TSharedRef();
+    }
+
+    TSharedRef DoGetJobFailContext(
+        const TOperationId& operationId,
+        const TJobId& jobId,
+        const TGetJobFailContextOptions& /*options*/)
+    {
+        auto failContextRef = DoGetJobFailContextFromCypress(operationId, jobId);
+        if (failContextRef) {
+            return failContextRef;
+        }
+
+        THROW_ERROR_EXCEPTION(NScheduler::EErrorCode::NoSuchJob, "Job fail context is not found")
+            << TErrorAttribute("operation_id", operationId)
+            << TErrorAttribute("job_id", jobId);
+    }
+
     template <class T>
     static bool LessNullable(const T& lhs, const T& rhs)
     {
@@ -4044,32 +4117,11 @@ private:
             "weight"
         };
 
-        TObjectServiceProxy proxy(OperationsArchiveChannels_[options.ReadFrom]);
-        auto batchReq = proxy.ExecuteBatch();
-        SetBalancingHeader(batchReq, options);
-
-        auto req = TYPathProxy::List(GetOperationsPath());
-        SetCachingHeader(req, options);
-        ToProto(req->mutable_attributes()->mutable_keys(), attributes);
-        batchReq->AddRequest(req);
-
-        auto batchRsp = WaitFor(batchReq->Invoke())
-            .ValueOrThrow();
-        auto rsp = batchRsp->GetResponse<TYPathProxy::TRspList>(0)
-            .ValueOrThrow();
-
-        auto items = ConvertToNode(TYsonString(rsp->value()))->AsList();
-
-        std::vector<TOperation> cypressOperations;
-        for (const auto& item : items->GetChildren()) {
-            const auto& attributes = item->Attributes();
-
-            if (item->AsString()->GetValue().Size() == 2) {
-                continue;
-            }
+        auto createOperationFromNode = [&] (const INodePtr& node) {
+            const auto& attributes = node->Attributes();
 
             TOperation operation;
-            operation.OperationId = TGuid::FromString(item->AsString()->GetValue());
+            operation.OperationId = TGuid::FromString(node->AsString()->GetValue());
             operation.OperationType = ParseEnum<NScheduler::EOperationType>(attributes.Get<TString>("operation_type"));
             operation.OperationState = ParseEnum<NScheduler::EOperationState>(attributes.Get<TString>("state"));
             operation.StartTime = ConvertTo<TInstant>(attributes.Get<TString>("start_time"));
@@ -4090,7 +4142,79 @@ private:
             operation.BriefProgress = attributes.FindYson("brief_progress");
             operation.Suspended = attributes.Get<bool>("suspended");
             operation.Weight = attributes.Find<double>("weight");
-            cypressOperations.push_back(operation);
+            return operation;
+        };
+
+        TObjectServiceProxy proxy(OperationsArchiveChannels_[options.ReadFrom]);
+        auto batchReq = proxy.ExecuteBatch();
+        SetBalancingHeader(batchReq, options);
+
+        {
+            auto req = TYPathProxy::List(GetOperationsPath());
+            SetCachingHeader(req, options);
+            ToProto(req->mutable_attributes()->mutable_keys(), attributes);
+            batchReq->AddRequest(req, "list_operations");
+        }
+
+        for (int hash = 0x0; hash <= 0xFF; ++hash) {
+            auto hashStr = Format("%02x", hash);
+            auto req = TYPathProxy::List("//sys/operations/" + hashStr);
+            SetCachingHeader(req, options);
+            ToProto(req->mutable_attributes()->mutable_keys(), attributes);
+            batchReq->AddRequest(req, "list_operations_" + hashStr);
+        }
+
+        auto batchRsp = WaitFor(batchReq->Invoke())
+            .ValueOrThrow();
+
+        std::vector<TOperation> cypressOperations;
+        THashMap<TOperationId, INodePtr> rootOperations;
+
+        auto rootOperationsRsp = batchRsp->GetResponse<TYPathProxy::TRspList>("list_operations")
+            .ValueOrThrow();
+        auto rootOperationsList = ConvertToNode(TYsonString(rootOperationsRsp->value()))->AsList();
+
+        for (const auto& item : rootOperationsList->GetChildren()) {
+            auto idStr = item->AsString()->GetValue();
+
+            // Hash-bucket case
+            if (idStr.size() == 2) {
+                continue;
+            }
+
+            auto operationId = TGuid::FromString(idStr);
+            YCHECK(rootOperations.emplace(operationId, item).second);
+        }
+
+        for (int hash = 0x0; hash <= 0xFF; ++hash) {
+            auto hashStr = Format("%02x", hash);
+            auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspList>("list_operations_" + hashStr);
+
+            if (rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
+                continue;
+            }
+
+            auto rsp = rspOrError.ValueOrThrow();
+            auto items = ConvertToNode(TYsonString(rsp->value()))->AsList();
+
+            for (const auto& item : items->GetChildren()) {
+                auto operationId = TGuid::FromString(item->AsString()->GetValue());
+                if (item->Attributes().Contains("state")) {
+                    cypressOperations.push_back(createOperationFromNode(item));
+                    rootOperations.erase(operationId);
+                } else {
+                    auto it = rootOperations.find(operationId);
+                    if (it != rootOperations.end()) {
+                        cypressOperations.push_back(createOperationFromNode(it->second));
+                        rootOperations.erase(it);
+                    }
+                }
+            }
+        }
+
+        for (const auto& pair : rootOperations) {
+            cypressOperations.push_back(createOperationFromNode(pair.second));
+            YCHECK(cypressOperations.back().OperationId == pair.first);
         }
 
         auto filterAndCount =
@@ -4133,19 +4257,10 @@ private:
 
             auto user = operation.AuthenticatedUser;
 
-            EOperationState state;
-            switch(operation.OperationState) {
-                case EOperationState::Initializing:
-                case EOperationState::Preparing:
-                case EOperationState::Reviving:
-                case EOperationState::Completing:
-                case EOperationState::Aborting:
-                case EOperationState::Failing:
-                    state = EOperationState::Running;
-                    break;
-                default:
-                    state = operation.OperationState;
-            };
+            EOperationState state = operation.OperationState;
+            if (state != EOperationState::Pending && IsOperationInProgress(state)) {
+                state = EOperationState::Running;
+            }
 
             auto type = operation.OperationType;
 
@@ -4536,23 +4651,47 @@ private:
         int Limit_ = -1;
     };
 
-    TFuture<bool> DoOperationExistsInCypress(const TOperationId& operationId)
+    bool DoOperationExistsInCypress(const TOperationId& operationId)
     {
-        TObjectServiceProxy proxy(GetMasterChannelOrThrow(EMasterChannelKind::Follower));
-        auto path = GetOperationPath(operationId);
-        auto req = TYPathProxy::Get(path);
-        auto rspFuture = proxy.Execute(req);
+        static const std::vector<TString> attributes = {"state"};
 
-        return rspFuture.Apply(BIND([&] (const TErrorOr<TYPathProxy::TRspGetPtr>& rsp) {
+        TObjectServiceProxy proxy(GetMasterChannelOrThrow(EMasterChannelKind::Follower));
+
+        auto batchReq = proxy.ExecuteBatch();
+
+        {
+            auto req = TYPathProxy::Get(GetNewOperationPath(operationId) + "/@");
+            ToProto(req->mutable_attributes()->mutable_keys(), attributes);
+            batchReq->AddRequest(req, "get_operation");
+        }
+
+        {
+            auto req = TYPathProxy::Get(GetOperationPath(operationId) + "/@");
+            ToProto(req->mutable_attributes()->mutable_keys(), attributes);
+            batchReq->AddRequest(req, "get_operation");
+        }
+
+        auto batchRsp = WaitFor(batchReq->Invoke())
+            .ValueOrThrow();
+
+        auto responses = batchRsp->GetResponses<TYPathProxy::TRspGet>("get_operation");
+        for (const auto& rsp : responses) {
             if (rsp.IsOK()) {
-                return true;
-            } else if (rsp.FindMatching(NYTree::EErrorCode::ResolveError)) {
-                return false;
+                auto node = ConvertToNode(TYsonString(rsp.Value()->value()));
+                if (node->AsMap()->FindChild("state")) {
+                    return true;
+                }
             } else {
+                if (rsp.FindMatching(NYTree::EErrorCode::ResolveError)) {
+                    continue;
+                }
+
                 THROW_ERROR_EXCEPTION("Failed to request operation from cypress")
                     << rsp;
             }
-        }));
+        }
+
+        return false;
     }
 
     TFuture<std::pair<std::vector<TJob>, TListJobsStatistics>> DoListJobsFromArchive(
@@ -4601,6 +4740,11 @@ private:
             } else {
                 itemsQueryBuilder.AddWhereExpression("(stderr_size = 0 OR is_null(stderr_size))");
             }
+        }
+
+        // TODO(ignat): add 'fail_context_size' to archive.
+        if (options.WithFailContext && *options.WithFailContext) {
+            itemsQueryBuilder.AddWhereExpression("false");
         }
 
         if (options.Address) {
@@ -4678,18 +4822,22 @@ private:
             selectRowsOptions.Timeout = *deadline - Now();
         }
 
+        auto checkIsNotNull = [&] (const TUnversionedValue& value, const TStringBuf& name, const TJobId& jobId = TJobId()) {
+            if (value.Type == EValueType::Null) {
+                auto error = TError("Unexpected null value in column %Qv in job archive", name)
+                    << TErrorAttribute("operation_id", operationId);
+                if (jobId) {
+                    error = error
+                        << TErrorAttribute("job_id", jobId);
+                }
+                THROW_ERROR error;
+            }
+        };
+
         auto itemsFuture = SelectRows(itemsQuery, selectRowsOptions).Apply(BIND([=] (const TSelectRowsResult& result) {
             std::vector<TJob> jobs;
 
             auto rows = result.Rowset->GetRows();
-
-            auto checkIsNotNull = [&] (const TUnversionedValue& value, const TStringBuf& name, const TGuid& jobId) {
-                if (value.Type == EValueType::Null) {
-                    THROW_ERROR_EXCEPTION("Unexpected null value in column %Qv in job archive", name)
-                        << TErrorAttribute("operation_id", operationId)
-                        << TErrorAttribute("job_id", jobId);
-                }
-            };
 
             for (auto row : rows) {
                 checkIsNotNull(row[jobIdHiIndex], "job_id_hi", TGuid());
@@ -4766,6 +4914,8 @@ private:
 
             auto rows = result.Rowset->GetRows();
             for (const auto& row : rows) {
+                checkIsNotNull(row[0], "type");
+                checkIsNotNull(row[1], "state");
                 auto jobType = ParseEnum<EJobType>(TString(row[0].Data.String, row[0].Length));
                 auto jobState = ParseEnum<EJobState>(TString(row[1].Data.String, row[1].Length));
                 i64 count = row[2].Data.Int64;
@@ -4886,6 +5036,20 @@ private:
                     }
                 }
 
+                i64 failContextSize = -1;
+                if (auto failContextNode = children->FindChild("fail_context")) {
+                    failContextSize = failContextNode->Attributes().Get<i64>("uncompressed_data_size");
+                }
+
+                if (options.WithFailContext) {
+                    if (*options.WithFailContext && failContextSize <= 0) {
+                        continue;
+                    }
+                    if (!(*options.WithFailContext) && failContextSize > 0) {
+                        continue;
+                    }
+                }
+
                 jobs.emplace_back();
                 auto& job = jobs.back();
 
@@ -4897,6 +5061,9 @@ private:
                 job.Address = address;
                 if (stderrSize >= 0) {
                     job.StderrSize = stderrSize;
+                }
+                if (failContextSize >= 0) {
+                    job.FailContextSize = failContextSize;
                 }
                 job.Error = attributes.FindYson("error");
                 job.BriefStatistics = attributes.FindYson("brief_statistics");
@@ -4948,6 +5115,10 @@ private:
                     if (!(*options.WithStderr) && stderrSize > 0) {
                         continue;
                     }
+                }
+
+                if (options.WithFailContext && *options.WithFailContext) {
+                    continue;
                 }
 
                 jobs.emplace_back();
@@ -5139,8 +5310,7 @@ private:
 
         auto dataSource = options.DataSource;
         if (dataSource == EDataSource::Auto) {
-            auto operationExists = WaitFor(DoOperationExistsInCypress(operationId))
-                .ValueOrThrow();
+            auto operationExists = DoOperationExistsInCypress(operationId);
             if (operationExists) {
                 dataSource = EDataSource::Runtime;
             } else {

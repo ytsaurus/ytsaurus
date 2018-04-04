@@ -10,6 +10,9 @@ from time import sleep
 from collections import defaultdict
 from datetime import datetime
 
+def get_new_operation_path(op_id):
+    return "//sys/operations/{}/{}".format("%02x" % (long(op_id.split("-")[3], 16) % 256), op_id)
+
 def validate_address_filter(op, include_archive, include_cypress, include_runtime):
     job_dict = defaultdict(list)
     res = list_jobs(op.id, include_archive=include_archive, include_cypress=include_cypress, include_runtime=include_runtime, data_source="manual")["jobs"]
@@ -142,6 +145,8 @@ class TestListJobs(YTEnvSetup):
         reduce_jobs = []
         jobs_with_stderr = []
         jobs_without_stderr = []
+        jobs_with_fail_context = []
+        jobs_without_fail_context = []
 
         for job_id, job in jobs.iteritems():
             if job.attributes["job_type"] == "partition_map":
@@ -156,6 +161,10 @@ class TestListJobs(YTEnvSetup):
                 jobs_with_stderr.append(job_id)
             else:
                 jobs_without_stderr.append(job_id)
+            if "fail_context" in job:
+                jobs_with_fail_context.append(job_id)
+            else:
+                jobs_without_fail_context.append(job_id)
 
         manual_options = dict(data_source="manual", include_cypress=True, include_scheduler=True, include_archive=False)
         runtime_options = dict(data_source="runtime")
@@ -214,6 +223,12 @@ class TestListJobs(YTEnvSetup):
 
             res = list_jobs(op.id, with_stderr=False, **options)["jobs"]
             assert sorted(jobs_without_stderr) == sorted([job["id"] for job in res])
+
+            res = list_jobs(op.id,  with_fail_context=True, **options)["jobs"]
+            assert sorted(jobs_with_fail_context) == sorted([job["id"] for job in res])
+
+            res = list_jobs(op.id, with_fail_context=False, **options)["jobs"]
+            assert sorted(jobs_without_fail_context) == sorted([job["id"] for job in res])
 
             validate_address_filter(op, False, True, False)
 
@@ -387,3 +402,20 @@ class TestListJobs(YTEnvSetup):
         jobs = list_jobs(op.id, running_jobs_lookbehind_period=1000, **options)["jobs"]
         assert len(jobs) == 1
 
+    def test_stderrs_and_hash_buckets_storage(self):
+        create("table", "//tmp/input")
+        create("table", "//tmp/output")
+
+        write_table("//tmp/input", [{"foo": "bar"}])
+
+        op = map(
+            dont_track=True,
+            in_="//tmp/input",
+            out="//tmp/output",
+            command="echo foo >&2; false",
+            spec={"max_failed_job_count": 1, "testing": {"cypress_storage_mode": "hash_buckets"}})
+
+        wait(lambda: get(get_new_operation_path(op.id) + "/@state") == "failed")
+        jobs = list_jobs(op.id, data_source="auto")["jobs"]
+        assert len(jobs) == 1
+        assert jobs[0]["stderr_size"] > 0

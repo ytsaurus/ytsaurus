@@ -81,6 +81,23 @@ void TGetJobStderrCommand::DoExecute(ICommandContextPtr context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TGetJobFailContextCommand::TGetJobFailContextCommand()
+{
+    RegisterParameter("operation_id", OperationId);
+    RegisterParameter("job_id", JobId);
+}
+
+void TGetJobFailContextCommand::DoExecute(ICommandContextPtr context)
+{
+    auto result = WaitFor(context->GetClient()->GetJobFailContext(OperationId, JobId, Options))
+        .ValueOrThrow();
+
+    auto output = context->Request().OutputStream;
+    output->Write(result);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TListOperationsCommand::TListOperationsCommand()
 {
     RegisterParameter("from_time", Options.FromTime)
@@ -187,6 +204,9 @@ void TListOperationsCommand::BuildOperations(const TListOperationsResult& result
                             .DoIf(operation.Weight.operator bool(), [&] (TFluentMap fluent) {
                                 fluent.Item("weight").Value(operation.Weight);
                             })
+                            .DoIf(operation.Pool.operator bool(), [&] (TFluentMap fluent) {
+                                fluent.Item("pool").Value(operation.Pool);
+                            })
                         .EndMap();
                 })
             .EndList()
@@ -258,6 +278,8 @@ TListJobsCommand::TListJobsCommand()
         .Optional();
     RegisterParameter("with_stderr", Options.WithStderr)
         .Optional();
+    RegisterParameter("with_fail_context", Options.WithFailContext)
+        .Optional();
 
     RegisterParameter("sort_field", Options.SortField)
         .Optional();
@@ -308,6 +330,9 @@ void TListJobsCommand::DoExecute(ICommandContextPtr context)
                             })
                             .DoIf(job.StderrSize.operator bool(), [&] (TFluentMap fluent) {
                                 fluent.Item("stderr_size").Value(*job.StderrSize);
+                            })
+                            .DoIf(job.FailContextSize.operator bool(), [&] (TFluentMap fluent) {
+                                fluent.Item("fail_context_size").Value(*job.FailContextSize);
                             })
                             .DoIf(job.Error.operator bool(), [&] (TFluentMap fluent) {
                                 fluent.Item("error").Value(job.Error);
