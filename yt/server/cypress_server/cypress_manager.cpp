@@ -2237,10 +2237,10 @@ private:
 
         auto explicitAttributes = request->has_explicit_node_attributes()
             ? FromProto(request->explicit_node_attributes())
-            : std::unique_ptr<IAttributeDictionary>();
+            : CreateEphemeralAttributes();
         auto inheritedAttributes = request->has_inherited_node_attributes()
             ? FromProto(request->inherited_node_attributes())
-            : std::unique_ptr<IAttributeDictionary>();
+            : CreateEphemeralAttributes();
 
         auto versionedNodeId = TVersionedNodeId(nodeId, transactionId);
 
