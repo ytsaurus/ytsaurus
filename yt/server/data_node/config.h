@@ -452,6 +452,9 @@ public:
     //! Period between consequent registration attempts.
     TDuration RegisterRetryPeriod;
 
+    //! Splay for consequent registration attempts.
+    TDuration RegisterRetrySplay;
+
     //! Timeout for RegisterNode requests.
     TDuration RegisterTimeout;
 
@@ -647,6 +650,8 @@ public:
         RegisterParameter("full_heartbeat_period", FullHeartbeatPeriod)
             .Default();
         RegisterParameter("register_retry_period", RegisterRetryPeriod)
+            .Default(TDuration::Seconds(3));
+        RegisterParameter("register_retry_splay", RegisterRetrySplay)
             .Default(TDuration::Seconds(3));
         RegisterParameter("register_timeout", RegisterTimeout)
             .Default(TDuration::Seconds(60));

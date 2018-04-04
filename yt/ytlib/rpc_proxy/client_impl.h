@@ -197,6 +197,14 @@ public:
         Y_UNIMPLEMENTED();
     }
 
+    virtual TFuture<TSharedRef> GetJobFailContext(
+        const NJobTrackerClient::TOperationId&,
+        const NJobTrackerClient::TJobId&,
+        const NApi::TGetJobFailContextOptions&) override
+    {
+        Y_UNIMPLEMENTED();
+    }
+
     virtual TFuture<NApi::TListOperationsResult> ListOperations(
         const NApi::TListOperationsOptions&) override
     {

@@ -192,8 +192,19 @@ ISchemafulReaderPtr TOrderedChunkStore::CreateReader(
 
     TReadRange readRange(lowerLimit, upperLimit);
 
+    TColumnFilter valueColumnFilter;
+    valueColumnFilter.All = columnFilter.All;
+    if (!columnFilter.All) {
+        auto keyCoumnCount = tabletSnapshot->QuerySchema.GetKeyColumnCount();
+        for (auto index : columnFilter.Indexes) {
+            if (index >= keyCoumnCount) {
+                valueColumnFilter.Indexes.push_back(index - keyCoumnCount);
+            }
+        }
+    }
+
     auto querySchema = tabletSnapshot->QuerySchema.Filter(columnFilter);
-    auto readSchema = querySchema.ToValues();
+    auto readSchema = tabletSnapshot->PhysicalSchema.Filter(valueColumnFilter);
 
     bool enableTabletIndex = columnFilter.Contains(0);
     bool enableRowIndex = columnFilter.Contains(1);
