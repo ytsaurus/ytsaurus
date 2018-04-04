@@ -590,14 +590,24 @@ class YTEnvSetup(object):
         wait(lambda: yt_commands.get("#{0}/@state".format(replica_id), driver=driver) == "disabled")
 
     def _reset_nodes(self, driver=None):
-        nodes = yt_commands.ls("//sys/nodes", attributes=["banned", "decommissioned", "resource_limits_overrides", "user_tags"],
-                               driver=driver)
+        boolean_attributes = [
+            "banned",
+            "decommissioned",
+            "disable_write_sessions",
+            "disable_scheduler_jobs",
+            "disable_tablet_cells",
+        ]
+        attributes = boolean_attributes + [
+            "resource_limits_overrides",
+            "user_tags",
+        ]
+        nodes = yt_commands.ls("//sys/nodes", attributes=attributes, driver=driver)
+
         for node in nodes:
             node_name = str(node)
-            if node.attributes["banned"]:
-                yt_commands.set("//sys/nodes/%s/@banned" % node_name, False, driver=driver)
-            if node.attributes["decommissioned"]:
-                yt_commands.set("//sys/nodes/%s/@decommissioned" % node_name, False, driver=driver)
+            for attribute in boolean_attributes:
+                if node.attributes[attribute]:
+                    yt_commands.set("//sys/nodes/{0}/@{1}".format(node_name, attribute), False, driver=driver)
             if node.attributes["resource_limits_overrides"] != {}:
                 yt_commands.set("//sys/nodes/%s/@resource_limits_overrides" % node_name, {}, driver=driver)
             if node.attributes["user_tags"] != []:
