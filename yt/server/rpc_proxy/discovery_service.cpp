@@ -231,11 +231,11 @@ private:
                 req->mutable_attributes()->mutable_keys(),
                 std::vector<TString>{BannedAttributeName});
 
-            auto* cachingHeaderExt = request->Header().MutableExtension(NYTree::NProto::TCachingHeaderExt::caching_header_ext);
+            auto* cachingHeaderExt = req->Header().MutableExtension(NYTree::NProto::TCachingHeaderExt::caching_header_ext);
             cachingHeaderExt->set_success_expiration_time(ToProto<i64>(Config_->ProxyUpdatePeriod));
             cachingHeaderExt->set_failure_expiration_time(ToProto<i64>(Config_->ProxyUpdatePeriod));
 
-            auto* balancingHeaderExt = request->Header().MutableExtension(NRpc::NProto::TBalancingExt::balancing_ext);
+            auto* balancingHeaderExt = req->Header().MutableExtension(NRpc::NProto::TBalancingExt::balancing_ext);
             balancingHeaderExt->set_enable_stickness(true);
             balancingHeaderExt->set_sticky_group_size(1);
 
