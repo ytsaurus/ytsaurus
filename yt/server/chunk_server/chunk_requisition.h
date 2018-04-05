@@ -439,6 +439,9 @@ public:
         const TChunkRequisition& requisition,
         const NObjectServer::TObjectManagerPtr& objectManager);
 
+    //! Returns specified requisition's index or Null if no such requisition is registered.
+    TNullable<TChunkRequisitionIndex> Find(const TChunkRequisition& requisition) const;
+
     // NB: even though items are refcounted, items with zero RC may be
     // intermittently present in the registry.
     void Ref(TChunkRequisitionIndex index);
