@@ -145,7 +145,6 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/formats/schemaless_writer_adapter.cpp
   ${CMAKE_CURRENT_LIST_DIR}/formats/schemaless_web_json_writer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/formats/skiff_parser.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/formats/skiff_schema_match.cpp
   ${CMAKE_CURRENT_LIST_DIR}/formats/skiff_writer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/formats/utf8_decoder.cpp
   ${CMAKE_CURRENT_LIST_DIR}/formats/versioned_writer.cpp

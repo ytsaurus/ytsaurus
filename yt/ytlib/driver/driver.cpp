@@ -191,6 +191,7 @@ public:
         REGISTER(TDumpJobContextCommand,              "dump_job_context",        Null,       Null,       true,  false);
         REGISTER(TGetJobInputCommand,                 "get_job_input",           Null,       Binary,     false, true );
         REGISTER(TGetJobStderrCommand,                "get_job_stderr",          Null,       Binary,     false, true );
+        REGISTER(TGetJobFailContextCommand,           "get_job_fail_context",    Null,       Binary,     false, true );
         REGISTER(TListOperationsCommand,              "list_operations",         Null,       Structured, false, false);
         REGISTER(TListJobsCommand,                    "list_jobs",               Null,       Structured, false, false);
         REGISTER(TGetJobCommand,                      "get_job",                 Null,       Structured, false, false);
@@ -428,6 +429,7 @@ private:
             Serialize(yson, consumer.get());
 
             consumer->Flush();
+            syncOutputStream->Flush();
         }
 
     private:

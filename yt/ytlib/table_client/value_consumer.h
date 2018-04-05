@@ -113,15 +113,16 @@ public:
     explicit TWritingValueConsumer(
         ISchemalessWriterPtr writer,
         const TTypeConversionConfigPtr& typeConversionConfig = New<TTypeConversionConfig>(),
-        bool flushImmediately = false);
+        i64 maxRowBufferSize = 1_MB);
 
     TFuture<void> Flush();
 
 private:
     const ISchemalessWriterPtr Writer_;
-    bool FlushImmediately_;
 
     const TRowBufferPtr RowBuffer_;
+
+    const i64 MaxRowBufferSize_;
 
     std::vector<TUnversionedRow> Rows_;
     SmallVector<TUnversionedValue, TypicalColumnCount> Values_;

@@ -246,6 +246,12 @@ private:
             configRevision,
             readSessionId);
 
+        const auto& slotManager = Bootstrap_->GetTabletSlotManager();
+        auto tabletSnapshot = slotManager->FindTabletSnapshot(tablet->GetId());
+        if (!tabletSnapshot) {
+            THROW_ERROR_EXCEPTION("Tablet snapshot is missing");
+        }
+
         try {
             // Fail quickly.
             if (storeManager->GetInMemoryConfigRevision() != configRevision) {
@@ -267,12 +273,6 @@ private:
                         }
                     }));
                 });
-
-            auto tabletSnapshot = Bootstrap_->GetTabletSlotManager()->FindTabletSnapshot(tablet->GetId());
-
-            if (!tabletSnapshot) {
-                THROW_ERROR_EXCEPTION("Tablet snapshot is missing");
-            }
 
             if (tabletSnapshot->Config->InMemoryMode != mode) {
                 THROW_ERROR_EXCEPTION("In-memory mode does not match the snapshot")
@@ -305,10 +305,14 @@ private:
             store->Preload(std::move(chunkData));
             storeManager->EndStorePreload(store);
         } catch (const std::exception& ex) {
+            auto error = TError(ex)
+                << TErrorAttribute("tablet_id", tabletSnapshot->TabletId)
+                << TErrorAttribute("background_activity", ETabletBackgroundActivity::Preload);
+
+            tabletSnapshot->RuntimeData->Errors[ETabletBackgroundActivity::Preload].Store(error);
             LOG_ERROR(ex, "Error preloading tablet store, backed off");
         }
 
-        const auto& slotManager = Bootstrap_->GetTabletSlotManager();
         slotManager->RegisterTabletSnapshot(slot, tablet);
     }
 
@@ -510,6 +514,22 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
 
     auto miscExt = GetProtoExtension<TMiscExt>(meta.extensions());
     auto blocksExt = GetProtoExtension<TBlocksExt>(meta.extensions());
+    auto format = ETableChunkFormat(meta.version());
+
+    if (format == ETableChunkFormat::SchemalessHorizontal ||
+        format == ETableChunkFormat::UnversionedColumnar)
+    {
+        // For unversioned chunks verify that block size is correct
+        if (auto blockSizeLimit = tabletSnapshot->Config->MaxUnversionedBlockSize) {
+            if (miscExt.max_block_size() > *blockSizeLimit) {
+                THROW_ERROR_EXCEPTION("Maximum block size limit violated")
+                    << TErrorAttribute("tablet_id", tabletSnapshot->TabletId)
+                    << TErrorAttribute("chunk_id", store->GetId())
+                    << TErrorAttribute("block_size", miscExt.max_block_size())
+                    << TErrorAttribute("block_size_limit", *blockSizeLimit);
+            }
+        }
+    }
 
     auto erasureCodec = NErasure::ECodec(miscExt.erasure_codec());
     if (erasureCodec != NErasure::ECodec::None) {
