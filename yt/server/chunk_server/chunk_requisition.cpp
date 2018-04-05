@@ -711,6 +711,14 @@ TChunkRequisitionIndex TChunkRequisitionRegistry::GetOrCreate(
     return Insert(requisition, objectManager);
 }
 
+TNullable<TChunkRequisitionIndex> TChunkRequisitionRegistry::Find(
+    const TChunkRequisition& requisition) const
+{
+    auto it = RequisitionToIndex_.find(requisition);
+    return it != RequisitionToIndex_.end() ? it->second : TNullable<TChunkRequisitionIndex>();
+}
+
+
 TChunkRequisitionIndex TChunkRequisitionRegistry::Insert(
     const TChunkRequisition& requisition,
     const NObjectServer::TObjectManagerPtr& objectManager)
