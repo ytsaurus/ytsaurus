@@ -519,14 +519,26 @@ class YTInstance(object):
         for cgroup_path in self._all_cgroups:
             for dirpath, dirnames, _ in os.walk(cgroup_path, topdown=False):
                 for dirname in dirnames:
+                    inner_cgroup_path = os.path.join(dirpath, dirname)
                     for iter in xrange(5):
                         try:
-                            os.rmdir(os.path.join(dirpath, dirname))
+                            os.rmdir(inner_cgroup_path)
                             break
                         except OSError:
-                            logger.exception("Failed to remove cgroup dir")
+                            try:
+                                with open(os.path.join(inner_cgroup_path, "tasks")) as f:
+                                    logger.exception("Failed to remove cgroup dir, tasks {0}".format(f.readlines()))
+                            except:
+                                logger.exception("Failed to remove cgroup dir")
+
                             time.sleep(0.5)
-            os.rmdir(cgroup_path)
+
+            try:
+                # NB(psushin): sometimes cgroups still remain busy.
+                # We don't want to fail tests in this case.
+                os.rmdir(cgroup_path)
+            except OSError:
+                logger.exception("Failed to remove cgroup dir {0}".format(cgroup_path))
 
         self._all_cgroups = []
 
