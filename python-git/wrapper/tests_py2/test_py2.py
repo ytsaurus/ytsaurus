@@ -7,7 +7,7 @@ import yatest.common
 import os
 import shutil
 
-YT_ABI = "19_2"
+YT_ABI = "19_3"
 
 def build_bindings(build_dir):
     ya = yatest.common.source_path("ya")
