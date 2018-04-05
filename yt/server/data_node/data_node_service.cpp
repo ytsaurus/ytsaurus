@@ -137,6 +137,7 @@ private:
     TBootstrap* const Bootstrap_;
 
     const TActionQueuePtr WorkerThread_ = New<TActionQueue>("DataNodeWorker");
+    const TActionQueuePtr MetaProcessorThread_ = New<TActionQueue>("MetaProcessor");
 
     bool ShouldUseDirectIO(EDirectIOPolicy policy, bool writerRequestedDirectIO) const
     {
@@ -639,7 +640,7 @@ private:
                 : static_cast<TChunkMeta>(meta);
 
             context->Reply();
-        }).Via(WorkerThread_->GetInvoker()));
+        }).Via(MetaProcessorThread_->GetInvoker()));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, GetChunkSlices)

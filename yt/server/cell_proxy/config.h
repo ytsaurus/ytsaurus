@@ -30,8 +30,8 @@ public:
     NRpcProxy::TDiscoveryServiceConfigPtr DiscoveryService;
     //! Known RPC proxy addresses.
     NNodeTrackerClient::TNetworkAddressList Addresses;
-
-    //! Switch on for local mode and testing purposes only.
+    int WorkerThreadPoolSize;
+    //! Switch off for local mode and testing purposes only.
     //! If enabled, every call is considered to be invoked as root.
     bool EnableAuthentication;
 
@@ -51,8 +51,15 @@ public:
             .DefaultNew();
         RegisterParameter("addresses", Addresses)
             .Default();
+        RegisterParameter("worker_thread_pool_size", WorkerThreadPoolSize)
+            .GreaterThan(0)
+            .Default(8);
         RegisterParameter("enable_authentication", EnableAuthentication)
             .Default(true);
+
+        RegisterPostprocessor([&] {
+            ClusterConnection->ThreadPoolSize = Null;
+        });
     }
 };
 

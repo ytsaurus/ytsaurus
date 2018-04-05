@@ -647,6 +647,12 @@ YtCommand.prototype._setContentDispositionAndMime = function() {
                 this.parameters.GetByYPath("/job_id").Get());
         }
 
+        if (this.command == "get_job_fail_context") {
+            filename = "fail_context_{}_{}".format(
+                this.parameters.GetByYPath("/operation_id").Get(),
+                this.parameters.GetByYPath("/job_id").Get());
+        }
+
         var passed_filename = this.req.parsedQuery.filename;
         if (typeof(passed_filename) !== "undefined") {
             filename = passed_filename;

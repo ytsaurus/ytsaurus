@@ -4517,7 +4517,7 @@ void TOperationControllerBase::GetUserFilesAttributes()
                         THROW_ERROR_EXCEPTION("Empty user file name for %v", path);
                     }
 
-                    if (!NFS::GetRealPath(NFS::CombinePaths("sandbox", fileName)).StartsWith(NFS::GetRealPath("sandbox"))) {
+                    if (!NFS::CheckPathIsRelativeAndGoesInside(fileName)) {
                         THROW_ERROR_EXCEPTION("User file name cannot reference outside of sandbox directory")
                             << TErrorAttribute("file_name", fileName);
                     }

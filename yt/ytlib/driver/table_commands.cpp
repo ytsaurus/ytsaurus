@@ -226,6 +226,8 @@ TWriteTableCommand::TWriteTableCommand()
     RegisterParameter("path", Path);
     RegisterParameter("table_writer", TableWriter)
         .Default(nullptr);
+    RegisterParameter("max_row_buffer_size", MaxRowBufferSize)
+        .Default(1_MB);
     RegisterPostprocessor([&] {
         Path = Path.Normalize();
     });
@@ -248,7 +250,8 @@ void TWriteTableCommand::DoExecute(ICommandContextPtr context)
 
     TWritingValueConsumer valueConsumer(
         writer,
-        ConvertTo<TTypeConversionConfigPtr>(context->GetInputFormat().Attributes()));
+        ConvertTo<TTypeConversionConfigPtr>(context->GetInputFormat().Attributes()),
+        MaxRowBufferSize);
 
     std::vector<IValueConsumer*> valueConsumers(1, &valueConsumer);
     TTableOutput output(CreateParserForFormat(

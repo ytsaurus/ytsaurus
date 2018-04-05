@@ -157,6 +157,16 @@ size_t MakeCodegenFilterOp(
     TCodegenFragmentInfosPtr fragmentInfos,
     size_t predicateId);
 
+size_t MakeCodegenFilterFinalizedOp(
+    TCodegenSource* codegenSource,
+    size_t* slotCount,
+    size_t slot,
+    TCodegenFragmentInfosPtr fragmentInfos,
+    size_t predicateId,
+    size_t keySize,
+    std::vector<TCodegenAggregate> codegenAggregates,
+    std::vector<EValueType> stateTypes);
+
 size_t MakeCodegenJoinOp(
     TCodegenSource* codegenSource,
     size_t* slotCount,

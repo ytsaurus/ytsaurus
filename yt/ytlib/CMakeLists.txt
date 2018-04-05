@@ -23,4 +23,5 @@ target_link_libraries(yt-library-client
   yt-core
   yt-core-codegen
   yt-core-crypto
+  yt-core-skiff
 )

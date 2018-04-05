@@ -195,6 +195,15 @@ DEFINE_REFCOUNTED_TYPE(TTabletPerformanceCounters)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TTabletCounters
+{
+    TTabletCounters(const NProfiling::TTagIdList& list);
+
+    NProfiling::TAggregateCounter OverlappingStoreCount;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct ITabletContext
 {
     virtual ~ITabletContext() = default;
@@ -449,6 +458,7 @@ private:
 
     i64 TabletLockCount_ = 0;
 
+    TTabletCounters* ProfilerCounters_ = nullptr;
 
     void Initialize();
 

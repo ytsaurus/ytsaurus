@@ -630,6 +630,10 @@ struct TGetJobStderrOptions
     : public TTimeoutOptions
 { };
 
+struct TGetJobFailContextOptions
+    : public TTimeoutOptions
+{ };
+
 DEFINE_ENUM(EOperationSortDirection,
     ((None)   (0))
     ((Past)   (1))
@@ -697,6 +701,7 @@ struct TListJobsOptions
     TNullable<NJobTrackerClient::EJobState> State;
     TNullable<TString> Address;
     TNullable<bool> WithStderr;
+    TNullable<bool> WithFailContext;
 
     EJobSortField SortField = EJobSortField::None;
     EJobSortDirection SortOrder = EJobSortDirection::Ascending;
@@ -745,6 +750,7 @@ struct TGetOperationOptions
     , public TMasterReadOptions
 {
     TNullable<yhash_set<TString>> Attributes;
+    bool IncludeScheduler = false;
 
     TGetOperationOptions()
     { }
@@ -814,6 +820,7 @@ struct TJob
     TString Address;
     TNullable<double> Progress;
     TNullable<ui64> StderrSize;
+    TNullable<ui64> FailContextSize;
     NYson::TYsonString Error;
     NYson::TYsonString BriefStatistics;
     NYson::TYsonString InputPaths;
@@ -1132,6 +1139,11 @@ struct IClient
         const NJobTrackerClient::TOperationId& operationId,
         const NJobTrackerClient::TJobId& jobId,
         const TGetJobStderrOptions& options = TGetJobStderrOptions()) = 0;
+
+    virtual TFuture<TSharedRef> GetJobFailContext(
+        const NJobTrackerClient::TOperationId& operationId,
+        const NJobTrackerClient::TJobId& jobId,
+        const TGetJobFailContextOptions& options = TGetJobFailContextOptions()) = 0;
 
     virtual TFuture<TListOperationsResult> ListOperations(
         const TListOperationsOptions& options = TListOperationsOptions()) = 0;
