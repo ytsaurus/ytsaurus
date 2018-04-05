@@ -3,15 +3,16 @@ import subprocess
 
 import yatest.common
 
-YT_ABI = "19_2"
+YT_ABI = "19_3"
 
 def prepare_yt_binaries(destination):
     for binary, server_dir in [("master", "cell_master_program"),
-                               ("scheduler", "cell_scheduler_program"),
+                               ("scheduler", "programs/scheduler"),
                                ("node", "cell_node_program"),
                                ("job-proxy", "job_proxy_program"),
                                ("exec", "exec_program"),
-                               ("tools", "tools_program")]:
+                               ("tools", "tools_program"),
+                               ("controller-agent", "programs/controller_agent")]:
         binary_path = yatest.common.binary_path("yt/packages/{0}/yt/{0}/yt/server/{1}/ytserver-{2}"
                                                 .format(YT_ABI, server_dir, binary))
         os.symlink(binary_path, os.path.join(destination, "ytserver-" + binary))
