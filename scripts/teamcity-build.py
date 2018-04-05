@@ -226,7 +226,13 @@ def share_packages(options, version):
         "yandex-yt-master",
         "yandex-yt-scheduler",
         "yandex-yt-controller-agent",
-        "yandex-yt-node"
+        "yandex-yt-node",
+        "yandex-yt-http-proxy-dbg",
+        "yandex-yt-proxy-dbg",
+        "yandex-yt-master-dbg",
+        "yandex-yt-scheduler-dbg",
+        "yandex-yt-controller-agent-dbg",
+        "yandex-yt-node-dbg"
     ]
 
     try:
