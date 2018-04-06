@@ -6,7 +6,7 @@ var utils = require("./utils");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-function YtAuthentication(config, logger, profiler, authority)
+function YtAuthentication(config, logger, profiler, authority, check_csrf_token)
 {
     "use strict";
 
@@ -14,6 +14,7 @@ function YtAuthentication(config, logger, profiler, authority)
     this.logger = logger;
     this.profiler = profiler;
     this.authority = authority;
+    this.check_csrf_token = check_csrf_token;
 }
 
 YtAuthentication.prototype.dispatch = function(req, rsp, next, prev)
@@ -26,13 +27,17 @@ YtAuthentication.prototype.dispatch = function(req, rsp, next, prev)
     var authority = this.authority;
 
     // This is an epilogue to call in case of successful authentication.
-    function epilogue(login, realm) {
+    function epilogue(login, realm, blackbox_userid) {
         logger.debug("Client has been authenticated", {
             authenticated_user: login,
             authenticated_from: realm
         });
         req.authenticated_user = login;
         req.authenticated_from = realm;
+
+        if (blackbox_userid) {
+            req.csrf_token = authority.signCsrfToken(blackbox_userid, + new Date());
+        }
         process.nextTick(next);
     }
 
@@ -70,6 +75,7 @@ YtAuthentication.prototype.dispatch = function(req, rsp, next, prev)
         var jar = new cookies(req, rsp);
         var sessionid = jar.get("Session_id");
         var sslsessionid = jar.get("sessionid2");
+        var csrf_token = req.headers["x-csrf-token"];
 
         if (sessionid || sslsessionid) {
             result = authority.authenticateByCookie(
@@ -77,7 +83,9 @@ YtAuthentication.prototype.dispatch = function(req, rsp, next, prev)
                 profiler,
                 req.origin || req.connection.remoteAddress,
                 sessionid,
-                sslsessionid);
+                sslsessionid,
+                csrf_token,
+                this.check_csrf_token);
         }
     }
 
@@ -90,7 +98,7 @@ YtAuthentication.prototype.dispatch = function(req, rsp, next, prev)
     return void result.then(
     function(result) {
         if (result.isAuthenticated) {
-            return void epilogue(result.login, result.realm);
+            return void epilogue(result.login, result.realm, result.blackbox_userid);
         } else {
             logger.debug("Client has failed to authenticate");
             utils.dispatchUnauthorized(rsp, "YT", "Authentication has failed");

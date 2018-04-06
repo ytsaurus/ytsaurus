@@ -48,6 +48,8 @@ function stubRegistry()
             create_users_on_demand: true,
             guest_login: "ytguest",
             guest_realm: "ytguest",
+            csrf_secret: "secret_key",
+            csrf_token_ttl: 24 * 60 * 60,
             cypress: {
                 enable: true,
                 where: "//sys/tokens",
@@ -136,6 +138,7 @@ describe("ApplicationAuth", function() {
             .get("/blackbox?method=oauth&format=json&userip=127.0.0.1&oauth_token=deadbabedeadbabe")
             .reply(200, {
                 error: "OK",
+                uid: 42,
                 login: "scorpion",
                 oauth: { client_id: "ytrealm-id", scope: "ytgrant" }
             });
@@ -165,6 +168,7 @@ describe("ApplicationAuth", function() {
             .reply(200, {
                 error: "OK",
                 login: "scorpion",
+                uid: 42,
                 oauth: { client_id: "ytrealm-id", scope: "ytgrant" }
             });
         ask("GET", "/new?" + params, {}, function(rsp) {
@@ -193,6 +197,7 @@ describe("ApplicationAuth", function() {
             .reply(200, {
                 error: "OK",
                 login: "donkey",
+                uid: 42,
                 oauth: { client_id: "ytrealm-id", scope: "ytgrant" }
             });
         ask("POST", "/login", {}, function(rsp) {
@@ -211,6 +216,7 @@ describe("ApplicationAuth", function() {
             .reply(200, {
                 error: "OK",
                 login: "donkey",
+                uid: 42,
                 oauth: { client_id: "ytrealm-id", scope: "ytgrant" }
             });
         ask("GET", "/whoami", {"Authorization": "OAuth foobar"}, function(rsp) {
@@ -227,13 +233,16 @@ describe("ApplicationAuth", function() {
             .reply(200, {
                 status: { value: "VALID", id: 0 },
                 login: "donkey",
+                uid: 42,
             });
         ask("GET", "/whoami",
-        { "Cookie": "Session_id=mysessionid;" },
+        { "Cookie": "Session_id=mysessionid;",
+          "X-Csrf-Token": "invalid" },
         function(rsp) {
             rsp.should.be.http2xx;
             expect(rsp.json.login).to.eql("donkey");
             expect(rsp.json.realm).to.eql("blackbox_session_cookie");
+            expect(rsp.json.csrf_token).to.be.not.empty;
             mock.done();
         }, done).end();
     });
