@@ -1291,7 +1291,6 @@ void TNodeShard::ProcessHeartbeatJobs(
             }
         }
         for (const auto& jobId : RecentlyCompletedJobsToRemove) {
-            node->UnconfirmedJobIds().insert(jobId);
             RemoveRecentlyCompletedJob(jobId);
         }
     }
