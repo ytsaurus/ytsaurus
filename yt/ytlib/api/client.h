@@ -601,23 +601,9 @@ struct TCompleteOperationOptions
     : public TTimeoutOptions
 { };
 
-struct TSchedulingOptions
-    : public NYTree::TYsonSerializable
-{
-    TNullable<double> Weight;
-    NScheduler::TResourceLimitsConfigPtr ResourceLimits;
-
-    TSchedulingOptions();
-};
-
-DEFINE_REFCOUNTED_TYPE(TSchedulingOptions)
-
 struct TUpdateOperationParametersOptions
     : public TTimeoutOptions
-{
-    TNullable<std::vector<TString>> Owners;
-    THashMap<TString, TSchedulingOptionsPtr> SchedulingOptionsPerPoolTree;
-};
+{ };
 
 struct TDumpJobContextOptions
     : public TTimeoutOptions
@@ -1121,6 +1107,7 @@ struct IClient
 
     virtual TFuture<void> UpdateOperationParameters(
         const NScheduler::TOperationId& operationId,
+        const NYson::TYsonString& parameters,
         const TUpdateOperationParametersOptions& options = TUpdateOperationParametersOptions()) = 0;
 
     virtual TFuture<NYson::TYsonString> GetOperation(

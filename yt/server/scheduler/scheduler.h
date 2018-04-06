@@ -96,7 +96,7 @@ public:
     TFuture<void> UpdateOperationParameters(
         TOperationPtr operation,
         const TString& user,
-        const TOperationRuntimeParametersPtr& parameters);
+        NYTree::INodePtr parameters);
 
     void OnOperationCompleted(const TOperationPtr& operation);
     void OnOperationAborted(const TOperationPtr& operation, const TError& error);

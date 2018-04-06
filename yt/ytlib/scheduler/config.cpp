@@ -826,7 +826,7 @@ TResourceLimitsConfig::TResourceLimitsConfig()
 TSchedulableConfig::TSchedulableConfig()
 {
     RegisterParameter("weight", Weight)
-        .Default()
+        .Default(1.0)
         .InRange(MinSchedulableWeight, MaxSchedulableWeight);
 
     RegisterParameter("max_share_ratio", MaxShareRatio)
@@ -917,7 +917,7 @@ TStrategyOperationSpec::TStrategyOperationSpec()
 TOperationFairShareStrategyTreeOptions::TOperationFairShareStrategyTreeOptions()
 {
     RegisterParameter("weight", Weight)
-        .Default()
+        .Default(1.0)
         .InRange(MinSchedulableWeight, MaxSchedulableWeight);
     RegisterParameter("resource_limits", ResourceLimits)
         .DefaultNew();

@@ -820,10 +820,7 @@ public:
             operation->GetId());
     }
 
-    TFuture<void> UpdateOperationParameters(
-        TOperationPtr operation,
-        const TString& user,
-        const TOperationRuntimeParametersPtr& runtimeParams)
+    TFuture<void> UpdateOperationParameters(TOperationPtr operation, const TString& user, INodePtr parameters)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -832,7 +829,8 @@ public:
         ValidateOperationPermission(user, operation->GetId(), EPermission::Write);
 
         auto newRuntimeParams = UpdateYsonSerializable(
-            operation->GetRuntimeParameters(), ConvertToNode(runtimeParams));
+            operation->GetRuntimeParameters(),
+            parameters);
 
         auto updateFuture = BIND(&TImpl::DoUpdateOperationParameters, MakeStrong(this))
             .AsyncVia(operation->GetCancelableControlInvoker())
@@ -1640,17 +1638,14 @@ private:
 
         try {
             auto runtimeParamsMap = runtimeParamsNode->AsMap();
+
             std::vector<TString> ownerList;
             auto owners = runtimeParamsMap->FindChild("owners");
             if (owners) {
                 ownerList = ConvertTo<std::vector<TString>>(owners->AsList());
             }
 
-            auto treeParams = ConvertTo<TOperationFairShareStrategyTreeOptionsPtr>(runtimeParamsNode);
-            if (!treeParams->Weight) {
-                treeParams->Weight = 1.0;
-            }
-            Strategy_->UpdateOperationRuntimeParameters(operation.Get(), treeParams);
+            Strategy_->UpdateOperationRuntimeParameters(operation.Get(), runtimeParamsNode);
 
             if (operation->GetOwners() != ownerList) {
                 operation->SetOwners(ownerList);
@@ -3090,9 +3085,9 @@ void TScheduler::OnOperationAgentUnregistered(const TOperationPtr& operation)
 TFuture<void> TScheduler::UpdateOperationParameters(
     TOperationPtr operation,
     const TString& user,
-    const TOperationRuntimeParametersPtr& runtimeParams)
+    INodePtr parameters)
 {
-    return Impl_->UpdateOperationParameters(operation, user, runtimeParams);
+    return Impl_->UpdateOperationParameters(operation, user, parameters);
 }
 
 TFuture<void> TScheduler::DumpInputContext(const TJobId& jobId, const NYPath::TYPath& path, const TString& user)
