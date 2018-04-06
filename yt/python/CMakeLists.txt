@@ -16,11 +16,11 @@ function(BUILD_AND_INSTALL_PYTHON_LIBRARY python_kind target_name component)
   if(CMAKE_SYSTEM_NAME MATCHES "Darwin")
     set(
       PYTHON_LINK_FLAGS
-      "${PYTHON_LINK_FLAGS} -Wl,-exported_symbols_list,${CMAKE_CURRENT_SOURCE_DIR}/linker.map.darwin")
+      "${PYTHON_LINK_FLAGS} -Wl,-exported_symbols_list,${CMAKE_SOURCE_DIR}/yt/python/linker.map.darwin")
   else()
     set(
       PYTHON_LINK_FLAGS
-      "${PYTHON_LINK_FLAGS} -Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/linker.map")
+      "${PYTHON_LINK_FLAGS} -Wl,--version-script=${CMAKE_SOURCE_DIR}/yt/python/linker.map")
   endif()
 
   execute_process(COMMAND lsb_release --codename --short OUTPUT_VARIABLE LSB_RELEASE)
