@@ -76,8 +76,8 @@ void TRuntimeTableReplicaData::MergeFrom(const TTableReplicaStatistics& statisti
 ////////////////////////////////////////////////////////////////////////////////
 
 TReplicaCounters::TReplicaCounters(const TTagIdList& list)
-    : LagRowCount("/replica/lag_row_count", list)
-    , LagTime("/replica/lag_time", list)
+    : LagRowCount("/replica/lag_row_count", list, EAggregateMode::All, TDuration::Seconds(1))
+    , LagTime("/replica/lag_time", list, EAggregateMode::All, TDuration::Seconds(1))
     , Tags(list)
 { }
 
