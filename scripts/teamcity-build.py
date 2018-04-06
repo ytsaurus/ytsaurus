@@ -242,11 +242,10 @@ def share_packages(options, version):
         dir = os.path.join(options.working_directory, "./ARTIFACTS")
         rows = []
         for pkg in upload_packages:
-            paths = glob.glob("{0}/{1}*.deb".format(dir, pkg))
-            if len(paths) != 1:
-                teamcity_message("Failed to find package {0}, found files {1}".format(pkg, paths), "WARNING")
+            path = "{0}/{1}_{2}_amd64.deb".format(dir, pkg, version)
+            if not os.path.exists(path):
+                teamcity_message("Failed to find package {0} ({1}) ".format(pkg, path), "WARNING")
             else:
-                path = paths[0]
                 torrent_id = sky_share(os.path.basename(path), os.path.dirname(path))
                 sandbox_ctx = {
                     "created_resource_name" : os.path.basename(path),
