@@ -207,17 +207,17 @@ SERVICES = [
         "solomon_port": 10053,
     },
     # --- yp ---
-    {
-        "project": "yp",
-        "type": "yp_master",
-        "solomon_id": "yp_bridge_yp_master",
-        "solomon_name": "yp_master",
-        "yt_port": 9080,
-        "solomon_port": 9020,
-        "bridge_rules": [
-            "+.*"
-        ],
-    },
+    # {
+    #     "project": "yp",
+    #     "type": "yp_master",
+    #     "solomon_id": "yp_bridge_yp_master",
+    #     "solomon_name": "yp_master",
+    #     "yt_port": 9080,
+    #     "solomon_port": 9020,
+    #     "bridge_rules": [
+    #         "+.*"
+    #     ],
+    # },
 ]
 
 CONDUCTOR_GROUPS = {
@@ -227,6 +227,16 @@ CONDUCTOR_GROUPS = {
     "node": ["nodes"],
     "rpc_proxy": ["nodes"],
     "http_proxy": ["proxy"],
+    "yp_master": ["masters"],
+}
+
+NANNY_GROUPS = {
+    "master": ["master"],
+    "scheduler": ["scheduler"],
+    "node": ["node"],
+    "rpc_proxy": ["node"],
+    "http_proxy": ["proxy"],
+    "yp_master": ["master"],
 }
 
 SENSOR = {
@@ -481,6 +491,10 @@ def get_conductor_groups(cluster, type):
     return [get_solomon_cluster_type(cluster, group) for group in CONDUCTOR_GROUPS[type]]
 
 
+def get_nanny_groups(nanny, type):
+    return [get_solomon_cluster_type(nanny, group) for group in NANNY_GROUPS[type]]
+
+
 @cli.command()
 def bridge_conf():
     conf = {"sources": []}
@@ -498,7 +512,7 @@ def bridge_conf():
                 solomon_id=service["solomon_id"],
                 solomon_port=service["solomon_port"],
                 proxy_port=service["proxy_port"]))
-                
+
     json.dump(conf, sys.stdout, indent=2, sort_keys=True)
 
 
@@ -528,23 +542,36 @@ def check_solomon_services(token, yes):
 @click.option("--token", required=True)
 @click.option("--cluster", required=True)
 @click.option("--type", multiple=True)
+@click.option("--nanny")
 @click.option("--yes", is_flag=True)
-def update_cluster_nodes(token, cluster, type, yes):
+def update_clusters(token, cluster, type, nanny, yes):
     solomon_cluster = normalize_cluster_id(cluster)
     types = get_cluster_types() if not type else type
 
     for type in types:
-        conductor_groups = get_conductor_groups(solomon_cluster, type)
         solomon_cluster_type = get_solomon_cluster_type(solomon_cluster, type)
-        solomon_conductor_groups = [{
-            "group": group,
-            "labels": ["type=%s" % type]
-        } for group in conductor_groups]
+        if nanny:
+            nanny_groups = get_nanny_groups(nanny, type)
+            group_type = "nannyGroups"
+            solomon_cluster_groups = [{
+                "service": group.lower(),
+                "cfgGroup": [group.upper()],
+                "useFetchedPort": False,
+                "portShift": 0,
+                "labels": []
+            } for group in nanny_groups]
+        else:
+            conductor_groups = get_conductor_groups(solomon_cluster, type)
+            group_type = "conductorGroups"
+            solomon_cluster_groups = [{
+                "group": group,
+                "labels": ["type=%s" % type]
+            } for group in conductor_groups]
 
         cluster_services = Resource(Resource.CLUSTERS_URL, solomon_cluster_type, token, local_data={
             "name": cluster,
-            "projectId": "yt",
-            "conductorGroups": solomon_conductor_groups,
+            "projectId": "yp" if "yp_" in type else "yt",
+            group_type: solomon_cluster_groups,
         })
         cluster_services.try_update(dry_run=(not yes))
 
@@ -562,7 +589,8 @@ def update_cluster_services(token, cluster, type, yes):
     cluster_services = {}
     for type in types:
         solomon_cluster_type = get_solomon_cluster_type(solomon_cluster, type)
-        services_resource = Resource("/projects/yt/clusters/%s" % solomon_cluster_type, "services", token)
+        project = "yp" if "yp_" in type else "yt"
+        services_resource = Resource("/projects/%s/clusters/%s" % (project, solomon_cluster_type), "services", token)
         services_resource.load()
         for service in services_resource.remote:
             cluster_services[service["id"]] = service
@@ -589,7 +617,7 @@ def update_cluster_services(token, cluster, type, yes):
             #    "maxMemSensors": 100000,
             #},
         }
-        shard = Resource("/projects/yt/shards", shard_name, token, local_data=data)
+        shard = Resource("/projects/%s/shards" % project, shard_name, token, local_data=data)
         shard.try_update(dry_run=(not yes))
 
 
@@ -605,7 +633,8 @@ def unlink_cluster(token, cluster, type, yes):
 
     for type in types:
         solomon_cluster_type = get_solomon_cluster_type(solomon_cluster, type) if type else solomon_cluster
-        resource = Resource("/projects/yt/clusters/%s" % solomon_cluster_type, "services", token)
+        project = "yp" if "yp_" in type else "yt"
+        resource = Resource("/projects/%s/clusters/%s" % (project, solomon_cluster_type), "services", token)
         resource.load()
 
         for item in resource.local:
@@ -613,7 +642,7 @@ def unlink_cluster(token, cluster, type, yes):
                 continue
             shard_id = item["shardId"]
             if yes:
-                Resource("/projects/yt/shards", shard_id, token).delete()
+                Resource("/projects/%s/shards" % project, shard_id, token).delete()
             else:
                 view_object("Deleting shard '%s'" % shard_id, item)
 
