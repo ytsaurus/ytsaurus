@@ -109,7 +109,7 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
                 "short_jobs_alert_min_job_duration": 5000,
                 "low_cpu_usage_alert_min_execution_time": 1,
                 "low_cpu_usage_alert_min_average_job_time": 1,
-                "low_cpu_usage_alert_cpu_usage_threshold": 0.2
+                "low_cpu_usage_alert_cpu_usage_threshold": 0.3
             },
             "map_reduce_operation_options": {
                 "min_uncompressed_block_size": 1
@@ -148,9 +148,7 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
         assert "unused_tmpfs_space" not in get("//sys/operations/{0}/@alerts".format(op.id))
 
     def test_missing_input_chunks_alert(self):
-        create("table", "//tmp/t_in", attributes={"replication_factor": 1})
-        create("table", "//tmp/t_out")
-        write_table("//tmp/t_in", [{"x": "y"}])
+        self.create_test_tables(attributes={"replication_factor": 1})
 
         chunk_ids = get("//tmp/t_in/@chunk_ids")
         assert len(chunk_ids) == 1
@@ -226,7 +224,7 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
 
     # if these two tests flap - call renadeen@
     def test_low_cpu_alert_presence(self):
-        self.create_test_tables()
+        self.create_test_tables(attributes={"compression_codec": "none"})
         op = map(
             command="sleep 1; cat",
             in_="//tmp/t_in",
@@ -308,10 +306,10 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
 
         assert "schedule_job_timed_out" in get("//sys/operations/{0}/@alerts".format(op.id))
 
-    def create_test_tables(self, row_count=1):
-        create("table", "//tmp/t_in")
+    def create_test_tables(self, row_count=1, **kwargs):
+        create("table", "//tmp/t_in", **kwargs)
         write_table("//tmp/t_in", [{"x": str(i)} for i in xrange(row_count)])
-        create("table", "//tmp/t_out")
+        create("table", "//tmp/t_out", **kwargs)
 
 
 ##################################################################
