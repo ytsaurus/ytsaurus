@@ -116,7 +116,14 @@ class TestListJobs(YTEnvSetup):
         res = list_jobs(op.id, data_source="manual", include_cypress=True, include_scheduler=False, include_archive=False, job_state="completed")["jobs"]
         assert len(res) == 0
 
-        wait(lambda: len(op.get_running_jobs()) == 3)
+        def check_running_jobs():
+            jobs = op.get_running_jobs()
+            if aborted_jobs[0] in jobs:
+                return False
+            if len(jobs) < 3:
+                return False
+            return True
+        wait(check_running_jobs)
 
         res = list_jobs(op.id, data_source="manual", include_cypress=False, include_scheduler=True, include_archive=False)["jobs"]
         assert len(res) == 3
