@@ -1015,6 +1015,9 @@ private:
         if (operationAlertsSent) {
             LastOperationAlertsUpdateTime_ = now;
         }
+        if (suspiciousJobsSent) {
+            LastSuspiciousJobsUpdateTime_ = now;
+        }
     }
 
     void HandleJobEvents(const TControllerAgentTrackerServiceProxy::TRspHeartbeatPtr& rsp)
