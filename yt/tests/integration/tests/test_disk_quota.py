@@ -1,10 +1,10 @@
-from yt_env_setup import (
-    require_ytserver_root_privileges
-)
+from yt_env_setup import require_ytserver_root_privileges
 from yt_commands import *
 
 from quota_mixin import QuotaMixin
 
+
+@require_ytserver_root_privileges
 class TestDiskQuota(QuotaMixin):
     NUM_SCHEDULERS = 1
     NUM_MASTERS = 1
@@ -17,7 +17,6 @@ class TestDiskQuota(QuotaMixin):
         write_table(tables[0], [{"foo": "bar"} for _ in xrange(200)])
         return tables
 
-    @require_ytserver_root_privileges
     def test_disk_usage(self):
         tables = self._init_tables()
         try:
@@ -29,12 +28,11 @@ class TestDiskQuota(QuotaMixin):
             )
         except YtError as err:
             message = str(err)
-            if not "quota exceeded" in message:
+            if "quota exceeded" not in message:
                 raise
         else:
             assert False, "Operation expected to fail, but completed successfully"
 
-    @require_ytserver_root_privileges
     def test_inodes_count(self):
         tables = self._init_tables()
         try:
@@ -46,7 +44,7 @@ class TestDiskQuota(QuotaMixin):
             )
         except YtError as err:
             message = str(err)
-            if not "quota exceeded" in message:
+            if "quota exceeded" not in message:
                 raise
         else:
             assert False, "Operation expected to fail, but completed successfully"

@@ -1,11 +1,10 @@
-from yt_env_setup import (
-    require_ytserver_root_privileges,
-    wait
-)
+from yt_env_setup import require_ytserver_root_privileges, wait
 from yt_commands import *
 
 from quota_mixin import QuotaMixin
 
+
+@require_ytserver_root_privileges
 class TestDiskUsage(QuotaMixin):
     NUM_SCHEDULERS = 1
     NUM_MASTERS = 1
@@ -77,7 +76,6 @@ class TestDiskUsage(QuotaMixin):
 
         map(**check_op)
 
-    @require_ytserver_root_privileges
     def test_lack_space_node(self):
         tables = self._init_tables()
         options = {
@@ -90,7 +88,6 @@ class TestDiskUsage(QuotaMixin):
 
         self.run_test(tables, options)
 
-    @require_ytserver_root_privileges
     def test_lack_space_node_with_quota(self):
         tables = self._init_tables()
         options = {

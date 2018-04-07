@@ -1283,6 +1283,7 @@ class TestSchedulerPools(YTEnvSetup):
 
 ##################################################################
 
+@require_ytserver_root_privileges
 class TestSchedulerSuspiciousJobs(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 1
@@ -1330,7 +1331,6 @@ class TestSchedulerSuspiciousJobs(YTEnvSetup):
         }
     }
 
-    @require_ytserver_root_privileges
     def test_false_suspicious_jobs(self):
         create("table", "//tmp/t", attributes={"replication_factor": 1})
         create("table", "//tmp/t1", attributes={"replication_factor": 1})
@@ -1441,7 +1441,6 @@ class TestSchedulerSuspiciousJobs(YTEnvSetup):
         assert suspicious
 
     @pytest.mark.xfail(reason="TODO(max42)")
-    @require_ytserver_root_privileges
     def test_true_suspicious_jobs_old(self):
         # This test involves dirty hack to make lots of retries for fetching feasible
         # seeds from master making the job suspicious (as it doesn't give the input for the
