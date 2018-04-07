@@ -2716,7 +2716,8 @@ class TestPoolMetrics(YTEnvSetup):
             spec={"data_size_per_job": 1, "pool": "child"},
             dont_track=True)
 
-        jobs = wait_breakpoint()
+        jobs = wait_breakpoint(job_count=2)
+        assert len(jobs) == 2
 
         release_breakpoint(job_id=jobs[0])
 
