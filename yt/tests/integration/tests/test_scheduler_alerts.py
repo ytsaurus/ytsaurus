@@ -64,6 +64,8 @@ class TestSchedulerAlerts(YTEnvSetup):
 
 ##################################################################
 
+
+@require_ytserver_root_privileges
 class TestSchedulerOperationAlerts(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_SCHEDULERS = 1
@@ -115,7 +117,6 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
         }
     }
 
-    @require_ytserver_root_privileges
     @unix_only
     def test_unused_tmpfs_size_alert(self):
         self.create_test_tables()
