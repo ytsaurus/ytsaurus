@@ -52,7 +52,7 @@ using namespace NYPath;
 void ValidateTabletRetainedTimestamp(const TTabletSnapshotPtr& tabletSnapshot, TTimestamp timestamp)
 {
     if (timestamp < tabletSnapshot->RetainedTimestamp) {
-        THROW_ERROR_EXCEPTION("Timestamp %v is less than tablet %v retained timestamp %v",
+        THROW_ERROR_EXCEPTION("Timestamp %llx is less than tablet %v retained timestamp %llx",
             timestamp,
             tabletSnapshot->TabletId,
             tabletSnapshot->RetainedTimestamp);
