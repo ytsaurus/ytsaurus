@@ -826,7 +826,7 @@ TResourceLimitsConfig::TResourceLimitsConfig()
 TSchedulableConfig::TSchedulableConfig()
 {
     RegisterParameter("weight", Weight)
-        .Default(1.0)
+        .Default()
         .InRange(MinSchedulableWeight, MaxSchedulableWeight);
 
     RegisterParameter("max_share_ratio", MaxShareRatio)
