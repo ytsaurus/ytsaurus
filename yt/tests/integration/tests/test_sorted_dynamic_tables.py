@@ -459,7 +459,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
 
         verify_chunk_tree_refcount("//tmp/t", 1, [1])
 
-        tx = start_transaction()
+        tx = start_transaction(timeout=60000)
         lock("//tmp/t", mode="snapshot", tx=tx)
         verify_chunk_tree_refcount("//tmp/t", 2, [1])
 
