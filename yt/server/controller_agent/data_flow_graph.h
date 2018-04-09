@@ -64,9 +64,9 @@ public:
         const TVertexDescriptor& to,
         const NChunkClient::NProto::TDataStatistics& statistics);
 
-    void RegisterTask(
+    void RegisterCounter(
         const TVertexDescriptor& vertex,
-        const TProgressCounterPtr& taskCounter,
+        const TProgressCounterPtr& counter,
         EJobType jobType);
 
 private:
