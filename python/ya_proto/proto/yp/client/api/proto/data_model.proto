@@ -35,6 +35,9 @@ enum EObjectType
 
     OT_NODE_SEGMENT = 7
     [(NYT.NYson.NProto.enum_value_name) = "node_segment"];
+
+    OT_VIRTUAL_SERVICE = 8
+    [(NYT.NYson.NProto.enum_value_name) = "virtual_service"];
 }
 
 enum EEventType
@@ -386,6 +389,16 @@ message TPodSpec
 
     // Sysctl properties to configure.
     repeated TSysctlProperty sysctl_properties = 11;
+
+    message TVirtualServiceTunnel
+    {
+        required string virtual_service_id = 1;
+        optional uint32 ip4_mtu = 2;
+        optional uint32 ip6_mtu = 3;
+        optional string decapsulator_anycast_address = 4;
+    }
+
+    optional TVirtualServiceTunnel virtual_service_tunnel = 12;
 }
 
 enum EEvictionState
@@ -531,6 +544,16 @@ message TPodStatus
 
     // Timestamp of the spec as reported by agent.
     optional uint64 agent_spec_timestamp = 12;
+
+    message TVirtualService
+    {
+        // IP6 address, in textual form.
+        repeated string ip6_addresses = 1;
+        // IP4 address, in textual form.
+        repeated string ip4_addresses = 2;
+    }
+
+    optional TVirtualService virtual_service = 13;
 }
 
 message TPodControl
@@ -715,6 +738,35 @@ message TNodeSegment
     optional TResourceMeta meta = 1;
     optional TResourceSpec spec = 2;
     optional TResourceStatus status = 3;
+    optional NYT.NYTree.NProto.TAttributeDictionary labels = 4;
+    optional NYT.NYTree.NProto.TAttributeDictionary annotations = 5;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TVirtualServiceMeta
+{
+    optional string id = 1;
+    optional EObjectType type = 2;
+    optional uint64 creation_time = 3;
+}
+
+message TVirtualServiceSpec
+{
+    // IP6 address, in textual form.
+    repeated string ip6_addresses = 1;
+    // IP4 address, in textual form.
+    repeated string ip4_addresses = 2;
+}
+
+message TVirtualServiceStatus
+{ }
+
+message TVirtualService
+{
+    optional TVirtualServiceMeta meta = 1;
+    optional TVirtualServiceSpec spec = 2;
+    optional TVirtualServiceStatus status = 3;
     optional NYT.NYTree.NProto.TAttributeDictionary labels = 4;
     optional NYT.NYTree.NProto.TAttributeDictionary annotations = 5;
 }
