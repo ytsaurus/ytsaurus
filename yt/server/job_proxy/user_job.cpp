@@ -208,6 +208,7 @@ public:
         }
 
         if (ResourceController_) {
+            ResourceController_->SetMemoryGuarantee(UserJobSpec_.memory_reserve());
             YCHECK(host->GetConfig()->BusServer->UnixDomainName);
             YCHECK(UserId_);
             Process_ = ResourceController_->CreateControlledProcess(
