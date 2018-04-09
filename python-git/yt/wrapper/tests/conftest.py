@@ -204,6 +204,8 @@ class YtTestEnvironment(object):
 
         os.environ["PATH"] = ".:" + os.environ["PATH"]
 
+        os.environ["YT_LOCAL_PORT_LOCKS_PATH"] = get_port_locks_path()
+
         # Resolve indeterminacy in sys.modules due to presence of lazy imported modules.
         for module in list(itervalues(sys.modules)):
             hasattr(module, "__file__")
