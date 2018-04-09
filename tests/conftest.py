@@ -9,6 +9,17 @@ import os
 import sys
 import logging
 
+# TODO(ignat): avoid this hacks
+try:
+    import yatest.common as yatest_common
+except ImportError:
+    yatest_common = None
+
+if yatest_common is not None:
+    from yt.environment import arcadia_interop
+else:
+    arcadia_interop = None
+
 TESTS_LOCATION = os.path.dirname(os.path.abspath(__file__))
 TESTS_SANDBOX = os.environ.get("TESTS_SANDBOX", TESTS_LOCATION + ".sandbox")
 OBJECT_TYPES = [
@@ -34,6 +45,13 @@ logger.setLevel(logging.DEBUG)
 
 class YpTestEnvironment(object):
     def __init__(self, yp_master_config=None, enable_ssl=False):
+        if yatest_common is not None:
+            destination = os.path.join(yatest_common.work_path(), "build")
+            os.makedirs(destination)
+            path, node_path = arcadia_interop.prepare_yt_environment(destination)
+            os.environ["PATH"] = os.pathsep.join([path, os.environ.get("PATH", "")])
+            os.environ["NODE_PATH"] = node_path
+
         self.test_sandbox_path = os.path.join(TESTS_SANDBOX, "yp_" + generate_uuid())
         self.yp_instance = YpInstance(self.test_sandbox_path,
                                       yp_master_config=yp_master_config,

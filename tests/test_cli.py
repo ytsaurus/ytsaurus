@@ -4,6 +4,11 @@ import yt.yson as yson
 import yt.subprocess_wrapper as subprocess
 from yt.common import update
 
+try:
+    import yatest.common as ya_test_common
+except ImportError:
+    ya_test_common = None
+
 import pytest
 
 import os
@@ -13,7 +18,10 @@ from copy import deepcopy
 @pytest.mark.usefixtures("yp_env")
 class TestCli(object):
     def test_common(self, yp_env):
-        cli_path = os.path.normpath(os.path.join(TESTS_LOCATION, "../python/yp/bin/yp"))
+        if ya_test_common is not None:
+            cli_path = ya_test_common.binary_path("yp/python/yp/bin/yp_make/yp")
+        else:
+            cli_path = os.path.normpath(os.path.join(TESTS_LOCATION, "../python/yp/bin/yp"))
         env = update(deepcopy(os.environ), {"YP_ADDRESS": yp_env.yp_instance.yp_client_grpc_address})
         config_arg = ["--config", yson.dumps({"enable_ssl": False}, yson_format="text")]
 

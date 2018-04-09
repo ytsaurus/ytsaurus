@@ -1,4 +1,7 @@
-from yt_yson_bindings.yson_lib import loads_proto, dumps_proto, loads, dumps
+try:
+    from yt_yson_bindings import loads_proto, dumps_proto, loads, dumps
+except ImportError:
+    from yt_yson_bindings.yson_lib import loads_proto, dumps_proto, loads, dumps
 
 from proto.yt.core.misc.proto.error_pb2 import TError
 from proto.yt.core.ytree.proto.attributes_pb2 import TAttribute
