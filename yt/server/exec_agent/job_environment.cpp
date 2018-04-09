@@ -6,6 +6,8 @@
 #include <yt/server/cell_node/bootstrap.h>
 #include <yt/server/cell_node/config.h>
 
+#include <yt/server/controller_agent/job_memory.h>
+
 #include <yt/server/data_node/config.h>
 #include <yt/server/data_node/master_connector.h>
 #include <yt/server/data_node/volume_manager.h>
@@ -542,6 +544,7 @@ private:
     {
         if (!PortoInstances_[slotIndex]) {
             PortoInstances_[slotIndex] = ContainerManager_->CreateInstance();
+            PortoInstances_[slotIndex]->SetMemoryGuarantee(NControllerAgent::GetFootprintMemorySize());
             if (Config_->ExternalJobRootVolume) {
                 TRootFS rootFS;
                 rootFS.RootPath = *Config_->ExternalJobRootVolume;

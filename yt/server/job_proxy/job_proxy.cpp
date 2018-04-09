@@ -487,6 +487,11 @@ TJobResult TJobProxy::DoRun()
 
     Job_->Initialize();
 
+    if (ResourceController) {
+        // Set some guarantee to avoid stealing memory between cgroups.
+        ResourceController->SetMemoryGuarantee(JobProxyMemoryReserve_ / 2);
+    }
+
     MemoryWatchdogExecutor_->Start();
     HeartbeatExecutor_->Start();
 

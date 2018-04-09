@@ -145,6 +145,12 @@ public:
         }
     }
 
+    virtual void SetMemoryGuarantee(i64 memoryGuarantee) override
+    {
+        Y_UNUSED(memoryGuarantee);
+        // Memory guarantee is not supported for cgroups memory environment.
+    }
+
     virtual IResourceControllerPtr CreateSubcontroller(const TString& name) override
     {
         return New<TCGroupResourceController>(CGroupsConfig_, Path_ + name);
@@ -334,6 +340,11 @@ public:
         if (UseResourceLimits_) {
             Container_->SetIOThrottle(operations);
         }
+    }
+
+    virtual void SetMemoryGuarantee(i64 memoryGuarantee) override
+    {
+        Container_->SetMemoryGuarantee(memoryGuarantee);
     }
 
     virtual IResourceControllerPtr CreateSubcontroller(const TString& name) override
