@@ -89,7 +89,7 @@ TNode TConfig::LoadJsonSpec(const TString& strSpec)
     TYson2JsonCallbacksAdapter callbacks(&builder);
 
     if (!NJson::ReadJson(&input, &callbacks)) {
-        Y_FAIL("Cannot parse json spec");
+        Y_FAIL("Cannot parse json spec, %s", ~strSpec);
     }
 
     if (!spec.IsMap()) {
