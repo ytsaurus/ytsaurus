@@ -729,7 +729,7 @@ public:
         auto existingAgent = FindAgent(agentId);
         if (existingAgent) {
             auto state = existingAgent->GetState();
-            if (state == EControllerAgentState::Registered) {
+            if (state == EControllerAgentState::Registered || state == EControllerAgentState::WaitingForInitialHeartbeat) {
                 LOG_INFO("Kicking out agent due to id conflict (AgentId: %v, ExistingIncarnationId: %v)",
                     agentId,
                     existingAgent->GetIncarnationId());
@@ -777,7 +777,7 @@ public:
 
                 const auto& transaction = transactionOrError.Value();
                 agent->SetIncarnationTransaction(transaction);
-                agent->SetState(EControllerAgentState::Registered);
+                agent->SetState(EControllerAgentState::WaitingForInitialHeartbeat);
 
                 agent->SetLease(TLeaseManager::CreateLease(
                     Config_->ControllerAgentHeartbeatTimeout,
@@ -820,7 +820,7 @@ public:
             request->operations_size());
 
         auto agent = GetAgentOrThrow(agentId);
-        if (agent->GetState() != EControllerAgentState::Registered) {
+        if (agent->GetState() != EControllerAgentState::Registered && agent->GetState() != EControllerAgentState::WaitingForInitialHeartbeat) {
             context->Reply(TError("Agent %Qv is in %Qlv state",
                 agentId,
                 agent->GetState()));
@@ -831,6 +831,10 @@ public:
                 agent->GetIncarnationId(),
                 incarnationId));
             return;
+        }
+        if (agent->GetState() == EControllerAgentState::WaitingForInitialHeartbeat) {
+            LOG_INFO("Agent registration confirmed by heartbeat");
+            agent->SetState(EControllerAgentState::Registered);
         }
 
         TLeaseManager::RenewLease(agent->GetLease());
@@ -1079,7 +1083,7 @@ private:
             return;
         }
 
-        YCHECK(agent->GetState() == EControllerAgentState::Registered);
+        YCHECK(agent->GetState() == EControllerAgentState::Registered || agent->GetState() == EControllerAgentState::WaitingForInitialHeartbeat);
 
         const auto& scheduler = Bootstrap_->GetScheduler();
         for (const auto& operation : agent->Operations()) {

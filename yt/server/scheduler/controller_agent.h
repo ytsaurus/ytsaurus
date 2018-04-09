@@ -63,6 +63,7 @@ DEFINE_ENUM(EControllerAgentState,
     (Registered)
     (Unregistering)
     (Unregistered)
+    (WaitingForInitialHeartbeat)
 );
 
 //! Scheduler-side representation of a controller agent.
