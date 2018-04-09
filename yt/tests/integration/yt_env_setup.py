@@ -3,6 +3,7 @@ import yt_commands
 from yt.environment import YTInstance
 from yt.common import makedirp, YtError, format_error
 from yt.environment.porto_helpers import porto_avaliable, remove_all_volumes
+from yt.environment.helpers import wait
 
 from yt.common import update_inplace
 
@@ -28,18 +29,6 @@ SANDBOX_ROOTDIR = os.environ.get("TESTS_SANDBOX", os.path.abspath("tests.sandbox
 SANDBOX_STORAGE_ROOTDIR = os.environ.get("TESTS_SANDBOX_STORAGE")
 
 ##################################################################
-
-
-try:
-    from yt.environment.helpers import wait
-except ImportError:
-    # COMPAT(ignat)
-    def wait(predicate, iter=100, sleep_backoff=0.3):
-        for _ in xrange(iter):
-            if predicate():
-                return
-            sleep(sleep_backoff)
-        pytest.fail("wait failed")
 
 def patch_subclass(parent, skip_condition, reason=""):
     """Work around a pytest.mark.skipif bug
