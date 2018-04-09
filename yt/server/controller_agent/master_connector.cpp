@@ -1092,7 +1092,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        LOG_ERROR(error, "Failed to update operation node");
+        Bootstrap_->GetControllerAgent()->Disconnect(TError("Failed to update operation node") << error);
     }
 
     void DoAddChunkTreesToUnstageList(std::vector<TChunkTreeId> chunkTreeIds, bool recursive)
