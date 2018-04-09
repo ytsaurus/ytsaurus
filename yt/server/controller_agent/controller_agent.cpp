@@ -193,7 +193,7 @@ public:
         if (!Connected_) {
             THROW_ERROR_EXCEPTION(
                 NRpc::EErrorCode::Unavailable,
-                "Scheduler is not connected");
+                "Controller agent is not connected");
         }
     }
 
