@@ -182,6 +182,8 @@ public:
 
     TNetworkProject* GetNetworkProject(const TObjectId& id);
 
+    TVirtualService* GetVirtualService(const TObjectId& id);
+
     TFuture<TTransactionCommitResult> Commit();
     void Abort();
 

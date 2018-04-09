@@ -14,6 +14,7 @@
 #include <yp/server/objects/node.h>
 #include <yp/server/objects/network_project.h>
 #include <yp/server/objects/persistence.h>
+#include <yp/server/objects/virtual_service.h>
 
 #include <yp/client/api/proto/data_model.pb.h>
 
@@ -90,6 +91,8 @@ public:
                 UpdateIP6AddressFqdns(pod, ip6AddressRequests[index], &(*ip6AddressAllocations)[index]);
             }
         }
+
+        AcquireVirtualServiceTunnel(transaction, pod);
     }
 
 private:
@@ -134,7 +137,7 @@ private:
         if (pod->RemovalPending()) {
             return true;
         }
-        
+
         const auto* oldNode = pod->Spec().Node().LoadOld();
         const auto* newNode = pod->Spec().Node().Load();
         if (oldNode != newNode) {
@@ -295,7 +298,7 @@ private:
         if (pod->RemovalPending()) {
             return;
         }
-        
+
         const auto* node = pod->Spec().Node().Load();
         if (!node || node->RemovalPending()) {
             return;
@@ -404,6 +407,29 @@ private:
 
         for (auto nonce : nonces) {
             RegisterIP6Nonce(transaction, node, nonce, pod);
+        }
+    }
+
+    void AcquireVirtualServiceTunnel(const TTransactionPtr& transaction, TPod* pod)
+    {
+        auto& podStatusOther = pod->Status().Other();
+        podStatusOther->mutable_virtual_service()->Clear();
+
+        const auto& podSpecOther = pod->Spec().Other().Load();
+        if (!podSpecOther.has_virtual_service_tunnel()) {
+            return;
+        }
+
+        const auto& tunnel = podSpecOther.virtual_service_tunnel();
+        const auto* virtualService = transaction->GetVirtualService(tunnel.virtual_service_id());
+        virtualService->ValidateExists();
+
+        auto* vsStatus = podStatusOther->mutable_virtual_service();
+        for (const auto& ip6Address : virtualService->Spec().Load().ip6_addresses()) {
+            vsStatus->add_ip6_addresses(ip6Address);
+        }
+        for (const auto& ip4Address : virtualService->Spec().Load().ip4_addresses()) {
+            vsStatus->add_ip4_addresses(ip4Address);
         }
     }
 

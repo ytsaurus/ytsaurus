@@ -2,6 +2,7 @@
 
 #include "public.h"
 
+#include <yp/server/objects/proto/objects.pb.h>
 #include <yp/server/objects/public.h>
 
 #include <yp/client/api/public.h>
@@ -16,8 +17,9 @@ void ValidateHostDeviceSpec(const NClient::NApi::NProto::TPodSpec_THostDevice& s
 void ValidateSysctlProperty(const NClient::NApi::NProto::TPodSpec_TSysctlProperty& spec);
 
 std::vector<std::pair<TString, TString>> BuildPortoProperties(
-    NObjects::TNode* node,
-    NObjects::TPod* pod);
+    const NClient::NApi::NProto::TNodeSpec& nodeSpec,
+    const NObjects::NProto::TPodSpecOther& podSpecOther,
+    const NObjects::NProto::TPodStatusOther& podStatusOther);
 
 ////////////////////////////////////////////////////////////////////////////////
 

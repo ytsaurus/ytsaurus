@@ -5,6 +5,7 @@
 #include "pod_set.h"
 #include "resource.h"
 #include "network_project.h"
+#include "virtual_service.h"
 #include "config.h"
 #include "db_schema.h"
 #include "type_handler.h"
@@ -499,6 +500,12 @@ public:
     TNetworkProject* GetNetworkProject(const TObjectId& id)
     {
         return GetTypedObject<TNetworkProject>(id);
+    }
+
+
+    TVirtualService* GetVirtualService(const TObjectId& id)
+    {
+        return GetTypedObject<TVirtualService>(id);
     }
 
 
@@ -2207,6 +2214,11 @@ TResource* TTransaction::GetResource(const TObjectId& id)
 TNetworkProject* TTransaction::GetNetworkProject(const TObjectId& id)
 {
     return Impl_->GetNetworkProject(id);
+}
+
+TVirtualService* TTransaction::GetVirtualService(const TObjectId& id)
+{
+    return Impl_->GetVirtualService(id);
 }
 
 TFuture<TTransactionCommitResult> TTransaction::Commit()

@@ -457,6 +457,8 @@ TStringBuf GetCapitalizedHumanReadableTypeName(EObjectType type)
             return AsStringBuf("Endpoint set");
         case EObjectType::NodeSegment:
             return AsStringBuf("Node segment");
+        case EObjectType::VirtualService:
+            return AsStringBuf("Virtual service");
         default:
             Y_UNREACHABLE();
     }
@@ -481,6 +483,8 @@ TStringBuf GetLowercaseHumanReadableTypeName(EObjectType type)
             return AsStringBuf("endpoint set");
         case EObjectType::NodeSegment:
             return AsStringBuf("node segment");
+        case EObjectType::VirtualService:
+            return AsStringBuf("virtual service");
         default:
             Y_UNREACHABLE();
     }

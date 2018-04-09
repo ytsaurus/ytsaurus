@@ -301,7 +301,7 @@ private:
         podSpec.Other().ScheduleLoad();
         podStatus.Other().ScheduleLoad();
 
-        auto properties = BuildPortoProperties(node, pod);
+        auto properties = BuildPortoProperties(node->Spec().Load(), pod->Spec().Other().Load(), pod->Status().Other().Load());
         for (const auto& pair : properties) {
             auto* protoProperty = protoSpec->add_porto_properties();
             protoProperty->set_key(pair.first);

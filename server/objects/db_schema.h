@@ -196,6 +196,25 @@ extern const struct TNetworkProjectsTable
 
 ////////////////////////////////////////////////////////////////////////////////
 
+extern const struct TVirtualServicesTable
+    : public TDbTable
+    , public TObjectTableBase
+{
+    TVirtualServicesTable()
+        : TDbTable("virtual_services")
+    {
+        Key = {&TObjectTableBase::Fields.Meta_Id};
+    }
+
+    struct TFields
+        : public TObjectTableBase::TFields
+    {
+        TDbField Spec{"spec"};
+    } Fields;
+} VirtualServicesTable;
+
+////////////////////////////////////////////////////////////////////////////////
+
 extern const struct TIP6NoncesTable
     : public TDbTable
 {

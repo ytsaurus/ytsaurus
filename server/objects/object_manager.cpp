@@ -9,6 +9,7 @@
 #include "endpoint_set_type_handler.h"
 #include "network_project_type_handler.h"
 #include "node_segment_type_handler.h"
+#include "virtual_service_type_handler.h"
 #include "object.h"
 #include "db_schema.h"
 #include "transaction_manager.h"
@@ -68,6 +69,7 @@ public:
         TypeHandlers_[EObjectType::EndpointSet] = CreateEndpointSetTypeHandler(Bootstrap_);
         TypeHandlers_[EObjectType::NetworkProject] = CreateNetworkProjectTypeHandler(Bootstrap_);
         TypeHandlers_[EObjectType::NodeSegment] = CreateNodeSegmentTypeHandler(Bootstrap_);
+        TypeHandlers_[EObjectType::VirtualService] = CreateVirtualServiceTypeHandler(Bootstrap_);
 
         const auto& ytConnector = Bootstrap_->GetYTConnector();
         ytConnector->SubscribeValidateConnection(BIND(&TImpl::OnValidateConnection, MakeWeak(this)));

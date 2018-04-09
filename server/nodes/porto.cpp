@@ -15,9 +15,18 @@ using namespace NObjects;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static const size_t DefaultIP4Mtu = 1450;
+static const size_t DefaultIP6Mtu = 1450;
+static const TStringBuf DefaultDecapsulatorAnycastAddress{"2a02:6b8:0:3400::aaaa"};
+static const TStringBuf BackboneVlanID{"backbone"};
+
 static const THashSet<TString> HostDeviceWhitelist{
     "/dev/kvm",
     "/dev/net/tun"
+};
+
+static const THashSet<char> HostDeviceModeAllowedSymbols{
+    '-', 'm', 'r', 'w'
 };
 
 static const std::vector<TString> SysctlPrefixWhitelist{
@@ -83,21 +92,65 @@ static const THashSet<TString> SysctlWhitelist{
     "net.ipv6.route.gc_min_interval_ms"
 };
 
+namespace {
+
+void ValidateBackboneIPsForTunnel(const NProto::TPodStatusOther& statusOther)
+{
+    size_t backboneIPCount = 0;
+    for (const auto& ip6Address : statusOther.ip6_address_allocations()) {
+        if (ip6Address.vlan_id() == BackboneVlanID) {
+            ++backboneIPCount;
+        }
+    }
+
+    // TODO(avitella): Intelligent backbone address selection with "filter". YP-230
+    if (backboneIPCount != 1) {
+        THROW_ERROR_EXCEPTION("Expected exactly one backbone IP6 address but found %v", backboneIPCount);
+    }
+}
+
+TString GetBackboneIPForTunnel(const NProto::TPodStatusOther& statusOther)
+{
+    for (const auto& ip6Address : statusOther.ip6_address_allocations()) {
+        if (ip6Address.vlan_id() == BackboneVlanID) {
+            return ip6Address.address();
+        }
+    }
+    THROW_ERROR_EXCEPTION("There is no suitable backbone address");
+}
+
+} // namespace
+
 void ValidateHostDeviceSpec(const NClient::NApi::NProto::TPodSpec_THostDevice& spec)
 {
     const auto& path = spec.path();
 
-    if (HostDeviceWhitelist.count(path) > 0) {
-        return;
+    if (!HostDeviceWhitelist.has(path)) {
+        THROW_ERROR_EXCEPTION("Host device %Qv cannot be configured",
+            path);
     }
 
-    THROW_ERROR_EXCEPTION("Host device %Qv cannot be configured",
-        path);
+    for (char modeSymbol : spec.mode()) {
+        if (!HostDeviceModeAllowedSymbols.has(modeSymbol)) {
+            THROW_ERROR_EXCEPTION("Host device %Qv cannot be configured with %Qv mode",
+                path,
+                modeSymbol);
+        }
+    }
 }
 
 void ValidateSysctlProperty(const NClient::NApi::NProto::TPodSpec_TSysctlProperty& spec)
 {
     const auto& name = spec.name();
+    const auto& value = spec.value();
+
+    for (char symbol : value) {
+        if (symbol == ';') {
+            THROW_ERROR_EXCEPTION("%Qv symbol is not allowed in %Qv sysctl property",
+                symbol,
+                name);
+        }
+    }
 
     for (const auto& prefix : SysctlPrefixBlacklist) {
         if (name.StartsWith(prefix)) {
@@ -113,7 +166,7 @@ void ValidateSysctlProperty(const NClient::NApi::NProto::TPodSpec_TSysctlPropert
         }
     }
 
-    if (SysctlWhitelist.count(name) > 0) {
+    if (SysctlWhitelist.has(name)) {
         return;
     }
 
@@ -121,19 +174,19 @@ void ValidateSysctlProperty(const NClient::NApi::NProto::TPodSpec_TSysctlPropert
         name);
 }
 
-std::vector<std::pair<TString, TString>> BuildPortoProperties(TNode* node, TPod* pod)
+std::vector<std::pair<TString, TString>> BuildPortoProperties(
+    const NClient::NApi::NProto::TNodeSpec& nodeSpec,
+    const NProto::TPodSpecOther& podSpecOther,
+    const NProto::TPodStatusOther& podStatusOther)
 {
     std::vector<std::pair<TString, TString>> result;
 
-    const auto& specOther = pod->Spec().Other().Load();
-    const auto& statusOther = pod->Status().Other().Load();
-
     // Limits, guarantees
     auto vcpuToPortoCpu = [&] (ui64 vcpu) {
-        return Format("%.3fc", vcpu / node->Spec().Load().cpu_to_vcpu_factor() / 1000);
+        return Format("%.3fc", vcpu / nodeSpec.cpu_to_vcpu_factor() / 1000);
     };
 
-    const auto& requests = specOther.resource_requests();
+    const auto& requests = podSpecOther.resource_requests();
     result.emplace_back("cpu_guarantee", vcpuToPortoCpu(requests.vcpu_guarantee()));
     if (requests.has_vcpu_limit()) {
         result.emplace_back("cpu_limit", vcpuToPortoCpu(requests.vcpu_limit()));
@@ -150,21 +203,55 @@ std::vector<std::pair<TString, TString>> BuildPortoProperties(TNode* node, TPod*
     }
 
     // Network
-    result.emplace_back("hostname", statusOther.dns().transient_fqdn());
-    result.emplace_back("net", "L3 veth");
-    const auto& ip6AddressAllocations = statusOther.ip6_address_allocations();
-    if (!ip6AddressAllocations.empty()) {
-        result.emplace_back("ip", JoinToString(
-            ip6AddressAllocations.begin(),
-            ip6AddressAllocations.end(),
-            [] (TStringBuilder* builder, const auto& allocation) {
-                builder->AppendFormat("veth %v", allocation.address());
-            },
-            AsStringBuf(";")));
+    result.emplace_back("hostname", podStatusOther.dns().transient_fqdn());
+
+    const auto& vsTunnel = podSpecOther.virtual_service_tunnel();
+    const auto& vsStatus = podStatusOther.virtual_service();
+
+    std::vector<TString> netTokens;
+    netTokens.emplace_back("L3 veth");
+
+    TStringBuf decapsulatorAnycastAddress = DefaultDecapsulatorAnycastAddress;
+    if (vsTunnel.has_decapsulator_anycast_address()) {
+        decapsulatorAnycastAddress = vsTunnel.decapsulator_anycast_address();
+    }
+    if (!vsStatus.ip4_addresses().empty()) {
+        size_t ip4Mtu = DefaultIP4Mtu;
+        if (vsTunnel.has_ip4_mtu()) {
+            ip4Mtu = vsTunnel.ip4_mtu();
+        }
+
+        ValidateBackboneIPsForTunnel(podStatusOther);
+        netTokens.emplace_back(Format("ipip6 tun0 %v %v", decapsulatorAnycastAddress, GetBackboneIPForTunnel(podStatusOther)));
+        netTokens.emplace_back(Format("MTU tun0 %v", ip4Mtu));
+    }
+    if (!vsStatus.ip6_addresses().empty()) {
+        size_t ip6Mtu = DefaultIP6Mtu;
+        if (vsTunnel.has_ip6_mtu()) {
+            ip6Mtu = vsTunnel.ip6_mtu();
+        }
+        netTokens.emplace_back(Format("MTU ip6tnl0 %v", ip6Mtu));
+    }
+
+    result.emplace_back("net", JoinToString(netTokens.begin(), netTokens.end(), AsStringBuf(";")));
+
+
+    std::vector<TString> addresses;
+    for (const auto& ip6Address : podStatusOther.ip6_address_allocations()) {
+        addresses.emplace_back(Format("veth %v", ip6Address.address()));
+    }
+    for (const auto& ip6tun : vsStatus.ip6_addresses()) {
+        addresses.emplace_back(Format("ip6tnl0 %v", ip6tun));
+    }
+    for (const auto& ip4tun : vsStatus.ip4_addresses()) {
+        addresses.emplace_back(Format("tun0 %v", ip4tun));
+    }
+    if (!addresses.empty()) {
+        result.emplace_back("ip", JoinToString(addresses.begin(), addresses.end(), AsStringBuf(";")));
     }
 
     // Host devices
-    const auto& hostDevices = specOther.host_devices();
+    const auto& hostDevices = podSpecOther.host_devices();
     if (!hostDevices.empty()) {
         result.emplace_back("devices", JoinToString(
             hostDevices.begin(),
@@ -176,15 +263,16 @@ std::vector<std::pair<TString, TString>> BuildPortoProperties(TNode* node, TPod*
     }
 
     // Sysctl properties
-    const auto& sysctlProperties = specOther.sysctl_properties();
+    std::vector<TString> sysctlProperties;
+    for (const auto& property : podSpecOther.sysctl_properties()) {
+        sysctlProperties.emplace_back(Format("%v:%v", property.name(), property.value()));
+    }
+    if (!vsStatus.ip4_addresses().empty()) {
+        sysctlProperties.emplace_back("net.ipv4.conf.all.rp_filter:0");
+        sysctlProperties.emplace_back("net.ipv4.conf.default.rp_filter:0");
+    }
     if (!sysctlProperties.empty()) {
-        result.emplace_back("sysctl", JoinToString(
-            sysctlProperties.begin(),
-            sysctlProperties.end(),
-            [] (TStringBuilder* builder, const auto& property) {
-                builder->AppendFormat("%v:%v", property.name(), property.value());
-            },
-            AsStringBuf(";")));
+        result.emplace_back("sysctl", JoinToString(sysctlProperties.begin(), sysctlProperties.end(), AsStringBuf(";")));
     }
 
     return result;

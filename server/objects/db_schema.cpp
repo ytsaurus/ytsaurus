@@ -20,6 +20,7 @@ const TEndpointsTable EndpointsTable;
 const TEndpointSetsTable EndpointSetsTable;
 const TNodeSegmentsTable NodeSegmentsTable;
 const TNodeSegmentToPodSetsTable NodeSegmentToPodSetsTable;
+const TVirtualServicesTable VirtualServicesTable;
 
 const std::vector<const TDbTable*> Tables = {
     &ParentsTable,
@@ -34,7 +35,8 @@ const std::vector<const TDbTable*> Tables = {
     &EndpointsTable,
     &EndpointSetsTable,
     &NodeSegmentsTable,
-    &NodeSegmentToPodSetsTable
+    &NodeSegmentToPodSetsTable,
+    &VirtualServicesTable
 };
 
 ////////////////////////////////////////////////////////////////////////////////

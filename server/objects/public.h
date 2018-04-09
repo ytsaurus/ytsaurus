@@ -57,6 +57,7 @@ class TEndpoint;
 class TEndpointSet;
 class TNetworkProject;
 class TNodeSegment;
+class TVirtualService;
 
 class TAttributeSchema;
 
@@ -97,6 +98,7 @@ DEFINE_ENUM(EObjectType,
     ((Endpoint)      (5))
     ((EndpointSet)   (6))
     ((NodeSegment)   (7))
+    ((VirtualService)(8))
 );
 
 DEFINE_ENUM(EPodCurrentState,

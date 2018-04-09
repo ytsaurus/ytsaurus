@@ -22,6 +22,7 @@ message TPodSpecOther
     optional string node_filter = 8;
     repeated NYP.NClient.NApi.NProto.TPodSpec.THostDevice host_devices = 10;
     repeated NYP.NClient.NApi.NProto.TPodSpec.TSysctlProperty sysctl_properties = 11;
+    optional NYP.NClient.NApi.NProto.TPodSpec.TVirtualServiceTunnel virtual_service_tunnel = 12;
 }
 
 // Cf. NYP.NClient.NApi.NProto.TPodStatus
@@ -33,6 +34,7 @@ message TPodStatusOther
     required NYP.NClient.NApi.NProto.TPodStatus.TDns dns = 7;
     required NYP.NClient.NApi.NProto.TPodStatus.TEviction eviction = 8;
     required NYP.NClient.NApi.NProto.TPodStatus.TScheduling scheduling = 9;
+    optional NYP.NClient.NApi.NProto.TPodStatus.TVirtualService virtual_service = 13;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

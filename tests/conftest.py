@@ -33,11 +33,12 @@ NODE_CONFIG = {
 logger.setLevel(logging.DEBUG)
 
 class YpTestEnvironment(object):
-    def __init__(self, yp_master_config=None):
+    def __init__(self, yp_master_config=None, enable_ssl=False):
         self.test_sandbox_path = os.path.join(TESTS_SANDBOX, "yp_" + generate_uuid())
         self.yp_instance = YpInstance(self.test_sandbox_path,
                                       yp_master_config=yp_master_config,
-                                      local_yt_options=dict(enable_debug_logging=True, node_config=NODE_CONFIG))
+                                      local_yt_options=dict(enable_debug_logging=True, node_config=NODE_CONFIG),
+                                      enable_ssl=enable_ssl)
         self.yp_instance.start()
         self.yp_client = self.yp_instance.create_client()
         self.yt_client = self.yp_instance.create_yt_client()
@@ -70,7 +71,9 @@ def yp_env(request, test_environment):
 
 @pytest.fixture(scope="class")
 def test_environment_configurable(request):
-    environment = YpTestEnvironment(yp_master_config=getattr(request.cls, "YP_MASTER_CONFIG"))
+    environment = YpTestEnvironment(
+        yp_master_config=getattr(request.cls, "YP_MASTER_CONFIG"),
+        enable_ssl=getattr(request.cls, "ENABLE_SSL", False))
     request.addfinalizer(lambda: environment.cleanup())
     return environment
 
