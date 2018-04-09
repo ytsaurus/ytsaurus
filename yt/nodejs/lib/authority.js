@@ -490,15 +490,17 @@ YtAuthority.prototype._asyncQueryCypress = function(context, result)
     }
 
     var self = this;
-    var path = self.config.cypress.where + "/" + utils.escapeYPath(context.token);
+    var path = self.config.cypress.where;
 
     return this.driver.executeSimple("get", {
-        path: path
+        path: path,
+        read_from: "cache",
     })
     .then(
-    function(login) {
+    function(tokens) {
+        var login = tokens[context.token];
+
         if (typeof(login) !== "string") {
-            context.logger.debug("Encountered garbage at path '" + path + "'");
             return;
         }
 

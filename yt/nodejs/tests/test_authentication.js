@@ -67,7 +67,7 @@ function stubRegistry()
 
     var logger = stubLogger();
     var profiler = stubProfiler();
-    var driver = { executeSimple: function(){ return Q.resolve(); } };
+    var driver = { executeSimple: function(){ return Q.resolve({}); } };
 
     YtRegistry.set("config", config);
     YtRegistry.set("logger", logger);
@@ -383,7 +383,7 @@ describe("YtAuthentication", function() {
         mock2
             .expects("executeSimple")
             .once()
-            .withExactArgs("get", sinon.match({ path: "//sys/tokens/some-token" }))
+            .withExactArgs("get", sinon.match({ path: "//sys/tokens", read_from: "cache" }))
             .returns(Q.reject(new YtError().withCode(500)));
         mock2
             .expects("executeSimple")
@@ -431,7 +431,7 @@ describe("YtAuthentication", function() {
         mock2
             .expects("executeSimple")
             .once()
-            .withExactArgs("get", sinon.match({ path: "//sys/tokens/some-token" }))
+            .withExactArgs("get", sinon.match({ path: "//sys/tokens" }))
             .returns(Q.reject(new YtError("Random error").withCode(500)));
         mock2
             .expects("executeSimple")
@@ -461,9 +461,10 @@ describe("YtAuthentication", function() {
             .expects("executeSimple")
             .once()
             .withExactArgs("get", sinon.match({
-                path: "//sys/tokens/unknown-token"
+                path: "//sys/tokens",
+                read_from: "cache",
             }))
-            .returns(Q.resolve("unknown-user"));
+            .returns(Q.resolve({"unknown-token": "unknown-user"}));
         mock
             .expects("executeSimple")
             .once()
@@ -486,9 +487,10 @@ describe("YtAuthentication", function() {
             .expects("executeSimple")
             .once()
             .withExactArgs("get", sinon.match({
-                path: "//sys/tokens/cypress-token"
+                path: "//sys/tokens",
+                read_from: "cache",
             }))
-            .returns(Q.resolve("cypress-user"));
+            .returns(Q.resolve({"cypress-token": "cypress-user"}));
         mock
             .expects("executeSimple")
             .once()

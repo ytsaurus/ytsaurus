@@ -290,12 +290,18 @@ private:
 
             auto& header = request->Header();
             header.set_start_time(ToProto<i64>(TInstant::Now()));
+
+            // NB: Requests without timeout are rare but may occur.
+            // For these requests we still need to register a timeout cookie with TDelayedExecutor
+            // since this also provides proper cleanup and cancelation when global shutdown happens.
+            auto effectiveTimeout = options.Timeout.Get(TDuration::Hours(24));
+            auto timeoutCookie = TDelayedExecutor::Submit(
+                BIND(&TSession::HandleTimeout, MakeWeak(this), requestControl),
+                effectiveTimeout);
+            requestControl->SetTimeoutCookie(Guard(SpinLock_), std::move(timeoutCookie));
+
             if (options.Timeout) {
                 header.set_timeout(ToProto<i64>(*options.Timeout));
-                auto timeoutCookie = TDelayedExecutor::Submit(
-                    BIND(&TSession::HandleTimeout, MakeWeak(this), requestControl),
-                    *options.Timeout);
-                requestControl->SetTimeoutCookie(Guard(SpinLock_), std::move(timeoutCookie));
             } else {
                 header.clear_timeout();
             }
