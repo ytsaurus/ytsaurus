@@ -49,6 +49,12 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         }
     }
 
+    DELTA_NODE_CONFIG = {
+        "scheduler_connector": {
+            "heartbeat_period": 100  # 100 msec
+        }
+    }
+
     def _prepare_tables(self):
         t1 = "//tmp/t1"
         create("table", t1)
@@ -1048,7 +1054,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
             ]
         })
         create("table", "//tmp/t_out")
-        for i in range(15):
+        for i in range(25):
             write_table("<append=%true>//tmp/t_in", {"a": i})
         op = merge(
             dont_track=True,
@@ -1068,14 +1074,16 @@ class TestSchedulerMergeCommands(YTEnvSetup):
             if jobs:
                 break
             sleep(0.1)
-        # Make reader read at least several blocks.
-        sleep(0.5)
         assert len(jobs) == 1
+        job_id = jobs[0]
+        while get("//sys/scheduler/orchid/scheduler/jobs/{0}/progress".format(job_id), default=0) < 0.1:
+            assert len(ls("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op.id))) == 1
+            sleep(0.1)
         interrupt_job(jobs[0])
         op.track()
         rows = read_table("//tmp/t_out")
         assert get("//sys/operations/{0}/@progress/jobs/completed/total".format(op.id)) == 2
-        assert rows == [{"a" : i} for i in range(15)]
+        assert rows == [{"a" : i} for i in range(25)]
 
     @pytest.mark.parametrize("mode", ["sorted", "ordered"])
     def test_merge_job_splitter(self, mode):
