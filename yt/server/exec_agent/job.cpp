@@ -1000,20 +1000,28 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControllerThread);
 
-        WaitFor(Slot_->CreateSandboxDirectories())
-            .ThrowOnError();
+        TUserSandboxOptions options;
+
         const auto& schedulerJobSpecExt = JobSpec_.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
 
         if (schedulerJobSpecExt.has_user_job_spec()) {
             const auto& userJobSpec = schedulerJobSpecExt.user_job_spec();
             if (userJobSpec.has_tmpfs_path()) {
-                TmpfsPath_ = WaitFor(Slot_->PrepareTmpfs(
-                    ESandboxKind::User,
-                    userJobSpec.tmpfs_size(),
-                    userJobSpec.tmpfs_path()))
-                .ValueOrThrow();
+                options.TmpfsSizeLimit = userJobSpec.tmpfs_size();
+                options.TmpfsPath = userJobSpec.tmpfs_path();
+            }
+
+            if (userJobSpec.has_inode_limit()) {
+                options.InodeLimit = userJobSpec.inode_limit();
+            }
+
+            if (userJobSpec.has_disk_space_limit()) {
+                options.DiskSpaceLimit = userJobSpec.disk_space_limit();
             }
         }
+
+        TmpfsPath_ = WaitFor(Slot_->CreateSandboxDirectories(options))
+            .ValueOrThrow();
     }
 
     void InitializeArtifacts()
@@ -1132,13 +1140,8 @@ private:
         // When all artifacts are prepared we can finally change permission for sandbox which will
         // take away write access from the current user (see slot_location.cpp for details).
         if (schedulerJobSpecExt.has_user_job_spec()) {
-            const auto& userJobSpec = schedulerJobSpecExt.user_job_spec();
-
-            TNullable<i64> inodeLimit(userJobSpec.has_inode_limit(), userJobSpec.inode_limit());
-            TNullable<i64> diskSpaceLimit(userJobSpec.has_disk_space_limit(), userJobSpec.disk_space_limit());
-
-            LOG_INFO("Setting sandbox quota and permissions");
-            WaitFor(Slot_->FinalizePreparation(diskSpaceLimit, inodeLimit))
+            LOG_INFO("Setting sandbox permissions");
+            WaitFor(Slot_->FinalizePreparation())
                 .ThrowOnError();
         }
     }

@@ -4,6 +4,8 @@
 
 #include <yt/core/misc/public.h>
 
+#include <yt/core/misc/nullable.h>
+
 namespace NYT {
 namespace NExecAgent {
 
@@ -22,6 +24,14 @@ using NJobTrackerClient::TOperationId;
 using NJobTrackerClient::EJobType;
 using NJobTrackerClient::EJobState;
 using NJobTrackerClient::EJobPhase;
+
+struct TUserSandboxOptions
+{
+    TNullable<TString> TmpfsPath;
+    TNullable<i64> TmpfsSizeLimit;
+    TNullable<i64> InodeLimit;
+    TNullable<i64> DiskSpaceLimit;
+};
 
 DEFINE_ENUM(EErrorCode,
     ((ConfigCreationFailed)          (1100))
