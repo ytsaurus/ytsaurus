@@ -286,15 +286,6 @@ private:
                 EObjectType::Orchid);
 
             ScheduleCreateNode(
-                "//sys/controller_agents/event_log",
-                transactionId,
-                EObjectType::Table,
-                BuildYsonStringFluently()
-                    .BeginMap()
-                        .Item("external").Value(false)
-                    .EndMap());
-
-            ScheduleCreateNode(
                 "//sys/operations",
                 transactionId,
                 EObjectType::MapNode,
