@@ -271,6 +271,8 @@ class TestJobProber(YTEnvSetup):
         op.track()
         assert len(read_table("//tmp/t2")) == 0
 
+    # Remove after YT-8596
+    @flaky(max_runs=5)
     def test_poll_job_shell_command(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
