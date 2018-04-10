@@ -257,6 +257,11 @@ public:
         SetProperty("cpu_guarantee", ToString(cores) + "c");
     }
 
+    virtual void SetMemoryGuarantee(i64 memoryGuarantee) override
+    {
+        SetProperty("memory_guarantee", ToString(memoryGuarantee));
+    }
+
     virtual void SetIOWeight(double weight) override
     {
         SetProperty("io_weight", ToString(weight));
