@@ -1632,10 +1632,13 @@ class TestJobRevival(TestJobRevivalBase):
         self.Env.kill_controller_agents()
         self.Env.start_controller_agents()
 
+        orchid_path = "//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/default/fair_share_info"
+
         for i in xrange(1000):
             for j in xrange(10):
                 try:
                     jobs = get("//sys/operations/{0}/@progress/jobs".format(op.id), verbose=False)
+                    user_slots = get(orchid_path + "/operations/{0}/resource_usage/user_slots".format(op.id), verbose=False)
                     break
                 except:
                     time.sleep(0.1)
@@ -1646,7 +1649,7 @@ class TestJobRevival(TestJobRevivalBase):
                 events_on_fs().notify_event("complete_operation")
             running = jobs["running"]
             aborted = jobs["aborted"]["total"]
-            assert running <= user_slots_limit
+            assert running <= user_slots_limit or user_slots <= user_slots_limit
             assert aborted == 0
 
         op.track()
