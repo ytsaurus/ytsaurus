@@ -127,16 +127,3 @@ void ProfileChunkReader(
 
 } // namespace NTabletNode
 } // namespace NYT
-
-////////////////////////////////////////////////////////////////////////////////
-
-size_t hash<NYT::NTabletNode::TListProfilerTraitBase::TKey>::operator()(const NYT::NTabletNode::TListProfilerTraitBase::TKey& list) const
-{
-    size_t result = 1;
-    for (auto tag : list) {
-        result = NYT::FarmFingerprint(result, tag);
-    }
-    return result;
-}
-
-////////////////////////////////////////////////////////////////////////////////

@@ -15,6 +15,7 @@
 #include <yt/core/net/local_address.h>
 
 #include <yt/core/misc/string.h>
+#include <yt/core/misc/tls_cache.h>
 
 #include <yt/core/profiling/profile_manager.h>
 #include <yt/core/profiling/timing.h>
@@ -747,9 +748,25 @@ TServiceBase::TMethodPerformanceCountersPtr TServiceBase::CreateMethodPerformanc
     const TRuntimeMethodInfoPtr& runtimeInfo,
     const TString& userName)
 {
+    struct TCacheTrait
+    {
+        typedef TTagIdList TKey;
+        typedef TServiceBase::TMethodPerformanceCountersPtr TValue;
+
+        static TKey ToKey(const TTagIdList& tags)
+        {
+            return tags;
+        }
+
+        static TValue ToValue(const TTagIdList& tags)
+        {
+            return New<TMethodPerformanceCounters>(tags);
+        }
+    };
+
     auto tagIds = runtimeInfo->TagIds;
     tagIds.push_back(NProfiling::TProfileManager::Get()->RegisterTag("user", userName));
-    return New<TMethodPerformanceCounters>(tagIds);
+    return GetGloballyCachedValue<TCacheTrait>(tagIds);
 }
 
 TServiceBase::TMethodPerformanceCounters* TServiceBase::LookupMethodPerformanceCounters(

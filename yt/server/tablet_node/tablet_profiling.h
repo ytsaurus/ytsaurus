@@ -75,13 +75,3 @@ void ProfileChunkReader(
 
 } // namespace NTabletNode
 } // namespace NYT
-
-////////////////////////////////////////////////////////////////////////////////
-
-template <>
-struct hash<NYT::NTabletNode::TListProfilerTraitBase::TKey>
-{
-    size_t operator()(const NYT::NTabletNode::TListProfilerTraitBase::TKey& list) const;
-};
-
-////////////////////////////////////////////////////////////////////////////////
