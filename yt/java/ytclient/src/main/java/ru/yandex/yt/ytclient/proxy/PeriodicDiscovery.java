@@ -94,7 +94,7 @@ public class PeriodicDiscovery implements AutoCloseable {
                     logger.warn("Cannot remove proxy: {}", addr);
                 }
             } catch (Throwable e) {
-                logger.error("Error on proxy remove {}: {}", addr, e);
+                logger.error("Error on proxy remove {}: {}", addr, e, e);
             }
         }
 
@@ -102,7 +102,7 @@ public class PeriodicDiscovery implements AutoCloseable {
             try {
                 listener.onProxiesRemoved(removeList);
             } catch (Throwable e) {
-                logger.error("Error on proxy remove {}", removeList);
+                logger.error("Error on proxy remove {}: {}", removeList, e, e);
             }
         }
     }
@@ -116,7 +116,7 @@ public class PeriodicDiscovery implements AutoCloseable {
                 proxies.put(addr, client);
                 addList.add(client.getClient());
             } catch (Throwable e) {
-                logger.error("Error on address parse {}: {}", addr, e);
+                logger.error("Error on address parse {}: {}", addr, e, e);
             }
         }
 
@@ -124,7 +124,7 @@ public class PeriodicDiscovery implements AutoCloseable {
             try {
                 listener.onProxiesAdded(addList);
             } catch (Throwable e) {
-                logger.error("Error on proxy remove {}", addList);
+                logger.error("Error on proxy remove {}: {}", addList, e, e);
             }
         }
     }
@@ -152,7 +152,7 @@ public class PeriodicDiscovery implements AutoCloseable {
                     processProxies(new HashSet<>(result.stream().map(HostPort::parse).collect(Collectors.toList())));
                 }
             } catch (Throwable e) {
-                logger.error("Error on process proxies {}", e);
+                logger.error("Error on process proxies {}", e, e);
             }
 
             if (running.get()) {
