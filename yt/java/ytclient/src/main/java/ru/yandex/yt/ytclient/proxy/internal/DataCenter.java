@@ -103,13 +103,18 @@ public final class DataCenter {
         }
     }
 
-    private void setDead(BalancingDestination dst, Throwable reason) {
+    private void setDead(BalancingDestination dst, boolean remove, Throwable reason) {
         synchronized (backends) {
             if (dst.getIndex() < aliveCount) {
                 aliveCount--;
                 swap(aliveCount, dst.getIndex());
                 logger.info("backend `{}` is dead, reason `{}`", dst, reason.toString());
                 dst.resetTransaction();
+            }
+            if (remove) {
+                int lastIdx = backends.size() - 1;
+                swap(lastIdx, dst.getIndex());
+                backends.remove(lastIdx);
             }
         }
     }
@@ -118,13 +123,13 @@ public final class DataCenter {
         synchronized (backends) {
             backends.ensureCapacity(backends.size() + proxies.size());
 
-            int index = proxies.size();
-            int size = backends.size();
+            int index = backends.size();
+            int prevSize = backends.size();
             for (RpcClient proxy : proxies) {
                 backends.add(new BalancingDestination(dc, proxy, index ++, destMetricsHolder, options));
             }
 
-            if (size == aliveCount) {
+            if (prevSize == aliveCount) {
                 aliveCount = backends.size();
             }
         }
@@ -142,11 +147,7 @@ public final class DataCenter {
         }
 
         for (BalancingDestination removed: removeList) {
-            setDead(removed, new Exception("proxy was removed from list"));
-            synchronized (backends) {
-                // TODO: batch remove
-                backends.remove(removed.getIndex());
-            }
+            setDead(removed, true, new Exception("proxy was removed from list"));
         }
     }
 
@@ -155,7 +156,7 @@ public final class DataCenter {
     }
 
     public void setDead(int index, Throwable reason) {
-        setDead(backends.get(index), reason);
+        setDead(backends.get(index), false, reason);
     }
 
     public void setAlive(int index) {
@@ -211,14 +212,14 @@ public final class DataCenter {
         CompletableFuture<Void> f = client.createTransaction(pingTimeout).thenCompose(tx -> client.pingTransaction(tx))
             .thenAccept(unused -> setAlive(client))
             .exceptionally(ex -> {
-                setDead(client, ex);
+                setDead(client, false, ex);
                 return null;
             });
 
         executorService.schedule(
             () -> {
                 if (!f.isDone()) {
-                    setDead(client, new Exception("ping timeout"));
+                    setDead(client, false, new Exception("ping timeout"));
                     f.cancel(true);
                 }
             },
