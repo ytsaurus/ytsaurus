@@ -211,6 +211,7 @@ public:
         }
 
         if (ResourceController_) {
+            ResourceController_->SetMemoryGuarantee(UserJobSpec_.memory_reserve());
             YCHECK(host->GetConfig()->BusServer->UnixDomainName);
             YCHECK(UserId_);
             Process_ = ResourceController_->CreateControlledProcess(
@@ -1141,7 +1142,8 @@ private:
             InputPipeBlinker_->Start();
             JobStarted_ = true;
         } else {
-            LOG_ERROR("Failed to prepare satellite/executor");
+            LOG_ERROR(JobErrorPromise_.Get(), "Failed to prepare satellite/executor");
+            return;
         }
         LOG_INFO("Start actions finished (SatelliteRss: %v)", jobSatelliteRss);
         auto inputFutures = runActions(InputActions_, onIOError, PipeIOPool_->GetInvoker());
