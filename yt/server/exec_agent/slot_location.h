@@ -33,8 +33,10 @@ public:
         bool enableTmpfs);
 
     //! Make ./sandbox, ./home/, ./udf and other directories.
-    TFuture<void> CreateSandboxDirectories(
-        int slotIndex);
+    //! Returns tmpfs path if any.
+    TFuture<TNullable<TString>> CreateSandboxDirectories(
+        int slotIndex,
+        TUserSandboxOptions options);
 
     TFuture<void> MakeSandboxCopy(
         int slotIndex,
@@ -50,20 +52,11 @@ public:
         const TString& linkName,
         bool executable);
 
-    TFuture<TNullable<TString>> MakeSandboxTmpfs(
-        int slotIndex,
-        ESandboxKind kind,
-        i64 size,
-        const TString& path);
-
     // Set quota, permissions, etc. Must be called when all files are prepared.
     TFuture<void> FinalizeSanboxPreparation(
         int slotIndex,
-        TNullable<i64> diskSpaceLimit,
-        TNullable<i64> inodeLimit,
         int userId);
 
-    //! Finishes sandbox preparation.
     TFuture<void> MakeConfig(int slotIndex, NYTree::INodePtr config);
 
     TFuture<void> CleanSandboxes(int slotIndex);
@@ -89,6 +82,7 @@ private:
     const bool HasRootPermissions_;
 
     std::set<TString> TmpfsPaths_;
+    std::set<int> SlotsWithQuota_;
 
     NConcurrency::TReaderWriterSpinLock SlotsLock_;
     yhash<int, TNullable<i64>> OccupiedSlotToDiskLimit_;
