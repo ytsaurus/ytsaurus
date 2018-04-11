@@ -109,7 +109,9 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
                 "short_jobs_alert_min_job_duration": 5000,
                 "low_cpu_usage_alert_min_execution_time": 1,
                 "low_cpu_usage_alert_min_average_job_time": 1,
-                "low_cpu_usage_alert_cpu_usage_threshold": 0.3
+                "low_cpu_usage_alert_cpu_usage_threshold": 0.3,
+                "operation_too_long_alert_min_wall_time": 0,
+                "operation_too_long_alert_estimate_duration_threshold": 5000
             },
             "map_reduce_operation_options": {
                 "min_uncompressed_block_size": 1
@@ -200,29 +202,21 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
             command="sleep 100; cat",
             in_="//tmp/t_in",
             out="//tmp/t_out",
-            spec={
-                "data_size_per_job": 1,
-            },
+            spec={"data_size_per_job": 1},
             dont_track=True)
 
-        operation_orchid_path = "//sys/scheduler/orchid/scheduler/operations/" + op.id
-        running_jobs_count_path = operation_orchid_path + "/progress/jobs/running"
-
-        def running_jobs_exists():
-            return get(running_jobs_count_path, default=0) >= 1
-
-        wait(running_jobs_exists)
+        self.wait_for_running_jobs(op)
 
         time.sleep(1.5)
 
-        for job in ls(operation_orchid_path + "/running_jobs"):
+        for job in ls("//sys/scheduler/orchid/scheduler/operations/{}/running_jobs".format(op.id)):
             abort_job(job)
 
         time.sleep(1.5)
 
         assert "long_aborted_jobs" in get("//sys/operations/{0}/@alerts".format(op.id))
 
-    # if these two tests flap - call renadeen@
+    # if these three tests flap - call renadeen@
     def test_low_cpu_alert_presence(self):
         self.create_test_tables(attributes={"compression_codec": "none"})
         op = map(
@@ -240,6 +234,18 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
             out="//tmp/t_out")
 
         assert "low_cpu_usage" not in get("//sys/operations/{0}/@alerts".format(op.id))
+
+    def test_operation_too_long_alert(self):
+        self.create_test_tables(row_count=100)
+        op = map(
+            command="sleep 100; cat",
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            spec={"data_size_per_job": 1},
+            dont_track=True)
+
+        self.wait_for_running_jobs(op)
+        wait(lambda: "operation_too_long" in get("//sys/operations/{0}/@alerts".format(op.id)))
 
     def test_intermediate_data_skew_alert(self):
         create("table", "//tmp/t_in")
@@ -310,6 +316,10 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
         create("table", "//tmp/t_in", **kwargs)
         write_table("//tmp/t_in", [{"x": str(i)} for i in xrange(row_count)])
         create("table", "//tmp/t_out", **kwargs)
+
+    def wait_for_running_jobs(self, operation):
+        running_jobs_path = "//sys/scheduler/orchid/scheduler/operations/{}/progress/jobs/running".format(operation.id)
+        wait(lambda: get(running_jobs_path, default=0) >= 1)
 
 
 ##################################################################

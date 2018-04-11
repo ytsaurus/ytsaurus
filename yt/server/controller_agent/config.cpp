@@ -74,6 +74,12 @@ TOperationAlertsConfig::TOperationAlertsConfig()
     RegisterParameter("low_cpu_usage_alert_cpu_usage_threshold", LowCpuUsageAlertCpuUsageThreshold)
         .Default(0.5)
         .GreaterThan(0);
+
+    RegisterParameter("operation_too_long_alert_min_wall_time", OperationTooLongAlertMinWallTime)
+        .Default(TDuration::Minutes(5));
+
+    RegisterParameter("operation_too_long_alert_estimate_duration_threshold", OperationTooLongAlertEstimateDurationThreshold)
+        .Default(TDuration::Days(7));
 }
 
 TJobSplitterConfig::TJobSplitterConfig()

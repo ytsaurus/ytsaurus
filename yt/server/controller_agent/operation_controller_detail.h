@@ -470,6 +470,7 @@ protected:
     void AnalyzeJobsIOUsage();
     void AnalyzeJobsCpuUsage();
     void AnalyzeJobsDuration();
+    void AnalyzeOperationDuration();
     void AnalyzeScheduleJobStatistics();
 
     void AnalyzeOperationProgress();

@@ -2700,6 +2700,34 @@ void TOperationControllerBase::AnalyzeJobsDuration()
     SetOperationAlert(EOperationAlertType::ShortJobsDuration, error);
 }
 
+void TOperationControllerBase::AnalyzeOperationDuration()
+{
+    TError error;
+    for (const auto& task : Tasks) {
+        if (!task->GetUserJobSpec()) {
+            continue;
+        }
+        i64 completedAndRunning = JobCounter->GetCompletedTotal() + JobCounter->GetRunning();
+        if (completedAndRunning == 0) {
+            continue;
+        }
+        i64 pending = JobCounter->GetPending();
+        TDuration wallTime = GetInstant() - StartTime;
+        TDuration estimatedDuration = (wallTime / completedAndRunning) * pending;
+
+        if (wallTime > Config->OperationAlerts->OperationTooLongAlertMinWallTime &&
+            estimatedDuration > Config->OperationAlerts->OperationTooLongAlertEstimateDurationThreshold)
+        {
+            error = TError(
+                "Estimated duration of this operation is about %v days; "
+                "consider breaking operation into smaller ones",
+                estimatedDuration.Days()) << TErrorAttribute("estimated_duration", estimatedDuration);
+            break;
+        }
+    }
+    SetOperationAlert(EOperationAlertType::OperationTooLong, error);
+}
+
 void TOperationControllerBase::AnalyzeScheduleJobStatistics()
 {
     auto jobSpecThrottlerActivationCount = ScheduleJobStatistics_->Failed[EScheduleJobFailReason::JobSpecThrottling];
@@ -2728,6 +2756,7 @@ void TOperationControllerBase::AnalyzeOperationProgress()
     AnalyzeJobsIOUsage();
     AnalyzeJobsCpuUsage();
     AnalyzeJobsDuration();
+    AnalyzeOperationDuration();
     AnalyzeScheduleJobStatistics();
 }
 
