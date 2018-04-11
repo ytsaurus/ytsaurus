@@ -265,7 +265,11 @@ private:
             ScheduleCreateNode(
                 "//sys/scheduler/event_log",
                 transactionId,
-                EObjectType::Table);
+                EObjectType::Table,
+                BuildYsonStringFluently()
+                    .BeginMap()
+                        .Item("external").Value(false)
+                    .EndMap());
             
             ScheduleCreateNode(
                 "//sys/controller_agents/instances",
