@@ -1634,6 +1634,7 @@ class TestJobRevival(TestJobRevivalBase):
         self.Env.start_controller_agents()
 
         orchid_path = "//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/default/fair_share_info"
+        wait(lambda: exists(orchid_path + "/operations/" + op.id))
 
         for i in xrange(1000):
             for j in xrange(10):
