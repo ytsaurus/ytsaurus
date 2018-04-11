@@ -36,7 +36,8 @@ public:
     //! Returns tmpfs path if any.
     TFuture<TNullable<TString>> CreateSandboxDirectories(
         int slotIndex,
-        TUserSandboxOptions options);
+        TUserSandboxOptions options,
+        int userId);
 
     TFuture<void> MakeSandboxCopy(
         int slotIndex,

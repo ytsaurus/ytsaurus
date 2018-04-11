@@ -167,7 +167,8 @@ public:
         return RunPrepareAction<TNullable<TString>>([&] () {
                 return Location_->CreateSandboxDirectories(
                     SlotIndex_,
-                    options);
+                    options,
+                    JobEnvironment_->GetUserId(SlotIndex_));
             },
             // Includes quota setting and tmpfs creation.
             true);

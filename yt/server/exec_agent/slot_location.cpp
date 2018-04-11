@@ -81,7 +81,7 @@ TSlotLocation::TSlotLocation(
     DiskInfoUpdateExecutor_->Start();
 }
 
-TFuture<TNullable<TString>> TSlotLocation::CreateSandboxDirectories(int slotIndex, TUserSandboxOptions options)
+TFuture<TNullable<TString>> TSlotLocation::CreateSandboxDirectories(int slotIndex, TUserSandboxOptions options, int userId)
 {
     return BIND([=, this_ = MakeStrong(this)] () -> TNullable<TString> {
          ValidateEnabled();
@@ -118,7 +118,7 @@ TFuture<TNullable<TString>> TSlotLocation::CreateSandboxDirectories(int slotInde
 
         if (shouldApplyQuota()) {
             try {
-                auto properties = TJobDirectoryProperties {options.DiskSpaceLimit, options.InodeLimit, static_cast<int>(::getuid())};
+                auto properties = TJobDirectoryProperties {options.DiskSpaceLimit, options.InodeLimit, userId};
                 WaitFor(JobDirectoryManager_->ApplyQuota(sandboxPath, properties))
                     .ThrowOnError();
                 SlotsWithQuota_.insert(slotIndex);
@@ -170,7 +170,7 @@ TFuture<TNullable<TString>> TSlotLocation::CreateSandboxDirectories(int slotInde
                     }
                 };
 
-                auto properties = TJobDirectoryProperties{getTmpfsSize(), Null, static_cast<int>(::getuid())};
+                auto properties = TJobDirectoryProperties{getTmpfsSize(), Null, userId};
                 WaitFor(JobDirectoryManager_->CreateTmpfsDirectory(tmpfsPath, properties))
                     .ThrowOnError();
 
