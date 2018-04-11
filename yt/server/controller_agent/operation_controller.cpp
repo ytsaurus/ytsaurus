@@ -158,16 +158,22 @@ public:
         const TOperationId& id,
         IOperationControllerPtr underlying,
         IInvokerPtr dtorInvoker,
+        TMemoryTag memoryTag,
         TMemoryTagQueue* memoryTagQueue)
         : Id_(id)
         , Underlying_(std::move(underlying))
         , DtorInvoker_(std::move(dtorInvoker))
+        , MemoryTag_(memoryTag)
         , MemoryTagQueue_(memoryTagQueue)
     { }
 
     virtual ~TOperationControllerWrapper()
     {
-        DtorInvoker_->Invoke(BIND([underlying = std::move(Underlying_), id = Id_, memoryTagQueue = MemoryTagQueue_] () mutable {
+        DtorInvoker_->Invoke(BIND([
+                underlying = std::move(Underlying_),
+                id = Id_,
+                memoryTagQueue = MemoryTagQueue_,
+                memoryTag = MemoryTag_] () mutable {
             auto Logger = NLogging::TLogger(ControllerLogger)
                 .AddTag("OperationId: %v", id);
             NProfiling::TWallTimer timer;
@@ -175,7 +181,7 @@ public:
             underlying.Reset();
             LOG_INFO("Finished destroying operation controller (Elapsed: %v)",
                 timer.GetElapsedTime());
-            memoryTagQueue->ReclaimOperationTag(id);
+            memoryTagQueue->ReclaimTag(memoryTag);
         }));
     }
 
@@ -396,6 +402,7 @@ private:
     const TOperationId Id_;
     const IOperationControllerPtr Underlying_;
     const IInvokerPtr DtorInvoker_;
+    const TMemoryTag MemoryTag_;
     TMemoryTagQueue* const MemoryTagQueue_;
 };
 
@@ -505,6 +512,7 @@ IOperationControllerPtr CreateControllerForOperation(
         operation->GetId(),
         controller,
         controller->GetInvoker(),
+        operation->GetMemoryTag(),
         host->GetMemoryTagQueue());
 }
 
