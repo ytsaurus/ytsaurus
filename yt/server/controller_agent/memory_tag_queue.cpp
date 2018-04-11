@@ -32,39 +32,39 @@ TMemoryTag TMemoryTagQueue::AssignTagToOperation(const TOperationId& operationId
 
     TGuard<TSpinLock> guard(Lock_);
 
-    if (1 + OperationIdToTag_.size() > MemoryTagQueueLoadFactor * AllocatedTagCount_) {
+    if (UsedTags_.size() > MemoryTagQueueLoadFactor * AllocatedTagCount_) {
         AllocateNewTags();
     }
 
     YCHECK(!AvailableTags_.empty());
     auto tag = AvailableTags_.front();
     AvailableTags_.pop();
-    OperationIdToTag_[operationId] = tag;
+    UsedTags_.insert(tag);
     TagToLastOperationId_[tag] = operationId;
     LOG_INFO("Assigning memory tag to operation (OperationId: %v, MemoryTag: %v, UsedMemoryTagCount: %v, AvailableTagCount: %v)",
         operationId,
         tag,
-        OperationIdToTag_.size(),
+        UsedTags_.size(),
         AvailableTags_.size());
 
     return tag;
 }
 
-void TMemoryTagQueue::ReclaimOperationTag(const TOperationId& operationId)
+void TMemoryTagQueue::ReclaimTag(TMemoryTag tag)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
     TGuard<TSpinLock> guard(Lock_);
 
-    auto it = OperationIdToTag_.find(operationId);
-    YCHECK(it != OperationIdToTag_.end());
-    auto tag = it->second;
-    OperationIdToTag_.erase(it);
+    YCHECK(UsedTags_.erase(tag));
+
+    auto operationId = TagToLastOperationId_[tag];
+
     AvailableTags_.push(tag);
     LOG_INFO("Reclaiming memory tag of operation (OperationId: %v, MemoryTag: %v, UsedMemoryTagCount: %v, AvailableTagCount: %v)",
         operationId,
         tag,
-        OperationIdToTag_.size(),
+        UsedTags_.size(),
         AvailableTags_.size());
 }
 
@@ -118,7 +118,7 @@ void TMemoryTagQueue::UpdateStatistics()
             auto tag = tags[index];
             auto usage = usages[index];
             auto operationId = TagToLastOperationId_[tag] ? MakeNullable(TagToLastOperationId_[tag]) : Null;
-            auto alive = operationId && OperationIdToTag_.has(*operationId);
+            auto alive = operationId && UsedTags_.has(tag);
             fluent
                 .Item().BeginMap()
                     .Item("usage").Value(usage)

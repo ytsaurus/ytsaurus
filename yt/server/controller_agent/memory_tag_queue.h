@@ -24,7 +24,7 @@ public:
     TMemoryTagQueue(TControllerAgentConfigPtr config);
 
     TMemoryTag AssignTagToOperation(const TOperationId& operationId);
-    void ReclaimOperationTag(const TOperationId& operationId);
+    void ReclaimTag(TMemoryTag tag);
 
     void BuildTaggedMemoryStatistics(NYTree::TFluentList fluent);
 
@@ -39,8 +39,8 @@ private:
     //! A queue of spare tags.
     std::queue<TMemoryTag> AvailableTags_;
 
-    //! A mapping from operation id to a tag assigned to it.
-    THashMap<TOperationId, TMemoryTag> OperationIdToTag_;
+    //! A hashset of used tags.
+    THashSet<TMemoryTag> UsedTags_;
 
     //! Last operation id that was assigned to each of the tags.
     std::vector<TOperationId> TagToLastOperationId_;

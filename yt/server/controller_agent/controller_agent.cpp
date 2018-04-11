@@ -376,7 +376,7 @@ public:
             auto controller = CreateControllerForOperation(Config_, operation.Get());
             operation->SetController(controller);
         } catch (...) {
-            MemoryTagQueue_.ReclaimOperationTag(operationId);
+            MemoryTagQueue_.ReclaimTag(operation->GetMemoryTag());
             throw;
         }
 
