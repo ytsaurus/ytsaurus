@@ -110,6 +110,12 @@ public:
     // Cpu usage threshold to send an alert
     double LowCpuUsageAlertCpuUsageThreshold;
 
+    // Minimum wall time of operation duration
+    TDuration OperationTooLongAlertMinWallTime;
+
+    // Threshold for estimate duration of operation
+    TDuration OperationTooLongAlertEstimateDurationThreshold;
+
     TOperationAlertsConfig();
 };
 
