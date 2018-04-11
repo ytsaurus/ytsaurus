@@ -5596,6 +5596,8 @@ NScheduler::TOperationJobMetrics TOperationControllerBase::PullJobMetricsDelta()
 
     LastJobMetricsDeltaReportTime_ = now;
 
+    LOG_DEBUG_UNLESS(result.empty(), "Pulling non-zero job metrics from controller");
+
     return result;
 }
 
@@ -6111,6 +6113,8 @@ void TOperationControllerBase::UpdateJobStatistics(const TJobletPtr& joblet, con
 
 void TOperationControllerBase::UpdateJobMetrics(const TJobletPtr& joblet, const TJobSummary& jobSummary)
 {
+    LOG_TRACE("Updating job metrics (JobId: %v)", joblet->JobId);
+
     auto delta = joblet->UpdateJobMetrics(jobSummary);
     {
         TGuard<TSpinLock> guard(JobMetricsDeltaPerTreeLock_);
