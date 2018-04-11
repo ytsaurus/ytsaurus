@@ -224,6 +224,13 @@ public:
         return ControllerThreadPool_->GetInvoker();
     }
 
+    TMemoryTagQueue* GetMemoryTagQueue()
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return &MemoryTagQueue_;
+    }
+
     const IInvokerPtr& GetSnapshotIOInvoker()
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -273,6 +280,8 @@ public:
             controller->GetCancelableInvoker()->Invoke(
                 BIND(&IOperationController::UpdateConfig, controller, config));
         }
+
+        MemoryTagQueue_.UpdateConfig(Config_);
     }
 
 
@@ -392,8 +401,6 @@ public:
         YCHECK(IdToOperation_.erase(operationId) == 1);
 
         MasterConnector_->UnregisterOperation(operationId);
-
-        MemoryTagQueue_.ReclaimOperationTag(operationId);
 
         LOG_DEBUG("Operation unregistered (OperationId: %v)", operationId);
     }
@@ -1307,6 +1314,11 @@ const TAsyncSemaphorePtr& TControllerAgent::GetCoreSemaphore() const
 const TEventLogWriterPtr& TControllerAgent::GetEventLogWriter() const
 {
     return Impl_->GetEventLogWriter();
+}
+
+TMemoryTagQueue* TControllerAgent::GetMemoryTagQueue()
+{
+    return Impl_->GetMemoryTagQueue();
 }
 
 TOperationPtr TControllerAgent::FindOperation(const TOperationId& operationId)
