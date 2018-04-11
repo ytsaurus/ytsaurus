@@ -177,6 +177,11 @@ const TAsyncSemaphorePtr& TOperationControllerHost::GetCoreSemaphore()
     return Bootstrap_->GetControllerAgent()->GetCoreSemaphore();
 }
 
+TMemoryTagQueue* TOperationControllerHost::GetMemoryTagQueue()
+{
+    return Bootstrap_->GetControllerAgent()->GetMemoryTagQueue();
+}
+
 int TOperationControllerHost::GetExecNodeCount()
 {
     return Bootstrap_->GetControllerAgent()->GetExecNodeCount();

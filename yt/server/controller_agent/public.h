@@ -116,6 +116,8 @@ DECLARE_REFCOUNTED_CLASS(TProgressCounter)
 
 class TDataFlowGraph;
 
+class TMemoryTagQueue;
+
 using NScheduler::TIncarnationId;
 using NScheduler::TAgentId;
 

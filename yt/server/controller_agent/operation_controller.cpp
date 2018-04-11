@@ -7,6 +7,7 @@
 #include "unordered_controller.h"
 #include "operation_controller_host.h"
 #include "vanilla_controller.h"
+#include "memory_tag_queue.h"
 
 #include <yt/server/scheduler/proto/controller_agent_tracker_service.pb.h>
 
@@ -148,7 +149,7 @@ TRunningJobSummary::TRunningJobSummary(NScheduler::NProto::TSchedulerToAgentJobE
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Ensures that operation controllers are being destroyed in a
-//! dedicated invoker.
+//! dedicated invoker and releases memory tag when controller is destroyed.
 class TOperationControllerWrapper
     : public IOperationController
 {
@@ -156,15 +157,17 @@ public:
     TOperationControllerWrapper(
         const TOperationId& id,
         IOperationControllerPtr underlying,
-        IInvokerPtr dtorInvoker)
+        IInvokerPtr dtorInvoker,
+        TMemoryTagQueue* memoryTagQueue)
         : Id_(id)
         , Underlying_(std::move(underlying))
         , DtorInvoker_(std::move(dtorInvoker))
+        , MemoryTagQueue_(memoryTagQueue)
     { }
 
     virtual ~TOperationControllerWrapper()
     {
-        DtorInvoker_->Invoke(BIND([underlying = std::move(Underlying_), id = Id_] () mutable {
+        DtorInvoker_->Invoke(BIND([underlying = std::move(Underlying_), id = Id_, memoryTagQueue = MemoryTagQueue_] () mutable {
             auto Logger = NLogging::TLogger(ControllerLogger)
                 .AddTag("OperationId: %v", id);
             NProfiling::TWallTimer timer;
@@ -172,6 +175,7 @@ public:
             underlying.Reset();
             LOG_INFO("Finished destroying operation controller (Elapsed: %v)",
                 timer.GetElapsedTime());
+            memoryTagQueue->ReclaimOperationTag(id);
         }));
     }
 
@@ -392,6 +396,7 @@ private:
     const TOperationId Id_;
     const IOperationControllerPtr Underlying_;
     const IInvokerPtr DtorInvoker_;
+    TMemoryTagQueue* const MemoryTagQueue_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -499,7 +504,8 @@ IOperationControllerPtr CreateControllerForOperation(
     return New<TOperationControllerWrapper>(
         operation->GetId(),
         controller,
-        controller->GetInvoker());
+        controller->GetInvoker(),
+        host->GetMemoryTagQueue());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
