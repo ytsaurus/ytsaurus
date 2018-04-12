@@ -1,9 +1,11 @@
-#include "resource_controller.h"
+#include "environment.h"
 
 #include <yt/server/exec_agent/config.h>
 
+#include <yt/ytlib/job_proxy/private.h>
+
 #ifdef _linux_
-#include <yt/server/containers/container_manager.h>
+#include <yt/server/containers/porto_executor.h>
 #include <yt/server/containers/instance.h>
 
 #include <yt/server/misc/process.h>
@@ -19,7 +21,7 @@
 namespace NYT {
 namespace NJobProxy {
 
-
+using namespace NConcurrency;
 using namespace NContainers;
 using namespace NCGroup;
 using namespace NExecAgent;
@@ -35,16 +37,33 @@ static const NLogging::TLogger Logger("ResourceController");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCGroupResourceController
-    : public IResourceController
+struct TCGroups
+{
+    explicit TCGroups(const TString& name)
+        : Freezer(name)
+        , CpuAccounting(name)
+        , BlockIO(name)
+        , Cpu(name)
+    { }
+
+    TFreezer Freezer;
+    TCpuAccounting CpuAccounting;
+    TBlockIO BlockIO;
+    TCpu Cpu;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TCGroupsResourceTracker
+    : public virtual IResourceTracker
 {
 public:
-    TCGroupResourceController(
+    TCGroupsResourceTracker(
         TCGroupJobEnvironmentConfigPtr config,
-        const TString& path = TString())
-        : CGroupsConfig_(config)
-        , CGroups_(path)
-        , Path_(path)
+        const TString& path)
+    : CGroupsConfig_(config)
+    , Path_(path)
+    , CGroups_(path)
     { }
 
     virtual TCpuStatistics GetCpuStatistics() const override
@@ -63,7 +82,31 @@ public:
         THROW_ERROR_EXCEPTION("Block io cgroup is not supported");
     }
 
-    virtual TMemoryStatistics GetMemoryStatistics() const override
+protected:
+    const TCGroupJobEnvironmentConfigPtr CGroupsConfig_;
+    const TString Path_;
+    TCGroups CGroups_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TCGroupsUserJobEnvironment
+    : public TCGroupsResourceTracker
+    , public IUserJobEnvironment
+{
+public:
+    TCGroupsUserJobEnvironment(
+        TCGroupJobEnvironmentConfigPtr config,
+        const TString& path)
+        : TCGroupsResourceTracker(config, path)
+    { }
+
+    virtual TDuration GetBlockIOWatchdogPeriod() const override
+    {
+        return CGroupsConfig_->BlockIOWatchdogPeriod;
+    }
+
+    virtual TMemoryStatistics GetMemoryStatistics() const
     {
         TMemoryStatistics memoryStatistics;
         memoryStatistics.Rss = 0;
@@ -103,8 +146,8 @@ public:
 
         memoryStatistics.MajorPageFaults = PageFaultCount_;
 
-        if (memoryStatistics.Rss + memoryStatistics.MappedFile > MaxMemoryUsage) {
-            MaxMemoryUsage = memoryStatistics.Rss + memoryStatistics.MappedFile;
+        if (memoryStatistics.Rss + memoryStatistics.MappedFile > MaxMemoryUsage_) {
+            MaxMemoryUsage_ = memoryStatistics.Rss + memoryStatistics.MappedFile;
         }
 
         return memoryStatistics;
@@ -112,15 +155,10 @@ public:
 
     virtual i64 GetMaxMemoryUsage() const override
     {
-        return MaxMemoryUsage;
+        return MaxMemoryUsage_;
     }
 
-    virtual TDuration GetBlockIOWatchdogPeriod() const override
-    {
-        return CGroupsConfig_->BlockIOWatchdogPeriod;
-    }
-
-    virtual void KillAll() override
+    virtual void CleanProcesses() override
     {
         try {
             // Kill everything for sanity reasons: main user process completed,
@@ -128,13 +166,6 @@ public:
             RunKiller(CGroups_.Freezer.GetFullPath());
         } catch (const std::exception& ex) {
             LOG_FATAL(ex, "Failed to kill user processes");
-        }
-    }
-
-    virtual void SetCpuShare(double share) override
-    {
-        if (CGroupsConfig_->IsCGroupSupported(TCpu::Name)) {
-            CGroups_.Cpu.SetShare(share * CpuShareMultiplier);
         }
     }
 
@@ -151,18 +182,13 @@ public:
         // Memory guarantee is not supported for cgroups memory environment.
     }
 
-    virtual IResourceControllerPtr CreateSubcontroller(const TString& name) override
-    {
-        return New<TCGroupResourceController>(CGroupsConfig_, Path_ + name);
-    }
-
-    virtual TProcessBasePtr CreateControlledProcess(const TString& path, int uid, const TNullable<TString>& coreHandlerSocketPath) override
+    virtual TProcessBasePtr CreateUserJobProcess(const TString& path, int uid, const TNullable<TString>& coreHandlerSocketPath) override
     {
         Y_UNUSED(coreHandlerSocketPath);
         YCHECK(!Process_);
 
         UserId_ = uid;
-        Process_ = New<TSimpleProcess>(path, false);
+        Process_ =  New<TSimpleProcess>(path, false);
         try {
             {
                 CGroups_.Freezer.Create();
@@ -190,29 +216,41 @@ public:
     }
 
 private:
-    const TCGroupJobEnvironmentConfigPtr CGroupsConfig_;
-
-    struct TCGroups
-    {
-        explicit TCGroups(const TString& name)
-            : Freezer(name)
-            , CpuAccounting(name)
-            , BlockIO(name)
-            , Cpu(name)
-        { }
-
-        TFreezer Freezer;
-        TCpuAccounting CpuAccounting;
-        TBlockIO BlockIO;
-        TCpu Cpu;
-    } CGroups_;
-
-    const TString Path_;
     TIntrusivePtr<TSimpleProcess> Process_;
-    mutable i64 MaxMemoryUsage = 0;
+    mutable i64 MaxMemoryUsage_ = 0;
     mutable i64 PageFaultCount_ = 0;
     int UserId_ = -1;
 };
+
+DECLARE_REFCOUNTED_CLASS(TCGroupsUserJobEnvironment);
+DEFINE_REFCOUNTED_TYPE(TCGroupsUserJobEnvironment);
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TCGroupsJobProxyEnvironment
+    : public TCGroupsResourceTracker
+    , public IJobProxyEnvironment
+{
+public:
+    TCGroupsJobProxyEnvironment(TCGroupJobEnvironmentConfigPtr config)
+        : TCGroupsResourceTracker(config, "")
+    { }
+
+    virtual void SetCpuShare(double share) override
+    {
+        if (CGroupsConfig_->IsCGroupSupported(TCpu::Name)) {
+            CGroups_.Cpu.SetShare(share * CpuShareMultiplier);
+        }
+    }
+
+    virtual IUserJobEnvironmentPtr CreateUserJobEnvironment(const TString& jobId) override
+    {
+        return New<TCGroupsUserJobEnvironment>(CGroupsConfig_, "user_job_" + jobId);
+    }
+};
+
+DECLARE_REFCOUNTED_CLASS(TCGroupsJobProxyEnvironment);
+DEFINE_REFCOUNTED_TYPE(TCGroupsJobProxyEnvironment);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -237,19 +275,14 @@ static TError CheckErrors(const TUsage& stats, const Args&... args)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TPortoResourceController
-    : public IResourceController
+class TPortoResourceTracker
+    : public virtual IResourceTracker
 {
 public:
-    static IResourceControllerPtr Create(TPortoJobEnvironmentConfigPtr config, const TNullable<TRootFS>& rootFS)
-    {
-        auto resourceController = New<TPortoResourceController>(
-            config->BlockIOWatchdogPeriod,
-            config->UseResourceLimits,
-            rootFS);
-        resourceController->Init(config->PortoWaitTime, config->PortoPollPeriod);
-        return resourceController;
-    }
+    TPortoResourceTracker(IInstancePtr instance, TDuration statUpdatePeriod)
+        : Instance_(std::move(instance))
+        , StatUpdatePeriod_(statUpdatePeriod)
+    { }
 
     virtual TCpuStatistics GetCpuStatistics() const override
     {
@@ -284,7 +317,7 @@ public:
         return blockIOStatistics;
     }
 
-    virtual TMemoryStatistics GetMemoryStatistics() const override
+    TMemoryStatistics GetMemoryStatistics() const
     {
         UpdateResourceUsage();
 
@@ -298,135 +331,53 @@ public:
         memoryStatistics.Rss = ResourceUsage_[EStatField::Rss].Value();
         memoryStatistics.MappedFile = ResourceUsage_[EStatField::MappedFiles].Value();
         memoryStatistics.MajorPageFaults = ResourceUsage_[EStatField::MajorFaults].Value();
+
+        if (InitialPageFaults_ < 0) {
+            InitialPageFaults_ = memoryStatistics.MajorPageFaults;
+        }
+
+        memoryStatistics.MajorPageFaults -= InitialPageFaults_;
+
+        if (memoryStatistics.Rss + memoryStatistics.MappedFile > MaxMemoryUsage_) {
+            MaxMemoryUsage_ = memoryStatistics.Rss + memoryStatistics.MappedFile;
+        }
+
         return memoryStatistics;
     }
 
-    virtual i64 GetMaxMemoryUsage() const override
+    i64 GetMaxMemoryUsage() const
     {
         UpdateResourceUsage();
 
         auto guard = Guard(SpinLock_);
         auto error = CheckErrors(ResourceUsage_,
-            EStatField::MaxMemoryUsage);
-        THROW_ERROR_EXCEPTION_IF_FAILED(error, "Unable to get max memory usage");
-        return ResourceUsage_[EStatField::MaxMemoryUsage].Value();
-    }
+            EStatField::Rss,
+            EStatField::MappedFiles);
+        THROW_ERROR_EXCEPTION_IF_FAILED(error, "Unable to get memory statistics");
+        i64 memoryUsage = ResourceUsage_[EStatField::Rss].Value() + ResourceUsage_[EStatField::MappedFiles].Value();
 
-    virtual TDuration GetBlockIOWatchdogPeriod() const override
-    {
-        return BlockIOWatchdogPeriod_;
-    }
-
-    virtual void KillAll() override
-    {
-        // Kill only first process in container,
-        // others will be killed automaticaly
-        try {
-            Container_->Kill(SIGKILL);
-        } catch (const std::exception& ex) {
-            LOG_ERROR(ex, "Failed to kill user container");
-        }
-    }
-
-    virtual void SetCpuShare(double share) override
-    {
-        if (UseResourceLimits_) {
-            Container_->SetCpuShare(share);
-        }
-    }
-
-    virtual void SetIOThrottle(i64 operations) override
-    {
-        if (UseResourceLimits_) {
-            Container_->SetIOThrottle(operations);
-        }
-    }
-
-    virtual void SetMemoryGuarantee(i64 memoryGuarantee) override
-    {
-        Container_->SetMemoryGuarantee(memoryGuarantee);
-    }
-
-    virtual IResourceControllerPtr CreateSubcontroller(const TString& name) override
-    {
-        auto instance = ContainerManager_->CreateInstance();
-        if (RootFS_) {
-            instance->SetRoot(*RootFS_);
-        }
-        return New<TPortoResourceController>(ContainerManager_, instance, BlockIOWatchdogPeriod_, UseResourceLimits_);
-    }
-
-    virtual TProcessBasePtr CreateControlledProcess(const TString& path, int uid, const TNullable<TString>& coreHandlerSocketPath) override
-    {
-        static const TString RootFSBinaryDirectory("/ext_bin/");
-
-        if (coreHandlerSocketPath) {
-            // We do not want to rely on passing PATH environment to core handler container.
-            auto binaryPathOrError = Container_->HasRoot()
-                ? TErrorOr<TString>(RootFSBinaryDirectory + "ytserver-core-forwarder")
-                : ResolveBinaryPath("ytserver-core-forwarder");
-
-            if (binaryPathOrError.IsOK()) {
-                auto coreHandler = binaryPathOrError.Value() + " \"${CORE_PID}\" 0 \"${CORE_TASK_NAME}\""
-                    " 1 /dev/null /dev/null " + coreHandlerSocketPath.Get();
-
-                LOG_DEBUG("Enable core forwarding for porto container (CoreHandler: %v)",
-                    coreHandler);
-                Container_->SetCoreDumpHandler(coreHandler);
-            } else {
-                LOG_ERROR(binaryPathOrError,
-                    "Failed to resolve path for ytserver-core-forwarder");
-            }
+        if (memoryUsage > MaxMemoryUsage_) {
+            MaxMemoryUsage_ = memoryUsage;
         }
 
-        auto adjustedPath = Container_->HasRoot()
-            ? RootFSBinaryDirectory + path
-            : path;
-
-        auto process = New<TPortoProcess>(adjustedPath, Container_, false);
-        process->AddArguments({"--uid", ::ToString(uid)});
-
-        return process;
+        return MaxMemoryUsage_;
     }
 
 private:
+    IInstancePtr Instance_;
+    const TDuration StatUpdatePeriod_;
+
     TSpinLock SpinLock_;
-    IContainerManagerPtr ContainerManager_;
-    IInstancePtr Container_;
     mutable TInstant LastUpdateTime_ = TInstant::Zero();
     mutable TUsage ResourceUsage_;
-
-    const TDuration StatUpdatePeriod_;
-    const TDuration BlockIOWatchdogPeriod_;
-    const bool UseResourceLimits_;
-    const TNullable<TRootFS> RootFS_;
-
-    TPortoResourceController(
-        TDuration blockIOWatchdogPeriod,
-        bool useResourceLimits,
-        const TNullable<TRootFS>& rootFS)
-        : StatUpdatePeriod_(TDuration::MilliSeconds(100))
-        , BlockIOWatchdogPeriod_(blockIOWatchdogPeriod)
-        , UseResourceLimits_(useResourceLimits)
-        , RootFS_(rootFS)
-    { }
-
-    TPortoResourceController(
-        IContainerManagerPtr containerManager,
-        IInstancePtr instance,
-        TDuration blockIOWatchdogPeriod,
-        bool useResourceLimits)
-        : ContainerManager_(containerManager)
-        , Container_(instance)
-        , BlockIOWatchdogPeriod_(blockIOWatchdogPeriod)
-        , UseResourceLimits_(useResourceLimits)
-    { }
+    mutable i64 MaxMemoryUsage_ = 0;
+    mutable i64 InitialPageFaults_ = -1;
 
     void UpdateResourceUsage() const
     {
         auto now = TInstant::Now();
         if (now > LastUpdateTime_ && now - LastUpdateTime_ > StatUpdatePeriod_) {
-            auto resourceUsage = Container_->GetResourceUsage({
+            auto resourceUsage = Instance_->GetResourceUsage({
                 EStatField::CpuUsageUser,
                 EStatField::CpuUsageSystem,
                 EStatField::IOReadByte,
@@ -443,6 +394,173 @@ private:
             LastUpdateTime_ = now;
         }
     }
+};
+
+DECLARE_REFCOUNTED_TYPE(TPortoResourceTracker)
+DEFINE_REFCOUNTED_TYPE(TPortoResourceTracker)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TPortoUserJobEnvironment
+    : public IUserJobEnvironment
+{
+public:
+    TPortoUserJobEnvironment(
+        const TString& slotAbsoluteName,
+        IPortoExecutorPtr portoExecutor,
+        IInstancePtr instance,
+        TDuration blockIOWatchdogPeriod)
+        : SlotAbsoluteName_(slotAbsoluteName)
+        , BlockIOWatchdogPeriod_(blockIOWatchdogPeriod)
+        , PortoExecutor_(std::move(portoExecutor))
+        , Instance_(std::move(instance))
+        , ResourceTracker_(New<TPortoResourceTracker>(Instance_, TDuration::MilliSeconds(100)))
+    { }
+
+    virtual TCpuStatistics GetCpuStatistics() const override
+    {
+        return ResourceTracker_->GetCpuStatistics();
+    }
+
+    virtual TBlockIOStatistics GetBlockIOStatistics() const override
+    {
+        return ResourceTracker_->GetBlockIOStatistics();
+    }
+
+    virtual TMemoryStatistics GetMemoryStatistics() const override
+    {
+        return ResourceTracker_->GetMemoryStatistics();
+    }
+
+    virtual i64 GetMaxMemoryUsage() const override
+    {
+        return ResourceTracker_->GetMaxMemoryUsage();
+    }
+
+    virtual TDuration GetBlockIOWatchdogPeriod() const override
+    {
+        return BlockIOWatchdogPeriod_;
+    }
+
+    virtual void CleanProcesses() override
+    {
+        Instance_->Kill(SIGKILL);
+    }
+
+    virtual void SetIOThrottle(i64 operations) override
+    {
+        Instance_->SetIOThrottle(operations);
+    }
+
+    virtual void SetMemoryGuarantee(i64 memoryGuarantee) override
+    {
+        auto containerName = Format("%v/%v", SlotAbsoluteName_, GetUserJobMetaContainerName());
+        WaitFor(PortoExecutor_->SetProperty(containerName, "memory_guarantee", ToString(memoryGuarantee)))
+            .ThrowOnError();
+    }
+
+    virtual TProcessBasePtr CreateUserJobProcess(const TString& path, int uid, const TNullable<TString>& coreHandlerSocketPath) override
+    {
+        static const TString RootFSBinaryDirectory("/ext_bin/");
+
+        if (coreHandlerSocketPath) {
+            // We do not want to rely on passing PATH environment to core handler container.
+            auto binaryPathOrError = Instance_->HasRoot()
+                ? TErrorOr<TString>(RootFSBinaryDirectory + "ytserver-core-forwarder")
+                : ResolveBinaryPath("ytserver-core-forwarder");
+
+            if (binaryPathOrError.IsOK()) {
+                auto coreHandler = binaryPathOrError.Value() + " \"${CORE_PID}\" 0 \"${CORE_TASK_NAME}\""
+                    " 1 /dev/null /dev/null " + coreHandlerSocketPath.Get();
+
+                LOG_DEBUG("Enable core forwarding for porto container (CoreHandler: %v)",
+                    coreHandler);
+                Instance_->SetCoreDumpHandler(coreHandler);
+            } else {
+                LOG_ERROR(binaryPathOrError,
+                    "Failed to resolve path for ytserver-core-forwarder");
+            }
+        }
+
+        Instance_->SetIsolate();
+        auto adjustedPath = Instance_->HasRoot()
+            ? RootFSBinaryDirectory + path
+            : path;
+
+        auto process = New<TPortoProcess>(adjustedPath, Instance_, false);
+        process->AddArguments({"--uid", ::ToString(uid)});
+
+        return process;
+    }
+
+private:
+    const TString SlotAbsoluteName_;
+    const TDuration BlockIOWatchdogPeriod_;
+    IPortoExecutorPtr PortoExecutor_;
+    IInstancePtr Instance_;
+    TPortoResourceTrackerPtr ResourceTracker_;
+};
+
+DEFINE_REFCOUNTED_TYPE(TPortoUserJobEnvironment)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TPortoJobProxyEnvironment
+    : public IJobProxyEnvironment
+{
+public:
+    TPortoJobProxyEnvironment(TPortoJobEnvironmentConfigPtr config, const TNullable<TRootFS>& rootFS)
+        : RootFS_(rootFS)
+        , BlockIOWatchdogPeriod_(config->BlockIOWatchdogPeriod)
+        , PortoExecutor_(CreatePortoExecutor(config->PortoWaitTime, config->PortoPollPeriod))
+        , Self_(GetSelfPortoInstance(PortoExecutor_))
+        , ResourceTracker_(New<TPortoResourceTracker>(Self_, TDuration::MilliSeconds(100)))
+    {
+        PortoExecutor_->SubscribeFailed(BIND(&TPortoJobProxyEnvironment::OnFatalError, MakeWeak(this)));
+
+        auto absoluteName = Self_->GetAbsoluteName();
+        // ../yt_jobs_meta/slot_meta_N/job_proxy_meta/job_proxy_ID
+        auto jobProxyStart = absoluteName.find_last_of('/');
+        auto jobProxyMeta = TStringBuf(absoluteName.data(), jobProxyStart);
+        auto jobProxyMetaStart = jobProxyMeta.find_last_of('/');
+
+        SlotAbsoluteName_ = absoluteName.substr(0, jobProxyMetaStart);
+    }
+
+    virtual TCpuStatistics GetCpuStatistics() const override
+    {
+        return ResourceTracker_->GetCpuStatistics();
+    }
+
+    virtual TBlockIOStatistics GetBlockIOStatistics() const override
+    {
+        return ResourceTracker_->GetBlockIOStatistics();
+    }
+
+    virtual void SetCpuShare(double share) override
+    {
+        WaitFor(PortoExecutor_->SetProperty(SlotAbsoluteName_, "cpu_guarantee", ToString(share) + "c"))
+            .ThrowOnError();
+    }
+
+    virtual IUserJobEnvironmentPtr CreateUserJobEnvironment(const TString& jobId) override
+    {
+        auto containerName = Format("%v/%v/user_job_%v", SlotAbsoluteName_, GetUserJobMetaContainerName(), jobId);
+        auto instance = CreatePortoInstance(containerName, PortoExecutor_);
+        if (RootFS_) {
+            instance->SetRoot(*RootFS_);
+        }
+
+        return New<TPortoUserJobEnvironment>(SlotAbsoluteName_, PortoExecutor_, instance, BlockIOWatchdogPeriod_);
+    }
+
+private:
+    const TNullable<TRootFS> RootFS_;
+    const TDuration BlockIOWatchdogPeriod_;
+    TString SlotAbsoluteName_;
+    IPortoExecutorPtr PortoExecutor_;
+    IInstancePtr Self_;
+    TPortoResourceTrackerPtr ResourceTracker_;
 
     void OnFatalError(const TError& error)
     {
@@ -452,41 +570,28 @@ private:
         NLogging::TLogManager::Get()->Shutdown();
         _exit(static_cast<int>(EJobProxyExitCode::PortoManagmentFailed));
     }
-
-    void Init(TDuration waitTime, TDuration pollPeriod)
-    {
-        auto errorHandler = BIND(&TPortoResourceController::OnFatalError, MakeStrong(this));
-        ContainerManager_ = CreatePortoManager(
-            "",
-            Null,
-            errorHandler,
-            { ECleanMode::None,
-            waitTime,
-            pollPeriod });
-        Container_ = ContainerManager_->GetSelfInstance();
-        UpdateResourceUsage();
-    }
-
-    DECLARE_NEW_FRIEND();
 };
+
+DEFINE_REFCOUNTED_TYPE(TPortoJobProxyEnvironment)
 
 #endif
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IResourceControllerPtr CreateResourceController(NYTree::INodePtr config, const TNullable<TRootFS>& rootFS)
+IJobProxyEnvironmentPtr CreateJobProxyEnvironment(NYTree::INodePtr config, const TNullable<TRootFS>& rootFS)
 {
+
     auto environmentConfig = ConvertTo<TJobEnvironmentConfigPtr>(config);
     switch (environmentConfig->Type) {
         case EJobEnvironmentType::Cgroups:
             if (rootFS) {
                 THROW_ERROR_EXCEPTION("Cgroups job environment does not support custom root FS");
             }
-            return New<TCGroupResourceController>(ConvertTo<TCGroupJobEnvironmentConfigPtr>(config));
+            return New<TCGroupsJobProxyEnvironment>(ConvertTo<TCGroupJobEnvironmentConfigPtr>(config));
 
 #ifdef _linux_
         case EJobEnvironmentType::Porto:
-            return TPortoResourceController::Create(ConvertTo<TPortoJobEnvironmentConfigPtr>(config), rootFS);
+            return New<TPortoJobProxyEnvironment>(ConvertTo<TPortoJobEnvironmentConfigPtr>(config), rootFS);
 #endif
 
         case EJobEnvironmentType::Simple:
