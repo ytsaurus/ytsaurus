@@ -235,6 +235,8 @@ TSortOperationOptionsBase::TSortOperationOptionsBase()
 
 TControllerAgentConfig::TControllerAgentConfig()
 {
+    SetUnrecognizedStrategy(NYTree::EUnrecognizedStrategy::KeepRecursive);
+
     RegisterParameter("chunk_list_preallocation_count", ChunkListPreallocationCount)
         .Default(128)
         .GreaterThanOrEqual(0);
