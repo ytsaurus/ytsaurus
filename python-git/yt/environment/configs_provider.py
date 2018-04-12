@@ -727,7 +727,8 @@ class ConfigsProvider_19_3(ConfigsProvider_19_2):
             for field in ("orchid_keys_update_period", "nodes_attributes_update_period",
                           "fair_share_update_period", "update_exec_node_descriptors_period",
                           "min_needed_resources_update_period",
-                          "watchers_update_period", "node_shard_exec_nodes_cache_update_period"):
+                          "watchers_update_period", "node_shard_exec_nodes_cache_update_period",
+                          "schedule_job_time_limit", "lock_transaction_timeout"):
                 del config["controller_agent"][field]
 
             config["controller_agent"]["operation_alerts_update_period"] = 100
