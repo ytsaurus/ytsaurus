@@ -5,7 +5,7 @@
 #include "config.h"
 #include "job.h"
 #include "job_satellite_connection.h"
-#include "resource_controller.h"
+#include "environment.h"
 
 #include <yt/server/exec_agent/public.h>
 #include <yt/server/exec_agent/supervisor_service_proxy.h>
@@ -67,7 +67,7 @@ private:
     const NJobTrackerClient::TJobId JobId_;
 
     //! Can be null if running in non-porto and non-cgroups environment.
-    IResourceControllerPtr ResourceController;
+    IJobProxyEnvironmentPtr JobProxyEnvironment_;
 
     // Job proxy memory reserve (= memory limit after multiplication by
     // job proxy memory reserve factor) by the scheduler.
@@ -135,7 +135,7 @@ private:
 
     // IJobHost implementation.
     virtual TJobProxyConfigPtr GetConfig() const override;
-    virtual IResourceControllerPtr GetResourceController() const override;
+    virtual IUserJobEnvironmentPtr CreateUserJobEnvironment() const override;
     virtual const NJobAgent::TOperationId& GetOperationId() const override;
 
     virtual const IJobSpecHelperPtr& GetJobSpecHelper() const override;

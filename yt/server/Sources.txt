@@ -7,7 +7,6 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/blackbox/token_authenticator.cpp
   ${CMAKE_CURRENT_LIST_DIR}/blackbox/private.cpp
 
-  ${CMAKE_CURRENT_LIST_DIR}/containers/container_manager.cpp
   ${CMAKE_CURRENT_LIST_DIR}/containers/instance.cpp
   ${CMAKE_CURRENT_LIST_DIR}/containers/porto_executor.cpp
   ${CMAKE_CURRENT_LIST_DIR}/containers/private.cpp
@@ -242,6 +241,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/job_agent/private.cpp
   ${CMAKE_CURRENT_LIST_DIR}/job_agent/statistics_reporter.cpp
 
+  ${CMAKE_CURRENT_LIST_DIR}/job_proxy/environment.cpp
   ${CMAKE_CURRENT_LIST_DIR}/job_proxy/job_detail.cpp
   ${CMAKE_CURRENT_LIST_DIR}/job_proxy/job_prober_service.cpp
   ${CMAKE_CURRENT_LIST_DIR}/job_proxy/job_proxy.cpp
@@ -252,7 +252,6 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/job_proxy/partition_sort_job.cpp
   ${CMAKE_CURRENT_LIST_DIR}/job_proxy/private.cpp
   ${CMAKE_CURRENT_LIST_DIR}/job_proxy/remote_copy_job.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/job_proxy/resource_controller.cpp
   ${CMAKE_CURRENT_LIST_DIR}/job_proxy/simple_sort_job.cpp
   ${CMAKE_CURRENT_LIST_DIR}/job_proxy/sorted_merge_job.cpp
   ${CMAKE_CURRENT_LIST_DIR}/job_proxy/stderr_writer.cpp
