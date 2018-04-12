@@ -145,16 +145,25 @@ public:
         IJobHostPtr host,
         const TUserJobSpec& userJobSpec,
         const TJobId& jobId,
+<<<<<<< 320a2f94964281e92454d4ded53bc73ed64f4c1f
         const std::vector<int>& ports,
+        std::unique_ptr<TUserJobWriteController> userJobWriteController,
+        IResourceControllerPtr resourceController)
+=======
         std::unique_ptr<TUserJobWriteController> userJobWriteController)
+>>>>>>> YT-8712: use new porto hierarchy for jobs
         : TJob(host)
         , Logger(Host_->GetLogger())
         , UserJobWriteController_(std::move(userJobWriteController))
         , UserJobSpec_(userJobSpec)
         , Config_(Host_->GetConfig())
         , JobIOConfig_(Host_->GetJobSpecHelper()->GetJobIOConfig())
-        , UserJobEnvironment_(Host_->CreateUserJobEnvironment())
+<<<<<<< 320a2f94964281e92454d4ded53bc73ed64f4c1f
+        , ResourceController_(resourceController)
         , Ports_(ports)
+=======
+        , UserJobEnvironment_(Host_->CreateUserJobEnvironment())
+>>>>>>> YT-8712: use new porto hierarchy for jobs
         , JobErrorPromise_(NewPromise<void>())
         , JobEnvironmentType_(ConvertTo<TJobEnvironmentConfigPtr>(Config_->JobEnvironment)->Type)
         , PipeIOPool_(New<TThreadPool>(JobIOConfig_->PipeIOPoolSize, "PipeIO"))
@@ -1340,8 +1349,13 @@ IJobPtr CreateUserJob(
         host,
         userJobSpec,
         jobId,
+<<<<<<< 320a2f94964281e92454d4ded53bc73ed64f4c1f
         std::move(ports),
+        std::move(userJobWriteController),
+        subcontroller);
+=======
         std::move(userJobWriteController));
+>>>>>>> YT-8712: use new porto hierarchy for jobs
 }
 
 #else

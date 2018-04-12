@@ -27,7 +27,8 @@ struct TVolumeId
 const int ContainerErrorCodeBase = 12000;
 
 DEFINE_ENUM(EContainerErrorCode,
-    ((InvalidState)((ContainerErrorCodeBase + ::rpc::EError::InvalidState)))
+    ((InvalidState)           ((ContainerErrorCodeBase + ::rpc::EError::InvalidState)))
+    ((ContainerDoesNotExist)  ((ContainerErrorCodeBase + ::rpc::EError::ContainerDoesNotExist)))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
