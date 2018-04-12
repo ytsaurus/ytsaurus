@@ -4,6 +4,7 @@ import os
 
 import yt.wrapper
 
+
 @yt.wrapper.with_context
 def filter_robots_reducer(key, input_row_iterator, context):
     login_row = None
