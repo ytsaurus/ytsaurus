@@ -356,3 +356,38 @@ class TestSchedulerJobSpecThrottlerOperationAlert(YTEnvSetup):
 
         path = "//sys/operations/{0}/@alerts".format(op.id)
         wait(lambda: exists(path) and "excessive_job_spec_throttling" in get(path))
+
+@require_ytserver_root_privileges
+class TestControllerAgentAlerts(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_SCHEDULERS = 1
+
+    def teardown(self):
+        remove("//sys/controller_agents/config")
+        set("//sys/controller_agents/config", {})
+        agent = ls("//sys/controller_agents/instances")[0]
+        agent_path = "//sys/controller_agents/instances/" + agent
+        wait(lambda: len(get(agent_path + "/@alerts")) == 0)
+
+    def test_unrecognized_options_alert(self):
+        agents = ls("//sys/controller_agents/instances")
+        assert len(agents) == 1
+
+        agent_path = "//sys/controller_agents/instances/" + agents[0]
+        get(agent_path + "/@")
+        assert len(get(agent_path + "/@alerts")) == 0
+
+        set("//sys/controller_agents/config", {"unknown_option": 10})
+        wait(lambda: len(get(agent_path + "/@alerts")) == 1)
+
+    def test_incorrect_config(self):
+        agents = ls("//sys/controller_agents/instances")
+        assert len(agents) == 1
+
+        agent_path = "//sys/controller_agents/instances/" + agents[0]
+        get(agent_path + "/@")
+        assert len(get(agent_path + "/@alerts")) == 0
+
+        remove("//sys/controller_agents/config")
+        set("//sys/controller_agents/config", [])
+        wait(lambda: len(get(agent_path + "/@alerts")) == 1)

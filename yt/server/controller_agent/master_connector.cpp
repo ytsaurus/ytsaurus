@@ -1229,9 +1229,9 @@ private:
                 return;
             }
 
+            DoUpdateConfig(newConfig);
             ValidateConfig();
 
-            DoUpdateConfig(newConfig);
             Bootstrap_->GetControllerAgent()->UpdateConfig(newConfig);
 
             LOG_INFO("Controller agent configuration updated");
