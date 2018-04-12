@@ -22,7 +22,9 @@ public:
             ->AddChildren({
                 ParentIdAttributeSchema_ = MakeAttributeSchema("node_id")
                     ->SetParentAttribute()
-                    ->SetMandatory()
+                    ->SetMandatory(),
+                MakeAttributeSchema("kind")
+                    ->SetAttribute(TResource::KindSchema)
             });
 
         StatusAttributeSchema_
@@ -81,6 +83,77 @@ private:
             oldSpec.kind() != newSpec.kind())
         {
             THROW_ERROR_EXCEPTION("Changing resource kind is forbidden");
+        }
+    }
+
+    virtual void AfterObjectCreated(
+        const TTransactionPtr& transaction,
+        TObject* object) override
+    {
+        TObjectTypeHandlerBase::AfterObjectCreated(transaction, object);
+
+        auto* resource = object->As<TResource>();
+        auto& spec = resource->Spec();
+
+        // COMPAT(babenko)
+        if (!spec->has_cpu() &&
+            !spec->has_memory() &&
+            !spec->has_disk())
+        {
+            switch (static_cast<EResourceKind>(spec->kind())) {
+                case EResourceKind::Cpu: {
+                    auto* cpuSpec = spec->mutable_cpu();
+                    cpuSpec->set_total_capacity(spec->total_capacity());
+                    cpuSpec->set_cpu_to_vcpu_factor(1);
+                    break;
+                }
+                case EResourceKind::Memory: {
+                    auto* memorySpec = spec->mutable_memory();
+                    memorySpec->set_total_capacity(spec->total_capacity());
+                    break;
+                }
+                case EResourceKind::Disk: {
+                    auto* diskSpec = spec->mutable_disk();
+                    diskSpec->set_total_capacity(spec->total_capacity());
+                    diskSpec->set_storage_class("hdd");
+                    diskSpec->set_total_volume_slots(100);
+                    diskSpec->set_device("/dev/xyz");
+                    break;
+                }
+                default:
+                    Y_UNREACHABLE();
+            }
+        }
+
+        if (spec->has_cpu()) {
+            resource->Kind() = EResourceKind::Cpu;
+            spec->set_kind(NClient::NApi::NProto::RK_CPU);
+        } else if (spec->has_memory()) {
+            resource->Kind() = EResourceKind::Memory;
+            spec->set_kind(NClient::NApi::NProto::RK_MEMORY);
+        } else if (spec->has_disk()) {
+            resource->Kind() = EResourceKind::Disk;
+            spec->set_kind(NClient::NApi::NProto::RK_DISK);
+        } else {
+            THROW_ERROR_EXCEPTION("Resource %Qv is of an unrecogznied kind",
+                resource->GetId());
+        }
+    }
+
+    virtual void BeforeObjectRemoved(
+        const TTransactionPtr& transaction,
+        TObject* object) override
+    {
+        TObjectTypeHandlerBase::BeforeObjectRemoved(transaction, object);
+
+        auto* resource = object->As<TResource>();
+        resource->Status().ScheduledAllocations().ScheduleLoad();
+        resource->Status().ActualAllocations().ScheduleLoad();
+        if (!resource->Status().ScheduledAllocations().Load().empty() ||
+            !resource->Status().ActualAllocations().Load().empty())
+        {
+            THROW_ERROR_EXCEPTION("Cannot remove resource %Qv since it is being used",
+                resource->GetId());
         }
     }
 };

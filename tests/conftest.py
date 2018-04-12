@@ -23,8 +23,8 @@ else:
 TESTS_LOCATION = os.path.dirname(os.path.abspath(__file__))
 TESTS_SANDBOX = os.environ.get("TESTS_SANDBOX", TESTS_LOCATION + ".sandbox")
 OBJECT_TYPES = [
-    "pod_set",
     "pod",
+    "pod_set",
     "resource",
     "network_project",
     "node",

@@ -8,6 +8,11 @@ namespace NObjects {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+const TScalarAttributeSchema<TResource, EResourceKind> TResource::KindSchema{
+    &ResourcesTable.Fields.Meta_Kind,
+    [] (TResource* resource) { return &resource->Kind(); }
+};
+
 const TScalarAttributeSchema<TResource, TResource::TSpec> TResource::SpecSchema{
     &ResourcesTable.Fields.Spec,
     [] (TResource* resource) { return &resource->Spec(); }
@@ -39,6 +44,7 @@ TResource::TResource(
     ISession* session)
     : TObject(id, nodeId, typeHandler, session)
     , Node_(this)
+    , Kind_(this, &KindSchema)
     , Spec_(this, &SpecSchema)
     , Status_(this)
 { }

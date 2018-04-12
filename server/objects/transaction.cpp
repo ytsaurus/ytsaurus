@@ -1283,10 +1283,15 @@ private:
                 object->SetState(EObjectState::Removing);
             }
 
-            LOG_DEBUG("Object removed (ObjectId: %v)",
-                object->GetId());
+            LOG_DEBUG("Object removed (ObjectId: %v, Type: %v)",
+                object->GetId(),
+                object->GetType());
 
             object->GetTypeHandler()->AfterObjectRemoved(MakeStrong(Owner_->Owner_), object);
+
+            for (auto* attribute : object->Attributes()) {
+                attribute->OnObjectRemoved();
+            }
 
             if (state == EObjectState::Created) {
                 object->SetState(EObjectState::CreatedRemoved);

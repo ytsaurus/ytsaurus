@@ -60,6 +60,8 @@ SET(YP_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/label_filter_cache.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/topology_zone.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/node_segment.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/scheduler/local_resource_allocator.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/scheduler/global_resource_allocator.cpp
 
   ${CMAKE_CURRENT_LIST_DIR}/net/private.cpp
   ${CMAKE_CURRENT_LIST_DIR}/net/net_manager.cpp

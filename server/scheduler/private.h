@@ -25,6 +25,8 @@ class TLabelFilterCache;
 class TScheduleQueue;
 class TAllocationPlan;
 
+struct TAllocationStatistics;
+
 extern const NYT::NLogging::TLogger Logger;
 
 ////////////////////////////////////////////////////////////////////////////////

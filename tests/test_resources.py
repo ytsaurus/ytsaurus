@@ -7,7 +7,45 @@ class TestResources(object):
     def test_node_required_on_create(self, yp_env):
         yp_client = yp_env.yp_client
 
-        with pytest.raises(YpResponseError): yp_client.create_object(object_type="resource", attributes={"spec": {"kind": "cpu"}})
+        with pytest.raises(YpResponseError):
+            yp_client.create_object(object_type="resource", attributes={"spec": {"cpu": {"total_capacity": 100}}})
+
+    def test_create_legacy(self, yp_env):
+        yp_client = yp_env.yp_client
+
+        node_id = yp_client.create_object("node")
+
+        resource_id = yp_client.create_object("resource", attributes={
+            "meta": {"node_id": node_id},
+            "spec": {"cpu": {"total_capacity": 1000}}
+        })
+        assert \
+            yp_client.get_object("resource", resource_id, selectors=["/meta/kind", "/spec/cpu"]) == \
+            ["cpu", {"total_capacity": 1000}]
+
+        resource_id = yp_client.create_object("resource", attributes={
+            "meta": {"node_id": node_id},
+            "spec": {"kind": "memory", "total_capacity": 1000}
+        })
+        assert \
+            yp_client.get_object("resource", resource_id, selectors=["/meta/kind", "/spec/memory"]) == \
+            ["memory", {"total_capacity": 1000}]
+
+        resource_id = yp_client.create_object("resource", attributes={
+            "meta": {"node_id": node_id},
+            "spec": {"kind": "memory", "total_capacity": 1000}
+        })
+        assert \
+            yp_client.get_object("resource", resource_id, selectors=["/meta/kind", "/spec/memory"]) == \
+            ["memory", {"total_capacity": 1000}]
+
+        resource_id = yp_client.create_object("resource", attributes={
+            "meta": {"node_id": node_id},
+            "spec": {"kind": "disk", "total_capacity": 1000}
+        })
+        assert \
+            yp_client.get_object("resource", resource_id, selectors=["/meta/kind", "/spec/disk"]) == \
+            ["disk", {"total_capacity": 1000, "storage_class": "hdd", "device": "/dev/xyz", "total_volume_slots": 100}]
 
     def test_get(self, yp_env):
         yp_client = yp_env.yp_client
@@ -15,11 +53,11 @@ class TestResources(object):
         node_id = yp_client.create_object("node")
         resource_id = yp_client.create_object("resource", attributes={
             "meta": {"node_id": node_id},
-            "spec": {"kind": "memory", "total_capacity": 1000}
+            "spec": {"memory": {"total_capacity": 1000}}
         })
         result = yp_client.get_object("resource", resource_id, selectors=[
-            "/spec/kind",
-            "/spec/total_capacity",
+            "/meta/kind",
+            "/spec/memory/total_capacity",
             "/meta/id",
             "/meta/node_id"
         ])

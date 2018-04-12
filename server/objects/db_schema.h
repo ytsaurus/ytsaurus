@@ -81,6 +81,7 @@ extern const struct TResourcesTable
         : public TObjectTableBase::TFields
     {
         TDbField Meta_NodeId{"meta.node_id"};
+        TDbField Meta_Kind{"meta.kind"};
         TDbField Spec{"spec"};
         TDbField Status_ScheduledAllocations{"status.scheduled_allocations"};
         TDbField Status_ActualAllocations{"status.actual_allocations"};

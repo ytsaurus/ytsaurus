@@ -2,11 +2,10 @@
 
 #include "object.h"
 
-#include <yp/client/api/proto/data_model.pb.h>
-
 #include <yt/core/misc/property.h>
 #include <yt/core/misc/ref_tracked.h>
-#include <yp/server/objects/proto/objects.pb.h>
+#include <yt/core/misc/small_vector.h>
+#include <yp/client/api/proto/data_model.pb.h>
 
 namespace NYP {
 namespace NServer {
@@ -14,22 +13,62 @@ namespace NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TResourceStatus
+class TResourceBase
 {
 public:
-    TResourceStatus();
-    TResourceStatus(
-        ui64 totalCapacity,
-        ui64 allocatedCapacity);
+    TResourceBase() = default;
+    TResourceBase(
+        const TResourceCapacities& totalCapacities,
+        const TResourceCapacities& allocatedCapacities);
+    TResourceBase(const TResourceBase&) = default;
 
-    ui64 GetTotalCapacity() const;
-    ui64 GetAllocatedCapacity() const;
-    bool CanAllocateCapacity(ui64 capacity) const;
-    bool TryAllocateCapacity(ui64 capacity);
+protected:
+    TResourceCapacities TotalCapacities_ = {};
+    TResourceCapacities AllocatedCapacities_ = {};
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class THomogeneousResource
+    : public TResourceBase
+{
+public:
+    using TResourceBase::TResourceBase;
+    THomogeneousResource() = default;
+    THomogeneousResource(const THomogeneousResource&) = default;
+
+    bool TryAllocate(const TResourceCapacities& capacities);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+using TDiskVolumePolicyList = SmallVector<NClient::NApi::NProto::EDiskVolumePolicy, 4>;
+
+class TDiskResource
+    : public TResourceBase
+{
+public:
+    TDiskResource() = default;
+    TDiskResource(
+        TString storageClass,
+        const TDiskVolumePolicyList& supportedPolicies,
+        const TResourceCapacities& totalCapacities,
+        bool used,
+        bool usedExclusively,
+        const TResourceCapacities& allocatedCapacities);
+    TDiskResource(const TDiskResource&) = default;
+
+    bool TryAllocate(
+        bool exclusive,
+        const TString& storageClass,
+        NClient::NApi::NProto::EDiskVolumePolicy policy,
+        const TResourceCapacities& capacities);
 
 private:
-    ui64 TotalCapacity_;
-    ui64 AllocatedCapacity_;
+    TString StorageClass_;
+    TDiskVolumePolicyList SupportedPolicies_;
+    bool Used_ = false;
+    bool UsedExclusively_ = false;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -46,20 +85,18 @@ public:
         NObjects::EHfsmState hfsmState,
         NObjects::ENodeMaintenanceState maintenanceState);
 
-    TResourceStatus* GetHomegeneousResourceStatus(EResourceKind kind);
-
     bool CanAcquireAntiaffinityVacancies(const TPod* pod) const;
     void AcquireAntiaffinityVacancies(const TPod* pod);
-    void ReleaseAntiaffinityVacancies(const TPod* pod);
 
     DEFINE_BYREF_RO_PROPERTY(std::vector<TTopologyZone*>, TopologyZones);
     DEFINE_BYVAL_RO_PROPERTY(NObjects::EHfsmState, HfsmState);
     DEFINE_BYVAL_RO_PROPERTY(NObjects::ENodeMaintenanceState, MaintenanceState);
     DEFINE_BYREF_RW_PROPERTY(THashSet<TPod*>, Pods);
 
-private:
-    TResourceStatus CpuStatus_;
-    TResourceStatus MemoryStatus_;
+    DEFINE_BYREF_RW_PROPERTY(THomogeneousResource, CpuResource);
+    DEFINE_BYREF_RW_PROPERTY(THomogeneousResource, MemoryResource);
+    using TDiskResources = SmallVector<TDiskResource, NObjects::TypicalDiskResourceCountPerNode>;
+    DEFINE_BYREF_RW_PROPERTY(TDiskResources, DiskResources);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

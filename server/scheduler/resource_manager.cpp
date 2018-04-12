@@ -91,7 +91,7 @@ public:
     {
         TEnumIndexedVector<int, EResourceKind> counts{};
         for (auto* resource : node->Resources().Load()) {
-            ++counts[EResourceKind(resource->Spec().Load().kind())];
+            ++counts[resource->Kind().Load()];
         }
 
         for (auto kind : TEnumTraits<EResourceKind>::GetDomainValues()) {
@@ -190,11 +190,6 @@ private:
 
         TLocalResourceAllocator allocator;
 
-        auto requests  = allocator.BuildRequests(pod->Spec().Other().Load().resource_requests());
-        if (requests.empty()) {
-            return;
-        }
-
         auto nativeResources = node->Resources().Load();
         for (auto* resource : nativeResources) {
             resource->Spec().ScheduleLoad();
@@ -202,24 +197,33 @@ private:
             resource->Status().ActualAllocations().ScheduleLoad();
         }
 
-        std::vector<TLocalResourceAllocator::TResource> resources;
+        std::vector<TLocalResourceAllocator::TResource> allocatorResources;
+        allocatorResources.reserve(nativeResources.size());
         for (auto* resource : nativeResources) {
-            resources.push_back({
-                resource->GetId(),
-                &resource->Spec().Load(),
-                &resource->Status().ScheduledAllocations().Load(),
-                &resource->Status().ActualAllocations().Load()
-            });
+            allocatorResources.push_back(
+                BuildAllocatorResource(
+                    resource->GetId(),
+                    resource->Spec().Load(),
+                    resource->Status().ScheduledAllocations().Load(),
+                    resource->Status().ActualAllocations().Load()));
         }
 
-        std::vector<TLocalResourceAllocator::TAllocation> allocations;
+        auto allocatorRequests = BuildAllocatorResourceRequests(
+            pod->GetId(),
+            pod->Spec().Other().Load(),
+            pod->Status().Other().Load(),
+            allocatorResources);
+        if (allocatorRequests.empty()) {
+            return;
+        }
 
         std::vector<TError> errors;
-        if (!allocator.ComputeAllocations(
+        std::vector<TLocalResourceAllocator::TResponse> allocatorResponses;
+        if (!allocator.TryAllocate(
             pod->GetId(),
-            requests,
-            resources,
-            &allocations,
+            allocatorRequests,
+            allocatorResources,
+            &allocatorResponses,
             &errors))
         {
             THROW_ERROR_EXCEPTION("Cannot satisfy resource requests for pod %Qv at node %Qv",
@@ -228,34 +232,19 @@ private:
                 << errors;
         }
 
-        auto* scheduledPodAllocations = pod->Status().Other()->mutable_scheduled_resource_allocations();
-        scheduledPodAllocations->Clear();
+        UpdatePodDiskVolumeAllocations(
+            pod->Status().Other()->mutable_disk_volume_allocations(),
+            nativeResources,
+            allocatorRequests,
+            allocatorResponses);
 
-        YCHECK(resources.size() == allocations.size());
-        for (auto index = 0; index < allocations.size(); ++index) {
-            auto* resource = nativeResources[index];
-            auto* scheduledResourceAllocations = resource->Status().ScheduledAllocations().Get();
-            auto& newAllocations = allocations[index].NewAllocations;
-            
-            scheduledResourceAllocations->erase(
-                std::remove_if(
-                    scheduledResourceAllocations->begin(),
-                    scheduledResourceAllocations->end(),
-                    [&] (const auto& currentAllocation) {
-                        return FromProto<TObjectId>(currentAllocation.pod_id()) == pod->GetId();
-                    }),
-                scheduledResourceAllocations->end());
-
-            for (auto& newAllocation : newAllocations) {
-                scheduledResourceAllocations->emplace_back();
-                scheduledResourceAllocations->back().Swap(&newAllocation);
-            }
-
-            if (!newAllocations.empty()) {
-                auto* protoAllocation = scheduledPodAllocations->Add();
-                ToProto(protoAllocation->mutable_resource_id(), resource->GetId());
-            }
-        }
+        UpdateScheduledResourceAllocations(
+            pod->GetId(),
+            pod->Status().Other()->mutable_scheduled_resource_allocations(),
+            nativeResources,
+            allocatorResources,
+            allocatorRequests,
+            allocatorResponses);
     }
 
     void FreePodResources(const TTransactionPtr& transaction, NObjects::TPod* pod)
@@ -277,12 +266,14 @@ private:
                     scheduledAllocations->begin(),
                     scheduledAllocations->end(),
                     [&] (const auto& allocation) {
-                        return FromProto<TObjectId>(allocation.pod_id()) == pod->GetId();
+                        return allocation.pod_id() == pod->GetId();
                     }),
                 scheduledAllocations->end());
         }
 
         scheduledResourceAllocations->Clear();
+
+        pod->Status().Other()->mutable_disk_volume_allocations()->Clear();
     }
 };
 

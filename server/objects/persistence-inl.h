@@ -7,6 +7,8 @@
 
 #include <yt/core/yson/protobuf_interop.h>
 
+#include <yt/core/misc/protobuf_helpers.h>
+
 #include <array>
 
 namespace NYP {
@@ -309,6 +311,29 @@ EObjectType TChildrenAttribute<T>::GetChildrenType() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class T, class = void>
+struct TScalarAttributeTraits
+{
+    static bool Equals(const T& lhs, const T& rhs)
+    {
+        return lhs == rhs;
+    }
+};
+
+template <class T>
+struct TScalarAttributeTraits<
+    T,
+    typename std::enable_if<std::is_convertible<T*, google::protobuf::Message*>::value, void>::type
+>
+{
+    static bool Equals(const T& lhs, const T& rhs)
+    {
+        return SerializeProtoToString(lhs) == SerializeProtoToString(rhs);
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 template <class T>
 TScalarAttribute<T>::TScalarAttribute(TObject* owner, const TScalarAttributeSchemaBase* schema)
     : TScalarAttributeBase(owner, schema)
@@ -340,7 +365,7 @@ const T& TScalarAttribute<T>::LoadOld() const
 template <class T>
 bool TScalarAttribute<T>::IsChanged() const
 {
-    return NewValue_ && LoadOld() != *NewValue_;
+    return NewValue_ && !TScalarAttributeTraits<T>::Equals(LoadOld(), *NewValue_);
 }
 
 template <class T>
@@ -361,9 +386,7 @@ template <class T>
 void TScalarAttribute<T>::Store(T&& value)
 {
     OnStore();
-    // TODO(babenko): protobuf messages currently do not support move semantics
-    NewValue_.Emplace();
-    std::swap(*NewValue_, value);
+    NewValue_.Emplace(std::move(value));
 }
 
 template <class T>

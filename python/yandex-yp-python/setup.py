@@ -34,7 +34,7 @@ def main():
         version = version,
         packages = ["yp"] + recursive("yp/packages") + recursive("proto"),
         package_data = {
-            "yandex-yp": ["yp/YandexInternalRootCA.crt"],
+            "yandex-yp": ["yp/YandexInternalRootCA.crt", "yp/enums.bc"],
         },
         scripts = scripts,
 

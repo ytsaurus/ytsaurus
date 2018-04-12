@@ -157,6 +157,8 @@ DEFINE_ENUM(ESchedulingState,
     ((Assigned)       (300))
 );
 
+constexpr int TypicalDiskResourceCountPerNode = 16;
+
 using NClient::NApi::TObjectId;
 using NClient::NApi::TTransactionId;
 

@@ -233,6 +233,15 @@ struct TScalarTypeTraits<EHfsmState>
     }
 };
 
+template <>
+struct TScalarTypeTraits<EResourceKind>
+{
+    static const char* GetFormatterUdf()
+    {
+        return "format_resource_kind";
+    }
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NObjects

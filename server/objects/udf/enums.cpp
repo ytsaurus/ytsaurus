@@ -38,6 +38,7 @@ void FormatEnum(
 DEFINE_ENUM_FORMATTER(pod_current_state, EPodCurrentState)
 DEFINE_ENUM_FORMATTER(pod_target_state, EPodTargetState)
 DEFINE_ENUM_FORMATTER(hfsm_state, EHfsmState)
+DEFINE_ENUM_FORMATTER(resource_kind, EResourceKind)
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -16,10 +16,9 @@ THashMap<TString, TString> BuildProps(
     const NProto::TPodSpecOther& podSpecOther,
     const NProto::TPodStatusOther& podStatusOther)
 {
-    const auto buildedProps = BuildPortoProperties(nodeSpec, podSpecOther, podStatusOther);
-    THashMap<TString, TString> props;
-    props.insert(buildedProps.begin(), buildedProps.end());
-    EXPECT_EQ(buildedProps.size(), props.size());
+    const auto builtProperties = BuildPortoProperties(nodeSpec, podSpecOther, podStatusOther);
+    THashMap<TString, TString> props(builtProperties.begin(), builtProperties.end());
+    EXPECT_EQ(props.size(), builtProperties.size());
     return props;
 }
 

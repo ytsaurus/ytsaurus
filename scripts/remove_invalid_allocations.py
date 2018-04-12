@@ -4,9 +4,9 @@ import sys
 
 def main():
     client = yt.YtClient(sys.argv[1])
-
+    
     pods = set([row["meta.id"] for row in client.select_rows("[meta.id] from [//yp/db/pods]")])
-
+    
     updates = []
     allocation_rows = client.select_rows("[meta.id], [status.scheduled_allocations], [status.actual_allocations] from [//yp/db/resources]")
     for row in allocation_rows:

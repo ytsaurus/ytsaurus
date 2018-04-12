@@ -113,9 +113,6 @@ void TObjectTypeHandlerBase::AfterObjectRemoved(
     const TTransactionPtr& /*transaction*/,
     TObject* object)
 {
-    for (auto* attribute : object->Attributes()) {
-        attribute->OnObjectRemoved();
-    }
 }
 
 TAttributeSchema* TObjectTypeHandlerBase::MakeAttributeSchema(

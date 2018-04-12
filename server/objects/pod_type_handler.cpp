@@ -11,6 +11,9 @@
 
 #include <yp/server/nodes/porto.h>
 
+#include <yp/server/scheduler/resource_manager.h>
+#include <yp/server/scheduler/helpers.h>
+
 #include <yp/client/api/proto/cluster_api.pb.h>
 
 #include <yt/core/ytree/fluent.h>
@@ -26,6 +29,7 @@ namespace NObjects {
 using namespace NYT::NYson;
 using namespace NYT::NYTree;
 using namespace NYP::NServer::NNodes;
+using namespace NYP::NServer::NScheduler;
 
 using std::placeholders::_1;
 using std::placeholders::_2;
@@ -187,15 +191,19 @@ public:
         }
     }
 
-    virtual void BeforeObjectRemoved(
+    virtual void AfterObjectRemoved(
         const TTransactionPtr& transaction,
         TObject* object) override
     {
         TObjectTypeHandlerBase::AfterObjectRemoved(transaction, object);
 
-        const auto& netManager = Bootstrap_->GetNetManager();
         auto* pod = object->As<TPod>();
+
+        const auto& netManager = Bootstrap_->GetNetManager();
         netManager->UpdatePodAddresses(transaction, pod);
+
+        const auto& resourceManager = Bootstrap_->GetResourceManager();
+        resourceManager->RevokePodFromNode(transaction, pod);
     }
 
 private:
@@ -234,6 +242,13 @@ private:
 
         for (const auto& spec : pod->Spec().Other().Load().sysctl_properties()) {
             ValidateSysctlProperty(spec);
+        }
+
+        ValidateDiskVolumeRequests(pod->Spec().Other().Load().disk_volume_requests());
+        if (pod->Spec().Other().IsChanged() && pod->Spec().Node().Load()) {
+            ValidateDiskVolumeRequestsUpdate(
+                pod->Spec().Other().Load().disk_volume_requests(),
+                pod->Spec().Other().LoadOld().disk_volume_requests());
         }
     }
 

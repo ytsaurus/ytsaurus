@@ -44,6 +44,7 @@ udf_bc(${CMAKE_CURRENT_LIST_DIR}/objects/udf/enums.cpp TARGETS
     format_pod_current_state
     format_pod_target_state
     format_hfsm_state
+    format_resource_kind
   DEPENDS
     yt-core
     yt-core-codegen
@@ -61,6 +62,6 @@ add_custom_target(
 exec_program(
   ${CMAKE_COMMAND} ARGS -E create_symlink
   ${CMAKE_BINARY_DIR}/yp/server/enums.bc
-  ${CMAKE_CURRENT_LIST_DIR}/objects/udf/enums.bc
+  ${CMAKE_SOURCE_DIR}/yp/python/yp/enums.bc
 )
 

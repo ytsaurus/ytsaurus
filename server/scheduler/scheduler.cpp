@@ -7,7 +7,7 @@
 #include "allocation_plan.h"
 #include "helpers.h"
 #include "resource_manager.h"
-#include "private.h"
+#include "global_resource_allocator.h"
 
 #include <yp/server/master/yt_connector.h>
 #include <yp/server/master/bootstrap.h>

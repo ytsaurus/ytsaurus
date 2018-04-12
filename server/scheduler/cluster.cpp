@@ -372,9 +372,10 @@ private:
     {
         const auto& ytConnector = Bootstrap_->GetYTConnector();
         return Format(
-            "[%v], [%v], [%v], [%v], [%v] from [%v] where is_null([%v])",
+            "[%v], [%v], [%v], [%v], [%v], [%v] from [%v] where is_null([%v])",
             ResourcesTable.Fields.Meta_Id.Name,
             ResourcesTable.Fields.Meta_NodeId.Name,
+            ResourcesTable.Fields.Meta_Kind.Name,
             ResourcesTable.Fields.Spec.Name,
             ResourcesTable.Fields.Status_ScheduledAllocations.Name,
             ResourcesTable.Fields.Status_ActualAllocations.Name,
@@ -386,6 +387,7 @@ private:
     {
         TObjectId resourceId;
         TObjectId nodeId;
+        EResourceKind kind;
         NClient::NApi::NProto::TResourceSpec spec;
         std::vector<NClient::NApi::NProto::TResourceStatus_TAllocation> scheduledAllocations;
         std::vector<NClient::NApi::NProto::TResourceStatus_TAllocation> actualAllocations;
@@ -393,11 +395,10 @@ private:
             row,
             &resourceId,
             &nodeId,
+            &kind,
             &spec,
             &scheduledAllocations,
             &actualAllocations);
-        auto kind = static_cast<EResourceKind>(spec.kind());
-        auto totalCapacity = spec.total_capacity();
 
         auto* node = FindNode(nodeId);
         if (!node) {
@@ -407,31 +408,45 @@ private:
             return;
         }
 
-        if (!IsHomogeneous(kind)) {
-            return;
-        }
+        auto totalCapacities = GetResourceCapacities(spec);
 
-        THashMap<TObjectId, ui64> podIdToAllocatedCapacity;
-        auto processAllocations = [&] (const auto& allocations) {
+        auto aggregateAllocations = [&] (const auto& allocations) {
+            TAllocationStatistics statistics;
             for (const auto& allocation : allocations) {
-                const auto& podId = allocation.pod_id();
-                auto capacity = allocation.capacity();
-                auto it = podIdToAllocatedCapacity.find(podId);
-                if (it == podIdToAllocatedCapacity.end()) {
-                    podIdToAllocatedCapacity.emplace(podId, capacity);
-                } else {
-                    it->second = std::max(it->second, capacity);
-                }
+                statistics.Capacities += GetAllocationCapacities(allocation);
+                statistics.Used |= true;
+                statistics.UsedExclusively |= GetAllocationExclusive(allocation);
             }
+            return statistics;
         };
-        processAllocations(scheduledAllocations);
-        processAllocations(actualAllocations);
-        ui64 allocatedCapacity = 0;
-        for (const auto& pair : podIdToAllocatedCapacity) {
-            allocatedCapacity += pair.second;
-        }
 
-        *node->GetHomegeneousResourceStatus(kind) = TResourceStatus(totalCapacity, allocatedCapacity);
+        auto scheduledStatistics = aggregateAllocations(scheduledAllocations);
+        auto actualStatistics = aggregateAllocations(actualAllocations);
+        auto maxStatistics = Max(scheduledStatistics, actualStatistics);
+        switch (kind) {
+            case EResourceKind::Cpu:
+                node->CpuResource() = THomogeneousResource(totalCapacities, maxStatistics.Capacities);
+                break;
+            case EResourceKind::Memory:
+                node->MemoryResource() = THomogeneousResource(totalCapacities, maxStatistics.Capacities);
+                break;
+            case EResourceKind::Disk: {
+                TDiskVolumePolicyList supportedPolicies;
+                for (auto policy : spec.disk().supported_policies()) {
+                    supportedPolicies.push_back(static_cast<NClient::NApi::NProto::EDiskVolumePolicy>(policy));
+                }
+                node->DiskResources().emplace_back(
+                    spec.disk().storage_class(),
+                    supportedPolicies,
+                    totalCapacities,
+                    maxStatistics.Used,
+                    maxStatistics.UsedExclusively,
+                    maxStatistics.Capacities);
+                break;
+            }
+            default:
+                Y_UNREACHABLE();
+        }
     }
 
 

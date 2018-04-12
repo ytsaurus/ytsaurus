@@ -235,7 +235,7 @@ std::vector<std::pair<TString, TString>> BuildPortoProperties(
 
     result.emplace_back("net", JoinToString(netTokens.begin(), netTokens.end(), AsStringBuf(";")));
 
-
+ 
     std::vector<TString> addresses;
     for (const auto& ip6Address : podStatusOther.ip6_address_allocations()) {
         addresses.emplace_back(Format("veth %v", ip6Address.address()));

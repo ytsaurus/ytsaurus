@@ -83,16 +83,9 @@ public:
             AcquirePodAddresss(transaction, pod);
         }
 
-        if (pod->Spec().Node().Load()) {
-            const auto& ip6AddressRequests = pod->Spec().Other().Load().ip6_address_requests();
-            auto* ip6AddressAllocations = pod->Status().Other()->mutable_ip6_address_allocations();
-            Y_ASSERT(ip6AddressRequests.size() == ip6AddressAllocations->size());
-            for (size_t index = 0; index < ip6AddressRequests.size(); ++index) {
-                UpdateIP6AddressFqdns(pod, ip6AddressRequests[index], &(*ip6AddressAllocations)[index]);
-            }
-        }
+        UpdateFqdns(pod);
 
-        AcquireVirtualServiceTunnel(transaction, pod);
+        UpdateVirtualServiceTunnel(transaction, pod);
     }
 
 private:
@@ -137,7 +130,7 @@ private:
         if (pod->RemovalPending()) {
             return true;
         }
-
+        
         const auto* oldNode = pod->Spec().Node().LoadOld();
         const auto* newNode = pod->Spec().Node().Load();
         if (oldNode != newNode) {
@@ -298,7 +291,7 @@ private:
         if (pod->RemovalPending()) {
             return;
         }
-
+        
         const auto* node = pod->Spec().Node().Load();
         if (!node || node->RemovalPending()) {
             return;
@@ -410,10 +403,14 @@ private:
         }
     }
 
-    void AcquireVirtualServiceTunnel(const TTransactionPtr& transaction, TPod* pod)
+    void UpdateVirtualServiceTunnel(const TTransactionPtr& transaction, TPod* pod)
     {
+        if (pod->RemovalPending()) {
+            return;
+        }
+
         auto& podStatusOther = pod->Status().Other();
-        podStatusOther->mutable_virtual_service()->Clear();
+        podStatusOther->clear_virtual_service();
 
         const auto& podSpecOther = pod->Spec().Other().Load();
         if (!podSpecOther.has_virtual_service_tunnel()) {
@@ -425,11 +422,31 @@ private:
         virtualService->ValidateExists();
 
         auto* vsStatus = podStatusOther->mutable_virtual_service();
+
         for (const auto& ip6Address : virtualService->Spec().Load().ip6_addresses()) {
             vsStatus->add_ip6_addresses(ip6Address);
         }
+
         for (const auto& ip4Address : virtualService->Spec().Load().ip4_addresses()) {
             vsStatus->add_ip4_addresses(ip4Address);
+        }
+    }
+
+    void UpdateFqdns(TPod* pod)
+    {
+        if (pod->RemovalPending()) {
+            return;
+        }
+
+        if (!pod->Spec().Node().Load()) {
+            return;
+        }
+
+        const auto& ip6AddressRequests = pod->Spec().Other().Load().ip6_address_requests();
+        auto* ip6AddressAllocations = pod->Status().Other()->mutable_ip6_address_allocations();
+        Y_ASSERT(ip6AddressRequests.size() == ip6AddressAllocations->size());
+        for (size_t index = 0; index < ip6AddressRequests.size(); ++index) {
+            UpdateIP6AddressFqdns(pod, ip6AddressRequests[index], &(*ip6AddressAllocations)[index]);
         }
     }
 

@@ -1,8 +1,9 @@
 #pragma once
 
-#include "private.h"
+#include "local_resource_allocator.h"
 
 #include <yp/server/objects/public.h>
+#include <yp/server/objects/proto/objects.pb.h>
 
 #include <yp/client/api/proto/data_model.pb.h>
 
@@ -12,63 +13,76 @@ namespace NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TResourceCapacities& operator += (TResourceCapacities& lhs, const TResourceCapacities& rhs);
+TResourceCapacities operator + (const TResourceCapacities& lhs, const TResourceCapacities& rhs);
+bool Dominates(const TResourceCapacities& lhs, const TResourceCapacities& rhs);
+TResourceCapacities Max(const TResourceCapacities& a, const TResourceCapacities& b);
+
 bool IsHomogeneous(EResourceKind kind);
+
+TResourceCapacities MakeCpuCapacities(ui64 capacity);
+TResourceCapacities MakeMemoryCapacities(ui64 capacity);
+TResourceCapacities MakeDiskCapacities(ui64 capacity, ui64 volumeSlots);
+ui64 GetHomogeneousCapacity(const TResourceCapacities& capacities);
+ui64 GetCpuCapacity(const TResourceCapacities& capacities);
+ui64 GetMemoryCapacity(const TResourceCapacities& capacities);
+ui64 GetDiskCapacity(const TResourceCapacities& capacities);
+
+TResourceCapacities GetResourceCapacities(const NClient::NApi::NProto::TResourceSpec& spec);
+TResourceCapacities GetAllocationCapacities(const NClient::NApi::NProto::TResourceStatus_TAllocation& allocation);
+bool GetAllocationExclusive(const NClient::NApi::NProto::TResourceStatus_TAllocation& allocation);
+TResourceCapacities GetDiskVolumeRequestCapacities(const NClient::NApi::NProto::TPodSpec_TDiskVolumeRequest& request);
+bool GetDiskVolumeRequestExclusive(const NClient::NApi::NProto::TPodSpec_TDiskVolumeRequest& request);
+NClient::NApi::NProto::EDiskVolumePolicy GetDiskVolumeRequestPolicy(const NClient::NApi::NProto::TPodSpec_TDiskVolumeRequest& request);
+
+void ValidateDiskVolumeRequests(
+    const google::protobuf::RepeatedPtrField<NClient::NApi::NProto::TPodSpec_TDiskVolumeRequest>& requests);
+void ValidateDiskVolumeRequestsUpdate(
+    const google::protobuf::RepeatedPtrField<NClient::NApi::NProto::TPodSpec_TDiskVolumeRequest>& oldRequests,
+    const google::protobuf::RepeatedPtrField<NClient::NApi::NProto::TPodSpec_TDiskVolumeRequest>& newRequests);
+
+TLocalResourceAllocator::TResource BuildAllocatorResource(
+    const TObjectId& resourceId,
+    const NClient::NApi::NProto::TResourceSpec& spec,
+    const std::vector<NYP::NClient::NApi::NProto::TResourceStatus_TAllocation>& scheduledAllocations,
+    const std::vector<NYP::NClient::NApi::NProto::TResourceStatus_TAllocation>& actualAllocations);
+
+std::vector<TLocalResourceAllocator::TRequest> BuildAllocatorResourceRequests(
+    const TObjectId& podId,
+    const NObjects::NProto::TPodSpecOther& spec,
+    const NObjects::NProto::TPodStatusOther& status,
+    const std::vector<TLocalResourceAllocator::TResource>& resources);
+
+void UpdatePodDiskVolumeAllocations(
+    google::protobuf::RepeatedPtrField<NClient::NApi::NProto::TPodStatus_TDiskVolumeAllocation>* allocations,
+    const std::vector<NObjects::TResource*>& nativeResources,
+    const std::vector<TLocalResourceAllocator::TRequest>& allocatorRequests,
+    const std::vector<TLocalResourceAllocator::TResponse>& allocatorResponses);
+
+void UpdateScheduledResourceAllocations(
+    const TObjectId& podId,
+    google::protobuf::RepeatedPtrField<NClient::NApi::NProto::TPodStatus_TResourceAllocation>* scheduledResourceAllocations,
+    const std::vector<NObjects::TResource*>& nativeResources,
+    const std::vector<TLocalResourceAllocator::TResource>& allocatorResources,
+    const std::vector<TLocalResourceAllocator::TRequest>& allocatorRequests,
+    const std::vector<TLocalResourceAllocator::TResponse>& allocatorResponses);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TLocalResourceAllocator
+struct TAllocationStatistics
 {
-public:
-    struct TRequest
-    {
-        NServer::NObjects::EResourceKind Kind;
-        ui64 Capacity;
-    };
+    TResourceCapacities Capacities = {};
+    bool Used = false;
+    bool UsedExclusively = false;
 
-    struct TResource
-    {
-        NObjects::TObjectId Id;
-        const NClient::NApi::NProto::TResourceSpec* Spec;
-        const std::vector<NClient::NApi::NProto::TResourceStatus_TAllocation>* ScheduledAllocations;
-        const std::vector<NClient::NApi::NProto::TResourceStatus_TAllocation>* ActualAllocations;
-    };
-
-    struct TAllocation
-    {
-        std::vector<NClient::NApi::NProto::TResourceStatus_TAllocation> NewAllocations;
-    };
-
-    //! Converts protobuf-encoded requests into a local representation.
-    std::vector<TRequest> BuildRequests(
-        const NClient::NApi::NProto::TPodSpec_TResourceRequests& protoRequests);
-
-    //! Attemps to make allocations.
-    /*!
-     *  Returns |true| on success; |false| on failure; in the latter case \param errors is populated
-     *  with the errors.
-     *
-     *  On success, populates \param allocations. The elements of the latter match the elements of \param resources.
-     *  For each resource, the corresponding item in \param allocations describes the allocations
-     *  of this resource that are needed to satisfy the requests.
-     */
-    bool ComputeAllocations(
-        const NObjects::TObjectId& podId,
-        const std::vector<TRequest>& requests,
-        const std::vector<TResource>& resources,
-        std::vector<TAllocation>* allocations,
-        std::vector<TError>* errors);
+    void Accumulate(const TLocalResourceAllocator::TAllocation& allocation);
+    void Accumulate(const TLocalResourceAllocator::TRequest& request);
+    void Accumulate(const NClient::NApi::NProto::TResourceStatus_TAllocation& allocation);
 };
 
-class TGlobalResourceAllocator
-{
-public:
-    explicit TGlobalResourceAllocator(const TClusterPtr& cluster);
-
-    TErrorOr<TNode*> ComputeAllocation(TPod* pod);
-
-private:
-    const TClusterPtr Cluster_;
-};
+TAllocationStatistics Max(const TAllocationStatistics& lhs, const TAllocationStatistics& rhs);
+TAllocationStatistics& operator+=(TAllocationStatistics& lhs, const TAllocationStatistics& rhs);
+TAllocationStatistics operator+(const TAllocationStatistics& lhs, const TAllocationStatistics& rhs);
 
 ////////////////////////////////////////////////////////////////////////////////
 

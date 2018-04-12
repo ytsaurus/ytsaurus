@@ -32,6 +32,9 @@ public:
     using TNodeAttribute = TParentAttribute<TNode>;
     DEFINE_BYREF_RW_PROPERTY_NO_INIT(TNodeAttribute, Node);
 
+    static const TScalarAttributeSchema<TResource, EResourceKind> KindSchema;
+    DEFINE_BYREF_RW_PROPERTY_NO_INIT(TScalarAttribute<EResourceKind>, Kind);
+
     using TSpec = NYP::NClient::NApi::NProto::TResourceSpec;
     static const TScalarAttributeSchema<TResource, TSpec> SpecSchema;
     DEFINE_BYREF_RW_PROPERTY_NO_INIT(TScalarAttribute<TSpec>, Spec);

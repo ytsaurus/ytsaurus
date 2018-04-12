@@ -34,7 +34,9 @@ public:
 
     void ValidateNodeResource(NObjects::TNode* node);
 
-    void ReallocatePodResources(const NObjects::TTransactionPtr& transaction, NObjects::TPod* pod);
+    void ReallocatePodResources(
+        const NObjects::TTransactionPtr& transaction,
+        NObjects::TPod* pod);
 
 private:
     class TImpl;
