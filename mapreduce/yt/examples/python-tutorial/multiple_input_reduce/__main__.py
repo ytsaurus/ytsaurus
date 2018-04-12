@@ -23,7 +23,7 @@ def filter_robots_reducer(key, input_row_iterator, context):
             is_robot = input_row["is_robot"]
         else:
             # Какая-то фигня, такого индекса быть не может.
-            raise RuntimeError, "Unknown table index"
+            raise RuntimeError("Unknown table index")
 
     assert login_row is not None
 
