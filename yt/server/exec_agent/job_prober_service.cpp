@@ -38,6 +38,7 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(SignalJob));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PollJobShell));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Interrupt));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(Abort));
     }
 
 private:
@@ -130,6 +131,25 @@ private:
 
         auto job = Bootstrap_->GetJobController()->GetJobOrThrow(jobId);
         job->Interrupt();
+
+        context->Reply();
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NJobProberClient::NProto, Abort)
+    {
+        auto jobId = FromProto<TJobId>(request->job_id());
+        auto error = FromProto<TError>(request->error());
+
+        context->SetRequestInfo("JobId: %v", jobId);
+
+        auto job = Bootstrap_->GetJobController()->GetJobOrThrow(jobId);
+        job->Abort(error);
+
+        if (job->GetPhase() < EJobPhase::WaitingAbort) {
+            THROW_ERROR_EXCEPTION("Failed to abort job %v", jobId)
+                << TErrorAttribute("job_state", job->GetState())
+                << TErrorAttribute("job_phase", job->GetPhase());
+        }
 
         context->Reply();
     }
