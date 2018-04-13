@@ -4973,7 +4973,7 @@ private:
 
         auto batchRequestFuture = batchReq->Invoke();
 
-        return batchRequestFuture.Apply(BIND([/*this,*/ operationId, options] (
+        return batchRequestFuture.Apply(BIND([options] (
             const TErrorOr<TObjectServiceProxy::TRspExecuteBatchPtr>& batchRspOrError)
         {
             const auto& batchRsp = batchRspOrError.ValueOrThrow();
