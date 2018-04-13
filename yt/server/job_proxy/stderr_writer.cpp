@@ -136,7 +136,7 @@ void TStderrWriter::SaveCurrentDataTo(IOutputStream* output) const
 
     if (Tail_) {
         if (Tail_->IsOverflowed()) {
-            static const auto skipped = STRINGBUF("\n...skipped...\n");
+            static const auto skipped = AsStringBuf("\n...skipped...\n");
             output->Write(skipped);
         }
         Tail_->SaveTo(output);

@@ -216,7 +216,7 @@ private:
         if (State_ != EJournalConsumerState::InsideMap) {
             ThrowMalformedData();
         }
-        if (key != STRINGBUF("data")) {
+        if (key != AsStringBuf("data")) {
             ThrowMalformedData();
         }
         State_ = EJournalConsumerState::AtData;

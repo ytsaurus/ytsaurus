@@ -134,7 +134,7 @@ TString InferName(TConstBaseQueryPtr query, bool omitValues)
         clauses.push_back(TString("LIMIT ") + ToString(query->Limit));
     }
 
-    return JoinToString(clauses, STRINGBUF(" "));
+    return JoinToString(clauses, AsStringBuf(" "));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

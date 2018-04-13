@@ -1001,7 +1001,7 @@ private:
                 scheduleTimer.GetElapsedTime() - prescheduleDuration - context->TotalScheduleJobDuration);
 
             if (context->NonPreemptiveScheduleJobAttempts > 0) {
-                logAndCleanSchedulingStatistics(STRINGBUF("Non preemptive"));
+                logAndCleanSchedulingStatistics(AsStringBuf("Non preemptive"));
             }
         }
     }
@@ -1095,7 +1095,7 @@ private:
                 context->PreemptiveScheduleJobAttempts,
                 timer.GetElapsedTime() - prescheduleDuration - context->TotalScheduleJobDuration);
             if (context->PreemptiveScheduleJobAttempts > 0) {
-                logAndCleanSchedulingStatistics(STRINGBUF("Preemptive"));
+                logAndCleanSchedulingStatistics(AsStringBuf("Preemptive"));
             }
         }
 
@@ -2358,7 +2358,7 @@ public:
             progressParts.push_back(GetTree(treeId)->GetOperationLoggingProgress(operationId));
         }
 
-        return JoinToString(progressParts.begin(), progressParts.end(), STRINGBUF("; "));
+        return JoinToString(progressParts.begin(), progressParts.end(), AsStringBuf("; "));
     }
 
     virtual void BuildOrchid(TFluentMap fluent) override

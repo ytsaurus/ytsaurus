@@ -317,13 +317,13 @@ bool operator != (const TClusterResources& lhs, const TClusterResources& rhs)
 
 void FormatValue(TStringBuilder* builder, const TClusterResources& resources, const TStringBuf& /*format*/)
 {
-    builder->AppendString(STRINGBUF("{DiskSpace: ["));
+    builder->AppendString(AsStringBuf("{DiskSpace: ["));
     bool firstDiskSpace = true;
     for (auto mediumIndex = 0; mediumIndex < resources.DiskSpace.size(); ++mediumIndex) {
         auto diskSpace = resources.DiskSpace[mediumIndex];
         if (diskSpace != 0) {
             if (!firstDiskSpace) {
-                builder->AppendString(STRINGBUF(", "));
+                builder->AppendString(AsStringBuf(", "));
             }
             builder->AppendFormat("%v@%v",
                 diskSpace,
