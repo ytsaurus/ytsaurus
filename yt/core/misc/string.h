@@ -103,7 +103,7 @@ inline void FormatValue(TStringBuilder* builder, const TStringBuilder& value, co
 }
 
 template <class T>
-TString ToStringViaBuilder(const T& value, const TStringBuf& spec = STRINGBUF("v"))
+TString ToStringViaBuilder(const T& value, const TStringBuf& spec = AsStringBuf("v"))
 {
     TStringBuilder builder;
     FormatValue(&builder, value, spec);
@@ -119,7 +119,7 @@ class TDelimitedStringBuilderWrapper
 public:
     TDelimitedStringBuilderWrapper(
         TStringBuilder* builder,
-        const TStringBuf& delimiter = STRINGBUF(", "))
+        const TStringBuf& delimiter = AsStringBuf(", "))
         : Builder_(builder)
         , Delimiter_(delimiter)
     { }
@@ -149,7 +149,7 @@ struct TDefaultFormatter
     template <class T>
     void operator()(TStringBuilder* builder, const T& obj) const
     {
-        FormatValue(builder, obj, STRINGBUF("v"));
+        FormatValue(builder, obj, AsStringBuf("v"));
     }
 };
 
