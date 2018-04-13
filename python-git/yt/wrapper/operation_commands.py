@@ -492,9 +492,9 @@ class Operation(object):
         """Returns iterator over operation progress states."""
         return get_operation_state_monitor(self.id, time_watcher, action, client=self.client)
 
-    def get_attributes(self):
+    def get_attributes(self, fields=None):
         """Returns all operation attributes."""
-        return get_operation_attributes(self.id, client=self.client)
+        return get_operation_attributes(self.id, fields=fields, client=self.client)
 
     def get_job_statistics(self):
         """Returns job statistics of operation."""
