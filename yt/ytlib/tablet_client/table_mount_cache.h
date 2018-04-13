@@ -29,14 +29,17 @@ namespace NTabletClient {
 struct TTabletInfo
     : public TRefCounted
 {
-    NTabletClient::TTabletId TabletId;
+    TTabletId TabletId;
     i64 MountRevision = 0;
-    NTabletClient::ETabletState State;
+    ETabletState State;
+    TNullable<EInMemoryMode> InMemoryMode;
     NTableClient::TOwningKey PivotKey;
-    NTabletClient::TTabletCellId CellId;
+    TTabletCellId CellId;
     NObjectClient::TObjectId TableId;
     TInstant UpdateTime;
     std::vector<TWeakPtr<TTableMountInfo>> Owners;
+
+    bool IsInMemory() const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TTabletInfo)
@@ -46,10 +49,10 @@ DEFINE_REFCOUNTED_TYPE(TTabletInfo)
 struct TTableReplicaInfo
     : public TRefCounted
 {
-    NTabletClient::TTableReplicaId ReplicaId;
+    TTableReplicaId ReplicaId;
     TString ClusterName;
     TString ReplicaPath;
-    NTabletClient::ETableReplicaMode Mode;
+    ETableReplicaMode Mode;
 };
 
 DEFINE_REFCOUNTED_TYPE(TTableReplicaInfo)
@@ -81,7 +84,7 @@ struct TTableMountInfo
     TEnumIndexedVector<NTableClient::TTableSchema, ETableSchemaKind> Schemas;
 
     bool Dynamic;
-    NTabletClient::TTableReplicaId UpstreamReplicaId;
+    TTableReplicaId UpstreamReplicaId;
     bool NeedKeyEvaluation;
 
     std::vector<TTabletInfoPtr> Tablets;

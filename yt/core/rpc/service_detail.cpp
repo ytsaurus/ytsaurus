@@ -215,6 +215,7 @@ private:
 
     TDelayedExecutorCookie TimeoutCookie_;
 
+    bool Cancelable_ = false;
     TSingleShotCallbackList<void()> Canceled_;
 
     const NProfiling::TCpuInstant ArrivalInstant_;
@@ -229,7 +230,6 @@ private:
     std::atomic_flag TimedOutLatch_ = ATOMIC_FLAG_INIT;
     std::atomic_flag RunLatch_ = ATOMIC_FLAG_INIT;
     bool FinalizeLatch_ = false;
-
 
     void Initialize()
     {
@@ -252,7 +252,9 @@ private:
             Profiler.Update(PerformanceCounters_->RemoteWaitTimeCounter, DurationToValue(now - retryStart));
         }
 
-        if (RuntimeInfo_->Descriptor.Cancelable) {
+        if (RuntimeInfo_->Descriptor.Cancelable && !RequestHeader_->uncancelable()) {
+            Cancelable_ = true;
+
             Service_->RegisterCancelableRequest(this);
 
             auto timeout = GetTimeout();
@@ -276,7 +278,7 @@ private:
         }
         FinalizeLatch_ = true;
 
-        if (RuntimeInfo_->Descriptor.Cancelable) {
+        if (Cancelable_) {
             Service_->UnregisterCancelableRequest(this);
         }
 
@@ -327,7 +329,7 @@ private:
             return;
         }
 
-        if (descriptor.Cancelable) {
+        if (Cancelable_) {
             auto canceler = GetCurrentFiberCanceler();
             if (canceler && !Canceled_.TrySubscribe(std::move(canceler))) {
                 LOG_DEBUG("Request was canceled before being run (RequestId: %v)",
@@ -420,6 +422,10 @@ private:
 
         if (RequestInfo_) {
             delimitedBuilder->AppendString(RequestInfo_);
+        }
+
+        if (RuntimeInfo_->Descriptor.Cancelable && !Cancelable_) {
+            delimitedBuilder->AppendFormat("Cancelable: %v", Cancelable_);
         }
 
         LOG_EVENT(Logger, LogLevel_, builder.Flush());

@@ -1236,6 +1236,9 @@ private:
             req->set_request_codec(static_cast<int>(Config_->LookupRequestCodec));
             req->set_response_codec(static_cast<int>(Config_->LookupResponseCodec));
             req->Attachments().push_back(batch->RequestData);
+            if (batch->TabletInfo->IsInMemory()) {
+                req->Header().set_uncancelable(true);
+            }
             if (RetentionConfig_) {
                 req->set_retention_config(*RetentionConfig_);
             }
