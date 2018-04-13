@@ -831,10 +831,20 @@ void TNodeShard::AbortJobByUserRequest(const TJobId& jobId, TNullable<TDuration>
             job->GetOperationId(),
             user);
 
-        auto status = JobStatusFromError(TError("Job aborted by user request")
+        auto error = TError("Job aborted by user request")
             << TErrorAttribute("abort_reason", EAbortReason::UserRequest)
-            << TErrorAttribute("user", user));
-        OnJobAborted(job, &status);
+            << TErrorAttribute("user", user);
+
+        auto proxy = CreateJobProberProxy(job);
+        auto req = proxy.Abort();
+        ToProto(req->mutable_job_id(), jobId);
+        ToProto(req->mutable_error(), error);
+
+        auto rspOrError = WaitFor(req->Invoke());
+        THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error aborting job %v",
+            jobId);
+
+        LOG_INFO("User abort requested (JobId: %v)", jobId);
     }
 }
 

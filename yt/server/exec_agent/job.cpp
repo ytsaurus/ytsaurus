@@ -1215,6 +1215,11 @@ private:
 
         auto resultError = FromProto<TError>(jobResult.error());
 
+        auto abortReason = resultError.Attributes().Find<EAbortReason>("abort_reason");
+        if (abortReason) {
+            return abortReason.Get();
+        }
+
         if (AbortJobIfAccountLimitExceeded_ &&
             resultError.FindMatching(NSecurityClient::EErrorCode::AccountLimitExceeded))
         {
