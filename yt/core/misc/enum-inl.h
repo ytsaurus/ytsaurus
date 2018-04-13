@@ -43,7 +43,7 @@ namespace NYT {
         \
         static const TStringBuf& GetTypeName() \
         { \
-            static const TStringBuf typeName = STRINGBUF(PP_STRINGIZE(name)); \
+            static const TStringBuf typeName = AsStringBuf(PP_STRINGIZE(name)); \
             return typeName; \
         } \
         \
@@ -105,7 +105,7 @@ namespace NYT {
 
 #define ENUM__LITERAL_BY_VALUE_ITEM_ATOMIC(item) \
     if (static_cast<TUnderlying>(value) == static_cast<TUnderlying>(TType::item)) { \
-        static const TStringBuf literal = STRINGBUF(PP_STRINGIZE(item)); \
+        static const TStringBuf literal = AsStringBuf(PP_STRINGIZE(item)); \
         return &literal; \
     }
 

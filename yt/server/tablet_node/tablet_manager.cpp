@@ -1661,7 +1661,7 @@ private:
             LOG_INFO_UNLESS(IsRecovery(), "Partition split failed (TabletId: %v, PartitionId: %v, Keys: %v)",
                 tablet->GetId(),
                 partitionId,
-                JoinToString(pivotKeys, STRINGBUF(" .. ")));
+                JoinToString(pivotKeys, AsStringBuf(" .. ")));
             return;
         }
 
@@ -1677,7 +1677,7 @@ private:
                     tablet->PartitionList().data() + partitionIndex + pivotKeys.size()),
                 TPartitionIdFormatter()),
             partitionDataSize,
-            JoinToString(pivotKeys, STRINGBUF(" .. ")));
+            JoinToString(pivotKeys, AsStringBuf(" .. ")));
     }
 
     void HydraMergePartitions(TReqMergePartitions* request)

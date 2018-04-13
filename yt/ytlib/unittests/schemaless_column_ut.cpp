@@ -37,9 +37,9 @@ TEST(TSchemalessColumnTest, Simple)
     rows.push_back(builder.FinishRow());
 
     // Three values.
-    builder.AddValue(MakeUnversionedStringValue(STRINGBUF("This is string"), 3));
+    builder.AddValue(MakeUnversionedStringValue(AsStringBuf("This is string"), 3));
     builder.AddValue(MakeUnversionedSentinelValue(EValueType::Null, 4));
-    builder.AddValue(MakeUnversionedAnyValue(STRINGBUF("{a = b}"), 5));
+    builder.AddValue(MakeUnversionedAnyValue(AsStringBuf("{a = b}"), 5));
     rows.push_back(builder.FinishRow());
 
     std::vector<TUnversionedRow> expected(rows.size());

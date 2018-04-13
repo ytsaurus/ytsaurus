@@ -249,7 +249,7 @@ void TJobProbeTools::Init(const TJobId& jobId)
         NFS::CombinePaths(currentWorkDir, NExecAgent::SandboxDirectoryNames[NExecAgent::ESandboxKind::Home]),
         Uid_,
         EnvironmentType_ == EJobEnvironmentType::Cgroups ? TNullable<TString>(GetCGroupUserJobBase()) : TNullable<TString>(),
-        Format("Job environment:\n%v\n", JoinToString(Environment_, STRINGBUF("\n"))),
+        Format("Job environment:\n%v\n", JoinToString(Environment_, AsStringBuf("\n"))),
         std::move(shellEnvironment));
 }
 

@@ -38,16 +38,16 @@ TEST(TAnyColumnTest, Simple)
     builder.AddValue(MakeUnversionedBooleanValue(true, 0));
     rows.push_back(builder.FinishRow());
 
-    builder.AddValue(MakeUnversionedStringValue(STRINGBUF("This is string"), 0));
+    builder.AddValue(MakeUnversionedStringValue(AsStringBuf("This is string"), 0));
     rows.push_back(builder.FinishRow());
 
     builder.AddValue(MakeUnversionedSentinelValue(EValueType::Null, 0));
     rows.push_back(builder.FinishRow());
 
-    builder.AddValue(MakeUnversionedAnyValue(STRINGBUF("{a = b}"), 0));
+    builder.AddValue(MakeUnversionedAnyValue(AsStringBuf("{a = b}"), 0));
     rows.push_back(builder.FinishRow());
 
-    builder.AddValue(MakeUnversionedAnyValue(STRINGBUF("[]"), 0));
+    builder.AddValue(MakeUnversionedAnyValue(AsStringBuf("[]"), 0));
     rows.push_back(builder.FinishRow());
 
     std::vector<TUnversionedRow> expected(rows.size());

@@ -2102,9 +2102,9 @@ protected:
     {
         switch (jobType) {
             case EJobType::Partition:
-                return STRINGBUF("data_weight_per_partition_job");
+                return AsStringBuf("data_weight_per_partition_job");
             case EJobType::FinalSort:
-                return STRINGBUF("partition_data_weight");
+                return AsStringBuf("partition_data_weight");
             default:
                 Y_UNREACHABLE();
         }
@@ -2853,10 +2853,10 @@ protected:
         switch (jobType) {
             case EJobType::PartitionMap:
             case EJobType::Partition:
-                return STRINGBUF("data_weight_per_map_job");
+                return AsStringBuf("data_weight_per_map_job");
             case EJobType::PartitionReduce:
             case EJobType::SortedReduce:
-                return STRINGBUF("partition_data_weight");
+                return AsStringBuf("partition_data_weight");
            default:
                 Y_UNREACHABLE();
         }

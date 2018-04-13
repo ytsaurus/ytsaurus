@@ -1,0 +1,13 @@
+DEPENDS(
+    yt/19_3/yt/node_modules
+    yt/19_3/yt/nodejs/targets/bin
+    yt/19_3/yt/nodejs/targets/package
+    yt/19_3/yt/server/cell_master_program
+    yt/19_3/yt/server/cell_node_program
+    yt/19_3/yt/server/cell_proxy_program
+    yt/19_3/yt/server/job_proxy_program
+    yt/19_3/yt/server/exec_program
+    yt/19_3/yt/server/tools_program
+    yt/19_3/yt/server/programs/scheduler
+    yt/19_3/yt/server/programs/controller_agent
+)

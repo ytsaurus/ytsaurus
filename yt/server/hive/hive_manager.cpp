@@ -554,7 +554,7 @@ private:
             mailbox->OutcomingMessages().push_back(message);
 
             if (mailbox != mailboxes.front()) {
-                logMessageBuilder.AppendString(STRINGBUF(", "));
+                logMessageBuilder.AppendString(AsStringBuf(", "));
             }
             logMessageBuilder.AppendFormat("%v=>%v",
                 mailbox->GetCellId(),
@@ -563,7 +563,7 @@ private:
             SchedulePostOutcomingMessages(mailbox);
         }
 
-        logMessageBuilder.AppendString(STRINGBUF("})"));
+        logMessageBuilder.AppendString(AsStringBuf("})"));
         LOG_DEBUG_UNLESS(IsRecovery(), logMessageBuilder.Flush());
     }
 
@@ -587,7 +587,7 @@ private:
             }
 
             if (mailbox != mailboxes.front()) {
-                logMessageBuilder.AppendString(STRINGBUF(", "));
+                logMessageBuilder.AppendString(AsStringBuf(", "));
             }
             logMessageBuilder.AppendFormat("%v", mailbox->GetCellId());
 
@@ -603,7 +603,7 @@ private:
                     .Via(EpochAutomatonInvoker_));
         }
 
-        logMessageBuilder.AppendString(STRINGBUF("])"));
+        logMessageBuilder.AppendString(AsStringBuf("])"));
         LOG_DEBUG_UNLESS(IsRecovery(), logMessageBuilder.Flush());
     }
 
