@@ -66,6 +66,7 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Execute)
             .SetCancelable(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Read)
+            .SetCancelable(true)
             .SetInvoker(bootstrap->GetLookupPoolInvoker()));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetTabletInfo)
             .SetInvoker(bootstrap->GetLookupPoolInvoker()));
