@@ -39,6 +39,7 @@ def retries_config(**kwargs):
         "count": None,
         "enable": None,
         "backoff": retry_backoff_config(),
+        "additional_retriable_error_codes": []
     }
 
     config = VerifiedDict(template_dict=config_dict)
@@ -124,14 +125,10 @@ default_config = {
     },
 
     # Parameters for dynamic table requests retries.
-    "dynamic_table_retries": {
-        "enable": True,
-        "count": 6,
-        "backoff": {
-            "policy": "constant_time",
-            "constant_time": 5 * 1000
-        }
-    },
+    "dynamic_table_retries": retries_config(count=6, enable=True, backoff={
+        "policy": "constant_time",
+        "constant_time": 5 * 1000
+    }),
 
     # Timeout for waiting for tablets to become ready.
     "tablets_ready_timeout": 60 * 1000,
