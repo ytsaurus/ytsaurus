@@ -27,6 +27,8 @@
 
 #include <yt/core/concurrency/async_stream.h>
 
+#include <yt/core/yson/string.h>
+
 namespace NYT {
 namespace NApi {
 
@@ -45,7 +47,7 @@ using namespace NCypressClient;
 
 class TFileReader
     : public TTransactionListener
-    , public IAsyncZeroCopyInputStream
+    , public IFileReader
 {
 public:
     TFileReader(
@@ -96,6 +98,11 @@ public:
             BIND(&TFileReader::Read, MakeStrong(this)));
     }
 
+    virtual ui64 GetRevision() const override
+    {
+        return Revision_;
+    }
+
 private:
     const INativeClientPtr Client_;
     const TYPath Path_;
@@ -106,10 +113,11 @@ private:
 
     TClientBlockReadOptions BlockReadOptions_;
 
+    ui64 Revision_ = 0;
+
     NFileClient::IFileReaderPtr Reader_;
 
     NLogging::TLogger Logger;
-
 
     void DoOpen()
     {
@@ -136,6 +144,29 @@ private:
                 Path_,
                 EObjectType::File,
                 userObject.Type);
+        }
+
+        {
+            auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Follower, cellTag);
+            TObjectServiceProxy proxy(channel);
+
+            auto req = TYPathProxy::Get(objectIdPath + "/@");
+
+            std::vector<TString> attributeKeys{
+                "revision"
+            };
+            ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
+
+            SetTransactionId(req, Transaction_);
+            SetSuppressAccessTracking(req, Options_.SuppressAccessTracking);
+
+            auto rspOrError = WaitFor(proxy.Execute(req));
+            THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting revision of file %v",
+                Path_);
+            const auto& rsp = rspOrError.Value();
+
+            auto attributes = ConvertToAttributes(NYson::TYsonString(rsp->value()));
+            Revision_ = attributes->Get<ui64>("revision", 0);
         }
 
         auto nodeDirectory = New<TNodeDirectory>();
@@ -203,7 +234,7 @@ private:
 
 };
 
-TFuture<IAsyncZeroCopyInputStreamPtr> CreateFileReader(
+TFuture<IFileReaderPtr> CreateFileReader(
     INativeClientPtr client,
     const NYPath::TYPath& path,
     const TFileReaderOptions& options)
@@ -211,7 +242,7 @@ TFuture<IAsyncZeroCopyInputStreamPtr> CreateFileReader(
     auto fileReader = New<TFileReader>(client, path, options);
 
     return fileReader->Open().Apply(BIND([=] {
-        return static_cast<IAsyncZeroCopyInputStreamPtr>(fileReader);
+        return static_cast<IFileReaderPtr>(fileReader);
     }));
 }
 

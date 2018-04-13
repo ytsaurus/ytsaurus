@@ -116,7 +116,7 @@ public:
 
 
     // Files
-    virtual TFuture<NConcurrency::IAsyncZeroCopyInputStreamPtr> CreateFileReader(
+    virtual TFuture<NApi::IFileReaderPtr> CreateFileReader(
         const NYPath::TYPath&,
         const NApi::TFileReaderOptions&) override
     {

@@ -39,6 +39,9 @@ void TReadFileCommand::DoExecute(ICommandContextPtr context)
             Options))
         .ValueOrThrow();
 
+    BuildYsonMapFluently(context->Request().ResponseParametersConsumer)
+        .Item("revision").Value(reader->GetRevision());
+
     auto output = context->Request().OutputStream;
 
     while (true) {

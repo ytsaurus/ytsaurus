@@ -14,7 +14,16 @@ namespace NApi {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFuture<NConcurrency::IAsyncZeroCopyInputStreamPtr> CreateFileReader(
+struct IFileReader
+    : public NConcurrency::IAsyncZeroCopyInputStream
+{
+    //! Returns revision of file
+    virtual ui64 GetRevision() const = 0;
+};
+
+DEFINE_REFCOUNTED_TYPE(IFileReader)
+
+TFuture<IFileReaderPtr> CreateFileReader(
     INativeClientPtr client,
     const NYPath::TYPath& path,
     const TFileReaderOptions& options);
@@ -23,4 +32,3 @@ TFuture<NConcurrency::IAsyncZeroCopyInputStreamPtr> CreateFileReader(
 
 } // namespace NApi
 } // namespace NYT
-

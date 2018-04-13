@@ -166,7 +166,7 @@ public:
         NObjectClient::EObjectType type,
         const NApi::TCreateObjectOptions& options) override;
 
-    virtual TFuture<NConcurrency::IAsyncZeroCopyInputStreamPtr> CreateFileReader(
+    virtual TFuture<NApi::IFileReaderPtr> CreateFileReader(
         const NYPath::TYPath& path,
         const NApi::TFileReaderOptions& options) override;
 

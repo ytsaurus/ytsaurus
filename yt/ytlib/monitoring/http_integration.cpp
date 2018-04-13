@@ -46,7 +46,6 @@ public:
         TString path{req->GetUrl().Path};
         YCHECK(path.size() >= AsStringBuf("/orchid").size());
         path = path.substr(AsStringBuf("/orchid").size(), TString::npos);
-
         TCgiParameters params(req->GetUrl().RawQuery);
 
         auto ypathReq = TYPathProxy::Get(path);
