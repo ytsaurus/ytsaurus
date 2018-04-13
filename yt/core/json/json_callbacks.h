@@ -6,6 +6,7 @@
 #include <yt/core/ytree/public.h>
 #include <yt/core/ytree/tree_builder.h>
 
+#include <yt/core/json/config.h>
 #include <yt/core/misc/small_vector.h>
 #include <yt/core/misc/utf8_decoder.h>
 
@@ -50,7 +51,8 @@ public:
         NYson::IYsonConsumer* consumer,
         NYson::EYsonType ysonType,
         const TUtf8Transcoder& utf8Transcoder,
-        i64 memoryLimit);
+        i64 memoryLimit,
+        NJson::EJsonAttributesMode attributesMode);
 
     virtual void OnStringScalar(const TStringBuf& value) override;
     virtual void OnInt64Scalar(i64 value) override;
@@ -80,6 +82,7 @@ private:
     TUtf8Transcoder Utf8Transcoder_;
     i64 ConsumedMemory_ = 0;
     const i64 MemoryLimit_;
+    const NJson::EJsonAttributesMode AttributesMode_;
 
     SmallVector<EJsonCallbacksNodeType, 4> Stack_;
 

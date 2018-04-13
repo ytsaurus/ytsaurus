@@ -268,7 +268,7 @@ private:
                 NotifyError(
                     std::get<0>(existingRequest),
                     std::get<1>(existingRequest),
-                    STRINGBUF("Request failed due to channel termination"),
+                    AsStringBuf("Request failed due to channel termination"),
                     error);
             }
         }
@@ -357,7 +357,7 @@ private:
             NotifyError(
                 requestControl,
                 responseHandler,
-                STRINGBUF("Request canceled"),
+                AsStringBuf("Request canceled"),
                 TError(NYT::EErrorCode::Canceled, "Request canceled"));
 
             IBusPtr bus;
@@ -414,7 +414,7 @@ private:
             NotifyError(
                 requestControl,
                 responseHandler,
-                STRINGBUF("Request timed out"),
+                AsStringBuf("Request timed out"),
                 TError(NYT::EErrorCode::Timeout, aborted
                     ? "Request timed out or timer was aborted"
                     : "Request timed out"));
@@ -475,7 +475,7 @@ private:
                     NotifyError(
                         requestControl,
                         responseHandler,
-                        STRINGBUF("Request failed"),
+                        AsStringBuf("Request failed"),
                         error);
                 }
             }
@@ -580,7 +580,7 @@ private:
                     NotifyError(
                         requestControl,
                         responseHandler,
-                        STRINGBUF("Request serialization failed"),
+                        AsStringBuf("Request serialization failed"),
                         TError(NRpc::EErrorCode::TransportError, "Request serialization failed")
                             << requestMessageOrError);
                     return;
@@ -594,7 +594,7 @@ private:
                     NotifyError(
                         requestControl,
                         responseHandler,
-                        STRINGBUF("Request is dropped because channel is terminated"),
+                        AsStringBuf("Request is dropped because channel is terminated"),
                         TError(NRpc::EErrorCode::TransportError, "Channel terminated")
                             << TerminationError_);
                     return;
@@ -681,7 +681,7 @@ private:
                 NotifyError(
                     requestControl,
                     responseHandler,
-                    STRINGBUF("Request acknowledgment failed"),
+                    AsStringBuf("Request acknowledgment failed"),
                     TError(NRpc::EErrorCode::TransportError, "Request acknowledgment failed")
                          << error);
             }
