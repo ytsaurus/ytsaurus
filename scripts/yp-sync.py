@@ -37,6 +37,7 @@ def idented_lines(lines, ident_size=2):
     ident = " " * ident_size
     return "".join(ident + l + "\n" for l in lines)
 
+# TODO (ermolovd): should use function `check_git_working_tree' from git_svn/ instead of this function
 def git_verify_tree_clean(git, pathspec):
     status_output = git.call("status", "--porcelain", "--untracked-files=no", pathspec)
     if status_output:
