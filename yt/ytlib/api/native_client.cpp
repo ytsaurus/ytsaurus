@@ -733,7 +733,7 @@ public:
         (type, options))
 
 
-    virtual TFuture<IAsyncZeroCopyInputStreamPtr> CreateFileReader(
+    virtual TFuture<IFileReaderPtr> CreateFileReader(
         const TYPath& path,
         const TFileReaderOptions& options) override
     {

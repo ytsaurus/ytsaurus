@@ -539,7 +539,7 @@ TFuture<TObjectId> TTransaction::CreateObject(
     return Client_->CreateObject(type, options);
 }
 
-TFuture<IAsyncZeroCopyInputStreamPtr> TTransaction::CreateFileReader(
+TFuture<IFileReaderPtr> TTransaction::CreateFileReader(
     const TYPath& path,
     const TFileReaderOptions& options)
 {

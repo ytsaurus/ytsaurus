@@ -489,7 +489,7 @@ public:
         (type, options))
 
 
-    DELEGATE_TRANSACTIONAL_METHOD(TFuture<IAsyncZeroCopyInputStreamPtr>, CreateFileReader, (
+    DELEGATE_TRANSACTIONAL_METHOD(TFuture<IFileReaderPtr>, CreateFileReader, (
         const TYPath& path,
         const TFileReaderOptions& options),
         (path, options))

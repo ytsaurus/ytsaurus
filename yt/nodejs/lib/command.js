@@ -1025,6 +1025,21 @@ YtCommand.prototype._execute = function(cb) {
                         binding.ECompression_None,
                         self.header_format));
             }
+
+            if (typeof(key) === "string" && key === "revision") {
+                var etag_string = value.Print();
+                // Etag has ui64 type that cannot be represented as javascript number.
+                // Therefore we dump it into yson and strip "u" if necessary.
+                if (etag_string[etag_string.length - 1] == "u") {
+                    etag_string = etag_string.substr(0, etag_string.length - 1);
+                }
+                self.rsp.setHeader("ETag", etag_string);
+
+                header = utils.gather(self.req.headers, "if-none-match");
+                if (header && typeof(header) === "string" && header === value.Print()) {
+                    self.rsp.statusCode = 304;
+                }
+            }
         },
         function execute$interceptor(result, bytes_in, bytes_out) {
             self.watcher.releaseThread(sema_user, sema_command);

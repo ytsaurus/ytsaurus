@@ -953,7 +953,7 @@ struct IClientBase
 
 
     // Files
-    virtual TFuture<NConcurrency::IAsyncZeroCopyInputStreamPtr> CreateFileReader(
+    virtual TFuture<IFileReaderPtr> CreateFileReader(
         const NYPath::TYPath& path,
         const TFileReaderOptions& options = TFileReaderOptions()) = 0;
 
