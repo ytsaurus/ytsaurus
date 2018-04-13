@@ -1,5 +1,5 @@
 from .common import YtError, total_seconds
-from .errors import YtRetriableError
+from .errors import YtRetriableError, YtResponseError
 from yt import logger as logger
 
 from yt.packages.six.moves import xrange
@@ -57,9 +57,22 @@ class Retrier(object):
                 if self.chaos_monkey_enabled and random.randint(1, 5) == 1:
                     raise YtRetriableError()
                 return self.action()
-            except self.exceptions as exception:
+            except self.exceptions + (YtResponseError, ) as exception:
                 if attempt == retry_count:
                     raise
+
+                is_error_retriable = False
+                if isinstance(exception, self.exceptions):
+                    is_error_retriable = True
+                else:
+                    for retriable_code in self.retry_config["additional_retriable_error_codes"]:
+                        if exception.contains_code(retriable_code):
+                            is_error_retriable = True
+                            break
+
+                if not is_error_retriable:
+                    raise
+
                 self.except_action(exception, attempt)
                 backoff = self.get_backoff(attempt, start_time)
                 self.backoff_action(attempt, backoff)
