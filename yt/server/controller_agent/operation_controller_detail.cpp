@@ -316,9 +316,15 @@ TOperationControllerInitializationResult TOperationControllerBase::InitializeRev
         };
 
         // NB: Async transaction is not checked.
-        checkTransaction(inputTransaction);
-        checkTransaction(outputTransaction);
-        checkTransaction(debugTransaction);
+        if (IsTransactionNeeded(ETransactionType::Input)) {
+            checkTransaction(inputTransaction);
+        }
+        if (IsTransactionNeeded(ETransactionType::Output)) {
+            checkTransaction(outputTransaction);
+        }
+        if (IsTransactionNeeded(ETransactionType::Debug)) {
+            checkTransaction(debugTransaction);
+        }
 
         for (const auto& pair : asyncCheckResults) {
             const auto& transaction = pair.first;
@@ -427,6 +433,16 @@ TOperationControllerInitializationResult TOperationControllerBase::InitializeCle
     TOperationControllerInitializationResult result;
     FillInitializationResult(&result);
     return result;
+}
+
+bool TOperationControllerBase::HasUserJobFiles() const
+{
+    for (const auto& userJobSpec : GetUserJobSpecs()) {
+        if (!userJobSpec->FilePaths.empty() || !userJobSpec->LayerPaths.empty()) {
+            return true;
+        }
+    }
+    return false;
 }
 
 void TOperationControllerBase::InitializeStructures()
@@ -563,40 +579,56 @@ TOperationControllerPrepareResult TOperationControllerBase::SafePrepare()
     }
 
     // Process input tables.
-    {
+    if (!GetInputTablePaths().empty()) {
         GetInputTablesAttributes();
+    } else {
+        LOG_INFO("Operation has no input tables");
     }
 
     PrepareInputQuery();
 
     // Process files.
-    {
+    if (HasUserJobFiles()) {
         GetUserFilesAttributes();
+    } else {
+        LOG_INFO("Operation has no input files");
     }
 
     // Process output and stderr tables.
-    {
+    if (!GetOutputTablePaths().empty()) {
         GetUserObjectBasicAttributes<TOutputTable>(
             OutputClient,
             OutputTables_,
             OutputTransaction->GetId(),
             Logger,
             EPermission::Write);
+    } else {
+        LOG_INFO("Operation has no output tables");
+    }
 
+    if (StderrTable_) {
         GetUserObjectBasicAttributes<TOutputTable>(
             Client,
             StderrTable_,
             DebugTransaction->GetId(),
             Logger,
             EPermission::Write);
+    } else {
+        LOG_INFO("Operation has no stderr table");
+    }
 
+    if (CoreTable_) {
         GetUserObjectBasicAttributes<TOutputTable>(
             Client,
             CoreTable_,
             DebugTransaction->GetId(),
             Logger,
             EPermission::Write);
+    } else {
+        LOG_INFO("Operation has no core table");
+    }
 
+    {
         THashSet<TObjectId> updatingTableIds;
         for (const auto* table : UpdatingTables) {
             const auto& path = table->Path.GetPath();
@@ -826,6 +858,25 @@ void TOperationControllerBase::AbortAllJoblets()
     JobletMap.clear();
 }
 
+bool TOperationControllerBase::IsTransactionNeeded(ETransactionType type) const
+{
+    switch (type) {
+        case ETransactionType::Async:
+            return IsIntermediateLivePreviewSupported() || IsOutputLivePreviewSupported() || GetStderrTablePath();
+        case ETransactionType::Input:
+            return !GetInputTablePaths().empty() || HasUserJobFiles();
+        case ETransactionType::Output:
+        case ETransactionType::OutputCompletion:
+            return !GetOutputTablePaths().empty();
+        case ETransactionType::Debug:
+        case ETransactionType::DebugCompletion:
+            // TODO(max42): Re-think about this transaction when YT-8270 is done.
+            return true;
+        default:
+            Y_UNREACHABLE();
+    }
+}
+
 void TOperationControllerBase::StartTransactions()
 {
     std::vector<TFuture<ITransactionPtr>> asyncResults = {
@@ -874,6 +925,11 @@ TFuture<ITransactionPtr> TOperationControllerBase::StartTransaction(
     const TTransactionId& parentTransactionId,
     const TTransactionId& prerequisiteTransactionId)
 {
+    if (!IsTransactionNeeded(type)) {
+        LOG_INFO("Skipping transaction as it is not needed (Type: %v)", type);
+        return MakeFuture(ITransactionPtr());
+    }
+
     LOG_INFO("Starting transaction (Type: %v, ParentId: %v, PrerequisiteTransactionId: %v)",
         type,
         parentTransactionId,
@@ -928,19 +984,21 @@ void TOperationControllerBase::PickIntermediateDataCell()
 
 void TOperationControllerBase::InitChunkListPools()
 {
-    OutputChunkListPool_ = New<TChunkListPool>(
-        Config,
-        OutputClient,
-        CancelableInvoker,
-        OperationId,
-        OutputTransaction->GetId());
+    if (!GetOutputTablePaths().empty()) {
+        OutputChunkListPool_ = New<TChunkListPool>(
+            Config,
+            OutputClient,
+            CancelableInvoker,
+            OperationId,
+            OutputTransaction->GetId());
 
-    CellTagToRequiredOutputChunkLists_.clear();
-    for (const auto* table : UpdatingTables) {
-        ++CellTagToRequiredOutputChunkLists_[table->CellTag];
+        CellTagToRequiredOutputChunkLists_.clear();
+        for (const auto* table : UpdatingTables) {
+            ++CellTagToRequiredOutputChunkLists_[table->CellTag];
+        }
+
+        ++CellTagToRequiredOutputChunkLists_[IntermediateOutputCellTag];
     }
-
-    ++CellTagToRequiredOutputChunkLists_[IntermediateOutputCellTag];
 
     DebugChunkListPool_ = New<TChunkListPool>(
         Config,
@@ -1187,6 +1245,10 @@ void TOperationControllerBase::DoLoadSnapshot(const TOperationSnapshot& snapshot
 
 void TOperationControllerBase::StartOutputCompletionTransaction()
 {
+    if (!OutputTransaction) {
+        return;
+    }
+
     OutputCompletionTransaction = WaitFor(StartTransaction(
         ETransactionType::OutputCompletion,
         OutputClient,
@@ -1218,15 +1280,17 @@ void TOperationControllerBase::CommitOutputCompletionTransaction()
 
         auto path = GetNewOperationPath(OperationId) + "/@committed";
         auto req = TYPathProxy::Set(path);
-        SetTransactionId(req, OutputCompletionTransaction->GetId());
+        SetTransactionId(req, OutputCompletionTransaction ? OutputCompletionTransaction->GetId() : NullTransactionId);
         req->set_value(ConvertToYsonString(true).GetData());
         WaitFor(proxy.Execute(req))
             .ThrowOnError();
     }
 
-    WaitFor(OutputCompletionTransaction->Commit())
-        .ThrowOnError();
-    OutputCompletionTransaction.Reset();
+    if (OutputCompletionTransaction) {
+        WaitFor(OutputCompletionTransaction->Commit())
+            .ThrowOnError();
+        OutputCompletionTransaction.Reset();
+    }
 
     CommitFinished = true;
 }
@@ -1324,11 +1388,15 @@ void TOperationControllerBase::CommitTransactions()
 
     std::vector<TFuture<TTransactionCommitResult>> commitFutures;
 
-    commitFutures.push_back(OutputTransaction->Commit());
+    if (OutputTransaction) {
+        commitFutures.push_back(OutputTransaction->Commit());
+    }
 
     SleepInCommitStage(EDelayInsideOperationCommitStage::Stage7);
 
-    commitFutures.push_back(DebugTransaction->Commit());
+    if (DebugTransaction) {
+        commitFutures.push_back(DebugTransaction->Commit());
+    }
 
     WaitFor(Combine(commitFutures))
         .ThrowOnError();
@@ -1336,12 +1404,20 @@ void TOperationControllerBase::CommitTransactions()
     LOG_INFO("Scheduler transactions committed");
 
     // Fire-and-forget.
-    InputTransaction->Abort();
-    AsyncTransaction->Abort();
+    if (InputTransaction) {
+        InputTransaction->Abort();
+    }
+    if (AsyncTransaction) {
+        AsyncTransaction->Abort();
+    }
 }
 
 void TOperationControllerBase::TeleportOutputChunks()
 {
+    if (GetOutputTablePaths().empty()) {
+        return;
+    }
+
     auto teleporter = New<TChunkTeleporter>(
         Config,
         OutputClient,
@@ -1530,7 +1606,7 @@ void TOperationControllerBase::EndUploadOutputTables(const std::vector<TOutputTa
         if (table->OutputType == EOutputTableType::Stderr || table->OutputType == EOutputTableType::Core) {
             auto attributesPath = path + "/@part_size";
             auto req = TYPathProxy::Set(attributesPath);
-            SetTransactionId(req, GetTransactionIdForOutputTable(*table));
+            SetTransactionId(req, GetTransactionForOutputTable(*table)->GetId());
             req->set_value(ConvertToYsonString(GetPartSize(table->OutputType)).GetData());
             batchReq->AddRequest(req, "set_part_size");
         }
@@ -2890,7 +2966,9 @@ void TOperationControllerBase::CustomizeJobSpec(const TJobletPtr& joblet, TJobSp
     auto* schedulerJobSpecExt = jobSpec->MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
 
     schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
-    ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransaction->GetId());
+    if (OutputTransaction) {
+        ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransaction->GetId());
+    }
 
     if (joblet->Task->GetUserJobSpec()) {
         InitUserJobSpec(
@@ -4071,7 +4149,7 @@ void TOperationControllerBase::GetOutputTablesSchema()
                     "dynamic"
                 };
                 ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
-                SetTransactionId(req, GetTransactionIdForOutputTable(*table));
+                SetTransactionId(req, GetTransactionForOutputTable(*table)->GetId());
                 batchReq->AddRequest(req, "get_attributes");
             }
         }
@@ -4099,7 +4177,7 @@ void TOperationControllerBase::GetOutputTablesSchema()
                 0); // Here we assume zero row count, we will do additional check later.
 
             // TODO(savrus) I would like to see commit ts here. But as for now, start ts suffices.
-            table->Timestamp = OutputTransaction->GetStartTimestamp();
+            table->Timestamp = GetTransactionForOutputTable(*table)->GetStartTimestamp();
 
             // NB(psushin): This option must be set before PrepareOutputTables call.
             table->Options->EvaluateComputedColumns = table->TableUploadOptions.TableSchema.HasComputedColumns();
@@ -4157,7 +4235,7 @@ void TOperationControllerBase::LockOutputTablesAndGetAttributes()
             for (const auto* table : UpdatingTables) {
                 auto objectIdPath = FromObjectId(table->ObjectId);
                 auto req = TCypressYPathProxy::Lock(objectIdPath);
-                SetTransactionId(req, GetTransactionIdForOutputTable(*table));
+                SetTransactionId(req, GetTransactionForOutputTable(*table)->GetId());
                 GenerateMutationId(req);
                 req->set_mode(static_cast<int>(table->TableUploadOptions.LockMode));
                 batchReq->AddRequest(req, "lock");
@@ -4192,7 +4270,7 @@ void TOperationControllerBase::LockOutputTablesAndGetAttributes()
                     "enable_skynet_sharing",
                 };
                 ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
-                SetTransactionId(req, GetTransactionIdForOutputTable(*table));
+                SetTransactionId(req, GetTransactionForOutputTable(*table)->GetId());
                 batchReq->AddRequest(req, "get_attributes");
             }
         }
@@ -4266,7 +4344,7 @@ void TOperationControllerBase::BeginUploadOutputTables(const std::vector<TOutput
             for (const auto* table : updatingTables) {
                 auto objectIdPath = FromObjectId(table->ObjectId);
                 auto req = TTableYPathProxy::BeginUpload(objectIdPath);
-                SetTransactionId(req, GetTransactionIdForOutputTable(*table));
+                SetTransactionId(req, GetTransactionForOutputTable(*table)->GetId());
                 GenerateMutationId(req);
                 req->set_update_mode(static_cast<int>(table->TableUploadOptions.UpdateMode));
                 req->set_lock_mode(static_cast<int>(table->TableUploadOptions.LockMode));
@@ -5444,20 +5522,20 @@ void TOperationControllerBase::RegisterCores(const TJobletPtr& joblet, const TJo
     CoreTable_->OutputChunkTreeIds.emplace_back(key, chunkListId);
 }
 
-const TTransactionId& TOperationControllerBase::GetTransactionIdForOutputTable(const TOutputTable& table)
+const ITransactionPtr& TOperationControllerBase::GetTransactionForOutputTable(const TOutputTable& table) const
 {
     if (table.OutputType == EOutputTableType::Output) {
         if (OutputCompletionTransaction) {
-            return OutputCompletionTransaction->GetId();
+            return OutputCompletionTransaction;
         } else {
-            return OutputTransaction->GetId();
+            return OutputTransaction;
         }
     } else {
         YCHECK(table.OutputType == EOutputTableType::Stderr || table.OutputType == EOutputTableType::Core);
         if (DebugCompletionTransaction) {
-            return DebugCompletionTransaction->GetId();
+            return DebugCompletionTransaction;
         } else {
-            return DebugTransaction->GetId();
+            return DebugTransaction;
         }
     }
 }

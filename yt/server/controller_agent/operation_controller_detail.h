@@ -436,6 +436,8 @@ protected:
 
     NYTree::IMapNodePtr UnrecognizedSpec_;
 
+    virtual bool IsTransactionNeeded(ETransactionType type) const;
+
     TFuture<NApi::ITransactionPtr> StartTransaction(
         ETransactionType type,
         NApi::INativeClientPtr client,
@@ -579,6 +581,8 @@ protected:
     bool InputHasDynamicTables() const;
     bool InputHasVersionedTables() const;
     bool InputHasReadLimits() const;
+
+    bool HasUserJobFiles() const;
 
     bool IsLocalityEnabled() const;
 
@@ -736,7 +740,7 @@ protected:
         const NTableClient::TKeyColumns& fullColumns,
         const NTableClient::TKeyColumns& prefixColumns);
 
-    const NObjectClient::TTransactionId& GetTransactionIdForOutputTable(const TOutputTable& table);
+    const NApi::ITransactionPtr& GetTransactionForOutputTable(const TOutputTable& table) const;
 
     virtual void AttachToIntermediateLivePreview(const NChunkClient::TChunkId& chunkId) override;
 
