@@ -54,9 +54,10 @@ TFuture<TIntrusivePtr<TResponse>> InvokeAgent(
     const TControllerAgentPtr& agent,
     const TIntrusivePtr<TRequest>& request)
 {
-    LOG_DEBUG("Sending request to agent (AgentId: %v, OperationId: %v)",
+    LOG_DEBUG("Sending request to agent (AgentId: %v, OperationId: %v, Method: %v)",
         agent->GetId(),
-        operationId);
+        operationId,
+        request->GetMethod());
 
     ToProto(request->mutable_incarnation_id(), agent->GetIncarnationId());
 
