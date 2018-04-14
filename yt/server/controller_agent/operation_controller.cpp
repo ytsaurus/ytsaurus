@@ -399,6 +399,11 @@ public:
         return Underlying_->OnSnapshotCompleted(cookie);
     }
 
+    virtual IYPathServicePtr GetOrchid() const override
+    {
+        return Underlying_->GetOrchid();
+    }
+
 private:
     const TOperationId Id_;
     const IOperationControllerPtr Underlying_;

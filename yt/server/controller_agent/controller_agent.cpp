@@ -37,6 +37,8 @@
 #include <yt/core/actions/cancelable_context.h>
 
 #include <yt/core/ytree/convert.h>
+#include <yt/core/ytree/virtual.h>
+#include <yt/core/ytree/service_combiner.h>
 
 namespace NYT {
 namespace NControllerAgent {
@@ -160,9 +162,15 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         auto staticOrchidProducer = BIND(&TImpl::BuildStaticOrchid, MakeStrong(this));
-        return IYPathService::FromProducer(staticOrchidProducer)
+        auto staticOrchidService = IYPathService::FromProducer(staticOrchidProducer)
             ->Via(Bootstrap_->GetControlInvoker())
             ->Cached(Config_->StaticOrchidCacheUpdatePeriod);
+
+        auto dynamicOrchidService = GetDynamicOrchidService()
+            ->Via(Bootstrap_->GetControlInvoker());
+
+        return New<TServiceCombiner>(
+            std::vector<IYPathServicePtr>{std::move(staticOrchidService), std::move(dynamicOrchidService)});
     }
 
     bool IsConnected() const
@@ -313,8 +321,7 @@ public:
         return EventLogWriter_;
     }
 
-
-    TOperationPtr FindOperation(const TOperationId& operationId)
+    TOperationPtr FindOperation(const TOperationId& operationId) const
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(Connected_);
@@ -323,7 +330,7 @@ public:
         return it == IdToOperation_.end() ? nullptr : it->second;
     }
 
-    TOperationPtr GetOperation(const TOperationId& operationId)
+    TOperationPtr GetOperation(const TOperationId& operationId) const
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(Connected_);
@@ -334,7 +341,7 @@ public:
         return operation;
     }
 
-    TOperationPtr GetOperationOrThrow(const TOperationId& operationId)
+    TOperationPtr GetOperationOrThrow(const TOperationId& operationId) const
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(Connected_);
@@ -346,7 +353,7 @@ public:
         return operation;
     }
 
-    const TOperationIdToOperationMap& GetOperations()
+    const TOperationIdToOperationMap& GetOperations() const
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(Connected_);
@@ -1205,15 +1212,7 @@ private:
                 .Item("connected").Value(Connected_)
                 .DoIf(Connected_, [&] (TFluentMap fluent) {
                     fluent
-                        .Item("incarnation_id").Value(IncarnationId_)
-                        .Item("operations").DoMapFor(IdToOperation_, [&] (TFluentMap fluent, const auto& pair) {
-                            const auto& operation = pair.second;
-                            fluent
-                                .Item(ToString(pair.first)).BeginMap()
-                                .Item("type").Value(operation->GetType())
-                                .Item("spec").Value(operation->GetSpec())
-                                .EndMap();
-                        });
+                        .Item("incarnation_id").Value(IncarnationId_);
                 })
                 .Item("config").Value(Config_)
                 .Item("tagged_memory_statistics").BeginAttributes()
@@ -1223,6 +1222,52 @@ private:
                 })
             .EndMap();
     }
+
+    IYPathServicePtr GetDynamicOrchidService() const
+    {
+        auto dynamicOrchidService = New<TCompositeMapService>();
+        dynamicOrchidService->AddChild("operations", New<TOperationsService>(this));
+        return dynamicOrchidService;
+    }
+
+    class TOperationsService
+        : public TVirtualMapBase
+    {
+    public:
+        explicit TOperationsService(const TControllerAgent::TImpl* controllerAgent)
+            : TVirtualMapBase(nullptr /* owningNode */)
+            , ControllerAgent_(controllerAgent)
+        { }
+
+        virtual i64 GetSize() const override
+        {
+            return ControllerAgent_->IdToOperation_.size();
+        }
+
+        virtual std::vector<TString> GetKeys(i64 limit) const override
+        {
+            std::vector<TString> keys;
+            keys.reserve(limit);
+            for (const auto& pair : ControllerAgent_->IdToOperation_) {
+                if (static_cast<i64>(keys.size()) >= limit) {
+                    break;
+                }
+                keys.emplace_back(ToString(pair.first));
+            }
+            return keys;
+        }
+
+        virtual IYPathServicePtr FindItemService(const TStringBuf& key) const override
+        {
+            auto operationId = TOperationId::FromString(key);
+            auto operation = ControllerAgent_->GetOperationOrThrow(operationId);
+            return operation->GetController()->GetOrchid();
+        }
+
+    private:
+        const TControllerAgent::TImpl* const ControllerAgent_;
+    };
+
 };
 
 ////////////////////////////////////////////////////////////////////
