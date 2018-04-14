@@ -593,6 +593,12 @@ struct IOperationController
      *  \note Invoker affinity: Controller invoker.
      */
     virtual NYson::TYsonString BuildJobYson(const TJobId& jobId, bool outputStatistics) const = 0;
+
+    //! Return a YPath service representing this controller in controller agent Orchid.
+    /*!
+     *  \note Invoker affinity: Controller invoker.
+     */
+    virtual NYTree::IYPathServicePtr GetOrchid() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IOperationController)

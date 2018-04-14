@@ -478,6 +478,9 @@ public:
     //! Number of threads for running controllers invokers.
     int ControllerThreadCount;
 
+    //! Period of controller static orchid part update.
+    TDuration ControllerStaticOrchidUpdatePeriod;
+
     //! Limit on the number of concurrent core dumps that can be written because
     //! of failed safe assertions inside controllers.
     int MaxConcurrentSafeCoreDumps;

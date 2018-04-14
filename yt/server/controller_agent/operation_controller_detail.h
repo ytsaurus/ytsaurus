@@ -327,6 +327,8 @@ public:
 
     virtual NYson::TYsonString BuildJobYson(const TJobId& jobId, bool outputStatistics) const override;
 
+    virtual NYTree::IYPathServicePtr GetOrchid() const override;
+
 protected:
     const IOperationControllerHostPtr Host;
     TControllerAgentConfigPtr Config;
@@ -435,6 +437,8 @@ protected:
     TDataFlowGraph DataFlowGraph_;
 
     NYTree::IMapNodePtr UnrecognizedSpec_;
+
+    NYTree::IYPathServicePtr Orchid_;
 
     virtual bool IsTransactionNeeded(ETransactionType type) const;
 

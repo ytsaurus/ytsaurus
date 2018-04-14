@@ -72,6 +72,8 @@
 
 #include <yt/core/logging/log.h>
 
+#include <yt/core/ytree/virtual.h>
+
 #include <util/generic/vector.h>
 
 #include <functional>
@@ -229,6 +231,36 @@ TOperationControllerBase::TOperationControllerBase(
     UserTransaction = UserTransactionId
         ? Host->GetClient()->AttachTransaction(UserTransactionId, userAttachOptions)
         : nullptr;
+
+    auto createService = [&] (auto fluentMethod) -> IYPathServicePtr {
+        return IYPathService::FromProducer(BIND([fluentMethod = std::move(fluentMethod)] (IYsonConsumer* consumer) {
+            BuildYsonFluently(consumer)
+                .BeginMap()
+                    .Do(fluentMethod)
+                .EndMap();
+        }))
+            ->Via(CancelableInvoker)
+            ->Cached(Config->ControllerStaticOrchidUpdatePeriod);
+    };
+
+    Orchid_ = New<TCompositeMapService>()
+        ->AddChild("progress", createService(BIND(&TOperationControllerBase::BuildProgress, MakeWeak(this))))
+        ->AddChild("brief_progress", createService(BIND(&TOperationControllerBase::BuildBriefProgress, MakeWeak(this))))
+        ->AddChild("running_jobs", createService(BIND(&TOperationControllerBase::BuildJobsYson, MakeWeak(this))))
+        ->AddChild("job_splitter", createService(BIND(&TOperationControllerBase::BuildJobSplitterInfo, MakeWeak(this))))
+        ->AddChild("memory_usage", IYPathService::FromProducer(BIND([weakThis = MakeWeak(this)] (IYsonConsumer* consumer) {
+            if (auto this_ = weakThis.Lock()) {
+                BuildYsonFluently(consumer)
+                    .Value(this_->GetMemoryUsage());
+            }
+        })))
+        ->AddChild("state", IYPathService::FromProducer(BIND([weakThis = MakeWeak(this)] (IYsonConsumer* consumer) {
+            if (auto this_ = weakThis.Lock()) {
+                BuildYsonFluently(consumer)
+                    .Value(this_->State.load());
+            }
+        })))
+            ->Via(CancelableInvoker);
 }
 
 // Resource management.
@@ -6094,6 +6126,11 @@ TYsonString TOperationControllerBase::BuildJobYson(const TJobId& id, bool output
         .BeginMap()
             .Do(attributesBuilder)
         .EndMap();
+}
+
+IYPathServicePtr TOperationControllerBase::GetOrchid() const
+{
+    return Orchid_;
 }
 
 void TOperationControllerBase::BuildJobsYson(TFluentMap fluent) const
