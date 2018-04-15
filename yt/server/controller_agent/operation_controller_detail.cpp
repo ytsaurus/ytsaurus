@@ -562,6 +562,49 @@ void TOperationControllerBase::FillInitializationResult(TOperationControllerInit
     result->Transactions = GetTransactions();
 }
 
+void TOperationControllerBase::InitOrchid()
+{
+    auto createService = [&] (auto fluentMethod) -> IYPathServicePtr {
+        return IYPathService::FromProducer(BIND([fluentMethod = std::move(fluentMethod)] (IYsonConsumer* consumer) {
+            BuildYsonFluently(consumer)
+                .BeginMap()
+                    .Do(fluentMethod)
+                .EndMap();
+        }))
+            ->Via(CancelableInvoker)
+            ->Cached(Config->ControllerStaticOrchidUpdatePeriod);
+    };
+
+    auto service = New<TCompositeMapService>()
+        ->AddChild("progress", createService(BIND(&TOperationControllerBase::BuildProgress, MakeWeak(this))))
+        ->AddChild("brief_progress", createService(BIND(&TOperationControllerBase::BuildBriefProgress, MakeWeak(this))))
+        ->AddChild("running_jobs", createService(BIND(&TOperationControllerBase::BuildJobsYson, MakeWeak(this))))
+        ->AddChild("job_splitter", createService(BIND(&TOperationControllerBase::BuildJobSplitterInfo, MakeWeak(this))))
+        ->AddChild("memory_usage", IYPathService::FromProducer(BIND([weakThis = MakeWeak(this)] (IYsonConsumer* consumer) {
+            if (auto this_ = weakThis.Lock()) {
+                BuildYsonFluently(consumer)
+                    .Value(this_->GetMemoryUsage());
+            }
+        })))
+        ->AddChild("state", IYPathService::FromProducer(BIND([weakThis = MakeWeak(this)] (IYsonConsumer* consumer) {
+            if (auto this_ = weakThis.Lock()) {
+                BuildYsonFluently(consumer)
+                    .Value(this_->State.load());
+            }
+        })))
+        ->AddChild("data_flow_graph", DataFlowGraph_.GetService());
+
+    service->SetOpaque(false);
+    Orchid_ = service
+        ->AddPermissionValidator(BIND(&TOperationControllerBase::ValidateIntermediateDataAccess, MakeWeak(this)));
+        ->Via(CancelableInvoker);
+}
+
+void TOperationControllerBase::ValidateIntermediateDataAccess(const TString& user, EPermission permission) const
+{
+    Host->ValidateOperationPermission(user, permission, "/intermediate_data_access");
+}
+
 void TOperationControllerBase::InitUpdatingTables()
 {
     UpdatingTables.clear();
@@ -3775,7 +3818,29 @@ void TOperationControllerBase::InitializeStandardEdgeDescriptors()
         StandardEdgeDescriptors_[index] = OutputTables_[index].GetEdgeDescriptorTemplate();
         StandardEdgeDescriptors_[index].DestinationPool = Sinks_[index].get();
         StandardEdgeDescriptors_[index].IsFinalOutput = true;
+        StandardEdgeDescriptors_[index].LivePreviewIndex = index;
     }
+}
+
+void TOperationControllerBase::AddChunksToUnstageList(std::vector<TInputChunkPtr> chunks)
+{
+    std::vector<TChunkId> chunkIds;
+    for (const auto& chunk : chunks) {
+        auto it = LivePreviewChunks_.find(chunk);
+        YCHECK(it != LivePreviewChunks_.end());
+        auto livePreviewDescriptor = it->second;
+        DataFlowGraph_->UnregisterLivePreviewChunk(
+            livePreviewDescriptor.VertexDescriptor,
+            livePreviewDescriptor.LivePreviewIndex,
+            chunk);
+        chunkIds.emplace_back(chunk->ChunkId());
+        LOG_DEBUG("Releasing intermediate chunk (ChunkId: %v, VertexDescriptor: %v, LivePreviewIndex: %v)",
+            chunk->ChunkId(),
+            livePreviewDescriptor.VertexDescriptor,
+            livePreviewDescriptor.LivePreviewIndex);
+        LivePreviewChunks_.erase(it);
+    }
+    Host->AddChunkTreesToUnstageList(std::move(chunkIds), false /* recursive */);
 }
 
 void TOperationControllerBase::ProcessSafeException(const std::exception& ex)
@@ -4005,6 +4070,26 @@ void TOperationControllerBase::CreateLivePreviewTables()
                     })
                 .EndList(),
             Null);
+    }
+
+    {
+        LOG_INFO("Creating intermediate data access node (IntermediateDataAcl: %v)",
+            ConvertToYsonString(Spec_->IntermediateDataAcl), EYsonFormat::Text);
+
+        auto path = GetNewOperationPath(OperationId) + "/intermediate_data_access";
+
+        auto req = TCypressYPathProxy::Create(path);
+        req->set_type(static_cast<int>(EObjectType::MapNode));
+        req->set_ignore_existing(true);
+
+        auto attributes = CreateEphemeralAttributes();
+        attributes->Set("acl", ConvertToYsonString(Spec_->IntermediateDataAcl));
+        attributes->Set("inherit_acl", false);
+
+        ToProto(req->mutable_node_attributes(), *attributes);
+        GenerateMutationId(req);
+
+        batchReq->AddRequest(req, "create_intermediate_data_access");
     }
 
     auto batchRspOrError = WaitFor(batchReq->Invoke());
@@ -5766,8 +5851,8 @@ void TOperationControllerBase::SafeOnSnapshotCompleted(const TSnapshotCookie& co
             cookie.SnapshotIndex);
 
         for (const auto& stripeList : stripeListsToRelease) {
-            auto chunkIds = GetStripeListChunkIds(stripeList);
-            Host->AddChunkTreesToUnstageList(std::move(chunkIds), false /* recursive */);
+            auto chunks = GetStripeListChunks(stripeList);
+            AddChunksToUnstageList(std::move(chunks));
             OnChunksReleased(stripeList->TotalChunkCount);
         }
     }
@@ -6054,7 +6139,9 @@ void TOperationControllerBase::BuildProgress(TFluentMap fluent) const
             .Item("duration").Value(ScheduleJobStatistics_->Duration)
             .Item("failed").Value(ScheduleJobStatistics_->Failed)
         .EndMap()
-        .Item("data_flow_graph").DoMap(BIND(&TDataFlowGraph::BuildYson, &DataFlowGraph_))
+		.Item("data_flow_graph").DoMap(BIND([&] (TFluentMap fluent) {
+			DataFlowGraph_.BuildLegacyYson(fluent);
+		}))
         .DoIf(EstimatedInputDataSizeHistogram_.operator bool(), [=] (TFluentMap fluent) {
             EstimatedInputDataSizeHistogram_->BuildHistogramView();
             fluent
@@ -6946,13 +7033,8 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
     Persist(context, StderrTable_);
     Persist(context, CoreTable_);
     Persist(context, IntermediateTable);
-    Persist<
-        TMapSerializer<
-            TDefaultSerializer,
-            TDefaultSerializer,
-            TUnsortedTag
-        >
-    >(context, UserJobFiles_);
+    Persist<TMapSerializer<TDefaultSerializer, TDefaultSerializer, TUnsortedTag>>(context, UserJobFiles_);
+    Persist<TMapSerializer<TDefaultSerializer, TDefaultSerializer, TUnsortedTag>>(context, LivePreviewChunks_);
     Persist(context, Tasks);
     Persist(context, TaskGroups);
     Persist(context, InputChunkMap);
@@ -7013,6 +7095,7 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
             task->Initialize();
         }
         InitUpdatingTables();
+        InitOrchid();
     }
 }
 
@@ -7117,10 +7200,10 @@ TEdgeDescriptor TOperationControllerBase::GetIntermediateEdgeDescriptorTemplate(
 
 void TOperationControllerBase::ReleaseIntermediateStripeList(const NChunkPools::TChunkStripeListPtr& stripeList)
 {
-    auto chunkIds = GetStripeListChunkIds(stripeList);
     switch (GetIntermediateChunkUnstageMode()) {
         case EIntermediateChunkUnstageMode::OnJobCompleted: {
-            Host->AddChunkTreesToUnstageList(std::move(chunkIds), false /* recursive */);
+            auto chunks = GetStripeListChunks(stripeList);
+            AddChunksToUnstageList(std::move(chunks));
             OnChunksReleased(stripeList->TotalChunkCount);
             break;
         }
@@ -7136,6 +7219,26 @@ void TOperationControllerBase::ReleaseIntermediateStripeList(const NChunkPools::
 TDataFlowGraph* TOperationControllerBase::GetDataFlowGraph()
 {
     return &DataFlowGraph_;
+}
+
+void TOperationControllerBase::TLivePreviewChunkDescriptor::Persist(const TPersistenceContext& context)
+{
+    using NYT::Persist;
+
+    Persist(context, VertexDescriptor);
+    Persist(context, LivePreviewIndex);
+}
+
+void TOperationControllerBase::RegisterLivePreviewChunk(
+    const TDataFlowGraph::TVertexDescriptor& vertexDescriptor,
+    int index,
+    const TInputChunkPtr& chunk)
+{
+    YCHECK(LivePreviewChunks_.insert(std::make_pair(
+        chunk,
+        TLivePreviewChunkDescriptor{vertexDescriptor, index})).second);
+
+    DataFlowGraph_->RegisterLivePreviewChunk(vertexDescriptor, index, chunk);
 }
 
 const IThroughputThrottlerPtr& TOperationControllerBase::GetJobSpecSliceThrottler() const

@@ -123,6 +123,11 @@ struct ITaskHost
 
     virtual TDataFlowGraph* GetDataFlowGraph() = 0;
 
+    virtual void RegisterLivePreviewChunk(
+        const TDataFlowGraph::TVertexDescriptor& vertexDescriptor,
+        int index,
+        const NChunkClient::TInputChunkPtr& chunk) = 0;
+
     virtual const NConcurrency::IThroughputThrottlerPtr& GetJobSpecSliceThrottler() const = 0;
 };
 

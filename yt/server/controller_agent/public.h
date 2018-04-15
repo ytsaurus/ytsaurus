@@ -114,8 +114,6 @@ class TBootstrap;
 
 DECLARE_REFCOUNTED_CLASS(TProgressCounter)
 
-class TDataFlowGraph;
-
 class TMemoryTagQueue;
 
 using NScheduler::TIncarnationId;

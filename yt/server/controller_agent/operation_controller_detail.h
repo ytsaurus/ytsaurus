@@ -523,6 +523,8 @@ protected:
     virtual void SyncPrepare();
     void InitUnrecognizedSpec();
     void FillInitializationResult(TOperationControllerInitializationResult* result);
+    void InitOrchid();
+    void ValidateIntermediateDataAccess(const TString& user, NYTree::EPermission permission) const;
     void InitUpdatingTables();
 
     // Preparation.
@@ -841,6 +843,11 @@ protected:
 
     virtual TDataFlowGraph* GetDataFlowGraph() override;
 
+    virtual void RegisterLivePreviewChunk(
+        const TDataFlowGraph::TVertexDescriptor& vertexDescriptor,
+        int index,
+        const NChunkClient::TInputChunkPtr& chunk) override;
+
     virtual const NConcurrency::IThroughputThrottlerPtr& GetJobSpecSliceThrottler() const override;
 
     void FinishTaskInput(const TTaskPtr& task);
@@ -1014,6 +1021,16 @@ private:
 
     void InitializeOrchid();
 
+    struct TLivePreviewChunkDescriptor
+    {
+        TDataFlowGraph::TVertexDescriptor VertexDescriptor;
+        int LivePreviewIndex = -1;
+
+        void Persist(const TPersistenceContext& context);
+    };
+
+    THashMap<NChunkClient::TInputChunkPtr, TLivePreviewChunkDescriptor> LivePreviewChunks_;
+
     ssize_t GetMemoryUsage() const;
 
     void BuildAndSaveProgress();
@@ -1036,6 +1053,8 @@ private:
     void IncreaseNeededResources(const TJobResources& resourcesDelta);
 
     void InitializeStandardEdgeDescriptors();
+
+    void AddChunksToUnstageList(std::vector<NChunkClient::TInputChunkPtr> chunks);
 
     std::vector<NApi::ITransactionPtr> GetTransactions();
 

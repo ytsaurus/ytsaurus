@@ -11,6 +11,7 @@ namespace NControllerAgent {
 using namespace NChunkClient;
 using namespace NConcurrency;
 using namespace NScheduler;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -278,6 +279,18 @@ void TOperationControllerHost::OnOperationBannedInTentativeTree(const TString& t
     LOG_DEBUG("Operation tentative tree ban notification enqueued (OperationId: %v, TreeId: %v)",
         OperationId_,
         treeId);
+}
+
+void TOperationControllerHost::ValidateOperationPermission(
+    const TString& user,
+    EPermission permission,
+    const TString& subnodePath)
+{
+    Bootstrap_->GetControllerAgent()->ValidateOperationPermission(
+        user,
+        OperationId_,
+        permission,
+        subnodePath);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

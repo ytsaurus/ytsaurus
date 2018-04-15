@@ -492,47 +492,9 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        LOG_DEBUG("Validating operation permission (Permission: %v, User: %v, OperationId: %v)",
-            permission,
-            user,
-            operationId);
+        NScheduler::ValidateOperationPermission(user, operationId, GetMasterClient(), permission, Logger);
 
-        const auto& client = GetMasterClient();
-
-        std::vector<NYTree::TYPath> paths = {
-            GetOperationPath(operationId),
-            GetNewOperationPath(operationId)
-        };
-
-        for (const auto& path : paths) {
-            auto asyncResult = client->CheckPermission(user, path, permission);
-            auto resultOrError = WaitFor(asyncResult);
-            if (!resultOrError.IsOK()) {
-                if (resultOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
-                    continue;
-                }
-
-                THROW_ERROR_EXCEPTION("Error checking permission for operation %v",
-                    operationId)
-                    << resultOrError;
-            }
-
-            const auto& result = resultOrError.Value();
-            if (result.Action == ESecurityAction::Allow) {
-                ValidateConnected();
-                LOG_DEBUG("Operation permission successfully validated (Permission: %v, User: %v, OperationId: %v)",
-                    permission,
-                    user,
-                    operationId);
-                return;
-            }
-        }
-
-        THROW_ERROR_EXCEPTION(
-            NSecurityClient::EErrorCode::AuthorizationError,
-            "User %Qv has been denied access to operation %v",
-            user,
-            operationId);
+        ValidateConnected();
     }
 
     TFuture<TOperationPtr> StartOperation(

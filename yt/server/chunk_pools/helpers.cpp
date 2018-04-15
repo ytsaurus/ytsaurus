@@ -46,15 +46,15 @@ void AddStripeToList(
     }
 }
 
-std::vector<TChunkId> GetStripeListChunkIds(const TChunkStripeListPtr& stripeList)
+std::vector<TInputChunkPtr> GetStripeListChunks(const TChunkStripeListPtr& stripeList)
 {
-    std::vector<TChunkId> chunkIds;
+    std::vector<TInputChunkPtr> chunks;
     for (const auto& stripe : stripeList->Stripes) {
         for (const auto& dataSlice : stripe->DataSlices) {
-            chunkIds.emplace_back(dataSlice->GetSingleUnversionedChunkOrThrow()->ChunkId());
+            chunks.emplace_back(dataSlice->GetSingleUnversionedChunkOrThrow());
         }
     }
-    return chunkIds;
+    return chunks;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
