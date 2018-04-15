@@ -2168,11 +2168,17 @@ public:
         }
 
         // Check that after adding or removing trees each node will belong exactly to one tree.
-        if (!CheckTreesConfiguration(idToTree, &errors)) {
-            auto error = TError("Error updating pool trees")
-                << std::move(errors);
-            Host->SetSchedulerAlert(ESchedulerAlertType::UpdatePools, error);
-            return;
+        // Check is skipped if trees configuration did not change.
+        bool skipTreesConfigurationCheck = treeIdsToAdd.empty() && treeIdsToRemove.empty();
+
+        if (!skipTreesConfigurationCheck)
+        {
+            if (!CheckTreesConfiguration(idToTree, &errors)) {
+                auto error = TError("Error updating pool trees")
+                    << std::move(errors);
+                Host->SetSchedulerAlert(ESchedulerAlertType::UpdatePools, error);
+                return;
+            }
         }
 
         // Update configs and pools structure of all trees.
