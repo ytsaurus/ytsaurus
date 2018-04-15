@@ -188,13 +188,18 @@ void TSchemalessTableReader::DoOpen()
     const auto& objectId = userObject.ObjectId;
     const auto tableCellTag = userObject.CellTag;
 
-    auto objectIdPath = FromObjectId(objectId);
-
-    if (userObject.Type != EObjectType::Table) {
-        THROW_ERROR_EXCEPTION("Invalid type of %v: expected %Qlv, actual %Qlv",
-            path,
-            EObjectType::Table,
-            userObject.Type);
+    TYPath objectIdPath;
+    if (objectId) {
+        objectIdPath = FromObjectId(objectId);
+        if (userObject.Type != EObjectType::Table) {
+            THROW_ERROR_EXCEPTION("Invalid type of %v: expected %Qlv, actual %Qlv",
+                path,
+                EObjectType::Table,
+                userObject.Type);
+        }
+    } else {
+        LOG_INFO("Table is virtual, performing further operations with its original address rather with its object id");
+        objectIdPath = path;
     }
 
     int chunkCount;
@@ -245,8 +250,7 @@ void TSchemalessTableReader::DoOpen()
             Client_,
             nodeDirectory,
             tableCellTag,
-            RichPath_,
-            objectId,
+            objectIdPath,
             RichPath_.GetRanges(),
             chunkCount,
             Config_->MaxChunksPerFetch,

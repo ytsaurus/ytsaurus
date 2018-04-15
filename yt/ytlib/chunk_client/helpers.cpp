@@ -147,8 +147,7 @@ void FetchChunkSpecs(
     const INativeClientPtr& client,
     const TNodeDirectoryPtr& nodeDirectory,
     TCellTag cellTag,
-    const TRichYPath& path,
-    const TObjectId& objectId,
+    const TYPath& path,
     const std::vector<NChunkClient::TReadRange>& ranges,
     int chunkCount,
     int maxChunksPerFetch,
@@ -180,7 +179,7 @@ void FetchChunkSpecs(
             }
             adjustedRange.UpperLimit().SetChunkIndex(chunkCountUpperLimit);
 
-            auto req = TChunkOwnerYPathProxy::Fetch(FromObjectId(objectId));
+            auto req = TChunkOwnerYPathProxy::Fetch(path);
             initializeFetchRequest(req.Get());
             NYT::ToProto(req->mutable_ranges(), std::vector<NChunkClient::TReadRange>{adjustedRange});
             batchReq->AddRequest(req, "fetch");
@@ -189,8 +188,7 @@ void FetchChunkSpecs(
     }
 
     auto batchRspOrError = WaitFor(batchReq->Invoke());
-    THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error fetching input table %v",
-        path.GetPath());
+    THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error fetching input table %v", path);
     const auto& batchRsp = batchRspOrError.Value();
     auto rspsOrError = batchRsp->GetResponses<TChunkOwnerYPathProxy::TRspFetch>("fetch");
 
