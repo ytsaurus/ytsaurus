@@ -15,6 +15,7 @@
 #include <yt/ytlib/api/public.h>
 
 #include <yt/core/ytree/public.h>
+#include <yt/core/ytree/permission.h>
 
 #include <yt/core/concurrency/public.h>
 
@@ -147,6 +148,15 @@ public:
      *  \note Thread affinity: any
      */
     const NConcurrency::IThroughputThrottlerPtr& GetJobSpecSliceThrottler() const;
+
+    /*!
+     *  \note Thread affinity: any
+     */
+    void ValidateOperationPermission(
+        const TString& user,
+        const TOperationId& operationId,
+        NYTree::EPermission permission,
+        const TString& subnodePath = "");
 
     //! Raised when connection prcoess starts.
     //! Subscribers may throw and yield.

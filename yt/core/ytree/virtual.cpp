@@ -105,13 +105,26 @@ void TVirtualMapBase::GetSelf(
             if (service) {
                 writer.OnKeyedItem(key);
                 service->WriteAttributes(&writer, attributeKeys, false);
-                writer.OnEntity();
+                if (Opaque_) {
+                    writer.OnEntity();
+                } else {
+                    auto asyncResult = AsyncYPathGet(service, "");
+                    writer.OnRaw(asyncResult);
+                }
             }
         }
     } else {
         for (const auto& key : keys) {
-            writer.OnKeyedItem(key);
-            writer.OnEntity();
+            if (Opaque_) {
+                writer.OnKeyedItem(key);
+                writer.OnEntity();
+            } else {
+                if (auto service = FindItemService(key)) {
+                    writer.OnKeyedItem(key);
+                    auto asyncResult = AsyncYPathGet(service, "");
+                    writer.OnRaw(asyncResult);
+                }
+            }
         }
     }
     writer.OnEndMap();

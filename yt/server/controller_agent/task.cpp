@@ -887,6 +887,13 @@ void TTask::RegisterOutput(
         schedulerJobResultExt->output_boundary_keys());
     for (int tableIndex = 0; tableIndex < EdgeDescriptors_.size(); ++tableIndex) {
         if (outputStripes[tableIndex]) {
+            for (const auto& dataSlice : outputStripes[tableIndex]->DataSlices) {
+                TaskHost_->RegisterLivePreviewChunk(
+                    GetVertexDescriptor(),
+                    EdgeDescriptors_[tableIndex].LivePreviewIndex,
+                    dataSlice->GetSingleUnversionedChunkOrThrow());
+            }
+
             RegisterStripe(
                 std::move(outputStripes[tableIndex]),
                 EdgeDescriptors_[tableIndex],

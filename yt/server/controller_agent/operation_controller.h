@@ -232,6 +232,11 @@ struct IOperationControllerHost
     virtual void OnOperationFailed(const TError& error) = 0;
     virtual void OnOperationSuspended(const TError& error) = 0;
     virtual void OnOperationBannedInTentativeTree(const TString& treeId) = 0;
+
+    virtual void ValidateOperationPermission(
+        const TString& user,
+        NYTree::EPermission permission,
+        const TString& subnodePath = "") = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IOperationControllerHost)

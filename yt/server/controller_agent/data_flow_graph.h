@@ -5,6 +5,8 @@
 
 #include <yt/server/chunk_pools/public.h>
 
+#include <yt/server/table_server/public.h>
+
 #include <yt/ytlib/table_client/helpers.h>
 
 #include <yt/ytlib/chunk_client/public.h>
@@ -12,6 +14,7 @@
 #include <yt/core/misc/topological_ordering.h>
 
 #include <yt/core/ytree/fluent.h>
+#include <yt/core/ytree/virtual.h>
 
 namespace NYT {
 namespace NControllerAgent {
@@ -35,6 +38,12 @@ struct TEdgeDescriptor
     NObjectClient::TCellTag CellTag;
     bool ImmediatelyUnstageChunkLists = false;
     bool IsFinalOutput = false;
+    // In most situations coincicdes with the index of an edge descriptor,
+    // but in some situations may differ. For example, an auto merge task
+    // may have the only output descriptor, but we would like to attach
+    // its output chunks to the live preview with an index corresponding to the
+    // output table index.
+    int LivePreviewIndex = 0;
 
     void Persist(const TPersistenceContext& context);
 
@@ -51,13 +60,12 @@ public:
     static TVertexDescriptor SourceDescriptor;
     static TVertexDescriptor SinkDescriptor;
 
-    TDataFlowGraph() = default;
+    TDataFlowGraph();
+    ~TDataFlowGraph();
 
-    void BuildYson(NYTree::TFluentMap fluent) const;
+    NYTree::IYPathServicePtr GetService() const;
 
     void Persist(const TPersistenceContext& context);
-
-    const std::vector<TVertexDescriptor>& GetTopologicalOrdering() const;
 
     void RegisterFlow(
         const TVertexDescriptor& from,
@@ -69,16 +77,14 @@ public:
         const TProgressCounterPtr& counter,
         EJobType jobType);
 
+    void RegisterLivePreviewChunk(const TVertexDescriptor& descriptor, int index, NChunkClient::TInputChunkPtr chunk);
+    void UnregisterLivePreviewChunk(const TVertexDescriptor& descriptor, int index, NChunkClient::TInputChunkPtr chunk);
+
+    void BuildLegacyYson(NYTree::TFluentMap fluent) const;
+
 private:
-    THashMap<TVertexDescriptor, TProgressCounterPtr> JobCounters_;
-    TProgressCounterPtr TotalJobCounter_ = New<TProgressCounter>(0);
-
-    THashMap<TVertexDescriptor, EJobType> JobTypes_;
-
-    using TFlowMap = THashMap<TVertexDescriptor, THashMap<TVertexDescriptor, NChunkClient::NProto::TDataStatistics>>;
-    TFlowMap Flow_;
-
-    TIncrementalTopologicalOrdering<TVertexDescriptor> TopologicalOrdering_;
+    class TImpl;
+    const TIntrusivePtr<TImpl> Impl_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

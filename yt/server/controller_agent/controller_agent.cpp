@@ -607,6 +607,23 @@ public:
         return JobSpecSliceThrottler_;
     }
 
+    void ValidateOperationPermission(
+        const TString& user,
+        const TOperationId& operationId,
+        EPermission permission,
+        const TString& subnodePath = "")
+    {
+        NScheduler::ValidateOperationPermission(
+            user,
+            operationId,
+            Bootstrap_->GetMasterClient(),
+            permission,
+            Logger,
+            subnodePath);
+
+        ValidateConnected();
+    }
+
     DEFINE_SIGNAL(void(), SchedulerConnecting);
     DEFINE_SIGNAL(void(), SchedulerConnected);
     DEFINE_SIGNAL(void(), SchedulerDisconnected);
@@ -1501,6 +1518,16 @@ const IThroughputThrottlerPtr& TControllerAgent::GetJobSpecSliceThrottler() cons
 {
     return Impl_->GetJobSpecSliceThrottler();
 }
+
+void TControllerAgent::ValidateOperationPermission(
+    const TString& user,
+    const TOperationId& operationId,
+    EPermission permission,
+    const TString& subnodePath)
+{
+    return Impl_->ValidateOperationPermission(user, operationId, permission, subnodePath);
+}
+
 
 DELEGATE_SIGNAL(TControllerAgent, void(), SchedulerConnecting, *Impl_);
 DELEGATE_SIGNAL(TControllerAgent, void(), SchedulerConnected, *Impl_);

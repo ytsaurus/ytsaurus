@@ -15,6 +15,9 @@ class TVirtualMapBase
     : public TSupportsAttributes
     , public ISystemAttributeProvider
 {
+public:
+    DEFINE_BYVAL_RW_PROPERTY(bool, Opaque, true);
+
 protected:
     explicit TVirtualMapBase(INodePtr owningNode = nullptr);
 
@@ -110,3 +113,7 @@ private:
 
 } // namespace NYTree
 } // namespace NYT
+
+#define VIRTUAL_INL_H_
+#include "virtual-inl.h"
+#undef VIRTUAL_INL_H_
