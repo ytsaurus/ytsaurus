@@ -426,3 +426,25 @@ class TestListJobs(YTEnvSetup):
         jobs = list_jobs(op.id, data_source="auto")["jobs"]
         assert len(jobs) == 1
         assert jobs[0]["stderr_size"] > 0
+
+    def test_list_jobs_of_vanilla_operation(self):
+        spec = {
+            "tasks": {
+                "task_a": {
+                    "job_count": 1,
+                    "command": "false"
+                }
+            },
+            "max_failed_job_count": 1
+        }
+
+        op = vanilla(spec=spec, dont_track=True)
+        try:
+            op.track()
+            assert False, "Operation should fail"
+        except YtError:
+            pass
+
+        clean_operations(self.Env.create_native_client())
+        jobs = list_jobs(op.id, data_source="archive")["jobs"]
+        assert len(jobs) == 1
