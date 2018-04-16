@@ -42,7 +42,8 @@ struct TChangelogQuorumInfo
 TFuture<TChangelogQuorumInfo> ComputeChangelogQuorumInfo(
     TDistributedHydraManagerConfigPtr config,
     NElection::TCellManagerPtr cellManager,
-    int changelogId);
+    int changelogId,
+    int localRecordCount);
 
 ////////////////////////////////////////////////////////////////////////////////
 
