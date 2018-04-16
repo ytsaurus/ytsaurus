@@ -130,10 +130,18 @@ TBriefJobStatisticsPtr BuildBriefStatistics(std::unique_ptr<TJobSummary> jobSumm
     const auto& statistics = *jobSummary->Statistics;
 
     auto briefStatistics = New<TBriefJobStatistics>();
-    briefStatistics->ProcessedInputRowCount = GetNumericValue(statistics, InputRowCountPath);
-    briefStatistics->ProcessedInputUncompressedDataSize = GetNumericValue(statistics, InputUncompressedDataSizePath);
-    briefStatistics->ProcessedInputCompressedDataSize = GetNumericValue(statistics, InputCompressedDataSizePath);
-    briefStatistics->ProcessedInputDataWeight = GetNumericValue(statistics, InputDataWeightPath);
+    if (auto value = FindNumericValue(statistics, InputRowCountPath)) {
+        briefStatistics->ProcessedInputRowCount = *value;
+    }
+    if (auto value = FindNumericValue(statistics, InputUncompressedDataSizePath)) {
+        briefStatistics->ProcessedInputUncompressedDataSize = *value;
+    }
+    if (auto value = FindNumericValue(statistics, InputCompressedDataSizePath)) {
+        briefStatistics->ProcessedInputCompressedDataSize = *value;
+    }
+    if (auto value = FindNumericValue(statistics, InputDataWeightPath)) {
+        briefStatistics->ProcessedInputDataWeight = *value;
+    }
     briefStatistics->InputPipeIdleTime = FindNumericValue(statistics, InputPipeIdleTimePath);
     briefStatistics->JobProxyCpuUsage = FindNumericValue(statistics, JobProxyCpuUsagePath);
     briefStatistics->Timestamp = statistics.GetTimestamp().Get(TInstant::Now());
