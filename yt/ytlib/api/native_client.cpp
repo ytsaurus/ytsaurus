@@ -4817,21 +4817,27 @@ private:
                     auto briefStatistics = ConvertToNode(briefStatisticsYson);
 
                     // See BuildBriefStatistics.
-                    auto rowCount = GetNodeByYPath(briefStatistics, "/data/input/row_count/sum");
-                    auto uncompressedDataSize = GetNodeByYPath(briefStatistics, "/data/input/uncompressed_data_size/sum");
-                    auto compressedDataSize = GetNodeByYPath(briefStatistics, "/data/input/compressed_data_size/sum");
-                    auto dataWeight = GetNodeByYPath(briefStatistics, "/data/input/data_weight/sum");
+                    auto rowCount = FindNodeByYPath(briefStatistics, "/data/input/row_count/sum");
+                    auto uncompressedDataSize = FindNodeByYPath(briefStatistics, "/data/input/uncompressed_data_size/sum");
+                    auto compressedDataSize = FindNodeByYPath(briefStatistics, "/data/input/compressed_data_size/sum");
+                    auto dataWeight = FindNodeByYPath(briefStatistics, "/data/input/data_weight/sum");
                     auto inputPipeIdleTime = FindNodeByYPath(briefStatistics, "/user_job/pipes/input/idle_time/sum");
                     auto jobProxyCpuUsage = FindNodeByYPath(briefStatistics, "/job_proxy/cpu/user/sum");
 
                     job.BriefStatistics = BuildYsonStringFluently()
-                        .BeginAttributes()
-                        .EndAttributes()
                         .BeginMap()
-                            .Item("processed_input_row_count").Value(rowCount->AsInt64()->GetValue())
-                            .Item("processed_input_uncompressed_data_size").Value(uncompressedDataSize->AsInt64()->GetValue())
-                            .Item("processed_input_compressed_data_size").Value(compressedDataSize->AsInt64()->GetValue())
-                            .Item("processed_input_data_weight").Value(dataWeight->AsInt64()->GetValue())
+                            .DoIf(static_cast<bool>(rowCount), [&] (TFluentMap fluent) {
+                                fluent.Item("processed_input_row_count").Value(rowCount->AsInt64()->GetValue());
+                            })
+                            .DoIf(static_cast<bool>(uncompressedDataSize), [&] (TFluentMap fluent) {
+                                fluent.Item("processed_input_uncompressed_data_size").Value(uncompressedDataSize->AsInt64()->GetValue());
+                            })
+                            .DoIf(static_cast<bool>(compressedDataSize), [&] (TFluentMap fluent) {
+                                fluent.Item("processed_input_compressed_data_size").Value(compressedDataSize->AsInt64()->GetValue());
+                            })
+                            .DoIf(static_cast<bool>(dataWeight), [&] (TFluentMap fluent) {
+                                fluent.Item("processed_input_data_weight").Value(dataWeight->AsInt64()->GetValue());
+                            })
                             .DoIf(static_cast<bool>(inputPipeIdleTime), [&] (TFluentMap fluent) {
                                 fluent.Item("input_pipe_idle_time").Value(inputPipeIdleTime->AsInt64()->GetValue());
                             })
