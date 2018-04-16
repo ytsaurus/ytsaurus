@@ -605,7 +605,7 @@ void TBootstrap::DoInitialize()
     for (const auto& service : TransactionSupervisor_->GetRpcServices()) {
         RpcServer_->RegisterService(service); // cell realm
     }
-    RpcServer_->RegisterService(New<TLocalSnapshotService>(CellId_, fileSnapshotStore)); // cell realm
+    RpcServer_->RegisterService(CreateLocalSnapshotService(CellId_, fileSnapshotStore)); // cell realm
     RpcServer_->RegisterService(CreateNodeTrackerService(Config_->NodeTracker, this)); // master hydra service
     RpcServer_->RegisterService(CreateObjectService(Config_->ObjectService, this)); // master hydra service
     RpcServer_->RegisterService(CreateJobTrackerService(this)); // master hydra service
