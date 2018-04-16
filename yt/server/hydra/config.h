@@ -255,7 +255,7 @@ public:
     TDistributedHydraManagerConfig()
     {
         RegisterParameter("control_rpc_timeout", ControlRpcTimeout)
-            .Default(TDuration::MilliSeconds(1000));
+            .Default(TDuration::Seconds(5));
 
         RegisterParameter("max_commit_batch_duration", MaxCommitBatchDuration)
             .Default(TDuration::MilliSeconds(100));
