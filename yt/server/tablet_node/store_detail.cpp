@@ -58,8 +58,8 @@ using NTabletNode::NProto::TAddStoreDescriptor;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto ChunkExpirationTimeout = TDuration::Seconds(15);
-static const auto ChunkReaderExpirationTimeout = TDuration::Seconds(15);
+static const auto ChunkExpirationTimeout = TDuration::Minutes(15);
+static const auto ChunkReaderExpirationTimeout = TDuration::Minutes(15);
 
 ////////////////////////////////////////////////////////////////////////////////
 
