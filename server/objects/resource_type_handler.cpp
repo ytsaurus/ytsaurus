@@ -86,58 +86,14 @@ private:
         }
     }
 
-    virtual void AfterObjectCreated(
+    virtual void BeforeObjectCreated(
         const TTransactionPtr& transaction,
         TObject* object) override
     {
-        TObjectTypeHandlerBase::AfterObjectCreated(transaction, object);
+        TObjectTypeHandlerBase::BeforeObjectCreated(transaction, object);
 
         auto* resource = object->As<TResource>();
-        auto& spec = resource->Spec();
-
-        // COMPAT(babenko)
-        if (!spec->has_cpu() &&
-            !spec->has_memory() &&
-            !spec->has_disk())
-        {
-            switch (static_cast<EResourceKind>(spec->kind())) {
-                case EResourceKind::Cpu: {
-                    auto* cpuSpec = spec->mutable_cpu();
-                    cpuSpec->set_total_capacity(spec->total_capacity());
-                    cpuSpec->set_cpu_to_vcpu_factor(1);
-                    break;
-                }
-                case EResourceKind::Memory: {
-                    auto* memorySpec = spec->mutable_memory();
-                    memorySpec->set_total_capacity(spec->total_capacity());
-                    break;
-                }
-                case EResourceKind::Disk: {
-                    auto* diskSpec = spec->mutable_disk();
-                    diskSpec->set_total_capacity(spec->total_capacity());
-                    diskSpec->set_storage_class("hdd");
-                    diskSpec->set_total_volume_slots(100);
-                    diskSpec->set_device("/dev/xyz");
-                    break;
-                }
-                default:
-                    Y_UNREACHABLE();
-            }
-        }
-
-        if (spec->has_cpu()) {
-            resource->Kind() = EResourceKind::Cpu;
-            spec->set_kind(NClient::NApi::NProto::RK_CPU);
-        } else if (spec->has_memory()) {
-            resource->Kind() = EResourceKind::Memory;
-            spec->set_kind(NClient::NApi::NProto::RK_MEMORY);
-        } else if (spec->has_disk()) {
-            resource->Kind() = EResourceKind::Disk;
-            spec->set_kind(NClient::NApi::NProto::RK_DISK);
-        } else {
-            THROW_ERROR_EXCEPTION("Resource %Qv is of an unrecogznied kind",
-                resource->GetId());
-        }
+        transaction->ScheduleValidateNodeResources(resource->Node().Load());
     }
 
     virtual void BeforeObjectRemoved(

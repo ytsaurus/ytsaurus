@@ -10,7 +10,7 @@ class TestResources(object):
         with pytest.raises(YpResponseError):
             yp_client.create_object(object_type="resource", attributes={"spec": {"cpu": {"total_capacity": 100}}})
 
-    def test_create_legacy(self, yp_env):
+    def test_create_legacy1(self, yp_env):
         yp_client = yp_env.yp_client
 
         node_id = yp_client.create_object("node")
@@ -33,19 +33,38 @@ class TestResources(object):
 
         resource_id = yp_client.create_object("resource", attributes={
             "meta": {"node_id": node_id},
-            "spec": {"kind": "memory", "total_capacity": 1000}
-        })
-        assert \
-            yp_client.get_object("resource", resource_id, selectors=["/meta/kind", "/spec/memory"]) == \
-            ["memory", {"total_capacity": 1000}]
-
-        resource_id = yp_client.create_object("resource", attributes={
-            "meta": {"node_id": node_id},
             "spec": {"kind": "disk", "total_capacity": 1000}
         })
         assert \
             yp_client.get_object("resource", resource_id, selectors=["/meta/kind", "/spec/disk"]) == \
             ["disk", {"total_capacity": 1000, "storage_class": "hdd", "device": "/dev/xyz", "total_volume_slots": 100}]
+
+    def test_create_legacy2(self, yp_env):
+        yp_client = yp_env.yp_client
+
+        tx_id = yp_client.start_transaction()
+        node_id = yp_client.create_object("node", transaction_id=tx_id)
+        yp_client.create_object("resource", attributes={
+                "meta": {"node_id": node_id},
+                "spec": {"kind": "cpu", "total_capacity": 1000}
+            },
+            transaction_id=tx_id)
+        yp_client.create_object("resource", attributes={
+                "meta": {"node_id": node_id},
+                "spec": {"kind": "memory", "total_capacity": 1000000}
+            },
+            transaction_id=tx_id)
+        yp_client.create_object("resource", attributes={
+                "meta": {"node_id": node_id},
+                "spec": {"kind": "disk", "total_capacity": 1000000000}
+            },
+            transaction_id=tx_id)
+        yp_client.create_object("resource", attributes={
+                "meta": {"node_id": node_id},
+                "spec": {"kind": "disk", "total_capacity": 1000000000}
+            },
+            transaction_id=tx_id)
+        yp_client.commit_transaction(tx_id)
 
     def test_get(self, yp_env):
         yp_client = yp_env.yp_client
@@ -80,7 +99,7 @@ class TestResources(object):
         node_id = yp_client.create_object(object_type="node")
         resource_attributes = {
             "meta": {"node_id": node_id},
-            "spec": {"kind": "cpu", "total_capacity": 100}
+            "spec": {"disk": {"total_capacity": 1000, "storage_class": "hdd", "device": "/dev/null"}}
         }
         resource_ids = [yp_client.create_object(object_type="resource", attributes=resource_attributes)
                         for i in xrange(10)]
