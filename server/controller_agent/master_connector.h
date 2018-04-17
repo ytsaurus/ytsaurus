@@ -31,8 +31,8 @@ public:
 
     void Initialize();
 
-    void StartOperationNodeUpdates(
-        const TOperationId& operationId);
+    void RegisterOperation(const TOperationId& operationId);
+    void UnregisterOperation(const TOperationId& operationId);
 
     void CreateJobNode(
         const TOperationId& operationId,
@@ -52,6 +52,8 @@ public:
     void AddChunkTreesToUnstageList(
         std::vector<NChunkClient::TChunkTreeId> chunkTreeIds,
         bool recursive);
+
+    TFuture<void> UpdateConfig();
 
 private:
     class TImpl;

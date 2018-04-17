@@ -84,7 +84,7 @@ public:
                 memoryStatistics.Rss += memoryUsage.Rss - memoryUsage.Shared;
                 memoryStatistics.MappedFile += memoryUsage.Shared;
 
-                LOG_DEBUG("Pid: %v, ProcessName: %Qv, Rss: %v, Shared: %v",
+                LOG_DEBUG("Memory statistics collected (Pid: %v, ProcessName: %v, Rss: %v, Shared: %v)",
                     pid,
                     GetProcessName(pid),
                     memoryStatistics.Rss,
@@ -143,6 +143,12 @@ public:
         if (CGroupsConfig_->IsCGroupSupported(TBlockIO::Name)) {
             CGroups_.BlockIO.ThrottleOperations(operations);
         }
+    }
+
+    virtual void SetMemoryGuarantee(i64 memoryGuarantee) override
+    {
+        Y_UNUSED(memoryGuarantee);
+        // Memory guarantee is not supported for cgroups memory environment.
     }
 
     virtual IResourceControllerPtr CreateSubcontroller(const TString& name) override
@@ -334,6 +340,11 @@ public:
         if (UseResourceLimits_) {
             Container_->SetIOThrottle(operations);
         }
+    }
+
+    virtual void SetMemoryGuarantee(i64 memoryGuarantee) override
+    {
+        Container_->SetMemoryGuarantee(memoryGuarantee);
     }
 
     virtual IResourceControllerPtr CreateSubcontroller(const TString& name) override

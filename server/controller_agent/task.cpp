@@ -189,13 +189,14 @@ void TTask::FinishInput()
 {
     LOG_DEBUG("Task input finished" );
 
-    // GetChunkPoolInput() may return false on tasks that do not require input, such as for vanilla operation.
+    // GetChunkPoolInput() may return nullptr on tasks that do not require input, such as for vanilla operation.
     if (const auto& chunkPoolInput = GetChunkPoolInput()) {
         chunkPoolInput->Finish();
     }
     auto progressCounter = GetChunkPoolOutput()->GetJobCounter();
     if (!progressCounter->Parent()) {
-        TaskHost_->GetDataFlowGraph()->RegisterTask(GetVertexDescriptor(), progressCounter, GetJobType());
+        TaskHost_->GetDataFlowGraph()
+            ->RegisterCounter(GetVertexDescriptor(), progressCounter, GetJobType());
     }
     AddPendingHint();
     CheckCompleted();
@@ -243,7 +244,9 @@ void TTask::ScheduleJob(
     }
 
     int jobIndex = TaskHost_->NextJobIndex();
-    auto joblet = New<TJoblet>(this, jobIndex, treeId);
+    int taskJobIndex = TaskJobIndexGenerator_.Next();
+    auto joblet = New<TJoblet>(this, jobIndex, taskJobIndex, treeId);
+    joblet->StartTime = TInstant::Now();
 
     const auto& nodeResourceLimits = context->ResourceLimits();
     auto nodeId = context->GetNodeDescriptor().Id;
@@ -436,6 +439,11 @@ void TTask::Persist(const TPersistenceContext& context)
     Persist(context, JobProxyMemoryDigest_);
 
     Persist(context, InputChunkMapping_);
+
+    // COMPAT(max42)
+    if (context.IsSave() || context.GetVersion() >= 202195) {
+        Persist(context, TaskJobIndexGenerator_);
+    }
 }
 
 void TTask::PrepareJoblet(TJobletPtr /* joblet */)
@@ -904,6 +912,11 @@ void TTask::RegisterStripe(
         const auto& chunkMapping = edgeDescriptor.ChunkMapping;
         YCHECK(chunkMapping);
 
+        LOG_DEBUG("Registering stripe in a direction that requires recovery info (JobId: %v, Restarted: %v, JobType: %v)",
+            joblet->JobId,
+            joblet->Restarted,
+            joblet->JobType);
+
         IChunkPoolInput::TCookie inputCookie = IChunkPoolInput::NullCookie;
         auto lostIt = LostJobCookieMap.find(TCookieAndPool(joblet->OutputCookie, edgeDescriptor.DestinationPool));
         if (lostIt == LostJobCookieMap.end()) {
@@ -920,6 +933,10 @@ void TTask::RegisterStripe(
             YCHECK(inputCookie != IChunkPoolInput::NullCookie);
             try {
                 chunkMapping->OnStripeRegenerated(inputCookie, stripe);
+                LOG_DEBUG("Successfully registered recovered stripe in chunk mapping (JobId: %v, JobType: %v, InputCookie: %v)",
+                    joblet->JobId,
+                    joblet->JobType,
+                    inputCookie);
             } catch (const std::exception& ex) {
                 auto error = TError("Failure while registering result stripe of a restarted job in a chunk mapping")
                     << ex

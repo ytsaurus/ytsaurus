@@ -24,6 +24,7 @@
 #include <yt/core/ytree/ephemeral_node_factory.h>
 #include <yt/core/ytree/fluent.h>
 #include <yt/core/ytree/node_detail.h>
+#include <yt/core/ytree/overlaid_attribute_dictionaries.h>
 #include <yt/core/ytree/tree_builder.h>
 #include <yt/core/ytree/proto/ypath.pb.h>
 
@@ -106,7 +107,8 @@ public:
         const TNodeId& hintId,
         NObjectClient::TCellTag externalCellTag,
         NTransactionServer::TTransaction* transaction,
-        NYTree::IAttributeDictionary* attributes,
+        NYTree::IAttributeDictionary* inheritedAttributes,
+        NYTree::IAttributeDictionary* explicitAttributes,
         NSecurityServer::TAccount* account) override
     {
         const auto& objectManager = Bootstrap_->GetObjectManager();
@@ -115,8 +117,32 @@ public:
             TVersionedNodeId(id),
             externalCellTag,
             transaction,
-            attributes,
+            inheritedAttributes,
+            explicitAttributes,
             account);
+    }
+
+    virtual void FillAttributes(
+        TCypressNodeBase* trunkNode,
+        NYTree::IAttributeDictionary* inheritedAttributes,
+        NYTree::IAttributeDictionary* explicitAttributes) override
+    {
+        for (const auto& key : inheritedAttributes->List()) {
+            if (!IsSupportedInheritableAttribute(key)) {
+                inheritedAttributes->Remove(key);
+            }
+        }
+
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+        auto combinedAttributes = NYTree::OverlayAttributeDictionaries(explicitAttributes, inheritedAttributes);
+        objectManager->FillAttributes(trunkNode, combinedAttributes);
+    }
+
+    virtual bool IsSupportedInheritableAttribute(const TString& /*key*/) const
+    {
+        // NB: most node types don't inherit attributes. That would lead to
+        // a lot of pseudo-user attributes.
+        return false;
     }
 
     virtual void Destroy(TCypressNodeBase* node) override
@@ -212,7 +238,8 @@ protected:
         const NCypressServer::TVersionedNodeId& id,
         NObjectClient::TCellTag externalCellTag,
         NTransactionServer::TTransaction* /*transaction*/,
-        NYTree::IAttributeDictionary* /*attributes*/,
+        NYTree::IAttributeDictionary* inheritedAttributes,
+        NYTree::IAttributeDictionary* explicitAttributes,
         NSecurityServer::TAccount* account)
     {
         auto nodeHolder = std::make_unique<TImpl>(id);
@@ -555,7 +582,7 @@ private:
     FOR_EACH_SIMPLE_INHERITABLE_ATTRIBUTE(process) \
     process(PrimaryMediumIndex, primary_medium) \
     process(Media, media) \
-    process(TabletCellBundle, tablet_cell_bundle) \
+    process(TabletCellBundle, tablet_cell_bundle)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -803,7 +830,8 @@ private:
         const TVersionedNodeId& id,
         NObjectClient::TCellTag cellTag,
         NTransactionServer::TTransaction* transaction,
-        NYTree::IAttributeDictionary* attributes,
+        NYTree::IAttributeDictionary* inheritedAttributes,
+        NYTree::IAttributeDictionary* explicitAttributes,
         NSecurityServer::TAccount* account) override;
 
     virtual void DoBranch(

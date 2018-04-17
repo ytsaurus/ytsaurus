@@ -2,6 +2,7 @@
 
 #include "private.h"
 #include "scheduler.h"
+#include "scheduler_strategy.h"
 #include "scheduling_tag.h"
 
 #include <yt/ytlib/api/client.h>
@@ -162,8 +163,12 @@ public:
     int GetExecNodeCount();
     int GetTotalNodeCount();
 
-    TFuture<NControllerAgent::TScheduleJobResultPtr> BeginScheduleJob(const TJobId& jobId);
-    void EndScheduleJob(const NProto::TScheduleJobResponse& response);
+    TFuture<NControllerAgent::TScheduleJobResultPtr> BeginScheduleJob(
+        const TIncarnationId& incarnationId,
+        const TOperationId& operationId,
+        const TJobId& jobId);
+    void EndScheduleJob(
+        const NProto::TScheduleJobResponse& response);
 
 private:
     const int Id_;
@@ -208,10 +213,19 @@ private:
     TAbortedJobCounter AbortedJobCounter_;
     TCompletedJobCounter CompletedJobCounter_;
 
-    std::vector<TUpdatedJob> UpdatedJobs_;
-    std::vector<TFinishedJob> FinishedJobs_;
+    THashMap<TJobId, TJobUpdate> JobsToSubmitToStrategy_;
 
-    THashMap<TJobId, TPromise<NControllerAgent::TScheduleJobResultPtr>> JobIdToAsyncScheduleResult_;
+    struct TScheduleJobEntry
+    {
+        TOperationId OperationId;
+        TIncarnationId IncarnationId;
+        TPromise<NControllerAgent::TScheduleJobResultPtr> Promise;
+        THashMultiMap<TOperationId, THashMap<TJobId, TScheduleJobEntry>::iterator>::iterator OperationIdToJobIdsIterator;
+    };
+    // NB: It is important to use THash* instead of std::unordered_* since we rely on
+    // iterators not to be uninvalidated.
+    THashMap<TJobId, TScheduleJobEntry> JobIdToScheduleEntry_;
+    THashMultiMap<TOperationId, THashMap<TJobId, TScheduleJobEntry>::iterator> OperationIdToJobIterators_;
 
     NConcurrency::TPeriodicExecutorPtr SubmitJobsToStrategyExecutor_;
 
@@ -226,6 +240,7 @@ private:
         { }
 
         THashMap<TJobId, TJobPtr> Jobs;
+        THashSet<TJobId> RecentlyCompletedJobIds;
         IOperationControllerPtr Controller;
         bool Terminated = false;
         //! Raised to prevent races between suspension and scheduler strategy scheduling new jobs.
@@ -239,6 +254,8 @@ private:
 
     THashMap<TOperationId, TOperationState> IdToOpertionState_;
     TEpoch CurrentEpoch_ = 0;
+
+    void ValidateConnected();
 
     void DoCleanup();
 
@@ -306,10 +323,12 @@ private:
     void SetJobState(const TJobPtr& job, EJobState state);
 
     void RegisterJob(const TJobPtr& job);
-    void UnregisterJob(const TJobPtr& job, bool enableLogging = true, bool removeFromStrategy = true);
+    void UnregisterJob(const TJobPtr& job, bool enableLogging = true);
 
     void SetJobWaitingForConfirmation(const TJobPtr& job);
     void ResetJobWaitingForConfirmation(const TJobPtr& job);
+
+    void RemoveRecentlyCompletedJob(const TJobId& jobId);
 
     void PreemptJob(const TJobPtr& job, TNullable<NProfiling::TCpuDuration> interruptTimeout);
 

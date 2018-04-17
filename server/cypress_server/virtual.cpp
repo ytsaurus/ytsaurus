@@ -591,6 +591,12 @@ private:
     const TYPathServiceProducer Producer_;
 
 
+    static EPermission PermissionFromRequest(const IServiceContextPtr& context)
+    {
+        const auto& ypathExt = context->RequestHeader().GetExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
+        return ypathExt.mutating() ? EPermission::Write : EPermission::Read;
+    }
+
     virtual TResolveResult ResolveSelf(const TYPath& path, const IServiceContextPtr& context) override
     {
         auto service = GetService();
@@ -600,6 +606,8 @@ private:
             method != "GetBasicAttributes" &&
             method != "CheckPermission")
         {
+            auto permission = PermissionFromRequest(context);
+            ValidatePermission(EPermissionCheckScope::This, permission);
             return TResolveResultThere{std::move(service), path};
         } else {
             return TBase::ResolveSelf(path, context);

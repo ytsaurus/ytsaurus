@@ -34,6 +34,8 @@ void TDumpJobContextCommand::DoExecute(ICommandContextPtr context)
 {
     WaitFor(context->GetClient()->DumpJobContext(JobId, Path))
         .ThrowOnError();
+
+    ProduceEmptyOutput(context);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -73,6 +75,23 @@ TGetJobStderrCommand::TGetJobStderrCommand()
 void TGetJobStderrCommand::DoExecute(ICommandContextPtr context)
 {
     auto result = WaitFor(context->GetClient()->GetJobStderr(OperationId, JobId, Options))
+        .ValueOrThrow();
+
+    auto output = context->Request().OutputStream;
+    output->Write(result);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TGetJobFailContextCommand::TGetJobFailContextCommand()
+{
+    RegisterParameter("operation_id", OperationId);
+    RegisterParameter("job_id", JobId);
+}
+
+void TGetJobFailContextCommand::DoExecute(ICommandContextPtr context)
+{
+    auto result = WaitFor(context->GetClient()->GetJobFailContext(OperationId, JobId, Options))
         .ValueOrThrow();
 
     auto output = context->Request().OutputStream;
@@ -187,6 +206,9 @@ void TListOperationsCommand::BuildOperations(const TListOperationsResult& result
                             .DoIf(operation.Weight.operator bool(), [&] (TFluentMap fluent) {
                                 fluent.Item("weight").Value(operation.Weight);
                             })
+                            .DoIf(operation.Pool.operator bool(), [&] (TFluentMap fluent) {
+                                fluent.Item("pool").Value(operation.Pool);
+                            })
                         .EndMap();
                 })
             .EndList()
@@ -258,6 +280,8 @@ TListJobsCommand::TListJobsCommand()
         .Optional();
     RegisterParameter("with_stderr", Options.WithStderr)
         .Optional();
+    RegisterParameter("with_fail_context", Options.WithFailContext)
+        .Optional();
 
     RegisterParameter("sort_field", Options.SortField)
         .Optional();
@@ -267,6 +291,9 @@ TListJobsCommand::TListJobsCommand()
     RegisterParameter("limit", Options.Limit)
         .Optional();
     RegisterParameter("offset", Options.Offset)
+        .Optional();
+
+    RegisterParameter("data_source", Options.DataSource)
         .Optional();
 
     RegisterParameter("include_cypress", Options.IncludeCypress)
@@ -306,6 +333,9 @@ void TListJobsCommand::DoExecute(ICommandContextPtr context)
                             .DoIf(job.StderrSize.operator bool(), [&] (TFluentMap fluent) {
                                 fluent.Item("stderr_size").Value(*job.StderrSize);
                             })
+                            .DoIf(job.FailContextSize.operator bool(), [&] (TFluentMap fluent) {
+                                fluent.Item("fail_context_size").Value(*job.FailContextSize);
+                            })
                             .DoIf(job.Error.operator bool(), [&] (TFluentMap fluent) {
                                 fluent.Item("error").Value(job.Error);
                             })
@@ -324,14 +354,9 @@ void TListJobsCommand::DoExecute(ICommandContextPtr context)
             .Item("cypress_job_count").Value(result.CypressJobCount)
             .Item("scheduler_job_count").Value(result.SchedulerJobCount)
             .Item("archive_job_count").Value(result.ArchiveJobCount)
-            .Item("address_counts").BeginMap()
-                .DoFor(result.AddressCounts, [] (TFluentMap fluent, const auto& item) {
-                    fluent.Item(item.first).Value(item.second);
-                })
-            .EndMap()
             .Item("type_counts").BeginMap()
                 .DoFor(TEnumTraits<NJobTrackerClient::EJobType>::GetDomainValues(), [&] (TFluentMap fluent, const auto& item) {
-                    i64 count = result.TypeCounts[item];
+                    i64 count = result.Statistics.TypeCounts[item];
                     if (count) {
                         fluent.Item(FormatEnum(item)).Value(count);
                     }
@@ -339,7 +364,7 @@ void TListJobsCommand::DoExecute(ICommandContextPtr context)
             .EndMap()
             .Item("state_counts").BeginMap()
                 .DoFor(TEnumTraits<NJobTrackerClient::EJobState>::GetDomainValues(), [&] (TFluentMap fluent, const auto& item) {
-                    i64 count = result.StateCounts[item];
+                    i64 count = result.Statistics.StateCounts[item];
                     if (count) {
                         fluent.Item(FormatEnum(item)).Value(count);
                     }
@@ -362,8 +387,7 @@ void TGetJobCommand::DoExecute(ICommandContextPtr context)
     auto result = WaitFor(asyncResult)
         .ValueOrThrow();
 
-    context->ProduceOutputValue(BuildYsonStringFluently()
-        .Value(result));
+    ProduceSingleOutputValue(context, "job", result);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -379,8 +403,7 @@ void TStraceJobCommand::DoExecute(ICommandContextPtr context)
     auto result = WaitFor(asyncResult)
         .ValueOrThrow();
 
-    context->ProduceOutputValue(BuildYsonStringFluently()
-        .Value(result));
+    ProduceSingleOutputValue(context, "trace", result);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -395,6 +418,8 @@ void TSignalJobCommand::DoExecute(ICommandContextPtr context)
 {
     WaitFor(context->GetClient()->SignalJob(JobId, SignalName))
         .ThrowOnError();
+
+    ProduceEmptyOutput(context);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -408,6 +433,8 @@ void TAbandonJobCommand::DoExecute(ICommandContextPtr context)
 {
     WaitFor(context->GetClient()->AbandonJob(JobId))
         .ThrowOnError();
+
+    ProduceEmptyOutput(context);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -434,7 +461,7 @@ void TPollJobShellCommand::DoExecute(ICommandContextPtr context)
     auto result = WaitFor(asyncResult)
         .ValueOrThrow();
 
-    context->ProduceOutputValue(result);
+    ProduceSingleOutputValue(context, "result", result);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -450,91 +477,82 @@ void TAbortJobCommand::DoExecute(ICommandContextPtr context)
 {
     WaitFor(context->GetClient()->AbortJob(JobId, Options))
         .ThrowOnError();
+
+    ProduceEmptyOutput(context);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TStartOperationCommand::TStartOperationCommand()
+TStartOperationCommand::TStartOperationCommand(TNullable<NScheduler::EOperationType> operationType)
 {
     RegisterParameter("spec", Spec);
-    RegisterParameter("operation_type", OperationType)
-        .Default();
-}
-
-EOperationType TStartOperationCommand::GetOperationType() const
-{
-    return OperationType;
+    if (operationType) {
+        OperationType = *operationType;
+    } else {
+        RegisterParameter("operation_type", OperationType);
+    }
 }
 
 void TStartOperationCommand::DoExecute(ICommandContextPtr context)
 {
     auto asyncOperationId = context->GetClient()->StartOperation(
-        GetOperationType(),
+        OperationType,
         ConvertToYsonString(Spec),
         Options);
 
     auto operationId = WaitFor(asyncOperationId)
         .ValueOrThrow();
 
-    context->ProduceOutputValue(BuildYsonStringFluently()
-        .Value(operationId));
+    ProduceSingleOutputValue(context, "operation_id", operationId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-EOperationType TMapCommand::GetOperationType() const
-{
-    return EOperationType::Map;
-}
+TMapCommand::TMapCommand()
+    : TStartOperationCommand(EOperationType::Map)
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-EOperationType TMergeCommand::GetOperationType() const
-{
-    return EOperationType::Merge;
-}
+TMergeCommand::TMergeCommand()
+    : TStartOperationCommand(EOperationType::Merge)
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-EOperationType TSortCommand::GetOperationType() const
-{
-    return EOperationType::Sort;
-}
+TSortCommand::TSortCommand()
+    : TStartOperationCommand(EOperationType::Sort)
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-EOperationType TEraseCommand::GetOperationType() const
-{
-    return EOperationType::Erase;
-}
+TEraseCommand::TEraseCommand()
+    : TStartOperationCommand(EOperationType::Erase)
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-EOperationType TReduceCommand::GetOperationType() const
-{
-    return EOperationType::Reduce;
-}
+TReduceCommand::TReduceCommand()
+    : TStartOperationCommand(EOperationType::Reduce)
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-EOperationType TJoinReduceCommand::GetOperationType() const
-{
-    return EOperationType::JoinReduce;
-}
+TJoinReduceCommand::TJoinReduceCommand()
+    : TStartOperationCommand(EOperationType::JoinReduce)
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-EOperationType TMapReduceCommand::GetOperationType() const
-{
-    return EOperationType::MapReduce;
-}
+TMapReduceCommand::TMapReduceCommand()
+    : TStartOperationCommand(EOperationType::MapReduce)
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-EOperationType TRemoteCopyCommand::GetOperationType() const
-{
-    return EOperationType::RemoteCopy;
-}
+TRemoteCopyCommand::TRemoteCopyCommand()
+    : TStartOperationCommand(EOperationType::RemoteCopy)
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -548,6 +566,8 @@ void TAbortOperationCommand::DoExecute(ICommandContextPtr context)
 {
     WaitFor(context->GetClient()->AbortOperation(OperationId, Options))
         .ThrowOnError();
+
+    ProduceEmptyOutput(context);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -562,6 +582,8 @@ void TSuspendOperationCommand::DoExecute(ICommandContextPtr context)
 {
     WaitFor(context->GetClient()->SuspendOperation(OperationId, Options))
         .ThrowOnError();
+
+    ProduceEmptyOutput(context);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -570,6 +592,8 @@ void TResumeOperationCommand::DoExecute(ICommandContextPtr context)
 {
     WaitFor(context->GetClient()->ResumeOperation(OperationId))
         .ThrowOnError();
+
+    ProduceEmptyOutput(context);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -578,6 +602,8 @@ void TCompleteOperationCommand::DoExecute(ICommandContextPtr context)
 {
     WaitFor(context->GetClient()->CompleteOperation(OperationId))
         .ThrowOnError();
+
+    ProduceEmptyOutput(context);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -586,27 +612,16 @@ TUpdateOperationParametersCommand::TUpdateOperationParametersCommand()
 {
     RegisterParameter("operation_id", OperationId);
     RegisterParameter("parameters", Parameters);
-
-    RegisterPostprocessor([&] {
-        auto parameters = Parameters->AsMap();
-
-        auto ownersNode = parameters->FindChild("owners");
-        if (ownersNode) {
-            std::vector<TString> owners;
-            Deserialize(owners, ownersNode);
-            Options.Owners = std::move(owners);
-        }
-
-        auto schedulingOptionsPerPoolTreeNode = parameters->FindChild("scheduling_options_per_pool_tree");
-        if (schedulingOptionsPerPoolTreeNode) {
-            Deserialize(Options.SchedulingOptionsPerPoolTree, schedulingOptionsPerPoolTreeNode);
-        }
-    });
 }
 
 void TUpdateOperationParametersCommand::DoExecute(ICommandContextPtr context)
 {
-    WaitFor(context->GetClient()->UpdateOperationParameters(OperationId, Options))
+    auto asyncResult = context->GetClient()->UpdateOperationParameters(
+        OperationId,
+        ConvertToYsonString(Parameters),
+        Options);
+
+    WaitFor(asyncResult)
         .ThrowOnError();
 }
 
@@ -616,6 +631,8 @@ TGetOperationCommand::TGetOperationCommand()
 {
     RegisterParameter("operation_id", OperationId);
     RegisterParameter("attributes", Options.Attributes)
+        .Optional();
+    RegisterParameter("include_scheduler", Options.IncludeScheduler)
         .Optional();
 }
 

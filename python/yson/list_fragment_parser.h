@@ -1,6 +1,6 @@
 #pragma once
 
-#include "stream.h"
+#include <yt/python/common/stream.h>
 
 #include <yt/core/misc/nullable.h>
 #include <yt/core/misc/ref.h>

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "helpers.h"
+#include <yt/python/common/helpers.h>
 
 #include <yt/core/yson/lexer_detail.h>
 

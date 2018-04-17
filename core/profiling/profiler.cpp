@@ -3,6 +3,7 @@
 #include "timing.h"
 
 #include <yt/core/misc/nullable.h>
+#include <yt/core/misc/farm_hash.h>
 
 #include <yt/core/ypath/token.h>
 
@@ -106,6 +107,7 @@ TAggregateCounter::TAggregateCounter(const TAggregateCounter& other)
 TAggregateCounter& TAggregateCounter::operator=(const TAggregateCounter& other)
 {
     static_cast<TCounterBase&>(*this) = static_cast<const TCounterBase&>(other);
+    Mode_ = other.Mode_;
     Reset();
     return *this;
 }
@@ -419,3 +421,16 @@ void TProfiler::OnUpdated(TSimpleCounter& counter) const
 
 } // namespace NProfiling
 } // namespace NYT
+
+////////////////////////////////////////////////////////////////////////////////
+
+size_t hash<NYT::NProfiling::TTagIdList>::operator()(const NYT::NProfiling::TTagIdList& list) const
+{
+    size_t result = 1;
+    for (auto tag : list) {
+        result = NYT::FarmFingerprint(result, tag);
+    }
+    return result;
+}
+
+////////////////////////////////////////////////////////////////////////////////

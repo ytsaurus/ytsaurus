@@ -169,10 +169,9 @@ public:
 
     virtual ICypressNodeProxyPtr CreateNode(
         EObjectType type,
-        IAttributeDictionary* attributes = nullptr) override
+        IAttributeDictionary* inheritedAttributes = nullptr,
+        IAttributeDictionary* explicitAttributes = nullptr) override
     {
-        ValidateCreatedNodeType(type);
-
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         const auto& handler = cypressManager->FindHandler(type);
         if (!handler) {
@@ -180,21 +179,28 @@ public:
                 type);
         }
 
-        std::unique_ptr<IAttributeDictionary> attributeHolder;
-        if (!attributes) {
-            attributeHolder = CreateEphemeralAttributes();
-            attributes = attributeHolder.get();
+        ValidateCreatedNodeTypePermission(type);
+
+        std::unique_ptr<IAttributeDictionary> explicitAttributeHolder;
+        if (!explicitAttributes) {
+            explicitAttributeHolder = CreateEphemeralAttributes();
+            explicitAttributes = explicitAttributeHolder.get();
+        }
+        std::unique_ptr<IAttributeDictionary> inheritedAttributeHolder;
+        if (!inheritedAttributes) {
+            inheritedAttributeHolder = CreateEphemeralAttributes();
+            inheritedAttributes = inheritedAttributeHolder.get();
         }
 
         // TODO(babenko): this is a temporary workaround until dynamic tables become fully supported in
         // multicell mode
-        if (attributes->Get<bool>("dynamic", false)) {
-            attributes->Set("external", false);
+        if (explicitAttributes->Get<bool>("dynamic", false)) {
+            explicitAttributes->Set("external", false);
         }
 
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         auto* account = GetNewNodeAccount();
-        auto maybeAccount = attributes->FindAndRemove<TString>("account");
+        auto maybeAccount = explicitAttributes->FindAndRemove<TString>("account");
         if (maybeAccount) {
             account = securityManager->GetAccountByNameOrThrow(*maybeAccount);
         }
@@ -206,9 +212,9 @@ public:
             Bootstrap_->IsPrimaryMaster() &&
             !multicellManager->GetRegisteredMasterCellTags().empty() &&
             handler->IsExternalizable();
-        bool isExternal = attributes->GetAndRemove<bool>("external", isExternalDefault);
+        bool isExternal = explicitAttributes->GetAndRemove<bool>("external", isExternalDefault);
 
-        double externalCellBias = attributes->GetAndRemove<double>("external_cell_bias", 1.0);
+        double externalCellBias = explicitAttributes->GetAndRemove<double>("external_cell_bias", 1.0);
         if (externalCellBias < 0.0 || externalCellBias > 1.0) {
             THROW_ERROR_EXCEPTION("\"external_cell_bias\" must be in range [0, 1]");
         }
@@ -224,7 +230,7 @@ public:
                     handler->GetObjectType());
             }
 
-            auto maybeExternalCellTag = attributes->FindAndRemove<TCellTag>("external_cell_tag");
+            auto maybeExternalCellTag = explicitAttributes->FindAndRemove<TCellTag>("external_cell_tag");
             if (maybeExternalCellTag) {
                 cellTag = *maybeExternalCellTag;
                 if (!multicellManager->IsRegisteredMasterCell(cellTag)) {
@@ -238,10 +244,12 @@ public:
             }
         }
 
-        // INodeTypeHandler::Create may modify the attributes.
-        std::unique_ptr<IAttributeDictionary> replicationAttributes;
+        // INodeTypeHandler::Create and ::FillAttributes may modify the attributes.
+        std::unique_ptr<IAttributeDictionary> replicationExplicitAttributes;
+        std::unique_ptr<IAttributeDictionary> replicationInheritedAttributes;
         if (isExternal) {
-            replicationAttributes = attributes->Clone();
+            replicationExplicitAttributes = explicitAttributes->Clone();
+            replicationInheritedAttributes = inheritedAttributes->Clone();
         }
 
         auto* trunkNode = cypressManager->CreateNode(
@@ -250,12 +258,12 @@ public:
             handler,
             account,
             Transaction_,
-            attributes);
+            inheritedAttributes,
+            explicitAttributes);
 
         RegisterCreatedNode(trunkNode);
 
-        const auto& objectManager = Bootstrap_->GetObjectManager();
-        objectManager->FillAttributes(trunkNode, *attributes);
+        handler->FillAttributes(trunkNode, inheritedAttributes, explicitAttributes);
 
         cypressManager->LockNode(
             trunkNode,
@@ -271,7 +279,8 @@ public:
                 ToProto(replicationRequest.mutable_transaction_id(), Transaction_->GetId());
             }
             replicationRequest.set_type(static_cast<int>(type));
-            ToProto(replicationRequest.mutable_node_attributes(), *replicationAttributes);
+            ToProto(replicationRequest.mutable_explicit_node_attributes(), *replicationExplicitAttributes);
+            ToProto(replicationRequest.mutable_inherited_node_attributes(), *replicationInheritedAttributes);
             ToProto(replicationRequest.mutable_account_id(), account->GetId());
             multicellManager->PostToMaster(replicationRequest, cellTag);
         }
@@ -295,7 +304,7 @@ public:
         TCypressNodeBase* sourceNode,
         ENodeCloneMode mode) override
     {
-        ValidateCreatedNodeType(sourceNode->GetType());
+        ValidateCreatedNodeTypePermission(sourceNode->GetType());
 
         auto* clonedAccount = GetClonedNodeAccount(sourceNode);
         // Resource limit check must be suppressed when moving nodes
@@ -350,7 +359,7 @@ private:
     std::vector<TCypressNodeBase*> CreatedNodes_;
 
 
-    void ValidateCreatedNodeType(EObjectType type)
+    void ValidateCreatedNodeTypePermission(EObjectType type)
     {
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto* schema = objectManager->GetSchema(type);
@@ -604,12 +613,14 @@ public:
         INodeTypeHandlerPtr handler,
         TAccount* account,
         TTransaction* transaction,
-        IAttributeDictionary* attributes)
+        IAttributeDictionary* inheritedAttributes,
+        IAttributeDictionary* explicitAttributes)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YCHECK(handler);
         YCHECK(account);
-        YCHECK(attributes);
+        YCHECK(inheritedAttributes);
+        YCHECK(explicitAttributes);
 
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         auto* user = securityManager->GetAuthenticatedUser();
@@ -619,7 +630,8 @@ public:
             hintId,
             externalCellTag,
             transaction,
-            attributes,
+            inheritedAttributes,
+            explicitAttributes,
             account);
         auto* node = RegisterNode(std::move(nodeHolder));
 
@@ -2065,7 +2077,7 @@ private:
 
         auto* trunkNode = branchedNode->GetTrunkNode();
         auto branchedNodeId = branchedNode->GetVersionedId();
-        
+
         if (branchedNode->GetLockMode() != ELockMode::Snapshot) {
             auto* originatingNode = branchedNode->GetOriginator();
 
@@ -2116,7 +2128,7 @@ private:
 
         auto* trunkNode = branchedNode->GetTrunkNode();
         auto branchedNodeId = branchedNode->GetVersionedId();
-        
+
         // Drop the implicit reference to the originator.
         objectManager->UnrefObject(trunkNode);
 
@@ -2171,7 +2183,7 @@ private:
         if (factory->ShouldPreserveExpirationTime() && expirationTime) {
             SetExpirationTime(clonedNode, *expirationTime);
         }
-        
+
         // Copy creation time.
         if (factory->ShouldPreserveCreationTime()) {
             clonedNode->SetCreationTime(sourceNode->GetTrunkNode()->GetCreationTime());
@@ -2223,9 +2235,12 @@ private:
             ? securityManager->GetAccount(accountId)
             : nullptr;
 
-        auto attributes = request->has_node_attributes()
-            ? FromProto(request->node_attributes())
-            : std::unique_ptr<IAttributeDictionary>();
+        auto explicitAttributes = request->has_explicit_node_attributes()
+            ? FromProto(request->explicit_node_attributes())
+            : CreateEphemeralAttributes();
+        auto inheritedAttributes = request->has_inherited_node_attributes()
+            ? FromProto(request->inherited_node_attributes())
+            : CreateEphemeralAttributes();
 
         auto versionedNodeId = TVersionedNodeId(nodeId, transactionId);
 
@@ -2242,11 +2257,13 @@ private:
             handler,
             account,
             transaction,
-            attributes.get());
+            inheritedAttributes.get(),
+            explicitAttributes.get());
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         objectManager->RefObject(trunkNode);
-        objectManager->FillAttributes(trunkNode, *attributes);
+
+        handler->FillAttributes(trunkNode, inheritedAttributes.get(), explicitAttributes.get());
 
         LockNode(trunkNode, transaction, ELockMode::Exclusive);
     }
@@ -2483,7 +2500,8 @@ TCypressNodeBase* TCypressManager::CreateNode(
     INodeTypeHandlerPtr handler,
     TAccount* account,
     TTransaction* transaction,
-    IAttributeDictionary* attributes)
+    IAttributeDictionary* inheritedAttributes,
+    IAttributeDictionary* explicitAttributes)
 {
     return Impl_->CreateNode(
         hintId,
@@ -2491,7 +2509,8 @@ TCypressNodeBase* TCypressManager::CreateNode(
         std::move(handler),
         account,
         transaction,
-        attributes);
+        inheritedAttributes,
+        explicitAttributes);
 }
 
 TCypressNodeBase* TCypressManager::InstantiateNode(

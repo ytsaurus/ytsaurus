@@ -38,11 +38,27 @@ NYTree::ENodeType TChunkOwnerTypeHandler<TChunkOwner>::GetNodeType() const
 }
 
 template <class TChunkOwner>
+bool TChunkOwnerTypeHandler<TChunkOwner>::IsSupportedInheritableAttribute(const TString& key) const
+{
+    static const THashSet<TString> supportedInheritableAttributes = {
+        "compression_codec",
+        "erasure_codec",
+        "media"
+        "primary_medium",
+        "replication_factor",
+        "vital"
+    };
+
+    return supportedInheritableAttributes.has(key);
+}
+
+template <class TChunkOwner>
 std::unique_ptr<TChunkOwner> TChunkOwnerTypeHandler<TChunkOwner>::DoCreateImpl(
     const NCypressServer::TVersionedNodeId& id,
     NObjectClient::TCellTag externalCellTag,
     NTransactionServer::TTransaction* transaction,
-    NYTree::IAttributeDictionary* attributes,
+    NYTree::IAttributeDictionary* inheritedAttributes,
+    NYTree::IAttributeDictionary* explicitAttributes,
     NSecurityServer::TAccount* account,
     int replicationFactor,
     NCompression::ECodec compressionCodec,
@@ -51,14 +67,16 @@ std::unique_ptr<TChunkOwner> TChunkOwnerTypeHandler<TChunkOwner>::DoCreateImpl(
     const auto& chunkManager = this->Bootstrap_->GetChunkManager();
     const auto& objectManager = this->Bootstrap_->GetObjectManager();
 
-    auto primaryMediumName = attributes->GetAndRemove<TString>("primary_medium", NChunkClient::DefaultStoreMediumName);
+    auto combinedAttributes = NYTree::OverlayAttributeDictionaries(explicitAttributes, inheritedAttributes);
+    auto primaryMediumName = combinedAttributes.GetAndRemove<TString>("primary_medium", NChunkClient::DefaultStoreMediumName);
     auto* primaryMedium = chunkManager->GetMediumByNameOrThrow(primaryMediumName);
 
     auto nodeHolder = TBase::DoCreate(
         id,
         externalCellTag,
         transaction,
-        attributes,
+        inheritedAttributes,
+        explicitAttributes,
         account);
     auto* node = nodeHolder.get();
 

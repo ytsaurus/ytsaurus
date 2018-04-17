@@ -35,6 +35,8 @@ TStartTransactionCommand::TStartTransactionCommand()
         .Optional();
     RegisterParameter("ping_ancestor_transactions", Options.PingAncestors)
         .Optional();
+    RegisterParameter("prerequisite_transaction_ids", Options.PrerequisiteTransactionIds)
+        .Optional();
     RegisterParameter("atomicity", Options.Atomicity)
         .Optional();
     RegisterParameter("durability", Options.Durability)
@@ -61,8 +63,7 @@ void TStartTransactionCommand::DoExecute(ICommandContextPtr context)
         transaction->Detach();
     }
 
-    context->ProduceOutputValue(BuildYsonStringFluently()
-        .Value(transaction->GetId()));
+    ProduceSingleOutputValue(context, "transaction_id", transaction->GetId());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -77,6 +78,8 @@ void TPingTransactionCommand::DoExecute(ICommandContextPtr context)
     auto transaction = AttachTransaction(context, true);
     WaitFor(transaction->Ping())
         .ThrowOnError();
+
+    ProduceEmptyOutput(context);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -86,6 +89,8 @@ void TCommitTransactionCommand::DoExecute(ICommandContextPtr context)
     auto transaction = AttachTransaction(context, true);
     WaitFor(transaction->Commit(Options))
         .ThrowOnError();
+
+    ProduceEmptyOutput(context);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -101,6 +106,8 @@ void TAbortTransactionCommand::DoExecute(ICommandContextPtr context)
     auto transaction = AttachTransaction(context, true);
     WaitFor(transaction->Abort(Options))
         .ThrowOnError();
+
+    ProduceEmptyOutput(context);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -110,8 +117,8 @@ void TGenerateTimestampCommand::DoExecute(ICommandContextPtr context)
     auto timestampProvider = context->GetClient()->GetConnection()->GetTimestampProvider();
     auto timestamp = WaitFor(timestampProvider->GenerateTimestamps())
         .ValueOrThrow();
-    context->ProduceOutputValue(BuildYsonStringFluently()
-        .Value(timestamp));
+
+    ProduceSingleOutputValue(context, "timestamp", timestamp);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

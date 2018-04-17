@@ -103,8 +103,9 @@ DEFINE_ENUM(EOperationAlertType,
     (OperationSuspended)
     (ExcessiveJobSpecThrottling)
     (ScheduleJobTimedOut)
-    (SlotIndexCollision)
     (InvalidAcl)
+    (LowCpuUsage)
+    (OperationTooLong)
 );
 
 ////////////////////////////////////////////////////////////////////////////////

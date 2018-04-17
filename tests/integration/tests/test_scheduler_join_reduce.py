@@ -484,11 +484,14 @@ echo {v = 2} >&7
             sorted_by = ["key"],
             table_writer = {"block_size": 1024})
         # write secondary table as one row per chunk
-        for num in xrange(0, count, 20):
-            write_table(
-                "<append=true>//tmp/in2",
-                {"key": "%.010d" % num},
-                sorted_by = ["key"])
+        write_table(
+            "//tmp/in2",
+            [{"key": "%.010d" % num} for num in xrange(0, count, 20)],
+            sorted_by=["key"],
+            max_row_buffer_size=1,
+            table_writer={"desired_chunk_size": 1})
+
+        assert get("//tmp/in2/@chunk_count") == count // 20
 
         join_reduce(
             in_ = ["//tmp/in1", "<foreign=true>//tmp/in2"],
@@ -695,18 +698,24 @@ echo {v = 2} >&7
     @unix_only
     def test_join_reduce_row_count_limit(self):
         create("table", "//tmp/in1")
-        for i in xrange(5):
-            write_table(
-                "<append=true>//tmp/in1",
-                [{"key": "%05d" % i, "value": "foo"}],
-                sorted_by = ["key"])
+
+        write_table(
+            "<append=true>//tmp/in1",
+            [{"key": "%05d" % i, "value": "foo"} for i in range(5)],
+            sorted_by=["key"],
+            max_row_buffer_size=1,
+            table_writer={"desired_chunk_size": 1})
 
         create("table", "//tmp/in2")
-        for i in xrange(5):
-            write_table(
-                "<append=true>//tmp/in2",
-                [{"key": "%05d" % i, "value": "bar"}],
-                sorted_by = ["key"])
+        write_table(
+            "<append=true>//tmp/in2",
+            [{"key": "%05d" % i, "value": "bar"} for i in range(5)],
+            sorted_by = ["key"],
+            max_row_buffer_size=1,
+            table_writer={"desired_chunk_size": 1})
+
+        assert get("//tmp/in1/@chunk_count") == 5
+        assert get("//tmp/in2/@chunk_count") == 5
 
         create("table", "//tmp/out")
         op = join_reduce(

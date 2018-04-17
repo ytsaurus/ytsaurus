@@ -80,7 +80,8 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
     const IChunkStorePtr& store,
     const NChunkClient::TReadSessionId& readSessionId,
     TMemoryUsageTracker<NNodeTrackerClient::EMemoryCategory>* memoryUsageTracker,
-    const IInvokerPtr& compressionInvoker);
+    const IInvokerPtr& compressionInvoker,
+    const NProfiling::TTagId& preloadTag = {});
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -3,40 +3,106 @@
 #error "Direct inclusion of this file is not allowed, include sync_expiring_cache.h"
 #endif
 
+#include <yt/core/concurrency/periodic_executor.h>
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TKey, class TValue>
 TSyncExpiringCache<TKey, TValue>::TSyncExpiringCache(
-    TCallback<TValue(TKey)> calculateValueAction,
-    TDuration expirationTimeout)
-    : TExpiringCache<TKey, TValue>(MakeConfig(expirationTimeout))
-    , CalculateValueAction_(calculateValueAction)
-{ }
+    TCallback<TValue(const TKey&)> calculateValueAction,
+    TDuration expirationTimeout,
+    IInvokerPtr invoker)
+    : CalculateValueAction_(std::move(calculateValueAction))
+    , ExpirationTimeout_(expirationTimeout)
+    , EvictionExecutor_(New<NConcurrency::TPeriodicExecutor>(
+        invoker,
+        BIND(&TSyncExpiringCache::DeleteExpiredItems, MakeWeak(this)),
+        expirationTimeout,
+        NConcurrency::EPeriodicExecutorMode::Automatic))
+{
+    EvictionExecutor_->Start();   
+}
 
 template <class TKey, class TValue>
 TValue TSyncExpiringCache<TKey, TValue>::Get(const TKey& key)
 {
-    auto future = TExpiringCache<TKey, TValue>::Get(key);
-    return future.Get().ValueOrThrow();
+    auto now = NProfiling::GetCpuInstant();
+
+    {
+        NConcurrency::TReaderGuard guard(MapLock_);
+
+        auto it = Map_.find(key);
+        if (it != Map_.end()) {
+            auto& entry = it->second;
+            if (now <= entry.LastUpdateTime + NProfiling::DurationToCpuDuration(ExpirationTimeout_)) {
+                entry.LastAccessTime = now;
+                return entry.Value;
+            }
+        }
+    }
+
+    auto result = CalculateValueAction_.Run(key);
+
+    {
+        NConcurrency::TWriterGuard guard(MapLock_);
+
+        auto it = Map_.find(key);
+        if (it != Map_.end()) {
+            it->second = TEntry({now, now, std::move(result)});
+        } else {
+            auto emplaceResult = Map_.emplace(key, TEntry({now, now, std::move(result)}));
+            YCHECK(emplaceResult.second);
+            it = emplaceResult.first;
+        }
+
+        return it->second.Value;
+    }
 }
 
 template <class TKey, class TValue>
-TFuture<TValue> TSyncExpiringCache<TKey, TValue>::DoGet(const TKey& key)
+void TSyncExpiringCache<TKey, TValue>::Clear()
 {
-    return MakeFuture(CalculateValueAction_(key));
+    decltype(Map_) map;
+    {
+        NConcurrency::TWriterGuard guard(MapLock_);
+        Map_.swap(map);
+    }
 }
 
 template <class TKey, class TValue>
-TExpiringCacheConfigPtr TSyncExpiringCache<TKey, TValue>::MakeConfig(TDuration expirationTimeout)
+void TSyncExpiringCache<TKey, TValue>::DeleteExpiredItems()
 {
-    auto result = New<TExpiringCacheConfig>();
-    result->ExpireAfterAccessTime = expirationTimeout;
-    result->ExpireAfterFailedUpdateTime = expirationTimeout;
-    result->ExpireAfterSuccessfulUpdateTime = expirationTimeout;
-    result->RefreshTime = expirationTimeout;
-    return result;
+    auto deadline = NProfiling::GetCpuInstant() - NProfiling::DurationToCpuDuration(ExpirationTimeout_);
+
+    std::vector<TKey> keysToRemove;
+    {
+        NConcurrency::TReaderGuard guard(MapLock_);
+        for (const auto& pair : Map_) {
+            if (pair.second.LastAccessTime < deadline) {
+                keysToRemove.push_back(pair.first);
+            }
+        }
+    }
+
+    if (keysToRemove.empty()) {
+        return;
+    }
+
+    std::vector<TValue> valuesToRemove;
+    valuesToRemove.reserve(keysToRemove.size());
+    {
+        NConcurrency::TWriterGuard guard(MapLock_);
+        for (const auto& key : keysToRemove) {
+            auto it = Map_.find(key);
+            auto& entry = it->second;
+            if (entry.LastAccessTime < deadline) {
+                valuesToRemove.push_back(std::move(entry.Value));
+                Map_.erase(it);
+            }
+        }
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

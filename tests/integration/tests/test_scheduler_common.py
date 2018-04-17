@@ -214,8 +214,6 @@ class TestSchedulerControllerThrottling(YTEnvSetup):
                 pass
             time.sleep(1)
 
-        op.abort()
-
 ##################################################################
 
 @unix_only
@@ -348,8 +346,6 @@ class TestJobStderr(YTEnvSetup):
         stderr_tx = get("//sys/operations/{}/@async_scheduler_transaction_id".format(op.id))
         staged_objects = get("//sys/transactions/{}/@staged_object_ids".format(stderr_tx))
         assert sum(len(ids) for ids in staged_objects.values()) == 0, str(staged_objects)
-
-        op.abort()
 
     def test_stderr_of_failed_jobs(self):
         create("table", "//tmp/t1")
@@ -834,6 +830,7 @@ class TestSchedulerCommon(YTEnvSetup):
         jobs_path = "//sys/operations/" + op.id + "/jobs"
         for job_id in ls(jobs_path):
             assert len(read_file(jobs_path + "/" + job_id + "/fail_context")) > 0
+            assert read_file(jobs_path + "/" + job_id + "/fail_context") == get_job_fail_context(op.id, job_id)
 
     def test_dump_job_context(self):
         create("table", "//tmp/t1")
@@ -1250,7 +1247,8 @@ class TestSchedulerRevive(YTEnvSetup):
                 "enable_random_master_disconnection": False,
                 "random_master_disconnection_max_backoff": 10000,
                 "finish_operation_transition_delay": 1000,
-            }
+            },
+            "finished_job_storing_timeout": 15000,
         }
     }
 
@@ -1258,6 +1256,14 @@ class TestSchedulerRevive(YTEnvSetup):
         "controller_agent": {
             "operation_time_limit_check_period": 100,
             "snapshot_period": 3000,
+        }
+    }
+
+    DELTA_NODE_CONFIG = {
+        "exec_agent": {
+            "job_controller": {
+                "total_confirmation_period": 5000
+            }
         }
     }
 
@@ -1356,7 +1362,7 @@ class TestSchedulerRevive(YTEnvSetup):
 
         ok = False
         for iter in xrange(100):
-            time.sleep(random.randint(1, 10) * 0.5)
+            time.sleep(random.randint(5, 15) * 0.5)
             self.Env.kill_controller_agents()
             self.Env.start_controller_agents()
 
@@ -1455,6 +1461,7 @@ class TestJobRevival(TestJobRevivalBase):
             "connect_retry_backoff_time": 100,
             "fair_share_update_period": 100,
             "operations_update_period": 100,
+            "static_orchid_cache_update_period": 100,
             "job_revival_abort_timeout": 2000,
         },
         "cluster_connection" : {
@@ -1522,6 +1529,7 @@ class TestJobRevival(TestJobRevivalBase):
         assert get("{0}/@progress/jobs/aborted/total".format(cypress_path)) == 0
         assert read_table("//tmp/t_out") == [{"a": 1}]
 
+    @pytest.mark.skipif("True", reason="YT-8635")
     @pytest.mark.timeout(600)
     def test_many_jobs_and_operations(self):
         create("table", "//tmp/t_in")
@@ -1625,7 +1633,17 @@ class TestJobRevival(TestJobRevivalBase):
         self.Env.kill_controller_agents()
         self.Env.start_controller_agents()
 
+        orchid_path = "//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/default/fair_share_info"
+        wait(lambda: exists(orchid_path + "/operations/" + op.id))
+
         for i in xrange(1000):
+            user_slots = None
+            user_slots_path = orchid_path + "/operations/{0}/resource_usage/user_slots".format(op.id)
+            try:
+                user_slots = get(user_slots_path, verbose=False)
+            except YtError:
+                pass
+
             for j in xrange(10):
                 try:
                     jobs = get("//sys/operations/{0}/@progress/jobs".format(op.id), verbose=False)
@@ -1639,7 +1657,7 @@ class TestJobRevival(TestJobRevivalBase):
                 events_on_fs().notify_event("complete_operation")
             running = jobs["running"]
             aborted = jobs["aborted"]["total"]
-            assert running <= user_slots_limit
+            assert running <= user_slots_limit or user_slots is None or user_slots <= user_slots_limit
             assert aborted == 0
 
         op.track()
@@ -2086,12 +2104,25 @@ class TestSchedulerConfig(YTEnvSetup):
         op.abort()
 
         op = reduce(command="sleep 1000", in_=["//tmp/t_in"], out="//tmp/t_out", reduce_by=["foo"], dont_track=True)
+        wait(lambda: op.get_state() == "running")
         time.sleep(1)
         # XXX(ignat)
         for spec_type in ("full_spec",):
             assert get("//sys/operations/{0}/@{1}/data_weight_per_job".format(op.id, spec_type)) == 1000
             assert get("//sys/scheduler/orchid/scheduler/operations/{0}/{1}/data_weight_per_job".format(op.id, spec_type)) == 1000
             assert get("//sys/scheduler/orchid/scheduler/operations/{0}/{1}/max_failed_job_count".format(op.id, spec_type)) == 10
+
+        self.Env.kill_controller_agents()
+        self.Env.start_controller_agents()
+        time.sleep(1)
+
+        wait(lambda: op.get_state() == "running")
+        # XXX(ignat)
+        for spec_type in ("full_spec",):
+            assert get("//sys/operations/{0}/@{1}/data_weight_per_job".format(op.id, spec_type)) == 1000
+            assert get("//sys/scheduler/orchid/scheduler/operations/{0}/{1}/data_weight_per_job".format(op.id, spec_type)) == 1000
+            assert get("//sys/scheduler/orchid/scheduler/operations/{0}/{1}/max_failed_job_count".format(op.id, spec_type)) == 10
+
         op.abort()
 
     def test_unrecognized_spec(self):
@@ -2103,8 +2134,6 @@ class TestSchedulerConfig(YTEnvSetup):
         wait(lambda: exists("//sys/operations/{0}/@unrecognized_spec".format(op.id)))
         assert get("//sys/operations/{0}/@unrecognized_spec".format(op.id)) == {"xxx": "yyy"}
 
-        op.abort()
-
     def test_brief_progress(self):
         create("table", "//tmp/t_in")
         write_table("//tmp/t_in", [{"a": "b"}])
@@ -2113,8 +2142,6 @@ class TestSchedulerConfig(YTEnvSetup):
 
         wait(lambda: exists("//sys/operations/{0}/@brief_progress".format(op.id)))
         assert list(get("//sys/operations/{0}/@brief_progress".format(op.id))) == ["jobs"]
-
-        op.abort()
 
     def test_cypress_config(self):
         create("table", "//tmp/t_in")
@@ -2129,15 +2156,17 @@ class TestSchedulerConfig(YTEnvSetup):
             "map_operation_options": {"spec_template": {"max_failed_job_count": 50}},
             "environment": {"OTHER_VAR": "20"},
         })
-        time.sleep(5.0)
 
         instances = ls("//sys/controller_agents/instances")
         for instance in instances:
-            environment = get("//sys/controller_agents/instances/{0}/orchid/controller_agent/config/environment".format(instance))
+            config_path = "//sys/controller_agents/instances/{0}/orchid/controller_agent/config".format(instance)
+            wait(lambda: exists(config_path + "/environment/OTHER_VAR") and get(config_path + "/environment/OTHER_VAR") == "20")
+
+            environment = get(config_path + "/environment")
             assert environment["TEST_VAR"] == "10"
             assert environment["OTHER_VAR"] == "20"
 
-            assert get("//sys/controller_agents/instances/{0}/orchid/controller_agent/config/map_operation_options/spec_template/max_failed_job_count".format(instance)) == 50
+            assert get(config_path + "/map_operation_options/spec_template/max_failed_job_count".format(instance)) == 50
 
         op = map(command="cat", in_=["//tmp/t_in"], out="//tmp/t_out")
         assert get("//sys/operations/{0}/@full_spec/data_weight_per_job".format(op.id)) == 2000
@@ -2310,8 +2339,6 @@ class TestSchedulerHeterogeneousConfiguration(YTEnvSetup):
 
         assert get("//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/default/resource_limits/user_slots") == 2
         assert get("//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/default/resource_usage/user_slots") == 2
-
-        op.abort()
 
 ##################################################################
 
@@ -2599,7 +2626,7 @@ class TestPoolMetrics(YTEnvSetup):
 
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "controller_agent": {
-            "job_metrics_delta_report_backoff": 500,
+            "job_metrics_delta_report_backoff": 100,
         }
     }
 
@@ -2643,7 +2670,7 @@ class TestPoolMetrics(YTEnvSetup):
         # - writes (and syncs) something to disk
         # - works for some time (to ensure that it sends several heartbeats
         # - writes something to stderr because we want to find our jobs in //sys/operations later
-        map_cmd = """for i in $(seq 10) ; do echo 5 > foo$i ; sync ; sleep 0.5 ; done ; cat ; echo done > /dev/stderr"""
+        map_cmd = """for i in $(seq 10) ; do echo 5 > foo$i ; sync ; sleep 0.5 ; done ; cat ; sleep 10; echo done > /dev/stderr"""
 
         op11 = map(
             in_="//t_input",
@@ -2694,25 +2721,26 @@ class TestPoolMetrics(YTEnvSetup):
         write_table("<append=%true>//tmp/t_input", [{"key": i} for i in xrange(2)])
 
         op = map(
-            command='cat; if [ "$YT_JOB_INDEX" = "0" ]; then sleep 2; else sleep 100500; fi',
+            command=with_breakpoint("cat; BREAKPOINT"),
             in_="//tmp/t_input",
             out="//tmp/t_output",
-            dont_track=True,
-            spec={"data_size_per_job": 1, "pool": "child"}
-        )
+            spec={"data_size_per_job": 1, "pool": "child"},
+            dont_track=True)
 
-        orchid_path = "//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op.id)
+        jobs = wait_breakpoint(job_count=2)
+        assert len(jobs) == 2
 
-        # Wait until both jobs started.
-        wait(lambda: exists(orchid_path) and len(ls(orchid_path)) == 2)
+        release_breakpoint(job_id=jobs[0])
+
         # Wait until short job is completed.
+        orchid_path = "//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op.id)
         wait(lambda: len(ls(orchid_path)) == 1)
 
         running_jobs = ls(orchid_path)
         assert len(running_jobs) == 1
         abort_job(running_jobs[0])
 
-        # Wait metrics update.
+        # Wait for metrics update.
         wait(lambda: get_pool_metrics("time_completed")["child"] > 0)
 
         completed_metrics = get_pool_metrics("time_completed")
@@ -2874,8 +2902,6 @@ class TestGetJobSpecFailed(YTEnvSetup):
 
         jobs = get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/jobs".format(op.id), verbose=False)
         assert jobs["aborted"]["non_scheduled"]["get_spec_failed"] > 0
-
-        op.abort()
 
 ##################################################################
 
@@ -3227,3 +3253,91 @@ class TestControllerMemoryUsage(YTEnvSetup):
                 assert entry["operation_id"] == YsonEntity()
             assert entry["alive"] == False
 
+
+class TestPorts(YTEnvSetup):
+    NUM_SCHEDULERS = 1
+    NUM_NODES = 1
+
+    DELTA_NODE_CONFIG = {
+        "exec_agent": {
+            "job_controller": {
+                "start_port": 20000,
+                "port_count": 3,
+                "waiting_jobs_timeout": 1000,
+                "resource_limits": {
+                    "user_slots": 2,
+                    "cpu": 2
+                }
+            },
+        },
+    }
+
+    def test_simple(self):
+        create("table", "//tmp/t_in", attributes={"replication_factor": 1})
+        write_table("//tmp/t_in", [{"a": 0}])
+
+        create("table", "//tmp/t_out", attributes={"replication_factor": 1})
+        create("table", "//tmp/t_out_other", attributes={"replication_factor": 1})
+
+        op = map(
+            dont_track=True,
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            command=with_breakpoint("echo $YT_PORT_0 >&2; echo $YT_PORT_1 >&2; if [ -n \"$YT_PORT_2\" ]; then echo 'FAILED' >&2; fi; cat; BREAKPOINT"),
+            spec={
+                "mapper": {
+                    "port_count": 2,
+                }
+            })
+
+        jobs = wait_breakpoint()
+        assert len(jobs) == 1
+
+        ## Not enough ports
+        with pytest.raises(YtError):
+            map(
+                in_="//tmp/t_in",
+                out="//tmp/t_out_other",
+                command="cat",
+                spec={
+                    "mapper": {
+                        "port_count": 2,
+                    },
+                    "max_failed_job_count": 1,
+                    "fail_on_job_restart": True,
+                })
+
+        release_breakpoint()
+        op.track()
+
+        stderr = read_file(op._get_new_operation_path() + "/jobs/" + jobs[0] + "/stderr")
+        assert "FAILED" not in stderr
+        ports = __builtin__.map(int, stderr.split())
+        assert len(ports) == 2
+        assert ports[0] != ports[1]
+
+        assert all(port >= 20000 and port < 20003 for port in ports)
+
+
+        map(
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            command="echo $YT_PORT_0 >&2; echo $YT_PORT_1 >&2; if [ -n \"$YT_PORT_2\" ]; then echo 'FAILED' >&2; fi; cat",
+            spec={
+                "mapper": {
+                    "port_count": 2,
+                }
+            })
+
+        jobs_path = op._get_new_operation_path() + "/jobs"
+        assert exists(jobs_path)
+        jobs = ls(jobs_path)
+        assert len(jobs) == 1
+
+        stderr = read_file(op._get_new_operation_path() + "/jobs/" + jobs[0] + "/stderr")
+        assert "FAILED" not in stderr
+        ports = __builtin__.map(int, stderr.split())
+        assert len(ports) == 2
+        assert ports[0] != ports[1]
+
+        assert all(port >= 20000 and port < 20003 for port in ports)

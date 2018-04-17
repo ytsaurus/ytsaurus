@@ -39,6 +39,8 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(TTransaction*, Parent);
     DEFINE_BYVAL_RW_PROPERTY(TInstant, StartTime);
     DEFINE_BYREF_RW_PROPERTY(THashSet<NObjectServer::TObjectBase*>, StagedObjects);
+    DEFINE_BYREF_RW_PROPERTY(std::vector<TTransaction*>, PrerequisiteTransactions);
+    DEFINE_BYREF_RW_PROPERTY(THashSet<TTransaction*>, DependentTransactions);
 
     struct TExportEntry
     {

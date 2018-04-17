@@ -465,9 +465,10 @@ void TSchedulerElement::CheckForStarvationImpl(
 void TSchedulerElement::SetOperationAlert(
     const TOperationId& operationId,
     EOperationAlertType alertType,
-    const TError& alert)
+    const TError& alert,
+    TNullable<TDuration> timeout)
 {
-    Host_->SetOperationAlert(operationId, alertType, alert);
+    Host_->SetOperationAlert(operationId, alertType, alert, timeout);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -852,6 +853,18 @@ void TCompositeSchedulerElement::EnableChild(const TSchedulerElementPtr& child)
 
     RemoveChild(&DisabledChildToIndex_, &DisabledChildren_, child);
     AddChild(&EnabledChildToIndex_, &EnabledChildren_, child);
+}
+
+void TCompositeSchedulerElement::DisableChild(const TSchedulerElementPtr& child)
+{
+    YCHECK(!Cloned_);
+
+    if (EnabledChildToIndex_.find(child) == EnabledChildToIndex_.end()) {
+        return;
+    }
+
+    RemoveChild(&EnabledChildToIndex_, &EnabledChildren_, child);
+    AddChild(&DisabledChildToIndex_, &DisabledChildren_, child);
 }
 
 void TCompositeSchedulerElement::RemoveChild(const TSchedulerElementPtr& child)
@@ -1420,18 +1433,35 @@ TOperationElementFixedState::TOperationElementFixedState(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TJobResources TOperationElementSharedState::Finalize()
+TJobResources TOperationElementSharedState::Disable()
 {
     TWriterGuard guard(JobPropertiesMapLock_);
 
-    YCHECK(!Finalized_);
-    Finalized_ = true;
-
-    auto totalResourceUsage = ZeroJobResources();
-    for (const auto& pair : JobPropertiesMap_) {
-        totalResourceUsage += pair.second.ResourceUsage;
+    if (!Enabled_) {
+        return ZeroJobResources();
     }
-    return totalResourceUsage;
+
+    Enabled_ = false;
+
+    auto resourceUsage = ZeroJobResources();
+    for (const auto& pair : JobPropertiesMap_) {
+        resourceUsage += pair.second.ResourceUsage;
+    }
+
+    PreemptableJobs_.clear();
+    AggressivelyPreemptableJobs_.clear();
+    NonpreemptableJobs_.clear();
+    JobPropertiesMap_.clear();
+
+    return resourceUsage;
+}
+
+void TOperationElementSharedState::Enable()
+{
+    TWriterGuard guard(JobPropertiesMapLock_);
+
+    YCHECK(!Enabled_);
+    Enabled_ = true;
 }
 
 TJobResources TOperationElementSharedState::IncreaseJobResourceUsage(
@@ -1440,7 +1470,7 @@ TJobResources TOperationElementSharedState::IncreaseJobResourceUsage(
 {
     TWriterGuard guard(JobPropertiesMapLock_);
 
-    if (Finalized_) {
+    if (!Enabled_) {
         return ZeroJobResources();
     }
 
@@ -1580,11 +1610,11 @@ int TOperationElementSharedState::GetAggressivelyPreemptableJobCount() const
     return AggressivelyPreemptableJobs_.size();
 }
 
-TJobResources TOperationElementSharedState::AddJob(const TJobId& jobId, const TJobResources& resourceUsage)
+TJobResources TOperationElementSharedState::AddJob(const TJobId& jobId, const TJobResources& resourceUsage, bool force)
 {
     TWriterGuard guard(JobPropertiesMapLock_);
 
-    if (Finalized_) {
+    if (!Enabled_ && !force) {
         return ZeroJobResources();
     }
 
@@ -1605,16 +1635,26 @@ TJobResources TOperationElementSharedState::AddJob(const TJobId& jobId, const TJ
     return resourceUsage;
 }
 
-TJobResources TOperationElement::Finalize()
+void TOperationElement::Disable()
 {
-    return SharedState_->Finalize();
+    LOG_DEBUG("Operation element disabled in strategy (OperationId: %v)", OperationId_);
+
+    auto delta = SharedState_->Disable();
+    IncreaseResourceUsage(-delta);
+}
+
+void TOperationElement::Enable()
+{
+    LOG_DEBUG("Operation element enabled in strategy (OperationId: %v)", OperationId_);
+
+    return SharedState_->Enable();
 }
 
 TJobResources TOperationElementSharedState::RemoveJob(const TJobId& jobId)
 {
     TWriterGuard guard(JobPropertiesMapLock_);
 
-    if (Finalized_) {
+    if (!Enabled_) {
         return ZeroJobResources();
     }
 
@@ -1951,7 +1991,11 @@ bool TOperationElement::ScheduleJob(TFairShareContext* context)
     const auto& startDescriptor = *scheduleJobResult->StartDescriptor;
     context->SchedulingContext->ResourceUsage() += startDescriptor.ResourceLimits;
     OnJobStarted(startDescriptor.Id, startDescriptor.ResourceLimits);
-    context->SchedulingContext->StartJob(GetTreeId(), OperationId_, startDescriptor);
+    context->SchedulingContext->StartJob(
+        GetTreeId(),
+        OperationId_,
+        scheduleJobResult->IncarnationId,
+        startDescriptor);
 
     UpdateDynamicAttributes(context->DynamicAttributesList);
     updateAncestorsAttributes();
@@ -1973,7 +2017,7 @@ bool TOperationElement::IsAggressiveStarvationPreemptionAllowed() const
 
 double TOperationElement::GetWeight() const
 {
-    return *RuntimeParams_->Weight;
+    return RuntimeParams_->Weight;
 }
 
 double TOperationElement::GetMinShareRatio() const
@@ -2126,9 +2170,12 @@ int TOperationElement::GetSlotIndex() const
     return *slotIndex;
 }
 
-void TOperationElement::OnJobStarted(const TJobId& jobId, const TJobResources& resourceUsage)
+void TOperationElement::OnJobStarted(const TJobId& jobId, const TJobResources& resourceUsage, bool force)
 {
-    auto delta = SharedState_->AddJob(jobId, resourceUsage);
+    // XXX(ignat): remove before deploy on production clusters.
+    LOG_DEBUG("Adding job to strategy (JobId: %v)", jobId);
+
+    auto delta = SharedState_->AddJob(jobId, resourceUsage, force);
     IncreaseResourceUsage(delta);
 
     UpdatePreemptableJobsList();
@@ -2136,6 +2183,9 @@ void TOperationElement::OnJobStarted(const TJobId& jobId, const TJobResources& r
 
 void TOperationElement::OnJobFinished(const TJobId& jobId)
 {
+    // XXX(ignat): remove before deploy on production clusters.
+    LOG_DEBUG("Removing job from strategy (JobId: %v)", jobId);
+
     auto delta = SharedState_->RemoveJob(jobId);
     IncreaseResourceUsage(-delta);
 
@@ -2228,13 +2278,14 @@ TScheduleJobResultPtr TOperationElement::DoScheduleJob(
             scheduleJobResult->RecordFail(EScheduleJobFailReason::ResourceOvercommit);
         }
     } else if (scheduleJobResult->Failed[EScheduleJobFailReason::Timeout] > 0) {
-        LOG_DEBUG("Job scheduling timed out (OperationId: %v)",
+        LOG_WARNING("Job scheduling timed out (OperationId: %v)",
             OperationId_);
 
         SetOperationAlert(
             OperationId_,
             EOperationAlertType::ScheduleJobTimedOut,
-            TError("Job scheduling timed out: either scheduler is under heavy load or operation is too heavy"));
+            TError("Job scheduling timed out: either scheduler is under heavy load or operation is too heavy"),
+            ControllerConfig_->ScheduleJobTimeoutAlertResetTime);
     }
 
     return scheduleJobResult;

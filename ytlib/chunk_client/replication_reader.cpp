@@ -214,6 +214,7 @@ private:
     class TReadBlockSetSession;
     class TReadBlockRangeSession;
     class TGetMetaSession;
+    class TAsyncGetSeedsSession;
 
     const TReplicationReaderConfigPtr Config_;
     const TRemoteReaderOptionsPtr Options_;
@@ -245,31 +246,6 @@ private:
 
     TCallback<TError(i64, TDuration)> SlownessChecker_;
 
-    TFuture<TChunkReplicaList> AsyncGetSeeds()
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        TGuard<TSpinLock> guard(SeedsSpinLock_);
-        if (!SeedsPromise_) {
-            LOG_DEBUG("Need fresh chunk seeds");
-            SeedsPromise_ = NewPromise<TChunkReplicaList>();
-            auto locateChunk = BIND(&TReplicationReader::LocateChunk, MakeStrong(this))
-                .Via(LocateChunksInvoker_);
-
-            if (SeedsTimestamp_ + Config_->SeedsTimeout > TInstant::Now()) {
-                // Don't ask master for fresh seeds too often.
-                TDelayedExecutor::Submit(
-                    locateChunk,
-                    SeedsTimestamp_ + Config_->SeedsTimeout);
-            } else {
-                locateChunk.Run();
-            }
-
-        }
-
-        return SeedsPromise_;
-    }
-
     void DiscardSeeds(TFuture<TChunkReplicaList> result)
     {
         YCHECK(result);
@@ -291,85 +267,20 @@ private:
         SeedsPromise_.Reset();
     }
 
-    void LocateChunk()
+    void ExcludeFreshSeedsFromBannedForeverPeers(const TChunkReplicaList& seedReplicas)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        LOG_DEBUG("Requesting chunk seeds from master");
-
-        try {
-            auto channel = Client_->GetMasterChannelOrThrow(
-                EMasterChannelKind::Follower,
-                CellTagFromId(ChunkId_));
-
-            TChunkServiceProxy proxy(channel);
-
-            auto req = proxy.LocateChunks();
-            req->SetHeavy(true);
-            ToProto(req->add_subrequests(), ChunkId_);
-            req->Invoke().Subscribe(
-                BIND(&TReplicationReader::OnLocateChunkResponse, MakeStrong(this))
-                    .Via(LocateChunksInvoker_));
-        } catch (const std::exception& ex) {
-            SeedsPromise_.Set(TError(
-                "Failed to request seeds for chunk %v from master",
-                ChunkId_)
-                << ex);
-        }
-    }
-
-    void OnLocateChunkResponse(const TChunkServiceProxy::TErrorOrRspLocateChunksPtr& rspOrError)
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-        YCHECK(SeedsPromise_);
-
-        {
-            TGuard<TSpinLock> guard(SeedsSpinLock_);
-            SeedsTimestamp_ = TInstant::Now();
-        }
-
-        if (!rspOrError.IsOK()) {
-            YCHECK(!SeedsPromise_.IsSet());
-            SeedsPromise_.Set(TError(rspOrError));
-            return;
-        }
-
-        const auto& rsp = rspOrError.Value();
-        YCHECK(rsp->subresponses_size() == 1);
-        const auto& subresponse = rsp->subresponses(0);
-        if (subresponse.missing()) {
-            YCHECK(!SeedsPromise_.IsSet());
-            SeedsPromise_.Set(TError(
-                NChunkClient::EErrorCode::NoSuchChunk,
-                "No such chunk %v",
-                ChunkId_));
-            return;
-        }
-
-        NodeDirectory_->MergeFrom(rsp->node_directory());
-        auto seedReplicas = FromProto<TChunkReplicaList>(subresponse.replicas());
-
-        {
-            // Exclude fresh seeds from banned forever peers.
-            TGuard<TSpinLock> guard(PeersSpinLock_);
-            for (auto replica : seedReplicas) {
-                const auto* nodeDescriptor = NodeDirectory_->FindDescriptor(replica.GetNodeId());
-                if (!nodeDescriptor) {
-                    LOG_WARNING("Skipping replica with unresolved node id (NodeId: %v)", replica.GetNodeId());
-                    continue;
-                }
-                auto address = nodeDescriptor->FindAddress(Networks_);
-                if (address) {
-                    BannedForeverPeers_.erase(*address);
-                }
+        TGuard<TSpinLock> guard(PeersSpinLock_);
+        for (auto replica : seedReplicas) {
+            const auto* nodeDescriptor = NodeDirectory_->FindDescriptor(replica.GetNodeId());
+            if (!nodeDescriptor) {
+                LOG_WARNING("Skipping replica with unresolved node id (NodeId: %v)", replica.GetNodeId());
+                continue;
+            }
+            auto address = nodeDescriptor->FindAddress(Networks_);
+            if (address) {
+                BannedForeverPeers_.erase(*address);
             }
         }
-
-        LOG_DEBUG("Chunk seeds received (SeedReplicas: %v)",
-            MakeFormattableRange(seedReplicas, TChunkReplicaAddressFormatter(NodeDirectory_)));
-
-        YCHECK(!SeedsPromise_.IsSet());
-        SeedsPromise_.Set(seedReplicas);
     }
 
     //! Notifies reader about peer banned inside one of the sessions.
@@ -418,6 +329,126 @@ private:
 };
 
 using TReplicationReaderPtr = TIntrusivePtr<TReplicationReader>;
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TReplicationReader::TAsyncGetSeedsSession
+    : public TRefCounted
+{
+public:
+    TAsyncGetSeedsSession(
+        TReplicationReaderPtr reader,
+        const NLogging::TLogger& logger)
+        : Reader_(std::move(reader))
+        , Logger(logger)
+        , Config_(Reader_->Config_)
+        , Client_(Reader_->Client_)
+        , NodeDirectory_(Reader_->NodeDirectory_)
+        , ChunkId_(Reader_->ChunkId_)
+        , LocateChunksInvoker_(Reader_->LocateChunksInvoker_)
+    { }
+
+    TFuture<TChunkReplicaList> Run()
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        TGuard<TSpinLock> guard(Reader_->SeedsSpinLock_);
+
+        if (!Reader_->SeedsPromise_) {
+            LOG_DEBUG("Need fresh chunk seeds");
+            Reader_->SeedsPromise_ = NewPromise<TChunkReplicaList>();
+            auto locateChunk = BIND(&TAsyncGetSeedsSession::LocateChunk, MakeStrong(this))
+                .Via(Reader_->LocateChunksInvoker_);
+
+            if (Reader_->SeedsTimestamp_ + Config_->SeedsTimeout > TInstant::Now()) {
+                // Don't ask master for fresh seeds too often.
+                TDelayedExecutor::Submit(
+                    locateChunk,
+                    Reader_->SeedsTimestamp_ + Config_->SeedsTimeout);
+            } else {
+                locateChunk.Run();
+            }
+        }
+
+        return Reader_->SeedsPromise_;
+    }
+
+private:
+    const TReplicationReaderPtr Reader_;
+    const NLogging::TLogger Logger;
+
+    const TReplicationReaderConfigPtr Config_;
+    const INativeClientPtr Client_;
+    const TNodeDirectoryPtr NodeDirectory_;
+    const TChunkId ChunkId_;
+    const IInvokerPtr LocateChunksInvoker_;
+
+    void LocateChunk()
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        LOG_DEBUG("Requesting chunk seeds from master");
+
+        try {
+            auto channel = Client_->GetMasterChannelOrThrow(
+                EMasterChannelKind::Follower,
+                CellTagFromId(ChunkId_));
+
+            TChunkServiceProxy proxy(channel);
+
+            auto req = proxy.LocateChunks();
+            req->SetHeavy(true);
+            ToProto(req->add_subrequests(), ChunkId_);
+            req->Invoke().Subscribe(
+                BIND(&TAsyncGetSeedsSession::OnLocateChunkResponse, MakeStrong(this))
+                    .Via(LocateChunksInvoker_));
+        } catch (const std::exception& ex) {
+            Reader_->SeedsPromise_.Set(TError(
+                "Failed to request seeds for chunk %v from master",
+                ChunkId_)
+                << ex);
+        }
+    }
+
+    void OnLocateChunkResponse(const TChunkServiceProxy::TErrorOrRspLocateChunksPtr& rspOrError)
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+        YCHECK(Reader_->SeedsPromise_);
+
+        {
+            TGuard<TSpinLock> guard(Reader_->SeedsSpinLock_);
+            Reader_->SeedsTimestamp_ = TInstant::Now();
+        }
+
+        if (!rspOrError.IsOK()) {
+            YCHECK(!Reader_->SeedsPromise_.IsSet());
+            Reader_->SeedsPromise_.Set(TError(rspOrError));
+            return;
+        }
+
+        const auto& rsp = rspOrError.Value();
+        YCHECK(rsp->subresponses_size() == 1);
+        const auto& subresponse = rsp->subresponses(0);
+        if (subresponse.missing()) {
+            YCHECK(!Reader_->SeedsPromise_.IsSet());
+            Reader_->SeedsPromise_.Set(TError(
+                NChunkClient::EErrorCode::NoSuchChunk,
+                "No such chunk %v",
+                ChunkId_));
+            return;
+        }
+
+        NodeDirectory_->MergeFrom(rsp->node_directory());
+        auto seedReplicas = FromProto<TChunkReplicaList>(subresponse.replicas());
+        Reader_->ExcludeFreshSeedsFromBannedForeverPeers(seedReplicas);
+
+        LOG_DEBUG("Chunk seeds received (SeedReplicas: %v)",
+            MakeFormattableRange(seedReplicas, TChunkReplicaAddressFormatter(NodeDirectory_)));
+
+        YCHECK(!Reader_->SeedsPromise_.IsSet());
+        Reader_->SeedsPromise_.Set(seedReplicas);
+    }
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -677,7 +708,8 @@ protected:
         PassIndex_ = 0;
         BannedPeers_.clear();
 
-        SeedsFuture_ = reader->AsyncGetSeeds();
+        auto getSeedsSession = New<TAsyncGetSeedsSession>(reader, Logger);
+        SeedsFuture_ = getSeedsSession->Run();
         SeedsFuture_.Subscribe(
             BIND(&TSessionBase::OnGotSeeds, MakeStrong(this))
                 .Via(SessionInvoker_));

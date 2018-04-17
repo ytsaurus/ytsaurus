@@ -44,7 +44,7 @@ struct TProfilerTrait
 
     static TValue ToValue(const NProfiling::TTagIdList& list)
     {
-        return {list};
+        return TValue{list};
     }
 };
 
@@ -59,22 +59,19 @@ using TListProfilerTrait = TProfilerTrait<TListProfilerTraitBase, TCounters>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ProfileDiskPressure(
+void ProfileChunkWriter(
     TTabletSnapshotPtr tabletSnapshot,
     const NChunkClient::NProto::TDataStatistics&,
+    const NChunkClient::TCodecStatistics& codecStatistics,
+    NProfiling::TTagId methodTag);
+
+void ProfileChunkReader(
+    TTabletSnapshotPtr tabletSnapshot,
+    const NChunkClient::NProto::TDataStatistics& dataStatistics,
+    const NChunkClient::TCodecStatistics& codecStatistics,
     NProfiling::TTagId methodTag);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NTabletNode
 } // namespace NYT
-
-////////////////////////////////////////////////////////////////////////////////
-
-template <>
-struct hash<NYT::NTabletNode::TListProfilerTraitBase::TKey>
-{
-    size_t operator()(const NYT::NTabletNode::TListProfilerTraitBase::TKey& list) const;
-};
-
-////////////////////////////////////////////////////////////////////////////////

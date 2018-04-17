@@ -971,6 +971,7 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, GetMountInfo)
         ToProto(protoTablet->mutable_tablet_id(), tablet->GetId());
         protoTablet->set_mount_revision(tablet->GetMountRevision());
         protoTablet->set_state(static_cast<int>(tablet->GetState()));
+        protoTablet->set_in_memory_mode(static_cast<int>(tablet->GetInMemoryMode()));
         ToProto(protoTablet->mutable_pivot_key(), tablet->GetPivotKey());
         if (cell) {
             ToProto(protoTablet->mutable_cell_id(), cell->GetId());

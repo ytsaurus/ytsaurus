@@ -115,6 +115,8 @@ public:
 
         using NYT::Persist;
 
+        Persist(context, Spec);
+
         Persist(context, CompletedPartitionCount);
         Persist(context, SortedMergeJobCounter);
         Persist(context, UnorderedMergeJobCounter);
@@ -1356,6 +1358,11 @@ protected:
             return EJobType::UnorderedMerge;
         }
 
+        virtual TInputChunkMappingPtr GetChunkMapping() const override
+        {
+            return Controller->ShuffleChunkMapping_;
+        }
+
     private:
         DECLARE_DYNAMIC_PHOENIX_TYPE(TUnorderedMergeTask, 0xbba17c0f);
 
@@ -1583,12 +1590,29 @@ protected:
         return CompletedPartitionCount == Partitions.size();
     }
 
+    bool IsSamplingEnabled() const
+    {
+        for (const auto& jobIOConfig : {
+            PartitionJobIOConfig,
+            IntermediateSortJobIOConfig,
+            FinalSortJobIOConfig,
+            SortedMergeJobIOConfig,
+            UnorderedMergeJobIOConfig,
+        })
+        {
+            if (jobIOConfig && jobIOConfig->TableReader->SamplingRate) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     virtual void OnOperationCompleted(bool interrupted) override
     {
         if (!interrupted) {
             auto isNontrivialInput = InputHasReadLimits() || InputHasVersionedTables();
 
-            if (IsRowCountPreserved() && !(SimpleSort && isNontrivialInput)) {
+            if (IsRowCountPreserved() && !(SimpleSort && isNontrivialInput) && !IsSamplingEnabled()) {
                 // We don't check row count for simple sort if nontrivial read limits are specified,
                 // since input row count can be estimated inaccurate.
                 i64 totalInputRowCount = 0;

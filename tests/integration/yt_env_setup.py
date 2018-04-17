@@ -3,6 +3,7 @@ import yt_commands
 from yt.environment import YTInstance
 from yt.common import makedirp, YtError, format_error
 from yt.environment.porto_helpers import porto_avaliable, remove_all_volumes
+from yt.environment.helpers import wait
 
 from yt.common import update_inplace
 
@@ -28,18 +29,6 @@ SANDBOX_ROOTDIR = os.environ.get("TESTS_SANDBOX", os.path.abspath("tests.sandbox
 SANDBOX_STORAGE_ROOTDIR = os.environ.get("TESTS_SANDBOX_STORAGE")
 
 ##################################################################
-
-
-try:
-    from yt.environment.helpers import wait
-except ImportError:
-    # COMPAT(ignat)
-    def wait(predicate, iter=100, sleep_backoff=0.3):
-        for _ in xrange(iter):
-            if predicate():
-                return
-            sleep(sleep_backoff)
-        pytest.fail("wait failed")
 
 def patch_subclass(parent, skip_condition, reason=""):
     """Work around a pytest.mark.skipif bug
@@ -88,9 +77,9 @@ def patch_subclass(parent, skip_condition, reason=""):
             if attr.startswith("test_"):
                 setattr(cls, attr, build_skipped_method(parent.__dict__[attr],
                                                         cls, skip_condition, reason))
-                if "parametrize" in parent.__dict__[attr].__dict__:
-                    parent.__dict__[attr].__dict__["parametrize"]
-                    cls.__dict__[attr].__dict__["parametrize"] = parent.__dict__[attr].__dict__["parametrize"]
+                for key in parent.__dict__[attr].__dict__:
+                    if key == "parametrize" or "flaky" in key or "skip" in key:
+                        cls.__dict__[attr].__dict__[key] = parent.__dict__[attr].__dict__[key]
         return cls
 
     return patcher
@@ -109,16 +98,34 @@ def skip_if_porto(func):
         func(self, *args, **kwargs)
     return wrapped_func
 
-def require_ytserver_root_privileges(func):
-    def wrapped_func(self, *args, **kwargs):
-        ytserver_node_path = find_executable("ytserver-node")
-        ytserver_node_stat = os.stat(ytserver_node_path)
-        if (ytserver_node_stat.st_mode & stat.S_ISUID) == 0:
-            pytest.fail('This test requires a suid bit set for "ytserver-node"')
-        if ytserver_node_stat.st_uid != 0:
-            pytest.fail('This test requires "ytserver-node" being owned by root')
-        func(self, *args, **kwargs)
-    return wrapped_func
+
+# doesn't work with @patch_porto_env_only on the same class, wrap each method
+def require_ytserver_root_privileges(func_or_class):
+
+    def check_root_privileges():
+        for binary in ["ytserver-exec", "ytserver-job-proxy", "ytserver-node", "ytserver-tools"]:
+            binary_path = find_executable(binary)
+            binary_stat = os.stat(binary_path)
+            if (binary_stat.st_mode & stat.S_ISUID) == 0:
+                pytest.fail('This test requires a suid bit set for "{}"'.format(binary))
+            if binary_stat.st_uid != 0:
+                pytest.fail('This test requires "{}" being owned by root'.format(binary))
+
+    if inspect.isclass(func_or_class):
+        class Wrap(func_or_class):
+            @classmethod
+            def setup_class(cls):
+                check_root_privileges()
+                func_or_class.setup_class()
+
+        return Wrap
+    else:
+        def wrap_func(self, *args, **kwargs):
+            check_root_privileges()
+            func_or_class(self, *args, **kwargs)
+
+        return wrap_func
+
 
 def require_enabled_core_dump(func):
     def wrapped_func(self, *args, **kwargs):
@@ -458,30 +465,44 @@ class YTEnvSetup(object):
     def set_node_banned(self, address, flag, driver=None):
         yt_commands.set("//sys/nodes/%s/@banned" % address, flag, driver=driver)
         ban, state = ("banned", "offline") if flag else ("unbanned", "online")
-        print "Waiting for node %s to become %s..." % (address, ban)
+        print >>sys.stderr, "Waiting for node %s to become %s..." % (address, ban)
         wait(lambda: yt_commands.get("//sys/nodes/%s/@state" % address, driver=driver) == state)
 
     def set_node_decommissioned(self, address, flag, driver=None):
         yt_commands.set("//sys/nodes/%s/@decommissioned" % address, flag, driver=driver)
-        print "Node %s is %s" % (address, "decommissioned" if flag else "not decommissioned")
+        print >>sys.stderr, "Node %s is %s" % (address, "decommissioned" if flag else "not decommissioned")
 
     def wait_for_nodes(self, driver=None):
-        print "Waiting for nodes to become online..."
+        print >>sys.stderr, "Waiting for nodes to become online..."
         wait(lambda: all(n.attributes["state"] == "online"
                          for n in yt_commands.ls("//sys/nodes", attributes=["state"], driver=driver)))
 
     def wait_for_chunk_replicator(self, driver=None):
-        print "Waiting for chunk replicator to become enabled..."
+        print >>sys.stderr, "Waiting for chunk replicator to become enabled..."
         wait(lambda: yt_commands.get("//sys/@chunk_replicator_enabled", driver=driver))
 
     def wait_for_cells(self, cell_ids=None, driver=None):
-        print "Waiting for tablet cells to become healthy..."
+        print >>sys.stderr, "Waiting for tablet cells to become healthy..."
         def get_cells():
-            cells = yt_commands.ls("//sys/tablet_cells", attributes=["health", "id"], driver=driver)
+            cells = yt_commands.ls("//sys/tablet_cells", attributes=["health", "id", "peers"], driver=driver)
             if cell_ids == None:
                 return cells
             return [cell for cell in cells if cell.attributes["id"] in cell_ids]
-        wait(lambda: all(c.attributes["health"] == "good" for c in get_cells()))
+
+        def check_cells():
+            cells = get_cells()
+            for cell in cells:
+                if cell.attributes["health"] != "good":
+                    return False
+                node = cell.attributes["peers"][0]["address"]
+                try:
+                    if not yt_commands.exists("//sys/nodes/{0}/orchid/tablet_cells/{1}".format(node, cell.attributes["id"]), driver=driver):
+                        return False
+                except yt_commands.YtResponseError:
+                    return False
+            return True
+
+        wait(check_cells)
 
     def sync_create_cells(self, cell_count, tablet_cell_bundle="default", driver=None):
         cell_ids = []
@@ -494,7 +515,7 @@ class YTEnvSetup(object):
         return cell_ids
 
     def wait_for_tablet_state(self, path, states, driver=None):
-        print "Waiting for tablets to become %s..." % ", ".join(str(state) for state in states)
+        print >>sys.stderr, "Waiting for tablets to become %s..." % ", ".join(str(state) for state in states)
         wait(lambda: all(any(x["state"] == state for state in states)
                         for x in yt_commands.get(path + "/@tablets", driver=driver)))
 
@@ -512,25 +533,25 @@ class YTEnvSetup(object):
     def sync_mount_table(self, path, freeze=False, **kwargs):
         yt_commands.mount_table(path, freeze=freeze, **kwargs)
 
-        print "Waiting for tablets to become mounted..."
+        print >>sys.stderr, "Waiting for tablets to become mounted..."
         self._wait_for_tablets(path, "frozen" if freeze else "mounted", **kwargs)
 
     def sync_unmount_table(self, path, **kwargs):
         yt_commands.unmount_table(path, **kwargs)
 
-        print "Waiting for tablets to become unmounted..."
+        print >>sys.stderr, "Waiting for tablets to become unmounted..."
         self._wait_for_tablets(path, "unmounted", **kwargs)
 
     def sync_freeze_table(self, path, **kwargs):
         yt_commands.freeze_table(path, **kwargs)
 
-        print "Waiting for tablets to become frozen..."
+        print >>sys.stderr, "Waiting for tablets to become frozen..."
         self._wait_for_tablets(path, "frozen", **kwargs)
 
     def sync_unfreeze_table(self, path, **kwargs):
         yt_commands.unfreeze_table(path, **kwargs)
 
-        print "Waiting for tablets to become mounted..."
+        print >>sys.stderr, "Waiting for tablets to become mounted..."
         self._wait_for_tablets(path, "mounted", **kwargs)
 
     def sync_flush_table(self, path, driver=None):
@@ -545,7 +566,7 @@ class YTEnvSetup(object):
                         yt_commands.get(path + "/@revision", driver=driver), driver=driver)
         yt_commands.remount_table(path, driver=driver)
 
-        print "Waiting for tablets to become compacted..."
+        print >>sys.stderr, "Waiting for tablets to become compacted..."
         wait(lambda: len(chunk_ids.intersection(__builtin__.set(yt_commands.get(path + "/@chunk_ids", driver=driver)))) == 0)
 
     def _abort_transactions(self, driver=None):
@@ -566,24 +587,34 @@ class YTEnvSetup(object):
     def sync_enable_table_replica(self, replica_id, driver=None):
         yt_commands.alter_table_replica(replica_id, enabled=True, driver=driver)
 
-        print "Waiting for replica to become enabled..."
+        print >>sys.stderr, "Waiting for replica to become enabled..."
         wait(lambda: yt_commands.get("#{0}/@state".format(replica_id), driver=driver) == "enabled")
 
     def sync_disable_table_replica(self, replica_id, driver=None):
         yt_commands.alter_table_replica(replica_id, enabled=False, driver=driver)
 
-        print "Waiting for replica to become disabled..."
+        print >>sys.stderr, "Waiting for replica to become disabled..."
         wait(lambda: yt_commands.get("#{0}/@state".format(replica_id), driver=driver) == "disabled")
 
     def _reset_nodes(self, driver=None):
-        nodes = yt_commands.ls("//sys/nodes", attributes=["banned", "decommissioned", "resource_limits_overrides", "user_tags"],
-                               driver=driver)
+        boolean_attributes = [
+            "banned",
+            "decommissioned",
+            "disable_write_sessions",
+            "disable_scheduler_jobs",
+            "disable_tablet_cells",
+        ]
+        attributes = boolean_attributes + [
+            "resource_limits_overrides",
+            "user_tags",
+        ]
+        nodes = yt_commands.ls("//sys/nodes", attributes=attributes, driver=driver)
+
         for node in nodes:
             node_name = str(node)
-            if node.attributes["banned"]:
-                yt_commands.set("//sys/nodes/%s/@banned" % node_name, False, driver=driver)
-            if node.attributes["decommissioned"]:
-                yt_commands.set("//sys/nodes/%s/@decommissioned" % node_name, False, driver=driver)
+            for attribute in boolean_attributes:
+                if node.attributes[attribute]:
+                    yt_commands.set("//sys/nodes/{0}/@{1}".format(node_name, attribute), False, driver=driver)
             if node.attributes["resource_limits_overrides"] != {}:
                 yt_commands.set("//sys/nodes/%s/@resource_limits_overrides" % node_name, {}, driver=driver)
             if node.attributes["user_tags"] != []:

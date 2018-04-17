@@ -12,6 +12,7 @@
 #include <yt/server/rpc_proxy/api_service.h>
 #include <yt/server/rpc_proxy/discovery_service.h>
 #include <yt/server/rpc_proxy/proxy_coordinator.h>
+#include <yt/server/rpc_proxy/private.h>
 
 #include <yt/ytlib/program/build_attributes.h>
 
@@ -29,6 +30,7 @@
 #include <yt/core/bus/server.h>
 #include <yt/core/bus/tcp_server.h>
 
+#include <yt/core/concurrency/action_queue.h>
 #include <yt/core/concurrency/thread_pool.h>
 
 #include <yt/core/net/address.h>
@@ -68,13 +70,15 @@ using namespace NLogging;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const NLogging::TLogger Logger("Bootstrap");
+static const auto& Logger = RpcProxyLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TBootstrap::TBootstrap(TCellProxyConfigPtr config, INodePtr configNode)
     : Config_(std::move(config))
     , ConfigNode_(std::move(configNode))
+    , ControlQueue_(New<TActionQueue>("Control"))
+    , WorkerPool_(New<TThreadPool>(Config_->WorkerThreadPoolSize, "Worker"))
 {
     WarnForUnrecognizedOptions(Logger, Config_);
 }
@@ -83,8 +87,6 @@ TBootstrap::~TBootstrap() = default;
 
 void TBootstrap::Run()
 {
-    ControlQueue_ = New<TActionQueue>("RpcProxy");
-
     BIND(&TBootstrap::DoRun, this)
         .AsyncVia(ControlQueue_->GetInvoker())
         .Run()
@@ -180,6 +182,11 @@ const TCellProxyConfigPtr& TBootstrap::GetConfig() const
 const IInvokerPtr& TBootstrap::GetControlInvoker() const
 {
     return ControlQueue_->GetInvoker();
+}
+
+const IInvokerPtr& TBootstrap::GetWorkerInvoker() const
+{
+    return WorkerPool_->GetInvoker();
 }
 
 const INativeConnectionPtr& TBootstrap::GetNativeConnection() const

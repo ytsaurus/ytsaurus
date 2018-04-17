@@ -84,38 +84,13 @@ message TOperationResult
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TResourceLimits
-{
-    optional double cpu = 1;
-    optional int32 user_slots = 2;
-    optional int64 memory = 3;
-    optional int32 network = 4;
-}
-
-message TSchedulingOptions
-{
-    optional double weight = 1;
-    optional TResourceLimits resource_limits = 2;
-}
-
-message TSchedulingOptionsPerPoolTree
-{
-    required bytes tree_id = 1;
-    required TSchedulingOptions scheduling_options = 2;
-}
-
-message TOwnerList
-{
-    repeated bytes owners = 1;
-}
-
 // Updates operation runtime params.
 
 message TReqUpdateOperationParameters
 {
     required NYT.NProto.TGuid operation_id = 1;
-    optional TOwnerList owner_list = 2;
-    repeated TSchedulingOptionsPerPoolTree options = 3;
+    // Operation parameters in YSON.
+    required bytes parameters = 2;
 }
 
 message TRspUpdateOperationParameters

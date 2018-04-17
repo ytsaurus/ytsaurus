@@ -1350,7 +1350,8 @@ void TObjectManager::OnProfiling()
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     Profiler.Enqueue("/zombie_object_count", GarbageCollector_->GetZombieCount(), EMetricType::Gauge);
-    Profiler.Enqueue("/ghost_object_count", GarbageCollector_->GetGhostCount(), EMetricType::Gauge);
+    Profiler.Enqueue("/ephemeral_ghost_object_count", GarbageCollector_->GetEphemeralGhostCount(), EMetricType::Gauge);
+    Profiler.Enqueue("/weak_ghost_object_count", GarbageCollector_->GetWeakGhostCount(), EMetricType::Gauge);
     Profiler.Enqueue("/locked_object_count", GarbageCollector_->GetLockedCount(), EMetricType::Gauge);
     Profiler.Enqueue("/created_objects", CreatedObjects_, EMetricType::Counter);
     Profiler.Enqueue("/destroyed_objects", DestroyedObjects_, EMetricType::Counter);

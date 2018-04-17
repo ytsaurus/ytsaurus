@@ -3,6 +3,8 @@
 
 #include <yt/ytlib/api/transaction.h>
 
+#include <yt/core/actions/cancelable_context.h>
+
 namespace NYT {
 namespace NScheduler {
 
@@ -11,11 +13,14 @@ namespace NScheduler {
 TControllerAgent::TControllerAgent(
     const TString& id,
     const NNodeTrackerClient::TAddressMap& agentAddresses,
-    NRpc::IChannelPtr channel)
+    NRpc::IChannelPtr channel,
+    const IInvokerPtr& invoker)
     : SuspiciousJobsYson_(NYson::TYsonString(TString(), NYson::EYsonType::MapFragment))
     , Id_(id)
     , AgentAddresses_(agentAddresses)
     , Channel_(std::move(channel))
+    , CancelableContext_(New<TCancelableContext>())
+    , CancelableInvoker_(CancelableContext_->CreateInvoker(invoker))
 { }
 
 const TAgentId& TControllerAgent::GetId() const
@@ -53,7 +58,7 @@ void TControllerAgent::SetIncarnationTransaction(NApi::ITransactionPtr transacti
 {
     YCHECK(!IncarnationTransaction_);
     IncarnationTransaction_ = std::move(transaction);
-    
+
     OperationEventsInbox_ = std::make_unique<TMessageQueueInbox>(
         NLogging::TLogger(SchedulerLogger)
             .AddTag("Kind: AgentToSchedulerOperations, AgentId: %v, IncarnationId: %v",
@@ -114,6 +119,16 @@ const TIntrusivePtr<TMessageQueueOutbox<TSchedulerToAgentOperationEvent>>& TCont
 const TIntrusivePtr<TMessageQueueOutbox<TScheduleJobRequestPtr>>& TControllerAgent::GetScheduleJobRequestsOutbox()
 {
     return ScheduleJobRequestsOutbox_;
+}
+
+void TControllerAgent::Cancel()
+{
+    CancelableContext_->Cancel();
+}
+
+const IInvokerPtr& TControllerAgent::GetCancelableInvoker()
+{
+    return CancelableInvoker_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

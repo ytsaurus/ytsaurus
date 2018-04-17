@@ -63,8 +63,8 @@ DEFINE_REFCOUNTED_TYPE(TTokenAuthenticatorConfig)
 
 class TCachingTokenAuthenticatorConfig
     : public TTokenAuthenticatorConfig
-    , public TExpiringCacheConfig
-{};
+    , public TAsyncExpiringCacheConfig
+{ };
 
 DEFINE_REFCOUNTED_TYPE(TCachingTokenAuthenticatorConfig)
 
@@ -84,7 +84,7 @@ DEFINE_REFCOUNTED_TYPE(TCookieAuthenticatorConfig)
 
 class TCachingCookieAuthenticatorConfig
     : public TCookieAuthenticatorConfig
-    , public TExpiringCacheConfig
+    , public TAsyncExpiringCacheConfig
 {
 public:
     TCachingCookieAuthenticatorConfig()

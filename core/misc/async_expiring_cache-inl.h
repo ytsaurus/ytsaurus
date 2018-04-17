@@ -1,6 +1,6 @@
 #pragma once
 #ifndef EXPIRING_CACHE_INL_H_
-#error "Direct inclusion of this file is not allowed, include expiring_cache.h"
+#error "Direct inclusion of this file is not allowed, include async_expiring_cache.h"
 #endif
 
 #include "config.h"
@@ -14,25 +14,25 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TKey, class TValue>
-TExpiringCache<TKey, TValue>::TEntry::TEntry(NProfiling::TCpuInstant accessDeadline)
+TAsyncExpiringCache<TKey, TValue>::TEntry::TEntry(NProfiling::TCpuInstant accessDeadline)
     : AccessDeadline(accessDeadline)
     , UpdateDeadline(std::numeric_limits<NProfiling::TCpuInstant>::max())
     , Promise(NewPromise<TValue>())
 { }
 
 template <class TKey, class TValue>
-bool TExpiringCache<TKey, TValue>::TEntry::IsExpired(NProfiling::TCpuInstant now) const
+bool TAsyncExpiringCache<TKey, TValue>::TEntry::IsExpired(NProfiling::TCpuInstant now) const
 {
     return now > AccessDeadline || now > UpdateDeadline;
 }
 
 template <class TKey, class TValue>
-TExpiringCache<TKey, TValue>::TExpiringCache(TExpiringCacheConfigPtr config)
+TAsyncExpiringCache<TKey, TValue>::TAsyncExpiringCache(TAsyncExpiringCacheConfigPtr config)
     : Config_(std::move(config))
 { }
 
 template <class TKey, class TValue>
-TFuture<TValue> TExpiringCache<TKey, TValue>::Get(const TKey& key)
+TFuture<TValue> TAsyncExpiringCache<TKey, TValue>::Get(const TKey& key)
 {
     auto now = NProfiling::GetCpuInstant();
 
@@ -78,7 +78,7 @@ TFuture<TValue> TExpiringCache<TKey, TValue>::Get(const TKey& key)
 }
 
 template <class TKey, class TValue>
-TFuture<typename TExpiringCache<TKey, TValue>::TCombinedValue> TExpiringCache<TKey, TValue>::Get(const std::vector<TKey>& keys)
+TFuture<typename TAsyncExpiringCache<TKey, TValue>::TCombinedValue> TAsyncExpiringCache<TKey, TValue>::Get(const std::vector<TKey>& keys)
 {
     auto now = NProfiling::GetCpuInstant();
 
@@ -148,7 +148,7 @@ TFuture<typename TExpiringCache<TKey, TValue>::TCombinedValue> TExpiringCache<TK
 }
 
 template <class TKey, class TValue>
-void TExpiringCache<TKey, TValue>::Invalidate(const TKey& key)
+void TAsyncExpiringCache<TKey, TValue>::Invalidate(const TKey& key)
 {
     NConcurrency::TWriterGuard guard(SpinLock_);
     auto it = Map_.find(key);
@@ -159,7 +159,7 @@ void TExpiringCache<TKey, TValue>::Invalidate(const TKey& key)
 }
 
 template <class TKey, class TValue>
-void TExpiringCache<TKey, TValue>::Clear()
+void TAsyncExpiringCache<TKey, TValue>::Clear()
 {
     NConcurrency::TWriterGuard guard(SpinLock_);
     for (const auto& pair : Map_) {
@@ -171,7 +171,7 @@ void TExpiringCache<TKey, TValue>::Clear()
 }
 
 template <class TKey, class TValue>
-void TExpiringCache<TKey, TValue>::SetResult(const TWeakPtr<TEntry>& weakEntry, const TKey& key, const TErrorOr<TValue>& valueOrError)
+void TAsyncExpiringCache<TKey, TValue>::SetResult(const TWeakPtr<TEntry>& weakEntry, const TKey& key, const TErrorOr<TValue>& valueOrError)
 {
     auto entry = weakEntry.Lock();
     if (!entry) {
@@ -198,13 +198,13 @@ void TExpiringCache<TKey, TValue>::SetResult(const TWeakPtr<TEntry>& weakEntry, 
     if (valueOrError.IsOK()) {
         NTracing::TNullTraceContextGuard guard;
         entry->ProbationCookie = NConcurrency::TDelayedExecutor::Submit(
-            BIND(&TExpiringCache::InvokeGet, MakeWeak(this), MakeWeak(entry), key, true),
+            BIND(&TAsyncExpiringCache::InvokeGet, MakeWeak(this), MakeWeak(entry), key, true),
             Config_->RefreshTime);
     }
 }
 
 template <class TKey, class TValue>
-void TExpiringCache<TKey, TValue>::InvokeGet(const TWeakPtr<TEntry>& weakEntry, const TKey& key, bool checkExpired)
+void TAsyncExpiringCache<TKey, TValue>::InvokeGet(const TWeakPtr<TEntry>& weakEntry, const TKey& key, bool checkExpired)
 {
     if (checkExpired && TryEraseExpired(weakEntry, key)) {
         return;
@@ -219,7 +219,7 @@ void TExpiringCache<TKey, TValue>::InvokeGet(const TWeakPtr<TEntry>& weakEntry, 
 }
 
 template <class TKey, class TValue>
-bool TExpiringCache<TKey, TValue>::TryEraseExpired(const TWeakPtr<TEntry>& weakEntry, const TKey& key)
+bool TAsyncExpiringCache<TKey, TValue>::TryEraseExpired(const TWeakPtr<TEntry>& weakEntry, const TKey& key)
 {
     auto entry = weakEntry.Lock();
     if (!entry) {
@@ -235,7 +235,7 @@ bool TExpiringCache<TKey, TValue>::TryEraseExpired(const TWeakPtr<TEntry>& weakE
 }
 
 template <class TKey, class TValue>
-void TExpiringCache<TKey, TValue>::InvokeGetMany(const std::vector<TWeakPtr<TEntry>>& entries, const std::vector<TKey>& keys)
+void TAsyncExpiringCache<TKey, TValue>::InvokeGetMany(const std::vector<TWeakPtr<TEntry>>& entries, const std::vector<TKey>& keys)
 {
     DoGetMany(keys)
         .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<std::vector<TValue>>& valueOrError) {
@@ -254,7 +254,7 @@ void TExpiringCache<TKey, TValue>::InvokeGetMany(const std::vector<TWeakPtr<TEnt
 }
 
 template <class TKey, class TValue>
-TFuture<typename TExpiringCache<TKey, TValue>::TCombinedValue> TExpiringCache<TKey, TValue>::DoGetMany(const std::vector<TKey>& keys)
+TFuture<typename TAsyncExpiringCache<TKey, TValue>::TCombinedValue> TAsyncExpiringCache<TKey, TValue>::DoGetMany(const std::vector<TKey>& keys)
 {
     std::vector<TFuture<TValue>> results;
 

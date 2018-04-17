@@ -52,6 +52,8 @@ class TTableMountConfig
     : public NTableClient::TRetentionConfig
 {
 public:
+    TString TabletCellBundle;
+
     i64 MaxDynamicStoreRowCount;
     i64 MaxDynamicStoreValueCount;
     i64 MaxDynamicStoreTimestampCount;
@@ -111,8 +113,12 @@ public:
 
     bool MergeRowsOnFlush;
 
+    TNullable<i64> MaxUnversionedBlockSize;
+
     TTableMountConfig()
     {
+        RegisterParameter("tablet_cell_bundle", TabletCellBundle)
+            .Optional();
         RegisterParameter("max_dynamic_store_row_count", MaxDynamicStoreRowCount)
             .GreaterThan(0)
             .Default(1000000);
@@ -241,6 +247,9 @@ public:
 
         RegisterParameter("merge_rows_on_flush", MergeRowsOnFlush)
             .Default(false);
+
+        RegisterParameter("max_unversioned_block_size", MaxUnversionedBlockSize)
+            .Optional();
 
         RegisterPostprocessor([&] () {
             if (MaxDynamicStoreRowCount > MaxDynamicStoreValueCount) {
@@ -517,8 +526,8 @@ class TSecurityManagerConfig
     : public NYTree::TYsonSerializable
 {
 public:
-    TExpiringCacheConfigPtr TablePermissionCache;
-    TExpiringCacheConfigPtr ResourceLimitsCache;
+    TAsyncExpiringCacheConfigPtr TablePermissionCache;
+    TAsyncExpiringCacheConfigPtr ResourceLimitsCache;
 
     TSecurityManagerConfig()
     {

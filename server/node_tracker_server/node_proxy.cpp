@@ -93,7 +93,7 @@ private:
             .SetPresent(isGood));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::TabletSlots)
             .SetPresent(isGood));
-        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::IoWeights)
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::IOWeights)
             .SetPresent(isGood));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ResourceUsage)
             .SetPresent(isGood));
@@ -217,7 +217,7 @@ private:
                         .Item("locations").DoListFor(statistics.locations(), [&] (TFluentList fluent, const TLocationStatistics& locationStatistics) {
                             auto mediumIndex = locationStatistics.medium_index();
                             const auto* medium = chunkManager->FindMediumByIndex(mediumIndex);
-                            if (!medium) {
+                            if (!IsObjectAlive(medium)) {
                                 return;
                             }
                             fluent
@@ -237,7 +237,7 @@ private:
                         .Item("media").DoMapFor(statistics.media(), [&] (TFluentMap fluent, const TMediumStatistics& mediumStatistics) {
                             auto mediumIndex = mediumStatistics.medium_index();
                             const auto* medium = chunkManager->FindMediumByIndex(mediumIndex);
-                            if (!medium) {
+                            if (!IsObjectAlive(medium)) {
                                 return;
                             }
                             fluent
@@ -323,7 +323,7 @@ private:
                     });
                 return true;
 
-            case EInternedAttributeKey::IoWeights: {
+            case EInternedAttributeKey::IOWeights: {
                 if (!isGood) {
                     break;
                 }
@@ -333,7 +333,7 @@ private:
                 BuildYsonFluently(consumer)
                     .DoMapFor(0, NChunkClient::MaxMediumCount, [&] (TFluentMap fluent, int mediumIndex) {
                         auto* medium = chunkManager->FindMediumByIndex(mediumIndex);
-                        if (medium) {
+                        if (IsObjectAlive(medium)) {
                             fluent
                                 .Item(medium->GetName())
                                 .Value(node->IOWeights()[mediumIndex]);
@@ -405,7 +405,7 @@ private:
 
             case EInternedAttributeKey::DisableTabletCells: {
                 auto disableTabletCells = ConvertTo<bool>(value);
-                node->SetDisableTabletCells(disableTabletCells);
+                nodeTracker->SetDisableTabletCells(node, disableTabletCells);
                 return true;
             }
 

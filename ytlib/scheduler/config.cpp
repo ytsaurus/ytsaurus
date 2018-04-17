@@ -198,6 +198,12 @@ TOperationSpecBase::TOperationSpecBase()
     RegisterParameter("enable_job_splitting", EnableJobSplitting)
         .Default(true);
 
+    RegisterParameter("slice_erasure_chunks_by_parts", SliceErasureChunksByParts)
+        .Default(false);
+
+    RegisterParameter("enable_compatible_storage_mode", EnableCompatibleStorageMode)
+        .Default(true);
+
     RegisterPostprocessor([&] () {
         if (UnavailableChunkStrategy == EUnavailableChunkAction::Wait &&
             UnavailableChunkTactics == EUnavailableChunkAction::Skip)
@@ -238,6 +244,10 @@ TUserJobSpec::TUserJobSpec()
     RegisterParameter("cpu_limit", CpuLimit)
         .Default(1)
         .GreaterThanOrEqual(0);
+    RegisterParameter("port_count", PortCount)
+        .Default(0)
+        .GreaterThanOrEqual(0)
+        .LessThanOrEqual(50);
     RegisterParameter("job_time_limit", JobTimeLimit)
         .Default()
         .GreaterThanOrEqual(TDuration::Seconds(1));
@@ -910,7 +920,7 @@ TStrategyOperationSpec::TStrategyOperationSpec()
 TOperationFairShareStrategyTreeOptions::TOperationFairShareStrategyTreeOptions()
 {
     RegisterParameter("weight", Weight)
-        .Default()
+        .Default(1.0)
         .InRange(MinSchedulableWeight, MaxSchedulableWeight);
     RegisterParameter("resource_limits", ResourceLimits)
         .DefaultNew();

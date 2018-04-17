@@ -7,6 +7,8 @@
 
 #include <yt/ytlib/api/public.h>
 
+#include <yt/ytlib/table_client/unversioned_row.h>
+
 #include <yt/core/ypath/public.h>
 
 #include <yt/core/http/public.h>
@@ -98,6 +100,20 @@ std::pair<TSkynetShareMeta, std::vector<TFileOffset>> ReadSkynetMetaFromTable(
     const TString& proxyUrl,
     const TString& oauthToken,
     const NYPath::TRichYPath& path);
+
+struct TTableShard
+{
+    NTableClient::TOwningKey Key;
+    TSkynetShareMeta Meta;
+    std::vector<TFileOffset> Offsets;
+};
+
+std::vector<TTableShard> ReadShardedSkynetMetaFromTable(
+    const NHttp::IClientPtr& httpClient,
+    const TString& proxyUrl,
+    const TString& oauthToken,
+    const NYPath::TRichYPath& path,
+    const std::vector<TString>& keyColumns);
 
 std::vector<THttpPartLocation> FetchSkynetPartsLocations(
     const NHttp::IClientPtr& httpClient,

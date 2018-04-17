@@ -45,7 +45,7 @@ function YtDriverFacadeV2(logger, driver)
 
     var descriptors = {};
 
-    driver.get_command_descriptors().forEach(function(item) {
+    driver.get_command_descriptors(3).forEach(function(item) {
         descriptors[item.name] = item;
     });
 
@@ -107,6 +107,7 @@ function YtDriverFacadeV2(logger, driver)
     delete descriptors.abort_job;
     delete descriptors.get_job;
     delete descriptors.get_job_stderr;
+    delete descriptors.get_job_fail_context;
     delete descriptors.get_job_input;
     delete descriptors.list_jobs;
 
@@ -126,7 +127,9 @@ function YtDriverFacadeV2(logger, driver)
     this.descriptors = descriptors;
 }
 
-YtDriverFacadeV2.prototype.execute = function(name, user,
+YtDriverFacadeV2.prototype.execute = function(
+    api_version, // NOTE: this argument is ignored
+    name, user,
     input_stream, input_compression,
     output_stream, output_compression,
     parameters, request_id, pause,
@@ -141,6 +144,7 @@ YtDriverFacadeV2.prototype.execute = function(name, user,
     parameters.GetByYPath("/output_format").SetAttribute("boolean_as_string", TRUE_NODE);
 
     return this.driver.execute(
+        3,
         name, user,
         input_stream, input_compression,
         output_stream, output_compression,
@@ -149,12 +153,12 @@ YtDriverFacadeV2.prototype.execute = function(name, user,
         result_interceptor);
 };
 
-YtDriverFacadeV2.prototype.find_command_descriptor = function(name)
+YtDriverFacadeV2.prototype.find_command_descriptor = function(api_version, name)
 {
     return this.descriptors[name] || null;
 };
 
-YtDriverFacadeV2.prototype.get_command_descriptors = function()
+YtDriverFacadeV2.prototype.get_command_descriptors = function(api_version)
 {
     return Object.values(this.descriptors);
 };

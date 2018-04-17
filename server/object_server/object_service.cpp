@@ -526,7 +526,7 @@ private:
         const TString& userName)
     {
         auto* user = securityManager->FindUserByName(userName);
-        if (user) {
+        if (IsObjectAlive(user)) {
             securityManager->DecreaseRequestQueueSize(user);
         }
     }

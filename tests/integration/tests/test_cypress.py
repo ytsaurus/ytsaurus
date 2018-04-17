@@ -1,15 +1,17 @@
 import pytest
 import time
 import datetime
+from copy import deepcopy
+from cStringIO import StringIO
+from datetime import timedelta
+from dateutil.tz import tzlocal
 
-from yt_env_setup import YTEnvSetup
-from yt_commands import *
+from yt_driver_bindings import Driver
 from yt.yson import to_yson_type, YsonEntity
 from yt.environment.helpers import assert_items_equal
 
-from datetime import timedelta
-
-from dateutil.tz import tzlocal
+from yt_env_setup import YTEnvSetup
+from yt_commands import *
 
 ##################################################################
 
@@ -988,58 +990,58 @@ class TestCypress(YTEnvSetup):
         assert get("#{0}&/@type".format(id)) == "link"
 
     def test_access_stat1(self):
-        time.sleep(1.0)
+        time.sleep(1)
         c1 = get("//tmp/@access_counter")
-        time.sleep(1.0)
+        time.sleep(1)
         c2 = get("//tmp/@access_counter")
         assert c2 == c1
 
     def test_access_stat2(self):
-        time.sleep(1.0)
+        time.sleep(1)
         c1 = get("//tmp/@access_counter")
         tx = start_transaction()
         lock("//tmp", mode = "snapshot", tx = tx)
-        time.sleep(1.0)
+        time.sleep(1)
         c2 = get("//tmp/@access_counter", tx = tx)
         assert c2 == c1 + 1
 
     def test_access_stat3(self):
-        time.sleep(1.0)
+        time.sleep(1)
         c1 = get("//tmp/@access_counter")
         get("//tmp/@")
-        time.sleep(1.0)
+        time.sleep(1)
         c2 = get("//tmp/@access_counter")
         assert c1 == c2
 
     def test_access_stat4(self):
-        time.sleep(1.0)
+        time.sleep(1)
         c1 = get("//tmp/@access_counter")
         assert exists("//tmp")
-        time.sleep(1.0)
+        time.sleep(1)
         c2 = get("//tmp/@access_counter")
         assert c1 == c2
 
     def test_access_stat5(self):
-        time.sleep(1.0)
+        time.sleep(1)
         c1 = get("//tmp/@access_counter")
         assert exists("//tmp/@id")
-        time.sleep(1.0)
+        time.sleep(1)
         c2 = get("//tmp/@access_counter")
         assert c1 == c2
 
     def test_access_stat6(self):
-        time.sleep(1.0)
+        time.sleep(1)
         c1 = get("//tmp/@access_counter")
         ls("//tmp/@")
-        time.sleep(1.0)
+        time.sleep(1)
         c2 = get("//tmp/@access_counter")
         assert c1 == c2
 
     def test_access_stat7(self):
-        time.sleep(1.0)
+        time.sleep(1)
         c1 = get("//tmp/@access_counter")
         ls("//tmp")
-        time.sleep(1.0)
+        time.sleep(1)
         c2 = get("//tmp/@access_counter")
         assert c2 == c1 + 1
 
@@ -1053,36 +1055,36 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/t2/@access_time") == get("//tmp/t2/@creation_time")
 
     def test_access_stat_suppress1(self):
-        time.sleep(1.0)
+        time.sleep(1)
         c1 = get("//tmp/@access_counter")
         get("//tmp", suppress_access_tracking=True)
-        time.sleep(1.0)
+        time.sleep(1)
         c2 = get("//tmp/@access_counter")
         assert c1 == c2
 
     def test_access_stat_suppress2(self):
-        time.sleep(1.0)
+        time.sleep(1)
         c1 = get("//tmp/@access_counter")
         ls("//tmp", suppress_access_tracking=True)
-        time.sleep(1.0)
+        time.sleep(1)
         c2 = get("//tmp/@access_counter")
         assert c1 == c2
 
     def test_access_stat_suppress3(self):
-        time.sleep(1.0)
+        time.sleep(1)
         create("table", "//tmp/t")
         c1 = get("//tmp/t/@access_counter")
         read_table("//tmp/t", table_reader={"suppress_access_tracking": True})
-        time.sleep(1.0)
+        time.sleep(1)
         c2 = get("//tmp/t/@access_counter")
         assert c1 == c2
 
     def test_access_stat_suppress4(self):
-        time.sleep(1.0)
+        time.sleep(1)
         create("file", "//tmp/f")
         c1 = get("//tmp/f/@access_counter")
         read_file("//tmp/f", suppress_access_tracking=True)
-        time.sleep(1.0)
+        time.sleep(1)
         c2 = get("//tmp/f/@access_counter")
         assert c1 == c2
 
@@ -1212,27 +1214,22 @@ class TestCypress(YTEnvSetup):
 
     def test_expiration_time_can_be_set_upon_construction2(self):
         create("table", "//tmp/t", attributes={"expiration_time": str(self._now() + timedelta(seconds=10.0))})
-        time.sleep(0.1)
+        time.sleep(1)
         assert exists("//tmp/t")
 
     def test_expiration_time_can_be_set_upon_construction3(self):
         tx = start_transaction()
         create("table", "//tmp/t", attributes={"expiration_time": str(self._now())}, tx=tx)
-        time.sleep(0.1)
+        time.sleep(1)
         assert not exists("//tmp/t")
         assert exists("//tmp/t", tx=tx)
         commit_transaction(tx)
-        time.sleep(0.1)
+        time.sleep(1)
         assert not exists("//tmp/t")
 
-    def test_expiration_time_removal1(self):
+    def test_expiration_time_removal(self):
         create("table", "//tmp/t", attributes={"expiration_time": str(self._now())})
-        time.sleep(0.1)
-        assert not exists("//tmp/t")
-
-    def test_expiration_time_removal2(self):
-        create("table", "//tmp/t", attributes={"expiration_time": str(self._now())})
-        time.sleep(0.2)
+        time.sleep(1)
         assert not exists("//tmp/t")
 
     def test_expiration_time_wait_for_locks_released(self):
@@ -1240,10 +1237,10 @@ class TestCypress(YTEnvSetup):
         tx = start_transaction()
         lock("//tmp/t", tx=tx)
         set("//tmp/t/@expiration_time", str(self._now()))
-        time.sleep(0.1)
+        time.sleep(1)
         assert exists("//tmp/t")
         abort_transaction(tx)
-        time.sleep(0.1)
+        time.sleep(1)
         assert not exists("//tmp/t")
 
     def test_expiration_time_wait_for_parent_locks_released(self):
@@ -1251,10 +1248,10 @@ class TestCypress(YTEnvSetup):
         tx = start_transaction()
         lock("//tmp/x", tx=tx)
         set("//tmp/x/t/@expiration_time", str(self._now()))
-        time.sleep(0.1)
+        time.sleep(1)
         assert exists("//tmp/x/t")
         abort_transaction(tx)
-        time.sleep(0.1)
+        time.sleep(1)
         assert not exists("//tmp/x/t")
 
     def test_expiration_time_wait_for_locks_released_recursive(self):
@@ -1263,10 +1260,10 @@ class TestCypress(YTEnvSetup):
         tx = start_transaction()
         lock("//tmp/m/t", tx=tx)
         set("//tmp/m/@expiration_time", str(self._now()))
-        time.sleep(0.1)
+        time.sleep(1)
         assert exists("//tmp/m")
         abort_transaction(tx)
-        time.sleep(0.1)
+        time.sleep(1)
         assert not exists("//tmp/m")
 
     def test_expiration_time_dont_wait_for_snapshot_locks(self):
@@ -1274,47 +1271,47 @@ class TestCypress(YTEnvSetup):
         tx = start_transaction()
         lock("//tmp/t", tx=tx, mode="snapshot")
         set("//tmp/t/@expiration_time", str(self._now()))
-        time.sleep(0.1)
+        time.sleep(1)
         assert not exists("//tmp/t")
 
     def test_no_expiration_time_for_root(self):
         with pytest.raises(YtError): set("//@expiration_time", str(self._now()))
 
     def test_copy_preserve_expiration_time(self):
-        create("table", "//tmp/t1", attributes={"expiration_time": str(self._now() + timedelta(seconds=1.0))})
+        create("table", "//tmp/t1", attributes={"expiration_time": str(self._now() + timedelta(seconds=1))})
         copy("//tmp/t1", "//tmp/t2", preserve_expiration_time=True)
         assert exists("//tmp/t2/@expiration_time")
-        time.sleep(2.0)
+        time.sleep(2)
         assert not exists("//tmp/t1")
         assert not exists("//tmp/t2")
 
     def test_copy_dont_preserve_expiration_time(self):
-        create("table", "//tmp/t1", attributes={"expiration_time": str(self._now() + timedelta(seconds=1.0))})
+        create("table", "//tmp/t1", attributes={"expiration_time": str(self._now() + timedelta(seconds=1))})
         copy("//tmp/t1", "//tmp/t2")
         assert not exists("//tmp/t2/@expiration_time")
-        time.sleep(2.0)
+        time.sleep(2)
         assert not exists("//tmp/t1")
         assert exists("//tmp/t2")
 
     def test_copy_preserve_expiration_time_in_tx(self):
-        create("table", "//tmp/t1", attributes={"expiration_time": str(self._now() + timedelta(seconds=1.0))})
+        create("table", "//tmp/t1", attributes={"expiration_time": str(self._now() + timedelta(seconds=1))})
         tx = start_transaction()
         copy("//tmp/t1", "//tmp/t2", preserve_expiration_time=True, tx=tx)
         assert exists("//tmp/t2/@expiration_time", tx=tx)
-        time.sleep(2.0)
+        time.sleep(2)
         assert not exists("//tmp/t1")
         assert exists("//tmp/t2", tx=tx)
         commit_transaction(tx)
-        time.sleep(0.1)
+        time.sleep(1)
         assert not exists("//tmp/t2")
 
     def test_expire_orphaned_node_yt_8064(self):
         tx1 = start_transaction()
         tx2 = start_transaction()
-        node_id = create("table", "//tmp/t", attributes={"expiration_time": str(self._now() + timedelta(seconds=2.0))}, tx=tx1)
+        node_id = create("table", "//tmp/t", attributes={"expiration_time": str(self._now() + timedelta(seconds=2))}, tx=tx1)
         lock("#" + node_id, tx=tx2, mode="snapshot")
         abort_transaction(tx1)
-        time.sleep(2.0)
+        time.sleep(2)
 
     def test_copy_preserve_creation_time(self):
         create("table", "//tmp/t1")
@@ -1546,7 +1543,13 @@ class TestCypress(YTEnvSetup):
         create("table", "//tmp/dir1/t2", attributes={"compression_codec": "zstd_17"})
         assert get("//tmp/dir1/t2/@compression_codec") == "zstd_17"
 
+        # Composite nodes don't inherit...
         create("map_node", "//tmp/dir1/dir2")
+        assert not exists("//tmp/dir1/dir2/@compression_codec")
+
+        # ...and neither do other types of nodes.
+        create("document", "//tmp/dir1/doc")
+        assert not exists("//tmp/dir1/doc/@compression_codec")
 
         # ancestor inheritance
         create("table", "//tmp/dir1/dir2/t1")
@@ -1746,6 +1749,37 @@ class TestCypress(YTEnvSetup):
         gc_collect()
         assert get("//sys/tablet_cell_bundles/b1/@ref_counter") == 1
 
+    def test_inheritable_attributes_no_extraneous_inheritance(self):
+        create("map_node", "//tmp/dir1")
+
+        # Most inheritable attributes are inheritable by all chunk owners.
+        # These, however, are only inheritable by tables (values don't matter):
+        attrs = (("commit_ordering", "strong"), ("in_memory_mode", "uncompressed"), ("optimize_for", "scan"), ("tablet_cell_bundle", "b"))
+        create_tablet_cell_bundle("b3")
+        for attr_name, attr_val in attrs:
+            set("//tmp/dir1/@" + attr_name, attr_val)
+
+        # Inheritable by all.
+        set("//tmp/dir1/@compression_codec", "lz4")
+
+        create("table", "//tmp/dir1/t1")
+        create("file", "//tmp/dir1/f1")
+        create("journal", "//tmp/dir1/j1")
+
+        for node in ("t1", "f1", "j1"):
+            assert get("//tmp/dir1/{0}/@compression_codec".format(node)) == "lz4"
+
+        for attr_name, attr_val in attrs:
+            assert get("//tmp/dir1/t1/@" + attr_name) == attr_val
+            assert not exists("//tmp/dir1/f1/@" + attr_name)
+            assert not exists("//tmp/dir1/j1/@" + attr_name)
+
+    def test_create_invalid_type(self):
+        with pytest.raises(YtError):
+            create("some_invalid_type", "//tmp/s")
+        with pytest.raises(YtError):
+            create("sorted_dynamic_tablet_store", "//tmp/s")
+
 ##################################################################
 
 class TestCypressMulticell(TestCypress):
@@ -1809,4 +1843,44 @@ class TestCypressWithoutSet(YTEnvSetup):
         create("document", "//tmp/doc")
         set("//tmp/doc", 10)
         assert get("//tmp/doc") == 10
+
+##################################################################
+
+class TestCypressApiVersion4(YTEnvSetup):
+    NUM_MASTERS = 3
+    NUM_NODES = 0
+
+    @classmethod
+    def setup_class(cls):
+        super(TestCypressApiVersion4, cls).setup_class()
+        config = deepcopy(cls.Env.configs["driver"])
+        config["api_version"] = 4
+        cls.driver = Driver(config)
+
+    def _execute(self, command, **kwargs):
+        kwargs["driver"] = self.driver
+        input_stream = StringIO(kwargs.pop("input")) if "input" in kwargs else None
+        return yson.loads(execute_command(command, kwargs, input_stream=input_stream))
+
+    def test_create(self):
+        assert "node_id" in self._execute("create", type="map_node", path="//tmp/dir")
+
+    def test_set_and_get(self):
+        assert self._execute("set", path="//tmp/a", input='{"b"= 3}') == {}
+        assert self._execute("get", path="//tmp/a") == {"value": {"b": 3}}
+
+    def test_list(self):
+        self._execute("set", path="//tmp/map", input='{"a"= 1; "b"= 2; "c"= 3}')
+        assert self._execute("list", path="//tmp/map") == {"value": ["a", "b", "c"]}
+
+    def test_trasaction(self):
+        tx_result = self._execute("start_transaction")
+        assert "transaction_id" in tx_result
+
+    def test_lock(self):
+        self._execute("set", path="//tmp/a", input='{"a"= 1}')
+        result = self._execute("start_transaction")
+        tx = result["transaction_id"]
+        lock_result = self._execute("lock", path="//tmp/a", transaction_id=tx)
+        assert "lock_id" in lock_result and "node_id" in lock_result
 

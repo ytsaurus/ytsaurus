@@ -50,7 +50,7 @@ DEFINE_REFCOUNTED_TYPE(TDialerConfig)
 
 //! Configuration for TAddressResolver singleton.
 class TAddressResolverConfig
-    : public TExpiringCacheConfig
+    : public TAsyncExpiringCacheConfig
 {
 public:
     bool EnableIPv4;
@@ -72,11 +72,11 @@ public:
         RegisterParameter("retries", Retries)
             .Default(25);
         RegisterParameter("resolve_timeout", ResolveTimeout)
-            .Default(TDuration::MilliSeconds(500));
+            .Default(TDuration::Seconds(1));
         RegisterParameter("max_resolve_timeout", MaxResolveTimeout)
-            .Default(TDuration::MilliSeconds(5000));
+            .Default(TDuration::Seconds(15));
         RegisterParameter("warning_timeout", WarningTimeout)
-            .Default(TDuration::MilliSeconds(1000));
+            .Default(TDuration::Seconds(3));
 
         RegisterPreprocessor([this] () {
             RefreshTime = TDuration::Seconds(60);

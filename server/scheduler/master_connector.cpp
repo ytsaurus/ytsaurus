@@ -131,12 +131,20 @@ public:
         return CancelableControlInvokers_[queue];
     }
 
-    void StartOperationNodeUpdates(const TOperationPtr& operation)
+    void RegisterOperation(const TOperationPtr& operation)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(State_ != EMasterConnectorState::Disconnected);
 
         OperationNodesUpdateExecutor_->AddUpdate(operation->GetId(), TOperationNodeUpdate(operation));
+    }
+
+    void UnregisterOperation(const TOperationPtr& operation)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+        YCHECK(State_ != EMasterConnectorState::Disconnected);
+
+        OperationNodesUpdateExecutor_->RemoveUpdate(operation->GetId());
     }
 
     TFuture<void> CreateOperationNode(TOperationPtr operation)
@@ -165,8 +173,12 @@ public:
             .EndMap()
             .GetData();
 
-        auto paths = GetCompatibilityOperationPaths(operationId);
-        auto secureVaultPaths = GetCompatibilityOperationPaths(operationId, "secure_vault");
+        auto paths = GetOperationPaths(operationId, operation->GetEnableCompatibleStorageMode());
+
+        auto secureVaultPaths = GetOperationPaths(
+            operationId,
+            operation->GetEnableCompatibleStorageMode(),
+            "secure_vault");
 
         for (const auto& path : paths) {
             auto req = TYPathProxy::Set(path);
@@ -222,7 +234,7 @@ public:
                 .EndMap()
             .EndMap());
 
-        auto paths = GetCompatibilityOperationPaths(operationId);
+        auto paths = GetOperationPaths(operationId, operation->GetEnableCompatibleStorageMode());
         for (const auto& path : paths) {
             auto req = TYPathProxy::Multiset(path + "/@");
             GenerateMutationId(req);
@@ -311,7 +323,7 @@ public:
         auto strategy = Bootstrap_->GetScheduler()->GetStrategy();
 
         auto batchReq = StartObjectBatchRequest();
-        auto paths = GetCompatibilityOperationPaths(operation->GetId());
+        auto paths = GetOperationPaths(operation->GetId(), operation->GetEnableCompatibleStorageMode());
 
         auto node = BuildYsonNodeFluently()
             .BeginMap()
@@ -517,7 +529,7 @@ private:
         OperationNodesUpdateExecutor_ = New<TUpdateExecutor<TOperationId, TOperationNodeUpdate>>(
             GetCancelableControlInvoker(),
             BIND(&TImpl::UpdateOperationNode, Unretained(this)),
-            BIND(&TImpl::IsOperationInFinishedState, Unretained(this)),
+            BIND([] (const TOperationNodeUpdate*) { return false; }),
             BIND(&TImpl::OnOperationUpdateFailed, Unretained(this)),
             Config_->OperationsUpdatePeriod,
             Logger);
@@ -946,6 +958,7 @@ private:
                 runtimeParams,
                 attributes.Get<TString>("authenticated_user"),
                 attributes.Get<TInstant>("start_time"),
+                spec->EnableCompatibleStorageMode,
                 Owner_->Bootstrap_->GetControlInvoker(),
                 attributes.Get<EOperationState>("state"),
                 attributes.Get<std::vector<TOperationEvent>>("events", {}));
@@ -1360,14 +1373,6 @@ private:
     }
 
 
-    bool IsOperationInFinishedState(const TOperationNodeUpdate* update) const
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        const auto& operation = update->Operation;
-        return operation->IsFinishedState();
-    }
-
     void OnOperationUpdateFailed(const TError& error)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -1387,7 +1392,7 @@ private:
             auto batchReq = StartObjectBatchRequest();
             GenerateMutationId(batchReq);
 
-            auto paths = GetCompatibilityOperationPaths(operation->GetId());
+            auto paths = GetOperationPaths(operation->GetId(), operation->GetEnableCompatibleStorageMode());
             for (const auto& operationPath : paths) {
                 // Set operation acl.
                 {
@@ -1406,12 +1411,10 @@ private:
                         auto error = TError("Failed to set operation ACL")
                             << TErrorAttribute("operation_id", operation->GetId())
                             << rspOrErr;
-                        operation->MutableAlerts()[EOperationAlertType::InvalidAcl] = error;
+                        operation->SetAlert(EOperationAlertType::InvalidAcl, error);
                         LOG_INFO(error);
                     } else {
-                        if (!operation->Alerts()[EOperationAlertType::InvalidAcl].IsOK()) {
-                            operation->MutableAlerts()[EOperationAlertType::InvalidAcl] = TError();
-                        }
+                        operation->ResetAlert(EOperationAlertType::InvalidAcl);
                     }
                 }
 
@@ -1461,15 +1464,7 @@ private:
                 {
                     auto req = multisetReq->add_subrequests();
                     req->set_key("alerts");
-                    const auto& alerts = operation->Alerts();
-                    req->set_value(BuildYsonStringFluently()
-                        .DoMapFor(TEnumTraits<EOperationAlertType>::GetDomainValues(),
-                            [&] (TFluentMap fluent, EOperationAlertType alertType) {
-                                if (!alerts[alertType].IsOK()) {
-                                    fluent.Item(FormatEnum(alertType)).Value(alerts[alertType]);
-                                }
-                            })
-                        .GetData());
+                    req->set_value(operation->BuildAlertsString().GetData());
                 }
 
                 batchReq->AddRequest(multisetReq, "update_op_node");
@@ -1714,9 +1709,14 @@ const IInvokerPtr& TMasterConnector::GetCancelableControlInvoker(EControlQueue q
     return Impl_->GetCancelableControlInvoker(queue);
 }
 
-void TMasterConnector::StartOperationNodeUpdates(const TOperationPtr& operation)
+void TMasterConnector::RegisterOperation(const TOperationPtr& operation)
 {
-    Impl_->StartOperationNodeUpdates(operation);
+    Impl_->RegisterOperation(operation);
+}
+
+void TMasterConnector::UnregisterOperation(const TOperationPtr& operation)
+{
+    Impl_->UnregisterOperation(operation);
 }
 
 TFuture<void> TMasterConnector::CreateOperationNode(const TOperationPtr& operation)

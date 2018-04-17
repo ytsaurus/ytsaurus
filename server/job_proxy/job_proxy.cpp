@@ -225,6 +225,8 @@ void TJobProxy::RetrieveJobSpec()
     JobSpecHelper_ = CreateJobSpecHelper(rsp->job_spec());
     const auto& resourceUsage = rsp->resource_usage();
 
+    Ports_ = FromProto<std::vector<int>>(rsp->ports());
+
     LOG_INFO("Job spec received (JobType: %v, ResourceLimits: {Cpu: %v, Memory: %v, Network: %v})\n%v",
         NScheduler::EJobType(rsp->job_spec().type()),
         resourceUsage.cpu(),
@@ -490,12 +492,18 @@ TJobResult TJobProxy::DoRun()
             this,
             userJobSpec,
             JobId_,
+            Ports_,
             std::make_unique<TUserJobWriteController>(this));
     } else {
         Job_ = CreateBuiltinJob();
     }
 
     Job_->Initialize();
+
+    if (ResourceController) {
+        // Set some guarantee to avoid stealing memory between cgroups.
+        ResourceController->SetMemoryGuarantee(JobProxyMemoryReserve_ / 2);
+    }
 
     MemoryWatchdogExecutor_->Start();
     HeartbeatExecutor_->Start();

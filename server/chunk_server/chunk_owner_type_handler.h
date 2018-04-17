@@ -11,6 +11,7 @@
 #include <yt/ytlib/chunk_client/chunk_owner_ypath_proxy.h>
 
 #include <yt/core/ytree/public.h>
+#include <yt/core/ytree/overlaid_attribute_dictionaries.h>
 
 namespace NYT {
 namespace NChunkServer {
@@ -28,6 +29,8 @@ public:
 
     virtual NYTree::ENodeType GetNodeType() const override;
 
+    virtual bool IsSupportedInheritableAttribute(const TString& key) const;
+
 private:
     NSecurityServer::TClusterResources GetChunkOwnerDiskUsage(
         const NChunkClient::NProto::TDataStatistics& statistics,
@@ -40,7 +43,8 @@ protected:
         const NCypressServer::TVersionedNodeId& id,
         NObjectClient::TCellTag externalCellTag,
         NTransactionServer::TTransaction* transaction,
-        NYTree::IAttributeDictionary* attributes,
+        NYTree::IAttributeDictionary* inheritedAttributes,
+        NYTree::IAttributeDictionary* explicitAttributes,
         NSecurityServer::TAccount* account,
         int replicationFactor,
         NCompression::ECodec compressionCodec,

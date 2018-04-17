@@ -57,6 +57,21 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TGetJobFailContextCommand
+    : public TTypedCommand<NApi::TGetJobFailContextOptions>
+{
+public:
+    TGetJobFailContextCommand();
+
+private:
+    NJobTrackerClient::TOperationId OperationId;
+    NJobTrackerClient::TJobId JobId;
+
+    virtual void DoExecute(ICommandContextPtr context) override;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TListOperationsCommand
     : public TTypedCommand<NApi::TListOperationsOptions>
 {
@@ -178,13 +193,13 @@ class TStartOperationCommand
     : public TTypedCommand<NApi::TStartOperationOptions>
 {
 public:
-    TStartOperationCommand();
+    explicit TStartOperationCommand(
+        TNullable<NScheduler::EOperationType> operationType = TNullable<NScheduler::EOperationType>());
 
 private:
     NYTree::INodePtr Spec;
     NScheduler::EOperationType OperationType;
 
-    virtual NScheduler::EOperationType GetOperationType() const;
     virtual void DoExecute(ICommandContextPtr context) override;
 };
 
@@ -193,8 +208,8 @@ private:
 class TMapCommand
     : public TStartOperationCommand
 {
-private:
-    virtual NScheduler::EOperationType GetOperationType() const override;
+public:
+    TMapCommand();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -202,8 +217,8 @@ private:
 class TMergeCommand
     : public TStartOperationCommand
 {
-private:
-    virtual NScheduler::EOperationType GetOperationType() const override;
+public:
+    TMergeCommand();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -211,8 +226,8 @@ private:
 class TSortCommand
     : public TStartOperationCommand
 {
-private:
-    virtual NScheduler::EOperationType GetOperationType() const override;
+public:
+    TSortCommand();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -220,8 +235,8 @@ private:
 class TEraseCommand
     : public TStartOperationCommand
 {
-private:
-    virtual NScheduler::EOperationType GetOperationType() const override;
+public:
+    TEraseCommand();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -229,8 +244,8 @@ private:
 class TReduceCommand
     : public TStartOperationCommand
 {
-private:
-    virtual NScheduler::EOperationType GetOperationType() const override;
+public:
+    TReduceCommand();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -238,8 +253,8 @@ private:
 class TJoinReduceCommand
     : public TStartOperationCommand
 {
-private:
-    virtual NScheduler::EOperationType GetOperationType() const override;
+public:
+    TJoinReduceCommand();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -247,8 +262,8 @@ private:
 class TMapReduceCommand
     : public TStartOperationCommand
 {
-private:
-    virtual NScheduler::EOperationType GetOperationType() const override;
+public:
+    TMapReduceCommand();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -256,8 +271,8 @@ private:
 class TRemoteCopyCommand
     : public TStartOperationCommand
 {
-private:
-    virtual NScheduler::EOperationType GetOperationType() const override;
+public:
+    TRemoteCopyCommand();
 };
 
 ////////////////////////////////////////////////////////////////////////////////

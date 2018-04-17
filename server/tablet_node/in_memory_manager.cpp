@@ -1,11 +1,12 @@
+#include "config.h"
 #include "in_memory_manager.h"
 #include "private.h"
-#include "sorted_chunk_store.h"
-#include "config.h"
 #include "slot_manager.h"
+#include "sorted_chunk_store.h"
 #include "store_manager.h"
 #include "tablet.h"
 #include "tablet_manager.h"
+#include "tablet_profiling.h"
 #include "tablet_slot.h"
 
 #include <yt/server/cell_node/bootstrap.h>
@@ -14,6 +15,7 @@
 #include <yt/ytlib/chunk_client/chunk_meta.pb.h>
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/chunk_reader.h>
+#include <yt/ytlib/chunk_client/data_statistics.h>
 #include <yt/ytlib/chunk_client/dispatcher.h>
 
 #include <yt/ytlib/misc/memory_usage_tracker.h>
@@ -178,6 +180,8 @@ private:
 
     TAsyncSemaphorePtr PreloadSemaphore_;
 
+    const NProfiling::TTagId PreloadTag_ = NProfiling::TProfileManager::Get()->RegisterTag("method", "preload");
+
     TReaderWriterSpinLock InterceptedDataSpinLock_;
     THashMap<TChunkId, TInMemoryChunkDataPtr> ChunkIdToData_;
 
@@ -246,6 +250,12 @@ private:
             configRevision,
             readSessionId);
 
+        const auto& slotManager = Bootstrap_->GetTabletSlotManager();
+        auto tabletSnapshot = slotManager->FindTabletSnapshot(tablet->GetId());
+        if (!tabletSnapshot) {
+            THROW_ERROR_EXCEPTION("Tablet snapshot is missing");
+        }
+
         try {
             // Fail quickly.
             if (storeManager->GetInMemoryConfigRevision() != configRevision) {
@@ -268,12 +278,6 @@ private:
                     }));
                 });
 
-            auto tabletSnapshot = Bootstrap_->GetTabletSlotManager()->FindTabletSnapshot(tablet->GetId());
-
-            if (!tabletSnapshot) {
-                THROW_ERROR_EXCEPTION("Tablet snapshot is missing");
-            }
-
             if (tabletSnapshot->Config->InMemoryMode != mode) {
                 THROW_ERROR_EXCEPTION("In-memory mode does not match the snapshot")
                     << TErrorAttribute("expected", mode)
@@ -292,7 +296,8 @@ private:
                 store,
                 readSessionId,
                 Bootstrap_->GetMemoryUsageTracker(),
-                CompressionInvoker_);
+                CompressionInvoker_,
+                PreloadTag_);
             // Now, check is the revision in still the same.
 
             if (storeManager->GetInMemoryConfigRevision() != configRevision) {
@@ -305,10 +310,14 @@ private:
             store->Preload(std::move(chunkData));
             storeManager->EndStorePreload(store);
         } catch (const std::exception& ex) {
+            auto error = TError(ex)
+                << TErrorAttribute("tablet_id", tabletSnapshot->TabletId)
+                << TErrorAttribute("background_activity", ETabletBackgroundActivity::Preload);
+
+            tabletSnapshot->RuntimeData->Errors[ETabletBackgroundActivity::Preload].Store(error);
             LOG_ERROR(ex, "Error preloading tablet store, backed off");
         }
 
-        const auto& slotManager = Bootstrap_->GetTabletSlotManager();
         slotManager->RegisterTabletSnapshot(slot, tablet);
     }
 
@@ -490,7 +499,8 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
     const IChunkStorePtr& store,
     const TReadSessionId& readSessionId,
     TMemoryUsageTracker<EMemoryCategory>* memoryUsageTracker,
-    const IInvokerPtr& compressionInvoker)
+    const IInvokerPtr& compressionInvoker,
+    const NProfiling::TTagId& preloadTag)
 {
     auto mode = tabletSnapshot->Config->InMemoryMode;
     auto configRevision = tabletSnapshot->InMemoryConfigRevision;
@@ -510,6 +520,22 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
 
     auto miscExt = GetProtoExtension<TMiscExt>(meta.extensions());
     auto blocksExt = GetProtoExtension<TBlocksExt>(meta.extensions());
+    auto format = ETableChunkFormat(meta.version());
+
+    if (format == ETableChunkFormat::SchemalessHorizontal ||
+        format == ETableChunkFormat::UnversionedColumnar)
+    {
+        // For unversioned chunks verify that block size is correct
+        if (auto blockSizeLimit = tabletSnapshot->Config->MaxUnversionedBlockSize) {
+            if (miscExt.max_block_size() > *blockSizeLimit) {
+                THROW_ERROR_EXCEPTION("Maximum block size limit violated")
+                    << TErrorAttribute("tablet_id", tabletSnapshot->TabletId)
+                    << TErrorAttribute("chunk_id", store->GetId())
+                    << TErrorAttribute("block_size", miscExt.max_block_size())
+                    << TErrorAttribute("block_size_limit", *blockSizeLimit);
+            }
+        }
+    }
 
     auto erasureCodec = NErasure::ECodec(miscExt.erasure_codec());
     if (erasureCodec != NErasure::ECodec::None) {
@@ -524,6 +550,10 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
 
     i64 preallocatedMemory = 0;
     i64 allocatedMemory = 0;
+    i64 compressedDataSize = 0;
+
+    TDuration decompressionTime;
+
     for (int i = 0; i < totalBlockCount; ++i) {
         preallocatedMemory += blocksExt.blocks(i).size();
     }
@@ -560,6 +590,10 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
             startBlockIndex,
             startBlockIndex + readBlockCount - 1);
 
+        for (const auto& compressedBlock : compressedBlocks) {
+            compressedDataSize += compressedBlock.Size();
+        }
+
         std::vector<TBlock> cachedBlocks;
         switch (mode) {
             case EInMemoryMode::Compressed: {
@@ -572,19 +606,25 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
                     startBlockIndex,
                     startBlockIndex + readBlockCount - 1);
 
-                std::vector<TFuture<TSharedRef>> asyncUncompressedBlocks;
+                std::vector<TFuture<std::pair<TSharedRef, TDuration>>> asyncUncompressedBlocks;
                 for (auto& compressedBlock : compressedBlocks) {
                     asyncUncompressedBlocks.push_back(
-                        BIND(
-                            static_cast<TSharedRef(NCompression::ICodec::*)(const TSharedRef&)>(&NCompression::ICodec::Decompress),
-                            Unretained(codec),
-                            std::move(compressedBlock.Data))
+                        BIND([&] {
+                                NProfiling::TCpuTimer timer;
+                                auto block = codec->Decompress(compressedBlock.Data);
+                                return std::make_pair(std::move(block), timer.GetElapsedTime());
+                            })
                             .AsyncVia(compressionInvoker)
                             .Run());
                 }
 
-                cachedBlocks = TBlock::Wrap(WaitFor(Combine(asyncUncompressedBlocks))
-                    .ValueOrThrow());
+                auto results = WaitFor(Combine(asyncUncompressedBlocks))
+                    .ValueOrThrow();
+
+                for (const auto& pair : results) {
+                    cachedBlocks.emplace_back(std::move(pair.first));
+                    decompressionTime += pair.second;
+                }
 
                 break;
             }
@@ -604,6 +644,17 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
 
         startBlockIndex += readBlockCount;
     }
+
+    TCodecStatistics decompressionStatistics;
+    decompressionStatistics.Append(TCodecDuration{codecId, decompressionTime});
+    NChunkClient::NProto::TDataStatistics dataStatistics;
+    dataStatistics.set_compressed_data_size(compressedDataSize);
+
+    ProfileChunkReader(
+        tabletSnapshot,
+        dataStatistics,
+        decompressionStatistics,
+        preloadTag);
 
     if (chunkData->MemoryTrackerGuard) {
         chunkData->MemoryTrackerGuard.UpdateSize(allocatedMemory - preallocatedMemory);

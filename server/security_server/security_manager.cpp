@@ -362,7 +362,7 @@ public:
     TAccount* GetAccountByNameOrThrow(const TString& name)
     {
         auto* account = FindAccountByName(name);
-        if (!account) {
+        if (!IsObjectAlive(account)) {
             THROW_ERROR_EXCEPTION(
                 NSecurityClient::EErrorCode::NoSuchAccount,
                 "No such account %Qv",
@@ -597,7 +597,7 @@ public:
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto id = objectManager->GenerateId(EObjectType::User, hintId);
-        auto user = DoCreateUser(id, name);
+        auto* user = DoCreateUser(id, name);
         if (user) {
             LOG_DEBUG("User %Qv created", name);
         }
@@ -677,7 +677,7 @@ public:
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto id = objectManager->GenerateId(EObjectType::Group, hintId);
-        auto group = DoCreateGroup(id, name);
+        auto* group = DoCreateGroup(id, name);
         if (group) {
             LOG_DEBUG("Group %Qv created", name);
         }
@@ -724,12 +724,12 @@ public:
     TSubject* FindSubjectByName(const TString& name)
     {
         auto* user = FindUserByName(name);
-        if (user) {
+        if (IsObjectAlive(user)) {
             return user;
         }
 
         auto* group = FindGroupByName(name);
-        if (group) {
+        if (IsObjectAlive(group)) {
             return group;
         }
 
@@ -1027,7 +1027,8 @@ public:
             permission != EPermission::Read &&
             Bootstrap_->GetConfigManager()->GetConfig()->EnableSafeMode)
         {
-            THROW_ERROR_EXCEPTION("Access denied: cluster is in safe mode. "
+            THROW_ERROR_EXCEPTION(NSecurityClient::EErrorCode::SafeModeEnabled,
+                "Access denied: cluster is in safe mode. "
                 "Check for the announces before reporting any issues")
                 << TErrorAttribute("permission", permission)
                 << TErrorAttribute("user", user->GetName())
@@ -1361,11 +1362,11 @@ private:
         i64 lastDiskSpace = 0;
 
         for (const auto& entry : requisition) {
-            if (!IsObjectAlive(entry.Account)) {
+            auto* account = entry.Account;
+            if (!IsObjectAlive(account)) {
                 continue;
             }
 
-            auto* account = entry.Account;
             auto mediumIndex = entry.MediumIndex;
             Y_ASSERT(mediumIndex != NChunkClient::InvalidMediumIndex);
 

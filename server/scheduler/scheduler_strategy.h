@@ -48,41 +48,24 @@ struct ISchedulerStrategyHost
     virtual TFuture<void> SetOperationAlert(
         const TOperationId& operationId,
         EOperationAlertType alertType,
-        const TError& alert) = 0;
+        const TError& alert,
+        TNullable<TDuration> timeout = Null) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TUpdatedJob
-{
-    TUpdatedJob(
-        const TOperationId& operationId,
-        const TJobId& jobId,
-        const TJobResources& delta,
-        const TString& treeId)
-        : OperationId(operationId)
-        , JobId(jobId)
-        , Delta(delta)
-        , TreeId(treeId)
-    { }
+DEFINE_ENUM(EJobUpdateStatus,
+    (Running)
+    (Finished)
+);
 
+struct TJobUpdate
+{
+    EJobUpdateStatus Status;
     TOperationId OperationId;
     TJobId JobId;
+    TString TreeId;
     TJobResources Delta;
-    TString TreeId;
-};
-
-struct TFinishedJob
-{
-    TFinishedJob(const TOperationId& operationId, const TJobId& jobId, const TString& treeId)
-        : OperationId(operationId)
-        , JobId(jobId)
-        , TreeId(treeId)
-    { }
-
-    TOperationId OperationId;
-    TJobId JobId;
-    TString TreeId;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -132,6 +115,12 @@ struct ISchedulerStrategy
      */
     virtual void RegisterOperation(IOperationStrategyHost* operation) = 0;
 
+    //! Disable operation. Remove all operation jobs from tree.
+    /*!
+     *  The implementation must throw no exceptions.
+     */
+    virtual void DisableOperation(IOperationStrategyHost* operation) = 0;
+
     //! Must be called for a registered operation after it is materialized.
     virtual void EnableOperation(IOperationStrategyHost* operation) = 0;
 
@@ -144,14 +133,14 @@ struct ISchedulerStrategy
     //! Register jobs that are already created somewhere outside strategy.
     virtual void RegisterJobs(const TOperationId& operationId, const std::vector<TJobPtr>& job) = 0;
 
-    virtual void ProcessUpdatedAndFinishedJobs(
-        std::vector<TUpdatedJob>* updatedJobs,
-        std::vector<NScheduler::TFinishedJob>* finishedJobs,
+    virtual void ProcessJobUpdates(
+        const std::vector<TJobUpdate>& jobUpdates,
+        std::vector<TJobId>* successfullyUpdatedJobs,
         std::vector<TJobId>* jobsToAbort) = 0;
 
     virtual void ApplyJobMetricsDelta(const TOperationIdToOperationJobMetrics& operationIdToOperationJobMetrics) = 0;
 
-    virtual void UpdatePools(const NYTree::INodePtr& poolsNode) = 0;
+    virtual void UpdatePoolTrees(const NYTree::INodePtr& poolTreesNode) = 0;
 
     virtual void ValidateNodeTags(const THashSet<TString>& tags) = 0;
 
@@ -159,7 +148,7 @@ struct ISchedulerStrategy
 
     virtual void UpdateOperationRuntimeParameters(
         IOperationStrategyHost* operation,
-        const TOperationFairShareStrategyTreeOptionsPtr& runtimeParams) = 0;
+        const NYTree::INodePtr& parametersNode) = 0;
 
     //! Updates current config used by strategy.
     virtual void UpdateConfig(const TFairShareStrategyConfigPtr& config) = 0;

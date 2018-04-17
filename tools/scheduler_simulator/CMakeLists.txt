@@ -11,11 +11,16 @@ target_link_libraries(yt-scheduler-simulator
 
 add_executable(scheduler_simulator
   main.cpp
-  yt-scheduler-simulator
 )
 
 add_executable(convert_operations_to_binary_format
   convert.cpp
+)
+
+target_link_libraries(scheduler_simulator
   yt-scheduler-simulator
 )
 
+target_link_libraries(convert_operations_to_binary_format
+  yt-scheduler-simulator
+)

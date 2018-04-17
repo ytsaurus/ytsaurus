@@ -73,7 +73,8 @@ public:
         INodeTypeHandlerPtr handler,
         NSecurityServer::TAccount* account,
         NTransactionServer::TTransaction* transaction,
-        NYTree::IAttributeDictionary* attributes);
+        NYTree::IAttributeDictionary* inheritedAttributes,
+        NYTree::IAttributeDictionary* explicitAttributes);
 
     //! Creates a new node and registers it.
     TCypressNodeBase* InstantiateNode(

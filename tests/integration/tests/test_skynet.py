@@ -421,12 +421,16 @@ class TestSkynetManager(YTEnvSetup):
             "enable_skynet_sharing": True,
             "schema": SKYNET_TABLE_SCHEMA,
         })
-        
+
+        second_file = ''.join(random.choice(string.ascii_uppercase) for _ in range(128))
+
         write_table("//tmp/sharded_table", [
             {"sky_share_id": 0, "filename": "a", "part_index": 0, "data": "aaa"},
-            {"sky_share_id": 1, "filename": "a", "part_index": 0, "data": "aaa"},
+            {"sky_share_id": 1, "filename": "a", "part_index": 0, "data": second_file},
         ])
 
         rbtorrentid0 = self.share("//tmp/sharded_table[0u]")
         rbtorrentid1 = self.share("//tmp/sharded_table[1u]")
 
+        subprocess.check_call(["sky", "get", "-t", "60", "-p", "-d", self.path_to_run + "/test_download_2", rbtorrentid1])
+        assert second_file == open(self.path_to_run + "/test_download_2/a").read()

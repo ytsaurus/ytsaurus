@@ -130,7 +130,7 @@ public:
 
     bool EnableUdf;
     NYPath::TYPath UdfRegistryPath;
-    TExpiringCacheConfigPtr FunctionRegistryCache;
+    TAsyncExpiringCacheConfigPtr FunctionRegistryCache;
     TSlruCacheConfigPtr FunctionImplCache;
 
     TNullable<int> ThreadPoolSize;

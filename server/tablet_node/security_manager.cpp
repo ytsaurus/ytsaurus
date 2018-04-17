@@ -12,7 +12,7 @@
 #include <yt/core/concurrency/fls.h>
 #include <yt/core/concurrency/scheduler.h>
 
-#include <yt/core/misc/expiring_cache.h>
+#include <yt/core/misc/async_expiring_cache.h>
 
 namespace NYT {
 namespace NTabletNode {
@@ -92,13 +92,13 @@ struct TTablePermissionKey
 DECLARE_REFCOUNTED_CLASS(TTablePermissionCache)
 
 class TTablePermissionCache
-    : public TExpiringCache<TTablePermissionKey, void>
+    : public TAsyncExpiringCache<TTablePermissionKey, void>
 {
 public:
     TTablePermissionCache(
-        TExpiringCacheConfigPtr config,
+        TAsyncExpiringCacheConfigPtr config,
         NCellNode::TBootstrap* bootstrap)
-        : TExpiringCache(std::move(config))
+        : TAsyncExpiringCache(std::move(config))
         , Bootstrap_(bootstrap)
     { }
 
@@ -181,13 +181,13 @@ struct TResourceLimitsKey
 DECLARE_REFCOUNTED_CLASS(TResourceLimitsCache)
 
 class TResourceLimitsCache
-    : public TExpiringCache<TResourceLimitsKey, void>
+    : public TAsyncExpiringCache<TResourceLimitsKey, void>
 {
 public:
     TResourceLimitsCache(
-        TExpiringCacheConfigPtr config,
+        TAsyncExpiringCacheConfigPtr config,
         NCellNode::TBootstrap* bootstrap)
-        : TExpiringCache(std::move(config))
+        : TAsyncExpiringCache(std::move(config))
         , Bootstrap_(bootstrap)
     { }
 

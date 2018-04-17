@@ -1,30 +1,42 @@
 #pragma once
 
-#include "expiring_cache.h"
+#include <yt/core/concurrency/rw_spinlock.h>
+
+#include <yt/core/profiling/timing.h>
 
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO(babenko): this should be redone
 template <class TKey, class TValue>
 class TSyncExpiringCache
-    : public TExpiringCache<TKey, TValue>
+    : public TRefCounted
 {
 public:
     TSyncExpiringCache(
-        TCallback<TValue(TKey)> calculateValueAction,
-        TDuration expirationTimeout);
+        TCallback<TValue(const TKey&)> calculateValueAction,
+        TDuration expirationTimeout,
+        IInvokerPtr invoker);
 
     TValue Get(const TKey& key);
-
-protected:
-    virtual TFuture<TValue> DoGet(const TKey& key) override;
+    void Clear();
 
 private:
-    const TCallback<TValue(TKey)> CalculateValueAction_;
+    struct TEntry
+    {
+        NProfiling::TCpuInstant LastAccessTime;
+        NProfiling::TCpuInstant LastUpdateTime;
+        TValue Value;
+    };
 
-    TExpiringCacheConfigPtr MakeConfig(TDuration expirationTimeout);
+    NConcurrency::TReaderWriterSpinLock MapLock_;
+    THashMap<TKey, TEntry> Map_;
+
+    const TCallback<TValue(const TKey&)> CalculateValueAction_;
+    const TDuration ExpirationTimeout_;
+    NConcurrency::TPeriodicExecutorPtr EvictionExecutor_;
+
+    void DeleteExpiredItems();
 };
 
 ////////////////////////////////////////////////////////////////////////////////

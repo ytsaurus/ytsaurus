@@ -15,7 +15,8 @@ exports.that = function Middleware__YtAuthentication()
             config,
             req.logger || logger,
             profiler,
-            authority))
+            authority,
+            true))
         .dispatch(req, rsp, next);
     };
 };

@@ -52,7 +52,7 @@ using namespace NYPath;
 void ValidateTabletRetainedTimestamp(const TTabletSnapshotPtr& tabletSnapshot, TTimestamp timestamp)
 {
     if (timestamp < tabletSnapshot->RetainedTimestamp) {
-        THROW_ERROR_EXCEPTION("Timestamp %v is less than tablet %v retained timestamp %v",
+        THROW_ERROR_EXCEPTION("Timestamp %llx is less than tablet %v retained timestamp %llx",
             timestamp,
             tabletSnapshot->TabletId,
             tabletSnapshot->RetainedTimestamp);
@@ -76,13 +76,21 @@ void TRuntimeTableReplicaData::MergeFrom(const TTableReplicaStatistics& statisti
 ////////////////////////////////////////////////////////////////////////////////
 
 TReplicaCounters::TReplicaCounters(const TTagIdList& list)
-    : LagRowCount("/replica/lag_row_count", list)
-    , LagTime("/replica/lag_time", list)
+    : LagRowCount("/replica/lag_row_count", list, EAggregateMode::Max, TDuration::Seconds(1))
+    , LagTime("/replica/lag_time", list, EAggregateMode::Max, TDuration::Seconds(1))
     , Tags(list)
 { }
 
 // Uses tablet_id and replica_id as the key.
 using TReplicaProfilerTrait = TTabletProfilerTrait<TReplicaCounters>;
+
+////////////////////////////////////////////////////////////////////////////////
+
+TTabletCounters::TTabletCounters(const NProfiling::TTagIdList& list)
+    : OverlappingStoreCount("/tablet/overlapping_store_count", list)
+{ }
+
+using TTabletInternalProfilerTrait = TTabletProfilerTrait<TTabletCounters>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -160,7 +168,7 @@ void TTabletSnapshot::ValidateMountRevision(i64 mountRevision)
     if (MountRevision != mountRevision) {
         THROW_ERROR_EXCEPTION(
             NTabletClient::EErrorCode::InvalidMountRevision,
-            "Invalid mount revision of tablet %v: expected %x, received %x",
+            "Invalid mount revision of tablet %v: expected %llx, received %llx",
             TabletId,
             MountRevision,
             mountRevision)
@@ -1141,17 +1149,17 @@ void TTablet::FillProfilerTags(const TCellId& cellId)
 {
     ProfilerTags_.clear();
 
-    if (Config_->EnableProfiling) {
-        ProfilerTags_.assign({
-            TProfileManager::Get()->RegisterTag("tablet_id", Id_),
-            TProfileManager::Get()->RegisterTag("cell_id", cellId)});
-    }
+    DiskProfilerTags_.assign({
+        TProfileManager::Get()->RegisterTag("account", WriterOptions_->Account),
+        TProfileManager::Get()->RegisterTag("medium", WriterOptions_->MediumName)});
 
-    auto addProfilingTag = [&] (const TString& tag, const TString& value) {
-        ProfilerTags_.push_back(TProfileManager::Get()->RegisterTag(
-            tag,
-            value ? value : UnknownProfilingTag));
+    auto addProfilingTag = [&] (const TString& tag, const TString& rawValue) {
+        const auto& value = rawValue ? rawValue : UnknownProfilingTag;
+        ProfilerTags_.push_back(TProfileManager::Get()->RegisterTag(tag, value));
+        DiskProfilerTags_.push_back(TProfileManager::Get()->RegisterTag(tag, value));
     };
+
+    addProfilingTag("tablet_cell_bundle", Config_->TabletCellBundle);
 
     switch (Config_->ProfilingMode) {
         case EDynamicTableProfilingMode::Path:
@@ -1166,10 +1174,9 @@ void TTablet::FillProfilerTags(const TCellId& cellId)
             break;
     }
 
-    const auto& writerOptions = WriterOptions_;
-    DiskProfilerTags_.assign({
-        TProfileManager::Get()->RegisterTag("account", writerOptions->Account),
-        TProfileManager::Get()->RegisterTag("medium", writerOptions->MediumName)});
+    ProfilerCounters_ = !ProfilerTags_.empty()
+        ? &GetGloballyCachedValue<TTabletInternalProfilerTrait>(ProfilerTags_)
+        : nullptr;
 }
 
 void TTablet::UpdateReplicaCounters()
@@ -1223,7 +1230,7 @@ void TTablet::ValidateMountRevision(i64 mountRevision)
     if (MountRevision_ != mountRevision) {
         THROW_ERROR_EXCEPTION(
             NTabletClient::EErrorCode::InvalidMountRevision,
-            "Invalid mount revision of tablet %v: expected %x, received %x",
+            "Invalid mount revision of tablet %v: expected %llx, received %llx",
             Id_,
             MountRevision_,
             mountRevision)
@@ -1247,6 +1254,10 @@ void TTablet::UpdateOverlappingStoreCount()
     overlappingStoreCount += Eden_->Stores().size();
     OverlappingStoreCount_ = overlappingStoreCount;
     CriticalPartitionCount_ = criticalPartitionCount;
+
+    if (ProfilerCounters_) {
+        TabletNodeProfiler.Update(ProfilerCounters_->OverlappingStoreCount, OverlappingStoreCount_);
+    }
 }
 
 void TTablet::UpdateUnflushedTimestamp() const

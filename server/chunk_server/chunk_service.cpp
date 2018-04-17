@@ -311,11 +311,13 @@ private:
             "ConfirmChunkCount: %v, "
             "SealChunkCount: %v, "
             "CreateChunkListsCount: %v, "
+            "UsageChunkListsCount: %v, "
             "SuppressUpstreamSync: %v",
             request->create_chunk_subrequests_size(),
             request->confirm_chunk_subrequests_size(),
             request->seal_chunk_subrequests_size(),
             request->create_chunk_lists_subrequests_size(),
+            request->unstage_chunk_tree_subrequests_size(),
             suppressUpstreamSync);
 
         ValidateClusterInitialized();

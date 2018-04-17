@@ -177,6 +177,11 @@ const TAsyncSemaphorePtr& TOperationControllerHost::GetCoreSemaphore()
     return Bootstrap_->GetControllerAgent()->GetCoreSemaphore();
 }
 
+TMemoryTagQueue* TOperationControllerHost::GetMemoryTagQueue()
+{
+    return Bootstrap_->GetControllerAgent()->GetMemoryTagQueue();
+}
+
 int TOperationControllerHost::GetExecNodeCount()
 {
     return Bootstrap_->GetControllerAgent()->GetExecNodeCount();
@@ -190,6 +195,11 @@ TRefCountedExecNodeDescriptorMapPtr TOperationControllerHost::GetExecNodeDescrip
 TInstant TOperationControllerHost::GetConnectionTime()
 {
     return Bootstrap_->GetControllerAgent()->GetConnectionTime();
+}
+
+const TIncarnationId& TOperationControllerHost::GetIncarnationId()
+{
+    return IncarnationId_;
 }
 
 const NConcurrency::IThroughputThrottlerPtr& TOperationControllerHost::GetJobSpecSliceThrottler()
@@ -215,7 +225,7 @@ void TOperationControllerHost::OnOperationAborted(const TError& error)
         OperationId_,
         error
     });
-    LOG_DEBUG("Operation abort notification enqueued (OperationId: %v, Error: %v)",
+    LOG_DEBUG(error, "Operation abort notification enqueued (OperationId: %v)",
         OperationId_,
         error);
 }
@@ -227,9 +237,8 @@ void TOperationControllerHost::OnOperationFailed(const TError& error)
         OperationId_,
         error
     });
-    LOG_DEBUG("Operation failure notification enqueued (OperationId: %v, Error: %v)",
-        OperationId_,
-        error);
+    LOG_DEBUG(error, "Operation failure notification enqueued (OperationId: %v)",
+        OperationId_);
 }
 
 void TOperationControllerHost::OnOperationSuspended(const TError& error)
@@ -239,9 +248,8 @@ void TOperationControllerHost::OnOperationSuspended(const TError& error)
         OperationId_,
         error
     });
-    LOG_DEBUG("Operation suspension notification enqueued (OperationId: %v, Error: %v)",
-        OperationId_,
-        error);
+    LOG_DEBUG(error, "Operation suspension notification enqueued (OperationId: %v)",
+        OperationId_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

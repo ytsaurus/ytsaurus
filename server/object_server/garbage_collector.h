@@ -52,10 +52,14 @@ public:
     void CheckEmpty();
 
     int GetZombieCount() const;
-    int GetGhostCount() const;
+    int GetEphemeralGhostCount() const;
+    int GetWeakGhostCount() const;
     int GetLockedCount() const;
 
 private:
+    void ClearWeakGhosts();
+    void ClearEphemeralGhosts();
+
     const TObjectManagerConfigPtr Config_;
     NCellMaster::TBootstrap* const Bootstrap_;
 
@@ -65,9 +69,16 @@ private:
     //! These are ready for IObjectTypeHandler::Destroy call.
     THashSet<TObjectBase*> Zombies_;
 
-    //! Contains objects with zero ref counter and either positive ephemeral or positive weak ref counter.
+    //! Contains objects with zero ref counter, zero weak ref counter, and positive ephemeral ref counter.
     //! These were already destroyed (via IObjectTypeHandler::Destroy) and await disposal (via |delete|).
-    THashSet<TObjectBase*> Ghosts_;
+    //! Not persisted.
+    THashSet<TObjectBase*> EphemeralGhosts_;
+
+    //! Contains objects with zero ref counter and positive weak ref counter
+    //! (ephemeral ref counter may be zero or positive, it doesn't matter).
+    //! These were already destroyed (via IObjectTypeHandler::Destroy) and await disposal (via |delete|).
+    //! Persisted.
+    THashSet<TObjectBase*> WeakGhosts_;
 
     //! This promise is set each time #GCQueue becomes empty.
     TPromise<void> CollectPromise_;

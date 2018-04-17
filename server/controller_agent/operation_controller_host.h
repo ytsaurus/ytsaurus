@@ -66,11 +66,13 @@ public:
     virtual const ICoreDumperPtr& GetCoreDumper() override;
     virtual const NConcurrency::TAsyncSemaphorePtr& GetCoreSemaphore() override;
     virtual const NConcurrency::IThroughputThrottlerPtr& GetJobSpecSliceThrottler() override;
+    virtual TMemoryTagQueue* GetMemoryTagQueue() override;
 
     virtual int GetExecNodeCount() override;
     virtual TRefCountedExecNodeDescriptorMapPtr GetExecNodeDescriptors(const NScheduler::TSchedulingTagFilter& filter) override;
 
     virtual TInstant GetConnectionTime() override;
+    virtual const TIncarnationId& GetIncarnationId() override;
 
     virtual void OnOperationCompleted() override;
     virtual void OnOperationAborted(const TError& error) override;

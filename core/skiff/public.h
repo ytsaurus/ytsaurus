@@ -46,5 +46,17 @@ using TCheckedInDebugSkiffWriter = TUncheckedSkiffWriter;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TSkiffConsumerBase;
+
+struct TParserTableDescription;
+struct TParserFieldInfo;
+
+struct TDenseFieldDescription;
+struct TSparseFieldDescription;
+
+struct TSkiffTableDescription;
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NSkiff
 } // namespace NYT

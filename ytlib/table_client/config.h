@@ -35,31 +35,31 @@ public:
     {
         // Allow very small blocks for testing purposes.
         RegisterParameter("block_size", BlockSize)
-            .GreaterThanOrEqual((i64) 1024)
-            .Default((i64) 16 * 1024 * 1024);
+            .GreaterThan(0)
+            .Default(16_MB);
 
         RegisterParameter("max_buffer_size", MaxBufferSize)
-            .GreaterThanOrEqual((i64) 5 * 1024 * 1024)
-            .Default((i64) 16 * 1024 * 1024);
+            .GreaterThan(0)
+            .Default(16_MB);
 
         RegisterParameter("max_row_weight", MaxRowWeight)
-            .GreaterThanOrEqual((i64) 5 * 1024 * 1024)
+            .GreaterThanOrEqual(5_MB)
             .LessThanOrEqual(MaxRowWeightLimit)
-            .Default((i64) 16 * 1024 * 1024);
+            .Default(16_MB);
 
         RegisterParameter("max_key_weight", MaxKeyWeight)
-            .GreaterThanOrEqual((i64) 1)
+            .GreaterThan(0)
             .LessThanOrEqual(MaxKeyWeightLimit)
-            .Default((i64) 16 * 1024);
+            .Default(16_KB);
 
         RegisterParameter("max_data_weight_between_blocks", MaxDataWeightBetweenBlocks)
-            .GreaterThanOrEqual((i64) 1)
-            .Default((i64) 2 * 1024 * 1024 * 1024);
+            .GreaterThan(0)
+            .Default(2_GB);
 
         RegisterParameter("max_key_filter_size", MaxKeyFilterSize)
-            .GreaterThan((i64) 0)
-            .LessThanOrEqual((i64) 1024 * 1024)
-            .Default((i64) 64 * 1024);
+            .GreaterThan(0)
+            .LessThanOrEqual(1_MB)
+            .Default(64_KB);
 
         RegisterParameter("sample_rate", SampleRate)
             .GreaterThan(0)

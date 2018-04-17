@@ -1,0 +1,6 @@
+SET(YT_SRCS
+  buffered_stream.cpp
+  helpers.cpp
+  shutdown.cpp
+  stream.cpp
+)

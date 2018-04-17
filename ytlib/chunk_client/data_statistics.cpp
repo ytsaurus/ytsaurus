@@ -8,13 +8,17 @@
 
 namespace NYT {
 namespace NChunkClient {
-namespace NProto {
 
+using namespace NCompression;
 using namespace NYTree;
 using namespace NYson;
 
 using ::ToString;
 using ::FromString;
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace NProto {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -160,16 +164,16 @@ TCodecStatistics& TCodecStatistics::Append(const TCodecDuration& codecTime)
     return Append(std::make_pair(codecTime.Codec, codecTime.CpuDuration));
 }
 
-TCodecStatistics& TCodecStatistics::Append(const std::pair<NCompression::ECodec, TDuration>& codecTime)
+TCodecStatistics& TCodecStatistics::Append(const std::pair<ECodec, TDuration>& codecTime)
 {
-    map[codecTime.first] += codecTime.second;
+    Map_[codecTime.first] += codecTime.second;
     TotalDuration_ += codecTime.second;
     return *this;
 }
 
 TCodecStatistics& TCodecStatistics::operator+=(const TCodecStatistics& other)
 {
-    for (const auto& pair : other.map) {
+    for (const auto& pair : other.Map_) {
         Append(pair);
     }
     return *this;
@@ -177,8 +181,8 @@ TCodecStatistics& TCodecStatistics::operator+=(const TCodecStatistics& other)
 
 void TCodecStatistics::DumpTo(NJobTrackerClient::TStatistics *statistics, const TString& path) const
 {
-    for (const auto& pair : map) {
-        TString codecStr = to_lower(TEnumTraits<NCompression::ECodec>::ToString(pair.first));
+    for (const auto& pair : Map_) {
+        TString codecStr = to_lower(TEnumTraits<ECodec>::ToString(pair.first));
         statistics->AddSample(path + '/' + codecStr, pair.second);
     }
 }

@@ -63,6 +63,7 @@ static const auto& Logger = ControllerAgentLogger;
 struct TAgentToSchedulerScheduleJobResponse
 {
     TJobId JobId;
+    TOperationId OperationId;
     TScheduleJobResultPtr Result;
 };
 
@@ -192,7 +193,7 @@ public:
         if (!Connected_) {
             THROW_ERROR_EXCEPTION(
                 NRpc::EErrorCode::Unavailable,
-                "Scheduler is not connected");
+                "Controller agent is not connected");
         }
     }
 
@@ -221,6 +222,13 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         return ControllerThreadPool_->GetInvoker();
+    }
+
+    TMemoryTagQueue* GetMemoryTagQueue()
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return &MemoryTagQueue_;
     }
 
     const IInvokerPtr& GetSnapshotIOInvoker()
@@ -263,7 +271,7 @@ public:
         ReconfigurableJobSpecSliceThrottler_->Reconfigure(Config_->JobSpecSliceThrottler);
 
         if (HeartbeatExecutor_) {
-            HeartbeatExecutor_->SetPeriod(Config_->ControllerAgentHeartbeatPeriod);
+            HeartbeatExecutor_->SetPeriod(Config_->SchedulerHeartbeatPeriod);
         }
 
         for (const auto& pair : IdToOperation_) {
@@ -273,7 +281,7 @@ public:
                 BIND(&IOperationController::UpdateConfig, controller, config));
         }
 
-        LOG_INFO("Configuration updated");
+        MemoryTagQueue_.UpdateConfig(Config_);
     }
 
 
@@ -368,13 +376,13 @@ public:
             auto controller = CreateControllerForOperation(Config_, operation.Get());
             operation->SetController(controller);
         } catch (...) {
-            MemoryTagQueue_.ReclaimOperationTag(operationId);
+            MemoryTagQueue_.ReclaimTag(operation->GetMemoryTag());
             throw;
         }
 
         YCHECK(IdToOperation_.emplace(operationId, operation).second);
 
-        MasterConnector_->StartOperationNodeUpdates(operationId);
+        MasterConnector_->RegisterOperation(operationId);
 
         LOG_DEBUG("Operation registered (OperationId: %v)", operationId);
     }
@@ -389,11 +397,12 @@ public:
             controller->Cancel();
         }
 
-        YCHECK(IdToOperation_.erase(operation->GetId()) == 1);
+        auto operationId = operation->GetId();
+        YCHECK(IdToOperation_.erase(operationId) == 1);
 
-        LOG_DEBUG("Operation unregistered (OperationId: %v)", operation->GetId());
+        MasterConnector_->UnregisterOperation(operationId);
 
-        MemoryTagQueue_.ReclaimOperationTag(operation->GetId());
+        LOG_DEBUG("Operation unregistered (OperationId: %v)", operationId);
     }
 
     TFuture<TOperationControllerInitializationResult> InitializeOperation(
@@ -628,6 +637,7 @@ private:
 
     TInstant LastExecNodesUpdateTime_;
     TInstant LastOperationAlertsUpdateTime_;
+    TInstant LastSuspiciousJobsUpdateTime_;
 
     TIntrusivePtr<TMessageQueueOutbox<TAgentToSchedulerOperationEvent>> OperationEventsOutbox_;
     TIntrusivePtr<TMessageQueueOutbox<TAgentToSchedulerJobEvent>> JobEventsOutbox_;
@@ -654,7 +664,7 @@ private:
         TDelayedExecutor::Submit(
             BIND(&TImpl::DoConnect, MakeStrong(this))
                 .Via(Bootstrap_->GetControlInvoker()),
-            immediate ? TDuration::Zero() : Config_->ControllerAgentHandshakeFailureBackoff);
+            immediate ? TDuration::Zero() : Config_->SchedulerHandshakeFailureBackoff);
     }
 
     void DoConnect()
@@ -667,10 +677,12 @@ private:
         try {
             OnConnecting();
             SyncClusterDirectory();
+            UpdateConfig();
             PerformHandshake();
             OnConnected();
         } catch (const std::exception& ex) {
             LOG_WARNING(ex, "Error connecting to scheduler");
+            SchedulerDisconnected_.Fire();
             DoCleanup();
             ScheduleConnect(false);
         }
@@ -707,12 +719,22 @@ private:
         LOG_INFO("Cluster directory synchronized");
     }
 
+    void UpdateConfig()
+    {
+        LOG_INFO("Updating config");
+
+        WaitFor(MasterConnector_->UpdateConfig())
+            .ThrowOnError();
+
+        LOG_INFO("Config updates");
+    }
+
     void PerformHandshake()
     {
         LOG_INFO("Sending handshake");
 
         auto req = SchedulerProxy_.Handshake();
-        req->SetTimeout(Config_->ControllerAgentHandshakeRpcTimeout);
+        req->SetTimeout(Config_->SchedulerHandshakeRpcTimeout);
         req->set_agent_id(Bootstrap_->GetAgentId());
         ToProto(req->mutable_agent_addresses(), Bootstrap_->GetLocalAddresses());
 
@@ -728,7 +750,7 @@ private:
     {
         Connected_ = true;
 
-        LOG_INFO("Scheduler connected (IncarnationId: %v)",
+        LOG_INFO("Controller agent connected (IncarnationId: %v)",
             IncarnationId_);
 
         OperationEventsOutbox_ = New<TMessageQueueOutbox<TAgentToSchedulerOperationEvent>>(
@@ -753,12 +775,13 @@ private:
 
         CachedExecNodeDescriptorsByTags_ = New<TSyncExpiringCache<TSchedulingTagFilter, TRefCountedExecNodeDescriptorMapPtr>>(
             BIND(&TImpl::FilterExecNodes, MakeStrong(this)),
-            Config_->SchedulingTagFilterExpireTimeout);
+            Config_->SchedulingTagFilterExpireTimeout,
+            CancelableControlInvoker_);
 
         HeartbeatExecutor_ = New<TPeriodicExecutor>(
             CancelableControlInvoker_,
             BIND(&TControllerAgent::TImpl::SendHeartbeat, MakeWeak(this)),
-            Config_->ControllerAgentHeartbeatPeriod);
+            Config_->SchedulerHeartbeatPeriod);
         HeartbeatExecutor_->Start();
 
         SchedulerConnected_.Fire();
@@ -816,15 +839,15 @@ private:
         JobEventsInbox_.reset();
         OperationEventsInbox_.reset();
         ScheduleJobRequestsInbox_.reset();
-        //MemoryTagQueue_.Reset();
     }
 
     TControllerAgentTrackerServiceProxy::TReqHeartbeatPtr PrepareHeartbeatRequest(
         bool* execNodesRequested,
-        bool* operationAlertsSent)
+        bool* operationAlertsSent,
+        bool* suspiciousJobsSent)
     {
         auto req = SchedulerProxy_.Heartbeat();
-        req->SetTimeout(Config_->ControllerAgentHeartbeatRpcTimeout);
+        req->SetTimeout(Config_->SchedulerHeartbeatRpcTimeout);
         req->SetHeavy(true);
         req->set_agent_id(Bootstrap_->GetAgentId());
         ToProto(req->mutable_incarnation_id(), IncarnationId_);
@@ -865,6 +888,7 @@ private:
             [] (auto* protoResponse, const auto& response) {
                 const auto& scheduleJobResult = *response.Result;
                 ToProto(protoResponse->mutable_job_id(), response.JobId);
+                ToProto(protoResponse->mutable_operation_id(), response.OperationId);
                 if (scheduleJobResult.StartDescriptor) {
                     const auto& startDescriptor = *scheduleJobResult.StartDescriptor;
                     Y_ASSERT(response.JobId == startDescriptor.Id);
@@ -889,6 +913,7 @@ private:
         auto now = TInstant::Now();
         *execNodesRequested = LastExecNodesUpdateTime_ + Config_->ExecNodesUpdatePeriod < now;
         *operationAlertsSent = LastOperationAlertsUpdateTime_ + Config_->OperationAlertsUpdatePeriod < now;
+        *suspiciousJobsSent = LastSuspiciousJobsUpdateTime_ + Config_->SuspiciousJobsUpdatePeriod < now;
 
         for (const auto& pair : GetOperations()) {
             const auto& operationId = pair.first;
@@ -914,8 +939,10 @@ private:
                 }
             }
 
-            // XXX(babenko): avoid sending on each heartbeat
-            protoOperation->set_suspicious_jobs(controller->GetSuspiciousJobsYson().GetData());
+            if (suspiciousJobsSent) {
+                protoOperation->set_suspicious_jobs(controller->GetSuspiciousJobsYson().GetData());
+            }
+
             protoOperation->set_pending_job_count(controller->GetPendingJobCount());
             ToProto(protoOperation->mutable_needed_resources(), controller->GetNeededResources());
             ToProto(protoOperation->mutable_min_needed_job_resources(), controller->GetMinNeededJobResources());
@@ -930,19 +957,22 @@ private:
     {
         bool execNodesRequested;
         bool operationAlertsSent;
+        bool suspiciousJobsSent;
         auto req = PrepareHeartbeatRequest(
             &execNodesRequested,
-            &operationAlertsSent);
+            &operationAlertsSent,
+            &suspiciousJobsSent);
 
-        LOG_DEBUG("Sending heartbeat (ExecNodesRequested: %v, OperationAlertsSent: %v)",
+        LOG_DEBUG("Sending heartbeat (ExecNodesRequested: %v, OperationAlertsSent: %v, SuspiciousJobsSent: %v)",
             execNodesRequested,
-            operationAlertsSent);
+            operationAlertsSent,
+            suspiciousJobsSent);
 
         auto rspOrError = WaitFor(req->Invoke());
         if (!rspOrError.IsOK()) {
             if (NRpc::IsRetriableError(rspOrError)) {
                 LOG_WARNING(rspOrError, "Error reporting heartbeat to scheduler");
-                Y_UNUSED(WaitFor(TDelayedExecutor::MakeDelayed(Config_->ControllerAgentHeartbeatFailureBackoff)));
+                Y_UNUSED(WaitFor(TDelayedExecutor::MakeDelayed(Config_->SchedulerHeartbeatFailureBackoff)));
             } else {
                 Disconnect(rspOrError);
             }
@@ -991,6 +1021,9 @@ private:
         }
         if (operationAlertsSent) {
             LastOperationAlertsUpdateTime_ = now;
+        }
+        if (suspiciousJobsSent) {
+            LastSuspiciousJobsUpdateTime_ = now;
         }
     }
 
@@ -1068,9 +1101,10 @@ private:
     {
         auto outbox = ScheduleJobResposesOutbox_;
 
-        auto replyWithFailure = [=] (const TJobId& jobId, EScheduleJobFailReason reason) {
+        auto replyWithFailure = [=] (const TOperationId& operationId, const TJobId& jobId, EScheduleJobFailReason reason) {
             TAgentToSchedulerScheduleJobResponse response;
             response.JobId = jobId;
+            response.OperationId = operationId;
             response.Result = New<TScheduleJobResult>();
             response.Result->RecordFail(EScheduleJobFailReason::UnknownNode);
             outbox->Enqueue(std::move(response));
@@ -1083,7 +1117,7 @@ private:
                 auto operationId = FromProto<TOperationId>(protoRequest->operation_id());
                 auto operation = this->FindOperation(operationId);
                 if (!operation) {
-                    replyWithFailure(jobId, EScheduleJobFailReason::UnknownOperation);
+                    replyWithFailure(operationId, jobId, EScheduleJobFailReason::UnknownOperation);
                     LOG_DEBUG("Failed to schedule job due to unknown operation (OperationId: %v, JobId: %v)",
                         operationId,
                         jobId);
@@ -1097,7 +1131,7 @@ private:
                         auto nodeId = NodeIdFromJobId(jobId);
                         auto descriptorIt = execNodeDescriptors->find(nodeId);
                         if (descriptorIt == execNodeDescriptors->end()) {
-                            replyWithFailure(jobId, EScheduleJobFailReason::UnknownNode);
+                            replyWithFailure(operationId, jobId, EScheduleJobFailReason::UnknownNode);
                             LOG_DEBUG("Failed to schedule job due to unknown node (OperationId: %v, JobId: %v, NodeId: %v)",
                                 operationId,
                                 jobId,
@@ -1110,6 +1144,7 @@ private:
 
                         TAgentToSchedulerScheduleJobResponse response;
                         TSchedulingContext context(protoRequest, descriptorIt->second);
+                        response.OperationId = operationId;
                         response.JobId = jobId;
                         response.Result = controller->ScheduleJob(
                             &context,
@@ -1125,7 +1160,7 @@ private:
                             jobId);
                     }),
                     BIND([=, this_ = MakeStrong(this)] {
-                        replyWithFailure(jobId, EScheduleJobFailReason::UnknownOperation);
+                        replyWithFailure(operationId, jobId, EScheduleJobFailReason::UnknownOperation);
                         LOG_DEBUG("Failed to schedule job due to operation cancelation (OperationId: %v, JobId: %v)",
                             operationId,
                             jobId);
@@ -1279,6 +1314,11 @@ const TAsyncSemaphorePtr& TControllerAgent::GetCoreSemaphore() const
 const TEventLogWriterPtr& TControllerAgent::GetEventLogWriter() const
 {
     return Impl_->GetEventLogWriter();
+}
+
+TMemoryTagQueue* TControllerAgent::GetMemoryTagQueue()
+{
+    return Impl_->GetMemoryTagQueue();
 }
 
 TOperationPtr TControllerAgent::FindOperation(const TOperationId& operationId)

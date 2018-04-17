@@ -920,7 +920,8 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
     const auto& transactionManager = Bootstrap_->GetTransactionManager();
 
     auto* uploadTransaction = transactionManager->StartTransaction(
-        Transaction,
+        Transaction /* parent */,
+        {} /* prerequisiteTransactions */,
         uploadTransactionSecondaryCellTags,
         uploadTransactionReplicationCellTags,
         uploadTransactionTimeout,

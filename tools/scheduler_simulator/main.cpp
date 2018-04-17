@@ -129,13 +129,13 @@ TSchedulerSimulatorConfigPtr LoadConfig(const char* configFilename)
     return config;
 }
 
-INodePtr LoadPools(const TString& poolsFilename)
+INodePtr LoadPoolTrees(const TString& poolTreesFilename)
 {
     try {
-        TIFStream configStream(poolsFilename);
+        TIFStream configStream(poolTreesFilename);
         return ConvertToNode(&configStream);
     } catch (const std::exception& ex) {
-        THROW_ERROR_EXCEPTION("Error reading pools configuration") << ex;
+        THROW_ERROR_EXCEPTION("Error reading pool trees ") << ex;
     }
 }
 
@@ -274,7 +274,7 @@ void DoRun(const char* configFilename)
     TSchedulerStrategyHost strategyHost(execNodes, &eventLogFile);
 
     auto fairShareStrategy = CreateFairShareStrategy(config->SchedulerConfig, &strategyHost, {GetCurrentInvoker()});
-    fairShareStrategy->UpdatePools(LoadPools(config->PoolsFilename));
+    fairShareStrategy->UpdatePoolTrees(LoadPoolTrees(config->PoolTreesFilename));
 
     LOG_WARNING("Simulating");
 
@@ -447,17 +447,21 @@ void DoRun(const char* configFilename)
                     operation->SetState(NScheduler::EOperationState::Completed);
                 }
 
-                std::vector<NScheduler::TUpdatedJob> updateJobs;
-                std::vector<NScheduler::TFinishedJob> completedJobs({
-                    NScheduler::TFinishedJob(job->GetOperationId(), job->GetId(), job->GetTreeId())
-                });
+                std::vector<NScheduler::TJobUpdate> jobUpdates({TJobUpdate{
+                    NScheduler::EJobUpdateStatus::Finished,
+                    job->GetOperationId(),
+                    job->GetId(),
+                    job->GetTreeId(),
+                    TJobResources(),
+                }});
+
+                std::vector<TJobId> jobsToRemove;
                 std::vector<TJobId> jobsToAbort;
-                fairShareStrategy->ProcessUpdatedAndFinishedJobs(
-                    &updateJobs,
-                    &completedJobs,
+                fairShareStrategy->ProcessJobUpdates(
+                    jobUpdates,
+                    &jobsToRemove,
                     &jobsToAbort);
-                YCHECK(updateJobs.empty());
-                YCHECK(completedJobs.empty());
+                YCHECK(jobsToRemove.size() == 1);
                 YCHECK(jobsToAbort.empty());
 
                 // Schedule out of band heartbeat.

@@ -1,5 +1,6 @@
 #include "object_builder.h"
-#include "helpers.h"
+
+#include <yt/python/common/helpers.h>
 
 namespace NYT {
 namespace NYTree {
