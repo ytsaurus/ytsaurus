@@ -758,12 +758,10 @@ class TestReplicatedDynamicTables(TestDynamicTablesBase):
         assert 1000000 < get_lag_time()
 
         self.sync_enable_table_replica(replica_id)
-        sleep(1.0)
-        assert get_lag_time() == 0
+        wait(lambda: get_lag_time() == 0)
 
         self.sync_disable_table_replica(replica_id)
-        sleep(1.0)
-        assert get_lag_time() == 0
+        wait(lambda: get_lag_time() == 0)
 
         insert_rows("//tmp/t", [{"key": 1, "value1": "test1"}], require_sync_replica=False)
         sleep(1.0)
@@ -776,8 +774,7 @@ class TestReplicatedDynamicTables(TestDynamicTablesBase):
             assert shift + i * 1000 <= get_lag_time() <= shift + (i + 4) * 1000
 
         self.sync_enable_table_replica(replica_id)
-        sleep(1.0)
-        assert get_lag_time() == 0
+        wait(lambda: get_lag_time() == 0)
 
     @pytest.mark.parametrize("dynamic", [True, False])
     def test_expression_replication(self, dynamic):
