@@ -108,7 +108,7 @@ def git_iter_files_to_sync(git, pathspec):
             warn = (
                 "Skipping symlink file: `{}'\n"
                 "(To be honest author of this script doubts that keeping symlink in a repo is a good idea.\n"
-                "He encourages you to remove symlink file in order to mute this annoing warning.)").format(relpath)
+                "He encourages you to remove symlink file in order to mute this annoying warning.)").format(relpath)
             logger.warning(warn)
             continue
         yield relpath
