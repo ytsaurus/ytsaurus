@@ -1140,7 +1140,7 @@ private:
         {
             if (Batches_.empty() ||
                 Batches_.back()->TabletInfo->TabletId != tabletInfo->TabletId ||
-                Batches_.back()->Indexes.size() >= Config_->MaxRowsPerReadRequest)
+                Batches_.back()->Indexes.size() >= Config_->MaxRowsPerLookupRequest)
             {
                 Batches_.emplace_back(new TBatch(std::move(tabletInfo)));
             }
@@ -1152,7 +1152,7 @@ private:
 
         TFuture<void> Invoke(IChannelFactoryPtr channelFactory, TCellDirectoryPtr cellDirectory)
         {
-            auto* codec = NCompression::GetCodec(Config_->LookupRequestCodec);
+            auto* codec = NCompression::GetCodec(Config_->LookupRowsRequestCodec);
 
             // Do all the heavy lifting here.
             for (auto& batch : Batches_) {
@@ -1167,7 +1167,7 @@ private:
                 Networks_);
 
             InvokeProxy_ = std::make_unique<TQueryServiceProxy>(std::move(channel));
-            InvokeProxy_->SetDefaultTimeout(Options_.Timeout);
+            InvokeProxy_->SetDefaultTimeout(Options_.Timeout.Get(Config_->DefaultLookupRowsTimeout));
             InvokeProxy_->SetDefaultRequestAck(false);
 
             InvokeNextBatch();
@@ -1178,7 +1178,7 @@ private:
             const TRowBufferPtr& rowBuffer,
             std::vector<TTypeErasedRow>* resultRows)
         {
-            auto* responseCodec = NCompression::GetCodec(Config_->LookupResponseCodec);
+            auto* responseCodec = NCompression::GetCodec(Config_->LookupRowsResponseCodec);
             for (const auto& batch : Batches_) {
                 auto responseData = responseCodec->Decompress(batch->Response->Attachments()[0]);
                 TWireProtocolReader reader(responseData, rowBuffer);
@@ -1232,8 +1232,8 @@ private:
             ToProto(req->mutable_tablet_id(), batch->TabletInfo->TabletId);
             req->set_mount_revision(batch->TabletInfo->MountRevision);
             req->set_timestamp(Options_.Timestamp);
-            req->set_request_codec(static_cast<int>(Config_->LookupRequestCodec));
-            req->set_response_codec(static_cast<int>(Config_->LookupResponseCodec));
+            req->set_request_codec(static_cast<int>(Config_->LookupRowsRequestCodec));
+            req->set_response_codec(static_cast<int>(Config_->LookupRowsResponseCodec));
             req->Attachments().push_back(batch->RequestData);
             if (RetentionConfig_) {
                 req->set_retention_config(*RetentionConfig_);
@@ -1453,7 +1453,7 @@ private:
                 Connection_->GetNetworks());
 
             TQueryServiceProxy proxy(channel);
-            proxy.SetDefaultTimeout(options.Timeout);
+            proxy.SetDefaultTimeout(options.Timeout.Get(Connection_->GetConfig()->DefaultGetInSyncReplicasTimeout));
 
             auto req = proxy.GetTabletInfo();
             ToProto(req->mutable_tablet_ids(), pair.second);
@@ -1892,6 +1892,7 @@ private:
         queryOptions.UseMultijoin = options.UseMultijoin;
         queryOptions.AllowFullScan = options.AllowFullScan;
         queryOptions.ReadSessionId = TReadSessionId::Create();
+        queryOptions.Deadline = options.Timeout.Get(Connection_->GetConfig()->DefaultSelectRowsTimeout).ToDeadLine();
 
         ISchemafulWriterPtr writer;
         TFuture<IUnversionedRowsetPtr> asyncRowset;
@@ -1997,7 +1998,7 @@ private:
                 const auto channel = GetReadCellChannelOrThrow(cellId);
 
                 TQueryServiceProxy proxy(channel);
-                proxy.SetDefaultTimeout(options.Timeout);
+                proxy.SetDefaultTimeout(options.Timeout.Get(Connection_->GetConfig()->DefaultGetInSyncReplicasTimeout));
 
                 auto req = proxy.GetTabletInfo();
                 ToProto(req->mutable_tablet_ids(), perCellTabletIds);
@@ -2060,7 +2061,7 @@ private:
             if (!subrequest.Request) {
                 auto channel = GetReadCellChannelOrThrow(tabletInfo->CellId);
                 TQueryServiceProxy proxy(channel);
-                proxy.SetDefaultTimeout(options.Timeout);
+                proxy.SetDefaultTimeout(options.Timeout.Get(Connection_->GetConfig()->DefaultGetTabletInfosTimeout));
                 subrequest.Request = proxy.GetTabletInfo();
             }
             ToProto(subrequest.Request->add_tablet_ids(), tabletInfo->TabletId);
@@ -2281,7 +2282,7 @@ private:
         auto channel = GetCellChannelOrThrow(tabletInfo->CellId);
 
         TTabletServiceProxy proxy(channel);
-        proxy.SetDefaultTimeout(Connection_->GetConfig()->WriteTimeout);
+        proxy.SetDefaultTimeout(Connection_->GetConfig()->DefaultTrimTableTimeout);
 
         auto req = proxy.Trim();
         ToProto(req->mutable_tablet_id(), tabletInfo->TabletId);
@@ -3277,7 +3278,7 @@ private:
             .ThrowOnError();
     }
 
-    bool IsArchiveExists()
+    bool DoesOperationsArchiveExists()
     {
         // NB: we suppose that archive should exist and work correctly if this map node is presented.
         return WaitFor(NodeExists("//sys/operations_archive", TNodeExistsOptions()))
@@ -3307,13 +3308,9 @@ private:
 
     TYsonString DoGetOperationFromArchive(
         const NScheduler::TOperationId& operationId,
+        TInstant deadline,
         const TGetOperationOptions& options)
     {
-        TNullable<TInstant> deadline;
-        if (options.Timeout) {
-            deadline = options.Timeout->ToDeadLine();
-        }
-
         auto nameTable = New<TNameTable>();
 
         TOrderedByIdTableDescriptor ids(nameTable);
@@ -3371,9 +3368,7 @@ private:
 
         lookupOptions.ColumnFilter = NTableClient::TColumnFilter(columnIndexes);
         lookupOptions.KeepMissingRows = true;
-        if (deadline) {
-            lookupOptions.Timeout = *deadline - Now();
-        }
+        lookupOptions.Timeout = deadline - Now();
 
         auto rowset = WaitFor(LookupRows(
             "//sys/operations_archive/ordered_by_id",
@@ -3435,10 +3430,8 @@ private:
         const NScheduler::TOperationId& operationId,
         const TGetOperationOptions& options)
     {
-        TNullable<TInstant> deadline;
-        if (options.Timeout) {
-            deadline = options.Timeout->ToDeadLine();
-        }
+        auto timeout = options.Timeout.Get(Connection_->GetConfig()->DefaultGetOperationTimeout);
+        auto deadline = timeout.ToDeadLine();
 
         TNullable<std::vector<TString>> attributes;
         if (options.Attributes) {
@@ -3526,11 +3519,9 @@ private:
             }
 
             TGetNodeOptions optionsToScheduler;
-            if (deadline) {
-                optionsToScheduler.Timeout = *deadline - Now();
-            }
+            optionsToScheduler.Timeout = deadline - Now();
 
-            bool shouldRequestProgress = false;
+            bool shouldRequestProgress;
             if (options.Attributes) {
                 const auto& attributes = *options.Attributes;
                 shouldRequestProgress = std::find(attributes.begin(), attributes.end(), "progress") != attributes.end();
@@ -3549,35 +3540,42 @@ private:
 
                     return ConvertToYsonString(attrNode);
                 } else if (schedulerProgressValueOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
-                    LOG_DEBUG("No such operation %v in the scheduler", operationId);
+                    LOG_DEBUG("Operation is not found at scheduled (OperationId: %v)",
+                        operationId);
                 } else {
-                    THROW_ERROR_EXCEPTION("Failed to get operation %v from the scheduler", operationId)
+                    THROW_ERROR_EXCEPTION("Failed to get operation %v from scheduler",
+                        operationId)
                         << schedulerProgressValueOrError;
                 }
             }
 
             return ConvertToYsonString(cypressNode);
-        } else if (IsArchiveExists()) {
-            LOG_DEBUG("No such operation %v in Cypress", operationId);
+        }
 
+        LOG_DEBUG("Operation is not found in Cypress (OperationId: %v)",
+            operationId);
+
+        if (DoesOperationsArchiveExists()) {
             int version = DoGetOperationsArchiveVersion();
-
-            if (version < 7) {
-                THROW_ERROR_EXCEPTION("Failed to get operation: operations archive version is too old: expected >= 7, got %v", version);
+            const int ExpectedArchiveVersion = 7;
+            if (version < ExpectedArchiveVersion) {
+                THROW_ERROR_EXCEPTION(
+                    "Failed to get operation: operations archive version is too old: expected >= %v, got %v",
+                    ExpectedArchiveVersion,
+                    version);
             }
 
             try {
-                auto result = DoGetOperationFromArchive(operationId, options);
+                auto result = DoGetOperationFromArchive(operationId, deadline, options);
                 if (result) {
                     return result;
                 }
-            } catch (const TErrorException& exception) {
-                auto matchedError = exception.Error().FindMatching(NYTree::EErrorCode::ResolveError);
-
+            } catch (const TErrorException& ex) {
+                auto matchedError = ex.Error().FindMatching(NYTree::EErrorCode::ResolveError);
                 if (!matchedError) {
                     THROW_ERROR_EXCEPTION("Failed to get operation from archive")
                         << TErrorAttribute("operation_id", operationId)
-                        << exception.Error();
+                        << ex.Error();
                 }
             }
         }
@@ -4008,10 +4006,8 @@ private:
     TListOperationsResult DoListOperations(
         const TListOperationsOptions& options)
     {
-        TNullable<TInstant> deadline;
-        if (options.Timeout) {
-            deadline = options.Timeout->ToDeadLine();
-        }
+        auto timeout = options.Timeout.Get(Connection_->GetConfig()->DefaultListOperationsTimeout);
+        auto deadline = timeout.ToDeadLine();
 
         TListOperationsResult result;
         yhash<TString, i64> poolCounts;
@@ -4237,7 +4233,7 @@ private:
 
         std::vector<TOperation> archiveData;
 
-        if (options.IncludeArchive && IsArchiveExists()) {
+        if (options.IncludeArchive && DoesOperationsArchiveExists()) {
             int version = DoGetOperationsArchiveVersion();
 
             if (options.Pool && version < 15) {
@@ -4306,9 +4302,7 @@ private:
                 poolColumnName);
 
             TSelectRowsOptions selectRowsOptions;
-            if (deadline) {
-                selectRowsOptions.Timeout = *deadline - Now();
-            }
+            selectRowsOptions.Timeout = deadline - Now();
 
             auto runResultCounts = SelectRows(queryForCounts, selectRowsOptions);
             auto runRowsItemsId = SelectRows(queryForItemsIds, selectRowsOptions);
@@ -4360,10 +4354,7 @@ private:
                 ids.FinishTime,
             });
             lookupOptions.KeepMissingRows = true;
-
-            if (deadline) {
-                lookupOptions.Timeout = *deadline - Now();
-            }
+            lookupOptions.Timeout = deadline - Now();
 
             auto rowset = WaitFor(LookupRows(
                 GetOperationsArchivePathOrderedById(),
@@ -4632,7 +4623,7 @@ private:
 
     TFuture<std::pair<std::vector<TJob>, TListJobsStatistics>> DoListJobsFromArchive(
         const TOperationId& operationId,
-        TNullable<TInstant> deadline,
+        TInstant deadline,
         const TListJobsOptions& options)
     {
         std::vector<TJob> jobs;
@@ -4754,9 +4745,7 @@ private:
 
         TSelectRowsOptions selectRowsOptions;
         selectRowsOptions.Timestamp = AsyncLastCommittedTimestamp;
-        if (deadline) {
-            selectRowsOptions.Timeout = *deadline - Now();
-        }
+        selectRowsOptions.Timeout = deadline - Now();
 
         auto checkIsNotNull = [&] (const TUnversionedValue& value, const TStringBuf& name, const TJobId& jobId = TJobId()) {
             if (value.Type == EValueType::Null) {
@@ -4888,7 +4877,7 @@ private:
 
     TFuture<std::pair<std::vector<TJob>, int>> DoListJobsFromCypress(
         const TOperationId& operationId,
-        TNullable<TInstant> deadline,
+        TInstant deadline,
         const TListJobsOptions& options)
     {
         TObjectServiceProxy proxy(OperationsArchiveChannels_[options.ReadFrom]);
@@ -4907,6 +4896,7 @@ private:
         };
 
         auto batchReq = proxy.ExecuteBatch();
+        batchReq->SetTimeout(deadline - Now());
 
         {
             auto getReq = TYPathProxy::Get(GetJobsPath(operationId));
@@ -4920,13 +4910,7 @@ private:
             batchReq->AddRequest(getReqNew, "get_jobs_new");
         }
 
-        if (deadline) {
-            proxy.SetDefaultTimeout(*deadline - Now());
-        }
-
-        auto batchRequestFuture = batchReq->Invoke();
-
-        return batchRequestFuture.Apply(BIND([this, operationId, options] (
+        return batchReq->Invoke().Apply(BIND([this, operationId, options] (
             const TErrorOr<TObjectServiceProxy::TRspExecuteBatchPtr>& batchRspOrError)
         {
             const auto& batchRsp = batchRspOrError.ValueOrThrow();
@@ -5013,18 +4997,14 @@ private:
 
     TFuture<std::pair<std::vector<TJob>, int>> DoListJobsFromScheduler(
         const TOperationId& operationId,
-        TNullable<TInstant> deadline,
+        TInstant deadline,
         const TListJobsOptions& options)
     {
         TObjectServiceProxy proxy(GetMasterChannelOrThrow(EMasterChannelKind::Follower));
+        proxy.SetDefaultTimeout(deadline - Now());
 
         auto path = Format("//sys/scheduler/orchid/scheduler/operations/%v/running_jobs", operationId);
         auto getReq = TYPathProxy::Get(path);
-
-        if (deadline) {
-            proxy.SetDefaultTimeout(*deadline - Now());
-        }
-
         return proxy.Execute(getReq).Apply(BIND([operationId, options] (const TYPathProxy::TRspGetPtr& rsp) {
             std::pair<std::vector<TJob>, int> result;
             auto& jobs = result.first;
@@ -5237,12 +5217,10 @@ private:
         const TOperationId& operationId,
         const TListJobsOptions& options)
     {
-        TListJobsResult result;
+        auto timeout = options.Timeout.Get(Connection_->GetConfig()->DefaultListJobsTimeout);
+        auto deadline = timeout.ToDeadLine();
 
-        TNullable<TInstant> deadline;
-        if (options.Timeout) {
-            deadline = options.Timeout->ToDeadLine();
-        }
+        TListJobsResult result;
 
         auto dataSource = options.DataSource;
         if (dataSource == EDataSource::Auto) {
@@ -5290,10 +5268,10 @@ private:
 
         TNullable<TListJobsStatistics> statistics;
 
-        bool isArchiveExists = IsArchiveExists();
+        bool doesArchiveExists = DoesOperationsArchiveExists();
 
         // Issue the requests in parallel.
-        if (includeArchive && isArchiveExists) {
+        if (includeArchive && doesArchiveExists) {
             archiveJobsFuture = DoListJobsFromArchive(operationId, deadline, options);
         }
 
@@ -5305,7 +5283,7 @@ private:
             schedulerJobsFuture = DoListJobsFromScheduler(operationId, deadline, options);
         }
 
-        if (includeArchive && isArchiveExists) {
+        if (includeArchive && doesArchiveExists) {
             auto archiveJobs = WaitFor(archiveJobsFuture)
                 .ValueOrThrow();
             statistics = archiveJobs.second;
@@ -5391,10 +5369,8 @@ private:
         const TJobId& jobId,
         const TGetJobOptions& options)
     {
-        TNullable<TInstant> deadline;
-        if (options.Timeout) {
-            deadline = options.Timeout->ToDeadLine();
-        }
+        auto timeout = options.Timeout.Get(Connection_->GetConfig()->DefaultGetJobTimeout);
+        auto deadline = timeout.ToDeadLine();
 
         int archiveVersion = DoGetOperationsArchiveVersion();
 
@@ -5441,9 +5417,7 @@ private:
 
         lookupOptions.ColumnFilter = NTableClient::TColumnFilter(columnIndexes);
         lookupOptions.KeepMissingRows = true;
-        if (deadline) {
-            lookupOptions.Timeout = *deadline - Now();
-        }
+        lookupOptions.Timeout = deadline - Now();
 
         auto rowset = WaitFor(LookupRows(
             GetOperationsArchiveJobsPath(),

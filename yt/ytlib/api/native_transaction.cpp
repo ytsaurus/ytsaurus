@@ -862,7 +862,7 @@ private:
         TFuture<void> Invoke(IChannelPtr channel)
         {
             // Do all the heavy lifting here.
-            auto* codec = NCompression::GetCodec(Config_->WriteRequestCodec);
+            auto* codec = NCompression::GetCodec(Config_->WriteRowsRequestCodec);
             YCHECK(!Batches_.empty());
             for (const auto& batch : Batches_) {
                 batch->RequestData = codec->Compress(batch->Writer.Finish());
@@ -1050,7 +1050,7 @@ private:
             auto cellSession = transaction->GetCommitSession(GetCellId());
 
             TTabletServiceProxy proxy(InvokeChannel_);
-            proxy.SetDefaultTimeout(Config_->WriteTimeout);
+            proxy.SetDefaultTimeout(Config_->WriteRowsTimeout);
             proxy.SetDefaultRequestAck(false);
 
             auto req = proxy.Write();
@@ -1064,7 +1064,7 @@ private:
             req->set_mount_revision(TabletInfo_->MountRevision);
             req->set_durability(static_cast<int>(transaction->GetDurability()));
             req->set_signature(cellSession->AllocateRequestSignature());
-            req->set_request_codec(static_cast<int>(Config_->WriteRequestCodec));
+            req->set_request_codec(static_cast<int>(Config_->WriteRowsRequestCodec));
             req->set_row_count(batch->RowCount);
             req->set_data_weight(batch->DataWeight);
             req->set_versioned(!VersionedSubmittedRows_.empty());
