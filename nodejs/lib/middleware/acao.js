@@ -31,6 +31,7 @@ exports.that = function Middleware__YtAcao()
                     "origin",
                     "content-type",
                     "accept",
+                    "x-csrf-token",
                     "x-yt-parameters",
                     "x-yt-parameters0",
                     "x-yt-parameters-0",

@@ -89,7 +89,8 @@ struct TSchedulerStrategyHostMock
     virtual TFuture<void> SetOperationAlert(
         const TOperationId& operationId,
         EOperationAlertType alertType,
-        const TError& alert) override
+        const TError& alert,
+        TNullable<TDuration> timeout) override
     {
         return VoidFuture;
     }
@@ -301,6 +302,7 @@ TEST(FairShareTree, TestAttributes)
 
     poolA->AddChild(operationElementX);
     operationElementX->SetParent(poolA.Get());
+    operationElementX->Enable();
 
     auto dynamicAttributes = TDynamicAttributesList(4);
     rootElement->Update(dynamicAttributes);
@@ -356,6 +358,7 @@ TEST(FairShareTree, TestUpdatePreemptableJobsList)
 
     rootElement->AddChild(operationElementX);
     operationElementX->SetParent(rootElement.Get());
+    operationElementX->Enable();
 
     std::vector<TJobId> jobIds;
     for (int i = 0; i < 150; ++i) {
@@ -427,6 +430,7 @@ TEST(FairShareTree, TestBestAllocationRatio)
 
     rootElement->AddChild(operationElementX);
     operationElementX->SetParent(rootElement.Get());
+    operationElementX->Enable();
 
     auto dynamicAttributes = TDynamicAttributesList(4);
     rootElement->Update(dynamicAttributes);

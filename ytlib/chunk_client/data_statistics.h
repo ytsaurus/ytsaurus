@@ -4,6 +4,9 @@
 #include <yt/ytlib/job_tracker_client/statistics.h>
 
 #include <yt/core/compression/public.h>
+
+#include <yt/core/misc/dense_map.h>
+
 #include <yt/core/yson/public.h>
 
 #include <yt/core/ytree/public.h>
@@ -31,6 +34,8 @@ TString ToString(const TDataStatistics& statistics);
 
 } // namespace NProto
 
+////////////////////////////////////////////////////////////////////////////////
+
 struct TCodecDuration
 {
     NCompression::ECodec Codec;
@@ -49,7 +54,12 @@ public:
     TDuration GetTotalDuration() const;
 
 private:
-    THashMap<NCompression::ECodec, TDuration> map;
+    SmallDenseMap<
+        NCompression::ECodec,
+        TDuration,
+        1,
+        TEnumTraits<NCompression::ECodec>::TDenseMapInfo> Map_;
+
     TDuration TotalDuration_;
 
     TCodecStatistics& Append(const std::pair<NCompression::ECodec, TDuration>& codecTime);

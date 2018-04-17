@@ -226,6 +226,8 @@ TWriteTableCommand::TWriteTableCommand()
     RegisterParameter("path", Path);
     RegisterParameter("table_writer", TableWriter)
         .Default(nullptr);
+    RegisterParameter("max_row_buffer_size", MaxRowBufferSize)
+        .Default(1_MB);
     RegisterPostprocessor([&] {
         Path = Path.Normalize();
     });
@@ -248,7 +250,8 @@ void TWriteTableCommand::DoExecute(ICommandContextPtr context)
 
     TWritingValueConsumer valueConsumer(
         writer,
-        ConvertTo<TTypeConversionConfigPtr>(context->GetInputFormat().Attributes()));
+        ConvertTo<TTypeConversionConfigPtr>(context->GetInputFormat().Attributes()),
+        MaxRowBufferSize);
 
     std::vector<IValueConsumer*> valueConsumers(1, &valueConsumer);
     TTableOutput output(CreateParserForFormat(
@@ -263,6 +266,8 @@ void TWriteTableCommand::DoExecute(ICommandContextPtr context)
 
     WaitFor(writer->Close())
         .ThrowOnError();
+
+    ProduceEmptyOutput(context);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -282,6 +287,8 @@ void TMountTableCommand::DoExecute(ICommandContextPtr context)
         Options);
     WaitFor(asyncResult)
         .ThrowOnError();
+
+    ProduceEmptyOutput(context);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -299,6 +306,8 @@ void TUnmountTableCommand::DoExecute(ICommandContextPtr context)
         Options);
     WaitFor(asyncResult)
         .ThrowOnError();
+
+    ProduceEmptyOutput(context);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -310,6 +319,8 @@ void TRemountTableCommand::DoExecute(ICommandContextPtr context)
         Options);
     WaitFor(asyncResult)
         .ThrowOnError();
+
+    ProduceEmptyOutput(context);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -321,6 +332,8 @@ void TFreezeTableCommand::DoExecute(ICommandContextPtr context)
         Options);
     WaitFor(asyncResult)
         .ThrowOnError();
+
+    ProduceEmptyOutput(context);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -332,6 +345,8 @@ void TUnfreezeTableCommand::DoExecute(ICommandContextPtr context)
         Options);
     WaitFor(asyncResult)
         .ThrowOnError();
+
+    ProduceEmptyOutput(context);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -370,6 +385,8 @@ void TReshardTableCommand::DoExecute(ICommandContextPtr context)
     }
     WaitFor(asyncResult)
         .ThrowOnError();
+
+    ProduceEmptyOutput(context);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -392,6 +409,8 @@ void TAlterTableCommand::DoExecute(ICommandContextPtr context)
         Options);
     WaitFor(asyncResult)
         .ThrowOnError();
+
+    ProduceEmptyOutput(context);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -731,6 +750,8 @@ void TDeleteRowsCommand::DoExecute(ICommandContextPtr context)
         WaitFor(transaction->Commit())
             .ThrowOnError();
     }
+
+    ProduceEmptyOutput(context);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -752,6 +773,8 @@ void TTrimRowsCommand::DoExecute(ICommandContextPtr context)
         Options);
     WaitFor(asyncResult)
         .ThrowOnError();
+
+    ProduceEmptyOutput(context);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -768,6 +791,8 @@ void TEnableTableReplicaCommand::DoExecute(ICommandContextPtr context)
     auto asyncResult = client->AlterTableReplica(ReplicaId, Options);
     WaitFor(asyncResult)
         .ThrowOnError();
+
+    ProduceEmptyOutput(context);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -784,6 +809,8 @@ void TDisableTableReplicaCommand::DoExecute(ICommandContextPtr context)
     auto asyncResult = client->AlterTableReplica(ReplicaId, Options);
     WaitFor(asyncResult)
         .ThrowOnError();
+
+    ProduceEmptyOutput(context);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -803,6 +830,8 @@ void TAlterTableReplicaCommand::DoExecute(ICommandContextPtr context)
     auto asyncResult = client->AlterTableReplica(ReplicaId, Options);
     WaitFor(asyncResult)
         .ThrowOnError();
+
+    ProduceEmptyOutput(context);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

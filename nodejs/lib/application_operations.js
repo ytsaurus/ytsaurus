@@ -356,7 +356,7 @@ function getArchiveCallbacks(
     if (user_filter) {
         items_filter_conditions.push("authenticated_user = \"{}\"".format(escapeC(user_filter)));
     }
- 
+
     var query_source = null;
     if (version < 2) {
         query_source = "[{}] index JOIN [{}] ON (index.id_hi, index.id_lo) = (id_hi, id_lo)"
@@ -562,7 +562,7 @@ function YtApplicationOperations$list(parameters)
     var cypress_data = this.driver.executeSimple(
         "list",
         {
-            path: OPERATIONS_CYPRESS_PATH, 
+            path: OPERATIONS_CYPRESS_PATH,
             attributes: OPERATION_ATTRIBUTES,
             read_from: "cache",
             expire_after_successful_update_time: CYPRESS_OPERATIONS_SUCCESS_EXPIRATION_TIME,
@@ -629,7 +629,7 @@ function YtApplicationOperations$list(parameters)
                 if (!user_counts.hasOwnProperty(user)) {
                     user_counts[user] = 0;
                 }
-                user_counts[user] += count; 
+                user_counts[user] += count;
 
                 if (user_filter && user !== user_filter) {
                     return false;

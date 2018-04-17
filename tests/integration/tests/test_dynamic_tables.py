@@ -138,15 +138,14 @@ class TestDynamicTablesBase(YTEnvSetup):
                 return 0
 
             def get_counter(self, counter_name):
+                # Get difference since last query since typically we are interested in couter rate.
+                # (Same table name is shared between tests and there is no way to reset couters.)
                 result = self._get_counter_impl(counter_name)
                 if counter_name not in self._shifts:
                     self._shifts[counter_name] = result
                 return result - self._shifts[counter_name]
 
         return Profiling()
-
-    def _get_tablet_profiling(self, table):
-        return self._get_profiling(table, "tablet_id")
 
     def _get_table_profiling(self, table):
         return self._get_profiling(table, "table_path", filter_table=True)
@@ -665,11 +664,18 @@ class TestDynamicTables(TestDynamicTablesBase):
 
     def test_disable_tablet_cells(self):
         cell = self.sync_create_cells(1)[0]
-        peer_path = "#{0}/@peers/0/address".format(cell)
-        peer = get(peer_path)
+        peer = get("#{0}/@peers/0/address".format(cell))
         set("//sys/nodes/{0}/@disable_tablet_cells".format(peer), True)
-        wait(lambda: get(peer_path) != peer)
-        assert get(peer_path) != peer
+        def check():
+            peers = get("#{0}/@peers".format(cell))
+            if len(peers) == 0:
+                return False
+            if "address" not in peers[0]:
+                return False
+            if peers[0]["address"] == peer:
+                return False
+            return True
+        wait(check)
 
     def test_tablet_slot_charges_cpu_resource_limit(self):
         get_cpu = lambda x: get("//sys/nodes/{0}/orchid/job_controller/resource_limits/cpu".format(x))
@@ -682,6 +688,36 @@ class TestDynamicTables(TestDynamicTablesBase):
         assigned_node_cpu = get_cpu(peer)
 
         assert int(empty_node_cpu - assigned_node_cpu) == 1
+
+    def test_bundle_node_list(self):
+        create_tablet_cell_bundle("b", attributes={"node_tag_filter": "b"})
+
+        node = ls("//sys/nodes")[0]
+        set("//sys/nodes/{0}/@user_tags".format(node), ["b"])
+        assert get("//sys/tablet_cell_bundles/b/@nodes") == [node]
+
+        set("//sys/nodes/{0}/@banned".format(node), True)
+        assert get("//sys/tablet_cell_bundles/b/@nodes") == []
+        set("//sys/nodes/{0}/@banned".format(node), False)
+        wait(lambda: get("//sys/nodes/{0}/@state".format(node)) == "online")
+        assert get("//sys/tablet_cell_bundles/b/@nodes") == [node]
+
+        set("//sys/nodes/{0}/@decommissioned".format(node), True)
+        assert get("//sys/tablet_cell_bundles/b/@nodes") == []
+        set("//sys/nodes/{0}/@decommissioned".format(node), False)
+        assert get("//sys/tablet_cell_bundles/b/@nodes") == [node]
+
+        set("//sys/nodes/{0}/@disable_tablet_cells".format(node), True)
+        assert get("//sys/tablet_cell_bundles/b/@nodes") == []
+        set("//sys/nodes/{0}/@disable_tablet_cells".format(node), False)
+        assert get("//sys/tablet_cell_bundles/b/@nodes") == [node]
+
+        build_snapshot(cell_id=None)
+        self.Env.kill_master_cell()
+        self.Env.start_master_cell()
+
+        assert get("//sys/tablet_cell_bundles/b/@nodes") == [node]
+
 
 ##################################################################
 

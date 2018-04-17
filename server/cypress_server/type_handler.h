@@ -44,8 +44,15 @@ struct INodeTypeHandler
         const TNodeId& hintId,
         NObjectClient::TCellTag externalCellTag,
         NTransactionServer::TTransaction* transaction,
-        NYTree::IAttributeDictionary* attributes,
+        NYTree::IAttributeDictionary* inheritedAttributes,
+        NYTree::IAttributeDictionary* explicitAttributes,
         NSecurityServer::TAccount* account) = 0;
+
+    //! Fills attributes of a trunk node. Usually applied to newly created nodes.
+    virtual void FillAttributes(
+        TCypressNodeBase* trunkNode,
+        NYTree::IAttributeDictionary* inheritedAttributes,
+        NYTree::IAttributeDictionary* explicitAttributes) = 0;
 
     //! Performs cleanup on node destruction.
     /*!

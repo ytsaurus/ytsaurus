@@ -290,12 +290,18 @@ private:
 
             auto& header = request->Header();
             header.set_start_time(ToProto<i64>(TInstant::Now()));
+
+            // NB: Requests without timeout are rare but may occur.
+            // For these requests we still need to register a timeout cookie with TDelayedExecutor
+            // since this also provides proper cleanup and cancelation when global shutdown happens.
+            auto effectiveTimeout = options.Timeout.Get(TDuration::Hours(24));
+            auto timeoutCookie = TDelayedExecutor::Submit(
+                BIND(&TSession::HandleTimeout, MakeWeak(this), requestControl),
+                effectiveTimeout);
+            requestControl->SetTimeoutCookie(Guard(SpinLock_), std::move(timeoutCookie));
+
             if (options.Timeout) {
                 header.set_timeout(ToProto<i64>(*options.Timeout));
-                auto timeoutCookie = TDelayedExecutor::Submit(
-                    BIND(&TSession::HandleTimeout, MakeWeak(this), requestControl),
-                    *options.Timeout);
-                requestControl->SetTimeoutCookie(Guard(SpinLock_), std::move(timeoutCookie));
             } else {
                 header.clear_timeout();
             }
@@ -493,7 +499,7 @@ private:
         struct TMethodMetadataProfilingTrait
         {
             using TKey = std::pair<TString, TString>;
-            using TValue = std::unique_ptr<TMethodMetadata>;
+            using TValue = TMethodMetadata;
 
             static TKey ToKey(const TString& service, const TString& method)
             {
@@ -502,22 +508,22 @@ private:
 
             static TValue ToValue(const TString& service, const TString& method)
             {
-                auto metadata = std::make_unique<TMethodMetadata>();
+                TMethodMetadata metadata;
 
                 auto* profilingManager = NProfiling::TProfileManager::Get();
                 NProfiling::TTagIdList tagIds{
                     profilingManager->RegisterTag("service", TYsonString(service)),
                     profilingManager->RegisterTag("method", TYsonString(method))
                 };
-                metadata->AckTimeCounter = NProfiling::TAggregateCounter("/request_time/ack", tagIds, NProfiling::EAggregateMode::All);
-                metadata->ReplyTimeCounter = NProfiling::TAggregateCounter("/request_time/reply", tagIds, NProfiling::EAggregateMode::All);
-                metadata->TimeoutTimeCounter = NProfiling::TAggregateCounter("/request_time/timeout", tagIds, NProfiling::EAggregateMode::All);
-                metadata->CancelTimeCounter = NProfiling::TAggregateCounter("/request_time/cancel", tagIds, NProfiling::EAggregateMode::All);
-                metadata->TotalTimeCounter = NProfiling::TAggregateCounter("/request_time/total", tagIds, NProfiling::EAggregateMode::All);
-                metadata->RequestMessageBodySizeCounter = NProfiling::TSimpleCounter("/request_message_body_bytes", tagIds);
-                metadata->RequestMessageAttachmentSizeCounter = NProfiling::TSimpleCounter("/request_message_attachment_bytes", tagIds);
-                metadata->ResponseMessageBodySizeCounter = NProfiling::TSimpleCounter("/response_message_body_bytes", tagIds);
-                metadata->ResponseMessageAttachmentSizeCounter = NProfiling::TSimpleCounter("/response_message_attachment_bytes", tagIds);
+                metadata.AckTimeCounter = NProfiling::TAggregateCounter("/request_time/ack", tagIds, NProfiling::EAggregateMode::All);
+                metadata.ReplyTimeCounter = NProfiling::TAggregateCounter("/request_time/reply", tagIds, NProfiling::EAggregateMode::All);
+                metadata.TimeoutTimeCounter = NProfiling::TAggregateCounter("/request_time/timeout", tagIds, NProfiling::EAggregateMode::All);
+                metadata.CancelTimeCounter = NProfiling::TAggregateCounter("/request_time/cancel", tagIds, NProfiling::EAggregateMode::All);
+                metadata.TotalTimeCounter = NProfiling::TAggregateCounter("/request_time/total", tagIds, NProfiling::EAggregateMode::All);
+                metadata.RequestMessageBodySizeCounter = NProfiling::TSimpleCounter("/request_message_body_bytes", tagIds);
+                metadata.RequestMessageAttachmentSizeCounter = NProfiling::TSimpleCounter("/request_message_attachment_bytes", tagIds);
+                metadata.ResponseMessageBodySizeCounter = NProfiling::TSimpleCounter("/response_message_body_bytes", tagIds);
+                metadata.ResponseMessageAttachmentSizeCounter = NProfiling::TSimpleCounter("/response_message_attachment_bytes", tagIds);
 
                 return metadata;
             }
@@ -525,7 +531,7 @@ private:
 
         TMethodMetadata* GetMethodMetadata(const TString& service, const TString& method)
         {
-            return GetLocallyGloballyCachedValue<TMethodMetadataProfilingTrait>(service, method).get();
+            return &GetLocallyGloballyCachedValue<TMethodMetadataProfilingTrait>(service, method);
         }
 
     private:

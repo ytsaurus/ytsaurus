@@ -182,8 +182,6 @@ public:
 
     TChunkRequisitionRegistry* GetChunkRequisitionRegistry();
 
-    void FillChunkRequisitionDict(NProto::TReqUpdateChunkRequisition* request);
-
 private:
     class TImpl;
     class TChunkTypeHandlerBase;

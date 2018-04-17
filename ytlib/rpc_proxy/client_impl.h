@@ -162,6 +162,7 @@ public:
 
     virtual TFuture<void> UpdateOperationParameters(
         const NScheduler::TOperationId&,
+        const NYson::TYsonString&,
         const NApi::TUpdateOperationParametersOptions&) override
     {
         Y_UNIMPLEMENTED();
@@ -193,6 +194,14 @@ public:
         const NJobTrackerClient::TOperationId&,
         const NJobTrackerClient::TJobId&,
         const NApi::TGetJobStderrOptions&) override
+    {
+        Y_UNIMPLEMENTED();
+    }
+
+    virtual TFuture<TSharedRef> GetJobFailContext(
+        const NJobTrackerClient::TOperationId&,
+        const NJobTrackerClient::TJobId&,
+        const NApi::TGetJobFailContextOptions&) override
     {
         Y_UNIMPLEMENTED();
     }

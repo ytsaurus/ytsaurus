@@ -64,6 +64,22 @@ TOperationAlertsConfig::TOperationAlertsConfig()
     RegisterParameter("job_spec_throttling_alert_activation_count_threshold", JobSpecThrottlingAlertActivationCountThreshold)
         .Default(1000)
         .GreaterThan(0);
+
+    RegisterParameter("low_cpu_usage_alert_min_execution_time", LowCpuUsageAlertMinExecTime)
+        .Default(TDuration::Minutes(10));
+
+    RegisterParameter("low_cpu_usage_alert_min_average_job_time", LowCpuUsageAlertMinAverageJobTime)
+        .Default(TDuration::Minutes(1));
+
+    RegisterParameter("low_cpu_usage_alert_cpu_usage_threshold", LowCpuUsageAlertCpuUsageThreshold)
+        .Default(0.5)
+        .GreaterThan(0);
+
+    RegisterParameter("operation_too_long_alert_min_wall_time", OperationTooLongAlertMinWallTime)
+        .Default(TDuration::Minutes(5));
+
+    RegisterParameter("operation_too_long_alert_estimate_duration_threshold", OperationTooLongAlertEstimateDurationThreshold)
+        .Default(TDuration::Days(7));
 }
 
 TJobSplitterConfig::TJobSplitterConfig()
@@ -225,6 +241,8 @@ TSortOperationOptionsBase::TSortOperationOptionsBase()
 
 TControllerAgentConfig::TControllerAgentConfig()
 {
+    SetUnrecognizedStrategy(NYTree::EUnrecognizedStrategy::KeepRecursive);
+
     RegisterParameter("chunk_list_preallocation_count", ChunkListPreallocationCount)
         .Default(128)
         .GreaterThanOrEqual(0);
@@ -279,23 +297,26 @@ TControllerAgentConfig::TControllerAgentConfig()
     RegisterParameter("event_log", EventLog)
         .DefaultNew();
 
-    RegisterParameter("controller_agent_handshake_rpc_timeout", ControllerAgentHandshakeRpcTimeout)
+    RegisterParameter("scheduler_handshake_rpc_timeout", SchedulerHandshakeRpcTimeout)
         .Default(TDuration::Seconds(10));
-    RegisterParameter("controller_agent_handshake_failure_backoff", ControllerAgentHandshakeFailureBackoff)
+    RegisterParameter("scheudler_failure_backoff", SchedulerHandshakeFailureBackoff)
         .Default(TDuration::Seconds(1));
 
-    RegisterParameter("controller_agent_heartbeat_rpc_timeout", ControllerAgentHeartbeatRpcTimeout)
+    RegisterParameter("scheduler_heartbeat_rpc_timeout", SchedulerHeartbeatRpcTimeout)
         .Default(TDuration::Seconds(10));
-    RegisterParameter("controller_agent_heartbeat_failure_backoff", ControllerAgentHeartbeatFailureBackoff)
+    RegisterParameter("scheduler_failure_backoff", SchedulerHeartbeatFailureBackoff)
         .Default(TDuration::MilliSeconds(100));
-    RegisterParameter("controller_agent_heartbeat_period", ControllerAgentHeartbeatPeriod)
-        .Default(TDuration::MilliSeconds(10));
+    RegisterParameter("scheduler_heartbeat_period", SchedulerHeartbeatPeriod)
+        .Default(TDuration::MilliSeconds(100));
+
+    RegisterParameter("config_update_period", ConfigUpdatePeriod)
+        .Default(TDuration::Seconds(10));
 
     RegisterParameter("exec_nodes_update_period", ExecNodesUpdatePeriod)
         .Default(TDuration::Seconds(10));
-    RegisterParameter("config_update_period", ConfigUpdatePeriod)
-        .Default(TDuration::Seconds(10));
     RegisterParameter("operation_alerts_update_period", OperationAlertsUpdatePeriod)
+        .Default(TDuration::Seconds(3));
+    RegisterParameter("suspicious_jobs_update_period", SuspiciousJobsUpdatePeriod)
         .Default(TDuration::Seconds(3));
 
     RegisterParameter("controller_thread_count", ControllerThreadCount)

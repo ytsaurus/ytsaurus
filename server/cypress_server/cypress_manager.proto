@@ -24,7 +24,8 @@ message TReqCreateForeignNode
     required NYT.NProto.TGuid node_id = 1;
     optional NYT.NProto.TGuid transaction_id = 2;
     required int32 type = 3;
-    optional NYT.NYTree.NProto.TAttributeDictionary node_attributes = 4;
+    optional NYT.NYTree.NProto.TAttributeDictionary explicit_node_attributes = 4;
+    optional NYT.NYTree.NProto.TAttributeDictionary inherited_node_attributes = 6;
     optional NYT.NProto.TGuid account_id = 5;
 }
 

@@ -63,6 +63,7 @@ DEFINE_ENUM(EControllerAgentState,
     (Registered)
     (Unregistering)
     (Unregistered)
+    (WaitingForInitialHeartbeat)
 );
 
 //! Scheduler-side representation of a controller agent.
@@ -76,7 +77,8 @@ public:
     TControllerAgent(
         const TAgentId& id,
         const NNodeTrackerClient::TAddressMap& agentAddresses,
-        NRpc::IChannelPtr channel);
+        NRpc::IChannelPtr channel,
+        const IInvokerPtr& invoker);
 
     DEFINE_BYVAL_RW_PROPERTY(EControllerAgentState, State);
     DEFINE_BYVAL_RW_PROPERTY(NConcurrency::TLease, Lease);
@@ -114,10 +116,16 @@ public:
     const TIntrusivePtr<TMessageQueueOutbox<TSchedulerToAgentOperationEvent>>& GetOperationEventsOutbox();
     const TIntrusivePtr<TMessageQueueOutbox<TScheduleJobRequestPtr>>& GetScheduleJobRequestsOutbox();
 
+    void Cancel();
+    const IInvokerPtr& GetCancelableInvoker();
+
 private:
     const TAgentId Id_;
     const NNodeTrackerClient::TAddressMap AgentAddresses_;
     const NRpc::IChannelPtr Channel_;
+
+    TCancelableContextPtr CancelableContext_;
+    IInvokerPtr CancelableInvoker_;
 
     NApi::ITransactionPtr IncarnationTransaction_;
 

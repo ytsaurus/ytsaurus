@@ -27,7 +27,10 @@ TOperation::TOperation(const NProto::TOperationDescriptor& descriptor)
     , Owners_(FromProto<std::vector<TString>>(descriptor.owners()))
     , UserTransactionId_(FromProto<NTransactionClient::TTransactionId>(descriptor.user_transaction_id()))
     , PoolTreeSchedulingTagFilters_(FromProto<std::vector<NScheduler::TSchedulingTagFilter>>(descriptor.pool_tree_scheduling_tag_filters()))
-{ }
+{
+    auto node = Spec_->FindChild("enable_compatible_storage_mode");
+    EnableCompatibleStorageMode_ = node ? node->AsBoolean()->GetValue() : true;
+}
 
 const IOperationControllerPtr& TOperation::GetControllerOrThrow() const
 {

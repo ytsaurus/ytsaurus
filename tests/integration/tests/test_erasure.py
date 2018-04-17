@@ -237,6 +237,20 @@ class TestErasure(YTEnvSetup):
 
         assert read_table("//tmp/t2") == [{"a" : "b"}]
 
+    def test_slice_erasure_chunks_by_parts(self):
+        create("table", "//tmp/t1")
+        set("//tmp/t1/@erasure_codec", "lrc_12_2_2")
+        write_table("//tmp/t1", [{"a": "b"}] * 240)
+        create("table", "//tmp/t2")
+
+        op1 = map(in_="//tmp/t1", out="//tmp/t2", command="cat", spec={"slice_erasure_chunks_by_parts": True})
+        chunk_count = get("//sys/operations/{0}/@progress/data_flow_graph/edges/source/map/statistics/chunk_count".format(op1.id))
+        assert chunk_count == 12
+
+        op2 = map(in_="//tmp/t1", out="//tmp/t2", command="cat", spec={"slice_erasure_chunks_by_parts": False})
+        chunk_count = get("//sys/operations/{0}/@progress/data_flow_graph/edges/source/map/statistics/chunk_count".format(op2.id))
+        assert chunk_count == 1
+
     def test_erasure_attribute_in_output_table(self):
         create("table", "//tmp/t1")
         write_table("//tmp/t1", {"a": "b"})

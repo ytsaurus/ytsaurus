@@ -46,6 +46,7 @@ public:
 
     TTransaction* StartTransaction(
         TTransaction* parent,
+        std::vector<TTransaction*> prerequisiteTransactions,
         const NObjectClient::TCellTagList& secondaryCellTags,
         const NObjectClient::TCellTagList& replicateToCellTags,
         TNullable<TDuration> timeout,

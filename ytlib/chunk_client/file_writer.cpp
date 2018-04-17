@@ -101,7 +101,7 @@ bool TFileWriter::WriteBlock(const TBlock& block)
 
             auto offset = ::AlignDown(filePosition, Alignment_);
             auto start = ::AlignDown(Buffer_.Begin() + BufferPosition_, Alignment_);
-            auto end = start + ::AlignUp<size_t>(size, Alignment_);
+            auto end = ::AlignUp(Buffer_.Begin() + BufferPosition_ + size, Alignment_);
             auto data = Buffer_.Slice(start, end);
 
             YCHECK(offset >= 0 && offset <= filePosition);

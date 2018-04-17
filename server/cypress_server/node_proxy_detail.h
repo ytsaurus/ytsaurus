@@ -240,7 +240,29 @@ protected:
     virtual bool RemoveBuiltinAttribute(NYTree::TInternedAttributeKey key) override;
 
     virtual bool CanHaveChildren() const override;
+};
 
+////////////////////////////////////////////////////////////////////////////////
+
+//! A set of inheritable attributes represented as an attribute dictionary.
+//! If a setter for a non-inheritable attribute is called, falls back to an ephemeral dictionary.
+class TInheritedAttributeDictionary
+    : public NYTree::IAttributeDictionary
+{
+public:
+    explicit TInheritedAttributeDictionary(NCellMaster::TBootstrap* bootstrap);
+
+    virtual std::vector<TString> List() const override;
+    virtual NYson::TYsonString FindYson(const TString& key) const override;
+    virtual void SetYson(const TString& key, const NYson::TYsonString& value) override;
+    virtual bool Remove(const TString& key) override;
+
+    TCompositeNodeBase::TAttributes& Attributes();
+
+private:
+    const NCellMaster::TBootstrap* Bootstrap_;
+    TCompositeNodeBase::TAttributes InheritedAttributes_;
+    std::unique_ptr<IAttributeDictionary> Fallback_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

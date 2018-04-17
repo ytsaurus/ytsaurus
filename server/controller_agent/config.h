@@ -101,6 +101,21 @@ public:
     // count is above this threshold.
     i64 JobSpecThrottlingAlertActivationCountThreshold;
 
+    // Minimum total time sum to analyze operation
+    TDuration LowCpuUsageAlertMinExecTime;
+
+    // Minimum average job time to analyze operation
+    TDuration LowCpuUsageAlertMinAverageJobTime;
+
+    // Cpu usage threshold to send an alert
+    double LowCpuUsageAlertCpuUsageThreshold;
+
+    // Minimum wall time of operation duration
+    TDuration OperationTooLongAlertMinWallTime;
+
+    // Threshold for estimate duration of operation
+    TDuration OperationTooLongAlertEstimateDurationThreshold;
+
     TOperationAlertsConfig();
 };
 
@@ -433,24 +448,20 @@ public:
 
     NEventLog::TEventLogConfigPtr EventLog;
 
-    // TODO(babenko): config
     //! Controller agent-to-scheduler heartbeat timeout.
-    TDuration ControllerAgentHandshakeRpcTimeout;
+    TDuration SchedulerHandshakeRpcTimeout;
 
-    // TODO(babenko): config
     //! Controller agent-to-scheduler handshake failure backoff.
-    TDuration ControllerAgentHandshakeFailureBackoff;
+    TDuration SchedulerHandshakeFailureBackoff;
 
-    // TODO(babenko): config
     //! Controller agent-to-scheduler heartbeat timeout.
-    TDuration ControllerAgentHeartbeatRpcTimeout;
+    TDuration SchedulerHeartbeatRpcTimeout;
 
-    // TODO(babenko): config
     //! Controller agent-to-scheduler heartbeat failure backoff.
-    TDuration ControllerAgentHeartbeatFailureBackoff;
+    TDuration SchedulerHeartbeatFailureBackoff;
 
     // Controller agent-to-scheduler heartbeat period.
-    TDuration ControllerAgentHeartbeatPeriod;
+    TDuration SchedulerHeartbeatPeriod;
 
     //! Period for requesting exec nodes from scheduler.
     TDuration ExecNodesUpdatePeriod;
@@ -460,6 +471,9 @@ public:
 
     //! Period for pushing operation alerts from agent to scheduler.
     TDuration OperationAlertsUpdatePeriod;
+
+    //! Period for pushing suspicious jobs from agent to scheduler.
+    TDuration SuspiciousJobsUpdatePeriod;
 
     //! Number of threads for running controllers invokers.
     int ControllerThreadCount;

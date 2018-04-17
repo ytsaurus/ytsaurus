@@ -1,6 +1,6 @@
 #include "response.h"
-#include "helpers.h"
-#include "serialize.h"
+
+#include <yt/python/common/helpers.h>
 
 #include <yt/core/ytree/convert.h>
 

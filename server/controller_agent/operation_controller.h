@@ -215,10 +215,12 @@ struct IOperationControllerHost
     virtual const ICoreDumperPtr& GetCoreDumper() = 0;
     virtual const NConcurrency::TAsyncSemaphorePtr& GetCoreSemaphore() = 0;
     virtual const NConcurrency::IThroughputThrottlerPtr& GetJobSpecSliceThrottler() = 0;
+    virtual TMemoryTagQueue* GetMemoryTagQueue() = 0;
 
     virtual int GetExecNodeCount() = 0;
     virtual TRefCountedExecNodeDescriptorMapPtr GetExecNodeDescriptors(const NScheduler::TSchedulingTagFilter& filter) = 0;
     virtual TInstant GetConnectionTime() = 0;
+    virtual const NScheduler::TIncarnationId& GetIncarnationId() = 0;
 
     virtual void OnOperationCompleted() = 0;
     virtual void OnOperationAborted(const TError& error) = 0;
@@ -256,6 +258,7 @@ struct TScheduleJobResult
     TNullable<TJobStartDescriptor> StartDescriptor;
     TEnumIndexedVector<int, EScheduleJobFailReason> Failed;
     TDuration Duration;
+    TIncarnationId IncarnationId;
 };
 
 DEFINE_REFCOUNTED_TYPE(TScheduleJobResult)
@@ -500,7 +503,7 @@ struct IOperationController
     virtual int GetPendingJobCount() const = 0;
 
     //! Invokes controller finalization due to aborted or expired transaction.
-    virtual void OnTransactionAborted(const NTransactionClient::TTransactionId& transactionId) = 0;
+    virtual void OnTransactionsAborted(const std::vector<NTransactionClient::TTransactionId>& transactionIds) = 0;
 
     //! Cancels the controller context
     /*!

@@ -22,7 +22,7 @@
 #include <yt/core/concurrency/delayed_executor.h>
 #include <yt/core/concurrency/rw_spinlock.h>
 
-#include <yt/core/misc/expiring_cache.h>
+#include <yt/core/misc/async_expiring_cache.h>
 #include <yt/core/misc/string.h>
 
 #include <yt/core/rpc/proto/rpc.pb.h>
@@ -111,6 +111,29 @@ private:
 };
 
 const TDuration TTabletCache::ExpiringTimeout_ = TDuration::Seconds(1);
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool TTabletInfo::IsInMemory() const
+{
+    if (!InMemoryMode) {
+        return false;
+    }
+
+    switch (*InMemoryMode) {
+        case EInMemoryMode::None:
+            return false;
+
+        case EInMemoryMode::Compressed:
+            return true;
+
+        case EInMemoryMode::Uncompressed:
+            return true;
+
+        default:
+            Y_UNREACHABLE();
+    }
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -227,7 +250,7 @@ void TTableMountInfo::ValidateReplicated() const
 
 class TTableMountCache
     : public ITableMountCache
-    , public TExpiringCache<TYPath, TTableMountInfoPtr>
+    , public TAsyncExpiringCache<TYPath, TTableMountInfoPtr>
 {
 public:
     TTableMountCache(
@@ -235,7 +258,7 @@ public:
         IChannelPtr masterChannel,
         TCellDirectoryPtr cellDirectory,
         const NLogging::TLogger& logger)
-        : TExpiringCache(config)
+        : TAsyncExpiringCache(config)
         , Config_(std::move(config))
         , CellDirectory_(std::move(cellDirectory))
         , Logger(logger)
@@ -244,7 +267,7 @@ public:
 
     virtual TFuture<TTableMountInfoPtr> GetTableInfo(const TYPath& path) override
     {
-        return TExpiringCache::Get(path);
+        return TAsyncExpiringCache::Get(path);
     }
 
     virtual TTabletInfoPtr FindTablet(const TTabletId& tabletId) override
@@ -300,7 +323,7 @@ public:
 
     virtual void Clear()
     {
-        TExpiringCache::Clear();
+        TAsyncExpiringCache::Clear();
         LOG_DEBUG("Table mount info cache cleared");
     }
 
@@ -370,6 +393,11 @@ private:
                     tabletInfo->MountRevision = protoTabletInfo.mount_revision();
                     tabletInfo->State = ETabletState(protoTabletInfo.state());
                     tabletInfo->UpdateTime = Now();
+
+                    // COMPAT(savrus)
+                    tabletInfo->InMemoryMode = protoTabletInfo.has_in_memory_mode()
+                        ? MakeNullable(EInMemoryMode(protoTabletInfo.in_memory_mode()))
+                        : Null;
 
                     if (tableInfo->IsSorted()) {
                         // Take the actual pivot from master response.

@@ -2,6 +2,7 @@ package NYT.NJobProberClient.NProto;
 
 import "yt/ytlib/job_tracker_client/job.proto";
 
+import "yt/core/misc/proto/error.proto";
 import "yt/core/misc/proto/guid.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -82,6 +83,15 @@ message TReqFail
 }
 
 message TRspFail
+{ }
+
+message TReqAbort
+{
+    required NYT.NProto.TGuid job_id = 1;
+    required NYT.NProto.TError error = 2;
+}
+
+message TRspAbort
 { }
 
 

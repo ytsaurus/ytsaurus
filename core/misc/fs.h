@@ -49,6 +49,9 @@ TString GetDirectoryName(const TString& path);
 //! Returns the absolute path for the given (possibly relative) path.
 TString GetRealPath(const TString& path);
 
+//! Checks that given path is relative and does not go outside the directory.
+bool CheckPathIsRelativeAndGoesInside(const TString& path);
+
 //! Combines two strings into a path.
 TString CombinePaths(const TString& path1, const TString& path2);
 

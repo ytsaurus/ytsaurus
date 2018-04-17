@@ -12,7 +12,7 @@
 
 #include <yt/core/misc/lazy_ptr.h>
 #include <yt/core/misc/singleton.h>
-#include <yt/core/misc/expiring_cache.h>
+#include <yt/core/misc/async_expiring_cache.h>
 #include <yt/core/misc/shutdown.h>
 
 #include <yt/core/profiling/profiler.h>
@@ -798,7 +798,7 @@ void Serialize(const TIP6Network& value, IYsonConsumer* consumer)
 //! Performs asynchronous host name resolution.
 class TAddressResolver::TImpl
     : public virtual TRefCounted
-    , private TExpiringCache<TString, TNetworkAddress>
+    , private TAsyncExpiringCache<TString, TNetworkAddress>
 {
 public:
     explicit TImpl(TAddressResolverConfigPtr config);
@@ -834,7 +834,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TAddressResolver::TImpl::TImpl(TAddressResolverConfigPtr config)
-    : TExpiringCache(config)
+    : TAsyncExpiringCache(config)
     , DnsResolver_(
         config->Retries,
         config->ResolveTimeout,

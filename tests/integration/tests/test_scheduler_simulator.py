@@ -1,15 +1,10 @@
-import pytest
-
-from yt_env_setup import YTEnvSetup, require_ytserver_root_privileges, wait
-from yt.environment.helpers import assert_almost_equal
+from yt_env_setup import YTEnvSetup
 from yt_commands import *
 from yt.common import date_string_to_datetime
 import yt.yson as yson
 
-from datetime import datetime, timedelta
 from copy import deepcopy
 import time
-import __builtin__
 import os
 import subprocess
 import csv
@@ -233,12 +228,19 @@ class TestSchedulerSimulator(YTEnvSetup, PrepareTables):
 
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
-            "operation_time_limit_check_period": 100,
             "connect_retry_backoff_time": 100,
             "fair_share_update_period": 100,
             "fair_share_profiling_period": 100,
             "event_log" : {
-                "flush_period": 500,
+                "flush_period": 100,
+            }
+        }
+    }
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "event_log" : {
+                "flush_period": 100,
             }
         }
     }

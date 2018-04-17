@@ -18,8 +18,10 @@
 #include <yt/core/misc/property.h>
 #include <yt/core/misc/ref.h>
 #include <yt/core/misc/crash_handler.h>
+#include <yt/core/misc/dense_map.h>
 
 #include <yt/core/concurrency/rw_spinlock.h>
+#include <yt/core/concurrency/delayed_executor.h>
 
 #include <yt/core/ytree/node.h>
 
@@ -61,6 +63,20 @@ struct TOperationRevivalDescriptor
     bool OperationCommitted = false;
     bool ShouldCommitOutputTransaction = false;
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TOperationAlert
+{
+    TError Error;
+    NConcurrency::TDelayedExecutorCookie ResetCookie;
+};
+
+using TOperationAlertMap = SmallDenseMap<
+    EOperationAlertType,
+    TOperationAlert,
+    2,
+    TEnumTraits<EOperationAlertType>::TDenseMapInfo>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -165,10 +181,6 @@ public:
     //! List of events that happened to operation.
     DEFINE_BYREF_RW_PROPERTY(std::vector<TOperationEvent>, Events);
 
-    //! List of operation alerts.
-    using TAlerts = TEnumIndexedVector<TError, EOperationAlertType>;
-    DEFINE_BYREF_RW_PROPERTY_FORCE_FLUSH(TAlerts, Alerts);
-
     DEFINE_BYVAL_RW_PROPERTY(IOperationControllerPtr, Controller);
 
     //! Operation result, becomes set when the operation finishes.
@@ -179,6 +191,11 @@ public:
 
     //! Marks that operation attributes should be flushed to Cypress.
     DEFINE_BYVAL_RW_PROPERTY(bool, ShouldFlush);
+
+    //! Controls operation storage mode. If disabled then operation node
+    //! will be created only in //sys/operations/<bucket>/<op_id> and won't
+    //! be duplicated in //sys/operations.
+    DEFINE_BYVAL_RW_PROPERTY(bool, EnableCompatibleStorageMode);
 
     //! If this operation needs revive, the corresponding revive descriptor is provided
     //! by Master Connector.
@@ -240,6 +257,10 @@ public:
     const std::vector<TString>& GetOwners() const;
     void SetOwners(std::vector<TString> owners);
 
+    NYson::TYsonString BuildAlertsString() const;
+    void SetAlert(EOperationAlertType alertType, const TError& error, TNullable<TDuration> timeout = Null);
+    void ResetAlert(EOperationAlertType alertType);
+
     //! Returns a cancelable control invoker corresponding to this operation.
     const IInvokerPtr& GetCancelableControlInvoker();
 
@@ -264,6 +285,7 @@ public:
         TOperationRuntimeParametersPtr runtimeParams,
         const TString& authenticatedUser,
         TInstant startTime,
+        bool enableCompatibleStorageMode,
         IInvokerPtr controlInvoker,
         EOperationState state = EOperationState::None,
         const std::vector<TOperationEvent>& events = {});
@@ -283,6 +305,8 @@ private:
     THashMap<TString, int> TreeIdToSlotIndex_;
 
     std::vector<TString> Owners_;
+
+    TOperationAlertMap Alerts_;
 
     TPromise<void> StartedPromise_ = NewPromise<void>();
     TPromise<void> FinishedPromise_ = NewPromise<void>();

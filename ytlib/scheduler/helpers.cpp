@@ -116,6 +116,13 @@ TYPath GetFailContextPath(const TOperationId& operationId, const TJobId& jobId)
         + "/fail_context";
 }
 
+TYPath GetNewFailContextPath(const TOperationId& operationId, const TJobId& jobId)
+{
+    return
+        GetNewJobPath(operationId, jobId)
+        + "/fail_context";
+}
+
 TYPath GetSnapshotPath(const TOperationId& operationId)
 {
     return
@@ -144,14 +151,19 @@ TYPath GetNewSecureVaultPath(const TOperationId& operationId)
         + "/secure_vault";
 }
 
-std::vector<NYPath::TYPath> GetCompatibilityJobPaths(
+std::vector<NYPath::TYPath> GetJobPaths(
     const TOperationId& operationId,
     const TJobId& jobId,
+    bool enableCompatibleStorageMode,
     const TString& resourceName)
 {
     TString suffix;
     if (!resourceName.empty()) {
         suffix = "/" + resourceName;
+    }
+
+    if (!enableCompatibleStorageMode) {
+        return {GetNewJobPath(operationId, jobId) + suffix};
     }
 
     // COMPAT(babenko)
@@ -161,13 +173,18 @@ std::vector<NYPath::TYPath> GetCompatibilityJobPaths(
     };
 }
 
-std::vector<NYPath::TYPath> GetCompatibilityOperationPaths(
+std::vector<NYPath::TYPath> GetOperationPaths(
     const TOperationId& operationId,
+    bool enableCompatibleStorageMode,
     const TString& resourceName)
 {
     TString suffix;
     if (!resourceName.empty()) {
         suffix = "/" + resourceName;
+    }
+
+    if (!enableCompatibleStorageMode) {
+       return {GetNewOperationPath(operationId) + suffix};
     }
 
     // COMPAT(babenko)
@@ -177,7 +194,7 @@ std::vector<NYPath::TYPath> GetCompatibilityOperationPaths(
     };
 }
 
-const TYPath& GetPoolsPath()
+const TYPath& GetPoolTreesPath()
 {
     static TYPath path =  "//sys/pool_trees";
     return path;
@@ -284,14 +301,16 @@ bool IsSentinelReason(EAbortReason reason)
         reason == EAbortReason::SchedulingLast;
 }
 
-TError GetSchedulerTransactionAbortedError(const TTransactionId& transactionId)
+TError GetSchedulerTransactionsAbortedError(const std::vector<TTransactionId>& transactionIds)
 {
-    return TError("Scheduler transaction %v has expired or was aborted", transactionId);
+    return TError("Scheduler transactions %v have expired or were aborted",
+        transactionIds);
 }
 
 TError GetUserTransactionAbortedError(const TTransactionId& transactionId)
 {
-    return TError("User transaction %v has expired or was aborted", transactionId);
+    return TError("User transaction %v has expired or was aborted",
+        transactionId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

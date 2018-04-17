@@ -2,7 +2,7 @@
 #include "helpers.h"
 #include "private.h"
 
-#include <yt/core/misc/expiring_cache.h>
+#include <yt/core/misc/async_expiring_cache.h>
 #include <yt/core/crypto/crypto.h>
 
 #include <util/string/split.h>
@@ -112,11 +112,11 @@ ICookieAuthenticatorPtr CreateCookieAuthenticator(
 
 class TCachingCookieAuthenticator
     : public ICookieAuthenticator
-    , private TExpiringCache<TCookieCredentials, TAuthenticationResult>
+    , private TAsyncExpiringCache<TCookieCredentials, TAuthenticationResult>
 {
 public:
-    TCachingCookieAuthenticator(TExpiringCacheConfigPtr config, ICookieAuthenticatorPtr cookieAuthenticator)
-        : TExpiringCache(std::move(config))
+    TCachingCookieAuthenticator(TAsyncExpiringCacheConfigPtr config, ICookieAuthenticatorPtr cookieAuthenticator)
+        : TAsyncExpiringCache(std::move(config))
         , CookieAuthenticator_(std::move(cookieAuthenticator))
     { }
 
@@ -135,7 +135,7 @@ private:
 };
 
 ICookieAuthenticatorPtr CreateCachingCookieAuthenticator(
-    TExpiringCacheConfigPtr config,
+    TAsyncExpiringCacheConfigPtr config,
     ICookieAuthenticatorPtr authenticator)
 {
     return New<TCachingCookieAuthenticator>(std::move(config), std::move(authenticator));

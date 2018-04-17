@@ -51,8 +51,8 @@ struct TReplicaCounters
 {
     TReplicaCounters(const NProfiling::TTagIdList& list);
 
-    NProfiling::TSimpleCounter LagRowCount;
-    NProfiling::TSimpleCounter LagTime;
+    NProfiling::TAggregateCounter LagRowCount;
+    NProfiling::TAggregateCounter LagTime;
 
     const NProfiling::TTagIdList Tags;
 };
@@ -141,7 +141,6 @@ struct TTabletSnapshot
 
     THashMap<TTableReplicaId, TTableReplicaSnapshotPtr> Replicas;
 
-    //! Profiler tags is empty iff EnableProfiling is false.
     NProfiling::TTagIdList ProfilerTags;
     NProfiling::TTagIdList DiskProfilerTags;
 
@@ -192,6 +191,15 @@ struct TTabletPerformanceCounters
 };
 
 DEFINE_REFCOUNTED_TYPE(TTabletPerformanceCounters)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TTabletCounters
+{
+    TTabletCounters(const NProfiling::TTagIdList& list);
+
+    NProfiling::TAggregateCounter OverlappingStoreCount;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -449,6 +457,7 @@ private:
 
     i64 TabletLockCount_ = 0;
 
+    TTabletCounters* ProfilerCounters_ = nullptr;
 
     void Initialize();
 

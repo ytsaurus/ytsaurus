@@ -299,6 +299,7 @@ private:
         context->SetRequestInfo();
 
         ValidatePeer(EPeerKind::LeaderOrFollower);
+        SyncWithUpstream();
 
         auto registeredCellList = CellDirectory_->GetRegisteredCells();
         THashMap<TCellId, TCellInfo> registeredCellMap;

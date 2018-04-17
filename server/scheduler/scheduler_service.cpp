@@ -6,7 +6,6 @@
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
 
 #include <yt/ytlib/scheduler/helpers.h>
-#include <yt/ytlib/scheduler/resource_limits.h>
 #include <yt/ytlib/scheduler/scheduler_service_proxy.h>
 #include <yt/ytlib/scheduler/config.h>
 
@@ -210,30 +209,17 @@ private:
             return;
         }
 
-        auto parameters = New<TOperationRuntimeParameters>();
-        if (request->has_owner_list()) {
-            parameters->Owners = FromProto<std::vector<TString>>(request->owner_list().owners());
-        }
-
-        for (const auto& parametersProto : request->options()) {
-            const auto& treeId = FromProto<TString>(parametersProto.tree_id());
-            const auto& schedulingOptionsProto = parametersProto.scheduling_options();
-
-            auto treeParams = New<TOperationFairShareStrategyTreeOptions>();
-            if (schedulingOptionsProto.has_weight()) {
-                treeParams->Weight = schedulingOptionsProto.weight();
-            }
-            treeParams->ResourceLimits = New<TResourceLimitsConfig>();
-            if (schedulingOptionsProto.has_resource_limits()) {
-                FromProto(*treeParams->ResourceLimits, schedulingOptionsProto.resource_limits());
-            }
-
-            parameters->SchedulingOptionsPerPoolTree.emplace(treeId, treeParams);
+        INodePtr parametersNode;
+        try {
+            parametersNode = ConvertToNode(TYsonString(request->parameters()));
+        } catch (const std::exception& ex) {
+            THROW_ERROR_EXCEPTION("Error parsing operation parameters")
+                << ex;
         }
 
         auto operation = scheduler->GetOperationOrThrow(operationId);
-        scheduler->UpdateOperationParameters(operation, context->GetUser(), parameters);
-        context->Reply();
+        auto asyncResult = scheduler->UpdateOperationParameters(operation, context->GetUser(), parametersNode);
+        context->ReplyFrom(asyncResult);
     }
 };
 

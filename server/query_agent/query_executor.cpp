@@ -116,7 +116,7 @@ struct TRangeFormatter
 
 struct TSelectCpuCounters
 {
-    TSelectCpuCounters(const TTagIdList& list)
+    explicit TSelectCpuCounters(const TTagIdList& list)
         : CpuTime("/select/cpu_time", list)
     { }
 
@@ -127,7 +127,7 @@ using TSelectCpuProfilerTrait = TSimpleProfilerTrait<TSelectCpuCounters>;
 
 struct TSelectReadCounters
 {
-    TSelectReadCounters(const TTagIdList& list)
+    explicit TSelectReadCounters(const TTagIdList& list)
         : RowCount("/select/row_count", list)
         , DataWeight("/select/data_weight", list)
         , UnmergedRowCount("/select/unmerged_row_count", list)
@@ -202,8 +202,11 @@ struct TQuerySubexecutorBufferTag
 class TTabletSnapshotCache
 {
 public:
-    explicit TTabletSnapshotCache(TSlotManagerPtr slotManager)
-        : SlotManager_(std::move(slotManager))
+    TTabletSnapshotCache(
+        TSlotManagerPtr slotManager,
+        const NLogging::TLogger& logger)
+        : SlotManager_(std::move(slotManager)),
+        Logger(logger)
     { }
 
     void ValidateAndRegisterTabletSnapshot(
@@ -221,6 +224,23 @@ public:
             timestamp);
 
         Map_.insert(std::make_pair(tabletId, tabletSnapshot));
+
+        if (!MultipleTables_) {
+            if (TableId_ && tabletSnapshot->TableId != TableId_) {
+                LOG_ERROR("Found different tables in query, profiling will be incorrect (TableId1: %v, TableId2: %v)",
+                    TableId_,
+                    tabletSnapshot->TableId);
+                MultipleTables_ = true;
+            }
+
+            TableId_ = tabletSnapshot->TableId;
+            ProfilerTags_ = tabletSnapshot->ProfilerTags;
+        }
+    }
+
+    NProfiling::TTagIdList GetProfilerTags()
+    {
+        return MultipleTables_ ? NProfiling::TTagIdList() : ProfilerTags_;
     }
 
     TTabletSnapshotPtr GetCachedTabletSnapshot(const TTabletId& tabletId)
@@ -232,8 +252,12 @@ public:
 
 private:
     const TSlotManagerPtr SlotManager_;
-    THashMap<TTabletId, TTabletSnapshotPtr> Map_;
+    const NLogging::TLogger Logger;
 
+    THashMap<TTabletId, TTabletSnapshotPtr> Map_;
+    TObjectId TableId_;
+    NProfiling::TTagIdList ProfilerTags_;
+    bool MultipleTables_ = false;
 };
 
 template <class TIter>
@@ -281,7 +305,7 @@ public:
         , Query_(std::move(query))
         , Options_(std::move(options))
         , Logger(MakeQueryLogger(Query_))
-        , TabletSnapshots_(Bootstrap_->GetTabletSlotManager())
+        , TabletSnapshots_(Bootstrap_->GetTabletSlotManager(), Logger)
         , Invoker_(Bootstrap_->GetQueryPoolInvoker(ToString(Options_.ReadSessionId)))
     { }
 
@@ -624,8 +648,12 @@ private:
 
         auto statistics = DoExecuteImpl(std::move(externalCGInfo), std::move(dataSources), std::move(writer));
 
+        auto profilerTags = TabletSnapshots_.GetProfilerTags();
         if (MaybeUser_) {
-            auto& counters = GetLocallyGloballyCachedValue<TSelectCpuProfilerTrait>(AddUserTag(*MaybeUser_));
+            AddUserTag(*MaybeUser_, profilerTags);
+        }
+        if (!profilerTags.empty()) {
+            auto& counters = GetLocallyGloballyCachedValue<TSelectCpuProfilerTrait>(profilerTags);
             TabletNodeProfiler.Increment(counters.CpuTime, DurationToValue(statistics.SyncTime));
         }
 

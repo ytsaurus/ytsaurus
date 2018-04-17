@@ -64,6 +64,7 @@ class TestJobProber(YTEnvSetup):
 
         events_on_fs().wait_event("job_is_running")
         jobs = ls("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op.id))
+        time.sleep(1.0) # give job proxy some time to send a heartbeat
         result = strace_job(jobs[0])
 
         assert len(result) > 0
@@ -71,8 +72,6 @@ class TestJobProber(YTEnvSetup):
             assert trace["trace"].startswith("Process {0} attached".format(pid))
             assert "process_command_line" in trace
             assert "process_name" in trace
-
-        op.abort()
 
     @unix_only
     def test_signal_job_with_no_job_restart(self):
@@ -95,6 +94,7 @@ class TestJobProber(YTEnvSetup):
 
         jobs = wait_breakpoint()
 
+        time.sleep(1.0) # give job proxy some time to send a heartbeat
         signal_job(jobs[0], "SIGUSR1")
         signal_job(jobs[0], "SIGUSR2")
 
@@ -126,6 +126,7 @@ class TestJobProber(YTEnvSetup):
 
         jobs = wait_breakpoint()
 
+        time.sleep(1.0) # give job proxy some time to send a heartbeat
         signal_job(jobs[0], "SIGUSR1")
         release_breakpoint()
 
@@ -270,6 +271,8 @@ class TestJobProber(YTEnvSetup):
         op.track()
         assert len(read_table("//tmp/t2")) == 0
 
+    # Remove after YT-8596
+    @flaky(max_runs=5)
     def test_poll_job_shell_command(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -324,7 +327,6 @@ class TestJobProber(YTEnvSetup):
                 height=50,
                 width=132,
                 authenticated_user="u2")
-        op.abort()
 
     def get_job_count_profiling(self):
         time.sleep(1.2)

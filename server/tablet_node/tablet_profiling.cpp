@@ -59,49 +59,71 @@ TListProfilerTraitBase::TKey TListProfilerTraitBase::ToKey(const TTagIdList& lis
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TDiskBytesWrittenCounters
+struct TChunkWriteCounters
 {
-    TDiskBytesWrittenCounters(const TTagIdList& list)
+    explicit TChunkWriteCounters(const TTagIdList& list)
         : DiskBytesWritten("/disk_bytes_written", list)
         , DiskDataWeightWritten("/disk_data_weight_written", list)
+        , CompressionCpuTime("/chunk_writer/compression_cpu_time", list)
     { }
 
     TSimpleCounter DiskBytesWritten;
     TSimpleCounter DiskDataWeightWritten;
+    TSimpleCounter CompressionCpuTime;
 };
 
-using TDiskBytesWrittenProfilerTrait = TListProfilerTrait<TDiskBytesWrittenCounters>;
+using TChunkWriteProfilerTrait = TListProfilerTrait<TChunkWriteCounters>;
 
-void ProfileDiskPressure(
+void ProfileChunkWriter(
     TTabletSnapshotPtr tabletSnapshot,
     const TDataStatistics& dataStatistics,
+    const TCodecStatistics& codecStatistics,
     TTagId methodTag)
 {
     auto diskSpace = CalculateDiskSpaceUsage(
         tabletSnapshot->WriterOptions->ReplicationFactor,
         dataStatistics.regular_disk_space(),
         dataStatistics.erasure_disk_space());
+    auto compressionCpuTime = codecStatistics.GetTotalDuration();
     auto tags = tabletSnapshot->DiskProfilerTags;
     tags.push_back(methodTag);
-    auto& counters = GetLocallyGloballyCachedValue<TDiskBytesWrittenProfilerTrait>(tags);
+    auto& counters = GetLocallyGloballyCachedValue<TChunkWriteProfilerTrait>(tags);
     TabletNodeProfiler.Increment(counters.DiskBytesWritten, diskSpace);
     TabletNodeProfiler.Increment(counters.DiskDataWeightWritten, dataStatistics.data_weight());
+    TabletNodeProfiler.Increment(counters.CompressionCpuTime, DurationToValue(compressionCpuTime));
+}
+
+struct TChunkReadCounters
+{
+    explicit TChunkReadCounters(const TTagIdList& list)
+        : CompressedDataSize("/chunk_reader/compressed_data_size", list)
+        , UnmergedDataWeight("/chunk_reader/unmerged_data_weight", list)
+        , CompressionCpuTime("/chunk_reader/compression_cpu_time", list)
+    { }
+
+    TSimpleCounter CompressedDataSize;
+    TSimpleCounter UnmergedDataWeight;
+    TSimpleCounter CompressionCpuTime;
+};
+
+using TChunkReadProfilerTrait = TListProfilerTrait<TChunkReadCounters>;
+
+void ProfileChunkReader(
+    TTabletSnapshotPtr tabletSnapshot,
+    const TDataStatistics& dataStatistics,
+    const TCodecStatistics& codecStatistics,
+    TTagId methodTag)
+{
+    auto compressionCpuTime = codecStatistics.GetTotalDuration();
+    auto tags = tabletSnapshot->DiskProfilerTags;
+    tags.push_back(methodTag);
+    auto& counters = GetLocallyGloballyCachedValue<TChunkReadProfilerTrait>(tags);
+    TabletNodeProfiler.Increment(counters.CompressedDataSize, dataStatistics.compressed_data_size());
+    TabletNodeProfiler.Increment(counters.UnmergedDataWeight, dataStatistics.data_weight());
+    TabletNodeProfiler.Increment(counters.CompressionCpuTime, DurationToValue(compressionCpuTime));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NTabletNode
 } // namespace NYT
-
-////////////////////////////////////////////////////////////////////////////////
-
-size_t hash<NYT::NTabletNode::TListProfilerTraitBase::TKey>::operator()(const NYT::NTabletNode::TListProfilerTraitBase::TKey& list) const
-{
-    size_t result = 1;
-    for (auto tag : list) {
-        result = NYT::FarmFingerprint(result, tag);
-    }
-    return result;
-}
-
-////////////////////////////////////////////////////////////////////////////////

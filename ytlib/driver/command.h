@@ -6,16 +6,11 @@
 #include <yt/ytlib/api/client.h>
 #include <yt/ytlib/api/transaction.h>
 
-#include <yt/ytlib/cypress_client/rpc_helpers.h>
-
 #include <yt/ytlib/security_client/public.h>
-
-#include <yt/core/logging/log.h>
 
 #include <yt/core/misc/error.h>
 #include <yt/core/misc/mpl.h>
 
-#include <yt/core/ytree/convert.h>
 #include <yt/core/ytree/yson_serializable.h>
 
 namespace NYT {
@@ -52,30 +47,44 @@ DEFINE_REFCOUNTED_TYPE(ICommandContext)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Depending on the driver API version calls context->ProduceOutputValue
+//! with TYsonString created by the appropriate producer.
+void ProduceOutput(
+    ICommandContextPtr context,
+    std::function<void(NYson::IYsonConsumer*)> producerV3,
+    std::function<void(NYson::IYsonConsumer*)> producerV4);
+
+//! Produces either nothing (v3) or empty map (v4).
+void ProduceEmptyOutput(ICommandContextPtr context);
+
+//! Run |producer| (v3) or open a map with key |name| and run |producer| then close map (v4).
+void ProduceSingleOutput(
+    ICommandContextPtr context,
+    const TStringBuf& name,
+    std::function<void(NYson::IYsonConsumer*)> producer);
+
+//! Produces either |value| (v3) or map {|name|=|value|} (v4).
+template <typename T>
+void ProduceSingleOutputValue(
+    ICommandContextPtr context,
+    const TStringBuf& name,
+    const T& value);
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TCommandBase
     : public NYTree::TYsonSerializableLite
     , public ICommand
 {
-protected:
-    NLogging::TLogger Logger = DriverLogger;
+    protected:
+        NLogging::TLogger Logger = DriverLogger;
 
-    virtual void DoExecute(ICommandContextPtr context) = 0;
+        virtual void DoExecute(ICommandContextPtr context) = 0;
 
-    TCommandBase()
-    {
-        SetUnrecognizedStrategy(NYTree::EUnrecognizedStrategy::Keep);
-    }
+        TCommandBase();
 
-public:
-    virtual void Execute(ICommandContextPtr context) override
-    {
-        const auto& request = context->Request();
-        Logger.AddTag("RequestId: %" PRIx64 ", User: %v",
-            request.Id,
-            request.AuthenticatedUser);
-        Deserialize(*this, request.Parameters);
-        DoExecute(context);
-    }
+    public:
+        virtual void Execute(ICommandContextPtr context) override;
 };
 
 template <class TOptions>
@@ -99,34 +108,10 @@ class TTransactionalCommandBase<
     : public virtual TTypedCommandBase<TOptions>
 {
 protected:
-    TTransactionalCommandBase()
-    {
-        this->RegisterParameter("transaction_id", this->Options.TransactionId)
-            .Optional();
-        this->RegisterParameter("ping_ancestor_transactions", this->Options.PingAncestors)
-            .Optional();
-        this->RegisterParameter("sticky", this->Options.Sticky)
-            .Optional();
-    }
-
+    TTransactionalCommandBase();
     NApi::ITransactionPtr AttachTransaction(
         ICommandContextPtr context,
-        bool required)
-    {
-        const auto& transactionId = this->Options.TransactionId;
-        if (!transactionId) {
-            if (required) {
-                THROW_ERROR_EXCEPTION("Transaction is required");
-            }
-            return nullptr;
-        }
-
-        NApi::TTransactionAttachOptions options;
-        options.Ping = !required;
-        options.PingAncestors = this->Options.PingAncestors;
-        options.Sticky = this->Options.Sticky;
-        return context->GetClient()->AttachTransaction(transactionId, options);
-    }
+        bool required);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -143,14 +128,7 @@ class TMutatingCommandBase<
     : public virtual TTypedCommandBase<TOptions>
 {
 protected:
-    TMutatingCommandBase()
-    {
-        this->RegisterParameter("mutation_id", this->Options.MutationId)
-            .Optional();
-        this->RegisterParameter("retry", this->Options.Retry)
-            .Optional();
-    }
-
+    TMutatingCommandBase();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -167,17 +145,7 @@ class TReadOnlyMasterCommandBase<
     : public virtual TTypedCommandBase<TOptions>
 {
 protected:
-    TReadOnlyMasterCommandBase()
-    {
-        this->RegisterParameter("read_from", this->Options.ReadFrom)
-            .Optional();
-        this->RegisterParameter("expire_after_successful_update_time", this->Options.ExpireAfterSuccessfulUpdateTime)
-            .Optional();
-        this->RegisterParameter("expire_after_failed_update_time", this->Options.ExpireAfterFailedUpdateTime)
-            .Optional();
-        this->RegisterParameter("cache_sticky_group_size", this->Options.CacheStickyGroupSize)
-            .Optional();
-    }
+    TReadOnlyMasterCommandBase();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -194,13 +162,7 @@ class TReadOnlyTabletCommandBase<
     : public virtual TTypedCommandBase<TOptions>
 {
 protected:
-    TReadOnlyTabletCommandBase()
-    {
-        this->RegisterParameter("read_from", this->Options.ReadFrom)
-            .Optional();
-        this->RegisterParameter("backup_request_delay", this->Options.BackupRequestDelay)
-            .Optional();
-    }
+    TReadOnlyTabletCommandBase();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -217,13 +179,7 @@ class TSuppressableAccessTrackingCommmandBase<
     : public virtual TTypedCommandBase<TOptions>
 {
 protected:
-    TSuppressableAccessTrackingCommmandBase()
-    {
-        this->RegisterParameter("suppress_access_tracking", this->Options.SuppressAccessTracking)
-            .Optional();
-        this->RegisterParameter("suppress_modification_tracking", this->Options.SuppressModificationTracking)
-            .Optional();
-    }
+    TSuppressableAccessTrackingCommmandBase();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -240,13 +196,7 @@ class TPrerequisiteCommandBase<
     : public virtual TTypedCommandBase<TOptions>
 {
 protected:
-    TPrerequisiteCommandBase()
-    {
-        this->RegisterParameter("prerequisite_transaction_ids", this->Options.PrerequisiteTransactionIds)
-            .Optional();
-        this->RegisterParameter("prerequisite_revisions", this->Options.PrerequisiteRevisions)
-            .Optional();
-    }
+    TPrerequisiteCommandBase();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -263,11 +213,7 @@ class TTimeoutCommandBase<
     : public virtual TTypedCommandBase<TOptions>
 {
 protected:
-    TTimeoutCommandBase()
-    {
-        this->RegisterParameter("timeout", this->Options.Timeout)
-            .Optional();
-    }
+    TTimeoutCommandBase();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -289,23 +235,8 @@ class TTabletReadCommandBase<
     : public virtual TTypedCommandBase<TOptions>
 {
 protected:
-    TTabletReadCommandBase()
-    {
-        this->RegisterParameter("transaction_id", this->Options.TransactionId)
-            .Optional();
-    }
-
-    NApi::IClientBasePtr GetClientBase(ICommandContextPtr context)
-    {
-        const auto& transactionId = this->Options.TransactionId;
-        if (transactionId) {
-            NApi::TTransactionAttachOptions options;
-            options.Sticky = true;
-            return context->GetClient()->AttachTransaction(transactionId, options);
-        } else {
-            return context->GetClient();
-        }
-    }
+    TTabletReadCommandBase();
+    NApi::IClientBasePtr GetClientBase(ICommandContextPtr context);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -339,35 +270,9 @@ class TTabletWriteCommandBase<
     : public virtual TTypedCommandBase<TOptions>
 {
 protected:
-    TTabletWriteCommandBase()
-    {
-        this->RegisterParameter("atomicity", this->Options.Atomicity)
-            .Default();
-        this->RegisterParameter("durability", this->Options.Durability)
-            .Default();
-    }
-
-    NApi::ITransactionPtr GetTransaction(ICommandContextPtr context)
-    {
-        const auto& transactionId = this->Options.TransactionId;
-        if (transactionId) {
-            NApi::TTransactionAttachOptions options;
-            options.Sticky = true;
-            return context->GetClient()->AttachTransaction(transactionId, options);
-        } else {
-            NApi::TTransactionStartOptions options;
-            options.Atomicity = this->Options.Atomicity;
-            options.Durability = this->Options.Durability;
-            auto asyncResult = context->GetClient()->StartTransaction(NTransactionClient::ETransactionType::Tablet, options);
-            return NConcurrency::WaitFor(asyncResult)
-                .ValueOrThrow();
-        }
-    }
-
-    bool ShouldCommitTransaction()
-    {
-        return !this->Options.TransactionId;
-    }
+    TTabletWriteCommandBase();
+    NApi::ITransactionPtr GetTransaction(ICommandContextPtr context);
+    bool ShouldCommitTransaction();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -391,3 +296,6 @@ class TTypedCommand
 } // namespace NDriver
 } // namespace NYT
 
+#define COMMAND_INL_H
+#include "command-inl.h"
+#undef COMMAND_INL_H

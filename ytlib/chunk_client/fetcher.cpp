@@ -320,8 +320,7 @@ void TFetcherBase::StartFetchingRound()
 IChannelPtr TFetcherBase::GetNodeChannel(TNodeId nodeId)
 {
     const auto& descriptor = NodeDirectory_->GetDescriptor(nodeId);
-    auto channel = Client_->GetChannelFactory()->CreateChannel(descriptor);
-    return CreateRetryingChannel(Config_->NodeChannel, channel);
+    return Client_->GetChannelFactory()->CreateChannel(descriptor);
 }
 
 void TFetcherBase::OnChunkFailed(TNodeId nodeId, int chunkIndex, const TError& error)

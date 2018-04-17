@@ -59,6 +59,7 @@ struct IInstance
     virtual void SetCpuShare(double cores) = 0;
     virtual void SetIOWeight(double weight) = 0;
     virtual void SetIOThrottle(i64 operations) = 0;
+    virtual void SetMemoryGuarantee(i64 memoryGuarantee) = 0;
     virtual TString GetName() const = 0;
 
     //! Returns externally visible pid of the root proccess inside container.

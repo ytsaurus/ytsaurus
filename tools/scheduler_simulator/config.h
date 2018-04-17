@@ -61,7 +61,7 @@ class TSchedulerSimulatorConfig
 {
 public:
     int HeartbeatPeriod;
-    TString PoolsFilename;
+    TString PoolTreesFilename;
     TString OperationsStatsFilename;
     TString EventLogFilename;
 
@@ -81,7 +81,8 @@ public:
             .Default(5000)
             .GreaterThan(0);
 
-        RegisterParameter("pools_file", PoolsFilename);
+        RegisterParameter("pool_trees_file", PoolTreesFilename)
+            .Alias("pools_file");
         RegisterParameter("operations_stats_file", OperationsStatsFilename);
         RegisterParameter("event_log_file", EventLogFilename);
 

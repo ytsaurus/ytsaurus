@@ -63,8 +63,9 @@ class TestSchedulerAutoMerge(YTEnvSetup):
     # Bugs in auto-merge usually lead to the operation being stuck without scheduling any new jobs.
     # This is why we use the pytest timeout decorator.
     @pytest.mark.timeout(480)
-    def test_auto_merge_does_not_stuck(self):
-        create("table", "//tmp/t_in")
+    @pytest.mark.parametrize("op_type", ["map", "reduce"])
+    def test_auto_merge_does_not_stuck(self, op_type):
+        create("table", "//tmp/t_in", attributes={"schema": [{"name": "a", "type": "int64", "sort_order": "ascending"}]})
         create("table", "//tmp/t_out")
 
         parameters = [
@@ -79,14 +80,21 @@ class TestSchedulerAutoMerge(YTEnvSetup):
             [9, 20, 3],
         ]
 
-        for row_count, max_intermediate_chunk_count, chunk_count_per_merge_job in parameters:
-            write_table("//tmp/t_in", [{"a" : i} for i in range(row_count)])
+        run_op = map if op_type == "map" else reduce
 
-            op = map(
+        for row_count, max_intermediate_chunk_count, chunk_count_per_merge_job in parameters:
+            write_table("//tmp/t_in", [{"a" : i} for i in range(row_count)],
+                        max_row_buffer_size=1,
+                        table_writer={"desired_chunk_size": 1})
+
+            assert get("//tmp/t_in/@chunk_count") == row_count
+
+            op = run_op(
                 dont_track=True,
                 in_="//tmp/t_in",
                 out="//tmp/t_out",
                 command="cat",
+                reduce_by=["a"],
                 spec={
                     "auto_merge": {
                         "mode": "manual",
@@ -101,19 +109,26 @@ class TestSchedulerAutoMerge(YTEnvSetup):
             assert get("//tmp/t_out/@row_count") == row_count
 
     @pytest.mark.timeout(480)
-    def test_account_chunk_limit(self):
+    @pytest.mark.parametrize("op_type", ["map", "reduce"])
+    def test_account_chunk_limit(self, op_type):
         self._create_account(60)
 
-        create("table", "//tmp/t_in", attributes={"account": "acc"})
+        create("table", "//tmp/t_in", attributes={"schema": [{"name": "a", "type": "int64", "sort_order": "ascending"}]})
         create("table", "//tmp/t_out", attributes={"account": "acc"})
 
         row_count = 300
-        write_table("//tmp/t_in", [{"a" : i} for i in range(row_count)])
+        write_table("//tmp/t_in", [{"a" : i} for i in range(row_count)],
+                    max_row_buffer_size=1,
+                    table_writer={"desired_chunk_size": 1})
 
-        op = map(
+        assert get("//tmp/t_in/@chunk_count") == row_count
+
+        run_op = map if op_type == "map" else reduce
+        op = run_op(
             dont_track=True,
             in_="//tmp/t_in",
             out="//tmp/t_out",
+            reduce_by=["a"], # ignored for maps
             command="cat",
             spec={
                 "auto_merge": {

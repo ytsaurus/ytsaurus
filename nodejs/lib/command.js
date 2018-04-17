@@ -16,8 +16,9 @@ var __DBG = require("./debug").that("C", "Command");
 
 // This mapping defines the supported API versions.
 var _VERSION_TO_FACADE = {
-    "v2": require("./driver_facade_v2").that,
-    "v3": require("./driver_facade_v3").that,
+    2 : require("./driver_facade_v2.js").that,
+    3 : require("./driver_facade_v3.js").that,
+    4 : require("./driver_facade_v3.js").that,
 };
 
 // This mapping defines how MIME types map onto YT format specifications.
@@ -194,6 +195,7 @@ function YtCommand(logger, driver, coordinator, watcher, sticky_cache, pause) {
     this.omit_trailers = undefined;
     this.request_id = undefined;
 
+    this.api_version = undefined;
     this.command = undefined;
     this.user = undefined;
 
@@ -384,22 +386,21 @@ YtCommand.prototype._getName = function() {
     var driver;
 
     if (!versioned_name.length) {
-        utils.dispatchJson(this.rsp, Object.keys(_VERSION_TO_FACADE));
+        utils.dispatchJson(this.rsp, Object.keys(_VERSION_TO_FACADE).map(function(version) {
+            return "v" + version;
+        }));
         throw new YtError();
     }
 
-    var p = versioned_name.indexOf("/");
-    if (p === -1) {
-        if (/^v[0-9]+$/.test(versioned_name)) {
-            version = versioned_name;
-            name = "";
-        } else {
-            throw new YtError("Unspecified API version");
-        }
-    } else {
-        version = versioned_name.substr(0, p);
-        name = versioned_name.substr(p + 1);
+    var parts = versioned_name.split("/");
+    version = parts[0];
+    name = parts[1] || "";
+
+    if (!/^v[0-9]+$/.test(version)) {
+        throw new YtError("Malformed API version " + JSON.stringify(version));
     }
+
+    version = parseInt(version.slice(1), 10);
 
     if (!_VERSION_TO_FACADE.hasOwnProperty(version)) {
         throw new YtError("Unsupported API version " + JSON.stringify(version));
@@ -412,7 +413,7 @@ YtCommand.prototype._getName = function() {
         // Bail out to API description.
         utils.dispatchJson(
             this.rsp,
-            driver.get_command_descriptors());
+            driver.get_command_descriptors(version));
         throw new YtError();
     }
 
@@ -423,6 +424,7 @@ YtCommand.prototype._getName = function() {
     this.req.tags.api_version = version;
     this.req.tags.api_command = name;
 
+    this.api_version = version;
     this.command = name;
     this.driver = driver;
 };
@@ -454,7 +456,7 @@ YtCommand.prototype._getUser = function() {
 YtCommand.prototype._getDescriptor = function() {
     this.__DBG("_getDescriptor");
 
-    this.descriptor = this.driver.find_command_descriptor(this.command);
+    this.descriptor = this.driver.find_command_descriptor(this.api_version, this.command);
 
     if (!this.descriptor) {
         this.rsp.statusCode = 404;
@@ -643,6 +645,12 @@ YtCommand.prototype._setContentDispositionAndMime = function() {
 
         if (this.command == "get_job_stderr") {
             filename = "job_stderr_{}_{}".format(
+                this.parameters.GetByYPath("/operation_id").Get(),
+                this.parameters.GetByYPath("/job_id").Get());
+        }
+
+        if (this.command == "get_job_fail_context") {
+            filename = "fail_context_{}_{}".format(
                 this.parameters.GetByYPath("/operation_id").Get(),
                 this.parameters.GetByYPath("/job_id").Get());
         }
@@ -983,8 +991,10 @@ YtCommand.prototype._execute = function(cb) {
             "please try another proxy or try again later"));
     }
 
-    self.logger.debug("Command '" + self.command + "' is being executed");
-    return this.driver.execute(this.command, this.user,
+    self.logger.debug("Command '" + self.command + "' (API v" + self.api_version + ") is being executed");
+    return this.driver.execute(
+        this.api_version,
+        this.command, this.user,
         this.input_stream, this.input_compression,
         this.output_stream, this.output_compression,
         this.parameters, this.request_id,

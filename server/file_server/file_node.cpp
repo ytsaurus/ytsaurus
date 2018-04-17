@@ -110,14 +110,16 @@ protected:
         const TVersionedNodeId& id,
         TCellTag cellTag,
         TTransaction* transaction,
-        IAttributeDictionary* attributes,
+        IAttributeDictionary* inheritedAttributes,
+        IAttributeDictionary* explicitAttributes,
         TAccount* account) override
     {
         const auto& config = this->Bootstrap_->GetConfig()->CypressManager;
 
-        auto replicationFactor = attributes->GetAndRemove("replication_factor", config->DefaultFileReplicationFactor);
-        auto compressionCodec = attributes->GetAndRemove<NCompression::ECodec>("compression_codec", NCompression::ECodec::None);
-        auto erasureCodec = attributes->GetAndRemove<NErasure::ECodec>("erasure_codec", NErasure::ECodec::None);
+        auto combinedAttributes = OverlayAttributeDictionaries(explicitAttributes, inheritedAttributes);
+        auto replicationFactor = combinedAttributes.GetAndRemove("replication_factor", config->DefaultFileReplicationFactor);
+        auto compressionCodec = combinedAttributes.GetAndRemove<NCompression::ECodec>("compression_codec", NCompression::ECodec::None);
+        auto erasureCodec = combinedAttributes.GetAndRemove<NErasure::ECodec>("erasure_codec", NErasure::ECodec::None);
 
         ValidateReplicationFactor(replicationFactor);
 
@@ -125,7 +127,8 @@ protected:
             id,
             cellTag,
             transaction,
-            attributes,
+            inheritedAttributes,
+            explicitAttributes,
             account,
             replicationFactor,
             compressionCodec,

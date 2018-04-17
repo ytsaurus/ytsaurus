@@ -86,6 +86,8 @@ private:
         descriptors->push_back(EInternedAttributeKey::ResourceUsage);
         descriptors->push_back(EInternedAttributeKey::MulticellResourceUsage);
         descriptors->push_back(EInternedAttributeKey::System);
+        descriptors->push_back(EInternedAttributeKey::PrerequisiteTransactionIds);
+        descriptors->push_back(EInternedAttributeKey::DependentTransactionIds);
     }
 
     virtual bool GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer) override
@@ -167,6 +169,20 @@ private:
             case EInternedAttributeKey::System:
                 BuildYsonFluently(consumer)
                     .Value(transaction->GetSystem());
+                return true;
+
+            case EInternedAttributeKey::PrerequisiteTransactionIds:
+                BuildYsonFluently(consumer)
+                    .DoListFor(transaction->PrerequisiteTransactions(), [=] (auto fluent, const auto* transaction) {
+                        fluent.Item().Value(transaction->GetId());
+                    });
+                return true;
+
+            case EInternedAttributeKey::DependentTransactionIds:
+                BuildYsonFluently(consumer)
+                    .DoListFor(transaction->DependentTransactions(), [=] (auto fluent, const auto* transaction) {
+                        fluent.Item().Value(transaction->GetId());
+                    });
                 return true;
 
             default:

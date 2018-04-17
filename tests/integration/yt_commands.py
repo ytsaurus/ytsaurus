@@ -233,6 +233,11 @@ def get_job_stderr(operation_id, job_id, **kwargs):
     kwargs["job_id"] = job_id
     return execute_command("get_job_stderr", kwargs)
 
+def get_job_fail_context(operation_id, job_id, **kwargs):
+    kwargs["operation_id"] = operation_id
+    kwargs["job_id"] = job_id
+    return execute_command("get_job_fail_context", kwargs)
+
 def list_operations(**kwargs):
     return yson.loads(execute_command("list_operations", kwargs));
 

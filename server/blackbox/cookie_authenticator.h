@@ -37,7 +37,7 @@ ICookieAuthenticatorPtr CreateCookieAuthenticator(
     IBlackboxServicePtr blackbox);
 
 ICookieAuthenticatorPtr CreateCachingCookieAuthenticator(
-    TExpiringCacheConfigPtr config,
+    TAsyncExpiringCacheConfigPtr config,
     ICookieAuthenticatorPtr authenticator);
 
 ////////////////////////////////////////////////////////////////////////////////

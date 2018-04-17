@@ -15,13 +15,13 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TKey, class TValue>
-class TExpiringCache
+class TAsyncExpiringCache
     : public virtual TRefCounted
 {
 public:
     typedef typename TFutureCombineTraits<TValue>::TCombinedVector TCombinedValue;
 
-    explicit TExpiringCache(TExpiringCacheConfigPtr config);
+    explicit TAsyncExpiringCache(TAsyncExpiringCacheConfigPtr config);
 
     TFuture<TValue> Get(const TKey& key);
     TFuture<TCombinedValue> Get(const std::vector<TKey>& keys);
@@ -35,7 +35,7 @@ protected:
     virtual TFuture<TCombinedValue> DoGetMany(const std::vector<TKey>& keys);
 
 private:
-    const TExpiringCacheConfigPtr Config_;
+    const TAsyncExpiringCacheConfigPtr Config_;
 
     struct TEntry
         : public TRefCounted
@@ -73,6 +73,6 @@ private:
 } // namespace NYT
 
 #define EXPIRING_CACHE_INL_H_
-#include "expiring_cache-inl.h"
+#include "async_expiring_cache-inl.h"
 #undef EXPIRING_CACHE_INL_H_
 

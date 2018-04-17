@@ -2,7 +2,7 @@
 #include "helpers.h"
 #include "private.h"
 
-#include <yt/core/misc/expiring_cache.h>
+#include <yt/core/misc/async_expiring_cache.h>
 #include <yt/core/crypto/crypto.h>
 
 #include <util/string/split.h>
@@ -131,11 +131,11 @@ ITokenAuthenticatorPtr CreateBlackboxTokenAuthenticator(
 
 class TCachingTokenAuthenticator
     : public ITokenAuthenticator
-    , private TExpiringCache<TTokenCredentials, TAuthenticationResult>
+    , private TAsyncExpiringCache<TTokenCredentials, TAuthenticationResult>
 {
 public:
-    TCachingTokenAuthenticator(TExpiringCacheConfigPtr config, ITokenAuthenticatorPtr tokenAuthenticator)
-        : TExpiringCache(std::move(config))
+    TCachingTokenAuthenticator(TAsyncExpiringCacheConfigPtr config, ITokenAuthenticatorPtr tokenAuthenticator)
+        : TAsyncExpiringCache(std::move(config))
         , TokenAuthenticator_(std::move(tokenAuthenticator))
     { }
 
@@ -154,7 +154,7 @@ private:
 };
 
 ITokenAuthenticatorPtr CreateCachingTokenAuthenticator(
-    TExpiringCacheConfigPtr config,
+    TAsyncExpiringCacheConfigPtr config,
     ITokenAuthenticatorPtr authenticator)
 {
     return New<TCachingTokenAuthenticator>(std::move(config), std::move(authenticator));

@@ -67,6 +67,9 @@ public:
     //! Return the current resource usage.
     NNodeTrackerClient::NProto::TNodeResources GetResourceUsage(bool includeWaiting = false) const;
 
+    //! Return ports allocated by job.
+    std::vector<int> GetJobPorts(const TJobId& jobId) const;
+
     //! Set resource limits overrides.
     void SetResourceLimitsOverrides(const NNodeTrackerClient::NProto::TNodeResourceLimitsOverrides& resourceLimits);
 

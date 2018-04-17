@@ -28,7 +28,7 @@
 
 #include <yt/core/misc/guid.h>
 #include <yt/core/misc/async_cache.h>
-#include <yt/core/misc/expiring_cache.h>
+#include <yt/core/misc/async_expiring_cache.h>
 
 #include <yt/core/ytree/yson_serializable.h>
 
@@ -358,15 +358,15 @@ DEFINE_REFCOUNTED_TYPE(IFunctionRegistry)
 namespace {
 
 class TCypressFunctionRegistry
-    : public TExpiringCache<TString, TExternalFunctionSpec>
+    : public TAsyncExpiringCache<TString, TExternalFunctionSpec>
     , public IFunctionRegistry
 {
 public:
-    typedef TExpiringCache<TString, TExternalFunctionSpec> TBase;
+    typedef TAsyncExpiringCache<TString, TExternalFunctionSpec> TBase;
 
     TCypressFunctionRegistry(
         const TString& registryPath,
-        TExpiringCacheConfigPtr config,
+        TAsyncExpiringCacheConfigPtr config,
         TWeakPtr<INativeClient> client,
         IInvokerPtr invoker)
         : TBase(config)
@@ -407,7 +407,7 @@ private:
 
 IFunctionRegistryPtr CreateFunctionRegistryCache(
     const TString& registryPath,
-    TExpiringCacheConfigPtr config,
+    TAsyncExpiringCacheConfigPtr config,
     TWeakPtr<INativeClient> client,
     IInvokerPtr invoker)
 {

@@ -21,11 +21,13 @@ function createNewResult()
     var result = {
         login: false,
         realm: false,
+        blackbox_userid: false,
+        csrf_token_is_valid: true,
     };
 
     Object.defineProperty(result, "isAuthenticated", {
         get: function() {
-            return typeof(this.login) === "string" && typeof(this.realm) === "string";
+            return typeof(this.login) === "string" && typeof(this.realm) === "string" && this.csrf_token_is_valid;
         },
         enumerable: true
     });
@@ -74,6 +76,53 @@ function YtAuthority$dropCache()
     this.exist_cache.reset();
 });
 
+YtAuthority.prototype.signCsrfToken = function(userid, timestamp)
+{
+    this.__DBG("signCsrfToken");
+
+    var msg = userid + ":" + timestamp;
+    var hmac = crypto.createHmac("sha256", this.config.csrf_secret)
+    hmac.update(msg)
+    return hmac.digest("base64") + ":" + timestamp;
+}
+
+YtAuthority.prototype._syncCheckCsrfToken = function(context, result)
+{
+    this.__DBG("_syncCheckCsrfToken");
+
+    var csrf_token = context.csrf_token;
+    // Allow requests without token during migration period.
+    if ((typeof csrf_token) === "undefined") {
+        return;
+    }
+
+    // We disable csrf token check on /auth/whoami handler.
+    if (!context.check_csrf_token) {
+        return;
+    }
+
+    var i = csrf_token.indexOf(":");
+    if (i == -1) {
+        result.csrf_token_is_valid = false;
+        return;
+    }
+
+    var hmac = csrf_token.substr(0, i);
+    var timestamp = parseInt(csrf_token.substr(i + 1), 10);
+    var now = +new Date();
+    if (now > timestamp + this.config.csrf_token_ttl) {
+        result.csrf_token_is_valid = false;
+        return;
+    }
+
+    var expected_token = this.signCsrfToken(result.blackbox_userid, timestamp);
+    // Timing attack is the least of my wories right now.
+    if (expected_token !== csrf_token) {
+        result.csrf_token_is_valid = false;
+        return;
+    }
+}
+
 YtAuthority.prototype.authenticateByToken = Q.method(
 function YtAuthority$authenticateByToken(logger, profiler, party, token)
 {
@@ -112,7 +161,7 @@ function YtAuthority$authenticateByToken(logger, profiler, party, token)
 });
 
 YtAuthority.prototype.authenticateByCookie = Q.method(
-function YtAuthority$authenticateByCookie(logger, profiler, party, sessionid, sslsessionid)
+function YtAuthority$authenticateByCookie(logger, profiler, party, sessionid, sslsessionid, csrf_token, check_csrf_token)
 {
     this.__DBG("authenticateByCookie");
 
@@ -131,6 +180,8 @@ function YtAuthority$authenticateByCookie(logger, profiler, party, sessionid, ss
         md5sum: md5sum,
         sessionid: sessionid,
         sslsessionid: sslsessionid,
+        csrf_token: csrf_token,
+        check_csrf_token: check_csrf_token,
         domain: false,
     };
 
@@ -138,12 +189,14 @@ function YtAuthority$authenticateByCookie(logger, profiler, party, sessionid, ss
 
     // Fast-path.
     if (this._syncCheckCache(context, result)) {
+        this._syncCheckCsrfToken(context, result);
         return result;
     }
 
     // Perform proper authentication here.
     return Q.resolve()
     .then(this._asyncQueryBlackboxCookie.bind(this, context, result))
+    .then(this._syncCheckCsrfToken.bind(this, context, result))
     .then(this._asyncUserExists.bind(this, context, result))
     .then(this._syncFinalize.bind(this, context, result));
 });
@@ -240,6 +293,7 @@ YtAuthority.prototype._syncCheckCache = function(context, result)
         });
         result.login = cached_result.login;
         result.realm = cached_result.realm;
+        result.blackbox_userid = cached_result.blackbox_userid;
         return true;
     } else {
         context.logger.debug("Authentication cache miss", {
@@ -366,6 +420,7 @@ YtAuthority.prototype._asyncQueryBlackboxCookie = function(context, result)
                 context.logger.debug("Blackbox has approved the cookie");
                 result.login = data.login;
                 result.realm = "blackbox_session_cookie";
+                result.blackbox_userid = data.uid;
                 result.domain = true;
                 break;
             /*
@@ -435,15 +490,17 @@ YtAuthority.prototype._asyncQueryCypress = function(context, result)
     }
 
     var self = this;
-    var path = self.config.cypress.where + "/" + utils.escapeYPath(context.token);
+    var path = self.config.cypress.where;
 
     return this.driver.executeSimple("get", {
-        path: path
+        path: path,
+        read_from: "cache",
     })
     .then(
-    function(login) {
+    function(tokens) {
+        var login = tokens[context.token];
+
         if (typeof(login) !== "string") {
-            context.logger.debug("Encountered garbage at path '" + path + "'");
             return;
         }
 

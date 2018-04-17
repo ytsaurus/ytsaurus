@@ -661,11 +661,12 @@ std::unique_ptr<TLinkNode> TLinkNodeTypeHandler::DoCreate(
     const TVersionedNodeId& id,
     TCellTag cellTag,
     TTransaction* transaction,
-    IAttributeDictionary* attributes,
+    IAttributeDictionary* inheritedAttributes,
+    IAttributeDictionary* explicitAttributes,
     TAccount* account)
 {
     // Make sure that target_path is valid upon creation.
-    auto targetPath = attributes->GetAndRemove<TString>("target_path");
+    auto targetPath = explicitAttributes->GetAndRemove<TString>("target_path");
     const auto& objectManager = Bootstrap_->GetObjectManager();
     objectManager->ResolvePathToObject(targetPath, transaction);
 
@@ -673,7 +674,8 @@ std::unique_ptr<TLinkNode> TLinkNodeTypeHandler::DoCreate(
         id,
         cellTag,
         transaction,
-        attributes,
+        inheritedAttributes,
+        explicitAttributes,
         account);
 
     implHolder->SetTargetPath(targetPath);

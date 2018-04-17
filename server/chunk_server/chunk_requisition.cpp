@@ -2,6 +2,7 @@
 
 #include "chunk_manager.h"
 #include "medium.h"
+#include "private.h"
 
 #include <yt/server/cell_master/automaton.h>
 #include <yt/server/cell_master/bootstrap.h>
@@ -22,6 +23,8 @@ using namespace NYTree;
 
 using NYT::ToProto;
 using NYT::FromProto;
+
+static const auto& Logger = ChunkServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -243,7 +246,7 @@ void ValidateChunkReplication(
 
     for (int index = 0; index < MaxMediumCount; ++index) {
         const auto* medium = chunkManager->FindMediumByIndex(index);
-        if (!medium) {
+        if (!IsObjectAlive(medium)) {
             continue;
         }
 
@@ -320,7 +323,7 @@ void ToProto(NProto::TReqUpdateChunkRequisition::TChunkRequisition* protoRequisi
     }
 }
 
-void FromProto(
+bool FromProto(
     TChunkRequisition* requisition,
     const NProto::TReqUpdateChunkRequisition::TChunkRequisition& protoRequisition,
     const NSecurityServer::TSecurityManagerPtr& securityManager)
@@ -329,12 +332,20 @@ void FromProto(
 
     for (const auto& entry : protoRequisition.entries()) {
         auto* account = securityManager->FindAccount(FromProto<NSecurityServer::TAccountId>(entry.account_id()));
+
+        // NB: an account may be removed between replicator sending a requisition and chunk manager receiving it.
+        if (!IsObjectAlive(account)) {
+            return false;
+        }
+
         requisition->AddEntry(
             account,
             entry.medium_index(),
             TReplicationPolicy(entry.replication_factor(), entry.data_parts_only()),
             entry.committed());
     }
+
+    return true;
 }
 
 void TChunkRequisition::Save(NCellMaster::TSaveContext& context) const
@@ -662,8 +673,7 @@ void TChunkRequisitionRegistry::Load(NCellMaster::TLoadContext& context)
     using NYT::Load;
     using TSortedIndexItem = std::pair<TChunkRequisitionIndex, TIndexedItem>;
 
-    std::vector<TSortedIndexItem> sortedIndex;
-    Load(context, sortedIndex);
+    auto sortedIndex =  Load<std::vector<TSortedIndexItem>>(context);
 
     IndexToItem_.reserve(sortedIndex.size());
     RequisitionToIndex_.reserve(sortedIndex.size());
@@ -688,7 +698,7 @@ void TChunkRequisitionRegistry::Load(NCellMaster::TLoadContext& context)
     YCHECK(!IndexToItem_.has(NextIndex_));
 }
 
-TChunkRequisitionIndex TChunkRequisitionRegistry::GetIndex(
+TChunkRequisitionIndex TChunkRequisitionRegistry::GetOrCreate(
     const TChunkRequisition& requisition,
     const NObjectServer::TObjectManagerPtr& objectManager)
 {
@@ -700,6 +710,14 @@ TChunkRequisitionIndex TChunkRequisitionRegistry::GetIndex(
 
     return Insert(requisition, objectManager);
 }
+
+TNullable<TChunkRequisitionIndex> TChunkRequisitionRegistry::Find(
+    const TChunkRequisition& requisition) const
+{
+    auto it = RequisitionToIndex_.find(requisition);
+    return it != RequisitionToIndex_.end() ? it->second : TNullable<TChunkRequisitionIndex>();
+}
+
 
 TChunkRequisitionIndex TChunkRequisitionRegistry::Insert(
     const TChunkRequisition& requisition,
@@ -718,6 +736,10 @@ TChunkRequisitionIndex TChunkRequisitionRegistry::Insert(
         objectManager->WeakRefObject(entry.Account);
     }
 
+    LOG_DEBUG("Requisition created (RequisitionIndex: %v, Requisition: %v)",
+        index,
+        requisition);
+
     return index;
 }
 
@@ -730,11 +752,43 @@ void TChunkRequisitionRegistry::Erase(
     // accounts to hash requisitions when erasing them.
     auto requisition = it->second.Requisition;
 
-    RequisitionToIndex_.erase(requisition);
+    YCHECK(RequisitionToIndex_.erase(requisition) == 1);
     IndexToItem_.erase(it);
 
     for (const auto& entry : requisition) {
         objectManager->WeakUnrefObject(entry.Account);
+    }
+
+    LOG_DEBUG("Requisition removed (RequisitionIndex: %v, Requisition: %v)",
+        index,
+        requisition);
+}
+
+void TChunkRequisitionRegistry::Ref(TChunkRequisitionIndex index)
+{
+    auto it = IndexToItem_.find(index);
+    YCHECK(it != IndexToItem_.end());
+    ++it->second.RefCount;
+    LOG_TRACE("Requisition referenced (RequisitionIndex: %v, RefCount: %v)",
+        index,
+        it->second.RefCount);
+}
+
+void TChunkRequisitionRegistry::Unref(
+    TChunkRequisitionIndex index,
+    const NObjectServer::TObjectManagerPtr& objectManager)
+{
+    auto it = IndexToItem_.find(index);
+    YCHECK(it != IndexToItem_.end());
+    YCHECK(it->second.RefCount != 0);
+    --it->second.RefCount;
+
+    LOG_TRACE("Requisition unreferenced (RequisitionIndex: %v, RefCount: %v)",
+        index,
+        it->second.RefCount);
+
+    if (it->second.RefCount == 0) {
+        Erase(index, objectManager);
     }
 }
 
@@ -778,13 +832,40 @@ TSerializableChunkRequisitionRegistry::TSerializableChunkRequisitionRegistry(
 
 void TSerializableChunkRequisitionRegistry::Serialize(NYson::IYsonConsumer* consumer) const
 {
-    auto* const registry = ChunkManager_->GetChunkRequisitionRegistry();
+    const auto* registry = ChunkManager_->GetChunkRequisitionRegistry();
     registry->Serialize(consumer, ChunkManager_);
 }
 
 void Serialize(const TSerializableChunkRequisitionRegistry& serializer, NYson::IYsonConsumer* consumer)
 {
     serializer.Serialize(consumer);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+const TChunkRequisition& TEphemeralRequisitionRegistry::GetRequisition(TChunkRequisitionIndex index) const
+{
+    auto it = IndexToRequisition_.find(index);
+    YCHECK(it != IndexToRequisition_.end());
+    return it->second;
+}
+
+TChunkRequisitionIndex TEphemeralRequisitionRegistry::GetOrCreateIndex(const TChunkRequisition& requisition)
+{
+    auto it = RequisitionToIndex_.find(requisition);
+    if (it != RequisitionToIndex_.end()) {
+        Y_ASSERT(IndexToRequisition_.find(it->second) != IndexToRequisition_.end());
+        return it->second;
+    }
+
+    return Insert(requisition);
+}
+
+void TEphemeralRequisitionRegistry::Clear()
+{
+    IndexToRequisition_.clear();
+    RequisitionToIndex_.clear();
+    NextIndex_ = 0;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -41,6 +41,8 @@
 
 #include <yt/core/yson/async_writer.h>
 
+#include <type_traits>
+
 namespace NYT {
 namespace NCypressServer {
 
@@ -1187,133 +1189,6 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Lock)
     context->Reply();
 }
 
-//! A combination of inherited and explicitly provided (by the user) attributes.
-//! Explicit attributes take precedence (but may be null).
-class TNewNodeAttributes
-    : public IAttributeDictionary
-{
-public:
-    TNewNodeAttributes(
-        TBootstrap* bootstrap,
-        TCompositeNodeBase::TAttributes* inheritedAttributes,
-        std::unique_ptr<IAttributeDictionary> explicitAttributes)
-        : Bootstrap_(bootstrap)
-        , InheritedAttributes_(inheritedAttributes)
-        , ExplicitAttributes_(std::move(explicitAttributes))
-    { }
-
-    virtual std::vector<TString> List() const override
-    {
-        std::vector<TString> result;
-#define XX(camelCaseName, snakeCaseName) \
-        if (InheritedAttributes_->camelCaseName) { \
-            result.push_back(#snakeCaseName); \
-        }
-
-        FOR_EACH_INHERITABLE_ATTRIBUTE(XX)
-
-#undef XX
-
-        if (ExplicitAttributes_) {
-            auto explicitAttributeList = ExplicitAttributes_->List();
-            result.insert(
-                result.end(),
-                explicitAttributeList.begin(),
-                explicitAttributeList.end());
-        }
-
-        std::sort(result.begin(), result.end());
-        result.erase(
-            std::unique(result.begin(), result.end()),
-            result.end());
-
-        return result;
-    }
-
-    virtual TYsonString FindYson(const TString& key) const override
-    {
-        if (ExplicitAttributes_) {
-            auto result = ExplicitAttributes_->FindYson(key);
-            if (result) {
-                return result;
-            }
-        }
-
-#define XX(camelCaseName, snakeCaseName) \
-        if (key == #snakeCaseName) { \
-            const auto& value = InheritedAttributes_->camelCaseName; \
-            return value ? ConvertToYsonString(*value) : TYsonString(); \
-        }
-
-        FOR_EACH_SIMPLE_INHERITABLE_ATTRIBUTE(XX);
-
-#undef XX
-
-        if (key == "primary_medium") {
-            const auto& primaryMediumIndex = InheritedAttributes_->PrimaryMediumIndex;
-            if (!primaryMediumIndex) {
-                return TYsonString();
-            }
-            const auto& chunkManager = Bootstrap_->GetChunkManager();
-            auto* medium = chunkManager->GetMediumByIndex(*primaryMediumIndex);
-            return ConvertToYsonString(medium->GetName());
-        }
-
-        if (key == "media") {
-            const auto& replication = InheritedAttributes_->Media;
-            if (!replication) {
-                return TYsonString();
-            }
-            const auto& chunkManager = Bootstrap_->GetChunkManager();
-            return ConvertToYsonString(TSerializableChunkReplication(*replication, chunkManager));
-        }
-
-        if (key == "tablet_cell_bundle") {
-            auto* tabletCellBundle = InheritedAttributes_->TabletCellBundle;
-            if (!tabletCellBundle) {
-                return TYsonString();
-            }
-            return ConvertToYsonString(tabletCellBundle->GetName());
-        }
-
-        return TYsonString();
-    }
-
-    virtual void SetYson(const TString& key, const NYson::TYsonString& value) override
-    {
-        if (!ExplicitAttributes_) {
-            ExplicitAttributes_ = CreateEphemeralAttributes();
-        }
-        ExplicitAttributes_->SetYson(key, value);
-    }
-
-    virtual bool Remove(const TString& key) override
-    {
-        auto removedExplicit = ExplicitAttributes_ ? ExplicitAttributes_->Remove(key) : false;
-
-#define XX(camelCaseName, snakeCaseName) \
-        if (key == #snakeCaseName) { \
-            if (InheritedAttributes_->camelCaseName) { \
-                InheritedAttributes_->camelCaseName = decltype(InheritedAttributes_->camelCaseName)(); \
-                return true; \
-            } else { \
-                return removedExplicit; \
-            } \
-        }
-
-        FOR_EACH_INHERITABLE_ATTRIBUTE(XX);
-
-#undef XX
-
-        return removedExplicit;
-    }
-
-private:
-    const TBootstrap* Bootstrap_;
-    TCompositeNodeBase::TAttributes* InheritedAttributes_;
-    std::unique_ptr<IAttributeDictionary> ExplicitAttributes_;
-};
-
 DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
 {
     DeclareMutating();
@@ -1379,19 +1254,17 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
 
     auto factory = CreateCypressFactory(account, TNodeFactoryOptions());
 
-    auto inheritedAttributes = TCompositeNodeBase::TAttributes();
-    GatherInheritableAttributes(replace ? node->GetParent() : node, &inheritedAttributes);
+    TInheritedAttributeDictionary inheritedAttributes(Bootstrap_);
+    GatherInheritableAttributes(
+            replace ? node->GetParent() : node,
+            &inheritedAttributes.Attributes());
 
     std::unique_ptr<IAttributeDictionary> explicitAttributes;
     if (request->has_node_attributes()) {
         explicitAttributes = FromProto(request->node_attributes());
     }
 
-    TNewNodeAttributes combinedAttributes(Bootstrap_, &inheritedAttributes, std::move(explicitAttributes));
-
-    auto newProxy = factory->CreateNode(
-        type,
-        &combinedAttributes);
+    auto newProxy = factory->CreateNode(type, &inheritedAttributes, explicitAttributes.get());
 
     if (replace) {
         parent->ReplaceChild(this, newProxy);
@@ -1886,6 +1759,149 @@ bool TNontemplateCompositeCypressNodeProxyBase::RemoveBuiltinAttribute(TInterned
 bool TNontemplateCompositeCypressNodeProxyBase::CanHaveChildren() const
 {
     return true;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TInheritedAttributeDictionary::TInheritedAttributeDictionary(TBootstrap* bootstrap)
+    : Bootstrap_(bootstrap)
+{ }
+
+std::vector<TString> TInheritedAttributeDictionary::List() const
+{
+    std::vector<TString> result;
+#define XX(camelCaseName, snakeCaseName) \
+    if (InheritedAttributes_.camelCaseName) { \
+        result.push_back(#snakeCaseName); \
+    }
+
+    FOR_EACH_INHERITABLE_ATTRIBUTE(XX)
+
+#undef XX
+
+    if (Fallback_) {
+        auto fallbackList = Fallback_->List();
+        result.insert(result.end(), fallbackList.begin(), fallbackList.end());
+        std::sort(result.begin(), result.end());
+        result.erase(std::unique(result.begin(), result.end()), result.end());
+    }
+
+    return result;
+}
+
+TYsonString TInheritedAttributeDictionary::FindYson(const TString& key) const
+{
+#define XX(camelCaseName, snakeCaseName) \
+    if (key == #snakeCaseName) { \
+        const auto& value = InheritedAttributes_.camelCaseName; \
+        return value ? ConvertToYsonString(*value) : TYsonString(); \
+    }
+
+    FOR_EACH_SIMPLE_INHERITABLE_ATTRIBUTE(XX);
+
+#undef XX
+
+    if (key == "primary_medium") {
+        const auto& primaryMediumIndex = InheritedAttributes_.PrimaryMediumIndex;
+        if (!primaryMediumIndex) {
+            return TYsonString();
+        }
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
+        auto* medium = chunkManager->GetMediumByIndex(*primaryMediumIndex);
+        return ConvertToYsonString(medium->GetName());
+    }
+
+    if (key == "media") {
+        const auto& replication = InheritedAttributes_.Media;
+        if (!replication) {
+            return TYsonString();
+        }
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
+        return ConvertToYsonString(TSerializableChunkReplication(*replication, chunkManager));
+    }
+
+    if (key == "tablet_cell_bundle") {
+        auto* tabletCellBundle = InheritedAttributes_.TabletCellBundle;
+        if (!tabletCellBundle) {
+            return TYsonString();
+        }
+        return ConvertToYsonString(tabletCellBundle->GetName());
+    }
+
+    return Fallback_ ? Fallback_->FindYson(key) : TYsonString();
+}
+
+void TInheritedAttributeDictionary::SetYson(const TString& key, const NYson::TYsonString& value)
+{
+#define XX(camelCaseName, snakeCaseName) \
+    if (key == #snakeCaseName) { \
+        auto& attr = InheritedAttributes_.camelCaseName; \
+        using TAttr = std::remove_reference<decltype(*attr)>::type; \
+        attr = ConvertTo<TAttr>(value); \
+        return; \
+    }
+
+    FOR_EACH_SIMPLE_INHERITABLE_ATTRIBUTE(XX);
+
+#undef XX
+
+    if (key == "primary_medium") {
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
+        const auto& mediumName = ConvertTo<TString>(value);
+        auto* medium = chunkManager->GetMediumByNameOrThrow(mediumName);
+        InheritedAttributes_.PrimaryMediumIndex = medium->GetIndex();
+        return;
+    }
+
+    if (key == "media") {
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
+        auto serializableReplication = ConvertTo<TSerializableChunkReplication>(value);
+        TChunkReplication replication;
+        serializableReplication.ToChunkReplication(&replication, chunkManager);
+
+        InheritedAttributes_.Media = replication;
+        return;
+    }
+
+    if (key == "tablet_cell_bundle") {
+        auto bundleName = ConvertTo<TString>(value);
+        const auto& tabletManager = Bootstrap_->GetTabletManager();
+        auto* bundle = tabletManager->GetTabletCellBundleByNameOrThrow(bundleName);
+        InheritedAttributes_.TabletCellBundle = bundle;
+        return;
+    }
+
+    if (!Fallback_) {
+        Fallback_ = CreateEphemeralAttributes();
+    }
+
+    Fallback_->SetYson(key, value);
+}
+
+bool TInheritedAttributeDictionary::Remove(const TString& key)
+{
+#define XX(camelCaseName, snakeCaseName) \
+    if (key == #snakeCaseName) { \
+        if (InheritedAttributes_.camelCaseName) { \
+            InheritedAttributes_.camelCaseName = decltype(InheritedAttributes_.camelCaseName)(); \
+        } \
+        return true; \
+    }
+
+    FOR_EACH_INHERITABLE_ATTRIBUTE(XX);
+
+#undef XX
+
+    if (Fallback_) {
+        return Fallback_->Remove(key);
+    }
+
+    return false;
+}
+
+TCompositeNodeBase::TAttributes& TInheritedAttributeDictionary::Attributes()
+{
+    return InheritedAttributes_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

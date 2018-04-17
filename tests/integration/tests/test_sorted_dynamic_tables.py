@@ -6,6 +6,7 @@ from test_dynamic_tables import TestDynamicTablesBase
 from yt_env_setup import wait
 from yt_commands import *
 from yt.yson import YsonEntity, loads
+from yt.environment.helpers import wait
 
 from time import sleep
 
@@ -152,10 +153,10 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
 
     def test_sorted_tablet_node_profiling(self):
         self.sync_create_cells(1)
-        self._create_simple_table("//tmp/t", enable_profiling=True)
+        self._create_simple_table("//tmp/t")
         self.sync_mount_table("//tmp/t")
 
-        tablet_profiling = self._get_tablet_profiling("//tmp/t")
+        tablet_profiling = self._get_table_profiling("//tmp/t")
         select_profiling = self._get_profiling("//tmp/t")
 
         def get_all_counters(count_name):
@@ -176,32 +177,26 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         keys = [{"key": 1}]
         insert_rows("//tmp/t", rows)
 
-        sleep(2)
-
-        assert get_all_counters("row_count") == (0, 0, 0, 0, 1, 1)
-        assert get_all_counters("data_weight") == (0, 0, 0, 0, 10, 10)
-        assert tablet_profiling.get_counter("lookup/cpu_time") == 0
-        assert select_profiling.get_counter("select/cpu_time") == 0
+        wait(lambda: get_all_counters("row_count") == (0, 0, 0, 0, 1, 1) and \
+                     get_all_counters("data_weight") == (0, 0, 0, 0, 10, 10) and \
+                     tablet_profiling.get_counter("lookup/cpu_time") == 0 and \
+                     select_profiling.get_counter("select/cpu_time") == 0)
 
         actual = lookup_rows("//tmp/t", keys)
         assert_items_equal(actual, rows)
 
-        sleep(2)
-
-        assert get_all_counters("row_count") == (1, 1, 0, 0, 1, 1)
-        assert get_all_counters("data_weight") == (10, 25, 0, 0, 10, 10)
-        assert tablet_profiling.get_counter("lookup/cpu_time") > 0
-        assert select_profiling.get_counter("select/cpu_time") == 0
+        wait(lambda: get_all_counters("row_count") == (1, 1, 0, 0, 1, 1) and \
+                     get_all_counters("data_weight") == (10, 25, 0, 0, 10, 10) and \
+                     tablet_profiling.get_counter("lookup/cpu_time") > 0 and \
+                     select_profiling.get_counter("select/cpu_time") == 0)
 
         actual = select_rows("* from [//tmp/t]")
         assert_items_equal(actual, rows)
 
-        sleep(2)
-
-        assert get_all_counters("row_count") == (1, 1, 1, 1, 1, 1)
-        assert get_all_counters("data_weight") == (10, 25, 10, 25, 10, 10)
-        assert tablet_profiling.get_counter("lookup/cpu_time") > 0
-        assert select_profiling.get_counter("select/cpu_time") > 0
+        wait(lambda: get_all_counters("row_count") == (1, 1, 1, 1, 1, 1) and \
+                     get_all_counters("data_weight") == (10, 25, 10, 25, 10, 10) and \
+                     tablet_profiling.get_counter("lookup/cpu_time") > 0 and \
+                     select_profiling.get_counter("select/cpu_time") > 0)
 
     def test_sorted_default_enabled_tablet_node_profiling(self):
         self.sync_create_cells(1)
@@ -224,62 +219,16 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         keys = [{"key": 1}]
         insert_rows("//tmp/t_unique_name", rows)
 
-        sleep(2)
-
-        assert get_all_counters("row_count") == (0, 1, 1)
-        assert get_all_counters("data_weight") == (0, 10, 10)
-        assert table_profiling.get_counter("lookup/cpu_time") == 0
+        wait(lambda: get_all_counters("row_count") == (0, 1, 1) and \
+                     get_all_counters("data_weight") == (0, 10, 10) and \
+                     table_profiling.get_counter("lookup/cpu_time") == 0)
 
         actual = lookup_rows("//tmp/t_unique_name", keys)
         assert_items_equal(actual, rows)
 
-        sleep(2)
-
-        assert get_all_counters("row_count") == (1, 1, 1)
-        assert get_all_counters("data_weight") == (10, 10, 10)
-        assert table_profiling.get_counter("lookup/cpu_time") > 0
-
-    def test_sorted_tablet_node_profiling_remount(self):
-        self.sync_create_cells(1)
-        self._create_simple_table("//tmp/t")
-        self.sync_mount_table("//tmp/t")
-
-        keys = [{"key": 1}]
-        insert_rows("//tmp/t", [{"key": 1, "value": "1"}])
-
-        profiling = self._get_tablet_profiling("//tmp/t")
-
-        def get_lookup_row_counter():
-            return profiling.get_counter("lookup/row_count")
-
-        lookup_rows("//tmp/t", keys)
-        sleep(2)
-        assert get_lookup_row_counter() == 0
-
-        set("//tmp/t/@enable_profiling", True)
-        lookup_rows("//tmp/t", keys)
-        sleep(2)
-        assert get_lookup_row_counter() == 0
-
-        remount_table("//tmp/t")
-        sleep(1)
-        lookup_rows("//tmp/t", keys)
-        sleep(2)
-        assert get_lookup_row_counter() == 1
-
-        set("//tmp/t/@enable_profiling", False)
-        remount_table("//tmp/t")
-        sleep(1)
-        lookup_rows("//tmp/t", keys)
-        sleep(2)
-        assert get_lookup_row_counter() == 1
-
-        set("//tmp/t/@enable_profiling", True)
-        remount_table("//tmp/t")
-        sleep(1)
-        lookup_rows("//tmp/t", keys)
-        sleep(2)
-        assert get_lookup_row_counter() == 2
+        wait(lambda: get_all_counters("row_count") == (1, 1, 1) and \
+                     get_all_counters("data_weight") == (10, 10, 10) and \
+                     table_profiling.get_counter("lookup/cpu_time") > 0)
 
     def test_reshard_unmounted(self):
         self.sync_create_cells(1)
@@ -357,8 +306,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         assert self._find_tablet_orchid(address, tablet_id) is not None
 
         remove("//tmp/t")
-        sleep(1)
-        assert self._find_tablet_orchid(address, tablet_id) is None
+        wait(lambda: self._find_tablet_orchid(address, tablet_id) is None)
 
     def test_lookup_repeated_keys(self):
         self.sync_create_cells(1)
@@ -476,9 +424,8 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         rows2 = [{"key": i, "value": str(i+1)} for i in xrange(10)]
         insert_rows("//tmp/t", rows2)
         self.sync_unmount_table("//tmp/t")
-        sleep(1)
 
-        assert read_table("<timestamp=%s>//tmp/t" %(ts)) == rows1
+        wait(lambda: read_table("<timestamp=%s>//tmp/t" %(ts)) == rows1)
         assert get("//tmp/t/@chunk_count") == 2
 
     def test_read_snapshot_lock(self):
@@ -501,7 +448,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
 
         verify_chunk_tree_refcount("//tmp/t", 1, [1])
 
-        tx = start_transaction()
+        tx = start_transaction(timeout=60000)
         lock("//tmp/t", mode="snapshot", tx=tx)
         verify_chunk_tree_refcount("//tmp/t", 2, [1])
 
@@ -1117,12 +1064,12 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         rows = [{"key": i, "value": str(i)} for i in xrange(10)]
         insert_rows("//tmp/t", rows)
 
-        sleep(3.0)
-
-        tablet_data = self._find_tablet_orchid(address, tablet_id)
-        assert len(tablet_data["eden"]["stores"]) == 1
-        assert len(tablet_data["partitions"]) == 1
-        assert len(tablet_data["partitions"][0]["stores"]) == 1
+        def check():
+            tablet_data = self._find_tablet_orchid(address, tablet_id)
+            return len(tablet_data["eden"]["stores"]) == 1 and \
+                   len(tablet_data["partitions"]) == 1 and \
+                   len(tablet_data["partitions"][0]["stores"]) == 1
+        wait(lambda: check())
 
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
     @pytest.mark.parametrize("mode", ["compressed", "uncompressed"])
@@ -1480,8 +1427,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         keys = [{"key": 1}]
         insert_rows("//tmp/t", rows)
 
-        sleep(1.0)
-        assert lookup_rows("//tmp/t", keys, read_from="follower", timestamp=AsyncLastCommittedTimestamp) == rows
+        wait(lambda: lookup_rows("//tmp/t", keys, read_from="follower", timestamp=AsyncLastCommittedTimestamp) == rows)
 
     def test_lookup_with_backup(self):
         create_tablet_cell_bundle("b", attributes={"options": {"peer_count" : 3}})
