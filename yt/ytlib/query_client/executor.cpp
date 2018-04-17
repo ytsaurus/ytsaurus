@@ -595,7 +595,7 @@ private:
             Logger);
 
         // Should be already sorted
-        LOG_DEBUG("Sorting %v splits", allSplits.size());
+        LOG_DEBUG("Sorting splits (SplitCount: %v)", allSplits.size());
 
         YCHECK(std::is_sorted(
             allSplits.begin(),
@@ -641,10 +641,10 @@ private:
             auto config = Connection_->GetConfig();
 
             TQueryServiceProxy proxy(channel);
-            proxy.SetDefaultTimeout(config->QueryTimeout);
 
             auto req = proxy.Execute();
             req->SetMultiplexingBand(NRpc::EMultiplexingBand::Heavy);
+            req->SetTimeout(config->DefaultSelectRowsTimeout);
 
             TDuration serializationTime;
             {
