@@ -169,7 +169,6 @@ public:
         const TQueryOptions& options) override
     {
         TRACE_CHILD("QueryClient", "Execute") {
-
             auto execute = query->IsOrdered()
                 ? &TQueryExecutor::DoExecuteOrdered
                 : &TQueryExecutor::DoExecute;
@@ -594,7 +593,7 @@ private:
             rowBuffer,
             Logger);
 
-        // Should be already sorted
+        // Should be already sorted.
         LOG_DEBUG("Sorting splits (SplitCount: %v)", allSplits.size());
 
         YCHECK(std::is_sorted(
@@ -619,7 +618,7 @@ private:
             [&] (int index) {
                 const auto& split = allSplits[index];
 
-                LOG_DEBUG("Delegating to tablet %v at %v",
+                LOG_DEBUG("Delegating request to tablet (TabletId: %v, Address: %v)",
                     split.first.Id,
                     split.second);
 
@@ -644,7 +643,9 @@ private:
 
             auto req = proxy.Execute();
             req->SetMultiplexingBand(NRpc::EMultiplexingBand::Heavy);
-            req->SetTimeout(config->DefaultSelectRowsTimeout);
+            if (options.Deadline != TInstant::Max()) {
+                req->SetTimeout(options.Deadline - Now());
+            }
 
             TDuration serializationTime;
             {
@@ -656,7 +657,7 @@ private:
                 externalCGInfo->NodeDirectory->DumpTo(req->mutable_node_directory());
                 ToProto(req->mutable_options(), options);
                 ToProto(req->mutable_data_sources(), dataSources);
-                req->set_response_codec(static_cast<int>(config->QueryResponseCodec));
+                req->set_response_codec(static_cast<int>(config->SelectRowsResponseCodec));
             }
 
             auto queryFingerprint = InferName(query, true);
@@ -674,7 +675,7 @@ private:
             auto resultReader = New<TQueryResponseReader>(
                 req->Invoke(),
                 query->GetTableSchema(),
-                config->QueryResponseCodec,
+                config->SelectRowsResponseCodec,
                 Logger);
             return std::make_pair(resultReader, resultReader->GetQueryResult());
         }

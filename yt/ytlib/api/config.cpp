@@ -71,9 +71,11 @@ TNativeConnectionConfig::TNativeConnectionConfig()
 
     RegisterParameter("query_evaluator", QueryEvaluator)
         .DefaultNew();
-    RegisterParameter("query_timeout", QueryTimeout)
+    RegisterParameter("default_select_rows_timeout", DefaultSelectRowsTimeout)
+        // COMPAT(babenko)
+        .Alias("query_timeout")
         .Default(TDuration::Seconds(60));
-    RegisterParameter("query_response_codec", QueryResponseCodec)
+    RegisterParameter("select_rows_response_codec", SelectRowsResponseCodec)
         .Default(NCompression::ECodec::Lz4);
     RegisterParameter("default_input_row_limit", DefaultInputRowLimit)
         .GreaterThan(0)
@@ -85,9 +87,9 @@ TNativeConnectionConfig::TNativeConnectionConfig()
     RegisterParameter("column_evaluator_cache", ColumnEvaluatorCache)
         .DefaultNew();
 
-    RegisterParameter("write_timeout", WriteTimeout)
+    RegisterParameter("write_rows_timeout", WriteRowsTimeout)
         .Default(TDuration::Seconds(60));
-    RegisterParameter("write_request_codec", WriteRequestCodec)
+    RegisterParameter("write_rows_request_codec", WriteRowsRequestCodec)
         .Default(NCompression::ECodec::Lz4);
     RegisterParameter("max_rows_per_write_request", MaxRowsPerWriteRequest)
         .GreaterThan(0)
@@ -96,13 +98,15 @@ TNativeConnectionConfig::TNativeConnectionConfig()
         .GreaterThan(0)
         .Default(100000);
 
-    RegisterParameter("lookup_timeout", LookupTimeout)
+    RegisterParameter("default_lookup_rows_timeout", DefaultLookupRowsTimeout)
+        // COMPAT(babenko)
+        .Alias("lookup_timeout")
         .Default(TDuration::Seconds(60));
-    RegisterParameter("lookup_request_codec", LookupRequestCodec)
+    RegisterParameter("lookup_rows_request_codec", LookupRowsRequestCodec)
         .Default(NCompression::ECodec::Lz4);
-    RegisterParameter("lookup_response_codec", LookupResponseCodec)
+    RegisterParameter("lookup_rows_response_codec", LookupRowsResponseCodec)
         .Default(NCompression::ECodec::Lz4);
-    RegisterParameter("max_rows_per_read_request", MaxRowsPerReadRequest)
+    RegisterParameter("max_rows_per_lookup_request", MaxRowsPerLookupRequest)
         .GreaterThan(0)
         .Default(1000);
 
@@ -124,6 +128,21 @@ TNativeConnectionConfig::TNativeConnectionConfig()
 
     RegisterParameter("bus_client", BusClient)
         .DefaultNew();
+
+    RegisterParameter("default_get_in_sync_replicas_timeout", DefaultGetInSyncReplicasTimeout)
+        .Default(TDuration::Seconds(15));
+    RegisterParameter("default_get_tablet_infos_timeout", DefaultGetTabletInfosTimeout)
+        .Default(TDuration::Seconds(15));
+    RegisterParameter("default_trim_table_timeout", DefaultTrimTableTimeout)
+        .Default(TDuration::Seconds(15));
+    RegisterParameter("default_get_operation_timeout", DefaultGetOperationTimeout)
+        .Default(TDuration::Seconds(60));
+    RegisterParameter("default_list_jobs_timeout", DefaultListJobsTimeout)
+        .Default(TDuration::Seconds(60));
+    RegisterParameter("default_get_job_timeout", DefaultGetJobTimeout)
+        .Default(TDuration::Seconds(60));
+    RegisterParameter("default_list_operations_timeout", DefaultListOperationsTimeout)
+        .Default(TDuration::Seconds(60));
 
     RegisterPreprocessor([&] () {
         FunctionImplCache->Capacity = 100;
