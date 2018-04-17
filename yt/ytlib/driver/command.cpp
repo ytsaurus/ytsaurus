@@ -14,7 +14,7 @@ void ProduceOutput(
     std::function<void(NYson::IYsonConsumer*)> producerV4)
 {
     TStringStream stream;
-    NYson::TYsonWriter writer(&stream, NYson::EYsonFormat::Text);
+    NYson::TYsonWriter writer(&stream, NYson::EYsonFormat::Binary);
     switch (context->GetConfig()->ApiVersion) {
         case ApiVersion3:
             producerV3(&writer);
