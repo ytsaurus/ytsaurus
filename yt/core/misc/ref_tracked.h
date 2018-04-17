@@ -25,7 +25,7 @@ public:
 #endif
     }
 
-    TRefTracked(const TRefTracked& other)
+    TRefTracked(const TRefTracked&)
     {
 #ifdef YT_ENABLE_REF_COUNTED_TRACKING
         auto cookie = GetRefCountedTypeCookie<T>();
@@ -33,7 +33,7 @@ public:
 #endif
     }
 
-    TRefTracked(TRefTracked&& other)
+    TRefTracked(TRefTracked&&)
     {
 #ifdef YT_ENABLE_REF_COUNTED_TRACKING
         auto cookie = GetRefCountedTypeCookie<T>();
