@@ -350,6 +350,34 @@ SIMPLE_UNIT_TEST_SUITE(Operations)
         }
     }
 
+    SIMPLE_UNIT_TEST(FailOnJobRestart)
+    {
+        auto client = CreateTestClient();
+
+        {
+            auto writer = client->CreateTableWriter<TNode>("//testing/input");
+            writer->AddRow(TNode()("foo", "bar"));
+            writer->Finish();
+        }
+
+        TOperationId operationId;
+        try {
+            client->Map(
+                TMapOperationSpec()
+                .AddInput<TNode>("//testing/input")
+                .AddOutput<TNode>("//testing/output")
+                .FailOnJobRestart(true)
+                .MaxFailedJobCount(3),
+                new TAlwaysFailingMapper);
+            UNIT_FAIL("Operation expected to fail");
+        } catch (const TOperationFailedError& e) {
+            operationId = e.GetOperationId();
+        }
+
+        auto failedJobs = client->Get(TStringBuilder() << "//sys/operations/" << operationId << "/@brief_progress/jobs/failed");
+        UNIT_ASSERT_VALUES_EQUAL(failedJobs.AsInt64(), 1);
+    }
+
     SIMPLE_UNIT_TEST(StderrTablePath)
     {
         auto client = CreateTestClient();
