@@ -50,6 +50,7 @@ TOperation::TOperation(
     TOperationRuntimeParametersPtr runtimeParams,
     const TString& authenticatedUser,
     TInstant startTime,
+    bool enableCompatibleStorageMode,
     IInvokerPtr controlInvoker,
     EOperationState state,
     const std::vector<TOperationEvent>& events)
@@ -61,6 +62,7 @@ TOperation::TOperation(
     , RuntimeData_(New<TOperationRuntimeData>())
     , SecureVault_(std::move(secureVault))
     , Events_(events)
+    , EnableCompatibleStorageMode_(enableCompatibleStorageMode)
     , Id_(id)
     , StartTime_(startTime)
     , AuthenticatedUser_(authenticatedUser)

@@ -341,6 +341,9 @@ public:
     //! but leads to an 12x memory consumption in controller at worst case scenario.
     bool SliceErasureChunksByParts;
 
+    //! Controls operation storage mode.
+    bool EnableCompatibleStorageMode;
+
     TOperationSpecBase();
 
 private:
