@@ -160,6 +160,9 @@ struct TUserOperationSpecBase
     // How many jobs can fail before operation is failed.
     FLUENT_FIELD_OPTION(ui64, MaxFailedJobCount);
 
+    // On any unsuccessful job completion (i.e. abortion or failure) force the whole operation to fail.
+    FLUENT_FIELD_OPTION(bool, FailOnJobRestart);
+
     // Table to save whole stderr of operation
     // https://clubs.at.yandex-team.ru/yt/1045
     FLUENT_FIELD_OPTION(TYPath, StderrTablePath);
