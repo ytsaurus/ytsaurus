@@ -151,14 +151,19 @@ TYPath GetNewSecureVaultPath(const TOperationId& operationId)
         + "/secure_vault";
 }
 
-std::vector<NYPath::TYPath> GetCompatibilityJobPaths(
+std::vector<NYPath::TYPath> GetJobPaths(
     const TOperationId& operationId,
     const TJobId& jobId,
+    bool enableCompatibleStorageMode,
     const TString& resourceName)
 {
     TString suffix;
     if (!resourceName.empty()) {
         suffix = "/" + resourceName;
+    }
+
+    if (!enableCompatibleStorageMode) {
+        return {GetNewJobPath(operationId, jobId) + suffix};
     }
 
     // COMPAT(babenko)
@@ -168,13 +173,18 @@ std::vector<NYPath::TYPath> GetCompatibilityJobPaths(
     };
 }
 
-std::vector<NYPath::TYPath> GetCompatibilityOperationPaths(
+std::vector<NYPath::TYPath> GetOperationPaths(
     const TOperationId& operationId,
+    bool enableCompatibleStorageMode,
     const TString& resourceName)
 {
     TString suffix;
     if (!resourceName.empty()) {
         suffix = "/" + resourceName;
+    }
+
+    if (!enableCompatibleStorageMode) {
+       return {GetNewOperationPath(operationId) + suffix};
     }
 
     // COMPAT(babenko)

@@ -574,6 +574,7 @@ public:
             runtimeParams,
             user,
             TInstant::Now(),
+            spec->EnableCompatibleStorageMode,
             MasterConnector_->GetCancelableControlInvoker(EControlQueue::Operation));
         operation->SetStateAndEnqueueEvent(EOperationState::Starting);
 
@@ -1631,6 +1632,7 @@ private:
         if (!rspOrError.IsOK()) {
             LOG_WARNING(rspOrError, "Error getting operation runtime parameters (OperationId: %v)",
                 operation->GetId());
+            return;
         }
 
         const auto& rsp = rspOrError.Value();

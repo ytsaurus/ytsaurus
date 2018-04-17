@@ -201,6 +201,9 @@ TOperationSpecBase::TOperationSpecBase()
     RegisterParameter("slice_erasure_chunks_by_parts", SliceErasureChunksByParts)
         .Default(false);
 
+    RegisterParameter("enable_compatible_storage_mode", EnableCompatibleStorageMode)
+        .Default(true);
+
     RegisterPostprocessor([&] () {
         if (UnavailableChunkStrategy == EUnavailableChunkAction::Wait &&
             UnavailableChunkTactics == EUnavailableChunkAction::Skip)
