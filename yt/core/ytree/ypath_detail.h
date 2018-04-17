@@ -9,6 +9,7 @@
 #include <yt/core/logging/log.h>
 
 #include <yt/core/misc/assert.h>
+#include <yt/core/misc/cast.h>
 
 #include <yt/core/rpc/service_detail.h>
 
@@ -340,7 +341,7 @@ template <class TValue>
 class TNodeSetter
 { };
 
-#define DECLARE_SCALAR_TYPE(name, type) \
+#define BEGIN_SETTER(name, type) \
     template <> \
     class TNodeSetter<I##name##Node> \
         : public TNodeSetterBase \
@@ -357,21 +358,58 @@ class TNodeSetter
         virtual ENodeType GetExpectedType() override \
         { \
             return ENodeType::name; \
-        } \
-        \
-        virtual void OnMy##name##Scalar(NDetail::TScalarTypeTraits<type>::TConsumerType value) override \
-        { \
-            Node_->SetValue(type(value)); \
-        } \
+        }
+
+#define END_SETTER() \
+    };
+
+BEGIN_SETTER(String, TString)
+    virtual void OnMyStringScalar(const TStringBuf& value) override
+    {
+        Node_->SetValue(TString(value));
+    }
+END_SETTER()
+
+BEGIN_SETTER(Int64, i64)
+    virtual void OnMyInt64Scalar(i64 value) override
+    {
+        Node_->SetValue(value);
     }
 
-DECLARE_SCALAR_TYPE(String, TString);
-DECLARE_SCALAR_TYPE(Int64,  i64);
-DECLARE_SCALAR_TYPE(Uint64,  ui64);
-DECLARE_SCALAR_TYPE(Double, double);
-DECLARE_SCALAR_TYPE(Boolean, bool);
+    virtual void OnMyUint64Scalar(ui64 value) override
+    {
+        Node_->SetValue(CheckedIntegralCast<i64>(value));
+    }
+END_SETTER()
 
-#undef DECLARE_SCALAR_TYPE
+BEGIN_SETTER(Uint64,  ui64)
+    virtual void OnMyInt64Scalar(i64 value) override
+    {
+        Node_->SetValue(CheckedIntegralCast<ui64>(value));
+    }
+
+    virtual void OnMyUint64Scalar(ui64 value) override
+    {
+        Node_->SetValue(value);
+    }
+END_SETTER()
+
+BEGIN_SETTER(Double, double)
+    virtual void OnMyDoubleScalar(double value) override
+    {
+        Node_->SetValue(value);
+    }
+END_SETTER()
+
+BEGIN_SETTER(Boolean, bool)
+    virtual void OnMyBooleanScalar(bool value) override
+    {
+        Node_->SetValue(value);
+    }
+END_SETTER()
+
+#undef BEGIN_SETTER
+#undef END_SETTER
 
 ////////////////////////////////////////////////////////////////////////////////
 
