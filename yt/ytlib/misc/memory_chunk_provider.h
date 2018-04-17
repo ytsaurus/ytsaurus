@@ -71,7 +71,7 @@ struct TPooledObjectTraits<TTrackedAllocationHolder<Size, PoolCategory>>
 {
     static TTrackedAllocationHolder<Size, PoolCategory>* Allocate();
     static void Clean(TTrackedAllocationHolder<Size, PoolCategory>* object);
-    static size_t GetMaxPoolSize();
+    static int GetMaxPoolSize();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
