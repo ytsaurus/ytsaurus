@@ -736,7 +736,9 @@ TChunkRequisitionIndex TChunkRequisitionRegistry::Insert(
         objectManager->WeakRefObject(entry.Account);
     }
 
-    LOG_DEBUG("Requisition created (RequisitionIndex: %v, Requisition: %v)", index, requisition);
+    LOG_DEBUG("Requisition created (RequisitionIndex: %v, Requisition: %v)",
+        index,
+        requisition);
 
     return index;
 }
@@ -757,7 +759,9 @@ void TChunkRequisitionRegistry::Erase(
         objectManager->WeakUnrefObject(entry.Account);
     }
 
-    LOG_DEBUG("Requisition removed (RequisitionIndex: %v, Requisition: %v)", index, requisition);
+    LOG_DEBUG("Requisition removed (RequisitionIndex: %v, Requisition: %v)",
+        index,
+        requisition);
 }
 
 void TChunkRequisitionRegistry::Ref(TChunkRequisitionIndex index)
@@ -765,7 +769,9 @@ void TChunkRequisitionRegistry::Ref(TChunkRequisitionIndex index)
     auto it = IndexToItem_.find(index);
     YCHECK(it != IndexToItem_.end());
     ++it->second.RefCount;
-    LOG_TRACE("Requisition reffed (RequisitionIndex: %v, RefCount: %v)", index, it->second.RefCount);
+    LOG_TRACE("Requisition referenced (RequisitionIndex: %v, RefCount: %v)",
+        index,
+        it->second.RefCount);
 }
 
 void TChunkRequisitionRegistry::Unref(
@@ -777,7 +783,9 @@ void TChunkRequisitionRegistry::Unref(
     YCHECK(it->second.RefCount != 0);
     --it->second.RefCount;
 
-    LOG_TRACE("Requisition unreffed (RequisitionIndex: %v, RefCount: %v)", index, it->second.RefCount);
+    LOG_TRACE("Requisition unreferenced (RequisitionIndex: %v, RefCount: %v)",
+        index,
+        it->second.RefCount);
 
     if (it->second.RefCount == 0) {
         Erase(index, objectManager);
