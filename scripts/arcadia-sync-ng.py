@@ -803,7 +803,7 @@ if __name__ == "__main__":
     add_ignore_unmerged_svn_commits_argument(copy_to_local_svn_parser)
     copy_to_local_svn_parser.set_defaults(action=action_copy_to_local_svn)
 
-    svn_commit_parser = add_parser("svn-commit")
+    svn_commit_parser = add_parser("svn-commit", help="prepare commit of yt snapshot to svn")
     add_arcadia_argument(svn_commit_parser)
     add_ignore_unmerged_svn_commits_argument(svn_commit_parser)
     svn_commit_parser.add_argument("--no-review", dest='review', default=True, action='store_false',
