@@ -83,9 +83,9 @@ void TPooledObjectTraits<TTrackedAllocationHolder<Size, PoolCategory>>::Clean(TT
 }
 
 template <size_t Size, NNodeTrackerClient::EMemoryCategory PoolCategory>
-size_t TPooledObjectTraits<TTrackedAllocationHolder<Size, PoolCategory>>::GetMaxPoolSize()
+int TPooledObjectTraits<TTrackedAllocationHolder<Size, PoolCategory>>::GetMaxPoolSize()
 {
-    return std::numeric_limits<size_t>::max();
+    return std::numeric_limits<int>::max();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
