@@ -708,11 +708,9 @@ void FromProto(TQueryOptions* original, const NProto::TQueryOptions& serialized)
     original->VerboseLogging = serialized.verbose_logging();
     original->MaxSubqueries = serialized.max_subqueries();
     original->EnableCodeCache = serialized.enable_code_cache();
-    if (serialized.has_workload_descriptor()) {
-        FromProto(&original->WorkloadDescriptor, serialized.workload_descriptor());
-    } else {
-        original->WorkloadDescriptor = {};
-    }
+    original->WorkloadDescriptor = serialized.has_workload_descriptor()
+        ? FromProto<TWorkloadDescriptor>(&original->WorkloadDescriptor, serialized.workload_descriptor())
+        : TWorkloadDescriptor();
     original->UseMultijoin = serialized.use_multijoin();
     original->AllowFullScan = serialized.allow_full_scan();
     original->ReadSessionId  = serialized.has_read_session_id()
