@@ -2,7 +2,7 @@ from __future__ import print_function
 
 from .configs_provider import init_logging, get_default_provision, create_configs_provider
 from .default_configs import get_watcher_config
-from .helpers import read_config, write_config, is_dead_or_zombie, OpenPortIterator, wait_for_removing_file_lock, WEB_INTERFACE_RESOURCES_PATH
+from .helpers import read_config, write_config, is_dead_or_zombie, OpenPortIterator, wait_for_removing_file_lock, WEB_INTERFACE_RESOURCES_PATH, add_binary_path
 from .porto_helpers import PortoSubprocess, porto_avaliable
 
 from yt.common import YtError, remove_file, makedirp, set_pdeathsig, which, to_native_str
@@ -45,6 +45,18 @@ def _parse_version(s):
     parts = list(imap(int, literal.split("-")[0].split(".")[:3]))
     abi = tuple(parts[:2])
     return BinaryVersion(abi, literal)
+
+def _add_binaries_to_path():
+    for binary, server_dir in [("master", "cell_master_program"),
+                               ("scheduler", "programs/scheduler"),
+                               ("node", "cell_node_program"),
+                               ("proxy", "cell_proxy_program"),
+                               ("job-proxy", "job_proxy_program"),
+                               ("exec", "exec_program"),
+                               ("tools", "tools_program"),
+                               ("controller-agent", "programs/controller_agent")]:
+        relative_path = "yt/19_3/yt/server/{0}/ytserver-{1}".format(server_dir, binary)
+        add_binary_path(relative_path)
 
 def _which_yt_binaries():
     result = {}
@@ -136,6 +148,7 @@ class YTInstance(object):
                  node_chunk_store_quota=None, allow_chunk_storage_in_tmpfs=False, modify_configs_func=None,
                  kill_child_processes=False, use_porto_for_servers=False, watcher_config=None):
         _configure_logger()
+        _add_binaries_to_path()
 
         self._subprocess_module = PortoSubprocess if use_porto_for_servers and porto_avaliable() else subprocess
         self._use_porto_for_servers = use_porto_for_servers
