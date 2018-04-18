@@ -14,9 +14,9 @@
 #include <util/folder/path.h>
 #include <util/stream/file.h>
 #include <util/generic/singleton.h>
+#include <util/string/builder.h>
 #include <util/string/cast.h>
 #include <util/string/type.h>
-#include <util/string/printf.h>
 #include <util/system/hostname.h>
 #include <util/system/user.h>
 #include <util/system/env.h>
@@ -44,7 +44,7 @@ int TConfig::GetInt(const char* var, int defaultValue)
     try {
         result = FromString<int>(val);
     } catch (const yexception& e) {
-        Y_FAIL("Cannot parse %s=%s as integer: %s", var, ~val, e.what());
+        ythrow yexception() << "Cannot parse " << var << '=' << val << " as integer: " << e.what();
     }
     return result;
 }
@@ -61,7 +61,7 @@ EEncoding TConfig::GetEncoding(const char* var)
     if (TryFromString(encodingName, encoding)) {
         return encoding;
     } else {
-        Y_FAIL("%s: encoding '%s' is not supported", var, ~encodingName);
+        ythrow yexception() << var << ": encoding '" << encodingName << "' is not supported";
     }
 }
 
@@ -70,7 +70,7 @@ void TConfig::ValidateToken(const TString& token)
     for (size_t i = 0; i < token.size(); ++i) {
         ui8 ch = token[i];
         if (ch < 0x21 || ch > 0x7e) {
-            Y_FAIL("Incorrect token character '%c' at position %" PRISZT, ch, i);
+            ythrow yexception() << "Incorrect token character '" << ch << "' at position " << i;
         }
     }
 }
@@ -88,13 +88,9 @@ TNode TConfig::LoadJsonSpec(const TString& strSpec)
     TNodeBuilder builder(&spec);
     TYson2JsonCallbacksAdapter callbacks(&builder);
 
-    if (!NJson::ReadJson(&input, &callbacks)) {
-        Y_FAIL("Cannot parse json spec, %s", ~strSpec);
-    }
+    Y_ENSURE(NJson::ReadJson(&input, &callbacks), "Cannot parse json spec: " << strSpec);
+    Y_ENSURE(spec.IsMap(), "Json spec is not a map");
 
-    if (!spec.IsMap()) {
-        Y_FAIL("Json spec is not a map");
-    }
     return spec;
 }
 
@@ -206,19 +202,19 @@ TProcessState::TProcessState()
     try {
         HostName = ::HostName();
     } catch (const yexception& e) {
-        Y_FAIL("Cannot get host name: %s", e.what());
+        ythrow yexception() << "Cannot get host name: " << e.what();
     }
 
     try {
         UserName = ::GetUsername();
     } catch (const yexception& e) {
-        Y_FAIL("Cannot get user name: %s", e.what());
+        ythrow yexception() << "Cannot get user name: " << e.what();
     }
 
     Pid = static_cast<int>(getpid());
 
     if (!ClientVersion) {
-        ClientVersion = Sprintf("YT C++ native r%d", GetProgramSvnRevision());
+        ClientVersion = TStringBuilder() << "YT C++ native r"<< GetProgramSvnRevision();
     }
 }
 
