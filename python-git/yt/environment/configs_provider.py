@@ -684,7 +684,7 @@ class ConfigsProvider_19(ConfigsProvider):
 class ConfigsProvider_19_2(ConfigsProvider_19):
     def _build_scheduler_configs(self, provision, scheduler_dirs, master_connection_configs,
                                  ports_generator, scheduler_logs_dir):
-        configs = super(ConfigsProvider_19_3, self)._build_scheduler_configs(
+        configs = super(ConfigsProvider_19_2, self)._build_scheduler_configs(
             provision, scheduler_dirs, master_connection_configs,
             ports_generator, scheduler_logs_dir)
 
