@@ -125,32 +125,14 @@ public:
             });
     }
 
-    virtual TFuture<TNullable<TString>> PrepareTmpfs(
-        ESandboxKind sandboxKind,
-        i64 size,
-        TString path) override
-    {
-        return RunPrepareAction<TNullable<TString>>([&] () {
-                return Location_->MakeSandboxTmpfs(
-                    SlotIndex_,
-                    sandboxKind,
-                    size,
-                    path);
-            },
-            // Tmpfs mounting is uncancelable since it includes tool invocation in a separate process.
-            true);
-    }
-
-    virtual TFuture<void> FinalizePreparation(TNullable<i64> diskSpaceLimit, TNullable<i64> inodeLimit) override
+    virtual TFuture<void> FinalizePreparation() override
     {
         return RunPrepareAction<void>([&] () {
                 return Location_->FinalizeSanboxPreparation(
                     SlotIndex_,
-                    diskSpaceLimit,
-                    inodeLimit,
                     JobEnvironment_->GetUserId(SlotIndex_));
             },
-            // Quota setting is uncancelable since it includes tool invocation in a separate process.
+            // Permission setting is uncancelable since it includes tool invocation in a separate process.
             true);
     }
 
@@ -180,11 +162,16 @@ public:
         return TTcpBusServerConfig::CreateUnixDomain(unixDomainName);
     }
 
-    virtual TFuture<void> CreateSandboxDirectories()
+    virtual TFuture<TNullable<TString>> CreateSandboxDirectories(TUserSandboxOptions options)
     {
-        return RunPrepareAction<void>([&] () {
-                return Location_->CreateSandboxDirectories(SlotIndex_);
-            });
+        return RunPrepareAction<TNullable<TString>>([&] () {
+                return Location_->CreateSandboxDirectories(
+                    SlotIndex_,
+                    options,
+                    JobEnvironment_->GetUserId(SlotIndex_));
+            },
+            // Includes quota setting and tmpfs creation.
+            true);
     }
 
 private:

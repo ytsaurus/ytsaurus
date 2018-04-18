@@ -599,7 +599,7 @@ std::vector<TMountPoint> GetMountPoints(const TString& mountsFile)
 void MountTmpfs(const TString& path, int userId, i64 size)
 {
 #ifdef _linux_
-    auto opts = Format("mode=0700,uid=%v,size=%v", userId, size);
+    auto opts = Format("mode=0777,uid=%v,size=%v", userId, size);
     int result = ::mount("none", ~path, "tmpfs", 0, ~opts);
     if (result < 0) {
         THROW_ERROR_EXCEPTION("Failed to mount tmpfs at %v", path)
