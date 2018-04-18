@@ -389,7 +389,7 @@ private:
                 return;
             }
 
-            auto sender = PendingSenders_.back();
+            auto sender = std::move(PendingSenders_.back());
             PendingSenders_.pop_back();
 
             guard.Release();
