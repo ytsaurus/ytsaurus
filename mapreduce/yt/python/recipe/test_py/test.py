@@ -1,11 +1,11 @@
+import os
 import yt.wrapper
 
 
 def test():
-    with open("yt_proxy_port.txt") as f:
-        port = f.read()
+    yt_proxy = os.environ["YT_PROXY"]
 
-    yt.wrapper.config["proxy"]["url"] = "localhost:" + port
+    yt.wrapper.config["proxy"]["url"] = yt_proxy
     yt.wrapper.config["proxy"]["enable_proxy_discovery"] = False
 
     assert not yt.wrapper.exists("//tmp/table")
