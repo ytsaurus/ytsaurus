@@ -99,7 +99,6 @@ b"""
     hive_manager = {
         ping_period = 1000;
         idle_post_period = 1000;
-        rpc_timeout = 1000;
     };
 
     tablet_manager = {
@@ -132,10 +131,6 @@ b"""
         }
     };
 
-    node_directory_synchronizer = {
-        sync_period = 100;
-    };
-
     response_keeper = {
         enable_warmup = %false;
         expiration_time = 25000;
@@ -164,6 +159,10 @@ def get_controller_agent_config():
     return yson.loads(
 b"""
 {
+    node_directory_synchronizer = {
+        sync_period = 100;
+    };
+
     cluster_connection = {
         enable_read_from_followers = %true;
         scheduler = {
@@ -173,12 +172,6 @@ b"""
 
     node_directory_synchronizer = {
         sync_period = 100;
-    };
-
-    response_keeper = {
-        enable_warmup = %false;
-        expiration_time = 25000;
-        warmup_time = 30000;
     };
 
     controller_agent = {
@@ -273,13 +266,6 @@ b"""
         };
 
         sync_directories_on_connect = %true;
-    };
-
-    master_cache_service = {
-        expire_after_successful_update_time = 0;
-        expire_after_failed_update_time = 0;
-        expire_after_access_time = 0;
-        refresh_time = 0;
     };
 
     exec_agent = {
