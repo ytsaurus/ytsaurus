@@ -612,9 +612,7 @@ class TestReplicatedDynamicTables(TestDynamicTablesBase):
         insert_rows("//tmp/t", [{"key": 1, "value1": "test2", "value2": 456}])
         assert select_rows("* from [//tmp/r2]", driver=self.replica_driver)[-1] == _maybe_add_system_fields({"key": 1, "value1": "test2", "value2": 456}, 1)
 
-        sleep(1.0)
-
-        assert select_rows("* from [//tmp/r1]", driver=self.replica_driver)[-1] == _maybe_add_system_fields({"key": 1, "value1": "test2", "value2": 456}, 1)
+        wait(lambda: select_rows("* from [//tmp/r1]", driver=self.replica_driver)[-1] == _maybe_add_system_fields({"key": 1, "value1": "test2", "value2": 456}, 1))
 
     def test_disable_propagates_replication_row_index(self):
         self._create_cells()
@@ -730,16 +728,13 @@ class TestReplicatedDynamicTables(TestDynamicTablesBase):
         self.sync_enable_table_replica(replica_id)
 
         insert_rows("//tmp/t", [{"key": 1, "value1": "test1"}], require_sync_replica=False)
-        sleep(1.0)
-        assert select_rows("* from [//tmp/r]", driver=self.replica_driver) == [{"key": 1, "value1": "test1", "value2": YsonEntity()}]
+        wait(lambda: select_rows("* from [//tmp/r]", driver=self.replica_driver) == [{"key": 1, "value1": "test1", "value2": YsonEntity()}])
 
         insert_rows("//tmp/t", [{"key": 1, "value1": "test2", "value2": 100}], require_sync_replica=False)
-        sleep(1.0)
-        assert select_rows("* from [//tmp/r]", driver=self.replica_driver) == [{"key": 1, "value1": "test2", "value2": 100}]
+        wait(lambda: select_rows("* from [//tmp/r]", driver=self.replica_driver) == [{"key": 1, "value1": "test2", "value2": 100}])
 
         insert_rows("//tmp/t", [{"key": 1, "value2": 50}], aggregate=True, update=True, require_sync_replica=False)
-        sleep(1.0)
-        assert select_rows("* from [//tmp/r]", driver=self.replica_driver) == [{"key": 1, "value1": "test2", "value2": 150}]
+        wait(lambda: select_rows("* from [//tmp/r]", driver=self.replica_driver) == [{"key": 1, "value1": "test2", "value2": 150}])
 
     @flaky(max_runs=5)
     def test_replication_lag(self):
@@ -817,8 +812,7 @@ class TestReplicatedDynamicTables(TestDynamicTablesBase):
         self.sync_enable_table_replica(replica_id)
 
         insert_rows("//tmp/t", [{"key": 1, "value1": "v", "value2": 2}], require_sync_replica=False)
-        sleep(1.0)
-        assert select_rows("* from [//tmp/r]", driver=self.replica_driver) == [{"key": 1, "value1": "v", "value2": 2}]
+        wait(lambda: select_rows("* from [//tmp/r]", driver=self.replica_driver) == [{"key": 1, "value1": "v", "value2": 2}])
 
         # ensuring that we have correctly populated data here
         tablets = get("//tmp/t/@tablets")
