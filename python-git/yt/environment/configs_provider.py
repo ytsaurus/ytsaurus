@@ -736,7 +736,6 @@ class ConfigsProvider_19_3(ConfigsProvider_19):
                                         ports_generator, controller_agent_logs_dir):
         configs = []
 
-        # TODO(ignat): separate scheduler and controller agent configs after removing 19.2.
         for index in xrange(provision["controller_agent"]["count"]):
             config = default_configs.get_controller_agent_config()
 
