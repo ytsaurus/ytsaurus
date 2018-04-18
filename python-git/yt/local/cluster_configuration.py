@@ -24,8 +24,6 @@ MASTER_CONFIG_PATCHES = [
             "enable_sync": False
         },
         "node_tracker": {
-            "online_node_timeout": 20000,
-            "registered_node_timeout": 20000,
             "max_concurrent_node_registrations": None,
             "max_concurrent_node_unregistrations": None
         },
@@ -59,11 +57,6 @@ MASTER_CONFIG_PATCHES = [
             "commit_advance": 3000,
             "request_backoff_time": 10,
             "calibration_period": 10
-        }
-    },
-    {
-        "chunk_manager": {
-            "allow_multiple_erasure_parts_per_node": True
         }
     },
     {

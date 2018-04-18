@@ -302,12 +302,16 @@ def _get_hydra_manager_config():
         }
     }
 
+def _get_balancing_channel_config():
+    return {
+        "soft_backoff_time": 100,
+        "hard_backoff_time": 100
+    }
+
 def _get_retrying_channel_config():
     return {
         "retry_backoff_time": 100,
-        "retry_attempts": 100,
-        "soft_backoff_time": 100,
-        "hard_backoff_time": 100
+        "retry_attempts": 100
     }
 
 def _get_rpc_config():
@@ -415,7 +419,7 @@ class ConfigsProvider_19(ConfigsProvider):
         secondary_cell_tags = master_connection_configs["secondary_cell_tags"]
 
         cluster_connection = {
-            "cell_directory": _get_retrying_channel_config(),
+            "cell_directory": _get_balancing_channel_config(),
             "primary_master": master_connection_configs[primary_cell_tag],
             "transaction_manager": {
                 "default_ping_period": DEFAULT_TRANSACTION_PING_PERIOD
@@ -694,6 +698,7 @@ class ConfigsProvider_19_2(ConfigsProvider_19):
             set_at(config, "scheduler/update_exec_node_descriptors_period", 100)
             set_at(config, "scheduler/safe_scheduler_online_time", 5000)
             set_at(config, "scheduler/exec_nodes_request_period", 100)
+            set_at(config, "scheduler/node_directory_synchronizer/sync_period", 100)
 
             set_at(
                 config,
