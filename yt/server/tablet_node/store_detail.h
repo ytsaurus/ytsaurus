@@ -86,7 +86,7 @@ protected:
 
     EStoreState StoreState_;
 
-    NLogging::TLogger Logger;
+    const NLogging::TLogger Logger;
 
 
     void SetMemoryUsage(i64 value);
@@ -256,7 +256,9 @@ protected:
 
     NConcurrency::TReaderWriterSpinLock SpinLock_;
 
+    NProfiling::TCpuInstant LocalChunkCheckDeadline_ = 0;
     NChunkClient::IChunkReaderPtr ChunkReader_;
+    bool ChunkReaderIsLocal_ = false;
 
     // Cached for fast retrieval from ChunkMeta_.
     NChunkClient::NProto::TMiscExt MiscExt_;
@@ -267,12 +269,7 @@ protected:
     NTableClient::TChunkStatePtr ChunkState_;
 
 
-    NDataNode::IChunkPtr PrepareChunk();
-    NChunkClient::IChunkReaderPtr PrepareChunkReader(NDataNode::IChunkPtr chunk);
-
     void OnLocalReaderFailed();
-    void OnChunkExpired();
-    void OnChunkReaderExpired();
 
     NChunkClient::IBlockCachePtr GetBlockCache();
 
@@ -285,7 +282,6 @@ protected:
 private:
     IDynamicStorePtr BackingStore_;
 
-    bool ChunkInitialized_ = false;
     NDataNode::IChunkPtr Chunk_;
 
     friend TPreloadedBlockCache;
