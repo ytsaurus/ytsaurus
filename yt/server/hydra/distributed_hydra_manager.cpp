@@ -467,8 +467,6 @@ private:
     TEpochContextPtr ControlEpochContext_;
     TEpochContextPtr AutomatonEpochContext_;
 
-    NConcurrency::TPeriodicExecutorPtr HeartbeatMutationCommitExecutor_;
-
     THashMap<TString, NProfiling::TSimpleCounter> RestartCounters_;
 
     DECLARE_RPC_SERVICE_METHOD(NProto, LookupChangelog)
