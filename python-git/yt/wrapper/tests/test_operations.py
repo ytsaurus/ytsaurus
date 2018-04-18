@@ -1455,6 +1455,9 @@ print(op.id)
         check([{"x": 1}, {"y": 2}], list(yt.read_table(table)))
 
     def test_update_operation_parameters(self):
+        if "update_op_parameters" not in yt.http_helpers.get_api_commands():
+            pytest.skip()
+
         table = TEST_DIR + "/table"
         output_table = TEST_DIR + "/output_table"
         yt.write_table(table, [{"x": 1}, {"y": 2}])
