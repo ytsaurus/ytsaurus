@@ -14,10 +14,8 @@ import ru.yandex.inside.yt.kosher.impl.YtUtils;
 public class TestYtRecipe {
     @Test
     public void test() throws IOException {
-        BufferedReader br = new BufferedReader(new FileReader("yt_proxy_port.txt"));
-        String proxyPort = br.readLine();
-
-        Yt yt = YtUtils.http("localhost:" + proxyPort, "");
+        String ytProxy = System.getenv("YT_PROXY");
+        Yt yt = YtUtils.http(ytProxy, "");
 
         YPath node = YPath.simple("//tmp/table");
 

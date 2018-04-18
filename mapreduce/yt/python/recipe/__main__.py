@@ -1,7 +1,7 @@
 import os
 import json
 
-import library.python.testing.recipe
+from library.python.testing.recipe import declare_recipe, set_env
 
 import yatest.common
 
@@ -32,8 +32,10 @@ def start(args):
     with open("yt_proxy_port.txt", "w") as f:
         f.write(str(yt.yt_proxy_port))
 
+    set_env("YT_PROXY", "localhost:" + str(yt.yt_proxy_port))
 
-def stop():
+
+def stop(args):
     with open(recipe_info_json_file) as f:
         recipe_info = json.load(f)
 
@@ -48,9 +50,4 @@ def stop():
     )
 
 if __name__ == "__main__":
-    args = library.python.testing.recipe.get_options()
-    if args[0] == library.python.testing.recipe.RECIPE_START_OPTION:
-        start(args[1:])
-    elif args[0] == library.python.testing.recipe.RECIPE_STOP_OPTION:
-        stop()
-
+    declare_recipe(start, stop)

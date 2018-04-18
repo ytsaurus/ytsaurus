@@ -1,3 +1,4 @@
+#include <util/system/env.h>
 #include <util/stream/file.h>
 #include <library/unittest/registar.h>
 #include <mapreduce/yt/interface/client.h>
@@ -6,11 +7,9 @@ SIMPLE_UNIT_TEST_SUITE(Suite)
 {
     SIMPLE_UNIT_TEST(Test)
     {
-        TFileInput f("yt_proxy_port.txt");
-        TString port;
-        f.ReadLine(port);
+        TString ytProxy = GetEnv("YT_PROXY");
 
-        auto client = NYT::CreateClient("localhost:" + port);
+        auto client = NYT::CreateClient(ytProxy);
 
         UNIT_ASSERT(!client->Exists("//tmp/table"));
         client->Create("//tmp/table", NYT::NT_TABLE);
