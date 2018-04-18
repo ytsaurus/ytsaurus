@@ -697,7 +697,7 @@ class ConfigsProvider_19_2(ConfigsProvider_19):
 
             set_at(
                 config,
-                "operation_options/spec_template",
+                "scheduler/operation_options/spec_template",
                 {"max_failed_job_count": 10, "locality_timeout": 100},
                 merge=True)
 
