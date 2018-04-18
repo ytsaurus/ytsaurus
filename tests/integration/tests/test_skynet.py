@@ -321,6 +321,8 @@ class TestSkynetManager(YTEnvSetup):
                 time.sleep(1)
                 continue
 
+            if "X-YT-Error" in rsp.headers:
+                raise RuntimeError("/api/v1/share failed: " + rsp.headers["X-YT-Error"])
             rsp.raise_for_status()
 
         raise RuntimeError("Failed to share {} in 60 seconds".format(path))

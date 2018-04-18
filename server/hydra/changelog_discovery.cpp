@@ -148,7 +148,8 @@ public:
     TComputeQuorumInfoSession(
         TDistributedHydraManagerConfigPtr config,
         TCellManagerPtr cellManager,
-        int changelogId)
+        int changelogId,
+        int localRecordCount)
         : Config_(config)
         , CellManager_(cellManager)
         , ChangelogId_(changelogId)
@@ -159,6 +160,8 @@ public:
     {
         YCHECK(Config_);
         YCHECK(CellManager_);
+
+        RegisterSuccess(localRecordCount);
     }
 
     TFuture<TChangelogQuorumInfo> Run()
@@ -182,12 +185,29 @@ private:
     TPromise<TChangelogQuorumInfo> Promise_ = NewPromise<TChangelogQuorumInfo>();
 
 
+    void RegisterSuccess(int recordCount)
+    {
+        RecordCountsLo_.push_back(recordCount);
+        RecordCountsHi_.push_back(recordCount);
+    }
+
+    void RegisterFailure(const TError& error)
+    {
+        InnerErrors_.push_back(error);
+        RecordCountsLo_.push_back(std::numeric_limits<int>::min());
+        RecordCountsHi_.push_back(std::numeric_limits<int>::max());
+    }
+
     void DoRun()
     {
         LOG_INFO("Computing changelog quorum record count");
 
         std::vector<TFuture<void>> asyncResults;
-        for (auto peerId = 0; peerId < CellManager_->GetTotalPeerCount(); ++peerId) {
+        for (auto peerId = 0; peerId < CellManager_->GetVotingPeerCount(); ++peerId) {
+            if (peerId == CellManager_->GetSelfPeerId()) {
+                continue;
+            }
+
             auto channel = CellManager_->GetPeerChannel(peerId);
             if (!channel) {
                 continue;
@@ -216,16 +236,13 @@ private:
         if (rspOrError.IsOK()) {
             const auto& rsp = rspOrError.Value();
             int recordCount = rsp->record_count();
-            RecordCountsLo_.push_back(recordCount);
-            RecordCountsHi_.push_back(recordCount);
+            RegisterSuccess(recordCount);
 
             LOG_DEBUG("Changelog info received (PeerId: %v, RecordCount: %v)",
                 peerId,
                 recordCount);
         } else {
-            InnerErrors_.push_back(rspOrError);
-            RecordCountsLo_.push_back(std::numeric_limits<int>::min());
-            RecordCountsHi_.push_back(std::numeric_limits<int>::max());
+            RegisterFailure(rspOrError);
 
             LOG_WARNING(rspOrError, "Error requesting changelog info (PeerId: %v)",
                 peerId);
@@ -254,12 +271,14 @@ private:
 TFuture<TChangelogQuorumInfo> ComputeChangelogQuorumInfo(
     TDistributedHydraManagerConfigPtr config,
     TCellManagerPtr cellManager,
-    int changelogId)
+    int changelogId,
+    int localRecordCount)
 {
     auto session = New<TComputeQuorumInfoSession>(
         std::move(config),
         std::move(cellManager),
-        changelogId);
+        changelogId,
+        localRecordCount);
     return session->Run();
 }
 

@@ -116,6 +116,7 @@ struct TQueryOptions
     TWorkloadDescriptor WorkloadDescriptor;
     NChunkClient::TReadSessionId ReadSessionId;
     bool AllowFullScan = true;
+    TInstant Deadline = TInstant::Max();
 };
 
 struct TBaseColumn

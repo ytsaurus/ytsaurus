@@ -122,6 +122,7 @@ private:
         }
 
         volumeProperties["user"] = ToString(properties.UserId);
+        volumeProperties["permissions"] = "0777";
 
         if (properties.DiskSpaceLimit) {
             volumeProperties["space_limit"] = ToString(*properties.DiskSpaceLimit);
