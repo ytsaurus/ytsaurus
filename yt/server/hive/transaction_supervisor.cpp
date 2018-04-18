@@ -1513,7 +1513,7 @@ private:
 
     bool IsParticipantUp(const TError& error)
     {
-        return error.IsOK() || !IsChannelFailureError(error);
+        return !IsRetriableError(error);
     }
 
     void OnParticipantResponse(
