@@ -111,6 +111,46 @@ SCHEDULER_CONFIG_PATCH = {
     "snapshot_timeout": 300000,
 }
 
+SCHEDULER_CONFIG_PATCH_19_3 = {
+    "cluster_connection": {
+        "transaction_manager": None
+    },
+    "transaction_manager": None,
+    "scheduler": {
+        "operations_update_period": None,
+        "watchers_update_period": 300,
+        "lock_transaction_timeout": 30000
+    }
+}
+
+CONTROLLER_AGENT_CONFIG_PATCH = {
+    "controller_agent": {
+        "transactions_refresh_period": None,
+        "operations_update_period": None,
+        "testing_options": None,
+        "enable_tmpfs": False,
+        "environment": {
+            "TMPDIR": "$(SandboxPath)",
+            "PYTHON_EGG_CACHE": "$(SandboxPath)/.python-eggs",
+            "PYTHONUSERBASE": "$(SandboxPath)/.python-site-packages",
+            "PYTHONPATH": "$(SandboxPath)",
+            "HOME": "$(SandboxPath)",
+        },
+        "snapshot_timeout": 300000,
+        "sort_operation_options": {
+            "spec_template": {
+                "partition_data_size": 512 * MB
+            }
+        },
+
+        "map_reduce_operation_options": {
+            "spec_template": {
+                "partition_data_size": 512 * MB
+            }
+        },
+    }
+}
+
 SPEC_TEMPLATE = {
     "locality_timeout": 0,
     "sort_locality_timeout": 0,
@@ -135,6 +175,10 @@ for operation_options in ["map_operation_options",
                           "sort_operation_options",
                           "remote_copy_operation_options"]:
     SCHEDULER_CONFIG_PATCH["scheduler"][operation_options] = update(
+        {"spec_template": SPEC_TEMPLATE},
+        SCHEDULER_CONFIG_PATCH["scheduler"].get(operation_options, {}))
+
+    CONTROLLER_AGENT_CONFIG_PATCH["controller_agent"][operation_options] = update(
         {"spec_template": SPEC_TEMPLATE},
         SCHEDULER_CONFIG_PATCH["scheduler"].get(operation_options, {}))
 
@@ -228,9 +272,8 @@ def _remove_none_fields(node):
 
     traverse(node)
 
-def modify_cluster_configuration(cluster_configuration, abi_version,
-                                 master_config_patch=None, node_config_patch=None, scheduler_config_patch=None,
-                                 proxy_config_patch=None):
+def modify_cluster_configuration(cluster_configuration, abi_version, master_config_patch=None, node_config_patch=None,
+                                 scheduler_config_patch=None, proxy_config_patch=None):
     master = cluster_configuration["master"]
 
     for tag in [master["primary_cell_tag"]] + master["secondary_cell_tags"]:
@@ -245,9 +288,17 @@ def modify_cluster_configuration(cluster_configuration, abi_version,
         update_inplace(config, DRIVER_CONFIG_PATCH)
 
     for config in cluster_configuration["scheduler"]:
-        update_inplace(config, SCHEDULER_CONFIG_PATCH)
+        if abi_version >= (19, 3):
+            update_inplace(config, SCHEDULER_CONFIG_PATCH_19_3)
+        else:
+            update_inplace(config, SCHEDULER_CONFIG_PATCH)
+
         if scheduler_config_patch:
             update_inplace(config, scheduler_config_patch)
+
+    if abi_version >= (19, 3):
+        for config in cluster_configuration["controller_agent"]:
+            update_inplace(config, CONTROLLER_AGENT_CONFIG_PATCH)
 
     for config in cluster_configuration["node"]:
         for patch in NODE_CONFIG_PATCHES:
