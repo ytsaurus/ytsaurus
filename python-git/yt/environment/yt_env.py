@@ -877,10 +877,10 @@ class YTInstance(object):
                 if active_scheduler_orchid_path is None:
                     return False, "No active scheduler found"
 
-                # TODO(ignat): /config/environment/primary_master_cell_id is temporary solution.
+                # TODO(ignat): /config/primary_master_cell_id is temporary solution.
                 try:
                     master_cell_id = client.get("//sys/@cell_id")
-                    scheduler_cell_id = client.get(active_scheduler_orchid_path + "/config/environment/primary_master_cell_id")
+                    scheduler_cell_id = client.get(active_scheduler_orchid_path + "/config/primary_master_cell_id")
                     if master_cell_id != scheduler_cell_id:
                         return False, "Incorrect scheduler connected, its cell_id {0} does not match master cell {1}".format(scheduler_cell_id, master_cell_id)
                 except YtResponseError as err:
