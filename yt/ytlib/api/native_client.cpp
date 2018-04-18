@@ -4963,7 +4963,7 @@ private:
             batchReq->AddRequest(getReqNew, "get_jobs_new");
         }
 
-        return batchReq->Invoke().Apply(BIND([this, operationId, options] (
+        return batchReq->Invoke().Apply(BIND([options] (
             const TErrorOr<TObjectServiceProxy::TRspExecuteBatchPtr>& batchRspOrError)
         {
             const auto& batchRsp = batchRspOrError.ValueOrThrow();
@@ -5058,7 +5058,7 @@ private:
 
         auto path = Format("//sys/scheduler/orchid/scheduler/operations/%v/running_jobs", operationId);
         auto getReq = TYPathProxy::Get(path);
-        return proxy.Execute(getReq).Apply(BIND([operationId, options] (const TYPathProxy::TRspGetPtr& rsp) {
+        return proxy.Execute(getReq).Apply(BIND([options] (const TYPathProxy::TRspGetPtr& rsp) {
             std::pair<std::vector<TJob>, int> result;
             auto& jobs = result.first;
 
