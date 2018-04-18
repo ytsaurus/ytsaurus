@@ -113,20 +113,20 @@ public:
 
     NQueryClient::TExecutorConfigPtr QueryEvaluator;
     NQueryClient::TColumnEvaluatorCacheConfigPtr ColumnEvaluatorCache;
-    TDuration QueryTimeout;
-    NCompression::ECodec QueryResponseCodec;
+    TDuration DefaultSelectRowsTimeout;
+    NCompression::ECodec SelectRowsResponseCodec;
     i64 DefaultInputRowLimit;
     i64 DefaultOutputRowLimit;
 
-    TDuration WriteTimeout;
-    NCompression::ECodec WriteRequestCodec;
+    TDuration WriteRowsTimeout;
+    NCompression::ECodec WriteRowsRequestCodec;
     int MaxRowsPerWriteRequest;
     int MaxRowsPerTransaction;
 
-    TDuration LookupTimeout;
-    NCompression::ECodec LookupRequestCodec;
-    NCompression::ECodec LookupResponseCodec;
-    int MaxRowsPerReadRequest;
+    TDuration DefaultLookupRowsTimeout;
+    NCompression::ECodec LookupRowsRequestCodec;
+    NCompression::ECodec LookupRowsResponseCodec;
+    int MaxRowsPerLookupRequest;
 
     bool EnableUdf;
     NYPath::TYPath UdfRegistryPath;
@@ -139,8 +139,15 @@ public:
 
     NBus::TTcpBusConfigPtr BusClient;
 
-    TNativeConnectionConfig();
+    TDuration DefaultGetInSyncReplicasTimeout;
+    TDuration DefaultGetTabletInfosTimeout;
+    TDuration DefaultTrimTableTimeout;
+    TDuration DefaultGetOperationTimeout;
+    TDuration DefaultListJobsTimeout;
+    TDuration DefaultGetJobTimeout;
+    TDuration DefaultListOperationsTimeout;
 
+    TNativeConnectionConfig();
 };
 
 DEFINE_REFCOUNTED_TYPE(TNativeConnectionConfig)

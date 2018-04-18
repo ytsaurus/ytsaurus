@@ -6,6 +6,8 @@
 #include <yt/server/cell_node/bootstrap.h>
 #include <yt/server/cell_node/config.h>
 
+#include <yt/server/containers/porto_executor.h>
+
 #include <yt/server/controller_agent/job_memory.h>
 
 #include <yt/server/data_node/config.h>
@@ -485,7 +487,11 @@ private:
     IPortoExecutorPtr PortoExecutor_;
 
     IInstancePtr MetaInstance_;
-    THashMap<int, IInstancePtr> JobProxyInstances_;
+<<<<<<< 320a2f94964281e92454d4ded53bc73ed64f4c1f
+    THashMap<int, IInstancePtr> PortoInstances_;
+=======
+    yhash<int, IInstancePtr> JobProxyInstances_;
+>>>>>>> YT-8712: use new porto hierarchy for jobs
 
     TSpinLock LimitsLock_;
     TNullable<double> CpuLimit_;

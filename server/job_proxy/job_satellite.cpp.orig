@@ -248,8 +248,13 @@ void TJobProbeTools::Init(const TJobId& jobId)
     ShellManager_ = CreateShellManager(
         NFS::CombinePaths(currentWorkDir, NExecAgent::SandboxDirectoryNames[NExecAgent::ESandboxKind::Home]),
         Uid_,
-        EnvironmentType_ == EJobEnvironmentType::Cgroups ? TNullable<TString>("user_job_" + ToString(jobId)) : TNullable<TString>(),
+<<<<<<< 320a2f94964281e92454d4ded53bc73ed64f4c1f
+        EnvironmentType_ == EJobEnvironmentType::Cgroups ? TNullable<TString>(GetCGroupUserJobBase()) : TNullable<TString>(),
         Format("Job environment:\n%v\n", JoinToString(Environment_, AsStringBuf("\n"))),
+=======
+        EnvironmentType_ == EJobEnvironmentType::Cgroups ? TNullable<TString>("user_job_" + ToString(jobId)) : TNullable<TString>(),
+        Format("Job environment:\n%v\n", JoinToString(Environment_, STRINGBUF("\n"))),
+>>>>>>> YT-8712: use new porto hierarchy for jobs
         std::move(shellEnvironment));
 }
 

@@ -35,7 +35,7 @@ static TProfiler ProfilingProfiler("/profiling", EmptyTagIds, true);
 // TODO(babenko): make configurable
 static const auto MaxKeepInterval = TDuration::Minutes(5);
 static const auto DequeuePeriod = TDuration::MilliSeconds(100);
-static const auto SampleRateLimit = TDuration::MilliSeconds(500);
+static const auto SampleRateLimit = TDuration::MilliSeconds(5);
 
 ////////////////////////////////////////////////////////////////////////////////
 

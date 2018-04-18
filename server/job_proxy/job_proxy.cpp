@@ -428,8 +428,7 @@ TJobResult TJobProxy::DoRun()
             return rootFS;
         };
 
-        ResourceController = CreateResourceController(Config_->JobEnvironment, createRootFS());
-
+        JobProxyEnvironment_ = CreateJobProxyEnvironment(Config_->JobEnvironment, createRootFS());
         LocalDescriptor_ = NNodeTrackerClient::TNodeDescriptor(Config_->Addresses, Config_->Rack, Config_->DataCenter);
 
         TrafficMeter_ = New<TTrafficMeter>(LocalDescriptor_.GetDataCenter());
@@ -464,8 +463,8 @@ TJobResult TJobProxy::DoRun()
 
     RefCountedTrackerLogPeriod_ = FromProto<TDuration>(schedulerJobSpecExt.job_proxy_ref_counted_tracker_log_period());
 
-    if (ResourceController) {
-        ResourceController->SetCpuShare(CpuLimit_);
+    if (JobProxyEnvironment_) {
+        JobProxyEnvironment_->SetCpuShare(CpuLimit_);
     }
 
     InputNodeDirectory_ = New<NNodeTrackerClient::TNodeDirectory>();
@@ -499,11 +498,6 @@ TJobResult TJobProxy::DoRun()
     }
 
     Job_->Initialize();
-
-    if (ResourceController) {
-        // Set some guarantee to avoid stealing memory between cgroups.
-        ResourceController->SetMemoryGuarantee(JobProxyMemoryReserve_ / 2);
-    }
 
     MemoryWatchdogExecutor_->Start();
     HeartbeatExecutor_->Start();
@@ -540,16 +534,16 @@ TStatistics TJobProxy::GetStatistics() const
 {
     auto statistics = Job_ ? Job_->GetStatistics() : TStatistics();
 
-    if (ResourceController) {
+    if (JobProxyEnvironment_) {
         try {
-            auto cpuStatistics = ResourceController->GetCpuStatistics();
+            auto cpuStatistics = JobProxyEnvironment_->GetCpuStatistics();
             statistics.AddSample("/job_proxy/cpu", cpuStatistics);
         } catch (const std::exception& ex) {
             LOG_ERROR(ex, "Unable to get cpu statistics from resource controller");
         }
 
         try {
-            auto blockIOStatistics = ResourceController->GetBlockIOStatistics();
+            auto blockIOStatistics = JobProxyEnvironment_->GetBlockIOStatistics();
             statistics.AddSample("/job_proxy/block_io", blockIOStatistics);
         } catch (const std::exception& ex) {
             LOG_ERROR(ex, "Unable to get block IO statistics from resource controller");
@@ -571,9 +565,13 @@ TStatistics TJobProxy::GetStatistics() const
     return statistics;
 }
 
-IResourceControllerPtr TJobProxy::GetResourceController() const
+IUserJobEnvironmentPtr TJobProxy::CreateUserJobEnvironment() const
 {
-    return ResourceController;
+    if (JobProxyEnvironment_) {
+        return JobProxyEnvironment_->CreateUserJobEnvironment(ToString(JobId_));
+    } else {
+            return nullptr;
+    }
 }
 
 TJobProxyConfigPtr TJobProxy::GetConfig() const

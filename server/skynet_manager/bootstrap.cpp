@@ -61,7 +61,7 @@ TBootstrap::TBootstrap(TSkynetManagerConfigPtr config)
     Poller_ = CreateThreadPoolPoller(Config_->IOPoolSize, "Poller");
 
     SkynetApiActionQueue_ = New<TActionQueue>("SkynetApi");
-    if (Config_->EnableSkynetMds) {
+    if (Config_->EnableSkyboneMds) {
         SkynetApi_ = CreateShellSkynetApi(
             SkynetApiActionQueue_->GetInvoker(),
             Config_->SkynetPythonInterpreterPath,
