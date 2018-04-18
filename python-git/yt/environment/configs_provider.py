@@ -331,7 +331,7 @@ def _get_node_resource_limits_config(provision):
 
     return {"memory": memory}
 
-class ConfigsProvider_19_2(ConfigsProvider):
+class ConfigsProvider_19(ConfigsProvider):
     def _build_master_configs(self, provision, master_dirs, master_tmpfs_dirs, ports_generator, master_logs_dir):
         ports = []
 
@@ -486,8 +486,7 @@ class ConfigsProvider_19_2(ConfigsProvider):
 
             # TODO(ignat): temporary solution to check that correctness of connected scheduler.
             # correct solution is to publish cell_id in some separate place in orchid.
-            set_at(config, "scheduler/environment/primary_master_cell_id", config["cluster_connection"]["primary_master"]["cell_id"])
-            set_at(config, "scheduler/exec_nodes_request_period", 100)
+            set_at(config, "scheduler/primary_master_cell_id", config["cluster_connection"]["primary_master"]["cell_id"])
 
             _set_bind_retry_options(config, key="bus_server")
 
@@ -678,7 +677,33 @@ class ConfigsProvider_19_2(ConfigsProvider):
 
         return configs
 
-class ConfigsProvider_19_3(ConfigsProvider_19_2):
+class ConfigsProvider_19_2(ConfigsProvider_19):
+    def _build_scheduler_configs(self, provision, scheduler_dirs, master_connection_configs,
+                                 ports_generator, scheduler_logs_dir):
+        configs = super(ConfigsProvider_19_3, self)._build_scheduler_configs(
+            provision, scheduler_dirs, master_connection_configs,
+            ports_generator, scheduler_logs_dir)
+
+        for config in configs:
+            set_at(config, "scheduler/environment", {"PYTHONUSERBASE": "/tmp"})
+            set_at(config, "scheduler/testing_options/enable_snapshot_cycle_after_materialization", True)
+            set_at(config, "scheduler/snapshot_timeout", 1000)
+            set_at(config, "scheduler/enable_snapshot_loading", True)
+            set_at(config, "scheduler/snapshot_period", 100000000)
+            set_at(config, "scheduler/transactions_refresh_period", 500)
+            set_at(config, "scheduler/update_exec_node_descriptors_period", 100)
+            set_at(config, "scheduler/safe_scheduler_online_time", 5000)
+            set_at(config, "scheduler/exec_nodes_request_period", 100)
+
+            set_at(
+                config,
+                "operation_options/spec_template",
+                {"max_failed_job_count": 10, "locality_timeout": 100},
+                merge=True)
+
+        return configs
+
+class ConfigsProvider_19_3(ConfigsProvider_19):
     def _build_master_configs(self, provision, master_dirs, master_tmpfs_dirs, ports_generator, master_logs_dir):
         configs, connection_configs = super(ConfigsProvider_19_3, self)._build_master_configs(
             provision, master_dirs, master_tmpfs_dirs, ports_generator, master_logs_dir)
@@ -705,13 +730,6 @@ class ConfigsProvider_19_3(ConfigsProvider_19_2):
             config["scheduler"]["exec_node_descriptors_update_period"] = 100
             config["scheduler"]["operation_to_agent_assignment_backoff"] = 100
 
-            for field in ("transactions_refresh_period", "update_exec_node_descriptors_period",
-                          "safe_scheduler_online_time",
-                          "snapshot_period", "enable_snapshot_loading", "operation_options", "snapshot_timeout",
-                          "exec_nodes_request_period"):
-                del config["scheduler"][field]
-
-
         return configs
 
     def _build_controller_agent_configs(self, provision, controller_agent_dirs, master_connection_configs,
@@ -720,22 +738,7 @@ class ConfigsProvider_19_3(ConfigsProvider_19_2):
 
         # TODO(ignat): separate scheduler and controller agent configs after removing 19.2.
         for index in xrange(provision["controller_agent"]["count"]):
-            config = default_configs.get_scheduler_config()
-            config["controller_agent"] = config["scheduler"]
-            del config["scheduler"]
-
-            for field in ("orchid_keys_update_period", "nodes_attributes_update_period",
-                          "fair_share_update_period", "update_exec_node_descriptors_period",
-                          "min_needed_resources_update_period",
-                          "watchers_update_period", "node_shard_exec_nodes_cache_update_period",
-                          "schedule_job_time_limit", "lock_transaction_timeout"):
-                del config["controller_agent"][field]
-
-            config["controller_agent"]["operation_alerts_update_period"] = 100
-            config["controller_agent"]["suspicious_jobs_update_period"] = 100
-            config["controller_agent"]["config_update_period"] = 100
-            config["controller_agent"]["exec_nodes_update_period"] = 100
-            config["controller_agent"]["controller_exec_node_info_update_period"] = 100
+            config = default_configs.get_controller_agent_config()
 
             set_at(config, "address_resolver/localhost_fqdn", provision["fqdn"])
             config["cluster_connection"] = \

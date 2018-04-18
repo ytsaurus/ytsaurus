@@ -143,34 +143,62 @@ b"""
     };
 
     scheduler = {
-        snapshot_period = 100000000;
         lock_transaction_timeout = 10000;
-        transactions_refresh_period = 500;
         operations_update_period = 500;
         fair_share_update_period = 500;
         watchers_update_period = 100;
         nodes_attributes_update_period = 100;
-        update_exec_node_descriptors_period = 100;
         scheduling_tag_filter_expire_timeout = 100;
         node_shard_exec_nodes_cache_update_period = 100;
-        safe_scheduler_online_time = 5000;
         schedule_job_time_limit = 5000;
-
-        environment = {
-             PYTHONUSERBASE = "/tmp"
-        };
 
         static_orchid_cache_update_period = 100;
         orchid_keys_update_period = 100;
 
-        operation_options = {
-            spec_template = {
-                max_failed_job_count = 10;
-                locality_timeout = 100;
-            }
-        };
+        min_needed_resources_update_period = 100;
+    };
+}
+""")
 
-        enable_snapshot_loading = %true;
+def get_controller_agent_config():
+    return yson.loads(
+b"""
+{
+    cluster_connection = {
+        enable_read_from_followers = %true;
+        scheduler = {
+            retry_backoff_time = 100;
+        }
+    };
+
+    node_directory_synchronizer = {
+        sync_period = 100;
+    };
+
+    response_keeper = {
+        enable_warmup = %false;
+        expiration_time = 25000;
+        warmup_time = 30000;
+    };
+
+    controller_agent = {
+        operations_update_period = 500;
+        scheduling_tag_filter_expire_timeout = 100;
+        safe_scheduler_online_time = 5000;
+
+        static_orchid_cache_update_period = 100;
+
+        operation_alerts_update_period = 100;
+
+        suspicious_jobs_update_period = 100;
+
+        config_update_period = 100;
+
+        controller_exec_node_info_update_period = 100;
+
+        environment = {
+            PYTHONUSERBASE = "/tmp";
+        };
 
         testing_options = {
             enable_snapshot_cycle_after_materialization = %true;
@@ -178,10 +206,22 @@ b"""
 
         snapshot_timeout = 1000;
 
-        min_needed_resources_update_period = 100;
+        enable_snapshot_loading = %true;
+
+        snapshot_period = 100000000;
+
+        transactions_refresh_period = 500;
+
+        operation_options = {
+            spec_template = {
+                max_failed_job_count = 10;
+                locality_timeout = 100;
+            }
+        };
     };
 }
 """)
+
 
 # TODO(babenko): drop cluster_directory_synchronizer in the root
 def get_node_config(enable_debug_logging=True):
