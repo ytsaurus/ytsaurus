@@ -58,8 +58,7 @@ using NTabletNode::NProto::TAddStoreDescriptor;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto ChunkExpirationTimeout = TDuration::Seconds(15);
-static const auto ChunkReaderExpirationTimeout = TDuration::Seconds(15);
+static const auto LocalChunkRecheckPeriod = TDuration::Seconds(15);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -81,12 +80,11 @@ TStoreBase::TStoreBase(
     , ColumnLockCount_(Tablet_->GetColumnLockCount())
     , LockIndexToName_(Tablet_->LockIndexToName())
     , ColumnIndexToLockIndex_(Tablet_->ColumnIndexToLockIndex())
-{
-    Logger = TabletNodeLogger;
-    Logger.AddTag("StoreId: %v, TabletId: %v",
-        StoreId_,
-        TabletId_);
-}
+    , Logger(NLogging::TLogger(TabletNodeLogger)
+        .AddTag("StoreId: %v, TabletId: %v",
+            StoreId_,
+            TabletId_))
+{ }
 
 TStoreBase::~TStoreBase()
 {
@@ -635,63 +633,70 @@ IChunkReaderPtr TChunkStoreBase::GetChunkReader()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    auto chunk = PrepareChunk();
-    auto chunkReader = PrepareChunkReader(std::move(chunk));
+    auto now = NProfiling::GetCpuInstant();
 
-    return chunkReader;
-}
-
-IChunkPtr TChunkStoreBase::PrepareChunk()
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    {
-        TReaderGuard guard(SpinLock_);
-        if (ChunkInitialized_) {
-            return Chunk_;
+    auto locateLocalChunk = [&] () -> IChunkPtr {
+        if (!ReaderConfig_->PreferLocalReplicas) {
+            return nullptr;
         }
-    }
+        auto chunk = ChunkRegistry_->FindChunk(StoreId_);
+        if (!chunk) {
+            return nullptr;
+        }
+        if (chunk->IsRemoveScheduled()) {
+            return nullptr;
+        }
+        return chunk;
+    };
 
-    auto chunk = ChunkRegistry_->FindChunk(StoreId_);
-
-    {
-        TWriterGuard guard(SpinLock_);
-        ChunkInitialized_ = true;
-        Chunk_ = chunk;
-    }
-
-    TDelayedExecutor::Submit(
-        BIND(&TChunkStoreBase::OnChunkExpired, MakeWeak(this)),
-        ChunkExpirationTimeout);
-
-    return chunk;
-}
-
-IChunkReaderPtr TChunkStoreBase::PrepareChunkReader(IChunkPtr chunk)
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
+    IChunkPtr chunk;
     {
         TReaderGuard guard(SpinLock_);
+
+        // Check if a cached reader exists.
         if (ChunkReader_) {
-            return ChunkReader_;
+            // If the reader is local then just return it.
+            if (ChunkReaderIsLocal_) {
+                return ChunkReader_;
+            }
+
+            // Otherwise the reader is remote.
+            // Don't check for local chunks too often.
+            if (now < LocalChunkCheckDeadline_) {
+                return ChunkReader_;
+            }
+
+            // A cached reader is known but is remote; it's time to check for a local chunk.
+            chunk = locateLocalChunk();
+
+            // If no local chunk is returned then just deal with the remote one.
+            if (!chunk) {
+                LocalChunkCheckDeadline_ = now + NProfiling::DurationToCpuDuration(LocalChunkRecheckPeriod);
+                return ChunkReader_;
+            }
         }
+    }
+
+    // Try to find a local chunk (if not found already).
+    if (!chunk) {
+        chunk = locateLocalChunk();
     }
 
     IChunkReaderPtr chunkReader;
-    if (ReaderConfig_->PreferLocalReplicas && chunk && !chunk->IsRemoveScheduled()) {
+    bool chunkReaderIsLocal;
+    if (chunk) {
         chunkReader = CreateLocalChunkReader(
             ReaderConfig_,
             chunk,
             ChunkBlockManager_,
             GetBlockCache(),
             BIND(&TChunkStoreBase::OnLocalReaderFailed, MakeWeak(this)));
+        chunkReaderIsLocal = true;
     } else {
         TChunkSpec chunkSpec;
         ToProto(chunkSpec.mutable_chunk_id(), StoreId_);
         chunkSpec.set_erasure_codec(MiscExt_.erasure_codec());
         *chunkSpec.mutable_chunk_meta() = *ChunkMeta_;
-
         chunkReader = CreateRemoteReader(
             chunkSpec,
             ReaderConfig_,
@@ -701,16 +706,16 @@ IChunkReaderPtr TChunkStoreBase::PrepareChunkReader(IChunkPtr chunk)
             LocalDescriptor_,
             GetBlockCache(),
             GetUnlimitedThrottler());
+        chunkReaderIsLocal = false;
     }
 
     {
         TWriterGuard guard(SpinLock_);
-        ChunkReader_ = chunkReader;
-    }
 
-    TDelayedExecutor::Submit(
-        BIND(&TChunkStoreBase::OnChunkReaderExpired, MakeWeak(this)),
-        ChunkReaderExpirationTimeout);
+        ChunkReader_ = chunkReader;
+        ChunkReaderIsLocal_ = chunkReaderIsLocal;
+        LocalChunkCheckDeadline_ = now + NProfiling::DurationToCpuDuration(LocalChunkRecheckPeriod);
+    }
 
     return chunkReader;
 }
@@ -719,25 +724,10 @@ void TChunkStoreBase::OnLocalReaderFailed()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    OnChunkExpired();
-    OnChunkReaderExpired();
-}
-
-void TChunkStoreBase::OnChunkExpired()
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
     TWriterGuard guard(SpinLock_);
-    ChunkInitialized_ = false;
-    Chunk_.Reset();
-}
 
-void TChunkStoreBase::OnChunkReaderExpired()
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    TWriterGuard guard(SpinLock_);
     ChunkReader_.Reset();
+    ChunkReaderIsLocal_ = false;
 }
 
 void TChunkStoreBase::PrecacheProperties()
