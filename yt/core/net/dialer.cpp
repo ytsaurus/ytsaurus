@@ -21,14 +21,14 @@ class TDialSession
 {
 public:
     TDialSession(
-        const TNetworkAddress& remote,
+        const TNetworkAddress& remoteAddress,
         const IAsyncDialerPtr& asyncDialer,
         IPollerPtr poller)
-        : Name_(Format("dialer[%v]", remote))
-        , RemoteAddress_(remote)
+        : Name_(Format("dialer[%v]", remoteAddress))
+        , RemoteAddress_(remoteAddress)
         , Poller_(std::move(poller))
         , Session_(asyncDialer->CreateSession(
-            remote,
+            remoteAddress,
             BIND(&TDialSession::OnDialerFinished, MakeWeak(this))))
     {
         Session_->Dial();
@@ -38,7 +38,7 @@ public:
         }));
     }
 
-    void OnDialerFinished(SOCKET socket, TError error)
+    void OnDialerFinished(SOCKET socket, const TError& error)
     {
         if (socket != INVALID_SOCKET) {
             Promise_.TrySet(CreateConnectionFromFD(
@@ -67,7 +67,7 @@ private:
 
     void Abort()
     {
-        Promise_.TrySet(TError("Dial aborted")
+        Promise_.TrySet(TError(NRpc::EErrorCode::TransportError, "Dial aborted")
             << TErrorAttribute("dialer", Name_));
     }
 };
@@ -200,7 +200,7 @@ private:
     SOCKET Socket_ = INVALID_SOCKET;
     bool Dialed_ = false;
     TError Error_;
-    std::atomic<bool> Finished_{false};
+    std::atomic<bool> Finished_ = {false};
     TSpinLock SpinLock_;
     TDuration Timeout_;
     NConcurrency::TDelayedExecutorCookie TimeoutCookie_;
@@ -283,7 +283,7 @@ private:
             if (error != 0) {
                 close(socket);
                 socket = INVALID_SOCKET;
-                Error_ = TError("Connect error")
+                Error_ = TError(NRpc::EErrorCode::TransportError, "Connect error")
                     << TError::FromSystem(error);
             }
             OnFinished_(socket, Error_);
