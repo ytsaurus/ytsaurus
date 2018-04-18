@@ -6,8 +6,6 @@
 #include <yt/server/cell_node/bootstrap.h>
 #include <yt/server/cell_node/config.h>
 
-#include <yt/server/containers/porto_executor.h>
-
 #include <yt/server/controller_agent/job_memory.h>
 
 #include <yt/server/data_node/config.h>
