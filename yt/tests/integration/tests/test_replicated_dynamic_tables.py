@@ -528,6 +528,7 @@ class TestReplicatedDynamicTables(TestDynamicTablesBase):
             assert before_ts1 == before_ts2
 
             insert_rows("//tmp/t", [{"key": 1, "value1": "test", "value2": 123}])
+            # TODO(babenko): fix distributed commit for ordered tables
             wait(lambda: _last_row(select_rows("* from [//tmp/r1]", driver=self.replica_driver)) == {'$tablet_index': 0L, '$row_index': before_index1, "key": 1, "value1": "test", "value2": 123})
             wait(lambda: _last_row(select_rows("* from [//tmp/r2]", driver=self.replica_driver)) == {'$tablet_index': 0L, '$row_index': before_index2, "key": 1, "value1": "test", "value2": 123})
 
