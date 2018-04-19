@@ -743,6 +743,7 @@ TOperationControllerReviveResult TOperationControllerBase::Revive()
     }
 
     if (!Snapshot.Data) {
+        LOG_INFO("Snapshot data is missing, preparing operation from scratch");
         TOperationControllerReviveResult result;
         result.RevivedFromSnapshot = false;
         static_cast<TOperationControllerPrepareResult&>(result) = Prepare();

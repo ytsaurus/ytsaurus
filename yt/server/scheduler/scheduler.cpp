@@ -989,6 +989,10 @@ public:
             return;
         }
 
+        LOG_INFO("Materializing operation (OperationId: %v, RevivedFromSnapshot: %v)",
+            operation->GetId(),
+            operation->GetRevivedFromSnapshot());
+
         TFuture<void> asyncResult;
         if (operation->GetRevivedFromSnapshot()) {
             operation->SetStateAndEnqueueEvent(EOperationState::RevivingJobs);
