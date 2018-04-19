@@ -35,7 +35,10 @@ private:
 
         virtual void Invoke(TClosure callback) override
         {
-            Owner_->Invoke(std::move(callback));
+            Owner_->Invoke(BIND([this_ = MakeStrong(this), callback = std::move(callback)] {
+                TCurrentInvokerGuard guard(std::move(this_));
+                callback.Run();
+            }));
         }
 
 #ifdef YT_ENABLE_THREAD_AFFINITY_CHECK
@@ -46,7 +49,7 @@ private:
 
         virtual bool CheckAffinity(const IInvokerPtr& invoker) const override
         {
-            return Owner_->Queue_->CheckAffinity(invoker);
+            return invoker->GetThreadId() == Owner_->Queue_->GetThreadId();
         }
 #endif
     private:

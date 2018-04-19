@@ -76,6 +76,8 @@ TNativeConnectionConfig::TNativeConnectionConfig()
         .Alias("query_timeout")
         .Default(TDuration::Seconds(60));
     RegisterParameter("select_rows_response_codec", SelectRowsResponseCodec)
+        // COMPAT(babenko)
+        .Alias("query_response_codec")
         .Default(NCompression::ECodec::Lz4);
     RegisterParameter("default_input_row_limit", DefaultInputRowLimit)
         .GreaterThan(0)
@@ -88,8 +90,12 @@ TNativeConnectionConfig::TNativeConnectionConfig()
         .DefaultNew();
 
     RegisterParameter("write_rows_timeout", WriteRowsTimeout)
+        // COMPAT(babenko)
+        .Alias("write_timeout")
         .Default(TDuration::Seconds(60));
     RegisterParameter("write_rows_request_codec", WriteRowsRequestCodec)
+        // COMPAT(babenko)
+        .Alias("write_request_codec")
         .Default(NCompression::ECodec::Lz4);
     RegisterParameter("max_rows_per_write_request", MaxRowsPerWriteRequest)
         .GreaterThan(0)
@@ -103,10 +109,13 @@ TNativeConnectionConfig::TNativeConnectionConfig()
         .Alias("lookup_timeout")
         .Default(TDuration::Seconds(60));
     RegisterParameter("lookup_rows_request_codec", LookupRowsRequestCodec)
+        .Alias("lookup_request_codec")
         .Default(NCompression::ECodec::Lz4);
     RegisterParameter("lookup_rows_response_codec", LookupRowsResponseCodec)
+        .Alias("lookup_response_codec")
         .Default(NCompression::ECodec::Lz4);
     RegisterParameter("max_rows_per_lookup_request", MaxRowsPerLookupRequest)
+        .Alias("max_rows_per_read_request")
         .GreaterThan(0)
         .Default(1000);
 

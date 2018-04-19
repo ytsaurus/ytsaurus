@@ -451,8 +451,7 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         return IYPathService::FromProducer(BIND(&TImpl::BuildOrchidYson, MakeStrong(this)))
-            ->Via(Bootstrap_->GetHydraFacade()->GetGuardedAutomatonInvoker(EAutomatonThreadQueue::ChunkManager))
-            ->Cached(Config_->StaticOrchidCacheUpdatePeriod);
+            ->Via(Bootstrap_->GetHydraFacade()->GetGuardedAutomatonInvoker(EAutomatonThreadQueue::ChunkManager));
     }
 
     void BuildOrchidYson(NYson::IYsonConsumer* consumer)

@@ -134,12 +134,10 @@ public:
             TDispatcher::Get()->GetPrioritizedCompressionPoolInvoker(),
             // We locate chunks with batch workload category.
             TWorkloadDescriptor(EWorkloadCategory::UserBatch).GetPriority()))
+        , Logger(NLogging::TLogger(ChunkClientLogger)
+            .AddTag("ChunkId: %v", ChunkId_))
         , InitialSeedReplicas_(seedReplicas)
-        , SeedsTimestamp_(TInstant::Zero())
-        , IsFailed_(false)
-    {
-        Logger.AddTag("ChunkId: %v", ChunkId_);
-    }
+    { }
 
     void Initialize()
     {
@@ -187,12 +185,12 @@ public:
 
     virtual bool IsValid() const override
     {
-        return !IsFailed_;
+        return !Failed_;
     }
 
     void SetFailed()
     {
-        IsFailed_ = true;
+        Failed_ = true;
     }
 
     virtual void SetSlownessChecker(TCallback<TError(i64, TDuration)> slownessChecker) override
@@ -229,7 +227,7 @@ private:
 
     const IInvokerPtr LocateChunksInvoker_;
 
-    NLogging::TLogger Logger = ChunkClientLogger;
+    const NLogging::TLogger Logger;
 
     TSpinLock SeedsSpinLock_;
     TChunkReplicaList InitialSeedReplicas_;
@@ -242,7 +240,7 @@ private:
     //! Every time peer fails (e.g. time out occurs), we increase ban counter.
     THashMap<TString, int> PeerBanCountMap_;
 
-    std::atomic<bool> IsFailed_;
+    std::atomic<bool> Failed_ = {false};
 
     TCallback<TError(i64, TDuration)> SlownessChecker_;
 
