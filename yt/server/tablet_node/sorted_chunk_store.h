@@ -96,6 +96,7 @@ private:
         const NChunkClient::TReadSessionId& readSessionId);
 
     void ValidateBlockSize(
+        const TTabletSnapshotPtr& tabletSnapshot,
         const NTableClient::TChunkStatePtr& chunkState,
         const TWorkloadDescriptor& workloadDescriptor);
 
