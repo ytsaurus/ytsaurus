@@ -14,8 +14,7 @@ class TestChunkServer(YTEnvSetup):
     NUM_NODES = 20
     DELTA_MASTER_CONFIG = {
         "chunk_manager": {
-            "safe_online_node_count": 3,
-            "static_orchid_cache_update_period": 100,
+            "safe_online_node_count": 3
         }
     }
 
