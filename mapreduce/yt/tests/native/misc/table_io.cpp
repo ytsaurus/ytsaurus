@@ -493,40 +493,40 @@ SIMPLE_UNIT_TEST_SUITE(TableIo) {
         }
     }
 
-    size_t GetNumTransactions(IClientBasePtr client) {
-        return client->Get("//sys/transactions").AsMap().size();
+    size_t GetLockCount(IClientBasePtr client, const TString& path)
+    {
+        return client->Get(path + "/@lock_count").AsUint64();
     }
 
     SIMPLE_UNIT_TEST(OptionallyCreateChildTransactionForIO)
     {
         auto client = CreateTestClient();
         auto path = TRichYPath("//testing/table");
-        auto numTransactionsBefore = GetNumTransactions(client);
         {
             auto writer = client->CreateTableWriter<TNode>(path, TTableWriterOptions().CreateTransaction(false));
             writer->AddRow(TNode()("key", 100500));
-            UNIT_ASSERT_VALUES_EQUAL(GetNumTransactions(client), numTransactionsBefore);
+            UNIT_ASSERT_VALUES_EQUAL(GetLockCount(client, path.Path_), 0);
             writer->Finish();
         }
         {
             auto reader = client->CreateTableReader<TNode>(path, TTableReaderOptions().CreateTransaction(false));
             reader->GetRow();
-            UNIT_ASSERT_VALUES_EQUAL(GetNumTransactions(client), numTransactionsBefore);
+            UNIT_ASSERT_VALUES_EQUAL(GetLockCount(client, path.Path_), 0);
         }
         {
             // CreateTransaction default is true
             auto writer = client->CreateTableWriter<TNode>(path, TTableWriterOptions());
             writer->AddRow(TNode()("key", 2001000));
-            UNIT_ASSERT_VALUES_EQUAL(GetNumTransactions(client), numTransactionsBefore + 1);
+            UNIT_ASSERT_VALUES_EQUAL(GetLockCount(client, path.Path_), 1);
             writer->Finish();
         }
         {
             // CreateTransaction default is true
             auto reader = client->CreateTableReader<TNode>(path, TTableReaderOptions());
             reader->GetRow();
-            UNIT_ASSERT_VALUES_EQUAL(GetNumTransactions(client), numTransactionsBefore + 1);
+            UNIT_ASSERT_VALUES_EQUAL(GetLockCount(client, path.Path_), 1);
         }
-        // TableWriter will never write to global transaction if created under a local one
+        // Check that TableWriter never writes to global transaction if created under a local one
         client->Remove(path.Path_);
         {
             auto transaction = client->StartTransaction();
