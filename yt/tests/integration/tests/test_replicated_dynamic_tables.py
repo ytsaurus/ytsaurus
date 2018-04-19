@@ -528,15 +528,15 @@ class TestReplicatedDynamicTables(TestDynamicTablesBase):
             assert before_ts1 == before_ts2
 
             insert_rows("//tmp/t", [{"key": 1, "value1": "test", "value2": 123}])
-            assert select_rows("* from [//tmp/r1]", driver=self.replica_driver)[-1] == {'$tablet_index': 0L, '$row_index': before_index1, "key": 1, "value1": "test", "value2": 123}
+            wait(lambda: _last_row(select_rows("* from [//tmp/r1]", driver=self.replica_driver)) == {'$tablet_index': 0L, '$row_index': before_index1, "key": 1, "value1": "test", "value2": 123})
             wait(lambda: _last_row(select_rows("* from [//tmp/r2]", driver=self.replica_driver)) == {'$tablet_index': 0L, '$row_index': before_index2, "key": 1, "value1": "test", "value2": 123})
 
             insert_rows("//tmp/t", [{"key": 1, "value1": "new_test"}])
-            assert select_rows("* from [//tmp/r1]", driver=self.replica_driver)[-1] == {'$tablet_index': 0L, '$row_index': before_index1+1, "key": 1, "value1": "new_test", "value2": YsonEntity()}
+            wait(lambda: select_rows("* from [//tmp/r1]", driver=self.replica_driver)[-1] == {'$tablet_index': 0L, '$row_index': before_index1+1, "key": 1, "value1": "new_test", "value2": YsonEntity()})
             wait(lambda: select_rows("* from [//tmp/r2]", driver=self.replica_driver)[-1] == {'$tablet_index': 0L, '$row_index': before_index2+1, "key": 1, "value1": "new_test", "value2": YsonEntity()})
 
             insert_rows("//tmp/t", [{"key": 1, "value2": 456}])
-            assert select_rows("* from [//tmp/r1]", driver=self.replica_driver)[-1] == {'$tablet_index': 0L, '$row_index': before_index1+2, "key": 1, "value1": YsonEntity(), "value2": 456}
+            wait(lambda: select_rows("* from [//tmp/r1]", driver=self.replica_driver)[-1] == {'$tablet_index': 0L, '$row_index': before_index1+2, "key": 1, "value1": YsonEntity(), "value2": 456})
             wait(lambda: select_rows("* from [//tmp/r2]", driver=self.replica_driver)[-1] == {'$tablet_index': 0L, '$row_index': before_index2+2, "key": 1, "value1": YsonEntity(), "value2": 456})
 
             wait(lambda: get("#{0}/@tablets/0/current_replication_row_index".format(replica_id1)) == before_index1 + 3)
