@@ -33,6 +33,7 @@ function(NODE target)
   install(
     TARGETS ${target}
     LIBRARY DESTINATION lib/node_modules/yt/lib
+    PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE
     COMPONENT nodejs
   )
 endfunction()

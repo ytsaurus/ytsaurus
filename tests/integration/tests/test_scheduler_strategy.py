@@ -549,11 +549,8 @@ class TestSchedulerOperationLimits(YTEnvSetup):
             out="//tmp/out2",
             spec={"pool": "test_pool_2"})
 
-        # Wait some time to make sure that op2 will not start.
-        time.sleep(1)
-
         assert op1.get_state() == "running"
-        assert op2.get_state() == "pending"
+        wait(lambda: op2.get_state() == "pending")
 
         release_breakpoint()
         op1.track()

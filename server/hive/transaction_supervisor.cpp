@@ -220,7 +220,7 @@ private:
 
             auto underlying = GetUnderlying();
             if (!underlying) {
-                THROW_ERROR MakeUnavailbleError();
+                THROW_ERROR MakeUnavailableError();
             }
 
             return underlying->GetTimestampProvider();
@@ -352,10 +352,10 @@ private:
             auto underlying = GetUnderlying();
 
             if (!underlying) {
-                return MakeFuture<void>(MakeUnavailbleError());
+                return MakeFuture<void>(MakeUnavailableError());
             }
 
-            auto sender = BIND([=, underlying = std::move(underlying)] () mutable {
+            auto sender = [=, underlying = std::move(underlying)] () mutable {
                 if (underlying->IsValid()) {
                     promise.SetFrom(func(underlying));
                 } else if (succeedOnInvalid) {
@@ -364,27 +364,19 @@ private:
                 } else {
                     promise.Set(TError("Participant cell %v is no longer valid", CellId_));
                 }
-            });
+            };
 
-            if (!TrySendRequestImmediately(sender, &guard)) {
+            if (Up_) {
+                guard.Release();
+                sender();
+            } else {
                 if (mustSendImmediately) {
                     return MakeFuture<void>(MakeDownError());
                 }
-                PendingSenders_.emplace_back(std::move(sender));
+                PendingSenders_.emplace_back(BIND(std::move(sender)));
             }
 
             return promise;
-        }
-
-        bool TrySendRequestImmediately(const TClosure& sender, TGuard<TSpinLock>* guard)
-        {
-            if (!Up_ && !PendingSenders_.empty()) {
-                return false;
-            }
-
-            guard->Release();
-            sender.Run();
-            return true;
         }
 
         void OnProbation()
@@ -395,7 +387,7 @@ private:
                 return;
             }
 
-            auto sender = PendingSenders_.back();
+            auto sender = std::move(PendingSenders_.back());
             PendingSenders_.pop_back();
 
             guard.Release();
@@ -403,7 +395,7 @@ private:
             sender.Run();
         }
 
-        TError MakeUnavailbleError() const
+        TError MakeUnavailableError() const
         {
             return TError(
                 NRpc::EErrorCode::Unavailable,

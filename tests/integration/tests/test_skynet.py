@@ -343,14 +343,8 @@ class TestSkynetManager(YTEnvSetup):
         subprocess.check_call(["sky", "get", "-p", "-d", self.path_to_run + "/test_download_0", rbtorrentid])
 
     def test_no_table(self):
-        try:
+        with pytest.raises(RuntimeError):
             self.share("//tmp/no_table")
-            assert False, "Request must fail"
-        except requests.RequestException as e:
-            assert e.response.status_code == 400
-            assert 'X-YT-Error' in e.response.headers
-            assert 'X-YT-Response-Code' in e.response.headers
-            assert 'X-Yt-Response-Message' in e.response.headers
 
     def test_empty_file(self):
         create("table", "//tmp/table_with_empty_file", attributes={
