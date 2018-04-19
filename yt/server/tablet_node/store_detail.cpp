@@ -649,6 +649,10 @@ IChunkReaderPtr TChunkStoreBase::GetChunkReader()
         return chunk;
     };
 
+    auto updateLocalChunkRecheckDedline = [&] {
+        LocalChunkCheckDeadline_.store(now + NProfiling::DurationToCpuDuration(LocalChunkRecheckPeriod));
+    };
+
     IChunkPtr chunk;
     {
         TReaderGuard guard(SpinLock_);
@@ -662,7 +666,7 @@ IChunkReaderPtr TChunkStoreBase::GetChunkReader()
 
             // Otherwise the reader is remote.
             // Don't check for local chunks too often.
-            if (now < LocalChunkCheckDeadline_) {
+            if (now < LocalChunkCheckDeadline_.load()) {
                 return ChunkReader_;
             }
 
@@ -671,7 +675,7 @@ IChunkReaderPtr TChunkStoreBase::GetChunkReader()
 
             // If no local chunk is returned then just deal with the remote one.
             if (!chunk) {
-                LocalChunkCheckDeadline_ = now + NProfiling::DurationToCpuDuration(LocalChunkRecheckPeriod);
+                updateLocalChunkRecheckDedline();
                 return ChunkReader_;
             }
         }
@@ -714,7 +718,7 @@ IChunkReaderPtr TChunkStoreBase::GetChunkReader()
 
         ChunkReader_ = chunkReader;
         ChunkReaderIsLocal_ = chunkReaderIsLocal;
-        LocalChunkCheckDeadline_ = now + NProfiling::DurationToCpuDuration(LocalChunkRecheckPeriod);
+        updateLocalChunkRecheckDedline();
     }
 
     return chunkReader;

@@ -256,7 +256,7 @@ protected:
 
     NConcurrency::TReaderWriterSpinLock SpinLock_;
 
-    NProfiling::TCpuInstant LocalChunkCheckDeadline_ = 0;
+    std::atomic<NProfiling::TCpuInstant> LocalChunkCheckDeadline_ = {0};
     NChunkClient::IChunkReaderPtr ChunkReader_;
     bool ChunkReaderIsLocal_ = false;
 
