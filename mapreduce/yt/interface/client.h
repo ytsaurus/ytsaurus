@@ -71,7 +71,9 @@ public:
     virtual const TTransactionId& GetId() const = 0;
 
     //
-    // Try to lock given path. Lock will be held until transaction is commited/aborted.
+    // Try to lock given path.
+    //
+    // Lock will be held until transaction is commited/aborted.
     // Lock modes:
     //   LM_EXCLUSIVE: if exclusive lock is taken no other transaction can take exclusive or shared lock.
     //   LM_SHARED: if shared lock is taken other transactions can take shared lock but not exclusive.
@@ -105,6 +107,12 @@ class IClient
     : virtual public IClientBase
 {
 public:
+    //
+    // Attach to existing transaction.
+    //
+    // Returned object WILL NOT ping transaction automatically.
+    // Otherwise returened object is similar to the object returned by StartTransaction
+    // and it can see all the changes made inside the transaction.
     virtual Y_WARN_UNUSED_RESULT ITransactionPtr AttachTransaction(
         const TTransactionId& transactionId) = 0;
 
