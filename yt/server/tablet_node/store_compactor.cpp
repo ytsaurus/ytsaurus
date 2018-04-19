@@ -304,7 +304,7 @@ private:
         auto candidate = std::make_unique<TTask>(slot, tablet, eden, std::move(stores));
         // We aim to improve OSC; partitioning unconditionally improves OSC (given at least two stores).
         // So we consider how constrained is the tablet, and how many stores we consider for partitioning.
-        const int overlappingStoreLimit = tablet->GetConfig()->MaxOverlappingStoreCount;
+        const int overlappingStoreLimit = GetOverlappingStoreLimit(tablet->GetConfig());
         const int overlappingStoreCount = tablet->GetOverlappingStoreCount();
         candidate->Slack = std::max(0, overlappingStoreLimit - overlappingStoreCount);
         candidate->Effect = candidate->Stores.size() - 1;
@@ -334,7 +334,7 @@ private:
         auto candidate = std::make_unique<TTask>(slot, tablet, partition, std::move(stores));
         // We aim to improve OSC; compaction improves OSC _only_ if the partition contributes towards OSC.
         // So we consider how constrained is the partition, and how many stores we consider for compaction.
-        const int overlappingStoreLimit = tablet->GetConfig()->MaxOverlappingStoreCount;
+        const int overlappingStoreLimit = GetOverlappingStoreLimit(tablet->GetConfig());
         const int overlappingStoreCount = tablet->GetOverlappingStoreCount();
         if (partition->IsEden()) {
             candidate->Slack = std::max(0, overlappingStoreLimit - overlappingStoreCount);
@@ -493,7 +493,7 @@ private:
         } else {
             overlappingStoreCount = partition->Stores().size() + tablet->GetEden()->Stores().size();
         }
-        criticalPartition = overlappingStoreCount >= config->MaxOverlappingStoreCount;
+        criticalPartition = overlappingStoreCount >= GetOverlappingStoreLimit(config);
 
         for (int i = 0; i < candidates.size(); ++i) {
             i64 dataSizeSum = 0;
@@ -1388,6 +1388,13 @@ private:
         }
 
         return false;
+    }
+
+    static int GetOverlappingStoreLimit(const TTableMountConfigPtr& config)
+    {
+        return std::min(
+            config->MaxOverlappingStoreCount,
+            config->CriticalOverlappingStoreCount.Get(config->MaxOverlappingStoreCount));
     }
 };
 
