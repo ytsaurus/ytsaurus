@@ -1182,34 +1182,36 @@ private:
             }
 
             // Reconstruct iterators.
-            auto* transaction = lock->GetTransaction();
-            auto* lockingState = lock->GetTrunkNode()->MutableLockingState();
-            switch (lock->Request().Mode) {
-                case ELockMode::Snapshot:
-                    lock->SetTransactionToSnapshotLocksIterator(lockingState->TransactionToSnapshotLocks.emplace(
-                        transaction,
-                        lock));
-                    break;
-
-                case ELockMode::Shared:
-                    lock->SetTransactionAndKeyToSharedLocksIterator(lockingState->TransactionAndKeyToSharedLocks.emplace(
-                        std::make_pair(transaction, lock->Request().Key),
-                        lock));
-                    if (lock->Request().Key.Kind != ELockKeyKind::None) {
-                        lock->SetKeyToSharedLocksIterator(lockingState->KeyToSharedLocks.emplace(
-                            lock->Request().Key,
+            if (lock->GetState() == ELockState::Acquired) {
+                auto* transaction = lock->GetTransaction();
+                auto* lockingState = lock->GetTrunkNode()->MutableLockingState();
+                switch (lock->Request().Mode) {
+                    case ELockMode::Snapshot:
+                        lock->SetTransactionToSnapshotLocksIterator(lockingState->TransactionToSnapshotLocks.emplace(
+                            transaction,
                             lock));
-                    }
-                    break;
+                        break;
 
-                case ELockMode::Exclusive:
-                    lock->SetTransactionToExclusiveLocksIterator(lockingState->TransactionToExclusiveLocks.emplace(
-                        transaction,
-                        lock));
-                    break;
+                    case ELockMode::Shared:
+                        lock->SetTransactionAndKeyToSharedLocksIterator(lockingState->TransactionAndKeyToSharedLocks.emplace(
+                            std::make_pair(transaction, lock->Request().Key),
+                            lock));
+                        if (lock->Request().Key.Kind != ELockKeyKind::None) {
+                            lock->SetKeyToSharedLocksIterator(lockingState->KeyToSharedLocks.emplace(
+                                lock->Request().Key,
+                                lock));
+                        }
+                        break;
 
-                default:
-                    Y_UNREACHABLE();
+                    case ELockMode::Exclusive:
+                        lock->SetTransactionToExclusiveLocksIterator(lockingState->TransactionToExclusiveLocks.emplace(
+                            transaction,
+                            lock));
+                        break;
+
+                    default:
+                        Y_UNREACHABLE();
+                }
             }
         }
         LOG_INFO("Finished initializing locks");
