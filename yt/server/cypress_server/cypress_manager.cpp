@@ -1849,7 +1849,7 @@ private:
                 (!lock->GetImplicit() || !IsLockRedundant(trunkNode, parentTransaction, lock->Request(), lock)))
             {
                 lock->SetTransaction(parentTransaction);
-                if (trunkNode) {
+                if (trunkNode && lock->GetState() == ELockState::Acquired) {
                     auto* lockingState = trunkNode->MutableLockingState();
                     switch (lock->Request().Mode) {
                         case ELockMode::Exclusive:
