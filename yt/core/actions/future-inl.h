@@ -241,7 +241,16 @@ public:
 
     TNullable<TErrorOr<T>> TryGet() const
     {
-        return Set_ ? Value_ : Null;
+        // Fast path.
+        if (!Set_) {
+            return Null;
+        }
+
+        // Slow path.
+        {
+            TGuard<TSpinLock> guard(SpinLock_);
+            return Set_ ? Value_ : Null;
+        }
     }
 
     bool IsSet() const
