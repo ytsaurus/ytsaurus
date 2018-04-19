@@ -752,40 +752,6 @@ TVector<TFailedJobInfo> GetFailedJobInfo(
     }
 }
 
-void DumpJobInfoForException(
-    IOutputStream& output,
-    const TVector<TFailedJobInfo>& failedJobInfoList)
-{
-    // Exceptions have limit to contain 65508 bytes of text, so we also limit stderr text
-    constexpr size_t MAX_SIZE = 65508 / 2;
-
-    size_t written = 0;
-    for (const auto& failedJobInfo : failedJobInfoList) {
-        if (written >= MAX_SIZE) {
-            break;
-        }
-        TStringStream nextChunk;
-        nextChunk << '\n';
-        nextChunk << "Error: " << failedJobInfo.Error.FullDescription() << '\n';
-        if (!failedJobInfo.Stderr.empty()) {
-            nextChunk << "Stderr: " << Endl;
-            size_t tmpWritten = written + nextChunk.Str().size();
-            if (tmpWritten >= MAX_SIZE) {
-                break;
-            }
-
-            if (tmpWritten + failedJobInfo.Stderr.size() > MAX_SIZE) {
-                nextChunk << failedJobInfo.Stderr.substr(failedJobInfo.Stderr.size() - (MAX_SIZE - tmpWritten));
-            } else {
-                nextChunk << failedJobInfo.Stderr;
-            }
-        }
-        written += nextChunk.Str().size();
-        output << nextChunk.Str();
-    }
-    output.Flush();
-}
-
 using TDescriptorList = TVector<const ::google::protobuf::Descriptor*>;
 
 TMultiFormatDesc IdentityDesc(const TMultiFormatDesc& multi)
@@ -876,16 +842,15 @@ EOperationStatus CheckOperation(
                 ~::ToString(attributes.Status),
                 ~ToString(TOperationExecutionTimeTracker::Get()->Finish(operationId)));
 
-            TStringStream jobErrors;
             auto failedJobInfoList = GetFailedJobInfo(auth, operationId, TGetFailedJobInfoOptions());
-            DumpJobInfoForException(jobErrors, failedJobInfoList);
 
             ythrow TOperationFailedError(
                 attributes.Status == OS_ABORTED ?
                     TOperationFailedError::Aborted :
                     TOperationFailedError::Failed,
                 operationId,
-                *attributes.Error) << jobErrors.Str();
+                *attributes.Error,
+                failedJobInfoList);
         }
         return OS_IN_PROGRESS;
     } else {
@@ -914,17 +879,15 @@ EOperationStatus CheckOperation(
                 ytError = TYtError(Get(auth, TTransactionId(), errorPath));
             }
 
-            TStringStream jobErrors;
-
             auto failedJobInfoList = GetFailedJobInfo(auth, operationId, TGetFailedJobInfoOptions());
-            DumpJobInfoForException(jobErrors, failedJobInfoList);
 
             ythrow TOperationFailedError(
                 state == "aborted" ?
                     TOperationFailedError::Aborted :
                     TOperationFailedError::Failed,
                 operationId,
-                ytError) << jobErrors.Str();
+                ytError,
+                failedJobInfoList);
         }
 
         return OS_IN_PROGRESS;
@@ -2183,12 +2146,10 @@ void TOperation::TOperationImpl::SyncFinishOperationImpl(const TOperationAttribu
         LOG_ERROR("Operation %s is `%s' with error: %s",
             ~GetGuidAsString(Id_), ~::ToString(attributes.Status), ~error.FullDescription());
         TString additionalExceptionText;
+        TVector<TFailedJobInfo> failedJobStderrInfo;
         if (attributes.Status == OS_FAILED) {
             try {
-                auto failedJobStderrInfo = NYT::NDetail::GetFailedJobInfo(Auth_, Id_, TGetFailedJobInfoOptions());
-                TStringStream out;
-                DumpJobInfoForException(out, failedJobStderrInfo);
-                additionalExceptionText = out.Str();
+                failedJobStderrInfo = NYT::NDetail::GetFailedJobInfo(Auth_, Id_, TGetFailedJobInfoOptions());
             } catch (const yexception& e) {
                 additionalExceptionText = "Cannot get job stderrs: ";
                 additionalExceptionText += e.what();
@@ -2199,7 +2160,8 @@ void TOperation::TOperationImpl::SyncFinishOperationImpl(const TOperationAttribu
                 TOperationFailedError(
                     attributes.Status == OS_FAILED ? TOperationFailedError::Failed : TOperationFailedError::Aborted,
                     Id_,
-                    error) << additionalExceptionText));
+                    error,
+                    failedJobStderrInfo) << additionalExceptionText));
     }
 }
 

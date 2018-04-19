@@ -72,6 +72,39 @@ static void SerializeError(const TYtError& error, IYsonConsumer* consumer)
     consumer->OnEndMap();
 }
 
+static TString DumpJobInfoForException(const TVector<TFailedJobInfo>& failedJobInfoList)
+{
+    TStringBuilder output;
+    // Exceptions have limit to contain 65508 bytes of text, so we also limit stderr text
+    constexpr size_t MAX_SIZE = 65508 / 2;
+
+    size_t written = 0;
+    for (const auto& failedJobInfo : failedJobInfoList) {
+        if (written >= MAX_SIZE) {
+            break;
+        }
+        TStringStream nextChunk;
+        nextChunk << '\n';
+        nextChunk << "Error: " << failedJobInfo.Error.FullDescription() << '\n';
+        if (!failedJobInfo.Stderr.empty()) {
+            nextChunk << "Stderr: " << Endl;
+            size_t tmpWritten = written + nextChunk.Str().size();
+            if (tmpWritten >= MAX_SIZE) {
+                break;
+            }
+
+            if (tmpWritten + failedJobInfo.Stderr.size() > MAX_SIZE) {
+                nextChunk << failedJobInfo.Stderr.substr(failedJobInfo.Stderr.size() - (MAX_SIZE - tmpWritten));
+            } else {
+                nextChunk << failedJobInfo.Stderr;
+            }
+        }
+        written += nextChunk.Str().size();
+        output << nextChunk.Str();
+    }
+    return output;
+}
+
 ////////////////////////////////////////////////////////////////////
 
 TYtError::TYtError()
@@ -350,12 +383,17 @@ void TErrorResponse::Setup()
 TOperationFailedError::TOperationFailedError(
     EState state,
     TOperationId id,
-    TYtError ytError)
+    TYtError ytError,
+    TVector<TFailedJobInfo> failedJobInfo)
     : State_(state)
     , OperationId_(id)
     , Error_(std::move(ytError))
+    , FailedJobInfo_(std::move(failedJobInfo))
 {
     *this << Error_.FullDescription();
+    if (!FailedJobInfo_.empty()) {
+        *this << DumpJobInfoForException(FailedJobInfo_);
+    }
 }
 
 TOperationFailedError::EState TOperationFailedError::GetState() const
@@ -371,6 +409,11 @@ TOperationId TOperationFailedError::GetOperationId() const
 const TYtError& TOperationFailedError::GetError() const
 {
     return Error_;
+}
+
+const TVector<TFailedJobInfo>& TOperationFailedError::GetFailedJobInfo() const
+{
+    return FailedJobInfo_;
 }
 
 } // namespace NYT
