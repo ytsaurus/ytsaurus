@@ -54,8 +54,8 @@ void AssertTrapImpl(
                 auto coreDump = GetSafeAssertionsCoreDumper()->WriteCoreDump(coreNotes);
                 corePath = coreDump.Path;
                 // A tricky way to return slot only after core is written.
-                coreDump.WrittenEvent.Subscribe(BIND([_ = std::move(semaphoreGuard)] (TError /* error */) { }));
-            } catch (std::exception&) {
+                coreDump.WrittenEvent.Subscribe(BIND([_ = std::move(semaphoreGuard)] (const TError&) { }));
+            } catch (const std::exception&) {
                 // Do nothing.
             }
         }
