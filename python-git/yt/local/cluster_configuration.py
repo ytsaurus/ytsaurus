@@ -79,6 +79,7 @@ SCHEDULER_CONFIG_PATCH = {
         "watchers_update_period": 300,
         "connect_grace_delay": None,
         "lock_transaction_timeout": 30000,
+        "enable_locality": False,
         "sort_operation_options": {
             "spec_template": {
                 "partition_data_size": 512 * MB
@@ -122,6 +123,7 @@ CONTROLLER_AGENT_CONFIG_PATCH = {
         "operations_update_period": None,
         "testing_options": None,
         "enable_tmpfs": False,
+        "enable_locality": False,
         "environment": {
             "TMPDIR": "$(SandboxPath)",
             "PYTHON_EGG_CACHE": "$(SandboxPath)/.python-eggs",
@@ -143,37 +145,6 @@ CONTROLLER_AGENT_CONFIG_PATCH = {
         },
     }
 }
-
-SPEC_TEMPLATE = {
-    "locality_timeout": 0,
-    "sort_locality_timeout": 0,
-    "simple_sort_locality_timeout": 0,
-    "simple_merge_locality_timeout": 0,
-    "partition_locality_timeout": 0,
-    "merge_locality_timeout": 0,
-    "map_locality_timeout": 0,
-    "reduce_locality_timeout": 0,
-    "enable_job_proxy_memory_control": False
-}
-
-# TODO(ignat): refactor it.
-for operation_options in ["map_operation_options",
-                          "reduce_operation_options",
-                          "join_reduce_operation_options",
-                          "erase_operation_options",
-                          "ordered_merge_operation_options",
-                          "unordered_merge_operation_options",
-                          "sorted_merge_operation_options",
-                          "map_reduce_operation_options",
-                          "sort_operation_options",
-                          "remote_copy_operation_options"]:
-    SCHEDULER_CONFIG_PATCH["scheduler"][operation_options] = update(
-        {"spec_template": SPEC_TEMPLATE},
-        SCHEDULER_CONFIG_PATCH["scheduler"].get(operation_options, {}))
-
-    CONTROLLER_AGENT_CONFIG_PATCH["controller_agent"][operation_options] = update(
-        {"spec_template": SPEC_TEMPLATE},
-        SCHEDULER_CONFIG_PATCH["scheduler"].get(operation_options, {}))
 
 NODE_CONFIG_PATCHES = [
     {
