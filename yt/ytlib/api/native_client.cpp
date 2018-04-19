@@ -3435,8 +3435,8 @@ private:
             }
         }
 
-        TObjectServiceProxy proxy(OperationsArchiveChannels_[options.ReadFrom]);
-        auto batchReq = proxy.ExecuteBatch();
+        auto proxy = CreateReadProxy<TObjectServiceProxy>(options);
+        auto batchReq = proxy->ExecuteBatch();
         SetBalancingHeader(batchReq, options);
 
         {
