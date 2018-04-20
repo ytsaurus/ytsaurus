@@ -739,7 +739,9 @@ TOperationControllerReviveResult TOperationControllerBase::Revive()
     VERIFY_INVOKER_AFFINITY(CancelableInvoker);
 
     if (Spec_->FailOnJobRestart) {
-        THROW_ERROR_EXCEPTION("Cannot revive operation when spec option fail_on_job_restart is set");
+        THROW_ERROR_EXCEPTION(
+            NScheduler::EErrorCode::OperationFailedOnJobRestart,
+            "Cannot revive operation when spec option fail_on_job_restart is set");
     }
 
     if (!Snapshot.Data) {
@@ -1881,7 +1883,9 @@ void TOperationControllerBase::SafeOnJobAborted(std::unique_ptr<TAbortedJobSumma
     if (Spec_->FailOnJobRestart &&
         !(abortReason > EAbortReason::SchedulingFirst && abortReason < EAbortReason::SchedulingLast))
     {
-        OnOperationFailed(TError("Job aborted; operation failed because spec option fail_on_job_restart is set")
+        OnOperationFailed(TError(
+            NScheduler::EErrorCode::OperationFailedOnJobRestart,
+            "Job aborted; operation failed because spec option fail_on_job_restart is set")
             << TErrorAttribute("job_id", joblet->JobId)
             << TErrorAttribute("abort_reason", abortReason));
     }
