@@ -23,8 +23,8 @@ prepare_archive_directory() {
 
     local current_dir="$(pwd)"
 
-    local tmp_dir="$(mktemp -d /tmp/$(basename $0).XXXXXX)"
-    local archive_dir="$(mktemp -d /tmp/yt_local_archive.XXXXXX)"
+    local tmp_dir="$(mktemp --tmpdir -d $(basename $0).XXXXXX)"
+    local archive_dir="$(mktemp --tmpdir -d yt_local_archive.XXXXXX)"
     trap "rm -rf \"$tmp_dir\" \"$archive_dir\"" EXIT
 
     local yt_local_version=$(dpkg-parsechangelog | grep Version | awk '{print $2}')
