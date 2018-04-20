@@ -569,7 +569,10 @@ private:
             if (Config_->ExternalJobContainer) {
                 return GetPortoInstance(PortoExecutor_, *Config_->ExternalJobContainer);
             }   else {
-                auto instance = CreatePortoInstance(GetDefaultJobsMetaContainerName(), PortoExecutor_);
+                auto self = GetSelfPortoInstance(PortoExecutor_);
+                auto instance = CreatePortoInstance(
+                    Format("%v/%v", self->GetAbsoluteName(), GetDefaultJobsMetaContainerName()),
+                    PortoExecutor_);
                 instance->SetIOWeight(Config_->JobsIOWeight);
                 return instance;
             }
