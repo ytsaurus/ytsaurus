@@ -1,8 +1,10 @@
-from yt.common import to_native_str, YtError
+from yt.common import to_native_str, YtError, which
+
 try:
     import yt.json_wrapper as json
 except ImportError:
     import yt.json as json
+
 import yt.yson as yson
 
 from yt.packages.six import iteritems, PY3, text_type, Iterator
@@ -16,6 +18,11 @@ import codecs
 import logging
 import errno
 import time
+
+try:
+    import yatest.common as yatest_common
+except ImportError:
+    yatest_common = None
 
 logger = logging.getLogger("Yt.local")
 
@@ -269,3 +276,15 @@ def wait(predicate, error_message=None, iter=100, sleep_backoff=0.3):
         error_message = "Wait failed"
     error_message += " (timeout = {0})".format(iter * sleep_backoff)
     raise WaitFailed(error_message)
+
+def add_binary_path(relative_path):
+    if yatest_common is None and "ARCADIA_PATH" not in os.environ:
+        return
+
+    if yatest_common is not None:
+        binary_path = yatest_common.binary_path(relative_path)
+    else:
+        binary_path = os.path.join(os.environ["ARCADIA_PATH"], relative_path)
+
+    if not which(os.path.basename(binary_path)):
+        os.environ["PATH"] = os.path.dirname(binary_path) + ":" + os.environ["PATH"]
