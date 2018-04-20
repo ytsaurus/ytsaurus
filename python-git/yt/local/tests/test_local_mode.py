@@ -24,7 +24,6 @@ except ImportError:
 import os
 import sys
 import pytest
-import shutil
 import tempfile
 import signal
 import contextlib
@@ -88,7 +87,7 @@ def _wait_instance_to_become_ready(process, instance_id):
 @pytest.fixture(scope="session", autouse=True)
 def prepare_path():
     try:
-        import yt.environment.arcadia_interop as arcadia_interop
+        from yt.environment.arcadia_interop import arcadia_interop
         destination = os.path.join(yatest_common.work_path(), "build")
         os.makedirs(destination)
         path, node_path = arcadia_interop.prepare_yt_environment(destination)
