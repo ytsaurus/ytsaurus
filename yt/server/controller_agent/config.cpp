@@ -579,7 +579,6 @@ TControllerAgentConfig::TControllerAgentConfig()
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TEraseOperationOptions);
-DEFINE_DYNAMIC_PHOENIX_TYPE(TJoinReduceOperationOptions);
 DEFINE_DYNAMIC_PHOENIX_TYPE(TMapOperationOptions);
 DEFINE_DYNAMIC_PHOENIX_TYPE(TMapReduceOperationOptions);
 DEFINE_DYNAMIC_PHOENIX_TYPE(TOperationOptions);

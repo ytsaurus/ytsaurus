@@ -438,7 +438,6 @@ TSchemalessJoiningReader::TSchemalessJoiningReader(
     , InterruptAtKeyEdge_(interruptAtKeyEdge)
 {
     YCHECK(!primaryReaders.empty() && !foreignReaders.empty());
-    YCHECK(interruptAtKeyEdge || primaryReaders.size() == 1);
 
     auto mergingReader = CreateSchemalessSortedMergingReader(primaryReaders, primaryKeyColumnCount, reduceKeyColumnCount);
 
@@ -644,7 +643,6 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessJoinReduceJoiningReader(
     const std::vector<ISchemalessMultiChunkReaderPtr>& foreignReaders,
     int foreignKeyColumnCount)
 {
-    YCHECK(primaryReaders.size() == 1);
     YCHECK(primaryKeyColumnCount == reduceKeyColumnCount && reduceKeyColumnCount == foreignKeyColumnCount);
     if (foreignReaders.empty()) {
         return primaryReaders[0];

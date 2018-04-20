@@ -285,17 +285,6 @@ DEFINE_REFCOUNTED_TYPE(TReduceOperationOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TJoinReduceOperationOptions
-    : public TReduceOperationOptions
-{
-private:
-    DECLARE_DYNAMIC_PHOENIX_TYPE(TJoinReduceOperationOptions, 0xdd9303bc);
-};
-
-DEFINE_REFCOUNTED_TYPE(TJoinReduceOperationOptions)
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TEraseOperationOptions
     : public TOrderedMergeOperationOptions
 {
@@ -584,7 +573,7 @@ public:
     //! Specific operation options.
     TMapOperationOptionsPtr MapOperationOptions;
     TReduceOperationOptionsPtr ReduceOperationOptions;
-    TJoinReduceOperationOptionsPtr JoinReduceOperationOptions;
+    TReduceOperationOptionsPtr JoinReduceOperationOptions;
     TEraseOperationOptionsPtr EraseOperationOptions;
     TOrderedMergeOperationOptionsPtr OrderedMergeOperationOptions;
     TUnorderedMergeOperationOptionsPtr UnorderedMergeOperationOptions;
