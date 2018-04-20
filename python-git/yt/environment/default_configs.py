@@ -189,6 +189,8 @@ b"""
 
         controller_exec_node_info_update_period = 100;
 
+        exec_nodes_update_period = 100;
+
         environment = {
             PYTHONUSERBASE = "/tmp";
         };
