@@ -436,7 +436,7 @@ protected:
     std::vector<TAutoMergeTaskPtr> AutoMergeTasks;
     TTaskGroupPtr AutoMergeTaskGroup;
 
-    TDataFlowGraph DataFlowGraph_;
+    TDataFlowGraphPtr DataFlowGraph_;
 
     NYTree::IMapNodePtr UnrecognizedSpec_;
 

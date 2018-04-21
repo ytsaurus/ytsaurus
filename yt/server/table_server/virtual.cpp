@@ -7,7 +7,7 @@
 
 #include <yt/ytlib/table_client/schema.h>
 
-#include <yt/ytlib/node_tracker_client/node_directory.h>
+#include <yt/ytlib/node_tracker_client/node_directory_builder.h>
 
 #include <yt/core/ytree/fluent.h>
 
@@ -25,11 +25,13 @@ using namespace NObjectServer;
 using namespace NObjectClient;
 using namespace NTableClient;
 using namespace NChunkClient;
+using namespace NNodeTrackerClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TVirtualStaticTable::TVirtualStaticTable(const THashSet<NYT::NChunkClient::TInputChunkPtr>& chunks)
+TVirtualStaticTable::TVirtualStaticTable(const THashSet<NYT::NChunkClient::TInputChunkPtr>& chunks, TNodeDirectoryPtr nodeDirectory)
     : Chunks_(chunks)
+    , NodeDirectory_(std::move(nodeDirectory))
 { }
 
 bool TVirtualStaticTable::DoInvoke(const IServiceContextPtr& context)
@@ -60,6 +62,8 @@ DEFINE_YPATH_SERVICE_METHOD(TVirtualStaticTable, GetBasicAttributes)
 
 DEFINE_YPATH_SERVICE_METHOD(TVirtualStaticTable, Fetch)
 {
+    TNodeDirectoryBuilder nodeDirectoryBuilder(NodeDirectory_, response->mutable_node_directory());
+
     for (const auto& range : FromProto<std::vector<TReadRange>>(request->ranges())) {
         auto lowerLimit = range.LowerLimit();
         auto upperLimit = range.UpperLimit();
@@ -91,6 +95,7 @@ DEFINE_YPATH_SERVICE_METHOD(TVirtualStaticTable, Fetch)
             ToProto(chunkSpec, chunk, EDataSourceType::UnversionedTable);
             // NB: chunk we got may have non-zero table index, override it with zero.
             chunkSpec->set_table_index(0);
+            nodeDirectoryBuilder.Add(chunk->GetReplicaList());
             chunkSpec->set_row_count_override(chunkUpperLimit - chunkLowerLimit);
             if (chunkLowerLimit != 0) {
                 chunkSpec->mutable_lower_limit()->set_row_index(chunkLowerLimit);
@@ -100,9 +105,6 @@ DEFINE_YPATH_SERVICE_METHOD(TVirtualStaticTable, Fetch)
             }
         }
     }
-
-    // Yes, we could theoretically provide our own node directory, but it is a piece of nasty code to bring it here =(
-    response->mutable_node_directory();
 
     context->SetResponseInfo();
     context->Reply();

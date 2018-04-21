@@ -11,6 +11,8 @@
 
 #include <yt/ytlib/chunk_client/public.h>
 
+#include <yt/ytlib/node_tracker_client/public.h>
+
 #include <yt/core/misc/topological_ordering.h>
 
 #include <yt/core/ytree/fluent.h>
@@ -53,6 +55,7 @@ struct TEdgeDescriptor
 ////////////////////////////////////////////////////////////////////////////////
 
 class TDataFlowGraph
+    : public TRefCounted
 {
 public:
     using TVertexDescriptor = TString;
@@ -61,6 +64,7 @@ public:
     static TVertexDescriptor SinkDescriptor;
 
     TDataFlowGraph();
+    TDataFlowGraph(NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory);
     ~TDataFlowGraph();
 
     NYTree::IYPathServicePtr GetService() const;
@@ -86,6 +90,8 @@ private:
     class TImpl;
     const TIntrusivePtr<TImpl> Impl_;
 };
+
+DEFINE_REFCOUNTED_TYPE(TDataFlowGraph);
 
 ////////////////////////////////////////////////////////////////////////////////
 
