@@ -103,7 +103,9 @@ void TStoreManagerBase::StartEpoch(TTabletSlotPtr slot)
     Tablet_->StartEpoch(slot);
 
     const auto& config = Tablet_->GetConfig();
-    LastRotated_ = TInstant::Now() - RandomDuration(config->DynamicStoreAutoFlushPeriod);
+    if (config->DynamicStoreAutoFlushPeriod) {
+        LastRotated_ = TInstant::Now() - RandomDuration(*config->DynamicStoreAutoFlushPeriod);
+    }
 
     RotationScheduled_ = false;
 
@@ -518,7 +520,8 @@ bool TStoreManagerBase::IsPeriodicRotationNeeded() const
     const auto* activeStore = GetActiveStore();
     const auto& config = Tablet_->GetConfig();
     return
-        TInstant::Now() > LastRotated_ + config->DynamicStoreAutoFlushPeriod &&
+        config->DynamicStoreAutoFlushPeriod  &&
+        TInstant::Now() > LastRotated_ + *config->DynamicStoreAutoFlushPeriod &&
         activeStore->GetRowCount() > 0;
 }
 

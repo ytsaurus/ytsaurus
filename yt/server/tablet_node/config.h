@@ -93,7 +93,7 @@ public:
 
     TNullable<ui64> ForcedCompactionRevision;
 
-    TDuration DynamicStoreAutoFlushPeriod;
+    TNullable<TDuration> DynamicStoreAutoFlushPeriod;
     TNullable<TDuration> AutoCompactionPeriod;
 
     bool EnableLookupHashTable;
