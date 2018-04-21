@@ -21,6 +21,7 @@ using namespace NChunkClient::NProto;
 using namespace NChunkClient;
 using namespace NTableServer;
 using namespace NYson;
+using namespace NNodeTrackerClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -79,7 +80,10 @@ public:
     DEFINE_BYREF_RW_PROPERTY(THashSet<NChunkClient::TInputChunkPtr>, Chunks);
 
 public:
-    TLivePreview()
+    TLivePreview() = default;
+
+    explicit TLivePreview(TNodeDirectoryPtr nodeDirectory)
+        : NodeDirectory_(std::move(nodeDirectory))
     {
         Initialize();
     }
@@ -89,6 +93,7 @@ public:
         using NYT::Persist;
 
         Persist<TSetSerializer<TDefaultSerializer, TUnsortedTag>>(context, Chunks_);
+        Persist(context, NodeDirectory_);
 
         if (context.IsLoad()) {
             Initialize();
@@ -96,9 +101,11 @@ public:
     }
 
 private:
+    TNodeDirectoryPtr NodeDirectory_;
+
     void Initialize()
     {
-        Service_ = New<TVirtualStaticTable>(Chunks_);
+        Service_ = New<TVirtualStaticTable>(Chunks_, NodeDirectory_);
     }
 };
 
@@ -164,7 +171,10 @@ public:
     DEFINE_BYREF_RO_PROPERTY(TEdgeMap, Edges);
 
 public:
-    TVertex()
+    TVertex() = default;
+
+    explicit TVertex(TNodeDirectoryPtr nodeDirectory)
+        : NodeDirectory_(std::move(nodeDirectory))
     {
         Initialize();
     }
@@ -188,6 +198,7 @@ public:
         Persist(context, JobCounter_);
         Persist(context, JobType_);
         Persist(context, LivePreviews_);
+        Persist(context, NodeDirectory_);
 
         if (context.IsLoad()) {
             Initialize();
@@ -200,7 +211,7 @@ public:
             LivePreviews_.resize(index + 1);
         }
         if (!LivePreviews_[index]) {
-            LivePreviews_[index] = New<TLivePreview>();
+            LivePreviews_[index] = New<TLivePreview>(NodeDirectory_);
         }
 
         YCHECK(LivePreviews_[index]->Chunks().insert(std::move(chunk)).second);
@@ -215,6 +226,8 @@ public:
     }
 
 private:
+    TNodeDirectoryPtr NodeDirectory_;
+
     void Initialize()
     {
         using TEdgeMapService = NYTree::TCollectionBoundMapService<TEdgeMap>;
@@ -241,7 +254,10 @@ class TDataFlowGraph::TImpl
     : public TRefCounted
 {
 public:
-    TImpl()
+    TImpl() = default;
+
+    TImpl(TNodeDirectoryPtr nodeDirectory)
+        : NodeDirectory_(std::move(nodeDirectory))
     {
         Initialize();
     }
@@ -263,6 +279,7 @@ public:
         Persist(context, TotalJobCounter_);
         Persist(context, Vertices_);
         Persist(context, TopologicalOrdering_);
+        Persist(context, NodeDirectory_);
 
         if (context.IsLoad()) {
             Initialize();
@@ -346,6 +363,8 @@ private:
 
     TIncrementalTopologicalOrdering<TVertexDescriptor> TopologicalOrdering_;
 
+    TNodeDirectoryPtr NodeDirectory_;
+
     NYTree::IYPathServicePtr Service_;
 
     void Initialize()
@@ -371,7 +390,7 @@ private:
         auto it = Vertices_.find(descriptor);
         if (it == Vertices_.end()) {
             auto& vertex = Vertices_[descriptor];
-            vertex = New<TVertex>();
+            vertex = New<TVertex>(NodeDirectory_);
             vertex->JobCounter()->SetParent(TotalJobCounter_);
             return vertex;
         } else {
@@ -390,6 +409,10 @@ private:
 
 TDataFlowGraph::TDataFlowGraph()
     : Impl_(New<TImpl>())
+{ }
+
+TDataFlowGraph::TDataFlowGraph(TNodeDirectoryPtr nodeDirectory)
+    : Impl_(New<TImpl>(std::move(nodeDirectory)))
 { }
 
 TDataFlowGraph::~TDataFlowGraph() = default;

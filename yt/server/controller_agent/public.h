@@ -44,6 +44,8 @@ using NScheduler::EJobState;
 using NScheduler::TOperationSpecBasePtr;
 using NScheduler::EOperationAlertType;
 
+DECLARE_REFCOUNTED_CLASS(TDataFlowGraph)
+
 DECLARE_REFCOUNTED_STRUCT(TBriefJobStatistics)
 
 DECLARE_REFCOUNTED_STRUCT(IJobSizeConstraints)

@@ -9,6 +9,8 @@
 
 #include <yt/ytlib/chunk_client/chunk_owner_ypath.pb.h>
 
+#include <yt/ytlib/node_tracker_client/public.h>
+
 #include <yt/core/ytree/virtual.h>
 
 namespace NYT {
@@ -21,7 +23,9 @@ class TVirtualStaticTable
     , public NYTree::ISystemAttributeProvider
 {
 public:
-    explicit TVirtualStaticTable(const THashSet<NChunkClient::TInputChunkPtr>& chunks);
+    TVirtualStaticTable(
+        const THashSet<NChunkClient::TInputChunkPtr>& chunks,
+        NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory);
 
     virtual bool DoInvoke(const NRpc::IServiceContextPtr& context) override;
 
@@ -47,6 +51,8 @@ private:
     NYTree::TBuiltinAttributeKeysCache BuiltinAttributeKeysCache_;
 
     const THashSet<NChunkClient::TInputChunkPtr>& Chunks_;
+
+    NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory_;
 
     DECLARE_YPATH_SERVICE_METHOD(NObjectClient::NProto, GetBasicAttributes);
     DECLARE_YPATH_SERVICE_METHOD(NChunkClient::NProto, Fetch);

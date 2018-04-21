@@ -471,6 +471,8 @@ bool TOperationControllerBase::HasUserJobFiles() const
 void TOperationControllerBase::InitializeStructures()
 {
     InputNodeDirectory_ = New<NNodeTrackerClient::TNodeDirectory>();
+    DataFlowGraph_ = New<TDataFlowGraph>(InputNodeDirectory_);
+    InitOrchid();
 
     for (const auto& path : GetInputTablePaths()) {
         TInputTable table;
@@ -6140,7 +6142,7 @@ void TOperationControllerBase::BuildProgress(TFluentMap fluent) const
             .Item("failed").Value(ScheduleJobStatistics_->Failed)
         .EndMap()
 		.Item("data_flow_graph").DoMap(BIND([&] (TFluentMap fluent) {
-			DataFlowGraph_.BuildLegacyYson(fluent);
+			DataFlowGraph_->BuildLegacyYson(fluent);
 		}))
         .DoIf(EstimatedInputDataSizeHistogram_.operator bool(), [=] (TFluentMap fluent) {
             EstimatedInputDataSizeHistogram_->BuildHistogramView();
@@ -7218,7 +7220,7 @@ void TOperationControllerBase::ReleaseIntermediateStripeList(const NChunkPools::
 
 TDataFlowGraph* TOperationControllerBase::GetDataFlowGraph()
 {
-    return &DataFlowGraph_;
+    return DataFlowGraph_.Get();
 }
 
 void TOperationControllerBase::TLivePreviewChunkDescriptor::Persist(const TPersistenceContext& context)
