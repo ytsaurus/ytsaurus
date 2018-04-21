@@ -163,7 +163,8 @@ protected:
     // TSupportsPermissions members
     virtual void ValidatePermission(
         NYTree::EPermissionCheckScope scope,
-        NYTree::EPermission permission) override;
+        NYTree::EPermission permission,
+        const TString& /* user */ = "") override;
 
     // Cypress-specific overload.
     void ValidatePermission(

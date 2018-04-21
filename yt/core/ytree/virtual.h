@@ -75,5 +75,38 @@ INodePtr CreateVirtualNode(IYPathServicePtr service);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TVirtualListBase
+    : public TSupportsAttributes
+    , public ISystemAttributeProvider
+{
+public:
+    DEFINE_BYVAL_RW_PROPERTY(bool, Opaque, true);
+
+protected:
+    virtual i64 GetSize() const = 0;
+    virtual IYPathServicePtr FindItemService(int index) const = 0;
+
+    virtual bool DoInvoke(const NRpc::IServiceContextPtr& context) override;
+
+    virtual TResolveResult ResolveRecursive(const TYPath& path, const NRpc::IServiceContextPtr& context) override;
+    virtual void GetSelf(TReqGet* request, TRspGet* response, const TCtxGetPtr& context) override;
+
+    // TSupportsAttributes overrides
+    virtual ISystemAttributeProvider* GetBuiltinAttributeProvider() override;
+
+    // ISystemAttributeProvider overrides
+    virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override;
+    virtual const THashSet<TInternedAttributeKey>& GetBuiltinAttributeKeys() override;
+    virtual bool GetBuiltinAttribute(TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override;
+    virtual TFuture<NYson::TYsonString> GetBuiltinAttributeAsync(TInternedAttributeKey key) override;
+    virtual bool SetBuiltinAttribute(TInternedAttributeKey key, const NYson::TYsonString& value) override;
+    virtual bool RemoveBuiltinAttribute(TInternedAttributeKey key) override;
+
+private:
+    TBuiltinAttributeKeysCache BuiltinAttributeKeysCache_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYTree
 } // namespace NYT

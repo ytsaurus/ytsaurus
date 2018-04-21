@@ -225,7 +225,6 @@ private:
         }
     }
 
-
     TErrorOr<INodePtr> GetCachedTree()
     {
         TGuard<TSpinLock> guard(SpinLock_);
@@ -244,7 +243,6 @@ private:
         }
     }
 
-
     static IInvokerPtr GetWorkerInvoker()
     {
         return NRpc::TDispatcher::Get()->GetHeavyInvoker();
@@ -256,6 +254,61 @@ IYPathServicePtr IYPathService::Cached(TDuration updatePeriod)
     return updatePeriod == TDuration::Zero()
         ? MakeStrong(this)
         : New<TCachedYPathService>(this, updatePeriod);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TPermissionValidatingYPathService
+    : public TYPathServiceBase
+    , public TSupportsPermissions
+{
+public:
+    TPermissionValidatingYPathService(
+        IYPathServicePtr underlyingService,
+        TCallback<void(const TString&, EPermission)> validationCallback)
+        : UnderlyingService_(underlyingService)
+        , ValidationCallback_(std::move(validationCallback))
+        , PermissionValidator_(this, EPermissionCheckScope::This)
+    { }
+
+    virtual TResolveResult Resolve(
+        const TYPath& path,
+        const IServiceContextPtr& context) override
+    {
+        return TResolveResultHere{path};
+    }
+
+    virtual bool ShouldHideAttributes() override
+    {
+        return UnderlyingService_->ShouldHideAttributes();
+    }
+
+private:
+    const IYPathServicePtr UnderlyingService_;
+    const TCallback<void(const TString&, EPermission)> ValidationCallback_;
+
+    TCachingPermissionValidator PermissionValidator_;
+
+    virtual void ValidatePermission(
+        EPermissionCheckScope /* scope */,
+        EPermission permission,
+        const TString& user) override
+    {
+        ValidationCallback_.Run(user, permission);
+    }
+
+    virtual bool DoInvoke(const IServiceContextPtr& context) override
+    {
+        // TODO(max42): choose permission depending on method.
+        PermissionValidator_.Validate(EPermission::Read, context->GetUser());
+        ExecuteVerb(UnderlyingService_, context);
+        return true;
+    }
+};
+
+IYPathServicePtr IYPathService::AddPermissionValidator(TCallback<void(const TString&, EPermission)> validationCallback)
+{
+    return New<TPermissionValidatingYPathService>(this, std::move(validationCallback));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

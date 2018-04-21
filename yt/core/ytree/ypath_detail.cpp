@@ -272,7 +272,8 @@ void TSupportsMultiset::SetAttributes(const TYPath& path, TReqMultiset* request,
 
 void TSupportsPermissions::ValidatePermission(
     EPermissionCheckScope /*scope*/,
-    EPermission /*permission*/)
+    EPermission /*permission*/,
+    const TString& /*user*/)
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -284,11 +285,12 @@ TSupportsPermissions::TCachingPermissionValidator::TCachingPermissionValidator(
     , Scope_(scope)
 { }
 
-void TSupportsPermissions::TCachingPermissionValidator::Validate(EPermission permission)
+void TSupportsPermissions::TCachingPermissionValidator::Validate(EPermission permission, const TString& user)
 {
-    if (None(ValidatedPermissions_ & permission)) {
-        Owner_->ValidatePermission(Scope_, permission);
-        ValidatedPermissions_ |= permission;
+    auto& validatedPermissions = ValidatedPermissions_[user];
+    if (None(validatedPermissions & permission)) {
+        Owner_->ValidatePermission(Scope_, permission, user);
+        validatedPermissions |= permission;
     }
 }
 
