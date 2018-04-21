@@ -987,7 +987,8 @@ ICypressNodeProxyPtr TNontemplateCypressNodeProxyBase::GetProxy(TCypressNodeBase
 
 void TNontemplateCypressNodeProxyBase::ValidatePermission(
     EPermissionCheckScope scope,
-    EPermission permission)
+    EPermission permission,
+    const TString& /* user */)
 {
     auto* node = GetThisImpl();
     // NB: Suppress permission checks for nodes upon construction.

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "permission.h"
 
 #include <yt/core/actions/public.h>
 
@@ -106,6 +107,10 @@ struct IYPathService
     //! Creates a wrapper that makes ephemeral snapshots to cache
     //! the underlying service.
     IYPathServicePtr Cached(TDuration updatePeriod);
+
+    //! Creates a wrapper that calls given callback on each invocation
+    //! in order to validate user permission to query the ypath service.
+    IYPathServicePtr AddPermissionValidator(TCallback<void(const TString&, EPermission)> validationCallback);
 
 protected:
     //! Implementation method for WriteAttributesFragment.

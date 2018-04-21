@@ -625,7 +625,7 @@ void TObjectProxyBase::ValidateNoTransaction()
     }
 }
 
-void TObjectProxyBase::ValidatePermission(EPermissionCheckScope scope, EPermission permission)
+void TObjectProxyBase::ValidatePermission(EPermissionCheckScope scope, EPermission permission, const TString& /* user */)
 {
     YCHECK(scope == EPermissionCheckScope::This);
     ValidatePermission(Object_, permission);
