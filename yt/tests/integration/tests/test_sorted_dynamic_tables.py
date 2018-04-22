@@ -1012,7 +1012,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
     @pytest.mark.parametrize("in_memory_mode", ["none", "compressed"])
     def test_data_weight_performance_counters(self, optimize_for, in_memory_mode):
         self.sync_create_cells(1)
-        self._create_simple_table("//tmp/t", optimize_for=optimize_for, in_memory_mode=in_memory_mode, dynamic_store_auto_flush_period=None)
+        self._create_simple_table("//tmp/t", optimize_for=optimize_for, in_memory_mode=in_memory_mode, dynamic_store_auto_flush_period=YsonEntity())
         self.sync_mount_table("//tmp/t")
 
         path = "//tmp/t/@tablets/0/performance_counters"
