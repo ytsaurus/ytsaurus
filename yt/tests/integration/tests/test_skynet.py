@@ -30,7 +30,6 @@ class TestSkynetIntegration(YTEnvSetup):
     NUM_SCHEDULERS = 1
 
     DELTA_NODE_CONFIG = {
-        "use_new_http_server": True,
         "data_node": {
             "enable_experimental_skynet_http_api": True
         }
@@ -284,7 +283,6 @@ class TestSkynetManager(YTEnvSetup):
     NUM_SKYNET_MANAGERS = 2
 
     DELTA_NODE_CONFIG = {
-        "use_new_http_server": True,
         "data_node": {
             "enable_experimental_skynet_http_api": True
         }
