@@ -27,19 +27,16 @@ class TestMonitoring(YTEnvSetup):
         config_orchid = self.get_json(http_port, "/config")
         assert "monitoring_port" in config_orchid
 
+        start_time = time.time()
+
         def monitoring_orchid_ready():
             try:
-                self.get_json(http_port, "/profiling/logging/backlog_events")
-                return True
+                events = self.get_json(http_port,"/profiling/logging/backlog_events?from_time={}".format(int(start_time) * 1000000))
+                return len(events) > 0
             except urllib2.HTTPError:
                 return False
 
         wait(monitoring_orchid_ready)
-
-        profiling_orchid = self.get_json(http_port,
-            "/profiling/logging/backlog_events?from_time={}".format(int(time.time()) * 1000000))
-
-        assert len(profiling_orchid) > 0
 
         with pytest.raises(urllib2.HTTPError):
             self.get_json(http_port, "/profiling/logging/backlog_events?from_time=abc")
