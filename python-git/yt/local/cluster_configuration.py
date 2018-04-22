@@ -237,7 +237,7 @@ def _remove_none_fields(node):
     traverse(node)
 
 def modify_cluster_configuration(cluster_configuration, abi_version, master_config_patch=None, node_config_patch=None,
-                                 scheduler_config_patch=None, proxy_config_patch=None):
+                                 scheduler_config_patch=None, controller_agent_config_patch=None, proxy_config_patch=None):
     master = cluster_configuration["master"]
 
     for tag in [master["primary_cell_tag"]] + master["secondary_cell_tags"]:
@@ -263,6 +263,9 @@ def modify_cluster_configuration(cluster_configuration, abi_version, master_conf
     if abi_version >= (19, 3):
         for config in cluster_configuration["controller_agent"]:
             update_inplace(config, CONTROLLER_AGENT_CONFIG_PATCH)
+
+        if controller_agent_config_patch:
+            update_inplace(config, controller_agent_config_patch)
 
     for config in cluster_configuration["node"]:
         for patch in NODE_CONFIG_PATCHES:
