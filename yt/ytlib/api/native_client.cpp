@@ -4286,16 +4286,17 @@ private:
                 itemsConditions.push_back(Format("authenticated_user = %Qv", *options.UserFilter));
             }
 
-            TString queryForItemsIds = Format(
+            auto queryForItemsIds = Format(
                 "id_hi, id_lo FROM [%v] WHERE %v ORDER BY start_time %v LIMIT %v",
                 GetOperationsArchivePathOrderedByStartTime(),
                 JoinSeq(" AND ", itemsConditions),
                 itemsSortDirection,
                 1 + options.Limit);
 
-            TString poolColumnName = version < 15 ? "''" : "pool";
+            static const TString NullPoolName = "unknown";
+            auto poolColumnName = version < 15 ? "'" + NullPoolName + "'" : "pool";
 
-            TString queryForCounts = Format(
+            auto queryForCounts = Format(
                 "pool, user, state, type, sum(1) AS count FROM [%v] WHERE %v GROUP BY %v AS pool, authenticated_user AS user, state AS state, operation_type AS type",
                 GetOperationsArchivePathOrderedByStartTime(),
                 JoinSeq(" AND ", countsConditions),
@@ -4313,7 +4314,7 @@ private:
             const auto& rowsCounts = resultCounts.Rowset->GetRows();
 
             for (auto row : rowsCounts) {
-                auto pool = TString(row[0].Data.String, row[0].Length);
+                auto pool = row[0].Type == EValueType::Null ? NullPoolName : TString(row[0].Data.String, row[0].Length);
                 auto user = TString(row[1].Data.String, row[1].Length);
                 auto state = ParseEnum<EOperationState>(TString(row[2].Data.String, row[2].Length));
                 auto type = ParseEnum<EOperationType>(TString(row[3].Data.String, row[3].Length));
