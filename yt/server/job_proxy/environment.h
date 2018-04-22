@@ -55,6 +55,7 @@ DEFINE_REFCOUNTED_TYPE(IUserJobEnvironment)
 struct IJobProxyEnvironment
     : public virtual IResourceTracker
 {
+    virtual void SetMemoryGuarantee(i64 memoryGuarantee) = 0;
     virtual void SetCpuShare(double share) = 0;
     virtual IUserJobEnvironmentPtr CreateUserJobEnvironment(const TString& jobId) = 0;
 };

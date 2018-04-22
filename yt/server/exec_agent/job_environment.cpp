@@ -54,6 +54,8 @@ using namespace NTools;
 
 static const auto& Logger = ExecAgentLogger;
 
+static const TString DefaultMemoryGuarantee = "1024";
+
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace {
@@ -428,6 +430,20 @@ public:
                 MetaInstance_->GetAbsoluteName(),
                 slotIndex));
 
+            // Reset memory guarantee to avoid memory guarantee overcommit.
+            WaitFor(PortoExecutor_->SetProperty(
+                GetFullJobProxyMetaContainerName(MetaInstance_->GetAbsoluteName(), slotIndex),
+                "memory_guarantee",
+                DefaultMemoryGuarantee))
+                .ThrowOnError();
+
+            // Reset memory guarantee to avoid memory guarantee overcommit.
+            WaitFor(PortoExecutor_->SetProperty(
+                GetFullUserJobMetaContainerName(MetaInstance_->GetAbsoluteName(), slotIndex),
+                "memory_guarantee",
+                DefaultMemoryGuarantee))
+                .ThrowOnError();
+
             // Drop reference to a process if there were any.
             JobProxyProcesses_.erase(slotIndex);
 
@@ -603,18 +619,18 @@ private:
                     PortoExecutor_->CreateContainer(GetFullJobProxyMetaContainerName(MetaInstance_->GetAbsoluteName(), slotIndex)))
                     .ThrowOnError();
 
-                // This forces creation of memory cgroup for this container.
+                // This memory guarantee forces creation of memory cgroup for this container.
                 WaitFor(PortoExecutor_->SetProperty(
                     GetFullJobProxyMetaContainerName(MetaInstance_->GetAbsoluteName(), slotIndex),
                     "memory_guarantee",
-                    ToString(NControllerAgent::GetFootprintMemorySize())))
+                    DefaultMemoryGuarantee))
                 .ThrowOnError();
 
-                // This forces creation of memory cgroup for this container.
+                // This memory guarantee forces creation of memory cgroup for this container.
                 WaitFor(PortoExecutor_->SetProperty(
                     GetFullUserJobMetaContainerName(MetaInstance_->GetAbsoluteName(), slotIndex),
                     "memory_guarantee",
-                    ToString(NControllerAgent::GetFootprintMemorySize())))
+                    DefaultMemoryGuarantee))
                 .ThrowOnError();
             }
         } catch (const std::exception& ex) {
