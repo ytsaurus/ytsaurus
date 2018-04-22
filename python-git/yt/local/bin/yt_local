@@ -135,7 +135,7 @@ def add_start_subparser(subparsers):
     parser.add_argument("--node-count", type=int, default=_USE_START_DEFAULT, help="number of nodes")
     parser.add_argument("--scheduler-count", type=int, default=_USE_START_DEFAULT, help="number of schedulers")
 
-    for service in ["master", "node", "scheduler", "proxy"]:
+    for service in ["master", "node", "scheduler", "proxy", "controller-agent"]:
         parser.add_argument("--{0}-config".format(service), help="{0} config path".format(service))
 
     parser.add_argument("--sync", action="store_true", default=False,
