@@ -1,9 +1,10 @@
 #pragma once
 
-#include "helpers.h"
-#include "public.h"
-#include "stream.h"
 #include "object_builder.h"
+
+#include <yt/python/common/helpers.h>
+#include <yt/python/common/public.h>
+#include <yt/python/common/stream.h>
 
 #include <yt/core/yson/lexer_detail.h>
 

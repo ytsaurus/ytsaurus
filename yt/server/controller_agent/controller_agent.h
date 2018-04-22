@@ -1,5 +1,7 @@
 #pragma once
 
+#include "private.h"
+
 #include "operation_controller.h"
 
 #include <yt/server/scheduler/public.h>
@@ -81,6 +83,11 @@ public:
      *  \note Thread affinity: any
      */
     const NEventLog::TEventLogWriterPtr& GetEventLogWriter() const;
+
+    /*!
+     * \note Thread affinity: any
+     */
+    TMemoryTagQueue* GetMemoryTagQueue();
 
     /*!
      *  \note Thread affinity: any

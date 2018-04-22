@@ -193,7 +193,7 @@ public:
         if (!Connected_) {
             THROW_ERROR_EXCEPTION(
                 NRpc::EErrorCode::Unavailable,
-                "Scheduler is not connected");
+                "Controller agent is not connected");
         }
     }
 
@@ -222,6 +222,13 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         return ControllerThreadPool_->GetInvoker();
+    }
+
+    TMemoryTagQueue* GetMemoryTagQueue()
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return &MemoryTagQueue_;
     }
 
     const IInvokerPtr& GetSnapshotIOInvoker()
@@ -273,6 +280,8 @@ public:
             controller->GetCancelableInvoker()->Invoke(
                 BIND(&IOperationController::UpdateConfig, controller, config));
         }
+
+        MemoryTagQueue_.UpdateConfig(Config_);
     }
 
 
@@ -367,7 +376,7 @@ public:
             auto controller = CreateControllerForOperation(Config_, operation.Get());
             operation->SetController(controller);
         } catch (...) {
-            MemoryTagQueue_.ReclaimOperationTag(operationId);
+            MemoryTagQueue_.ReclaimTag(operation->GetMemoryTag());
             throw;
         }
 
@@ -392,8 +401,6 @@ public:
         YCHECK(IdToOperation_.erase(operationId) == 1);
 
         MasterConnector_->UnregisterOperation(operationId);
-
-        MemoryTagQueue_.ReclaimOperationTag(operationId);
 
         LOG_DEBUG("Operation unregistered (OperationId: %v)", operationId);
     }
@@ -1015,6 +1022,9 @@ private:
         if (operationAlertsSent) {
             LastOperationAlertsUpdateTime_ = now;
         }
+        if (suspiciousJobsSent) {
+            LastSuspiciousJobsUpdateTime_ = now;
+        }
     }
 
     void HandleJobEvents(const TControllerAgentTrackerServiceProxy::TRspHeartbeatPtr& rsp)
@@ -1304,6 +1314,11 @@ const TAsyncSemaphorePtr& TControllerAgent::GetCoreSemaphore() const
 const TEventLogWriterPtr& TControllerAgent::GetEventLogWriter() const
 {
     return Impl_->GetEventLogWriter();
+}
+
+TMemoryTagQueue* TControllerAgent::GetMemoryTagQueue()
+{
+    return Impl_->GetMemoryTagQueue();
 }
 
 TOperationPtr TControllerAgent::FindOperation(const TOperationId& operationId)

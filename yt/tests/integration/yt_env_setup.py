@@ -3,6 +3,7 @@ import yt_commands
 from yt.environment import YTInstance
 from yt.common import makedirp, YtError, format_error
 from yt.environment.porto_helpers import porto_avaliable, remove_all_volumes
+from yt.environment.helpers import wait
 
 from yt.common import update_inplace
 
@@ -28,18 +29,6 @@ SANDBOX_ROOTDIR = os.environ.get("TESTS_SANDBOX", os.path.abspath("tests.sandbox
 SANDBOX_STORAGE_ROOTDIR = os.environ.get("TESTS_SANDBOX_STORAGE")
 
 ##################################################################
-
-
-try:
-    from yt.environment.helpers import wait
-except ImportError:
-    # COMPAT(ignat)
-    def wait(predicate, iter=100, sleep_backoff=0.3):
-        for _ in xrange(iter):
-            if predicate():
-                return
-            sleep(sleep_backoff)
-        pytest.fail("wait failed")
 
 def patch_subclass(parent, skip_condition, reason=""):
     """Work around a pytest.mark.skipif bug
@@ -109,16 +98,34 @@ def skip_if_porto(func):
         func(self, *args, **kwargs)
     return wrapped_func
 
-def require_ytserver_root_privileges(func):
-    def wrapped_func(self, *args, **kwargs):
-        ytserver_node_path = find_executable("ytserver-node")
-        ytserver_node_stat = os.stat(ytserver_node_path)
-        if (ytserver_node_stat.st_mode & stat.S_ISUID) == 0:
-            pytest.fail('This test requires a suid bit set for "ytserver-node"')
-        if ytserver_node_stat.st_uid != 0:
-            pytest.fail('This test requires "ytserver-node" being owned by root')
-        func(self, *args, **kwargs)
-    return wrapped_func
+
+# doesn't work with @patch_porto_env_only on the same class, wrap each method
+def require_ytserver_root_privileges(func_or_class):
+
+    def check_root_privileges():
+        for binary in ["ytserver-exec", "ytserver-job-proxy", "ytserver-node", "ytserver-tools"]:
+            binary_path = find_executable(binary)
+            binary_stat = os.stat(binary_path)
+            if (binary_stat.st_mode & stat.S_ISUID) == 0:
+                pytest.fail('This test requires a suid bit set for "{}"'.format(binary))
+            if binary_stat.st_uid != 0:
+                pytest.fail('This test requires "{}" being owned by root'.format(binary))
+
+    if inspect.isclass(func_or_class):
+        class Wrap(func_or_class):
+            @classmethod
+            def setup_class(cls):
+                check_root_privileges()
+                func_or_class.setup_class()
+
+        return Wrap
+    else:
+        def wrap_func(self, *args, **kwargs):
+            check_root_privileges()
+            func_or_class(self, *args, **kwargs)
+
+        return wrap_func
+
 
 def require_enabled_core_dump(func):
     def wrapped_func(self, *args, **kwargs):

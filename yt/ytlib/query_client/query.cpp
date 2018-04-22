@@ -134,7 +134,7 @@ TString InferName(TConstBaseQueryPtr query, bool omitValues)
         clauses.push_back(TString("LIMIT ") + ToString(query->Limit));
     }
 
-    return JoinToString(clauses, STRINGBUF(" "));
+    return JoinToString(clauses, AsStringBuf(" "));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -699,6 +699,7 @@ void ToProto(NProto::TQueryOptions* serialized, const TQueryOptions& original)
     serialized->set_use_multijoin(original.UseMultijoin);
     serialized->set_allow_full_scan(original.AllowFullScan);
     ToProto(serialized->mutable_read_session_id(), original.ReadSessionId);
+    serialized->set_deadline(ToProto<ui64>(original.Deadline));
 }
 
 void FromProto(TQueryOptions* original, const NProto::TQueryOptions& serialized)
@@ -707,17 +708,17 @@ void FromProto(TQueryOptions* original, const NProto::TQueryOptions& serialized)
     original->VerboseLogging = serialized.verbose_logging();
     original->MaxSubqueries = serialized.max_subqueries();
     original->EnableCodeCache = serialized.enable_code_cache();
-    if (serialized.has_workload_descriptor()) {
-        FromProto(&original->WorkloadDescriptor, serialized.workload_descriptor());
-    }
+    original->WorkloadDescriptor = serialized.has_workload_descriptor()
+        ? FromProto<TWorkloadDescriptor>(serialized.workload_descriptor())
+        : TWorkloadDescriptor();
     original->UseMultijoin = serialized.use_multijoin();
     original->AllowFullScan = serialized.allow_full_scan();
-
-    if (serialized.has_read_session_id()) {
-        FromProto(&original->ReadSessionId, serialized.read_session_id());
-    } else {
-        original->ReadSessionId = NChunkClient::TReadSessionId::Create();
-    }
+    original->ReadSessionId  = serialized.has_read_session_id()
+        ? FromProto<NChunkClient::TReadSessionId>(serialized.read_session_id())
+        : NChunkClient::TReadSessionId::Create();
+    original->Deadline = serialized.has_deadline()
+        ? FromProto<TInstant>(serialized.deadline())
+        : TInstant::Max();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -775,7 +776,7 @@ void FromProto(TDataRanges* original, const NProto::TDataRanges& serialized)
             TSharedRef::FromString<TDataRangesBufferTag>(serialized.keys()),
             rowBuffer);
 
-        TTableSchema schema = keysReader.ReadTableSchema();
+        auto schema = keysReader.ReadTableSchema();
         auto schemaData = keysReader.GetSchemaData(schema, NTableClient::TColumnFilter());
         original->Keys = keysReader.ReadSchemafulRowset(schemaData, true);
     }

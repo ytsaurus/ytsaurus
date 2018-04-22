@@ -1027,7 +1027,8 @@ public:
             permission != EPermission::Read &&
             Bootstrap_->GetConfigManager()->GetConfig()->EnableSafeMode)
         {
-            THROW_ERROR_EXCEPTION("Access denied: cluster is in safe mode. "
+            THROW_ERROR_EXCEPTION(NSecurityClient::EErrorCode::SafeModeEnabled,
+                "Access denied: cluster is in safe mode. "
                 "Check for the announces before reporting any issues")
                 << TErrorAttribute("permission", permission)
                 << TErrorAttribute("user", user->GetName())

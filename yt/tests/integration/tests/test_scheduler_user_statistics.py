@@ -1,5 +1,4 @@
 import pytest
-import os
 
 from yt_env_setup import YTEnvSetup, patch_porto_env_only, require_ytserver_root_privileges
 from yt_commands import *

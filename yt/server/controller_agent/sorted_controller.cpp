@@ -1,5 +1,6 @@
 #include "sorted_controller.h"
 
+#include "auto_merge_task.h"
 #include "chunk_list_pool.h"
 #include "helpers.h"
 #include "job_info.h"
@@ -106,17 +107,17 @@ protected:
     //! The template for starting new jobs.
     TJobSpec JobSpecTemplate_;
 
-    class TSortedTask
+    class TSortedTaskBase
         : public TTask
     {
     public:
         //! For persistence only.
-        TSortedTask()
+        TSortedTaskBase()
             : Controller_(nullptr)
         { }
 
-        TSortedTask(TSortedControllerBase* controller)
-            : TTask(controller)
+        TSortedTaskBase(TSortedControllerBase* controller, std::vector<TEdgeDescriptor> edgeDescriptors)
+            : TTask(controller, std::move(edgeDescriptors))
             , Controller_(controller)
         {
             auto options = controller->GetSortedChunkPoolOptions();
@@ -170,19 +171,16 @@ protected:
         }
 
     protected:
+        TSortedControllerBase* Controller_;
+
+        //! Initialized in descendandt tasks.
+        std::unique_ptr<IChunkPool> ChunkPool_;
+
         void BuildInputOutputJobSpec(TJobletPtr joblet, TJobSpec* jobSpec)
         {
             AddParallelInputSpec(jobSpec, joblet);
             AddOutputTableSpecs(jobSpec, joblet);
         }
-
-    private:
-        DECLARE_DYNAMIC_PHOENIX_TYPE(TSortedTask, 0xf881be2a);
-
-        TSortedControllerBase* Controller_;
-
-        //! Initialized in descendandt tasks.
-        std::unique_ptr<IChunkPool> ChunkPool_;
 
         virtual TExtendedJobResources GetMinNeededResourcesHeavy() const override
         {
@@ -229,7 +227,10 @@ protected:
         }
     };
 
-    typedef TIntrusivePtr<TSortedTask> TSortedTaskPtr;
+    INHERIT_DYNAMIC_PHOENIX_TYPE(TSortedTaskBase, TSortedTask, 0xbbe534a7);
+    INHERIT_DYNAMIC_PHOENIX_TYPE_TEMPLATED(TAutoMergeableOutputMixin, TAutoMergeableSortedTask, 0x1233fa99, TSortedTaskBase);
+
+    typedef TIntrusivePtr<TSortedTaskBase> TSortedTaskPtr;
 
     TTaskGroupPtr SortedTaskGroup_;
 
@@ -259,7 +260,7 @@ protected:
 
     virtual bool IsCompleted() const override
     {
-        return SortedTask_->IsCompleted();
+        return TOperationControllerBase::IsCompleted() && (!SortedTask_ || SortedTask_->IsCompleted());
     }
 
     virtual i64 GetUnavailableInputChunkCount() const override
@@ -429,12 +430,23 @@ protected:
 
         InitTeleportableInputTables();
 
-        SortedTask_ = New<TSortedTask>(this);
+        bool autoMergeNeeded = TryInitAutoMerge(JobSizeConstraints_->GetJobCount(), DataWeightRatio);
+
+        if (autoMergeNeeded) {
+            SortedTask_ = New<TAutoMergeableSortedTask>(this, GetAutoMergeEdgeDescriptors());
+        } else {
+            SortedTask_ = New<TSortedTask>(this, GetStandardEdgeDescriptors());
+        }
         RegisterTask(SortedTask_);
 
         ProcessInputs();
 
         FinishTaskInput(SortedTask_);
+        for (int index = 0; index < AutoMergeTasks.size(); ++index) {
+            if (AutoMergeTasks[index]) {
+                AutoMergeTasks[index]->FinishInput(SortedTask_->GetVertexDescriptor());
+            }
+        }
 
         for (const auto& teleportChunk : SortedTask_->GetChunkPoolOutput()->GetTeleportChunks()) {
             // If teleport chunks were found, then teleport table index should be non-Null.
@@ -528,6 +540,30 @@ protected:
             : nullptr;
     }
 
+
+    virtual void OnChunksReleased(int chunkCount) override
+    {
+        TOperationControllerBase::OnChunksReleased(chunkCount);
+
+        if (const auto& autoMergeDirector = GetAutoMergeDirector()) {
+            autoMergeDirector->OnMergeJobFinished(chunkCount /* unregisteredIntermediateChunkCount */);
+        }
+    }
+
+    virtual EIntermediateChunkUnstageMode GetIntermediateChunkUnstageMode() const override
+    {
+        auto reducerSpec = GetUserJobSpec();
+        // We could get here only if this is a sorted reduceand auto-merge is enabled.
+        YCHECK(reducerSpec);
+        YCHECK(Spec_->AutoMerge->Mode != EAutoMergeMode::Disabled);
+
+        if (Spec_->AutoMerge->Mode != EAutoMergeMode::Relaxed && reducerSpec->Deterministic) {
+            return EIntermediateChunkUnstageMode::OnJobCompleted;
+        } else {
+            return EIntermediateChunkUnstageMode::OnSnapshotCompleted;
+        }
+    }
+
 private:
     IChunkSliceFetcherPtr CreateChunkSliceFetcher()
     {
@@ -556,6 +592,7 @@ private:
 };
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TSortedControllerBase::TSortedTask);
+DEFINE_DYNAMIC_PHOENIX_TYPE(TSortedControllerBase::TAutoMergeableSortedTask);
 DEFINE_DYNAMIC_PHOENIX_TYPE(TSortedControllerBase::TChunkSliceFetcherFactory);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -716,7 +753,7 @@ public:
 protected:
     virtual TStringBuf GetDataWeightParameterNameForJob(EJobType jobType) const override
     {
-        return STRINGBUF("data_weight_per_job");
+        return AsStringBuf("data_weight_per_job");
     }
 
     virtual std::vector<EJobType> GetSupportedJobTypesForJobsDurationAnalyzer() const override
@@ -1045,7 +1082,7 @@ public:
 protected:
     virtual TStringBuf GetDataWeightParameterNameForJob(EJobType jobType) const override
     {
-        return STRINGBUF("data_weight_per_job");
+        return AsStringBuf("data_weight_per_job");
     }
 
     virtual std::vector<EJobType> GetSupportedJobTypesForJobsDurationAnalyzer() const override
@@ -1190,7 +1227,7 @@ public:
 protected:
     virtual TStringBuf GetDataWeightParameterNameForJob(EJobType jobType) const override
     {
-        return STRINGBUF("data_weight_per_job");
+        return AsStringBuf("data_weight_per_job");
     }
 
     virtual std::vector<EJobType> GetSupportedJobTypesForJobsDurationAnalyzer() const override

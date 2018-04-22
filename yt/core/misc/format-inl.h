@@ -59,7 +59,7 @@ inline void FormatValue(TStringBuilder* builder, const TStringBuf& value, const 
         hasAlign = true;
         alignSize = 10 * alignSize + (*current - '0');
         if (alignSize > 1000000) {
-            builder->AppendString(STRINGBUF("<alignment overflow>"));
+            builder->AppendString(AsStringBuf("<alignment overflow>"));
             return;
         }
         ++current;
@@ -150,8 +150,8 @@ inline void FormatValue(TStringBuilder* builder, bool value, const TStringBuf& f
     }
 
     auto str = lowercase
-        ? (value ? STRINGBUF("true") : STRINGBUF("false"))
-        : (value ? STRINGBUF("True") : STRINGBUF("False"));
+        ? (value ? AsStringBuf("true") : AsStringBuf("false"))
+        : (value ? AsStringBuf("True") : AsStringBuf("False"));
 
     builder->AppendString(str);
 }
@@ -348,7 +348,7 @@ inline void FormatValue(TStringBuilder* builder, const TGuid& value, const TStri
 // TNullable
 inline void FormatValue(TStringBuilder* builder, TNull, const TStringBuf& /*format*/)
 {
-    builder->AppendString(STRINGBUF("<null>"));
+    builder->AppendString(AsStringBuf("<null>"));
 }
 
 template <class T>
@@ -419,7 +419,7 @@ char* WriteIntToBufferBackwards(char* buffer, TValue value);
 template <class TValue>
 void FormatValueViaHelper(TStringBuilder* builder, TValue value, const TStringBuf& format, const TStringBuf& genericSpec)
 {
-    if (format == STRINGBUF("v")) {
+    if (format == AsStringBuf("v")) {
         const int MaxResultSize = 64;
         char buffer[MaxResultSize];
         char* end = buffer + MaxResultSize;
@@ -436,14 +436,14 @@ void FormatValueViaHelper(TStringBuilder* builder, TValue value, const TStringBu
         FormatValueViaHelper(builder, static_cast<castType>(value), format, genericSpec); \
     }
 
-XX(i8,              int,                STRINGBUF("d"))
-XX(ui8,             unsigned int,       STRINGBUF("u"))
-XX(i16,             int,                STRINGBUF("d"))
-XX(ui16,            unsigned int,       STRINGBUF("u"))
-XX(i32,             int,                STRINGBUF("d"))
-XX(ui32,            unsigned int,       STRINGBUF("u"))
-XX(long,            long,               STRINGBUF("ld"))
-XX(unsigned long,   unsigned long,      STRINGBUF("lu"))
+XX(i8,              int,                AsStringBuf("d"))
+XX(ui8,             unsigned int,       AsStringBuf("u"))
+XX(i16,             int,                AsStringBuf("d"))
+XX(ui16,            unsigned int,       AsStringBuf("u"))
+XX(i32,             int,                AsStringBuf("d"))
+XX(ui32,            unsigned int,       AsStringBuf("u"))
+XX(long,            long,               AsStringBuf("ld"))
+XX(unsigned long,   unsigned long,      AsStringBuf("lu"))
 
 #undef XX
 
@@ -453,8 +453,8 @@ XX(unsigned long,   unsigned long,      STRINGBUF("lu"))
         FormatValueViaSprintf(builder, static_cast<castType>(value), format, genericSpec); \
     }
 
-XX(double,          double,             STRINGBUF("lf"))
-XX(float,           float,              STRINGBUF("f"))
+XX(double,          double,             AsStringBuf("lf"))
+XX(float,           float,              AsStringBuf("f"))
 
 #undef XX
 
@@ -462,7 +462,7 @@ XX(float,           float,              STRINGBUF("f"))
 template <class T>
 void FormatValue(TStringBuilder* builder, T* value, const TStringBuf& format)
 {
-    FormatValueViaSprintf(builder, value, format, STRINGBUF("p"));
+    FormatValueViaSprintf(builder, value, format, AsStringBuf("p"));
 }
 
 // TDuration (specialize for performance reasons)
@@ -584,7 +584,7 @@ struct TArgFormatterImpl<IndexBase>
 {
     void operator() (size_t /*index*/, TStringBuilder* builder, const TStringBuf& /*format*/) const
     {
-        builder->AppendString(STRINGBUF("<missing argument>"));
+        builder->AppendString(AsStringBuf("<missing argument>"));
     }
 };
 

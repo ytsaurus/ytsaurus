@@ -608,10 +608,10 @@ protected:
     template <bool AllowFinish>
     double ReadNanOrInf()
     {
-        static const auto nanString = STRINGBUF("nan");
-        static const auto infString = STRINGBUF("inf");
-        static const auto plusInfString = STRINGBUF("+inf");
-        static const auto minusInfString = STRINGBUF("-inf");
+        static const auto nanString = AsStringBuf("nan");
+        static const auto infString = AsStringBuf("inf");
+        static const auto plusInfString = AsStringBuf("+inf");
+        static const auto minusInfString = AsStringBuf("-inf");
 
         TStringBuf expectedString;
         double expectedValue;
@@ -748,8 +748,8 @@ protected:
     {
         Buffer_.clear();
 
-        static const auto trueString = STRINGBUF("true");
-        static const auto falseString = STRINGBUF("false");
+        static const auto trueString = AsStringBuf("true");
+        static const auto falseString = AsStringBuf("false");
 
         auto throwIncorrectBoolean = [&] () {
             THROW_ERROR_EXCEPTION("Incorrect boolean string %Qv",

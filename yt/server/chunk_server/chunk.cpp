@@ -145,38 +145,43 @@ void TChunk::Load(NCellMaster::TLoadContext& context)
     Load(context, ChunkInfo_);
     Load(context, ChunkMeta_);
 
-    auto setLocalRequisitionIndexFromRF = [&](int replicationFactor) {
+    // COMPAT(shakurov)
+    // Previously, chunks didn't store info on which account requested which RF -
+    // just the maximum of those RFs. Chunk requisition can't be computed from
+    // such limited data. Thus, we have to fallback to default requisitions.
+    // This will be corrected by the next requisition update - which will happen
+    // soon since it's requested on each leader change.
+    // Important principles:
+    //   - attempt to preserve chunks' RFs to avoid unnecessary replication spike
+    //     while the cluster is migrating; this is done for default medium only to
+    //     keep the number of builtin requisitions reasonably low;
+    //   - never leave a chunk with zero effective RF (or empty effective requisition).
+    auto inferRequisitionIndexFromRF = [&](int replicationFactor) {
         if (replicationFactor < 3 && !IsErasure()) {
             switch (replicationFactor) {
                 case 1:
-                    LocalRequisitionIndex_ = MigrationErasureChunkRequisitionIndex;
-                    break;
+                    return MigrationErasureChunkRequisitionIndex;
                 case 2:
-                    LocalRequisitionIndex_ = MigrationRF2ChunkRequisitionIndex;
-                    break;
+                    return MigrationRF2ChunkRequisitionIndex;
                 default:
-                    Y_ASSERT(LocalRequisitionIndex_ == MigrationChunkRequisitionIndex);
+                    return MigrationChunkRequisitionIndex;
             }
         } else {
-            // Leave LocalRequisitionIndex_ defaulted to the migration index.
-            Y_ASSERT(LocalRequisitionIndex_ == (IsErasure() ? MigrationErasureChunkRequisitionIndex : MigrationChunkRequisitionIndex));
+            return IsErasure() ? MigrationErasureChunkRequisitionIndex : MigrationChunkRequisitionIndex;
         }
     };
 
     // COMPAT(shakurov)
-    // Previously, chunks didn't store info on which account requested which RF
-    // - just the maximum of those RFs. Chunk requisition can't be computed from
-    // such limited data. Thus, we have to fallback to default requisition for
-    // the local cell and empty requisition for other cells. This will be
-    // corrected by the next requisition update - which will happen soon since
-    // it's requested on each leader change.
     if (context.GetVersion() < 400) {
         auto replicationFactor = Load<i8>(context);
-        setLocalRequisitionIndexFromRF(replicationFactor);
+        LocalRequisitionIndex_ = inferRequisitionIndexFromRF(replicationFactor);
     } else if (context.GetVersion() < 700) {
         // Discard replication and leave LocalRequisitionIndex_ defaulted to the migration index.
         auto replication = Load<TChunkReplication>(context);
-        setLocalRequisitionIndexFromRF(replication[DefaultStoreMediumIndex].GetReplicationFactor());
+        // NB: the chunk may belong to a non-default medium and thus have zero RF on DefaultStoreMediumIndex.
+        // inferRequisitionIndexFromRF() will force non-zero RF in that case.
+        LocalRequisitionIndex_ =
+            inferRequisitionIndexFromRF(replication[DefaultStoreMediumIndex].GetReplicationFactor());
     } else {
         LocalRequisitionIndex_ = Load<TChunkRequisitionIndex>(context);
     }
@@ -234,18 +239,22 @@ void TChunk::Load(NCellMaster::TLoadContext& context)
             TRangeSerializer::Load(context, TMutableRef::FromPod(oldExportDataList));
             for (auto i = 0; i < NObjectClient::MaxSecondaryMasterCells; ++i) {
                 auto& exportData = ExportDataList_[i];
-                exportData.RefCounter = oldExportDataList[i].RefCounter;
-                // Drop RF and vitality.
-                exportData.ChunkRequisitionIndex = EmptyChunkRequisitionIndex;
+                const auto& oldExportData = oldExportDataList[i];
+                exportData.RefCounter = oldExportData.RefCounter;
+                exportData.ChunkRequisitionIndex = inferRequisitionIndexFromRF(oldExportData.ReplicationFactor);
+                // Drop vitality.
             }
         } else if (context.GetVersion() < 700) {
             TChunkExportDataListBefore619 oldExportDataList = {};
             TRangeSerializer::Load(context, TMutableRef::FromPod(oldExportDataList));
             for (int i = 0; i < NObjectClient::MaxSecondaryMasterCells; ++i) {
                 auto& exportData = ExportDataList_[i];
-                exportData.RefCounter = oldExportDataList[i].RefCounter;
-                // Drop TChunkReplication.
-                exportData.ChunkRequisitionIndex = EmptyChunkRequisitionIndex;
+                const auto& oldExportData = oldExportDataList[i];
+                exportData.RefCounter = oldExportData.RefCounter;
+                // NB: the chunk may belong to a non-default medium and thus have zero RF on DefaultStoreMediumIndex.
+                // inferRequisitionIndexFromRF() will force non-zero RF in that case.
+                exportData.ChunkRequisitionIndex = inferRequisitionIndexFromRF(
+                    oldExportData.Replication[DefaultStoreMediumIndex].GetReplicationFactor());
             }
         } else {
             TRangeSerializer::Load(context, TMutableRef::FromPod(ExportDataList_));

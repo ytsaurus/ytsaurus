@@ -105,6 +105,9 @@ message TUserJobSpec
 
     optional int64 disk_space_limit = 31;
     optional int64 inode_limit = 32;
+
+    // Number of requested ports.
+    required int32 port_count = 35;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

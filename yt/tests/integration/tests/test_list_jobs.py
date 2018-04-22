@@ -116,7 +116,14 @@ class TestListJobs(YTEnvSetup):
         res = list_jobs(op.id, data_source="manual", include_cypress=True, include_scheduler=False, include_archive=False, job_state="completed")["jobs"]
         assert len(res) == 0
 
-        wait(lambda: len(op.get_running_jobs()) == 3)
+        def check_running_jobs():
+            jobs = op.get_running_jobs()
+            if aborted_jobs[0] in jobs:
+                return False
+            if len(jobs) < 3:
+                return False
+            return True
+        wait(check_running_jobs)
 
         res = list_jobs(op.id, data_source="manual", include_cypress=False, include_scheduler=True, include_archive=False)["jobs"]
         assert len(res) == 3
@@ -419,3 +426,25 @@ class TestListJobs(YTEnvSetup):
         jobs = list_jobs(op.id, data_source="auto")["jobs"]
         assert len(jobs) == 1
         assert jobs[0]["stderr_size"] > 0
+
+    def test_list_jobs_of_vanilla_operation(self):
+        spec = {
+            "tasks": {
+                "task_a": {
+                    "job_count": 1,
+                    "command": "false"
+                }
+            },
+            "max_failed_job_count": 1
+        }
+
+        op = vanilla(spec=spec, dont_track=True)
+        try:
+            op.track()
+            assert False, "Operation should fail"
+        except YtError:
+            pass
+
+        clean_operations(self.Env.create_native_client())
+        jobs = list_jobs(op.id, data_source="archive")["jobs"]
+        assert len(jobs) == 1

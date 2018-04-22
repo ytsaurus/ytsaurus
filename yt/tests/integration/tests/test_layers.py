@@ -1,4 +1,4 @@
-from yt_env_setup import YTEnvSetup, wait, require_ytserver_root_privileges
+from yt_env_setup import YTEnvSetup, require_ytserver_root_privileges
 from yt_commands import *
 
 from yt.environment.porto_helpers import porto_avaliable
@@ -8,6 +8,8 @@ import inspect
 import os
 import time
 
+
+@require_ytserver_root_privileges
 @pytest.mark.skip_if('not porto_avaliable()')
 class TestLayers(YTEnvSetup):
     NUM_SCHEDULERS = 1
@@ -45,7 +47,6 @@ class TestLayers(YTEnvSetup):
 
         set("//tmp/static_cat/@executable", True)
 
-    @require_ytserver_root_privileges
     def test_disabled_layer_locations(self):
         self.Env.kill_nodes()
 
@@ -69,7 +70,6 @@ class TestLayers(YTEnvSetup):
 
         time.sleep(5)
 
-    @require_ytserver_root_privileges
     def test_corrupted_layer(self):
         self.setup_files()
         create("table", "//tmp/t_in")
@@ -89,7 +89,6 @@ class TestLayers(YTEnvSetup):
                     }
                 })
 
-    @require_ytserver_root_privileges
     def test_one_layer(self):
         self.setup_files()
 
@@ -115,7 +114,6 @@ class TestLayers(YTEnvSetup):
             stderr_path = "{0}/{1}/stderr".format(jobs_path, job_id)
             assert "static-bin" in read_file(stderr_path)
 
-    @require_ytserver_root_privileges
     def test_two_layers(self):
         self.setup_files()
 
@@ -143,7 +141,6 @@ class TestLayers(YTEnvSetup):
             assert "static-bin" in stderr
             assert "test" in stderr
 
-    @require_ytserver_root_privileges
     def test_bad_layer(self):
         self.setup_files()
 

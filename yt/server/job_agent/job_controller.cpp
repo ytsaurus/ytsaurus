@@ -26,6 +26,7 @@
 #include <yt/ytlib/object_client/helpers.h>
 
 #include <yt/ytlib/scheduler/public.h>
+#include <yt/ytlib/scheduler/proto/job.pb.h>
 
 #include <yt/ytlib/api/native_client.h>
 #include <yt/ytlib/api/native_connection.h>
@@ -48,6 +49,8 @@ using namespace NYTree;
 using namespace NCellNode;
 using namespace NConcurrency;
 using namespace NProfiling;
+
+using NScheduler::NProto::TSchedulerJobSpecExt;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -131,6 +134,8 @@ private:
 
     std::unique_ptr<TMemoryUsageTracker<EMemoryCategory>> ExternalMemoryUsageTracker_;
 
+    THashSet<int> FreePorts_;
+
     //! Starts a new job.
     IJobPtr CreateJob(
         const TJobId& jobId,
@@ -167,6 +172,8 @@ private:
     void OnResourcesUpdated(
         TWeakPtr<IJob> job,
         const TNodeResources& resourceDelta);
+
+    void OnPortsReleased(TWeakPtr<IJob> job);
 
     void StartWaitingJobs();
 
@@ -209,6 +216,10 @@ TJobController::TImpl::TImpl(
 {
     YCHECK(config);
     YCHECK(bootstrap);
+
+    for (int index = 0; index < Config_->PortCount; ++index) {
+        FreePorts_.insert(Config_->StartPort + index);
+    }
 }
 
 void TJobController::TImpl::Initialize()
@@ -457,6 +468,15 @@ void TJobController::TImpl::StartWaitingJobs()
         if (job->GetState() != EJobState::Waiting)
             continue;
 
+        auto portCount = job->GetPortCount();
+        if (portCount > 0 && FreePorts_.size() < portCount) {
+            LOG_DEBUG("Not enough free ports to start job (JobId: %v, PortCount: %v, FreePortCount: %v)",
+                job->GetId(),
+                portCount,
+                FreePorts_.size());
+            continue;
+        }
+
         auto jobResources = job->GetResourceUsage();
         auto usedResources = GetResourceUsage();
         if (!HasEnoughResources(jobResources, usedResources)) {
@@ -485,8 +505,22 @@ void TJobController::TImpl::StartWaitingJobs()
             }
         }
 
+        if (portCount > 0) {
+            std::vector<int> ports(portCount);
+            for (int index = 0; index < portCount; ++index) {
+                ports[index] = *FreePorts_.begin();
+                FreePorts_.erase(FreePorts_.begin());
+            }
+            job->SetPorts(ports);
+            LOG_DEBUG("Ports allocated (JobId: %v, Count: %v)", job->GetId(), ports.size());
+        }
+
         job->SubscribeResourcesUpdated(
             BIND(&TImpl::OnResourcesUpdated, MakeWeak(this), MakeWeak(job))
+                .Via(Bootstrap_->GetControlInvoker()));
+
+        job->SubscribePortsReleased(
+            BIND(&TImpl::OnPortsReleased, MakeWeak(this), MakeWeak(job))
                 .Via(Bootstrap_->GetControlInvoker()));
 
         job->Start();
@@ -613,6 +647,16 @@ void TJobController::TImpl::OnResourcesUpdated(TWeakPtr<IJob> job, const TNodeRe
     if (!Dominates(resourceDelta, ZeroNodeResources())) {
         // Some resources decreased.
         ScheduleStart();
+    }
+}
+
+void TJobController::TImpl::OnPortsReleased(TWeakPtr<IJob> job)
+{
+    auto job_ = job.Lock();
+    if (job_) {
+        for (auto port : job_->GetPorts()) {
+            YCHECK(FreePorts_.insert(port).second);
+        }
     }
 }
 

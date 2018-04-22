@@ -173,8 +173,12 @@ public:
             .EndMap()
             .GetData();
 
-        auto paths = GetCompatibilityOperationPaths(operationId);
-        auto secureVaultPaths = GetCompatibilityOperationPaths(operationId, "secure_vault");
+        auto paths = GetOperationPaths(operationId, operation->GetEnableCompatibleStorageMode());
+
+        auto secureVaultPaths = GetOperationPaths(
+            operationId,
+            operation->GetEnableCompatibleStorageMode(),
+            "secure_vault");
 
         for (const auto& path : paths) {
             auto req = TYPathProxy::Set(path);
@@ -230,7 +234,7 @@ public:
                 .EndMap()
             .EndMap());
 
-        auto paths = GetCompatibilityOperationPaths(operationId);
+        auto paths = GetOperationPaths(operationId, operation->GetEnableCompatibleStorageMode());
         for (const auto& path : paths) {
             auto req = TYPathProxy::Multiset(path + "/@");
             GenerateMutationId(req);
@@ -319,7 +323,7 @@ public:
         auto strategy = Bootstrap_->GetScheduler()->GetStrategy();
 
         auto batchReq = StartObjectBatchRequest();
-        auto paths = GetCompatibilityOperationPaths(operation->GetId());
+        auto paths = GetOperationPaths(operation->GetId(), operation->GetEnableCompatibleStorageMode());
 
         auto node = BuildYsonNodeFluently()
             .BeginMap()
@@ -954,6 +958,7 @@ private:
                 runtimeParams,
                 attributes.Get<TString>("authenticated_user"),
                 attributes.Get<TInstant>("start_time"),
+                spec->EnableCompatibleStorageMode,
                 Owner_->Bootstrap_->GetControlInvoker(),
                 attributes.Get<EOperationState>("state"),
                 attributes.Get<std::vector<TOperationEvent>>("events", {}));
@@ -1387,7 +1392,7 @@ private:
             auto batchReq = StartObjectBatchRequest();
             GenerateMutationId(batchReq);
 
-            auto paths = GetCompatibilityOperationPaths(operation->GetId());
+            auto paths = GetOperationPaths(operation->GetId(), operation->GetEnableCompatibleStorageMode());
             for (const auto& operationPath : paths) {
                 // Set operation acl.
                 {

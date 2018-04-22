@@ -33,16 +33,16 @@ TEST(THttpUrlParse, Simple)
     TString example = "https://user@google.com:12345/a/b/c?foo=bar&zog=%20";
     auto url = ParseUrl(example);
 
-    ASSERT_EQ(url.Protocol, STRINGBUF("https"));
-    ASSERT_EQ(url.Host, STRINGBUF("google.com"));
-    ASSERT_EQ(url.User, STRINGBUF("user"));
-    ASSERT_EQ(url.PortStr, STRINGBUF("12345"));
+    ASSERT_EQ(url.Protocol, AsStringBuf("https"));
+    ASSERT_EQ(url.Host, AsStringBuf("google.com"));
+    ASSERT_EQ(url.User, AsStringBuf("user"));
+    ASSERT_EQ(url.PortStr, AsStringBuf("12345"));
     ASSERT_TRUE(url.Port);
     ASSERT_EQ(*url.Port, 12345);
-    ASSERT_EQ(url.Path, STRINGBUF("/a/b/c"));
-    ASSERT_EQ(url.RawQuery, STRINGBUF("foo=bar&zog=%20"));
+    ASSERT_EQ(url.Path, AsStringBuf("/a/b/c"));
+    ASSERT_EQ(url.RawQuery, AsStringBuf("foo=bar&zog=%20"));
 
-    ASSERT_THROW(ParseUrl(STRINGBUF("\0")), TErrorException);
+    ASSERT_THROW(ParseUrl(AsStringBuf("\0")), TErrorException);
 }
 
 TEST(THttpUrlParse, IPv4)
@@ -50,7 +50,7 @@ TEST(THttpUrlParse, IPv4)
     TString example = "https://1.2.3.4:12345/";
     auto url = ParseUrl(example);
 
-    ASSERT_EQ(url.Host, STRINGBUF("1.2.3.4"));
+    ASSERT_EQ(url.Host, AsStringBuf("1.2.3.4"));
     ASSERT_EQ(*url.Port, 12345);
 }
 
@@ -59,7 +59,7 @@ TEST(THttpUrlParse, IPv6)
     TString example = "https://[::1]:12345/";
     auto url = ParseUrl(example);
 
-    ASSERT_EQ(url.Host, STRINGBUF("::1"));
+    ASSERT_EQ(url.Host, AsStringBuf("::1"));
     ASSERT_EQ(*url.Port, 12345);
 }
 
@@ -246,7 +246,7 @@ TEST(THttpOutputTest, Full)
             "x",
             [] (THttpOutput* out) {
                 out->WriteRequest(EMethod::Post, "/");
-                WriteBody(out, STRINGBUF("x"));
+                WriteBody(out, AsStringBuf("x"));
             }
         },
         TTestCase{
@@ -263,8 +263,8 @@ TEST(THttpOutputTest, Full)
             [] (THttpOutput* out) {
                 out->WriteRequest(EMethod::Post, "/");
 
-                WriteChunk(out, STRINGBUF("X"));
-                WriteChunk(out, STRINGBUF("0123456789"));
+                WriteChunk(out, AsStringBuf("X"));
+                WriteChunk(out, AsStringBuf("0123456789"));
                 FinishBody(out);
             }
         },
@@ -298,7 +298,7 @@ TEST(THttpOutputTest, Full)
             "fail",
             [] (THttpOutput* out) {
                 out->SetStatus(EStatusCode::InternalServerError);
-                WriteBody(out, STRINGBUF("fail"));
+                WriteBody(out, AsStringBuf("fail"));
             }
         },
         TTestCase{
@@ -315,8 +315,8 @@ TEST(THttpOutputTest, Full)
             [] (THttpOutput* out) {
                 out->SetStatus(EStatusCode::Ok);
 
-                WriteChunk(out, STRINGBUF("X"));
-                WriteChunk(out, STRINGBUF("0123456789"));
+                WriteChunk(out, AsStringBuf("X"));
+                WriteChunk(out, AsStringBuf("0123456789"));
                 FinishBody(out);
             }
         },
@@ -377,7 +377,7 @@ TEST(THttpInputTest, Simple)
             "\r\n",
             [] (THttpInput* in) {
                 EXPECT_EQ(in->GetMethod(), EMethod::Get);
-                EXPECT_EQ(in->GetUrl().Path, STRINGBUF("/"));
+                EXPECT_EQ(in->GetUrl().Path, AsStringBuf("/"));
                 ExpectBodyEnd(in);
             }
         },
@@ -408,7 +408,7 @@ TEST(THttpInputTest, Simple)
             "\r\n",
             [] (THttpInput* in) {
                 EXPECT_EQ(in->GetMethod(), EMethod::Post);
-                EXPECT_EQ(in->GetUrl().Path, STRINGBUF("/chunked_w_trailing_headers"));
+                EXPECT_EQ(in->GetUrl().Path, AsStringBuf("/chunked_w_trailing_headers"));
 
                 auto headers = in->GetHeaders();
                 ASSERT_EQ(TString("test"), headers->Get("X-Foo"));
@@ -429,7 +429,7 @@ TEST(THttpInputTest, Simple)
             "GET http://yt/foo HTTP/1.1\r\n"
             "\r\n",
             [] (THttpInput* in) {
-                EXPECT_EQ(STRINGBUF("yt"), in->GetUrl().Host);
+                EXPECT_EQ(AsStringBuf("yt"), in->GetUrl().Host);
             }
         }
     };
@@ -858,27 +858,27 @@ TEST(THttpHandlerMatchingTest, Simple)
     handlers.Add("/a", h2);
     handlers.Add("/a/b", h3);
 
-    EXPECT_EQ(h1.Get(), handlers.Match(STRINGBUF("/")).Get());
-    EXPECT_EQ(h1.Get(), handlers.Match(STRINGBUF("/c")).Get());
+    EXPECT_EQ(h1.Get(), handlers.Match(AsStringBuf("/")).Get());
+    EXPECT_EQ(h1.Get(), handlers.Match(AsStringBuf("/c")).Get());
 
-    EXPECT_EQ(h2.Get(), handlers.Match(STRINGBUF("/a")).Get());
-    EXPECT_EQ(h1.Get(), handlers.Match(STRINGBUF("/a/")).Get());
+    EXPECT_EQ(h2.Get(), handlers.Match(AsStringBuf("/a")).Get());
+    EXPECT_EQ(h1.Get(), handlers.Match(AsStringBuf("/a/")).Get());
 
-    EXPECT_EQ(h3.Get(), handlers.Match(STRINGBUF("/a/b")).Get());
-    EXPECT_EQ(h1.Get(), handlers.Match(STRINGBUF("/a/b/")).Get());
+    EXPECT_EQ(h3.Get(), handlers.Match(AsStringBuf("/a/b")).Get());
+    EXPECT_EQ(h1.Get(), handlers.Match(AsStringBuf("/a/b/")).Get());
 
     TRequestPathMatcher handlers2;
     handlers2.Add("/a/", h2);
-    EXPECT_FALSE(handlers2.Match(STRINGBUF("/")).Get());
-    EXPECT_EQ(h2.Get(), handlers2.Match(STRINGBUF("/a")).Get());
-    EXPECT_EQ(h2.Get(), handlers2.Match(STRINGBUF("/a/")).Get());
-    EXPECT_EQ(h2.Get(), handlers2.Match(STRINGBUF("/a/b")).Get());
+    EXPECT_FALSE(handlers2.Match(AsStringBuf("/")).Get());
+    EXPECT_EQ(h2.Get(), handlers2.Match(AsStringBuf("/a")).Get());
+    EXPECT_EQ(h2.Get(), handlers2.Match(AsStringBuf("/a/")).Get());
+    EXPECT_EQ(h2.Get(), handlers2.Match(AsStringBuf("/a/b")).Get());
 
     TRequestPathMatcher handlers3;
     handlers3.Add("/a/", h2);
     handlers3.Add("/a", h3);
    
-    EXPECT_EQ(h3.Get(), handlers3.Match(STRINGBUF("/a")).Get());
-    EXPECT_EQ(h2.Get(), handlers3.Match(STRINGBUF("/a/")).Get());
-    EXPECT_EQ(h2.Get(), handlers3.Match(STRINGBUF("/a/b")).Get());
+    EXPECT_EQ(h3.Get(), handlers3.Match(AsStringBuf("/a")).Get());
+    EXPECT_EQ(h2.Get(), handlers3.Match(AsStringBuf("/a/")).Get());
+    EXPECT_EQ(h2.Get(), handlers3.Match(AsStringBuf("/a/b")).Get());
 }

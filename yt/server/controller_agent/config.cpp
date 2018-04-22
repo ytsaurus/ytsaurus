@@ -64,6 +64,22 @@ TOperationAlertsConfig::TOperationAlertsConfig()
     RegisterParameter("job_spec_throttling_alert_activation_count_threshold", JobSpecThrottlingAlertActivationCountThreshold)
         .Default(1000)
         .GreaterThan(0);
+
+    RegisterParameter("low_cpu_usage_alert_min_execution_time", LowCpuUsageAlertMinExecTime)
+        .Default(TDuration::Minutes(10));
+
+    RegisterParameter("low_cpu_usage_alert_min_average_job_time", LowCpuUsageAlertMinAverageJobTime)
+        .Default(TDuration::Minutes(1));
+
+    RegisterParameter("low_cpu_usage_alert_cpu_usage_threshold", LowCpuUsageAlertCpuUsageThreshold)
+        .Default(0.5)
+        .GreaterThan(0);
+
+    RegisterParameter("operation_too_long_alert_min_wall_time", OperationTooLongAlertMinWallTime)
+        .Default(TDuration::Minutes(5));
+
+    RegisterParameter("operation_too_long_alert_estimate_duration_threshold", OperationTooLongAlertEstimateDurationThreshold)
+        .Default(TDuration::Days(7));
 }
 
 TJobSplitterConfig::TJobSplitterConfig()
@@ -225,6 +241,8 @@ TSortOperationOptionsBase::TSortOperationOptionsBase()
 
 TControllerAgentConfig::TControllerAgentConfig()
 {
+    SetUnrecognizedStrategy(NYTree::EUnrecognizedStrategy::KeepRecursive);
+
     RegisterParameter("chunk_list_preallocation_count", ChunkListPreallocationCount)
         .Default(128)
         .GreaterThanOrEqual(0);

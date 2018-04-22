@@ -24,23 +24,35 @@ namespace NYTree {
 namespace NDetail {
 
 // all
-inline bool HasValue(const void* /* parameter */)
+inline bool CanOmitValue(const void* /*parameter*/, const void* /*defaultValue*/)
 {
-    return true;
+    return false;
 }
 
 // TIntrusivePtr
 template <class T>
-bool HasValue(const TIntrusivePtr<T>* parameter)
+bool CanOmitValue(const TIntrusivePtr<T>* parameter, const TIntrusivePtr<T>* defaultValue)
 {
-    return parameter->operator bool();
+    if (!defaultValue) {
+        return !parameter->operator bool();
+    }
+    if (!*parameter && !*defaultValue) {
+        return true;
+    }
+    return false;
 }
 
 // TNullable
 template <class T>
-bool HasValue(const TNullable<T>* parameter)
+bool CanOmitValue(const TNullable<T>* parameter, const TNullable<T>* defaultValue)
 {
-    return parameter->HasValue();
+    if (!defaultValue) {
+        return !parameter->HasValue();
+    }
+    if (!parameter->HasValue() && !defaultValue->HasValue()) {
+        return true;
+    }
+    return false;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -277,8 +289,11 @@ void WriteYson(
 template <class T>
 void Serialize(T* value, NYson::IYsonConsumer* consumer)
 {
-    Y_ASSERT(value);
-    Serialize(*value, consumer);
+    if (value) {
+        Serialize(*value, consumer);
+    } else {
+        consumer->OnEntity();
+    }
 }
 
 template <class T>
@@ -301,10 +316,10 @@ void Serialize(
 template <class T>
 void Serialize(const TNullable<T>& value, NYson::IYsonConsumer* consumer)
 {
-    if (!value) {
-        consumer->OnEntity();
-    } else {
+    if (value) {
         Serialize(*value, consumer);
+    } else {
+        consumer->OnEntity();
     }
 }
 
@@ -385,7 +400,7 @@ void Serialize(const TEnumIndexedVector<T, E, Min, Max>& vector, NYson::IYsonCon
             continue;
         }
         const auto& value = vector[key];
-        if (NDetail::HasValue(&value)) {
+        if (!NDetail::CanOmitValue(&value, nullptr)) {
             consumer->OnKeyedItem(FormatEnum(key));
             Serialize(value, consumer);
         }
@@ -415,16 +430,20 @@ void Deserialize(TIntrusivePtr<T>& value, INodePtr node)
     if (!value) {
         value = New<T>();
     }
-    Deserialize(*value, node);
+    if (node->GetType() != ENodeType::Entity) {
+        Deserialize(*value, node);
+    }
 }
 
 template <class T>
 void Deserialize(std::unique_ptr<T>& value, INodePtr node)
 {
     if (!value) {
-        value.reset(new T());
+        value = std::make_unique<T>();
     }
-    Deserialize(*value, node);
+    if (node->GetType() != ENodeType::Entity) {
+        Deserialize(*value, node);
+    }
 }
 
 // Enums

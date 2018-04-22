@@ -34,6 +34,8 @@ void TDumpJobContextCommand::DoExecute(ICommandContextPtr context)
 {
     WaitFor(context->GetClient()->DumpJobContext(JobId, Path))
         .ThrowOnError();
+
+    ProduceEmptyOutput(context);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -385,8 +387,7 @@ void TGetJobCommand::DoExecute(ICommandContextPtr context)
     auto result = WaitFor(asyncResult)
         .ValueOrThrow();
 
-    context->ProduceOutputValue(BuildYsonStringFluently()
-        .Value(result));
+    ProduceSingleOutputValue(context, "job", result);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -402,8 +403,7 @@ void TStraceJobCommand::DoExecute(ICommandContextPtr context)
     auto result = WaitFor(asyncResult)
         .ValueOrThrow();
 
-    context->ProduceOutputValue(BuildYsonStringFluently()
-        .Value(result));
+    ProduceSingleOutputValue(context, "trace", result);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -418,6 +418,8 @@ void TSignalJobCommand::DoExecute(ICommandContextPtr context)
 {
     WaitFor(context->GetClient()->SignalJob(JobId, SignalName))
         .ThrowOnError();
+
+    ProduceEmptyOutput(context);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -431,6 +433,8 @@ void TAbandonJobCommand::DoExecute(ICommandContextPtr context)
 {
     WaitFor(context->GetClient()->AbandonJob(JobId))
         .ThrowOnError();
+
+    ProduceEmptyOutput(context);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -457,7 +461,7 @@ void TPollJobShellCommand::DoExecute(ICommandContextPtr context)
     auto result = WaitFor(asyncResult)
         .ValueOrThrow();
 
-    context->ProduceOutputValue(result);
+    ProduceSingleOutputValue(context, "result", result);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -473,91 +477,82 @@ void TAbortJobCommand::DoExecute(ICommandContextPtr context)
 {
     WaitFor(context->GetClient()->AbortJob(JobId, Options))
         .ThrowOnError();
+
+    ProduceEmptyOutput(context);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TStartOperationCommand::TStartOperationCommand()
+TStartOperationCommand::TStartOperationCommand(TNullable<NScheduler::EOperationType> operationType)
 {
     RegisterParameter("spec", Spec);
-    RegisterParameter("operation_type", OperationType)
-        .Default();
-}
-
-EOperationType TStartOperationCommand::GetOperationType() const
-{
-    return OperationType;
+    if (operationType) {
+        OperationType = *operationType;
+    } else {
+        RegisterParameter("operation_type", OperationType);
+    }
 }
 
 void TStartOperationCommand::DoExecute(ICommandContextPtr context)
 {
     auto asyncOperationId = context->GetClient()->StartOperation(
-        GetOperationType(),
+        OperationType,
         ConvertToYsonString(Spec),
         Options);
 
     auto operationId = WaitFor(asyncOperationId)
         .ValueOrThrow();
 
-    context->ProduceOutputValue(BuildYsonStringFluently()
-        .Value(operationId));
+    ProduceSingleOutputValue(context, "operation_id", operationId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-EOperationType TMapCommand::GetOperationType() const
-{
-    return EOperationType::Map;
-}
+TMapCommand::TMapCommand()
+    : TStartOperationCommand(EOperationType::Map)
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-EOperationType TMergeCommand::GetOperationType() const
-{
-    return EOperationType::Merge;
-}
+TMergeCommand::TMergeCommand()
+    : TStartOperationCommand(EOperationType::Merge)
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-EOperationType TSortCommand::GetOperationType() const
-{
-    return EOperationType::Sort;
-}
+TSortCommand::TSortCommand()
+    : TStartOperationCommand(EOperationType::Sort)
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-EOperationType TEraseCommand::GetOperationType() const
-{
-    return EOperationType::Erase;
-}
+TEraseCommand::TEraseCommand()
+    : TStartOperationCommand(EOperationType::Erase)
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-EOperationType TReduceCommand::GetOperationType() const
-{
-    return EOperationType::Reduce;
-}
+TReduceCommand::TReduceCommand()
+    : TStartOperationCommand(EOperationType::Reduce)
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-EOperationType TJoinReduceCommand::GetOperationType() const
-{
-    return EOperationType::JoinReduce;
-}
+TJoinReduceCommand::TJoinReduceCommand()
+    : TStartOperationCommand(EOperationType::JoinReduce)
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-EOperationType TMapReduceCommand::GetOperationType() const
-{
-    return EOperationType::MapReduce;
-}
+TMapReduceCommand::TMapReduceCommand()
+    : TStartOperationCommand(EOperationType::MapReduce)
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-EOperationType TRemoteCopyCommand::GetOperationType() const
-{
-    return EOperationType::RemoteCopy;
-}
+TRemoteCopyCommand::TRemoteCopyCommand()
+    : TStartOperationCommand(EOperationType::RemoteCopy)
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -571,6 +566,8 @@ void TAbortOperationCommand::DoExecute(ICommandContextPtr context)
 {
     WaitFor(context->GetClient()->AbortOperation(OperationId, Options))
         .ThrowOnError();
+
+    ProduceEmptyOutput(context);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -585,6 +582,8 @@ void TSuspendOperationCommand::DoExecute(ICommandContextPtr context)
 {
     WaitFor(context->GetClient()->SuspendOperation(OperationId, Options))
         .ThrowOnError();
+
+    ProduceEmptyOutput(context);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -593,6 +592,8 @@ void TResumeOperationCommand::DoExecute(ICommandContextPtr context)
 {
     WaitFor(context->GetClient()->ResumeOperation(OperationId))
         .ThrowOnError();
+
+    ProduceEmptyOutput(context);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -601,6 +602,8 @@ void TCompleteOperationCommand::DoExecute(ICommandContextPtr context)
 {
     WaitFor(context->GetClient()->CompleteOperation(OperationId))
         .ThrowOnError();
+
+    ProduceEmptyOutput(context);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -609,27 +612,16 @@ TUpdateOperationParametersCommand::TUpdateOperationParametersCommand()
 {
     RegisterParameter("operation_id", OperationId);
     RegisterParameter("parameters", Parameters);
-
-    RegisterPostprocessor([&] {
-        auto parameters = Parameters->AsMap();
-
-        auto ownersNode = parameters->FindChild("owners");
-        if (ownersNode) {
-            std::vector<TString> owners;
-            Deserialize(owners, ownersNode);
-            Options.Owners = std::move(owners);
-        }
-
-        auto schedulingOptionsPerPoolTreeNode = parameters->FindChild("scheduling_options_per_pool_tree");
-        if (schedulingOptionsPerPoolTreeNode) {
-            Deserialize(Options.SchedulingOptionsPerPoolTree, schedulingOptionsPerPoolTreeNode);
-        }
-    });
 }
 
 void TUpdateOperationParametersCommand::DoExecute(ICommandContextPtr context)
 {
-    WaitFor(context->GetClient()->UpdateOperationParameters(OperationId, Options))
+    auto asyncResult = context->GetClient()->UpdateOperationParameters(
+        OperationId,
+        ConvertToYsonString(Parameters),
+        Options);
+
+    WaitFor(asyncResult)
         .ThrowOnError();
 }
 

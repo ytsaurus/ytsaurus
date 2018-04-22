@@ -876,7 +876,7 @@ private:
   }
 
   template <typename LookupKeyT>
-  BucketT *InsertIntoBucketImpl(const KeyT &Key, const LookupKeyT &Lookup,
+  BucketT *InsertIntoBucketImpl(const KeyT &, const LookupKeyT &Lookup,
                                 BucketT *TheBucket) {
     incrementEpoch();
 

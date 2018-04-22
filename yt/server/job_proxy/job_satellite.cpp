@@ -218,7 +218,7 @@ void TJobProbeTools::Init(const TJobId& jobId)
 {
     switch (EnvironmentType_) {
         case EJobEnvironmentType::Cgroups:
-            PidsHolder_.reset(new TFreezerPidsHolder(GetCGroupUserJobPrefix() + ToString(jobId)));
+            PidsHolder_.reset(new TFreezerPidsHolder("user_job_" + ToString(jobId)));
             break;
 
         case EJobEnvironmentType::Porto:
@@ -248,8 +248,8 @@ void TJobProbeTools::Init(const TJobId& jobId)
     ShellManager_ = CreateShellManager(
         NFS::CombinePaths(currentWorkDir, NExecAgent::SandboxDirectoryNames[NExecAgent::ESandboxKind::Home]),
         Uid_,
-        EnvironmentType_ == EJobEnvironmentType::Cgroups ? TNullable<TString>(GetCGroupUserJobBase()) : TNullable<TString>(),
-        Format("Job environment:\n%v\n", JoinToString(Environment_, STRINGBUF("\n"))),
+        EnvironmentType_ == EJobEnvironmentType::Cgroups ? TNullable<TString>("user_job_" + ToString(jobId)) : TNullable<TString>(),
+        Format("Job environment:\n%v\n", JoinToString(Environment_, AsStringBuf("\n"))),
         std::move(shellEnvironment));
 }
 

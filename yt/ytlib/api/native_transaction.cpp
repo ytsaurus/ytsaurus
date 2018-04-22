@@ -49,6 +49,7 @@ DEFINE_ENUM(ETransactionState,
     (Active)
     (Commit)
     (Abort)
+    (Prepare)
     (Flush)
     (Detach)
 );
@@ -142,7 +143,7 @@ public:
             return AbortResult_;
         }
 
-        if (State_ != ETransactionState::Active && State_ != ETransactionState::Flush) {
+        if (State_ != ETransactionState::Active && State_ != ETransactionState::Flush && State_ != ETransactionState::Prepare) {
             return MakeFuture<void>(TError("Cannot abort since transaction %v is already in %Qlv state",
                 GetId(),
                 State_));
@@ -160,11 +161,28 @@ public:
         Transaction_->Detach();
     }
 
-    virtual TFuture<TTransactionFlushResult> Flush() override
+    virtual TFuture<TTransactionPrepareResult> Prepare() override
     {
         auto guard = Guard(SpinLock_);
 
         if (State_ != ETransactionState::Active) {
+            return MakeFuture<TTransactionPrepareResult>(TError("Cannot prepare since transaction %v is already in %Qlv state",
+                GetId(),
+                State_));
+        }
+
+        LOG_DEBUG("Preparing transaction");
+        State_ = ETransactionState::Prepare;
+        return BIND(&TNativeTransaction::DoPrepare, MakeStrong(this))
+            .AsyncVia(CommitInvoker_)
+            .Run();
+    }
+
+    virtual TFuture<TTransactionFlushResult> Flush() override
+    {
+        auto guard = Guard(SpinLock_);
+
+        if (State_ != ETransactionState::Prepare) {
             return MakeFuture<TTransactionFlushResult>(TError("Cannot flush since transaction %v is already in %Qlv state",
                 GetId(),
                 State_));
@@ -517,6 +535,7 @@ private:
 
     TSpinLock SpinLock_;
     ETransactionState State_ = ETransactionState::Active;
+    bool Prepared_ = false;
     TFuture<void> AbortResult_;
 
     TSpinLock ForeignTransactionsLock_;
@@ -865,7 +884,7 @@ private:
         TFuture<void> Invoke(IChannelPtr channel)
         {
             // Do all the heavy lifting here.
-            auto* codec = NCompression::GetCodec(Config_->WriteRequestCodec);
+            auto* codec = NCompression::GetCodec(Config_->WriteRowsRequestCodec);
             YCHECK(!Batches_.empty());
             for (const auto& batch : Batches_) {
                 batch->RequestData = codec->Compress(batch->Writer.Finish());
@@ -1053,7 +1072,7 @@ private:
             auto cellSession = transaction->GetCommitSession(GetCellId());
 
             TTabletServiceProxy proxy(InvokeChannel_);
-            proxy.SetDefaultTimeout(Config_->WriteTimeout);
+            proxy.SetDefaultTimeout(Config_->WriteRowsTimeout);
             proxy.SetDefaultRequestAck(false);
 
             auto req = proxy.Write();
@@ -1067,7 +1086,7 @@ private:
             req->set_mount_revision(TabletInfo_->MountRevision);
             req->set_durability(static_cast<int>(transaction->GetDurability()));
             req->set_signature(cellSession->AllocateRequestSignature());
-            req->set_request_codec(static_cast<int>(Config_->WriteRequestCodec));
+            req->set_request_codec(static_cast<int>(Config_->WriteRowsRequestCodec));
             req->set_row_count(batch->RowCount);
             req->set_data_weight(batch->DataWeight);
             req->set_versioned(!VersionedSubmittedRows_.empty());
@@ -1356,7 +1375,7 @@ private:
         return it->second;
     }
 
-    TFuture<void> SendRequests()
+    void PrepareRequests()
     {
         bool clusterDirectorySynched = false;
 
@@ -1396,6 +1415,18 @@ private:
             Transaction_->RegisterParticipant(cellId);
         }
 
+        {
+            auto guard = Guard(SpinLock_);
+            YCHECK(State_ == ETransactionState::Prepare || State_ == ETransactionState::Commit);
+            YCHECK(Prepared_ == false);
+            Prepared_ = true;
+        }
+    }
+
+    TFuture<void> SendRequests()
+    {
+        YCHECK(Prepared_);
+
         std::vector<TFuture<void>> asyncResults;
 
         for (const auto& pair : TabletIdToSession_) {
@@ -1426,43 +1457,77 @@ private:
                 options.CoordinatorCellTag = Client_->GetNativeConnection()->GetPrimaryMasterCellTag();
             }
         }
+
         return options;
     }
 
     TTransactionCommitResult DoCommit(const TTransactionCommitOptions& options)
     {
         try {
-            std::vector<TFuture<void>> asyncRequestResults{
-                SendRequests()
-            };
 
-            std::vector<TFuture<TTransactionFlushResult>> asyncFlushResults;
-            for (const auto& transaction : GetForeignTransactions()) {
-                asyncFlushResults.push_back(transaction->Flush());
-            }
+            // Gather participants.
+            {
+                PrepareRequests();
 
-            auto flushResults = WaitFor(Combine(asyncFlushResults))
-                .ValueOrThrow();
+                std::vector<TFuture<TTransactionPrepareResult>> asyncPrepareResults;
+                for (const auto& transaction : GetForeignTransactions()) {
+                    asyncPrepareResults.push_back(transaction->Prepare());
+                }
 
-            for (const auto& flushResult : flushResults) {
-                asyncRequestResults.push_back(flushResult.AsyncResult);
-                for (const auto& cellId : flushResult.ParticipantCellIds) {
-                    Transaction_->RegisterParticipant(cellId);
-                    Transaction_->ConfirmParticipant(cellId);
+                auto prepareResults = WaitFor(Combine(asyncPrepareResults))
+                    .ValueOrThrow();
+
+                for (const auto& prepareResult : prepareResults) {
+                    for (const auto& cellId : prepareResult.ParticipantCellIds) {
+                        Transaction_->RegisterParticipant(cellId);
+                    }
                 }
             }
 
-            WaitFor(Combine(asyncRequestResults))
+            // Choose coordinator.
+            auto adjustedOptions = AdjustCommitOptions(options);
+            Transaction_->ChooseCoordinator(adjustedOptions);
+
+            // Validate that all participants are available.
+            WaitFor(Transaction_->ValidateNoDownedParticipants())
                 .ThrowOnError();
 
-            auto commitResult = WaitFor(Transaction_->Commit(AdjustCommitOptions(options)))
-                .ValueOrThrow();
+            // Send transaction data.
+            {
+                std::vector<TFuture<void>> asyncRequestResults{
+                    SendRequests()
+                };
 
-            for (const auto& transaction : GetForeignTransactions()) {
-                transaction->Detach();
+                std::vector<TFuture<TTransactionFlushResult>> asyncFlushResults;
+                for (const auto& transaction : GetForeignTransactions()) {
+                    asyncFlushResults.push_back(transaction->Flush());
+                }
+
+                auto flushResults = WaitFor(Combine(asyncFlushResults))
+                    .ValueOrThrow();
+
+                for (const auto& flushResult : flushResults) {
+                    asyncRequestResults.push_back(flushResult.AsyncResult);
+                    for (const auto& cellId : flushResult.ParticipantCellIds) {
+                        Transaction_->ConfirmParticipant(cellId);
+                    }
+                }
+
+                WaitFor(Combine(asyncRequestResults))
+                    .ThrowOnError();
             }
 
-            return commitResult;
+            // Commit.
+            {
+                auto commitResult = WaitFor(Transaction_->Commit(adjustedOptions))
+                    .ValueOrThrow();
+
+                for (const auto& transaction : GetForeignTransactions()) {
+                    transaction->Detach();
+                }
+
+                return commitResult;
+            }
         } catch (const std::exception& ex) {
             // Fire and forget.
             Transaction_->Abort();
@@ -1471,6 +1536,15 @@ private:
             }
             throw;
         }
+    }
+
+    TTransactionPrepareResult DoPrepare()
+    {
+        PrepareRequests();
+
+        TTransactionPrepareResult result;
+        result.ParticipantCellIds = GetKeys(CellIdToSession_);
+        return result;
     }
 
     TTransactionFlushResult DoFlush()

@@ -33,6 +33,8 @@ void TAddMemberCommand::DoExecute(ICommandContextPtr context)
         Member,
         Options))
         .ThrowOnError();
+
+    ProduceEmptyOutput(context);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -44,6 +46,8 @@ void TRemoveMemberCommand::DoExecute(ICommandContextPtr context)
         Member,
         Options))
         .ThrowOnError();
+
+    ProduceEmptyOutput(context);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -56,14 +60,14 @@ TParseYPathCommand::TParseYPathCommand()
 void TParseYPathCommand::DoExecute(ICommandContextPtr context)
 {
     auto richPath = TRichYPath::Parse(Path);
-    context->ProduceOutputValue(ConvertToYsonString(richPath));
+    ProduceSingleOutputValue(context, "path", richPath);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 void TGetVersionCommand::DoExecute(ICommandContextPtr context)
 {
-    context->ProduceOutputValue(ConvertToYsonString(GetVersion()));
+    ProduceSingleOutputValue(context, "version", GetVersion());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -243,10 +247,12 @@ void TExecuteBatchCommand::DoExecute(ICommandContextPtr context)
     auto results = WaitFor(RunWithBoundedConcurrency(callbacks, Options.Concurrency))
         .ValueOrThrow();
 
-    context->ProduceOutputValue(BuildYsonStringFluently()
-        .DoListFor(results, [&] (TFluentList fluent, const TErrorOr<TYsonString>& result) {
-            fluent.Item().Value(result.ValueOrThrow());
-        }));
+    ProduceSingleOutput(context, "results", [&](NYson::IYsonConsumer* consumer) {
+        BuildYsonFluently(consumer)
+            .DoListFor(results, [&] (TFluentList fluent, const TErrorOr<TYsonString>& result) {
+                fluent.Item().Value(result.ValueOrThrow());
+            });
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

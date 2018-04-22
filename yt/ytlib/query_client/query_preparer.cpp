@@ -126,18 +126,14 @@ TValue CastValueWithCheck(TValue value, EValueType targetType)
     }
 
     if (value.Type == EValueType::Int64) {
-        if (targetType == EValueType::Uint64) {
-            if (value.Data.Int64 < 0) {
-                THROW_ERROR_EXCEPTION("Failed to cast %v to uint64: value is negative", value.Data.Int64);
-            }
-        } else if (targetType == EValueType::Double) {
+        if (targetType == EValueType::Double) {
             auto int64Value = value.Data.Int64;
             if (i64(double(int64Value)) != int64Value) {
                 THROW_ERROR_EXCEPTION("Failed to cast %v to double: inaccurate conversion", int64Value);
             }
             value.Data.Double = int64Value;
         } else {
-            Y_UNREACHABLE();
+            YCHECK(targetType == EValueType::Uint64);
         }
     } else if (value.Type == EValueType::Uint64) {
         if (targetType == EValueType::Int64) {

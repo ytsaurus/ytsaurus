@@ -511,9 +511,11 @@ private:
         }
     }
 
-    void DoUpdateOperationNode(const TOperationId& operationId)
+    void DoUpdateOperationNode(const TOperationPtr& operation)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
+
+        const auto& operationId = operation->GetId();
 
         std::vector<TCreateJobNodeRequest> jobRequests;
         std::vector<TLivePreviewRequest> livePreviewRequests;
@@ -537,7 +539,7 @@ private:
 
         std::vector<TCreateJobNodeRequest> successfulJobRequests;
         try {
-            successfulJobRequests = CreateJobNodes(operationId, jobRequests);
+            successfulJobRequests = CreateJobNodes(operation, jobRequests);
         } catch (const std::exception& ex) {
             LOG_WARNING(ex, "Error creating job nodes (OperationId: %v)",
                 operationId);
@@ -553,7 +555,12 @@ private:
             std::vector<TJobFile> files;
             for (const auto& request : successfulJobRequests) {
                 if (request.StderrChunkId) {
-                    auto paths = GetCompatibilityJobPaths(operationId, request.JobId, "stderr");
+                    auto paths = GetJobPaths(
+                        operationId,
+                        request.JobId,
+                        operation->GetEnableCompatibleStorageMode(),
+                        "stderr");
+
                     for (const auto& path : paths) {
                         files.push_back({
                             request.JobId,
@@ -564,7 +571,12 @@ private:
                     }
                 }
                 if (request.FailContextChunkId) {
-                    auto paths = GetCompatibilityJobPaths(operationId, request.JobId, "fail_context");
+                    auto paths = GetJobPaths(
+                        operationId,
+                        request.JobId,
+                        operation->GetEnableCompatibleStorageMode(),
+                        "fail_context");
+
                     for (const auto& path : paths) {
                         files.push_back({
                             request.JobId,
@@ -623,7 +635,7 @@ private:
             return {};
         }
 
-        return BIND(&TImpl::DoUpdateOperationNode, MakeStrong(this), operationId)
+        return BIND(&TImpl::DoUpdateOperationNode, MakeStrong(this), operation)
             .AsyncVia(CancelableControlInvoker_);
     }
 
@@ -644,7 +656,7 @@ private:
 
         controller->SetProgressUpdated();
 
-        auto paths = GetCompatibilityOperationPaths(operationId);
+        auto paths = GetOperationPaths(operationId, operation->GetEnableCompatibleStorageMode());
 
         auto batchReq = StartObjectBatchRequest();
         GenerateMutationId(batchReq);
@@ -682,12 +694,16 @@ private:
             batchReq->AddRequest(multisetReq, "update_op_node");
         }
 
+        // This is needed to prevent controller lifetime prolongation due to strong pointer
+        // being kept in the stack while waiting for a batch request being invoked.
+        controller.Reset();
+
         auto batchRspOrError = WaitFor(batchReq->Invoke());
         THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError));
     }
 
     std::vector<TCreateJobNodeRequest> CreateJobNodes(
-        const TOperationId& operationId,
+        const TOperationPtr& operation,
         const std::vector<TCreateJobNodeRequest>& requests)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -701,7 +717,7 @@ private:
         for (const auto& request : requests) {
             const auto& jobId = request.JobId;
 
-            auto paths = GetCompatibilityJobPaths(operationId, jobId);
+            auto paths = GetJobPaths(operation->GetId(), jobId, operation->GetEnableCompatibleStorageMode());
             auto attributes = ConvertToAttributes(request.Attributes);
 
             for (const auto& path : paths) {
@@ -744,7 +760,7 @@ private:
         LOG_INFO("Job nodes created (TotalCount: %v, SuccessCount: %v, OperationId: %v)",
             requests.size(),
             successfulRequests.size(),
-            operationId);
+            operation->GetId());
 
         return successfulRequests;
     }
@@ -1054,18 +1070,22 @@ private:
             return;
         }
 
+        TOperationIdToWeakControllerMap weakControllerMap;
+
         const auto& controllerAgent = Bootstrap_->GetControllerAgent();
         auto controllerMap = controllerAgent->GetOperations();
+        for (const auto& pair : controllerMap) {
+            weakControllerMap.insert({pair.first, pair.second->GetController()});
+        }
 
         auto builder = New<TSnapshotBuilder>(
             Config_,
-            std::move(controllerMap),
             Bootstrap_->GetMasterClient(),
             Bootstrap_->GetControllerAgent()->GetSnapshotIOInvoker(),
             Bootstrap_->GetControllerAgent()->GetIncarnationId());
 
         // NB: Result is logged in the builder.
-        auto error = WaitFor(builder->Run());
+        auto error = WaitFor(builder->Run(weakControllerMap));
         if (error.IsOK()) {
             LOG_INFO("Snapshot builder finished");
         } else {
@@ -1084,7 +1104,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        LOG_ERROR(error, "Failed to update operation node");
+        Bootstrap_->GetControllerAgent()->Disconnect(TError("Failed to update operation node") << error);
     }
 
     void DoAddChunkTreesToUnstageList(std::vector<TChunkTreeId> chunkTreeIds, bool recursive)
@@ -1221,9 +1241,9 @@ private:
                 return;
             }
 
+            DoUpdateConfig(newConfig);
             ValidateConfig();
 
-            DoUpdateConfig(newConfig);
             Bootstrap_->GetControllerAgent()->UpdateConfig(newConfig);
 
             LOG_INFO("Controller agent configuration updated");

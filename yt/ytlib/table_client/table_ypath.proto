@@ -95,7 +95,8 @@ message TTabletInfo
 {
     required NYT.NProto.TGuid tablet_id = 1;
     required int64 mount_revision = 7;
-    required int32 state = 2;
+    required int32 state = 2; // ETabletState
+    optional int32 in_memory_mode = 8; // EInMemoryMode
     required bytes pivot_key = 3;
     optional NYT.NProto.TGuid cell_id = 4;
     optional int32 cell_config_version = 5;

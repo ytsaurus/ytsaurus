@@ -15,6 +15,7 @@ var utils = require("./utils");
 
 var __DBG = require("./debug").that("B", "Driver");
 
+var _SIMPLE_EXECUTE_API_VERSION = 3;
 var _SIMPLE_EXECUTE_USER = "root";
 var _SIMPLE_EXECUTE_FORMAT = binding.CreateV8Node("json");
 
@@ -134,12 +135,19 @@ function YtDriver(config, echo)
     this.__DBG("low_watermark = " + this.low_watermark);
     this.__DBG("high_watermark = " + this.high_watermark);
 
-    this._binding = new binding.TDriverWrap(!!echo, config.proxy);
+    var old_api_version = config.proxy.driver.api_version;
+    this._bindings = {};
+    [3, 4].forEach(function(version) {
+        config.proxy.driver.api_version = version;
+        this._bindings[version] = new binding.TDriverWrap(!!echo, config.proxy);
+    }.bind(this));
+    config.proxy.driver.api_version = old_api_version;
 
     this.__DBG("New");
 }
 
 YtDriver.prototype.execute = function YtDriver$execute(
+    api_version,
     name, user,
     input_stream, input_compression,
     output_stream, output_compression,
@@ -152,7 +160,7 @@ YtDriver.prototype.execute = function YtDriver$execute(
     // Avoid capturing |this| to avoid back references.
     var wrapped_input_stream = new YtWritableStream(this.low_watermark, this.high_watermark);
     var wrapped_output_stream = new YtReadableStream(this.high_watermark);
-    var binding = this._binding;
+    var binding = this._bindings[api_version];
     var debug = this.__DBG;
 
     // Setup pipes.
@@ -231,7 +239,7 @@ YtDriver.prototype.executeSimpleWithUser = function(name, user, parameters, data
 {
     this.__DBG("executeSimple");
 
-    var descriptor = this.find_command_descriptor(name);
+    var descriptor = this.find_command_descriptor(_SIMPLE_EXECUTE_API_VERSION, name);
 
     if (descriptor.input_type === "tabular") {
         data = data && _.map(data, JSON.stringify).join("\n");
@@ -246,7 +254,7 @@ YtDriver.prototype.executeSimpleWithUser = function(name, user, parameters, data
     parameters.input_format = parameters.input_format || "json";
     parameters.output_format = parameters.output_format || "json";
 
-    return this.execute(name, user,
+    return this.execute(_SIMPLE_EXECUTE_API_VERSION, name, user,
         input_stream, binding.ECompression_None,
         output_stream, binding.ECompression_None,
         binding.CreateV8Node(parameters), null, pause, function(){})
@@ -265,16 +273,16 @@ YtDriver.prototype.executeSimple = function(name, parameters, data)
     return this.executeSimpleWithUser(name, _SIMPLE_EXECUTE_USER, parameters, data);
 };
 
-YtDriver.prototype.find_command_descriptor = function(name)
+YtDriver.prototype.find_command_descriptor = function(api_version, name)
 {
     this.__DBG("find_command_descriptor");
-    return this._binding.FindCommandDescriptor(name);
+    return this._bindings[api_version].FindCommandDescriptor(name);
 };
 
-YtDriver.prototype.get_command_descriptors = function()
+YtDriver.prototype.get_command_descriptors = function(api_version)
 {
-    this.__DBG("get_command_descriptors");
-    return this._binding.GetCommandDescriptors();
+    this.__DBG("get_command_descriptors(api_version = " + api_version + ")");
+    return this._bindings[api_version].GetCommandDescriptors();
 };
 
 ////////////////////////////////////////////////////////////////////////////////

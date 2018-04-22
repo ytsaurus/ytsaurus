@@ -166,8 +166,9 @@ private:
 
     void DoAbandon()
     {
-        if (!EpochContext_)
+        if (!EpochContext_) {
             return;
+        }
 
         EpochContext_->CancelableContext->Cancel();
 
@@ -450,6 +451,8 @@ public:
 
             LOG_INFO("Slot reconfigured (ConfigVersion: %v)",
                 CellDescriptor_.ConfigVersion);
+
+            ElectionManager_->Abandon();
         } else {
             auto channelFactory = Bootstrap_
                 ->GetMasterClient()

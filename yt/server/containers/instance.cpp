@@ -247,6 +247,17 @@ public:
         return TResourceLimits{cpuLimit, memoryLimit};
     }
 
+    virtual TString GetAbsoluteName() const override
+    {
+        auto properties = WaitFor(Executor_->GetProperties(
+            Name_,
+            std::vector<TString>{"absolute_name"}))
+            .ValueOrThrow();
+
+        return properties.at("absolute_name")
+             .ValueOrThrow();
+    }
+
     virtual void SetCpuLimit(double cores) override
     {
         SetProperty("cpu_limit", ToString(cores) + "c");
@@ -255,6 +266,17 @@ public:
     virtual void SetCpuShare(double cores) override
     {
         SetProperty("cpu_guarantee", ToString(cores) + "c");
+    }
+
+    virtual void SetIsolate() override
+    {
+        Isolate_ = true;
+    }
+
+    virtual void SetMemoryGuarantee(i64 memoryGuarantee) override
+    {
+        SetProperty("memory_guarantee", ToString(memoryGuarantee));
+        RequireMemoryController_ = true;
     }
 
     virtual void SetIOWeight(double weight) override
@@ -295,10 +317,13 @@ public:
 
         // Enable core dumps for all container instances.
         SetProperty("ulimit", "core: unlimited");
-        SetProperty("controllers", "freezer;memory;cpu;cpuacct;net_cls;blkio;devices");
+        TString controllers = "freezer;cpu;cpuacct;net_cls;blkio;devices";
+        if (RequireMemoryController_) {
+            controllers += ";memory";
+        }
+        SetProperty("controllers", controllers);
+        SetProperty("enable_porto", Isolate_ ? "isolate" : "full");
         SetProperty("command", command);
-        SetProperty("isolate", "true");
-        SetProperty("enable_porto", "isolate");
 
         for (auto arg : env) {
             SetProperty("env", TString(arg) + ";");
@@ -330,6 +355,8 @@ private:
     const bool AutoDestroy_;
     bool Destroyed_ = false;
     bool HasRoot_ = false;
+    bool Isolate_ = false;
+    bool RequireMemoryController_ = false;
 
     TPortoInstance(
         const TString& name,

@@ -1,14 +1,10 @@
 #include "list_fragment_parser.h"
-#include "helpers.h"
-#include "stream.h"
 
-#include <yt/core/yson/lexer_detail.h>
+#include <yt/python/common/helpers.h>
 
 #include <yt/core/ytree/node.h>
 
 #include <yt/core/misc/finally.h>
-
-#include <numeric>
 
 namespace NYT {
 namespace NPython {

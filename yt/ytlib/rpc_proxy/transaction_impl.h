@@ -51,6 +51,7 @@ public:
     virtual TFuture<NApi::TTransactionCommitResult> Commit(const NApi::TTransactionCommitOptions& options) override;
     virtual TFuture<void> Abort(const NApi::TTransactionAbortOptions& options) override;
     virtual void Detach() override;
+    virtual TFuture<NApi::TTransactionPrepareResult> Prepare() override;
     virtual TFuture<NApi::TTransactionFlushResult> Flush() override;
 
     virtual void SubscribeCommitted(const TClosure&) override;

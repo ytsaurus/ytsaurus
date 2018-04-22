@@ -297,7 +297,6 @@ private:
             YCHECK(run.State == ERunState::Pending);
             run.State = ERunState::Running;
 
-            JobCounter->Increment(1);
             JobCounter->Start(1);
             DataWeightCounter->Start(run.TotalDataWeight);
             RowCounter->Start(run.TotalRowCount);
@@ -486,6 +485,7 @@ private:
             YCHECK(run.State == ERunState::Initializing);
             run.State = ERunState::Pending;
             UpdatePendingRunSet(run);
+            JobCounter->Increment(1);
         }
     };
 

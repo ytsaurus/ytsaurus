@@ -23,8 +23,12 @@ static_assert(sizeof(PY_LONG_LONG) == sizeof(i64), "Py_LONG_LONG size does not e
 bool IsInstance(const Object& obj, const Object& cls);
 bool IsInteger(const Object& obj);
 bool IsFloat(const Object& obj);
+
+#ifdef PYCXX_PYTHON_2TO3
 TStringBuf ConvertToStringBuf(const Bytes& pyString);
 Bytes ConvertToPythonString(const TString& string);
+#endif
+
 TString ConvertStringObjectToString(const Object& obj);
 Object GetAttr(const Object& obj, const std::string& fieldName);
 i64 ConvertToLongLong(const Object& obj);

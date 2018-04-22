@@ -41,7 +41,8 @@ struct ISlot
         const TJobId& jobId,
         const TOperationId& operationId) = 0;
 
-    virtual TFuture<void> CreateSandboxDirectories() = 0;
+    //! Returns tmpfs path if any.
+    virtual TFuture<TNullable<TString>> CreateSandboxDirectories(TUserSandboxOptions options) = 0;
 
     virtual TFuture<void> MakeLink(
         ESandboxKind sandboxKind,
@@ -55,14 +56,9 @@ struct ISlot
         const TString& destinationName,
         bool isExecutable) = 0;
 
-    virtual TFuture<TNullable<TString>> PrepareTmpfs(
-        ESandboxKind sandboxKind,
-        i64 size,
-        TString path) = 0;
-
     virtual TFuture<NDataNode::IVolumePtr> PrepareRootVolume(const std::vector<NDataNode::TArtifactKey>& layers) = 0;
 
-    virtual TFuture<void> FinalizePreparation(TNullable<i64> diskSpaceLimit, TNullable<i64> inodeLimit) = 0;
+    virtual TFuture<void> FinalizePreparation() = 0;
 
     virtual NJobProberClient::IJobProbePtr GetJobProberClient() = 0;
 
