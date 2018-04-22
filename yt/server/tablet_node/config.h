@@ -114,6 +114,7 @@ public:
     bool MergeRowsOnFlush;
 
     TNullable<i64> MaxUnversionedBlockSize;
+    TNullable<int> CriticalOverlappingStoreCount;
 
     TTableMountConfig()
     {
@@ -203,6 +204,9 @@ public:
         RegisterParameter("max_overlapping_store_count", MaxOverlappingStoreCount)
             .GreaterThan(0)
             .Default(30);
+        RegisterParameter("critical_overlapping_store_count", CriticalOverlappingStoreCount)
+            .GreaterThan(0)
+            .Optional();
 
         RegisterParameter("in_memory_mode", InMemoryMode)
             .Default(NTabletClient::EInMemoryMode::None);
@@ -249,6 +253,7 @@ public:
             .Default(false);
 
         RegisterParameter("max_unversioned_block_size", MaxUnversionedBlockSize)
+            .GreaterThan(0)
             .Optional();
 
         RegisterPostprocessor([&] () {
