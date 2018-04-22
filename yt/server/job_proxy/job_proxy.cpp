@@ -499,6 +499,10 @@ TJobResult TJobProxy::DoRun()
 
     Job_->Initialize();
 
+    if (JobProxyEnvironment_) {
+        JobProxyEnvironment_->SetMemoryGuarantee(JobProxyMemoryReserve_);
+    }
+
     MemoryWatchdogExecutor_->Start();
     HeartbeatExecutor_->Start();
 

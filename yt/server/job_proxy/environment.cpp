@@ -236,6 +236,12 @@ public:
         : TCGroupsResourceTracker(config, "")
     { }
 
+    virtual void SetMemoryGuarantee(i64 memoryGuarantee) override
+    {
+        Y_UNUSED(memoryGuarantee);
+        // Memory guarantee is not supported for cgroups memory environment.
+    }
+
     virtual void SetCpuShare(double share) override
     {
         if (CGroupsConfig_->IsCGroupSupported(TCpu::Name)) {
@@ -540,6 +546,13 @@ public:
     virtual void SetCpuShare(double share) override
     {
         WaitFor(PortoExecutor_->SetProperty(SlotAbsoluteName_, "cpu_guarantee", ToString(share) + "c"))
+            .ThrowOnError();
+    }
+
+    virtual void SetMemoryGuarantee(i64 memoryGuarantee) override
+    {
+        auto containerName = Format("%v/%v", SlotAbsoluteName_, GetJobProxyMetaContainerName());
+        WaitFor(PortoExecutor_->SetProperty(containerName, "memory_guarantee", ToString(memoryGuarantee)))
             .ThrowOnError();
     }
 
