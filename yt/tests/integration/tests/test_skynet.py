@@ -29,12 +29,6 @@ class TestSkynetIntegration(YTEnvSetup):
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
 
-    DELTA_NODE_CONFIG = {
-        "data_node": {
-            "enable_experimental_skynet_http_api": True
-        }
-    }
-
     def test_locate_single_part(self):
         create("table", "//tmp/table")
 
@@ -281,12 +275,6 @@ class TestSkynetManager(YTEnvSetup):
     ENABLE_PROXY = True
     ENABLE_RPC_PROXY = True
     NUM_SKYNET_MANAGERS = 2
-
-    DELTA_NODE_CONFIG = {
-        "data_node": {
-            "enable_experimental_skynet_http_api": True
-        }
-    }
 
     def prepare_table(self, table_path):
         create("table", table_path, attributes={
