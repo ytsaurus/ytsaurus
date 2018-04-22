@@ -35,9 +35,9 @@ using NChunkClient::NProto::TChunkSpec;
 ////////////////////////////////////////////////////////////////////////////////
 
 int RowCount = 50000;
-auto StringValue = STRINGBUF("She sells sea shells on a sea shore");
-auto AnyValueList = STRINGBUF("[one; two; three]");
-auto AnyValueMap = STRINGBUF("{a=b; c=d}");
+auto StringValue = AsStringBuf("She sells sea shells on a sea shore");
+auto AnyValueList = AsStringBuf("[one; two; three]");
+auto AnyValueMap = AsStringBuf("{a=b; c=d}");
 
 std::vector<TString> ColumnNames = {"c0", "c1", "c2", "c3", "c4", "c5", "c6"};
 

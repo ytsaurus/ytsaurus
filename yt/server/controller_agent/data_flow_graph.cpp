@@ -118,9 +118,9 @@ void TDataFlowGraph::RegisterFlow(
     flow += statistics;
 }
 
-void TDataFlowGraph::RegisterTask(
+void TDataFlowGraph::RegisterCounter(
     const TVertexDescriptor& vertex,
-    const TProgressCounterPtr& taskCounter,
+    const TProgressCounterPtr& counter,
     EJobType jobType)
 {
     auto& vertexCounter = JobCounters_[vertex];
@@ -129,7 +129,7 @@ void TDataFlowGraph::RegisterTask(
         vertexCounter->SetParent(TotalJobCounter_);
         JobTypes_[vertex] = jobType;
     }
-    taskCounter->SetParent(vertexCounter);
+    counter->SetParent(vertexCounter);
 
     // Ensure that job type for each vertex is unique.
     auto it = JobTypes_.find(vertex);

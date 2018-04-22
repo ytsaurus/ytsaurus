@@ -52,7 +52,7 @@ using namespace NYPath;
 void ValidateTabletRetainedTimestamp(const TTabletSnapshotPtr& tabletSnapshot, TTimestamp timestamp)
 {
     if (timestamp < tabletSnapshot->RetainedTimestamp) {
-        THROW_ERROR_EXCEPTION("Timestamp %v is less than tablet %v retained timestamp %v",
+        THROW_ERROR_EXCEPTION("Timestamp %llx is less than tablet %v retained timestamp %llx",
             timestamp,
             tabletSnapshot->TabletId,
             tabletSnapshot->RetainedTimestamp);
@@ -76,8 +76,8 @@ void TRuntimeTableReplicaData::MergeFrom(const TTableReplicaStatistics& statisti
 ////////////////////////////////////////////////////////////////////////////////
 
 TReplicaCounters::TReplicaCounters(const TTagIdList& list)
-    : LagRowCount("/replica/lag_row_count", list)
-    , LagTime("/replica/lag_time", list)
+    : LagRowCount("/replica/lag_row_count", list, EAggregateMode::Max, TDuration::Seconds(1))
+    , LagTime("/replica/lag_time", list, EAggregateMode::Max, TDuration::Seconds(1))
     , Tags(list)
 { }
 
@@ -168,7 +168,7 @@ void TTabletSnapshot::ValidateMountRevision(i64 mountRevision)
     if (MountRevision != mountRevision) {
         THROW_ERROR_EXCEPTION(
             NTabletClient::EErrorCode::InvalidMountRevision,
-            "Invalid mount revision of tablet %v: expected %x, received %x",
+            "Invalid mount revision of tablet %v: expected %llx, received %llx",
             TabletId,
             MountRevision,
             mountRevision)
@@ -1230,7 +1230,7 @@ void TTablet::ValidateMountRevision(i64 mountRevision)
     if (MountRevision_ != mountRevision) {
         THROW_ERROR_EXCEPTION(
             NTabletClient::EErrorCode::InvalidMountRevision,
-            "Invalid mount revision of tablet %v: expected %x, received %x",
+            "Invalid mount revision of tablet %v: expected %llx, received %llx",
             Id_,
             MountRevision_,
             mountRevision)

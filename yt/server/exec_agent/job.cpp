@@ -70,7 +70,6 @@ using namespace NConcurrency;
 using namespace NApi;
 
 using NNodeTrackerClient::TNodeDirectory;
-using NScheduler::NProto::TUserJobSpec;
 using NChunkClient::TDataSliceDescriptor;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -80,6 +79,7 @@ class TJob
 {
 public:
     DEFINE_SIGNAL(void(const TNodeResources&), ResourcesUpdated);
+    DEFINE_SIGNAL(void(), PortsReleased);
 
 public:
     TJob(
@@ -96,7 +96,6 @@ public:
         , StartTime_(TInstant::Now())
         , ResourceUsage_(resourceUsage)
         , TrafficMeter_(New<TTrafficMeter>(Bootstrap_->GetMasterConnector()->GetLocalDescriptor().GetDataCenter()))
-
     {
         VERIFY_THREAD_AFFINITY(ControllerThread);
 
@@ -248,6 +247,23 @@ public:
         return JobSpec_;
     }
 
+    virtual int GetPortCount() const override
+    {
+        VERIFY_THREAD_AFFINITY(ControllerThread);
+
+        const auto& schedulerJobSpecExt = JobSpec_.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
+        if (schedulerJobSpecExt.has_user_job_spec()) {
+            return schedulerJobSpecExt.user_job_spec().port_count();
+        }
+
+        return 0;
+    }
+
+    virtual void SetPorts(const std::vector<int>& ports) override
+    {
+        Ports_ = ports;
+    }
+
     virtual EJobState GetState() const override
     {
         VERIFY_THREAD_AFFINITY(ControllerThread);
@@ -311,6 +327,13 @@ public:
         VERIFY_THREAD_AFFINITY(ControllerThread);
 
         return ResourceUsage_;
+    }
+
+    virtual std::vector<int> GetPorts() const override
+    {
+        VERIFY_THREAD_AFFINITY(ControllerThread);
+
+        return Ports_;
     }
 
     virtual TJobResult GetResult() const override
@@ -569,6 +592,8 @@ private:
     IVolumePtr RootVolume_;
 
     TNodeResources ResourceUsage_;
+    std::vector<int> Ports_;
+
     EJobState JobState_ = EJobState::Waiting;
     EJobPhase JobPhase_ = EJobPhase::Created;
 
@@ -879,6 +904,7 @@ private:
 
         if (JobState_ != EJobState::Waiting) {
             ResourcesUpdated_.Fire(resourceDelta);
+            PortsReleased_.Fire();
         }
 
         auto error = FromProto<TError>(JobResult_->error());
@@ -1013,20 +1039,28 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControllerThread);
 
-        WaitFor(Slot_->CreateSandboxDirectories())
-            .ThrowOnError();
+        TUserSandboxOptions options;
+
         const auto& schedulerJobSpecExt = JobSpec_.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
 
         if (schedulerJobSpecExt.has_user_job_spec()) {
             const auto& userJobSpec = schedulerJobSpecExt.user_job_spec();
             if (userJobSpec.has_tmpfs_path()) {
-                TmpfsPath_ = WaitFor(Slot_->PrepareTmpfs(
-                    ESandboxKind::User,
-                    userJobSpec.tmpfs_size(),
-                    userJobSpec.tmpfs_path()))
-                .ValueOrThrow();
+                options.TmpfsSizeLimit = userJobSpec.tmpfs_size();
+                options.TmpfsPath = userJobSpec.tmpfs_path();
+            }
+
+            if (userJobSpec.has_inode_limit()) {
+                options.InodeLimit = userJobSpec.inode_limit();
+            }
+
+            if (userJobSpec.has_disk_space_limit()) {
+                options.DiskSpaceLimit = userJobSpec.disk_space_limit();
             }
         }
+
+        TmpfsPath_ = WaitFor(Slot_->CreateSandboxDirectories(options))
+            .ValueOrThrow();
     }
 
     void InitializeArtifacts()
@@ -1145,13 +1179,8 @@ private:
         // When all artifacts are prepared we can finally change permission for sandbox which will
         // take away write access from the current user (see slot_location.cpp for details).
         if (schedulerJobSpecExt.has_user_job_spec()) {
-            const auto& userJobSpec = schedulerJobSpecExt.user_job_spec();
-
-            TNullable<i64> inodeLimit(userJobSpec.has_inode_limit(), userJobSpec.inode_limit());
-            TNullable<i64> diskSpaceLimit(userJobSpec.has_disk_space_limit(), userJobSpec.disk_space_limit());
-
-            LOG_INFO("Setting sandbox quota and permissions");
-            WaitFor(Slot_->FinalizePreparation(diskSpaceLimit, inodeLimit))
+            LOG_INFO("Setting sandbox permissions");
+            WaitFor(Slot_->FinalizePreparation())
                 .ThrowOnError();
         }
     }
@@ -1188,6 +1217,11 @@ private:
         }
 
         auto resultError = FromProto<TError>(jobResult.error());
+
+        auto abortReason = resultError.Attributes().Find<EAbortReason>("abort_reason");
+        if (abortReason) {
+            return abortReason.Get();
+        }
 
         if (AbortJobIfAccountLimitExceeded_ &&
             resultError.FindMatching(NSecurityClient::EErrorCode::AccountLimitExceeded))

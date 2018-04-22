@@ -45,6 +45,8 @@ function stubRegistry()
             create_users_on_demand: true,
             guest_login: "ytguest",
             guest_realm: "ytguest",
+            csrf_secret: "secret_key",
+            csrf_token_ttl: 24 * 60 * 60,
             cypress: {
                 enable: true,
                 where: "//sys/tokens",
@@ -65,7 +67,7 @@ function stubRegistry()
 
     var logger = stubLogger();
     var profiler = stubProfiler();
-    var driver = { executeSimple: function(){ return Q.resolve(); } };
+    var driver = { executeSimple: function(){ return Q.resolve({}); } };
 
     YtRegistry.set("config", config);
     YtRegistry.set("logger", logger);
@@ -114,6 +116,7 @@ describe("YtAuthentication", function() {
             .reply(200, {
                 error: "OK",
                 login: "anakin",
+                uid: 42,
                 oauth: { client_id: "ytrealm-id", scope: "ytgrant" }
             });
         ask("GET", "/",
@@ -159,6 +162,7 @@ describe("YtAuthentication", function() {
             .reply(200, {
                 error: "OK",
                 login: "jeeves",
+                uid: 42,
                 oauth: { client_id: "ytrealm-id", scope: "ytgrant" }
             })
             .get("/blackbox?method=oauth&format=json&userip=127.0.0.1&oauth_token=lucky-token")
@@ -224,6 +228,7 @@ describe("YtAuthentication", function() {
             .reply(200, {
                 error: "OK",
                 login: "qui-gon",
+                uid: 42,
                 oauth: { client_id: "ytrealm-id", scope: "force" }
             });
         ask("GET", "/",
@@ -250,6 +255,7 @@ describe("YtAuthentication", function() {
             .reply(200, {
                 error: "OK",
                 login: "amidala",
+                uid: 42,
                 oauth: { client_id: "ytrealm-id", scope: "ytgrant" }
             });
         ask("GET", "/",
@@ -267,6 +273,7 @@ describe("YtAuthentication", function() {
             .reply(200, {
                 status: { value: "VALID", id: 0 },
                 login: "anakin",
+                uid: 42,
             });
         ask("GET", "/",
         { "Cookie": "Session_id=mysessionid;" },
@@ -299,12 +306,67 @@ describe("YtAuthentication", function() {
             .reply(200, {
                 status: { value: "NEED_RESET", id: 1 },
                 login: "anakin",
+                uid: 42,
             });
         ask("GET", "/",
         { "Cookie": "Session_id=resigning;" },
         function(rsp) {
-            rsp.should.be.http2x;
+            rsp.should.be.http2xx;
             rsp.body.should.eql("anakin");
+            mock.done();
+        }, done).end();
+    });
+
+    it("should check csrf token when present", function(done) {
+        var mock = nock("http://localhost:9000")
+            .get("/blackbox?method=sessionid&format=json&userip=127.0.0.1&host=&sessionid=mysessionid&sslsessionid=mysslsessionid")
+            .reply(200, {
+                status: { value: "VALID", id: 0 },
+                login: "anakin",
+                uid: 42,
+            });
+
+        ask("GET", "/",
+        { "Cookie": "Session_id=mysessionid; sessionid2=mysslsessionid;",
+          "x-csrf-token": YtRegistry.get("authority").signCsrfToken(42, +new Date()) },
+        function(rsp) {
+            rsp.should.be.http2xx;
+            mock.done();
+        }, done).end();
+    });
+
+    it("should check token ttl", function(done) {
+        var mock = nock("http://localhost:9000")
+            .get("/blackbox?method=sessionid&format=json&userip=127.0.0.1&host=&sessionid=mysessionid&sslsessionid=mysslsessionid")
+            .reply(200, {
+                status: { value: "VALID", id: 0 },
+                login: "anakin",
+                uid: 42,
+            });
+
+        ask("GET", "/",
+        { "Cookie": "Session_id=mysessionid; sessionid2=mysslsessionid;",
+          "x-csrf-token": YtRegistry.get("authority").signCsrfToken(42, + new Date() - 7 * 24 * 60 * 60) },
+        function(rsp) {
+            rsp.statusCode.should.eql(401);
+            mock.done();
+        }, done).end();
+    });
+
+    it("should reject invalid token", function(done) {
+        var mock = nock("http://localhost:9000")
+            .get("/blackbox?method=sessionid&format=json&userip=127.0.0.1&host=&sessionid=mysessionid&sslsessionid=mysslsessionid")
+            .reply(200, {
+                status: { value: "VALID", id: 0 },
+                login: "anakin",
+                uid: 42,
+            });
+
+        ask("GET", "/",
+        { "Cookie": "Session_id=mysessionid; sessionid2=mysslsessionid;",
+          "x-csrf-token": "invalidtoken" },
+        function(rsp) {
+            rsp.statusCode.should.eql(401);
             mock.done();
         }, done).end();
     });
@@ -321,7 +383,7 @@ describe("YtAuthentication", function() {
         mock2
             .expects("executeSimple")
             .once()
-            .withExactArgs("get", sinon.match({ path: "//sys/tokens/some-token" }))
+            .withExactArgs("get", sinon.match({ path: "//sys/tokens", read_from: "cache" }))
             .returns(Q.reject(new YtError().withCode(500)));
         mock2
             .expects("executeSimple")
@@ -362,13 +424,14 @@ describe("YtAuthentication", function() {
             .reply(200, {
                 error: "OK",
                 login: "anakin",
+                uid: 42,
                 oauth: { client_id: "ytrealm-id", scope: "ytgrant" }
             });
         var mock2 = sinon.mock(YtRegistry.get("driver"))
         mock2
             .expects("executeSimple")
             .once()
-            .withExactArgs("get", sinon.match({ path: "//sys/tokens/some-token" }))
+            .withExactArgs("get", sinon.match({ path: "//sys/tokens" }))
             .returns(Q.reject(new YtError("Random error").withCode(500)));
         mock2
             .expects("executeSimple")
@@ -398,9 +461,10 @@ describe("YtAuthentication", function() {
             .expects("executeSimple")
             .once()
             .withExactArgs("get", sinon.match({
-                path: "//sys/tokens/unknown-token"
+                path: "//sys/tokens",
+                read_from: "cache",
             }))
-            .returns(Q.resolve("unknown-user"));
+            .returns(Q.resolve({"unknown-token": "unknown-user"}));
         mock
             .expects("executeSimple")
             .once()
@@ -423,9 +487,10 @@ describe("YtAuthentication", function() {
             .expects("executeSimple")
             .once()
             .withExactArgs("get", sinon.match({
-                path: "//sys/tokens/cypress-token"
+                path: "//sys/tokens",
+                read_from: "cache",
             }))
-            .returns(Q.resolve("cypress-user"));
+            .returns(Q.resolve({"cypress-token": "cypress-user"}));
         mock
             .expects("executeSimple")
             .once()

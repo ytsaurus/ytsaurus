@@ -729,7 +729,7 @@ public:
         auto existingAgent = FindAgent(agentId);
         if (existingAgent) {
             auto state = existingAgent->GetState();
-            if (state == EControllerAgentState::Registered) {
+            if (state == EControllerAgentState::Registered || state == EControllerAgentState::WaitingForInitialHeartbeat) {
                 LOG_INFO("Kicking out agent due to id conflict (AgentId: %v, ExistingIncarnationId: %v)",
                     agentId,
                     existingAgent->GetIncarnationId());
@@ -777,7 +777,7 @@ public:
 
                 const auto& transaction = transactionOrError.Value();
                 agent->SetIncarnationTransaction(transaction);
-                agent->SetState(EControllerAgentState::Registered);
+                agent->SetState(EControllerAgentState::WaitingForInitialHeartbeat);
 
                 agent->SetLease(TLeaseManager::CreateLease(
                     Config_->ControllerAgentHeartbeatTimeout,
@@ -820,7 +820,7 @@ public:
             request->operations_size());
 
         auto agent = GetAgentOrThrow(agentId);
-        if (agent->GetState() != EControllerAgentState::Registered) {
+        if (agent->GetState() != EControllerAgentState::Registered && agent->GetState() != EControllerAgentState::WaitingForInitialHeartbeat) {
             context->Reply(TError("Agent %Qv is in %Qlv state",
                 agentId,
                 agent->GetState()));
@@ -832,13 +832,16 @@ public:
                 incarnationId));
             return;
         }
+        if (agent->GetState() == EControllerAgentState::WaitingForInitialHeartbeat) {
+            LOG_INFO("Agent registration confirmed by heartbeat");
+            agent->SetState(EControllerAgentState::Registered);
+        }
 
         TLeaseManager::RenewLease(agent->GetLease());
 
         SwitchTo(agent->GetCancelableInvoker());
 
         TOperationIdToOperationJobMetrics operationIdToOperationJobMetrics;
-        std::vector<TString> suspiciousJobsYsons;
         for (const auto& protoOperation : request->operations()) {
             auto operationId = FromProto<TOperationId>(protoOperation.operation_id());
             auto operation = scheduler->FindOperation(operationId);
@@ -866,7 +869,7 @@ public:
             YCHECK(operationIdToOperationJobMetrics.emplace(operationId, operationJobMetrics).second);
 
             if (protoOperation.has_suspicious_jobs()) {
-                suspiciousJobsYsons.push_back(protoOperation.suspicious_jobs());
+                operation->SetSuspiciousJobs(TYsonString(protoOperation.suspicious_jobs(), EYsonType::MapFragment));
             }
 
             auto runtimeData = operation->GetRuntimeData();
@@ -876,8 +879,6 @@ public:
         }
 
         scheduler->GetStrategy()->ApplyJobMetricsDelta(operationIdToOperationJobMetrics);
-
-        agent->SetSuspiciousJobsYson(TYsonString(JoinSeq("", suspiciousJobsYsons), EYsonType::MapFragment));
 
         // We must wait for all these results before replying since these activities
         // rely on RPC request to remain alive.
@@ -1079,7 +1080,7 @@ private:
             return;
         }
 
-        YCHECK(agent->GetState() == EControllerAgentState::Registered);
+        YCHECK(agent->GetState() == EControllerAgentState::Registered || agent->GetState() == EControllerAgentState::WaitingForInitialHeartbeat);
 
         const auto& scheduler = Bootstrap_->GetScheduler();
         for (const auto& operation : agent->Operations()) {

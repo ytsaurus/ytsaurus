@@ -1,8 +1,9 @@
 #pragma once
 
-#include "helpers.h"
-#include "stream.h"
 #include "lazy_dict_producer.h"
+
+#include <yt/python/common/helpers.h>
+#include <yt/python/common/stream.h>
 
 #include <yt/core/yson/consumer.h>
 #include <yt/core/yson/lexer_detail.h>

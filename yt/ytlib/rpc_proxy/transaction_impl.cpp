@@ -142,6 +142,11 @@ void TTransaction::Detach()
         Id_);
 }
 
+TFuture<TTransactionPrepareResult> TTransaction::Prepare()
+{
+    Y_UNIMPLEMENTED();
+}
+
 TFuture<TTransactionFlushResult> TTransaction::Flush()
 {
     Y_UNIMPLEMENTED();

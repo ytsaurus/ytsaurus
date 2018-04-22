@@ -396,9 +396,9 @@ void TYsonSerializableLite::TParameter<T>::Save(NYson::IYsonConsumer* consumer) 
 }
 
 template <class T>
-bool TYsonSerializableLite::TParameter<T>::HasValue() const
+bool TYsonSerializableLite::TParameter<T>::CanOmitValue() const
 {
-    return NYT::NYTree::NDetail::HasValue(&Parameter);
+    return NYT::NYTree::NDetail::CanOmitValue(&Parameter, DefaultValue.GetPtr());
 }
 
 template <class T>

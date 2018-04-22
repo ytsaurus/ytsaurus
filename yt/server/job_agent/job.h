@@ -30,6 +30,8 @@ struct IJob
         const NNodeTrackerClient::NProto::TNodeResources& resourceDelta),
         ResourcesUpdated);
 
+    DECLARE_INTERFACE_SIGNAL(void(), PortsReleased);
+
     virtual void Start() = 0;
 
     virtual void Abort(const TError& error) = 0;
@@ -42,11 +44,15 @@ struct IJob
 
     virtual const NJobTrackerClient::NProto::TJobSpec& GetSpec() const = 0;
 
+    virtual int GetPortCount() const = 0;
+
     virtual EJobState GetState() const = 0;
 
     virtual EJobPhase GetPhase() const = 0;
 
     virtual NNodeTrackerClient::NProto::TNodeResources GetResourceUsage() const = 0;
+    virtual std::vector<int> GetPorts() const = 0;
+    virtual void SetPorts(const std::vector<int>& ports) = 0;
 
     virtual void SetResourceUsage(const NNodeTrackerClient::NProto::TNodeResources& newUsage) = 0;
 

@@ -44,7 +44,7 @@ void SiftDown(TIterator begin, TIterator end, TIterator current, TComparer compa
 }
 
 template <class TIterator, class TComparer>
-void SiftUp(TIterator begin, TIterator end, TIterator current, TComparer comparer)
+void SiftUp(TIterator begin, TIterator /*end*/, TIterator current, TComparer comparer)
 {
     auto value = std::move(*current);
     while (current != begin) {

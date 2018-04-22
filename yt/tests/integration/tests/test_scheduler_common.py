@@ -52,12 +52,14 @@ porto_delta_node_config = {
 
 ##################################################################
 
-def get_pool_metrics(metric_key):
+def get_pool_metrics(metric_key, start_time):
     result = {}
-    for entry in reversed(get("//sys/scheduler/orchid/profiling/scheduler/pools/metrics/{0}".format(metric_key))):
+    for entry in reversed(get("//sys/scheduler/orchid/profiling/scheduler/pools/metrics/" + metric_key,
+                              options={"from_time": int(start_time) * 1000000})):
         pool = entry["tags"]["pool"]
         if pool not in result:
             result[pool] = entry["value"]
+    print >>sys.stderr, "Pool metrics: ", result
     return result
 
 def get_cypress_metrics(operation_id, key):
@@ -1461,6 +1463,7 @@ class TestJobRevival(TestJobRevivalBase):
             "connect_retry_backoff_time": 100,
             "fair_share_update_period": 100,
             "operations_update_period": 100,
+            "static_orchid_cache_update_period": 100,
             "job_revival_abort_timeout": 2000,
         },
         "cluster_connection" : {
@@ -1632,7 +1635,17 @@ class TestJobRevival(TestJobRevivalBase):
         self.Env.kill_controller_agents()
         self.Env.start_controller_agents()
 
+        orchid_path = "//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/default/fair_share_info"
+        wait(lambda: exists(orchid_path + "/operations/" + op.id))
+
         for i in xrange(1000):
+            user_slots = None
+            user_slots_path = orchid_path + "/operations/{0}/resource_usage/user_slots".format(op.id)
+            try:
+                user_slots = get(user_slots_path, verbose=False)
+            except YtError:
+                pass
+
             for j in xrange(10):
                 try:
                     jobs = get("//sys/operations/{0}/@progress/jobs".format(op.id), verbose=False)
@@ -1646,7 +1659,7 @@ class TestJobRevival(TestJobRevivalBase):
                 events_on_fs().notify_event("complete_operation")
             running = jobs["running"]
             aborted = jobs["aborted"]["total"]
-            assert running <= user_slots_limit
+            assert running <= user_slots_limit or user_slots is None or user_slots <= user_slots_limit
             assert aborted == 0
 
         op.track()
@@ -2661,6 +2674,8 @@ class TestPoolMetrics(YTEnvSetup):
         # - writes something to stderr because we want to find our jobs in //sys/operations later
         map_cmd = """for i in $(seq 10) ; do echo 5 > foo$i ; sync ; sleep 0.5 ; done ; cat ; sleep 10; echo done > /dev/stderr"""
 
+        start_time = time.time()
+
         op11 = map(
             in_="//t_input",
             out="//t_output",
@@ -2681,10 +2696,9 @@ class TestPoolMetrics(YTEnvSetup):
             spec={"job_count": 2, "pool": "child2"},
         )
 
-        # Wait metrics update.
-        wait(lambda: get_pool_metrics("disk_writes")["parent"] > 0)
+        wait(lambda: get_pool_metrics("disk_writes", start_time)["parent"] > 0)
 
-        pool_metrics = get_pool_metrics("disk_writes")
+        pool_metrics = get_pool_metrics("disk_writes", start_time)
 
         op11_writes = get_cypress_metrics(op11.id, "user_job.block_io.io_write")
         op12_writes = get_cypress_metrics(op12.id, "user_job.block_io.io_write")
@@ -2709,6 +2723,8 @@ class TestPoolMetrics(YTEnvSetup):
 
         write_table("<append=%true>//tmp/t_input", [{"key": i} for i in xrange(2)])
 
+        start_time = time.time()
+
         op = map(
             command=with_breakpoint("cat; BREAKPOINT"),
             in_="//tmp/t_input",
@@ -2716,7 +2732,8 @@ class TestPoolMetrics(YTEnvSetup):
             spec={"data_size_per_job": 1, "pool": "child"},
             dont_track=True)
 
-        jobs = wait_breakpoint()
+        jobs = wait_breakpoint(job_count=2)
+        assert len(jobs) == 2
 
         release_breakpoint(job_id=jobs[0])
 
@@ -2729,10 +2746,10 @@ class TestPoolMetrics(YTEnvSetup):
         abort_job(running_jobs[0])
 
         # Wait for metrics update.
-        wait(lambda: get_pool_metrics("time_completed")["child"] > 0)
+        wait(lambda: get_pool_metrics("time_completed", start_time)["child"] > 0)
 
-        completed_metrics = get_pool_metrics("time_completed")
-        aborted_metrics = get_pool_metrics("time_aborted")
+        completed_metrics = get_pool_metrics("time_completed", start_time)
+        aborted_metrics = get_pool_metrics("time_aborted", start_time)
 
         for p in ("parent", "child"):
             if completed_metrics[p] == 0:
@@ -3241,3 +3258,91 @@ class TestControllerMemoryUsage(YTEnvSetup):
                 assert entry["operation_id"] == YsonEntity()
             assert entry["alive"] == False
 
+
+class TestPorts(YTEnvSetup):
+    NUM_SCHEDULERS = 1
+    NUM_NODES = 1
+
+    DELTA_NODE_CONFIG = {
+        "exec_agent": {
+            "job_controller": {
+                "start_port": 20000,
+                "port_count": 3,
+                "waiting_jobs_timeout": 1000,
+                "resource_limits": {
+                    "user_slots": 2,
+                    "cpu": 2
+                }
+            },
+        },
+    }
+
+    def test_simple(self):
+        create("table", "//tmp/t_in", attributes={"replication_factor": 1})
+        write_table("//tmp/t_in", [{"a": 0}])
+
+        create("table", "//tmp/t_out", attributes={"replication_factor": 1})
+        create("table", "//tmp/t_out_other", attributes={"replication_factor": 1})
+
+        op = map(
+            dont_track=True,
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            command=with_breakpoint("echo $YT_PORT_0 >&2; echo $YT_PORT_1 >&2; if [ -n \"$YT_PORT_2\" ]; then echo 'FAILED' >&2; fi; cat; BREAKPOINT"),
+            spec={
+                "mapper": {
+                    "port_count": 2,
+                }
+            })
+
+        jobs = wait_breakpoint()
+        assert len(jobs) == 1
+
+        ## Not enough ports
+        with pytest.raises(YtError):
+            map(
+                in_="//tmp/t_in",
+                out="//tmp/t_out_other",
+                command="cat",
+                spec={
+                    "mapper": {
+                        "port_count": 2,
+                    },
+                    "max_failed_job_count": 1,
+                    "fail_on_job_restart": True,
+                })
+
+        release_breakpoint()
+        op.track()
+
+        stderr = read_file(op._get_new_operation_path() + "/jobs/" + jobs[0] + "/stderr")
+        assert "FAILED" not in stderr
+        ports = __builtin__.map(int, stderr.split())
+        assert len(ports) == 2
+        assert ports[0] != ports[1]
+
+        assert all(port >= 20000 and port < 20003 for port in ports)
+
+
+        map(
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            command="echo $YT_PORT_0 >&2; echo $YT_PORT_1 >&2; if [ -n \"$YT_PORT_2\" ]; then echo 'FAILED' >&2; fi; cat",
+            spec={
+                "mapper": {
+                    "port_count": 2,
+                }
+            })
+
+        jobs_path = op._get_new_operation_path() + "/jobs"
+        assert exists(jobs_path)
+        jobs = ls(jobs_path)
+        assert len(jobs) == 1
+
+        stderr = read_file(op._get_new_operation_path() + "/jobs/" + jobs[0] + "/stderr")
+        assert "FAILED" not in stderr
+        ports = __builtin__.map(int, stderr.split())
+        assert len(ports) == 2
+        assert ports[0] != ports[1]
+
+        assert all(port >= 20000 and port < 20003 for port in ports)

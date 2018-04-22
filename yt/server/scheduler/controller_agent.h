@@ -63,6 +63,7 @@ DEFINE_ENUM(EControllerAgentState,
     (Registered)
     (Unregistering)
     (Unregistered)
+    (WaitingForInitialHeartbeat)
 );
 
 //! Scheduler-side representation of a controller agent.
@@ -81,8 +82,6 @@ public:
 
     DEFINE_BYVAL_RW_PROPERTY(EControllerAgentState, State);
     DEFINE_BYVAL_RW_PROPERTY(NConcurrency::TLease, Lease);
-
-    DEFINE_BYVAL_RW_PROPERTY(NYson::TYsonString, SuspiciousJobsYson);
 
     DEFINE_BYREF_RW_PROPERTY(THashSet<TOperationPtr>, Operations);
 

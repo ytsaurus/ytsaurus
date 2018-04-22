@@ -158,8 +158,8 @@ private:
     struct TChunkRequisitionCache
     {
         TChunk::TParents LastChunkParents;
-        TChunkRequisitionIndex LastChunkUpdatedRequisitionIndex;
-        TChunkRequisitionIndex LastErasureChunkUpdatedRequisitionIndex;
+        TNullable<TChunkRequisition> LastChunkUpdatedRequisition;
+        TNullable<TChunkRequisition> LastErasureChunkUpdatedRequisition;
     };
 
     TChunkRequisitionCache ChunkRequisitionCache_;
@@ -282,11 +282,11 @@ private:
 
     void ClearChunkRequisitionCache();
     bool CanServeRequisitionFromCache(const TChunk* chunk);
-    TChunkRequisitionIndex GetRequisitionFromCache(const TChunk* chunk);
-    void CacheRequisition(const TChunk* chunk, TChunkRequisitionIndex index);
+    TChunkRequisition GetRequisitionFromCache(const TChunk* chunk);
+    void CacheRequisition(const TChunk* chunk, const TChunkRequisition& requisition);
 
-    //! Computes the actual requisition the chunk must have. Returns the index of that requisition.
-    TChunkRequisitionIndex ComputeChunkRequisition(const TChunk* chunk);
+    //! Computes the actual requisition the chunk must have.
+    TChunkRequisition ComputeChunkRequisition(const TChunk* chunk);
 
     //! Follows upward parent links.
     //! Stops when some owning nodes are discovered or parents become ambiguous.

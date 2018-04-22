@@ -148,7 +148,7 @@ struct ISchedulerStrategy
 
     virtual void UpdateOperationRuntimeParameters(
         IOperationStrategyHost* operation,
-        const TOperationFairShareStrategyTreeOptionsPtr& runtimeParams) = 0;
+        const NYTree::INodePtr& parametersNode) = 0;
 
     //! Updates current config used by strategy.
     virtual void UpdateConfig(const TFairShareStrategyConfigPtr& config) = 0;

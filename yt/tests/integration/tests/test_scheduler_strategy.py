@@ -1,3 +1,5 @@
+import random
+
 import pytest
 
 from yt_env_setup import YTEnvSetup, require_ytserver_root_privileges, wait
@@ -547,11 +549,8 @@ class TestSchedulerOperationLimits(YTEnvSetup):
             out="//tmp/out2",
             spec={"pool": "test_pool_2"})
 
-        # Wait some time to make sure that op2 will not start.
-        time.sleep(1)
-
         assert op1.get_state() == "running"
-        assert op2.get_state() == "pending"
+        wait(lambda: op2.get_state() == "pending")
 
         release_breakpoint()
         op1.track()
@@ -1283,6 +1282,7 @@ class TestSchedulerPools(YTEnvSetup):
 
 ##################################################################
 
+@require_ytserver_root_privileges
 class TestSchedulerSuspiciousJobs(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 1
@@ -1330,7 +1330,6 @@ class TestSchedulerSuspiciousJobs(YTEnvSetup):
         }
     }
 
-    @require_ytserver_root_privileges
     def test_false_suspicious_jobs(self):
         create("table", "//tmp/t", attributes={"replication_factor": 1})
         create("table", "//tmp/t1", attributes={"replication_factor": 1})
@@ -1441,7 +1440,6 @@ class TestSchedulerSuspiciousJobs(YTEnvSetup):
         assert suspicious
 
     @pytest.mark.xfail(reason="TODO(max42)")
-    @require_ytserver_root_privileges
     def test_true_suspicious_jobs_old(self):
         # This test involves dirty hack to make lots of retries for fetching feasible
         # seeds from master making the job suspicious (as it doesn't give the input for the

@@ -84,6 +84,40 @@ SERVICES = [
             "-.*",
         ],
     },
+    # --- controller_agent ---
+    {
+        "type": "controller_agent",
+        "solomon_id": "yt_bridge_controller_agent_internal",
+        "solomon_name": "yt_controller_agent_internal",
+        "yt_port": 10014,
+        "solomon_port": 10025,
+        "bridge_rules": [
+            "+/(action_queue|bus|lf_alloc|logging|monitoring|profiling|resource_tracker)",
+            "-.*",
+        ],
+    },
+    {
+        "type": "controller_agent",
+        "solomon_id": "yt_bridge_controller_agent_other",
+        "solomon_name": "yt_controller_agent",
+        "yt_port": 10014,
+        "solomon_port": 10035,
+        "bridge_rules": [
+            "-/(action_queue|bus|lf_alloc|logging|monitoring|profiling|resource_tracker|rpc)",
+            "+.*",
+        ],
+    },
+    {
+        "type": "controller_agent",
+        "solomon_id": "yt_bridge_controller_agent_rpc",
+        "solomon_name": "yt_controller_agent_rpc",
+        "yt_port": 10014,
+        "solomon_port": 10045,
+        "bridge_rules": [
+            "+/rpc",
+            "-.*",
+        ],
+    },
     # --- node ---
     {
         "type": "node",
@@ -189,6 +223,7 @@ SERVICES = [
 CONDUCTOR_GROUPS = {
     "master": ["masters"],
     "scheduler": ["schedulers"],
+    "controller_agent": ["schedulers"],
     "node": ["nodes"],
     "rpc_proxy": ["nodes"],
     "http_proxy": ["proxy"],

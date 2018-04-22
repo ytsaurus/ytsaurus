@@ -146,13 +146,22 @@ YtApplicationAuth.prototype._dispatchWhoAmI = function(req, rsp)
         self.config,
         req.logger || self.logger,
         self.profiler,
-        self.authority)).dispatch(
+        self.authority,
+        false)).dispatch(
             req,
             rsp,
             function() {
+                rsp.setHeader("Pragma", "nocache");
+                rsp.setHeader("Expires", "Thu, 01 Jan 1970 00:00:01 GMT");
+                rsp.setHeader("Cache-Control", "max-age=0, must-revalidate, proxy-revalidate, no-cache, no-store, private");
+                rsp.setHeader("X-Content-Type-Options", "nosniff");
+                rsp.setHeader("X-Frame-Options", "SAMEORIGIN");
+                rsp.setHeader("X-DNS-Prefetch-Control", "off");
+
                 utils.dispatchJson(rsp, {
                     login: req.authenticated_user,
-                    realm: req.authenticated_from
+                    realm: req.authenticated_from,
+                    csrf_token: req.csrf_token,
                 });
                 deferred.resolve();
                 return void 0;

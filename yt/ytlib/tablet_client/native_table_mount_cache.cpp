@@ -114,6 +114,29 @@ const TDuration TTabletCache::ExpiringTimeout_ = TDuration::Seconds(1);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+bool TTabletInfo::IsInMemory() const
+{
+    if (!InMemoryMode) {
+        return false;
+    }
+
+    switch (*InMemoryMode) {
+        case EInMemoryMode::None:
+            return false;
+
+        case EInMemoryMode::Compressed:
+            return true;
+
+        case EInMemoryMode::Uncompressed:
+            return true;
+
+        default:
+            Y_UNREACHABLE();
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 bool TTableMountInfo::IsSorted() const
 {
     return Schemas[ETableSchemaKind::Primary].IsSorted();
@@ -370,6 +393,11 @@ private:
                     tabletInfo->MountRevision = protoTabletInfo.mount_revision();
                     tabletInfo->State = ETabletState(protoTabletInfo.state());
                     tabletInfo->UpdateTime = Now();
+
+                    // COMPAT(savrus)
+                    tabletInfo->InMemoryMode = protoTabletInfo.has_in_memory_mode()
+                        ? MakeNullable(EInMemoryMode(protoTabletInfo.in_memory_mode()))
+                        : Null;
 
                     if (tableInfo->IsSorted()) {
                         // Take the actual pivot from master response.

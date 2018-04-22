@@ -108,6 +108,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/cypress_client/rpc.proto
   ${CMAKE_CURRENT_LIST_DIR}/cypress_client/rpc_helpers.cpp
 
+  ${CMAKE_CURRENT_LIST_DIR}/driver/command.cpp
   ${CMAKE_CURRENT_LIST_DIR}/driver/cypress_commands.cpp
   ${CMAKE_CURRENT_LIST_DIR}/driver/driver.cpp
   ${CMAKE_CURRENT_LIST_DIR}/driver/etc_commands.cpp
@@ -289,7 +290,6 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/config.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/helpers.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/job_resources.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/scheduler/resource_limits.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/scheduler_channel.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/proto/job.proto
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/proto/job_prober_service.proto

@@ -44,8 +44,8 @@ public:
         const IResponseWriterPtr& rsp) override
     {
         TString path{req->GetUrl().Path};
-        YCHECK(path.size() >= STRINGBUF("/orchid").size());
-        path = path.substr(STRINGBUF("/orchid").size(), TString::npos);
+        YCHECK(path.size() >= AsStringBuf("/orchid").size());
+        path = path.substr(AsStringBuf("/orchid").size(), TString::npos);
 
         TCgiParameters params(req->GetUrl().RawQuery);
 

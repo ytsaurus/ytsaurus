@@ -53,6 +53,8 @@ DEFINE_RPC_SERVICE_METHOD(TSupervisorService, GetJobSpec)
     jobProxyResources->set_memory(resources.user_memory());
     jobProxyResources->set_network(resources.network());
 
+    ToProto(response->mutable_ports(), job->GetPorts());
+
     context->Reply();
 }
 

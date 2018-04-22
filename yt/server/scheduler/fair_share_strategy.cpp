@@ -1025,7 +1025,7 @@ private:
                 scheduleTimer.GetElapsedTime() - prescheduleDuration - context->TotalScheduleJobDuration);
 
             if (context->NonPreemptiveScheduleJobAttempts > 0) {
-                logAndCleanSchedulingStatistics(STRINGBUF("Non preemptive"));
+                logAndCleanSchedulingStatistics(AsStringBuf("Non preemptive"));
             }
         }
     }
@@ -1119,7 +1119,7 @@ private:
                 context->PreemptiveScheduleJobAttempts,
                 timer.GetElapsedTime() - prescheduleDuration - context->TotalScheduleJobDuration);
             if (context->PreemptiveScheduleJobAttempts > 0) {
-                logAndCleanSchedulingStatistics(STRINGBUF("Preemptive"));
+                logAndCleanSchedulingStatistics(AsStringBuf("Preemptive"));
             }
         }
 
@@ -2060,26 +2060,23 @@ public:
             for (const auto& pair : state->TreeIdToPoolIdMap()) {
                 const auto& treeId = pair.first;
 
-                auto emplaceResult = runtimeParams->SchedulingOptionsPerPoolTree.emplace(
-                    treeId,
-                    New<TOperationFairShareStrategyTreeOptions>());
+                auto options = New<TOperationFairShareStrategyTreeOptions>();
+                YCHECK(runtimeParams->SchedulingOptionsPerPoolTree.emplace(treeId, options).second);
 
-                YCHECK(emplaceResult.second);
+                auto specOptionsIt = spec->SchedulingOptionsPerPoolTree.find(treeId);
 
-                auto& params = emplaceResult.first->second;
-                params->Weight = 1.0;
-
-                auto optionsIt = spec->SchedulingOptionsPerPoolTree.find(treeId);
-
-                // Intentionally not merging options from spec and from
-                // fair-share options per pool tree map here.
-                if (optionsIt != spec->SchedulingOptionsPerPoolTree.end()) {
-                    params->Weight = optionsIt->second->Weight.Get(1.0);
-                    params->ResourceLimits = optionsIt->second->ResourceLimits;
+                if (specOptionsIt != spec->SchedulingOptionsPerPoolTree.end()) {
+                    const auto& specOptions = specOptionsIt->second;
+                    if (specOptions->Weight) {
+                        options->Weight = *specOptions->Weight;
+                    }
+                    options->ResourceLimits = specOptions->ResourceLimits;
                 } else {
                     if (DefaultTreeId_ && treeId == *DefaultTreeId_) {
-                        params->Weight = spec->Weight.Get(1.0);
-                        params->ResourceLimits = spec->ResourceLimits;
+                        if (spec->Weight) {
+                            options->Weight = *spec->Weight;
+                        }
+                        options->ResourceLimits = spec->ResourceLimits;
                     }
                 }
             }
@@ -2171,11 +2168,17 @@ public:
         }
 
         // Check that after adding or removing trees each node will belong exactly to one tree.
-        if (!CheckTreesConfiguration(idToTree, &errors)) {
-            auto error = TError("Error updating pool trees")
-                << std::move(errors);
-            Host->SetSchedulerAlert(ESchedulerAlertType::UpdatePools, error);
-            return;
+        // Check is skipped if trees configuration did not change.
+        bool skipTreesConfigurationCheck = treeIdsToAdd.empty() && treeIdsToRemove.empty();
+
+        if (!skipTreesConfigurationCheck)
+        {
+            if (!CheckTreesConfiguration(idToTree, &errors)) {
+                auto error = TError("Error updating pool trees")
+                    << std::move(errors);
+                Host->SetSchedulerAlert(ESchedulerAlertType::UpdatePools, error);
+                return;
+            }
         }
 
         // Update configs and pools structure of all trees.
@@ -2357,9 +2360,7 @@ public:
         }
     }
 
-    virtual void UpdateOperationRuntimeParameters(
-        IOperationStrategyHost* operation,
-        const TOperationFairShareStrategyTreeOptionsPtr& runtimeParams) override
+    virtual void UpdateOperationRuntimeParameters(IOperationStrategyHost* operation, const INodePtr& parametersNode) override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
@@ -2371,11 +2372,11 @@ public:
             auto defaultTreeOptionsIt = params->SchedulingOptionsPerPoolTree.find(*DefaultTreeId_);
             YCHECK(defaultTreeOptionsIt != params->SchedulingOptionsPerPoolTree.end());
 
-            ReconfigureYsonSerializable(
-                defaultTreeOptionsIt->second,
-                ConvertToNode(runtimeParams));
+            ReconfigureYsonSerializable(defaultTreeOptionsIt->second, parametersNode);
 
-            GetTree(*DefaultTreeId_)->UpdateOperationRuntimeParameters(operation->GetId(), runtimeParams);
+            GetTree(*DefaultTreeId_)->UpdateOperationRuntimeParameters(
+                operation->GetId(),
+                defaultTreeOptionsIt->second);
         }
     }
 
@@ -2393,7 +2394,7 @@ public:
             progressParts.push_back(GetTree(treeId)->GetOperationLoggingProgress(operationId));
         }
 
-        return JoinToString(progressParts.begin(), progressParts.end(), STRINGBUF("; "));
+        return JoinToString(progressParts.begin(), progressParts.end(), AsStringBuf("; "));
     }
 
     virtual void BuildOrchid(TFluentMap fluent) override

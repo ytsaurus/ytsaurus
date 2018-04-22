@@ -37,24 +37,9 @@ class TestMonitoring(YTEnvSetup):
         wait(monitoring_orchid_ready)
 
         profiling_orchid = self.get_json(http_port,
-            "/profiling/logging/backlog_events?from_time={}".format(int(time.time())))
+            "/profiling/logging/backlog_events?from_time={}".format(int(time.time()) * 1000000))
 
         assert len(profiling_orchid) > 0
 
         with pytest.raises(urllib2.HTTPError):
             self.get_json(http_port, "/profiling/logging/backlog_events?from_time=abc")
-            
-
-##################################################################
-
-class TestMonitoringNewHttpServer(TestMonitoring):
-    DELTA_MASTER_CONFIG = {
-        "use_new_http_server": True
-    }
-    DELTA_SCHEDULER_CONFIG = {
-        "use_new_http_server": True
-    }
-    DELTA_NODE_CONFIG = {
-        "use_new_http_server": True
-    }
-    

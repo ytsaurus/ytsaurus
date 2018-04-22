@@ -6,7 +6,7 @@
 #include "user_job_write_controller.h"
 #include "job_satellite_connection.h"
 #include "user_job_synchronizer.h"
-#include "resource_controller.h"
+#include "environment.h"
 
 #include <yt/server/core_dump/public.h>
 #include <yt/server/core_dump/core_processor_service.h>
@@ -121,9 +121,6 @@ using NChunkClient::TDataSliceDescriptor;
 #ifdef _unix_
 
 static const int JobStatisticsFD = 5;
-static TString CGroupBase = "user_jobs";
-static TString CGroupPrefix = CGroupBase + "/yt-job-";
-
 static const size_t BufferSize = 1_MB;
 
 static const size_t MaxCustomStatisticsPathLength = 512;
@@ -134,20 +131,8 @@ static TNullOutput NullOutput;
 
 static TString CreateNamedPipePath()
 {
-const TString& name = CreateGuidAsString();
-return NFS::GetRealPath(NFS::CombinePaths("./pipes", name));
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-const TString& GetCGroupUserJobBase()
-{
-    return CGroupBase;
-}
-
-const TString& GetCGroupUserJobPrefix()
-{
-    return CGroupPrefix;
+    const TString& name = CreateGuidAsString();
+    return NFS::GetRealPath(NFS::CombinePaths("./pipes", name));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -160,15 +145,16 @@ public:
         IJobHostPtr host,
         const TUserJobSpec& userJobSpec,
         const TJobId& jobId,
-        std::unique_ptr<TUserJobWriteController> userJobWriteController,
-        IResourceControllerPtr resourceController)
+        const std::vector<int>& ports,
+        std::unique_ptr<TUserJobWriteController> userJobWriteController)
         : TJob(host)
         , Logger(Host_->GetLogger())
         , UserJobWriteController_(std::move(userJobWriteController))
         , UserJobSpec_(userJobSpec)
         , Config_(Host_->GetConfig())
         , JobIOConfig_(Host_->GetJobSpecHelper()->GetJobIOConfig())
-        , ResourceController_(resourceController)
+        , UserJobEnvironment_(Host_->CreateUserJobEnvironment())
+        , Ports_(ports)
         , JobErrorPromise_(NewPromise<void>())
         , JobEnvironmentType_(ConvertTo<TJobEnvironmentConfigPtr>(Config_->JobEnvironment)->Type)
         , PipeIOPool_(New<TThreadPool>(JobIOConfig_->PipeIOPoolSize, "PipeIO"))
@@ -208,10 +194,11 @@ public:
             UserId_ = jobEnvironmentConfig->StartUid + Config_->SlotIndex;
         }
 
-        if (ResourceController_) {
+        if (UserJobEnvironment_) {
+            UserJobEnvironment_->SetMemoryGuarantee(UserJobSpec_.memory_reserve());
             YCHECK(host->GetConfig()->BusServer->UnixDomainName);
             YCHECK(UserId_);
-            Process_ = ResourceController_->CreateControlledProcess(
+            Process_ = UserJobEnvironment_->CreateUserJobProcess(
                 ExecProgramName,
                 *UserId_,
                 MakeNullable(UserJobSpec_.has_core_table_spec(), *host->GetConfig()->BusServer->UnixDomainName));
@@ -219,7 +206,7 @@ public:
             BlockIOWatchdogExecutor_ = New<TPeriodicExecutor>(
                 AuxQueue_->GetInvoker(),
                 BIND(&TUserJob::CheckBlockIOUsage, MakeWeak(this)),
-                ResourceController_->GetBlockIOWatchdogPeriod());
+                UserJobEnvironment_->GetBlockIOWatchdogPeriod());
         } else {
             Process_ = New<TSimpleProcess>(ExecProgramName, false);
             if (UserId_) {
@@ -393,7 +380,7 @@ public:
         return UserJobReadController_->GetInterruptDescriptor();
     }
 
-    private:
+private:
     const NLogging::TLogger Logger;
 
     const std::unique_ptr<TUserJobWriteController> UserJobWriteController_;
@@ -403,7 +390,9 @@ public:
 
     const TJobProxyConfigPtr Config_;
     const NScheduler::TJobIOConfigPtr JobIOConfig_;
-    const IResourceControllerPtr ResourceController_;
+    const IUserJobEnvironmentPtr UserJobEnvironment_;
+
+    std::vector<int> Ports_;
 
     mutable TPromise<void> JobErrorPromise_;
 
@@ -508,6 +497,10 @@ public:
         for (const auto& var : Environment_) {
             Process_->AddArguments({"--env", var});
         }
+
+        for (int index = 0; index < Ports_.size(); ++index) {
+            Process_->AddArguments({"--env", Format("YT_PORT_%v=%v", index, Ports_[index])});
+        }
     }
 
     void CleanupUserProcesses() const
@@ -519,8 +512,8 @@ public:
 
     void DoCleanupUserProcesses() const
     {
-        if (ResourceController_) {
-            ResourceController_->KillAll();
+        if (UserJobEnvironment_) {
+            UserJobEnvironment_->CleanProcesses();
         }
     }
 
@@ -950,30 +943,30 @@ public:
         }
 
         // Cgroups statistics.
-        if (ResourceController_ && Prepared_) {
+        if (UserJobEnvironment_ && Prepared_) {
             try {
-                auto cpuStatistics = ResourceController_->GetCpuStatistics();
+                auto cpuStatistics = UserJobEnvironment_->GetCpuStatistics();
                 statistics.AddSample("/user_job/cpu", cpuStatistics);
             } catch (const std::exception& ex) {
                 LOG_WARNING(ex, "Unable to get cpu statistics for user job");
             }
 
             try {
-                auto blockIOStatistics = ResourceController_->GetBlockIOStatistics();
+                auto blockIOStatistics = UserJobEnvironment_->GetBlockIOStatistics();
                 statistics.AddSample("/user_job/block_io", blockIOStatistics);
             } catch (const std::exception& ex) {
                 LOG_WARNING(ex, "Unable to get block io statistics for user job");
             }
 
             try {
-                auto memoryStatistics = ResourceController_->GetMemoryStatistics();
+                auto memoryStatistics = UserJobEnvironment_->GetMemoryStatistics();
                 statistics.AddSample("/user_job/current_memory", memoryStatistics);
             } catch (const std::exception& ex) {
                 LOG_WARNING(ex, "Unable to get memory statistics for user job");
             }
 
             try {
-                auto maxMemoryUsage = ResourceController_->GetMaxMemoryUsage();
+                auto maxMemoryUsage = UserJobEnvironment_->GetMaxMemoryUsage();
                 statistics.AddSample("/user_job/max_memory", maxMemoryUsage);
             } catch (const std::exception& ex) {
                 LOG_WARNING(ex, "Unable to get max memory usage for user job");
@@ -1133,7 +1126,8 @@ public:
             InputPipeBlinker_->Start();
             JobStarted_ = true;
         } else {
-            LOG_ERROR("Failed to prepare satellite/executor");
+            LOG_ERROR(JobErrorPromise_.Get(), "Failed to prepare satellite/executor");
+            return;
         }
         LOG_INFO("Start actions finished (SatelliteRss: %v)", jobSatelliteRss);
         auto inputFutures = runActions(InputActions_, onIOError, PipeIOPool_->GetInvoker());
@@ -1233,8 +1227,8 @@ public:
         auto getMemoryUsage = [&] () {
             try {
 
-                if (ResourceController_) {
-                    auto memoryStatistics = ResourceController_->GetMemoryStatistics();
+                if (UserJobEnvironment_) {
+                    auto memoryStatistics = UserJobEnvironment_->GetMemoryStatistics();
 
                     i64 rss = UserJobSpec_.include_memory_mapped_files() ? memoryStatistics.MappedFile : 0;
                     rss += memoryStatistics.Rss;
@@ -1279,13 +1273,13 @@ public:
 
     void CheckBlockIOUsage()
     {
-        if (!ResourceController_) {
+        if (!UserJobEnvironment_) {
             return;
         }
 
         TBlockIOStatistics blockIOStats;
         try {
-            blockIOStats = ResourceController_->GetBlockIOStatistics();
+            blockIOStats = UserJobEnvironment_->GetBlockIOStatistics();
         } catch (const std::exception& ex) {
             LOG_WARNING(ex, "Unable to get block io statistics to find a woodpecker");
             return;
@@ -1303,7 +1297,7 @@ public:
 
             if (UserJobSpec_.has_iops_throttler_limit()) {
                 LOG_DEBUG("Set IO throttle (Iops: %v)", UserJobSpec_.iops_throttler_limit());
-                ResourceController_->SetIOThrottle(UserJobSpec_.iops_throttler_limit());
+                UserJobEnvironment_->SetIOThrottle(UserJobSpec_.iops_throttler_limit());
             }
         }
     }
@@ -1339,17 +1333,15 @@ IJobPtr CreateUserJob(
     IJobHostPtr host,
     const TUserJobSpec& userJobSpec,
     const TJobId& jobId,
+    const std::vector<int>& ports,
     std::unique_ptr<TUserJobWriteController> userJobWriteController)
 {
-    auto subcontroller = host->GetResourceController()
-        ? host->GetResourceController()->CreateSubcontroller(CGroupPrefix + ToString(jobId))
-        : nullptr;
     return New<TUserJob>(
         host,
         userJobSpec,
         jobId,
-        std::move(userJobWriteController),
-        subcontroller);
+        std::move(ports),
+        std::move(userJobWriteController));
 }
 
 #else
@@ -1358,6 +1350,7 @@ IJobPtr CreateUserJob(
     IJobHostPtr host,
     const TUserJobSpec& UserJobSpec_,
     const TJobId& jobId,
+    const std::vector<int>& ports,
     std::unique_ptr<TUserJobWriteController> userJobWriteController)
 {
     THROW_ERROR_EXCEPTION("Streaming jobs are supported only under Unix");

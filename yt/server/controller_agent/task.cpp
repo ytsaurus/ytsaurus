@@ -189,13 +189,14 @@ void TTask::FinishInput()
 {
     LOG_DEBUG("Task input finished" );
 
-    // GetChunkPoolInput() may return false on tasks that do not require input, such as for vanilla operation.
+    // GetChunkPoolInput() may return nullptr on tasks that do not require input, such as for vanilla operation.
     if (const auto& chunkPoolInput = GetChunkPoolInput()) {
         chunkPoolInput->Finish();
     }
     auto progressCounter = GetChunkPoolOutput()->GetJobCounter();
     if (!progressCounter->Parent()) {
-        TaskHost_->GetDataFlowGraph()->RegisterTask(GetVertexDescriptor(), progressCounter, GetJobType());
+        TaskHost_->GetDataFlowGraph()
+            ->RegisterCounter(GetVertexDescriptor(), progressCounter, GetJobType());
     }
     AddPendingHint();
     CheckCompleted();

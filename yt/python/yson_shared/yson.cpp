@@ -1,25 +1,20 @@
-#include "public.h"
-#include "helpers.h"
-#include "serialize.h"
-#include "shutdown.h"
-#include "stream.h"
-#include "lazy_list_fragment_parser.h"
-#include "lazy_parser.h"
-#include "lazy_yson_consumer.h"
-#include "yson_lazy_map.h"
-#include "object_builder.h"
-#include "protobuf_descriptor_pool.h"
-#include "list_fragment_parser.h"
+#include <yt/python/yson/serialize.h>
+#include <yt/python/yson/lazy_parser.h>
+#include <yt/python/yson/lazy_yson_consumer.h>
+#include <yt/python/yson/lazy_list_fragment_parser.h>
+#include <yt/python/yson/yson_lazy_map.h>
+#include <yt/python/yson/protobuf_descriptor_pool.h>
+#include <yt/python/yson/list_fragment_parser.h>
+#include <yt/python/yson/object_builder.h>
+
+#include <yt/python/common/shutdown.h>
+#include <yt/python/common/helpers.h>
 
 #include <yt/core/ytree/convert.h>
 
 #include <yt/core/yson/protobuf_interop.h>
 
 #include <yt/core/misc/crash_handler.h>
-#include <yt/core/misc/blob.h>
-
-#include <contrib/libs/pycxx/Extensions.hxx>
-#include <contrib/libs/pycxx/Objects.hxx>
 
 #include <contrib/libs/protobuf/io/coded_stream.h>
 #include <contrib/libs/protobuf/io/zero_copy_stream_impl_lite.h>

@@ -64,6 +64,8 @@ class TestSchedulerAlerts(YTEnvSetup):
 
 ##################################################################
 
+
+@require_ytserver_root_privileges
 class TestSchedulerOperationAlerts(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_SCHEDULERS = 1
@@ -77,7 +79,7 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
             "slot_manager": {
                 "job_environment": {
                     "type": "cgroups",
-                    "supported_cgroups": ["blkio"],
+                    "supported_cgroups": ["blkio", "cpu", "cpuacct"],
                     "block_io_watchdog_period": 100
                 }
             }
@@ -104,25 +106,27 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
                 "intermediate_data_skew_alert_min_interquartile_range": 50,
                 "intermediate_data_skew_alert_min_partition_size": 50,
                 "short_jobs_alert_min_job_count": 3,
-                "short_jobs_alert_min_job_duration": 5000
+                "short_jobs_alert_min_job_duration": 5000,
+                "low_cpu_usage_alert_min_execution_time": 1,
+                "low_cpu_usage_alert_min_average_job_time": 1,
+                "low_cpu_usage_alert_cpu_usage_threshold": 0.3,
+                "operation_too_long_alert_min_wall_time": 0,
+                "operation_too_long_alert_estimate_duration_threshold": 5000
             },
             "map_reduce_operation_options": {
                 "min_uncompressed_block_size": 1
-            },
+            }
         }
     }
 
-    @require_ytserver_root_privileges
     @unix_only
     def test_unused_tmpfs_size_alert(self):
-        create("table", "//tmp/t_input")
-        create("table", "//tmp/t_output")
-        write_table("//tmp/t_input", [{"x": "y"}])
+        self.create_test_tables()
 
         op = map(
             command="echo abcdef >local_file; sleep 1.5; cat",
-            in_="//tmp/t_input",
-            out="//tmp/t_output",
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
             spec={
                 "mapper": {
                     "tmpfs_size": 5 * 1024 * 1024,
@@ -134,8 +138,8 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
 
         op = map(
             command="printf '=%.0s' {1..768} >local_file; sleep 1.5; cat",
-            in_="//tmp/t_input",
-            out="//tmp/t_output",
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
             spec={
                 "mapper": {
                     "tmpfs_size": 1024,
@@ -146,9 +150,7 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
         assert "unused_tmpfs_space" not in get("//sys/operations/{0}/@alerts".format(op.id))
 
     def test_missing_input_chunks_alert(self):
-        create("table", "//tmp/t_in", attributes={"replication_factor": 1})
-        create("table", "//tmp/t_out")
-        write_table("//tmp/t_in", [{"x": "y"}])
+        self.create_test_tables(attributes={"replication_factor": 1})
 
         chunk_ids = get("//tmp/t_in/@chunk_ids")
         assert len(chunk_ids) == 1
@@ -175,9 +177,7 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
 
     @pytest.mark.skipif("True", reason="YT-6717")
     def test_woodpecker_jobs_alert(self):
-        create("table", "//tmp/t_in")
-        write_table("//tmp/t_in", [{"x": str(i)} for i in xrange(7)])
-        create("table", "//tmp/t_out")
+        self.create_test_tables(row_count=7)
 
         cmd = "set -e; echo aaa >local_file; for i in {1..200}; do " \
               "dd if=./local_file of=/dev/null iflag=direct bs=1M count=1; done;"
@@ -196,35 +196,56 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
         assert "excessive_disk_usage" in get("//sys/operations/{0}/@alerts".format(op.id))
 
     def test_long_aborted_jobs_alert(self):
-        create("table", "//tmp/t_in")
-        write_table("//tmp/t_in", [{"x": str(i)} for i in xrange(5)])
-        create("table", "//tmp/t_out")
+        self.create_test_tables(row_count=5)
 
         op = map(
             command="sleep 100; cat",
             in_="//tmp/t_in",
             out="//tmp/t_out",
-            spec={
-                "data_size_per_job": 1,
-            },
+            spec={"data_size_per_job": 1},
             dont_track=True)
 
-        operation_orchid_path = "//sys/scheduler/orchid/scheduler/operations/" + op.id
-        running_jobs_count_path = operation_orchid_path + "/progress/jobs/running"
-
-        def running_jobs_exists():
-            return exists(running_jobs_count_path) and get(running_jobs_count_path) >= 1
-
-        wait(running_jobs_exists)
+        self.wait_for_running_jobs(op)
 
         time.sleep(1.5)
 
-        for job in ls(operation_orchid_path + "/running_jobs"):
+        for job in ls("//sys/scheduler/orchid/scheduler/operations/{}/running_jobs".format(op.id)):
             abort_job(job)
 
         time.sleep(1.5)
 
         assert "long_aborted_jobs" in get("//sys/operations/{0}/@alerts".format(op.id))
+
+    # if these three tests flap - call renadeen@
+    def test_low_cpu_alert_presence(self):
+        self.create_test_tables(attributes={"compression_codec": "none"})
+        op = map(
+            command="sleep 1; cat",
+            in_="//tmp/t_in",
+            out="//tmp/t_out")
+
+        assert "low_cpu_usage" in get("//sys/operations/{0}/@alerts".format(op.id))
+
+    def test_low_cpu_alert_absence(self):
+        self.create_test_tables()
+        op = map(
+            command="python -c 'for i in xrange(10000000): x = 1'; cat",
+            in_="//tmp/t_in",
+            out="//tmp/t_out")
+
+        assert "low_cpu_usage" not in get("//sys/operations/{0}/@alerts".format(op.id))
+
+    def test_operation_too_long_alert(self):
+        self.create_test_tables(row_count=100)
+        op = map(
+            command="sleep 100; cat",
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            spec={"data_size_per_job": 1},
+            dont_track=True)
+
+        self.wait_for_running_jobs(op)
+        wait(lambda: "operation_too_long" in get("//sys/operations/{0}/@alerts".format(op.id)))
 
     def test_intermediate_data_skew_alert(self):
         create("table", "//tmp/t_in")
@@ -251,9 +272,7 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
 
     @flaky(max_runs=3)
     def test_short_jobs_alert(self):
-        create("table", "//tmp/t_in")
-        write_table("//tmp/t_in", [{"x": str(i)} for i in xrange(4)])
-        create("table", "//tmp/t_out")
+        self.create_test_tables(row_count=4)
 
         op = map(
             command="cat",
@@ -276,9 +295,7 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
         assert "short_jobs_duration" not in get("//sys/operations/{0}/@alerts".format(op.id))
 
     def test_schedule_job_timed_out_alert(self):
-        create("table", "//tmp/t_in")
-        write_table("//tmp/t_in", [{"x": "y"}])
-        create("table", "//tmp/t_out")
+        self.create_test_tables()
 
         testing_options = {"scheduling_delay": 3500, "scheduling_delay_type": "async"}
 
@@ -294,6 +311,16 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
         time.sleep(8)
 
         assert "schedule_job_timed_out" in get("//sys/operations/{0}/@alerts".format(op.id))
+
+    def create_test_tables(self, row_count=1, **kwargs):
+        create("table", "//tmp/t_in", **kwargs)
+        write_table("//tmp/t_in", [{"x": str(i)} for i in xrange(row_count)])
+        create("table", "//tmp/t_out", **kwargs)
+
+    def wait_for_running_jobs(self, operation):
+        running_jobs_path = "//sys/scheduler/orchid/scheduler/operations/{}/progress/jobs/running".format(operation.id)
+        wait(lambda: get(running_jobs_path, default=0) >= 1)
+
 
 ##################################################################
 
@@ -339,3 +366,38 @@ class TestSchedulerJobSpecThrottlerOperationAlert(YTEnvSetup):
 
         path = "//sys/operations/{0}/@alerts".format(op.id)
         wait(lambda: exists(path) and "excessive_job_spec_throttling" in get(path))
+
+@require_ytserver_root_privileges
+class TestControllerAgentAlerts(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_SCHEDULERS = 1
+
+    def teardown(self):
+        remove("//sys/controller_agents/config")
+        set("//sys/controller_agents/config", {})
+        agent = ls("//sys/controller_agents/instances")[0]
+        agent_path = "//sys/controller_agents/instances/" + agent
+        wait(lambda: len(get(agent_path + "/@alerts")) == 0)
+
+    def test_unrecognized_options_alert(self):
+        agents = ls("//sys/controller_agents/instances")
+        assert len(agents) == 1
+
+        agent_path = "//sys/controller_agents/instances/" + agents[0]
+        get(agent_path + "/@")
+        assert len(get(agent_path + "/@alerts")) == 0
+
+        set("//sys/controller_agents/config", {"unknown_option": 10})
+        wait(lambda: len(get(agent_path + "/@alerts")) == 1)
+
+    def test_incorrect_config(self):
+        agents = ls("//sys/controller_agents/instances")
+        assert len(agents) == 1
+
+        agent_path = "//sys/controller_agents/instances/" + agents[0]
+        get(agent_path + "/@")
+        assert len(get(agent_path + "/@alerts")) == 0
+
+        remove("//sys/controller_agents/config")
+        set("//sys/controller_agents/config", [])
+        wait(lambda: len(get(agent_path + "/@alerts")) == 1)

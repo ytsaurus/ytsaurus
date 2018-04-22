@@ -603,7 +603,7 @@ private:
 
     virtual TStringBuf GetDataWeightParameterNameForJob(EJobType jobType) const override
     {
-        return STRINGBUF("data_weight_per_job");
+        return AsStringBuf("data_weight_per_job");
     }
 
     virtual std::vector<EJobType> GetSupportedJobTypesForJobsDurationAnalyzer() const override
@@ -779,7 +779,7 @@ private:
 
     virtual TStringBuf GetDataWeightParameterNameForJob(EJobType jobType) const override
     {
-        return STRINGBUF("data_weight_per_job");
+        return AsStringBuf("data_weight_per_job");
     }
 
     virtual std::vector<EJobType> GetSupportedJobTypesForJobsDurationAnalyzer() const override

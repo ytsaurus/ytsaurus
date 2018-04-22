@@ -29,13 +29,6 @@ class TestSkynetIntegration(YTEnvSetup):
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
 
-    DELTA_NODE_CONFIG = {
-        "use_new_http_server": True,
-        "data_node": {
-            "enable_experimental_skynet_http_api": True
-        }
-    }
-
     def test_locate_single_part(self):
         create("table", "//tmp/table")
 
@@ -283,13 +276,6 @@ class TestSkynetManager(YTEnvSetup):
     ENABLE_RPC_PROXY = True
     NUM_SKYNET_MANAGERS = 2
 
-    DELTA_NODE_CONFIG = {
-        "use_new_http_server": True,
-        "data_node": {
-            "enable_experimental_skynet_http_api": True
-        }
-    }
-
     def prepare_table(self, table_path):
         create("table", table_path, attributes={
             "enable_skynet_sharing": True,
@@ -321,6 +307,8 @@ class TestSkynetManager(YTEnvSetup):
                 time.sleep(1)
                 continue
 
+            if "X-YT-Error" in rsp.headers:
+                raise RuntimeError("/api/v1/share failed: " + rsp.headers["X-YT-Error"])
             rsp.raise_for_status()
 
         raise RuntimeError("Failed to share {} in 60 seconds".format(path))
@@ -341,14 +329,8 @@ class TestSkynetManager(YTEnvSetup):
         subprocess.check_call(["sky", "get", "-p", "-d", self.path_to_run + "/test_download_0", rbtorrentid])
 
     def test_no_table(self):
-        try:
+        with pytest.raises(RuntimeError):
             self.share("//tmp/no_table")
-            assert False, "Request must fail"
-        except requests.RequestException as e:
-            assert e.response.status_code == 400
-            assert 'X-YT-Error' in e.response.headers
-            assert 'X-YT-Response-Code' in e.response.headers
-            assert 'X-Yt-Response-Message' in e.response.headers
 
     def test_empty_file(self):
         create("table", "//tmp/table_with_empty_file", attributes={

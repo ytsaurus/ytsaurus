@@ -283,9 +283,6 @@ protected:
 
     virtual void CustomPrepare() override
     {
-        // NB: this call should be after TotalEstimatedOutputChunkCount is calculated.
-        TOperationControllerBase::CustomPrepare();
-
         // The total data size for processing (except teleport chunks).
         i64 totalDataWeight = 0;
         i64 totalRowCount = 0;
@@ -347,7 +344,7 @@ protected:
 
                 auto jobSizeConstraints = createJobSizeConstraints();
                 IsExplicitJobCount = jobSizeConstraints->IsExplicitJobCount();
-                InitAutoMerge(jobSizeConstraints->GetJobCount(), DataWeightRatio);
+                auto autoMergeEnabled = TryInitAutoMerge(jobSizeConstraints->GetJobCount(), DataWeightRatio);
 
                 std::vector<TChunkStripePtr> stripes;
                 SliceUnversionedChunks(mergedChunks, jobSizeConstraints, &stripes);
@@ -357,27 +354,10 @@ protected:
                     std::move(jobSizeConstraints),
                     GetJobSizeAdjusterConfig());
 
-
-                bool requiresAutoMerge = false;
-
-                auto edgeDescriptors = GetStandardEdgeDescriptors();
-                if (GetAutoMergeDirector()) {
-                    YCHECK(AutoMergeTasks.size() == edgeDescriptors.size());
-                    for (int index = 0; index < edgeDescriptors.size(); ++index) {
-                        if (AutoMergeTasks[index]) {
-                            edgeDescriptors[index].DestinationPool = AutoMergeTasks[index]->GetChunkPoolInput();
-                            edgeDescriptors[index].ChunkMapping = AutoMergeTasks[index]->GetChunkMapping();
-                            edgeDescriptors[index].ImmediatelyUnstageChunkLists = true;
-                            edgeDescriptors[index].RequiresRecoveryInfo = true;
-                            edgeDescriptors[index].IsFinalOutput = false;
-                            requiresAutoMerge = true;
-                        }
-                    }
-                }
-                if (requiresAutoMerge) {
-                    UnorderedTask = New<TAutoMergeableUnorderedTask>(this, std::move(edgeDescriptors));
+                if (autoMergeEnabled) {
+                    UnorderedTask = New<TAutoMergeableUnorderedTask>(this, GetAutoMergeEdgeDescriptors());
                 } else {
-                    UnorderedTask = New<TUnorderedTask>(this, std::move(edgeDescriptors));
+                    UnorderedTask = New<TUnorderedTask>(this, GetStandardEdgeDescriptors());
                 }
                 RegisterTask(UnorderedTask);
 
@@ -537,7 +517,7 @@ public:
 protected:
     virtual TStringBuf GetDataWeightParameterNameForJob(EJobType jobType) const override
     {
-        return STRINGBUF("data_weight_per_job");
+        return AsStringBuf("data_weight_per_job");
     }
 
     virtual std::vector<EJobType> GetSupportedJobTypesForJobsDurationAnalyzer() const override
@@ -707,7 +687,7 @@ public:
 protected:
     virtual TStringBuf GetDataWeightParameterNameForJob(EJobType jobType) const override
     {
-        return STRINGBUF("data_weight_per_job");
+        return AsStringBuf("data_weight_per_job");
     }
 
     virtual std::vector<EJobType> GetSupportedJobTypesForJobsDurationAnalyzer() const override

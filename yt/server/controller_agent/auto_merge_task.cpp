@@ -120,7 +120,8 @@ TAutoMergeTask::TAutoMergeTask(
         autoMergeJobSizeConstraints,
         nullptr /* jobSizeAdjusterConfig */,
         EUnorderedChunkPoolMode::AutoMerge /* autoMergeMode */);
-    TaskHost_->GetDataFlowGraph()->RegisterTask(GetVertexDescriptor(), ChunkPool_->GetJobCounter(), GetJobType());
+    TaskHost_->GetDataFlowGraph()
+        ->RegisterCounter(GetVertexDescriptor(), ChunkPool_->GetJobCounter(), GetJobType());
 
     ChunkPoolInput_ = std::make_unique<TAutoMergeChunkPoolAdapter>(
         ChunkPool_.get(),

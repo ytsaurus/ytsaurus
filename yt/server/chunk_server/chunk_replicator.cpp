@@ -2054,16 +2054,20 @@ void TChunkReplicator::OnRequisitionUpdate()
 
 void TChunkReplicator::ComputeChunkRequisitionUpdate(TChunk* chunk, TReqUpdateChunkRequisition* request)
 {
-    auto oldRequisitionIndex = chunk->GetLocalRequisitionIndex();
-    auto newRequisitionIndex = ComputeChunkRequisition(chunk);
-    if (newRequisitionIndex != oldRequisitionIndex) {
+    auto oldGlobalRequisitionIndex = chunk->GetLocalRequisitionIndex();
+    auto newRequisition = ComputeChunkRequisition(chunk);
+    auto* globalRegistry = GetChunkRequisitionRegistry();
+    auto newGlobalRequisitionIndex = globalRegistry->Find(newRequisition);
+    if (!newGlobalRequisitionIndex || *newGlobalRequisitionIndex != oldGlobalRequisitionIndex) {
         auto* update = request->add_updates();
         ToProto(update->mutable_chunk_id(), chunk->GetId());
-        update->set_chunk_requisition_index(newRequisitionIndex);
+        // Don't mix up true (global) and temporary (ephemeral) requisition indexes.
+        auto newTmpRequisitionIndex = TmpRequisitionRegistry_.GetOrCreateIndex(newRequisition);
+        update->set_chunk_requisition_index(newTmpRequisitionIndex);
     }
 }
 
-TChunkRequisitionIndex TChunkReplicator::ComputeChunkRequisition(const TChunk* chunk)
+TChunkRequisition TChunkReplicator::ComputeChunkRequisition(const TChunk* chunk)
 {
     if (CanServeRequisitionFromCache(chunk)) {
         return GetRequisitionFromCache(chunk);
@@ -2122,30 +2126,25 @@ TChunkRequisitionIndex TChunkReplicator::ComputeChunkRequisition(const TChunk* c
         requisition.ForceReplicationFactor(1);
     }
 
-    TChunkRequisitionIndex result;
     if (found) {
         Y_ASSERT(requisition.ToReplication().IsValid());
-        result = TmpRequisitionRegistry_.GetOrCreateIndex(requisition);
     } else {
-        // Don't mix up true (global) and temporary (ephemeral) requisition indexes.
         auto globalRequisitionIndex = chunk->GetStagingTransaction()
             ? chunk->GetLocalRequisitionIndex()
             : EmptyChunkRequisitionIndex;
-        auto* globalRegistry = GetChunkRequisitionRegistry();
-        const auto& requisition = globalRegistry->GetRequisition(globalRequisitionIndex);
-        result = TmpRequisitionRegistry_.GetOrCreateIndex(requisition);
+        requisition = GetChunkRequisitionRegistry()->GetRequisition(globalRequisitionIndex);
     }
 
-    CacheRequisition(chunk, result);
+    CacheRequisition(chunk, requisition);
 
-    return result;
+    return requisition;
 }
 
 void TChunkReplicator::ClearChunkRequisitionCache()
 {
     ChunkRequisitionCache_.LastChunkParents.clear();
-    ChunkRequisitionCache_.LastChunkUpdatedRequisitionIndex = EmptyChunkRequisitionIndex;
-    ChunkRequisitionCache_.LastErasureChunkUpdatedRequisitionIndex = EmptyChunkRequisitionIndex;
+    ChunkRequisitionCache_.LastChunkUpdatedRequisition = Null;
+    ChunkRequisitionCache_.LastErasureChunkUpdatedRequisition = Null;
 }
 
 bool TChunkReplicator::CanServeRequisitionFromCache(const TChunk* chunk)
@@ -2155,18 +2154,18 @@ bool TChunkReplicator::CanServeRequisitionFromCache(const TChunk* chunk)
     }
 
     return chunk->IsErasure()
-        ? ChunkRequisitionCache_.LastErasureChunkUpdatedRequisitionIndex != EmptyChunkRequisitionIndex
-        : ChunkRequisitionCache_.LastChunkUpdatedRequisitionIndex != EmptyChunkRequisitionIndex;
+        ? ChunkRequisitionCache_.LastErasureChunkUpdatedRequisition.HasValue()
+        : ChunkRequisitionCache_.LastChunkUpdatedRequisition.HasValue();
 }
 
-TChunkRequisitionIndex TChunkReplicator::GetRequisitionFromCache(const TChunk* chunk)
+TChunkRequisition TChunkReplicator::GetRequisitionFromCache(const TChunk* chunk)
 {
     return chunk->IsErasure()
-        ? ChunkRequisitionCache_.LastErasureChunkUpdatedRequisitionIndex
-        : ChunkRequisitionCache_.LastChunkUpdatedRequisitionIndex;
+        ? *ChunkRequisitionCache_.LastErasureChunkUpdatedRequisition
+        : *ChunkRequisitionCache_.LastChunkUpdatedRequisition;
 }
 
-void TChunkReplicator::CacheRequisition(const TChunk* chunk, TChunkRequisitionIndex index)
+void TChunkReplicator::CacheRequisition(const TChunk* chunk, const TChunkRequisition& requisition)
 {
     if (chunk->IsStaged()) {
         return;
@@ -2174,9 +2173,9 @@ void TChunkReplicator::CacheRequisition(const TChunk* chunk, TChunkRequisitionIn
 
     ChunkRequisitionCache_.LastChunkParents = chunk->Parents();
     if (chunk->IsErasure()) {
-        ChunkRequisitionCache_.LastErasureChunkUpdatedRequisitionIndex = index;
+        ChunkRequisitionCache_.LastErasureChunkUpdatedRequisition = requisition;
     } else {
-        ChunkRequisitionCache_.LastChunkUpdatedRequisitionIndex = index;
+        ChunkRequisitionCache_.LastChunkUpdatedRequisition = requisition;
     }
 }
 

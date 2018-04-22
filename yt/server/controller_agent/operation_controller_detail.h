@@ -468,7 +468,9 @@ protected:
     void AnalyzeInputStatistics();
     void AnalyzeAbortedJobs();
     void AnalyzeJobsIOUsage();
+    void AnalyzeJobsCpuUsage();
     void AnalyzeJobsDuration();
+    void AnalyzeOperationDuration();
     void AnalyzeScheduleJobStatistics();
 
     void AnalyzeOperationProgress();
@@ -534,7 +536,13 @@ protected:
     void AddAllTaskPendingHints();
     void InitInputChunkScraper();
     void InitIntermediateChunkScraper();
-    void InitAutoMerge(int outputChunkCountEstimate, double dataWeightRatio);
+
+    //! If auto-merge is needed, init auto-merge tasks and auto-merge director and return true, otherwise return false.
+    bool TryInitAutoMerge(int outputChunkCountEstimate, double dataWeightRatio);
+
+    //! Return edge descriptors adjusted accroding to existing auto-merge tasks.
+    std::vector<TEdgeDescriptor> GetAutoMergeEdgeDescriptors();
+
     void FillPrepareResult(TOperationControllerPrepareResult* result);
 
     void ParseInputQuery(

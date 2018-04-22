@@ -15,6 +15,9 @@ extern const TString IntermediatePath;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DECLARE_REFCOUNTED_STRUCT(IOperationController)
+using IOperationControllerWeakPtr = TWeakPtr<IOperationController>;
+
 DECLARE_REFCOUNTED_STRUCT(TSnapshotJob)
 
 DECLARE_REFCOUNTED_CLASS(TSnapshotBuilder)
@@ -57,6 +60,11 @@ extern const NLogging::TLogger ControllerLogger;
 extern const NLogging::TLogger ControllerAgentLogger;
 
 extern const NProfiling::TProfiler ControllerAgentProfiler;
+
+////////////////////////////////////////////////////////////////////////////////
+
+using TOperationIdToControllerMap = THashMap<TOperationId, IOperationControllerPtr>;
+using TOperationIdToWeakControllerMap = THashMap<TOperationId, IOperationControllerWeakPtr>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

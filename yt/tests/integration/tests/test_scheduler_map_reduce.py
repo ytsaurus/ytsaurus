@@ -471,6 +471,43 @@ print "x={0}\ty={1}".format(x, y)
         assert get("//sys/operations/{0}/@progress/partition_reduce_jobs/aborted".format(op.id)) > 0
         assert get("//sys/operations/{0}/@progress/partition_jobs/lost".format(op.id)) == 0
 
+    def test_progress_counter(self):
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out")
+
+        write_table("//tmp/t_in", [{"x": 1, "y" : 2}])
+
+        reducer_cmd = " ; ".join([
+            "cat",
+            events_on_fs().notify_event_cmd("reducer_started"),
+            events_on_fs().wait_event_cmd("continue_reducer")])
+
+        op = map_reduce(in_="//tmp/t_in",
+                        out="//tmp/t_out",
+                        reduce_by="x",
+                        sort_by="x",
+                        reducer_command=reducer_cmd,
+                        spec={"partition_count": 1},
+                        dont_track=True)
+
+        events_on_fs().wait_event("reducer_started", timeout=datetime.timedelta(1000))
+
+        job_ids = ls("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op.id))
+        assert len(job_ids) == 1
+        job_id = job_ids[0]
+
+        abort_job(job_id)
+
+        events_on_fs().notify_event("continue_reducer")
+
+        op.track()
+
+        partition_reduce_counter = get("//sys/operations/{0}/@progress/data_flow_graph/vertices/partition_reduce/job_counter".format(op.id))
+        total_counter = get("//sys/operations/{0}/@progress/jobs".format(op.id))
+
+        assert partition_reduce_counter["aborted"]["total"] == 1
+        assert partition_reduce_counter["pending"] == 0
+
     @unix_only
     def test_query_reader_projection(self):
         create("table", "//tmp/t1")

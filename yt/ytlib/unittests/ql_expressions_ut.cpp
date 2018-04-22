@@ -767,10 +767,6 @@ TEST_F(TPrepareExpressionTest, Negative1)
         HasSubstr("Type mismatch in expression"));
 
     EXPECT_THROW_THAT(
-        [&] { PrepareExpression(TString("ku = -1"), schema); },
-        HasSubstr("to uint64: value is negative"));
-
-    EXPECT_THROW_THAT(
         [&] { PrepareExpression(TString("kd = 4611686018427387903"), schema); },
         HasSubstr("to double: inaccurate conversion"));
 
@@ -1534,7 +1530,11 @@ INSTANTIATE_TEST_CASE_P(
         std::tuple<const char*, const char*, TUnversionedValue>(
             "i1=-9223372036854775808",
             "uint64(i1)",
-            MakeUint64(9223372036854775808ULL))
+            MakeUint64(9223372036854775808ULL)),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "u1=17271244077285990991u",
+            "u1=17271244077285990991",
+            MakeBoolean(true))
 
 ));
 

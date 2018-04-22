@@ -3,7 +3,6 @@
 #include "public.h"
 #include "helpers.h"
 #include "job_resources.h"
-#include "resource_limits.h"
 
 #include <yt/ytlib/api/config.h>
 
@@ -51,10 +50,14 @@ DEFINE_REFCOUNTED_TYPE(TSupportsSchedulingTagsConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TResourceLimitsConfig
-    : public TResourceLimits
-    , public NYTree::TYsonSerializable
+    : public NYTree::TYsonSerializable
 {
 public:
+    TNullable<int> UserSlots;
+    TNullable<double> Cpu;
+    TNullable<int> Network;
+    TNullable<i64> Memory;
+
     TResourceLimitsConfig();
 };
 
@@ -338,6 +341,9 @@ public:
     //! but leads to an 12x memory consumption in controller at worst case scenario.
     bool SliceErasureChunksByParts;
 
+    //! Controls operation storage mode.
+    bool EnableCompatibleStorageMode;
+
     TOperationSpecBase();
 
 private:
@@ -369,6 +375,7 @@ public:
     THashMap<TString, TString> Environment;
 
     double CpuLimit;
+    int PortCount;
     TNullable<TDuration> JobTimeLimit;
     i64 MemoryLimit;
     double UserJobMemoryDigestDefaultValue;
@@ -842,7 +849,7 @@ class TOperationFairShareStrategyTreeOptions
     : public NYTree::TYsonSerializable
 {
 public:
-    TNullable<double> Weight;
+    double Weight;
 
     TResourceLimitsConfigPtr ResourceLimits;
 

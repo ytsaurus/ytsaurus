@@ -37,13 +37,15 @@ NYPath::TYPath GetNewSecureVaultPath(const TOperationId& operationId);
 NYPath::TYPath GetNewSnapshotPath(const TOperationId& operationId);
 NYPath::TYPath GetNewStderrPath(const TOperationId& operationId, const TJobId& jobId);
 
-std::vector<NYPath::TYPath> GetCompatibilityJobPaths(
+std::vector<NYPath::TYPath> GetJobPaths(
     const TOperationId& operationId,
     const TJobId& jobId,
+    bool enableCompatibleStorageMode,
     const TString& resourceName = {});
 
-std::vector<NYPath::TYPath> GetCompatibilityOperationPaths(
+std::vector<NYPath::TYPath> GetOperationPaths(
     const TOperationId& operationId,
+    bool enableCompatibleStorageMode,
     const TString& resourceName = {});
 
 const NYPath::TYPath& GetPoolTreesPath();

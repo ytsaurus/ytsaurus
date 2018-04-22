@@ -72,6 +72,8 @@
 
 #include <yt/core/logging/log.h>
 
+#include <util/generic/vector.h>
+
 #include <functional>
 
 namespace NYT {
@@ -310,7 +312,7 @@ TOperationControllerInitializationResult TOperationControllerBase::InitializeRev
                 return;
             }
 
-            asyncCheckResults.push_back(std::make_pair(transaction, transaction->Ping()));
+            asyncCheckResults.emplace_back(transaction, transaction->Ping());
         };
 
         // NB: Async transaction is not checked.
@@ -737,10 +739,13 @@ TOperationControllerReviveResult TOperationControllerBase::Revive()
     VERIFY_INVOKER_AFFINITY(CancelableInvoker);
 
     if (Spec_->FailOnJobRestart) {
-        THROW_ERROR_EXCEPTION("Cannot revive operation when spec option fail_on_job_restart is set");
+        THROW_ERROR_EXCEPTION(
+            NScheduler::EErrorCode::OperationFailedOnJobRestart,
+            "Cannot revive operation when spec option fail_on_job_restart is set");
     }
 
     if (!Snapshot.Data) {
+        LOG_INFO("Snapshot data is missing, preparing operation from scratch");
         TOperationControllerReviveResult result;
         result.RevivedFromSnapshot = false;
         static_cast<TOperationControllerPrepareResult&>(result) = Prepare();
@@ -996,7 +1001,7 @@ void TOperationControllerBase::InitIntermediateChunkScraper()
         Logger);
 }
 
-void TOperationControllerBase::InitAutoMerge(int outputChunkCountEstimate, double dataWeightRatio)
+bool TOperationControllerBase::TryInitAutoMerge(int outputChunkCountEstimate, double dataWeightRatio)
 {
     InitAutoMergeJobSpecTemplates();
 
@@ -1011,11 +1016,11 @@ void TOperationControllerBase::InitAutoMerge(int outputChunkCountEstimate, doubl
         LOG_INFO("Output chunk count estimate does not exceed 1, force disabling auto merge "
             "(OutputChunkCountEstimate: %v)",
             outputChunkCountEstimate);
-        return;
+        return false;
     }
 
     if (mode == EAutoMergeMode::Disabled) {
-        return;
+        return false;
     }
 
     AutoMergeTasks.reserve(OutputTables_.size());
@@ -1041,6 +1046,16 @@ void TOperationControllerBase::InitAutoMerge(int outputChunkCountEstimate, doubl
     i64 desiredChunkDataWeight = desiredChunkSize / dataWeightRatio;
     i64 dataWeightPerJob = std::min(1_GB, desiredChunkDataWeight);
 
+    // NB: if row count limit is set on any output table, we do not
+    // enable auto merge as it prematurely stops the operation
+    // because wrong statistics are currently used when checking row count.
+    for (int index = 0; index < OutputTables_.size(); ++index) {
+        if (OutputTables_[index].Path.GetRowCountLimit()) {
+            LOG_INFO("Output table has row count limit, force disabling auto merge (TableIndex: %v)", index);
+            return false;
+        }
+    }
+
     LOG_INFO("Auto merge parameters calculated ("
         "Mode: %v, OutputChunkCountEstimate: %v, MaxIntermediateChunkCount: %v, ChunkCountPerMergeJob: %v,"
         "ChunkSizeThreshold: %v, DesiredChunkSize: %v, DesiredChunkDataWeight: %v, IntermediateChunkUnstageMode: %v)",
@@ -1058,21 +1073,12 @@ void TOperationControllerBase::InitAutoMerge(int outputChunkCountEstimate, doubl
         chunkCountPerMergeJob,
         OperationId);
 
-    // NB: if row count limit is set on any output table, we do not
-    // enable auto merge as it prematurely stops the operation
-    // because wrong statistics are currently used when checking row count.
-    bool autoMergeEnabled = true;
-    for (int index = 0; index < OutputTables_.size(); ++index) {
-        if (OutputTables_[index].Path.GetRowCountLimit()) {
-            autoMergeEnabled = false;
-        }
-    }
+    bool autoMergeEnabled = false;
 
     auto standardEdgeDescriptors = GetStandardEdgeDescriptors();
     for (int index = 0; index < OutputTables_.size(); ++index) {
         const auto& outputTable = OutputTables_[index];
-        if (autoMergeEnabled &&
-            outputTable.Path.GetAutoMerge() &&
+        if (outputTable.Path.GetAutoMerge() &&
             !outputTable.TableUploadOptions.TableSchema.IsSorted())
         {
             auto edgeDescriptor = standardEdgeDescriptors[index];
@@ -1091,10 +1097,30 @@ void TOperationControllerBase::InitAutoMerge(int outputChunkCountEstimate, doubl
                 edgeDescriptor);
             RegisterTask(task);
             AutoMergeTasks.emplace_back(std::move(task));
+            autoMergeEnabled = true;
         } else {
             AutoMergeTasks.emplace_back(nullptr);
         }
     }
+
+    return autoMergeEnabled;
+}
+
+std::vector<TEdgeDescriptor> TOperationControllerBase::GetAutoMergeEdgeDescriptors()
+{
+    auto edgeDescriptors = GetStandardEdgeDescriptors();
+    YCHECK(GetAutoMergeDirector());
+    YCHECK(AutoMergeTasks.size() == edgeDescriptors.size());
+    for (int index = 0; index < edgeDescriptors.size(); ++index) {
+        if (AutoMergeTasks[index]) {
+            edgeDescriptors[index].DestinationPool = AutoMergeTasks[index]->GetChunkPoolInput();
+            edgeDescriptors[index].ChunkMapping = AutoMergeTasks[index]->GetChunkMapping();
+            edgeDescriptors[index].ImmediatelyUnstageChunkLists = true;
+            edgeDescriptors[index].RequiresRecoveryInfo = true;
+            edgeDescriptors[index].IsFinalOutput = false;
+        }
+    }
+    return edgeDescriptors;
 }
 
 THashSet<TChunkId> TOperationControllerBase::GetAliveIntermediateChunks() const
@@ -1857,7 +1883,9 @@ void TOperationControllerBase::SafeOnJobAborted(std::unique_ptr<TAbortedJobSumma
     if (Spec_->FailOnJobRestart &&
         !(abortReason > EAbortReason::SchedulingFirst && abortReason < EAbortReason::SchedulingLast))
     {
-        OnOperationFailed(TError("Job aborted; operation failed because spec option fail_on_job_restart is set")
+        OnOperationFailed(TError(
+            NScheduler::EErrorCode::OperationFailedOnJobRestart,
+            "Job aborted; operation failed because spec option fail_on_job_restart is set")
             << TErrorAttribute("job_id", joblet->JobId)
             << TErrorAttribute("abort_reason", abortReason));
     }
@@ -2444,7 +2472,7 @@ void TOperationControllerBase::AnalyzeTmpfsUsage()
         return;
     }
 
-    THashMap<EJobType, i64> maximumUsedTmfpsSizePerJobType;
+    THashMap<EJobType, i64> maximumUsedTmpfsSizePerJobType;
     THashMap<EJobType, TUserJobSpecPtr> userJobSpecPerJobType;
 
     for (const auto& task : Tasks) {
@@ -2460,9 +2488,9 @@ void TOperationControllerBase::AnalyzeTmpfsUsage()
 
         auto jobType = task->GetJobType();
 
-        auto it = maximumUsedTmfpsSizePerJobType.find(jobType);
-        if (it == maximumUsedTmfpsSizePerJobType.end()) {
-            maximumUsedTmfpsSizePerJobType[jobType] = *maxUsedTmpfsSize;
+        auto it = maximumUsedTmpfsSizePerJobType.find(jobType);
+        if (it == maximumUsedTmpfsSizePerJobType.end()) {
+            maximumUsedTmpfsSizePerJobType[jobType] = *maxUsedTmpfsSize;
         } else {
             it->second = std::max(it->second, *maxUsedTmpfsSize);
         }
@@ -2474,7 +2502,7 @@ void TOperationControllerBase::AnalyzeTmpfsUsage()
 
     double minUnusedSpaceRatio = 1.0 - Config->OperationAlerts->TmpfsAlertMaxUnusedSpaceRatio;
 
-    for (const auto& pair : maximumUsedTmfpsSizePerJobType) {
+    for (const auto& pair : maximumUsedTmpfsSizePerJobType) {
         const auto& userJobSpecPtr = userJobSpecPerJobType[pair.first];
         auto maxUsedTmpfsSize = pair.second;
 
@@ -2484,7 +2512,7 @@ void TOperationControllerBase::AnalyzeTmpfsUsage()
             minUnusedSpaceRatio * userJobSpecPtr->TmpfsSize.Get();
 
         if (minUnusedSpaceThresholdOvercome && minUnusedSpaceRatioViolated) {
-            auto error = TError(
+            TError error(
                 "Jobs of type %Qlv use less than %.1f%% of requested tmpfs size",
                 pair.first, minUnusedSpaceRatio * 100.0);
             innerErrors.push_back(error
@@ -2591,6 +2619,63 @@ void TOperationControllerBase::AnalyzeJobsIOUsage()
     SetOperationAlert(EOperationAlertType::ExcessiveDiskUsage, error);
 }
 
+void TOperationControllerBase::AnalyzeJobsCpuUsage()
+{
+    static const TVector<TString> allCpuStatistics = {
+        "/job_proxy/cpu/system/$/completed/",
+        "/job_proxy/cpu/user/$/completed/",
+        "/user_job/cpu/system/$/completed/",
+        "/user_job/cpu/user/$/completed/"
+    };
+
+    TVector<TError> innerErrors;
+    for (const auto& task : Tasks) {
+        const auto& userJobSpecPtr = task->GetUserJobSpec();
+        if (!userJobSpecPtr) {
+            continue;
+        }
+        auto jobType = task->GetJobType();
+        auto summary = FindSummary(JobStatistics, "/time/exec/$/completed/" + FormatEnum(jobType));
+        if (!summary) {
+            continue;
+        }
+        i64 totalExecutionTime = summary->GetSum();
+        i64 jobCount = summary->GetCount();
+        double cpuLimit = userJobSpecPtr->CpuLimit;
+        if (jobCount == 0 || totalExecutionTime == 0 || cpuLimit == 0) {
+            continue;
+        }
+        i64 cpuUsage = 0;
+        for (const TString& stat : allCpuStatistics) {
+            auto value = FindNumericValue(JobStatistics, stat + FormatEnum(jobType));
+            cpuUsage += value ? *value : 0;
+        }
+        TDuration averageJobDuration = TDuration::MilliSeconds(totalExecutionTime / jobCount);
+        TDuration totalExecutionDuration = TDuration::MilliSeconds(totalExecutionTime);
+        double cpuRatio = static_cast<double>(cpuUsage) / (totalExecutionTime * cpuLimit);
+
+        if (totalExecutionDuration > Config->OperationAlerts->LowCpuUsageAlertMinExecTime &&
+            averageJobDuration > Config->OperationAlerts->LowCpuUsageAlertMinAverageJobTime &&
+            cpuRatio < Config->OperationAlerts->LowCpuUsageAlertCpuUsageThreshold)
+        {
+            auto error = TError("Jobs of type %Qlv use %.2f%% of requested cpu limit", jobType, 100 * cpuRatio)
+                << TErrorAttribute("cpu_time", cpuUsage)
+                << TErrorAttribute("exec_time", totalExecutionDuration)
+                << TErrorAttribute("cpu_limit", cpuLimit);
+            innerErrors.push_back(error);
+        }
+    }
+
+    TError error;
+    if (!innerErrors.empty()) {
+        error = TError(
+            "Average cpu usage of some of your job types is significantly lower than requested 'cpu_limit'. "
+            "Consider decreasing cpu_limit in spec of your operation"
+        ) << innerErrors;
+    }
+    SetOperationAlert(EOperationAlertType::LowCpuUsage, error);
+}
+
 void TOperationControllerBase::AnalyzeJobsDuration()
 {
     if (OperationType == EOperationType::RemoteCopy || OperationType == EOperationType::Erase) {
@@ -2641,6 +2726,34 @@ void TOperationControllerBase::AnalyzeJobsDuration()
     SetOperationAlert(EOperationAlertType::ShortJobsDuration, error);
 }
 
+void TOperationControllerBase::AnalyzeOperationDuration()
+{
+    TError error;
+    for (const auto& task : Tasks) {
+        if (!task->GetUserJobSpec()) {
+            continue;
+        }
+        i64 completedAndRunning = JobCounter->GetCompletedTotal() + JobCounter->GetRunning();
+        if (completedAndRunning == 0) {
+            continue;
+        }
+        i64 pending = JobCounter->GetPending();
+        TDuration wallTime = GetInstant() - StartTime;
+        TDuration estimatedDuration = (wallTime / completedAndRunning) * pending;
+
+        if (wallTime > Config->OperationAlerts->OperationTooLongAlertMinWallTime &&
+            estimatedDuration > Config->OperationAlerts->OperationTooLongAlertEstimateDurationThreshold)
+        {
+            error = TError(
+                "Estimated duration of this operation is about %v days; "
+                "consider breaking operation into smaller ones",
+                estimatedDuration.Days()) << TErrorAttribute("estimated_duration", estimatedDuration);
+            break;
+        }
+    }
+    SetOperationAlert(EOperationAlertType::OperationTooLong, error);
+}
+
 void TOperationControllerBase::AnalyzeScheduleJobStatistics()
 {
     auto jobSpecThrottlerActivationCount = ScheduleJobStatistics_->Failed[EScheduleJobFailReason::JobSpecThrottling];
@@ -2650,7 +2763,7 @@ void TOperationControllerBase::AnalyzeScheduleJobStatistics()
     if (jobSpecThrottlerActivationCount > activationCountThreshold) {
         error = TError(
             "Excessive job spec throttling is detected. Usage ratio of operation can be "
-            "significatly less than fair share ratio")
+            "significantly less than fair share ratio")
                 << TErrorAttribute("job_spec_throttler_activation_count", jobSpecThrottlerActivationCount);
     }
 
@@ -2667,7 +2780,9 @@ void TOperationControllerBase::AnalyzeOperationProgress()
     AnalyzePartitionHistogram();
     AnalyzeAbortedJobs();
     AnalyzeJobsIOUsage();
+    AnalyzeJobsCpuUsage();
     AnalyzeJobsDuration();
+    AnalyzeOperationDuration();
     AnalyzeScheduleJobStatistics();
 }
 
@@ -5536,6 +5651,8 @@ NScheduler::TOperationJobMetrics TOperationControllerBase::PullJobMetricsDelta()
 
     LastJobMetricsDeltaReportTime_ = now;
 
+    LOG_DEBUG_UNLESS(result.empty(), "Pulling non-zero job metrics from controller");
+
     return result;
 }
 
@@ -6051,6 +6168,8 @@ void TOperationControllerBase::UpdateJobStatistics(const TJobletPtr& joblet, con
 
 void TOperationControllerBase::UpdateJobMetrics(const TJobletPtr& joblet, const TJobSummary& jobSummary)
 {
+    LOG_TRACE("Updating job metrics (JobId: %v)", joblet->JobId);
+
     auto delta = joblet->UpdateJobMetrics(jobSummary);
     {
         TGuard<TSpinLock> guard(JobMetricsDeltaPerTreeLock_);
@@ -6218,6 +6337,8 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
     jobSpec->set_custom_statistics_count_limit(config->CustomStatisticsCountLimit);
     jobSpec->set_copy_files(config->CopyFiles);
     jobSpec->set_file_account(fileAccount);
+
+    jobSpec->set_port_count(config->PortCount);
 
     if (config->TmpfsPath && Config->EnableTmpfs) {
         auto tmpfsSize = config->TmpfsSize.Get(config->MemoryLimit);

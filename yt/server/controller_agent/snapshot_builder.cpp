@@ -56,12 +56,10 @@ struct TBuildSnapshotJob
 
 TSnapshotBuilder::TSnapshotBuilder(
     TControllerAgentConfigPtr config,
-    TOperationIdToOperationMap operations,
     IClientPtr client,
     IInvokerPtr ioInvoker,
     const TIncarnationId& incarnationId)
     : Config_(config)
-    , Operations_(std::move(operations))
     , Client_(client)
     , IOInvoker_(ioInvoker)
     , ControlInvoker_(GetCurrentInvoker())
@@ -75,7 +73,7 @@ TSnapshotBuilder::TSnapshotBuilder(
     Logger = ControllerAgentLogger;
 }
 
-TFuture<void> TSnapshotBuilder::Run()
+TFuture<void> TSnapshotBuilder::Run(const TOperationIdToWeakControllerMap& controllers)
 {
     VERIFY_INVOKER_AFFINITY(ControlInvoker_);
 
@@ -86,20 +84,19 @@ TFuture<void> TSnapshotBuilder::Run()
     LOG_INFO("Preparing controllers for suspension");
     std::vector<TFuture<TSnapshotCookie>> onSnapshotStartedFutures;
 
-    // Capture everything needed.
-    for (const auto& pair : Operations_) {
+    // Capture everything needed in Build.
+    for (const auto& pair : controllers) {
         const auto& operationId = pair.first;
-        const auto& operation = pair.second;
-        auto controller = operation->GetController();
+        const auto& weakController = pair.second;
 
-        if (!controller->IsRunning()) {
+        auto controller = weakController.Lock();
+        if (!controller || !controller->IsRunning()) {
             continue;
         }
 
         auto job = New<TSnapshotJob>();
         job->OperationId = operationId;
-        job->Controller = controller;
-
+        job->WeakController = weakController;
         auto pipe = TPipeFactory().Create();
         job->Reader = pipe.CreateAsyncReader();
         job->OutputFile = std::make_unique<TFile>(FHANDLE(pipe.ReleaseWriteFD()));
@@ -107,8 +104,14 @@ TFuture<void> TSnapshotBuilder::Run()
         Jobs_.push_back(job);
 
         // TODO(ignat): migrate here to cancelable invoker (introduce CombineAll that ignores cancellation of combined futures).
-        onSnapshotStartedFutures.push_back(BIND(&IOperationControllerSnapshotBuilderHost::OnSnapshotStarted, job->Controller)
-            .AsyncVia(job->Controller->GetInvoker())
+        onSnapshotStartedFutures.push_back(BIND([weakController = job->WeakController] {
+            if (auto controller = weakController.Lock()) {
+                return controller->OnSnapshotStarted();
+            } else {
+                THROW_ERROR_EXCEPTION("Controller was destroyed before OnSnapshotStarted was called");
+            }
+        })
+            .AsyncVia(controller->GetInvoker())
             .Run());
         operationIds.push_back(operationId);
 
@@ -131,9 +134,13 @@ TFuture<void> TSnapshotBuilder::Run()
                 LOG_WARNING(coookieOrError, "Failed to get snapshot index from controller (OperationId: %v)",
                     Jobs_[index]->OperationId);
                 continue;
+            } else if (Jobs_[index]->WeakController.IsExpired()) {
+                LOG_INFO("Controller was destroyed between OnSnapshotStarted was called and suspension (OperationId: %v)",
+                    Jobs_[index]->OperationId);
+            } else {
+                Jobs_[index]->Cookie = coookieOrError.Value();
+                preparedJobs.emplace_back(Jobs_[index]);
             }
-            Jobs_[index]->Cookie  = coookieOrError.Value();
-            preparedJobs.emplace_back(Jobs_[index]);
         }
     }
 
@@ -144,7 +151,9 @@ TFuture<void> TSnapshotBuilder::Run()
     std::vector<TFuture<void>> operationSuspendFutures;
 
     for (const auto& job : Jobs_) {
-        operationSuspendFutures.emplace_back(job->Controller->Suspend()
+        auto controller = job->WeakController.Lock();
+        YCHECK(controller);
+        operationSuspendFutures.emplace_back(controller->Suspend()
             .Apply(BIND(&TSnapshotBuilder::OnControllerSuspended, MakeWeak(this), job)
                 .AsyncVia(ControlInvoker_)));
     }
@@ -173,7 +182,14 @@ TFuture<void> TSnapshotBuilder::Run()
     LOG_INFO("Resuming controllers");
 
     for (const auto& job : Jobs_) {
-        job->Controller->Resume();
+        if (auto controller = job->WeakController.Lock()) {
+            controller->Resume();
+        } else {
+            // It is a strange situation: how could controller be terminated if its invoker was suspended?
+            // The most adequate reaction for us is to not do anything, we no longer have controller anyway.
+            LOG_WARNING("Controller was destroyed between suspension and resumption (OperationId: %v)",
+                job->OperationId);
+        }
     }
 
     LOG_INFO("Controllers resumed");
@@ -252,12 +268,15 @@ void TSnapshotBuilder::RunChild()
         std::vector<TBuildSnapshotJob> jobs;
         for (int jobIndex = 0; jobIndex < Jobs_.size(); ++jobIndex) {
             auto& job = Jobs_[jobIndex];
-            if (!job->Suspended || !job->Controller->IsRunning()) {
+            auto controller = job->WeakController.Lock();
+            if (!job->Suspended || !controller || !controller->IsRunning()) {
                 continue;
             }
             TBuildSnapshotJob snapshotJob;
             snapshotJob.OperationId = std::move(job->OperationId);
-            snapshotJob.Controller = std::move(job->Controller);
+            // It is OK to pass a strong pointer here since we are in a child process and
+            // we do not care about controller lifetime.
+            snapshotJob.Controller = std::move(controller);
             snapshotJob.OutputFile = std::move(job->OutputFile);
             jobs.push_back(std::move(snapshotJob));
 
@@ -284,10 +303,11 @@ TFuture<std::vector<TError>> TSnapshotBuilder::UploadSnapshots()
 {
     std::vector<TFuture<void>> snapshotUploadFutures;
     for (auto& job : Jobs_) {
-        if (!job->Suspended || !job->Controller->IsRunning()) {
+        auto controller = job->WeakController.Lock();
+        if (!job->Suspended || !controller || !controller->IsRunning()) {
             continue;
         }
-        auto cancelableInvoker = job->Controller->GetCancelableContext()->CreateInvoker(IOInvoker_);
+        auto cancelableInvoker = controller->GetCancelableContext()->CreateInvoker(IOInvoker_);
         auto uploadFuture = BIND(
             &TSnapshotBuilder::UploadSnapshot,
             MakeStrong(this),
@@ -442,16 +462,20 @@ void TSnapshotBuilder::UploadSnapshot(const TSnapshotJobPtr& job)
         LOG_INFO("Snapshot uploaded successfully (SnapshotIndex: %v)",
             job->Cookie.SnapshotIndex);
 
-        auto controller = job->Controller;
-        if (controller->IsRunning()) {
-            // Safely remove jobs that we do not need any more.
-            WaitFor(
-                BIND(&IOperationController::OnSnapshotCompleted, controller)
+        auto future = VoidFuture;
+        if (auto controller = job->WeakController.Lock()) {
+            if (controller->IsRunning()) {
+                future = BIND(&IOperationController::OnSnapshotCompleted, controller)
                     .AsyncVia(controller->GetCancelableInvoker())
-                    .Run(job->Cookie))
-                .ThrowOnError();
+                    .Run(job->Cookie);
+            }
+        } else {
+            LOG_INFO("Controller was destroyed between snapshot upload and OnSnapshotCompleted call");
         }
 
+        // Notify controller about snapshot procedure finish.
+        WaitFor(future)
+            .ThrowOnError();
     } catch (const std::exception& ex) {
         LOG_ERROR(ex, "Error uploading snapshot");
     }

@@ -89,6 +89,9 @@ public:
 
     double CpuPerTabletSlot;
 
+    int StartPort;
+    int PortCount;
+
     TJobControllerConfig()
     {
         RegisterParameter("resource_limits", ResourceLimits)
@@ -117,6 +120,12 @@ public:
 
         RegisterParameter("cpu_per_tablet_slot", CpuPerTabletSlot)
             .Default(1.0);
+
+        RegisterParameter("start_port", StartPort)
+            .Default(20000);
+
+        RegisterParameter("port_count", PortCount)
+            .Default(10000);
 
         RegisterPreprocessor([&] () {
             // 100 kB/sec * 1000 [nodes] = 100 MB/sec that corresponds to

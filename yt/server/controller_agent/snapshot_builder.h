@@ -24,7 +24,9 @@ struct TSnapshotJob
     : public TIntrinsicRefCounted
 {
     TOperationId OperationId;
-    IOperationControllerSnapshotBuilderHostPtr Controller;
+    // We intentionally deal with controller weak pointers in the parent process in order
+    // to not prolong controller lifetime.
+    IOperationControllerWeakPtr WeakController;
     NConcurrency::IAsyncInputStreamPtr Reader;
     std::unique_ptr<TFile> OutputFile;
     TSnapshotCookie Cookie;
@@ -41,16 +43,14 @@ class TSnapshotBuilder
 public:
     TSnapshotBuilder(
         TControllerAgentConfigPtr config,
-        TOperationIdToOperationMap operations,
         NApi::IClientPtr client,
         IInvokerPtr ioInvoker,
         const TIncarnationId& incarnationId);
 
-    TFuture<void> Run();
+    TFuture<void> Run(const TOperationIdToWeakControllerMap& controllers);
 
 private:
     const TControllerAgentConfigPtr Config_;
-    const TOperationIdToOperationMap Operations_;
     const NApi::IClientPtr Client_;
     const IInvokerPtr IOInvoker_;
     const IInvokerPtr ControlInvoker_;

@@ -18,12 +18,14 @@ using namespace NYson;
 TJsonCallbacksBuildingNodesImpl::TJsonCallbacksBuildingNodesImpl(
     IYsonConsumer* consumer,
     NYson::EYsonType ysonType,
-const TUtf8Transcoder& utf8Transcoder,
-    i64 memoryLimit)
+    const TUtf8Transcoder& utf8Transcoder,
+    i64 memoryLimit,
+    NJson::EJsonAttributesMode attributesMode)
     : Consumer_(consumer)
     , YsonType_(ysonType)
     , Utf8Transcoder_(utf8Transcoder)
     , MemoryLimit_(memoryLimit)
+    , AttributesMode_(attributesMode)
     , TreeBuilder_(CreateBuilderFromFactory(GetEphemeralNodeFactory()))
 {
     TreeBuilder_->BeginTree();
@@ -183,7 +185,7 @@ void TJsonCallbacksBuildingNodesImpl::ConsumeMapFragment(IMapNodePtr map)
     for (const auto& pair : map->GetChildren()) {
         auto key = TStringBuf(pair.first);
         const auto& value = pair.second;
-        if (IsSpecialJsonKey(key)) {
+        if (AttributesMode_ != EJsonAttributesMode::Never && IsSpecialJsonKey(key)) {
             if (key.size() < 2 || key[1] != '$') {
                 THROW_ERROR_EXCEPTION(
                     "Key \"%v\" starts with single \"$\"; use \"$%v\" "
