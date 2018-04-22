@@ -204,6 +204,9 @@ public:
     //! Scheduling tag filters of operation pool trees.
     DEFINE_BYREF_RW_PROPERTY(std::vector<TSchedulingTagFilter>, PoolTreeSchedulingTagFilters);
 
+    //! YSON describing suspicous jobs of this operation.
+    DEFINE_BYVAL_RW_PROPERTY(NYson::TYsonString, SuspiciousJobs);
+
     //! Returns operation id.
     const TOperationId& GetId() const override;
 
