@@ -170,10 +170,6 @@ b"""
         }
     };
 
-    node_directory_synchronizer = {
-        sync_period = 100;
-    };
-
     controller_agent = {
         operations_update_period = 500;
         scheduling_tag_filter_expire_timeout = 100;
