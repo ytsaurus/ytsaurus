@@ -842,7 +842,6 @@ public:
         SwitchTo(agent->GetCancelableInvoker());
 
         TOperationIdToOperationJobMetrics operationIdToOperationJobMetrics;
-        std::vector<TString> suspiciousJobsYsons;
         for (const auto& protoOperation : request->operations()) {
             auto operationId = FromProto<TOperationId>(protoOperation.operation_id());
             auto operation = scheduler->FindOperation(operationId);
@@ -870,7 +869,7 @@ public:
             YCHECK(operationIdToOperationJobMetrics.emplace(operationId, operationJobMetrics).second);
 
             if (protoOperation.has_suspicious_jobs()) {
-                suspiciousJobsYsons.push_back(protoOperation.suspicious_jobs());
+                operation->SetSuspiciousJobs(TYsonString(protoOperation.suspicious_jobs(), EYsonType::MapFragment));
             }
 
             auto runtimeData = operation->GetRuntimeData();
@@ -880,8 +879,6 @@ public:
         }
 
         scheduler->GetStrategy()->ApplyJobMetricsDelta(operationIdToOperationJobMetrics);
-
-        agent->SetSuspiciousJobsYson(TYsonString(JoinSeq("", suspiciousJobsYsons), EYsonType::MapFragment));
 
         // We must wait for all these results before replying since these activities
         // rely on RPC request to remain alive.

@@ -2473,12 +2473,9 @@ private:
     TYsonString BuildSuspiciousJobsYson()
     {
         TStringBuilder builder;
-        const auto& controllerAgentTracker = Bootstrap_->GetControllerAgentTracker();
-        auto agents = controllerAgentTracker->GetAgents();
-        for (const auto& agent : agents) {
-            if (agent->GetState() == EControllerAgentState::Registered) {
-                builder.AppendString(agent->GetSuspiciousJobsYson().GetData());
-            }
+        for (const auto& pair : IdToOperation_) {
+            const auto& operation = pair.second;
+            builder.AppendString(operation->GetSuspiciousJobs().GetData());
         }
         return TYsonString(builder.Flush(), EYsonType::MapFragment);
     }
