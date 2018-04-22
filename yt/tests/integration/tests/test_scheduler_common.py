@@ -52,12 +52,14 @@ porto_delta_node_config = {
 
 ##################################################################
 
-def get_pool_metrics(metric_key):
+def get_pool_metrics(metric_key, start_time):
     result = {}
-    for entry in reversed(get("//sys/scheduler/orchid/profiling/scheduler/pools/metrics/{0}".format(metric_key))):
+    for entry in reversed(get("//sys/scheduler/orchid/profiling/scheduler/pools/metrics/" + metric_key,
+                              options={"from_time": int(start_time) * 1000000})):
         pool = entry["tags"]["pool"]
         if pool not in result:
             result[pool] = entry["value"]
+    print >>sys.stderr, "Pool metrics: ", result
     return result
 
 def get_cypress_metrics(operation_id, key):
@@ -2672,6 +2674,8 @@ class TestPoolMetrics(YTEnvSetup):
         # - writes something to stderr because we want to find our jobs in //sys/operations later
         map_cmd = """for i in $(seq 10) ; do echo 5 > foo$i ; sync ; sleep 0.5 ; done ; cat ; sleep 10; echo done > /dev/stderr"""
 
+        start_time = time.time()
+
         op11 = map(
             in_="//t_input",
             out="//t_output",
@@ -2692,10 +2696,9 @@ class TestPoolMetrics(YTEnvSetup):
             spec={"job_count": 2, "pool": "child2"},
         )
 
-        # Wait metrics update.
-        wait(lambda: get_pool_metrics("disk_writes")["parent"] > 0)
+        wait(lambda: get_pool_metrics("disk_writes", start_time)["parent"] > 0)
 
-        pool_metrics = get_pool_metrics("disk_writes")
+        pool_metrics = get_pool_metrics("disk_writes", start_time)
 
         op11_writes = get_cypress_metrics(op11.id, "user_job.block_io.io_write")
         op12_writes = get_cypress_metrics(op12.id, "user_job.block_io.io_write")
@@ -2720,6 +2723,8 @@ class TestPoolMetrics(YTEnvSetup):
 
         write_table("<append=%true>//tmp/t_input", [{"key": i} for i in xrange(2)])
 
+        start_time = time.time()
+
         op = map(
             command=with_breakpoint("cat; BREAKPOINT"),
             in_="//tmp/t_input",
@@ -2741,10 +2746,10 @@ class TestPoolMetrics(YTEnvSetup):
         abort_job(running_jobs[0])
 
         # Wait for metrics update.
-        wait(lambda: get_pool_metrics("time_completed")["child"] > 0)
+        wait(lambda: get_pool_metrics("time_completed", start_time)["child"] > 0)
 
-        completed_metrics = get_pool_metrics("time_completed")
-        aborted_metrics = get_pool_metrics("time_aborted")
+        completed_metrics = get_pool_metrics("time_completed", start_time)
+        aborted_metrics = get_pool_metrics("time_aborted", start_time)
 
         for p in ("parent", "child"):
             if completed_metrics[p] == 0:
