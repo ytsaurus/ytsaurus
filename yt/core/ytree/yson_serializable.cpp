@@ -137,7 +137,7 @@ void TYsonSerializableLite::Save(
     for (const auto& pair : parameters) {
         const auto& key = pair.first;
         const auto& parameter = pair.second;
-        if (parameter->HasValue()) {
+        if (!parameter->CanOmitValue()) {
             consumer->OnKeyedItem(key);
             parameter->Save(consumer);
         }

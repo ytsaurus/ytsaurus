@@ -45,7 +45,7 @@ public:
         virtual void Postprocess(const NYPath::TYPath& path) const = 0;
         virtual void SetDefaults() = 0;
         virtual void Save(NYson::IYsonConsumer* consumer) const = 0;
-        virtual bool HasValue() const = 0;
+        virtual bool CanOmitValue() const = 0;
         virtual const std::vector<TString>& GetAliases() const = 0;
         virtual IMapNodePtr GetUnrecognizedRecursively() const = 0;
         virtual void SetKeepUnrecognizedRecursively() = 0;
@@ -67,7 +67,7 @@ public:
         virtual void Postprocess(const NYPath::TYPath& path) const override;
         virtual void SetDefaults() override;
         virtual void Save(NYson::IYsonConsumer* consumer) const override;
-        virtual bool HasValue() const override;
+        virtual bool CanOmitValue() const override;
         virtual const std::vector<TString>& GetAliases() const override;
         virtual IMapNodePtr GetUnrecognizedRecursively() const override;
         virtual void SetKeepUnrecognizedRecursively() override;
