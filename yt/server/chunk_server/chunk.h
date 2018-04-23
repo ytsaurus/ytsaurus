@@ -253,6 +253,9 @@ public:
         TChunkRequisitionRegistry* registry,
         const NObjectServer::TObjectManagerPtr& objectManager);
 
+    // COMPAT(shakurov)
+    void FixExportRequisitionIndexes();
+
 private:
     ui8 ReadQuorum_ = 0;
     ui8 WriteQuorum_ = 0;
