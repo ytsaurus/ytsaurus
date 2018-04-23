@@ -76,7 +76,13 @@ public:
     template<class T = EType>
     Y_FORCE_INLINE TNode(EType)
     {
-        static_assert(std::is_same<T, EType>::type, "looks like a mistake, may be you forget .GetType()");
+        static_assert(!std::is_same<T, EType>::value, "looks like a mistake, may be you forget .GetType()");
+    }
+
+    //this case made speccially for prevent mess cast of T* into TNode through implicit bool ctr
+    template<class T = int>
+    Y_FORCE_INLINE TNode(const T*) : TNode() {
+        static_assert(!std::is_same<T,T>::value, "looks like a mistake, and pointer have converted to bool");
     }
 
     TNode(unsigned int ui);
