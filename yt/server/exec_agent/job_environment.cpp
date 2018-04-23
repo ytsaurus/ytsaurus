@@ -586,8 +586,20 @@ private:
                 return GetPortoInstance(PortoExecutor_, *Config_->ExternalJobContainer);
             }   else {
                 auto self = GetSelfPortoInstance(PortoExecutor_);
+                auto metaInstanceName = Format("%v/%v", self->GetAbsoluteName(), GetDefaultJobsMetaContainerName());
+
+                try {
+                    WaitFor(PortoExecutor_->DestroyContainer(metaInstanceName))
+                        .ThrowOnError();
+                } catch (const TErrorException& ex) {
+                    // If container doesn't exist it's ok.
+                    if (!ex.Error().FindMatching(EContainerErrorCode::ContainerDoesNotExist)) {
+                        throw;
+                    }
+                }
+
                 auto instance = CreatePortoInstance(
-                    Format("%v/%v", self->GetAbsoluteName(), GetDefaultJobsMetaContainerName()),
+                    metaInstanceName,
                     PortoExecutor_);
                 instance->SetIOWeight(Config_->JobsIOWeight);
                 return instance;
