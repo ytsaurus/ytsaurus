@@ -3052,9 +3052,9 @@ private:
                     storeId,
                     tablet,
                     Bootstrap_->GetBlockCache(),
-                    Bootstrap_->GetMemoryUsageTracker(),
                     Bootstrap_->GetChunkRegistry(),
                     Bootstrap_->GetChunkBlockManager(),
+                    Bootstrap_->GetVersionedChunkMetaManager(),
                     Bootstrap_->GetMasterClient(),
                     Bootstrap_->GetMasterConnector()->GetLocalDescriptor());
                 store->Initialize(descriptor);
@@ -3076,6 +3076,7 @@ private:
                     Bootstrap_->GetBlockCache(),
                     Bootstrap_->GetChunkRegistry(),
                     Bootstrap_->GetChunkBlockManager(),
+                    Bootstrap_->GetVersionedChunkMetaManager(),
                     Bootstrap_->GetMasterClient(),
                     Bootstrap_->GetMasterConnector()->GetLocalDescriptor());
                 store->Initialize(descriptor);

@@ -1944,7 +1944,7 @@ void TSortedDynamicStore::AsyncLoad(TLoadContext& context)
         auto chunkState = New<TChunkState>(
             GetNullBlockCache(),
             chunkSpec,
-            std::move(cachedMeta),
+            nullptr,
             nullptr,
             New<TChunkReaderPerformanceCounters>(),
             nullptr);
@@ -1953,7 +1953,8 @@ void TSortedDynamicStore::AsyncLoad(TLoadContext& context)
         auto tableReader = CreateVersionedChunkReader(
             tableReaderConfig,
             chunkReader,
-            chunkState,
+            std::move(chunkState),
+            std::move(cachedMeta),
             TReadSessionId(),
             MinKey(),
             MaxKey(),

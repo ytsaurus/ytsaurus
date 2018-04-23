@@ -27,6 +27,7 @@ public:
     DEFINE_BYREF_RO_PROPERTY(NChunkClient::NProto::TMiscExt, Misc);
     DEFINE_BYREF_RO_PROPERTY(TSharedRange<TKey>, BlockLastKeys);
     DEFINE_BYREF_RO_PROPERTY(TTableSchema, ChunkSchema);
+    DEFINE_BYREF_RO_PROPERTY(TNameTablePtr, ChunkNameTable);
 
 public:
     explicit TColumnarChunkMeta(const NChunkClient::NProto::TChunkMeta& chunkMeta);

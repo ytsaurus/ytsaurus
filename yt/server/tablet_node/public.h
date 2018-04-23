@@ -246,6 +246,8 @@ DECLARE_REFCOUNTED_CLASS(TSecurityManager)
 DECLARE_REFCOUNTED_STRUCT(TInMemoryChunkData)
 DECLARE_REFCOUNTED_CLASS(TInMemoryManager)
 
+DECLARE_REFCOUNTED_CLASS(TVersionedChunkMetaManager)
+
 DECLARE_REFCOUNTED_CLASS(TTableReplicator)
 
 struct TSortedDynamicRowHeader;

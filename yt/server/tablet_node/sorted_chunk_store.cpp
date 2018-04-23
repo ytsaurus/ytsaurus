@@ -4,6 +4,7 @@
 #include "in_memory_manager.h"
 #include "tablet.h"
 #include "transaction.h"
+#include "versioned_chunk_meta_manager.h"
 
 #include <yt/server/cell_node/bootstrap.h>
 #include <yt/server/cell_node/config.h>
@@ -66,9 +67,9 @@ TSortedChunkStore::TSortedChunkStore(
     const TStoreId& id,
     TTablet* tablet,
     IBlockCachePtr blockCache,
-    TNodeMemoryTracker* memoryTracker,
     TChunkRegistryPtr chunkRegistry,
     TChunkBlockManagerPtr chunkBlockManager,
+    TVersionedChunkMetaManagerPtr chunkMetaManager,
     INativeClientPtr client,
     const TNodeDescriptor& localDescriptor)
     : TStoreBase(config, id, tablet)
@@ -79,11 +80,11 @@ TSortedChunkStore::TSortedChunkStore(
         blockCache,
         chunkRegistry,
         chunkBlockManager,
+        chunkMetaManager,
         client,
         localDescriptor)
     , TSortedStoreBase(config, id, tablet)
     , KeyComparer_(tablet->GetRowKeyComparer())
-    , MemoryTracker_(memoryTracker)
 {
     LOG_DEBUG("Sorted chunk store created");
 }
@@ -160,7 +161,8 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
     return CreateVersionedChunkReader(
         std::move(config),
         std::move(chunkReader),
-        std::move(chunkState),
+        chunkState,
+        chunkState->ChunkMeta,
         sessionId,
         std::move(ranges),
         columnFilter,
@@ -244,7 +246,8 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
     return CreateVersionedChunkReader(
         std::move(config),
         std::move(chunkReader),
-        std::move(chunkState),
+        chunkState,
+        chunkState->ChunkMeta,
         sessionId,
         keys,
         columnFilter,
@@ -308,45 +311,22 @@ TChunkStatePtr TSortedChunkStore::PrepareCachedChunkState(
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    {
-        TReaderGuard guard(SpinLock_);
-        if (ChunkState_) {
-            return ChunkState_;
-        }
-    }
-
-    LOG_DEBUG("Loading versioned chunk meta (ReadSessionId: %v)", readSessionId);
-
-    auto protoMetaOrError = WaitFor(chunkReader->GetMeta(workloadDescriptor, readSessionId));
-    THROW_ERROR_EXCEPTION_IF_FAILED(protoMetaOrError, "Failed to load versioned chunk meta");
-    const auto& protoMeta = protoMetaOrError.Value();
-
-    // TODO(babenko): do we need to make this workload descriptor configurable?
-    auto cachedMeta = TCachedVersionedChunkMeta::Create(
-        chunkReader->GetChunkId(),
-        protoMeta,
-        Schema_,
-        MemoryTracker_);
-
-    LOG_DEBUG("Got versioned chunk meta (ReadSessionId: %v)", readSessionId);
-
     TChunkSpec chunkSpec;
     ToProto(chunkSpec.mutable_chunk_id(), StoreId_);
-
-    if (cachedMeta->GetChunkFormat() == ETableChunkFormat::SchemalessHorizontal ||
-        cachedMeta->GetChunkFormat() == ETableChunkFormat::UnversionedColumnar)
-    {
-        // For unversioned chunks we must cache full chunk meta in proto format,
-        // because this is how schemaless readers work.
-        chunkSpec.mutable_chunk_meta()->MergeFrom(protoMeta);
-    }
+    auto asyncChunkMeta = ChunkMetaManager_->GetMeta(
+        chunkReader,
+        Schema_,
+        workloadDescriptor,
+        readSessionId);
+    auto chunkMeta = WaitFor(asyncChunkMeta)
+        .ValueOrThrow();
 
     {
         TWriterGuard guard(SpinLock_);
         ChunkState_ = New<TChunkState>(
             BlockCache_,
             std::move(chunkSpec),
-            std::move(cachedMeta),
+            std::move(chunkMeta),
             nullptr,
             PerformanceCounters_,
             GetKeyComparer());

@@ -24,11 +24,13 @@ using NChunkClient::TReadLimit;
 ////////////////////////////////////////////////////////////////////////////////
 
 TColumnarChunkReaderBase::TColumnarChunkReaderBase(
+    TColumnarChunkMetaPtr chunkMeta,
     TChunkReaderConfigPtr config,
     IChunkReaderPtr underlyingReader,
     IBlockCachePtr blockCache,
     const TReadSessionId& sessionId)
-    : Config_(std::move(config))
+    : ChunkMeta_(std::move(chunkMeta))
+    , Config_(std::move(config))
     , UnderlyingReader_(std::move(underlyingReader))
     , BlockCache_(std::move(blockCache))
     , ReadSessionId_(sessionId)

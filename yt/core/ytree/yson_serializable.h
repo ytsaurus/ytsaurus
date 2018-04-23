@@ -75,7 +75,6 @@ public:
     public:
         TParameter& Optional();
         TParameter& Default(const T& defaultValue = T());
-        TParameter& DefaultNew();
         TParameter& CheckThat(TPostprocessor validator);
         TParameter& GreaterThan(TValueType value);
         TParameter& GreaterThanOrEqual(TValueType value);
@@ -85,6 +84,9 @@ public:
         TParameter& NonEmpty();
         TParameter& Alias(const TString& name);
         TParameter& MergeBy(EMergeStrategy strategy);
+
+        template <class... TArgs>
+        TParameter& DefaultNew(TArgs&&... args);
 
     private:
         T& Parameter;

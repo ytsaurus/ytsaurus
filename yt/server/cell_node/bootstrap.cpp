@@ -51,6 +51,7 @@
 #include <yt/server/tablet_node/store_compactor.h>
 #include <yt/server/tablet_node/store_flusher.h>
 #include <yt/server/tablet_node/store_trimmer.h>
+#include <yt/server/tablet_node/versioned_chunk_meta_manager.h>
 
 #include <yt/server/transaction_server/timestamp_proxy_service.h>
 
@@ -501,6 +502,8 @@ void TBootstrap::DoRun()
 
     InMemoryManager = New<TInMemoryManager>(Config->TabletNode->InMemoryManager, this);
 
+    VersionedChunkMetaManager = New<TVersionedChunkMetaManager>(Config->TabletNode, this);
+
     QueryExecutor = CreateQuerySubexecutor(Config->QueryAgent, this);
 
     RpcServer->RegisterService(CreateQueryService(Config->QueryAgent, this));
@@ -666,6 +669,11 @@ const TSecurityManagerPtr& TBootstrap::GetSecurityManager() const
 const TInMemoryManagerPtr& TBootstrap::GetInMemoryManager() const
 {
     return InMemoryManager;
+}
+
+const TVersionedChunkMetaManagerPtr& TBootstrap::GetVersionedChunkMetaManager() const
+{
+    return VersionedChunkMetaManager;
 }
 
 const NExecAgent::TSlotManagerPtr& TBootstrap::GetExecSlotManager() const

@@ -186,6 +186,7 @@ public:
         NChunkClient::IBlockCachePtr blockCache,
         NDataNode::TChunkRegistryPtr chunkRegistry,
         NDataNode::TChunkBlockManagerPtr chunkBlockManager,
+        TVersionedChunkMetaManagerPtr chunkMetaManager,
         NApi::INativeClientPtr client,
         const NNodeTrackerClient::TNodeDescriptor& localDescriptor);
 
@@ -242,6 +243,7 @@ protected:
     const NChunkClient::IBlockCachePtr BlockCache_;
     const NDataNode::TChunkRegistryPtr ChunkRegistry_;
     const NDataNode::TChunkBlockManagerPtr ChunkBlockManager_;
+    const TVersionedChunkMetaManagerPtr ChunkMetaManager_;
     const NApi::INativeClientPtr Client_;
     const NNodeTrackerClient::TNodeDescriptor LocalDescriptor_;
 

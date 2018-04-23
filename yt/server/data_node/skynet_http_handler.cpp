@@ -12,6 +12,7 @@
 #include <yt/ytlib/table_client/schemaless_chunk_reader.h>
 #include <yt/ytlib/table_client/name_table.h>
 #include <yt/ytlib/table_client/chunk_state.h>
+#include <yt/ytlib/table_client/columnar_chunk_meta.h>
 
 #include <yt/ytlib/api/table_reader.h>
 
@@ -101,9 +102,9 @@ public:
             TProtoExtensionTag<TMiscExt>::Value
         };
         auto asyncChunkMeta = chunkPtr->ReadMeta(
-            skynetWorkload,
-            miscExtension);
-        auto chunkMeta = WaitFor(asyncChunkMeta).ValueOrThrow();
+            skynetWorkload);
+        auto chunkMeta = WaitFor(asyncChunkMeta)
+            .ValueOrThrow();
 
         auto miscExt = GetProtoExtension<TMiscExt>(chunkMeta->extensions());
         if (!miscExt.shared_to_skynet()) {
@@ -134,13 +135,12 @@ public:
             nullptr,
             nullptr);
 
-        *chunkState->ChunkSpec.mutable_chunk_meta() = *chunkMeta;
-
         auto schemalessReaderConfig = New<TChunkReaderConfig>();
         schemalessReaderConfig->WorkloadDescriptor = skynetWorkload;
 
         auto schemalessReader = CreateSchemalessChunkReader(
             chunkState,
+            New<TColumnarChunkMeta>(*chunkMeta),
             schemalessReaderConfig,
             New<TChunkReaderOptions>(),
             chunkReader,

@@ -237,7 +237,7 @@ protected:
             auto chunkState = New<TChunkState>(
                 GetNullBlockCache(),
                 TChunkSpec(),
-                std::move(chunkMeta),
+                nullptr,
                 nullptr,
                 New<TChunkReaderPerformanceCounters>(),
                 KeyComparer_);
@@ -245,6 +245,7 @@ protected:
                 New<TChunkReaderConfig>(),
                 MemoryReader,
                 std::move(chunkState),
+                std::move(chunkMeta),
                 TReadSessionId(),
                 sharedKeys,
                 TColumnFilter(),
@@ -370,7 +371,7 @@ protected:
         auto chunkState = New<TChunkState>(
             GetNullBlockCache(),
             TChunkSpec(),
-            std::move(chunkMeta),
+            nullptr,
             nullptr,
             New<TChunkReaderPerformanceCounters>(),
             nullptr);
@@ -378,6 +379,7 @@ protected:
             New<TChunkReaderConfig>(),
             memoryReader,
             std::move(chunkState),
+            std::move(chunkMeta),
             TReadSessionId(),
             lowerKey,
             upperKey,

@@ -39,6 +39,7 @@ DEFINE_REFCOUNTED_TYPE(ISchemalessChunkReader)
 
 ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
     const TChunkStatePtr& chunkState,
+    const TColumnarChunkMetaPtr& chunkMeta,
     TChunkReaderConfigPtr config,
     TChunkReaderOptionsPtr options,
     NChunkClient::IChunkReaderPtr underlyingReader,
@@ -51,6 +52,7 @@ ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
 
 ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
     const TChunkStatePtr& chunkState,
+    const TColumnarChunkMetaPtr& chunkMeta,
     TChunkReaderConfigPtr config,
     TChunkReaderOptionsPtr options,
     NChunkClient::IChunkReaderPtr underlyingReader,
