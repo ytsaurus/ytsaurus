@@ -49,7 +49,8 @@ void ProcessFetchResponse(
     int maxChunksPerLocateRequest,
     TNullable<int> rangeIndex,
     const NLogging::TLogger& logger,
-    std::vector<NProto::TChunkSpec>* chunkSpecs);
+    std::vector<NProto::TChunkSpec>* chunkSpecs,
+    bool skipUnavailableChunks = false);
 
 //! Synchronously fetches chunk specs from master,
 //! waits for thre result and processes the response.
@@ -65,7 +66,8 @@ void FetchChunkSpecs(
     int maxChunksPerLocateRequest,
     const std::function<void(TChunkOwnerYPathProxy::TReqFetchPtr)> initializeFetchRequest,
     const NLogging::TLogger& logger,
-    std::vector<NProto::TChunkSpec>* chunkSpecs);
+    std::vector<NProto::TChunkSpec>* chunkSpecs,
+    bool skipUnavialableChunks = false);
 
 //! Synchronously invokes TChunkServiceProxy::AllocateWriteTargets.
 //! Populates #nodeDirectory with the returned node descriptors.
@@ -100,7 +102,8 @@ void LocateChunks(
     int maxChunksPerLocateRequest,
     const std::vector<NProto::TChunkSpec*> chunkSpecList,
     const NNodeTrackerClient::TNodeDirectoryPtr& nodeDirectory,
-    const NLogging::TLogger& logger);
+    const NLogging::TLogger& logger,
+    bool skipUnavailableChunks = false);
 
 ////////////////////////////////////////////////////////////////////////////////
 
