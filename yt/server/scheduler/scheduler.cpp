@@ -2151,7 +2151,6 @@ private:
             operation->GetId());
     }
 
-
     void BuildOperationInfoForEventLog(const TOperationPtr& operation, TFluentMap fluent)
     {
         fluent

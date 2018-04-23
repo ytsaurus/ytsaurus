@@ -143,7 +143,7 @@ public:
 
     void FailJob(const TJobId& jobId);
 
-    void ReleaseJob(const TJobId& jobId);
+    void ReleaseJob(const TJobId& jobId, bool archiveJobSpec);
 
     void BuildNodesYson(NYTree::TFluentMap fluent);
 
@@ -241,7 +241,7 @@ private:
         { }
 
         THashMap<TJobId, TJobPtr> Jobs;
-        THashSet<TJobId> RecentlyCompletedJobIds;
+        THashSet<TJobId> RecentlyFinishedJobIds;
         IOperationControllerPtr Controller;
         bool Terminated = false;
         //! Raised to prevent races between suspension and scheduler strategy scheduling new jobs.
@@ -313,7 +313,7 @@ private:
         const ISchedulingContextPtr& schedulingContext,
         const TScheduler::TCtxNodeHeartbeatPtr& rpcContext);
 
-    void OnJobAborted(const TJobPtr& job, TJobStatus* status, bool operationTerminated = false);
+    void OnJobAborted(const TJobPtr& job, TJobStatus* status, bool byScheduler, bool operationTerminated = false);
     void OnJobFinished(const TJobPtr& job);
     void OnJobRunning(const TJobPtr& job, TJobStatus* status);
     void OnJobCompleted(const TJobPtr& job, TJobStatus* status, bool abandoned = false);
@@ -329,7 +329,10 @@ private:
     void SetJobWaitingForConfirmation(const TJobPtr& job);
     void ResetJobWaitingForConfirmation(const TJobPtr& job);
 
-    void RemoveRecentlyCompletedJob(const TJobId& jobId);
+    void AddRecentlyFinishedJob(const TJobPtr& job);
+    void RemoveRecentlyFinishedJob(const TJobId& jobId);
+
+    void SetOperationJobsReleaseDeadline(TOperationState* operationState);
 
     void PreemptJob(const TJobPtr& job, TNullable<NProfiling::TCpuDuration> interruptTimeout);
 

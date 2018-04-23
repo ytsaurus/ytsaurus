@@ -369,6 +369,11 @@ TControllerAgentConfig::TControllerAgentConfig()
         .GreaterThanOrEqual(0)
         .LessThanOrEqual(250);
 
+    RegisterParameter("max_archived_job_spec_count_per_operation", MaxArchivedJobSpecCountPerOperation)
+        .Default(10)
+        .GreaterThanOrEqual(0)
+        .LessThanOrEqual(100);
+
     RegisterParameter("max_chunks_per_fetch", MaxChunksPerFetch)
         .Default(100000)
         .GreaterThan(0);

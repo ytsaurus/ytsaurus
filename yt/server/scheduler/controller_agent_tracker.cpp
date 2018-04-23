@@ -332,17 +332,20 @@ public:
 
     virtual void OnJobAborted(
         const TJobPtr& job,
-        NJobTrackerClient::NProto::TJobStatus* status) override
+        NJobTrackerClient::NProto::TJobStatus* status,
+        bool byScheduler) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         auto event = BuildEvent(ESchedulerToAgentJobEventType::Aborted, job, true, status);
         event.AbortReason = job->GetAbortReason();
+        event.AbortedByScheduler = byScheduler;
         auto result = EnqueueJobEvent(std::move(event));
-        LOG_DEBUG("Job abort notification %v (OperationId: %v, JobId: %v)",
+        LOG_DEBUG("Job abort notification %v (OperationId: %v, JobId: %v, ByScheduler: %v)",
             result ? "enqueued" : "buffered",
             OperationId_,
-            job->GetId());
+            job->GetId(),
+            byScheduler);
     }
 
     virtual void OnNonscheduledJobAborted(
@@ -904,6 +907,7 @@ public:
                             auto jobId = FromProto<TJobId>(protoEvent->job_id());
                             auto error = FromProto<TError>(protoEvent->error());
                             auto interruptReason = static_cast<EInterruptReason>(protoEvent->interrupt_reason());
+                            auto archiveJobSpec = protoEvent->archive_job_spec();
                             switch (eventType) {
                                 case EAgentToSchedulerJobEventType::Interrupted:
                                     nodeShard->InterruptJob(jobId, interruptReason);
@@ -915,7 +919,7 @@ public:
                                     nodeShard->FailJob(jobId);
                                     break;
                                 case EAgentToSchedulerJobEventType::Released:
-                                    nodeShard->ReleaseJob(jobId);
+                                    nodeShard->ReleaseJob(jobId, archiveJobSpec);
                                     break;
                                 default:
                                     Y_UNREACHABLE();
@@ -1022,6 +1026,9 @@ public:
                     }
                     if (event.InterruptReason) {
                         protoEvent->set_interrupt_reason(static_cast<int>(*event.InterruptReason));
+                    }
+                    if (event.AbortedByScheduler) {
+                        protoEvent->set_aborted_by_scheduler(true);
                     }
                 });
 

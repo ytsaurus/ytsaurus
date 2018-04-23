@@ -881,6 +881,9 @@ private:
                 if (!event.Error.IsOK()) {
                     ToProto(protoEvent->mutable_error(), event.Error);
                 }
+                if (event.ArchiveJobSpec) {
+                    protoEvent->set_archive_job_spec(event.ArchiveJobSpec.Get());
+                }
             });
 
         ScheduleJobResposesOutbox_->BuildOutcoming(
@@ -1048,6 +1051,7 @@ private:
                 BIND([rsp, controller, this_ = MakeStrong(this), protoEvents = std::move(pair.second)] {
                     for (auto* protoEvent : protoEvents) {
                         auto eventType = static_cast<ESchedulerToAgentJobEventType>(protoEvent->event_type());
+                        bool abortedByScheduler = protoEvent->aborted_by_scheduler();
                         switch (eventType) {
                             case ESchedulerToAgentJobEventType::Started:
                                 controller->OnJobStarted(std::make_unique<TStartedJobSummary>(protoEvent));
@@ -1059,7 +1063,7 @@ private:
                                 controller->OnJobFailed(std::make_unique<TFailedJobSummary>(protoEvent));
                                 break;
                             case ESchedulerToAgentJobEventType::Aborted:
-                                controller->OnJobAborted(std::make_unique<TAbortedJobSummary>(protoEvent));
+                                controller->OnJobAborted(std::make_unique<TAbortedJobSummary>(protoEvent), abortedByScheduler);
                                 break;
                             case ESchedulerToAgentJobEventType::Running:
                                 controller->OnJobRunning(std::make_unique<TRunningJobSummary>(protoEvent));

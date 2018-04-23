@@ -89,6 +89,7 @@ void TJobSummary::Persist(const NPhoenix::TPersistenceContext& context)
     Persist(context, Statistics);
     Persist(context, StatisticsYson);
     Persist(context, LogAndProfile);
+    Persist(context, ArchiveJobSpec);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -310,9 +311,9 @@ public:
         Underlying_->OnJobFailed(std::move(jobSummary));
     }
 
-    virtual void OnJobAborted(std::unique_ptr<TAbortedJobSummary> jobSummary) override
+    virtual void OnJobAborted(std::unique_ptr<TAbortedJobSummary> jobSummary, bool byScheduler) override
     {
-        Underlying_->OnJobAborted(std::move(jobSummary));
+        Underlying_->OnJobAborted(std::move(jobSummary), byScheduler);
     }
 
     virtual void OnJobRunning(std::unique_ptr<TRunningJobSummary> jobSummary) override

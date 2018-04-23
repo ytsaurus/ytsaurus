@@ -116,9 +116,7 @@ public:
             TJobStatistics()
                 .Type(GetType())
                 .State(GetState())
-                .Spec(JobSpec_)
                 .StartTime(TInstant::Now()) // TODO(ignat): fill correct start time.
-                .SpecVersion(0) // TODO: fill correct spec version.
                 .Events(JobEvents_));
     }
 
@@ -491,6 +489,18 @@ public:
     {
         Bootstrap_->GetStatisticsReporter()->ReportStatistics(
             std::move(statistics).OperationId(GetOperationId()).JobId(GetId()));
+    }
+
+    virtual void ReportSpec() override
+    {
+        ReportStatistics(
+            TJobStatistics()
+                .Type(GetType())
+                .State(GetState())
+                .Spec(JobSpec_)
+                .StartTime(GetStartTime())
+                .SpecVersion(0) // TODO: fill correct spec version.
+                .Events(JobEvents_));
     }
 
     virtual void Interrupt() override

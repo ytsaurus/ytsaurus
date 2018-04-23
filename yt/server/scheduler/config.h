@@ -282,6 +282,9 @@ public:
     //! Timeout of finished job storing before forced removal.
     TDuration FinishedJobStoringTimeout;
 
+    //! Timeout of finished operation jobs storing before forced removal.
+    TDuration FinishedOperationJobStoringTimeout;
+
     TDuration OperationsUpdatePeriod;
 
     TTestingOptionsPtr TestingOptions;
