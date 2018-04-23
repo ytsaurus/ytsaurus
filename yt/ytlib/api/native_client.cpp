@@ -4255,10 +4255,8 @@ private:
             bool hasFailedJobs = false;
             if (operation.BriefProgress) {
                 auto briefProgressMapNode = ConvertToNode(operation.BriefProgress)->AsMap();
-                hasFailedJobs =
-                    briefProgressMapNode->FindChild("jobs") &&
-                    briefProgressMapNode->GetChild("jobs")->AsMap()->
-                    GetChild("failed")->AsInt64()->GetValue() > 0;
+                auto jobsNode = briefProgressMapNode->FindChild("jobs");
+                hasFailedJobs = jobsNode && jobsNode->AsMap()->GetChild("failed")->AsInt64()->GetValue() > 0;
             }
 
             failedJobsCount += hasFailedJobs;
