@@ -14,6 +14,7 @@
 #include <yt/ytlib/chunk_client/job.pb.h>
 
 #include <yt/ytlib/job_tracker_client/job_tracker_service_proxy.h>
+#include <yt/ytlib/job_tracker_client/helpers.h>
 
 #include <yt/ytlib/node_tracker_client/helpers.h>
 
@@ -100,19 +101,19 @@ private:
                     case EJobState::Completed:
                         LOG_DEBUG("Unknown job has completed, removal scheduled (JobId: %v)",
                             jobId);
-                        ToProto(response->add_jobs_to_remove(), jobId);
+                        ToProto(response->add_jobs_to_remove(), {jobId, false /* ArchiveJobSpec */});
                         break;
 
                     case EJobState::Failed:
                         LOG_DEBUG("Unknown job has failed, removal scheduled (JobId: %v)",
                             jobId);
-                        ToProto(response->add_jobs_to_remove(), jobId);
+                        ToProto(response->add_jobs_to_remove(), {jobId, false /* ArchiveJobSpec */});
                         break;
 
                     case EJobState::Aborted:
                         LOG_DEBUG("Job aborted, removal scheduled (JobId: %v)",
                             jobId);
-                        ToProto(response->add_jobs_to_remove(), jobId);
+                        ToProto(response->add_jobs_to_remove(), {jobId, false /* ArchiveJobSpec */});
                         break;
 
                     case EJobState::Running:
@@ -222,7 +223,7 @@ private:
         }
 
         for (const auto& job : jobsToRemove) {
-            ToProto(response->add_jobs_to_remove(), job->GetJobId());
+            ToProto(response->add_jobs_to_remove(), {job->GetJobId(), false /* ArchiveJobSpec */});
         }
 
         context->Reply();

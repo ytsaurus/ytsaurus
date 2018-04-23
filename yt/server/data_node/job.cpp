@@ -287,6 +287,11 @@ public:
         Y_UNREACHABLE();
     }
 
+    virtual void ReportSpec() override
+    {
+        Y_UNREACHABLE();
+    }
+
     virtual bool GetStored() const override
     {
         return false;

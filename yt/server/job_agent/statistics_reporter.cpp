@@ -61,7 +61,7 @@ static const TLogger ReporterLogger("JobReporter");
 
 bool IsSpecEntry(const TJobStatistics& stat)
 {
-    return stat.Spec().HasValue() || stat.Type().HasValue();
+    return stat.Spec().HasValue();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

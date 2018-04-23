@@ -139,7 +139,7 @@ private: \
     IMPLEMENT_SAFE_METHOD(void, OnJobStarted, (std::unique_ptr<TStartedJobSummary> jobSummary), (std::move(jobSummary)), true)
     IMPLEMENT_SAFE_METHOD(void, OnJobCompleted, (std::unique_ptr<TCompletedJobSummary> jobSummary), (std::move(jobSummary)), true)
     IMPLEMENT_SAFE_METHOD(void, OnJobFailed, (std::unique_ptr<TFailedJobSummary> jobSummary), (std::move(jobSummary)), true)
-    IMPLEMENT_SAFE_METHOD(void, OnJobAborted, (std::unique_ptr<TAbortedJobSummary> jobSummary), (std::move(jobSummary)), true)
+    IMPLEMENT_SAFE_METHOD(void, OnJobAborted, (std::unique_ptr<TAbortedJobSummary> jobSummary, bool byScheduler), (std::move(jobSummary), byScheduler), true)
     IMPLEMENT_SAFE_METHOD(void, OnJobRunning, (std::unique_ptr<TRunningJobSummary> jobSummary), (std::move(jobSummary)), true)
 
     IMPLEMENT_SAFE_METHOD(void, Commit, (), (), false)
@@ -958,6 +958,7 @@ private:
 
     int StderrCount_ = 0;
     int JobNodeCount_ = 0;
+    int JobSpecCompletedArchiveCount_ = 0;
 
     THashMap<TJobId, TFinishedJobInfoPtr> FinishedJobs_;
 
@@ -1075,6 +1076,8 @@ private:
         const TErrorOr<TBriefJobStatisticsPtr>& briefStatisticsOrError);
 
     void UpdateSuspiciousJobsYson();
+
+    void ReleaseJobs(const std::vector<TJobId>& jobIds);
 
     //! Helper class that implements IChunkPoolInput interface for output tables.
     class TSink

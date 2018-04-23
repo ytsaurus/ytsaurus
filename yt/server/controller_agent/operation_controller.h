@@ -16,6 +16,7 @@
 
 #include <yt/ytlib/event_log/public.h>
 
+#include <yt/ytlib/scheduler/job.h>
 #include <yt/ytlib/scheduler/job_resources.h>
 
 #include <yt/core/actions/future.h>
@@ -142,6 +143,8 @@ struct TJobSummary
     NYson::TYsonString StatisticsYson;
 
     bool LogAndProfile = false;
+
+    bool ArchiveJobSpec = false;
 };
 
 struct TCompletedJobSummary
@@ -191,7 +194,7 @@ struct IOperationControllerHost
     virtual void InterruptJob(const TJobId& jobId, EInterruptReason reason) = 0;
     virtual void AbortJob(const TJobId& jobId, const TError& error) = 0;
     virtual void FailJob(const TJobId& jobId) = 0;
-    virtual void ReleaseJobs(const std::vector<TJobId>& jobIds) = 0;
+    virtual void ReleaseJobs(const std::vector<NScheduler::TJobToRelease>& jobsToRelease) = 0;
 
     virtual TFuture<TOperationSnapshot> DownloadSnapshot() = 0;
     virtual TFuture<void> RemoveSnapshot() = 0;
@@ -364,7 +367,7 @@ struct IOperationControllerSchedulerHost
     /*!
      *  \note Invoker affinity: cancelable Controller invoker
      */
-    virtual void OnJobAborted(std::unique_ptr<TAbortedJobSummary> jobSummary) = 0;
+    virtual void OnJobAborted(std::unique_ptr<TAbortedJobSummary> jobSummary, bool byScheduler) = 0;
 
     //! Called during heartbeat processing to notify the controller that a job is still running.
     /*!

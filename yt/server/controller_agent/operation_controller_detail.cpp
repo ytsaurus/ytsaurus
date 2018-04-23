@@ -1688,7 +1688,7 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
                     jobId,
                     nodeId);
                 auto abortedJobSummary = std::make_unique<TAbortedJobSummary>(*jobSummary, EAbortReason::Other);
-                OnJobAborted(std::move(abortedJobSummary));
+                OnJobAborted(std::move(abortedJobSummary), false /* byScheduler */);
                 return;
             }
 
@@ -1728,6 +1728,11 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
     joblet->Task->OnJobCompleted(joblet, *jobSummary);
     if (JobSplitter_) {
         JobSplitter_->OnJobCompleted(*jobSummary);
+    }
+
+    if (!abandoned && JobSpecCompletedArchiveCount_ < Config->MaxArchivedJobSpecCountPerOperation) {
+        ++JobSpecCompletedArchiveCount_;
+        jobSummary->ArchiveJobSpec = true;
     }
 
     // Statistics job state saved from jobSummary before moving jobSummary to ProcessFinishedJobResult.
@@ -1795,6 +1800,8 @@ void TOperationControllerBase::SafeOnJobFailed(std::unique_ptr<TFailedJobSummary
         JobSplitter_->OnJobFailed(*jobSummary);
     }
 
+    jobSummary->ArchiveJobSpec = true;
+
     ProcessFinishedJobResult(std::move(jobSummary), /* requestJobNodeCreation */ true);
 
     UnregisterJoblet(joblet);
@@ -1822,9 +1829,11 @@ void TOperationControllerBase::SafeOnJobFailed(std::unique_ptr<TFailedJobSummary
             << TErrorAttribute("job_id", joblet->JobId)
             << error);
     }
+
+    ReleaseJobs({jobId});
 }
 
-void TOperationControllerBase::SafeOnJobAborted(std::unique_ptr<TAbortedJobSummary> jobSummary)
+void TOperationControllerBase::SafeOnJobAborted(std::unique_ptr<TAbortedJobSummary> jobSummary, bool byScheduler)
 {
     auto jobId = jobSummary->Id;
     auto abortReason = jobSummary->AbortReason;
@@ -1888,6 +1897,10 @@ void TOperationControllerBase::SafeOnJobAborted(std::unique_ptr<TAbortedJobSumma
             "Job aborted; operation failed because spec option fail_on_job_restart is set")
             << TErrorAttribute("job_id", joblet->JobId)
             << TErrorAttribute("abort_reason", abortReason));
+    }
+
+    if (!byScheduler) {
+        ReleaseJobs({jobId});
     }
 }
 
@@ -3602,6 +3615,10 @@ void TOperationControllerBase::ProcessFinishedJobResult(std::unique_ptr<TJobSumm
         return;
     }
 
+    auto inputPaths = BuildInputPathYson(joblet);
+    auto finishedJob = New<TFinishedJobInfo>(joblet, std::move(*summary), std::move(inputPaths));
+    FinishedJobs_.insert(std::make_pair(jobId, finishedJob));
+
     bool shouldCreateJobNode =
         (requestJobNodeCreation && JobNodeCount_ < Config->MaxJobNodesPerOperation) ||
         (stderrChunkId && StderrCount_ < Spec_->MaxStderrCount);
@@ -3609,10 +3626,6 @@ void TOperationControllerBase::ProcessFinishedJobResult(std::unique_ptr<TJobSumm
     if (!shouldCreateJobNode) {
         return;
     }
-
-    auto inputPaths = BuildInputPathYson(joblet);
-    auto finishedJob = New<TFinishedJobInfo>(joblet, std::move(*summary), std::move(inputPaths));
-    FinishedJobs_.insert(std::make_pair(jobId, finishedJob));
 
     auto attributes = BuildYsonStringFluently<EYsonType::MapFragment>()
         .Do([&] (TFluentMap fluent) {
@@ -5578,7 +5591,7 @@ void TOperationControllerBase::SafeOnSnapshotCompleted(const TSnapshotCookie& co
             headCookie,
             jobIdsToRelease.size(),
             cookie.SnapshotIndex);
-        Host->ReleaseJobs(jobIdsToRelease);
+        ReleaseJobs(jobIdsToRelease);
     }
 
     // Stripe lists.
@@ -5623,7 +5636,7 @@ void TOperationControllerBase::Dispose()
     LOG_INFO("Releasing jobs on controller disposal (HeadCookie: %v)",
         headCookie);
     auto jobIdsToRelease = CompletedJobIdsReleaseQueue_.Release();
-    Host->ReleaseJobs(jobIdsToRelease);
+    ReleaseJobs(jobIdsToRelease);
 }
 
 NScheduler::TOperationJobMetrics TOperationControllerBase::PullJobMetricsDelta()
@@ -6100,6 +6113,22 @@ void TOperationControllerBase::UpdateSuspiciousJobsYson()
         TWriterGuard guard(CachedSuspiciousJobsYsonLock_);
         CachedSuspiciousJobsYson_ = yson;
     }
+}
+
+void TOperationControllerBase::ReleaseJobs(const std::vector<TJobId>& jobIds)
+{
+    std::vector<TJobToRelease> jobsToRelease;
+    jobsToRelease.reserve(jobIds.size());
+
+    for (const auto& jobId : jobIds) {
+        bool archiveJobSpec = false;
+        auto it = FinishedJobs_.find(jobId);
+        if (it != FinishedJobs_.end()) {
+            archiveJobSpec = it->second->Summary.ArchiveJobSpec;
+        }
+        jobsToRelease.emplace_back(TJobToRelease{jobId, archiveJobSpec});
+    }
+    Host->ReleaseJobs(jobsToRelease);
 }
 
 void TOperationControllerBase::AnalyzeBriefStatistics(
@@ -6792,6 +6821,7 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
     Persist(context, StderrCount_);
     Persist(context, JobNodeCount_);
     Persist(context, FinishedJobs_);
+    Persist(context, JobSpecCompletedArchiveCount_);
     Persist(context, Sinks_);
     Persist(context, AutoMergeTaskGroup);
     Persist(context, AutoMergeTasks);

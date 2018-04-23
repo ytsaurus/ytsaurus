@@ -519,6 +519,9 @@ public:
     //! Maximum number of job nodes per operation.
     int MaxJobNodesPerOperation;
 
+    //! Maximum number of job specs in archive per operation.
+    int MaxArchivedJobSpecCountPerOperation;
+
     //! Maximum number of chunks per single fetch.
     int MaxChunksPerFetch;
 
