@@ -241,7 +241,11 @@ void TChunk::Load(NCellMaster::TLoadContext& context)
                 auto& exportData = ExportDataList_[i];
                 const auto& oldExportData = oldExportDataList[i];
                 exportData.RefCounter = oldExportData.RefCounter;
-                exportData.ChunkRequisitionIndex = inferRequisitionIndexFromRF(oldExportData.ReplicationFactor);
+                if (exportData.RefCounter != 0) {
+                    exportData.ChunkRequisitionIndex = inferRequisitionIndexFromRF(oldExportData.ReplicationFactor);
+                } else {
+                    YCHECK(exportData.ChunkRequisitionIndex == EmptyChunkRequisitionIndex);
+                }
                 // Drop vitality.
             }
         } else if (context.GetVersion() < 700) {
@@ -253,8 +257,12 @@ void TChunk::Load(NCellMaster::TLoadContext& context)
                 exportData.RefCounter = oldExportData.RefCounter;
                 // NB: the chunk may belong to a non-default medium and thus have zero RF on DefaultStoreMediumIndex.
                 // inferRequisitionIndexFromRF() will force non-zero RF in that case.
-                exportData.ChunkRequisitionIndex = inferRequisitionIndexFromRF(
-                    oldExportData.Replication[DefaultStoreMediumIndex].GetReplicationFactor());
+                if (exportData.RefCounter != 0) {
+                    exportData.ChunkRequisitionIndex = inferRequisitionIndexFromRF(
+                        oldExportData.Replication[DefaultStoreMediumIndex].GetReplicationFactor());
+                } else {
+                    YCHECK(exportData.ChunkRequisitionIndex == EmptyChunkRequisitionIndex);
+                }
             }
         } else {
             TRangeSerializer::Load(context, TMutableRef::FromPod(ExportDataList_));
@@ -514,6 +522,23 @@ void TChunk::Unexport(
         data.ChunkRequisitionIndex = EmptyChunkRequisitionIndex; // just in case
 
         --ExportCounter_;
+    }
+}
+
+void TChunk::FixExportRequisitionIndexes()
+{
+    if (ExportCounter_ == 0) {
+        return;
+    }
+
+    for (auto& data : ExportDataList_) {
+        if (data.RefCounter == 0 && data.ChunkRequisitionIndex != EmptyChunkRequisitionIndex) {
+            YCHECK(data.ChunkRequisitionIndex == MigrationErasureChunkRequisitionIndex ||
+                   data.ChunkRequisitionIndex == MigrationChunkRequisitionIndex);
+
+            data.ChunkRequisitionIndex = EmptyChunkRequisitionIndex;
+            // NB: no need to unref as they haven't been reffed in the first place.
+        }
     }
 }
 

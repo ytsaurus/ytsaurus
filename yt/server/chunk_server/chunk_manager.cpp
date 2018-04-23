@@ -1181,6 +1181,7 @@ private:
     bool NeedResetDataWeight_ = false;
     bool NeedInitializeMediumConfig_ = false;
     bool NeedRecomputeRequisitionRefCounts_ = false;
+    bool NeedToFixExportRequisitionIndexes_ = false;
 
     TPeriodicExecutorPtr ProfilingExecutor_;
 
@@ -2095,6 +2096,9 @@ private:
 
         // COMPAT(shakurov)
         NeedRecomputeRequisitionRefCounts_ = context.GetVersion() < 704;
+
+        // COMPAT(shakurov)
+        NeedToFixExportRequisitionIndexes_ = context.GetVersion() >= 700 && context.GetVersion() < 707;
     }
 
     virtual void OnBeforeSnapshotLoaded() override
@@ -2166,6 +2170,14 @@ private:
             for (const auto& pair : ChunkMap_) {
                 const auto* chunk = pair.second;
                 chunk->RefUsedRequisitions(GetChunkRequisitionRegistry());
+            }
+        }
+
+        // COMPAT(shakurov)
+        if (NeedToFixExportRequisitionIndexes_) {
+            for (const auto& pair : ChunkMap_) {
+                auto* chunk = pair.second;
+                chunk->FixExportRequisitionIndexes();
             }
         }
 

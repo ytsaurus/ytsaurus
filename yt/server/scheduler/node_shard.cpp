@@ -273,6 +273,21 @@ void TNodeShard::FinishOperationRevival(const TOperationId& operationId, const s
         Config_->JobRevivalAbortTimeout);
 }
 
+void TNodeShard::ResetOperationRevival(const TOperationId& operationId)
+{
+    VERIFY_INVOKER_AFFINITY(GetInvoker());
+    YCHECK(Connected_);
+
+    auto& operationState = GetOperationState(operationId);
+
+    operationState.JobsReady = true;
+    operationState.ForbidNewJobs = false;
+    operationState.Terminated = false;
+
+    LOG_DEBUG("Operation revival state reset at node shard (OperationId: %v)",
+        operationId);
+}
+
 void TNodeShard::UnregisterOperation(const TOperationId& operationId)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());

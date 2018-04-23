@@ -999,7 +999,10 @@ public:
             asyncResult = RegisterJobsFromRevivedOperation(operation);
         } else {
             operation->SetStateAndEnqueueEvent(EOperationState::Materializing);
-            asyncResult = operation->GetController()->Materialize();
+            asyncResult = Combine(std::vector<TFuture<void>>({
+                operation->GetController()->Materialize(),
+                ResetOperationRevival(operation)
+            }));
         }
 
         auto expectedState = operation->GetState();
@@ -2017,6 +2020,18 @@ private:
                 << ex;
             OnOperationFailed(operation, wrappedError);
         }
+    }
+    
+    TFuture<void> ResetOperationRevival(const TOperationPtr& operation)
+    {
+        std::vector<TFuture<void>> asyncResults;
+        for (int shardId = 0; shardId < NodeShards_.size(); ++shardId) {
+            auto asyncResult = BIND(&TNodeShard::ResetOperationRevival, NodeShards_[shardId])
+                .AsyncVia(NodeShards_[shardId]->GetInvoker())
+                .Run(operation->GetId());
+            asyncResults.emplace_back(std::move(asyncResult));
+        }
+        return Combine(asyncResults);
     }
 
     TFuture<void> RegisterJobsFromRevivedOperation(const TOperationPtr& operation)
