@@ -110,6 +110,7 @@ public:
         bool jobsReady);
     void StartOperationRevival(const TOperationId& operationId);
     void FinishOperationRevival(const TOperationId& operationId, const std::vector<TJobPtr>& jobs);
+    void ResetOperationRevival(const TOperationId& operationId);
     void UnregisterOperation(const TOperationId& operationId);
 
     void ProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& context);
