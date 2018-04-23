@@ -64,6 +64,32 @@ using NChunkClient::NProto::TMiscExt;
 using NYT::FromProto;
 using NYT::TRange;
 
+TColumnarChunkMetaPtr DownloadChunkMeta(
+    IChunkReaderPtr chunkReader,
+    const TWorkloadDescriptor& workloadDescriptor,
+    const TReadSessionId& readSessionId,
+    TNullable<int> partitionTag)
+{
+    // Download chunk meta.
+    std::vector<int> extensionTags = {
+        TProtoExtensionTag<TMiscExt>::Value,
+        TProtoExtensionTag<TTableSchemaExt>::Value,
+        TProtoExtensionTag<TBlockMetaExt>::Value,
+        TProtoExtensionTag<TColumnMetaExt>::Value,
+        TProtoExtensionTag<TNameTableExt>::Value
+    };
+
+    auto asynChunkMeta = chunkReader->GetMeta(
+        workloadDescriptor,
+        readSessionId,
+        partitionTag,
+        extensionTags);
+    auto chunkMeta = WaitFor(asynChunkMeta)
+        .ValueOrThrow();
+
+    return New<TColumnarChunkMeta>(std::move(chunkMeta));
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSchemalessChunkReaderBase
@@ -251,6 +277,7 @@ class THorizontalSchemalessChunkReaderBase
 public:
     THorizontalSchemalessChunkReaderBase(
         const TChunkStatePtr& chunkState,
+        const TColumnarChunkMetaPtr& chunkMeta,
         TChunkReaderConfigPtr config,
         TChunkReaderOptionsPtr options,
         IChunkReaderPtr underlyingReader,
@@ -266,8 +293,6 @@ protected:
     using TSchemalessChunkReaderBase::Config_;
     using TSchemalessChunkReaderBase::Logger;
 
-    TNameTablePtr ChunkNameTable_ = New<TNameTable>();
-
     int ChunkKeyColumnCount_ = 0;
 
     TNullable<int> PartitionTag_;
@@ -280,8 +305,8 @@ protected:
 
     std::unique_ptr<THorizontalSchemalessBlockReader> BlockReader_;
 
-    TChunkMeta ChunkMeta_;
-    NProto::TBlockMetaExt BlockMetaExt_;
+    TColumnarChunkMetaPtr ChunkMeta_;
+    TRefCountedBlockMetaPtr BlockMetaExt_;
 
     std::vector<int> BlockIndexes_;
 
@@ -296,6 +321,7 @@ protected:
 
 THorizontalSchemalessChunkReaderBase::THorizontalSchemalessChunkReaderBase(
     const TChunkStatePtr& chunkState,
+    const TColumnarChunkMetaPtr& chunkMeta,
     TChunkReaderConfigPtr config,
     TChunkReaderOptionsPtr options,
     IChunkReaderPtr underlyingReader,
@@ -319,6 +345,7 @@ THorizontalSchemalessChunkReaderBase::THorizontalSchemalessChunkReaderBase(
         columnFilter,
         keyColumns)
     , PartitionTag_(std::move(partitionTag))
+    , ChunkMeta_(chunkMeta)
 { }
 
 TFuture<void> THorizontalSchemalessChunkReaderBase::InitializeBlockSequence()
@@ -333,8 +360,8 @@ TFuture<void> THorizontalSchemalessChunkReaderBase::InitializeBlockSequence()
 
     std::vector<TBlockFetcher::TBlockInfo> blocks;
     for (int blockIndex : BlockIndexes_) {
-        YCHECK(blockIndex < BlockMetaExt_.blocks_size());
-        auto& blockMeta = BlockMetaExt_.blocks(blockIndex);
+        YCHECK(blockIndex < BlockMetaExt_->blocks_size());
+        auto& blockMeta = BlockMetaExt_->blocks(blockIndex);
         TBlockFetcher::TBlockInfo blockInfo;
         blockInfo.Index = blockMeta.block_index();
         blockInfo.UncompressedDataSize = blockMeta.uncompressed_size();
@@ -342,66 +369,22 @@ TFuture<void> THorizontalSchemalessChunkReaderBase::InitializeBlockSequence()
         blocks.push_back(blockInfo);
     }
 
-    return DoOpen(std::move(blocks), GetProtoExtension<TMiscExt>(ChunkMeta_.extensions()));
+    return DoOpen(std::move(blocks), ChunkMeta_->Misc());
 }
 
 void THorizontalSchemalessChunkReaderBase::DownloadChunkMeta(std::vector<int> extensionTags, TNullable<int> partitionTag)
 {
-    extensionTags.push_back(TProtoExtensionTag<TMiscExt>::Value);
-    extensionTags.push_back(TProtoExtensionTag<NProto::TBlockMetaExt>::Value);
-    extensionTags.push_back(TProtoExtensionTag<NProto::TNameTableExt>::Value);
+    YCHECK(ChunkMeta_->GetChunkFormat() == ETableChunkFormat::SchemalessHorizontal);
 
-    auto hasAllExtensions = [&] () {
-        THashSet<int> tags;
-        for (const auto& protoExtension : ChunkState_->ChunkSpec.chunk_meta().extensions().extensions()) {
-            tags.insert(protoExtension.tag());
-        }
+    BlockMetaExt_ = ChunkMeta_->BlockMeta();
 
-        for (auto extensionTag : extensionTags) {
-            if (!tags.has(extensionTag)) {
-                return false;
-            }
-        }
-
-        return true;
-    };
-
-    if (hasAllExtensions()) {
-        // This usually happens when reading dynamic tables, so not partition tag
-        // should be present.
-        YCHECK(!partitionTag);
-        ChunkMeta_ = ChunkState_->ChunkSpec.chunk_meta();
-    } else {
-        auto asynChunkMeta = UnderlyingReader_->GetMeta(
-            Config_->WorkloadDescriptor,
-            ReadSessionId_,
-            partitionTag,
-            extensionTags);
-        ChunkMeta_ = WaitFor(asynChunkMeta)
-            .ValueOrThrow();
-    }
-
-    YCHECK(ChunkMeta_.version() == static_cast<int>(ETableChunkFormat::SchemalessHorizontal));
-
-    BlockMetaExt_ = GetProtoExtension<NProto::TBlockMetaExt>(ChunkMeta_.extensions());
-
-    auto nameTableExt = GetProtoExtension<NProto::TNameTableExt>(ChunkMeta_.extensions());
-    try {
-        FromProto(&ChunkNameTable_, nameTableExt);
-    } catch (const std::exception& ex) {
-        THROW_ERROR_EXCEPTION(
-            EErrorCode::CorruptedNameTable,
-            "Failed to deserialize name table for schemaless chunk reader")
-            << TErrorAttribute("chunk_id", UnderlyingReader_->GetChunkId())
-            << ex;
-    }
-
-    IdMapping_.reserve(ChunkNameTable_->GetSize());
+    const auto& chunkNameTable = ChunkMeta_->ChunkNameTable();
+    IdMapping_.reserve(chunkNameTable->GetSize());
 
     if (ColumnFilter_.All) {
         try {
-            for (int chunkNameId = 0; chunkNameId < ChunkNameTable_->GetSize(); ++chunkNameId) {
-                auto name = ChunkNameTable_->GetName(chunkNameId);
+            for (int chunkNameId = 0; chunkNameId < chunkNameTable->GetSize(); ++chunkNameId) {
+                auto name = chunkNameTable->GetName(chunkNameId);
                 auto id = NameTable_->GetIdOrRegisterName(name);
                 IdMapping_.push_back({chunkNameId, id});
             }
@@ -411,13 +394,13 @@ void THorizontalSchemalessChunkReaderBase::DownloadChunkMeta(std::vector<int> ex
                 << ex;
         }
     } else {
-        for (int chunkNameId = 0; chunkNameId < ChunkNameTable_->GetSize(); ++chunkNameId) {
+        for (int chunkNameId = 0; chunkNameId < chunkNameTable->GetSize(); ++chunkNameId) {
             IdMapping_.push_back({chunkNameId, -1});
         }
 
         for (auto id : ColumnFilter_.Indexes) {
             auto name = NameTable_->GetName(id);
-            auto chunkNameId = ChunkNameTable_->FindId(name);
+            auto chunkNameId = chunkNameTable->FindId(name);
             if (chunkNameId) {
                 IdMapping_[chunkNameId.Get()] = {chunkNameId.Get(), id};
             }
@@ -441,6 +424,7 @@ class THorizontalSchemalessRangeChunkReader
 public:
     THorizontalSchemalessRangeChunkReader(
         const TChunkStatePtr& chunkState,
+        const TColumnarChunkMetaPtr& chunkMeta,
         TChunkReaderConfigPtr config,
         TChunkReaderOptionsPtr options,
         IChunkReaderPtr underlyingReader,
@@ -475,6 +459,7 @@ DEFINE_REFCOUNTED_TYPE(THorizontalSchemalessRangeChunkReader)
 
 THorizontalSchemalessRangeChunkReader::THorizontalSchemalessRangeChunkReader(
     const TChunkStatePtr& chunkState,
+    const TColumnarChunkMetaPtr& chunkMeta,
     TChunkReaderConfigPtr config,
     TChunkReaderOptionsPtr options,
     IChunkReaderPtr underlyingReader,
@@ -486,6 +471,7 @@ THorizontalSchemalessRangeChunkReader::THorizontalSchemalessRangeChunkReader(
     TNullable<int> partitionTag)
     : THorizontalSchemalessChunkReaderBase(
         chunkState,
+        chunkMeta,
         std::move(config),
         std::move(options),
         std::move(underlyingReader),
@@ -539,13 +525,15 @@ void THorizontalSchemalessRangeChunkReader::InitializeBlockSequenceSorted()
 
     DownloadChunkMeta(extensionTags);
 
-    auto misc = GetProtoExtension<TMiscExt>(ChunkMeta_.extensions());
+    //auto misc = GetProtoExtension<TMiscExt>(ChunkMeta_.extensions());
+    const auto& misc = ChunkMeta_->Misc();
     if (!misc.sorted()) {
         THROW_ERROR_EXCEPTION("Requested a sorted read for an unsorted chunk");
     }
 
-    auto keyColumnsExt = GetProtoExtension<NProto::TKeyColumnsExt>(ChunkMeta_.extensions());
-    TKeyColumns chunkKeyColumns = NYT::FromProto<TKeyColumns>(keyColumnsExt);
+    //auto keyColumnsExt = GetProtoExtension<NProto::TKeyColumnsExt>(ChunkMeta_.extensions());
+    //TKeyColumns chunkKeyColumns = NYT::FromProto<TKeyColumns>(keyColumnsExt);
+    auto chunkKeyColumns = ChunkMeta_->ChunkSchema().GetKeyColumns();
     ChunkKeyColumnCount_ = chunkKeyColumns.size();
 
     ValidateKeyColumns(KeyColumns_, chunkKeyColumns, Options_->DynamicTable);
@@ -557,14 +545,16 @@ void THorizontalSchemalessRangeChunkReader::InitializeBlockSequenceSorted()
     TNullable<int> keyColumnCount;
     if (Options_->DynamicTable) {
         keyColumnCount = KeyColumns_.size();
+    } else {
+        ChunkMeta_->InitBlockLastKeys(KeyColumns_);
     }
 
     int beginIndex = std::max(
-        ApplyLowerRowLimit(BlockMetaExt_, ReadRange_.LowerLimit()),
-        ApplyLowerKeyLimit(BlockMetaExt_, ReadRange_.LowerLimit(), keyColumnCount));
+        ApplyLowerRowLimit(*BlockMetaExt_, ReadRange_.LowerLimit()),
+        ApplyLowerKeyLimit(ChunkMeta_->BlockLastKeys(), ReadRange_.LowerLimit(), keyColumnCount));
     int endIndex = std::min(
-        ApplyUpperRowLimit(BlockMetaExt_, ReadRange_.UpperLimit()),
-        ApplyUpperKeyLimit(BlockMetaExt_, ReadRange_.UpperLimit(), keyColumnCount));
+        ApplyUpperRowLimit(*BlockMetaExt_, ReadRange_.UpperLimit()),
+        ApplyUpperKeyLimit(ChunkMeta_->BlockLastKeys(), ReadRange_.UpperLimit(), keyColumnCount));
 
     CreateBlockSequence(beginIndex, endIndex);
 }
@@ -575,7 +565,7 @@ void THorizontalSchemalessRangeChunkReader::InitializeBlockSequencePartition()
     YCHECK(ReadRange_.UpperLimit().IsTrivial());
 
     DownloadChunkMeta(std::vector<int>(), PartitionTag_);
-    CreateBlockSequence(0, BlockMetaExt_.blocks_size());
+    CreateBlockSequence(0, BlockMetaExt_->blocks_size());
 }
 
 void THorizontalSchemalessRangeChunkReader::InitializeBlockSequenceUnsorted()
@@ -583,8 +573,8 @@ void THorizontalSchemalessRangeChunkReader::InitializeBlockSequenceUnsorted()
     DownloadChunkMeta(std::vector<int>());
 
     CreateBlockSequence(
-        ApplyLowerRowLimit(BlockMetaExt_, ReadRange_.LowerLimit()),
-        ApplyUpperRowLimit(BlockMetaExt_, ReadRange_.UpperLimit()));
+        ApplyLowerRowLimit(*BlockMetaExt_, ReadRange_.LowerLimit()),
+        ApplyUpperRowLimit(*BlockMetaExt_, ReadRange_.UpperLimit()));
 }
 
 void THorizontalSchemalessRangeChunkReader::CreateBlockSequence(int beginIndex, int endIndex)
@@ -597,7 +587,7 @@ void THorizontalSchemalessRangeChunkReader::CreateBlockSequence(int beginIndex, 
 void THorizontalSchemalessRangeChunkReader::InitFirstBlock()
 {
     int blockIndex = BlockIndexes_[CurrentBlockIndex_];
-    const auto& blockMeta = BlockMetaExt_.blocks(blockIndex);
+    const auto& blockMeta = BlockMetaExt_->blocks(blockIndex);
 
     YCHECK(CurrentBlock_ && CurrentBlock_.IsSet());
     BlockReader_.reset(new THorizontalSchemalessBlockReader(
@@ -611,7 +601,7 @@ void THorizontalSchemalessRangeChunkReader::InitFirstBlock()
     RowIndex_ = blockMeta.chunk_row_count() - blockMeta.row_count();
 
     int keyColumnCount = std::max(ChunkKeyColumnCount_, static_cast<int>(KeyColumns_.size()));
-    CheckBlockUpperLimits(BlockMetaExt_.blocks(blockIndex), ReadRange_.UpperLimit(), keyColumnCount);
+    CheckBlockUpperLimits(BlockMetaExt_->blocks(blockIndex), ReadRange_.UpperLimit(), keyColumnCount);
 
     const auto& lowerLimit = ReadRange_.LowerLimit();
 
@@ -704,8 +694,8 @@ TInterruptDescriptor THorizontalSchemalessRangeChunkReader::GetInterruptDescript
     }
     return GetInterruptDescriptorImpl(
         unreadRows,
-        GetProtoExtension<TMiscExt>(ChunkMeta_.extensions()),
-        BlockMetaExt_,
+        ChunkMeta_->Misc(),
+        *BlockMetaExt_,
         ChunkSpec_,
         ReadRange_.LowerLimit(),
         ReadRange_.UpperLimit(),
@@ -721,6 +711,7 @@ class THorizontalSchemalessLookupChunkReader
 public:
     THorizontalSchemalessLookupChunkReader(
         const TChunkStatePtr& chunkState,
+        const TColumnarChunkMetaPtr& chunkMeta,
         TChunkReaderConfigPtr config,
         TChunkReaderOptionsPtr options,
         NChunkClient::IChunkReaderPtr underlyingReader,
@@ -752,6 +743,7 @@ DEFINE_REFCOUNTED_TYPE(THorizontalSchemalessLookupChunkReader)
 
 THorizontalSchemalessLookupChunkReader::THorizontalSchemalessLookupChunkReader(
     const TChunkStatePtr& chunkState,
+    const TColumnarChunkMetaPtr& chunkMeta,
     TChunkReaderConfigPtr config,
     TChunkReaderOptionsPtr options,
     NChunkClient::IChunkReaderPtr underlyingReader,
@@ -764,6 +756,7 @@ THorizontalSchemalessLookupChunkReader::THorizontalSchemalessLookupChunkReader(
     TNullable<int> partitionTag)
     : THorizontalSchemalessChunkReaderBase(
         chunkState,
+        chunkMeta,
         std::move(config),
         std::move(options),
         std::move(underlyingReader),
@@ -798,7 +791,8 @@ void THorizontalSchemalessLookupChunkReader::DoInitializeBlockSequence()
 
     DownloadChunkMeta(extensionTags, PartitionTag_);
 
-    auto misc = GetProtoExtension<TMiscExt>(ChunkMeta_.extensions());
+    //auto misc = GetProtoExtension<TMiscExt>(ChunkMeta_.extensions());
+    const auto& misc = ChunkMeta_->Misc();
     if (!misc.sorted()) {
         THROW_ERROR_EXCEPTION("Requested lookup for an unsorted chunk");
     }
@@ -806,18 +800,22 @@ void THorizontalSchemalessLookupChunkReader::DoInitializeBlockSequence()
         THROW_ERROR_EXCEPTION("Requested lookup for a chunk without unique_keys restriction");
     }
 
-    auto keyColumnsExt = GetProtoExtension<TKeyColumnsExt>(ChunkMeta_.extensions());
-    TKeyColumns chunkKeyColumns = NYT::FromProto<TKeyColumns>(keyColumnsExt);
+    //auto keyColumnsExt = GetProtoExtension<TKeyColumnsExt>(ChunkMeta_.extensions());
+    //TKeyColumns chunkKeyColumns = NYT::FromProto<TKeyColumns>(keyColumnsExt);
+    auto chunkKeyColumns = ChunkMeta_->ChunkSchema().GetKeyColumns();
     ChunkKeyColumnCount_ = chunkKeyColumns.size();
 
     ValidateKeyColumns(KeyColumns_, chunkKeyColumns, Options_->DynamicTable);
+
+    // Don't call InitBlockLastKeys because this reader should be used only for dynamic tables.
+    YCHECK(Options_->DynamicTable);
 
     for (const auto& key : Keys_) {
         TReadLimit readLimit;
         readLimit.SetKey(TOwningKey(key));
 
-        int index = ApplyLowerKeyLimit(BlockMetaExt_, readLimit, KeyColumns_.size());
-        if (index == BlockMetaExt_.blocks_size()) {
+        int index = ApplyLowerKeyLimit(ChunkMeta_->BlockLastKeys(), readLimit, KeyColumns_.size());
+        if (index == BlockMetaExt_->blocks_size()) {
             break;
         }
 
@@ -882,7 +880,7 @@ bool THorizontalSchemalessLookupChunkReader::Read(std::vector<TUnversionedRow>* 
                     dataWeight += GetDataWeight(row);
 
                     int blockIndex = BlockIndexes_[CurrentBlockIndex_];
-                    const auto& blockMeta = BlockMetaExt_.blocks(blockIndex);
+                    const auto& blockMeta = BlockMetaExt_->blocks(blockIndex);
                     RowIndex_ = blockMeta.chunk_row_count() - blockMeta.row_count() + BlockReader_->GetRowIndex();
                 } else {
                     rows->push_back(TUnversionedRow());
@@ -908,7 +906,7 @@ bool THorizontalSchemalessLookupChunkReader::Read(std::vector<TUnversionedRow>* 
 void THorizontalSchemalessLookupChunkReader::InitFirstBlock()
 {
     int blockIndex = BlockIndexes_[CurrentBlockIndex_];
-    const auto& blockMeta = BlockMetaExt_.blocks(blockIndex);
+    const auto& blockMeta = BlockMetaExt_->blocks(blockIndex);
 
     BlockReader_.reset(new THorizontalSchemalessBlockReader(
         CurrentBlock_.Get().ValueOrThrow().Data,
@@ -934,6 +932,7 @@ class TColumnarSchemalessRangeChunkReader
 public:
     TColumnarSchemalessRangeChunkReader(
         const TChunkStatePtr& chunkState,
+        const TColumnarChunkMetaPtr& chunkMeta,
         TChunkReaderConfigPtr config,
         TChunkReaderOptionsPtr options,
         IChunkReaderPtr underlyingReader,
@@ -952,6 +951,7 @@ public:
             columnFilter,
             keyColumns)
         , TColumnarRangeChunkReaderBase(
+            chunkMeta,
             config,
             underlyingReader,
             chunkState->BlockCache,
@@ -1120,37 +1120,9 @@ private:
 
     void InitializeBlockSequence()
     {
-        YCHECK(ChunkSpec_.chunk_meta().version() == static_cast<int>(ETableChunkFormat::UnversionedColumnar));
+        //YCHECK(ChunkSpec_.chunk_meta().version() == static_cast<int>(ETableChunkFormat::UnversionedColumnar));
+        YCHECK(ChunkMeta_->GetChunkFormat() == ETableChunkFormat::UnversionedColumnar);
         InitializeSystemColumnIds();
-
-        TNameTablePtr chunkNameTable;
-
-        if (Options_->DynamicTable) {
-            ChunkMeta_ = ChunkState_->ChunkMeta;
-            chunkNameTable = TNameTable::FromSchema(ChunkMeta_->ChunkSchema());
-        } else {
-            // Download chunk meta.
-            std::vector<int> extensionTags = {
-                TProtoExtensionTag<TMiscExt>::Value,
-                TProtoExtensionTag<TTableSchemaExt>::Value,
-                TProtoExtensionTag<TBlockMetaExt>::Value,
-                TProtoExtensionTag<TColumnMetaExt>::Value,
-                TProtoExtensionTag<TNameTableExt>::Value
-            };
-
-            auto asynChunkMeta = UnderlyingReader_->GetMeta(
-                TColumnarRangeChunkReaderBase::Config_->WorkloadDescriptor,
-                ReadSessionId_,
-                Null,
-                extensionTags);
-            auto chunkMeta = WaitFor(asynChunkMeta)
-                .ValueOrThrow();
-
-            chunkNameTable = FromProto<TNameTablePtr>(GetProtoExtension<TNameTableExt>(
-                chunkMeta.extensions()));
-
-            ChunkMeta_ = New<TColumnarChunkMeta>(std::move(chunkMeta));
-        }
 
         // Minimum prefix of key columns, that must be included in column filter.
         int minKeyColumnCount = 0;
@@ -1174,10 +1146,16 @@ private:
         // Cannot read more key columns than stored in chunk, even if range keys are longer.
         minKeyColumnCount = std::min(minKeyColumnCount, ChunkMeta_->ChunkSchema().GetKeyColumnCount());
 
-        if (UpperLimit_.HasKey() || LowerLimit_.HasKey()) {
-            ChunkMeta_->InitBlockLastKeys(KeyColumns_.empty()
-                ? ChunkMeta_->ChunkSchema().GetKeyColumns()
-                : KeyColumns_);
+        TNameTablePtr chunkNameTable;
+        if (Options_->DynamicTable) {
+            chunkNameTable = TNameTable::FromSchema(ChunkMeta_->ChunkSchema());
+        } else {
+            chunkNameTable = ChunkMeta_->ChunkNameTable();
+            if (UpperLimit_.HasKey() || LowerLimit_.HasKey()) {
+                ChunkMeta_->InitBlockLastKeys(KeyColumns_.empty()
+                    ? ChunkMeta_->ChunkSchema().GetKeyColumns()
+                    : KeyColumns_);
+            }
         }
 
         // Define columns to read.
@@ -1384,6 +1362,7 @@ class TColumnarSchemalessLookupChunkReader
 public:
     TColumnarSchemalessLookupChunkReader(
         const TChunkStatePtr& chunkState,
+        const TColumnarChunkMetaPtr& chunkMeta,
         TChunkReaderConfigPtr config,
         TChunkReaderOptionsPtr options,
         IChunkReaderPtr underlyingReader,
@@ -1403,6 +1382,7 @@ public:
             columnFilter,
             keyColumns)
         , TColumnarLookupChunkReaderBase(
+            chunkMeta,
             config,
             underlyingReader,
             chunkState->BlockCache,
@@ -1530,37 +1510,9 @@ private:
 
     void InitializeBlockSequence()
     {
-        YCHECK(ChunkSpec_.chunk_meta().version() == static_cast<int>(ETableChunkFormat::UnversionedColumnar));
+        //YCHECK(ChunkSpec_.chunk_meta().version() == static_cast<int>(ETableChunkFormat::UnversionedColumnar));
+        YCHECK(ChunkMeta_->GetChunkFormat() == ETableChunkFormat::UnversionedColumnar);
         InitializeSystemColumnIds();
-
-        TNameTablePtr chunkNameTable;
-
-        if (Options_->DynamicTable) {
-            ChunkMeta_ = ChunkState_->ChunkMeta;
-            chunkNameTable = TNameTable::FromSchema(ChunkMeta_->ChunkSchema());
-        } else {
-            // Download chunk meta.
-            std::vector<int> extensionTags = {
-                TProtoExtensionTag<TMiscExt>::Value,
-                TProtoExtensionTag<TTableSchemaExt>::Value,
-                TProtoExtensionTag<TBlockMetaExt>::Value,
-                TProtoExtensionTag<TColumnMetaExt>::Value,
-                TProtoExtensionTag<TNameTableExt>::Value
-            };
-
-            auto asynChunkMeta = UnderlyingReader_->GetMeta(
-                TColumnarLookupChunkReaderBase::Config_->WorkloadDescriptor,
-                ReadSessionId_,
-                Null,
-                extensionTags);
-            auto chunkMeta = WaitFor(asynChunkMeta)
-                .ValueOrThrow();
-
-            chunkNameTable = FromProto<TNameTablePtr>(GetProtoExtension<TNameTableExt>(
-                chunkMeta.extensions()));
-
-            ChunkMeta_ = New<TColumnarChunkMeta>(std::move(chunkMeta));
-        }
 
         if (!ChunkMeta_->Misc().sorted()) {
             THROW_ERROR_EXCEPTION("Requested a sorted read for an unsorted chunk");
@@ -1571,7 +1523,15 @@ private:
             ChunkMeta_->ChunkSchema().GetKeyColumns(),
             Options_->DynamicTable);
 
-        ChunkMeta_->InitBlockLastKeys(KeyColumns_);
+        TNameTablePtr chunkNameTable;
+        if (Options_->DynamicTable) {
+            chunkNameTable = TNameTable::FromSchema(ChunkMeta_->ChunkSchema());
+            //FIXME
+            //ChunkMeta_->InitBlockLastKeys(KeyColumns_);
+        } else {
+            chunkNameTable = ChunkMeta_->ChunkNameTable();
+            ChunkMeta_->InitBlockLastKeys(KeyColumns_);
+        }
 
         // Create key column readers.
         KeyColumnReaders_.resize(KeyColumns_.size());
@@ -1671,6 +1631,7 @@ private:
 
 ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
     const TChunkStatePtr& chunkState,
+    const TColumnarChunkMetaPtr& chunkMeta,
     TChunkReaderConfigPtr config,
     TChunkReaderOptionsPtr options,
     NChunkClient::IChunkReaderPtr underlyingReader,
@@ -1681,19 +1642,13 @@ ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
     const TReadRange& readRange,
     TNullable<int> partitionTag)
 {
-    const auto& chunkSpec = chunkState->ChunkSpec;
+    YCHECK(chunkMeta->GetChunkType() == EChunkType::Table);
 
-    ETableChunkFormat formatVersion = ETableChunkFormat::SchemalessHorizontal;
-    if (chunkSpec.has_chunk_meta()) {
-        auto type = EChunkType(chunkSpec.chunk_meta().type());
-        YCHECK(type == EChunkType::Table);
-        formatVersion = ETableChunkFormat(chunkSpec.chunk_meta().version());
-    }
-
-    switch (formatVersion) {
+    switch (chunkMeta->GetChunkFormat()) {
         case ETableChunkFormat::SchemalessHorizontal:
             return New<THorizontalSchemalessRangeChunkReader>(
                 chunkState,
+                chunkMeta,
                 config,
                 options,
                 underlyingReader,
@@ -1707,6 +1662,7 @@ ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
         case ETableChunkFormat::UnversionedColumnar:
             return New<TColumnarSchemalessRangeChunkReader>(
                 chunkState,
+                chunkMeta,
                 config,
                 options,
                 underlyingReader,
@@ -1725,6 +1681,7 @@ ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
 
 ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
     const TChunkStatePtr& chunkState,
+    const TColumnarChunkMetaPtr& chunkMeta,
     TChunkReaderConfigPtr config,
     TChunkReaderOptionsPtr options,
     NChunkClient::IChunkReaderPtr underlyingReader,
@@ -1736,19 +1693,14 @@ ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
     TChunkReaderPerformanceCountersPtr performanceCounters,
     TNullable<int> partitionTag)
 {
-    const auto& chunkSpec = chunkState->ChunkSpec;
+    YCHECK(chunkMeta->GetChunkType() == EChunkType::Table);
 
-    ETableChunkFormat formatVersion = ETableChunkFormat::SchemalessHorizontal;
-    if (chunkSpec.has_chunk_meta()) {
-        auto type = EChunkType(chunkSpec.chunk_meta().type());
-        YCHECK(type == EChunkType::Table);
-        formatVersion = ETableChunkFormat(chunkSpec.chunk_meta().version());
-    }
-
+    auto formatVersion = chunkMeta->GetChunkFormat();
     switch (formatVersion) {
         case ETableChunkFormat::SchemalessHorizontal:
             return New<THorizontalSchemalessLookupChunkReader>(
                 chunkState,
+                chunkMeta,
                 std::move(config),
                 std::move(options),
                 std::move(underlyingReader),
@@ -1763,6 +1715,7 @@ ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
         case ETableChunkFormat::UnversionedColumnar:
             return New<TColumnarSchemalessLookupChunkReader>(
                 chunkState,
+                chunkMeta,
                 std::move(config),
                 std::move(options),
                 std::move(underlyingReader),
@@ -1837,6 +1790,12 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                         chunkSpec.has_upper_limit() ? TReadLimit(chunkSpec.upper_limit()) : TReadLimit()
                     };
 
+                    auto asyncChunkMeta = BIND(DownloadChunkMeta, remoteReader, config->WorkloadDescriptor, sessionId, partitionTag)
+                        .AsyncVia(NChunkClient::TDispatcher::Get()->GetReaderInvoker())
+                        .Run();
+                    auto chunkMeta = WaitFor(asyncChunkMeta)
+                        .ValueOrThrow();
+
                     auto chunkState = New<TChunkState>(
                         blockCache,
                         chunkSpec,
@@ -1847,6 +1806,7 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
 
                     return CreateSchemalessChunkReader(
                         std::move(chunkState),
+                        std::move(chunkMeta),
                         PatchConfig(config, memoryEstimate),
                         options,
                         remoteReader,
@@ -2646,7 +2606,7 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
         auto chunkState = New<TChunkState>(
             blockCache,
             chunkSpec,
-            std::move(chunkMeta),
+            nullptr,
             nullptr,
             performanceCounters,
             nullptr);
@@ -2655,6 +2615,7 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
             config,
             std::move(remoteReader),
             std::move(chunkState),
+            std::move(chunkMeta),
             sessionId,
             lowerLimit.GetKey(),
             upperLimit.GetKey(),

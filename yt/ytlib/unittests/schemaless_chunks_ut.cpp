@@ -56,6 +56,7 @@ protected:
     IChunkReaderPtr MemoryReader_;
     TNameTablePtr WriteNameTable_;
     TChunkSpec ChunkSpec_;
+    TColumnarChunkMetaPtr ChunkMeta_;
 
     static TChunkedMemoryPool Pool_;
     static std::vector<TUnversionedRow> Rows_;
@@ -217,8 +218,8 @@ protected:
             std::move(memoryWriter->GetBlocks()));
 
         ToProto(ChunkSpec_.mutable_chunk_id(), NullChunkId);
-        ChunkSpec_.mutable_chunk_meta()->MergeFrom(memoryWriter->GetChunkMeta());
         ChunkSpec_.set_table_row_index(42);
+        ChunkMeta_ = New<TColumnarChunkMeta>(memoryWriter->GetChunkMeta());
     }
 
     static void InitNameTable(TNameTablePtr nameTable, int idShift = 0)
@@ -319,6 +320,7 @@ TEST_P(TSchemalessChunksTest, WithoutSampling)
 
     auto chunkReader = CreateSchemalessChunkReader(
         std::move(chunkState),
+        ChunkMeta_,
         New<TChunkReaderConfig>(),
         New<TChunkReaderOptions>(),
         MemoryReader_,
@@ -527,7 +529,6 @@ protected:
             std::move(memoryWriter->GetBlocks()));
 
         ToProto(ChunkSpec_.mutable_chunk_id(), NullChunkId);
-        ChunkSpec_.mutable_chunk_meta()->MergeFrom(memoryWriter->GetChunkMeta());
         ChunkSpec_.set_table_row_index(42);
     }
 
@@ -545,17 +546,19 @@ protected:
             Schema_);
         auto chunkMeta = WaitFor(asyncCachedMeta)
             .ValueOrThrow();
+        chunkMeta->InitBlockLastKeys(keyColumns);
 
         auto chunkState = New<TChunkState>(
             GetNullBlockCache(),
             ChunkSpec_,
-            chunkMeta,
+            nullptr,
             nullptr,
             nullptr,
             nullptr);
 
         return CreateSchemalessChunkReader(
             std::move(chunkState),
+            chunkMeta,
             New<TChunkReaderConfig>(),
             options,
             MemoryReader_,

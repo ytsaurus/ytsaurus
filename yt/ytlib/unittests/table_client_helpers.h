@@ -6,6 +6,8 @@
 #include <yt/ytlib/table_client/unversioned_row.h>
 #include <yt/ytlib/table_client/versioned_row.h>
 
+#include <iostream>
+
 namespace NYT {
 namespace NTableClient {
 

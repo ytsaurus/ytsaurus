@@ -70,6 +70,7 @@ public:
     const NTabletNode::TSlotManagerPtr& GetTabletSlotManager() const;
     const NTabletNode::TSecurityManagerPtr& GetSecurityManager() const;
     const NTabletNode::TInMemoryManagerPtr& GetInMemoryManager() const;
+    const NTabletNode::TVersionedChunkMetaManagerPtr& GetVersionedChunkMetaManager() const;
     const NExecAgent::TSlotManagerPtr& GetExecSlotManager() const;
     TNodeMemoryTracker* GetMemoryUsageTracker() const;
     const NDataNode::TChunkStorePtr& GetChunkStore() const;
@@ -179,6 +180,7 @@ private:
     NTabletNode::TSlotManagerPtr TabletSlotManager;
     NTabletNode::TSecurityManagerPtr SecurityManager;
     NTabletNode::TInMemoryManagerPtr InMemoryManager;
+    NTabletNode::TVersionedChunkMetaManagerPtr VersionedChunkMetaManager;
 
     NQueryClient::TColumnEvaluatorCachePtr ColumnEvaluatorCache;
     NQueryClient::ISubexecutorPtr QueryExecutor;

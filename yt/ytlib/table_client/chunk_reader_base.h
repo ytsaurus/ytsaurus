@@ -61,10 +61,10 @@ protected:
         std::vector<NChunkClient::TBlockFetcher::TBlockInfo> blockSequence,
         const NChunkClient::NProto::TMiscExt& miscExt);
 
-    static int GetBlockIndexByKey(
+    int GetBlockIndexByKey(
         TKey key,
         const TSharedRange<TKey>& blockIndexKeys,
-        int beginBlockIndex = 0);
+        TNullable<int> keyColumnCount) const;
 
     void CheckBlockUpperKeyLimit(
         const NProto::TBlockMeta& blockMeta,
@@ -79,12 +79,12 @@ protected:
     // These methods return min block index, satisfying the lower limit.
     int ApplyLowerRowLimit(const NProto::TBlockMetaExt& blockMeta, const NChunkClient::TReadLimit& lowerLimit) const;
     int ApplyLowerKeyLimit(const NProto::TBlockMetaExt& blockMeta, const NChunkClient::TReadLimit& lowerLimit, TNullable<int> keyColumnCount = Null) const;
-    int ApplyLowerKeyLimit(const TSharedRange<TKey>& blockIndexKeys, const NChunkClient::TReadLimit& lowerLimit) const;
+    int ApplyLowerKeyLimit(const TSharedRange<TKey>& blockIndexKeys, const NChunkClient::TReadLimit& lowerLimit, TNullable<int> keyColumnCount = Null) const;
 
     // These methods return max block index, satisfying the upper limit.
     int ApplyUpperRowLimit(const NProto::TBlockMetaExt& blockMeta, const NChunkClient::TReadLimit& upperLimit) const;
     int ApplyUpperKeyLimit(const NProto::TBlockMetaExt& blockMeta, const NChunkClient::TReadLimit& upperLimit, TNullable<int> keyColumnCount = Null) const;
-    int ApplyUpperKeyLimit(const TSharedRange<TKey>& blockIndexKeys, const NChunkClient::TReadLimit& upperLimit) const;
+    int ApplyUpperKeyLimit(const TSharedRange<TKey>& blockIndexKeys, const NChunkClient::TReadLimit& upperLimit, TNullable<int> keyColumnCount = Null) const;
 
     virtual void InitFirstBlock() = 0;
     virtual void InitNextBlock() = 0;
@@ -92,7 +92,8 @@ protected:
 private:
     NLogging::TLogger Logger;
 
-    std::vector<TUnversionedValue> WidenKey(const TOwningKey& key, int keyColumnCount) const;
+    std::vector<TUnversionedValue> WidenKey(const TOwningKey& key, TNullable<int> keyColumnCount) const;
+    std::vector<TUnversionedValue> WidenKey(const TKey& key, TNullable<int> keyColumnCount) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -609,6 +609,9 @@ public:
     TPartitionBalancerConfigPtr PartitionBalancer;
     TSecurityManagerConfigPtr SecurityManager;
 
+    //! Cache for versioned chunk metas.
+    TSlruCacheConfigPtr VersionedChunkMetaCache;
+
     //! Controls outcoming bandwidth used by store flushes.
     NConcurrency::TThroughputThrottlerConfigPtr StoreFlushOutThrottler;
 
@@ -666,6 +669,10 @@ public:
             .DefaultNew();
         RegisterParameter("security_manager", SecurityManager)
             .DefaultNew();
+
+        // TODO(savrus) Change to reasonable limit after using this in production.
+        RegisterParameter("versioned_chunk_meta_cache", VersionedChunkMetaCache)
+            .DefaultNew(std::numeric_limits<i64>::max());
 
         RegisterParameter("store_flush_out_throttler", StoreFlushOutThrottler)
             .DefaultNew();

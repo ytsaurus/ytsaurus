@@ -25,9 +25,9 @@ public:
         const TStoreId& id,
         TTablet* tablet,
         NChunkClient::IBlockCachePtr blockCache,
-        NNodeTrackerClient::TNodeMemoryTracker* memoryTracker = nullptr,
         NDataNode::TChunkRegistryPtr chunkRegistry = nullptr,
         NDataNode::TChunkBlockManagerPtr chunkBlockManager = nullptr,
+        TVersionedChunkMetaManagerPtr chunkMetaManager = nullptr,
         NApi::INativeClientPtr client = nullptr,
         const NNodeTrackerClient::TNodeDescriptor& localDescriptor = NNodeTrackerClient::TNodeDescriptor());
     ~TSortedChunkStore();
@@ -71,9 +71,6 @@ private:
     TOwningKey MaxKey_;
 
     const NTableClient::TKeyComparer KeyComparer_;
-    NNodeTrackerClient::TNodeMemoryTracker* MemoryTracker_;
-
-    NTableClient::TCachedVersionedChunkMetaPtr CachedVersionedChunkMeta_;
 
     NTableClient::IVersionedReaderPtr CreateCacheBasedReader(
         const TSharedRange<TKey>& keys,

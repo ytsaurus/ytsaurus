@@ -23,12 +23,14 @@ class TColumnarChunkReaderBase
 {
 public:
     TColumnarChunkReaderBase(
+        TColumnarChunkMetaPtr chunkMeta,
         TChunkReaderConfigPtr config,
         NChunkClient::IChunkReaderPtr underlyingReader,
         NChunkClient::IBlockCachePtr blockCache,
         const NChunkClient::TReadSessionId& sessionId);
 
 protected:
+    const TColumnarChunkMetaPtr ChunkMeta_;
     const TChunkReaderConfigPtr Config_;
     const NChunkClient::IChunkReaderPtr UnderlyingReader_;
     const NChunkClient::IBlockCachePtr BlockCache_;
@@ -36,8 +38,6 @@ protected:
 
     NConcurrency::TAsyncSemaphorePtr Semaphore_;
     NChunkClient::TBlockFetcherPtr BlockFetcher_;
-
-    TColumnarChunkMetaPtr ChunkMeta_;
 
     TFuture<void> ReadyEvent_ = VoidFuture;
     std::vector<TFuture<NChunkClient::TBlock>> PendingBlocks_;

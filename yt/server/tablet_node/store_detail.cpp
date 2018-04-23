@@ -464,12 +464,14 @@ TChunkStoreBase::TChunkStoreBase(
     IBlockCachePtr blockCache,
     TChunkRegistryPtr chunkRegistry,
     TChunkBlockManagerPtr chunkBlockManager,
+    TVersionedChunkMetaManagerPtr chunkMetaManager,
     INativeClientPtr client,
     const TNodeDescriptor& localDescriptor)
     : TStoreBase(std::move(config), id, tablet)
     , BlockCache_(std::move(blockCache))
     , ChunkRegistry_(std::move(chunkRegistry))
     , ChunkBlockManager_(std::move(chunkBlockManager))
+    , ChunkMetaManager_(std::move(chunkMetaManager))
     , Client_(std::move(client))
     , LocalDescriptor_(localDescriptor)
     , ChunkMeta_(New<TRefCountedChunkMeta>())

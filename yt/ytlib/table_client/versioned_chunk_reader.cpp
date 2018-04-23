@@ -599,7 +599,7 @@ public:
         const TColumnFilter& columnFilter,
         TChunkReaderPerformanceCountersPtr performanceCounters,
         TTimestamp timestamp)
-        : TBase(std::move(config), std::move(underlyingReader), std::move(blockCache), sessionId)
+        : TBase(chunkMeta, std::move(config), std::move(underlyingReader), std::move(blockCache), sessionId)
         , VersionedChunkMeta_(std::move(chunkMeta))
         , Timestamp_(timestamp)
         , SchemaIdMapping_(BuildVersionedSimpleSchemaIdMapping(columnFilter, VersionedChunkMeta_))
@@ -610,8 +610,6 @@ public:
         YCHECK(VersionedChunkMeta_->GetChunkFormat() == ETableChunkFormat::VersionedColumnar);
         YCHECK(Timestamp_ != AllCommittedTimestamp || columnFilter.All);
         YCHECK(PerformanceCounters_);
-
-        TBase::ChunkMeta_ = VersionedChunkMeta_;
 
         KeyColumnReaders_.resize(VersionedChunkMeta_->GetKeyColumnCount());
         for (int keyColumnIndex = 0;
@@ -1395,13 +1393,13 @@ IVersionedReaderPtr CreateVersionedChunkReader(
     TChunkReaderConfigPtr config,
     IChunkReaderPtr chunkReader,
     const TChunkStatePtr& chunkState,
+    const TCachedVersionedChunkMetaPtr& chunkMeta,
     const TReadSessionId& sessionId,
     TSharedRange<TRowRange> ranges,
     const TColumnFilter& columnFilter,
     TTimestamp timestamp,
     bool produceAllVersions)
 {
-    const auto& chunkMeta = chunkState->ChunkMeta;
     const auto& blockCache = chunkState->BlockCache;
     const auto& performanceCounters = chunkState->PerformanceCounters;
 
@@ -1476,6 +1474,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
 
                 return CreateSchemalessChunkReader(
                     chunkState,
+                    chunkMeta,
                     config,
                     options,
                     chunkReader,
@@ -1506,6 +1505,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
     TChunkReaderConfigPtr config,
     IChunkReaderPtr chunkReader,
     const TChunkStatePtr& chunkState,
+    const TCachedVersionedChunkMetaPtr& chunkMeta,
     const TReadSessionId& sessionId,
     TOwningKey lowerLimit,
     TOwningKey upperLimit,
@@ -1517,6 +1517,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
         config,
         chunkReader,
         chunkState,
+        chunkMeta,
         sessionId,
         MakeSingletonRowRange(lowerLimit, upperLimit),
         columnFilter,
@@ -1530,13 +1531,13 @@ IVersionedReaderPtr CreateVersionedChunkReader(
     TChunkReaderConfigPtr config,
     NChunkClient::IChunkReaderPtr chunkReader,
     const TChunkStatePtr& chunkState,
+    const TCachedVersionedChunkMetaPtr& chunkMeta,
     const TReadSessionId& sessionId,
     const TSharedRange<TKey>& keys,
     const TColumnFilter& columnFilter,
     TTimestamp timestamp,
     bool produceAllVersions)
 {
-    const auto& chunkMeta = chunkState->ChunkMeta;
     const auto& blockCache = chunkState->BlockCache;
     const auto& performanceCounters = chunkState->PerformanceCounters;
     const auto& keyComparer = chunkState->KeyComparer;
@@ -1591,6 +1592,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
 
                 return CreateSchemalessChunkReader(
                     chunkState,
+                    chunkMeta,
                     config,
                     options,
                     chunkReader,

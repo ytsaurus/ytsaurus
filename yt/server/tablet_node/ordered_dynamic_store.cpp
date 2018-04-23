@@ -18,6 +18,7 @@
 #include <yt/ytlib/table_client/schemaful_writer.h>
 #include <yt/ytlib/table_client/name_table.h>
 #include <yt/ytlib/table_client/cached_versioned_chunk_meta.h>
+#include <yt/ytlib/table_client/chunk_state.h>
 
 #include <yt/ytlib/chunk_client/config.h>
 #include <yt/ytlib/chunk_client/memory_reader.h>
@@ -360,15 +361,23 @@ void TOrderedDynamicStore::AsyncLoad(TLoadContext& context)
         auto chunkMeta = Load<TChunkMeta>(context);
         auto blocks = Load<std::vector<TSharedRef>>(context);
 
+        auto chunkState = New<TChunkState>(
+            GetNullBlockCache(),
+            NChunkClient::NProto::TChunkSpec(),
+            nullptr,
+            nullptr,
+            nullptr,
+            nullptr);
+
         auto chunkReader = CreateMemoryReader(chunkMeta, TBlock::Wrap(blocks));
         auto tableReader = CreateSchemafulChunkReader(
+            std::move(chunkState),
+            New<TColumnarChunkMeta>(chunkMeta),
             New<TChunkReaderConfig>(),
             chunkReader,
-            GetNullBlockCache(),
             TReadSessionId(),
             Schema_,
             TKeyColumns(),
-            chunkMeta,
             TReadRange());
 
         std::vector<TUnversionedRow> rows;
