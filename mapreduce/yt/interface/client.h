@@ -3,6 +3,7 @@
 #include "fwd.h"
 
 #include "client_method_options.h"
+#include "constants.h"
 #include "batch_request.h"
 #include "cypress.h"
 #include "init.h"
