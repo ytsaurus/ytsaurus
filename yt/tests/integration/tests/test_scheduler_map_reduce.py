@@ -320,6 +320,34 @@ print "x={0}\ty={1}".format(x, y)
         op.track()
         assert read_table("//tmp/t2") == [{"foo": "bar"}]
 
+    def test_intermediate_new_live_preview(self):
+        create_user("u")
+        acl = [make_ace("allow", "u", "write")]
+
+        create("table", "//tmp/t1")
+        write_table("//tmp/t1", {"foo": "bar"})
+        create("table", "//tmp/t2")
+
+        op = map_reduce(dont_track=True, mapper_command="cat", reducer_command=with_breakpoint("cat; BREAKPOINT"),
+                        in_="//tmp/t1", out="//tmp/t2",
+                        sort_by=["foo"], spec={"intermediate_data_acl": acl})
+
+        wait(lambda: op.get_job_count("completed") == 1)
+
+        operation_path = get_operation_path(op.id)
+        get(operation_path + "/orchid/data_flow_graph/vertices")
+        intermediate_live_data = read_table(operation_path + "/orchid/data_flow_graph/vertices/partition_map/live_previews/0")
+
+        intermediate_acl = get(operation_path + "/intermediate_data_access/@acl")
+        assert acl == intermediate_acl
+
+        release_breakpoint()
+
+        op.track()
+        assert intermediate_live_data == [{"foo": "bar"}]
+        assert read_table("//tmp/t2") == [{"foo": "bar"}]
+
+
     def test_incorrect_intermediate_data_acl(self):
         create_user("u")
         acl = [make_ace("u", "blabla", "allow")]

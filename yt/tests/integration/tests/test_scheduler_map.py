@@ -561,6 +561,42 @@ print row + table_index
         op.track()
         assert sorted(read_table("//tmp/t2")) == sorted(data)
 
+    def test_new_live_preview_multiple_output_tables(self):
+        create_user("u")
+
+        data = [{"foo": i} for i in range(5)]
+
+        create("table", "//tmp/t_in")
+        write_table("//tmp/t_in", data)
+
+        create("table", "//tmp/t_out1")
+        create("table", "//tmp/t_out2")
+
+        op = map(
+            dont_track=True,
+            command=with_breakpoint('echo "{a=$YT_JOB_INDEX}" >&1; echo "{b=$YT_JOB_INDEX}" >&4; BREAKPOINT'),
+            in_="//tmp/t_in",
+            out=["//tmp/t_out1", "//tmp/t_out2"],
+            spec={"data_size_per_job": 1})
+
+        jobs = wait_breakpoint(job_count=2)
+        operation_path = get_operation_path(op.id)
+        for job_id in jobs[:2]:
+            release_breakpoint(job_id=job_id)
+
+        wait(lambda : op.get_job_count("completed") == 2)
+
+        live_preview_data1 = read_table(operation_path + "/orchid/data_flow_graph/vertices/map/live_previews/0")
+        live_preview_data2 = read_table(operation_path + "/orchid/data_flow_graph/vertices/map/live_previews/1")
+        live_preview_data1 = [d["a"] for d in live_preview_data1]
+        live_preview_data2 = [d["b"] for d in live_preview_data2]
+        assert sorted(live_preview_data1) == sorted(live_preview_data2)
+        assert len(live_preview_data1) == 2
+
+        release_breakpoint()
+        op.track()
+
+
     def test_row_sampling(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")

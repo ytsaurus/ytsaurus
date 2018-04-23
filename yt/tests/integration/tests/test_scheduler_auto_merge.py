@@ -429,3 +429,61 @@ class TestSchedulerAutoMerge(YTEnvSetup):
                 },
             })
         assert get("//tmp/t_out_with_schema/@chunk_count") >= 5
+
+    @pytest.mark.timeout(60)
+    def test_live_preview(self):
+        self._create_account(35)
+
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out1")
+        create("table", "//tmp/t_out2")
+
+        row_count = 50
+        write_table("//tmp/t_in", [{"a" : i} for i in range(row_count)])
+
+        op = map(
+            dont_track=True,
+            in_="//tmp/t_in",
+            out=["//tmp/t_out1", "//tmp/t_out2"],
+            command="read x; echo $x >&$(($x % 2 * 3 + 1))",
+            format="<columns=[a]>schemaful_dsv",
+            spec={
+                "auto_merge": {
+                    "mode": "manual",
+                    "max_intermediate_chunk_count": 20,
+                    "chunk_count_per_merge_job": 15,
+                },
+                "mapper": {
+                    "format": yson.loads("<columns=[a]>schemaful_dsv")
+                },
+                "data_size_per_job": 1
+            })
+
+        # We check that each of 4 possible live previews was non-empty at some moment.
+        live_preview_appeared = {"map": [False, False], "auto_merge": [False, False]}
+
+        while True:
+            state = op.get_state(verbose=False)
+            if state == "completed":
+                break
+            elif state == "failed":
+                op.track() # this should raise an exception
+            for i in range(2):
+                for vertex in live_preview_appeared:
+                    path = get_operation_path(op.id) + "/orchid/data_flow_graph/vertices/{0}/live_previews/{1}".format(vertex, i)
+                    try:
+                        if not exists(path, verbose=False):
+                            continue
+                        data = read_table(path, verbose=False, table_reader={"unavailable_chunk_strategy": "skip"})
+                        if len(data) > 0 and not live_preview_appeared[vertex][i]:
+                            print >>sys.stderr, "Live preview of type {0} and index {1} appeared".format(vertex, i)
+                        live_preview_appeared[vertex][i] = True
+                    except YtError:
+                        pass
+            time.sleep(0.5)
+            print >>sys.stderr, "{0} jobs completed".format(op.get_job_count("completed"))
+
+            if all(live_preview_appeared["map"]) and all(live_preview_appeared["auto_merge"]):
+                break
+
+        op.track()
