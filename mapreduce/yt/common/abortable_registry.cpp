@@ -2,7 +2,7 @@
 
 #include "mapreduce/yt/client/operation.h"
 
-#include <mapreduce/yt/common/log.h>
+#include <mapreduce/yt/interface/logging/log.h>
 
 #include <util/generic/singleton.h>
 

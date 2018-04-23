@@ -2,9 +2,11 @@
 
 #include "proxy_output.h"
 
-#include <library/yson/writer.h>
 #include <mapreduce/yt/common/node_visitor.h>
-#include <mapreduce/yt/common/log.h>
+
+#include <mapreduce/yt/interface/logging/log.h>
+
+#include <library/yson/writer.h>
 
 namespace NYT {
 

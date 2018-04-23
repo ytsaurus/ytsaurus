@@ -4,7 +4,8 @@
 
 #include <mapreduce/yt/common/config.h>
 #include <mapreduce/yt/common/helpers.h>
-#include <mapreduce/yt/common/log.h>
+
+#include <mapreduce/yt/interface/logging/log.h>
 
 #include <library/json/json_writer.h>
 #include <library/string_utils/base64/base64.h>

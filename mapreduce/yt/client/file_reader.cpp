@@ -2,12 +2,13 @@
 
 #include "transaction.h"
 
-#include <mapreduce/yt/io/helpers.h>
-
-#include <mapreduce/yt/common/log.h>
 #include <mapreduce/yt/common/helpers.h>
 #include <mapreduce/yt/common/config.h>
 #include <mapreduce/yt/common/wait_proxy.h>
+
+#include <mapreduce/yt/interface/logging/log.h>
+
+#include <mapreduce/yt/io/helpers.h>
 
 #include <mapreduce/yt/http/http.h>
 #include <mapreduce/yt/http/retry_request.h>

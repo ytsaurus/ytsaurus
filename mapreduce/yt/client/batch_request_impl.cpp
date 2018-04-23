@@ -5,13 +5,13 @@
 #include <mapreduce/yt/common/config.h>
 #include <mapreduce/yt/common/finally_guard.h>
 #include <mapreduce/yt/common/helpers.h>
-#include <mapreduce/yt/common/log.h>
-
-#include <mapreduce/yt/interface/node.h>
-
-#include <mapreduce/yt/node/serialize.h>
 
 #include <mapreduce/yt/http/retry_request.h>
+
+#include <mapreduce/yt/interface/logging/log.h>
+
+#include <mapreduce/yt/node/node.h>
+#include <mapreduce/yt/node/serialize.h>
 
 #include <mapreduce/yt/raw_client/raw_requests.h>
 #include <mapreduce/yt/raw_client/raw_batch_request.h>

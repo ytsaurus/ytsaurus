@@ -3,8 +3,9 @@
 #include "requests.h"
 
 #include <mapreduce/yt/common/config.h>
-#include <mapreduce/yt/common/log.h>
 #include <mapreduce/yt/common/wait_proxy.h>
+
+#include <mapreduce/yt/interface/logging/log.h>
 
 #include <util/stream/str.h>
 
