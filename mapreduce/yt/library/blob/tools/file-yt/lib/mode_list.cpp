@@ -5,8 +5,9 @@
 #include <mapreduce/yt/library/blob/api.h>
 #include <mapreduce/yt/library/blob/protos/info.pb.h>
 
-#include <mapreduce/yt/common/log.h>
 #include <mapreduce/yt/interface/client.h>
+
+#include <mapreduce/yt/interface/logging/log.h>
 
 #include <library/getopt/small/last_getopt.h>
 #include <library/streams/factory/factory.h>

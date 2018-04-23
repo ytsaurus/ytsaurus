@@ -1,7 +1,8 @@
 #include "lenval_table_reader.h"
 
 #include <mapreduce/yt/common/helpers.h>
-#include <mapreduce/yt/common/log.h>
+
+#include <mapreduce/yt/interface/logging/log.h>
 
 #include <util/string/printf.h>
 

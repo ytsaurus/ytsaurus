@@ -7,7 +7,7 @@
 #include <mapreduce/yt/common/abortable_registry.h>
 #include <mapreduce/yt/common/config.h>
 #include <mapreduce/yt/common/helpers.h>
-#include <mapreduce/yt/common/log.h>
+#include <mapreduce/yt/interface/logging/log.h>
 #include <mapreduce/yt/common/node_builder.h>
 #include <mapreduce/yt/common/wait_proxy.h>
 

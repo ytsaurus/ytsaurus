@@ -1,8 +1,8 @@
 #include "config.h"
 
-#include "log.h"
 #include "helpers.h"
 
+#include <mapreduce/yt/interface/logging/log.h>
 #include <mapreduce/yt/node/node_builder.h>
 
 #include <library/json/json_reader.h>

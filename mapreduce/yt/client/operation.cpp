@@ -7,15 +7,16 @@
 #include "retry_heavy_write_request.h"
 #include "yt_poller.h"
 
+#include <mapreduce/yt/common/abortable_registry.h>
+#include <mapreduce/yt/common/config.h>
+#include <mapreduce/yt/common/helpers.h>
+#include <mapreduce/yt/common/wait_proxy.h>
+
 #include <mapreduce/yt/interface/errors.h>
 #include <mapreduce/yt/interface/fluent.h>
 #include <mapreduce/yt/interface/job_statistics.h>
 
-#include <mapreduce/yt/common/abortable_registry.h>
-#include <mapreduce/yt/common/log.h>
-#include <mapreduce/yt/common/config.h>
-#include <mapreduce/yt/common/helpers.h>
-#include <mapreduce/yt/common/wait_proxy.h>
+#include <mapreduce/yt/interface/logging/log.h>
 
 #include <mapreduce/yt/node/serialize.h>
 

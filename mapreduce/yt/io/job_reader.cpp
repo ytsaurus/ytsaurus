@@ -1,5 +1,7 @@
 #include "job_reader.h"
-#include <mapreduce/yt/common/log.h>
+
+#include <mapreduce/yt/interface/logging/log.h>
+
 #include <util/generic/yexception.h>
 
 namespace NYT {

@@ -4,15 +4,17 @@
 
 #include <mapreduce/yt/common/config.h>
 #include <mapreduce/yt/common/helpers.h>
-#include <mapreduce/yt/common/log.h>
-#include <mapreduce/yt/node/serialize.h>
 #include <mapreduce/yt/common/wait_proxy.h>
+
+#include <mapreduce/yt/interface/logging/log.h>
 
 #include <mapreduce/yt/io/helpers.h>
 #include <mapreduce/yt/io/yamr_table_reader.h>
 
 #include <mapreduce/yt/http/requests.h>
 #include <mapreduce/yt/http/retry_request.h>
+
+#include <mapreduce/yt/node/serialize.h>
 
 #include <mapreduce/yt/raw_client/raw_requests.h>
 

@@ -1,10 +1,11 @@
 #include "node_table_reader.h"
 
-#include <library/yson/parser.h>
-
 #include <mapreduce/yt/common/node_builder.h>
-#include <mapreduce/yt/common/log.h>
 #include <mapreduce/yt/common/wait_proxy.h>
+
+#include <mapreduce/yt/interface/logging/log.h>
+
+#include <library/yson/parser.h>
 
 namespace NYT {
 

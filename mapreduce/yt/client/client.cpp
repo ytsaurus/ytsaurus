@@ -13,11 +13,12 @@
 #include "yt_poller.h"
 
 #include <mapreduce/yt/interface/client.h>
+#include <mapreduce/yt/interface/fluent.h>
 
-#include <mapreduce/yt/common/log.h>
+#include <mapreduce/yt/interface/logging/log.h>
+
 #include <mapreduce/yt/common/helpers.h>
 #include <mapreduce/yt/common/config.h>
-#include <mapreduce/yt/interface/fluent.h>
 #include <mapreduce/yt/common/finally_guard.h>
 
 #include <mapreduce/yt/http/http.h>
