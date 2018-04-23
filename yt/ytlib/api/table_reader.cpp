@@ -264,7 +264,8 @@ void TSchemalessTableReader::DoOpen()
                 SetSuppressAccessTracking(req, Config_->SuppressAccessTracking);
             },
             Logger,
-            &chunkSpecs);
+            &chunkSpecs,
+            Config_->UnavailableChunkStrategy == EUnavailableChunkStrategy::Skip /* skipUnavailableChunks */);
 
         CheckUnavailableChunks(&chunkSpecs);
     }
