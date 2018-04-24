@@ -315,6 +315,10 @@ public:
 
         LOG_DEBUG("Executing porto container (Command: %v)", command);
 
+        // NB(psushin): Make sure subcontainer starts with the same user.
+        // For unknown reason in the     cloud we've seen user_job containers with user=loadbase.
+        SetProperty("user", ToString(::getuid()));
+
         // Enable core dumps for all container instances.
         SetProperty("ulimit", "core: unlimited");
         TString controllers = "freezer;cpu;cpuacct;net_cls;blkio;devices";

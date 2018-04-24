@@ -1138,9 +1138,11 @@ private:
         // If job successfully completes or dies prematurely, they close automatically.
         WaitFor(CombineAll(outputFutures))
             .ThrowOnError();
+        LOG_INFO("Output actions finished");
+
         WaitFor(CombineAll(stderrFutures))
             .ThrowOnError();
-        LOG_INFO("Output actions finished");
+        LOG_INFO("Error actions finished");
 
         // Then, wait for job process to finish.
         // Theoretically, process could have explicitely closed its output pipes
