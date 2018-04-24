@@ -564,7 +564,11 @@ public:
             instance->SetRoot(*RootFS_);
         }
 
-        return New<TPortoUserJobEnvironment>(SlotAbsoluteName_, PortoExecutor_, instance, BlockIOWatchdogPeriod_);
+        return New<TPortoUserJobEnvironment>(
+            SlotAbsoluteName_,
+            PortoExecutor_,
+            std::move(instance),
+            BlockIOWatchdogPeriod_);
     }
 
 private:
