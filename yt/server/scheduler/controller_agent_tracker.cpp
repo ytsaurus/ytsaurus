@@ -64,7 +64,10 @@ TFuture<TIntrusivePtr<TResponse>> InvokeAgent(
         LOG_DEBUG(rspOrError, "Agent response received (AgentId: %v, OperationId: %v)",
             agent->GetId(),
             operationId);
-        if (IsChannelFailureError(rspOrError)) {
+        if (rspOrError.GetCode() == NControllerAgent::EErrorCode::AgentCallFailed) {
+            YCHECK(rspOrError.InnerErrors().size() == 1);
+            THROW_ERROR rspOrError.InnerErrors()[0];
+        } else if (IsChannelFailureError(rspOrError)) {
             const auto& agentTracker = bootstrap->GetControllerAgentTracker();
             agentTracker->HandleAgentFailure(agent, rspOrError);
         }
