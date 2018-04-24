@@ -35,6 +35,9 @@ enum EObjectType
 
     OT_NODE_SEGMENT = 7
     [(NYT.NYson.NProto.enum_value_name) = "node_segment"];
+
+    OT_VIRTUAL_SERVICE = 8
+    [(NYT.NYson.NProto.enum_value_name) = "virtual_service"];
 }
 
 enum EEventType
@@ -63,6 +66,15 @@ enum EResourceKind
     [(NYT.NYson.NProto.enum_value_name) = "disk"];
 }
 
+enum EDiskVolumePolicy
+{
+    DVP_QUOTA = 0
+    [(NYT.NYson.NProto.enum_value_name) = "quota"];
+
+    DVP_EXCLUSIVE = 1
+    [(NYT.NYson.NProto.enum_value_name) = "exclusive"];
+}
+
 message TResourceMeta
 {
     optional string id = 1;
@@ -70,20 +82,83 @@ message TResourceMeta
     optional uint64 creation_time = 3;
 
     required string node_id = 4;
+    required EResourceKind kind = 5;
 }
 
 message TResourceSpec
 {
-    required EResourceKind kind = 1;
-    required uint64 total_capacity = 2;
+    // TODO(babenko): deprecate
+    optional EResourceKind kind = 1;
+    // TODO(babenko): deprecate
+    optional uint64 total_capacity = 2;
+
+    message TCpuSpec
+    {
+        // In VCPU units.
+        required uint64 total_capacity = 1;
+        // Calibrated compute power of a single "physical" CPU core.
+        // Typically "physical" CPU cores are, in fact, HT threads.
+        optional double cpu_to_vcpu_factor = 2;
+    }
+
+    message TMemorySpec
+    {
+        // In bytes.
+        required uint64 total_capacity = 1;
+    }
+
+    message TDiskSpec
+    {
+        // E.g. ssd, hdd etc.
+        required string storage_class = 1;
+        // In bytes.
+        required uint64 total_capacity = 2;
+        // Each volume occupies a virtual "slot".
+        // This prevents assigning too many volumes to a single physical disk.
+        optional uint64 total_volume_slots = 3;
+        // E.g. /dev/* path.
+        optional string device = 4;
+        // List of supported allocation policies.
+        repeated EDiskVolumePolicy supported_policies = 5;
+    }
+
+    oneof concrete_spec
+    {
+        TCpuSpec cpu = 3;
+        TMemorySpec memory = 4;
+        TDiskSpec disk = 5;
+    }
 }
 
 message TResourceStatus
 {
+    message TCpuAllocation
+    {
+        required uint64 capacity = 1;
+    }
+
+    message TMemoryAllocation
+    {
+        required uint64 capacity = 1;
+    }
+
+    message TDiskAllocation
+    {
+        required uint64 capacity = 1;
+        required bool exclusive = 2;
+        required string volume_id = 3;
+    }
+
     message TAllocation
     {
         optional string pod_id = 1;
-        optional uint64 capacity = 2;
+
+        oneof concrete_allocation
+        {
+            TCpuAllocation cpu = 2;
+            TMemoryAllocation memory = 3;
+            TDiskAllocation disk = 4;
+        }
     }
     repeated TAllocation scheduled_allocations = 1;
     repeated TAllocation actual_allocations = 2;
@@ -309,7 +384,7 @@ message TPodSpec
     optional NYP.NClient.NApi.NClusterApiProto.HostConfiguration iss = 9;
 
     // Node id this pod must be assigned to.
-    // WILL BE REMOVED SOON. DON'T USE.
+    // XXX(babenko): WILL BE REMOVED SOON. DON'T USE.
     optional string node_id = 2;
 
     message TResourceRequests
@@ -322,6 +397,7 @@ message TPodSpec
         optional uint64 anonymous_memory_limit = 5;
         optional uint64 dirty_memory_limit = 6;
     };
+    // CPU and memory resources to allocate and configure for this pod upon assignment.
     optional TResourceRequests resource_requests = 3;
 
     message TIP6AddressRequest
@@ -333,7 +409,7 @@ message TPodSpec
         // Will be matched against /node/spec/ip6_subnets/*/vlan_id.
         required string vlan_id = 2;
 
-        // These labels get propagated to /node/status/ip6_address_allocations/*/labels
+        // These labels get propagated to /pod/status/ip6_address_allocations/*/labels
         optional NYT.NYTree.NProto.TAttributeDictionary labels = 3;
 
         // If given, specifies the exact IP6 address to use thus disabling IP Broker.
@@ -346,6 +422,7 @@ message TPodSpec
         // If non-empty, full DNS name is prepended with this string (plus dot).
         optional string dns_prefix = 6;
     }
+    // IP6 addresses to allocate for this pod upon assignment.
     repeated TIP6AddressRequest ip6_address_requests = 5;
 
     message TIP6SubnetRequest
@@ -356,7 +433,41 @@ message TPodSpec
         // These labels get propagated to /node/status/ip6_subnet_allocations/*/labels
         optional NYT.NYTree.NProto.TAttributeDictionary labels = 2;
     }
+    // IP6 subnets to allocate for this pod upon assignment.
     repeated TIP6SubnetRequest ip6_subnet_requests = 6;
+
+    message TDiskVolumeRequest
+    {
+        // Pod-wise unique id.
+        required string id = 1;
+
+        // These labels get propagated to /pod/status/disk_volume_allocations/*/labels
+        optional NYT.NYTree.NProto.TAttributeDictionary labels = 2;
+
+        // E.g. ssd, hdd.
+        required string storage_class = 3;
+
+        message TQuotaPolicy
+        {
+            // Quota limit for this volume.
+            required uint64 capacity = 1;
+        }
+
+        message TExclusivePolicy
+        {
+            // Minimum capacity the disk must have.
+            // The client, however, will be charged for the whole disk capacity.
+            required uint64 min_capacity = 1;
+        }
+
+        oneof concrete_policy
+        {
+            TQuotaPolicy quota_policy = 6;
+            TExclusivePolicy exclusive_policy = 7;
+        }
+    }
+    // Disk volumes to allocate for this pod upon assignment.
+    repeated TDiskVolumeRequest disk_volume_requests = 13;
 
     // If false then YP will not be scheduling this pod.
     optional bool enable_scheduling = 7;
@@ -373,7 +484,6 @@ message TPodSpec
         // E.g. "r", "rw"
         required string mode = 2;
     }
-
     // Host devices to configure.
     // https://wiki.yandex-team.ru/porto/propertiesanddata/#resursy
     repeated THostDevice host_devices = 10;
@@ -383,9 +493,18 @@ message TPodSpec
         required string name = 1;
         required string value = 2;
     }
-
     // Sysctl properties to configure.
     repeated TSysctlProperty sysctl_properties = 11;
+
+    message TVirtualServiceTunnel
+    {
+        required string virtual_service_id = 1;
+        optional uint32 ip4_mtu = 2;
+        optional uint32 ip6_mtu = 3;
+        optional string decapsulator_anycast_address = 4;
+    }
+
+    optional TVirtualServiceTunnel virtual_service_tunnel = 12;
 }
 
 enum EEvictionState
@@ -459,7 +578,7 @@ message TPodStatus
         // Copied from /pod/spec/ip6_addresses/*/vlan_id.
         optional string vlan_id = 2;
 
-        // Copied from /node/spec/ip6_subnet_requests/*/labels
+        // Copied from /pod/spec/ip6_subnet_requests/*/labels
         optional NYT.NYTree.NProto.TAttributeDictionary labels = 3;
 
         // True if the the address was manually specified via /pod/spec/ip6_address_allocations/*/manual_address.
@@ -489,6 +608,30 @@ message TPodStatus
         optional NYT.NYTree.NProto.TAttributeDictionary labels = 3;
     }
     repeated TIP6SubnetAllocation ip6_subnet_allocations = 6;
+
+    message TDiskVolumeAllocation
+    {
+        // Copied from /pod/spec/disk_volume_requests/*/id.
+        optional string id = 1;
+
+        // Copied from /pod/spec/ip6_subnet_requests/*/labels.
+        optional NYT.NYTree.NProto.TAttributeDictionary labels = 3;
+
+        // Total volume capacity.
+        optional uint64 capacity = 4;
+
+        // Id of disk resource where this volume will reside.
+        optional string resource_id = 5;
+
+        // Globally-unique volume id.
+        // This is generated each time a "new" volume is assigned to the pod.
+        // "New" volumes are recognized based on /pod/spec/disk_volume_allocations/*/id.
+        optional string volume_id = 6;
+
+        // Copied from /resource/spec/disk/device.
+        optional string device = 7;
+    }
+    repeated TDiskVolumeAllocation disk_volume_allocations = 14;
 
     message TDns
     {
@@ -531,6 +674,16 @@ message TPodStatus
 
     // Timestamp of the spec as reported by agent.
     optional uint64 agent_spec_timestamp = 12;
+
+    message TVirtualService
+    {
+        // IP6 address, in textual form.
+        repeated string ip6_addresses = 1;
+        // IP4 address, in textual form.
+        repeated string ip4_addresses = 2;
+    }
+
+    optional TVirtualService virtual_service = 13;
 }
 
 message TPodControl
@@ -579,6 +732,7 @@ message TPodSetSpec
         required int64 max_pods = 2;
 
         // Describes the pods this constraint applies to.
+        // TODO(babenko): this is not currently implemented
         optional string pod_filter = 3;
     }
 
@@ -712,9 +866,38 @@ message TNodeSegmentStatus
 
 message TNodeSegment
 {
-    optional TResourceMeta meta = 1;
-    optional TResourceSpec spec = 2;
-    optional TResourceStatus status = 3;
+    optional TNodeSegmentMeta meta = 1;
+    optional TNodeSegmentSpec spec = 2;
+    optional TNodeSegmentStatus status = 3;
+    optional NYT.NYTree.NProto.TAttributeDictionary labels = 4;
+    optional NYT.NYTree.NProto.TAttributeDictionary annotations = 5;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TVirtualServiceMeta
+{
+    optional string id = 1;
+    optional EObjectType type = 2;
+    optional uint64 creation_time = 3;
+}
+
+message TVirtualServiceSpec
+{
+    // IP6 address, in textual form.
+    repeated string ip6_addresses = 1;
+    // IP4 address, in textual form.
+    repeated string ip4_addresses = 2;
+}
+
+message TVirtualServiceStatus
+{ }
+
+message TVirtualService
+{
+    optional TVirtualServiceMeta meta = 1;
+    optional TVirtualServiceSpec spec = 2;
+    optional TVirtualServiceStatus status = 3;
     optional NYT.NYTree.NProto.TAttributeDictionary labels = 4;
     optional NYT.NYTree.NProto.TAttributeDictionary annotations = 5;
 }

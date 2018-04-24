@@ -30,6 +30,8 @@ message TRequestHeader
     optional int32 request_format = 15;
     optional int32 response_format = 16;
 
+    optional bool uncancelable = 17 [default = false];
+
     extensions 100 to max;
 }
 
