@@ -19,7 +19,7 @@ using namespace NJson;
 
 static void WriteErrorDescription(const TYtError& error, IOutputStream* out)
 {
-    (*out) << '`' << error.GetMessage() << '\'';
+    (*out) << '\'' << error.GetMessage() << '\'';
     const auto& innerErrorList = error.InnerErrors();
     if (!innerErrorList.empty()) {
         (*out) << " { ";
