@@ -4,9 +4,11 @@
 #include <mapreduce/yt/tests/native/proto_lib/row.pb.h>
 
 #include <mapreduce/yt/common/config.h>
+#include <mapreduce/yt/common/finally_guard.h>
 
 #include <mapreduce/yt/interface/errors.h>
 #include <mapreduce/yt/interface/io.h>
+#include <mapreduce/yt/interface/serialize.h>
 
 #include <mapreduce/yt/http/abortable_http_response.h>
 
@@ -40,64 +42,155 @@ static TString RandomBytes() {
 }
 
 SIMPLE_UNIT_TEST_SUITE(TableIo) {
-    SIMPLE_UNIT_TEST(Simple)
+
+#define INSTANTIATE_NODE_READER_TESTS(test) \
+    SIMPLE_UNIT_TEST(test ## _Yson_NonStrict) \
+    { \
+        TConfigSaverGuard configGuard; \
+        TConfig::Get()->NodeReaderFormat = ENodeReaderFormat::Yson; \
+        test(false); \
+    } \
+    SIMPLE_UNIT_TEST(test ## _Yson_Strict) \
+    { \
+        TConfigSaverGuard configGuard; \
+        TConfig::Get()->NodeReaderFormat = ENodeReaderFormat::Yson; \
+        test(true); \
+    } \
+    SIMPLE_UNIT_TEST(test ## _Skiff) \
+    { \
+        TConfigSaverGuard configGuard; \
+        TConfig::Get()->NodeReaderFormat = ENodeReaderFormat::Skiff; \
+        test(true); \
+    }
+
+    TRichYPath CreatePath(bool strictSchema)
+    {
+        TRichYPath path = "//testing/table";
+        if (strictSchema) {
+            path.Schema(TTableSchema().Strict(true)
+                .AddColumn(TColumnSchema().Name("key1").Type(VT_STRING).Required(true))
+                .AddColumn(TColumnSchema().Name("key2").Type(VT_STRING))
+                .AddColumn(TColumnSchema().Name("key3").Type(VT_STRING)));
+        }
+        return path;
+    }
+
+    void Simple(bool strictSchema)
     {
         auto client = CreateTestClient();
+        auto path = CreatePath(strictSchema);
         {
-            auto writer = client->CreateTableWriter<TNode>("//testing/table");
+            auto writer = client->CreateTableWriter<TNode>(path);
             writer->AddRow(TNode()("key1", "value1")("key2", "value2")("key3", "value3"));
             writer->Finish();
         }
 
-        auto reader = client->CreateTableReader<TNode>("//testing/table");
+        auto reader = client->CreateTableReader<TNode>(path);
         UNIT_ASSERT(reader->IsValid());
         UNIT_ASSERT_VALUES_EQUAL(reader->GetRow(), TNode()("key1", "value1")("key2", "value2")("key3", "value3"));
         reader->Next();
         UNIT_ASSERT(!reader->IsValid());
     }
+    INSTANTIATE_NODE_READER_TESTS(Simple)
 
-    SIMPLE_UNIT_TEST(NonEmptyColumns)
+    void NonEmptyColumns(bool strictSchema)
     {
         auto client = CreateTestClient();
+        auto path = CreatePath(strictSchema);
         {
-            auto writer = client->CreateTableWriter<TNode>("//testing/table");
+            auto writer = client->CreateTableWriter<TNode>(path);
             writer->AddRow(TNode()("key1", "value1")("key2", "value2")("key3", "value3"));
             writer->Finish();
         }
 
-        auto reader = client->CreateTableReader<TNode>(TRichYPath("//testing/table").Columns({"key1", "key3"}));
+        auto reader = client->CreateTableReader<TNode>(path.Columns({"key1", "key3"}));
         UNIT_ASSERT(reader->IsValid());
         UNIT_ASSERT_VALUES_EQUAL(reader->GetRow(), TNode()("key1", "value1")("key3", "value3"));
         reader->Next();
         UNIT_ASSERT(!reader->IsValid());
     }
+    SIMPLE_UNIT_TEST(NonEmptyColumns_Yson)
+    {
+        TConfigSaverGuard configGuard;
+        TConfig::Get()->NodeReaderFormat = ENodeReaderFormat::Yson;
+        NonEmptyColumns(false);
+    }
+    SIMPLE_UNIT_TEST(NonEmptyColumns_Skiff)
+    {
+        TConfigSaverGuard configGuard;
+        TConfig::Get()->NodeReaderFormat = ENodeReaderFormat::Skiff;
+        UNIT_ASSERT_EXCEPTION(NonEmptyColumns(true), yexception);
+    }
 
-    SIMPLE_UNIT_TEST(EmptyColumns)
+    void EmptyColumns(bool strictSchema)
     {
         auto client = CreateTestClient();
+        auto path = CreatePath(strictSchema);
         {
-            auto writer = client->CreateTableWriter<TNode>("//testing/table");
+            auto writer = client->CreateTableWriter<TNode>(path);
             writer->AddRow(TNode()("key1", "value1")("key2", "value2")("key3", "value3"));
             writer->Finish();
         }
 
-        auto reader = client->CreateTableReader<TNode>(TRichYPath("//testing/table").Columns({}));
+        auto reader = client->CreateTableReader<TNode>(path.Columns({}));
         UNIT_ASSERT(reader->IsValid());
         UNIT_ASSERT_VALUES_EQUAL(reader->GetRow(), TNode::CreateMap());
         reader->Next();
         UNIT_ASSERT(!reader->IsValid());
     }
+    SIMPLE_UNIT_TEST(EmptyColumns_Yson)
+    {
+        TConfigSaverGuard configGuard;
+        TConfig::Get()->NodeReaderFormat = ENodeReaderFormat::Yson;
+        EmptyColumns(false);
+    }
+    SIMPLE_UNIT_TEST(EmptyColumns_Skiff)
+    {
+        TConfigSaverGuard configGuard;
+        TConfig::Get()->NodeReaderFormat = ENodeReaderFormat::Skiff;
+        UNIT_ASSERT_EXCEPTION(EmptyColumns(true), yexception);
+    }
 
-    SIMPLE_UNIT_TEST(Move)
+    void MissingColumns()
     {
         auto client = CreateTestClient();
+        auto path = CreatePath(/* strictSchema = */ true);
         {
-            auto writer = client->CreateTableWriter<TNode>("//testing/table");
+            auto writer = client->CreateTableWriter<TNode>(path);
+            writer->AddRow(TNode()("key1", "value1")("key3", "value3"));
+            writer->Finish();
+        }
+        auto reader = client->CreateTableReader<TNode>(path);
+        UNIT_ASSERT(reader->IsValid());
+        UNIT_ASSERT_VALUES_EQUAL(reader->GetRow(), TNode()("key1", "value1")("key2", TNode::CreateEntity())("key3", "value3"));
+        reader->Next();
+        UNIT_ASSERT(!reader->IsValid());
+    }
+    SIMPLE_UNIT_TEST(MissingColumns_Yson)
+    {
+        TConfigSaverGuard configGuard;
+        TConfig::Get()->NodeReaderFormat = ENodeReaderFormat::Yson;
+        MissingColumns();
+    }
+    SIMPLE_UNIT_TEST(MissingColumns_Skiff)
+    {
+        TConfigSaverGuard configGuard;
+        TConfig::Get()->NodeReaderFormat = ENodeReaderFormat::Skiff;
+        MissingColumns();
+    }
+
+
+    void Move(bool strictSchema)
+    {
+        auto client = CreateTestClient();
+        auto path = CreatePath(strictSchema);
+        {
+            auto writer = client->CreateTableWriter<TNode>(path);
             writer->AddRow(TNode()("key1", "value1")("key2", "value2")("key3", "value3"));
             writer->AddRow(TNode()("key1", "value4")("key2", "value5")("key3", "value6"));
             writer->Finish();
         }
-        auto reader = client->CreateTableReader<TNode>(TRichYPath("//testing/table"));
+        auto reader = client->CreateTableReader<TNode>(path);
         UNIT_ASSERT(reader->IsValid());
 
         UNIT_ASSERT_VALUES_EQUAL(reader->MoveRow(), TNode()("key1", "value1")("key2", "value2")("key3", "value3"));
@@ -117,6 +210,180 @@ SIMPLE_UNIT_TEST_SUITE(TableIo) {
 
         reader->Next();
         UNIT_ASSERT(!reader->IsValid());
+    }
+    INSTANTIATE_NODE_READER_TESTS(Move)
+
+    void ReadUncanonicalPath(bool strictSchema)
+    {
+        auto client = CreateTestClient();
+        {
+            auto path = TRichYPath("//testing/table");
+            if (strictSchema) {
+                path.Schema(TTableSchema().Strict(true)
+                    .AddColumn(TColumnSchema().Name("key").Type(VT_INT64).SortOrder(SO_ASCENDING)));
+            } else {
+                path.SortedBy("key");
+            }
+            auto writer = client->CreateTableWriter<TNode>(path);
+
+            for (int i = 0; i < 100; ++i) {
+                writer->AddRow(TNode()("key", i));
+            }
+            writer->Finish();
+        }
+
+        TRichYPath path = "//testing/table[#10:#20,30:40,#50:#60,70:80,#90,95]";
+
+        TVector<i64> actual;
+        auto reader = client->CreateTableReader<TNode>(path);
+        for (; reader->IsValid(); reader->Next()) {
+            const auto& row = reader->GetRow();
+            actual.push_back(row["key"].AsInt64());
+        }
+
+        const TVector<i64> expected = {
+            10, 11, 12, 13, 14, 15, 16, 17, 18, 19,
+            30, 31, 32, 33, 34, 35, 36, 37, 38, 39,
+            50, 51, 52, 53, 54, 55, 56, 57, 58, 59,
+            70, 71, 72, 73, 74, 75, 76, 77, 78, 79,
+            90,
+            95,
+        };
+        UNIT_ASSERT_VALUES_EQUAL(actual, expected);
+    }
+    INSTANTIATE_NODE_READER_TESTS(ReadUncanonicalPath)
+
+    void ReadMultipleRangesNode(bool strictSchema)
+    {
+        auto client = CreateTestClient();
+        {
+            auto path = TRichYPath("//testing/table");
+            if (strictSchema) {
+                path.Schema(TTableSchema().Strict(true)
+                    .AddColumn(TColumnSchema().Name("key").Type(VT_INT64).SortOrder(SO_ASCENDING)));
+            } else {
+                path.SortedBy("key");
+            }
+            auto writer = client->CreateTableWriter<TNode>(path);
+
+            for (int i = 0; i < 100; ++i) {
+                writer->AddRow(TNode()("key", 1000 + i));
+            }
+            writer->Finish();
+        }
+
+        TRichYPath path("//testing/table");
+        path.AddRange(TReadRange()
+            .LowerLimit(TReadLimit().RowIndex(10))
+            .UpperLimit(TReadLimit().RowIndex(20)));
+        path.AddRange(TReadRange()
+            .LowerLimit(TReadLimit().Key(1030))
+            .UpperLimit(TReadLimit().Key(1040)));
+        path.AddRange(TReadRange()
+            .LowerLimit(TReadLimit().RowIndex(50))
+            .UpperLimit(TReadLimit().RowIndex(60)));
+        path.AddRange(TReadRange()
+            .LowerLimit(TReadLimit().Key(1070))
+            .UpperLimit(TReadLimit().Key(1080)));
+        path.AddRange(TReadRange()
+            .Exact(TReadLimit().RowIndex(90)));
+        path.AddRange(TReadRange()
+            .Exact(TReadLimit().Key(1095)));
+
+        TVector<i64> actualKeys;
+        TVector<i64> actualRowIndices;
+        auto reader = client->CreateTableReader<TNode>(path);
+        for (; reader->IsValid(); reader->Next()) {
+            const auto& row = reader->GetRow();
+            actualKeys.push_back(row["key"].AsInt64());
+            actualRowIndices.push_back(reader->GetRowIndex());
+        }
+
+        const TVector<i64> expectedKeys = {
+            1010, 1011, 1012, 1013, 1014, 1015, 1016, 1017, 1018, 1019,
+            1030, 1031, 1032, 1033, 1034, 1035, 1036, 1037, 1038, 1039,
+            1050, 1051, 1052, 1053, 1054, 1055, 1056, 1057, 1058, 1059,
+            1070, 1071, 1072, 1073, 1074, 1075, 1076, 1077, 1078, 1079,
+            1090,
+            1095,
+        };
+        const TVector<i64> expectedRowIndices = {
+            10, 11, 12, 13, 14, 15, 16, 17, 18, 19,
+            30, 31, 32, 33, 34, 35, 36, 37, 38, 39,
+            50, 51, 52, 53, 54, 55, 56, 57, 58, 59,
+            70, 71, 72, 73, 74, 75, 76, 77, 78, 79,
+            90,
+            95,
+        };
+        UNIT_ASSERT_VALUES_EQUAL(actualKeys, expectedKeys);
+        UNIT_ASSERT_VALUES_EQUAL(actualRowIndices, expectedRowIndices);
+    }
+    INSTANTIATE_NODE_READER_TESTS(ReadMultipleRangesNode)
+
+#undef INSTANTIATE_NODE_READER_TESTS
+
+    void TestNodeReader(ENodeReaderFormat format, bool strictSchema) {
+        TConfigSaverGuard configGuard;
+        TConfig::Get()->NodeReaderFormat = format;
+
+        auto client = CreateTestClient();
+        auto path = "//testing/table";
+        NYT::NDetail::TFinallyGuard finally([&]{
+            client->Remove(path, TRemoveOptions().Force(true));
+        });
+
+        auto row = TNode()
+            ("int64", 1 - (1LL << 62))
+            ("int16", 42 - (1 << 14))
+            ("uint64", 1ULL << 63)
+            ("uint16", 1U << 15)
+            ("boolean", true)
+            ("double", 1.4242e42)
+            ("string", "Just a string");
+
+        auto schema = TTableSchema().Strict(strictSchema);
+        for (const auto& p : row.AsMap()) {
+            EValueType type;
+            Deserialize(type, p.first);
+            schema.AddColumn(TColumnSchema().Name(p.first).Type(type));
+        }
+        {
+            auto writer = client->CreateTableWriter<TNode>(TRichYPath(path).Schema(schema));
+            writer->AddRow(row);
+            writer->Finish();
+        }
+        auto reader = client->CreateTableReader<TNode>(path);
+        UNIT_ASSERT(reader->IsValid());
+        UNIT_ASSERT_VALUES_EQUAL(reader->GetRow(), row);
+        UNIT_ASSERT_VALUES_EQUAL(reader->MoveRow(), row);
+        UNIT_ASSERT_NO_EXCEPTION(reader->Next());
+        UNIT_ASSERT(!reader->IsValid());
+        UNIT_ASSERT_EXCEPTION(reader->GetRow(), yexception);
+    }
+
+    SIMPLE_UNIT_TEST(NodeReader_Skiff_Strict)
+    {
+        TestNodeReader(ENodeReaderFormat::Skiff, true);
+    }
+    SIMPLE_UNIT_TEST(NodeReader_Skiff_NonStrict)
+    {
+        UNIT_ASSERT_EXCEPTION(TestNodeReader(ENodeReaderFormat::Skiff, false), yexception);
+    }
+    SIMPLE_UNIT_TEST(NodeReader_Auto_Strict)
+    {
+        TestNodeReader(ENodeReaderFormat::Auto, true);
+    }
+    SIMPLE_UNIT_TEST(NodeReader_Auto_NonStrict)
+    {
+        TestNodeReader(ENodeReaderFormat::Auto, false);
+    }
+    SIMPLE_UNIT_TEST(NodeReader_Yson_Strict)
+    {
+        TestNodeReader(ENodeReaderFormat::Yson, true);
+    }
+    SIMPLE_UNIT_TEST(NodeReader_Yson_NonStrict)
+    {
+        TestNodeReader(ENodeReaderFormat::Yson, false);
     }
 
     SIMPLE_UNIT_TEST(Protobuf)
@@ -382,94 +649,6 @@ SIMPLE_UNIT_TEST_SUITE(TableIo) {
         UNIT_ASSERT_EXCEPTION(readRemaining(), NYT::TErrorResponse);
     }
 
-    SIMPLE_UNIT_TEST(ReadUncanonicalPath)
-    {
-        auto client = CreateTestClient();
-        auto writer = client->CreateTableWriter<TNode>(
-            TRichYPath("//testing/table").SortedBy("key"));
-
-        for (int i = 0; i < 100; ++i) {
-            writer->AddRow(TNode()("key", i));
-        }
-        writer->Finish();
-
-        TRichYPath path("//testing/table[#10:#20,30:40,#50:#60,70:80,#90,95]");
-
-        TVector<i64> actual;
-        auto reader = client->CreateTableReader<TNode>(path);
-        for (; reader->IsValid(); reader->Next()) {
-            const auto& row = reader->GetRow();
-            actual.push_back(row["key"].AsInt64());
-        }
-
-        const TVector<i64> expected = {
-            10, 11, 12, 13, 14, 15, 16, 17, 18, 19,
-            30, 31, 32, 33, 34, 35, 36, 37, 38, 39,
-            50, 51, 52, 53, 54, 55, 56, 57, 58, 59,
-            70, 71, 72, 73, 74, 75, 76, 77, 78, 79,
-            90,
-            95,
-        };
-        UNIT_ASSERT_VALUES_EQUAL(actual, expected);
-    }
-
-    SIMPLE_UNIT_TEST(ReadMultipleRangesNode)
-    {
-        auto client = CreateTestClient();
-        auto writer = client->CreateTableWriter<TNode>(
-            TRichYPath("//testing/table").SortedBy("key"));
-
-        for (int i = 0; i < 100; ++i) {
-            writer->AddRow(TNode()("key", 1000 + i));
-        }
-        writer->Finish();
-
-        TRichYPath path("//testing/table");
-        path.AddRange(TReadRange()
-            .LowerLimit(TReadLimit().RowIndex(10))
-            .UpperLimit(TReadLimit().RowIndex(20)));
-        path.AddRange(TReadRange()
-            .LowerLimit(TReadLimit().Key(1030))
-            .UpperLimit(TReadLimit().Key(1040)));
-        path.AddRange(TReadRange()
-            .LowerLimit(TReadLimit().RowIndex(50))
-            .UpperLimit(TReadLimit().RowIndex(60)));
-        path.AddRange(TReadRange()
-            .LowerLimit(TReadLimit().Key(1070))
-            .UpperLimit(TReadLimit().Key(1080)));
-        path.AddRange(TReadRange()
-            .Exact(TReadLimit().RowIndex(90)));
-        path.AddRange(TReadRange()
-            .Exact(TReadLimit().Key(1095)));
-
-        TVector<i64> actualKeys;
-        TVector<i64> actualRowIndices;
-        auto reader = client->CreateTableReader<TNode>(path);
-        for (; reader->IsValid(); reader->Next()) {
-            const auto& row = reader->GetRow();
-            actualKeys.push_back(row["key"].AsInt64());
-            actualRowIndices.push_back(reader->GetRowIndex());
-        }
-
-        const TVector<i64> expectedKeys = {
-            1010, 1011, 1012, 1013, 1014, 1015, 1016, 1017, 1018, 1019,
-            1030, 1031, 1032, 1033, 1034, 1035, 1036, 1037, 1038, 1039,
-            1050, 1051, 1052, 1053, 1054, 1055, 1056, 1057, 1058, 1059,
-            1070, 1071, 1072, 1073, 1074, 1075, 1076, 1077, 1078, 1079,
-            1090,
-            1095,
-        };
-        const TVector<i64> expectedRowIndices = {
-            10, 11, 12, 13, 14, 15, 16, 17, 18, 19,
-            30, 31, 32, 33, 34, 35, 36, 37, 38, 39,
-            50, 51, 52, 53, 54, 55, 56, 57, 58, 59,
-            70, 71, 72, 73, 74, 75, 76, 77, 78, 79,
-            90,
-            95,
-        };
-        UNIT_ASSERT_VALUES_EQUAL(actualKeys, expectedKeys);
-        UNIT_ASSERT_VALUES_EQUAL(actualRowIndices, expectedRowIndices);
-    }
 
     SIMPLE_UNIT_TEST(TableLockedForWriterLifetime)
     {
@@ -544,6 +723,7 @@ SIMPLE_UNIT_TEST_SUITE(TableIo) {
 
     SIMPLE_UNIT_TEST(ReaderTakesLockOnTableIdNotPath)
     {
+        TConfigSaverGuard configGuard;
         TConfig::Get()->UseAbortableResponse = true;
 
         auto client = CreateTestClient();
@@ -605,6 +785,7 @@ SIMPLE_UNIT_TEST_SUITE(TableIo) {
 
     SIMPLE_UNIT_TEST(SuccessfulRetries)
     {
+        TConfigSaverGuard configGuard;
         TConfig::Get()->UseAbortableResponse = true;
         TConfig::Get()->RetryCount = 4;
 
@@ -646,7 +827,7 @@ SIMPLE_UNIT_TEST_SUITE(TableIo) {
 
     SIMPLE_UNIT_TEST(ReadingWritingProtobufAllTypes)
     {
-        auto oldUseClientProtobuf = TConfig::Get()->UseClientProtobuf;
+        TConfigSaverGuard configSaver;
         TConfig::Get()->UseClientProtobuf = false;
 
         auto client = CreateTestClient();
@@ -701,8 +882,6 @@ SIMPLE_UNIT_TEST_SUITE(TableIo) {
             reader->Next();
             UNIT_ASSERT(!reader->IsValid());
         }
-
-        TConfig::Get()->UseClientProtobuf = oldUseClientProtobuf;
     }
 
     SIMPLE_UNIT_TEST(SimpleRetrylessWriter)

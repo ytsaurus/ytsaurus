@@ -79,6 +79,20 @@ bool operator == (const TOwningYaMRRow& row1, const TOwningYaMRRow& row2);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TTabletFixture
+{
+public:
+    TTabletFixture();
+    IClientPtr Client();
+
+private:
+    void WaitForTabletCell();
+
+    IClientPtr Client_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NTesting
 } // namespace NYT
 

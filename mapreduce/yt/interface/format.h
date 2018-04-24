@@ -13,6 +13,7 @@ enum class EFormatType : int {
     YsonBinary,
     YaMRLenval,
     Protobuf,
+    Skiff,
 
     Custom, // Allows to specify arbitrary format
 };
@@ -33,7 +34,6 @@ struct TFormat {
     static inline TFormat YaMRLenval();
     template<typename T>
     static inline TFormat Protobuf();
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

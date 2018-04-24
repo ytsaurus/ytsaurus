@@ -15,50 +15,6 @@ const auto WaitTabletsOptions =
         .Timeout(TDuration::Seconds(30))
         .CheckInterval(TDuration::MilliSeconds(50));
 
-class TTabletFixture
-{
-public:
-    TTabletFixture()
-    {
-        Client_ = CreateTestClient();
-        WaitForTabletCell();
-    }
-
-    IClientPtr Client()
-    {
-        return Client_;
-    }
-
-private:
-    void WaitForTabletCell()
-    {
-        const TInstant deadline = TInstant::Now() + TDuration::Seconds(30);
-        while (TInstant::Now() < deadline) {
-            auto tabletCellList = Client()->List(
-                "//sys/tablet_cells",
-                TListOptions().AttributeFilter(
-                    TAttributeFilter().AddAttribute("health")));
-            if (!tabletCellList.empty()) {
-                bool good = true;
-                for (const auto& tabletCell : tabletCellList) {
-                    const auto health = tabletCell.GetAttributes()["health"].AsString();
-                    if (health != "good") {
-                        good = false;
-                        break;
-                    }
-                }
-                if (good) {
-                    return;
-                }
-            }
-            Sleep(TDuration::MilliSeconds(100));
-        }
-        ythrow yexception() << "WaitForTabletCell timeout";
-    }
-
-    IClientPtr Client_;
-};
-
 void CreateTestTable(const IClientPtr& client, const TYPath& table, bool sorted = true)
 {
     auto firstColumnSchema = TNode()("name", "key")("type", "int64");

@@ -214,8 +214,6 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Create reader from any input stream. Protobuf readers (when T is subtype of ::google::protobuf::Message)
-// expect input in binary format (the one you get with TFormat::Protobuf())
 template <typename T>
 TTableReaderPtr<T> CreateTableReader(
     IInputStream* stream,
@@ -228,8 +226,6 @@ TTableReaderPtr<TNode> CreateTableReader<TNode>(
 template <>
 TTableReaderPtr<TYaMRRow> CreateTableReader<TYaMRRow>(
     IInputStream* stream, const TTableReaderOptions& options);
-
-////////////////////////////////////////////////////////////////////////////////
 
 namespace NDetail {
 

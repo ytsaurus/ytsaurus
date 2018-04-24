@@ -8,10 +8,18 @@
 
 namespace NYT {
 
-enum EEncoding : int {
+enum EEncoding : int
+{
     E_IDENTITY  /* "identity" */,
     E_GZIP      /* "gzip" */,
     E_BROTLI    /* "br" */,
+};
+
+enum class ENodeReaderFormat : int
+{
+    Yson,  // Always use YSON format,
+    Skiff, // Always use Skiff format, throw exception if it's not possible (non-strict schema, dynamic table etc.)
+    Auto,  // Use Skiff format if it's possible, YSON otherwise
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -62,6 +70,7 @@ struct TConfig
     TString JobBinary;
 
     bool UseClientProtobuf;
+    ENodeReaderFormat NodeReaderFormat = ENodeReaderFormat::Auto;
 
     int ConnectionPoolSize;
 

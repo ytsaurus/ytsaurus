@@ -131,5 +131,44 @@ bool operator == (const TOwningYaMRRow& row1, const TOwningYaMRRow& row2) {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TTabletFixture::TTabletFixture()
+    : Client_(CreateTestClient())
+{
+    WaitForTabletCell();
+}
+
+IClientPtr TTabletFixture::Client()
+{
+    return Client_;
+}
+
+void TTabletFixture::WaitForTabletCell()
+{
+    const TInstant deadline = TInstant::Now() + TDuration::Seconds(30);
+    while (TInstant::Now() < deadline) {
+        auto tabletCellList = Client()->List(
+            "//sys/tablet_cells",
+            TListOptions().AttributeFilter(
+                TAttributeFilter().AddAttribute("health")));
+        if (!tabletCellList.empty()) {
+            bool good = true;
+            for (const auto& tabletCell : tabletCellList) {
+                const auto health = tabletCell.GetAttributes()["health"].AsString();
+                if (health != "good") {
+                    good = false;
+                    break;
+                }
+            }
+            if (good) {
+                return;
+            }
+        }
+        Sleep(TDuration::MilliSeconds(100));
+    }
+    ythrow yexception() << "WaitForTabletCell timeout";
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NTesting
 } // namespace NYT

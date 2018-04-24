@@ -10,6 +10,7 @@
 #include "mock_client.h"
 #include "operation.h"
 #include "retryful_writer.h"
+#include "skiff.h"
 #include "yt_poller.h"
 
 #include <mapreduce/yt/interface/client.h>
@@ -34,8 +35,12 @@
 #include <mapreduce/yt/io/proto_table_reader.h>
 #include <mapreduce/yt/io/proto_table_writer.h>
 #include <mapreduce/yt/io/proto_helpers.h>
+#include <mapreduce/yt/io/skiff_table_reader.h>
 
 #include <mapreduce/yt/raw_client/rpc_parameters_serialization.h>
+
+#include <util/string/type.h>
+#include <util/system/env.h>
 
 #include <exception>
 
@@ -457,8 +462,21 @@ THolder<TClientWriter> TClientBase::CreateClientWriter(
 ::TIntrusivePtr<INodeReaderImpl> TClientBase::CreateNodeReader(
     const TRichYPath& path, const TTableReaderOptions& options)
 {
-    return new TNodeTableReader(
-        CreateClientReader(path, TFormat::YsonBinary(), options), options.SizeLimit_);
+    auto skiffSchema = CreateSkiffSchemaIfNecessary(
+        TConfig::Get()->NodeReaderFormat,
+        Auth_,
+        TransactionId_,
+        {path},
+        TCreateSkiffSchemaOptions().HasRowIndex(true).HasRangeIndex(true));
+
+    if (skiffSchema) {
+        auto format = CreateSkiffFormat(skiffSchema);
+        return new TSkiffTableReader(CreateClientReader(path, format, options), skiffSchema);
+    } else {
+        return new TNodeTableReader(
+            CreateClientReader(path, TFormat::YsonBinary(), options),
+            options.SizeLimit_);
+    };
 }
 
 ::TIntrusivePtr<IYaMRReaderImpl> TClientBase::CreateYaMRReader(

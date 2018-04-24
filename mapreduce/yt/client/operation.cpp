@@ -5,6 +5,7 @@
 #include "init.h"
 #include "operation_tracker.h"
 #include "retry_heavy_write_request.h"
+#include "skiff.h"
 #include "yt_poller.h"
 
 #include <mapreduce/yt/common/abortable_registry.h>
@@ -35,6 +36,7 @@
 #include <mapreduce/yt/io/proto_table_reader.h>
 #include <mapreduce/yt/io/proto_table_writer.h>
 #include <mapreduce/yt/io/proto_helpers.h>
+#include <mapreduce/yt/io/skiff_table_reader.h>
 
 #include <mapreduce/yt/raw_client/raw_batch_request.h>
 #include <mapreduce/yt/raw_client/raw_requests.h>
@@ -78,6 +80,8 @@ struct TSimpleOperationIo
 
     TFormat InputFormat;
     TFormat OutputFormat;
+
+    TVector<TSmallJobFile> JobFiles;
 };
 
 struct TMapReduceOperationIo
@@ -94,6 +98,10 @@ struct TMapReduceOperationIo
 
     TFormat ReducerInputFormat = TFormat::YsonBinary();
     TFormat ReducerOutputFormat = TFormat::YsonBinary();
+
+    TVector<TSmallJobFile> MapperJobFiles;
+    TVector<TSmallJobFile> ReduceCombinerJobFiles;
+    TVector<TSmallJobFile> ReducerJobFiles;
 };
 
 ui64 RoundUpFileSize(ui64 size)
@@ -151,22 +159,48 @@ TString CreateProtoConfig(const TMultiFormatDesc& desc)
     return result;
 }
 
-TVector<TSmallJobFile> CreateFormatConfig(const TMultiFormatDesc& input, const TMultiFormatDesc& output)
+TString CreateSkiffConfig(const NSkiff::TSkiffSchemaPtr& schema)
+{
+     TStringStream stream;
+     TYsonWriter writer(&stream);
+     Serialize(schema, &writer);
+     return stream.Str();
+}
+
+TVector<TSmallJobFile> CreateFormatConfig(
+    const TMultiFormatDesc& inputDesc,
+    const TMultiFormatDesc& outputDesc,
+    const NSkiff::TSkiffSchemaPtr& inputSkiffSchema = nullptr,
+    const NSkiff::TSkiffSchemaPtr& outputSkiffSchema = nullptr)
 {
     TVector<TSmallJobFile> result;
-    if (input.Format == TMultiFormatDesc::F_PROTO) {
-        result.push_back({"proto_input", CreateProtoConfig(input)});
+    if (inputDesc.Format == TMultiFormatDesc::F_PROTO) {
+        result.push_back({"proto_input", CreateProtoConfig(inputDesc)});
+    } else if (inputSkiffSchema) {
+        Y_VERIFY(inputDesc.Format == TMultiFormatDesc::F_NODE);
+        result.push_back({"skiff_input", CreateSkiffConfig(inputSkiffSchema)});
     }
-    if (output.Format == TMultiFormatDesc::F_PROTO) {
-        result.push_back({"proto_output", CreateProtoConfig(output)});
+
+    if (outputDesc.Format == TMultiFormatDesc::F_PROTO) {
+        result.push_back({"proto_output", CreateProtoConfig(outputDesc)});
+    } else if (outputSkiffSchema) {
+        Y_VERIFY(outputDesc.Format == TMultiFormatDesc::F_NODE);
+        result.push_back({"skiff_output", CreateSkiffConfig(outputSkiffSchema)});
     }
     return result;
 }
 
-TFormat FormatFromDescription(const TMultiFormatDesc& desc, const TMaybe<TNode>& formatFromTableAttribute)
+TFormat FormatFromDescription(
+    const TMultiFormatDesc& desc,
+    const TMaybe<TNode>& formatFromTableAttribute,
+    const NSkiff::TSkiffSchemaPtr& skiffSchema = nullptr)
 {
-    if (desc.Format == TMultiFormatDesc::F_YSON) {
-        return TFormat::YsonBinary();
+    if (desc.Format == TMultiFormatDesc::F_NODE) {
+        if (skiffSchema) {
+            return CreateSkiffFormat(skiffSchema);
+        } else {
+            return TFormat::YsonBinary();
+        }
     } else if (desc.Format == TMultiFormatDesc::F_YAMR) {
         if (formatFromTableAttribute) {
             return TFormat(EFormatType::Custom, *formatFromTableAttribute);
@@ -195,7 +229,8 @@ TSimpleOperationIo CreateSimpleOperationIo(
     const TAuth& auth,
     const TTransactionId& transactionId,
     const TOperationIOSpecBase& spec,
-    const TOperationOptions& options)
+    const TOperationOptions& options,
+    bool allowSkiff)
 {
     TMaybe<TNode> formatFromTableAttribute;
     if (spec.GetInputDesc().Format == TMultiFormatDesc::F_YAMR &&
@@ -207,12 +242,19 @@ TSimpleOperationIo CreateSimpleOperationIo(
     VerifyHasElements(spec.Inputs_, "input");
     VerifyHasElements(spec.Outputs_, "output");
 
+    auto inputSkiffSchema = allowSkiff
+        ? CreateSkiffSchemaIfNecessary(TConfig::Get()->NodeReaderFormat, auth, transactionId, spec.Inputs_)
+        : nullptr;
+    NSkiff::TSkiffSchemaPtr outputSkiffSchema = nullptr;
+
     return TSimpleOperationIo {
         CanonizePaths(auth, spec.Inputs_),
         CanonizePaths(auth, spec.Outputs_),
 
-        FormatFromDescription(spec.GetInputDesc(), formatFromTableAttribute),
-        FormatFromDescription(spec.GetOutputDesc(), Nothing()),
+        FormatFromDescription(spec.GetInputDesc(), formatFromTableAttribute, inputSkiffSchema),
+        FormatFromDescription(spec.GetOutputDesc(), Nothing(), outputSkiffSchema),
+
+        CreateFormatConfig(spec.GetInputDesc(), spec.GetOutputDesc(), inputSkiffSchema, outputSkiffSchema),
     };
 }
 
@@ -240,6 +282,8 @@ TSimpleOperationIo CreateSimpleOperationIo(
 
         getFormatOrDefault(spec.InputFormat_, "input"),
         getFormatOrDefault(spec.OutputFormat_, "output"),
+
+        TVector<TSmallJobFile>{},
     };
 }
 
@@ -1153,7 +1197,6 @@ TOperationId DoExecuteMap(
     const TAuth& auth,
     const TTransactionId& transactionId,
     const TSimpleOperationIo& operationIo,
-    const TVector<TSmallJobFile>& smallFileList,
     const TMapOperationSpecBase<T>& spec,
     IJob* mapper,
     const TOperationOptions& options)
@@ -1172,7 +1215,7 @@ TOperationId DoExecuteMap(
         spec.MapperSpec_,
         mapper,
         operationIo.Outputs.size(),
-        smallFileList,
+        operationIo.JobFiles,
         options);
 
     TNode specNode = BuildYsonNodeFluently()
@@ -1223,8 +1266,7 @@ TOperationId ExecuteMap(
     return DoExecuteMap(
         auth,
         transactionId,
-        CreateSimpleOperationIo(auth, transactionId, spec, options),
-        CreateFormatConfig(spec.GetInputDesc(), spec.GetOutputDesc()),
+        CreateSimpleOperationIo(auth, transactionId, spec, options, /* allowSkiff = */ true),
         spec,
         mapper,
         options);
@@ -1241,7 +1283,6 @@ TOperationId ExecuteRawMap(
         auth,
         transactionId,
         CreateSimpleOperationIo(auth, spec),
-        TVector<TSmallJobFile>{},
         spec,
         mapper,
         options);
@@ -1254,7 +1295,6 @@ TOperationId DoExecuteReduce(
     const TAuth& auth,
     const TTransactionId& transactionId,
     const TSimpleOperationIo& operationIo,
-    const TVector<TSmallJobFile>& smallFileList,
     const TReduceOperationSpecBase<T>& spec,
     IJob* reducer,
     const TOperationOptions& options)
@@ -1273,7 +1313,7 @@ TOperationId DoExecuteReduce(
         spec.ReducerSpec_,
         reducer,
         operationIo.Outputs.size(),
-        smallFileList,
+        operationIo.JobFiles,
         options);
 
     TNode specNode = BuildYsonNodeFluently()
@@ -1330,8 +1370,7 @@ TOperationId ExecuteReduce(
     return DoExecuteReduce(
         auth,
         transactionId,
-        CreateSimpleOperationIo(auth, transactionId, spec, options),
-        CreateFormatConfig(spec.GetInputDesc(), spec.GetOutputDesc()),
+        CreateSimpleOperationIo(auth, transactionId, spec, options, /* allowSkiff = */ false),
         spec,
         reducer,
         options);
@@ -1348,7 +1387,6 @@ TOperationId ExecuteRawReduce(
         auth,
         transactionId,
         CreateSimpleOperationIo(auth, spec),
-        TVector<TSmallJobFile>{},
         spec,
         mapper,
         options);
@@ -1361,7 +1399,6 @@ TOperationId DoExecuteJoinReduce(
     const TAuth& auth,
     const TTransactionId& transactionId,
     const TSimpleOperationIo& operationIo,
-    const TVector<TSmallJobFile>& smallFileList,
     const TJoinReduceOperationSpecBase<T>& spec,
     IJob* reducer,
     const TOperationOptions& options)
@@ -1380,7 +1417,7 @@ TOperationId DoExecuteJoinReduce(
         spec.ReducerSpec_,
         reducer,
         operationIo.Outputs.size(),
-        smallFileList,
+        operationIo.JobFiles,
         options);
 
     TNode specNode = BuildYsonNodeFluently()
@@ -1433,8 +1470,7 @@ TOperationId ExecuteJoinReduce(
     return DoExecuteJoinReduce(
         auth,
         transactionId,
-        CreateSimpleOperationIo(auth, transactionId, spec, options),
-        CreateFormatConfig(spec.GetInputDesc(), spec.GetOutputDesc()),
+        CreateSimpleOperationIo(auth, transactionId, spec, options, /* allowSkiff = */ false),
         spec,
         reducer,
         options);
@@ -1451,7 +1487,6 @@ TOperationId ExecuteRawJoinReduce(
         auth,
         transactionId,
         CreateSimpleOperationIo(auth, spec),
-        TVector<TSmallJobFile>{},
         spec,
         mapper,
         options);
@@ -1466,11 +1501,8 @@ TOperationId DoExecuteMapReduce(
     const TMapReduceOperationIo& operationIo,
     const TMapReduceOperationSpecBase<T>& spec,
     IJob* mapper,
-    const TVector<TSmallJobFile>& mapperJobFiles,
     IJob* reduceCombiner,
-    const TVector<TSmallJobFile>& reduceCombinerJobFiles,
     IJob* reducer,
-    const TVector<TSmallJobFile>& reducerJobFiles,
     const TOperationOptions& options)
 {
     TVector<TRichYPath> allOutputs;
@@ -1501,7 +1533,7 @@ TOperationId DoExecuteMapReduce(
         spec.ReducerSpec_,
         reducer,
         operationIo.Outputs.size(),
-        reducerJobFiles,
+        operationIo.ReducerJobFiles,
         options);
 
     TString title;
@@ -1516,7 +1548,7 @@ TOperationId DoExecuteMapReduce(
                 spec.MapperSpec_,
                 mapper,
                 1 + operationIo.MapOutputs.size(),
-                mapperJobFiles,
+                operationIo.MapperJobFiles,
                 options);
 
             fluent.Item("mapper").DoMap(std::bind(
@@ -1536,7 +1568,7 @@ TOperationId DoExecuteMapReduce(
                 spec.ReduceCombinerSpec_,
                 reduceCombiner,
                 1,
-                reduceCombinerJobFiles,
+                operationIo.ReduceCombinerJobFiles,
                 options);
 
             fluent.Item("reduce_combiner").DoMap(std::bind(
@@ -1682,22 +1714,25 @@ TOperationId ExecuteMapReduce(
     VerifyHasElements(operationIo.Inputs, "inputs");
     VerifyHasElements(operationIo.Outputs, "outputs");
 
-    TVector<TSmallJobFile> mapperFiles;
     if (mapper) {
-        mapperFiles = CreateFormatConfig(mapInputDesc, mapOutputDesc);
-        operationIo.MapperInputFormat = FormatFromDescription(mapInputDesc, formatFromTableAttribute);
+        auto skiffSchema = CreateSkiffSchemaIfNecessary(TConfig::Get()->NodeReaderFormat, auth, transactionId, spec.Inputs_);
+        operationIo.MapperJobFiles = CreateFormatConfig(mapInputDesc, mapOutputDesc, skiffSchema, /* outputSkiffSchema = */ nullptr);
+        operationIo.MapperInputFormat = FormatFromDescription(mapInputDesc, formatFromTableAttribute, skiffSchema);
         operationIo.MapperOutputFormat = FormatFromDescription(mapOutputDesc, Nothing());
     }
 
-    TVector<TSmallJobFile> reduceCombinerFiles;
     if (reduceCombiner) {
-        reduceCombinerFiles = CreateFormatConfig(reduceCombinerInputDesc, reduceCombinerOutputDesc);
-        operationIo.ReduceCombinerInputFormat = FormatFromDescription(reduceCombinerInputDesc, mapper ? Nothing() : formatFromTableAttribute);
+        operationIo.ReduceCombinerJobFiles = CreateFormatConfig(reduceCombinerInputDesc, reduceCombinerOutputDesc);
+        operationIo.ReduceCombinerInputFormat = FormatFromDescription(
+            reduceCombinerInputDesc,
+            mapper ? Nothing() : formatFromTableAttribute);
         operationIo.ReduceCombinerOutputFormat = FormatFromDescription(reduceCombinerOutputDesc, Nothing());
     }
 
-    TVector<TSmallJobFile> reducerFiles = CreateFormatConfig(reduceInputDesc, reduceOutputDesc);
-    operationIo.ReducerInputFormat = FormatFromDescription(reduceInputDesc, (mapper || reduceCombiner) ? Nothing() : formatFromTableAttribute);
+    operationIo.ReducerJobFiles = CreateFormatConfig(reduceInputDesc, reduceOutputDesc);
+    operationIo.ReducerInputFormat = FormatFromDescription(
+        reduceInputDesc,
+        (mapper || reduceCombiner) ? Nothing() : formatFromTableAttribute);
     operationIo.ReducerOutputFormat = FormatFromDescription(reduceOutputDesc, Nothing());
 
     return DoExecuteMapReduce(
@@ -1706,11 +1741,8 @@ TOperationId ExecuteMapReduce(
         operationIo,
         spec,
         mapper,
-        mapperFiles,
         reduceCombiner,
-        reduceCombinerFiles,
         reducer,
-        reducerFiles,
         options);
 }
 
@@ -1760,11 +1792,8 @@ TOperationId ExecuteRawMapReduce(
         operationIo,
         spec,
         mapper,
-        {},
         reduceCombiner,
-        {},
         reducer,
-        {},
         options);
 }
 
@@ -2252,7 +2281,11 @@ void ResetUseClientProtobuf(const char* methodName)
 
 ::TIntrusivePtr<INodeReaderImpl> CreateJobNodeReader()
 {
-    return new TNodeTableReader(::MakeIntrusive<TJobReader>(0));
+    if (auto schema = NDetail::GetJobInputSkiffSchema()) {
+        return new NDetail::TSkiffTableReader(::MakeIntrusive<TJobReader>(0), schema);
+    } else {
+        return new TNodeTableReader(::MakeIntrusive<TJobReader>(0));
+    }
 }
 
 ::TIntrusivePtr<IYaMRReaderImpl> CreateJobYaMRReader()

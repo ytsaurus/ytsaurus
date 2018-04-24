@@ -187,7 +187,7 @@ struct TFormatDescTraits;
 template <>
 struct TFormatDescTraits<TNode>
 {
-    static const TMultiFormatDesc::EFormat Format = TMultiFormatDesc::F_YSON;
+    static const TMultiFormatDesc::EFormat Format = TMultiFormatDesc::F_NODE;
 };
 
 template <>
