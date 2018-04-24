@@ -16,7 +16,7 @@ struct TMultiFormatDesc
 {
     enum EFormat {
         F_NONE,
-        F_YSON,
+        F_NODE,
         F_YAMR,
         F_PROTO,
     };

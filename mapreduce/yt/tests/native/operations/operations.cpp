@@ -3,12 +3,18 @@
 #include <mapreduce/yt/tests/native/proto_lib/all_types.pb.h>
 
 #include <mapreduce/yt/interface/client.h>
+#include <mapreduce/yt/interface/serialize.h>
+
 #include <mapreduce/yt/common/config.h>
 #include <mapreduce/yt/common/debug_metrics.h>
 #include <mapreduce/yt/common/helpers.h>
 #include <mapreduce/yt/common/finally_guard.h>
-#include <mapreduce/yt/library/operation_tracker/operation_tracker.h>
+
 #include <mapreduce/yt/http/abortable_http_response.h>
+
+#include <mapreduce/yt/library/operation_tracker/operation_tracker.h>
+
+#include <mapreduce/yt/util/wait_for_tablets_state.h>
 
 #include <library/unittest/registar.h>
 
@@ -291,11 +297,32 @@ public:
             ("third", i64(42));
         WriteCustomStatistics(node);
         WriteCustomStatistics("another/path/to/stat\\/with\\/escaping", i64(43));
-        WriteCustomStatistics("ambigious/path", i64(7331));
-        WriteCustomStatistics("ambigious\\/path", i64(1337));
+        WriteCustomStatistics("ambiguous/path", i64(7331));
+        WriteCustomStatistics("ambiguous\\/path", i64(1337));
     }
 };
 REGISTER_MAPPER(TMapperThatWritesCustomStatistics);
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TReducerThatSumsFirstThreeValues : public IReducer<TTableReader<TNode>, TTableWriter<TNode>>
+{
+public:
+    void Do(TReader* reader, TWriter* writer)
+    {
+        i64 sum = 0;
+        auto key = reader->GetRow()["key"];
+        for (int i = 0; i < 3; ++i) {
+            sum += reader->GetRow()["value"].AsInt64();
+            reader->Next();
+            if (!reader->IsValid()) {
+                break;
+            }
+        }
+        writer->AddRow(TNode()("key", key)("sum", sum));
+    }
+};
+REGISTER_REDUCER(TReducerThatSumsFirstThreeValues);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -446,16 +473,14 @@ SIMPLE_UNIT_TEST_SUITE(Operations)
         }
 
         // Output table does not exist => operation should fail.
-        try {
+        UNIT_ASSERT_EXCEPTION(
             client->Map(
                 TMapOperationSpec().CreateOutputTables(false)
                 .AddInput<TNode>("//testing/input")
                 .AddOutput<TNode>("//testing/output")
                 .StderrTablePath("//testing/stderr"),
-                new TMapperThatWritesStderr);
-            UNIT_FAIL("operation expected to fail");
-        } catch (const TOperationFailedError& e) {
-        }
+                new TMapperThatWritesStderr),
+            TOperationFailedError);
 
         client->Create("//testing/output", NT_TABLE);
 
@@ -710,10 +735,10 @@ SIMPLE_UNIT_TEST_SUITE(Operations)
         auto another = jobStatistics.GetCustomStatistics("another/path/to/stat\\/with\\/escaping").Max();
         UNIT_ASSERT(*another == 43);
 
-        auto unescaped = jobStatistics.GetCustomStatistics("ambigious/path").Max();
+        auto unescaped = jobStatistics.GetCustomStatistics("ambiguous/path").Max();
         UNIT_ASSERT(*unescaped == 7331);
 
-        auto escaped = jobStatistics.GetCustomStatistics("ambigious\\/path").Max();
+        auto escaped = jobStatistics.GetCustomStatistics("ambiguous\\/path").Max();
         UNIT_ASSERT(*escaped == 1337);
     }
 
@@ -996,6 +1021,158 @@ SIMPLE_UNIT_TEST_SUITE(Operations)
         }
     }
 
+    void TestJobNodeReader(ENodeReaderFormat nodeReaderFormat, bool strictSchema)
+    {
+        TConfigSaverGuard configGuard;
+        TConfig::Get()->NodeReaderFormat = nodeReaderFormat;
+
+        auto client = CreateTestClient();
+        TString inputPath = "//testing/input";
+        TString outputPath = "//testing/input";
+        NYT::NDetail::TFinallyGuard finally([&]{
+            client->Remove(inputPath, TRemoveOptions().Force(true));
+        });
+
+        auto row = TNode()
+            ("int64", 1 - (1LL << 62))
+            ("int16", 42 - (1 << 14))
+            ("uint64", 1ULL << 63)
+            ("uint16", 1U << 15)
+            ("boolean", true)
+            ("double", 1.4242e42)
+            ("string", "Just a string");
+        auto schema = TTableSchema().Strict(strictSchema);
+        for (const auto& p : row.AsMap()) {
+            EValueType type;
+            Deserialize(type, p.first);
+            schema.AddColumn(TColumnSchema().Name(p.first).Type(type));
+        }
+        {
+            auto writer = client->CreateTableWriter<TNode>(TRichYPath(inputPath).Schema(schema));
+            writer->AddRow(row);
+            writer->Finish();
+        }
+
+        client->Map(
+            TMapOperationSpec()
+            .AddInput<TNode>(inputPath)
+            .AddOutput<TNode>(outputPath)
+            .MaxFailedJobCount(1),
+            new TIdMapper());
+
+        auto reader = client->CreateTableReader<TNode>(outputPath);
+        UNIT_ASSERT_VALUES_EQUAL(reader->GetRow(), row);
+    }
+
+    SIMPLE_UNIT_TEST(JobNodeReader_Skiff_Strict)
+    {
+        TestJobNodeReader(ENodeReaderFormat::Skiff, true);
+    }
+    SIMPLE_UNIT_TEST(JobNodeReader_Skiff_NonStrict)
+    {
+        UNIT_ASSERT_EXCEPTION(TestJobNodeReader(ENodeReaderFormat::Skiff, false), yexception);
+    }
+    SIMPLE_UNIT_TEST(JobNodeReader_Auto_Strict)
+    {
+        TestJobNodeReader(ENodeReaderFormat::Auto, true);
+    }
+    SIMPLE_UNIT_TEST(JobNodeReader_Auto_NonStrict)
+    {
+        TestJobNodeReader(ENodeReaderFormat::Auto, false);
+    }
+    SIMPLE_UNIT_TEST(JobNodeReader_Yson_Strict)
+    {
+        TestJobNodeReader(ENodeReaderFormat::Yson, true);
+    }
+    SIMPLE_UNIT_TEST(JobNodeReader_Yson_NonStrict)
+    {
+        TestJobNodeReader(ENodeReaderFormat::Yson, false);
+    }
+
+    void TestIncompleteReducer(ENodeReaderFormat nodeReaderFormat)
+    {
+        TConfigSaverGuard configGuard;
+        TConfig::Get()->NodeReaderFormat = nodeReaderFormat;
+        auto client = CreateTestClient();
+        auto inputPath = TRichYPath("//testing/input")
+            .Schema(TTableSchema()
+                .Strict(true)
+                .AddColumn(TColumnSchema().Name("key").Type(VT_INT64).SortOrder(SO_ASCENDING))
+                .AddColumn(TColumnSchema().Name("value").Type(VT_INT64)));
+        auto outputPath = TRichYPath("//testing/output");
+        {
+            auto writer = client->CreateTableWriter<TNode>(inputPath);
+            for (auto key : {1, 2,2, 3,3,3, 4,4,4,4, 5,5,5,5,5}) {
+                writer->AddRow(TNode()("key", key)("value", i64(1)));
+            }
+        }
+        client->Reduce(
+            TReduceOperationSpec()
+                .ReduceBy({"key"})
+                .AddInput<TNode>(inputPath)
+                .AddOutput<TNode>(outputPath),
+            new TReducerThatSumsFirstThreeValues());
+        {
+            TConfig::Get()->NodeReaderFormat = ENodeReaderFormat::Yson;
+            auto reader = client->CreateTableReader<TNode>(outputPath);
+            TVector<i64> expectedValues = {1,2,3,3,3};
+            for (size_t index = 0; index < expectedValues.size(); ++index) {
+                UNIT_ASSERT(reader->IsValid());
+                UNIT_ASSERT_VALUES_EQUAL(reader->GetRow(),
+                    TNode()
+                        ("key", static_cast<i64>(index + 1))
+                        ("sum", expectedValues[index]));
+                reader->Next();
+            }
+            UNIT_ASSERT(!reader->IsValid());
+        }
+    }
+
+    SIMPLE_UNIT_TEST(IncompleteReducer_Yson)
+    {
+        TestIncompleteReducer(ENodeReaderFormat::Yson);
+    }
+
+    SIMPLE_UNIT_TEST(IncompleteReducer_Skiff)
+    {
+        TestIncompleteReducer(ENodeReaderFormat::Skiff);
+    }
+
+    SIMPLE_UNIT_TEST(SkiffForDynamicTables)
+    {
+        TConfigSaverGuard configGuard;
+        TTabletFixture fixture;
+        auto client = fixture.Client();
+        auto schema = TNode()
+            .Add(TNode()("name", "key")("type", "string"))
+            .Add(TNode()("name", "value")("type", "int64"));
+        const auto inputPath = "//testing/input";
+        const auto outputPath = "//testing/output";
+        client->Create(inputPath, NT_TABLE, TCreateOptions().Attributes(
+            TNode()("dynamic", true)("schema", schema)));
+        client->MountTable(inputPath);
+        WaitForTabletsState(client, inputPath, TS_MOUNTED, TWaitForTabletsStateOptions()
+            .Timeout(TDuration::Seconds(30))
+            .CheckInterval(TDuration::MilliSeconds(50)));
+        client->InsertRows(inputPath, {TNode()("key", "key")("value", 33)});
+
+        TConfig::Get()->NodeReaderFormat = ENodeReaderFormat::Auto;
+        client->Map(
+            TMapOperationSpec()
+                .AddInput<TNode>(inputPath)
+                .AddOutput<TNode>(outputPath),
+            new TIdMapper);
+
+        TConfig::Get()->NodeReaderFormat = ENodeReaderFormat::Skiff;
+        UNIT_ASSERT_EXCEPTION(
+            client->Map(
+                TMapOperationSpec()
+                    .AddInput<TNode>(inputPath)
+                    .AddOutput<TNode>(outputPath),
+                new TIdMapper),
+            yexception);
+    }
+
     SIMPLE_UNIT_TEST(LockConflictWhileTouchingCachedFiles)
     {
         auto client = CreateTestClient();
@@ -1270,7 +1447,6 @@ SIMPLE_UNIT_TEST_SUITE(OperationWatch)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-
 
 SIMPLE_UNIT_TEST_SUITE(OperationTracker)
 {
