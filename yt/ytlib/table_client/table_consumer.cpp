@@ -58,12 +58,6 @@ void TYsonToUnversionedValueConverter::OnUint64Scalar(ui64 value)
 void TYsonToUnversionedValueConverter::OnDoubleScalar(double value)
 {
     if (Depth_ == 0) {
-        if (std::isnan(value)) {
-            THROW_ERROR_EXCEPTION(
-                EErrorCode::InvalidDoubleValue,
-                "Failed to parse double value: %Qv is not a valid double",
-                value);
-        }
         ValueConsumer_->OnValue(MakeUnversionedDoubleValue(value, ColumnIndex_));
     } else {
         ValueWriter_.OnDoubleScalar(value);
