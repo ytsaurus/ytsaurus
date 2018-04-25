@@ -24,8 +24,6 @@ MASTER_CONFIG_PATCHES = [
             "enable_sync": False
         },
         "node_tracker": {
-            "online_node_timeout": 20000,
-            "registered_node_timeout": 20000,
             "max_concurrent_node_registrations": None,
             "max_concurrent_node_unregistrations": None
         },
@@ -62,11 +60,6 @@ MASTER_CONFIG_PATCHES = [
         }
     },
     {
-        "chunk_manager": {
-            "allow_multiple_erasure_parts_per_node": True
-        }
-    },
-    {
         "node_tracker": {
             "node_states_gossip_period": None
         },
@@ -86,6 +79,7 @@ SCHEDULER_CONFIG_PATCH = {
         "watchers_update_period": 300,
         "connect_grace_delay": None,
         "lock_transaction_timeout": 30000,
+        "enable_locality": False,
         "sort_operation_options": {
             "spec_template": {
                 "partition_data_size": 512 * MB
@@ -111,32 +105,46 @@ SCHEDULER_CONFIG_PATCH = {
     "snapshot_timeout": 300000,
 }
 
-SPEC_TEMPLATE = {
-    "locality_timeout": 0,
-    "sort_locality_timeout": 0,
-    "simple_sort_locality_timeout": 0,
-    "simple_merge_locality_timeout": 0,
-    "partition_locality_timeout": 0,
-    "merge_locality_timeout": 0,
-    "map_locality_timeout": 0,
-    "reduce_locality_timeout": 0,
-    "enable_job_proxy_memory_control": False
+SCHEDULER_CONFIG_PATCH_19_3 = {
+    "cluster_connection": {
+        "transaction_manager": None
+    },
+    "transaction_manager": None,
+    "scheduler": {
+        "operations_update_period": None,
+        "watchers_update_period": 300,
+        "lock_transaction_timeout": 30000
+    }
 }
 
-# TODO(ignat): refactor it.
-for operation_options in ["map_operation_options",
-                          "reduce_operation_options",
-                          "join_reduce_operation_options",
-                          "erase_operation_options",
-                          "ordered_merge_operation_options",
-                          "unordered_merge_operation_options",
-                          "sorted_merge_operation_options",
-                          "map_reduce_operation_options",
-                          "sort_operation_options",
-                          "remote_copy_operation_options"]:
-    SCHEDULER_CONFIG_PATCH["scheduler"][operation_options] = update(
-        {"spec_template": SPEC_TEMPLATE},
-        SCHEDULER_CONFIG_PATCH["scheduler"].get(operation_options, {}))
+CONTROLLER_AGENT_CONFIG_PATCH = {
+    "controller_agent": {
+        "transactions_refresh_period": None,
+        "operations_update_period": None,
+        "testing_options": None,
+        "enable_tmpfs": False,
+        "enable_locality": False,
+        "environment": {
+            "TMPDIR": "$(SandboxPath)",
+            "PYTHON_EGG_CACHE": "$(SandboxPath)/.python-eggs",
+            "PYTHONUSERBASE": "$(SandboxPath)/.python-site-packages",
+            "PYTHONPATH": "$(SandboxPath)",
+            "HOME": "$(SandboxPath)",
+        },
+        "snapshot_timeout": 300000,
+        "sort_operation_options": {
+            "spec_template": {
+                "partition_data_size": 512 * MB
+            }
+        },
+
+        "map_reduce_operation_options": {
+            "spec_template": {
+                "partition_data_size": 512 * MB
+            }
+        },
+    }
+}
 
 NODE_CONFIG_PATCHES = [
     {
@@ -228,9 +236,8 @@ def _remove_none_fields(node):
 
     traverse(node)
 
-def modify_cluster_configuration(cluster_configuration, abi_version,
-                                 master_config_patch=None, node_config_patch=None, scheduler_config_patch=None,
-                                 proxy_config_patch=None):
+def modify_cluster_configuration(cluster_configuration, abi_version, master_config_patch=None, node_config_patch=None,
+                                 scheduler_config_patch=None, controller_agent_config_patch=None, proxy_config_patch=None):
     master = cluster_configuration["master"]
 
     for tag in [master["primary_cell_tag"]] + master["secondary_cell_tags"]:
@@ -245,9 +252,20 @@ def modify_cluster_configuration(cluster_configuration, abi_version,
         update_inplace(config, DRIVER_CONFIG_PATCH)
 
     for config in cluster_configuration["scheduler"]:
-        update_inplace(config, SCHEDULER_CONFIG_PATCH)
+        if abi_version >= (19, 3):
+            update_inplace(config, SCHEDULER_CONFIG_PATCH_19_3)
+        else:
+            update_inplace(config, SCHEDULER_CONFIG_PATCH)
+
         if scheduler_config_patch:
             update_inplace(config, scheduler_config_patch)
+
+    if abi_version >= (19, 3):
+        for config in cluster_configuration["controller_agent"]:
+            update_inplace(config, CONTROLLER_AGENT_CONFIG_PATCH)
+
+        if controller_agent_config_patch:
+            update_inplace(config, controller_agent_config_patch)
 
     for config in cluster_configuration["node"]:
         for patch in NODE_CONFIG_PATCHES:

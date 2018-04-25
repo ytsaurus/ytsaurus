@@ -1455,7 +1455,7 @@ print(op.id)
         check([{"x": 1}, {"y": 2}], list(yt.read_table(table)))
 
     def test_update_operation_parameters(self):
-        if "update_op_parameters" not in yt.http_helpers.get_api_commands():
+        if "update_op_parameters" not in yt.driver.get_command_list():
             pytest.skip()
 
         table = TEST_DIR + "/table"
@@ -1466,5 +1466,5 @@ print(op.id)
         wait(lambda: op.get_state() == "running")
         yt.update_operation_parameters(op.id, {"scheduling_options_per_pool_tree": {"default": {"weight": 10.0}}})
         assert assert_almost_equal(
-            yt.get_operation(op.id)["progress"]["scheduling_info_per_pool_tree"]["default"]["weight"],
+            yt.get_operation(op.id, include_scheduler=True)["progress"]["scheduling_info_per_pool_tree"]["default"]["weight"],
             10.0)

@@ -2,12 +2,12 @@
 
 from .helpers import TEST_DIR, set_config_option, set_config_options
 
-import yt.zip as zip
 from yt.packages.six import PY3
 
 import yt.wrapper as yt
 
 import os
+import gzip
 import pytest
 import tempfile
 
@@ -71,6 +71,14 @@ class TestFileCommands(object):
             yt.smart_upload_file(filename, destination="subdir/abc", placement_strategy="replace")
             assert yt.read_file("subdir/abc").read() == b"some content"
 
+    def test_parallel_read_file(self):
+        override_options = {
+            "read_parallel/enable": True,
+            "read_parallel/data_size_per_thread": 6
+        }
+        with set_config_options(override_options):
+            self.test_file_commands()
+
     @pytest.mark.parametrize("use_tmp_dir_for_intermediate_data", [True, False])
     def test_parallel_write_file(self, use_tmp_dir_for_intermediate_data):
         override_options = {
@@ -97,7 +105,7 @@ class TestFileCommands(object):
         fd, filename = tempfile.mkstemp()
         os.close(fd)
 
-        with zip.GzipFile(filename, "w", 5) as fout:
+        with gzip.GzipFile(filename, "w", 5) as fout:
             fout.write(b"test write compressed file data")
 
         with set_config_option("proxy/content_encoding", "gzip"):

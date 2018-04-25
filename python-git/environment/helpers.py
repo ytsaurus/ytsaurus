@@ -1,5 +1,10 @@
 from yt.common import to_native_str, YtError, which
-import yt.json_wrapper as json
+
+try:
+    import yt.json_wrapper as json
+except ImportError:
+    import yt.json as json
+
 import yt.yson as yson
 
 from yt.packages.six import iteritems, PY3, text_type, Iterator
@@ -19,10 +24,7 @@ try:
 except ImportError:
     yatest_common = None
 
-
 logger = logging.getLogger("Yt.local")
-
-WEB_INTERFACE_RESOURCES_PATH = os.environ.get("YT_LOCAL_THOR_PATH", "/usr/share/yt-thor")
 
 class OpenPortIterator(Iterator):
     GEN_PORT_ATTEMPTS = 10
@@ -276,10 +278,13 @@ def wait(predicate, error_message=None, iter=100, sleep_backoff=0.3):
     raise WaitFailed(error_message)
 
 def add_binary_path(relative_path):
+    if yatest_common is None and "ARCADIA_PATH" not in os.environ:
+        return
+
     if yatest_common is not None:
         binary_path = yatest_common.binary_path(relative_path)
     else:
         binary_path = os.path.join(os.environ["ARCADIA_PATH"], relative_path)
+
     if not which(os.path.basename(binary_path)):
         os.environ["PATH"] = os.path.dirname(binary_path) + ":" + os.environ["PATH"]
-

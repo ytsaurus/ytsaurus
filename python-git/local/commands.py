@@ -7,7 +7,10 @@ from yt.wrapper.common import generate_uuid, GB
 from yt.common import YtError, require, get_value, is_process_alive
 
 import yt.yson as yson
-import yt.json_wrapper as json
+try:
+    import yt.json_wrapper as json
+except ImportError:
+    import yt.json as json
 
 from yt.packages.six.moves import map as imap, filter as ifilter
 
@@ -171,15 +174,9 @@ def _initialize_world(client, environment, wait_tablet_cell_initialization,
     cluster_connection = environment.configs["driver"]
 
     proxy_address = None
-    ui_address = None
-    if "proxy" in environment.configs:
-        proxy_address = environment.configs["proxy"]["fqdn"]
-        ui_address = "http://{0}/ui/".format(proxy_address)
-
     initialize_world(
         client,
         proxy_address=proxy_address,
-        ui_address=ui_address,
         configure_pool_trees=False)
 
     tablet_cell_attributes = {
@@ -227,7 +224,7 @@ _START_DEFAULTS = {
 }
 
 def start(master_count=None, node_count=None, scheduler_count=None, start_proxy=True, start_rpc_proxy=False,
-          master_config=None, node_config=None, scheduler_config=None, proxy_config=None,
+          master_config=None, node_config=None, scheduler_config=None, proxy_config=None, controller_agent_config=None,
           proxy_port=None, id=None, local_cypress_dir=None, use_proxy_from_yt_source=False,
           enable_debug_logging=False, tmpfs_path=None, port_range_start=None, fqdn=None, path=None,
           prepare_only=False, jobs_memory_limit=None, jobs_cpu_limit=None, jobs_user_slot_count=None,
@@ -251,6 +248,7 @@ def start(master_count=None, node_count=None, scheduler_count=None, start_proxy=
         modify_cluster_configuration,
         master_config_patch=_load_config(master_config),
         scheduler_config_patch=_load_config(scheduler_config),
+        controller_agent_config_patch=_load_config(controller_agent_config),
         node_config_patch=_load_config(node_config),
         proxy_config_patch=_load_config(proxy_config, is_proxy_config=True))
 
