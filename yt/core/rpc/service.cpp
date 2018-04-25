@@ -39,6 +39,9 @@ void IServiceContext::ReplyFrom(TFuture<void> asyncError)
     }));
 }
 
+void IServiceContext::AddHolder(TIntrusivePtr<TRefCounted> /* holder */)
+{ }
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TServiceId::TServiceId() = default;

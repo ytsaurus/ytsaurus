@@ -1276,10 +1276,22 @@ private:
             return keys;
         }
 
+        virtual void OnRecurse(const NRpc::IServiceContextPtr& context, TStringBuf key) const override
+        {
+            auto operationId = TOperationId::FromString(key);
+            auto operation = ControllerAgent_->FindOperation(operationId);
+            // NB: This method is called after FindItemService so operation cannot be missing.
+            YCHECK(operation);
+            context->AddHolder(operation->GetController());
+        }
+
         virtual IYPathServicePtr FindItemService(TStringBuf key) const override
         {
             auto operationId = TOperationId::FromString(key);
-            auto operation = ControllerAgent_->GetOperationOrThrow(operationId);
+            auto operation = ControllerAgent_->FindOperation(operationId);
+            if (!operation) {
+                return nullptr;
+            }
             return operation->GetController()->GetOrchid();
         }
 

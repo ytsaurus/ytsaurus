@@ -48,6 +48,12 @@ class TestListJobs(YTEnvSetup):
         },
     }
 
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "controller_static_orchid_update_period": 100
+        }
+    }
+
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
@@ -113,7 +119,7 @@ class TestListJobs(YTEnvSetup):
 
         wait(lambda: op.get_job_count("running") > 0)
 
-        res = list_jobs(op.id, data_source="manual", include_cypress=True, include_scheduler=False, include_archive=False, job_state="completed")["jobs"]
+        res = list_jobs(op.id, data_source="manual", include_cypress=True, include_controller_agent=False, include_archive=False, job_state="completed")["jobs"]
         assert len(res) == 0
 
         def check_running_jobs():
@@ -125,7 +131,7 @@ class TestListJobs(YTEnvSetup):
             return True
         wait(check_running_jobs)
 
-        res = list_jobs(op.id, data_source="manual", include_cypress=False, include_scheduler=True, include_archive=False)["jobs"]
+        res = list_jobs(op.id, data_source="manual", include_cypress=False, include_controller_agent=True, include_archive=False)["jobs"]
         assert len(res) == 3
         assert all(job["state"] == "running" for job in res)
         assert all(job["type"] == "partition_map" for job in res)
@@ -173,7 +179,7 @@ class TestListJobs(YTEnvSetup):
             else:
                 jobs_without_fail_context.append(job_id)
 
-        manual_options = dict(data_source="manual", include_cypress=True, include_scheduler=True, include_archive=False)
+        manual_options = dict(data_source="manual", include_cypress=True, include_controller_agent=True, include_archive=False)
         runtime_options = dict(data_source="runtime")
         auto_options = dict(data_source="auto")
         for options in (manual_options, runtime_options, auto_options):
@@ -242,7 +248,7 @@ class TestListJobs(YTEnvSetup):
         clean_operations(self.Env.create_native_client())
         sleep(1)  # statistics_reporter
 
-        manual_options = dict(data_source="manual", include_cypress=False, include_scheduler=False, include_archive=True)
+        manual_options = dict(data_source="manual", include_cypress=False, include_controller_agent=False, include_archive=True)
         archive_options = dict(data_source="archive")
         auto_options = dict(data_source="auto")
 
@@ -322,7 +328,7 @@ class TestListJobs(YTEnvSetup):
             return get("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs/{1}/stderr_size".format(op.id, jobs[0]))
         wait(lambda: get_stderr_size() == len("MAPPER-STDERR-OUTPUT\n"))
 
-        options = dict(data_source="manual", include_cypress=False, include_scheduler=True, include_archive=False)
+        options = dict(data_source="manual", include_cypress=False, include_controller_agent=True, include_archive=False)
 
         res = list_jobs(op.id, **options)
         assert sorted(job["id"] for job in res["jobs"]) == sorted(jobs)
@@ -363,7 +369,7 @@ class TestListJobs(YTEnvSetup):
         release_breakpoint()
         op.track()
 
-        options = dict(data_source="manual", include_cypress=True, include_scheduler=True, include_archive=True)
+        options = dict(data_source="manual", include_cypress=True, include_controller_agent=True, include_archive=True)
 
         res = list_jobs(op.id, **options)["jobs"]
         assert any(job["state"] == "aborted" for job in res)
@@ -383,7 +389,7 @@ class TestListJobs(YTEnvSetup):
             command='if [ "$YT_JOB_INDEX" = "0" ]; then sleep 1000; fi;')
 
         wait(lambda: op.get_running_jobs())
-        wait(lambda: len(list_jobs(op.id, include_archive=True, include_cypress=False, include_scheduler=False, data_source="manual")["jobs"]) == 1)
+        wait(lambda: len(list_jobs(op.id, include_archive=True, include_cypress=False, include_controller_agent=False, data_source="manual")["jobs"]) == 1)
 
         unmount_table("//sys/operations_archive/jobs")
         wait(lambda: get("//sys/operations_archive/jobs/@tablet_state") == "unmounted")
@@ -404,7 +410,7 @@ class TestListJobs(YTEnvSetup):
 
         time.sleep(1)
 
-        options = dict(data_source="manual", include_cypress=False, include_scheduler=False, include_archive=True)
+        options = dict(data_source="manual", include_cypress=False, include_controller_agent=False, include_archive=True)
         select_rows("* from [//sys/operations_archive/jobs]")
         jobs = list_jobs(op.id, running_jobs_lookbehind_period=1000, **options)["jobs"]
         assert len(jobs) == 1

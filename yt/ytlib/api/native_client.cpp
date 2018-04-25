@@ -4628,47 +4628,30 @@ private:
         int Limit_ = -1;
     };
 
-    bool DoOperationExistsInCypress(const TOperationId& operationId)
+    TNullable<TString> DoGetControllerAgentAddressFromCypress(const TOperationId& operationId)
     {
-        static const std::vector<TString> attributes = {"state"};
+        static const std::vector<TString> attributes = {"controller_agent_address"};
 
         TObjectServiceProxy proxy(GetMasterChannelOrThrow(EMasterChannelKind::Follower));
 
         auto batchReq = proxy.ExecuteBatch();
 
         {
-            auto req = TYPathProxy::Get(GetNewOperationPath(operationId) + "/@");
+            auto req = TYPathProxy::Get(GetNewOperationPath(operationId) + "/@controller_agent_address");
             ToProto(req->mutable_attributes()->mutable_keys(), attributes);
-            batchReq->AddRequest(req, "get_operation");
-        }
-
-        {
-            auto req = TYPathProxy::Get(GetOperationPath(operationId) + "/@");
-            ToProto(req->mutable_attributes()->mutable_keys(), attributes);
-            batchReq->AddRequest(req, "get_operation");
+            batchReq->AddRequest(req, "get_controller_agent_address");
         }
 
         auto batchRsp = WaitFor(batchReq->Invoke())
             .ValueOrThrow();
 
-        auto responses = batchRsp->GetResponses<TYPathProxy::TRspGet>("get_operation");
-        for (const auto& rsp : responses) {
-            if (rsp.IsOK()) {
-                auto node = ConvertToNode(TYsonString(rsp.Value()->value()));
-                if (node->AsMap()->FindChild("state")) {
-                    return true;
-                }
-            } else {
-                if (rsp.FindMatching(NYTree::EErrorCode::ResolveError)) {
-                    continue;
-                }
-
-                THROW_ERROR_EXCEPTION("Failed to request operation from cypress")
-                    << rsp;
-            }
+        auto responseOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_controller_agent_address");
+        if (responseOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
+            return Null;
         }
 
-        return false;
+        const auto& response = responseOrError.ValueOrThrow();
+        return ConvertTo<TString>(TYsonString(response->value()));
     }
 
     TFuture<std::pair<std::vector<TJob>, TListJobsStatistics>> DoListJobsFromArchive(
@@ -5051,16 +5034,25 @@ private:
         }));
     }
 
-    TFuture<std::pair<std::vector<TJob>, int>> DoListJobsFromScheduler(
+    TFuture<std::pair<std::vector<TJob>, int>> DoListJobsFromControllerAgent(
         const TOperationId& operationId,
+        const TNullable<TString>& controllerAgentAddress,
         TInstant deadline,
         const TListJobsOptions& options)
     {
         TObjectServiceProxy proxy(GetMasterChannelOrThrow(EMasterChannelKind::Follower));
         proxy.SetDefaultTimeout(deadline - Now());
 
-        auto path = Format("//sys/scheduler/orchid/scheduler/operations/%v/running_jobs", operationId);
+        if (!controllerAgentAddress) {
+            return MakeFuture(std::pair<std::vector<TJob>, int>{});
+        }
+
+        auto path = Format("//sys/controller_agents/instances/%v/orchid/controller_agent/operations/%v/running_jobs",
+            *controllerAgentAddress,
+            operationId);
+
         auto getReq = TYPathProxy::Get(path);
+
         return proxy.Execute(getReq).Apply(BIND([options] (const TYPathProxy::TRspGetPtr& rsp) {
             std::pair<std::vector<TJob>, int> result;
             auto& jobs = result.first;
@@ -5278,10 +5270,11 @@ private:
 
         TListJobsResult result;
 
+        auto controllerAgentAddress = DoGetControllerAgentAddressFromCypress(operationId);
+
         auto dataSource = options.DataSource;
         if (dataSource == EDataSource::Auto) {
-            auto operationExists = DoOperationExistsInCypress(operationId);
-            if (operationExists) {
+            if (controllerAgentAddress) {
                 dataSource = EDataSource::Runtime;
             } else {
                 dataSource = EDataSource::Archive;
@@ -5289,37 +5282,37 @@ private:
         }
 
         bool includeCypress;
-        bool includeScheduler;
+        bool includeControllerAgent;
         bool includeArchive;
 
         switch (dataSource) {
             case EDataSource::Archive:
                 includeCypress = false;
-                includeScheduler = false;
+                includeControllerAgent = false;
                 includeArchive = true;
                 break;
             case EDataSource::Runtime:
                 includeCypress = true;
-                includeScheduler = true;
+                includeControllerAgent = true;
                 includeArchive = false;
                 break;
             case EDataSource::Manual:
-                // NB: if 'cypress'/'scheduler' included simultanously with 'archive' then pagintaion may be broken.
+                // NB: if 'cypress'/'controller_agent' included simultanously with 'archive' then pagintaion may be broken.
                 includeCypress = options.IncludeCypress;
-                includeScheduler = options.IncludeScheduler;
+                includeControllerAgent = options.IncludeControllerAgent;
                 includeArchive = options.IncludeArchive;
                 break;
             default:
                 Y_UNREACHABLE();
         }
 
-        LOG_DEBUG("Starting list jobs (IncludeCypress: %v, IncludeScheduler: %v, IncludeScheduler: %v)",
+        LOG_DEBUG("Starting list jobs (IncludeCypress: %v, IncludeControllerAgent: %v, IncludeArchive: %v)",
             includeCypress,
-            includeScheduler,
+            includeControllerAgent,
             includeArchive);
 
         TFuture<std::pair<std::vector<TJob>, int>> cypressJobsFuture;
-        TFuture<std::pair<std::vector<TJob>, int>> schedulerJobsFuture;
+        TFuture<std::pair<std::vector<TJob>, int>> controllerAgentJobsFuture;
         TFuture<std::pair<std::vector<TJob>, TListJobsStatistics>> archiveJobsFuture;
 
         TNullable<TListJobsStatistics> statistics;
@@ -5335,8 +5328,12 @@ private:
             cypressJobsFuture = DoListJobsFromCypress(operationId, deadline, options);
         }
 
-        if (includeScheduler) {
-            schedulerJobsFuture = DoListJobsFromScheduler(operationId, deadline, options);
+        if (includeControllerAgent) {
+            controllerAgentJobsFuture = DoListJobsFromControllerAgent(
+                operationId,
+                controllerAgentAddress,
+                deadline,
+                options);
         }
 
         if (includeArchive && doesArchiveExists) {
@@ -5366,21 +5363,21 @@ private:
                 // No such operation in Cypress.
                 result.CypressJobCount = 0;
             } else {
-                cypressJobsOrError.ThrowOnError();
+                THROW_ERROR cypressJobsOrError;
             }
         }
 
-        if (includeScheduler) {
-            auto schedulerJobsOrError = WaitFor(schedulerJobsFuture);
-            if (schedulerJobsOrError.IsOK()) {
-                const auto& schedulerJobs = schedulerJobsOrError.Value();
-                result.SchedulerJobCount = schedulerJobs.second;
-                UpdateJobsList(schedulerJobs.first, &result.Jobs);
-            } else if (schedulerJobsOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
+        if (includeControllerAgent) {
+            auto controllerAgentJobsOrError = WaitFor(controllerAgentJobsFuture);
+            if (controllerAgentJobsOrError.IsOK()) {
+                const auto& controllerAgentJobs = controllerAgentJobsOrError.Value();
+                result.ControllerAgentJobCount = controllerAgentJobs.second;
+                UpdateJobsList(controllerAgentJobs.first, &result.Jobs);
+            } else if (controllerAgentJobsOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
                 // No such operation in the scheduler.
-                result.SchedulerJobCount = 0;
+                result.ControllerAgentJobCount = 0;
             } else {
-                schedulerJobsOrError.ThrowOnError();
+                THROW_ERROR controllerAgentJobsOrError;
             }
         }
 
