@@ -2,7 +2,7 @@ from __future__ import print_function
 
 from .configs_provider import init_logging, get_default_provision, create_configs_provider
 from .default_configs import get_watcher_config
-from .helpers import read_config, write_config, is_dead_or_zombie, OpenPortIterator, wait_for_removing_file_lock, WEB_INTERFACE_RESOURCES_PATH, add_binary_path
+from .helpers import read_config, write_config, is_dead_or_zombie, OpenPortIterator, wait_for_removing_file_lock, add_binary_path
 from .porto_helpers import PortoSubprocess, porto_avaliable
 
 from yt.common import YtError, remove_file, makedirp, set_pdeathsig, which, to_native_str
@@ -392,7 +392,7 @@ class YTInstance(object):
         if self.controller_agent_count > 0:
             self._prepare_controller_agents(cluster_configuration["controller_agent"], controller_agent_dirs)
         if self.has_proxy:
-            self._prepare_proxy(cluster_configuration["proxy"], cluster_configuration["ui"], proxy_dir)
+            self._prepare_proxy(cluster_configuration["proxy"], proxy_dir)
         if self.has_rpc_proxy:
             self._prepare_rpc_proxy(cluster_configuration["rpc_proxy"], cluster_configuration["rpc_client"], rpc_proxy_dir)
         if self.skynet_manager_count > 0:
@@ -532,14 +532,26 @@ class YTInstance(object):
         for cgroup_path in self._all_cgroups:
             for dirpath, dirnames, _ in os.walk(cgroup_path, topdown=False):
                 for dirname in dirnames:
+                    inner_cgroup_path = os.path.join(dirpath, dirname)
                     for iter in xrange(5):
                         try:
-                            os.rmdir(os.path.join(dirpath, dirname))
+                            os.rmdir(inner_cgroup_path)
                             break
                         except OSError:
-                            logger.exception("Failed to remove cgroup dir")
+                            try:
+                                with open(os.path.join(inner_cgroup_path, "tasks")) as f:
+                                    logger.exception("Failed to remove cgroup dir, tasks {0}".format(f.readlines()))
+                            except:
+                                logger.exception("Failed to remove cgroup dir")
+
                             time.sleep(0.5)
-            os.rmdir(cgroup_path)
+
+            try:
+                # NB(psushin): sometimes cgroups still remain busy.
+                # We don't want to fail tests in this case.
+                os.rmdir(cgroup_path)
+            except OSError:
+                logger.exception("Failed to remove cgroup dir {0}".format(cgroup_path))
 
         self._all_cgroups = []
 
@@ -878,10 +890,10 @@ class YTInstance(object):
                 if active_scheduler_orchid_path is None:
                     return False, "No active scheduler found"
 
-                # TODO(ignat): /config/environment/primary_master_cell_id is temporary solution.
+                # TODO(ignat): /config/primary_master_cell_id is temporary solution.
                 try:
                     master_cell_id = client.get("//sys/@cell_id")
-                    scheduler_cell_id = client.get(active_scheduler_orchid_path + "/config/environment/primary_master_cell_id")
+                    scheduler_cell_id = client.get(active_scheduler_orchid_path + "/config/primary_master_cell_id")
                     if master_cell_id != scheduler_cell_id:
                         return False, "Incorrect scheduler connected, its cell_id {0} does not match master cell {1}".format(scheduler_cell_id, master_cell_id)
                 except YtResponseError as err:
@@ -1017,7 +1029,7 @@ class YTInstance(object):
         self.configs["console_driver"].append(config)
         self.config_paths["console_driver"].append(config_path)
 
-    def _prepare_proxy(self, proxy_config, ui_config, proxy_dir):
+    def _prepare_proxy(self, proxy_config, proxy_dir):
         config_path = os.path.join(self.configs_path, "proxy.json")
         if self._load_existing_environment:
             if not os.path.isfile(config_path):
@@ -1029,20 +1041,6 @@ class YTInstance(object):
 
         self.configs["proxy"] = config
         self.config_paths["proxy"] = config_path
-
-        # UI configuration
-        if not os.path.exists(WEB_INTERFACE_RESOURCES_PATH):
-            logger.warning("Failed to configure UI, web interface resources are not installed. "
-                           "Try to install yandex-yt-web-interface or set YT_LOCAL_THOR_PATH.")
-            return
-
-        ui_config_path = os.path.join(proxy_dir, "ui", "config.js")
-        if not self._load_existing_environment:
-            shutil.copytree(WEB_INTERFACE_RESOURCES_PATH, os.path.join(proxy_dir, "ui"))
-            write_config(ui_config, ui_config_path, format=None)
-        else:
-            if not os.path.isfile(ui_config_path):
-                logger.warning("Failed to configure UI, file {0} not found".format(ui_config_path))
 
     def _prepare_rpc_proxy(self, rpc_proxy_config, rpc_client_config, rpc_proxy_dir):
         config_path = os.path.join(self.configs_path, "rpc-proxy.yson")

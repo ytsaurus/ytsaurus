@@ -1,3 +1,5 @@
+from __future__ import print_function
+
 from .helpers import (get_tests_location, TEST_DIR, get_tests_sandbox, ENABLE_JOB_CONTROL,
                       sync_create_cell, get_test_file_path, get_tmpfs_path, get_port_locks_path, yatest_common)
 
@@ -16,7 +18,7 @@ from yt.packages.six.moves import reload_module
 import yt.wrapper as yt
 
 if yatest_common is not None:
-    from yt.environment import arcadia_interop
+    from yt.environment.arcadia_interop import arcadia_interop
 else:
     arcadia_interop = None
 
@@ -202,6 +204,8 @@ class YtTestEnvironment(object):
 
         os.environ["PATH"] = ".:" + os.environ["PATH"]
 
+        os.environ["YT_LOCAL_PORT_LOCKS_PATH"] = get_port_locks_path()
+
         # Resolve indeterminacy in sys.modules due to presence of lazy imported modules.
         for module in list(itervalues(sys.modules)):
             hasattr(module, "__file__")
@@ -306,13 +310,13 @@ def _remove_operations():
     try:
         operation_from_orchid = yt.list("//sys/scheduler/orchid/scheduler/operations")
     except yt.YtError as err:
-        print >>sys.stderr, format_error(err)
+        print(format_error(err), file=sys.stderr)
 
     for operation_id in operation_from_orchid:
         try:
             yt.abort_operation(operation_id)
         except yt.YtError as err:
-            print >>sys.stderr, format_error(err)
+            print(format_error(err), file=sys.stderr)
 
     yt.remove("//sys/operations/*")
 

@@ -655,7 +655,7 @@ test_parallel_dstappend()
 
     run_op()
     {
-        timeout 14 $MAPREDUCE_YT -map "cat" -src ignat/table -dstappend ignat/output_table
+        timeout 20 $MAPREDUCE_YT -map "cat" -src ignat/table -dstappend ignat/output_table
         if [ "$?" = 0 ]; then
             echo "xxx" >> sync_file
         fi
@@ -667,7 +667,7 @@ test_parallel_dstappend()
     run_op &
 
     local ok=0
-    for i in {1..15}; do
+    for i in {1..21}; do
         lines=`cat sync_file | wc -l`
         if [ "$lines" = "2" ]; then
             rm -f sync_file
@@ -680,7 +680,7 @@ test_parallel_dstappend()
 
     if [ "$ok" = 0 ]; then
         rm -f sync_file
-        die "Two simple operations doesn't finish correctly in 30 seconds"
+        die "Two simple operations do not finish correctly in 30 seconds"
     fi
 }
 

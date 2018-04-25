@@ -124,7 +124,7 @@ def merge_dicts(*dicts):
     return dict(chain(*[iteritems(d) for d in dicts]))
 
 def group_blobs_by_size(lines, chunk_size):
-    """ Unite lines into large chunks """
+    """Unite lines into large chunks."""
     size = 0
     chunk = []
     for line in lines:

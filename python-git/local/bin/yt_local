@@ -14,6 +14,7 @@ import logging
 import time
 import sys
 import os
+import errno
 
 DESCRIPTION = """Command-line utility to work with local YT instances."""
 
@@ -97,7 +98,13 @@ def start_func(**kwargs):
     if sync:
         main_process_pid_file = get_main_process_pid_file_path(kwargs["path"])
 
-        os.setpgid(0, 0)
+        try:
+            os.setpgid(0, 0)
+        except OSError as err:
+            # NOTE: If process is a session leader (e.g. started as entrypoint process in Docker)
+            # then setpgid will fail with EPERM (see man setpgid(2)). This is OK and let's ignore it.
+            if err.errno != errno.EPERM:
+                raise
 
         with open(main_process_pid_file, "w") as f:
             f.write(str(os.getpid()))
@@ -128,7 +135,7 @@ def add_start_subparser(subparsers):
     parser.add_argument("--node-count", type=int, default=_USE_START_DEFAULT, help="number of nodes")
     parser.add_argument("--scheduler-count", type=int, default=_USE_START_DEFAULT, help="number of schedulers")
 
-    for service in ["master", "node", "scheduler", "proxy"]:
+    for service in ["master", "node", "scheduler", "proxy", "controller-agent"]:
         parser.add_argument("--{0}-config".format(service), help="{0} config path".format(service))
 
     parser.add_argument("--sync", action="store_true", default=False,
