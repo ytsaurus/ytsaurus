@@ -701,8 +701,7 @@ class TestReplicatedDynamicTables(TestDynamicTablesBase):
         self.sync_enable_table_replica(replica_id)
 
         insert_rows("//tmp/t", [{"key": 1, "value1": "test1"}], require_sync_replica=False)
-        sleep(1.0)
-        assert select_rows("* from [//tmp/r]", driver=self.replica_driver) == [{"key": 1, "value1": "test1", "value2": YsonEntity()}]
+        wait(lambda: select_rows("* from [//tmp/r]", driver=self.replica_driver) == [{"key": 1, "value1": "test1", "value2": YsonEntity()}])
 
         self.sync_unmount_table("//tmp/t")
         assert get("//tmp/t/@chunk_count") == 1
@@ -712,8 +711,8 @@ class TestReplicatedDynamicTables(TestDynamicTablesBase):
         self.sync_mount_table("//tmp/t")
         sleep(1.0)
         insert_rows("//tmp/t", [{"key": 2, "value1": "test2"}], require_sync_replica=False)
-        sleep(1.0)
-        assert select_rows("* from [//tmp/r]", driver=self.replica_driver) == [{"key": 1, "value1": "test1", "value2": YsonEntity()}, {"key": 2, "value1": "test2", "value2": YsonEntity()}]
+        wait(lambda: select_rows("* from [//tmp/r]", driver=self.replica_driver) == [{"key": 1, "value1": "test1", "value2": YsonEntity()}, {"key": 2, "value1": "test2", "value2": YsonEntity()}])
+
         self.sync_unmount_table("//tmp/t")
 
         assert get("//tmp/t/@chunk_count") == chunk_count
