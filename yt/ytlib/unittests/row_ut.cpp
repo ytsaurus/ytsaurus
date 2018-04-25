@@ -4,6 +4,8 @@
 
 #include <yt/core/misc/protobuf_helpers.h>
 
+#include <limits>
+
 namespace NYT {
 namespace NTableClient {
 namespace {
@@ -60,6 +62,20 @@ TEST(TUnversionedRowTest, Serialize4)
 TEST(TUnversionedRowTest, Serialize5)
 {
     CheckSerialize(TUnversionedRow());
+}
+
+TEST(TUnversionedValueTest, CompareNaN)
+{
+    auto nanValue = MakeUnversionedDoubleValue(std::numeric_limits<double>::quiet_NaN());
+    auto doubleValue = MakeUnversionedDoubleValue(3.14);
+    static const char* stringValueData = "foo";
+    auto stringValue = MakeUnversionedStringValue(stringValueData);
+    EXPECT_THROW(CompareRowValues(nanValue, nanValue), std::exception);
+    EXPECT_THROW(CompareRowValues(nanValue, doubleValue), std::exception);
+    EXPECT_THROW(CompareRowValues(doubleValue, nanValue), std::exception);
+    EXPECT_THROW(CompareRowValues(nanValue, stringValue), std::exception);
+    EXPECT_THROW(CompareRowValues(stringValue, nanValue), std::exception);
+    EXPECT_NO_THROW(CompareRowValues(stringValue, doubleValue));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
