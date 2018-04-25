@@ -1173,6 +1173,12 @@ void TNodeShard::DoUnregisterNode(const TExecNodePtr& node)
 
     AbortAllJobsAtNode(node);
 
+    auto jobsToRemove = node->RecentlyFinishedJobs();
+    for (const auto& pair : jobsToRemove) {
+        const auto& jobId = pair.first;
+        RemoveRecentlyFinishedJob(jobId);
+    }
+
     YCHECK(IdToNode_.erase(node->GetId()) == 1);
 
     const auto& address = node->GetDefaultAddress();
@@ -2038,9 +2044,7 @@ void TNodeShard::AddRecentlyFinishedJob(const TJobPtr& job)
 void TNodeShard::RemoveRecentlyFinishedJob(const TJobId& jobId)
 {
     auto node = FindNodeByJob(jobId);
-    if (!node) {
-        return;
-    }
+    YCHECK(node);
 
     auto it = node->RecentlyFinishedJobs().find(jobId);
     if (it != node->RecentlyFinishedJobs().end()) {
@@ -2059,9 +2063,7 @@ void TNodeShard::SetOperationJobsReleaseDeadline(TOperationState* operationState
 
     for (const auto& jobId : operationState->RecentlyFinishedJobIds) {
         auto node = FindNodeByJob(jobId);
-        if (!node) {
-            continue;
-        }
+        YCHECK(node);
 
         auto it = node->RecentlyFinishedJobs().find(jobId);
         YCHECK(it != node->RecentlyFinishedJobs().end());
