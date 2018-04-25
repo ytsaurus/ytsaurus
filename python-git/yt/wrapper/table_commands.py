@@ -71,8 +71,8 @@ def _create_table(path, recursive=None, ignore_existing=False, attributes=None, 
         attributes = update(get_config(client)["create_table_attributes"], attributes)
     if get_config(client)["yamr_mode"]["use_yamr_defaults"]:
         attributes = update({"compression_codec": "zlib_6"}, attributes)
-    create("table", table, recursive=recursive, ignore_existing=ignore_existing,
-           attributes=attributes, client=client)
+    return create("table", table, recursive=recursive, ignore_existing=ignore_existing,
+                  attributes=attributes, client=client)
 
 @deprecated(alternative='"create" with "table" type')
 def create_table(path, recursive=None, ignore_existing=False,
@@ -89,7 +89,7 @@ def create_table(path, recursive=None, ignore_existing=False,
     :param dict attributes: attributes.
     """
 
-    _create_table(path, recursive, ignore_existing, attributes, client)
+    return _create_table(path, recursive, ignore_existing, attributes, client)
 
 def create_temp_table(path=None, prefix=None, attributes=None, expiration_timeout=None, client=None):
     """Creates temporary table by given path with given prefix and return name.

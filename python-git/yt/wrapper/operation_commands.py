@@ -50,14 +50,14 @@ def suspend_operation(operation, client=None):
 
     :param str operation: operation id.
     """
-    make_request("suspend_op", {"operation_id": operation}, client=client)
+    return make_request("suspend_op", {"operation_id": operation}, client=client)
 
 def resume_operation(operation, client=None):
     """Continues operation after suspending.
 
     :param str operation: operation id.
     """
-    make_request("resume_op", {"operation_id": operation}, client=client)
+    return make_request("resume_op", {"operation_id": operation}, client=client)
 
 def complete_operation(operation, client=None):
     """Completes operation.
@@ -70,7 +70,7 @@ def complete_operation(operation, client=None):
     """
     if get_operation_state(operation, client=client).is_finished():
         return
-    make_request("complete_op", {"operation_id": operation}, client=client)
+    return make_request("complete_op", {"operation_id": operation}, client=client)
 
 def get_operation(operation_id, attributes=None, include_scheduler=None, client=None):
     """Get operation attributes through API.
