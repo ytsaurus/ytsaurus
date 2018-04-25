@@ -461,6 +461,8 @@ def smart_upload_file(filename, destination=None, yt_filename=None, placement_st
     require(placement_strategy in ["replace", "ignore", "random", "hash"],
             lambda: YtError("Incorrect file placement strategy " + placement_strategy))
 
+    executable = os.access(filename, os.X_OK) or get_config(client)["yamr_mode"]["always_set_executable_flag_on_files"]
+
     if placement_strategy == "hash":
         if destination is not None:
             raise YtError("Option 'destination' can not be specified if strategy is 'hash'")
@@ -493,16 +495,14 @@ def smart_upload_file(filename, destination=None, yt_filename=None, placement_st
         logger.debug("Uploading file '%s' with strategy '%s'", filename, placement_strategy)
         upload_with_check(destination)
 
-    executable = os.access(filename, os.X_OK) or get_config(client)["yamr_mode"]["always_set_executable_flag_on_files"]
-
-    try:
-        set_attribute(destination, "file_name", yt_filename, client=client)
-        set_attribute(destination, "executable", bool_to_string(executable), client=client)
-    except YtResponseError as error:
-        if error.is_concurrent_transaction_lock_conflict() and ignore_set_attributes_error:
-            pass
-        else:
-            raise
+        try:
+            set_attribute(destination, "file_name", yt_filename, client=client)
+            set_attribute(destination, "executable", bool_to_string(executable), client=client)
+        except YtResponseError as error:
+            if error.is_concurrent_transaction_lock_conflict() and ignore_set_attributes_error:
+                pass
+            else:
+                raise
 
     return to_yson_type(
         destination,
