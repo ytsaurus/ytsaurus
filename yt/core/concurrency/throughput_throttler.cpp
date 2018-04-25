@@ -309,7 +309,7 @@ public:
 
 private:
     const NProfiling::TProfiler Profiler;
-    NProfiling::TAggregateCounter ValueCounter_;
+    NProfiling::TSimpleCounter ValueCounter_;
 };
 
 IThroughputThrottlerPtr GetUnlimitedThrottler()
