@@ -310,6 +310,11 @@ bool TServiceContextBase::IsPooled() const
     return false;
 }
 
+void TServiceContextBase::AddHolder(TIntrusivePtr<TRefCounted> holder)
+{
+    Holders_.emplace_back(std::move(holder));
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TServiceContextWrapper::TServiceContextWrapper(IServiceContextPtr underlyingContext)
@@ -371,7 +376,7 @@ const TString& TServiceContextWrapper::GetMethod() const
     return UnderlyingContext_->GetMethod();
 }
 
-const TRealmId& TServiceContextWrapper::GetRealmId() const 
+const TRealmId& TServiceContextWrapper::GetRealmId() const
 {
     return UnderlyingContext_->GetRealmId();
 }
@@ -455,7 +460,7 @@ std::vector<TSharedRef>& TServiceContextWrapper::ResponseAttachments()
     return UnderlyingContext_->ResponseAttachments();
 }
 
-const NProto::TRequestHeader& TServiceContextWrapper::RequestHeader() const 
+const NProto::TRequestHeader& TServiceContextWrapper::RequestHeader() const
 {
     return UnderlyingContext_->RequestHeader();
 }
