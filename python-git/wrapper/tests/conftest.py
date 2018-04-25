@@ -18,7 +18,7 @@ from yt.packages.six.moves import reload_module
 import yt.wrapper as yt
 
 if yatest_common is not None:
-    from yt.environment.arcadia_interop import arcadia_interop
+    from yt.environment import arcadia_interop
 else:
     arcadia_interop = None
 
