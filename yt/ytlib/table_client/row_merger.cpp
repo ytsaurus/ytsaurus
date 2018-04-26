@@ -348,7 +348,8 @@ TVersionedRowMerger::TVersionedRowMerger(
     TTimestamp currentTimestamp,
     TTimestamp majorTimestamp,
     TColumnEvaluatorPtr columnEvaluator,
-    bool lookup)
+    bool lookup,
+    bool forceMergeAggregates)
     : RowBuffer_(std::move(rowBuffer))
     , KeyColumnCount_(keyColumnCount)
     , Config_(std::move(config))
@@ -356,6 +357,7 @@ TVersionedRowMerger::TVersionedRowMerger(
     , MajorTimestamp_(majorTimestamp)
     , ColumnEvaluator_(std::move(columnEvaluator))
     , Lookup_(lookup)
+    , ForceMergeAggregates_(forceMergeAggregates)
 {
     size_t mergedKeyColumnCount = 0;
     if (columnFilter.All) {
@@ -389,16 +391,6 @@ TVersionedRowMerger::TVersionedRowMerger(
     Keys_.resize(mergedKeyColumnCount);
 
     Cleanup();
-}
-
-TTimestamp TVersionedRowMerger::GetCurrentTimestamp() const
-{
-    return CurrentTimestamp_;
-}
-
-TTimestamp TVersionedRowMerger::GetMajorTimestamp() const
-{
-    return MajorTimestamp_;
 }
 
 void TVersionedRowMerger::AddPartialRow(TVersionedRow row)
@@ -551,7 +543,8 @@ TVersionedRow TVersionedRowMerger::BuildMergedRow()
         int id = partialValueIt->Id;
         if (ColumnEvaluator_->IsAggregate(id) && retentionBeginIt < ColumnValues_.end()) {
             while (retentionBeginIt != ColumnValues_.begin()
-                && retentionBeginIt->Timestamp >= MajorTimestamp_)
+                && retentionBeginIt->Timestamp >= MajorTimestamp_
+                && !ForceMergeAggregates_)
             {
                 --retentionBeginIt;
             }
