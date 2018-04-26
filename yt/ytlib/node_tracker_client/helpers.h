@@ -20,6 +20,7 @@ namespace NNodeTrackerClient {
 #define ITERATE_NODE_RESOURCES(XX) \
     XX(user_slots,            UserSlots) \
     XX(cpu,                   Cpu) \
+    XX(gpu,                   Gpu) \
     XX(user_memory,           UserMemory) \
     XX(system_memory,         SystemMemory) \
     XX(network,               Network) \
@@ -32,6 +33,7 @@ namespace NNodeTrackerClient {
 
 #define ITERATE_NODE_RESOURCE_LIMITS_OVERRIDES(XX) \
     XX(cpu,                   Cpu) \
+    XX(gpu,                   Gpu) \
     XX(network,               Network) \
     XX(replication_slots,     ReplicationSlots) \
     XX(replication_data_size, ReplicationDataSize) \
@@ -54,6 +56,7 @@ DEFINE_ENUM(EResourceType,
     (RepairSlots)
     (RepairDataSize)
     (SealSlots)
+    (Gpu)
 );
 
 TString FormatResourceUsage(
