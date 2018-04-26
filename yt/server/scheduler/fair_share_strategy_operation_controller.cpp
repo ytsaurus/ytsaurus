@@ -114,8 +114,7 @@ TScheduleJobResultPtr TFairShareStrategyOperationController::ScheduleJob(
                     if (scheduleJobResult->StartDescriptor) {
                         const auto& jobId = scheduleJobResult->StartDescriptor->Id;
                         LOG_WARNING("Aborting late job (JobId: %v)",
-                            jobId,
-                            OperationId_);
+                            jobId);
                         AbortJob(jobId, EAbortReason::SchedulingTimeout);
                     }
             }));
