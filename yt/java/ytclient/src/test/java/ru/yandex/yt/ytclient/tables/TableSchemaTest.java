@@ -21,7 +21,7 @@ public class TableSchemaTest {
             .addValue("value", ColumnValueType.STRING)
             .build();
     private static final YTreeNode KEY_VALUE_SCHEMA_YTREE = parseString(
-            "<\"strict\"=%true;\"unique_keys\"=%true>[{\"name\"=\"key\";\"type\"=\"string\";\"sort_order\"=\"ascending\"};{\"name\"=\"value\";\"type\"=\"string\"}]");
+            "<\"strict\"=%true;\"unique_keys\"=%true>[{\"name\"=\"key\";\"type\"=\"string\";\"sort_order\"=\"ascending\";\"required\"=%false};{\"name\"=\"value\";\"type\"=\"string\";\"required\"=%false}]");
 
     private static final TableSchema HASH_COLUMN_SCHEMA = new TableSchema.Builder()
             .add(new ColumnSchema.Builder("h", ColumnValueType.INT64)
@@ -33,7 +33,7 @@ public class TableSchemaTest {
             .addValue("c", ColumnValueType.STRING)
             .build();
     private static final YTreeNode HASH_COLUMN_SCHEMA_YTREE = parseString(
-            "<\"strict\"=%true;\"unique_keys\"=%true>[{\"name\"=\"h\";\"type\"=\"int64\";\"sort_order\"=\"ascending\";\"expression\"=\"hash(...)\"};{\"name\"=\"a\";\"type\"=\"string\";\"sort_order\"=\"ascending\"};{\"name\"=\"b\";\"type\"=\"string\"};{\"name\"=\"c\";\"type\"=\"string\"}]");
+            "<\"strict\"=%true;\"unique_keys\"=%true>[{\"name\"=\"h\";\"type\"=\"int64\";\"sort_order\"=\"ascending\";\"expression\"=\"hash(...)\";\"required\"=%false};{\"name\"=\"a\";\"type\"=\"string\";\"sort_order\"=\"ascending\";\"required\"=%false};{\"name\"=\"b\";\"type\"=\"string\";\"required\"=%false};{\"name\"=\"c\";\"type\"=\"string\";\"required\"=%false}]");
 
     @Test
     public void keyValueSchemaToYTree() {
