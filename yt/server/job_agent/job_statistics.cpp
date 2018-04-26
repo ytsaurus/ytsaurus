@@ -224,9 +224,16 @@ TJobStatistics TJobStatistics::ExtractSpec()
     return copy;
 }
 
+TJobStatistics TJobStatistics::ExtractStderr()
+{
+    TJobStatistics copy;
+    copy.Stderr_ = Stderr_;
+    return copy;
+}
+
 bool TJobStatistics::IsEmpty() const
 {
-    return !(Type_ || State_ || StartTime_ || FinishTime_ || Error_ || Spec_ || SpecVersion_ || Statistics_ || Events_);
+    return !(Type_ || State_ || StartTime_ || FinishTime_ || Error_ || Spec_ || SpecVersion_ || Statistics_ || Events_ || Stderr_);
 }
 
 void TJobStatistics::SetOperationId(NJobTrackerClient::TOperationId operationId)
@@ -287,6 +294,11 @@ void TJobStatistics::SetStatistics(const TYsonString& statistics)
 void TJobStatistics::SetEvents(const TJobEvents& events)
 {
     Events_ = ConvertToYsonString(events).GetData();
+}
+
+void TJobStatistics::SetStderr(const TString& stderr)
+{
+    Stderr_ = stderr;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

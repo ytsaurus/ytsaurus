@@ -41,6 +41,7 @@ class TestListJobs(YTEnvSetup):
         "scheduler": {
             "enable_job_reporter": True,
             "enable_job_spec_reporter": True,
+            "enable_job_stderr_reporter": True,
             "static_orchid_cache_update_period": 100,
         },
     }
@@ -136,6 +137,9 @@ class TestListJobs(YTEnvSetup):
         release_breakpoint()
 
         op.track()
+
+        # TODO(ignat): wait that all jobs are released on nodes.
+        time.sleep(5)
 
         jobs = get("//sys/operations/{}/jobs".format(op.id), attributes=[
             "job_type",
@@ -242,6 +246,16 @@ class TestListJobs(YTEnvSetup):
 
             validate_address_filter(op, False, True, False)
 
+        # Test stderrs from archive before clean.
+        archive_options = dict(data_source="manual", include_cypress=False, include_scheduler=False, include_archive=True)
+
+        res = list_jobs(op.id,  with_stderr=True, **archive_options)["jobs"]
+        assert sorted(jobs_with_stderr) == sorted([job["id"] for job in res])
+
+        res = list_jobs(op.id, with_stderr=False, **archive_options)["jobs"]
+        assert sorted(jobs_without_stderr) == sorted([job["id"] for job in res])
+
+        # Clean operations to archive.
         clean_operations(self.Env.create_native_client())
         sleep(1)  # statistics_reporter
 

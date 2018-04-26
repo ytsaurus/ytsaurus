@@ -109,6 +109,7 @@ struct TJobTableDescriptor
         const int Error;
         const int Statistics;
         const int Events;
+        const int StderrSize;
     };
 
     const NTableClient::TNameTablePtr NameTable;
@@ -132,6 +133,25 @@ struct TJobSpecTableDescriptor
 
     const NTableClient::TNameTablePtr NameTable;
     const TIndex Index;
+};
+
+struct TJobStderrTableDescriptor
+{
+    TJobStderrTableDescriptor();
+
+    struct TIndex
+    {
+        explicit TIndex(const NTableClient::TNameTablePtr& n);
+
+        const int OperationIdHi;
+        const int OperationIdLo;
+        const int JobIdHi;
+        const int JobIdLo;
+        const int Stderr;
+    };
+
+    const NTableClient::TNameTablePtr NameTable;
+    const TIndex Ids;
 };
 
 

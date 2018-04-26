@@ -899,6 +899,9 @@ private:
                 if (event.ArchiveJobSpec) {
                     protoEvent->set_archive_job_spec(event.ArchiveJobSpec.Get());
                 }
+                if (event.ArchiveStderr) {
+                    protoEvent->set_archive_stderr(event.ArchiveStderr.Get());
+                }
             });
 
         ScheduleJobResposesOutbox_->BuildOutcoming(

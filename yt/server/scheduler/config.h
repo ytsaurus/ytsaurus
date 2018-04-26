@@ -311,8 +311,11 @@ public:
     // Enables job reporter to send job events/statistics etc.
     bool EnableJobReporter;
 
-    // Enables job spec reporter to send job specs.
+    // Enables job reporter to send job specs.
     bool EnableJobSpecReporter;
+
+    // Enables job reporter to send job stderrs.
+    bool EnableJobStderrReporter;
 
     // Timeout to try interrupt job before abort it.
     TDuration JobInterruptTimeout;

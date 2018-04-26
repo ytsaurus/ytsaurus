@@ -89,6 +89,7 @@ TJobTableDescriptor::TIndex::TIndex(const TNameTablePtr& n)
     , Error(n->RegisterName("error"))
     , Statistics(n->RegisterName("statistics"))
     , Events(n->RegisterName("events"))
+    , StderrSize(n->RegisterName("stderr_size"))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -104,6 +105,21 @@ TJobSpecTableDescriptor::TIndex::TIndex(const NTableClient::TNameTablePtr& n)
     , Spec(n->RegisterName("spec"))
     , SpecVersion(n->RegisterName("spec_version"))
     , Type(n->RegisterName("type"))
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+TJobStderrTableDescriptor::TJobStderrTableDescriptor()
+    : NameTable(New<TNameTable>())
+    , Ids(NameTable)
+{ }
+
+TJobStderrTableDescriptor::TIndex::TIndex(const NTableClient::TNameTablePtr& n)
+    : OperationIdHi(n->RegisterName("operation_id_hi"))
+    , OperationIdLo(n->RegisterName("operation_id_lo"))
+    , JobIdHi(n->RegisterName("job_id_hi"))
+    , JobIdLo(n->RegisterName("job_id_lo"))
+    , Stderr(n->RegisterName("stderr"))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////

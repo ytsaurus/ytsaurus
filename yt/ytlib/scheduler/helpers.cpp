@@ -230,6 +230,12 @@ const TYPath& GetOperationsArchiveJobSpecsPath()
     return path;
 }
 
+const TYPath& GetOperationsArchiveJobStderrsPath()
+{
+    static TYPath path = "//sys/operations_archive/stderrs";
+    return path;
+}
+
 bool IsOperationFinished(EOperationState state)
 {
     return
