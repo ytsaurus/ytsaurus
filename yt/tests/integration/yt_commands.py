@@ -724,9 +724,12 @@ class Operation(object):
         path = "//sys/scheduler/orchid/scheduler/operations/{0}/progress/jobs/{1}".format(self.id, state)
         if state == "aborted" or state == "completed":
             path += "/total"
-        if not exists(path, verbose=False):
+        try:
+            return get(path, verbose=False)
+        except YtError as err:
+            if not err.is_resolve_error():
+                raise
             return 0
-        return get(path, verbose=False)
 
     def get_running_jobs(self):
         jobs_path = "//sys/scheduler/orchid/scheduler/operations/" + self.id + "/running_jobs"
