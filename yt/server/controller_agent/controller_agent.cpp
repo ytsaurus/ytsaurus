@@ -1126,6 +1126,10 @@ private:
             [&] (auto* protoRequest) {
                 auto jobId = FromProto<TJobId>(protoRequest->job_id());
                 auto operationId = FromProto<TOperationId>(protoRequest->operation_id());
+                LOG_DEBUG("Processing schedule job request (OperationId: %v, JobId: %v)",
+                    operationId,
+                    jobId);
+
                 auto operation = this->FindOperation(operationId);
                 if (!operation) {
                     replyWithFailure(operationId, jobId, EScheduleJobFailReason::UnknownOperation);
