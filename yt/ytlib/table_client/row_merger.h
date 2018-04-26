@@ -102,14 +102,12 @@ public:
         TTimestamp currentTimestamp,
         TTimestamp majorTimestamp,
         NQueryClient::TColumnEvaluatorPtr columnEvaluator,
-        bool lookup);
+        bool lookup,
+        bool forceMergeAggregates);
 
     void AddPartialRow(TVersionedRow row);
     TVersionedRow BuildMergedRow();
     void Reset();
-
-    TTimestamp GetCurrentTimestamp() const;
-    TTimestamp GetMajorTimestamp() const;
 
 private:
     const TRowBufferPtr RowBuffer_;
@@ -119,6 +117,7 @@ private:
     const TTimestamp MajorTimestamp_;
     const NQueryClient::TColumnEvaluatorPtr ColumnEvaluator_;
     const bool Lookup_ = true;
+    const bool ForceMergeAggregates_;
 
     bool Started_ = false;
 
