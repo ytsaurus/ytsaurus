@@ -222,6 +222,7 @@ private:
         TIncarnationId IncarnationId;
         TPromise<NControllerAgent::TScheduleJobResultPtr> Promise;
         THashMultiMap<TOperationId, THashMap<TJobId, TScheduleJobEntry>::iterator>::iterator OperationIdToJobIdsIterator;
+        NProfiling::TCpuInstant StartTime;
     };
     // NB: It is important to use THash* instead of std::unordered_* since we rely on
     // iterators not to be uninvalidated.
