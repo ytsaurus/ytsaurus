@@ -243,6 +243,8 @@ private:
 
         THashMap<TJobId, TJobPtr> Jobs;
         THashSet<TJobId> RecentlyFinishedJobIds;
+        //! Used only to decrease logging size.
+        THashSet<TJobId> SkippedJobIds;
         IOperationControllerPtr Controller;
         bool Terminated = false;
         //! Raised to prevent races between suspension and scheduler strategy scheduling new jobs.
