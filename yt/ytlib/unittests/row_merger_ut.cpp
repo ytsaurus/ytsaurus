@@ -1220,6 +1220,28 @@ TEST_F(TVersionedRowMergerTest, MergeAggregates3)
         merger->BuildMergedRow());
 }
 
+TEST_F(TVersionedRowMergerTest, IgnoreMajorTimestamp)
+{
+    auto config = GetRetentionConfig();
+    config->MinDataVersions = 1;
+    config->IgnoreMajorTimestamp = true;
+
+    auto merger = GetTypicalMerger(
+        config,
+        1000000000000ULL,
+        0,
+        GetAggregateSumSchema());
+
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=100000000000;aggregate=true> 1"));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=200000000000;aggregate=true> 2"));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=300000000000;aggregate=true> 10"));
+
+    EXPECT_EQ(
+        BuildVersionedRow(
+            "<id=0> 0",
+            "<id=3;ts=300000000000;aggregate=true> 13"),
+        merger->BuildMergedRow());
+}
 
 TEST_F(TVersionedRowMergerTest, NoKeyColumnFilter)
 {

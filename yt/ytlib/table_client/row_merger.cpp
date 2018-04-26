@@ -354,7 +354,7 @@ TVersionedRowMerger::TVersionedRowMerger(
     , KeyColumnCount_(keyColumnCount)
     , Config_(std::move(config))
     , CurrentTimestamp_(currentTimestamp)
-    , MajorTimestamp_(majorTimestamp)
+    , MajorTimestamp_(Config_->IgnoreMajorTimestamp ? MaxTimestamp : majorTimestamp)
     , ColumnEvaluator_(std::move(columnEvaluator))
     , Lookup_(lookup)
     , ForceMergeAggregates_(forceMergeAggregates)
@@ -572,7 +572,9 @@ TVersionedRow TVersionedRowMerger::BuildMergedRow()
 
             }
 
-            if (retentionBeginIt->Timestamp < MajorTimestamp_) {
+            if (Config_->IgnoreMajorTimestamp) {
+                retentionBeginIt->Aggregate = true;
+            } else if (retentionBeginIt->Timestamp < MajorTimestamp_) {
                 retentionBeginIt->Aggregate = false;
             }
         }
