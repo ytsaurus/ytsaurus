@@ -1147,12 +1147,13 @@ private:
     {
         auto tabletSnapshot = TabletSnapshots_.GetCachedTabletSnapshot(tabletId);
         auto columnFilter = GetColumnFilter(Query_->GetReadSchema(), tabletSnapshot->QuerySchema);
+        auto profilerTags = tabletSnapshot->ProfilerTags;
 
         ISchemafulReaderPtr reader;
 
         if (!tabletSnapshot->TableSchema.IsSorted()) {
             auto bottomSplitReaderGenerator = [
-                tabletSnapshot,
+                MOVE(tabletSnapshot),
                 columnFilter,
                 MOVE(bounds),
                 index = 0,
@@ -1189,7 +1190,7 @@ private:
                 Options_.ReadSessionId);
         }
 
-        return New<TProfilingReaderWrapper>(reader, MaybeAddUserTag(tabletSnapshot->ProfilerTags));
+        return New<TProfilingReaderWrapper>(reader, MaybeAddUserTag(profilerTags));
     }
 
     ISchemafulReaderPtr GetTabletReader(
@@ -1198,6 +1199,7 @@ private:
     {
         auto tabletSnapshot = TabletSnapshots_.GetCachedTabletSnapshot(tabletId);
         auto columnFilter = GetColumnFilter(Query_->GetReadSchema(), tabletSnapshot->QuerySchema);
+        auto profilerTags = tabletSnapshot->ProfilerTags;
 
         auto reader = CreateSchemafulTabletReader(
             std::move(tabletSnapshot),
@@ -1207,7 +1209,7 @@ private:
             Options_.WorkloadDescriptor,
             Options_.ReadSessionId);
 
-        return New<TProfilingReaderWrapper>(reader, MaybeAddUserTag(tabletSnapshot->ProfilerTags));
+        return New<TProfilingReaderWrapper>(reader, MaybeAddUserTag(profilerTags));
     }
 
     TTagIdList MaybeAddUserTag(const TTagIdList& tags)
