@@ -220,6 +220,7 @@ void TNodeShard::StartOperationRevival(const TOperationId& operationId)
     auto& operationState = GetOperationState(operationId);
     operationState.JobsReady = false;
     operationState.ForbidNewJobs = false;
+    operationState.SkippedJobIds = THashSet<TJobId>();
 
     LOG_DEBUG("Operation revival started at node shard (OperationId: %v, JobCount: %v)",
         operationId,
@@ -254,6 +255,7 @@ void TNodeShard::FinishOperationRevival(const TOperationId& operationId, const s
     operationState.JobsReady = true;
     operationState.ForbidNewJobs = false;
     operationState.Terminated = false;
+    operationState.SkippedJobIds = THashSet<TJobId>();
 
     for (const auto& job : jobs) {
         auto node = GetOrRegisterNode(
@@ -286,6 +288,7 @@ void TNodeShard::ResetOperationRevival(const TOperationId& operationId)
     operationState.JobsReady = true;
     operationState.ForbidNewJobs = false;
     operationState.Terminated = false;
+    operationState.SkippedJobIds = THashSet<TJobId>();
 
     LOG_DEBUG("Operation revival state reset at node shard (OperationId: %v)",
         operationId);
@@ -1440,7 +1443,11 @@ TJobPtr TNodeShard::ProcessJobHeartbeat(
         // TJob structures of the operation are materialized. Also we should
         // not remove the completed jobs that were not saved to the snapshot.
         if (operation && !operation->JobsReady) {
-            LOG_DEBUG("Job is skipped since operation jobs are not ready yet");
+            auto jobIt = operation->SkippedJobIds.find(jobId);
+            if (jobIt == operation->SkippedJobIds.end()) {
+                LOG_DEBUG("Job is skipped since operation jobs are not ready yet");
+                operation->SkippedJobIds.insert(jobId);
+            }
             return nullptr;
         }
 
