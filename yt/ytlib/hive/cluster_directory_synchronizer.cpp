@@ -53,13 +53,13 @@ public:
         DoStop();
     }
 
-    TFuture<void> Sync()
+    TFuture<void> Sync(bool force)
     {
         auto guard = Guard(SpinLock_);
         if (Stopped_) {
             return MakeFuture(TError("Cluster directory synchronizer is stopped"));
         }
-        DoStart();
+        DoStart(force);
         return SyncPromise_.ToFuture();
     }
 
@@ -78,9 +78,12 @@ private:
     TPromise<void> SyncPromise_ = NewPromise<void>();
 
 
-    void DoStart()
+    void DoStart(bool force = false)
     {
         if (Started_) {
+            if (force) {
+                SyncExecutor_->ScheduleOutOfBand();
+            }
             return;
         }
         Started_ = true;
@@ -172,9 +175,9 @@ void TClusterDirectorySynchronizer::Stop()
     Impl_->Stop();
 }
 
-TFuture<void> TClusterDirectorySynchronizer::Sync()
+TFuture<void> TClusterDirectorySynchronizer::Sync(bool force)
 {
-    return Impl_->Sync();
+    return Impl_->Sync(force);
 }
 
 DELEGATE_SIGNAL(TClusterDirectorySynchronizer, void(const TError&), Synchronized, *Impl_);

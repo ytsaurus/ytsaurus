@@ -30,7 +30,7 @@ public:
 
     //! Returns a future that gets set with the next sync.
     //! Starts the synchronizer if not started yet.
-    TFuture<void> Sync();
+    TFuture<void> Sync(bool force = false);
 
     //! Raised with each synchronization (either successful or not).
     DECLARE_SIGNAL(void(const TError&), Synchronized);
