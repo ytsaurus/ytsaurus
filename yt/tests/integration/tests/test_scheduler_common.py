@@ -1144,8 +1144,7 @@ class TestSchedulerCommon(YTEnvSetup):
 
         path = "//sys/operations/{0}/@state".format(op.id)
         assert get(path) != "completed"
-        while op.get_job_count("completed") < 3:
-            time.sleep(0.3)
+        wait(lambda: op.get_job_count("completed") >= 3)
 
         op.complete()
         assert get(path) == "completed"
