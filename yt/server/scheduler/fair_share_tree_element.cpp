@@ -1687,7 +1687,7 @@ bool TOperationElement::TryStartScheduleJob(
 {
     auto isBlocked = Controller_->IsBlocked(
         now,
-        ControllerConfig_->MaxConcurrentControllerScheduleJobCalls,
+        Spec_->MaxConcurrentControllerScheduleJobCalls.Get(ControllerConfig_->MaxConcurrentControllerScheduleJobCalls),
         ControllerConfig_->ScheduleJobFailBackoffTime);
 
     if (isBlocked) {
@@ -2216,7 +2216,7 @@ bool TOperationElement::IsBlocked(NProfiling::TCpuInstant now) const
         GetPendingJobCount() == 0 ||
         Controller_->IsBlocked(
             now,
-            ControllerConfig_->MaxConcurrentControllerScheduleJobCalls,
+            Spec_->MaxConcurrentControllerScheduleJobCalls.Get(ControllerConfig_->MaxConcurrentControllerScheduleJobCalls),
             ControllerConfig_->ScheduleJobFailBackoffTime);
 }
 
