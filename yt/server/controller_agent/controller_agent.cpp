@@ -720,7 +720,7 @@ private:
             ->GetMasterClient()
             ->GetNativeConnection()
             ->GetClusterDirectorySynchronizer()
-            ->Sync())
+            ->Sync(/* force */ true))
             .ThrowOnError();
 
         LOG_INFO("Cluster directory synchronized");
