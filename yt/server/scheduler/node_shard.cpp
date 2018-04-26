@@ -1068,6 +1068,7 @@ TFuture<TScheduleJobResultPtr> TNodeShard::BeginScheduleJob(
     entry.IncarnationId = incarnationId;
     entry.OperationId = operationId;
     entry.OperationIdToJobIdsIterator = OperationIdToJobIterators_.emplace(operationId, pair.first);
+    entry.StartTime = GetCpuInstant();
     return entry.Promise.ToFuture();
 }
 
@@ -1079,15 +1080,17 @@ void TNodeShard::EndScheduleJob(const NProto::TScheduleJobResponse& response)
 
     auto jobId = FromProto<TJobId>(response.job_id());
     auto operationId = FromProto<TOperationId>(response.operation_id());
-    LOG_DEBUG("Job schedule response received (OperationId: %v, JobId: %v, Success: %v)",
-        operationId,
-        jobId,
-        response.has_job_type());
 
     auto it = JobIdToScheduleEntry_.find(jobId);
     YCHECK(it != JobIdToScheduleEntry_.end());
     auto& entry = it->second;
     YCHECK(operationId == entry.OperationId);
+
+    LOG_DEBUG("Job schedule response received (OperationId: %v, JobId: %v, Success: %v, Duration: %v)",
+        operationId,
+        jobId,
+        response.has_job_type(),
+        CpuDurationToDuration(GetCpuInstant() - entry.StartTime).MilliSeconds());
 
     auto result = New<TScheduleJobResult>();
     if (response.has_job_type()) {
@@ -1561,7 +1564,7 @@ TJobPtr TNodeShard::ProcessJobHeartbeat(
                 SetJobState(job, state);
                 switch (state) {
                     case EJobState::Running:
-                        LOG_DEBUG_IF(shouldLogJob, "Job is running", state);
+                        LOG_DEBUG_IF(shouldLogJob, "Job is running");
                         OnJobRunning(job, jobStatus);
                         if (job->GetInterruptDeadline() != 0 && GetCpuInstant() > job->GetInterruptDeadline()) {
                             LOG_DEBUG("Interrupted job deadline reached, aborting (InterruptDeadline: %v)",

@@ -434,7 +434,7 @@ public:
             ScheduleJobRequestsOutbox_->Enqueue(std::move(request));
         }
 
-        LOG_DEBUG("Job schedule request enqueued (OperationId: %v, JobId: %v)",
+        LOG_TRACE("Job schedule request enqueued (OperationId: %v, JobId: %v)",
             OperationId_,
             jobId);
 
