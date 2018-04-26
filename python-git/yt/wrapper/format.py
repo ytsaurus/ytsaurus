@@ -11,7 +11,7 @@ from .yamr_record import Record, SimpleRecord, SubkeyedRecord
 from . import yson
 
 from yt.common import to_native_str
-import yt.json as json
+import yt.json_wrapper as json
 
 from yt.packages.six import (iteritems, Iterator, add_metaclass, PY3, binary_type, text_type,
                              indexbytes, int2byte)
@@ -669,22 +669,6 @@ class YamrFormat(Format):
     lenval = Format._create_property("lenval", parse_bool)
     field_separator = Format._create_property("fs")
     record_separator = Format._create_property("rs")
-
-    def __deepcopy__(self, memodict=None):
-        # Fix python2.6 bug http://bugs.python.org/issue1515
-        result = type(self)()
-
-        for attr_name, attr_value in iteritems(self.__dict__):
-            if attr_name == "_load_row":
-                continue
-            setattr(result, attr_name, copy.deepcopy(attr_value, memo=memodict))
-
-        if self._load_row == self._read_lenval_values:
-            result._load_row = result._read_lenval_values
-        else:
-            result._load_row = result._read_delimited_values
-
-        return result
 
     def load_row(self, stream, raw=None):
         unparsed = self._is_raw(raw)

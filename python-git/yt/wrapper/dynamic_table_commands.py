@@ -278,11 +278,13 @@ def mount_table(path, first_tablet_index=None, last_tablet_index=None, cell_id=N
     set_param(params, "cell_id", cell_id)
     set_param(params, "freeze", freeze)
 
-    make_request("mount_table", params, client=client)
+    response = make_request("mount_table", params, client=client)
 
     if sync:
         state = "frozen" if freeze else "mounted"
         _waiting_for_tablets(path, state, first_tablet_index, last_tablet_index, client)
+
+    return response
 
 def unmount_table(path, first_tablet_index=None, last_tablet_index=None, force=None, sync=False, client=None):
     """Unmounts table.
@@ -297,10 +299,12 @@ def unmount_table(path, first_tablet_index=None, last_tablet_index=None, force=N
     set_param(params, "last_tablet_index", last_tablet_index)
     set_param(params, "force", force)
 
-    make_request("unmount_table", params, client=client)
+    response = make_request("unmount_table", params, client=client)
 
     if sync:
         _waiting_for_tablets(path, "unmounted", first_tablet_index, last_tablet_index, client)
+
+    return response
 
 def remount_table(path, first_tablet_index=None, last_tablet_index=None, client=None):
     """Remounts table.
@@ -311,7 +315,7 @@ def remount_table(path, first_tablet_index=None, last_tablet_index=None, client=
     set_param(params, "first_tablet_index", first_tablet_index)
     set_param(params, "last_tablet_index", last_tablet_index)
 
-    make_request("remount_table", params, client=client)
+    return make_request("remount_table", params, client=client)
 
 
 def freeze_table(path, first_tablet_index=None, last_tablet_index=None, sync=False, client=None):
@@ -326,10 +330,12 @@ def freeze_table(path, first_tablet_index=None, last_tablet_index=None, sync=Fal
     set_param(params, "first_tablet_index", first_tablet_index)
     set_param(params, "last_tablet_index", last_tablet_index)
 
-    make_request("freeze_table", params, client=client)
+    response = make_request("freeze_table", params, client=client)
 
     if sync:
         _waiting_for_tablets(path, "frozen", first_tablet_index, last_tablet_index, client)
+
+    return response
 
 def unfreeze_table(path, first_tablet_index=None, last_tablet_index=None, sync=False, client=None):
     """Unfreezes table.
@@ -343,11 +349,12 @@ def unfreeze_table(path, first_tablet_index=None, last_tablet_index=None, sync=F
     set_param(params, "first_tablet_index", first_tablet_index)
     set_param(params, "last_tablet_index", last_tablet_index)
 
-    make_request("unfreeze_table", params, client=client)
+    response = make_request("unfreeze_table", params, client=client)
 
     if sync:
         _waiting_for_tablets(path, "mounted", first_tablet_index, last_tablet_index, client)
 
+    return response
 
 def reshard_table(path, pivot_keys=None, tablet_count=None, first_tablet_index=None, last_tablet_index=None, client=None):
     """Changes pivot keys separating tablets of a given table.
@@ -361,7 +368,7 @@ def reshard_table(path, pivot_keys=None, tablet_count=None, first_tablet_index=N
     set_param(params, "first_tablet_index", first_tablet_index)
     set_param(params, "last_tablet_index", last_tablet_index)
 
-    make_request("reshard_table", params, client=client)
+    return make_request("reshard_table", params, client=client)
 
 def trim_rows(path, tablet_index, trimmed_row_count, client=None):
     """Trim rows of the dynamic table.
@@ -377,7 +384,7 @@ def trim_rows(path, tablet_index, trimmed_row_count, client=None):
     set_param(params, "tablet_index", tablet_index)
     set_param(params, "trimmed_row_count", trimmed_row_count)
 
-    make_request("trim_rows", params, client=client)
+    return make_request("trim_rows", params, client=client)
 
 def alter_table_replica(replica_id, enabled=None, mode=None, client=None):
     """TODO"""

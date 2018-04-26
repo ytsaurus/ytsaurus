@@ -50,14 +50,14 @@ def suspend_operation(operation, client=None):
 
     :param str operation: operation id.
     """
-    make_request("suspend_op", {"operation_id": operation}, client=client)
+    return make_request("suspend_op", {"operation_id": operation}, client=client)
 
 def resume_operation(operation, client=None):
     """Continues operation after suspending.
 
     :param str operation: operation id.
     """
-    make_request("resume_op", {"operation_id": operation}, client=client)
+    return make_request("resume_op", {"operation_id": operation}, client=client)
 
 def complete_operation(operation, client=None):
     """Completes operation.
@@ -70,7 +70,7 @@ def complete_operation(operation, client=None):
     """
     if get_operation_state(operation, client=client).is_finished():
         return
-    make_request("complete_op", {"operation_id": operation}, client=client)
+    return make_request("complete_op", {"operation_id": operation}, client=client)
 
 def get_operation(operation_id, attributes=None, include_scheduler=None, client=None):
     """Get operation attributes through API.
@@ -236,8 +236,8 @@ def get_operation_progress(operation, client=None):
         return counter
 
     try:
-        attributes = get_operation_attributes(operation, fields=["progress"], client=client)
-        progress = attributes.get("progress", {}).get("jobs", {})
+        attributes = get_operation_attributes(operation, fields=["brief_progress"], client=client)
+        progress = attributes.get("brief_progress", {}).get("jobs", {})
         for key in progress:
             # Show total for hierarchical count.
             if key in progress and isinstance(progress[key], dict):
@@ -427,7 +427,7 @@ def format_operation_stderrs(jobs_with_stderr):
 def add_failed_operation_stderrs_to_error_message(func):
     def _add_failed_operation_stderrs_to_error_message(func, *args, **kwargs):
         try:
-            func(*args, **kwargs)
+            return func(*args, **kwargs)
         except YtOperationFailedError as error:
             if "stderrs" in error.attributes:
                 error.message = error.message + format_operation_stderrs(error.attributes["stderrs"])

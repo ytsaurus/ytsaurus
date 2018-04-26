@@ -4,7 +4,10 @@ from yt.wrapper.cli_helpers import run_main
 from yt.wrapper.http_helpers import get_token
 from yt.common import YtError
 from yt.transfer_manager.client import TransferManager
-import yt.json as json
+try:
+    import yt.json_wrapper as json
+except ImportError:
+    import yt.json as json
 
 from yt.packages.six.moves import map as imap
 

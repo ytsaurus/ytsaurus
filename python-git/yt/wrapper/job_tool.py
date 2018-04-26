@@ -306,8 +306,8 @@ def prepare_job_environment(operation_id, job_id, job_path, run=False, full=Fals
         "operation_id": operation_id,
         "environment": job_environment,
     }
-    with open(os.path.join(job_path, "run_config"), "wb") as fout:
-        yson.dump(run_config, fout, yson_format="pretty")
+    with open(os.path.join(job_path, "run_config"), "w") as fout:
+        json.dump(run_config, fout)
     make_run_script(job_path)
     make_run_sh(
         job_path,

@@ -40,6 +40,62 @@ def ypath_join(*paths):
 
     return "".join(result)
 
+def ypath_split(path):
+    """Splits the pathname path into a pair, (head, tail)
+       where tail is the last pathname component and head is everything leading up to that.
+
+       Equivalent of os.path.split for YPath.
+    """
+    # Dropping ranges and attributes.
+    # Also checking that path is not empty.
+    path = str(YPath(path))
+
+    if path == "/":
+        return "/", ""
+
+    path_type = {"/": "root", "#": "hash"}.get(path[:1])
+    if path_type is None:
+        raise YtError('Correct YPath should start with "/" or "#"')
+
+    if path_type == "root" and not path.startswith("//"):
+        raise YtError('Root YPath should start with "//"')
+
+    slash_pos = None
+    slash_escaped = False
+
+    index = len(path) - 1
+    index_lower_bound = int(path_type == "root")
+
+    while index >= index_lower_bound:
+        if path[index] == "/":
+            if slash_pos is not None and not slash_escaped:
+                raise YtError('Unexpected "/" at position ' + str(index))
+            slash_pos = index
+            slash_escaped = False
+        elif path[index] == "\\":
+            if slash_pos is not None:
+                slash_escaped = not slash_escaped
+        else:
+            if slash_pos is None:
+                index -= 1
+                continue
+
+            if not slash_escaped:
+                break
+
+            slash_pos = None
+            slash_escaped = False
+
+        index -= 1
+
+    if slash_pos is None:
+        return "", path
+
+    if slash_pos == len(path) - 1 and not slash_escaped:
+        raise YtError('Unexpected "/" at the end of YPath')
+
+    return path[:slash_pos], path[slash_pos + 1:]
+
 def escape_ypath_literal(literal):
     """Escapes string to use it as key in ypath."""
     def escape_char(ch):
@@ -347,50 +403,8 @@ def ypath_dirname(path):
 
     # Dropping ranges and attributes.
     # Also checking that path is not empty.
-    path = str(YPath(path))
+    dirname, suffix = ypath_split(path)
+    if not dirname:
+        dirname = suffix
 
-    if path == "/":
-        return "/"
-
-    path_type = {"/": "root", "#": "hash"}.get(path[:1])
-    if path_type is None:
-        raise YtError('Correct YPath should start with "/" or "#"')
-
-    if path_type == "root" and not path.startswith("//"):
-        raise YtError('Root YPath should start with "//"')
-
-    slash_pos = None
-    slash_escaped = False
-
-    index = len(path) - 1
-    index_lower_bound = int(path_type == "root")
-
-    while index >= index_lower_bound:
-        if path[index] == "/":
-            if slash_pos is not None and not slash_escaped:
-                raise YtError('Unexpected "/" at position ' + str(index))
-            slash_pos = index
-            slash_escaped = False
-        elif path[index] == "\\":
-            if slash_pos is not None:
-                slash_escaped = not slash_escaped
-        else:
-            if slash_pos is None:
-                index -= 1
-                continue
-
-            if not slash_escaped:
-                break
-
-            slash_pos = None
-            slash_escaped = False
-
-        index -= 1
-
-    if slash_pos is None:
-        return path
-
-    if slash_pos == len(path) - 1 and not slash_escaped:
-        raise YtError('Unexpected "/" at the end of YPath')
-
-    return path[:slash_pos]
+    return dirname

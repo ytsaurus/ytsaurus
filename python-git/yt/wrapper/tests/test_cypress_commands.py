@@ -5,7 +5,7 @@ from __future__ import print_function
 from .helpers import TEST_DIR
 
 from yt.wrapper.common import parse_bool
-import yt.json as json
+import yt.json_wrapper as json
 import yt.yson as yson
 
 import yt.wrapper as yt
@@ -271,10 +271,7 @@ class TestCypressCommands(object):
             yt.link(table, link)
         yt.link(table, link, ignore_existing=True)
 
-        if yt_env.version >= "19.0":
-            expected = link
-        else:
-            expected = table
+        expected = link
 
         other_link = TEST_DIR + "/other_link"
         yt.link(link, other_link, recursive=False)
@@ -412,7 +409,7 @@ class TestCypressCommands(object):
         with yt.Transaction():
             yt.write_table(table, [{"x": 5}])
             time.sleep(3)
-            read_table(new_client) == [{"x": 4}]
+            assert read_table(new_client) == [{"x": 4}]
 
         assert read_table() == [{"x": 5}]
         assert read_table(new_client) == [{"x": 5}]
@@ -478,14 +475,9 @@ class TestCypressCommands(object):
 
         assert len(yt.get(dir + "/@locks")) == 0
         with yt.Transaction():
-            if yt_env.version >= "19.0":
-                yt.lock(dir, waitable=True)
-                yt.lock(dir, waitable=True, wait_for=1000)
-                assert len(yt.get(dir + "/@locks")) == 2
-            else:
-                assert yt.lock(dir, waitable=True) != "0-0-0-0"
-                assert yt.lock(dir, waitable=True) == "0-0-0-0"
-                assert yt.lock(dir, waitable=True, wait_for=1000) == "0-0-0-0"
+            yt.lock(dir, waitable=True)
+            yt.lock(dir, waitable=True, wait_for=1000)
+            assert len(yt.get(dir + "/@locks")) == 2
 
         tx = yt.start_transaction()
         yt.config.COMMAND_PARAMS["transaction_id"] = tx

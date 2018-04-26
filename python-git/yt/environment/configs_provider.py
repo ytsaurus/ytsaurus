@@ -1,5 +1,5 @@
 from . import default_configs
-from .helpers import canonize_uuid, WEB_INTERFACE_RESOURCES_PATH
+from .helpers import canonize_uuid
 
 from yt.wrapper.common import MB, GB
 from yt.wrapper.mappings import VerifiedDict
@@ -161,7 +161,6 @@ class ConfigsProvider(object):
         driver_configs = self._build_driver_configs(provision, deepcopy(connection_configs),
                                                     master_cache_nodes=node_addresses)
         proxy_address = "{0}:{1}".format(provision["fqdn"], proxy_config["port"])
-        ui_config = self._build_ui_config(provision, deepcopy(connection_configs), proxy_address)
 
         rpc_proxy_config = None
         rpc_client_config = None
@@ -184,7 +183,6 @@ class ConfigsProvider(object):
             "controller_agent": controller_agent_configs,
             "node": node_configs,
             "proxy": proxy_config,
-            "ui": ui_config,
             "rpc_proxy": rpc_proxy_config,
             "rpc_client": rpc_client_config,
             "skynet_manager": skynet_manager_configs,
@@ -216,10 +214,6 @@ class ConfigsProvider(object):
 
     @abc.abstractmethod
     def _build_driver_configs(self, provision, master_connection_configs, master_cache_nodes):
-        pass
-
-    @abc.abstractmethod
-    def _build_ui_config(self, provision, master_connection_configs, proxy_address):
         pass
 
     @abc.abstractmethod
@@ -286,7 +280,6 @@ def _generate_common_proxy_config(proxy_dir, proxy_port, enable_debug_logging, f
     proxy_config = default_configs.get_proxy_config()
     proxy_config["port"] = proxy_port if proxy_port else next(ports_generator)
     proxy_config["fqdn"] = "{0}:{1}".format(fqdn, proxy_config["port"])
-    proxy_config["static"].append(["/ui", os.path.join(proxy_dir, "ui")])
 
     logging_config = get_at(proxy_config, "proxy/logging")
     set_at(proxy_config, "proxy/logging",
@@ -309,12 +302,16 @@ def _get_hydra_manager_config():
         }
     }
 
+def _get_balancing_channel_config():
+    return {
+        "soft_backoff_time": 100,
+        "hard_backoff_time": 100
+    }
+
 def _get_retrying_channel_config():
     return {
         "retry_backoff_time": 100,
-        "retry_attempts": 100,
-        "soft_backoff_time": 100,
-        "hard_backoff_time": 100
+        "retry_attempts": 100
     }
 
 def _get_rpc_config():
@@ -338,7 +335,7 @@ def _get_node_resource_limits_config(provision):
 
     return {"memory": memory}
 
-class ConfigsProvider_19_2(ConfigsProvider):
+class ConfigsProvider_19(ConfigsProvider):
     def _build_master_configs(self, provision, master_dirs, master_tmpfs_dirs, ports_generator, master_logs_dir):
         ports = []
 
@@ -422,7 +419,7 @@ class ConfigsProvider_19_2(ConfigsProvider):
         secondary_cell_tags = master_connection_configs["secondary_cell_tags"]
 
         cluster_connection = {
-            "cell_directory": _get_retrying_channel_config(),
+            "cell_directory": _get_balancing_channel_config(),
             "primary_master": master_connection_configs[primary_cell_tag],
             "transaction_manager": {
                 "default_ping_period": DEFAULT_TRANSACTION_PING_PERIOD
@@ -488,15 +485,12 @@ class ConfigsProvider_19_2(ConfigsProvider):
 
             config["rpc_port"] = next(ports_generator)
             config["monitoring_port"] = next(ports_generator)
-            set_at(config, "scheduler/snapshot_temp_path", os.path.join(scheduler_dirs[index], "snapshots"))
-
             config["logging"] = init_logging(config.get("logging"), scheduler_logs_dir,
                                              "scheduler-" + str(index), provision["enable_debug_logging"])
 
             # TODO(ignat): temporary solution to check that correctness of connected scheduler.
             # correct solution is to publish cell_id in some separate place in orchid.
-            set_at(config, "scheduler/environment/primary_master_cell_id", config["cluster_connection"]["primary_master"]["cell_id"])
-            set_at(config, "scheduler/exec_nodes_request_period", 100)
+            set_at(config, "scheduler/primary_master_cell_id", config["cluster_connection"]["primary_master"]["cell_id"])
 
             _set_bind_retry_options(config, key="bus_server")
 
@@ -665,6 +659,7 @@ class ConfigsProvider_19_2(ConfigsProvider):
             config = {
                 "port": next(ports_generator),
                 "monitoring_port": next(ports_generator),
+                "enable_skybone_mds": manager_index == 0,
             }
             config["self_url"] = "http://localhost:{}".format(config["port"])
             config["clusters"] = [
@@ -686,33 +681,34 @@ class ConfigsProvider_19_2(ConfigsProvider):
 
         return configs
 
-    def _build_ui_config(self, provision, master_connection_configs, proxy_address):
-        address_blocks = []
-        # Primary masters cell index is 0
-        for cell_index in xrange(provision["master"]["secondary_cell_count"] + 1):
-            if cell_index == 0:
-                cell_tag = master_connection_configs["primary_cell_tag"]
-                cell_addresses = master_connection_configs[cell_tag]["addresses"]
-            else:
-                cell_tag = master_connection_configs["secondary_cell_tags"][cell_index - 1]
-                cell_addresses = master_connection_configs[cell_tag]["addresses"]
-            block = "{{ addresses: [ '{0}' ], cellTag: {1} }}"\
-                .format("', '".join(cell_addresses), int(cell_tag))
-            address_blocks.append(block)
-        masters = "primaryMaster: {0}".format(address_blocks[0])
-        if provision["master"]["secondary_cell_count"]:
-            masters += ", secondaryMasters: [ '{0}' ]".format("', '".join(address_blocks[1:]))
+class ConfigsProvider_19_2(ConfigsProvider_19):
+    def _build_scheduler_configs(self, provision, scheduler_dirs, master_connection_configs,
+                                 ports_generator, scheduler_logs_dir):
+        configs = super(ConfigsProvider_19_2, self)._build_scheduler_configs(
+            provision, scheduler_dirs, master_connection_configs,
+            ports_generator, scheduler_logs_dir)
 
-        template_conf_path = os.path.join(WEB_INTERFACE_RESOURCES_PATH, "configs/localmode.js.tmpl")
-        if os.path.exists(template_conf_path):
-            return open(template_conf_path).read()\
-                .replace("%%proxy%%", "'{0}'".format(proxy_address))
-        else:
-            return default_configs.get_ui_config()\
-                .replace("%%proxy_address%%", "'{0}'".format(proxy_address))\
-                .replace("%%masters%%", masters)
+        for config in configs:
+            set_at(config, "scheduler/environment", {"PYTHONUSERBASE": "/tmp"})
+            set_at(config, "scheduler/testing_options/enable_snapshot_cycle_after_materialization", True)
+            set_at(config, "scheduler/snapshot_timeout", 1000)
+            set_at(config, "scheduler/enable_snapshot_loading", True)
+            set_at(config, "scheduler/snapshot_period", 100000000)
+            set_at(config, "scheduler/transactions_refresh_period", 500)
+            set_at(config, "scheduler/update_exec_node_descriptors_period", 100)
+            set_at(config, "scheduler/safe_scheduler_online_time", 5000)
+            set_at(config, "scheduler/exec_nodes_request_period", 100)
+            set_at(config, "scheduler/node_directory_synchronizer/sync_period", 100)
 
-class ConfigsProvider_19_3(ConfigsProvider_19_2):
+            set_at(
+                config,
+                "scheduler/operation_options/spec_template",
+                {"max_failed_job_count": 10, "locality_timeout": 100},
+                merge=True)
+
+        return configs
+
+class ConfigsProvider_19_3(ConfigsProvider_19):
     def _build_master_configs(self, provision, master_dirs, master_tmpfs_dirs, ports_generator, master_logs_dir):
         configs, connection_configs = super(ConfigsProvider_19_3, self)._build_master_configs(
             provision, master_dirs, master_tmpfs_dirs, ports_generator, master_logs_dir)
@@ -736,12 +732,8 @@ class ConfigsProvider_19_3(ConfigsProvider_19_2):
             ports_generator, scheduler_logs_dir)
 
         for config in configs:
-            config["scheduler"]["operation_alerts_update_period"] = 100
-            config["scheduler"]["exec_nodes_update_period"] = 100
             config["scheduler"]["exec_node_descriptors_update_period"] = 100
-            config["scheduler"]["controller_exec_node_info_update_period"] = 100
             config["scheduler"]["operation_to_agent_assignment_backoff"] = 100
-            del config["scheduler"]["exec_nodes_request_period"]
 
         return configs
 
@@ -749,9 +741,8 @@ class ConfigsProvider_19_3(ConfigsProvider_19_2):
                                         ports_generator, controller_agent_logs_dir):
         configs = []
 
-        # TODO(ignat): separate scheduler and controller agent configs.
         for index in xrange(provision["controller_agent"]["count"]):
-            config = default_configs.get_scheduler_config()
+            config = default_configs.get_controller_agent_config()
 
             set_at(config, "address_resolver/localhost_fqdn", provision["fqdn"])
             config["cluster_connection"] = \
@@ -761,10 +752,8 @@ class ConfigsProvider_19_3(ConfigsProvider_19_2):
 
             config["rpc_port"] = next(ports_generator)
             config["monitoring_port"] = next(ports_generator)
-            set_at(config, "scheduler/snapshot_temp_path", os.path.join(controller_agent_dirs[index], "snapshots"))
-
             config["logging"] = init_logging(config.get("logging"), controller_agent_logs_dir,
-                                             "scheduler-" + str(index), provision["enable_debug_logging"])
+                                             "controller-agent-" + str(index), provision["enable_debug_logging"])
 
             _set_bind_retry_options(config, key="bus_server")
 

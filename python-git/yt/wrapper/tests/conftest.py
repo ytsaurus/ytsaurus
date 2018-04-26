@@ -1,3 +1,5 @@
+from __future__ import print_function
+
 from .helpers import (get_tests_location, TEST_DIR, get_tests_sandbox, ENABLE_JOB_CONTROL,
                       sync_create_cell, get_test_file_path, get_tmpfs_path, get_port_locks_path, yatest_common)
 
@@ -16,7 +18,7 @@ from yt.packages.six.moves import reload_module
 import yt.wrapper as yt
 
 if yatest_common is not None:
-    from yt.environment import arcadia_interop
+    from yt.environment.arcadia_interop import arcadia_interop
 else:
     arcadia_interop = None
 
@@ -56,6 +58,7 @@ class YtTestEnvironment(object):
                  config=None,
                  env_options=None,
                  delta_scheduler_config=None,
+                 delta_controller_agent_config=None,
                  delta_node_config=None,
                  delta_proxy_config=None):
         self.test_name = test_name
@@ -94,6 +97,11 @@ class YtTestEnvironment(object):
         common_delta_scheduler_config = {
             "scheduler" : {
                 "max_operation_count": 5,
+            }
+        }
+
+        common_delta_controller_agent_config = {
+            "controller_agent" : {
                 "operation_options": {
                     "spec_template": {
                         "max_failed_job_count": 1
@@ -107,6 +115,15 @@ class YtTestEnvironment(object):
                 update_inplace(config, common_delta_scheduler_config)
                 if delta_scheduler_config:
                     update_inplace(config, delta_scheduler_config)
+                if configs.get("controller_agent") is None:
+                    update_inplace(config["scheduler"], common_delta_controller_agent_config["controller_agent"])
+
+            if configs.get("controller_agent") is not None:
+                for config in configs["controller_agent"]:
+                    update_inplace(config, common_delta_controller_agent_config)
+                    if delta_controller_agent_config:
+                        update_inplace(config, delta_controller_agent_config)
+
             for config in configs["node"]:
                 update_inplace(config, common_delta_node_config)
                 if delta_node_config:
@@ -186,6 +203,8 @@ class YtTestEnvironment(object):
         update_inplace(yt.config.config, self.config)
 
         os.environ["PATH"] = ".:" + os.environ["PATH"]
+
+        os.environ["YT_LOCAL_PORT_LOCKS_PATH"] = get_port_locks_path()
 
         # Resolve indeterminacy in sys.modules due to presence of lazy imported modules.
         for module in list(itervalues(sys.modules)):
@@ -269,7 +288,6 @@ def test_environment_job_archive(request):
         },
         delta_scheduler_config={
             "scheduler": {
-                "enable_statistics_reporter": True,  # obsolete, need to cleanup after merging changes related to job_specs
                 "enable_job_reporter": True,
                 "enable_job_spec_reporter": True,
             },
@@ -292,13 +310,13 @@ def _remove_operations():
     try:
         operation_from_orchid = yt.list("//sys/scheduler/orchid/scheduler/operations")
     except yt.YtError as err:
-        print >>sys.stderr, format_error(err)
+        print(format_error(err), file=sys.stderr)
 
     for operation_id in operation_from_orchid:
         try:
             yt.abort_operation(operation_id)
         except yt.YtError as err:
-            print >>sys.stderr, format_error(err)
+            print(format_error(err), file=sys.stderr)
 
     yt.remove("//sys/operations/*")
 

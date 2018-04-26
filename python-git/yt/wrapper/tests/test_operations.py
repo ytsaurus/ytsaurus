@@ -348,6 +348,7 @@ class TestOperations(object):
                 .command("echo 'aaa' >&2")\
                 .job_count(1)\
             .end_task()
+        op = yt.run_operation(vanilla_spec)
         check(op)
 
     @add_failed_operation_stderrs_to_error_message
@@ -581,10 +582,10 @@ import yt.wrapper as yt
 import sys
 
 input, output, pythonpath = sys.argv[1:4]
-yt.config["proxy"]["request_retry_timeout"] = 2000
+yt.config["proxy"]["request_retry_timeout"] = 5000
 yt.config["proxy"]["request_retry_count"] = 1
 yt.config["detached"] = False
-op = yt.run_map("sleep 100", input, output, format="json", spec={"mapper": {"environment": {"PYTHONPATH": pythonpath}}}, sync=False)
+op = yt.run_map("sleep 1000", input, output, format="json", spec={"mapper": {"environment": {"PYTHONPATH": pythonpath}}}, sync=False)
 print(op.id)
 
 """
@@ -1157,6 +1158,7 @@ print(op.id)
         test_name = "TestYtWrapper" + mode.capitalize()
         dir = os.path.join(get_tests_sandbox(), test_name)
         id = "run_" + uuid.uuid4().hex[:8]
+        instance = None
         try:
             instance = start(path=dir, id=id, node_count=3, enable_debug_logging=True, cell_tag=1)
             second_cluster_client = instance.create_client()
@@ -1186,7 +1188,8 @@ print(op.id)
                    yt.get(table + "/@compressed_data_size")
 
         finally:
-            stop(instance.id, path=dir)
+            if instance is not None:
+                stop(instance.id, path=dir)
 
     @add_failed_operation_stderrs_to_error_message
     def test_yson_several_output_tables(self):
@@ -1452,6 +1455,9 @@ print(op.id)
         check([{"x": 1}, {"y": 2}], list(yt.read_table(table)))
 
     def test_update_operation_parameters(self):
+        if "update_op_parameters" not in yt.driver.get_command_list():
+            pytest.skip()
+
         table = TEST_DIR + "/table"
         output_table = TEST_DIR + "/output_table"
         yt.write_table(table, [{"x": 1}, {"y": 2}])

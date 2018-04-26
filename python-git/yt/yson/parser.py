@@ -87,7 +87,7 @@ class YsonParser(object):
             value = self._parse_any()
             if key in result:
                 raise_yson_error(
-                    'Repeated map key "{0}" in Yson'.format(key),
+                    'Duplicate map key "{0}" in YSON'.format(key),
                     self._tokenizer.get_position_info())
             result[key] = value
             self._tokenizer.parse_next()

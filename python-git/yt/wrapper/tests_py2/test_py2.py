@@ -1,4 +1,4 @@
-from yt.environment.arcadia_interop import prepare_yt_environment
+from yt.environment.arcadia_interop import arcadia_interop
 
 import library.python.testing.pytest_runner.runner as pytest_runner
 
@@ -7,7 +7,7 @@ import yatest.common
 import os
 import shutil
 
-YT_ABI = "19_2"
+YT_ABI = "19_3"
 
 def build_bindings(build_dir):
     ya = yatest.common.source_path("ya")
@@ -78,7 +78,7 @@ def run_pytest():
     os.makedirs(bindings_build_dir)
 
     prepare_yt_packages()
-    path, node_path = prepare_yt_environment(build_dir)
+    path, node_path = arcadia_interop.prepare_yt_environment(build_dir)
     build_bindings(bindings_build_dir)
 
     if "PATH" in os.environ:
