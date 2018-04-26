@@ -1,4 +1,4 @@
-from yt.environment.arcadia_interop import arcadia_interop
+from yt.environment import arcadia_interop
 
 import library.python.testing.pytest_runner.runner as pytest_runner
 
