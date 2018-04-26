@@ -802,11 +802,9 @@ TOperationControllerReviveResult TOperationControllerBase::Revive()
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvoker);
 
-    if (Spec_->FailOnJobRestart) {
-        THROW_ERROR_EXCEPTION(
-            NScheduler::EErrorCode::OperationFailedOnJobRestart,
-            "Cannot revive operation when spec option fail_on_job_restart is set");
-    }
+    // A fast path to stop revival if fail_on_job_restart = %true and
+    // this is not a vanilla operation.
+    ValidateRevivalAllowed();
 
     if (!Snapshot.Data) {
         LOG_INFO("Snapshot data is missing, preparing operation from scratch");
@@ -819,6 +817,10 @@ TOperationControllerReviveResult TOperationControllerBase::Revive()
     SleepInRevive();
 
     DoLoadSnapshot(Snapshot);
+
+    // Once again check that revival is allowed (now having the loaded snapshot).
+    ValidateSnapshot();
+
     Snapshot = TOperationSnapshot();
 
     TOperationControllerReviveResult result;
@@ -6995,6 +6997,19 @@ void TOperationControllerBase::InitAutoMergeJobSpecTemplates()
         schedulerJobSpecExt->set_io_config(ConvertToYsonString(Spec_->AutoMerge->JobIO).GetData());
     }
 }
+
+void TOperationControllerBase::ValidateRevivalAllowed() const
+{
+    if (Spec_->FailOnJobRestart) {
+        THROW_ERROR_EXCEPTION(
+            NScheduler::EErrorCode::OperationFailedOnJobRestart,
+            "Cannot revive operation when spec option fail_on_job_restart is set")
+                << TErrorAttribute("operation_type", OperationType);
+    }
+}
+
+void TOperationControllerBase::ValidateSnapshot() const
+{ }
 
 std::vector<TUserJobSpecPtr> TOperationControllerBase::GetUserJobSpecs() const
 {

@@ -16,6 +16,12 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
 
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "snapshot_period": 200,
+        }
+    }
+
     def test_simple(self):
         command = " ; ".join([
             events_on_fs().notify_event_cmd("job_started_${YT_JOB_INDEX}"),
@@ -160,7 +166,29 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
                     "fail_on_job_restart": True,
                 })
 
-    def test_fail_on_revival(self):
+    def test_revival_with_fail_on_job_restart(self):
+        op = vanilla(
+            dont_track=True,
+            spec={
+                "tasks": {
+                    "task_a": {
+                        "job_count": 1,
+                        "command": with_breakpoint("BREAKPOINT"),
+                    },
+                    "task_b": {
+                        "job_count": 1,
+                        "command": with_breakpoint("BREAKPOINT"),
+                    },
+                },
+                "fail_on_job_restart": True,
+            })
+        # By this moment all 2 running jobs made it to snapshot, so operation will not fail on revival.
+        time.sleep(1.0)
+        self.Env.kill_schedulers()
+        self.Env.start_schedulers()
+        release_breakpoint()
+        op.track()
+
         with pytest.raises(YtError):
             op = vanilla(
                 dont_track=True,
@@ -168,15 +196,18 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
                     "tasks": {
                         "task_a": {
                             "job_count": 1,
-                            "command": 'sleep 5',
+                            "command": "", # do nothing
                         },
                         "task_b": {
-                            "job_count": 1,
-                            "command": 'sleep 5',
+                            "job_count": 6,
+                            "command": with_breakpoint("BREAKPOINT"),
                         },
                     },
                     "fail_on_job_restart": True,
                 })
+            # 6 jobs may not be running simultaneously, so the snapshot will contain information about
+            # at most 5 running jobs plus 1 completed job, leading to operation fail on revival.
+            time.sleep(1.0)
             self.Env.kill_schedulers()
             self.Env.start_schedulers()
             op.track()

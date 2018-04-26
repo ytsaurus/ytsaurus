@@ -604,6 +604,14 @@ protected:
     //! Called in jobs duration analyzer to get interesting for analysis jobs set.
     virtual std::vector<EJobType> GetSupportedJobTypesForJobsDurationAnalyzer() const = 0;
 
+    //! Called before snapshot downloading to check if revival is allowed
+    //! (by default checks that fail_on_job_restart is not set).
+    virtual void ValidateRevivalAllowed() const;
+
+    //! Called after snapshot downloading to check if revival is allowed
+    //! (by default revival is always permitted).
+    virtual void ValidateSnapshot() const;
+
     //! Is called by controller on stage of structure initialization.
     virtual std::vector<TUserJobSpecPtr> GetUserJobSpecs() const;
 
