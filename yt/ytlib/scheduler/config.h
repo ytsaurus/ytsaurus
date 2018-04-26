@@ -148,6 +148,9 @@ public:
     //! is not specified.
     THashSet<TString> PoolTrees;
 
+    //! Limit on the number of concurrent calls to ScheduleJob of single controller.
+    TNullable<int> MaxConcurrentControllerScheduleJobCalls;
+
     TStrategyOperationSpec();
 
 private:
