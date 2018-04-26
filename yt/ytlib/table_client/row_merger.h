@@ -113,6 +113,7 @@ private:
     const TRowBufferPtr RowBuffer_;
     const int KeyColumnCount_;
     const TRetentionConfigPtr Config_;
+    const bool IgnoreMajorTimestamp_;
     const TTimestamp CurrentTimestamp_;
     const TTimestamp MajorTimestamp_;
     const NQueryClient::TColumnEvaluatorPtr ColumnEvaluator_;
