@@ -65,6 +65,8 @@ struct IJob
     virtual ui64 GetStderrSize() const = 0;
     virtual void SetStderrSize(ui64 value) = 0;
 
+    virtual void SetStderr(const TString& value) = 0;
+
     virtual NYson::TYsonString GetStatistics() const = 0;
     virtual void SetStatistics(const NYson::TYsonString& statistics) = 0;
 
@@ -89,6 +91,7 @@ struct IJob
 
     virtual void ReportStatistics(TJobStatistics&& statistics) = 0;
     virtual void ReportSpec() = 0;
+    virtual void ReportStderr() = 0;
 
     virtual void Interrupt() = 0;
 };

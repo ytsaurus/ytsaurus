@@ -145,6 +145,7 @@ struct TJobSummary
     bool LogAndProfile = false;
 
     bool ArchiveJobSpec = false;
+    bool ArchiveStderr = false;
 };
 
 struct TCompletedJobSummary
