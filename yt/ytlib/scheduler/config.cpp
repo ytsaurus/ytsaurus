@@ -948,6 +948,7 @@ TStrategyOperationSpec::TStrategyOperationSpec()
     RegisterParameter("pool_trees", PoolTrees)
         .Default();
     RegisterParameter("max_concurrent_schedule_job_calls", MaxConcurrentControllerScheduleJobCalls)
+        .Alias("max_concurrent_controller_schedule_job_calls")
         .Default();
 }
 
