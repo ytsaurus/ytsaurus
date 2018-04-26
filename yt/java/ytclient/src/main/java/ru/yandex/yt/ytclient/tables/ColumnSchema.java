@@ -19,17 +19,27 @@ public class ColumnSchema implements YTreeConvertible {
     private final String expression;
     private final String aggregate;
     private final String group;
+    private final boolean required;
 
     public ColumnSchema(String name, ColumnValueType type) {
-        this(name, type, null, null, null, null, null);
+        this(name, type, null, null, null, null, null, false);
     }
 
     public ColumnSchema(String name, ColumnValueType type, ColumnSortOrder sortOrder) {
-        this(name, type, sortOrder, null, null, null, null);
+        this(name, type, sortOrder, null, null, null, null, false);
+    }
+
+    /**
+     * @deprecated this constructor lacks the {@code required} parameter, use the full version
+     */
+    @Deprecated
+    public ColumnSchema(String name, ColumnValueType type, ColumnSortOrder sortOrder, String lock, String expression,
+            String aggregate, String group) {
+        this(name, type, sortOrder, lock, expression, aggregate, group, false);
     }
 
     public ColumnSchema(String name, ColumnValueType type, ColumnSortOrder sortOrder, String lock, String expression,
-            String aggregate, String group)
+            String aggregate, String group, boolean required)
     {
         this.name = Objects.requireNonNull(name);
         this.type = Objects.requireNonNull(type);
@@ -38,6 +48,7 @@ public class ColumnSchema implements YTreeConvertible {
         this.expression = expression;
         this.aggregate = aggregate;
         this.group = group;
+        this.required = required;
     }
 
     public String getName() {
@@ -68,12 +79,17 @@ public class ColumnSchema implements YTreeConvertible {
         return group;
     }
 
+    public boolean isRequired() {
+        return required;
+    }
+
     @Override
     public YTreeNode toYTree() {
         YTreeBuilder builder = YTree.builder()
                 .beginMap()
                 .key("name").value(name)
-                .key("type").value(type.getName());
+                .key("type").value(type.getName())
+                .key("required").value(required);
         if (sortOrder != null) {
             builder.key("sort_order").value(sortOrder.getName());
         }
@@ -103,7 +119,8 @@ public class ColumnSchema implements YTreeConvertible {
         String expression = map.get("expression").map(YTreeNode::stringValue).getOrNull();
         String aggregate = map.get("aggregate").map(YTreeNode::stringValue).getOrNull();
         String group = map.get("group").map(YTreeNode::stringValue).getOrNull();
-        return new ColumnSchema(name, type, sortOrder, lock, expression, aggregate, group);
+        boolean required = map.get("required").map(YTreeNode::boolValue).getOrElse(false);
+        return new ColumnSchema(name, type, sortOrder, lock, expression, aggregate, group, required);
     }
 
     @Override
@@ -122,6 +139,9 @@ public class ColumnSchema implements YTreeConvertible {
 
         ColumnSchema that = (ColumnSchema) o;
 
+        if (required != that.required) {
+            return false;
+        }
         if (!name.equals(that.name)) {
             return false;
         }
@@ -152,6 +172,7 @@ public class ColumnSchema implements YTreeConvertible {
         result = 31 * result + (expression != null ? expression.hashCode() : 0);
         result = 31 * result + (aggregate != null ? aggregate.hashCode() : 0);
         result = 31 * result + (group != null ? group.hashCode() : 0);
+        result = 31 * result + (required ? 1 : 0);
         return result;
     }
 
@@ -163,6 +184,7 @@ public class ColumnSchema implements YTreeConvertible {
         private String expression;
         private String aggregate;
         private String group;
+        private boolean required;
 
         public Builder(String name, ColumnValueType type) {
             this.name = name;
@@ -194,8 +216,13 @@ public class ColumnSchema implements YTreeConvertible {
             return this;
         }
 
+        public Builder setRequired(boolean required) {
+            this.required = required;
+            return this;
+        }
+
         public ColumnSchema build() {
-            return new ColumnSchema(name, type, sortOrder, lock, expression, aggregate, group);
+            return new ColumnSchema(name, type, sortOrder, lock, expression, aggregate, group, required);
         }
     }
 }

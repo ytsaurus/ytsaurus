@@ -322,19 +322,19 @@ public class TableSchema implements YTreeConvertible {
         private int keysCount = 0;
 
         public Builder addKey(String name, ColumnValueType type) {
-            return add(new ColumnSchema(name, type, ColumnSortOrder.ASCENDING, lock, null, null, group));
+            return add(new ColumnSchema(name, type, ColumnSortOrder.ASCENDING, lock, null, null, group, false));
         }
 
         public Builder addKeyExpression(String name, ColumnValueType type, String expression) {
-            return add(new ColumnSchema(name, type, ColumnSortOrder.ASCENDING, lock, expression, null, group));
+            return add(new ColumnSchema(name, type, ColumnSortOrder.ASCENDING, lock, expression, null, group, false));
         }
 
         public Builder addValue(String name, ColumnValueType type) {
-            return add(new ColumnSchema(name, type, null, lock, null, null, group));
+            return add(new ColumnSchema(name, type, null, lock, null, null, group, false));
         }
 
         public Builder addValueAggregate(String name, ColumnValueType type, String aggregate) {
-            return add(new ColumnSchema(name, type, null, lock, null, aggregate, group));
+            return add(new ColumnSchema(name, type, null, lock, null, aggregate, group, false));
         }
 
         public Builder add(ColumnSchema column) {
