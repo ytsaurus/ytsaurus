@@ -609,7 +609,7 @@ public:
         return New<TOperationController>(Bootstrap_, Config_, operation);
     }
 
-    TControllerAgentPtr PickAgentForOperation(const TOperationPtr& /*operation*/)
+    TControllerAgentPtr PickAgentForOperation(const TOperationPtr& /* operation */, int minAgentCount)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -621,7 +621,7 @@ public:
                 agents.push_back(agent);
             }
         }
-        return agents.empty() ? nullptr : agents[RandomNumber(agents.size())];
+        return agents.size() < minAgentCount ? nullptr : agents[RandomNumber(agents.size())];
     }
 
     void AssignOperationToAgent(
@@ -1227,9 +1227,9 @@ IOperationControllerPtr TControllerAgentTracker::CreateController(const TOperati
     return Impl_->CreateController(operation);
 }
 
-TControllerAgentPtr TControllerAgentTracker::PickAgentForOperation(const TOperationPtr& operation)
+TControllerAgentPtr TControllerAgentTracker::PickAgentForOperation(const TOperationPtr& operation, int minAgentCount)
 {
-    return Impl_->PickAgentForOperation(operation);
+    return Impl_->PickAgentForOperation(operation, minAgentCount);
 }
 
 void TControllerAgentTracker::AssignOperationToAgent(
