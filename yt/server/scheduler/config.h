@@ -293,6 +293,8 @@ public:
 
     NYTree::IMapNodePtr SpecTemplate;
 
+    int MinAgentCountForWaitingOperation;
+
     TSchedulerConfig();
 };
 

@@ -2703,7 +2703,7 @@ private:
     bool HandleWaitingForAgentOperation(const TOperationPtr& operation)
     {
         const auto& agentTracker = Bootstrap_->GetControllerAgentTracker();
-        auto agent = agentTracker->PickAgentForOperation(operation);
+        auto agent = agentTracker->PickAgentForOperation(operation, Config_->MinAgentCountForWaitingOperation);
         if (!agent) {
             LOG_DEBUG("Failed to assign operation to agent; backing off");
             OperationToAgentAssignmentFailureTime_ = TInstant::Now();
