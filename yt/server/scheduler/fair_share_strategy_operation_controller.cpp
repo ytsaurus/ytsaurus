@@ -10,10 +10,6 @@ using namespace NControllerAgent;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = SchedulerLogger;
-
-////////////////////////////////////////////////////////////////////////////////
-
 TFairShareStrategyOperationController::TFairShareStrategyOperationController(
     IOperationStrategyHost* operation)
     : Controller_(operation->GetControllerStrategyHost())
@@ -117,7 +113,7 @@ TScheduleJobResultPtr TFairShareStrategyOperationController::ScheduleJob(
                     const auto& scheduleJobResult = scheduleJobResultOrError.Value();
                     if (scheduleJobResult->StartDescriptor) {
                         const auto& jobId = scheduleJobResult->StartDescriptor->Id;
-                        LOG_WARNING("Aborting late job (JobId: %v, OperationId: %v)",
+                        LOG_WARNING("Aborting late job (JobId: %v)",
                             jobId,
                             OperationId_);
                         AbortJob(jobId, EAbortReason::SchedulingTimeout);
