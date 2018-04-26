@@ -12,7 +12,7 @@ from yt.packages.six.moves import map as imap, xrange
 from yt.packages.six import iteritems
 
 import yt.yson as yson
-import yt.json as json
+import yt.json_wrapper as json
 
 import yt.wrapper as yt
 
@@ -24,11 +24,12 @@ except ImportError:
 import os
 import sys
 import pytest
-import shutil
 import tempfile
 import signal
 import contextlib
 import time
+import string
+import random
 
 def _get_tests_location():
     if yatest_common is not None:
@@ -86,7 +87,7 @@ def _wait_instance_to_become_ready(process, instance_id):
 @pytest.fixture(scope="session", autouse=True)
 def prepare_path():
     try:
-        import yt.environment.arcadia_interop as arcadia_interop
+        from yt.environment.arcadia_interop import arcadia_interop
         destination = os.path.join(yatest_common.work_path(), "build")
         os.makedirs(destination)
         path, node_path = arcadia_interop.prepare_yt_environment(destination)
@@ -144,6 +145,10 @@ class YtLocalBinary(object):
         command, env = self._prepare_binary_command_and_env(*args, **kwargs)
         return subprocess.Popen(command, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
+def _get_id(test_name):
+    collection = string.ascii_lowercase + string.ascii_uppercase + string.digits
+    return test_name + "_" + "".join(random.choice(collection) for _ in xrange(5))
+
 class TestLocalMode(object):
     @classmethod
     def setup_class(cls):
@@ -161,67 +166,58 @@ class TestLocalMode(object):
         del os.environ["YT_LOCAL_PORT_LOCKS_PATH"]
 
     def test_logging(self):
-        path = os.environ.get("YT_LOCAL_ROOT_PATH")
-        log_path = os.path.join(path, "test_logging", "logs")
-        if os.path.exists(os.path.join(path, "test_logging")):
-            shutil.rmtree(os.path.join(path, "test_logging"), ignore_errors=True)
-
         master_count = 3
         node_count = 2
         scheduler_count = 4
 
-        with local_yt(id="test_logging", master_count=master_count, node_count=node_count,
-                      scheduler_count=scheduler_count, start_proxy=True):
-            pass
+        with local_yt(id=_get_id("test_logging"), master_count=master_count, node_count=node_count,
+                      scheduler_count=scheduler_count, start_proxy=True) as lyt:
+            path = lyt.path
+            logs_path = lyt.logs_path
 
         for index in xrange(master_count):
             name = "master-0-" + str(index) + ".log"
-            assert os.path.exists(os.path.join(log_path, name))
+            assert os.path.exists(os.path.join(logs_path, name))
 
         for index in xrange(node_count):
             name = "node-" + str(index) + ".log"
-            assert os.path.exists(os.path.join(log_path, name))
+            assert os.path.exists(os.path.join(logs_path, name))
 
         for index in xrange(scheduler_count):
             name = "scheduler-" + str(index) + ".log"
-            assert os.path.exists(os.path.join(log_path, name))
+            assert os.path.exists(os.path.join(logs_path, name))
 
-        assert os.path.exists(os.path.join(log_path, "http-application.log"))
-        assert os.path.exists(os.path.join(log_path, "http-proxy.log"))
+        assert os.path.exists(os.path.join(logs_path, "http-application.log"))
+        assert os.path.exists(os.path.join(logs_path, "http-proxy.log"))
 
-        assert os.path.exists(os.path.join(path, "test_logging", "stderrs"))
+        assert os.path.exists(os.path.join(path, "stderrs"))
 
-    def test_user_config_path(self):
-        path = os.environ.get("YT_LOCAL_ROOT_PATH")
-        config_path = os.path.join(path, "test_configs", "configs")
-        if os.path.exists(os.path.join(path, "test_configs")):
-            shutil.rmtree(os.path.join(path, "test_configs"), ignore_errors=True)
-
+    def test_user_configs_path(self):
         master_count = 3
         node_count = 2
         scheduler_count = 4
-        with local_yt(id="test_configs", master_count=master_count,
+        with local_yt(id=_get_id("test_user_configs_path"), master_count=master_count,
                       node_count=node_count, scheduler_count=scheduler_count,
-                      start_proxy=True, start_rpc_proxy=True):
-            pass
+                      start_proxy=True, start_rpc_proxy=True) as lyt:
+            configs_path = lyt.configs_path
 
-        assert os.path.exists(config_path)
-        assert os.path.exists(os.path.join(config_path, "driver-0.yson"))
+        assert os.path.exists(configs_path)
+        assert os.path.exists(os.path.join(configs_path, "driver-0.yson"))
 
         for index in xrange(master_count):
             name = "master-0-" + str(index) + ".yson"
-            assert os.path.exists(os.path.join(config_path, name))
+            assert os.path.exists(os.path.join(configs_path, name))
 
         for index in xrange(node_count):
             name = "node-" + str(index) + ".yson"
-            assert os.path.exists(os.path.join(config_path, name))
+            assert os.path.exists(os.path.join(configs_path, name))
 
         for index in xrange(scheduler_count):
             name = "scheduler-" + str(index) + ".yson"
-            assert os.path.exists(os.path.join(config_path, name))
+            assert os.path.exists(os.path.join(configs_path, name))
 
-        assert os.path.exists(os.path.join(config_path, "proxy.json"))
-        assert os.path.exists(os.path.join(config_path, "rpc-client.yson"))
+        assert os.path.exists(os.path.join(configs_path, "proxy.json"))
+        assert os.path.exists(os.path.join(configs_path, "rpc-client.yson"))
 
     def test_watcher(self):
         watcher_config = {
@@ -229,7 +225,7 @@ class TestLocalMode(object):
             "logs_rotate_interval": 1,
             "logs_rotate_max_part_count": 5
         }
-        with local_yt(id="test_watcher", watcher_config=watcher_config) as environment:
+        with local_yt(id=_get_id("test_watcher"), watcher_config=watcher_config) as environment:
             proxy_port = environment.get_proxy_address().rsplit(":", 1)[1]
             client = YtClient(proxy="localhost:{0}".format(proxy_port))
 
@@ -240,22 +236,21 @@ class TestLocalMode(object):
                 client.remove("//test/node")
                 client.remove("//test")
 
-        path = os.environ.get("YT_LOCAL_ROOT_PATH")
-        log_path = os.path.join(path, "test_watcher", "logs")
+            logs_path = environment.logs_path
 
         # Some log file may be missing if we exited during log rotation.
         presented = 0
         for file_index in xrange(1, 5):
-            presented += os.path.exists(os.path.join(log_path, "http-proxy.debug.log.{0}.gz".format(file_index)))
+            presented += os.path.exists(os.path.join(logs_path, "http-proxy.debug.log.{0}.gz".format(file_index)))
         assert presented in (3, 4)
 
         presented = 0
         for file_index in xrange(1, 5):
-            presented += os.path.exists(os.path.join(log_path, "http-application.log.{0}.gz".format(file_index)))
+            presented += os.path.exists(os.path.join(logs_path, "http-application.log.{0}.gz".format(file_index)))
         assert presented in (3, 4)
 
     def test_commands_sanity(self):
-        with local_yt() as environment:
+        with local_yt(id=_get_id("test_commands_sanity")) as environment:
             pids = _read_pids_file(environment.id)
             if environment.abi_version >= (19, 3):
                 assert len(pids) == 6
@@ -275,11 +270,13 @@ class TestLocalMode(object):
         with pytest.raises(yt.YtError):
             start(master_count=0)
 
-        with local_yt(master_count=3, node_count=0, scheduler_count=0) as environment:
+        with local_yt(id=_get_id("test_start_masters_and_proxy"), master_count=3,
+                      node_count=0, scheduler_count=0) as environment:
             assert len(_read_pids_file(environment.id)) == 5
             assert len(environment.configs["master"]) == 3
 
-        with local_yt(node_count=5, scheduler_count=2, start_proxy=False) as environment:
+        with local_yt(id=_get_id("test_start_no_proxy_many_schedulers"),
+                      node_count=5, scheduler_count=2, start_proxy=False) as environment:
             assert len(environment.configs["node"]) == 5
             assert len(environment.configs["scheduler"]) == 2
             assert len(environment.configs["master"]) == 1
@@ -291,17 +288,18 @@ class TestLocalMode(object):
             with pytest.raises(yt.YtError):
                 environment.get_proxy_address()
 
-        with local_yt(node_count=1) as environment:
+        with local_yt(id=_get_id("test_start_with_one_node"), node_count=1) as environment:
             if environment.abi_version >= (19, 3):
                 assert len(_read_pids_file(environment.id)) == 6
             else:
                 assert len(_read_pids_file(environment.id)) == 5
 
-        with local_yt(node_count=0, scheduler_count=0, start_proxy=False) as environment:
+        with local_yt(id=_get_id("test_start_masters_only"), node_count=0,
+                      scheduler_count=0, start_proxy=False) as environment:
             assert len(_read_pids_file(environment.id)) == 2
 
     def test_use_local_yt(self):
-        with local_yt() as environment:
+        with local_yt(id=_get_id("test_use_local_yt")) as environment:
             proxy_port = environment.get_proxy_address().rsplit(":", 1)[1]
             client = YtClient(proxy="localhost:{0}".format(proxy_port))
             client.config["tabular_data_format"] = yt.format.DsvFormat()
@@ -325,7 +323,7 @@ class TestLocalMode(object):
             assert set(client.search("//test")) == set(["//test", "//test/folder", table])
 
     def test_use_context_manager(self):
-        with yt_local.LocalYt() as client:
+        with yt_local.LocalYt(id=_get_id("test_use_context_manager")) as client:
             client.config["tabular_data_format"] = yt.format.DsvFormat()
             client.mkdir("//test")
 
@@ -351,7 +349,8 @@ class TestLocalMode(object):
 
     def test_local_cypress_synchronization(self):
         local_cypress_path = os.path.join(_get_tests_location(), "local_cypress_tree")
-        with local_yt(local_cypress_dir=local_cypress_path) as environment:
+        with local_yt(id=_get_id("test_local_cypress_synchronization"),
+                      local_cypress_dir=local_cypress_path) as environment:
             proxy_port = environment.get_proxy_address().rsplit(":", 1)[1]
             client = YtClient(proxy="localhost:{0}".format(proxy_port))
             assert list(client.read_table("//table")) == [{"x": "1", "y": "1"}]
@@ -365,7 +364,7 @@ class TestLocalMode(object):
             assert client.get_attribute("//sorted_table", "sorted_by") == ["x"]
 
     def test_preserve_state(self):
-        with local_yt() as environment:
+        with local_yt(id=_get_id("test_preserve_state")) as environment:
             client = environment.create_client()
             client.write_table("//home/my_table", [{"x": 1, "y": 2, "z": 3}])
 
@@ -381,7 +380,8 @@ class TestLocalMode(object):
             with tempfile.NamedTemporaryFile(mode="w", dir=_get_tests_sandbox(), delete=False) as json_file:
                 json.dump(patch, json_file)
 
-            with local_yt(master_config=yson_file.name,
+            with local_yt(id=_get_id("test_configs_patches"),
+                          master_config=yson_file.name,
                           node_config=yson_file.name,
                           scheduler_config=yson_file.name,
                           proxy_config=json_file.name) as environment:
@@ -396,14 +396,21 @@ class TestLocalMode(object):
             remove_file(json_file.name, force=True)
 
     def test_yt_local_binary(self):
-        env_id = self.yt_local("start", fqdn="localhost")
+        env_id = self.yt_local("start", fqdn="localhost", id=_get_id("test_yt_local_binary_simple"))
         try:
             client = YtClient(proxy=self.yt_local("get_proxy", env_id))
             assert "sys" in client.list("/")
         finally:
             self.yt_local("stop", env_id)
 
-        env_id = self.yt_local("start", fqdn="localhost", master_count=3, node_count=5, scheduler_count=2)
+        env_id = self.yt_local(
+            "start",
+            fqdn="localhost",
+            master_count=3,
+            node_count=5,
+            scheduler_count=2,
+            id=_get_id("test_yt_local_binary_with_counts_specified"))
+
         try:
             client = YtClient(proxy=self.yt_local("get_proxy", env_id))
             assert len(client.list("//sys/nodes")) == 5
@@ -427,7 +434,8 @@ class TestLocalMode(object):
                 scheduler_count=1,
                 scheduler_config=config.name,
                 master_count=1,
-                master_config=config.name)
+                master_config=config.name,
+                id=_get_id("test_yt_local_binary_config_patches"))
 
             try:
                 client = YtClient(proxy=self.yt_local("get_proxy", env_id))
@@ -444,14 +452,15 @@ class TestLocalMode(object):
             remove_file(config.name, force=True)
 
     def test_tablet_cell_initialization(self):
-        with local_yt(wait_tablet_cell_initialization=True) as environment:
+        with local_yt(wait_tablet_cell_initialization=True,
+                      id=_get_id("test_tablet_cell_initialization")) as environment:
             client = environment.create_client()
             tablet_cells = client.list("//sys/tablet_cells")
             assert len(tablet_cells) == 1
             assert client.get("//sys/tablet_cells/{0}/@health".format(tablet_cells[0])) == "good"
 
     def test_rpc_proxy_is_starting(self):
-        with local_yt(start_rpc_proxy=True) as environment:
+        with local_yt(id=_get_id("test_rpc_proxy_is_starting"), start_rpc_proxy=True) as environment:
             client = environment.create_client()
 
             for _ in range(6):

@@ -325,7 +325,7 @@ def build_packages(options):
             package_version = run_captured(
                 "dpkg-parsechangelog | grep Version | awk '{print $2}'", shell=True).strip()
             run(["dch", "-r", package_version, "'Resigned by teamcity'"])
-        run(["./deploy.sh", package], cwd=options.checkout_directory)
+        run(["./deploy.sh", package], cwd=options.checkout_directory, env={"TMPDIR": options.working_directory})
 
 
 ################################################################################

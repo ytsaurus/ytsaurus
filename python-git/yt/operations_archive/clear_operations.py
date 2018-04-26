@@ -9,7 +9,10 @@ from yt.wrapper.http_helpers import _get_session
 import yt.logger as logger
 import yt.wrapper as yt
 import yt.yson as yson
-import yt.json as json
+try:
+    import yt.json_wrapper as json
+except ImportError:
+    import yt.json as json
 
 import yt.packages.requests as requests
 
@@ -343,9 +346,32 @@ class OperationCleaner(object):
     def __init__(self, client_factory):
         self.client = client_factory()
 
+    def _set_is_archived_attribute(self, op_ids):
+        batch_client = yt.create_batch_client(max_batch_size=256, client=self.client)
+        responses = []
+        for op_id in op_ids:
+            responses.append(batch_client.set(get_op_new_path(op_id) + "/@is_archived", True))
+        batch_client.commit_batch()
+
+        errors = []
+        for rsp in responses:
+            if rsp.is_ok():
+                continue
+
+            error = yt.YtResponseError(rsp.get_error())
+            if error.is_resolve_error():
+                continue
+
+            errors.append(error)
+
+        if errors:
+            raise yt.YtError("Failed to set archived attribute", inner_errors=errors)
+
     def __call__(self, op_ids):
         for op_id in op_ids:
             logger.info("Removing operation %s", op_id)
+
+        self._set_is_archived_attribute(op_ids)
 
         batch_client = yt.create_batch_client(max_batch_size=256, client=self.client)
         responses = []
@@ -454,7 +480,7 @@ def request_operations_recursive(yt_client, root_operation_ids, prefixes):
     for prefix in prefixes:
         rsp = batch_client.list(
             "//sys/operations/" + prefix,
-            attributes=["state", "authenticated_user", "start_time", "finish_time"])
+            attributes=["state", "authenticated_user", "start_time", "finish_time", "is_archived"])
         responses.append(rsp)
     batch_client.commit_batch()
 
@@ -462,7 +488,7 @@ def request_operations_recursive(yt_client, root_operation_ids, prefixes):
         if response.is_ok():
             for op in response.get_result():
                 if str(op) not in root_operation_ids:
-                    if "state" in op.attributes:
+                    if not op.attributes.get("is_archived", False) and "state" in op.attributes:
                         operations.append(create_operation_from_node(op, STORAGE_MODE_HASH_BUCKETS))
                     else:
                         candidates_to_remove.append((prefix, op))
@@ -677,9 +703,9 @@ def clear_operations(soft_limit, hard_limit, grace_timeout, archive_timeout, exe
                 thread_safe_metrics.add("failed_to_archive_stderr_count", failed_stderr_count)
 
         if len(failed_to_archive) > remove_threshold:
-            remove_queue.put_many(failed_to_archive[remove_threshold:])
+            remove_queue.put_many([op.id for op in failed_to_archive[remove_threshold:]])
     else:
-        remove_queue = NonBlockingQueue(operations_to_archive)
+        remove_queue = NonBlockingQueue([op.id for op in operations_to_archive])
 
     remove_count = len(remove_queue)
     logger.info("Removing %d operations", len(remove_queue))

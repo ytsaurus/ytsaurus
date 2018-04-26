@@ -55,7 +55,7 @@ def abort_job(job_id, interrupt_timeout=None, client=None):
     """
     params = {"job_id": job_id}
     set_param(params, "interrupt_timeout", interrupt_timeout)
-    make_request("abort_job", params, client=client)
+    return make_request("abort_job", params, client=client)
 
 def dump_job_context(job_id, path, client=None):
     """Dumps job input context to specified path."""

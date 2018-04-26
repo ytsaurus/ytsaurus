@@ -208,13 +208,6 @@ def run_python_script_with_check(yt_env, script):
 
         return out, err
 
-def wait(predicate):
-    for _ in xrange(100):
-        if predicate():
-            return
-        time.sleep(0.3)
-    pytest.fail("wait failed")
-
 def sync_create_cell():
     tablet_id = yt.create("tablet_cell", attributes={"size": 1})
     wait(lambda : yt.get("//sys/tablet_cells/{0}/@health".format(tablet_id)) == "good")

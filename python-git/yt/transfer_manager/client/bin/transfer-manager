@@ -7,7 +7,10 @@ from yt.transfer_manager.client.global_client import init_client
 
 from yt.wrapper.cli_helpers import run_main
 from yt.common import YtError
-import yt.json as json
+try:
+    import yt.json_wrapper as json
+except ImportError:
+    import yt.json as json
 import yt.logger as logger
 
 from yt.packages.six.moves import map as imap

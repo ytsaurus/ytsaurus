@@ -4,13 +4,17 @@ from yt.packages.six.moves import xrange
 
 import pytest
 import threading
+import time
 
 def test_thread_pool():
     assert threading.active_count() == 1
 
     pool = ThreadPool(5)
+    time.sleep(0.5)
     assert threading.active_count() == 6
     del pool
+    
+    time.sleep(0.5)
     assert threading.active_count() == 1
 
     pool = ThreadPool(5)
@@ -33,6 +37,7 @@ def test_thread_pool():
     result = pool.imap(lambda x: x, [2, 0, 1])
     next(result)
     pool.close()
+    time.sleep(0.5)
     assert threading.active_count() == 1
 
     with pytest.raises(RuntimeError):
@@ -48,6 +53,7 @@ def test_thread_pool():
     result = pool.imap(lambda x: x, [2, 0, 1])
     assert list(result) == [2, 0, 1]
     pool.close()
+    time.sleep(0.5)
     assert threading.active_count() == 1
 
     pool = ThreadPool(5)
@@ -60,6 +66,7 @@ def test_thread_pool():
     del result
     del pool
 
+    time.sleep(0.5)
     assert threading.active_count() == 1
 
     with pytest.raises(ValueError):
@@ -69,10 +76,10 @@ def test_imap_unordered():
     pool = ThreadPool(5)
 
     result = pool.imap_unordered(lambda item: item ** 2, [0, 1, 5, 2, 3])
-    assert set(result) == set([0, 1, 25, 4, 9])
+    assert set(result) == {0, 1, 25, 4, 9}
 
     result = pool.imap_unordered(lambda item: item ** 2, [6])
-    assert set(result) == set([36])
+    assert set(result) == {36}
 
     result = pool.imap_unordered(lambda item: item ** 2, [])
     assert set(result) == set()
@@ -80,7 +87,7 @@ def test_imap_unordered():
     pool = ThreadPool(1)
 
     result = pool.imap_unordered(lambda item: item * 2, [0, 5, 3])
-    assert set(result) == set([0, 10, 6])
+    assert set(result) == {0, 10, 6}
 
     pool = ThreadPool(30)
     result = pool.imap_unordered(lambda item: -item, xrange(10 ** 5))

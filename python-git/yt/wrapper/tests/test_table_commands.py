@@ -11,8 +11,6 @@ from yt.wrapper.common import parse_bool
 from yt.local import start, stop
 from yt.yson import YsonMap
 
-import yt.zip as zip
-
 from yt.packages.six.moves import xrange, map as imap
 
 import yt.wrapper as yt
@@ -23,6 +21,7 @@ import tempfile
 import shutil
 import time
 import uuid
+import gzip
 from io import BytesIO
 from copy import deepcopy
 
@@ -77,19 +76,20 @@ class TestTableCommands(object):
             yt.read_table(file)
 
         yt.write_table(table, [{"x": i} for i in xrange(10)])
+        client = yt.YtClient(config=deepcopy(yt.config.config))
         with set_config_option("read_parallel/max_thread_count", 2):
-            with set_config_option("proxy/request_timeout", 100):
-                iterator = yt.read_table(table)
+            with set_config_option("proxy/request_timeout", 1000):
+                with set_config_option("proxy/retries/count", 3):
+                    iterator = yt.read_table(table)
 
-                for transaction in yt.search("//sys/transactions", attributes=["tittle"]):
-                    attributes = yt.get(transaction + "/@")
-                    if attributes.get("title", "").startswith("Python wrapper: read"):
-                        yt.abort_transaction(attributes["id"])
+                    for transaction in client.search("//sys/transactions", attributes=["title", "id"]):
+                        if transaction.attributes.get("title", "").startswith("Python wrapper: read"):
+                            client.abort_transaction(transaction.attributes["id"])
 
-                time.sleep(1)
-                with pytest.raises(yt.YtError):
-                    for _ in iterator:
-                        pass
+                    time.sleep(5)
+                    with pytest.raises(yt.YtError):
+                        for _ in iterator:
+                            pass
 
     def test_table_path(self, yt_env):
         path = yt.TablePath("//path/to/table", attributes={"my_attr": 10})
@@ -608,7 +608,7 @@ class TestTableCommands(object):
         fd, filename = tempfile.mkstemp()
         os.close(fd)
 
-        with zip.GzipFile(filename, "w", 5) as fout:
+        with gzip.GzipFile(filename, "w", 5) as fout:
             fout.write(b"x=1\nx=2\nx=3\n")
 
         with open(filename, "rb") as f:

@@ -13,14 +13,14 @@ from .response_stream import EmptyResponseStream, ResponseStreamWithReadRow
 from .table_helpers import (_prepare_source_tables, _are_default_empty_table, _prepare_table_writer,
                             _remove_tables, DEFAULT_EMPTY_TABLE, _to_chunk_stream, _prepare_format)
 from .file_commands import _get_remote_temp_files_directory
-from .table_read_parallel import make_read_parallel_request
+from .parallel_reader import make_read_parallel_request
 from .ypath import TablePath, ypath_join
 
-import yt.json as json
+import yt.json_wrapper as json
 import yt.yson as yson
 import yt.logger as logger
 from yt.packages.six import PY3
-from yt.packages.six.moves import map as imap, filter as ifilter
+from yt.packages.six.moves import map as imap, filter as ifilter, xrange
 
 import random
 from copy import deepcopy
@@ -71,8 +71,8 @@ def _create_table(path, recursive=None, ignore_existing=False, attributes=None, 
         attributes = update(get_config(client)["create_table_attributes"], attributes)
     if get_config(client)["yamr_mode"]["use_yamr_defaults"]:
         attributes = update({"compression_codec": "zlib_6"}, attributes)
-    create("table", table, recursive=recursive, ignore_existing=ignore_existing,
-           attributes=attributes, client=client)
+    return create("table", table, recursive=recursive, ignore_existing=ignore_existing,
+                  attributes=attributes, client=client)
 
 @deprecated(alternative='"create" with "table" type')
 def create_table(path, recursive=None, ignore_existing=False,
@@ -89,7 +89,7 @@ def create_table(path, recursive=None, ignore_existing=False,
     :param dict attributes: attributes.
     """
 
-    _create_table(path, recursive, ignore_existing, attributes, client)
+    return _create_table(path, recursive, ignore_existing, attributes, client)
 
 def create_temp_table(path=None, prefix=None, attributes=None, expiration_timeout=None, client=None):
     """Creates temporary table by given path with given prefix and return name.
@@ -315,6 +315,39 @@ def read_blob_table(table, part_index_column_name=None, data_column_name=None,
 
     return response
 
+def _slice_row_ranges_for_parallel_read(ranges, row_count, data_size, data_size_per_thread):
+    result = []
+    if row_count > 0:
+        row_size = data_size / float(row_count)
+    else:
+        row_size = 1
+
+    rows_per_thread = max(int(data_size_per_thread / row_size), 1)
+    for range in ranges:
+        if "exact" in range:
+            require("row_index" in range["exact"], lambda: YtError('Invalid YPath: "row_index" not found'))
+            lower_limit = range["exact"]["row_index"]
+            upper_limit = lower_limit + 1
+        else:
+            if "lower_limit" in range:
+                require("row_index" in range["lower_limit"], lambda: YtError('Invalid YPath: "row_index" not found'))
+            if "upper_limit" in range:
+                require("row_index" in range["upper_limit"], lambda: YtError('Invalid YPath: "row_index" not found'))
+
+            lower_limit = 0 if "lower_limit" not in range else range["lower_limit"]["row_index"]
+            upper_limit = row_count if "upper_limit" not in range else range["upper_limit"]["row_index"]
+
+        for start in xrange(lower_limit, upper_limit, rows_per_thread):
+            end = min(start + rows_per_thread, upper_limit)
+            result.append((start, end))
+
+    return result
+
+def _prepare_params_for_parallel_read(params, range):
+    params["path"].attributes["ranges"] = [{"lower_limit": {"row_index": range[0]},
+                                            "upper_limit": {"row_index": range[1]}}]
+    return params
+
 def read_table(table, format=None, table_reader=None, control_attributes=None, unordered=None,
                raw=None, response_parameters=None, enable_read_parallel=None, client=None):
     """Reads rows from table and parse (optionally).
@@ -368,7 +401,31 @@ def read_table(table, format=None, table_reader=None, control_attributes=None, u
         elif table.has_key_limit_in_ranges():
             logger.warning("Cannot read table in parallel since table path contains key limits")
         else:
-            response = make_read_parallel_request(table, attributes, params, unordered, response_parameters, client)
+            if "ranges" not in table.attributes:
+                table.attributes["ranges"] = [
+                    {"lower_limit": {"row_index": 0},
+                     "upper_limit": {"row_index": attributes["row_count"]}}]
+            ranges = _slice_row_ranges_for_parallel_read(
+                table.attributes["ranges"],
+                attributes["row_count"],
+                attributes["uncompressed_data_size"],
+                get_config(client)["read_parallel"]["data_size_per_thread"])
+            response_parameters = get_value(response_parameters, {})
+            if not ranges:
+                response_parameters["start_row_index"] = 0
+                response_parameters["approximate_row_count"] = 0
+            else:
+                response_parameters["start_row_index"] = ranges[0][0]
+                response_parameters["approximate_row_count"] = sum(range[1] - range[0] for range in ranges)
+            response = make_read_parallel_request(
+                "read_table",
+                table,
+                ranges,
+                params,
+                _prepare_params_for_parallel_read,
+                unordered,
+                response_parameters,
+                client)
             if raw:
                 return response
             else:
