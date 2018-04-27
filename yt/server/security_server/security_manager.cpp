@@ -1599,7 +1599,7 @@ private:
 
         // COMPAT(savrus) COMPAT(shakurov)
         ValidateAccountResourceUsage_ = context.GetVersion() >= 700;
-        RecomputeAccountResourceUsage_ = context.GetVersion() < 700;
+        RecomputeAccountResourceUsage_ = context.GetVersion() < 708;
     }
 
     virtual void OnAfterSnapshotLoaded() override
