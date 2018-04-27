@@ -8,4 +8,5 @@ SET(YT_SRCS
   object_builder.cpp
   serialize.cpp
   yson_lazy_map.cpp
+  yson.cpp
 )
