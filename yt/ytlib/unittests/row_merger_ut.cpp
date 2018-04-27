@@ -501,7 +501,8 @@ public:
         TTimestamp currentTimestamp,
         TTimestamp majorTimestamp,
         TTableSchema schema = GetTypicalSchema(),
-        TColumnFilter columnFilter = TColumnFilter())
+        TColumnFilter columnFilter = TColumnFilter(),
+        bool forceMergeAggregates = false)
     {
         auto evaluator = ColumnEvaluatorCache_->Find(GetKeyedSchema(schema, 1));
         return std::make_unique<TVersionedRowMerger>(
@@ -513,7 +514,8 @@ public:
             currentTimestamp,
             majorTimestamp,
             evaluator,
-            false);
+            false,
+            forceMergeAggregates);
     }
 
     TRetentionConfigPtr GetRetentionConfig()
@@ -1142,6 +1144,102 @@ TEST_F(TVersionedRowMergerTest, ExpiredAggregate)
 
     EXPECT_EQ(
         TVersionedRow(),
+        merger->BuildMergedRow());
+}
+
+TEST_F(TVersionedRowMergerTest, MergeAggregates1)
+{
+    auto config = GetRetentionConfig();
+    config->MinDataVersions = 1;
+
+    auto merger = GetTypicalMerger(
+        config,
+        1000000000000ULL,
+        0,
+        GetAggregateSumSchema(),
+        TColumnFilter(),
+        true);
+
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=100000000000;aggregate=true> 1"));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=200000000000;aggregate=true> 2"));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=300000000000;aggregate=true> 10"));
+
+    EXPECT_EQ(
+        BuildVersionedRow(
+            "<id=0> 0",
+            "<id=3;ts=300000000000;aggregate=true> 13"),
+        merger->BuildMergedRow());
+}
+
+TEST_F(TVersionedRowMergerTest, MergeAggregates2)
+{
+    auto config = GetRetentionConfig();
+    config->MinDataVersions = 2;
+
+    auto merger = GetTypicalMerger(
+        config,
+        1000000000000ULL,
+        0,
+        GetAggregateSumSchema(),
+        TColumnFilter(),
+        true);
+
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=100000000000;aggregate=true> 1"));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=200000000000;aggregate=true> 2"));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=300000000000;aggregate=true> 10"));
+
+    EXPECT_EQ(
+        BuildVersionedRow(
+            "<id=0> 0",
+            "<id=3;ts=200000000000;aggregate=true> 3;"
+            "<id=3;ts=300000000000;aggregate=true> 10"),
+        merger->BuildMergedRow());
+}
+
+TEST_F(TVersionedRowMergerTest, MergeAggregates3)
+{
+    auto config = GetRetentionConfig();
+    config->MinDataVersions = 1;
+
+    auto merger = GetTypicalMerger(
+        config,
+        1000000000000ULL,
+        0,
+        GetAggregateSumSchema(),
+        TColumnFilter(),
+        true);
+
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=100000000000;aggregate=true> 1"));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=200000000000;aggregate=false> 2"));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=300000000000;aggregate=true> 10"));
+
+    EXPECT_EQ(
+        BuildVersionedRow(
+            "<id=0> 0",
+            "<id=3;ts=300000000000;aggregate=false> 12"),
+        merger->BuildMergedRow());
+}
+
+TEST_F(TVersionedRowMergerTest, IgnoreMajorTimestamp)
+{
+    auto config = GetRetentionConfig();
+    config->MinDataVersions = 1;
+    config->IgnoreMajorTimestamp = true;
+
+    auto merger = GetTypicalMerger(
+        config,
+        1000000000000ULL,
+        0,
+        GetAggregateSumSchema());
+
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=100000000000;aggregate=true> 1"));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=200000000000;aggregate=true> 2"));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=300000000000;aggregate=true> 10"));
+
+    EXPECT_EQ(
+        BuildVersionedRow(
+            "<id=0> 0",
+            "<id=3;ts=300000000000;aggregate=true> 13"),
         merger->BuildMergedRow());
 }
 
