@@ -233,7 +233,7 @@ void TTableNode::LoadTableSchema(NCellMaster::TLoadContext& context)
 {
     using NYT::Load;
     const auto& registry = context.GetBootstrap()->GetCypressManager()->GetSharedTableSchemaRegistry();
-    if (context.GetVersion() < 704) {
+    if (context.GetVersion() < 708) {
         TTableSchema tableSchema = Load<TTableSchema>(context);
         if (tableSchema != TSharedTableSchemaRegistry::EmptyTableSchema) {
             SharedTableSchema() = registry->GetSchema(std::move(tableSchema));
