@@ -436,7 +436,8 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
             transaction->GetStartTimestamp(),
             0,
             tabletSnapshot->ColumnEvaluator,
-            false);
+            false,
+            true);
 
         std::vector<TVersionedRow> rows;
         rows.reserve(MaxRowsPerFlushRead);
