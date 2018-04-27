@@ -478,6 +478,7 @@ IVersionedReaderPtr CreateVersionedTabletReader(
         currentTimestamp,
         majorTimestamp,
         tabletSnapshot->ColumnEvaluator,
+        false,
         false);
 
     std::vector<TOwningKey> boundaries;
