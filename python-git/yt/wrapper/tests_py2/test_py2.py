@@ -1,4 +1,4 @@
-from yt.environment.arcadia_interop import arcadia_interop
+from yt.environment import arcadia_interop
 
 import library.python.testing.pytest_runner.runner as pytest_runner
 
@@ -15,7 +15,7 @@ def build_bindings(build_dir):
         "/usr/bin/python", ya, "make",
         "--source-root", yatest.common.source_path(),
         "--results-root", build_dir,
-        "-DUSE_ARCADIA_PYTHON=no", "-DPYTHON_CONFIG=python2.7-config", "-DPYTHON_BIN=python2.7",
+        "-DUSE_SYSTEM_PYTHON=2.7", "-DPYTHON_CONFIG=python2.7-config", "-DPYTHON_BIN=python2.7",
         "-C", "yt/{}/yt/python/yson_shared".format(YT_ABI),
         "-C", "yt/{}/yt/python/driver_shared".format(YT_ABI)
     ])

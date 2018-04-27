@@ -87,7 +87,7 @@ def _wait_instance_to_become_ready(process, instance_id):
 @pytest.fixture(scope="session", autouse=True)
 def prepare_path():
     try:
-        from yt.environment.arcadia_interop import arcadia_interop
+        from yt.environment import arcadia_interop
         destination = os.path.join(yatest_common.work_path(), "build")
         os.makedirs(destination)
         path, node_path = arcadia_interop.prepare_yt_environment(destination)
