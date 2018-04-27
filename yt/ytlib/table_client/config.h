@@ -309,6 +309,7 @@ public:
     int MaxDataVersions;
     TDuration MinDataTtl;
     TDuration MaxDataTtl;
+    bool IgnoreMajorTimestamp;
 
     TRetentionConfig()
     {
@@ -322,6 +323,8 @@ public:
             .Default(TDuration::Minutes(30));
         RegisterParameter("max_data_ttl", MaxDataTtl)
             .Default(TDuration::Minutes(30));
+        RegisterParameter("ignore_major_timestamp", IgnoreMajorTimestamp)
+            .Default(false);
     }
 };
 

@@ -1606,12 +1606,7 @@ public:
             auto* cell = tablet->GetCell();
             auto state = tablet->GetState();
 
-            if (state == ETabletState::Mounted ||
-                state == ETabletState::Mounting ||
-                state == ETabletState::FrozenMounting ||
-                state == ETabletState::Frozen ||
-                state == ETabletState::Freezing)
-            {
+            if (state != ETabletState::Unmounted) {
                 LOG_DEBUG_UNLESS(IsRecovery(), "Remounting tablet (TableId: %v, TabletId: %v, CellId: %v)",
                     table->GetId(),
                     tablet->GetId(),
