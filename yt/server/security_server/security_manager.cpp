@@ -467,7 +467,7 @@ public:
         UpdateAccountNodeCountUsage(node, newAccount, transaction, +1);
         objectManager->RefObject(newAccount);
 
-        UpdateAccountTabletResourceUsage(node, oldAccount, newAccount);
+        UpdateAccountTabletResourceUsage(node, oldAccount, true, newAccount, transaction == nullptr);
     }
 
     void ResetAccount(TCypressNodeBase* node)
@@ -480,7 +480,7 @@ public:
         node->SetAccount(nullptr);
 
         UpdateAccountNodeCountUsage(node, account, node->GetTransaction(), -1);
-        UpdateAccountTabletResourceUsage(node, account, nullptr);
+        UpdateAccountTabletResourceUsage(node, account, node->GetTransaction() == nullptr, nullptr, false);
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         objectManager->UnrefObject(account);
@@ -506,7 +506,7 @@ public:
         }
     }
 
-    void UpdateAccountTabletResourceUsage(TCypressNodeBase* node, TAccount* oldAccount, TAccount* newAccount)
+    void UpdateAccountTabletResourceUsage(TCypressNodeBase* node, TAccount* oldAccount, bool oldCommitted, TAccount* newAccount, bool newCommitted)
     {
         if (node->IsExternal()) {
             return;
@@ -517,16 +517,16 @@ public:
             .SetChunkCount(0);
         resources.DiskSpace.fill(0);
 
-        UpdateTabletResourceUsage(node, oldAccount, -resources);
-        UpdateTabletResourceUsage(node, newAccount, resources);
+        UpdateTabletResourceUsage(node, oldAccount, -resources, oldCommitted);
+        UpdateTabletResourceUsage(node, newAccount, resources, newCommitted);
     }
 
     void UpdateTabletResourceUsage(TCypressNodeBase* node, const TClusterResources& resourceUsageDelta)
     {
-        UpdateTabletResourceUsage(node, node->GetAccount(), resourceUsageDelta);
+        UpdateTabletResourceUsage(node, node->GetAccount(), resourceUsageDelta, node->IsTrunk());
     }
 
-    void UpdateTabletResourceUsage(TCypressNodeBase* node, TAccount* account, const TClusterResources& resourceUsageDelta)
+    void UpdateTabletResourceUsage(TCypressNodeBase* node, TAccount* account, const TClusterResources& resourceUsageDelta, bool committed)
     {
         if (!account) {
             return;
@@ -538,8 +538,10 @@ public:
 
         account->ClusterStatistics().ResourceUsage += resourceUsageDelta;
         account->LocalStatistics().ResourceUsage += resourceUsageDelta;
-        account->ClusterStatistics().CommittedResourceUsage += resourceUsageDelta;
-        account->LocalStatistics().CommittedResourceUsage += resourceUsageDelta;
+        if (committed) {
+            account->ClusterStatistics().CommittedResourceUsage += resourceUsageDelta;
+            account->LocalStatistics().CommittedResourceUsage += resourceUsageDelta;
+        }
     }
 
     void RenameAccount(TAccount* account, const TString& newName)
@@ -2539,11 +2541,6 @@ void TSecurityManager::UpdateResourceUsage(const TChunk* chunk, const TChunkRequ
 void TSecurityManager::UpdateTabletResourceUsage(TCypressNodeBase* node, const TClusterResources& resourceUsageDelta)
 {
     Impl_->UpdateTabletResourceUsage(node, resourceUsageDelta);
-}
-
-void TSecurityManager::UpdateTabletResourceUsage(TCypressNodeBase* node, TAccount* account, const TClusterResources& resourceUsageDelta)
-{
-    Impl_->UpdateTabletResourceUsage(node, account, resourceUsageDelta);
 }
 
 void TSecurityManager::UpdateTransactionResourceUsage(const TChunk* chunk, const TChunkRequisition& requisition, i64 delta)
