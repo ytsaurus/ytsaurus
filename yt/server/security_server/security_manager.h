@@ -114,7 +114,6 @@ public:
     //! Updates tablet-related resource usage. Only table count and static
     //! memory are used; everything else in #resourceUsageDelta must be zero.
     void UpdateTabletResourceUsage(NCypressServer::TCypressNodeBase* node, const TClusterResources& resourceUsageDelta);
-    void UpdateTabletResourceUsage(NCypressServer::TCypressNodeBase* node, TAccount* account, const TClusterResources& resourceUsageDelta);
 
     //! Adds the #chunk to the resource usage of its staging transaction.
     void UpdateTransactionResourceUsage(const NChunkServer::TChunk* chunk, const NChunkServer::TChunkRequisition& requisition, i64 delta);
