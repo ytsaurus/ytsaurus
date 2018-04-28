@@ -37,6 +37,7 @@
 #include <yt/ytlib/job_proxy/job_spec_helper.h>
 #include <yt/ytlib/job_proxy/user_job_read_controller.h>
 
+#include <yt/ytlib/job_prober_client/public.h>
 #include <yt/ytlib/job_prober_client/job_prober_service_proxy.h>
 
 #include <yt/ytlib/node_tracker_client/channel.h>
@@ -3769,7 +3770,8 @@ private:
                 .ValueOrThrow();
             return TSharedRef::FromString(rsp->stderr_data());
         } catch (const TErrorException& exception) {
-            auto matchedError = exception.Error().FindMatching(NScheduler::EErrorCode::NoSuchJob);
+            auto matchedError = exception.Error().FindMatching(NScheduler::EErrorCode::NoSuchJob) ||
+                exception.Error().FindMatching(NJobProberClient::EErrorCode::JobIsNotRunning);
 
             if (!matchedError) {
                 THROW_ERROR_EXCEPTION("Failed to get job stderr from job proxy")

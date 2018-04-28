@@ -624,11 +624,35 @@ TNodeDescriptor TNodeShard::GetJobNode(const TJobId& jobId, const TString& user)
 
     ValidateConnected();
 
-    auto job = GetJobOrThrow(jobId);
+    auto job = FindJob(jobId);
 
-    Host_->ValidateOperationPermission(user, job->GetOperationId(), EPermission::Write);
+    TExecNodePtr node;
+    TOperationId operationId;
 
-    return job->GetNode()->NodeDescriptor();
+    if (!job) {
+        node = FindNodeByJob(jobId);
+        if (!node) {
+            THROW_ERROR_EXCEPTION(
+                NScheduler::EErrorCode::NoSuchJob,
+                "Job %v not found", jobId);
+        }
+
+        auto it = node->RecentlyFinishedJobs().find(jobId);
+        if (it == node->RecentlyFinishedJobs().end()) {
+            THROW_ERROR_EXCEPTION(
+                NScheduler::EErrorCode::NoSuchJob,
+                "Job %v not found", jobId);
+        }
+
+        operationId = it->second.OperationId;
+    } else {
+        node = job->GetNode();
+        operationId = job->GetOperationId();
+    }
+
+    Host_->ValidateOperationPermission(user, operationId, EPermission::Write);
+
+    return node->NodeDescriptor();
 }
 
 TYsonString TNodeShard::StraceJob(const TJobId& jobId, const TString& user)
