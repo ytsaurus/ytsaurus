@@ -67,6 +67,8 @@ public:
             .SetCancelable(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Read)
             .SetInvoker(bootstrap->GetLookupPoolInvoker()));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(Multiread)
+            .SetInvoker(bootstrap->GetLookupPoolInvoker()));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetTabletInfo)
             .SetInvoker(bootstrap->GetLookupPoolInvoker()));
     }
@@ -154,7 +156,7 @@ private:
             retentionConfig = ConvertTo<TRetentionConfigPtr>(TYsonString(request->retention_config()));
         }
 
-        context->SetRequestInfo("TabletId: %v, Timestamp: %llx, RequestCodec: %v, ResponseCodec: %v, ReadSessionId: %v, RetentionConfig: %Qv",
+        context->SetRequestInfo("TabletId: %v, Timestamp: %llx, RequestCodec: %v, ResponseCodec: %v, ReadSessionId: %v, RetentionConfig: %v",
             tabletId,
             timestamp,
             requestCodecId,
@@ -210,6 +212,88 @@ private:
 
             throw;
         }
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NQueryClient::NProto, Multiread)
+    {
+        auto requestCodecId = NCompression::ECodec(request->request_codec());
+        auto responseCodecId = NCompression::ECodec(request->response_codec());
+        auto timestamp = TTimestamp(request->timestamp());
+        // TODO(sandello): Extract this out of RPC request.
+        auto workloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::UserInteractive);
+        auto sessionId = TReadSessionId::Create();
+
+        TRetentionConfigPtr retentionConfig;
+        if (request->has_retention_config()) {
+            retentionConfig = ConvertTo<TRetentionConfigPtr>(TYsonString(request->retention_config()));
+        }
+
+        const auto& user = context->GetUser();
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+        TAuthenticatedUserGuard userGuard(securityManager, user);
+
+        const auto &slotManager = Bootstrap_->GetTabletSlotManager();
+
+        size_t batchCount = request->tablet_ids_size();
+        YCHECK(batchCount == request->mount_revisions_size());
+        YCHECK(batchCount == request->Attachments().size());
+
+        auto* requestCodec = NCompression::GetCodec(requestCodecId);
+        auto* responseCodec = NCompression::GetCodec(responseCodecId);
+
+        for (size_t index = 0; index < batchCount; ++index) {
+            auto tabletId = FromProto<TTabletId>(request->tablet_ids(index));
+            auto mountRevision = request->mount_revisions(index);
+
+            try {
+                ExecuteRequestWithRetries(
+                    Config_->MaxQueryRetries,
+                    Logger,
+                    [&] {
+                        context->SetRequestInfo("TabletId: %v, Timestamp: %llx, RequestCodec: %v, ResponseCodec: %v, ReadSessionId: %v, RetentionConfig: %v",
+                            tabletId,
+                            timestamp,
+                            requestCodecId,
+                            responseCodecId,
+                            sessionId,
+                            retentionConfig);
+
+                        auto requestData = requestCodec->Decompress(request->Attachments()[index]);
+
+                        auto tabletSnapshot = slotManager->GetTabletSnapshotOrThrow(tabletId);
+                        slotManager->ValidateTabletAccess(
+                            tabletSnapshot,
+                            EPermission::Read,
+                            timestamp);
+                        tabletSnapshot->ValidateMountRevision(mountRevision);
+
+                        struct TLookupRowBufferTag { };
+                        TWireProtocolReader reader(requestData, New<TRowBuffer>(TLookupRowBufferTag()));
+                        TWireProtocolWriter writer;
+
+                        const auto &tabletManager = tabletSnapshot->TabletManager;
+                        tabletManager->Read(
+                            tabletSnapshot,
+                            timestamp,
+                            user,
+                            workloadDescriptor,
+                            sessionId,
+                            retentionConfig,
+                            &reader,
+                            &writer);
+
+                        response->Attachments().push_back(responseCodec->Compress(writer.Finish()));
+                    });
+            } catch (const TErrorException&) {
+                if (auto tabletSnapshot = slotManager->FindTabletSnapshot(tabletId)) {
+                    ++tabletSnapshot->PerformanceCounters->LookupErrorCount;
+                }
+
+                throw;
+            }
+        }
+
+        context->Reply();
     }
 
     DECLARE_RPC_SERVICE_METHOD(NQueryClient::NProto, GetTabletInfo)

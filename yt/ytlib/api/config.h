@@ -127,8 +127,8 @@ public:
     NCompression::ECodec LookupRowsRequestCodec;
     NCompression::ECodec LookupRowsResponseCodec;
     int MaxRowsPerLookupRequest;
+    bool EnableLookupMultiread;
 
-    bool EnableUdf;
     NYPath::TYPath UdfRegistryPath;
     TExpiringCacheConfigPtr FunctionRegistryCache;
     TSlruCacheConfigPtr FunctionImplCache;
