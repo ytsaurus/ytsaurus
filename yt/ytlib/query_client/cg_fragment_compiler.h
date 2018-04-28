@@ -54,7 +54,8 @@ typedef std::function<TCGValue(TCGBaseContext& builder, Value* buffer, TCGValue 
 typedef std::function<TCGValue(TCGBaseContext& builder, Value* buffer, TCGValue dstAggState, TCGValue aggState)> TCodegenAggregateMerge;
 typedef std::function<TCGValue(TCGBaseContext& builder, Value* buffer, TCGValue aggState)> TCodegenAggregateFinalize;
 
-struct TCodegenAggregate {
+struct TCodegenAggregate
+{
     TCodegenAggregateInit Initialize;
     TCodegenAggregateUpdate Update;
     TCodegenAggregateMerge Merge;
