@@ -437,12 +437,12 @@ int CompareRowValues(const TUnversionedValue& lhs, const TUnversionedValue& rhs)
 
 bool operator == (const TUnversionedValue& lhs, const TUnversionedValue& rhs)
 {
-    return CompareRowValues(lhs, rhs) == 0 && lhs.Aggregate == rhs.Aggregate;
+    return CompareRowValues(lhs, rhs) == 0;
 }
 
 bool operator != (const TUnversionedValue& lhs, const TUnversionedValue& rhs)
 {
-    return !(lhs == rhs);
+    return CompareRowValues(lhs, rhs) != 0;
 }
 
 bool operator <= (const TUnversionedValue& lhs, const TUnversionedValue& rhs)
