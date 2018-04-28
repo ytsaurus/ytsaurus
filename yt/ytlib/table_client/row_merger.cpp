@@ -53,8 +53,9 @@ TSchemafulRowMerger::TSchemafulRowMerger(
 
 void TSchemafulRowMerger::AddPartialRow(TVersionedRow row)
 {
-    if (!row)
+    if (!row) {
         return;
+    }
 
     Y_ASSERT(row.GetKeyCount() == KeyColumnCount_);
     Y_ASSERT(row.GetWriteTimestampCount() <= 1);
@@ -349,7 +350,7 @@ TVersionedRowMerger::TVersionedRowMerger(
     TTimestamp majorTimestamp,
     TColumnEvaluatorPtr columnEvaluator,
     bool lookup,
-    bool forceMergeAggregates)
+    bool mergeRowsOnFlush)
     : RowBuffer_(std::move(rowBuffer))
     , KeyColumnCount_(keyColumnCount)
     , Config_(std::move(config))
@@ -358,7 +359,7 @@ TVersionedRowMerger::TVersionedRowMerger(
     , MajorTimestamp_(IgnoreMajorTimestamp_ ? MaxTimestamp : majorTimestamp)
     , ColumnEvaluator_(std::move(columnEvaluator))
     , Lookup_(lookup)
-    , ForceMergeAggregates_(forceMergeAggregates)
+    , MergeRowsOnFlush_(mergeRowsOnFlush)
 {
     size_t mergedKeyColumnCount = 0;
     if (columnFilter.All) {
@@ -545,7 +546,7 @@ TVersionedRow TVersionedRowMerger::BuildMergedRow()
         if (ColumnEvaluator_->IsAggregate(id) && retentionBeginIt < ColumnValues_.end()) {
             while (retentionBeginIt != ColumnValues_.begin()
                 && retentionBeginIt->Timestamp >= MajorTimestamp_
-                && !ForceMergeAggregates_)
+                && !MergeRowsOnFlush_)
             {
                 --retentionBeginIt;
             }
@@ -555,22 +556,33 @@ TVersionedRow TVersionedRowMerger::BuildMergedRow()
                 for (auto valueIt = retentionBeginIt; valueIt >= aggregateBeginIt; --valueIt) {
                     if (valueIt->Type == EValueType::TheBottom) {
                         aggregateBeginIt = valueIt + 1;
-                    } else if (!valueIt->Aggregate) {
+                        break;
+                    }
+                    if (!valueIt->Aggregate) {
                         aggregateBeginIt = valueIt;
+                        break;
                     }
                 }
 
                 if (aggregateBeginIt < retentionBeginIt) {
-                    auto state = MakeUnversionedSentinelValue(EValueType::Null, id);
+                    TVersionedValue state;
+                    ColumnEvaluator_->InitAggregate(id, &state, RowBuffer_);
 
                     for (auto valueIt = aggregateBeginIt; valueIt <= retentionBeginIt; ++valueIt) {
-                        ColumnEvaluator_->MergeAggregate(id, &state, *valueIt, RowBuffer_);
+                        const auto& value = *valueIt;
+                        // Do no expect any thombstones.
+                        Y_ASSERT(value.Type != EValueType::TheBottom);
+                        // Only expect overwrites at the very beginning.
+                        Y_ASSERT(value.Aggregate || valueIt == aggregateBeginIt);
+                        ColumnEvaluator_->MergeAggregate(id, &state, value, RowBuffer_);
                     }
 
-                    TUnversionedValue& value = *retentionBeginIt;
-                    value = state;
-                }
+                    TUnversionedValue& targetValue = *retentionBeginIt;
+                    ColumnEvaluator_->FinalizeAggregate(id, &targetValue, state, RowBuffer_);
 
+                    // The very first aggregated value determines the final aggregation mode.
+                    targetValue.Aggregate = aggregateBeginIt->Aggregate;
+                }
             }
 
             if (IgnoreMajorTimestamp_) {
@@ -636,6 +648,7 @@ TVersionedRow TVersionedRowMerger::BuildMergedRow()
     std::copy(DeleteTimestamps_.begin(), DeleteTimestamps_.end(), row.BeginDeleteTimestamps());
 
     Cleanup();
+        
     return row;
 }
 
