@@ -3073,7 +3073,7 @@ TCGAggregateCallbacks CodegenAggregate(
 {
     auto module = TCGModule::Create(GetQueryRoutineRegistry());
 
-    const auto initName = TString("init");
+    static const auto initName = TString("init");
     {
         MakeFunction<TCGAggregateInitSignature>(module, initName.c_str(), [&] (
             TCGBaseContext& builder,
@@ -3088,7 +3088,7 @@ TCGAggregateCallbacks CodegenAggregate(
         module->ExportSymbol(initName);
     }
 
-    const auto updateName = TString("update");
+    static const auto updateName = TString("update");
     {
         MakeFunction<TCGAggregateUpdateSignature>(module, updateName.c_str(), [&] (
             TCGBaseContext& builder,
@@ -3106,7 +3106,7 @@ TCGAggregateCallbacks CodegenAggregate(
         module->ExportSymbol(updateName);
     }
 
-    const auto mergeName = TString("merge");
+    static const auto mergeName = TString("merge");
     {
         MakeFunction<TCGAggregateMergeSignature>(module, mergeName.c_str(), [&] (
             TCGBaseContext& builder,
@@ -3125,7 +3125,7 @@ TCGAggregateCallbacks CodegenAggregate(
         module->ExportSymbol(mergeName);
     }
 
-    const auto finalizeName = TString("finalize");
+    static const auto finalizeName = TString("finalize");
     {
         MakeFunction<TCGAggregateFinalizeSignature>(module, finalizeName.c_str(), [&] (
             TCGBaseContext& builder,
