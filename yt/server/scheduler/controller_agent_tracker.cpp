@@ -887,10 +887,6 @@ public:
 
         scheduler->GetStrategy()->ApplyJobMetricsDelta(operationIdToOperationJobMetrics);
 
-        // We must wait for all these results before replying since these activities
-        // rely on RPC request to remain alive.
-        std::vector<TFuture<void>> asyncResults;
-
         RunInMessageOffloadThread([&] {
             const auto& nodeShards = scheduler->GetNodeShards();
             std::vector<std::vector<const NProto::TAgentToSchedulerJobEvent*>> groupedJobEvents(nodeShards.size());
@@ -904,7 +900,7 @@ public:
 
             for (size_t shardId = 0; shardId < nodeShards.size(); ++shardId) {
                 const auto& nodeShard = nodeShards[shardId];
-                asyncResults.push_back(
+                nodeShard->GetInvoker()->Invoke(
                     BIND([context, nodeShard, this_ = MakeStrong(this), protoEvents = std::move(groupedJobEvents[shardId])] {
                         for (const auto* protoEvent : protoEvents) {
                             auto eventType = static_cast<EAgentToSchedulerJobEventType>(protoEvent->event_type());
@@ -929,9 +925,7 @@ public:
                                     Y_UNREACHABLE();
                             }
                         }
-                    })
-                        .AsyncVia(nodeShard->GetInvoker())
-                        .Run());
+                    }));
             }
 
             std::vector<std::vector<const NProto::TScheduleJobResponse*>> groupedScheduleJobResponses(nodeShards.size());
@@ -945,7 +939,7 @@ public:
 
             for (size_t shardId = 0; shardId < nodeShards.size(); ++shardId) {
                 const auto& nodeShard = nodeShards[shardId];
-                asyncResults.push_back(
+                nodeShard->GetInvoker()->Invoke(
                     BIND([
                         context,
                         nodeShard,
@@ -954,9 +948,7 @@ public:
                         for (const auto* protoResponse : protoResponses) {
                             nodeShard->EndScheduleJob(*protoResponse);
                         }
-                    })
-                        .AsyncVia(nodeShard->GetInvoker())
-                        .Run());
+                    }));
             }
 
             agent->GetJobEventsOutbox()->HandleStatus(request->scheduler_to_agent_job_events());
@@ -998,13 +990,7 @@ public:
             }
         }
 
-        auto error = WaitFor(Combine(asyncResults));
-        if (!error.IsOK()) {
-            scheduler->Disconnect(error);
-            context->Reply(error);
-            return;
-        }
-
+        agent->GetOperationEventsInbox()->ReportStatus(response->mutable_agent_to_scheduler_operation_events());
         agent->GetOperationEventsInbox()->ReportStatus(response->mutable_agent_to_scheduler_operation_events());
 
         RunInMessageOffloadThread([&] {
