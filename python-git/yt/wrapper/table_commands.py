@@ -374,7 +374,11 @@ def read_table(table, format=None, table_reader=None, control_attributes=None, u
                                          close=lambda: None,
                                          process_error=lambda response: None,
                                          get_response_parameters=lambda: None)
-    attributes = get(table + "/@", client=client)
+    attributes = get(
+        table + "/@",
+        attributes=["type", "chunk_count", "compressed_data_size", "dynamic", "row_count", "uncompressed_data_size"],
+        client=client)
+
     if attributes.get("type") != "table":
         raise YtError("Command read is supported only for tables")
     if  attributes["chunk_count"] > 100 and attributes["compressed_data_size"] // attributes["chunk_count"] < MB:
