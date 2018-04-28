@@ -32,11 +32,11 @@ class TestMedia(YTEnvSetup):
         location_prototype = config["data_node"]["store_locations"][0]
 
         default_location = copy.deepcopy(location_prototype)
-        default_location["path"] += "_0";
+        default_location["path"] += "_0"
         default_location["medium_name"] = "default"
 
         non_default_location = copy.deepcopy(location_prototype)
-        non_default_location["path"] += "_1";
+        non_default_location["path"] += "_1"
         non_default_location["medium_name"] = cls.NON_DEFAULT_MEDIUM
 
         config["data_node"]["store_locations"] = []

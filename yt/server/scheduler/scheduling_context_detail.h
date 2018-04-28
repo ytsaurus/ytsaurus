@@ -51,7 +51,7 @@ private:
     const TExecNodeDescriptor NodeDescriptor_;
     const THashSet<TString> NodeTags_;
 
-    bool CanSatisfyResouceRequest(const TJobResources& jobResources) const;
+    bool CanSatisfyResourceRequest(const TJobResources& jobResources) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

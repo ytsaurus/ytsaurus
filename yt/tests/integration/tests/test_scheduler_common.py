@@ -2341,6 +2341,44 @@ class TestSchedulerHeterogeneousConfiguration(YTEnvSetup):
         assert get("//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/default/resource_limits/user_slots") == 2
         assert get("//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/default/resource_usage/user_slots") == 2
 
+###############################################################################################
+
+class TestSchedulerGpu(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+
+    @classmethod
+    def modify_node_config(cls, config):
+        if not hasattr(cls, "node_counter"):
+            cls.node_counter = 0
+        cls.node_counter += 1
+        if cls.node_counter == 1:
+            config["exec_agent"]["job_controller"]["resource_limits"]["gpu"] = 1
+
+    def test_job_count(self):
+        gpu_nodes = [node for node in ls("//sys/nodes") if get("//sys/nodes/{}/@resource_limits/gpu".format(node)) > 0]
+        assert len(gpu_nodes) == 1
+        gpu_node = gpu_nodes[0]
+
+        create("table", "//tmp/in")
+        create("table", "//tmp/out")
+        write_table("//tmp/in", [{"foo": i} for i in range(3)])
+
+        op = map(
+            command=with_breakpoint("cat ; BREAKPOINT"),
+            in_="//tmp/in",
+            out="//tmp/out",
+            spec={"mapper": {"gpu_limit": 1}},
+            dont_track=True)
+
+        wait_breakpoint()
+
+        jobs = op.get_running_jobs()
+        assert len(jobs) == 1
+        assert jobs.values()[0]["address"] == gpu_node
+
+
 ##################################################################
 
 class TestSchedulerJobStatistics(YTEnvSetup):
@@ -2917,9 +2955,9 @@ class TestResourceLimitsOverrides(YTEnvSetup):
     DELTA_NODE_CONFIG = {
         "exec_agent": {
             "job_controller": {
-                "cpu_overdraft_timeout" : 1000,
-                "memory_overdraft_timeout" : 1000,
-                "resource_adjustment_period" : 100,
+                "cpu_overdraft_timeout": 1000,
+                "memory_overdraft_timeout": 1000,
+                "resource_adjustment_period": 100,
             }
         }
     }
@@ -2964,7 +3002,7 @@ class TestResourceLimitsOverrides(YTEnvSetup):
             command='if [ "$YT_JOB_INDEX" == "0" ]; then sleep 1000; else cat; fi',
             in_="//tmp/t_input",
             out="//tmp/t_output",
-            spec={"mapper" : {"memory_limit" : 50 * 1024 * 1024}},
+            spec={"mapper": {"memory_limit": 50 * 1024 * 1024}},
             dont_track=True)
 
         jobs = self._wait_for_jobs(op.id)
