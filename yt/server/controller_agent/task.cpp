@@ -5,7 +5,6 @@
 #include "job_info.h"
 #include "job_splitter.h"
 #include "job_memory.h"
-#include "helpers.h"
 #include "task_host.h"
 #include "scheduling_context.h"
 
@@ -15,19 +14,9 @@
 
 #include <yt/ytlib/chunk_client/chunk_slice.h>
 
-#include <yt/ytlib/scheduler/proto/job.pb.h>
-
-#include <yt/ytlib/table_client/schema.h>
-
-#include <yt/ytlib/job_tracker_client/job.pb.h>
-
 #include <yt/ytlib/node_tracker_client/node_directory_builder.h>
 
 #include <yt/core/concurrency/throughput_throttler.h>
-
-#include <yt/core/misc/digest.h>
-
-#include <yt/core/ytree/convert.h>
 
 namespace NYT {
 namespace NControllerAgent {
@@ -781,6 +770,7 @@ TJobResources TTask::ApplyMemoryReserve(const TExtendedJobResources& jobResource
 {
     TJobResources result;
     result.SetCpu(jobResources.GetCpu());
+    result.SetGpu(jobResources.GetGpu());
     result.SetUserSlots(jobResources.GetUserSlots());
     i64 memory = jobResources.GetFootprintMemory();
     memory += jobResources.GetJobProxyMemory() * GetJobProxyMemoryDigest()
@@ -857,6 +847,7 @@ void TTask::AddFootprintAndUserJobResources(TExtendedJobResources& jobResources)
     auto userJobSpec = GetUserJobSpec();
     if (userJobSpec) {
         jobResources.SetUserJobMemory(userJobSpec->MemoryLimit);
+        jobResources.SetGpu(userJobSpec->GpuLimit);
     }
 }
 
