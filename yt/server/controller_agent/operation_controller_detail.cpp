@@ -3944,8 +3944,8 @@ void TOperationControllerBase::FetchInputTables()
     LOG_INFO("Started fetching input tables");
 
     TQueryOptions queryOptions;
-        queryOptions.VerboseLogging = true;
-        queryOptions.RangeExpansionLimit = Config->MaxRangesOnTable;
+    queryOptions.VerboseLogging = true;
+    queryOptions.RangeExpansionLimit = Config->MaxRangesOnTable;
 
     for (int tableIndex = 0; tableIndex < static_cast<int>(InputTables.size()); ++tableIndex) {
         auto& table = InputTables[tableIndex];
