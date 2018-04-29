@@ -101,7 +101,7 @@ public:
 
     void UpdateConfig(const TSchedulerConfigPtr& config);
 
-    void OnMasterConnected();
+    IInvokerPtr OnMasterConnected();
     void OnMasterDisconnected();
 
     void RegisterOperation(
@@ -121,28 +121,20 @@ public:
     void HandleNodesAttributes(const std::vector<std::pair<TString, NYTree::INodePtr>>& nodeMaps);
 
     void AbortOperationJobs(const TOperationId& operationId, const TError& abortReason, bool terminated);
-
     void ResumeOperationJobs(const TOperationId& operationId);
-
-    NYson::TYsonString StraceJob(const TJobId& jobId, const TString& user);
-
-    void DumpJobInputContext(const TJobId& jobId, const NYTree::TYPath& path, const TString& user);
 
     NNodeTrackerClient::TNodeDescriptor GetJobNode(const TJobId& jobId, const TString& user);
 
+    NYson::TYsonString StraceJob(const TJobId& jobId, const TString& user);
+    void DumpJobInputContext(const TJobId& jobId, const NYTree::TYPath& path, const TString& user);
     void SignalJob(const TJobId& jobId, const TString& signalName, const TString& user);
-
     void AbandonJob(const TJobId& jobId, const TString& user);
-
     NYson::TYsonString PollJobShell(const TJobId& jobId, const NYson::TYsonString& parameters, const TString& user);
-
     void AbortJobByUserRequest(const TJobId& jobId, TNullable<TDuration> interruptTimeout, const TString& user);
+
     void AbortJob(const TJobId& jobId, const TError& error);
-
     void InterruptJob(const TJobId& jobId, EInterruptReason reason);
-
     void FailJob(const TJobId& jobId);
-
     void ReleaseJob(const TJobId& jobId, bool archiveJobSpec);
 
     void BuildNodesYson(NYTree::TFluentMap fluent);

@@ -187,6 +187,7 @@ public:
                 Config_,
                 this,
                 Bootstrap_));
+            CancelableNodeShardInvokers_.push_back(GetNullInvoker());
         }
 
         ServiceAddress_ = BuildServiceAddress(
@@ -336,6 +337,13 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         return NodeShards_;
+    }
+
+    const IInvokerPtr& GetCancelableNodeShardInvoker(int shardId) const
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        return CancelableNodeShardInvokers_[shardId];
     }
 
     bool IsConnected() const
@@ -1193,6 +1201,7 @@ private:
     TString ServiceAddress_;
 
     std::vector<TNodeShardPtr> NodeShards_;
+    std::vector<IInvokerPtr> CancelableNodeShardInvokers_;
 
     THashMap<TNodeId, THashSet<TString>> NodeIdToTags_;
 
@@ -1388,17 +1397,22 @@ private:
         {
             LOG_INFO("Connecting node shards");
 
-            std::vector<TFuture<void>> asyncResults;
+            std::vector<TFuture<IInvokerPtr>> asyncInvokers;
             for (const auto& nodeShard : NodeShards_) {
-                asyncResults.push_back(BIND(&TNodeShard::OnMasterConnected, nodeShard)
+                asyncInvokers.push_back(BIND(&TNodeShard::OnMasterConnected, nodeShard)
                     .AsyncVia(nodeShard->GetInvoker())
                     .Run());
             }
 
-            auto error = WaitFor(Combine(asyncResults));
-            if (!error.IsOK()) {
+            auto invokerOrError = WaitFor(Combine(asyncInvokers));
+            if (!invokerOrError.IsOK()) {
                 THROW_ERROR_EXCEPTION("Error connecting node shards")
-                    << error;
+                    << invokerOrError;
+            }
+
+            const auto& invokers = invokerOrError.Value();
+            for (size_t index = 0; index < NodeShards_.size(); ++index) {
+                CancelableNodeShardInvokers_[index ] = invokers[index];
             }
         }
 
@@ -2991,6 +3005,11 @@ const TSchedulerConfigPtr& TScheduler::GetConfig() const
 int TScheduler::GetNodeShardId(TNodeId nodeId) const
 {
     return Impl_->GetNodeShardId(nodeId);
+}
+
+const IInvokerPtr& TScheduler::GetCancelableNodeShardInvoker(int shardId) const
+{
+    return Impl_->GetCancelableNodeShardInvoker(shardId);
 }
 
 const std::vector<TNodeShardPtr>& TScheduler::GetNodeShards() const

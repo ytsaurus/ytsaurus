@@ -109,7 +109,7 @@ void TNodeShard::UpdateConfig(const TSchedulerConfigPtr& config)
     Config_ = config;
 }
 
-void TNodeShard::OnMasterConnected()
+IInvokerPtr TNodeShard::OnMasterConnected()
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
 
@@ -123,6 +123,8 @@ void TNodeShard::OnMasterConnected()
     CancelableInvoker_ = CancelableContext_->CreateInvoker(GetInvoker());
 
     CachedExecNodeDescriptorsRefresher_->Start();
+
+    return CancelableInvoker_;
 }
 
 void TNodeShard::OnMasterDisconnected()
@@ -317,16 +319,19 @@ void TNodeShard::UnregisterOperation(const TOperationId& operationId)
 
 void TNodeShard::ProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& context)
 {
-    VERIFY_INVOKER_AFFINITY(GetInvoker());
+    GetInvoker()->Invoke(
+        BIND([=, this_ = MakeStrong(this)] {
+            VERIFY_INVOKER_AFFINITY(GetInvoker());
 
-    try {
-        ValidateConnected();
-    } catch (const TErrorException& error) {
-        context->Reply(error);
-        return;
-    }
+            try {
+                ValidateConnected();
+                SwitchTo(CancelableInvoker_);
 
-    CancelableInvoker_->Invoke(BIND(&TNodeShard::DoProcessHeartbeat, MakeStrong(this), context));
+                DoProcessHeartbeat(context);
+            } catch (const TErrorException& error) {
+                context->Reply(error);
+            }
+        }));
 }
 
 void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& context)
@@ -608,6 +613,19 @@ void TNodeShard::ResumeOperationJobs(const TOperationId& operationId)
     operationState->ForbidNewJobs = false;
 }
 
+TNodeDescriptor TNodeShard::GetJobNode(const TJobId& jobId, const TString& user)
+{
+    VERIFY_INVOKER_AFFINITY(GetInvoker());
+
+    ValidateConnected();
+
+    auto job = GetJobOrThrow(jobId);
+
+    Host_->ValidateOperationPermission(user, job->GetOperationId(), EPermission::Write);
+
+    return job->GetNode()->NodeDescriptor();
+}
+
 TYsonString TNodeShard::StraceJob(const TJobId& jobId, const TString& user)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
@@ -678,19 +696,6 @@ void TNodeShard::DumpJobInputContext(const TJobId& jobId, const TYPath& path, co
     LOG_DEBUG("Input contexts saved (JobId: %v, OperationId: %v)",
         job->GetId(),
         job->GetOperationId());
-}
-
-TNodeDescriptor TNodeShard::GetJobNode(const TJobId& jobId, const TString& user)
-{
-    VERIFY_INVOKER_AFFINITY(GetInvoker());
-
-    ValidateConnected();
-
-    auto job = GetJobOrThrow(jobId);
-
-    Host_->ValidateOperationPermission(user, job->GetOperationId(), EPermission::Write);
-
-    return job->GetNode()->NodeDescriptor();
 }
 
 void TNodeShard::SignalJob(const TJobId& jobId, const TString& signalName, const TString& user)
@@ -869,8 +874,7 @@ void TNodeShard::AbortJobByUserRequest(const TJobId& jobId, TNullable<TDuration>
 void TNodeShard::AbortJob(const TJobId& jobId, const TError& error)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
-
-    ValidateConnected();
+    YCHECK(Connected_);
 
     auto job = FindJob(jobId);
     if (!job) {
@@ -889,8 +893,7 @@ void TNodeShard::AbortJob(const TJobId& jobId, const TError& error)
 void TNodeShard::FailJob(const TJobId& jobId)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
-
-    ValidateConnected();
+    YCHECK(Connected_);
 
     auto job = FindJob(jobId);
     if (!job) {
@@ -908,8 +911,7 @@ void TNodeShard::FailJob(const TJobId& jobId)
 void TNodeShard::ReleaseJob(const TJobId& jobId, bool archiveJobSpec)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
-
-    ValidateConnected();
+    YCHECK(Connected_);
 
     // NB: While we kept job id in operation controller, its execution node
     // could have been unregistered.
@@ -1078,8 +1080,7 @@ TFuture<TScheduleJobResultPtr> TNodeShard::BeginScheduleJob(
 void TNodeShard::EndScheduleJob(const NProto::TScheduleJobResponse& response)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
-
-    ValidateConnected();
+    YCHECK(Connected_);
 
     auto jobId = FromProto<TJobId>(response.job_id());
     auto operationId = FromProto<TOperationId>(response.operation_id());
@@ -2125,6 +2126,8 @@ void TNodeShard::DoInterruptJob(
 
 void TNodeShard::InterruptJob(const TJobId& jobId, EInterruptReason reason)
 {
+    VERIFY_INVOKER_AFFINITY(GetInvoker());
+
     auto job = FindJob(jobId);
     if (job) {
         DoInterruptJob(job, reason);

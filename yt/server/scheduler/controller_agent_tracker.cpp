@@ -887,9 +887,13 @@ public:
 
         scheduler->GetStrategy()->ApplyJobMetricsDelta(operationIdToOperationJobMetrics);
 
+        const auto& nodeShards = scheduler->GetNodeShards();
+        int nodeShardCount = static_cast<int>(nodeShards.size());
+
+        std::vector<std::vector<const NProto::TAgentToSchedulerJobEvent*>> groupedJobEvents(nodeShards.size());
+        std::vector<std::vector<const NProto::TScheduleJobResponse*>> groupedScheduleJobResponses(nodeShards.size());
+
         RunInMessageOffloadThread([&] {
-            const auto& nodeShards = scheduler->GetNodeShards();
-            std::vector<std::vector<const NProto::TAgentToSchedulerJobEvent*>> groupedJobEvents(nodeShards.size());
             agent->GetJobEventsInbox()->HandleIncoming(
                 request->mutable_agent_to_scheduler_job_events(),
                 [&] (auto* protoEvent) {
@@ -898,37 +902,6 @@ public:
                     groupedJobEvents[shardId].push_back(protoEvent);
                 });
 
-            for (size_t shardId = 0; shardId < nodeShards.size(); ++shardId) {
-                const auto& nodeShard = nodeShards[shardId];
-                nodeShard->GetInvoker()->Invoke(
-                    BIND([context, nodeShard, this_ = MakeStrong(this), protoEvents = std::move(groupedJobEvents[shardId])] {
-                        for (const auto* protoEvent : protoEvents) {
-                            auto eventType = static_cast<EAgentToSchedulerJobEventType>(protoEvent->event_type());
-                            auto jobId = FromProto<TJobId>(protoEvent->job_id());
-                            auto error = FromProto<TError>(protoEvent->error());
-                            auto interruptReason = static_cast<EInterruptReason>(protoEvent->interrupt_reason());
-                            auto archiveJobSpec = protoEvent->archive_job_spec();
-                            switch (eventType) {
-                                case EAgentToSchedulerJobEventType::Interrupted:
-                                    nodeShard->InterruptJob(jobId, interruptReason);
-                                    break;
-                                case EAgentToSchedulerJobEventType::Aborted:
-                                    nodeShard->AbortJob(jobId, error);
-                                    break;
-                                case EAgentToSchedulerJobEventType::Failed:
-                                    nodeShard->FailJob(jobId);
-                                    break;
-                                case EAgentToSchedulerJobEventType::Released:
-                                    nodeShard->ReleaseJob(jobId, archiveJobSpec);
-                                    break;
-                                default:
-                                    Y_UNREACHABLE();
-                            }
-                        }
-                    }));
-            }
-
-            std::vector<std::vector<const NProto::TScheduleJobResponse*>> groupedScheduleJobResponses(nodeShards.size());
             agent->GetScheduleJobResponsesInbox()->HandleIncoming(
                 request->mutable_agent_to_scheduler_schedule_job_responses(),
                 [&] (auto* protoEvent) {
@@ -937,63 +910,10 @@ public:
                     groupedScheduleJobResponses[shardId].push_back(protoEvent);
                 });
 
-            for (size_t shardId = 0; shardId < nodeShards.size(); ++shardId) {
-                const auto& nodeShard = nodeShards[shardId];
-                nodeShard->GetInvoker()->Invoke(
-                    BIND([
-                        context,
-                        nodeShard,
-                        protoResponses = std::move(groupedScheduleJobResponses[shardId])
-                    ] {
-                        for (const auto* protoResponse : protoResponses) {
-                            nodeShard->EndScheduleJob(*protoResponse);
-                        }
-                    }));
-            }
-
             agent->GetJobEventsOutbox()->HandleStatus(request->scheduler_to_agent_job_events());
             agent->GetOperationEventsOutbox()->HandleStatus(request->scheduler_to_agent_operation_events());
             agent->GetScheduleJobRequestsOutbox()->HandleStatus(request->scheduler_to_agent_schedule_job_requests());
-        });
 
-        agent->GetOperationEventsInbox()->HandleIncoming(
-            request->mutable_agent_to_scheduler_operation_events(),
-            [&] (auto* protoEvent) {
-                auto eventType = static_cast<EAgentToSchedulerOperationEventType>(protoEvent->event_type());
-                auto operationId = FromProto<TOperationId>(protoEvent->operation_id());
-                auto error = FromProto<TError>(protoEvent->error());
-                auto operation = scheduler->FindOperation(operationId);
-                if (!operation) {
-                    return;
-                }
-                switch (eventType) {
-                    case EAgentToSchedulerOperationEventType::Completed:
-                        scheduler->OnOperationCompleted(operation);
-                        break;
-                    case EAgentToSchedulerOperationEventType::Suspended:
-                        scheduler->OnOperationSuspended(operation, error);
-                        break;
-                    case EAgentToSchedulerOperationEventType::Aborted:
-                        scheduler->OnOperationAborted(operation, error);
-                        break;
-                    case EAgentToSchedulerOperationEventType::Failed:
-                        scheduler->OnOperationFailed(operation, error);
-                        break;
-                    default:
-                        Y_UNREACHABLE();
-                }
-            });
-
-        if (request->exec_nodes_requested()) {
-            for (const auto& pair : *scheduler->GetCachedExecNodeDescriptors()) {
-                ToProto(response->mutable_exec_nodes()->add_exec_nodes(), pair.second);
-            }
-        }
-
-        agent->GetOperationEventsInbox()->ReportStatus(response->mutable_agent_to_scheduler_operation_events());
-        agent->GetOperationEventsInbox()->ReportStatus(response->mutable_agent_to_scheduler_operation_events());
-
-        RunInMessageOffloadThread([&] {
             agent->GetJobEventsInbox()->ReportStatus(response->mutable_agent_to_scheduler_job_events());
             agent->GetScheduleJobResponsesInbox()->ReportStatus(response->mutable_agent_to_scheduler_schedule_job_responses());
 
@@ -1040,6 +960,81 @@ public:
                     protoRequest->mutable_node_disk_info()->CopyFrom(request->NodeDiskInfo);
                 });
         });
+
+        agent->GetOperationEventsInbox()->HandleIncoming(
+            request->mutable_agent_to_scheduler_operation_events(),
+            [&] (auto* protoEvent) {
+                auto eventType = static_cast<EAgentToSchedulerOperationEventType>(protoEvent->event_type());
+                auto operationId = FromProto<TOperationId>(protoEvent->operation_id());
+                auto error = FromProto<TError>(protoEvent->error());
+                auto operation = scheduler->FindOperation(operationId);
+                if (!operation) {
+                    return;
+                }
+                switch (eventType) {
+                    case EAgentToSchedulerOperationEventType::Completed:
+                        scheduler->OnOperationCompleted(operation);
+                        break;
+                    case EAgentToSchedulerOperationEventType::Suspended:
+                        scheduler->OnOperationSuspended(operation, error);
+                        break;
+                    case EAgentToSchedulerOperationEventType::Aborted:
+                        scheduler->OnOperationAborted(operation, error);
+                        break;
+                    case EAgentToSchedulerOperationEventType::Failed:
+                        scheduler->OnOperationFailed(operation, error);
+                        break;
+                    default:
+                        Y_UNREACHABLE();
+                }
+            });
+
+        if (request->exec_nodes_requested()) {
+            for (const auto& pair : *scheduler->GetCachedExecNodeDescriptors()) {
+                ToProto(response->mutable_exec_nodes()->add_exec_nodes(), pair.second);
+            }
+        }
+
+        agent->GetOperationEventsInbox()->ReportStatus(response->mutable_agent_to_scheduler_operation_events());
+        agent->GetOperationEventsInbox()->ReportStatus(response->mutable_agent_to_scheduler_operation_events());
+
+        for (int shardId = 0; shardId < nodeShardCount; ++shardId) {
+            scheduler->GetCancelableNodeShardInvoker(shardId)->Invoke(
+                BIND([
+                    context,
+                    nodeShard = nodeShards[shardId],
+                    protoEvents = std::move(groupedJobEvents[shardId]),
+                    protoResponses = std::move(groupedScheduleJobResponses[shardId])
+                ] {
+                    for (const auto* protoEvent : protoEvents) {
+                        auto eventType = static_cast<EAgentToSchedulerJobEventType>(protoEvent->event_type());
+                        auto jobId = FromProto<TJobId>(protoEvent->job_id());
+                        auto error = FromProto<TError>(protoEvent->error());
+                        auto interruptReason = static_cast<EInterruptReason>(protoEvent->interrupt_reason());
+                        auto archiveJobSpec = protoEvent->archive_job_spec();
+                        switch (eventType) {
+                            case EAgentToSchedulerJobEventType::Interrupted:
+                                nodeShard->InterruptJob(jobId, interruptReason);
+                                break;
+                            case EAgentToSchedulerJobEventType::Aborted:
+                                nodeShard->AbortJob(jobId, error);
+                                break;
+                            case EAgentToSchedulerJobEventType::Failed:
+                                nodeShard->FailJob(jobId);
+                                break;
+                            case EAgentToSchedulerJobEventType::Released:
+                                nodeShard->ReleaseJob(jobId, archiveJobSpec);
+                                break;
+                            default:
+                                Y_UNREACHABLE();
+                        }
+                    }
+
+                    for (const auto* protoResponse : protoResponses) {
+                        nodeShard->EndScheduleJob(*protoResponse);
+                    }
+                }));
+        }
 
         context->Reply();
     }
