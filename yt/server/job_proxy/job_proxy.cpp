@@ -323,7 +323,7 @@ void TJobProxy::Run()
                     interruptDescriptor.ReadDataSliceDescriptors);
 
                 LOG_DEBUG(
-                    "Found interrupt descriptor (UnreadDescriptorCount: %v, ReadDescriptorCount: %v, SchedulerResultExt: %v)",
+                    "Interrupt descriptor found (UnreadDescriptorCount: %v, ReadDescriptorCount: %v, SchedulerResultExt: %v)",
                     interruptDescriptor.UnreadDataSliceDescriptors.size(),
                     interruptDescriptor.ReadDataSliceDescriptors.size(),
                     schedulerResultExt->ShortDebugString());
