@@ -1776,6 +1776,8 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
         return;
     }
 
+    LOG_DEBUG("Job completed (JobId: %v)", jobId);
+
     const auto& result = jobSummary->Result;
 
     const auto& schedulerResultExt = result.GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
@@ -1952,6 +1954,8 @@ void TOperationControllerBase::SafeOnJobAborted(std::unique_ptr<TAbortedJobSumma
         LOG_DEBUG("Stale job aborted, ignored (JobId: %v)", jobId);
         return;
     }
+
+    LOG_DEBUG("Job aborted (JobId: %v)", jobId);
 
     JobCounter->Aborted(1, abortReason);
 
@@ -5755,16 +5759,12 @@ NScheduler::TOperationJobMetrics TOperationControllerBase::PullJobMetricsDelta()
 {
     TGuard<TSpinLock> guard(JobMetricsDeltaPerTreeLock_);
 
-    NScheduler::TOperationJobMetrics result;
-
     auto now = NProfiling::GetCpuInstant();
-
-    if (State == EControllerState::Running &&
-        LastJobMetricsDeltaReportTime_ + DurationToCpuDuration(Config->JobMetricsDeltaReportBackoff) > now)
-    {
-        return result;
+    if (LastJobMetricsDeltaReportTime_ + DurationToCpuDuration(Config->JobMetricsReportPeriod) > now) {
+        return {};
     }
 
+    NScheduler::TOperationJobMetrics result;
     for (auto& pair : JobMetricsDeltaPerTree_) {
         const auto& treeId = pair.first;
         auto& delta = pair.second;
@@ -5773,10 +5773,9 @@ NScheduler::TOperationJobMetrics TOperationControllerBase::PullJobMetricsDelta()
             delta = NScheduler::TJobMetrics();
         }
     }
-
     LastJobMetricsDeltaReportTime_ = now;
 
-    LOG_DEBUG_UNLESS(result.empty(), "Pulling non-zero job metrics from controller");
+    LOG_DEBUG_UNLESS(result.empty(), "Non-zero job metrics reported");
 
     return result;
 }
