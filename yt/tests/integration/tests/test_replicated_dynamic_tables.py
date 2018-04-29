@@ -692,7 +692,7 @@ class TestReplicatedDynamicTables(TestDynamicTablesBase):
     )
     def test_replication_trim(self, ttl, chunk_count, trimmed_row_count, mode):
         self._create_cells()
-        self._create_replicated_table("//tmp/t", attributes={"min_replication_log_ttl": ttl})
+        self._create_replicated_table("//tmp/t", attributes={"min_replication_log_ttl": ttl, "dynamic_store_auto_flush_period": 1000})
         self.sync_mount_table("//tmp/t")
         replica_id = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r",
             attributes={"mode": mode})
@@ -709,10 +709,10 @@ class TestReplicatedDynamicTables(TestDynamicTablesBase):
         assert get("//tmp/t/@tablets/0/trimmed_row_count") == 0
 
         self.sync_mount_table("//tmp/t")
-        sleep(1.0)
+        #sleep(1.0)
         insert_rows("//tmp/t", [{"key": 2, "value1": "test2"}], require_sync_replica=False)
         wait(lambda: select_rows("* from [//tmp/r]", driver=self.replica_driver) == [{"key": 1, "value1": "test1", "value2": YsonEntity()}, {"key": 2, "value1": "test2", "value2": YsonEntity()}])
-
+        wait(lambda: get("//tmp/t/@chunk_count") == chunk_count)
         self.sync_unmount_table("//tmp/t")
 
         assert get("//tmp/t/@chunk_count") == chunk_count
