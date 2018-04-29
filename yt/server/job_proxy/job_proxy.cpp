@@ -295,7 +295,10 @@ void TJobProxy::Run()
 
     if (Job_) {
         auto failedChunkIds = Job_->GetFailedChunkIds();
-        LOG_INFO("Found %v failed chunks", static_cast<int>(failedChunkIds.size()));
+        if (!failedChunkIds.empty()) {
+            LOG_INFO("Failed chunks found (ChunkIds: %v)",
+                failedChunkIds);
+        }
 
         // For erasure chunks, replace part id with whole chunk id.
         auto* schedulerResultExt = result.MutableExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
