@@ -618,7 +618,7 @@ class SchedulerReviveBase(YTEnvSetup):
                  dont_track=True,
                  spec={
                      "testing": {
-                         "delay_inside_operation_commit": 4000,
+                         "delay_inside_operation_commit": 5000,
                          "delay_inside_operation_commit_stage": stage,
                      },
                      "job_count": 2
@@ -637,7 +637,7 @@ class SchedulerReviveBase(YTEnvSetup):
         self._wait_for_state(op, "completing")
 
         # Wait to perform complete before sleep.
-        time.sleep(2)
+        time.sleep(1.5)
 
         self.Env.kill_schedulers()
 
