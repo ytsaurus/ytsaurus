@@ -546,7 +546,7 @@ class SchedulerReviveBase(YTEnvSetup):
     def test_missing_transactions(self):
         self._prepare_tables()
 
-        op = self._start_op("echo '{foo=bar}'; sleep 10", dont_track=True)
+        op = self._start_op(with_breakpoint("echo '{foo=bar}'; BREAKPOINT"), dont_track=True)
 
         for iter in xrange(5):
             self._wait_for_state(op, "running")
@@ -555,6 +555,7 @@ class SchedulerReviveBase(YTEnvSetup):
             self.Env.start_schedulers()
             time.sleep(1)
 
+        release_breakpoint()
         op.track()
 
         assert "completed" == get("//sys/operations/" + op.id + "/@state")
