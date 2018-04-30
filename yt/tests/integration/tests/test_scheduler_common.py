@@ -55,7 +55,7 @@ porto_delta_node_config = {
 def get_pool_metrics(metric_key, start_time):
     result = {}
     for entry in reversed(get("//sys/scheduler/orchid/profiling/scheduler/pools/metrics/" + metric_key,
-                              options={"from_time": int(start_time) * 1000000})):
+                              options={"from_time": int(start_time) * 1000000}, verbose=False)):
         pool = entry["tags"]["pool"]
         if pool not in result:
             result[pool] = entry["value"]
@@ -2627,7 +2627,7 @@ class TestPoolMetrics(YTEnvSetup):
 
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "controller_agent": {
-            "job_metrics_delta_report_backoff": 100,
+            "job_metrics_report_period": 100,
         }
     }
 
