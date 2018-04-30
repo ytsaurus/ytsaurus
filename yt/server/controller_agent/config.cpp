@@ -518,7 +518,7 @@ TControllerAgentConfig::TControllerAgentConfig()
     RegisterParameter("job_spec_codec", JobSpecCodec)
         .Default(NCompression::ECodec::Lz4);
 
-    RegisterParameter("job_metrics_delta_report_backoff", JobMetricsDeltaReportBackoff)
+    RegisterParameter("job_metrics_report_period", JobMetricsReportPeriod)
         .Default(TDuration::Seconds(15));
 
     RegisterParameter("system_layer_path", SystemLayerPath)

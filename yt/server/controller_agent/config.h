@@ -619,8 +619,8 @@ public:
 
     NCompression::ECodec JobSpecCodec;
 
-    //! Backoff to report job metrics from operation to scheduler.
-    TDuration JobMetricsDeltaReportBackoff;
+    //! Period between consequent job metrics pushes from agent to scheduler.
+    TDuration JobMetricsReportPeriod;
 
     // Cypress path to a special layer containing YT-specific data required to
     // run jobs with custom rootfs, e.g. statically linked job-satellite.

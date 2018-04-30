@@ -2067,11 +2067,15 @@ void TOperationControllerBase::FinalizeJoblet(
     YCHECK(jobSummary->FinishTime);
 
     auto& statistics = *jobSummary->Statistics;
-    joblet->FinishTime = *(jobSummary->FinishTime);
+    joblet->FinishTime = *jobSummary->FinishTime;
 
     {
         auto duration = joblet->FinishTime - joblet->StartTime;
         statistics.AddSample("/time/total", duration.MilliSeconds());
+        // XXX(babenko): drop after investigating test flaps
+        LOG_DEBUG("Joblet finalized (JobId: %v, TimeTotal: %v)",
+            joblet->JobId,
+            duration);
     }
 
     if (jobSummary->PrepareDuration) {
