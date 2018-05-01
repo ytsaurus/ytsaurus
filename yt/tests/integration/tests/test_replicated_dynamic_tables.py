@@ -704,15 +704,28 @@ class TestReplicatedDynamicTables(TestDynamicTablesBase):
         wait(lambda: select_rows("* from [//tmp/r]", driver=self.replica_driver) == [{"key": 1, "value1": "test1", "value2": YsonEntity()}])
 
         self.sync_unmount_table("//tmp/t")
-        assert get("//tmp/t/@chunk_count") == 1
+
+        initial_chunk_ids = get("//tmp/t/@chunk_ids")
+        assert len(initial_chunk_ids) == 1
+        initial_chunk_id = initial_chunk_ids[0]
+
         assert get("//tmp/t/@tablets/0/flushed_row_count") == 1
         assert get("//tmp/t/@tablets/0/trimmed_row_count") == 0
 
         self.sync_mount_table("//tmp/t")
-        #sleep(1.0)
         insert_rows("//tmp/t", [{"key": 2, "value1": "test2"}], require_sync_replica=False)
         wait(lambda: select_rows("* from [//tmp/r]", driver=self.replica_driver) == [{"key": 1, "value1": "test1", "value2": YsonEntity()}, {"key": 2, "value1": "test2", "value2": YsonEntity()}])
-        wait(lambda: get("//tmp/t/@chunk_count") == chunk_count)
+
+        def check_chunks():
+            chunk_ids = get("//tmp/t/@chunk_ids")
+            if len(chunk_ids) != chunk_count:
+                return False
+            # Check that the above insert has actually produced a chunk
+            if chunk_ids[-1] == initial_chunk_id:
+                return False
+            return True
+        wait(lambda: check_chunks())
+
         self.sync_unmount_table("//tmp/t")
 
         assert get("//tmp/t/@chunk_count") == chunk_count
