@@ -1304,7 +1304,7 @@ void TNodeShard::ProcessHeartbeatJobs(
     {
         for (const auto& jobToRemove : node->JobsToRemove()) {
             const auto& jobId = jobToRemove.JobId;
-            const auto& archiveJobSpec = jobToRemove.ArchiveJobSpec;
+            auto archiveJobSpec = jobToRemove.ArchiveJobSpec;
 
             LOG_DEBUG("Asking node to remove job "
                 "(JobId: %v, NodeId: %v, NodeAddress: %v, ArchiveJobSpec: %v)",
