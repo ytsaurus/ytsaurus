@@ -996,7 +996,6 @@ public:
         }
 
         agent->GetOperationEventsInbox()->ReportStatus(response->mutable_agent_to_scheduler_operation_events());
-        agent->GetOperationEventsInbox()->ReportStatus(response->mutable_agent_to_scheduler_operation_events());
 
         for (int shardId = 0; shardId < nodeShardCount; ++shardId) {
             scheduler->GetCancelableNodeShardInvoker(shardId)->Invoke(
