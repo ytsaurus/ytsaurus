@@ -31,10 +31,10 @@ def generate_job_key(job_id):
         "job_id_lo": pair.lo}
 
 def get_job_spec_rows_for_jobs(job_ids):
-    result = lookup_rows(OPERATION_JOB_SPEC_ARCHIVE_TABLE, [generate_job_key(job_id) for job_id in job_ids])
+    return lookup_rows(OPERATION_JOB_SPEC_ARCHIVE_TABLE, [generate_job_key(job_id) for job_id in job_ids])
 
 def get_job_rows_for_jobs(job_ids):
-    result = lookup_rows(OPERATION_JOB_ARCHIVE_TABLE, [generate_job_key(job_id) for job_id in job_ids])
+    return lookup_rows(OPERATION_JOB_ARCHIVE_TABLE, [generate_job_key(job_id) for job_id in job_ids])
 
 def wait_for_data_in_job_archive(job_ids):
     print >>stderr, "Waiting for jobs to appear in archive: ", job_ids
