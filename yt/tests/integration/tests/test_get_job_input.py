@@ -3,9 +3,8 @@ from yt_commands import *
 import yt.environment.init_operation_archive as init_operation_archive
 from yt.wrapper.common import uuid_hash_pair
 
-import __builtin__
+import sys
 import datetime
-import itertools
 import pytest
 import shutil
 
@@ -37,7 +36,7 @@ def get_job_rows_for_jobs(job_ids):
     return lookup_rows(OPERATION_JOB_ARCHIVE_TABLE, [generate_job_key(job_id) for job_id in job_ids])
 
 def wait_for_data_in_job_archive(job_ids):
-    print >>stderr, "Waiting for jobs to appear in archive: ", job_ids
+    print >>sys.stderr, "Waiting for jobs to appear in archive: ", job_ids
     wait(lambda: len(get_job_rows_for_jobs(job_ids)) == len(job_ids))
     wait(lambda: len(get_job_spec_rows_for_jobs(job_ids)) == len(job_ids))
 
