@@ -31,12 +31,13 @@ def generate_job_key(job_id):
         "job_id_lo": pair.lo}
 
 def get_job_spec_rows_for_jobs(job_ids):
-    return lookup_rows(OPERATION_JOB_SPEC_ARCHIVE_TABLE, [generate_job_key(job_id) for job_id in job_ids])
+    result = lookup_rows(OPERATION_JOB_SPEC_ARCHIVE_TABLE, [generate_job_key(job_id) for job_id in job_ids])
 
 def get_job_rows_for_jobs(job_ids):
-    return lookup_rows(OPERATION_JOB_ARCHIVE_TABLE, [generate_job_key(job_id) for job_id in job_ids])
+    result = lookup_rows(OPERATION_JOB_ARCHIVE_TABLE, [generate_job_key(job_id) for job_id in job_ids])
 
-def wait_for_data_in_operation_table_archive(job_ids):
+def wait_for_data_in_job_archive(job_ids):
+    print >>stderr, "Waiting for jobs to appear in archive: ", job_ids
     wait(lambda: len(get_job_rows_for_jobs(job_ids)) == len(job_ids))
     wait(lambda: len(get_job_spec_rows_for_jobs(job_ids)) == len(job_ids))
 
@@ -136,7 +137,7 @@ class TestGetJobInput(YTEnvSetup):
 
         job_ids = os.listdir(self._tmpdir)
         assert job_ids
-        wait_for_data_in_operation_table_archive(job_ids)
+        wait_for_data_in_job_archive(job_ids)
 
         self.check_job_ids(job_ids)
 
@@ -172,7 +173,7 @@ class TestGetJobInput(YTEnvSetup):
 
         job_ids = os.listdir(self._tmpdir)
         assert len(job_ids) >= 3
-        wait_for_data_in_operation_table_archive(job_ids)
+        wait_for_data_in_job_archive(job_ids)
 
         self.check_job_ids(job_ids)
 
@@ -236,7 +237,7 @@ class TestGetJobInput(YTEnvSetup):
 
         job_ids = os.listdir(self._tmpdir)
         assert job_ids
-        wait_for_data_in_operation_table_archive(job_ids)
+        wait_for_data_in_job_archive(job_ids)
 
         job_ids = os.listdir(self._tmpdir)
         assert job_ids
@@ -286,7 +287,7 @@ class TestGetJobInput(YTEnvSetup):
 
         job_ids = os.listdir(self._tmpdir)
         assert job_ids
-        wait_for_data_in_operation_table_archive(job_ids)
+        wait_for_data_in_job_archive(job_ids)
 
         write_table("//tmp/t_input", [{"bar": i} for i in xrange(100)])
 
@@ -316,7 +317,7 @@ class TestGetJobInput(YTEnvSetup):
 
         job_ids = os.listdir(self._tmpdir)
         assert job_ids
-        wait_for_data_in_operation_table_archive(job_ids)
+        wait_for_data_in_job_archive(job_ids)
 
         rows = get_job_spec_rows_for_jobs(job_ids)
         updated = []
@@ -358,7 +359,7 @@ class TestGetJobInput(YTEnvSetup):
 
         job_ids = os.listdir(self._tmpdir)
         assert job_ids
-        wait_for_data_in_operation_table_archive(job_ids)
+        wait_for_data_in_job_archive(job_ids)
 
         assert read_table("//tmp/t_output") == [{"c": i * 4} for i in xrange(1, 10)]
 
