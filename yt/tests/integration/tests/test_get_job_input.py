@@ -19,16 +19,6 @@ FORMAT_LIST = [
 OPERATION_JOB_ARCHIVE_TABLE = "//sys/operations_archive/jobs"
 OPERATION_JOB_SPEC_ARCHIVE_TABLE = "//sys/operations_archive/job_specs"
 
-def get_stderr_dict_from_table(table_path):
-    result = {}
-    stderr_rows = read_table("//tmp/t_stderr")
-    for job_id, part_iter in itertools.groupby(stderr_rows, key=lambda x: x["job_id"]):
-        job_stderr = ""
-        for row in part_iter:
-            job_stderr += row["data"]
-        result[job_id] = job_stderr
-    return result
-
 def get_job_rows_for_operation(operation_id):
     hash_pair = uuid_hash_pair(operation_id)
     return select_rows("* from [{0}] where operation_id_lo = {1}u and operation_id_hi = {2}u".format(
@@ -43,13 +33,13 @@ def get_job_spec_rows_for_job(job_id_list):
 
     return lookup_rows(OPERATION_JOB_SPEC_ARCHIVE_TABLE, [generate_keys(job_id) for job_id in job_id_list])
 
-def get_jobs_in_operation_archive(job_id_list, table):
+def get_jobs_from_operation_archive(job_ids, table):
     rows = select_rows("job_id_hi,job_id_lo from [{0}]".format(table))
     job_ids_in_archive = __builtin__.set(get_guid_from_parts(r["job_id_lo"], r["job_id_hi"]) for r in rows)
     return job_ids_in_archive
 
-def check_all_jobs_in_operation_archive(job_id_list, table):
-    return all(job_id in get_jobs_in_operation_archive(job_id_list, table) for job_id in job_id_list)
+def check_all_jobs_in_operation_archive(job_ids, table):
+    return all(job_id in get_jobs_from_operation_archive(job_ids, table) for job_id in job_ids)
 
 def wait_data_in_operation_table_archive(job_id_list):
     wait(lambda: check_all_jobs_in_operation_archive(job_id_list, OPERATION_JOB_ARCHIVE_TABLE))
@@ -402,10 +392,10 @@ class TestGetJobInput(YTEnvSetup):
             with pytest.raises(YtError):
                 op.track()
 
-        job_id_list = os.listdir(self._tmpdir)
-        get_archived_jobs = lambda: get_jobs_in_operation_archive(job_id_list, OPERATION_JOB_SPEC_ARCHIVE_TABLE)
+        job_ids = os.listdir(self._tmpdir)
+        archived_job_ids = lambda: get_jobs_from_operation_archive(job_ids, OPERATION_JOB_SPEC_ARCHIVE_TABLE)
 
         if successfull_jobs:
-            wait(lambda: len(get_archived_jobs()) == 10)
+            wait(lambda: len(archived_job_ids()) == 10)
         else:
-            wait(get_archived_jobs)
+            wait(archived_job_ids)
