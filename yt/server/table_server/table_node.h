@@ -58,7 +58,7 @@ private:
     };
 
 public:
-    DEFINE_BYREF_RW_PROPERTY(NTableClient::TTableSchema, TableSchema);
+    DEFINE_BYREF_RW_PROPERTY(TSharedTableSchemaPtr, SharedTableSchema);
     DEFINE_BYVAL_RW_PROPERTY(NTableClient::ETableSchemaMode, SchemaMode, NTableClient::ETableSchemaMode::Weak);
     DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::TTimestamp, RetainedTimestamp, NTransactionClient::NullTimestamp);
     DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::TTimestamp, UnflushedTimestamp, NTransactionClient::NullTimestamp);
@@ -90,7 +90,7 @@ public:
     virtual void BeginUpload(NChunkClient::EUpdateMode mode) override;
     virtual void EndUpload(
         const NChunkClient::NProto::TDataStatistics* statistics,
-        const NTableClient::TTableSchema& schema,
+        const TSharedTableSchemaPtr& schema,
         NTableClient::ETableSchemaMode schemaMode,
         TNullable<NTableClient::EOptimizeFor> optimizeFor,
         const TNullable<TMD5Hasher>& md5Hasher) override;
@@ -106,6 +106,9 @@ public:
     virtual void Load(NCellMaster::TLoadContext& context) override;
     void LoadPre609(NCellMaster::TLoadContext& context);
     void LoadCompatAfter609(NCellMaster::TLoadContext& context);
+
+    void SaveTableSchema(NCellMaster::TSaveContext& context) const;
+    void LoadTableSchema(NCellMaster::TLoadContext& context);
 
     typedef TTabletList::const_iterator TTabletListIterator;
     std::pair<TTabletListIterator, TTabletListIterator> GetIntersectingTablets(
@@ -123,6 +126,8 @@ public:
     NTransactionClient::TTimestamp GetCurrentRetainedTimestamp() const;
     NTransactionClient::TTimestamp GetCurrentUnflushedTimestamp(
         NTransactionClient::TTimestamp latestTimestamp) const;
+
+    const NTableClient::TTableSchema& GetTableSchema() const;
 
 private:
     NTransactionClient::TTimestamp CalculateRetainedTimestamp() const;

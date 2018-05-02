@@ -255,5 +255,18 @@ struct hash<NYT::NTableClient::TColumnSchema>
     }
 };
 
+template <>
+struct hash<NYT::NTableClient::TTableSchema>
+{
+    inline size_t operator()(const NYT::NTableClient::TTableSchema& tableSchema) const
+    {
+        size_t result = CombineHashes(THash<bool>()(tableSchema.GetUniqueKeys()), THash<bool>()(tableSchema.GetStrict()));
+        for (const auto& columnSchema : tableSchema.Columns()) {
+            result = CombineHashes(result, THash<NYT::NTableClient::TColumnSchema>()(columnSchema));
+        }
+        return result;
+    }
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 

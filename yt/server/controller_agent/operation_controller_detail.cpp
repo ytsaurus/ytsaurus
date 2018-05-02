@@ -72,6 +72,8 @@
 
 #include <yt/core/logging/log.h>
 
+#include <yt/core/ytree/virtual.h>
+
 #include <util/generic/vector.h>
 
 #include <functional>
@@ -229,6 +231,36 @@ TOperationControllerBase::TOperationControllerBase(
     UserTransaction = UserTransactionId
         ? Host->GetClient()->AttachTransaction(UserTransactionId, userAttachOptions)
         : nullptr;
+
+    auto createService = [&] (auto fluentMethod) -> IYPathServicePtr {
+        return IYPathService::FromProducer(BIND([fluentMethod = std::move(fluentMethod)] (IYsonConsumer* consumer) {
+            BuildYsonFluently(consumer)
+                .BeginMap()
+                    .Do(fluentMethod)
+                .EndMap();
+        }))
+            ->Via(CancelableInvoker)
+            ->Cached(Config->ControllerStaticOrchidUpdatePeriod);
+    };
+
+    Orchid_ = New<TCompositeMapService>()
+        ->AddChild("progress", createService(BIND(&TOperationControllerBase::BuildProgress, MakeWeak(this))))
+        ->AddChild("brief_progress", createService(BIND(&TOperationControllerBase::BuildBriefProgress, MakeWeak(this))))
+        ->AddChild("running_jobs", createService(BIND(&TOperationControllerBase::BuildJobsYson, MakeWeak(this))))
+        ->AddChild("job_splitter", createService(BIND(&TOperationControllerBase::BuildJobSplitterInfo, MakeWeak(this))))
+        ->AddChild("memory_usage", IYPathService::FromProducer(BIND([weakThis = MakeWeak(this)] (IYsonConsumer* consumer) {
+            if (auto this_ = weakThis.Lock()) {
+                BuildYsonFluently(consumer)
+                    .Value(this_->GetMemoryUsage());
+            }
+        })))
+        ->AddChild("state", IYPathService::FromProducer(BIND([weakThis = MakeWeak(this)] (IYsonConsumer* consumer) {
+            if (auto this_ = weakThis.Lock()) {
+                BuildYsonFluently(consumer)
+                    .Value(this_->State.load());
+            }
+        })))
+            ->Via(CancelableInvoker);
 }
 
 // Resource management.
@@ -316,9 +348,15 @@ TOperationControllerInitializationResult TOperationControllerBase::InitializeRev
         };
 
         // NB: Async transaction is not checked.
-        checkTransaction(inputTransaction);
-        checkTransaction(outputTransaction);
-        checkTransaction(debugTransaction);
+        if (IsTransactionNeeded(ETransactionType::Input)) {
+            checkTransaction(inputTransaction);
+        }
+        if (IsTransactionNeeded(ETransactionType::Output)) {
+            checkTransaction(outputTransaction);
+        }
+        if (IsTransactionNeeded(ETransactionType::Debug)) {
+            checkTransaction(debugTransaction);
+        }
 
         for (const auto& pair : asyncCheckResults) {
             const auto& transaction = pair.first;
@@ -427,6 +465,16 @@ TOperationControllerInitializationResult TOperationControllerBase::InitializeCle
     TOperationControllerInitializationResult result;
     FillInitializationResult(&result);
     return result;
+}
+
+bool TOperationControllerBase::HasUserJobFiles() const
+{
+    for (const auto& userJobSpec : GetUserJobSpecs()) {
+        if (!userJobSpec->FilePaths.empty() || !userJobSpec->LayerPaths.empty()) {
+            return true;
+        }
+    }
+    return false;
 }
 
 void TOperationControllerBase::InitializeStructures()
@@ -563,40 +611,56 @@ TOperationControllerPrepareResult TOperationControllerBase::SafePrepare()
     }
 
     // Process input tables.
-    {
+    if (!GetInputTablePaths().empty()) {
         GetInputTablesAttributes();
+    } else {
+        LOG_INFO("Operation has no input tables");
     }
 
     PrepareInputQuery();
 
     // Process files.
-    {
+    if (HasUserJobFiles()) {
         GetUserFilesAttributes();
+    } else {
+        LOG_INFO("Operation has no input files");
     }
 
     // Process output and stderr tables.
-    {
+    if (!GetOutputTablePaths().empty()) {
         GetUserObjectBasicAttributes<TOutputTable>(
             OutputClient,
             OutputTables_,
             OutputTransaction->GetId(),
             Logger,
             EPermission::Write);
+    } else {
+        LOG_INFO("Operation has no output tables");
+    }
 
+    if (StderrTable_) {
         GetUserObjectBasicAttributes<TOutputTable>(
             Client,
             StderrTable_,
             DebugTransaction->GetId(),
             Logger,
             EPermission::Write);
+    } else {
+        LOG_INFO("Operation has no stderr table");
+    }
 
+    if (CoreTable_) {
         GetUserObjectBasicAttributes<TOutputTable>(
             Client,
             CoreTable_,
             DebugTransaction->GetId(),
             Logger,
             EPermission::Write);
+    } else {
+        LOG_INFO("Operation has no core table");
+    }
 
+    {
         THashSet<TObjectId> updatingTableIds;
         for (const auto* table : UpdatingTables) {
             const auto& path = table->Path.GetPath();
@@ -738,11 +802,9 @@ TOperationControllerReviveResult TOperationControllerBase::Revive()
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvoker);
 
-    if (Spec_->FailOnJobRestart) {
-        THROW_ERROR_EXCEPTION(
-            NScheduler::EErrorCode::OperationFailedOnJobRestart,
-            "Cannot revive operation when spec option fail_on_job_restart is set");
-    }
+    // A fast path to stop revival if fail_on_job_restart = %true and
+    // this is not a vanilla operation.
+    ValidateRevivalAllowed();
 
     if (!Snapshot.Data) {
         LOG_INFO("Snapshot data is missing, preparing operation from scratch");
@@ -755,6 +817,10 @@ TOperationControllerReviveResult TOperationControllerBase::Revive()
     SleepInRevive();
 
     DoLoadSnapshot(Snapshot);
+
+    // Once again check that revival is allowed (now having the loaded snapshot).
+    ValidateSnapshot();
+
     Snapshot = TOperationSnapshot();
 
     TOperationControllerReviveResult result;
@@ -826,6 +892,25 @@ void TOperationControllerBase::AbortAllJoblets()
     JobletMap.clear();
 }
 
+bool TOperationControllerBase::IsTransactionNeeded(ETransactionType type) const
+{
+    switch (type) {
+        case ETransactionType::Async:
+            return IsIntermediateLivePreviewSupported() || IsOutputLivePreviewSupported() || GetStderrTablePath();
+        case ETransactionType::Input:
+            return !GetInputTablePaths().empty() || HasUserJobFiles();
+        case ETransactionType::Output:
+        case ETransactionType::OutputCompletion:
+            return !GetOutputTablePaths().empty();
+        case ETransactionType::Debug:
+        case ETransactionType::DebugCompletion:
+            // TODO(max42): Re-think about this transaction when YT-8270 is done.
+            return true;
+        default:
+            Y_UNREACHABLE();
+    }
+}
+
 void TOperationControllerBase::StartTransactions()
 {
     std::vector<TFuture<ITransactionPtr>> asyncResults = {
@@ -874,6 +959,11 @@ TFuture<ITransactionPtr> TOperationControllerBase::StartTransaction(
     const TTransactionId& parentTransactionId,
     const TTransactionId& prerequisiteTransactionId)
 {
+    if (!IsTransactionNeeded(type)) {
+        LOG_INFO("Skipping transaction as it is not needed (Type: %v)", type);
+        return MakeFuture(ITransactionPtr());
+    }
+
     LOG_INFO("Starting transaction (Type: %v, ParentId: %v, PrerequisiteTransactionId: %v)",
         type,
         parentTransactionId,
@@ -928,19 +1018,21 @@ void TOperationControllerBase::PickIntermediateDataCell()
 
 void TOperationControllerBase::InitChunkListPools()
 {
-    OutputChunkListPool_ = New<TChunkListPool>(
-        Config,
-        OutputClient,
-        CancelableInvoker,
-        OperationId,
-        OutputTransaction->GetId());
+    if (!GetOutputTablePaths().empty()) {
+        OutputChunkListPool_ = New<TChunkListPool>(
+            Config,
+            OutputClient,
+            CancelableInvoker,
+            OperationId,
+            OutputTransaction->GetId());
 
-    CellTagToRequiredOutputChunkLists_.clear();
-    for (const auto* table : UpdatingTables) {
-        ++CellTagToRequiredOutputChunkLists_[table->CellTag];
+        CellTagToRequiredOutputChunkLists_.clear();
+        for (const auto* table : UpdatingTables) {
+            ++CellTagToRequiredOutputChunkLists_[table->CellTag];
+        }
+
+        ++CellTagToRequiredOutputChunkLists_[IntermediateOutputCellTag];
     }
-
-    ++CellTagToRequiredOutputChunkLists_[IntermediateOutputCellTag];
 
     DebugChunkListPool_ = New<TChunkListPool>(
         Config,
@@ -1187,6 +1279,10 @@ void TOperationControllerBase::DoLoadSnapshot(const TOperationSnapshot& snapshot
 
 void TOperationControllerBase::StartOutputCompletionTransaction()
 {
+    if (!OutputTransaction) {
+        return;
+    }
+
     OutputCompletionTransaction = WaitFor(StartTransaction(
         ETransactionType::OutputCompletion,
         OutputClient,
@@ -1218,15 +1314,17 @@ void TOperationControllerBase::CommitOutputCompletionTransaction()
 
         auto path = GetNewOperationPath(OperationId) + "/@committed";
         auto req = TYPathProxy::Set(path);
-        SetTransactionId(req, OutputCompletionTransaction->GetId());
+        SetTransactionId(req, OutputCompletionTransaction ? OutputCompletionTransaction->GetId() : NullTransactionId);
         req->set_value(ConvertToYsonString(true).GetData());
         WaitFor(proxy.Execute(req))
             .ThrowOnError();
     }
 
-    WaitFor(OutputCompletionTransaction->Commit())
-        .ThrowOnError();
-    OutputCompletionTransaction.Reset();
+    if (OutputCompletionTransaction) {
+        WaitFor(OutputCompletionTransaction->Commit())
+            .ThrowOnError();
+        OutputCompletionTransaction.Reset();
+    }
 
     CommitFinished = true;
 }
@@ -1324,11 +1422,15 @@ void TOperationControllerBase::CommitTransactions()
 
     std::vector<TFuture<TTransactionCommitResult>> commitFutures;
 
-    commitFutures.push_back(OutputTransaction->Commit());
+    if (OutputTransaction) {
+        commitFutures.push_back(OutputTransaction->Commit());
+    }
 
     SleepInCommitStage(EDelayInsideOperationCommitStage::Stage7);
 
-    commitFutures.push_back(DebugTransaction->Commit());
+    if (DebugTransaction) {
+        commitFutures.push_back(DebugTransaction->Commit());
+    }
 
     WaitFor(Combine(commitFutures))
         .ThrowOnError();
@@ -1336,12 +1438,20 @@ void TOperationControllerBase::CommitTransactions()
     LOG_INFO("Scheduler transactions committed");
 
     // Fire-and-forget.
-    InputTransaction->Abort();
-    AsyncTransaction->Abort();
+    if (InputTransaction) {
+        InputTransaction->Abort();
+    }
+    if (AsyncTransaction) {
+        AsyncTransaction->Abort();
+    }
 }
 
 void TOperationControllerBase::TeleportOutputChunks()
 {
+    if (GetOutputTablePaths().empty()) {
+        return;
+    }
+
     auto teleporter = New<TChunkTeleporter>(
         Config,
         OutputClient,
@@ -1530,7 +1640,7 @@ void TOperationControllerBase::EndUploadOutputTables(const std::vector<TOutputTa
         if (table->OutputType == EOutputTableType::Stderr || table->OutputType == EOutputTableType::Core) {
             auto attributesPath = path + "/@part_size";
             auto req = TYPathProxy::Set(attributesPath);
-            SetTransactionId(req, GetTransactionIdForOutputTable(*table));
+            SetTransactionId(req, GetTransactionForOutputTable(*table)->GetId());
             req->set_value(ConvertToYsonString(GetPartSize(table->OutputType)).GetData());
             batchReq->AddRequest(req, "set_part_size");
         }
@@ -1666,6 +1776,8 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
         return;
     }
 
+    LOG_DEBUG("Job completed (JobId: %v)", jobId);
+
     const auto& result = jobSummary->Result;
 
     const auto& schedulerResultExt = result.GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
@@ -1688,7 +1800,7 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
                     jobId,
                     nodeId);
                 auto abortedJobSummary = std::make_unique<TAbortedJobSummary>(*jobSummary, EAbortReason::Other);
-                OnJobAborted(std::move(abortedJobSummary));
+                OnJobAborted(std::move(abortedJobSummary), false /* byScheduler */);
                 return;
             }
 
@@ -1728,6 +1840,11 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
     joblet->Task->OnJobCompleted(joblet, *jobSummary);
     if (JobSplitter_) {
         JobSplitter_->OnJobCompleted(*jobSummary);
+    }
+
+    if (!abandoned && JobSpecCompletedArchiveCount_ < Config->MaxArchivedJobSpecCountPerOperation) {
+        ++JobSpecCompletedArchiveCount_;
+        jobSummary->ArchiveJobSpec = true;
     }
 
     // Statistics job state saved from jobSummary before moving jobSummary to ProcessFinishedJobResult.
@@ -1795,6 +1912,8 @@ void TOperationControllerBase::SafeOnJobFailed(std::unique_ptr<TFailedJobSummary
         JobSplitter_->OnJobFailed(*jobSummary);
     }
 
+    jobSummary->ArchiveJobSpec = true;
+
     ProcessFinishedJobResult(std::move(jobSummary), /* requestJobNodeCreation */ true);
 
     UnregisterJoblet(joblet);
@@ -1822,9 +1941,11 @@ void TOperationControllerBase::SafeOnJobFailed(std::unique_ptr<TFailedJobSummary
             << TErrorAttribute("job_id", joblet->JobId)
             << error);
     }
+
+    ReleaseJobs({jobId});
 }
 
-void TOperationControllerBase::SafeOnJobAborted(std::unique_ptr<TAbortedJobSummary> jobSummary)
+void TOperationControllerBase::SafeOnJobAborted(std::unique_ptr<TAbortedJobSummary> jobSummary, bool byScheduler)
 {
     auto jobId = jobSummary->Id;
     auto abortReason = jobSummary->AbortReason;
@@ -1833,6 +1954,8 @@ void TOperationControllerBase::SafeOnJobAborted(std::unique_ptr<TAbortedJobSumma
         LOG_DEBUG("Stale job aborted, ignored (JobId: %v)", jobId);
         return;
     }
+
+    LOG_DEBUG("Job aborted (JobId: %v)", jobId);
 
     JobCounter->Aborted(1, abortReason);
 
@@ -1889,6 +2012,10 @@ void TOperationControllerBase::SafeOnJobAborted(std::unique_ptr<TAbortedJobSumma
             << TErrorAttribute("job_id", joblet->JobId)
             << TErrorAttribute("abort_reason", abortReason));
     }
+
+    if (!byScheduler) {
+        ReleaseJobs({jobId});
+    }
 }
 
 void TOperationControllerBase::SafeOnJobRunning(std::unique_ptr<TRunningJobSummary> jobSummary)
@@ -1940,11 +2067,15 @@ void TOperationControllerBase::FinalizeJoblet(
     YCHECK(jobSummary->FinishTime);
 
     auto& statistics = *jobSummary->Statistics;
-    joblet->FinishTime = *(jobSummary->FinishTime);
+    joblet->FinishTime = *jobSummary->FinishTime;
 
     {
         auto duration = joblet->FinishTime - joblet->StartTime;
         statistics.AddSample("/time/total", duration.MilliSeconds());
+        // XXX(babenko): drop after investigating test flaps
+        LOG_DEBUG("Joblet finalized (JobId: %v, TimeTotal: %v)",
+            joblet->JobId,
+            duration);
     }
 
     if (jobSummary->PrepareDuration) {
@@ -2877,7 +3008,9 @@ void TOperationControllerBase::CustomizeJobSpec(const TJobletPtr& joblet, TJobSp
     auto* schedulerJobSpecExt = jobSpec->MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
 
     schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
-    ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransaction->GetId());
+    if (OutputTransaction) {
+        ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransaction->GetId());
+    }
 
     if (joblet->Task->GetUserJobSpec()) {
         InitUserJobSpec(
@@ -3602,6 +3735,10 @@ void TOperationControllerBase::ProcessFinishedJobResult(std::unique_ptr<TJobSumm
         return;
     }
 
+    auto inputPaths = BuildInputPathYson(joblet);
+    auto finishedJob = New<TFinishedJobInfo>(joblet, std::move(*summary), std::move(inputPaths));
+    FinishedJobs_.insert(std::make_pair(jobId, finishedJob));
+
     bool shouldCreateJobNode =
         (requestJobNodeCreation && JobNodeCount_ < Config->MaxJobNodesPerOperation) ||
         (stderrChunkId && StderrCount_ < Spec_->MaxStderrCount);
@@ -3609,10 +3746,6 @@ void TOperationControllerBase::ProcessFinishedJobResult(std::unique_ptr<TJobSumm
     if (!shouldCreateJobNode) {
         return;
     }
-
-    auto inputPaths = BuildInputPathYson(joblet);
-    auto finishedJob = New<TFinishedJobInfo>(joblet, std::move(*summary), std::move(inputPaths));
-    FinishedJobs_.insert(std::make_pair(jobId, finishedJob));
 
     auto attributes = BuildYsonStringFluently<EYsonType::MapFragment>()
         .Do([&] (TFluentMap fluent) {
@@ -3819,8 +3952,8 @@ void TOperationControllerBase::FetchInputTables()
     LOG_INFO("Started fetching input tables");
 
     TQueryOptions queryOptions;
-        queryOptions.VerboseLogging = true;
-        queryOptions.RangeExpansionLimit = Config->MaxRangesOnTable;
+    queryOptions.VerboseLogging = true;
+    queryOptions.RangeExpansionLimit = Config->MaxRangesOnTable;
 
     for (int tableIndex = 0; tableIndex < static_cast<int>(InputTables.size()); ++tableIndex) {
         auto& table = InputTables[tableIndex];
@@ -4058,7 +4191,7 @@ void TOperationControllerBase::GetOutputTablesSchema()
                     "dynamic"
                 };
                 ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
-                SetTransactionId(req, GetTransactionIdForOutputTable(*table));
+                SetTransactionId(req, GetTransactionForOutputTable(*table)->GetId());
                 batchReq->AddRequest(req, "get_attributes");
             }
         }
@@ -4086,7 +4219,7 @@ void TOperationControllerBase::GetOutputTablesSchema()
                 0); // Here we assume zero row count, we will do additional check later.
 
             // TODO(savrus) I would like to see commit ts here. But as for now, start ts suffices.
-            table->Timestamp = OutputTransaction->GetStartTimestamp();
+            table->Timestamp = GetTransactionForOutputTable(*table)->GetStartTimestamp();
 
             // NB(psushin): This option must be set before PrepareOutputTables call.
             table->Options->EvaluateComputedColumns = table->TableUploadOptions.TableSchema.HasComputedColumns();
@@ -4144,7 +4277,7 @@ void TOperationControllerBase::LockOutputTablesAndGetAttributes()
             for (const auto* table : UpdatingTables) {
                 auto objectIdPath = FromObjectId(table->ObjectId);
                 auto req = TCypressYPathProxy::Lock(objectIdPath);
-                SetTransactionId(req, GetTransactionIdForOutputTable(*table));
+                SetTransactionId(req, GetTransactionForOutputTable(*table)->GetId());
                 GenerateMutationId(req);
                 req->set_mode(static_cast<int>(table->TableUploadOptions.LockMode));
                 batchReq->AddRequest(req, "lock");
@@ -4179,7 +4312,7 @@ void TOperationControllerBase::LockOutputTablesAndGetAttributes()
                     "enable_skynet_sharing",
                 };
                 ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
-                SetTransactionId(req, GetTransactionIdForOutputTable(*table));
+                SetTransactionId(req, GetTransactionForOutputTable(*table)->GetId());
                 batchReq->AddRequest(req, "get_attributes");
             }
         }
@@ -4253,7 +4386,7 @@ void TOperationControllerBase::BeginUploadOutputTables(const std::vector<TOutput
             for (const auto* table : updatingTables) {
                 auto objectIdPath = FromObjectId(table->ObjectId);
                 auto req = TTableYPathProxy::BeginUpload(objectIdPath);
-                SetTransactionId(req, GetTransactionIdForOutputTable(*table));
+                SetTransactionId(req, GetTransactionForOutputTable(*table)->GetId());
                 GenerateMutationId(req);
                 req->set_update_mode(static_cast<int>(table->TableUploadOptions.UpdateMode));
                 req->set_lock_mode(static_cast<int>(table->TableUploadOptions.LockMode));
@@ -5431,20 +5564,20 @@ void TOperationControllerBase::RegisterCores(const TJobletPtr& joblet, const TJo
     CoreTable_->OutputChunkTreeIds.emplace_back(key, chunkListId);
 }
 
-const TTransactionId& TOperationControllerBase::GetTransactionIdForOutputTable(const TOutputTable& table)
+const ITransactionPtr& TOperationControllerBase::GetTransactionForOutputTable(const TOutputTable& table) const
 {
     if (table.OutputType == EOutputTableType::Output) {
         if (OutputCompletionTransaction) {
-            return OutputCompletionTransaction->GetId();
+            return OutputCompletionTransaction;
         } else {
-            return OutputTransaction->GetId();
+            return OutputTransaction;
         }
     } else {
         YCHECK(table.OutputType == EOutputTableType::Stderr || table.OutputType == EOutputTableType::Core);
         if (DebugCompletionTransaction) {
-            return DebugCompletionTransaction->GetId();
+            return DebugCompletionTransaction;
         } else {
-            return DebugTransaction->GetId();
+            return DebugTransaction;
         }
     }
 }
@@ -5578,7 +5711,7 @@ void TOperationControllerBase::SafeOnSnapshotCompleted(const TSnapshotCookie& co
             headCookie,
             jobIdsToRelease.size(),
             cookie.SnapshotIndex);
-        Host->ReleaseJobs(jobIdsToRelease);
+        ReleaseJobs(jobIdsToRelease);
     }
 
     // Stripe lists.
@@ -5623,23 +5756,19 @@ void TOperationControllerBase::Dispose()
     LOG_INFO("Releasing jobs on controller disposal (HeadCookie: %v)",
         headCookie);
     auto jobIdsToRelease = CompletedJobIdsReleaseQueue_.Release();
-    Host->ReleaseJobs(jobIdsToRelease);
+    ReleaseJobs(jobIdsToRelease);
 }
 
 NScheduler::TOperationJobMetrics TOperationControllerBase::PullJobMetricsDelta()
 {
     TGuard<TSpinLock> guard(JobMetricsDeltaPerTreeLock_);
 
-    NScheduler::TOperationJobMetrics result;
-
     auto now = NProfiling::GetCpuInstant();
-
-    if (State == EControllerState::Running &&
-        LastJobMetricsDeltaReportTime_ + DurationToCpuDuration(Config->JobMetricsDeltaReportBackoff) > now)
-    {
-        return result;
+    if (LastJobMetricsDeltaReportTime_ + DurationToCpuDuration(Config->JobMetricsReportPeriod) > now) {
+        return {};
     }
 
+    NScheduler::TOperationJobMetrics result;
     for (auto& pair : JobMetricsDeltaPerTree_) {
         const auto& treeId = pair.first;
         auto& delta = pair.second;
@@ -5648,10 +5777,9 @@ NScheduler::TOperationJobMetrics TOperationControllerBase::PullJobMetricsDelta()
             delta = NScheduler::TJobMetrics();
         }
     }
-
     LastJobMetricsDeltaReportTime_ = now;
 
-    LOG_DEBUG_UNLESS(result.empty(), "Pulling non-zero job metrics from controller");
+    LOG_DEBUG_UNLESS(result.empty(), "Non-zero job metrics reported");
 
     return result;
 }
@@ -6005,6 +6133,11 @@ TYsonString TOperationControllerBase::BuildJobYson(const TJobId& id, bool output
         .EndMap();
 }
 
+IYPathServicePtr TOperationControllerBase::GetOrchid() const
+{
+    return Orchid_;
+}
+
 void TOperationControllerBase::BuildJobsYson(TFluentMap fluent) const
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvoker);
@@ -6100,6 +6233,22 @@ void TOperationControllerBase::UpdateSuspiciousJobsYson()
         TWriterGuard guard(CachedSuspiciousJobsYsonLock_);
         CachedSuspiciousJobsYson_ = yson;
     }
+}
+
+void TOperationControllerBase::ReleaseJobs(const std::vector<TJobId>& jobIds)
+{
+    std::vector<TJobToRelease> jobsToRelease;
+    jobsToRelease.reserve(jobIds.size());
+
+    for (const auto& jobId : jobIds) {
+        bool archiveJobSpec = false;
+        auto it = FinishedJobs_.find(jobId);
+        if (it != FinishedJobs_.end()) {
+            archiveJobSpec = it->second->Summary.ArchiveJobSpec;
+        }
+        jobsToRelease.emplace_back(TJobToRelease{jobId, archiveJobSpec});
+    }
+    Host->ReleaseJobs(jobsToRelease);
 }
 
 void TOperationControllerBase::AnalyzeBriefStatistics(
@@ -6792,6 +6941,7 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
     Persist(context, StderrCount_);
     Persist(context, JobNodeCount_);
     Persist(context, FinishedJobs_);
+    Persist(context, JobSpecCompletedArchiveCount_);
     Persist(context, Sinks_);
     Persist(context, AutoMergeTaskGroup);
     Persist(context, AutoMergeTasks);
@@ -6850,6 +7000,19 @@ void TOperationControllerBase::InitAutoMergeJobSpecTemplates()
         schedulerJobSpecExt->set_io_config(ConvertToYsonString(Spec_->AutoMerge->JobIO).GetData());
     }
 }
+
+void TOperationControllerBase::ValidateRevivalAllowed() const
+{
+    if (Spec_->FailOnJobRestart) {
+        THROW_ERROR_EXCEPTION(
+            NScheduler::EErrorCode::OperationFailedOnJobRestart,
+            "Cannot revive operation when spec option fail_on_job_restart is set")
+                << TErrorAttribute("operation_type", OperationType);
+    }
+}
+
+void TOperationControllerBase::ValidateSnapshot() const
+{ }
 
 std::vector<TUserJobSpecPtr> TOperationControllerBase::GetUserJobSpecs() const
 {

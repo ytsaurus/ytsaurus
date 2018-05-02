@@ -295,7 +295,10 @@ void TJobProxy::Run()
 
     if (Job_) {
         auto failedChunkIds = Job_->GetFailedChunkIds();
-        LOG_INFO("Found %v failed chunks", static_cast<int>(failedChunkIds.size()));
+        if (!failedChunkIds.empty()) {
+            LOG_INFO("Failed chunks found (ChunkIds: %v)",
+                failedChunkIds);
+        }
 
         // For erasure chunks, replace part id with whole chunk id.
         auto* schedulerResultExt = result.MutableExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
@@ -320,7 +323,7 @@ void TJobProxy::Run()
                     interruptDescriptor.ReadDataSliceDescriptors);
 
                 LOG_DEBUG(
-                    "Found interrupt descriptor (UnreadDescriptorCount: %v, ReadDescriptorCount: %v, SchedulerResultExt: %v)",
+                    "Interrupt descriptor found (UnreadDescriptorCount: %v, ReadDescriptorCount: %v, SchedulerResultExt: %v)",
                     interruptDescriptor.UnreadDataSliceDescriptors.size(),
                     interruptDescriptor.ReadDataSliceDescriptors.size(),
                     schedulerResultExt->ShortDebugString());

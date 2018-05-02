@@ -553,7 +553,7 @@ protected:
     virtual EIntermediateChunkUnstageMode GetIntermediateChunkUnstageMode() const override
     {
         auto reducerSpec = GetUserJobSpec();
-        // We could get here only if this is a sorted reduceand auto-merge is enabled.
+        // We could get here only if this is a sorted reduce and auto-merge is enabled.
         YCHECK(reducerSpec);
         YCHECK(Spec_->AutoMerge->Mode != EAutoMergeMode::Disabled);
 
@@ -1251,6 +1251,216 @@ IOperationControllerPtr CreateJoinReduceController(
     auto options = config->JoinReduceOperationOptions;
     auto spec = ParseOperationSpec<TJoinReduceOperationSpec>(UpdateSpec(options->SpecTemplate, operation->GetSpec()));
     return New<TJoinReduceController>(spec, config, options, host, operation);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TNewReduceController
+    : public TSortedReduceControllerBase
+{
+public:
+    TNewReduceController(
+        TNewReduceOperationSpecPtr spec,
+        TControllerAgentConfigPtr config,
+        TReduceOperationOptionsPtr options,
+        IOperationControllerHostPtr host,
+        TOperation* operation)
+        : TSortedReduceControllerBase(
+            spec,
+            config,
+            options,
+            host,
+            operation)
+        , Spec_(spec)
+    { }
+
+    virtual bool ShouldSlicePrimaryTableByKeys() const override
+    {
+        return *Spec_->EnableKeyGuarantee;
+    }
+
+    virtual EJobType GetJobType() const override
+    {
+        return *Spec_->EnableKeyGuarantee ? EJobType::SortedReduce : EJobType::JoinReduce;
+    }
+
+    virtual bool IsKeyGuaranteeEnabled() override
+    {
+        return *Spec_->EnableKeyGuarantee;
+    }
+
+    virtual void AdjustKeyColumns() override
+    {
+        LOG_INFO("Adjusting key columns (EnableKeyGuarantee: %v, ReduceBy: %v, SortBy: %v, JoinBy: %v)",
+            *Spec_->EnableKeyGuarantee,
+            Spec_->ReduceBy,
+            Spec_->SortBy,
+            Spec_->JoinBy);
+
+        if (*Spec_->EnableKeyGuarantee) {
+            auto specKeyColumns = Spec_->SortBy.empty() ? Spec_->ReduceBy : Spec_->SortBy;
+            SortKeyColumns_ = CheckInputTablesSorted(specKeyColumns, &TInputTable::IsPrimary);
+
+            if (!CheckKeyColumnsCompatible(SortKeyColumns_, Spec_->ReduceBy)) {
+                THROW_ERROR_EXCEPTION("Reduce key columns are not compatible with sort key columns")
+                    << TErrorAttribute("reduce_by", Spec_->ReduceBy)
+                    << TErrorAttribute("sort_by", SortKeyColumns_);
+            }
+
+            PrimaryKeyColumns_ = Spec_->ReduceBy;
+            ForeignKeyColumns_ = Spec_->JoinBy;
+            if (!ForeignKeyColumns_.empty()) {
+                CheckInputTablesSorted(ForeignKeyColumns_, &TInputTable::IsForeign);
+                if (!CheckKeyColumnsCompatible(PrimaryKeyColumns_, ForeignKeyColumns_)) {
+                    THROW_ERROR_EXCEPTION("Join key columns are not compatible with reduce key columns")
+                        << TErrorAttribute("join_by", ForeignKeyColumns_)
+                        << TErrorAttribute("reduce_by", PrimaryKeyColumns_);
+                }
+            }
+        } else {
+            if (!Spec_->ReduceBy.empty() && !Spec_->JoinBy.empty()) {
+                THROW_ERROR_EXCEPTION("Specifying both reduce and join key columns is not supported in disabled key guarantee mode");
+            }
+            if (Spec_->ReduceBy.empty() && Spec_->JoinBy.empty()) {
+                THROW_ERROR_EXCEPTION("At least one of reduce_by or join_by is required for this operation");
+            }
+            PrimaryKeyColumns_ = CheckInputTablesSorted(!Spec_->ReduceBy.empty() ? Spec_->ReduceBy : Spec_->JoinBy);
+            SortKeyColumns_ = ForeignKeyColumns_ = PrimaryKeyColumns_;
+        }
+        LOG_INFO("Key columns adjusted (PrimaryKeyColumns: %v, ForeignKeyColumns: %v, SortKeyColumns: %v)",
+            PrimaryKeyColumns_,
+            ForeignKeyColumns_,
+            SortKeyColumns_);
+    }
+
+    virtual void DoInitialize() override
+    {
+        TSortedReduceControllerBase::DoInitialize();
+
+        int foreignInputCount = 0;
+        for (auto& table : InputTables) {
+            if (table.Path.GetForeign()) {
+                if (table.Path.GetTeleport()) {
+                    THROW_ERROR_EXCEPTION("Foreign table can not be specified as teleport")
+                        << TErrorAttribute("path", table.Path);
+                }
+                if (table.Path.GetRanges().size() > 1) {
+                    THROW_ERROR_EXCEPTION("Reduce operation does not support foreign tables with multiple ranges");
+                }
+                ++foreignInputCount;
+            }
+        }
+
+        if (foreignInputCount == InputTables.size()) {
+            THROW_ERROR_EXCEPTION("At least one non-foreign input table is required");
+        }
+
+        if (foreignInputCount == 0 && !Spec_->JoinBy.empty()) {
+            THROW_ERROR_EXCEPTION("At least one foreign input table is required when join_by is specified");
+        }
+
+        if (foreignInputCount != 0 && Spec_->JoinBy.empty()) {
+            THROW_ERROR_EXCEPTION("It is required to specify join_by when using foreign tables");
+        }
+
+        if (!Spec_->PivotKeys.empty()) {
+            if (!*Spec_->EnableKeyGuarantee) {
+                THROW_ERROR_EXCEPTION("Pivot keys are not supported in disabled key guarantee mode.");
+            }
+
+            TKey previousKey;
+            for (const auto& key : Spec_->PivotKeys) {
+                if (key < previousKey) {
+                    THROW_ERROR_EXCEPTION("Pivot keys should be sorted")
+                        << TErrorAttribute("previous", previousKey)
+                        << TErrorAttribute("current", key);
+                }
+                previousKey = key;
+
+                if (key.GetCount() > Spec_->ReduceBy.size()) {
+                    THROW_ERROR_EXCEPTION("Pivot key cannot be longer than reduce key column count")
+                        << TErrorAttribute("key", key)
+                        << TErrorAttribute("reduce_by", Spec_->ReduceBy);
+                }
+            }
+            for (const auto& table : InputTables) {
+                if (table.Path.GetTeleport()) {
+                    THROW_ERROR_EXCEPTION("Chunk teleportation is not supported when pivot keys are specified");
+                }
+            }
+        }
+    }
+
+protected:
+    virtual TStringBuf GetDataWeightParameterNameForJob(EJobType jobType) const override
+    {
+        return AsStringBuf("data_weight_per_job");
+    }
+
+    virtual std::vector<EJobType> GetSupportedJobTypesForJobsDurationAnalyzer() const override
+    {
+        return {GetJobType()};
+    }
+
+    virtual bool IsJobInterruptible() const override
+    {
+        return Spec_->PivotKeys.empty() && TSortedControllerBase::IsJobInterruptible();
+    }
+
+private:
+    DECLARE_DYNAMIC_PHOENIX_TYPE(TNewReduceController, 0x05a24ae4);
+
+    TNewReduceOperationSpecPtr Spec_;
+
+    virtual IChunkSliceFetcherFactoryPtr CreateChunkSliceFetcherFactory() override
+    {
+        if (Spec_->PivotKeys.empty()) {
+            return TSortedControllerBase::CreateChunkSliceFetcherFactory();
+        } else {
+            return nullptr;
+        }
+    }
+
+    virtual TSortedChunkPoolOptions GetSortedChunkPoolOptions() override
+    {
+        auto options = TSortedControllerBase::GetSortedChunkPoolOptions();
+        options.SortedJobOptions.PivotKeys = std::vector<TKey>(Spec_->PivotKeys.begin(), Spec_->PivotKeys.end());
+        return options;
+    }
+
+    virtual i64 GetForeignInputDataWeight() const override
+    {
+        return Spec_->ConsiderOnlyPrimarySize ? 0 : ForeignInputDataWeight;
+    }
+
+    virtual TYsonSerializablePtr GetTypedSpec() const override
+    {
+        return Spec_;
+    }
+};
+
+DEFINE_DYNAMIC_PHOENIX_TYPE(TNewReduceController);
+
+IOperationControllerPtr CreateAppropriateReduceController(
+    TControllerAgentConfigPtr config,
+    IOperationControllerHostPtr host,
+    TOperation* operation,
+    bool isJoinReduce)
+{
+    auto options = isJoinReduce ? config->JoinReduceOperationOptions : config->ReduceOperationOptions;
+    INodePtr mergedSpec = UpdateSpec(options->SpecTemplate, operation->GetSpec());
+    auto spec = ParseOperationSpec<TNewReduceOperationSpec>(mergedSpec);
+    if (spec->UseNewController) {
+        if (!spec->EnableKeyGuarantee.HasValue()) {
+            spec->EnableKeyGuarantee = !isJoinReduce;
+        }
+        return New<TNewReduceController>(spec, config, options, host, operation);
+    }
+    if (isJoinReduce) {
+        return New<TJoinReduceController>(ParseOperationSpec<TJoinReduceOperationSpec>(mergedSpec), config, options, host, operation);
+    } else {
+        return New<TSortedReduceController>(ParseOperationSpec<TReduceOperationSpec>(mergedSpec), config, options, host, operation);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

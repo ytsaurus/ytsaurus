@@ -16,6 +16,8 @@
 #include <yt/server/object_server/interned_attributes.h>
 #include <yt/server/object_server/object.h>
 
+#include <yt/server/table_server/shared_table_schema.h>
+
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/chunk_spec.h>
 
@@ -1070,9 +1072,6 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, EndUpload)
     ValidateTransaction();
     ValidateInUpdate();
 
-    auto schema = request->has_table_schema()
-        ? FromProto<TTableSchema>(request->table_schema())
-        : TTableSchema();
     auto schemaMode = ETableSchemaMode(request->schema_mode());
     const auto* statistics = request->has_statistics() ? &request->statistics() : nullptr;
 
@@ -1105,7 +1104,12 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, EndUpload)
         FromProto(&md5Hasher, request->md5_hasher());
     }
 
-    node->EndUpload(statistics, schema, schemaMode, optimizeFor, md5Hasher);
+    const auto& registry = Bootstrap_->GetCypressManager()->GetSharedTableSchemaRegistry();
+    NTableServer::TSharedTableSchemaPtr sharedSchema = request->has_table_schema()
+        ? registry->GetSchema(FromProto<TTableSchema>(request->table_schema()))
+        : nullptr;
+
+    node->EndUpload(statistics, sharedSchema, schemaMode, optimizeFor, md5Hasher);
 
     SetModified();
 

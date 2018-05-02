@@ -11,6 +11,8 @@
 
 #include <yt/server/node_tracker_server/node_directory_builder.h>
 
+#include <yt/server/table_server/shared_table_schema.h>
+
 #include <yt/server/tablet_server/tablet.h>
 #include <yt/server/tablet_server/tablet_cell.h>
 #include <yt/server/tablet_server/table_replica.h>
@@ -93,6 +95,7 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* de
         .SetReplicated(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Schema)
         .SetReplicated(true));
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::SchemaDuplicateCount));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::SortedBy)
         .SetPresent(isSorted));
     descriptors->push_back(EInternedAttributeKey::Dynamic);
@@ -210,18 +213,26 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
 
         case EInternedAttributeKey::Sorted:
             BuildYsonFluently(consumer)
-                .Value(table->TableSchema().IsSorted());
+                .Value(table->GetTableSchema().IsSorted());
             return true;
 
         case EInternedAttributeKey::KeyColumns:
             BuildYsonFluently(consumer)
-                .Value(table->TableSchema().GetKeyColumns());
+                .Value(table->GetTableSchema().GetKeyColumns());
             return true;
 
         case EInternedAttributeKey::Schema:
             BuildYsonFluently(consumer)
-                .Value(table->TableSchema());
+                .Value(table->GetTableSchema());
             return true;
+
+        case EInternedAttributeKey::SchemaDuplicateCount: {
+            const auto& sharedSchema = table->SharedTableSchema();
+            i64 duplicateCount = sharedSchema ? sharedSchema->GetRefCount() : 0;
+            BuildYsonFluently(consumer)
+                .Value(duplicateCount);
+            return true;
+        }
 
         case EInternedAttributeKey::SchemaMode:
             BuildYsonFluently(consumer)
@@ -233,7 +244,7 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
                 break;
             }
             BuildYsonFluently(consumer)
-                .Value(table->TableSchema().GetKeyColumns());
+                .Value(table->GetTableSchema().GetKeyColumns());
             return true;
 
         case EInternedAttributeKey::Dynamic:
@@ -962,7 +973,7 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, GetMountInfo)
     ToProto(response->mutable_table_id(), trunkTable->GetId());
     response->set_dynamic(trunkTable->IsDynamic());
     ToProto(response->mutable_upstream_replica_id(), trunkTable->GetUpstreamReplicaId());
-    ToProto(response->mutable_schema(), trunkTable->TableSchema());
+    ToProto(response->mutable_schema(), trunkTable->GetTableSchema());
 
     THashSet<TTabletCell*> cells;
     for (auto* tablet : trunkTable->Tablets()) {
@@ -1044,7 +1055,7 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
     }
 
     auto dynamic = options.Dynamic.Get(table->IsDynamic());
-    auto schema = options.Schema.Get(table->TableSchema());
+    auto schema = options.Schema.Get(table->GetTableSchema());
 
     if (options.UpstreamReplicaId) {
         ValidateNoTransaction();
@@ -1067,16 +1078,17 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
     }
 
     ValidateTableSchemaUpdate(
-        table->TableSchema(),
+        table->GetTableSchema(),
         schema,
         dynamic,
         table->IsEmpty() && !table->IsDynamic());
 
-    auto oldSchema = table->TableSchema();
+    auto oldSharedSchema = table->SharedTableSchema();
     auto oldSchemaMode = table->GetSchemaMode();
 
     if (options.Schema) {
-        table->TableSchema() = std::move(schema);
+        table->SharedTableSchema() = Bootstrap_->GetCypressManager()->GetSharedTableSchemaRegistry()->GetSchema(
+            std::move(schema));
         table->SetSchemaMode(ETableSchemaMode::Strong);
     }
 
@@ -1090,7 +1102,7 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
             }
         }
     } catch (const std::exception&) {
-        table->TableSchema() = std::move(oldSchema);
+        table->SharedTableSchema() = std::move(oldSharedSchema);
         table->SetSchemaMode(oldSchemaMode);
         throw;
     }

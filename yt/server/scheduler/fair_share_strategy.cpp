@@ -1258,12 +1258,13 @@ private:
             if (!enableSchedulingInfoLogging) {
                 return;
             }
-            LOG_DEBUG("%v scheduling statistics (ActiveTreeSize: %v, ActiveOperationCount: %v, DeactivationReasons: %v, CanStartMoreJobs: %v)",
+            LOG_DEBUG("%v scheduling statistics (ActiveTreeSize: %v, ActiveOperationCount: %v, DeactivationReasons: %v, CanStartMoreJobs: %v, Address: %v)",
                 stageName,
                 context.ActiveTreeSize,
                 context.ActiveOperationCount,
                 context.DeactivationReasons,
-                schedulingContext->CanStartMoreJobs());
+                schedulingContext->CanStartMoreJobs(),
+                schedulingContext->GetNodeDescriptor().Address);
             context.ActiveTreeSize = 0;
             context.ActiveOperationCount = 0;
             std::fill(context.DeactivationReasons.begin(), context.DeactivationReasons.end(), 0);

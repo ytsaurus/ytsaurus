@@ -58,7 +58,7 @@ void TUserJobWriteController::Init()
     auto userJobIOFactory = CreateUserJobIOFactory(Host_->GetJobSpecHelper(), Host_->GetTrafficMeter());
 
     const auto& schedulerJobSpecExt = Host_->GetJobSpecHelper()->GetSchedulerJobSpecExt();
-    auto transactionId = FromProto<TTransactionId>(schedulerJobSpecExt.output_transaction_id());
+    auto outputTransactionId = FromProto<TTransactionId>(schedulerJobSpecExt.output_transaction_id());
     for (const auto& outputSpec : schedulerJobSpecExt.output_table_specs()) {
         auto options = ConvertTo<TTableWriterOptionsPtr>(TYsonString(outputSpec.table_writer_options()));
         options->EnableValidationOptions();
@@ -83,7 +83,7 @@ void TUserJobWriteController::Init()
             writerConfig,
             options,
             chunkListId,
-            transactionId,
+            outputTransactionId,
             schema,
             TChunkTimestamps{timestamp, timestamp});
 
@@ -102,6 +102,8 @@ void TUserJobWriteController::Init()
         auto stderrTableWriterConfig = ConvertTo<TBlobTableWriterConfigPtr>(
             TYsonString(stderrTableSpec.blob_table_writer_config()));
 
+        auto debugTransactionId = FromProto<TTransactionId>(schedulerJobSpecExt.user_job_spec().debug_output_transaction_id());
+
         StderrTableWriter_.reset(
             new NTableClient::TBlobTableWriter(
                 GetStderrBlobTableSchema(),
@@ -109,7 +111,7 @@ void TUserJobWriteController::Init()
                 Host_->GetClient(),
                 stderrTableWriterConfig,
                 options,
-                transactionId,
+                debugTransactionId,
                 FromProto<TChunkListId>(outputTableSpec.chunk_list_id()),
                 Host_->GetTrafficMeter()));
     }

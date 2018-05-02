@@ -1153,7 +1153,7 @@ private:
             operations.size());
 
         {
-            std::vector<TOperationPtr> operationsWithOutputTransaction;
+            std::vector<TOperationPtr> operationsToRevive;
 
             auto getBatchKey = [] (const TOperationPtr& operation) {
                 return "get_op_committed_attr_" + ToString(operation->GetId());
@@ -1163,15 +1163,15 @@ private:
 
             for (const auto& operation : operations) {
                 auto& revivalDescriptor = *operation->RevivalDescriptor();
-                if (!revivalDescriptor.OutputTransaction) {
-                    continue;
+                std::vector<TTransactionId> possibleTransactions;
+                if (revivalDescriptor.OutputTransaction) {
+                    possibleTransactions.push_back(revivalDescriptor.OutputTransaction->GetId());
                 }
+                possibleTransactions.push_back(NullTransactionId);
 
-                operationsWithOutputTransaction.push_back(operation);
+                operationsToRevive.push_back(operation);
 
-                for (auto transactionId : {
-                    revivalDescriptor.OutputTransaction->GetId(),
-                    NullTransactionId})
+                for (auto transactionId : possibleTransactions)
                 {
                     {
                         auto req = TYPathProxy::Get(GetOperationPath(operation->GetId()) + "/@");
@@ -1197,15 +1197,14 @@ private:
             auto batchRsp = WaitFor(batchReq->Invoke())
                 .ValueOrThrow();
 
-            for (const auto& operation : operationsWithOutputTransaction) {
+            for (const auto& operation : operationsToRevive) {
                 auto& revivalDescriptor = *operation->RevivalDescriptor();
                 auto rsps = batchRsp->GetResponses<TYPathProxy::TRspGet>(getBatchKey(operation));
                 auto rspsNew = batchRsp->GetResponses<TYPathProxy::TRspGet>(getBatchKey(operation) + "_new");
 
-                YCHECK(rsps.size() == 2);
-                YCHECK(rspsNew.size() == 2);
+                YCHECK(rsps.size() == rspsNew.size());
 
-                for (size_t rspIndex = 0; rspIndex < 2; ++rspIndex) {
+                for (size_t rspIndex = 0; rspIndex < rsps.size(); ++rspIndex) {
                     std::unique_ptr<IAttributeDictionary> attributes;
                     auto updateAttributes = [&] (const TErrorOr<TIntrusivePtr<TYPathProxy::TRspGet>>& rspOrError) {
                         if (!rspOrError.IsOK()) {
@@ -1230,7 +1229,9 @@ private:
 
                     if (attributes->Get<bool>("committed", false)) {
                         revivalDescriptor.OperationCommitted = true;
-                        if (rspIndex == 0) {
+                        // If it is an output transaction, it should be committed. It is exactly when there are
+                        // two responses and we are processing the first one (cf. previous for-loop).
+                        if (rspIndex == 0 && rsps.size() == 2) {
                             revivalDescriptor.ShouldCommitOutputTransaction = true;
                         }
                         break;

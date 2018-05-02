@@ -3,6 +3,7 @@
 #include "table_node_proxy.h"
 #include "replicated_table_node.h"
 #include "replicated_table_node_proxy.h"
+#include "shared_table_schema.h"
 #include "private.h"
 
 #include <yt/server/cell_master/bootstrap.h>
@@ -130,7 +131,9 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
         }
 
         if (maybeSchema) {
-            node->TableSchema() = *maybeSchema;
+            const auto& registry = this->Bootstrap_->GetCypressManager()->GetSharedTableSchemaRegistry();
+            auto sharedSchema = registry->GetSchema(std::move(*maybeSchema));
+            node->SharedTableSchema() = sharedSchema;
             node->SetSchemaMode(ETableSchemaMode::Strong);
         }
 
@@ -172,7 +175,7 @@ void TTableNodeTypeHandlerBase<TImpl>::DoBranch(
     TImpl* branchedNode,
     const TLockRequest& lockRequest)
 {
-    branchedNode->TableSchema() = originatingNode->TableSchema();
+    branchedNode->SharedTableSchema() = originatingNode->SharedTableSchema();
     branchedNode->SetSchemaMode(originatingNode->GetSchemaMode());
     branchedNode->SetRetainedTimestamp(originatingNode->GetCurrentRetainedTimestamp());
     branchedNode->SetUnflushedTimestamp(originatingNode->GetCurrentUnflushedTimestamp(lockRequest.Timestamp));
@@ -186,7 +189,7 @@ void TTableNodeTypeHandlerBase<TImpl>::DoMerge(
     TImpl* originatingNode,
     TImpl* branchedNode)
 {
-    originatingNode->TableSchema() = branchedNode->TableSchema();
+    originatingNode->SharedTableSchema() = branchedNode->SharedTableSchema();
     originatingNode->SetSchemaMode(branchedNode->GetSchemaMode());
     originatingNode->MergeOptimizeFor(originatingNode, branchedNode);
 
@@ -218,7 +221,7 @@ void TTableNodeTypeHandlerBase<TImpl>::DoClone(
             mode);
     }
 
-    clonedNode->TableSchema() = sourceNode->TableSchema();
+    clonedNode->SharedTableSchema() = sourceNode->SharedTableSchema();
     clonedNode->SetSchemaMode(sourceNode->GetSchemaMode());
     clonedNode->SetRetainedTimestamp(sourceNode->GetRetainedTimestamp());
     clonedNode->SetUnflushedTimestamp(sourceNode->GetUnflushedTimestamp());

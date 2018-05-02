@@ -285,17 +285,6 @@ DEFINE_REFCOUNTED_TYPE(TReduceOperationOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TJoinReduceOperationOptions
-    : public TReduceOperationOptions
-{
-private:
-    DECLARE_DYNAMIC_PHOENIX_TYPE(TJoinReduceOperationOptions, 0xdd9303bc);
-};
-
-DEFINE_REFCOUNTED_TYPE(TJoinReduceOperationOptions)
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TEraseOperationOptions
     : public TOrderedMergeOperationOptions
 {
@@ -478,6 +467,9 @@ public:
     //! Number of threads for running controllers invokers.
     int ControllerThreadCount;
 
+    //! Period of controller static orchid part update.
+    TDuration ControllerStaticOrchidUpdatePeriod;
+
     //! Limit on the number of concurrent core dumps that can be written because
     //! of failed safe assertions inside controllers.
     int MaxConcurrentSafeCoreDumps;
@@ -518,6 +510,9 @@ public:
 
     //! Maximum number of job nodes per operation.
     int MaxJobNodesPerOperation;
+
+    //! Maximum number of job specs in archive per operation.
+    int MaxArchivedJobSpecCountPerOperation;
 
     //! Maximum number of chunks per single fetch.
     int MaxChunksPerFetch;
@@ -578,7 +573,7 @@ public:
     //! Specific operation options.
     TMapOperationOptionsPtr MapOperationOptions;
     TReduceOperationOptionsPtr ReduceOperationOptions;
-    TJoinReduceOperationOptionsPtr JoinReduceOperationOptions;
+    TReduceOperationOptionsPtr JoinReduceOperationOptions;
     TEraseOperationOptionsPtr EraseOperationOptions;
     TOrderedMergeOperationOptionsPtr OrderedMergeOperationOptions;
     TUnorderedMergeOperationOptionsPtr UnorderedMergeOperationOptions;
@@ -624,8 +619,8 @@ public:
 
     NCompression::ECodec JobSpecCodec;
 
-    //! Backoff to report job metrics from operation to scheduler.
-    TDuration JobMetricsDeltaReportBackoff;
+    //! Period between consequent job metrics pushes from agent to scheduler.
+    TDuration JobMetricsReportPeriod;
 
     // Cypress path to a special layer containing YT-specific data required to
     // run jobs with custom rootfs, e.g. statically linked job-satellite.

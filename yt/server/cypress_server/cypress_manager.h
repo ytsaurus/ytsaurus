@@ -18,6 +18,8 @@
 
 #include <yt/server/security_server/public.h>
 
+#include <yt/server/table_server/public.h>
+
 #include <yt/server/transaction_server/transaction.h>
 #include <yt/server/transaction_server/transaction_manager.h>
 
@@ -156,6 +158,7 @@ public:
 
     bool IsOrphaned(TCypressNodeBase* trunkNode);
 
+    const NTableServer::TSharedTableSchemaRegistryPtr& GetSharedTableSchemaRegistry() const;
 
     //! Returns the list consisting of the trunk node
     //! and all of its existing versioned overrides up to #transaction;

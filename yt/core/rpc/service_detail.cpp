@@ -117,6 +117,11 @@ public:
         Finalize();
     }
 
+    virtual bool IsPooled() const override
+    {
+        return RuntimeInfo_->Descriptor.Pooled;
+    }
+
     virtual TTcpDispatcherStatistics GetBusStatistics() const override
     {
         return ReplyBus_->GetStatistics();

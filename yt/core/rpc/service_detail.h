@@ -113,13 +113,21 @@ public:
         : TServiceContextWrapper(std::move(context))
         , Options_(options)
     {
-        Response_ = ObjectPool<TTypedResponse>().Allocate();
+        if (UnderlyingContext_->IsPooled()) {
+            Response_ = ObjectPool<TTypedResponse>().Allocate();
+        } else {
+            Response_ = std::make_shared<TTypedResponse>();
+        }
         Response_->Context_ = this->UnderlyingContext_.Get();
     }
 
     bool DeserializeRequest()
     {
-        Request_ = ObjectPool<TTypedRequest>().Allocate();
+        if (UnderlyingContext_->IsPooled()) {
+            Request_ = ObjectPool<TTypedRequest>().Allocate();
+        } else {
+            Request_ = std::make_shared<TTypedRequest>();
+        }
         Request_->Context_ = UnderlyingContext_.Get();
 
         auto body = UnderlyingContext_->GetRequestBody();
@@ -200,8 +208,10 @@ protected:
             this->UnderlyingContext_->SetResponseBody(std::move(data));
         }
         this->UnderlyingContext_->Reply(error);
-        this->Request_.reset();
-        this->Response_.reset();
+        if (UnderlyingContext_->IsPooled()) {
+            this->Request_.reset();
+            this->Response_.reset();
+        }
     }
 };
 
@@ -339,8 +349,10 @@ protected:
         //! but not attachements.
         bool GenerateAttachmentChecksums = true;
 
-        const google::protobuf::Descriptor* RequestDescriptor = nullptr;
+        //! If |true| then requests and responses are pooled.
+        bool Pooled = true;
 
+        const google::protobuf::Descriptor* RequestDescriptor = nullptr;
         const google::protobuf::Descriptor* ResponseDescriptor = nullptr;
 
         TMethodDescriptor& SetInvoker(IInvokerPtr value)
@@ -394,6 +406,12 @@ protected:
         TMethodDescriptor& SetGenerateAttachmentChecksums(bool value)
         {
             GenerateAttachmentChecksums = value;
+            return *this;
+        }
+
+        TMethodDescriptor& SetPooled(bool value)
+        {
+            Pooled = value;
             return *this;
         }
     };

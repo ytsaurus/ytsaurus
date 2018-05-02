@@ -287,6 +287,36 @@ public:
         return false;
     }
 
+    virtual void ValidateRevivalAllowed() const override
+    {
+        // Even if fail_on_job_restart is set, we can not decline revival at this point
+        // as it is still possible that all jobs are running or completed, thus the revival is permitted.
+    }
+
+    virtual void ValidateSnapshot() const override
+    {
+        if (!Spec_->FailOnJobRestart) {
+            return;
+        }
+
+        int expectedJobCount = 0;
+        for (const auto& pair : Spec_->Tasks) {
+            expectedJobCount += pair.second->JobCount;
+        }
+        int startedJobCount = JobCounter->GetRunning() + JobCounter->GetCompletedTotal();
+
+        if (expectedJobCount != JobCounter->GetRunning()) {
+            THROW_ERROR_EXCEPTION(
+                NScheduler::EErrorCode::OperationFailedOnJobRestart,
+                "Cannot revive operation when spec option fail_on_job_restart is set and not "
+                "all jobs have already been started according to the operation snapshot"
+                "(i.e. not all jobs are running or completed)")
+                << TErrorAttribute("operation_type", OperationType)
+                << TErrorAttribute("expected_job_count", expectedJobCount)
+                << TErrorAttribute("started_job_count", startedJobCount);
+        }
+    }
+
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TVanillaController, 0x99fa99ae);
 

@@ -487,7 +487,7 @@ private:
         std::vector<TUnversionedRow> readerRows;
         readerRows.reserve(TabletRowsPerRead);
 
-        // This default only makes sence if the batch turns out to be empty.
+        // This default only makes sense if the batch turns out to be empty.
         auto prevTimestamp = replicaSnapshot->RuntimeData->CurrentReplicationTimestamp.load();
 
         // Throttling control.

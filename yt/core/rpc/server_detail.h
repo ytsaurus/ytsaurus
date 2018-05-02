@@ -71,6 +71,8 @@ public:
     virtual const NLogging::TLogger& GetLogger() const override;
     virtual NLogging::ELogLevel GetLogLevel() const override;
 
+    virtual bool IsPooled() const override;
+
 protected:
     const std::unique_ptr<NProto::TRequestHeader> RequestHeader_;
     const TSharedRefArray RequestMessage_;
@@ -175,6 +177,8 @@ public:
 
     virtual const NLogging::TLogger& GetLogger() const override;
     virtual NLogging::ELogLevel GetLogLevel() const override;
+
+    virtual bool IsPooled() const override;
 
 protected:
     const IServiceContextPtr UnderlyingContext_;

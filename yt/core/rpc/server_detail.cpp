@@ -305,6 +305,11 @@ NLogging::ELogLevel TServiceContextBase::GetLogLevel() const
     return LogLevel_;
 }
 
+bool TServiceContextBase::IsPooled() const
+{
+    return false;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TServiceContextWrapper::TServiceContextWrapper(IServiceContextPtr underlyingContext)
@@ -478,6 +483,11 @@ const NLogging::TLogger& TServiceContextWrapper::GetLogger() const
 NLogging::ELogLevel TServiceContextWrapper::GetLogLevel() const
 {
     return UnderlyingContext_->GetLogLevel();
+}
+
+bool TServiceContextWrapper::IsPooled() const
+{
+    return UnderlyingContext_->IsPooled();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

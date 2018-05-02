@@ -144,6 +144,10 @@ DEFINE_ENUM(EScheduleJobFailReason,
     ((NoAgentAssigned)               (17))
 );
 
+DEFINE_ENUM(EErrorCode,
+    ((AgentCallFailed)             (4400))
+);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NControllerAgent

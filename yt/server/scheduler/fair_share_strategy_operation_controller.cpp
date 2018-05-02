@@ -10,14 +10,12 @@ using namespace NControllerAgent;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = SchedulerLogger;
-
-////////////////////////////////////////////////////////////////////////////////
-
 TFairShareStrategyOperationController::TFairShareStrategyOperationController(
     IOperationStrategyHost* operation)
     : Controller_(operation->GetControllerStrategyHost())
     , OperationId_(operation->GetId())
+    , Logger(NLogging::TLogger(SchedulerLogger)
+        .AddTag("OperationId: %v", OperationId_))
 {
     YCHECK(Controller_);
 }
@@ -64,8 +62,23 @@ bool TFairShareStrategyOperationController::IsBlocked(
     auto controllerScheduleJobFailBackoffTime = NProfiling::DurationToCpuDuration(
         scheduleJobFailBackoffTime);
 
-    return ConcurrentScheduleJobCalls_ >= maxConcurrentScheduleJobCalls ||
-        LastScheduleJobFailTime_ + controllerScheduleJobFailBackoffTime > now;
+    if (ConcurrentScheduleJobCalls_ >= maxConcurrentScheduleJobCalls) {
+        LOG_DEBUG_UNLESS(IsBlocked_,
+            "Operation blocked in fair share strategy due to violation of maximum concurrect schedule job calls (ConcurrentScheduleJobCalls: %v)",
+            ConcurrentScheduleJobCalls_.load());
+        IsBlocked_.store(true);
+        return true;
+    }
+
+    if (LastScheduleJobFailTime_ + controllerScheduleJobFailBackoffTime > now) {
+        LOG_DEBUG_UNLESS(IsBlocked_, "Operation blocked in fair share strategy due to schedule job failure");
+        IsBlocked_.store(true);
+        return true;
+    }
+
+    LOG_DEBUG_UNLESS(!IsBlocked_, "Operation unblocked in fair share strategy");
+    IsBlocked_.store(false);
+    return false;
 }
 
 void TFairShareStrategyOperationController::AbortJob(const TJobId& jobId, EAbortReason abortReason)
@@ -100,9 +113,8 @@ TScheduleJobResultPtr TFairShareStrategyOperationController::ScheduleJob(
                     const auto& scheduleJobResult = scheduleJobResultOrError.Value();
                     if (scheduleJobResult->StartDescriptor) {
                         const auto& jobId = scheduleJobResult->StartDescriptor->Id;
-                        LOG_WARNING("Aborting late job (JobId: %v, OperationId: %v)",
-                            jobId,
-                            OperationId_);
+                        LOG_WARNING("Aborting late job (JobId: %v)",
+                            jobId);
                         AbortJob(jobId, EAbortReason::SchedulingTimeout);
                     }
             }));
