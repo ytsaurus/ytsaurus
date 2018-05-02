@@ -66,9 +66,9 @@ void CreateYamrInput(const IClientBasePtr& client)
     client->Set("//testing/yamr_input/@_format", "yamr");
 }
 
-SIMPLE_UNIT_TEST_SUITE(FormatAttribute)
+Y_UNIT_TEST_SUITE(FormatAttribute)
 {
-    SIMPLE_UNIT_TEST(Read_YamredDsv)
+    Y_UNIT_TEST(Read_YamredDsv)
     {
         auto client = CreateTestClient();
         CreateYamredDsvInput(client);
@@ -88,7 +88,7 @@ SIMPLE_UNIT_TEST_SUITE(FormatAttribute)
         UNIT_ASSERT_VALUES_EQUAL(table, expectedTable);
     }
 
-    SIMPLE_UNIT_TEST(Read_Yamr)
+    Y_UNIT_TEST(Read_Yamr)
     {
         auto client = CreateTestClient();
         CreateYamrInput(client);
@@ -109,7 +109,7 @@ SIMPLE_UNIT_TEST_SUITE(FormatAttribute)
     }
 
 
-    SIMPLE_UNIT_TEST(Operation_YamredDsv)
+    Y_UNIT_TEST(Operation_YamredDsv)
     {
         auto client = CreateTestClient();
         CreateYamredDsvInput(client);
@@ -137,7 +137,7 @@ SIMPLE_UNIT_TEST_SUITE(FormatAttribute)
         UNIT_ASSERT_VALUES_EQUAL(table, expectedTable);
     }
 
-    SIMPLE_UNIT_TEST(Operation_Yamr)
+    Y_UNIT_TEST(Operation_Yamr)
     {
         auto client = CreateTestClient();
         CreateYamrInput(client);

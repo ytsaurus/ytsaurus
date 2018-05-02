@@ -72,9 +72,9 @@ static TNode::TListType SortedStrings(TNode::TListType input) {
 
 ////////////////////////////////////////////////////////////////////
 
-SIMPLE_UNIT_TEST_SUITE(BatchRequestSuite)
+Y_UNIT_TEST_SUITE(BatchRequestSuite)
 {
-    SIMPLE_UNIT_TEST(TestGet)
+    Y_UNIT_TEST(TestGet)
     {
         auto client = CreateTestClient();
         client->Set("//testing/foo", 5);
@@ -101,7 +101,7 @@ SIMPLE_UNIT_TEST_SUITE(BatchRequestSuite)
         UNIT_ASSERT(fooAccountRes.GetValue().GetAttributes().HasKey("account"));
     }
 
-    SIMPLE_UNIT_TEST(TestSet)
+    Y_UNIT_TEST(TestSet)
     {
         auto client = CreateTestClient();
 
@@ -126,7 +126,7 @@ SIMPLE_UNIT_TEST_SUITE(BatchRequestSuite)
         UNIT_ASSERT_VALUES_EQUAL(tx->Get("//testing/qux"), TNode("gg"));
     }
 
-    SIMPLE_UNIT_TEST(TestList)
+    Y_UNIT_TEST(TestList)
     {
         auto client = CreateTestClient();
         auto tx = client->StartTransaction();
@@ -162,7 +162,7 @@ SIMPLE_UNIT_TEST_SUITE(BatchRequestSuite)
         UNIT_ASSERT_EXCEPTION(badRes.GetValue(), TErrorResponse);
     }
 
-    SIMPLE_UNIT_TEST(TestExists)
+    Y_UNIT_TEST(TestExists)
     {
         auto client = CreateTestClient();
         auto tx = client->StartTransaction();
@@ -183,7 +183,7 @@ SIMPLE_UNIT_TEST_SUITE(BatchRequestSuite)
         UNIT_ASSERT_VALUES_EQUAL(quxTxRes.GetValue(), true);
     }
 
-    SIMPLE_UNIT_TEST(TestLock)
+    Y_UNIT_TEST(TestLock)
     {
         TZeroWaitLockPollIntervalGuard g;
 
@@ -262,7 +262,7 @@ SIMPLE_UNIT_TEST_SUITE(BatchRequestSuite)
         UNIT_ASSERT_NO_EXCEPTION(waitableAcquired.GetValue(TDuration::Seconds(5)));
     }
 
-    SIMPLE_UNIT_TEST(TestWaitableLock)
+    Y_UNIT_TEST(TestWaitableLock)
     {
         TZeroWaitLockPollIntervalGuard g;
 
@@ -307,7 +307,7 @@ SIMPLE_UNIT_TEST_SUITE(BatchRequestSuite)
         UNIT_ASSERT_NO_EXCEPTION(res4.GetValue()->GetAcquiredFuture().GetValue(TDuration::MilliSeconds(500)));
     }
 
-    SIMPLE_UNIT_TEST(TestCreate)
+    Y_UNIT_TEST(TestCreate)
     {
         auto client = CreateTestClient();
         auto tx = client->StartTransaction();
@@ -355,7 +355,7 @@ SIMPLE_UNIT_TEST_SUITE(BatchRequestSuite)
         UNIT_ASSERT_EXCEPTION(badRes.GetValue(), TErrorResponse);
     }
 
-    SIMPLE_UNIT_TEST(TestRemove) {
+    Y_UNIT_TEST(TestRemove) {
         auto client = CreateTestClient();
         auto tx = client->StartTransaction();
 
@@ -469,7 +469,7 @@ SIMPLE_UNIT_TEST_SUITE(BatchRequestSuite)
             forceRes.GetValue());
     }
 
-    SIMPLE_UNIT_TEST(TestMove) {
+    Y_UNIT_TEST(TestMove) {
         auto checkMoved = [] (
             IClientBasePtr client,
             const TString& sourcePath,
@@ -484,7 +484,7 @@ SIMPLE_UNIT_TEST_SUITE(BatchRequestSuite)
         TestCopyMove<TMoveOptions>(&IBatchRequest::Move, checkMoved);
     }
 
-    SIMPLE_UNIT_TEST(TestCopy) {
+    Y_UNIT_TEST(TestCopy) {
         const auto checkCopied = [] (
             IClientBasePtr client,
             const TString& sourcePath,
@@ -500,7 +500,7 @@ SIMPLE_UNIT_TEST_SUITE(BatchRequestSuite)
         TestCopyMove<TCopyOptions>(&IBatchRequest::Copy, checkCopied);
     }
 
-    SIMPLE_UNIT_TEST(TestLink) {
+    Y_UNIT_TEST(TestLink) {
         auto client = CreateTestClient();
         auto tx = client->StartTransaction();
 
@@ -558,7 +558,7 @@ SIMPLE_UNIT_TEST_SUITE(BatchRequestSuite)
         ignoreExistingRes.GetValue(); // check it doesn't throw
     }
 
-    SIMPLE_UNIT_TEST(TestCanonizeYPath) {
+    Y_UNIT_TEST(TestCanonizeYPath) {
         auto client = CreateTestClient();
 
         auto batchRequest = client->CreateBatchRequest();
@@ -579,7 +579,7 @@ SIMPLE_UNIT_TEST_SUITE(BatchRequestSuite)
         UNIT_ASSERT_EXCEPTION(errorRes.GetValue(), TErrorResponse);
     }
 
-    SIMPLE_UNIT_TEST(TestYtPrefix) {
+    Y_UNIT_TEST(TestYtPrefix) {
         TYtPrefixGuard guard("//testing/");
         auto client = CreateTestClient();
         auto tx = client->StartTransaction();
@@ -604,7 +604,7 @@ SIMPLE_UNIT_TEST_SUITE(BatchRequestSuite)
         UNIT_ASSERT_VALUES_EQUAL(existsRes.GetValue(), true);
     }
 
-    SIMPLE_UNIT_TEST(TestRequestReset) {
+    Y_UNIT_TEST(TestRequestReset) {
         auto client = CreateTestClient();
         auto batchRequest = client->CreateBatchRequest();
         auto getRes = batchRequest->Create("//testing/foo", ENodeType::NT_MAP);
@@ -616,7 +616,7 @@ SIMPLE_UNIT_TEST_SUITE(BatchRequestSuite)
         UNIT_ASSERT_EXCEPTION(batchRequest->ExecuteBatch(), yexception);
     }
 
-    SIMPLE_UNIT_TEST(TestBatchPartMaxSize) {
+    Y_UNIT_TEST(TestBatchPartMaxSize) {
         auto client = CreateTestClient();
         {
             auto batchRequest = client->CreateBatchRequest();
@@ -642,7 +642,7 @@ SIMPLE_UNIT_TEST_SUITE(BatchRequestSuite)
         }
     }
 
-    SIMPLE_UNIT_TEST(TestBigRequest) {
+    Y_UNIT_TEST(TestBigRequest) {
         auto client = CreateTestClient();
         auto batchRequest = client->CreateBatchRequest();
         const TString aaa(32 * 1024, 'a');
@@ -667,7 +667,7 @@ SIMPLE_UNIT_TEST_SUITE(BatchRequestSuite)
         UNIT_ASSERT_VALUES_EQUAL(client->Get("//testing/ddd"), TNode(ddd));
     }
 
-    SIMPLE_UNIT_TEST(TestBigLoad) {
+    Y_UNIT_TEST(TestBigLoad) {
         auto client = CreateTestClient();
         TLowerRequestLimit lrl(client, 100);
         TConfig::Get()->RetryInterval = TDuration();
@@ -686,7 +686,7 @@ SIMPLE_UNIT_TEST_SUITE(BatchRequestSuite)
         }
     }
 
-    SIMPLE_UNIT_TEST(TestTransactionGet) {
+    Y_UNIT_TEST(TestTransactionGet) {
         auto client = CreateTestClient();
 
         auto tx = client->StartTransaction();

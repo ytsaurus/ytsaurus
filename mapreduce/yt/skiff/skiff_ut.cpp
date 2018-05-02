@@ -12,8 +12,8 @@ using namespace NSkiff;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-SIMPLE_UNIT_TEST_SUITE(TSkiffTestSuite) {
-    SIMPLE_UNIT_TEST(TestInt)
+Y_UNIT_TEST_SUITE(TSkiffTestSuite) {
+    Y_UNIT_TEST(TestInt)
     {
         TBufferStream bufferStream;
 
@@ -31,7 +31,7 @@ SIMPLE_UNIT_TEST_SUITE(TSkiffTestSuite) {
         UNIT_ASSERT_VALUES_EQUAL(parser.ParseUint64(), 100500);
     }
 
-    SIMPLE_UNIT_TEST(TestBoolean)
+    Y_UNIT_TEST(TestBoolean)
     {
         auto schema = CreateSimpleTypeSchema(EWireType::Boolean);
 
@@ -54,7 +54,7 @@ SIMPLE_UNIT_TEST_SUITE(TSkiffTestSuite) {
         }
     }
 
-    SIMPLE_UNIT_TEST(TestVariant8)
+    Y_UNIT_TEST(TestVariant8)
     {
         auto schema = CreateVariant8Schema({
             CreateSimpleTypeSchema(EWireType::Nothing),
@@ -95,7 +95,7 @@ SIMPLE_UNIT_TEST_SUITE(TSkiffTestSuite) {
         parser.ValidateFinished();
     }
 
-    SIMPLE_UNIT_TEST(TestTuple)
+    Y_UNIT_TEST(TestTuple)
     {
 
         auto schema = CreateTupleSchema({
@@ -118,7 +118,7 @@ SIMPLE_UNIT_TEST_SUITE(TSkiffTestSuite) {
         }
     }
 
-    SIMPLE_UNIT_TEST(TestString)
+    Y_UNIT_TEST(TestString)
     {
 
         auto schema = CreateSimpleTypeSchema(EWireType::String32);
@@ -149,7 +149,7 @@ SIMPLE_UNIT_TEST_SUITE(TSkiffTestSuite) {
         }
     }
 
-    SIMPLE_UNIT_TEST(TestRepeatedVariant16)
+    Y_UNIT_TEST(TestRepeatedVariant16)
     {
 
         auto schema = CreateRepeatedVariant16Schema({
@@ -252,7 +252,7 @@ SIMPLE_UNIT_TEST_SUITE(TSkiffTestSuite) {
         }
     }
 
-    SIMPLE_UNIT_TEST(TestStruct)
+    Y_UNIT_TEST(TestStruct)
     {
         TBufferStream bufferStream;
 

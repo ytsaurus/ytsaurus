@@ -6,9 +6,9 @@
 
 using namespace NYT;
 
-SIMPLE_UNIT_TEST_SUITE(JobStatistics)
+Y_UNIT_TEST_SUITE(JobStatistics)
 {
-    SIMPLE_UNIT_TEST(Simple)
+    Y_UNIT_TEST(Simple)
     {
         const TString input = R"""(
             {
@@ -58,7 +58,7 @@ SIMPLE_UNIT_TEST_SUITE(JobStatistics)
         UNIT_ASSERT_VALUES_EQUAL(stat.JobType({JT_MAP}).JobStatus({FJS_ABORTED}).GetStatistics("data/output/0/uncompressed_data_size").Sum(), TMaybe<i64>());
     }
 
-    SIMPLE_UNIT_TEST(TestOtherTypes)
+    Y_UNIT_TEST(TestOtherTypes)
     {
         const TString input = R"""(
         {

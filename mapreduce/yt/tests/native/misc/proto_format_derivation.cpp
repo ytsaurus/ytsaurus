@@ -142,8 +142,8 @@ using TEverythingSpecifiedReducer = TReducer<TUrlRow, THostRow>;
 REGISTER_REDUCER(TEverythingSpecifiedReducer);
 
 
-SIMPLE_UNIT_TEST_SUITE(ProtoFormatDerivation) {
-    SIMPLE_UNIT_TEST(DifferentTypesMapperInput)
+Y_UNIT_TEST_SUITE(ProtoFormatDerivation) {
+    Y_UNIT_TEST(DifferentTypesMapperInput)
     {
         TProtoFormatDerivationFixture fixture;
 
@@ -160,7 +160,7 @@ SIMPLE_UNIT_TEST_SUITE(ProtoFormatDerivation) {
             TOperationOptions().Spec(TNode()("max_failed_job_count", 1)));
     }
 
-    SIMPLE_UNIT_TEST(DifferentTypesNoMapperInput)
+    Y_UNIT_TEST(DifferentTypesNoMapperInput)
     {
         TProtoFormatDerivationFixture fixture;
 
@@ -179,7 +179,7 @@ SIMPLE_UNIT_TEST_SUITE(ProtoFormatDerivation) {
         }
     }
 
-    SIMPLE_UNIT_TEST(UnspecifiedMapperOutput)
+    Y_UNIT_TEST(UnspecifiedMapperOutput)
     {
         TProtoFormatDerivationFixture fixture;
 
@@ -198,7 +198,7 @@ SIMPLE_UNIT_TEST_SUITE(ProtoFormatDerivation) {
         }
     }
 
-    SIMPLE_UNIT_TEST(HintedMapperOutput)
+    Y_UNIT_TEST(HintedMapperOutput)
     {
         TProtoFormatDerivationFixture fixture;
 
@@ -214,7 +214,7 @@ SIMPLE_UNIT_TEST_SUITE(ProtoFormatDerivation) {
             TOperationOptions().Spec(TNode()("max_failed_job_count", 1)));
     }
 
-    SIMPLE_UNIT_TEST(UnspecifiedInputReduceCombiner)
+    Y_UNIT_TEST(UnspecifiedInputReduceCombiner)
     {
         TProtoFormatDerivationFixture fixture;
 
@@ -235,7 +235,7 @@ SIMPLE_UNIT_TEST_SUITE(ProtoFormatDerivation) {
         }
     }
 
-    SIMPLE_UNIT_TEST(HintedInputReduceCombiner)
+    Y_UNIT_TEST(HintedInputReduceCombiner)
     {
         TProtoFormatDerivationFixture fixture;
 
@@ -252,7 +252,7 @@ SIMPLE_UNIT_TEST_SUITE(ProtoFormatDerivation) {
             TOperationOptions().Spec(TNode()("max_failed_job_count", 1)));
     }
 
-    SIMPLE_UNIT_TEST(UnspecifiedOutputReduceCombiner)
+    Y_UNIT_TEST(UnspecifiedOutputReduceCombiner)
     {
         TProtoFormatDerivationFixture fixture;
 
@@ -273,7 +273,7 @@ SIMPLE_UNIT_TEST_SUITE(ProtoFormatDerivation) {
         }
     }
 
-    SIMPLE_UNIT_TEST(HintedOutputReduceCombiner)
+    Y_UNIT_TEST(HintedOutputReduceCombiner)
     {
         TProtoFormatDerivationFixture fixture;
 
@@ -290,7 +290,7 @@ SIMPLE_UNIT_TEST_SUITE(ProtoFormatDerivation) {
             TOperationOptions().Spec(TNode()("max_failed_job_count", 1)));
     }
 
-    SIMPLE_UNIT_TEST(UnspecifiedReducerInput)
+    Y_UNIT_TEST(UnspecifiedReducerInput)
     {
         TProtoFormatDerivationFixture fixture;
 
@@ -310,7 +310,7 @@ SIMPLE_UNIT_TEST_SUITE(ProtoFormatDerivation) {
         }
     }
 
-    SIMPLE_UNIT_TEST(ReducerInputFromOperationInput)
+    Y_UNIT_TEST(ReducerInputFromOperationInput)
     {
         TProtoFormatDerivationFixture fixture;
 
@@ -325,7 +325,7 @@ SIMPLE_UNIT_TEST_SUITE(ProtoFormatDerivation) {
             TOperationOptions().Spec(TNode()("max_failed_job_count", 1)));
     }
 
-    SIMPLE_UNIT_TEST(EverythingSpecified)
+    Y_UNIT_TEST(EverythingSpecified)
     {
         TProtoFormatDerivationFixture fixture;
 

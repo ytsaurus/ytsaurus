@@ -12,9 +12,9 @@ using namespace NYT::NTesting;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-SIMPLE_UNIT_TEST_SUITE(Transactions)
+Y_UNIT_TEST_SUITE(Transactions)
 {
-    SIMPLE_UNIT_TEST(TestTitle)
+    Y_UNIT_TEST(TestTitle)
     {
         auto client = CreateTestClient();
         auto getTitle = [&] (const ITransactionPtr& tx) {
@@ -36,7 +36,7 @@ SIMPLE_UNIT_TEST_SUITE(Transactions)
         UNIT_ASSERT_VALUES_EQUAL(getTitle(attrTitleTx), "bar");
     }
 
-    SIMPLE_UNIT_TEST(TestPing)
+    Y_UNIT_TEST(TestPing)
     {
         auto client = CreateTestClient();
 
@@ -49,7 +49,7 @@ SIMPLE_UNIT_TEST_SUITE(Transactions)
         UNIT_ASSERT_EXCEPTION(transaction->Ping(), TErrorResponse);
     }
 
-    SIMPLE_UNIT_TEST(TestAutoPing)
+    Y_UNIT_TEST(TestAutoPing)
     {
         TConfigSaverGuard csg;
         TConfig::Get()->PingInterval = TDuration::MilliSeconds(100);

@@ -13,9 +13,9 @@ void Out<NYT::TNode>(IOutputStream& s, const NYT::TNode& node)
     s << "TNode:" << NodeToYsonString(node);
 }
 
-SIMPLE_UNIT_TEST_SUITE(ErrorSuite)
+Y_UNIT_TEST_SUITE(ErrorSuite)
 {
-    SIMPLE_UNIT_TEST(TestParseJson)
+    Y_UNIT_TEST(TestParseJson)
     {
         // Scary real world error! Бу!
         const char* jsonText =
@@ -53,7 +53,7 @@ SIMPLE_UNIT_TEST_SUITE(ErrorSuite)
         UNIT_ASSERT_VALUES_EQUAL(error.GetAttributes().at("method"), TNode("Create"));
     }
 
-    SIMPLE_UNIT_TEST(TestGetYsonText) {
+    Y_UNIT_TEST(TestGetYsonText) {
         const char* jsonText =
             R"""({)"""
                 R"""("code":500,)"""

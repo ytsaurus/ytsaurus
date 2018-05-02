@@ -3,9 +3,9 @@
 #include <library/unittest/registar.h>
 #include <mapreduce/yt/interface/client.h>
 
-SIMPLE_UNIT_TEST_SUITE(Suite)
+Y_UNIT_TEST_SUITE(Suite)
 {
-    SIMPLE_UNIT_TEST(Test)
+    Y_UNIT_TEST(Test)
     {
         TString ytProxy = GetEnv("YT_PROXY");
 

@@ -63,8 +63,8 @@ void CreateTestAggregatingTable(const IClientPtr& client, const TYPath& table)
              .Add(TNode()("name", "value")("type", "int64")("aggregate", "sum")))));
 }
 
-SIMPLE_UNIT_TEST_SUITE(TabletClient) {
-    SIMPLE_UNIT_TEST(TestMountUnmount)
+Y_UNIT_TEST_SUITE(TabletClient) {
+    Y_UNIT_TEST(TestMountUnmount)
     {
         TTabletFixture fixture;
         auto client = fixture.Client();
@@ -87,7 +87,7 @@ SIMPLE_UNIT_TEST_SUITE(TabletClient) {
         WaitForTabletsState(client, tablePath, TS_UNMOUNTED, WaitTabletsOptions);
     }
 
-    SIMPLE_UNIT_TEST(TestFreezeUnfreeze)
+    Y_UNIT_TEST(TestFreezeUnfreeze)
     {
         TTabletFixture fixture;
         auto client = fixture.Client();
@@ -107,7 +107,7 @@ SIMPLE_UNIT_TEST_SUITE(TabletClient) {
         WaitForTabletsState(client, tablePath, TS_UNMOUNTED, WaitTabletsOptions);
     }
 
-    SIMPLE_UNIT_TEST(TestReshard)
+    Y_UNIT_TEST(TestReshard)
     {
         TTabletFixture fixture;
         auto client = fixture.Client();
@@ -140,7 +140,7 @@ SIMPLE_UNIT_TEST_SUITE(TabletClient) {
         WaitForTabletsState(client, tablePath, TS_UNMOUNTED, WaitTabletsOptions);
     }
 
-    SIMPLE_UNIT_TEST(TestInsertLookupDelete)
+    Y_UNIT_TEST(TestInsertLookupDelete)
     {
         TTabletFixture fixture;
         auto client = fixture.Client();
@@ -176,7 +176,7 @@ SIMPLE_UNIT_TEST_SUITE(TabletClient) {
         WaitForTabletsState(client, tablePath, TS_UNMOUNTED, WaitTabletsOptions);
     }
 
-    SIMPLE_UNIT_TEST(TestTrimRows)
+    Y_UNIT_TEST(TestTrimRows)
     {
         TTabletFixture fixture;
         auto client = fixture.Client();
@@ -212,7 +212,7 @@ SIMPLE_UNIT_TEST_SUITE(TabletClient) {
         WaitForTabletsState(client, tablePath, TS_UNMOUNTED, WaitTabletsOptions);
     }
 
-    SIMPLE_UNIT_TEST(TestAtomicityNoneInsert)
+    Y_UNIT_TEST(TestAtomicityNoneInsert)
     {
         TTabletFixture fixture;
         auto client = fixture.Client();
@@ -253,7 +253,7 @@ SIMPLE_UNIT_TEST_SUITE(TabletClient) {
         WaitForTabletsState(client, tablePath, TS_UNMOUNTED, WaitTabletsOptions);
     }
 
-    SIMPLE_UNIT_TEST(TestTimeoutType)
+    Y_UNIT_TEST(TestTimeoutType)
     {
         TTabletFixture fixture;
         auto client = fixture.Client();
@@ -287,7 +287,7 @@ SIMPLE_UNIT_TEST_SUITE(TabletClient) {
         WaitForTabletsState(client, tablePath, TS_UNMOUNTED, WaitTabletsOptions);
     }
 
-    SIMPLE_UNIT_TEST(TestUpdateInsert)
+    Y_UNIT_TEST(TestUpdateInsert)
     {
         TTabletFixture fixture;
         auto client = fixture.Client();
@@ -319,7 +319,7 @@ SIMPLE_UNIT_TEST_SUITE(TabletClient) {
         WaitForTabletsState(client, tablePath, TS_UNMOUNTED, WaitTabletsOptions);
     }
 
-    SIMPLE_UNIT_TEST(TestAggregateInsert)
+    Y_UNIT_TEST(TestAggregateInsert)
     {
         TTabletFixture fixture;
         auto client = fixture.Client();

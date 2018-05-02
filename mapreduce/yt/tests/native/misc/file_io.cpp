@@ -43,9 +43,9 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-SIMPLE_UNIT_TEST_SUITE(FileIo)
+Y_UNIT_TEST_SUITE(FileIo)
 {
-    SIMPLE_UNIT_TEST(Read)
+    Y_UNIT_TEST(Read)
     {
         TTestReaderFixture testReaderFixture;
 
@@ -70,7 +70,7 @@ SIMPLE_UNIT_TEST_SUITE(FileIo)
         UNIT_ASSERT_VALUES_EQUAL(result, testReaderFixture.GetFileData());
     }
 
-    SIMPLE_UNIT_TEST(ReadRange)
+    Y_UNIT_TEST(ReadRange)
     {
         TTestReaderFixture testReaderFixture;
         auto client = testReaderFixture.GetClient();

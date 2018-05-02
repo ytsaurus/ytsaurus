@@ -41,22 +41,22 @@ static TString RandomBytes() {
     return TString((const char*)&value, sizeof(value));
 }
 
-SIMPLE_UNIT_TEST_SUITE(TableIo) {
+Y_UNIT_TEST_SUITE(TableIo) {
 
 #define INSTANTIATE_NODE_READER_TESTS(test) \
-    SIMPLE_UNIT_TEST(test ## _Yson_NonStrict) \
+    Y_UNIT_TEST(test ## _Yson_NonStrict) \
     { \
         TConfigSaverGuard configGuard; \
         TConfig::Get()->NodeReaderFormat = ENodeReaderFormat::Yson; \
         test(false); \
     } \
-    SIMPLE_UNIT_TEST(test ## _Yson_Strict) \
+    Y_UNIT_TEST(test ## _Yson_Strict) \
     { \
         TConfigSaverGuard configGuard; \
         TConfig::Get()->NodeReaderFormat = ENodeReaderFormat::Yson; \
         test(true); \
     } \
-    SIMPLE_UNIT_TEST(test ## _Skiff) \
+    Y_UNIT_TEST(test ## _Skiff) \
     { \
         TConfigSaverGuard configGuard; \
         TConfig::Get()->NodeReaderFormat = ENodeReaderFormat::Skiff; \
@@ -109,13 +109,13 @@ SIMPLE_UNIT_TEST_SUITE(TableIo) {
         reader->Next();
         UNIT_ASSERT(!reader->IsValid());
     }
-    SIMPLE_UNIT_TEST(NonEmptyColumns_Yson)
+    Y_UNIT_TEST(NonEmptyColumns_Yson)
     {
         TConfigSaverGuard configGuard;
         TConfig::Get()->NodeReaderFormat = ENodeReaderFormat::Yson;
         NonEmptyColumns(false);
     }
-    SIMPLE_UNIT_TEST(NonEmptyColumns_Skiff)
+    Y_UNIT_TEST(NonEmptyColumns_Skiff)
     {
         TConfigSaverGuard configGuard;
         TConfig::Get()->NodeReaderFormat = ENodeReaderFormat::Skiff;
@@ -138,13 +138,13 @@ SIMPLE_UNIT_TEST_SUITE(TableIo) {
         reader->Next();
         UNIT_ASSERT(!reader->IsValid());
     }
-    SIMPLE_UNIT_TEST(EmptyColumns_Yson)
+    Y_UNIT_TEST(EmptyColumns_Yson)
     {
         TConfigSaverGuard configGuard;
         TConfig::Get()->NodeReaderFormat = ENodeReaderFormat::Yson;
         EmptyColumns(false);
     }
-    SIMPLE_UNIT_TEST(EmptyColumns_Skiff)
+    Y_UNIT_TEST(EmptyColumns_Skiff)
     {
         TConfigSaverGuard configGuard;
         TConfig::Get()->NodeReaderFormat = ENodeReaderFormat::Skiff;
@@ -166,13 +166,13 @@ SIMPLE_UNIT_TEST_SUITE(TableIo) {
         reader->Next();
         UNIT_ASSERT(!reader->IsValid());
     }
-    SIMPLE_UNIT_TEST(MissingColumns_Yson)
+    Y_UNIT_TEST(MissingColumns_Yson)
     {
         TConfigSaverGuard configGuard;
         TConfig::Get()->NodeReaderFormat = ENodeReaderFormat::Yson;
         MissingColumns();
     }
-    SIMPLE_UNIT_TEST(MissingColumns_Skiff)
+    Y_UNIT_TEST(MissingColumns_Skiff)
     {
         TConfigSaverGuard configGuard;
         TConfig::Get()->NodeReaderFormat = ENodeReaderFormat::Skiff;
@@ -361,32 +361,32 @@ SIMPLE_UNIT_TEST_SUITE(TableIo) {
         UNIT_ASSERT_EXCEPTION(reader->GetRow(), yexception);
     }
 
-    SIMPLE_UNIT_TEST(NodeReader_Skiff_Strict)
+    Y_UNIT_TEST(NodeReader_Skiff_Strict)
     {
         TestNodeReader(ENodeReaderFormat::Skiff, true);
     }
-    SIMPLE_UNIT_TEST(NodeReader_Skiff_NonStrict)
+    Y_UNIT_TEST(NodeReader_Skiff_NonStrict)
     {
         UNIT_ASSERT_EXCEPTION(TestNodeReader(ENodeReaderFormat::Skiff, false), yexception);
     }
-    SIMPLE_UNIT_TEST(NodeReader_Auto_Strict)
+    Y_UNIT_TEST(NodeReader_Auto_Strict)
     {
         TestNodeReader(ENodeReaderFormat::Auto, true);
     }
-    SIMPLE_UNIT_TEST(NodeReader_Auto_NonStrict)
+    Y_UNIT_TEST(NodeReader_Auto_NonStrict)
     {
         TestNodeReader(ENodeReaderFormat::Auto, false);
     }
-    SIMPLE_UNIT_TEST(NodeReader_Yson_Strict)
+    Y_UNIT_TEST(NodeReader_Yson_Strict)
     {
         TestNodeReader(ENodeReaderFormat::Yson, true);
     }
-    SIMPLE_UNIT_TEST(NodeReader_Yson_NonStrict)
+    Y_UNIT_TEST(NodeReader_Yson_NonStrict)
     {
         TestNodeReader(ENodeReaderFormat::Yson, false);
     }
 
-    SIMPLE_UNIT_TEST(Protobuf)
+    Y_UNIT_TEST(Protobuf)
     {
         auto client = CreateTestClient();
         {
@@ -446,7 +446,7 @@ SIMPLE_UNIT_TEST_SUITE(TableIo) {
         UNIT_ASSERT(!reader->IsValid());
     }
 
-    SIMPLE_UNIT_TEST(UntypedProtobufWriter)
+    Y_UNIT_TEST(UntypedProtobufWriter)
     {
         auto client = CreateTestClient();
         {
@@ -473,7 +473,7 @@ SIMPLE_UNIT_TEST_SUITE(TableIo) {
         UNIT_ASSERT(!reader->IsValid());
     }
 
-    SIMPLE_UNIT_TEST(ProtobufVersions)
+    Y_UNIT_TEST(ProtobufVersions)
     {
         auto client = CreateTestClient();
         {
@@ -530,7 +530,7 @@ SIMPLE_UNIT_TEST_SUITE(TableIo) {
         }
     }
 
-    SIMPLE_UNIT_TEST(ErrorInTableWriter)
+    Y_UNIT_TEST(ErrorInTableWriter)
     {
         const TNode DATA = TString(1024, 'a');
         auto client = CreateTestClient();
@@ -554,7 +554,7 @@ SIMPLE_UNIT_TEST_SUITE(TableIo) {
         UNIT_ASSERT_EXCEPTION(writeTable(), TErrorResponse);
     }
 
-    SIMPLE_UNIT_TEST(ErrorInFinish)
+    Y_UNIT_TEST(ErrorInFinish)
     {
         auto client = CreateTestClient();
         client->Create("//testing/table", NT_TABLE, TCreateOptions().Force(true).Attributes(
@@ -575,7 +575,7 @@ SIMPLE_UNIT_TEST_SUITE(TableIo) {
         UNIT_ASSERT_EXCEPTION(writeMore(), TApiUsageError);
     }
 
-    SIMPLE_UNIT_TEST(CantWriteAfterFinish)
+    Y_UNIT_TEST(CantWriteAfterFinish)
     {
         auto client = CreateTestClient();
         auto writer = client->CreateTableWriter<TNode>("//testing/table");
@@ -584,7 +584,7 @@ SIMPLE_UNIT_TEST_SUITE(TableIo) {
         UNIT_ASSERT_EXCEPTION(writer->AddRow(TNode()("value", "a")), TApiUsageError);
     }
 
-    SIMPLE_UNIT_TEST(EmptyHosts)
+    Y_UNIT_TEST(EmptyHosts)
     {
         TConfigSaver configSaver;
 
@@ -619,7 +619,7 @@ SIMPLE_UNIT_TEST_SUITE(TableIo) {
         }
     }
 
-    SIMPLE_UNIT_TEST(ReadErrorInTrailers)
+    Y_UNIT_TEST(ReadErrorInTrailers)
     {
         auto client = CreateTestClient();
         {
@@ -650,7 +650,7 @@ SIMPLE_UNIT_TEST_SUITE(TableIo) {
     }
 
 
-    SIMPLE_UNIT_TEST(TableLockedForWriterLifetime)
+    Y_UNIT_TEST(TableLockedForWriterLifetime)
     {
         auto client = CreateTestClient();
         {
@@ -677,7 +677,7 @@ SIMPLE_UNIT_TEST_SUITE(TableIo) {
         return client->Get(path + "/@lock_count").AsUint64();
     }
 
-    SIMPLE_UNIT_TEST(OptionallyCreateChildTransactionForIO)
+    Y_UNIT_TEST(OptionallyCreateChildTransactionForIO)
     {
         auto client = CreateTestClient();
         auto path = TRichYPath("//testing/table");
@@ -721,7 +721,7 @@ SIMPLE_UNIT_TEST_SUITE(TableIo) {
         }
     }
 
-    SIMPLE_UNIT_TEST(ReaderTakesLockOnTableIdNotPath)
+    Y_UNIT_TEST(ReaderTakesLockOnTableIdNotPath)
     {
         TConfigSaverGuard configGuard;
         TConfig::Get()->UseAbortableResponse = true;
@@ -752,7 +752,7 @@ SIMPLE_UNIT_TEST_SUITE(TableIo) {
         }
     }
 
-    SIMPLE_UNIT_TEST(UnsuccessfulRetries)
+    Y_UNIT_TEST(UnsuccessfulRetries)
     {
         TConfigSaverGuard configGuard;
         TConfig::Get()->UseAbortableResponse = true;
@@ -783,7 +783,7 @@ SIMPLE_UNIT_TEST_SUITE(TableIo) {
         }
     }
 
-    SIMPLE_UNIT_TEST(SuccessfulRetries)
+    Y_UNIT_TEST(SuccessfulRetries)
     {
         TConfigSaverGuard configGuard;
         TConfig::Get()->UseAbortableResponse = true;
@@ -804,7 +804,7 @@ SIMPLE_UNIT_TEST_SUITE(TableIo) {
         }
     }
 
-    SIMPLE_UNIT_TEST(TableReaderFromInputStream)
+    Y_UNIT_TEST(TableReaderFromInputStream)
     {
         TString input = "{ key1 = [1; 2; 3; value0]; };  {key2 = { key21 = value1; key22 = value2 };}";
         TStringInput stream(input);
@@ -825,7 +825,7 @@ SIMPLE_UNIT_TEST_SUITE(TableIo) {
         UNIT_ASSERT_VALUES_EQUAL(expected, got);
     }
 
-    SIMPLE_UNIT_TEST(ReadingWritingProtobufAllTypes)
+    Y_UNIT_TEST(ReadingWritingProtobufAllTypes)
     {
         TConfigSaverGuard configSaver;
         TConfig::Get()->UseClientProtobuf = false;
@@ -884,7 +884,7 @@ SIMPLE_UNIT_TEST_SUITE(TableIo) {
         }
     }
 
-    SIMPLE_UNIT_TEST(SimpleRetrylessWriter)
+    Y_UNIT_TEST(SimpleRetrylessWriter)
     {
         auto client = CreateTestClient();
         auto path = TRichYPath("//testing/table");
@@ -904,7 +904,7 @@ SIMPLE_UNIT_TEST_SUITE(TableIo) {
         UNIT_ASSERT_VALUES_EQUAL(counter, numRows);
     }
 
-    SIMPLE_UNIT_TEST(RetrylessWriterAndLockedTable)
+    Y_UNIT_TEST(RetrylessWriterAndLockedTable)
     {
         auto client = CreateTestClient();
         auto path = TRichYPath("//testing/table");
@@ -952,22 +952,22 @@ SIMPLE_UNIT_TEST_SUITE(TableIo) {
         UNIT_ASSERT_VALUES_EQUAL(actual, expectedData);
     }
 
-    SIMPLE_UNIT_TEST(CompressionCodecIdentity)
+    Y_UNIT_TEST(CompressionCodecIdentity)
     {
         TestCompressionCodec(E_IDENTITY);
     }
 
-    SIMPLE_UNIT_TEST(CompressionCodecGzip)
+    Y_UNIT_TEST(CompressionCodecGzip)
     {
         TestCompressionCodec(E_GZIP);
     }
 
-    SIMPLE_UNIT_TEST(CompressionCodecBrotli)
+    Y_UNIT_TEST(CompressionCodecBrotli)
     {
         TestCompressionCodec(E_BROTLI);
     }
 
-    SIMPLE_UNIT_TEST(AbortWriter)
+    Y_UNIT_TEST(AbortWriter)
     {
         auto client = CreateTestClient();
         const int numRows = 2117;
@@ -984,7 +984,7 @@ SIMPLE_UNIT_TEST_SUITE(TableIo) {
         }
     }
 
-    SIMPLE_UNIT_TEST(ProtobufWriteAutoflush)
+    Y_UNIT_TEST(ProtobufWriteAutoflush)
     {
         auto client = CreateTestClient();
 
@@ -1000,8 +1000,8 @@ SIMPLE_UNIT_TEST_SUITE(TableIo) {
     }
 }
 
-SIMPLE_UNIT_TEST_SUITE(BlobTableIo) {
-    SIMPLE_UNIT_TEST(Simple)
+Y_UNIT_TEST_SUITE(BlobTableIo) {
+    Y_UNIT_TEST(Simple)
     {
         const std::vector<TString> testDataParts = {
             TString(1024 * 1024 * 4, 'a'),
@@ -1053,7 +1053,7 @@ SIMPLE_UNIT_TEST_SUITE(BlobTableIo) {
         }
     }
 
-    SIMPLE_UNIT_TEST(WrongPartSize)
+    Y_UNIT_TEST(WrongPartSize)
     {
         const std::vector<TString> testDataParts = {
             TString(1024 * 1024 * 4, 'a'),

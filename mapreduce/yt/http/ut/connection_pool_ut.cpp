@@ -75,8 +75,8 @@ private:
     TFunc Func;
 };
 
-SIMPLE_UNIT_TEST_SUITE(NConnectionPoolSuite) {
-    SIMPLE_UNIT_TEST(TestReleaseUnread) {
+Y_UNIT_TEST_SUITE(NConnectionPoolSuite) {
+    Y_UNIT_TEST(TestReleaseUnread) {
         auto simpleServer = CreateSimpleHttpServer();
 
         const TString hostName = TStringBuilder() << "localhost:" << simpleServer->GetPort();
@@ -90,7 +90,7 @@ SIMPLE_UNIT_TEST_SUITE(NConnectionPoolSuite) {
         }
     }
 
-    SIMPLE_UNIT_TEST(TestConcurrency) {
+    Y_UNIT_TEST(TestConcurrency) {
         TConnectionPoolConfigGuard g(1);
 
         auto simpleServer = CreateSimpleHttpServer();

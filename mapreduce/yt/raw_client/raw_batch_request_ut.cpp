@@ -66,8 +66,8 @@ TVector<TString> GetAllPathsFromRequestList(const TNode& requestList)
 }
 
 
-SIMPLE_UNIT_TEST_SUITE(BatchRequestImpl) {
-    SIMPLE_UNIT_TEST(ParseResponse) {
+Y_UNIT_TEST_SUITE(BatchRequestImpl) {
+    Y_UNIT_TEST(ParseResponse) {
         TRawBatchRequest batchRequest;
 
         UNIT_ASSERT_VALUES_EQUAL(batchRequest.BatchSize(), 0);
