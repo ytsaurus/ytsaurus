@@ -4,8 +4,8 @@
 
 using namespace NYT;
 
-SIMPLE_UNIT_TEST_SUITE(LogingTests) {
-    SIMPLE_UNIT_TEST(TestFromString) {
+Y_UNIT_TEST_SUITE(LogingTests) {
+    Y_UNIT_TEST(TestFromString) {
         UNIT_ASSERT_EQUAL(FromString("error"), ILogger::ELevel::ERROR);
         UNIT_ASSERT_EQUAL(FromString("warning"), ILogger::ELevel::ERROR);
         UNIT_ASSERT_EQUAL(FromString("debug"), ILogger::ELevel::DEBUG);

@@ -4,9 +4,9 @@
 
 using namespace NYT;
 
-SIMPLE_UNIT_TEST_SUITE(Common)
+Y_UNIT_TEST_SUITE(Common)
 {
-    SIMPLE_UNIT_TEST(TKeyBaseColunms)
+    Y_UNIT_TEST(TKeyBaseColunms)
     {
         TKeyColumns keys1("a", "b");
         UNIT_ASSERT((keys1.Parts_ == TVector<TString>{"a", "b"}));

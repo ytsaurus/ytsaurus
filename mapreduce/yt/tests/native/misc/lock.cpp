@@ -9,9 +9,9 @@ using namespace NYT::NTesting;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-SIMPLE_UNIT_TEST_SUITE(Lock)
+Y_UNIT_TEST_SUITE(Lock)
 {
-    SIMPLE_UNIT_TEST(TestNonwaitableLock)
+    Y_UNIT_TEST(TestNonwaitableLock)
     {
         auto client = CreateTestClient();
         client->Create("//testing/node_for_lock", NT_TABLE);
@@ -32,7 +32,7 @@ SIMPLE_UNIT_TEST_SUITE(Lock)
         );
     }
 
-    SIMPLE_UNIT_TEST(TestWaitableOption)
+    Y_UNIT_TEST(TestWaitableOption)
     {
         auto client = CreateTestClient();
         client->Create("//testing/node_for_lock", NT_TABLE);
@@ -51,7 +51,7 @@ SIMPLE_UNIT_TEST_SUITE(Lock)
         UNIT_ASSERT_VALUES_EQUAL(getLockState(), "acquired");
     }
 
-    SIMPLE_UNIT_TEST(TestWait)
+    Y_UNIT_TEST(TestWait)
     {
         TZeroWaitLockPollIntervalGuard g;
 
@@ -68,7 +68,7 @@ SIMPLE_UNIT_TEST_SUITE(Lock)
         lockAcquired.GetValue(TDuration::MilliSeconds(500));
     }
 
-    SIMPLE_UNIT_TEST(TestBrokenWait)
+    Y_UNIT_TEST(TestBrokenWait)
     {
         TZeroWaitLockPollIntervalGuard g;
 
@@ -87,7 +87,7 @@ SIMPLE_UNIT_TEST_SUITE(Lock)
         UNIT_ASSERT_EXCEPTION(lockAcquired.GetValue(), TErrorResponse);
     }
 
-    SIMPLE_UNIT_TEST(TestChildKey)
+    Y_UNIT_TEST(TestChildKey)
     {
         auto client = CreateTestClient();
 
@@ -126,7 +126,7 @@ SIMPLE_UNIT_TEST_SUITE(Lock)
         tx2->Set("//testing/map-node/child2", 22);
     }
 
-    SIMPLE_UNIT_TEST(TestAttributeKey)
+    Y_UNIT_TEST(TestAttributeKey)
     {
         auto client = CreateTestClient();
 

@@ -33,9 +33,9 @@ IClientPtr CreateTestRpcClient()
     return connection->CreateClient(clientOptions);
 }
 
-SIMPLE_UNIT_TEST_SUITE(CypressClient)
+Y_UNIT_TEST_SUITE(CypressClient)
 {
-    SIMPLE_UNIT_TEST(ListCypressRoot)
+    Y_UNIT_TEST(ListCypressRoot)
     {
         TLogManager::Get()->ConfigureFromEnv();
         TAddressResolver::Get()->Configure(New<TAddressResolverConfig>());

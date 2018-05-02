@@ -9,9 +9,9 @@
 using namespace NYT;
 using namespace NYT::NTesting;
 
-SIMPLE_UNIT_TEST_SUITE(TestErrors)
+Y_UNIT_TEST_SUITE(TestErrors)
 {
-    SIMPLE_UNIT_TEST(TestErrorParsing)
+    Y_UNIT_TEST(TestErrorParsing)
     {
         auto client = CreateTestClient();
         client->Set("//testing/vzhukh", "i protestirovano");

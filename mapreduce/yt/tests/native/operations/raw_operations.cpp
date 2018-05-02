@@ -90,9 +90,9 @@ REGISTER_RAW_JOB(TJsonValueJoin);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-SIMPLE_UNIT_TEST_SUITE(RawOperations)
+Y_UNIT_TEST_SUITE(RawOperations)
 {
-    SIMPLE_UNIT_TEST(Map)
+    Y_UNIT_TEST(Map)
     {
         auto client = CreateTestClient();
 
@@ -121,7 +121,7 @@ SIMPLE_UNIT_TEST_SUITE(RawOperations)
         UNIT_ASSERT_VALUES_EQUAL(actual, expected);
     }
 
-    SIMPLE_UNIT_TEST(Reduce)
+    Y_UNIT_TEST(Reduce)
     {
         auto client = CreateTestClient();
 
@@ -154,7 +154,7 @@ SIMPLE_UNIT_TEST_SUITE(RawOperations)
         UNIT_ASSERT_VALUES_EQUAL(actual, expected);
     }
 
-    SIMPLE_UNIT_TEST(MapReduce)
+    Y_UNIT_TEST(MapReduce)
     {
         auto client = CreateTestClient();
 

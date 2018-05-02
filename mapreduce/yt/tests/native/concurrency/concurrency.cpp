@@ -14,8 +14,8 @@ T MakeCopy(const T& t) {
     return t;
 }
 
-SIMPLE_UNIT_TEST_SUITE(Concurrency) {
-    SIMPLE_UNIT_TEST(TestConcurrency) {
+Y_UNIT_TEST_SUITE(Concurrency) {
+    Y_UNIT_TEST(TestConcurrency) {
         NYT::Initialize(0, nullptr);
         auto client = CreateTestClient();
         client->Set("//testing/foo", 54);

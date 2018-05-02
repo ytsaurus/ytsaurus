@@ -18,8 +18,8 @@ static TNode::TListType SortedStrings(TNode::TListType input) {
     return input;
 }
 
-SIMPLE_UNIT_TEST_SUITE(CypressClient) {
-    SIMPLE_UNIT_TEST(TestCreateAllTypes)
+Y_UNIT_TEST_SUITE(CypressClient) {
+    Y_UNIT_TEST(TestCreateAllTypes)
     {
         auto client = CreateTestClient();
 
@@ -48,7 +48,7 @@ SIMPLE_UNIT_TEST_SUITE(CypressClient) {
         }
     }
 
-    SIMPLE_UNIT_TEST(TestCreate)
+    Y_UNIT_TEST(TestCreate)
     {
         auto client = CreateTestClient();
         auto tx = client->StartTransaction();
@@ -92,7 +92,7 @@ SIMPLE_UNIT_TEST_SUITE(CypressClient) {
         }
     }
 
-    SIMPLE_UNIT_TEST(TestCreateHugeAttribute)
+    Y_UNIT_TEST(TestCreateHugeAttribute)
     {
         auto client = CreateTestClient();
         const TString hugeAttribute(1024 * 1024, 'a');
@@ -101,7 +101,7 @@ SIMPLE_UNIT_TEST_SUITE(CypressClient) {
         UNIT_ASSERT_EQUAL(client->Get("//testing/table/@huge_attribute").AsString(), hugeAttribute);
     }
 
-    SIMPLE_UNIT_TEST(TestRemove)
+    Y_UNIT_TEST(TestRemove)
     {
         auto client = CreateTestClient();
         auto tx = client->StartTransaction();
@@ -129,7 +129,7 @@ SIMPLE_UNIT_TEST_SUITE(CypressClient) {
         client->Remove("//testing/missing_node", TRemoveOptions().Force(true));
     }
 
-    SIMPLE_UNIT_TEST(TestSetGet)
+    Y_UNIT_TEST(TestSetGet)
     {
         auto client = CreateTestClient();
         const TNode nodeList[] = {
@@ -171,7 +171,7 @@ SIMPLE_UNIT_TEST_SUITE(CypressClient) {
         UNIT_ASSERT_VALUES_EQUAL(nodeWithAttr.GetAttributes().AsMap().at("attr_name"), TNode("attr_value"));
     }
 
-    SIMPLE_UNIT_TEST(TestList)
+    Y_UNIT_TEST(TestList)
     {
         auto client = CreateTestClient();
         auto tx = client->StartTransaction();
@@ -206,7 +206,7 @@ SIMPLE_UNIT_TEST_SUITE(CypressClient) {
             TNode::TListType({barNode, "foo"}));
     }
 
-    SIMPLE_UNIT_TEST(TestCopy)
+    Y_UNIT_TEST(TestCopy)
     {
         auto client = CreateTestClient();
 
@@ -215,7 +215,7 @@ SIMPLE_UNIT_TEST_SUITE(CypressClient) {
         UNIT_ASSERT_VALUES_EQUAL(client->Get("//testing/copy_simple"), client->Get("//testing/simple"));
     }
 
-    SIMPLE_UNIT_TEST(TestMove)
+    Y_UNIT_TEST(TestMove)
     {
         auto client = CreateTestClient();
 
@@ -226,7 +226,7 @@ SIMPLE_UNIT_TEST_SUITE(CypressClient) {
         UNIT_ASSERT_VALUES_EQUAL(client->Exists("//testing/simple"), false);
     }
 
-    SIMPLE_UNIT_TEST(TestCopy_PreserveExpirationTime)
+    Y_UNIT_TEST(TestCopy_PreserveExpirationTime)
     {
         auto client = CreateTestClient();
 
@@ -245,7 +245,7 @@ SIMPLE_UNIT_TEST_SUITE(CypressClient) {
         UNIT_ASSERT_EXCEPTION(client->Get("//testing/copy_table_false/@expiration_time"), yexception);
     }
 
-    SIMPLE_UNIT_TEST(TestMove_PreserveExpirationTime)
+    Y_UNIT_TEST(TestMove_PreserveExpirationTime)
     {
         auto client = CreateTestClient();
 
@@ -265,7 +265,7 @@ SIMPLE_UNIT_TEST_SUITE(CypressClient) {
         UNIT_ASSERT_EXCEPTION(client->Get("//testing/moved_table_false/@expiration_time"), yexception);
     }
 
-    SIMPLE_UNIT_TEST(TestLink)
+    Y_UNIT_TEST(TestLink)
     {
         auto client = CreateTestClient();
 
@@ -284,7 +284,7 @@ SIMPLE_UNIT_TEST_SUITE(CypressClient) {
         UNIT_ASSERT_VALUES_EQUAL(client->Get("//testing/table_link&/@target_path"), "//testing/table2");
     }
 
-    SIMPLE_UNIT_TEST(TestConcatenate)
+    Y_UNIT_TEST(TestConcatenate)
     {
         auto client = CreateTestClient();
         {
@@ -311,7 +311,7 @@ SIMPLE_UNIT_TEST_SUITE(CypressClient) {
         }
     }
 
-    SIMPLE_UNIT_TEST(TestRetries)
+    Y_UNIT_TEST(TestRetries)
     {
         TConfig::Get()->UseAbortableResponse = true;
         TConfig::Get()->RetryCount = 4;

@@ -20,9 +20,9 @@ static TJsonValue ReadJson(TStringBuf input)
     return result;
 }
 
-SIMPLE_UNIT_TEST_SUITE(NodeFromJson)
+Y_UNIT_TEST_SUITE(NodeFromJson)
 {
-    SIMPLE_UNIT_TEST(TestSimpleMap) {
+    Y_UNIT_TEST(TestSimpleMap) {
         const char* input =
             R"""( { )"""
             R"""(   "foo": "bar" )"""
@@ -36,7 +36,7 @@ SIMPLE_UNIT_TEST_SUITE(NodeFromJson)
         UNIT_ASSERT_VALUES_EQUAL(resultNode, TNode()("foo", "bar"));
     }
 
-    SIMPLE_UNIT_TEST(TestSimpleArray) {
+    Y_UNIT_TEST(TestSimpleArray) {
         const char* input =
             R"""( [ )"""
             R"""(  { )"""

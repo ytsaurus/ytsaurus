@@ -326,9 +326,9 @@ REGISTER_REDUCER(TReducerThatSumsFirstThreeValues);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-SIMPLE_UNIT_TEST_SUITE(Operations)
+Y_UNIT_TEST_SUITE(Operations)
 {
-    SIMPLE_UNIT_TEST(IncorrectTableId)
+    Y_UNIT_TEST(IncorrectTableId)
     {
         auto client = CreateTestClient();
 
@@ -346,7 +346,7 @@ SIMPLE_UNIT_TEST_SUITE(Operations)
             new TMapperThatWritesToIncorrectTable);
     }
 
-    SIMPLE_UNIT_TEST(MaxFailedJobCount)
+    Y_UNIT_TEST(MaxFailedJobCount)
     {
         auto client = CreateTestClient();
 
@@ -377,7 +377,7 @@ SIMPLE_UNIT_TEST_SUITE(Operations)
         }
     }
 
-    SIMPLE_UNIT_TEST(FailOnJobRestart)
+    Y_UNIT_TEST(FailOnJobRestart)
     {
         auto client = CreateTestClient();
 
@@ -405,7 +405,7 @@ SIMPLE_UNIT_TEST_SUITE(Operations)
         UNIT_ASSERT_VALUES_EQUAL(failedJobs.AsInt64(), 1);
     }
 
-    SIMPLE_UNIT_TEST(StderrTablePath)
+    Y_UNIT_TEST(StderrTablePath)
     {
         auto client = CreateTestClient();
 
@@ -429,7 +429,7 @@ SIMPLE_UNIT_TEST_SUITE(Operations)
         UNIT_ASSERT(!reader->IsValid());
     }
 
-    SIMPLE_UNIT_TEST(CreateDebugOutputTables)
+    Y_UNIT_TEST(CreateDebugOutputTables)
     {
         auto client = CreateTestClient();
 
@@ -462,7 +462,7 @@ SIMPLE_UNIT_TEST_SUITE(Operations)
             new TMapperThatWritesStderr);
     }
 
-    SIMPLE_UNIT_TEST(CreateOutputTables)
+    Y_UNIT_TEST(CreateOutputTables)
     {
         auto client = CreateTestClient();
 
@@ -493,7 +493,7 @@ SIMPLE_UNIT_TEST_SUITE(Operations)
             new TMapperThatWritesStderr);
     }
 
-    SIMPLE_UNIT_TEST(JobCount)
+    Y_UNIT_TEST(JobCount)
     {
         auto client = CreateTestClient();
 
@@ -553,7 +553,7 @@ SIMPLE_UNIT_TEST_SUITE(Operations)
         }
     }
 
-    SIMPLE_UNIT_TEST(TestFetchTable)
+    Y_UNIT_TEST(TestFetchTable)
     {
         auto client = CreateTestClient();
 
@@ -572,7 +572,7 @@ SIMPLE_UNIT_TEST_SUITE(Operations)
             new TMapperThatChecksFile("input"));
     }
 
-    SIMPLE_UNIT_TEST(TestFetchTableRange)
+    Y_UNIT_TEST(TestFetchTableRange)
     {
         auto client = CreateTestClient();
 
@@ -591,7 +591,7 @@ SIMPLE_UNIT_TEST_SUITE(Operations)
             new TMapperThatChecksFile("input"));
     }
 
-    SIMPLE_UNIT_TEST(TestReadProtobufFileInJob)
+    Y_UNIT_TEST(TestReadProtobufFileInJob)
     {
         auto client = CreateTestClient();
 
@@ -634,7 +634,7 @@ SIMPLE_UNIT_TEST_SUITE(Operations)
         }
     }
 
-    SIMPLE_UNIT_TEST(TestGetOperationStatus_Completed)
+    Y_UNIT_TEST(TestGetOperationStatus_Completed)
     {
         auto client = CreateTestClient();
 
@@ -662,7 +662,7 @@ SIMPLE_UNIT_TEST_SUITE(Operations)
         UNIT_ASSERT(operation->GetError().Empty());
     }
 
-    SIMPLE_UNIT_TEST(TestGetOperationStatus_Failed)
+    Y_UNIT_TEST(TestGetOperationStatus_Failed)
     {
         auto client = CreateTestClient();
 
@@ -691,7 +691,7 @@ SIMPLE_UNIT_TEST_SUITE(Operations)
         UNIT_ASSERT(operation->GetError().Defined());
     }
 
-    SIMPLE_UNIT_TEST(TestGetOperationStatistics)
+    Y_UNIT_TEST(TestGetOperationStatistics)
     {
         auto client = CreateTestClient();
 
@@ -710,7 +710,7 @@ SIMPLE_UNIT_TEST_SUITE(Operations)
         UNIT_ASSERT(jobStatistics.GetStatistics("time/total").Max().Defined());
     }
 
-    SIMPLE_UNIT_TEST(TestCustomStatistics)
+    Y_UNIT_TEST(TestCustomStatistics)
     {
         auto client = CreateTestClient();
         {
@@ -742,7 +742,7 @@ SIMPLE_UNIT_TEST_SUITE(Operations)
         UNIT_ASSERT(*escaped == 1337);
     }
 
-    SIMPLE_UNIT_TEST(GetBriefProgress)
+    Y_UNIT_TEST(GetBriefProgress)
     {
         auto client = CreateTestClient();
 
@@ -800,27 +800,27 @@ SIMPLE_UNIT_TEST_SUITE(Operations)
         UNIT_ASSERT_VALUES_EQUAL(expected, actual);
     }
 
-    SIMPLE_UNIT_TEST(ProtobufMap_NativeProtobuf)
+    Y_UNIT_TEST(ProtobufMap_NativeProtobuf)
     {
         MapWithProtobuf(false, false);
     }
 
-    SIMPLE_UNIT_TEST(ProtobufMap_ClientProtobuf)
+    Y_UNIT_TEST(ProtobufMap_ClientProtobuf)
     {
         MapWithProtobuf(false, true);
     }
 
-    SIMPLE_UNIT_TEST(ProtobufMap_Input_VerySlow_Deprecated_NativeProtobuf)
+    Y_UNIT_TEST(ProtobufMap_Input_VerySlow_Deprecated_NativeProtobuf)
     {
         MapWithProtobuf(true, false);
     }
 
-    SIMPLE_UNIT_TEST(ProtobufMap_Input_VerySlow_Deprecated_ClientProtobuf)
+    Y_UNIT_TEST(ProtobufMap_Input_VerySlow_Deprecated_ClientProtobuf)
     {
         MapWithProtobuf(true, true);
     }
 
-    SIMPLE_UNIT_TEST(JobPrefix)
+    Y_UNIT_TEST(JobPrefix)
     {
         auto client = CreateTestClient();
         auto inputTable = TRichYPath("//testing/input");
@@ -899,7 +899,7 @@ SIMPLE_UNIT_TEST_SUITE(Operations)
         }
     }
 
-    SIMPLE_UNIT_TEST(AddLocalFile)
+    Y_UNIT_TEST(AddLocalFile)
     {
         auto client = CreateTestClient();
 
@@ -924,7 +924,7 @@ SIMPLE_UNIT_TEST_SUITE(Operations)
             new TMapperThatChecksFile("path/in/job"));
     }
 
-    SIMPLE_UNIT_TEST(TestFailWithNoInputOutput)
+    Y_UNIT_TEST(TestFailWithNoInputOutput)
     {
         auto client = CreateTestClient();
 
@@ -949,7 +949,7 @@ SIMPLE_UNIT_TEST_SUITE(Operations)
         }
     }
 
-    SIMPLE_UNIT_TEST(MaxOperationCountExceeded)
+    Y_UNIT_TEST(MaxOperationCountExceeded)
     {
         TConfigSaverGuard csg;
         TConfig::Get()->UseAbortableResponse = true;
@@ -989,7 +989,7 @@ SIMPLE_UNIT_TEST_SUITE(Operations)
         }
     }
 
-    SIMPLE_UNIT_TEST(NetworkProblems)
+    Y_UNIT_TEST(NetworkProblems)
     {
         TConfigSaverGuard csg;
         TConfig::Get()->UseAbortableResponse = true;
@@ -1064,27 +1064,27 @@ SIMPLE_UNIT_TEST_SUITE(Operations)
         UNIT_ASSERT_VALUES_EQUAL(reader->GetRow(), row);
     }
 
-    SIMPLE_UNIT_TEST(JobNodeReader_Skiff_Strict)
+    Y_UNIT_TEST(JobNodeReader_Skiff_Strict)
     {
         TestJobNodeReader(ENodeReaderFormat::Skiff, true);
     }
-    SIMPLE_UNIT_TEST(JobNodeReader_Skiff_NonStrict)
+    Y_UNIT_TEST(JobNodeReader_Skiff_NonStrict)
     {
         UNIT_ASSERT_EXCEPTION(TestJobNodeReader(ENodeReaderFormat::Skiff, false), yexception);
     }
-    SIMPLE_UNIT_TEST(JobNodeReader_Auto_Strict)
+    Y_UNIT_TEST(JobNodeReader_Auto_Strict)
     {
         TestJobNodeReader(ENodeReaderFormat::Auto, true);
     }
-    SIMPLE_UNIT_TEST(JobNodeReader_Auto_NonStrict)
+    Y_UNIT_TEST(JobNodeReader_Auto_NonStrict)
     {
         TestJobNodeReader(ENodeReaderFormat::Auto, false);
     }
-    SIMPLE_UNIT_TEST(JobNodeReader_Yson_Strict)
+    Y_UNIT_TEST(JobNodeReader_Yson_Strict)
     {
         TestJobNodeReader(ENodeReaderFormat::Yson, true);
     }
-    SIMPLE_UNIT_TEST(JobNodeReader_Yson_NonStrict)
+    Y_UNIT_TEST(JobNodeReader_Yson_NonStrict)
     {
         TestJobNodeReader(ENodeReaderFormat::Yson, false);
     }
@@ -1128,17 +1128,17 @@ SIMPLE_UNIT_TEST_SUITE(Operations)
         }
     }
 
-    SIMPLE_UNIT_TEST(IncompleteReducer_Yson)
+    Y_UNIT_TEST(IncompleteReducer_Yson)
     {
         TestIncompleteReducer(ENodeReaderFormat::Yson);
     }
 
-    SIMPLE_UNIT_TEST(IncompleteReducer_Skiff)
+    Y_UNIT_TEST(IncompleteReducer_Skiff)
     {
         TestIncompleteReducer(ENodeReaderFormat::Skiff);
     }
 
-    SIMPLE_UNIT_TEST(SkiffForDynamicTables)
+    Y_UNIT_TEST(SkiffForDynamicTables)
     {
         TConfigSaverGuard configGuard;
         TTabletFixture fixture;
@@ -1173,7 +1173,7 @@ SIMPLE_UNIT_TEST_SUITE(Operations)
             yexception);
     }
 
-    SIMPLE_UNIT_TEST(LockConflictWhileTouchingCachedFiles)
+    Y_UNIT_TEST(LockConflictWhileTouchingCachedFiles)
     {
         auto client = CreateTestClient();
         client->Create("//testing/file_storage", NT_MAP);
@@ -1218,9 +1218,9 @@ SIMPLE_UNIT_TEST_SUITE(Operations)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-SIMPLE_UNIT_TEST_SUITE(OperationWatch)
+Y_UNIT_TEST_SUITE(OperationWatch)
 {
-    SIMPLE_UNIT_TEST(SimpleOperationWatch)
+    Y_UNIT_TEST(SimpleOperationWatch)
     {
         auto client = CreateTestClient();
 
@@ -1247,7 +1247,7 @@ SIMPLE_UNIT_TEST_SUITE(OperationWatch)
         UNIT_ASSERT(operation->GetError().Empty());
     }
 
-    SIMPLE_UNIT_TEST(FailedOperationWatch)
+    Y_UNIT_TEST(FailedOperationWatch)
     {
         auto client = CreateTestClient();
 
@@ -1309,12 +1309,12 @@ SIMPLE_UNIT_TEST_SUITE(OperationWatch)
         UNIT_ASSERT(operation->GetError().Defined());
     }
 
-    SIMPLE_UNIT_TEST(AbortedOperationWatch_ClientAbort)
+    Y_UNIT_TEST(AbortedOperationWatch_ClientAbort)
     {
         AbortedOperationWatchImpl(false);
     }
 
-    SIMPLE_UNIT_TEST(AbortedOperationWatch_OperationAbort)
+    Y_UNIT_TEST(AbortedOperationWatch_OperationAbort)
     {
         AbortedOperationWatchImpl(true);
     }
@@ -1355,12 +1355,12 @@ SIMPLE_UNIT_TEST_SUITE(OperationWatch)
         UNIT_ASSERT(!operation->GetError().Defined());
     }
 
-    SIMPLE_UNIT_TEST(CompletedOperationWatch_ClientComplete)
+    Y_UNIT_TEST(CompletedOperationWatch_ClientComplete)
     {
         CompletedOperationWatchImpl(false);
     }
 
-    SIMPLE_UNIT_TEST(CompletedOperationWatch_OperationComplete)
+    Y_UNIT_TEST(CompletedOperationWatch_OperationComplete)
     {
         CompletedOperationWatchImpl(true);
     }
@@ -1391,17 +1391,17 @@ SIMPLE_UNIT_TEST_SUITE(OperationWatch)
         }
     }
 
-    SIMPLE_UNIT_TEST(GetFailedJobInfo_GlobalClient)
+    Y_UNIT_TEST(GetFailedJobInfo_GlobalClient)
     {
         TestGetFailedJobInfoImpl(CreateTestClient());
     }
 
-    SIMPLE_UNIT_TEST(GetFailedJobInfo_Transaction)
+    Y_UNIT_TEST(GetFailedJobInfo_Transaction)
     {
         TestGetFailedJobInfoImpl(CreateTestClient()->StartTransaction());
     }
 
-    SIMPLE_UNIT_TEST(GetBriefProgress)
+    Y_UNIT_TEST(GetBriefProgress)
     {
         auto client = CreateTestClient();
 
@@ -1424,7 +1424,7 @@ SIMPLE_UNIT_TEST_SUITE(OperationWatch)
         UNIT_ASSERT(briefProgress->Total > 0);
     }
 
-    SIMPLE_UNIT_TEST(TestHugeFailWithHugeStderr)
+    Y_UNIT_TEST(TestHugeFailWithHugeStderr)
     {
         auto client = CreateTestClient();
 
@@ -1448,7 +1448,7 @@ SIMPLE_UNIT_TEST_SUITE(OperationWatch)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-SIMPLE_UNIT_TEST_SUITE(OperationTracker)
+Y_UNIT_TEST_SUITE(OperationTracker)
 {
     IOperationPtr AsyncSortByFoo(IClientPtr client, const TString& input, const TString& output)
     {
@@ -1470,7 +1470,7 @@ SIMPLE_UNIT_TEST_SUITE(OperationTracker)
             TOperationOptions().Wait(false));
     }
 
-    SIMPLE_UNIT_TEST(WaitAllCompleted_OkOperations)
+    Y_UNIT_TEST(WaitAllCompleted_OkOperations)
     {
         auto client = CreateTestClient();
 
@@ -1487,7 +1487,7 @@ SIMPLE_UNIT_TEST_SUITE(OperationTracker)
         UNIT_ASSERT_VALUES_EQUAL(op2->GetStatus(), EOperationStatus::OS_COMPLETED);
     }
 
-    SIMPLE_UNIT_TEST(WaitAllCompleted_ErrorOperations)
+    Y_UNIT_TEST(WaitAllCompleted_ErrorOperations)
     {
         auto client = CreateTestClient();
 
@@ -1502,7 +1502,7 @@ SIMPLE_UNIT_TEST_SUITE(OperationTracker)
         UNIT_ASSERT_EXCEPTION(tracker.WaitAllCompleted(), TOperationFailedError);
     }
 
-    SIMPLE_UNIT_TEST(WaitAllCompletedOrError_OkOperations)
+    Y_UNIT_TEST(WaitAllCompletedOrError_OkOperations)
     {
         auto client = CreateTestClient();
 
@@ -1519,7 +1519,7 @@ SIMPLE_UNIT_TEST_SUITE(OperationTracker)
         UNIT_ASSERT_VALUES_EQUAL(op2->GetStatus(), EOperationStatus::OS_COMPLETED);
     }
 
-    SIMPLE_UNIT_TEST(WaitAllCompletedOrError_ErrorOperations)
+    Y_UNIT_TEST(WaitAllCompletedOrError_ErrorOperations)
     {
         auto client = CreateTestClient();
 
@@ -1536,7 +1536,7 @@ SIMPLE_UNIT_TEST_SUITE(OperationTracker)
         UNIT_ASSERT_VALUES_EQUAL(op2->GetStatus(), EOperationStatus::OS_FAILED);
     }
 
-    SIMPLE_UNIT_TEST(WaitOneCompleted_OkOperation)
+    Y_UNIT_TEST(WaitOneCompleted_OkOperation)
     {
         auto client = CreateTestClient();
 
@@ -1562,7 +1562,7 @@ SIMPLE_UNIT_TEST_SUITE(OperationTracker)
         UNIT_ASSERT_VALUES_EQUAL(TSet<IOperation*>({op1.Get(), op2.Get()}), TSet<IOperation*>({waited1.Get(), waited2.Get()}));
     }
 
-    SIMPLE_UNIT_TEST(WaitOneCompleted_ErrorOperation)
+    Y_UNIT_TEST(WaitOneCompleted_ErrorOperation)
     {
         auto client = CreateTestClient();
 
@@ -1583,7 +1583,7 @@ SIMPLE_UNIT_TEST_SUITE(OperationTracker)
         UNIT_ASSERT_EXCEPTION(waitByOne(), TOperationFailedError);
     }
 
-    SIMPLE_UNIT_TEST(WaitOneCompletedOrError_ErrorOperation)
+    Y_UNIT_TEST(WaitOneCompletedOrError_ErrorOperation)
     {
         auto client = CreateTestClient();
 
@@ -1610,7 +1610,7 @@ SIMPLE_UNIT_TEST_SUITE(OperationTracker)
         UNIT_ASSERT_VALUES_EQUAL(op2->GetStatus(), OS_FAILED);
     }
 
-    SIMPLE_UNIT_TEST(ConnectionErrorWhenOperationIsTracked)
+    Y_UNIT_TEST(ConnectionErrorWhenOperationIsTracked)
     {
         TConfigSaverGuard csg;
         TConfig::Get()->UseAbortableResponse = true;

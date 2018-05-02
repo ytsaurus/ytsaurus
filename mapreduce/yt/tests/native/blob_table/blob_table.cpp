@@ -10,8 +10,8 @@ using namespace NYT;
 using namespace NYT::NTesting;
 using namespace NYtBlobTable;
 
-SIMPLE_UNIT_TEST_SUITE(BlobTable) {
-    SIMPLE_UNIT_TEST(Simple)
+Y_UNIT_TEST_SUITE(BlobTable) {
+    Y_UNIT_TEST(Simple)
     {
         auto client = CreateTestClient();
 
@@ -48,7 +48,7 @@ SIMPLE_UNIT_TEST_SUITE(BlobTable) {
         }
     }
 
-    SIMPLE_UNIT_TEST(UnexistingTable)
+    Y_UNIT_TEST(UnexistingTable)
     {
         auto client = CreateTestClient();
 
@@ -58,7 +58,7 @@ SIMPLE_UNIT_TEST_SUITE(BlobTable) {
         UNIT_ASSERT_EXCEPTION(create(), yexception);
     }
 
-    SIMPLE_UNIT_TEST(SortFailForNonuniqueBlobs)
+    Y_UNIT_TEST(SortFailForNonuniqueBlobs)
     {
         auto client = CreateTestClient();
 
@@ -81,7 +81,7 @@ SIMPLE_UNIT_TEST_SUITE(BlobTable) {
         UNIT_ASSERT_EXCEPTION(blobTable.Sort(), yexception);
     }
 
-    SIMPLE_UNIT_TEST(ResetSorting)
+    Y_UNIT_TEST(ResetSorting)
     {
         auto client = CreateTestClient();
 

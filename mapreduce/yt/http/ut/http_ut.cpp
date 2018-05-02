@@ -4,9 +4,9 @@
 
 using namespace NYT;
 
-SIMPLE_UNIT_TEST_SUITE(HttpHeader)
+Y_UNIT_TEST_SUITE(HttpHeader)
 {
-    SIMPLE_UNIT_TEST(TestAddParameter) {
+    Y_UNIT_TEST(TestAddParameter) {
         THttpHeader header("POST", "/foo");
         header.AddMutationId();
 

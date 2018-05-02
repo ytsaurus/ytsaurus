@@ -14,8 +14,8 @@
 using namespace NYT;
 using namespace NYT::NTesting;
 
-SIMPLE_UNIT_TEST_SUITE(Schema) {
-    SIMPLE_UNIT_TEST(Required)
+Y_UNIT_TEST_SUITE(Schema) {
+    Y_UNIT_TEST(Required)
     {
         auto client = CreateTestClient();
 
@@ -52,7 +52,7 @@ SIMPLE_UNIT_TEST_SUITE(Schema) {
         }
     }
 
-    SIMPLE_UNIT_TEST(SchemaAsPathAttribute) {
+    Y_UNIT_TEST(SchemaAsPathAttribute) {
         auto schema = TTableSchema()
             .AddColumn(TColumnSchema().Name("key").Type(VT_STRING))
             .AddColumn(TColumnSchema().Name("value").Type(VT_INT64));

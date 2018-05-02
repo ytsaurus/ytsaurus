@@ -24,8 +24,8 @@ using namespace NYT;
 #define TEST_FIELD_NOT_PRESENT(schema, name) \
     UNIT_ASSERT(std::find_if(cbegin(schema.Columns_), cend(schema.Columns_), [&](const auto& v){ return v.Name_ == name; }) == cend(schema.Columns_));
 
-SIMPLE_UNIT_TEST_SUITE(ProtoSchemaTest) {
-    SIMPLE_UNIT_TEST(TIntegral) {
+Y_UNIT_TEST_SUITE(ProtoSchemaTest) {
+    Y_UNIT_TEST(TIntegral) {
         const auto schema = CreateTableSchema<NTesting::TIntegral>();
 
         UNIT_ASSERT_EQUAL(14, schema.Columns_.size());
@@ -46,11 +46,11 @@ SIMPLE_UNIT_TEST_SUITE(ProtoSchemaTest) {
         TEST_FIELD(schema.Columns_[13], "EnumField", EValueType::VT_STRING);
     }
 
-    SIMPLE_UNIT_TEST(TRepeated) {
+    Y_UNIT_TEST(TRepeated) {
         UNIT_ASSERT_EXCEPTION(CreateTableSchema<NTesting::TRepeated>(), yexception);
     }
 
-    SIMPLE_UNIT_TEST(TOneOf) {
+    Y_UNIT_TEST(TOneOf) {
         const auto schema = CreateTableSchema<NTesting::TOneOf>();
 
         UNIT_ASSERT_EQUAL(3, schema.Columns_.size());
@@ -60,7 +60,7 @@ SIMPLE_UNIT_TEST_SUITE(ProtoSchemaTest) {
         TEST_FIELD(schema.Columns_[2], "BoolField", EValueType::VT_BOOLEAN);
     }
 
-    SIMPLE_UNIT_TEST(TAggregated) {
+    Y_UNIT_TEST(TAggregated) {
         const auto schema = CreateTableSchema<NTesting::TAggregated>();
 
         UNIT_ASSERT_EQUAL(6, schema.Columns_.size());
@@ -73,7 +73,7 @@ SIMPLE_UNIT_TEST_SUITE(ProtoSchemaTest) {
         TEST_FIELD(schema.Columns_[5], "NestedRecursiveField", EValueType::VT_STRING);
     }
 
-    SIMPLE_UNIT_TEST(TAliased) {
+    Y_UNIT_TEST(TAliased) {
         const auto schema = CreateTableSchema<NTesting::TAliased>();
 
         UNIT_ASSERT_EQUAL(3, schema.Columns_.size());
@@ -83,7 +83,7 @@ SIMPLE_UNIT_TEST_SUITE(ProtoSchemaTest) {
         TEST_FIELD(schema.Columns_[2], "Data", EValueType::VT_STRING);
     }
 
-    SIMPLE_UNIT_TEST(KeyColumns) {
+    Y_UNIT_TEST(KeyColumns) {
         const TKeyColumns KEYS = {"key", "subkey"};
 
         const auto schema = CreateTableSchema<NTesting::TAliased>(KEYS);
@@ -93,19 +93,19 @@ SIMPLE_UNIT_TEST_SUITE(ProtoSchemaTest) {
         TEST_FIELD(schema.Columns_[2], "Data", EValueType::VT_STRING);
     }
 
-    SIMPLE_UNIT_TEST(KeyColumnsInvalid) {
+    Y_UNIT_TEST(KeyColumnsInvalid) {
         UNIT_ASSERT_EXCEPTION(CreateTableSchema<NTesting::TAliased>({"subkey"}), yexception);
         UNIT_ASSERT_EXCEPTION(CreateTableSchema<NTesting::TAliased>({"key", "Data"}), yexception);
     }
 
-    SIMPLE_UNIT_TEST(KeepFieldsWithoutExtensionTrue) {
+    Y_UNIT_TEST(KeepFieldsWithoutExtensionTrue) {
         const auto s = CreateTableSchema<NTesting::TAliased>({}, true);
         TEST_FIELD_PRESENT(s, "key");
         TEST_FIELD_PRESENT(s, "subkey");
         TEST_FIELD_PRESENT(s, "Data");
     }
 
-    SIMPLE_UNIT_TEST(KeepFieldsWithoutExtensionFalse) {
+    Y_UNIT_TEST(KeepFieldsWithoutExtensionFalse) {
         const auto s = CreateTableSchema<NTesting::TAliased>({}, false);
         TEST_FIELD_PRESENT(s, "key");
         TEST_FIELD_PRESENT(s, "subkey");

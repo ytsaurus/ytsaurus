@@ -24,8 +24,8 @@ static TTempTable GenerateTempTable(IClientBasePtr client, const TString& tableP
     return tempTable2;
 }
 
-SIMPLE_UNIT_TEST_SUITE(TempTableTestSuite) {
-    SIMPLE_UNIT_TEST(Simple)
+Y_UNIT_TEST_SUITE(TempTableTestSuite) {
+    Y_UNIT_TEST(Simple)
     {
         auto client = CreateTestClient();
         TString tmpTableName;
@@ -37,7 +37,7 @@ SIMPLE_UNIT_TEST_SUITE(TempTableTestSuite) {
         UNIT_ASSERT(!client->Exists(tmpTableName));
     }
 
-    SIMPLE_UNIT_TEST(MoveSemantics)
+    Y_UNIT_TEST(MoveSemantics)
     {
         auto client = CreateTestClient();
         TString tmpTableName1;
@@ -62,7 +62,7 @@ SIMPLE_UNIT_TEST_SUITE(TempTableTestSuite) {
         UNIT_ASSERT(!client->Exists(tmpTableName2));
     }
 
-    SIMPLE_UNIT_TEST(UsageInContainers)
+    Y_UNIT_TEST(UsageInContainers)
     {
         auto client = CreateTestClient();
         TVector<TTempTable> tmpTableGuard;

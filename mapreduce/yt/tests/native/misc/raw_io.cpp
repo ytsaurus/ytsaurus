@@ -66,9 +66,9 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-SIMPLE_UNIT_TEST_SUITE(RawIo)
+Y_UNIT_TEST_SUITE(RawIo)
 {
-    SIMPLE_UNIT_TEST(Read)
+    Y_UNIT_TEST(Read)
     {
         TTestRawReaderFixture testFixture(10);
 
@@ -85,7 +85,7 @@ SIMPLE_UNIT_TEST_SUITE(RawIo)
         UNIT_ASSERT_VALUES_EQUAL(res.AsList(), testFixture.GetData());
     }
 
-    SIMPLE_UNIT_TEST(RetryBeforeRead)
+    Y_UNIT_TEST(RetryBeforeRead)
     {
         TTestRawReaderFixture testFixture(10);
 
@@ -130,7 +130,7 @@ SIMPLE_UNIT_TEST_SUITE(RawIo)
         }
     }
 
-    SIMPLE_UNIT_TEST(RetryAfterRead)
+    Y_UNIT_TEST(RetryAfterRead)
     {
         TTestRawReaderFixture testFixture(10);
 
@@ -150,7 +150,7 @@ SIMPLE_UNIT_TEST_SUITE(RawIo)
             TNode::TListType(testFixture.GetData().begin() + 9, testFixture.GetData().end()));
     }
 
-    SIMPLE_UNIT_TEST(ReadRange)
+    Y_UNIT_TEST(ReadRange)
     {
         TTestRawReaderFixture testFixture(10);
 
@@ -174,7 +174,7 @@ SIMPLE_UNIT_TEST_SUITE(RawIo)
             TNode::TListType(testFixture.GetData().begin() + 1, testFixture.GetData().begin() + 5));
     }
 
-    SIMPLE_UNIT_TEST(RetryReadRange)
+    Y_UNIT_TEST(RetryReadRange)
     {
         TTestRawReaderFixture testFixture(20);
 

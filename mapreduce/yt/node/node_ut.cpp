@@ -13,8 +13,8 @@ void Out<NYT::TNode>(IOutputStream& s, const NYT::TNode& node)
     s << "TNode:" << NodeToYsonString(node);
 }
 
-SIMPLE_UNIT_TEST_SUITE(YtNodeTest) {
-    SIMPLE_UNIT_TEST(TestConstsructors) {
+Y_UNIT_TEST_SUITE(YtNodeTest) {
+    Y_UNIT_TEST(TestConstsructors) {
         TNode nodeEmpty;
         UNIT_ASSERT_EQUAL(nodeEmpty.GetType(), TNode::Undefined);
 
@@ -50,7 +50,7 @@ SIMPLE_UNIT_TEST_SUITE(YtNodeTest) {
         UNIT_ASSERT(nodeEntity.IsEntity());
     }
 
-    SIMPLE_UNIT_TEST(TestNodeMap) {
+    Y_UNIT_TEST(TestNodeMap) {
         TNode nodeMap = TNode()("foo", "bar")("bar", "baz");
         UNIT_ASSERT(nodeMap.IsMap());
         UNIT_ASSERT_EQUAL(nodeMap.GetType(), TNode::Map);
@@ -81,7 +81,7 @@ SIMPLE_UNIT_TEST_SUITE(YtNodeTest) {
         UNIT_ASSERT_EQUAL(copyNode["rock!!!"]["Purple"], TNode("Deep"));
     }
 
-    SIMPLE_UNIT_TEST(TestNodeList) {
+    Y_UNIT_TEST(TestNodeList) {
         TNode nodeList = TNode().Add("foo").Add(42).Add(3.14);
         UNIT_ASSERT(nodeList.IsList());
         UNIT_ASSERT_EQUAL(nodeList.GetType(), TNode::List);
@@ -96,7 +96,7 @@ SIMPLE_UNIT_TEST_SUITE(YtNodeTest) {
         UNIT_ASSERT_EQUAL(copyNode[3][1], TNode("pwd"));
     }
 
-    SIMPLE_UNIT_TEST(TestInsertingMethodsFromTemporaryObjects) {
+    Y_UNIT_TEST(TestInsertingMethodsFromTemporaryObjects) {
         // check that .Add(...) doesn't return lvalue reference to temporary object
         {
             const TNode& nodeList = TNode().Add(0).Add("pass").Add(0);
@@ -110,7 +110,7 @@ SIMPLE_UNIT_TEST_SUITE(YtNodeTest) {
         }
     }
 
-    SIMPLE_UNIT_TEST(TestAttributes) {
+    Y_UNIT_TEST(TestAttributes) {
         TNode node = TNode()("lee", 42)("faa", 54);
         UNIT_ASSERT(!node.HasAttributes());
         node.Attributes()("foo", true)("bar", false);
@@ -153,7 +153,7 @@ SIMPLE_UNIT_TEST_SUITE(YtNodeTest) {
         }
     }
 
-    SIMPLE_UNIT_TEST(TestEq) {
+    Y_UNIT_TEST(TestEq) {
         TNode nodeNoAttributes = TNode()("lee", 42)("faa", 54);
         TNode node = nodeNoAttributes;
         node.Attributes()("foo", true)("bar", false);
@@ -164,7 +164,7 @@ SIMPLE_UNIT_TEST_SUITE(YtNodeTest) {
         UNIT_ASSERT(node == copyNode);
     }
 
-    SIMPLE_UNIT_TEST(TestSaveLoad) {
+    Y_UNIT_TEST(TestSaveLoad) {
         TNode node = TNode()("foo", "bar")("baz", 42);
         node.Attributes()["attr_name"] = "attr_value";
 
@@ -183,7 +183,7 @@ SIMPLE_UNIT_TEST_SUITE(YtNodeTest) {
         UNIT_ASSERT_VALUES_EQUAL(node, nodeCopy);
     }
 
-    SIMPLE_UNIT_TEST(TestIntCast) {
+    Y_UNIT_TEST(TestIntCast) {
         TNode node = 1ull << 31;
         UNIT_ASSERT(node.IsUint64());
         UNIT_ASSERT(node.IntCast<ui64>() == node.AsUint64());
@@ -203,7 +203,7 @@ SIMPLE_UNIT_TEST_SUITE(YtNodeTest) {
         UNIT_ASSERT_EXCEPTION(node.IntCast<ui64>(), TNode::TTypeError);
     }
 
-    SIMPLE_UNIT_TEST(TestConvertToString) {
+    Y_UNIT_TEST(TestConvertToString) {
         UNIT_ASSERT_VALUES_EQUAL(TNode(5).ConvertTo<TString>(), "5");
         UNIT_ASSERT_VALUES_EQUAL(TNode(123432423).ConvertTo<TString>(), "123432423");
         UNIT_ASSERT_VALUES_EQUAL(TNode(123456789012345678ll).ConvertTo<TString>(), "123456789012345678");
@@ -214,7 +214,7 @@ SIMPLE_UNIT_TEST_SUITE(YtNodeTest) {
         UNIT_ASSERT_VALUES_EQUAL(TNode(5.3).ConvertTo<TString>(), "5.3");
     }
 
-    SIMPLE_UNIT_TEST(TestConvertFromString) {
+    Y_UNIT_TEST(TestConvertFromString) {
         UNIT_ASSERT_VALUES_EQUAL(TNode("123456789012345678").ConvertTo<ui64>(), 123456789012345678ull);
         UNIT_ASSERT_VALUES_EQUAL(TNode("123456789012345678").ConvertTo<i64>(), 123456789012345678);
         UNIT_ASSERT_VALUES_EQUAL(TNode(ToString(1ull << 63)).ConvertTo<ui64>(), 1ull << 63);
@@ -222,7 +222,7 @@ SIMPLE_UNIT_TEST_SUITE(YtNodeTest) {
         UNIT_ASSERT_VALUES_EQUAL(TNode("5.34").ConvertTo<double>(), 5.34);
     }
 
-    SIMPLE_UNIT_TEST(TestConvertDoubleInt) {
+    Y_UNIT_TEST(TestConvertDoubleInt) {
         UNIT_ASSERT_VALUES_EQUAL(TNode(5.3).ConvertTo<ui64>(), 5);
         UNIT_ASSERT_VALUES_EQUAL(TNode(5.3).ConvertTo<i64>(), 5);
         UNIT_ASSERT_VALUES_EQUAL(TNode(-5.3).ConvertTo<i64>(), -5);
@@ -250,7 +250,7 @@ SIMPLE_UNIT_TEST_SUITE(YtNodeTest) {
         UNIT_ASSERT_EXCEPTION(TNode(INFINITY).ConvertTo<i64>(), TNode::TTypeError);
     }
 
-    SIMPLE_UNIT_TEST(TestConvertToBool) {
+    Y_UNIT_TEST(TestConvertToBool) {
         UNIT_ASSERT_VALUES_EQUAL(TNode("true").ConvertTo<bool>(), true);
         UNIT_ASSERT_VALUES_EQUAL(TNode("TRUE").ConvertTo<bool>(), true);
         UNIT_ASSERT_VALUES_EQUAL(TNode("false").ConvertTo<bool>(), false);
@@ -261,7 +261,7 @@ SIMPLE_UNIT_TEST_SUITE(YtNodeTest) {
         UNIT_ASSERT_EXCEPTION(TNode("").ConvertTo<bool>(), TFromStringException);
     }
 
-    SIMPLE_UNIT_TEST(TestCanonicalSerialization) {
+    Y_UNIT_TEST(TestCanonicalSerialization) {
         auto node = TNode()
             ("ca", "ca")("c", "c")("a", "a")("b", "b")
             ("bb", TNode()

@@ -9,8 +9,8 @@ using namespace NYT;
 using namespace NYT::NTesting;
 
 
-SIMPLE_UNIT_TEST_SUITE(AlterTable) {
-    SIMPLE_UNIT_TEST(Schema)
+Y_UNIT_TEST_SUITE(AlterTable) {
+    Y_UNIT_TEST(Schema)
     {
         auto client = CreateTestClient();
         client->Create(
@@ -56,7 +56,7 @@ SIMPLE_UNIT_TEST_SUITE(AlterTable) {
         addRowWithRusColumn();
     }
 
-    SIMPLE_UNIT_TEST(WithTransaction)
+    Y_UNIT_TEST(WithTransaction)
     {
         auto client = CreateTestClient();
         auto tx = client->StartTransaction();

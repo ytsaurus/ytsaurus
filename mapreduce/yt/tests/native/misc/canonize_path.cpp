@@ -10,9 +10,9 @@ using namespace NYT::NTesting;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-SIMPLE_UNIT_TEST_SUITE(CanonizeYPath)
+Y_UNIT_TEST_SUITE(CanonizeYPath)
 {
-    SIMPLE_UNIT_TEST(TestOkCanonization)
+    Y_UNIT_TEST(TestOkCanonization)
     {
         auto client = CreateTestClient();
 
@@ -21,7 +21,7 @@ SIMPLE_UNIT_TEST_SUITE(CanonizeYPath)
         UNIT_ASSERT_EQUAL(canonized.Columns_, TKeyColumns({"column"}));
     }
 
-    SIMPLE_UNIT_TEST(TestBadCanonization)
+    Y_UNIT_TEST(TestBadCanonization)
     {
         auto client = CreateTestClient();
         UNIT_ASSERT_EXCEPTION(
