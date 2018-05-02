@@ -201,11 +201,14 @@ private:
             return CellId_;
         }
 
-        bool IsValid()
+        ETransactionParticipantState GetState()
         {
             auto guard = Guard(SpinLock_);
             auto underlying = GetUnderlying();
-            return !underlying || underlying->IsValid();
+            if (!underlying) {
+                return ETransactionParticipantState::Invalid;
+            }
+            return underlying->GetState();
         }
 
         bool IsUp()
@@ -341,7 +344,7 @@ private:
 
         template <class F>
         TFuture<void> EnqueueRequest(
-            bool succeedOnInvalid,
+            bool succeedOnUnregistered,
             bool mustSendImmediately,
             F func)
         {
@@ -356,13 +359,26 @@ private:
             }
 
             auto sender = [=, underlying = std::move(underlying)] () mutable {
-                if (underlying->IsValid()) {
-                    promise.SetFrom(func(underlying));
-                } else if (succeedOnInvalid) {
-                    LOG_DEBUG("Transaction participant is no longer valid; assuming success");
-                    promise.Set(TError());
-                } else {
-                    promise.Set(TError("Participant cell %v is no longer valid", CellId_));
+                switch (underlying->GetState()) {
+                    case ETransactionParticipantState::Valid:
+                        promise.SetFrom(func(underlying));
+                        break;
+
+                    case ETransactionParticipantState::Unregistered:
+                        if (succeedOnUnregistered) {
+                            LOG_DEBUG("Transaction participant unregistered; assuming success");
+                            promise.Set(TError());
+                        } else {
+                            promise.Set(TError("Participant cell %v is no longer registered", CellId_));
+                        }
+                        break;
+
+                    case ETransactionParticipantState::Invalid:
+                        promise.Set(TError("Participant cell %v is no longer valid", CellId_));
+                        break;
+
+                    default:
+                        Y_UNREACHABLE();
                 }
             };
 
@@ -1428,8 +1444,8 @@ private:
     {
         for (auto it = StrongParticipantMap_.begin(); it != StrongParticipantMap_.end(); ) {
             auto jt = it++;
-            if (!jt->second->IsValid()) {
-                LOG_DEBUG("Participant cell unregistered (ParticipantCellId: %v)",
+            if (jt->second->GetState() != ETransactionParticipantState::Valid) {
+                LOG_DEBUG("Participant cell invalidated (ParticipantCellId: %v)",
                     jt->first);
                 StrongParticipantMap_.erase(jt);
             }

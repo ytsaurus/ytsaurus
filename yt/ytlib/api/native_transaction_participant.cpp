@@ -46,10 +46,18 @@ public:
         return TimestampProvider_;
     }
 
-    virtual bool IsValid() const override
+    virtual ETransactionParticipantState GetState() const override
     {
-        return (!Connection_ || !Connection_->IsTerminated()) &&
-            !CellDirectory_->IsCellUnregistered(CellId_);
+        if (CellDirectory_->IsCellUnregistered(CellId_)) {
+            return ETransactionParticipantState::Unregistered;
+        }
+        if (!Connection_) {
+            return ETransactionParticipantState::Valid;
+        }
+        if (Connection_->IsTerminated()) {
+            return ETransactionParticipantState::Invalid;
+        }
+        return ETransactionParticipantState::Valid;
     }
 
     virtual TFuture<void> PrepareTransaction(const TTransactionId& transactionId, TTimestamp prepareTimestamp) override
