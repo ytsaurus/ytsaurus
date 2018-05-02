@@ -8,6 +8,8 @@
 #include <yt/server/cypress_server/node.h>
 #include <yt/server/cypress_server/public.h>
 
+#include <yt/server/table_server/public.h>
+
 #include <yt/ytlib/chunk_client/chunk_owner_ypath_proxy.h>
 #include <yt/ytlib/chunk_client/data_statistics.pb.h>
 
@@ -47,7 +49,7 @@ public:
     virtual void BeginUpload(NChunkClient::EUpdateMode mode);
     virtual void EndUpload(
         const NChunkClient::NProto::TDataStatistics* statistics,
-        const NTableClient::TTableSchema& schema,
+        const NTableServer::TSharedTableSchemaPtr& schema,
         NTableClient::ETableSchemaMode schemaMode,
         TNullable<NTableClient::EOptimizeFor> optimizeFor,
         const TNullable<TMD5Hasher>& md5Hasher);

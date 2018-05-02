@@ -43,10 +43,13 @@ def get_job_spec_rows_for_job(job_id_list):
 
     return lookup_rows(OPERATION_JOB_SPEC_ARCHIVE_TABLE, [generate_keys(job_id) for job_id in job_id_list])
 
-def check_all_jobs_in_operation_archive(job_id_list, table):
+def get_jobs_in_operation_archive(job_id_list, table):
     rows = select_rows("job_id_hi,job_id_lo from [{0}]".format(table))
     job_ids_in_archive = __builtin__.set(get_guid_from_parts(r["job_id_lo"], r["job_id_hi"]) for r in rows)
-    return all(job_id in job_ids_in_archive for job_id in job_id_list)
+    return job_ids_in_archive
+
+def check_all_jobs_in_operation_archive(job_id_list, table):
+    return all(job_id in get_jobs_in_operation_archive(job_id_list, table) for job_id in job_id_list)
 
 def wait_data_in_operation_table_archive(job_id_list):
     wait(lambda: check_all_jobs_in_operation_archive(job_id_list, OPERATION_JOB_ARCHIVE_TABLE))
@@ -65,7 +68,11 @@ class TestGetJobInput(YTEnvSetup):
                 "reporting_period": 10,
                 "min_repeat_delay": 10,
                 "max_repeat_delay": 10,
-            }
+            },
+            "job_controller": {
+                # Force total confirmation happen on every heartbeat
+                "total_confirmation_period": 0
+            },
         },
     }
 
@@ -74,6 +81,13 @@ class TestGetJobInput(YTEnvSetup):
             "enable_job_reporter": True,
             "enable_job_spec_reporter": True,
         },
+    }
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            # Force snapshot never happen
+            "snapshot_period": 10**9,
+        }
     }
 
     def setup(self):
@@ -116,6 +130,8 @@ class TestGetJobInput(YTEnvSetup):
         job_id_list = os.listdir(self._tmpdir)
         assert len(job_id_list) == 1
 
+        # It only works because the operation consists of one job,
+        # so there are no released jobs.
         self.check_job_ids(job_id_list)
 
         events_on_fs().notify_event("job_can_finish")
@@ -139,6 +155,7 @@ class TestGetJobInput(YTEnvSetup):
 
         self.check_job_ids(job_id_list)
 
+    @pytest.mark.xfail(run=False, reason="Job input is unavailable while the operation is not finished")
     def test_map_reduce(self):
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")
@@ -364,3 +381,31 @@ class TestGetJobInput(YTEnvSetup):
         assert job_id_list
 
         self.check_job_ids(job_id_list)
+
+    @pytest.mark.parametrize("successfull_jobs", [False, True])
+    def test_archive_job_spec(self, successfull_jobs):
+        create("table", "//tmp/t_input")
+        create("table", "//tmp/t_output")
+        write_table("//tmp/t_input", [{"foo": i} for i in xrange(25)])
+
+        op = map(
+            in_="//tmp/t_input",
+            out="//tmp/t_output",
+            command="cat > {0}/$YT_JOB_ID; exit {1}".format(self._tmpdir, 0 if successfull_jobs else 1),
+            spec={"data_size_per_job": 1, "max_failed_job_count": 25},
+            dont_track=True
+        )
+
+        if successfull_jobs:
+            op.track()
+        else:
+            with pytest.raises(YtError):
+                op.track()
+
+        job_id_list = os.listdir(self._tmpdir)
+        get_archived_jobs = lambda: get_jobs_in_operation_archive(job_id_list, OPERATION_JOB_SPEC_ARCHIVE_TABLE)
+
+        if successfull_jobs:
+            wait(lambda: len(get_archived_jobs()) == 10)
+        else:
+            wait(get_archived_jobs)

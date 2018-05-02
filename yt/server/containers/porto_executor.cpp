@@ -174,6 +174,27 @@ public:
             .Run();
     }
 
+    virtual TFuture<void> ImportLayer(const TString& archivePath, const TString& layerId, const TString& place) override
+    {
+        return BIND(&TPortoExecutor::DoImportLayer, MakeStrong(this), archivePath, layerId, place)
+            .AsyncVia(Queue_->GetInvoker())
+            .Run();
+    }
+
+    virtual TFuture<void> RemoveLayer(const TString& layerId, const TString& place) override
+    {
+        return BIND(&TPortoExecutor::DoRemoveLayer, MakeStrong(this), layerId, place)
+            .AsyncVia(Queue_->GetInvoker())
+            .Run();
+    }
+
+    virtual TFuture<std::vector<TString>> ListLayers(const TString& place) override
+    {
+        return BIND(&TPortoExecutor::DoListLayers, MakeStrong(this), place)
+            .AsyncVia(Queue_->GetInvoker())
+            .Run();
+    }
+
 private:
     const std::unique_ptr<Porto::Connection> Api_;
     const TDuration RetryTime_;
@@ -324,6 +345,23 @@ private:
         std::vector<Porto::Volume> volumes;
         RunWithRetries([&]() { return Api_->ListVolumes(volumes); }, "ListVolume");
         return volumes;
+    }
+
+    void DoImportLayer(const TString& archivePath, const TString& layerId, const TString& place)
+    {
+        RunWithRetries([&]() { return Api_->ImportLayer(layerId, archivePath, false, place); }, "ImportLayer");
+    }
+
+    void DoRemoveLayer(const TString& layerId, const TString& place)
+    {
+        RunWithRetries([&]() { return Api_->RemoveLayer(layerId, place); }, "RemoveLayer");
+    }
+
+    std::vector<TString> DoListLayers(const TString& place)
+    {
+        std::vector<TString> layers;
+        RunWithRetries([&]() { return Api_->ListLayers(layers, place); }, "ListLayers");
+        return layers;
     }
 
     void RunWithRetries(std::function<bool()> action, const TString& name) {

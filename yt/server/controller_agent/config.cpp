@@ -323,6 +323,9 @@ TControllerAgentConfig::TControllerAgentConfig()
         .Default(4)
         .GreaterThan(0);
 
+    RegisterParameter("controller_static_orchid_update_period", ControllerStaticOrchidUpdatePeriod)
+        .Default(TDuration::Seconds(10));
+
     RegisterParameter("max_concurrent_safe_core_dumps", MaxConcurrentSafeCoreDumps)
         .Default(1)
         .GreaterThanOrEqual(0);
@@ -368,6 +371,11 @@ TControllerAgentConfig::TControllerAgentConfig()
         .Default(200)
         .GreaterThanOrEqual(0)
         .LessThanOrEqual(250);
+
+    RegisterParameter("max_archived_job_spec_count_per_operation", MaxArchivedJobSpecCountPerOperation)
+        .Default(10)
+        .GreaterThanOrEqual(0)
+        .LessThanOrEqual(100);
 
     RegisterParameter("max_chunks_per_fetch", MaxChunksPerFetch)
         .Default(100000)
@@ -510,7 +518,7 @@ TControllerAgentConfig::TControllerAgentConfig()
     RegisterParameter("job_spec_codec", JobSpecCodec)
         .Default(NCompression::ECodec::Lz4);
 
-    RegisterParameter("job_metrics_delta_report_backoff", JobMetricsDeltaReportBackoff)
+    RegisterParameter("job_metrics_report_period", JobMetricsReportPeriod)
         .Default(TDuration::Seconds(15));
 
     RegisterParameter("system_layer_path", SystemLayerPath)
@@ -571,7 +579,6 @@ TControllerAgentConfig::TControllerAgentConfig()
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TEraseOperationOptions);
-DEFINE_DYNAMIC_PHOENIX_TYPE(TJoinReduceOperationOptions);
 DEFINE_DYNAMIC_PHOENIX_TYPE(TMapOperationOptions);
 DEFINE_DYNAMIC_PHOENIX_TYPE(TMapReduceOperationOptions);
 DEFINE_DYNAMIC_PHOENIX_TYPE(TOperationOptions);

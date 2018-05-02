@@ -61,6 +61,10 @@ struct IPortoExecutor
         const TString& name) = 0;
     virtual TFuture<std::vector<Porto::Volume>> ListVolumes() = 0;
 
+    virtual TFuture<void> ImportLayer(const TString& archivePath, const TString& layerId, const TString& place) = 0;
+    virtual TFuture<void> RemoveLayer(const TString& layerId, const TString& place) = 0;
+    virtual TFuture<std::vector<TString>> ListLayers(const TString& place) = 0;
+
     DECLARE_INTERFACE_SIGNAL(void(const TError&), Failed)
 };
 

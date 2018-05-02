@@ -14,4 +14,13 @@ foreach(PYTHON_KIND IN LISTS PYTHON_KINDS)
 
   add_library(${TARGET_NAME_PREFIX}yson STATIC ${YT_SRCS})
   target_link_libraries(${TARGET_NAME_PREFIX}yson ${TARGET_NAME_PREFIX}common)
+
+  add_library(${TARGET_NAME_PREFIX}yson-shared MODULE yson.cpp)
+  target_link_libraries(${TARGET_NAME_PREFIX}yson-shared
+    yt-core
+    ${TARGET_NAME_PREFIX}pycxx
+    ${TARGET_NAME_PREFIX}common
+    ${TARGET_NAME_PREFIX}yson)
+
+  build_and_install_python_library(${PYTHON_KIND} "${TARGET_NAME_PREFIX}yson-shared" "yson")
 endforeach()

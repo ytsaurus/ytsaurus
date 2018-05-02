@@ -692,7 +692,7 @@ class TestReplicatedDynamicTables(TestDynamicTablesBase):
     )
     def test_replication_trim(self, ttl, chunk_count, trimmed_row_count, mode):
         self._create_cells()
-        self._create_replicated_table("//tmp/t", attributes={"min_replication_log_ttl": ttl})
+        self._create_replicated_table("//tmp/t", attributes={"min_replication_log_ttl": ttl, "dynamic_store_auto_flush_period": 1000})
         self.sync_mount_table("//tmp/t")
         replica_id = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r",
             attributes={"mode": mode})
@@ -701,19 +701,31 @@ class TestReplicatedDynamicTables(TestDynamicTablesBase):
         self.sync_enable_table_replica(replica_id)
 
         insert_rows("//tmp/t", [{"key": 1, "value1": "test1"}], require_sync_replica=False)
-        sleep(1.0)
-        assert select_rows("* from [//tmp/r]", driver=self.replica_driver) == [{"key": 1, "value1": "test1", "value2": YsonEntity()}]
+        wait(lambda: select_rows("* from [//tmp/r]", driver=self.replica_driver) == [{"key": 1, "value1": "test1", "value2": YsonEntity()}])
 
         self.sync_unmount_table("//tmp/t")
-        assert get("//tmp/t/@chunk_count") == 1
+
+        initial_chunk_ids = get("//tmp/t/@chunk_ids")
+        assert len(initial_chunk_ids) == 1
+        initial_chunk_id = initial_chunk_ids[0]
+
         assert get("//tmp/t/@tablets/0/flushed_row_count") == 1
         assert get("//tmp/t/@tablets/0/trimmed_row_count") == 0
 
         self.sync_mount_table("//tmp/t")
-        sleep(1.0)
         insert_rows("//tmp/t", [{"key": 2, "value1": "test2"}], require_sync_replica=False)
-        sleep(1.0)
-        assert select_rows("* from [//tmp/r]", driver=self.replica_driver) == [{"key": 1, "value1": "test1", "value2": YsonEntity()}, {"key": 2, "value1": "test2", "value2": YsonEntity()}]
+        wait(lambda: select_rows("* from [//tmp/r]", driver=self.replica_driver) == [{"key": 1, "value1": "test1", "value2": YsonEntity()}, {"key": 2, "value1": "test2", "value2": YsonEntity()}])
+
+        def check_chunks():
+            chunk_ids = get("//tmp/t/@chunk_ids")
+            if len(chunk_ids) != chunk_count:
+                return False
+            # Check that the above insert has actually produced a chunk
+            if chunk_ids[-1] == initial_chunk_id:
+                return False
+            return True
+        wait(lambda: check_chunks())
+
         self.sync_unmount_table("//tmp/t")
 
         assert get("//tmp/t/@chunk_count") == chunk_count

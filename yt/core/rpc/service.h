@@ -157,6 +157,9 @@ struct IServiceContext
     //! Returns the logging level for request/response messages.
     virtual NLogging::ELogLevel GetLogLevel() const = 0;
 
+    //! Returns |true| if requests and responses are pooled.
+    virtual bool IsPooled() const = 0;
+
 
     // Extension methods.
 

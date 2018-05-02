@@ -36,15 +36,17 @@ def get_enabled_replicas(cluster):
     for replica in replicas:
         if replica == None: continue
         for r, rr in replica.items():
-            if rr["state"] == "enabled" and (cluster == None or rr["cluster_name"] == cluster):
-                result.append(r)
+            if rr["state"] != "enabled": continue
+            if cluster != None and rr["cluster_name"] != cluster: continue
+            if rr["mode"] != "sync": continue
+            result.append(r)
     return result
 
 def alter_table_replicas(replicas, enable):
     reqs = []
     for replica in replicas:
         reqs.append({"command": "alter_table_replica", "parameters": {"replica_id": replica, "enabled": enable}})
-    rsps = execute_batch(reqs)
+    rsps = yt.execute_batch(reqs, concurrency=100)
     for replica, rsp in zip(replicas, rsps):
         if "error" in rsp:
             logging.error("%s -> %r", replica, rsp)

@@ -724,9 +724,12 @@ class Operation(object):
         path = "//sys/scheduler/orchid/scheduler/operations/{0}/progress/jobs/{1}".format(self.id, state)
         if state == "aborted" or state == "completed":
             path += "/total"
-        if not exists(path, verbose=False):
+        try:
+            return get(path, verbose=False)
+        except YtError as err:
+            if not err.is_resolve_error():
+                raise
             return 0
-        return get(path, verbose=False)
 
     def get_running_jobs(self):
         jobs_path = "//sys/scheduler/orchid/scheduler/operations/" + self.id + "/running_jobs"
@@ -848,9 +851,9 @@ def start_op(op_type, **kwargs):
     change(kwargs, "out", ["spec", output_name])
     change(kwargs, "command", ["spec", op_name, "command"])
     change(kwargs, "file", ["spec", op_name, "file_paths"])
-    change(kwargs, "sort_by", ["spec","sort_by"])
-    change(kwargs, "reduce_by", ["spec","reduce_by"])
-    change(kwargs, "join_by", ["spec","join_by"])
+    change(kwargs, "sort_by", ["spec", "sort_by"])
+    change(kwargs, "reduce_by", ["spec", "reduce_by"])
+    change(kwargs, "join_by", ["spec", "join_by"])
     change(kwargs, "mapper_file", ["spec", "mapper", "file_paths"])
     change(kwargs, "reduce_combiner_file", ["spec", "reduce_combiner", "file_paths"])
     change(kwargs, "reducer_file", ["spec", "reducer", "file_paths"])

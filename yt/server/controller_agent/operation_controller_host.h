@@ -24,6 +24,7 @@ struct TAgentToSchedulerJobEvent
     TJobId JobId;
     TError Error;
     TNullable<EInterruptReason> InterruptReason;
+    TNullable<bool> ArchiveJobSpec;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -42,7 +43,7 @@ public:
     virtual void InterruptJob(const TJobId& jobId, EInterruptReason reason) override;
     virtual void AbortJob(const TJobId& jobId, const TError& error) override;
     virtual void FailJob(const TJobId& jobId) override;
-    virtual void ReleaseJobs(const std::vector<TJobId>& jobIds) override;
+    virtual void ReleaseJobs(const std::vector<NScheduler::TJobToRelease>& TJobToRelease) override;
 
     virtual TFuture<TOperationSnapshot> DownloadSnapshot() override;
     virtual TFuture<void> RemoveSnapshot() override;

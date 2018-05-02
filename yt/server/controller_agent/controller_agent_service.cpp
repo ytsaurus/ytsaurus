@@ -44,6 +44,17 @@ private:
     TBootstrap* const Bootstrap_;
 
 
+    template <class F>
+    void WrapAgentException(F func)
+    {
+        try {
+            func();
+        } catch (const std::exception& ex) {
+            THROW_ERROR_EXCEPTION(NControllerAgent::EErrorCode::AgentCallFailed, "Agent call failed")
+                << ex;
+        }
+    }
+
     DECLARE_RPC_SERVICE_METHOD(NProto, GetOperationInfo)
     {
         const auto& controllerAgent = Bootstrap_->GetControllerAgent();
@@ -99,9 +110,11 @@ private:
         controllerAgent->ValidateConnected();
         controllerAgent->ValidateIncarnation(incarnationId);
 
-        controllerAgent->RegisterOperation(request->operation_descriptor());
+        WrapAgentException([&] {
+            controllerAgent->RegisterOperation(request->operation_descriptor());
 
-        context->Reply();
+            context->Reply();
+        });
     }
 
     DECLARE_RPC_SERVICE_METHOD(NProto, InitializeOperation)
@@ -118,27 +131,29 @@ private:
         controllerAgent->ValidateConnected();
         controllerAgent->ValidateIncarnation(incarnationId);
 
-        auto operation = controllerAgent->GetOperationOrThrow(operationId);
+        WrapAgentException([&] {
+            auto operation = controllerAgent->GetOperationOrThrow(operationId);
 
-        TNullable<TControllerTransactions> transactions;
-        if (!clean) {
-            transactions.Emplace();
-            transactions->AsyncId = FromProto<TTransactionId>(request->async_transaction_id());
-            transactions->InputId = FromProto<TTransactionId>(request->input_transaction_id());
-            transactions->OutputId = FromProto<TTransactionId>(request->output_transaction_id());
-            transactions->DebugId  = FromProto<TTransactionId>(request->debug_transaction_id());
-            transactions->OutputCompletionId = FromProto<TTransactionId>(request->output_completion_transaction_id());
-            transactions->DebugCompletionId = FromProto<TTransactionId>(request->debug_completion_transaction_id());
-        }
+            TNullable<TControllerTransactions> transactions;
+            if (!clean) {
+                transactions.Emplace();
+                transactions->AsyncId = FromProto<TTransactionId>(request->async_transaction_id());
+                transactions->InputId = FromProto<TTransactionId>(request->input_transaction_id());
+                transactions->OutputId = FromProto<TTransactionId>(request->output_transaction_id());
+                transactions->DebugId  = FromProto<TTransactionId>(request->debug_transaction_id());
+                transactions->OutputCompletionId = FromProto<TTransactionId>(request->output_completion_transaction_id());
+                transactions->DebugCompletionId = FromProto<TTransactionId>(request->debug_completion_transaction_id());
+            }
 
-        auto result = WaitFor(controllerAgent->InitializeOperation(operation, transactions))
-            .ValueOrThrow();
+            auto result = WaitFor(controllerAgent->InitializeOperation(operation, transactions))
+                .ValueOrThrow();
 
-        response->set_immutable_attributes(result.Attributes.Immutable.GetData());
-        response->set_mutable_attributes(result.Attributes.Mutable.GetData());
-        response->set_brief_spec(result.Attributes.BriefSpec.GetData());
-        response->set_unrecognized_spec(result.Attributes.UnrecognizedSpec.GetData());
-        context->Reply();
+            response->set_immutable_attributes(result.Attributes.Immutable.GetData());
+            response->set_mutable_attributes(result.Attributes.Mutable.GetData());
+            response->set_brief_spec(result.Attributes.BriefSpec.GetData());
+            response->set_unrecognized_spec(result.Attributes.UnrecognizedSpec.GetData());
+            context->Reply();
+        });
     }
 
     DECLARE_RPC_SERVICE_METHOD(NProto, PrepareOperation)
@@ -153,14 +168,16 @@ private:
         controllerAgent->ValidateConnected();
         controllerAgent->ValidateIncarnation(incarnationId);
 
-        auto operation = controllerAgent->GetOperationOrThrow(operationId);
-        auto result = WaitFor(controllerAgent->PrepareOperation(operation))
-            .ValueOrThrow();
+        WrapAgentException([&] {
+            auto operation = controllerAgent->GetOperationOrThrow(operationId);
+            auto result = WaitFor(controllerAgent->PrepareOperation(operation))
+                .ValueOrThrow();
 
-        if (result.Attributes) {
-            response->set_attributes(result.Attributes.GetData());
-        }
-        context->Reply();
+            if (result.Attributes) {
+                response->set_attributes(result.Attributes.GetData());
+            }
+            context->Reply();
+        });
     }
 
     DECLARE_RPC_SERVICE_METHOD(NProto, MaterializeOperation)
@@ -175,11 +192,13 @@ private:
         controllerAgent->ValidateConnected();
         controllerAgent->ValidateIncarnation(incarnationId);
 
-        auto operation = controllerAgent->GetOperationOrThrow(operationId);
-        WaitFor(controllerAgent->MaterializeOperation(operation))
-            .ThrowOnError();
+        WrapAgentException([&] {
+            auto operation = controllerAgent->GetOperationOrThrow(operationId);
+            WaitFor(controllerAgent->MaterializeOperation(operation))
+                .ThrowOnError();
 
-        context->Reply();
+            context->Reply();
+        });
     }
 
     DECLARE_RPC_SERVICE_METHOD(NProto, ReviveOperation)
@@ -194,28 +213,30 @@ private:
         controllerAgent->ValidateConnected();
         controllerAgent->ValidateIncarnation(incarnationId);
 
-        auto operation = controllerAgent->GetOperationOrThrow(operationId);
-        auto result = WaitFor(controllerAgent->ReviveOperation(operation))
-            .ValueOrThrow();
+        WrapAgentException([&] {
+            auto operation = controllerAgent->GetOperationOrThrow(operationId);
+            auto result = WaitFor(controllerAgent->ReviveOperation(operation))
+                .ValueOrThrow();
 
-        response->set_attributes(result.Attributes.GetData());
-        response->set_revived_from_snapshot(result.RevivedFromSnapshot);
-        for (const auto& job : result.RevivedJobs) {
-            auto* protoJob = response->add_revived_jobs();
-            ToProto(protoJob->mutable_job_id(), job.JobId);
-            protoJob->set_job_type(static_cast<int>(job.JobType));
-            protoJob->set_start_time(ToProto<ui64>(job.StartTime));
-            ToProto(protoJob->mutable_resource_limits(), job.ResourceLimits);
-            protoJob->set_interruptible(job.Interruptible);
-            protoJob->set_tree_id(job.TreeId);
-            protoJob->set_node_id(job.NodeId);
-            protoJob->set_node_address(job.NodeAddress);
-        }
+            response->set_attributes(result.Attributes.GetData());
+            response->set_revived_from_snapshot(result.RevivedFromSnapshot);
+            for (const auto& job : result.RevivedJobs) {
+                auto* protoJob = response->add_revived_jobs();
+                ToProto(protoJob->mutable_job_id(), job.JobId);
+                protoJob->set_job_type(static_cast<int>(job.JobType));
+                protoJob->set_start_time(ToProto<ui64>(job.StartTime));
+                ToProto(protoJob->mutable_resource_limits(), job.ResourceLimits);
+                protoJob->set_interruptible(job.Interruptible);
+                protoJob->set_tree_id(job.TreeId);
+                protoJob->set_node_id(job.NodeId);
+                protoJob->set_node_address(job.NodeAddress);
+            }
 
-        context->SetResponseInfo("RevivedFromSnapshot: %v, RevivedJobCount: %v",
-            result.RevivedFromSnapshot,
-            result.RevivedJobs.size());
-        context->Reply();
+            context->SetResponseInfo("RevivedFromSnapshot: %v, RevivedJobCount: %v",
+                result.RevivedFromSnapshot,
+                result.RevivedJobs.size());
+            context->Reply();
+        });
     }
 
     DECLARE_RPC_SERVICE_METHOD(NProto, CommitOperation)
@@ -230,11 +251,13 @@ private:
         controllerAgent->ValidateConnected();
         controllerAgent->ValidateIncarnation(incarnationId);
 
-        auto operation = controllerAgent->GetOperationOrThrow(operationId);
-        WaitFor(controllerAgent->CommitOperation(operation))
-            .ThrowOnError();
+        WrapAgentException([&] {
+            auto operation = controllerAgent->GetOperationOrThrow(operationId);
+            WaitFor(controllerAgent->CommitOperation(operation))
+                .ThrowOnError();
 
-        context->Reply();
+            context->Reply();
+        });
     }
 
     DECLARE_RPC_SERVICE_METHOD(NProto, CompleteOperation)
@@ -249,11 +272,13 @@ private:
         controllerAgent->ValidateConnected();
         controllerAgent->ValidateIncarnation(incarnationId);
 
-        auto operation = controllerAgent->GetOperationOrThrow(operationId);
-        WaitFor(controllerAgent->CompleteOperation(operation))
-            .ThrowOnError();
+        WrapAgentException([&] {
+            auto operation = controllerAgent->GetOperationOrThrow(operationId);
+            WaitFor(controllerAgent->CompleteOperation(operation))
+                .ThrowOnError();
 
-        context->Reply();
+            context->Reply();
+        });
     }
 
     DECLARE_RPC_SERVICE_METHOD(NProto, AbortOperation)
@@ -268,17 +293,19 @@ private:
         controllerAgent->ValidateConnected();
         controllerAgent->ValidateIncarnation(incarnationId);
 
-        auto operation = controllerAgent->FindOperation(operationId);
-        if (!operation) {
-            LOG_DEBUG("Operation is missing; ignoring request");
+        WrapAgentException([&] {
+            auto operation = controllerAgent->FindOperation(operationId);
+            if (!operation) {
+                LOG_DEBUG("Operation is missing; ignoring request");
+                context->Reply();
+                return;
+            }
+
+            WaitFor(controllerAgent->AbortOperation(operation))
+                .ThrowOnError();
+
             context->Reply();
-            return;
-        }
-
-        WaitFor(controllerAgent->AbortOperation(operation))
-            .ThrowOnError();
-
-        context->Reply();
+        });
     }
 
     DECLARE_RPC_SERVICE_METHOD(NProto, DisposeOperation)
@@ -293,11 +320,13 @@ private:
         controllerAgent->ValidateConnected();
         controllerAgent->ValidateIncarnation(incarnationId);
 
-        auto operation = controllerAgent->GetOperationOrThrow(operationId);
-        WaitFor(controllerAgent->DisposeOperation(operation))
-            .ThrowOnError();
+        WrapAgentException([&] {
+            auto operation = controllerAgent->GetOperationOrThrow(operationId);
+            WaitFor(controllerAgent->DisposeOperation(operation))
+                .ThrowOnError();
 
-        context->Reply();
+            context->Reply();
+        });
     }
 };
 

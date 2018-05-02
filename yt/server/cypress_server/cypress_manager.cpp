@@ -20,6 +20,8 @@
 #include <yt/server/security_server/security_manager.h>
 #include <yt/server/security_server/user.h>
 
+#include <yt/server/table_server/shared_table_schema.h>
+
 #include <yt/ytlib/cypress_client/cypress_ypath.pb.h>
 #include <yt/ytlib/cypress_client/cypress_ypath_proxy.h>
 
@@ -493,6 +495,7 @@ public:
         TCypressManagerConfigPtr config,
         TBootstrap* bootstrap)
         : TMasterAutomatonPart(bootstrap, NCellMaster::EAutomatonThreadQueue::CypressManager)
+        , SharedTableSchemaRegistry_(New<NTableServer::TSharedTableSchemaRegistry>())
         , Config_(config)
         , AccessTracker_(New<TAccessTracker>(config, bootstrap))
         , ExpirationTracker_(New<TExpirationTracker>(config, bootstrap))
@@ -1071,6 +1074,8 @@ public:
     DECLARE_ENTITY_MAP_ACCESSORS(Node, TCypressNodeBase);
     DECLARE_ENTITY_MAP_ACCESSORS(Lock, TLock);
 
+    DEFINE_BYREF_RO_PROPERTY(NTableServer::TSharedTableSchemaRegistryPtr, SharedTableSchemaRegistry);
+
 private:
     friend class TNodeTypeHandler;
     friend class TLockTypeHandler;
@@ -1153,6 +1158,7 @@ private:
 
         NodeMap_.Clear();
         LockMap_.Clear();
+        SharedTableSchemaRegistry_->Clear();
 
         RootNode_ = nullptr;
     }
@@ -2656,8 +2662,13 @@ TCypressNodeList TCypressManager::GetNodeReverseOriginators(
     return Impl_->GetNodeReverseOriginators(transaction, trunkNode);
 }
 
+const NTableServer::TSharedTableSchemaRegistryPtr& TCypressManager::GetSharedTableSchemaRegistry() const
+{
+    return Impl_->SharedTableSchemaRegistry();
+}
+
 DELEGATE_ENTITY_MAP_ACCESSORS(TCypressManager, Node, TCypressNodeBase, *Impl_);
-DELEGATE_ENTITY_MAP_ACCESSORS(TCypressManager, Lock, TLock, *Impl_);
+DELEGATE_ENTITY_MAP_ACCESSORS(TCypressManager, Lock, TLock, *Impl_)
 
 ////////////////////////////////////////////////////////////////////////////////
 

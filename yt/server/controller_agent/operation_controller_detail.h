@@ -139,7 +139,7 @@ private: \
     IMPLEMENT_SAFE_METHOD(void, OnJobStarted, (std::unique_ptr<TStartedJobSummary> jobSummary), (std::move(jobSummary)), true)
     IMPLEMENT_SAFE_METHOD(void, OnJobCompleted, (std::unique_ptr<TCompletedJobSummary> jobSummary), (std::move(jobSummary)), true)
     IMPLEMENT_SAFE_METHOD(void, OnJobFailed, (std::unique_ptr<TFailedJobSummary> jobSummary), (std::move(jobSummary)), true)
-    IMPLEMENT_SAFE_METHOD(void, OnJobAborted, (std::unique_ptr<TAbortedJobSummary> jobSummary), (std::move(jobSummary)), true)
+    IMPLEMENT_SAFE_METHOD(void, OnJobAborted, (std::unique_ptr<TAbortedJobSummary> jobSummary, bool byScheduler), (std::move(jobSummary), byScheduler), true)
     IMPLEMENT_SAFE_METHOD(void, OnJobRunning, (std::unique_ptr<TRunningJobSummary> jobSummary), (std::move(jobSummary)), true)
 
     IMPLEMENT_SAFE_METHOD(void, Commit, (), (), false)
@@ -327,6 +327,8 @@ public:
 
     virtual NYson::TYsonString BuildJobYson(const TJobId& jobId, bool outputStatistics) const override;
 
+    virtual NYTree::IYPathServicePtr GetOrchid() const override;
+
 protected:
     const IOperationControllerHostPtr Host;
     TControllerAgentConfigPtr Config;
@@ -435,6 +437,10 @@ protected:
     TDataFlowGraph DataFlowGraph_;
 
     NYTree::IMapNodePtr UnrecognizedSpec_;
+
+    NYTree::IYPathServicePtr Orchid_;
+
+    virtual bool IsTransactionNeeded(ETransactionType type) const;
 
     TFuture<NApi::ITransactionPtr> StartTransaction(
         ETransactionType type,
@@ -580,6 +586,8 @@ protected:
     bool InputHasVersionedTables() const;
     bool InputHasReadLimits() const;
 
+    bool HasUserJobFiles() const;
+
     bool IsLocalityEnabled() const;
 
     virtual TString GetLoggingProgress() const;
@@ -595,6 +603,14 @@ protected:
 
     //! Called in jobs duration analyzer to get interesting for analysis jobs set.
     virtual std::vector<EJobType> GetSupportedJobTypesForJobsDurationAnalyzer() const = 0;
+
+    //! Called before snapshot downloading to check if revival is allowed
+    //! (by default checks that fail_on_job_restart is not set).
+    virtual void ValidateRevivalAllowed() const;
+
+    //! Called after snapshot downloading to check if revival is allowed
+    //! (by default revival is always permitted).
+    virtual void ValidateSnapshot() const;
 
     //! Is called by controller on stage of structure initialization.
     virtual std::vector<TUserJobSpecPtr> GetUserJobSpecs() const;
@@ -736,7 +752,7 @@ protected:
         const NTableClient::TKeyColumns& fullColumns,
         const NTableClient::TKeyColumns& prefixColumns);
 
-    const NObjectClient::TTransactionId& GetTransactionIdForOutputTable(const TOutputTable& table);
+    const NApi::ITransactionPtr& GetTransactionForOutputTable(const TOutputTable& table) const;
 
     virtual void AttachToIntermediateLivePreview(const NChunkClient::TChunkId& chunkId) override;
 
@@ -903,7 +919,7 @@ private:
     TSpinLock JobMetricsDeltaPerTreeLock_;
     //! Delta of job metrics that was not reported to scheduler.
     THashMap<TString, NScheduler::TJobMetrics> JobMetricsDeltaPerTree_;
-    NProfiling::TCpuInstant LastJobMetricsDeltaReportTime_;
+    NProfiling::TCpuInstant LastJobMetricsDeltaReportTime_ = 0;
 
     //! Aggregated schedule job statistics.
     TScheduleJobStatisticsPtr ScheduleJobStatistics_;
@@ -958,6 +974,7 @@ private:
 
     int StderrCount_ = 0;
     int JobNodeCount_ = 0;
+    int JobSpecCompletedArchiveCount_ = 0;
 
     THashMap<TJobId, TFinishedJobInfoPtr> FinishedJobs_;
 
@@ -1075,6 +1092,8 @@ private:
         const TErrorOr<TBriefJobStatisticsPtr>& briefStatisticsOrError);
 
     void UpdateSuspiciousJobsYson();
+
+    void ReleaseJobs(const std::vector<TJobId>& jobIds);
 
     //! Helper class that implements IChunkPoolInput interface for output tables.
     class TSink

@@ -479,6 +479,8 @@ TReduceOperationSpecBase::TReduceOperationSpecBase()
         .NonEmpty();
     RegisterParameter("consider_only_primary_size", ConsiderOnlyPrimarySize)
         .Default(false);
+    RegisterParameter("use_new_controller", UseNewController)
+        .Default(false);
 
     RegisterPostprocessor([&] () {
         if (!JoinBy.empty()) {
@@ -522,7 +524,37 @@ TJoinReduceOperationSpec::TJoinReduceOperationSpec()
 
     RegisterPostprocessor([&] {
         bool hasPrimary = false;
-        for (const auto& path: InputTablePaths) {
+        for (const auto& path : InputTablePaths) {
+            hasPrimary |= path.GetPrimary();
+        }
+        if (hasPrimary) {
+            for (auto& path : InputTablePaths) {
+                path.Attributes().Set("foreign", !path.GetPrimary());
+                path.Attributes().Remove("primary");
+            }
+        }
+    });
+}
+
+TNewReduceOperationSpec::TNewReduceOperationSpec()
+{
+    RegisterParameter("join_by", JoinBy)
+        .Default();
+    RegisterParameter("reduce_by", ReduceBy)
+        .Default();
+    RegisterParameter("sort_by", SortBy)
+        .Default();
+    RegisterParameter("pivot_keys", PivotKeys)
+        .Default();
+    RegisterParameter("enable_key_guarantee", EnableKeyGuarantee)
+        .Default();
+
+    RegisterPostprocessor([&] () {
+        NTableClient::ValidateKeyColumns(ReduceBy);
+        NTableClient::ValidateKeyColumns(SortBy);
+
+        bool hasPrimary = false;
+        for (const auto& path : InputTablePaths) {
             hasPrimary |= path.GetPrimary();
         }
         if (hasPrimary) {
@@ -916,6 +948,7 @@ TStrategyOperationSpec::TStrategyOperationSpec()
     RegisterParameter("pool_trees", PoolTrees)
         .Default();
     RegisterParameter("max_concurrent_schedule_job_calls", MaxConcurrentControllerScheduleJobCalls)
+        .Alias("max_concurrent_controller_schedule_job_calls")
         .Default();
 }
 
@@ -954,6 +987,7 @@ DEFINE_DYNAMIC_PHOENIX_TYPE(TJoinReduceOperationSpec);
 DEFINE_DYNAMIC_PHOENIX_TYPE(TMapOperationSpec);
 DEFINE_DYNAMIC_PHOENIX_TYPE(TMapReduceOperationSpec);
 DEFINE_DYNAMIC_PHOENIX_TYPE(TMergeOperationSpec);
+DEFINE_DYNAMIC_PHOENIX_TYPE(TNewReduceOperationSpec);
 DEFINE_DYNAMIC_PHOENIX_TYPE(TOperationSpecBase);
 DEFINE_DYNAMIC_PHOENIX_TYPE(TOrderedMergeOperationSpec);
 DEFINE_DYNAMIC_PHOENIX_TYPE(TReduceOperationSpec);

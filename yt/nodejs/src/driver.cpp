@@ -280,7 +280,7 @@ private:
             formatAttributes->SetYson("format", TYsonString("pretty"));
 
             auto consumer = CreateConsumerForFormat(
-                TFormat(EFormatType::Yson, formatAttributes.get()),
+                TFormat(EFormatType::Json, formatAttributes.get()),
                 EDataType::Structured,
                 &errorStream);
 

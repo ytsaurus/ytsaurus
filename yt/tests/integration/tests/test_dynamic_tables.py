@@ -3,11 +3,11 @@ import pytest
 from yt_env_setup import YTEnvSetup, wait
 from yt_commands import *
 
-from time import sleep
-from flaky import flaky
-
 from yt.environment.helpers import assert_items_equal
 
+from flaky import flaky
+
+from time import sleep
 import __builtin__
 
 ##################################################################

@@ -1,17 +1,18 @@
-import random
-
 import pytest
 
 from yt_env_setup import YTEnvSetup, require_ytserver_root_privileges, wait
 from yt.environment.helpers import assert_almost_equal
 from yt_commands import *
 
-import time
-import __builtin__
-import datetime
+from flaky import flaky
 
 import os
 import sys
+import time
+import random
+import datetime
+
+import __builtin__
 
 EPS = 1e-4
 
@@ -160,6 +161,8 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
             resource_name = "user_memory" if resource == "memory" else resource
             assert assert_almost_equal(op_limits[resource_name], limit)
 
+    # Remove flaky after YT-8784.
+    @flaky(max_runs=5)
     def test_resource_limits_runtime(self):
         self._prepare_tables()
         data = [{"foo": i} for i in xrange(3)]

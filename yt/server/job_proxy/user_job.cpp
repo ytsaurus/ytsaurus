@@ -222,14 +222,13 @@ public:
             tableWriterOptions->EnableValidationOptions();
             auto chunkList = FromProto<TChunkListId>(coreTableSpec.output_table_spec().chunk_list_id());
             auto blobTableWriterConfig = ConvertTo<TBlobTableWriterConfigPtr>(TYsonString(coreTableSpec.blob_table_writer_config()));
-            auto transactionId = FromProto<TTransactionId>(
-                Host_->GetJobSpecHelper()->GetSchedulerJobSpecExt().output_transaction_id());
+            auto debugTransactionId = FromProto<TTransactionId>(UserJobSpec_.debug_output_transaction_id());
 
             CoreProcessorService_ = New<TCoreProcessorService>(
                 Host_,
                 blobTableWriterConfig,
                 tableWriterOptions,
-                transactionId,
+                debugTransactionId,
                 chunkList,
                 AuxQueue_->GetInvoker(),
                 Config_->CoreForwarderTimeout);

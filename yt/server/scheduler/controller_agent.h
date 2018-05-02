@@ -31,6 +31,7 @@ struct TSchedulerToAgentJobEvent
     TNullable<EAbortReason> AbortReason;
     TNullable<bool> Abandoned;
     TNullable<EInterruptReason> InterruptReason;
+    TNullable<bool> AbortedByScheduler;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
