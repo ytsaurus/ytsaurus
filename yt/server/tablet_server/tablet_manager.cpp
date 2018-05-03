@@ -1791,6 +1791,8 @@ public:
             }
 
             table->MutableTablets().clear();
+
+            // NB: security manager has already been informed when node's account was reset.
         }
 
         if (table->GetTabletCellBundle()) {
@@ -2207,7 +2209,6 @@ public:
         const auto& securityManager = this->Bootstrap_->GetSecurityManager();
         securityManager->UpdateTabletResourceUsage(
             trunkClonedTable,
-            trunkSourceTable->GetAccount(),
             trunkClonedTable->GetTabletResourceUsage());
     }
 

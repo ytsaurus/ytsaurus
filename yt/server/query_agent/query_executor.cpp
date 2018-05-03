@@ -648,10 +648,7 @@ private:
 
         auto statistics = DoExecuteImpl(std::move(externalCGInfo), std::move(dataSources), std::move(writer));
 
-        auto profilerTags = TabletSnapshots_.GetProfilerTags();
-        if (MaybeUser_) {
-            AddUserTag(*MaybeUser_, profilerTags);
-        }
+        auto profilerTags = MaybeAddUserTag(TabletSnapshots_.GetProfilerTags());
         if (!profilerTags.empty()) {
             auto& counters = GetLocallyGloballyCachedValue<TSelectCpuProfilerTrait>(profilerTags);
             TabletNodeProfiler.Increment(counters.CpuTime, DurationToValue(statistics.SyncTime));
@@ -1156,7 +1153,7 @@ private:
 
         if (!tabletSnapshot->TableSchema.IsSorted()) {
             auto bottomSplitReaderGenerator = [
-                tabletSnapshot,
+                MOVE(tabletSnapshot),
                 columnFilter,
                 MOVE(bounds),
                 index = 0,
@@ -1193,11 +1190,7 @@ private:
                 Options_.ReadSessionId);
         }
 
-        if (MaybeUser_) {
-            profilerTags = AddUserTag(*MaybeUser_, profilerTags);
-        }
-
-        return New<TProfilingReaderWrapper>(reader, profilerTags);
+        return New<TProfilingReaderWrapper>(reader, MaybeAddUserTag(profilerTags));
     }
 
     ISchemafulReaderPtr GetTabletReader(
@@ -1206,7 +1199,6 @@ private:
     {
         auto tabletSnapshot = TabletSnapshots_.GetCachedTabletSnapshot(tabletId);
         auto columnFilter = GetColumnFilter(Query_->GetReadSchema(), tabletSnapshot->QuerySchema);
-
         auto profilerTags = tabletSnapshot->ProfilerTags;
 
         auto reader = CreateSchemafulTabletReader(
@@ -1217,13 +1209,17 @@ private:
             Options_.WorkloadDescriptor,
             Options_.ReadSessionId);
 
-        if (MaybeUser_) {
-            profilerTags = AddUserTag(*MaybeUser_, profilerTags);
-        }
-
-        return New<TProfilingReaderWrapper>(reader, profilerTags);
+        return New<TProfilingReaderWrapper>(reader, MaybeAddUserTag(profilerTags));
     }
 
+    TTagIdList MaybeAddUserTag(const TTagIdList& tags)
+    {
+        if (MaybeUser_) {
+            return AddUserTag(*MaybeUser_, tags);
+        } else {
+            return tags;
+        }
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
