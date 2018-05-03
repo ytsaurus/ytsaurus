@@ -683,7 +683,7 @@ public:
             agent->GetId(),
             agent->GetIncarnationId());
 
-        Bootstrap_->GetControlInvoker()->Invoke(
+        Bootstrap_->GetControlInvoker(EControlQueue::AgentTracker)->Invoke(
             BIND(&TImpl::UnregisterAgent, MakeStrong(this), agent));
     }
 
@@ -757,7 +757,7 @@ public:
             agentId,
             addresses,
             std::move(channel),
-            Bootstrap_->GetControlInvoker());
+            Bootstrap_->GetControlInvoker(EControlQueue::AgentTracker));
         agent->SetState(EControllerAgentState::Registering);
         RegisterAgent(agent);
 
