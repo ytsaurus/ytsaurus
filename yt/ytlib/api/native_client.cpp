@@ -3511,13 +3511,9 @@ private:
             TGetNodeOptions schedulerOptions;
             schedulerOptions.Timeout = deadline - Now();
 
-            bool shouldRequestProgress;
-            if (options.Attributes) {
-                const auto& attributes = *options.Attributes;
-                shouldRequestProgress = std::find(attributes.begin(), attributes.end(), "progress") != attributes.end();
-            } else {
-                shouldRequestProgress = true;
-            }
+            bool shouldRequestProgress = options.Attributes
+                ? options.Attributes->find("progress") != options.Attributes->end()
+                : true;
 
             if (options.IncludeScheduler && shouldRequestProgress) {
                 auto asyncSchedulerProgressValue = GetNode(GetOperationProgressFromOrchid(operationId), schedulerOptions);
