@@ -1,5 +1,4 @@
 #include "client.h"
-#include <util/system/env.h>
 
 #include "batch_request_impl.h"
 #include "client_reader.h"
@@ -39,6 +38,7 @@
 
 #include <mapreduce/yt/raw_client/rpc_parameters_serialization.h>
 
+#include <util/generic/algorithm.h>
 #include <util/string/type.h>
 #include <util/system/env.h>
 
