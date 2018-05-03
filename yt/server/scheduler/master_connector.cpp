@@ -959,7 +959,7 @@ private:
                 attributes.Get<TString>("authenticated_user"),
                 attributes.Get<TInstant>("start_time"),
                 spec->EnableCompatibleStorageMode,
-                Owner_->Bootstrap_->GetControlInvoker(),
+                Owner_->Bootstrap_->GetControlInvoker(EControlQueue::Operation),
                 attributes.Get<EOperationState>("state"),
                 attributes.Get<std::vector<TOperationEvent>>("events", {}));
 
