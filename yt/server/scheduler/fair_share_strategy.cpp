@@ -2568,7 +2568,7 @@ public:
 
     virtual void ProcessJobUpdates(
         const std::vector<TJobUpdate>& jobUpdates,
-        std::vector<TJobId>* successfullyUpdatedJobs,
+        std::vector<std::pair<TOperationId, TJobId>>* successfullyUpdatedJobs,
         std::vector<TJobId>* jobsToAbort) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -2618,7 +2618,7 @@ public:
 
         for (const auto& job : jobUpdates) {
             if (!jobsToSave.has(job.JobId)) {
-                successfullyUpdatedJobs->push_back(job.JobId);
+                successfullyUpdatedJobs->push_back({job.OperationId, job.JobId});
             }
         }
     }
