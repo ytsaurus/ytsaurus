@@ -13,6 +13,7 @@
 #include <yt/core/misc/varint.h>
 #include <yt/core/misc/variant.h>
 #include <yt/core/misc/cast.h>
+#include <yt/core/misc/string.h>
 
 #include <yt/core/ytree/proto/attributes.pb.h>
 
@@ -43,27 +44,48 @@ using TFieldNumberList = SmallVector<int, TypicalFieldCount>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
+TString DeriveYsonName(const TString& protobufName)
+{
+    YCHECK(!protobufName.empty());
+    if (!isupper(protobufName[0])) {
+        return protobufName;
+    }
+
+    TStringBuilder builder;
+    for (auto ch : protobufName) {
+        if (isupper(ch)) {
+            if (builder.GetLength() > 0 && builder.GetBuffer()[builder.GetLength() - 1] != '_') {
+                builder.AppendChar('_');
+            }
+            builder.AppendChar(tolower(ch));
+        } else {
+            builder.AppendChar(ch);
+        }
+    }
+    return builder.Flush();
+}
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TProtobufTypeRegistry
 {
 public:
     TStringBuf GetYsonName(const FieldDescriptor* descriptor)
     {
-        const auto& name = descriptor->options().GetExtension(NYT::NYson::NProto::field_name);
-        if (name) {
-            return InternString(name);
-        } else {
-            return InternString(descriptor->name());
-        }
+        return GetYsonNameFromDescriptor(
+            descriptor,
+            descriptor->options().GetExtension(NYT::NYson::NProto::field_name));
     }
 
     TStringBuf GetYsonLiteral(const EnumValueDescriptor* descriptor)
     {
-        const auto& name = descriptor->options().GetExtension(NYT::NYson::NProto::enum_value_name);
-        if (name) {
-            return InternString(name);
-        } else {
-            return InternString(descriptor->name());
-        }
+        return GetYsonNameFromDescriptor(
+            descriptor,
+            descriptor->options().GetExtension(NYT::NYson::NProto::enum_value_name));
     }
 
     const TProtobufMessageType* ReflectMessageType(const Descriptor* descriptor);
@@ -78,6 +100,13 @@ private:
     Y_DECLARE_SINGLETON_FRIEND();
     TProtobufTypeRegistry() = default;
 
+    template <class TDescriptor>
+    TStringBuf GetYsonNameFromDescriptor(const TDescriptor* descriptor, const TString& annotatedName)
+    {
+        auto ysonName = annotatedName ? annotatedName : DeriveYsonName(descriptor->name());
+        return InternString(ysonName);
+    }
+
     TStringBuf InternString(const TString& str)
     {
         auto guard = Guard(SpinLock_);
@@ -85,7 +114,7 @@ private:
         return InternedStrings_.back();
     }
 
-
+private:
     TSpinLock SpinLock_;
     std::vector<TString> InternedStrings_;
     THashMap<const Descriptor*, std::unique_ptr<TProtobufMessageType>> MessageTypeMap_;

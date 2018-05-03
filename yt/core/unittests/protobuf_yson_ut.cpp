@@ -550,6 +550,7 @@ TEST(TYsonToProtobufTest, UnknownFields)
     TStringOutput ysonOutputStream(yson); \
     TYsonWriter writer(&ysonOutputStream, EYsonFormat::Pretty); \
     ParseProtobuf(&writer, &protobufInputStream, ReflectProtobufMessageType<NYT::NProto::type>(), options); \
+    Cerr << ConvertToYsonString(TYsonString(yson), EYsonFormat::Pretty).GetData() << Endl;
 
 #define TEST_EPILOGUE(type) \
     TEST_EPILOGUE_WITH_OPTIONS(type, TProtobufParserOptions())
@@ -668,6 +669,27 @@ TEST(TProtobufToYsonTest, Success)
                     .Item().Value("foobar")
                 .EndList()
             .EndMap()
+        .EndMap();
+    EXPECT_TRUE(AreNodesEqual(writtenNode, expectedNode));
+}
+
+TEST(TProtobufToYsonTest, CamelCase)
+{
+    NYT::NProto::TCamelCaseStyleMessage message;
+    message.set_somefield(1);
+    message.set_anotherfield123(2);
+    message.set_crazy_field(3);
+
+    TEST_PROLOGUE()
+    message.SerializeToCodedStream(&codedStream);
+    TEST_EPILOGUE(TCamelCaseStyleMessage)
+
+    auto writtenNode = ConvertToNode(TYsonString(yson));
+    auto expectedNode = BuildYsonNodeFluently()
+        .BeginMap()
+            .Item("some_field").Value(1)
+            .Item("another_field123").Value(2)
+            .Item("crazy_field").Value(3)
         .EndMap();
     EXPECT_TRUE(AreNodesEqual(writtenNode, expectedNode));
 }
