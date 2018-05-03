@@ -21,6 +21,7 @@ b"""
         };
         {
             min_level = debug;
+            exclude_categories = [ Bus ];
             writers = [ debug ];
         };
     ];
@@ -293,6 +294,7 @@ b"""
                 };
                 {
                     min_level = debug;
+                    exclude_categories = [ Bus ];
                     writers = [ debug ];
                 };
             ];
