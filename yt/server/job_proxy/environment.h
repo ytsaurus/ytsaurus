@@ -43,7 +43,6 @@ struct IUserJobEnvironment
     virtual void CleanProcesses() = 0;
 
     virtual void SetIOThrottle(i64 operations) = 0;
-    virtual void SetMemoryGuarantee(i64 memoryGuarantee) = 0;
 
     virtual TProcessBasePtr CreateUserJobProcess(const TString& path, int uid, const TNullable<TString>& coreHandlerSocketPath) = 0;
 };
@@ -55,7 +54,6 @@ DEFINE_REFCOUNTED_TYPE(IUserJobEnvironment)
 struct IJobProxyEnvironment
     : public virtual IResourceTracker
 {
-    virtual void SetMemoryGuarantee(i64 memoryGuarantee) = 0;
     virtual void SetCpuShare(double share) = 0;
     virtual IUserJobEnvironmentPtr CreateUserJobEnvironment(const TString& jobId) = 0;
 };

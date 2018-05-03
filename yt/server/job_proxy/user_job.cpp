@@ -195,7 +195,6 @@ public:
         }
 
         if (UserJobEnvironment_) {
-            UserJobEnvironment_->SetMemoryGuarantee(UserJobSpec_.memory_reserve());
             YCHECK(host->GetConfig()->BusServer->UnixDomainName);
             YCHECK(UserId_);
             Process_ = UserJobEnvironment_->CreateUserJobProcess(
