@@ -19,32 +19,46 @@ class TJobStatisticsEntry;
 
 ////////////////////////////////////////////////////////////////////
 
-enum EFinishedJobState : int
+enum class EJobType : int
 {
-    FJS_COMPLETED /* "completed" */,
-    FJS_ABORTED   /* "aborted" */,
-    FJS_FAILED    /* "failed" */,
-    FJS_LOST      /* "lost" */,
+    SchedulerFirst    /* "scheduler_first" */,
+    Map               /* "map" */,
+    PartitionMap      /* "partition_map" */,
+    SortedMerge       /* "sorted_merge" */,
+    OrderedMerge      /* "ordered_merge" */,
+    UnorderedMerge    /* "unordered_merge" */,
+    Partition         /* "partition" */,
+    SimpleSort        /* "simple_sort" */,
+    FinalSort         /* "final_sort" */,
+    SortedReduce      /* "sorted_reduce" */,
+    PartitionReduce   /* "partition_reduce" */,
+    ReduceCombiner    /* "reduce_combiner" */,
+    RemoteCopy        /* "remote_copy" */,
+    IntermediateSort  /* "intermediate_sort" */,
+    OrderedMap        /* "ordered_map" */,
+    JoinReduce        /* "join_reduce" */,
+    Vanilla           /* "vanilla" */,
+    SchedulerUnknown  /* "scheduler_unknown" */,
+    SchedulerLast     /* "scheduler_last" */,
+    ReplicatorFirst   /* "replicator_first" */,
+    ReplicateChunk    /* "replicate_chunk" */,
+    RemoveChunk       /* "remove_chunk" */,
+    RepairChunk       /* "repair_chunk" */,
+    SealChunk         /* "seal_chunk" */,
+    ReplicatorLast    /* "replicator_last" */,
 };
 
-enum EJobType : int
+enum class EJobState : int
 {
-    JT_MAP               /* "map" */,
-    JT_PARTITION_MAP     /* "partition_map" */,
-    JT_SORTED_MERGE      /* "sorted_merge" */,
-    JT_ORDERED_MERGE     /* "ordered_merge" */,
-    JT_UNORDERED_MERGE   /* "unordered_merge" */,
-    JT_PARTITION         /* "partition" */,
-    JT_SIMPLE_SORT       /* "simple_sort" */,
-    JT_FINAL_SORT        /* "final_sort" */,
-    JT_SORTED_REDUCE     /* "sorted_reduce" */,
-    JT_PARTITION_REDUCE  /* "partition_reduce" */,
-    JT_REDUCE_COMBINER   /* "reduce_combiner" */,
-    JT_REMOTE_COPY       /* "remote_copy" */,
-    JT_INTERMEDIATE_SORT /* "intermediate_sort" */,
-    JT_ORDERED_MAP       /* "ordered_map" */,
-    JT_JOIN_REDUCE       /* "join_reduce" */,
+    Waiting    /* "waiting" */,
+    Running    /* "running" */,
+    Aborting   /* "aborting" */,
+    Completed  /* "completed" */,
+    Failed     /* "failed" */,
+    Aborted    /* "aborted" */,
+    Lost       /* "lost" */,
 };
+
 
 ////////////////////////////////////////////////////////////////////
 
@@ -90,7 +104,7 @@ public:
     // Filter statistics by job state.
     // By default filter includes only (successfuly) completed jobs.
     // Specify empty `filter' to include all job states.
-    TJobStatistics JobStatus(TVector<EFinishedJobState> filter) const;
+    TJobStatistics JobState(TVector<EJobState> filter) const;
 
     //
     // Get statistics by name.

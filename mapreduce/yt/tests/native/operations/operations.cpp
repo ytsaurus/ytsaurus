@@ -652,14 +652,14 @@ Y_UNIT_TEST_SUITE(Operations)
             .Output("//testing/output"),
             TOperationOptions().Wait(false));
 
-        while (operation->GetStatus() == OS_IN_PROGRESS) {
+        while (operation->GetState() == EOperationState::InProgress) {
             Sleep(TDuration::MilliSeconds(100));
         }
-        UNIT_ASSERT_VALUES_EQUAL(operation->GetStatus(), OS_COMPLETED);
+        UNIT_ASSERT_VALUES_EQUAL(operation->GetState(), EOperationState::Completed);
         UNIT_ASSERT(operation->GetError().Empty());
 
         EmulateOperationArchivation(client, operation->GetId());
-        UNIT_ASSERT_VALUES_EQUAL(operation->GetStatus(), OS_COMPLETED);
+        UNIT_ASSERT_VALUES_EQUAL(operation->GetState(), EOperationState::Completed);
         UNIT_ASSERT(operation->GetError().Empty());
     }
 
@@ -681,14 +681,14 @@ Y_UNIT_TEST_SUITE(Operations)
             new TAlwaysFailingMapper,
             TOperationOptions().Wait(false));
 
-        while (operation->GetStatus() == OS_IN_PROGRESS) {
+        while (operation->GetState() == EOperationState::InProgress) {
             Sleep(TDuration::MilliSeconds(100));
         }
-        UNIT_ASSERT_VALUES_EQUAL(operation->GetStatus(), OS_FAILED);
+        UNIT_ASSERT_VALUES_EQUAL(operation->GetState(), EOperationState::Failed);
         UNIT_ASSERT(operation->GetError().Defined());
 
         EmulateOperationArchivation(client, operation->GetId());
-        UNIT_ASSERT_VALUES_EQUAL(operation->GetStatus(), OS_FAILED);
+        UNIT_ASSERT_VALUES_EQUAL(operation->GetState(), EOperationState::Failed);
         UNIT_ASSERT(operation->GetError().Defined());
     }
 
@@ -1307,7 +1307,7 @@ Y_UNIT_TEST_SUITE(OperationWatch)
         UNIT_ASSERT_VALUES_EQUAL(GetOperationState(client, operation->GetId()), "completed");
 
         EmulateOperationArchivation(client, operation->GetId());
-        UNIT_ASSERT_VALUES_EQUAL(operation->GetStatus(), OS_COMPLETED);
+        UNIT_ASSERT_VALUES_EQUAL(operation->GetState(), EOperationState::Completed);
         UNIT_ASSERT(operation->GetError().Empty());
     }
 
@@ -1335,7 +1335,7 @@ Y_UNIT_TEST_SUITE(OperationWatch)
         UNIT_ASSERT_VALUES_EQUAL(GetOperationState(client, operation->GetId()), "failed");
 
         EmulateOperationArchivation(client, operation->GetId());
-        UNIT_ASSERT_VALUES_EQUAL(operation->GetStatus(), OS_FAILED);
+        UNIT_ASSERT_VALUES_EQUAL(operation->GetState(), EOperationState::Failed);
         UNIT_ASSERT(operation->GetError().Defined());
     }
 
@@ -1369,7 +1369,7 @@ Y_UNIT_TEST_SUITE(OperationWatch)
         UNIT_ASSERT_VALUES_EQUAL(GetOperationState(client, operation->GetId()), "aborted");
 
         EmulateOperationArchivation(client, operation->GetId());
-        UNIT_ASSERT_VALUES_EQUAL(operation->GetStatus(), OS_ABORTED);
+        UNIT_ASSERT_VALUES_EQUAL(operation->GetState(), EOperationState::Aborted);
         UNIT_ASSERT(operation->GetError().Defined());
     }
 
@@ -1415,7 +1415,7 @@ Y_UNIT_TEST_SUITE(OperationWatch)
         fut.Wait(TDuration::Seconds(10));
         UNIT_ASSERT_NO_EXCEPTION(fut.GetValue());
         UNIT_ASSERT_VALUES_EQUAL(GetOperationState(client, operation->GetId()), "completed");
-        UNIT_ASSERT_VALUES_EQUAL(operation->GetStatus(), OS_COMPLETED);
+        UNIT_ASSERT_VALUES_EQUAL(operation->GetState(), EOperationState::Completed);
         UNIT_ASSERT(!operation->GetError().Defined());
     }
 
@@ -1547,8 +1547,8 @@ Y_UNIT_TEST_SUITE(OperationTracker)
         tracker.AddOperation(op2);
 
         tracker.WaitAllCompleted();
-        UNIT_ASSERT_VALUES_EQUAL(op1->GetStatus(), EOperationStatus::OS_COMPLETED);
-        UNIT_ASSERT_VALUES_EQUAL(op2->GetStatus(), EOperationStatus::OS_COMPLETED);
+        UNIT_ASSERT_VALUES_EQUAL(op1->GetState(), EOperationState::Completed);
+        UNIT_ASSERT_VALUES_EQUAL(op2->GetState(), EOperationState::Completed);
     }
 
     Y_UNIT_TEST(WaitAllCompleted_ErrorOperations)
@@ -1579,8 +1579,8 @@ Y_UNIT_TEST_SUITE(OperationTracker)
         tracker.AddOperation(op2);
 
         tracker.WaitAllCompletedOrError();
-        UNIT_ASSERT_VALUES_EQUAL(op1->GetStatus(), EOperationStatus::OS_COMPLETED);
-        UNIT_ASSERT_VALUES_EQUAL(op2->GetStatus(), EOperationStatus::OS_COMPLETED);
+        UNIT_ASSERT_VALUES_EQUAL(op1->GetState(), EOperationState::Completed);
+        UNIT_ASSERT_VALUES_EQUAL(op2->GetState(), EOperationState::Completed);
     }
 
     Y_UNIT_TEST(WaitAllCompletedOrError_ErrorOperations)
@@ -1596,8 +1596,8 @@ Y_UNIT_TEST_SUITE(OperationTracker)
         tracker.AddOperation(op2);
 
         tracker.WaitAllCompletedOrError();
-        UNIT_ASSERT_VALUES_EQUAL(op1->GetStatus(), EOperationStatus::OS_COMPLETED);
-        UNIT_ASSERT_VALUES_EQUAL(op2->GetStatus(), EOperationStatus::OS_FAILED);
+        UNIT_ASSERT_VALUES_EQUAL(op1->GetState(), EOperationState::Completed);
+        UNIT_ASSERT_VALUES_EQUAL(op2->GetState(), EOperationState::Failed);
     }
 
     Y_UNIT_TEST(WaitOneCompleted_OkOperation)
@@ -1615,11 +1615,11 @@ Y_UNIT_TEST_SUITE(OperationTracker)
 
         auto waited1 = tracker.WaitOneCompleted();
         UNIT_ASSERT(waited1);
-        UNIT_ASSERT_VALUES_EQUAL(waited1->GetStatus(), OS_COMPLETED);
+        UNIT_ASSERT_VALUES_EQUAL(waited1->GetState(), EOperationState::Completed);
 
         auto waited2 = tracker.WaitOneCompleted();
         UNIT_ASSERT(waited2);
-        UNIT_ASSERT_VALUES_EQUAL(waited2->GetStatus(), OS_COMPLETED);
+        UNIT_ASSERT_VALUES_EQUAL(waited2->GetState(), EOperationState::Completed);
 
         auto waited3 = tracker.WaitOneCompleted();
         UNIT_ASSERT(!waited3);
@@ -1670,8 +1670,8 @@ Y_UNIT_TEST_SUITE(OperationTracker)
         UNIT_ASSERT(!waited3);
 
         UNIT_ASSERT_VALUES_EQUAL(TSet<IOperation*>({op1.Get(), op2.Get()}), TSet<IOperation*>({waited1.Get(), waited2.Get()}));
-        UNIT_ASSERT_VALUES_EQUAL(op1->GetStatus(), OS_COMPLETED);
-        UNIT_ASSERT_VALUES_EQUAL(op2->GetStatus(), OS_FAILED);
+        UNIT_ASSERT_VALUES_EQUAL(op1->GetState(), EOperationState::Completed);
+        UNIT_ASSERT_VALUES_EQUAL(op2->GetState(), EOperationState::Failed);
     }
 
     Y_UNIT_TEST(ConnectionErrorWhenOperationIsTracked)

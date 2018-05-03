@@ -36,7 +36,7 @@ class TJobStatistics::TData
 {
 public:
     using TType2Data = THashMap<EJobType, TJobStatistics::TDataEntry>;
-    using TState2Type2Data = THashMap<EFinishedJobState, TType2Data>;
+    using TState2Type2Data = THashMap<EJobState, TType2Data>;
     using TName2State2Type2Data = THashMap<TString, TState2Type2Data>;
 
 public:
@@ -75,7 +75,7 @@ public:
 
         for (const auto& item1 : node.AsMap()) {
             const auto& stateStr = item1.first;
-            EFinishedJobState state;
+            EJobState state;
             if (!TryFromString(stateStr, state)) {
                 continue;
             }
@@ -131,7 +131,7 @@ struct TJobStatistics::TFilter
     : public TThrRefBase
 {
     TVector<EJobType> JobTypeFilter;
-    TVector<EFinishedJobState> JobStateFilter = {FJS_COMPLETED};
+    TVector<EJobState> JobStateFilter = {EJobState::Completed};
 };
 
 ////////////////////////////////////////////////////////////////////
@@ -169,7 +169,7 @@ TJobStatistics TJobStatistics::JobType(TVector<EJobType> filter) const
     return TJobStatistics(Data_, std::move(newFilter));
 }
 
-TJobStatistics TJobStatistics::JobStatus(TVector<EFinishedJobState> filter) const
+TJobStatistics TJobStatistics::JobState(TVector<EJobState> filter) const
 {
     auto newFilter = ::MakeIntrusive<TFilter>();
     newFilter->JobTypeFilter = Filter_->JobTypeFilter;

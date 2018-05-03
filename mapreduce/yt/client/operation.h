@@ -28,7 +28,7 @@ public:
     virtual const TOperationId& GetId() const override;
     virtual NThreading::TFuture<void> Watch() override;
     virtual TVector<TFailedJobInfo> GetFailedJobInfo(const TGetFailedJobInfoOptions& options = TGetFailedJobInfoOptions()) override;
-    virtual EOperationStatus GetStatus() override;
+    virtual EOperationState GetState() override;
     virtual TMaybe<TYtError> GetError() override;
     virtual TJobStatistics GetJobStatistics() override;
     virtual TMaybe<TOperationBriefProgress> GetBriefProgress() override;
@@ -126,7 +126,7 @@ TOperationId ExecuteErase(
     const TEraseOperationSpec& spec,
     const TOperationOptions& options);
 
-EOperationStatus CheckOperation(
+EOperationState CheckOperation(
     const TAuth& auth,
     const TOperationId& operationId);
 

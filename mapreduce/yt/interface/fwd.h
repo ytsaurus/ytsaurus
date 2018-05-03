@@ -229,8 +229,8 @@ namespace NYT {
     // job_statistics.h
     ////////////////////////////////////////////////////////////////////////////////
 
-    enum EFinishedJobState : int;
-    enum EJobType : int;
+    enum class EJobState : int;
+    enum class EJobType : int;
 
     class TJobStatistics;
 
@@ -274,7 +274,7 @@ namespace NYT {
     template <class TR, class TW>
     class IAggregatorReducer;
 
-    enum EOperationStatus : int;
+    enum class EOperationState : int;
 
     struct TOperationOptions;
 

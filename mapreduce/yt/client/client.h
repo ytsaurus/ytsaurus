@@ -167,7 +167,7 @@ public:
         const TEraseOperationSpec& spec,
         const TOperationOptions& options) override;
 
-    EOperationStatus CheckOperation(const TOperationId& operationId) override;
+    EOperationState CheckOperation(const TOperationId& operationId) override;
 
     void AbortOperation(const TOperationId& operationId) override;
 

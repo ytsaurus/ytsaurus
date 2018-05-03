@@ -635,12 +635,12 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-enum EOperationStatus : int
+enum class EOperationState : int
 {
-    OS_IN_PROGRESS   /* "in_progress" */,
-    OS_COMPLETED     /* "completed" */,
-    OS_ABORTED       /* "aborted" */,
-    OS_FAILED        /* "failed" */
+    InProgress    /* "in_progress" */,
+    Completed     /* "completed" */,
+    Aborted       /* "aborted" */,
+    Failed        /* "failed" */,
 };
 
 ////////////////////////////////////////////////////////////////////
@@ -703,10 +703,10 @@ struct IOperation
 
     //
     // Return current operation status.
-    virtual EOperationStatus GetStatus() = 0;
+    virtual EOperationState GetState() = 0;
 
     //
-    // Will return Nothing if operation is in OS_COMPLETED or OS_IN_PROGRESS state.
+    // Will return Nothing if operation is in EOperationState::Completed or EOperationState::InProgress state.
     // For failed / aborted operation will return nonempty error explaining operation fail / abort.
     virtual TMaybe<TYtError> GetError() = 0;
 
@@ -836,9 +836,9 @@ struct IOperationClient
 
     //
     // Checks and returns operation status.
-    // NOTE: this function will never return OS_FAILED or OS_ABORTED status,
+    // NOTE: this function will never return EOperationState::Failed or EOperationState::Aborted status,
     // it will throw TOperationFailedError instead.
-    virtual EOperationStatus CheckOperation(
+    virtual EOperationState CheckOperation(
         const TOperationId& operationId) = 0;
 
 private:
