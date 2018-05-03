@@ -1131,7 +1131,7 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         return BIND(&TImpl::DoAttachJobContext, MakeStrong(this))
-            .AsyncVia(Bootstrap_->GetControlInvoker())
+            .AsyncVia(Bootstrap_->GetControlInvoker(EControlQueue::UserRequest))
             .Run(path, chunkId, operationId, jobId, user);
     }
 
