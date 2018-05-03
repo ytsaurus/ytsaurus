@@ -372,10 +372,6 @@ public:
     {
         Terminated_ = true;
 
-        if (ThreadPool_) {
-            ThreadPool_->Shutdown();
-        }
-
         ClusterDirectory_->Clear();
         ClusterDirectorySynchronizer_->Stop();
 
