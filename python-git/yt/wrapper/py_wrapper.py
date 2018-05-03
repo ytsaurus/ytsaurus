@@ -8,6 +8,8 @@ from .py_runner_helpers import process_rows
 from .local_mode import is_local_mode, enable_local_files_usage_in_job
 from ._py_runner import get_platform_version, main as run_py_runner
 
+from yt.tar import TarFile
+from yt.zip import GzipFile
 import yt.logger as logger
 import yt.subprocess_wrapper as subprocess
 
@@ -26,7 +28,6 @@ import inspect
 import os
 import shutil
 import tarfile
-import gzip
 import tempfile
 import hashlib
 import sys
@@ -211,10 +212,10 @@ class Tar(object):
     def __enter__(self):
         if self._compression_codec == "gzip":
             compression_level = get_config(self.client)["pickling"]["modules_archive_compression_level"]
-            self._gz_fileobj = gzip.GzipFile(self.filename, "w", compresslevel=compression_level, mtime=0)
-            self.tar = tarfile.TarFile(self.filename, "w", self._gz_fileobj, tarinfo=TarInfo, dereference=True)
+            self._gz_fileobj = GzipFile(self.filename, "w", compresslevel=compression_level, mtime=0)
+            self.tar = TarFile(self.filename, "w", self._gz_fileobj, tarinfo=TarInfo, dereference=True)
         else:
-            self.tar = tarfile.TarFile(self.filename, "w", tarinfo=TarInfo, dereference=True)
+            self.tar = TarFile(self.filename, "w", tarinfo=TarInfo, dereference=True)
         self.tar.__enter__()
         return self
 
