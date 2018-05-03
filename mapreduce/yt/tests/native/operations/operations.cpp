@@ -12,6 +12,7 @@
 
 #include <mapreduce/yt/http/abortable_http_response.h>
 
+#include <mapreduce/yt/library/lazy_sort/lazy_sort.h>
 #include <mapreduce/yt/library/operation_tracker/operation_tracker.h>
 
 #include <mapreduce/yt/util/wait_for_tablets_state.h>
@@ -1212,6 +1213,69 @@ Y_UNIT_TEST_SUITE(Operations)
                 TOperationOptions()
                     .FileStorage("//testing/file_storage")
                     .FileStorageTransactionId(tx2->GetId()));
+        }
+    }
+
+    SIMPLE_UNIT_TEST(LazySort)
+    {
+        auto client = CreateTestClient();
+        TString inputTable = "//testing/table";
+        auto initialSortedBy = TKeyColumns().Add("key1").Add("key2").Add("key3");
+
+        auto getSortedBy = [&](const TString& table) {
+            TKeyColumns columns;
+            auto sortedBy = client->Get(table + "/@sorted_by");
+            for (const auto& node : sortedBy.AsList()) {
+                columns.Add(node.AsString());
+            }
+            return columns;
+        };
+
+        auto getType = [&](const IOperationPtr& operation) {
+            // TODO(levysotsky) Use client->GetOperation() when it's ready (YT-8606)
+            return client->Get("//sys/operations/" + GetGuidAsString(operation->GetId()) + "/@operation_type").AsString();
+        };
+
+        {
+            auto writer = client->CreateTableWriter<TNode>(TRichYPath(inputTable).SortedBy(initialSortedBy));
+            writer->AddRow(TNode()("key1", "a")("key2", "b")("key3", "c")("value", "x"));
+            writer->AddRow(TNode()("key1", "a")("key2", "b")("key3", "d")("value", "xx"));
+            writer->AddRow(TNode()("key1", "a")("key2", "c")("key3", "a")("value", "xxx"));
+            writer->AddRow(TNode()("key1", "b")("key2", "a")("key3", "a")("value", "xxxx"));
+            writer->Finish();
+        }
+
+        {
+            auto prefixColumns = TKeyColumns().Add("key1").Add("key2");
+            TString outputTable = "//testing/output";
+            auto operation = LazySort(
+                client,
+                TSortOperationSpec()
+                    .AddInput(inputTable)
+                    .AddInput(inputTable)
+                    .Output(outputTable)
+                    .SortBy(prefixColumns));
+
+            UNIT_ASSERT_UNEQUAL(operation, nullptr);
+            // It must be merge because input tables are already sorted
+            UNIT_ASSERT_VALUES_EQUAL(getType(operation), "merge");
+            UNIT_ASSERT_VALUES_EQUAL(getSortedBy(outputTable).Parts_, prefixColumns.Parts_);
+            UNIT_ASSERT_VALUES_EQUAL(
+                client->Get(outputTable + "/@row_count").AsInt64(),
+                2 * client->Get(inputTable + "/@row_count").AsInt64());
+        }
+        {
+            auto nonPrefixColumns = TKeyColumns().Add("key2").Add("key3");
+            TString outputTable = "//testing/output";
+            auto operation = LazySort(
+                client,
+                TSortOperationSpec()
+                    .AddInput(inputTable)
+                    .Output(outputTable)
+                    .SortBy(nonPrefixColumns));
+            UNIT_ASSERT_UNEQUAL(operation, nullptr);
+            UNIT_ASSERT_VALUES_EQUAL(getType(operation), "sort");
+            UNIT_ASSERT_VALUES_EQUAL(getSortedBy(outputTable).Parts_, nonPrefixColumns.Parts_);
         }
     }
 }
