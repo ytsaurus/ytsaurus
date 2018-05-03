@@ -14,12 +14,6 @@ TString GetDefaultJobsMetaContainerName();
 TString GetSlotMetaContainerName(int slotIndex);
 TString GetFullSlotMetaContainerName(const TString& jobsMetaName, int slotIndex);
 
-TString GetUserJobMetaContainerName();
-TString GetFullUserJobMetaContainerName(const TString& jobsMetaName, int slotIndex);
-
-TString GetJobProxyMetaContainerName();
-TString GetFullJobProxyMetaContainerName(const TString& jobsMetaName, int slotIndex);
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NJobProxy
