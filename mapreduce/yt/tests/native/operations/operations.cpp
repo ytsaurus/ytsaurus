@@ -1216,7 +1216,7 @@ Y_UNIT_TEST_SUITE(Operations)
         }
     }
 
-    SIMPLE_UNIT_TEST(LazySort)
+    Y_UNIT_TEST(LazySort)
     {
         auto client = CreateTestClient();
         TString inputTable = "//testing/table";
