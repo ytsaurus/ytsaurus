@@ -5,6 +5,7 @@
 #include <yt/core/yson/consumer.h>
 #include <yt/core/yson/writer.h>
 #include <yt/core/yson/forwarding_consumer.h>
+#include <yt/core/yson/null_consumer.h>
 
 #include <yt/core/ypath/token.h>
 
@@ -420,9 +421,13 @@ class TProtobufWriter
     , public TForwardingYsonConsumer
 {
 public:
-    TProtobufWriter(ZeroCopyOutputStream* outputStream, const TProtobufMessageType* rootType)
+    TProtobufWriter(
+        ZeroCopyOutputStream* outputStream,
+        const TProtobufMessageType* rootType,
+        const TProtobufWriterOptions& options)
         : OutputStream_(outputStream)
         , RootType_(rootType)
+        , Options_(options)
         , BodyOutputStream_(&BodyString_)
         , BodyCodedStream_(&BodyOutputStream_)
         , AttributeValueStream_(AttributeValue_)
@@ -434,6 +439,7 @@ public:
 private:
     ZeroCopyOutputStream* const OutputStream_;
     const TProtobufMessageType* const RootType_;
+    const TProtobufWriterOptions Options_;
 
     TString BodyString_;
     google::protobuf::io::StringOutputStream BodyOutputStream_;
@@ -643,6 +649,10 @@ private:
         const auto* type = TypeStack_.back().Type;
         const auto* field = type->FindFieldByName(key);
         if (!field) {
+            if (Options_.SkipUnknownFields) {
+                Forward(GetNullYsonConsumer(), [] {});
+                return;
+            }
             THROW_ERROR_EXCEPTION("Unknown field %Qv at %v",
                 key,
                 YPathStack_.GetPath())
@@ -994,9 +1004,10 @@ private:
 
 std::unique_ptr<IYsonConsumer> CreateProtobufWriter(
     ZeroCopyOutputStream* outputStream,
-    const TProtobufMessageType* rootType)
+    const TProtobufMessageType* rootType,
+    const TProtobufWriterOptions& options)
 {
-    return std::make_unique<TProtobufWriter>(outputStream, rootType);
+    return std::make_unique<TProtobufWriter>(outputStream, rootType, options);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1008,9 +1019,11 @@ public:
     TProtobufParser(
         IYsonConsumer* consumer,
         ZeroCopyInputStream* inputStream,
-        const TProtobufMessageType* rootType)
+        const TProtobufMessageType* rootType,
+        const TProtobufParserOptions& options)
         : Consumer_(consumer)
         , RootType_(rootType)
+        , Options_(options)
         , InputStream_(inputStream)
         , CodedStream_(InputStream_)
     { }
@@ -1064,6 +1077,7 @@ public:
 private:
     IYsonConsumer* const Consumer_;
     const TProtobufMessageType* const RootType_;
+    const TProtobufParserOptions Options_;
     ZeroCopyInputStream* const InputStream_;
 
     CodedInputStream CodedStream_;
@@ -1113,6 +1127,67 @@ private:
         auto fieldNumber = WireFormatLite::GetTagFieldNumber(tag);
         const auto* field = type->FindFieldByNumber(fieldNumber);
         if (!field) {
+            if (Options_.SkipUnknownFields) {
+                switch (wireType) {
+                    case WireFormatLite::WIRETYPE_VARINT: {
+                        ui64 unsignedValue;
+                        if (!CodedStream_.ReadVarint64(&unsignedValue)) {
+                            THROW_ERROR_EXCEPTION("Error reading \"varint\" value for unknown field %v",
+                                fieldNumber)
+                                << TErrorAttribute("ypath", YPathStack_.GetPath());
+                        }
+                        break;
+                    }
+
+                    case WireFormatLite::WIRETYPE_FIXED32: {
+                        ui32 unsignedValue;
+                        if (!CodedStream_.ReadLittleEndian32(&unsignedValue)) {
+                            THROW_ERROR_EXCEPTION("Error reading \"fixed32\" value for field %v",
+                                fieldNumber)
+                                << TErrorAttribute("ypath", YPathStack_.GetPath());
+                        }
+                        break;
+                    }
+
+                    case WireFormatLite::WIRETYPE_FIXED64: {
+                        ui64 unsignedValue;
+                        if (!CodedStream_.ReadLittleEndian64(&unsignedValue)) {
+                            THROW_ERROR_EXCEPTION("Error reading \"fixed64\" value for unknown field %v",
+                                fieldNumber)
+                                << TErrorAttribute("ypath", YPathStack_.GetPath());
+                        }
+                        break;
+                    }
+
+                    case WireFormatLite::WIRETYPE_LENGTH_DELIMITED: {
+                        ui64 length;
+                        if (!CodedStream_.ReadVarint64(&length)) {
+                            THROW_ERROR_EXCEPTION("Error reading \"varint\" value for unknown field %v",
+                                fieldNumber)
+                                << TErrorAttribute("ypath", YPathStack_.GetPath());
+                        }
+                        if (length > std::numeric_limits<int>::max()) {
+                            THROW_ERROR_EXCEPTION("Invalid length %v for unknown field %v",
+                                length,
+                                fieldNumber)
+                                << TErrorAttribute("ypath", YPathStack_.GetPath());
+                        }
+                        if (!CodedStream_.Skip(static_cast<int>(length))) {
+                            THROW_ERROR_EXCEPTION("Error skipping unknown length-delimited field %v",
+                                fieldNumber)
+                                << TErrorAttribute("ypath", YPathStack_.GetPath());
+                        }
+                        break;
+                    }
+
+                    default:
+                        THROW_ERROR_EXCEPTION("Unexpected wire type tag %x for unknown field %v",
+                            tag,
+                            fieldNumber)
+                            << TErrorAttribute("ypath", YPathStack_.GetPath());
+                }
+                return true;
+            }
             THROW_ERROR_EXCEPTION("Unknown field number %v at %v",
                 fieldNumber,
                 YPathStack_.GetPath())
@@ -1475,9 +1550,10 @@ private:
 void ParseProtobuf(
     IYsonConsumer* consumer,
     ZeroCopyInputStream* inputStream,
-    const TProtobufMessageType* rootType)
+    const TProtobufMessageType* rootType,
+    const TProtobufParserOptions& options)
 {
-    TProtobufParser parser(consumer, inputStream, rootType);
+    TProtobufParser parser(consumer, inputStream, rootType, options);
     parser.Parse();
 }
 
