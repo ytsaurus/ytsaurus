@@ -50,11 +50,14 @@ TString ToHex(const TString& data)
         EXPECT_TRUE(thrown); \
     } while (false);
 
-#define TEST_PROLOGUE(type) \
+#define TEST_PROLOGUE_WITH_OPTIONS(type, options) \
     TString str; \
     StringOutputStream output(&str); \
-    auto protobufWriter = CreateProtobufWriter(&output, ReflectProtobufMessageType<NYT::NProto::type>()); \
+    auto protobufWriter = CreateProtobufWriter(&output, ReflectProtobufMessageType<NYT::NProto::type>(), options); \
     BuildYsonFluently(protobufWriter.get())
+
+#define TEST_PROLOGUE(type) \
+    TEST_PROLOGUE_WITH_OPTIONS(type, TProtobufWriterOptions())
 
 #define TEST_EPILOGUE(type) \
     Cerr << ToHex(str) << Endl; \
@@ -472,10 +475,84 @@ TEST(TYsonToProtobufTest, ErrorProto)
     EXPECT_EQ(ConvertTo<TString>(TYsonString(attribute.value())), "localhost");
 }
 
+TEST(TYsonToProtobufTest, UnknownFields)
+{
+    EXPECT_YPATH({
+        TEST_PROLOGUE(TMessage)
+            .BeginMap()
+                .Item("unknown_field").Value(1)
+            .EndMap();
+    }, "/");
+
+    EXPECT_YPATH({
+        TEST_PROLOGUE(TMessage)
+            .BeginMap()
+                .Item("repeated_nested_message").BeginList()
+                    .Item().BeginMap()
+                        .Item("unknown_field").Value(1)
+                    .EndMap()
+                .EndList()
+            .EndMap();
+    }, "/repeated_nested_message/0");
+
+    {
+        TProtobufWriterOptions options;
+        options.SkipUnknownFields = true;
+
+        TEST_PROLOGUE_WITH_OPTIONS(TMessage, options)
+            .BeginMap()
+                .Item("int32_field").Value(10000)
+                .Item("unknown_field").Value(1)
+                .Item("nested_message1").BeginMap()
+                    .Item("int32_field").Value(123)
+                    .Item("nested_message").BeginMap()
+                        .Item("unknown_map").BeginMap()
+                        .EndMap()
+                    .EndMap()
+                .EndMap()
+                .Item("repeated_nested_message").BeginList()
+                    .Item().BeginMap()
+                        .Item("int32_field").Value(456)
+                        .Item("unknown_list").BeginList()
+                        .EndList()
+                    .EndMap()
+                .EndList()
+            .EndMap();
+
+        TEST_EPILOGUE(TMessage)
+        EXPECT_EQ(10000, message.int32_field_xxx());
+
+        EXPECT_TRUE(message.has_nested_message1());
+        EXPECT_EQ(123, message.nested_message1().int32_field());
+        EXPECT_TRUE(message.nested_message1().has_nested_message());
+
+        EXPECT_EQ(1, message.repeated_nested_message().size());
+        EXPECT_EQ(456, message.repeated_nested_message().Get(0).int32_field());
+    }
+}
+
 #undef TEST_PROLOGUE
+#undef TEST_PROLOGUE_WITH_OPTIONS
 #undef TEST_EPILOGUE
 
 ////////////////////////////////////////////////////////////////////////////////
+
+#define TEST_PROLOGUE() \
+    TString protobuf; \
+    StringOutputStream protobufOutputStream(&protobuf); \
+    CodedOutputStream codedStream(&protobufOutputStream);
+
+#define TEST_EPILOGUE_WITH_OPTIONS(type, options) \
+    codedStream.Trim(); \
+    Cerr << ToHex(protobuf) << Endl; \
+    ArrayInputStream protobufInputStream(protobuf.data(), protobuf.length()); \
+    TString yson; \
+    TStringOutput ysonOutputStream(yson); \
+    TYsonWriter writer(&ysonOutputStream, EYsonFormat::Pretty); \
+    ParseProtobuf(&writer, &protobufInputStream, ReflectProtobufMessageType<NYT::NProto::type>(), options); \
+
+#define TEST_EPILOGUE(type) \
+    TEST_EPILOGUE_WITH_OPTIONS(type, TProtobufParserOptions())
 
 TEST(TProtobufToYsonTest, Success)
 {
@@ -533,14 +610,9 @@ TEST(TProtobufToYsonTest, Success)
 
     message.set_yson_field("{a=1;b=[\"foobar\";];}");
 
-    auto serialized = SerializeProtoToRef(message);
-
-    ArrayInputStream inputStream(serialized.Begin(), serialized.Size());
-    TString yson;
-    TStringOutput outputStream(yson);
-    TYsonWriter writer(&outputStream, EYsonFormat::Pretty);
-    ParseProtobuf(&writer, &inputStream, ReflectProtobufMessageType<NYT::NProto::TMessage>());
-    Cerr << yson << Endl;
+    TEST_PROLOGUE()
+    message.SerializeToCodedStream(&codedStream);
+    TEST_EPILOGUE(TMessage)
 
     auto writtenNode = ConvertToNode(TYsonString(yson));
     auto expectedNode = BuildYsonNodeFluently()
@@ -628,17 +700,6 @@ TEST(TProtobufToYsonTest, ErrorProto)
         .EndMap();
     EXPECT_TRUE(AreNodesEqual(writtenNode, expectedNode));
 }
-
-#define TEST_PROLOGUE() \
-    TString serialized; \
-    StringOutputStream outputStream(&serialized); \
-    CodedOutputStream codedStream(&outputStream);
-
-#define TEST_EPILOGUE(type) \
-    codedStream.Trim(); \
-    Cerr << ToHex(serialized) << Endl; \
-    ArrayInputStream inputStream(serialized.data(), serialized.length()); \
-    ParseProtobuf(GetNullYsonConsumer(), &inputStream, ReflectProtobufMessageType<NYT::NProto::type>()); \
 
 TEST(TProtobufToYsonTest, Failure)
 {
@@ -775,8 +836,42 @@ TEST(TProtobufToYsonTest, Failure)
     }, "/attributes");
 }
 
+TEST(TProtobufToYsonTest, UnknownFields)
+{
+    EXPECT_YPATH({
+        TEST_PROLOGUE()
+        codedStream.WriteTag(WireFormatLite::MakeTag(100 /*unknown*/, WireFormatLite::WIRETYPE_FIXED32));
+        TEST_EPILOGUE(TMessage)
+    }, "/");
+
+    {
+        TProtobufParserOptions options;
+        options.SkipUnknownFields = true;
+
+        TEST_PROLOGUE()
+        codedStream.WriteTag(WireFormatLite::MakeTag(100 /*unknown*/, WireFormatLite::WIRETYPE_LENGTH_DELIMITED));
+        codedStream.WriteVarint64(9);
+        codedStream.WriteRaw("blablabla", 9);
+        codedStream.WriteTag(WireFormatLite::MakeTag(15 /*nested_message1*/, WireFormatLite::WIRETYPE_LENGTH_DELIMITED));
+        codedStream.WriteVarint64(3);
+        codedStream.WriteTag(WireFormatLite::MakeTag(19 /*color*/, WireFormatLite::WIRETYPE_VARINT));
+        codedStream.WriteVarint64(2 /*red*/);
+        TEST_EPILOGUE_WITH_OPTIONS(TMessage, options)
+
+        auto writtenNode = ConvertToNode(TYsonString(yson));
+        auto expectedNode = BuildYsonNodeFluently()
+            .BeginMap()
+                .Item("nested_message1").BeginMap()
+                    .Item("color").Value("red")
+                .EndMap()
+            .EndMap();
+        EXPECT_TRUE(AreNodesEqual(writtenNode, expectedNode));
+    }
+}
+
 #undef TEST_PROLOGUE
 #undef TEST_EPILOGUE
+#undef TEST_EPILOGUE_WITH_OPTIONS
 
 ////////////////////////////////////////////////////////////////////////////////
 
