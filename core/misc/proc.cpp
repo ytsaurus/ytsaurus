@@ -571,7 +571,7 @@ int SafeDup(int fd)
 
 void SafeOpenPty(int* masterFD, int* slaveFD, int height, int width)
 {
-#ifndef YT_IN_ARCADIA
+#ifdef _linux_
     {
         struct termios tt = {};
         tt.c_iflag = TTYDEF_IFLAG & ~ISTRIP;
@@ -604,7 +604,7 @@ void SafeOpenPty(int* masterFD, int* slaveFD, int height, int width)
 
 void SafeLoginTty(int slaveFD)
 {
-#ifndef YT_IN_ARCADIA
+#ifdef _linux_
     int result = ::login_tty(slaveFD);
     if (result == -1) {
         THROW_ERROR_EXCEPTION("Error attaching pty to standard streams")
