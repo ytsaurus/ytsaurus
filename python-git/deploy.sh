@@ -68,7 +68,7 @@ init_vars
 
 # Copy package files to the python root
 # NB: Symbolic links doesn't work correctly with `sdist upload`
-cp -r $PACKAGE_PATH/debian $PACKAGE_PATH/setup.py .
+cp -r -L $PACKAGE_PATH/debian $PACKAGE_PATH/setup.py .
 # NB: On Lucid packages have special lucid version of debian
 # directory but changelog from original package should be used to avoid duplication.
 cp $PACKAGE/debian/changelog debian
