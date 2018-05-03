@@ -64,7 +64,7 @@ bool TFairShareStrategyOperationController::IsBlocked(
 
     if (ConcurrentScheduleJobCalls_ >= maxConcurrentScheduleJobCalls) {
         LOG_DEBUG_UNLESS(IsBlocked_,
-            "Operation blocked in fair share strategy due to violation of maximum concurrect schedule job calls (ConcurrentScheduleJobCalls: %v)",
+            "Operation blocked in fair share strategy due to violation of maximum concurrent schedule job calls (ConcurrentScheduleJobCalls: %v)",
             ConcurrentScheduleJobCalls_.load());
         IsBlocked_.store(true);
         return true;
