@@ -33,7 +33,7 @@ public:
 
     void WriteNull();
 
-    void Write(const TStringBuf& value);
+    void Write(TStringBuf value);
     void Write(const char* value);
 
     void Write(double value);
@@ -58,7 +58,7 @@ public:
         EYsonType type,
         TJsonFormatConfigPtr config);
 
-    virtual void OnStringScalar(const TStringBuf& value) override;
+    virtual void OnStringScalar(TStringBuf value) override;
     virtual void OnInt64Scalar(i64 value) override;
     virtual void OnUint64Scalar(ui64 value) override;
     virtual void OnDoubleScalar(double value) override;
@@ -71,7 +71,7 @@ public:
     virtual void OnEndList() override;
 
     virtual void OnBeginMap() override;
-    virtual void OnKeyedItem(const TStringBuf& key) override;
+    virtual void OnKeyedItem(TStringBuf key) override;
     virtual void OnEndMap() override;
 
     virtual void OnBeginAttributes() override;
@@ -87,7 +87,7 @@ private:
     TUtf8Transcoder Utf8Transcoder;
     std::unique_ptr<TJsonWriter> JsonWriter;
 
-    void WriteStringScalar(const TStringBuf& value);
+    void WriteStringScalar(TStringBuf value);
 
     void EnterNode();
     void LeaveNode();
@@ -184,7 +184,7 @@ void TJsonWriter::EndList()
     CheckYajlCode(yajl_gen_array_close(Handle));
 }
 
-void TJsonWriter::Write(const TStringBuf& value)
+void TJsonWriter::Write(TStringBuf value)
 {
     CheckYajlCode(yajl_gen_string(Handle, (const unsigned char*) value.c_str(), value.size()));
 }
@@ -289,7 +289,7 @@ bool TJsonConsumer::IsWriteAllowed()
     return true;
 }
 
-void TJsonConsumer::OnStringScalar(const TStringBuf& value)
+void TJsonConsumer::OnStringScalar(TStringBuf value)
 {
     if (IsWriteAllowed()) {
         TStringBuf writeValue = value;
@@ -446,7 +446,7 @@ void TJsonConsumer::OnBeginMap()
     }
 }
 
-void TJsonConsumer::OnKeyedItem(const TStringBuf& name)
+void TJsonConsumer::OnKeyedItem(TStringBuf name)
 {
     if (IsWriteAllowed()) {
         if (IsSpecialJsonKey(name)) {
@@ -489,7 +489,7 @@ void TJsonConsumer::Flush()
     JsonWriter->Flush();
 }
 
-void TJsonConsumer::WriteStringScalar(const TStringBuf &value)
+void TJsonConsumer::WriteStringScalar(TStringBuf value)
 {
     JsonWriter->Write(Utf8Transcoder.Encode(value));
 }

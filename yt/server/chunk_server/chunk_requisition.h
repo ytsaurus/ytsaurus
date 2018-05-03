@@ -67,7 +67,7 @@ static_assert(sizeof(TReplicationPolicy) == 1, "sizeof(TReplicationPolicy) != 1"
 bool operator==(TReplicationPolicy lhs, TReplicationPolicy rhs);
 bool operator!=(TReplicationPolicy lhs, TReplicationPolicy rhs);
 
-void FormatValue(TStringBuilder* builder, TReplicationPolicy policy, const TStringBuf& /*spec*/);
+void FormatValue(TStringBuilder* builder, TReplicationPolicy policy, TStringBuf /*spec*/);
 TString ToString(TReplicationPolicy policy);
 
 void Serialize(const TReplicationPolicy& policy, NYson::IYsonConsumer* consumer);
@@ -145,7 +145,7 @@ static_assert(sizeof(TChunkReplication) == 8, "TChunkReplication's size is wrong
 bool operator==(const TChunkReplication& lhs, const TChunkReplication& rhs);
 bool operator!=(const TChunkReplication& lhs, const TChunkReplication& rhs);
 
-void FormatValue(TStringBuilder* builder, TChunkReplication replication, const TStringBuf& /*spec*/);
+void FormatValue(TStringBuilder* builder, TChunkReplication replication, TStringBuf /*spec*/);
 TString ToString(const TChunkReplication& replication);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -233,7 +233,7 @@ struct TRequisitionEntry
     size_t GetHash() const;
 };
 
-void FormatValue(TStringBuilder* builder, const TRequisitionEntry& entry, const TStringBuf& /*spec*/ = {});
+void FormatValue(TStringBuilder* builder, const TRequisitionEntry& entry, TStringBuf /*spec*/ = {});
 TString ToString(const TRequisitionEntry& entry);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -344,7 +344,7 @@ void ToProto(
     NProto::TReqUpdateChunkRequisition::TChunkRequisition* protoRequisition,
     const TChunkRequisition& requisition);
 
-void FormatValue(TStringBuilder* builder, const TChunkRequisition& requisition, const TStringBuf& /*spec*/ = {});
+void FormatValue(TStringBuilder* builder, const TChunkRequisition& requisition, TStringBuf /*spec*/ = {});
 TString ToString(const TChunkRequisition& requisition);
 
 ////////////////////////////////////////////////////////////////////////////////

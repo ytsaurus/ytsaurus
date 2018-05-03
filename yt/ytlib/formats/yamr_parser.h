@@ -20,7 +20,7 @@ void ParseYamr(
     TYamrFormatConfigPtr config = New<TYamrFormatConfig>());
 
 void ParseYamr(
-    const TStringBuf& data,
+    TStringBuf data,
     NYson::IYsonConsumer* consumer,
     TYamrFormatConfigPtr config = New<TYamrFormatConfig>());
 

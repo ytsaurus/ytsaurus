@@ -5,7 +5,7 @@ namespace NYson {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTokenizer::TTokenizer(const TStringBuf& input)
+TTokenizer::TTokenizer(TStringBuf input)
     : Input(input)
     , Parsed(0)
     , Position(0)
@@ -35,7 +35,7 @@ TStringBuf TTokenizer::GetCurrentSuffix() const
     return Input.Tail(Parsed);
 }
 
-const TStringBuf& TTokenizer::CurrentInput() const
+TStringBuf TTokenizer::CurrentInput() const
 {
     return Input;
 }

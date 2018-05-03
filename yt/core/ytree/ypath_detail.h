@@ -309,7 +309,7 @@ protected:
     void ThrowInvalidType(ENodeType actualType);
     virtual ENodeType GetExpectedType() = 0;
 
-    virtual void OnMyStringScalar(const TStringBuf& value) override;
+    virtual void OnMyStringScalar(TStringBuf value) override;
     virtual void OnMyInt64Scalar(i64 value) override;
     virtual void OnMyUint64Scalar(ui64 value) override;
     virtual void OnMyDoubleScalar(double value) override;
@@ -364,7 +364,7 @@ class TNodeSetter
     };
 
 BEGIN_SETTER(String, TString)
-    virtual void OnMyStringScalar(const TStringBuf& value) override
+    virtual void OnMyStringScalar(TStringBuf value) override
     {
         Node_->SetValue(TString(value));
     }
@@ -439,7 +439,7 @@ private:
         Map_->Clear();
     }
 
-    virtual void OnMyKeyedItem(const TStringBuf& key) override
+    virtual void OnMyKeyedItem(TStringBuf key) override
     {
         ItemKey_ = key;
         TreeBuilder_->BeginTree();

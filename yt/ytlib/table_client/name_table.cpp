@@ -44,7 +44,7 @@ void TNameTable::SetEnableColumnNameValidation()
     EnableColumnNameValidation_ = true;
 }
 
-TNullable<int> TNameTable::FindId(const TStringBuf& name) const
+TNullable<int> TNameTable::FindId(TStringBuf name) const
 {
     TGuard<TSpinLock> guard(SpinLock_);
     auto it = NameToId_.find(name);
@@ -55,7 +55,7 @@ TNullable<int> TNameTable::FindId(const TStringBuf& name) const
     }
 }
 
-int TNameTable::GetIdOrThrow(const TStringBuf& name) const
+int TNameTable::GetIdOrThrow(TStringBuf name) const
 {
     auto maybeId = FindId(name);
     if (!maybeId) {
@@ -64,7 +64,7 @@ int TNameTable::GetIdOrThrow(const TStringBuf& name) const
     return *maybeId;
 }
 
-int TNameTable::GetId(const TStringBuf& name) const
+int TNameTable::GetId(TStringBuf name) const
 {
     auto index = FindId(name);
     YCHECK(index);
@@ -78,13 +78,13 @@ TStringBuf TNameTable::GetName(int id) const
     return IdToName_[id];
 }
 
-int TNameTable::RegisterName(const TStringBuf& name)
+int TNameTable::RegisterName(TStringBuf name)
 {
     TGuard<TSpinLock> guard(SpinLock_);
     return DoRegisterName(name);
 }
 
-int TNameTable::GetIdOrRegisterName(const TStringBuf& name)
+int TNameTable::GetIdOrRegisterName(TStringBuf name)
 {
     TGuard<TSpinLock> guard(SpinLock_);
     auto it = NameToId_.find(name);
@@ -95,7 +95,7 @@ int TNameTable::GetIdOrRegisterName(const TStringBuf& name)
     }
 }
 
-int TNameTable::DoRegisterName(const TStringBuf& name)
+int TNameTable::DoRegisterName(TStringBuf name)
 {
     int id = IdToName_.size();
 
@@ -162,7 +162,7 @@ TNameTableWriter::TNameTableWriter(TNameTablePtr nameTable)
     : NameTable_(std::move(nameTable))
 { }
 
-TNullable<int> TNameTableWriter::FindId(const TStringBuf& name) const
+TNullable<int> TNameTableWriter::FindId(TStringBuf name) const
 {
     auto it = NameToId_.find(name);
     if (it != NameToId_.end()) {
@@ -177,7 +177,7 @@ TNullable<int> TNameTableWriter::FindId(const TStringBuf& name) const
     return maybeId;
 }
 
-int TNameTableWriter::GetIdOrThrow(const TStringBuf& name) const
+int TNameTableWriter::GetIdOrThrow(TStringBuf name) const
 {
     auto maybeId = FindId(name);
     if (!maybeId) {
@@ -186,7 +186,7 @@ int TNameTableWriter::GetIdOrThrow(const TStringBuf& name) const
     return *maybeId;
 }
 
-int TNameTableWriter::GetIdOrRegisterName(const TStringBuf& name)
+int TNameTableWriter::GetIdOrRegisterName(TStringBuf name)
 {
     auto it = NameToId_.find(name);
     if (it != NameToId_.end()) {

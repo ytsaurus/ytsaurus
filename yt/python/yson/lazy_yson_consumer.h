@@ -27,11 +27,11 @@ public:
         bool alwaysCreateAttributes);
 
     void OnListItem();
-    void OnKeyedItem(const TStringBuf& key);
+    void OnKeyedItem(TStringBuf key);
     void OnBeginAttributes();
     void OnEndAttributes();
-    void OnRaw(const TStringBuf& /*yson*/, NYson::EYsonType /*type*/);
-    void OnStringScalar(const TStringBuf& value);
+    void OnRaw(TStringBuf /*yson*/, NYson::EYsonType /*type*/);
+    void OnStringScalar(TStringBuf value);
     void OnInt64Scalar(i64 value);
     void OnUint64Scalar(ui64 value);
     void OnDoubleScalar(double value);

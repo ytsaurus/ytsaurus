@@ -22,7 +22,7 @@ public:
         NYson::EYsonType type = NYson::EYsonType::Node);
     ~TJsonParser();
 
-    void Read(const TStringBuf& data);
+    void Read(TStringBuf data);
     void Finish();
 
     void Parse(IInputStream* input);

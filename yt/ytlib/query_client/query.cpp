@@ -221,9 +221,9 @@ bool Compare(
 void ThrowTypeMismatchError(
     EValueType lhsType,
     EValueType rhsType,
-    const TStringBuf& source,
-    const TStringBuf& lhsSource,
-    const TStringBuf& rhsSource)
+    TStringBuf source,
+    TStringBuf lhsSource,
+    TStringBuf rhsSource)
 {
     THROW_ERROR_EXCEPTION(
             "Type mismatch in expression %Qv",

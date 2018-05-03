@@ -993,7 +993,7 @@ private:
         const TRootElementSnapshotPtr& rootElementSnapshot,
         TFairShareContext* context,
         const std::function<void(TProfilingCounters&, int, TDuration)> profileTimings,
-        const std::function<void(const TStringBuf&)> logAndCleanSchedulingStatistics)
+        const std::function<void(TStringBuf)> logAndCleanSchedulingStatistics)
     {
         auto& rootElement = rootElementSnapshot->RootElement;
 
@@ -1034,7 +1034,7 @@ private:
         const TRootElementSnapshotPtr& rootElementSnapshot,
         TFairShareContext* context,
         const std::function<void(TProfilingCounters&, int, TDuration)>& profileTimings,
-        const std::function<void(const TStringBuf&)>& logAndCleanSchedulingStatistics)
+        const std::function<void(TStringBuf)>& logAndCleanSchedulingStatistics)
     {
         auto& rootElement = rootElementSnapshot->RootElement;
         auto& config = rootElementSnapshot->Config;
@@ -1254,7 +1254,7 @@ private:
             LastSchedulingInformationLoggedTime_ = now;
         }
 
-        auto logAndCleanSchedulingStatistics = [&] (const TStringBuf& stageName) {
+        auto logAndCleanSchedulingStatistics = [&] (TStringBuf stageName) {
             if (!enableSchedulingInfoLogging) {
                 return;
             }

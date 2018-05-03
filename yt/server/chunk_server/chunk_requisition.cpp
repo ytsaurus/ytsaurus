@@ -54,7 +54,7 @@ void TReplicationPolicy::Load(NCellMaster::TLoadContext& context)
     DataPartsOnly_ = Load<decltype(DataPartsOnly_)>(context);
 }
 
-void FormatValue(TStringBuilder* builder, TReplicationPolicy policy, const TStringBuf& /*spec*/)
+void FormatValue(TStringBuilder* builder, TReplicationPolicy policy, TStringBuf /*spec*/)
 {
     builder->AppendFormat("{ReplicationFactor: %v, DataPartsOnly: %v}",
         policy.GetReplicationFactor(),
@@ -134,7 +134,7 @@ bool TChunkReplication::IsValid() const
     return false;
 }
 
-void FormatValue(TStringBuilder* builder, TChunkReplication replication, const TStringBuf& /*spec*/)
+void FormatValue(TStringBuilder* builder, TChunkReplication replication, TStringBuf /*spec*/)
 {
     // We want to accompany medium policies with medium indexes.
     using TIndexPolicyPair = std::pair<int, TReplicationPolicy>;
@@ -293,7 +293,7 @@ void TRequisitionEntry::Load(NCellMaster::TLoadContext& context)
     Load(context, Committed);
 }
 
-void FormatValue(TStringBuilder* builder, const TRequisitionEntry& entry, const TStringBuf& /*spec*/)
+void FormatValue(TStringBuilder* builder, const TRequisitionEntry& entry, TStringBuf /*spec*/)
 {
     return builder->AppendFormat(
         "{AccountId: %v, MediumIndex: %v, ReplicationPolicy: %v, Committed: %v}",
@@ -494,7 +494,7 @@ void TChunkRequisition::AddEntry(
     Entries_.emplace_back(account, mediumIndex, replicationPolicy, committed);
 }
 
-void FormatValue(TStringBuilder* builder, const TChunkRequisition& requisition, const TStringBuf& /*spec*/)
+void FormatValue(TStringBuilder* builder, const TChunkRequisition& requisition, TStringBuf /*spec*/)
 {
     builder->AppendFormat(
         "{Vital: %v, Entries: {%v}}",

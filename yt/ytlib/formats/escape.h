@@ -82,12 +82,12 @@ private:
 };
 
 void EscapeAndWrite(
-    const TStringBuf& string,
+    TStringBuf string,
     IOutputStream* stream,
     const TEscapeTable& escapeTable);
 
 TString Escape(
-    const TStringBuf& string,
+    TStringBuf string,
     const TEscapeTable& escapeTable);
 
 ////////////////////////////////////////////////////////////////////////////////

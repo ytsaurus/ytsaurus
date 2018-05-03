@@ -93,7 +93,7 @@ class TPythonStringCache
 public:
     TPythonStringCache();
     TPythonStringCache(bool enableCache, const TNullable<TString>& encoding);
-    PyObject* GetPythonString(const TStringBuf& string);
+    PyObject* GetPythonString(TStringBuf string);
 
 private:
     bool CacheEnabled_;

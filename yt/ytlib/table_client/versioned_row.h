@@ -65,14 +65,14 @@ inline TVersionedValue MakeVersionedBooleanValue(bool value, TTimestamp timestam
     return result;
 }
 
-inline TVersionedValue MakeVersionedStringValue(const TStringBuf& value, TTimestamp timestamp, int id = 0, bool aggregate = false)
+inline TVersionedValue MakeVersionedStringValue(TStringBuf value, TTimestamp timestamp, int id = 0, bool aggregate = false)
 {
     auto result = MakeStringValue<TVersionedValue>(value, id, aggregate);
     result.Timestamp = timestamp;
     return result;
 }
 
-inline TVersionedValue MakeVersionedAnyValue(const TStringBuf& value, TTimestamp timestamp, int id = 0, bool aggregate = false)
+inline TVersionedValue MakeVersionedAnyValue(TStringBuf value, TTimestamp timestamp, int id = 0, bool aggregate = false)
 {
     auto result = MakeAnyValue<TVersionedValue>(value, id, aggregate);
     result.Timestamp = timestamp;

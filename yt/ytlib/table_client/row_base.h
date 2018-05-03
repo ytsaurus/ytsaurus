@@ -241,7 +241,7 @@ TValue MakeBooleanValue(bool value, int id = 0, bool aggregate = false)
 }
 
 template <class TValue>
-TValue MakeStringValue(const TStringBuf& value, int id = 0, bool aggregate = false)
+TValue MakeStringValue(TStringBuf value, int id = 0, bool aggregate = false)
 {
     TValue result{};
     result.Id = id;
@@ -253,7 +253,7 @@ TValue MakeStringValue(const TStringBuf& value, int id = 0, bool aggregate = fal
 }
 
 template <class TValue>
-TValue MakeAnyValue(const TStringBuf& value, int id = 0, bool aggregate = false)
+TValue MakeAnyValue(TStringBuf value, int id = 0, bool aggregate = false)
 {
     TValue result{};
     result.Id = id;

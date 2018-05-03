@@ -76,7 +76,7 @@ TProtobufFormatConfigPtr ParseFormatConfigFromNode(const INodePtr& configNode)
     return config;
 };
 
-TProtobufFormatConfigPtr ParseProtobufFormatConfigFromString(const TStringBuf& configStr)
+TProtobufFormatConfigPtr ParseProtobufFormatConfigFromString(TStringBuf configStr)
 {
     return ParseFormatConfigFromNode(ParseYson(configStr));
 }

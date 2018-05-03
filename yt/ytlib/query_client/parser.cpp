@@ -990,7 +990,7 @@ namespace NYT { namespace NQueryClient { namespace NAst {
   }
 
   TParser::symbol_type
-  TParser::make_Identifier (const TStringBuf& v, const location_type& l)
+  TParser::make_Identifier (TStringBuf v, const location_type& l)
   {
     return symbol_type (token::Identifier, v, l);
   }

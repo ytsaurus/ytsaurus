@@ -32,7 +32,7 @@ public:
         int indent = DefaultIndent);
 
     // IYsonConsumer overrides.
-    virtual void OnStringScalar(const TStringBuf& value) override;
+    virtual void OnStringScalar(TStringBuf value) override;
     virtual void OnInt64Scalar(i64 value) override;
     virtual void OnUint64Scalar(ui64 value) override;
     virtual void OnDoubleScalar(double value) override;
@@ -44,14 +44,14 @@ public:
     virtual void OnEndList() override;
 
     virtual void OnBeginMap() override;
-    virtual void OnKeyedItem(const TStringBuf& key) override;
+    virtual void OnKeyedItem(TStringBuf key) override;
     virtual void OnEndMap() override;
 
     virtual void OnBeginAttributes() override;
     virtual void OnEndAttributes() override;
 
     using IYsonConsumer::OnRaw;
-    virtual void OnRaw(const TStringBuf& yson, EYsonType type = EYsonType::Node) override;
+    virtual void OnRaw(TStringBuf yson, EYsonType type = EYsonType::Node) override;
 
     virtual void Flush() override;
 
@@ -70,7 +70,7 @@ protected:
 
 
     void WriteIndent();
-    void WriteStringScalar(const TStringBuf& value);
+    void WriteStringScalar(TStringBuf value);
 
     void BeginCollection(char ch);
     void CollectionItem();
@@ -105,7 +105,7 @@ public:
         bool booleanAsString = false);
 
     // IYsonConsumer overrides.
-    virtual void OnStringScalar(const TStringBuf& value) override;
+    virtual void OnStringScalar(TStringBuf value) override;
     virtual void OnInt64Scalar(i64 value) override;
     virtual void OnUint64Scalar(ui64 value) override;
     virtual void OnDoubleScalar(double value) override;
@@ -117,14 +117,14 @@ public:
     virtual void OnEndList() override;
 
     virtual void OnBeginMap() override;
-    virtual void OnKeyedItem(const TStringBuf& key) override;
+    virtual void OnKeyedItem(TStringBuf key) override;
     virtual void OnEndMap() override;
 
     virtual void OnBeginAttributes() override;
     virtual void OnEndAttributes() override;
 
     using IYsonConsumer::OnRaw;
-    virtual void OnRaw(const TStringBuf& yson, EYsonType type = EYsonType::Node) override;
+    virtual void OnRaw(TStringBuf yson, EYsonType type = EYsonType::Node) override;
 
     virtual void Flush() override;
 
@@ -147,7 +147,7 @@ protected:
     int Depth_ = 0;
 
     void EnsureSpace(size_t space);
-    void WriteStringScalar(const TStringBuf& value);
+    void WriteStringScalar(TStringBuf value);
     void BeginCollection(char ch);
     void EndCollection(char ch);
     void EndNode();

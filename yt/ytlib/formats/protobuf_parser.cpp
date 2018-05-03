@@ -33,7 +33,7 @@ namespace {
 class TRowParser
 {
 public:
-    explicit TRowParser(const TStringBuf& strbuf)
+    explicit TRowParser(TStringBuf strbuf)
         : Begin_(strbuf.Data())
         , End_(strbuf.Data() + strbuf.Size())
         , Current_(strbuf.Data())
@@ -224,7 +224,7 @@ public:
         }
     }
 
-    virtual void Read(const TStringBuf& data) override
+    virtual void Read(TStringBuf data) override
     {
         auto current = data.begin();
         while (current != data.end()) {
@@ -300,7 +300,7 @@ private:
         return current;
     }
 
-    void OutputRow(const TStringBuf& value)
+    void OutputRow(TStringBuf value)
     {
         TRowParser rowParser(value);
 

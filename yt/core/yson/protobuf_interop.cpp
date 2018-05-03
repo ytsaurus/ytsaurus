@@ -239,7 +239,7 @@ public:
         return RequiredFieldNumbers_;
     }
 
-    const TProtobufField* FindFieldByName(const TStringBuf& name) const
+    const TProtobufField* FindFieldByName(TStringBuf name) const
     {
         auto it = NameToField_.find(name);
         return it == NameToField_.end() ? nullptr : it->second.get();
@@ -286,7 +286,7 @@ public:
         return Underlying_->full_name();
     }
 
-    TNullable<int> FindValueByLiteral(const TStringBuf& literal) const
+    TNullable<int> FindValueByLiteral(TStringBuf literal) const
     {
         auto it = LiteralToValue_.find(literal);
         return it == LiteralToValue_.end() ? Null : MakeNullable(it->second);
@@ -350,7 +350,7 @@ const TProtobufMessageType* ReflectProtobufMessageType(const Descriptor* descrip
 class TYPathStack
 {
 public:
-    void Push(const TStringBuf& literal)
+    void Push(TStringBuf literal)
     {
         Items_.push_back(literal);
     }
@@ -527,7 +527,7 @@ private:
     TStringOutput YsonStringStream_;
     TBufferedBinaryYsonWriter YsonStringWriter_;
 
-    virtual void OnMyStringScalar(const TStringBuf& value) override
+    virtual void OnMyStringScalar(TStringBuf value) override
     {
         WriteScalar([&] {
             const auto* field = FieldStack_.back().Field;
@@ -661,7 +661,7 @@ private:
         NestedIndexStack_.push_back(nestedIndex);
     }
 
-    virtual void OnMyKeyedItem(const TStringBuf& key) override
+    virtual void OnMyKeyedItem(TStringBuf key) override
     {
         Y_ASSERT(TypeStack_.size() > 0);
         const auto* type = TypeStack_.back().Type;
@@ -673,7 +673,7 @@ private:
         }
     }
 
-    void OnMyKeyedItemRegular(const TStringBuf& key)
+    void OnMyKeyedItemRegular(TStringBuf key)
     {
         const auto* type = TypeStack_.back().Type;
         const auto* field = type->FindFieldByName(key);
@@ -712,7 +712,7 @@ private:
         }
     }
 
-    void OnMyKeyedItemAttributeDictionary(const TStringBuf& key)
+    void OnMyKeyedItemAttributeDictionary(TStringBuf key)
     {
         AttributeKey_ = key;
         AttributeValue_.clear();
@@ -1015,7 +1015,7 @@ private:
     }
 
     template <class TTo, class TFrom>
-    TTo CheckedCast(TFrom value, const TStringBuf& toTypeName)
+    TTo CheckedCast(TFrom value, TStringBuf toTypeName)
     {
         const auto* field = FieldStack_.back().Field;
         TTo result;

@@ -23,11 +23,11 @@ DEFINE_ENUM(ETokenType,
     (Range)
 );
 
-TString ToYPathLiteral(const TStringBuf& value);
+TString ToYPathLiteral(TStringBuf value);
 TString ToYPathLiteral(i64 value);
 
-TStringBuf ExtractListIndex(const TStringBuf& token);
-int ParseListIndex(const TStringBuf& token);
+TStringBuf ExtractListIndex(TStringBuf token);
+int ParseListIndex(TStringBuf token);
 
 ////////////////////////////////////////////////////////////////////////////////
 

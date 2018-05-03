@@ -151,7 +151,7 @@ bool operator != (const TExpression& lhs, const TExpression& rhs)
     return !(lhs == rhs);
 }
 
-TStringBuf TExpression::GetSource(const TStringBuf& source) const
+TStringBuf TExpression::GetSource(TStringBuf source) const
 {
     auto begin = SourceLocation.first;
     auto end = SourceLocation.second;
@@ -159,7 +159,7 @@ TStringBuf TExpression::GetSource(const TStringBuf& source) const
     return source.substr(begin, end - begin);
 }
 
-TStringBuf GetSource(TSourceLocation sourceLocation, const TStringBuf& source)
+TStringBuf GetSource(TSourceLocation sourceLocation, TStringBuf source)
 {
     auto begin = sourceLocation.first;
     auto end = sourceLocation.second;
@@ -231,7 +231,7 @@ void FormatLiteralValue(TStringBuilder* builder, const TLiteralValue& value)
     }
 }
 
-bool IsValidId(const TStringBuf& str)
+bool IsValidId(TStringBuf str)
 {
     if (str.empty()) {
         return false;
@@ -263,7 +263,7 @@ bool IsValidId(const TStringBuf& str)
     return true;
 }
 
-void FormatId(TStringBuilder* builder, const TStringBuf& id, bool isFinal = false)
+void FormatId(TStringBuilder* builder, TStringBuf id, bool isFinal = false)
 {
     if (isFinal || IsValidId(id)) {
         builder->AppendString(id);
@@ -509,7 +509,7 @@ TString FormatLiteralValue(const TLiteralValue& value)
     return builder.Flush();
 }
 
-TString FormatId(const TStringBuf& id)
+TString FormatId(TStringBuf id)
 {
     TStringBuilder builder;
     FormatId(&builder, id);

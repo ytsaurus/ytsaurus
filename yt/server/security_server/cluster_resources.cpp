@@ -315,7 +315,7 @@ bool operator != (const TClusterResources& lhs, const TClusterResources& rhs)
     return !(lhs == rhs);
 }
 
-void FormatValue(TStringBuilder* builder, const TClusterResources& resources, const TStringBuf& /*format*/)
+void FormatValue(TStringBuilder* builder, const TClusterResources& resources, TStringBuf /*format*/)
 {
     builder->AppendString(AsStringBuf("{DiskSpace: ["));
     bool firstDiskSpace = true;

@@ -2876,7 +2876,7 @@ private:
             return keys;
         }
 
-        virtual IYPathServicePtr FindItemService(const TStringBuf& key) const override
+        virtual IYPathServicePtr FindItemService(TStringBuf key) const override
         {
             auto operationId = TOperationId::FromString(key);
             auto operationYson = Scheduler_->TryBuildOperationYson(operationId);
@@ -2925,7 +2925,7 @@ private:
             Y_UNREACHABLE();
         }
 
-        virtual IYPathServicePtr FindItemService(const TStringBuf& key) const override
+        virtual IYPathServicePtr FindItemService(TStringBuf key) const override
         {
             auto jobId = TJobId::FromString(key);
             auto buildJobYsonCallback = BIND(&TJobsService::BuildControllerJobYson, MakeStrong(this), jobId);

@@ -19,7 +19,7 @@ NYson::TYsonString ConvertToYsonString(const T& value);
 
 NYson::TYsonString ConvertToYsonString(const char* value);
 
-NYson::TYsonString ConvertToYsonString(const TStringBuf& value);
+NYson::TYsonString ConvertToYsonString(TStringBuf value);
 
 template <class T>
 NYson::TYsonString ConvertToYsonString(const T& value, NYson::EYsonFormat format);

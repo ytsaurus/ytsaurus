@@ -626,7 +626,7 @@ class TYsonAnyValidator
     : public IYsonConsumer
 {
 public:
-    virtual void OnStringScalar(const TStringBuf& value) override
+    virtual void OnStringScalar(TStringBuf value) override
     { }
 
     virtual void OnInt64Scalar(i64 value) override
@@ -662,7 +662,7 @@ public:
         ++Depth_;
     }
 
-    virtual void OnKeyedItem(const TStringBuf& key) override
+    virtual void OnKeyedItem(TStringBuf key) override
     { }
 
     virtual void OnEndMap() override
@@ -680,7 +680,7 @@ public:
     virtual void OnEndAttributes() override
     { }
 
-    virtual void OnRaw(const TStringBuf& yson, EYsonType type) override
+    virtual void OnRaw(TStringBuf yson, EYsonType type) override
     { }
 
 private:

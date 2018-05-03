@@ -22,11 +22,11 @@ public:
 
     void SetEnableColumnNameValidation();
 
-    TNullable<int> FindId(const TStringBuf& name) const;
-    int GetIdOrThrow(const TStringBuf& name) const;
-    int GetId(const TStringBuf& name) const;
-    int RegisterName(const TStringBuf& name);
-    int GetIdOrRegisterName(const TStringBuf& name);
+    TNullable<int> FindId(TStringBuf name) const;
+    int GetIdOrThrow(TStringBuf name) const;
+    int GetId(TStringBuf name) const;
+    int RegisterName(TStringBuf name);
+    int GetIdOrRegisterName(TStringBuf name);
 
     TStringBuf GetName(int id) const;
 
@@ -39,7 +39,7 @@ private:
     THashMap<TStringBuf, int> NameToId_; // String values are owned by IdToName_.
     i64 ByteSize_ = 0;
 
-    int DoRegisterName(const TStringBuf& name);
+    int DoRegisterName(TStringBuf name);
 
 };
 
@@ -74,9 +74,9 @@ class TNameTableWriter
 public:
     explicit TNameTableWriter(TNameTablePtr nameTable);
 
-    TNullable<int> FindId(const TStringBuf& name) const;
-    int GetIdOrThrow(const TStringBuf& name) const;
-    int GetIdOrRegisterName(const TStringBuf& name);
+    TNullable<int> FindId(TStringBuf name) const;
+    int GetIdOrThrow(TStringBuf name) const;
+    int GetIdOrRegisterName(TStringBuf name);
 
 private:
     const TNameTablePtr NameTable_;

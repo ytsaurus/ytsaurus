@@ -33,7 +33,7 @@ bool TVersionedObjectId::IsBranched() const
     return TransactionId.operator bool();
 }
 
-TVersionedObjectId TVersionedObjectId::FromString(const TStringBuf& str)
+TVersionedObjectId TVersionedObjectId::FromString(TStringBuf str)
 {
     TStringBuf objectToken, transactionToken;
     str.Split(':', objectToken, transactionToken);
@@ -46,7 +46,7 @@ TVersionedObjectId TVersionedObjectId::FromString(const TStringBuf& str)
     return TVersionedObjectId(objectId, transactionId);
 }
 
-void FormatValue(TStringBuilder* builder, const TVersionedObjectId& id, const TStringBuf& /*spec*/)
+void FormatValue(TStringBuilder* builder, const TVersionedObjectId& id, TStringBuf /*spec*/)
 {
     builder->AppendFormat("%v:%v", id.ObjectId, id.TransactionId);
 }

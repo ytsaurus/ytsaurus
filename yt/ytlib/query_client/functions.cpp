@@ -63,7 +63,7 @@ void TAggregateTypeInferrer::GetNormalizedConstraints(
     TTypeSet* constraint,
     TNullable<EValueType>* stateType,
     TNullable<EValueType>* resultType,
-    const TStringBuf& name) const
+    TStringBuf name) const
 {
     if (TypeArgumentConstraints_.size() > 1) {
         THROW_ERROR_EXCEPTION("Too many constraints for aggregate function");

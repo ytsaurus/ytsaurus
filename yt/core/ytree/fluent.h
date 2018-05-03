@@ -443,7 +443,7 @@ public:
             return Item(TStringBuf(key, Size - 1));
         }
 
-        TAny<TThis> Item(const TStringBuf& key)
+        TAny<TThis> Item(TStringBuf key)
         {
             this->Consumer->OnKeyedItem(key);
             return TAny<TThis>(this->Consumer, *this);
@@ -534,7 +534,7 @@ public:
             return Item(TStringBuf(key, Size - 1));
         }
 
-        TAny<TThis> Item(const TStringBuf& key)
+        TAny<TThis> Item(TStringBuf key)
         {
             this->Consumer->OnKeyedItem(key);
             return TAny<TThis>(this->Consumer, *this);

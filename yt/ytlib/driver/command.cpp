@@ -44,7 +44,7 @@ void ProduceEmptyOutput(ICommandContextPtr context)
 
 void ProduceSingleOutput(
     ICommandContextPtr context,
-    const TStringBuf& name,
+    TStringBuf name,
     std::function<void(NYson::IYsonConsumer*)> producer)
 {
     ProduceOutput(context, producer, [&](NYson::IYsonConsumer* consumer) {
