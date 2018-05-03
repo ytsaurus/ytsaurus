@@ -114,7 +114,7 @@ TDsvNodeConsumer::TDsvNodeConsumer(
     , Stream_(stream)
 { }
 
-void TDsvNodeConsumer::OnStringScalar(const TStringBuf& value)
+void TDsvNodeConsumer::OnStringScalar(TStringBuf value)
 {
     EscapeAndWrite(value, Stream_, ValueEscapeTable_);
 }
@@ -180,7 +180,7 @@ void TDsvNodeConsumer::OnBeginMap()
     }
 }
 
-void TDsvNodeConsumer::OnKeyedItem(const TStringBuf& key)
+void TDsvNodeConsumer::OnKeyedItem(TStringBuf key)
 {
     Y_ASSERT(!AllowBeginMap_);
     Y_ASSERT(!AllowBeginList_);

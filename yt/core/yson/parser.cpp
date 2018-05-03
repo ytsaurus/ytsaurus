@@ -46,7 +46,7 @@ public:
         }
     }
 
-    void Read(const TStringBuf& data, bool finish = false)
+    void Read(TStringBuf data, bool finish = false)
     {
         Read(data.begin(), data.end(), finish);
     }
@@ -86,7 +86,7 @@ void TYsonParser::Read(const char* begin, const char* end, bool finish)
     Impl->Read(begin, end, finish);
 }
 
-void TYsonParser::Read(const TStringBuf& data)
+void TYsonParser::Read(TStringBuf data)
 {
     Impl->Read(data);
 }
@@ -127,7 +127,7 @@ public:
         }())
     { }
 
-    void Parse(const TStringBuf& data, EYsonType type = EYsonType::Node)
+    void Parse(TStringBuf data, EYsonType type = EYsonType::Node)
     {
         Impl->Parse(data, type);
     }
@@ -151,7 +151,7 @@ TStatelessYsonParser::TStatelessYsonParser(
 TStatelessYsonParser::~TStatelessYsonParser()
 { }
 
-void TStatelessYsonParser::Parse(const TStringBuf& data, EYsonType type)
+void TStatelessYsonParser::Parse(TStringBuf data, EYsonType type)
 {
     Impl->Parse(data, type);
 }
@@ -164,7 +164,7 @@ void TStatelessYsonParser::Stop()
 ////////////////////////////////////////////////////////////////////////////////
 
 void ParseYsonStringBuffer(
-    const TStringBuf& buffer,
+    TStringBuf buffer,
     EYsonType type,
     IYsonConsumer* consumer,
     bool enableLinePositionInfo,

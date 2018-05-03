@@ -128,7 +128,7 @@ struct IScalarNode
         typedef type TType; \
         typedef NMpl::TConditional< \
             NMpl::TIsSame<type, TString>::Value, \
-            /* if-true  */ const TStringBuf&, \
+            /* if-true  */ TStringBuf, \
             /* if-false */ type \
         >::TType TConsumerType; \
         \

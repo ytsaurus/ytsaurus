@@ -17,7 +17,7 @@ public:
 
     ~TStatelessLexer();
 
-    size_t GetToken(const TStringBuf& data, TToken* token);
+    size_t GetToken(TStringBuf data, TToken* token);
 
 private:
     std::unique_ptr<TStatelessYsonLexerImplBase> Impl;

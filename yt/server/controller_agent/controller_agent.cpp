@@ -1261,7 +1261,7 @@ private:
             return keys;
         }
 
-        virtual IYPathServicePtr FindItemService(const TStringBuf& key) const override
+        virtual IYPathServicePtr FindItemService(TStringBuf key) const override
         {
             auto operationId = TOperationId::FromString(key);
             auto operation = ControllerAgent_->GetOperationOrThrow(operationId);

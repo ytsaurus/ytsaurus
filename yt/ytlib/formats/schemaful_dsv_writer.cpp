@@ -103,7 +103,7 @@ public:
             : -1)
     {
         BlobOutput_ = GetOutputStream();
-        WriteColumnNamesHeader([this](const TStringBuf& buf, char c) {
+        WriteColumnNamesHeader([this](TStringBuf buf, char c) {
             WriteRaw(buf);
             WriteRaw(c);
         });
@@ -159,7 +159,7 @@ private:
         TryFlushBuffer(true);
     }
 
-    void WriteRaw(const TStringBuf& str)
+    void WriteRaw(TStringBuf str)
     {
         BlobOutput_->Write(str.begin(), str.length());
     }
@@ -187,7 +187,7 @@ public:
             IdToIndexInRow)
         , Output_(CreateBufferedSyncAdapter(stream))
     {
-        WriteColumnNamesHeader([this](const TStringBuf& buf, char c) {
+        WriteColumnNamesHeader([this](TStringBuf buf, char c) {
             Output_->Write(buf);
             Output_->Write(c);
         });

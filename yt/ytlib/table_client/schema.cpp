@@ -237,7 +237,7 @@ TTableSchema::TTableSchema(
     }
 }
 
-const TColumnSchema* TTableSchema::FindColumn(const TStringBuf& name) const
+const TColumnSchema* TTableSchema::FindColumn(TStringBuf name) const
 {
     for (auto& column : Columns_) {
         if (column.Name() == name) {
@@ -247,14 +247,14 @@ const TColumnSchema* TTableSchema::FindColumn(const TStringBuf& name) const
     return nullptr;
 }
 
-const TColumnSchema& TTableSchema::GetColumn(const TStringBuf& name) const
+const TColumnSchema& TTableSchema::GetColumn(TStringBuf name) const
 {
     auto* column = FindColumn(name);
     YCHECK(column);
     return *column;
 }
 
-const TColumnSchema& TTableSchema::GetColumnOrThrow(const TStringBuf& name) const
+const TColumnSchema& TTableSchema::GetColumnOrThrow(TStringBuf name) const
 {
     auto* column = FindColumn(name);
     if (!column) {
@@ -268,12 +268,12 @@ int TTableSchema::GetColumnIndex(const TColumnSchema& column) const
     return &column - Columns().data();
 }
 
-int TTableSchema::GetColumnIndex(const TStringBuf& name) const
+int TTableSchema::GetColumnIndex(TStringBuf name) const
 {
     return GetColumnIndex(GetColumn(name));
 }
 
-int TTableSchema::GetColumnIndexOrThrow(const TStringBuf& name) const
+int TTableSchema::GetColumnIndexOrThrow(TStringBuf name) const
 {
     return GetColumnIndex(GetColumnOrThrow(name));
 }

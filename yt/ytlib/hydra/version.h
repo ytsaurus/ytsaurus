@@ -33,7 +33,7 @@ struct TVersion
     TVersion Rotate() const;
 };
 
-void FormatValue(TStringBuilder* builder, TVersion version, const TStringBuf& spec);
+void FormatValue(TStringBuilder* builder, TVersion version, TStringBuf spec);
 TString ToString(TVersion version);
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -626,7 +626,7 @@ TString TProcessBase::GetCommandLine() const
     return builder.Flush();
 }
 
-const char* TProcessBase::Capture(const TStringBuf& arg)
+const char* TProcessBase::Capture(TStringBuf arg)
 {
     StringHolders_.push_back(TString(arg));
     return StringHolders_.back().c_str();

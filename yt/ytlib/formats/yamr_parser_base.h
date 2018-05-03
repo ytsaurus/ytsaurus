@@ -14,9 +14,9 @@ namespace NFormats {
 struct IYamrConsumer
     : public virtual TRefCounted
 {
-    virtual void ConsumeKey(const TStringBuf& key) = 0;
-    virtual void ConsumeSubkey(const TStringBuf& subkey) = 0;
-    virtual void ConsumeValue(const TStringBuf& value) = 0;
+    virtual void ConsumeKey(TStringBuf key) = 0;
+    virtual void ConsumeSubkey(TStringBuf subkey) = 0;
+    virtual void ConsumeValue(TStringBuf value) = 0;
     virtual void SwitchTable(i64 tableIndex) = 0;
 };
 
@@ -54,7 +54,7 @@ public:
         bool enableKeyEscaping,
         bool enableValueEscaping);
 
-    virtual void Read(const TStringBuf& data) override;
+    virtual void Read(TStringBuf data) override;
     virtual void Finish() override;
 
 private:
@@ -62,14 +62,14 @@ private:
 
     const char* Consume(const char* begin, const char* end);
 
-    void ProcessKey(const TStringBuf& key);
-    void ProcessSubkey(const TStringBuf& subkey);
-    void ProcessSubkeyBadFormat(const TStringBuf& subkey);
-    void ProcessValue(const TStringBuf& value);
-    void ProcessTableSwitch(const TStringBuf& tableIndex);
+    void ProcessKey(TStringBuf key);
+    void ProcessSubkey(TStringBuf subkey);
+    void ProcessSubkeyBadFormat(TStringBuf subkey);
+    void ProcessValue(TStringBuf value);
+    void ProcessTableSwitch(TStringBuf tableIndex);
 
     const char* ProcessToken(
-        void (TYamrDelimitedBaseParser::*processor)(const TStringBuf& value),
+        void (TYamrDelimitedBaseParser::*processor)(TStringBuf value),
         const char* begin,
         const char* next);
 
@@ -122,7 +122,7 @@ public:
         IYamrConsumerPtr consumer,
         bool hasSubkey);
 
-    virtual void Read(const TStringBuf& data) override;
+    virtual void Read(TStringBuf data) override;
     virtual void Finish() override;
 
 private:

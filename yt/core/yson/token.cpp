@@ -88,7 +88,7 @@ TToken::TToken(ETokenType type)
     }
 }
 
-TToken::TToken(const TStringBuf& stringValue)
+TToken::TToken(TStringBuf stringValue)
     : Type_(ETokenType::String)
     , StringValue_(stringValue)
     , Int64Value_(0)
@@ -132,7 +132,7 @@ bool TToken::IsEmpty() const
     return Type_ == ETokenType::EndOfStream;
 }
 
-const TStringBuf& TToken::GetStringValue() const
+TStringBuf TToken::GetStringValue() const
 {
     ExpectType(ETokenType::String);
     return StringValue_;

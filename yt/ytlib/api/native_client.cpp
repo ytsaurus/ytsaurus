@@ -4407,12 +4407,12 @@ private:
 
             auto rows = rowset->GetRows();
 
-            auto getYson = [&] (const TUnversionedValue& value, const TStringBuf& name) {
+            auto getYson = [&] (const TUnversionedValue& value, TStringBuf name) {
                 return value.Type == EValueType::Null
                     ? TYsonString()
                     : TYsonString(value.Data.String, value.Length);
             };
-            auto checkIsNotNull = [&] (const TUnversionedValue& value, const TStringBuf& name) {
+            auto checkIsNotNull = [&] (const TUnversionedValue& value, TStringBuf name) {
                 if (value.Type == EValueType::Null) {
                     THROW_ERROR_EXCEPTION("Unexpected null value in column %Qv in job archive", name);
                 }
@@ -4795,7 +4795,7 @@ private:
         selectRowsOptions.Timestamp = AsyncLastCommittedTimestamp;
         selectRowsOptions.Timeout = deadline - Now();
 
-        auto checkIsNotNull = [&] (const TUnversionedValue& value, const TStringBuf& name, const TJobId& jobId = TJobId()) {
+        auto checkIsNotNull = [&] (const TUnversionedValue& value, TStringBuf name, const TJobId& jobId = TJobId()) {
             if (value.Type == EValueType::Null) {
                 auto error = TError("Unexpected null value in column %Qv in job archive", name)
                     << TErrorAttribute("operation_id", operationId);

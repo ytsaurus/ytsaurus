@@ -177,7 +177,7 @@ public:
             TableConsumer_.get()))
     { }
 
-    virtual void Read(const TStringBuf& data) override
+    virtual void Read(TStringBuf data) override
     {
         Parser_->Read(data);
     }
@@ -470,7 +470,7 @@ public:
         : TBase(std::forward<TArgs>(args)...)
     { }
 
-    virtual void Read(const TStringBuf& data) override
+    virtual void Read(TStringBuf data) override
     {
         TBase::Read(data);
     }

@@ -38,20 +38,22 @@ using namespace NYT::NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Matcher<const TStringBuf&>::Matcher(const TString& s)
+Matcher<TStringBuf>::Matcher(const TString& s)
 {
     *this = Eq(TStringBuf(s));
 }
 
-Matcher<const TStringBuf&>::Matcher(const char* s)
+Matcher<TStringBuf>::Matcher(const char* s)
 {
     *this = Eq(TStringBuf(s));
 }
 
-Matcher<const TStringBuf&>::Matcher(const TStringBuf& s)
+Matcher<TStringBuf>::Matcher(TStringBuf s)
 {
     *this = Eq(s);
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 Matcher<const TString&>::Matcher(const TString& s)
 {
@@ -123,7 +125,7 @@ void PrintTo(const TString& string, ::std::ostream* os)
     ::testing::internal::PrintTo(string.c_str(), os);
 }
 
-void PrintTo(const TStringBuf& string, ::std::ostream* os)
+void PrintTo(TStringBuf string, ::std::ostream* os)
 {
     ::testing::internal::PrintTo(string.c_str(), os);
 }

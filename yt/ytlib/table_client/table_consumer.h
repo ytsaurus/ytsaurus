@@ -26,7 +26,7 @@ public:
     // Set column index of next emitted value.
     void SetColumnIndex(int columnIndex);
 
-    virtual void OnStringScalar(const TStringBuf& value) override;
+    virtual void OnStringScalar(TStringBuf value) override;
     virtual void OnInt64Scalar(i64 value) override;
     virtual void OnUint64Scalar(ui64 value) override;
     virtual void OnDoubleScalar(double value) override;
@@ -35,7 +35,7 @@ public:
     virtual void OnBeginList() override;
     virtual void OnListItem() override;
     virtual void OnBeginMap() override;
-    virtual void OnKeyedItem(const TStringBuf& name) override;
+    virtual void OnKeyedItem(TStringBuf name) override;
     virtual void OnEndMap() override;
     virtual void OnBeginAttributes() override;
     virtual void OnEndList() override;
@@ -78,7 +78,7 @@ protected:
 
     TError AttachLocationAttributes(TError error) const;
 
-    virtual void OnStringScalar(const TStringBuf& value) override;
+    virtual void OnStringScalar(TStringBuf value) override;
     virtual void OnInt64Scalar(i64 value) override;
     virtual void OnUint64Scalar(ui64 value) override;
     virtual void OnDoubleScalar(double value) override;
@@ -87,7 +87,7 @@ protected:
     virtual void OnBeginList() override;
     virtual void OnListItem() override;
     virtual void OnBeginMap() override;
-    virtual void OnKeyedItem(const TStringBuf& name) override;
+    virtual void OnKeyedItem(TStringBuf name) override;
     virtual void OnEndMap() override;
 
     virtual void OnBeginAttributes() override;
@@ -101,7 +101,7 @@ protected:
     virtual void OnEndAttributes() override;
 
     void OnControlInt64Scalar(i64 value);
-    void OnControlStringScalar(const TStringBuf& value);
+    void OnControlStringScalar(TStringBuf value);
 
     void SwitchToTable(int tableIndex);
 

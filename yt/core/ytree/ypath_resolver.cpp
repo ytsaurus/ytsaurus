@@ -50,7 +50,7 @@ public:
         NextToken();
     }
 
-    virtual void OnMyStringScalar(const TStringBuf& value) override
+    virtual void OnMyStringScalar(TStringBuf value) override
     {
         OnStringValue(value);
     }
@@ -147,7 +147,7 @@ public:
         }
     }
 
-    virtual void OnMyKeyedItem(const TStringBuf& key) override
+    virtual void OnMyKeyedItem(TStringBuf key) override
     {
         if (CurrentDepth_ == PathDepth_) {
             if (Expected_ != EExpectedItem::Key) {
@@ -189,10 +189,10 @@ public:
         OnDecDepth();
     }
 
-    virtual void OnMyRaw(const TStringBuf& yson, EYsonType type) override
+    virtual void OnMyRaw(TStringBuf yson, EYsonType type) override
     { }
 
-    void Parse(const TStringBuf& input)
+    void Parse(TStringBuf input)
     {
         Parser_.Parse(input);
     }
@@ -233,7 +233,7 @@ private:
         }
     }
 
-    void OnStringValue(const TStringBuf& t)
+    void OnStringValue(TStringBuf t)
     {
         if (Expected_ == EExpectedItem::Value) {
             Result_ = TString(t);
@@ -307,7 +307,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 template <typename T>
-TNullable<T> TryGetValue(const TStringBuf& yson, const TYPath& ypath, bool isAny = false)
+TNullable<T> TryGetValue(TStringBuf yson, const TYPath& ypath, bool isAny = false)
 {
     TYPathResolver resolver(ypath, isAny);
     resolver.Parse(yson);
@@ -321,32 +321,32 @@ TNullable<T> TryGetValue(const TStringBuf& yson, const TYPath& ypath, bool isAny
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TNullable<i64> TryGetInt64(const TStringBuf& yson, const TYPath& ypath)
+TNullable<i64> TryGetInt64(TStringBuf yson, const TYPath& ypath)
 {
     return TryGetValue<i64>(yson, ypath);
 }
 
-TNullable<ui64> TryGetUint64(const TStringBuf& yson, const TYPath& ypath)
+TNullable<ui64> TryGetUint64(TStringBuf yson, const TYPath& ypath)
 {
     return TryGetValue<ui64>(yson, ypath);
 }
 
-TNullable<bool> TryGetBoolean(const TStringBuf& yson, const TYPath& ypath)
+TNullable<bool> TryGetBoolean(TStringBuf yson, const TYPath& ypath)
 {
     return TryGetValue<bool>(yson, ypath);
 }
 
-TNullable<double> TryGetDouble(const TStringBuf& yson, const TYPath& ypath)
+TNullable<double> TryGetDouble(TStringBuf yson, const TYPath& ypath)
 {
     return TryGetValue<double>(yson, ypath);
 }
 
-TNullable<TString> TryGetString(const TStringBuf& yson, const TYPath& ypath)
+TNullable<TString> TryGetString(TStringBuf yson, const TYPath& ypath)
 {
     return TryGetValue<TString>(yson, ypath);
 }
 
-TNullable<TString> TryGetAny(const TStringBuf& yson, const TYPath& ypath)
+TNullable<TString> TryGetAny(TStringBuf yson, const TYPath& ypath)
 {
     return TryGetValue<TString>(yson, ypath, true);
 }

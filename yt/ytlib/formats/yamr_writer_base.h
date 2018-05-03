@@ -33,7 +33,7 @@ protected:
     bool TableIndexWasWritten_ = false;
     int CurrentTableIndex_ = 0;
 
-    void WriteInLenvalMode(const TStringBuf& value);
+    void WriteInLenvalMode(TStringBuf value);
 
     virtual void WriteTableIndex(i64 tableIndex) override;
     virtual void WriteRangeIndex(i64 rangeIndex) override;

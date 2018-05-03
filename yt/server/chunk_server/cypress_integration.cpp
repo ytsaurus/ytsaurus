@@ -244,7 +244,7 @@ private:
         return chunkManager->Media().GetSize();
     }
 
-    virtual IYPathServicePtr FindItemService(const TStringBuf& key) const override
+    virtual IYPathServicePtr FindItemService(TStringBuf key) const override
     {
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         auto* medium = chunkManager->FindMediumByName(TString(key));

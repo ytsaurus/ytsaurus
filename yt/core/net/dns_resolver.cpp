@@ -32,7 +32,7 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void FormatValue(NYT::TStringBuilder* builder, struct hostent* hostent, const TStringBuf& spec)
+void FormatValue(NYT::TStringBuilder* builder, struct hostent* hostent, TStringBuf spec)
 {
     bool empty = true;
 

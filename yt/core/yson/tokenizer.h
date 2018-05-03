@@ -11,13 +11,13 @@ namespace NYson {
 class TTokenizer
 {
 public:
-    explicit TTokenizer(const TStringBuf& input);
+    explicit TTokenizer(TStringBuf input);
 
     bool ParseNext();
     const TToken& CurrentToken() const;
     ETokenType GetCurrentType() const;
     TStringBuf GetCurrentSuffix() const;
-    const TStringBuf& CurrentInput() const;
+    TStringBuf CurrentInput() const;
     size_t GetPosition() const;
 
 private:

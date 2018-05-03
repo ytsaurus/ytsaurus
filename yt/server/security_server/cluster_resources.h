@@ -110,7 +110,7 @@ TClusterResources  operator -  (const TClusterResources& resources);
 bool operator == (const TClusterResources& lhs, const TClusterResources& rhs);
 bool operator != (const TClusterResources& lhs, const TClusterResources& rhs);
 
-void FormatValue(TStringBuilder* builder, const TClusterResources& resources, const TStringBuf& /*format*/);
+void FormatValue(TStringBuilder* builder, const TClusterResources& resources, TStringBuf /*format*/);
 TString ToString(const TClusterResources& resources);
 
 ////////////////////////////////////////////////////////////////////////////////

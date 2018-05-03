@@ -284,7 +284,7 @@ public:
 class TStatelessYsonLexerImplBase
 {
 public:
-    virtual size_t GetToken(const TStringBuf& data, TToken* token) = 0;
+    virtual size_t GetToken(TStringBuf data, TToken* token) = 0;
 
     virtual ~TStatelessYsonLexerImplBase() = default;
 };
@@ -302,7 +302,7 @@ public:
         : Lexer(TStringReader())
     { }
 
-    size_t GetToken(const TStringBuf& data, TToken* token) override
+    size_t GetToken(TStringBuf data, TToken* token) override
     {
         Lexer.SetBuffer(data.begin(), data.end());
         Lexer.GetToken(token);

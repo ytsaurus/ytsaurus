@@ -71,7 +71,7 @@ void Serialize(double value, NYson::IYsonConsumer* consumer);
 void Serialize(const TString& value, NYson::IYsonConsumer* consumer);
 
 // TStringBuf
-void Serialize(const TStringBuf& value, NYson::IYsonConsumer* consumer);
+void Serialize(TStringBuf value, NYson::IYsonConsumer* consumer);
 
 // const char*
 void Serialize(const char* value, NYson::IYsonConsumer* consumer);

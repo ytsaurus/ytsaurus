@@ -37,7 +37,7 @@ public:
         }
     }
 
-    void OnKeyedItem(const TStringBuf& key)
+    void OnKeyedItem(TStringBuf key)
     { }
 
     void OnBeginAttributes()
@@ -50,12 +50,12 @@ public:
         Balance_--;
     }
 
-    void OnRaw(const TStringBuf& yson, NYson::EYsonType type)
+    void OnRaw(TStringBuf yson, NYson::EYsonType type)
     {
         Y_UNREACHABLE();
     }
 
-    void OnStringScalar(const TStringBuf& /*value*/)
+    void OnStringScalar(TStringBuf /*value*/)
     { }
 
     void OnInt64Scalar(i64 /*value*/)

@@ -64,7 +64,7 @@ protected:
     TPromise<void> FinishedPromise_ = NewPromise<void>();
 
     virtual void DoSpawn() = 0;
-    const char* Capture(const TStringBuf& arg);
+    const char* Capture(TStringBuf arg);
 
 private:
     void SpawnChild();

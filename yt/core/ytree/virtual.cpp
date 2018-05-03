@@ -249,7 +249,7 @@ public:
         return Services_.size();
     }
 
-    IYPathServicePtr FindItemService(const TStringBuf& key) const
+    IYPathServicePtr FindItemService(TStringBuf key) const
     {
         auto it = Services_.find(key);
         return it != Services_.end() ? it->second : nullptr;
@@ -305,7 +305,7 @@ i64 TCompositeMapService::GetSize() const
     return Impl_->GetSize();
 }
 
-IYPathServicePtr TCompositeMapService::FindItemService(const TStringBuf& key) const
+IYPathServicePtr TCompositeMapService::FindItemService(TStringBuf key) const
 {
    return Impl_->FindItemService(key);
 }

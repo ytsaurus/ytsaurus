@@ -13,7 +13,7 @@ class TMockYsonConsumer
     : public TYsonConsumerBase
 {
 public:
-    MOCK_METHOD1(OnStringScalar, void(const TStringBuf& value));
+    MOCK_METHOD1(OnStringScalar, void(TStringBuf value));
     MOCK_METHOD1(OnInt64Scalar, void(i64 value));
     MOCK_METHOD1(OnUint64Scalar, void(ui64 value));
     MOCK_METHOD1(OnDoubleScalar, void(double value));
@@ -25,7 +25,7 @@ public:
     MOCK_METHOD0(OnEndList, void());
 
     MOCK_METHOD0(OnBeginMap, void());
-    MOCK_METHOD1(OnKeyedItem, void(const TStringBuf& name));
+    MOCK_METHOD1(OnKeyedItem, void(TStringBuf name));
     MOCK_METHOD0(OnEndMap, void());
 
     MOCK_METHOD0(OnBeginAttributes, void());
