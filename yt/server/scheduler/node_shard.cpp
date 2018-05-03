@@ -235,6 +235,11 @@ void TNodeShard::StartOperationRevival(const TOperationId& operationId)
         JobsToSubmitToStrategy_.erase(job->GetId());
     }
 
+    for (const auto& jobId : operationState.JobsToSubmitToStrategy) {
+        JobsToSubmitToStrategy_.erase(jobId);
+    }
+    operationState.JobsToSubmitToStrategy.clear();
+
     {
         auto range = OperationIdToJobIterators_.equal_range(operationId);
         for (auto it = range.first; it != range.second; ++it) {
@@ -1728,6 +1733,7 @@ void TNodeShard::ProcessScheduledJobs(
                         job->GetId(),
                         job->GetTreeId(),
                         TJobResources()});
+                operationState->JobsToSubmitToStrategy.insert(job->GetId());
             }
             continue;
         }
@@ -1812,6 +1818,7 @@ void TNodeShard::OnJobRunning(const TJobPtr& job, TJobStatus* status)
     if (operationState) {
         const auto& controller = operationState->Controller;
         controller->OnJobRunning(job, status);
+        operationState->JobsToSubmitToStrategy.insert(job->GetId());
     }
 }
 
@@ -1929,7 +1936,7 @@ void TNodeShard::SubmitJobsToStrategy()
     PROFILE_AGGREGATED_TIMING (StrategyJobProcessingTimeCounter) {
         if (!JobsToSubmitToStrategy_.empty()) {
             std::vector<TJobId> jobsToAbort;
-            std::vector<TJobId> jobsToRemove;
+            std::vector<std::pair<TOperationId, TJobId>> jobsToRemove;
             auto jobUpdates = GetValues(JobsToSubmitToStrategy_);
             Host_->GetStrategy()->ProcessJobUpdates(
                 jobUpdates,
@@ -1940,7 +1947,15 @@ void TNodeShard::SubmitJobsToStrategy()
                 AbortJob(jobId, TError("Aborting job by strategy request"));
             }
 
-            for (const auto& jobId : jobsToRemove) {
+            for (const auto& pair : jobsToRemove) {
+                const auto& operationId = pair.first;
+                const auto& jobId = pair.second;
+
+                auto* operationState = FindOperationState(operationId);
+                if (operationState) {
+                    operationState->JobsToSubmitToStrategy.erase(jobId);
+                }
+
                 YCHECK(JobsToSubmitToStrategy_.erase(jobId) == 1);
             }
         }
@@ -2011,6 +2026,7 @@ void TNodeShard::UnregisterJob(const TJobPtr& job, bool enableLogging)
                 job->GetId(),
                 job->GetTreeId(),
                 TJobResources()});
+        operationState->JobsToSubmitToStrategy.insert(job->GetId());
 
         LOG_DEBUG_IF(enableLogging, "Job unregistered (JobId: %v, OperationId: %v, State: %v)",
             job->GetId(),

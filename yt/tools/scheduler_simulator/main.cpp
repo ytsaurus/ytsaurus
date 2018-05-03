@@ -455,7 +455,7 @@ void DoRun(const char* configFilename)
                     TJobResources(),
                 }});
 
-                std::vector<TJobId> jobsToRemove;
+                std::vector<std::pair<TOperationId, TJobId>> jobsToRemove;
                 std::vector<TJobId> jobsToAbort;
                 fairShareStrategy->ProcessJobUpdates(
                     jobUpdates,
