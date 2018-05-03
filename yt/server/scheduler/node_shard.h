@@ -234,6 +234,7 @@ private:
         { }
 
         THashMap<TJobId, TJobPtr> Jobs;
+        THashSet<TJobId> JobsToSubmitToStrategy;
         THashSet<TJobId> RecentlyFinishedJobIds;
         //! Used only to decrease logging size.
         THashSet<TJobId> SkippedJobIds;
