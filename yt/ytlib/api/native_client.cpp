@@ -4419,6 +4419,11 @@ private:
 
             auto rows = rowset->GetRows();
 
+            auto getYson = [&] (const TUnversionedValue& value, const TStringBuf& name) {
+                return value.Type == EValueType::Null
+                    ? TYsonString()
+                    : TYsonString(value.Data.String, value.Length);
+            };
             auto checkIsNotNull = [&] (const TUnversionedValue& value, const TStringBuf& name) {
                 if (value.Type == EValueType::Null) {
                     THROW_ERROR_EXCEPTION("Unexpected null value in column %Qv in job archive", name);
@@ -4441,17 +4446,19 @@ private:
             for (auto row : rows) {
                 TOperation operation;
 
-                checkIsNotNull(row[5], "brief_progress");
-                operation.BriefProgress = TYsonString(row[5].Data.String, row[5].Length);
+                operation.BriefProgress = getYson(row[5], "brief_progress");
 
-                auto briefProgressMapNode = ConvertToNode(operation.BriefProgress)->AsMap();
-                bool hasFailedJobs =
-                    briefProgressMapNode->FindChild("jobs") &&
-                    briefProgressMapNode->GetChild("jobs")->AsMap()->
-                    GetChild("failed")->AsInt64()->GetValue() > 0;
+                bool hasFailedJobs = false;
+                if (operation.BriefProgress) {
+                    auto briefProgressMapNode = ConvertToNode(operation.BriefProgress)->AsMap();
+                    hasFailedJobs =
+                        briefProgressMapNode->FindChild("jobs") &&
+                        briefProgressMapNode->GetChild("jobs")->AsMap()->
+                        GetChild("failed")->AsInt64()->GetValue() > 0;
 
-                if (!checkWithFailedJobsFilter(hasFailedJobs)) {
-                    continue;
+                    if (!checkWithFailedJobsFilter(hasFailedJobs)) {
+                        continue;
+                    }
                 }
 
                 TGuid operationId(row[0].Data.Uint64, row[1].Data.Uint64);
@@ -4468,8 +4475,7 @@ private:
 
                 failedJobsCount += hasFailedJobs;
 
-                checkIsNotNull(row[6], "brief_spec");
-                operation.BriefSpec = TYsonString(row[6].Data.String, row[6].Length);
+                operation.BriefSpec = getYson(row[6], "brief_spec");
 
                 checkIsNotNull(row[7], "start_time");
                 operation.StartTime = TInstant::MicroSeconds(row[7].Data.Int64);
