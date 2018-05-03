@@ -66,7 +66,7 @@ public:
 
     void WaitForOperation(const TOperationId&) override;
 
-    EOperationStatus CheckOperation(const TOperationId&) override;
+    EOperationState CheckOperation(const TOperationId&) override;
 
     IOperationPtr DoMap(const TMapOperationSpec&, IJob*, const TOperationOptions&) override;
     IOperationPtr RawMap(const TRawMapOperationSpec&, ::TIntrusivePtr<IRawJob>, const TOperationOptions&) override;

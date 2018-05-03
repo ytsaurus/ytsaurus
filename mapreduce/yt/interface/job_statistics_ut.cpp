@@ -54,8 +54,8 @@ Y_UNIT_TEST_SUITE(JobStatistics)
         UNIT_ASSERT_VALUES_EQUAL(stat.GetStatistics("data/output/0/uncompressed_data_size").Sum(), 172);
         UNIT_ASSERT_VALUES_EQUAL(stat.GetStatistics("data/output/0/uncompressed_data_size").Avg(), 172 / 2);
 
-        UNIT_ASSERT_VALUES_EQUAL(stat.JobStatus({FJS_ABORTED}).GetStatistics("data/output/0/uncompressed_data_size").Sum(), 24);
-        UNIT_ASSERT_VALUES_EQUAL(stat.JobType({JT_MAP}).JobStatus({FJS_ABORTED}).GetStatistics("data/output/0/uncompressed_data_size").Sum(), TMaybe<i64>());
+        UNIT_ASSERT_VALUES_EQUAL(stat.JobState({EJobState::Aborted}).GetStatistics("data/output/0/uncompressed_data_size").Sum(), 24);
+        UNIT_ASSERT_VALUES_EQUAL(stat.JobType({EJobType::Map}).JobState({EJobState::Aborted}).GetStatistics("data/output/0/uncompressed_data_size").Sum(), TMaybe<i64>());
     }
 
     Y_UNIT_TEST(TestOtherTypes)

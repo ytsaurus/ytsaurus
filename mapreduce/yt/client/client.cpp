@@ -402,7 +402,7 @@ IOperationPtr TClientBase::Erase(
     return CreateOperationAndWaitIfRequired(operationId, GetParentClient(), options);
 }
 
-EOperationStatus TClientBase::CheckOperation(const TOperationId& operationId)
+EOperationState TClientBase::CheckOperation(const TOperationId& operationId)
 {
     return NYT::NDetail::CheckOperation(Auth_, operationId);
 }

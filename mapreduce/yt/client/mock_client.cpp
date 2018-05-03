@@ -333,8 +333,8 @@ void TMockClient::CompleteOperation(const TOperationId&) {
 void TMockClient::WaitForOperation(const TOperationId&) {
 }
 
-EOperationStatus TMockClient::CheckOperation(const TOperationId&) {
-    return OS_COMPLETED;
+EOperationState TMockClient::CheckOperation(const TOperationId&) {
+    return EOperationState::Completed;
 }
 
 
