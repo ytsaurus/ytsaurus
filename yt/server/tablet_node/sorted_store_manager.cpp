@@ -442,7 +442,7 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
         std::vector<TVersionedRow> rows;
         rows.reserve(MaxRowsPerFlushRead);
 
-        LOG_DEBUG("Sorted store flush started (StoreId: %v, MergeRowsOnFlush: %v, RetentionConfig: %Qv)",
+        LOG_DEBUG("Sorted store flush started (StoreId: %v, MergeRowsOnFlush: %v, RetentionConfig: %v)",
             store->GetId(),
             tabletSnapshot->Config->MergeRowsOnFlush,
             ConvertTo<TRetentionConfigPtr>(tabletSnapshot->Config));
