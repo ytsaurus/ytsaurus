@@ -2129,9 +2129,9 @@ TChunkRequisition TChunkReplicator::ComputeChunkRequisition(const TChunk* chunk)
     if (found) {
         Y_ASSERT(requisition.ToReplication().IsValid());
     } else {
-        auto globalRequisitionIndex = chunk->GetStagingTransaction()
-            ? chunk->GetLocalRequisitionIndex()
-            : EmptyChunkRequisitionIndex;
+        // Leave intact not just staged chunks, but any chunk that isn't linked
+        // to a trunk owner.
+        auto globalRequisitionIndex = chunk->GetLocalRequisitionIndex();
         requisition = GetChunkRequisitionRegistry()->GetRequisition(globalRequisitionIndex);
     }
 
