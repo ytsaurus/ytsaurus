@@ -422,26 +422,15 @@ public:
         try {
             EnsureJobProxyFinished(slotIndex, true);
 
-            CleanAllSubcontainers(GetFullJobProxyMetaContainerName(
+            CleanAllSubcontainers(GetFullSlotMetaContainerName(
                 MetaInstance_->GetAbsoluteName(),
                 slotIndex));
 
-            CleanAllSubcontainers(GetFullUserJobMetaContainerName(
-                MetaInstance_->GetAbsoluteName(),
-                slotIndex));
-
-            // Reset memory guarantee to avoid memory guarantee overcommit.
+            // Reset cpu guarantee.
             WaitFor(PortoExecutor_->SetProperty(
-                GetFullJobProxyMetaContainerName(MetaInstance_->GetAbsoluteName(), slotIndex),
-                "memory_guarantee",
-                DefaultMemoryGuarantee))
-                .ThrowOnError();
-
-            // Reset memory guarantee to avoid memory guarantee overcommit.
-            WaitFor(PortoExecutor_->SetProperty(
-                GetFullUserJobMetaContainerName(MetaInstance_->GetAbsoluteName(), slotIndex),
-                "memory_guarantee",
-                DefaultMemoryGuarantee))
+                GetFullSlotMetaContainerName(MetaInstance_->GetAbsoluteName(), slotIndex),
+                "cpu_guarantee",
+                "0.05c"))
                 .ThrowOnError();
 
             // Drop reference to a process if there were any.
@@ -622,28 +611,6 @@ private:
                     "cpu_guarantee",
                     "0.05c"))
                     .ThrowOnError();
-
-                WaitFor(
-                    PortoExecutor_->CreateContainer(GetFullUserJobMetaContainerName(MetaInstance_->GetAbsoluteName(), slotIndex)))
-                    .ThrowOnError();
-
-                WaitFor(
-                    PortoExecutor_->CreateContainer(GetFullJobProxyMetaContainerName(MetaInstance_->GetAbsoluteName(), slotIndex)))
-                    .ThrowOnError();
-
-                // This memory guarantee forces creation of memory cgroup for this container.
-                WaitFor(PortoExecutor_->SetProperty(
-                    GetFullJobProxyMetaContainerName(MetaInstance_->GetAbsoluteName(), slotIndex),
-                    "memory_guarantee",
-                    DefaultMemoryGuarantee))
-                .ThrowOnError();
-
-                // This memory guarantee forces creation of memory cgroup for this container.
-                WaitFor(PortoExecutor_->SetProperty(
-                    GetFullUserJobMetaContainerName(MetaInstance_->GetAbsoluteName(), slotIndex),
-                    "memory_guarantee",
-                    DefaultMemoryGuarantee))
-                .ThrowOnError();
             }
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Failed to create meta containers for jobs")
@@ -673,7 +640,7 @@ private:
     {
         if (!JobProxyInstances_[slotIndex]) {
             JobProxyInstances_[slotIndex] = CreatePortoInstance(
-                GetFullJobProxyMetaContainerName(MetaInstance_->GetAbsoluteName(), slotIndex) + "/job_proxy_" + ToString(jobId),
+                GetFullSlotMetaContainerName(MetaInstance_->GetAbsoluteName(), slotIndex) + "/job_proxy_" + ToString(jobId),
                 PortoExecutor_);
 
             if (Config_->ExternalJobRootVolume) {
