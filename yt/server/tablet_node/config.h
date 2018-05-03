@@ -410,7 +410,7 @@ public:
             .Default(1);
         RegisterParameter("max_concurrent_flushes", MaxConcurrentFlushes)
             .GreaterThan(0)
-            .Default(1);
+            .Default(16);
         RegisterParameter("min_forced_flush_data_size", MinForcedFlushDataSize)
             .GreaterThan(0)
             .Default(1_MB);
