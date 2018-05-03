@@ -783,7 +783,7 @@ private:
 
             LOG_INFO("Eden partitioning started (Slack: %v, FutureEffect: %v, Effect: %v, "
                 "PartitionCount: %v, DataSize: %v, "
-                "ChunkCount: %v, CurrentTimestamp: %llx, RetentionConfig: %Qv)",
+                "ChunkCount: %v, CurrentTimestamp: %llx, RetentionConfig: %v)",
                 task->Slack,
                 task->FutureEffect,
                 task->Effect,
@@ -1162,7 +1162,7 @@ private:
 
             LOG_INFO("Partition compaction started (Slack: %v, FutureEffect: %v, Effect: %v, "
                 "DataSize: %v, ChunkCount: %v, "
-                "CurrentTimestamp: %llx, MajorTimestamp: %llx, RetainedTimestamp: %llx, RetentionConfig: %Qv)",
+                "CurrentTimestamp: %llx, MajorTimestamp: %llx, RetainedTimestamp: %llx, RetentionConfig: %v)",
                 task->Slack,
                 task->FutureEffect,
                 task->Effect,
