@@ -2,12 +2,12 @@
 
 from .helpers import TEST_DIR, set_config_option, set_config_options
 
+import yt.zip as zip
 from yt.packages.six import PY3
 
 import yt.wrapper as yt
 
 import os
-import gzip
 import pytest
 import tempfile
 
@@ -105,7 +105,7 @@ class TestFileCommands(object):
         fd, filename = tempfile.mkstemp()
         os.close(fd)
 
-        with gzip.GzipFile(filename, "w", 5) as fout:
+        with zip.GzipFile(filename, "w", 5) as fout:
             fout.write(b"test write compressed file data")
 
         with set_config_option("proxy/content_encoding", "gzip"):
