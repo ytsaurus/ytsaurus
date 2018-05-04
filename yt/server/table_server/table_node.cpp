@@ -238,16 +238,34 @@ void TTableNode::LoadTableSchema(NCellMaster::TLoadContext& context)
         if (tableSchema != TSharedTableSchemaRegistry::EmptyTableSchema) {
             SharedTableSchema() = registry->GetSchema(std::move(tableSchema));
         }
-    } else {
+    } else if (context.GetVersion() < 709) {
         switch (Load<ESchemaSerializationMethod>(context)) {
             case ESchemaSerializationMethod::Schema: {
                 SharedTableSchema() = registry->GetSchema(Load<TTableSchema>(context));
-                auto inserted = context.LoadedSchemas().emplace(Id_, SharedTableSchema().Get()).second;
+                const TVersionedObjectId currentTableId(Id_, NullTransactionId);
+                auto inserted = context.LoadedSchemas().emplace(currentTableId, SharedTableSchema().Get()).second;
                 YCHECK(inserted);
                 break;
             }
             case ESchemaSerializationMethod::TableIdWithSameSchema: {
-                TObjectId previousTableId = Load<TObjectId>(context);
+                const TVersionedObjectId previousTableId(Load<TObjectId>(context), NullTransactionId);
+                YCHECK(context.LoadedSchemas().has(previousTableId));
+                SharedTableSchema().Reset(context.LoadedSchemas().at(previousTableId));
+                break;
+            }
+            default:
+                Y_UNREACHABLE();
+        }
+    } else {
+        switch (Load<ESchemaSerializationMethod>(context)) {
+            case ESchemaSerializationMethod::Schema: {
+                SharedTableSchema() = registry->GetSchema(Load<TTableSchema>(context));
+                auto inserted = context.LoadedSchemas().emplace(GetVersionedId(), SharedTableSchema().Get()).second;
+                YCHECK(inserted);
+                break;
+            }
+            case ESchemaSerializationMethod::TableIdWithSameSchema: {
+                auto previousTableId = Load<TVersionedObjectId>(context);
                 YCHECK(context.LoadedSchemas().has(previousTableId));
                 SharedTableSchema().Reset(context.LoadedSchemas().at(previousTableId));
                 break;
@@ -263,7 +281,7 @@ void TTableNode::SaveTableSchema(NCellMaster::TSaveContext& context) const
     using NYT::Save;
 
     // NB `emplace' doesn't overwrite existing element so if key is already preset in map it won't be updated.
-    auto pair = context.SavedSchemas().emplace(SharedTableSchema().Get(), Id_);
+    auto pair = context.SavedSchemas().emplace(SharedTableSchema().Get(), GetVersionedId());
     auto insertedNew = pair.second;
     if (insertedNew) {
         Save(context, ESchemaSerializationMethod::Schema);
