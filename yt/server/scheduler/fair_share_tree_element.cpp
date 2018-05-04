@@ -1685,12 +1685,11 @@ bool TOperationElement::TryStartScheduleJob(
     const TJobResources& jobLimits,
     const TJobResources& minNeededResources)
 {
-    auto isBlocked = Controller_->IsBlocked(
+    auto blocked = Controller_->IsBlocked(
         now,
         Spec_->MaxConcurrentControllerScheduleJobCalls.Get(ControllerConfig_->MaxConcurrentControllerScheduleJobCalls),
         ControllerConfig_->ScheduleJobFailBackoffTime);
-
-    if (isBlocked) {
+    if (blocked) {
         return false;
     }
 
@@ -1977,12 +1976,10 @@ bool TOperationElement::ScheduleJob(TFairShareContext* context)
         disableOperationElement(EDeactivationReason::ScheduleJobFailed);
 
         bool enableBackoff = scheduleJobResult->IsBackoffNeeded();
-        if (enableBackoff) {
-            LOG_DEBUG("Failed to schedule job, backing off (TreeId: %v, OperationId: %v, Reasons: %v)",
-                GetTreeId(),
-                OperationId_,
-                scheduleJobResult->Failed);
-        }
+        LOG_DEBUG_IF(enableBackoff, "Failed to schedule job, backing off (TreeId: %v, OperationId: %v, Reasons: %v)",
+            GetTreeId(),
+            OperationId_,
+            scheduleJobResult->Failed);
 
         FinishScheduleJob(/*enableBackoff*/ enableBackoff, now, minNeededResources);
         return false;
