@@ -14,8 +14,8 @@ import string
 
 SKYNET_TABLE_SCHEMA = make_schema([
     {"name": "sky_share_id", "type": "uint64", "sort_order": "ascending", "group": "meta"},
-    {"name": "filename", "type": "string", "group": "meta"},
-    {"name": "part_index", "type": "int64", "group": "meta"},
+    {"name": "filename", "type": "string", "sort_order": "ascending", "group": "meta"},
+    {"name": "part_index", "type": "int64", "sort_order": "ascending", "group": "meta"},
     {"name": "sha1", "type": "string", "group": "meta"},
     {"name": "md5", "type": "string", "group": "meta"},
     {"name": "data_size", "type": "int64", "group": "meta"},
@@ -283,12 +283,12 @@ class TestSkynetManager(YTEnvSetup):
             "chunk_writer": {"desired_chunk_weight": 1 * 1024 * 1024},
         })
         write_table(table_path, [
-            {"filename": "test.txt", "part_index": 0, "data": "testtesttest"}
+            {"filename": "test0.txt", "part_index": 0, "data": "testtesttest"}
         ])
 
         write_table("<append=%true>" + table_path, [
             {
-                "filename": "test.bin",
+                "filename": "test1.bin",
                 "part_index": i,
                 "data": ''.join(random.choice(string.ascii_uppercase) * 1024 for _ in range(4 * 1024))
             } for i in range(3)])
