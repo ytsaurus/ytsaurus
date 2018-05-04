@@ -41,6 +41,9 @@ public:
     //! Timeout after which "schedule job timed out" alert is expired and unset.
     TDuration ScheduleJobTimeoutAlertResetTime;
 
+    //! Timeout for schedule jobs in fair share strategy.
+    TDuration ScheduleJobsTimeout;
+
     TFairShareStrategyOperationControllerConfig();
 };
 

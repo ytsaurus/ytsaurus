@@ -19,6 +19,9 @@ TFairShareStrategyOperationControllerConfig::TFairShareStrategyOperationControll
 
     RegisterParameter("schedule_job_timeout_alert_reset_time", ScheduleJobTimeoutAlertResetTime)
         .Default(TDuration::Minutes(15));
+
+    RegisterParameter("schedule_jobs_timeout", ScheduleJobsTimeout)
+        .Default(TDuration::Seconds(40));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
