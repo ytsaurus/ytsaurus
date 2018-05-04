@@ -949,7 +949,8 @@ private:
             , TotalControllerScheduleJobTime(prefix + "/controller_schedule_job_time/total", {treeIdProfilingTag})
             , ExecControllerScheduleJobTime(prefix + "/controller_schedule_job_time/exec", {treeIdProfilingTag})
             , StrategyScheduleJobTime(prefix + "/strategy_schedule_job_time", {treeIdProfilingTag})
-            , ScheduleJobCall(prefix + "/schedule_job_count", {treeIdProfilingTag})
+            , ScheduleJobCount(prefix + "/schedule_job_count", {treeIdProfilingTag})
+            , ScheduleJobFailureCount(prefix + "/schedule_job_failure_count", {treeIdProfilingTag})
         {
             for (auto reason : TEnumTraits<EScheduleJobFailReason>::GetDomainValues())
             {
@@ -966,7 +967,8 @@ private:
         TAggregateCounter TotalControllerScheduleJobTime;
         TAggregateCounter ExecControllerScheduleJobTime;
         TAggregateCounter StrategyScheduleJobTime;
-        TSimpleCounter ScheduleJobCall;
+        TSimpleCounter ScheduleJobCount;
+        TSimpleCounter ScheduleJobFailureCount;
         TEnumIndexedVector<TSimpleCounter, EScheduleJobFailReason> ControllerScheduleJobFail;
     };
 
@@ -1094,6 +1096,7 @@ private:
             // Clean data from previous profiling.
             context->TotalScheduleJobDuration = TDuration::Zero();
             context->ExecScheduleJobDuration = TDuration::Zero();
+            context->ScheduleJobFailureCount = 0;
             std::fill(context->FailedScheduleJob.begin(), context->FailedScheduleJob.end(), 0);
 
             bool prescheduleExecuted = false;
@@ -1243,7 +1246,8 @@ private:
                 counters.ExecControllerScheduleJobTime,
                 context.ExecScheduleJobDuration.MicroSeconds());
 
-            Profiler.Increment(counters.ScheduleJobCall, scheduleJobCount);
+            Profiler.Increment(counters.ScheduleJobCount, scheduleJobCount);
+            Profiler.Increment(counters.ScheduleJobFailureCount, context.ScheduleJobFailureCount);
 
             for (auto reason : TEnumTraits<EScheduleJobFailReason>::GetDomainValues()) {
                 Profiler.Increment(
