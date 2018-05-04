@@ -843,7 +843,7 @@ private:
                 for (const auto& operationId : OperationIds_) {
                     // Keep stuff below in sync with #TryCreateOperationFromAttributes.
 
-                    auto  operationAttributesPath = GetOperationPath(operationId) + "/@";
+                    auto operationAttributesPath = GetNewOperationPath(operationId) + "/@";
                     auto secureVaultPath = GetSecureVaultPath(operationId);
 
                     // Retrieve operation attributes.
@@ -1040,7 +1040,7 @@ private:
 
             for (const auto& operation : operations) {
                 const auto& operationId = operation->GetId();
-                auto operationAttributesPath = GetOperationPath(operationId) + "/@";
+                auto operationAttributesPath = GetNewOperationPath(operationId) + "/@";
                 auto secureVaultPath = GetSecureVaultPath(operationId);
 
                 // Retrieve operation attributes.
@@ -1174,7 +1174,7 @@ private:
                 for (auto transactionId : possibleTransactions)
                 {
                     {
-                        auto req = TYPathProxy::Get(GetOperationPath(operation->GetId()) + "/@");
+                        auto req = TYPathProxy::Get(GetNewOperationPath(operation->GetId()) + "/@");
                         std::vector<TString> attributeKeys{
                             "committed"
                         };
