@@ -327,6 +327,7 @@ public:
         }
         SetProperty("controllers", controllers);
         SetProperty("enable_porto", Isolate_ ? "isolate" : "full");
+        SetProperty("isolate", Isolate_ ? "true" : "false");
         SetProperty("command", command);
 
         for (auto arg : env) {
