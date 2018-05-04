@@ -2,8 +2,6 @@
 #include "demangle.h"
 #include "shutdown.h"
 
-#include <yt/core/ytree/fluent.h>
-
 #include <util/system/tls.h>
 #include <util/system/sanitizers.h>
 
@@ -11,9 +9,19 @@
 
 namespace NYT {
 
-using namespace NYTree;
-using namespace NYson;
 using namespace NConcurrency;
+
+////////////////////////////////////////////////////////////////////////////////
+
+TRefCountedTrackerStatistics::TStatistics& TRefCountedTrackerStatistics::TStatistics::operator+= (
+    const TRefCountedTrackerStatistics::TStatistics& rhs)
+{
+    ObjectsAlive += rhs.ObjectsAlive;
+    ObjectsAllocated += rhs.ObjectsAllocated;
+    BytesAlive += rhs.BytesAlive;
+    BytesAllocated += rhs.BytesAllocated;
+    return *this;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -147,6 +155,17 @@ size_t TRefCountedTracker::TNamedSlot::GetBytesAlive() const
     return
         ClampNonnegative(InstancesAllocated_, InstancesFreed_) * InstanceSize_ +
         ClampNonnegative(SpaceSizeAllocated_, SpaceSizeFreed_);
+}
+
+TRefCountedTrackerStatistics::TNamedSlotStatistics TRefCountedTracker::TNamedSlot::GetStatistics() const
+{
+    TRefCountedTrackerStatistics::TNamedSlotStatistics result;
+    result.FullName = GetFullName();
+    result.ObjectsAlive = GetInstancesAlive();
+    result.ObjectsAllocated = GetInstancesAllocated();
+    result.BytesAlive = GetBytesAlive();
+    result.BytesAllocated = GetBytesAllocated();
+    return result;
 }
 
 size_t TRefCountedTracker::TNamedSlot::ClampNonnegative(size_t allocated, size_t freed)
@@ -297,44 +316,21 @@ TString TRefCountedTracker::GetDebugInfo(int sortByColumn) const
     return builder.Flush();
 }
 
-TYsonProducer TRefCountedTracker::GetMonitoringProducer() const
+TRefCountedTrackerStatistics TRefCountedTracker::GetStatistics() const
 {
-    return BIND([=] (IYsonConsumer* consumer) {
-        auto slots = GetSnapshot();
-        SortSnapshot(&slots, -1);
+    auto slots = GetSnapshot();
+    SortSnapshot(&slots, -1);
 
-        i64 totalObjectsAlive = 0;
-        i64 totalObjectsAllocated = 0;
-        i64 totalBytesAlive = 0;
-        i64 totalBytesAllocated = 0;
+    TRefCountedTrackerStatistics result;
+    result.NamedStatistics.reserve(slots.size());
 
-        for (const auto& slot : slots) {
-            totalObjectsAlive += slot.GetInstancesAlive();
-            totalObjectsAllocated += slot.GetInstancesAllocated();
-            totalBytesAlive += slot.GetBytesAlive();
-            totalBytesAllocated += slot.GetBytesAllocated();
-        }
+    for (const auto& slot : slots) {
+        auto statistics = slot.GetStatistics();
+        result.NamedStatistics.push_back(statistics);
+        result.TotalStatistics += statistics;
+    }
 
-        BuildYsonFluently(consumer)
-            .BeginMap()
-                .Item("statistics").DoListFor(slots, [] (TFluentList fluent, const TNamedSlot& slot) {
-                    fluent
-                        .Item().BeginMap()
-                            .Item("name").Value(slot.GetFullName())
-                            .Item("objects_alive").Value(slot.GetInstancesAlive())
-                            .Item("objects_allocated").Value(slot.GetInstancesAllocated())
-                            .Item("bytes_alive").Value(slot.GetBytesAlive())
-                            .Item("bytes_allocated").Value(slot.GetBytesAllocated())
-                        .EndMap();
-                })
-                .Item("total").BeginMap()
-                    .Item("objects_alive").Value(totalObjectsAlive)
-                    .Item("objects_allocated").Value(totalObjectsAllocated)
-                    .Item("bytes_alive").Value(totalBytesAlive)
-                    .Item("bytes_allocated").Value(totalBytesAllocated)
-                .EndMap()
-            .EndMap();
-    });
+    return result;
 }
 
 size_t TRefCountedTracker::GetInstancesAllocated(TRefCountedTypeKey typeKey) const
