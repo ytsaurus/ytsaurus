@@ -8,6 +8,7 @@
 
 #include <yt/core/concurrency/delayed_executor.h>
 #include <yt/core/concurrency/event_count.h>
+#include <yt/core/concurrency/thread_affinity.h>
 
 #include <yt/core/misc/small_vector.h>
 
@@ -63,6 +64,7 @@ private:
     mutable TSpinLock SpinLock_;
     std::atomic<bool> Canceled_;
     std::atomic<bool> Set_;
+    std::atomic<bool> AbandonedUnset_ = {false};
     TNullable<TErrorOr<T>> Value_;
     mutable std::unique_ptr<NConcurrency::TEvent> ReadyEvent_;
     TResultHandlers ResultHandlers_;
@@ -84,6 +86,7 @@ private:
         bool canceled;
         {
             TGuard<TSpinLock> guard(SpinLock_);
+            Y_ASSERT(!AbandonedUnset_);
             if (MustSet) {
                 YCHECK(!Set_);
             } else {
@@ -121,19 +124,54 @@ private:
         if (Set_) {
             // Just kill the fake weak reference.
             UnrefFuture();
-        } else {
-            GetFinalizerInvoker()->Invoke(BIND([=] () {
-                // Set the promise if the value is still missing.
-                TrySet(TError(NYT::EErrorCode::Canceled, "Promise abandoned"));
-                // Kill the fake weak reference.
-                UnrefFuture();
-            }));
+            return;
         }
+
+        // Another fast path: no subscribers.
+        {
+            auto guard = Guard(SpinLock_);
+            if (ResultHandlers_.empty() && CancelHandlers_.empty()) {
+                Y_ASSERT(!AbandonedUnset_);
+                AbandonedUnset_ = true;
+                // Cannot access this after UnrefFuture; in particular, cannot touch SpinLock_ in guard's dtor.
+                guard.Release();
+                UnrefFuture();
+                return;
+            }
+        }
+
+        // Slow path: notify the subscribers in a dedicated thread.
+        GetFinalizerInvoker()->Invoke(BIND([=] () {
+            // Set the promise if the value is still missing.
+            TrySet(MakeAbandonedError());
+            // Kill the fake weak reference.
+            UnrefFuture();
+        }));
     }
 
     void Destroy()
     {
         delete this;
+    }
+
+    static TError MakeAbandonedError()
+    {
+        return TError(NYT::EErrorCode::Canceled, "Promise abandoned");
+    }
+    
+    void InstallAbandonedError()
+    {
+        VERIFY_SPINLOCK_AFFINITY(SpinLock_);
+        
+        if (AbandonedUnset_ && !Set_) {
+            Value_.Assign(MakeAbandonedError());
+            Set_ = true;
+        }
+    }
+
+    void InstallAbandonedError() const
+    {
+        const_cast<TFutureState*>(this)->InstallAbandonedError();
     }
 
 protected:
@@ -204,7 +242,8 @@ public:
 
         // Slow path.
         {
-            TGuard<TSpinLock> guard(SpinLock_);
+            auto guard = Guard(SpinLock_);
+            InstallAbandonedError();
             if (Set_) {
                 return *Value_;
             }
@@ -221,13 +260,14 @@ public:
     bool TimedWait(TDuration timeout) const
     {
         // Fast path.
-        if (Set_) {
+        if (Set_ || AbandonedUnset_) {
             return true;
         }
 
         // Slow path.
         {
-            TGuard<TSpinLock> guard(SpinLock_);
+            auto guard = Guard(SpinLock_);
+            InstallAbandonedError();
             if (Set_) {
                 return true;
             }
@@ -241,12 +281,22 @@ public:
 
     TNullable<TErrorOr<T>> TryGet() const
     {
-        return Set_ ? Value_ : Null;
+        // Fast path.
+        if (!Set_ && !AbandonedUnset_) {
+            return Null;
+        }
+
+        // Slow path.
+        {
+            auto guard = Guard(SpinLock_);
+            InstallAbandonedError();
+            return Set_ ? Value_ : Null;
+        }
     }
 
     bool IsSet() const
     {
-        return Set_;
+        return Set_ || AbandonedUnset_;
     }
 
     bool IsCanceled() const
@@ -263,6 +313,10 @@ public:
     template <class U>
     bool TrySet(U&& value)
     {
+        // Fast path.
+        if (Set_) {
+            return false;
+        }
         return DoSet<U, false>(std::forward<U>(value));
     }
 
@@ -276,7 +330,8 @@ public:
 
         // Slow path.
         {
-            TGuard<TSpinLock> guard(SpinLock_);
+            auto guard = Guard(SpinLock_);
+            InstallAbandonedError();
             if (Set_) {
                 guard.Release();
                 RunNoExcept(handler, *Value_);
@@ -299,7 +354,8 @@ public:
 
         // Slow path.
         {
-            TGuard<TSpinLock> guard(SpinLock_);
+            auto guard = Guard(SpinLock_);
+            InstallAbandonedError();
             if (Canceled_) {
                 guard.Release();
                 RunNoExcept(handler);
@@ -321,8 +377,8 @@ private:
         TIntrusivePtr<TFutureState> this_(this);
 
         {
-            TGuard<TSpinLock> guard(SpinLock_);
-            if (Set_ || Canceled_) {
+            auto guard = Guard(SpinLock_);
+            if (Set_ || AbandonedUnset_ || Canceled_) {
                 return false;
             }
             Canceled_ = true;
