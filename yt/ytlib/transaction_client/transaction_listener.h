@@ -32,6 +32,9 @@ private:
 
     mutable TSpinLock SpinLock_;
     std::vector<TTransactionId> AbortedTransactionIds_;
+
+private:
+    void OnTransactionAborted(const TTransactionId& id);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

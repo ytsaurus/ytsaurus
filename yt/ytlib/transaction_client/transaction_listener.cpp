@@ -20,11 +20,7 @@ void TTransactionListener::ListenTransaction(const ITransactionPtr& transaction)
         transaction->GetId());
 
     transaction->SubscribeAborted(
-        BIND([=, this_ = MakeStrong(this), id = transaction->GetId()] {
-            auto guard = Guard(SpinLock_);
-            AbortedTransactionIds_.push_back(id);
-            Aborted_.store(true);
-        }));
+        BIND(&TTransactionListener::OnTransactionAborted, MakeWeak(this), transaction->GetId()));
 }
 
 bool TTransactionListener::IsAborted() const
@@ -51,6 +47,13 @@ void TTransactionListener::ValidateAborted() const
     if (IsAborted()) {
         THROW_ERROR GetAbortError();
     }
+}
+
+void TTransactionListener::OnTransactionAborted(const TTransactionId& id)
+{
+    auto guard = Guard(SpinLock_);
+    AbortedTransactionIds_.push_back(id);
+    Aborted_.store(true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
