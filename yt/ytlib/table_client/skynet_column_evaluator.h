@@ -35,7 +35,7 @@ private:
     const int Md5Id_;
     const int DataSizeId_;
 
-    const int KeySize_;
+    int EffectiveKeySize_;
 
     TNullable<TString> LastFileName_;
     i64 LastDataSize_ = 0;
