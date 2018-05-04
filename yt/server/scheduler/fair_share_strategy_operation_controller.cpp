@@ -59,25 +59,23 @@ bool TFairShareStrategyOperationController::IsBlocked(
     int maxConcurrentScheduleJobCalls,
     TDuration scheduleJobFailBackoffTime) const
 {
-    auto controllerScheduleJobFailBackoffTime = NProfiling::DurationToCpuDuration(
-        scheduleJobFailBackoffTime);
-
-    if (ConcurrentScheduleJobCalls_ >= maxConcurrentScheduleJobCalls) {
-        LOG_DEBUG_UNLESS(IsBlocked_,
+    auto concurrentScheduleJobCalls = ConcurrentScheduleJobCalls_.load();
+    if (concurrentScheduleJobCalls >= maxConcurrentScheduleJobCalls) {
+        LOG_DEBUG_UNLESS(Blocked_,
             "Operation blocked in fair share strategy due to violation of maximum concurrent schedule job calls (ConcurrentScheduleJobCalls: %v)",
-            ConcurrentScheduleJobCalls_.load());
-        IsBlocked_.store(true);
+            concurrentScheduleJobCalls);
+        Blocked_.store(true);
         return true;
     }
 
-    if (LastScheduleJobFailTime_ + controllerScheduleJobFailBackoffTime > now) {
-        LOG_DEBUG_UNLESS(IsBlocked_, "Operation blocked in fair share strategy due to schedule job failure");
-        IsBlocked_.store(true);
+    if (LastScheduleJobFailTime_ + NProfiling::DurationToCpuDuration(scheduleJobFailBackoffTime) > now) {
+        LOG_DEBUG_UNLESS(Blocked_, "Operation blocked in fair share strategy due to schedule job failure");
+        Blocked_.store(true);
         return true;
     }
 
-    LOG_DEBUG_UNLESS(!IsBlocked_, "Operation unblocked in fair share strategy");
-    IsBlocked_.store(false);
+    LOG_DEBUG_UNLESS(!Blocked_, "Operation unblocked in fair share strategy");
+    Blocked_.store(false);
     return false;
 }
 
