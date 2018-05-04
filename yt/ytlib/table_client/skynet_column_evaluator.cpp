@@ -90,9 +90,13 @@ TSkynetColumnEvaluator::TSkynetColumnEvaluator(const TTableSchema& schema)
     , Sha1Id_(schema.GetColumnIndexOrThrow("sha1"))
     , Md5Id_(schema.GetColumnIndexOrThrow("md5"))
     , DataSizeId_(schema.GetColumnIndexOrThrow("data_size"))
-    , KeySize_(schema.GetKeyColumnCount())
+    , EffectiveKeySize_(schema.GetKeyColumnCount())
 {
     ValidateSkynetSchema(schema);
+
+    if (schema.GetColumnOrThrow("part_index").SortOrder()) {
+        EffectiveKeySize_ -= 1;
+    }
 }
 
 void TSkynetColumnEvaluator::ValidateAndComputeHashes(
@@ -192,13 +196,13 @@ void TSkynetColumnEvaluator::UnpackFields(
 
 bool TSkynetColumnEvaluator::IsKeySwitched(TUnversionedRow fullRow, bool isLastRow)
 {
-    if (KeySize_ == 0) {
+    if (EffectiveKeySize_ == 0) {
         return false;
     }
 
-    bool keyChanged = LastKey_ && CompareRows(fullRow, LastKey_, KeySize_) != 0;
+    bool keyChanged = LastKey_ && CompareRows(fullRow, LastKey_, EffectiveKeySize_) != 0;
     if (isLastRow) {
-        LastKeyHolder_ = GetKeyPrefix(fullRow, KeySize_);
+        LastKeyHolder_ = GetKeyPrefix(fullRow, EffectiveKeySize_);
         LastKey_ = LastKeyHolder_;
     } else {
         LastKey_ = fullRow;
