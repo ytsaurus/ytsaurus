@@ -2993,7 +2993,55 @@ class TestSchedulerOperationStorage(YTEnvSetup):
     def _get_operation_path(self, op_id):
         return "//sys/operations/" + op_id
 
-    def _run_operation(self):
+    def test_revive(self):
+        create("table", "//tmp/t_input")
+        write_table("//tmp/t_input", [{"x": "y"}, {"a": "b"}])
+
+        cmd = """
+if [ "$YT_JOB_INDEX" == "0"  ]; then
+    exit 1
+else
+    sleep 1000; cat
+fi
+"""
+
+        ops = []
+        for i in xrange(2):
+            create("table", "//tmp/t_output_" + str(i))
+
+            op = map(
+                command=cmd,
+                in_="//tmp/t_input",
+                out="//tmp/t_output_" + str(i),
+                spec={
+                    "data_size_per_job": 1,
+                    "enable_compatible_storage_mode": i == 0
+                },
+                dont_track=True)
+
+            state_path = "//sys/scheduler/orchid/scheduler/operations/{0}/state".format(op.id)
+            wait(lambda: get(state_path) == "running")
+
+            ops.append(op)
+
+        jobs_path = "//sys/scheduler/orchid/scheduler/operations/{}/progress/jobs"
+        for op in ops:
+            wait(lambda: get(jobs_path.format(op.id))["failed"] == 1)
+
+            # Wait till snapshot index is incremented (snapshot is built)
+            snapshot_index_path = "//sys/scheduler/orchid/scheduler/operations/{}/progress/snapshot_index".format(op.id)
+            snapshot_index = get(snapshot_index_path)
+            wait(lambda: get(snapshot_index_path) > snapshot_index)
+
+        self.Env.kill_schedulers()
+        self.Env.start_schedulers()
+
+        for op in ops:
+            wait(lambda: get("//sys/scheduler/orchid/scheduler/operations/{}/state".format(op.id)) == "running")
+            wait(lambda: get(get_operation_path(op.id) + "/@state") == "running")
+            assert get(jobs_path.format(op.id))["failed"] == 1
+
+    def test_attributes(self):
         create_user("u")
         create("table", "//tmp/t_input")
         write_table("//tmp/t_input", [{"x": "y"}, {"a": "b"}])
@@ -3021,26 +3069,6 @@ fi
         state_path = "//sys/scheduler/orchid/scheduler/operations/{0}/state".format(op.id)
         wait(lambda: get(state_path) == "running")
         time.sleep(1.0)  # Give scheduler some time to dump attributes to cypress.
-
-        return op
-
-    def test_revive(self):
-        op = self._run_operation()
-
-        jobs_path = "//sys/scheduler/orchid/scheduler/operations/{0}/progress/jobs".format(op.id)
-        wait(lambda: get(jobs_path)["failed"] == 1)
-
-        time.sleep(1.0)  # Give scheduler some time to write snapshot.
-
-        self.Env.kill_schedulers()
-        self.Env.start_schedulers()
-
-        wait(lambda: get(get_operation_path(op.id) + "/@state") == "running")
-
-        assert get(jobs_path)["failed"] == 1
-
-    def test_attributes(self):
-        op = self._run_operation()
 
         assert get(self._get_operation_path(op.id) + "/@state") == "running"
         assert get(get_operation_path(op.id) + "/@state") == "running"
@@ -3105,7 +3133,6 @@ fi
         get_async_scheduler_tx_path = lambda op: self._get_operation_path(op.id) + "/@async_scheduler_transaction_id"
         get_async_scheduler_tx_path_new = lambda op: get_operation_path(op.id) + "/@async_scheduler_transaction_id"
 
-        get_output_path = lambda op: self._get_operation_path(op.id) + "/output_0"
         get_output_path_new = lambda op: get_operation_path(op.id) + "/output_0"
 
         get_stderr_path = lambda op, job_id: self._get_operation_path(op.id) + "/jobs/" + job_id + "/stderr"
