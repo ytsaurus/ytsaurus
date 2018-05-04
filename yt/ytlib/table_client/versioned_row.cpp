@@ -114,7 +114,7 @@ size_t GetHash(TVersionedRow row)
     return result ^ partCount;
 }
 
-bool operator == (TVersionedRow lhs, TVersionedRow rhs)
+bool AreRowsIdentical(TVersionedRow lhs, TVersionedRow rhs)
 {
     if (!lhs && !rhs) {
         return true;
@@ -129,7 +129,7 @@ bool operator == (TVersionedRow lhs, TVersionedRow rhs)
     }
 
     for (int i = 0; i < lhs.GetKeyCount(); ++i) {
-        if (lhs.BeginKeys()[i] != rhs.BeginKeys()[i]) {
+        if (!AreRowValuesIdentical(lhs.BeginKeys()[i], lhs.BeginKeys()[i])) {
             return false;
         }
     }
@@ -139,7 +139,7 @@ bool operator == (TVersionedRow lhs, TVersionedRow rhs)
     }
 
     for (int i = 0; i < lhs.GetValueCount(); ++i) {
-        if (lhs.BeginValues()[i] != rhs.BeginValues()[i]) {
+        if (!AreRowValuesIdentical(lhs.BeginValues()[i], rhs.BeginValues()[i])) {
             return false;
         }
     }
@@ -165,11 +165,6 @@ bool operator == (TVersionedRow lhs, TVersionedRow rhs)
     }
 
     return true;
-}
-
-bool operator != (TVersionedRow lhs, TVersionedRow rhs)
-{
-    return !(lhs == rhs);
 }
 
 TString ToString(TVersionedRow row)

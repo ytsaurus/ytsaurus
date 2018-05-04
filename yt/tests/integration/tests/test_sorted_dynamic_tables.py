@@ -48,17 +48,17 @@ class TestSortedDynamicTablesBase(TestDynamicTablesBase):
                     {"name": "value", "type": "string"}]
             })
 
-    def _create_table_with_aggregate_column(self, path, aggregate = "sum", optimize_for="lookup", atomicity="full"):
-        create("table", path,
-            attributes={
-                "dynamic": True,
-                "optimize_for" : optimize_for,
-                "atomicity": atomicity,
-                "schema": [
-                    {"name": "key", "type": "int64", "sort_order": "ascending"},
-                    {"name": "time", "type": "int64"},
-                    {"name": "value", "type": "int64", "aggregate": aggregate}]
-            })
+    def _create_table_with_aggregate_column(self, path, aggregate = "sum", optimize_for="lookup", **extra_attributes):
+        attributes = {
+            "dynamic": True,
+            "optimize_for" : optimize_for,
+            "schema": [
+                {"name": "key", "type": "int64", "sort_order": "ascending"},
+                {"name": "time", "type": "int64"},
+                {"name": "value", "type": "int64", "aggregate": aggregate}]
+        }
+        attributes.update(extra_attributes)
+        create("table", path, attributes=attributes)
 
     def _wait_for_in_memory_stores_preload(self, table):
         for tablet in get(table + "/@tablets"):
@@ -835,6 +835,47 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         commit_transaction(tx2, sticky=True)
 
         assert lookup_rows("//tmp/t", [{"key": 1}]) == [{"key": 1, "time": 2, "value": 30}]
+
+    @pytest.mark.parametrize("merge_rows_on_flush, min_data_ttl, min_data_versions",
+        [a + b for a in [(False,), (True,)] \
+               for b in [(0, 0), (1, 10000)]])
+    def test_aggregate_merge_rows_on_flush(self, merge_rows_on_flush, min_data_ttl, min_data_versions):
+        self.sync_create_cells(1)
+        self._create_table_with_aggregate_column("//tmp/t",
+            merge_rows_on_flush=merge_rows_on_flush,
+            min_data_ttl=min_data_ttl,
+            min_data_versions=min_data_versions,
+            max_data_ttl=1000000,
+            max_data_versions=1)
+        self.sync_mount_table("//tmp/t")
+
+        insert_rows("//tmp/t", [{"key": 1, "time": 1, "value": 1000}], aggregate=False)
+        delete_rows("//tmp/t", [{"key": 1}])
+        insert_rows("//tmp/t", [{"key": 1, "time": 2, "value": 2000}], aggregate=True)
+        delete_rows("//tmp/t", [{"key": 1}])
+        insert_rows("//tmp/t", [{"key": 1, "time": 1, "value": 10}], aggregate=True)
+        insert_rows("//tmp/t", [{"key": 1, "time": 2, "value": 20}], aggregate=True)
+
+        assert_items_equal(select_rows("* from [//tmp/t]"), [{"key": 1, "time": 2, "value": 30}])
+
+        self.sync_unmount_table("//tmp/t")
+        self.sync_mount_table("//tmp/t")
+
+        assert_items_equal(select_rows("* from [//tmp/t]"), [{"key": 1, "time": 2, "value": 30}])
+
+        insert_rows("//tmp/t", [{"key": 1, "time": 1, "value": 100}], aggregate=True)
+        insert_rows("//tmp/t", [{"key": 1, "time": 2, "value": 200}], aggregate=True)
+
+        assert_items_equal(select_rows("* from [//tmp/t]"), [{"key": 1, "time": 2, "value": 330}])
+
+        self.sync_unmount_table("//tmp/t")
+        self.sync_mount_table("//tmp/t")
+
+        assert_items_equal(select_rows("* from [//tmp/t]"), [{"key": 1, "time": 2, "value": 330}])
+
+        self.sync_compact_table("//tmp/t")
+
+        assert_items_equal(select_rows("* from [//tmp/t]"), [{"key": 1, "time": 2, "value": 330}])
 
     @pytest.mark.parametrize("aggregate", ["avg", "cardinality"])
     def test_invalid_aggregate(self, aggregate):
@@ -1691,15 +1732,8 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         insert_rows("//tmp/t1", ext_rows1)
         insert_rows("//tmp/t2", ext_rows2)
 
-        set("//tmp/x", 1)
-        revision = get("//tmp/@revision")
-        set("//tmp/t1/@forced_compaction_revision", revision)
-        remount_table("//tmp/t1")
-        set("//tmp/t2/@forced_compaction_revision", revision)
-        remount_table("//tmp/t2")
-
-        wait(lambda: len(__builtin__.set(get("//tmp/t1/@chunk_ids")).intersection(original_chunk_ids1)) == 0)
-        wait(lambda: len(__builtin__.set(get("//tmp/t2/@chunk_ids")).intersection(original_chunk_ids2)) == 0)
+        self.sync_compact_table("//tmp/t1")
+        self.sync_compact_table("//tmp/t2")
 
         compacted_chunk_ids1 = __builtin__.set(get("//tmp/t1/@chunk_ids"))
         compacted_chunk_ids2 = __builtin__.set(get("//tmp/t2/@chunk_ids"))
