@@ -992,6 +992,7 @@ private:
     void DoScheduleJobsWithoutPreemption(
         const TRootElementSnapshotPtr& rootElementSnapshot,
         TFairShareContext* context,
+        TCpuInstant startTime,
         const std::function<void(TProfilingCounters&, int, TDuration)> profileTimings,
         const std::function<void(const TStringBuf&)> logAndCleanSchedulingStatistics)
     {
@@ -1004,7 +1005,9 @@ private:
             TDuration prescheduleDuration;
 
             TWallTimer scheduleTimer;
-            while (context->SchedulingContext->CanStartMoreJobs()) {
+            while (context->SchedulingContext->CanStartMoreJobs() &&
+                GetCpuInstant() < startTime + DurationToCpuDuration(ControllerConfig->ScheduleJobsTimeout))
+            {
                 if (!prescheduleExecuted) {
                     TWallTimer prescheduleTimer;
                     context->Initialize(rootElement->GetTreeSize(), RegisteredSchedulingTagFilters);
@@ -1033,6 +1036,7 @@ private:
     void DoScheduleJobsWithPreemption(
         const TRootElementSnapshotPtr& rootElementSnapshot,
         TFairShareContext* context,
+        TCpuInstant startTime,
         const std::function<void(TProfilingCounters&, int, TDuration)>& profileTimings,
         const std::function<void(const TStringBuf&)>& logAndCleanSchedulingStatistics)
     {
@@ -1096,7 +1100,9 @@ private:
             TDuration prescheduleDuration;
 
             TWallTimer timer;
-            while (context->SchedulingContext->CanStartMoreJobs()) {
+            while (context->SchedulingContext->CanStartMoreJobs() &&
+                GetCpuInstant() < startTime + DurationToCpuDuration(ControllerConfig->ScheduleJobsTimeout))
+            {
                 if (!prescheduleExecuted) {
                     TWallTimer prescheduleTimer;
                     rootElement->PrescheduleJob(context, /*starvingOnly*/ true, /*aggressiveStarvationEnabled*/ false);
@@ -1270,7 +1276,7 @@ private:
             std::fill(context.DeactivationReasons.begin(), context.DeactivationReasons.end(), 0);
         };
 
-        DoScheduleJobsWithoutPreemption(rootElementSnapshot, &context, profileTimings, logAndCleanSchedulingStatistics);
+        DoScheduleJobsWithoutPreemption(rootElementSnapshot, &context, now, profileTimings, logAndCleanSchedulingStatistics);
 
         auto nodeId = schedulingContext->GetNodeDescriptor().Id;
 
@@ -1295,7 +1301,7 @@ private:
         }
 
         if (scheduleJobsWithPreemption) {
-            DoScheduleJobsWithPreemption(rootElementSnapshot, &context, profileTimings, logAndCleanSchedulingStatistics);
+            DoScheduleJobsWithPreemption(rootElementSnapshot, &context, now, profileTimings, logAndCleanSchedulingStatistics);
         } else {
             LOG_DEBUG("Skip preemptive scheduling");
         }
