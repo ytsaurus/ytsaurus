@@ -832,7 +832,8 @@ private:
                 "state",
                 "events",
                 "slot_index_per_pool_tree",
-                "scheduling_options_per_pool_tree"
+                "scheduling_options_per_pool_tree",
+                "output_completion_transaction_id"
             };
 
             auto batchReq = Owner_->StartObjectBatchRequest(EMasterChannelKind::Follower);
@@ -853,16 +854,6 @@ private:
                         batchReq->AddRequest(req, "get_op_attr_" + ToString(operationId));
                     }
 
-                    // Retrieve operation completion transaction id.
-                    {
-                        auto req = TYPathProxy::Get(GetNewOperationPath(operationId) + "/@");
-                        std::vector<TString> attributeKeys{
-                            "output_completion_transaction_id",
-                        };
-                        ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
-                        batchReq->AddRequest(req, "get_op_completion_tx_id_" + ToString(operationId));
-                    }
-
                     // Retrieve secure vault.
                     {
                         auto req = TYPathProxy::Get(secureVaultPath);
@@ -881,16 +872,10 @@ private:
                         "get_op_attr_" + ToString(operationId))
                         .ValueOrThrow();
 
-                    auto completionTxIdRsp = batchRsp->GetResponse<TYPathProxy::TRspGet>(
-                        "get_op_completion_tx_id_" + ToString(operationId))
-                        .ValueOrThrow();
-
                     auto secureVaultRspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>(
                         "get_op_secure_vault_" + ToString(operationId));
 
                     auto attributesNode = ConvertToAttributes(TYsonString(attributesRsp->value()));
-                    auto completionTxIdAttribute = ConvertToAttributes(TYsonString(completionTxIdRsp->value()));
-                    attributesNode->MergeFrom(*completionTxIdAttribute);
 
                     IMapNodePtr secureVault;
                     if (secureVaultRspOrError.IsOK()) {
@@ -1049,16 +1034,6 @@ private:
                     ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
                     batchReq->AddRequest(req, "get_op_attr_" + ToString(operationId));
                 }
-
-                // Retrieve operation completion transaction id.
-                {
-                    auto req = TYPathProxy::Get(GetNewOperationPath(operationId) + "/@");
-                    std::vector<TString> attributeKeys{
-                        "output_completion_transaction_id",
-                    };
-                    ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
-                    batchReq->AddRequest(req, "get_op_completion_tx_id_" + ToString(operationId));
-                }
             }
 
             auto batchRsp = WaitFor(batchReq->Invoke())
@@ -1071,13 +1046,7 @@ private:
                     "get_op_attr_" + ToString(operationId))
                     .ValueOrThrow();
 
-                auto completionTxIdRsp = batchRsp->GetResponse<TYPathProxy::TRspGet>(
-                    "get_op_completion_tx_id_" + ToString(operationId))
-                    .ValueOrThrow();
-
                 auto attributes = ConvertToAttributes(TYsonString(attributesRsp->value()));
-                auto completionTxIdAttribute = ConvertToAttributes(TYsonString(completionTxIdRsp->value()));
-                attributes->MergeFrom(*completionTxIdAttribute);
 
                 auto attachTransaction = [&] (const TTransactionId& transactionId, bool ping, const TString& name = TString()) -> ITransactionPtr {
                     if (!transactionId) {
@@ -1173,24 +1142,13 @@ private:
 
                 for (auto transactionId : possibleTransactions)
                 {
-                    {
-                        auto req = TYPathProxy::Get(GetNewOperationPath(operation->GetId()) + "/@");
-                        std::vector<TString> attributeKeys{
-                            "committed"
-                        };
-                        ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
-                        SetTransactionId(req, transactionId);
-                        batchReq->AddRequest(req, getBatchKey(operation));
-                    }
-                    {
-                        auto req = TYPathProxy::Get(GetNewOperationPath(operation->GetId()) + "/@");
-                        std::vector<TString> attributeKeys{
-                            "committed"
-                        };
-                        ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
-                        SetTransactionId(req, transactionId);
-                        batchReq->AddRequest(req, getBatchKey(operation) + "_new");
-                    }
+                    auto req = TYPathProxy::Get(GetNewOperationPath(operation->GetId()) + "/@");
+                    std::vector<TString> attributeKeys{
+                        "committed"
+                    };
+                    ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
+                    SetTransactionId(req, transactionId);
+                    batchReq->AddRequest(req, getBatchKey(operation));
                 }
             }
 
@@ -1200,9 +1158,6 @@ private:
             for (const auto& operation : operationsToRevive) {
                 auto& revivalDescriptor = *operation->RevivalDescriptor();
                 auto rsps = batchRsp->GetResponses<TYPathProxy::TRspGet>(getBatchKey(operation));
-                auto rspsNew = batchRsp->GetResponses<TYPathProxy::TRspGet>(getBatchKey(operation) + "_new");
-
-                YCHECK(rsps.size() == rspsNew.size());
 
                 for (size_t rspIndex = 0; rspIndex < rsps.size(); ++rspIndex) {
                     std::unique_ptr<IAttributeDictionary> attributes;
@@ -1220,7 +1175,6 @@ private:
                     };
 
                     updateAttributes(rsps[rspIndex]);
-                    updateAttributes(rspsNew[rspIndex]);
 
                     // Commit transaction may be missing or aborted.
                     if (!attributes) {
