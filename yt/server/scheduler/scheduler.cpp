@@ -1640,7 +1640,7 @@ private:
         std::vector<TString> keys(keySet.begin(), keySet.end());
         keys.push_back("owners");
 
-        auto req = TYPathProxy::Get(GetOperationPath(operation->GetId()) + "/@");
+        auto req = TYPathProxy::Get(GetNewOperationPath(operation->GetId()) + "/@");
         ToProto(req->mutable_attributes()->mutable_keys(), keys);
         batchReq->AddRequest(req, "get_runtime_params");
     }
