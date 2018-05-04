@@ -901,6 +901,8 @@ public:
                     auto shardId = scheduler->GetNodeShardId(NodeIdFromJobId(jobId));
                     groupedJobEvents[shardId].push_back(protoEvent);
                 });
+            agent->GetJobEventsInbox()->ReportStatus(
+                response->mutable_agent_to_scheduler_job_events());
 
             agent->GetScheduleJobResponsesInbox()->HandleIncoming(
                 request->mutable_agent_to_scheduler_schedule_job_responses(),
@@ -909,14 +911,11 @@ public:
                     auto shardId = scheduler->GetNodeShardId(NodeIdFromJobId(jobId));
                     groupedScheduleJobResponses[shardId].push_back(protoEvent);
                 });
+            agent->GetScheduleJobResponsesInbox()->ReportStatus(
+                response->mutable_agent_to_scheduler_schedule_job_responses());
 
-            agent->GetJobEventsOutbox()->HandleStatus(request->scheduler_to_agent_job_events());
-            agent->GetOperationEventsOutbox()->HandleStatus(request->scheduler_to_agent_operation_events());
-            agent->GetScheduleJobRequestsOutbox()->HandleStatus(request->scheduler_to_agent_schedule_job_requests());
-
-            agent->GetJobEventsInbox()->ReportStatus(response->mutable_agent_to_scheduler_job_events());
-            agent->GetScheduleJobResponsesInbox()->ReportStatus(response->mutable_agent_to_scheduler_schedule_job_responses());
-
+            agent->GetJobEventsOutbox()->HandleStatus(
+                request->scheduler_to_agent_job_events());
             agent->GetJobEventsOutbox()->BuildOutcoming(
                 response->mutable_scheduler_to_agent_job_events(),
                 [] (auto* protoEvent, const auto& event) {
@@ -942,6 +941,8 @@ public:
                     }
                 });
 
+            agent->GetOperationEventsOutbox()->HandleStatus(
+                request->scheduler_to_agent_operation_events());
             agent->GetOperationEventsOutbox()->BuildOutcoming(
                 response->mutable_scheduler_to_agent_operation_events(),
                 [] (auto* protoEvent, const auto& event) {
@@ -949,6 +950,8 @@ public:
                     ToProto(protoEvent->mutable_operation_id(), event.OperationId);
                 });
 
+            agent->GetScheduleJobRequestsOutbox()->HandleStatus(
+                request->scheduler_to_agent_schedule_job_requests());
             agent->GetScheduleJobRequestsOutbox()->BuildOutcoming(
                 response->mutable_scheduler_to_agent_schedule_job_requests(),
                 [] (auto* protoRequest, const auto& request) {
@@ -988,14 +991,14 @@ public:
                         Y_UNREACHABLE();
                 }
             });
+        agent->GetOperationEventsInbox()->ReportStatus(
+            response->mutable_agent_to_scheduler_operation_events());
 
         if (request->exec_nodes_requested()) {
             for (const auto& pair : *scheduler->GetCachedExecNodeDescriptors()) {
                 ToProto(response->mutable_exec_nodes()->add_exec_nodes(), pair.second);
             }
         }
-
-        agent->GetOperationEventsInbox()->ReportStatus(response->mutable_agent_to_scheduler_operation_events());
 
         for (int shardId = 0; shardId < nodeShardCount; ++shardId) {
             scheduler->GetCancelableNodeShardInvoker(shardId)->Invoke(
