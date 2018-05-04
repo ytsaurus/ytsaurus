@@ -1974,6 +1974,7 @@ bool TOperationElement::ScheduleJob(TFairShareContext* context)
     }
 
     if (!scheduleJobResult->StartDescriptor) {
+        ++context->ScheduleJobFailureCount;
         disableOperationElement(EDeactivationReason::ScheduleJobFailed);
 
         bool enableBackoff = scheduleJobResult->IsBackoffNeeded();
