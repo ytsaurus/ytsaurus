@@ -250,12 +250,9 @@ static_assert(
 size_t GetDataWeight(TVersionedRow row);
 size_t GetHash(TVersionedRow row);
 
-//! Compares versioned rows for equality.
+//! Compares versioned rows for equality taking aggregate flags into account.
 //! Row values must be canonically sorted.
-bool operator == (TVersionedRow lhs, TVersionedRow rhs);
-
-//! Compares versioned rows for nonequality.
-bool operator != (TVersionedRow lhs, TVersionedRow rhs);
+bool AreRowsIdentical(TVersionedRow lhs, TVersionedRow rhs);
 
 TString ToString(TVersionedRow row);
 TString ToString(TMutableVersionedRow row);
