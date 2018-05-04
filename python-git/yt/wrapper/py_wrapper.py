@@ -199,6 +199,9 @@ class Tar(object):
     def __init__(self, prefix, tempfiles_manager, client):
         self.prefix = prefix
         self._compression_codec = get_config(client)["pickling"]["modules_archive_compression_codec"]
+        if sys.version_info[:2] == (2, 6):
+            self._compression_codec = None
+
         suffix = ".tar"
         if self._compression_codec == "gzip":
             suffix += ".gz"
