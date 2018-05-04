@@ -465,6 +465,11 @@ bool operator > (const TUnversionedValue& lhs, const TUnversionedValue& rhs)
     return CompareRowValues(lhs, rhs) > 0;
 }
 
+bool AreRowValuesIdentical(const TUnversionedValue& lhs, const TUnversionedValue& rhs)
+{
+    return lhs == rhs && lhs.Aggregate == rhs.Aggregate;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 int CompareRows(
@@ -533,6 +538,28 @@ bool operator >= (TUnversionedRow lhs, TUnversionedRow rhs)
 bool operator > (TUnversionedRow lhs, TUnversionedRow rhs)
 {
     return CompareRows(lhs, rhs) > 0;
+}
+
+bool AreRowsIdentical(TUnversionedRow lhs, TUnversionedRow rhs)
+{
+    if (!lhs && !rhs) {
+        return true;
+    }
+
+    if (!lhs || !rhs) {
+        return false;
+    }
+
+    if (lhs.GetCount() != rhs.GetCount()) {
+        return false;
+    }
+
+    for (int index = 0; index < lhs.GetCount(); ++index) {
+        if (!AreRowValuesIdentical(lhs[index], rhs[index])) {
+            return false;
+        }
+    }
+    return true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
