@@ -381,13 +381,15 @@ public:
 
     virtual void OnJobRunning(
         const TJobPtr& job,
-        NJobTrackerClient::NProto::TJobStatus* status) override
+        NJobTrackerClient::NProto::TJobStatus* status,
+        bool shouldLogJob) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         auto event = BuildEvent(ESchedulerToAgentJobEventType::Running, job, true, status);
         auto result = EnqueueJobEvent(std::move(event), false);
-        LOG_DEBUG("Job run notification %v (OperationId: %v, JobId: %v)",
+        LOG_DEBUG_IF(shouldLogJob,
+            "Job run notification %v (OperationId: %v, JobId: %v)",
             result ? "enqueued" : "dropped",
             OperationId_,
             job->GetId());
