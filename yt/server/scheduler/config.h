@@ -182,9 +182,6 @@ class TSchedulerConfig
     : public TFairShareStrategyConfig
 {
 public:
-    //! Priority of control thread.
-    TNullable<int> ControlThreadPriority;
-
     //! Number of shards the nodes are split into.
     int NodeShardCount;
 
