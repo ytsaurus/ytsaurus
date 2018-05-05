@@ -186,9 +186,6 @@ TSchedulerConfig::TSchedulerConfig()
 {
     SetUnrecognizedStrategy(NYTree::EUnrecognizedStrategy::KeepRecursive);
 
-    RegisterParameter("control_thread_priority", ControlThreadPriority)
-        .Default();
-
     RegisterParameter("node_shard_count", NodeShardCount)
         .Default(4)
         .GreaterThan(0);

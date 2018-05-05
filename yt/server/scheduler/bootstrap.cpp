@@ -57,8 +57,6 @@
 #include <yt/core/rpc/retrying_channel.h>
 #include <yt/core/rpc/server.h>
 
-#include <yt/core/tools/tools.h>
-
 #include <yt/core/ytree/virtual.h>
 #include <yt/core/ytree/ypath_client.h>
 
@@ -115,18 +113,6 @@ void TBootstrap::Run()
 void TBootstrap::DoRun()
 {
     LOG_INFO("Starting scheduler");
-
-    if (Config_->Scheduler->ControlThreadPriority) {
-        WaitFor(BIND([priority = *Config_->Scheduler->ControlThreadPriority] {
-                auto config = New<TSetThreadPriorityConfig>();
-                config->ThreadId = GetCurrentThreadId();
-                config->Priority = priority;
-                NTools::RunTool<TSetThreadPriorityAsRootTool>(config);
-            })
-            .AsyncVia(GetControlInvoker(EControlQueue::Default))
-            .Run())
-            .ThrowOnError();
-    }
 
     TNativeConnectionOptions connectionOptions;
     connectionOptions.RetryRequestQueueSizeLimitExceeded = true;
