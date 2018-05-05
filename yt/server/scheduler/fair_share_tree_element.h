@@ -82,6 +82,7 @@ struct TFairShareContext
 
     int ActiveOperationCount = 0;
     int ActiveTreeSize = 0;
+    int ScheduleJobFailureCount = 0;
     TEnumIndexedVector<int, EDeactivationReason> DeactivationReasons;
 
     // Used to avoid unnecessary calculation of HasAggressivelyStarvingNodes.
