@@ -39,7 +39,7 @@ TErrorAttribute GetLastSslError()
     return TErrorAttribute("ssl_error", TString(errorStr));
 }
 
-constexpr auto TlsBufferSize = 64_KB;
+constexpr auto TlsBufferSize = 1_MB;
 
 } // namespace
 
