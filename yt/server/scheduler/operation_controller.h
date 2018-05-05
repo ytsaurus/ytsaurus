@@ -152,7 +152,8 @@ struct IOperationController
      */
     virtual void OnJobRunning(
         const TJobPtr& job,
-        NJobTrackerClient::NProto::TJobStatus* status) = 0;
+        NJobTrackerClient::NProto::TJobStatus* status,
+        bool shouldLogJob) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IOperationController)

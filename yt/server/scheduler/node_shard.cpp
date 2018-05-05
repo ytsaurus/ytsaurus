@@ -1602,7 +1602,7 @@ TJobPtr TNodeShard::ProcessJobHeartbeat(
                 switch (state) {
                     case EJobState::Running:
                         LOG_DEBUG_IF(shouldLogJob, "Job is running");
-                        OnJobRunning(job, jobStatus);
+                        OnJobRunning(job, jobStatus, shouldLogJob);
                         if (job->GetInterruptDeadline() != 0 && GetCpuInstant() > job->GetInterruptDeadline()) {
                             LOG_DEBUG("Interrupted job deadline reached, aborting (InterruptDeadline: %v)",
                                 CpuInstantToInstant(job->GetInterruptDeadline()));
@@ -1813,7 +1813,7 @@ void TNodeShard::ProcessScheduledJobs(
     }
 }
 
-void TNodeShard::OnJobRunning(const TJobPtr& job, TJobStatus* status)
+void TNodeShard::OnJobRunning(const TJobPtr& job, TJobStatus* status, bool shouldLogJob)
 {
     YCHECK(status);
 
@@ -1841,7 +1841,7 @@ void TNodeShard::OnJobRunning(const TJobPtr& job, TJobStatus* status)
     auto* operationState = FindOperationState(job->GetOperationId());
     if (operationState) {
         const auto& controller = operationState->Controller;
-        controller->OnJobRunning(job, status);
+        controller->OnJobRunning(job, status, shouldLogJob);
         operationState->JobsToSubmitToStrategy.insert(job->GetId());
     }
 }
