@@ -170,7 +170,7 @@ public:
         , CachedExecNodeMemoryDistributionByTags_(New<TSyncExpiringCache<TSchedulingTagFilter, TMemoryDistribution>>(
             BIND(&TImpl::CalculateMemoryDistribution, MakeStrong(this)),
             Config_->SchedulingTagFilterExpireTimeout,
-            GetControlInvoker()))
+            GetControlInvoker(EControlQueue::PeriodicActivity)))
         , TotalResourceLimitsProfiler_(Profiler.GetPathPrefix() + "/total_resource_limits")
         , TotalResourceUsageProfiler_(Profiler.GetPathPrefix() + "/total_resource_usage")
         , TotalCompletedJobTimeCounter_("/total_completed_job_time")
@@ -179,7 +179,7 @@ public:
     {
         YCHECK(config);
         YCHECK(bootstrap);
-        VERIFY_INVOKER_THREAD_AFFINITY(GetControlInvoker(), ControlThread);
+        VERIFY_INVOKER_THREAD_AFFINITY(GetControlInvoker(EControlQueue::Default), ControlThread);
 
         for (int index = 0; index < Config_->NodeShardCount; ++index) {
             NodeShards_.push_back(New<TNodeShard>(
@@ -450,7 +450,7 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         return BIND(&TImpl::DoSetOperationAlert, MakeStrong(this), operationId, alertType, alert, timeout)
-            .AsyncVia(GetControlInvoker())
+            .AsyncVia(GetControlInvoker(EControlQueue::Operation))
             .Run();
     }
 
@@ -1042,7 +1042,7 @@ public:
         return result;
     }
 
-    virtual IInvokerPtr GetControlInvoker(EControlQueue queue = EControlQueue::Default) const
+    virtual IInvokerPtr GetControlInvoker(EControlQueue queue) const
     {
         return Bootstrap_->GetControlInvoker(queue);
     }
@@ -1070,7 +1070,7 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         return BIND(&TImpl::DoRegisterOrUpdateNode, MakeStrong(this))
-            .AsyncVia(GetControlInvoker())
+            .AsyncVia(GetControlInvoker(EControlQueue::NodeTracker))
             .Run(nodeId, nodeAddress, tags);
     }
 
@@ -1078,17 +1078,18 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        GetControlInvoker()->Invoke(BIND([this, this_ = MakeStrong(this), nodeId, nodeAddress] {
-            // NOTE: If node is unregistered from node shard before it becomes online
-            // then its id can be missing in the map.
-            auto it = NodeIdToTags_.find(nodeId);
-            if (it == NodeIdToTags_.end()) {
-                LOG_WARNING("Node is not registered at scheduler (Address: %v)", nodeAddress);
-            } else {
-                NodeIdToTags_.erase(it);
-                LOG_INFO("Node unregistered from scheduler (Address: %v)", nodeAddress);
-            }
-        }));
+        GetControlInvoker(EControlQueue::NodeTracker)->Invoke(
+            BIND([this, this_ = MakeStrong(this), nodeId, nodeAddress] {
+                // NOTE: If node is unregistered from node shard before it becomes online
+                // then its id can be missing in the map.
+                auto it = NodeIdToTags_.find(nodeId);
+                if (it == NodeIdToTags_.end()) {
+                    LOG_WARNING("Node is not registered at scheduler (Address: %v)", nodeAddress);
+                } else {
+                    NodeIdToTags_.erase(it);
+                    LOG_INFO("Node unregistered from scheduler (Address: %v)", nodeAddress);
+                }
+            }));
     }
 
     void DoRegisterOrUpdateNode(
