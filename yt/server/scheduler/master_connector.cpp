@@ -123,7 +123,7 @@ public:
         DoDisconnect(error);
     }
 
-    const IInvokerPtr& GetCancelableControlInvoker(EControlQueue queue = EControlQueue::MasterConnector) const
+    const IInvokerPtr& GetCancelableControlInvoker(EControlQueue queue) const
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(State_ != EMasterConnectorState::Disconnected);
@@ -207,7 +207,7 @@ public:
 
         return batchReq->Invoke().Apply(
             BIND(&TImpl::OnOperationNodeCreated, MakeStrong(this), operation)
-                .AsyncVia(GetCancelableControlInvoker()));
+                .AsyncVia(GetCancelableControlInvoker(EControlQueue::MasterConnector)));
     }
 
     TFuture<void> UpdateInitializedOperationNode(const TOperationPtr& operation)
@@ -251,7 +251,7 @@ public:
                 &TImpl::OnInitializedOperationNodeUpdated,
                 MakeStrong(this),
                 operation)
-            .AsyncVia(GetCancelableControlInvoker()));
+            .AsyncVia(GetCancelableControlInvoker(EControlQueue::MasterConnector)));
     }
 
     TFuture<void> FlushOperationNode(const TOperationPtr& operation)
@@ -271,7 +271,7 @@ public:
         YCHECK(State_ != EMasterConnectorState::Disconnected);
 
         return BIND(&TImpl::DoFetchOperationRevivalDescriptors, MakeStrong(this))
-            .AsyncVia(GetCancelableControlInvoker())
+            .AsyncVia(GetCancelableControlInvoker(EControlQueue::MasterConnector))
             .Run(operations);
     }
 
@@ -306,7 +306,7 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         return BIND(&TImpl::DoFlushOperationRuntimeParameters, MakeStrong(this))
-            .AsyncVia(GetCancelableControlInvoker())
+            .AsyncVia(GetCancelableControlInvoker(EControlQueue::MasterConnector))
             .Run(operation, params);
     }
 
@@ -484,7 +484,7 @@ private:
         if (Config_->TestingOptions->EnableRandomMasterDisconnection) {
             TDelayedExecutor::Submit(
                 BIND(&TImpl::RandomDisconnect, MakeStrong(this))
-                    .Via(Bootstrap_->GetControlInvoker()),
+                    .Via(Bootstrap_->GetControlInvoker(EControlQueue::MasterConnector)),
                 RandomDuration(Config_->TestingOptions->RandomMasterDisconnectionMaxBackoff));
         }
     }
@@ -502,7 +502,7 @@ private:
     {
         TDelayedExecutor::Submit(
             BIND(&TImpl::DoStartConnecting, MakeStrong(this))
-                .Via(Bootstrap_->GetControlInvoker()),
+                .Via(Bootstrap_->GetControlInvoker(EControlQueue::MasterConnector)),
             immediate ? TDuration::Zero() : Config_->ConnectRetryBackoffTime);
     }
 
@@ -527,7 +527,7 @@ private:
         }
 
         OperationNodesUpdateExecutor_ = New<TUpdateExecutor<TOperationId, TOperationNodeUpdate>>(
-            GetCancelableControlInvoker(),
+            GetCancelableControlInvoker(EControlQueue::PeriodicActivity),
             BIND(&TImpl::UpdateOperationNode, Unretained(this)),
             BIND([] (const TOperationNodeUpdate*) { return false; }),
             BIND(&TImpl::OnOperationUpdateFailed, Unretained(this)),
@@ -535,20 +535,20 @@ private:
             Logger);
 
         WatchersExecutor_ = New<TPeriodicExecutor>(
-            GetCancelableControlInvoker(),
+            GetCancelableControlInvoker(EControlQueue::PeriodicActivity),
             BIND(&TImpl::UpdateWatchers, MakeWeak(this)),
             Config_->WatchersUpdatePeriod,
             EPeriodicExecutorMode::Automatic);
 
         AlertsExecutor_ = New<TPeriodicExecutor>(
-            GetCancelableControlInvoker(),
+            GetCancelableControlInvoker(EControlQueue::PeriodicActivity),
             BIND(&TImpl::UpdateAlerts, MakeWeak(this)),
             Config_->AlertsUpdatePeriod,
             EPeriodicExecutorMode::Automatic);
 
         for (const auto& record : CustomGlobalWatcherRecords_) {
             auto executor = New<TPeriodicExecutor>(
-                GetCancelableControlInvoker(),
+                GetCancelableControlInvoker(EControlQueue::PeriodicActivity),
                 BIND(&TImpl::ExecuteCustomWatcherUpdate, MakeWeak(this), record.Requester, record.Handler),
                 record.Period,
                 EPeriodicExecutorMode::Automatic);
@@ -557,10 +557,10 @@ private:
 
         auto pipeline = New<TRegistrationPipeline>(this);
         BIND(&TRegistrationPipeline::Run, pipeline)
-            .AsyncVia(GetCancelableControlInvoker())
+            .AsyncVia(GetCancelableControlInvoker(EControlQueue::MasterConnector))
             .Run()
             .Subscribe(BIND(&TImpl::OnConnected, MakeStrong(this))
-                .Via(GetCancelableControlInvoker()));
+                .Via(GetCancelableControlInvoker(EControlQueue::MasterConnector)));
     }
 
     void OnConnected(const TError& error) noexcept
@@ -584,7 +584,7 @@ private:
 
         LockTransaction_->SubscribeAborted(
             BIND(&TImpl::OnLockTransactionAborted, MakeWeak(this))
-                .Via(GetCancelableControlInvoker()));
+                .Via(GetCancelableControlInvoker(EControlQueue::MasterConnector)));
 
         StartPeriodicActivities();
 
@@ -1447,7 +1447,7 @@ private:
         return BIND(&TImpl::DoUpdateOperationNode,
             MakeStrong(this),
             update->Operation)
-            .AsyncVia(GetCancelableControlInvoker());
+            .AsyncVia(GetCancelableControlInvoker(EControlQueue::MasterConnector));
     }
 
     void OnOperationNodeCreated(
@@ -1510,7 +1510,7 @@ private:
             }
             batchReq->Invoke().Subscribe(
                 BIND(&TImpl::OnGlobalWatchersUpdated, MakeStrong(this))
-                    .Via(GetCancelableControlInvoker()));
+                    .Via(GetCancelableControlInvoker(EControlQueue::PeriodicActivity)));
         }
 
         // Purge obsolete watchers.
@@ -1538,7 +1538,7 @@ private:
             }
             batchReq->Invoke().Subscribe(
                 BIND(&TImpl::OnOperationWatchersUpdated, MakeStrong(this), operation)
-                    .Via(GetCancelableControlInvoker()));
+                    .Via(GetCancelableControlInvoker(EControlQueue::PeriodicActivity)));
         }
     }
 

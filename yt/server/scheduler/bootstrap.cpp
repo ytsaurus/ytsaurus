@@ -104,7 +104,7 @@ void TBootstrap::Run()
     ControlQueue_ = New<TFairShareActionQueue>("Control", TEnumTraits<EControlQueue>::GetDomainNames());
 
     BIND(&TBootstrap::DoRun, this)
-        .AsyncVia(GetControlInvoker())
+        .AsyncVia(GetControlInvoker(EControlQueue::Default))
         .Run()
         .Get()
         .ThrowOnError();
@@ -123,7 +123,7 @@ void TBootstrap::DoRun()
                 config->Priority = priority;
                 NTools::RunTool<TSetThreadPriorityAsRootTool>(config);
             })
-            .AsyncVia(GetControlInvoker())
+            .AsyncVia(GetControlInvoker(EControlQueue::Default))
             .Run())
             .ThrowOnError();
     }
@@ -151,7 +151,7 @@ void TBootstrap::DoRun()
 
     ResponseKeeper_ = New<TResponseKeeper>(
         Config_->ResponseKeeper,
-        GetControlInvoker(),
+        GetControlInvoker(EControlQueue::UserRequest),
         SchedulerLogger,
         SchedulerProfiler);
 
@@ -191,16 +191,16 @@ void TBootstrap::DoRun()
     SetBuildAttributes(orchidRoot, "scheduler");
 
     RpcServer_->RegisterService(CreateAdminService(
-        GetControlInvoker(),
+        GetControlInvoker(EControlQueue::Default),
         CoreDumper_));
 
     RpcServer_->RegisterService(CreateOrchidService(
         orchidRoot,
-        GetControlInvoker()));
+        GetControlInvoker(EControlQueue::Orchid)));
 
     HttpServer_->AddHandler(
         "/orchid/",
-        NMonitoring::GetOrchidYPathHttpHandler(orchidRoot->Via(GetControlInvoker())));
+        NMonitoring::GetOrchidYPathHttpHandler(orchidRoot->Via(GetControlInvoker(EControlQueue::Orchid))));
 
     RpcServer_->RegisterService(CreateSchedulerService(this));
     RpcServer_->RegisterService(CreateJobTrackerService(this));
