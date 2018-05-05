@@ -197,7 +197,7 @@ IListenerPtr CreateListener(
         auto impl = New<TListenerImpl>(
             serverSocket,
             realAddress,
-            Format("listener[%v]", realAddress),
+            Format("Listener{%v}", realAddress),
             poller);
         return New<TListener>(impl);
     } catch (const std::exception& ) {
