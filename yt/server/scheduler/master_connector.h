@@ -61,7 +61,7 @@ public:
 
     const NApi::ITransactionPtr& GetLockTransaction() const;
 
-    const IInvokerPtr& GetCancelableControlInvoker(EControlQueue queue = EControlQueue::Default) const;
+    const IInvokerPtr& GetCancelableControlInvoker(EControlQueue queue) const;
 
     void Disconnect(const TError& error);
 
