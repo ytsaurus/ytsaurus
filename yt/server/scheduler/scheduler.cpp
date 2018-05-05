@@ -1675,7 +1675,7 @@ private:
                 operation->SetOwners(ownerList);
             }
 
-            LOG_INFO("Operation runtime parameters updated from Cypress (OperationId: %v)",
+            LOG_DEBUG("Operation runtime parameters updated from Cypress (OperationId: %v)",
                 operation->GetId());
         } catch (const std::exception& ex) {
             LOG_WARNING(ex, "Error parsing operation runtime parameters (OperationId: %v)",
