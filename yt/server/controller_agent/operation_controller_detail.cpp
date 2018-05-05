@@ -3737,6 +3737,9 @@ void TOperationControllerBase::ProcessFinishedJobResult(std::unique_ptr<TJobSumm
 
     auto inputPaths = BuildInputPathYson(joblet);
     auto finishedJob = New<TFinishedJobInfo>(joblet, std::move(*summary), std::move(inputPaths));
+    // NB: we do not want these values to get into the snapshot as they may be pretty large.
+    finishedJob->Summary.StatisticsYson = TYsonString();
+    finishedJob->Summary.Statistics.Reset();
     FinishedJobs_.insert(std::make_pair(jobId, finishedJob));
 
     bool shouldCreateJobNode =
@@ -6941,6 +6944,14 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
     Persist(context, StderrCount_);
     Persist(context, JobNodeCount_);
     Persist(context, FinishedJobs_);
+    // COMPAT(max42): remove it in a few weeks.
+    if (context.IsLoad()) {
+        for (auto& pair : FinishedJobs_) {
+            auto& summary = pair.second->Summary;
+            summary.StatisticsYson = TYsonString();
+            summary.Statistics.Reset();
+        }
+    }
     Persist(context, JobSpecCompletedArchiveCount_);
     Persist(context, Sinks_);
     Persist(context, AutoMergeTaskGroup);
