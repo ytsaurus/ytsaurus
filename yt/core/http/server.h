@@ -48,6 +48,7 @@ struct IServer
     //! Stops the server.
     virtual void Stop() = 0;
 
+
     // Extension methods
     void AddHandler(
         const TString& pattern,

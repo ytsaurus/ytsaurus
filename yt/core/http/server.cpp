@@ -88,7 +88,7 @@ public:
 
 private:
     const TServerConfigPtr Config_;
-    const IListenerPtr Listener_;
+    IListenerPtr Listener_;
     const IPollerPtr Poller_;
 
     TFuture<void> MainLoopFuture_;
