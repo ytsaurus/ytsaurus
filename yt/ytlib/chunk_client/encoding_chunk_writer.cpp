@@ -104,7 +104,7 @@ NProto::TDataStatistics TEncodingChunkWriter::GetDataStatistics() const
 
 TCodecStatistics TEncodingChunkWriter::GetCompressionStatistics() const
 {
-    return TCodecStatistics().Append(EncodingWriter_->GetCompressionTime());
+    return TCodecStatistics().Append(EncodingWriter_->GetCompressionDuration());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
