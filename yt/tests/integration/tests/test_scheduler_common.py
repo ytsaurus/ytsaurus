@@ -2207,7 +2207,7 @@ class TestSchedulerSnapshots(YTEnvSetup):
             out="//tmp/out",
             spec={"data_weight_per_job": 1, "testing": testing_options})
 
-        snapshot_path = "//sys/operations/{0}/snapshot".format(op.id)
+        snapshot_path = op._get_new_operation_path() + "/snapshot"
         wait(lambda: exists(snapshot_path))
 
         # This is done to avoid read failures due to snapshot file rewriting.
@@ -2243,7 +2243,7 @@ class TestSchedulerSnapshots(YTEnvSetup):
                     spec={"data_size_per_job": 1, "testing": testing_options}))
 
         for op in ops:
-            snapshot_path = "//sys/operations/{0}/snapshot".format(op.id)
+            snapshot_path = op._get_new_operation_path() + "/snapshot"
             wait(lambda: exists(snapshot_path))
 
             snapshot_backup_path = snapshot_path + ".backup"
@@ -2273,7 +2273,7 @@ class TestSchedulerSnapshots(YTEnvSetup):
 
             time.sleep(2)
 
-            snapshot_path2 = "//sys/operations/{0}/snapshot".format(op2.id)
+            snapshot_path2 = op2._get_new_operation_path() + "/snapshot"
             if exists(snapshot_path2):
                 op2.abort()
                 continue
@@ -2289,8 +2289,8 @@ class TestSchedulerSnapshots(YTEnvSetup):
 
         time.sleep(8)
 
-        snapshot_path1 = "//sys/operations/{0}/snapshot".format(op1.id)
-        snapshot_path2 = "//sys/operations/{0}/snapshot".format(op2.id)
+        snapshot_path1 = op1._get_new_operation_path() + "/snapshot"
+        snapshot_path2 = op2._get_new_operation_path() + "/snapshot"
 
         assert exists(snapshot_path1)
         assert not exists(snapshot_path2)
