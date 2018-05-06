@@ -3740,7 +3740,10 @@ void TOperationControllerBase::ProcessFinishedJobResult(std::unique_ptr<TJobSumm
     // NB: we do not want these values to get into the snapshot as they may be pretty large.
     finishedJob->Summary.StatisticsYson = TYsonString();
     finishedJob->Summary.Statistics.Reset();
-    FinishedJobs_.insert(std::make_pair(jobId, finishedJob));
+
+    if (finishedJob->Summary.ArchiveJobSpec) {
+        FinishedJobs_.insert(std::make_pair(jobId, finishedJob));
+    }
 
     bool shouldCreateJobNode =
         (requestJobNodeCreation && JobNodeCount_ < Config->MaxJobNodesPerOperation) ||
@@ -6237,6 +6240,7 @@ void TOperationControllerBase::ReleaseJobs(const std::vector<TJobId>& jobIds)
         auto it = FinishedJobs_.find(jobId);
         if (it != FinishedJobs_.end()) {
             archiveJobSpec = it->second->Summary.ArchiveJobSpec;
+            FinishedJobs_.erase(it);
         }
         jobsToRelease.emplace_back(TJobToRelease{jobId, archiveJobSpec});
     }
