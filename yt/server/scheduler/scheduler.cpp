@@ -1651,6 +1651,10 @@ private:
         const TObjectServiceProxy::TRspExecuteBatchPtr& batchRsp)
     {
         auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_runtime_params");
+        // COMPAT(babenko): Nirvana operations have no runtime params
+        if (rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
+            return;
+        }
         if (!rspOrError.IsOK()) {
             LOG_WARNING(rspOrError, "Error getting operation runtime parameters (OperationId: %v)",
                 operation->GetId());
