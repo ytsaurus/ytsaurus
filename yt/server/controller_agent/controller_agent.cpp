@@ -643,8 +643,9 @@ private:
     TControllerAgentTrackerServiceProxy SchedulerProxy_;
 
     TInstant LastExecNodesUpdateTime_;
-    TInstant LastOperationAlertsUpdateTime_;
-    TInstant LastSuspiciousJobsUpdateTime_;
+    TInstant LastOperationsSendTime_;
+    TInstant LastOperationAlertsSendTime_;
+    TInstant LastSuspiciousJobsSendTime_;
 
     TIntrusivePtr<TMessageQueueOutbox<TAgentToSchedulerOperationEvent>> OperationEventsOutbox_;
     TIntrusivePtr<TMessageQueueOutbox<TAgentToSchedulerJobEvent>> JobEventsOutbox_;
@@ -848,19 +849,27 @@ private:
         ScheduleJobRequestsInbox_.reset();
     }
 
-    TControllerAgentTrackerServiceProxy::TReqHeartbeatPtr PrepareHeartbeatRequest(
-        bool* execNodesRequested,
-        bool* operationAlertsSent,
-        bool* suspiciousJobsSent)
+    struct TPreparedHeartbeatRequest
     {
-        auto req = SchedulerProxy_.Heartbeat();
-        req->SetTimeout(Config_->SchedulerHeartbeatRpcTimeout);
-        req->SetHeavy(true);
-        req->set_agent_id(Bootstrap_->GetAgentId());
-        ToProto(req->mutable_incarnation_id(), IncarnationId_);
+        TControllerAgentTrackerServiceProxy::TReqHeartbeatPtr RpcRequest;
+        bool ExecNodesRequested = false;
+        bool OperationsSent = false;
+        bool OperationAlertsSent = false;
+        bool SuspiciousJobsSent = false;
+    };
+
+    TPreparedHeartbeatRequest PrepareHeartbeatRequest()
+    {
+        TPreparedHeartbeatRequest preparedRequest;
+
+        auto request = preparedRequest.RpcRequest = SchedulerProxy_.Heartbeat();
+        request->SetTimeout(Config_->SchedulerHeartbeatRpcTimeout);
+        request->SetHeavy(true);
+        request->set_agent_id(Bootstrap_->GetAgentId());
+        ToProto(request->mutable_incarnation_id(), IncarnationId_);
 
         OperationEventsOutbox_->BuildOutcoming(
-            req->mutable_agent_to_scheduler_operation_events(),
+            request->mutable_agent_to_scheduler_operation_events(),
             [] (auto* protoEvent, const auto& event) {
                 protoEvent->set_event_type(static_cast<int>(event.EventType));
                 ToProto(protoEvent->mutable_operation_id(), event.OperationId);
@@ -878,7 +887,7 @@ private:
             });
 
         JobEventsOutbox_->BuildOutcoming(
-            req->mutable_agent_to_scheduler_job_events(),
+            request->mutable_agent_to_scheduler_job_events(),
             [] (auto* protoEvent, const auto& event) {
                 protoEvent->set_event_type(static_cast<int>(event.EventType));
                 ToProto(protoEvent->mutable_job_id(), event.JobId);
@@ -894,7 +903,7 @@ private:
             });
 
         ScheduleJobResposesOutbox_->BuildOutcoming(
-            req->mutable_agent_to_scheduler_schedule_job_responses(),
+            request->mutable_agent_to_scheduler_schedule_job_responses(),
             [] (auto* protoResponse, const auto& response) {
                 const auto& scheduleJobResult = *response.Result;
                 ToProto(protoResponse->mutable_job_id(), response.JobId);
@@ -916,69 +925,84 @@ private:
                 }
             });
 
-        JobEventsInbox_->ReportStatus(req->mutable_scheduler_to_agent_job_events());
-        OperationEventsInbox_->ReportStatus(req->mutable_scheduler_to_agent_operation_events());
-        ScheduleJobRequestsInbox_->ReportStatus(req->mutable_scheduler_to_agent_schedule_job_requests());
+        JobEventsInbox_->ReportStatus(request->mutable_scheduler_to_agent_job_events());
+        OperationEventsInbox_->ReportStatus(request->mutable_scheduler_to_agent_operation_events());
+        ScheduleJobRequestsInbox_->ReportStatus(request->mutable_scheduler_to_agent_schedule_job_requests());
 
         auto now = TInstant::Now();
-        *execNodesRequested = LastExecNodesUpdateTime_ + Config_->ExecNodesUpdatePeriod < now;
-        *operationAlertsSent = LastOperationAlertsUpdateTime_ + Config_->OperationAlertsUpdatePeriod < now;
-        *suspiciousJobsSent = LastSuspiciousJobsUpdateTime_ + Config_->SuspiciousJobsUpdatePeriod < now;
+        preparedRequest.ExecNodesRequested = LastExecNodesUpdateTime_ + Config_->ExecNodesUpdatePeriod < now;
+        preparedRequest.OperationsSent = LastOperationsSendTime_ + Config_->OperationsPushPeriod < now;
+        preparedRequest.OperationAlertsSent = LastOperationAlertsSendTime_ + Config_->OperationAlertsPushPeriod < now;
+        preparedRequest.SuspiciousJobsSent = LastSuspiciousJobsSendTime_ + Config_->SuspiciousJobsPushPeriod < now;
 
-        for (const auto& pair : GetOperations()) {
-            const auto& operationId = pair.first;
-            const auto& operation = pair.second;
-            auto controller = operation->GetController();
+        if (preparedRequest.OperationsSent) {
+            for (const auto& pair : GetOperations()) {
+                const auto& operationId = pair.first;
+                const auto& operation = pair.second;
+                auto controller = operation->GetController();
 
-            auto* protoOperation = req->add_operations();
-            ToProto(protoOperation->mutable_operation_id(), operationId);
+                auto* protoOperation = request->add_operations();
+                ToProto(protoOperation->mutable_operation_id(), operationId);
 
-            {
-                auto jobMetricsDelta = controller->PullJobMetricsDelta();
-                ToProto(protoOperation->mutable_job_metrics(), jobMetricsDelta);
-            }
-
-            if (*operationAlertsSent) {
-                auto* protoAlerts = protoOperation->mutable_alerts();
-                for (const auto& pair : controller->GetAlerts()) {
-                    auto alertType = pair.first;
-                    const auto& alert = pair.second;
-                    auto* protoAlert = protoAlerts->add_alerts();
-                    protoAlert->set_type(static_cast<int>(alertType));
-                    ToProto(protoAlert->mutable_error(), alert);
+                {
+                    auto jobMetricsDelta = controller->PullJobMetricsDelta();
+                    ToProto(protoOperation->mutable_job_metrics(), jobMetricsDelta);
                 }
-            }
 
-            if (suspiciousJobsSent) {
-                protoOperation->set_suspicious_jobs(controller->GetSuspiciousJobsYson().GetData());
-            }
+                if (preparedRequest.OperationAlertsSent) {
+                    auto* protoAlerts = protoOperation->mutable_alerts();
+                    for (const auto& pair : controller->GetAlerts()) {
+                        auto alertType = pair.first;
+                        const auto& alert = pair.second;
+                        auto* protoAlert = protoAlerts->add_alerts();
+                        protoAlert->set_type(static_cast<int>(alertType));
+                        ToProto(protoAlert->mutable_error(), alert);
+                    }
+                }
 
-            protoOperation->set_pending_job_count(controller->GetPendingJobCount());
-            ToProto(protoOperation->mutable_needed_resources(), controller->GetNeededResources());
-            ToProto(protoOperation->mutable_min_needed_job_resources(), controller->GetMinNeededJobResources());
+                if (preparedRequest.SuspiciousJobsSent) {
+                    protoOperation->set_suspicious_jobs(controller->GetSuspiciousJobsYson().GetData());
+                }
+
+                protoOperation->set_pending_job_count(controller->GetPendingJobCount());
+                ToProto(protoOperation->mutable_needed_resources(), controller->GetNeededResources());
+                ToProto(protoOperation->mutable_min_needed_job_resources(), controller->GetMinNeededJobResources());
+            }
         }
 
-        req->set_exec_nodes_requested(*execNodesRequested);
+        request->set_exec_nodes_requested(preparedRequest.ExecNodesRequested);
 
-        return req;
+        return preparedRequest;
+    }
+
+    void ConfirmHeartbeatReuqest(const TPreparedHeartbeatRequest& preparedRequest)
+    {
+        auto now = TInstant::Now();
+        if (preparedRequest.ExecNodesRequested) {
+            LastExecNodesUpdateTime_ = now;
+        }
+        if (preparedRequest.OperationsSent) {
+            LastOperationsSendTime_ = now;
+        }
+        if (preparedRequest.OperationAlertsSent) {
+            LastOperationAlertsSendTime_ = now;
+        }
+        if (preparedRequest.SuspiciousJobsSent) {
+            LastSuspiciousJobsSendTime_ = now;
+        }
     }
 
     void SendHeartbeat()
     {
-        bool execNodesRequested;
-        bool operationAlertsSent;
-        bool suspiciousJobsSent;
-        auto req = PrepareHeartbeatRequest(
-            &execNodesRequested,
-            &operationAlertsSent,
-            &suspiciousJobsSent);
+        auto preparedRequest = PrepareHeartbeatRequest();
 
-        LOG_DEBUG("Sending heartbeat (ExecNodesRequested: %v, OperationAlertsSent: %v, SuspiciousJobsSent: %v)",
-            execNodesRequested,
-            operationAlertsSent,
-            suspiciousJobsSent);
+        LOG_DEBUG("Sending heartbeat (ExecNodesRequested: %v, OperationsSent: %v, OperationAlertsSent: %v, SuspiciousJobsSent: %v)",
+            preparedRequest.ExecNodesRequested,
+            preparedRequest.OperationsSent,
+            preparedRequest.OperationAlertsSent,
+            preparedRequest.SuspiciousJobsSent);
 
-        auto rspOrError = WaitFor(req->Invoke());
+        auto rspOrError = WaitFor(preparedRequest.RpcRequest->Invoke());
         if (!rspOrError.IsOK()) {
             if (NRpc::IsRetriableError(rspOrError)) {
                 LOG_WARNING(rspOrError, "Error reporting heartbeat to scheduler");
@@ -1025,16 +1049,7 @@ private:
             UnregisterOperation(operation);
         }
 
-        auto now = TInstant::Now();
-        if (execNodesRequested) {
-            LastExecNodesUpdateTime_ = now;
-        }
-        if (operationAlertsSent) {
-            LastOperationAlertsUpdateTime_ = now;
-        }
-        if (suspiciousJobsSent) {
-            LastSuspiciousJobsUpdateTime_ = now;
-        }
+        ConfirmHeartbeatReuqest(preparedRequest);
     }
 
     void HandleJobEvents(const TControllerAgentTrackerServiceProxy::TRspHeartbeatPtr& rsp)

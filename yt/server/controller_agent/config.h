@@ -458,11 +458,14 @@ public:
     //! Period for requesting config from scheduler.
     TDuration ConfigUpdatePeriod;
 
+    //! Period for pushing any operation info from agent to scheduler.
+    TDuration OperationsPushPeriod;
+
     //! Period for pushing operation alerts from agent to scheduler.
-    TDuration OperationAlertsUpdatePeriod;
+    TDuration OperationAlertsPushPeriod;
 
     //! Period for pushing suspicious jobs from agent to scheduler.
-    TDuration SuspiciousJobsUpdatePeriod;
+    TDuration SuspiciousJobsPushPeriod;
 
     //! Number of threads for running controllers invokers.
     int ControllerThreadCount;
