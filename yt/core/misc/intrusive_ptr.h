@@ -333,22 +333,22 @@ bool operator!=(T* lhs, const TIntrusivePtr<U>& rhs)
 //! Provides implementations for Ref/Unref overloads. Use this macro right
 //! after the type's full definition.
 #define DEFINE_REFCOUNTED_TYPE(type) \
-    inline void Ref(type* obj) \
+    Y_FORCE_INLINE void Ref(type* obj) \
     { \
         obj->Ref(); \
     } \
     \
-    inline void Ref(const type* obj) \
+    Y_FORCE_INLINE void Ref(const type* obj) \
     { \
         obj->Ref(); \
     } \
     \
-    inline void Unref(type* obj) \
+    Y_FORCE_INLINE void Unref(type* obj) \
     { \
         obj->Unref(); \
     } \
     \
-    inline void Unref(const type* obj) \
+    Y_FORCE_INLINE void Unref(const type* obj) \
     { \
         obj->Unref(); \
     }
@@ -361,7 +361,7 @@ bool operator!=(T* lhs, const TIntrusivePtr<U>& rhs)
 template <class T>
 struct hash<NYT::TIntrusivePtr<T>>
 {
-    size_t operator () (const NYT::TIntrusivePtr<T>& ptr) const
+    Y_FORCE_INLINE size_t operator () (const NYT::TIntrusivePtr<T>& ptr) const
     {
         return THash<T*>()(ptr.Get());
     }
