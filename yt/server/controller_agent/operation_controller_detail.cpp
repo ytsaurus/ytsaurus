@@ -6114,17 +6114,6 @@ TYsonString TOperationControllerBase::BuildJobYson(const TJobId& id, bool output
         }
     }
 
-    // Case of finished job.
-    // NB: Temporaly disabled. We should improve UI to consider completed jobs in orchid.
-    //{
-    //    auto it = FinishedJobs_.find(id);
-    //    if (it != FinishedJobs_.end()) {
-    //        const auto& job = it->second;
-    //        YCHECK(!attributesBuilder);
-    //        attributesBuilder = BIND(&TOperationControllerBase::BuildFinishedJobAttributes, MakeStrong(this), job);
-    //    }
-    //}
-
     YCHECK(attributesBuilder);
 
     return BuildYsonStringFluently()
