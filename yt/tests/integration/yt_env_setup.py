@@ -560,11 +560,10 @@ class YTEnvSetup(object):
 
     def sync_compact_table(self, path, driver=None):
         chunk_ids = __builtin__.set(yt_commands.get(path + "/@chunk_ids", driver=driver))
-        yt_commands.set(path + "/@forced_compaction_revision",
-                        yt_commands.get(path + "/@revision", driver=driver), driver=driver)
-        yt_commands.set(path + "/@forced_compaction_revision",
-                        yt_commands.get(path + "/@revision", driver=driver), driver=driver)
-        yt_commands.remount_table(path, driver=driver)
+        self.sync_unmount_table(self, path, driver)
+        revision = yt_commands.get("//sys/@current_commit_revision", driver=driver)
+        yt_commands.set(path + "/@forced_compaction_revision", revision, driver=driver)
+        self.sync_mount_table(self, path, driver)
 
         print >>sys.stderr, "Waiting for tablets to become compacted..."
         wait(lambda: len(chunk_ids.intersection(__builtin__.set(yt_commands.get(path + "/@chunk_ids", driver=driver)))) == 0)
