@@ -539,7 +539,8 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
 
     auto erasureCodec = NErasure::ECodec(miscExt.erasure_codec());
     if (erasureCodec != NErasure::ECodec::None) {
-        THROW_ERROR_EXCEPTION("Could not preload erasure coded store %v", store->GetId());
+        THROW_ERROR_EXCEPTION("Preloading erasure-coded store %v is not supported; consider using replicated chunks or disabling in-memory mode",
+            store->GetId());
     }
 
     auto codecId = NCompression::ECodec(miscExt.compression_codec());
@@ -602,9 +603,10 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
             }
 
             case EInMemoryMode::Uncompressed: {
-                LOG_DEBUG("Started decompressing chunk blocks (Blocks: %v-%v)",
+                LOG_DEBUG("Decompressing chunk blocks (Blocks: %v-%v, Codec: %v)",
                     startBlockIndex,
-                    startBlockIndex + readBlockCount - 1);
+                    startBlockIndex + readBlockCount - 1,
+                    codec->GetId());
 
                 std::vector<TFuture<std::pair<TSharedRef, TDuration>>> asyncUncompressedBlocks;
                 for (auto& compressedBlock : compressedBlocks) {
