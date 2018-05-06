@@ -25,10 +25,10 @@ struct TFairShareSchedulingStatistics
     int ControllerScheduleJobCount = 0;
     int PreemptiveScheduleJobAttempts = 0;
     int NonPreemptiveScheduleJobAttempts = 0;
-    TJobResources ResourceUsageDiscount = ZeroJobResources();
     int ScheduledDuringPreemption = 0;
     int PreemptableJobCount = 0;
     bool HasAggressivelyStarvingNodes = false;
+    TJobResources ResourceUsageDiscount;
 };
 
 struct ISchedulingContext
