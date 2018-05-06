@@ -975,7 +975,7 @@ private:
         return preparedRequest;
     }
 
-    void ConfirmHeartbeatReuqest(const TPreparedHeartbeatRequest& preparedRequest)
+    void ConfirmHeartbeatRequest(const TPreparedHeartbeatRequest& preparedRequest)
     {
         auto now = TInstant::Now();
         if (preparedRequest.ExecNodesRequested) {
@@ -1049,7 +1049,7 @@ private:
             UnregisterOperation(operation);
         }
 
-        ConfirmHeartbeatReuqest(preparedRequest);
+        ConfirmHeartbeatRequest(preparedRequest);
     }
 
     void HandleJobEvents(const TControllerAgentTrackerServiceProxy::TRspHeartbeatPtr& rsp)
