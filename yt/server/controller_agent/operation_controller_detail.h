@@ -976,6 +976,7 @@ private:
     int JobNodeCount_ = 0;
     int JobSpecCompletedArchiveCount_ = 0;
 
+    // Containts finished jobs (right now it is used only for archive job spec flag).
     THashMap<TJobId, TFinishedJobInfoPtr> FinishedJobs_;
 
     class TSink;
