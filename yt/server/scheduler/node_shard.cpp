@@ -440,6 +440,25 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
             node->SetHasOngoingJobsScheduling(false);
         }
 
+        const auto statistics = schedulingContext->GetSchedulingStatistics();
+        context->SetResponseInfo(
+            "NodeId: %v, Address: %v, "
+            "StartedJobs: %v, PreemptedJobs: %v, "
+            "JobsScheduledDuringPreemption: %v, PreemptableJobs: %v, PreemptableResources: %v, "
+            "ControllerScheduleJobCount: %v, NonPreemptiveScheduleJobAttempts: %v, "
+            "PreemptiveScheduleJobAttempts: %v, HasAggressivelyStarvingNodes: %v",
+            nodeId,
+            descriptor.GetDefaultAddress(),
+            schedulingContext->StartedJobs().size(),
+            schedulingContext->PreemptedJobs().size(),
+            statistics.ScheduledDuringPreemption,
+            statistics.PreemptableJobCount,
+            FormatResources(statistics.ResourceUsageDiscount),
+            statistics.ControllerScheduleJobCount,
+            statistics.NonPreemptiveScheduleJobAttempts,
+            statistics.PreemptiveScheduleJobAttempts,
+            statistics.HasAggressivelyStarvingNodes);
+
         TotalResourceUsage_ -= node->GetResourceUsage();
         node->SetResourceUsage(schedulingContext->ResourceUsage());
         TotalResourceUsage_ += node->GetResourceUsage();

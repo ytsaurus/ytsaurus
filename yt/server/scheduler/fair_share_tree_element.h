@@ -5,6 +5,7 @@
 #include "job.h"
 #include "job_metrics.h"
 #include "scheduler_strategy.h"
+#include "scheduling_context.h"
 #include "scheduling_tag.h"
 #include "fair_share_strategy_operation_controller.h"
 
@@ -78,7 +79,6 @@ struct TFairShareContext
     TDuration TotalScheduleJobDuration;
     TDuration ExecScheduleJobDuration;
     TEnumIndexedVector<int, NControllerAgent::EScheduleJobFailReason> FailedScheduleJob;
-    bool HasAggressivelyStarvingNodes = false;
 
     int ActiveOperationCount = 0;
     int ActiveTreeSize = 0;
@@ -88,13 +88,7 @@ struct TFairShareContext
     // Used to avoid unnecessary calculation of HasAggressivelyStarvingNodes.
     bool PrescheduledCalled = false;
 
-    // Information saved for logging.
-    int ControllerScheduleJobCount = 0;
-    int PreemptiveScheduleJobAttempts = 0;
-    int NonPreemptiveScheduleJobAttempts = 0;
-    TJobResources ResourceUsageDiscount = ZeroJobResources();
-    int ScheduledDuringPreemption = 0;
-    int PreemptableJobCount = 0;
+    TFairShareSchedulingStatistics SchedulingStatistics;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
