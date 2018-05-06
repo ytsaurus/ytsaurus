@@ -13,8 +13,6 @@ from datetime import datetime, timedelta
 import cStringIO
 from cStringIO import StringIO
 
-import pytest
-
 ###########################################################################
 
 clusters_drivers = {}

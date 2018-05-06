@@ -31,7 +31,7 @@ TSnapshotDownloader::TSnapshotDownloader(
     YCHECK(Bootstrap_);
 }
 
-TSharedRef TSnapshotDownloader::Run(const NYTree::TYPath& snapshotPath)
+TSharedRef TSnapshotDownloader::Run()
 {
     LOG_INFO("Starting downloading snapshot");
 
@@ -40,7 +40,7 @@ TSharedRef TSnapshotDownloader::Run(const NYTree::TYPath& snapshotPath)
     TFileReaderOptions options;
     options.Config = Config_->SnapshotReader;
 
-    auto reader = WaitFor(client->CreateFileReader(snapshotPath, options))
+    auto reader = WaitFor(client->CreateFileReader(GetNewSnapshotPath(OperationId_), options))
         .ValueOrThrow();
 
     LOG_INFO("Snapshot reader opened");

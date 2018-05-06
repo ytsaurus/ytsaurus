@@ -953,63 +953,47 @@ private:
 
     TOperationSnapshot DoDownloadSnapshot(const TOperationId& operationId)
     {
-        std::vector<NYTree::TYPath> paths = {
-            GetNewSnapshotPath(operationId),
-            GetSnapshotPath(operationId)
-        };
-
         auto batchReq = StartObjectBatchRequest();
-        for (const auto& path : paths) {
-            auto req = TYPathProxy::Get(path + "/@version");
+
+        {
+            auto req = TYPathProxy::Get(GetNewSnapshotPath(operationId) + "/@version");
             batchReq->AddRequest(req, "get_version");
         }
 
         auto batchRspOrError = WaitFor(batchReq->Invoke());
         const auto& batchRsp = batchRspOrError.ValueOrThrow();
 
-        auto rsps = batchRsp->GetResponses<TYPathProxy::TRspGet>("get_version");
-        YCHECK(rsps.size() == paths.size());
+        auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_version");
 
-        TNullable<int> version;
-        NYTree::TYPath snapshotPath;
 
-        for (int index = 0; index < paths.size(); ++index) {
-            const auto& rsp = rsps[index];
-
-            if (rsp.IsOK()) {
-                const auto& versionRsp = rsp.Value();
-                version = ConvertTo<int>(TYsonString(versionRsp->value()));
-                snapshotPath = paths[index];
-                break;
-            } else {
-                if (!rsp.FindMatching(NYTree::EErrorCode::ResolveError)) {
-                    THROW_ERROR_EXCEPTION("Error getting snapshot version")
-                        << rsp;
-                }
+        if (!rspOrError.IsOK()) {
+            if (rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
+                THROW_ERROR_EXCEPTION("Snapshot does not exist");
             }
+
+            THROW_ERROR_EXCEPTION("Error getting snapshot version")
+                << rspOrError;
         }
 
-        if (!version) {
-            THROW_ERROR_EXCEPTION("Snapshot does not exist");
-        }
+        const auto& rsp = rspOrError.Value();
+        int version = ConvertTo<int>(TYsonString(rsp->value()));
 
-        LOG_INFO("Snapshot found (OperationId: %v, Version: %v, Path: %v)",
+        LOG_INFO("Snapshot found (OperationId: %v, Version: %v)",
             operationId,
-            *version,
-            snapshotPath);
+            version);
 
-        if (!ValidateSnapshotVersion(*version)) {
+        if (!ValidateSnapshotVersion(version)) {
             THROW_ERROR_EXCEPTION("Snapshot version validation failed");
         }
 
         TOperationSnapshot snapshot;
-        snapshot.Version = *version;
+        snapshot.Version = version;
         try {
             auto downloader = New<TSnapshotDownloader>(
                 Config_,
                 Bootstrap_,
                 operationId);
-            snapshot.Data = downloader->Run(snapshotPath);
+            snapshot.Data = downloader->Run();
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error downloading snapshot") << ex;
         }
@@ -1042,8 +1026,8 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         auto batchReq = StartObjectBatchRequest();
-        for (const auto& path : {GetSnapshotPath(operationId), GetNewSnapshotPath(operationId)}) {
-            auto req = TYPathProxy::Remove(path);
+        {
+            auto req = TYPathProxy::Remove(GetNewSnapshotPath(operationId));
             req->set_force(true);
             batchReq->AddRequest(req, "remove_snapshot");
         }

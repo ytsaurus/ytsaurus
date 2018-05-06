@@ -6,6 +6,8 @@ from yt.environment.helpers import wait
 
 from operations_archive import clean_operations
 
+import pytest
+
 def _get_operation_cypress_path(op_id):
     return "//sys/operations/{}/{}".format("%02x" % (long(op_id.split("-")[3], 16) % 256), op_id)
 
@@ -85,11 +87,11 @@ class TestGetOperation(YTEnvSetup):
         op.track()
 
         res_cypress_finished = _get_operation_from_cypress(op.id)
-        
+
         clean_operations(self.Env.create_native_client())
 
         res_get_operation_archive = get_operation(op.id)
-        
+
         del res_cypress_finished["progress"]["build_time"]
         del res_get_operation_archive["progress"]["build_time"]
         for key in res_get_operation_archive.keys():
