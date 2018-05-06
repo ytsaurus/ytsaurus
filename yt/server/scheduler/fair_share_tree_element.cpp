@@ -737,7 +737,7 @@ void TCompositeSchedulerElement::PrescheduleJob(TFairShareContext* context, bool
 
     aggressiveStarvationEnabled = aggressiveStarvationEnabled || IsAggressiveStarvationEnabled();
     if (Starving_ && aggressiveStarvationEnabled) {
-        context->HasAggressivelyStarvingNodes = true;
+        context->SchedulingStatistics.HasAggressivelyStarvingNodes = true;
     }
 
     // If pool is starving, any child will do.
@@ -2249,7 +2249,7 @@ TScheduleJobResultPtr TOperationElement::DoScheduleJob(
     const TJobResources& jobLimits,
     const TJobResources& jobResourceDiscount)
 {
-    ++context->ControllerScheduleJobCount;
+    ++context->SchedulingStatistics.ControllerScheduleJobCount;
 
     auto scheduleJobResult = Controller_->ScheduleJob(
         context->SchedulingContext,

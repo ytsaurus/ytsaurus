@@ -1019,17 +1019,17 @@ private:
                     prescheduleExecuted = true;
                     context->PrescheduledCalled = true;
                 }
-                ++context->NonPreemptiveScheduleJobAttempts;
+                ++context->SchedulingStatistics.NonPreemptiveScheduleJobAttempts;
                 if (!rootElement->ScheduleJob(context)) {
                     break;
                 }
             }
             profileTimings(
                 NonPreemptiveProfilingCounters,
-                context->NonPreemptiveScheduleJobAttempts,
+                context->SchedulingStatistics.NonPreemptiveScheduleJobAttempts,
                 scheduleTimer.GetElapsedTime() - prescheduleDuration - context->TotalScheduleJobDuration);
 
-            if (context->NonPreemptiveScheduleJobAttempts > 0) {
+            if (context->SchedulingStatistics.NonPreemptiveScheduleJobAttempts > 0) {
                 logAndCleanSchedulingStatistics(AsStringBuf("Non preemptive"));
             }
         }
@@ -1050,7 +1050,7 @@ private:
         }
 
         if (!context->PrescheduledCalled) {
-            context->HasAggressivelyStarvingNodes = rootElement->HasAggressivelyStarvingNodes(context, false);
+            context->SchedulingStatistics.HasAggressivelyStarvingNodes = rootElement->HasAggressivelyStarvingNodes(context, false);
         }
 
         // Compute discount to node usage.
@@ -1071,7 +1071,7 @@ private:
                     continue;
                 }
 
-                if (IsJobPreemptable(job, operationElement, context->HasAggressivelyStarvingNodes, config)) {
+                if (IsJobPreemptable(job, operationElement, context->SchedulingStatistics.HasAggressivelyStarvingNodes, config)) {
                     auto* parent = operationElement->GetParent();
                     while (parent) {
                         discountedPools.insert(parent);
@@ -1084,7 +1084,7 @@ private:
             }
         }
 
-        context->ResourceUsageDiscount = context->SchedulingContext->ResourceUsageDiscount();
+        context->SchedulingStatistics.ResourceUsageDiscount = context->SchedulingContext->ResourceUsageDiscount();
 
         int startedBeforePreemption = context->SchedulingContext->StartedJobs().size();
 
@@ -1114,7 +1114,7 @@ private:
                     prescheduleExecuted = true;
                 }
 
-                ++context->PreemptiveScheduleJobAttempts;
+                ++context->SchedulingStatistics.PreemptiveScheduleJobAttempts;
                 if (!rootElement->ScheduleJob(context)) {
                     break;
                 }
@@ -1125,16 +1125,16 @@ private:
             }
             profileTimings(
                 PreemptiveProfilingCounters,
-                context->PreemptiveScheduleJobAttempts,
+                context->SchedulingStatistics.PreemptiveScheduleJobAttempts,
                 timer.GetElapsedTime() - prescheduleDuration - context->TotalScheduleJobDuration);
-            if (context->PreemptiveScheduleJobAttempts > 0) {
+            if (context->SchedulingStatistics.PreemptiveScheduleJobAttempts > 0) {
                 logAndCleanSchedulingStatistics(AsStringBuf("Preemptive"));
             }
         }
 
         int startedAfterPreemption = context->SchedulingContext->StartedJobs().size();
 
-        context->ScheduledDuringPreemption = startedAfterPreemption - startedBeforePreemption;
+        context->SchedulingStatistics.ScheduledDuringPreemption = startedAfterPreemption - startedBeforePreemption;
 
         // Reset discounts.
         context->SchedulingContext->ResourceUsageDiscount() = ZeroJobResources();
@@ -1179,7 +1179,7 @@ private:
         bool nodeLimitsViolated = true;
         bool poolsLimitsViolated = true;
 
-        context->PreemptableJobCount = preemptableJobs.size();
+        context->SchedulingStatistics.PreemptableJobCount = preemptableJobs.size();
 
         for (const auto& job : preemptableJobs) {
             auto* operationElement = rootElementSnapshot->FindOperationElement(job->GetOperationId());
@@ -1310,19 +1310,7 @@ private:
             LOG_DEBUG("Skip preemptive scheduling");
         }
 
-        LOG_DEBUG("Heartbeat info (StartedJobs: %v, PreemptedJobs: %v, "
-            "JobsScheduledDuringPreemption: %v, PreemptableJobs: %v, PreemptableResources: %v, "
-            "ControllerScheduleJobCount: %v, NonPreemptiveScheduleJobAttempts: %v, PreemptiveScheduleJobAttempts: %v, HasAggressivelyStarvingNodes: %v, Address: %v)",
-            schedulingContext->StartedJobs().size(),
-            schedulingContext->PreemptedJobs().size(),
-            context.ScheduledDuringPreemption,
-            context.PreemptableJobCount,
-            FormatResources(context.ResourceUsageDiscount),
-            context.ControllerScheduleJobCount,
-            context.NonPreemptiveScheduleJobAttempts,
-            context.PreemptiveScheduleJobAttempts,
-            context.HasAggressivelyStarvingNodes,
-            schedulingContext->GetNodeDescriptor().Address);
+        schedulingContext->SetSchedulingStatistics(context.SchedulingStatistics);
     }
 
     bool IsJobPreemptable(
