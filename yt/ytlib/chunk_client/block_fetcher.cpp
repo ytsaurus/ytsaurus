@@ -177,9 +177,10 @@ void TBlockFetcher::DecompressBlocks(
         int blockIndex = blockInfo.Index;
         TBlockId blockId(ChunkReader_->GetChunkId(), blockInfo.Index);
 
-        LOG_DEBUG("Started decompressing block (BlockIndex: %v, WindowIndex: %v)",
+        LOG_DEBUG("Started decompressing block (BlockIndex: %v, WindowIndex: %v, Codec: %v)",
             blockIndex,
-            windowIndex);
+            windowIndex,
+            Codec_->GetId());
 
         TSharedRef uncompressedBlock;
         {
@@ -200,11 +201,12 @@ void TBlockFetcher::DecompressBlocks(
         UncompressedDataSize_ += uncompressedBlock.Size();
         CompressedDataSize_ += compressedBlock.Size();
 
-        LOG_DEBUG("Finished decompressing block (BlockIndex: %v, WindowIndex: %v, CompressedSize: %v, UncompressedSize: %v)",
+        LOG_DEBUG("Finished decompressing block (BlockIndex: %v, WindowIndex: %v, CompressedSize: %v, UncompressedSize: %v, Codec: %v)",
             blockIndex,
             windowIndex,
             compressedBlock.Size(),
-            uncompressedBlock.Size());
+            uncompressedBlock.Size(),
+            Codec_->GetId());
 
         if (Codec_->GetId() != NCompression::ECodec::None) {
             BlockCache_->Put(blockId, EBlockType::UncompressedData, TBlock(uncompressedBlock), Null);
