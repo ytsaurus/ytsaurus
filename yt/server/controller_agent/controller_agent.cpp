@@ -145,6 +145,10 @@ public:
         , MasterConnector_(std::make_unique<TMasterConnector>(
             Config_,
             Bootstrap_))
+        , CachedExecNodeDescriptorsByTags_(New<TSyncExpiringCache<TSchedulingTagFilter, TRefCountedExecNodeDescriptorMapPtr>>(
+            BIND(&TImpl::FilterExecNodes, MakeStrong(this)),
+            Config_->SchedulingTagFilterExpireTimeout,
+            Bootstrap_->GetControlInvoker()))
         , SchedulerProxy_(Bootstrap_->GetMasterClient()->GetSchedulerChannel())
         , MemoryTagQueue_(Config_)
     { }
@@ -638,7 +642,7 @@ private:
 
     TReaderWriterSpinLock ExecNodeDescriptorsLock_;
     TRefCountedExecNodeDescriptorMapPtr CachedExecNodeDescriptors_ = New<TRefCountedExecNodeDescriptorMap>();
-    TIntrusivePtr<TSyncExpiringCache<TSchedulingTagFilter, TRefCountedExecNodeDescriptorMapPtr>> CachedExecNodeDescriptorsByTags_;
+    const TIntrusivePtr<TSyncExpiringCache<TSchedulingTagFilter, TRefCountedExecNodeDescriptorMapPtr>> CachedExecNodeDescriptorsByTags_;
 
     TControllerAgentTrackerServiceProxy SchedulerProxy_;
 
@@ -781,11 +785,6 @@ private:
             NLogging::TLogger(ControllerAgentLogger)
                 .AddTag("Kind: SchedulerToAgentScheduleJobRequests, IncarnationId: %v", IncarnationId_));
 
-        CachedExecNodeDescriptorsByTags_ = New<TSyncExpiringCache<TSchedulingTagFilter, TRefCountedExecNodeDescriptorMapPtr>>(
-            BIND(&TImpl::FilterExecNodes, MakeStrong(this)),
-            Config_->SchedulingTagFilterExpireTimeout,
-            CancelableControlInvoker_);
-
         HeartbeatExecutor_ = New<TPeriodicExecutor>(
             CancelableControlInvoker_,
             BIND(&TControllerAgent::TImpl::SendHeartbeat, MakeWeak(this)),
@@ -831,9 +830,7 @@ private:
         }
         CancelableControlInvoker_.Reset();
 
-        if (CachedExecNodeDescriptorsByTags_) {
-            CachedExecNodeDescriptorsByTags_.Reset();
-        }
+        CachedExecNodeDescriptorsByTags_->Clear();
 
         if (HeartbeatExecutor_) {
             HeartbeatExecutor_->Stop();
