@@ -97,6 +97,7 @@ struct TTabletSnapshot
     TTabletManagerPtr TabletManager;
     TTabletId TabletId;
     i64 MountRevision = 0;
+    NYPath::TYPath TablePath;
     NObjectClient::TObjectId TableId;
     TTableMountConfigPtr Config;
     TTabletChunkWriterConfigPtr WriterConfig;

@@ -1004,6 +1004,7 @@ TTabletSnapshotPtr TTablet::BuildSnapshot(TTabletSlotPtr slot) const
 
     snapshot->TabletId = Id_;
     snapshot->MountRevision = MountRevision_;
+    snapshot->TablePath = TablePath_;
     snapshot->TableId = TableId_;
     snapshot->Config = Config_;
     snapshot->WriterConfig = WriterConfig_;
