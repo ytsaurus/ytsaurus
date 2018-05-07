@@ -811,7 +811,8 @@ private:
                 TTransactionStartOptions options;
                 options.AutoAbort = false;
                 auto attributes = CreateEphemeralAttributes();
-                attributes->Set("title", Format("Eden partitioning: tablet %v",
+                attributes->Set("title", Format("Eden partitioning: table %v, tablet %v",
+                    tabletSnapshot->TablePath,
                     tabletSnapshot->TabletId));
                 options.Attributes = std::move(attributes);
 
@@ -1191,7 +1192,8 @@ private:
                 TTransactionStartOptions options;
                 options.AutoAbort = false;
                 auto attributes = CreateEphemeralAttributes();
-                attributes->Set("title", Format("Partition compaction: tablet %v",
+                attributes->Set("title", Format("Partition compaction: table %v, tablet %v",
+                    tabletSnapshot->TablePath,
                     tabletSnapshot->TabletId));
                 options.Attributes = std::move(attributes);
 
