@@ -126,9 +126,9 @@ private:
         TTabletSlotPtr Slot;
         IInvokerPtr Invoker;
 
-        TTabletId Tablet;
-        TPartitionId Partition;
-        std::vector<TStoreId> Stores;
+        TTabletId TabletId;
+        TPartitionId PartitionId;
+        std::vector<TStoreId> StoreIds;
 
         // Overlapping stores slack for the task.
         // That is, the remaining number of stores in the partition till
@@ -161,21 +161,21 @@ private:
             std::vector<TStoreId> stores)
             : Slot(slot)
             , Invoker(tablet->GetEpochAutomatonInvoker())
-            , Tablet(tablet->GetId())
-            , Partition(partition->GetId())
-            , Stores(std::move(stores))
+            , TabletId(tablet->GetId())
+            , PartitionId(partition->GetId())
+            , StoreIds(std::move(stores))
         { }
 
         ~TTask()
         {
             if (auto owner = Owner.Lock()) {
-                owner->ChangeFutureEffect(Tablet, -Effect);
+                owner->ChangeFutureEffect(TabletId, -Effect);
             }
         }
 
         auto GetOrderingTuple()
         {
-            return std::make_tuple(Slack + FutureEffect, -Effect, -Stores.size(), Random);
+            return std::make_tuple(Slack + FutureEffect, -Effect, -StoreIds.size(), Random);
         }
 
         void Prepare(TStoreCompactor* owner, TAsyncSemaphoreGuard&& semaphoreGuard)
@@ -183,7 +183,7 @@ private:
             Owner = MakeWeak(owner);
             SemaphoreGuard = std::move(semaphoreGuard);
 
-            owner->ChangeFutureEffect(Tablet, Effect);
+            owner->ChangeFutureEffect(TabletId, Effect);
         }
 
         static inline bool Comparer(
@@ -307,7 +307,7 @@ private:
         const int overlappingStoreLimit = GetOverlappingStoreLimit(tablet->GetConfig());
         const int overlappingStoreCount = tablet->GetOverlappingStoreCount();
         candidate->Slack = std::max(0, overlappingStoreLimit - overlappingStoreCount);
-        candidate->Effect = candidate->Stores.size() - 1;
+        candidate->Effect = candidate->StoreIds.size() - 1;
         candidate->FutureEffect = GetFutureEffect(tablet->GetId());
 
         {
@@ -338,14 +338,14 @@ private:
         const int overlappingStoreCount = tablet->GetOverlappingStoreCount();
         if (partition->IsEden()) {
             candidate->Slack = std::max(0, overlappingStoreLimit - overlappingStoreCount);
-            candidate->Effect = candidate->Stores.size() - 1;
+            candidate->Effect = candidate->StoreIds.size() - 1;
         } else {
             // For critical partitions, this is equivalent to MOSC-OSC; for unconstrained -- includes extra slack.
             const int edenStoreCount = static_cast<int>(tablet->GetEden()->Stores().size());
             const int partitionStoreCount = static_cast<int>(partition->Stores().size());
             candidate->Slack = std::max(0, overlappingStoreLimit - edenStoreCount - partitionStoreCount);
             if (tablet->GetCriticalPartitionCount() == 1 && edenStoreCount + partitionStoreCount == overlappingStoreCount) {
-                candidate->Effect = candidate->Stores.size() - 1;
+                candidate->Effect = candidate->StoreIds.size() - 1;
             }
         }
         candidate->FutureEffect = GetFutureEffect(tablet->GetId());
@@ -617,10 +617,10 @@ private:
             {
                 TReaderGuard guard(FutureEffectLock_);
                 auto&& firstTask = tasks->at(0);
-                if (firstTask->FutureEffect != LockedGetFutureEffect(guard, firstTask->Tablet)) {
+                if (firstTask->FutureEffect != LockedGetFutureEffect(guard, firstTask->TabletId)) {
                     for (size_t i = 0; i < *index; ++i) {
                         auto&& task = (*tasks)[i];
-                        task->FutureEffect = LockedGetFutureEffect(guard, task->Tablet);
+                        task->FutureEffect = LockedGetFutureEffect(guard, task->TabletId);
                     }
                     guard.Release();
                     MakeHeap(tasks->begin(), tasks->begin() + *index, TTask::Comparer);
@@ -701,7 +701,7 @@ private:
         auto sessionId = TReadSessionId::Create();
         NLogging::TLogger Logger(TabletNodeLogger);
         Logger.AddTag("TabletId: %v, ReadSessionId: %v",
-            task->Tablet,
+            task->TabletId,
             sessionId);
 
         auto doneGuard = Finally([&] {
@@ -710,21 +710,21 @@ private:
 
         const auto& slot = task->Slot;
         const auto& tabletManager = slot->GetTabletManager();
-        auto* tablet = tabletManager->FindTablet(task->Tablet);
+        auto* tablet = tabletManager->FindTablet(task->TabletId);
         if (!tablet) {
             LOG_DEBUG("Tablet is missing, aborting partitioning");
             return;
         }
 
         const auto& slotManager = Bootstrap_->GetTabletSlotManager();
-        auto tabletSnapshot = slotManager->FindTabletSnapshot(task->Tablet);
+        auto tabletSnapshot = slotManager->FindTabletSnapshot(task->TabletId);
         if (!tabletSnapshot) {
             LOG_DEBUG("Tablet snapshot is missing, aborting partitioning");
             return;
         }
 
         auto* eden = tablet->GetEden();
-        if (eden->GetId() != task->Partition) {
+        if (eden->GetId() != task->PartitionId) {
             LOG_DEBUG("Eden is missing, aborting partitioning");
             return;
         }
@@ -737,8 +737,8 @@ private:
         const auto& storeManager = tablet->GetStoreManager();
 
         std::vector<TSortedChunkStorePtr> stores;
-        stores.reserve(task->Stores.size());
-        for (const auto& storeId : task->Stores) {
+        stores.reserve(task->StoreIds.size());
+        for (const auto& storeId : task->StoreIds) {
             auto store = tablet->FindStore(storeId);
             if (!store || !eden->Stores().has(store->AsSorted())) {
                 LOG_DEBUG("Eden store is missing, aborting partitioning (StoreId: %v)", storeId);
@@ -1077,7 +1077,7 @@ private:
         auto sessionId = TReadSessionId::Create();
         NLogging::TLogger Logger(TabletNodeLogger);
         Logger.AddTag("TabletId: %v, ReadSessionId: %v",
-            task->Tablet,
+            task->TabletId,
             sessionId);
 
         auto doneGuard = Finally([&] {
@@ -1086,22 +1086,22 @@ private:
 
         const auto& slot = task->Slot;
         const auto& tabletManager = slot->GetTabletManager();
-        auto* tablet = tabletManager->FindTablet(task->Tablet);
+        auto* tablet = tabletManager->FindTablet(task->TabletId);
         if (!tablet) {
             LOG_DEBUG("Tablet is missing, aborting compaction");
             return;
         }
 
         const auto& slotManager = Bootstrap_->GetTabletSlotManager();
-        auto tabletSnapshot = slotManager->FindTabletSnapshot(task->Tablet);
+        auto tabletSnapshot = slotManager->FindTabletSnapshot(task->TabletId);
         if (!tabletSnapshot) {
             LOG_DEBUG("Tablet snapshot is missing, aborting compaction");
             return;
         }
 
-        auto* partition = tablet->GetEden()->GetId() == task->Partition
+        auto* partition = tablet->GetEden()->GetId() == task->PartitionId
             ? tablet->GetEden()
-            : tablet->FindPartition(task->Partition);
+            : tablet->FindPartition(task->PartitionId);
         if (!partition) {
             LOG_DEBUG("Partition is missing, aborting compaction");
             return;
@@ -1115,8 +1115,8 @@ private:
         const auto& storeManager = tablet->GetStoreManager();
 
         std::vector<TSortedChunkStorePtr> stores;
-        stores.reserve(task->Stores.size());
-        for (const auto& storeId : task->Stores) {
+        stores.reserve(task->StoreIds.size());
+        for (const auto& storeId : task->StoreIds) {
             auto store = tablet->FindStore(storeId);
             if (!store || !partition->Stores().has(store->AsSorted())) {
                 LOG_DEBUG("Partition store is missing, aborting compaction (StoreId: %v)", storeId);
