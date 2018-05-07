@@ -1,5 +1,4 @@
 SET(YT_SRCS
   crypto.cpp
   tls.cpp
-  https.cpp
 )

@@ -493,12 +493,17 @@ struct THttpServerTest
             // Piggybacking on openssl initialization in grpc.
             GrpcLock = NRpc::NGrpc::TDispatcher::Get()->CreateLibraryLock();
             Context = New<TSslContext>();
-
             Context->AddCertificate(TestCertificate);
             Context->AddPrivateKey(TestCertificate);
 
-            Server = NCrypto::CreateHttpsServer(Context, Listener, Poller);
-            Client = NCrypto::CreateHttpsClient(Context, New<TClientConfig>(), Poller);
+            auto tlsListener = Context->CreateListener(Listener, Poller);
+            Server = CreateServer(New<TServerConfig>(), tlsListener, Poller);
+
+            auto tlsDialer = Context->CreateDialer(
+                New<TDialerConfig>(),
+                Poller,
+                HttpLogger);
+            Client = CreateClient(New<TClientConfig>(), tlsDialer, Poller->GetInvoker());
         }
     }
 

@@ -17,6 +17,7 @@ endif()
 target_link_libraries(unittester-core
   yt-core-test-framework
   yt-core
+  yt-core-http
   yt-core-rpc-grpc
   yt-core-crypto
   yt-core-skiff
