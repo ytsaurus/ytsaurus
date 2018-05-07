@@ -523,7 +523,6 @@ struct TFileWriterOptions
 
 struct TGetFileFromCacheOptions
     : public TTimeoutOptions
-    , public TTransactionalOptions
     , public TMasterReadOptions
 {
     NYPath::TYPath CachePath;
@@ -531,7 +530,6 @@ struct TGetFileFromCacheOptions
 
 struct TPutFileToCacheOptions
     : public TTimeoutOptions
-    , public TTransactionalOptions
     , public TMasterReadOptions
     , public TMutatingOptions
     , public TPrerequisiteOptions
