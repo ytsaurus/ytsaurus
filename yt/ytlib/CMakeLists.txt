@@ -20,6 +20,7 @@ target_link_libraries(yt-library-client
   deps-arcadia-contrib-libs-re2
   deps-arcadia-library-http
   yt-core
+  yt-core-http
   yt-core-codegen
   yt-core-crypto
   yt-core-skiff
