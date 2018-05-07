@@ -2934,6 +2934,33 @@ private:
         return FromProto<TObjectId>(rsp->object_id());
     }
 
+    void SetTouchedAttribute(
+        const TString& destination,
+        const TPrerequisiteOptions& options = TPrerequisiteOptions(),
+        const TTransactionId& transactionId = NullTransactionId)
+    {
+        auto fileCacheClient = Connection_->CreateNativeClient(TClientOptions(NSecurityClient::FileCacheUserName));
+
+        // Set /@touched attribute.
+        {
+            auto setNodeOptions = TSetNodeOptions();
+            setNodeOptions.PrerequisiteTransactionIds = options.PrerequisiteTransactionIds;
+            setNodeOptions.PrerequisiteRevisions = options.PrerequisiteRevisions;
+            setNodeOptions.TransactionId = transactionId;
+
+            auto asyncResult = fileCacheClient->SetNode(destination + "/@touched", ConvertToYsonString(true), setNodeOptions);
+            auto rspOrError = WaitFor(asyncResult);
+
+            if (rspOrError.GetCode() != NCypressClient::EErrorCode::ConcurrentTransactionLockConflict) {
+                THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error setting /@touched attribute");
+            }
+
+            LOG_DEBUG(
+                "Attribute /@touched set (Destination: %v)",
+                destination);
+        }
+    }
+
     TGetFileFromCacheResult DoGetFileFromCache(
         const TString& md5,
         const TGetFileFromCacheOptions& options)
@@ -2948,8 +2975,6 @@ private:
             "md5"
         };
         ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
-
-        SetTransactionId(req, options, true);
 
         auto rspOrError = WaitFor(proxy->Execute(req));
         if (!rspOrError.IsOK()) {
@@ -2978,15 +3003,17 @@ private:
             return result;
         }
 
+        SetTouchedAttribute(destination);
+
         result.Path = destination;
         return result;
     }
 
 
     TPutFileToCacheResult DoPutFileToCache(
-        const NYPath::TYPath &path,
-        const TString &expectedMD5,
-        const TPutFileToCacheOptions &options)
+        const NYPath::TYPath& path,
+        const TString& expectedMD5,
+        const TPutFileToCacheOptions& options)
     {
         NLogging::TLogger logger = Logger.AddTag("Path: %v", path).AddTag("Command: PutFileToCache");
         auto Logger = logger;
@@ -2997,7 +3024,6 @@ private:
         ITransactionPtr transaction;
         {
             auto transactionStartOptions = TTransactionStartOptions();
-            transactionStartOptions.ParentId = GetTransactionId(options, true);
             transactionStartOptions.Sticky = true;
             auto attributes = CreateEphemeralAttributes();
             attributes->Set("title", Format("Putting file %v to cache", path));
@@ -3009,7 +3035,6 @@ private:
 
             auto transactionAttachOptions = TTransactionAttachOptions();
             transactionAttachOptions.AutoAbort = true;
-            transactionAttachOptions.PingAncestors = options.PingAncestors;
             transaction = AttachTransaction(transaction->GetId(), transactionAttachOptions);
 
             LOG_DEBUG(
@@ -3104,24 +3129,7 @@ private:
                 destination);
         }
 
-        // Set /@touched attribute.
-        {
-            auto setNodeOptions = TSetNodeOptions();
-            setNodeOptions.PrerequisiteTransactionIds = options.PrerequisiteTransactionIds;
-            setNodeOptions.PrerequisiteRevisions = options.PrerequisiteRevisions;
-            setNodeOptions.TransactionId = transaction->GetId();
-
-            auto asyncResult = fileCacheClient->SetNode(destination + "/@touched", ConvertToYsonString(true), setNodeOptions);
-            auto rspOrError = WaitFor(asyncResult);
-
-            if (rspOrError.GetCode() != NCypressClient::EErrorCode::ConcurrentTransactionLockConflict) {
-                THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error setting /@touched attribute");
-            }
-
-            LOG_DEBUG(
-                "Attribute /@touched set (Destination: %v)",
-                destination);
-        }
+        SetTouchedAttribute(destination, options, transaction->GetId());
 
         WaitFor(transaction->Commit())
             .ThrowOnError();
