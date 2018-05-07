@@ -43,6 +43,7 @@ public:
 
         auto error = TError(NYT::EErrorCode::Canceled, "RPC request canceled")
             << TErrorAttribute("request_id", Request_->GetRequestId())
+            << TErrorAttribute("realm_id", Request_->GetRealmId())
             << TErrorAttribute("service", Request_->GetService())
             << TErrorAttribute("method", Request_->GetMethod());
         ResponseHandler_->HandleError(error);
