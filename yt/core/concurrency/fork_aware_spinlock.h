@@ -17,7 +17,7 @@ public:
     void Release();
 
 private:
-    TSpinLock SpinLock_;
+    TAdaptiveLock SpinLock_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
