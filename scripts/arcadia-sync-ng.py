@@ -226,7 +226,7 @@ def git_verify_head_pushed(git):
         raise CheckError("remote repo doesn't contain HEAD")
 
 def verify_svn_match_git(git, git_relpath, local_svn, svn_relpath):
-    git_rel_paths = set(iter_relpath_translate(git_iter_files_to_sync(git, git_relpath), git_relpath, ""))
+    git_rel_paths = set(iter_relpath_translate(git_iter_files_to_sync(git, ":/" + git_relpath), git_relpath, ""))
     svn_tracked_rel_paths = set(
         iter_relpath_translate(
             (
