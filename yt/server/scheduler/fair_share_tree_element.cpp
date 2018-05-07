@@ -1437,10 +1437,6 @@ TJobResources TOperationElementSharedState::Disable()
 {
     TWriterGuard guard(JobPropertiesMapLock_);
 
-    if (!Enabled_) {
-        return ZeroJobResources();
-    }
-
     Enabled_ = false;
 
     auto resourceUsage = ZeroJobResources();
