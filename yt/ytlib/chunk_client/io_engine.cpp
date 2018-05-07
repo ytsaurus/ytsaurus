@@ -90,8 +90,8 @@ class TThreadedIOEngine
 public:
     using TConfig = TThreadedIOEngineConfig;
 
-    explicit TThreadedIOEngine(const TConfig& config)
-        : ThreadPool_(New<NConcurrency::TThreadPool>(config.Threads, "DiskIO"))
+    explicit TThreadedIOEngine(const TConfig& config, const TString& locationId)
+        : ThreadPool_(New<NConcurrency::TThreadPool>(config.Threads, Format("DiskIO:%v", locationId)))
         , UseDirectIO_(config.UseDirectIO)
     { }
 
@@ -599,8 +599,8 @@ private:
 
 #endif
 
-template <typename T>
-IIOEnginePtr CreateIOEngine(const NYTree::INodePtr& ioConfig)
+template <typename T, typename ...Params>
+IIOEnginePtr CreateIOEngine(const NYTree::INodePtr& ioConfig, Params ...params)
 {
     typename T::TConfig config;
     config.SetDefaults();
@@ -608,14 +608,14 @@ IIOEnginePtr CreateIOEngine(const NYTree::INodePtr& ioConfig)
         config.Load(ioConfig);
     }
 
-    return New<T>(config);
+    return New<T>(config, params...);
 }
 
-IIOEnginePtr CreateIOEngine(EIOEngineType ioType, const NYTree::INodePtr& ioConfig)
+IIOEnginePtr CreateIOEngine(EIOEngineType ioType, const NYTree::INodePtr& ioConfig, const TString& locationId)
 {
     switch (ioType) {
         case EIOEngineType::ThreadPool:
-            return CreateIOEngine<TThreadedIOEngine>(ioConfig);
+            return CreateIOEngine<TThreadedIOEngine>(ioConfig, locationId);
     #ifdef _linux_
         case EIOEngineType::Aio:
             return CreateIOEngine<TAioEngine>(ioConfig);

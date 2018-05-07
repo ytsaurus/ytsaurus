@@ -28,7 +28,7 @@ struct IIOEngine
 
 DEFINE_REFCOUNTED_TYPE(IIOEngine)
 
-IIOEnginePtr CreateIOEngine(EIOEngineType ioType, const NYTree::INodePtr& ioConfig);
+IIOEnginePtr CreateIOEngine(EIOEngineType ioType, const NYTree::INodePtr& ioConfig, const TString& locationId = "default");
 
 ////////////////////////////////////////////////////////////////////////////////
 
