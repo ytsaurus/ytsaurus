@@ -233,7 +233,7 @@ TOperationControllerBase::TOperationControllerBase(
         : nullptr;
 
     auto createService = [&] (auto fluentMethod) -> IYPathServicePtr {
-        return IYPathService::FromProducer(BIND([=, fluentMethod = std::move(fluentMethod)] (IYsonConsumer* consumer) {
+        return IYPathService::FromProducer(BIND([fluentMethod = std::move(fluentMethod)] (IYsonConsumer* consumer) {
             BuildYsonFluently(consumer)
                 .BeginMap()
                     .Do(fluentMethod)
