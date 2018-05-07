@@ -36,10 +36,8 @@ def main():
         data_files = []
         scripts = [binary + str(sys.version_info[0]) for binary in binaries]
 
-    if "DEB" in os.environ:
-        if sys.version_info[0] < 3:
-            data_files.append(("/etc/bash_completion.d/", ["yandex-yt-python/yt_completion"]))
-    else:
+    data_files.append(("/etc/bash_completion.d/", ["yandex-yt-python/yt_completion"]))
+    if "DEB" not in os.environ:
         scripts.extend(binaries)
 
     find_packages("yt/packages")
