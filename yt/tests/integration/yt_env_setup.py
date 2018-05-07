@@ -568,6 +568,15 @@ class YTEnvSetup(object):
         print >>sys.stderr, "Waiting for tablets to become compacted..."
         wait(lambda: len(chunk_ids.intersection(__builtin__.set(yt_commands.get(path + "/@chunk_ids", driver=driver)))) == 0)
 
+        print >>sys.stderr, "Waiting for tablets to become stable..."
+        def check_stable():
+            chunk_ids1 = yt_commands.get(path + "/@chunk_ids", driver=driver)
+            sleep(3.0)
+            chunk_ids2 = yt_commands.get(path + "/@chunk_ids", driver=driver)
+            return chunk_ids1 == chunk_ids2
+        wait(lambda: check_stable())
+
+
     def _abort_transactions(self, driver=None):
          for tx in yt_commands.ls("//sys/transactions", attributes=["title"], driver=driver):
             title = tx.attributes.get("title", "")
