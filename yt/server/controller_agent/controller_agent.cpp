@@ -294,6 +294,8 @@ public:
         }
 
         MemoryTagQueue_.UpdateConfig(Config_);
+
+        CachedExecNodeDescriptorsByTags_->SetExpirationTimeout(Config_->SchedulingTagFilterExpireTimeout);
     }
 
 
