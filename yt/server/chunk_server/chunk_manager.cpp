@@ -837,7 +837,14 @@ public:
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         auto cellIndex = multicellManager->GetRegisteredMasterCellIndex(destinationCellTag);
 
-        auto externalRequisitionIndexBefore = chunk->GetExternalRequisitionIndex(cellIndex);
+        auto maybeExternalRequisitionIndexBefore = chunk->GetExternalRequisitionIndex(cellIndex);
+        if (!maybeExternalRequisitionIndexBefore) {
+            // This is a bug.
+            LOG_ERROR("Unexporting chunk that's not exported (ChunkId: %v)", chunk->GetId());
+            return;
+        }
+
+        auto externalRequisitionIndexBefore = *maybeExternalRequisitionIndexBefore;
         auto requisitionBefore = chunk->ComputeRequisition(GetChunkRequisitionRegistry());
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
@@ -1588,7 +1595,20 @@ private:
             auto* chunk = update.Chunk;
             auto newRequisitionIndex = update.TranslatedRequisitionIndex;
 
-            auto curRequisitionIndex = local ? chunk->GetLocalRequisitionIndex() : chunk->GetExternalRequisitionIndex(cellIndex);
+            TChunkRequisitionIndex curRequisitionIndex;
+            if (local) {
+                curRequisitionIndex = chunk->GetLocalRequisitionIndex();
+            } else {
+                auto maybeCurRequisitionIndex = chunk->GetExternalRequisitionIndex(cellIndex);
+                // This is a strange and buggy mutation; just skip it.
+                // TODO(shakurov): remove this.
+                if (!maybeCurRequisitionIndex) {
+                    LOG_ERROR("Chunk is not exported; requisition update mutation is no-op (ChunkId: %v)", chunk->GetId());
+                    continue;
+                }
+                curRequisitionIndex = *maybeCurRequisitionIndex;
+            }
+
             if (newRequisitionIndex == curRequisitionIndex) {
                 continue;
             }
