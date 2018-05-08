@@ -14,7 +14,6 @@
 #include <util/stream/file.h>
 #include <util/stream/buffer.h>
 #include <util/string/subst.h>
-#include <util/string/printf.h>
 
 namespace NYT {
 
@@ -585,34 +584,23 @@ private:
 
     void CheckNotRegistered(const std::type_info* typeInfoPtr, const char* name)
     {
-        if (JobNames.find(typeInfoPtr) != JobNames.end()) {
-            ythrow yexception() <<
-                Sprintf("type_info '%s' is already registered under name '%s'",
-                    typeInfoPtr->name(), ~JobNames[typeInfoPtr]);
-        }
-        if (JobFunctions.find(name) != JobFunctions.end()) {
-            ythrow yexception() <<
-                Sprintf("job with name '%s' is already registered",
-                    name);
-        }
+        Y_ENSURE(!JobNames.has(typeInfoPtr),
+            "type_info '" << typeInfoPtr->name() << "'"
+            "is already registered under name '" << JobNames[typeInfoPtr] << "'");
+        Y_ENSURE(!JobFunctions.has(name),
+            "job with name '" << name << "' is already registered");
     }
 
     void CheckJobRegistered(const std::type_info* typeInfoPtr)
     {
-        if (JobNames.find(typeInfoPtr) == JobNames.end()) {
-            ythrow yexception() <<
-                Sprintf("type_info '%s' is not registered, use REGISTER_* macros",
-                    typeInfoPtr->name());
-        }
+        Y_ENSURE(JobNames.has(typeInfoPtr),
+            "type_info '" << typeInfoPtr->name() << "' is not registered, use REGISTER_* macros");
     }
 
     void CheckNameRegistered(const char* name)
     {
-        if (JobFunctions.find(name) == JobFunctions.end()) {
-            ythrow yexception() <<
-                Sprintf("job with name '%s' is not registered, use REGISTER_* macros",
-                    name);
-        }
+        Y_ENSURE(JobFunctions.has(name),
+            "job with name '" << name << "' is not registered, use REGISTER_* macros");
     }
 };
 
