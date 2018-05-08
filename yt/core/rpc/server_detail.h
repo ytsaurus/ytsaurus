@@ -184,6 +184,8 @@ public:
 
     virtual bool IsPooled() const override;
 
+    virtual void AddHolder(TIntrusivePtr<TRefCounted> holder) override;
+
 protected:
     const IServiceContextPtr UnderlyingContext_;
 

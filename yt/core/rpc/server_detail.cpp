@@ -495,6 +495,11 @@ bool TServiceContextWrapper::IsPooled() const
     return UnderlyingContext_->IsPooled();
 }
 
+void TServiceContextWrapper::AddHolder(TIntrusivePtr<TRefCounted> holder)
+{
+    UnderlyingContext_->AddHolder(std::move(holder));
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void TServerBase::RegisterService(IServicePtr service)
