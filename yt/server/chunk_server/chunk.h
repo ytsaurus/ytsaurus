@@ -151,7 +151,8 @@ public:
         TChunkRequisitionRegistry* registry,
         const NObjectServer::TObjectManagerPtr& objectManager);
 
-    TChunkRequisitionIndex GetExternalRequisitionIndex(int cellIndex) const;
+    // TODO(shakurov): fix this and get rid of TNullable.
+    TNullable<TChunkRequisitionIndex> GetExternalRequisitionIndex(int cellIndex) const;
     void SetExternalRequisitionIndex(
         int cellIndex,
         TChunkRequisitionIndex requisitionIndex,

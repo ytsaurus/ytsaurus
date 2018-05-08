@@ -150,11 +150,14 @@ inline void TChunk::SetLocalRequisitionIndex(
     registry->Ref(LocalRequisitionIndex_);
 }
 
-inline TChunkRequisitionIndex TChunk::GetExternalRequisitionIndex(int cellIndex) const
+inline TNullable<TChunkRequisitionIndex> TChunk::GetExternalRequisitionIndex(int cellIndex) const
 {
     const auto& data = ExportDataList_[cellIndex];
-    YCHECK(data.RefCounter != 0);
-    return data.ChunkRequisitionIndex;
+    if (data.RefCounter != 0) {
+        return data.ChunkRequisitionIndex;
+    } else {
+        return Null;
+    }
 }
 
 inline void TChunk::SetExternalRequisitionIndex(
