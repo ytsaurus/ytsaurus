@@ -181,6 +181,7 @@ struct IServiceContext
     //! A way to prolong lifetime of some intermediate structures
     //! until request is processed.
     virtual void AddHolder(TIntrusivePtr<TRefCounted> holder);
+    virtual std::vector<TIntrusivePtr<TRefCounted>> GetHolders() const;
 };
 
 DEFINE_REFCOUNTED_TYPE(IServiceContext)

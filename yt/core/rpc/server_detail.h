@@ -74,6 +74,7 @@ public:
     virtual bool IsPooled() const override;
 
     virtual void AddHolder(TIntrusivePtr<TRefCounted> holder) override;
+    virtual std::vector<TIntrusivePtr<TRefCounted>> GetHolders() const override;
 
 protected:
     const std::unique_ptr<NProto::TRequestHeader> RequestHeader_;
@@ -185,6 +186,7 @@ public:
     virtual bool IsPooled() const override;
 
     virtual void AddHolder(TIntrusivePtr<TRefCounted> holder) override;
+    virtual std::vector<TIntrusivePtr<TRefCounted>> GetHolders() const override;
 
 protected:
     const IServiceContextPtr UnderlyingContext_;
