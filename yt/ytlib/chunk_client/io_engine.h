@@ -15,8 +15,6 @@ namespace NChunkClient {
 struct IIOEngine
     : public TRefCounted
 {
-    virtual ~IIOEngine() = default;
-
     virtual TFuture<TSharedMutableRef> Pread(const std::shared_ptr<TFileHandle>& fh, size_t len, i64 offset) = 0;
     virtual TFuture<void> Pwrite(const std::shared_ptr<TFileHandle>& fh, const TSharedMutableRef& data, i64 offset) = 0;
 
