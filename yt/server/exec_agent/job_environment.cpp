@@ -54,8 +54,6 @@ using namespace NTools;
 
 static const auto& Logger = ExecAgentLogger;
 
-static const TString DefaultMemoryGuarantee = "1024";
-
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace {
@@ -515,9 +513,7 @@ private:
         const auto containers = WaitFor(PortoExecutor_->ListContainers())
             .ValueOrThrow();
 
-        LOG_DEBUG("Destroying all subcontainers (MetaName: %v, Containers: %v)",
-            metaName,
-            containers);
+        LOG_DEBUG("Destroying all subcontainers (MetaName: %v)", metaName);
 
         std::vector<TFuture<void>> actions;
         for (const auto& name : containers) {
@@ -591,6 +587,7 @@ private:
                     metaInstanceName,
                     PortoExecutor_);
                 instance->SetIOWeight(Config_->JobsIOWeight);
+                instance->SetCpuWeight(Config_->JobsCpuWeight);
                 return instance;
             }
         };

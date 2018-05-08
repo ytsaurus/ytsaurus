@@ -268,6 +268,11 @@ public:
         SetProperty("cpu_guarantee", ToString(cores) + "c");
     }
 
+    virtual void SetCpuWeight(double weight) override
+    {
+        SetProperty("cpu_weight", ToString(weight));
+    }
+
     virtual void SetIsolate() override
     {
         Isolate_ = true;
