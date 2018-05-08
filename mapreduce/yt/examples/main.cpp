@@ -3,6 +3,7 @@
 #include <mapreduce/yt/interface/client.h>
 
 #include <util/random/random.h>
+#include <util/string/printf.h>
 
 using namespace NYT;
 
