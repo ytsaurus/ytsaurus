@@ -414,6 +414,16 @@ private:
         return batchReq;
     }
 
+    TObjectServiceProxy::TReqExecuteBatchPtr StartObjectBatchRequestWithPrerequisites(
+        EMasterChannelKind channelKind = EMasterChannelKind::Leader,
+        TCellTag cellTag = PrimaryMasterCellTag)
+    {
+        auto batchReq = StartObjectBatchRequest(channelKind, cellTag);
+        auto* prerequisitesExt = batchReq->Header().MutableExtension(NObjectClient::NProto::TPrerequisitesExt::prerequisites_ext);
+        ToProto(prerequisitesExt->add_transactions()->mutable_transaction_id(), Bootstrap_->GetControllerAgent()->GetIncarnationId());
+        return batchReq;
+    }
+
     TChunkServiceProxy::TReqExecuteBatchPtr StartChunkBatchRequest(TCellTag cellTag = PrimaryMasterCellTag)
     {
         TChunkServiceProxy proxy(Bootstrap_
@@ -658,7 +668,7 @@ private:
 
         auto paths = GetOperationPaths(operationId, operation->GetEnableCompatibleStorageMode());
 
-        auto batchReq = StartObjectBatchRequest();
+        auto batchReq = StartObjectBatchRequestWithPrerequisites();
         GenerateMutationId(batchReq);
 
         auto progress = controller->GetProgress();
@@ -712,7 +722,7 @@ private:
             return {};
         }
 
-        auto batchReq = StartObjectBatchRequest();
+        auto batchReq = StartObjectBatchRequestWithPrerequisites();
 
         for (const auto& request : requests) {
             const auto& jobId = request.JobId;
@@ -800,7 +810,7 @@ private:
 
         // BeginUpload
         {
-            auto batchReq = StartObjectBatchRequest();
+            auto batchReq = StartObjectBatchRequestWithPrerequisites();
 
             for (const auto& pair : tableIdToInfo) {
                 const auto& tableId = pair.first;
@@ -903,7 +913,7 @@ private:
 
         // EndUpload
         {
-            auto batchReq = StartObjectBatchRequest();
+            auto batchReq = StartObjectBatchRequestWithPrerequisites();
 
             for (const auto& pair : tableIdToInfo) {
                 const auto& tableId = pair.first;
@@ -1025,7 +1035,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        auto batchReq = StartObjectBatchRequest();
+        auto batchReq = StartObjectBatchRequestWithPrerequisites();
         {
             auto req = TYPathProxy::Remove(GetNewSnapshotPath(operationId));
             req->set_force(true);
