@@ -328,7 +328,6 @@ TFuture<NApi::TGetFileFromCacheResult> TClient::GetFileFromCache(
     req->set_md5(md5);
     req->set_cache_path(options.CachePath);
 
-    ToProto(req->mutable_transactional_options(), options);
     ToProto(req->mutable_master_read_options(), options);
 
     return req->Invoke().Apply(BIND([] (const TApiServiceProxy::TRspGetFileFromCachePtr& rsp) {
@@ -352,7 +351,6 @@ TFuture<NApi::TPutFileToCacheResult> TClient::PutFileToCache(
     req->set_md5(expectedMD5);
     req->set_cache_path(options.CachePath);
 
-    ToProto(req->mutable_transactional_options(), options);
     ToProto(req->mutable_prerequisite_options(), options);
     ToProto(req->mutable_master_read_options(), options);
     ToProto(req->mutable_mutating_options(), options);
