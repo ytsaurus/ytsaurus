@@ -46,7 +46,7 @@ void InitAccountIds()
     account4 = std::make_unique<TAccount>(account4Id);
 }
 
-TEST(TChunkRequisitionTest, Combine)
+TEST(TChunkRequisitionTest, Aggregate)
 {
     InitAccountIds();
 
@@ -97,7 +97,7 @@ TEST(TChunkRequisitionTest, Combine)
     ASSERT_EQ(requisition1, requisition2);
 }
 
-TEST(TChunkRequisitionTest, SelfCombine)
+TEST(TChunkRequisitionTest, SelfAggregate)
 {
     InitAccountIds();
 
@@ -108,7 +108,7 @@ TEST(TChunkRequisitionTest, SelfCombine)
     ASSERT_EQ(requisition, requisitionCopy);
 }
 
-TEST(TChunkRequisitionTest, CombineWithEmpty)
+TEST(TChunkRequisitionTest, AggregateWithEmpty)
 {
     InitAccountIds();
 
@@ -123,7 +123,7 @@ TEST(TChunkRequisitionTest, CombineWithEmpty)
     ASSERT_EQ(requisition, requisitionCopy);
 }
 
-TEST(TChunkRequisitionTest, CombineWithReplication)
+TEST(TChunkRequisitionTest, AggregateWithReplication)
 {
     InitAccountIds();
 
@@ -136,7 +136,7 @@ TEST(TChunkRequisitionTest, CombineWithReplication)
     replication[6].SetReplicationFactor(7);
     replication[6].SetDataPartsOnly(true);
 
-    requisition.CombineWith(replication, account2.get(), true);
+    requisition.AggregateWith(replication, account2.get(), true);
 
     ASSERT_FALSE(requisition.GetVital());
     ASSERT_EQ(requisition.GetEntryCount(), 4);

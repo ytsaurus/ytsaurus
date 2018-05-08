@@ -137,7 +137,7 @@ class TestChunkServer(YTEnvSetup):
         new_requisition_index = next(iter(new_requisition_indexes))
 
         new_requisition = get("{0}/{1}".format(master_orchid_path, new_requisition_index))
-        assert new_requisition["ref_counter"] == 1
+        assert new_requisition["ref_counter"] == 2 # one for 'local', one for 'aggregated' requisition
         assert new_requisition["vital"]
         assert len(new_requisition["entries"]) == 1
         assert new_requisition["entries"][0]["replication_policy"]["replication_factor"] == 4

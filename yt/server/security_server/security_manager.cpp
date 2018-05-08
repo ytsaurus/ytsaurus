@@ -1792,7 +1792,7 @@ private:
             }
 
             if (chunk->IsDiskSizeFinal()) {
-                auto requisition = chunk->ComputeRequisition(requisitionRegistry);
+                auto requisition = chunk->GetAggregatedRequisition(requisitionRegistry);
                 ComputeChunkResourceDelta(chunk, requisition, +1, chargeStatMap);
             }  // Else this'll be done later when the chunk is confirmed/sealed.
         }

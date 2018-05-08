@@ -232,12 +232,6 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeRegularChunkStatisti
 {
     TChunkStatistics result;
 
-    auto maybeReplicationFactors = chunk->ComputeReplicationFactors(GetChunkRequisitionRegistry());
-    if (!maybeReplicationFactors) {
-        return result;
-    }
-    const auto& replicationFactors = *maybeReplicationFactors;
-
     TPerMediumArray<bool> hasUnsafelyPlacedReplicas{};
     TPerMediumArray<std::array<ui8, RackIndexBound>> perRackReplicaCounters{};
 
@@ -263,6 +257,8 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeRegularChunkStatisti
             }
         }
     }
+
+    const auto replicationFactors = chunk->GetAggregatedReplicationFactors(GetChunkRequisitionRegistry());
 
     bool precarious = true;
     bool allMediaTransient = true;
@@ -395,12 +391,6 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeErasureChunkStatisti
 {
     TChunkStatistics result;
 
-    auto maybeChunkReplication = chunk->ComputeReplication(GetChunkRequisitionRegistry());
-    if (!maybeChunkReplication) {
-        return result; // See ComputeReplication's comment for an explanation.
-    }
-    const auto& chunkReplication = *maybeChunkReplication;
-
     auto* codec = NErasure::GetCodec(chunk->GetErasureCodec());
 
     TPerMediumArray<std::array<TNodePtrWithIndexesList, ChunkReplicaIndexBound>> decommissionedReplicas{};
@@ -441,6 +431,8 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeErasureChunkStatisti
             }
         }
     }
+
+    const auto chunkReplication = chunk->GetAggregatedReplication(GetChunkRequisitionRegistry());
 
     bool allMediaTransient = true;
     bool allMediaDataPartsOnly = true;
@@ -672,11 +664,7 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeJournalChunkStatisti
 {
     TChunkStatistics results;
 
-    auto maybeReplication = chunk->ComputeReplication(GetChunkRequisitionRegistry());
-    if (!maybeReplication) {
-        return results;
-    }
-    const auto& replication = *maybeReplication;
+    const auto replication = chunk->GetAggregatedReplication(GetChunkRequisitionRegistry());
 
     // NB: Journal chunks always have a single configured medium.
     auto mediumIndex = -1;
@@ -986,11 +974,7 @@ bool TChunkReplicator::CreateReplicationJob(
     }
 
     int targetMediumIndex = targetMedium->GetIndex();
-    auto maybeReplicationFactor = chunk->ComputeReplicationFactor(targetMediumIndex, GetChunkRequisitionRegistry());
-    if (!maybeReplicationFactor) {
-        return true;
-    }
-    const auto& replicationFactor = *maybeReplicationFactor;
+    const auto replicationFactor = chunk->GetAggregatedReplicationFactor(targetMediumIndex, GetChunkRequisitionRegistry());
 
     auto statistics = ComputeChunkStatistics(chunk);
     const auto& mediumStatistics = statistics.PerMediumStatistics[targetMediumIndex];
@@ -1500,11 +1484,7 @@ void TChunkReplicator::RefreshChunk(TChunk* chunk)
         return;
     }
 
-    auto maybeReplication = chunk->ComputeReplication(GetChunkRequisitionRegistry());
-    if (!maybeReplication) {
-        return;
-    }
-    const auto& replication = *maybeReplication;
+    const auto replication = chunk->GetAggregatedReplication(GetChunkRequisitionRegistry());
 
     ResetChunkStatus(chunk);
     RemoveChunkFromQueuesOnRefresh(chunk);
@@ -2106,7 +2086,7 @@ TChunkRequisition TChunkReplicator::ComputeChunkRequisition(const TChunk* chunk)
         for (const auto* owningNode : chunkList->TrunkOwningNodes()) {
             auto* account = owningNode->GetAccount();
             if (account) {
-                requisition.CombineWith(owningNode->Replication(), account, true);
+                requisition.AggregateWith(owningNode->Replication(), account, true);
             }
 
             found = true;
@@ -2129,10 +2109,10 @@ TChunkRequisition TChunkReplicator::ComputeChunkRequisition(const TChunk* chunk)
     if (found) {
         Y_ASSERT(requisition.ToReplication().IsValid());
     } else {
-        // Leave intact not just staged chunks, but any chunk that isn't linked
-        // to a trunk owner.
-        auto globalRequisitionIndex = chunk->GetLocalRequisitionIndex();
-        requisition = GetChunkRequisitionRegistry()->GetRequisition(globalRequisitionIndex);
+        // Chunks that aren't linked to any trunk owner are assigned empty requisition.
+        // This doesn't mean the replicator will act upon it, though, as the chunk will
+        // remember its last non-empty aggregated requisition.
+        requisition = GetChunkRequisitionRegistry()->GetRequisition(EmptyChunkRequisitionIndex);
     }
 
     CacheRequisition(chunk, requisition);

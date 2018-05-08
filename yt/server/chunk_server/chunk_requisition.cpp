@@ -84,9 +84,9 @@ void Deserialize(TReplicationPolicy& policy, NYTree::INodePtr node)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChunkReplication::TChunkReplication(bool clearForCombining)
+TChunkReplication::TChunkReplication(bool clearForAggregating)
 {
-    if (clearForCombining) {
+    if (clearForAggregating) {
         for (auto& policy : MediumReplicationPolicies) {
             policy.SetDataPartsOnly(true);
         }
@@ -385,12 +385,12 @@ TChunkRequisition& TChunkRequisition::operator|=(const TChunkRequisition& rhs)
     }
 
     Vital_ = Vital_ || rhs.Vital_;
-    CombineEntries(rhs.Entries_);
+    AggregateEntries(rhs.Entries_);
 
     return *this;
 }
 
-void TChunkRequisition::CombineWith(
+void TChunkRequisition::AggregateWith(
     const TChunkReplication& replication,
     NSecurityServer::TAccount* account,
     bool committed)
@@ -411,7 +411,7 @@ void TChunkRequisition::CombineWith(
 
 TChunkReplication TChunkRequisition::ToReplication() const
 {
-    TChunkReplication result(true /* clearForCombining */);
+    TChunkReplication result(true /* clearForAggregating */);
     result.SetVital(Vital_);
 
     auto foundCommitted = false;
@@ -431,7 +431,7 @@ TChunkReplication TChunkRequisition::ToReplication() const
     return result;
 }
 
-void TChunkRequisition::CombineEntries(const TEntries& newEntries)
+void TChunkRequisition::AggregateEntries(const TEntries& newEntries)
 {
     if (newEntries.empty()) {
         return;

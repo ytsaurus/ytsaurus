@@ -326,17 +326,14 @@ private:
                     break;
                 }
 
-                auto replication = chunk->ComputeReplication(chunkManager->GetChunkRequisitionRegistry());
-                if (!replication) {
-                    replication = TChunkReplication();
-                }
+                auto replication = chunk->GetAggregatedReplication(chunkManager->GetChunkRequisitionRegistry());
 
                 if (key == EInternedAttributeKey::Vital) {
                     BuildYsonFluently(consumer)
-                        .Value(replication->GetVital());
+                        .Value(replication.GetVital());
                 } else {
                     BuildYsonFluently(consumer)
-                        .Value(TSerializableChunkReplication(*replication, chunkManager));
+                        .Value(TSerializableChunkReplication(replication, chunkManager));
                 }
                 return true;
             }
@@ -346,7 +343,7 @@ private:
                     break;
                 }
 
-                auto requisition = chunk->ComputeRequisition(chunkManager->GetChunkRequisitionRegistry());
+                auto requisition = chunk->GetAggregatedRequisition(chunkManager->GetChunkRequisitionRegistry());
                 BuildYsonFluently(consumer)
                     .Value(TSerializableChunkRequisition(requisition, chunkManager));
                 return true;
