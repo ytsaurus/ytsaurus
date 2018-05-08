@@ -3746,6 +3746,9 @@ void TOperationControllerBase::ProcessFinishedJobResult(std::unique_ptr<TJobSumm
         (stderrChunkId && StderrCount_ < Spec_->MaxStderrCount);
 
     if (!shouldCreateJobNode) {
+        if (stderrChunkId) {
+            Host->AddChunkTreesToUnstageList({stderrChunkId}, false /* recursive */);
+        }
         return;
     }
 
