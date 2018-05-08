@@ -389,7 +389,14 @@ TOperationControllerInitializationResult TOperationControllerBase::InitializeRev
 
         auto scheduleAbort = [&] (const ITransactionPtr& transaction) {
             if (transaction) {
-                asyncResults.push_back(transaction->Abort());
+                auto connection = GetRemoteConnectionOrThrow(Host->GetClient()->GetNativeConnection(), CellTagFromId(transaction->GetId()));
+                auto client = connection->CreateNativeClient(TClientOptions(NSecurityClient::SchedulerUserName));
+
+                // Transaction object may be in incorrect state, we need to abort using only transaction id.
+                TTransactionAttachOptions options;
+                options.Ping = false;
+                options.PingAncestors = false;
+                asyncResults.push_back(client->AttachTransaction(transaction->GetId(), options)->Abort());
             }
         };
 
