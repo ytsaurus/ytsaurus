@@ -57,6 +57,7 @@ struct IInstance
     virtual TResourceLimits GetResourceLimits() const = 0;
     virtual void SetCpuLimit(double cores) = 0;
     virtual void SetCpuShare(double cores) = 0;
+    virtual void SetCpuWeight(double weight) = 0;
     virtual void SetIOWeight(double weight) = 0;
     virtual void SetIOThrottle(i64 operations) = 0;
     virtual void SetMemoryGuarantee(i64 memoryGuarantee) = 0;
