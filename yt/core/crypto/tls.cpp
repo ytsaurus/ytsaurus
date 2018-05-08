@@ -516,6 +516,51 @@ void TSslContext::AddPrivateKeyFromFile(const TString& path)
     }
 }
 
+void TSslContext::AddCertificateChain(const TString& certificateChain)
+{
+    auto bio = BIO_new_mem_buf(certificateChain.c_str(), certificateChain.size());
+    YCHECK(bio);
+    auto freeBio = Finally([&] {
+        BIO_free(bio);
+    });
+
+    auto certificateObject = PEM_read_bio_X509_AUX(bio, nullptr, nullptr, nullptr);
+    if (!certificateObject) {
+        THROW_ERROR_EXCEPTION("PEM_read_bio_X509_AUX")
+            << GetLastSslError();
+    }
+    auto freeCertificate = Finally([&] {
+        X509_free(certificateObject);
+    });
+
+    if (SSL_CTX_use_certificate(Impl_->Ctx, certificateObject) != 1) {
+        THROW_ERROR_EXCEPTION("SSL_CTX_use_certificate failed")
+            << GetLastSslError();
+    }
+
+    SSL_CTX_clear_chain_certs(Impl_->Ctx);
+    while (true) {
+        auto chainCertificateObject = PEM_read_bio_X509(bio, nullptr, nullptr, nullptr);
+        if (!chainCertificateObject) {
+            int err = ERR_peek_last_error();
+            if (ERR_GET_LIB(err) == ERR_LIB_PEM && ERR_GET_REASON(err) == PEM_R_NO_START_LINE) {
+                ERR_clear_error();
+                break;
+            }
+
+            THROW_ERROR_EXCEPTION("PEM_read_bio_X509")
+                << GetLastSslError();
+        }
+
+        int result = SSL_CTX_add0_chain_cert(Impl_->Ctx, chainCertificateObject);
+        if (!result) {
+            X509_free(chainCertificateObject);
+            THROW_ERROR_EXCEPTION("SSL_CTX_add0_chain_cert")
+                << GetLastSslError();
+        }
+    }
+}
+
 void TSslContext::AddCertificate(const TString& certificate)
 {
     auto bio = BIO_new_mem_buf(certificate.c_str(), certificate.size());

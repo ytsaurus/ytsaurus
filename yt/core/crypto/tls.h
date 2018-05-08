@@ -28,6 +28,7 @@ public:
     void AddPrivateKeyFromFile(const TString& path);
 
     void AddCertificate(const TString& certificate);
+    void AddCertificateChain(const TString& certificateChain);
     void AddPrivateKey(const TString& privateKey);
 
     NNet::IDialerPtr CreateDialer(
