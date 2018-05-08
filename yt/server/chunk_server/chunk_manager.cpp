@@ -837,6 +837,11 @@ public:
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         auto cellIndex = multicellManager->GetRegisteredMasterCellIndex(destinationCellTag);
 
+        if (!chunk->IsExportedToCell(cellIndex)) {
+            LOG_ERROR("Unexpected error: chunk is not exported and cannot be unexported (ChunkId: %v, CellTag: %v, CellIndex: %v, ImportRefCounter: %v)", chunk->GetId(), destinationCellTag, cellIndex, importRefCounter);
+            return;
+        }
+
         auto externalRequisitionIndexBefore = chunk->GetExternalRequisitionIndex(cellIndex);
         auto requisitionBefore = chunk->ComputeRequisition(GetChunkRequisitionRegistry());
 
@@ -1588,7 +1593,13 @@ private:
             auto* chunk = update.Chunk;
             auto newRequisitionIndex = update.TranslatedRequisitionIndex;
 
+            if (!local && !chunk->IsExportedToCell(cellIndex)) {
+                // The chunk has already been unexported from that cell.
+                continue;
+            }
+
             auto curRequisitionIndex = local ? chunk->GetLocalRequisitionIndex() : chunk->GetExternalRequisitionIndex(cellIndex);
+
             if (newRequisitionIndex == curRequisitionIndex) {
                 continue;
             }
