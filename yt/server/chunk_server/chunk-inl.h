@@ -105,6 +105,7 @@ inline void TChunk::SetJob(TJobPtr job)
 
 inline void TChunk::RefUsedRequisitions(TChunkRequisitionRegistry* registry) const
 {
+    registry->Ref(AggregatedRequisitionIndex_);
     registry->Ref(LocalRequisitionIndex_);
 
     if (ExportCounter_ == 0) {
@@ -122,6 +123,7 @@ inline void TChunk::UnrefUsedRequisitions(
     TChunkRequisitionRegistry* registry,
     const NObjectServer::TObjectManagerPtr& objectManager) const
 {
+    registry->Unref(AggregatedRequisitionIndex_, objectManager);
     registry->Unref(LocalRequisitionIndex_, objectManager);
 
     if (ExportCounter_ == 0) {
@@ -148,6 +150,8 @@ inline void TChunk::SetLocalRequisitionIndex(
     registry->Unref(LocalRequisitionIndex_, objectManager);
     LocalRequisitionIndex_ = requisitionIndex;
     registry->Ref(LocalRequisitionIndex_);
+
+    UpdateAggregatedRequisitionIndex(registry, objectManager);
 }
 
 inline TChunkRequisitionIndex TChunk::GetExternalRequisitionIndex(int cellIndex) const
@@ -168,9 +172,31 @@ inline void TChunk::SetExternalRequisitionIndex(
     registry->Unref(data.ChunkRequisitionIndex, objectManager);
     data.ChunkRequisitionIndex = requisitionIndex;
     registry->Ref(data.ChunkRequisitionIndex);
+
+    UpdateAggregatedRequisitionIndex(registry, objectManager);
 }
 
-inline TChunkRequisition TChunk::ComputeRequisition(const TChunkRequisitionRegistry* registry) const
+inline void TChunk::UpdateAggregatedRequisitionIndex(
+    TChunkRequisitionRegistry* registry,
+    const NObjectServer::TObjectManagerPtr& objectManager)
+{
+    auto requisition = ComputeAggregatedRequisition(registry);
+    if (requisition.GetEntryCount() == 0) {
+        // This doesn't mean the chunk is no longer needed; this may be a
+        // temporary contingency. The aggregated requisition should never
+        // be made empty as this may confuse the replicator.
+        return;
+    }
+
+    auto newIndex = registry->GetOrCreate(requisition, objectManager);
+    if (newIndex != AggregatedRequisitionIndex_) {
+        registry->Unref(AggregatedRequisitionIndex_, objectManager);
+        AggregatedRequisitionIndex_ = newIndex;
+        registry->Ref(AggregatedRequisitionIndex_);
+    }
+}
+
+inline TChunkRequisition TChunk::ComputeAggregatedRequisition(const TChunkRequisitionRegistry* registry)
 {
     auto result = registry->GetRequisition(LocalRequisitionIndex_);
 
@@ -187,52 +213,30 @@ inline TChunkRequisition TChunk::ComputeRequisition(const TChunkRequisitionRegis
     return result;
 }
 
-inline TNullable<TChunkReplication> TChunk::ComputeReplication(const TChunkRequisitionRegistry* registry) const
+inline const TChunkRequisition& TChunk::GetAggregatedRequisition(const TChunkRequisitionRegistry* registry) const
 {
-    auto result = registry->GetReplication(LocalRequisitionIndex_);
-
-    auto nonEmptyRequisitionCount = 0;
-    if (LocalRequisitionIndex_ != EmptyChunkRequisitionIndex) {
-        ++nonEmptyRequisitionCount;
-    }
-
-    // Shortcut for non-exported chunk.
-    if (ExportCounter_ == 0) {
-        return MakeNullable(nonEmptyRequisitionCount != 0, result);
-    }
-
-    for (const auto& data : ExportDataList_) {
-        if (data.RefCounter != 0) {
-            result |= registry->GetReplication(data.ChunkRequisitionIndex);
-            if (data.ChunkRequisitionIndex != EmptyChunkRequisitionIndex) {
-                ++nonEmptyRequisitionCount;
-            }
-        }
-    }
-
-    return MakeNullable(nonEmptyRequisitionCount != 0, result);
+    YCHECK(AggregatedRequisitionIndex_ != EmptyChunkRequisitionIndex);
+    return registry->GetRequisition(AggregatedRequisitionIndex_);
 }
 
-inline TNullable<int> TChunk::ComputeReplicationFactor(int mediumIndex, const TChunkRequisitionRegistry* registry) const
+inline TChunkReplication TChunk::GetAggregatedReplication(const TChunkRequisitionRegistry* registry) const
 {
-    auto replication = ComputeReplication(registry);
-    if (!replication) {
-        return Null;
-    }
-    return (*replication)[mediumIndex].GetReplicationFactor();
+    YCHECK(AggregatedRequisitionIndex_ != EmptyChunkRequisitionIndex);
+    return registry->GetReplication(AggregatedRequisitionIndex_);
 }
 
-inline TNullable<TPerMediumIntArray> TChunk::ComputeReplicationFactors(const TChunkRequisitionRegistry* registry) const
+inline int TChunk::GetAggregatedReplicationFactor(int mediumIndex, const TChunkRequisitionRegistry* registry) const
 {
+    return GetAggregatedReplication(registry)[mediumIndex].GetReplicationFactor();
+}
+
+inline TPerMediumIntArray TChunk::GetAggregatedReplicationFactors(const TChunkRequisitionRegistry* registry) const
+{
+    auto replication = GetAggregatedReplication(registry);
+
     TPerMediumIntArray result;
-
-    auto replication = ComputeReplication(registry);
-    if (!replication) {
-        return Null;
-    }
-
     auto resultIt = std::begin(result);
-    for (const auto& policy : *replication) {
+    for (const auto& policy : replication) {
         *resultIt++ = policy.GetReplicationFactor();
     }
 

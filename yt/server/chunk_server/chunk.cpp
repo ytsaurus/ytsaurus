@@ -35,9 +35,10 @@ const TChunk::TReplicasData TChunk::EmptyReplicasData = {};
 
 TChunk::TChunk(const TChunkId& id)
     : TChunkTree(id)
-    , LocalRequisitionIndex_(IsErasure()
+    , AggregatedRequisitionIndex_(IsErasure()
         ? MigrationErasureChunkRequisitionIndex
         : MigrationChunkRequisitionIndex)
+    , LocalRequisitionIndex_(AggregatedRequisitionIndex_)
 {
     ChunkMeta_.set_type(static_cast<int>(EChunkType::Unknown));
     ChunkMeta_.set_version(-1);
@@ -87,6 +88,7 @@ void TChunk::Save(NCellMaster::TSaveContext& context) const
     using NYT::Save;
     Save(context, ChunkInfo_);
     Save(context, ChunkMeta_);
+    Save(context, AggregatedRequisitionIndex_);
     Save(context, LocalRequisitionIndex_);
     Save(context, ReadQuorum_);
     Save(context, WriteQuorum_);
@@ -144,6 +146,11 @@ void TChunk::Load(NCellMaster::TLoadContext& context)
     using NYT::Load;
     Load(context, ChunkInfo_);
     Load(context, ChunkMeta_);
+
+    // COMPAT(shakurov)
+    if (context.GetVersion() >= 709) {
+        Load(context, AggregatedRequisitionIndex_);
+    } // Else it's recomputed by the chunk manager.
 
     // COMPAT(shakurov)
     // Previously, chunks didn't store info on which account requested which RF -
@@ -464,7 +471,7 @@ void TChunk::Seal(const TMiscExt& info)
     ChunkInfo_.set_disk_space(info.uncompressed_data_size());  // an approximation
 }
 
-TNullable<int> TChunk::GetMaxReplicasPerRack(
+int TChunk::GetMaxReplicasPerRack(
     int mediumIndex,
     TNullable<int> replicationFactorOverride,
     const TChunkRequisitionRegistry* registry) const
@@ -474,11 +481,8 @@ TNullable<int> TChunk::GetMaxReplicasPerRack(
             if (replicationFactorOverride) {
                 return *replicationFactorOverride;
             }
-            auto replicationFactor = ComputeReplicationFactor(mediumIndex, registry);
-            if (replicationFactor) {
-                return std::max(*replicationFactor - 1, 1);
-            }
-            return Null;
+            auto replicationFactor = GetAggregatedReplicationFactor(mediumIndex, registry);
+            return std::max(replicationFactor - 1, 1);
         }
 
         case EObjectType::ErasureChunk:
@@ -512,6 +516,8 @@ void TChunk::Export(int cellIndex, TChunkRequisitionRegistry* registry)
 
         YCHECK(data.ChunkRequisitionIndex == EmptyChunkRequisitionIndex);
         registry->Ref(data.ChunkRequisitionIndex);
+        // NB: an empty requisition doesn't affect the aggregated requisition
+        // and thus doesn't call for updating the latter.
     }
 }
 
@@ -527,6 +533,8 @@ void TChunk::Unexport(
         data.ChunkRequisitionIndex = EmptyChunkRequisitionIndex; // just in case
 
         --ExportCounter_;
+
+        UpdateAggregatedRequisitionIndex(registry, objectManager);
     }
 }
 
