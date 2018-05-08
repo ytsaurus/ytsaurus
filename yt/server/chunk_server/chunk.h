@@ -151,8 +151,9 @@ public:
         TChunkRequisitionRegistry* registry,
         const NObjectServer::TObjectManagerPtr& objectManager);
 
-    // TODO(shakurov): fix this and get rid of TNullable.
-    TNullable<TChunkRequisitionIndex> GetExternalRequisitionIndex(int cellIndex) const;
+    //! Prerequisite: IsExportedToCell(cellIndex).
+    TChunkRequisitionIndex GetExternalRequisitionIndex(int cellIndex) const;
+    //! Prerequisite: IsExportedToCell(cellIndex).
     void SetExternalRequisitionIndex(
         int cellIndex,
         TChunkRequisitionIndex requisitionIndex,
@@ -241,6 +242,9 @@ public:
      *  \see #TMulticellManager::GetRegisteredMasterCellIndex
      */
     const TChunkExportData& GetExportData(int cellIndex) const;
+
+    //! Same as GetExportData(cellIndex).RefCounter != 0.
+    bool IsExportedToCell(int cellIndex) const;
 
     int ExportCounter() const;
 

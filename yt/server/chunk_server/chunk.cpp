@@ -499,6 +499,11 @@ const TChunkExportData& TChunk::GetExportData(int cellIndex) const
     return ExportDataList_[cellIndex];
 }
 
+bool TChunk::IsExportedToCell(int cellIndex) const
+{
+    return ExportDataList_[cellIndex].RefCounter != 0;
+}
+
 void TChunk::Export(int cellIndex, TChunkRequisitionRegistry* registry)
 {
     auto& data = ExportDataList_[cellIndex];
