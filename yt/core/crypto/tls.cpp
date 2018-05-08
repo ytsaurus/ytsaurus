@@ -526,7 +526,7 @@ void TSslContext::AddCertificateChain(const TString& certificateChain)
 
     auto certificateObject = PEM_read_bio_X509_AUX(bio, nullptr, nullptr, nullptr);
     if (!certificateObject) {
-        THROW_ERROR_EXCEPTION("PEM_read_bio_X509_AUX")
+        THROW_ERROR_EXCEPTION("PEM_read_bio_X509_AUX failed")
             << GetLastSslError();
     }
     auto freeCertificate = Finally([&] {
@@ -594,7 +594,7 @@ void TSslContext::AddPrivateKey(const TString& privateKey)
 
     auto privateKeyObject = PEM_read_bio_PrivateKey(bio, nullptr, nullptr, nullptr);
     if (!privateKeyObject) {
-        THROW_ERROR_EXCEPTION("PEM_read_bio_PrivateKey")
+        THROW_ERROR_EXCEPTION("PEM_read_bio_PrivateKey failed")
             << GetLastSslError();
     }
     auto freePrivateKey = Finally([&] {
