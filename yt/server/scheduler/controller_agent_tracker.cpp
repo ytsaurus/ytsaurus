@@ -940,7 +940,7 @@ public:
                         protoEvent->set_interrupt_reason(static_cast<int>(*event.InterruptReason));
                     }
                     if (event.AbortedByScheduler) {
-                        protoEvent->set_aborted_by_scheduler(true);
+                        protoEvent->set_aborted_by_scheduler(*event.AbortedByScheduler);
                     }
                 });
 
