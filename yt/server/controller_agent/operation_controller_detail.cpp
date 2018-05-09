@@ -232,31 +232,56 @@ TOperationControllerBase::TOperationControllerBase(
         ? Host->GetClient()->AttachTransaction(UserTransactionId, userAttachOptions)
         : nullptr;
 
-    auto createService = [&] (auto fluentMethod) -> IYPathServicePtr {
-        return IYPathService::FromProducer(BIND([fluentMethod = std::move(fluentMethod)] (IYsonConsumer* consumer) {
+    auto createService = [=] (auto fluentMethod) -> IYPathServicePtr {
+        return IYPathService::FromProducer(BIND([fluentMethod = std::move(fluentMethod), weakThis = MakeWeak(this)] (IYsonConsumer* consumer) {
+            if (!weakThis.Lock()) {
+                THROW_ERROR_EXCEPTION(NYTree::EErrorCode::ResolveError, "Operation controller was destroyed");
+            }
             BuildYsonFluently(consumer)
+                .Do(fluentMethod);
+        }));
+    };
+
+    // Methods like BuildProgress, BuildBriefProgress, buildJobsYson and BuildJobSplitterInfo build map fragment,
+    // so we have to enclose them with a map in order to pass into createService helper.
+    // TODO(max42): get rid of this when GetOperationInfo is not stopping us from changing Build* signatures any more.
+    auto wrapWithMap = [=] (auto fluentMethod) {
+        return [=, fluentMethod = std::move(fluentMethod)] (TFluentAny fluent) {
+            fluent
                 .BeginMap()
                     .Do(fluentMethod)
                 .EndMap();
-        }))
+        };
+    };
+
+    auto createCachedMapService = [=] (auto fluentMethod) -> IYPathServicePtr {
+        return createService(wrapWithMap(std::move(fluentMethod)))
             ->Via(Invoker)
             ->Cached(Config->ControllerStaticOrchidUpdatePeriod);
     };
 
+    // NB: we may safely pass unretained this below as all the callbacks are wrapped with a createService helper
+    // that takes care on checking the controller presence and properly replying in case it is already destroyed.
     Orchid_ = New<TCompositeMapService>()
-        ->AddChild("progress", createService(BIND(&TOperationControllerBase::BuildProgress, Unretained(this))))
-        ->AddChild("brief_progress", createService(BIND(&TOperationControllerBase::BuildBriefProgress, Unretained(this))))
-        ->AddChild("running_jobs", createService(BIND(&TOperationControllerBase::BuildJobsYson, Unretained(this))))
-        ->AddChild("job_splitter", createService(BIND(&TOperationControllerBase::BuildJobSplitterInfo, Unretained(this))))
-        ->AddChild("memory_usage", IYPathService::FromProducer(BIND([this] (IYsonConsumer* consumer) {
-            BuildYsonFluently(consumer)
-                .Value(GetMemoryUsage());
-        })))
-        ->AddChild("state", IYPathService::FromProducer(BIND([this] (IYsonConsumer* consumer) {
-            BuildYsonFluently(consumer)
-                .Value(State.load());
-        })))
-            ->Via(Invoker);
+        ->AddChild("progress", createCachedMapService(BIND(&TOperationControllerBase::BuildProgress, Unretained(this))))
+        ->AddChild("brief_progress", createCachedMapService(BIND(&TOperationControllerBase::BuildBriefProgress, Unretained(this))))
+        ->AddChild("running_jobs", createCachedMapService(BIND(&TOperationControllerBase::BuildJobsYson, Unretained(this))))
+        ->AddChild("job_splitter", createCachedMapService(BIND(&TOperationControllerBase::BuildJobSplitterInfo, Unretained(this))))
+        ->AddChild("memory_usage", createService(BIND(&TOperationControllerBase::BuildMemoryUsageYson, Unretained(this))))
+        ->AddChild("state", createService(BIND(&TOperationControllerBase::BuildStateYson, Unretained(this))))
+        ->Via(Invoker);
+}
+
+void TOperationControllerBase::BuildMemoryUsageYson(TFluentAny fluent) const
+{
+    fluent
+        .Value(GetMemoryUsage());
+}
+
+void TOperationControllerBase::BuildStateYson(TFluentAny fluent) const
+{
+    fluent
+        .Value(State.load());
 }
 
 // Resource management.
