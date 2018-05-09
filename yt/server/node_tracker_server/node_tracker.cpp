@@ -1384,7 +1384,7 @@ private:
 
         try {
             // Update "orchid" child.
-            auto req = TYPathProxy::Set(nodePath + "/orchid/@remote_addresses");
+            auto req = TYPathProxy::Set(nodePath + "/orchid&/@remote_addresses");
             req->set_value(ConvertToYsonString(node->GetAddressesOrThrow(EAddressType::InternalRpc)).GetData());
             SyncExecuteVerb(rootService, req);
         } catch (const std::exception& ex) {
