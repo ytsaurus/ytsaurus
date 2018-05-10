@@ -322,11 +322,11 @@ const std::shared_ptr<TFileHandle>& TFileReader::GetDataFile()
     if (!HasCachedDataFile_) {
         TGuard<TMutex> guard(Mutex_);
         if (!CachedDataFile_) {
-            CachedDataFile_ = WaitFor(IOEngine_->Open(FileName_, OpenExisting | RdOnly | CloseOnExec)).ValueOrThrow();
+            CachedDataFile_ = IOEngine_->Open(FileName_, OpenExisting | RdOnly | CloseOnExec);
             HasCachedDataFile_ = true;
         }
     }
-    return CachedDataFile_;
+    return CachedDataFile_.Get().ValueOrThrow();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
