@@ -2582,6 +2582,10 @@ void TOperationControllerBase::CheckAvailableExecNodes()
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvoker);
 
+    if (AvailableExecNodesWereObserved_) {
+        return;
+    }
+
     if (ShouldSkipSanityCheck()) {
         return;
     }
@@ -2603,6 +2607,8 @@ void TOperationControllerBase::CheckAvailableExecNodes()
     if (!success) {
         OnOperationFailed(TError("No online nodes match operation scheduling tag filter %Qv",
             Spec_->SchedulingTagFilter.GetFormula()));
+    } else {
+        AvailableExecNodesWereObserved_ = true;
     }
 }
 
@@ -6980,6 +6986,10 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
         if (context.IsLoad()) {
             UnrecognizedSpec_ = ConvertTo<IMapNodePtr>(unrecognizedSpecYson);
         }
+    }
+
+    if (context.GetVersion() >= 300003) {
+        Persist(context, AvailableExecNodesWereObserved_);
     }
 
     // NB: Keep this at the end of persist as it requires some of the previous

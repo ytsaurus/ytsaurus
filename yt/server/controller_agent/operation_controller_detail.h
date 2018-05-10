@@ -1015,6 +1015,8 @@ private:
     //! Timestamp of last successfull uploaded snapshot.
     TInstant LastSuccessfulSnapshotTime_ = TInstant::Zero();
 
+    bool AvailableExecNodesWereObserved_ = false;
+
     TSpinLock AlertsLock_;
     TOperationAlertMap Alerts_;
 

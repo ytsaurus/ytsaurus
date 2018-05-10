@@ -3,6 +3,7 @@ from yt_commands import *
 
 from yt.yson import *
 from yt.wrapper import JsonFormat
+from yt.common import date_string_to_datetime
 
 import yt.environment.init_operation_archive as init_operation_archive
 from yt.environment.helpers import assert_almost_equal
@@ -1927,6 +1928,8 @@ class TestSchedulingTags(YTEnvSetup):
                 "flush_period": 300,
                 "retry_backoff_time": 300
             },
+            "available_exec_nodes_check_period": 100,
+            "snapshot_period": 500,
         }
     }
 
@@ -2019,6 +2022,50 @@ class TestSchedulingTags(YTEnvSetup):
         op = map(command="cat", in_="//tmp/t_in", out="//tmp/t_out", spec={"job_count": 20})
         time.sleep(0.8)
         assert len(get_job_nodes(op)) <= 2
+
+    def test_missing_nodes_after_revive(self):
+        self._prepare()
+
+        custom_node = None
+        for node in ls("//sys/nodes", attributes=["user_tags"]):
+            if "tagC" in node.attributes["user_tags"]:
+                custom_node = str(node)
+
+        op = map(
+            dont_track=True,
+            command="sleep 1000",
+            in_=["//tmp/t_in"],
+            out="//tmp/t_out",
+            spec={
+                "pool_trees": ["other"],
+                "scheduling_tag_filter": "tagC",
+            })
+
+        wait(lambda: len(op.get_running_jobs()) > 0)
+
+        now = datetime.utcnow()
+        snapshot_path = "//sys/operations/{0}/snapshot".format(op.id)
+        wait(lambda: date_string_to_datetime(get(snapshot_path + "/@creation_time")) > now)
+
+        self.Env.kill_schedulers()
+
+        set("//sys/nodes/{0}/@user_tags".format(custom_node), [])
+
+        self.Env.start_schedulers()
+
+        wait(lambda: self._get_slots_by_filter("tagC") == 0)
+
+        running_jobs = list(op.get_running_jobs())
+        if running_jobs:
+            abort_job(running_jobs[0])
+
+        time.sleep(5)
+        assert len(op.get_running_jobs()) == 0
+        assert op.get_state() == "running"
+
+        set("//sys/nodes/{0}/@user_tags".format(custom_node), ["tagC"])
+        wait(lambda: len(op.get_running_jobs()) > 0)
+
 
 ##################################################################
 
