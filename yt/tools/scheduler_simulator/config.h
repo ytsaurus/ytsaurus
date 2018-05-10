@@ -73,6 +73,8 @@ public:
 
     int CyclesPerFlush;
 
+    int ThreadCount;
+
     TSchedulerSimulatorConfig()
     {
         RegisterParameter("node_groups", NodeGroups);
@@ -96,6 +98,10 @@ public:
 
         RegisterParameter("cycles_per_flush", CyclesPerFlush)
             .Default(100000)
+            .GreaterThan(0);
+
+        RegisterParameter("thread_count", ThreadCount)
+            .Default(2)
             .GreaterThan(0);
     }
 };

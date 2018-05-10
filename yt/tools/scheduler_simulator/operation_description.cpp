@@ -53,6 +53,7 @@ void Deserialize(TJobDescription& value, NYTree::INodePtr node)
     value.ResourceLimits.SetCpu(TCpuResource(listNode->GetChild(2)->AsDouble()->GetValue()));
     value.ResourceLimits.SetUserSlots(listNode->GetChild(3)->AsInt64()->GetValue());
     value.ResourceLimits.SetNetwork(listNode->GetChild(4)->AsInt64()->GetValue());
+    value.ResourceLimits.SetGpu(0);
     value.Id = ConvertTo<TGuid>(listNode->GetChild(5));
     auto jobType = ConvertTo<TString>(listNode->GetChild(6));
     if (jobType == "partition_sort") {
