@@ -106,6 +106,7 @@
 namespace NYT {
 namespace NApi {
 
+using namespace NCrypto;
 using namespace NConcurrency;
 using namespace NYPath;
 using namespace NYTree;

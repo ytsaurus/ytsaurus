@@ -9,6 +9,7 @@
 #include <util/generic/strbuf.h>
 
 namespace NYT {
+namespace NCrypto {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -64,11 +65,12 @@ private:
 
 namespace NProto {
 
-void ToProto(NProto::TMD5Hasher* protoHasher, const TNullable<NYT::TMD5Hasher>& hasher);
-void FromProto(TNullable<NYT::TMD5Hasher>* hasher, const NProto::TMD5Hasher& protoHasher);
+void ToProto(NCrypto::NProto::TMD5Hasher* protoHasher, const TNullable<NYT::NCrypto::TMD5Hasher>& hasher);
+void FromProto(TNullable<NYT::NCrypto::TMD5Hasher>* hasher, const NCrypto::NProto::TMD5Hasher& protoHasher);
 
 } // namespace NProto
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NCrypto
 } // namespace NYT

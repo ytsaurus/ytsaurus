@@ -17,7 +17,7 @@ class TFileNode
     : public NChunkServer::TChunkOwnerBase
 {
 public:
-    DEFINE_BYVAL_RW_PROPERTY(TNullable<TMD5Hasher>, MD5Hasher);
+    DEFINE_BYVAL_RW_PROPERTY(TNullable<NCrypto::TMD5Hasher>, MD5Hasher);
 
     TFileNode* GetTrunkNode();
     const TFileNode* GetTrunkNode() const;
@@ -33,8 +33,8 @@ public:
         const NTableServer::TSharedTableSchemaPtr& sharedSchema,
         NTableClient::ETableSchemaMode schemaMode,
         TNullable<NTableClient::EOptimizeFor> optimizeFor,
-        const TNullable<TMD5Hasher>& md5Hasher) override;
-    virtual void GetUploadParams(TNullable<TMD5Hasher>* md5Hasher) override;
+        const TNullable<NCrypto::TMD5Hasher>& md5Hasher) override;
+    virtual void GetUploadParams(TNullable<NCrypto::TMD5Hasher>* md5Hasher) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -4,37 +4,10 @@
 
 #include <yt/core/http/config.h>
 
+#include <yt/core/crypto/config.h>
+
 namespace NYT {
 namespace NHttps {
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TPemBlobConfig
-    : public NYTree::TYsonSerializable
-{
-public:
-    TNullable<TString> FileName;
-    TNullable<TString> Value;
-
-    TPemBlobConfig()
-    {
-        RegisterParameter("file_name", FileName)
-            .Optional();
-        RegisterParameter("value", Value)
-            .Optional();
-
-        RegisterPostprocessor([&] {
-            if (FileName && Value) {
-                THROW_ERROR_EXCEPTION("Cannot specify both \"file_name\" and \"value\"");
-            }
-            if (!FileName && !Value) {
-                THROW_ERROR_EXCEPTION("Must specify either \"file_name\" or \"value\"");
-            }
-        });
-    }
-};
-
-DEFINE_REFCOUNTED_TYPE(TPemBlobConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -42,15 +15,10 @@ class TServerCredentialsConfig
     : public NYTree::TYsonSerializable
 {
 public:
-    //TPemBlobConfigPtr PemRootCerts;
-    //std::vector<TSslPemKeyCertPairConfigPtr> PemKeyCertPairs;
-    //
-    //TServerCredentialsConfig()
-    //{
-    //    RegisterParameter("pem_root_certs", PemRootCerts)
-    //        .Optional();
-    //    RegisterParameter("pem_key_cert_pairs", PemKeyCertPairs);
-    //}
+    NCrypto::TPemBlobConfigPtr PrivateKey;
+    NCrypto::TPemBlobConfigPtr CertChain;
+
+    TServerCredentialsConfig();
 };
 
 DEFINE_REFCOUNTED_TYPE(TServerCredentialsConfig)
@@ -66,7 +34,21 @@ public:
     TServerConfig();
 };
 
-DEFINE_REFCOUNTED_TYPE(TServerConfig);
+DEFINE_REFCOUNTED_TYPE(TServerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TClientCredentialsConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    NCrypto::TPemBlobConfigPtr PrivateKey;
+    NCrypto::TPemBlobConfigPtr CertChain;
+
+    TClientCredentialsConfig();
+};
+
+DEFINE_REFCOUNTED_TYPE(TClientCredentialsConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -74,11 +56,12 @@ class TClientConfig
     : public NHttp::TClientConfig
 {
 public:
+    TClientCredentialsConfigPtr Credentials;
 
     TClientConfig();
 };
 
-DEFINE_REFCOUNTED_TYPE(TClientConfig);
+DEFINE_REFCOUNTED_TYPE(TClientConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -8,6 +8,7 @@
 #include <contrib/libs/openssl/crypto/sha/sha.h>
 
 namespace NYT {
+namespace NCrypto {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -136,7 +137,7 @@ TString TSHA1Hasher::GetHexDigestLower()
 
 namespace NProto {
 
-void ToProto(NProto::TMD5Hasher* protoHasher, const TNullable<NYT::TMD5Hasher>& hasher)
+void ToProto(NCrypto::NProto::TMD5Hasher* protoHasher, const TNullable<NYT::NCrypto::TMD5Hasher>& hasher)
 {
     auto* outputBytes = protoHasher->mutable_state();
     outputBytes->clear();
@@ -148,7 +149,7 @@ void ToProto(NProto::TMD5Hasher* protoHasher, const TNullable<NYT::TMD5Hasher>& 
     outputBytes->assign(state.begin(), state.end());
 }
 
-void FromProto(TNullable<NYT::TMD5Hasher>* hasher, const NProto::TMD5Hasher& protoHasher)
+void FromProto(TNullable<NYT::NCrypto::TMD5Hasher>* hasher, const NCrypto::NProto::TMD5Hasher& protoHasher)
 {
     const auto& inputBytes = protoHasher.state();
     if (inputBytes.empty()) {
@@ -165,5 +166,6 @@ void FromProto(TNullable<NYT::TMD5Hasher>* hasher, const NProto::TMD5Hasher& pro
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NCrypto
 } // namespace NYT
 

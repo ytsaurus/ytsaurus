@@ -13,6 +13,7 @@ class TServerConfig
     : public NYTree::TYsonSerializable
 {
 public:
+    //! If zero then the port is chosen automatically.
     int Port;
 
     //! Limit for number of open TCP connections.
