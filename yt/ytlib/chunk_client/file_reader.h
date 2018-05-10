@@ -66,7 +66,7 @@ private:
 
     TMutex Mutex_;
     std::atomic<bool> HasCachedDataFile_ = {false};
-    TFuture<std::shared_ptr<TFileHandle>> CachedDataFile_;
+    std::shared_ptr<TFileHandle> CachedDataFile_;
     std::atomic<bool> HasCachedBlocksExt_ = {false};
     TFuture<NProto::TBlocksExt> CachedBlocksExt_;
 
