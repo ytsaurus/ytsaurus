@@ -1,3 +1,5 @@
+#pragma once
+
 #include "ref_counted_tracker.h"
 
 #include <yt/core/yson/public.h>
