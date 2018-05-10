@@ -288,19 +288,18 @@ TFuture<TChunkMeta> TFileReader::DoGetMeta(
 
     auto metaFileName = FileName_ + ChunkMetaSuffix;
 
-    return IOEngine_->Open(
+    auto metaFile = IOEngine_->Open(
         metaFileName,
-        OpenExisting | RdOnly | Seq | CloseOnExec).Apply(
-            BIND([this, metaFileName, this_ = MakeStrong(this)] (const std::shared_ptr<TFileHandle>& metaFile) {
-                if (metaFile->GetLength() < sizeof (TChunkMetaHeaderBase)) {
-                    THROW_ERROR_EXCEPTION("Chunk meta file %v is too short: at least %v bytes expected",
-                                          FileName_,
-                                          sizeof (TChunkMetaHeaderBase));
-                }
+        OpenExisting | RdOnly | Seq | CloseOnExec);
 
-                return IOEngine_->Pread(metaFile, metaFile->GetLength(), 0)
-                        .Apply(BIND(&TFileReader::OnMetaDataBlock, MakeStrong(this), metaFileName, metaFile->GetLength()));
-            }));
+    if (metaFile->GetLength() < sizeof (TChunkMetaHeaderBase)) {
+        THROW_ERROR_EXCEPTION("Chunk meta file %v is too short: at least %v bytes expected",
+            FileName_,
+            sizeof (TChunkMetaHeaderBase));
+    }
+
+    return IOEngine_->Pread(metaFile, metaFile->GetLength(), 0)
+        .Apply(BIND(&TFileReader::OnMetaDataBlock, MakeStrong(this), metaFileName, metaFile->GetLength()));
 }
 
 const TBlocksExt& TFileReader::GetBlockExts()
@@ -322,7 +321,7 @@ const std::shared_ptr<TFileHandle>& TFileReader::GetDataFile()
     if (!HasCachedDataFile_) {
         TGuard<TMutex> guard(Mutex_);
         if (!CachedDataFile_) {
-            CachedDataFile_ = WaitFor(IOEngine_->Open(FileName_, OpenExisting | RdOnly | CloseOnExec)).ValueOrThrow();
+            CachedDataFile_ = IOEngine_->Open(FileName_, OpenExisting | RdOnly | CloseOnExec);
             HasCachedDataFile_ = true;
         }
     }

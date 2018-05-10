@@ -95,11 +95,18 @@ public:
         , UseDirectIO_(config.UseDirectIO)
     { }
 
-    virtual TFuture<std::shared_ptr<TFileHandle>> Open(const TString& fName, EOpenMode oMode) override
+    virtual std::shared_ptr<TFileHandle> Open(const TString& fName, EOpenMode oMode) override
     {
-        return BIND(&TThreadedIOEngine::DoOpen, MakeStrong(this), fName, oMode)
-            .AsyncVia(ThreadPool_->GetInvoker())
-            .Run();
+        auto fh = std::make_shared<TFileHandle>(fName, oMode);
+        if (!fh->IsOpen()) {
+            THROW_ERROR_EXCEPTION("Cannot open %Qv with mode %v",
+                fName,
+                oMode) << TError::FromSystem();
+        }
+        if (UseDirectIO_ || oMode & DirectAligned) {
+            fh->SetDirect();
+        }
+        return fh;
     }
 
     virtual TFuture<TSharedMutableRef> Pread(const std::shared_ptr<TFileHandle>& fh, size_t len, i64 offset) override
@@ -168,21 +175,6 @@ private:
     bool DoFlush(const std::shared_ptr<TFileHandle>& fh)
     {
         return fh->Flush();
-    }
-
-    std::shared_ptr<TFileHandle> DoOpen(const TString& fName, EOpenMode oMode)
-    {
-        auto fh = std::make_shared<TFileHandle>(fName, oMode);
-        if (!fh->IsOpen()) {
-            THROW_ERROR_EXCEPTION(
-                "Cannot open %Qv with mode %v",
-                fName,
-                oMode) << TError::FromSystem();
-        }
-        if (UseDirectIO_ || oMode & DirectAligned) {
-            fh->SetDirect();
-        }
-        return fh;
     }
 
     TSharedMutableRef DoPread(const std::shared_ptr<TFileHandle>& fh, size_t numBytes, i64 offset)
@@ -448,8 +440,7 @@ public:
     explicit TAioEngine(const TAioEngineConfig& config)
         : MaxQueueSize_(config.MaxQueueSize)
         , Semaphore_(MaxQueueSize_)
-        , Thread_(TThread::TParams(StaticLoop, this).SetName("DiskEvents"))
-        , ThreadPool_(New<NConcurrency::TThreadPool>(1, "FileOpener"))
+        , Thread_(StaticLoop, this)
     {
         auto ret = io_setup(MaxQueueSize_, &Ctx_);
         if (ret < 0) {
@@ -489,11 +480,16 @@ public:
         return TrueFuture;
     }
 
-    virtual TFuture<std::shared_ptr<TFileHandle>> Open(const TString& fName, EOpenMode oMode) override
+    virtual std::shared_ptr<TFileHandle> Open(const TString& fName, EOpenMode oMode) override
     {
-        return BIND(&TAioEngine::DoOpen, MakeStrong(this), fName, oMode)
-            .AsyncVia(ThreadPool_->GetInvoker())
-            .Run();
+        auto fh = std::make_shared<TFileHandle>(fName, oMode);
+        if (!fh->IsOpen()) {
+            THROW_ERROR_EXCEPTION("Cannot open %Qv with mode %v",
+                fName,
+                oMode) << TError::FromSystem();
+        }
+        fh->SetDirect();
+        return fh;
     }
 
 private:
@@ -506,20 +502,7 @@ private:
     const size_t Alignment_ = 4_KB;
 
     TThread Thread_;
-    const NConcurrency::TThreadPoolPtr ThreadPool_;
 
-    std::shared_ptr<TFileHandle> DoOpen(const TString& fName, EOpenMode oMode)
-    {
-        auto fh = std::make_shared<TFileHandle>(fName, oMode);
-        if (!fh->IsOpen()) {
-            THROW_ERROR_EXCEPTION(
-                "Cannot open %Qv with mode %v",
-                fName,
-                oMode) << TError::FromSystem();
-        }
-        fh->SetDirect();
-        return fh;
-    }
 
     void Loop()
     {
