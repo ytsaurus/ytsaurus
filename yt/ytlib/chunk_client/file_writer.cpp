@@ -61,7 +61,7 @@ TFuture<void> TFileWriter::Open()
             }
             // NB: Races are possible between file creation and a call to flock.
             // Unfortunately in Linux we can't create'n'flock a file atomically.
-            DataFile_ = NConcurrency::WaitFor(IOEngine_->Open(FileName_ + NFS::TempFileSuffix, mode)).ValueOrThrow();
+            DataFile_ = IOEngine_->Open(FileName_ + NFS::TempFileSuffix, mode);
             DataFile_->Flock(LOCK_EX);
         });
     } catch (const std::exception& ex) {
