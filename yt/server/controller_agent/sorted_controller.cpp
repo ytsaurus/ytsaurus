@@ -430,7 +430,10 @@ protected:
 
         InitTeleportableInputTables();
 
-        bool autoMergeNeeded = TryInitAutoMerge(JobSizeConstraints_->GetJobCount(), DataWeightRatio);
+        bool autoMergeNeeded = false;
+        if (GetOperationType() != EOperationType::Merge) {
+            autoMergeNeeded = TryInitAutoMerge(JobSizeConstraints_->GetJobCount(), DataWeightRatio);
+        }
 
         if (autoMergeNeeded) {
             SortedTask_ = New<TAutoMergeableSortedTask>(this, GetAutoMergeEdgeDescriptors());
