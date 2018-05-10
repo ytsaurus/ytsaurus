@@ -461,7 +461,16 @@ private:
         ValidateEnabled();
 
         auto id = TLayerId::Create();
-        try {
+        try {   
+            LOG_DEBUG("Ensure that cached layer archive is not in use (LayerId: %v, ArchivePath: %v)", id, archivePath);
+
+            {
+                // Take exclusive lock in blocking fashion to ensure that no
+                // forked process is holding an open descriptor to the source file.
+                TFile file(archivePath, RdOnly | CloseOnExec);
+                file.Flock(LOCK_EX);
+            }
+
             LOG_DEBUG("Create new directory for layer (LayerId: %v)", id);
             auto layerDirectory = GetLayerPath(id);
 
