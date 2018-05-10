@@ -62,6 +62,8 @@ private:
     std::vector<int> StageJobCounts_;
     std::map<TGuid, TJobDescription> IdToDescription_;
 
+    TAdaptiveLock Lock_;
+
     NLogging::TLogger Logger;
 
     void SetStage(int stage);

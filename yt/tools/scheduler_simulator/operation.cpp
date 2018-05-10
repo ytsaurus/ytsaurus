@@ -76,6 +76,11 @@ NScheduler::TOperationRuntimeParametersPtr TOperation::GetRuntimeParameters() co
     return RuntimeParams_;
 }
 
+bool TOperation::SetCompleting()
+{
+    return !Completing_.exchange(true);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NSchedulerSimulator
