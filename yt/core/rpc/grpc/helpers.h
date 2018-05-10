@@ -5,6 +5,8 @@
 #include <yt/core/misc/small_vector.h>
 #include <yt/core/misc/ref.h>
 
+#include <yt/core/crypto/public.h>
+
 #include <contrib/libs/grpc/include/grpc/grpc.h>
 #include <contrib/libs/grpc/include/grpc/grpc_security.h>
 #include <contrib/libs/grpc/include/grpc/impl/codegen/grpc_types.h>
@@ -151,7 +153,6 @@ TGrpcByteBufferPtr EnvelopedMessageToByteBuffer(const TSharedRef& data);
 TString SerializeError(const TError& error);
 TError DeserializeError(TStringBuf serializedError);
 
-TString LoadPemBlob(const TPemBlobConfigPtr& config);
 TGrpcPemKeyCertPair LoadPemKeyCertPair(const TSslPemKeyCertPairConfigPtr& config);
 TGrpcChannelCredentialsPtr LoadChannelCredentials(const TChannelCredentialsConfigPtr& config);
 TGrpcServerCredentialsPtr LoadServerCredentials(const TServerCredentialsConfigPtr& config);

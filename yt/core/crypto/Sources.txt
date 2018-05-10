@@ -1,4 +1,5 @@
 SET(YT_SRCS
+  config.cpp
   crypto.cpp
   tls.cpp
 )

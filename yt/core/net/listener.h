@@ -14,7 +14,7 @@ namespace NNet {
 struct IListener
     : public virtual TRefCounted
 {
-    virtual const TNetworkAddress& Address() const = 0;
+    virtual const TNetworkAddress& GetAddress() const = 0;
 
     virtual TFuture<IConnectionPtr> Accept() = 0;
 };

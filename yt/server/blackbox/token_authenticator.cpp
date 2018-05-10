@@ -3,6 +3,7 @@
 #include "private.h"
 
 #include <yt/core/misc/async_expiring_cache.h>
+
 #include <yt/core/crypto/crypto.h>
 
 #include <util/string/split.h>
@@ -12,6 +13,7 @@ namespace NBlackbox {
 
 using namespace NYTree;
 using namespace NYPath;
+using namespace NCrypto;
 
 ////////////////////////////////////////////////////////////////////////////////
 

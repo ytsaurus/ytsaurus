@@ -61,8 +61,9 @@ struct TSslContextImpl
 
     ~TSslContextImpl()
     {
-        SSL_CTX_free(Ctx);
-        Ctx = nullptr;
+        if (Ctx) {
+            SSL_CTX_free(Ctx);
+        }
     }
 };
 
@@ -453,9 +454,9 @@ public:
         , Invoker_(invoker)
     { }
 
-    const TNetworkAddress& Address() const override
+    const TNetworkAddress& GetAddress() const override
     {
-        return Underlying_->Address();
+        return Underlying_->GetAddress();
     }
 
     virtual TFuture<IConnectionPtr> Accept() override

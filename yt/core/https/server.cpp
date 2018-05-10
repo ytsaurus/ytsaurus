@@ -25,8 +25,11 @@ class TServer
     : public IServer
 {
 public:
-    explicit TServer(IServerPtr underlying)
-        : Underlying_(std::move(underlying))
+    TServer(
+        NRpc::NGrpc::TGrpcLibraryLockPtr libraryLock,
+        IServerPtr underlying)
+        : LibraryLock_(std::move(libraryLock))
+        , Underlying_(std::move(underlying))
     { }
 
     virtual void AddHandler(
@@ -34,6 +37,11 @@ public:
         const IHttpHandlerPtr& handler) override
     {
         Underlying_->AddHandler(pattern, handler);
+    }
+
+    virtual const TNetworkAddress& GetAddress() const override
+    {
+        return Underlying_->GetAddress();
     }
 
     //! Starts the server.
@@ -49,24 +57,39 @@ public:
     }
 
 private:
+    const NRpc::NGrpc::TGrpcLibraryLockPtr LibraryLock_;
     const IServerPtr Underlying_;
-    // Initialize SSL.
-    const NRpc::NGrpc::TGrpcLibraryLockPtr LibraryLock_ = NRpc::NGrpc::TDispatcher::Get()->CreateLibraryLock();
 };
 
 IServerPtr CreateServer(
     const TServerConfigPtr& config,
     const IPollerPtr& poller)
 {
+    // Initialize SSL.
+    auto libraryLock = NRpc::NGrpc::TDispatcher::Get()->CreateLibraryLock();
+
     auto sslContext =  New<TSslContext>();
-    // configure
+    if (config->Credentials->CertChain->FileName) {
+        sslContext->AddCertificateChainFromFile(*config->Credentials->CertChain->FileName);
+    } else if (config->Credentials->CertChain->Value) {
+        sslContext->AddCertificateChain(*config->Credentials->CertChain->Value);
+    } else {
+        Y_UNREACHABLE();
+    }
+    if (config->Credentials->PrivateKey->FileName) {
+        sslContext->AddPrivateKeyFromFile(*config->Credentials->PrivateKey->FileName);
+    } else if (config->Credentials->PrivateKey->Value) {
+        sslContext->AddPrivateKey(*config->Credentials->PrivateKey->Value);
+    } else {
+        Y_UNREACHABLE();
+    }
 
     auto address = TNetworkAddress::CreateIPv6Any(config->Port);
     auto tlsListener = sslContext->CreateListener(address, poller);
 
     auto httpServer = NHttp::CreateServer(config, tlsListener, poller);
 
-    return New<TServer>(std::move(httpServer));
+    return New<TServer>(std::move(libraryLock), std::move(httpServer));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

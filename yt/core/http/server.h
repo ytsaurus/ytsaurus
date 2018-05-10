@@ -3,7 +3,7 @@
 #include "public.h"
 #include "http.h"
 
-#include <yt/core/net/public.h>
+#include <yt/core/net/address.h>
 
 #include <yt/core/concurrency/public.h>
 
@@ -41,6 +41,9 @@ struct IServer
     virtual void AddHandler(
         const TString& pattern,
         const IHttpHandlerPtr& handler) = 0;
+
+    //! Returns the address this server listens at.
+    virtual const NNet::TNetworkAddress& GetAddress() const = 0;
 
     //! Starts the server.
     virtual void Start() = 0;

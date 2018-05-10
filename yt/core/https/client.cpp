@@ -27,8 +27,11 @@ class TClient
     : public IClient
 {
 public:
-    explicit TClient(IClientPtr underlying)
-        : Underlying_(std::move(underlying))
+    TClient(
+        NRpc::NGrpc::TGrpcLibraryLockPtr libraryLock,
+        IClientPtr underlying)
+        : LibraryLock_(std::move(libraryLock))
+        , Underlying_(std::move(underlying))
     { }
 
     virtual TFuture<IResponsePtr> Get(
@@ -47,17 +50,32 @@ public:
     }
 
 private:
+    const NRpc::NGrpc::TGrpcLibraryLockPtr LibraryLock_;
     const IClientPtr Underlying_;
-    // Initialize SSL.
-    const NRpc::NGrpc::TGrpcLibraryLockPtr LibraryLock_ = NRpc::NGrpc::TDispatcher::Get()->CreateLibraryLock();
 };
 
 IClientPtr CreateClient(
     const TClientConfigPtr& config,
     const IPollerPtr& poller)
 {
+    // Initialize SSL.
+    auto libraryLock = NRpc::NGrpc::TDispatcher::Get()->CreateLibraryLock();
+
     auto sslContext =  New<TSslContext>();
-    // configure
+    if (config->Credentials->CertChain->FileName) {
+        sslContext->AddCertificateChainFromFile(*config->Credentials->CertChain->FileName);
+    } else if (config->Credentials->CertChain->Value) {
+        sslContext->AddCertificateChain(*config->Credentials->CertChain->Value);
+    } else {
+        Y_UNREACHABLE();
+    }
+    if (config->Credentials->PrivateKey->FileName) {
+        sslContext->AddPrivateKeyFromFile(*config->Credentials->PrivateKey->FileName);
+    } else if (config->Credentials->PrivateKey->Value) {
+        sslContext->AddPrivateKey(*config->Credentials->PrivateKey->Value);
+    } else {
+        Y_UNREACHABLE();
+    }
 
     auto tlsDialer = sslContext->CreateDialer(
         New<TDialerConfig>(),
@@ -69,7 +87,9 @@ IClientPtr CreateClient(
         tlsDialer,
         poller->GetInvoker());
 
-    return New<TClient>(std::move(httpClient));
+    return New<TClient>(
+        std::move(libraryLock),
+        std::move(httpClient));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

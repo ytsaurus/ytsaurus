@@ -54,7 +54,7 @@ public:
         }
     }
 
-    const TNetworkAddress& Address() const
+    const TNetworkAddress& GetAddress() const
     {
         return Address_;
     }
@@ -157,9 +157,9 @@ public:
         return Impl_->Accept();
     }
 
-    virtual const TNetworkAddress& Address() const override
+    virtual const TNetworkAddress& GetAddress() const override
     {
-        return Impl_->Address();
+        return Impl_->GetAddress();
     }
 
     ~TListener()

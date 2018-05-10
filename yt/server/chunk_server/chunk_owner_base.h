@@ -16,6 +16,7 @@
 #include <yt/ytlib/table_client/public.h>
 
 #include <yt/core/crypto/crypto.h>
+
 #include <yt/core/misc/property.h>
 
 namespace NYT {
@@ -52,8 +53,8 @@ public:
         const NTableServer::TSharedTableSchemaPtr& schema,
         NTableClient::ETableSchemaMode schemaMode,
         TNullable<NTableClient::EOptimizeFor> optimizeFor,
-        const TNullable<TMD5Hasher>& md5Hasher);
-    virtual void GetUploadParams(TNullable<TMD5Hasher>* md5Hasher);
+        const TNullable<NCrypto::TMD5Hasher>& md5Hasher);
+    virtual void GetUploadParams(TNullable<NCrypto::TMD5Hasher>* md5Hasher);
     virtual bool IsSorted() const;
 
     virtual NYTree::ENodeType GetNodeType() const override;
