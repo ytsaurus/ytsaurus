@@ -31,7 +31,7 @@ FILES=$($YT list $DEST)
 # Upload python egg
 FOUND_EGG=$(echo "$FILES" | silent_grep ${VERSION/-/_} | silent_grep ".egg\$")
 if [ -z "$FOUND_EGG" ] || [ -n "$FORCE_DEPLOY" ]; then
-    python setup.py bdist_egg
+    EGG=1 python setup.py bdist_egg
     EGG_FILEPATH=$(find dist/ -name "*.egg" | head -n 1)
     EGG_FILE="${EGG_FILEPATH##*/}"
     cat "$EGG_FILEPATH" | $YT upload "$DEST/$EGG_FILE"
