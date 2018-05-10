@@ -1,4 +1,4 @@
-from helpers import get_version, prepare_files
+from helpers import get_version
 
 from setuptools import setup, find_packages
 
@@ -15,10 +15,6 @@ def recursive(path):
     return list(imap(lambda package: prefix + "." + package, find_packages(path))) + [prefix]
 
 def main():
-    requires = []
-    if sys.version_info[:2] <= (2, 6):
-        requires.append("argparse")
-
     version = get_version()
     with open("yt/wrapper/version.py", "w") as version_output:
         version_output.write("VERSION='{0}'".format(version))
@@ -30,13 +26,11 @@ def main():
         "yt/wrapper/bin/yt-admin",
         "yt/wrapper/bin/yt-job-tool"]
 
-    if sys.version_info[:2] <= (2, 6):
-        scripts, data_files = prepare_files(binaries, add_major_version_suffix=True)
-    else:
-        data_files = []
-        scripts = [binary + str(sys.version_info[0]) for binary in binaries]
+    data_files = []
+    scripts = [binary + str(sys.version_info[0]) for binary in binaries]
 
-    data_files.append(("/etc/bash_completion.d/", ["yandex-yt-python/yt_completion"]))
+    if "EGG" not in os.environ:
+        data_files.append(("/etc/bash_completion.d/", ["yandex-yt-python/yt_completion"]))
     if "DEB" not in os.environ:
         scripts.extend(binaries)
 
@@ -46,8 +40,6 @@ def main():
         version = version,
         packages = ["yt", "yt.wrapper", "yt.yson", "yt.ypath"] + recursive("yt/packages"),
         scripts = scripts,
-
-        install_requires = requires,
 
         author = "Ignat Kolesnichenko",
         author_email = "ignat@yandex-team.ru",
