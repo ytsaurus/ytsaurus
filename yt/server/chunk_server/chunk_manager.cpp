@@ -838,7 +838,12 @@ public:
         auto cellIndex = multicellManager->GetRegisteredMasterCellIndex(destinationCellTag);
 
         if (!chunk->IsExportedToCell(cellIndex)) {
-            LOG_ERROR("Unexpected error: chunk is not exported and cannot be unexported (ChunkId: %v, CellTag: %v, CellIndex: %v, ImportRefCounter: %v)", chunk->GetId(), destinationCellTag, cellIndex, importRefCounter);
+            LOG_ERROR("Unexpected error: chunk is not exported and cannot be unexported "
+                "(ChunkId: %v, CellTag: %v, CellIndex: %v, ImportRefCounter: %v)",
+                chunk->GetId(),
+                destinationCellTag,
+                cellIndex,
+                importRefCounter);
             return;
         }
 
