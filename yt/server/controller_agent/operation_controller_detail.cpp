@@ -5846,11 +5846,14 @@ ssize_t TOperationControllerBase::GetMemoryUsage() const
 
 bool TOperationControllerBase::HasEnoughChunkLists(bool isWritingStderrTable, bool isWritingCoreTable)
 {
+    // We use this "result" variable to make sure that we have enough chunk lists
+    // for every cell tag and start allocating them all in advance and simultaneously.
+    bool result = true;
     for (const auto& pair : CellTagToRequiredOutputChunkLists_) {
         const auto cellTag = pair.first;
         auto requiredChunkList = pair.second;
         if (requiredChunkList && !OutputChunkListPool_->HasEnough(cellTag, requiredChunkList)) {
-            return false;
+            result = false;
         }
     }
     for (const auto& pair : CellTagToRequiredDebugChunkLists_) {
@@ -5863,10 +5866,10 @@ bool TOperationControllerBase::HasEnoughChunkLists(bool isWritingStderrTable, bo
             --requiredChunkList;
         }
         if (requiredChunkList && !DebugChunkListPool_->HasEnough(cellTag, requiredChunkList)) {
-            return false;
+            result = false;
         }
     }
-    return true;
+    return result;
 }
 
 TChunkListId TOperationControllerBase::ExtractOutputChunkList(TCellTag cellTag)
