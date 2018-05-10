@@ -48,7 +48,8 @@ class TestSandboxTmpfs(YTEnvSetup):
 
         jobs_path = "//sys/operations/" + op.id + "/jobs"
         assert get(jobs_path + "/@count") == 1
-        words = read_file(jobs_path + "/" + ls(jobs_path)[0] + "/stderr").strip().split()
+        content = remove_asan_warning(read_file(jobs_path + "/" + ls(jobs_path)[0] + "/stderr"))
+        words = content.strip().split()
         assert ["file", "content"] == words
 
     def test_custom_tmpfs_path(self):
@@ -69,7 +70,8 @@ class TestSandboxTmpfs(YTEnvSetup):
 
         jobs_path = "//sys/operations/" + op.id + "/jobs"
         assert get(jobs_path + "/@count") == 1
-        words = read_file(jobs_path + "/" + ls(jobs_path)[0] + "/stderr").strip().split()
+        content = remove_asan_warning(read_file(jobs_path + "/" + ls(jobs_path)[0] + "/stderr"))
+        words = content.strip().split()
         assert ["file", "content"] == words
 
     def test_dot_tmpfs_path(self):
@@ -90,7 +92,8 @@ class TestSandboxTmpfs(YTEnvSetup):
 
         jobs_path = "//sys/operations/" + op.id + "/jobs"
         assert get(jobs_path + "/@count") == 1
-        words = read_file(jobs_path + "/" + ls(jobs_path)[0] + "/stderr").strip().split()
+        content = remove_asan_warning(read_file(jobs_path + "/" + ls(jobs_path)[0] + "/stderr"))
+        words = content.strip().split()
         assert ["file", "content"] == words
 
         create("file", "//tmp/test_file")
@@ -319,7 +322,8 @@ class TestDisabledSandboxTmpfs(YTEnvSetup):
 
         jobs_path = "//sys/operations/" + op.id + "/jobs"
         assert get(jobs_path + "/@count") == 1
-        words = read_file(jobs_path + "/" + ls(jobs_path)[0] + "/stderr").strip().split()
+        content = remove_asan_warning(read_file(jobs_path + "/" + ls(jobs_path)[0] + "/stderr"))
+        words = content.strip().split()
         assert ["file", "content"] == words
 
 

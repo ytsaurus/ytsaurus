@@ -128,6 +128,8 @@ def prepare(options, build_context):
     options.build_enable_perl = parse_yes_no_bool(os.environ.get("BUILD_ENABLE_PERL", "YES"))
 
     options.use_asan = parse_yes_no_bool(os.environ.get("USE_ASAN", "NO"))
+    assert not options.use_asan or options.build_system == "ya", "ASAN build is enabled only for --build-system=ya"
+
     options.use_tsan = parse_yes_no_bool(os.environ.get("USE_TSAN", "NO"))
     options.use_msan = parse_yes_no_bool(os.environ.get("USE_MSAN", "NO"))
     options.use_asan = options.use_asan or parse_yes_no_bool(os.environ.get("BUILD_ENABLE_ASAN", "NO"))  # compat
@@ -275,12 +277,6 @@ def build(options, build_context):
     cpus = int(os.sysconf("SC_NPROCESSORS_ONLN"))
     if options.build_system == "cmake":
         run(["make", "-j", str(cpus)], cwd=options.working_directory, silent_stdout=True)
-        if options.use_asan:
-            run(["make", "-j", str(cpus)], cwd=options.asan_build_directory, silent_stdout=True)
-            run(["cp"] +
-                glob.glob(os.path.join(options.asan_build_directory, "bin", "ytserver-*")) +
-                glob.glob(os.path.join(options.asan_build_directory, "bin", "unittester-*")) +
-                [get_bin_dir(options)])
     else:
         assert options.build_system == "ya"
         run_yall(options)
@@ -657,18 +653,21 @@ def run_unit_tests(options, build_context):
     mkdirp(sandbox_current)
     try:
         for unittest_binary in all_unittests:
-            run([
-                "gdb",
-                "--batch",
-                "--return-child-result",
-                "--command={0}/scripts/teamcity-build/teamcity-gdb-script".format(options.checkout_directory),
-                "--args",
+            args = [
                 os.path.join(get_bin_dir(options), unittest_binary),
                 "--gtest_color=no",
                 "--gtest_death_test_style=threadsafe",
-                "--gtest_output=xml:" + os.path.join(options.working_directory, "gtest_" + unittest_binary + ".xml")],
-                cwd=sandbox_current,
-                timeout=20 * 60)
+                "--gtest_output=xml:" + os.path.join(options.working_directory, "gtest_" + unittest_binary + ".xml"),
+            ]
+            if not options.use_asan:
+                args = [
+                    "gdb",
+                    "--batch",
+                    "--return-child-result",
+                    "--command={0}/scripts/teamcity-build/teamcity-gdb-script".format(options.checkout_directory),
+                    "--args",
+                ] + args
+            run(args, cwd=sandbox_current, timeout=20 * 60)
     except ChildHasNonZeroExitCode as err:
         teamcity_message('Copying unit tests sandbox from "{0}" to "{1}"'.format(
             sandbox_current, sandbox_archive), status="WARNING")
