@@ -305,12 +305,7 @@ TOperationControllerInitializationResult TOperationControllerBase::InitializeRev
         }
 
         try {
-            auto connection = GetRemoteConnectionOrThrow(Host->GetClient()->GetNativeConnection(), CellTagFromId(transactionId));
-            auto client = connection->CreateNativeClient(TClientOptions(NSecurityClient::SchedulerUserName));
-            TTransactionAttachOptions options;
-            options.Ping = ping;
-            options.PingAncestors = false;
-            return client->AttachTransaction(transactionId, options);
+            return AttachTransaction(transactionId, ping);
         } catch (const std::exception& ex) {
             LOG_WARNING(ex, "Error attaching operation transaction (OperationId: %v, TransactionId: %v)",
                 OperationId,
@@ -389,14 +384,8 @@ TOperationControllerInitializationResult TOperationControllerBase::InitializeRev
 
         auto scheduleAbort = [&] (const ITransactionPtr& transaction) {
             if (transaction) {
-                auto connection = GetRemoteConnectionOrThrow(Host->GetClient()->GetNativeConnection(), CellTagFromId(transaction->GetId()));
-                auto client = connection->CreateNativeClient(TClientOptions(NSecurityClient::SchedulerUserName));
-
                 // Transaction object may be in incorrect state, we need to abort using only transaction id.
-                TTransactionAttachOptions options;
-                options.Ping = false;
-                options.PingAncestors = false;
-                asyncResults.push_back(client->AttachTransaction(transaction->GetId(), options)->Abort());
+                asyncResults.push_back(AttachTransaction(transaction->GetId())->Abort());
             }
         };
 
@@ -916,6 +905,17 @@ bool TOperationControllerBase::IsTransactionNeeded(ETransactionType type) const
         default:
             Y_UNREACHABLE();
     }
+}
+
+ITransactionPtr TOperationControllerBase::AttachTransaction(const TTransactionId& transactionId, bool ping)
+{
+    auto connection = GetRemoteConnectionOrThrow(Host->GetClient()->GetNativeConnection(), CellTagFromId(transactionId));
+    auto client = connection->CreateNativeClient(TClientOptions(NSecurityClient::SchedulerUserName));
+
+    TTransactionAttachOptions options;
+    options.Ping = ping;
+    options.PingAncestors = false;
+    return client->AttachTransaction(transactionId, options);
 }
 
 void TOperationControllerBase::StartTransactions()
@@ -2527,7 +2527,8 @@ void TOperationControllerBase::SafeAbort()
                 // Such a pity can happen for example if somebody aborted our transaction manually.
                 LOG_ERROR(ex, "Failed to commit debug transaction");
                 // Intentionally do not wait for abort.
-                DebugTransaction->Abort();
+                // Transaction object may be in incorrect state, we need to abort using only transaction id.
+                AttachTransaction(DebugTransaction->GetId())->Abort();
             }
         }
     }
@@ -2535,7 +2536,8 @@ void TOperationControllerBase::SafeAbort()
     std::vector<TFuture<void>> abortTransactionFutures;
     auto abortTransaction = [&] (const ITransactionPtr& transaction, bool sync = true) {
         if (transaction) {
-            auto asyncResult = transaction->Abort();
+            // Transaction object may be in incorrect state, we need to abort using only transaction id.
+            auto asyncResult = AttachTransaction(transaction->GetId())->Abort();
             if (sync) {
                 abortTransactionFutures.push_back(asyncResult);
             }
