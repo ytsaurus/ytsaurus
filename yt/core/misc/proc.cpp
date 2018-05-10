@@ -34,6 +34,7 @@
     #include <sys/resource.h>
     #include <sys/stat.h>
     #include <sys/syscall.h>
+    #include <sys/ttydefaults.h>
     #include <unistd.h>
 #endif
 #ifdef _linux_
