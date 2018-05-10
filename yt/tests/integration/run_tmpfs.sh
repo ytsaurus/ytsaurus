@@ -1,6 +1,6 @@
 #!/bin/bash
 
-if ! mount | grep `pwd`/tests.sandbox; then
+if ! mountpoint -q tests.sandbox ; then
     if ! [ -e tests.sandbox ]; then
         echo "!!! creating tests.sandbox"
         mkdir tests.sandbox
