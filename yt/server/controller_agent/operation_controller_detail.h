@@ -752,6 +752,7 @@ protected:
         const NTableClient::TKeyColumns& fullColumns,
         const NTableClient::TKeyColumns& prefixColumns);
 
+    NApi::ITransactionPtr AttachTransaction(const NTransactionClient::TTransactionId& transactionId, bool ping = false);
     const NApi::ITransactionPtr& GetTransactionForOutputTable(const TOutputTable& table) const;
 
     virtual void AttachToIntermediateLivePreview(const NChunkClient::TChunkId& chunkId) override;
