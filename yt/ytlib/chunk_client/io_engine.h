@@ -23,7 +23,7 @@ struct IIOEngine
     virtual TFuture<bool> FlushData(const std::shared_ptr<TFileHandle>& fh) = 0;
     virtual TFuture<bool> Flush(const std::shared_ptr<TFileHandle>& fh) = 0;
 
-    virtual std::shared_ptr<TFileHandle> Open(const TString& fName, EOpenMode oMode) = 0;
+    virtual TFuture<std::shared_ptr<TFileHandle>> Open(const TString& fName, EOpenMode oMode) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IIOEngine)
