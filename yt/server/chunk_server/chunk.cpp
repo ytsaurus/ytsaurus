@@ -108,13 +108,18 @@ void TChunk::Save(NCellMaster::TSaveContext& context) const
     }
     Save(context, ExportCounter_);
     if (ExportCounter_ > 0) {
-        TRangeSerializer::Save(context, TRef::FromPod(ExportDataList_));
+        YCHECK(ExportDataList_);
+        TRangeSerializer::Save(context, TRef(ExportDataList_.get(), MaxSecondaryMasterCells));
     }
 }
 
 namespace {
 
+// COMPAT(shakurov)
 // Compatibility stuff; used by Load().
+
+const int MaxSecondaryMasterCellsBefore711 = 8;
+
 struct TChunkExportDataBefore400
 {
     ui32 RefCounter : 24;
@@ -122,7 +127,7 @@ struct TChunkExportDataBefore400
     ui8 ReplicationFactor : 7;
 };
 static_assert(sizeof(TChunkExportDataBefore400) == 4, "sizeof(TChunkExportDataBefore400) != 4");
-using TChunkExportDataListBefore400 = TChunkExportDataBefore400[NObjectClient::MaxSecondaryMasterCells];
+using TChunkExportDataListBefore400 = TChunkExportDataBefore400[MaxSecondaryMasterCellsBefore711];
 
 struct TChunkExportDataBefore619
 {
@@ -135,7 +140,9 @@ struct TChunkExportDataBefore619
     TChunkReplication Replication;
 };
 static_assert(sizeof(TChunkExportDataBefore619) == 12, "sizeof(TChunkExportDataBefore619) != 12");
-using TChunkExportDataListBefore619 = TChunkExportDataBefore619[NObjectClient::MaxSecondaryMasterCells];
+using TChunkExportDataListBefore619 = TChunkExportDataBefore619[MaxSecondaryMasterCellsBefore711];
+
+using TChunkExportDataListBefore711 = TChunkExportData[MaxSecondaryMasterCellsBefore711];
 
 } // namespace
 
@@ -240,11 +247,13 @@ void TChunk::Load(NCellMaster::TLoadContext& context)
     }
     Load(context, ExportCounter_);
     if (ExportCounter_ > 0) {
+        ExportDataList_ = std::make_unique<TChunkExportData[]>(MaxSecondaryMasterCells);
+
         // COMPAT(shakurov)
         if (context.GetVersion() < 400) {
             TChunkExportDataListBefore400 oldExportDataList = {};
             TRangeSerializer::Load(context, TMutableRef::FromPod(oldExportDataList));
-            for (auto i = 0; i < NObjectClient::MaxSecondaryMasterCells; ++i) {
+            for (auto i = 0; i < MaxSecondaryMasterCellsBefore711; ++i) {
                 auto& exportData = ExportDataList_[i];
                 const auto& oldExportData = oldExportDataList[i];
                 exportData.RefCounter = oldExportData.RefCounter;
@@ -258,7 +267,7 @@ void TChunk::Load(NCellMaster::TLoadContext& context)
         } else if (context.GetVersion() < 700) {
             TChunkExportDataListBefore619 oldExportDataList = {};
             TRangeSerializer::Load(context, TMutableRef::FromPod(oldExportDataList));
-            for (int i = 0; i < NObjectClient::MaxSecondaryMasterCells; ++i) {
+            for (auto i = 0; i < MaxSecondaryMasterCellsBefore711; ++i) {
                 auto& exportData = ExportDataList_[i];
                 const auto& oldExportData = oldExportDataList[i];
                 exportData.RefCounter = oldExportData.RefCounter;
@@ -271,8 +280,14 @@ void TChunk::Load(NCellMaster::TLoadContext& context)
                     YCHECK(exportData.ChunkRequisitionIndex == EmptyChunkRequisitionIndex);
                 }
             }
+        } else if (context.GetVersion() < 711) {
+            TChunkExportDataListBefore711 oldExportDataList = {};
+            TRangeSerializer::Load(context, TMutableRef::FromPod(oldExportDataList));
+            for (auto i = 0; i < MaxSecondaryMasterCellsBefore711; ++i) {
+                ExportDataList_[i] = oldExportDataList[i];
+            }
         } else {
-            TRangeSerializer::Load(context, TMutableRef::FromPod(ExportDataList_));
+            TRangeSerializer::Load(context, TMutableRef(ExportDataList_.get(), MaxSecondaryMasterCells));
         }
     }
     if (IsConfirmed()) {
@@ -498,18 +513,32 @@ int TChunk::GetMaxReplicasPerRack(
     }
 }
 
-const TChunkExportData& TChunk::GetExportData(int cellIndex) const
+TChunkExportData TChunk::GetExportData(int cellIndex) const
 {
+    if (ExportCounter_ == 0) {
+        return {};
+    }
+
+    YCHECK(ExportDataList_);
     return ExportDataList_[cellIndex];
 }
 
 bool TChunk::IsExportedToCell(int cellIndex) const
 {
+    if (ExportCounter_ == 0) {
+        return false;
+    }
+
+    YCHECK(ExportDataList_);
     return ExportDataList_[cellIndex].RefCounter != 0;
 }
 
 void TChunk::Export(int cellIndex, TChunkRequisitionRegistry* registry)
 {
+    if (ExportCounter_ == 0) {
+        ExportDataList_ = std::make_unique<TChunkExportData[]>(MaxSecondaryMasterCells);
+    }
+
     auto& data = ExportDataList_[cellIndex];
     if (++data.RefCounter == 1) {
         ++ExportCounter_;
@@ -527,12 +556,17 @@ void TChunk::Unexport(
     TChunkRequisitionRegistry* registry,
     const NObjectServer::TObjectManagerPtr& objectManager)
 {
+    YCHECK(ExportDataList_);
     auto& data = ExportDataList_[cellIndex];
     if ((data.RefCounter -= importRefCounter) == 0) {
         registry->Unref(data.ChunkRequisitionIndex, objectManager);
         data.ChunkRequisitionIndex = EmptyChunkRequisitionIndex; // just in case
 
         --ExportCounter_;
+
+        if (ExportCounter_ == 0) {
+            ExportDataList_.reset();
+        }
 
         UpdateAggregatedRequisitionIndex(registry, objectManager);
     }
@@ -544,7 +578,10 @@ void TChunk::FixExportRequisitionIndexes()
         return;
     }
 
-    for (auto& data : ExportDataList_) {
+    YCHECK(ExportDataList_);
+
+    for (auto i = 0; i < NObjectClient::MaxSecondaryMasterCells; ++i) {
+        auto& data = ExportDataList_[i];
         if (data.RefCounter == 0 && data.ChunkRequisitionIndex != EmptyChunkRequisitionIndex) {
             YCHECK(data.ChunkRequisitionIndex == MigrationErasureChunkRequisitionIndex ||
                    data.ChunkRequisitionIndex == MigrationChunkRequisitionIndex);
@@ -562,3 +599,4 @@ void TChunk::FixExportRequisitionIndexes()
 
 Y_DECLARE_PODTYPE(NYT::NChunkServer::TChunkExportDataListBefore400);
 Y_DECLARE_PODTYPE(NYT::NChunkServer::TChunkExportDataListBefore619);
+Y_DECLARE_PODTYPE(NYT::NChunkServer::TChunkExportDataListBefore711);

@@ -28,12 +28,11 @@ namespace NChunkServer {
 
 struct TChunkExportData
 {
-    ui32 RefCounter;
-    TChunkRequisitionIndex ChunkRequisitionIndex;
+    ui32 RefCounter = 0 ;
+    TChunkRequisitionIndex ChunkRequisitionIndex = EmptyChunkRequisitionIndex;
 };
 
 static_assert(sizeof(TChunkExportData) == 8, "sizeof(TChunkExportData) != 8");
-using TChunkExportDataList = TChunkExportData[NObjectClient::MaxSecondaryMasterCells];
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -241,9 +240,11 @@ public:
 
     //! Returns the export data w.r.t. to a cell with a given #index.
     /*!
+     *  It's ok to call this even if !IsExportedToCell(cellIndex).
+     *
      *  \see #TMulticellManager::GetRegisteredMasterCellIndex
      */
-    const TChunkExportData& GetExportData(int cellIndex) const;
+    TChunkExportData GetExportData(int cellIndex) const;
 
     //! Same as GetExportData(cellIndex).RefCounter != 0.
     bool IsExportedToCell(int cellIndex) const;
@@ -281,10 +282,12 @@ private:
     TChunkRequisitionIndex LocalRequisitionIndex_;
 
     //! The number of non-empty entries in #ExportDataList_.
+    //! If zero, #ExportDataList_ is null.
     ui8 ExportCounter_ = 0;
 
     //! Per-cell data, indexed by cell index; cf. TMulticellManager::GetRegisteredMasterCellIndex.
-    TChunkExportDataList ExportDataList_ = {};
+    //! The array, if any, always has MaxSecondaryMasterCells elements.
+    std::unique_ptr<TChunkExportData[]> ExportDataList_;
 
     struct TReplicasData
     {
@@ -317,8 +320,6 @@ private:
 
 } // namespace NChunkServer
 } // namespace NYT
-
-Y_DECLARE_PODTYPE(NYT::NChunkServer::TChunkExportDataList);
 
 #define CHUNK_INL_H_
 #include "chunk-inl.h"
