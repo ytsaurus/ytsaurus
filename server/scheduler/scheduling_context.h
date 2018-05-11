@@ -20,6 +20,17 @@ namespace NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TFairShareSchedulingStatistics
+{
+    int ControllerScheduleJobCount = 0;
+    int PreemptiveScheduleJobAttempts = 0;
+    int NonPreemptiveScheduleJobAttempts = 0;
+    int ScheduledDuringPreemption = 0;
+    int PreemptableJobCount = 0;
+    bool HasAggressivelyStarvingNodes = false;
+    TJobResources ResourceUsageDiscount;
+};
+
 struct ISchedulingContext
     : public virtual TRefCounted
 {
@@ -52,6 +63,9 @@ struct ISchedulingContext
     virtual void PreemptJob(const TJobPtr& job) = 0;
 
     virtual NProfiling::TCpuInstant GetNow() const = 0;
+
+    virtual TFairShareSchedulingStatistics GetSchedulingStatistics() const = 0;
+    virtual void SetSchedulingStatistics(TFairShareSchedulingStatistics statistics) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ISchedulingContext)

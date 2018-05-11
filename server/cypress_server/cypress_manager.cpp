@@ -20,6 +20,8 @@
 #include <yt/server/security_server/security_manager.h>
 #include <yt/server/security_server/user.h>
 
+#include <yt/server/table_server/shared_table_schema.h>
+
 #include <yt/ytlib/cypress_client/cypress_ypath.pb.h>
 #include <yt/ytlib/cypress_client/cypress_ypath_proxy.h>
 
@@ -493,6 +495,7 @@ public:
         TCypressManagerConfigPtr config,
         TBootstrap* bootstrap)
         : TMasterAutomatonPart(bootstrap, NCellMaster::EAutomatonThreadQueue::CypressManager)
+        , SharedTableSchemaRegistry_(New<NTableServer::TSharedTableSchemaRegistry>())
         , Config_(config)
         , AccessTracker_(New<TAccessTracker>(config, bootstrap))
         , ExpirationTracker_(New<TExpirationTracker>(config, bootstrap))
@@ -1071,6 +1074,8 @@ public:
     DECLARE_ENTITY_MAP_ACCESSORS(Node, TCypressNodeBase);
     DECLARE_ENTITY_MAP_ACCESSORS(Lock, TLock);
 
+    DEFINE_BYREF_RO_PROPERTY(NTableServer::TSharedTableSchemaRegistryPtr, SharedTableSchemaRegistry);
+
 private:
     friend class TNodeTypeHandler;
     friend class TLockTypeHandler;
@@ -1153,6 +1158,7 @@ private:
 
         NodeMap_.Clear();
         LockMap_.Clear();
+        SharedTableSchemaRegistry_->Clear();
 
         RootNode_ = nullptr;
     }
@@ -1182,34 +1188,36 @@ private:
             }
 
             // Reconstruct iterators.
-            auto* transaction = lock->GetTransaction();
-            auto* lockingState = lock->GetTrunkNode()->MutableLockingState();
-            switch (lock->Request().Mode) {
-                case ELockMode::Snapshot:
-                    lock->SetTransactionToSnapshotLocksIterator(lockingState->TransactionToSnapshotLocks.emplace(
-                        transaction,
-                        lock));
-                    break;
-
-                case ELockMode::Shared:
-                    lock->SetTransactionAndKeyToSharedLocksIterator(lockingState->TransactionAndKeyToSharedLocks.emplace(
-                        std::make_pair(transaction, lock->Request().Key),
-                        lock));
-                    if (lock->Request().Key.Kind != ELockKeyKind::None) {
-                        lock->SetKeyToSharedLocksIterator(lockingState->KeyToSharedLocks.emplace(
-                            lock->Request().Key,
+            if (lock->GetState() == ELockState::Acquired) {
+                auto* transaction = lock->GetTransaction();
+                auto* lockingState = lock->GetTrunkNode()->MutableLockingState();
+                switch (lock->Request().Mode) {
+                    case ELockMode::Snapshot:
+                        lock->SetTransactionToSnapshotLocksIterator(lockingState->TransactionToSnapshotLocks.emplace(
+                            transaction,
                             lock));
-                    }
-                    break;
+                        break;
 
-                case ELockMode::Exclusive:
-                    lock->SetTransactionToExclusiveLocksIterator(lockingState->TransactionToExclusiveLocks.emplace(
-                        transaction,
-                        lock));
-                    break;
+                    case ELockMode::Shared:
+                        lock->SetTransactionAndKeyToSharedLocksIterator(lockingState->TransactionAndKeyToSharedLocks.emplace(
+                            std::make_pair(transaction, lock->Request().Key),
+                            lock));
+                        if (lock->Request().Key.Kind != ELockKeyKind::None) {
+                            lock->SetKeyToSharedLocksIterator(lockingState->KeyToSharedLocks.emplace(
+                                lock->Request().Key,
+                                lock));
+                        }
+                        break;
 
-                default:
-                    Y_UNREACHABLE();
+                    case ELockMode::Exclusive:
+                        lock->SetTransactionToExclusiveLocksIterator(lockingState->TransactionToExclusiveLocks.emplace(
+                            transaction,
+                            lock));
+                        break;
+
+                    default:
+                        Y_UNREACHABLE();
+                }
             }
         }
         LOG_INFO("Finished initializing locks");
@@ -1847,7 +1855,7 @@ private:
                 (!lock->GetImplicit() || !IsLockRedundant(trunkNode, parentTransaction, lock->Request(), lock)))
             {
                 lock->SetTransaction(parentTransaction);
-                if (trunkNode) {
+                if (trunkNode && lock->GetState() == ELockState::Acquired) {
                     auto* lockingState = trunkNode->MutableLockingState();
                     switch (lock->Request().Mode) {
                         case ELockMode::Exclusive:
@@ -2654,8 +2662,13 @@ TCypressNodeList TCypressManager::GetNodeReverseOriginators(
     return Impl_->GetNodeReverseOriginators(transaction, trunkNode);
 }
 
+const NTableServer::TSharedTableSchemaRegistryPtr& TCypressManager::GetSharedTableSchemaRegistry() const
+{
+    return Impl_->SharedTableSchemaRegistry();
+}
+
 DELEGATE_ENTITY_MAP_ACCESSORS(TCypressManager, Node, TCypressNodeBase, *Impl_);
-DELEGATE_ENTITY_MAP_ACCESSORS(TCypressManager, Lock, TLock, *Impl_);
+DELEGATE_ENTITY_MAP_ACCESSORS(TCypressManager, Lock, TLock, *Impl_)
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -81,7 +81,7 @@ public:
         : Output_(output)
     { }
 
-    virtual void OnStringScalar(const TStringBuf& value) override
+    virtual void OnStringScalar(TStringBuf value) override
     {
         if (AttributesDepth_ == 0) {
             Output_->OnStringScalar(value);
@@ -151,7 +151,7 @@ public:
         }
     }
 
-    virtual void OnKeyedItem(const TStringBuf& key) override
+    virtual void OnKeyedItem(TStringBuf key) override
     {
         if (AttributesDepth_ == 0) {
             Output_->OnKeyedItem(key);
@@ -175,7 +175,7 @@ public:
         --AttributesDepth_;
     }
 
-    virtual void OnRaw(const TStringBuf& yson, EYsonType type) override
+    virtual void OnRaw(TStringBuf yson, EYsonType type) override
     {
         if (AttributesDepth_ == 0) {
             Output_->OnRaw(yson, type);

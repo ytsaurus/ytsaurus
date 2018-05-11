@@ -22,7 +22,7 @@ namespace NDriver {
 template <typename T>
 void ProduceSingleOutputValue(
     ICommandContextPtr context,
-    const TStringBuf& name,
+    TStringBuf name,
     const T& value)
 {
     ProduceSingleOutput(context, name, [&](NYson::IYsonConsumer* consumer) {

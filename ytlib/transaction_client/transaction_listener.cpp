@@ -1,4 +1,5 @@
 #include "transaction_listener.h"
+#include "private.h"
 
 #include <yt/ytlib/api/transaction.h>
 
@@ -9,30 +10,50 @@ using namespace NApi;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TTransactionListener::ListenTransaction(ITransactionPtr transaction)
-{
-    YCHECK(transaction);
+static const auto& Logger = TransactionClientLogger;
 
-    transaction->SubscribeAborted(BIND(
-        &TTransactionListener::OnAborted,
-        MakeWeak(this)));
-}
+////////////////////////////////////////////////////////////////////////////////
 
-void TTransactionListener::OnAborted()
+void TTransactionListener::ListenTransaction(const ITransactionPtr& transaction)
 {
-    IsAborted_ = true;
+    LOG_DEBUG("Listening for transaction (TransactionId: %v)",
+        transaction->GetId());
+
+    transaction->SubscribeAborted(
+        BIND(&TTransactionListener::OnTransactionAborted, MakeWeak(this), transaction->GetId()));
 }
 
 bool TTransactionListener::IsAborted() const
 {
-    return IsAborted_;
+    return Aborted_.load();
+}
+
+TError TTransactionListener::GetAbortError() const
+{
+    auto guard = Guard(SpinLock_);
+    if (AbortedTransactionIds_.empty()) {
+        return TError();
+    } else if (AbortedTransactionIds_.size() == 1) {
+        return TError("Transaction %v aborted",
+            AbortedTransactionIds_[0]);
+    } else {
+        return TError("Transactions %v aborted",
+            AbortedTransactionIds_);
+    }
 }
 
 void TTransactionListener::ValidateAborted() const
 {
-    if (IsAborted_) {
-        THROW_ERROR_EXCEPTION("Transaction aborted");
+    if (IsAborted()) {
+        THROW_ERROR GetAbortError();
     }
+}
+
+void TTransactionListener::OnTransactionAborted(const TTransactionId& id)
+{
+    auto guard = Guard(SpinLock_);
+    AbortedTransactionIds_.push_back(id);
+    Aborted_.store(true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

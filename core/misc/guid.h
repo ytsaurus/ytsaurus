@@ -40,10 +40,10 @@ struct TGuid
     static TGuid Create();
 
     //! Parses guid from TStringBuf, throws an exception if something went wrong.
-    static TGuid FromString(const TStringBuf& str);
+    static TGuid FromString(TStringBuf str);
 
     //! Parses guid from TStringBuf, returns |true| if everything was ok.
-    static bool FromString(const TStringBuf& str, TGuid* guid);
+    static bool FromString(TStringBuf str, TGuid* guid);
 };
 
 void ToProto(NProto::TGuid* protoGuid, const TGuid& guid);

@@ -64,7 +64,7 @@ public:
     TFluentLogEventImpl& operator = (TFluentLogEventImpl&& other) = delete;
     TFluentLogEventImpl& operator = (const TFluentLogEventImpl& other) = delete;
 
-    NYTree::TFluentYsonBuilder::TAny<TThis&&> Item(const TStringBuf& key);
+    NYTree::TFluentYsonBuilder::TAny<TThis&&> Item(TStringBuf key);
 
 private:
     TFluentEventLogger* Logger_;

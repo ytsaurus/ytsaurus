@@ -399,7 +399,8 @@ void VersionedLookupRows(
         timestamp,
         MinTimestamp,
         tabletSnapshot->ColumnEvaluator,
-        true);
+        true,
+        false);
 
     TLookupSession session(
         std::move(tabletSnapshot),

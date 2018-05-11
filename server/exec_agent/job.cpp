@@ -24,6 +24,7 @@
 #include <yt/ytlib/chunk_client/data_source.h>
 #include <yt/ytlib/chunk_client/traffic_meter.h>
 
+#include <yt/ytlib/job_prober_client/public.h>
 #include <yt/ytlib/job_prober_client/job_probe.h>
 #include <yt/ytlib/job_prober_client/job_prober_service_proxy.h>
 
@@ -116,9 +117,7 @@ public:
             TJobStatistics()
                 .Type(GetType())
                 .State(GetState())
-                .Spec(JobSpec_)
                 .StartTime(TInstant::Now()) // TODO(ignat): fill correct start time.
-                .SpecVersion(0) // TODO: fill correct spec version.
                 .Events(JobEvents_));
     }
 
@@ -493,6 +492,18 @@ public:
             std::move(statistics).OperationId(GetOperationId()).JobId(GetId()));
     }
 
+    virtual void ReportSpec() override
+    {
+        ReportStatistics(
+            TJobStatistics()
+                .Type(GetType())
+                .State(GetState())
+                .Spec(JobSpec_)
+                .StartTime(GetStartTime())
+                .SpecVersion(0) // TODO: fill correct spec version.
+                .Events(JobEvents_));
+    }
+
     virtual void Interrupt() override
     {
         VERIFY_THREAD_AFFINITY(ControllerThread);
@@ -645,7 +656,7 @@ private:
     void ValidateJobRunning() const
     {
         if (JobPhase_ != EJobPhase::Running) {
-            THROW_ERROR_EXCEPTION("Job %v is not running", Id_)
+            THROW_ERROR_EXCEPTION(NJobProberClient::EErrorCode::JobIsNotRunning, "Job %v is not running", Id_)
                 << TErrorAttribute("job_state", JobState_)
                 << TErrorAttribute("job_phase", JobPhase_);
         }

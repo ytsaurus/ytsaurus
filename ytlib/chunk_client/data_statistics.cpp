@@ -114,7 +114,8 @@ void Serialize(const TDataStatistics& statistics, NYson::IYsonConsumer* consumer
     .EndMap();
 }
 
-void SetDataStatisticsField(TDataStatistics& statistics, TStringBuf key, i64 value) {
+void SetDataStatisticsField(TDataStatistics& statistics, TStringBuf key, i64 value)
+{
     if (key == "chunk_count") {
         statistics.set_chunk_count(value);
     } else if (key == "row_count") {
@@ -141,7 +142,7 @@ TString ToString(const TDataStatistics& statistics)
     return Format(
         "{UncompressedDataSize: %v, CompressedDataSize: %v, DataWeight: %v, RowCount: %v, "
         "ChunkCount: %v, RegularDiskSpace: %v, ErasureDiskSpace: %v, "
-        "UnmergedRowCount: %v, UnmergedDataWeight: %v",
+        "UnmergedRowCount: %v, UnmergedDataWeight: %v}",
         statistics.uncompressed_data_size(),
         statistics.compressed_data_size(),
         statistics.data_weight(),
@@ -182,7 +183,7 @@ TCodecStatistics& TCodecStatistics::operator+=(const TCodecStatistics& other)
 void TCodecStatistics::DumpTo(NJobTrackerClient::TStatistics *statistics, const TString& path) const
 {
     for (const auto& pair : Map_) {
-        TString codecStr = to_lower(TEnumTraits<ECodec>::ToString(pair.first));
+        auto codecStr = to_lower(TEnumTraits<ECodec>::ToString(pair.first));
         statistics->AddSample(path + '/' + codecStr, pair.second);
     }
 }

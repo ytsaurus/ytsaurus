@@ -46,6 +46,9 @@ private:
     const IOperationControllerStrategyHostPtr Controller_;
     const TOperationId OperationId_;
 
+    const NLogging::TLogger Logger;
+
+    mutable std::atomic<bool> Blocked_ = {false};
     std::atomic<int> ConcurrentScheduleJobCalls_ = {0};
     std::atomic<NProfiling::TCpuInstant> LastScheduleJobFailTime_ = {0};
 };

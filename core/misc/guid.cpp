@@ -216,7 +216,7 @@ TGuid TGuid::Create()
     return res;
 }
 
-TGuid TGuid::FromString(const TStringBuf& str)
+TGuid TGuid::FromString(TStringBuf str)
 {
     TGuid guid;
     if (!FromString(str, &guid)) {
@@ -226,7 +226,7 @@ TGuid TGuid::FromString(const TStringBuf& str)
     return guid;
 }
 
-bool TGuid::FromString(const TStringBuf& str, TGuid* result)
+bool TGuid::FromString(TStringBuf str, TGuid* result)
 {
     size_t partId = 3;
     ui64 partValue = 0;

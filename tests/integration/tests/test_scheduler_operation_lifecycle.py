@@ -70,7 +70,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
 
         self._prepare_tables()
 
-        op = map(dont_track=True, in_="//tmp/t_in", out="//tmp/t_out", command="cat; sleep 4")
+        op = map(dont_track=True, in_="//tmp/t_in", out="//tmp/t_out", command="echo '{foo=bar}'; sleep 4")
 
         time.sleep(3)
 
@@ -121,7 +121,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         self._prepare_tables()
 
         transaction_id = start_transaction(timeout=300 * 1000)
-        op = map(dont_track=True, in_="//tmp/t_in", out="//tmp/t_out", command="cat; sleep 10", transaction_id=transaction_id)
+        op = map(dont_track=True, in_="//tmp/t_in", out="//tmp/t_out", command="echo '{foo=bar}'; sleep 10", transaction_id=transaction_id)
 
         time.sleep(2)
         self.Env.kill_schedulers()
@@ -136,7 +136,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
     def test_scheduler_transaction_abort_when_scheduler_is_down(self):
         self._prepare_tables()
 
-        op = map(dont_track=True, in_="//tmp/t_in", out="//tmp/t_out", command="cat; sleep 3")
+        op = map(dont_track=True, in_="//tmp/t_in", out="//tmp/t_out", command="echo '{foo=bar}'; sleep 3")
 
         time.sleep(2)
         self.Env.kill_schedulers()
@@ -341,7 +341,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
     def test_abort_custom_error_message(self):
         self._prepare_tables()
 
-        op = map(dont_track=True, in_="//tmp/t_in", out="//tmp/t_out", command="cat; sleep 3")
+        op = map(dont_track=True, in_="//tmp/t_in", out="//tmp/t_out", command="echo '{foo=bar}'; sleep 3")
         op.abort(abort_message="Test abort")
 
         assert op.get_state() == "aborted"
@@ -508,7 +508,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
 
 ##################################################################
 
-class TestSchedulerRevive(YTEnvSetup):
+class SchedulerReviveBase(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
@@ -546,7 +546,7 @@ class TestSchedulerRevive(YTEnvSetup):
     def test_missing_transactions(self):
         self._prepare_tables()
 
-        op = map(dont_track=True, in_="//tmp/t_in", out="//tmp/t_out", command="cat; sleep 10")
+        op = self._start_op(with_breakpoint("echo '{foo=bar}'; BREAKPOINT"), dont_track=True)
 
         for iter in xrange(5):
             self._wait_for_state(op, "running")
@@ -555,6 +555,7 @@ class TestSchedulerRevive(YTEnvSetup):
             self.Env.start_schedulers()
             time.sleep(1)
 
+        release_breakpoint()
         op.track()
 
         assert "completed" == get("//sys/operations/" + op.id + "/@state")
@@ -562,7 +563,7 @@ class TestSchedulerRevive(YTEnvSetup):
     def test_aborting(self):
         self._prepare_tables()
 
-        op = map(dont_track=True, in_="//tmp/t_in", out="//tmp/t_out", command="cat; sleep 10")
+        op = self._start_op("echo '{foo=bar}'; sleep 10", dont_track=True)
 
         self._wait_for_state(op, "running")
 
@@ -586,7 +587,7 @@ class TestSchedulerRevive(YTEnvSetup):
     def test_completing(self):
         self._prepare_tables()
 
-        op = map(dont_track=True, in_="//tmp/t_in", out="//tmp/t_out", command="cat; sleep 10")
+        op = self._start_op("echo '{foo=bar}'; sleep 10", dont_track=True)
 
         self._wait_for_state(op, "running")
 
@@ -604,7 +605,8 @@ class TestSchedulerRevive(YTEnvSetup):
 
         assert "completed" == get("//sys/operations/" + op.id + "/@state")
 
-        assert read_table("//tmp/t_out") == []
+        if self.OP_TYPE == "map":
+            assert read_table("//tmp/t_out") == []
 
     @pytest.mark.parametrize("stage", ["stage" + str(index) for index in xrange(1, 8)])
     def test_completing_with_sleep(self, stage):
@@ -613,10 +615,11 @@ class TestSchedulerRevive(YTEnvSetup):
 
         self._create_table("//tmp/t_out")
 
-        op = map(dont_track=True, in_="//tmp/t_in", out="//tmp/t_out", command="cat; if [ \"$YT_JOB_INDEX\" != \"0\" ]; then sleep 100; fi;",
+        op = self._start_op("echo '{foo=bar}'; if [ \"$YT_JOB_INDEX\" != \"0\" ]; then sleep 100; fi;",
+                 dont_track=True,
                  spec={
                      "testing": {
-                         "delay_inside_operation_commit": 4000,
+                         "delay_inside_operation_commit": 5000,
                          "delay_inside_operation_commit_stage": stage,
                      },
                      "job_count": 2
@@ -635,7 +638,7 @@ class TestSchedulerRevive(YTEnvSetup):
         self._wait_for_state(op, "completing")
 
         # Wait to perform complete before sleep.
-        time.sleep(2)
+        time.sleep(1.5)
 
         self.Env.kill_schedulers()
 
@@ -671,7 +674,8 @@ class TestSchedulerRevive(YTEnvSetup):
 
         assert get("//sys/operations/" + op.id + "/@state") == "completed"
 
-        assert read_table("//tmp/t_out") == [{"foo": "bar"}]
+        if self.OP_TYPE == "map":
+            assert read_table("//tmp/t_out") == [{"foo": "bar"}]
 
     def test_abort_during_complete(self):
         self._create_table("//tmp/t_in")
@@ -680,7 +684,7 @@ class TestSchedulerRevive(YTEnvSetup):
         remove("//tmp/t_out", force=True)
         self._create_table("//tmp/t_out")
 
-        op = map(dont_track=True, in_="//tmp/t_in", out="//tmp/t_out", command="cat; if [ \"$YT_JOB_INDEX\" != \"0\" ]; then sleep 100; fi;",
+        op = self._start_op("echo '{foo=bar}'; if [ \"$YT_JOB_INDEX\" != \"0\" ]; then sleep 100; fi;", dont_track=True,
                  spec={
                      "testing": {
                          "delay_inside_operation_commit": 4000,
@@ -709,7 +713,7 @@ class TestSchedulerRevive(YTEnvSetup):
     def test_failing(self):
         self._prepare_tables()
 
-        op = map(dont_track=True, in_="//tmp/t_in", out="//tmp/t_out", command="exit 1", spec={"max_failed_job_count": 1})
+        op = self._start_op("exit 1", dont_track=True, spec={"max_failed_job_count": 1})
 
         self._wait_for_state(op, "failing")
 
@@ -729,10 +733,8 @@ class TestSchedulerRevive(YTEnvSetup):
         self._create_table("//tmp/t_out")
         write_table("//tmp/t_in", {"foo": "bar"})
 
-        op = map(
-            command="sleep 1; false",
-            in_=["//tmp/t_in"],
-            out="//tmp/t_out",
+        op = self._start_op(
+            "sleep 1; false",
             spec={"max_failed_job_count": 10000},
             dont_track=True)
 
@@ -754,6 +756,21 @@ class TestSchedulerRevive(YTEnvSetup):
         self.Env.start_schedulers()
 
         wait(lambda: exists(failed_jobs_path) and get(failed_jobs_path) >= 3)
+
+class TestSchedulerReviveMap(SchedulerReviveBase):
+    OP_TYPE = "map"
+
+    def _start_op(self, command, **kwargs):
+        return map(command=command, in_=["//tmp/t_in"], out="//tmp/t_out", **kwargs)
+
+class TestSchedulerReviveVanilla(SchedulerReviveBase):
+    OP_TYPE = "vanilla"
+
+    def _start_op(self, command, **kwargs):
+        spec = kwargs.pop("spec", {})
+        job_count = spec.pop("job_count", 1)
+        spec["tasks"] = {"main": {"command": command, "job_count": job_count}}
+        return vanilla(spec=spec, **kwargs)
 
 class TestControllerAgent(YTEnvSetup):
     NUM_MASTERS = 3

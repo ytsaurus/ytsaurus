@@ -232,7 +232,7 @@ TString ToString(const TReadLimit& limit)
     builder.AppendChar('{');
 
     bool firstToken = true;
-    auto append = [&] (const char* label, const TStringBuf& value) {
+    auto append = [&] (const char* label, TStringBuf value) {
         if (!firstToken) {
             builder.AppendString(", ");
         }

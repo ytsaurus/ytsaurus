@@ -66,7 +66,17 @@ TLocation::TLocation(
     , MetaReadInvoker_(CreatePrioritizedInvoker(MetaReadQueue_->GetInvoker()))
     , WriteThreadPool_(New<TThreadPool>(Bootstrap_->GetConfig()->DataNode->WriteThreadCount, Format("DataWrite:%v", Id_)))
     , WritePoolInvoker_(WriteThreadPool_->GetInvoker())
-    , IOEngine_(CreateIOEngine(Config_->IOEngineType, Config_->IOConfig))
+    , IOEngine_(CreateIOEngine(
+        Config_->IOEngineType,
+        Config_->IOConfig
+            ? Config_->IOConfig
+            // TODO(aozeritsky) temporary workaround
+            : BuildYsonNodeFluently()
+                .BeginMap()
+                    .Item("threads")
+                    .Value(Bootstrap_->GetConfig()->DataNode->WriteThreadCount + Bootstrap_->GetConfig()->DataNode->ReadThreadCount)
+                .EndMap(),
+        id))
     , ThrottledReadsCounter_("/throttled_reads", {}, config->ThrottleCounterInterval)
     , ThrottledWritesCounter_("/throttled_writes", {}, config->ThrottleCounterInterval)
     , PutBlocksWallTimeCounter_("/put_blocks_wall_time", {}, NProfiling::EAggregateMode::All)
@@ -1127,7 +1137,16 @@ TCacheLocation::TCacheLocation(
         bootstrap)
     , Config_(config)
     , InThrottler_(CreateReconfigurableThroughputThrottler(config->InThrottler))
-{ }
+{
+    auto throttlersProfiler = Profiler_;
+    throttlersProfiler.SetPathPrefix(throttlersProfiler.GetPathPrefix() + "/cache");
+
+    InThrottler_ =  CreateNamedReconfigurableThroughputThrottler(
+        config->InThrottler,
+        "InThrottler",
+        Logger,
+        throttlersProfiler);
+}
 
 IThroughputThrottlerPtr TCacheLocation::GetInThrottler() const
 {

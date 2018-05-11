@@ -60,7 +60,7 @@ TValue MakeBoolean(bool value)
     return MakeUnversionedBooleanValue(value);
 }
 
-TValue MakeString(const TStringBuf& value)
+TValue MakeString(TStringBuf value)
 {
     return MakeUnversionedStringValue(value);
 }

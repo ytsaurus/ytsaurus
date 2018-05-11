@@ -36,8 +36,8 @@ private:
 
     void SetType(ETokenType type);
     const char* AdvanceEscaped(const char* current);
-    static int ParseHexDigit(char ch, const TStringBuf& context);
-    static void ThrowMalformedEscapeSequence(const TStringBuf& context);
+    static int ParseHexDigit(char ch, TStringBuf context);
+    static void ThrowMalformedEscapeSequence(TStringBuf context);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

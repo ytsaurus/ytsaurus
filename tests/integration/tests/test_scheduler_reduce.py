@@ -1,3 +1,5 @@
+import itertools
+
 import pytest
 
 from yt.environment.helpers import assert_items_equal, wait
@@ -8,7 +10,7 @@ from yt.yson import YsonEntity
 
 ##################################################################
 
-class TestSchedulerReduceCommands(YTEnvSetup):
+class TestSchedulerReduceCommandsOneCell(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
@@ -17,16 +19,16 @@ class TestSchedulerReduceCommands(YTEnvSetup):
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
             "watchers_update_period": 100,
-            "operations_update_period" : 10,
-            "running_jobs_update_period" : 10,
+            "operations_update_period": 10,
+            "running_jobs_update_period": 10,
         }
     }
 
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "controller_agent": {
-            "operations_update_period" : 10,
-            "reduce_operation_options" : {
-                "job_splitter" : {
+            "operations_update_period": 10,
+            "reduce_operation_options": {
+                "job_splitter": {
                     "min_job_time": 5000,
                     "min_total_data_size": 1024,
                     "update_period": 100,
@@ -352,7 +354,6 @@ class TestSchedulerReduceCommands(YTEnvSetup):
             ]
 
         assert get("//tmp/out/@sorted")
-
 
     def test_empty_in(self):
         create("table", "//tmp/in")
@@ -759,7 +760,6 @@ echo {v = 2} >&7
                 sorted_by = ["host", "url"])
 
         create("table", "//tmp/output")
-
 
     @unix_only
     def test_reduce_with_foreign_join_with_ranges(self):
@@ -1340,7 +1340,7 @@ done
 
         time.sleep(2)
 
-        operation_path = get_operation_path(op.id)
+        operation_path = get_new_operation_cypress_path(op.id)
         scheduler_transaction_id = get(operation_path + "/@async_scheduler_transaction_id")
         wait(lambda: exists(operation_path + "/output_0", tx=scheduler_transaction_id))
 
@@ -1383,7 +1383,75 @@ done
                    reduce_by=["key"],
                    spec={"pivot_keys": [["05"], ["10"]]})
 
-##################################################################
 
-class TestSchedulerReduceCommandsMulticell(TestSchedulerReduceCommands):
+class TestSchedulerNewReduceCommandsOneCell(TestSchedulerReduceCommandsOneCell):
+    @classmethod
+    def modify_controller_agent_config(cls, config):
+        TestSchedulerReduceCommandsOneCell.modify_controller_agent_config(config)
+        config["controller_agent"]["reduce_operation_options"]["spec_template"] = {"use_new_controller": True}
+
+    @unix_only
+    def test_reduce_skewed_key_distribution_one_table(self):
+        create("table", "//tmp/in1")
+        create("table", "//tmp/out")
+
+        data = [{"key": "a"}] * 1000 + [{"key": "b"}] * 1
+        write_table("//tmp/in1", data, sorted_by=["key"], table_writer={"block_size": 1024})
+
+        reduce(
+            in_=["//tmp/in1"],
+            out=["//tmp/out"],
+            command="uniq",
+            reduce_by="key",
+            spec={
+                "reducer": {"format": yson.loads("dsv")},
+                "job_count": 2,
+                "enable_key_guarantee": False
+            }
+        )
+
+        assert get("//tmp/out/@chunk_count") == 2
+        expected = [{"key": "a"},
+                    {"key": "a"},
+                    {"key": "b"}]
+        assert sorted(list(read_table("//tmp/out"))) == sorted(expected)
+
+    @unix_only
+    def test_reduce_skewed_key_distribution_two_tables(self):
+        create("table", "//tmp/in1")
+        create("table", "//tmp/out")
+
+        data = [{"key": "a"}] * 1000 + [{"key": "b"}] * 1
+        write_table("//tmp/in1", data, sorted_by=["key"], table_writer={"block_size": 1024})
+
+        reduce(
+            in_=["//tmp/in1", "//tmp/in1"],
+            out=["//tmp/out"],
+            command="uniq -c | awk -v OFS='\t' '{print $2, $1}'",
+            reduce_by="key",
+            spec={
+                "reducer": {
+                    "input_format": yson.loads("<columns=[key]>schemaful_dsv"),
+                    "output_format": yson.loads("<columns=[key;count]>schemaful_dsv")
+                },
+                "job_count": 4,
+                "enable_key_guarantee": False
+            }
+        )
+        rows = sorted(read_table("//tmp/out"), key=lambda d: d["key"])
+        assert len(rows) > 2
+        dct = {}
+        for key, group in itertools.groupby(rows, key=lambda d: d["key"]):
+            dct[key] = sum(int(x["count"]) for x in group)
+
+        assert len(dct) == 2
+        assert dct["a"] == 1000
+        assert dct["b"] == 1
+
+
+class TestSchedulerReduceCommandsMulticell(TestSchedulerReduceCommandsOneCell):
+    NUM_SECONDARY_MASTER_CELLS = 2
+
+
+class TestSchedulerNewReduceCommandsMulticell(TestSchedulerNewReduceCommandsOneCell):
     NUM_SECONDARY_MASTER_CELLS = 2

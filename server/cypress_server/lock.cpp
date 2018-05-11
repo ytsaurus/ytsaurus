@@ -40,7 +40,7 @@ void TLockKey::Persist(TPersistenceContext& context)
     Persist(context, Name);
 }
 
-void FormatValue(TStringBuilder* builder, const TLockKey& key, const TStringBuf& format)
+void FormatValue(TStringBuilder* builder, const TLockKey& key, TStringBuf format)
 {
     if (key.Kind == ELockKeyKind::None) {
         builder->AppendFormat("%v", key.Kind);

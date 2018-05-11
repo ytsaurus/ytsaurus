@@ -708,6 +708,36 @@ TEST(TYsonSerializableTest, EnumAsKeyToYHash)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TEST(TYsonSerializableTest, NullableWithNonNullDefault)
+{
+    class TConfig
+        : public TYsonSerializable
+    {
+    public:
+        TNullable<int> Value;
+
+        TConfig()
+        {
+            RegisterParameter("value", Value)
+                .Default(123);
+        }
+    };
+
+    {
+        auto config = ConvertTo<TIntrusivePtr<TConfig>>(TYsonString("{}"));
+        EXPECT_EQ(123, *config->Value);
+        EXPECT_EQ(123, ConvertToNode(config)->AsMap()->GetChild("value")->GetValue<i64>());
+    }
+
+    {
+        auto config = ConvertTo<TIntrusivePtr<TConfig>>(TYsonString("{value=#}"));
+        EXPECT_FALSE(config->Value.HasValue());
+        EXPECT_EQ(ENodeType::Entity, ConvertToNode(config)->AsMap()->GetChild("value")->GetType());
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace
 } // namespace NYTree
 } // namespace NYT

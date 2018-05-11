@@ -298,8 +298,9 @@ TListJobsCommand::TListJobsCommand()
 
     RegisterParameter("include_cypress", Options.IncludeCypress)
         .Optional();
-    RegisterParameter("include_scheduler", Options.IncludeScheduler)
+    RegisterParameter("include_controller_agent", Options.IncludeControllerAgent)
         .Alias("include_runtime")
+        .Alias("include_scheduler")
         .Optional();
     RegisterParameter("include_archive", Options.IncludeArchive)
         .Optional();
@@ -352,7 +353,9 @@ void TListJobsCommand::DoExecute(ICommandContextPtr context)
                 })
             .EndList()
             .Item("cypress_job_count").Value(result.CypressJobCount)
-            .Item("scheduler_job_count").Value(result.SchedulerJobCount)
+            // COMPAT(asaitgalin): Remove it in favor of controller_agent_job_count
+            .Item("scheduler_job_count").Value(result.ControllerAgentJobCount)
+            .Item("controller_agent_job_count").Value(result.ControllerAgentJobCount)
             .Item("archive_job_count").Value(result.ArchiveJobCount)
             .Item("type_counts").BeginMap()
                 .DoFor(TEnumTraits<NJobTrackerClient::EJobType>::GetDomainValues(), [&] (TFluentMap fluent, const auto& item) {

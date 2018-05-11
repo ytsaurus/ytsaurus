@@ -20,7 +20,7 @@ void ParseYamredDsv(
     TYamredDsvFormatConfigPtr config = nullptr);
 
 void ParseYamredDsv(
-    const TStringBuf& data,
+    TStringBuf data,
     NYson::IYsonConsumer* consumer,
     TYamredDsvFormatConfigPtr config = nullptr);
 

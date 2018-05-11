@@ -31,11 +31,17 @@ message TJobStartInfo
     optional NNodeTrackerClient.NProto.TAddressMap spec_service_addresses = 4;
 }
 
+message TJobToRemove
+{
+    required NYT.NProto.TGuid job_id = 1;
+    required bool archive_job_spec = 2;
+}
+
 message TRspHeartbeat
 {
     repeated TJobStartInfo jobs_to_start = 1;
     repeated NYT.NProto.TGuid jobs_to_abort = 2;
-    repeated NYT.NProto.TGuid jobs_to_remove = 3;
+    repeated TJobToRemove jobs_to_remove = 3;
     repeated NYT.NProto.TGuid jobs_to_store = 4;
     repeated NYT.NProto.TGuid jobs_to_interrupt = 5;
     repeated NYT.NProto.TGuid jobs_to_fail = 6;

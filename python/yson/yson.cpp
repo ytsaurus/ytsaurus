@@ -353,10 +353,17 @@ public:
         auto kwargs = kwargs_;
 
         auto protoObject = ExtractArgument(args, kwargs, "proto");
+
+        TNullable<bool> skipUnknownFields;
+        if (HasArgument(args, kwargs, "skip_unknown_fields")) {
+            auto arg = ExtractArgument(args, kwargs, "skip_unknown_fields");
+            skipUnknownFields = Py::Boolean(arg);
+        }
+
         ValidateArgumentsEmpty(args, kwargs);
 
         try {
-            return DumpsProtoImpl(protoObject);
+            return DumpsProtoImpl(protoObject, skipUnknownFields);
         } CATCH("Yson dumps_proto failed");
     }
 
@@ -655,7 +662,7 @@ private:
         YCHECK(result);
     }
 
-    Py::Object DumpsProtoImpl(Py::Object protoObject)
+    Py::Object DumpsProtoImpl(Py::Object protoObject, TNullable<bool> skipUnknownFields)
     {
         auto serializeToString = Py::Callable(GetAttr(protoObject, "SerializeToString"));
         auto serializedProto = Py::String(serializeToString.apply(Py::Tuple(), Py::Dict()));
@@ -673,7 +680,13 @@ private:
         TString result;
         TStringOutput outputStream(result);
         TYsonWriter writer(&outputStream);
-        ParseProtobuf(&writer, &inputStream, messageType);
+
+        TProtobufParserOptions options;
+        if (skipUnknownFields) {
+            options.SkipUnknownFields = *skipUnknownFields;
+        }
+
+        ParseProtobuf(&writer, &inputStream, messageType, options);
 
         return Py::ConvertToPythonString(result);
     }

@@ -28,20 +28,20 @@ public:
         Lexer.reset(new TStatelessLexer());
     }
 
-    void TestConsume(const TStringBuf& input)
+    void TestConsume(TStringBuf input)
     {
         TToken token;
         Lexer->GetToken(input, &token);
     }
 
-    TToken GetToken(const TStringBuf& input)
+    TToken GetToken(TStringBuf input)
     {
         TToken token;
         Lexer->GetToken(input, &token);
         return token;
     }
 
-    void TestToken(const TStringBuf& input, ETokenType expectedType, const TString& expectedValue)
+    void TestToken(TStringBuf input, ETokenType expectedType, const TString& expectedValue)
     {
         auto token = GetToken(input);
         EXPECT_EQ(expectedType, token.GetType());
@@ -49,7 +49,7 @@ public:
         Reset();
     }
 
-    void TestDouble(const TStringBuf& input, double expectedValue)
+    void TestDouble(TStringBuf input, double expectedValue)
     {
         auto token = GetToken(input);
         EXPECT_EQ(ETokenType::Double, token.GetType());
@@ -57,7 +57,7 @@ public:
         Reset();
     }
 
-    void TestSpecialValue(const TStringBuf& input, ETokenType expectedType)
+    void TestSpecialValue(TStringBuf input, ETokenType expectedType)
     {
         auto token = GetToken(input);
         EXPECT_EQ(expectedType, token.GetType());
@@ -65,13 +65,13 @@ public:
         Reset();
     }
 
-    void TestIncorrectFinish(const TStringBuf& input)
+    void TestIncorrectFinish(TStringBuf input)
     {
         EXPECT_THROW(TestConsume(input), std::exception);
         Reset();
     }
 
-    void TestIncorrectInput(const TStringBuf& input)
+    void TestIncorrectInput(TStringBuf input)
     {
         EXPECT_THROW(TestConsume(input), std::exception);
         Reset();

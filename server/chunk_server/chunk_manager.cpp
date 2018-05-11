@@ -616,7 +616,7 @@ public:
 
         const auto& requisition = forcedRequisition
             ? *forcedRequisition
-            : chunk->ComputeRequisition(GetChunkRequisitionRegistry());
+            : chunk->GetAggregatedRequisition(GetChunkRequisitionRegistry());
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         securityManager->UpdateResourceUsage(chunk, requisition, delta);
     }
@@ -837,8 +837,18 @@ public:
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         auto cellIndex = multicellManager->GetRegisteredMasterCellIndex(destinationCellTag);
 
+        if (!chunk->IsExportedToCell(cellIndex)) {
+            LOG_ERROR("Unexpected error: chunk is not exported and cannot be unexported "
+                "(ChunkId: %v, CellTag: %v, CellIndex: %v, ImportRefCounter: %v)",
+                chunk->GetId(),
+                destinationCellTag,
+                cellIndex,
+                importRefCounter);
+            return;
+        }
+
         auto externalRequisitionIndexBefore = chunk->GetExternalRequisitionIndex(cellIndex);
-        auto requisitionBefore = chunk->ComputeRequisition(GetChunkRequisitionRegistry());
+        auto requisitionBefore = chunk->GetAggregatedRequisition(GetChunkRequisitionRegistry());
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         chunk->Unexport(cellIndex, importRefCounter, GetChunkRequisitionRegistry(), objectManager);
@@ -1181,6 +1191,8 @@ private:
     bool NeedResetDataWeight_ = false;
     bool NeedInitializeMediumConfig_ = false;
     bool NeedRecomputeRequisitionRefCounts_ = false;
+    bool NeedToFixExportRequisitionIndexes_ = false;
+    bool NeedToInitializeAggregatedRequisitionIndexes_ = false;
 
     TPeriodicExecutorPtr ProfilingExecutor_;
 
@@ -1587,14 +1599,20 @@ private:
             auto* chunk = update.Chunk;
             auto newRequisitionIndex = update.TranslatedRequisitionIndex;
 
+            if (!local && !chunk->IsExportedToCell(cellIndex)) {
+                // The chunk has already been unexported from that cell.
+                continue;
+            }
+
             auto curRequisitionIndex = local ? chunk->GetLocalRequisitionIndex() : chunk->GetExternalRequisitionIndex(cellIndex);
+
             if (newRequisitionIndex == curRequisitionIndex) {
                 continue;
             }
 
             auto requisitionBefore = chunk->IsForeign()
                 ? TChunkRequisition() // Not used.
-                : chunk->ComputeRequisition(GetChunkRequisitionRegistry());
+                : chunk->GetAggregatedRequisition(GetChunkRequisitionRegistry());
 
             if (local) {
                 chunk->SetLocalRequisitionIndex(newRequisitionIndex, GetChunkRequisitionRegistry(), objectManager);
@@ -2095,6 +2113,12 @@ private:
 
         // COMPAT(shakurov)
         NeedRecomputeRequisitionRefCounts_ = context.GetVersion() < 704;
+
+        // COMPAT(shakurov)
+        NeedToFixExportRequisitionIndexes_ = context.GetVersion() >= 700 && context.GetVersion() < 707;
+
+        // COMPAT(shakurov)
+        NeedToInitializeAggregatedRequisitionIndexes_ = context.GetVersion() < 709;
     }
 
     virtual void OnBeforeSnapshotLoaded() override
@@ -2166,6 +2190,29 @@ private:
             for (const auto& pair : ChunkMap_) {
                 const auto* chunk = pair.second;
                 chunk->RefUsedRequisitions(GetChunkRequisitionRegistry());
+            }
+        }
+
+        // COMPAT(shakurov)
+        if (NeedToFixExportRequisitionIndexes_) {
+            for (const auto& pair : ChunkMap_) {
+                auto* chunk = pair.second;
+                chunk->FixExportRequisitionIndexes();
+            }
+        }
+
+        // COMPAT(shakurov)
+        if (NeedToInitializeAggregatedRequisitionIndexes_) {
+            auto* registry = GetChunkRequisitionRegistry();
+            const auto& objectManager = Bootstrap_->GetObjectManager();
+
+            for (const auto& pair : ChunkMap_) {
+                auto* chunk = pair.second;
+                // NB: this may have no effect for those rare chunks that have no trunk owners.
+                // In that case, the aggregated requisition will be left equal to migration requisition.
+                // This will be corrected on chunk's next requisition update (which is bound to
+                // happen since having no trunk owners is always a temporary state).
+                chunk->UpdateAggregatedRequisitionIndex(registry, objectManager);
             }
         }
 

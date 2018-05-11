@@ -41,7 +41,7 @@ namespace NYT {
         using TUnderlying = underlyingType; \
         static constexpr bool IsBitEnum = isBit; \
         \
-        static const TStringBuf& GetTypeName() \
+        static TStringBuf GetTypeName() \
         { \
             static const TStringBuf typeName = AsStringBuf(PP_STRINGIZE(name)); \
             return typeName; \
@@ -53,7 +53,7 @@ namespace NYT {
             return nullptr; \
         } \
         \
-        static bool FindValueByLiteral(const TStringBuf& literal, TType* result) \
+        static bool FindValueByLiteral(TStringBuf literal, TType* result) \
         { \
             PP_FOR_EACH(ENUM__VALUE_BY_LITERAL_ITEM, seq); \
             return false; \
@@ -82,7 +82,7 @@ namespace NYT {
             return result; \
         } \
         \
-        static TType FromString(const TStringBuf& str) \
+        static TType FromString(TStringBuf str) \
         { \
             TType value; \
             if (!FindValueByLiteral(str, &value)) { \
@@ -218,7 +218,7 @@ auto TEnumTraits<T, true>::Decompose(TType value) -> std::vector<TType>
 }
 
 template <class T>
-auto TEnumTraits<T, true>::FromString(const TStringBuf& str) -> TType
+auto TEnumTraits<T, true>::FromString(TStringBuf str) -> TType
 {
     return TImpl::FromString(str);
 }
@@ -270,7 +270,7 @@ constexpr int TEnumTraits<T, true>::GetDomainSize()
 }
 
 template <class T>
-bool TEnumTraits<T, true>::FindValueByLiteral(const TStringBuf& literal, TType* result)
+bool TEnumTraits<T, true>::FindValueByLiteral(TStringBuf literal, TType* result)
 {
     return TImpl::FindValueByLiteral(literal, result);
 }
@@ -282,7 +282,7 @@ const TStringBuf* TEnumTraits<T, true>::FindLiteralByValue(TType value)
 }
 
 template <class T>
-const TStringBuf& TEnumTraits<T, true>::GetTypeName()
+TStringBuf TEnumTraits<T, true>::GetTypeName()
 {
     return TImpl::GetTypeName();
 }

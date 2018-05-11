@@ -195,7 +195,6 @@ public:
         }
 
         if (UserJobEnvironment_) {
-            UserJobEnvironment_->SetMemoryGuarantee(UserJobSpec_.memory_reserve());
             YCHECK(host->GetConfig()->BusServer->UnixDomainName);
             YCHECK(UserId_);
             Process_ = UserJobEnvironment_->CreateUserJobProcess(
@@ -222,14 +221,13 @@ public:
             tableWriterOptions->EnableValidationOptions();
             auto chunkList = FromProto<TChunkListId>(coreTableSpec.output_table_spec().chunk_list_id());
             auto blobTableWriterConfig = ConvertTo<TBlobTableWriterConfigPtr>(TYsonString(coreTableSpec.blob_table_writer_config()));
-            auto transactionId = FromProto<TTransactionId>(
-                Host_->GetJobSpecHelper()->GetSchedulerJobSpecExt().output_transaction_id());
+            auto debugTransactionId = FromProto<TTransactionId>(UserJobSpec_.debug_output_transaction_id());
 
             CoreProcessorService_ = New<TCoreProcessorService>(
                 Host_,
                 blobTableWriterConfig,
                 tableWriterOptions,
-                transactionId,
+                debugTransactionId,
                 chunkList,
                 AuxQueue_->GetInvoker(),
                 Config_->CoreForwarderTimeout);
@@ -1138,9 +1136,11 @@ private:
         // If job successfully completes or dies prematurely, they close automatically.
         WaitFor(CombineAll(outputFutures))
             .ThrowOnError();
+        LOG_INFO("Output actions finished");
+
         WaitFor(CombineAll(stderrFutures))
             .ThrowOnError();
-        LOG_INFO("Output actions finished");
+        LOG_INFO("Error actions finished");
 
         // Then, wait for job process to finish.
         // Theoretically, process could have explicitely closed its output pipes

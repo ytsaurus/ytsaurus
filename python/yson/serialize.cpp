@@ -348,7 +348,7 @@ TGilGuardedYsonConsumer::TGilGuardedYsonConsumer(IYsonConsumer* consumer)
     : Consumer_(consumer)
 { }
 
-void TGilGuardedYsonConsumer::OnStringScalar(const TStringBuf& value)
+void TGilGuardedYsonConsumer::OnStringScalar(TStringBuf value)
 {
     NPython::TGilGuard guard;
     Consumer_->OnStringScalar(value);
@@ -408,7 +408,7 @@ void TGilGuardedYsonConsumer::OnBeginMap()
     Consumer_->OnBeginMap();
 }
 
-void TGilGuardedYsonConsumer::OnKeyedItem(const TStringBuf& key)
+void TGilGuardedYsonConsumer::OnKeyedItem(TStringBuf key)
 {
     NPython::TGilGuard guard;
     Consumer_->OnKeyedItem(key);

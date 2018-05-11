@@ -3,11 +3,11 @@ import pytest
 from yt_env_setup import YTEnvSetup, wait
 from yt_commands import *
 
-from time import sleep
-from flaky import flaky
-
 from yt.environment.helpers import assert_items_equal
 
+from flaky import flaky
+
+from time import sleep
 import __builtin__
 
 ##################################################################
@@ -815,6 +815,30 @@ class TestDynamicTablesResourceLimits(TestDynamicTablesBase):
         set("//sys/accounts/test_account/@resource_limits/tablet_count", 2)
         copy("//tmp/t", "//tmp/t_copy", preserve_account=True)
         self._verify_resource_usage("test_account", "tablet_count", 2)
+
+    def test_tablet_count_copy_across_accounts(self):
+        create_account("test_account1")
+        create_account("test_account2")
+        set("//sys/accounts/test_account1/@resource_limits/tablet_count", 10)
+        set("//sys/accounts/test_account2/@resource_limits/tablet_count", 0)
+
+        self.sync_create_cells(1)
+        self._create_sorted_table("//tmp/t", account="test_account1")
+
+        self._verify_resource_usage("test_account1", "tablet_count", 1)
+
+        create("map_node", "//tmp/dir", attributes={"account": "test_account2"})
+
+        with pytest.raises(YtError):
+            copy("//tmp/t", "//tmp/dir/t_copy", preserve_account=False)
+
+        self._verify_resource_usage("test_account2", "tablet_count", 0)
+
+        set("//sys/accounts/test_account2/@resource_limits/tablet_count", 1)
+        copy("//tmp/t", "//tmp/dir/t_copy", preserve_account=False)
+
+        self._verify_resource_usage("test_account1", "tablet_count", 1)
+        self._verify_resource_usage("test_account2", "tablet_count", 1)
 
     def test_tablet_count_remove(self):
         create_account("test_account")

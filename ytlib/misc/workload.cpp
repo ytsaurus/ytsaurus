@@ -126,7 +126,7 @@ void FromProto(TWorkloadDescriptor* descriptor, const NYT::NProto::TWorkloadDesc
 void FormatValue(
     TStringBuilder* builder,
     const TWorkloadDescriptor& descriptor,
-    const TStringBuf& /*format*/)
+    TStringBuf /*format*/)
 {
     builder->AppendFormat("%v:%v",
         descriptor.Category,

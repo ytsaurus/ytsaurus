@@ -33,16 +33,16 @@ TEncodingWriter::TEncodingWriter(
     , ChunkWriter_(std::move(chunkWriter))
     , BlockCache_(std::move(blockCache))
     , Logger(logger)
-    , CodecTime_({Options_->CompressionCodec, TDuration::MicroSeconds(0)})
-    , CompressionRatio_(Config_->DefaultCompressionRatio)
+    , Semaphore_(New<TAsyncSemaphore>(Config_->EncodeWindowSize))
+    , Codec_(NCompression::GetCodec(Options_->CompressionCodec))
     , CompressionInvoker_(CreateSerializedInvoker(CreateFixedPriorityInvoker(
         TDispatcher::Get()->GetPrioritizedCompressionPoolInvoker(),
         Config_->WorkloadDescriptor.GetPriority())))
-    , Semaphore_(New<TAsyncSemaphore>(Config_->EncodeWindowSize))
-    , Codec_(NCompression::GetCodec(Options_->CompressionCodec))
     , WritePendingBlockCallback_(BIND(
         &TEncodingWriter::WritePendingBlock,
         MakeWeak(this)).Via(CompressionInvoker_))
+    , CompressionRatio_(Config_->DefaultCompressionRatio)
+    , CodecTime_({Options_->CompressionCodec, TDuration::MicroSeconds(0)})
 { }
 
 void TEncodingWriter::WriteBlock(TSharedRef block)
@@ -100,13 +100,16 @@ void TEncodingWriter::CacheUncompressedBlock(const TSharedRef& block, int blockI
 // Serialized compression invoker affinity (don't use thread affinity because of thread pool).
 void TEncodingWriter::DoCompressBlock(const TSharedRef& uncompressedBlock)
 {
-    LOG_DEBUG("Compressing block (Block: %v)", AddedBlockIndex_);
+    LOG_DEBUG("Started compressing block (Block: %v, Codec: %v)",
+        AddedBlockIndex_,
+        Codec_->GetId());
 
     TBlock compressedBlock;
     {
         NProfiling::TCpuTimingGuard guard(&CodecTime_.CpuDuration);
         compressedBlock.Data = Codec_->Compress(uncompressedBlock);
     }
+
     if (Config_->ComputeChecksum) {
         compressedBlock.Checksum = GetChecksum(compressedBlock.Data);
     }
@@ -114,6 +117,10 @@ void TEncodingWriter::DoCompressBlock(const TSharedRef& uncompressedBlock)
     if (Config_->VerifyCompression) {
         VerifyBlock(uncompressedBlock, compressedBlock.Data);
     }
+
+    LOG_DEBUG("Finished compressing block (Block: %v, Codec: %v)",
+        AddedBlockIndex_,
+        Codec_->GetId());
 
     if (Any(BlockCache_->GetSupportedBlockTypes() & EBlockType::UncompressedData)) {
         OpenFuture_.Apply(BIND(
@@ -123,20 +130,23 @@ void TEncodingWriter::DoCompressBlock(const TSharedRef& uncompressedBlock)
             AddedBlockIndex_));
     }
 
-    int sizeToRelease = -static_cast<i64>(compressedBlock.Size()) + uncompressedBlock.Size();
+    auto sizeToRelease = -static_cast<i64>(compressedBlock.Size()) + uncompressedBlock.Size();
     ProcessCompressedBlock(compressedBlock, sizeToRelease);
 }
 
 // Serialized compression invoker affinity (don't use thread affinity because of thread pool).
 void TEncodingWriter::DoCompressVector(const std::vector<TSharedRef>& uncompressedVectorizedBlock)
 {
-    LOG_DEBUG("Compressing block (Block: %v)", AddedBlockIndex_);
+    LOG_DEBUG("Started compressing block (Block: %v, Codec: %v)",
+        AddedBlockIndex_,
+        Codec_->GetId());
 
     TBlock compressedBlock;
     {
         NProfiling::TCpuTimingGuard guard(&CodecTime_.CpuDuration);
         compressedBlock.Data = Codec_->Compress(uncompressedVectorizedBlock);
     }
+
     if (Config_->ComputeChecksum) {
         compressedBlock.Checksum = GetChecksum(compressedBlock.Data);
     }
@@ -144,6 +154,10 @@ void TEncodingWriter::DoCompressVector(const std::vector<TSharedRef>& uncompress
     if (Config_->VerifyCompression) {
         VerifyVector(uncompressedVectorizedBlock, compressedBlock.Data);
     }
+
+    LOG_DEBUG("Finished compressing block (Block: %v, Codec: %v)",
+        AddedBlockIndex_,
+        Codec_->GetId());
 
     if (Any(BlockCache_->GetSupportedBlockTypes() & EBlockType::UncompressedData)) {
         struct TMergedTag { };
@@ -158,7 +172,7 @@ void TEncodingWriter::DoCompressVector(const std::vector<TSharedRef>& uncompress
             AddedBlockIndex_));
     }
 
-    i64 sizeToRelease = -static_cast<i64>(compressedBlock.Size()) + GetByteSize(uncompressedVectorizedBlock);
+    auto sizeToRelease = -static_cast<i64>(compressedBlock.Size()) + GetByteSize(uncompressedVectorizedBlock);
     ProcessCompressedBlock(compressedBlock, sizeToRelease);
 }
 
@@ -286,7 +300,7 @@ double TEncodingWriter::GetCompressionRatio() const
     return CompressionRatio_.load();
 }
 
-const TCodecDuration& TEncodingWriter::GetCompressionTime() const
+const TCodecDuration& TEncodingWriter::GetCompressionDuration() const
 {
     return CodecTime_;
 }

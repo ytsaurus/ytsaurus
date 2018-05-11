@@ -33,7 +33,7 @@ public:
     const NApi::INativeClientPtr& GetMasterClient() const;
     NNodeTrackerClient::TAddressMap GetLocalAddresses() const;
     NNodeTrackerClient::TNetworkPreferenceList GetLocalNetworks() const;
-    IInvokerPtr GetControlInvoker(EControlQueue queue = EControlQueue::Default) const;
+    IInvokerPtr GetControlInvoker(EControlQueue queue) const;
     const TSchedulerPtr& GetScheduler() const;
     const TControllerAgentTrackerPtr& GetControllerAgentTracker() const;
     const NRpc::TResponseKeeperPtr& GetResponseKeeper() const;

@@ -263,7 +263,7 @@ bool IsOperationInProgress(EOperationState state)
         state == EOperationState::Aborting;
 }
 
-void ValidateEnvironmentVariableName(const TStringBuf& name)
+void ValidateEnvironmentVariableName(TStringBuf name)
 {
     static const int MaximumNameLength = 1 << 16; // 64 kilobytes.
     if (name.size() > MaximumNameLength) {

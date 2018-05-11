@@ -101,7 +101,7 @@ public:
 
     void UpdateConfig(const TSchedulerConfigPtr& config);
 
-    void OnMasterConnected();
+    IInvokerPtr OnMasterConnected();
     void OnMasterDisconnected();
 
     void RegisterOperation(
@@ -110,6 +110,7 @@ public:
         bool jobsReady);
     void StartOperationRevival(const TOperationId& operationId);
     void FinishOperationRevival(const TOperationId& operationId, const std::vector<TJobPtr>& jobs);
+    void ResetOperationRevival(const TOperationId& operationId);
     void UnregisterOperation(const TOperationId& operationId);
 
     void ProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& context);
@@ -120,29 +121,21 @@ public:
     void HandleNodesAttributes(const std::vector<std::pair<TString, NYTree::INodePtr>>& nodeMaps);
 
     void AbortOperationJobs(const TOperationId& operationId, const TError& abortReason, bool terminated);
-
     void ResumeOperationJobs(const TOperationId& operationId);
-
-    NYson::TYsonString StraceJob(const TJobId& jobId, const TString& user);
-
-    void DumpJobInputContext(const TJobId& jobId, const NYTree::TYPath& path, const TString& user);
 
     NNodeTrackerClient::TNodeDescriptor GetJobNode(const TJobId& jobId, const TString& user);
 
+    NYson::TYsonString StraceJob(const TJobId& jobId, const TString& user);
+    void DumpJobInputContext(const TJobId& jobId, const NYTree::TYPath& path, const TString& user);
     void SignalJob(const TJobId& jobId, const TString& signalName, const TString& user);
-
     void AbandonJob(const TJobId& jobId, const TString& user);
-
     NYson::TYsonString PollJobShell(const TJobId& jobId, const NYson::TYsonString& parameters, const TString& user);
-
     void AbortJobByUserRequest(const TJobId& jobId, TNullable<TDuration> interruptTimeout, const TString& user);
+
     void AbortJob(const TJobId& jobId, const TError& error);
-
     void InterruptJob(const TJobId& jobId, EInterruptReason reason);
-
     void FailJob(const TJobId& jobId);
-
-    void ReleaseJob(const TJobId& jobId);
+    void ReleaseJob(const TJobId& jobId, bool archiveJobSpec);
 
     void BuildNodesYson(NYTree::TFluentMap fluent);
 
@@ -221,6 +214,7 @@ private:
         TIncarnationId IncarnationId;
         TPromise<NControllerAgent::TScheduleJobResultPtr> Promise;
         THashMultiMap<TOperationId, THashMap<TJobId, TScheduleJobEntry>::iterator>::iterator OperationIdToJobIdsIterator;
+        NProfiling::TCpuInstant StartTime;
     };
     // NB: It is important to use THash* instead of std::unordered_* since we rely on
     // iterators not to be uninvalidated.
@@ -240,7 +234,10 @@ private:
         { }
 
         THashMap<TJobId, TJobPtr> Jobs;
-        THashSet<TJobId> RecentlyCompletedJobIds;
+        THashSet<TJobId> JobsToSubmitToStrategy;
+        THashSet<TJobId> RecentlyFinishedJobIds;
+        //! Used only to decrease logging size.
+        THashSet<TJobId> SkippedJobIds;
         IOperationControllerPtr Controller;
         bool Terminated = false;
         //! Raised to prevent races between suspension and scheduler strategy scheduling new jobs.
@@ -312,9 +309,9 @@ private:
         const ISchedulingContextPtr& schedulingContext,
         const TScheduler::TCtxNodeHeartbeatPtr& rpcContext);
 
-    void OnJobAborted(const TJobPtr& job, TJobStatus* status, bool operationTerminated = false);
+    void OnJobAborted(const TJobPtr& job, TJobStatus* status, bool byScheduler, bool operationTerminated = false);
     void OnJobFinished(const TJobPtr& job);
-    void OnJobRunning(const TJobPtr& job, TJobStatus* status);
+    void OnJobRunning(const TJobPtr& job, TJobStatus* status, bool shouldLogJob);
     void OnJobCompleted(const TJobPtr& job, TJobStatus* status, bool abandoned = false);
     void OnJobFailed(const TJobPtr& job, TJobStatus* status);
 
@@ -328,7 +325,10 @@ private:
     void SetJobWaitingForConfirmation(const TJobPtr& job);
     void ResetJobWaitingForConfirmation(const TJobPtr& job);
 
-    void RemoveRecentlyCompletedJob(const TJobId& jobId);
+    void AddRecentlyFinishedJob(const TJobPtr& job);
+    void RemoveRecentlyFinishedJob(const TJobId& jobId);
+
+    void SetOperationJobsReleaseDeadline(TOperationState* operationState);
 
     void PreemptJob(const TJobPtr& job, TNullable<NProfiling::TCpuDuration> interruptTimeout);
 

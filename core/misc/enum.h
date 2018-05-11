@@ -42,17 +42,17 @@ struct TEnumTraits<T, true>
     static constexpr bool IsEnum = true;
     static constexpr bool IsBitEnum = TImpl::IsBitEnum;
 
-    static const TStringBuf& GetTypeName();
+    static TStringBuf GetTypeName();
 
     static const TStringBuf* FindLiteralByValue(TType value);
-    static bool FindValueByLiteral(const TStringBuf& literal, TType* result);
+    static bool FindValueByLiteral(TStringBuf literal, TType* result);
 
     static constexpr int GetDomainSize();
 
     static const std::vector<TString>& GetDomainNames();
     static const std::vector<TType>& GetDomainValues();
 
-    static TType FromString(const TStringBuf& str);
+    static TType FromString(TStringBuf str);
     static TString ToString(TType value);
 
     // For non-bit enums only.

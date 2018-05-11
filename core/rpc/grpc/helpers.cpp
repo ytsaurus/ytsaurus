@@ -270,7 +270,7 @@ TString SerializeError(const TError& error)
     return serializedError;
 }
 
-TError DeserializeError(const TStringBuf& serializedError)
+TError DeserializeError(TStringBuf serializedError)
 {
     NYT::NProto::TError protoError;
     google::protobuf::io::ArrayInputStream input(serializedError.data(), serializedError.size());

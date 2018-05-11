@@ -136,7 +136,7 @@ public:
     TJobPtr GetJob() const;
     void SetJob(TJobPtr job);
 
-    //! Refs all (local and external) requisitions this chunk uses.
+    //! Refs all (local, external and aggregated) requisitions this chunk uses.
     //! Supposed to be called soon after the chunk is constructed or loaded.
     void RefUsedRequisitions(TChunkRequisitionRegistry* registry) const;
 
@@ -151,36 +151,40 @@ public:
         TChunkRequisitionRegistry* registry,
         const NObjectServer::TObjectManagerPtr& objectManager);
 
+    //! Prerequisite: IsExportedToCell(cellIndex).
     TChunkRequisitionIndex GetExternalRequisitionIndex(int cellIndex) const;
+    //! Prerequisite: IsExportedToCell(cellIndex).
     void SetExternalRequisitionIndex(
         int cellIndex,
         TChunkRequisitionIndex requisitionIndex,
         TChunkRequisitionRegistry* registry,
         const NObjectServer::TObjectManagerPtr& objectManager);
 
-    //! Computes chunk's requisition by combining local and external values.
-    //! For semantics of combining, see #TChunkRequisition::operator|=().
-    TChunkRequisition ComputeRequisition(const TChunkRequisitionRegistry* registry) const;
+    //! Returns chunk's requisition aggregated from local and external values.
+    //! If aggregating them would result in an empty requisition, returns the most
+    //! recent non-empty aggregated requisition.
+    //! For semantics of aggregation, see #TChunkRequisition::operator|=().
+    const TChunkRequisition& GetAggregatedRequisition(const TChunkRequisitionRegistry* registry) const;
 
-    //! Computes chunk's replication by combining local and external values.
-    //! For semantics of combining, see #TChunkReplication::operator|=().
+    //! Returns chunk's replication aggregated from local and external values.
+    //! For semantics of aggregation, see #TChunkReplication::operator|=().
     /*!
      *  NB: by default only COMMITTED OWNERS affect this. If the chunk has no
      *  committed owners, then non-committed ones are taken into account.
      *
-     *  If there're no owners at all, Null is returned. Usually this means that
-     *  this is a newly created staged chunk.
+     *  If there're no owners at all, the returned value is the most recent
+     *  non-empty aggregated replication.
      */
-    TNullable<TChunkReplication> ComputeReplication(const TChunkRequisitionRegistry* registry) const;
+    TChunkReplication GetAggregatedReplication(const TChunkRequisitionRegistry* registry) const;
 
-    //! Computes the replication factor for the specified medium by combining the
-    //! local and the external values. See #ComputeReplication().
-    TNullable<int> ComputeReplicationFactor(int mediumIndex, const TChunkRequisitionRegistry* registry) const;
+    //! Returns the replication factor for the specified medium aggregated from
+    //! the local and the external values. See #GetAggregatedReplication().
+    int GetAggregatedReplicationFactor(int mediumIndex, const TChunkRequisitionRegistry* registry) const;
 
-    //! Computes the replication factors for all media by combining the local and
-    //! the external values. See #ComputeReplication().
+    //! Returns the replication factors for all media aggregated from the local and
+    //! the external values. See #GetAggregatedReplication().
     //! NB: most of the time, most of the elements of the returned array will be zero.
-    TNullable<TPerMediumIntArray> ComputeReplicationFactors(const TChunkRequisitionRegistry* registry) const;
+    TPerMediumIntArray GetAggregatedReplicationFactors(const TChunkRequisitionRegistry* registry) const;
 
     int GetReadQuorum() const;
     void SetReadQuorum(int value);
@@ -224,13 +228,13 @@ public:
     //! Returns the maximum number of replicas that can be stored in the same
     //! rack without violating the availability guarantees.
     /*!
-     *  As #ComputeReplication(), takes into account only committed owners of
+     *  As #GetAggregatedReplication(), takes into account only committed owners of
      *  this chunk, if there're any. Otherwise falls back to all owners.
      *
      *  \param replicationFactorOverride An override for replication factor;
      *  used when one wants to upload fewer replicas but still guarantee placement safety.
      */
-    TNullable<int> GetMaxReplicasPerRack(
+    int GetMaxReplicasPerRack(
         int mediumIndex,
         TNullable<int> replicationFactorOverride,
         const TChunkRequisitionRegistry* registry) const;
@@ -240,6 +244,9 @@ public:
      *  \see #TMulticellManager::GetRegisteredMasterCellIndex
      */
     const TChunkExportData& GetExportData(int cellIndex) const;
+
+    //! Same as GetExportData(cellIndex).RefCounter != 0.
+    bool IsExportedToCell(int cellIndex) const;
 
     int ExportCounter() const;
 
@@ -253,10 +260,23 @@ public:
         TChunkRequisitionRegistry* registry,
         const NObjectServer::TObjectManagerPtr& objectManager);
 
+    // COMPAT(shakurov)
+    void FixExportRequisitionIndexes();
+
+    // COMPAT(shakurov)
+    // TODO(shakurov): make this private once everything's at v. 709+.
+    void UpdateAggregatedRequisitionIndex(
+        TChunkRequisitionRegistry* registry,
+        const NObjectServer::TObjectManagerPtr& objectManager);
+
 private:
+    TChunkRequisition ComputeAggregatedRequisition(const TChunkRequisitionRegistry* registry);
+
     ui8 ReadQuorum_ = 0;
     ui8 WriteQuorum_ = 0;
     NErasure::ECodec ErasureCodec_ = NErasure::ECodec::None;
+
+    TChunkRequisitionIndex AggregatedRequisitionIndex_;
 
     TChunkRequisitionIndex LocalRequisitionIndex_;
 

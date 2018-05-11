@@ -185,7 +185,7 @@ public:
 
 protected:
     NCellNode::TBootstrap* const Bootstrap_;
-
+    NProfiling::TProfiler Profiler_;
 
     static TString GetRelativeChunkPath(const TChunkId& chunkId);
     static void ForceHashDirectories(const TString& rootPath);
@@ -229,7 +229,6 @@ private:
 
     TDiskHealthCheckerPtr HealthChecker_;
 
-    NProfiling::TProfiler Profiler_;
     //! Indexed by |(ioDirection, ioCategory)|.
     std::vector<NProfiling::TSimpleCounter> PendingIOSizeCounters_;
     std::vector<NProfiling::TSimpleCounter> CompletedIOSizeCounters_;

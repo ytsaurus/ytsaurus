@@ -5,6 +5,7 @@
 #include <yt/core/yson/consumer.h>
 #include <yt/core/yson/writer.h>
 #include <yt/core/yson/forwarding_consumer.h>
+#include <yt/core/yson/null_consumer.h>
 
 #include <yt/core/ypath/token.h>
 
@@ -12,6 +13,7 @@
 #include <yt/core/misc/varint.h>
 #include <yt/core/misc/variant.h>
 #include <yt/core/misc/cast.h>
+#include <yt/core/misc/string.h>
 
 #include <yt/core/ytree/proto/attributes.pb.h>
 
@@ -42,27 +44,48 @@ using TFieldNumberList = SmallVector<int, TypicalFieldCount>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
+TString DeriveYsonName(const TString& protobufName)
+{
+    YCHECK(!protobufName.empty());
+    if (!isupper(protobufName[0])) {
+        return protobufName;
+    }
+
+    TStringBuilder builder;
+    for (auto ch : protobufName) {
+        if (isupper(ch)) {
+            if (builder.GetLength() > 0 && builder.GetBuffer()[builder.GetLength() - 1] != '_') {
+                builder.AppendChar('_');
+            }
+            builder.AppendChar(tolower(ch));
+        } else {
+            builder.AppendChar(ch);
+        }
+    }
+    return builder.Flush();
+}
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TProtobufTypeRegistry
 {
 public:
     TStringBuf GetYsonName(const FieldDescriptor* descriptor)
     {
-        const auto& name = descriptor->options().GetExtension(NYT::NYson::NProto::field_name);
-        if (name) {
-            return InternString(name);
-        } else {
-            return InternString(descriptor->name());
-        }
+        return GetYsonNameFromDescriptor(
+            descriptor,
+            descriptor->options().GetExtension(NYT::NYson::NProto::field_name));
     }
 
     TStringBuf GetYsonLiteral(const EnumValueDescriptor* descriptor)
     {
-        const auto& name = descriptor->options().GetExtension(NYT::NYson::NProto::enum_value_name);
-        if (name) {
-            return InternString(name);
-        } else {
-            return InternString(descriptor->name());
-        }
+        return GetYsonNameFromDescriptor(
+            descriptor,
+            descriptor->options().GetExtension(NYT::NYson::NProto::enum_value_name));
     }
 
     const TProtobufMessageType* ReflectMessageType(const Descriptor* descriptor);
@@ -77,6 +100,13 @@ private:
     Y_DECLARE_SINGLETON_FRIEND();
     TProtobufTypeRegistry() = default;
 
+    template <class TDescriptor>
+    TStringBuf GetYsonNameFromDescriptor(const TDescriptor* descriptor, const TString& annotatedName)
+    {
+        auto ysonName = annotatedName ? annotatedName : DeriveYsonName(descriptor->name());
+        return InternString(ysonName);
+    }
+
     TStringBuf InternString(const TString& str)
     {
         auto guard = Guard(SpinLock_);
@@ -84,7 +114,7 @@ private:
         return InternedStrings_.back();
     }
 
-
+private:
     TSpinLock SpinLock_;
     std::vector<TString> InternedStrings_;
     THashMap<const Descriptor*, std::unique_ptr<TProtobufMessageType>> MessageTypeMap_;
@@ -209,7 +239,7 @@ public:
         return RequiredFieldNumbers_;
     }
 
-    const TProtobufField* FindFieldByName(const TStringBuf& name) const
+    const TProtobufField* FindFieldByName(TStringBuf name) const
     {
         auto it = NameToField_.find(name);
         return it == NameToField_.end() ? nullptr : it->second.get();
@@ -256,7 +286,7 @@ public:
         return Underlying_->full_name();
     }
 
-    TNullable<int> FindValueByLiteral(const TStringBuf& literal) const
+    TNullable<int> FindValueByLiteral(TStringBuf literal) const
     {
         auto it = LiteralToValue_.find(literal);
         return it == LiteralToValue_.end() ? Null : MakeNullable(it->second);
@@ -320,7 +350,7 @@ const TProtobufMessageType* ReflectProtobufMessageType(const Descriptor* descrip
 class TYPathStack
 {
 public:
-    void Push(const TStringBuf& literal)
+    void Push(TStringBuf literal)
     {
         Items_.push_back(literal);
     }
@@ -420,9 +450,13 @@ class TProtobufWriter
     , public TForwardingYsonConsumer
 {
 public:
-    TProtobufWriter(ZeroCopyOutputStream* outputStream, const TProtobufMessageType* rootType)
+    TProtobufWriter(
+        ZeroCopyOutputStream* outputStream,
+        const TProtobufMessageType* rootType,
+        const TProtobufWriterOptions& options)
         : OutputStream_(outputStream)
         , RootType_(rootType)
+        , Options_(options)
         , BodyOutputStream_(&BodyString_)
         , BodyCodedStream_(&BodyOutputStream_)
         , AttributeValueStream_(AttributeValue_)
@@ -434,6 +468,7 @@ public:
 private:
     ZeroCopyOutputStream* const OutputStream_;
     const TProtobufMessageType* const RootType_;
+    const TProtobufWriterOptions Options_;
 
     TString BodyString_;
     google::protobuf::io::StringOutputStream BodyOutputStream_;
@@ -492,7 +527,7 @@ private:
     TStringOutput YsonStringStream_;
     TBufferedBinaryYsonWriter YsonStringWriter_;
 
-    virtual void OnMyStringScalar(const TStringBuf& value) override
+    virtual void OnMyStringScalar(TStringBuf value) override
     {
         WriteScalar([&] {
             const auto* field = FieldStack_.back().Field;
@@ -626,7 +661,7 @@ private:
         NestedIndexStack_.push_back(nestedIndex);
     }
 
-    virtual void OnMyKeyedItem(const TStringBuf& key) override
+    virtual void OnMyKeyedItem(TStringBuf key) override
     {
         Y_ASSERT(TypeStack_.size() > 0);
         const auto* type = TypeStack_.back().Type;
@@ -638,11 +673,15 @@ private:
         }
     }
 
-    void OnMyKeyedItemRegular(const TStringBuf& key)
+    void OnMyKeyedItemRegular(TStringBuf key)
     {
         const auto* type = TypeStack_.back().Type;
         const auto* field = type->FindFieldByName(key);
         if (!field) {
+            if (Options_.SkipUnknownFields) {
+                Forward(GetNullYsonConsumer(), [] {});
+                return;
+            }
             THROW_ERROR_EXCEPTION("Unknown field %Qv at %v",
                 key,
                 YPathStack_.GetPath())
@@ -673,7 +712,7 @@ private:
         }
     }
 
-    void OnMyKeyedItemAttributeDictionary(const TStringBuf& key)
+    void OnMyKeyedItemAttributeDictionary(TStringBuf key)
     {
         AttributeKey_ = key;
         AttributeValue_.clear();
@@ -976,7 +1015,7 @@ private:
     }
 
     template <class TTo, class TFrom>
-    TTo CheckedCast(TFrom value, const TStringBuf& toTypeName)
+    TTo CheckedCast(TFrom value, TStringBuf toTypeName)
     {
         const auto* field = FieldStack_.back().Field;
         TTo result;
@@ -994,9 +1033,10 @@ private:
 
 std::unique_ptr<IYsonConsumer> CreateProtobufWriter(
     ZeroCopyOutputStream* outputStream,
-    const TProtobufMessageType* rootType)
+    const TProtobufMessageType* rootType,
+    const TProtobufWriterOptions& options)
 {
-    return std::make_unique<TProtobufWriter>(outputStream, rootType);
+    return std::make_unique<TProtobufWriter>(outputStream, rootType, options);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1008,9 +1048,11 @@ public:
     TProtobufParser(
         IYsonConsumer* consumer,
         ZeroCopyInputStream* inputStream,
-        const TProtobufMessageType* rootType)
+        const TProtobufMessageType* rootType,
+        const TProtobufParserOptions& options)
         : Consumer_(consumer)
         , RootType_(rootType)
+        , Options_(options)
         , InputStream_(inputStream)
         , CodedStream_(InputStream_)
     { }
@@ -1064,6 +1106,7 @@ public:
 private:
     IYsonConsumer* const Consumer_;
     const TProtobufMessageType* const RootType_;
+    const TProtobufParserOptions Options_;
     ZeroCopyInputStream* const InputStream_;
 
     CodedInputStream CodedStream_;
@@ -1113,6 +1156,67 @@ private:
         auto fieldNumber = WireFormatLite::GetTagFieldNumber(tag);
         const auto* field = type->FindFieldByNumber(fieldNumber);
         if (!field) {
+            if (Options_.SkipUnknownFields) {
+                switch (wireType) {
+                    case WireFormatLite::WIRETYPE_VARINT: {
+                        ui64 unsignedValue;
+                        if (!CodedStream_.ReadVarint64(&unsignedValue)) {
+                            THROW_ERROR_EXCEPTION("Error reading \"varint\" value for unknown field %v",
+                                fieldNumber)
+                                << TErrorAttribute("ypath", YPathStack_.GetPath());
+                        }
+                        break;
+                    }
+
+                    case WireFormatLite::WIRETYPE_FIXED32: {
+                        ui32 unsignedValue;
+                        if (!CodedStream_.ReadLittleEndian32(&unsignedValue)) {
+                            THROW_ERROR_EXCEPTION("Error reading \"fixed32\" value for field %v",
+                                fieldNumber)
+                                << TErrorAttribute("ypath", YPathStack_.GetPath());
+                        }
+                        break;
+                    }
+
+                    case WireFormatLite::WIRETYPE_FIXED64: {
+                        ui64 unsignedValue;
+                        if (!CodedStream_.ReadLittleEndian64(&unsignedValue)) {
+                            THROW_ERROR_EXCEPTION("Error reading \"fixed64\" value for unknown field %v",
+                                fieldNumber)
+                                << TErrorAttribute("ypath", YPathStack_.GetPath());
+                        }
+                        break;
+                    }
+
+                    case WireFormatLite::WIRETYPE_LENGTH_DELIMITED: {
+                        ui64 length;
+                        if (!CodedStream_.ReadVarint64(&length)) {
+                            THROW_ERROR_EXCEPTION("Error reading \"varint\" value for unknown field %v",
+                                fieldNumber)
+                                << TErrorAttribute("ypath", YPathStack_.GetPath());
+                        }
+                        if (length > std::numeric_limits<int>::max()) {
+                            THROW_ERROR_EXCEPTION("Invalid length %v for unknown field %v",
+                                length,
+                                fieldNumber)
+                                << TErrorAttribute("ypath", YPathStack_.GetPath());
+                        }
+                        if (!CodedStream_.Skip(static_cast<int>(length))) {
+                            THROW_ERROR_EXCEPTION("Error skipping unknown length-delimited field %v",
+                                fieldNumber)
+                                << TErrorAttribute("ypath", YPathStack_.GetPath());
+                        }
+                        break;
+                    }
+
+                    default:
+                        THROW_ERROR_EXCEPTION("Unexpected wire type tag %x for unknown field %v",
+                            tag,
+                            fieldNumber)
+                            << TErrorAttribute("ypath", YPathStack_.GetPath());
+                }
+                return true;
+            }
             THROW_ERROR_EXCEPTION("Unknown field number %v at %v",
                 fieldNumber,
                 YPathStack_.GetPath())
@@ -1475,9 +1579,10 @@ private:
 void ParseProtobuf(
     IYsonConsumer* consumer,
     ZeroCopyInputStream* inputStream,
-    const TProtobufMessageType* rootType)
+    const TProtobufMessageType* rootType,
+    const TProtobufParserOptions& options)
 {
-    TProtobufParser parser(consumer, inputStream, rootType);
+    TProtobufParser parser(consumer, inputStream, rootType, options);
     parser.Parse();
 }
 

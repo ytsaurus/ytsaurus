@@ -54,7 +54,7 @@ private:
         return securityManager->Accounts().GetSize();
     }
 
-    virtual IYPathServicePtr FindItemService(const TStringBuf& key) const override
+    virtual IYPathServicePtr FindItemService(TStringBuf key) const override
     {
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         auto* account = securityManager->FindAccountByName(TString(key));
@@ -106,7 +106,7 @@ private:
         return securityManager->Users().GetSize();
     }
 
-    virtual IYPathServicePtr FindItemService(const TStringBuf& key) const override
+    virtual IYPathServicePtr FindItemService(TStringBuf key) const override
     {
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         auto* user = securityManager->FindUserByName(TString(key));
@@ -158,7 +158,7 @@ private:
         return securityManager->Groups().GetSize();
     }
 
-    virtual IYPathServicePtr FindItemService(const TStringBuf& key) const override
+    virtual IYPathServicePtr FindItemService(TStringBuf key) const override
     {
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         auto* group = securityManager->FindGroupByName(TString(key));

@@ -16,6 +16,7 @@
 
 #include <yt/ytlib/job_tracker_client/job_spec_service_proxy.h>
 #include <yt/ytlib/job_tracker_client/job.pb.h>
+#include <yt/ytlib/job_tracker_client/helpers.h>
 
 #include <yt/ytlib/misc/memory_usage_tracker.h>
 
@@ -49,6 +50,7 @@ using namespace NYTree;
 using namespace NCellNode;
 using namespace NConcurrency;
 using namespace NProfiling;
+using namespace NScheduler;
 
 using NScheduler::NProto::TSchedulerJobSpecExt;
 
@@ -161,7 +163,7 @@ private:
     /*!
      *  It is illegal to call #Remove before the job is stopped.
      */
-    void RemoveJob(IJobPtr job);
+    void RemoveJob(IJobPtr job, bool archiveJobSpec);
 
     TJobFactory GetFactory(EJobType type) const;
 
@@ -622,13 +624,19 @@ void TJobController::TImpl::InterruptJob(IJobPtr job)
     }
 }
 
-void TJobController::TImpl::RemoveJob(IJobPtr job)
+void TJobController::TImpl::RemoveJob(IJobPtr job, bool archiveJobSpec)
 {
-    LOG_INFO("Job removed (JobId: %v)", job->GetId());
-
     YCHECK(job->GetPhase() > EJobPhase::Cleanup);
     YCHECK(job->GetResourceUsage() == ZeroNodeResources());
+
+    if (archiveJobSpec) {
+        LOG_INFO("Job spec archived (JobId: %v)", job->GetId());
+        job->ReportSpec();
+    }
+
     YCHECK(Jobs_.erase(job->GetId()) == 1);
+
+    LOG_INFO("Job removed (JobId: %v)", job->GetId());
 }
 
 void TJobController::TImpl::OnResourcesUpdated(TWeakPtr<IJob> job, const TNodeResources& resourceDelta)
@@ -832,15 +840,16 @@ void TJobController::TImpl::ProcessHeartbeatResponse(
     const TRspHeartbeatPtr& response,
     EObjectType jobObjectType)
 {
-    for (const auto& protoJobId : response->jobs_to_remove()) {
-        auto jobId = FromProto<TJobId>(protoJobId);
+    for (const auto& protoJobToRemove : response->jobs_to_remove()) {
+        auto jobToRemove = FromProto<TJobToRelease>(protoJobToRemove);
+        const auto& jobId = jobToRemove.JobId;
         if (SpecFetchFailedJobIds_.erase(jobId) == 1) {
             continue;
         }
 
         auto job = FindJob(jobId);
         if (job) {
-            RemoveJob(job);
+            RemoveJob(job, jobToRemove.ArchiveJobSpec);
         } else {
             LOG_WARNING("Requested to remove a non-existent job (JobId: %v)",
                 jobId);

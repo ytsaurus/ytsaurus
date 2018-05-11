@@ -17,7 +17,7 @@ struct IParser
     virtual ~IParser()
     { }
 
-    virtual void Read(const TStringBuf& data) = 0;
+    virtual void Read(TStringBuf data) = 0;
     virtual void Finish() = 0;
 };
 

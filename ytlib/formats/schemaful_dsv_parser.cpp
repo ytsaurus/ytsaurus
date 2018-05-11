@@ -22,7 +22,7 @@ public:
         IYsonConsumer* consumer,
         TSchemafulDsvFormatConfigPtr config);
 
-    virtual void Read(const TStringBuf& data) override;
+    virtual void Read(TStringBuf data) override;
     virtual void Finish() override;
 
 private:
@@ -58,7 +58,7 @@ TSchemafulDsvParser::TSchemafulDsvParser(
     ConfigureEscapeTable(Config_, &EscapeTable_);
 }
 
-void TSchemafulDsvParser::Read(const TStringBuf& data)
+void TSchemafulDsvParser::Read(TStringBuf data)
 {
     auto current = data.begin();
     while (current != data.end()) {
@@ -174,7 +174,7 @@ void ParseSchemafulDsv(
 }
 
 void ParseSchemafulDsv(
-    const TStringBuf& data,
+    TStringBuf data,
     IYsonConsumer* consumer,
     TSchemafulDsvFormatConfigPtr config)
 {

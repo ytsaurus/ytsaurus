@@ -113,7 +113,9 @@ struct TVolumeMeta
 ////////////////////////////////////////////////////////////////////////////////
 
 static const TString VolumesName = "volumes";
-static const TString LayersName = "layers";
+static const TString LayersName = "porto_layers";
+static const TString LayersMetaName = "layers_meta";
+static const TString VolumesMetaName = "volumes_meta";
 
 class TLayerLocation
     : public TDiskLocation
@@ -129,7 +131,9 @@ public:
         , Executor_(executor)
         , LocationQueue_(New<TActionQueue>(id))
         , VolumesPath_(NFS::CombinePaths(Config_->Path, VolumesName))
+        , VolumesMetaPath_(NFS::CombinePaths(Config_->Path, VolumesMetaName))
         , LayersPath_(NFS::CombinePaths(Config_->Path, LayersName))
+        , LayersMetaPath_(NFS::CombinePaths(Config_->Path, LayersMetaName))
     {
         HealthChecker_ = New<TDiskHealthChecker>(
             healthCheckerConfig,
@@ -155,10 +159,16 @@ public:
                 .ThrowOnError();
 
             RunTool<TRemoveDirAsRootTool>(VolumesPath_);
+            RunTool<TRemoveDirAsRootTool>(VolumesMetaPath_);
 
             NFS::MakeDirRecursive(VolumesPath_, 0755);
             NFS::MakeDirRecursive(LayersPath_, 0755);
-
+            NFS::MakeDirRecursive(VolumesMetaPath_, 0755);
+            NFS::MakeDirRecursive(LayersMetaPath_, 0755);
+            NFS::MakeDirRecursive(LayersMetaPath_, 0755);
+            // This is requires to use directory as place.
+            NFS::MakeDirRecursive(NFS::CombinePaths(Config_->Path, "porto_volumes"), 0755);
+            NFS::MakeDirRecursive(NFS::CombinePaths(Config_->Path, "porto_storage"), 0755);
 
             ValidateMinimumSpace();
 
@@ -270,7 +280,9 @@ private:
 
     TSpinLock SpinLock;
     const TString VolumesPath_;
+    const TString VolumesMetaPath_;
     const TString LayersPath_;
+    const TString LayersMetaPath_;
 
     THashMap<TLayerId, TLayerMeta> Layers_;
     THashMap<TVolumeId, TVolumeMeta> Volumes_;
@@ -285,7 +297,7 @@ private:
 
     TString GetLayerMetaPath(const TLayerId& id) const
     {
-        return GetLayerPath(id) + ".meta";
+        return NFS::CombinePaths(LayersMetaPath_, ToString(id)) + ".meta";
     }
 
     TString GetVolumePath(const TVolumeId& id) const
@@ -295,7 +307,7 @@ private:
 
     TString GetVolumeMetaPath(const TVolumeId& id) const
     {
-        return GetVolumePath(id) + ".meta";
+        return NFS::CombinePaths(VolumesMetaPath_, ToString(id)) + ".meta";
     }
 
     void ValidateEnabled() const
@@ -310,7 +322,7 @@ private:
 
     THashSet<TLayerId> LoadLayerIds()
     {
-        auto fileNames = NFS::EnumerateFiles(LayersPath_);
+        auto fileNames = NFS::EnumerateFiles(LayersMetaPath_);
         THashSet<TGuid> fileIds;
         for (const auto& fileName : fileNames) {
             if (fileName.EndsWith(NFS::TempFileSuffix)) {
@@ -330,24 +342,20 @@ private:
         }
 
         THashSet<TGuid> confirmedIds;
-        auto directoryNames = NFS::EnumerateDirectories(LayersPath_, std::numeric_limits<int>::max());
-        for (const auto& directoryName : directoryNames) {
-            if (directoryName.EndsWith(NFS::TempFileSuffix)) {
-                LOG_DEBUG("Remove temporary directory (Path: %v)", directoryName);
-                RunTool<TRemoveDirAsRootTool>(directoryName);
-                continue;
-            }
+        auto layerNames = WaitFor(Executor_->ListLayers(Config_->Path))
+            .ValueOrThrow();
 
-            auto nameWithoutExtension = NFS::GetFileName(directoryName);
+        for (const auto& layerName : layerNames) {
             TGuid id;
-            if (!TGuid::FromString(nameWithoutExtension, &id)) {
-                LOG_ERROR("Unrecognized directory in layer location directory (Path: %v)", directoryName);
+            if (!TGuid::FromString(layerName, &id)) {
+                LOG_ERROR("Unrecognized layer name in layer location directory (LayerName: %v)", layerName);
                 continue;
             }
 
             if (!fileIds.has(id)) {
-                LOG_DEBUG("Remove directory without a corresponding meta file (Path: %v)", directoryName);
-                RunTool<TRemoveDirAsRootTool>(directoryName);
+                LOG_DEBUG("Remove directory without a corresponding meta file (LayerName: %v)", layerName);
+                WaitFor(Executor_->RemoveLayer(layerName, Config_->Path))
+                    .ThrowOnError();
                 continue;
             }
 
@@ -453,28 +461,30 @@ private:
         ValidateEnabled();
 
         auto id = TLayerId::Create();
-        try {
+        try {   
+            LOG_DEBUG("Ensure that cached layer archive is not in use (LayerId: %v, ArchivePath: %v)", id, archivePath);
+
+            {
+                // Take exclusive lock in blocking fashion to ensure that no
+                // forked process is holding an open descriptor to the source file.
+                TFile file(archivePath, RdOnly | CloseOnExec);
+                file.Flock(LOCK_EX);
+            }
+
             LOG_DEBUG("Create new directory for layer (LayerId: %v)", id);
             auto layerDirectory = GetLayerPath(id);
-            auto tempLayerDirectory = layerDirectory + NFS::TempFileSuffix;
-
-            NFS::MakeDirRecursive(tempLayerDirectory, 0755);
-
-            auto extractTarConfig = New<TExtractTarConfig>();
-            extractTarConfig->DirectoryPath = tempLayerDirectory;
-            extractTarConfig->ArchivePath = archivePath;
 
             try {
-                LOG_DEBUG("Unpack layer (Config: %v)", ConvertToYsonString(extractTarConfig, EYsonFormat::Text));
-                RunTool<TExtractTarAsRootTool>(extractTarConfig);
+                LOG_DEBUG("Unpack layer (Path: %v)", layerDirectory);
+                WaitFor(Executor_->ImportLayer(archivePath, ToString(id), Config_->Path))
+                    .ThrowOnError();
             } catch (const std::exception& ex) {
                 LOG_ERROR(ex, "Layer unpacking failed (LayerId: %v, ArchivePath: %v)", id, archivePath);
-                RunTool<TRemoveDirAsRootTool>(tempLayerDirectory);
                 THROW_ERROR_EXCEPTION(EErrorCode::LayerUnpackingFailed, "Layer unpacking failed")
                     << ex;
             }
 
-            auto layerSize = NFS::GetDirectorySize(tempLayerDirectory);
+            auto layerSize = RunTool<TGetDirectorySizeAsRootTool>(layerDirectory);
 
             LOG_DEBUG("Calculated layer size (LayerId: %v, Size: %v)", id, layerSize);
 
@@ -501,7 +511,6 @@ private:
             metaFile.Close();
 
             NFS::Rename(temporaryLayerMetaFileName, layerMetaFileName);
-            NFS::Rename(tempLayerDirectory, layerDirectory);
 
             AvailableSpace_ -= layerSize;
             UsedSpace_ += layerSize;
@@ -536,18 +545,12 @@ private:
     {
         ValidateEnabled();
 
-        auto layerMeta = [&] () {
-            auto guard = Guard(SpinLock);
-            return Layers_[layerId];
-        }();
-
         auto layerPath = GetLayerPath(layerId);
         auto layerMetaPath = GetLayerMetaPath(layerId);
 
         try {
             LOG_INFO("Removing layer (LayerId: %v, LayerPath: %v)", layerId, layerPath);
-
-            RunTool<TRemoveDirAsRootTool>(layerPath);
+            Executor_->RemoveLayer(ToString(layerId), Config_->Path);
             NFS::Remove(layerMetaPath);
         } catch (const std::exception& ex) {
             auto error = TError("Failed to remove layer %v", layerId)
@@ -556,11 +559,16 @@ private:
             Y_UNREACHABLE();
         }
 
-        UsedSpace_ -= layerMeta.size();
-        AvailableSpace_ += layerMeta.size();
+        i64 layerSize = -1;
 
-        auto guard = Guard(SpinLock);
-        Layers_.erase(layerId);
+        {
+            auto guard = Guard(SpinLock);
+            layerSize = Layers_[layerId].size();
+            Layers_.erase(layerId);
+        }
+
+        UsedSpace_ -= layerSize;
+        AvailableSpace_ += layerSize;
     }
 
     TVolumeMeta DoCreateVolume(const std::vector<TLayerMeta>& layers)

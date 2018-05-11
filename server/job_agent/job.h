@@ -88,6 +88,7 @@ struct IJob
     virtual void SetStored(bool value) = 0;
 
     virtual void ReportStatistics(TJobStatistics&& statistics) = 0;
+    virtual void ReportSpec() = 0;
 
     virtual void Interrupt() = 0;
 };

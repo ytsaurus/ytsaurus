@@ -13,8 +13,6 @@ from datetime import datetime, timedelta
 import cStringIO
 from cStringIO import StringIO
 
-import pytest
-
 ###########################################################################
 
 clusters_drivers = {}
@@ -520,12 +518,12 @@ def check_permission(user, permission, path, **kwargs):
 def get_file_from_cache(md5, cache_path, **kwargs):
     kwargs["md5"] = md5
     kwargs["cache_path"] = cache_path
-    return execute_command("get_file_from_cache", kwargs)
+    return yson.loads(execute_command("get_file_from_cache", kwargs))
 
 def put_file_to_cache(path, md5, **kwargs):
     kwargs["path"] = path
     kwargs["md5"] = md5
-    return execute_command("put_file_to_cache", kwargs)
+    return yson.loads(execute_command("put_file_to_cache", kwargs))
 
 ###########################################################################
 
@@ -691,6 +689,12 @@ class EventsOnFs(object):
 
 ###########################################################################
 
+def get_new_operation_cypress_path(op_id):
+    return "//sys/operations/{}/{}".format("%02x" % (long(op_id.split("-")[3], 16) % 256), op_id)
+
+def get_operation_cypress_path(op_id):
+    return "//sys/operations/{}".format(op_id)
+
 class Operation(object):
     def __init__(self):
         self._tmpdir = ""
@@ -698,9 +702,6 @@ class Operation(object):
 
     def _get_new_operation_path(self):
         return "//sys/operations/{0:02x}/{1}".format(int(self.id.split("-")[-1], 16) % 256, self.id)
-
-    def _get_operation_path(self):
-        return "//sys/operations/" + self.id
 
     def get_job_phase(self, job_id):
         job_path = "//sys/scheduler/orchid/scheduler/jobs/{0}".format(job_id)
@@ -724,9 +725,12 @@ class Operation(object):
         path = "//sys/scheduler/orchid/scheduler/operations/{0}/progress/jobs/{1}".format(self.id, state)
         if state == "aborted" or state == "completed":
             path += "/total"
-        if not exists(path, verbose=False):
+        try:
+            return get(path, verbose=False)
+        except YtError as err:
+            if not err.is_resolve_error():
+                raise
             return 0
-        return get(path, verbose=False)
 
     def get_running_jobs(self):
         jobs_path = "//sys/scheduler/orchid/scheduler/operations/" + self.id + "/running_jobs"
@@ -734,7 +738,7 @@ class Operation(object):
 
     def get_state(self, **kwargs):
         try:
-            return get(self._get_operation_path() + "/@state", verbose_error=False, **kwargs)
+            return get(get_operation_cypress_path(self.id) + "/@state", verbose_error=False, **kwargs)
         except YtResponseError as err:
             if not err.is_resolve_error():
                 raise
@@ -848,9 +852,9 @@ def start_op(op_type, **kwargs):
     change(kwargs, "out", ["spec", output_name])
     change(kwargs, "command", ["spec", op_name, "command"])
     change(kwargs, "file", ["spec", op_name, "file_paths"])
-    change(kwargs, "sort_by", ["spec","sort_by"])
-    change(kwargs, "reduce_by", ["spec","reduce_by"])
-    change(kwargs, "join_by", ["spec","join_by"])
+    change(kwargs, "sort_by", ["spec", "sort_by"])
+    change(kwargs, "reduce_by", ["spec", "reduce_by"])
+    change(kwargs, "join_by", ["spec", "join_by"])
     change(kwargs, "mapper_file", ["spec", "mapper", "file_paths"])
     change(kwargs, "reduce_combiner_file", ["spec", "reduce_combiner", "file_paths"])
     change(kwargs, "reducer_file", ["spec", "reducer", "file_paths"])
@@ -1136,9 +1140,6 @@ def make_ace(action, subjects, permissions, inheritance_mode="object_and_descend
         "permissions": _to_list(permissions),
         "inheritance_mode": inheritance_mode
     }
-
-def get_operation_path(op_id):
-    return "//sys/operations/{0:02x}/{1}".format(int(op_id.split("-")[-1], 16) % 256, op_id)
 
 #########################################
 

@@ -68,7 +68,7 @@ protected:
         return offsets;
     }
 
-    bool EqualValues(const TStringBuf& lhs, const TStringBuf& rhs) const
+    bool EqualValues(TStringBuf lhs, TStringBuf rhs) const
     {
         if (!lhs.Data() && !rhs.Data()) {
             // Both are null.

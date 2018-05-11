@@ -54,6 +54,66 @@ struct TCGroups
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TMemoryTrackerBase
+{
+protected:
+    mutable i64 MaxMemoryUsage_ = 0;
+    mutable i64 PageFaultCount_ = 0;
+    int UserId_ = -1;
+    TProcessBasePtr Process_;
+
+    virtual ~TMemoryTrackerBase() = default;
+
+    TMemoryStatistics GetMemoryStatistics() const
+    {
+        TMemoryStatistics memoryStatistics;
+        memoryStatistics.Rss = 0;
+        memoryStatistics.MappedFile = 0;
+        memoryStatistics.MajorPageFaults = 0;
+
+        if (!Process_) {
+            return memoryStatistics;
+        }
+
+        for (auto pid : GetPidsByUid(UserId_)) {
+            try {
+                auto memoryUsage = GetProcessMemoryUsage(pid);
+                // RSS from /proc/pid/statm includes all pages resident to current process,
+                // including memory-mapped files and shared memory.
+                // Since we want to account shared memory separately, let's subtract it here.
+
+                memoryStatistics.Rss += memoryUsage.Rss - memoryUsage.Shared;
+                memoryStatistics.MappedFile += memoryUsage.Shared;
+
+                LOG_DEBUG("Memory statistics collected (Pid: %v, ProcessName: %v, Rss: %v, Shared: %v)",
+                    pid,
+                    GetProcessName(pid),
+                    memoryStatistics.Rss,
+                    memoryStatistics.MappedFile);
+
+            } catch (const std::exception& ex) {
+                LOG_DEBUG(ex, "Failed to get memory usage (Pid: %v)", pid);
+            }
+        }
+
+        try {
+            PageFaultCount_ = GetProcessCumulativeMajorPageFaults(Process_->GetProcessId());
+        } catch (const std::exception& ex) {
+            LOG_DEBUG(ex, "Failed to get page fault count (Pid: %v)", Process_->GetProcessId());
+        }
+
+        memoryStatistics.MajorPageFaults = PageFaultCount_;
+
+        if (memoryStatistics.Rss + memoryStatistics.MappedFile > MaxMemoryUsage_) {
+            MaxMemoryUsage_ = memoryStatistics.Rss + memoryStatistics.MappedFile;
+        }
+
+        return memoryStatistics;
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TCGroupsResourceTracker
     : public virtual IResourceTracker
 {
@@ -93,6 +153,7 @@ protected:
 class TCGroupsUserJobEnvironment
     : public TCGroupsResourceTracker
     , public IUserJobEnvironment
+    , private TMemoryTrackerBase
 {
 public:
     TCGroupsUserJobEnvironment(
@@ -108,49 +169,7 @@ public:
 
     virtual TMemoryStatistics GetMemoryStatistics() const
     {
-        TMemoryStatistics memoryStatistics;
-        memoryStatistics.Rss = 0;
-        memoryStatistics.MappedFile = 0;
-        memoryStatistics.MajorPageFaults = 0;
-
-        if (!Process_ || Process_->GetProcessId() <= 0) {
-            return memoryStatistics;
-        }
-
-        for (auto pid : GetPidsByUid(UserId_)) {
-            try {
-                auto memoryUsage = GetProcessMemoryUsage(pid);
-                // RSS from /proc/pid/statm includes all pages resident to current process,
-                // including memory-mapped files and shared memory.
-                // Since we want to account shared memory separately, let's subtract it here.
-
-                memoryStatistics.Rss += memoryUsage.Rss - memoryUsage.Shared;
-                memoryStatistics.MappedFile += memoryUsage.Shared;
-
-                LOG_DEBUG("Memory statistics collected (Pid: %v, ProcessName: %v, Rss: %v, Shared: %v)",
-                    pid,
-                    GetProcessName(pid),
-                    memoryStatistics.Rss,
-                    memoryStatistics.MappedFile);
-
-            } catch (const std::exception& ex) {
-                LOG_DEBUG(ex, "Failed to get memory usage (Pid: %v)", pid);
-            }
-        }
-
-        try {
-            PageFaultCount_ = GetProcessCumulativeMajorPageFaults(Process_->GetProcessId());
-        } catch (const std::exception& ex) {
-            LOG_DEBUG(ex, "Failed to get page fault count (Pid: %v)", Process_->GetProcessId());
-        }
-
-        memoryStatistics.MajorPageFaults = PageFaultCount_;
-
-        if (memoryStatistics.Rss + memoryStatistics.MappedFile > MaxMemoryUsage_) {
-            MaxMemoryUsage_ = memoryStatistics.Rss + memoryStatistics.MappedFile;
-        }
-
-        return memoryStatistics;
+        return TMemoryTrackerBase::GetMemoryStatistics();
     }
 
     virtual i64 GetMaxMemoryUsage() const override
@@ -174,12 +193,6 @@ public:
         if (CGroupsConfig_->IsCGroupSupported(TBlockIO::Name)) {
             CGroups_.BlockIO.ThrottleOperations(operations);
         }
-    }
-
-    virtual void SetMemoryGuarantee(i64 memoryGuarantee) override
-    {
-        Y_UNUSED(memoryGuarantee);
-        // Memory guarantee is not supported for cgroups memory environment.
     }
 
     virtual TProcessBasePtr CreateUserJobProcess(const TString& path, int uid, const TNullable<TString>& coreHandlerSocketPath) override
@@ -214,12 +227,6 @@ public:
         }
         return Process_;
     }
-
-private:
-    TIntrusivePtr<TSimpleProcess> Process_;
-    mutable i64 MaxMemoryUsage_ = 0;
-    mutable i64 PageFaultCount_ = 0;
-    int UserId_ = -1;
 };
 
 DECLARE_REFCOUNTED_CLASS(TCGroupsUserJobEnvironment);
@@ -317,52 +324,6 @@ public:
         return blockIOStatistics;
     }
 
-    TMemoryStatistics GetMemoryStatistics() const
-    {
-        UpdateResourceUsage();
-
-        auto guard = Guard(SpinLock_);
-        auto error = CheckErrors(ResourceUsage_,
-            EStatField::Rss,
-            EStatField::MappedFiles,
-            EStatField::MajorFaults);
-        THROW_ERROR_EXCEPTION_IF_FAILED(error, "Unable to get memory statistics");
-        TMemoryStatistics memoryStatistics;
-        memoryStatistics.Rss = ResourceUsage_[EStatField::Rss].Value();
-        memoryStatistics.MappedFile = ResourceUsage_[EStatField::MappedFiles].Value();
-        memoryStatistics.MajorPageFaults = ResourceUsage_[EStatField::MajorFaults].Value();
-
-        if (InitialPageFaults_ < 0) {
-            InitialPageFaults_ = memoryStatistics.MajorPageFaults;
-        }
-
-        memoryStatistics.MajorPageFaults -= InitialPageFaults_;
-
-        if (memoryStatistics.Rss + memoryStatistics.MappedFile > MaxMemoryUsage_) {
-            MaxMemoryUsage_ = memoryStatistics.Rss + memoryStatistics.MappedFile;
-        }
-
-        return memoryStatistics;
-    }
-
-    i64 GetMaxMemoryUsage() const
-    {
-        UpdateResourceUsage();
-
-        auto guard = Guard(SpinLock_);
-        auto error = CheckErrors(ResourceUsage_,
-            EStatField::Rss,
-            EStatField::MappedFiles);
-        THROW_ERROR_EXCEPTION_IF_FAILED(error, "Unable to get memory statistics");
-        i64 memoryUsage = ResourceUsage_[EStatField::Rss].Value() + ResourceUsage_[EStatField::MappedFiles].Value();
-
-        if (memoryUsage > MaxMemoryUsage_) {
-            MaxMemoryUsage_ = memoryUsage;
-        }
-
-        return MaxMemoryUsage_;
-    }
-
 private:
     IInstancePtr Instance_;
     const TDuration StatUpdatePeriod_;
@@ -370,8 +331,6 @@ private:
     TSpinLock SpinLock_;
     mutable TInstant LastUpdateTime_ = TInstant::Zero();
     mutable TUsage ResourceUsage_;
-    mutable i64 MaxMemoryUsage_ = 0;
-    mutable i64 InitialPageFaults_ = -1;
 
     void UpdateResourceUsage() const
     {
@@ -383,10 +342,6 @@ private:
                 EStatField::IOReadByte,
                 EStatField::IOWriteByte,
                 EStatField::IOOperations,
-                EStatField::Rss,
-                EStatField::MappedFiles,
-                EStatField::MajorFaults,
-                EStatField::MaxMemoryUsage
             });
 
             auto guard = Guard(SpinLock_);
@@ -403,6 +358,7 @@ DEFINE_REFCOUNTED_TYPE(TPortoResourceTracker)
 
 class TPortoUserJobEnvironment
     : public IUserJobEnvironment
+    , private TMemoryTrackerBase
 {
 public:
     TPortoUserJobEnvironment(
@@ -427,16 +383,6 @@ public:
         return ResourceTracker_->GetBlockIOStatistics();
     }
 
-    virtual TMemoryStatistics GetMemoryStatistics() const override
-    {
-        return ResourceTracker_->GetMemoryStatistics();
-    }
-
-    virtual i64 GetMaxMemoryUsage() const override
-    {
-        return ResourceTracker_->GetMaxMemoryUsage();
-    }
-
     virtual TDuration GetBlockIOWatchdogPeriod() const override
     {
         return BlockIOWatchdogPeriod_;
@@ -452,11 +398,14 @@ public:
         Instance_->SetIOThrottle(operations);
     }
 
-    virtual void SetMemoryGuarantee(i64 memoryGuarantee) override
+    virtual TMemoryStatistics GetMemoryStatistics() const
     {
-        auto containerName = Format("%v/%v", SlotAbsoluteName_, GetUserJobMetaContainerName());
-        WaitFor(PortoExecutor_->SetProperty(containerName, "memory_guarantee", ToString(memoryGuarantee)))
-            .ThrowOnError();
+        return TMemoryTrackerBase::GetMemoryStatistics();
+    }
+
+    virtual i64 GetMaxMemoryUsage() const override
+    {
+        return MaxMemoryUsage_;
     }
 
     virtual TProcessBasePtr CreateUserJobProcess(const TString& path, int uid, const TNullable<TString>& coreHandlerSocketPath) override
@@ -487,10 +436,11 @@ public:
             ? RootFSBinaryDirectory + path
             : path;
 
-        auto process = New<TPortoProcess>(adjustedPath, Instance_, false);
-        process->AddArguments({"--uid", ::ToString(uid)});
+        UserId_ = uid;
+        Process_ = New<TPortoProcess>(adjustedPath, Instance_, false);
+        Process_->AddArguments({"--uid", ::ToString(uid)});
 
-        return process;
+        return Process_;
     }
 
 private:
@@ -519,12 +469,10 @@ public:
         PortoExecutor_->SubscribeFailed(BIND(&TPortoJobProxyEnvironment::OnFatalError, MakeWeak(this)));
 
         auto absoluteName = Self_->GetAbsoluteName();
-        // ../yt_jobs_meta/slot_meta_N/job_proxy_meta/job_proxy_ID
+        // ../yt_jobs_meta/slot_meta_N/job_proxy_ID
         auto jobProxyStart = absoluteName.find_last_of('/');
-        auto jobProxyMeta = TStringBuf(absoluteName.data(), jobProxyStart);
-        auto jobProxyMetaStart = jobProxyMeta.find_last_of('/');
 
-        SlotAbsoluteName_ = absoluteName.substr(0, jobProxyMetaStart);
+        SlotAbsoluteName_ = absoluteName.substr(0, jobProxyStart);
     }
 
     virtual TCpuStatistics GetCpuStatistics() const override
@@ -545,13 +493,17 @@ public:
 
     virtual IUserJobEnvironmentPtr CreateUserJobEnvironment(const TString& jobId) override
     {
-        auto containerName = Format("%v/%v/user_job_%v", SlotAbsoluteName_, GetUserJobMetaContainerName(), jobId);
+        auto containerName = Format("%v/user_job_%v", SlotAbsoluteName_, jobId);
         auto instance = CreatePortoInstance(containerName, PortoExecutor_);
         if (RootFS_) {
             instance->SetRoot(*RootFS_);
         }
 
-        return New<TPortoUserJobEnvironment>(SlotAbsoluteName_, PortoExecutor_, instance, BlockIOWatchdogPeriod_);
+        return New<TPortoUserJobEnvironment>(
+            SlotAbsoluteName_,
+            PortoExecutor_,
+            std::move(instance),
+            BlockIOWatchdogPeriod_);
     }
 
 private:

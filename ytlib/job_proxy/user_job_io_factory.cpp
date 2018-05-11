@@ -252,6 +252,9 @@ public:
         auto options = ConvertTo<TTableReaderOptionsPtr>(TYsonString(
             schedulerJobSpecExt.table_reader_options()));
 
+        // We must always enable table index to merge rows with the same index in the proper order.
+        options->EnableTableIndex = true;
+
         auto dataSourceDirectoryExt = GetProtoExtension<TDataSourceDirectoryExt>(schedulerJobSpecExt.extensions());
         auto dataSourceDirectory = FromProto<TDataSourceDirectoryPtr>(dataSourceDirectoryExt);
 

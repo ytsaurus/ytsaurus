@@ -690,7 +690,7 @@ private:
         void NotifyError(
             const TClientRequestControlPtr& requestControl,
             const IClientResponseHandlerPtr& responseHandler,
-            const TStringBuf& reason,
+            TStringBuf reason,
             const TError& error)
         {
             YCHECK(responseHandler);

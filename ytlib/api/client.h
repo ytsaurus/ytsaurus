@@ -523,7 +523,6 @@ struct TFileWriterOptions
 
 struct TGetFileFromCacheOptions
     : public TTimeoutOptions
-    , public TTransactionalOptions
     , public TMasterReadOptions
 {
     NYPath::TYPath CachePath;
@@ -531,7 +530,6 @@ struct TGetFileFromCacheOptions
 
 struct TPutFileToCacheOptions
     : public TTimeoutOptions
-    , public TTransactionalOptions
     , public TMasterReadOptions
     , public TMutatingOptions
     , public TPrerequisiteOptions
@@ -697,7 +695,7 @@ struct TListJobsOptions
     i64 Offset = 0;
 
     bool IncludeCypress = false;
-    bool IncludeScheduler = false;
+    bool IncludeControllerAgent = false;
     bool IncludeArchive = false;
 
     EDataSource DataSource = EDataSource::Auto;
@@ -824,7 +822,7 @@ struct TListJobsResult
 {
     std::vector<TJob> Jobs;
     TNullable<int> CypressJobCount;
-    TNullable<int> SchedulerJobCount;
+    TNullable<int> ControllerAgentJobCount;
     TNullable<int> ArchiveJobCount;
 
     TListJobsStatistics Statistics;

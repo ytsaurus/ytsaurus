@@ -156,7 +156,7 @@ void TChunkOwnerBase::BeginUpload(EUpdateMode mode)
 
 void TChunkOwnerBase::EndUpload(
     const TDataStatistics* statistics,
-    const NTableClient::TTableSchema& /*schema*/,
+    const NTableServer::TSharedTableSchemaPtr& /*sharedSchema*/,
     NTableClient::ETableSchemaMode /*schemaMode*/,
     TNullable<NTableClient::EOptimizeFor> /*optimizeFor*/,
     const TNullable<TMD5Hasher>& /*md5Hasher*/)

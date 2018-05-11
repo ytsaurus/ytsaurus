@@ -41,6 +41,9 @@ public:
     //! Timeout after which "schedule job timed out" alert is expired and unset.
     TDuration ScheduleJobTimeoutAlertResetTime;
 
+    //! Timeout for schedule jobs in fair share strategy.
+    TDuration ScheduleJobsTimeout;
+
     TFairShareStrategyOperationControllerConfig();
 };
 
@@ -179,9 +182,6 @@ class TSchedulerConfig
     : public TFairShareStrategyConfig
 {
 public:
-    //! Priority of control thread.
-    TNullable<int> ControlThreadPriority;
-
     //! Number of shards the nodes are split into.
     int NodeShardCount;
 
@@ -282,6 +282,9 @@ public:
     //! Timeout of finished job storing before forced removal.
     TDuration FinishedJobStoringTimeout;
 
+    //! Timeout of finished operation jobs storing before forced removal.
+    TDuration FinishedOperationJobStoringTimeout;
+
     TDuration OperationsUpdatePeriod;
 
     TTestingOptionsPtr TestingOptions;
@@ -289,6 +292,8 @@ public:
     NEventLog::TEventLogConfigPtr EventLog;
 
     NYTree::IMapNodePtr SpecTemplate;
+
+    int MinAgentCountForWaitingOperation;
 
     TSchedulerConfig();
 };

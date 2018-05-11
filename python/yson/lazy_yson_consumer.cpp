@@ -26,7 +26,7 @@ void TLazyYsonConsumer::OnListItem()
     }
 }
 
-void TLazyYsonConsumer::OnKeyedItem(const TStringBuf& key)
+void TLazyYsonConsumer::OnKeyedItem(TStringBuf key)
 {
     if (!IsLazyDictObject_) {
         LazyDictConsumer_->GetPythonObjectBuilder()->OnKeyedItem(key);
@@ -65,12 +65,12 @@ void TLazyYsonConsumer::OnEndAttributes()
     }
 }
 
-void TLazyYsonConsumer::OnRaw(const TStringBuf& /*yson*/, NYson::EYsonType /*type*/)
+void TLazyYsonConsumer::OnRaw(TStringBuf /*yson*/, NYson::EYsonType /*type*/)
 {
     Y_UNREACHABLE();
 }
 
-void TLazyYsonConsumer::OnStringScalar(const TStringBuf& value)
+void TLazyYsonConsumer::OnStringScalar(TStringBuf value)
 {
     OnItem();
     if (!IsLazyDictObject_) {

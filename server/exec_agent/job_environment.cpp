@@ -420,13 +420,16 @@ public:
         try {
             EnsureJobProxyFinished(slotIndex, true);
 
-            CleanAllSubcontainers(GetFullJobProxyMetaContainerName(
+            CleanAllSubcontainers(GetFullSlotMetaContainerName(
                 MetaInstance_->GetAbsoluteName(),
                 slotIndex));
 
-            CleanAllSubcontainers(GetFullUserJobMetaContainerName(
-                MetaInstance_->GetAbsoluteName(),
-                slotIndex));
+            // Reset cpu guarantee.
+            WaitFor(PortoExecutor_->SetProperty(
+                GetFullSlotMetaContainerName(MetaInstance_->GetAbsoluteName(), slotIndex),
+                "cpu_guarantee",
+                "0.05c"))
+                .ThrowOnError();
 
             // Drop reference to a process if there were any.
             JobProxyProcesses_.erase(slotIndex);
@@ -510,9 +513,7 @@ private:
         const auto containers = WaitFor(PortoExecutor_->ListContainers())
             .ValueOrThrow();
 
-        LOG_DEBUG("Destroying all subcontainers (MetaName: %v, Containers: %v)",
-            metaName,
-            containers);
+        LOG_DEBUG("Destroying all subcontainers (MetaName: %v)", metaName);
 
         std::vector<TFuture<void>> actions;
         for (const auto& name : containers) {
@@ -569,8 +570,24 @@ private:
             if (Config_->ExternalJobContainer) {
                 return GetPortoInstance(PortoExecutor_, *Config_->ExternalJobContainer);
             }   else {
-                auto instance = CreatePortoInstance(GetDefaultJobsMetaContainerName(), PortoExecutor_);
+                auto self = GetSelfPortoInstance(PortoExecutor_);
+                auto metaInstanceName = Format("%v/%v", self->GetAbsoluteName(), GetDefaultJobsMetaContainerName());
+
+                try {
+                    WaitFor(PortoExecutor_->DestroyContainer(metaInstanceName))
+                        .ThrowOnError();
+                } catch (const TErrorException& ex) {
+                    // If container doesn't exist it's ok.
+                    if (!ex.Error().FindMatching(EContainerErrorCode::ContainerDoesNotExist)) {
+                        throw;
+                    }
+                }
+
+                auto instance = CreatePortoInstance(
+                    metaInstanceName,
+                    PortoExecutor_);
                 instance->SetIOWeight(Config_->JobsIOWeight);
+                instance->SetCpuWeight(Config_->JobsCpuWeight);
                 return instance;
             }
         };
@@ -591,28 +608,6 @@ private:
                     "cpu_guarantee",
                     "0.05c"))
                     .ThrowOnError();
-
-                WaitFor(
-                    PortoExecutor_->CreateContainer(GetFullUserJobMetaContainerName(MetaInstance_->GetAbsoluteName(), slotIndex)))
-                    .ThrowOnError();
-
-                WaitFor(
-                    PortoExecutor_->CreateContainer(GetFullJobProxyMetaContainerName(MetaInstance_->GetAbsoluteName(), slotIndex)))
-                    .ThrowOnError();
-
-                // This forces creation of memory cgroup for this container.
-                WaitFor(PortoExecutor_->SetProperty(
-                    GetFullJobProxyMetaContainerName(MetaInstance_->GetAbsoluteName(), slotIndex),
-                    "memory_guarantee",
-                    ToString(NControllerAgent::GetFootprintMemorySize())))
-                .ThrowOnError();
-
-                // This forces creation of memory cgroup for this container.
-                WaitFor(PortoExecutor_->SetProperty(
-                    GetFullUserJobMetaContainerName(MetaInstance_->GetAbsoluteName(), slotIndex),
-                    "memory_guarantee",
-                    ToString(NControllerAgent::GetFootprintMemorySize())))
-                .ThrowOnError();
             }
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Failed to create meta containers for jobs")
@@ -642,7 +637,7 @@ private:
     {
         if (!JobProxyInstances_[slotIndex]) {
             JobProxyInstances_[slotIndex] = CreatePortoInstance(
-                GetFullJobProxyMetaContainerName(MetaInstance_->GetAbsoluteName(), slotIndex) + "/job_proxy_" + ToString(jobId),
+                GetFullSlotMetaContainerName(MetaInstance_->GetAbsoluteName(), slotIndex) + "/job_proxy_" + ToString(jobId),
                 PortoExecutor_);
 
             if (Config_->ExternalJobRootVolume) {

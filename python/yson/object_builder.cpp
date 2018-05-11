@@ -32,7 +32,7 @@ TPythonObjectBuilder::PyObjectPtr TPythonObjectBuilder::MakePyObjectPtr(PyObject
     return std::unique_ptr<PyObject, decltype(&Py::_XDECREF)>(obj, &Py::_XDECREF);
 }
 
-void TPythonObjectBuilder::OnStringScalar(const TStringBuf& value)
+void TPythonObjectBuilder::OnStringScalar(TStringBuf value)
 {
     auto bytes = MakePyObjectPtr(PyBytes_FromStringAndSize(~value, value.size()));
     if (!bytes) {
@@ -100,7 +100,7 @@ void TPythonObjectBuilder::OnBeginMap()
     AddObject(MakePyObjectPtr(PyDict_New()), YsonMap, EPythonObjectType::Map);
 }
 
-void TPythonObjectBuilder::OnKeyedItem(const TStringBuf& key)
+void TPythonObjectBuilder::OnKeyedItem(TStringBuf key)
 {
     PyObject* pyKey = nullptr;
 

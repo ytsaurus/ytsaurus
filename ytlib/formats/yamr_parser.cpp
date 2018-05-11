@@ -19,7 +19,7 @@ public:
         , Config(config)
     { }
 
-    virtual void ConsumeKey(const TStringBuf& key) override
+    virtual void ConsumeKey(TStringBuf key) override
     {
         Consumer->OnListItem();
         Consumer->OnBeginMap();
@@ -27,13 +27,13 @@ public:
         Consumer->OnStringScalar(key);
     }
 
-    virtual void ConsumeSubkey(const TStringBuf& subkey) override
+    virtual void ConsumeSubkey(TStringBuf subkey) override
     {
         Consumer->OnKeyedItem(Config->Subkey);
         Consumer->OnStringScalar(subkey);
     }
 
-    virtual void ConsumeValue(const TStringBuf& value) override
+    virtual void ConsumeValue(TStringBuf value) override
     {
         Consumer->OnKeyedItem(Config->Value);
         Consumer->OnStringScalar(value);
@@ -84,7 +84,7 @@ void ParseYamr(
 }
 
 void ParseYamr(
-    const TStringBuf& data,
+    TStringBuf data,
     NYson::IYsonConsumer* consumer,
     TYamrFormatConfigPtr config)
 {

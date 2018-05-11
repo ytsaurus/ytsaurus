@@ -61,7 +61,7 @@ public:
         Advance(n);
     }
 
-    void AppendString(const TStringBuf& str)
+    void AppendString(TStringBuf str)
     {
         char* dst = Preallocate(str.length());
         memcpy(dst, str.begin(), str.length());
@@ -97,13 +97,13 @@ private:
 
 };
 
-inline void FormatValue(TStringBuilder* builder, const TStringBuilder& value, const TStringBuf& /*format*/)
+inline void FormatValue(TStringBuilder* builder, const TStringBuilder& value, TStringBuf /*format*/)
 {
     builder->AppendString(value.GetBuffer());
 }
 
 template <class T>
-TString ToStringViaBuilder(const T& value, const TStringBuf& spec = AsStringBuf("v"))
+TString ToStringViaBuilder(const T& value, TStringBuf spec = AsStringBuf("v"))
 {
     TStringBuilder builder;
     FormatValue(&builder, value, spec);
@@ -119,7 +119,7 @@ class TDelimitedStringBuilderWrapper
 public:
     TDelimitedStringBuilderWrapper(
         TStringBuilder* builder,
-        const TStringBuf& delimiter = AsStringBuf(", "))
+        TStringBuf delimiter = AsStringBuf(", "))
         : Builder_(builder)
         , Delimiter_(delimiter)
     { }
@@ -170,7 +170,7 @@ void JoinToString(
     const TIterator& begin,
     const TIterator& end,
     const TFormatter& formatter,
-    const TStringBuf& delimiter = DefaultJoinToStringDelimiter)
+    TStringBuf delimiter = DefaultJoinToStringDelimiter)
 {
     for (auto current = begin; current != end; ++current) {
         if (current != begin) {
@@ -185,7 +185,7 @@ TString JoinToString(
     const TIterator& begin,
     const TIterator& end,
     const TFormatter& formatter,
-    const TStringBuf& delimiter = DefaultJoinToStringDelimiter)
+    TStringBuf delimiter = DefaultJoinToStringDelimiter)
 {
     TStringBuilder builder;
     JoinToString(&builder, begin, end, formatter, delimiter);
@@ -197,7 +197,7 @@ template <class TIterator>
 TString JoinToString(
     const TIterator& begin,
     const TIterator& end,
-    const TStringBuf& delimiter = DefaultJoinToStringDelimiter)
+    TStringBuf delimiter = DefaultJoinToStringDelimiter)
 {
     return JoinToString(begin, end, TDefaultFormatter(), delimiter);
 }
@@ -212,7 +212,7 @@ template <class TCollection, class TFormatter>
 TString JoinToString(
     const TCollection& collection,
     const TFormatter& formatter,
-    const TStringBuf& delimiter = DefaultJoinToStringDelimiter)
+    TStringBuf delimiter = DefaultJoinToStringDelimiter)
 {
     using std::begin;
     using std::end;
@@ -223,7 +223,7 @@ TString JoinToString(
 template <class TCollection>
 TString JoinToString(
     const TCollection& collection,
-    const TStringBuf& delimiter = DefaultJoinToStringDelimiter)
+    TStringBuf delimiter = DefaultJoinToStringDelimiter)
 {
     return JoinToString(collection, TDefaultFormatter(), delimiter);
 }
@@ -286,11 +286,11 @@ std::vector<TString> ConvertToStrings(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void UnderscoreCaseToCamelCase(TStringBuilder* builder, const TStringBuf& str);
-TString UnderscoreCaseToCamelCase(const TStringBuf& str);
+void UnderscoreCaseToCamelCase(TStringBuilder* builder, TStringBuf str);
+TString UnderscoreCaseToCamelCase(TStringBuf str);
 
-void CamelCaseToUnderscoreCase(TStringBuilder* builder, const TStringBuf& str);
-TString CamelCaseToUnderscoreCase(const TStringBuf& str);
+void CamelCaseToUnderscoreCase(TStringBuilder* builder, TStringBuf str);
+TString CamelCaseToUnderscoreCase(TStringBuf str);
 
 TString TrimLeadingWhitespaces(const TString& str);
 TString Trim(const TString& str, const TString& whitespaces);

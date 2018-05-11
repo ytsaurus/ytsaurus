@@ -54,7 +54,7 @@ public:
 
     TToken();
     TToken(ETokenType type); // for special types
-    explicit TToken(const TStringBuf& stringValue); // for string values
+    explicit TToken(TStringBuf stringValue); // for string values
     explicit TToken(i64 int64Value); // for int64 values
     explicit TToken(ui64 int64Value); // for uint64 values
     explicit TToken(double doubleValue); // for double values
@@ -63,7 +63,7 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(ETokenType, Type);
 
     bool IsEmpty() const;
-    const TStringBuf& GetStringValue() const;
+    TStringBuf GetStringValue() const;
     i64 GetInt64Value() const;
     ui64 GetUint64Value() const;
     double GetDoubleValue() const;

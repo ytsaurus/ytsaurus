@@ -121,12 +121,12 @@ inline TUnversionedValue MakeUnversionedBooleanValue(bool value, int id = 0, boo
     return MakeBooleanValue<TUnversionedValue>(value, id, aggregate);
 }
 
-inline TUnversionedValue MakeUnversionedStringValue(const TStringBuf& value, int id = 0, bool aggregate = false)
+inline TUnversionedValue MakeUnversionedStringValue(TStringBuf value, int id = 0, bool aggregate = false)
 {
     return MakeStringValue<TUnversionedValue>(value, id, aggregate);
 }
 
-inline TUnversionedValue MakeUnversionedAnyValue(const TStringBuf& value, int id = 0, bool aggregate = false)
+inline TUnversionedValue MakeUnversionedAnyValue(TStringBuf value, int id = 0, bool aggregate = false)
 {
     return MakeAnyValue<TUnversionedValue>(value, id, aggregate);
 }
@@ -196,8 +196,11 @@ TString ToString(const TUnversionedValue& value);
 
 //! Ternary comparison predicate for TUnversionedValue-s.
 //! Returns zero, positive or negative value depending on the outcome.
+//! Note that this ignores aggregate flags.
 int CompareRowValues(const TUnversionedValue& lhs, const TUnversionedValue& rhs);
 
+//! Derived comparison operators.
+//! Note that these ignore aggregate flags.
 bool operator == (const TUnversionedValue& lhs, const TUnversionedValue& rhs);
 bool operator != (const TUnversionedValue& lhs, const TUnversionedValue& rhs);
 bool operator <= (const TUnversionedValue& lhs, const TUnversionedValue& rhs);
@@ -205,9 +208,13 @@ bool operator <  (const TUnversionedValue& lhs, const TUnversionedValue& rhs);
 bool operator >= (const TUnversionedValue& lhs, const TUnversionedValue& rhs);
 bool operator >  (const TUnversionedValue& lhs, const TUnversionedValue& rhs);
 
+//! Similar to operator == but takes aggregate flags into account.
+bool AreRowValuesIdentical(const TUnversionedValue& lhs, const TUnversionedValue& rhs);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Ternary comparison predicate for ranges of TUnversionedValue-s.
+//! Note that this ignores aggregate flags.
 int CompareRows(
     const TUnversionedValue* lhsBegin,
     const TUnversionedValue* lhsEnd,
@@ -216,17 +223,23 @@ int CompareRows(
 
 //! Ternary comparison predicate for TUnversionedRow-s stripped to a given number of
 //! (leading) values.
+//! Note that this ignores aggregate flags.
 int CompareRows(
     TUnversionedRow lhs,
     TUnversionedRow rhs,
     ui32 prefixLength = std::numeric_limits<ui32>::max());
 
+//! Derived comparison operators.
+//! Note that these ignore aggregate flags.
 bool operator == (TUnversionedRow lhs, TUnversionedRow rhs);
 bool operator != (TUnversionedRow lhs, TUnversionedRow rhs);
 bool operator <= (TUnversionedRow lhs, TUnversionedRow rhs);
 bool operator <  (TUnversionedRow lhs, TUnversionedRow rhs);
 bool operator >= (TUnversionedRow lhs, TUnversionedRow rhs);
 bool operator >  (TUnversionedRow lhs, TUnversionedRow rhs);
+
+//! Similar to operator == but takes aggregate flags into account.
+bool AreRowsIdentical(TUnversionedRow lhs, TUnversionedRow rhs);
 
 //! Sets all value types of |row| to |EValueType::Null|. Ids are not changed.
 void ResetRowValues(TMutableUnversionedRow* row);

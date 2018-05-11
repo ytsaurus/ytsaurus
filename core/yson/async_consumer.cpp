@@ -9,7 +9,7 @@ TAsyncYsonConsumerAdapter::TAsyncYsonConsumerAdapter(IYsonConsumer* underlyingCo
     : UnderlyingConsumer_(underlyingConsumer)
 { }
 
-void TAsyncYsonConsumerAdapter::OnStringScalar(const TStringBuf& value)
+void TAsyncYsonConsumerAdapter::OnStringScalar(TStringBuf value)
 {
     UnderlyingConsumer_->OnStringScalar(value);
 }
@@ -59,7 +59,7 @@ void TAsyncYsonConsumerAdapter::OnBeginMap()
     UnderlyingConsumer_->OnBeginMap();
 }
 
-void TAsyncYsonConsumerAdapter::OnKeyedItem(const TStringBuf& key)
+void TAsyncYsonConsumerAdapter::OnKeyedItem(TStringBuf key)
 {
     UnderlyingConsumer_->OnKeyedItem(key);
 }
@@ -79,7 +79,7 @@ void TAsyncYsonConsumerAdapter::OnEndAttributes()
     UnderlyingConsumer_->OnEndAttributes();
 }
 
-void TAsyncYsonConsumerAdapter::OnRaw(const TStringBuf& yson, EYsonType type)
+void TAsyncYsonConsumerAdapter::OnRaw(TStringBuf yson, EYsonType type)
 {
     UnderlyingConsumer_->OnRaw(yson, type);
 }

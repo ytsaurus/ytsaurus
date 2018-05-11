@@ -28,6 +28,7 @@ class TExtendedJobResources
 public:
     DEFINE_BYVAL_RW_PROPERTY(int, UserSlots);
     DEFINE_BYVAL_RW_PROPERTY(TCpuResource, Cpu);
+    DEFINE_BYVAL_RW_PROPERTY(int, Gpu);
     DEFINE_BYVAL_RW_PROPERTY(i64, JobProxyMemory);
     DEFINE_BYVAL_RW_PROPERTY(i64, UserJobMemory);
     DEFINE_BYVAL_RW_PROPERTY(i64, FootprintMemory);
@@ -45,6 +46,7 @@ class TJobResources
 public:
     DEFINE_BYVAL_RW_PROPERTY(int, UserSlots);
     DEFINE_BYVAL_RW_PROPERTY(TCpuResource, Cpu);
+    DEFINE_BYVAL_RW_PROPERTY(int, Gpu);
     DEFINE_BYVAL_RW_PROPERTY(i64, Memory);
     DEFINE_BYVAL_RW_PROPERTY(int, Network);
 
@@ -60,6 +62,7 @@ public:
 #define ITERATE_JOB_RESOURCES(XX) \
     XX(user_slots,            UserSlots) \
     XX(cpu,                   Cpu) \
+    XX(gpu,                   Gpu) \
     XX(user_memory,           Memory) \
     XX(network,               Network)
 
@@ -93,6 +96,7 @@ struct TResourcesWithQuota<TJobResources>
 public:
     MAKE_JOB_METHODS(TJobResources, UserSlots)
     MAKE_JOB_METHODS(TJobResources, Cpu)
+    MAKE_JOB_METHODS(TJobResources, Gpu)
     MAKE_JOB_METHODS(TJobResources, Memory)
     MAKE_JOB_METHODS(TJobResources, Network)
     MAKE_JOB_METHODS(TResourcesWithQuota<void>, DiskQuota);

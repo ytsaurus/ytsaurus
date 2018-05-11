@@ -10,7 +10,7 @@
 namespace NYT {
 namespace NTableClient {
 
-static constexpr i64 SkynetDataSize = 4_MB;
+static constexpr i64 SkynetPartSize = 4_MB;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -55,15 +55,17 @@ void ValidateSkynetSchema(const TTableSchema& schema)
         }
 
         if (columnSchema->LogicalType()!= type) {
-            validationErrors.push_back(TError("Column %Qv has invalid type", name)
-                << TErrorAttribute("expected", ToString(type))
-                << TErrorAttribute("actual", ToString(columnSchema->LogicalType())));
+            validationErrors.push_back(TError("Column %Qv has invalid type: expected %Qlv, actual %Qlv",
+                name,
+                type,
+                columnSchema->LogicalType()));
         }
 
         if (columnSchema->Group() != group) {
-            validationErrors.push_back(TError("Column %Qv has invalid group", name)
-                << TErrorAttribute("expected", group)
-                << TErrorAttribute("actual", columnSchema->Group().Get("#;")));
+            validationErrors.push_back(TError("Column %Qv has invalid group: expected %Qv, actual %Qv",
+                name,
+                group,
+                columnSchema->Group().Get("<none>")));
         }
     };
 
@@ -76,7 +78,7 @@ void ValidateSkynetSchema(const TTableSchema& schema)
     checkColumn("data", ELogicalValueType::String, "data");
 
     if (!validationErrors.empty()) {
-        THROW_ERROR_EXCEPTION(EErrorCode::SchemaViolation, "Invalid schema for skynet shared table")
+        THROW_ERROR_EXCEPTION(EErrorCode::SchemaViolation, "Invalid schema for Skynet shared table")
             << validationErrors;
     }
 }
@@ -88,9 +90,13 @@ TSkynetColumnEvaluator::TSkynetColumnEvaluator(const TTableSchema& schema)
     , Sha1Id_(schema.GetColumnIndexOrThrow("sha1"))
     , Md5Id_(schema.GetColumnIndexOrThrow("md5"))
     , DataSizeId_(schema.GetColumnIndexOrThrow("data_size"))
-    , KeySize_(schema.GetKeyColumnCount())
+    , EffectiveKeySize_(schema.GetKeyColumnCount())
 {
     ValidateSkynetSchema(schema);
+
+    if (schema.GetColumnOrThrow("part_index").SortOrder()) {
+        EffectiveKeySize_ -= 1;
+    }
 }
 
 void TSkynetColumnEvaluator::ValidateAndComputeHashes(
@@ -98,41 +104,42 @@ void TSkynetColumnEvaluator::ValidateAndComputeHashes(
     const TRowBufferPtr& buffer,
     bool isLastRow)
 {
-    TStringBuf filename;
+    TStringBuf fileName;
     TStringBuf data;
     i64 partIndex;
     TUnversionedValue* sha1 = nullptr;
     TUnversionedValue* md5 = nullptr;
     TUnversionedValue* dataSize = nullptr;
 
-    UnpackFields(fullRow, &filename, &data, &partIndex, &sha1, &md5, &dataSize);
+    UnpackFields(fullRow, &fileName, &data, &partIndex, &sha1, &md5, &dataSize);
 
     bool keySwitched = IsKeySwitched(fullRow, isLastRow);
 
     //! Start new file.
-    if (!LastFilename_ || *LastFilename_ != filename || keySwitched) {
-        LastFilename_ = TString(filename);
-        LastDataSize_ = SkynetDataSize;
+    if (!LastFileName_ || *LastFileName_ != fileName || keySwitched) {
+        LastFileName_ = TString(fileName);
+        LastDataSize_ = SkynetPartSize;
         NextPartIndex_ = 0;
 
-        HashState_.reset(new TSkynetHashState());
+        HashState_ = std::make_unique<TSkynetHashState>();
     }
 
     if (partIndex != NextPartIndex_) {
-        THROW_ERROR_EXCEPTION("Invalid part_index")
-            << TErrorAttribute("filename", filename)
-            << TErrorAttribute("expected", NextPartIndex_)
-            << TErrorAttribute("actual", partIndex);
+        THROW_ERROR_EXCEPTION("Invalid \"part_index\" column value for %Qv file: expected %v, got %v; "
+            "parts must be contiguously numbered starting from zero",
+            fileName,
+            NextPartIndex_,
+            partIndex);
     }
     NextPartIndex_++;
 
-    if (LastDataSize_ != SkynetDataSize) {
-        THROW_ERROR_EXCEPTION("Data block with size %v found in the middle of the file; all but last file blocks in skynet shared table must be exactly 4Mb in size",
-            LastDataSize_)
-            << TErrorAttribute("part_index", partIndex)
-            << TErrorAttribute("filename", filename)
-            << TErrorAttribute("actual_size", LastDataSize_)
-            << TErrorAttribute("expected_size", SkynetDataSize);
+    if (LastDataSize_ != SkynetPartSize) {
+        THROW_ERROR_EXCEPTION("Table contains data part #%v with size %v in the middle of file %Qv; "
+           "all but the last file part must be exactly %vMb in size",
+            partIndex,
+            LastDataSize_,
+            fileName,
+            SkynetPartSize / 1_MB);
     }
 
     LastDataSize_ = data.Size();
@@ -189,13 +196,13 @@ void TSkynetColumnEvaluator::UnpackFields(
 
 bool TSkynetColumnEvaluator::IsKeySwitched(TUnversionedRow fullRow, bool isLastRow)
 {
-    if (KeySize_ == 0) {
+    if (EffectiveKeySize_ == 0) {
         return false;
     }
 
-    bool keyChanged = LastKey_ && CompareRows(fullRow, LastKey_, KeySize_) != 0;
+    bool keyChanged = LastKey_ && CompareRows(fullRow, LastKey_, EffectiveKeySize_) != 0;
     if (isLastRow) {
-        LastKeyHolder_ = GetKeyPrefix(fullRow, KeySize_);
+        LastKeyHolder_ = GetKeyPrefix(fullRow, EffectiveKeySize_);
         LastKey_ = LastKeyHolder_;
     } else {
         LastKey_ = fullRow;
