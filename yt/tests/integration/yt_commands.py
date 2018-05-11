@@ -689,6 +689,12 @@ class EventsOnFs(object):
 
 ###########################################################################
 
+def get_new_operation_cypress_path(op_id):
+    return "//sys/operations/{}/{}".format("%02x" % (long(op_id.split("-")[3], 16) % 256), op_id)
+
+def get_operation_cypress_path(op_id):
+    return "//sys/operations/{}".format(op_id)
+
 class Operation(object):
     def __init__(self):
         self._tmpdir = ""
@@ -696,9 +702,6 @@ class Operation(object):
 
     def _get_new_operation_path(self):
         return "//sys/operations/{0:02x}/{1}".format(int(self.id.split("-")[-1], 16) % 256, self.id)
-
-    def _get_operation_path(self):
-        return "//sys/operations/" + self.id
 
     def get_job_phase(self, job_id):
         job_path = "//sys/scheduler/orchid/scheduler/jobs/{0}".format(job_id)
@@ -735,7 +738,7 @@ class Operation(object):
 
     def get_state(self, **kwargs):
         try:
-            return get(self._get_operation_path() + "/@state", verbose_error=False, **kwargs)
+            return get(get_operation_cypress_path(self.id) + "/@state", verbose_error=False, **kwargs)
         except YtResponseError as err:
             if not err.is_resolve_error():
                 raise
@@ -1137,9 +1140,6 @@ def make_ace(action, subjects, permissions, inheritance_mode="object_and_descend
         "permissions": _to_list(permissions),
         "inheritance_mode": inheritance_mode
     }
-
-def get_operation_path(op_id):
-    return "//sys/operations/{0:02x}/{1}".format(int(op_id.split("-")[-1], 16) % 256, op_id)
 
 #########################################
 

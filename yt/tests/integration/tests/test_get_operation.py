@@ -8,14 +8,11 @@ from operations_archive import clean_operations
 
 import pytest
 
-def _get_operation_cypress_path(op_id):
-    return "//sys/operations/{}/{}".format("%02x" % (long(op_id.split("-")[3], 16) % 256), op_id)
-
 def _get_orchid_operation_path(op_id):
     return "//sys/scheduler/orchid/scheduler/operations/{0}/progress".format(op_id)
 
 def _get_operation_from_cypress(op_id):
-    result = get(_get_operation_cypress_path(op_id) + "/@")
+    result = get(get_new_operation_cypress_path(op_id) + "/@")
     if "full_spec" in result:
         result["full_spec"].attributes.pop("opaque", None)
     del result["id"]
@@ -53,7 +50,7 @@ class TestGetOperation(YTEnvSetup):
             })
         wait_breakpoint()
 
-        wait(lambda: exists(_get_operation_cypress_path(op.id)))
+        wait(lambda: exists(get_new_operation_cypress_path(op.id)))
 
         res_get_operation = get_operation(op.id, include_scheduler=True)
         res_cypress = _get_operation_from_cypress(op.id)
@@ -121,7 +118,7 @@ class TestGetOperation(YTEnvSetup):
 
         for read_from in ("cache", "follower"):
             res_get_operation = get_operation(op.id, attributes=["progress", "state"], include_scheduler=True, read_from=read_from)
-            res_cypress = get(_get_operation_cypress_path(op.id) + "/@", attributes=["progress", "state"])
+            res_cypress = get(get_new_operation_cypress_path(op.id) + "/@", attributes=["progress", "state"])
 
             assert sorted(list(res_get_operation)) == ["progress", "state"]
             assert sorted(list(res_cypress)) == ["progress", "state"]
@@ -149,12 +146,12 @@ class TestGetOperation(YTEnvSetup):
             command="cat")
 
         tx = start_transaction(timeout=300 * 1000)
-        lock(_get_operation_cypress_path(op.id),
+        lock(get_new_operation_cypress_path(op.id),
             mode="shared",
             child_key="completion_transaction_id",
             transaction_id=tx)
 
         clean_operations(self.Env.create_native_client())
         assert not exists("//sys/operations/" + op.id)
-        assert exists(_get_operation_cypress_path(op.id))
+        assert exists(get_new_operation_cypress_path(op.id))
         assert "state" in get_operation(op.id)
