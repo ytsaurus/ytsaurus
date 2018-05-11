@@ -637,7 +637,7 @@ void Umount(const TString& path, bool detach)
 #endif
 }
 
-struct stat Stat(const TStringBuf& path)
+struct stat Stat(TStringBuf path)
 {
     struct stat statInfo;
     int result = ::stat(path.c_str(), &statInfo);
@@ -648,13 +648,13 @@ struct stat Stat(const TStringBuf& path)
     return statInfo;
 }
 
-i64 GetBlockSize(const TStringBuf& device)
+i64 GetBlockSize(TStringBuf device)
 {
     struct stat statInfo = Stat(device);
     return static_cast<i64>(statInfo.st_blksize);
 }
 
-TString GetFilesystemName(const TStringBuf& path)
+TString GetFilesystemName(TStringBuf path)
 {
     struct stat statInfo = Stat(path);
     auto dev = statInfo.st_dev;
@@ -675,7 +675,7 @@ TString GetFilesystemName(const TStringBuf& path)
 
 void SetQuota(
     int userId,
-    const TStringBuf& path,
+    TStringBuf path,
     TNullable<i64> diskSpaceLimit,
     TNullable<i64> inodeLimit)
 {

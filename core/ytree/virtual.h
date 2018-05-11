@@ -20,7 +20,9 @@ protected:
 
     virtual std::vector<TString> GetKeys(i64 limit = std::numeric_limits<i64>::max()) const = 0;
     virtual i64 GetSize() const = 0;
-    virtual IYPathServicePtr FindItemService(const TStringBuf& key) const = 0;
+
+    virtual IYPathServicePtr FindItemService(TStringBuf key) const = 0;
+    virtual void OnRecurse(const NRpc::IServiceContextPtr& context, TStringBuf key) const;
 
     virtual bool DoInvoke(const NRpc::IServiceContextPtr& context) override;
 
@@ -56,7 +58,7 @@ public:
 
     virtual std::vector<TString> GetKeys(i64 limit = std::numeric_limits<i64>::max()) const override;
     virtual i64 GetSize() const override;
-    virtual IYPathServicePtr FindItemService(const TStringBuf& key) const override;
+    virtual IYPathServicePtr FindItemService(TStringBuf key) const override;
     virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override;
     virtual bool GetBuiltinAttribute(TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override;
 

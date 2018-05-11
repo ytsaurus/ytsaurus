@@ -24,7 +24,7 @@ public:
 
     ~TSkiffMultiTableParser();
 
-    void Read(const TStringBuf& data);
+    void Read(TStringBuf data);
     void Finish();
 
 private:

@@ -19,6 +19,9 @@ TFairShareStrategyOperationControllerConfig::TFairShareStrategyOperationControll
 
     RegisterParameter("schedule_job_timeout_alert_reset_time", ScheduleJobTimeoutAlertResetTime)
         .Default(TDuration::Minutes(15));
+
+    RegisterParameter("schedule_jobs_timeout", ScheduleJobsTimeout)
+        .Default(TDuration::Seconds(40));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -183,9 +186,6 @@ TSchedulerConfig::TSchedulerConfig()
 {
     SetUnrecognizedStrategy(NYTree::EUnrecognizedStrategy::KeepRecursive);
 
-    RegisterParameter("control_thread_priority", ControlThreadPriority)
-        .Default();
-
     RegisterParameter("node_shard_count", NodeShardCount)
         .Default(4)
         .GreaterThan(0);
@@ -287,6 +287,9 @@ TSchedulerConfig::TSchedulerConfig()
     RegisterParameter("finished_job_storing_timeout", FinishedJobStoringTimeout)
         .Default(TDuration::Minutes(30));
 
+    RegisterParameter("finished_operation_job_storing_timeout", FinishedOperationJobStoringTimeout)
+        .Default(TDuration::Seconds(10));
+
     RegisterParameter("testing_options", TestingOptions)
         .DefaultNew();
 
@@ -295,6 +298,9 @@ TSchedulerConfig::TSchedulerConfig()
 
     RegisterParameter("spec_template", SpecTemplate)
         .Default();
+
+    RegisterParameter("min_agent_count_for_waiting_operation", MinAgentCountForWaitingOperation)
+        .Default(1);
 
     RegisterPreprocessor([&] () {
         EventLog->MaxRowWeight = 128_MB;

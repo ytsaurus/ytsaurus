@@ -38,7 +38,8 @@ void TOperationControllerHost::InterruptJob(const TJobId& jobId, EInterruptReaso
         EAgentToSchedulerJobEventType::Interrupted,
         jobId,
         {},
-        reason
+        reason,
+        {}
     });
     LOG_DEBUG("Job interrupt request enqueued (OperationId: %v, JobCount: %v)",
         OperationId_,
@@ -51,6 +52,7 @@ void TOperationControllerHost::AbortJob(const TJobId& jobId, const TError& error
         EAgentToSchedulerJobEventType::Aborted,
         jobId,
         error,
+        {},
         {}
     });
     LOG_DEBUG("Job abort request enqueued (OperationId: %v, JobId: %v)",
@@ -64,6 +66,7 @@ void TOperationControllerHost::FailJob(const TJobId& jobId)
         EAgentToSchedulerJobEventType::Failed,
         jobId,
         {},
+        {},
         {}
     });
     LOG_DEBUG("Job failure request enqueued (OperationId: %v, JobId: %v)",
@@ -71,22 +74,23 @@ void TOperationControllerHost::FailJob(const TJobId& jobId)
         jobId);
 }
 
-void TOperationControllerHost::ReleaseJobs(const std::vector<TJobId>& jobIds)
+void TOperationControllerHost::ReleaseJobs(const std::vector<TJobToRelease>& jobsToRelease)
 {
     std::vector<TAgentToSchedulerJobEvent> events;
-    events.reserve(jobIds.size());
-    for (const auto& jobId : jobIds) {
+    events.reserve(jobsToRelease.size());
+    for (const auto& jobToRelease : jobsToRelease) {
         events.emplace_back(TAgentToSchedulerJobEvent{
             EAgentToSchedulerJobEventType::Released,
-            jobId,
+            jobToRelease.JobId,
             {},
-            {}
+            {},
+            jobToRelease.ArchiveJobSpec
         });
     }
     JobEventsOutbox_->Enqueue(std::move(events));
     LOG_DEBUG("Jobs release request enqueued (OperationId: %v, JobCount: %v)",
         OperationId_,
-        jobIds.size());
+        jobsToRelease.size());
 }
 
 TFuture<TOperationSnapshot> TOperationControllerHost::DownloadSnapshot()

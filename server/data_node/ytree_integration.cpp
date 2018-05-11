@@ -52,7 +52,7 @@ private:
         return Collection->GetChunkCount();
     }
 
-    virtual IYPathServicePtr FindItemService(const TStringBuf& key) const override
+    virtual IYPathServicePtr FindItemService(TStringBuf key) const override
     {
         auto id = TChunkId::FromString(key);
         auto chunk = Collection->FindChunk(id);

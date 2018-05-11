@@ -23,7 +23,7 @@ public:
     ~TYsonParser();
 
     void Read(const char* begin, const char* end, bool finish = false);
-    void Read(const TStringBuf& data);
+    void Read(TStringBuf data);
     void Finish();
 
     const char* GetCurrentPositionInBlock();
@@ -47,7 +47,7 @@ public:
 
     ~TStatelessYsonParser();
 
-    void Parse(const TStringBuf& data, EYsonType type = EYsonType::Node);
+    void Parse(TStringBuf data, EYsonType type = EYsonType::Node);
     void Stop();
 
 private:
@@ -59,7 +59,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 void ParseYsonStringBuffer(
-    const TStringBuf& buffer,
+    TStringBuf buffer,
     EYsonType type,
     IYsonConsumer* consumer,
     bool enableLinePositionInfo = false,

@@ -22,6 +22,12 @@ IOperationControllerPtr CreateJoinReduceController(
     IOperationControllerHostPtr host,
     TOperation* operation);
 
+IOperationControllerPtr CreateAppropriateReduceController(
+    TControllerAgentConfigPtr config,
+    IOperationControllerHostPtr host,
+    TOperation* operation,
+    bool isJoinReduce);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NControllerAgent

@@ -82,7 +82,7 @@ ETokenType TTokenizer::Advance()
     return Type_;
 }
 
-void TTokenizer::ThrowMalformedEscapeSequence(const TStringBuf& context)
+void TTokenizer::ThrowMalformedEscapeSequence(TStringBuf context)
 {
     THROW_ERROR_EXCEPTION("Malformed escape sequence %Qv in YPath",
         context);
@@ -134,7 +134,7 @@ const char* TTokenizer::AdvanceEscaped(const char* current)
     return current;
 }
 
-int TTokenizer::ParseHexDigit(char ch, const TStringBuf& context)
+int TTokenizer::ParseHexDigit(char ch, TStringBuf context)
 {
     if (ch >= '0' && ch <= '9') {
         return ch - '0';

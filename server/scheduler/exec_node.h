@@ -11,6 +11,7 @@
 #include <yt/ytlib/node_tracker_client/public.h>
 
 #include <yt/ytlib/scheduler/proto/scheduler_service.pb.h>
+#include <yt/ytlib/scheduler/job.h>
 #include <yt/ytlib/scheduler/job_resources.h>
 
 #include <yt/core/concurrency/lease_manager.h>
@@ -23,7 +24,7 @@ namespace NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TRecentlyCompletedJobInfo
+struct TRecentlyFinishedJobInfo
 {
     TOperationId OperationId;
     NProfiling::TCpuInstant EvictionDeadline;
@@ -81,15 +82,15 @@ public:
     //! Jobs at this node that are waiting for confirmation.
     DEFINE_BYREF_RW_PROPERTY(THashSet<TJobId>, UnconfirmedJobIds);
 
-    //! Ids of jobs that were completed recently and are yet to be saved to the snapshot.
+    //! Ids of jobs that have been finished recently and are yet to be saved to the snapshot.
     //! We remember them in order to not remove them as unknown jobs.
     //! We store an eviction deadline for every job id to make sure
     //! that no job is stored infinitely.
-    using TRecentlyCompletedJobIdToInfo = THashMap<TJobId, TRecentlyCompletedJobInfo>;
-    DEFINE_BYREF_RW_PROPERTY(TRecentlyCompletedJobIdToInfo, RecentlyCompletedJobs);
+    using TRecentlyFinishedJobIdToInfo = THashMap<TJobId, TRecentlyFinishedJobInfo>;
+    DEFINE_BYREF_RW_PROPERTY(TRecentlyFinishedJobIdToInfo, RecentlyFinishedJobs);
 
     //! Jobs that are to be removed with a next heartbeat response.
-    DEFINE_BYREF_RW_PROPERTY(std::vector<TJobId>, JobIdsToRemove);
+    DEFINE_BYREF_RW_PROPERTY(std::vector<TJobToRelease>, JobsToRemove);
 
 public:
     TExecNode(

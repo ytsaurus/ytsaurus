@@ -626,12 +626,11 @@ int TChunkPlacement::GetMaxReplicasPerRack(
     TChunk* chunk,
     TNullable<int> replicationFactorOverride)
 {
-    auto maybeResult = chunk->GetMaxReplicasPerRack(
+    auto result = chunk->GetMaxReplicasPerRack(
         medium->GetIndex(),
         replicationFactorOverride,
         Bootstrap_->GetChunkManager()->GetChunkRequisitionRegistry());
     const auto& config = medium->Config();
-    int result = maybeResult ? *maybeResult : config->MaxReplicasPerRack;
     result = std::min(result, config->MaxReplicasPerRack);
 
     switch (chunk->GetType()) {

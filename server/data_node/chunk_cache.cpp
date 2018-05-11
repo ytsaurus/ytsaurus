@@ -75,7 +75,6 @@ static const int TableArtifactBufferRowCount = 10000;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSessionCounterGuard
-    : private TNonCopyable
 {
 public:
     explicit TSessionCounterGuard(TLocationPtr location)
@@ -83,6 +82,8 @@ public:
     {
         Location_->UpdateSessionCount(ESessionType::User, +1);
     }
+
+    TSessionCounterGuard(TSessionCounterGuard&& other) = default;
 
     ~TSessionCounterGuard()
     {
@@ -383,10 +384,13 @@ public:
                 }
             }
 
+            TSessionCounterGuard guard(location);
+
             auto invoker = CreateSerializedInvoker(location->GetWritePoolInvoker());
             invoker->Invoke(BIND(
                 downloader,
                 MakeStrong(this),
+                Passed(std::move(guard)),
                 key,
                 location,
                 chunkId,
@@ -577,6 +581,7 @@ private:
     }
 
     void DownloadChunk(
+        TSessionCounterGuard /* sessionCounterGuard */,
         const TArtifactKey& key,
         TCacheLocationPtr location,
         const TChunkId& chunkId,
@@ -592,8 +597,6 @@ private:
         Logger.AddTag("ChunkId: %v, ReadSessionId: %v", chunkId, readSessionId);
 
         try {
-            TSessionCounterGuard sessionCounterGuard(location);
-
             auto options = New<TRemoteReaderOptions>();
             options->EnableP2P = true;
 
@@ -610,7 +613,12 @@ private:
                 Bootstrap_->GetArtifactCacheInThrottler());
 
             auto fileName = location->GetChunkPath(chunkId);
-            auto chunkWriter = New<TFileWriter>(location->GetIOEngine(), chunkId, fileName);
+            auto chunkWriter = New<TFileWriter>(
+                location->GetIOEngine(),
+                chunkId,
+                fileName,
+                /* syncOnClose */ false);
+
             auto checkedChunkWriter = New<TErrorInterceptingChunkWriter>(location, chunkWriter);
 
             LOG_DEBUG("Opening chunk writer");
@@ -690,6 +698,7 @@ private:
     }
 
     void DownloadFile(
+        TSessionCounterGuard /* sessionCounterGuard */,
         const TArtifactKey& key,
         TCacheLocationPtr location,
         const TChunkId& chunkId,
@@ -716,8 +725,6 @@ private:
             Bootstrap_->GetArtifactCacheInThrottler());
 
         try {
-            TSessionCounterGuard sessionCounterGuard(location);
-
             auto producer = [&] (IOutputStream* output) {
                 TBlock block;
                 while (reader->ReadBlock(&block)) {
@@ -747,6 +754,7 @@ private:
     }
 
     void DownloadTable(
+        TSessionCounterGuard /* sessionCounterGuard */,
         const TArtifactKey& key,
         TCacheLocationPtr location,
         const TChunkId& chunkId,
@@ -818,8 +826,6 @@ private:
 
         try {
             auto format = ConvertTo<NFormats::TFormat>(TYsonString(key.format()));
-
-            TSessionCounterGuard sessionCounterGuard(location);
 
             auto producer = [&] (IOutputStream* output) {
                 auto writer = CreateSchemalessWriterForFormat(

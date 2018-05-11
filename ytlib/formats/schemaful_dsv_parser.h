@@ -22,7 +22,7 @@ void ParseSchemafulDsv(
     TSchemafulDsvFormatConfigPtr config = New<TSchemafulDsvFormatConfig>());
 
 void ParseSchemafulDsv(
-    const TStringBuf& data,
+    TStringBuf data,
     NYson::IYsonConsumer* consumer,
     TSchemafulDsvFormatConfigPtr config = New<TSchemafulDsvFormatConfig>());
 

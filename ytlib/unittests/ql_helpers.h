@@ -56,7 +56,7 @@ TValue MakeInt64(i64 value);
 TValue MakeUint64(i64 value);
 TValue MakeDouble(i64 value);
 TValue MakeBoolean(bool value);
-TValue MakeString(const TStringBuf& value);
+TValue MakeString(TStringBuf value);
 TValue MakeNull();
 
 template <class TTypedExpression, class... TArgs>

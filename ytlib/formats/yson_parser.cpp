@@ -24,7 +24,7 @@ public:
         : Parser(consumer, type, enableLinePositionInfo, NTableClient::MaxRowWeightLimit)
     { }
 
-    virtual void Read(const TStringBuf& data) override
+    virtual void Read(TStringBuf data) override
     {
         Parser.Read(data);
     }

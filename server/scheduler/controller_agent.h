@@ -31,6 +31,7 @@ struct TSchedulerToAgentJobEvent
     TNullable<EAbortReason> AbortReason;
     TNullable<bool> Abandoned;
     TNullable<EInterruptReason> InterruptReason;
+    TNullable<bool> AbortedByScheduler;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -82,8 +83,6 @@ public:
 
     DEFINE_BYVAL_RW_PROPERTY(EControllerAgentState, State);
     DEFINE_BYVAL_RW_PROPERTY(NConcurrency::TLease, Lease);
-
-    DEFINE_BYVAL_RW_PROPERTY(NYson::TYsonString, SuspiciousJobsYson);
 
     DEFINE_BYREF_RW_PROPERTY(THashSet<TOperationPtr>, Operations);
 

@@ -98,8 +98,10 @@ public:
     TNullable<TDuration> ResourceLimitsUpdatePeriod;
     TNullable<TString> ExternalJobContainer;
     TNullable<TString> ExternalJobRootVolume;
+
     THashMap<TString, TString> ExternalBinds;
 
+    double JobsCpuWeight;
     double JobsIOWeight;
 
     TPortoJobEnvironmentConfig()
@@ -122,6 +124,8 @@ public:
         RegisterParameter("external_binds", ExternalBinds)
             .Default();
 
+        RegisterParameter("jobs_cpu_weight", JobsCpuWeight)
+            .Default(0.8);
         RegisterParameter("jobs_io_weight", JobsIOWeight)
             .Default(0.05);
     }

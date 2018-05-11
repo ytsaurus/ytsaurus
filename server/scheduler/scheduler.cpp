@@ -170,7 +170,7 @@ public:
         , CachedExecNodeMemoryDistributionByTags_(New<TSyncExpiringCache<TSchedulingTagFilter, TMemoryDistribution>>(
             BIND(&TImpl::CalculateMemoryDistribution, MakeStrong(this)),
             Config_->SchedulingTagFilterExpireTimeout,
-            GetControlInvoker()))
+            GetControlInvoker(EControlQueue::PeriodicActivity)))
         , TotalResourceLimitsProfiler_(Profiler.GetPathPrefix() + "/total_resource_limits")
         , TotalResourceUsageProfiler_(Profiler.GetPathPrefix() + "/total_resource_usage")
         , TotalCompletedJobTimeCounter_("/total_completed_job_time")
@@ -179,7 +179,7 @@ public:
     {
         YCHECK(config);
         YCHECK(bootstrap);
-        VERIFY_INVOKER_THREAD_AFFINITY(GetControlInvoker(), ControlThread);
+        VERIFY_INVOKER_THREAD_AFFINITY(GetControlInvoker(EControlQueue::Default), ControlThread);
 
         for (int index = 0; index < Config_->NodeShardCount; ++index) {
             NodeShards_.push_back(New<TNodeShard>(
@@ -187,6 +187,7 @@ public:
                 Config_,
                 this,
                 Bootstrap_));
+            CancelableNodeShardInvokers_.push_back(GetNullInvoker());
         }
 
         ServiceAddress_ = BuildServiceAddress(
@@ -338,6 +339,13 @@ public:
         return NodeShards_;
     }
 
+    const IInvokerPtr& GetCancelableNodeShardInvoker(int shardId) const
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        return CancelableNodeShardInvokers_[shardId];
+    }
+
     bool IsConnected() const
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -442,7 +450,7 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         return BIND(&TImpl::DoSetOperationAlert, MakeStrong(this), operationId, alertType, alert, timeout)
-            .AsyncVia(GetControlInvoker())
+            .AsyncVia(GetControlInvoker(EControlQueue::Operation))
             .Run();
     }
 
@@ -989,13 +997,20 @@ public:
             return;
         }
 
+        LOG_INFO("Materializing operation (OperationId: %v, RevivedFromSnapshot: %v)",
+            operation->GetId(),
+            operation->GetRevivedFromSnapshot());
+
         TFuture<void> asyncResult;
         if (operation->GetRevivedFromSnapshot()) {
             operation->SetStateAndEnqueueEvent(EOperationState::RevivingJobs);
             asyncResult = RegisterJobsFromRevivedOperation(operation);
         } else {
             operation->SetStateAndEnqueueEvent(EOperationState::Materializing);
-            asyncResult = operation->GetController()->Materialize();
+            asyncResult = Combine(std::vector<TFuture<void>>({
+                operation->GetController()->Materialize(),
+                ResetOperationRevival(operation)
+            }));
         }
 
         auto expectedState = operation->GetState();
@@ -1027,7 +1042,7 @@ public:
         return result;
     }
 
-    virtual IInvokerPtr GetControlInvoker(EControlQueue queue = EControlQueue::Default) const
+    virtual IInvokerPtr GetControlInvoker(EControlQueue queue) const
     {
         return Bootstrap_->GetControlInvoker(queue);
     }
@@ -1055,7 +1070,7 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         return BIND(&TImpl::DoRegisterOrUpdateNode, MakeStrong(this))
-            .AsyncVia(GetControlInvoker())
+            .AsyncVia(GetControlInvoker(EControlQueue::NodeTracker))
             .Run(nodeId, nodeAddress, tags);
     }
 
@@ -1063,17 +1078,18 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        GetControlInvoker()->Invoke(BIND([this, this_ = MakeStrong(this), nodeId, nodeAddress] {
-            // NOTE: If node is unregistered from node shard before it becomes online
-            // then its id can be missing in the map.
-            auto it = NodeIdToTags_.find(nodeId);
-            if (it == NodeIdToTags_.end()) {
-                LOG_WARNING("Node is not registered at scheduler (Address: %v)", nodeAddress);
-            } else {
-                NodeIdToTags_.erase(it);
-                LOG_INFO("Node unregistered from scheduler (Address: %v)", nodeAddress);
-            }
-        }));
+        GetControlInvoker(EControlQueue::NodeTracker)->Invoke(
+            BIND([this, this_ = MakeStrong(this), nodeId, nodeAddress] {
+                // NOTE: If node is unregistered from node shard before it becomes online
+                // then its id can be missing in the map.
+                auto it = NodeIdToTags_.find(nodeId);
+                if (it == NodeIdToTags_.end()) {
+                    LOG_WARNING("Node is not registered at scheduler (Address: %v)", nodeAddress);
+                } else {
+                    NodeIdToTags_.erase(it);
+                    LOG_INFO("Node unregistered from scheduler (Address: %v)", nodeAddress);
+                }
+            }));
     }
 
     void DoRegisterOrUpdateNode(
@@ -1116,7 +1132,7 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         return BIND(&TImpl::DoAttachJobContext, MakeStrong(this))
-            .AsyncVia(Bootstrap_->GetControlInvoker())
+            .AsyncVia(Bootstrap_->GetControlInvoker(EControlQueue::UserRequest))
             .Run(path, chunkId, operationId, jobId, user);
     }
 
@@ -1186,6 +1202,7 @@ private:
     TString ServiceAddress_;
 
     std::vector<TNodeShardPtr> NodeShards_;
+    std::vector<IInvokerPtr> CancelableNodeShardInvokers_;
 
     THashMap<TNodeId, THashSet<TString>> NodeIdToTags_;
 
@@ -1381,17 +1398,22 @@ private:
         {
             LOG_INFO("Connecting node shards");
 
-            std::vector<TFuture<void>> asyncResults;
+            std::vector<TFuture<IInvokerPtr>> asyncInvokers;
             for (const auto& nodeShard : NodeShards_) {
-                asyncResults.push_back(BIND(&TNodeShard::OnMasterConnected, nodeShard)
+                asyncInvokers.push_back(BIND(&TNodeShard::OnMasterConnected, nodeShard)
                     .AsyncVia(nodeShard->GetInvoker())
                     .Run());
             }
 
-            auto error = WaitFor(Combine(asyncResults));
-            if (!error.IsOK()) {
+            auto invokerOrError = WaitFor(Combine(asyncInvokers));
+            if (!invokerOrError.IsOK()) {
                 THROW_ERROR_EXCEPTION("Error connecting node shards")
-                    << error;
+                    << invokerOrError;
+            }
+
+            const auto& invokers = invokerOrError.Value();
+            for (size_t index = 0; index < NodeShards_.size(); ++index) {
+                CancelableNodeShardInvokers_[index ] = invokers[index];
             }
         }
 
@@ -1629,6 +1651,10 @@ private:
         const TObjectServiceProxy::TRspExecuteBatchPtr& batchRsp)
     {
         auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_runtime_params");
+        // COMPAT(babenko): Nirvana operations have no runtime params
+        if (rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
+            return;
+        }
         if (!rspOrError.IsOK()) {
             LOG_WARNING(rspOrError, "Error getting operation runtime parameters (OperationId: %v)",
                 operation->GetId());
@@ -1653,7 +1679,7 @@ private:
                 operation->SetOwners(ownerList);
             }
 
-            LOG_INFO("Operation runtime parameters updated from Cypress (OperationId: %v)",
+            LOG_DEBUG("Operation runtime parameters updated from Cypress (OperationId: %v)",
                 operation->GetId());
         } catch (const std::exception& ex) {
             LOG_WARNING(ex, "Error parsing operation runtime parameters (OperationId: %v)",
@@ -2015,6 +2041,18 @@ private:
         }
     }
 
+    TFuture<void> ResetOperationRevival(const TOperationPtr& operation)
+    {
+        std::vector<TFuture<void>> asyncResults;
+        for (int shardId = 0; shardId < NodeShards_.size(); ++shardId) {
+            auto asyncResult = BIND(&TNodeShard::ResetOperationRevival, NodeShards_[shardId])
+                .AsyncVia(NodeShards_[shardId]->GetInvoker())
+                .Run(operation->GetId());
+            asyncResults.emplace_back(std::move(asyncResult));
+        }
+        return Combine(asyncResults);
+    }
+
     TFuture<void> RegisterJobsFromRevivedOperation(const TOperationPtr& operation)
     {
         auto jobs = std::move(operation->RevivedJobs());
@@ -2131,7 +2169,6 @@ private:
         LOG_DEBUG("Requested node shards to abort all operation jobs (OperationId: %v)",
             operation->GetId());
     }
-
 
     void BuildOperationInfoForEventLog(const TOperationPtr& operation, TFluentMap fluent)
     {
@@ -2469,12 +2506,9 @@ private:
     TYsonString BuildSuspiciousJobsYson()
     {
         TStringBuilder builder;
-        const auto& controllerAgentTracker = Bootstrap_->GetControllerAgentTracker();
-        auto agents = controllerAgentTracker->GetAgents();
-        for (const auto& agent : agents) {
-            if (agent->GetState() == EControllerAgentState::Registered) {
-                builder.AppendString(agent->GetSuspiciousJobsYson().GetData());
-            }
+        for (const auto& pair : IdToOperation_) {
+            const auto& operation = pair.second;
+            builder.AppendString(operation->GetSuspiciousJobs().GetData());
         }
         return TYsonString(builder.Flush(), EYsonType::MapFragment);
     }
@@ -2688,7 +2722,7 @@ private:
     bool HandleWaitingForAgentOperation(const TOperationPtr& operation)
     {
         const auto& agentTracker = Bootstrap_->GetControllerAgentTracker();
-        auto agent = agentTracker->PickAgentForOperation(operation);
+        auto agent = agentTracker->PickAgentForOperation(operation, Config_->MinAgentCountForWaitingOperation);
         if (!agent) {
             LOG_DEBUG("Failed to assign operation to agent; backing off");
             OperationToAgentAssignmentFailureTime_ = TInstant::Now();
@@ -2847,7 +2881,7 @@ private:
             return keys;
         }
 
-        virtual IYPathServicePtr FindItemService(const TStringBuf& key) const override
+        virtual IYPathServicePtr FindItemService(TStringBuf key) const override
         {
             auto operationId = TOperationId::FromString(key);
             auto operationYson = Scheduler_->TryBuildOperationYson(operationId);
@@ -2896,7 +2930,7 @@ private:
             Y_UNREACHABLE();
         }
 
-        virtual IYPathServicePtr FindItemService(const TStringBuf& key) const override
+        virtual IYPathServicePtr FindItemService(TStringBuf key) const override
         {
             auto jobId = TJobId::FromString(key);
             auto buildJobYsonCallback = BIND(&TJobsService::BuildControllerJobYson, MakeStrong(this), jobId);
@@ -2976,6 +3010,11 @@ const TSchedulerConfigPtr& TScheduler::GetConfig() const
 int TScheduler::GetNodeShardId(TNodeId nodeId) const
 {
     return Impl_->GetNodeShardId(nodeId);
+}
+
+const IInvokerPtr& TScheduler::GetCancelableNodeShardInvoker(int shardId) const
+{
+    return Impl_->GetCancelableNodeShardInvoker(shardId);
 }
 
 const std::vector<TNodeShardPtr>& TScheduler::GetNodeShards() const

@@ -378,7 +378,7 @@ private:
             YCHECK(result == GRPC_CALL_OK);
         }
 
-        void NotifyError(const TStringBuf& reason, const TError& error)
+        void NotifyError(TStringBuf reason, const TError& error)
         {
             if (Notified_.test_and_set()) {
                 return;

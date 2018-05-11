@@ -44,7 +44,7 @@ struct TInputSliceLimit
 
 TString ToString(const TInputSliceLimit& limit);
 
-void FormatValue(TStringBuilder* builder, const TInputSliceLimit& limit, const TStringBuf& format);
+void FormatValue(TStringBuilder* builder, const TInputSliceLimit& limit, TStringBuf format);
 
 bool IsTrivial(const TInputSliceLimit& limit);
 

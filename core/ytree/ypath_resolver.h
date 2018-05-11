@@ -9,12 +9,12 @@ namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TNullable<i64> TryGetInt64(const TStringBuf& yson, const NYPath::TYPath& ypath);
-TNullable<ui64> TryGetUint64(const TStringBuf& yson, const NYPath::TYPath& ypath);
-TNullable<bool> TryGetBoolean(const TStringBuf& yson, const NYPath::TYPath& ypath);
-TNullable<double> TryGetDouble(const TStringBuf& yson, const NYPath::TYPath& ypath);
-TNullable<TString> TryGetString(const TStringBuf& yson, const NYPath::TYPath& ypath);
-TNullable<TString> TryGetAny(const TStringBuf& yson, const NYPath::TYPath& ypath);
+TNullable<i64> TryGetInt64(TStringBuf yson, const NYPath::TYPath& ypath);
+TNullable<ui64> TryGetUint64(TStringBuf yson, const NYPath::TYPath& ypath);
+TNullable<bool> TryGetBoolean(TStringBuf yson, const NYPath::TYPath& ypath);
+TNullable<double> TryGetDouble(TStringBuf yson, const NYPath::TYPath& ypath);
+TNullable<TString> TryGetString(TStringBuf yson, const NYPath::TYPath& ypath);
+TNullable<TString> TryGetAny(TStringBuf yson, const NYPath::TYPath& ypath);
 
 ////////////////////////////////////////////////////////////////////////////////
 

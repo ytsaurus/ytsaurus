@@ -196,6 +196,7 @@
     XX(RowCount, row_count) \
     XX(ScanFlags, scan_flags) \
     XX(Schema, schema) \
+    XX(SchemaDuplicateCount, schema_duplicate_count) \
     XX(SchemaMode, schema_mode) \
     XX(Sealed, sealed) \
     XX(SecondaryCellTags, secondary_cell_tags) \

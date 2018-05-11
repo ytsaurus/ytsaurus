@@ -72,6 +72,8 @@ message TAgentToSchedulerJobEvent
 
     // for Interrupted
     optional int32 interrupt_reason = 4; // EInterruptReason
+
+    optional bool archive_job_spec = 5;
 }
 
 message TSchedulerToAgentJobEvent
@@ -93,6 +95,9 @@ message TSchedulerToAgentJobEvent
 
     // for Completed
     optional int32 interrupt_reason = 10; // EInterruptReason
+
+    // for Aborted
+    optional bool aborted_by_scheduler = 11;
 }
 
 message TSchedulerToAgentOperationEvent

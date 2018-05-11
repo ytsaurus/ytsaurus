@@ -1,5 +1,7 @@
 #include <yt/core/test_framework/framework.h>
 
+#include "test_key.h"
+
 #include <yt/core/http/server.h>
 #include <yt/core/http/client.h>
 #include <yt/core/http/private.h>
@@ -17,14 +19,23 @@
 #include <yt/core/concurrency/async_stream.h>
 #include <yt/core/concurrency/scheduler.h>
 
+#include <yt/core/rpc/grpc/dispatcher.h>
+
+#include <yt/core/crypto/https.h>
+#include <yt/core/crypto/tls.h>
+
 #include <yt/core/misc/error.h>
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using namespace NYT;
+namespace NYT {
+namespace {
+
 using namespace NYT::NConcurrency;
 using namespace NYT::NNet;
 using namespace NYT::NHttp;
+using namespace NYT::NCrypto;
+using namespace NYT::NLogging;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -455,7 +466,7 @@ TEST(THttpInputTest, Simple)
 ////////////////////////////////////////////////////////////////////////////////
 
 struct THttpServerTest
-    : public ::testing::Test
+    : public ::testing::TestWithParam<bool>
 {
     IPollerPtr Poller;
     IListenerPtr Listener;
@@ -465,15 +476,42 @@ struct THttpServerTest
     int TestPort = -1;
     TString TestUrl;
 
+    NRpc::NGrpc::TGrpcLibraryLockPtr GrpcLock;
+    TSslContextPtr Context;
+
     THttpServerTest()
     {
         Poller = CreateThreadPoolPoller(4, "HttpTest");
         Listener = CreateListener(TNetworkAddress::CreateIPv6Loopback(0), Poller);
         TestPort = Listener->Address().GetPort();
         TestUrl = Format("http://localhost:%d", TestPort);
-        
-        Server = CreateServer(New<TServerConfig>(), Listener, Poller);
-        Client = CreateClient(New<TClientConfig>(), Poller);
+
+        if (!GetParam()) {
+            Server = CreateServer(New<TServerConfig>(), Listener, Poller);
+            Client = CreateClient(New<TClientConfig>(), Poller);
+        } else {
+            // Piggybacking on openssl initialization in grpc.
+            GrpcLock = NRpc::NGrpc::TDispatcher::Get()->CreateLibraryLock();
+            Context = New<TSslContext>();
+
+            Context->AddCertificate(TestCertificate);
+            Context->AddPrivateKey(TestCertificate);
+
+            Server = NCrypto::CreateHttpsServer(Context, Listener, Poller);
+            Client = NCrypto::CreateHttpsClient(Context, New<TClientConfig>(), Poller);
+        }
+    }
+
+    IDialerPtr CreateDialer(
+        const TDialerConfigPtr& config,
+        const IPollerPtr& poller,
+        const TLogger& logger)
+    {
+        if (!GetParam()) {
+            return NNet::CreateDialer(config, poller, logger);
+        } else {
+            return Context->CreateDialer(config, poller, logger);
+        }
     }
 
     ~THttpServerTest()
@@ -493,7 +531,7 @@ public:
     }
 };
 
-TEST_F(THttpServerTest, SimpleRequest)
+TEST_P(THttpServerTest, SimpleRequest)
 {
     Server->AddHandler("/ok", New<TOKHttpHandler>());
     Server->Start();
@@ -540,7 +578,7 @@ TString ReadAll(const IAsyncZeroCopyInputStreamPtr& in)
 }
 
 
-TEST_F(THttpServerTest, TransferSmallBody)
+TEST_P(THttpServerTest, TransferSmallBody)
 {
     Server->AddHandler("/echo", New<TEchoHttpHandler>());
     Server->Start();
@@ -571,7 +609,7 @@ public:
     EStatusCode Code = EStatusCode::Ok;
 };
 
-TEST_F(THttpServerTest, StatusCode)
+TEST_P(THttpServerTest, StatusCode)
 {
     auto handler = New<TTestStatusCodeHandler>();
     Server->AddHandler("/code", handler);
@@ -614,7 +652,7 @@ public:
     std::vector<std::pair<TString, TString>> ReplyHeaders, ExpectedHeaders;
 };
 
-TEST_F(THttpServerTest, HeadersTest)
+TEST_P(THttpServerTest, HeadersTest)
 {
     auto handler = New<TTestHeadersHandler>();
     handler->ExpectedHeaders = {
@@ -654,7 +692,7 @@ public:
     }
 };
 
-TEST_F(THttpServerTest, TrailersTest)
+TEST_P(THttpServerTest, TrailersTest)
 {
     auto handler = New<TTestTrailersHandler>();
 
@@ -698,7 +736,7 @@ public:
     }
 };
 
-TEST_F(THttpServerTest, WierdHandlers)
+TEST_P(THttpServerTest, WierdHandlers)
 {
     auto hanging = New<THangingHandler>();
     auto impatient = New<TImpatientHandler>();
@@ -739,7 +777,7 @@ public:
     }
 };
 
-TEST_F(THttpServerTest, ThrowingHandler)
+TEST_P(THttpServerTest, ThrowingHandler)
 {
     auto throwing = New<TThrowingHandler>();
 
@@ -769,7 +807,7 @@ public:
     }
 };
 
-TEST_F(THttpServerTest, RequestStreaming)
+TEST_P(THttpServerTest, RequestStreaming)
 {
     Server->AddHandler("/consuming", New<TConsumingHandler>());
     Server->Start();
@@ -799,7 +837,7 @@ public:
     }
 };
 
-TEST_F(THttpServerTest, ResponseStreaming)
+TEST_P(THttpServerTest, ResponseStreaming)
 {
     Server->AddHandler("/streaming", New<TStreamingHandler>());
     Server->Start();
@@ -824,7 +862,7 @@ public:
     bool Ok = false;
 };
 
-TEST_F(THttpServerTest, RequestHangUp)
+TEST_P(THttpServerTest, RequestHangUp)
 {
     auto validating = New<TValidateErrorHandler>();
     Server->AddHandler("/validating", validating);
@@ -844,6 +882,12 @@ TEST_F(THttpServerTest, RequestHangUp)
 
     EXPECT_TRUE(validating->Ok);
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+INSTANTIATE_TEST_CASE_P(WithoutTls, THttpServerTest, ::testing::Values(false));
+
+INSTANTIATE_TEST_CASE_P(WithTls, THttpServerTest, ::testing::Values(true));
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -882,3 +926,8 @@ TEST(THttpHandlerMatchingTest, Simple)
     EXPECT_EQ(h2.Get(), handlers3.Match(AsStringBuf("/a/")).Get());
     EXPECT_EQ(h2.Get(), handlers3.Match(AsStringBuf("/a/b")).Get());
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace
+} // namespace NYT

@@ -202,7 +202,7 @@ void TYsonWriter::EndCollection(char ch)
     Stream_->Write(ch);
 }
 
-void TYsonWriter::WriteStringScalar(const TStringBuf& value)
+void TYsonWriter::WriteStringScalar(TStringBuf value)
 {
     if (Format_ == EYsonFormat::Binary) {
         Stream_->Write(NDetail::StringMarker);
@@ -215,7 +215,7 @@ void TYsonWriter::WriteStringScalar(const TStringBuf& value)
     }
 }
 
-void TYsonWriter::OnStringScalar(const TStringBuf& value)
+void TYsonWriter::OnStringScalar(TStringBuf value)
 {
     WriteStringScalar(value);
     EndNode();
@@ -302,7 +302,7 @@ void TYsonWriter::OnBeginMap()
     BeginCollection(NDetail::BeginMapSymbol);
 }
 
-void TYsonWriter::OnKeyedItem(const TStringBuf& key)
+void TYsonWriter::OnKeyedItem(TStringBuf key)
 {
     CollectionItem();
 
@@ -336,7 +336,7 @@ void TYsonWriter::OnEndAttributes()
     }
 }
 
-void TYsonWriter::OnRaw(const TStringBuf& yson, EYsonType type)
+void TYsonWriter::OnRaw(TStringBuf yson, EYsonType type)
 {
     if (EnableRaw_) {
         Stream_->Write(yson);
@@ -374,7 +374,7 @@ TBufferedBinaryYsonWriter::TBufferedBinaryYsonWriter(
     Y_ASSERT(Stream_);
 }
 
-Y_FORCE_INLINE void TBufferedBinaryYsonWriter::WriteStringScalar(const TStringBuf& value)
+Y_FORCE_INLINE void TBufferedBinaryYsonWriter::WriteStringScalar(TStringBuf value)
 {
     size_t length = value.length();
     if (length <= MaxSmallStringLength) {
@@ -437,7 +437,7 @@ Y_FORCE_INLINE void TBufferedBinaryYsonWriter::EnsureSpace(size_t space)
     Flush();
 }
 
-void TBufferedBinaryYsonWriter::OnStringScalar(const TStringBuf& value)
+void TBufferedBinaryYsonWriter::OnStringScalar(TStringBuf value)
 {
     // NB: This call always leaves at least one spare position in buffer.
     WriteStringScalar(value);
@@ -509,7 +509,7 @@ void TBufferedBinaryYsonWriter::OnBeginMap()
     BeginCollection(NDetail::BeginMapSymbol);
 }
 
-void TBufferedBinaryYsonWriter::OnKeyedItem(const TStringBuf& key)
+void TBufferedBinaryYsonWriter::OnKeyedItem(TStringBuf key)
 {
     // NB: This call always leaves at least one spare position in buffer.
     WriteStringScalar(key);
@@ -535,7 +535,7 @@ void TBufferedBinaryYsonWriter::OnEndAttributes()
     EndCollection(NDetail::EndAttributesSymbol);
 }
 
-void TBufferedBinaryYsonWriter::OnRaw(const TStringBuf& yson, EYsonType type)
+void TBufferedBinaryYsonWriter::OnRaw(TStringBuf yson, EYsonType type)
 {
     if (EnableRaw_) {
         size_t length = yson.length();

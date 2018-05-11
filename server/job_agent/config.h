@@ -17,6 +17,7 @@ class TResourceLimitsConfig
 public:
     int UserSlots;
     double Cpu;
+    int Gpu;
     int Network;
     i64 UserMemory;
     i64 SystemMemory;
@@ -37,6 +38,9 @@ public:
         RegisterParameter("cpu", Cpu)
             .GreaterThanOrEqual(0)
             .Default(1);
+        RegisterParameter("gpu", Gpu)
+            .GreaterThanOrEqual(0)
+            .Default(0);
         RegisterParameter("network", Network)
             .GreaterThanOrEqual(0)
             .Default(100);

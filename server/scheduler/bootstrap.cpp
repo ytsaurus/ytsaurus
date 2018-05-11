@@ -45,6 +45,7 @@
 
 #include <yt/core/misc/core_dumper.h>
 #include <yt/core/misc/ref_counted_tracker.h>
+#include <yt/core/misc/ref_counted_tracker_statistics_producer.h>
 #include <yt/core/misc/lfalloc_helpers.h>
 #include <yt/core/misc/proc.h>
 
@@ -55,8 +56,6 @@
 #include <yt/core/rpc/response_keeper.h>
 #include <yt/core/rpc/retrying_channel.h>
 #include <yt/core/rpc/server.h>
-
-#include <yt/core/tools/tools.h>
 
 #include <yt/core/ytree/virtual.h>
 #include <yt/core/ytree/ypath_client.h>
@@ -103,7 +102,7 @@ void TBootstrap::Run()
     ControlQueue_ = New<TFairShareActionQueue>("Control", TEnumTraits<EControlQueue>::GetDomainNames());
 
     BIND(&TBootstrap::DoRun, this)
-        .AsyncVia(GetControlInvoker())
+        .AsyncVia(GetControlInvoker(EControlQueue::Default))
         .Run()
         .Get()
         .ThrowOnError();
@@ -114,18 +113,6 @@ void TBootstrap::Run()
 void TBootstrap::DoRun()
 {
     LOG_INFO("Starting scheduler");
-
-    if (Config_->Scheduler->ControlThreadPriority) {
-        WaitFor(BIND([priority = *Config_->Scheduler->ControlThreadPriority] {
-                auto config = New<TSetThreadPriorityConfig>();
-                config->ThreadId = GetCurrentThreadId();
-                config->Priority = priority;
-                NTools::RunTool<TSetThreadPriorityAsRootTool>(config);
-            })
-            .AsyncVia(GetControlInvoker())
-            .Run())
-            .ThrowOnError();
-    }
 
     TNativeConnectionOptions connectionOptions;
     connectionOptions.RetryRequestQueueSizeLimitExceeded = true;
@@ -150,7 +137,7 @@ void TBootstrap::DoRun()
 
     ResponseKeeper_ = New<TResponseKeeper>(
         Config_->ResponseKeeper,
-        GetControlInvoker(),
+        GetControlInvoker(EControlQueue::UserRequest),
         SchedulerLogger,
         SchedulerProfiler);
 
@@ -161,7 +148,7 @@ void TBootstrap::DoRun()
     MonitoringManager_ = New<TMonitoringManager>();
     MonitoringManager_->Register(
         "/ref_counted",
-        TRefCountedTracker::Get()->GetMonitoringProducer());
+        CreateRefCountedTrackerStatisticsProducer());
     MonitoringManager_->Start();
 
     LFAllocProfiler_ = std::make_unique<NLFAlloc::TLFAllocProfiler>();
@@ -190,16 +177,16 @@ void TBootstrap::DoRun()
     SetBuildAttributes(orchidRoot, "scheduler");
 
     RpcServer_->RegisterService(CreateAdminService(
-        GetControlInvoker(),
+        GetControlInvoker(EControlQueue::Default),
         CoreDumper_));
 
     RpcServer_->RegisterService(CreateOrchidService(
         orchidRoot,
-        GetControlInvoker()));
+        GetControlInvoker(EControlQueue::Orchid)));
 
     HttpServer_->AddHandler(
         "/orchid/",
-        NMonitoring::GetOrchidYPathHttpHandler(orchidRoot->Via(GetControlInvoker())));
+        NMonitoring::GetOrchidYPathHttpHandler(orchidRoot->Via(GetControlInvoker(EControlQueue::Orchid))));
 
     RpcServer_->RegisterService(CreateSchedulerService(this));
     RpcServer_->RegisterService(CreateJobTrackerService(this));

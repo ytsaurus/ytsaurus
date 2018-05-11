@@ -10,14 +10,12 @@ using namespace NControllerAgent;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = SchedulerLogger;
-
-////////////////////////////////////////////////////////////////////////////////
-
 TFairShareStrategyOperationController::TFairShareStrategyOperationController(
     IOperationStrategyHost* operation)
     : Controller_(operation->GetControllerStrategyHost())
     , OperationId_(operation->GetId())
+    , Logger(NLogging::TLogger(SchedulerLogger)
+        .AddTag("OperationId: %v", OperationId_))
 {
     YCHECK(Controller_);
 }
@@ -61,11 +59,24 @@ bool TFairShareStrategyOperationController::IsBlocked(
     int maxConcurrentScheduleJobCalls,
     TDuration scheduleJobFailBackoffTime) const
 {
-    auto controllerScheduleJobFailBackoffTime = NProfiling::DurationToCpuDuration(
-        scheduleJobFailBackoffTime);
+    auto concurrentScheduleJobCalls = ConcurrentScheduleJobCalls_.load();
+    if (concurrentScheduleJobCalls >= maxConcurrentScheduleJobCalls) {
+        LOG_DEBUG_UNLESS(Blocked_,
+            "Operation blocked in fair share strategy due to violation of maximum concurrent schedule job calls (ConcurrentScheduleJobCalls: %v)",
+            concurrentScheduleJobCalls);
+        Blocked_.store(true);
+        return true;
+    }
 
-    return ConcurrentScheduleJobCalls_ >= maxConcurrentScheduleJobCalls ||
-        LastScheduleJobFailTime_ + controllerScheduleJobFailBackoffTime > now;
+    if (LastScheduleJobFailTime_ + NProfiling::DurationToCpuDuration(scheduleJobFailBackoffTime) > now) {
+        LOG_DEBUG_UNLESS(Blocked_, "Operation blocked in fair share strategy due to schedule job failure");
+        Blocked_.store(true);
+        return true;
+    }
+
+    LOG_DEBUG_UNLESS(!Blocked_, "Operation unblocked in fair share strategy");
+    Blocked_.store(false);
+    return false;
 }
 
 void TFairShareStrategyOperationController::AbortJob(const TJobId& jobId, EAbortReason abortReason)
@@ -100,9 +111,8 @@ TScheduleJobResultPtr TFairShareStrategyOperationController::ScheduleJob(
                     const auto& scheduleJobResult = scheduleJobResultOrError.Value();
                     if (scheduleJobResult->StartDescriptor) {
                         const auto& jobId = scheduleJobResult->StartDescriptor->Id;
-                        LOG_WARNING("Aborting late job (JobId: %v, OperationId: %v)",
-                            jobId,
-                            OperationId_);
+                        LOG_WARNING("Aborting late job (JobId: %v)",
+                            jobId);
                         AbortJob(jobId, EAbortReason::SchedulingTimeout);
                     }
             }));

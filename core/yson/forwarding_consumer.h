@@ -14,7 +14,7 @@ class TForwardingYsonConsumer
 {
 public:
     // IYsonConsumer methods
-    virtual void OnStringScalar(const TStringBuf& value) override;
+    virtual void OnStringScalar(TStringBuf value) override;
     virtual void OnInt64Scalar(i64 value) override;
     virtual void OnUint64Scalar(ui64 value) override;
     virtual void OnDoubleScalar(double value) override;
@@ -26,13 +26,13 @@ public:
     virtual void OnEndList() override;
 
     virtual void OnBeginMap() override;
-    virtual void OnKeyedItem(const TStringBuf& key) override;
+    virtual void OnKeyedItem(TStringBuf key) override;
     virtual void OnEndMap() override;
 
     virtual void OnBeginAttributes() override;
     virtual void OnEndAttributes() override;
 
-    virtual void OnRaw(const TStringBuf& yson, EYsonType type) override;
+    virtual void OnRaw(TStringBuf yson, EYsonType type) override;
 
 protected:
     void Forward(
@@ -40,7 +40,7 @@ protected:
         std::function<void()> onFinished = nullptr,
         EYsonType type = EYsonType::Node);
 
-    virtual void OnMyStringScalar(const TStringBuf& value);
+    virtual void OnMyStringScalar(TStringBuf value);
     virtual void OnMyInt64Scalar(i64 value);
     virtual void OnMyUint64Scalar(ui64 value);
     virtual void OnMyDoubleScalar(double value);
@@ -52,13 +52,13 @@ protected:
     virtual void OnMyEndList();
 
     virtual void OnMyBeginMap();
-    virtual void OnMyKeyedItem(const TStringBuf& key);
+    virtual void OnMyKeyedItem(TStringBuf key);
     virtual void OnMyEndMap();
 
     virtual void OnMyBeginAttributes();
     virtual void OnMyEndAttributes();
 
-    virtual void OnMyRaw(const TStringBuf& yson, EYsonType type);
+    virtual void OnMyRaw(TStringBuf yson, EYsonType type);
 
 private:
     IYsonConsumer* ForwardingConsumer_ = nullptr;

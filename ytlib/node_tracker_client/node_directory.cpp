@@ -111,7 +111,7 @@ void TNodeDescriptor::Persist(const TStreamPersistenceContext& context)
     Persist(context, DataCenter_);
 }
 
-void FormatValue(TStringBuilder* builder, const TNodeDescriptor& descriptor, const TStringBuf& /*spec*/)
+void FormatValue(TStringBuilder* builder, const TNodeDescriptor& descriptor, TStringBuf /*spec*/)
 {
     if (descriptor.IsNull()) {
         builder->AppendString(NullAddress);

@@ -145,7 +145,7 @@ private:
     EJournalConsumerState State_ = EJournalConsumerState::Root;
 
 
-    virtual void OnStringScalar(const TStringBuf& value) override
+    virtual void OnStringScalar(TStringBuf value) override
     {
         if (State_ != EJournalConsumerState::AtData) {
             ThrowMalformedData();
@@ -211,7 +211,7 @@ private:
         State_ = EJournalConsumerState::InsideMap;
     }
 
-    virtual void OnKeyedItem(const TStringBuf& key) override
+    virtual void OnKeyedItem(TStringBuf key) override
     {
         if (State_ != EJournalConsumerState::InsideMap) {
             ThrowMalformedData();

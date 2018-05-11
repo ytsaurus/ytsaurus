@@ -135,7 +135,7 @@ struct ISchedulerStrategy
 
     virtual void ProcessJobUpdates(
         const std::vector<TJobUpdate>& jobUpdates,
-        std::vector<TJobId>* successfullyUpdatedJobs,
+        std::vector<std::pair<TOperationId, TJobId>>* successfullyUpdatedJobs,
         std::vector<TJobId>* jobsToAbort) = 0;
 
     virtual void ApplyJobMetricsDelta(const TOperationIdToOperationJobMetrics& operationIdToOperationJobMetrics) = 0;

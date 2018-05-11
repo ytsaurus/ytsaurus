@@ -428,37 +428,6 @@ void TSnapshotBuilder::UploadSnapshot(const TSnapshotJobPtr& job)
                 snapshotPath);
         }
 
-        // Copy snapshot to old operation node if such node exists.
-        {
-            TCopyNodeOptions options;
-            options.Recursive = false;
-            options.Force = true;
-            options.PrerequisiteTransactionIds = {IncarnationId_};
-
-            auto snapshotOldPath = GetSnapshotPath(operationId);
-
-            auto error = WaitFor(Client_->CopyNode(
-                snapshotPath,
-                snapshotOldPath,
-                options));
-
-            if (!error.IsOK()) {
-                // COMPAT: Remove message check when masters are updated and will set ResolveError
-                // if intermediate node is missing.
-                auto isIntermediateNodeMissing = error.FindMatching(NYTree::EErrorCode::ResolveError) ||
-                    error.GetMessage().Contains("has no child");
-
-                // Intermediate nodes can be missing in new operations storage mode.
-                if (!isIntermediateNodeMissing) {
-                    THROW_ERROR error;
-                }
-            } else {
-                LOG_INFO("Snapshot file copied successfully (Source: %v, Destination: %v)",
-                    snapshotPath,
-                    snapshotOldPath);
-            }
-        }
-
         LOG_INFO("Snapshot uploaded successfully (SnapshotIndex: %v)",
             job->Cookie.SnapshotIndex);
 

@@ -29,7 +29,8 @@ public:
         RegisterMethod(
             RPC_SERVICE_METHOD_DESC(Heartbeat)
                 .SetHeavy(true)
-                .SetResponseCodec(NCompression::ECodec::Lz4));
+                .SetResponseCodec(NCompression::ECodec::Lz4)
+                .SetPooled(false));
     }
 
 private:

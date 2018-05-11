@@ -305,6 +305,21 @@ NLogging::ELogLevel TServiceContextBase::GetLogLevel() const
     return LogLevel_;
 }
 
+bool TServiceContextBase::IsPooled() const
+{
+    return false;
+}
+
+void TServiceContextBase::AddHolder(TIntrusivePtr<TRefCounted> holder)
+{
+    Holders_.emplace_back(std::move(holder));
+}
+
+std::vector<TIntrusivePtr<TRefCounted>> TServiceContextBase::GetHolders() const
+{
+    return Holders_;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TServiceContextWrapper::TServiceContextWrapper(IServiceContextPtr underlyingContext)
@@ -366,7 +381,7 @@ const TString& TServiceContextWrapper::GetMethod() const
     return UnderlyingContext_->GetMethod();
 }
 
-const TRealmId& TServiceContextWrapper::GetRealmId() const 
+const TRealmId& TServiceContextWrapper::GetRealmId() const
 {
     return UnderlyingContext_->GetRealmId();
 }
@@ -450,7 +465,7 @@ std::vector<TSharedRef>& TServiceContextWrapper::ResponseAttachments()
     return UnderlyingContext_->ResponseAttachments();
 }
 
-const NProto::TRequestHeader& TServiceContextWrapper::RequestHeader() const 
+const NProto::TRequestHeader& TServiceContextWrapper::RequestHeader() const
 {
     return UnderlyingContext_->RequestHeader();
 }
@@ -480,6 +495,20 @@ NLogging::ELogLevel TServiceContextWrapper::GetLogLevel() const
     return UnderlyingContext_->GetLogLevel();
 }
 
+bool TServiceContextWrapper::IsPooled() const
+{
+    return UnderlyingContext_->IsPooled();
+}
+
+void TServiceContextWrapper::AddHolder(TIntrusivePtr<TRefCounted> holder)
+{
+    UnderlyingContext_->AddHolder(std::move(holder));
+}
+
+std::vector<TIntrusivePtr<TRefCounted>> TServiceContextWrapper::GetHolders() const
+{
+    return UnderlyingContext_->GetHolders();
+}
 ////////////////////////////////////////////////////////////////////////////////
 
 void TServerBase::RegisterService(IServicePtr service)

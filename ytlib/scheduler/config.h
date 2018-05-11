@@ -148,6 +148,9 @@ public:
     //! is not specified.
     THashSet<TString> PoolTrees;
 
+    //! Limit on the number of concurrent calls to ScheduleJob of single controller.
+    TNullable<int> MaxConcurrentControllerScheduleJobCalls;
+
     TStrategyOperationSpec();
 
 private:
@@ -375,6 +378,7 @@ public:
     THashMap<TString, TString> Environment;
 
     double CpuLimit;
+    int GpuLimit;
     int PortCount;
     TNullable<TDuration> JobTimeLimit;
     i64 MemoryLimit;
@@ -623,6 +627,7 @@ public:
     NTableClient::TKeyColumns JoinBy;
 
     bool ConsiderOnlyPrimarySize;
+    bool UseNewController;
 
     TReduceOperationSpecBase();
 
@@ -667,6 +672,28 @@ private:
 
 
 DEFINE_REFCOUNTED_TYPE(TJoinReduceOperationSpec);
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TNewReduceOperationSpec
+    : public TReduceOperationSpecBase
+{
+public:
+    NTableClient::TKeyColumns ReduceBy;
+    NTableClient::TKeyColumns SortBy;
+
+    TNullable<bool> EnableKeyGuarantee;
+
+    std::vector<NTableClient::TOwningKey> PivotKeys;
+
+    TNewReduceOperationSpec();
+
+private:
+    DECLARE_DYNAMIC_PHOENIX_TYPE(TNewReduceOperationSpec, 0xbbc5bdcd);
+};
+
+
+DEFINE_REFCOUNTED_TYPE(TNewReduceOperationSpec);
 
 ////////////////////////////////////////////////////////////////////////////////
 

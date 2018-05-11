@@ -3,11 +3,35 @@
 #include "public.h"
 #include "source_location.h"
 
-#include <yt/core/yson/public.h>
+#include <yt/core/actions/callback.h>
 
 #include <yt/core/concurrency/fork_aware_spinlock.h>
 
 namespace NYT {
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TRefCountedTrackerStatistics
+{
+    struct TStatistics
+    {
+        size_t ObjectsAlive = 0;
+        size_t ObjectsAllocated = 0;
+        size_t BytesAlive = 0;
+        size_t BytesAllocated = 0;
+
+        TStatistics& operator+= (const TStatistics& rhs);
+    };
+
+    struct TNamedSlotStatistics
+        : public TStatistics
+    {
+        TString FullName;
+    };
+
+    std::vector<TNamedSlotStatistics> NamedStatistics;
+    TStatistics TotalStatistics;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -41,7 +65,7 @@ public:
     void ReallocateSpace(TRefCountedTypeCookie cookie, size_t sizeFreed, size_t sizeAllocated);
 
     TString GetDebugInfo(int sortByColumn = -1) const;
-    NYson::TYsonProducer GetMonitoringProducer() const;
+    TRefCountedTrackerStatistics GetStatistics() const;
 
     size_t GetInstancesAllocated(TRefCountedTypeKey typeKey) const;
     size_t GetInstancesAlive(TRefCountedTypeKey typeKey) const;
@@ -108,6 +132,8 @@ private:
 
         size_t GetBytesAllocated() const;
         size_t GetBytesAlive() const;
+
+        TRefCountedTrackerStatistics::TNamedSlotStatistics GetStatistics() const;
 
     private:
         TKey Key_;

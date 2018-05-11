@@ -737,7 +737,7 @@ void TCompositeSchedulerElement::PrescheduleJob(TFairShareContext* context, bool
 
     aggressiveStarvationEnabled = aggressiveStarvationEnabled || IsAggressiveStarvationEnabled();
     if (Starving_ && aggressiveStarvationEnabled) {
-        context->HasAggressivelyStarvingNodes = true;
+        context->SchedulingStatistics.HasAggressivelyStarvingNodes = true;
     }
 
     // If pool is starving, any child will do.
@@ -1437,10 +1437,6 @@ TJobResources TOperationElementSharedState::Disable()
 {
     TWriterGuard guard(JobPropertiesMapLock_);
 
-    if (!Enabled_) {
-        return ZeroJobResources();
-    }
-
     Enabled_ = false;
 
     auto resourceUsage = ZeroJobResources();
@@ -1685,12 +1681,11 @@ bool TOperationElement::TryStartScheduleJob(
     const TJobResources& jobLimits,
     const TJobResources& minNeededResources)
 {
-    auto isBlocked = Controller_->IsBlocked(
+    auto blocked = Controller_->IsBlocked(
         now,
-        ControllerConfig_->MaxConcurrentControllerScheduleJobCalls,
+        Spec_->MaxConcurrentControllerScheduleJobCalls.Get(ControllerConfig_->MaxConcurrentControllerScheduleJobCalls),
         ControllerConfig_->ScheduleJobFailBackoffTime);
-
-    if (isBlocked) {
+    if (blocked) {
         return false;
     }
 
@@ -1974,15 +1969,14 @@ bool TOperationElement::ScheduleJob(TFairShareContext* context)
     }
 
     if (!scheduleJobResult->StartDescriptor) {
+        ++context->ScheduleJobFailureCount;
         disableOperationElement(EDeactivationReason::ScheduleJobFailed);
 
         bool enableBackoff = scheduleJobResult->IsBackoffNeeded();
-        if (enableBackoff) {
-            LOG_DEBUG("Failed to schedule job, backing off (TreeId: %v, OperationId: %v, Reasons: %v)",
-                GetTreeId(),
-                OperationId_,
-                scheduleJobResult->Failed);
-        }
+        LOG_DEBUG_IF(enableBackoff, "Failed to schedule job, backing off (TreeId: %v, OperationId: %v, Reasons: %v)",
+            GetTreeId(),
+            OperationId_,
+            scheduleJobResult->Failed);
 
         FinishScheduleJob(/*enableBackoff*/ enableBackoff, now, minNeededResources);
         return false;
@@ -2216,7 +2210,7 @@ bool TOperationElement::IsBlocked(NProfiling::TCpuInstant now) const
         GetPendingJobCount() == 0 ||
         Controller_->IsBlocked(
             now,
-            ControllerConfig_->MaxConcurrentControllerScheduleJobCalls,
+            Spec_->MaxConcurrentControllerScheduleJobCalls.Get(ControllerConfig_->MaxConcurrentControllerScheduleJobCalls),
             ControllerConfig_->ScheduleJobFailBackoffTime);
 }
 
@@ -2251,7 +2245,7 @@ TScheduleJobResultPtr TOperationElement::DoScheduleJob(
     const TJobResources& jobLimits,
     const TJobResources& jobResourceDiscount)
 {
-    ++context->ControllerScheduleJobCount;
+    ++context->SchedulingStatistics.ControllerScheduleJobCount;
 
     auto scheduleJobResult = Controller_->ScheduleJob(
         context->SchedulingContext,

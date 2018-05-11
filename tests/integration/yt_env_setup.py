@@ -560,14 +560,22 @@ class YTEnvSetup(object):
 
     def sync_compact_table(self, path, driver=None):
         chunk_ids = __builtin__.set(yt_commands.get(path + "/@chunk_ids", driver=driver))
-        yt_commands.set(path + "/@forced_compaction_revision",
-                        yt_commands.get(path + "/@revision", driver=driver), driver=driver)
-        yt_commands.set(path + "/@forced_compaction_revision",
-                        yt_commands.get(path + "/@revision", driver=driver), driver=driver)
-        yt_commands.remount_table(path, driver=driver)
+        self.sync_unmount_table(path, driver=driver)
+        revision = yt_commands.get("//sys/@current_commit_revision", driver=driver)
+        yt_commands.set(path + "/@forced_compaction_revision", revision, driver=driver)
+        self.sync_mount_table(path, driver=driver)
 
         print >>sys.stderr, "Waiting for tablets to become compacted..."
         wait(lambda: len(chunk_ids.intersection(__builtin__.set(yt_commands.get(path + "/@chunk_ids", driver=driver)))) == 0)
+
+        print >>sys.stderr, "Waiting for tablets to become stable..."
+        def check_stable():
+            chunk_ids1 = yt_commands.get(path + "/@chunk_ids", driver=driver)
+            sleep(3.0)
+            chunk_ids2 = yt_commands.get(path + "/@chunk_ids", driver=driver)
+            return chunk_ids1 == chunk_ids2
+        wait(lambda: check_stable())
+
 
     def _abort_transactions(self, driver=None):
          for tx in yt_commands.ls("//sys/transactions", attributes=["title"], driver=driver):

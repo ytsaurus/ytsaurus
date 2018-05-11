@@ -69,7 +69,7 @@ private:
         return transactionManager->TopmostTransactions().size();
     }
 
-    virtual IYPathServicePtr FindItemService(const TStringBuf& key) const override
+    virtual IYPathServicePtr FindItemService(TStringBuf key) const override
     {
         auto id = TTransactionId::FromString(key);
 

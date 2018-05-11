@@ -19,7 +19,7 @@ IAttributeDictionary* TAttributeConsumer::GetAttributes() const
     return Attributes;
 }
 
-void TAttributeConsumer::OnMyKeyedItem(const TStringBuf& key)
+void TAttributeConsumer::OnMyKeyedItem(TStringBuf key)
 {
     Writer.reset(new TBufferedBinaryYsonWriter(&Output));
     Forward(Writer.get(), [this, key = TString(key)] {
@@ -42,7 +42,7 @@ void TAttributeConsumer::OnMyBeginAttributes()
 void TAttributeConsumer::OnMyEndAttributes()
 { }
 
-void TAttributeConsumer::OnMyStringScalar(const TStringBuf& /*value*/)
+void TAttributeConsumer::OnMyStringScalar(TStringBuf /*value*/)
 {
     ThrowMapExpected();
 }

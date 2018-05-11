@@ -53,6 +53,8 @@ public:
      */
     int GetNodeShardId(NNodeTrackerClient::TNodeId nodeId) const;
 
+    const IInvokerPtr& GetCancelableNodeShardInvoker(int shardId) const;
+
     /*!
      *  \note Thread affinity: any
      */

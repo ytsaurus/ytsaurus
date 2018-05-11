@@ -123,7 +123,7 @@ public:
         DoDisconnect(error);
     }
 
-    const IInvokerPtr& GetCancelableControlInvoker(EControlQueue queue = EControlQueue::MasterConnector) const
+    const IInvokerPtr& GetCancelableControlInvoker(EControlQueue queue) const
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(State_ != EMasterConnectorState::Disconnected);
@@ -207,7 +207,7 @@ public:
 
         return batchReq->Invoke().Apply(
             BIND(&TImpl::OnOperationNodeCreated, MakeStrong(this), operation)
-                .AsyncVia(GetCancelableControlInvoker()));
+                .AsyncVia(GetCancelableControlInvoker(EControlQueue::MasterConnector)));
     }
 
     TFuture<void> UpdateInitializedOperationNode(const TOperationPtr& operation)
@@ -251,7 +251,7 @@ public:
                 &TImpl::OnInitializedOperationNodeUpdated,
                 MakeStrong(this),
                 operation)
-            .AsyncVia(GetCancelableControlInvoker()));
+            .AsyncVia(GetCancelableControlInvoker(EControlQueue::MasterConnector)));
     }
 
     TFuture<void> FlushOperationNode(const TOperationPtr& operation)
@@ -271,7 +271,7 @@ public:
         YCHECK(State_ != EMasterConnectorState::Disconnected);
 
         return BIND(&TImpl::DoFetchOperationRevivalDescriptors, MakeStrong(this))
-            .AsyncVia(GetCancelableControlInvoker())
+            .AsyncVia(GetCancelableControlInvoker(EControlQueue::MasterConnector))
             .Run(operations);
     }
 
@@ -306,7 +306,7 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         return BIND(&TImpl::DoFlushOperationRuntimeParameters, MakeStrong(this))
-            .AsyncVia(GetCancelableControlInvoker())
+            .AsyncVia(GetCancelableControlInvoker(EControlQueue::MasterConnector))
             .Run(operation, params);
     }
 
@@ -484,7 +484,7 @@ private:
         if (Config_->TestingOptions->EnableRandomMasterDisconnection) {
             TDelayedExecutor::Submit(
                 BIND(&TImpl::RandomDisconnect, MakeStrong(this))
-                    .Via(Bootstrap_->GetControlInvoker()),
+                    .Via(Bootstrap_->GetControlInvoker(EControlQueue::MasterConnector)),
                 RandomDuration(Config_->TestingOptions->RandomMasterDisconnectionMaxBackoff));
         }
     }
@@ -502,7 +502,7 @@ private:
     {
         TDelayedExecutor::Submit(
             BIND(&TImpl::DoStartConnecting, MakeStrong(this))
-                .Via(Bootstrap_->GetControlInvoker()),
+                .Via(Bootstrap_->GetControlInvoker(EControlQueue::MasterConnector)),
             immediate ? TDuration::Zero() : Config_->ConnectRetryBackoffTime);
     }
 
@@ -527,7 +527,7 @@ private:
         }
 
         OperationNodesUpdateExecutor_ = New<TUpdateExecutor<TOperationId, TOperationNodeUpdate>>(
-            GetCancelableControlInvoker(),
+            GetCancelableControlInvoker(EControlQueue::PeriodicActivity),
             BIND(&TImpl::UpdateOperationNode, Unretained(this)),
             BIND([] (const TOperationNodeUpdate*) { return false; }),
             BIND(&TImpl::OnOperationUpdateFailed, Unretained(this)),
@@ -535,20 +535,20 @@ private:
             Logger);
 
         WatchersExecutor_ = New<TPeriodicExecutor>(
-            GetCancelableControlInvoker(),
+            GetCancelableControlInvoker(EControlQueue::PeriodicActivity),
             BIND(&TImpl::UpdateWatchers, MakeWeak(this)),
             Config_->WatchersUpdatePeriod,
             EPeriodicExecutorMode::Automatic);
 
         AlertsExecutor_ = New<TPeriodicExecutor>(
-            GetCancelableControlInvoker(),
+            GetCancelableControlInvoker(EControlQueue::PeriodicActivity),
             BIND(&TImpl::UpdateAlerts, MakeWeak(this)),
             Config_->AlertsUpdatePeriod,
             EPeriodicExecutorMode::Automatic);
 
         for (const auto& record : CustomGlobalWatcherRecords_) {
             auto executor = New<TPeriodicExecutor>(
-                GetCancelableControlInvoker(),
+                GetCancelableControlInvoker(EControlQueue::PeriodicActivity),
                 BIND(&TImpl::ExecuteCustomWatcherUpdate, MakeWeak(this), record.Requester, record.Handler),
                 record.Period,
                 EPeriodicExecutorMode::Automatic);
@@ -557,10 +557,10 @@ private:
 
         auto pipeline = New<TRegistrationPipeline>(this);
         BIND(&TRegistrationPipeline::Run, pipeline)
-            .AsyncVia(GetCancelableControlInvoker())
+            .AsyncVia(GetCancelableControlInvoker(EControlQueue::MasterConnector))
             .Run()
             .Subscribe(BIND(&TImpl::OnConnected, MakeStrong(this))
-                .Via(GetCancelableControlInvoker()));
+                .Via(GetCancelableControlInvoker(EControlQueue::MasterConnector)));
     }
 
     void OnConnected(const TError& error) noexcept
@@ -584,7 +584,7 @@ private:
 
         LockTransaction_->SubscribeAborted(
             BIND(&TImpl::OnLockTransactionAborted, MakeWeak(this))
-                .Via(GetCancelableControlInvoker()));
+                .Via(GetCancelableControlInvoker(EControlQueue::MasterConnector)));
 
         StartPeriodicActivities();
 
@@ -710,7 +710,7 @@ private:
                 batchReq->AddRequest(req);
             }
             {
-                auto req = TYPathProxy::Set("//sys/scheduler/orchid/@remote_addresses");
+                auto req = TYPathProxy::Set("//sys/scheduler/orchid&/@remote_addresses");
                 req->set_value(ConvertToYsonString(addresses).GetData());
                 GenerateMutationId(req);
                 batchReq->AddRequest(req);
@@ -832,7 +832,8 @@ private:
                 "state",
                 "events",
                 "slot_index_per_pool_tree",
-                "scheduling_options_per_pool_tree"
+                "scheduling_options_per_pool_tree",
+                "output_completion_transaction_id"
             };
 
             auto batchReq = Owner_->StartObjectBatchRequest(EMasterChannelKind::Follower);
@@ -843,7 +844,7 @@ private:
                 for (const auto& operationId : OperationIds_) {
                     // Keep stuff below in sync with #TryCreateOperationFromAttributes.
 
-                    auto  operationAttributesPath = GetOperationPath(operationId) + "/@";
+                    auto operationAttributesPath = GetNewOperationPath(operationId) + "/@";
                     auto secureVaultPath = GetSecureVaultPath(operationId);
 
                     // Retrieve operation attributes.
@@ -851,16 +852,6 @@ private:
                         auto req = TYPathProxy::Get(operationAttributesPath);
                         ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
                         batchReq->AddRequest(req, "get_op_attr_" + ToString(operationId));
-                    }
-
-                    // Retrieve operation completion transaction id.
-                    {
-                        auto req = TYPathProxy::Get(GetNewOperationPath(operationId) + "/@");
-                        std::vector<TString> attributeKeys{
-                            "output_completion_transaction_id",
-                        };
-                        ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
-                        batchReq->AddRequest(req, "get_op_completion_tx_id_" + ToString(operationId));
                     }
 
                     // Retrieve secure vault.
@@ -881,16 +872,10 @@ private:
                         "get_op_attr_" + ToString(operationId))
                         .ValueOrThrow();
 
-                    auto completionTxIdRsp = batchRsp->GetResponse<TYPathProxy::TRspGet>(
-                        "get_op_completion_tx_id_" + ToString(operationId))
-                        .ValueOrThrow();
-
                     auto secureVaultRspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>(
                         "get_op_secure_vault_" + ToString(operationId));
 
                     auto attributesNode = ConvertToAttributes(TYsonString(attributesRsp->value()));
-                    auto completionTxIdAttribute = ConvertToAttributes(TYsonString(completionTxIdRsp->value()));
-                    attributesNode->MergeFrom(*completionTxIdAttribute);
 
                     IMapNodePtr secureVault;
                     if (secureVaultRspOrError.IsOK()) {
@@ -959,7 +944,7 @@ private:
                 attributes.Get<TString>("authenticated_user"),
                 attributes.Get<TInstant>("start_time"),
                 spec->EnableCompatibleStorageMode,
-                Owner_->Bootstrap_->GetControlInvoker(),
+                Owner_->Bootstrap_->GetControlInvoker(EControlQueue::Operation),
                 attributes.Get<EOperationState>("state"),
                 attributes.Get<std::vector<TOperationEvent>>("events", {}));
 
@@ -1040,7 +1025,7 @@ private:
 
             for (const auto& operation : operations) {
                 const auto& operationId = operation->GetId();
-                auto operationAttributesPath = GetOperationPath(operationId) + "/@";
+                auto operationAttributesPath = GetNewOperationPath(operationId) + "/@";
                 auto secureVaultPath = GetSecureVaultPath(operationId);
 
                 // Retrieve operation attributes.
@@ -1048,16 +1033,6 @@ private:
                     auto req = TYPathProxy::Get(operationAttributesPath);
                     ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
                     batchReq->AddRequest(req, "get_op_attr_" + ToString(operationId));
-                }
-
-                // Retrieve operation completion transaction id.
-                {
-                    auto req = TYPathProxy::Get(GetNewOperationPath(operationId) + "/@");
-                    std::vector<TString> attributeKeys{
-                        "output_completion_transaction_id",
-                    };
-                    ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
-                    batchReq->AddRequest(req, "get_op_completion_tx_id_" + ToString(operationId));
                 }
             }
 
@@ -1071,13 +1046,7 @@ private:
                     "get_op_attr_" + ToString(operationId))
                     .ValueOrThrow();
 
-                auto completionTxIdRsp = batchRsp->GetResponse<TYPathProxy::TRspGet>(
-                    "get_op_completion_tx_id_" + ToString(operationId))
-                    .ValueOrThrow();
-
                 auto attributes = ConvertToAttributes(TYsonString(attributesRsp->value()));
-                auto completionTxIdAttribute = ConvertToAttributes(TYsonString(completionTxIdRsp->value()));
-                attributes->MergeFrom(*completionTxIdAttribute);
 
                 auto attachTransaction = [&] (const TTransactionId& transactionId, bool ping, const TString& name = TString()) -> ITransactionPtr {
                     if (!transactionId) {
@@ -1153,7 +1122,7 @@ private:
             operations.size());
 
         {
-            std::vector<TOperationPtr> operationsWithOutputTransaction;
+            std::vector<TOperationPtr> operationsToRevive;
 
             auto getBatchKey = [] (const TOperationPtr& operation) {
                 return "get_op_committed_attr_" + ToString(operation->GetId());
@@ -1163,49 +1132,34 @@ private:
 
             for (const auto& operation : operations) {
                 auto& revivalDescriptor = *operation->RevivalDescriptor();
-                if (!revivalDescriptor.OutputTransaction) {
-                    continue;
+                std::vector<TTransactionId> possibleTransactions;
+                if (revivalDescriptor.OutputTransaction) {
+                    possibleTransactions.push_back(revivalDescriptor.OutputTransaction->GetId());
                 }
+                possibleTransactions.push_back(NullTransactionId);
 
-                operationsWithOutputTransaction.push_back(operation);
+                operationsToRevive.push_back(operation);
 
-                for (auto transactionId : {
-                    revivalDescriptor.OutputTransaction->GetId(),
-                    NullTransactionId})
+                for (auto transactionId : possibleTransactions)
                 {
-                    {
-                        auto req = TYPathProxy::Get(GetOperationPath(operation->GetId()) + "/@");
-                        std::vector<TString> attributeKeys{
-                            "committed"
-                        };
-                        ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
-                        SetTransactionId(req, transactionId);
-                        batchReq->AddRequest(req, getBatchKey(operation));
-                    }
-                    {
-                        auto req = TYPathProxy::Get(GetNewOperationPath(operation->GetId()) + "/@");
-                        std::vector<TString> attributeKeys{
-                            "committed"
-                        };
-                        ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
-                        SetTransactionId(req, transactionId);
-                        batchReq->AddRequest(req, getBatchKey(operation) + "_new");
-                    }
+                    auto req = TYPathProxy::Get(GetNewOperationPath(operation->GetId()) + "/@");
+                    std::vector<TString> attributeKeys{
+                        "committed"
+                    };
+                    ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
+                    SetTransactionId(req, transactionId);
+                    batchReq->AddRequest(req, getBatchKey(operation));
                 }
             }
 
             auto batchRsp = WaitFor(batchReq->Invoke())
                 .ValueOrThrow();
 
-            for (const auto& operation : operationsWithOutputTransaction) {
+            for (const auto& operation : operationsToRevive) {
                 auto& revivalDescriptor = *operation->RevivalDescriptor();
                 auto rsps = batchRsp->GetResponses<TYPathProxy::TRspGet>(getBatchKey(operation));
-                auto rspsNew = batchRsp->GetResponses<TYPathProxy::TRspGet>(getBatchKey(operation) + "_new");
 
-                YCHECK(rsps.size() == 2);
-                YCHECK(rspsNew.size() == 2);
-
-                for (size_t rspIndex = 0; rspIndex < 2; ++rspIndex) {
+                for (size_t rspIndex = 0; rspIndex < rsps.size(); ++rspIndex) {
                     std::unique_ptr<IAttributeDictionary> attributes;
                     auto updateAttributes = [&] (const TErrorOr<TIntrusivePtr<TYPathProxy::TRspGet>>& rspOrError) {
                         if (!rspOrError.IsOK()) {
@@ -1221,7 +1175,6 @@ private:
                     };
 
                     updateAttributes(rsps[rspIndex]);
-                    updateAttributes(rspsNew[rspIndex]);
 
                     // Commit transaction may be missing or aborted.
                     if (!attributes) {
@@ -1230,7 +1183,9 @@ private:
 
                     if (attributes->Get<bool>("committed", false)) {
                         revivalDescriptor.OperationCommitted = true;
-                        if (rspIndex == 0) {
+                        // If it is an output transaction, it should be committed. It is exactly when there are
+                        // two responses and we are processing the first one (cf. previous for-loop).
+                        if (rspIndex == 0 && rsps.size() == 2) {
                             revivalDescriptor.ShouldCommitOutputTransaction = true;
                         }
                         break;
@@ -1492,7 +1447,7 @@ private:
         return BIND(&TImpl::DoUpdateOperationNode,
             MakeStrong(this),
             update->Operation)
-            .AsyncVia(GetCancelableControlInvoker());
+            .AsyncVia(GetCancelableControlInvoker(EControlQueue::MasterConnector));
     }
 
     void OnOperationNodeCreated(
@@ -1555,7 +1510,7 @@ private:
             }
             batchReq->Invoke().Subscribe(
                 BIND(&TImpl::OnGlobalWatchersUpdated, MakeStrong(this))
-                    .Via(GetCancelableControlInvoker()));
+                    .Via(GetCancelableControlInvoker(EControlQueue::PeriodicActivity)));
         }
 
         // Purge obsolete watchers.
@@ -1583,7 +1538,7 @@ private:
             }
             batchReq->Invoke().Subscribe(
                 BIND(&TImpl::OnOperationWatchersUpdated, MakeStrong(this), operation)
-                    .Via(GetCancelableControlInvoker()));
+                    .Via(GetCancelableControlInvoker(EControlQueue::PeriodicActivity)));
         }
     }
 

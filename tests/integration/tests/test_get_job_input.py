@@ -3,9 +3,8 @@ from yt_commands import *
 import yt.environment.init_operation_archive as init_operation_archive
 from yt.wrapper.common import uuid_hash_pair
 
-import __builtin__
+import sys
 import datetime
-import itertools
 import pytest
 import shutil
 
@@ -19,38 +18,24 @@ FORMAT_LIST = [
 OPERATION_JOB_ARCHIVE_TABLE = "//sys/operations_archive/jobs"
 OPERATION_JOB_SPEC_ARCHIVE_TABLE = "//sys/operations_archive/job_specs"
 
-def get_stderr_dict_from_table(table_path):
-    result = {}
-    stderr_rows = read_table("//tmp/t_stderr")
-    for job_id, part_iter in itertools.groupby(stderr_rows, key=lambda x: x["job_id"]):
-        job_stderr = ""
-        for row in part_iter:
-            job_stderr += row["data"]
-        result[job_id] = job_stderr
-    return result
-
 def get_job_rows_for_operation(operation_id):
     hash_pair = uuid_hash_pair(operation_id)
     return select_rows("* from [{0}] where operation_id_lo = {1}u and operation_id_hi = {2}u".format(
         OPERATION_JOB_ARCHIVE_TABLE,  hash_pair.lo, hash_pair.hi))
 
-def get_job_spec_rows_for_job(job_id_list):
-    def generate_keys(job_id):
-        pair = uuid_hash_pair(job_id)
-        return {
-            "job_id_hi": pair.hi,
-            "job_id_lo": pair.lo}
+def generate_job_key(job_id):
+    pair = uuid_hash_pair(job_id)
+    return {
+        "job_id_hi": pair.hi,
+        "job_id_lo": pair.lo}
 
-    return lookup_rows(OPERATION_JOB_SPEC_ARCHIVE_TABLE, [generate_keys(job_id) for job_id in job_id_list])
+def get_job_spec_rows_for_jobs(job_ids):
+    return lookup_rows(OPERATION_JOB_SPEC_ARCHIVE_TABLE, [generate_job_key(job_id) for job_id in job_ids])
 
-def check_all_jobs_in_operation_archive(job_id_list, table):
-    rows = select_rows("job_id_hi,job_id_lo from [{0}]".format(table))
-    job_ids_in_archive = __builtin__.set(get_guid_from_parts(r["job_id_lo"], r["job_id_hi"]) for r in rows)
-    return all(job_id in job_ids_in_archive for job_id in job_id_list)
-
-def wait_data_in_operation_table_archive(job_id_list):
-    wait(lambda: check_all_jobs_in_operation_archive(job_id_list, OPERATION_JOB_ARCHIVE_TABLE))
-    wait(lambda: check_all_jobs_in_operation_archive(job_id_list, OPERATION_JOB_SPEC_ARCHIVE_TABLE))
+def wait_for_data_in_job_archive(op_id, job_ids):
+    print >>sys.stderr, "Waiting for jobs to appear in archive: ", job_ids
+    wait(lambda: len(get_job_rows_for_operation(op_id)) == len(job_ids))
+    wait(lambda: len(get_job_spec_rows_for_jobs(job_ids)) == len(job_ids))
 
 class TestGetJobInput(YTEnvSetup):
     NUM_MASTERS = 1
@@ -65,7 +50,11 @@ class TestGetJobInput(YTEnvSetup):
                 "reporting_period": 10,
                 "min_repeat_delay": 10,
                 "max_repeat_delay": 10,
-            }
+            },
+            "job_controller": {
+                # Force total confirmation happen on every heartbeat
+                "total_confirmation_period": 0
+            },
         },
     }
 
@@ -74,6 +63,13 @@ class TestGetJobInput(YTEnvSetup):
             "enable_job_reporter": True,
             "enable_job_spec_reporter": True,
         },
+    }
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            # Force snapshot never happen
+            "snapshot_period": 10**9,
+        }
     }
 
     def setup(self):
@@ -113,10 +109,12 @@ class TestGetJobInput(YTEnvSetup):
 
         events_on_fs().wait_event("job_is_running")
 
-        job_id_list = os.listdir(self._tmpdir)
-        assert len(job_id_list) == 1
+        job_ids = os.listdir(self._tmpdir)
+        assert len(job_ids) == 1
 
-        self.check_job_ids(job_id_list)
+        # It only works because the operation consists of one job,
+        # so there are no released jobs.
+        self.check_job_ids(job_ids)
 
         events_on_fs().notify_event("job_can_finish")
         op.track()
@@ -133,12 +131,13 @@ class TestGetJobInput(YTEnvSetup):
             command="cat > {0}/$YT_JOB_ID".format(self._tmpdir),
             format="yson")
 
-        job_id_list = os.listdir(self._tmpdir)
-        assert job_id_list
-        wait_data_in_operation_table_archive(job_id_list)
+        job_ids = os.listdir(self._tmpdir)
+        assert job_ids
+        wait_for_data_in_job_archive(op.id, job_ids)
 
-        self.check_job_ids(job_id_list)
+        self.check_job_ids(job_ids)
 
+    @pytest.mark.xfail(run=False, reason="Job input is unavailable while the operation is not finished")
     def test_map_reduce(self):
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")
@@ -168,11 +167,11 @@ class TestGetJobInput(YTEnvSetup):
 
         events_on_fs().wait_event("reducer_almost_complete", timeout=datetime.timedelta(300))
 
-        job_id_list = os.listdir(self._tmpdir)
-        assert len(job_id_list) >= 3
-        wait_data_in_operation_table_archive(job_id_list)
+        job_ids = os.listdir(self._tmpdir)
+        assert len(job_ids) >= 3
+        wait_for_data_in_job_archive(op.id, job_ids)
 
-        self.check_job_ids(job_id_list)
+        self.check_job_ids(job_ids)
 
         events_on_fs().notify_event("continue_reducer")
         op.track()
@@ -232,14 +231,14 @@ class TestGetJobInput(YTEnvSetup):
             command="cat > {0}/$YT_JOB_ID".format(self._tmpdir),
             format=format)
 
-        job_id_list = os.listdir(self._tmpdir)
-        assert job_id_list
-        wait_data_in_operation_table_archive(job_id_list)
+        job_ids = os.listdir(self._tmpdir)
+        assert job_ids
+        wait_for_data_in_job_archive(op.id, job_ids)
 
-        job_id_list = os.listdir(self._tmpdir)
-        assert job_id_list
+        job_ids = os.listdir(self._tmpdir)
+        assert job_ids
 
-        self.check_job_ids(job_id_list)
+        self.check_job_ids(job_ids)
 
     def test_nonuser_job_type(self):
         create("table", "//tmp/t_input")
@@ -282,17 +281,17 @@ class TestGetJobInput(YTEnvSetup):
                 "stderr_table_path": "//tmp/t_stderr",
             })
 
-        job_id_list = os.listdir(self._tmpdir)
-        assert job_id_list
-        wait_data_in_operation_table_archive(job_id_list)
+        job_ids = os.listdir(self._tmpdir)
+        assert job_ids
+        wait_for_data_in_job_archive(op.id, job_ids)
 
         write_table("//tmp/t_input", [{"bar": i} for i in xrange(100)])
 
         gc_collect()
 
-        job_id_list = os.listdir(self._tmpdir)
-        assert job_id_list
-        for job_id in job_id_list:
+        job_ids = os.listdir(self._tmpdir)
+        assert job_ids
+        for job_id in job_ids:
             input_file = os.path.join(self._tmpdir, job_id)
             with open(input_file) as inf:
                 actual_input = inf.read()
@@ -312,11 +311,11 @@ class TestGetJobInput(YTEnvSetup):
             out="//tmp/t_output",
             command="cat > {0}/$YT_JOB_ID".format(self._tmpdir))
 
-        job_id_list = os.listdir(self._tmpdir)
-        assert job_id_list
-        wait_data_in_operation_table_archive(job_id_list)
+        job_ids = os.listdir(self._tmpdir)
+        assert job_ids
+        wait_for_data_in_job_archive(op.id, job_ids)
 
-        rows = get_job_spec_rows_for_job(job_id_list)
+        rows = get_job_spec_rows_for_jobs(job_ids)
         updated = []
         for r in rows:
             new_r = {}
@@ -326,9 +325,9 @@ class TestGetJobInput(YTEnvSetup):
             updated.append(new_r)
         insert_rows(OPERATION_JOB_SPEC_ARCHIVE_TABLE, updated, update=True, atomicity="none")
 
-        job_id_list = os.listdir(self._tmpdir)
-        assert job_id_list
-        for job_id in job_id_list:
+        job_ids = os.listdir(self._tmpdir)
+        assert job_ids
+        for job_id in job_ids:
             input_file = os.path.join(self._tmpdir, job_id)
             with open(input_file) as inf:
                 actual_input = inf.read()
@@ -354,13 +353,41 @@ class TestGetJobInput(YTEnvSetup):
                     {"name": "b", "type": "int64"},
                 ]})
 
-        job_id_list = os.listdir(self._tmpdir)
-        assert job_id_list
-        wait_data_in_operation_table_archive(job_id_list)
+        job_ids = os.listdir(self._tmpdir)
+        assert job_ids
+        wait_for_data_in_job_archive(op.id, job_ids)
 
         assert read_table("//tmp/t_output") == [{"c": i * 4} for i in xrange(1, 10)]
 
-        job_id_list = os.listdir(self._tmpdir)
-        assert job_id_list
+        job_ids = os.listdir(self._tmpdir)
+        assert job_ids
 
-        self.check_job_ids(job_id_list)
+        self.check_job_ids(job_ids)
+
+    @pytest.mark.parametrize("successfull_jobs", [False, True])
+    def test_archive_job_spec(self, successfull_jobs):
+        create("table", "//tmp/t_input")
+        create("table", "//tmp/t_output")
+        write_table("//tmp/t_input", [{"foo": i} for i in xrange(25)])
+
+        op = map(
+            in_="//tmp/t_input",
+            out="//tmp/t_output",
+            command="cat > {0}/$YT_JOB_ID; exit {1}".format(self._tmpdir, 0 if successfull_jobs else 1),
+            spec={"data_size_per_job": 1, "max_failed_job_count": 25},
+            dont_track=True
+        )
+
+        if successfull_jobs:
+            op.track()
+        else:
+            with pytest.raises(YtError):
+                op.track()
+
+        job_ids = os.listdir(self._tmpdir)
+
+        if successfull_jobs:
+            wait(lambda: len(get_job_spec_rows_for_jobs(job_ids)) == 10)
+        else:
+            # TODO(babenko): maybe stricter condition?
+            wait(lambda: len(get_job_spec_rows_for_jobs(job_ids)) > 0)

@@ -10,7 +10,7 @@ const size_t TStringBuilder::MinBufferLength = 1024;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void UnderscoreCaseToCamelCase(TStringBuilder* builder, const TStringBuf& str)
+void UnderscoreCaseToCamelCase(TStringBuilder* builder, TStringBuf str)
 {
     bool first = true;
     bool upper = true;
@@ -31,14 +31,14 @@ void UnderscoreCaseToCamelCase(TStringBuilder* builder, const TStringBuf& str)
     }
 }
 
-TString UnderscoreCaseToCamelCase(const TStringBuf& str)
+TString UnderscoreCaseToCamelCase(TStringBuf str)
 {
     TStringBuilder builder;
     UnderscoreCaseToCamelCase(&builder, str);
     return builder.Flush();
 }
 
-void CamelCaseToUnderscoreCase(TStringBuilder* builder, const TStringBuf& str)
+void CamelCaseToUnderscoreCase(TStringBuilder* builder, TStringBuf str)
 {
     bool first = true;
     for (char c : str) {
@@ -53,7 +53,7 @@ void CamelCaseToUnderscoreCase(TStringBuilder* builder, const TStringBuf& str)
     }
 }
 
-TString CamelCaseToUnderscoreCase(const TStringBuf& str)
+TString CamelCaseToUnderscoreCase(TStringBuf str)
 {
     TStringBuilder builder;
     CamelCaseToUnderscoreCase(&builder, str);
@@ -160,7 +160,7 @@ ui16 DecimalDigits2[100] = {
 };
 
 template <class T>
-char* WriteSignedIntToBufferBackwardsImpl(char* ptr, T value, const TStringBuf& min)
+char* WriteSignedIntToBufferBackwardsImpl(char* ptr, T value, TStringBuf min)
 {
     if (value == 0) {
         --ptr;

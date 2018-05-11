@@ -33,7 +33,7 @@ TSchemalessWriterForYamrBase::TSchemalessWriterForYamrBase(
     , Config_(config)
 { }
 
-void TSchemalessWriterForYamrBase::WriteInLenvalMode(const TStringBuf& value)
+void TSchemalessWriterForYamrBase::WriteInLenvalMode(TStringBuf value)
 {
     auto* stream = GetOutputStream();
     WritePod(*stream, static_cast<ui32>(value.size()));

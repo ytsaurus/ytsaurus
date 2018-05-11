@@ -11,7 +11,7 @@ TAsyncYsonWriter::TAsyncYsonWriter(EYsonType type)
     , SyncWriter_(&Stream_, type)
 { }
 
-void TAsyncYsonWriter::OnStringScalar(const TStringBuf& value)
+void TAsyncYsonWriter::OnStringScalar(TStringBuf value)
 {
     SyncWriter_.OnStringScalar(value);
 }
@@ -61,7 +61,7 @@ void TAsyncYsonWriter::OnBeginMap()
     SyncWriter_.OnBeginMap();
 }
 
-void TAsyncYsonWriter::OnKeyedItem(const TStringBuf& key)
+void TAsyncYsonWriter::OnKeyedItem(TStringBuf key)
 {
     SyncWriter_.OnKeyedItem(key);
 }
@@ -81,7 +81,7 @@ void TAsyncYsonWriter::OnEndAttributes()
     SyncWriter_.OnEndAttributes();
 }
 
-void TAsyncYsonWriter::OnRaw(const TStringBuf& yson, EYsonType type)
+void TAsyncYsonWriter::OnRaw(TStringBuf yson, EYsonType type)
 {
     SyncWriter_.OnRaw(yson, type);
 }

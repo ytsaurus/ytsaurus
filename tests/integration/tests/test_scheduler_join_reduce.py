@@ -7,7 +7,7 @@ from yt.yson import YsonEntity
 
 ##################################################################
 
-class TestSchedulerJoinReduceCommands(YTEnvSetup):
+class TestSchedulerJoinReduceCommandsOneCell(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
@@ -23,9 +23,9 @@ class TestSchedulerJoinReduceCommands(YTEnvSetup):
 
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "controller_agent": {
-            "operations_update_period" : 10,
-            "join_reduce_operation_options" : {
-                "job_splitter" : {
+            "operations_update_period": 10,
+            "join_reduce_operation_options": {
+                "job_splitter": {
                     "min_job_time": 5000,
                     "min_total_data_size": 1024,
                     "update_period": 100,
@@ -126,7 +126,6 @@ class TestSchedulerJoinReduceCommands(YTEnvSetup):
             ]
 
         assert get("//tmp/out/@sorted")
-
 
     @unix_only
     def test_join_reduce_split_further(self):
@@ -604,18 +603,17 @@ echo {v = 2} >&7
         assert get("//tmp/out/@row_count") > 800
 
     @unix_only
-    def test_join_reduce_uneven_key_distribution(self):
+    def test_join_reduce_skewed_key_distribution(self):
         create("table", "//tmp/in1")
         create("table", "//tmp/in2")
         create("table", "//tmp/out")
 
-        data1 = [ {"key": "a"} for num in xrange(8000) ] + [ {"key": "b"} for num in xrange(2000) ]
-        #data1 = [item for sublist in lists for item in sublist]
+        data1 = [{"key": "a"}] * 8000 + [{"key": "b"}] * 2000
         write_table(
             "//tmp/in1",
             data1,
-            sorted_by = ["key"],
-            table_writer = {"block_size": 1024})
+            sorted_by=["key"],
+            table_writer={"block_size": 1024})
 
         data2 = [
             {"key": "a"},
@@ -624,33 +622,32 @@ echo {v = 2} >&7
         write_table(
             "//tmp/in2",
             data2,
-            sorted_by = ["key"])
+            sorted_by=["key"])
 
         op = join_reduce(
-            in_ = ["//tmp/in1", "<foreign=true>//tmp/in2"],
-            out = ["//tmp/out"],
-            command = "uniq",
-            join_by = "key",
-            spec = {
-                "reducer": {
-                    "format": yson.loads("<enable_table_index=true>dsv")},
-                "job_count": 2})
+            in_=["//tmp/in1", "<foreign=true>//tmp/in2"],
+            out=["//tmp/out"],
+            command="uniq",
+            join_by="key",
+            spec={
+                "reducer": {"format": yson.loads("<enable_table_index=true>dsv")},
+                "job_count": 2
+            })
 
         assert get("//tmp/out/@chunk_count") == 2
 
         assert sorted(read_table("//tmp/out")) == \
             sorted([
                 {"key": "a", "@table_index": "0"},
+                {"key": "a", "@table_index": "1"},
+                # ------partition boundary-------
                 {"key": "a", "@table_index": "0"},
+                {"key": "a", "@table_index": "1"},
                 {"key": "b", "@table_index": "0"},
-                {"key": "a", "@table_index": "1"},
-                {"key": "a", "@table_index": "1"},
                 {"key": "b", "@table_index": "1"},
             ])
 
-        estimated = get("//sys/operations/{0}/@progress/estimated_input_data_size_histogram".format(op.id))
         histogram = get("//sys/operations/{0}/@progress/input_data_size_histogram".format(op.id))
-        assert estimated != histogram
         assert sum(histogram["count"]) == 2
 
     # Check compatibility with deprecated <primary=true> attribute
@@ -1042,8 +1039,43 @@ done
         assert interrupted["job_split"] >= 1
 
 
+class TestSchedulerNewJoinReduceCommandsOneCell(TestSchedulerJoinReduceCommandsOneCell):
+    @classmethod
+    def modify_controller_agent_config(cls, config):
+        TestSchedulerJoinReduceCommandsOneCell.modify_controller_agent_config(config)
+        config["controller_agent"]["join_reduce_operation_options"]["spec_template"] = {"use_new_controller": True}
 
-##################################################################
+    @unix_only
+    def test_join_reduce_two_primaries(self):
+        create("table", "//tmp/in1")
+        write_table("//tmp/in1", [{"key": 0}], sorted_by="key")
 
-class TestSchedulerJoinReduceCommandsMulticell(TestSchedulerJoinReduceCommands):
+        create("table", "//tmp/in2")
+        write_table("//tmp/in2", [{"key": 0}], sorted_by="key")
+
+        create("table", "//tmp/in3")
+        write_table("//tmp/in3", [{"key": 0, "value": 1}], sorted_by="key")
+
+        create("table", "//tmp/out")
+
+        join_reduce(
+            in_=["//tmp/in1", "//tmp/in2", "<foreign=true>//tmp/in3"],
+            out="//tmp/out",
+            join_by="key",
+            command="cat",
+            spec={"reducer": {"format": "dsv"}})
+
+        expected = [
+            {"key": "0"},
+            {"key": "0"},
+            {"key": "0", "value": "1"}
+        ]
+        assert read_table("//tmp/out") == expected
+
+
+class TestSchedulerJoinReduceCommandsMulticell(TestSchedulerJoinReduceCommandsOneCell):
+    NUM_SECONDARY_MASTER_CELLS = 2
+
+
+class TestSchedulerNewJoinReduceCommandsMulticell(TestSchedulerNewJoinReduceCommandsOneCell):
     NUM_SECONDARY_MASTER_CELLS = 2

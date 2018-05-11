@@ -65,14 +65,14 @@ inline TVersionedValue MakeVersionedBooleanValue(bool value, TTimestamp timestam
     return result;
 }
 
-inline TVersionedValue MakeVersionedStringValue(const TStringBuf& value, TTimestamp timestamp, int id = 0, bool aggregate = false)
+inline TVersionedValue MakeVersionedStringValue(TStringBuf value, TTimestamp timestamp, int id = 0, bool aggregate = false)
 {
     auto result = MakeStringValue<TVersionedValue>(value, id, aggregate);
     result.Timestamp = timestamp;
     return result;
 }
 
-inline TVersionedValue MakeVersionedAnyValue(const TStringBuf& value, TTimestamp timestamp, int id = 0, bool aggregate = false)
+inline TVersionedValue MakeVersionedAnyValue(TStringBuf value, TTimestamp timestamp, int id = 0, bool aggregate = false)
 {
     auto result = MakeAnyValue<TVersionedValue>(value, id, aggregate);
     result.Timestamp = timestamp;
@@ -250,12 +250,9 @@ static_assert(
 size_t GetDataWeight(TVersionedRow row);
 size_t GetHash(TVersionedRow row);
 
-//! Compares versioned rows for equality.
+//! Compares versioned rows for equality taking aggregate flags into account.
 //! Row values must be canonically sorted.
-bool operator == (TVersionedRow lhs, TVersionedRow rhs);
-
-//! Compares versioned rows for nonequality.
-bool operator != (TVersionedRow lhs, TVersionedRow rhs);
+bool AreRowsIdentical(TVersionedRow lhs, TVersionedRow rhs);
 
 TString ToString(TVersionedRow row);
 TString ToString(TMutableVersionedRow row);

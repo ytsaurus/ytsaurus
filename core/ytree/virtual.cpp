@@ -38,6 +38,9 @@ bool TVirtualMapBase::DoInvoke(const IServiceContextPtr& context)
     return TSupportsAttributes::DoInvoke(context);
 }
 
+void TVirtualMapBase::OnRecurse(const NRpc::IServiceContextPtr& context, TStringBuf key) const
+{ }
+
 IYPathService::TResolveResult TVirtualMapBase::ResolveRecursive(
     const TYPath& path,
     const IServiceContextPtr& context)
@@ -55,6 +58,8 @@ IYPathService::TResolveResult TVirtualMapBase::ResolveRecursive(
         THROW_ERROR_EXCEPTION("Node has no child with key %Qv",
             ToYPathLiteral(key));
     }
+
+    OnRecurse(context, key);
 
     return TResolveResultThere{std::move(service), TYPath(tokenizer.GetSuffix())};
 }
@@ -249,7 +254,7 @@ public:
         return Services_.size();
     }
 
-    IYPathServicePtr FindItemService(const TStringBuf& key) const
+    IYPathServicePtr FindItemService(TStringBuf key) const
     {
         auto it = Services_.find(key);
         return it != Services_.end() ? it->second : nullptr;
@@ -305,7 +310,7 @@ i64 TCompositeMapService::GetSize() const
     return Impl_->GetSize();
 }
 
-IYPathServicePtr TCompositeMapService::FindItemService(const TStringBuf& key) const
+IYPathServicePtr TCompositeMapService::FindItemService(TStringBuf key) const
 {
    return Impl_->FindItemService(key);
 }

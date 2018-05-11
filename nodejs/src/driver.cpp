@@ -74,7 +74,7 @@ public:
         THREAD_AFFINITY_IS_V8();
     }
 
-    virtual void OnMyKeyedItem(const TStringBuf& keyRef) override
+    virtual void OnMyKeyedItem(TStringBuf keyRef) override
     {
         THREAD_AFFINITY_IS_ANY();
 
@@ -280,7 +280,7 @@ private:
             formatAttributes->SetYson("format", TYsonString("pretty"));
 
             auto consumer = CreateConsumerForFormat(
-                TFormat(EFormatType::Yson, formatAttributes.get()),
+                TFormat(EFormatType::Json, formatAttributes.get()),
                 EDataType::Structured,
                 &errorStream);
 

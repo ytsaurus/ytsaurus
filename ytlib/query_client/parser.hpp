@@ -668,7 +668,7 @@ namespace NYT { namespace NQueryClient { namespace NAst {
 
     static inline
     symbol_type
-    make_Identifier (const TStringBuf& v, const location_type& l);
+    make_Identifier (TStringBuf v, const location_type& l);
 
     static inline
     symbol_type

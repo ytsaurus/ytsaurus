@@ -48,7 +48,7 @@ public:
      */
     explicit operator bool() const;
 
-    //! Combines this object with #rhs by MAXing replication factors and ANDing
+    //! Aggregates this object with #rhs by MAXing replication factors and ANDing
     //! 'data parts only' flags.
     TReplicationPolicy& operator|=(const TReplicationPolicy& rhs);
 
@@ -67,7 +67,7 @@ static_assert(sizeof(TReplicationPolicy) == 1, "sizeof(TReplicationPolicy) != 1"
 bool operator==(TReplicationPolicy lhs, TReplicationPolicy rhs);
 bool operator!=(TReplicationPolicy lhs, TReplicationPolicy rhs);
 
-void FormatValue(TStringBuilder* builder, TReplicationPolicy policy, const TStringBuf& /*spec*/);
+void FormatValue(TStringBuilder* builder, TReplicationPolicy policy, TStringBuf /*spec*/);
 TString ToString(TReplicationPolicy policy);
 
 void Serialize(const TReplicationPolicy& policy, NYson::IYsonConsumer* consumer);
@@ -100,11 +100,11 @@ public:
      *
      *  By default, 'data parts only' flags are set to |false| for all media.
      *
-     *  If #clearForCombining is |true|, these flags are set to |true|. Since these
-     *  flags are combined by ANDing, this makes the replication suitable for
-     *  combining via operator|=().
+     *  If #clearForAggregating is |true|, these flags are set to |true|. Since these
+     *  flags are aggregated by ANDing, this makes the replication suitable for
+     *  aggregating via operator|=().
      */
-    TChunkReplication(bool clearForCombining = false);
+    TChunkReplication(bool clearForAggregating = false);
 
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
@@ -122,7 +122,7 @@ public:
     bool GetVital() const;
     void SetVital(bool vital);
 
-    //! Combines this with #rhs by ORing 'vital' flags and combining replication
+    //! Aggregates this with #rhs by ORing 'vital' flags and aggregating replication
     //! policies for each medium (see #TReplicationPolicy::operator|=()).
     TChunkReplication& operator|=(const TChunkReplication& rhs);
 
@@ -145,7 +145,7 @@ static_assert(sizeof(TChunkReplication) == 8, "TChunkReplication's size is wrong
 bool operator==(const TChunkReplication& lhs, const TChunkReplication& rhs);
 bool operator!=(const TChunkReplication& lhs, const TChunkReplication& rhs);
 
-void FormatValue(TStringBuilder* builder, TChunkReplication replication, const TStringBuf& /*spec*/);
+void FormatValue(TStringBuilder* builder, TChunkReplication replication, TStringBuf /*spec*/);
 TString ToString(const TChunkReplication& replication);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -233,7 +233,7 @@ struct TRequisitionEntry
     size_t GetHash() const;
 };
 
-void FormatValue(TStringBuilder* builder, const TRequisitionEntry& entry, const TStringBuf& /*spec*/ = {});
+void FormatValue(TStringBuilder* builder, const TRequisitionEntry& entry, TStringBuf /*spec*/ = {});
 TString ToString(const TRequisitionEntry& entry);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -247,8 +247,8 @@ TString ToString(const TRequisitionEntry& entry);
  *
  *  A requisition is strictly larger than a replication: one can convert the
  *  former to the latter by stripping off all account info and, for each medium,
- *  combining replication policies (via #TReplicationPolicy::operator|=()).
- *  The reverse transformation is, of course, impossible (however, see #CombineWith()).
+ *  aggregating replication policies (via #TReplicationPolicy::operator|=()).
+ *  The reverse transformation is, of course, impossible (however, see #AggregateWith()).
  */
 class TChunkRequisition
 {
@@ -290,10 +290,10 @@ public:
 
     void ForceReplicationFactor(int replicationFactor);
 
-    //! Combines this with #rhs ORing vitalities and merging entries.
+    //! Aggregates this with #rhs ORing vitalities and merging entries.
     TChunkRequisition& operator|=(const TChunkRequisition& rhs);
 
-    void CombineWith(
+    void AggregateWith(
         const TChunkReplication& replication,
         NSecurityServer::TAccount* account,
         bool committed);
@@ -322,7 +322,7 @@ private:
     // chunk requisition must start with false.
     bool Vital_ = false;
 
-    void CombineEntries(const TEntries& newEntries);
+    void AggregateEntries(const TEntries& newEntries);
 
     void NormalizeEntries();
 
@@ -344,7 +344,7 @@ void ToProto(
     NProto::TReqUpdateChunkRequisition::TChunkRequisition* protoRequisition,
     const TChunkRequisition& requisition);
 
-void FormatValue(TStringBuilder* builder, const TChunkRequisition& requisition, const TStringBuf& /*spec*/ = {});
+void FormatValue(TStringBuilder* builder, const TChunkRequisition& requisition, TStringBuf /*spec*/ = {});
 TString ToString(const TChunkRequisition& requisition);
 
 ////////////////////////////////////////////////////////////////////////////////

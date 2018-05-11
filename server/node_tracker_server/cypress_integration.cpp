@@ -363,7 +363,7 @@ private:
         return nodeTracker->Racks().GetSize();
     }
 
-    virtual IYPathServicePtr FindItemService(const TStringBuf& key) const override
+    virtual IYPathServicePtr FindItemService(TStringBuf key) const override
     {
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
         auto* rack = nodeTracker->FindRackByName(TString(key));
@@ -420,7 +420,7 @@ private:
         return nodeTracker->DataCenters().GetSize();
     }
 
-    virtual IYPathServicePtr FindItemService(const TStringBuf& key) const override
+    virtual IYPathServicePtr FindItemService(TStringBuf key) const override
     {
         auto nodeTracker = Bootstrap_->GetNodeTracker();
         auto* dc = nodeTracker->FindDataCenterByName(TString(key));

@@ -268,6 +268,11 @@ public:
         SetProperty("cpu_guarantee", ToString(cores) + "c");
     }
 
+    virtual void SetCpuWeight(double weight) override
+    {
+        SetProperty("cpu_weight", ToString(weight));
+    }
+
     virtual void SetIsolate() override
     {
         Isolate_ = true;
@@ -315,6 +320,10 @@ public:
 
         LOG_DEBUG("Executing porto container (Command: %v)", command);
 
+        // NB(psushin): Make sure subcontainer starts with the same user.
+        // For unknown reason in the cloud we've seen user_job containers with user=loadbase.
+        SetProperty("user", ToString(::getuid()));
+
         // Enable core dumps for all container instances.
         SetProperty("ulimit", "core: unlimited");
         TString controllers = "freezer;cpu;cpuacct;net_cls;blkio;devices";
@@ -323,6 +332,7 @@ public:
         }
         SetProperty("controllers", controllers);
         SetProperty("enable_porto", Isolate_ ? "isolate" : "full");
+        SetProperty("isolate", Isolate_ ? "true" : "false");
         SetProperty("command", command);
 
         for (auto arg : env) {

@@ -14,8 +14,8 @@ import string
 
 SKYNET_TABLE_SCHEMA = make_schema([
     {"name": "sky_share_id", "type": "uint64", "sort_order": "ascending", "group": "meta"},
-    {"name": "filename", "type": "string", "group": "meta"},
-    {"name": "part_index", "type": "int64", "group": "meta"},
+    {"name": "filename", "type": "string", "sort_order": "ascending", "group": "meta"},
+    {"name": "part_index", "type": "int64", "sort_order": "ascending", "group": "meta"},
     {"name": "sha1", "type": "string", "group": "meta"},
     {"name": "md5", "type": "string", "group": "meta"},
     {"name": "data_size", "type": "int64", "group": "meta"},
@@ -28,13 +28,6 @@ class TestSkynetIntegration(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
-
-    DELTA_NODE_CONFIG = {
-        "use_new_http_server": True,
-        "data_node": {
-            "enable_experimental_skynet_http_api": True
-        }
-    }
 
     def test_locate_single_part(self):
         create("table", "//tmp/table")
@@ -283,13 +276,6 @@ class TestSkynetManager(YTEnvSetup):
     ENABLE_RPC_PROXY = True
     NUM_SKYNET_MANAGERS = 2
 
-    DELTA_NODE_CONFIG = {
-        "use_new_http_server": True,
-        "data_node": {
-            "enable_experimental_skynet_http_api": True
-        }
-    }
-
     def prepare_table(self, table_path):
         create("table", table_path, attributes={
             "enable_skynet_sharing": True,
@@ -297,12 +283,12 @@ class TestSkynetManager(YTEnvSetup):
             "chunk_writer": {"desired_chunk_weight": 1 * 1024 * 1024},
         })
         write_table(table_path, [
-            {"filename": "test.txt", "part_index": 0, "data": "testtesttest"}
+            {"filename": "test0.txt", "part_index": 0, "data": "testtesttest"}
         ])
 
         write_table("<append=%true>" + table_path, [
             {
-                "filename": "test.bin",
+                "filename": "test1.bin",
                 "part_index": i,
                 "data": ''.join(random.choice(string.ascii_uppercase) * 1024 for _ in range(4 * 1024))
             } for i in range(3)])

@@ -236,11 +236,11 @@ struct TVersionedObjectId
     bool IsBranched() const;
 
 
-    static TVersionedObjectId FromString(const TStringBuf& str);
+    static TVersionedObjectId FromString(TStringBuf str);
 };
 
 //! Formats id into a string (for debugging and logging purposes mainly).
-void FormatValue(TStringBuilder* builder, const TVersionedObjectId& id, const TStringBuf& spec);
+void FormatValue(TStringBuilder* builder, const TVersionedObjectId& id, TStringBuf spec);
 
 //! Converts id into a string (for debugging and logging purposes mainly).
 TString ToString(const TVersionedObjectId& id);

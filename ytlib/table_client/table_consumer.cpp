@@ -28,7 +28,7 @@ void TYsonToUnversionedValueConverter::SetColumnIndex(int columnIndex)
     ColumnIndex_ = columnIndex;
 }
 
-void TYsonToUnversionedValueConverter::OnStringScalar(const TStringBuf& value)
+void TYsonToUnversionedValueConverter::OnStringScalar(TStringBuf value)
 {
     if (Depth_ == 0) {
         ValueConsumer_->OnValue(MakeUnversionedStringValue(value, ColumnIndex_));
@@ -117,7 +117,7 @@ void TYsonToUnversionedValueConverter::OnBeginMap()
     ++Depth_;
 }
 
-void TYsonToUnversionedValueConverter::OnKeyedItem(const TStringBuf& name)
+void TYsonToUnversionedValueConverter::OnKeyedItem(TStringBuf name)
 {
     ValueWriter_.OnKeyedItem(name);
 }
@@ -201,12 +201,12 @@ void TTableConsumer::OnControlInt64Scalar(i64 value)
     }
 }
 
-void TTableConsumer::OnControlStringScalar(const TStringBuf& /*value*/)
+void TTableConsumer::OnControlStringScalar(TStringBuf /*value*/)
 {
     ThrowControlAttributesNotSupported();
 }
 
-void TTableConsumer::OnStringScalar(const TStringBuf& value)
+void TTableConsumer::OnStringScalar(TStringBuf value)
 {
     if (ControlState_ == EControlState::ExpectValue) {
         Y_ASSERT(Depth_ == 1);
@@ -418,7 +418,7 @@ void TTableConsumer::OnBeginMap()
     ++Depth_;
 }
 
-void TTableConsumer::OnKeyedItem(const TStringBuf& name)
+void TTableConsumer::OnKeyedItem(TStringBuf name)
 {
     switch (ControlState_) {
         case EControlState::None:

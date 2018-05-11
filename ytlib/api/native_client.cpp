@@ -37,6 +37,7 @@
 #include <yt/ytlib/job_proxy/job_spec_helper.h>
 #include <yt/ytlib/job_proxy/user_job_read_controller.h>
 
+#include <yt/ytlib/job_prober_client/public.h>
 #include <yt/ytlib/job_prober_client/job_prober_service_proxy.h>
 
 #include <yt/ytlib/node_tracker_client/channel.h>
@@ -2934,6 +2935,33 @@ private:
         return FromProto<TObjectId>(rsp->object_id());
     }
 
+    void SetTouchedAttribute(
+        const TString& destination,
+        const TPrerequisiteOptions& options = TPrerequisiteOptions(),
+        const TTransactionId& transactionId = NullTransactionId)
+    {
+        auto fileCacheClient = Connection_->CreateNativeClient(TClientOptions(NSecurityClient::FileCacheUserName));
+
+        // Set /@touched attribute.
+        {
+            auto setNodeOptions = TSetNodeOptions();
+            setNodeOptions.PrerequisiteTransactionIds = options.PrerequisiteTransactionIds;
+            setNodeOptions.PrerequisiteRevisions = options.PrerequisiteRevisions;
+            setNodeOptions.TransactionId = transactionId;
+
+            auto asyncResult = fileCacheClient->SetNode(destination + "/@touched", ConvertToYsonString(true), setNodeOptions);
+            auto rspOrError = WaitFor(asyncResult);
+
+            if (rspOrError.GetCode() != NCypressClient::EErrorCode::ConcurrentTransactionLockConflict) {
+                THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error setting /@touched attribute");
+            }
+
+            LOG_DEBUG(
+                "Attribute /@touched set (Destination: %v)",
+                destination);
+        }
+    }
+
     TGetFileFromCacheResult DoGetFileFromCache(
         const TString& md5,
         const TGetFileFromCacheOptions& options)
@@ -2948,8 +2976,6 @@ private:
             "md5"
         };
         ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
-
-        SetTransactionId(req, options, true);
 
         auto rspOrError = WaitFor(proxy->Execute(req));
         if (!rspOrError.IsOK()) {
@@ -2978,15 +3004,17 @@ private:
             return result;
         }
 
+        SetTouchedAttribute(destination);
+
         result.Path = destination;
         return result;
     }
 
 
     TPutFileToCacheResult DoPutFileToCache(
-        const NYPath::TYPath &path,
-        const TString &expectedMD5,
-        const TPutFileToCacheOptions &options)
+        const NYPath::TYPath& path,
+        const TString& expectedMD5,
+        const TPutFileToCacheOptions& options)
     {
         NLogging::TLogger logger = Logger.AddTag("Path: %v", path).AddTag("Command: PutFileToCache");
         auto Logger = logger;
@@ -2997,7 +3025,6 @@ private:
         ITransactionPtr transaction;
         {
             auto transactionStartOptions = TTransactionStartOptions();
-            transactionStartOptions.ParentId = GetTransactionId(options, true);
             transactionStartOptions.Sticky = true;
             auto attributes = CreateEphemeralAttributes();
             attributes->Set("title", Format("Putting file %v to cache", path));
@@ -3009,7 +3036,6 @@ private:
 
             auto transactionAttachOptions = TTransactionAttachOptions();
             transactionAttachOptions.AutoAbort = true;
-            transactionAttachOptions.PingAncestors = options.PingAncestors;
             transaction = AttachTransaction(transaction->GetId(), transactionAttachOptions);
 
             LOG_DEBUG(
@@ -3104,24 +3130,7 @@ private:
                 destination);
         }
 
-        // Set /@touched attribute.
-        {
-            auto setNodeOptions = TSetNodeOptions();
-            setNodeOptions.PrerequisiteTransactionIds = options.PrerequisiteTransactionIds;
-            setNodeOptions.PrerequisiteRevisions = options.PrerequisiteRevisions;
-            setNodeOptions.TransactionId = transaction->GetId();
-
-            auto asyncResult = fileCacheClient->SetNode(destination + "/@touched", ConvertToYsonString(true), setNodeOptions);
-            auto rspOrError = WaitFor(asyncResult);
-
-            if (rspOrError.GetCode() != NCypressClient::EErrorCode::ConcurrentTransactionLockConflict) {
-                THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error setting /@touched attribute");
-            }
-
-            LOG_DEBUG(
-                "Attribute /@touched set (Destination: %v)",
-                destination);
-        }
+        SetTouchedAttribute(destination, options, transaction->GetId());
 
         WaitFor(transaction->Commit())
             .ThrowOnError();
@@ -3511,13 +3520,9 @@ private:
             TGetNodeOptions schedulerOptions;
             schedulerOptions.Timeout = deadline - Now();
 
-            bool shouldRequestProgress;
-            if (options.Attributes) {
-                const auto& attributes = *options.Attributes;
-                shouldRequestProgress = std::find(attributes.begin(), attributes.end(), "progress") != attributes.end();
-            } else {
-                shouldRequestProgress = true;
-            }
+            bool shouldRequestProgress = options.Attributes
+                ? options.Attributes->find("progress") != options.Attributes->end()
+                : true;
 
             if (options.IncludeScheduler && shouldRequestProgress) {
                 auto asyncSchedulerProgressValue = GetNode(GetOperationProgressFromOrchid(operationId), schedulerOptions);
@@ -3773,7 +3778,8 @@ private:
                 .ValueOrThrow();
             return TSharedRef::FromString(rsp->stderr_data());
         } catch (const TErrorException& exception) {
-            auto matchedError = exception.Error().FindMatching(NScheduler::EErrorCode::NoSuchJob);
+            auto matchedError = exception.Error().FindMatching(NScheduler::EErrorCode::NoSuchJob) ||
+                exception.Error().FindMatching(NJobProberClient::EErrorCode::JobIsNotRunning);
 
             if (!matchedError) {
                 THROW_ERROR_EXCEPTION("Failed to get job stderr from job proxy")
@@ -4255,10 +4261,8 @@ private:
             bool hasFailedJobs = false;
             if (operation.BriefProgress) {
                 auto briefProgressMapNode = ConvertToNode(operation.BriefProgress)->AsMap();
-                hasFailedJobs =
-                    briefProgressMapNode->FindChild("jobs") &&
-                    briefProgressMapNode->GetChild("jobs")->AsMap()->
-                    GetChild("failed")->AsInt64()->GetValue() > 0;
+                auto jobsNode = briefProgressMapNode->FindChild("jobs");
+                hasFailedJobs = jobsNode && jobsNode->AsMap()->GetChild("failed")->AsInt64()->GetValue() > 0;
             }
 
             failedJobsCount += hasFailedJobs;
@@ -4333,16 +4337,17 @@ private:
                 itemsConditions.push_back(Format("authenticated_user = %Qv", *options.UserFilter));
             }
 
-            TString queryForItemsIds = Format(
+            auto queryForItemsIds = Format(
                 "id_hi, id_lo FROM [%v] WHERE %v ORDER BY start_time %v LIMIT %v",
                 GetOperationsArchivePathOrderedByStartTime(),
                 JoinSeq(" AND ", itemsConditions),
                 itemsSortDirection,
                 1 + options.Limit);
 
-            TString poolColumnName = version < 15 ? "''" : "pool";
+            static const TString NullPoolName = "unknown";
+            auto poolColumnName = version < 15 ? "'" + NullPoolName + "'" : "pool";
 
-            TString queryForCounts = Format(
+            auto queryForCounts = Format(
                 "pool, user, state, type, sum(1) AS count FROM [%v] WHERE %v GROUP BY %v AS pool, authenticated_user AS user, state AS state, operation_type AS type",
                 GetOperationsArchivePathOrderedByStartTime(),
                 JoinSeq(" AND ", countsConditions),
@@ -4360,7 +4365,7 @@ private:
             const auto& rowsCounts = resultCounts.Rowset->GetRows();
 
             for (auto row : rowsCounts) {
-                auto pool = TString(row[0].Data.String, row[0].Length);
+                auto pool = row[0].Type == EValueType::Null ? NullPoolName : TString(row[0].Data.String, row[0].Length);
                 auto user = TString(row[1].Data.String, row[1].Length);
                 auto state = ParseEnum<EOperationState>(TString(row[2].Data.String, row[2].Length));
                 auto type = ParseEnum<EOperationType>(TString(row[3].Data.String, row[3].Length));
@@ -4412,7 +4417,12 @@ private:
 
             auto rows = rowset->GetRows();
 
-            auto checkIsNotNull = [&] (const TUnversionedValue& value, const TStringBuf& name) {
+            auto getYson = [&] (const TUnversionedValue& value, TStringBuf name) {
+                return value.Type == EValueType::Null
+                    ? TYsonString()
+                    : TYsonString(value.Data.String, value.Length);
+            };
+            auto checkIsNotNull = [&] (const TUnversionedValue& value, TStringBuf name) {
                 if (value.Type == EValueType::Null) {
                     THROW_ERROR_EXCEPTION("Unexpected null value in column %Qv in job archive", name);
                 }
@@ -4434,17 +4444,19 @@ private:
             for (auto row : rows) {
                 TOperation operation;
 
-                checkIsNotNull(row[5], "brief_progress");
-                operation.BriefProgress = TYsonString(row[5].Data.String, row[5].Length);
+                operation.BriefProgress = getYson(row[5], "brief_progress");
 
-                auto briefProgressMapNode = ConvertToNode(operation.BriefProgress)->AsMap();
-                bool hasFailedJobs =
-                    briefProgressMapNode->FindChild("jobs") &&
-                    briefProgressMapNode->GetChild("jobs")->AsMap()->
-                    GetChild("failed")->AsInt64()->GetValue() > 0;
+                bool hasFailedJobs = false;
+                if (operation.BriefProgress) {
+                    auto briefProgressMapNode = ConvertToNode(operation.BriefProgress)->AsMap();
+                    hasFailedJobs =
+                        briefProgressMapNode->FindChild("jobs") &&
+                        briefProgressMapNode->GetChild("jobs")->AsMap()->
+                        GetChild("failed")->AsInt64()->GetValue() > 0;
 
-                if (!checkWithFailedJobsFilter(hasFailedJobs)) {
-                    continue;
+                    if (!checkWithFailedJobsFilter(hasFailedJobs)) {
+                        continue;
+                    }
                 }
 
                 TGuid operationId(row[0].Data.Uint64, row[1].Data.Uint64);
@@ -4461,8 +4473,7 @@ private:
 
                 failedJobsCount += hasFailedJobs;
 
-                checkIsNotNull(row[6], "brief_spec");
-                operation.BriefSpec = TYsonString(row[6].Data.String, row[6].Length);
+                operation.BriefSpec = getYson(row[6], "brief_spec");
 
                 checkIsNotNull(row[7], "start_time");
                 operation.StartTime = TInstant::MicroSeconds(row[7].Data.Int64);
@@ -4625,47 +4636,30 @@ private:
         int Limit_ = -1;
     };
 
-    bool DoOperationExistsInCypress(const TOperationId& operationId)
+    TNullable<TString> DoGetControllerAgentAddressFromCypress(const TOperationId& operationId)
     {
-        static const std::vector<TString> attributes = {"state"};
+        static const std::vector<TString> attributes = {"controller_agent_address"};
 
         TObjectServiceProxy proxy(GetMasterChannelOrThrow(EMasterChannelKind::Follower));
 
         auto batchReq = proxy.ExecuteBatch();
 
         {
-            auto req = TYPathProxy::Get(GetNewOperationPath(operationId) + "/@");
+            auto req = TYPathProxy::Get(GetNewOperationPath(operationId) + "/@controller_agent_address");
             ToProto(req->mutable_attributes()->mutable_keys(), attributes);
-            batchReq->AddRequest(req, "get_operation");
-        }
-
-        {
-            auto req = TYPathProxy::Get(GetOperationPath(operationId) + "/@");
-            ToProto(req->mutable_attributes()->mutable_keys(), attributes);
-            batchReq->AddRequest(req, "get_operation");
+            batchReq->AddRequest(req, "get_controller_agent_address");
         }
 
         auto batchRsp = WaitFor(batchReq->Invoke())
             .ValueOrThrow();
 
-        auto responses = batchRsp->GetResponses<TYPathProxy::TRspGet>("get_operation");
-        for (const auto& rsp : responses) {
-            if (rsp.IsOK()) {
-                auto node = ConvertToNode(TYsonString(rsp.Value()->value()));
-                if (node->AsMap()->FindChild("state")) {
-                    return true;
-                }
-            } else {
-                if (rsp.FindMatching(NYTree::EErrorCode::ResolveError)) {
-                    continue;
-                }
-
-                THROW_ERROR_EXCEPTION("Failed to request operation from cypress")
-                    << rsp;
-            }
+        auto responseOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_controller_agent_address");
+        if (responseOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
+            return Null;
         }
 
-        return false;
+        const auto& response = responseOrError.ValueOrThrow();
+        return ConvertTo<TString>(TYsonString(response->value()));
     }
 
     TFuture<std::pair<std::vector<TJob>, TListJobsStatistics>> DoListJobsFromArchive(
@@ -4794,7 +4788,7 @@ private:
         selectRowsOptions.Timestamp = AsyncLastCommittedTimestamp;
         selectRowsOptions.Timeout = deadline - Now();
 
-        auto checkIsNotNull = [&] (const TUnversionedValue& value, const TStringBuf& name, const TJobId& jobId = TJobId()) {
+        auto checkIsNotNull = [&] (const TUnversionedValue& value, TStringBuf name, const TJobId& jobId = TJobId()) {
             if (value.Type == EValueType::Null) {
                 auto error = TError("Unexpected null value in column %Qv in job archive", name)
                     << TErrorAttribute("operation_id", operationId);
@@ -5048,16 +5042,25 @@ private:
         }));
     }
 
-    TFuture<std::pair<std::vector<TJob>, int>> DoListJobsFromScheduler(
+    TFuture<std::pair<std::vector<TJob>, int>> DoListJobsFromControllerAgent(
         const TOperationId& operationId,
+        const TNullable<TString>& controllerAgentAddress,
         TInstant deadline,
         const TListJobsOptions& options)
     {
         TObjectServiceProxy proxy(GetMasterChannelOrThrow(EMasterChannelKind::Follower));
         proxy.SetDefaultTimeout(deadline - Now());
 
-        auto path = Format("//sys/scheduler/orchid/scheduler/operations/%v/running_jobs", operationId);
+        if (!controllerAgentAddress) {
+            return MakeFuture(std::pair<std::vector<TJob>, int>{});
+        }
+
+        auto path = Format("//sys/controller_agents/instances/%v/orchid/controller_agent/operations/%v/running_jobs",
+            *controllerAgentAddress,
+            operationId);
+
         auto getReq = TYPathProxy::Get(path);
+
         return proxy.Execute(getReq).Apply(BIND([options] (const TYPathProxy::TRspGetPtr& rsp) {
             std::pair<std::vector<TJob>, int> result;
             auto& jobs = result.first;
@@ -5275,10 +5278,11 @@ private:
 
         TListJobsResult result;
 
+        auto controllerAgentAddress = DoGetControllerAgentAddressFromCypress(operationId);
+
         auto dataSource = options.DataSource;
         if (dataSource == EDataSource::Auto) {
-            auto operationExists = DoOperationExistsInCypress(operationId);
-            if (operationExists) {
+            if (controllerAgentAddress) {
                 dataSource = EDataSource::Runtime;
             } else {
                 dataSource = EDataSource::Archive;
@@ -5286,37 +5290,37 @@ private:
         }
 
         bool includeCypress;
-        bool includeScheduler;
+        bool includeControllerAgent;
         bool includeArchive;
 
         switch (dataSource) {
             case EDataSource::Archive:
                 includeCypress = false;
-                includeScheduler = false;
+                includeControllerAgent = false;
                 includeArchive = true;
                 break;
             case EDataSource::Runtime:
                 includeCypress = true;
-                includeScheduler = true;
+                includeControllerAgent = true;
                 includeArchive = false;
                 break;
             case EDataSource::Manual:
-                // NB: if 'cypress'/'scheduler' included simultanously with 'archive' then pagintaion may be broken.
+                // NB: if 'cypress'/'controller_agent' included simultanously with 'archive' then pagintaion may be broken.
                 includeCypress = options.IncludeCypress;
-                includeScheduler = options.IncludeScheduler;
+                includeControllerAgent = options.IncludeControllerAgent;
                 includeArchive = options.IncludeArchive;
                 break;
             default:
                 Y_UNREACHABLE();
         }
 
-        LOG_DEBUG("Starting list jobs (IncludeCypress: %v, IncludeScheduler: %v, IncludeScheduler: %v)",
+        LOG_DEBUG("Starting list jobs (IncludeCypress: %v, IncludeControllerAgent: %v, IncludeArchive: %v)",
             includeCypress,
-            includeScheduler,
+            includeControllerAgent,
             includeArchive);
 
         TFuture<std::pair<std::vector<TJob>, int>> cypressJobsFuture;
-        TFuture<std::pair<std::vector<TJob>, int>> schedulerJobsFuture;
+        TFuture<std::pair<std::vector<TJob>, int>> controllerAgentJobsFuture;
         TFuture<std::pair<std::vector<TJob>, TListJobsStatistics>> archiveJobsFuture;
 
         TNullable<TListJobsStatistics> statistics;
@@ -5332,8 +5336,12 @@ private:
             cypressJobsFuture = DoListJobsFromCypress(operationId, deadline, options);
         }
 
-        if (includeScheduler) {
-            schedulerJobsFuture = DoListJobsFromScheduler(operationId, deadline, options);
+        if (includeControllerAgent) {
+            controllerAgentJobsFuture = DoListJobsFromControllerAgent(
+                operationId,
+                controllerAgentAddress,
+                deadline,
+                options);
         }
 
         if (includeArchive && doesArchiveExists) {
@@ -5363,21 +5371,21 @@ private:
                 // No such operation in Cypress.
                 result.CypressJobCount = 0;
             } else {
-                cypressJobsOrError.ThrowOnError();
+                THROW_ERROR cypressJobsOrError;
             }
         }
 
-        if (includeScheduler) {
-            auto schedulerJobsOrError = WaitFor(schedulerJobsFuture);
-            if (schedulerJobsOrError.IsOK()) {
-                const auto& schedulerJobs = schedulerJobsOrError.Value();
-                result.SchedulerJobCount = schedulerJobs.second;
-                UpdateJobsList(schedulerJobs.first, &result.Jobs);
-            } else if (schedulerJobsOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
+        if (includeControllerAgent) {
+            auto controllerAgentJobsOrError = WaitFor(controllerAgentJobsFuture);
+            if (controllerAgentJobsOrError.IsOK()) {
+                const auto& controllerAgentJobs = controllerAgentJobsOrError.Value();
+                result.ControllerAgentJobCount = controllerAgentJobs.second;
+                UpdateJobsList(controllerAgentJobs.first, &result.Jobs);
+            } else if (controllerAgentJobsOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
                 // No such operation in the scheduler.
-                result.SchedulerJobCount = 0;
+                result.ControllerAgentJobCount = 0;
             } else {
-                schedulerJobsOrError.ThrowOnError();
+                THROW_ERROR controllerAgentJobsOrError;
             }
         }
 

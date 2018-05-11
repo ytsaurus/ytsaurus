@@ -54,7 +54,7 @@ void TReplicationPolicy::Load(NCellMaster::TLoadContext& context)
     DataPartsOnly_ = Load<decltype(DataPartsOnly_)>(context);
 }
 
-void FormatValue(TStringBuilder* builder, TReplicationPolicy policy, const TStringBuf& /*spec*/)
+void FormatValue(TStringBuilder* builder, TReplicationPolicy policy, TStringBuf /*spec*/)
 {
     builder->AppendFormat("{ReplicationFactor: %v, DataPartsOnly: %v}",
         policy.GetReplicationFactor(),
@@ -84,9 +84,9 @@ void Deserialize(TReplicationPolicy& policy, NYTree::INodePtr node)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChunkReplication::TChunkReplication(bool clearForCombining)
+TChunkReplication::TChunkReplication(bool clearForAggregating)
 {
-    if (clearForCombining) {
+    if (clearForAggregating) {
         for (auto& policy : MediumReplicationPolicies) {
             policy.SetDataPartsOnly(true);
         }
@@ -134,7 +134,7 @@ bool TChunkReplication::IsValid() const
     return false;
 }
 
-void FormatValue(TStringBuilder* builder, TChunkReplication replication, const TStringBuf& /*spec*/)
+void FormatValue(TStringBuilder* builder, TChunkReplication replication, TStringBuf /*spec*/)
 {
     // We want to accompany medium policies with medium indexes.
     using TIndexPolicyPair = std::pair<int, TReplicationPolicy>;
@@ -293,7 +293,7 @@ void TRequisitionEntry::Load(NCellMaster::TLoadContext& context)
     Load(context, Committed);
 }
 
-void FormatValue(TStringBuilder* builder, const TRequisitionEntry& entry, const TStringBuf& /*spec*/)
+void FormatValue(TStringBuilder* builder, const TRequisitionEntry& entry, TStringBuf /*spec*/)
 {
     return builder->AppendFormat(
         "{AccountId: %v, MediumIndex: %v, ReplicationPolicy: %v, Committed: %v}",
@@ -385,12 +385,12 @@ TChunkRequisition& TChunkRequisition::operator|=(const TChunkRequisition& rhs)
     }
 
     Vital_ = Vital_ || rhs.Vital_;
-    CombineEntries(rhs.Entries_);
+    AggregateEntries(rhs.Entries_);
 
     return *this;
 }
 
-void TChunkRequisition::CombineWith(
+void TChunkRequisition::AggregateWith(
     const TChunkReplication& replication,
     NSecurityServer::TAccount* account,
     bool committed)
@@ -411,7 +411,7 @@ void TChunkRequisition::CombineWith(
 
 TChunkReplication TChunkRequisition::ToReplication() const
 {
-    TChunkReplication result(true /* clearForCombining */);
+    TChunkReplication result(true /* clearForAggregating */);
     result.SetVital(Vital_);
 
     auto foundCommitted = false;
@@ -431,7 +431,7 @@ TChunkReplication TChunkRequisition::ToReplication() const
     return result;
 }
 
-void TChunkRequisition::CombineEntries(const TEntries& newEntries)
+void TChunkRequisition::AggregateEntries(const TEntries& newEntries)
 {
     if (newEntries.empty()) {
         return;
@@ -494,7 +494,7 @@ void TChunkRequisition::AddEntry(
     Entries_.emplace_back(account, mediumIndex, replicationPolicy, committed);
 }
 
-void FormatValue(TStringBuilder* builder, const TChunkRequisition& requisition, const TStringBuf& /*spec*/)
+void FormatValue(TStringBuilder* builder, const TChunkRequisition& requisition, TStringBuf /*spec*/)
 {
     builder->AppendFormat(
         "{Vital: %v, Entries: {%v}}",

@@ -153,6 +153,11 @@ protected:
             executorError = ex;
         }
 
+        if (!executorError.IsOK()) {
+            Exit(3);
+            return;
+        }
+
         if (Pty_ != -1) {
             CloseAllDescriptors({Pty_});
             if (setsid() == -1) {
@@ -202,11 +207,6 @@ protected:
                 fprintf(stderr, "Unable to notify job proxy\n%s", ex.what());
                 Y_UNREACHABLE();
             }
-        }
-
-        if (!executorError.IsOK()) {
-            Exit(3);
-            return;
         }
 
         TryExecve(

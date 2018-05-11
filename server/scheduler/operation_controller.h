@@ -143,7 +143,8 @@ struct IOperationController
      */
     virtual void OnJobAborted(
         const TJobPtr& job,
-        NJobTrackerClient::NProto::TJobStatus* status) = 0;
+        NJobTrackerClient::NProto::TJobStatus* status,
+        bool byScheduler) = 0;
 
     //! Called during heartbeat processing to notify the controller that a job is still running.
     /*!
@@ -151,7 +152,8 @@ struct IOperationController
      */
     virtual void OnJobRunning(
         const TJobPtr& job,
-        NJobTrackerClient::NProto::TJobStatus* status) = 0;
+        NJobTrackerClient::NProto::TJobStatus* status,
+        bool shouldLogJob) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IOperationController)

@@ -35,9 +35,10 @@ const TChunk::TReplicasData TChunk::EmptyReplicasData = {};
 
 TChunk::TChunk(const TChunkId& id)
     : TChunkTree(id)
-    , LocalRequisitionIndex_(IsErasure()
+    , AggregatedRequisitionIndex_(IsErasure()
         ? MigrationErasureChunkRequisitionIndex
         : MigrationChunkRequisitionIndex)
+    , LocalRequisitionIndex_(AggregatedRequisitionIndex_)
 {
     ChunkMeta_.set_type(static_cast<int>(EChunkType::Unknown));
     ChunkMeta_.set_version(-1);
@@ -87,6 +88,7 @@ void TChunk::Save(NCellMaster::TSaveContext& context) const
     using NYT::Save;
     Save(context, ChunkInfo_);
     Save(context, ChunkMeta_);
+    Save(context, AggregatedRequisitionIndex_);
     Save(context, LocalRequisitionIndex_);
     Save(context, ReadQuorum_);
     Save(context, WriteQuorum_);
@@ -144,6 +146,11 @@ void TChunk::Load(NCellMaster::TLoadContext& context)
     using NYT::Load;
     Load(context, ChunkInfo_);
     Load(context, ChunkMeta_);
+
+    // COMPAT(shakurov)
+    if (context.GetVersion() >= 709) {
+        Load(context, AggregatedRequisitionIndex_);
+    } // Else it's recomputed by the chunk manager.
 
     // COMPAT(shakurov)
     // Previously, chunks didn't store info on which account requested which RF -
@@ -241,7 +248,11 @@ void TChunk::Load(NCellMaster::TLoadContext& context)
                 auto& exportData = ExportDataList_[i];
                 const auto& oldExportData = oldExportDataList[i];
                 exportData.RefCounter = oldExportData.RefCounter;
-                exportData.ChunkRequisitionIndex = inferRequisitionIndexFromRF(oldExportData.ReplicationFactor);
+                if (exportData.RefCounter != 0) {
+                    exportData.ChunkRequisitionIndex = inferRequisitionIndexFromRF(oldExportData.ReplicationFactor);
+                } else {
+                    YCHECK(exportData.ChunkRequisitionIndex == EmptyChunkRequisitionIndex);
+                }
                 // Drop vitality.
             }
         } else if (context.GetVersion() < 700) {
@@ -253,8 +264,12 @@ void TChunk::Load(NCellMaster::TLoadContext& context)
                 exportData.RefCounter = oldExportData.RefCounter;
                 // NB: the chunk may belong to a non-default medium and thus have zero RF on DefaultStoreMediumIndex.
                 // inferRequisitionIndexFromRF() will force non-zero RF in that case.
-                exportData.ChunkRequisitionIndex = inferRequisitionIndexFromRF(
-                    oldExportData.Replication[DefaultStoreMediumIndex].GetReplicationFactor());
+                if (exportData.RefCounter != 0) {
+                    exportData.ChunkRequisitionIndex = inferRequisitionIndexFromRF(
+                        oldExportData.Replication[DefaultStoreMediumIndex].GetReplicationFactor());
+                } else {
+                    YCHECK(exportData.ChunkRequisitionIndex == EmptyChunkRequisitionIndex);
+                }
             }
         } else {
             TRangeSerializer::Load(context, TMutableRef::FromPod(ExportDataList_));
@@ -456,7 +471,7 @@ void TChunk::Seal(const TMiscExt& info)
     ChunkInfo_.set_disk_space(info.uncompressed_data_size());  // an approximation
 }
 
-TNullable<int> TChunk::GetMaxReplicasPerRack(
+int TChunk::GetMaxReplicasPerRack(
     int mediumIndex,
     TNullable<int> replicationFactorOverride,
     const TChunkRequisitionRegistry* registry) const
@@ -466,11 +481,8 @@ TNullable<int> TChunk::GetMaxReplicasPerRack(
             if (replicationFactorOverride) {
                 return *replicationFactorOverride;
             }
-            auto replicationFactor = ComputeReplicationFactor(mediumIndex, registry);
-            if (replicationFactor) {
-                return std::max(*replicationFactor - 1, 1);
-            }
-            return Null;
+            auto replicationFactor = GetAggregatedReplicationFactor(mediumIndex, registry);
+            return std::max(replicationFactor - 1, 1);
         }
 
         case EObjectType::ErasureChunk:
@@ -491,6 +503,11 @@ const TChunkExportData& TChunk::GetExportData(int cellIndex) const
     return ExportDataList_[cellIndex];
 }
 
+bool TChunk::IsExportedToCell(int cellIndex) const
+{
+    return ExportDataList_[cellIndex].RefCounter != 0;
+}
+
 void TChunk::Export(int cellIndex, TChunkRequisitionRegistry* registry)
 {
     auto& data = ExportDataList_[cellIndex];
@@ -499,6 +516,8 @@ void TChunk::Export(int cellIndex, TChunkRequisitionRegistry* registry)
 
         YCHECK(data.ChunkRequisitionIndex == EmptyChunkRequisitionIndex);
         registry->Ref(data.ChunkRequisitionIndex);
+        // NB: an empty requisition doesn't affect the aggregated requisition
+        // and thus doesn't call for updating the latter.
     }
 }
 
@@ -514,6 +533,25 @@ void TChunk::Unexport(
         data.ChunkRequisitionIndex = EmptyChunkRequisitionIndex; // just in case
 
         --ExportCounter_;
+
+        UpdateAggregatedRequisitionIndex(registry, objectManager);
+    }
+}
+
+void TChunk::FixExportRequisitionIndexes()
+{
+    if (ExportCounter_ == 0) {
+        return;
+    }
+
+    for (auto& data : ExportDataList_) {
+        if (data.RefCounter == 0 && data.ChunkRequisitionIndex != EmptyChunkRequisitionIndex) {
+            YCHECK(data.ChunkRequisitionIndex == MigrationErasureChunkRequisitionIndex ||
+                   data.ChunkRequisitionIndex == MigrationChunkRequisitionIndex);
+
+            data.ChunkRequisitionIndex = EmptyChunkRequisitionIndex;
+            // NB: no need to unref as they haven't been reffed in the first place.
+        }
     }
 }
 

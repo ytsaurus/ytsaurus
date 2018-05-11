@@ -22,19 +22,19 @@ public:
         , DsvParser(CreateParserForDsv(consumer, ConvertTo<TDsvFormatConfigPtr>(Config), /*wrapWithMap*/ false))
     { }
 
-    void ConsumeKey(const TStringBuf& key) override
+    void ConsumeKey(TStringBuf key) override
     {
         Consumer->OnListItem();
         Consumer->OnBeginMap();
         ConsumeFields(Config->KeyColumnNames, key);
     }
 
-    void ConsumeSubkey(const TStringBuf& subkey) override
+    void ConsumeSubkey(TStringBuf subkey) override
     {
         ConsumeFields(Config->SubkeyColumnNames, subkey);
     }
 
-    void ConsumeValue(const TStringBuf& value) override
+    void ConsumeValue(TStringBuf value) override
     {
         DsvParser->Read(value);
         DsvParser->Finish();
@@ -47,7 +47,7 @@ private:
 
     void ConsumeFields(
         const std::vector<TString>& fieldNames,
-        const TStringBuf& wholeField)
+        TStringBuf wholeField)
     {
         static const char* emptyString = "";
         char delimiter = Config->YamrKeysSeparator;
@@ -115,7 +115,7 @@ void ParseYamredDsv(
 }
 
 void ParseYamredDsv(
-    const TStringBuf& data,
+    TStringBuf data,
     IYsonConsumer* consumer,
     TYamredDsvFormatConfigPtr config)
 {

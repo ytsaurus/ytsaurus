@@ -15,8 +15,7 @@ TControllerAgent::TControllerAgent(
     const NNodeTrackerClient::TAddressMap& agentAddresses,
     NRpc::IChannelPtr channel,
     const IInvokerPtr& invoker)
-    : SuspiciousJobsYson_(NYson::TYsonString(TString(), NYson::EYsonType::MapFragment))
-    , Id_(id)
+    : Id_(id)
     , AgentAddresses_(agentAddresses)
     , Channel_(std::move(channel))
     , CancelableContext_(New<TCancelableContext>())

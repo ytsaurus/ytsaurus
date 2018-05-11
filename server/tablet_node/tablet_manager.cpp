@@ -537,7 +537,7 @@ private:
             return 0;
         }
 
-        virtual IYPathServicePtr FindItemService(const TStringBuf& key) const override
+        virtual IYPathServicePtr FindItemService(TStringBuf key) const override
         {
             if (auto owner = Owner_.Lock()) {
                 if (auto tablet = owner->FindTablet(TTabletId::FromString(key))) {

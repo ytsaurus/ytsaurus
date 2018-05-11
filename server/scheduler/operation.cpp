@@ -63,6 +63,7 @@ TOperation::TOperation(
     , SecureVault_(std::move(secureVault))
     , Events_(events)
     , EnableCompatibleStorageMode_(enableCompatibleStorageMode)
+    , SuspiciousJobs_(NYson::TYsonString(TString(), NYson::EYsonType::MapFragment))
     , Id_(id)
     , StartTime_(startTime)
     , AuthenticatedUser_(authenticatedUser)

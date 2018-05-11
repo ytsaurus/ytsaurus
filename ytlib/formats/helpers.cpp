@@ -18,7 +18,7 @@ TFormatsConsumerBase::TFormatsConsumerBase()
     : Parser(this)
 { }
 
-void TFormatsConsumerBase::OnRaw(const TStringBuf& yson, EYsonType type)
+void TFormatsConsumerBase::OnRaw(TStringBuf yson, EYsonType type)
 {
     Parser.Parse(yson, type);
 }
