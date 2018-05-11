@@ -64,7 +64,7 @@ def get_pool_metrics(metric_key, start_time):
     return result
 
 def get_cypress_metrics(operation_id, key):
-    statistics = get("//sys/operations/{0}/@progress/job_statistics".format(operation_id))
+    statistics = get_operation_cypress_path(operation_id) + "/@progress/job_statistics"
     return get_statistics(statistics, "{0}.$.completed.map.sum".format(key))
 
 ##################################################################
@@ -1398,7 +1398,7 @@ class TestSchedulerRevive(YTEnvSetup):
 
         jobs = wait_breakpoint(job_count=2)
 
-        operation_path = get_operation_cypress_path(op.id)
+        operation_path = get_new_operation_cypress_path(op.id)
 
         async_transaction_id = get("//sys/operations/" + op.id + "/@async_scheduler_transaction_id")
         assert exists(operation_path + "/output_0", tx=async_transaction_id)
@@ -1889,7 +1889,7 @@ class TestSchedulerMaxChildrenPerAttachRequest(YTEnvSetup):
         for job_id in jobs[:2]:
             release_breakpoint(job_id=job_id)
 
-        operation_path = "//sys/operations/{0}".format(op.id)
+        operation_path = get_operation_cypress_path(op.id)
         for iter in xrange(100):
             jobs_exist = exists(operation_path + "/@progress/jobs")
             if jobs_exist:
@@ -1898,7 +1898,7 @@ class TestSchedulerMaxChildrenPerAttachRequest(YTEnvSetup):
                     break
             time.sleep(0.1)
 
-        operation_path = get_operation_cypress_path(op.id)
+        operation_path = get_new_operation_cypress_path(op.id)
         transaction_id = get(operation_path + "/@async_scheduler_transaction_id")
         wait(lambda: get(operation_path + "/output_0/@row_count", tx=transaction_id) == 2)
 
@@ -3120,7 +3120,7 @@ fi
 
         for op in ops:
             wait(lambda: get("//sys/scheduler/orchid/scheduler/operations/{}/state".format(op.id)) == "running")
-            wait(lambda: get(get_operation_cypress_path(op.id) + "/@state") == "running")
+            wait(lambda: get(get_new_operation_cypress_path(op.id) + "/@state") == "running")
             assert get(jobs_path.format(op.id))["failed"] == 1
 
     def test_attributes(self):
