@@ -105,7 +105,7 @@ NChunkClient::NProto::TDataStatistics GetTotalInputDataStatistics(const TStatist
 NChunkClient::NProto::TDataStatistics GetTotalOutputDataStatistics(const TStatistics& jobStatistics);
 
 THashMap<int, NChunkClient::NProto::TDataStatistics> GetOutputDataStatistics(const TStatistics& jobStatistics);
-THashMap<int, int> GetOutputPipeIdleTimes(const TStatistics& jobStatistics);
+THashMap<int, i64> GetOutputPipeIdleTimes(const TStatistics& jobStatistics);
 
 extern const TString ExecAgentTrafficStatisticsPrefix;
 extern const TString JobProxyTrafficStatisticsPrefix;
