@@ -37,7 +37,7 @@ struct TOrderedByIdTableDescriptor
     };
 
     const NTableClient::TNameTablePtr NameTable;
-    const TIndex Ids;
+    const TIndex Index;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -61,7 +61,7 @@ struct TOrderedByStartTimeTableDescriptor
     };
 
     const NTableClient::TNameTablePtr NameTable;
-    const TIndex Ids;
+    const TIndex Index;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -82,7 +82,7 @@ struct TStderrsTableDescriptor
     };
 
     const NTableClient::TNameTablePtr NameTable;
-    const TIndex Ids;
+    const TIndex Index;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -112,7 +112,7 @@ struct TJobTableDescriptor
     };
 
     const NTableClient::TNameTablePtr NameTable;
-    const TIndex Ids;
+    const TIndex Index;
 };
 
 struct TJobSpecTableDescriptor
@@ -131,7 +131,7 @@ struct TJobSpecTableDescriptor
     };
 
     const NTableClient::TNameTablePtr NameTable;
-    const TIndex Ids;
+    const TIndex Index;
 };
 
 
