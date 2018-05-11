@@ -133,6 +133,8 @@ private:
             if (ResultHandlers_.empty() && CancelHandlers_.empty()) {
                 Y_ASSERT(!AbandonedUnset_);
                 AbandonedUnset_ = true;
+                // Cannot access this after UnrefFuture; in particular, cannot touch SpinLock_ in guard's dtor.
+                guard.Release();
                 UnrefFuture();
                 return;
             }
@@ -156,11 +158,11 @@ private:
     {
         return TError(NYT::EErrorCode::Canceled, "Promise abandoned");
     }
-    
+
     void InstallAbandonedError()
     {
         VERIFY_SPINLOCK_AFFINITY(SpinLock_);
-        
+
         if (AbandonedUnset_ && !Set_) {
             Value_.Assign(MakeAbandonedError());
             Set_ = true;
