@@ -290,7 +290,13 @@ TStringBuf TEnumTraits<T, true>::GetTypeName()
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T, class E, E Min, E Max>
+TEnumIndexedVector<T, E, Min, Max>::TEnumIndexedVector()
+    : Items_(N)
+{ }
+
+template <class T, class E, E Min, E Max>
 TEnumIndexedVector<T, E, Min, Max>::TEnumIndexedVector(std::initializer_list<T> elements)
+    : Items_(N)
 {
     Y_ASSERT(std::distance(elements.begin(), elements.end()) <= N);
     int index = 0;
