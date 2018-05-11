@@ -264,7 +264,7 @@ private:
 
         auto message = control.message();
         if (!message) {
-            message = "Eviction acknoweldged by client";
+            message = "Eviction acknowledged by client";
         }
 
         LOG_DEBUG("Pod eviction acknowledged (PodId: %v, Message: %v)",

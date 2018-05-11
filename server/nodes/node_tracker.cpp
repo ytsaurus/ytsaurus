@@ -208,41 +208,32 @@ public:
             podEntry->mutable_spec()->set_target_state(NClient::NApi::NProto::PTS_REMOVED);
         }
 
-        THashMap<TObjectId, size_t> podIdToActualAllocationIndex;
-
         for (auto* resource : node->Resources().Load()) {
             const auto& scheduledAllocations = resource->Status().ScheduledAllocations().Load();
             auto* actualAllocations = resource->Status().ActualAllocations().Get();
 
+            // Drop actual allocations for unknown pods and also for up-to-date pods (these allocations
+            // will be copied from scheduled ones).
             actualAllocations->erase(
                 std::remove_if(
                     actualAllocations->begin(),
                     actualAllocations->end(),
                     [&] (const auto& allocation) {
                         auto podId = FromProto<TObjectId>(allocation.pod_id());
-                        return reportedPodIds.find(podId) == reportedPodIds.end();
+                        return
+                            reportedPodIds.find(podId) == reportedPodIds.end() ||
+                            upToDatePodIds.find(podId) != upToDatePodIds.end();
                     }),
                 actualAllocations->end());
 
-            podIdToActualAllocationIndex.clear();
-            for (size_t index = 0; index < actualAllocations->size(); ++index) {
-                const auto& allocation = (*actualAllocations)[index];
-                YCHECK(podIdToActualAllocationIndex.emplace(
-                    FromProto<TObjectId>(allocation.pod_id()),
-                    index).second);
-            }
-
+            // Copy scheduled allocations for the up-to-date pods to the actual ones.
             for (const auto& scheduledAllocation : scheduledAllocations) {
                 auto podId = FromProto<TObjectId>(scheduledAllocation.pod_id());
                 if (upToDatePodIds.find(podId) == upToDatePodIds.end()) {
                     continue;
                 }
-                auto it = podIdToActualAllocationIndex.find(podId);
-                if (it == podIdToActualAllocationIndex.end()) {
-                    actualAllocations->push_back(scheduledAllocation);
-                } else {
-                    (*actualAllocations)[it->second].MergeFrom(scheduledAllocation);
-                }
+                actualAllocations->emplace_back();
+                actualAllocations->back().MergeFrom(scheduledAllocation);
             }
         }
     }

@@ -34,6 +34,7 @@
 #include <yt/core/concurrency/thread_pool.h>
 
 #include <yt/core/misc/ref_counted_tracker.h>
+#include <yt/core/misc/ref_counted_tracker_statistics_producer.h>
 #include <yt/core/misc/lfalloc_helpers.h>
 
 #include <yt/core/net/local_address.h>
@@ -230,7 +231,7 @@ private:
         MonitoringManager_ = New<NMonitoring::TMonitoringManager>();
         MonitoringManager_->Register(
             "/ref_counted",
-            TRefCountedTracker::Get()->GetMonitoringProducer());
+            CreateRefCountedTrackerStatisticsProducer());
 
         LFAllocProfiler_ = std::make_unique<NLFAlloc::TLFAllocProfiler>();
 

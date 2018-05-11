@@ -351,7 +351,7 @@ void FromDbValueImpl(
             , OutputStream_(&WireBytes_)
         { }
 
-        virtual void OnStringScalar(const TStringBuf& value) override
+        virtual void OnStringScalar(TStringBuf value) override
         {
             GetUnderlying()->OnStringScalar(value);
         }
@@ -412,7 +412,7 @@ void FromDbValueImpl(
             GetUnderlying()->OnBeginMap();
         }
 
-        virtual void OnKeyedItem(const TStringBuf& key) override
+        virtual void OnKeyedItem(TStringBuf key) override
         {
             GetUnderlying()->OnKeyedItem(key);
         }
@@ -433,7 +433,7 @@ void FromDbValueImpl(
             GetUnderlying()->OnEndAttributes();
         }
 
-        virtual void OnRaw(const TStringBuf& yson, EYsonType type) override
+        virtual void OnRaw(TStringBuf yson, EYsonType type) override
         {
             GetUnderlying()->OnRaw(yson, type);
         }
@@ -504,7 +504,7 @@ void FromDbValueImpl(
             : Appender_(std::move(appender))
         { }
 
-        virtual void OnStringScalar(const TStringBuf& value) override
+        virtual void OnStringScalar(TStringBuf value) override
         {
             EnsureInList();
             Appender_(MakeUnversionedStringValue(value));
@@ -556,7 +556,7 @@ void FromDbValueImpl(
             THROW_ERROR_EXCEPTION("YSON maps are not supported");
         }
 
-        virtual void OnKeyedItem(const TStringBuf& /*key*/) override
+        virtual void OnKeyedItem(TStringBuf /*key*/) override
         {
             Y_UNREACHABLE();
         }

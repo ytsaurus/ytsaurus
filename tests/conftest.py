@@ -1,4 +1,4 @@
-from yp.local import YpInstance
+from yp.local import YpInstance, ACTUAL_DB_VERSION
 from yp.logger import logger
 
 from yt.wrapper.common import generate_uuid
@@ -44,7 +44,7 @@ NODE_CONFIG = {
 logger.setLevel(logging.DEBUG)
 
 class YpTestEnvironment(object):
-    def __init__(self, yp_master_config=None, enable_ssl=False):
+    def __init__(self, yp_master_config=None, enable_ssl=False, start=True, db_version=ACTUAL_DB_VERSION):
         if yatest_common is not None:
             destination = os.path.join(yatest_common.work_path(), "build")
             os.makedirs(destination)
@@ -56,9 +56,13 @@ class YpTestEnvironment(object):
         self.yp_instance = YpInstance(self.test_sandbox_path,
                                       yp_master_config=yp_master_config,
                                       local_yt_options=dict(enable_debug_logging=True, node_config=NODE_CONFIG),
-                                      enable_ssl=enable_ssl)
-        self.yp_instance.start()
-        self.yp_client = self.yp_instance.create_client()
+                                      enable_ssl=enable_ssl,
+                                      db_version=db_version)
+        if start:
+            self.yp_instance.start()
+            self.yp_client = self.yp_instance.create_client()
+        else:
+            self.yp_instance.prepare()
         self.yt_client = self.yp_instance.create_yt_client()
 
     def cleanup(self):
@@ -100,3 +104,8 @@ def yp_env_configurable(request, test_environment_configurable):
     test_method_setup()
     request.addfinalizer(lambda: test_method_teardown(test_environment_configurable.yp_client))
     return test_environment_configurable
+
+@pytest.fixture(scope="function")
+def yp_env_migration(request):
+    environment = YpTestEnvironment(start=False, db_version=1)
+    return environment

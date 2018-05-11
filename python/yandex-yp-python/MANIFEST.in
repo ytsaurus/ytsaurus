@@ -2,3 +2,4 @@ include helpers.py
 include yp/bin/yp
 include yp/bin/yp-local
 include yp/YandexInternalRootCA.crt
+include yp/enums.bc
