@@ -9,7 +9,7 @@ using namespace NTableClient;
 
 TOrderedByIdTableDescriptor::TOrderedByIdTableDescriptor()
     : NameTable(New<TNameTable>())
-    , Ids(NameTable)
+    , Index(NameTable)
 { }
 
 TOrderedByIdTableDescriptor::TIndex::TIndex(const TNameTablePtr& nameTable)
@@ -38,7 +38,7 @@ TOrderedByIdTableDescriptor::TIndex::TIndex(const TNameTablePtr& nameTable)
 
 TOrderedByStartTimeTableDescriptor::TOrderedByStartTimeTableDescriptor()
     : NameTable(New<TNameTable>())
-    , Ids(NameTable)
+    , Index(NameTable)
 { }
 
 TOrderedByStartTimeTableDescriptor::TIndex::TIndex(const TNameTablePtr& nameTable)
@@ -56,7 +56,7 @@ TOrderedByStartTimeTableDescriptor::TIndex::TIndex(const TNameTablePtr& nameTabl
 
 TStderrsTableDescriptor::TStderrsTableDescriptor()
     : NameTable(New<TNameTable>())
-    , Ids(NameTable)
+    , Index(NameTable)
 { }
 
 TStderrsTableDescriptor::TIndex::TIndex(const TNameTablePtr& nameTable)
@@ -71,7 +71,7 @@ TStderrsTableDescriptor::TIndex::TIndex(const TNameTablePtr& nameTable)
 
 TJobTableDescriptor::TJobTableDescriptor()
     : NameTable(New<TNameTable>())
-    , Ids(NameTable)
+    , Index(NameTable)
 { }
 
 TJobTableDescriptor::TIndex::TIndex(const TNameTablePtr& n)
@@ -95,7 +95,7 @@ TJobTableDescriptor::TIndex::TIndex(const TNameTablePtr& n)
 
 TJobSpecTableDescriptor::TJobSpecTableDescriptor()
     : NameTable(New<TNameTable>())
-    , Ids(NameTable)
+    , Index(NameTable)
 { }
 
 TJobSpecTableDescriptor::TIndex::TIndex(const NTableClient::TNameTablePtr& n)

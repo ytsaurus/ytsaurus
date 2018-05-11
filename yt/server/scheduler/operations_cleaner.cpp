@@ -597,7 +597,7 @@ private:
 
                 for (const auto& operationId : operationIds) {
                     const auto& request = GetRequest(operationId);
-                    auto row = NDetail::BuildOrderedByIdTableRow(rowBuffer, request, desc.Ids, version);
+                    auto row = NDetail::BuildOrderedByIdTableRow(rowBuffer, request, desc.Index, version);
                     rows.push_back(row);
                     orderedByIdRowsDataWeight += GetDataWeight(row);
                 }
@@ -617,7 +617,7 @@ private:
 
                 for (const auto& operationId : operationIds) {
                     const auto& request = GetRequest(operationId);
-                    auto row = NDetail::BuildOrderedByStartTimeTableRow(rowBuffer, request, desc.Ids, version);
+                    auto row = NDetail::BuildOrderedByStartTimeTableRow(rowBuffer, request, desc.Index, version);
                     rows.push_back(row);
                     orderedByStartTimeRowsDataWeight += GetDataWeight(row);
                 }
