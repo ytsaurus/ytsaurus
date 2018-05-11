@@ -158,11 +158,11 @@ private:
     {
         return TError(NYT::EErrorCode::Canceled, "Promise abandoned");
     }
-    
+
     void InstallAbandonedError()
     {
         VERIFY_SPINLOCK_AFFINITY(SpinLock_);
-        
+
         if (AbandonedUnset_ && !Set_) {
             Value_.Assign(MakeAbandonedError());
             Set_ = true;
