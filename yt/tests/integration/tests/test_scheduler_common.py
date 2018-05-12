@@ -2045,7 +2045,7 @@ class TestSchedulingTags(YTEnvSetup):
 
         now = datetime.utcnow()
         snapshot_path = get_new_operation_cypress_path(op.id) + "/snapshot"
-        wait(lambda: date_string_to_datetime(get(snapshot_path + "/@creation_time")) > now)
+        wait(lambda: exists(snapshot_path) and date_string_to_datetime(get(snapshot_path + "/@creation_time")) > now)
 
         self.Env.kill_schedulers()
 
