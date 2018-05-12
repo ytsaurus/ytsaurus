@@ -493,7 +493,7 @@ print "x={0}\ty={1}".format(x, y)
 
         events_on_fs().wait_event("reducer_started", timeout=datetime.timedelta(1000))
 
-        job_ids = ls("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op.id))
+        job_ids = list(op.get_running_jobs())
         assert len(job_ids) == 1
         job_id = job_ids[0]
 

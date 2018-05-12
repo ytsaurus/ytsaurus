@@ -118,6 +118,13 @@ TFuture<void> TOperationControllerHost::FlushOperationNode()
         .Run(OperationId_);
 }
 
+TFuture<void> TOperationControllerHost::UpdateInitializedOperationNode()
+{
+    return BIND(&NControllerAgent::TMasterConnector::UpdateInitializedOperationNode, Bootstrap_->GetControllerAgent()->GetMasterConnector())
+        .AsyncVia(CancelableControlInvoker_)
+        .Run(OperationId_);
+}
+
 void TOperationControllerHost::CreateJobNode(const TCreateJobNodeRequest& request)
 {
     CancelableControlInvoker_->Invoke(BIND(

@@ -17,7 +17,6 @@ namespace NScheduler {
 
 NYPath::TYPath GetOperationsPath();
 NYPath::TYPath GetOperationPath(const TOperationId& operationId);
-NYPath::TYPath GetOperationProgressFromOrchid(const TOperationId& operationId);
 NYPath::TYPath GetJobsPath(const TOperationId& operationId);
 NYPath::TYPath GetJobPath(const TOperationId& operationId, const TJobId& jobId);
 NYPath::TYPath GetStderrPath(const TOperationId& operationId, const TJobId& jobId);
@@ -25,9 +24,11 @@ NYPath::TYPath GetSnapshotPath(const TOperationId& operationId);
 NYPath::TYPath GetSecureVaultPath(const TOperationId& operationId);
 NYPath::TYPath GetFailContextPath(const TOperationId& operationId, const TJobId& jobId);
 NYPath::TYPath GetNewFailContextPath(const TOperationId& operationId, const TJobId& jobId);
-NYPath::TYPath GetLivePreviewOutputPath(const TOperationId& operationId, int tableIndex);
-NYPath::TYPath GetLivePreviewStderrTablePath(const TOperationId& operationId);
-NYPath::TYPath GetLivePreviewIntermediatePath(const TOperationId& operationId);
+
+NYPath::TYPath GetSchedulerOrchidOperationPath(const TOperationId& operationId);
+NYPath::TYPath GetControllerAgentOrchidOperationPath(
+    const TString& controllerAgentAddress,
+    const TOperationId& operationId);
 
 // TODO(babenko): remove "New" infix once we fully migrate to this scheme
 NYPath::TYPath GetNewJobsPath(const TOperationId& operationId);

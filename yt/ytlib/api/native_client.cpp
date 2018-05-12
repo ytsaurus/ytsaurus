@@ -3379,10 +3379,8 @@ private:
             cypressAttributes->reserve(options.Attributes->size() + 1);
             MakeCypressOperationAttributes(*options.Attributes, std::back_inserter(*cypressAttributes));
 
-            // NOTE(asaitgalin): This attribute helps to distinguish between
-            // different cypress storage modes of operation.
-            if (!options.Attributes->has("state")) {
-                cypressAttributes->push_back("state");
+            if (!options.Attributes->has("controller_agent_address")) {
+                cypressAttributes->push_back("controller_agent_address");
             }
         }
 
@@ -3395,46 +3393,22 @@ private:
             if (cypressAttributes) {
                 ToProto(req->mutable_attributes()->mutable_keys(), *cypressAttributes);
             }
-            batchReq->AddRequest(req, "get_operation_new");
-        }
-
-        {
-            auto req = TYPathProxy::Get(GetOperationPath(operationId) + "/@");
-            if (cypressAttributes) {
-                ToProto(req->mutable_attributes()->mutable_keys(), *cypressAttributes);
-            }
             batchReq->AddRequest(req, "get_operation");
         }
 
         auto batchRsp = WaitFor(batchReq->Invoke())
             .ValueOrThrow();
 
-        auto attrNodeOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_operation_new");
-        auto attrOldNodeOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_operation");
+        auto cypressNodeRspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_operation");
 
-        auto getCypressNode = [&] (const auto& rsp) -> INodePtr {
-            if (rsp.IsOK()) {
-                auto node = ConvertToNode(TYsonString(rsp.Value()->value()));
-                if (!node->AsMap()->FindChild("state")) {
-                    return nullptr;
-                }
-                return node;
-            }
-            if (!rsp.FindMatching(NYTree::EErrorCode::ResolveError)) {
-                THROW_ERROR rsp;
-            }
-            return nullptr;
-        };
-
-        auto newCypressNode = getCypressNode(attrNodeOrError);
-        auto oldCypressNode = getCypressNode(attrOldNodeOrError);
         INodePtr cypressNode;
-        if (newCypressNode && oldCypressNode) {
-            cypressNode = PatchNode(oldCypressNode, newCypressNode);
-        } else if (newCypressNode) {
-            cypressNode = newCypressNode;
+        if (cypressNodeRspOrError.IsOK()) {
+            const auto& cypressNodeRsp = cypressNodeRspOrError.Value();
+            cypressNode = ConvertToNode(TYsonString(cypressNodeRsp->value()));
         } else {
-            cypressNode = oldCypressNode;
+            if (!cypressNodeRspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
+                THROW_ERROR cypressNodeRspOrError;
+            }
         }
 
         if (!cypressNode) {
@@ -3481,23 +3455,72 @@ private:
             }
         }
 
-        bool shouldRequestProgress = !options.Attributes || options.Attributes->has("progress");
-        if (options.IncludeScheduler && shouldRequestProgress) {
-            TGetNodeOptions getOptions;
-            getOptions.Timeout = deadline - Now();
-            auto schedulerProgressValueOrError = WaitFor(GetNode(GetOperationProgressFromOrchid(operationId), getOptions));
+        TNullable<TString> controllerAgentAddress;
+        if (auto child = attrNode->FindChild("controller_agent_address")) {
+            controllerAgentAddress = child->AsString()->GetValue();
+            if (options.Attributes && !options.Attributes->has("controller_agent_address")) {
+                attrNode->RemoveChild(child);
+            }
+        }
 
-            if (schedulerProgressValueOrError.IsOK()) {
-                auto schedulerProgressNode = ConvertToNode(schedulerProgressValueOrError.Value());
-                attrNode->RemoveChild("progress");
-                YCHECK(attrNode->AddChild(schedulerProgressNode, "progress"));
-            } else if (schedulerProgressValueOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
-                LOG_DEBUG("Operation is missing in scheduler Orchid (OperationId: %v)",
-                    operationId);
-            } else {
-                THROW_ERROR_EXCEPTION("Failed to get operation from scheduler")
-                    << TErrorAttribute("operation_id", operationId)
-                    << schedulerProgressValueOrError;
+        bool shouldRequestProgress = !options.Attributes || options.Attributes->has("progress");
+        bool shouldRequestBriefProgress = !options.Attributes || options.Attributes->has("brief_progress");
+
+        if (options.IncludeRuntime && (shouldRequestProgress || shouldRequestBriefProgress)) {
+            auto batchReq = proxy->ExecuteBatch();
+
+            auto addProgressAttributeRequest = [&] (const TString& attribute, bool shouldRequestFromScheduler) {
+                if (shouldRequestFromScheduler) {
+                    auto req = TYPathProxy::Get(GetSchedulerOrchidOperationPath(operationId) + "/" + attribute);
+                    batchReq->AddRequest(req, "get_operation_" + attribute);
+                }
+                if (controllerAgentAddress) {
+                    auto path = GetControllerAgentOrchidOperationPath(*controllerAgentAddress, operationId);
+                    auto req = TYPathProxy::Get(path + "/" + attribute);
+                    batchReq->AddRequest(req, "get_operation_" + attribute);
+                }
+            };
+
+            if (shouldRequestProgress) {
+                addProgressAttributeRequest("progress", /* shouldRequestFromScheduler */ true);
+            }
+            if (shouldRequestBriefProgress) {
+                addProgressAttributeRequest("brief_progress", /* shouldRequestFromScheduler */ false);
+            }
+
+            auto batchRsp = WaitFor(batchReq->Invoke())
+                .ValueOrThrow();
+
+            auto handleProgressAttributeRequest = [&] (const TString& attribute) {
+                INodePtr progressAttributeNode;
+
+                auto responses = batchRsp->GetResponses<TYPathProxy::TRspGet>("get_operation_" + attribute);
+                for (const auto& rsp : responses) {
+                    if (rsp.IsOK()) {
+                        auto node = ConvertToNode(TYsonString(rsp.Value()->value()));
+                        if (!progressAttributeNode) {
+                            progressAttributeNode = node;
+                        } else {
+                            progressAttributeNode = PatchNode(progressAttributeNode, node);
+                        }
+                    } else {
+                        if (!rsp.FindMatching(NYTree::EErrorCode::ResolveError)) {
+                            THROW_ERROR rsp;
+                        }
+                    }
+
+                    if (progressAttributeNode) {
+                        attrNode->RemoveChild(attribute);
+                        YCHECK(attrNode->AddChild(progressAttributeNode, attribute));
+                    }
+                }
+            };
+
+            if (shouldRequestProgress) {
+                handleProgressAttributeRequest("progress");
+            }
+            if (shouldRequestBriefProgress) {
+                handleProgressAttributeRequest("brief_progress");
             }
         }
 
@@ -5111,10 +5134,7 @@ private:
             return MakeFuture(std::pair<std::vector<TJob>, int>{});
         }
 
-        auto path = Format("//sys/controller_agents/instances/%v/orchid/controller_agent/operations/%v/running_jobs",
-            *controllerAgentAddress,
-            operationId);
-
+        auto path = GetControllerAgentOrchidOperationPath(*controllerAgentAddress, operationId) + "/running_jobs";
         auto getReq = TYPathProxy::Get(path);
 
         return proxy.Execute(getReq).Apply(BIND([options] (const TYPathProxy::TRspGetPtr& rsp) {

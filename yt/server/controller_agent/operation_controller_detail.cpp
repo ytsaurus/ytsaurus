@@ -408,6 +408,10 @@ TOperationControllerInitializationResult TOperationControllerBase::InitializeRev
     }
 
     InitUnrecognizedSpec();
+    InitializeOrchid();
+
+    WaitFor(Host->UpdateInitializedOperationNode())
+        .ThrowOnError();
 
     LOG_INFO("Operation initialized");
 
@@ -437,6 +441,10 @@ TOperationControllerInitializationResult TOperationControllerBase::InitializeCle
         .ThrowOnError();
 
     InitUnrecognizedSpec();
+    InitializeOrchid();
+
+    WaitFor(Host->UpdateInitializedOperationNode())
+        .ThrowOnError();
 
     LOG_INFO("Operation initialized");
 
@@ -609,9 +617,7 @@ void TOperationControllerBase::InitializeOrchid()
 }
 
 void TOperationControllerBase::DoInitialize()
-{
-    InitializeOrchid();
-}
+{ }
 
 void TOperationControllerBase::SyncPrepare()
 {

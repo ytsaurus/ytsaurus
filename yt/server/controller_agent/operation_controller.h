@@ -201,6 +201,7 @@ struct IOperationControllerHost
     virtual TFuture<void> RemoveSnapshot() = 0;
 
     virtual TFuture<void> FlushOperationNode() = 0;
+    virtual TFuture<void> UpdateInitializedOperationNode() = 0;
     virtual void CreateJobNode(const TCreateJobNodeRequest& request) = 0;
 
     virtual TFuture<void> AttachChunkTreesToLivePreview(
