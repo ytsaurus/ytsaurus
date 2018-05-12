@@ -59,14 +59,6 @@ TYPath GetNewOperationPath(const TOperationId& operationId)
         ToYPathLiteral(ToString(operationId));
 }
 
-TYPath GetOperationProgressFromOrchid(const TOperationId& operationId)
-{
-    return
-        "//sys/scheduler/orchid/scheduler/operations/" +
-        ToYPathLiteral(ToString(operationId)) +
-        "/progress";
-}
-
 TYPath GetJobsPath(const TOperationId& operationId)
 {
     return
@@ -121,6 +113,24 @@ TYPath GetNewFailContextPath(const TOperationId& operationId, const TJobId& jobI
     return
         GetNewJobPath(operationId, jobId)
         + "/fail_context";
+}
+
+TYPath GetSchedulerOrchidOperationPath(const TOperationId& operationId)
+{
+    return
+        "//sys/scheduler/orchid/scheduler/operations/" +
+        ToYPathLiteral(ToString(operationId));
+}
+
+TYPath GetControllerAgentOrchidOperationPath(
+    const TString& controllerAgentAddress,
+    const TOperationId& operationId)
+{
+    return
+        "//sys/controller_agents/instances/" +
+        controllerAgentAddress +
+        "/orchid/controller_agent/operations/" +
+        ToYPathLiteral(ToString(operationId));
 }
 
 TYPath GetSnapshotPath(const TOperationId& operationId)

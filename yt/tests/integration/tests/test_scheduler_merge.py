@@ -1070,14 +1070,14 @@ class TestSchedulerMergeCommands(YTEnvSetup):
                 "enable_job_splitting": False,
             })
         while True:
-            jobs = ls("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op.id))
+            jobs = list(op.get_running_jobs())
             if jobs:
                 break
             sleep(0.1)
         assert len(jobs) == 1
         job_id = jobs[0]
         while get("//sys/scheduler/orchid/scheduler/jobs/{0}/progress".format(job_id), default=0) < 0.1:
-            assert len(ls("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op.id))) == 1
+            assert len(op.get_running_jobs())
             sleep(0.1)
         interrupt_job(jobs[0])
         op.track()
@@ -1114,7 +1114,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
             })
 
         sleep(1.0)
-        assert "job_splitter" in get("//sys/scheduler/orchid/scheduler/operations/{0}".format(op.id), verbose=False)
+        assert "job_splitter" in get(op._get_new_operation_path() + "/controller_orchid", verbose=False)
 
         op.track()
 

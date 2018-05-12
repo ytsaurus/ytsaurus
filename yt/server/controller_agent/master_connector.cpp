@@ -121,6 +121,15 @@ public:
             request));
     }
 
+    TFuture<void> UpdateInitializedOperationNode(const TOperationId& operationId)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        return BIND(&TImpl::DoUpdateInitializedOperationNode, MakeStrong(this), operationId)
+            .AsyncVia(CancelableControlInvoker_)
+            .Run();
+    }
+
     TFuture<void> FlushOperationNode(const TOperationId& operationId)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -521,6 +530,42 @@ private:
         }
     }
 
+    void DoUpdateInitializedOperationNode(const TOperationId& operationId)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        const auto& controllerAgent = Bootstrap_->GetControllerAgent();
+        auto operation = controllerAgent->GetOperation(operationId);
+
+        auto paths = GetOperationPaths(operation->GetId(), operation->GetEnableCompatibleStorageMode());
+
+        auto batchReq = StartObjectBatchRequestWithPrerequisites();
+        GenerateMutationId(batchReq);
+
+        for (const auto& operationPath : paths) {
+            // Update controller agent address.
+            {
+                auto req = TYPathProxy::Set(operationPath + "/@controller_agent_address");
+                req->set_value(ConvertToYsonString(GetDefaultAddress(Bootstrap_->GetLocalAddresses())).GetData());
+                batchReq->AddRequest(req, "set_controller_agent_address");
+            }
+            // Update controller agent orchid, it should point to this controller agent.
+            {
+                auto req = TCypressYPathProxy::Create(operationPath + "/controller_orchid");
+                req->set_force(true);
+                req->set_type(static_cast<int>(EObjectType::Orchid));
+                auto attributes = CreateEphemeralAttributes();
+                attributes->Set("remote_addresses", Bootstrap_->GetLocalAddresses());
+                attributes->Set("remote_root", "//controller_agent/operations/" + ToYPathLiteral(ToString(operationId)));
+                ToProto(req->mutable_node_attributes(), *attributes);
+                batchReq->AddRequest(req, "create_controller_orchid");
+            }
+        }
+
+        auto batchRspOrError = WaitFor(batchReq->Invoke());
+        THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError));
+    }
+
     void DoUpdateOperationNode(const TOperationPtr& operation)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -694,27 +739,7 @@ private:
                 req->set_value(briefProgress.GetData());
             }
 
-            // Set controller agent address.
-            {
-                auto req = multisetReq->add_subrequests();
-                req->set_key("controller_agent_address");
-                req->set_value(ConvertToYsonString(GetDefaultAddress(Bootstrap_->GetLocalAddresses())).GetData());
-            }
-
             batchReq->AddRequest(multisetReq, "update_op_node");
-
-            // Create operation controller orchid node.
-            {
-                auto req = TCypressYPathProxy::Create(operationPath + "/controller_orchid");
-                req->set_force(true);
-                req->set_type(static_cast<int>(EObjectType::Orchid));
-                auto attributes = CreateEphemeralAttributes();
-                attributes->Set("remote_addresses", Bootstrap_->GetLocalAddresses());
-                attributes->Set("remote_root", "//controller_agent/operations/" + ToYPathLiteral(ToString(operationId)));
-                ToProto(req->mutable_node_attributes(), *attributes);
-                GenerateMutationId(req);
-                batchReq->AddRequest(req, "create_controller_orchid");
-            }
         }
 
         // This is needed to prevent controller lifetime prolongation due to strong pointer
@@ -1328,6 +1353,11 @@ void TMasterConnector::CreateJobNode(const TOperationId& operationId, const TCre
 TFuture<void> TMasterConnector::FlushOperationNode(const TOperationId& operationId)
 {
     return Impl_->FlushOperationNode(operationId);
+}
+
+TFuture<void> TMasterConnector::UpdateInitializedOperationNode(const TOperationId& operationId)
+{
+    return Impl_->UpdateInitializedOperationNode(operationId);
 }
 
 TFuture<void> TMasterConnector::AttachToLivePreview(

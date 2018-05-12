@@ -9,7 +9,6 @@ from flaky import flaky
 import os
 import sys
 import time
-import random
 import datetime
 
 import __builtin__
@@ -1561,7 +1560,7 @@ class TestMinNeededResources(YTEnvSetup):
 
         time.sleep(3.0)
 
-        assert get(op1_path + "/progress/schedule_job_statistics/count") > 0
+        assert get(op1._get_new_operation_path() + "/controller_orchid/progress/schedule_job_statistics/count") > 0
 
         create("table", "//tmp/t2_in")
         write_table("//tmp/t2_in", [{"x": 1}])
@@ -1584,7 +1583,7 @@ class TestMinNeededResources(YTEnvSetup):
         wait(lambda: exists(op2_path) and get(op2_path + "/state") == "running")
 
         time.sleep(3.0)
-        assert get(op2_path + "/progress/schedule_job_statistics/count") == 0
+        assert get(op2._get_new_operation_path() + "/controller_orchid/progress/schedule_job_statistics/count") == 0
 
         abort_op(op1.id)
 
@@ -1962,7 +1961,7 @@ class TestSchedulingOptionsPerTree(YTEnvSetup):
             spec=spec,
             dont_track=True)
 
-        jobs_path = "//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op.id)
+        jobs_path = op._get_new_operation_path() + "/controller_orchid/running_jobs"
 
         dummy = {"jobs": [], "stability_count": 0} # no "nonlocal" support in python 2
         def all_jobs_running():
@@ -2043,7 +2042,7 @@ class TestSchedulingOptionsPerTree(YTEnvSetup):
             spec=spec,
             dont_track=True)
 
-        jobs_path = "//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op.id)
+        jobs_path = op._get_new_operation_path() + "/controller_orchid/running_jobs"
 
         def iter_running_jobs():
             try:

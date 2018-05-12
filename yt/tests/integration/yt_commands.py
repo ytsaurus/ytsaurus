@@ -722,7 +722,7 @@ class Operation(object):
             raise TimeoutError("Operation didn't become running within timeout")
 
     def get_job_count(self, state):
-        path = "//sys/scheduler/orchid/scheduler/operations/{0}/progress/jobs/{1}".format(self.id, state)
+        path = self._get_new_operation_path() + "/controller_orchid/progress/jobs/" + str(state)
         if state == "aborted" or state == "completed":
             path += "/total"
         try:
@@ -733,7 +733,7 @@ class Operation(object):
             return 0
 
     def get_running_jobs(self):
-        jobs_path = "//sys/scheduler/orchid/scheduler/operations/" + self.id + "/running_jobs"
+        jobs_path = self._get_new_operation_path() + "/controller_orchid/running_jobs"
         return get(jobs_path, verbose=False, default=[])
 
     def get_state(self, **kwargs):

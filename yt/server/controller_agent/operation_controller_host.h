@@ -51,6 +51,7 @@ public:
     virtual TFuture<void> RemoveSnapshot() override;
 
     virtual TFuture<void> FlushOperationNode() override;
+    virtual TFuture<void> UpdateInitializedOperationNode() override;
     virtual void CreateJobNode(const TCreateJobNodeRequest& request) override;
 
     virtual TFuture<void> AttachChunkTreesToLivePreview(

@@ -635,7 +635,8 @@ TGetOperationCommand::TGetOperationCommand()
     RegisterParameter("operation_id", OperationId);
     RegisterParameter("attributes", Options.Attributes)
         .Optional();
-    RegisterParameter("include_scheduler", Options.IncludeScheduler)
+    RegisterParameter("include_runtime", Options.IncludeRuntime)
+        .Alias("include_scheduler")
         .Optional();
 }
 

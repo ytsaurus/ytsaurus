@@ -743,7 +743,7 @@ struct TGetOperationOptions
     , public TMasterReadOptions
 {
     TNullable<THashSet<TString>> Attributes;
-    bool IncludeScheduler = false;
+    bool IncludeRuntime = false;
 
     TGetOperationOptions()
     { }

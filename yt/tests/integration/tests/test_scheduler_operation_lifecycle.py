@@ -746,10 +746,8 @@ class SchedulerReviveBase(YTEnvSetup):
 
         self._wait_for_state(op, "running")
 
-        failed_jobs_path = "//sys/scheduler/orchid/scheduler/operations/" + op.id + "/progress/jobs/failed"
-
         def failed_jobs_exist():
-            return exists(failed_jobs_path) and get(failed_jobs_path) >= 3
+            return op.get_job_count("failed") >= 3
 
         wait(failed_jobs_exist)
 
@@ -761,7 +759,7 @@ class SchedulerReviveBase(YTEnvSetup):
         self.Env.kill_schedulers()
         self.Env.start_schedulers()
 
-        wait(lambda: exists(failed_jobs_path) and get(failed_jobs_path) >= 3)
+        wait(lambda: op.get_job_count("failed") >= 3)
 
 class TestSchedulerReviveMap(SchedulerReviveBase):
     OP_TYPE = "map"

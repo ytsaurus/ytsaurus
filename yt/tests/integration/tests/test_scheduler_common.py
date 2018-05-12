@@ -756,7 +756,7 @@ class TestSchedulerCommon(YTEnvSetup):
             spec={"test_flag": to_yson_type("value", attributes={"attr": 0})})
 
         jobs = wait_breakpoint()
-        progress = get("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs/{1}/progress".format(op.id, jobs[0]))
+        progress = get(op._get_new_operation_path() + "/controller_orchid/running_jobs/" + jobs[0] + "/progress")
         assert progress >= 0
 
         test_flag = get("//sys/scheduler/orchid/scheduler/operations/{0}/spec/test_flag".format(op.id))
@@ -780,7 +780,7 @@ class TestSchedulerCommon(YTEnvSetup):
 
         jobs = wait_breakpoint()
         def get_stderr_size():
-            return get("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs/{1}/stderr_size".format(op.id, jobs[0]))
+            return get(op._get_new_operation_path() + "/controller_orchid/running_jobs/" + jobs[0] + "/stderr_size")
         wait(lambda: get_stderr_size() == len("FOOBAR\n"))
 
         release_breakpoint()
@@ -855,8 +855,7 @@ class TestSchedulerCommon(YTEnvSetup):
 
         jobs = wait_breakpoint()
         # Wait till job starts reading input
-        progress_path = "//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs/{1}/progress".format(op.id, jobs[0])
-        wait(lambda : get(progress_path) >= 0.5)
+        wait(lambda: get(op._get_new_operation_path() + "/controller_orchid/running_jobs/" + jobs[0] + "/progress") >= 0.5)
 
         dump_job_context(jobs[0], "//tmp/input_context")
 
@@ -891,8 +890,7 @@ class TestSchedulerCommon(YTEnvSetup):
 
         jobs = wait_breakpoint()
         # Wait till job starts reading input
-        progress_path = "//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs/{1}/progress".format(op.id, jobs[0])
-        wait(lambda : get(progress_path) >= 0.5)
+        wait(lambda: get(op._get_new_operation_path() + "/controller_orchid/running_jobs/" + jobs[0] + "/progress") >= 0.5)
 
         with pytest.raises(YtError):
             dump_job_context(jobs[0], "//tmp/dir/input_context", authenticated_user="abc")
@@ -1435,9 +1433,9 @@ class TestSchedulerRevive(YTEnvSetup):
 
 class TestJobRevivalBase(YTEnvSetup):
     def _wait_for_single_job(self, op_id):
-        path = "//sys/scheduler/orchid/scheduler/operations/{0}".format(op_id)
+        path = get_new_operation_cypress_path(op_id) + "/controller_orchid"
         while True:
-            if get(path + "/controller_state", default=None) == "running":
+            if get(path + "/state", default=None) == "running":
                 jobs = ls(path + "/running_jobs")
                 if len(jobs) > 0:
                     assert len(jobs) == 1
@@ -2262,7 +2260,7 @@ class TestSchedulerSnapshots(YTEnvSetup):
         copy(snapshot_path, snapshot_backup_path)
         assert len(read_file(snapshot_backup_path, verbose=False)) > 0
 
-        ts = get("//sys/scheduler/orchid/scheduler/operations/" + op.id + "/progress/last_successful_snapshot_time")
+        ts = get(op._get_new_operation_path() + "/controller_orchid/progress/last_successful_snapshot_time")
         assert time.time() - datetime_str_to_ts(ts) < 60
 
         release_breakpoint()
@@ -2458,7 +2456,7 @@ class TestSchedulerJobStatistics(YTEnvSetup):
             command=with_breakpoint("BREAKPOINT ; cat"))
 
         wait_breakpoint()
-        running_jobs = get("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op.id))
+        running_jobs = op.get_running_jobs()
         job_id = running_jobs.keys()[0]
         job_info = running_jobs.values()[0]
 
@@ -2487,7 +2485,7 @@ class TestSchedulerJobStatistics(YTEnvSetup):
             command=with_breakpoint("cat ; BREAKPOINT"))
 
         wait_breakpoint()
-        running_jobs = get("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op.id))
+        running_jobs = op.get_running_jobs()
         job_id = running_jobs.keys()[0]
 
         statistics_appeared = False
@@ -2822,10 +2820,9 @@ class TestPoolMetrics(YTEnvSetup):
         release_breakpoint(job_id=jobs[0])
 
         # Wait until short job is completed.
-        orchid_path = "//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op.id)
-        wait(lambda: len(ls(orchid_path)) == 1)
+        wait(lambda: len(op.get_running_jobs()) == 1)
 
-        running_jobs = ls(orchid_path)
+        running_jobs = list(op.get_running_jobs())
         assert len(running_jobs) == 1
         abort_job(running_jobs[0])
 
@@ -2989,7 +2986,7 @@ class TestGetJobSpecFailed(YTEnvSetup):
 
         time.sleep(2.0)
 
-        jobs = get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/jobs".format(op.id), verbose=False)
+        jobs = get(op._get_new_operation_path() + "/controller_orchid/progress/jobs", verbose=False)
         assert jobs["aborted"]["non_scheduled"]["get_spec_failed"] > 0
 
 ##################################################################
@@ -3010,7 +3007,7 @@ class TestResourceLimitsOverrides(YTEnvSetup):
     }
 
     def _wait_for_jobs(self, op_id):
-        jobs_path = "//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op_id)
+        jobs_path = get_new_operation_cypress_path(op_id) + "/controller_orchid/running_jobs"
         wait(lambda: exists(jobs_path) and len(get(jobs_path)) > 0,
              "Failed waiting for the first job")
         return get(jobs_path)
@@ -3106,12 +3103,11 @@ fi
 
             ops.append(op)
 
-        jobs_path = "//sys/scheduler/orchid/scheduler/operations/{}/progress/jobs"
         for op in ops:
-            wait(lambda: get(jobs_path.format(op.id))["failed"] == 1)
+            wait(lambda: op.get_job_count("failed") == 1)
 
             # Wait till snapshot index is incremented (snapshot is built)
-            snapshot_index_path = "//sys/scheduler/orchid/scheduler/operations/{}/progress/snapshot_index".format(op.id)
+            snapshot_index_path = op._get_new_operation_path() + "/controller_orchid/progress/snapshot_index"
             snapshot_index = get(snapshot_index_path)
             wait(lambda: get(snapshot_index_path) > snapshot_index)
 
@@ -3121,7 +3117,7 @@ fi
         for op in ops:
             wait(lambda: get("//sys/scheduler/orchid/scheduler/operations/{}/state".format(op.id)) == "running")
             wait(lambda: get(get_new_operation_cypress_path(op.id) + "/@state") == "running")
-            assert get(jobs_path.format(op.id))["failed"] == 1
+            assert op.get_job_count("failed") == 1
 
     def test_attributes(self):
         create_user("u")
@@ -3170,7 +3166,7 @@ fi
             out="//tmp/t_output",
             dont_track=True)
 
-        jobs_path = "//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op.id)
+        jobs_path = get_new_operation_cypress_path(op.id) + "/controller_orchid/running_jobs"
         wait(lambda: exists(jobs_path) and len(ls(jobs_path)) == 1)
 
         set(get_operation_cypress_path(op.id) + "/@resource_limits", {"user_slots": 1})
@@ -3205,8 +3201,7 @@ fi
                 },
                 dont_track=True)
 
-            jobs_path = "//sys/scheduler/orchid/scheduler/operations/{0}/progress/jobs".format(op.id)
-            wait(lambda: exists(jobs_path) and get(jobs_path)["failed"] == 1 and get(jobs_path)["running"] >= 1)
+            wait(lambda: op.get_job_count("failed") == 1 and op.get_job_count("running") >= 1)
 
             time.sleep(1.0)
 
@@ -3329,7 +3324,7 @@ class TestControllerMemoryUsage(YTEnvSetup):
                  })
         time.sleep(2)
 
-        usage_before = get("//sys/scheduler/orchid/scheduler/operations/{0}/controller_memory_usage".format(op.id))
+        usage_before = get(op._get_new_operation_path() + "/controller_orchid/memory_usage")
         # Normal controller footprint should not exceed a few megabytes.
         assert usage_before < 2 * 10**6
         print >>sys.stderr, "usage_before =", usage_before
@@ -3350,7 +3345,7 @@ class TestControllerMemoryUsage(YTEnvSetup):
 
         # After all jobs are finished, controller should contain at least 40 pairs of boundary keys of length 250kb,
         # resulting in about 20mb of memory.
-        wait(lambda: get("//sys/scheduler/orchid/scheduler/operations/{0}/controller_memory_usage".format(op.id)) > 15 * 10**6)
+        wait(lambda: get(op._get_new_operation_path() + "/controller_orchid/memory_usage") > 15 * 10**6)
 
         op.track()
 

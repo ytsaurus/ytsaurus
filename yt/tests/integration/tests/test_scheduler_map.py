@@ -317,8 +317,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
                 command="sleep 100",
                 spec={"job_count": job_count})
 
-            running_jobs_path = "//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op.id)
-            wait(lambda: exists(running_jobs_path) and len(ls(running_jobs_path)) > 1)
+            wait(lambda: len(op.get_running_jobs()) > 1)
 
             assert op.get_job_count("total") == job_count
             op.abort()
@@ -1023,7 +1022,7 @@ done
             command="sleep 5; echo '{a=1}'",
             dont_track=True)
         time.sleep(2.0)
-        assert len(get("//sys/scheduler/orchid/scheduler/operations/{0}/job_splitter".format(op.id))) == 0
+        assert len(get(op._get_new_operation_path() + "/controller_orchid/job_splitter")) == 0
         op.track()
 
 ##################################################################

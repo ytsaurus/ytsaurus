@@ -226,7 +226,7 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
                 "fail_on_job_restart": True
             })
         job_id = wait_breakpoint()[0]
-        jobs = ls("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op.id))
+        jobs = op.get_running_jobs()
         assert len(jobs) == 1
         abandon_job(job_id)
         release_breakpoint()
@@ -245,7 +245,7 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
                 "fail_on_job_restart": True
             })
         wait_breakpoint()
-        jobs = ls("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op.id))
+        jobs = list(op.get_running_jobs())
         assert len(jobs) == 1
         job_id = jobs[0]
         with pytest.raises(YtError):
@@ -272,7 +272,7 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
                 })
             events_on_fs().wait_event("job_started_a")
             events_on_fs().wait_event("job_started_b")
-            jobs = ls("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op.id))
+            jobs = list(op.get_running_jobs())
             assert len(jobs) == 2
             job_id = jobs[0]
             action(job_id)

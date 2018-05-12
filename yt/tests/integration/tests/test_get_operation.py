@@ -52,6 +52,7 @@ class TestGetOperation(YTEnvSetup):
         wait_breakpoint()
 
         wait(lambda: exists(get_new_operation_cypress_path(op.id)))
+        wait(lambda: get(get_new_operation_cypress_path(op.id) + "/@brief_progress/jobs/running") == 1)
 
         res_get_operation = get_operation(op.id, include_scheduler=True)
         res_cypress = _get_operation_from_cypress(op.id)
