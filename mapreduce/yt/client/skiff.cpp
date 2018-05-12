@@ -100,13 +100,12 @@ NSkiff::TSkiffSchemaPtr CreateSkiffSchema(
                 CreateSimpleTypeSchema(EWireType::Int64)})
             ->SetName("$range_index"));
     }
-    if (options.HasRowIndex_) {
-        skiffColumns.push_back(
-            CreateVariant8Schema({
-                CreateSimpleTypeSchema(EWireType::Nothing),
-                CreateSimpleTypeSchema(EWireType::Int64)})
-            ->SetName("$row_index"));
-    }
+
+    skiffColumns.push_back(
+        CreateVariant8Schema({
+            CreateSimpleTypeSchema(EWireType::Nothing),
+            CreateSimpleTypeSchema(EWireType::Int64)})
+        ->SetName("$row_index"));
 
     return CreateTupleSchema(std::move(skiffColumns));
 }
@@ -197,9 +196,9 @@ TFormat CreateSkiffFormat(const NSkiff::TSkiffSchemaPtr& schema) {
 }
 
 NSkiff::TSkiffSchemaPtr CreateSkiffSchemaIfNecessary(
-    ENodeReaderFormat nodeReaderFormat,
     const TAuth& auth,
     const TTransactionId& transactionId,
+    ENodeReaderFormat nodeReaderFormat,
     const TVector<TRichYPath>& tablePaths,
     const TCreateSkiffSchemaOptions& options)
 {
@@ -211,7 +210,7 @@ NSkiff::TSkiffSchemaPtr CreateSkiffSchemaIfNecessary(
         if (path.Columns_) {
             switch (nodeReaderFormat) {
                 case ENodeReaderFormat::Skiff:
-                    ythrow yexception() << "Cannot use skiff format with column selectors";
+                    ythrow TApiUsageError() << "Cannot use Skiff format with column selectors";
                 case ENodeReaderFormat::Auto:
                     return nullptr;
                 default:
@@ -237,8 +236,10 @@ NSkiff::TSkiffSchemaPtr CreateSkiffSchemaIfNecessary(
         bool strict = attributes["schema"].GetAttributes()["strict"].AsBool();
         switch (nodeReaderFormat) {
             case ENodeReaderFormat::Skiff:
-                Y_ENSURE(strict, "Cannot use skiff format for table with non-strict schema '" << tablePath << "'");
-                Y_ENSURE(!dynamic, "Cannot use skiff format for dynamic table '" << tablePath << "'");
+                Y_ENSURE_EX(strict,
+                    TApiUsageError() << "Cannot use skiff format for table with non-strict schema '" << tablePath << "'");
+                Y_ENSURE_EX(!dynamic,
+                    TApiUsageError() << "Cannot use skiff format for dynamic table '" << tablePath << "'");
                 break;
             case ENodeReaderFormat::Auto:
                 if (dynamic || !strict) {
