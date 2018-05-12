@@ -3,6 +3,7 @@
 #include "public.h"
 
 #include <atomic>
+#include <array>
 
 namespace NYT {
 
@@ -117,15 +118,16 @@ private:
 
     static_assert(sizeof(std::atomic<TNode*>) == sizeof(intptr_t), "std::atomic<TNode*> does not seem to be lock-free.");
 
-
+private:
     TChunkedMemoryPool* const Pool_;
     const TComparer Comparer_;
-    TNode* const Head_ = AllocateHeadNode();
-    TNode* Prevs[MaxHeight];
+    TNode* const Head_;
+    std::array<TNode*, MaxHeight> Prevs_;
 
     std::atomic<int> Size_ = {0};
     std::atomic<int> Height_ = {1};
 
+private:
     static int GenerateHeight();
 
     TNode* AllocateNode(const TKey& key, int height);
@@ -133,7 +135,6 @@ private:
 
     template <class TPivot>
     TNode* DoFindGreaterThanOrEqualTo(const TPivot& pivot, TNode** prevs) const;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
