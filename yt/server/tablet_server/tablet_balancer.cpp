@@ -24,6 +24,7 @@ namespace NTabletServer {
 using namespace NConcurrency;
 using namespace NCypressClient;
 using namespace NTableClient;
+using namespace NTableServer;
 using namespace NTabletClient;
 using namespace NTabletServer::NProto;
 using namespace NYTree;
@@ -125,6 +126,8 @@ private:
     std::deque<TTabletId> TabletIdQueue_;
     THashSet<TTabletId> QueuedTabletIds_;
     THashSet<const TTablet*> TouchedTablets_;
+    THashSet<const TTableNode*> TablesWithActiveActions_;
+    THashSet<const TTabletCellBundle*> BundlesWithActiveActions_;
 
     const NProfiling::TProfiler Profiler;
     NProfiling::TSimpleCounter QueueSizeCounter_;
@@ -152,9 +155,7 @@ private:
             return;
         }
 
-        if (CheckActiveTabletActions()) {
-            return;
-        }
+        FillActiveTabletActions();
 
         if (BalanceCells_) {
             BalanceTabletCells();
@@ -165,8 +166,11 @@ private:
         BalanceCells_ = !BalanceCells_;
     }
 
-    bool CheckActiveTabletActions()
+    void FillActiveTabletActions()
     {
+        TablesWithActiveActions_.clear();
+        BundlesWithActiveActions_.clear();
+
         const auto& tabletManager = Bootstrap_->GetTabletManager();
         for (const auto& pair : tabletManager->TabletActions()) {
             const auto* action = pair.second;
@@ -174,11 +178,12 @@ private:
             if (action->GetState() != ETabletActionState::Completed &&
                 action->GetState() != ETabletActionState::Failed)
             {
-                return true;
+                for (const auto* tablet : action->Tablets()) {
+                    TablesWithActiveActions_.insert(tablet->GetTable());
+                    BundlesWithActiveActions_.insert(tablet->GetTable()->GetTabletCellBundle());
+                }
             }
         }
-
-        return false;
     }
 
     void BalanceTabletCells()
@@ -199,6 +204,10 @@ private:
 
     void ReassignInMemoryTablets(const TTabletCellBundle* bundle)
     {
+        if (BundlesWithActiveActions_.has(bundle)) {
+            return;
+        }
+
         const auto& config = bundle->TabletBalancerConfig();
 
         if (!config->EnableInMemoryBalancer) {
@@ -338,7 +347,9 @@ private:
             QueuedTabletIds_.erase(tabletId);
 
             auto* tablet = tabletManager->FindTablet(tabletId);
-            if (!IsTabletReshardable(tablet)) {
+            if (!IsTabletReshardable(tablet) ||
+                TablesWithActiveActions_.has(tablet->GetTable()))
+            {
                 continue;
             }
 
