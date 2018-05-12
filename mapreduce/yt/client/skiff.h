@@ -23,9 +23,8 @@ struct TCreateSkiffSchemaOptions
 {
     using TSelf = TCreateSkiffSchemaOptions;
 
-    FLUENT_FIELD_DEFAULT(bool, HasKeySwitch, true);
+    FLUENT_FIELD_DEFAULT(bool, HasKeySwitch, false);
     FLUENT_FIELD_DEFAULT(bool, HasRangeIndex, false);
-    FLUENT_FIELD_DEFAULT(bool, HasRowIndex, false);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -49,9 +48,9 @@ void Deserialize(NSkiff::TSkiffSchemaPtr& schema, const TNode& node);
 TFormat CreateSkiffFormat(const NSkiff::TSkiffSchemaPtr& schema);
 
 NSkiff::TSkiffSchemaPtr CreateSkiffSchemaIfNecessary(
-    ENodeReaderFormat nodeReaderFormat,
     const TAuth& auth,
     const TTransactionId& transactionId,
+    ENodeReaderFormat nodeReaderFormat,
     const TVector<TRichYPath>& tablePaths,
     const TCreateSkiffSchemaOptions& options = TCreateSkiffSchemaOptions());
 

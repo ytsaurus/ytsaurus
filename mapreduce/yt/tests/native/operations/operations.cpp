@@ -327,6 +327,21 @@ REGISTER_REDUCER(TReducerThatSumsFirstThreeValues);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TMapperThatNumbersRows : public IMapper<TNodeReader, TNodeWriter>
+{
+public:
+    void Do(TReader* reader, TWriter* writer) {
+        for (; reader->IsValid(); reader->Next()) {
+            auto row = reader->GetRow();
+            row["INDEX"] = reader->GetRowIndex();
+            writer->AddRow(row);
+        }
+    }
+};
+REGISTER_MAPPER(TMapperThatNumbersRows);
+
+////////////////////////////////////////////////////////////////////////////////
+
 Y_UNIT_TEST_SUITE(Operations)
 {
     Y_UNIT_TEST(IncorrectTableId)
@@ -984,7 +999,7 @@ Y_UNIT_TEST_SUITE(Operations)
                         .Spec(TNode()("pool", "testing"))
                         .Wait(false)));
             }
-            UNIT_FAIL("Too many Map's must have been failed");
+            UNIT_FAIL("Too many Maps must have been failed");
         } catch (const TErrorResponse& error) {
             // It's OK
         }
@@ -1139,6 +1154,89 @@ Y_UNIT_TEST_SUITE(Operations)
         TestIncompleteReducer(ENodeReaderFormat::Skiff);
     }
 
+    void TestRowIndices(ENodeReaderFormat nodeReaderFormat)
+    {
+        TConfigSaverGuard configGuard;
+        TConfig::Get()->NodeReaderFormat = nodeReaderFormat;
+
+        auto client = CreateTestClient();
+        TYPath inputTable = "//testing/input";
+        TYPath outputTable = "//testing/output";
+
+        {
+            auto writer = client->CreateTableWriter<TNode>(
+                TRichYPath(inputTable)
+                    .Schema(TTableSchema().AddColumn("foo", VT_INT64)));
+            for (size_t i = 0; i < 10; ++i) {
+                writer->AddRow(TNode()("foo", i));
+            }
+            writer->Finish();
+        }
+
+        client->MapReduce(
+            TMapReduceOperationSpec()
+                .AddInput<TNode>(TRichYPath(inputTable)
+                    .AddRange(TReadRange()
+                        .LowerLimit(TReadLimit().RowIndex(3))
+                        .UpperLimit(TReadLimit().RowIndex(8))))
+                .AddOutput<TNode>(outputTable)
+                .SortBy(TKeyColumns().Add("foo")),
+            new TMapperThatNumbersRows,
+            new TIdReducer);
+
+        TConfig::Get()->NodeReaderFormat = ENodeReaderFormat::Yson;
+        {
+            auto reader = client->CreateTableReader<TNode>(outputTable);
+            for (int i = 3; i < 8; ++i) {
+                UNIT_ASSERT(reader->IsValid());
+                UNIT_ASSERT_EQUAL(reader->GetRow(), TNode()("foo", i)("INDEX", static_cast<ui64>(i)));
+                reader->Next();
+            }
+            UNIT_ASSERT(!reader->IsValid());
+        }
+    }
+
+    Y_UNIT_TEST(RowIndices_Yson)
+    {
+        TestRowIndices(ENodeReaderFormat::Yson);
+    }
+
+    Y_UNIT_TEST(RowIndices_Skiff)
+    {
+        TestRowIndices(ENodeReaderFormat::Skiff);
+    }
+
+    Y_UNIT_TEST(SkiffForInputQuery)
+    {
+        TConfigSaverGuard configGuard;
+        TConfig::Get()->NodeReaderFormat = ENodeReaderFormat::Skiff;
+
+        auto client = CreateTestClient();
+        TYPath inputTable = "//testing/input";
+        TYPath outputTable = "//testing/output";
+
+        {
+            auto writer = client->CreateTableWriter<TNode>(TRichYPath(inputTable)
+                .Schema(TTableSchema()
+                    .AddColumn("foo", VT_INT64)
+                    .AddColumn("bar", VT_INT64)));
+            for (size_t i = 0; i < 10; ++i) {
+                writer->AddRow(TNode()("foo", i)("bar", 10 * i));
+            }
+            writer->Finish();
+        }
+
+        UNIT_ASSERT_EXCEPTION(
+            client->Map(
+                TMapOperationSpec()
+                    .AddInput<TNode>(inputTable)
+                    .AddOutput<TNode>(outputTable),
+                new TMapperThatNumbersRows,
+                TOperationOptions()
+                    .Spec(TNode()("input_query", "foo AS foo WHERE foo > 5"))),
+            TApiUsageError);
+    }
+
     Y_UNIT_TEST(SkiffForDynamicTables)
     {
         TConfigSaverGuard configGuard;
@@ -1158,11 +1256,12 @@ Y_UNIT_TEST_SUITE(Operations)
         client->InsertRows(inputPath, {TNode()("key", "key")("value", 33)});
 
         TConfig::Get()->NodeReaderFormat = ENodeReaderFormat::Auto;
-        client->Map(
-            TMapOperationSpec()
-                .AddInput<TNode>(inputPath)
-                .AddOutput<TNode>(outputPath),
-            new TIdMapper);
+        UNIT_ASSERT_NO_EXCEPTION(
+            client->Map(
+                TMapOperationSpec()
+                    .AddInput<TNode>(inputPath)
+                    .AddOutput<TNode>(outputPath),
+                new TIdMapper));
 
         TConfig::Get()->NodeReaderFormat = ENodeReaderFormat::Skiff;
         UNIT_ASSERT_EXCEPTION(

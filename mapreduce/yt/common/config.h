@@ -70,7 +70,7 @@ struct TConfig
     TString JobBinary;
 
     bool UseClientProtobuf;
-    ENodeReaderFormat NodeReaderFormat = ENodeReaderFormat::Yson;
+    ENodeReaderFormat NodeReaderFormat;
 
     int ConnectionPoolSize;
 

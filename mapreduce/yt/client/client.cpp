@@ -463,11 +463,11 @@ THolder<TClientWriter> TClientBase::CreateClientWriter(
     const TRichYPath& path, const TTableReaderOptions& options)
 {
     auto skiffSchema = CreateSkiffSchemaIfNecessary(
-        TConfig::Get()->NodeReaderFormat,
         Auth_,
         TransactionId_,
+        TConfig::Get()->NodeReaderFormat,
         {path},
-        TCreateSkiffSchemaOptions().HasRowIndex(true).HasRangeIndex(true));
+        TCreateSkiffSchemaOptions().HasRangeIndex(true));
 
     if (skiffSchema) {
         auto format = CreateSkiffFormat(skiffSchema);

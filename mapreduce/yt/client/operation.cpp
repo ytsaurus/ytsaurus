@@ -145,84 +145,145 @@ void VerifyHasElements(const TVector<TRichYPath>& paths, const TString& name)
     }
 }
 
-TString CreateProtoConfig(const TMultiFormatDesc& desc)
+class TFormatDescImpl
 {
-    Y_VERIFY(desc.Format == TMultiFormatDesc::F_PROTO);
-
-    TString result;
-    TStringOutput messageTypeList(result);
-    for (const auto& descriptor : desc.ProtoDescriptors) {
-        messageTypeList << descriptor->full_name() << Endl;
+public:
+    TFormatDescImpl(
+        const TAuth& auth,
+        const TTransactionId& transactionId,
+        const TMultiFormatDesc& formatDesc,
+        const TVector<TRichYPath>& tables,
+        const TOperationOptions& options,
+        bool allowSkiff,
+        bool allowFormatFromTableAttribute)
+        : FormatDesc_(formatDesc)
+        , SkiffSchema_(nullptr)
+        , FormatFromTableAttribute_()
+        , Format_(EFormatType::Custom, TNode("NO_FORMAT")) // It will be properly initialized in the constructor body
+    {
+        switch (FormatDesc_.Format) {
+            case TMultiFormatDesc::F_NODE:
+                if (allowSkiff) {
+                    SkiffSchema_ = TryCreateSkiffSchema(auth, transactionId, tables, options);
+                }
+                Format_ = SkiffSchema_
+                    ? CreateSkiffFormat(SkiffSchema_)
+                    : TFormat::YsonBinary();
+                break;
+            case TMultiFormatDesc::F_YAMR:
+                if (allowFormatFromTableAttribute && options.UseTableFormats_) {
+                    FormatFromTableAttribute_ = GetTableFormats(auth, transactionId, tables);
+                }
+                if (FormatFromTableAttribute_) {
+                    Format_ = TFormat(EFormatType::Custom, *FormatFromTableAttribute_);
+                } else {
+                    auto formatNode = TNode("yamr");
+                    formatNode.Attributes() = TNode()
+                        ("lenval", true)
+                        ("has_subkey", true)
+                        ("enable_table_index", true);
+                    Format_ = TFormat(EFormatType::Custom, formatNode);
+                }
+                break;
+            case TMultiFormatDesc::F_PROTO:
+                if (TConfig::Get()->UseClientProtobuf) {
+                    Format_ = TFormat::YsonBinary();
+                } else {
+                    Y_ENSURE_EX(!FormatDesc_.ProtoDescriptors.empty(),
+                        TApiUsageError() << "Messages for proto format are unknown (empty ProtoDescriptors)");
+                    Format_ = TFormat(FormatDesc_.ProtoDescriptors);
+                }
+                break;
+            default:
+                Y_FAIL("Unknown format type: %d", static_cast<int>(FormatDesc_.Format));
+        }
     }
-    messageTypeList.Finish();
 
-    return result;
-}
+    const TFormat& GetFormat() const
+    {
+        return Format_;
+    }
 
-TString CreateSkiffConfig(const NSkiff::TSkiffSchemaPtr& schema)
-{
-     TStringStream stream;
-     TYsonWriter writer(&stream);
-     Serialize(schema, &writer);
-     return stream.Str();
-}
+    TMaybe<TSmallJobFile> GetFormatConfig(TStringBuf suffix) const {
+        switch (FormatDesc_.Format) {
+            case TMultiFormatDesc::F_PROTO:
+                return TSmallJobFile{TString("proto") + suffix, CreateProtoConfig(FormatDesc_)};
+            case TMultiFormatDesc::F_NODE:
+                if (SkiffSchema_) {
+                    return TSmallJobFile{TString("skiff") + suffix, CreateSkiffConfig(SkiffSchema_)};
+                }
+                return Nothing();
+            default:
+                return Nothing();
+        }
+    }
+
+    const TMaybe<TNode>& GetFormatFromTableAttribute() const {
+        return FormatFromTableAttribute_;
+    }
+
+private:
+    TMultiFormatDesc FormatDesc_;
+    NSkiff::TSkiffSchemaPtr SkiffSchema_;
+    TMaybe<TNode> FormatFromTableAttribute_;
+    TFormat Format_;
+
+private:
+    static NSkiff::TSkiffSchemaPtr TryCreateSkiffSchema(
+        const TAuth& auth,
+        const TTransactionId& transactionId,
+        const TVector<TRichYPath>& tables,
+        const TOperationOptions& options)
+    {
+        bool hasInputQuery = options.Spec_.Defined() && options.Spec_->IsMap() && options.Spec_->HasKey("input_query");
+        if (hasInputQuery) {
+            Y_ENSURE_EX(TConfig::Get()->NodeReaderFormat != ENodeReaderFormat::Skiff,
+                TApiUsageError() << "Cannot use Skiff format for operations with 'input_query' in spec");
+            return nullptr;
+        }
+        return CreateSkiffSchemaIfNecessary(
+            auth,
+            transactionId,
+            TConfig::Get()->NodeReaderFormat,
+            tables,
+            TCreateSkiffSchemaOptions()
+                .HasKeySwitch(true));
+    }
+
+    static TString CreateProtoConfig(const TMultiFormatDesc& desc)
+    {
+        Y_VERIFY(desc.Format == TMultiFormatDesc::F_PROTO);
+
+        TString result;
+        TStringOutput messageTypeList(result);
+        for (const auto& descriptor : desc.ProtoDescriptors) {
+            messageTypeList << descriptor->full_name() << Endl;
+        }
+        return result;
+    }
+
+    static TString CreateSkiffConfig(const NSkiff::TSkiffSchemaPtr& schema)
+    {
+         TString result;
+         TStringOutput stream(result);
+         TYsonWriter writer(&stream);
+         Serialize(schema, &writer);
+         return result;
+    }
+};
 
 TVector<TSmallJobFile> CreateFormatConfig(
-    const TMultiFormatDesc& inputDesc,
-    const TMultiFormatDesc& outputDesc,
-    const NSkiff::TSkiffSchemaPtr& inputSkiffSchema = nullptr,
-    const NSkiff::TSkiffSchemaPtr& outputSkiffSchema = nullptr)
+    const TFormatDescImpl& inputDesc,
+    const TFormatDescImpl& outputDesc)
 {
     TVector<TSmallJobFile> result;
-    if (inputDesc.Format == TMultiFormatDesc::F_PROTO) {
-        result.push_back({"proto_input", CreateProtoConfig(inputDesc)});
-    } else if (inputSkiffSchema) {
-        Y_VERIFY(inputDesc.Format == TMultiFormatDesc::F_NODE);
-        result.push_back({"skiff_input", CreateSkiffConfig(inputSkiffSchema)});
+    if (auto inputConfig = inputDesc.GetFormatConfig("_input")) {
+        result.push_back(std::move(*inputConfig));
     }
-
-    if (outputDesc.Format == TMultiFormatDesc::F_PROTO) {
-        result.push_back({"proto_output", CreateProtoConfig(outputDesc)});
-    } else if (outputSkiffSchema) {
-        Y_VERIFY(outputDesc.Format == TMultiFormatDesc::F_NODE);
-        result.push_back({"skiff_output", CreateSkiffConfig(outputSkiffSchema)});
+    if (auto outputConfig = outputDesc.GetFormatConfig("_output")) {
+        result.push_back(std::move(*outputConfig));
     }
     return result;
-}
-
-TFormat FormatFromDescription(
-    const TMultiFormatDesc& desc,
-    const TMaybe<TNode>& formatFromTableAttribute,
-    const NSkiff::TSkiffSchemaPtr& skiffSchema = nullptr)
-{
-    if (desc.Format == TMultiFormatDesc::F_NODE) {
-        if (skiffSchema) {
-            return CreateSkiffFormat(skiffSchema);
-        } else {
-            return TFormat::YsonBinary();
-        }
-    } else if (desc.Format == TMultiFormatDesc::F_YAMR) {
-        if (formatFromTableAttribute) {
-            return TFormat(EFormatType::Custom, *formatFromTableAttribute);
-        } else {
-            TNode format("yamr");
-            format.Attributes()["lenval"] = true;
-            format.Attributes()["has_subkey"] = true;
-            format.Attributes()["enable_table_index"] = true;
-            return TFormat(EFormatType::Custom, format);
-        }
-    } else if (desc.Format == TMultiFormatDesc::F_PROTO) {
-        if (TConfig::Get()->UseClientProtobuf) {
-            return TFormat::YsonBinary();
-        } else {
-            if (desc.ProtoDescriptors.empty()) {
-                ythrow TApiUsageError() << "messages for proto format are unknown (empty ProtoDescriptors)";
-            }
-            return TFormat(desc.ProtoDescriptors);
-        }
-    } else {
-        Y_FAIL("Unknown format type: %d", desc.Format);
-    }
 }
 
 TSimpleOperationIo CreateSimpleOperationIo(
@@ -232,29 +293,22 @@ TSimpleOperationIo CreateSimpleOperationIo(
     const TOperationOptions& options,
     bool allowSkiff)
 {
-    TMaybe<TNode> formatFromTableAttribute;
-    if (spec.GetInputDesc().Format == TMultiFormatDesc::F_YAMR &&
-        options.UseTableFormats_)
-    {
-        formatFromTableAttribute = GetTableFormats(auth, transactionId, spec.Inputs_);
-    }
-
     VerifyHasElements(spec.Inputs_, "input");
     VerifyHasElements(spec.Outputs_, "output");
 
-    auto inputSkiffSchema = allowSkiff
-        ? CreateSkiffSchemaIfNecessary(TConfig::Get()->NodeReaderFormat, auth, transactionId, spec.Inputs_)
-        : nullptr;
-    NSkiff::TSkiffSchemaPtr outputSkiffSchema = nullptr;
+    TFormatDescImpl inputDesc(auth, transactionId, spec.GetInputDesc(), spec.Inputs_, options,
+        allowSkiff, /* allowFormatFromTableAttribute = */ true);
+    TFormatDescImpl outputDesc(auth, transactionId, spec.GetOutputDesc(), spec.Outputs_, options,
+        /* allowSkiff = */ false, /* allowFormatFromTableAttribute = */ false);
 
     return TSimpleOperationIo {
         CanonizePaths(auth, spec.Inputs_),
         CanonizePaths(auth, spec.Outputs_),
 
-        FormatFromDescription(spec.GetInputDesc(), formatFromTableAttribute, inputSkiffSchema),
-        FormatFromDescription(spec.GetOutputDesc(), Nothing(), outputSkiffSchema),
+        inputDesc.GetFormat(),
+        outputDesc.GetFormat(),
 
-        CreateFormatConfig(spec.GetInputDesc(), spec.GetOutputDesc(), inputSkiffSchema, outputSkiffSchema),
+        CreateFormatConfig(inputDesc, outputDesc)
     };
 }
 
@@ -1652,33 +1706,6 @@ TOperationId ExecuteMapReduce(
 {
     TMapReduceOperationSpec spec = spec_;
 
-    TMaybe<TNode> formatFromTableAttribute;
-    if (spec.GetInputDesc().Format == TMultiFormatDesc::F_YAMR &&
-        options.UseTableFormats_)
-    {
-        formatFromTableAttribute = GetTableFormats(auth, transactionId, spec.Inputs_);
-    }
-
-    if (spec.GetInputDesc().Format == TMultiFormatDesc::F_YAMR && formatFromTableAttribute && !mapper) {
-        auto& attrs = formatFromTableAttribute.Get()->Attributes();
-        auto& keyColumns = attrs["key_column_names"].AsList();
-
-        spec.SortBy_.Parts_.clear();
-        spec.ReduceBy_.Parts_.clear();
-
-        for (auto& column : keyColumns) {
-            spec.SortBy_.Parts_.push_back(column.AsString());
-            spec.ReduceBy_.Parts_.push_back(column.AsString());
-        }
-
-        if (attrs.HasKey("subkey_column_names")) {
-            auto& subkeyColumns = attrs["subkey_column_names"].AsList();
-            for (auto& column : subkeyColumns) {
-                spec.SortBy_.Parts_.push_back(column.AsString());
-            }
-        }
-    }
-
     const auto& reduceOutputDesc = spec.GetOutputDesc();
     auto reduceInputDesc = MergeIntermediateDesc(reducerClassInputDesc, spec.ReduceInputHintDesc_,
         "spec from reducer CLASS input", "spec from HINT for reduce input");
@@ -1691,13 +1718,10 @@ TOperationId ExecuteMapReduce(
         "spec from mapper CLASS output", "spec from HINT for map output");
     const auto& mapInputDesc = spec.GetInputDesc();
 
-    const bool hasMapper = mapper != nullptr;
-    const bool hasCombiner = reduceCombiner != nullptr;
-
-    if (!hasMapper) {
+    if (!mapper) {
         //request identity desc only for no mapper cases
         const auto& identityMapInputDesc = IdentityDesc(mapInputDesc);
-        if (hasCombiner) {
+        if (reduceCombiner) {
             reduceCombinerInputDesc = MergeIntermediateDesc(reduceCombinerInputDesc, identityMapInputDesc,
                 "spec derived from reduce combiner CLASS input", "identity spec from mapper CLASS input");
         } else {
@@ -1714,26 +1738,64 @@ TOperationId ExecuteMapReduce(
     VerifyHasElements(operationIo.Inputs, "inputs");
     VerifyHasElements(operationIo.Outputs, "outputs");
 
+    auto fixSpec = [&](const TFormatDescImpl& formatDesc) {
+        if (auto formatFromTableAttribute = formatDesc.GetFormatFromTableAttribute()) {
+            spec.SortBy_.Parts_.clear();
+            spec.ReduceBy_.Parts_.clear();
+
+            const auto& attrs = formatFromTableAttribute->GetAttributes();
+            const auto& keyColumns = attrs["key_column_names"].AsList();
+            for (auto& column : keyColumns) {
+                spec.SortBy_.Parts_.push_back(column.AsString());
+                spec.ReduceBy_.Parts_.push_back(column.AsString());
+            }
+
+            if (attrs.HasKey("subkey_column_names")) {
+                const auto& subkeyColumns = attrs["subkey_column_names"].AsList();
+                for (const auto& column : subkeyColumns) {
+                    spec.SortBy_.Parts_.push_back(column.AsString());
+                }
+            }
+        }
+    };
+
     if (mapper) {
-        auto skiffSchema = CreateSkiffSchemaIfNecessary(TConfig::Get()->NodeReaderFormat, auth, transactionId, spec.Inputs_);
-        operationIo.MapperJobFiles = CreateFormatConfig(mapInputDesc, mapOutputDesc, skiffSchema, /* outputSkiffSchema = */ nullptr);
-        operationIo.MapperInputFormat = FormatFromDescription(mapInputDesc, formatFromTableAttribute, skiffSchema);
-        operationIo.MapperOutputFormat = FormatFromDescription(mapOutputDesc, Nothing());
+        TFormatDescImpl inputDescImpl(auth, transactionId, mapInputDesc, operationIo.Inputs, options,
+            /* allowSkiff = */ true, /* allowFormatFromTableAttribute = */ true);
+        TFormatDescImpl outputDescImpl(auth, transactionId, mapOutputDesc, operationIo.MapOutputs, options,
+            /* allowSkiff = */ false, /* allowFormatFromTableAttribute = */ false);
+        operationIo.MapperJobFiles = CreateFormatConfig(inputDescImpl, outputDescImpl);
+        operationIo.MapperInputFormat = inputDescImpl.GetFormat();
+        operationIo.MapperOutputFormat = outputDescImpl.GetFormat();
     }
 
     if (reduceCombiner) {
-        operationIo.ReduceCombinerJobFiles = CreateFormatConfig(reduceCombinerInputDesc, reduceCombinerOutputDesc);
-        operationIo.ReduceCombinerInputFormat = FormatFromDescription(
-            reduceCombinerInputDesc,
-            mapper ? Nothing() : formatFromTableAttribute);
-        operationIo.ReduceCombinerOutputFormat = FormatFromDescription(reduceCombinerOutputDesc, Nothing());
+        const bool isFirstStep = !mapper;
+        auto inputs = isFirstStep ? operationIo.Inputs : TVector<TRichYPath>();
+        TFormatDescImpl inputDescImpl(auth, transactionId, reduceCombinerInputDesc, inputs, options,
+            /* allowSkiff = */ false, /* allowFormatFromTableAttribute = */ isFirstStep);
+        TFormatDescImpl outputDescImpl(auth, transactionId, reduceCombinerOutputDesc, /* tables = */ {}, options,
+            /* allowSkiff = */ false, /* allowFormatFromTableAttribute = */ false);
+        operationIo.ReduceCombinerJobFiles = CreateFormatConfig(inputDescImpl, outputDescImpl);
+        operationIo.ReduceCombinerInputFormat = inputDescImpl.GetFormat();
+        operationIo.ReduceCombinerOutputFormat = outputDescImpl.GetFormat();
+        if (isFirstStep) {
+            fixSpec(inputDescImpl);
+        }
     }
 
-    operationIo.ReducerJobFiles = CreateFormatConfig(reduceInputDesc, reduceOutputDesc);
-    operationIo.ReducerInputFormat = FormatFromDescription(
-        reduceInputDesc,
-        (mapper || reduceCombiner) ? Nothing() : formatFromTableAttribute);
-    operationIo.ReducerOutputFormat = FormatFromDescription(reduceOutputDesc, Nothing());
+    const bool isFirstStep = (!mapper && !reduceCombiner);
+    auto inputs = isFirstStep ? operationIo.Inputs : TVector<TRichYPath>();
+    TFormatDescImpl inputDescImpl(auth, transactionId, reduceInputDesc, inputs, options,
+        /* allowSkiff = */ false, /* allowFormatFromTableAttribute = */ isFirstStep);
+    TFormatDescImpl outputDescImpl(auth, transactionId, reduceOutputDesc, operationIo.Outputs, options,
+        /* allowSkiff = */ false, /* allowFormatFromTableAttribute = */ false);
+    operationIo.ReducerJobFiles = CreateFormatConfig(inputDescImpl, outputDescImpl);
+    operationIo.ReducerInputFormat = inputDescImpl.GetFormat();
+    operationIo.ReducerOutputFormat = outputDescImpl.GetFormat();
+    if (isFirstStep) {
+        fixSpec(inputDescImpl);
+    }
 
     return DoExecuteMapReduce(
         auth,
