@@ -64,7 +64,7 @@ def get_pool_metrics(metric_key, start_time):
     return result
 
 def get_cypress_metrics(operation_id, key):
-    statistics = get_operation_cypress_path(operation_id) + "/@progress/job_statistics"
+    statistics = get(get_operation_cypress_path(operation_id) + "/@progress/job_statistics")
     return get_statistics(statistics, "{0}.$.completed.map.sum".format(key))
 
 ##################################################################
