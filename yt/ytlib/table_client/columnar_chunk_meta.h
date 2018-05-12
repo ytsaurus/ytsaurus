@@ -33,7 +33,7 @@ public:
     explicit TColumnarChunkMeta(const NChunkClient::NProto::TChunkMeta& chunkMeta);
     void InitBlockLastKeys(const TKeyColumns& keyColumns);
 
-    i64 GetMemoryUsage() const;
+    virtual i64 GetMemoryUsage() const;
 
 protected:
     TColumnarChunkMeta() = default;

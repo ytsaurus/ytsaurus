@@ -50,6 +50,8 @@ public:
         const TTableSchema& schema,
         NNodeTrackerClient::TNodeMemoryTracker* memoryTracker = nullptr);
 
+    virtual i64 GetMemoryUsage() const override;
+
 private:
     NNodeTrackerClient::TNodeMemoryTrackerGuard MemoryTrackerGuard_;
 

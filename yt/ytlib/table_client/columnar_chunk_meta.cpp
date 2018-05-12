@@ -86,8 +86,8 @@ i64 TColumnarChunkMeta::GetMemoryUsage() const
     return BlockLastKeysSize_ +
         sizeof(Misc_) +
         BlockMeta_->GetSize() +
-        (ColumnMeta_ ? ColumnMeta_->GetSize() : 0);
-    // TODO(psushin): account schema here, or make it ref-counted.
+        (ColumnMeta_ ? ColumnMeta_->GetSize() : 0) +
+        ChunkSchema_.GetMemoryUsage();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
