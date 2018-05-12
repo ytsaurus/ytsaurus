@@ -174,6 +174,12 @@ void TCachedVersionedChunkMeta::ValidateSchema(const TTableSchema& readerSchema)
     }
 }
 
+i64 TCachedVersionedChunkMeta::GetMemoryUsage() const
+{
+    return TColumnarChunkMeta::GetMemoryUsage() +
+        Schema_.GetMemoryUsage();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NTableClient

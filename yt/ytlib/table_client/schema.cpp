@@ -106,6 +106,18 @@ EValueType TColumnSchema::GetPhysicalType() const
     return NTableClient::GetPhysicalType(LogicalType());
 }
 
+i64 TColumnSchema::GetMemoryUsage() const
+{
+    return sizeof(TColumnSchema) +
+        Name_.Size() +
+        (Lock_ ? Lock_->Size() : 0) +
+        (Expression_ ? Expression_->Size() : 0) +
+        (Aggregate_ ? Aggregate_->Size() : 0) +
+        (Group_ ? Group_->Size() : 0);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TSerializableColumnSchema
     : public TYsonSerializableLite
     , public TColumnSchema
@@ -575,6 +587,15 @@ void TTableSchema::Load(TStreamLoadContext& context)
     using NYT::Load;
     auto protoSchema = NYT::Load<NTableClient::NProto::TTableSchemaExt>(context);
     *this = FromProto<TTableSchema>(protoSchema);
+}
+
+i64 TTableSchema::GetMemoryUsage() const
+{
+    i64 usage = sizeof(TTableSchema);
+    for (const auto& column : Columns_) {
+        usage += column.GetMemoryUsage();
+    }
+    return usage;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

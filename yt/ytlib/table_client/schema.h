@@ -63,6 +63,8 @@ public:
     TColumnSchema& SetRequired(bool value);
 
     EValueType GetPhysicalType() const;
+
+    i64 GetMemoryUsage() const;
 };
 
 void Serialize(const TColumnSchema& schema, NYson::IYsonConsumer* consumer);
@@ -165,6 +167,8 @@ public:
 
     void Save(TStreamSaveContext& context) const;
     void Load(TStreamLoadContext& context);
+
+    i64 GetMemoryUsage() const;
 
 private:
     int KeyColumnCount_ = 0;
