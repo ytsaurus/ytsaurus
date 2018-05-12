@@ -133,9 +133,10 @@ TSkipList<TKey, TComparer>::TSkipList(
     const TComparer& comparer)
     : Pool_(pool)
     , Comparer_(comparer)
+    , Head_(AllocateHeadNode())
 {
     for (int index = 0; index < MaxHeight; ++index) {
-        Prevs[index] = Head_;
+        Prevs_[index] = Head_;
     }
 }
 
@@ -165,13 +166,13 @@ void TSkipList<TKey, TComparer>::Insert(
     const TNewKeyProvider& newKeyProvider,
     const TExistingKeyConsumer& existingKeyConsumer)
 {
-    auto* lastInserted = Prevs[0];
+    auto* lastInserted = Prevs_[0];
     auto* next = lastInserted->GetNext(0);
 
     if ((lastInserted != Head_ && Comparer_(lastInserted->GetKey(), pivot) >= 0) ||
         (next != Head_ && Comparer_(next->GetKey(), pivot) < 0))
     {
-        next = DoFindGreaterThanOrEqualTo(pivot, Prevs);
+        next = DoFindGreaterThanOrEqualTo(pivot, Prevs_.data());
     }
 
     if (next != Head_ && Comparer_(next->GetKey(), pivot) == 0) {
@@ -185,18 +186,18 @@ void TSkipList<TKey, TComparer>::Insert(
     // Upgrade current height if needed.
     if (randomHeight > currentHeight) {
         for (int index = currentHeight; index < randomHeight; ++index) {
-            Prevs[index] = Head_;
+            Prevs_[index] = Head_;
         }
         Height_ = randomHeight;
     }
 
     // Insert a new node.
     auto* node = AllocateNode(newKeyProvider(), randomHeight);
-    node->InsertAfter(randomHeight, Prevs);
+    node->InsertAfter(randomHeight, Prevs_.data());
     ++Size_;
 
     for (int index = 0; index < randomHeight; ++index) {
-        Prevs[index] = node;
+        Prevs_[index] = node;
     }
 }
 
@@ -259,7 +260,7 @@ template <class TKey, class TComparer>
 typename TSkipList<TKey, TComparer>::TNode* TSkipList<TKey, TComparer>::AllocateNode(const TKey& key, int height)
 {
     auto* buffer = Pool_->AllocateAligned(TNode::GetByteSize(height));
-    new (buffer)TNode(key);
+    new (buffer) TNode(key);
     return reinterpret_cast<TNode*>(buffer);
 }
 
