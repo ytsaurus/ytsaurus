@@ -367,7 +367,7 @@ private:
     {
         int chunkBlockIndex = BlockIndexes_[NextBlockIndex_];
         CheckBlockUpperKeyLimit(
-            ChunkMeta_->BlockMeta()->blocks(chunkBlockIndex),
+            ChunkMeta_->BlockLastKeys()[chunkBlockIndex],
             Ranges_[RangeIndex_].second,
             ChunkMeta_->GetKeyColumnCount());
 
