@@ -177,11 +177,6 @@ struct IServiceContext
 
     //! Replies with a given error when the latter is set.
     void ReplyFrom(TFuture<void> asyncError);
-
-    //! A way to prolong lifetime of some intermediate structures
-    //! until request is processed.
-    virtual void AddHolder(TIntrusivePtr<TRefCounted> holder);
-    virtual std::vector<TIntrusivePtr<TRefCounted>> GetHolders() const;
 };
 
 DEFINE_REFCOUNTED_TYPE(IServiceContext)

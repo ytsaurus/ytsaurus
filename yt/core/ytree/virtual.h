@@ -22,7 +22,6 @@ protected:
     virtual i64 GetSize() const = 0;
 
     virtual IYPathServicePtr FindItemService(TStringBuf key) const = 0;
-    virtual void OnRecurse(const NRpc::IServiceContextPtr& context, TStringBuf key) const;
 
     virtual bool DoInvoke(const NRpc::IServiceContextPtr& context) override;
 
