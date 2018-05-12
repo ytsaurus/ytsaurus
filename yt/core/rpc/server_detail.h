@@ -73,9 +73,6 @@ public:
 
     virtual bool IsPooled() const override;
 
-    virtual void AddHolder(TIntrusivePtr<TRefCounted> holder) override;
-    virtual std::vector<TIntrusivePtr<TRefCounted>> GetHolders() const override;
-
 protected:
     const std::unique_ptr<NProto::TRequestHeader> RequestHeader_;
     const TSharedRefArray RequestMessage_;
@@ -94,8 +91,6 @@ protected:
 
     TSharedRef ResponseBody_;
     std::vector<TSharedRef> ResponseAttachments_;
-
-    std::vector<TIntrusivePtr<TRefCounted>> Holders_;
 
     TString RequestInfo_;
     TString ResponseInfo_;
@@ -184,9 +179,6 @@ public:
     virtual NLogging::ELogLevel GetLogLevel() const override;
 
     virtual bool IsPooled() const override;
-
-    virtual void AddHolder(TIntrusivePtr<TRefCounted> holder) override;
-    virtual std::vector<TIntrusivePtr<TRefCounted>> GetHolders() const override;
 
 protected:
     const IServiceContextPtr UnderlyingContext_;
