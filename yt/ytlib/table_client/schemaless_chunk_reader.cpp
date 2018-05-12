@@ -525,14 +525,11 @@ void THorizontalSchemalessRangeChunkReader::InitializeBlockSequenceSorted()
 
     DownloadChunkMeta(extensionTags);
 
-    //auto misc = GetProtoExtension<TMiscExt>(ChunkMeta_.extensions());
     const auto& misc = ChunkMeta_->Misc();
     if (!misc.sorted()) {
         THROW_ERROR_EXCEPTION("Requested a sorted read for an unsorted chunk");
     }
 
-    //auto keyColumnsExt = GetProtoExtension<NProto::TKeyColumnsExt>(ChunkMeta_.extensions());
-    //TKeyColumns chunkKeyColumns = NYT::FromProto<TKeyColumns>(keyColumnsExt);
     auto chunkKeyColumns = ChunkMeta_->ChunkSchema().GetKeyColumns();
     ChunkKeyColumnCount_ = chunkKeyColumns.size();
 
@@ -601,7 +598,11 @@ void THorizontalSchemalessRangeChunkReader::InitFirstBlock()
     RowIndex_ = blockMeta.chunk_row_count() - blockMeta.row_count();
 
     int keyColumnCount = std::max(ChunkKeyColumnCount_, static_cast<int>(KeyColumns_.size()));
-    CheckBlockUpperLimits(BlockMetaExt_->blocks(blockIndex), ReadRange_.UpperLimit(), keyColumnCount);
+    CheckBlockUpperLimits(
+        BlockMetaExt_->blocks(blockIndex).chunk_row_count(),
+        ChunkMeta_->BlockLastKeys() ? ChunkMeta_->BlockLastKeys()[blockIndex] : TKey(),
+        ReadRange_.UpperLimit(),
+        keyColumnCount);
 
     const auto& lowerLimit = ReadRange_.LowerLimit();
 
@@ -791,7 +792,6 @@ void THorizontalSchemalessLookupChunkReader::DoInitializeBlockSequence()
 
     DownloadChunkMeta(extensionTags, PartitionTag_);
 
-    //auto misc = GetProtoExtension<TMiscExt>(ChunkMeta_.extensions());
     const auto& misc = ChunkMeta_->Misc();
     if (!misc.sorted()) {
         THROW_ERROR_EXCEPTION("Requested lookup for an unsorted chunk");
@@ -800,8 +800,6 @@ void THorizontalSchemalessLookupChunkReader::DoInitializeBlockSequence()
         THROW_ERROR_EXCEPTION("Requested lookup for a chunk without unique_keys restriction");
     }
 
-    //auto keyColumnsExt = GetProtoExtension<TKeyColumnsExt>(ChunkMeta_.extensions());
-    //TKeyColumns chunkKeyColumns = NYT::FromProto<TKeyColumns>(keyColumnsExt);
     auto chunkKeyColumns = ChunkMeta_->ChunkSchema().GetKeyColumns();
     ChunkKeyColumnCount_ = chunkKeyColumns.size();
 
@@ -1120,7 +1118,6 @@ private:
 
     void InitializeBlockSequence()
     {
-        //YCHECK(ChunkSpec_.chunk_meta().version() == static_cast<int>(ETableChunkFormat::UnversionedColumnar));
         YCHECK(ChunkMeta_->GetChunkFormat() == ETableChunkFormat::UnversionedColumnar);
         InitializeSystemColumnIds();
 
@@ -1510,7 +1507,6 @@ private:
 
     void InitializeBlockSequence()
     {
-        //YCHECK(ChunkSpec_.chunk_meta().version() == static_cast<int>(ETableChunkFormat::UnversionedColumnar));
         YCHECK(ChunkMeta_->GetChunkFormat() == ETableChunkFormat::UnversionedColumnar);
         InitializeSystemColumnIds();
 
@@ -1526,8 +1522,6 @@ private:
         TNameTablePtr chunkNameTable;
         if (Options_->DynamicTable) {
             chunkNameTable = TNameTable::FromSchema(ChunkMeta_->ChunkSchema());
-            //FIXME
-            //ChunkMeta_->InitBlockLastKeys(KeyColumns_);
         } else {
             chunkNameTable = ChunkMeta_->ChunkNameTable();
             ChunkMeta_->InitBlockLastKeys(KeyColumns_);
