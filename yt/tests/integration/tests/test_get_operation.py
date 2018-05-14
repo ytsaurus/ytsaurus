@@ -122,7 +122,8 @@ class TestGetOperation(YTEnvSetup):
         wait_breakpoint()
 
         assert list(get_operation(op.id, attributes=["state"])) == ["state"]
-        assert get_operation(op.id, attributes=["PYSCH"]) == {}
+        with pytest.raises(YtError):
+            get_operation(op.id, attributes=["PYSCH"])
 
         for read_from in ("cache", "follower"):
             res_get_operation = get_operation(op.id, attributes=["progress", "state"], include_scheduler=True, read_from=read_from)
@@ -140,7 +141,8 @@ class TestGetOperation(YTEnvSetup):
         res_get_operation_archive = get_operation(op.id, attributes=["progress", "state"])
         assert sorted(list(res_get_operation_archive)) == ["progress", "state"]
         assert res_get_operation_archive["state"] == "completed"
-        assert get_operation(op.id, attributes=["PYSCH"]) == {}
+        with pytest.raises(YtError):
+            get_operation(op.id, attributes=["PYSCH"])
 
     def test_get_operation_and_half_deleted_operation_node(self):
         create("table", "//tmp/t1")
