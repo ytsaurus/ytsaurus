@@ -40,8 +40,14 @@ void TSortedJobOptions::Persist(const TPersistenceContext& context)
     Persist(context, MaxTotalSliceCount);
     Persist(context, EnablePeriodicYielder);
     Persist(context, PivotKeys);
-    Persist(context, UseNewEndpointKeys);
+    if (context.GetVersion() <= 300003) {
+        bool useNewEndpointKeys = false;
+        Persist(context, useNewEndpointKeys);
+    }
     Persist(context, MaxDataWeightPerJob);
+    if (context.GetVersion() >= 300004) {
+        Persist(context, LogDetails);
+    }
 }
 
 void TSortedChunkPoolOptions::Persist(const TPersistenceContext& context)
@@ -153,7 +159,7 @@ public:
                 GetKeySuccessor(GetKeyPrefix(dataSlice->UpperLimit().Key, Options_.PrimaryPrefixLength, RowBuffer_), RowBuffer_),
                 0LL /* RowIndex */
             };
-        } else if (Options_.UseNewEndpointKeys) {
+        } else {
             int leftRowIndex = dataSlice->LowerLimit().RowIndex.Get(0);
             leftEndpoint = {
                 EEndpointType::Left,
@@ -170,28 +176,7 @@ public:
             rightEndpoint = {
                 EEndpointType::Right,
                 dataSlice,
-                GetStrictKey(dataSlice->UpperLimit().Key, Options_.PrimaryPrefixLength, RowBuffer_, EValueType::Max),
-                rightRowIndex
-            };
-        } else {
-            // COMPAT(psushin): old behaviour for join reduce and sorted merge (faulty around YT-8156).
-            int leftRowIndex = dataSlice->LowerLimit().RowIndex.Get(0);
-            leftEndpoint = {
-                EEndpointType::Left,
-                dataSlice,
-                GetStrictKey(dataSlice->LowerLimit().Key, Options_.PrimaryPrefixLength, RowBuffer_, EValueType::Max),
-                leftRowIndex
-            };
-
-            int rightRowIndex = dataSlice->UpperLimit().RowIndex.Get(
-                    dataSlice->Type == EDataSourceType::UnversionedTable
-                    ? dataSlice->GetSingleUnversionedChunkOrThrow()->GetRowCount()
-                    : 0);
-
-            rightEndpoint = {
-                EEndpointType::Right,
-                dataSlice,
-                GetStrictKey(dataSlice->UpperLimit().Key, Options_.PrimaryPrefixLength, RowBuffer_, EValueType::Max),
+                GetStrictKey(dataSlice->UpperLimit().Key, Options_.PrimaryPrefixLength, RowBuffer_, EValueType::Min),
                 rightRowIndex
             };
         }
@@ -214,6 +199,9 @@ public:
     {
         AddPivotKeysEndpoints();
         SortEndpoints();
+        if (Options_.LogDetails) {
+            LogDetails();
+        }
         BuildJobs();
         AttachForeignSlices();
         for (auto& job : Jobs_) {
@@ -288,6 +276,35 @@ private:
             });
     }
 
+    void LogDetails()
+    {
+        for (int index = 0; index < Endpoints_.size(); ++index) {
+            const auto& endpoint = Endpoints_[index];
+            LOG_DEBUG("Endpoint (Index: %v, Key: %v, RowIndex: %v, GlobalRowIndex: %v, Type: %v, DataSlice: %v)",
+                index,
+                endpoint.Key,
+                endpoint.RowIndex,
+                (endpoint.DataSlice && endpoint.DataSlice->Type == EDataSourceType::UnversionedTable)
+                ? MakeNullable(endpoint.DataSlice->GetSingleUnversionedChunkOrThrow()->GetTableRowIndex() + endpoint.RowIndex)
+                : Null,
+                endpoint.Type,
+                endpoint.DataSlice.Get());
+        }
+        for (const auto& pair : DataSliceToInputCookie_) {
+            const auto& dataSlice = pair.first;
+            LOG_DEBUG("Data slice (Address: %v, DataWeight: %v, InputStreamIndex: %v)",
+                dataSlice.Get(),
+                dataSlice->GetDataWeight(),
+                dataSlice->InputStreamIndex);
+        }
+        for (const auto& teleportChunk : TeleportChunks_) {
+            LOG_DEBUG("Teleport chunk (Address: %v, MinKey: %v, MaxKey: %v)",
+                teleportChunk.Get(),
+                teleportChunk->BoundaryKeys()->MinKey,
+                teleportChunk->BoundaryKeys()->MaxKey);
+        }
+    }
+
     void BuildJobs()
     {
         Jobs_.emplace_back(std::make_unique<TJobStub>());
@@ -352,7 +369,7 @@ private:
             bool nextKeyIsLeft = (nextKeyIndex == Endpoints_.size()) ? false : Endpoints_[nextKeyIndex].Type == EEndpointType::Left;
 
             while (nextTeleportChunk < TeleportChunks_.size() &&
-                   CompareRows(TeleportChunks_[nextTeleportChunk]->BoundaryKeys()->MinKey, key, Options_.PrimaryPrefixLength) < 0)
+                CompareRows(TeleportChunks_[nextTeleportChunk]->BoundaryKeys()->MinKey, key, Options_.PrimaryPrefixLength) < 0)
             {
                 ++nextTeleportChunk;
             }
@@ -415,30 +432,11 @@ private:
         }
         LOG_DEBUG("Jobs created (Count: %v)", Jobs_.size());
         if (InSplit_ && Jobs_.size() == 1 && JobSizeConstraints_->GetJobCount() > 1) {
-            LOG_WARNING("Pool was not able to split job properly (SplitJobCount: %v, JobCount: %v)",
+            LOG_DEBUG("Pool was not able to split job properly (SplitJobCount: %v, JobCount: %v)",
                 JobSizeConstraints_->GetJobCount(),
                 Jobs_.size());
 
             Jobs_.front()->SetUnsplittable();
-            for (int index = 0; index < Endpoints_.size(); ++index) {
-                const auto& endpoint = Endpoints_[index];
-                LOG_DEBUG("Endpoint (Index: %v, Key: %v, RowIndex: %v, GlobalRowIndex: %v, Type: %v, DataSlice: %p)",
-                    index,
-                    endpoint.Key,
-                    endpoint.RowIndex,
-                    (endpoint.DataSlice && endpoint.DataSlice->Type == EDataSourceType::UnversionedTable)
-                    ? MakeNullable(endpoint.DataSlice->GetSingleUnversionedChunkOrThrow()->GetTableRowIndex() + endpoint.RowIndex)
-                    : Null,
-                    endpoint.Type,
-                    endpoint.DataSlice.Get());
-            }
-            for (const auto& pair : DataSliceToInputCookie_) {
-                const auto& dataSlice = pair.first;
-                LOG_DEBUG("Data slice %v (DataWeight: %v, InputStreamIndex: %v)",
-                    dataSlice.Get(),
-                    dataSlice->GetDataWeight(),
-                    dataSlice->InputStreamIndex);
-            }
         }
     }
 
@@ -584,12 +582,11 @@ public:
         JobManager_->SetLogger(Logger);
 
         LOG_DEBUG("Sorted chunk pool created (EnableKeyGuarantee: %v, PrimaryPrefixLength: %v, "
-            "ForeignPrefixLenght: %v, UseNewEndpointKeys: %v, DataWeightPerJob: %v, "
+            "ForeignPrefixLenght: %v, DataWeightPerJob: %v, "
             "PrimaryDataWeightPerJob: %v, MaxDataSlicesPerJob: %v)",
             SortedJobOptions_.EnableKeyGuarantee,
             SortedJobOptions_.PrimaryPrefixLength,
             SortedJobOptions_.ForeignPrefixLength,
-            SortedJobOptions_.UseNewEndpointKeys,
             JobSizeConstraints_->GetDataWeightPerJob(),
             JobSizeConstraints_->GetPrimaryDataWeightPerJob(),
             JobSizeConstraints_->GetMaxDataSlicesPerJob());

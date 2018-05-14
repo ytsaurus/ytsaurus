@@ -30,8 +30,7 @@ struct TSortedJobOptions
     //! is exceeded, an exception is thrown.
     i64 MaxDataWeightPerJob = std::numeric_limits<i64>::max();
 
-    //! Experimental workaround for YT-8156.
-    bool UseNewEndpointKeys = false;
+    bool LogDetails = false;
 
     void Persist(const TPersistenceContext& context);
 };

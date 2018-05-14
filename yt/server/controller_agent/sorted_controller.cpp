@@ -510,9 +510,9 @@ protected:
         jobOptions.EnablePeriodicYielder = true;
 
         if (Spec_->NightlyOptions) {
-            auto useNewEndpointKeys = Spec_->NightlyOptions->FindChild("use_new_endpoint_keys");
-            if (useNewEndpointKeys && useNewEndpointKeys->GetType() == ENodeType::Boolean) {
-                jobOptions.UseNewEndpointKeys = useNewEndpointKeys->AsBoolean()->GetValue();
+            auto logDetails = Spec_->NightlyOptions->FindChild("log_details");
+            if (logDetails && logDetails->GetType() == ENodeType::Boolean) {
+                jobOptions.LogDetails = logDetails->AsBoolean()->GetValue();
             }
         }
 
