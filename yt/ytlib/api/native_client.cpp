@@ -3306,94 +3306,6 @@ private:
         return version;
     }
 
-    TYsonString DoGetOperationFromArchive(
-        const NScheduler::TOperationId& operationId,
-        TInstant deadline,
-        const THashSet<TString>& fields)
-    {
-        TOrderedByIdTableDescriptor tableDescriptor;
-        auto rowBuffer = New<TRowBuffer>();
-
-        std::vector<TUnversionedRow> keys;
-        auto key = rowBuffer->AllocateUnversioned(2);
-        key[0] = MakeUnversionedUint64Value(operationId.Parts64[0], tableDescriptor.Index.IdHi);
-        key[1] = MakeUnversionedUint64Value(operationId.Parts64[1], tableDescriptor.Index.IdLo);
-        keys.push_back(key);
-
-        std::vector<int> columnIndexes;
-        THashMap<TString, int> fieldToIndex;
-
-        int index = 0;
-        for (const auto& field : fields) {
-            columnIndexes.push_back(tableDescriptor.NameTable->GetIdOrThrow(field));
-            fieldToIndex[field] = index++;
-        }
-
-        TLookupRowsOptions lookupOptions;
-        lookupOptions.ColumnFilter = NTableClient::TColumnFilter(columnIndexes);
-        lookupOptions.KeepMissingRows = true;
-        lookupOptions.Timeout = deadline - Now();
-
-        auto rowset = WaitFor(LookupRows(
-            "//sys/operations_archive/ordered_by_id",
-            tableDescriptor.NameTable,
-            MakeSharedRange(std::move(keys), std::move(rowBuffer)),
-            lookupOptions))
-            .ValueOrThrow();
-
-        auto rows = rowset->GetRows();
-        YCHECK(!rows.Empty());
-
-        if (rows[0]) {
-#define SET_ITEM_STRING_VALUE_WITH_FIELD(itemKey, fieldName) \
-            SET_ITEM_VALUE_WITH_FIELD(itemKey, fieldName, TString(rows[0][index].Data.String, rows[0][index].Length))
-#define SET_ITEM_STRING_VALUE(itemKey) SET_ITEM_STRING_VALUE_WITH_FIELD(itemKey, itemKey)
-#define SET_ITEM_YSON_STRING_VALUE(itemKey) \
-            SET_ITEM_VALUE(itemKey, TYsonString(rows[0][index].Data.String, rows[0][index].Length))
-#define SET_ITEM_INSTANT_VALUE(itemKey) \
-            SET_ITEM_VALUE(itemKey, TInstant::MicroSeconds(rows[0][index].Data.Int64))
-#define SET_ITEM_VALUE_WITH_FIELD(itemKey, fieldName, operation) \
-            .DoIf(fields.find(fieldName) != fields.end() && rows[0][GET_INDEX(fieldName)].Type != EValueType::Null, \
-            [&] (TFluentMap fluent) { \
-                auto index = GET_INDEX(fieldName); \
-                fluent.Item(itemKey).Value(operation); \
-            })
-#define SET_ITEM_VALUE(itemKey, operation) SET_ITEM_VALUE_WITH_FIELD(itemKey, itemKey, operation)
-#define GET_INDEX(itemKey) fieldToIndex.find(itemKey)->second
-
-            auto ysonResult = BuildYsonStringFluently()
-                .BeginMap()
-                    .DoIf(fields.has("id_lo"), [&] (TFluentMap fluent) {
-                        fluent.Item("id").Value(operationId);
-                    })
-                    SET_ITEM_STRING_VALUE("state")
-                    SET_ITEM_STRING_VALUE("authenticated_user")
-                    SET_ITEM_STRING_VALUE_WITH_FIELD("type", "operation_type")
-                    // COMPAT(levysotsky): Add this field under old name for
-                    // backward compatibility. Should be removed when all the clients migrate.
-                    SET_ITEM_STRING_VALUE("operation_type")
-                    SET_ITEM_YSON_STRING_VALUE("progress")
-                    SET_ITEM_YSON_STRING_VALUE("spec")
-                    SET_ITEM_YSON_STRING_VALUE("full_spec")
-                    SET_ITEM_YSON_STRING_VALUE("unrecognized_spec")
-                    SET_ITEM_YSON_STRING_VALUE("brief_progress")
-                    SET_ITEM_YSON_STRING_VALUE("brief_spec")
-                    SET_ITEM_INSTANT_VALUE("start_time")
-                    SET_ITEM_INSTANT_VALUE("finish_time")
-                    SET_ITEM_YSON_STRING_VALUE("result")
-                    SET_ITEM_YSON_STRING_VALUE("events")
-                .EndMap();
-#undef SET_ITEM_STRING_VALUE
-#undef SET_ITEM_YSON_STRING_VALUE
-#undef SET_ITEM_INSTANT_VALUE
-#undef SET_ITEM_VALUE
-#undef GET_INDEX
-            return ysonResult;
-        }
-
-        return TYsonString();
-    }
-
     const THashSet<TString> AllowedOperationAttributes = {
         "id",
         "state",
@@ -3418,9 +3330,8 @@ private:
     {
         for (const auto& attribute : attributes) {
             if (!AllowedOperationAttributes.has(attribute)) {
-                LOG_DEBUG("Attribute is not allowed, skipping it (Attribute: %v)",
+                THROW_ERROR_EXCEPTION("Attribute %Qv is not allowed",
                     attribute);
-                continue;
             }
             if (attribute == "id") {
                 *output++ = "key";
@@ -3437,9 +3348,8 @@ private:
     {
         for (const auto& attribute : attributes) {
             if (!AllowedOperationAttributes.has(attribute)) {
-                LOG_DEBUG("Attribute is not allowed, skipping it (Attribute: %v)",
+                THROW_ERROR_EXCEPTION("Attribute %Qv is not allowed",
                     attribute);
-                continue;
             }
             if (attribute == "id") {
                 *output++ = "id_lo";
@@ -3452,13 +3362,11 @@ private:
         }
     };
 
-    TYsonString DoGetOperation(
+    TYsonString DoGetOperationFromCypress(
         const NScheduler::TOperationId& operationId,
+        TInstant deadline,
         const TGetOperationOptions& options)
     {
-        auto timeout = options.Timeout.Get(Connection_->GetConfig()->DefaultGetOperationTimeout);
-        auto deadline = timeout.ToDeadLine();
-
         TNullable<std::vector<TString>> cypressAttributes;
         if (options.Attributes) {
             cypressAttributes.Emplace();
@@ -3523,68 +3431,175 @@ private:
             cypressNode = oldCypressNode;
         }
 
-        if (cypressNode) {
-            auto attrNode = cypressNode->AsMap();
+        if (!cypressNode) {
+            return TYsonString();
+        }
 
-            // XXX(ignat): remove opaque from node. Make option to ignore it in conversion methods.
-            if (auto fullSpecNode = attrNode->FindChild("full_spec")) {
-                fullSpecNode->MutableAttributes()->Remove("opaque");
+        auto attrNode = cypressNode->AsMap();
+
+        // XXX(ignat): remove opaque from node. Make option to ignore it in conversion methods.
+        if (auto fullSpecNode = attrNode->FindChild("full_spec")) {
+            fullSpecNode->MutableAttributes()->Remove("opaque");
+        }
+
+        if (auto child = attrNode->FindChild("operation_type")) {
+            // COMPAT(levysotsky): When "operation_type" is disallowed, this code
+            // will be simplified to unconditionally removing the child
+            // (and also child will not have to be cloned).
+            if (options.Attributes && !options.Attributes->has("operation_type")) {
+                attrNode->RemoveChild("operation_type");
             }
 
-            if (!options.Attributes) {
-                auto userAttributeKeys = ConvertTo<THashSet<TString>>(attrNode->GetChild("user_attribute_keys"));
-                for (const auto& key : attrNode->GetKeys()) {
-                    if (!userAttributeKeys.has(key) && key != "key") {
-                        attrNode->RemoveChild(key);
-                    }
+            attrNode->RemoveChild("type");
+            YCHECK(attrNode->AddChild(CloneNode(child), "type"));
+        }
+
+        if (auto child = attrNode->FindChild("key")) {
+            attrNode->RemoveChild("key");
+            attrNode->RemoveChild("id");
+            YCHECK(attrNode->AddChild(child, "id"));
+        }
+
+        if (options.Attributes && !options.Attributes->has("state")) {
+            attrNode->RemoveChild("state");
+        }
+
+        if (!options.Attributes) {
+            auto keysToKeep = ConvertTo<THashSet<TString>>(attrNode->GetChild("user_attribute_keys"));
+            keysToKeep.insert("id");
+            keysToKeep.insert("type");
+            for (const auto& key : attrNode->GetKeys()) {
+                if (!keysToKeep.has(key)) {
+                    attrNode->RemoveChild(key);
                 }
             }
+        }
 
-            if (auto child = attrNode->FindChild("operation_type")) {
-                // COMPAT(levysotsky): When "operation_type" is disallowed, this code
-                // will be simplified to unconditionally replacing the child
-                if (options.Attributes) {
-                    if (options.Attributes->has("type")) {
-                        attrNode->RemoveChild(child);
-                        YCHECK(attrNode->AddChild(CloneNode(child), "type"));
-                    }
-                    // else the "operation_type" attrbute has been ordered, nothing has to be done
-                } else {
-                    YCHECK(attrNode->AddChild(CloneNode(child), "type"));
-                }
+        bool shouldRequestProgress = !options.Attributes || options.Attributes->has("progress");
+        if (options.IncludeScheduler && shouldRequestProgress) {
+            TGetNodeOptions getOptions;
+            getOptions.Timeout = deadline - Now();
+            auto schedulerProgressValueOrError = WaitFor(GetNode(GetOperationProgressFromOrchid(operationId), getOptions));
+
+            if (schedulerProgressValueOrError.IsOK()) {
+                auto schedulerProgressNode = ConvertToNode(schedulerProgressValueOrError.Value());
+                attrNode->RemoveChild("progress");
+                YCHECK(attrNode->AddChild(schedulerProgressNode, "progress"));
+            } else if (schedulerProgressValueOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
+                LOG_DEBUG("Operation is missing in scheduler Orchid (OperationId: %v)",
+                    operationId);
+            } else {
+                THROW_ERROR_EXCEPTION("Failed to get operation from scheduler")
+                    << TErrorAttribute("operation_id", operationId)
+                    << schedulerProgressValueOrError;
             }
+        }
 
-            if (auto child = attrNode->FindChild("key")) {
-                attrNode->RemoveChild(child);
-                YCHECK(attrNode->AddChild(child, "id"));
-            }
+        return ConvertToYsonString(attrNode);
+    }
 
-            if (options.Attributes && !options.Attributes->has("state")) {
-                attrNode->RemoveChild("state");
-            }
+    TYsonString DoGetOperationFromArchive(
+        const NScheduler::TOperationId& operationId,
+        TInstant deadline,
+        const TGetOperationOptions& options)
+    {
+        THashSet<TString> fields;
+        MakeArchiveOperationAttributes(
+            options.Attributes ? *options.Attributes : AllowedOperationAttributes,
+            std::inserter(fields, fields.end()));
 
-            bool shouldRequestProgress = !options.Attributes || options.Attributes->has("progress");
-            if (options.IncludeScheduler && shouldRequestProgress) {
-                TGetNodeOptions schedulerOptions;
-                schedulerOptions.Timeout = deadline - Now();
-                auto asyncSchedulerProgressValue = GetNode(GetOperationProgressFromOrchid(operationId), schedulerOptions);
-                auto schedulerProgressValueOrError = WaitFor(asyncSchedulerProgressValue);
+        TOrderedByIdTableDescriptor tableDescriptor;
+        auto rowBuffer = New<TRowBuffer>();
 
-                if (schedulerProgressValueOrError.IsOK()) {
-                    auto schedulerProgressNode = ConvertToNode(schedulerProgressValueOrError.Value());
-                    attrNode->RemoveChild("progress");
-                    YCHECK(attrNode->AddChild(schedulerProgressNode, "progress"));
-                } else if (schedulerProgressValueOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
-                    LOG_DEBUG("Operation is missing in scheduler Orchid (OperationId: %v)",
-                        operationId);
-                } else {
-                    THROW_ERROR_EXCEPTION("Failed to get operation %v from scheduler",
-                        operationId)
-                        << schedulerProgressValueOrError;
-                }
-            }
+        std::vector<TUnversionedRow> keys;
+        auto key = rowBuffer->AllocateUnversioned(2);
+        key[0] = MakeUnversionedUint64Value(operationId.Parts64[0], tableDescriptor.Index.IdHi);
+        key[1] = MakeUnversionedUint64Value(operationId.Parts64[1], tableDescriptor.Index.IdLo);
+        keys.push_back(key);
 
-            return ConvertToYsonString(attrNode);
+        std::vector<int> columnIndexes;
+        THashMap<TString, int> fieldToIndex;
+
+        int index = 0;
+        for (const auto& field : fields) {
+            columnIndexes.push_back(tableDescriptor.NameTable->GetIdOrThrow(field));
+            fieldToIndex[field] = index++;
+        }
+
+        TLookupRowsOptions lookupOptions;
+        lookupOptions.ColumnFilter = NTableClient::TColumnFilter(columnIndexes);
+        lookupOptions.KeepMissingRows = true;
+        lookupOptions.Timeout = deadline - Now();
+
+        auto rowset = WaitFor(LookupRows(
+            GetOperationsArchivePathOrderedById(),
+            tableDescriptor.NameTable,
+            MakeSharedRange(std::move(keys), std::move(rowBuffer)),
+            lookupOptions))
+            .ValueOrThrow();
+
+        auto rows = rowset->GetRows();
+        YCHECK(!rows.Empty());
+
+        if (rows[0]) {
+#define SET_ITEM_STRING_VALUE_WITH_FIELD(itemKey, fieldName) \
+            SET_ITEM_VALUE_WITH_FIELD(itemKey, fieldName, TString(rows[0][index].Data.String, rows[0][index].Length))
+#define SET_ITEM_STRING_VALUE(itemKey) SET_ITEM_STRING_VALUE_WITH_FIELD(itemKey, itemKey)
+#define SET_ITEM_YSON_STRING_VALUE(itemKey) \
+            SET_ITEM_VALUE(itemKey, TYsonString(rows[0][index].Data.String, rows[0][index].Length))
+#define SET_ITEM_INSTANT_VALUE(itemKey) \
+            SET_ITEM_VALUE(itemKey, TInstant::MicroSeconds(rows[0][index].Data.Int64))
+#define SET_ITEM_VALUE_WITH_FIELD(itemKey, fieldName, operation) \
+            .DoIf(fields.find(fieldName) != fields.end() && rows[0][GET_INDEX(fieldName)].Type != EValueType::Null, \
+            [&] (TFluentMap fluent) { \
+                auto index = GET_INDEX(fieldName); \
+                fluent.Item(itemKey).Value(operation); \
+            })
+#define SET_ITEM_VALUE(itemKey, operation) SET_ITEM_VALUE_WITH_FIELD(itemKey, itemKey, operation)
+#define GET_INDEX(itemKey) fieldToIndex.find(itemKey)->second
+
+            auto ysonResult = BuildYsonStringFluently()
+                .BeginMap()
+                    .DoIf(fields.has("id_lo"), [&] (TFluentMap fluent) {
+                        fluent.Item("id").Value(operationId);
+                    })
+                    SET_ITEM_STRING_VALUE("state")
+                    SET_ITEM_STRING_VALUE("authenticated_user")
+                    SET_ITEM_STRING_VALUE_WITH_FIELD("type", "operation_type")
+                    // COMPAT(levysotsky): Add this field under old name for
+                    // backward compatibility. Should be removed when all the clients migrate.
+                    SET_ITEM_STRING_VALUE("operation_type")
+                    SET_ITEM_YSON_STRING_VALUE("progress")
+                    SET_ITEM_YSON_STRING_VALUE("spec")
+                    SET_ITEM_YSON_STRING_VALUE("full_spec")
+                    SET_ITEM_YSON_STRING_VALUE("unrecognized_spec")
+                    SET_ITEM_YSON_STRING_VALUE("brief_progress")
+                    SET_ITEM_YSON_STRING_VALUE("brief_spec")
+                    SET_ITEM_INSTANT_VALUE("start_time")
+                    SET_ITEM_INSTANT_VALUE("finish_time")
+                    SET_ITEM_YSON_STRING_VALUE("result")
+                    SET_ITEM_YSON_STRING_VALUE("events")
+                .EndMap();
+#undef SET_ITEM_STRING_VALUE
+#undef SET_ITEM_YSON_STRING_VALUE
+#undef SET_ITEM_INSTANT_VALUE
+#undef SET_ITEM_VALUE
+#undef GET_INDEX
+            return ysonResult;
+        }
+
+        return TYsonString();
+    }
+
+    TYsonString DoGetOperation(
+        const NScheduler::TOperationId& operationId,
+        const TGetOperationOptions& options)
+    {
+        auto timeout = options.Timeout.Get(Connection_->GetConfig()->DefaultGetOperationTimeout);
+        auto deadline = timeout.ToDeadLine();
+
+        if (auto result = DoGetOperationFromCypress(operationId, deadline, options)) {
+            return result;
         }
 
         LOG_DEBUG("Operation is not found in Cypress (OperationId: %v)",
@@ -3601,16 +3616,11 @@ private:
             }
 
             try {
-                THashSet<TString> fields;
-                MakeArchiveOperationAttributes(
-                    options.Attributes ? *options.Attributes : AllowedOperationAttributes,
-                    std::inserter(fields, fields.end()));
-                if (auto result = DoGetOperationFromArchive(operationId, deadline, fields)) {
+                if (auto result = DoGetOperationFromArchive(operationId, deadline, options)) {
                     return result;
                 }
             } catch (const TErrorException& ex) {
-                auto matchedError = ex.Error().FindMatching(NYTree::EErrorCode::ResolveError);
-                if (!matchedError) {
+                if (!ex.Error().FindMatching(NYTree::EErrorCode::ResolveError)) {
                     THROW_ERROR_EXCEPTION("Failed to get operation from archive")
                         << TErrorAttribute("operation_id", operationId)
                         << ex.Error();
