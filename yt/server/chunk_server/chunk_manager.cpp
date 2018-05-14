@@ -2112,13 +2112,13 @@ private:
         NeedInitializeMediumConfig_ = context.GetVersion() < 629;
 
         // COMPAT(shakurov)
-        NeedRecomputeRequisitionRefCounts_ = context.GetVersion() < 704;
+        NeedRecomputeRequisitionRefCounts_ = context.GetVersion() < 710;
 
         // COMPAT(shakurov)
         NeedToFixExportRequisitionIndexes_ = context.GetVersion() >= 700 && context.GetVersion() < 707;
 
         // COMPAT(shakurov)
-        NeedToInitializeAggregatedRequisitionIndexes_ = context.GetVersion() < 709;
+        NeedToInitializeAggregatedRequisitionIndexes_ = context.GetVersion() < 710;
     }
 
     virtual void OnBeforeSnapshotLoaded() override
