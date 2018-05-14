@@ -12,6 +12,7 @@
 namespace NYT {
 namespace NSkynetManager {
 
+using namespace NCrypto;
 using namespace NYson;
 using namespace NYTree;
 

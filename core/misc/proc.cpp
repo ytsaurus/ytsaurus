@@ -43,6 +43,7 @@
     #include <grp.h>
     #include <utmp.h>
     #include <sys/prctl.h>
+    #include <sys/ttydefaults.h>
 #endif
 #ifdef _darwin_
     #include <util.h>

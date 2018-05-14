@@ -90,6 +90,7 @@ void TJobSummary::Persist(const NPhoenix::TPersistenceContext& context)
     Persist(context, StatisticsYson);
     Persist(context, LogAndProfile);
     Persist(context, ArchiveJobSpec);
+    Persist(context, ArchiveStderr);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

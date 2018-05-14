@@ -577,15 +577,13 @@ void TOperationControllerBase::InitUnrecognizedSpec()
 
 void TOperationControllerBase::FillInitializationResult(TOperationControllerInitializationResult* result)
 {
-    result->Attributes.Immutable = BuildYsonStringFluently<EYsonType::MapFragment>()
-        .Do(BIND(&TOperationControllerBase::BuildInitializeImmutableAttributes, Unretained(this)))
-        .Finish();
     result->Attributes.Mutable = BuildYsonStringFluently<EYsonType::MapFragment>()
         .Do(BIND(&TOperationControllerBase::BuildInitializeMutableAttributes, Unretained(this)))
         .Finish();
     result->Attributes.BriefSpec = BuildYsonStringFluently<EYsonType::MapFragment>()
         .Do(BIND(&TOperationControllerBase::BuildBriefSpec, Unretained(this)))
         .Finish();
+    result->Attributes.FullSpec = ConvertToYsonString(Spec_);
     result->Attributes.UnrecognizedSpec = ConvertToYsonString(UnrecognizedSpec_);
     result->Transactions = GetTransactions();
 }
@@ -3771,19 +3769,23 @@ void TOperationControllerBase::ProcessFinishedJobResult(std::unique_ptr<TJobSumm
         return;
     }
 
+    bool shouldCreateJobNode =
+        (requestJobNodeCreation && JobNodeCount_ < Config->MaxJobNodesPerOperation) ||
+        (stderrChunkId && StderrCount_ < Spec_->MaxStderrCount);
+
+    if (stderrChunkId && shouldCreateJobNode) {
+        summary->ArchiveStderr = true;
+    }
+
     auto inputPaths = BuildInputPathYson(joblet);
     auto finishedJob = New<TFinishedJobInfo>(joblet, std::move(*summary), std::move(inputPaths));
     // NB: we do not want these values to get into the snapshot as they may be pretty large.
     finishedJob->Summary.StatisticsYson = TYsonString();
     finishedJob->Summary.Statistics.Reset();
 
-    if (finishedJob->Summary.ArchiveJobSpec) {
+    if (finishedJob->Summary.ArchiveJobSpec || finishedJob->Summary.ArchiveStderr) {
         FinishedJobs_.insert(std::make_pair(jobId, finishedJob));
     }
-
-    bool shouldCreateJobNode =
-        (requestJobNodeCreation && JobNodeCount_ < Config->MaxJobNodesPerOperation) ||
-        (stderrChunkId && StderrCount_ < Spec_->MaxStderrCount);
 
     if (!shouldCreateJobNode) {
         if (stderrChunkId) {
@@ -5982,15 +5984,6 @@ bool TOperationControllerBase::HasProgress() const
     }
 }
 
-void TOperationControllerBase::BuildInitializeImmutableAttributes(TFluentMap fluent) const
-{
-    VERIFY_INVOKER_AFFINITY(Invoker);
-
-    fluent
-        .Item("unrecognized_spec").Value(UnrecognizedSpec_)
-        .Item("full_spec").Value(Spec_);
-}
-
 void TOperationControllerBase::BuildInitializeMutableAttributes(TFluentMap fluent) const
 {
     VERIFY_INVOKER_AFFINITY(Invoker);
@@ -6282,12 +6275,16 @@ void TOperationControllerBase::ReleaseJobs(const std::vector<TJobId>& jobIds)
 
     for (const auto& jobId : jobIds) {
         bool archiveJobSpec = false;
+        bool archiveStderr = false;
+
         auto it = FinishedJobs_.find(jobId);
         if (it != FinishedJobs_.end()) {
-            archiveJobSpec = it->second->Summary.ArchiveJobSpec;
+            const auto& jobSummary = it->second->Summary;
+            archiveJobSpec = jobSummary.ArchiveJobSpec;
+            archiveStderr = jobSummary.ArchiveStderr;
             FinishedJobs_.erase(it);
         }
-        jobsToRelease.emplace_back(TJobToRelease{jobId, archiveJobSpec});
+        jobsToRelease.emplace_back(TJobToRelease{jobId, archiveJobSpec, archiveStderr});
     }
     Host->ReleaseJobs(jobsToRelease);
 }

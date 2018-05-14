@@ -39,6 +39,7 @@ void TOperationControllerHost::InterruptJob(const TJobId& jobId, EInterruptReaso
         jobId,
         {},
         reason,
+        {},
         {}
     });
     LOG_DEBUG("Job interrupt request enqueued (OperationId: %v, JobCount: %v)",
@@ -53,6 +54,7 @@ void TOperationControllerHost::AbortJob(const TJobId& jobId, const TError& error
         jobId,
         error,
         {},
+        {},
         {}
     });
     LOG_DEBUG("Job abort request enqueued (OperationId: %v, JobId: %v)",
@@ -65,6 +67,7 @@ void TOperationControllerHost::FailJob(const TJobId& jobId)
     JobEventsOutbox_->Enqueue(TAgentToSchedulerJobEvent{
         EAgentToSchedulerJobEventType::Failed,
         jobId,
+        {},
         {},
         {},
         {}
@@ -84,7 +87,8 @@ void TOperationControllerHost::ReleaseJobs(const std::vector<TJobToRelease>& job
             jobToRelease.JobId,
             {},
             {},
-            jobToRelease.ArchiveJobSpec
+            jobToRelease.ArchiveJobSpec,
+            jobToRelease.ArchiveStderr
         });
     }
     JobEventsOutbox_->Enqueue(std::move(events));

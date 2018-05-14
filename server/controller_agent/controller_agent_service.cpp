@@ -148,9 +148,9 @@ private:
             auto result = WaitFor(controllerAgent->InitializeOperation(operation, transactions))
                 .ValueOrThrow();
 
-            response->set_immutable_attributes(result.Attributes.Immutable.GetData());
             response->set_mutable_attributes(result.Attributes.Mutable.GetData());
             response->set_brief_spec(result.Attributes.BriefSpec.GetData());
+            response->set_full_spec(result.Attributes.FullSpec.GetData());
             response->set_unrecognized_spec(result.Attributes.UnrecognizedSpec.GetData());
             context->Reply();
         });

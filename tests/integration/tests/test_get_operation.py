@@ -15,7 +15,8 @@ def _get_operation_from_cypress(op_id):
     result = get(get_new_operation_cypress_path(op_id) + "/@")
     if "full_spec" in result:
         result["full_spec"].attributes.pop("opaque", None)
-    del result["id"]
+    result["type"] = result["operation_type"]
+    result["id"] = op_id
     return result
 
 class TestGetOperation(YTEnvSetup):
@@ -57,21 +58,27 @@ class TestGetOperation(YTEnvSetup):
         res_orchid_progress = get(_get_orchid_operation_path(op.id))
 
         def filter_attrs(attrs):
-            PROPER_ATTRS = ["authenticated_user",
-                            "brief_progress",
-                            "brief_spec",
-                            "finish_time",
-                            "operation_type",
-                            "result",
-                            "start_time",
-                            "state",
-                            "suspended",
-                            "title",
-                            "weight",
-                            "spec",
-                            "unrecognized_spec",
-                            "full_spec"]
+            PROPER_ATTRS = [
+                "id",
+                "authenticated_user",
+                "brief_progress",
+                "brief_spec",
+                "finish_time",
+                "type",
+                # COMPAT(levysotsky): Old name for "type"
+                "operation_type",
+                "result",
+                "start_time",
+                "state",
+                "suspended",
+                "title",
+                "weight",
+                "spec",
+                "unrecognized_spec",
+                "full_spec",
+            ]
             return {key : attrs[key] for key in PROPER_ATTRS if key in attrs}
+
         assert filter_attrs(res_get_operation) == filter_attrs(res_cypress)
 
         res_get_operation_progress = res_get_operation["progress"]
@@ -115,6 +122,7 @@ class TestGetOperation(YTEnvSetup):
         wait_breakpoint()
 
         assert list(get_operation(op.id, attributes=["state"])) == ["state"]
+        assert get_operation(op.id, attributes=["PYSCH"]) == {}
 
         for read_from in ("cache", "follower"):
             res_get_operation = get_operation(op.id, attributes=["progress", "state"], include_scheduler=True, read_from=read_from)
@@ -132,9 +140,7 @@ class TestGetOperation(YTEnvSetup):
         res_get_operation_archive = get_operation(op.id, attributes=["progress", "state"])
         assert sorted(list(res_get_operation_archive)) == ["progress", "state"]
         assert res_get_operation_archive["state"] == "completed"
-
-        with pytest.raises(YtError):
-            get_operation(op.id, attributes=["abc"])
+        assert get_operation(op.id, attributes=["PYSCH"]) == {}
 
     def test_get_operation_and_half_deleted_operation_node(self):
         create("table", "//tmp/t1")

@@ -13,6 +13,7 @@ class TServerConfig
     : public NYTree::TYsonSerializable
 {
 public:
+    //! If zero then the port is chosen automatically.
     int Port;
 
     //! Limit for number of open TCP connections.
@@ -38,13 +39,7 @@ public:
     int ReadBufferSize;
     int WriteBufferSize;
 
-    TClientConfig() {
-        RegisterParameter("read_buffer_size", ReadBufferSize)
-            .Default(128_KB);
-
-        RegisterParameter("write_buffer_size", WriteBufferSize)
-            .Default(128_KB);
-    }
+    TClientConfig();
 };
 
 DEFINE_REFCOUNTED_TYPE(TClientConfig);

@@ -8,9 +8,14 @@
 #include <yt/core/concurrency/thread_pool.h>
 #include <yt/core/concurrency/scheduler.h>
 
-using namespace NYT;
+namespace NYT {
+namespace NSkynetManager {
+namespace {
+
+using namespace NYT::NCrypto;
 using namespace NYT::NConcurrency;
-using namespace NYT::NSkynetManager;
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TTestSkynetApi
     : public ::testing::Test
@@ -126,3 +131,9 @@ TEST_F(TTestSkynetApi, DISABLED_ManyAddsAndList)
             .ThrowOnError();
     }
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace
+} // namespace NSkynetManager
+} // namespace NYT

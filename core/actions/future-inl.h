@@ -21,7 +21,6 @@ namespace NYT {
 
 // invoker_util.h.
 IInvokerPtr GetFinalizerInvoker();
-IInvokerPtr GetNullInvoker();
 
 namespace NConcurrency {
 

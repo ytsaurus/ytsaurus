@@ -218,8 +218,6 @@ public:
     virtual void BuildBriefProgress(NYTree::TFluentMap fluent) const;
     virtual void BuildJobSplitterInfo(NYTree::TFluentMap fluent) const;
     virtual void BuildJobsYson(NYTree::TFluentMap fluent) const;
-    void BuildMemoryUsageYson(NYTree::TFluentAny fluent) const;
-    void BuildStateYson(NYTree::TFluentAny fluent) const;
 
     // NB(max42, babenko): this method should not be safe. Writing a core dump or trying to fail
     // operation from a forked process is a bad idea.
@@ -840,7 +838,6 @@ protected:
     void ValidateOutputSchemaOrdered() const;
     void ValidateOutputSchemaCompatibility(bool ignoreSortOrder, bool validateComputedColumns = false) const;
 
-    virtual void BuildInitializeImmutableAttributes(NYTree::TFluentMap fluent) const;
     virtual void BuildInitializeMutableAttributes(NYTree::TFluentMap fluent) const;
     virtual void BuildPrepareAttributes(NYTree::TFluentMap fluent) const;
     virtual void BuildBriefSpec(NYTree::TFluentMap fluent) const;
@@ -1076,6 +1073,9 @@ private:
     static EJobState GetStatisticsJobState(const TJobletPtr& joblet, const EJobState& state);
 
     NYson::TYsonString BuildInputPathYson(const TJobletPtr& joblet) const;
+
+    void BuildMemoryUsageYson(NYTree::TFluentAny fluent) const;
+    void BuildStateYson(NYTree::TFluentAny fluent) const;
 
     void ProcessFinishedJobResult(std::unique_ptr<TJobSummary> summary, bool suggestCreateJobNodeByStatus);
 

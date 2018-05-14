@@ -66,6 +66,7 @@ private:
     const bool EnableWriteDirectIO_;
 
     bool IsOpen_ = false;
+    bool IsOpening_ = false;
     bool IsClosed_ = false;
     i64 DataSize_ = 0;
 
@@ -81,6 +82,8 @@ private:
 
     TError Error_;
 
+    TFuture<void> LockDataFile(const std::shared_ptr<TFileHandle>& file);
+    void TryLockDataFile(TPromise<void> promise);
 };
 
 DEFINE_REFCOUNTED_TYPE(TFileWriter)

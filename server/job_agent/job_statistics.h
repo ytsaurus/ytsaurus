@@ -60,6 +60,7 @@ public:
     size_t EstimateSize() const;
 
     TJobStatistics ExtractSpec();
+    TJobStatistics ExtractStderr();
 
     bool IsEmpty() const;
 
@@ -74,6 +75,7 @@ public:
     void SetSpecVersion(i64 specVersion);
     void SetStatistics(const NYson::TYsonString& statistics);
     void SetEvents(const TJobEvents& events);
+    void SetStderr(const TString& stderr);
 
     DEFINE_FORWARD_RW_PROPERTY(NJobTrackerClient::TOperationId, OperationId)
     DEFINE_FORWARD_RW_PROPERTY(NJobTrackerClient::TJobId, JobId)
@@ -86,6 +88,7 @@ public:
     DEFINE_FORWARD_RW_PROPERTY(TNullable<i64>, SpecVersion)
     DEFINE_FORWARD_RW_PROPERTY(TNullable<TString>, Statistics)
     DEFINE_FORWARD_RW_PROPERTY(TNullable<TString>, Events)
+    DEFINE_FORWARD_RW_PROPERTY(TNullable<TString>, Stderr)
 };
 
 ////////////////////////////////////////////////////////////////////////////////

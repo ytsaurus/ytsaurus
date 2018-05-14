@@ -9,6 +9,10 @@
 #include <yt/core/http/stream.h>
 #include <yt/core/http/config.h>
 
+#include <yt/core/https/server.h>
+#include <yt/core/https/client.h>
+#include <yt/core/https/config.h>
+
 #include <yt/core/net/connection.h>
 #include <yt/core/net/listener.h>
 #include <yt/core/net/dialer.h>
@@ -21,10 +25,10 @@
 
 #include <yt/core/rpc/grpc/dispatcher.h>
 
-#include <yt/core/crypto/https.h>
 #include <yt/core/crypto/tls.h>
 
 #include <yt/core/misc/error.h>
+#include <yt/core/https/config.h>
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -469,55 +473,60 @@ struct THttpServerTest
     : public ::testing::TestWithParam<bool>
 {
     IPollerPtr Poller;
-    IListenerPtr Listener;
     IServerPtr Server;
     IClientPtr Client;
 
-    int TestPort = -1;
+    int TestPort;
     TString TestUrl;
-
-    NRpc::NGrpc::TGrpcLibraryLockPtr GrpcLock;
-    TSslContextPtr Context;
 
     THttpServerTest()
     {
         Poller = CreateThreadPoolPoller(4, "HttpTest");
-        Listener = CreateListener(TNetworkAddress::CreateIPv6Loopback(0), Poller);
-        TestPort = Listener->Address().GetPort();
-        TestUrl = Format("http://localhost:%d", TestPort);
-
         if (!GetParam()) {
-            Server = CreateServer(New<TServerConfig>(), Listener, Poller);
-            Client = CreateClient(New<TClientConfig>(), Poller);
+            auto serverConfig = New<NHttp::TServerConfig>();
+            SetupServer(serverConfig);
+            Server = NHttp::CreateServer(serverConfig, Poller);
+
+            auto clientConfig = New<NHttp::TClientConfig>();
+            SetupClient(clientConfig);
+            Client = NHttp::CreateClient(clientConfig, Poller);
         } else {
-            // Piggybacking on openssl initialization in grpc.
-            GrpcLock = NRpc::NGrpc::TDispatcher::Get()->CreateLibraryLock();
-            Context = New<TSslContext>();
+            auto serverConfig = New<NHttps::TServerConfig>();
+            serverConfig->Credentials = New<NHttps::TServerCredentialsConfig>();
+            serverConfig->Credentials->PrivateKey = New<TPemBlobConfig>();
+            serverConfig->Credentials->PrivateKey->Value = TestCertificate;
+            serverConfig->Credentials->CertChain = New<TPemBlobConfig>();
+            serverConfig->Credentials->CertChain->Value = TestCertificate;
+            SetupServer(serverConfig);
+            Server = NHttps::CreateServer(serverConfig, Poller);
 
-            Context->AddCertificate(TestCertificate);
-            Context->AddPrivateKey(TestCertificate);
-
-            Server = NCrypto::CreateHttpsServer(Context, Listener, Poller);
-            Client = NCrypto::CreateHttpsClient(Context, New<TClientConfig>(), Poller);
+            auto clientConfig = New<NHttps::TClientConfig>();
+            clientConfig->Credentials = New<NHttps::TClientCredentialsConfig>();
+            clientConfig->Credentials->PrivateKey = New<TPemBlobConfig>();
+            clientConfig->Credentials->PrivateKey->Value = TestCertificate;
+            clientConfig->Credentials->CertChain = New<TPemBlobConfig>();
+            clientConfig->Credentials->CertChain->Value = TestCertificate;
+            SetupClient(clientConfig);
+            Client = NHttps::CreateClient(clientConfig, Poller);
         }
-    }
 
-    IDialerPtr CreateDialer(
-        const TDialerConfigPtr& config,
-        const IPollerPtr& poller,
-        const TLogger& logger)
-    {
-        if (!GetParam()) {
-            return NNet::CreateDialer(config, poller, logger);
-        } else {
-            return Context->CreateDialer(config, poller, logger);
-        }
+        TestPort = Server->GetAddress().GetPort();
+        TestUrl = Format("http://localhost:%v", TestPort);
     }
 
     ~THttpServerTest()
     {
         Poller->Shutdown();
     }
+
+private:
+    void SetupServer(const NHttp::TServerConfigPtr& config)
+    {
+        config->Port = 0;
+    }
+
+    void SetupClient(const NHttp::TClientConfigPtr& /*config*/)
+    { }
 };
 
 class TOKHttpHandler
@@ -864,18 +873,25 @@ public:
 
 TEST_P(THttpServerTest, RequestHangUp)
 {
+    if (GetParam()) {
+        // This test is not TLS-specific.
+        return;
+    }
+
     auto validating = New<TValidateErrorHandler>();
     Server->AddHandler("/validating", validating);
     Server->Start();
 
     auto dialer = CreateDialer(New<TDialerConfig>(), Poller, HttpLogger);
-    auto conn = WaitFor(dialer->Dial(TNetworkAddress::CreateIPv6Loopback(TestPort)))
+    auto connection = WaitFor(dialer->Dial(TNetworkAddress::CreateIPv6Loopback(TestPort)))
         .ValueOrThrow();
-    WaitFor(conn->Write(TSharedRef::FromString("POST /validating HTTP/1.1\r\nTransfer-Encoding: chunked\r\n\r\n")));
-    WaitFor(conn->CloseWrite());
-
-    auto result = WaitFor(conn->Read(TSharedMutableRef::Allocate(1)));
-    ASSERT_EQ(0, result.ValueOrThrow());
+    WaitFor(connection->Write(TSharedRef::FromString("POST /validating HTTP/1.1\r\nTransfer-Encoding: chunked\r\n\r\n")))
+        .ThrowOnError();
+    WaitFor(connection->CloseWrite())
+        .ThrowOnError();
+    auto bytesRead = WaitFor(connection->Read(TSharedMutableRef::Allocate(1)))
+        .ValueOrThrow();
+    ASSERT_EQ(0, bytesRead);
 
     Server->Stop();
     Sleep(TDuration::MilliSeconds(10));
@@ -886,7 +902,6 @@ TEST_P(THttpServerTest, RequestHangUp)
 ////////////////////////////////////////////////////////////////////////////////
 
 INSTANTIATE_TEST_CASE_P(WithoutTls, THttpServerTest, ::testing::Values(false));
-
 INSTANTIATE_TEST_CASE_P(WithTls, THttpServerTest, ::testing::Values(true));
 
 ////////////////////////////////////////////////////////////////////////////////

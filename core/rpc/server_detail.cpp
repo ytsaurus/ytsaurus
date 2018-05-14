@@ -310,16 +310,6 @@ bool TServiceContextBase::IsPooled() const
     return false;
 }
 
-void TServiceContextBase::AddHolder(TIntrusivePtr<TRefCounted> holder)
-{
-    Holders_.emplace_back(std::move(holder));
-}
-
-std::vector<TIntrusivePtr<TRefCounted>> TServiceContextBase::GetHolders() const
-{
-    return Holders_;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 TServiceContextWrapper::TServiceContextWrapper(IServiceContextPtr underlyingContext)
@@ -500,15 +490,6 @@ bool TServiceContextWrapper::IsPooled() const
     return UnderlyingContext_->IsPooled();
 }
 
-void TServiceContextWrapper::AddHolder(TIntrusivePtr<TRefCounted> holder)
-{
-    UnderlyingContext_->AddHolder(std::move(holder));
-}
-
-std::vector<TIntrusivePtr<TRefCounted>> TServiceContextWrapper::GetHolders() const
-{
-    return UnderlyingContext_->GetHolders();
-}
 ////////////////////////////////////////////////////////////////////////////////
 
 void TServerBase::RegisterService(IServicePtr service)

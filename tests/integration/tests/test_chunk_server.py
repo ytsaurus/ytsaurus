@@ -174,3 +174,30 @@ class TestChunkServerMulticell(TestChunkServer):
 
     def test_chunk_requisition_registry_orchid(self):
         pass
+
+##################################################################
+
+class TestMultipleErasurePartsPerNode(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 1
+    DELTA_MASTER_CONFIG = {
+        "chunk_manager": {
+            "allow_multiple_erasure_parts_per_node": True
+        }
+    }
+
+    def test_allow_multiple_erasure_parts_per_node(self):
+        create("table", "//tmp/t", attributes={"erasure_codec": "lrc_12_2_2"})
+        rows = [{"a": "b"}]
+        write_table("//tmp/t", rows)
+        assert read_table("//tmp/t") == rows
+
+        chunk_ids = get("//tmp/t/@chunk_ids")
+        assert len(chunk_ids) == 1
+        chunk_id = chunk_ids[0]
+
+        status = get("#" + chunk_id + "/@replication_status/default")
+        assert not status["data_missing"]
+        assert not status["parity_missing"]
+        assert not status["overreplicated"]
+        assert not status["underreplicated"]

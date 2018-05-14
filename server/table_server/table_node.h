@@ -93,7 +93,7 @@ public:
         const TSharedTableSchemaPtr& schema,
         NTableClient::ETableSchemaMode schemaMode,
         TNullable<NTableClient::EOptimizeFor> optimizeFor,
-        const TNullable<TMD5Hasher>& md5Hasher) override;
+        const TNullable<NCrypto::TMD5Hasher>& md5Hasher) override;
 
     virtual NSecurityServer::TClusterResources GetDeltaResourceUsage() const override;
     virtual NSecurityServer::TClusterResources GetTotalResourceUsage() const override;

@@ -87,6 +87,10 @@ DEFINE_RPC_SERVICE_METHOD(TSupervisorService, OnJobFinished)
     }
     job->ReportStatistics(std::move(statistics));
 
+    if (request->has_stderr()) {
+        job->SetStderr(request->stderr());
+    }
+
     context->Reply();
 }
 

@@ -3,6 +3,7 @@
 #include "helpers.h"
 #include "scheduler.h"
 #include "scheduler_strategy.h"
+#include "operations_cleaner.h"
 #include "bootstrap.h"
 
 #include <yt/server/controller_agent/helpers.h>
@@ -228,10 +229,7 @@ public:
             .BeginMap()
                 .DoIf(!isReviving, BIND(&ISchedulerStrategy::BuildOperationAttributes, strategy, operationId))
                 .Do(BIND(&BuildFullOperationAttributes, operation))
-                .Item("brief_spec").BeginMap()
-                    .Items(operation->ControllerAttributes().InitializationAttributes->BriefSpec)
-                    .Do(BIND(&ISchedulerStrategy::BuildBriefSpec, strategy, operationId))
-                .EndMap()
+                .Item("brief_spec").Value(operation->BriefSpec())
             .EndMap());
 
         auto paths = GetOperationPaths(operationId, operation->GetEnableCompatibleStorageMode());
@@ -621,8 +619,9 @@ private:
             SyncClusterDirectory();
             ListOperations();
             RequestOperationAttributes();
-            FireHandshake();
             SyncOperationNodes();
+            SubmitOperationsToCleaner();
+            FireHandshake();
         }
 
     private:
@@ -631,6 +630,9 @@ private:
 
         std::vector<TOperationId> OperationIds_;
         std::vector<TOperationId> OperationIdsToSync_;
+        std::vector<TOperationId> OperationIdsToArchive_;
+        std::vector<TOperationId> OperationIdsToRemove_;
+
         TMasterHandshakeResult Result_;
 
         void FireConnecting()
@@ -742,76 +744,25 @@ private:
         {
             LOG_INFO("Started listing existing operations");
 
-            static const std::vector<TString> attributeKeys = {
-                "state"
-            };
+            auto createBatchRequest = BIND(
+                &TImpl::StartObjectBatchRequest,
+                Owner_,
+                EMasterChannelKind::Follower,
+                PrimaryMasterCellTag);
 
-            auto batchReq = Owner_->StartObjectBatchRequest(EMasterChannelKind::Follower);
-            for (int hash = 0x0; hash <= 0xFF; ++hash) {
-                auto hashStr = Format("%02x", hash);
-                auto req = TYPathProxy::List("//sys/operations/" + hashStr);
-                ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
-                batchReq->AddRequest(req, "list_operations_" + hashStr);
+            auto listOperationsResult = NScheduler::ListOperations(createBatchRequest);
+            OperationIds_.reserve(listOperationsResult.OperationsToRevive.size());
+
+            for (const auto& pair : listOperationsResult.OperationsToRevive) {
+                LOG_DEBUG("Found operation in Cypress (OperationId: %v, State: %v)",
+                    pair.first,
+                    pair.second);
+                OperationIds_.push_back(pair.first);
             }
 
-            {
-                auto req = TYPathProxy::List("//sys/operations");
-                ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
-                batchReq->AddRequest(req, "list_operations");
-            }
-
-            auto batchRsp = WaitFor(batchReq->Invoke())
-                .ValueOrThrow();
-
-            THashMap<TOperationId, EOperationState> rootOperationIdToState;
-
-            auto rootOperationsRspOrError = batchRsp->GetResponse<TYPathProxy::TRspList>("list_operations");
-            auto rootOperationsRsp = rootOperationsRspOrError.ValueOrThrow();
-            auto rootOperationList = ConvertToNode(TYsonString(rootOperationsRsp->value()))->AsList();
-
-            for (const auto& operationNode : rootOperationList->GetChildren()) {
-                auto idStr = operationNode->GetValue<TString>();
-                // Hash-bucket case
-                if (idStr.size() == 2) {
-                    continue;
-                }
-
-                auto id = TOperationId::FromString(idStr);
-                auto state = operationNode->Attributes().Get<EOperationState>("state");
-                YCHECK(rootOperationIdToState.emplace(id, state).second);
-            }
-
-
-            for (int hash = 0x0; hash <= 0xFF; ++hash) {
-                auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspList>(
-                    "list_operations_" + Format("%02x", hash));
-
-                if (rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
-                    continue;
-                }
-
-                auto hashBucketRsp = rspOrError.ValueOrThrow();
-                auto hashBucketListNode = ConvertToNode(TYsonString(hashBucketRsp->value()));
-                auto hashBucketList = hashBucketListNode->AsList();
-
-                for (const auto& operationNode : hashBucketList->GetChildren()) {
-                    auto id = TOperationId::FromString(operationNode->GetValue<TString>());
-                    YCHECK((id.Parts32[0] & 0xff) == hash);
-
-                    auto state = operationNode->Attributes().Get<EOperationState>("state");
-                    if (IsOperationInProgress(state)) {
-                        OperationIds_.push_back(id);
-                        LOG_DEBUG("Found operation in Cypress (OperationId: %v, State: %v)",
-                            id,
-                            state);
-                    } else {
-                        auto it = rootOperationIdToState.find(id);
-                        if (it != rootOperationIdToState.end() && state != it->second) {
-                            OperationIdsToSync_.push_back(id);
-                        }
-                    }
-                }
-            }
+            OperationIdsToArchive_ = std::move(listOperationsResult.OperationsToArchive);
+            OperationIdsToRemove_ = std::move(listOperationsResult.OperationsToRemove);
+            OperationIdsToSync_ = std::move(listOperationsResult.OperationsToSync);
 
             LOG_INFO("Finished listing existing operations");
         }
@@ -1001,6 +952,30 @@ private:
 
             auto batchRspOrError = WaitFor(batchReq->Invoke());
             THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError));
+        }
+
+        void SubmitOperationsToCleaner()
+        {
+            LOG_INFO("Submitting operations to cleaner (ArchiveCount: %v, RemoveCount: %v)",
+                OperationIdsToArchive_.size(),
+                OperationIdsToRemove_.size());
+
+            const auto& operationsCleaner = Owner_->Bootstrap_->GetScheduler()->GetOperationsCleaner();
+
+            for (const auto& operationId : OperationIdsToRemove_) {
+                operationsCleaner->SubmitForRemoval({operationId});
+            }
+
+            auto createBatchRequest = BIND(
+                &TImpl::StartObjectBatchRequest,
+                Owner_,
+                EMasterChannelKind::Follower,
+                PrimaryMasterCellTag);
+
+            auto operations = FetchOperationsFromCypressForCleaner(OperationIdsToArchive_, createBatchRequest);
+            for (auto& operation : operations) {
+                operationsCleaner->SubmitForArchivation(std::move(operation));
+            }
         }
     };
 
@@ -1393,12 +1368,7 @@ private:
                 if (operation->IsFinishedState()) {
                     auto req = multisetReq->add_subrequests();
                     req->set_key("result");
-                    auto error = FromProto<TError>(operation->Result().error());
-                    auto errorString = BuildYsonStringFluently()
-                        .BeginMap()
-                            .Item("error").Value(error)
-                        .EndMap();
-                    req->set_value(errorString.GetData());
+                    req->set_value(operation->BuildResultString().GetData());
                 }
 
                 // Set end time, if given.

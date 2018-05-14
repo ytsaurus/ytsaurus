@@ -35,6 +35,7 @@
 #include <util/string/vector.h>
 
 #include <atomic>
+#include <mutex>
 
 #ifdef _win_
     #include <io.h>
@@ -572,28 +573,26 @@ private:
 
     void EnsureStarted()
     {
-        if (LoggingThread_->IsShutdown()) {
-            return;
-        }
+        std::call_once(Started_, [&] {
+            if (LoggingThread_->IsShutdown()) {
+                return;
+            }
 
-        if (LoggingThread_->IsStarted()) {
-            return;
-        }
+            LoggingThread_->Start();
+            EventQueue_->SetThreadId(LoggingThread_->GetId());
 
-        LoggingThread_->Start();
-        EventQueue_->SetThreadId(LoggingThread_->GetId());
+            ProfilingExecutor_ = New<TPeriodicExecutor>(
+                EventQueue_,
+                BIND(&TImpl::OnProfiling, MakeStrong(this)),
+                ProfilingPeriod);
+            ProfilingExecutor_->Start();
 
-        ProfilingExecutor_ = New<TPeriodicExecutor>(
-            EventQueue_,
-            BIND(&TImpl::OnProfiling, MakeStrong(this)),
-            ProfilingPeriod);
-        ProfilingExecutor_->Start();
-
-        DequeueExecutor_ = New<TPeriodicExecutor>(
-            EventQueue_,
-            BIND(&TImpl::OnDequeue, MakeStrong(this)),
-            DequeuePeriod);
-        DequeueExecutor_->Start();
+            DequeueExecutor_ = New<TPeriodicExecutor>(
+                EventQueue_,
+                BIND(&TImpl::OnDequeue, MakeStrong(this)),
+                DequeuePeriod);
+            DequeueExecutor_->Start();
+        });
     }
 
     const std::vector<ILogWriterPtr>& GetWriters(const TLogEvent& event)
@@ -941,11 +940,11 @@ private:
         position->CurrentVersion = GetVersion();
     }
 
-
+private:
     const std::shared_ptr<TEventCount> EventCount_ = std::make_shared<TEventCount>();
     const TInvokerQueuePtr EventQueue_;
 
-    TIntrusivePtr<TThread> LoggingThread_;
+    const TIntrusivePtr<TThread> LoggingThread_;
     DECLARE_THREAD_AFFINITY_SLOT(LoggingThread);
 
     TEnqueuedAction CurrentAction_;
@@ -965,6 +964,7 @@ private:
     int LowBacklogWatermark_ = -1;
 
     bool Suspended_ = false;
+    std::once_flag Started_;
 
     TMultipleProducerSingleConsumerLockFreeStack<TLoggerQueueItem> LoggerQueue_;
 

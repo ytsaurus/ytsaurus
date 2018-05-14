@@ -74,10 +74,10 @@ message TReqInitializeOperation
 
 message TRspInitializeOperation
 {
-    required bytes immutable_attributes = 1; // YSON
-    required bytes mutable_attributes = 2; // YSON
-    required bytes brief_spec = 3; // YSON
-    required bytes unrecognized_spec = 4; // YSON
+    required bytes mutable_attributes = 1; // YSON
+    required bytes brief_spec = 2; // YSON
+    required bytes unrecognized_spec = 3; // YSON
+    required bytes full_spec = 4; // YSON
 }
 
 ////////////////////////////////////////////////////////////////////////////////
