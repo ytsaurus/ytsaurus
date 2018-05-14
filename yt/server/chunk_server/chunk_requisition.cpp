@@ -694,7 +694,7 @@ void TChunkRequisitionRegistry::Load(NCellMaster::TLoadContext& context)
     YCHECK(IndexToItem_.has(MigrationErasureChunkRequisitionIndex));
 
     // COMPAT(shakurov)
-    if (context.GetVersion() < 704) {
+    if (context.GetVersion() < 710) {
         FakeRefBuiltinRequisitions();
     }
 
