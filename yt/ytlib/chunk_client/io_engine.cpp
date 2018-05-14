@@ -74,12 +74,13 @@ class TThreadedIOEngineConfig
     : public NYTree::TYsonSerializableLite
 {
 public:
-    int Threads;
+    int ThreadCount;
     bool UseDirectIO;
 
     TThreadedIOEngineConfig()
     {
-        RegisterParameter("threads", Threads)
+        RegisterParameter("thread_count", ThreadCount)
+            .Alias("threads") // COMPAT(aozeritsky)
             .GreaterThanOrEqual(1)
             .Default(1);
         RegisterParameter("use_direct_io", UseDirectIO)
@@ -94,7 +95,7 @@ public:
     using TConfig = TThreadedIOEngineConfig;
 
     explicit TThreadedIOEngine(const TConfig& config, const TString& locationId)
-        : ThreadPool_(New<TThreadPool>(config.Threads, Format("DiskIO:%v", locationId)))
+        : ThreadPool_(New<TThreadPool>(config.ThreadCount, Format("DiskIO:%v", locationId)))
         , Invoker_(CreatePrioritizedInvoker(ThreadPool_->GetInvoker()))
         , UseDirectIO_(config.UseDirectIO)
     { }
