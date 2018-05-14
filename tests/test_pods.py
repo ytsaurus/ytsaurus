@@ -121,7 +121,7 @@ class TestPods(object):
                     "spec": {
                         "resource_requests": {
                             "vcpu_guarantee": 100,
-                            "memory_guarantee": 2000
+                            "memory_limit": 2000
                         },
                         "node_id": node_id
                     }
@@ -139,7 +139,7 @@ class TestPods(object):
                 "spec": {
                     "resource_requests": {
                         "vcpu_guarantee": 100,
-                        "memory_guarantee": 2000
+                        "memory_limit": 2000
                     },
                     "node_id": node_id
                 }

@@ -24,6 +24,8 @@
 
 #include <yt/core/http/server.h>
 
+#include <yt/core/https/server.h>
+
 #include <yt/core/rpc/http/server.h>
 
 #include <yt/core/rpc/grpc/server.h>
@@ -32,6 +34,7 @@
 
 #include <yt/core/concurrency/action_queue.h>
 #include <yt/core/concurrency/thread_pool.h>
+#include <yt/core/concurrency/thread_pool_poller.h>
 
 #include <yt/core/misc/ref_counted_tracker.h>
 #include <yt/core/misc/ref_counted_tracker_statistics_producer.h>
@@ -133,6 +136,11 @@ public:
         return ClientHttpAddress_;
     }
 
+    const TString& GetSecureClientHttpAddress()
+    {
+        return SecureClientHttpAddress_;
+    }
+
     const TString& GetAgentGrpcAddress()
     {
         return AgentGrpcAddress_;
@@ -172,9 +180,13 @@ private:
     NRpc::IServicePtr AgentDiscoveryService_;
     NRpc::IServicePtr NodeTrackerService_;
 
+    NConcurrency::IPollerPtr HttpPoller_;
+
     NHttp::IServerPtr HttpMonitoringServer_;
     NHttp::IServerPtr ClientHttpServer_;
-    NRpc::IServerPtr RpcClientHttpServer_;
+    NHttp::IServerPtr SecureClientHttpServer_;
+    NRpc::IServerPtr ClientHttpRpcServer_;
+    NRpc::IServerPtr SecureClientHttpRpcServer_;
     NRpc::IServerPtr ClientGrpcServer_;
     // COMPAT(babenko)
     NRpc::IServerPtr SecureClientGrpcServer_;
@@ -185,6 +197,7 @@ private:
     // COMPAT(babenko)
     TString SecureClientGrpcAddress_;
     TString ClientHttpAddress_;
+    TString SecureClientHttpAddress_;
     TString AgentGrpcAddress_;
 
 
@@ -210,7 +223,12 @@ private:
         if (Config_->SecureClientGrpcServer) {
             SecureClientGrpcAddress_ = BuildGrpcAddress(Config_->SecureClientGrpcServer);
         }
-        ClientHttpAddress_ = BuildHttpAddress(Config_->ClientHttpServer);
+        if (Config_->ClientHttpServer) {
+            ClientHttpAddress_ = BuildHttpAddress(Config_->ClientHttpServer);
+        }
+        if (Config_->SecureClientHttpServer) {
+            SecureClientHttpAddress_ = BuildHttpAddress(Config_->SecureClientHttpServer);
+        }
         AgentGrpcAddress_ = BuildGrpcAddress(Config_->AgentGrpcServer);
 
         LOG_INFO("Initializing master (Fqdn: %v)",
@@ -245,9 +263,11 @@ private:
             "/profiling",
             CreateVirtualNode(NProfiling::TProfileManager::Get()->GetService()));
 
-        HttpMonitoringServer_ = NHttp::CreateServer(
-            Config_->MonitoringServer);
+        HttpPoller_ = CreateThreadPoolPoller(1, "Http");
 
+        HttpMonitoringServer_ = NHttp::CreateServer(
+            Config_->MonitoringServer,
+            HttpPoller_);
         HttpMonitoringServer_->AddHandler(
             "/orchid/",
             NMonitoring::GetOrchidYPathHttpHandler(orchidRoot->Via(GetControlInvoker())));
@@ -266,10 +286,21 @@ private:
         NodeTrackerService_ = NNodes::CreateNodeTrackerService(Bootstrap_, Config_->NodeTracker);
 
         if (Config_->ClientHttpServer) {
-            ClientHttpServer_ = NHttp::CreateServer(Config_->ClientHttpServer);
-            RpcClientHttpServer_ = NRpc::NHttp::CreateServer(ClientHttpServer_);
-            RpcClientHttpServer_->RegisterService(ObjectService_);
-            RpcClientHttpServer_->RegisterService(ClientDiscoveryService_);
+            ClientHttpServer_ = NHttp::CreateServer(
+                Config_->ClientHttpServer,
+                HttpPoller_);
+            ClientHttpRpcServer_ = NRpc::NHttp::CreateServer(ClientHttpServer_);
+            ClientHttpRpcServer_->RegisterService(ObjectService_);
+            ClientHttpRpcServer_->RegisterService(ClientDiscoveryService_);
+        }
+
+        if (Config_->SecureClientHttpServer) {
+            SecureClientHttpServer_ = NHttps::CreateServer(
+                Config_->SecureClientHttpServer,
+                HttpPoller_);
+            SecureClientHttpRpcServer_ = NRpc::NHttp::CreateServer(SecureClientHttpServer_);
+            SecureClientHttpRpcServer_->RegisterService(ObjectService_);
+            SecureClientHttpRpcServer_->RegisterService(SecureClientDiscoveryService_);
         }
 
         ClientGrpcServer_ = NYT::NRpc::NGrpc::CreateServer(Config_->ClientGrpcServer);
@@ -281,6 +312,7 @@ private:
         ClientGrpcServer_->RegisterService(ClientDiscoveryService_);
         // COMPAT(babenko)
         ClientGrpcServer_->RegisterService(NodeTrackerService_);
+
         // COMPAT(babenko)
         if (SecureClientGrpcServer_) {
             SecureClientGrpcServer_->RegisterService(ObjectService_);
@@ -293,7 +325,10 @@ private:
 
         LOG_INFO("Listening for incoming connections");
 
-        RpcClientHttpServer_->Start();
+        ClientHttpRpcServer_->Start();
+        if (SecureClientHttpRpcServer_) {
+            SecureClientHttpRpcServer_->Start();
+        }
         ClientGrpcServer_->Start();
         // COMPAT(babenko)
         if (SecureClientGrpcServer_) {
@@ -381,6 +416,11 @@ const TString& TBootstrap::GetSecureClientGrpcAddress()
 const TString& TBootstrap::GetClientHttpAddress()
 {
     return Impl_->GetClientHttpAddress();
+}
+
+const TString& TBootstrap::GetSecureClientHttpAddress()
+{
+    return Impl_->GetSecureClientHttpAddress();
 }
 
 const TString& TBootstrap::GetAgentGrpcAddress()

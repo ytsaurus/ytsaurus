@@ -5,6 +5,8 @@ resolve_srcs(YP_SRCS YP_SRCS_RESOLVED)
 add_library(yp-library-server ${YP_SRCS_RESOLVED})
 
 target_link_libraries(yp-library-server
+  yt-core-https
+  yt-core-https
   yt-core-rpc-grpc
   yt-core-rpc-http
   yt-library-client

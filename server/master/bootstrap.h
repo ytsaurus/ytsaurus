@@ -39,6 +39,7 @@ public:
     // COMPAT(babenko)
     const TString& GetSecureClientGrpcAddress();
     const TString& GetClientHttpAddress();
+    const TString& GetSecureClientHttpAddress();
     const TString& GetAgentGrpcAddress();
 
     void Run();

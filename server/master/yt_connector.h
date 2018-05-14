@@ -25,6 +25,7 @@ struct TMasterDiscoveryInfo
     // COMPAT(babenko)
     TString SecureClientGrpcAddress;
     TString ClientHttpAddress;
+    TString SecureClientHttpAddress;
     TString AgentGrpcAddress;
     TMasterInstanceTag InstanceTag = 0;
     bool Alive = false;

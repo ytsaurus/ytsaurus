@@ -54,8 +54,8 @@ private:
                     break;
                 // COMPAT(babenko)
                 case EMasterInterface::SecureClient:
-                    protoInfo->set_grpc_address(info.SecureClientGrpcAddress);
-                    protoInfo->set_http_address(info.ClientHttpAddress);
+                    protoInfo->set_grpc_address(info.SecureClientGrpcAddress ? info.SecureClientGrpcAddress : info.ClientGrpcAddress);
+                    protoInfo->set_http_address(info.SecureClientHttpAddress ? info.SecureClientHttpAddress : info.ClientHttpAddress);
                     break;
                 case EMasterInterface::Agent:
                     protoInfo->set_grpc_address(info.AgentGrpcAddress);

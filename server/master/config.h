@@ -16,6 +16,8 @@
 
 #include <yt/core/http/config.h>
 
+#include <yt/core/https/config.h>
+
 #include <yt/core/rpc/grpc/config.h>
 
 #include <yt/core/ypath/public.h>
@@ -78,6 +80,7 @@ public:
     // COMPAT(babenko)
     NYT::NRpc::NGrpc::TServerConfigPtr SecureClientGrpcServer;
     NYT::NRpc::NGrpc::TServerConfigPtr AgentGrpcServer;
+    NYT::NHttps::TServerConfigPtr SecureClientHttpServer;
     NYT::NHttp::TServerConfigPtr ClientHttpServer;
     TYTConnectorConfigPtr YTConnector;
     NObjects::TObjectManagerConfigPtr ObjectManager;
@@ -95,6 +98,8 @@ public:
         RegisterParameter("secure_client_grpc_server", SecureClientGrpcServer)
             .Optional();
         RegisterParameter("agent_grpc_server", AgentGrpcServer);
+        RegisterParameter("secure_client_http_server", SecureClientHttpServer)
+            .Optional();
         RegisterParameter("client_http_server", ClientHttpServer);
         RegisterParameter("yt_connector", YTConnector);
         RegisterParameter("object_manager", ObjectManager)

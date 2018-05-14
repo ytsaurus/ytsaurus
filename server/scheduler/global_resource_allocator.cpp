@@ -113,8 +113,8 @@ bool TGlobalResourceAllocator::TryAllocation(TNode* node, TPod* pod)
         }
     }
 
-    if (resourceRequests.memory_guarantee() > 0) {
-        if (!context.MemoryResource().TryAllocate(MakeMemoryCapacities(resourceRequests.memory_guarantee()))) {
+    if (resourceRequests.memory_limit() > 0) {
+        if (!context.MemoryResource().TryAllocate(MakeMemoryCapacities(resourceRequests.memory_limit()))) {
             return false;
         }
     }

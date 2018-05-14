@@ -230,8 +230,13 @@ private:
             attributes->Set("instance_tag", GetInstanceTag());
             attributes->Set("client_grpc_address", Bootstrap_->GetClientGrpcAddress());
             // COMPAT(babenko)
-            attributes->Set("secure_client_grpc_address", Bootstrap_->GetSecureClientGrpcAddress());
+            if (Bootstrap_->GetSecureClientGrpcAddress()) {
+                attributes->Set("secure_client_grpc_address", Bootstrap_->GetSecureClientGrpcAddress());
+            }
             attributes->Set("client_http_address", Bootstrap_->GetClientHttpAddress());
+            if (Bootstrap_->GetSecureClientHttpAddress()) {
+                attributes->Set("secure_client_http_address", Bootstrap_->GetSecureClientHttpAddress());
+            }
             attributes->Set("agent_grpc_address", Bootstrap_->GetAgentGrpcAddress());
             options.Attributes = std::move(attributes);
             WaitFor(Client_->CreateNode(instancePath, EObjectType::MapNode, options))
@@ -501,6 +506,7 @@ private:
                     // COMPAT(babenko)
                     "secure_client_grpc_address",
                     "client_http_address",
+                    "secure_client_http_address",
                     "agent_grpc_address",
                     "lock_count"
                 };
@@ -515,19 +521,22 @@ private:
                 info.Fqdn = child->GetValue<TString>();
                 info.ClientGrpcAddress = child->Attributes().Get<TString>("client_grpc_address");
                 // COMPAT(babenko)
-                info.SecureClientGrpcAddress = child->Attributes().Get<TString>("secure_client_grpc_address", "");
+                info.SecureClientGrpcAddress = child->Attributes().Get<TString>("secure_client_grpc_address", TString());
                 info.ClientHttpAddress = child->Attributes().Get<TString>("client_http_address");
+                info.SecureClientHttpAddress = child->Attributes().Get<TString>("secure_client_http_address", TString());
                 info.AgentGrpcAddress = child->Attributes().Get<TString>("agent_grpc_address");
                 info.InstanceTag = child->Attributes().Get<TMasterInstanceTag>("instance_tag");
                 info.Alive = child->Attributes().Get<int>("lock_count") > 0;
                 info.Leading = (leaderFqdn && *leaderFqdn == info.Fqdn);
                 masterDiscoveryInfos.push_back(info);
 
-                LOG_DEBUG("Master discovered (Fqdn: %v, ClientGrpcAddress: %v, ClientHttpAddress: %v, AgentGrpcAddress: %v, "
-                    "InstanceTag: %v, Alive: %v, Leading: %v)",
+                LOG_DEBUG("Master discovered (Fqdn: %v, ClientGrpcAddress: %v, SecureClientGrpcAddress: %v, ClientHttpAddress: %v, "
+                    "SecureClientHttpAddress: %v, AgentGrpcAddress: %v, InstanceTag: %v, Alive: %v, Leading: %v)",
                     info.Fqdn,
                     info.ClientGrpcAddress,
+                    info.SecureClientGrpcAddress,
                     info.ClientHttpAddress,
+                    info.SecureClientHttpAddress,
                     info.AgentGrpcAddress,
                     info.InstanceTag,
                     info.Alive,

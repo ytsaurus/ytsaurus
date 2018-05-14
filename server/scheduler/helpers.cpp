@@ -296,10 +296,10 @@ std::vector<TLocalResourceAllocator::TRequest> BuildAllocatorResourceRequests(
     }
 
     // Memory
-    if (resourceRequests.memory_guarantee() > 0) {
+    if (resourceRequests.memory_limit() > 0) {
         TLocalResourceAllocator::TRequest request;
         request.Kind = EResourceKind::Memory;
-        request.Capacities = MakeCpuCapacities(resourceRequests.memory_guarantee());
+        request.Capacities = MakeCpuCapacities(resourceRequests.memory_limit());
         if (memoryResource) {
             request.MatchingResources.push_back(memoryResource);
         }
