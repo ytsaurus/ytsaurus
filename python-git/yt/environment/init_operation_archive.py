@@ -661,6 +661,22 @@ TRANSFORMS[18] = [
             attributes={"atomicity": "none"})),
 ]
 
+TRANSFORMS[19] = [
+    Convert(
+        "stderrs",
+        table_info=TableInfo([
+                ("operation_id_hash", "uint64", "farm_hash(operation_id_hi, operation_id_lo)"),
+                ("operation_id_hi", "uint64"),
+                ("operation_id_lo", "uint64"),
+                ("job_id_hi", "uint64"),
+                ("job_id_lo", "uint64")
+            ], [
+                ("stderr", "string")
+            ],
+            attributes={"atomicity": "none"}),
+        use_default_mapper=True)
+]
+
 def swap_table(client, target, source, version):
     backup_path = target + ".bak.{0}".format(version)
     has_target = False
