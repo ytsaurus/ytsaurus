@@ -502,9 +502,9 @@ protected:
             TTask::OnJobStarted(joblet);
         }
 
-        virtual void OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary) override
+        virtual TJobCompletedResult OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary) override
         {
-            TTask::OnJobCompleted(joblet, jobSummary);
+            auto result = TTask::OnJobCompleted(joblet, jobSummary);
 
             RegisterOutput(&jobSummary.Result, joblet->ChunkListIds, joblet);
 
@@ -529,6 +529,8 @@ protected:
             // Kick-start sort and unordered merge tasks.
             Controller->CheckSortStartThreshold();
             Controller->CheckMergeStartThreshold();
+
+            return result;
         }
 
         virtual void OnJobLost(TCompletedJobPtr completedJob) override
@@ -827,9 +829,9 @@ protected:
             }
         }
 
-        virtual void OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary) override
+        virtual TJobCompletedResult OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary) override
         {
-            TPartitionBoundTask::OnJobCompleted(joblet, jobSummary);
+            auto result = TPartitionBoundTask::OnJobCompleted(joblet, jobSummary);
 
             Controller->SortDataWeightCounter->Completed(joblet->InputStripeList->TotalDataWeight);
 
@@ -866,6 +868,8 @@ protected:
             if (Controller->IsSortedMergeNeeded(Partition)) {
                 Controller->AddTaskPendingHint(Partition->SortedMergeTask);
             }
+
+            return result;
         }
 
         virtual void OnJobFailed(TJobletPtr joblet, const TFailedJobSummary& jobSummary) override
@@ -1274,15 +1278,17 @@ protected:
             YCHECK(ActiveJoblets_.insert(joblet).second);
         }
 
-        virtual void OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary) override
+        virtual TJobCompletedResult OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary) override
         {
-            TMergeTask::OnJobCompleted(joblet, jobSummary);
+            auto result = TMergeTask::OnJobCompleted(joblet, jobSummary);
 
             Controller->SortedMergeJobCounter->Completed(1);
             YCHECK(ActiveJoblets_.erase(joblet) == 1);
             if (!InvalidatedJoblets_.has(joblet)) {
                 JobOutputs_.emplace_back(TJobOutput{joblet->ChunkListIds, jobSummary});
             }
+
+            return result;
         }
 
         virtual void OnJobFailed(TJobletPtr joblet, const TFailedJobSummary& jobSummary) override
@@ -1405,14 +1411,16 @@ protected:
             Controller->UnorderedMergeJobCounter->Start(1);
         }
 
-        virtual void OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary) override
+        virtual TJobCompletedResult OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary) override
         {
-            TMergeTask::OnJobCompleted(joblet, jobSummary);
+            auto result = TMergeTask::OnJobCompleted(joblet, jobSummary);
 
             Controller->UnorderedMergeJobCounter->Completed(1);
 
             Controller->AccountRows(jobSummary.Statistics);
             RegisterOutput(&jobSummary.Result, joblet->ChunkListIds, joblet);
+
+            return result;
         }
 
         virtual void OnJobFailed(TJobletPtr joblet, const TFailedJobSummary& jobSummary) override

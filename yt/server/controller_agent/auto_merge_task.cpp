@@ -220,9 +220,9 @@ void TAutoMergeTask::OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& j
     TaskHost_->GetAutoMergeDirector()->OnMergeJobFinished(0 /* unregisteredIntermediateChunkCount */);
 }
 
-void TAutoMergeTask::OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary)
+TJobCompletedResult TAutoMergeTask::OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary)
 {
-    TTask::OnJobCompleted(joblet, jobSummary);
+    auto result = TTask::OnJobCompleted(joblet, jobSummary);
 
     // Deciding what to do with these chunks is up to controller.
     // It may do nothing with these chunks, release them immediately
@@ -231,6 +231,8 @@ void TAutoMergeTask::OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& job
     TaskHost_->ReleaseIntermediateStripeList(joblet->InputStripeList);
 
     RegisterOutput(&jobSummary.Result, joblet->ChunkListIds, joblet);
+
+    return result;
 }
 
 void TAutoMergeTask::OnJobFailed(TJobletPtr joblet, const TFailedJobSummary& jobSummary)

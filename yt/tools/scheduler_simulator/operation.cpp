@@ -10,6 +10,7 @@ namespace NSchedulerSimulator {
 
 TOperation::TOperation(const TOperationDescription& description)
     : Id_(description.Id)
+    , Type_(description.Type)
     , Spec_(description.Spec)
     , AuthenticatedUser_(description.AuthenticatedUser)
     , StartTime_(description.StartTime)
@@ -25,6 +26,11 @@ TOperation::TOperation(const TOperationDescription& description)
 const NScheduler::TOperationId& TOperation::GetId() const
 {
     return Id_;
+}
+
+NScheduler::EOperationType TOperation::GetType() const
+{
+    return Type_;
 }
 
 bool TOperation::IsSchedulable() const

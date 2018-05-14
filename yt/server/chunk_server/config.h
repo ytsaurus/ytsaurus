@@ -24,10 +24,6 @@ public:
             .Default(std::numeric_limits<i64>::max())
             .GreaterThanOrEqual(0);
 
-        RegisterParameter("update_interval", UpdateInterval)
-            .Default(TDuration::Seconds(30));
-
-        // Soon to be removed. All inter-DC edge-related info will be moved to Cypress.
         RegisterParameter("capacities", Capacities)
             .Default();
 

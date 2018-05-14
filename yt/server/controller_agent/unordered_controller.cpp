@@ -114,15 +114,17 @@ public:
             return Controller->GetJobType();
         }
 
-        virtual void OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary) override
+        virtual TJobCompletedResult OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary) override
         {
-            TTask::OnJobCompleted(joblet, jobSummary);
+            auto result = TTask::OnJobCompleted(joblet, jobSummary);
 
             RegisterOutput(&jobSummary.Result, joblet->ChunkListIds, joblet);
 
             if (jobSummary.InterruptReason != EInterruptReason::None) {
                 SplitByRowsAndReinstall(jobSummary.UnreadInputDataSlices, jobSummary.SplitJobCount);
             }
+
+            return result;
         }
 
         virtual bool SupportsInputPathYson() const override

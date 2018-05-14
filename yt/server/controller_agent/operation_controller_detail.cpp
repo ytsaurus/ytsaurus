@@ -1863,7 +1863,11 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
             jobSummary->UnreadInputDataSlices.size(),
             jobSummary->SplitJobCount);
     }
-    joblet->Task->OnJobCompleted(joblet, *jobSummary);
+    auto taskResult = joblet->Task->OnJobCompleted(joblet, *jobSummary);
+    if (taskResult.BanTree) {
+        Host->OnOperationBannedInTentativeTree(joblet->TreeId);
+    }
+
     if (JobSplitter_) {
         JobSplitter_->OnJobCompleted(*jobSummary);
     }
@@ -3313,7 +3317,7 @@ void TOperationControllerBase::DoScheduleLocalJob(
                 break;
             }
 
-            bestTask->ScheduleJob(context, jobLimits, treeId, scheduleJobResult);
+            bestTask->ScheduleJob(context, jobLimits, treeId, IsTreeTentative(treeId), scheduleJobResult);
             if (scheduleJobResult->StartDescriptor) {
                 UpdateTask(bestTask);
                 break;
@@ -3438,7 +3442,7 @@ void TOperationControllerBase::DoScheduleNonLocalJob(
                     break;
                 }
 
-                task->ScheduleJob(context, jobLimits, treeId, scheduleJobResult);
+                task->ScheduleJob(context, jobLimits, treeId, IsTreeTentative(treeId), scheduleJobResult);
                 if (scheduleJobResult->StartDescriptor) {
                     UpdateTask(task);
                     return;
@@ -3466,6 +3470,11 @@ void TOperationControllerBase::DoScheduleNonLocalJob(
                 noPendingJobsTaskCount);
         }
     }
+}
+
+bool TOperationControllerBase::IsTreeTentative(const TString& treeId) const
+{
+    return Spec_->TentativePoolTrees.has(treeId);
 }
 
 TCancelableContextPtr TOperationControllerBase::GetCancelableContext() const

@@ -187,6 +187,7 @@ DECLARE_REFCOUNTED_CLASS(TOperationStrategyRuntimeParameters)
 DECLARE_REFCOUNTED_CLASS(TOperationRuntimeParameters)
 DECLARE_REFCOUNTED_CLASS(TSchedulerConnectionConfig)
 DECLARE_REFCOUNTED_CLASS(TOperationFairShareStrategyTreeOptions)
+DECLARE_REFCOUNTED_CLASS(TTentativeTreeEligibilityConfig)
 
 class TJobResources;
 

@@ -802,6 +802,12 @@ public:
         AddOperationToTransientQueue(operation);
     }
 
+    void OnOperationBannedInTentativeTree(const TOperationPtr& operation, const TString& treeId)
+    {
+        GetControlInvoker(EControlQueue::Operation)->Invoke(
+            BIND(&ISchedulerStrategy::UnregisterOperationFromTree, GetStrategy(), operation->GetId(), treeId));
+    }
+
     void DoUpdateOperationParameters(
         TOperationPtr operation,
         const TOperationRuntimeParametersPtr& runtimeParams)
@@ -3217,6 +3223,11 @@ void TScheduler::OnOperationSuspended(const TOperationPtr& operation, const TErr
 void TScheduler::OnOperationAgentUnregistered(const TOperationPtr& operation)
 {
     Impl_->OnOperationAgentUnregistered(operation);
+}
+
+void TScheduler::OnOperationBannedInTentativeTree(const TOperationPtr& operation, const TString& treeId)
+{
+    Impl_->OnOperationBannedInTentativeTree(operation, treeId);
 }
 
 TFuture<void> TScheduler::UpdateOperationParameters(

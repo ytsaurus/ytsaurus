@@ -16,6 +16,7 @@ struct TAgentToSchedulerOperationEvent
     NScheduler::EAgentToSchedulerOperationEventType EventType;
     TOperationId OperationId;
     TError Error;
+    TString TentativeTreeId;
 };
 
 struct TAgentToSchedulerJobEvent
@@ -80,6 +81,7 @@ public:
     virtual void OnOperationAborted(const TError& error) override;
     virtual void OnOperationFailed(const TError& error) override;
     virtual void OnOperationSuspended(const TError& error) override;
+    virtual void OnOperationBannedInTentativeTree(const TString& treeId) override;
 
 private:
     const TOperationId OperationId_;
