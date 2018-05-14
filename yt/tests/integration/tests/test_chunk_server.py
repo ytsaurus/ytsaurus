@@ -107,7 +107,7 @@ class TestChunkServer(YTEnvSetup):
     def test_disable_replicator_when_explicitly_requested_so(self):
         assert get("//sys/@chunk_replicator_enabled")
 
-        set("//sys/@config/enable_chunk_replicator", False)
+        set("//sys/@config/chunk_manager/enable_chunk_replicator", False, recursive=True)
 
         wait(lambda: not get("//sys/@chunk_replicator_enabled"))
 
