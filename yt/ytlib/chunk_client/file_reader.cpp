@@ -5,6 +5,8 @@
 #include <yt/core/misc/fs.h>
 #include <yt/core/misc/checksum.h>
 
+#include <yt/ytlib/misc/workload.h>
+
 namespace NYT {
 namespace NChunkClient {
 
@@ -51,7 +53,7 @@ TFileReader::TFileReader(
 { }
 
 TFuture<std::vector<TBlock>> TFileReader::ReadBlocks(
-    const TWorkloadDescriptor& /*workloadDescriptor*/,
+    const TWorkloadDescriptor& workloadDescriptor,
     const TReadSessionId& /*readSessionId*/,
     const std::vector<int>& blockIndexes)
 {
@@ -72,7 +74,7 @@ TFuture<std::vector<TBlock>> TFileReader::ReadBlocks(
             }
 
             int blockCount = endLocalIndex - startLocalIndex;
-            auto subfutures = DoReadBlocks(startBlockIndex, blockCount);
+            auto subfutures = DoReadBlocks(startBlockIndex, blockCount, workloadDescriptor);
             futures.push_back(std::move(subfutures));
 
             localIndex = endLocalIndex;
@@ -101,7 +103,7 @@ TFuture<std::vector<TBlock>> TFileReader::ReadBlocks(
 }
 
 TFuture<std::vector<TBlock>> TFileReader::ReadBlocks(
-    const TWorkloadDescriptor& /*workloadDescriptor*/,
+    const TWorkloadDescriptor& workloadDescriptor,
     const TReadSessionId& /*readSessionId*/,
     int firstBlockIndex,
     int blockCount)
@@ -109,7 +111,7 @@ TFuture<std::vector<TBlock>> TFileReader::ReadBlocks(
     YCHECK(firstBlockIndex >= 0);
 
     try {
-        return DoReadBlocks(firstBlockIndex, blockCount);
+        return DoReadBlocks(firstBlockIndex, blockCount, workloadDescriptor);
     } catch (const std::exception& ex) {
         return MakeFuture<std::vector<TBlock>>(ex);
     }
@@ -196,7 +198,8 @@ std::vector<TBlock> TFileReader::OnDataBlock(
 
 TFuture<std::vector<TBlock>> TFileReader::DoReadBlocks(
     int firstBlockIndex,
-    int blockCount)
+    int blockCount,
+    const TWorkloadDescriptor& workloadDescriptor)
 {
     const auto& blockExts = GetBlockExts();
     int chunkBlockCount = blockExts.blocks_size();
@@ -217,7 +220,7 @@ TFuture<std::vector<TBlock>> TFileReader::DoReadBlocks(
 
     const auto& file = GetDataFile();
 
-    return IOEngine_->Pread(file, totalSize, firstBlockInfo.offset())
+    return IOEngine_->Pread(file, totalSize, firstBlockInfo.offset(), workloadDescriptor.GetPriority())
         .Apply(BIND(&TFileReader::OnDataBlock, MakeStrong(this), firstBlockIndex, blockCount));
 }
 

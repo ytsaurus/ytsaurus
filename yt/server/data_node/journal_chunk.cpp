@@ -138,19 +138,7 @@ TFuture<std::vector<TBlock>> TJournalChunk::ReadBlockRange(
     }
 
     auto promise = NewPromise<std::vector<TBlock>>();
-
-    auto callback = BIND(
-        &TJournalChunk::DoReadBlockRange,
-        MakeStrong(this),
-        firstBlockIndex,
-        blockCount,
-        promise);
-
-    auto priority = options.WorkloadDescriptor.GetPriority();
-    Location_
-        ->GetDataReadInvoker()
-        ->Invoke(callback, priority);
-
+    TJournalChunk::DoReadBlockRange(firstBlockIndex, blockCount, promise);
     return promise;
 }
 

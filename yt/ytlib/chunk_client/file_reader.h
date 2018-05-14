@@ -70,7 +70,7 @@ private:
     std::atomic<bool> HasCachedBlocksExt_ = {false};
     TFuture<NProto::TBlocksExt> CachedBlocksExt_;
 
-    TFuture<std::vector<TBlock>> DoReadBlocks(int firstBlockIndex, int blockCount);
+    TFuture<std::vector<TBlock>> DoReadBlocks(int firstBlockIndex, int blockCount, const TWorkloadDescriptor& workloadDescriptor);
     std::vector<TBlock> OnDataBlock(
         int firstBlockIndex,
         int blockCount,
