@@ -5,7 +5,8 @@ namespace NHttp {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TServerConfig::TServerConfig() {
+TServerConfig::TServerConfig()
+{
     RegisterParameter("port", Port)
         .Default(80);
 
@@ -23,6 +24,17 @@ TServerConfig::TServerConfig() {
 
     RegisterParameter("bind_retry_backoff", BindRetryBackoff)
         .Default(TDuration::Seconds(1));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TClientConfig::TClientConfig()
+{
+    RegisterParameter("read_buffer_size", ReadBufferSize)
+        .Default(128_KB);
+
+    RegisterParameter("write_buffer_size", WriteBufferSize)
+        .Default(128_KB);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -197,6 +197,9 @@ public:
     //! be duplicated in //sys/operations.
     DEFINE_BYVAL_RW_PROPERTY(bool, EnableCompatibleStorageMode);
 
+    //! Brief operation spec.
+    DEFINE_BYREF_RW_PROPERTY(NYson::TYsonString, BriefSpec);
+
     //! If this operation needs revive, the corresponding revive descriptor is provided
     //! by Master Connector.
     DEFINE_BYREF_RW_PROPERTY(TNullable<TOperationRevivalDescriptor>, RevivalDescriptor);
@@ -272,6 +275,9 @@ public:
 
     //! Invokes #Cancel and then recreates the context and the invoker.
     void Restart();
+
+    //! Builds operation result as YSON string.
+    NYson::TYsonString BuildResultString() const;
 
     void SetAgent(const TControllerAgentPtr& agent);
     TControllerAgentPtr GetAgentOrCancelFiber();

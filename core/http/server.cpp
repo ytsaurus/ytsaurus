@@ -63,6 +63,11 @@ public:
         Handlers_.Add(path, handler);
     }
 
+    virtual const TNetworkAddress& GetAddress() const override
+    {
+        return Listener_->GetAddress();
+    }
+
     virtual void Start() override
     {
         if (Started_) {
@@ -88,7 +93,7 @@ public:
 
 private:
     const TServerConfigPtr Config_;
-    IListenerPtr Listener_;
+    const IListenerPtr Listener_;
     const IPollerPtr Poller_;
 
     TFuture<void> MainLoopFuture_;

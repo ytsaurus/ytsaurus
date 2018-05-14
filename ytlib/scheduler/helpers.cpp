@@ -230,6 +230,12 @@ const TYPath& GetOperationsArchiveJobSpecsPath()
     return path;
 }
 
+const TYPath& GetOperationsArchiveJobStderrsPath()
+{
+    static TYPath path = "//sys/operations_archive/stderrs";
+    return path;
+}
+
 bool IsOperationFinished(EOperationState state)
 {
     return
@@ -261,6 +267,16 @@ bool IsOperationInProgress(EOperationState state)
         state == EOperationState::Completing ||
         state == EOperationState::Failing ||
         state == EOperationState::Aborting;
+}
+
+bool IsOperationWithUserJobs(EOperationType operationType)
+{
+    return
+        operationType == EOperationType::Map ||
+        operationType == EOperationType::Reduce ||
+        operationType == EOperationType::MapReduce ||
+        operationType == EOperationType::JoinReduce ||
+        operationType == EOperationType::Vanilla;
 }
 
 void ValidateEnvironmentVariableName(TStringBuf name)

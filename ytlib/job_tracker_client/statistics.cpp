@@ -505,9 +505,9 @@ THashMap<int, TDataStatistics> GetOutputDataStatistics(const TStatistics& jobSta
     return result;
 }
 
-THashMap<int, int> GetOutputPipeIdleTimes(const TStatistics& jobStatistics)
+THashMap<int, i64> GetOutputPipeIdleTimes(const TStatistics& jobStatistics)
 {
-    THashMap<int, int> result;
+    THashMap<int, i64> result;
     for (const auto& pair : jobStatistics.GetRangeByPrefix(OutputPipePrefix)) {
         const auto& path = pair.first;
         // Note that path should contain at least OutputPipePrefix + '/'.

@@ -145,6 +145,10 @@ public:
         , MasterConnector_(std::make_unique<TMasterConnector>(
             Config_,
             Bootstrap_))
+        , CachedExecNodeDescriptorsByTags_(New<TSyncExpiringCache<TSchedulingTagFilter, TRefCountedExecNodeDescriptorMapPtr>>(
+            BIND(&TImpl::FilterExecNodes, MakeStrong(this)),
+            Config_->SchedulingTagFilterExpireTimeout,
+            Bootstrap_->GetControlInvoker()))
         , SchedulerProxy_(Bootstrap_->GetMasterClient()->GetSchedulerChannel())
         , MemoryTagQueue_(Config_)
     { }
@@ -290,6 +294,8 @@ public:
         }
 
         MemoryTagQueue_.UpdateConfig(Config_);
+
+        CachedExecNodeDescriptorsByTags_->SetExpirationTimeout(Config_->SchedulingTagFilterExpireTimeout);
     }
 
 
@@ -638,7 +644,7 @@ private:
 
     TReaderWriterSpinLock ExecNodeDescriptorsLock_;
     TRefCountedExecNodeDescriptorMapPtr CachedExecNodeDescriptors_ = New<TRefCountedExecNodeDescriptorMap>();
-    TIntrusivePtr<TSyncExpiringCache<TSchedulingTagFilter, TRefCountedExecNodeDescriptorMapPtr>> CachedExecNodeDescriptorsByTags_;
+    const TIntrusivePtr<TSyncExpiringCache<TSchedulingTagFilter, TRefCountedExecNodeDescriptorMapPtr>> CachedExecNodeDescriptorsByTags_;
 
     TControllerAgentTrackerServiceProxy SchedulerProxy_;
 
@@ -698,6 +704,8 @@ private:
 
     void OnConnecting()
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
         // NB: We cannot be sure the previous incarnation did a proper cleanup due to possible
         // fiber cancelation.
         DoCleanup();
@@ -781,11 +789,6 @@ private:
             NLogging::TLogger(ControllerAgentLogger)
                 .AddTag("Kind: SchedulerToAgentScheduleJobRequests, IncarnationId: %v", IncarnationId_));
 
-        CachedExecNodeDescriptorsByTags_ = New<TSyncExpiringCache<TSchedulingTagFilter, TRefCountedExecNodeDescriptorMapPtr>>(
-            BIND(&TImpl::FilterExecNodes, MakeStrong(this)),
-            Config_->SchedulingTagFilterExpireTimeout,
-            CancelableControlInvoker_);
-
         HeartbeatExecutor_ = New<TPeriodicExecutor>(
             CancelableControlInvoker_,
             BIND(&TControllerAgent::TImpl::SendHeartbeat, MakeWeak(this)),
@@ -797,6 +800,8 @@ private:
 
     void DoDisconnect(const TError& error) noexcept
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
         TForbidContextSwitchGuard contextSwitchGuard;
 
         if (Connected_) {
@@ -814,6 +819,8 @@ private:
 
     void DoCleanup()
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
         Connected_ = false;
         ConnectionTime_.store(TInstant::Zero());
         IncarnationId_ = {};
@@ -831,9 +838,7 @@ private:
         }
         CancelableControlInvoker_.Reset();
 
-        if (CachedExecNodeDescriptorsByTags_) {
-            CachedExecNodeDescriptorsByTags_.Reset();
-        }
+        CachedExecNodeDescriptorsByTags_->Clear();
 
         if (HeartbeatExecutor_) {
             HeartbeatExecutor_->Stop();
@@ -899,6 +904,9 @@ private:
                 }
                 if (event.ArchiveJobSpec) {
                     protoEvent->set_archive_job_spec(event.ArchiveJobSpec.Get());
+                }
+                if (event.ArchiveStderr) {
+                    protoEvent->set_archive_stderr(event.ArchiveStderr.Get());
                 }
             });
 
@@ -1274,15 +1282,6 @@ private:
                 keys.emplace_back(ToString(pair.first));
             }
             return keys;
-        }
-
-        virtual void OnRecurse(const NRpc::IServiceContextPtr& context, TStringBuf key) const override
-        {
-            auto operationId = TOperationId::FromString(key);
-            auto operation = ControllerAgent_->FindOperation(operationId);
-            // NB: This method is called after FindItemService so operation cannot be missing.
-            YCHECK(operation);
-            context->AddHolder(operation->GetController());
         }
 
         virtual IYPathServicePtr FindItemService(TStringBuf key) const override

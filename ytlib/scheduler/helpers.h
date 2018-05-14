@@ -54,12 +54,14 @@ const NYPath::TYPath& GetOperationsArchivePathOrderedByStartTime();
 const NYPath::TYPath& GetOperationsArchiveVersionPath();
 const NYPath::TYPath& GetOperationsArchiveJobsPath();
 const NYPath::TYPath& GetOperationsArchiveJobSpecsPath();
+const NYPath::TYPath& GetOperationsArchiveJobStderrsPath();
 
 bool IsOperationFinished(EOperationState state);
 bool IsOperationFinishing(EOperationState state);
 bool IsOperationInProgress(EOperationState state);
 
 void ValidateEnvironmentVariableName(TStringBuf name);
+bool IsOperationWithUserJobs(EOperationType operationType);
 
 int GetJobSpecVersion();
 

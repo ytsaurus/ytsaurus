@@ -153,6 +153,7 @@ public:
     TDuration MaxRepeatDelay;
     int MaxInProgressJobDataSize;
     int MaxInProgressJobSpecDataSize;
+    int MaxInProgressJobStderrDataSize;
     int MaxItemsInBatch;
     TString User;
 
@@ -169,6 +170,8 @@ public:
         RegisterParameter("max_in_progress_job_data_size", MaxInProgressJobDataSize)
             .Default(250_MB);
         RegisterParameter("max_in_progress_job_spec_data_size", MaxInProgressJobSpecDataSize)
+            .Default(250_MB);
+        RegisterParameter("max_in_progress_job_stderr_data_size", MaxInProgressJobStderrDataSize)
             .Default(250_MB);
         RegisterParameter("max_items_in_batch", MaxItemsInBatch)
             .Default(1000);

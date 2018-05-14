@@ -61,8 +61,9 @@ struct TSslContextImpl
 
     ~TSslContextImpl()
     {
-        SSL_CTX_free(Ctx);
-        Ctx = nullptr;
+        if (Ctx) {
+            SSL_CTX_free(Ctx);
+        }
     }
 };
 
@@ -453,9 +454,9 @@ public:
         , Invoker_(invoker)
     { }
 
-    const TNetworkAddress& Address() const override
+    const TNetworkAddress& GetAddress() const override
     {
-        return Underlying_->Address();
+        return Underlying_->GetAddress();
     }
 
     virtual TFuture<IConnectionPtr> Accept() override
@@ -526,7 +527,7 @@ void TSslContext::AddCertificateChain(const TString& certificateChain)
 
     auto certificateObject = PEM_read_bio_X509_AUX(bio, nullptr, nullptr, nullptr);
     if (!certificateObject) {
-        THROW_ERROR_EXCEPTION("PEM_read_bio_X509_AUX")
+        THROW_ERROR_EXCEPTION("PEM_read_bio_X509_AUX failed")
             << GetLastSslError();
     }
     auto freeCertificate = Finally([&] {
@@ -594,7 +595,7 @@ void TSslContext::AddPrivateKey(const TString& privateKey)
 
     auto privateKeyObject = PEM_read_bio_PrivateKey(bio, nullptr, nullptr, nullptr);
     if (!privateKeyObject) {
-        THROW_ERROR_EXCEPTION("PEM_read_bio_PrivateKey")
+        THROW_ERROR_EXCEPTION("PEM_read_bio_PrivateKey failed")
             << GetLastSslError();
     }
     auto freePrivateKey = Finally([&] {

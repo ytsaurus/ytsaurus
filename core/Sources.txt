@@ -142,14 +142,6 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/net/dns_resolver.cpp
   ${CMAKE_CURRENT_LIST_DIR}/net/local_address.cpp
 
-  ${CMAKE_CURRENT_LIST_DIR}/http/client.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/http/config.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/http/http.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/http/private.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/http/server.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/http/stream.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/http/helpers.cpp
-
   ${CMAKE_CURRENT_LIST_DIR}/pipes/io_dispatcher.cpp
   ${CMAKE_CURRENT_LIST_DIR}/pipes/pipe.cpp
   ${CMAKE_CURRENT_LIST_DIR}/pipes/private.cpp

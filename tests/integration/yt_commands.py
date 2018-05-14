@@ -1143,15 +1143,6 @@ def make_ace(action, subjects, permissions, inheritance_mode="object_and_descend
 
 #########################################
 
-def get_last_profiling_values(orchid_path, metrics):
-    # To ensure that profiling updated.
-    time.sleep(1)
-
-    values = {}
-    for metric in metrics:
-        values[metric] = get(orchid_path + "/" + metric, verbose=False)[-1]["value"]
-    return values
-
 def make_schema(columns, **attributes):
     schema = yson.YsonList()
     for column_schema in columns:

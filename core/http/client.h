@@ -30,6 +30,8 @@ struct IClient
 
 DEFINE_REFCOUNTED_TYPE(IClient)
 
+////////////////////////////////////////////////////////////////////////////////
+
 IClientPtr CreateClient(
     const TClientConfigPtr& config,
     const NNet::IDialerPtr& dialer,

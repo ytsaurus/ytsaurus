@@ -25,6 +25,7 @@ struct TAgentToSchedulerJobEvent
     TError Error;
     TNullable<EInterruptReason> InterruptReason;
     TNullable<bool> ArchiveJobSpec;
+    TNullable<bool> ArchiveStderr;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -385,6 +385,7 @@ private:
             }
 
             auto detailedError = error
+                << TErrorAttribute("realm_id", Request_->GetRealmId())
                 << TErrorAttribute("service", Request_->GetService())
                 << TErrorAttribute("method", Request_->GetMethod())
                 << TErrorAttribute("request_id", Request_->GetRequestId())

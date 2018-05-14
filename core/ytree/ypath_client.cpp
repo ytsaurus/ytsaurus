@@ -238,7 +238,6 @@ TFuture<TSharedRefArray> ExecuteVerb(
 {
     IYPathServicePtr suffixService;
     TYPath suffixPath;
-    std::vector<TIntrusivePtr<TRefCounted>> holders;
     try {
         auto resolveContext = CreateYPathContext(requestMessage);
         ResolveYPath(
@@ -246,7 +245,6 @@ TFuture<TSharedRefArray> ExecuteVerb(
             resolveContext,
             &suffixService,
             &suffixPath);
-        holders = resolveContext->GetHolders();
     } catch (const std::exception& ex) {
         return MakeFuture(CreateErrorResponseMessage(ex));
     }
@@ -258,9 +256,6 @@ TFuture<TSharedRefArray> ExecuteVerb(
     auto updatedRequestMessage = SetRequestHeader(requestMessage, requestHeader);
 
     auto invokeContext = CreateYPathContext(std::move(updatedRequestMessage));
-    for (auto& holder : holders) {
-        invokeContext->AddHolder(std::move(holder));
-    }
 
     // NB: Calling GetAsyncResponseMessage after Invoke is not allowed.
     auto asyncResponseMessage = invokeContext->GetAsyncResponseMessage();

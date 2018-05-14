@@ -207,7 +207,7 @@ TEST_F(TNetTest, Bind)
     BIND([&] {
         auto address = TNetworkAddress::CreateIPv6Loopback(0);
         auto listener = CreateListener(address, Poller);
-        EXPECT_THROW(CreateListener(listener->Address(), Poller), TErrorException);
+        EXPECT_THROW(CreateListener(listener->GetAddress(), Poller), TErrorException);
     })
         .AsyncVia(Poller->GetInvoker())
         .Run()
@@ -235,7 +235,7 @@ TEST_F(TNetTest, DialSuccess)
         auto listener = CreateListener(address, Poller);
         auto dialer = CreateDialer();
 
-        auto futureDial = dialer->Dial(listener->Address());
+        auto futureDial = dialer->Dial(listener->GetAddress());
         auto futureAccept = listener->Accept();
 
         WaitFor(futureDial).ValueOrThrow();
@@ -257,8 +257,8 @@ TEST_F(TNetTest, ManyDials)
         auto futureAccept1 = listener->Accept();
         auto futureAccept2 = listener->Accept();
 
-        auto futureDial1 = dialer->Dial(listener->Address());
-        auto futureDial2 = dialer->Dial(listener->Address());
+        auto futureDial1 = dialer->Dial(listener->GetAddress());
+        auto futureDial2 = dialer->Dial(listener->GetAddress());
 
         WaitFor(Combine(std::vector<TFuture<IConnectionPtr>>{futureDial1, futureDial2, futureAccept1, futureAccept2})).ValueOrThrow();
     })
@@ -275,7 +275,7 @@ TEST_F(TNetTest, AbandonDial)
         auto listener = CreateListener(address, Poller);
         auto dialer = CreateDialer();
 
-        dialer->Dial(listener->Address());
+        dialer->Dial(listener->GetAddress());
     })
         .AsyncVia(Poller->GetInvoker())
         .Run()

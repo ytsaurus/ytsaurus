@@ -263,6 +263,15 @@ void TOperation::Restart()
     CancelableInvoker_ = CancelableContext_->CreateInvoker(ControlInvoker_);
 }
 
+TYsonString TOperation::BuildResultString() const
+{
+    auto error = NYT::FromProto<TError>(Result_.error());
+    return BuildYsonStringFluently()
+        .BeginMap()
+            .Item("error").Value(error)
+        .EndMap();
+}
+
 void TOperation::SetAgent(const TControllerAgentPtr& agent)
 {
     Agent_ = agent;

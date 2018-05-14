@@ -381,6 +381,12 @@ public:
         StderrSize_ = value;
     }
 
+    virtual void SetStderr(const TString& value) override
+    {
+        VERIFY_THREAD_AFFINITY(ControllerThread);
+        Stderr_ = value;
+    }
+
     virtual TYsonString GetStatistics() const override
     {
         VERIFY_THREAD_AFFINITY(ControllerThread);
@@ -428,6 +434,11 @@ public:
     virtual TString GetStderr() override
     {
         VERIFY_THREAD_AFFINITY(ControllerThread);
+
+        if (Stderr_) {
+            return *Stderr_;
+        }
+
         ValidateJobRunning();
 
         try {
@@ -504,6 +515,13 @@ public:
                 .Events(JobEvents_));
     }
 
+    virtual void ReportStderr() override
+    {
+        ReportStatistics(
+            TJobStatistics()
+                .Stderr(GetStderr()));
+    }
+
     virtual void Interrupt() override
     {
         VERIFY_THREAD_AFFINITY(ControllerThread);
@@ -571,6 +589,8 @@ private:
 
     double Progress_ = 0.0;
     ui64 StderrSize_ = 0;
+
+    TNullable<TString> Stderr_;
 
     TYsonString Statistics_ = TYsonString("{}");
     TInstant StatisticsLastSendTime_ = TInstant::Now();

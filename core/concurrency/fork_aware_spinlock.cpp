@@ -12,47 +12,24 @@ namespace NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static TReaderWriterSpinLock ForkLock;
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TForkAwareSpinLock::TImpl
+TReaderWriterSpinLock& ForkLock()
 {
-public:
-    void Acquire()
-    {
-        ForkLock.AcquireReader();
-        SpinLock_.Acquire();
-    }
-
-    void Release()
-    {
-        SpinLock_.Release();
-        ForkLock.ReleaseReader();
-    }
-
-private:
-    TSpinLock SpinLock_;
-
-};
+    static TReaderWriterSpinLock lock;
+    return lock;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
-
-TForkAwareSpinLock::TForkAwareSpinLock()
-    : Impl_(new TImpl())
-{ }
-
-TForkAwareSpinLock::~TForkAwareSpinLock()
-{ }
 
 void TForkAwareSpinLock::Acquire()
 {
-    Impl_->Acquire();
+    ForkLock().AcquireReader();
+    SpinLock_.Acquire();
 }
 
 void TForkAwareSpinLock::Release()
 {
-    Impl_->Release();
+    SpinLock_.Release();
+    ForkLock().ReleaseReader();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -82,19 +59,18 @@ public:
 private:
     static void OnPrepare()
     {
-        ForkLock.AcquireWriter();
+        ForkLock().AcquireWriter();
     }
 
     static void OnParent()
     {
-        ForkLock.ReleaseWriter();
+        ForkLock().ReleaseWriter();
     }
 
     static void OnChild()
     {
-        ForkLock.ReleaseWriter();
+        ForkLock().ReleaseWriter();
     }
-
 };
 
 static TForkProtector ForkProtector;
@@ -103,12 +79,12 @@ static TForkProtector ForkProtector;
 
 static void BeforeLFAllocGlobalLockAcquired()
 {
-    NYT::NConcurrency::ForkLock.AcquireReader();
+    NYT::NConcurrency::ForkLock().AcquireReader();
 }
 
 static void AfterLFAllocGlobalLockReleased()
 {
-    NYT::NConcurrency::ForkLock.ReleaseReader();
+    NYT::NConcurrency::ForkLock().ReleaseReader();
 }
 
 #endif

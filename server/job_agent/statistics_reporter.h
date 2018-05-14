@@ -36,6 +36,7 @@ public:
     void ReportStatistics(TJobStatistics&& statistics);
     void SetEnabled(bool enable);
     void SetSpecEnabled(bool enable);
+    void SetStderrEnabled(bool enable);
     void SetOperationArchiveVersion(int version);
 
 private:

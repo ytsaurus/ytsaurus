@@ -16,10 +16,10 @@ namespace NSkynetManager {
 struct TFileMeta
 {
     //! MD5 in binary format
-    TMD5Hash MD5;
+    NCrypto::TMD5Hash MD5;
 
     //! SHA1 of file chunks in binary format
-    std::vector<TSHA1Hash> SHA1;
+    std::vector<NCrypto::TSHA1Hash> SHA1;
 
     bool Executable = false;
 

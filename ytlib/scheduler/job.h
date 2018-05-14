@@ -11,6 +11,7 @@ struct TJobToRelease
 {
     TJobId JobId;
     bool ArchiveJobSpec = false;
+    bool ArchiveStderr = false;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

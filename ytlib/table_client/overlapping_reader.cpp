@@ -370,17 +370,23 @@ TDataStatistics TSchemafulOverlappingRangeReaderBase<TRowMerger>::DoGetDataStati
 template<class TRowMerger>
 TCodecStatistics TSchemafulOverlappingRangeReaderBase<TRowMerger>::DoGetDecompressionStatistics() const
 {
-    auto result = DecompressionStatistics_;
-    for (const auto& session : Sessions_) {
-        IVersionedReaderPtr reader;
-        {
-            TReaderGuard guard(SpinLock_);
-            reader = session.Reader;
-        }
-        if (reader) {
-            result += reader->GetDecompressionStatistics();
+    std::vector<IVersionedReaderPtr> readers;
+    TCodecStatistics result;
+    {
+        TReaderGuard guard(SpinLock_);
+        result = DecompressionStatistics_;
+        readers.reserve(Sessions_.size());
+        for (const auto& session : Sessions_) {
+            if (session.Reader) {
+                readers.push_back(session.Reader);
+            }
         }
     }
+
+    for (const auto& reader : readers) {
+        result += reader->GetDecompressionStatistics();
+    }
+
     return result;
 }
 
