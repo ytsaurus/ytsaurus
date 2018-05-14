@@ -9,6 +9,7 @@
 #include <unistd.h>
 #endif
 
+#include <yt/core/concurrency/action_queue.h>
 #include <yt/core/concurrency/async_semaphore.h>
 #include <yt/core/concurrency/thread_pool.h>
 
@@ -26,6 +27,8 @@
 
 namespace NYT {
 namespace NChunkClient {
+
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -91,60 +94,65 @@ public:
     using TConfig = TThreadedIOEngineConfig;
 
     explicit TThreadedIOEngine(const TConfig& config, const TString& locationId)
-        : ThreadPool_(New<NConcurrency::TThreadPool>(config.Threads, Format("DiskIO:%v", locationId)))
+        : ThreadPool_(New<TThreadPool>(config.Threads, Format("DiskIO:%v", locationId)))
+        , Invoker_(CreatePrioritizedInvoker(ThreadPool_->GetInvoker()))
         , UseDirectIO_(config.UseDirectIO)
     { }
 
-    virtual TFuture<std::shared_ptr<TFileHandle>> Open(const TString& fName, EOpenMode oMode) override
+    virtual TFuture<std::shared_ptr<TFileHandle>> Open(
+        const TString& fName, EOpenMode oMode, i64 priority) override
     {
         return BIND(&TThreadedIOEngine::DoOpen, MakeStrong(this), fName, oMode)
-            .AsyncVia(ThreadPool_->GetInvoker())
+            .AsyncVia(CreateFixedPriorityInvoker(Invoker_, priority))
             .Run();
     }
 
-    virtual TFuture<TSharedMutableRef> Pread(const std::shared_ptr<TFileHandle>& fh, size_t len, i64 offset) override
+    virtual TFuture<TSharedMutableRef> Pread(
+        const std::shared_ptr<TFileHandle>& fh, size_t len, i64 offset, i64 priority) override
     {
         return BIND(&TThreadedIOEngine::DoPread, MakeStrong(this), fh, len, offset)
-            .AsyncVia(ThreadPool_->GetInvoker())
+            .AsyncVia(CreateFixedPriorityInvoker(Invoker_, priority))
             .Run();
     }
 
-    virtual TFuture<void> Pwrite(const std::shared_ptr<TFileHandle>& fh, const TSharedMutableRef& data, i64 offset) override
+    virtual TFuture<void> Pwrite(
+        const std::shared_ptr<TFileHandle>& fh, const TSharedMutableRef& data, i64 offset, i64 priority) override
     {
         auto useDirectIO = UseDirectIO_ || IsDirectAligned(fh);
         YCHECK(!useDirectIO || IsAligned(reinterpret_cast<ui64>(data.Begin()), Alignment_));
         YCHECK(!useDirectIO || IsAligned(data.Size(), Alignment_));
         YCHECK(!useDirectIO || IsAligned(offset, Alignment_));
         return BIND(&TThreadedIOEngine::DoPwrite, MakeStrong(this), fh, data, offset)
-            .AsyncVia(ThreadPool_->GetInvoker())
+            .AsyncVia(CreateFixedPriorityInvoker(Invoker_, priority))
             .Run();
     }
 
-    virtual TFuture<bool> FlushData(const std::shared_ptr<TFileHandle>& fh) override
+    virtual TFuture<bool> FlushData(const std::shared_ptr<TFileHandle>& fh, i64 priority) override
     {
         if (UseDirectIO_) {
             return TrueFuture;
         } else {
             return BIND(&TThreadedIOEngine::DoFlushData, MakeStrong(this), fh)
-                .AsyncVia(ThreadPool_->GetInvoker())
+                .AsyncVia(CreateFixedPriorityInvoker(Invoker_, priority))
                 .Run();
         }
     }
 
-    virtual TFuture<bool> Flush(const std::shared_ptr<TFileHandle>& fh) override
+    virtual TFuture<bool> Flush(const std::shared_ptr<TFileHandle>& fh, i64 priority) override
     {
         if (UseDirectIO_) {
             return TrueFuture;
         } else {
             return BIND(&TThreadedIOEngine::DoFlush, MakeStrong(this), fh)
-                .AsyncVia(ThreadPool_->GetInvoker())
+                .AsyncVia(CreateFixedPriorityInvoker(Invoker_, priority))
                 .Run();
         }
     }
 
 private:
     const size_t MaxBytesPerRead = 1_GB;
-    const NConcurrency::TThreadPoolPtr ThreadPool_;
+    const TThreadPoolPtr ThreadPool_;
+    const IPrioritizedInvokerPtr Invoker_;
 
     const bool UseDirectIO_;
     const i64 Alignment_ = 4_KB;
@@ -277,7 +285,7 @@ struct IAioOperation
     : public TRefCounted
     , public iocb
 {
-    virtual void Start(NConcurrency::TAsyncSemaphoreGuard&& guard) = 0;
+    virtual void Start(TAsyncSemaphoreGuard&& guard) = 0;
     virtual void Complete(const io_event& ev) = 0;
     virtual void Fail(const std::exception& ex) = 0;
 };
@@ -288,7 +296,7 @@ class TAioOperation
     : public IAioOperation
 {
 public:
-    virtual void Start(NConcurrency::TAsyncSemaphoreGuard&& guard) override
+    virtual void Start(TAsyncSemaphoreGuard&& guard) override
     {
         Guard_ = std::move(guard);
     }
@@ -306,7 +314,7 @@ public:
     }
 
 private:
-    NConcurrency::TAsyncSemaphoreGuard Guard_;
+    TAsyncSemaphoreGuard Guard_;
 
     virtual void DoComplete(const io_event& ev) = 0;
     virtual void DoFail(const std::exception& ex) = 0;
@@ -449,7 +457,7 @@ public:
         : MaxQueueSize_(config.MaxQueueSize)
         , Semaphore_(MaxQueueSize_)
         , Thread_(TThread::TParams(StaticLoop, this).SetName("DiskEvents"))
-        , ThreadPool_(New<NConcurrency::TThreadPool>(1, "FileOpener"))
+        , ThreadPool_(New<TThreadPool>(1, "FileOpener"))
     {
         auto ret = io_setup(MaxQueueSize_, &Ctx_);
         if (ret < 0) {
@@ -465,31 +473,33 @@ public:
         Stop();
     }
 
-    virtual TFuture<TSharedMutableRef> Pread(const std::shared_ptr<TFileHandle>& fh, size_t len, i64 offset) override
+    virtual TFuture<TSharedMutableRef> Pread(
+        const std::shared_ptr<TFileHandle>& fh, size_t len, i64 offset, i64 priority) override
     {
         auto op = New<TAioReadOperation>(fh, len, offset, Alignment_);
         Submit(op);
         return op->Result();
     }
 
-    virtual TFuture<void> Pwrite(const std::shared_ptr<TFileHandle>& fh, const TSharedMutableRef& data, i64 offset) override
+    virtual TFuture<void> Pwrite(
+        const std::shared_ptr<TFileHandle>& fh, const TSharedMutableRef& data, i64 offset, i64 priority) override
     {
         auto op = New<TAioWriteOperation>(fh, data, offset, Alignment_);
         Submit(op);
         return op->Result();
     }
 
-    virtual TFuture<bool> FlushData(const std::shared_ptr<TFileHandle>& fh) override
+    virtual TFuture<bool> FlushData(const std::shared_ptr<TFileHandle>& fh, i64 priority) override
     {
         return TrueFuture;
     }
 
-    virtual TFuture<bool> Flush(const std::shared_ptr<TFileHandle>& fh) override
+    virtual TFuture<bool> Flush(const std::shared_ptr<TFileHandle>& fh, i64 priority) override
     {
         return TrueFuture;
     }
 
-    virtual TFuture<std::shared_ptr<TFileHandle>> Open(const TString& fName, EOpenMode oMode) override
+    virtual TFuture<std::shared_ptr<TFileHandle>> Open(const TString& fName, EOpenMode oMode, i64 priority) override
     {
         return BIND(&TAioEngine::DoOpen, MakeStrong(this), fName, oMode)
             .AsyncVia(ThreadPool_->GetInvoker())
@@ -500,13 +510,13 @@ private:
     aio_context_t Ctx_ = 0;
     const int MaxQueueSize_;
 
-    NConcurrency::TAsyncSemaphore Semaphore_;
+    TAsyncSemaphore Semaphore_;
     std::atomic<bool> Alive_ = {true};
 
     const size_t Alignment_ = 4_KB;
 
     TThread Thread_;
-    const NConcurrency::TThreadPoolPtr ThreadPool_;
+    const TThreadPoolPtr ThreadPool_;
 
     std::shared_ptr<TFileHandle> DoOpen(const TString& fName, EOpenMode oMode)
     {
@@ -593,7 +603,7 @@ private:
         }
     }
 
-    void OnSlotsAvailable(const IAioOperationPtr& op, NConcurrency::TAsyncSemaphoreGuard&& guard)
+    void OnSlotsAvailable(const IAioOperationPtr& op, TAsyncSemaphoreGuard&& guard)
     {
         op->Ref();
         op->Start(std::move(guard));
