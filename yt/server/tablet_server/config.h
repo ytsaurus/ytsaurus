@@ -197,5 +197,25 @@ DEFINE_REFCOUNTED_TYPE(TTabletManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TDynamicTabletManagerConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    bool EnableTabletBalancer;
+    NTabletNode::EDynamicTableProfilingMode DynamicTableProfilingMode;
+
+    TDynamicTabletManagerConfig()
+    {
+        RegisterParameter("enable_tablet_balancer", EnableTabletBalancer)
+            .Default(true);
+        RegisterParameter("dynamc_table_profiling_mode", DynamicTableProfilingMode)
+            .Default(NTabletNode::EDynamicTableProfilingMode::Path);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TDynamicTabletManagerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NTabletServer
 } // namespace NYT

@@ -15,6 +15,7 @@
 #include <yt/server/cell_master/hydra_facade.h>
 #include <yt/server/cell_master/multicell_manager.h>
 #include <yt/server/cell_master/serialize.h>
+#include <yt/server/cell_master/config.h>
 
 #include <yt/server/chunk_server/chunk_manager.h>
 #include <yt/server/chunk_server/chunk_requisition.h>

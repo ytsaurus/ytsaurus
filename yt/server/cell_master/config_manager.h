@@ -1,5 +1,4 @@
 #include "public.h"
-#include "cluster_config.h"
 
 namespace NYT {
 namespace NCellMaster {

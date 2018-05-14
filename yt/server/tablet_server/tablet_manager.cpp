@@ -4164,7 +4164,7 @@ private:
         // Parse and prepare mount config.
         try {
             *mountConfig = ConvertTo<TTableMountConfigPtr>(tableAttributes);
-            (*mountConfig)->ProfilingMode = configManager->GetConfig()->DynamicTableProfilingMode;
+            (*mountConfig)->ProfilingMode = configManager->GetConfig()->TabletManager->DynamicTableProfilingMode;
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error parsing table mount configuration")
                 << ex;

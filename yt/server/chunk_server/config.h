@@ -69,7 +69,6 @@ public:
     }
 
 private:
-
     // src DC -> dst DC -> data size.
     // NB: that null DC is encoded as an empty string here.
     THashMap<TString, THashMap<TString, i64>> Capacities;
@@ -78,8 +77,9 @@ private:
     NProfiling::TCpuDuration CpuUpdateInterval;
 };
 
-DECLARE_REFCOUNTED_CLASS(TInterDCLimitsConfig)
 DEFINE_REFCOUNTED_TYPE(TInterDCLimitsConfig)
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TChunkManagerConfig
     : public NYTree::TYsonSerializable
@@ -346,6 +346,23 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TMediumConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TDynamicChunkManagerConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    bool EnableChunkReplicator;
+
+    TDynamicChunkManagerConfig()
+    {
+        RegisterParameter("enable_chunk_replicator", EnableChunkReplicator)
+            .Default(true);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TDynamicChunkManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

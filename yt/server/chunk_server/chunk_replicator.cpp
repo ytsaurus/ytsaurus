@@ -1810,7 +1810,7 @@ void TChunkReplicator::OnCheckEnabled()
 
 void TChunkReplicator::OnCheckEnabledPrimary()
 {
-    if (!Bootstrap_->GetConfigManager()->GetConfig()->EnableChunkReplicator) {
+    if (!Bootstrap_->GetConfigManager()->GetConfig()->ChunkManager->EnableChunkReplicator) {
         if (!Enabled_ || *Enabled_) {
             LOG_INFO("Chunk replicator is disabled, see //sys/@config");
         }
