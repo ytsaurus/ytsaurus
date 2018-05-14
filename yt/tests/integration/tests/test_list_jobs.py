@@ -2,6 +2,7 @@ from yt_env_setup import wait, YTEnvSetup
 from yt_commands import *
 import yt.environment.init_operation_archive as init_operation_archive
 from yt.wrapper.operation_commands import add_failed_operation_stderrs_to_error_message
+from yt.wrapper.common import uuid_hash_pair
 from yt.common import date_string_to_datetime
 
 from operations_archive import clean_operations
@@ -20,6 +21,14 @@ def validate_address_filter(op, include_archive, include_cypress, include_runtim
     for address in job_dict.keys():
         res = list_jobs(op.id, include_archive=include_archive, include_cypress=include_cypress, include_runtime=include_runtime, data_source="manual", address=address)["jobs"]
         assert sorted([job["id"] for job in res]) == sorted(job_dict[address])
+
+def get_stderr_from_table(operation_id, job_id):
+    operation_hash = uuid_hash_pair(operation_id)
+    job_hash = uuid_hash_pair(job_id)
+    rows = list(select_rows("stderr from [//sys/operations_archive/stderrs] where operation_id_lo={0}u and operation_id_hi={1}u and job_id_lo={2}u and job_id_hi={3}u"\
+        .format(operation_hash.lo, operation_hash.hi, job_hash.lo, job_hash.hi)))
+    assert len(rows) == 1
+    return rows[0]["stderr"]
 
 class TestListJobs(YTEnvSetup):
     DELTA_NODE_CONFIG = {
@@ -251,6 +260,10 @@ class TestListJobs(YTEnvSetup):
 
         res = list_jobs(op.id,  with_stderr=True, **archive_options)["jobs"]
         assert sorted(jobs_with_stderr) == sorted([job["id"] for job in res])
+
+        job_id = sorted([job["id"] for job in res])[0]
+        res = get_stderr_from_table(op.id, job_id)
+        assert res == "foo\n"
 
         res = list_jobs(op.id, with_stderr=False, **archive_options)["jobs"]
         assert sorted(jobs_without_stderr) == sorted([job["id"] for job in res])
