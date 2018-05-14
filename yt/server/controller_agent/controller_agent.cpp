@@ -704,6 +704,8 @@ private:
 
     void OnConnecting()
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
         // NB: We cannot be sure the previous incarnation did a proper cleanup due to possible
         // fiber cancelation.
         DoCleanup();
@@ -798,6 +800,8 @@ private:
 
     void DoDisconnect(const TError& error) noexcept
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
         TForbidContextSwitchGuard contextSwitchGuard;
 
         if (Connected_) {
@@ -815,6 +819,8 @@ private:
 
     void DoCleanup()
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
         Connected_ = false;
         ConnectionTime_.store(TInstant::Zero());
         IncarnationId_ = {};
