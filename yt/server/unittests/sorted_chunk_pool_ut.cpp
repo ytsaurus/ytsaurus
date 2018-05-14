@@ -49,7 +49,6 @@ protected:
         Options_.MinTeleportChunkSize = Inf64;
         Options_.SortedJobOptions.MaxTotalSliceCount = Inf64;
         Options_.SortedJobOptions.MaxDataWeightPerJob = Inf64;
-        Options_.SortedJobOptions.UseNewEndpointKeys = true;
         DataSizePerJob_ = Inf64;
         MaxDataSlicesPerJob_ = Inf32;
         InputSliceDataWeight_ = Inf64;
@@ -2147,7 +2146,6 @@ TEST_F(TSortedChunkPoolTest, TestTrickyCase4)
         {false, false, false}
     );
     Options_.SortedJobOptions.PrimaryPrefixLength = 3;
-    Options_.SortedJobOptions.UseNewEndpointKeys = true;
     DataSizePerJob_ = 10_KB;
     InitJobConstraints();
     PrepareNewMock();
@@ -2581,6 +2579,41 @@ TEST_F(TSortedChunkPoolTest, ResetBeforeFinish)
 
     EXPECT_EQ(teleportChunks, std::vector<TInputChunkPtr>{chunkC1Replayed});
     EXPECT_EQ(1, stripeLists.size());
+}
+
+TEST_F(TSortedChunkPoolTest, TeleportChunkAndShortReadLimits)
+{
+    // YT-8836.
+    Options_.SortedJobOptions.EnableKeyGuarantee = false;
+    InitTables(
+        {false, false} /* isForeign */,
+        {true, true} /* isTeleportable */,
+        {false, false} /* isVersioned */
+    );
+    Options_.SortedJobOptions.PrimaryPrefixLength = 2;
+    Options_.MinTeleportChunkSize = 0;
+    InitJobConstraints();
+
+    auto chunkALeft = CreateChunk(BuildRow({1, 0}), BuildRow({10, 0}), 0, 1_KB, TKey(), BuildRow({4}));
+    auto chunkARight = CreateChunk(BuildRow({1, 0}), BuildRow({10, 0}), 0, 1_KB, BuildRow({5}), TKey());
+    auto chunkB = CreateChunk(BuildRow({4, 2}), BuildRow({4, 2}), 1);
+
+    CreateChunkPool();
+
+    AddChunk(chunkALeft);
+    AddChunk(chunkARight);
+    AddChunk(chunkB);
+
+    ChunkPool_->Finish();
+
+    ExtractOutputCookiesWhilePossible();
+    auto stripeLists = GetAllStripeLists();
+    const auto& teleportChunks = ChunkPool_->GetTeleportChunks();
+
+    EXPECT_EQ(1, teleportChunks.size());
+    EXPECT_EQ(2, stripeLists.size());
+    EXPECT_EQ(1, stripeLists[0]->Stripes.size());
+    EXPECT_EQ(1, stripeLists[1]->Stripes.size());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
