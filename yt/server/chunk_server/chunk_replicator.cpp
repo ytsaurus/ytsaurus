@@ -419,7 +419,9 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeErasureChunkStatisti
             ++mediumStatistics.ReplicaCount[replicaIndex];
             ++totalReplicaCounts[mediumIndex];
         }
-        node->SetVisitMark(mediumIndex, mark);
+        if (!Config_->AllowMultipleErasurePartsPerNode) {
+            node->SetVisitMark(mediumIndex, mark);
+        }
         const auto* rack = node->GetRack();
         if (rack) {
             int rackIndex = rack->GetIndex();
