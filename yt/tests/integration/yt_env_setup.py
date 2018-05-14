@@ -453,10 +453,9 @@ class YTEnvSetup(object):
                 yt_commands.gc_collect(driver=driver)
                 self._remove_tablet_cells(driver=driver)
                 self._remove_tablet_cell_bundles(driver=driver)
+                self._remove_tablet_actions(driver=driver)
             self._remove_racks(driver=driver)
             self._remove_data_centers(driver=driver)
-            if self.get_param("ENABLE_MULTICELL_TEARDOWN", cluster_index):
-                self._remove_tablet_actions(driver=driver)
             self._reset_dynamic_cluster_config(driver=driver)
 
             yt_commands.gc_collect(driver=driver)
