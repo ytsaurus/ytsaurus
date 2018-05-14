@@ -454,11 +454,11 @@ class TAioEngine
 public:
     using TConfig = TAioEngineConfig;
 
-    explicit TAioEngine(const TAioEngineConfig& config)
+    explicit TAioEngine(const TAioEngineConfig& config, const TString& locationId)
         : MaxQueueSize_(config.MaxQueueSize)
         , Semaphore_(MaxQueueSize_)
-        , Thread_(TThread::TParams(StaticLoop, this).SetName("DiskEvents"))
-        , ThreadPool_(New<TThreadPool>(1, "FileOpener"))
+        , Thread_(TThread::TParams(StaticLoop, this).SetName(Format("DiskEvents:%v", locationId)))
+        , ThreadPool_(New<TThreadPool>(1, Format("FileOpener:%v", locationId)))
     {
         auto ret = io_setup(MaxQueueSize_, &Ctx_);
         if (ret < 0) {
@@ -644,10 +644,10 @@ IIOEnginePtr CreateIOEngine(EIOEngineType ioType, const NYTree::INodePtr& ioConf
     switch (ioType) {
         case EIOEngineType::ThreadPool:
             return CreateIOEngine<TThreadedIOEngine>(ioConfig, locationId);
-    #ifdef _linux_
+#ifdef _linux_
         case EIOEngineType::Aio:
-            return CreateIOEngine<TAioEngine>(ioConfig);
-    #endif
+            return CreateIOEngine<TAioEngine>(ioConfig, locationId);
+#endif
         default:
             THROW_ERROR_EXCEPTION("Unknown IO engine %Qlv", ioType);
     }
