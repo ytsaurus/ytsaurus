@@ -264,7 +264,7 @@ public:
     void FixExportRequisitionIndexes();
 
     // COMPAT(shakurov)
-    // TODO(shakurov): make this private once everything's at v. 709+.
+    // TODO(shakurov): make this private once everything's at v. 710+.
     void UpdateAggregatedRequisitionIndex(
         TChunkRequisitionRegistry* registry,
         const NObjectServer::TObjectManagerPtr& objectManager);

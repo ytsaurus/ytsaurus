@@ -148,7 +148,7 @@ void TChunk::Load(NCellMaster::TLoadContext& context)
     Load(context, ChunkMeta_);
 
     // COMPAT(shakurov)
-    if (context.GetVersion() >= 709) {
+    if (context.GetVersion() >= 710) {
         Load(context, AggregatedRequisitionIndex_);
     } // Else it's recomputed by the chunk manager.
 
