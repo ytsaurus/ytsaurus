@@ -227,6 +227,8 @@ TJobStatistics TJobStatistics::ExtractSpec()
 TJobStatistics TJobStatistics::ExtractStderr()
 {
     TJobStatistics copy;
+    copy.JobId_ = JobId_;
+    copy.OperationId_ = OperationId_;
     copy.Stderr_ = Stderr_;
     return copy;
 }
