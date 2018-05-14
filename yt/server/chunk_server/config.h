@@ -174,6 +174,10 @@ public:
     //! Same as #MaxReplicasPerRack but only applies to erasure chunks.
     int MaxErasureReplicasPerRack;
 
+    //! Enables storing more than one chunk part per node.
+    //! Should only be used in local mode to enable writing erasure chunks in a cluster with just one node.
+    bool AllowMultipleErasurePartsPerNode;
+
     //! Interval between consequent replicator state checks.
     TDuration ReplicatorEnabledCheckPeriod;
 
@@ -274,6 +278,8 @@ public:
         RegisterParameter("max_erasure_replicas_per_rack", MaxErasureReplicasPerRack)
             .GreaterThanOrEqual(0)
             .Default(std::numeric_limits<int>::max());
+        RegisterParameter("allow_multiple_erasure_parts_per_node", AllowMultipleErasurePartsPerNode)
+            .Default(false);
 
         RegisterParameter("replicator_enabled_check_period", ReplicatorEnabledCheckPeriod)
             .Default(TDuration::Seconds(1));

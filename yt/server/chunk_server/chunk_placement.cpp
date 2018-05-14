@@ -38,8 +38,10 @@ public:
         const TMedium* medium,
         const TChunk* chunk,
         int maxReplicasPerRack,
+        bool allowMultipleReplicasPerNode,
         const TNodeList* forbiddenNodes)
         : MaxReplicasPerRack_(maxReplicasPerRack)
+        , AllowMultipleReplicasPerNode_(allowMultipleReplicasPerNode)
     {
         if (forbiddenNodes) {
             ForbiddenNodes_ = *forbiddenNodes;
@@ -77,7 +79,9 @@ public:
     {
         IncreaseRackUsage(node);
         AddedNodes_.push_back(node);
-        ForbiddenNodes_.push_back(node);
+        if (!AllowMultipleReplicasPerNode_) {
+            ForbiddenNodes_.push_back(node);
+        }
     }
 
     const TNodeList& GetAddedNodes() const
@@ -87,12 +91,13 @@ public:
 
 private:
     const int MaxReplicasPerRack_;
+    const bool AllowMultipleReplicasPerNode_;
 
     std::array<i8, RackIndexBound> PerRackCounters_{};
     TNodeList ForbiddenNodes_;
     TNodeList AddedNodes_;
 
-
+private:
     void IncreaseRackUsage(TNode* node)
     {
         const auto* rack = node->GetRack();
@@ -100,7 +105,6 @@ private:
             ++PerRackCounters_[rack->GetIndex()];
         }
     }
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -283,21 +287,35 @@ TNodeList TChunkPlacement::GetWriteTargets(
 
     int mediumIndex = medium->GetIndex();
     int maxReplicasPerRack = GetMaxReplicasPerRack(medium, chunk, replicationFactorOverride);
-    TTargetCollector collector(medium, chunk, maxReplicasPerRack, forbiddenNodes);
+    TTargetCollector collector(
+        medium,
+        chunk,
+        maxReplicasPerRack,
+        Config_->AllowMultipleErasurePartsPerNode && chunk->IsErasure(),
+        forbiddenNodes);
 
     auto tryAdd = [&] (TNode* node, bool enableRackAwareness) {
-        if (IsValidWriteTarget(medium, dataCenters, node, &collector, enableRackAwareness)) {
-            collector.AddNode(node);
+        if (!IsValidWriteTarget(medium, dataCenters, node, &collector, enableRackAwareness)) {
+            return false;
         }
+        collector.AddNode(node);
+        return true;
+    };
+
+    auto hasEnoughTargets = [&] {
+        return collector.GetAddedNodes().size() == desiredCount;
     };
 
     auto tryAddAll = [&] (bool enableRackAwareness) {
+        bool hasProgress = false;
         for (const auto& pair : MediumToLoadFactorToNode_[mediumIndex]) {
             auto* node = pair.second;
-            if (collector.GetAddedNodes().size() == desiredCount)
+            if (hasEnoughTargets()) {
                 break;
-            tryAdd(node, enableRackAwareness);
+            }
+            hasProgress |= tryAdd(node, enableRackAwareness);
         }
+        return hasProgress;
     };
 
     if (preferredHostName) {
@@ -310,7 +328,14 @@ TNodeList TChunkPlacement::GetWriteTargets(
 
     tryAddAll(true);
     if (!forceRackAwareness) {
-        tryAddAll(false);
+        while (!hasEnoughTargets()) {
+            if (!tryAddAll(false)) {
+                break;
+            }
+            if (!chunk->IsErasure() || !Config_->AllowMultipleErasurePartsPerNode) {
+                break;
+            }
+        }
     }
 
     const auto& nodes = collector.GetAddedNodes();
@@ -438,7 +463,12 @@ TNode* TChunkPlacement::GetBalancingTarget(
 
     int mediumIndex = medium->GetIndex();
     int maxReplicasPerRack = GetMaxReplicasPerRack(medium, chunk, Null);
-    TTargetCollector collector(medium, chunk, maxReplicasPerRack, nullptr);
+    TTargetCollector collector(
+        medium,
+        chunk,
+        maxReplicasPerRack,
+        Config_->AllowMultipleErasurePartsPerNode && chunk->IsErasure(),
+        nullptr);
 
     for (const auto& pair : MediumToFillFactorToNode_[mediumIndex]) {
         auto* node = pair.second;
