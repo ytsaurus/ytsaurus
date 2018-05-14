@@ -142,7 +142,7 @@ TString GetFilterFactors(const TArchiveOperationRequest& request)
         }
     }
 
-    auto result = JoinToString(parts.begin(), parts.end(), STRINGBUF(" "));
+    auto result = JoinToString(parts.begin(), parts.end(), AsStringBuf(" "));
     return to_lower(result);
 }
 
