@@ -615,7 +615,7 @@ private:
         }
 
         try {
-            UpdateOperationNodeAttributes(operationId);
+            UpdateOperationNodes(operationId);
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error updating operation %v node",
                 operationId)
@@ -649,7 +649,7 @@ private:
             .AsyncVia(CancelableControlInvoker_);
     }
 
-    void UpdateOperationNodeAttributes(const TOperationId& operationId)
+    void UpdateOperationNodes(const TOperationId& operationId)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -702,6 +702,19 @@ private:
             }
 
             batchReq->AddRequest(multisetReq, "update_op_node");
+
+            // Create operation controller orchid node.
+            {
+                auto req = TCypressYPathProxy::Create(operationPath + "/controller_orchid");
+                req->set_force(true);
+                req->set_type(static_cast<int>(EObjectType::Orchid));
+                auto attributes = CreateEphemeralAttributes();
+                attributes->Set("remote_addresses", Bootstrap_->GetLocalAddresses());
+                attributes->Set("remote_root", "//controller_agent/operations/" + ToYPathLiteral(ToString(operationId)));
+                ToProto(req->mutable_node_attributes(), *attributes);
+                GenerateMutationId(req);
+                batchReq->AddRequest(req, "create_controller_orchid");
+            }
         }
 
         // This is needed to prevent controller lifetime prolongation due to strong pointer
