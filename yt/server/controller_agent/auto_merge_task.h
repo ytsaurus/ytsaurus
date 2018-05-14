@@ -88,7 +88,7 @@ public:
     virtual void OnJobStarted(TJobletPtr joblet) override;
     virtual void OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& jobSummary) override;
     virtual void OnJobFailed(TJobletPtr joblet, const TFailedJobSummary& jobSummary) override;
-    virtual void OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary) override;
+    virtual TJobCompletedResult OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary) override;
 
     void RegisterTeleportChunk(NChunkClient::TInputChunkPtr chunk);
 

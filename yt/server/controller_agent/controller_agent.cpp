@@ -886,6 +886,9 @@ private:
                     case EAgentToSchedulerOperationEventType::Suspended:
                         ToProto(protoEvent->mutable_error(), event.Error);
                         break;
+                    case EAgentToSchedulerOperationEventType::BannedInTentativeTree:
+                        ToProto(protoEvent->mutable_tentative_tree_id(), event.TentativeTreeId);
+                        break;
                     default:
                         Y_UNREACHABLE();
                 }

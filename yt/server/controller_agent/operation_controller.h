@@ -230,6 +230,7 @@ struct IOperationControllerHost
     virtual void OnOperationAborted(const TError& error) = 0;
     virtual void OnOperationFailed(const TError& error) = 0;
     virtual void OnOperationSuspended(const TError& error) = 0;
+    virtual void OnOperationBannedInTentativeTree(const TString& treeId) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IOperationControllerHost)

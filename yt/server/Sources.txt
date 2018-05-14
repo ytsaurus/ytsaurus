@@ -78,6 +78,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/controller_agent/bootstrap.cpp
   ${CMAKE_CURRENT_LIST_DIR}/controller_agent/chunk_list_pool.cpp
   ${CMAKE_CURRENT_LIST_DIR}/controller_agent/chunk_pool_adapters.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/controller_agent/tentative_tree_eligibility.cpp
   ${CMAKE_CURRENT_LIST_DIR}/controller_agent/controller_agent.cpp
   ${CMAKE_CURRENT_LIST_DIR}/controller_agent/config.cpp
   ${CMAKE_CURRENT_LIST_DIR}/controller_agent/controller_agent_service.cpp

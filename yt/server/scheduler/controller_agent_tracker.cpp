@@ -989,6 +989,11 @@ public:
                     case EAgentToSchedulerOperationEventType::Failed:
                         scheduler->OnOperationFailed(operation, error);
                         break;
+                    case EAgentToSchedulerOperationEventType::BannedInTentativeTree: {
+                        auto treeId = protoEvent->tentative_tree_id();
+                        scheduler->OnOperationBannedInTentativeTree(operation, treeId);
+                        break;
+                    }
                     default:
                         Y_UNREACHABLE();
                 }

@@ -22,5 +22,44 @@ TIntrusivePtr<TSpec> ParseOperationSpec(NYTree::INodePtr specNode)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class T>
+TAvgSummary<T>::TAvgSummary()
+    : TAvgSummary(T(), 0)
+{ }
+
+template <class T>
+TAvgSummary<T>::TAvgSummary(T sum, i64 count)
+    : Sum_(sum)
+    , Count_(count)
+    , Avg_(CalcAvg())
+{ }
+
+template <class T>
+TNullable<T> TAvgSummary<T>::CalcAvg()
+{
+    return Count_ == 0 ? TNullable<T>() : Sum_ / Count_;
+}
+
+template <class T>
+void TAvgSummary<T>::AddSample(T sample)
+{
+    Sum_ += sample;
+    ++Count_;
+    Avg_ = CalcAvg();
+}
+
+template <class T>
+void TAvgSummary<T>::Persist(const TPersistenceContext& context)
+{
+    using NYT::Persist;
+    Persist(context, Sum_);
+    Persist(context, Count_);
+    if (context.IsLoad()) {
+        Avg_ = CalcAvg();
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NControllerAgent
 } // namespace NYT

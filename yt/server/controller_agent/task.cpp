@@ -23,6 +23,7 @@ namespace NControllerAgent {
 
 using namespace NChunkClient;
 using namespace NChunkPools;
+using namespace NJobTrackerClient;
 using namespace NJobTrackerClient::NProto;
 using namespace NNodeTrackerClient;
 using namespace NScheduler;
@@ -48,6 +49,7 @@ TTask::TTask(ITaskHostPtr taskHost, std::vector<TEdgeDescriptor> edgeDescriptors
     , CachedTotalJobCount_(0)
     , DemandSanityCheckDeadline_(0)
     , CompletedFired_(false)
+    , TentativeTreeEligibility_(taskHost->GetSpec()->TentativeTreeEligibility)
     , InputChunkMapping_(New<TInputChunkMapping>())
 { }
 
@@ -57,8 +59,13 @@ TTask::TTask(ITaskHostPtr taskHost)
 
 void TTask::Initialize()
 {
-    Logger.AddTag("OperationId: %v", TaskHost_->GetOperationId());
-    Logger.AddTag("Task: %v", GetTitle());
+    auto operationId = TaskHost_->GetOperationId();
+    auto taskTitle = GetTitle();
+
+    Logger.AddTag("OperationId: %v", operationId);
+    Logger.AddTag("Task: %v", taskTitle);
+
+    TentativeTreeEligibility_.Initialize(operationId, taskTitle);
 
     SetupCallbacks();
 }
@@ -225,6 +232,7 @@ void TTask::ScheduleJob(
     ISchedulingContext* context,
     const TJobResources& jobLimits,
     const TString& treeId,
+    bool treeIsTentative,
     TScheduleJobResult* scheduleJobResult)
 {
     if (auto failReason = GetScheduleFailReason(context, jobLimits)) {
@@ -232,9 +240,14 @@ void TTask::ScheduleJob(
         return;
     }
 
+    if (treeIsTentative && !TentativeTreeEligibility_.CanScheduleJob(treeId, treeIsTentative)) {
+        scheduleJobResult->RecordFail(EScheduleJobFailReason::TentativeTreeDeclined);
+        return;
+    }
+
     int jobIndex = TaskHost_->NextJobIndex();
     int taskJobIndex = TaskJobIndexGenerator_.Next();
-    auto joblet = New<TJoblet>(this, jobIndex, taskJobIndex, treeId);
+    auto joblet = New<TJoblet>(this, jobIndex, taskJobIndex, treeId, treeIsTentative);
     joblet->StartTime = TInstant::Now();
 
     const auto& nodeResourceLimits = context->ResourceLimits();
@@ -424,6 +437,8 @@ void TTask::Persist(const TPersistenceContext& context)
     Persist(context, EdgeDescriptors_);
     Persist(context, InputVertex_);
 
+    Persist(context, TentativeTreeEligibility_);
+
     Persist(context, UserJobMemoryDigest_);
     Persist(context, JobProxyMemoryDigest_);
 
@@ -439,19 +454,25 @@ void TTask::PrepareJoblet(TJobletPtr /* joblet */)
 { }
 
 void TTask::OnJobStarted(TJobletPtr joblet)
-{ }
+{
+    TentativeTreeEligibility_.OnJobStarted(joblet->TreeId, joblet->TreeIsTentative);
+}
 
 bool TTask::CanLoseJobs() const
 {
     return false;
 }
 
-void TTask::OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary)
+TJobCompletedResult TTask::OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary)
 {
     YCHECK(jobSummary.Statistics);
     const auto& statistics = *jobSummary.Statistics;
 
+    TJobCompletedResult result;
+
     if (!jobSummary.Abandoned) {
+        result = TentativeTreeEligibility_.OnJobFinished(jobSummary, joblet->TreeId, joblet->TreeIsTentative);
+
         auto outputStatisticsMap = GetOutputDataStatistics(statistics);
         for (int index = 0; index < static_cast<int>(joblet->ChunkListIds.size()); ++index) {
             YCHECK(outputStatisticsMap.find(index) != outputStatisticsMap.end());
@@ -507,6 +528,8 @@ void TTask::OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary)
     TaskHost_->RegisterCores(joblet, jobSummary);
 
     UpdateMaximumUsedTmpfsSize(statistics);
+
+    return result;
 }
 
 void TTask::ReinstallJob(TJobletPtr joblet, std::function<void()> releaseOutputCookie, bool waitForSnapshot)

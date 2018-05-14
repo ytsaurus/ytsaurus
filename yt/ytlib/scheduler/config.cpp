@@ -100,6 +100,20 @@ TSupportsSchedulingTagsConfig::TSupportsSchedulingTagsConfig()
     });
 }
 
+TTentativeTreeEligibilityConfig::TTentativeTreeEligibilityConfig()
+{
+    RegisterParameter("sample_job_count", SampleJobCount)
+        .Default(10)
+        .GreaterThan(0);
+
+    RegisterParameter("max_tentative_job_duration_ratio", MaxTentativeJobDurationRatio)
+        .Default(10.0)
+        .GreaterThan(0.0);
+
+    RegisterParameter("min_job_duration", MinJobDuration)
+        .Default(TDuration::Seconds(30));
+}
+
 TOperationSpecBase::TOperationSpecBase()
 {
     SetUnrecognizedStrategy(NYTree::EUnrecognizedStrategy::KeepRecursive);
@@ -953,6 +967,10 @@ TStrategyOperationSpec::TStrategyOperationSpec()
     RegisterParameter("max_concurrent_schedule_job_calls", MaxConcurrentControllerScheduleJobCalls)
         .Alias("max_concurrent_controller_schedule_job_calls")
         .Default();
+    RegisterParameter("tentative_pool_trees", TentativePoolTrees)
+        .Default();
+    RegisterParameter("tentative_tree_eligibility", TentativeTreeEligibility)
+        .DefaultNew();
 }
 
 TOperationFairShareStrategyTreeOptions::TOperationFairShareStrategyTreeOptions()

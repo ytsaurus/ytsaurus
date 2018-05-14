@@ -4,6 +4,7 @@
 
 #include "auto_merge_director.h"
 #include "chunk_list_pool.h"
+#include "tentative_tree_eligibility.h"
 #include "job_memory.h"
 #include "job_splitter.h"
 #include "operation_controller.h"
@@ -1100,6 +1101,8 @@ private:
     void UpdateSuspiciousJobsYson();
 
     void ReleaseJobs(const std::vector<TJobId>& jobIds);
+
+    bool IsTreeTentative(const TString& treeId) const;
 
     //! Helper class that implements IChunkPoolInput interface for output tables.
     class TSink

@@ -118,6 +118,7 @@ DEFINE_ENUM(EAgentToSchedulerOperationEventType,
     ((Suspended)                (1))
     ((Failed)                   (2))
     ((Aborted)                  (3))
+    ((BannedInTentativeTree)    (4))
 );
 
 DEFINE_ENUM(EAgentToSchedulerJobEventType,
