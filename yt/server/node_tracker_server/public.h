@@ -43,6 +43,7 @@ using NNodeTrackerClient::TNodeDescriptor;
 DECLARE_REFCOUNTED_CLASS(TNodeTracker)
 
 DECLARE_REFCOUNTED_CLASS(TNodeTrackerConfig)
+DECLARE_REFCOUNTED_CLASS(TDynamicNodeTrackerConfig)
 
 DECLARE_ENTITY_TYPE(TNode, NObjectClient::TObjectId, ::THash<NObjectClient::TObjectId>)
 DECLARE_ENTITY_TYPE(TRack, TRackId, NObjectClient::TDirectObjectIdHash)

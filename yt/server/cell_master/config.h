@@ -166,5 +166,31 @@ DEFINE_REFCOUNTED_TYPE(TCellMasterConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TDynamicClusterConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    bool EnableSafeMode;
+    NChunkServer::TDynamicChunkManagerConfigPtr ChunkManager;
+    NTabletServer::TDynamicTabletManagerConfigPtr TabletManager;
+    NNodeTrackerServer::TDynamicNodeTrackerConfigPtr NodeTracker;
+
+    TDynamicClusterConfig()
+    {
+        RegisterParameter("enable_safe_mode", EnableSafeMode)
+            .Default(false);
+        RegisterParameter("chunk_manager", ChunkManager)
+            .DefaultNew();
+        RegisterParameter("tablet_manager", TabletManager)
+            .DefaultNew();
+        RegisterParameter("node_tracker", NodeTracker)
+            .DefaultNew();
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TDynamicClusterConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NCellMaster
 } // namespace NYT

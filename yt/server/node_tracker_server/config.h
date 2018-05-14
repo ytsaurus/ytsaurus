@@ -45,5 +45,15 @@ DEFINE_REFCOUNTED_TYPE(TNodeTrackerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TDynamicNodeTrackerConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+};
+
+DEFINE_REFCOUNTED_TYPE(TDynamicNodeTrackerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NNodeTrackerServer
 } // namespace NYT

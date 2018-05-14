@@ -2,6 +2,7 @@
 #include "bootstrap.h"
 #include "config_manager.h"
 #include "multicell_manager.h"
+#include "config.h"
 
 #include <yt/server/tablet_server/config.h>
 

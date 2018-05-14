@@ -7,8 +7,8 @@
 #include <yt/server/cell_master/bootstrap.h>
 #include <yt/server/cell_master/config_manager.h>
 #include <yt/server/cell_master/hydra_facade.h>
-#include <yt/server/cell_master/public.h>
 #include <yt/server/cell_master/world_initializer.h>
+#include <yt/server/cell_master/config.h>
 
 #include <yt/server/tablet_server/tablet_manager.pb.h>
 
@@ -509,8 +509,8 @@ private:
         auto tabletSize = DivCeil(tableSize, cellCount);
         if (desiredTabletSize < tabletSize) {
             desiredTabletSize = tabletSize;
-            minTabletSize = desiredTabletSize / 1.9;
-            maxTabletSize = desiredTabletSize * 1.9;
+            minTabletSize = static_cast<i64>(desiredTabletSize / 1.9);
+            maxTabletSize = static_cast<i64>(desiredTabletSize * 1.9);
         }
 
         return TTabletSizeConfig{minTabletSize, maxTabletSize, desiredTabletSize};
@@ -541,7 +541,7 @@ private:
             return;
         }
 
-        if (!Bootstrap_->GetConfigManager()->GetConfig()->EnableTabletBalancer) {
+        if (!Bootstrap_->GetConfigManager()->GetConfig()->TabletManager->EnableTabletBalancer) {
             if (Enabled_) {
                 LOG_INFO("Tablet balancer is disabled, see //sys/@config");
             }
