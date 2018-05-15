@@ -349,7 +349,7 @@ class TestListJobs(YTEnvSetup):
 
         jobs = wait_breakpoint()
         def get_stderr_size():
-            return get("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs/{1}/stderr_size".format(op.id, jobs[0]))
+            return get(get_new_operation_cypress_path(op.id) + "/controller_orchid/running_jobs/{0}/stderr_size".format(jobs[0]))
         wait(lambda: get_stderr_size() == len("MAPPER-STDERR-OUTPUT\n"))
 
         options = dict(data_source="manual", include_cypress=False, include_controller_agent=True, include_archive=False)
