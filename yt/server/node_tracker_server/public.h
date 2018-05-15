@@ -42,6 +42,7 @@ using NNodeTrackerClient::TNodeDescriptor;
 
 DECLARE_REFCOUNTED_CLASS(TNodeTracker)
 
+DECLARE_REFCOUNTED_CLASS(TNodeGroupConfig)
 DECLARE_REFCOUNTED_CLASS(TNodeTrackerConfig)
 DECLARE_REFCOUNTED_CLASS(TDynamicNodeTrackerConfig)
 
