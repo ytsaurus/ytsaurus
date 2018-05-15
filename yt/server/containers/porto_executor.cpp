@@ -376,7 +376,7 @@ private:
     {
         auto it = ContainersMap_.find(name);
         if (it == ContainersMap_.end()) {
-            LOG_ERROR("Got an unexpected container"
+            LOG_ERROR("Got an unexpected container "
                 "(Container: %v, ResponseError: %v, ErrorMessage: %v, Value: %v)",
                 name,
                 rsp.Error,
@@ -385,7 +385,7 @@ private:
             return;
         } else {
             if (rsp.Error) {
-                LOG_ERROR("Container finished with porto api error"
+                LOG_ERROR("Container finished with porto api error "
                     "(Container: %v, ResponseError: %v, ErrorMessage: %v, Value: %v)",
                     name,
                     rsp.Error,
@@ -395,8 +395,7 @@ private:
             } else {
                 try {
                     int exitStatus = std::stoi(rsp.Value);
-                    LOG_DEBUG("Container finished with exit code"
-                        "(Container: %v, ExitCode: %v)",
+                    LOG_DEBUG("Container finished with exit code (Container: %v, ExitCode: %v)",
                         name,
                         exitStatus);
 
