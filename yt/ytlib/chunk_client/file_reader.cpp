@@ -162,8 +162,9 @@ std::vector<TBlock> TFileReader::OnDataBlock(
     const TSharedMutableRef& data)
 {
     // Slice the result; validate checksums.
+    YCHECK(HasCachedBlocksExt_ && CachedBlocksExt_.IsSet());
 
-    const auto& blockExts = GetBlockExts();
+    const auto& blockExts = CachedBlocksExt_.Get().ValueOrThrow();
     const auto& firstBlockInfo = blockExts.blocks(firstBlockIndex);
 
     std::vector<TBlock> blocks;
@@ -313,9 +314,13 @@ const TBlocksExt& TFileReader::GetBlockExts()
         if (!CachedBlocksExt_) {
             CachedBlocksExt_ = DoGetMeta(Null, Null).Apply(BIND([](const TChunkMeta& meta) {
                 return GetProtoExtension<TBlocksExt>(meta.extensions());
-            }));
+            })).ToUncancelable();
             HasCachedBlocksExt_ = true;
         }
+    }
+    // TODO(aozeritsky) move this check to WaitFor
+    if (!CachedBlocksExt_.IsSet()) {
+        Y_UNUSED(WaitFor(CachedBlocksExt_));
     }
     return CachedBlocksExt_.Get().ValueOrThrow();
 }
@@ -325,9 +330,13 @@ const std::shared_ptr<TFileHandle>& TFileReader::GetDataFile()
     if (!HasCachedDataFile_) {
         TGuard<TMutex> guard(Mutex_);
         if (!CachedDataFile_) {
-            CachedDataFile_ = IOEngine_->Open(FileName_, OpenExisting | RdOnly | CloseOnExec);
+            CachedDataFile_ = IOEngine_->Open(FileName_, OpenExisting | RdOnly | CloseOnExec).ToUncancelable();
             HasCachedDataFile_ = true;
         }
+    }
+    // TODO(aozeritsky) move this check to WaitFor
+    if (!CachedDataFile_.IsSet()) {
+        Y_UNUSED(WaitFor(CachedDataFile_));
     }
     return CachedDataFile_.Get().ValueOrThrow();
 }
