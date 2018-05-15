@@ -176,11 +176,7 @@ struct TIOOptions
 
 struct TFileWriterOptions
     : public TIOOptions<TFileWriterOptions>
-{
-    // Compute MD5 sum of written file. If `ComputeMD5 == true` and we are appending to an existing file
-    // the `md5` attribute must be set (i.e. it was previously written only with `ComputeMD5 == true`).
-    FLUENT_FIELD_OPTION(bool, ComputeMD5);
-};
+{ };
 
 struct TTableReaderOptions
     : public TIOOptions<TTableReaderOptions>
@@ -195,7 +191,7 @@ struct TTableWriterOptions
     // If set to true no retry is made but we also make less requests to master.
     // If set to false writer can make up to `TConfig::RetryCount` attempts to send each block of data.
     //
-    // NOTE: writers' methods might throw strange exceptions that might look like network error
+    // NOTE: writers's methods might throw strange exceptions that might look like network error
     // when `SingleHttpRequest == true` and YT node encounters an error
     // (due to limitations of HTTP protocol YT node have no chance to report error
     // before it reads the whole input so it just drops the connection).
@@ -529,16 +525,6 @@ struct TListJobsOptions
 struct TGetJobStderrOptions
 {
     using TSelf = TGetJobStderrOptions;
-};
-
-struct TGetFileFromCacheOptions
-{
-    using TSelf = TGetFileFromCacheOptions;
-};
-
-struct TPutFileToCacheOptions
-{
-    using TSelf = TPutFileToCacheOptions;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

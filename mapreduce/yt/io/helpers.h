@@ -63,21 +63,6 @@ inline TNode FormIORequestParameters(
 }
 
 template <>
-inline TNode FormIORequestParameters(
-    const TRichYPath& path,
-    const TFileWriterOptions& options)
-{
-    auto params = PathToParamNode(path);
-    if (options.Config_) {
-        params[TIOOptionsTraits<TFileWriterOptions>::ConfigName] = *options.Config_;
-    }
-    if (options.ComputeMD5_) {
-        params["compute_md5"] = *options.ComputeMD5_;
-    }
-    return params;
-}
-
-template <>
 inline TNode FormIORequestParameters<TTableWriterOptions>(
     const TRichYPath& path,
     const TTableWriterOptions& options)
