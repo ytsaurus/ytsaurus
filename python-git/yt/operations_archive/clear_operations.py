@@ -330,14 +330,16 @@ class StderrDownloader(object):
         self.insert_queue.put(row)
 
 class StderrInserter(object):
-    def __init__(self, client_factory, metrics=NullMetrics()):
+    def __init__(self, client_factory, version, metrics=NullMetrics()):
         self.metrics = metrics
+        self.version = version
         self.client = client_factory()
 
     def __call__(self, rowset):
         logger.info("Inserting %d stderrs", len(rowset))
 
-        self.client.insert_rows(STDERRS_PATH, rowset, update=True)
+        atomicity = "none" if self.version >= 19 else "full"
+        self.client.insert_rows(STDERRS_PATH, rowset, update=True, atomicity=atomicity)
 
         self.metrics.add("archived_stderr_count", len(rowset))
         self.metrics.add("archived_stderr_size", sum(len(row["stderr"]) for row in rowset))
@@ -695,7 +697,7 @@ def clear_operations(soft_limit, hard_limit, grace_timeout, archive_timeout, exe
             with timers["archiving_stderrs"]:
                 insert_queue = NonBlockingQueue()
                 run_queue_workers(stderr_queue, StderrDownloader, stderr_thread_count, (client_factory, insert_queue, version, thread_safe_metrics))
-                run_batching_queue_workers(insert_queue, StderrInserter, thread_count, (client_factory, thread_safe_metrics,))
+                run_batching_queue_workers(insert_queue, StderrInserter, thread_count, (client_factory, version, thread_safe_metrics,))
 
                 failed_stderr_count = 0
                 failed_stderr_count += len(wait_for_queue(stderr_queue, "fetch_stderr", archiving_time_limit))
