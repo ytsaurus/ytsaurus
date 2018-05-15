@@ -12,7 +12,7 @@
 namespace NYT {
 namespace NDetail {
 
-////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
 
 TAttemptLimitedRetryPolicy::TAttemptLimitedRetryPolicy(ui32 attemptLimit)
     : AttemptLimit_(attemptLimit)
@@ -25,7 +25,7 @@ void TAttemptLimitedRetryPolicy::NotifyNewAttempt()
 
 TMaybe<TDuration> TAttemptLimitedRetryPolicy::GetRetryInterval(const yexception& /*e*/) const
 {
-    if (Attempt_ >= AttemptLimit_) {
+    if (IsAttemptLimitExceeded()) {
         return Nothing();
     }
     return TConfig::Get()->RetryInterval;
@@ -33,10 +33,7 @@ TMaybe<TDuration> TAttemptLimitedRetryPolicy::GetRetryInterval(const yexception&
 
 TMaybe<TDuration> TAttemptLimitedRetryPolicy::GetRetryInterval(const TErrorResponse& e) const
 {
-    if (Attempt_ >= AttemptLimit_) {
-        return Nothing();
-    }
-    if (!IsRetriable(e)) {
+    if (IsAttemptLimitExceeded() || !IsRetriable(e)) {
         return Nothing();
     }
     return NYT::NDetail::GetRetryInterval(e);
@@ -49,13 +46,18 @@ TString TAttemptLimitedRetryPolicy::GetAttemptDescription() const
     return s.Str();
 }
 
-////////////////////////////////////////////////////////////////////
+bool TAttemptLimitedRetryPolicy::IsAttemptLimitExceeded() const
+{
+    return Attempt_ >= AttemptLimit_;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 
 TResponseInfo RetryRequestWithPolicy(
     const TAuth& auth,
     THttpHeader& header,
     TStringBuf body,
-    IRetryPolicy& retryPolicy,
+    IRetryPolicy* retryPolicy,
     const TRequestConfig& config)
 {
     header.SetToken(auth.Token);
@@ -63,8 +65,13 @@ TResponseInfo RetryRequestWithPolicy(
     bool useMutationId = header.HasMutationId();
     bool retryWithSameMutationId = false;
 
+    TAttemptLimitedRetryPolicy defaultRetryPolicy(TConfig::Get()->RetryCount);
+    if (!retryPolicy) {
+        retryPolicy = &defaultRetryPolicy;
+    }
+
     while (true) {
-        retryPolicy.NotifyNewAttempt();
+        retryPolicy->NotifyNewAttempt();
         THttpHeader currentHeader = header;
         TString response;
 
@@ -93,10 +100,10 @@ TResponseInfo RetryRequestWithPolicy(
             LOG_ERROR("RSP %s - %s - failed (%s)",
                 ~e.GetError().GetMessage(),
                 ~requestId,
-                ~retryPolicy.GetAttemptDescription());
+                ~retryPolicy->GetAttemptDescription());
             retryWithSameMutationId = false;
 
-            auto maybeRetryTimeout = retryPolicy.GetRetryInterval(e);
+            auto maybeRetryTimeout = retryPolicy->GetRetryInterval(e);
             if (maybeRetryTimeout) {
                 TWaitProxy::Sleep(*maybeRetryTimeout);
             } else {
@@ -106,10 +113,10 @@ TResponseInfo RetryRequestWithPolicy(
             LOG_ERROR("RSP %s - %s - failed (%s)",
                 ~requestId,
                 e.what(),
-                ~retryPolicy.GetAttemptDescription());
+                ~retryPolicy->GetAttemptDescription());
             retryWithSameMutationId = true;
 
-            auto maybeRetryTimeout = retryPolicy.GetRetryInterval(e);
+            auto maybeRetryTimeout = retryPolicy->GetRetryInterval(e);
             if (maybeRetryTimeout) {
                 TWaitProxy::Sleep(*maybeRetryTimeout);
             } else {
@@ -118,7 +125,7 @@ TResponseInfo RetryRequestWithPolicy(
         }
     }
 
-    Y_UNREACHABLE();
+    Y_FAIL("Retries must have either succeeded or thrown an exception");
 }
 
 static std::pair<bool,TDuration> GetRetryInfo(const TErrorResponse& errorResponse)
@@ -155,7 +162,7 @@ bool IsRetriable(const TErrorResponse& errorResponse)
     return GetRetryInfo(errorResponse).first;
 }
 
-////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
 
 } // namespace NDetail
 } // namespace NYT
