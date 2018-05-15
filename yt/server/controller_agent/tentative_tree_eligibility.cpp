@@ -138,7 +138,7 @@ bool TTentativeTreeEligibility::IsSlow(const TString& treeId) const
         return false;
     }
 
-    if (*NonTentativeTreeDuration_.GetAvg() == MinJobDuration_) {
+    if (*NonTentativeTreeDuration_.GetAvg() == TDuration::Zero()) {
         return false;
     }
 
