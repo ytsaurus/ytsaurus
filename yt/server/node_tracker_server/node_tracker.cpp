@@ -11,6 +11,8 @@
 #include <yt/server/cell_master/bootstrap.h>
 #include <yt/server/cell_master/hydra_facade.h>
 #include <yt/server/cell_master/multicell_manager.h>
+#include <yt/server/cell_master/config_manager.h>
+#include <yt/server/cell_master/config.h>
 #include <yt/server/cell_master/serialize.h>
 
 #include <yt/server/chunk_server/chunk_manager.h>
@@ -50,8 +52,6 @@
 
 #include <yt/core/profiling/profile_manager.h>
 #include <yt/core/profiling/timing.h>
-
-#include <deque>
 
 namespace NYT {
 namespace NNodeTrackerServer {
@@ -257,6 +257,9 @@ public:
 
     void Initialize()
     {
+        const auto& configManager = Bootstrap_->GetConfigManager();
+        configManager->SubscribeConfigChanged(BIND(&TImpl::OnConfigChanged, MakeWeak(this)));
+
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         transactionManager->SubscribeTransactionCommitted(BIND(&TImpl::OnTransactionFinished, MakeWeak(this)));
         transactionManager->SubscribeTransactionAborted(BIND(&TImpl::OnTransactionFinished, MakeWeak(this)));
@@ -283,16 +286,37 @@ public:
         ProfilingExecutor_->Start();
     }
 
-    void ProcessRegisterNode(TCtxRegisterNodePtr context)
+    void ProcessRegisterNode(const TString& address, TCtxRegisterNodePtr context)
     {
-        if (PendingRegisterNodeMutationCount_ + LocalRegisteredNodeCount_ >= Config_->MaxConcurrentNodeRegistrations) {
+        if (PendingRegisterNodeAddreses_.find(address) != PendingRegisterNodeAddreses_.end()) {
             context->Reply(TError(
                 NRpc::EErrorCode::Unavailable,
-                "Node registration throttling is active"));
+                "Node is already being registered"));
             return;
         }
 
-        ++PendingRegisterNodeMutationCount_;
+        auto groups = GetGroupsForNode(address);
+        for (auto* group : groups) {
+            if (group->PendingRegisterNodeMutationCount + group->LocalRegisteredNodeCount >= group->Config->MaxConcurrentNodeRegistrations) {
+                context->Reply(TError(
+                    NRpc::EErrorCode::Unavailable,
+                    "Node registration throttling is active in group %Qv",
+                    group->Id));
+                return;
+            }
+        }
+
+        YCHECK(PendingRegisterNodeAddreses_.insert(address).second);
+        for (auto* group : groups) {
+            ++group->PendingRegisterNodeMutationCount;
+        }
+
+        LOG_DEBUG("Node register mutation scheduled (Address: %v, NodeGroups: %v)",
+            address,
+            MakeFormattableRange(groups, [] (auto* builder, const auto* group) {
+                builder->AppendFormat("%v", group->Id);
+            }));
+
         CreateMutation(
             Bootstrap_->GetHydraFacade()->GetHydraManager(),
             std::move(context),
@@ -515,6 +539,7 @@ public:
     {
         if (node->GetRack() != rack) {
             auto* oldRack = node->GetRack();
+            UpdateNodeCounters(node, -1);
             node->SetRack(rack);
             LOG_INFO_UNLESS(IsRecovery(), "Node rack changed (NodeId: %v, Address: %v, Rack: %v)",
                 node->GetId(),
@@ -522,13 +547,16 @@ public:
                 rack ? MakeNullable(rack->GetName()) : Null);
             NodeRackChanged_.Fire(node, oldRack);
             NodeTagsChanged_.Fire(node);
+            UpdateNodeCounters(node, +1);
         }
     }
 
     void SetNodeUserTags(TNode* node, const std::vector<TString>& tags)
     {
+        UpdateNodeCounters(node, -1);
         node->SetUserTags(tags);
         NodeTagsChanged_.Fire(node);
+        UpdateNodeCounters(node, +1);
     }
 
 
@@ -598,7 +626,9 @@ public:
         // Rebuild node tags since they depend on rack name.
         auto nodes = GetRackNodes(rack);
         for (auto* node : nodes) {
+            UpdateNodeCounters(node, -1);
             node->RebuildTags();
+            UpdateNodeCounters(node, +1);
         }
     }
 
@@ -630,7 +660,9 @@ public:
             // rack's DC.
             auto nodes = GetRackNodes(rack);
             for (auto* node : nodes) {
+                UpdateNodeCounters(node, -1);
                 node->RebuildTags();
+                UpdateNodeCounters(node, +1);
             }
 
             LOG_INFO_UNLESS(IsRecovery(), "Rack data center changed (Rack: %v, DataCenter: %v)",
@@ -714,7 +746,9 @@ public:
         for (auto* rack : racks) {
             auto nodes = GetRackNodes(rack);
             for (auto* node : nodes) {
+                UpdateNodeCounters(node, -1);
                 node->RebuildTags();
+                UpdateNodeCounters(node, +1);
             }
         }
 
@@ -819,13 +853,25 @@ private:
     TPeriodicExecutorPtr IncrementalNodeStatesGossipExecutor_;
     TPeriodicExecutorPtr FullNodeStatesGossipExecutor_;
 
-    int PendingRegisterNodeMutationCount_ = 0;
-
     TAsyncSemaphorePtr FullHeartbeatSemaphore_;
     TAsyncSemaphorePtr IncrementalHeartbeatSemaphore_;
     TAsyncSemaphorePtr DisposeNodeSemaphore_;
 
+    struct TNodeGroup
+    {
+        TString Id;
+        TNodeGroupConfigPtr Config;
+        int LocalRegisteredNodeCount = 0;
+        int PendingRegisterNodeMutationCount = 0;
+    };
 
+    std::vector<TNodeGroup> NodeGroups_;
+    TNodeGroup* DefaultNodeGroup_ = nullptr;
+    THashSet<TString> PendingRegisterNodeAddreses_;
+
+    using TNodeGroupList = SmallVector<TNodeGroup*, 4>;
+
+private:
     TNodeId GenerateNodeId()
     {
         TNodeId id;
@@ -873,16 +919,16 @@ private:
         TReqRegisterNode* request,
         TRspRegisterNode* response)
     {
-        if (Bootstrap_->IsPrimaryMaster() && IsLeader()) {
-            YCHECK(--PendingRegisterNodeMutationCount_ >= 0);
-        }
-
         auto nodeAddresses = FromProto<TNodeAddressMap>(request->node_addresses());
         const auto& addresses = GetAddressesOrThrow(nodeAddresses, EAddressType::InternalRpc);
         const auto& address = GetDefaultAddress(addresses);
         auto& statistics = *request->mutable_statistics();
         auto leaseTransactionId = FromProto<TTransactionId>(request->lease_transaction_id());
         auto tags = FromProto<std::vector<TString>>(request->tags());
+
+        if (Bootstrap_->IsPrimaryMaster() && IsLeader()) {
+            YCHECK(PendingRegisterNodeAddreses_.erase(address) == 1);
+        }
 
         // Check lease transaction.
         TTransaction* leaseTransaction = nullptr;
@@ -933,14 +979,15 @@ private:
             leaseTransactionId,
             statistics);
 
+        UpdateNodeCounters(node, -1);
         node->SetLocalState(ENodeState::Registered);
         node->SetNodeTags(tags);
+        UpdateNodeCounters(node, +1);
 
         node->SetStatistics(std::move(statistics));
 
         UpdateLastSeenTime(node);
         UpdateRegisterTime(node);
-        UpdateNodeCounters(node, +1);
 
         if (leaseTransaction) {
             node->SetLeaseTransaction(leaseTransaction);
@@ -1156,7 +1203,9 @@ private:
         RackCount_ = 0;
 
         AggregatedOnlineNodeCount_ = 0;
-        LocalRegisteredNodeCount_ = 0;
+
+        NodeGroups_.clear();
+        DefaultNodeGroup_ = nullptr;
     }
 
     virtual void OnAfterSnapshotLoaded() override
@@ -1168,7 +1217,6 @@ private:
         TransactionToNodeMap_.clear();
 
         AggregatedOnlineNodeCount_ = 0;
-        LocalRegisteredNodeCount_ = 0;
 
         for (const auto& pair : NodeMap_) {
             auto* node = pair.second;
@@ -1201,6 +1249,8 @@ private:
 
             YCHECK(NameToDataCenterMap_.insert(std::make_pair(dc->GetName(), dc)).second);
         }
+
+        OnConfigChanged();
     }
 
     virtual void OnRecoveryStarted() override
@@ -1219,6 +1269,7 @@ private:
     {
         TMasterAutomatonPart::OnRecoveryComplete();
 
+        OnConfigChanged();
         Profiler.SetEnabled(true);
     }
 
@@ -1241,7 +1292,10 @@ private:
             FullNodeStatesGossipExecutor_->Start();
         }
 
-        PendingRegisterNodeMutationCount_ = 0;
+        PendingRegisterNodeAddreses_.clear();
+        for (auto& group : NodeGroups_) {
+            group.PendingRegisterNodeMutationCount = 0;
+        }
 
         for (const auto& pair : NodeMap_) {
             auto* node = pair.second;
@@ -1275,8 +1329,12 @@ private:
     void UpdateNodeCounters(TNode* node, int delta)
     {
         if (node->GetLocalState() == ENodeState::Registered) {
-            LocalRegisteredNodeCount_ += delta;
+            auto groups = GetGroupsForNode(node);
+            for (auto* group : groups) {
+                group->LocalRegisteredNodeCount += delta;
+            }
         }
+
         if (node->GetAggregatedState() == ENodeState::Online) {
             AggregatedOnlineNodeCount_ += delta;
         }
@@ -1675,6 +1733,66 @@ private:
         Profiler.Enqueue("/with_alerts_node_count", statistics.WithAlertsNodeCount, EMetricType::Gauge);
         Profiler.Enqueue("/full_node_count", statistics.FullNodeCount, EMetricType::Gauge);
     }
+
+
+    TNodeGroupList GetGroupsForNode(TNode* node)
+    {
+        TNodeGroupList result;
+        for (auto& group : NodeGroups_) {
+            if (group.Config->NodeTagFilter.IsSatisfiedBy(node->Tags())) {
+                result.push_back(&group);
+            }
+        }
+        return result;
+    }
+
+    TNodeGroupList GetGroupsForNode(const TString& address)
+    {
+        auto* node = FindNodeByAddress(address);
+        if (!IsObjectAlive(node)) {
+            YCHECK(DefaultNodeGroup_);
+            return {DefaultNodeGroup_}; // default is the last one
+        }
+        return GetGroupsForNode(node);
+    }
+
+    void OnConfigChanged()
+    {
+        for (const auto& pair : NodeMap_) {
+            auto* node = pair.second;
+            UpdateNodeCounters(node, -1);
+        }
+
+        NodeGroups_.clear();
+
+        const auto& config = Bootstrap_->GetConfigManager()->GetConfig()->NodeTracker;
+        for (const auto& pair : config->NodeGroups) {
+            NodeGroups_.emplace_back();
+            auto& group = NodeGroups_.back();
+            group.Id = pair.first;
+            group.Config = pair.second;
+        }
+
+        {
+            NodeGroups_.emplace_back();
+            DefaultNodeGroup_ = &NodeGroups_.back();
+            DefaultNodeGroup_->Id = "default";
+            DefaultNodeGroup_->Config = New<TNodeGroupConfig>();
+            DefaultNodeGroup_->Config->MaxConcurrentNodeRegistrations = Config_->MaxConcurrentNodeRegistrations;
+        }
+
+        for (const auto& pair : NodeMap_) {
+            auto* node = pair.second;
+            UpdateNodeCounters(node, +1);
+        }
+
+        for (const auto& address : PendingRegisterNodeAddreses_) {
+            auto groups = GetGroupsForNode(address);
+            for (auto* group : groups) {
+                ++group->PendingRegisterNodeMutationCount;
+            }
+        }
+    }
 };
 
 DEFINE_ENTITY_MAP_ACCESSORS(TNodeTracker::TImpl, Node, TNode, NodeMap_)
@@ -1826,9 +1944,11 @@ TDataCenter* TNodeTracker::GetDataCenterByNameOrThrow(const TString& name)
     return Impl_->GetDataCenterByNameOrThrow(name);
 }
 
-void TNodeTracker::ProcessRegisterNode(TCtxRegisterNodePtr context)
+void TNodeTracker::ProcessRegisterNode(
+    const TString& address,
+    TCtxRegisterNodePtr context)
 {
-    Impl_->ProcessRegisterNode(context);
+    Impl_->ProcessRegisterNode(address, context);
 }
 
 void TNodeTracker::ProcessFullHeartbeat(TCtxFullHeartbeatPtr context)
