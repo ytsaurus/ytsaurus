@@ -49,6 +49,10 @@ OPERATION_ARCHIVE_JOBS_PATH = "//sys/operations_archive/jobs"
 
 JobInfo = collections.namedtuple("JobInfo", ["job_type", "is_running"])
 
+# TODO(asaitgalin): Remove it in favor of special API.
+def get_operation_path(operation_id):
+    return "//sys/operations/{:02x}/{}".format(int(operation_id.split("-")[-1], 16) % 256, operation_id)
+
 def shellquote(s):
     # https://stackoverflow.com/questions/35817/how-to-escape-os-system-calls-in-python
     return "'" + s.replace("'", "'\\''") + "'"
@@ -167,10 +171,18 @@ def get_job_info_from_cypress(operation_id, job_id):
 
     running_job_info = None
     try:
-        running_job_info = yt.get(ORCHID_JOB_PATH_PATTERN.format(operation_id, job_id))
+        running_job_info = yt.get(get_operation_path(operation_id) + "/controller_orchid/running_jobs/" + job_id)
     except yt.YtResponseError as err:
         if not err.is_resolve_error():
             raise
+
+    # COMPAT(asaitgalin): Remove it when scheduler is updated on all clusters.
+    if running_job_info is None:
+        try:
+            running_job_info = yt.get(ORCHID_JOB_PATH_PATTERN.format(operation_id, job_id))
+        except yt.YtResponseError as err:
+            if not err.is_resolve_error():
+                raise
 
     if running_job_info is not None:
         job_info_on_node = None
