@@ -97,8 +97,8 @@ public:
     {
         TExtendedJobResources result;
         result.SetUserSlots(1);
-        result.SetCpu(1);
-        // NB: JobProxyMemory is only memory that is related to IO. Footprint is accounted below.
+        result.SetCpu(Spec_->CpuLimit);
+        // NB: JobProxyMemory is the only memory that is related to IO. Footprint is accounted below.
         result.SetJobProxyMemory(0);
         AddFootprintAndUserJobResources(result);
         return result;
