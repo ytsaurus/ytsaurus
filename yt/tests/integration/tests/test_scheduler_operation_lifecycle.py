@@ -646,6 +646,12 @@ class SchedulerReviveBase(YTEnvSetup):
 
         self.Env.start_schedulers()
 
+        # complete_operation retry may come when operation is in reviving state. In this case we should complete operation again.
+        wait(lambda: op.get_state() in ("running", "completed"))
+
+        if op.get_state() == "running":
+            op.complete()
+
         op.track()
 
         events = get("//sys/operations/{0}/@events".format(op.id))
