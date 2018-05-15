@@ -27,8 +27,8 @@ class TRawBatchRequest;
 void ExecuteBatch(
     const TAuth& auth,
     TRawBatchRequest& batchRequest,
-    const TExecuteBatchOptions& options,
-    IRetryPolicy& retryPolicy);
+    const TExecuteBatchOptions& options = TExecuteBatchOptions(),
+    IRetryPolicy* retryPolicy = nullptr);
 
 // TODO: use retry policy here
 TNode Get(
@@ -97,6 +97,23 @@ TString GetJobStderr(
     const TOperationId& operationId,
     const TJobId& jobId,
     const TGetJobStderrOptions& options = TGetJobStderrOptions());
+
+TMaybe<TYPath> GetFileFromCache(
+    const TAuth& auth,
+    const TTransactionId& transactionId,
+    const TString& md5Signature,
+    const TYPath& cachePath,
+    const TGetFileFromCacheOptions& options = TGetFileFromCacheOptions(),
+    IRetryPolicy* retryPolicy = nullptr);
+
+TYPath PutFileToCache(
+    const TAuth& auth,
+    const TTransactionId& transactionId,
+    const TYPath& filePath,
+    const TString& md5Signature,
+    const TYPath& cachePath,
+    const TPutFileToCacheOptions& options = TPutFileToCacheOptions(),
+    IRetryPolicy* retryPolicy = nullptr);
 
 ////////////////////////////////////////////////////////////////////////////////
 
