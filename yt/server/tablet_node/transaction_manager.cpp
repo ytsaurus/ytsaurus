@@ -642,7 +642,7 @@ private:
                 YCHECK(!transaction->GetForeign());
                 SerializingTransactionHeap_.push_back(transaction);
             }
-            if (transaction->IsPrepared() && !transaction->IsCommitted()) {
+            if (transaction->IsPrepared()) {
                 RegisterPrepareTimestamp(transaction);
             }
         }
