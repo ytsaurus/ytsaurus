@@ -325,6 +325,7 @@ private:
                 commitOptions.CoordinatorCellId = Slot_->GetCellId();
                 commitOptions.Force2PC = true;
                 commitOptions.CoordinatorCommitMode = ETransactionCoordinatorCommitMode::Lazy;
+                commitOptions.GeneratePrepareTimestamp = false;
                 WaitFor(localTransaction->Commit(commitOptions))
                     .ThrowOnError();
             }

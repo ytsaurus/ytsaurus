@@ -949,7 +949,9 @@ private:
             return;
         }
         auto prepareTimestamp = transaction->GetPrepareTimestamp();
-        YCHECK(prepareTimestamp != NullTimestamp);
+        if (prepareTimestamp == NullTimestamp) {
+            return;
+        }
         YCHECK(PreparedTransactions_.emplace(prepareTimestamp, transaction).second);
     }
 
