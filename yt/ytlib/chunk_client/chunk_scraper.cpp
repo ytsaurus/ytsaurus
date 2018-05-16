@@ -14,6 +14,8 @@
 #include <yt/core/concurrency/periodic_executor.h>
 #include <yt/core/concurrency/throughput_throttler.h>
 
+#include <yt/core/misc/finally.h>
+
 #include <util/random/shuffle.h>
 
 namespace NYT {
@@ -127,6 +129,10 @@ private:
 
     void DoLocateChunks(const TError& error)
     {
+        auto finallyGuard = Finally([&] () {
+            PeriodicExecutor_->ScheduleNext();
+        });
+
         if (!error.IsOK()) {
             LOG_WARNING(error, "Chunk scraper throttler failed unexpectedly");
             return;
@@ -178,8 +184,6 @@ private:
                 OnChunkLocated_.Run(chunkId, replicas, false);
             }
         }
-
-        PeriodicExecutor_->ScheduleNext();
     }
 };
 

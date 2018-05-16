@@ -2243,6 +2243,14 @@ void TOperationControllerBase::SafeOnInputChunkLocated(const TChunkId& chunkId, 
         return;
     }
 
+    ++ChunkLocatedCallCount;
+    if (ChunkLocatedCallCount >= Config->ChunkScraper->MaxChunksPerRequest) {
+        ChunkLocatedCallCount = 0;
+        LOG_DEBUG("Located another batch of chunks (Count: %v, UnavailableInputChunkCount: %v)",
+            Config->ChunkScraper->MaxChunksPerRequest,
+            UnavailableInputChunkCount);
+    }
+
     auto it = InputChunkMap.find(chunkId);
     YCHECK(it != InputChunkMap.end());
 
@@ -2305,14 +2313,6 @@ void TOperationControllerBase::OnInputChunkUnavailable(const TChunkId& chunkId, 
 
     if (descriptor->State != EInputChunkState::Active) {
         return;
-    }
-
-    ++ChunkLocatedCallCount;
-    if (ChunkLocatedCallCount >= Config->ChunkScraper->MaxChunksPerRequest) {
-        ChunkLocatedCallCount = 0;
-        LOG_DEBUG("Located another batch of chunks (Count: %v, UnavailableInputChunkCount: %v)",
-            Config->ChunkScraper->MaxChunksPerRequest,
-            UnavailableInputChunkCount);
     }
 
     LOG_TRACE("Input chunk is unavailable (ChunkId: %v)", chunkId);
