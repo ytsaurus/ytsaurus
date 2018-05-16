@@ -297,8 +297,8 @@ TFuture<TChunkMeta> TFileReader::DoGetMeta(
             BIND([this, metaFileName, this_ = MakeStrong(this)] (const std::shared_ptr<TFileHandle>& metaFile) {
                 if (metaFile->GetLength() < sizeof (TChunkMetaHeaderBase)) {
                     THROW_ERROR_EXCEPTION("Chunk meta file %v is too short: at least %v bytes expected",
-                                          FileName_,
-                                          sizeof (TChunkMetaHeaderBase));
+                        FileName_,
+                        sizeof (TChunkMetaHeaderBase));
                 }
 
                 return IOEngine_->Pread(metaFile, metaFile->GetLength(), 0)
