@@ -137,7 +137,9 @@ void TBlobChunkBase::InitBlocksExt(const TChunkMeta& meta)
 
 bool TBlobChunkBase::IsFatalError(const TError& error) const
 {
-    if (error.FindMatching(NChunkClient::EErrorCode::BlockOutOfRange)) {
+    if (error.FindMatching(NChunkClient::EErrorCode::BlockOutOfRange) || 
+        error.FindMatching(NYT::EErrorCode::Canceled)) 
+    {
         return false;
     }
 
