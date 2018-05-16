@@ -83,14 +83,14 @@ TFuture<void> TFileWriter::Open()
     }
     // NB: Races are possible between file creation and a call to flock.
     // Unfortunately in Linux we can't create'n'flock a file atomically.
-    auto future = IOEngine_->Open(FileName_ + NFS::TempFileSuffix, mode).Apply(
-        BIND(&TFileWriter::LockDataFile, MakeStrong(this)));
-
-    future.Subscribe(BIND([this, this_ = MakeStrong(this)] (const TErrorOr<void>& error) {
-        IsOpening_ = false;
-    }));
-
-    return future;
+    return IOEngine_->Open(FileName_ + NFS::TempFileSuffix, mode)
+        .Apply(BIND(&TFileWriter::LockDataFile, MakeStrong(this)))
+        .Apply(BIND([this, this_ = MakeStrong(this)] (const TErrorOr<void>& error) {
+            IsOpening_ = false;
+            if (!error.IsOK()) {
+                THROW_ERROR error;
+            }
+        }));
 }
 
 bool TFileWriter::WriteBlock(const TBlock& block)
