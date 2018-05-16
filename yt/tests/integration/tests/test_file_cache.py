@@ -93,6 +93,9 @@ class TestFileCache(YTEnvSetup):
         with pytest.raises(YtError):
             put_file_to_cache("//tmp/file", hashlib.md5("aba").hexdigest(), cache_path="//tmp/cache2", authenticated_user="u")
 
+        set("//tmp/cache2/@acl/end", make_ace("allow", "u", "write"))
+        put_file_to_cache("//tmp/file", hashlib.md5("aba").hexdigest(), cache_path="//tmp/cache2", authenticated_user="u")
+
     def test_file_cache(self):
         create("map_node", "//tmp/cache")
         create("file", "//tmp/file")
