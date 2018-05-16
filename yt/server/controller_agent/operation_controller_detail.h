@@ -1023,6 +1023,8 @@ private:
 
     std::unique_ptr<IJobSplitter> JobSplitter_;
 
+    void InitializeOrchid();
+
     ssize_t GetMemoryUsage() const;
 
     void BuildAndSaveProgress();
