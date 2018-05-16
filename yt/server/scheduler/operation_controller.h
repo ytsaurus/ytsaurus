@@ -109,7 +109,7 @@ struct IOperationController
     virtual TFuture<void> Complete() = 0;
 
     //! Invokes IOperationControllerSchedulerHost::Dispose asynchronously.
-    virtual TFuture<void> Dispose() = 0;
+    virtual TFuture<void> Unregister() = 0;
 
 
     // These methods can be called even without agent being assigned.
