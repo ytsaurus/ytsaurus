@@ -238,7 +238,7 @@ TFuture<void> TBlobChunkBase::OnBlocksExtLoaded(
                 session,
                 workloadDescriptor,
                 std::move(pendingIOGuard));
-        }));
+        }).AsyncVia(GetCurrentInvoker()));
 }
 
 void TBlobChunkBase::DoReadBlockSet(
