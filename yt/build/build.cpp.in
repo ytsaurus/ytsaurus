@@ -1,40 +1,42 @@
 #include <yt/build/build.h>
 
+#include <util/system/compiler.h>
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-int GetVersionMajor()
+Y_WEAK int GetVersionMajor()
 {
     return @YT_VERSION_MAJOR@;
 }
 
-int GetVersionMinor()
+Y_WEAK int GetVersionMinor()
 {
     return @YT_VERSION_MINOR@;
 }
 
-int GetVersionPatch()
+Y_WEAK int GetVersionPatch()
 {
     return @YT_VERSION_PATCH@;
 }
 
-const char* GetVersion()
+Y_WEAK const char* GetVersion()
 {
     return "@YT_VERSION@";
 }
 
-const char* GetBuildHost()
+Y_WEAK const char* GetBuildHost()
 {
     return "@YT_BUILD_HOST@";
 }
 
-const char* GetBuildMachine()
+Y_WEAK const char* GetBuildMachine()
 {
     return "@YT_BUILD_MACHINE@";
 }
 
-const char* GetBuildTime()
+Y_WEAK const char* GetBuildTime()
 {
     return "@YT_BUILD_TIME@";
 }
