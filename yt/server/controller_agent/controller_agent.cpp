@@ -400,17 +400,17 @@ public:
         LOG_DEBUG("Operation registered (OperationId: %v)", operationId);
     }
 
-    void UnregisterOperation(const TOperationPtr& operation)
+    void UnregisterOperation(const TOperationId& operationId)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(Connected_);
 
+        auto operation = GetOperationOrThrow(operationId);
         const auto& controller = operation->GetController();
         if (controller) {
             controller->Cancel();
         }
 
-        auto operationId = operation->GetId();
         YCHECK(IdToOperation_.erase(operationId) == 1);
 
         MasterConnector_->UnregisterOperation(operationId);
@@ -568,8 +568,9 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(Connected_);
-
-        auto controller = GetOperationOrThrow(operationId)->GetController();
+            
+        auto operation = GetOperationOrThrow(operationId);
+        auto controller = operation->GetController();
         return BIND(&IOperationController::BuildOperationInfo, controller)
             .AsyncVia(controller->GetCancelableInvoker())
             .Run();
@@ -581,8 +582,9 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(Connected_);
-
-        auto controller = GetOperationOrThrow(operationId)->GetController();
+            
+        auto operation = GetOperationOrThrow(operationId);
+        auto controller = operation->GetController();
         return BIND(&IOperationController::BuildJobYson, controller)
             .AsyncVia(controller->GetCancelableInvoker())
             .Run(jobId, /* outputStatistics */ true);
@@ -1057,7 +1059,7 @@ private:
                     operationId);
                 continue;
             }
-            UnregisterOperation(operation);
+            UnregisterOperation(operation->GetId());
         }
 
         ConfirmHeartbeatRequest(preparedRequest);
@@ -1426,6 +1428,11 @@ const TOperationIdToOperationMap& TControllerAgent::GetOperations()
 void TControllerAgent::RegisterOperation(const NProto::TOperationDescriptor& descriptor)
 {
     Impl_->RegisterOperation(descriptor);
+}
+
+void TControllerAgent::UnregisterOperation(const TOperationId& operationId)
+{
+    Impl_->UnregisterOperation(operationId);
 }
 
 TFuture<TOperationControllerInitializationResult> TControllerAgent::InitializeOperation(

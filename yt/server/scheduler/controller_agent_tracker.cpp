@@ -278,7 +278,7 @@ public:
         return InvokeAgent<TControllerAgentServiceProxy::TRspCompleteOperation>(req).As<void>();
     }
 
-    virtual TFuture<void> Dispose() override
+    virtual TFuture<void> Unregister() override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -286,9 +286,9 @@ public:
             return VoidFuture;
         }
 
-        auto req = AgentProxy_->DisposeOperation();
+        auto req = AgentProxy_->UnregisterOperation();
         ToProto(req->mutable_operation_id(), OperationId_);
-        return InvokeAgent<TControllerAgentServiceProxy::TRspDisposeOperation>(req).As<void>();
+        return InvokeAgent<TControllerAgentServiceProxy::TRspUnregisterOperation>(req).As<void>();
     }
 
 

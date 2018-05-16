@@ -166,13 +166,13 @@ message TRspAbortOperation
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TReqDisposeOperation
+message TReqUnregisterOperation
 {
     required NYT.NProto.TGuid incarnation_id = 1;
     required NYT.NProto.TGuid operation_id = 2;
 }
 
-message TRspDisposeOperation
+message TRspUnregisterOperation
 { }
 
 ////////////////////////////////////////////////////////////////////////////////

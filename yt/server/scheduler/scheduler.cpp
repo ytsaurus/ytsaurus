@@ -2303,7 +2303,7 @@ private:
 
             // Notify controller that it is going to be disposed.
             const auto& controller = operation->GetController();
-            Y_UNUSED(WaitFor(controller->Dispose()));
+            Y_UNUSED(WaitFor(controller->Unregister()));
 
             FinishOperation(operation);
         } catch (const std::exception& ex) {
@@ -2520,7 +2520,7 @@ private:
         if (controller) {
             // Notify controller that it is going to be disposed.
             const auto& controller = operation->GetController();
-            Y_UNUSED(WaitFor(controller->Dispose()));
+            Y_UNUSED(WaitFor(controller->Unregister()));
         }
 
         LogOperationFinished(operation, logEventType, error);
