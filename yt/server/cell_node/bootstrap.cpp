@@ -148,7 +148,6 @@ using namespace NObjectClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const i64 FootprintMemorySize = 1_GB;
 static const NLogging::TLogger Logger("Bootstrap");
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -203,7 +202,7 @@ void TBootstrap::DoRun()
         TProfiler("/cell_node/memory_usage"));
 
     {
-        auto result = MemoryUsageTracker->TryAcquire(EMemoryCategory::Footprint, FootprintMemorySize);
+        auto result = MemoryUsageTracker->TryAcquire(EMemoryCategory::Footprint, Config->FootprintMemorySize);
         THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error reserving footprint memory");
     }
 
