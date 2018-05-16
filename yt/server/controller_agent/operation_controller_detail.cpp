@@ -231,36 +231,18 @@ TOperationControllerBase::TOperationControllerBase(
     UserTransaction = UserTransactionId
         ? Host->GetClient()->AttachTransaction(UserTransactionId, userAttachOptions)
         : nullptr;
+}
 
-    auto createService = [&] (auto fluentMethod) -> IYPathServicePtr {
-        return IYPathService::FromProducer(BIND([fluentMethod = std::move(fluentMethod)] (IYsonConsumer* consumer) {
-            BuildYsonFluently(consumer)
-                .BeginMap()
-                    .Do(fluentMethod)
-                .EndMap();
-        }))
-            ->Via(CancelableInvoker)
-            ->Cached(Config->ControllerStaticOrchidUpdatePeriod);
-    };
+void TOperationControllerBase::BuildMemoryUsageYson(TFluentAny fluent) const
+{
+    fluent
+        .Value(GetMemoryUsage());
+}
 
-    Orchid_ = New<TCompositeMapService>()
-        ->AddChild("progress", createService(BIND(&TOperationControllerBase::BuildProgress, MakeWeak(this))))
-        ->AddChild("brief_progress", createService(BIND(&TOperationControllerBase::BuildBriefProgress, MakeWeak(this))))
-        ->AddChild("running_jobs", createService(BIND(&TOperationControllerBase::BuildJobsYson, MakeWeak(this))))
-        ->AddChild("job_splitter", createService(BIND(&TOperationControllerBase::BuildJobSplitterInfo, MakeWeak(this))))
-        ->AddChild("memory_usage", IYPathService::FromProducer(BIND([weakThis = MakeWeak(this)] (IYsonConsumer* consumer) {
-            if (auto this_ = weakThis.Lock()) {
-                BuildYsonFluently(consumer)
-                    .Value(this_->GetMemoryUsage());
-            }
-        })))
-        ->AddChild("state", IYPathService::FromProducer(BIND([weakThis = MakeWeak(this)] (IYsonConsumer* consumer) {
-            if (auto this_ = weakThis.Lock()) {
-                BuildYsonFluently(consumer)
-                    .Value(this_->State.load());
-            }
-        })))
-            ->Via(CancelableInvoker);
+void TOperationControllerBase::BuildStateYson(TFluentAny fluent) const
+{
+    fluent
+        .Value(State.load());
 }
 
 // Resource management.
@@ -586,8 +568,43 @@ void TOperationControllerBase::InitUpdatingTables()
     }
 }
 
+void TOperationControllerBase::InitializeOrchid()
+{
+    auto createService = [&] (auto fluentMethod) -> IYPathServicePtr {
+        return IYPathService::FromProducer(BIND([fluentMethod = std::move(fluentMethod)] (IYsonConsumer* consumer) {
+            BuildYsonFluently(consumer)
+                .BeginMap()
+                    .Do(fluentMethod)
+                .EndMap();
+        }))
+            ->Via(CancelableInvoker)
+            ->Cached(Config->ControllerStaticOrchidUpdatePeriod);
+    };
+
+    Orchid_ = New<TCompositeMapService>()
+        ->AddChild("progress", createService(BIND(&TOperationControllerBase::BuildProgress, MakeWeak(this))))
+        ->AddChild("brief_progress", createService(BIND(&TOperationControllerBase::BuildBriefProgress, MakeWeak(this))))
+        ->AddChild("running_jobs", createService(BIND(&TOperationControllerBase::BuildJobsYson, MakeWeak(this))))
+        ->AddChild("job_splitter", createService(BIND(&TOperationControllerBase::BuildJobSplitterInfo, MakeWeak(this))))
+        ->AddChild("memory_usage", IYPathService::FromProducer(BIND([weakThis = MakeWeak(this)] (IYsonConsumer* consumer) {
+            if (auto this_ = weakThis.Lock()) {
+                BuildYsonFluently(consumer)
+                    .Value(this_->GetMemoryUsage());
+            }
+        })))
+        ->AddChild("state", IYPathService::FromProducer(BIND([weakThis = MakeWeak(this)] (IYsonConsumer* consumer) {
+            if (auto this_ = weakThis.Lock()) {
+                BuildYsonFluently(consumer)
+                    .Value(this_->State.load());
+            }
+        })))
+            ->Via(CancelableInvoker);
+}
+
 void TOperationControllerBase::DoInitialize()
-{ }
+{
+    InitializeOrchid();
+}
 
 void TOperationControllerBase::SyncPrepare()
 {
