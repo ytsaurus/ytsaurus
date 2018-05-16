@@ -99,7 +99,6 @@ def initialize_world(client=None, idm=None, proxy_address=None, ui_address=None,
         client.set("//sys/users/" + cron_user + "/@request_queue_size_limit", 500)
 
     client.create("map_node", "//sys/cron")
-    client.create("map_node", "//sys/cron/clear_operations_lock")
 
     add_member("devs", "admins", client)
     add_member("robot-yt-mon", "admin_snapshots", client)
