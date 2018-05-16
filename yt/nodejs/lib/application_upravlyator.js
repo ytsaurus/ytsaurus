@@ -222,9 +222,11 @@ YtApplicationUpravlyator.prototype.dispatch = function(req, rsp, next)
             case "/_responsibles":
             case "/_responsibles/":
                 return self._dispatchGetResponsibles(req, rsp);
+                /*
             case "/_create_group":
             case "/_create_group/":
                 return self._dispatchCreateGroup(req, rsp);
+                */
         }
         throw new YtError("Unknown URI");
     }).catch(self._dispatchError.bind(self, req, rsp));
