@@ -146,9 +146,11 @@ class YTInstance(object):
                  port_locks_path=None, port_range_start=None, fqdn=None, jobs_memory_limit=None,
                  jobs_cpu_limit=None, jobs_user_slot_count=None, node_memory_limit_addition=None,
                  node_chunk_store_quota=None, allow_chunk_storage_in_tmpfs=False, modify_configs_func=None,
-                 kill_child_processes=False, use_porto_for_servers=False, watcher_config=None):
+                 kill_child_processes=False, use_porto_for_servers=False, watcher_config=None,
+                 add_binaries_to_path=True):
         _configure_logger()
-        _add_binaries_to_path()
+        if add_binaries_to_path:
+            _add_binaries_to_path()
 
         self._subprocess_module = PortoSubprocess if use_porto_for_servers and porto_avaliable() else subprocess
         self._use_porto_for_servers = use_porto_for_servers
