@@ -49,13 +49,22 @@ DEFINE_REFCOUNTED_TYPE(TRuntimeTableReplicaData)
 
 struct TReplicaCounters
 {
+    TReplicaCounters() = default;
     TReplicaCounters(const NProfiling::TTagIdList& list);
 
     NProfiling::TAggregateCounter LagRowCount;
     NProfiling::TAggregateCounter LagTime;
+    NProfiling::TAggregateCounter ReplicationTransactionStartTime;
+    NProfiling::TAggregateCounter ReplicationTransactionCommitTime;
+    NProfiling::TAggregateCounter ReplicationRowsReadTime;
+    NProfiling::TAggregateCounter ReplicationRowsWriteTime;
+    NProfiling::TAggregateCounter ReplicationBatchRowCount;
+    NProfiling::TAggregateCounter ReplicationBatchDataWeight;
 
     const NProfiling::TTagIdList Tags;
 };
+
+extern TReplicaCounters NullReplicaCounters;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -64,7 +73,7 @@ struct TTableReplicaSnapshot
 {
     NTransactionClient::TTimestamp StartReplicationTimestamp;
     TRuntimeTableReplicaDataPtr RuntimeData;
-    TReplicaCounters* Counters = nullptr;
+    TReplicaCounters* Counters = &NullReplicaCounters;
 };
 
 DEFINE_REFCOUNTED_TYPE(TTableReplicaSnapshot)
@@ -234,7 +243,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(ETableReplicaState, State, ETableReplicaState::None);
 
     DEFINE_BYVAL_RW_PROPERTY(TTableReplicatorPtr, Replicator);
-    DEFINE_BYVAL_RW_PROPERTY(TReplicaCounters*, Counters, nullptr);
+    DEFINE_BYVAL_RW_PROPERTY(TReplicaCounters*, Counters, &NullReplicaCounters);
 
 public:
     TTableReplicaInfo() = default;
@@ -260,7 +269,7 @@ public:
     void PopulateStatistics(NTabletClient::NProto::TTableReplicaStatistics* statistics) const;
     void MergeFromStatistics(const NTabletClient::NProto::TTableReplicaStatistics& statistics);
 
-    NProfiling::TProfiler GetReplicatorProfiler() const;
+    NProfiling::TProfiler BuildReplicatorProfiler() const;
 
 private:
     const TRuntimeTableReplicaDataPtr RuntimeData_ = New<TRuntimeTableReplicaData>();
