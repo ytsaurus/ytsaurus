@@ -11,7 +11,7 @@
 #include <yt/core/concurrency/config.h>
 
 #include <yt/core/misc/config.h>
-#include <yt/core/misc/boolean_formula.h>
+#include <yt/core/misc/arithmetic_formula.h>
 
 #include <yt/core/re2/re2.h>
 
