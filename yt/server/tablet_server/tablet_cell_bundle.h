@@ -13,7 +13,7 @@
 #include <yt/ytlib/tablet_client/public.h>
 
 #include <yt/core/misc/ref_tracked.h>
-#include <yt/core/misc/boolean_formula.h>
+#include <yt/core/misc/arithmetic_formula.h>
 
 #include <yt/core/profiling/public.h>
 

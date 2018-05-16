@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/core/misc/boolean_formula.h>
+#include <yt/core/misc/arithmetic_formula.h>
 
 namespace NYT {
 namespace NScheduler {
