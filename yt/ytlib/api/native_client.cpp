@@ -3071,8 +3071,14 @@ private:
                 .ThrowOnError();
 
             auto usePermissionResult = DoCheckPermission(Options_.User, options.CachePath, EPermission::Use, checkPermissionOptions);
-            usePermissionResult.ToError(Options_.User, EPermission::Use)
-                .ThrowOnError();
+
+            auto writePermissionResult = DoCheckPermission(Options_.User, options.CachePath, EPermission::Write, checkPermissionOptions);
+
+            if (usePermissionResult.Action == ESecurityAction::Deny && writePermissionResult.Action == ESecurityAction::Deny) {
+                THROW_ERROR_EXCEPTION("You need write or use permission to use file cache")
+                    << usePermissionResult.ToError(Options_.User, EPermission::Use)
+                    << writePermissionResult.ToError(Options_.User, EPermission::Write);
+            }
         }
 
         // Check that MD5 hash is equal to the original MD5 hash of the file.
