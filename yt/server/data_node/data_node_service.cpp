@@ -653,7 +653,7 @@ private:
 
             *context->Response().mutable_chunk_meta() = partitionTag
                 ? FilterChunkMetaByPartitionTag(*meta, *partitionTag)
-                : static_cast<TChunkMeta>(*meta);
+                : static_cast<TChunkMeta>(meta);
         }).Via(MetaProcessorThread_->GetInvoker())));
     }
 
