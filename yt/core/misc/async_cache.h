@@ -143,10 +143,10 @@ private:
     std::atomic<int> TouchBufferPosition_ = {0};
 
     NProfiling::TProfiler Profiler;
-    NProfiling::TSimpleCounter HitWeightCounter_;
-    NProfiling::TSimpleCounter MissedWeightCounter_;
-    NProfiling::TSimpleCounter YoungerWeightCounter_;
-    NProfiling::TSimpleCounter OlderWeightCounter_;
+    NProfiling::TMonotonicCounter HitWeightCounter_;
+    NProfiling::TMonotonicCounter MissedWeightCounter_;
+    NProfiling::TSimpleGauge YoungerWeightCounter_;
+    NProfiling::TSimpleGauge OlderWeightCounter_;
 
 
     bool Touch(TItem* item);

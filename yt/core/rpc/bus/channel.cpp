@@ -490,10 +490,10 @@ private:
             NProfiling::TAggregateCounter TimeoutTimeCounter;
             NProfiling::TAggregateCounter CancelTimeCounter;
             NProfiling::TAggregateCounter TotalTimeCounter;
-            NProfiling::TSimpleCounter RequestMessageBodySizeCounter;
-            NProfiling::TSimpleCounter RequestMessageAttachmentSizeCounter;
-            NProfiling::TSimpleCounter ResponseMessageBodySizeCounter;
-            NProfiling::TSimpleCounter ResponseMessageAttachmentSizeCounter;
+            NProfiling::TMonotonicCounter RequestMessageBodySizeCounter;
+            NProfiling::TMonotonicCounter RequestMessageAttachmentSizeCounter;
+            NProfiling::TMonotonicCounter ResponseMessageBodySizeCounter;
+            NProfiling::TMonotonicCounter ResponseMessageAttachmentSizeCounter;
         };
 
         struct TMethodMetadataProfilingTrait
@@ -520,10 +520,10 @@ private:
                 metadata.TimeoutTimeCounter = NProfiling::TAggregateCounter("/request_time/timeout", tagIds, NProfiling::EAggregateMode::All);
                 metadata.CancelTimeCounter = NProfiling::TAggregateCounter("/request_time/cancel", tagIds, NProfiling::EAggregateMode::All);
                 metadata.TotalTimeCounter = NProfiling::TAggregateCounter("/request_time/total", tagIds, NProfiling::EAggregateMode::All);
-                metadata.RequestMessageBodySizeCounter = NProfiling::TSimpleCounter("/request_message_body_bytes", tagIds);
-                metadata.RequestMessageAttachmentSizeCounter = NProfiling::TSimpleCounter("/request_message_attachment_bytes", tagIds);
-                metadata.ResponseMessageBodySizeCounter = NProfiling::TSimpleCounter("/response_message_body_bytes", tagIds);
-                metadata.ResponseMessageAttachmentSizeCounter = NProfiling::TSimpleCounter("/response_message_attachment_bytes", tagIds);
+                metadata.RequestMessageBodySizeCounter = NProfiling::TMonotonicCounter("/request_message_body_bytes", tagIds);
+                metadata.RequestMessageAttachmentSizeCounter = NProfiling::TMonotonicCounter("/request_message_attachment_bytes", tagIds);
+                metadata.ResponseMessageBodySizeCounter = NProfiling::TMonotonicCounter("/response_message_body_bytes", tagIds);
+                metadata.ResponseMessageAttachmentSizeCounter = NProfiling::TMonotonicCounter("/response_message_attachment_bytes", tagIds);
 
                 return metadata;
             }

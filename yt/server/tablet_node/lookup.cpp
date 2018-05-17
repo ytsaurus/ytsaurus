@@ -63,12 +63,12 @@ struct TLookupCounters
         , DecompressionCpuTime("/lookup/decompression_cpu_time", list)
     { }
 
-    TSimpleCounter RowCount;
-    TSimpleCounter DataWeight;
-    TSimpleCounter UnmergedRowCount;
-    TSimpleCounter UnmergedDataWeight;
-    TSimpleCounter CpuTime;
-    TSimpleCounter DecompressionCpuTime;
+    TMonotonicCounter RowCount;
+    TMonotonicCounter DataWeight;
+    TMonotonicCounter UnmergedRowCount;
+    TMonotonicCounter UnmergedDataWeight;
+    TMonotonicCounter CpuTime;
+    TMonotonicCounter DecompressionCpuTime;
 };
 
 using TLookupProfilerTrait = TTabletProfilerTrait<TLookupCounters>;

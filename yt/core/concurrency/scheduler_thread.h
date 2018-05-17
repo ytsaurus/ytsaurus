@@ -99,8 +99,8 @@ protected:
     TExecutionContext SchedulerContext_;
 
     std::list<TFiberPtr> RunQueue_;
-    NProfiling::TSimpleCounter CreatedFibersCounter_;
-    NProfiling::TSimpleCounter AliveFibersCounter_;
+    NProfiling::TMonotonicCounter CreatedFibersCounter_;
+    NProfiling::TSimpleGauge AliveFibersCounter_;
 
     TFiberPtr IdleFiber_;
     TFiberPtr CurrentFiber_;

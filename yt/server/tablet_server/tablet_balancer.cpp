@@ -127,7 +127,7 @@ private:
     THashSet<const TTablet*> TouchedTablets_;
 
     const NProfiling::TProfiler Profiler;
-    NProfiling::TSimpleCounter QueueSizeCounter_;
+    NProfiling::TSimpleGauge QueueSizeCounter_;
 
     bool BalanceCells_ = false;
 

@@ -264,7 +264,7 @@ private:
     TEntityMap<TMailbox> MailboxMap_;
     THashMap<TCellId, TMessageId> CellIdToNextTransientIncomingMessageId_;
 
-    NProfiling::TSimpleCounter PostingTimeCounter_{"/posting_time"};
+    NProfiling::TMonotonicCounter PostingTimeCounter_{"/posting_time"};
 
 
     // RPC handlers.

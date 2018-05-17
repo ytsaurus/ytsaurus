@@ -336,9 +336,9 @@ private:
     TPeriodicExecutorPtr DequeueExecutor;
 
     IMapNodePtr Root;
-    TSimpleCounter EnqueuedCounter;
-    TSimpleCounter DequeuedCounter;
-    TSimpleCounter DroppedCounter;
+    TMonotonicCounter EnqueuedCounter;
+    TMonotonicCounter DequeuedCounter;
+    TMonotonicCounter DroppedCounter;
 
     TMultipleProducerSingleConsumerLockFreeStack<TQueuedSample> SampleQueue;
     THashMap<TYPath, TBucketPtr> PathToBucket;

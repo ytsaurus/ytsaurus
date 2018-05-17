@@ -423,16 +423,16 @@ protected:
         explicit TMethodPerformanceCounters(const NProfiling::TTagIdList& tagIds);
 
         //! Counts the number of method calls.
-        NProfiling::TSimpleCounter RequestCounter;
+        NProfiling::TMonotonicCounter RequestCounter;
 
         //! Counts the number of canceled method calls.
-        NProfiling::TSimpleCounter CanceledRequestCounter;
+        NProfiling::TMonotonicCounter CanceledRequestCounter;
 
         //! Counts the number of failed method calls.
-        NProfiling::TSimpleCounter FailedRequestCounter;
+        NProfiling::TMonotonicCounter FailedRequestCounter;
 
         //! Counts the number of timed out method calls.
-        NProfiling::TSimpleCounter TimedOutRequestCounter;
+        NProfiling::TMonotonicCounter TimedOutRequestCounter;
 
         //! Time spent while handling the request.
         NProfiling::TAggregateCounter ExecutionTimeCounter;
@@ -447,16 +447,16 @@ protected:
         NProfiling::TAggregateCounter TotalTimeCounter;
 
         //! Counts the number of bytes in requests message body.
-        NProfiling::TSimpleCounter RequestMessageBodySizeCounter;
+        NProfiling::TMonotonicCounter RequestMessageBodySizeCounter;
 
         //! Counts the number of bytes in request message attachment.
-        NProfiling::TSimpleCounter RequestMessageAttachmentSizeCounter;
+        NProfiling::TMonotonicCounter RequestMessageAttachmentSizeCounter;
 
         //! Counts the number of bytes in response message body.
-        NProfiling::TSimpleCounter ResponseMessageBodySizeCounter;
+        NProfiling::TMonotonicCounter ResponseMessageBodySizeCounter;
 
         //! Counts the number of bytes in response message attachment.
-        NProfiling::TSimpleCounter ResponseMessageAttachmentSizeCounter;
+        NProfiling::TMonotonicCounter ResponseMessageAttachmentSizeCounter;
     };
 
     using TMethodPerformanceCountersPtr = TIntrusivePtr<TMethodPerformanceCounters>;

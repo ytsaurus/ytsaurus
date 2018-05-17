@@ -109,12 +109,12 @@ class TProfilingTimingGuard
 public:
     TProfilingTimingGuard(
         const TProfiler& profiler,
-        TSimpleCounter* counter);
+        TMonotonicCounter* counter);
     ~TProfilingTimingGuard();
 
 private:
     const TProfiler& Profiler_;
-    TSimpleCounter* const Counter_;
+    TMonotonicCounter* const Counter_;
     const TCpuInstant StartInstant_;
 
 };

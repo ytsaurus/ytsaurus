@@ -64,9 +64,6 @@ void TAsyncSlruCacheBase<TKey, TValue, THash>::Clear()
     OlderLruList_.Swap(olderLruList);
     Profiler.Update(OlderWeightCounter_, 0);
 
-    Profiler.Update(HitWeightCounter_, 0);
-    Profiler.Update(MissedWeightCounter_, 0);
-
     // NB: Lists must die outside the critical section.
     guard.Release();
 }
