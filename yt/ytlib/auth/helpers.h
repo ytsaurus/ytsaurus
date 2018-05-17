@@ -4,7 +4,7 @@
 #include <yt/core/ytree/ypath_client.h>
 
 namespace NYT {
-namespace NBlackbox {
+namespace NAuth {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -24,5 +24,5 @@ TErrorOr<T> GetByYPath(const NYTree::INodePtr& node, const NYPath::TYPath& path)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NBlackbox
+} // namespace NAuth
 } // namespace NYT

@@ -3,14 +3,14 @@
 #include <yt/core/logging/log.h>
 
 namespace NYT {
-namespace NBlackbox {
+namespace NAuth {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-extern const NLogging::TLogger BlackboxLogger;
+extern const NLogging::TLogger AuthLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NBlackbox
+} // namespace NAuth
 } // namespace NYT
 

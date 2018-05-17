@@ -4,10 +4,10 @@
 
 #include <yt/core/actions/future.h>
 
-#include <yt/core/ytree/node.h>
+#include <yt/core/ytree/public.h>
 
 namespace NYT {
-namespace NBlackbox {
+namespace NAuth {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -23,25 +23,7 @@ struct IBlackboxService
 
 DEFINE_REFCOUNTED_TYPE(IBlackboxService)
 
-DEFINE_ENUM(EBlackboxStatusId,
-    ((Valid)(0))
-    ((NeedReset)(1))
-    ((Expired)(2))
-    ((NoAuth)(3))
-    ((Disabled)(4))
-    ((Invalid)(5))
-);
-
-DEFINE_ENUM(EBlackboxExceptionId,
-    ((Ok)(0))
-    ((Unknown)(1))
-    ((InvalidParameters)(2))
-    ((DbFetchFailed)(9))
-    ((DbException)(10))
-    ((AccessDenied)(21))
-);
-
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NBlackbox
+} // namespace NAuth
 } // namespace NYT

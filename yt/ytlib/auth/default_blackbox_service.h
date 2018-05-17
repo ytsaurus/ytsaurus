@@ -1,10 +1,11 @@
 #pragma once
 
-#include "blackbox_service.h"
-#include "config.h"
+#include "public.h"
+
+#include <yt/core/actions/public.h>
 
 namespace NYT {
-namespace NBlackbox {
+namespace NAuth {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -14,5 +15,5 @@ IBlackboxServicePtr CreateDefaultBlackboxService(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NBlackbox
+} // namespace NAuth
 } // namespace NYT

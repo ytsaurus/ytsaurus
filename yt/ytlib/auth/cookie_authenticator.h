@@ -1,11 +1,11 @@
 #pragma once
 
 #include "public.h"
-#include "blackbox_service.h"
-#include "config.h"
+
+#include <yt/core/actions/future.h>
 
 namespace NYT {
-namespace NBlackbox {
+namespace NAuth {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -14,20 +14,6 @@ struct ICookieAuthenticator
 {
     virtual TFuture<TAuthenticationResult> Authenticate(
         const TCookieCredentials& credentials) = 0;
-
-    TFuture<TAuthenticationResult> Authenticate(
-        const TString& sessionId,
-        const TString& sslSessionId,
-        const TString& host,
-        const TString& userIP)
-    {
-        TCookieCredentials credentials;
-        credentials.SessionId = sessionId;
-        credentials.SslSessionId = sslSessionId;
-        credentials.Host = host;
-        credentials.UserIP = userIP;
-        return Authenticate(credentials);
-    }
 };
 
 DEFINE_REFCOUNTED_TYPE(ICookieAuthenticator)
@@ -42,5 +28,5 @@ ICookieAuthenticatorPtr CreateCachingCookieAuthenticator(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NBlackbox
+} // namespace NAuth
 } // namespace NYT

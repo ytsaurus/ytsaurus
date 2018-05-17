@@ -1,4 +1,5 @@
 #include "cookie_authenticator.h"
+#include "blackbox_service.h"
 #include "helpers.h"
 #include "private.h"
 
@@ -9,7 +10,7 @@
 #include <util/string/split.h>
 
 namespace NYT {
-namespace NBlackbox {
+namespace NAuth {
 
 using namespace NYTree;
 using namespace NYPath;
@@ -17,7 +18,7 @@ using namespace NCrypto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = BlackboxLogger;
+static const auto& Logger = AuthLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -26,7 +27,9 @@ class TCookieAuthenticator
     : public ICookieAuthenticator
 {
 public:
-    TCookieAuthenticator(TCookieAuthenticatorConfigPtr config, IBlackboxServicePtr blackbox)
+    TCookieAuthenticator(
+        TCookieAuthenticatorConfigPtr config,
+        IBlackboxServicePtr blackbox)
         : Config_(std::move(config))
         , Blackbox_(std::move(blackbox))
     { }
@@ -53,7 +56,14 @@ public:
     }
 
 private:
-    TFuture<TAuthenticationResult> OnCallResult(const TString& sessionIdMD5, const TString& sslSessionIdMD5, const INodePtr& data)
+    const TCookieAuthenticatorConfigPtr Config_;
+    const IBlackboxServicePtr Blackbox_;
+
+private:
+    TFuture<TAuthenticationResult> OnCallResult(
+        const TString& sessionIdMD5,
+        const TString& sslSessionIdMD5,
+        const INodePtr& data)
     {
         auto result = OnCallResultImpl(data);
         if (!result.IsOK()) {
@@ -79,7 +89,7 @@ private:
             return TError("Blackbox returned invalid response");
         }
 
-        if (statusId.Value() != EBlackboxStatusId::Valid && statusId.Value() != EBlackboxStatusId::NeedReset) {
+        if (statusId.Value() != EBlackboxStatus::Valid && statusId.Value() != EBlackboxStatus::NeedReset) {
             auto error = GetByYPath<TString>(data, "/error");
             auto reason = error.IsOK() ? error.Value() : "unknown";
             return TError("Blackbox rejected session cookie")
@@ -98,9 +108,6 @@ private:
         result.Realm = "blackbox:cookie";
         return result;
     }
-
-    const TCookieAuthenticatorConfigPtr Config_;
-    const IBlackboxServicePtr Blackbox_;
 };
 
 ICookieAuthenticatorPtr CreateCookieAuthenticator(
@@ -145,5 +152,5 @@ ICookieAuthenticatorPtr CreateCachingCookieAuthenticator(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NBlackbox
+} // namespace NAuth
 } // namespace NYT

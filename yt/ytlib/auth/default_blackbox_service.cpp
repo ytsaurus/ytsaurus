@@ -1,5 +1,6 @@
-#include "public.h"
 #include "default_blackbox_service.h"
+#include "blackbox_service.h"
+#include "config.h"
 #include "private.h"
 
 #include <yt/core/json/json_parser.h>
@@ -10,13 +11,13 @@
 #include <util/string/url.h>
 
 namespace NYT {
-namespace NBlackbox {
+namespace NAuth {
 
 using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = BlackboxLogger;
+static const auto& Logger = AuthLogger;
 
 static constexpr auto TimeoutSlack = TDuration::MilliSeconds(1);
 
@@ -40,6 +41,12 @@ public:
             .AsyncVia(Invoker_)
             .Run();
     }
+
+private:
+    const TDefaultBlackboxServiceConfigPtr Config_;
+    const IInvokerPtr Invoker_;
+
+    static const THashSet<TString> PrivateUrlParams_;
 
 private:
     static std::pair<TString, TString> BuildUrl(const TString& method, const THashMap<TString, TString>& params)
@@ -132,11 +139,11 @@ private:
                     if (exceptionId) {
                         auto value = ConvertTo<int>(exceptionId);
                         // See https://doc.yandex-team.ru/blackbox/concepts/blackboxErrors.xml
-                        switch (EBlackboxExceptionId(value)) {
-                            case EBlackboxExceptionId::Ok:
+                        switch (EBlackboxException(value)) {
+                            case EBlackboxException::Ok:
                                 return result;
-                            case EBlackboxExceptionId::DbFetchFailed:
-                            case EBlackboxExceptionId::DbException:
+                            case EBlackboxException::DbFetchFailed:
+                            case EBlackboxException::DbException:
                                 LOG_WARNING(
                                     "Blackbox has raised an exception, backing off (CallId: %v, Attempt: %v)",
                                     callId,
@@ -233,12 +240,6 @@ private:
 
         return result;
     }
-
-private:
-    const TDefaultBlackboxServiceConfigPtr Config_;
-    const IInvokerPtr Invoker_;
-
-    static const THashSet<TString> PrivateUrlParams_;
 };
 
 const THashSet<TString> TDefaultBlackboxService::PrivateUrlParams_ = {
@@ -259,5 +260,5 @@ IBlackboxServicePtr CreateDefaultBlackboxService(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NBlackbox
+} // namespace NAuth
 } // namespace NYT
