@@ -578,7 +578,8 @@ void TOperationControllerBase::InitializeOrchid()
 {
     auto createService = [=] (auto fluentMethod) -> IYPathServicePtr {
         return IYPathService::FromProducer(BIND([fluentMethod = std::move(fluentMethod), weakThis = MakeWeak(this)] (IYsonConsumer* consumer) {
-            if (!weakThis.Lock()) {
+            auto strongThis = weakThis.Lock();
+            if (!strongThis) {
                 THROW_ERROR_EXCEPTION(NYTree::EErrorCode::ResolveError, "Operation controller was destroyed");
             }
             BuildYsonFluently(consumer)
