@@ -310,7 +310,7 @@ print "x={0}\ty={1}".format(x, y)
 
         time.sleep(2)
 
-        operation_path = get_new_operation_cypress_path(op.id)
+        operation_path = get_operation_cypress_path(op.id)
         scheduler_transaction_id = get(operation_path + "/@async_scheduler_transaction_id")
         assert exists(operation_path + "/intermediate", tx=scheduler_transaction_id)
 
@@ -343,7 +343,7 @@ print "x={0}\ty={1}".format(x, y)
                         in_="//tmp/t1", out="//tmp/t2",
                         sort_by=["foo"], spec={"intermediate_compression_codec": "brotli_3"})
         time.sleep(1)
-        operation_path = get_new_operation_cypress_path(op.id)
+        operation_path = get_operation_cypress_path(op.id)
         async_transaction_id = get(operation_path + "/@async_scheduler_transaction_id")
         assert "brotli_3" == get(operation_path + "/intermediate/@compression_codec", tx=async_transaction_id)
         op.abort()

@@ -346,7 +346,7 @@ class TestListJobs(YTEnvSetup):
 
         jobs = wait_breakpoint()
         def get_stderr_size():
-            return get(get_new_operation_cypress_path(op.id) + "/controller_orchid/running_jobs/{0}/stderr_size".format(jobs[0]))
+            return get(get_operation_cypress_path(op.id) + "/controller_orchid/running_jobs/{0}/stderr_size".format(jobs[0]))
         wait(lambda: get_stderr_size() == len("MAPPER-STDERR-OUTPUT\n"))
 
         options = dict(data_source="manual", include_cypress=False, include_controller_agent=True, include_archive=False)
@@ -449,7 +449,7 @@ class TestListJobs(YTEnvSetup):
             command="echo foo >&2; false",
             spec={"max_failed_job_count": 1, "testing": {"cypress_storage_mode": "hash_buckets"}})
 
-        wait(lambda: get(get_new_operation_cypress_path(op.id) + "/@state") == "failed")
+        wait(lambda: get(get_operation_cypress_path(op.id) + "/@state") == "failed")
         jobs = list_jobs(op.id, data_source="auto")["jobs"]
         assert len(jobs) == 1
         assert jobs[0]["stderr_size"] > 0

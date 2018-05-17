@@ -64,7 +64,7 @@ def get_pool_metrics(metric_key, start_time):
     return result
 
 def get_cypress_metrics(operation_id, key):
-    statistics = get(get_operation_cypress_path(operation_id) + "/@progress/job_statistics")
+    statistics = get("//sys/operations/" + operation_id + "/@progress/job_statistics")
     return get_statistics(statistics, "{0}.$.completed.map.sum".format(key))
 
 ##################################################################
@@ -756,7 +756,7 @@ class TestSchedulerCommon(YTEnvSetup):
             spec={"test_flag": to_yson_type("value", attributes={"attr": 0})})
 
         jobs = wait_breakpoint()
-        progress = get(op._get_new_operation_path() + "/controller_orchid/running_jobs/" + jobs[0] + "/progress")
+        progress = get(op.get_path() + "/controller_orchid/running_jobs/" + jobs[0] + "/progress")
         assert progress >= 0
 
         test_flag = get("//sys/scheduler/orchid/scheduler/operations/{0}/spec/test_flag".format(op.id))
@@ -780,7 +780,7 @@ class TestSchedulerCommon(YTEnvSetup):
 
         jobs = wait_breakpoint()
         def get_stderr_size():
-            return get(op._get_new_operation_path() + "/controller_orchid/running_jobs/" + jobs[0] + "/stderr_size")
+            return get(op.get_path() + "/controller_orchid/running_jobs/" + jobs[0] + "/stderr_size")
         wait(lambda: get_stderr_size() == len("FOOBAR\n"))
 
         release_breakpoint()
@@ -855,7 +855,7 @@ class TestSchedulerCommon(YTEnvSetup):
 
         jobs = wait_breakpoint()
         # Wait till job starts reading input
-        wait(lambda: get(op._get_new_operation_path() + "/controller_orchid/running_jobs/" + jobs[0] + "/progress") >= 0.5)
+        wait(lambda: get(op.get_path() + "/controller_orchid/running_jobs/" + jobs[0] + "/progress") >= 0.5)
 
         dump_job_context(jobs[0], "//tmp/input_context")
 
@@ -890,7 +890,7 @@ class TestSchedulerCommon(YTEnvSetup):
 
         jobs = wait_breakpoint()
         # Wait till job starts reading input
-        wait(lambda: get(op._get_new_operation_path() + "/controller_orchid/running_jobs/" + jobs[0] + "/progress") >= 0.5)
+        wait(lambda: get(op.get_path() + "/controller_orchid/running_jobs/" + jobs[0] + "/progress") >= 0.5)
 
         with pytest.raises(YtError):
             dump_job_context(jobs[0], "//tmp/dir/input_context", authenticated_user="abc")
@@ -1396,7 +1396,7 @@ class TestSchedulerRevive(YTEnvSetup):
 
         jobs = wait_breakpoint(job_count=2)
 
-        operation_path = get_new_operation_cypress_path(op.id)
+        operation_path = get_operation_cypress_path(op.id)
 
         async_transaction_id = get("//sys/operations/" + op.id + "/@async_scheduler_transaction_id")
         assert exists(operation_path + "/output_0", tx=async_transaction_id)
@@ -1433,7 +1433,7 @@ class TestSchedulerRevive(YTEnvSetup):
 
 class TestJobRevivalBase(YTEnvSetup):
     def _wait_for_single_job(self, op_id):
-        path = get_new_operation_cypress_path(op_id) + "/controller_orchid"
+        path = get_operation_cypress_path(op_id) + "/controller_orchid"
         while True:
             if get(path + "/state", default=None) == "running":
                 jobs = ls(path + "/running_jobs")
@@ -1887,7 +1887,7 @@ class TestSchedulerMaxChildrenPerAttachRequest(YTEnvSetup):
         for job_id in jobs[:2]:
             release_breakpoint(job_id=job_id)
 
-        operation_path = get_operation_cypress_path(op.id)
+        operation_path = "//sys/operations/" + op.id
         for iter in xrange(100):
             jobs_exist = exists(operation_path + "/@progress/jobs")
             if jobs_exist:
@@ -1896,7 +1896,7 @@ class TestSchedulerMaxChildrenPerAttachRequest(YTEnvSetup):
                     break
             time.sleep(0.1)
 
-        operation_path = get_new_operation_cypress_path(op.id)
+        operation_path = get_operation_cypress_path(op.id)
         transaction_id = get(operation_path + "/@async_scheduler_transaction_id")
         wait(lambda: get(operation_path + "/output_0/@row_count", tx=transaction_id) == 2)
 
@@ -2042,7 +2042,7 @@ class TestSchedulingTags(YTEnvSetup):
         wait(lambda: len(op.get_running_jobs()) > 0)
 
         now = datetime.utcnow()
-        snapshot_path = get_new_operation_cypress_path(op.id) + "/snapshot"
+        snapshot_path = get_operation_cypress_path(op.id) + "/snapshot"
         wait(lambda: exists(snapshot_path) and date_string_to_datetime(get(snapshot_path + "/@creation_time")) > now)
 
         self.Env.kill_schedulers()
@@ -2252,7 +2252,7 @@ class TestSchedulerSnapshots(YTEnvSetup):
             out="//tmp/out",
             spec={"data_weight_per_job": 1, "testing": testing_options})
 
-        snapshot_path = op._get_new_operation_path() + "/snapshot"
+        snapshot_path = op.get_path() + "/snapshot"
         wait(lambda: exists(snapshot_path))
 
         # This is done to avoid read failures due to snapshot file rewriting.
@@ -2260,7 +2260,7 @@ class TestSchedulerSnapshots(YTEnvSetup):
         copy(snapshot_path, snapshot_backup_path)
         assert len(read_file(snapshot_backup_path, verbose=False)) > 0
 
-        ts = get(op._get_new_operation_path() + "/controller_orchid/progress/last_successful_snapshot_time")
+        ts = get(op.get_path() + "/controller_orchid/progress/last_successful_snapshot_time")
         assert time.time() - datetime_str_to_ts(ts) < 60
 
         release_breakpoint()
@@ -2288,7 +2288,7 @@ class TestSchedulerSnapshots(YTEnvSetup):
                     spec={"data_size_per_job": 1, "testing": testing_options}))
 
         for op in ops:
-            snapshot_path = op._get_new_operation_path() + "/snapshot"
+            snapshot_path = op.get_path() + "/snapshot"
             wait(lambda: exists(snapshot_path))
 
             snapshot_backup_path = snapshot_path + ".backup"
@@ -2318,7 +2318,7 @@ class TestSchedulerSnapshots(YTEnvSetup):
 
             time.sleep(2)
 
-            snapshot_path2 = op2._get_new_operation_path() + "/snapshot"
+            snapshot_path2 = op2.get_path() + "/snapshot"
             if exists(snapshot_path2):
                 op2.abort()
                 continue
@@ -2334,8 +2334,8 @@ class TestSchedulerSnapshots(YTEnvSetup):
 
         time.sleep(8)
 
-        snapshot_path1 = op1._get_new_operation_path() + "/snapshot"
-        snapshot_path2 = op2._get_new_operation_path() + "/snapshot"
+        snapshot_path1 = op1.get_path() + "/snapshot"
+        snapshot_path2 = op2.get_path() + "/snapshot"
 
         assert exists(snapshot_path1)
         assert not exists(snapshot_path2)
@@ -2986,7 +2986,7 @@ class TestGetJobSpecFailed(YTEnvSetup):
 
         time.sleep(2.0)
 
-        jobs = get(op._get_new_operation_path() + "/controller_orchid/progress/jobs", verbose=False)
+        jobs = get(op.get_path() + "/controller_orchid/progress/jobs", verbose=False)
         assert jobs["aborted"]["non_scheduled"]["get_spec_failed"] > 0
 
 ##################################################################
@@ -3007,7 +3007,7 @@ class TestResourceLimitsOverrides(YTEnvSetup):
     }
 
     def _wait_for_jobs(self, op_id):
-        jobs_path = get_new_operation_cypress_path(op_id) + "/controller_orchid/running_jobs"
+        jobs_path = get_operation_cypress_path(op_id) + "/controller_orchid/running_jobs"
         wait(lambda: exists(jobs_path) and len(get(jobs_path)) > 0,
              "Failed waiting for the first job")
         return get(jobs_path)
@@ -3107,7 +3107,7 @@ fi
             wait(lambda: op.get_job_count("failed") == 1)
 
             # Wait till snapshot index is incremented (snapshot is built)
-            snapshot_index_path = op._get_new_operation_path() + "/controller_orchid/progress/snapshot_index"
+            snapshot_index_path = op.get_path() + "/controller_orchid/progress/snapshot_index"
             snapshot_index = get(snapshot_index_path)
             wait(lambda: get(snapshot_index_path) > snapshot_index)
 
@@ -3116,7 +3116,7 @@ fi
 
         for op in ops:
             wait(lambda: get("//sys/scheduler/orchid/scheduler/operations/{}/state".format(op.id)) == "running")
-            wait(lambda: get(get_new_operation_cypress_path(op.id) + "/@state") == "running")
+            wait(lambda: get(get_operation_cypress_path(op.id) + "/@state") == "running")
             assert op.get_job_count("failed") == 1
 
     def test_attributes(self):
@@ -3148,12 +3148,12 @@ fi
         wait(lambda: get(state_path) == "running")
         time.sleep(1.0)  # Give scheduler some time to dump attributes to cypress.
 
-        assert get(get_new_operation_cypress_path(op.id) + "/@state") == "running"
         assert get(get_operation_cypress_path(op.id) + "/@state") == "running"
+        assert get("//sys/operations/" + op.id + "/@state") == "running"
         complete_op(op.id, authenticated_user="u")
         # NOTE: This attribute is moved to hash buckets unconditionally in all modes.
-        assert not exists(get_operation_cypress_path(op.id) + "/@committed")
-        assert exists(get_new_operation_cypress_path(op.id) + "/@committed")
+        assert not exists("//sys/operations/" + op.id + "/@committed")
+        assert exists(get_operation_cypress_path(op.id) + "/@committed")
 
     def test_runtime_params(self):
         create("table", "//tmp/t_input")
@@ -3166,11 +3166,11 @@ fi
             out="//tmp/t_output",
             dont_track=True)
 
-        jobs_path = get_new_operation_cypress_path(op.id) + "/controller_orchid/running_jobs"
+        jobs_path = get_operation_cypress_path(op.id) + "/controller_orchid/running_jobs"
         wait(lambda: exists(jobs_path) and len(ls(jobs_path)) == 1)
 
-        set(get_operation_cypress_path(op.id) + "/@resource_limits", {"user_slots": 1})
-        set(get_new_operation_cypress_path(op.id) + "/@resource_limits", {"user_slots": 3})
+        set("//sys/operations/" + op.id + "/@resource_limits", {"user_slots": 1})
+        set(get_operation_cypress_path(op.id) + "/@resource_limits", {"user_slots": 3})
 
         orchid_path = "//sys/scheduler/orchid/scheduler/operations/{0}/progress/resource_limits/user_slots".format(op.id)
         wait(lambda: get(orchid_path) == 1)
@@ -3207,16 +3207,16 @@ fi
 
             return op
 
-        get_async_scheduler_tx_path = lambda op: get_operation_cypress_path(op.id) + "/@async_scheduler_transaction_id"
-        get_async_scheduler_tx_path_new = lambda op: get_new_operation_cypress_path(op.id) + "/@async_scheduler_transaction_id"
+        get_async_scheduler_tx_path = lambda op: "//sys/operations/" + op.id + "/@async_scheduler_transaction_id"
+        get_async_scheduler_tx_path_new = lambda op: get_operation_cypress_path(op.id) + "/@async_scheduler_transaction_id"
 
-        get_output_path_new = lambda op: get_new_operation_cypress_path(op.id) + "/output_0"
+        get_output_path_new = lambda op: get_operation_cypress_path(op.id) + "/output_0"
 
-        get_stderr_path = lambda op, job_id: get_operation_cypress_path(op.id) + "/jobs/" + job_id + "/stderr"
-        get_stderr_path_new = lambda op, job_id: get_new_operation_cypress_path(op.id) + "/jobs/" + job_id + "/stderr"
+        get_stderr_path = lambda op, job_id: "//sys/operations/" + op.id + "/jobs/" + job_id + "/stderr"
+        get_stderr_path_new = lambda op, job_id: get_operation_cypress_path(op.id) + "/jobs/" + job_id + "/stderr"
 
-        get_fail_context_path = lambda op, job_id: get_operation_cypress_path(op.id) + "/jobs/" + job_id + "/fail_context"
-        get_fail_context_path_new = lambda op, job_id: get_new_operation_cypress_path(op.id) + "/jobs/" + job_id + "/fail_context"
+        get_fail_context_path = lambda op, job_id: "//sys/operations/" + op.id + "/jobs/" + job_id + "/fail_context"
+        get_fail_context_path_new = lambda op, job_id: get_operation_cypress_path(op.id) + "/jobs/" + job_id + "/fail_context"
 
         # Compatible mode or simple hash buckets mode.
         op = _run_op()
@@ -3225,7 +3225,7 @@ fi
         async_tx_id = get(get_async_scheduler_tx_path(op))
         assert exists(get_output_path_new(op), tx=async_tx_id)
 
-        jobs = ls(get_operation_cypress_path(op.id) + "/jobs")
+        jobs = ls("//sys/operations/" + op.id + "/jobs")
         assert len(jobs) == 1
         assert exists(get_fail_context_path_new(op, jobs[0]))
         assert exists(get_fail_context_path(op, jobs[0]))
@@ -3269,16 +3269,16 @@ class TestSchedulerOperationStorageArchivation(YTEnvSetup):
 
         op = self._run_op()
         clean_operations(client)
+        assert not exists("//sys/operations/" + op.id)
         assert not exists(get_operation_cypress_path(op.id))
-        assert not exists(get_new_operation_cypress_path(op.id))
         _check_attributes(op)
 
     def test_get_job_stderr(self):
         client = self.Env.create_native_client()
 
         op = self._run_op()
-        jobs_old = ls(get_operation_cypress_path(op.id) + "/jobs")
-        jobs_new = ls(get_new_operation_cypress_path(op.id) + "/jobs")
+        jobs_old = ls("//sys/operations/" + op.id + "/jobs")
+        jobs_new = ls(get_operation_cypress_path(op.id) + "/jobs")
         assert __builtin__.set(jobs_old) == __builtin__.set(jobs_new)
         job_id = jobs_new[-1]
 
@@ -3324,7 +3324,7 @@ class TestControllerMemoryUsage(YTEnvSetup):
                  })
         time.sleep(2)
 
-        usage_before = get(op._get_new_operation_path() + "/controller_orchid/memory_usage")
+        usage_before = get(op.get_path() + "/controller_orchid/memory_usage")
         # Normal controller footprint should not exceed a few megabytes.
         assert usage_before < 2 * 10**6
         print >>sys.stderr, "usage_before =", usage_before
@@ -3345,7 +3345,7 @@ class TestControllerMemoryUsage(YTEnvSetup):
 
         # After all jobs are finished, controller should contain at least 40 pairs of boundary keys of length 250kb,
         # resulting in about 20mb of memory.
-        wait(lambda: get(op._get_new_operation_path() + "/controller_orchid/memory_usage") > 15 * 10**6)
+        wait(lambda: get(op.get_path() + "/controller_orchid/memory_usage") > 15 * 10**6)
 
         op.track()
 
@@ -3415,7 +3415,7 @@ class TestPorts(YTEnvSetup):
         release_breakpoint()
         op.track()
 
-        stderr = read_file(op._get_new_operation_path() + "/jobs/" + jobs[0] + "/stderr")
+        stderr = read_file(op.get_path() + "/jobs/" + jobs[0] + "/stderr")
         assert "FAILED" not in stderr
         ports = __builtin__.map(int, stderr.split())
         assert len(ports) == 2
@@ -3434,12 +3434,12 @@ class TestPorts(YTEnvSetup):
                 }
             })
 
-        jobs_path = op._get_new_operation_path() + "/jobs"
+        jobs_path = op.get_path() + "/jobs"
         assert exists(jobs_path)
         jobs = ls(jobs_path)
         assert len(jobs) == 1
 
-        stderr = read_file(op._get_new_operation_path() + "/jobs/" + jobs[0] + "/stderr")
+        stderr = read_file(op.get_path() + "/jobs/" + jobs[0] + "/stderr")
         assert "FAILED" not in stderr
         ports = __builtin__.map(int, stderr.split())
         assert len(ports) == 2

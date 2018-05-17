@@ -1114,7 +1114,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
             })
 
         sleep(1.0)
-        assert "job_splitter" in get(op._get_new_operation_path() + "/controller_orchid", verbose=False)
+        assert "job_splitter" in get(op.get_path() + "/controller_orchid", verbose=False)
 
         op.track()
 
