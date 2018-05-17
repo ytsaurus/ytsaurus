@@ -117,7 +117,16 @@ namespace NDetail {
 
 TString GetFilterFactors(const TArchiveOperationRequest& request)
 {
-    auto briefSpecMapNode = ConvertToNode(request.BriefSpec)->AsMap();
+    auto dropYPathAttributes = [] (const TString& path) -> TString {
+        try {
+            auto parsedPath = NYPath::TRichYPath::Parse(path);
+            return parsedPath.GetPath();
+        } catch (const std::exception& ex) {
+            return "";
+        }
+    };
+
+    auto specMapNode = ConvertToNode(request.Spec)->AsMap();
 
     std::vector<TString> parts;
     parts.push_back(ToString(request.Id));
@@ -126,18 +135,31 @@ TString GetFilterFactors(const TArchiveOperationRequest& request)
     parts.push_back(FormatEnum(request.OperationType));
 
     for (const auto& key : {"pool", "title"}) {
-        auto node = briefSpecMapNode->FindChild(key);
+        auto node = specMapNode->FindChild(key);
         if (node) {
             parts.push_back(node->AsString()->GetValue());
         }
     }
 
     for (const auto& key : {"input_table_paths", "output_table_paths"}) {
-        auto node = briefSpecMapNode->FindChild(key);
+        auto node = specMapNode->FindChild(key);
         if (node) {
             auto listNode = node->AsList();
             for (const auto& child : listNode->GetChildren()) {
-                parts.push_back(child->AsString()->GetValue());
+                auto path = dropYPathAttributes(child->AsString()->GetValue());
+                if (!path.empty()) {
+                    parts.push_back(path);
+                }
+            }
+        }
+    }
+
+    for (const auto& key : {"output_table_path", "table_path"}) {
+        auto node = specMapNode->FindChild(key);
+        if (node) {
+            auto path = dropYPathAttributes(node->AsString()->GetValue());
+            if (!path.empty()) {
+                parts.push_back(path);
             }
         }
     }
