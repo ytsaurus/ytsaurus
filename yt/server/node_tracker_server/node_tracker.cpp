@@ -381,6 +381,8 @@ public:
         EnsureNodeDisposed(node);
 
         RemoveFromAddressMaps(node);
+
+        RecomputePendingRegisterNodeMutationCounters();
     }
 
     TNode* FindNode(TNodeId id)
@@ -928,6 +930,10 @@ private:
 
         if (Bootstrap_->IsPrimaryMaster() && IsLeader()) {
             YCHECK(PendingRegisterNodeAddreses_.erase(address) == 1);
+            auto groups = GetGroupsForNode(address);
+            for (auto* group : groups) {
+                --group->PendingRegisterNodeMutationCount;
+            }
         }
 
         // Check lease transaction.
@@ -979,7 +985,6 @@ private:
             leaseTransactionId,
             statistics);
 
-        UpdateNodeCounters(node, -1);
         node->SetLocalState(ENodeState::Registered);
         node->SetNodeTags(tags);
         UpdateNodeCounters(node, +1);
@@ -1758,6 +1763,12 @@ private:
 
     void OnConfigChanged()
     {
+        RebuildNodeGroups();
+        RecomputePendingRegisterNodeMutationCounters();
+    }
+
+    void RebuildNodeGroups()
+    {
         for (const auto& pair : NodeMap_) {
             auto* node = pair.second;
             UpdateNodeCounters(node, -1);
@@ -1784,6 +1795,13 @@ private:
         for (const auto& pair : NodeMap_) {
             auto* node = pair.second;
             UpdateNodeCounters(node, +1);
+        }
+    }
+
+    void RecomputePendingRegisterNodeMutationCounters()
+    {
+        for (auto& group : NodeGroups_) {
+            group.PendingRegisterNodeMutationCount = 0;
         }
 
         for (const auto& address : PendingRegisterNodeAddreses_) {
