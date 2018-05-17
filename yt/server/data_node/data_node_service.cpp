@@ -646,15 +646,19 @@ private:
         auto chunk = chunkRegistry->GetChunkOrThrow(chunkId);
 
         auto asyncChunkMeta = chunk->ReadMeta(workloadDescriptor, extensionTags);
-        context->ReplyFrom(asyncChunkMeta.Apply(BIND([=] (const TRefCountedChunkMetaPtr& meta) {
-            if (context->IsCanceled()) {
-                throw TFiberCanceledException();
+        asyncChunkMeta.Subscribe(BIND([=] (const TErrorOr<TRefCountedChunkMetaPtr>& metaOrError) {
+            if (!metaOrError.IsOK()) {
+                context->Reply(metaOrError);
+                return;
             }
 
+            const auto& meta = *metaOrError.Value();
             *context->Response().mutable_chunk_meta() = partitionTag
-                ? FilterChunkMetaByPartitionTag(*meta, *partitionTag)
+                ? FilterChunkMetaByPartitionTag(meta, *partitionTag)
                 : static_cast<TChunkMeta>(meta);
-        }).Via(MetaProcessorThread_->GetInvoker())));
+
+            context->Reply();
+        }).Via(MetaProcessorThread_->GetInvoker()));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, GetChunkSlices)
@@ -709,10 +713,6 @@ private:
         }
 
         context->ReplyFrom(Combine(asyncResults).Apply(BIND([=] () {
-            if (context->IsCanceled()) {
-                throw TFiberCanceledException();
-            }
-
             if (keySetWriter) {
                 response->set_keys_in_attachment(true);
                 response->Attachments().emplace_back(keySetWriter->Finish());
@@ -841,10 +841,6 @@ private:
         }
 
         context->ReplyFrom(Combine(asyncResults).Apply(BIND([=] () {
-            if (context->IsCanceled()) {
-                throw TFiberCanceledException();
-            }
-
             if (keySetWriter) {
                 response->set_keys_in_attachment(true);
                 response->Attachments().emplace_back(keySetWriter->Finish());
