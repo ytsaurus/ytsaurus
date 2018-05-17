@@ -13,7 +13,8 @@ class TProfileManager;
 class TResourceTracker;
 
 class TTimer;
-class TSimpleCounter;
+class TMonotonicCounter;
+class TSimpleGauge;
 class TAggregateCounter;
 
 struct TQueuedSample;

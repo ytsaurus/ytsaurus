@@ -1185,9 +1185,9 @@ private:
     TProfiler TotalResourceLimitsProfiler_;
     TProfiler TotalResourceUsageProfiler_;
 
-    TSimpleCounter TotalCompletedJobTimeCounter_;
-    TSimpleCounter TotalFailedJobTimeCounter_;
-    TSimpleCounter TotalAbortedJobTimeCounter_;
+    TMonotonicCounter TotalCompletedJobTimeCounter_;
+    TMonotonicCounter TotalFailedJobTimeCounter_;
+    TMonotonicCounter TotalAbortedJobTimeCounter_;
 
     TEnumIndexedVector<TTagId, EJobState> JobStateToTag_;
     TEnumIndexedVector<TTagId, EJobType> JobTypeToTag_;

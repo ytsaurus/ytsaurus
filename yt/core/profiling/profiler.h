@@ -146,18 +146,32 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! A rudimentary but much cheaper version of TAggregateCounter capable of
-//! maintaining just the value itself but not any of its aggregates.
-class TSimpleCounter
+//! Measures rate of events.
+class TMonotonicCounter
     : public TCounterBase
 {
 public:
-    TSimpleCounter(
+    TMonotonicCounter(
         const NYPath::TYPath& path = NYPath::TYPath(),
         const TTagIdList& tagIds = EmptyTagIds,
         TDuration interval = TDuration::MilliSeconds(1000));
-    TSimpleCounter(const TSimpleCounter& other);
-    TSimpleCounter& operator = (const TSimpleCounter& other);
+    TMonotonicCounter(const TMonotonicCounter& other);
+    TMonotonicCounter& operator = (const TMonotonicCounter& other);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Exports single value as-is.
+class TSimpleGauge
+    : public TCounterBase
+{
+public:
+    TSimpleGauge(
+        const NYPath::TYPath& path = NYPath::TYPath(),
+        const TTagIdList& tagIds = EmptyTagIds,
+        TDuration interval = TDuration::MilliSeconds(1000));
+    TSimpleGauge(const TSimpleGauge& other);
+    TSimpleGauge& operator = (const TSimpleGauge& other);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -233,17 +247,13 @@ public:
 
     //! Updates the counter value and possibly enqueues samples.
     void Update(TAggregateCounter& counter, TValue value) const;
-
-    //! Increments the counter value and possibly enqueues aggregate samples.
-    //! Returns the incremented value.
     TValue Increment(TAggregateCounter& counter, TValue delta = 1) const;
 
-    //! Updates the counter value and possibly enqueues samples.
-    void Update(TSimpleCounter& counter, TValue value) const;
+    void Update(TSimpleGauge& counter, TValue value) const;
+    TValue Increment(TSimpleGauge& counter, TValue value = 1) const;
 
-    //! Increments the counter value and possibly enqueues a sample.
-    //! Returns the incremented value.
-    TValue Increment(TSimpleCounter& counter, TValue delta = 1) const;
+    void Reset(TMonotonicCounter& counter) const;
+    TValue Increment(TMonotonicCounter& counter, TValue delta = 1) const;
 
 private:
     bool SelfProfiling_;
@@ -252,7 +262,7 @@ private:
     bool IsCounterEnabled(const TCounterBase& counter) const;
 
     void OnUpdated(TAggregateCounter& counter, TValue value) const;
-    void OnUpdated(TSimpleCounter& counter) const;
+    void OnUpdated(TCounterBase& counter, EMetricType metricType) const;
 
     TDuration DoTimingCheckpoint(
         TTimer& timer,

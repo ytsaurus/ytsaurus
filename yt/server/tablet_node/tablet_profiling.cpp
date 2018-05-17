@@ -67,9 +67,9 @@ struct TChunkWriteCounters
         , CompressionCpuTime("/chunk_writer/compression_cpu_time", list)
     { }
 
-    TSimpleCounter DiskBytesWritten;
-    TSimpleCounter DiskDataWeightWritten;
-    TSimpleCounter CompressionCpuTime;
+    TMonotonicCounter DiskBytesWritten;
+    TMonotonicCounter DiskDataWeightWritten;
+    TMonotonicCounter CompressionCpuTime;
 };
 
 using TChunkWriteProfilerTrait = TListProfilerTrait<TChunkWriteCounters>;
@@ -101,9 +101,9 @@ struct TChunkReadCounters
         , CompressionCpuTime("/chunk_reader/compression_cpu_time", list)
     { }
 
-    TSimpleCounter CompressedDataSize;
-    TSimpleCounter UnmergedDataWeight;
-    TSimpleCounter CompressionCpuTime;
+    TMonotonicCounter CompressedDataSize;
+    TMonotonicCounter UnmergedDataWeight;
+    TMonotonicCounter CompressionCpuTime;
 };
 
 using TChunkReadProfilerTrait = TListProfilerTrait<TChunkReadCounters>;

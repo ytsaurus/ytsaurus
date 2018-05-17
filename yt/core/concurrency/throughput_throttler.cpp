@@ -165,7 +165,7 @@ private:
     const NLogging::TLogger Logger;
     const NProfiling::TProfiler Profiler;
 
-    NProfiling::TSimpleCounter ValueCounter_;
+    NProfiling::TMonotonicCounter ValueCounter_;
 
     std::atomic<i64> Available_ = {0};
     std::atomic<bool> HasLimit_ = {true};
@@ -309,7 +309,7 @@ public:
 
 private:
     const NProfiling::TProfiler Profiler;
-    NProfiling::TSimpleCounter ValueCounter_;
+    NProfiling::TMonotonicCounter ValueCounter_;
 };
 
 IThroughputThrottlerPtr GetUnlimitedThrottler()

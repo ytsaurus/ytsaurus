@@ -372,8 +372,8 @@ private:
 
     THashSet<TFileChangelogQueuePtr> Queues_;
 
-    TSimpleCounter RecordCounter_;
-    TSimpleCounter ByteCounter_;
+    TMonotonicCounter RecordCounter_;
+    TMonotonicCounter ByteCounter_;
 
 
     void Wakeup()

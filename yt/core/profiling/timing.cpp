@@ -217,7 +217,7 @@ TCpuTimingGuard::~TCpuTimingGuard()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TProfilingTimingGuard::TProfilingTimingGuard(const TProfiler& profiler, TSimpleCounter* counter)
+TProfilingTimingGuard::TProfilingTimingGuard(const TProfiler& profiler, TMonotonicCounter* counter)
     : Profiler_(profiler)
     , Counter_(counter)
     , StartInstant_(GetCpuInstant())

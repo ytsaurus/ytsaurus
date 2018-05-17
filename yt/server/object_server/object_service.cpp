@@ -52,10 +52,10 @@ using namespace NCellMaster;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Profiler = ObjectServerProfiler;
-static NProfiling::TSimpleCounter CumulativeReadRequestTimeCounter("/cumulative_read_request_time");
-static NProfiling::TSimpleCounter CumulativeMutationScheduleTimeCounter("/cumulative_mutation_schedule_time");
-static NProfiling::TSimpleCounter ReadRequestCounter("/read_request_count");
-static NProfiling::TSimpleCounter WriteRequestCounter("/write_request_count");
+static NProfiling::TMonotonicCounter CumulativeReadRequestTimeCounter("/cumulative_read_request_time");
+static NProfiling::TMonotonicCounter CumulativeMutationScheduleTimeCounter("/cumulative_mutation_schedule_time");
+static NProfiling::TMonotonicCounter ReadRequestCounter("/read_request_count");
+static NProfiling::TMonotonicCounter WriteRequestCounter("/write_request_count");
 
 ////////////////////////////////////////////////////////////////////////////////
 
