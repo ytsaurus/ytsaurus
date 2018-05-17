@@ -243,7 +243,7 @@ private:
         }
 
         if (!Bootstrap_->GetConfig()->EnableAuthentication) {
-            auto it = AuthenticatedClients_.find("root");
+            auto it = AuthenticatedClients_.find(NSecurityClient:::RootUserName);
             YCHECK(it != AuthenticatedClients_.end());
             return it->second;
         }
