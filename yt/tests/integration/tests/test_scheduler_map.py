@@ -540,7 +540,7 @@ print row + table_index
             spec={"data_size_per_job": 1})
         jobs = wait_breakpoint(job_count=2)
 
-        operation_path = get_new_operation_cypress_path(op.id)
+        operation_path = get_operation_cypress_path(op.id)
         async_transaction_id = get(operation_path + "/@async_scheduler_transaction_id")
         assert exists(operation_path + "/output_0", tx=async_transaction_id)
         assert effective_acl == get(operation_path + "/output_0/@acl", tx=async_transaction_id)
@@ -1022,7 +1022,7 @@ done
             command="sleep 5; echo '{a=1}'",
             dont_track=True)
         time.sleep(2.0)
-        assert len(get(op._get_new_operation_path() + "/controller_orchid/job_splitter")) == 0
+        assert len(get(op.get_path() + "/controller_orchid/job_splitter")) == 0
         op.track()
 
 ##################################################################

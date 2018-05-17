@@ -867,7 +867,7 @@ class TestControllerAgent(YTEnvSetup):
             dont_track=True)
         self._wait_for_state(op, "running")
 
-        snapshot_path = op._get_new_operation_path() + "/snapshot"
+        snapshot_path = op.get_path() + "/snapshot"
         wait(lambda: exists(snapshot_path))
 
         self.Env.kill_controller_agents()

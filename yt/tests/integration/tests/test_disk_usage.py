@@ -65,8 +65,8 @@ class TestDiskUsage(QuotaMixin):
         }
 
         op = map(dont_track=True, **check_op)
-        wait(lambda: exists(op._get_new_operation_path() + "/controller_orchid/progress/jobs"))
-        get_aborted = lambda suffix = "": get(op._get_new_operation_path() + "/controller_orchid/progress/jobs/aborted" + suffix, verbose=False)
+        wait(lambda: exists(op.get_path() + "/controller_orchid/progress/jobs"))
+        get_aborted = lambda suffix = "": get(op.get_path() + "/controller_orchid/progress/jobs/aborted" + suffix, verbose=False)
         wait(lambda: get_aborted("/total"))
         assert get_aborted("/scheduled/other") > 0
         op.abort()
