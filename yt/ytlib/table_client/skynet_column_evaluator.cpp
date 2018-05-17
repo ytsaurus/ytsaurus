@@ -115,6 +115,11 @@ void TSkynetColumnEvaluator::ValidateAndComputeHashes(
 
     UnpackFields(fullRow, &fileName, &data, &partIndex, &sha1, &md5, &dataSize);
 
+    // Skip all validation if sha1 and md5 fields are already present.
+    if (sha1->Type == EValueType::String && md5->Type == EValueType::String) {
+        return;
+    }
+
     bool keySwitched = IsKeySwitched(fullRow, isLastRow);
 
     //! Start new file.
