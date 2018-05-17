@@ -300,10 +300,10 @@ YtCommand.prototype._epilogue = function(result, bytes_in, bytes_out) {
         this.rsp.statusCode = 429;
     }
 
-    if (result.isUserBanned() || result.isRequestQueueSizeLimitExceeded()) {
+    if (result.isUserBanned()) {
         this.sticky_cache.set(this.user, {
             code: this.rsp.statusCode,
-            body: result.toJson()
+            body: YtError("User is banned")
         });
     }
 
