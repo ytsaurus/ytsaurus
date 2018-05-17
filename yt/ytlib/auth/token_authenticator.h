@@ -1,11 +1,11 @@
 #pragma once
 
 #include "public.h"
-#include "blackbox_service.h"
-#include "config.h"
+
+#include <yt/core/actions/public.h>
 
 namespace NYT {
-namespace NBlackbox {
+namespace NAuth {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -28,5 +28,5 @@ ITokenAuthenticatorPtr CreateCachingTokenAuthenticator(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NBlackbox
+} // namespace NAuth
 } // namespace NYT

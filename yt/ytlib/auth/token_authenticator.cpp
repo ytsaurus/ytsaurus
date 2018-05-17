@@ -1,5 +1,7 @@
 #include "token_authenticator.h"
+#include "blackbox_service.h"
 #include "helpers.h"
+#include "config.h"
 #include "private.h"
 
 #include <yt/core/misc/async_expiring_cache.h>
@@ -9,7 +11,7 @@
 #include <util/string/split.h>
 
 namespace NYT {
-namespace NBlackbox {
+namespace NAuth {
 
 using namespace NYTree;
 using namespace NYPath;
@@ -17,7 +19,7 @@ using namespace NCrypto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = BlackboxLogger;
+static const auto& Logger = AuthLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -25,7 +27,9 @@ class TBlackboxTokenAuthenticator
     : public ITokenAuthenticator
 {
 public:
-    TBlackboxTokenAuthenticator(TTokenAuthenticatorConfigPtr config, IBlackboxServicePtr blackbox)
+    TBlackboxTokenAuthenticator(
+        TTokenAuthenticatorConfigPtr config,
+        IBlackboxServicePtr blackbox)
         : Config_(std::move(config))
         , Blackbox_(std::move(blackbox))
     { }
@@ -46,6 +50,10 @@ public:
                 MakeStrong(this),
                 std::move(tokenMD5)));
     }
+
+private:
+    const TTokenAuthenticatorConfigPtr Config_;
+    const IBlackboxServicePtr Blackbox_;
 
 private:
     TFuture<TAuthenticationResult> OnCallResult(const TString& tokenMD5, const INodePtr& data)
@@ -72,7 +80,7 @@ private:
             return TError("Blackbox returned invalid response");
         }
 
-        if (EBlackboxStatusId(statusId.Value()) != EBlackboxStatusId::Valid) {
+        if (EBlackboxStatus(statusId.Value()) != EBlackboxStatus::Valid) {
             auto error = GetByYPath<TString>(data, "/error");
             auto reason = error.IsOK() ? error.Value() : "unknown";
             return TError("Blackbox rejected token")
@@ -117,9 +125,6 @@ private:
         result.Realm = "blackbox:token:" + oauthClientId.Value() + ":" + oauthClientName.Value();
         return result;
     }
-
-    const TTokenAuthenticatorConfigPtr Config_;
-    const IBlackboxServicePtr Blackbox_;
 };
 
 ITokenAuthenticatorPtr CreateBlackboxTokenAuthenticator(
@@ -164,5 +169,5 @@ ITokenAuthenticatorPtr CreateCachingTokenAuthenticator(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NBlackbox
+} // namespace NAuth
 } // namespace NYT

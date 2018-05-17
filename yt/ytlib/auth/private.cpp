@@ -1,14 +1,14 @@
 #include "private.h"
 
 namespace NYT {
-namespace NBlackbox {
+namespace NAuth {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const NLogging::TLogger BlackboxLogger("Blackbox");
+const NLogging::TLogger AuthLogger("Auth");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NBlackbox
+} // namespace NAuth
 } // namespace NYT
 

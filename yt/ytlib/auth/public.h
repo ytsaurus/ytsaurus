@@ -1,12 +1,9 @@
 #pragma once
 
-#include <yt/core/misc/hash.h>
-#include <yt/core/misc/ref_counted.h>
-
-#include <util/generic/string.h>
+#include <yt/core/misc/public.h>
 
 namespace NYT {
-namespace NBlackbox {
+namespace NAuth {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -17,9 +14,30 @@ DECLARE_REFCOUNTED_CLASS(TCookieAuthenticatorConfig)
 DECLARE_REFCOUNTED_CLASS(TCachingCookieAuthenticatorConfig)
 
 DECLARE_REFCOUNTED_STRUCT(IBlackboxService)
-
 DECLARE_REFCOUNTED_STRUCT(ICookieAuthenticator)
 DECLARE_REFCOUNTED_STRUCT(ITokenAuthenticator)
+
+////////////////////////////////////////////////////////////////////////////////
+
+DEFINE_ENUM(EBlackboxStatus,
+    ((Valid)    (0))
+    ((NeedReset)(1))
+    ((Expired)  (2))
+    ((NoAuth)   (3))
+    ((Disabled) (4))
+    ((Invalid)  (5))
+);
+
+DEFINE_ENUM(EBlackboxException,
+    ((Ok)                (0))
+    ((Unknown)           (1))
+    ((InvalidParameters) (2))
+    ((DbFetchFailed)     (9))
+    ((DbException)      (10))
+    ((AccessDenied)     (21))
+);
+
+////////////////////////////////////////////////////////////////////////////////
 
 struct TTokenCredentials
 {
@@ -58,13 +76,13 @@ inline bool operator ==(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NBlackbox
+} // namespace NAuth
 } // namespace NYT
 
 template <>
-struct hash<NYT::NBlackbox::TTokenCredentials>
+struct hash<NYT::NAuth::TTokenCredentials>
 {
-    inline size_t operator()(const NYT::NBlackbox::TTokenCredentials& credentials) const
+    inline size_t operator()(const NYT::NAuth::TTokenCredentials& credentials) const
     {
         size_t result = 0;
         NYT::HashCombine(result, credentials.Token);
@@ -74,9 +92,9 @@ struct hash<NYT::NBlackbox::TTokenCredentials>
 };
 
 template <>
-struct hash<NYT::NBlackbox::TCookieCredentials>
+struct hash<NYT::NAuth::TCookieCredentials>
 {
-    inline size_t operator()(const NYT::NBlackbox::TCookieCredentials& credentials) const
+    inline size_t operator()(const NYT::NAuth::TCookieCredentials& credentials) const
     {
         size_t result = 0;
         NYT::HashCombine(result, credentials.SessionId);

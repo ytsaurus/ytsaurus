@@ -4,7 +4,7 @@
 
 #include <yt/server/misc/config.h>
 
-#include <yt/server/blackbox/config.h>
+#include <yt/ytlib/auth/config.h>
 
 #include <yt/server/rpc_proxy/config.h>
 
@@ -23,9 +23,9 @@ class TCellProxyConfig
 public:
     //! Proxy-to-master connection.
     NApi::TNativeConnectionConfigPtr ClusterConnection;
-    NBlackbox::TDefaultBlackboxServiceConfigPtr Blackbox;
-    NBlackbox::TCookieAuthenticatorConfigPtr CookieAuthenticator;
-    NBlackbox::TCachingTokenAuthenticatorConfigPtr TokenAuthenticator;
+    NAuth::TDefaultBlackboxServiceConfigPtr Blackbox;
+    NAuth::TCookieAuthenticatorConfigPtr CookieAuthenticator;
+    NAuth::TCachingTokenAuthenticatorConfigPtr TokenAuthenticator;
     NRpcProxy::TApiServiceConfigPtr ApiService;
     NRpcProxy::TDiscoveryServiceConfigPtr DiscoveryService;
     //! Known RPC proxy addresses.

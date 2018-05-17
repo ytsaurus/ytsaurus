@@ -2,10 +2,8 @@
 
 #include <yt/core/misc/config.h>
 
-#include <yt/core/ytree/yson_serializable.h>
-
 namespace NYT {
-namespace NBlackbox {
+namespace NAuth {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -95,5 +93,5 @@ DEFINE_REFCOUNTED_TYPE(TCachingCookieAuthenticatorConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NBlackbox
+} // namespace NAuth
 } // namespace NYT
