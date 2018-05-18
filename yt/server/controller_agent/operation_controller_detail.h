@@ -1076,6 +1076,9 @@ private:
 
     NYson::TYsonString BuildInputPathYson(const TJobletPtr& joblet) const;
 
+    void BuildMemoryUsageYson(NYTree::TFluentAny fluent) const;
+    void BuildStateYson(NYTree::TFluentAny fluent) const;
+
     void ProcessFinishedJobResult(std::unique_ptr<TJobSummary> summary, bool suggestCreateJobNodeByStatus);
 
     void InitAutoMergeJobSpecTemplates();
