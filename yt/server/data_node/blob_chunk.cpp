@@ -11,6 +11,7 @@
 
 #include <yt/ytlib/chunk_client/block_cache.h>
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
 #include <yt/ytlib/chunk_client/file_reader.h>
 #include <yt/ytlib/chunk_client/file_writer.h>
 
@@ -68,6 +69,7 @@ bool TBlobChunkBase::IsActive() const
 
 TFuture<TRefCountedChunkMetaPtr> TBlobChunkBase::ReadMeta(
     const TWorkloadDescriptor& workloadDescriptor,
+    NChunkClient::TChunkReaderStatisticsPtr chunkDiskReadStatistis,
     const TNullable<std::vector<int>>& extensionTags)
 {
     VERIFY_THREAD_AFFINITY_ANY();
@@ -85,7 +87,8 @@ TFuture<TRefCountedChunkMetaPtr> TBlobChunkBase::ReadMeta(
                 MakeStrong(this),
                 Passed(std::move(readGuard)),
                 Passed(std::move(cookie)),
-                workloadDescriptor);
+                workloadDescriptor,
+                chunkDiskReadStatistis);
 
             auto priority = workloadDescriptor.GetPriority();
             Location_
@@ -101,7 +104,7 @@ TFuture<TRefCountedChunkMetaPtr> TBlobChunkBase::ReadMeta(
     }));
 }
 
-TFuture<void> TBlobChunkBase::LoadBlocksExt(const TWorkloadDescriptor& workloadDescriptor)
+TFuture<void> TBlobChunkBase::LoadBlocksExt(const TBlockReadOptions& options)
 {
     {
         // Shortcut.
@@ -111,7 +114,7 @@ TFuture<void> TBlobChunkBase::LoadBlocksExt(const TWorkloadDescriptor& workloadD
         }
     }
 
-    return ReadMeta(workloadDescriptor).Apply(
+    return ReadMeta(options.WorkloadDescriptor, options.ChunkReaderStatistics).Apply(
         BIND([=, this_ = MakeStrong(this)] (const TRefCountedChunkMetaPtr& meta) {
             InitBlocksExt(*meta);
         }));
@@ -149,7 +152,8 @@ bool TBlobChunkBase::IsFatalError(const TError& error) const
 void TBlobChunkBase::DoReadMeta(
     TChunkReadGuard /*readGuard*/,
     TCachedChunkMetaCookie cookie,
-    const TWorkloadDescriptor& workloadDescriptor)
+    const TWorkloadDescriptor& workloadDescriptor,
+    NChunkClient::TChunkReaderStatisticsPtr chunkDiskReadStatistis)
 {
     const auto& Profiler = Location_->GetProfiler();
     LOG_DEBUG("Started reading chunk meta (ChunkId: %v, LocationId: %v, WorkloadDescriptor: %v)",
@@ -163,7 +167,7 @@ void TBlobChunkBase::DoReadMeta(
             auto readerCache = Bootstrap_->GetBlobReaderCache();
             auto reader = readerCache->GetReader(this);
             // NB: The reader is synchronous.
-            meta = reader->GetMeta(workloadDescriptor, TReadSessionId())
+            meta = reader->GetMeta(workloadDescriptor, chunkDiskReadStatistis, TReadSessionId())
                 .Get()
                 .ValueOrThrow();
         } catch (const std::exception& ex) {
@@ -185,7 +189,8 @@ void TBlobChunkBase::DoReadMeta(
 
 TFuture<void> TBlobChunkBase::OnBlocksExtLoaded(
     TReadBlockSetSessionPtr session,
-    const TWorkloadDescriptor& workloadDescriptor)
+    const TWorkloadDescriptor& workloadDescriptor,
+    NChunkClient::TChunkReaderStatisticsPtr chunkDiskReadStatistis)
 {
     // Prepare to serve the request: compute pending data size.
     i64 cachedDataSize = 0;
@@ -239,6 +244,7 @@ TFuture<void> TBlobChunkBase::OnBlocksExtLoaded(
             TBlobChunkBase::DoReadBlockSet(
                 session,
                 workloadDescriptor,
+                chunkDiskReadStatistis,
                 std::move(pendingIOGuard));
         }).AsyncVia(GetCurrentInvoker()));
 }
@@ -246,6 +252,7 @@ TFuture<void> TBlobChunkBase::OnBlocksExtLoaded(
 void TBlobChunkBase::DoReadBlockSet(
     TReadBlockSetSessionPtr session,
     const TWorkloadDescriptor& workloadDescriptor,
+    NChunkClient::TChunkReaderStatisticsPtr chunkDiskReadStatistis,
     TPendingIOGuard /*pendingIOGuard*/)
 {
     auto& locationProfiler = Location_->GetProfiler();
@@ -283,6 +290,7 @@ void TBlobChunkBase::DoReadBlockSet(
         // NB: The reader is synchronous.
         auto blocksOrError = WaitFor(reader->ReadBlocks(
             workloadDescriptor,
+            chunkDiskReadStatistis,
             TReadSessionId(),
             firstBlockIndex,
             blocksToRead));
@@ -354,6 +362,8 @@ TFuture<std::vector<TBlock>> TBlobChunkBase::ReadBlockSet(
     session->Entries.resize(blockIndexes.size());
     session->Blocks.resize(blockIndexes.size());
 
+    auto chunkDiskReadStatistis = options.ChunkReaderStatistics;
+
     bool diskFetchNeeded = false;
     std::vector<TFuture<void>> asyncResults;
     for (int localIndex = 0; localIndex < blockIndexes.size(); ++localIndex) {
@@ -366,6 +376,7 @@ TFuture<std::vector<TBlock>> TBlobChunkBase::ReadBlockSet(
             ? options.BlockCache->Find(blockId, EBlockType::CompressedData)
             : TBlock();
         if (block) {
+            chunkDiskReadStatistis->DataBytesReadFromCache += block.Size();
             session->Blocks[entry.LocalIndex] = std::move(block);
             entry.Cached = true;
         } else if (options.FetchFromDisk && options.PopulateCache) {
@@ -374,8 +385,10 @@ TFuture<std::vector<TBlock>> TBlobChunkBase::ReadBlockSet(
             if (!entry.Cookie.IsActive()) {
                 entry.Cached = true;
                 auto asyncCachedBlock = entry.Cookie.GetValue().Apply(
-                    BIND([session, localIndex] (const TCachedBlockPtr& cachedBlock) {
-                        session->Blocks[localIndex] = cachedBlock->GetData();
+                    BIND([session, localIndex, chunkDiskReadStatistis] (const TCachedBlockPtr& cachedBlock) {
+                        auto block = cachedBlock->GetData();
+                        chunkDiskReadStatistis->DataBytesReadFromCache += block.Size();
+                        session->Blocks[localIndex] = std::move(block);
                     }));
                 asyncResults.emplace_back(std::move(asyncCachedBlock));
             }
@@ -401,9 +414,9 @@ TFuture<std::vector<TBlock>> TBlobChunkBase::ReadBlockSet(
                 return lhs.BlockIndex < rhs.BlockIndex;
             });
 
-        auto asyncBlocksExtResult = LoadBlocksExt(options.WorkloadDescriptor);
+        auto asyncBlocksExtResult = LoadBlocksExt(options);
         auto asyncReadResult = asyncBlocksExtResult.Apply(
-            BIND(&TBlobChunkBase::OnBlocksExtLoaded, MakeStrong(this), session, options.WorkloadDescriptor));
+            BIND(&TBlobChunkBase::OnBlocksExtLoaded, MakeStrong(this), session, options.WorkloadDescriptor, chunkDiskReadStatistis));
         asyncResults.push_back(asyncReadResult);
     }
 

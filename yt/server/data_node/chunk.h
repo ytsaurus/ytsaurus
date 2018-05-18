@@ -18,6 +18,7 @@ namespace NDataNode {
 struct TBlockReadOptions
 {
     TWorkloadDescriptor WorkloadDescriptor;
+    NChunkClient::TChunkReaderStatisticsPtr ChunkReaderStatistics;
     NChunkClient::IBlockCachePtr BlockCache;
     bool PopulateCache = false;
     bool FetchFromCache = true;
@@ -63,6 +64,7 @@ struct IChunk
      */
     virtual TFuture<NChunkClient::TRefCountedChunkMetaPtr> ReadMeta(
         const TWorkloadDescriptor& workloadDescriptor,
+        NChunkClient::TChunkReaderStatisticsPtr chunkDiskReadStatistis,
         const TNullable<std::vector<int>>& extensionTags = Null) = 0;
 
     //! Asynchronously reads a set of blocks.

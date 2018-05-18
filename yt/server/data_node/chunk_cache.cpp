@@ -20,6 +20,7 @@
 #include <yt/ytlib/chunk_client/client_block_cache.h>
 #include <yt/ytlib/chunk_client/data_slice_descriptor.h>
 #include <yt/ytlib/chunk_client/data_source.h>
+#include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
 #include <yt/ytlib/chunk_client/file_writer.h>
 #include <yt/ytlib/chunk_client/replication_reader.h>
 #include <yt/ytlib/chunk_client/block_fetcher.h>
@@ -66,6 +67,7 @@ using namespace NApi;
 using namespace NFormats;
 
 using NChunkClient::TDataSliceDescriptor;
+using NChunkClient::TChunkReaderStatistics;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -602,6 +604,7 @@ private:
             auto options = New<TRemoteReaderOptions>();
             options->EnableP2P = true;
 
+            auto chunkDiskReadStatistis = New<TChunkReaderStatistics>();
             auto chunkReader = CreateReplicationReader(
                 Config_->ArtifactCacheReader,
                 options,
@@ -631,6 +634,7 @@ private:
             LOG_DEBUG("Getting chunk meta");
             auto chunkMeta = WaitFor(chunkReader->GetMeta(
                 Config_->ArtifactCacheReader->WorkloadDescriptor,
+                chunkDiskReadStatistis,
                 readSessionId))
                 .ValueOrThrow();
 

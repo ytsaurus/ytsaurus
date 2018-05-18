@@ -10,6 +10,16 @@ namespace NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+#if 0
+// FIXME(savrus) need?
+struct TChunkReadOptions
+{
+    TWorkloadDescriptor WorkloadDescriptor;
+    TChunkReaderStatisticsPtr ChunkReaderStatistics,
+    TReadSessionId ReadSessionId;
+}
+#endif
+
 //! A basic interface for reading chunks from a suitable source.
 struct IChunkReader
     : public virtual TRefCounted
@@ -18,6 +28,7 @@ struct IChunkReader
     //! Returns a collection of blocks, each corresponding to a single given index.
     virtual TFuture<std::vector<TBlock>> ReadBlocks(
         const TWorkloadDescriptor& workloadDescriptor,
+        TChunkReaderStatisticsPtr chunkDiskReadStatistis,
         const TReadSessionId& readSessionId,
         const std::vector<int>& blockIndexes) = 0;
 
@@ -26,6 +37,7 @@ struct IChunkReader
     //! If an empty list of blocks is returned then there are no blocks in the given range.
     virtual TFuture<std::vector<TBlock>> ReadBlocks(
         const TWorkloadDescriptor& workloadDescriptor,
+        TChunkReaderStatisticsPtr chunkDiskReadStatistis,
         const TReadSessionId& readSessionId,
         int firstBlockIndex,
         int blockCount) = 0;
@@ -33,6 +45,7 @@ struct IChunkReader
     //! Asynchronously obtains a meta, possibly filtered by #partitionTag and #extensionTags.
     virtual TFuture<NProto::TChunkMeta> GetMeta(
         const TWorkloadDescriptor& workloadDescriptor,
+        TChunkReaderStatisticsPtr chunkDiskReadStatistis,
         const TReadSessionId& readSessionId,
         const TNullable<int>& partitionTag = Null,
         const TNullable<std::vector<int>>& extensionTags = Null) = 0;

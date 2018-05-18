@@ -8,6 +8,7 @@
 #include <yt/server/cell_node/config.h>
 
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
 
 #include <yt/ytlib/table_client/schemaless_chunk_reader.h>
 #include <yt/ytlib/table_client/name_table.h>
@@ -101,8 +102,10 @@ public:
         static std::vector<int> miscExtension = {
             TProtoExtensionTag<TMiscExt>::Value
         };
+        auto chunkDiskReadStatistis = New<TChunkReaderStatistics>();
         auto asyncChunkMeta = chunkPtr->ReadMeta(
-            skynetWorkload);
+            skynetWorkload,
+            chunkDiskReadStatistis);
         auto chunkMeta = WaitFor(asyncChunkMeta)
             .ValueOrThrow();
 

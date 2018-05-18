@@ -507,10 +507,12 @@ void TPartEncoder::Run()
 TFuture<NProto::TErasurePlacementExt> GetPlacementMeta(
     const IChunkReaderPtr& reader,
     const TWorkloadDescriptor& workloadDescriptor,
+    TChunkReaderStatisticsPtr chunkDiskReadStatistis,
     const TReadSessionId& readSessionId)
 {
     return reader->GetMeta(
         workloadDescriptor,
+        chunkDiskReadStatistis,
         readSessionId,
         Null,
         std::vector<int>{
@@ -610,6 +612,7 @@ TErasureChunkReaderBase::TErasureChunkReaderBase(
 
 TFuture<TChunkMeta> TErasureChunkReaderBase::GetMeta(
     const TWorkloadDescriptor& workloadDescriptor,
+    TChunkReaderStatisticsPtr chunkDiskReadStatistis,
     const TReadSessionId& readSessionId,
     const TNullable<int>& partitionTag,
     const TNullable<std::vector<int>>& extensionTags)
@@ -623,7 +626,7 @@ TFuture<TChunkMeta> TErasureChunkReaderBase::GetMeta(
     }
 
     auto& reader = Readers_[RandomNumber(Readers_.size())];
-    return reader->GetMeta(workloadDescriptor, readSessionId, partitionTag, extensionTags);
+    return reader->GetMeta(workloadDescriptor, chunkDiskReadStatistis, readSessionId, partitionTag, extensionTags);
 }
 
 TChunkId TErasureChunkReaderBase::GetChunkId() const
@@ -633,6 +636,7 @@ TChunkId TErasureChunkReaderBase::GetChunkId() const
 
 TFuture<void> TErasureChunkReaderBase::PreparePlacementMeta(
     const TWorkloadDescriptor& workloadDescriptor,
+    TChunkReaderStatisticsPtr chunkDiskReadStatistis,
     const TReadSessionId& readSessionId)
 {
     if (PlacementExtFuture_) {
@@ -643,7 +647,7 @@ TFuture<void> TErasureChunkReaderBase::PreparePlacementMeta(
         TGuard<TSpinLock> guard(PlacementExtLock_);
 
         if (!PlacementExtFuture_) {
-            PlacementExtFuture_ = GetPlacementMeta(this, workloadDescriptor, readSessionId).Apply(
+            PlacementExtFuture_ = GetPlacementMeta(this, workloadDescriptor, chunkDiskReadStatistis, readSessionId).Apply(
                 BIND(&TErasureChunkReaderBase::OnGotPlacementMeta, MakeStrong(this))
                     .AsyncVia(TDispatcher::Get()->GetReaderInvoker()));
         }

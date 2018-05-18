@@ -6,6 +6,7 @@
 
 #include <yt/ytlib/chunk_client/chunk_reader.h>
 #include <yt/ytlib/chunk_client/dispatcher.h>
+#include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
 
 #include <yt/core/ytree/convert.h>
 
@@ -25,6 +26,7 @@ using namespace NYson;
 using namespace NYTree;
 
 using NYT::FromProto;
+using NChunkClient::TChunkReaderStatistics;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -55,7 +57,7 @@ TFuture<TCachedVersionedChunkMetaPtr> TCachedVersionedChunkMeta::Load(
     TNodeMemoryTracker* memoryTracker)
 {
     auto chunkId = chunkReader->GetChunkId();
-    return chunkReader->GetMeta(workloadDescriptor, readSessionId)
+    return chunkReader->GetMeta(workloadDescriptor, New<TChunkReaderStatistics>(), readSessionId)
         .Apply(BIND([=] (const NChunkClient::NProto::TChunkMeta& chunkMeta) {
             return TCachedVersionedChunkMeta::Create(chunkId, chunkMeta, schema, memoryTracker);
         }));

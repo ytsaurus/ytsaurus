@@ -34,17 +34,20 @@ public:
     // IReader implementation.
     virtual TFuture<std::vector<TBlock>> ReadBlocks(
         const TWorkloadDescriptor& workloadDescriptor,
+        TChunkReaderStatisticsPtr chunkDiskReadStatistis,
         const TReadSessionId& readSessionId,
         const std::vector<int>& blockIndexes) override;
 
     virtual TFuture<std::vector<TBlock>> ReadBlocks(
         const TWorkloadDescriptor& workloadDescriptor,
+        TChunkReaderStatisticsPtr chunkDiskReadStatistis,
         const TReadSessionId& readSessionId,
         int firstBlockIndex,
         int blockCount) override;
 
     virtual TFuture<NProto::TChunkMeta> GetMeta(
         const TWorkloadDescriptor& workloadDescriptor,
+        TChunkReaderStatisticsPtr chunkDiskReadStatistis,
         const TReadSessionId& readSessionId,
         const TNullable<int>& partitionTag = Null,
         const TNullable<std::vector<int>>& extensionTags = Null) override;
@@ -70,22 +73,32 @@ private:
     std::atomic<bool> HasCachedBlocksExt_ = {false};
     TFuture<NProto::TBlocksExt> CachedBlocksExt_;
 
-    TFuture<std::vector<TBlock>> DoReadBlocks(int firstBlockIndex, int blockCount, const TWorkloadDescriptor& workloadDescriptor);
+    TFuture<std::vector<TBlock>> DoReadBlocks(
+        TChunkReaderStatisticsPtr chunkDiskReadStatistis,
+        int firstBlockIndex,
+        int blockCount,
+        const TWorkloadDescriptor& workloadDescriptor);
     std::vector<TBlock> OnDataBlock(
+        TChunkReaderStatisticsPtr chunkDiskReadStatistis,
         int firstBlockIndex,
         int blockCount,
         const TSharedMutableRef& data);
     TFuture<NProto::TChunkMeta> DoGetMeta(
+        TChunkReaderStatisticsPtr chunkDiskReadStatistis,
         const TNullable<int>& partitionTag,
         const TNullable<std::vector<int>>& extensionTags);
-    NProto::TChunkMeta OnMetaDataBlock(const TString& metaFileName, i64 metaFileLength, const TSharedMutableRef& data);
+    NProto::TChunkMeta OnMetaDataBlock(
+        const TString& metaFileName,
+        i64 metaFileLength,
+        TChunkReaderStatisticsPtr chunkDiskReadStatistis,
+        const TSharedMutableRef& data);
     void DumpBrokenBlock(
         int blockIndex,
         const NProto::TBlockInfo& blockInfo,
         const TRef& block) const;
     void DumpBrokenMeta(const TRef& block) const;
 
-    const NProto::TBlocksExt& GetBlockExts();
+    const NProto::TBlocksExt& GetBlockExts(TChunkReaderStatisticsPtr chunkDiskReadStatistis);
     const std::shared_ptr<TFileHandle>& GetDataFile();
 };
 

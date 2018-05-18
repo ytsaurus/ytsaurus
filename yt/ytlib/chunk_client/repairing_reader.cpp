@@ -4,6 +4,7 @@
 #include "erasure_repair.h"
 #include "erasure_helpers.h"
 #include "dispatcher.h"
+#include "chunk_reader_statistics.h"
 
 #include <yt/ytlib/misc/workload.h>
 
@@ -41,17 +42,20 @@ public:
 
     TFuture<TChunkMeta> GetMeta(
         const TWorkloadDescriptor& workloadDescriptor,
+        TChunkReaderStatisticsPtr chunkDiskReadStatistis,
         const TReadSessionId& readSessionId,
         const TNullable<int>& partitionTag,
         const TNullable<std::vector<int>>& extensionTags) override;
 
     virtual TFuture<std::vector<TBlock>> ReadBlocks(
         const TWorkloadDescriptor& workloadDescriptor,
+        TChunkReaderStatisticsPtr chunkDiskReadStatistis,
         const TReadSessionId& readSessionId,
         const std::vector<int>& blockIndexes) override;
 
     virtual TFuture<std::vector<TBlock>> ReadBlocks(
         const TWorkloadDescriptor& workloadDescriptor,
+        TChunkReaderStatisticsPtr chunkDiskReadStatistis,
         const TReadSessionId& readSessionId,
         int firstBlockIndex,
         int blockCount) override;
@@ -69,6 +73,7 @@ private:
 
     TChunkMeta GetMetaAsync(
         const TWorkloadDescriptor& workloadDescriptor,
+        TChunkReaderStatisticsPtr chunkDiskReadStatistis,
         const TNullable<int>& partitionTag,
         const TNullable<std::vector<int>>& extensionTags,
         const TReadSessionId& readSessionId);
@@ -95,6 +100,7 @@ public:
         const TErasurePlacementExt& placementExt,
         const std::vector<int>& blockIndexes,
         const TWorkloadDescriptor& workloadDescriptor,
+        const TChunkReaderStatisticsPtr& chunkDiskReadStatistis,
         const TReadSessionId& readSessionId,
         const TWeakPtr<TRepairingReader>& reader)
         : Codec_(codec)
@@ -104,6 +110,7 @@ public:
         , PlacementExt_(placementExt)
         , BlockIndexes_(blockIndexes)
         , WorkloadDescriptor_(workloadDescriptor)
+        , ChunkReaderStatistics_(chunkDiskReadStatistis)
         , ReadSessionId_(readSessionId)
         , DataBlocksPlacementInParts_(BuildDataBlocksPlacementInParts(BlockIndexes_, PlacementExt_))
         , Reader_(reader)
@@ -130,6 +137,7 @@ private:
     const TErasurePlacementExt PlacementExt_;
     const std::vector<int> BlockIndexes_;
     const TWorkloadDescriptor WorkloadDescriptor_;
+    const TChunkReaderStatisticsPtr ChunkReaderStatistics_;
     const TReadSessionId ReadSessionId_;
     TDataBlocksPlacementInParts DataBlocksPlacementInParts_;
     TWeakPtr<TRepairingReader> Reader_;
@@ -138,7 +146,7 @@ private:
     {
         if (!Config_->EnableAutoRepair) {
             auto reader = CreateRepairingErasureReader(Codec_, TPartIndexList(), Readers_);
-            return WaitFor(reader->ReadBlocks(WorkloadDescriptor_, ReadSessionId_, BlockIndexes_))
+            return WaitFor(reader->ReadBlocks(WorkloadDescriptor_, ChunkReaderStatistics_, ReadSessionId_, BlockIndexes_))
                 .ValueOrThrow();
         }
 
@@ -192,7 +200,7 @@ private:
             }
 
             auto repairingReader = CreateRepairingErasureReader(Codec_, bannedPartIndicesList, readers);
-            auto result = WaitFor(repairingReader->ReadBlocks(WorkloadDescriptor_, ReadSessionId_, BlockIndexes_));
+            auto result = WaitFor(repairingReader->ReadBlocks(WorkloadDescriptor_, ChunkReaderStatistics_, ReadSessionId_, BlockIndexes_));
 
             if (result.IsOK()) {
                 return result.Value();
@@ -238,6 +246,7 @@ TRepairingReader::TRepairingReader(
 
 TFuture<TChunkMeta> TRepairingReader::GetMeta(
     const TWorkloadDescriptor& workloadDescriptor,
+    TChunkReaderStatisticsPtr chunkDiskReadStatistis,
     const TReadSessionId& readSessionId,
     const TNullable<int>& partitionTag,
     const TNullable<std::vector<int>>& extensionTags)
@@ -254,6 +263,7 @@ TFuture<TChunkMeta> TRepairingReader::GetMeta(
         &TRepairingReader::GetMetaAsync,
         MakeStrong(this),
         workloadDescriptor,
+        chunkDiskReadStatistis,
         partitionTag,
         extensionTags,
         readSessionId)
@@ -263,10 +273,11 @@ TFuture<TChunkMeta> TRepairingReader::GetMeta(
 
 TFuture<std::vector<TBlock>> TRepairingReader::ReadBlocks(
     const TWorkloadDescriptor& workloadDescriptor,
+    TChunkReaderStatisticsPtr chunkDiskReadStatistis,
     const TReadSessionId& readSessionId,
     const std::vector<int>& blockIndexes)
 {
-    return PreparePlacementMeta(workloadDescriptor, readSessionId).Apply(
+    return PreparePlacementMeta(workloadDescriptor, chunkDiskReadStatistis, readSessionId).Apply(
         BIND([=, this_ = MakeStrong(this)] () {
             auto session = New<TRepairingReaderSession>(
                 Codec_,
@@ -276,6 +287,7 @@ TFuture<std::vector<TBlock>> TRepairingReader::ReadBlocks(
                 PlacementExt_,
                 blockIndexes,
                 workloadDescriptor,
+                chunkDiskReadStatistis,
                 readSessionId,
                 MakeStrong(this));
             return session->Run();
@@ -284,6 +296,7 @@ TFuture<std::vector<TBlock>> TRepairingReader::ReadBlocks(
 
 TFuture<std::vector<TBlock>> TRepairingReader::ReadBlocks(
     const TWorkloadDescriptor& workloadDescriptor,
+    TChunkReaderStatisticsPtr chunkDiskReadStatistis,
     const TReadSessionId& readSessionId,
     int firstBlockIndex,
     int blockCount)
@@ -373,6 +386,7 @@ TError TRepairingReader::CheckPartReaderIsSlow(int partIndex, i64 bytesReceived,
 
 TChunkMeta TRepairingReader::GetMetaAsync(
     const TWorkloadDescriptor& workloadDescriptor,
+    TChunkReaderStatisticsPtr chunkDiskReadStatistis,
     const TNullable<int>& partitionTag,
     const TNullable<std::vector<int>>& extensionTags,
     const TReadSessionId& readSessionId)
@@ -387,7 +401,7 @@ TChunkMeta TRepairingReader::GetMetaAsync(
         if (!Readers_[index]->IsValid()) {
             continue;
         }
-        auto result = WaitFor(Readers_[index]->GetMeta(workloadDescriptor, readSessionId, partitionTag, extensionTags));
+        auto result = WaitFor(Readers_[index]->GetMeta(workloadDescriptor, chunkDiskReadStatistis, readSessionId, partitionTag, extensionTags));
         if (result.IsOK()) {
             return result.Value();
         }

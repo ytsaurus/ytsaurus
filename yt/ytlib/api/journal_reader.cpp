@@ -10,6 +10,7 @@
 #include <yt/ytlib/chunk_client/read_limit.h>
 #include <yt/ytlib/chunk_client/replication_reader.h>
 #include <yt/ytlib/chunk_client/helpers.h>
+#include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
 
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
 
@@ -218,6 +219,7 @@ private:
 
             auto rowsOrError = WaitFor(CurrentChunkReader_->ReadBlocks(
                 Config_->WorkloadDescriptor,
+                New<TChunkReaderStatistics>(),
                 TReadSessionId(),
                 CurrentRowIndex_,
                 EndRowIndex_ - CurrentRowIndex_));

@@ -16,6 +16,7 @@
 #include <yt/ytlib/chunk_client/multi_reader_base.h>
 #include <yt/ytlib/chunk_client/helpers.h>
 #include <yt/ytlib/chunk_client/reader_factory.h>
+#include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
 
 #include <yt/ytlib/node_tracker_client/node_directory.h>
 
@@ -38,6 +39,7 @@ using namespace NNodeTrackerClient;
 using namespace NTableClient;
 
 using NChunkClient::TDataSliceDescriptor;
+using NChunkClient::TChunkReaderStatistics;
 using NYT::TRange;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -167,7 +169,7 @@ private:
     {
         LOG_INFO("Requesting chunk meta");
 
-        auto metaOrError = WaitFor(ChunkReader_->GetMeta(Config_->WorkloadDescriptor, ReadSessionId_));
+        auto metaOrError = WaitFor(ChunkReader_->GetMeta(Config_->WorkloadDescriptor, New<TChunkReaderStatistics>(), ReadSessionId_));
         THROW_ERROR_EXCEPTION_IF_FAILED(metaOrError, "Failed to get file chunk meta");
 
         LOG_INFO("Chunk meta received");

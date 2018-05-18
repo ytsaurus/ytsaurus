@@ -8,6 +8,8 @@
 
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/chunk_reader.h>
+#include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
+#include <yt/ytlib/chunk_client/chunk_service_proxy.h>
 #include <yt/ytlib/chunk_client/chunk_writer.h>
 #include <yt/ytlib/chunk_client/client_block_cache.h>
 #include <yt/ytlib/chunk_client/data_statistics.h>
@@ -16,7 +18,6 @@
 #include <yt/ytlib/chunk_client/helpers.h>
 #include <yt/ytlib/chunk_client/replication_reader.h>
 #include <yt/ytlib/chunk_client/replication_writer.h>
-#include <yt/ytlib/chunk_client/chunk_service_proxy.h>
 
 #include <yt/ytlib/job_proxy/helpers.h>
 
@@ -51,6 +52,7 @@ using namespace NErasure;
 
 using NJobTrackerClient::TStatistics;
 using NChunkClient::TDataSliceDescriptor;
+using NChunkClient::TChunkReaderStatistics;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -71,6 +73,7 @@ public:
         , WriterConfig_(Host_->GetJobSpecHelper()->GetJobIOConfig()->TableWriter)
         , RemoteCopyQueue_(New<TActionQueue>("RemoteCopy"))
         , CopySemaphore_(New<TAsyncSemaphore>(RemoteCopyJobSpecExt_.concurrency()))
+        , ChunkReaderStatistics_(New<TChunkReaderStatistics>())
         , ReadSessionId_(TReadSessionId::Create())
     {
         YCHECK(SchedulerJobSpecExt_.input_table_specs_size() == 1);
@@ -245,6 +248,7 @@ private:
     const TActionQueuePtr RemoteCopyQueue_;
     TAsyncSemaphorePtr CopySemaphore_;
 
+    const TChunkReaderStatisticsPtr ChunkReaderStatistics_;
     const TReadSessionId ReadSessionId_;
 
     NChunkClient::TSessionId CreateOutputChunk(const TChunkSpec& inputChunkSpec)
@@ -499,6 +503,7 @@ private:
 
             auto asyncResult = reader->ReadBlocks(
                 ReaderConfig_->WorkloadDescriptor,
+                ChunkReaderStatistics_,
                 ReadSessionId_,
                 beginBlockIndex,
                 endBlockIndex - beginBlockIndex);
@@ -538,7 +543,7 @@ private:
     // Request input chunk meta. Input and output chunk metas are the same.
     TChunkMeta GetChunkMeta(IChunkReaderPtr reader)
     {
-        auto asyncResult = reader->GetMeta(ReaderConfig_->WorkloadDescriptor, ReadSessionId_);
+        auto asyncResult = reader->GetMeta(ReaderConfig_->WorkloadDescriptor, ChunkReaderStatistics_, ReadSessionId_);
         auto result = WaitFor(asyncResult);
         if (!result.IsOK()) {
             FailedChunkId_ = reader->GetChunkId();
