@@ -300,10 +300,13 @@ void TBlockFetcher::RequestBlocks(
 
     TotalRemainingSize_ -= uncompressedSize;
 
+    TClientBlockReadOptions options;
+    options.WorkloadDescriptor = Config_->WorkloadDescriptor;
+    options.ChunkReaderStatistics = New<TChunkReaderStatistics>(); //FIXME(savrus) pass correct value here
+    options.ReadSessionId = ReadSessionId_;
+
     auto blocksOrError = WaitFor(ChunkReader_->ReadBlocks(
-        Config_->WorkloadDescriptor,
-        New<TChunkReaderStatistics>(), //FIXME
-        ReadSessionId_,
+        options,
         blockIndexes));
 
     if (!blocksOrError.IsOK()) {

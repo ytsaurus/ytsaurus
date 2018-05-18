@@ -451,7 +451,7 @@ private:
             }
         }
 
-        auto chunkDiskReadStatistis = New<TChunkReaderStatistics>();
+        auto chunkReaderStatistics = New<TChunkReaderStatistics>();
 
         if (fetchFromCache || fetchFromDisk) {
             TBlockReadOptions options;
@@ -460,7 +460,7 @@ private:
             options.BlockCache = Bootstrap_->GetBlockCache();
             options.FetchFromCache = fetchFromCache && !netThrottling;
             options.FetchFromDisk = fetchFromDisk && !netThrottling && !diskThrottling;
-            options.ChunkReaderStatistics = chunkDiskReadStatistis;
+            options.ChunkReaderStatistics = chunkReaderStatistics;
 
             auto chunkBlockManager = Bootstrap_->GetChunkBlockManager();
             auto asyncBlocks = chunkBlockManager->ReadBlockSet(
@@ -480,7 +480,7 @@ private:
             SetRpcAttachedBlocks(response, blocks);
         }
 
-        ToProto(response->mutable_disk_read_statistics(), chunkDiskReadStatistis);
+        ToProto(response->mutable_disk_read_statistics(), chunkReaderStatistics);
 
         int blocksWithData = 0;
         for (const auto& block : response->Attachments()) {
@@ -574,7 +574,7 @@ private:
                 context->GetEndpointAttributes().Get("network", DefaultNetworkName));
         }
 
-        auto chunkDiskReadStatistis = New<TChunkReaderStatistics>();
+        auto chunkReaderStatistics = New<TChunkReaderStatistics>();
 
         if (fetchFromCache || fetchFromDisk) {
             TBlockReadOptions options;
@@ -583,7 +583,7 @@ private:
             options.BlockCache = Bootstrap_->GetBlockCache();
             options.FetchFromCache = fetchFromCache && !netThrottling;
             options.FetchFromDisk = fetchFromDisk && !netThrottling && !diskThrottling;
-            options.ChunkReaderStatistics = chunkDiskReadStatistis;
+            options.ChunkReaderStatistics = chunkReaderStatistics;
 
             auto chunkBlockManager = Bootstrap_->GetChunkBlockManager();
             auto asyncBlocks = chunkBlockManager->ReadBlockRange(
@@ -597,7 +597,7 @@ private:
             SetRpcAttachedBlocks(response, blocks);
         }
 
-        ToProto(response->mutable_disk_read_statistics(), chunkDiskReadStatistis);
+        ToProto(response->mutable_disk_read_statistics(), chunkReaderStatistics);
 
         int blocksWithData = static_cast<int>(response->Attachments().size());
         i64 blocksSize = GetByteSize(response->Attachments());
@@ -656,11 +656,13 @@ private:
 
         auto chunkRegistry = Bootstrap_->GetChunkRegistry();
         auto chunk = chunkRegistry->GetChunkOrThrow(chunkId);
-        auto chunkDiskReadStatistis = New<TChunkReaderStatistics>();
+
+        TBlockReadOptions options;
+        options.WorkloadDescriptor = workloadDescriptor;
+        options.ChunkReaderStatistics = New<TChunkReaderStatistics>();
 
         auto asyncChunkMeta = chunk->ReadMeta(
-            workloadDescriptor,
-            chunkDiskReadStatistis,
+            options,
             extensionTags);
 
         context->ReplyFrom(asyncChunkMeta.Apply(BIND([=] (const TRefCountedChunkMetaPtr& meta) {
@@ -671,7 +673,7 @@ private:
             *response->mutable_chunk_meta() = partitionTag
                 ? FilterChunkMetaByPartitionTag(*meta, *partitionTag)
                 : static_cast<TChunkMeta>(*meta);
-            ToProto(response->mutable_disk_read_statistics(), chunkDiskReadStatistis);
+            ToProto(response->mutable_disk_read_statistics(), options.ChunkReaderStatistics);
         }).AsyncVia(MetaProcessorThread_->GetInvoker())));
     }
 
@@ -712,8 +714,11 @@ private:
                 continue;
             }
 
-            auto chunkDiskReadStatistis = New<TChunkReaderStatistics>();
-            auto asyncResult = chunk->ReadMeta(workloadDescriptor, chunkDiskReadStatistis);
+            TBlockReadOptions options;
+            options.WorkloadDescriptor = workloadDescriptor;
+            options.ChunkReaderStatistics = New<TChunkReaderStatistics>();
+
+            auto asyncResult = chunk->ReadMeta(options);
             asyncResults.push_back(asyncResult.Apply(
                 BIND(
                     &TDataNodeService::MakeChunkSlices,
@@ -845,8 +850,11 @@ private:
                 continue;
             }
 
-            auto chunkDiskReadStatistis = New<TChunkReaderStatistics>();
-            auto asyncChunkMeta = chunk->ReadMeta(workloadDescriptor, chunkDiskReadStatistis);
+            TBlockReadOptions options;
+            options.WorkloadDescriptor = workloadDescriptor;
+            options.ChunkReaderStatistics = New<TChunkReaderStatistics>();
+
+            auto asyncChunkMeta = chunk->ReadMeta(options);
             asyncResults.push_back(asyncChunkMeta.Apply(
                 BIND(
                     &TDataNodeService::ProcessSample,

@@ -30,8 +30,7 @@ public:
     virtual bool IsActive() const override;
 
     virtual TFuture<NChunkClient::TRefCountedChunkMetaPtr> ReadMeta(
-        const TWorkloadDescriptor& workloadDescriptor,
-        NChunkClient::TChunkReaderStatisticsPtr chunkDiskReadStatistis,
+        const TBlockReadOptions& options,
         const TNullable<std::vector<int>>& extensionTags = Null) override;
 
     virtual TFuture<std::vector<NChunkClient::TBlock>> ReadBlockSet(
@@ -68,6 +67,7 @@ private:
 
         std::vector<TBlockEntry> Entries;
         std::vector<NChunkClient::TBlock> Blocks;
+        TBlockReadOptions Options;
     };
 
     using TReadBlockSetSessionPtr = TIntrusivePtr<TReadBlockSetSession>;
@@ -90,16 +90,10 @@ private:
     void DoReadMeta(
         TChunkReadGuard readGuard,
         TCachedChunkMetaCookie cookie,
-        const TWorkloadDescriptor& workloadDescriptor,
-        NChunkClient::TChunkReaderStatisticsPtr chunkDiskReadStatistis);
-    TFuture<void> OnBlocksExtLoaded(
-        TReadBlockSetSessionPtr session,
-        const TWorkloadDescriptor& workloadDescriptor,
-        NChunkClient::TChunkReaderStatisticsPtr chunkDiskReadStatistis);
+        const TBlockReadOptions& options);
+    TFuture<void> OnBlocksExtLoaded(TReadBlockSetSessionPtr session);
     void DoReadBlockSet(
         TReadBlockSetSessionPtr session,
-        const TWorkloadDescriptor& workloadDescriptor,
-        NChunkClient::TChunkReaderStatisticsPtr chunkDiskReadStatistis,
         TPendingIOGuard pendingIOGuard);
 };
 

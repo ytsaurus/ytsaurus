@@ -604,7 +604,6 @@ private:
             auto options = New<TRemoteReaderOptions>();
             options->EnableP2P = true;
 
-            auto chunkDiskReadStatistis = New<TChunkReaderStatistics>();
             auto chunkReader = CreateReplicationReader(
                 Config_->ArtifactCacheReader,
                 options,
@@ -632,10 +631,14 @@ private:
                 .ThrowOnError();
 
             LOG_DEBUG("Getting chunk meta");
+
+            TClientBlockReadOptions blockReadOptions;
+            blockReadOptions.WorkloadDescriptor = Config_->ArtifactCacheReader->WorkloadDescriptor;
+            blockReadOptions.ChunkReaderStatistics = New<TChunkReaderStatistics>();
+            blockReadOptions.ReadSessionId = readSessionId;
+
             auto chunkMeta = WaitFor(chunkReader->GetMeta(
-                Config_->ArtifactCacheReader->WorkloadDescriptor,
-                chunkDiskReadStatistis,
-                readSessionId))
+                blockReadOptions))
                 .ValueOrThrow();
 
             // Download all blocks.

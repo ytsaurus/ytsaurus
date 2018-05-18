@@ -5,20 +5,19 @@
 
 #include <yt/core/actions/future.h>
 
+#include <yt/ytlib/misc/workload.h>
+
 namespace NYT {
 namespace NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#if 0
-// FIXME(savrus) need?
-struct TChunkReadOptions
+struct TClientBlockReadOptions
 {
     TWorkloadDescriptor WorkloadDescriptor;
-    TChunkReaderStatisticsPtr ChunkReaderStatistics,
+    TChunkReaderStatisticsPtr ChunkReaderStatistics;
     TReadSessionId ReadSessionId;
-}
-#endif
+};
 
 //! A basic interface for reading chunks from a suitable source.
 struct IChunkReader
@@ -27,26 +26,20 @@ struct IChunkReader
     //! Asynchronously reads a given set of blocks.
     //! Returns a collection of blocks, each corresponding to a single given index.
     virtual TFuture<std::vector<TBlock>> ReadBlocks(
-        const TWorkloadDescriptor& workloadDescriptor,
-        TChunkReaderStatisticsPtr chunkDiskReadStatistis,
-        const TReadSessionId& readSessionId,
+        const TClientBlockReadOptions& options,
         const std::vector<int>& blockIndexes) = 0;
 
     //! Asynchronously reads a given range of blocks.
     //! The call may return less blocks than requested.
     //! If an empty list of blocks is returned then there are no blocks in the given range.
     virtual TFuture<std::vector<TBlock>> ReadBlocks(
-        const TWorkloadDescriptor& workloadDescriptor,
-        TChunkReaderStatisticsPtr chunkDiskReadStatistis,
-        const TReadSessionId& readSessionId,
+        const TClientBlockReadOptions& options,
         int firstBlockIndex,
         int blockCount) = 0;
 
     //! Asynchronously obtains a meta, possibly filtered by #partitionTag and #extensionTags.
     virtual TFuture<NProto::TChunkMeta> GetMeta(
-        const TWorkloadDescriptor& workloadDescriptor,
-        TChunkReaderStatisticsPtr chunkDiskReadStatistis,
-        const TReadSessionId& readSessionId,
+        const TClientBlockReadOptions& options,
         const TNullable<int>& partitionTag = Null,
         const TNullable<std::vector<int>>& extensionTags = Null) = 0;
 

@@ -41,22 +41,16 @@ public:
         const TLogger& logger);
 
     TFuture<TChunkMeta> GetMeta(
-        const TWorkloadDescriptor& workloadDescriptor,
-        TChunkReaderStatisticsPtr chunkDiskReadStatistis,
-        const TReadSessionId& readSessionId,
+        const TClientBlockReadOptions& options,
         const TNullable<int>& partitionTag,
         const TNullable<std::vector<int>>& extensionTags) override;
 
     virtual TFuture<std::vector<TBlock>> ReadBlocks(
-        const TWorkloadDescriptor& workloadDescriptor,
-        TChunkReaderStatisticsPtr chunkDiskReadStatistis,
-        const TReadSessionId& readSessionId,
+        const TClientBlockReadOptions& options,
         const std::vector<int>& blockIndexes) override;
 
     virtual TFuture<std::vector<TBlock>> ReadBlocks(
-        const TWorkloadDescriptor& workloadDescriptor,
-        TChunkReaderStatisticsPtr chunkDiskReadStatistis,
-        const TReadSessionId& readSessionId,
+        const TClientBlockReadOptions& options,
         int firstBlockIndex,
         int blockCount) override;
 
@@ -72,11 +66,9 @@ private:
     void CheckSlowReaders();
 
     TChunkMeta GetMetaAsync(
-        const TWorkloadDescriptor& workloadDescriptor,
-        TChunkReaderStatisticsPtr chunkDiskReadStatistis,
+        const TClientBlockReadOptions& options,
         const TNullable<int>& partitionTag,
-        const TNullable<std::vector<int>>& extensionTags,
-        const TReadSessionId& readSessionId);
+        const TNullable<std::vector<int>>& extensionTags);
 
     const TErasureReaderConfigPtr Config_;
     TLogger Logger;
@@ -97,21 +89,17 @@ public:
         const TErasureReaderConfigPtr config,
         const TLogger& logger,
         const std::vector<IChunkReaderAllowingRepairPtr>& readers,
+        const TClientBlockReadOptions& options,
         const TErasurePlacementExt& placementExt,
         const std::vector<int>& blockIndexes,
-        const TWorkloadDescriptor& workloadDescriptor,
-        const TChunkReaderStatisticsPtr& chunkDiskReadStatistis,
-        const TReadSessionId& readSessionId,
         const TWeakPtr<TRepairingReader>& reader)
         : Codec_(codec)
         , Config_(config)
         , Logger(logger ? logger : ChunkClientLogger)
         , Readers_(readers)
+        , BlockReadOptions_(options)
         , PlacementExt_(placementExt)
         , BlockIndexes_(blockIndexes)
-        , WorkloadDescriptor_(workloadDescriptor)
-        , ChunkReaderStatistics_(chunkDiskReadStatistis)
-        , ReadSessionId_(readSessionId)
         , DataBlocksPlacementInParts_(BuildDataBlocksPlacementInParts(BlockIndexes_, PlacementExt_))
         , Reader_(reader)
     {
@@ -134,11 +122,9 @@ private:
     const TErasureReaderConfigPtr Config_;
     TLogger Logger;
     std::vector<IChunkReaderAllowingRepairPtr> Readers_;
+    const TClientBlockReadOptions BlockReadOptions_;
     const TErasurePlacementExt PlacementExt_;
     const std::vector<int> BlockIndexes_;
-    const TWorkloadDescriptor WorkloadDescriptor_;
-    const TChunkReaderStatisticsPtr ChunkReaderStatistics_;
-    const TReadSessionId ReadSessionId_;
     TDataBlocksPlacementInParts DataBlocksPlacementInParts_;
     TWeakPtr<TRepairingReader> Reader_;
 
@@ -146,7 +132,7 @@ private:
     {
         if (!Config_->EnableAutoRepair) {
             auto reader = CreateRepairingErasureReader(Codec_, TPartIndexList(), Readers_);
-            return WaitFor(reader->ReadBlocks(WorkloadDescriptor_, ChunkReaderStatistics_, ReadSessionId_, BlockIndexes_))
+            return WaitFor(reader->ReadBlocks(BlockReadOptions_, BlockIndexes_))
                 .ValueOrThrow();
         }
 
@@ -200,7 +186,7 @@ private:
             }
 
             auto repairingReader = CreateRepairingErasureReader(Codec_, bannedPartIndicesList, readers);
-            auto result = WaitFor(repairingReader->ReadBlocks(WorkloadDescriptor_, ChunkReaderStatistics_, ReadSessionId_, BlockIndexes_));
+            auto result = WaitFor(repairingReader->ReadBlocks(BlockReadOptions_, BlockIndexes_));
 
             if (result.IsOK()) {
                 return result.Value();
@@ -245,9 +231,7 @@ TRepairingReader::TRepairingReader(
 }
 
 TFuture<TChunkMeta> TRepairingReader::GetMeta(
-    const TWorkloadDescriptor& workloadDescriptor,
-    TChunkReaderStatisticsPtr chunkDiskReadStatistis,
-    const TReadSessionId& readSessionId,
+    const TClientBlockReadOptions& options,
     const TNullable<int>& partitionTag,
     const TNullable<std::vector<int>>& extensionTags)
 {
@@ -262,42 +246,34 @@ TFuture<TChunkMeta> TRepairingReader::GetMeta(
     return BIND(
         &TRepairingReader::GetMetaAsync,
         MakeStrong(this),
-        workloadDescriptor,
-        chunkDiskReadStatistis,
+        options,
         partitionTag,
-        extensionTags,
-        readSessionId)
+        extensionTags)
         .AsyncVia(TDispatcher::Get()->GetReaderInvoker())
         .Run();
 }
 
 TFuture<std::vector<TBlock>> TRepairingReader::ReadBlocks(
-    const TWorkloadDescriptor& workloadDescriptor,
-    TChunkReaderStatisticsPtr chunkDiskReadStatistis,
-    const TReadSessionId& readSessionId,
+    const TClientBlockReadOptions& options,
     const std::vector<int>& blockIndexes)
 {
-    return PreparePlacementMeta(workloadDescriptor, chunkDiskReadStatistis, readSessionId).Apply(
+    return PreparePlacementMeta(options).Apply(
         BIND([=, this_ = MakeStrong(this)] () {
             auto session = New<TRepairingReaderSession>(
                 Codec_,
                 Config_,
                 Logger,
                 Readers_,
+                options,
                 PlacementExt_,
                 blockIndexes,
-                workloadDescriptor,
-                chunkDiskReadStatistis,
-                readSessionId,
                 MakeStrong(this));
             return session->Run();
         }));
 }
 
 TFuture<std::vector<TBlock>> TRepairingReader::ReadBlocks(
-    const TWorkloadDescriptor& workloadDescriptor,
-    TChunkReaderStatisticsPtr chunkDiskReadStatistis,
-    const TReadSessionId& readSessionId,
+    const TClientBlockReadOptions& options,
     int firstBlockIndex,
     int blockCount)
 {
@@ -385,11 +361,9 @@ TError TRepairingReader::CheckPartReaderIsSlow(int partIndex, i64 bytesReceived,
 }
 
 TChunkMeta TRepairingReader::GetMetaAsync(
-    const TWorkloadDescriptor& workloadDescriptor,
-    TChunkReaderStatisticsPtr chunkDiskReadStatistis,
+    const TClientBlockReadOptions& options,
     const TNullable<int>& partitionTag,
-    const TNullable<std::vector<int>>& extensionTags,
-    const TReadSessionId& readSessionId)
+    const TNullable<std::vector<int>>& extensionTags)
 {
     std::vector<TError> errors;
 
@@ -401,7 +375,7 @@ TChunkMeta TRepairingReader::GetMetaAsync(
         if (!Readers_[index]->IsValid()) {
             continue;
         }
-        auto result = WaitFor(Readers_[index]->GetMeta(workloadDescriptor, chunkDiskReadStatistis, readSessionId, partitionTag, extensionTags));
+        auto result = WaitFor(Readers_[index]->GetMeta(options, partitionTag, extensionTags));
         if (result.IsOK()) {
             return result.Value();
         }

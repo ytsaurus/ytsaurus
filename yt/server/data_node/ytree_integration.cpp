@@ -62,7 +62,9 @@ private:
         }
 
         return IYPathService::FromProducer(BIND([=] (IYsonConsumer* consumer) {
-            auto chunkMeta = NYT::NConcurrency::WaitFor(chunk->ReadMeta(TWorkloadDescriptor(), New<TChunkReaderStatistics>()))
+            TBlockReadOptions options;
+            options.ChunkReaderStatistics = New<TChunkReaderStatistics>();
+            auto chunkMeta = NYT::NConcurrency::WaitFor(chunk->ReadMeta(options))
                 .ValueOrThrow();
             auto blocksExt = GetProtoExtension<NChunkClient::NProto::TBlocksExt>(chunkMeta->extensions());
             BuildYsonFluently(consumer)
