@@ -63,13 +63,8 @@ void TYtPoller::WatchLoop()
             item->PrepareRequest(&rawBatchRequest);
         }
 
-        TAttemptLimitedRetryPolicy retryPolicy(TConfig::Get()->RetryCount);
         try {
-            ExecuteBatch(
-                Auth_,
-                rawBatchRequest,
-                TExecuteBatchOptions(),
-                retryPolicy);
+            ExecuteBatch(Auth_, rawBatchRequest);
         } catch (const yexception& ex) {
             LOG_ERROR("Exception while executing batch request: %s", ex.what());
         }

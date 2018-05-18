@@ -6,6 +6,6 @@
 int main(int argc, const char** argv)
 {
     NYT::TConfig::Get()->LogLevel = "debug";
-    NYT::Initialize(argc, argv);
+    NYT::Initialize(argc, argv, NYT::TInitializeOptions().CleanupOnTermination(true));
     return NUnitTest::RunMain(argc, const_cast<char**>(argv));
 }

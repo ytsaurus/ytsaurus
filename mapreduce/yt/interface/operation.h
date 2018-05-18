@@ -751,8 +751,7 @@ struct TOperationOptions
     // Cypress file storage entries will be checked/created.
     // By default, the global transaction is used.
     // Set a specific transaction only if you specify non-default file storage
-    // path in 'FileStorage' option or in 'RemoteTempFilesDirectory'
-    // property of config.
+    // path in 'FileStorage' option or in 'RemoteTempFilesDirectory' property of config.
     FLUENT_FIELD(TTransactionId, FileStorageTransactionId);
 };
 

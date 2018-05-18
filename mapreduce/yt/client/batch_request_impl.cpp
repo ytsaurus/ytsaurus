@@ -137,8 +137,7 @@ TFuture<TRichYPath> TBatchRequest::CanonizeYPath(const TRichYPath& path)
 
 void TBatchRequest::ExecuteBatch(const TExecuteBatchOptions& options)
 {
-    TAttemptLimitedRetryPolicy retryPolicy(TConfig::Get()->RetryCount);
-    NYT::NDetail::ExecuteBatch(Client_->GetAuth(), *Impl_, options, retryPolicy);
+    NYT::NDetail::ExecuteBatch(Client_->GetAuth(), *Impl_, options);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
