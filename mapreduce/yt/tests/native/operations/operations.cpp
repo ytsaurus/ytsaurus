@@ -22,6 +22,8 @@
 #include <util/generic/maybe.h>
 #include <util/folder/path.h>
 #include <util/system/env.h>
+#include <util/system/tempfile.h>
+#include <util/thread/pool.h>
 
 using namespace NYT;
 using namespace NYT::NTesting;
@@ -1312,6 +1314,44 @@ Y_UNIT_TEST_SUITE(Operations)
                 TOperationOptions()
                     .FileStorage("//testing/file_storage")
                     .FileStorageTransactionId(tx2->GetId()));
+        }
+    }
+
+    Y_UNIT_TEST(RetryLockConflict)
+    {
+        auto client = CreateTestClient();
+
+        TTempFile tempFile("/tmp/yt-cpp-api-testing");
+        {
+            TOFStream os(tempFile.Name());
+            // Create a file with unique contents to get cache miss
+            os << CreateGuidAsString();
+        }
+
+        auto runMap = [&] {
+            client->StartTransaction()->Map(
+                TMapOperationSpec()
+                    // Use nonexistent input table to fail operation at early stage
+                    // as we are interested only in preparation stage.
+                    // We will not get an exception because of '.Wait(false)'.
+                    .AddInput<TNode>("//testing/nonexistent-input")
+                    .AddOutput<TNode>("//testing/output_" + CreateGuidAsString())
+                    .MapperSpec(TUserJobSpec()
+                        .AddLocalFile(tempFile.Name())),
+                new TIdMapper(),
+                TOperationOptions()
+                    .Wait(false));
+        };
+
+        auto threadPool = SystemThreadPool();
+        TVector<TAutoPtr<IThreadPool::IThread>> threads;
+        // Run many concurrent threads to get lock conflict in 'put_file_to_cache'
+        // with high probability.
+        for (int i = 0; i < 10; ++i) {
+            threads.push_back(threadPool->Run(runMap));
+        }
+        for (auto& t : threads) {
+            t->Join();
         }
     }
 

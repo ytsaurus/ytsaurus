@@ -2,6 +2,7 @@
 
 #include "client.h"
 #include "file_reader.h"
+#include "file_writer.h"
 #include "init.h"
 #include "operation_tracker.h"
 #include "retry_heavy_write_request.h"
@@ -64,6 +65,7 @@ namespace {
 ////////////////////////////////////////////////////////////////////////////////
 
 constexpr bool USE_GET_OPERATION = true;
+constexpr bool USE_NEW_FILE_CACHE = true;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -528,19 +530,24 @@ private:
             TConfig::Get()->RemoteTempFilesDirectory;
     }
 
-    void CreateStorage() const
+    TYPath GetCachePath() const
     {
-        TString cypressFolder = TStringBuilder() << GetFileStorage() << "/hash";
-        cypressFolder = AddPathPrefix(cypressFolder);
-        if (!Exists(Auth_, Options_.FileStorageTransactionId_, cypressFolder)) {
-            NYT::NDetail::Create(Auth_, Options_.FileStorageTransactionId_, cypressFolder, NT_MAP,
-                TCreateOptions()
-                .IgnoreExisting(true)
-                .Recursive(true));
+        if (USE_NEW_FILE_CACHE) {
+            return AddPathPrefix(TStringBuilder() << GetFileStorage() << "/new_cache");
+        } else {
+            return AddPathPrefix(TStringBuilder() << GetFileStorage() << "/hash");
         }
     }
 
-    TString UploadToCache(const IItemToUpload& itemToUpload) const
+    void CreateStorage() const
+    {
+        NYT::NDetail::Create(Auth_, Options_.FileStorageTransactionId_, GetCachePath(), NT_MAP,
+            TCreateOptions()
+            .IgnoreExisting(true)
+            .Recursive(true));
+    }
+
+    TString UploadToCacheOld(const IItemToUpload& itemToUpload) const
     {
         auto md5Signature = itemToUpload.CalculateMD5();
         Y_VERIFY(md5Signature.size() == 32);
@@ -548,8 +555,8 @@ private:
         TString twoDigits = md5Signature.substr(md5Signature.size() - 2);
         Y_VERIFY(twoDigits.size() == 2);
 
-        TString symlinkPath = TStringBuilder() << GetFileStorage() <<
-            "/hash/" << twoDigits << "/" << md5Signature;
+        TString symlinkPath = TStringBuilder() << GetCachePath() <<
+            "/" << twoDigits << "/" << md5Signature;
 
         TString uniquePath = TStringBuilder() << GetFileStorage() <<
             "/" << twoDigits << "/cpp_" << CreateGuidAsString();
@@ -628,6 +635,75 @@ private:
             break;
         }
         return symlinkPath;
+    }
+
+    class TRetryPolicyIgnoringLockConflicts
+        : public TAttemptLimitedRetryPolicy
+    {
+    public:
+        using TAttemptLimitedRetryPolicy::TAttemptLimitedRetryPolicy;
+
+        virtual TMaybe<TDuration> GetRetryInterval(const TErrorResponse& e) const override
+        {
+            if (IsAttemptLimitExceeded()) {
+                return Nothing();
+            }
+            if (e.IsConcurrentTransactionLockConflict()) {
+                return TConfig::Get()->RetryInterval;
+            }
+            return TAttemptLimitedRetryPolicy::GetRetryInterval(e);
+        }
+    };
+
+    TString UploadToCacheNew(const IItemToUpload& itemToUpload) const
+    {
+        auto md5Signature = itemToUpload.CalculateMD5();
+        Y_VERIFY(md5Signature.size() == 32);
+
+        constexpr int LockConflictRetryCount = 30;
+        TRetryPolicyIgnoringLockConflicts retryPolicy(LockConflictRetryCount);
+        auto maybePath = GetFileFromCache(
+            Auth_,
+            Options_.FileStorageTransactionId_,
+            md5Signature,
+            GetCachePath(),
+            TGetFileFromCacheOptions(),
+            &retryPolicy);
+        if (maybePath) {
+            return *maybePath;
+        }
+
+        TString uniquePath = AddPathPrefix(TStringBuilder() << GetFileStorage() << "/cpp_" << CreateGuidAsString());
+
+        Create(Auth_, Options_.FileStorageTransactionId_, uniquePath, NT_FILE,
+            TCreateOptions()
+            .IgnoreExisting(true)
+            .Recursive(true));
+
+        {
+            TFileWriter writer(uniquePath, Auth_, Options_.FileStorageTransactionId_,
+                TFileWriterOptions().ComputeMD5(true));
+            itemToUpload.CreateInputStream()->ReadAll(writer);
+            writer.Finish();
+        }
+
+        return PutFileToCache(
+            Auth_,
+            Options_.FileStorageTransactionId_,
+            uniquePath,
+            md5Signature,
+            GetCachePath(),
+            TPutFileToCacheOptions(),
+            &retryPolicy);
+    }
+
+    TString UploadToCache(const IItemToUpload& itemToUpload) const
+    {
+        if (USE_NEW_FILE_CACHE) {
+            return UploadToCacheNew(itemToUpload);
+        } else {
+            return UploadToCacheOld(itemToUpload);
+        }
     }
 
     void UseFileInCypress(const TRichYPath& file)

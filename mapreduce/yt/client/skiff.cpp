@@ -225,8 +225,7 @@ NSkiff::TSkiffSchemaPtr CreateSkiffSchemaIfNecessary(
         auto getOptions = TGetOptions().AttributeFilter(TAttributeFilter().AddAttribute("schema").AddAttribute("dynamic"));
         tables.push_back(batchRequest.Get(transactionId, path.Path_, getOptions));
     }
-    TAttemptLimitedRetryPolicy retryPolicy(TConfig::Get()->RetryCount);
-    ExecuteBatch(auth, batchRequest, TExecuteBatchOptions(), retryPolicy);
+    ExecuteBatch(auth, batchRequest, TExecuteBatchOptions());
 
     TVector<NSkiff::TSkiffSchemaPtr> schemas;
     for (size_t tableIndex = 0; tableIndex < tables.size(); ++tableIndex) {
