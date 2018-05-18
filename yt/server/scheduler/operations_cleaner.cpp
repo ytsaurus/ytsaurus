@@ -377,8 +377,6 @@ private:
     TOperationsCleanerConfigPtr Config_;
     const TBootstrap* const Bootstrap_;
 
-    const NLogging::TLogger Logger;
-
     const TPeriodicExecutorPtr ArchivationExecutor_;
 
     int ArchiveVersion_ = -1;
