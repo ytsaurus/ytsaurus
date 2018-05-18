@@ -155,6 +155,7 @@ DEFINE_REFCOUNTED_TYPE(TPartEncoder)
 TFuture<NProto::TErasurePlacementExt> GetPlacementMeta(
     const IChunkReaderPtr& reader,
     const TWorkloadDescriptor& workloadDescriptor,
+    TChunkReaderStatisticsPtr chunkDiskReadStatistis,
     const TReadSessionId& readSessionId);
 
 TParityPartSplitInfo GetParityPartSplitInfo(const NProto::TErasurePlacementExt& placementExt);
@@ -186,6 +187,7 @@ public:
 
     virtual TFuture<NProto::TChunkMeta> GetMeta(
         const TWorkloadDescriptor& workloadDescriptor,
+        TChunkReaderStatisticsPtr chunkDiskReadStatistis,
         const TReadSessionId& readSessionId,
         const TNullable<int>& partitionTag,
         const TNullable<std::vector<int>>& extensionTags) override;
@@ -195,6 +197,7 @@ public:
 protected:
     TFuture<void> PreparePlacementMeta(
         const TWorkloadDescriptor& workloadDescriptor,
+        TChunkReaderStatisticsPtr chunkDiskReadStatistis,
         const TReadSessionId& readSessionId);
     void OnGotPlacementMeta(const NProto::TErasurePlacementExt& placementExt);
 

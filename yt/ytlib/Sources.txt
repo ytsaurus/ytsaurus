@@ -38,6 +38,8 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/chunk_meta.proto
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/chunk_meta_extensions.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/chunk_owner_ypath.proto
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_client/chunk_reader_statistics.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_client/chunk_reader_statistics.proto
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/chunk_replica.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/chunk_scraper.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/chunk_service.proto

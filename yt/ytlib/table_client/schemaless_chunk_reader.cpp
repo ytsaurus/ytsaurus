@@ -23,9 +23,10 @@
 #include <yt/ytlib/table_chunk_format/column_reader.h>
 #include <yt/ytlib/table_chunk_format/null_column_reader.h>
 
+#include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
 #include <yt/ytlib/chunk_client/chunk_spec.h>
-#include <yt/ytlib/chunk_client/dispatcher.h>
 #include <yt/ytlib/chunk_client/data_source.h>
+#include <yt/ytlib/chunk_client/dispatcher.h>
 #include <yt/ytlib/chunk_client/helpers.h>
 #include <yt/ytlib/chunk_client/multi_reader_base.h>
 #include <yt/ytlib/chunk_client/reader_factory.h>
@@ -60,6 +61,7 @@ using NChunkClient::TDataSliceDescriptor;
 using NChunkClient::TReadLimit;
 using NChunkClient::TReadRange;
 using NChunkClient::NProto::TMiscExt;
+using NChunkClient::TChunkReaderStatistics;
 
 using NYT::FromProto;
 using NYT::TRange;
@@ -81,6 +83,7 @@ TColumnarChunkMetaPtr DownloadChunkMeta(
 
     auto asynChunkMeta = chunkReader->GetMeta(
         workloadDescriptor,
+        New<TChunkReaderStatistics>(),
         readSessionId,
         partitionTag,
         extensionTags);

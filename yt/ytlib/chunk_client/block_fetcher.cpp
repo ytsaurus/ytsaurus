@@ -3,6 +3,7 @@
 #include "block_cache.h"
 #include "config.h"
 #include "dispatcher.h"
+#include "chunk_reader_statistics.h"
 
 #include <yt/ytlib/node_tracker_client/node_directory.h>
 
@@ -301,6 +302,7 @@ void TBlockFetcher::RequestBlocks(
 
     auto blocksOrError = WaitFor(ChunkReader_->ReadBlocks(
         Config_->WorkloadDescriptor,
+        New<TChunkReaderStatistics>(), //FIXME
         ReadSessionId_,
         blockIndexes));
 

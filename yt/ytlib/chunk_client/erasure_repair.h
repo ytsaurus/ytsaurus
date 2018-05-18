@@ -19,6 +19,7 @@ TFuture<void> RepairErasedParts(
     const std::vector<IChunkReaderPtr>& readers,
     const std::vector<IChunkWriterPtr>& writers,
     const TWorkloadDescriptor& workloadDescriptor,
+    const TChunkReaderStatisticsPtr& chunkDiskReadStatistis,
     const TReadSessionId& readSessionId = TReadSessionId());
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -29,6 +30,7 @@ TFuture<void> RepairErasedParts(
     const std::vector<IChunkReaderAllowingRepairPtr>& readers,
     const std::vector<IChunkWriterPtr>& writers,
     const TWorkloadDescriptor& workloadDescriptor,
+    const TChunkReaderStatisticsPtr& chunkDiskReadStatistis,
     const TReadSessionId& readSessionId = TReadSessionId());
 
 ////////////////////////////////////////////////////////////////////////////////

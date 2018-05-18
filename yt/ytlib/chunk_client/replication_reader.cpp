@@ -41,6 +41,8 @@
 
 #include <cmath>
 
+//FIXME pass  TChunkReaderStatisticsPtr chunkDiskReadStatistis,
+
 namespace NYT {
 namespace NChunkClient {
 
@@ -163,17 +165,20 @@ public:
 
     virtual TFuture<std::vector<TBlock>> ReadBlocks(
         const TWorkloadDescriptor& workloadDescriptor,
+        TChunkReaderStatisticsPtr chunkDiskReadStatistis,
         const TReadSessionId& readSessionId,
         const std::vector<int>& blockIndexes) override;
 
     virtual TFuture<std::vector<TBlock>> ReadBlocks(
         const TWorkloadDescriptor& workloadDescriptor,
+        TChunkReaderStatisticsPtr chunkDiskReadStatistis,
         const TReadSessionId& readSessionId,
         int firstBlockIndex,
         int blockCount) override;
 
     virtual TFuture<NProto::TChunkMeta> GetMeta(
         const TWorkloadDescriptor& workloadDescriptor,
+        TChunkReaderStatisticsPtr chunkDiskReadStatistis,
         const TReadSessionId& readSessionId,
         const TNullable<int>& partitionTag,
         const TNullable<std::vector<int>>& extensionTags) override;
@@ -1376,6 +1381,7 @@ private:
 
 TFuture<std::vector<TBlock>> TReplicationReader::ReadBlocks(
     const TWorkloadDescriptor& workloadDescriptor,
+    TChunkReaderStatisticsPtr chunkDiskReadStatistis,
     const TReadSessionId& readSessionId,
     const std::vector<int>& blockIndexes)
 {
@@ -1591,6 +1597,7 @@ private:
 
 TFuture<std::vector<TBlock>> TReplicationReader::ReadBlocks(
     const TWorkloadDescriptor& workloadDescriptor,
+    TChunkReaderStatisticsPtr chunkDiskReadStatistis,
     const TReadSessionId& readSessionId,
     int firstBlockIndex,
     int blockCount)
@@ -1750,6 +1757,7 @@ private:
 
 TFuture<NProto::TChunkMeta> TReplicationReader::GetMeta(
     const TWorkloadDescriptor& workloadDescriptor,
+    TChunkReaderStatisticsPtr chunkDiskReadStatistis,
     const TReadSessionId& readSessionId,
     const TNullable<int>& partitionTag,
     const TNullable<std::vector<int>>& extensionTags)

@@ -10,6 +10,7 @@
 #include <yt/ytlib/chunk_client/data_source.h>
 #include <yt/ytlib/chunk_client/helpers.h>
 #include <yt/ytlib/chunk_client/reader_factory.h>
+#include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
 
 #include <yt/ytlib/node_tracker_client/node_directory.h>
 
@@ -29,6 +30,7 @@ using namespace NNodeTrackerClient;
 using namespace NYTree;
 
 using NChunkClient::TDataSliceDescriptor;
+using NChunkClient::TChunkReaderStatistics;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -64,6 +66,7 @@ TFuture<void> TPartitionChunkReader::InitializeBlockSequence()
 
     ChunkMeta_ = WaitFor(UnderlyingReader_->GetMeta(
         Config_->WorkloadDescriptor,
+        New<TChunkReaderStatistics>(),
         ReadSessionId_,
         PartitionTag_,
         extensionTags))

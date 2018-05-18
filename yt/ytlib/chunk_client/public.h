@@ -237,6 +237,8 @@ DECLARE_REFCOUNTED_CLASS(TThrottlerManager)
 DECLARE_REFCOUNTED_CLASS(TChunkTeleporter)
 DECLARE_REFCOUNTED_CLASS(TMediumDirectory)
 
+DECLARE_REFCOUNTED_STRUCT(TChunkReaderStatistics)
+
 class TReadLimit;
 
 using TRefCountedChunkMeta = TRefCountedProto<NChunkClient::NProto::TChunkMeta>;

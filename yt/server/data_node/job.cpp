@@ -25,6 +25,7 @@
 #include <yt/ytlib/chunk_client/job.pb.h>
 #include <yt/ytlib/chunk_client/replication_reader.h>
 #include <yt/ytlib/chunk_client/replication_writer.h>
+#include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
 
 #include <yt/ytlib/job_tracker_client/job.pb.h>
 
@@ -60,6 +61,7 @@ using namespace NConcurrency;
 using namespace NYson;
 
 using NNodeTrackerClient::TNodeDescriptor;
+using NChunkClient::TChunkReaderStatistics;
 using NYT::ToProto;
 using NYT::FromProto;
 
@@ -485,10 +487,11 @@ private:
 
         // Find chunk on the highest priority medium.
         auto chunk = GetLocalChunkOrThrow(chunkId, AllMediaIndex);
+        auto chunkReaderStatistics = New<TChunkReaderStatistics>();
 
         LOG_INFO("Fetching chunk meta");
 
-        auto asyncMeta = chunk->ReadMeta(Config_->ReplicationWriter->WorkloadDescriptor);
+        auto asyncMeta = chunk->ReadMeta(Config_->ReplicationWriter->WorkloadDescriptor, chunkReaderStatistics);
         auto meta = WaitFor(asyncMeta)
             .ValueOrThrow();
 
@@ -517,6 +520,7 @@ private:
             TBlockReadOptions options;
             options.WorkloadDescriptor = Config_->ReplicationWriter->WorkloadDescriptor;
             options.BlockCache = Bootstrap_->GetBlockCache();
+            options.ChunkReaderStatistics = chunkReaderStatistics;
 
             auto chunkBlockManager = Bootstrap_->GetChunkBlockManager();
             auto asyncReadBlocks = chunkBlockManager->ReadBlockRange(
@@ -686,12 +690,14 @@ private:
         }
 
         {
+            auto chunkDiskReadStatistis = New<TChunkReaderStatistics>();
             auto result = RepairErasedParts(
                 codec,
                 erasedPartIndexes,
                 readers,
                 writers,
-                Config_->RepairReader->WorkloadDescriptor);
+                Config_->RepairReader->WorkloadDescriptor,
+                chunkDiskReadStatistis);
 
             auto repairError = WaitFor(result);
             THROW_ERROR_EXCEPTION_IF_FAILED(repairError, "Error repairing chunk %v",
@@ -797,6 +803,7 @@ private:
             while (currentRowCount < sealRowCount) {
                 auto asyncBlocks  = reader->ReadBlocks(
                     Config_->RepairReader->WorkloadDescriptor,
+                    New<TChunkReaderStatistics>(),
                     TReadSessionId(),
                     currentRowCount,
                     sealRowCount - currentRowCount);

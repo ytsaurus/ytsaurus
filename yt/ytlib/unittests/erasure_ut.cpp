@@ -8,6 +8,7 @@
 #include <yt/ytlib/chunk_client/file_reader.h>
 #include <yt/ytlib/chunk_client/file_writer.h>
 #include <yt/ytlib/chunk_client/session_id.h>
+#include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
 
 #include <yt/core/erasure/codec.h>
 #include <yt/core/misc/checksum.h>
@@ -62,17 +63,19 @@ public:
 
     virtual TFuture<std::vector<TBlock>> ReadBlocks(
         const TWorkloadDescriptor& workloadDescriptor,
+        TChunkReaderStatisticsPtr chunkDiskReadStatistis,
         const TReadSessionId& readSessionId,
         const std::vector<int>& blockIndexes) override
     {
         if (TryFail()) {
             return MakeFuture(MakeError());
         }
-        return TFileReader::ReadBlocks(workloadDescriptor, readSessionId, blockIndexes);
+        return TFileReader::ReadBlocks(workloadDescriptor, chunkDiskReadStatistis, readSessionId, blockIndexes);
     }
 
     virtual TFuture<std::vector<TBlock>> ReadBlocks(
         const TWorkloadDescriptor& workloadDescriptor,
+        TChunkReaderStatisticsPtr chunkDiskReadStatistis,
         const TReadSessionId& readSessionId,
         int firstBlockIndex,
         int blockCount) override
@@ -80,7 +83,7 @@ public:
         if (TryFail()) {
             return MakeFuture(MakeError());
         }
-        return TFileReader::ReadBlocks(workloadDescriptor, readSessionId, firstBlockIndex, blockCount);
+        return TFileReader::ReadBlocks(workloadDescriptor, chunkDiskReadStatistis, readSessionId, firstBlockIndex, blockCount);
     }
 
     virtual bool IsValid() const override
@@ -319,7 +322,7 @@ public:
     {
         auto check = [&] (std::vector<int> indexes) {
             Shuffle(indexes.begin(), indexes.end());
-            auto result = WaitFor(repairReader->ReadBlocks(TWorkloadDescriptor(), TReadSessionId(), indexes))
+            auto result = WaitFor(repairReader->ReadBlocks(TWorkloadDescriptor(), New<TChunkReaderStatistics>(), TReadSessionId(), indexes))
                 .ValueOrThrow();
             EXPECT_EQ(result.size(), indexes.size());
             for (int i = 0; i < indexes.size(); ++i) {
@@ -373,6 +376,7 @@ public:
         for (const auto& ref : dataRefs) {
             auto result = erasureReader->ReadBlocks(
                 TWorkloadDescriptor(),
+                New<TChunkReaderStatistics>(),
                 TReadSessionId(),
                 std::vector<int>(1, index++))
                 .Get();
@@ -476,6 +480,7 @@ TEST_F(TErasureMixture, ReaderTest)
         for (const auto& ref : dataRefs) {
             auto result = erasureReader->ReadBlocks(
                 TWorkloadDescriptor(),
+                New<TChunkReaderStatistics>(),
                 TReadSessionId(),
                 std::vector<int>(1, index++))
                 .Get();
@@ -493,6 +498,7 @@ TEST_F(TErasureMixture, ReaderTest)
         indices.push_back(3);
         auto result = erasureReader->ReadBlocks(
             TWorkloadDescriptor(),
+            New<TChunkReaderStatistics>(),
             TReadSessionId(),
             indices)
             .Get();
@@ -529,7 +535,7 @@ TEST_F(TErasureMixture, RepairTest1)
     auto repairReader = CreateRepairingErasureReader(codec, erasedIndices, allReaders);
     CheckRepairReader(repairReader, dataRefs, Null);
 
-    auto repairResult = RepairErasedParts(codec, erasedIndices, readers, writers, TWorkloadDescriptor()).Get();
+    auto repairResult = RepairErasedParts(codec, erasedIndices, readers, writers, TWorkloadDescriptor(), New<TChunkReaderStatistics>()).Get();
     EXPECT_TRUE(repairResult.IsOK());
 
     auto erasureReader = CreateErasureReader(codec);
@@ -567,7 +573,7 @@ TEST_F(TErasureMixture, RepairTest2)
     auto repairReader = CreateRepairingErasureReader(codec, erasedIndices, allReaders);
     CheckRepairReader(repairReader, dataRefs, Null);
 
-    auto repairResult = RepairErasedParts(codec, erasedIndices, readers, writers, TWorkloadDescriptor()).Get();
+    auto repairResult = RepairErasedParts(codec, erasedIndices, readers, writers, TWorkloadDescriptor(), New<TChunkReaderStatistics>()).Get();
     ASSERT_TRUE(repairResult.IsOK());
 
     auto erasureReader = CreateErasureReader(codec);
@@ -613,7 +619,7 @@ TEST_F(TErasureMixture, RepairTest3)
     auto repairReader = CreateRepairingErasureReader(codec, erasedIndices, allReaders);
     CheckRepairReader(repairReader, dataRefs, 100);
 
-    RepairErasedParts(codec, erasedIndices, readers, writers, TWorkloadDescriptor()).Get();
+    RepairErasedParts(codec, erasedIndices, readers, writers, TWorkloadDescriptor(), New<TChunkReaderStatistics>()).Get();
     {
         auto erasureReader = CreateErasureReader(codec);
         CheckRepairResult(erasureReader, dataRefs);
@@ -658,7 +664,7 @@ TEST_F(TErasureMixture, RepairTest4)
     auto repairReader = CreateRepairingErasureReader(codec, erasedIndices, allReaders);
     CheckRepairReader(repairReader, dataRefs, 100);
 
-    RepairErasedParts(codec, erasedIndices, readers, writers, TWorkloadDescriptor()).Get();
+    RepairErasedParts(codec, erasedIndices, readers, writers, TWorkloadDescriptor(), New<TChunkReaderStatistics>()).Get();
     {
         auto erasureReader = CreateErasureReader(codec);
         CheckRepairResult(erasureReader, dataRefs);
@@ -704,7 +710,7 @@ TEST_F(TErasureMixture, RepairTest5)
     auto repairReader = CreateRepairingErasureReader(codec, erasedIndices, allReaders);
     CheckRepairReader(repairReader, dataRefs, 40);
 
-    RepairErasedParts(codec, erasedIndices, readers, writers, TWorkloadDescriptor()).Get();
+    RepairErasedParts(codec, erasedIndices, readers, writers, TWorkloadDescriptor(), New<TChunkReaderStatistics>()).Get();
     {
         auto erasureReader = CreateErasureReader(codec);
         CheckRepairResult(erasureReader, dataRefs);
@@ -750,7 +756,7 @@ TEST_F(TErasureMixture, RepairTest6)
     auto repairReader = CreateRepairingErasureReader(codec, erasedIndices, allReaders);
     CheckRepairReader(repairReader, dataRefs, 40);
 
-    RepairErasedParts(codec, erasedIndices, readers, writers, TWorkloadDescriptor()).Get();
+    RepairErasedParts(codec, erasedIndices, readers, writers, TWorkloadDescriptor(), New<TChunkReaderStatistics>()).Get();
     {
         auto erasureReader = CreateErasureReader(codec);
         CheckRepairResult(erasureReader, dataRefs);
@@ -839,7 +845,7 @@ TEST_F(TErasureMixture, RepairingReaderUnrecoverable)
     std::vector<int> indexes(dataRefs.size());
     std::iota(indexes.begin(), indexes.end(), 0);
 
-    auto result = reader->ReadBlocks(TWorkloadDescriptor(), TReadSessionId(), indexes).Get();
+    auto result = reader->ReadBlocks(TWorkloadDescriptor(), New<TChunkReaderStatistics>(), TReadSessionId(), indexes).Get();
     ASSERT_FALSE(result.IsOK());
 
     Cleanup(codec);
