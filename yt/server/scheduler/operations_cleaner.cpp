@@ -136,7 +136,7 @@ TString GetFilterFactors(const TArchiveOperationRequest& request)
 
     for (const auto& key : {"pool", "title"}) {
         auto node = specMapNode->FindChild(key);
-        if (node) {
+        if (node && node->GetType() == ENodeType::String) {
             parts.push_back(node->AsString()->GetValue());
         }
     }
@@ -703,6 +703,10 @@ private:
                         RandomDuration(Config_->MaxArchivationRetrySleepDelay - Config_->MinArchivationRetrySleepDelay);
                     TDelayedExecutor::WaitForDuration(sleepDelay);
                 }
+            }
+
+            if (!IsEnabled()) {
+                return;
             }
 
             for (const auto& operationId : batch) {
