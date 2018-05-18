@@ -1,3 +1,4 @@
+#include <yt/core/ytree/convert.h>
 #include "config.h"
 
 namespace NYT {
@@ -983,26 +984,71 @@ TStrategyOperationSpec::TStrategyOperationSpec()
         .DefaultNew();
 }
 
-TOperationFairShareStrategyTreeOptions::TOperationFairShareStrategyTreeOptions()
+TOperationFairShareTreeRuntimeParameters::TOperationFairShareTreeRuntimeParameters()
 {
     RegisterParameter("weight", Weight)
-        .Default(1.0)
+        .Default()
         .InRange(MinSchedulableWeight, MaxSchedulableWeight);
+    RegisterParameter("pool", Pool)
+        .Default();
     RegisterParameter("resource_limits", ResourceLimits)
         .DefaultNew();
-}
-
-TOperationStrategyRuntimeParameters::TOperationStrategyRuntimeParameters()
-{
-    RegisterParameter("scheduling_options_per_pool_tree", SchedulingOptionsPerPoolTree)
-        .Default()
-        .MergeBy(NYTree::EMergeStrategy::Combine);
 }
 
 TOperationRuntimeParameters::TOperationRuntimeParameters()
 {
     RegisterParameter("owners", Owners)
         .Default();
+    RegisterParameter("scheduling_options_per_pool_tree", SchedulingOptionsPerPoolTree)
+        .Default()
+        .MergeBy(NYTree::EMergeStrategy::Combine);
+}
+
+void TOperationRuntimeParameters::FillFromSpec(const TOperationSpecBasePtr& spec, const TNullable<TString>& defaultTree)
+{
+    Owners = spec->Owners;
+    auto allTrees = spec->PoolTrees;
+    allTrees.insert(spec->TentativePoolTrees.begin(), spec->TentativePoolTrees.end());
+    if (allTrees.empty() && defaultTree.HasValue()) {
+        allTrees.insert(defaultTree.Get());
+    }
+    for (const auto& tree : allTrees) {
+        auto treeParams = New<TOperationFairShareTreeRuntimeParameters>();
+        auto specIt = spec->SchedulingOptionsPerPoolTree.find(tree);
+        if (specIt != spec->SchedulingOptionsPerPoolTree.end()) {
+            treeParams->Weight = spec->Weight ? spec->Weight : specIt->second->Weight;
+            treeParams->Pool = spec->Pool ? spec->Pool : specIt->second->Pool;
+            treeParams->ResourceLimits = spec->ResourceLimits ? spec->ResourceLimits : specIt->second->ResourceLimits;
+        } else {
+            treeParams->Weight = spec->Weight;
+            treeParams->Pool = spec->Pool;
+            treeParams->ResourceLimits = spec->ResourceLimits;
+        }
+        YCHECK(SchedulingOptionsPerPoolTree.emplace(tree, std::move(treeParams)).second);
+    }
+}
+
+TUserFriendlyOperationRuntimeParameters::TUserFriendlyOperationRuntimeParameters()
+{
+    RegisterParameter("pool", Pool)
+        .Default();
+    RegisterParameter("weight", Weight)
+        .Default()
+        .InRange(MinSchedulableWeight, MaxSchedulableWeight);
+}
+
+TOperationRuntimeParametersPtr TUserFriendlyOperationRuntimeParameters::UpdateParameters(const TOperationRuntimeParametersPtr& old)
+{
+    auto result = UpdateYsonSerializable(old, NYTree::ConvertToNode(this));
+    for (const auto& pair : result->SchedulingOptionsPerPoolTree) {
+        if (Weight) {
+            pair.second->Weight = Weight;
+        }
+        if (Pool) {
+            pair.second->Pool = Pool;
+        }
+    }
+    return result;
 }
 
 TSchedulerConnectionConfig::TSchedulerConnectionConfig()

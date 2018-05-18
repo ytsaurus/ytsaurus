@@ -369,7 +369,7 @@ public:
     virtual int GetMaxRunningOperationCount() const = 0;
 
     virtual std::vector<EFifoSortParameter> GetFifoSortParameters() const = 0;
-    virtual bool AreImmediateOperationsFobidden() const = 0;
+    virtual bool AreImmediateOperationsForbidden() const = 0;
 
     virtual void BuildOperationToElementMapping(TOperationElementByIdMap* operationElementByIdMap) override;
 
@@ -478,7 +478,7 @@ public:
     virtual int GetMaxOperationCount() const override;
 
     virtual std::vector<EFifoSortParameter> GetFifoSortParameters() const override;
-    virtual bool AreImmediateOperationsFobidden() const override;
+    virtual bool AreImmediateOperationsForbidden() const override;
 
     virtual TSchedulerElementPtr Clone(TCompositeSchedulerElement* clonedParent) override;
 
@@ -532,6 +532,7 @@ public:
     int GetRunningJobCount() const;
     int GetPreemptableJobCount() const;
     int GetAggressivelyPreemptableJobCount() const;
+    TJobResources GetResourceUsage() const;
 
     TJobResources AddJob(const TJobId& jobId, const TJobResources& resourceUsage, bool force);
     TJobResources RemoveJob(const TJobId& jobId);
@@ -674,7 +675,7 @@ public:
     TOperationElement(
         TFairShareStrategyTreeConfigPtr treeConfig,
         TStrategyOperationSpecPtr spec,
-        TOperationFairShareStrategyTreeOptionsPtr runtimeParams,
+        TOperationFairShareTreeRuntimeParametersPtr runtimeParams,
         TFairShareStrategyOperationControllerPtr controller,
         TFairShareStrategyOperationControllerConfigPtr controllerConfig,
         ISchedulerStrategyHost* host,
@@ -747,7 +748,7 @@ public:
     void Disable();
     void Enable();
 
-    DEFINE_BYVAL_RW_PROPERTY(TOperationFairShareStrategyTreeOptionsPtr, RuntimeParams);
+    DEFINE_BYVAL_RW_PROPERTY(TOperationFairShareTreeRuntimeParametersPtr, RuntimeParams);
 
     DEFINE_BYVAL_RO_PROPERTY(TStrategyOperationSpecPtr, Spec);
 
@@ -833,7 +834,7 @@ public:
     virtual int GetMaxOperationCount() const override;
 
     virtual std::vector<EFifoSortParameter> GetFifoSortParameters() const override;
-    virtual bool AreImmediateOperationsFobidden() const override;
+    virtual bool AreImmediateOperationsForbidden() const override;
 
     virtual TSchedulerElementPtr Clone(TCompositeSchedulerElement* clonedParent) override;
     TRootElementPtr Clone();

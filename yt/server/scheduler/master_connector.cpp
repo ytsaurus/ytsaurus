@@ -165,6 +165,7 @@ public:
                 .Item("opaque").Value(true)
                 .Item("acl").Do(std::bind(&TImpl::BuildOperationAcl, operation, _1))
                 .Item("owners").Value(operation->GetOwners())
+                .Item("runtime_parameters").Value(operation->GetRuntimeParameters())
             .EndAttributes()
             .BeginMap()
                 .Item("jobs").BeginAttributes()
@@ -224,10 +225,8 @@ public:
 
         auto batchReq = StartObjectBatchRequest();
 
-        bool isReviving = operation->GetState() == EOperationState::Reviving;
         auto attributes = ConvertToAttributes(BuildYsonStringFluently()
             .BeginMap()
-                .DoIf(!isReviving, BIND(&ISchedulerStrategy::BuildOperationAttributes, strategy, operationId))
                 .Do(BIND(&BuildFullOperationAttributes, operation))
                 .Item("brief_spec").Value(operation->BriefSpec())
             .EndMap());
@@ -309,7 +308,7 @@ public:
     }
 
     void DoFlushOperationRuntimeParameters(
-        TOperationPtr operation,
+        const TOperationPtr& operation,
         const TOperationRuntimeParametersPtr& params)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -323,23 +322,12 @@ public:
         auto batchReq = StartObjectBatchRequest();
         auto paths = GetOperationPaths(operation->GetId(), operation->GetEnableCompatibleStorageMode());
 
-        auto node = BuildYsonNodeFluently()
-            .BeginMap()
-                .Do(BIND(&ISchedulerStrategy::BuildOperationRuntimeParams, strategy, operation->GetId(), params))
-            .EndMap();
-
-        auto mapNode = node->AsMap();
+        auto mapNode = ConvertToNode(params)->AsMap();
 
         for (const auto& operationPath : paths) {
-            for (const auto& pair : mapNode->GetChildren()) {
-                const auto& key = pair.first;
-                const auto& value = pair.second;
-
-                auto req = TYPathProxy::Set(operationPath + "/@" + key);
-                req->set_value(ConvertToYsonString(value).GetData());
-
-                batchReq->AddRequest(req);
-            }
+            auto req = TYPathProxy::Set(operationPath + "/@runtime_parameters");
+            req->set_value(ConvertToYsonString(mapNode).GetData());
+            batchReq->AddRequest(req);
         }
 
         auto rspOrError = WaitFor(batchReq->Invoke());
@@ -777,13 +765,12 @@ private:
                 "mutation_id",
                 "user_transaction_id",
                 "spec",
-                "owners",
                 "authenticated_user",
                 "start_time",
                 "state",
                 "events",
                 "slot_index_per_pool_tree",
-                "scheduling_options_per_pool_tree",
+                "runtime_parameters",
                 "output_completion_transaction_id"
             };
 
@@ -876,13 +863,7 @@ private:
                 return nullptr;
             }
 
-            auto runtimeParams = New<TOperationRuntimeParameters>();
-            runtimeParams->Owners = attributes.Get<std::vector<TString>>("owners", spec->Owners);
-            // Merge initial scheduling options and scheduling options set by user while operation was running.
-            auto schedulingOptions = attributes.Find<INodePtr>("scheduling_options_per_pool_tree");
-            if (schedulingOptions) {
-                Deserialize(runtimeParams->SchedulingOptionsPerPoolTree, schedulingOptions);
-            }
+            auto runtimeParams = attributes.Get<TOperationRuntimeParametersPtr>("runtime_parameters");
 
             auto operation = New<TOperation>(
                 operationId,

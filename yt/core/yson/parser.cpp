@@ -171,8 +171,8 @@ void ParseYsonStringBuffer(
     i64 memoryLimit,
     bool enableContext)
 {
-    TParserYsonStreamImpl<IYsonConsumer, TStringReader> Parser;
-    Parser.DoParse(
+    TParserYsonStreamImpl<IYsonConsumer, TStringReader> parser;
+    parser.DoParse(
         TStringReader(buffer.begin(), buffer.end()),
         consumer,
         type,

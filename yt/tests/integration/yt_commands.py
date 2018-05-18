@@ -967,6 +967,11 @@ def create_user(name, **kwargs):
     kwargs["attributes"]["name"] = name
     execute_command("create", kwargs)
 
+def create_test_tables(row_count=1, **kwargs):
+    create("table", "//tmp/t_in", **kwargs)
+    write_table("//tmp/t_in", [{"x": str(i)} for i in xrange(row_count)])
+    create("table", "//tmp/t_out", **kwargs)
+
 def remove_user(name, **kwargs):
     remove("//sys/users/" + name, **kwargs)
 

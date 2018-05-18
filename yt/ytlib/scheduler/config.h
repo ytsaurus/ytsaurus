@@ -166,7 +166,7 @@ public:
     TNullable<TString> Pool;
 
     //! This options have higher priority than Pool and other options
-    //! defined in this class.
+    //! defined in this class besides SchedulingTagFilter.
     THashMap<TString, TExtendedSchedulableConfigPtr> SchedulingOptionsPerPoolTree;
 
     //! Pool trees to schedule operation in.
@@ -913,47 +913,54 @@ DEFINE_REFCOUNTED_TYPE(TVanillaOperationSpec)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TOperationFairShareStrategyTreeOptions
+class TOperationFairShareTreeRuntimeParameters
     : public NYTree::TYsonSerializable
 {
 public:
-    double Weight;
+    TNullable<double> Weight;
+
+    TNullable<TString> Pool;
 
     TResourceLimitsConfigPtr ResourceLimits;
 
-    TOperationFairShareStrategyTreeOptions();
+    TOperationFairShareTreeRuntimeParameters();
 };
 
-DEFINE_REFCOUNTED_TYPE(TOperationFairShareStrategyTreeOptions)
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TOperationStrategyRuntimeParameters
-    : public NYTree::TYsonSerializable
-{
-private:
-    using TTreeParameters = TOperationFairShareStrategyTreeOptionsPtr;
-
-public:
-    THashMap<TString, TTreeParameters> SchedulingOptionsPerPoolTree;
-
-    TOperationStrategyRuntimeParameters();
-};
-
-DEFINE_REFCOUNTED_TYPE(TOperationStrategyRuntimeParameters)
+DEFINE_REFCOUNTED_TYPE(TOperationFairShareTreeRuntimeParameters)
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TOperationRuntimeParameters
-    : public TOperationStrategyRuntimeParameters
+    : public NYTree::TYsonSerializable
 {
 public:
     TNullable<std::vector<TString>> Owners;
 
+    THashMap<TString, TOperationFairShareTreeRuntimeParametersPtr> SchedulingOptionsPerPoolTree;
+
     TOperationRuntimeParameters();
+
+    void FillFromSpec(const TOperationSpecBasePtr& spec, const TNullable<TString>& defaultTree);
 };
 
 DEFINE_REFCOUNTED_TYPE(TOperationRuntimeParameters)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TUserFriendlyOperationRuntimeParameters
+    : public TOperationRuntimeParameters
+{
+public:
+    TNullable<double> Weight;
+
+    TNullable<TString> Pool;
+
+    TUserFriendlyOperationRuntimeParameters();
+
+    TOperationRuntimeParametersPtr UpdateParameters(const TOperationRuntimeParametersPtr& old);
+};
+
+DEFINE_REFCOUNTED_TYPE(TUserFriendlyOperationRuntimeParameters)
 
 ////////////////////////////////////////////////////////////////////////////////
 

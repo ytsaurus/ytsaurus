@@ -107,7 +107,9 @@ struct ISchedulerStrategy
      *
      *  The implementation must be synchronous.
      */
-    virtual void ValidateOperationCanBeRegistered(const IOperationStrategyHost* operation) = 0;
+    virtual void ValidatePoolLimits(
+        const IOperationStrategyHost* operation,
+        const TOperationRuntimeParametersPtr& runtimeParameters) = 0;
 
     //! Register operation in strategy.
     /*!
@@ -146,11 +148,19 @@ struct ISchedulerStrategy
 
     virtual void ValidateNodeTags(const THashSet<TString>& tags) = 0;
 
-    virtual void UpdateOperationRuntimeParameters(IOperationStrategyHost* operation) = 0;
+    virtual void ApplyOperationRuntimeParameters(IOperationStrategyHost* operation) = 0;
 
-    virtual void UpdateOperationRuntimeParameters(
+    virtual void ValidateOperationRuntimeParameters(
         IOperationStrategyHost* operation,
-        const NYTree::INodePtr& parametersNode) = 0;
+        const TOperationRuntimeParametersPtr& runtimeParameters) = 0;
+
+    virtual void InitOperationRuntimeParameters(
+        const TOperationRuntimeParametersPtr& runtimeParameters,
+        const TOperationSpecBasePtr& spec) = 0;
+
+    virtual void UpdateOperationRuntimeParametersOld(
+        IOperationStrategyHost* operation,
+        const NYTree::IMapNodePtr& parametersNode) = 0;
 
     //! Updates current config used by strategy.
     virtual void UpdateConfig(const TFairShareStrategyConfigPtr& config) = 0;
@@ -159,12 +169,6 @@ struct ISchedulerStrategy
     //! in Cypress during creation.
     virtual void BuildOperationAttributes(
         const TOperationId& operationId,
-        NYTree::TFluentMap fluent) = 0;
-
-    //! Builds a YSON structure containing a set of runtime operation params.
-    virtual void BuildOperationRuntimeParams(
-        const TOperationId& operationId,
-        const TOperationStrategyRuntimeParametersPtr& runtimeParams,
         NYTree::TFluentMap fluent) = 0;
 
     //! Builds a YSON map fragment with strategy specific information about operation
