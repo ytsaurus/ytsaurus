@@ -1,6 +1,6 @@
-#include "tcp_dispatcher_impl.h"
+#include "dispatcher_impl.h"
 #include "config.h"
-#include "tcp_connection.h"
+#include "connection.h"
 
 #include <yt/core/profiling/profile_manager.h>
 

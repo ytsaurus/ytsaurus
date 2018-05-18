@@ -1,7 +1,7 @@
 #pragma once
 
 #include "private.h"
-#include "tcp_dispatcher.h"
+#include "dispatcher.h"
 
 #include <yt/core/concurrency/rw_spinlock.h>
 

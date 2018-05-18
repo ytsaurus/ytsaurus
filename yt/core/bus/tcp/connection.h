@@ -1,9 +1,10 @@
 #pragma once
 
-#include "private.h"
-#include "bus.h"
 #include "packet.h"
-#include "tcp_dispatcher_impl.h"
+#include "dispatcher_impl.h"
+
+#include <yt/core/bus/private.h>
+#include <yt/core/bus/bus.h>
 
 #include <yt/core/actions/future.h>
 

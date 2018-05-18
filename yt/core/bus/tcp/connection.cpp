@@ -1,7 +1,7 @@
-#include "tcp_connection.h"
+#include "connection.h"
 #include "config.h"
 #include "server.h"
-#include "tcp_dispatcher_impl.h"
+#include "dispatcher_impl.h"
 
 #include <yt/core/misc/enum.h>
 #include <yt/core/misc/proc.h>

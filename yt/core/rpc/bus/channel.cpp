@@ -8,8 +8,9 @@
 #include <yt/core/rpc/private.h>
 
 #include <yt/core/bus/bus.h>
-#include <yt/core/bus/config.h>
-#include <yt/core/bus/tcp_client.h>
+
+#include <yt/core/bus/tcp/config.h>
+#include <yt/core/bus/tcp/client.h>
 
 #include <yt/core/concurrency/delayed_executor.h>
 #include <yt/core/concurrency/rw_spinlock.h>

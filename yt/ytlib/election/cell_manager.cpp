@@ -3,8 +3,9 @@
 #include "config.h"
 
 #include <yt/core/bus/client.h>
-#include <yt/core/bus/config.h>
-#include <yt/core/bus/tcp_client.h>
+
+#include <yt/core/bus/tcp/config.h>
+#include <yt/core/bus/tcp/client.h>
 
 #include <yt/core/net/address.h>
 

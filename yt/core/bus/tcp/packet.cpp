@@ -1,12 +1,13 @@
 #include "packet.h"
-#include "bus.h"
+
+#include <yt/core/bus/bus.h>
 
 namespace NYT {
 namespace NBus {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const i64 PacketDecoderChunkSize = 16 * 1024;
+static const i64 PacketDecoderChunkSize = 16_KB;
 
 struct TPacketDecoderTag { };
 
@@ -88,7 +89,7 @@ bool TPacketDecoder::EndFixedHeaderPhase()
         return false;
     }
 
-    if (FixedHeader_.PartCount > MaxPacketPartCount) {
+    if (FixedHeader_.PartCount > MaxMessagePartCount) {
         LOG_ERROR("Invalid part count %v",
             FixedHeader_.PartCount);
         return false;
@@ -137,7 +138,7 @@ bool TPacketDecoder::EndVariableHeaderPhase()
 
     for (int index = 0; index < FixedHeader_.PartCount; ++index) {
         ui32 partSize = PartSizes_[index];
-        if (partSize != NullPacketPartSize && partSize > MaxPacketPartSize) {
+        if (partSize != NullPacketPartSize && partSize > MaxMessagePartSize) {
             LOG_ERROR("Invalid size %v of part %v",
                 partSize,
                 index);
@@ -240,21 +241,21 @@ bool TPacketEncoder::Start(
     AllocateVariableHeader();
 
     if (type == EPacketType::Message) {
-        if (Message_.Size() > MaxPacketPartCount) {
+        if (Message_.Size() > MaxMessagePartCount) {
             LOG_ERROR("Message exceeds part count limit: %v > %v",
                 Message_.Size(),
-                MaxPacketPartCount);
+                MaxMessagePartCount);
             return false;
         }
 
         for (int index = 0; index < Message_.Size(); ++index) {
             const auto& part = Message_[index];
             if (part) {
-                if (part.Size() > MaxPacketPartSize) {
+                if (part.Size() > MaxMessagePartSize) {
                     LOG_ERROR("Part %v exceeds size limit: %v > %v",
                         index,
                         part.Size(),
-                        MaxPacketPartSize);
+                        MaxMessagePartSize);
                     return false;
                 }
                 PartSizes_[index] = part.Size();
