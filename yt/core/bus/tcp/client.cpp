@@ -1,9 +1,10 @@
-#include "tcp_client.h"
+#include "client.h"
 #include "private.h"
-#include "bus.h"
 #include "client.h"
 #include "config.h"
-#include "tcp_connection.h"
+#include "connection.h"
+
+#include <yt/core/bus/bus.h>
 
 #include <yt/core/concurrency/thread_affinity.h>
 

@@ -1,7 +1,7 @@
 #include "job_probe.h"
 #include "job_prober_service_proxy.h"
 
-#include <yt/core/bus/tcp_client.h>
+#include <yt/core/bus/tcp/client.h>
 
 #include <yt/core/concurrency/scheduler.h>
 

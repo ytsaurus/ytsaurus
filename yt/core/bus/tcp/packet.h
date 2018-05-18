@@ -3,7 +3,6 @@
 #include "private.h"
 
 #include <yt/core/misc/chunked_memory_allocator.h>
-#include <yt/core/misc/public.h>
 #include <yt/core/misc/small_vector.h>
 
 namespace NYT {
@@ -24,8 +23,6 @@ DEFINE_BIT_ENUM_WITH_UNDERLYING_TYPE(EPacketFlags, ui16,
 #pragma pack(push, 4)
 
 constexpr ui32 PacketSignature = 0x78616d4f;
-constexpr int MaxPacketPartCount = 1 << 28;
-constexpr ui32 MaxPacketPartSize = 1024ULL * 1024 * 1024;
 constexpr ui32 NullPacketPartSize = 0xffffffff;
 constexpr int TypicalPacketPartCount = 64;
 constexpr int TypicalVariableHeaderSize = TypicalPacketPartCount * (sizeof (ui32) + sizeof (ui64));

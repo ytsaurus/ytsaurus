@@ -1,5 +1,5 @@
-#include "tcp_dispatcher.h"
-#include "tcp_dispatcher_impl.h"
+#include "dispatcher.h"
+#include "dispatcher_impl.h"
 
 #include <yt/core/misc/singleton.h>
 #include <yt/core/misc/shutdown.h>

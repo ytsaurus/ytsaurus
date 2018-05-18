@@ -1,9 +1,11 @@
-#include "tcp_server.h"
-#include "bus.h"
+#include "server.h"
 #include "config.h"
 #include "server.h"
-#include "tcp_connection.h"
-#include "tcp_dispatcher_impl.h"
+#include "connection.h"
+#include "dispatcher_impl.h"
+
+#include <yt/core/bus/bus.h>
+#include <yt/core/bus/server.h>
 
 #include <yt/core/logging/log.h>
 

@@ -33,8 +33,8 @@
 
 #include <yt/ytlib/scheduler/public.h>
 
-#include <yt/core/bus/tcp_client.h>
-#include <yt/core/bus/tcp_server.h>
+#include <yt/core/bus/tcp/client.h>
+#include <yt/core/bus/tcp/server.h>
 
 #include <yt/core/concurrency/action_queue.h>
 #include <yt/core/concurrency/periodic_executor.h>

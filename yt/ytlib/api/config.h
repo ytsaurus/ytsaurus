@@ -24,7 +24,7 @@
 
 #include <yt/ytlib/node_tracker_client/public.h>
 
-#include <yt/core/bus/config.h>
+#include <yt/core/bus/tcp/config.h>
 
 #include <yt/core/compression/public.h>
 

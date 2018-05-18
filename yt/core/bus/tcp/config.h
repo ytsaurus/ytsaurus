@@ -27,26 +27,12 @@ public:
     bool VerifyChecksums;
     bool GenerateChecksums;
 
-    TTcpBusConfig()
-    {
-        RegisterParameter("enable_quick_ack", EnableQuickAck)
-            .Default(true);
-        RegisterParameter("bind_retry_count", BindRetryCount)
-            .Default(1);
-        RegisterParameter("bind_retry_backoff", BindRetryBackoff)
-            .Default(TDuration::Seconds(3));
-        RegisterParameter("read_stall_timeout", ReadStallTimeout)
-            .Default(TDuration::Minutes(2));
-        RegisterParameter("write_stall_timeout", WriteStallTimeout)
-            .Default(TDuration::Minutes(2));
-        RegisterParameter("verify_checksums", VerifyChecksums)
-            .Default(true);
-        RegisterParameter("generate_checksum", GenerateChecksums)
-            .Default(true);
-    }
+    TTcpBusConfig();
 };
 
 DEFINE_REFCOUNTED_TYPE(TTcpBusConfig)
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TTcpBusServerConfig
     : public TTcpBusConfig
@@ -61,27 +47,7 @@ public:
 
     THashMap<TString, std::vector<NNet::TIP6Network>> Networks;
 
-    TTcpBusServerConfig()
-    {
-        RegisterParameter("port", Port)
-            .Default();
-        RegisterParameter("unix_domain_name", UnixDomainName)
-            .Default();
-        RegisterParameter("max_backlog_size", MaxBacklogSize)
-            .Default(8192);
-        RegisterParameter("max_simultaneous_connections", MaxSimultaneousConnections)
-            .Default(50000);
-        RegisterParameter("networks", Networks)
-            .Default({});
-        RegisterParameter("default_network", DefaultNetwork)
-            .Default();
-
-        RegisterPreprocessor([&] {
-            if (DefaultNetwork && !Networks.has(*DefaultNetwork)) {
-                THROW_ERROR_EXCEPTION("Default network is not present in network list");
-            }
-        });
-    }
+    TTcpBusServerConfig();
 
     static TTcpBusServerConfigPtr CreateTcp(int port);
 
@@ -90,6 +56,8 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TTcpBusServerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TTcpBusClientConfig
     : public TTcpBusConfig
@@ -113,9 +81,7 @@ public:
     }
 
     static TTcpBusClientConfigPtr CreateTcp(const TString& address);
-
     static TTcpBusClientConfigPtr CreateUnixDomain(const TString& address);
-
 };
 
 DEFINE_REFCOUNTED_TYPE(TTcpBusClientConfig)

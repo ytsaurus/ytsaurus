@@ -81,9 +81,10 @@
 
 #include <yt/ytlib/core_dump/core_dumper.h>
 
-#include <yt/core/bus/config.h>
 #include <yt/core/bus/server.h>
-#include <yt/core/bus/tcp_server.h>
+
+#include <yt/core/bus/tcp/config.h>
+#include <yt/core/bus/tcp/server.h>
 
 #include <yt/core/net/local_address.h>
 

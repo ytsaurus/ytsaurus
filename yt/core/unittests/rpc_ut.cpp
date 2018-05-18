@@ -1,10 +1,11 @@
 #include <yt/core/test_framework/framework.h>
 
 #include <yt/core/bus/bus.h>
-#include <yt/core/bus/config.h>
 #include <yt/core/bus/server.h>
-#include <yt/core/bus/tcp_client.h>
-#include <yt/core/bus/tcp_server.h>
+
+#include <yt/core/bus/tcp/config.h>
+#include <yt/core/bus/tcp/client.h>
+#include <yt/core/bus/tcp/server.h>
 
 #include <yt/core/crypto/config.h>
 
