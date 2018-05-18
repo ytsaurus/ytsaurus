@@ -133,7 +133,7 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
 
     @unix_only
     def test_unused_tmpfs_size_alert(self):
-        self.create_test_tables()
+        create_test_tables()
 
         op = map(
             command="echo abcdef >local_file; sleep 1.5; cat",
@@ -162,7 +162,7 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
         assert "unused_tmpfs_space" not in get("//sys/operations/{0}/@alerts".format(op.id))
 
     def test_missing_input_chunks_alert(self):
-        self.create_test_tables(attributes={"replication_factor": 1})
+        create_test_tables(attributes={"replication_factor": 1})
 
         chunk_ids = get("//tmp/t_in/@chunk_ids")
         assert len(chunk_ids) == 1
@@ -189,7 +189,7 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
 
     @pytest.mark.skipif("True", reason="YT-6717")
     def test_woodpecker_jobs_alert(self):
-        self.create_test_tables(row_count=7)
+        create_test_tables(row_count=7)
 
         cmd = "set -e; echo aaa >local_file; for i in {1..200}; do " \
               "dd if=./local_file of=/dev/null iflag=direct bs=1M count=1; done;"
@@ -208,7 +208,7 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
         assert "excessive_disk_usage" in get("//sys/operations/{0}/@alerts".format(op.id))
 
     def test_long_aborted_jobs_alert(self):
-        self.create_test_tables(row_count=5)
+        create_test_tables(row_count=5)
 
         op = map(
             command="sleep 100; cat",
@@ -230,7 +230,7 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
 
     # if these three tests flap - call renadeen@
     def test_low_cpu_alert_presence(self):
-        self.create_test_tables(attributes={"compression_codec": "none"})
+        create_test_tables(attributes={"compression_codec": "none"})
         op = map(
             command="sleep 1; cat",
             in_="//tmp/t_in",
@@ -239,7 +239,7 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
         assert "low_cpu_usage" in get("//sys/operations/{0}/@alerts".format(op.id))
 
     def test_low_cpu_alert_absence(self):
-        self.create_test_tables()
+        create_test_tables()
         op = map(
             command="python -c 'for i in xrange(10000000): x = 1'; cat",
             in_="//tmp/t_in",
@@ -248,7 +248,7 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
         assert "low_cpu_usage" not in get("//sys/operations/{0}/@alerts".format(op.id))
 
     def test_operation_too_long_alert(self):
-        self.create_test_tables(row_count=100)
+        create_test_tables(row_count=100)
         op = map(
             command="sleep 100; cat",
             in_="//tmp/t_in",
@@ -284,7 +284,7 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
 
     @flaky(max_runs=3)
     def test_short_jobs_alert(self):
-        self.create_test_tables(row_count=4)
+        create_test_tables(row_count=4)
 
         op = map(
             command="cat",
@@ -307,7 +307,7 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
         assert "short_jobs_duration" not in get("//sys/operations/{0}/@alerts".format(op.id))
 
     def test_schedule_job_timed_out_alert(self):
-        self.create_test_tables()
+        create_test_tables()
 
         testing_options = {"scheduling_delay": 3500, "scheduling_delay_type": "async"}
 
@@ -323,11 +323,6 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
         time.sleep(8)
 
         assert "schedule_job_timed_out" in get("//sys/operations/{0}/@alerts".format(op.id))
-
-    def create_test_tables(self, row_count=1, **kwargs):
-        create("table", "//tmp/t_in", **kwargs)
-        write_table("//tmp/t_in", [{"x": str(i)} for i in xrange(row_count)])
-        create("table", "//tmp/t_out", **kwargs)
 
     def wait_for_running_jobs(self, operation):
         wait(lambda: operation.get_job_count("running") >= 1)

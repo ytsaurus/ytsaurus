@@ -192,11 +192,11 @@ scheduler_simulator_config = {
 
 pools_config = yson.to_yson_type(
     {
-        "physical" : yson.to_yson_type(
+        "default": yson.to_yson_type(
             {
                 "test_pool": yson.to_yson_type(
                     {},
-                    attributes = {
+                    attributes={
                         "resource_limits": {
                             "user_slots": 10,
                             "cpu": 10,
@@ -206,7 +206,7 @@ pools_config = yson.to_yson_type(
                     }
                 )
             },
-            attributes = {
+            attributes={
                 "nodes_filter": "internal",
                 "max_operation_count": 2000,
                 "max_operation_count_per_pool": 50,
@@ -215,8 +215,8 @@ pools_config = yson.to_yson_type(
             }
         )
     },
-    attributes = {
-        "default_tree": "physical",
+    attributes={
+        "default_tree": "default",
     }
 )
 
@@ -231,7 +231,7 @@ class TestSchedulerSimulator(YTEnvSetup, PrepareTables):
             "connect_retry_backoff_time": 100,
             "fair_share_update_period": 100,
             "fair_share_profiling_period": 100,
-            "event_log" : {
+            "event_log": {
                 "flush_period": 100,
             }
         }
@@ -239,7 +239,7 @@ class TestSchedulerSimulator(YTEnvSetup, PrepareTables):
 
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "controller_agent": {
-            "event_log" : {
+            "event_log": {
                 "flush_period": 100,
             }
         }
@@ -253,15 +253,15 @@ class TestSchedulerSimulator(YTEnvSetup, PrepareTables):
         data = [{"foo": i} for i in xrange(3)]
         write_table("//tmp/t_in", data)
 
-        op = map(
-            command="sleep 1;" ,
+        map(
+            command="sleep 1;",
             in_="//tmp/t_in",
             out="//tmp/t_out",
             spec={"job_count": 1,
                   "max_failed_job_count": 1,
                   "data_size_per_job": 1,
                   "pool": "test_pool",
-                  "pool_trees":["physical",]})
+                  "pool_trees": ["default"]})
 
         time.sleep(5)
 

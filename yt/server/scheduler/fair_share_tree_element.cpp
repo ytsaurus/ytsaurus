@@ -1402,7 +1402,7 @@ std::vector<EFifoSortParameter> TPool::GetFifoSortParameters() const
     return FifoSortParameters_;
 }
 
-bool TPool::AreImmediateOperationsFobidden() const
+bool TPool::AreImmediateOperationsForbidden() const
 {
     return Config_->ForbidImmediateOperations;
 }
@@ -1439,7 +1439,7 @@ TOperationElementFixedState::TOperationElementFixedState(
     : OperationId_(operation->GetId())
     , Schedulable_(operation->IsSchedulable())
     , Operation_(operation)
-    , ControllerConfig_(controllerConfig)
+    , ControllerConfig_(std::move(controllerConfig))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1647,7 +1647,7 @@ void TOperationElement::Disable()
     LOG_DEBUG("Operation element disabled in strategy (OperationId: %v)", OperationId_);
 
     auto delta = SharedState_->Disable();
-    IncreaseResourceUsage(-delta);
+    IncreaseLocalResourceUsage(-delta);
 }
 
 void TOperationElement::Enable()
@@ -1758,7 +1758,7 @@ const TOperationElementSharedState::TJobProperties* TOperationElementSharedState
 TOperationElement::TOperationElement(
     TFairShareStrategyTreeConfigPtr treeConfig,
     TStrategyOperationSpecPtr spec,
-    TOperationFairShareStrategyTreeOptionsPtr runtimeParams,
+    TOperationFairShareTreeRuntimeParametersPtr runtimeParams,
     TFairShareStrategyOperationControllerPtr controller,
     TFairShareStrategyOperationControllerConfigPtr controllerConfig,
     ISchedulerStrategyHost* host,
@@ -2037,7 +2037,7 @@ bool TOperationElement::IsAggressiveStarvationPreemptionAllowed() const
 
 double TOperationElement::GetWeight() const
 {
-    return RuntimeParams_->Weight;
+    return RuntimeParams_->Weight.Get(1.0);
 }
 
 double TOperationElement::GetMinShareRatio() const
@@ -2483,7 +2483,7 @@ std::vector<EFifoSortParameter> TRootElement::GetFifoSortParameters() const
     Y_UNREACHABLE();
 }
 
-bool TRootElement::AreImmediateOperationsFobidden() const
+bool TRootElement::AreImmediateOperationsForbidden() const
 {
     return TreeConfig_->ForbidImmediateOperationsInRoot;
 }

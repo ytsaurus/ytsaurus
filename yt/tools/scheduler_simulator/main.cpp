@@ -788,6 +788,7 @@ public:
                 const auto& description = OperationsStorage_->GetOperationDescription(event.OperationId);
 
                 auto operation = New<NSchedulerSimulator::TOperation>(description);
+
                 auto operationController = New<NSchedulerSimulator::TOperationController>(operation.Get(), &description);
                 operation->SetController(operationController);
 

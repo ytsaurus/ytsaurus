@@ -607,9 +607,9 @@ class TestSchedulerOperationLimits(YTEnvSetup):
 
             if should_raise:
                 with pytest.raises(YtError):
-                    execute(False)
+                    execute(dont_track=False)
             else:
-                op = execute(True)
+                op = execute(dont_track=True)
                 wait(lambda: op.get_state() in ("pending", "running"))
                 ops.append(op)
 
@@ -1714,11 +1714,7 @@ class TestFairShareTreesReconfiguration(YTEnvSetup):
             write_table("<append=%true>//tmp/t_in", [{"x": i}])
         create("table", "//tmp/t_out")
 
-        node = ls("//sys/nodes")[0]
-        set("//sys/nodes/" + node + "/@user_tags/end", "other")
-        set("//sys/pool_trees/default/@nodes_filter", "!other")
-        create("map_node", "//sys/pool_trees/other", attributes={"nodes_filter": "other"})
-        set("//sys/pool_trees/default/@nodes_filter", "!other")
+        self.create_custom_pool_tree_with_one_node(pool_tree="other")
 
         time.sleep(1.0)
 
@@ -1737,11 +1733,7 @@ class TestFairShareTreesReconfiguration(YTEnvSetup):
             write_table("<append=%true>//tmp/t_in", [{"x": i}])
         create("table", "//tmp/t_out")
 
-        node = ls("//sys/nodes")[0]
-        set("//sys/nodes/" + node + "/@user_tags/end", "other")
-        set("//sys/pool_trees/default/@nodes_filter", "!other")
-        create("map_node", "//sys/pool_trees/other", attributes={"nodes_filter": "other"})
-        set("//sys/pool_trees/default/@nodes_filter", "!other")
+        self.create_custom_pool_tree_with_one_node(pool_tree="other")
 
         time.sleep(1.0)
 
@@ -1814,10 +1806,7 @@ class TestFairShareTreesReconfiguration(YTEnvSetup):
         for i in xrange(3):
             write_table("<append=%true>//tmp/t_in", [{"x": i}])
 
-        node = ls("//sys/nodes", attributes=["address"])[0]
-        set("//sys/nodes/" + node + "/@user_tags/end", "other")
-        set("//sys/pool_trees/default/@nodes_filter", "!other")
-        create("map_node", "//sys/pool_trees/other", attributes={"nodes_filter": "other"})
+        node = self.create_custom_pool_tree_with_one_node(pool_tree="other")
 
         orchid_root = "//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree"
         wait(lambda: get(orchid_root + "/default/node_count") == 2)
@@ -1855,10 +1844,7 @@ class TestFairShareTreesReconfiguration(YTEnvSetup):
         wait(lambda: assert_almost_equal(get_fair_share("other", op2.id), 0.5))
 
     def test_default_tree_update(self):
-        node = ls("//sys/nodes")[0]
-        set("//sys/nodes/" + node + "/@user_tags/end", "other")
-        set("//sys/pool_trees/default/@nodes_filter", "!other")
-        create("map_node", "//sys/pool_trees/other", attributes={"nodes_filter": "other"})
+        self.create_custom_pool_tree_with_one_node(pool_tree="other")
         time.sleep(0.5)
 
         create("table", "//tmp/t_in")
@@ -1897,6 +1883,14 @@ class TestFairShareTreesReconfiguration(YTEnvSetup):
         assert op1.id not in other_tree_operations
         assert op2.id in other_tree_operations
         assert op2.id not in default_tree_operations
+
+    def create_custom_pool_tree_with_one_node(self, pool_tree):
+        tag = pool_tree
+        node = ls("//sys/nodes")[0]
+        set("//sys/nodes/" + node + "/@user_tags/end", tag)
+        create("map_node", "//sys/pool_trees/" + pool_tree, attributes={"nodes_filter": tag})
+        set("//sys/pool_trees/default/@nodes_filter", "!" + tag)
+        return node
 
 class TestSchedulingOptionsPerTree(YTEnvSetup):
     NUM_MASTERS = 1
@@ -2049,7 +2043,6 @@ class TestSchedulingOptionsPerTree(YTEnvSetup):
         other_node_list = self._prepare_pool_trees()
         spec = self._create_spec()
         self._patch_spec_for_tentativeness(spec)
-        other_nodes = frozenset(other_node_list)
 
         create("table", "//tmp/t_in")
         write_table("//tmp/t_in", [{"x": i} for i in xrange(30)])

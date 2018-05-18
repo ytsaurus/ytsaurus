@@ -2,6 +2,7 @@
 #include "operation_controller.h"
 
 #include <yt/ytlib/scheduler/config.h>
+#include <yt/ytlib/scheduler/public.h>
 
 namespace NYT {
 namespace NSchedulerSimulator {
@@ -16,11 +17,7 @@ TOperation::TOperation(const TOperationDescription& description)
     , StartTime_(description.StartTime)
     , RuntimeParams_(New<NScheduler::TOperationRuntimeParameters>())
 {
-    auto spec = NYTree::ConvertTo<NScheduler::TOperationSpecBasePtr>(Spec_);
-
-    RuntimeParams_->Owners = spec->Owners;
-    // Other runtime params is filled with scheduler strategy with respect to
-    // configured fair-share trees.
+    RuntimeParams_->FillFromSpec(NYTree::ConvertTo<NScheduler::TOperationSpecBasePtr>(Spec_), Null);
 }
 
 const NScheduler::TOperationId& TOperation::GetId() const
