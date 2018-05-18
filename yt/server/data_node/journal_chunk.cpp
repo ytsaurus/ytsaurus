@@ -83,8 +83,7 @@ TChunkInfo TJournalChunk::GetInfo() const
 }
 
 TFuture<TRefCountedChunkMetaPtr> TJournalChunk::ReadMeta(
-    const TWorkloadDescriptor& /*workloadDescriptor*/,
-    NChunkClient::TChunkReaderStatisticsPtr /*chunkDiskReadStatistis*/,
+    const TBlockReadOptions& /*options*/,
     const TNullable<std::vector<int>>& extensionTags)
 {
     VERIFY_THREAD_AFFINITY_ANY();
@@ -147,7 +146,7 @@ TFuture<std::vector<TBlock>> TJournalChunk::ReadBlockRange(
 void TJournalChunk::DoReadBlockRange(
     int firstBlockIndex,
     int blockCount,
-    NChunkClient::TChunkReaderStatisticsPtr chunkDiskReadStatistis,
+    NChunkClient::TChunkReaderStatisticsPtr chunkReaderStatistics,
     TPromise<std::vector<TBlock>> promise)
 {
     auto config = Bootstrap_->GetConfig()->DataNode;
@@ -165,7 +164,7 @@ void TJournalChunk::DoReadBlockRange(
 
         TWallTimer timer;
 
-        //FIXME put chunkDiskReadStatistis here.
+        //FIXME put chunkReaderStatistics here.
         auto asyncBlocks = changelog->Read(
             firstBlockIndex,
             std::min(blockCount, config->MaxBlocksPerRead),
@@ -185,7 +184,7 @@ void TJournalChunk::DoReadBlockRange(
         const auto& blocks = blocksOrError.Value();
         int blocksRead = static_cast<int>(blocks.size());
         i64 bytesRead = GetByteSize(blocks);
-        chunkDiskReadStatistis->DataBytesReadFromDisk += bytesRead;
+        chunkReaderStatistics->DataBytesReadFromDisk += bytesRead;
 
         LOG_DEBUG("Finished reading journal chunk blocks (BlockIds: %v:%v-%v, LocationId: %v, BlocksReadActually: %v, BytesReadActually: %v)",
             Id_,

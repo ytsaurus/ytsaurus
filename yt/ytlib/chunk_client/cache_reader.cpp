@@ -23,11 +23,11 @@ public:
     {  }
 
     virtual TFuture<std::vector<TBlock>> ReadBlocks(
-        const TWorkloadDescriptor& /*workloadDescriptor*/,
-        TChunkReaderStatisticsPtr /*chunkDiskReadStatistis*/,
-        const TReadSessionId& /*readSessionId*/,
+        const TClientBlockReadOptions& /*options*/,
         const std::vector<int>& blockIndexes) override
     {
+        // NB: Cache-based readers shouldn't report chunk reader statistics.
+
         std::vector<TBlock> blocks;
         for (auto index : blockIndexes) {
             TBlockId blockId(ChunkId_, index);
@@ -42,12 +42,12 @@ public:
     }
 
     virtual TFuture<std::vector<TBlock>> ReadBlocks(
-        const TWorkloadDescriptor& /*workloadDescriptor*/,
-        TChunkReaderStatisticsPtr /*chunkDiskReadStatistis*/,
-        const TReadSessionId& /*readSessionId*/,
+        const TClientBlockReadOptions& /*options*/,
         int firstBlockIndex,
         int blockCount) override
     {
+        // NB: Cache-based readers shouldn't report chunk reader statistics.
+
         std::vector<TBlock> blocks;
         for (int index = 0; index < blockCount; ++index) {
             TBlockId blockId(ChunkId_, firstBlockIndex + index);
@@ -63,9 +63,7 @@ public:
     }
 
     virtual TFuture<NProto::TChunkMeta> GetMeta(
-        const TWorkloadDescriptor& /*workloadDescriptor*/,
-        TChunkReaderStatisticsPtr /*chunkDiskReadStatistis*/,
-        const TReadSessionId& /*readSessionId*/,
+        const TClientBlockReadOptions& /*options*/,
         const TNullable<int>& partitionTag,
         const TNullable<std::vector<int>>& extensionTags) override
     {

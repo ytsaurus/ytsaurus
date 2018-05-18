@@ -81,10 +81,13 @@ TColumnarChunkMetaPtr DownloadChunkMeta(
         TProtoExtensionTag<TNameTableExt>::Value
     };
 
+    TClientBlockReadOptions options;
+    options.WorkloadDescriptor = workloadDescriptor;
+    options.ChunkReaderStatistics = New<TChunkReaderStatistics>(); //FIXME(savrus) pass correct value here
+    options.ReadSessionId = readSessionId;
+
     auto asynChunkMeta = chunkReader->GetMeta(
-        workloadDescriptor,
-        New<TChunkReaderStatistics>(),
-        readSessionId,
+        options,
         partitionTag,
         extensionTags);
     auto chunkMeta = WaitFor(asynChunkMeta)

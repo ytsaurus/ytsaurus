@@ -87,6 +87,7 @@ public:
         , StartTime_(TInstant::Now())
         , Bootstrap_(bootstrap)
         , ResourceLimits_(resourceLimits)
+        //FIXME(savrus) BlockReadOptions here
     {
         Logger.AddTag("JobId: %v, JobType: %v",
             JobId_,
@@ -487,11 +488,15 @@ private:
 
         // Find chunk on the highest priority medium.
         auto chunk = GetLocalChunkOrThrow(chunkId, AllMediaIndex);
-        auto chunkReaderStatistics = New<TChunkReaderStatistics>();
+
+        TBlockReadOptions blockReadOptions;
+        blockReadOptions.WorkloadDescriptor = Config_->ReplicationWriter->WorkloadDescriptor;
+        blockReadOptions.BlockCache = Bootstrap_->GetBlockCache();
+        blockReadOptions.ChunkReaderStatistics = New<TChunkReaderStatistics>();
 
         LOG_INFO("Fetching chunk meta");
 
-        auto asyncMeta = chunk->ReadMeta(Config_->ReplicationWriter->WorkloadDescriptor, chunkReaderStatistics);
+        auto asyncMeta = chunk->ReadMeta(blockReadOptions);
         auto meta = WaitFor(asyncMeta)
             .ValueOrThrow();
 
@@ -517,17 +522,13 @@ private:
         int currentBlockIndex = 0;
         int blockCount = GetBlockCount(chunkId, *meta);
         while (currentBlockIndex < blockCount) {
-            TBlockReadOptions options;
-            options.WorkloadDescriptor = Config_->ReplicationWriter->WorkloadDescriptor;
-            options.BlockCache = Bootstrap_->GetBlockCache();
-            options.ChunkReaderStatistics = chunkReaderStatistics;
 
             auto chunkBlockManager = Bootstrap_->GetChunkBlockManager();
             auto asyncReadBlocks = chunkBlockManager->ReadBlockRange(
                 chunkId,
                 currentBlockIndex,
                 blockCount - currentBlockIndex,
-                options);
+                blockReadOptions);
 
             auto readBlocks = WaitFor(asyncReadBlocks)
                 .ValueOrThrow();
@@ -690,14 +691,15 @@ private:
         }
 
         {
-            auto chunkDiskReadStatistis = New<TChunkReaderStatistics>();
+            TClientBlockReadOptions options;
+            options.WorkloadDescriptor = Config_->RepairReader->WorkloadDescriptor;
+            options.ChunkReaderStatistics = New<TChunkReaderStatistics>(); //FIXME(savrus) pass correct value here
             auto result = RepairErasedParts(
                 codec,
                 erasedPartIndexes,
                 readers,
                 writers,
-                Config_->RepairReader->WorkloadDescriptor,
-                chunkDiskReadStatistis);
+                options);
 
             auto repairError = WaitFor(result);
             THROW_ERROR_EXCEPTION_IF_FAILED(repairError, "Error repairing chunk %v",
@@ -800,11 +802,13 @@ private:
                 /* trafficMeter */ nullptr,
                 Bootstrap_->GetReplicationInThrottler());
 
+            TClientBlockReadOptions options;
+            options.WorkloadDescriptor = Config_->RepairReader->WorkloadDescriptor;
+            options.ChunkReaderStatistics = New<TChunkReaderStatistics>(); //FIXME(savrus) pass correct value here
+
             while (currentRowCount < sealRowCount) {
                 auto asyncBlocks  = reader->ReadBlocks(
-                    Config_->RepairReader->WorkloadDescriptor,
-                    New<TChunkReaderStatistics>(),
-                    TReadSessionId(),
+                    options,
                     currentRowCount,
                     sealRowCount - currentRowCount);
                 auto blocks = WaitFor(asyncBlocks)

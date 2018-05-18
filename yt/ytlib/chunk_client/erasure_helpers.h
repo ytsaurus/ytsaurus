@@ -154,9 +154,7 @@ DEFINE_REFCOUNTED_TYPE(TPartEncoder)
 
 TFuture<NProto::TErasurePlacementExt> GetPlacementMeta(
     const IChunkReaderPtr& reader,
-    const TWorkloadDescriptor& workloadDescriptor,
-    TChunkReaderStatisticsPtr chunkDiskReadStatistis,
-    const TReadSessionId& readSessionId);
+    const TClientBlockReadOptions& options);
 
 TParityPartSplitInfo GetParityPartSplitInfo(const NProto::TErasurePlacementExt& placementExt);
 
@@ -186,9 +184,7 @@ public:
     TErasureChunkReaderBase(NErasure::ICodec* codec, const std::vector<IChunkReaderAllowingRepairPtr>& readers);
 
     virtual TFuture<NProto::TChunkMeta> GetMeta(
-        const TWorkloadDescriptor& workloadDescriptor,
-        TChunkReaderStatisticsPtr chunkDiskReadStatistis,
-        const TReadSessionId& readSessionId,
+        const TClientBlockReadOptions& options,
         const TNullable<int>& partitionTag,
         const TNullable<std::vector<int>>& extensionTags) override;
 
@@ -196,9 +192,7 @@ public:
 
 protected:
     TFuture<void> PreparePlacementMeta(
-        const TWorkloadDescriptor& workloadDescriptor,
-        TChunkReaderStatisticsPtr chunkDiskReadStatistis,
-        const TReadSessionId& readSessionId);
+        const TClientBlockReadOptions& options);
     void OnGotPlacementMeta(const NProto::TErasurePlacementExt& placementExt);
 
     NErasure::ICodec* const Codec_;

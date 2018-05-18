@@ -169,7 +169,12 @@ private:
     {
         LOG_INFO("Requesting chunk meta");
 
-        auto metaOrError = WaitFor(ChunkReader_->GetMeta(Config_->WorkloadDescriptor, New<TChunkReaderStatistics>(), ReadSessionId_));
+        TClientBlockReadOptions options;
+        options.WorkloadDescriptor = Config_->WorkloadDescriptor;
+        options.ChunkReaderStatistics = New<TChunkReaderStatistics>();
+        options.ReadSessionId = ReadSessionId_;
+
+        auto metaOrError = WaitFor(ChunkReader_->GetMeta(options));
         THROW_ERROR_EXCEPTION_IF_FAILED(metaOrError, "Failed to get file chunk meta");
 
         LOG_INFO("Chunk meta received");

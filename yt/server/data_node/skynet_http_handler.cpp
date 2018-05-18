@@ -102,11 +102,12 @@ public:
         static std::vector<int> miscExtension = {
             TProtoExtensionTag<TMiscExt>::Value
         };
-        auto chunkDiskReadStatistis = New<TChunkReaderStatistics>();
-        auto asyncChunkMeta = chunkPtr->ReadMeta(
-            skynetWorkload,
-            chunkDiskReadStatistis);
-        auto chunkMeta = WaitFor(asyncChunkMeta)
+
+        TBlockReadOptions options;
+        options.WorkloadDescriptor = skynetWorkload;
+        options.ChunkReaderStatistics = New<TChunkReaderStatistics>();
+
+        auto chunkMeta = WaitFor(chunkPtr->ReadMeta(options))
             .ValueOrThrow();
 
         auto miscExt = GetProtoExtension<TMiscExt>(chunkMeta->extensions());

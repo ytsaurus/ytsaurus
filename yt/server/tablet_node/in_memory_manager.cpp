@@ -513,11 +513,13 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
 
     LOG_INFO("Store preload started");
 
-    auto reader = store->GetChunkReader();
-    auto workloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemTabletPreload);
-    auto chunkDiskReadStatistis = New<TChunkReaderStatistics>();
+    TClientBlockReadOptions options;
+    options.WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemTabletPreload);
+    options.ChunkReaderStatistics = New<TChunkReaderStatistics>();
+    options.ReadSessionId = readSessionId;
 
-    auto meta = WaitFor(reader->GetMeta(workloadDescriptor, chunkDiskReadStatistis, readSessionId))
+    auto reader = store->GetChunkReader();
+    auto meta = WaitFor(reader->GetMeta(options))
         .ValueOrThrow();
 
     auto miscExt = GetProtoExtension<TMiscExt>(meta.extensions());
@@ -582,9 +584,7 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
             startBlockIndex);
 
         auto compressedBlocks = WaitFor(reader->ReadBlocks(
-            workloadDescriptor,
-            chunkDiskReadStatistis,
-            readSessionId,
+            options,
             startBlockIndex,
             totalBlockCount - startBlockIndex))
             .ValueOrThrow();

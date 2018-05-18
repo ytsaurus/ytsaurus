@@ -217,10 +217,12 @@ private:
                 CurrentRowIndex_ = BeginRowIndex_;
             }
 
+            TClientBlockReadOptions options;
+            options.WorkloadDescriptor = Config_->WorkloadDescriptor;
+            options.ChunkReaderStatistics = New<TChunkReaderStatistics>();
+
             auto rowsOrError = WaitFor(CurrentChunkReader_->ReadBlocks(
-                Config_->WorkloadDescriptor,
-                New<TChunkReaderStatistics>(),
-                TReadSessionId(),
+                options,
                 CurrentRowIndex_,
                 EndRowIndex_ - CurrentRowIndex_));
             THROW_ERROR_EXCEPTION_IF_FAILED(rowsOrError);

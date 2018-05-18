@@ -29,8 +29,7 @@ public:
     virtual NChunkClient::NProto::TChunkInfo GetInfo() const override;
 
     virtual TFuture<NChunkClient::TRefCountedChunkMetaPtr> ReadMeta(
-        const TWorkloadDescriptor& workloadDescriptor,
-        NChunkClient::TChunkReaderStatisticsPtr chunkDiskReadStatistis,
+        const TBlockReadOptions& options,
         const TNullable<std::vector<int>>& extensionTags) override;
 
     virtual TFuture<std::vector<NChunkClient::TBlock>> ReadBlockSet(
@@ -76,7 +75,7 @@ private:
     void DoReadBlockRange(
         int firstBlockIndex,
         int blockCount,
-        NChunkClient::TChunkReaderStatisticsPtr chunkDiskReadStatistis,
+        NChunkClient::TChunkReaderStatisticsPtr chunkReaderStatistics,
         TPromise<std::vector<NChunkClient::TBlock>> promise);
 
 };

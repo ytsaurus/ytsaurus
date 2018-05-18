@@ -73,8 +73,6 @@ public:
         , WriterConfig_(Host_->GetJobSpecHelper()->GetJobIOConfig()->TableWriter)
         , RemoteCopyQueue_(New<TActionQueue>("RemoteCopy"))
         , CopySemaphore_(New<TAsyncSemaphore>(RemoteCopyJobSpecExt_.concurrency()))
-        , ChunkReaderStatistics_(New<TChunkReaderStatistics>())
-        , ReadSessionId_(TReadSessionId::Create())
     {
         YCHECK(SchedulerJobSpecExt_.input_table_specs_size() == 1);
         YCHECK(SchedulerJobSpecExt_.output_table_specs_size() == 1);
@@ -87,6 +85,10 @@ public:
                 YCHECK(!inputChunkSpec.has_upper_limit());
             }
         }
+
+        BlockReadOptions_.WorkloadDescriptor = ReaderConfig_->WorkloadDescriptor;
+        BlockReadOptions_.ChunkReaderStatistics = New<TChunkReaderStatistics>();
+        BlockReadOptions_.ReadSessionId = TReadSessionId::Create();
     }
 
     virtual void Initialize() override
@@ -248,8 +250,7 @@ private:
     const TActionQueuePtr RemoteCopyQueue_;
     TAsyncSemaphorePtr CopySemaphore_;
 
-    const TChunkReaderStatisticsPtr ChunkReaderStatistics_;
-    const TReadSessionId ReadSessionId_;
+    TClientBlockReadOptions BlockReadOptions_;
 
     NChunkClient::TSessionId CreateOutputChunk(const TChunkSpec& inputChunkSpec)
     {
@@ -502,9 +503,7 @@ private:
             }
 
             auto asyncResult = reader->ReadBlocks(
-                ReaderConfig_->WorkloadDescriptor,
-                ChunkReaderStatistics_,
-                ReadSessionId_,
+                BlockReadOptions_,
                 beginBlockIndex,
                 endBlockIndex - beginBlockIndex);
 
@@ -543,7 +542,7 @@ private:
     // Request input chunk meta. Input and output chunk metas are the same.
     TChunkMeta GetChunkMeta(IChunkReaderPtr reader)
     {
-        auto asyncResult = reader->GetMeta(ReaderConfig_->WorkloadDescriptor, ChunkReaderStatistics_, ReadSessionId_);
+        auto asyncResult = reader->GetMeta(BlockReadOptions_);
         auto result = WaitFor(asyncResult);
         if (!result.IsOK()) {
             FailedChunkId_ = reader->GetChunkId();

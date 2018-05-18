@@ -18,8 +18,8 @@ struct TChunkReaderStatistics
 
 DEFINE_REFCOUNTED_TYPE(TChunkReaderStatistics)
 
-void ToProto(NProto::TChunkReaderStatistics* protoChunkReaderStatistics, const TChunkReaderStatisticsPtr& chunkDiskReadStatistis);
-void FromProto(TChunkReaderStatisticsPtr chunkDiskReadStatistis, NProto::TChunkReaderStatistics* protoChunkReaderStatistics);
+void ToProto(NProto::TChunkReaderStatistics* protoChunkReaderStatistics, const TChunkReaderStatisticsPtr& chunkReaderStatistics);
+void FromProto(TChunkReaderStatisticsPtr chunkReaderStatistics, NProto::TChunkReaderStatistics* protoChunkReaderStatistics);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -64,10 +64,13 @@ TFuture<void> TPartitionChunkReader::InitializeBlockSequence()
         TProtoExtensionTag<NProto::TKeyColumnsExt>::Value
     };
 
+    TClientBlockReadOptions options;
+    options.WorkloadDescriptor = Config_->WorkloadDescriptor;
+    options.ChunkReaderStatistics = New<TChunkReaderStatistics>(); //FIXME(savrus) pass correct value here
+    options.ReadSessionId = ReadSessionId_;
+
     ChunkMeta_ = WaitFor(UnderlyingReader_->GetMeta(
-        Config_->WorkloadDescriptor,
-        New<TChunkReaderStatistics>(),
-        ReadSessionId_,
+        options,
         PartitionTag_,
         extensionTags))
         .ValueOrThrow();
