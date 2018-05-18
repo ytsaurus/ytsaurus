@@ -24,6 +24,7 @@ target_link_libraries(yt-library-client
   yt-core-codegen
   yt-core-crypto
   yt-core-skiff
+  yt-core-erasure
 )
 
 if(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
