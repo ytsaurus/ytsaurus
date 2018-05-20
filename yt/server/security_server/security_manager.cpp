@@ -427,19 +427,20 @@ public:
         auto* stagingTransaction = chunk->GetStagingTransaction();
         auto* stagingAccount = chunk->GetStagingAccount();
 
-        Y_ASSERT(requisition.GetEntryCount() == 1);
-        // If a chunk has been created before the migration but is being confirmed after it,
-        // charge it to the staging account anyway: it's ok, because transaction resource usage accounting
-        // isn't really delta-based, and it's nicer from the user's point of view.
-        auto* requisitionAccount = requisition.begin()->Account;
-        Y_ASSERT(requisitionAccount == stagingAccount || requisitionAccount == ChunkWiseAccountingMigrationAccount_);
+        auto chargeTransaction = [&] (TAccount* account, int mediumIndex, int chunkCount, i64 diskSpace, bool /*committed*/) {
+            // If a chunk has been created before the migration but is being confirmed after it,
+            // charge it to the staging account anyway: it's ok, because transaction resource usage accounting
+            // isn't really delta-based, and it's nicer from the user's point of view.
+            if (Y_UNLIKELY(account == ChunkWiseAccountingMigrationAccount_)) {
+                account = stagingAccount;
+            }
 
-        auto diskSpace = chunk->ChunkInfo().disk_space();
-        auto erasureCodec = chunk->GetErasureCodec();
-        auto replication = requisition.ToReplication();
-        auto resourceDelta = GetStagedResourceUsage(diskSpace, erasureCodec, replication) * delta;
-        auto* transactionUsage = GetTransactionAccountUsage(stagingTransaction, stagingAccount);
-        *transactionUsage += resourceDelta;
+            auto* transactionUsage = GetTransactionAccountUsage(stagingTransaction, account);
+            transactionUsage->DiskSpace[mediumIndex] += diskSpace;
+            transactionUsage->ChunkCount += chunkCount;
+        };
+
+        ComputeChunkResourceDelta(chunk, requisition, delta, chargeTransaction);
     }
 
     void SetAccount(
@@ -1308,21 +1309,6 @@ private:
     // COMPAT(babenko)
     bool RecomputeAccountResourceUsage_ = false;
     bool ValidateAccountResourceUsage_ = false;
-
-    TClusterResources GetStagedResourceUsage(
-        i64 diskSpace,
-        NErasure::ECodec erasureCodec,
-        const TChunkReplication& replication) const
-    {
-        auto result = TClusterResources().SetChunkCount(1);
-
-        for (auto index = 0; index < MaxMediumCount; ++index) {
-            const auto& policy = replication[index];
-            result.DiskSpace[index] = GetDiskSpaceToCharge(diskSpace, erasureCodec, policy);
-        }
-
-        return result;
-    }
 
     static i64 GetDiskSpaceToCharge(i64 diskSpace, NErasure::ECodec erasureCodec, TReplicationPolicy policy)
     {
