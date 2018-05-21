@@ -155,6 +155,7 @@
 %type <TLiteralValueList> const-list
 %type <TLiteralValueList> const-tuple
 %type <TLiteralValueTupleList> const-tuple-list
+%type <TLiteralValueRangeList> const-range-list
 
 %type <EUnaryOp> unary-op
 
@@ -416,12 +417,25 @@ relational-op-expr
         {
             $$ = MakeExpression<TBinaryOpExpression>(@$, $opcode, $lhs, $rhs);
         }
-    | unary-expr[expr] KwBetween unary-expr[lbexpr] KwAnd unary-expr[rbexpr]
+    | unary-expr[expr] KwBetween const-tuple[lower] KwAnd const-tuple[upper]
         {
-            $$ = MakeExpression<TBinaryOpExpression>(@$, EBinaryOp::And,
-                MakeExpression<TBinaryOpExpression>(@$, EBinaryOp::GreaterOrEqual, $expr, $lbexpr),
-                MakeExpression<TBinaryOpExpression>(@$, EBinaryOp::LessOrEqual, $expr, $rbexpr));
+            TExpressionList lowerExpr;
+            for (const auto& value : $lower) {
+                lowerExpr.push_back(New<TLiteralExpression>(@$, value));
+            }
 
+            TExpressionList upperExpr;
+            for (const auto& value : $upper) {
+                upperExpr.push_back(New<TLiteralExpression>(@$, value));
+            }
+
+            $$ = MakeExpression<TBinaryOpExpression>(@$, EBinaryOp::And,
+                MakeExpression<TBinaryOpExpression>(@$, EBinaryOp::GreaterOrEqual, $expr, lowerExpr),
+                MakeExpression<TBinaryOpExpression>(@$, EBinaryOp::LessOrEqual, $expr, upperExpr));
+        }
+    | unary-expr[expr] KwBetween LeftParenthesis const-range-list[ranges] RightParenthesis
+        {
+            $$ = MakeExpression<TBetweenExpression>(@$, $expr, $ranges);
         }
     | unary-expr[expr] KwIn LeftParenthesis const-tuple-list[args] RightParenthesis
         {
@@ -670,6 +684,18 @@ const-tuple-list
     | const-tuple[a]
         {
             $$.push_back($a);
+        }
+;
+
+const-range-list
+    : const-range-list[as] Comma const-tuple[a] KwAnd const-tuple[b]
+        {
+            $$.swap($as);
+            $$.emplace_back($a, $b);
+        }
+    | const-tuple[a] KwAnd const-tuple[b]
+        {
+            $$.emplace_back($a, $b);
         }
 ;
 

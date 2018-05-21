@@ -1305,6 +1305,29 @@ char IsRowInRowset(
     return found != (*lookupRows)->end();
 }
 
+char IsRowInRanges(
+    ui32 valuesCount,
+    TValue* values,
+    TSharedRange<TRowRange>* ranges)
+{
+    auto found = std::lower_bound(ranges->Begin(), ranges->End(), values, [&] (TRowRange range, TValue* values) {
+        ui32 length = std::min(range.second.GetCount(), valuesCount);
+        return CompareRows(range.second.Begin(), range.second.Begin() + length, values, values + length) < 0;
+    });
+
+    if (found != ranges->End()) {
+        ui32 length = std::min(found->first.GetCount(), valuesCount);
+
+        return CompareRows(
+            found->first.Begin(),
+            found->first.Begin() + length,
+            values,
+            values + length) <= 0;
+    } else {
+        return false;
+    }
+}
+
 const TValue* TransformTuple(
     TComparerFunction* comparer,
     THasherFunction* hasher,
@@ -1901,6 +1924,7 @@ void RegisterQueryRoutinesImpl(TRoutineRegistry* registry)
     REGISTER_ROUTINE(AllocatePermanentRow);
     REGISTER_ROUTINE(AllocateBytes);
     REGISTER_ROUTINE(IsRowInRowset);
+    REGISTER_ROUTINE(IsRowInRanges);
     REGISTER_ROUTINE(TransformTuple);
     REGISTER_ROUTINE(SimpleHash);
     REGISTER_ROUTINE(FarmHashUint64);

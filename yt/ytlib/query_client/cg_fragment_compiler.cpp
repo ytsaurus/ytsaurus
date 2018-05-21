@@ -1852,6 +1852,44 @@ TCodegenExpression MakeCodegenInExpr(
     };
 }
 
+TCodegenExpression MakeCodegenBetweenExpr(
+    std::vector<size_t> argIds,
+    int arrayIndex,
+    TComparerManagerPtr comparerManager)
+{
+    return [
+        MOVE(argIds),
+        MOVE(arrayIndex),
+        MOVE(comparerManager)
+    ] (TCGExprContext& builder) {
+        size_t keySize = argIds.size();
+
+        Value* newValues = CodegenAllocateValues(builder, keySize);
+
+        std::vector<EValueType> keyTypes;
+        for (int index = 0; index < keySize; ++index) {
+            auto value = CodegenFragment(builder, argIds[index]);
+            keyTypes.push_back(value.GetStaticType());
+            value.StoreToValues(builder, newValues, index);
+        }
+
+        Value* result = builder->CreateCall(
+            builder.Module->GetRoutine("IsRowInRanges"),
+            {
+                builder->getInt32(keySize),
+                newValues,
+                builder.GetOpaqueValue(arrayIndex)
+            });
+
+        return TCGValue::CreateFromValue(
+            builder,
+            builder->getFalse(),
+            nullptr,
+            builder->CreateTrunc(result, builder->getInt1Ty()),
+            EValueType::Boolean);
+    };
+}
+
 TCodegenExpression MakeCodegenTransformExpr(
     std::vector<size_t> argIds,
     TNullable<size_t> defaultExprId,

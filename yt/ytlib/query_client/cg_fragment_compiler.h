@@ -117,6 +117,11 @@ TCodegenExpression MakeCodegenInExpr(
     int hashtableIndex,
     TComparerManagerPtr comparerManager);
 
+TCodegenExpression MakeCodegenBetweenExpr(
+    std::vector<size_t> argIds,
+    int arrayIndex,
+    TComparerManagerPtr comparerManager);
+
 TCodegenExpression MakeCodegenTransformExpr(
     std::vector<size_t> argIds,
     TNullable<size_t> defaultExprId,
