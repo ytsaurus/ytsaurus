@@ -1358,7 +1358,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Copy)
     auto* trunkSourceImpl = sourceProxy->GetTrunkNode();
     auto* sourceImpl = removeSource
         ? LockImpl(trunkSourceImpl, ELockMode::Exclusive, true)
-        : GetImpl(trunkSourceImpl);
+        : cypressManager->GetVersionedNode(trunkSourceImpl, sourceTransaction);
 
     if (IsAncestorOf(trunkSourceImpl, TrunkNode)) {
         THROW_ERROR_EXCEPTION("Cannot copy or move a node to its descendant");
