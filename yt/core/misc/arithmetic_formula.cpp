@@ -49,7 +49,10 @@ void ValidateFormulaVariable(const TString& variable, EEvaluationContext context
         }
     }
     if (!IsSymbolAllowedInName(variable[0], context, true)) {
-        THROW_ERROR_EXCEPTION("Invalid first character in variable: %Qv", variable);
+        THROW_ERROR_EXCEPTION("Invalid first character in variable %Qv", variable);
+    }
+    if (variable == "in") {
+        THROW_ERROR_EXCEPTION("Invalid variable name %Qv", variable);
     }
 }
 
@@ -69,7 +72,7 @@ void ValidateBooleanFormulaVariable(const TString& variable)
 
 namespace {
 
-void ThrowError(const TString& formula, int position, const TString& message)
+void ThrowError(const TString& formula, int position, const TString& message, EEvaluationContext evaluationContext)
 {
     const static int maxContextSize = 30;
 
@@ -78,36 +81,43 @@ void ThrowError(const TString& formula, int position, const TString& message)
     int contextPosition = std::min(position, maxContextSize / 2);
 
     TStringBuilder builder;
-    Format(&builder, "Error while parsing arithmetic formula:\n%v\n", formula);
+    builder.AppendFormat(
+        "Error while parsing %v formula:\n%v\n",
+        evaluationContext == EEvaluationContext::Arithmetic ? "arithmetic" : "boolean",
+        formula);
     builder.AppendChar(' ', position);
-    Format(&builder, "^\n%v", message);
+    builder.AppendFormat("^\n%v", message);
     THROW_ERROR_EXCEPTION(builder.Flush())
         << TErrorAttribute("context", context)
         << TErrorAttribute("context_pos", contextPosition);
 }
 
+// NB: 'Set' type cannot appear in parsed/tokenized formula, it is needed only for CheckTypeConsistency.
 #define FOR_EACH_TOKEN(func) \
     func(0, Variable) \
-    func(0, Integer) \
+    func(0, Number) \
+    func(0, Set) \
     func(0, LeftBracket) \
     func(0, RightBracket) \
-    func(1, LogicalOr) \
-    func(2, LogicalAnd) \
-    func(3, BitwiseOr) \
-    func(4, BitwiseXor) \
-    func(5, BitwiseAnd) \
-    func(6, Equals) \
-    func(6, NotEquals) \
-    func(7, Less) \
-    func(7, Greater) \
-    func(7, LessOrEqual) \
-    func(7, GreaterOrEqual) \
-    func(8, Plus) \
-    func(8, Minus) \
-    func(9, Multiplies) \
-    func(9, Divides) \
-    func(9, Modulus) \
-    func(10, LogicalNot)
+    func(1, In) \
+    func(2, Comma) \
+    func(3, LogicalOr) \
+    func(4, LogicalAnd) \
+    func(5, BitwiseOr) \
+    func(6, BitwiseXor) \
+    func(7, BitwiseAnd) \
+    func(8, Equals) \
+    func(8, NotEquals) \
+    func(9, Less) \
+    func(9, Greater) \
+    func(9, LessOrEqual) \
+    func(9, GreaterOrEqual) \
+    func(10, Plus) \
+    func(10, Minus) \
+    func(11, Multiplies) \
+    func(11, Divides) \
+    func(11, Modulus) \
+    func(12, LogicalNot)
 
 #define EXTRACT_FIELD_NAME(x, y) (y)
 #define EXTRACT_PRECEDENCE(x, y) x,
@@ -140,7 +150,7 @@ struct TFormulaToken
 
 TString ToString(const TFormulaToken& token)
 {
-    if (token.Type == EFormulaTokenType::Integer) {
+    if (token.Type == EFormulaTokenType::Number) {
         return ToString(token.Number);
     } else if (token.Type == EFormulaTokenType::Variable) {
         return "[" + token.Name + "]";
@@ -192,7 +202,11 @@ private:
         const TString& formula,
         const std::vector<TFormulaToken>& tokens,
         EEvaluationContext context);
-    static size_t CalculateHash(const std::vector<TFormulaToken> tokens);
+    static size_t CalculateHash(const std::vector<TFormulaToken>& tokens);
+    static void CheckTypeConsistency(
+        const TString& formula,
+        const std::vector<TFormulaToken>& tokens,
+        EEvaluationContext context);
 
     friend TIntrusivePtr<TGenericFormulaImpl> MakeGenericFormulaImpl(const TString& formula, EEvaluationContext context);
 };
@@ -246,23 +260,26 @@ i64 TGenericFormulaImpl::Eval(const THashMap<TString, i64>& values, EEvaluationC
 #define APPLY_BINARY_OP(op) \
     YCHECK(stack.size() >= 2); \
     { \
-        i64 top = stack.back(); \
+        YCHECK(stack.back().Is<i64>()); \
+        i64 top = stack.back().As<i64>(); \
         stack.pop_back(); \
-        stack.back() = stack.back() op top; \
+        YCHECK(stack.back().Is<i64>()); \
+        stack.back() = static_cast<i64>(stack.back().As<i64>() op top); \
     }
 
-    std::vector<i64> stack;
+    std::vector<TVariant<i64, std::vector<i64>>> stack;
     for (const auto& token : ParsedFormula_) {
         switch (token.Type) {
             case EFormulaTokenType::Variable:
                 stack.push_back(variableValue(token.Name));
                 break;
-            case EFormulaTokenType::Integer:
+            case EFormulaTokenType::Number:
                 stack.push_back(token.Number);
                 break;
             case EFormulaTokenType::LogicalNot:
                 YCHECK(!stack.empty());
-                stack.back() = !stack.back();
+                YCHECK(stack.back().Is<i64>());
+                stack.back() = static_cast<i64>(!stack.back().As<i64>());
                 break;
             case EFormulaTokenType::LogicalOr:
                 APPLY_BINARY_OP(||);
@@ -310,21 +327,53 @@ i64 TGenericFormulaImpl::Eval(const THashMap<TString, i64>& values, EEvaluationC
             case EFormulaTokenType::Modulus:
                 YCHECK(stack.size() >= 2);
                 {
-                    i64 top = stack.back();
+                    YCHECK(stack.back().Is<i64>());
+                    i64 top = stack.back().As<i64>();
                     if (top == 0) {
-                        THROW_ERROR_EXCEPTION("Division by zero in formula: %Qv", Formula_)
+                        THROW_ERROR_EXCEPTION("Division by zero in formula %Qv", Formula_)
                             << TErrorAttribute("values", values);
                     }
                     stack.pop_back();
-                    if (stack.back() == std::numeric_limits<i64>::min() && top == -1) {
-                        THROW_ERROR_EXCEPTION("Division of INT64_MIN by -1 in formula: %Qv", Formula_)
+                    YCHECK(stack.back().Is<i64>());
+                    if (stack.back().As<i64>() == std::numeric_limits<i64>::min() && top == -1) {
+                        THROW_ERROR_EXCEPTION("Division of INT64_MIN by -1 in formula %Qv", Formula_)
                             << TErrorAttribute("values", values);
                     }
                     if (token.Type == EFormulaTokenType::Divides) {
-                        stack.back() = stack.back() / top;
+                        stack.back() = stack.back().As<i64>() / top;
                     } else {
-                        stack.back() = stack.back() % top;
+                        stack.back() = stack.back().As<i64>() % top;
                     }
+                }
+                break;
+            case EFormulaTokenType::Comma:
+                YCHECK(stack.size() >= 2);
+                {
+                    YCHECK(stack.back().Is<i64>());
+                    i64 top = stack.back().As<i64>();
+                    stack.pop_back();
+                    if (stack.back().Is<i64>()) {
+                        std::vector<i64> vector{stack.back().As<i64>(), top};
+                        stack.back() = vector;
+                    } else {
+                        stack.back().As<std::vector<i64>>().push_back(top);
+                    }
+                }
+                break;
+            case EFormulaTokenType::In:
+                YCHECK(stack.size() >= 2);
+                {
+                    auto set = stack.back().Is<i64>()
+                        ? std::vector<i64>{stack.back().As<i64>()}
+                        : std::move(stack.back().As<std::vector<i64>>());
+                    stack.pop_back();
+                    YCHECK(stack.back().Is<i64>());
+                    i64 element = stack.back().As<i64>();
+                    stack.pop_back();
+                    stack.push_back(static_cast<i64>(std::find(
+                        set.begin(),
+                        set.end(),
+                        element) != set.end()));
                 }
                 break;
             default:
@@ -338,7 +387,8 @@ i64 TGenericFormulaImpl::Eval(const THashMap<TString, i64>& values, EEvaluationC
         return true;
     }
     YCHECK(stack.size() == 1);
-    return stack[0];
+    YCHECK(stack.back().Is<i64>());
+    return stack[0].As<i64>();
 
 #undef APPLY_BINARY_OP
 }
@@ -360,7 +410,7 @@ std::vector<TFormulaToken> TGenericFormulaImpl::Tokenize(const TString& formula,
     size_t pos = 0;
 
     auto throwError = [&] (int position, const TString& message) {
-        ThrowError(formula, position, message);
+        ThrowError(formula, position, message, context);
     };
 
     auto skipWhitespace = [&] {
@@ -369,9 +419,18 @@ std::vector<TFormulaToken> TGenericFormulaImpl::Tokenize(const TString& formula,
         }
     };
 
-    auto extractSpecialToken = [&] {
+    auto extractSpecialToken = [&] () -> TNullable<EFormulaTokenType> {
         char first = formula[pos];
         char second = pos + 1 < formula.Size() ? formula[pos + 1] : '\0';
+        if (first == 'i' && second == 'n') {
+            char third = pos + 2 < formula.Size() ? formula[pos + 2] : '\0';
+            if (IsSymbolAllowedInName(third, context, false)) {
+                return Null;
+            } else {
+                pos += 2;
+                return EFormulaTokenType::In;
+            }
+        }
         switch (first) {
             case '^':
                 ++pos;
@@ -397,6 +456,9 @@ std::vector<TFormulaToken> TGenericFormulaImpl::Tokenize(const TString& formula,
             case ')':
                 ++pos;
                 return EFormulaTokenType::RightBracket;
+            case ',':
+                ++pos;
+                return EFormulaTokenType::Comma;
             case '=':
                 if (second != '=') {
                     throwError(pos + 1, "Unexpected character");
@@ -449,12 +511,11 @@ std::vector<TFormulaToken> TGenericFormulaImpl::Tokenize(const TString& formula,
                         return EFormulaTokenType::Greater;
                 }
             default:
-                throwError(pos, "Unexpected character");
-                Y_UNREACHABLE();
+                return Null;
         }
     };
 
-    auto extractInteger = [&] {
+    auto extractNumber = [&] {
         TString buf;
         if (formula[pos] == '-') {
             buf += formula[pos++];
@@ -492,20 +553,18 @@ std::vector<TFormulaToken> TGenericFormulaImpl::Tokenize(const TString& formula,
         token.Position = pos;
 
         if (std::isdigit(c) || (c == '-' && !expectBinaryOperator)) {
-            token.Type = EFormulaTokenType::Integer;
-            token.Number = extractInteger();
+            token.Type = EFormulaTokenType::Number;
+            token.Number = extractNumber();
             expectBinaryOperator = true;
+        } else if (auto maybeType = extractSpecialToken()) {
+            token.Type = *maybeType;
+            expectBinaryOperator = token.Type == EFormulaTokenType::RightBracket;
         } else if (IsSymbolAllowedInName(formula[pos], context, true)) {
             token.Type = EFormulaTokenType::Variable;
             token.Name = extractVariable();
             expectBinaryOperator = true;
         } else {
-            token.Type = extractSpecialToken();
-            if (token.Type == EFormulaTokenType::RightBracket) {
-                expectBinaryOperator = true;
-            } else {
-                expectBinaryOperator = false;
-            }
+            throwError(pos, "Unexpected character");
         }
 
         result.push_back(token);
@@ -528,7 +587,7 @@ std::vector<TFormulaToken> TGenericFormulaImpl::Parse(
     }
 
     auto throwError = [&] (int position, const TString& message) {
-        ThrowError(formula, position, message);
+        ThrowError(formula, position, message, context);
     };
 
     auto finishSubformula = [&] () {
@@ -548,7 +607,7 @@ std::vector<TFormulaToken> TGenericFormulaImpl::Parse(
     for (const auto& token : tokens) {
         switch (token.Type) {
             case EFormulaTokenType::Variable:
-            case EFormulaTokenType::Integer:
+            case EFormulaTokenType::Number:
                 if (!expectSubformula) {
                     throwError(token.Position, "Unexpected variable");
                 }
@@ -609,10 +668,12 @@ std::vector<TFormulaToken> TGenericFormulaImpl::Parse(
         }
     }
 
+    CheckTypeConsistency(formula, result, context);
+
     return result;
 }
 
-size_t TGenericFormulaImpl::CalculateHash(const std::vector<TFormulaToken> tokens)
+size_t TGenericFormulaImpl::CalculateHash(const std::vector<TFormulaToken>& tokens)
 {
     size_t result = 0x18a92ea497f9bb1e;
 
@@ -623,6 +684,69 @@ size_t TGenericFormulaImpl::CalculateHash(const std::vector<TFormulaToken> token
     }
 
     return result;
+}
+
+void TGenericFormulaImpl::CheckTypeConsistency(
+    const TString& formula,
+    const std::vector<TFormulaToken>& tokens,
+    EEvaluationContext context)
+{
+    auto validateIsNumber = [&] (EFormulaTokenType type, int position) {
+        if (type != EFormulaTokenType::Number) {
+            ThrowError(formula, position, "Type mismatch: expected \"number\", got \"set\"", context);
+        }
+    };
+
+    std::vector<EFormulaTokenType> stack;
+    for (const auto& token : tokens) {
+        switch (token.Type) {
+            case EFormulaTokenType::Variable:
+            case EFormulaTokenType::Number:
+                stack.push_back(EFormulaTokenType::Number);
+                break;
+            case EFormulaTokenType::LogicalNot:
+                YCHECK(!stack.empty());
+                validateIsNumber(stack.back(), token.Position);
+                break;
+            case EFormulaTokenType::LogicalOr:
+            case EFormulaTokenType::LogicalAnd:
+            case EFormulaTokenType::BitwiseOr:
+            case EFormulaTokenType::BitwiseXor:
+            case EFormulaTokenType::BitwiseAnd:
+            case EFormulaTokenType::Equals:
+            case EFormulaTokenType::NotEquals:
+            case EFormulaTokenType::Less:
+            case EFormulaTokenType::Greater:
+            case EFormulaTokenType::LessOrEqual:
+            case EFormulaTokenType::GreaterOrEqual:
+            case EFormulaTokenType::Plus:
+            case EFormulaTokenType::Minus:
+            case EFormulaTokenType::Multiplies:
+            case EFormulaTokenType::Divides:
+            case EFormulaTokenType::Modulus:
+                YCHECK(stack.size() >= 2);
+                validateIsNumber(stack.back(), token.Position);
+                stack.pop_back();
+                validateIsNumber(stack.back(), token.Position);
+                break;
+            case EFormulaTokenType::Comma:
+                YCHECK(stack.size() >= 2);
+                validateIsNumber(stack.back(), token.Position);
+                stack.pop_back();
+                stack.back() = EFormulaTokenType::Set;
+                break;
+            case EFormulaTokenType::In:
+                YCHECK(stack.size() >= 2);
+                stack.pop_back();
+                validateIsNumber(stack.back(), token.Position);
+                break;
+            default:
+                Y_UNREACHABLE();
+        }
+    }
+    if (!stack.empty()) {
+        validateIsNumber(stack.back(), 0);
+    }
 }
 
 TIntrusivePtr<TGenericFormulaImpl> MakeGenericFormulaImpl(const TString& formula, EEvaluationContext context)

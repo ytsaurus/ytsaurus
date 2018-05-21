@@ -52,7 +52,9 @@ INSTANTIATE_TEST_CASE_P(
         std::make_tuple("!a & b & !c", std::vector<TString>{"b"}, true),
         std::make_tuple("var-1 | !var/2", std::vector<TString>{"var-1"}, true),
         std::make_tuple("var-1 | !var/2", std::vector<TString>{"var/2"}, false),
-        std::make_tuple("var-1 | !var/2", std::vector<TString>{""}, true)
+        std::make_tuple("var-1 | !var/2", std::vector<TString>{}, true),
+        std::make_tuple("!in-", std::vector<TString>{}, true),
+        std::make_tuple("in/|x", std::vector<TString>{"in/"}, true)
 ));
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -109,7 +111,8 @@ INSTANTIATE_TEST_CASE_P(
         "/a",
         "-",
         "a /b",
-        "a & /b"
+        "a & /b",
+        "in"
 ));
 
 class TBooleanFormulaTest2
@@ -136,11 +139,13 @@ TEST(TBooleanFormulaTest, ValidateVariable)
     ValidateBooleanFormulaVariable("var-var-var");
     ValidateBooleanFormulaVariable("tablet_common/news-queue");
     ValidateBooleanFormulaVariable("VAR123VAR");
+    ValidateBooleanFormulaVariable("IN");
 
     EXPECT_THROW(ValidateBooleanFormulaVariable("2var"), TErrorException);
     EXPECT_THROW(ValidateBooleanFormulaVariable("foo bar"), TErrorException);
     EXPECT_THROW(ValidateBooleanFormulaVariable(""), TErrorException);
     EXPECT_THROW(ValidateBooleanFormulaVariable("a+b"), TErrorException);
+    EXPECT_THROW(ValidateBooleanFormulaVariable("in"), TErrorException);
 }
 
 
