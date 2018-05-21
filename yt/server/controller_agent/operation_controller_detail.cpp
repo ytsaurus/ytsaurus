@@ -2817,28 +2817,36 @@ void TOperationControllerBase::AnalyzeJobsCpuUsage()
         "/user_job/cpu/user/$/completed/"
     };
 
-    TVector<TError> innerErrors;
+    THashMap<EJobType, TError> jobTypeToError;
     for (const auto& task : Tasks) {
+        auto jobType = task->GetJobType();
+        if (jobTypeToError.find(jobType) != jobTypeToError.end()) {
+            continue;
+        }
+
         const auto& userJobSpecPtr = task->GetUserJobSpec();
         if (!userJobSpecPtr) {
             continue;
         }
-        auto jobType = task->GetJobType();
+
         auto summary = FindSummary(JobStatistics, "/time/exec/$/completed/" + FormatEnum(jobType));
         if (!summary) {
             continue;
         }
+
         i64 totalExecutionTime = summary->GetSum();
         i64 jobCount = summary->GetCount();
         double cpuLimit = userJobSpecPtr->CpuLimit;
         if (jobCount == 0 || totalExecutionTime == 0 || cpuLimit == 0) {
             continue;
         }
+
         i64 cpuUsage = 0;
-        for (const TString& stat : allCpuStatistics) {
+        for (const auto& stat : allCpuStatistics) {
             auto value = FindNumericValue(JobStatistics, stat + FormatEnum(jobType));
             cpuUsage += value ? *value : 0;
         }
+
         TDuration averageJobDuration = TDuration::MilliSeconds(totalExecutionTime / jobCount);
         TDuration totalExecutionDuration = TDuration::MilliSeconds(totalExecutionTime);
         double cpuRatio = static_cast<double>(cpuUsage) / (totalExecutionTime * cpuLimit);
@@ -2851,17 +2859,23 @@ void TOperationControllerBase::AnalyzeJobsCpuUsage()
                 << TErrorAttribute("cpu_time", cpuUsage)
                 << TErrorAttribute("exec_time", totalExecutionDuration)
                 << TErrorAttribute("cpu_limit", cpuLimit);
-            innerErrors.push_back(error);
+            YCHECK(jobTypeToError.emplace(jobType, error).second);
         }
     }
 
     TError error;
-    if (!innerErrors.empty()) {
+    if (!jobTypeToError.empty()) {
+        std::vector<TError> innerErrors;
+        innerErrors.reserve(jobTypeToError.size());
+        for (const auto& pair : jobTypeToError) {
+            innerErrors.push_back(pair.second);
+        }
         error = TError(
             "Average cpu usage of some of your job types is significantly lower than requested 'cpu_limit'. "
-            "Consider decreasing cpu_limit in spec of your operation"
-        ) << innerErrors;
+            "Consider decreasing cpu_limit in spec of your operation")
+            << innerErrors;
     }
+
     SetOperationAlert(EOperationAlertType::LowCpuUsage, error);
 }
 
