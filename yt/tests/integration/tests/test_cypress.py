@@ -474,6 +474,16 @@ class TestCypress(YTEnvSetup):
         commit_transaction(tx)
         assert exists("//tmp/t")
 
+    def test_copy_from_another_tx3(self):
+        tx = start_transaction()
+        set("//tmp/source", "simple value", tx=tx)
+
+        copy("//tmp/source", "//tmp/destination", source_transaction_id=tx)
+        assert not exists("//tmp/source")
+        assert get("//tmp/source", tx=tx) == "simple value"
+        abort_transaction(tx)
+        assert get("//tmp/destination") == "simple value"
+
     def test_compression_codec_in_tx(self):
         create("table", "//tmp/t", attributes={"compression_codec": "none"})
         assert get("//tmp/t/@compression_codec") == "none"
