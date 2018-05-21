@@ -6,6 +6,7 @@
 
 #include <yt/ytlib/tablet_client/public.h>
 
+#include <yt/core/misc/arithmetic_formula.h>
 #include <yt/core/misc/enum.h>
 #include <yt/core/misc/public.h>
 
@@ -79,6 +80,7 @@ DECLARE_REFCOUNTED_CLASS(TBundleNodeTracker)
 DECLARE_REFCOUNTED_CLASS(TTabletManagerConfig)
 DECLARE_REFCOUNTED_CLASS(TTabletBalancerConfig)
 DECLARE_REFCOUNTED_CLASS(TTabletBalancerMasterConfig)
+DECLARE_REFCOUNTED_CLASS(TDynamicTabletBalancerMasterConfig)
 DECLARE_REFCOUNTED_CLASS(TDynamicTabletManagerConfig)
 
 class TTableReplica;
@@ -96,6 +98,8 @@ struct TTabletPerformanceCounter;
 struct TTabletPerformanceCounters;
 
 extern const TString DefaultTabletCellBundleName;
+
+extern const TTimeFormula DefaultTabletBalancerSchedule;
 
 ////////////////////////////////////////////////////////////////////////////////
 

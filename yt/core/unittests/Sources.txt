@@ -70,6 +70,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/subprocess_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/sync_expiring_cache_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/thread_affinity_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/time_formula_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/timer_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/tls_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/tools_ut.cpp

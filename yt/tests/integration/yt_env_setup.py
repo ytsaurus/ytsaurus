@@ -419,6 +419,9 @@ class YTEnvSetup(object):
     def setup_method(self, method):
         self.transactions_at_start = []
         for cluster_index in xrange(self.NUM_REMOTE_CLUSTERS + 1):
+            if self.USE_DYNAMIC_TABLES:
+                yt_commands.set("//sys/@config/tablet_manager/tablet_balancer/tablet_balancer_schedule", "1")
+
             driver = yt_commands.get_driver(cluster=self.get_cluster_name(cluster_index))
             if driver is None:
                 self.transactions_at_start.append(set())

@@ -152,6 +152,8 @@ public:
 
     i64 Eval(const THashMap<TString, i64>& values, EEvaluationContext context) const;
 
+    THashSet<TString> GetVariables() const;
+
 private:
     std::vector<TFormulaToken> ParsedFormula_;
 
@@ -296,13 +298,26 @@ i64 TGenericFormulaImpl::Eval(const THashMap<TString, i64>& values, EEvaluationC
         }
     }
     if (stack.empty()) {
-        YCHECK(context == EEvaluationContext::Boolean);
+        if (context == EEvaluationContext::Arithmetic) {
+            THROW_ERROR_EXCEPTION("Empty arithmetic formula cannot be evaluated");
+        }
         return true;
     }
     YCHECK(stack.size() == 1);
     return stack[0];
 
 #undef APPLY_BINARY_OP
+}
+
+THashSet<TString> TGenericFormulaImpl::GetVariables() const
+{
+    THashSet<TString> variables;
+    for (const auto& token : ParsedFormula_) {
+        if (token.Type == EFormulaTokenType::Variable) {
+            variables.insert(token.Name);
+        }
+    }
+    return variables;
 }
 
 std::vector<TFormulaToken> TGenericFormulaImpl::Tokenize(const TString& formula)
@@ -475,12 +490,8 @@ std::vector<TFormulaToken> TGenericFormulaImpl::Parse(
     std::vector<TFormulaToken> stack;
     bool expectSubformula = true;
 
-    if (tokens.size() == 0) {
-        if (context == EEvaluationContext::Arithmetic) {
-            THROW_ERROR_EXCEPTION("Empty arithmetic formula is not allowed");
-        } else {
-            return result;
-        }
+    if (tokens.empty()) {
+        return result;
     }
 
     auto throwError = [&] (int position, const TString& message) {
@@ -635,6 +646,11 @@ i64 TArithmeticFormula::Eval(const THashMap<TString, i64>& values) const
     return Impl_->Eval(values, EEvaluationContext::Arithmetic);
 }
 
+THashSet<TString> TArithmeticFormula::GetVariables() const
+{
+    return Impl_->GetVariables();
+}
+
 TArithmeticFormula MakeArithmeticFormula(const TString& formula)
 {
     auto impl = MakeGenericFormulaImpl(formula, EEvaluationContext::Arithmetic);
@@ -748,6 +764,92 @@ void TBooleanFormula::Load(TStreamLoadContext& context)
     using NYT::Load;
     auto formula = Load<TString>(context);
     Impl_ = MakeGenericFormulaImpl(formula, EEvaluationContext::Boolean);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TTimeFormula::TTimeFormula() = default;
+TTimeFormula::TTimeFormula(const TTimeFormula& other) = default;
+TTimeFormula::TTimeFormula(TTimeFormula&& other) = default;
+TTimeFormula& TTimeFormula::operator=(const TTimeFormula& other) = default;
+TTimeFormula& TTimeFormula::operator=(TTimeFormula&& other) = default;
+TTimeFormula::~TTimeFormula() = default;
+
+bool TTimeFormula::operator==(const TTimeFormula& other) const
+{
+    return Formula_ == other.Formula_;
+}
+
+bool TTimeFormula::IsEmpty() const
+{
+    return Formula_.IsEmpty();
+}
+
+int TTimeFormula::Size() const
+{
+    return Formula_.Size();
+}
+
+size_t TTimeFormula::GetHash() const
+{
+    return Formula_.GetHash();
+}
+
+TString TTimeFormula::GetFormula() const
+{
+    return Formula_.GetFormula();
+}
+
+bool TTimeFormula::IsSatisfiedBy(TInstant time) const
+{
+    struct tm tm;
+    time.LocalTime(&tm);
+    return Formula_.Eval({
+            {"hours", tm.tm_hour},
+            {"minutes", tm.tm_min}}) != 0;
+}
+
+TTimeFormula::TTimeFormula(TArithmeticFormula&& arithmeticFormula)
+    : Formula_(std::move(arithmeticFormula))
+{ }
+
+TTimeFormula MakeTimeFormula(const TString& formula)
+{
+    const static THashSet<TString> allowedVariables{"minutes", "hours"};
+
+    auto arithmeticFormula = MakeArithmeticFormula(formula);
+
+    for (const auto& variable : arithmeticFormula.GetVariables()) {
+        if (!allowedVariables.has(variable)) {
+            THROW_ERROR_EXCEPTION("Invalid variable in time formula (Variable: %Qv, TimeFormula: %Qv)",
+                variable,
+                formula);
+        }
+    }
+    return TTimeFormula{std::move(arithmeticFormula)};
+}
+
+void Serialize(const TTimeFormula& timeFormula, NYson::IYsonConsumer* consumer)
+{
+    BuildYsonFluently(consumer)
+        .Value(timeFormula.GetFormula());
+}
+
+void Deserialize(TTimeFormula& timeFormula, NYTree::INodePtr node)
+{
+    timeFormula = MakeTimeFormula(node->AsString()->GetValue());
+}
+
+void TTimeFormula::Save(TStreamSaveContext& context) const
+{
+    using NYT::Save;
+    Save(context, Formula_);
+}
+
+void TTimeFormula::Load(TStreamLoadContext& context)
+{
+    using NYT::Load;
+    Formula_ = Load<TArithmeticFormula>(context);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
