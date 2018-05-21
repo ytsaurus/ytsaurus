@@ -131,6 +131,14 @@ bool operator == (const TExpression& lhs, const TExpression& rhs)
         return
             typedLhs->Expr == typedRhs->Expr &&
             typedLhs->Values == typedRhs->Values;
+    } else if (const auto* typedLhs = lhs.As<TBetweenExpression>()) {
+        const auto* typedRhs = rhs.As<TBetweenExpression>();
+        if (!typedRhs) {
+            return false;
+        }
+        return
+            typedLhs->Expr == typedRhs->Expr &&
+            typedLhs->Values == typedRhs->Values;
     } else if (const auto* typedLhs = lhs.As<TTransformExpression>()) {
         const auto* typedRhs = rhs.As<TTransformExpression>();
         if (!typedRhs) {
@@ -299,26 +307,40 @@ void FormatExpression(TStringBuilder* builder, const TExpressionList& expr, bool
 
 void FormatExpression(TStringBuilder* builder, const TExpression& expr, bool expandAliases, bool isFinal)
 {
-    auto printValues = [] (TStringBuilder* builder, const TLiteralValueTupleList& list) {
+    auto printTuple = [] (TStringBuilder* builder, const TLiteralValueTuple& tuple) {
+        bool needParens = tuple.size() > 1;
+        if (needParens) {
+            builder->AppendChar('(');
+        }
+        JoinToString(
+            builder,
+            tuple.begin(),
+            tuple.end(),
+            [] (TStringBuilder* builder, const TLiteralValue& value) {
+                builder->AppendString(FormatLiteralValue(value));
+            });
+        if (needParens) {
+            builder->AppendChar(')');
+        }
+    };
+
+    auto printTuples = [&] (TStringBuilder* builder, const TLiteralValueTupleList& list) {
         JoinToString(
             builder,
             list.begin(),
             list.end(),
-            [] (TStringBuilder* builder, const TLiteralValueTuple& tuple) {
-                bool needParens = tuple.size() > 1;
-                if (needParens) {
-                    builder->AppendChar('(');
-                }
-                JoinToString(
-                    builder,
-                    tuple.begin(),
-                    tuple.end(),
-                    [] (TStringBuilder* builder, const TLiteralValue& value) {
-                        builder->AppendString(FormatLiteralValue(value));
-                    });
-                if (needParens) {
-                    builder->AppendChar(')');
-                }
+            printTuple);
+    };
+
+    auto printRanges = [&] (TStringBuilder* builder, const TLiteralValueRangeList& list) {
+        JoinToString(
+            builder,
+            list.begin(),
+            list.end(),
+            [&] (TStringBuilder* builder, const std::pair<TLiteralValueTuple, TLiteralValueTuple>& range) {
+                printTuple(builder, range.first);
+                builder->AppendString(" AND ");
+                printTuple(builder, range.second);
             });
     };
 
@@ -358,7 +380,13 @@ void FormatExpression(TStringBuilder* builder, const TExpression& expr, bool exp
         builder->AppendChar('(');
         FormatExpressions(builder, typedExpr->Expr, expandAliases);
         builder->AppendString(") IN (");
-        printValues(builder, typedExpr->Values);
+        printTuples(builder, typedExpr->Values);
+        builder->AppendChar(')');
+    } else if (auto* typedExpr = expr.As<TBetweenExpression>()) {
+        builder->AppendChar('(');
+        FormatExpressions(builder, typedExpr->Expr, expandAliases);
+        builder->AppendString(") BETWEEN (");
+        printRanges(builder, typedExpr->Values);
         builder->AppendChar(')');
     } else if (auto* typedExpr = expr.As<TTransformExpression>()) {
         builder->AppendString("TRANSFORM(");
@@ -372,9 +400,9 @@ void FormatExpression(TStringBuilder* builder, const TExpression& expr, bool exp
             builder->AppendChar(')');
         }
         builder->AppendString(", (");
-        printValues(builder, typedExpr->From);
+        printTuples(builder, typedExpr->From);
         builder->AppendString("), (");
-        printValues(builder, typedExpr->To);
+        printTuples(builder, typedExpr->To);
         builder->AppendChar(')');
 
         if (typedExpr->DefaultExpr) {

@@ -14,6 +14,7 @@ using NYT::NQueryClient::TExpressionContext;
 using NYT::NQueryClient::TFunctionContext;
 using NYT::NQueryClient::TExecutionContext;
 using NYT::NQueryClient::TRow;
+using NYT::NQueryClient::TRowRange;
 using NYT::NQueryClient::TMutableRow;
 using NYT::NQueryClient::TRowHeader;
 using NYT::NQueryClient::TValue;
@@ -119,6 +120,11 @@ class TypeBuilder<TTopCollector*, Cross>
 
 template <bool Cross>
 class TypeBuilder<TSharedRange<TRow>*, Cross>
+    : public TypeBuilder<void*, Cross>
+{ };
+
+template <bool Cross>
+class TypeBuilder<TSharedRange<TRowRange>*, Cross>
     : public TypeBuilder<void*, Cross>
 { };
 

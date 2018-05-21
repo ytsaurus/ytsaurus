@@ -1243,6 +1243,91 @@ TEST_F(TQueryEvaluateTest, SimpleBetweenAnd)
     Evaluate("a, b FROM [//t] where a between 9 and 11", split, source, ResultMatcher(result));
 }
 
+TEST_F(TQueryEvaluateTest, MultipleBetweenAnd)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64},
+        {"b", EValueType::Int64}
+    });
+
+    std::vector<TString> source = {
+        "a=1;b=10",
+        "a=1;b=30",
+        "a=2;b=20",
+        "a=2;b=30",
+        "a=2;b=40",
+        "a=2;b=50",
+        "a=3;b=30",
+        "a=3;b=50",
+        "a=3;b=60",
+        "a=4;b=5",
+        "a=5;b=5",
+        "a=6;b=5",
+        "a=10;b=11",
+        "a=15;b=11"
+    };
+
+    auto result = YsonToRows({
+        "a=1;b=10",
+        "a=2;b=30",
+        "a=2;b=40",
+        "a=3;b=50",
+        "a=3;b=60",
+        "a=4;b=5",
+        "a=5;b=5"
+    }, split);
+
+    Evaluate(R"(
+        a, b
+    from [//t]
+    where
+        (a, b) between (
+            (1) and (1, 20),
+            (2, 30) and (2, 40),
+            (3, 50) and (3),
+            4 and 5
+        )
+    )", split, source, ResultMatcher(result));
+}
+
+TEST_F(TQueryEvaluateTest, MultipleBetweenAnd2)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64},
+        {"b", EValueType::Int64}
+    });
+
+    std::vector<TString> source;
+    for (size_t i = 0; i < 100; ++i) {
+        source.push_back(TString() + "a=" + ToString(i / 10) + ";b=" + ToString(i % 10));
+    }
+
+    auto data = source.data();
+
+    std::vector<TString> resultData;
+    resultData.insert(resultData.end(), data + 10, data + 13);
+    resultData.insert(resultData.end(), data + 23, data + 25);
+    resultData.insert(resultData.end(), data + 35, data + 40);
+    resultData.insert(resultData.end(), data + 40, data + 60);
+
+    std::vector<TOwningRow> result;
+    for (auto row : resultData) {
+        result.push_back(YsonToRow(row, split, true));
+    }
+
+    Evaluate(R"(
+        a, b
+    from [//t]
+    where
+        (a, b) between (
+            (1) and (1, 2),
+            (2, 3) and (2, 4),
+            (3, 5) and (3),
+            4 and 5
+        )
+    )", split, source, ResultMatcher(result));
+}
+
 TEST_F(TQueryEvaluateTest, SimpleIn)
 {
     auto split = MakeSplit({
@@ -4854,7 +4939,7 @@ TEST_F(TQueryEvaluateTest, CardinalityAggregateTotals2)
     }, resultSplit);
 
     Evaluate(
-        "(int64(cardinality(a)) - b * 1000) between (-b * 10) and (b * 10) as result,"
+        "(int64(cardinality(a)) - b * 1000 as x) >= (-b * 10) and x <= (b * 10) as result,"
         "(int64(cardinality(a)) - 3000) between -30 and 30 as total, b "
         "from [//t] group by b having cardinality(a) > 1500 with totals",
         split,
