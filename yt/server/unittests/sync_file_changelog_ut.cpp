@@ -5,6 +5,7 @@
 #include <yt/server/hydra/format.h>
 #include <yt/server/hydra/sync_file_changelog.h>
 
+#include <yt/ytlib/chunk_client/io_engine.h>
 #include <yt/ytlib/hydra/hydra_manager.pb.h>
 
 #include <yt/core/misc/fs.h>
@@ -32,6 +33,7 @@ protected:
     std::unique_ptr<TTempFile> TemporaryFile;
     std::unique_ptr<TTempFile> TemporaryIndexFile;
     TFileChangelogConfigPtr DefaultFileChangelogConfig;
+    NChunkClient::IIOEnginePtr IOEngine;
 
     virtual void SetUp()
     {
@@ -39,6 +41,7 @@ protected:
         TemporaryIndexFile.reset(new TTempFile(TemporaryFile->Name() + ".index"));
         DefaultFileChangelogConfig = New<TFileChangelogConfig>();
         DefaultFileChangelogConfig->IndexBlockSize = 64;
+        IOEngine = NChunkClient::CreateIOEngine(NChunkClient::EIOEngineType::ThreadPool, NYTree::INodePtr());
     }
 
     virtual void TearDown()
@@ -56,7 +59,7 @@ protected:
             fileChangelogConfig = DefaultFileChangelogConfig;
         }
 
-        auto changelog = New<TSyncFileChangelog>(TemporaryFile->Name(), fileChangelogConfig);
+        auto changelog = New<TSyncFileChangelog>(IOEngine, TemporaryFile->Name(), fileChangelogConfig);
 
         changelog->Create(TChangelogMeta());
         auto records = MakeRecords<TRecordType>(0, recordCount);
@@ -85,7 +88,7 @@ protected:
 
     TSyncFileChangelogPtr OpenChangelog() const
     {
-        auto changelog = New<TSyncFileChangelog>(TemporaryFile->Name(), DefaultFileChangelogConfig);
+        auto changelog = New<TSyncFileChangelog>(IOEngine, TemporaryFile->Name(), DefaultFileChangelogConfig);
         changelog->Open();
         return changelog;
     }
@@ -158,11 +161,11 @@ protected:
 TEST_F(TSyncFileChangelogTest, EmptyChangelog)
 {
     {
-        auto changelog = New<TSyncFileChangelog>(TemporaryFile->Name(), New<TFileChangelogConfig>());
+        auto changelog = New<TSyncFileChangelog>(IOEngine, TemporaryFile->Name(), New<TFileChangelogConfig>());
         changelog->Create(TChangelogMeta());
     }
     {
-        auto changelog = New<TSyncFileChangelog>(TemporaryFile->Name(), New<TFileChangelogConfig>());
+        auto changelog = New<TSyncFileChangelog>(IOEngine, TemporaryFile->Name(), New<TFileChangelogConfig>());
         changelog->Open();
     }
 }
@@ -183,13 +186,13 @@ TEST_F(TSyncFileChangelogTest, Meta)
     auto record = GenerateBlob(2000);
 
     {
-        auto changelog = New<TSyncFileChangelog>(TemporaryFile->Name(), New<TFileChangelogConfig>());
+        auto changelog = New<TSyncFileChangelog>(IOEngine, TemporaryFile->Name(), New<TFileChangelogConfig>());
         changelog->Create(meta);
         changelog->Append(0, std::vector<TSharedRef>(1, record));
         changelog->Flush();
     }
     {
-        auto changelog = New<TSyncFileChangelog>(TemporaryFile->Name(), New<TFileChangelogConfig>());
+        auto changelog = New<TSyncFileChangelog>(IOEngine, TemporaryFile->Name(), New<TFileChangelogConfig>());
         changelog->Open();
         EXPECT_EQ(meta.prev_record_count(), changelog->GetMeta().prev_record_count());
         EXPECT_EQ(1, changelog->GetRecordCount());

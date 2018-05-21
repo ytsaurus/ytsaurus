@@ -213,9 +213,11 @@ class TSyncFileChangelog::TImpl
 {
 public:
     TImpl(
+        const NChunkClient::IIOEnginePtr& ioEngine,
         const TString& fileName,
         TFileChangelogConfigPtr config)
-        : FileName_(fileName)
+        : IOEngine_(ioEngine)
+        , FileName_(fileName)
         , IndexFileName_(fileName + "." + ChangelogIndexExtension)
         , Config_(config)
         , Logger(HydraLogger)
@@ -898,6 +900,7 @@ private:
         }
     }
 
+    const NChunkClient::IIOEnginePtr IOEngine_;
 
     const TString FileName_;
     const TString IndexFileName_;
@@ -932,9 +935,11 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TSyncFileChangelog::TSyncFileChangelog(
+    const NChunkClient::IIOEnginePtr& ioEngine,
     const TString& fileName,
     TFileChangelogConfigPtr config)
     : Impl_(std::make_unique<TImpl>(
+        ioEngine,
         fileName,
         config))
 { }
