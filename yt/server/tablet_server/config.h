@@ -8,6 +8,8 @@
 
 #include <yt/core/ytree/yson_serializable.h>
 
+#include <yt/core/misc/arithmetic_formula.h>
+
 namespace NYT {
 namespace NTabletServer {
 
@@ -31,6 +33,8 @@ public:
     i64 DesiredInMemoryTabletSize;
 
     double TabletToCellRatio;
+
+    TTimeFormula TabletBalancerSchedule;
 
     TTabletBalancerConfig()
     {
@@ -64,6 +68,9 @@ public:
         RegisterParameter("tablet_to_cell_ratio", TabletToCellRatio)
             .GreaterThan(0)
             .Default(5.0);
+
+        RegisterParameter("tablet_balancer_schedule", TabletBalancerSchedule)
+            .Default();
 
         RegisterPostprocessor([&] () {
             if (MinTabletSize > DesiredTabletSize) {
@@ -192,19 +199,46 @@ DEFINE_REFCOUNTED_TYPE(TTabletManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDynamicTabletManagerConfig
+class TDynamicTabletBalancerMasterConfig
     : public NYTree::TYsonSerializable
 {
 public:
     bool EnableTabletBalancer;
-    NTabletNode::EDynamicTableProfilingMode DynamicTableProfilingMode;
+    TTimeFormula TabletBalancerSchedule;
 
-    TDynamicTabletManagerConfig()
+    TDynamicTabletBalancerMasterConfig()
     {
         RegisterParameter("enable_tablet_balancer", EnableTabletBalancer)
             .Default(true);
-        RegisterParameter("dynamc_table_profiling_mode", DynamicTableProfilingMode)
+        RegisterParameter("tablet_balancer_schedule", TabletBalancerSchedule)
+            .Default(DefaultTabletBalancerSchedule);
+
+        RegisterPostprocessor([&] () {
+            if (TabletBalancerSchedule.IsEmpty()) {
+                THROW_ERROR_EXCEPTION("tablet_balancer_schedule cannot be empty in master config");
+            }
+        });
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TDynamicTabletBalancerMasterConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TDynamicTabletManagerConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    NTabletNode::EDynamicTableProfilingMode DynamicTableProfilingMode;
+
+    TDynamicTabletBalancerMasterConfigPtr TabletBalancer;
+
+    TDynamicTabletManagerConfig()
+    {
+        RegisterParameter("dynamic_table_profiling_mode", DynamicTableProfilingMode)
             .Default(NTabletNode::EDynamicTableProfilingMode::Path);
+        RegisterParameter("tablet_balancer", TabletBalancer)
+            .DefaultNew();
     }
 };
 

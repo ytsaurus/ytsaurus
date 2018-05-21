@@ -116,7 +116,6 @@ INSTANTIATE_TEST_CASE_P(
     TArithmeticFormulaTestParseError,
     TArithmeticFormulaTestParseError,
     ::testing::Values(
-        "",
         "()",
         "1 1",
         ")",
@@ -174,6 +173,10 @@ TEST(TArithmeticFormulaTest, Misc)
         }
     }
     EXPECT_EQ(cnt, (24 / 2) * (60 / 5));
+
+    auto emptyFormula = MakeArithmeticFormula("");
+    EXPECT_TRUE(emptyFormula.IsEmpty());
+    EXPECT_THROW(emptyFormula.Eval({}), TErrorException);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
