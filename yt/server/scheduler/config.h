@@ -213,6 +213,9 @@ public:
     //! archivation of smaller batch will be performed.
     TDuration ArchiveBatchTimeout;
 
+    //! Number of operations to fetch from Cypress in one batch.
+    int FetchBatchSize;
+
     //! Leave no more than this amount of operation per each user.
     int MaxOperationCountPerUser;
 

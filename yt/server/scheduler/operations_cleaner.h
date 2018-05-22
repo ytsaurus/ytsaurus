@@ -81,7 +81,8 @@ DEFINE_REFCOUNTED_TYPE(TOperationsCleaner)
 
 std::vector<TArchiveOperationRequest> FetchOperationsFromCypressForCleaner(
     const std::vector<TOperationId>& operationIds,
-    TCallback<NObjectClient::TObjectServiceProxy::TReqExecuteBatchPtr()> createBatchRequest);
+    TCallback<NObjectClient::TObjectServiceProxy::TReqExecuteBatchPtr()> createBatchRequest,
+    int batchSize);
 
 ////////////////////////////////////////////////////////////////////////////////
 
