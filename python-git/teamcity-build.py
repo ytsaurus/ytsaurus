@@ -114,12 +114,12 @@ def checkout(options):
                 "git@github.yandex-team.ru:yt/yt.git",
                 "--recurse-submodules",
                 "--branch",
-                "prestable/19.2",
+                "prestable/19.3",
                 options.yt_source_directory
             ],
             cwd=options.yt_build_directory)
     else:
-        run(["git", "checkout", "prestable/19.2"], cwd=options.yt_source_directory)
+        run(["git", "checkout", "prestable/19.3"], cwd=options.yt_source_directory)
         run(["git", "pull"], cwd=options.yt_source_directory)
         run(["git", "submodule", "update", "--init", "--recursive"], cwd=options.yt_source_directory)
 
