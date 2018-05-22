@@ -157,6 +157,7 @@ private:
                 nullptr));
 
             InitialMetadataBuilder_.Add(RequestIdMetadataKey, ToString(Request_->GetRequestId()));
+            InitialMetadataBuilder_.Add(UserMetadataKey, Request_->GetUser());
 
             auto serializedMessage = Request_->Serialize();
 
