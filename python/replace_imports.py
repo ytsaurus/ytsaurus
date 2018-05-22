@@ -1,12 +1,20 @@
 import sys
 
+
 def main():
+    protobuf_interop_fields = (
+        "NYT.NYson.NProto.attribute_dictionary",
+        "NYT.NYson.NProto.enum_value_name",
+        "NYT.NYson.NProto.yson_string",
+    )
     for line in sys.stdin:
-        if line.strip().startswith("import"):
+        if line.strip().startswith("import") and "protobuf_interop.proto" not in line:
             line = line.replace("\"yt/", "\"proto/yt/")
             line = line.replace("\"yp/", "\"proto/yp/")
+        if "NYT." in line and all([item not in line for item in protobuf_interop_fields]):
+            line = line.replace("NYT.", "NYtPython.")
         sys.stdout.write(line)
+
 
 if __name__ == "__main__":
     main()
-

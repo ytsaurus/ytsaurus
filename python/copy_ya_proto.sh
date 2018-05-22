@@ -5,8 +5,6 @@ YT_PROTOS="
     yt/core/misc/proto/guid.proto
     yt/core/misc/proto/protobuf_helpers.proto
     
-    yt/core/yson/proto/protobuf_interop.proto
-
     yt/core/ytree/proto/attributes.proto
     yt/core/ytree/proto/ypath.proto
     
