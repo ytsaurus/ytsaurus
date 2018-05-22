@@ -972,7 +972,11 @@ private:
                 EMasterChannelKind::Follower,
                 PrimaryMasterCellTag);
 
-            auto operations = FetchOperationsFromCypressForCleaner(OperationIdsToArchive_, createBatchRequest);
+            auto operations = FetchOperationsFromCypressForCleaner(
+                OperationIdsToArchive_,
+                createBatchRequest,
+                Owner_->Config_->OperationsCleaner->FetchBatchSize);
+
             for (auto& operation : operations) {
                 operationsCleaner->SubmitForArchivation(std::move(operation));
             }

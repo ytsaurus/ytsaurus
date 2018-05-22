@@ -200,6 +200,9 @@ TOperationsCleanerConfig::TOperationsCleanerConfig()
         .Default(100);
     RegisterParameter("archive_batch_timeout", ArchiveBatchTimeout)
         .Default(TDuration::Seconds(5));
+    RegisterParameter("fetch_batch_size", FetchBatchSize)
+        .GreaterThan(0)
+        .Default(100);
     RegisterParameter("max_operation_age", MaxOperationAge)
         .Default(TDuration::Hours(6));
     RegisterParameter("max_operation_count_per_user", MaxOperationCountPerUser)
