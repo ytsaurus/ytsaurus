@@ -42,7 +42,7 @@ ACL commands:
     add-member, remove-member, check-permission
 Operation commands:
     map-reduce, map, sort, reduce, join-reduce, merge, erase,
-    remote-copy, abort-op, suspend-op, resume-op, track-op, complete-op,
+    remote-copy, vanilla, abort-op, suspend-op, resume-op, track-op, complete-op,
     update-op-parameters
 Transaction commands:
     lock, start-tx, abort-tx, commit-tx, ping-tx
