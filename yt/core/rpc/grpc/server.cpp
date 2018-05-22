@@ -275,6 +275,7 @@ private:
         TSharedRefArray ResponseMessage_;
 
         TRequestId RequestId_;
+        TNullable<TString> User_;
         TString ServiceName_;
         TString MethodName_;
         TNullable<TString> PeerIdentity_;
@@ -319,6 +320,7 @@ private:
             New<TCallHandler>(Owner_);
 
             ParseRequestId();
+            ParseUser();
 
             if (!ParseRoutingParameters()) {
                 LOG_DEBUG("Malformed request routing parameters (RawMethod: %v, RequestId: %v)",
@@ -332,10 +334,11 @@ private:
 
             ParseTimeout();
 
-            LOG_DEBUG("Request accepted (RequestId: %v, Method: %v:%v, PeerIdentity: %v, PeerAddress: %v, Timeout: %v)",
+            LOG_DEBUG("Request accepted (RequestId: %v, Method: %v:%v, User: %v, PeerIdentity: %v, PeerAddress: %v, Timeout: %v)",
                 RequestId_,
                 ServiceName_,
                 MethodName_,
+                User_,
                 PeerIdentity_,
                 TStringBuf(GetPeerAddress().get()),
                 Timeout_);
@@ -371,6 +374,16 @@ private:
                     idString,
                     RequestId_);
             }
+        }
+
+        void ParseUser()
+        {
+            auto userString = CallMetadata_.Find(UserMetadataKey);
+            if (!userString) {
+                return;
+            }
+
+            User_ = TString(userString);
         }
 
         void ParseAuthParameters()
@@ -454,6 +467,9 @@ private:
 
             auto header = std::make_unique<NRpc::NProto::TRequestHeader>();
             ToProto(header->mutable_request_id(), RequestId_);
+            if (User_) {
+                header->set_user(*User_);
+            }
             header->set_service(ServiceName_);
             header->set_method(MethodName_);
             header->set_protocol_version(GenericProtocolVersion);
