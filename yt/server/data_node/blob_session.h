@@ -59,6 +59,7 @@ private:
     i64 Size_ = 0;
     int BlockCount_ = 0;
 
+    const IInvokerPtr WriteInvoker_ = NConcurrency::CreateBoundedConcurrencyInvoker(TSessionBase::WriteInvoker_, 1);
 
     virtual TFuture<void> DoStart() override;
     void DoOpenWriter();
