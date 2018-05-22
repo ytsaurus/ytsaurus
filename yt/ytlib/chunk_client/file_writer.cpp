@@ -125,7 +125,7 @@ bool TFileWriter::WriteBlock(const TBlock& block)
             YCHECK(start >= Buffer_.Begin() && end <= Buffer_.End());
             YCHECK(filePosition - offset == Buffer_.Begin() + BufferPosition_ - start);
 
-            IOEngine_->Pwrite(DataFile_, data, offset).Get().ThrowOnError();
+            NConcurrency::WaitFor(IOEngine_->Pwrite(DataFile_, data, offset)).ThrowOnError();
 
             filePosition += size;
 
