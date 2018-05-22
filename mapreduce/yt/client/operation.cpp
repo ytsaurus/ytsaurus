@@ -642,6 +642,7 @@ private:
     {
     public:
         using TAttemptLimitedRetryPolicy::TAttemptLimitedRetryPolicy;
+        using TAttemptLimitedRetryPolicy::GetRetryInterval;
 
         virtual TMaybe<TDuration> GetRetryInterval(const TErrorResponse& e) const override
         {
