@@ -754,14 +754,46 @@ private:
             }
 
             auto batchRspOrError = WaitFor(batchReq->Invoke());
-            auto error = GetCumulativeError(batchRspOrError);
-            if (error.IsOK()) {
-                LOG_DEBUG("Successfully removed operations from Cypress (BatchSize: %v)", batch.size());
-                Profiler.Increment(RemovedCounter_, batch.size());
-                Profiler.Increment(RemovePendingCounter_, -batch.size());
+            if (batchRspOrError.IsOK()) {
+                const auto& batchRsp = batchRspOrError.Value();
+                auto rsps = batchRsp->GetResponses<TYPathProxy::TRspRemove>("remove_operation");
+                auto rspsNew = batchRsp->GetResponses<TYPathProxy::TRspRemove>("remove_operation_new");
+                YCHECK(rsps.size() == rspsNew.size() == batch.size());
+
+                int successfullyRemoved = 0;
+                for (int index = 0; index < batch.size(); ++index) {
+                    const auto& operationId = batch[index];
+                    bool removed = true;
+
+                    for (const auto& rsp : {rsps[index], rspsNew[index]}) {
+                        if (!rsp.IsOK()) {
+                            if (rsp.FindMatching(NYTree::EErrorCode::ResolveError)) {
+                                continue;
+                            }
+
+                            LOG_DEBUG(rsp, "Failed to remove finished operation from Cypress (OperationId: %v)",
+                                operationId);
+                            removed = false;
+                            Profiler.Increment(RemoveErrorCounter_, 1);
+                            RemoveBatcher_.Enqueue(operationId);
+                            break;
+                        }
+                    }
+
+                    if (removed) {
+                        Profiler.Increment(RemovedCounter_, 1);
+                        Profiler.Increment(RemovePendingCounter_, -1);
+                        ++successfullyRemoved;
+                    }
+                }
+
+                LOG_DEBUG("Successfully removed %v operations from Cypress", successfullyRemoved);
             } else {
-                LOG_WARNING(error, "Failed to remove finished operations from Cypress");
-                Profiler.Increment(RemoveErrorCounter_, 1);
+                LOG_WARNING(batchRspOrError, "Failed to remove finished operations from Cypress (BatchSize: %v)", batch.size());
+                Profiler.Increment(RemoveErrorCounter_, batch.size());
+                for (const auto& operationId : batch) {
+                    RemoveBatcher_.Enqueue(operationId);
+                }
             }
         }
 
