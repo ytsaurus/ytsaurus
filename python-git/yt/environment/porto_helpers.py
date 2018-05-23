@@ -4,14 +4,14 @@ try:
 except ImportError:
     disable_porto = True
 
-from pipes import quote
-
-import sys
-import os
-import socket
+from yt.packages.six import iteritems
 
 from yt.wrapper.common import generate_uuid
+
+import os
+import socket
 import logging
+from pipes import quote
 
 logger = logging.getLogger("Yt.local")
 
@@ -102,6 +102,6 @@ class PortoSubprocess(object):
 
     def _copy_env(self):
         environment = ""
-        for env, value in os.environ.iteritems():
+        for env, value in iteritems(os.environ):
             environment += env + "=" + value.replace(';','\\;') + ";"
         self._container.SetProperty("env", environment)
