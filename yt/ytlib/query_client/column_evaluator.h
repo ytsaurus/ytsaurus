@@ -28,6 +28,10 @@ public:
         TMutableRow fullRow,
         const TRowBufferPtr& buffer) const;
 
+    void EvaluateKeys(
+        NTableClient::TMutableVersionedRow fullRow,
+        const TRowBufferPtr& buffer) const;
+
     const std::vector<int>& GetReferenceIds(int index) const;
     TConstExpressionPtr GetExpression(int index) const;
 
