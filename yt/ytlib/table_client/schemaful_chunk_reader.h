@@ -21,7 +21,7 @@ ISchemafulReaderPtr CreateSchemafulChunkReader(
     const TColumnarChunkMetaPtr& chunkMeta,
     TChunkReaderConfigPtr config,
     NChunkClient::IChunkReaderPtr chunkReader,
-    const NChunkClient::TReadSessionId& sessionId,
+    const NChunkClient::TClientBlockReadOptions& blockReadOptions,
     const TTableSchema& resultSchema,
     const TKeyColumns& keyColumns,
     const NChunkClient::TReadRange& readRange,

@@ -252,6 +252,8 @@ struct TInterruptDescriptor;
 
 class TCodecStatistics;
 
+struct TClientBlockReadOptions;
+
 DECLARE_REFCOUNTED_CLASS(TKeySetWriter)
 
 using TDataCenterName = TNullable<TString>;

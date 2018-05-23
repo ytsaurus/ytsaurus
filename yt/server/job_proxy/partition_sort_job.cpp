@@ -71,6 +71,7 @@ public:
             TotalRowCount_,
             SchedulerJobSpecExt_.is_approximate(),
             SortJobSpecExt_.partition_tag(),
+            BlockReadOptions_,
             Host_->GetTrafficMeter());
 
         YCHECK(SchedulerJobSpecExt_.output_table_specs_size() == 1);

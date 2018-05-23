@@ -29,6 +29,7 @@ struct IExecutor
         TConstExternalCGInfoPtr externalCGInfo,
         TDataRanges dataSource,
         ISchemafulWriterPtr writer,
+        const NChunkClient::TClientBlockReadOptions& blockReadOptions,
         const TQueryOptions& options) = 0;
 
 };
@@ -43,6 +44,7 @@ struct ISubexecutor
         TConstExternalCGInfoPtr externalCGInfo,
         std::vector<TDataRanges> dataSources,
         ISchemafulWriterPtr writer,
+        const NChunkClient::TClientBlockReadOptions& blockReadOptions,
         const TQueryOptions& options) = 0;
 
 };

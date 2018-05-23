@@ -42,8 +42,7 @@ protected:
             store->GetStartingRowIndex() + index,
             store->GetStartingRowIndex() + index + 1,
             columnFilter,
-            TWorkloadDescriptor(),
-            NChunkClient::TReadSessionId());
+            BlockReadOptions_);
 
         std::vector<TUnversionedRow> rows;
         rows.reserve(1);

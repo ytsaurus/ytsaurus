@@ -25,17 +25,17 @@ TBlockFetcher::TBlockFetcher(
     IChunkReaderPtr chunkReader,
     IBlockCachePtr blockCache,
     NCompression::ECodec codecId,
-    const TReadSessionId& sessionId)
+    const TClientBlockReadOptions& blockReadOptions)
     : Config_(std::move(config))
     , BlockInfos_(std::move(blockInfos))
     , ChunkReader_(std::move(chunkReader))
     , BlockCache_(std::move(blockCache))
     , CompressionInvoker_(CreateFixedPriorityInvoker(
         TDispatcher::Get()->GetPrioritizedCompressionPoolInvoker(),
-        Config_->WorkloadDescriptor.GetPriority()))
+        blockReadOptions.WorkloadDescriptor.GetPriority()))
     , AsyncSemaphore_(std::move(asyncSemaphore))
     , Codec_(NCompression::GetCodec(codecId))
-    , ReadSessionId_(sessionId)
+    , BlockReadOptions_(blockReadOptions)
     , Logger(ChunkClientLogger)
 {
     YCHECK(ChunkReader_);
@@ -43,8 +43,8 @@ TBlockFetcher::TBlockFetcher(
     YCHECK(!BlockInfos_.empty());
 
     Logger.AddTag("ChunkId: %v", ChunkReader_->GetChunkId());
-    if (ReadSessionId_) {
-        Logger.AddTag("ReadSessionId: %v", ReadSessionId_);
+    if (BlockReadOptions_.ReadSessionId) {
+        Logger.AddTag("ReadSessionId: %v", BlockReadOptions_.ReadSessionId);
     }
 
     std::sort(
@@ -300,13 +300,8 @@ void TBlockFetcher::RequestBlocks(
 
     TotalRemainingSize_ -= uncompressedSize;
 
-    TClientBlockReadOptions options;
-    options.WorkloadDescriptor = Config_->WorkloadDescriptor;
-    options.ChunkReaderStatistics = New<TChunkReaderStatistics>(); //FIXME(savrus) pass correct value here
-    options.ReadSessionId = ReadSessionId_;
-
     auto blocksOrError = WaitFor(ChunkReader_->ReadBlocks(
-        options,
+        BlockReadOptions_,
         blockIndexes));
 
     if (!blocksOrError.IsOK()) {
@@ -353,7 +348,7 @@ TSequentialBlockFetcher::TSequentialBlockFetcher(
     IChunkReaderPtr chunkReader,
     IBlockCachePtr blockCache,
     NCompression::ECodec codecId,
-    const TReadSessionId& sessionId)
+    const TClientBlockReadOptions& blockReadOptions)
     : TBlockFetcher(
         config,
         blockInfos,
@@ -361,7 +356,7 @@ TSequentialBlockFetcher::TSequentialBlockFetcher(
         chunkReader,
         blockCache,
         codecId,
-        sessionId)
+        blockReadOptions)
     , OriginalOrderBlockInfos_(blockInfos)
 { }
 

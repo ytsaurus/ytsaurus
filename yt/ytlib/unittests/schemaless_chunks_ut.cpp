@@ -1,10 +1,12 @@
 #include <yt/core/test_framework/framework.h>
 #include "table_client_helpers.h"
 
+#include <yt/ytlib/chunk_client/chunk_reader.h>
+#include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
 #include <yt/ytlib/chunk_client/client_block_cache.h>
+#include <yt/ytlib/chunk_client/data_slice_descriptor.h>
 #include <yt/ytlib/chunk_client/memory_reader.h>
 #include <yt/ytlib/chunk_client/memory_writer.h>
-#include <yt/ytlib/chunk_client/data_slice_descriptor.h>
 
 #include <yt/ytlib/table_client/cached_versioned_chunk_meta.h>
 #include <yt/ytlib/table_client/chunk_state.h>
@@ -30,6 +32,7 @@ using namespace NConcurrency;
 using namespace NYTree;
 using namespace NYson;
 
+using NChunkClient::TChunkReaderStatistics;
 using NChunkClient::NProto::TChunkSpec;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -318,6 +321,9 @@ TEST_P(TSchemalessChunksTest, WithoutSampling)
         nullptr,
         nullptr);
 
+    TClientBlockReadOptions blockReadOptions;
+    blockReadOptions.ChunkReaderStatistics = New<TChunkReaderStatistics>();
+
     auto chunkReader = CreateSchemalessChunkReader(
         std::move(chunkState),
         ChunkMeta_,
@@ -325,7 +331,7 @@ TEST_P(TSchemalessChunksTest, WithoutSampling)
         New<TChunkReaderOptions>(),
         MemoryReader_,
         readNameTable,
-        TReadSessionId(),
+        blockReadOptions,
         TKeyColumns(),
         columnFilter,
         std::get<3>(GetParam()));
@@ -539,10 +545,12 @@ protected:
         auto options = New<TChunkReaderOptions>();
         options->DynamicTable = true;
 
+        TClientBlockReadOptions blockReadOptions;
+        blockReadOptions.ChunkReaderStatistics = New<TChunkReaderStatistics>();
+
         auto asyncCachedMeta = TCachedVersionedChunkMeta::Load(
             MemoryReader_,
-            TWorkloadDescriptor(),
-            TReadSessionId(),
+            blockReadOptions,
             Schema_);
         auto chunkMeta = WaitFor(asyncCachedMeta)
             .ValueOrThrow();
@@ -563,7 +571,7 @@ protected:
             options,
             MemoryReader_,
             WriteNameTable_,
-            TReadSessionId(),
+            blockReadOptions,
             keyColumns,
             TColumnFilter(),
             keys);

@@ -13,6 +13,9 @@
 #include <yt/server/tablet_node/tablet_manager.h>
 #include <yt/server/tablet_node/transaction_manager.h>
 
+#include <yt/ytlib/chunk_client/chunk_reader.h>
+#include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
+
 #include <yt/ytlib/node_tracker_client/node_directory.h>
 
 #include <yt/ytlib/query_client/callbacks.h>
@@ -111,6 +114,11 @@ private:
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         TAuthenticatedUserGuard userGuard(securityManager, user);
 
+        TClientBlockReadOptions blockReadOptions;
+        blockReadOptions.WorkloadDescriptor = options.WorkloadDescriptor;
+        blockReadOptions.ChunkReaderStatistics = New<TChunkReaderStatistics>();
+        blockReadOptions.ReadSessionId = options.ReadSessionId;
+
         ExecuteRequestWithRetries(
             Config_->MaxQueryRetries,
             Logger,
@@ -129,6 +137,7 @@ private:
                     externalCGInfo,
                     dataSources,
                     writer,
+                    blockReadOptions,
                     options);
                 auto result = WaitFor(asyncResult)
                     .ValueOrThrow();
@@ -144,11 +153,14 @@ private:
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
         auto mountRevision = request->mount_revision();
         auto timestamp = TTimestamp(request->timestamp());
-        // TODO(sandello): Extract this out of RPC request.
-        auto workloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::UserInteractive);
-        auto sessionId = TReadSessionId::Create();
         auto requestCodecId = NCompression::ECodec(request->request_codec());
         auto responseCodecId = NCompression::ECodec(request->response_codec());
+
+        TClientBlockReadOptions blockReadOptions;
+        // TODO(sandello): Extract this out of RPC request.
+        blockReadOptions.WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::UserInteractive);
+        blockReadOptions.ChunkReaderStatistics = New<TChunkReaderStatistics>();
+        blockReadOptions.ReadSessionId = TReadSessionId::Create();
 
         TRetentionConfigPtr retentionConfig;
         if (request->has_retention_config()) {
@@ -160,7 +172,7 @@ private:
             timestamp,
             requestCodecId,
             responseCodecId,
-            sessionId,
+            blockReadOptions.ReadSessionId,
             retentionConfig);
 
         auto* requestCodec = NCompression::GetCodec(requestCodecId);
@@ -195,8 +207,7 @@ private:
                         tabletSnapshot,
                         timestamp,
                         user,
-                        workloadDescriptor,
-                        sessionId,
+                        blockReadOptions,
                         retentionConfig,
                         &reader,
                         &writer);

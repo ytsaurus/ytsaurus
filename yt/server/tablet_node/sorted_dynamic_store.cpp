@@ -1779,8 +1779,7 @@ IVersionedReaderPtr TSortedDynamicStore::CreateReader(
     TTimestamp timestamp,
     bool produceAllVersions,
     const TColumnFilter& columnFilter,
-    const TWorkloadDescriptor& /*workloadDescriptor*/,
-    const TReadSessionId& /*sessionId*/)
+    const NChunkClient::TClientBlockReadOptions& /*blockReadOptions*/)
 {
     return New<TRangeReader>(
         this,
@@ -1798,8 +1797,7 @@ IVersionedReaderPtr TSortedDynamicStore::CreateReader(
     TTimestamp timestamp,
     bool produceAllVersions,
     const TColumnFilter& columnFilter,
-    const TWorkloadDescriptor& /*workloadDescriptor*/,
-    const TReadSessionId& /*sessionId*/)
+    const NChunkClient::TClientBlockReadOptions& /*blockReadOptions*/)
 {
     return New<TLookupReader>(
         this,
@@ -1931,10 +1929,11 @@ void TSortedDynamicStore::AsyncLoad(TLoadContext& context)
 
         auto chunkReader = CreateMemoryReader(chunkMeta, TBlock::Wrap(blocks));
 
+        TClientBlockReadOptions blockReadOptions;
+
         auto asyncCachedMeta = TCachedVersionedChunkMeta::Load(
             chunkReader,
-            TWorkloadDescriptor(),
-            TReadSessionId(),
+            blockReadOptions,
             Schema_,
             MemoryTracker_);
         auto cachedMeta = WaitFor(asyncCachedMeta)
@@ -1955,7 +1954,7 @@ void TSortedDynamicStore::AsyncLoad(TLoadContext& context)
             chunkReader,
             std::move(chunkState),
             std::move(cachedMeta),
-            TReadSessionId(),
+            blockReadOptions,
             MinKey(),
             MaxKey(),
             TColumnFilter(),

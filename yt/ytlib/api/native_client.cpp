@@ -16,12 +16,14 @@
 #include "operation_archive_schema.h"
 
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/ytlib/chunk_client/chunk_reader.h>
+#include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
 #include <yt/ytlib/chunk_client/chunk_replica.h>
-#include <yt/ytlib/chunk_client/read_limit.h>
-#include <yt/ytlib/chunk_client/chunk_teleporter.h>
 #include <yt/ytlib/chunk_client/chunk_service_proxy.h>
+#include <yt/ytlib/chunk_client/chunk_teleporter.h>
 #include <yt/ytlib/chunk_client/helpers.h>
 #include <yt/ytlib/chunk_client/medium_directory.pb.h>
+#include <yt/ytlib/chunk_client/read_limit.h>
 
 #include <yt/ytlib/cypress_client/cypress_ypath_proxy.h>
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
@@ -129,13 +131,14 @@ using namespace NScheduler;
 using namespace NHiveClient;
 using namespace NHydra;
 
+using NChunkClient::TChunkReaderStatistics;
 using NChunkClient::TReadLimit;
 using NChunkClient::TReadRange;
-using NTableClient::TColumnSchema;
-using NNodeTrackerClient::INodeChannelFactoryPtr;
 using NNodeTrackerClient::CreateNodeChannelFactory;
+using NNodeTrackerClient::INodeChannelFactoryPtr;
 using NNodeTrackerClient::TNetworkPreferenceList;
 using NNodeTrackerClient::TNodeDescriptor;
+using NTableClient::TColumnSchema;
 
 using TTableReplicaInfoPtrList = SmallVector<TTableReplicaInfoPtr, TypicalReplicaCount>;
 
@@ -1900,6 +1903,11 @@ private:
         queryOptions.ReadSessionId = TReadSessionId::Create();
         queryOptions.Deadline = options.Timeout.Get(Connection_->GetConfig()->DefaultSelectRowsTimeout).ToDeadLine();
 
+        TClientBlockReadOptions blockReadOptions;
+        blockReadOptions.WorkloadDescriptor = queryOptions.WorkloadDescriptor;
+        blockReadOptions.ChunkReaderStatistics = New<TChunkReaderStatistics>();
+        blockReadOptions.ReadSessionId = queryOptions.ReadSessionId;
+
         ISchemafulWriterPtr writer;
         TFuture<IUnversionedRowsetPtr> asyncRowset;
         std::tie(writer, asyncRowset) = CreateSchemafulRowsetWriter(query->GetTableSchema());
@@ -1909,6 +1917,7 @@ private:
             externalCGInfo,
             dataSource,
             writer,
+            blockReadOptions,
             queryOptions))
             .ValueOrThrow();
 
@@ -3829,6 +3838,9 @@ private:
 
         auto jobSpecHelper = NJobProxy::CreateJobSpecHelper(jobSpec);
 
+        TClientBlockReadOptions blockReadOptions;
+        blockReadOptions.ChunkReaderStatistics = New<TChunkReaderStatistics>();
+
         auto userJobReadController = CreateUserJobReadController(
             jobSpecHelper,
             MakeStrong(this),
@@ -3836,6 +3848,7 @@ private:
             TNodeDescriptor(),
             BIND([] { }) /* onNetworkRelease */,
             Null /* udfDirectory */,
+            blockReadOptions,
             nullptr /* trafficMeter */);
 
         auto jobInputReader = New<TJobInputReader>(std::move(userJobReadController), GetConnection()->GetInvoker());

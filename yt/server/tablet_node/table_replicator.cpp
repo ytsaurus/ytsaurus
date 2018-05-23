@@ -10,6 +10,9 @@
 
 #include <yt/server/tablet_node/tablet_manager.pb.h>
 
+#include <yt/ytlib/chunk_client/chunk_reader.h>
+#include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
+
 #include <yt/ytlib/hive/cluster_directory.h>
 
 #include <yt/ytlib/table_client/unversioned_row.h>
@@ -247,12 +250,18 @@ private:
             i64 newReplicationRowIndex;
             TTimestamp newReplicationTimestamp;
 
+            TClientBlockReadOptions blockReadOptions;
+            blockReadOptions.WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemReplication),
+            blockReadOptions.ReadSessionId = TReadSessionId::Create();
+            blockReadOptions.ChunkReaderStatistics = New<TChunkReaderStatistics>();
+
             PROFILE_AGGREGATED_TIMING(counters->ReplicationRowsReadTime) {
                 auto readReplicationBatch = [&]() {
                     return ReadReplicationBatch(
                         MountConfig_,
                         tabletSnapshot,
                         replicaSnapshot,
+                        blockReadOptions,
                         startRowIndex,
                         &replicationRows,
                         &rowBuffer,
@@ -264,10 +273,13 @@ private:
                     startRowIndex = ComputeStartRowIndex(
                         MountConfig_,
                         tabletSnapshot,
-                        replicaSnapshot);
+                        replicaSnapshot,
+                        blockReadOptions);
                     YCHECK(readReplicationBatch());
                 }
             }
+
+            // FIXME(savrus) chunk reader statistics
 
             PROFILE_AGGREGATED_TIMING(counters->ReplicationRowsWriteTime) {
                 TModifyRowsOptions options;
@@ -327,6 +339,7 @@ private:
     TTimestamp ReadLogRowTimestamp(
         const TTableMountConfigPtr& mountConfig,
         const TTabletSnapshotPtr& tabletSnapshot,
+        const TClientBlockReadOptions& blockReadOptions,
         i64 rowIndex)
     {
         auto reader = CreateSchemafulTabletReader(
@@ -335,8 +348,7 @@ private:
             MakeRowBound(rowIndex),
             MakeRowBound(rowIndex + 1),
             NullTimestamp,
-            TWorkloadDescriptor(EWorkloadCategory::SystemReplication),
-            TReadSessionId());
+            blockReadOptions);
 
         std::vector<TUnversionedRow> readerRows;
         readerRows.reserve(1);
@@ -378,7 +390,8 @@ private:
     i64 ComputeStartRowIndex(
         const TTableMountConfigPtr& mountConfig,
         const TTabletSnapshotPtr& tabletSnapshot,
-        const TTableReplicaSnapshotPtr& replicaSnapshot)
+        const TTableReplicaSnapshotPtr& replicaSnapshot,
+        const TClientBlockReadOptions& blockReadOptions)
     {
         auto trimmedRowCount = tabletSnapshot->RuntimeData->TrimmedRowCount.load();
         auto totalRowCount = tabletSnapshot->RuntimeData->TotalRowCount.load();
@@ -399,7 +412,7 @@ private:
 
         while (rowIndexLo < rowIndexHi - 1) {
             auto rowIndexMid = rowIndexLo + (rowIndexHi - rowIndexLo) / 2;
-            auto timestampMid = ReadLogRowTimestamp(mountConfig, tabletSnapshot, rowIndexMid);
+            auto timestampMid = ReadLogRowTimestamp(mountConfig, tabletSnapshot, blockReadOptions, rowIndexMid);
             if (timestampMid <= startReplicationTimestamp) {
                 rowIndexLo = rowIndexMid;
             } else {
@@ -410,7 +423,7 @@ private:
         auto startRowIndex = rowIndexLo;
         auto startTimestamp = NullTimestamp;
         while (startRowIndex < totalRowCount) {
-            startTimestamp = ReadLogRowTimestamp(mountConfig, tabletSnapshot, startRowIndex);
+            startTimestamp = ReadLogRowTimestamp(mountConfig, tabletSnapshot, blockReadOptions, startRowIndex);
             if (startTimestamp > startReplicationTimestamp) {
                 break;
             }
@@ -428,6 +441,7 @@ private:
         const TTableMountConfigPtr& mountConfig,
         const TTabletSnapshotPtr& tabletSnapshot,
         const TTableReplicaSnapshotPtr& replicaSnapshot,
+        const TClientBlockReadOptions& blockReadOptions,
         i64 startRowIndex,
         std::vector<TRowModification>* replicationRows,
         TRowBufferPtr* rowBuffer,
@@ -445,8 +459,7 @@ private:
             MakeRowBound(startRowIndex),
             MakeRowBound(std::numeric_limits<i64>::max()),
             NullTimestamp,
-            TWorkloadDescriptor(EWorkloadCategory::SystemReplication),
-            sessionId);
+            blockReadOptions);
 
         int timestampCount = 0;
         int rowCount = 0;

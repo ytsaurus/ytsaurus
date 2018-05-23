@@ -94,7 +94,6 @@ public:
 
         auto chunkPtr = Bootstrap_->GetChunkStore()->GetChunkOrThrow(chunkId, AllMediaIndex);
         auto chunkGuard = TChunkReadGuard::AcquireOrThrow(chunkPtr);
-        auto sessionId = TReadSessionId::Create();
 
         TWorkloadDescriptor skynetWorkload(EWorkloadCategory::UserBatch);
         skynetWorkload.Annotations = {"skynet"};
@@ -103,11 +102,12 @@ public:
             TProtoExtensionTag<TMiscExt>::Value
         };
 
-        TBlockReadOptions options;
-        options.WorkloadDescriptor = skynetWorkload;
-        options.ChunkReaderStatistics = New<TChunkReaderStatistics>();
+        TBlockReadOptions blockReadOptions;
+        blockReadOptions.WorkloadDescriptor = skynetWorkload;
+        blockReadOptions.ChunkReaderStatistics = New<TChunkReaderStatistics>();
+        blockReadOptions.ReadSessionId = TReadSessionId::Create();
 
-        auto chunkMeta = WaitFor(chunkPtr->ReadMeta(options))
+        auto chunkMeta = WaitFor(chunkPtr->ReadMeta(blockReadOptions))
             .ValueOrThrow();
 
         auto miscExt = GetProtoExtension<TMiscExt>(chunkMeta->extensions());
@@ -139,17 +139,14 @@ public:
             nullptr,
             nullptr);
 
-        auto schemalessReaderConfig = New<TChunkReaderConfig>();
-        schemalessReaderConfig->WorkloadDescriptor = skynetWorkload;
-
         auto schemalessReader = CreateSchemalessChunkReader(
             chunkState,
             New<TColumnarChunkMeta>(*chunkMeta),
-            schemalessReaderConfig,
+            New<TChunkReaderConfig>(),
             New<TChunkReaderOptions>(),
             chunkReader,
             New<TNameTable>(),
-            sessionId,
+            blockReadOptions,
             TKeyColumns(),
             TColumnFilter(),
             readRange);

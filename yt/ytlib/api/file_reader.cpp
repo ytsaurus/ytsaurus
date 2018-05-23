@@ -4,11 +4,13 @@
 #include "native_connection.h"
 #include "transaction.h"
 
-#include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
-#include <yt/ytlib/chunk_client/dispatcher.h>
-#include <yt/ytlib/chunk_client/read_limit.h>
-#include <yt/ytlib/chunk_client/helpers.h>
 #include <yt/ytlib/chunk_client/block.h>
+#include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/ytlib/chunk_client/chunk_reader.h>
+#include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
+#include <yt/ytlib/chunk_client/dispatcher.h>
+#include <yt/ytlib/chunk_client/helpers.h>
+#include <yt/ytlib/chunk_client/read_limit.h>
 
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
 
@@ -54,17 +56,20 @@ public:
         , Path_(path)
         , Options_(options)
         , Config_(options.Config ? options.Config : New<TFileReaderConfig>())
-        , ReadSessionId_(TReadSessionId::Create())
         , Logger(ApiLogger)
     {
         if (Options_.TransactionId) {
             Transaction_ = Client_->AttachTransaction(Options_.TransactionId);
         }
 
+        BlockReadOptions_.WorkloadDescriptor = Config_->WorkloadDescriptor;
+        BlockReadOptions_.ChunkReaderStatistics = New<TChunkReaderStatistics>();
+        BlockReadOptions_.ReadSessionId = TReadSessionId::Create();
+
         Logger.AddTag("Path: %v, TransactionId: %v, ReadSessionId: %v",
             Path_,
             Options_.TransactionId,
-            ReadSessionId_);
+            BlockReadOptions_.ReadSessionId);
     }
 
     TFuture<void> Open()
@@ -96,9 +101,10 @@ private:
     const TYPath Path_;
     const TFileReaderOptions Options_;
     const TFileReaderConfigPtr Config_;
-    const TReadSessionId ReadSessionId_;
 
     ITransactionPtr Transaction_;
+
+    TClientBlockReadOptions BlockReadOptions_;
 
     NFileClient::IFileReaderPtr Reader_;
 
@@ -185,7 +191,7 @@ private:
             TNodeDescriptor(),
             Client_->GetNativeConnection()->GetBlockCache(),
             nodeDirectory,
-            ReadSessionId_,
+            BlockReadOptions_,
             std::move(chunkSpecs));
 
         if (Transaction_) {

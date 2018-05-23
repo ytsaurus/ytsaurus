@@ -37,6 +37,7 @@ public:
         NChunkClient::IChunkReaderPtr underlyingReader,
         TNameTablePtr nameTable,
         NChunkClient::IBlockCachePtr blockCache,
+        const NChunkClient::TClientBlockReadOptions& blockReadOptions,
         const TKeyColumns& keyColumns,
         int partitionTag);
 
@@ -110,6 +111,7 @@ TPartitionMultiChunkReaderPtr CreatePartitionMultiChunkReader(
     TNameTablePtr nameTable,
     const TKeyColumns& keyColumns,
     int partitionTag,
+    const NChunkClient::TClientBlockReadOptions& blockReadOptions,
     NChunkClient::TTrafficMeterPtr trafficMeter);
 
 ////////////////////////////////////////////////////////////////////////////////

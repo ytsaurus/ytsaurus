@@ -247,8 +247,7 @@ public:
         TTabletSnapshotPtr tabletSnapshot,
         TTimestamp timestamp,
         const TString& user,
-        const TWorkloadDescriptor& workloadDescriptor,
-        const TReadSessionId& sessionId,
+        const NChunkClient::TClientBlockReadOptions& blockReadOptions,
         TRetentionConfigPtr retentionConfig,
         TWireProtocolReader* reader,
         TWireProtocolWriter* writer)
@@ -263,8 +262,7 @@ public:
                 tabletSnapshot,
                 timestamp,
                 user,
-                workloadDescriptor,
-                sessionId,
+                blockReadOptions,
                 retentionConfig,
                 reader,
                 writer);
@@ -2500,8 +2498,7 @@ private:
         TTabletSnapshotPtr tabletSnapshot,
         TTimestamp timestamp,
         const TString& user,
-        const TWorkloadDescriptor& workloadDescriptor,
-        const TReadSessionId& sessionId,
+        const NChunkClient::TClientBlockReadOptions& blockReadOptions,
         TRetentionConfigPtr retentionConfig,
         TWireProtocolReader* reader,
         TWireProtocolWriter* writer)
@@ -2513,8 +2510,7 @@ private:
                     std::move(tabletSnapshot),
                     timestamp,
                     user,
-                    workloadDescriptor,
-                    sessionId,
+                    blockReadOptions,
                     reader,
                     writer);
                 break;
@@ -2524,8 +2520,7 @@ private:
                     std::move(tabletSnapshot),
                     timestamp,
                     user,
-                    workloadDescriptor,
-                    sessionId,
+                    blockReadOptions,
                     std::move(retentionConfig),
                     reader,
                     writer);
@@ -3338,8 +3333,7 @@ void TTabletManager::Read(
     TTabletSnapshotPtr tabletSnapshot,
     TTimestamp timestamp,
     const TString& user,
-    const TWorkloadDescriptor& workloadDescriptor,
-    const TReadSessionId& sessionId,
+    const NChunkClient::TClientBlockReadOptions& blockReadOptions,
     TRetentionConfigPtr retentionConfig,
     TWireProtocolReader* reader,
     TWireProtocolWriter* writer)
@@ -3348,8 +3342,7 @@ void TTabletManager::Read(
         std::move(tabletSnapshot),
         timestamp,
         user,
-        workloadDescriptor,
-        sessionId,
+        blockReadOptions,
         std::move(retentionConfig),
         reader,
         writer);

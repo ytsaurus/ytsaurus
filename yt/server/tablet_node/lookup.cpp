@@ -9,6 +9,8 @@
 
 #include <yt/ytlib/chunk_client/public.h>
 #include <yt/ytlib/chunk_client/data_statistics.h>
+#include <yt/ytlib/chunk_client/chunk_reader.h>
+#include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
 
 #include <yt/ytlib/table_client/config.h>
 #include <yt/ytlib/table_client/row_merger.h>
@@ -87,16 +89,14 @@ public:
         const TString& user,
         bool produceAllVersions,
         const TColumnFilter& columnFilter,
-        const TWorkloadDescriptor& workloadDescriptor,
-        const TReadSessionId& sessionId,
+        const NChunkClient::TClientBlockReadOptions& blockReadOptions,
         TSharedRange<TUnversionedRow> lookupKeys)
         : TabletSnapshot_(std::move(tabletSnapshot))
         , Timestamp_(timestamp)
         , ProduceAllVersions_(produceAllVersions)
         , ColumnFilter_(columnFilter)
-        , WorkloadDescriptor_(workloadDescriptor)
+        , BlockReadOptions_(blockReadOptions)
         , LookupKeys_(std::move(lookupKeys))
-        , SessionId_(sessionId)
     {
         if (TabletSnapshot_->IsProfilingEnabled()) {
             Tags_ = AddUserTag(user, TabletSnapshot_->ProfilerTags);
@@ -111,7 +111,7 @@ public:
             TabletSnapshot_->TabletId,
             TabletSnapshot_->CellId,
             LookupKeys_.Size(),
-            SessionId_);
+            BlockReadOptions_.ReadSessionId);
 
         TCpuTimer timer;
 
@@ -152,6 +152,8 @@ public:
             TabletNodeProfiler.Increment(counters.UnmergedDataWeight, UnmergedDataWeight_);
             TabletNodeProfiler.Increment(counters.CpuTime, cpuTime);
             TabletNodeProfiler.Increment(counters.DecompressionCpuTime, DurationToValue(DecompressionCpuTime_));
+
+            //FIXME(savrus) chunk reader statistics.
         }
 
         LOG_DEBUG("Tablet lookup completed (TabletId: %v, CellId: %v, FoundRowCount: %v, "
@@ -162,7 +164,7 @@ public:
             FoundDataWeight_,
             ValueToDuration(cpuTime),
             DecompressionCpuTime_,
-            SessionId_);
+            BlockReadOptions_.ReadSessionId);
     }
 
 private:
@@ -215,9 +217,8 @@ private:
     const TTimestamp Timestamp_;
     const bool ProduceAllVersions_;
     const TColumnFilter& ColumnFilter_;
-    const TWorkloadDescriptor& WorkloadDescriptor_;
+    const TClientBlockReadOptions& BlockReadOptions_;
     const TSharedRange<TUnversionedRow> LookupKeys_;
-    const TReadSessionId SessionId_;
 
     static const int TypicalSessionCount = 16;
     using TReadSessionList = SmallVector<TReadSession, TypicalSessionCount>;
@@ -253,8 +254,7 @@ private:
                 Timestamp_,
                 ProduceAllVersions_,
                 ColumnFilter_,
-                WorkloadDescriptor_,
-                SessionId_);
+                BlockReadOptions_);
             auto future = reader->Open();
             auto maybeError = future.TryGet();
             if (maybeError) {
@@ -331,8 +331,7 @@ void LookupRows(
     TTabletSnapshotPtr tabletSnapshot,
     TTimestamp timestamp,
     const TString& user,
-    const TWorkloadDescriptor& workloadDescriptor,
-    const TReadSessionId& sessionId,
+    const NChunkClient::TClientBlockReadOptions& blockReadOptions,
     TWireProtocolReader* reader,
     TWireProtocolWriter* writer)
 {
@@ -358,8 +357,7 @@ void LookupRows(
         user,
         false,
         columnFilter,
-        workloadDescriptor,
-        sessionId,
+        blockReadOptions,
         std::move(lookupKeys));
 
     session.Run(
@@ -375,8 +373,7 @@ void VersionedLookupRows(
     TTabletSnapshotPtr tabletSnapshot,
     TTimestamp timestamp,
     const TString& user,
-    const TWorkloadDescriptor& workloadDescriptor,
-    const TReadSessionId& sessionId,
+    const NChunkClient::TClientBlockReadOptions& blockReadOptions,
     TRetentionConfigPtr retentionConfig,
     TWireProtocolReader* reader,
     TWireProtocolWriter* writer)
@@ -408,8 +405,7 @@ void VersionedLookupRows(
         user,
         true,
         columnFilter,
-        workloadDescriptor,
-        sessionId,
+        blockReadOptions,
         std::move(lookupKeys));
 
     session.Run(

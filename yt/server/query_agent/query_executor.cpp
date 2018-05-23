@@ -68,18 +68,19 @@
 namespace NYT {
 namespace NQueryAgent {
 
-using namespace NYTree;
-using namespace NConcurrency;
-using namespace NObjectClient;
-using namespace NQueryClient;
-using namespace NTabletClient;
-using namespace NTableClient;
-using namespace NTableClient::NProto;
-using namespace NNodeTrackerClient;
-using namespace NTabletNode;
-using namespace NDataNode;
 using namespace NCellNode;
+using namespace NChunkClient;
+using namespace NConcurrency;
+using namespace NDataNode;
+using namespace NNodeTrackerClient;
+using namespace NObjectClient;
 using namespace NProfiling;
+using namespace NQueryClient;
+using namespace NTableClient::NProto;
+using namespace NTableClient;
+using namespace NTabletClient;
+using namespace NTabletNode;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -296,6 +297,7 @@ public:
         TColumnEvaluatorCachePtr columnEvaluatorCache,
         TEvaluatorPtr evaluator,
         TConstQueryPtr query,
+        const TClientBlockReadOptions& blockReadOptions,
         const TQueryOptions& options)
         : Config_(std::move(config))
         , FunctionImplCache_(std::move(functionImplCache))
@@ -304,6 +306,7 @@ public:
         , Evaluator_(std::move(evaluator))
         , Query_(std::move(query))
         , Options_(std::move(options))
+        , BlockReadOptions_(blockReadOptions)
         , Logger(MakeQueryLogger(Query_))
         , TabletSnapshots_(Bootstrap_->GetTabletSlotManager(), Logger)
         , Invoker_(Bootstrap_->GetQueryPoolInvoker(ToString(Options_.ReadSessionId)))
@@ -346,6 +349,7 @@ private:
 
     const TConstQueryPtr Query_;
     const TQueryOptions Options_;
+    const TClientBlockReadOptions BlockReadOptions_;
 
     const NLogging::TLogger Logger;
 
@@ -401,7 +405,7 @@ private:
             aggregateGenerators,
             externalCGInfo,
             FunctionImplCache_,
-            Options_.ReadSessionId);
+            BlockReadOptions_);
 
         return CoordinateAndExecute(
             Query_,
@@ -521,6 +525,7 @@ private:
                             externalCGInfo,
                             std::move(dataSource),
                             pipe->GetWriter(),
+                            BlockReadOptions_,
                             remoteOptions);
 
                         asyncResult.Subscribe(BIND([pipe] (const TErrorOr<TQueryStatistics>& error) {
@@ -563,6 +568,7 @@ private:
                                 externalCGInfo,
                                 std::move(dataSource),
                                 pipe->GetWriter(),
+                                BlockReadOptions_,
                                 remoteOptions);
 
                             asyncResult.Subscribe(BIND([pipe] (const TErrorOr<TQueryStatistics>& error) {
@@ -652,6 +658,8 @@ private:
         if (!profilerTags.empty()) {
             auto& counters = GetLocallyGloballyCachedValue<TSelectCpuProfilerTrait>(profilerTags);
             TabletNodeProfiler.Increment(counters.CpuTime, DurationToValue(statistics.SyncTime));
+
+            //FIXME(savrus) chunk reader statistics
         }
 
         return statistics;
@@ -1175,8 +1183,7 @@ private:
                     lowerBound,
                     upperBound,
                     Options_.Timestamp,
-                    Options_.WorkloadDescriptor,
-                    Options_.ReadSessionId);
+                    BlockReadOptions_);
             };
 
             reader = CreateUnorderedSchemafulReader(std::move(bottomSplitReaderGenerator), 1);
@@ -1186,8 +1193,7 @@ private:
                 columnFilter,
                 bounds,
                 Options_.Timestamp,
-                Options_.WorkloadDescriptor,
-                Options_.ReadSessionId);
+                BlockReadOptions_);
         }
 
         return New<TProfilingReaderWrapper>(reader, MaybeAddUserTag(profilerTags));
@@ -1206,8 +1212,7 @@ private:
             columnFilter,
             keys,
             Options_.Timestamp,
-            Options_.WorkloadDescriptor,
-            Options_.ReadSessionId);
+            BlockReadOptions_);
 
         return New<TProfilingReaderWrapper>(reader, MaybeAddUserTag(profilerTags));
     }
@@ -1254,6 +1259,7 @@ public:
         TConstExternalCGInfoPtr externalCGInfo,
         std::vector<TDataRanges> dataSources,
         ISchemafulWriterPtr writer,
+        const TClientBlockReadOptions& blockReadOptions,
         const TQueryOptions& options) override
     {
         ValidateReadTimestamp(options.Timestamp);
@@ -1265,6 +1271,7 @@ public:
             ColumnEvaluatorCache_,
             Evaluator_,
             std::move(query),
+            blockReadOptions,
             options);
 
         return execution->Execute(

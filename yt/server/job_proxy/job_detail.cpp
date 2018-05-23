@@ -4,6 +4,8 @@
 
 #include <yt/server/exec_agent/public.h>
 
+#include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
+
 #include <yt/ytlib/node_tracker_client/node_directory.h>
 
 #include <yt/ytlib/job_proxy/helpers.h>
@@ -33,6 +35,7 @@ using namespace NExecAgent;
 
 using NJobTrackerClient::TStatistics;
 using NChunkClient::TDataSliceDescriptor;
+using NChunkClient::TChunkReaderStatistics;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -48,6 +51,10 @@ TJob::TJob(IJobHostPtr host)
     , StartTime_(TInstant::Now())
 {
     YCHECK(Host_);
+
+    BlockReadOptions_.WorkloadDescriptor = Host_->GetJobSpecHelper()->GetJobIOConfig()->TableReader->WorkloadDescriptor;
+    BlockReadOptions_.ChunkReaderStatistics = New<TChunkReaderStatistics>();
+    BlockReadOptions_.ReadSessionId = TReadSessionId::Create();
 }
 
 std::vector<NChunkClient::TChunkId> TJob::DumpInputContext()
