@@ -144,12 +144,8 @@ TString GetFilterFactors(const TArchiveOperationRequest& request)
     for (const auto& key : {"input_table_paths", "output_table_paths"}) {
         auto node = specMapNode->FindChild(key);
         if (node && node->GetType() == ENodeType::List) {
-            auto listNode = node->AsList();
-            for (const auto& child : listNode->GetChildren()) {
-                if (child->GetType() != ENodeType::String) {
-                    continue;
-                }
-
+            auto child = node->AsList()->FindChild(0);
+            if (child && child->GetType() == ENodeType::String) {
                 auto path = dropYPathAttributes(child->AsString()->GetValue());
                 if (!path.empty()) {
                     parts.push_back(path);
