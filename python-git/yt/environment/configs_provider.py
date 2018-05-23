@@ -713,7 +713,7 @@ class ConfigsProvider_19_3(ConfigsProvider_19):
         configs, connection_configs = super(ConfigsProvider_19_3, self)._build_master_configs(
             provision, master_dirs, master_tmpfs_dirs, ports_generator, master_logs_dir)
 
-        for key, cell_configs in configs.iteritems():
+        for key, cell_configs in iteritems(configs):
             if key in ["primary_cell_tag", "secondary_cell_tags"]:
                 continue
 
