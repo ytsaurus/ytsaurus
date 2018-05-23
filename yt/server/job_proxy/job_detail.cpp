@@ -195,6 +195,7 @@ TStatistics TSimpleJobBase::GetStatistics() const
     if (Reader_) {
         result.AddSample("/data/input", Reader_->GetDataStatistics());
         Reader_->GetDecompressionStatistics().DumpTo(&result, "/codec/cpu/decode");
+        DumpChunkReaderStatistics(&result, "/chunk_reader_statistics", BlockReadOptions_.ChunkReaderStatistics);
     }
 
     if (Writer_) {

@@ -1,5 +1,7 @@
 #include "chunk_reader_statistics.h"
 
+#include <yt/ytlib/job_tracker_client/statistics.h>
+
 namespace NYT {
 namespace NChunkClient {
 
@@ -30,6 +32,16 @@ void UpdateFromProto(const TChunkReaderStatisticsPtr* chunkReaderStatisticsPtr, 
     chunkReaderStatistics->DataBytesReadFromDisk += protoChunkReaderStatistics.data_bytes_read_from_disk();
     chunkReaderStatistics->DataBytesReadFromCache += protoChunkReaderStatistics.data_bytes_read_from_cache();
     chunkReaderStatistics->MetaBytesReadFromDisk += protoChunkReaderStatistics.meta_bytes_read_from_disk();
+}
+
+void DumpChunkReaderStatistics(
+    NJobTrackerClient::TStatistics* jobStatisitcs,
+    const TString& path,
+    const TChunkReaderStatisticsPtr& chunkReaderStatisticsPtr)
+{
+    jobStatisitcs->AddSample(path + "/data_bytes_read_from_disk", chunkReaderStatisticsPtr->DataBytesReadFromDisk);
+    jobStatisitcs->AddSample(path + "/data_bytes_read_from_cache", chunkReaderStatisticsPtr->DataBytesReadFromCache);
+    jobStatisitcs->AddSample(path + "/meta_bytes_read_from_disk", chunkReaderStatisticsPtr->MetaBytesReadFromDisk);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
