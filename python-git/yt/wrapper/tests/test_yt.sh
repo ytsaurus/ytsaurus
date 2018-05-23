@@ -496,6 +496,15 @@ test_vanilla_operations()
     $YT vanilla --tasks '{sample={command="echo AAA >&2";job_count=1}}'
 }
 
+test_ping_ancestor_transactions_in_operations()
+{
+    TX=$($YT start-tx --timeout 5000)
+    check_failed "$YT vanilla --tasks '"'{sample={command="sleep 6";job_count=1}}'"' --tx $TX"
+
+    TX=$($YT start-tx --timeout 10000)
+    $YT vanilla --tasks '{sample={command="sleep 12";job_count=1}}' --tx $TX --ping-ancestor-txs
+}
+
 tear_down
 run_test test_cypress_commands
 run_test test_list_long_format
@@ -519,3 +528,4 @@ run_test test_sandbox_file_name_specification
 run_test test_execute
 run_test test_brotli_write
 run_test test_vanilla_operations
+run_test test_ping_ancestor_transactions_in_operations
