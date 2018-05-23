@@ -330,7 +330,6 @@ public:
     TOperationPtr FindOperation(const TOperationId& operationId) const
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(Connected_);
 
         auto it = IdToOperation_.find(operationId);
         return it == IdToOperation_.end() ? nullptr : it->second;
@@ -339,7 +338,6 @@ public:
     TOperationPtr GetOperation(const TOperationId& operationId) const
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(Connected_);
 
         auto operation = FindOperation(operationId);
         YCHECK(operation);
