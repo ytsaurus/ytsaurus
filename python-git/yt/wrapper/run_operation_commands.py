@@ -37,8 +37,8 @@ Operation run under self-pinged transaction, if ``yt.wrapper.config["detached"]`
 from .table_helpers import _are_default_empty_table, _remove_tables
 from .common import update, is_prefix, get_value, forbidden_inside_job, remove_nones_from_dict, declare_deprecated
 from .retries import Retrier
-from .config import get_config
-from .cypress_commands import remove, _make_formatted_transactional_request
+from .config import get_config, get_command_param
+from .cypress_commands import get, remove, _make_formatted_transactional_request
 from .errors import YtError, YtConcurrentOperationsLimitExceeded
 from .exceptions_catcher import KeyboardInterruptsCatcher
 from .operation_commands import Operation
@@ -51,6 +51,7 @@ from .transaction import Transaction
 from .ypath import TablePath
 
 import yt.logger as logger
+from yt.common import YT_NULL_TRANSACTION_ID as null_transaction_id
 
 import sys
 import time
@@ -464,12 +465,24 @@ def _make_operation_request(command_name, spec, sync,
         return operation
 
 
-    if get_config(client)["detached"]:
-        return _manage_operation(finalization_actions)
-    else:
-        transaction = Transaction(
-            attributes={"title": "Python wrapper: envelope transaction of operation"},
-            client=client)
+    attached = not get_config(client)["detached"]
+    transaction_id = get_command_param("transaction_id", client)
+    should_ping_transaction = \
+        get_command_param("ping_ancestor_transactions", client) and \
+        transaction_id != null_transaction_id
+
+    if attached or should_ping_transaction:
+        if attached:
+            transaction = Transaction(
+                attributes={"title": "Python wrapper: envelope transaction of operation"},
+                client=client)
+        else: # should_ping_transaction
+            timeout = get("#{0}/@timeout".format(transaction_id), client=client)
+            transaction = Transaction(
+                transaction_id=get_command_param("transaction_id", client),
+                timeout=timeout,
+                ping=True,
+                client=client)
 
         def finish_transaction():
             transaction.__exit__(*sys.exc_info())
@@ -483,6 +496,8 @@ def _make_operation_request(command_name, spec, sync,
         transaction.__enter__()
         with KeyboardInterruptsCatcher(finish_transaction, enable=get_config(client)["operation_tracker"]["abort_on_sigint"]):
             return _manage_operation(attached_mode_finalizer)
+    else:
+        return _manage_operation(finalization_actions)
 
 def _run_sort_optimizer(spec, client=None):
     operation_type = "sort"

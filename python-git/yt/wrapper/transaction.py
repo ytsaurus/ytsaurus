@@ -70,8 +70,8 @@ class Transaction(object):
     .. seealso:: `transactions on wiki <https://wiki.yandex-team.ru/yt/userdoc/transactions>`_
     """
 
-    def __init__(self, timeout=None, attributes=None, ping=True, interrupt_on_failed=True, transaction_id=None,
-                 ping_ancestor_transactions=False, type="master", sticky=False,
+    def __init__(self, timeout=None, attributes=None, ping=None, interrupt_on_failed=True, transaction_id=None,
+                 ping_ancestor_transactions=None, type="master", sticky=False,
                  client=None):
         timeout = get_value(timeout, get_total_request_timeout(client))
         if transaction_id == null_transaction_id:
@@ -79,10 +79,10 @@ class Transaction(object):
 
         self.transaction_id = transaction_id
         self.sticky = sticky
-
         self._client = client
+        self._ping_ancestor_transactions = \
+            get_value(ping_ancestor_transactions, get_command_param("ping_ancestor_transactions", self._client))
         self._ping = ping
-        self._ping_ancestor_transactions = ping_ancestor_transactions
         self._finished = False
         self._used_with_statement = False
 
@@ -98,6 +98,8 @@ class Transaction(object):
                                                     sticky=sticky,
                                                     client=self._client)
             self._started = True
+            if self._ping is None:
+                self._ping = True
         else:
             self._started = False
 
@@ -105,13 +107,14 @@ class Transaction(object):
             _set_sigusr_received(False)
             self._old_sigusr_handler = signal.signal(signal.SIGUSR1, _sigusr_handler)
 
-        if self._ping and self._started:
+        if self._ping:
             delay = (timeout / 1000.0) / max(2, get_request_retry_count(self._client))
             self._ping_thread = PingTransaction(
                 self.transaction_id,
                 delay,
                 sticky=self.sticky,
                 interrupt_on_failed=interrupt_on_failed,
+                # TODO(ignat): it is not safe to pass client into another thread.
                 client=self._client)
             self._ping_thread.start()
 
