@@ -4,6 +4,8 @@
 
 #include <yt/ytlib/chunk_client/chunk_reader_statistics.pb.h>
 
+#include <yt/ytlib/job_tracker_client/public.h>
+
 #include <yt/core/profiling/profiler.h>
 
 namespace NYT {
@@ -21,10 +23,21 @@ struct TChunkReaderStatistics
 
 DEFINE_REFCOUNTED_TYPE(TChunkReaderStatistics)
 
-void ToProto(NProto::TChunkReaderStatistics* protoChunkReaderStatistics, const TChunkReaderStatisticsPtr& chunkReaderStatistics);
-void FromProto(TChunkReaderStatisticsPtr chunkReaderStatistics, NProto::TChunkReaderStatistics* protoChunkReaderStatistics);
+void ToProto(
+    NProto::TChunkReaderStatistics* protoChunkReaderStatistics,
+    const TChunkReaderStatisticsPtr& chunkReaderStatistics);
+void FromProto(
+    TChunkReaderStatisticsPtr chunkReaderStatistics,
+    NProto::TChunkReaderStatistics* protoChunkReaderStatistics);
 
-void UpdateFromProto(const TChunkReaderStatisticsPtr* chunkReaderStatisticsPtr, const NProto::TChunkReaderStatistics& protoChunkReaderStatistics);
+void UpdateFromProto(
+    const TChunkReaderStatisticsPtr* chunkReaderStatisticsPtr,
+    const NProto::TChunkReaderStatistics& protoChunkReaderStatistics);
+
+void DumpChunkReaderStatistics(
+    NJobTrackerClient::TStatistics* jobStatisitcs,
+    const TString& path,
+    const TChunkReaderStatisticsPtr& chunkReaderStatisticsPtr);
 
 ////////////////////////////////////////////////////////////////////////////////
 

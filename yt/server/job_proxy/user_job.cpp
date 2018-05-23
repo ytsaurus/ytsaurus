@@ -20,6 +20,7 @@
 
 #include <yt/ytlib/cgroup/cgroup.h>
 
+#include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
 #include <yt/ytlib/chunk_client/public.h>
 
 #include <yt/ytlib/core_dump/proto/core_info.pb.h>
@@ -933,6 +934,8 @@ private:
         if (const auto& codecStatistics = UserJobReadController_->GetDecompressionStatistics()) {
             codecStatistics->DumpTo(&statistics, "/codec/cpu/decode");
         }
+
+        DumpChunkReaderStatistics(&statistics, "/chunk_reader_statistics", BlockReadOptions_.ChunkReaderStatistics);
 
         int i = 0;
         for (const auto& writer : UserJobWriteController_->GetWriters()) {
