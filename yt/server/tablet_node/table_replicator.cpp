@@ -521,7 +521,7 @@ private:
                     &timestamp);
 
                 if (timestamp <= replicaSnapshot->StartReplicationTimestamp) {
-                    YCHECK(row == readerRows[0]);
+                    YCHECK(row.GetHeader() == readerRows[0].GetHeader());
                     LOG_INFO("Replication log row violates timestamp bound (StartReplicationTimestamp: %llx, LogRecordTimestamp: %llx)",
                         replicaSnapshot->StartReplicationTimestamp,
                         timestamp);
