@@ -513,13 +513,13 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
 
     LOG_INFO("Store preload started");
 
-    TClientBlockReadOptions options;
-    options.WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemTabletPreload);
-    options.ChunkReaderStatistics = New<TChunkReaderStatistics>();
-    options.ReadSessionId = readSessionId;
+    TClientBlockReadOptions blockReadOptions;
+    blockReadOptions.WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemTabletPreload);
+    blockReadOptions.ChunkReaderStatistics = New<TChunkReaderStatistics>();
+    blockReadOptions.ReadSessionId = readSessionId;
 
     auto reader = store->GetChunkReader();
-    auto meta = WaitFor(reader->GetMeta(options))
+    auto meta = WaitFor(reader->GetMeta(blockReadOptions))
         .ValueOrThrow();
 
     auto miscExt = GetProtoExtension<TMiscExt>(meta.extensions());
@@ -584,7 +584,7 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
             startBlockIndex);
 
         auto compressedBlocks = WaitFor(reader->ReadBlocks(
-            options,
+            blockReadOptions,
             startBlockIndex,
             totalBlockCount - startBlockIndex))
             .ValueOrThrow();
@@ -659,6 +659,7 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
         tabletSnapshot,
         dataStatistics,
         decompressionStatistics,
+        blockReadOptions.ChunkReaderStatistics,
         preloadTag);
 
     if (chunkData->MemoryTrackerGuard) {

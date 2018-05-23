@@ -893,9 +893,8 @@ private:
                 tabletSnapshot,
                 reader->GetDataStatistics(),
                 reader->GetDecompressionStatistics(),
+                blockReadOptions.ChunkReaderStatistics,
                 PartitioningTag_);
-
-            // TODO(savrus): Chunk reader statistics.
 
             LOG_INFO("Eden partitioning completed (RowCount: %v, StoreIdsToAdd: %v, StoreIdsToRemove: %v, WallTime: %v)",
                 rowCount,
@@ -1278,6 +1277,7 @@ private:
                 tabletSnapshot,
                 reader->GetDataStatistics(),
                 reader->GetDecompressionStatistics(),
+                blockReadOptions.ChunkReaderStatistics,
                 CompactionTag_);
 
             // TODO(savrus): Chunk reader statistics.

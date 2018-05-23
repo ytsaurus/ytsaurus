@@ -14,6 +14,7 @@
 #include <yt/ytlib/api/native_connection.h>
 #include <yt/ytlib/api/config.h>
 
+#include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
 #include <yt/ytlib/chunk_client/chunk_service_proxy.h>
 #include <yt/ytlib/chunk_client/replication_reader.h>
 
@@ -40,8 +41,6 @@
 #include <util/random/shuffle.h>
 
 #include <cmath>
-
-//FIXME pass  TChunkReaderStatisticsPtr chunkReaderStatistics,
 
 namespace NYT {
 namespace NChunkClient {
@@ -1286,6 +1285,10 @@ private:
             LOG_DEBUG("Peer is throttling (Address: %v)", peerAddress);
         }
 
+        if (rsp->has_chunk_reader_statistics()) {
+            UpdateFromProto(&BlockReadOptions_.ChunkReaderStatistics, rsp->chunk_reader_statistics());
+        }
+
         i64 bytesReceived = 0;
         std::vector<int> receivedBlockIndexes;
 
@@ -1505,6 +1508,10 @@ private:
 
         const auto& rsp = rspOrError.Value();
 
+        if (rsp->has_chunk_reader_statistics()) {
+            UpdateFromProto(&BlockReadOptions_.ChunkReaderStatistics, rsp->chunk_reader_statistics());
+        }
+
         auto blocks = GetRpcAttachedBlocks(rsp);
 
         int blocksReceived = 0;
@@ -1717,8 +1724,12 @@ private:
             LOG_DEBUG("Peer is throttling (Address: %v)", peerAddress);
             RequestMeta();
         } else {
-            TotalBytesReceived_ += rspOrError.Value()->ByteSize();
-            OnSessionSucceeded(rspOrError.Value()->chunk_meta());
+            if (rsp->has_chunk_reader_statistics()) {
+                UpdateFromProto(&BlockReadOptions_.ChunkReaderStatistics, rsp->chunk_reader_statistics());
+            }
+
+            TotalBytesReceived_ += rsp->ByteSize();
+            OnSessionSucceeded(rsp->chunk_meta());
         }
     }
 

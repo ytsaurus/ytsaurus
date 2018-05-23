@@ -63,6 +63,7 @@ struct TLookupCounters
         , UnmergedDataWeight("/lookup/unmerged_data_weight", list)
         , CpuTime("/lookup/cpu_time", list)
         , DecompressionCpuTime("/lookup/decompression_cpu_time", list)
+        , ChunkReaderStatisticsCounters("/lookup/chunk_reader_statistics", list)
     { }
 
     TMonotonicCounter RowCount;
@@ -71,6 +72,7 @@ struct TLookupCounters
     TMonotonicCounter UnmergedDataWeight;
     TMonotonicCounter CpuTime;
     TMonotonicCounter DecompressionCpuTime;
+    TChunkReaderStatisticsCounters ChunkReaderStatisticsCounters;
 };
 
 using TLookupProfilerTrait = TTabletProfilerTrait<TLookupCounters>;
@@ -152,8 +154,7 @@ public:
             TabletNodeProfiler.Increment(counters.UnmergedDataWeight, UnmergedDataWeight_);
             TabletNodeProfiler.Increment(counters.CpuTime, cpuTime);
             TabletNodeProfiler.Increment(counters.DecompressionCpuTime, DurationToValue(DecompressionCpuTime_));
-
-            //FIXME(savrus) chunk reader statistics.
+            counters.ChunkReaderStatisticsCounters.Increment(TabletNodeProfiler, BlockReadOptions_.ChunkReaderStatistics);
         }
 
         LOG_DEBUG("Tablet lookup completed (TabletId: %v, CellId: %v, FoundRowCount: %v, "
