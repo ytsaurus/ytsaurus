@@ -182,6 +182,8 @@ public:
 
     TChunkRequisitionRegistry* GetChunkRequisitionRegistry();
 
+    void MaybeRecomputeChunkRequisitons();
+
 private:
     class TImpl;
     class TChunkTypeHandlerBase;

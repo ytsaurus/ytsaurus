@@ -1694,6 +1694,9 @@ private:
             return;
         }
 
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
+        chunkManager->MaybeRecomputeChunkRequisitons();
+
         DumpAccountResourceUsage(false);
 
         // NB: transaction resource usage isn't recomputed.
@@ -1763,7 +1766,6 @@ private:
             }
         };
 
-        const auto& chunkManager = Bootstrap_->GetChunkManager();
         const auto* requisitionRegistry = chunkManager->GetChunkRequisitionRegistry();
 
         for (const auto& pair : chunkManager->Chunks()) {
