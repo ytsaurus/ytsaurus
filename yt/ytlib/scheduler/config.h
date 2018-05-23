@@ -363,10 +363,6 @@ public:
 
     TAutoMergeConfigPtr AutoMerge;
 
-    //! This field is not used in scheduler any more, but specified in order
-    //! to not appear in unrecognized spec.
-    NYTree::IMapNodePtr StartedBy;
-
     // TODO(max42): make this field per-task.
     TLogDigestConfigPtr JobProxyMemoryDigest;
 
@@ -382,6 +378,12 @@ public:
 
     //! Controls operation storage mode.
     bool EnableCompatibleStorageMode;
+
+    //! These fields are not used in scheduler but specified in order
+    //! to not appear in unrecognized spec.
+    NYTree::IMapNodePtr StartedBy;
+    NYTree::IMapNodePtr Description;
+    NYTree::IMapNodePtr Annotations;
 
     TOperationSpecBase();
 

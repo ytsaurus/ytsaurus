@@ -200,9 +200,6 @@ TOperationSpecBase::TOperationSpecBase()
     RegisterParameter("auto_merge", AutoMerge)
         .DefaultNew();
 
-    RegisterParameter("started_by", StartedBy)
-        .Default();
-
     RegisterParameter("job_proxy_memory_digest", JobProxyMemoryDigest)
         .Default(New<TLogDigestConfig>(0.5, 2.0, 1.0));
 
@@ -217,6 +214,13 @@ TOperationSpecBase::TOperationSpecBase()
 
     RegisterParameter("enable_compatible_storage_mode", EnableCompatibleStorageMode)
         .Default(true);
+
+    RegisterParameter("started_by", StartedBy)
+        .Default();
+    RegisterParameter("annotations", Annotations)
+        .Default();
+    RegisterParameter("description", Description)
+        .Default();
 
     RegisterPostprocessor([&] () {
         if (UnavailableChunkStrategy == EUnavailableChunkAction::Wait &&
