@@ -40,7 +40,7 @@ struct TEdgeDescriptor
     NObjectClient::TCellTag CellTag;
     bool ImmediatelyUnstageChunkLists = false;
     bool IsFinalOutput = false;
-    // In most situations coincicdes with the index of an edge descriptor,
+    // In most situations coincides with the index of an edge descriptor,
     // but in some situations may differ. For example, an auto merge task
     // may have the only output descriptor, but we would like to attach
     // its output chunks to the live preview with an index corresponding to the
@@ -71,7 +71,7 @@ public:
 
     void Persist(const TPersistenceContext& context);
 
-    void RegisterFlow(
+    void UpdateEdgeStatistics(
         const TVertexDescriptor& from,
         const TVertexDescriptor& to,
         const NChunkClient::NProto::TDataStatistics& statistics);

@@ -110,7 +110,7 @@ struct IYPathService
 
     //! Creates a wrapper that calls given callback on each invocation
     //! in order to validate user permission to query the ypath service.
-    IYPathServicePtr AddPermissionValidator(TCallback<void(const TString&, EPermission)> validationCallback);
+    IYPathServicePtr WithPermissionValidator(TCallback<void(const TString&, EPermission)> validationCallback);
 
 protected:
     //! Implementation method for WriteAttributesFragment.

@@ -413,7 +413,6 @@ TOperationControllerInitializationResult TOperationControllerBase::InitializeRev
     }
 
     InitUnrecognizedSpec();
-    InitializeOrchid();
 
     WaitFor(Host->UpdateInitializedOperationNode())
         .ThrowOnError();
@@ -472,7 +471,7 @@ void TOperationControllerBase::InitializeStructures()
 {
     InputNodeDirectory_ = New<NNodeTrackerClient::TNodeDirectory>();
     DataFlowGraph_ = New<TDataFlowGraph>(InputNodeDirectory_);
-    InitOrchid();
+    InitializeOrchid();
 
     for (const auto& path : GetInputTablePaths()) {
         TInputTable table;
@@ -564,44 +563,6 @@ void TOperationControllerBase::FillInitializationResult(TOperationControllerInit
     result->Transactions = GetTransactions();
 }
 
-void TOperationControllerBase::InitOrchid()
-{
-    auto createService = [&] (auto fluentMethod) -> IYPathServicePtr {
-        return IYPathService::FromProducer(BIND([fluentMethod = std::move(fluentMethod)] (IYsonConsumer* consumer) {
-            BuildYsonFluently(consumer)
-                .BeginMap()
-                    .Do(fluentMethod)
-                .EndMap();
-        }))
-            ->Via(CancelableInvoker)
-            ->Cached(Config->ControllerStaticOrchidUpdatePeriod);
-    };
-
-    auto service = New<TCompositeMapService>()
-        ->AddChild("progress", createService(BIND(&TOperationControllerBase::BuildProgress, MakeWeak(this))))
-        ->AddChild("brief_progress", createService(BIND(&TOperationControllerBase::BuildBriefProgress, MakeWeak(this))))
-        ->AddChild("running_jobs", createService(BIND(&TOperationControllerBase::BuildJobsYson, MakeWeak(this))))
-        ->AddChild("job_splitter", createService(BIND(&TOperationControllerBase::BuildJobSplitterInfo, MakeWeak(this))))
-        ->AddChild("memory_usage", IYPathService::FromProducer(BIND([weakThis = MakeWeak(this)] (IYsonConsumer* consumer) {
-            if (auto this_ = weakThis.Lock()) {
-                BuildYsonFluently(consumer)
-                    .Value(this_->GetMemoryUsage());
-            }
-        })))
-        ->AddChild("state", IYPathService::FromProducer(BIND([weakThis = MakeWeak(this)] (IYsonConsumer* consumer) {
-            if (auto this_ = weakThis.Lock()) {
-                BuildYsonFluently(consumer)
-                    .Value(this_->State.load());
-            }
-        })))
-        ->AddChild("data_flow_graph", DataFlowGraph_.GetService());
-
-    service->SetOpaque(false);
-    Orchid_ = service
-        ->AddPermissionValidator(BIND(&TOperationControllerBase::ValidateIntermediateDataAccess, MakeWeak(this)));
-        ->Via(CancelableInvoker);
-}
-
 void TOperationControllerBase::ValidateIntermediateDataAccess(const TString& user, EPermission permission) const
 {
     Host->ValidateOperationPermission(user, permission, "/intermediate_data_access");
@@ -657,14 +618,18 @@ void TOperationControllerBase::InitializeOrchid()
 
     // NB: we may safely pass unretained this below as all the callbacks are wrapped with a createService helper
     // that takes care on checking the controller presence and properly replying in case it is already destroyed.
-    Orchid_ = New<TCompositeMapService>()
+    auto service = New<TCompositeMapService>()
         ->AddChild("progress", createCachedMapService(BIND(&TOperationControllerBase::BuildProgress, Unretained(this))))
         ->AddChild("brief_progress", createCachedMapService(BIND(&TOperationControllerBase::BuildBriefProgress, Unretained(this))))
         ->AddChild("running_jobs", createCachedMapService(BIND(&TOperationControllerBase::BuildJobsYson, Unretained(this))))
         ->AddChild("job_splitter", createCachedMapService(BIND(&TOperationControllerBase::BuildJobSplitterInfo, Unretained(this))))
         ->AddChild("memory_usage", createService(BIND(&TOperationControllerBase::BuildMemoryUsageYson, Unretained(this))))
         ->AddChild("state", createService(BIND(&TOperationControllerBase::BuildStateYson, Unretained(this))))
-        ->Via(Invoker);
+        ->AddChild("data_flow_graph", DataFlowGraph_->GetService());
+    service->SetOpaque(false);
+    Orchid_ = service
+        ->Via(Invoker)
+        ->WithPermissionValidator(BIND(&TOperationControllerBase::ValidateIntermediateDataAccess, MakeWeak(this)));
 }
 
 void TOperationControllerBase::DoInitialize()
@@ -4076,7 +4041,7 @@ void TOperationControllerBase::CreateLivePreviewTables()
 
     {
         LOG_INFO("Creating intermediate data access node (IntermediateDataAcl: %v)",
-            ConvertToYsonString(Spec_->IntermediateDataAcl), EYsonFormat::Text);
+            ConvertToYsonString(Spec_->IntermediateDataAcl, EYsonFormat::Text));
 
         auto path = GetNewOperationPath(OperationId) + "/intermediate_data_access";
 
@@ -7097,7 +7062,7 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
             task->Initialize();
         }
         InitUpdatingTables();
-        InitOrchid();
+        InitializeOrchid();
     }
 }
 

@@ -67,10 +67,8 @@ DEFINE_YPATH_SERVICE_METHOD(TVirtualStaticTable, Fetch)
     for (const auto& range : FromProto<std::vector<TReadRange>>(request->ranges())) {
         auto lowerLimit = range.LowerLimit();
         auto upperLimit = range.UpperLimit();
-        if (lowerLimit.HasKey() || lowerLimit.HasOffset() ||
-            upperLimit.HasKey() || upperLimit.HasOffset())
-        {
-            THROW_ERROR_EXCEPTION("Only row indices and chunk indices are supported as read limits");
+        if (lowerLimit.HasKey() || lowerLimit.HasOffset() || upperLimit.HasKey() || upperLimit.HasOffset()) {
+            THROW_ERROR_EXCEPTION("Only row indices and chunk indices are supported as read limits in virtual static table");
         }
         auto lowerLimitRowIndex = lowerLimit.HasRowIndex() ? lowerLimit.GetRowIndex() : 0;
         auto upperLimitRowIndex = upperLimit.HasRowIndex() ? upperLimit.GetRowIndex() : std::numeric_limits<i64>::max();

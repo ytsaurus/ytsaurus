@@ -1448,15 +1448,15 @@ class TestSchedulerRevive(YTEnvSetup):
 
         jobs = wait_breakpoint(job_count=2)
 
-        operation_path = get_operation_path(op.id)
+        operation_path = op.get_path()
 
-        assert exists(operation_path + "/orchid")
+        assert exists(operation_path + "/controller_orchid")
 
         release_breakpoint(job_id=jobs[0])
         release_breakpoint(job_id=jobs[1])
         wait(lambda: op.get_job_count("completed") == 2)
 
-        live_preview_data = read_table(operation_path + "/orchid/data_flow_graph/vertices/map/live_previews/0", authenticated_user="u")
+        live_preview_data = read_table(operation_path + "/controller_orchid/data_flow_graph/vertices/map/live_previews/0", authenticated_user="u")
         assert len(live_preview_data) == 2
 
         assert all(record in data for record in live_preview_data)
@@ -1483,18 +1483,18 @@ class TestSchedulerRevive(YTEnvSetup):
 
         jobs = wait_breakpoint(job_count=2)
 
-        operation_path = get_operation_path(op.id)
+        operation_path = op.get_path()
 
-        assert exists(operation_path + "/orchid")
+        assert exists(operation_path + "/controller_orchid")
 
         release_breakpoint(job_id=jobs[0])
         release_breakpoint(job_id=jobs[1])
         wait(lambda: op.get_job_count("completed") == 2)
 
-        read_table(operation_path + "/orchid/data_flow_graph/vertices/map/live_previews/0", authenticated_user="u1")
+        read_table(operation_path + "/controller_orchid/data_flow_graph/vertices/map/live_previews/0", authenticated_user="u1")
 
         with pytest.raises(YtError):
-            read_table(operation_path + "/orchid/data_flow_graph/vertices/map/live_previews/0", authenticated_user="u2")
+            read_table(operation_path + "/controller_orchid/data_flow_graph/vertices/map/live_previews/0", authenticated_user="u2")
 
     def test_new_live_preview_ranges(self):
         create("table", "//tmp/t1")
@@ -1516,11 +1516,11 @@ class TestSchedulerRevive(YTEnvSetup):
 
         wait(lambda: op.get_job_count("completed") == 3)
 
-        operation_path = get_operation_path(op.id)
+        operation_path = op.get_path()
 
-        assert exists(operation_path + "/orchid")
+        assert exists(operation_path + "/controller_orchid")
 
-        live_preview_path = operation_path + "/orchid/data_flow_graph/vertices/partition_map/live_previews/0"
+        live_preview_path = operation_path + "/controller_orchid/data_flow_graph/vertices/partition_map/live_previews/0"
         live_preview_data = read_table(live_preview_path)
 
         assert len(live_preview_data) == 9
@@ -1569,7 +1569,7 @@ class TestSchedulerRevive(YTEnvSetup):
         release_breakpoint()
         wait(lambda: op.get_job_count("completed") == 4)
 
-	def test_disabled_live_preview(self):
+    def test_disabled_live_preview(self):
         create_user("u")
 
         data = [{"foo": i} for i in range(3)]

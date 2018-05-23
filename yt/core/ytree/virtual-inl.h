@@ -16,12 +16,12 @@ template <>
 class TDefaultConversionTraits<TString>
 {
 public:
-    static TString ToString(const TString& key)
+    static TString ConvertKeyToString(const TString& key)
     {
         return key;
     }
 
-    static TString FromString(const TStringBuf& key)
+    static TString ConvertStringToKey(const TStringBuf& key)
     {
         return TString(key);
     }
@@ -49,14 +49,14 @@ public:
             if (static_cast<i64>(keys.size()) >= limit) {
                 break;
             }
-            keys.emplace_back(TConversionTraits::ToString(pair.first));
+            keys.emplace_back(TConversionTraits::ConvertKeyToString(pair.first));
         }
         return keys;
     }
 
-    virtual IYPathServicePtr FindItemService(const TStringBuf& key) const override
+    virtual IYPathServicePtr FindItemService(TStringBuf key) const override
     {
-        auto it = Collection_.find(TConversionTraits::FromString(key));
+        auto it = Collection_.find(TConversionTraits::ConvertStringToKey(key));
         if (it == Collection_.end()) {
             return nullptr;
         }
