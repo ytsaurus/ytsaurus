@@ -356,7 +356,7 @@ public:
         , MaxConcurrentInvocations_(maxConcurrentInvocations)
         , Semaphore_(0)
         , Profiler("/bounded_concurrency_invoker")
-        , SemaphoreCounter_("/semaphore", tagIds)
+        , SemaphoreValue_("/semaphore", tagIds)
     { }
 
     virtual void Invoke(TClosure callback) override
@@ -374,7 +374,7 @@ private:
     static PER_THREAD TBoundedConcurrencyInvoker* CurrentSchedulingInvoker_;
 
     NProfiling::TProfiler Profiler;
-    NProfiling::TSimpleCounter SemaphoreCounter_;
+    NProfiling::TSimpleGauge SemaphoreValue_;
 
     class TInvocationGuard
     {
@@ -445,7 +445,7 @@ private:
     bool TryAcquireSemaphore()
     {
         if (++Semaphore_ <= MaxConcurrentInvocations_) {
-            Profiler.Increment(SemaphoreCounter_, 1);
+            Profiler.Increment(SemaphoreValue_, 1);
             return true;
         } else {
             --Semaphore_;
@@ -456,7 +456,7 @@ private:
     void ReleaseSemaphore()
     {
         YCHECK(--Semaphore_ >= 0);
-        Profiler.Increment(SemaphoreCounter_, -1);
+        Profiler.Increment(SemaphoreValue_, -1);
     }
 };
 

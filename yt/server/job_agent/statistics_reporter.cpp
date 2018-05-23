@@ -165,7 +165,7 @@ public:
         }
         if (Limiter_.TryIncrease(statistics.EstimateSize())) {
             Batcher_.Enqueue(std::move(statistics));
-            Profiler_.Increment(PendingCounter_, 1);
+            Profiler_.Increment(PendingCounter_);
             Profiler_.Increment(EnqueuedCounter_);
         } else {
             DroppedCount_.fetch_add(1, std::memory_order_relaxed);
@@ -190,12 +190,12 @@ protected:
     TLogger Logger = ReporterLogger;
 
 private:
-    TSimpleCounter EnqueuedCounter_ = {"/enqueued"};
-    TSimpleCounter DequeuedCounter_ = {"/dequeued"};
-    TSimpleCounter DroppedCounter_ = {"/dropped"};
-    TSimpleCounter PendingCounter_ = {"/pending"};
-    TSimpleCounter CommittedCounter_ = {"/committed"};
-    TSimpleCounter CommittedDataWeightCounter_ = {"/committed_data_weight"};
+    TMonotonicCounter EnqueuedCounter_ = {"/enqueued"};
+    TMonotonicCounter DequeuedCounter_ = {"/dequeued"};
+    TMonotonicCounter DroppedCounter_ = {"/dropped"};
+    TSimpleGauge PendingCounter_ = {"/pending"};
+    TMonotonicCounter CommittedCounter_ = {"/committed"};
+    TMonotonicCounter CommittedDataWeightCounter_ = {"/committed_data_weight"};
 
     const TSharedDataPtr Data_;
     const TStatisticsReporterConfigPtr Config_;

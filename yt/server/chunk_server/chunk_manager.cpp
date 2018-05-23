@@ -1170,6 +1170,46 @@ public:
         return &ChunkRequisitionRegistry_;
     }
 
+    void MaybeRecomputeChunkRequisitons()
+    {
+        if (ChunkRequisitionsRecomputed_) {
+            return;
+        }
+
+        // Recompute requisitions' ref counts.
+        if (NeedRecomputeRequisitionRefCounts_) {
+            for (const auto& pair : ChunkMap_) {
+                const auto* chunk = pair.second;
+                chunk->RefUsedRequisitions(GetChunkRequisitionRegistry());
+            }
+        }
+
+        // COMPAT(shakurov)
+        if (NeedToFixExportRequisitionIndexes_) {
+            for (const auto& pair : ChunkMap_) {
+                auto* chunk = pair.second;
+                chunk->FixExportRequisitionIndexes();
+            }
+        }
+
+        // COMPAT(shakurov)
+        if (NeedToInitializeAggregatedRequisitionIndexes_) {
+            auto* registry = GetChunkRequisitionRegistry();
+            const auto& objectManager = Bootstrap_->GetObjectManager();
+
+            for (const auto& pair : ChunkMap_) {
+                auto* chunk = pair.second;
+                // NB: this may have no effect for those rare chunks that have no trunk owners.
+                // In that case, the aggregated requisition will be left equal to migration requisition.
+                // This will be corrected on chunk's next requisition update (which is bound to
+                // happen since having no trunk owners is always a temporary state).
+                chunk->UpdateAggregatedRequisitionIndex(registry, objectManager);
+            }
+        }
+
+        ChunkRequisitionsRecomputed_ = true;
+    }
+
     DECLARE_ENTITY_MAP_ACCESSORS(Chunk, TChunk);
     DECLARE_ENTITY_MAP_ACCESSORS(ChunkList, TChunkList);
     DECLARE_ENTITY_WITH_IRREGULAR_PLURAL_MAP_ACCESSORS(Medium, Media, TMedium)
@@ -1193,6 +1233,8 @@ private:
     bool NeedRecomputeRequisitionRefCounts_ = false;
     bool NeedToFixExportRequisitionIndexes_ = false;
     bool NeedToInitializeAggregatedRequisitionIndexes_ = false;
+
+    bool ChunkRequisitionsRecomputed_ = false;
 
     TPeriodicExecutorPtr ProfilingExecutor_;
 
@@ -2185,36 +2227,7 @@ private:
 
         InitBuiltins();
 
-        // Recompute requisitions' ref counts.
-        if (NeedRecomputeRequisitionRefCounts_) {
-            for (const auto& pair : ChunkMap_) {
-                const auto* chunk = pair.second;
-                chunk->RefUsedRequisitions(GetChunkRequisitionRegistry());
-            }
-        }
-
-        // COMPAT(shakurov)
-        if (NeedToFixExportRequisitionIndexes_) {
-            for (const auto& pair : ChunkMap_) {
-                auto* chunk = pair.second;
-                chunk->FixExportRequisitionIndexes();
-            }
-        }
-
-        // COMPAT(shakurov)
-        if (NeedToInitializeAggregatedRequisitionIndexes_) {
-            auto* registry = GetChunkRequisitionRegistry();
-            const auto& objectManager = Bootstrap_->GetObjectManager();
-
-            for (const auto& pair : ChunkMap_) {
-                auto* chunk = pair.second;
-                // NB: this may have no effect for those rare chunks that have no trunk owners.
-                // In that case, the aggregated requisition will be left equal to migration requisition.
-                // This will be corrected on chunk's next requisition update (which is bound to
-                // happen since having no trunk owners is always a temporary state).
-                chunk->UpdateAggregatedRequisitionIndex(registry, objectManager);
-            }
-        }
+        MaybeRecomputeChunkRequisitons();
 
         if (NeedToRecomputeStatistics_) {
             RecomputeStatistics();
@@ -3313,6 +3326,11 @@ TMedium* TChunkManager::GetMediumByNameOrThrow(const TString& name) const
 TChunkRequisitionRegistry* TChunkManager::GetChunkRequisitionRegistry()
 {
     return Impl_->GetChunkRequisitionRegistry();
+}
+
+void TChunkManager::MaybeRecomputeChunkRequisitons()
+{
+    return Impl_->MaybeRecomputeChunkRequisitons();
 }
 
 DELEGATE_ENTITY_MAP_ACCESSORS(TChunkManager, Chunk, TChunk, *Impl_)

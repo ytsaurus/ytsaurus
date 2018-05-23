@@ -120,7 +120,7 @@ struct TSelectCpuCounters
         : CpuTime("/select/cpu_time", list)
     { }
 
-    TSimpleCounter CpuTime;
+    TMonotonicCounter CpuTime;
 };
 
 using TSelectCpuProfilerTrait = TSimpleProfilerTrait<TSelectCpuCounters>;
@@ -135,11 +135,11 @@ struct TSelectReadCounters
         , DecompressionCpuTime("/select/decompression_cpu_time", list)
     { }
 
-    TSimpleCounter RowCount;
-    TSimpleCounter DataWeight;
-    TSimpleCounter UnmergedRowCount;
-    TSimpleCounter UnmergedDataWeight;
-    TSimpleCounter DecompressionCpuTime;
+    TMonotonicCounter RowCount;
+    TMonotonicCounter DataWeight;
+    TMonotonicCounter UnmergedRowCount;
+    TMonotonicCounter UnmergedDataWeight;
+    TMonotonicCounter DecompressionCpuTime;
 };
 
 using TSelectReadProfilerTrait = TTabletProfilerTrait<TSelectReadCounters>;

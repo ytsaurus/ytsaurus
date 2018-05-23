@@ -33,7 +33,7 @@ using namespace NProfiling;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = DataNodeLogger;
-static TSimpleCounter DiskJournalReadByteCounter("/disk_journal_read_bytes");
+static TMonotonicCounter DiskJournalReadByteCounter("/disk_journal_read_bytes");
 
 ////////////////////////////////////////////////////////////////////////////////
 
