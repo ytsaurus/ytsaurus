@@ -396,6 +396,10 @@ TOperationControllerInitializationResult TOperationControllerBase::InitializeRev
 
 
     if (cleanStart) {
+        if (Spec_->FailOnJobRestart) {
+            THROW_ERROR_EXCEPTION("Cannot use clean restart when spec option fail_on_job_restart is set");
+        }
+
         LOG_INFO("Using clean start instead of revive");
 
         Snapshot = TOperationSnapshot();
