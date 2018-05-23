@@ -21,7 +21,7 @@ public:
     {
         RegisterParameter("max_concurrent_node_registrations", MaxConcurrentNodeRegistrations)
             .Default(5)
-            .GreaterThan(0);
+            .GreaterThanOrEqual(0);
     }
 };
 
