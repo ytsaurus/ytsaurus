@@ -62,6 +62,11 @@ class TestReplicatedDynamicTables(TestDynamicTablesBase):
         {"name": "key", "type": "int64", "sort_order": "ascending"},
         {"name": "value", "type": "int64"},
     ]
+    EXPRESSIONLESS_SCHEMA = [
+        {"name": "hash", "type": "int64", "sort_order": "ascending"},
+        {"name": "key", "type": "int64", "sort_order": "ascending"},
+        {"name": "value", "type": "int64"},
+    ]
 
     REPLICA_CLUSTER_NAME = "remote_0"
 
@@ -784,10 +789,12 @@ class TestReplicatedDynamicTables(TestDynamicTablesBase):
         self.sync_enable_table_replica(replica_id)
         wait(lambda: get_lag_time() == 0)
 
+    @pytest.mark.parametrize("only_replica", [True, False])
     @pytest.mark.parametrize("dynamic", [True, False])
-    def test_expression_replication(self, dynamic):
+    def test_expression_replication(self, dynamic, only_replica):
         self._create_cells()
-        self._create_replicated_table("//tmp/t", schema=self.EXPRESSION_SCHEMA)
+        replicated_schema = self.EXPRESSIONLESS_SCHEMA if only_replica else self.EXPRESSION_SCHEMA
+        self._create_replicated_table("//tmp/t", schema=replicated_schema)
         replica_id = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r")
         self._create_replica_table("//tmp/r", replica_id, schema=self.EXPRESSION_SCHEMA)
 
