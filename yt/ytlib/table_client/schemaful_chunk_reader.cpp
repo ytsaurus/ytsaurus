@@ -48,7 +48,7 @@ ISchemafulReaderPtr CreateSchemafulChunkReader(
     const TColumnarChunkMetaPtr& chunkMeta,
     TChunkReaderConfigPtr config,
     NChunkClient::IChunkReaderPtr chunkReader,
-    const TReadSessionId& sessionId,
+    const TClientBlockReadOptions& blockReadOptions,
     const TTableSchema& resultSchema,
     const TKeyColumns& keyColumns,
     const NChunkClient::TReadRange& readRange,
@@ -65,7 +65,7 @@ ISchemafulReaderPtr CreateSchemafulChunkReader(
                     New<TChunkReaderOptions>(),
                     std::move(chunkReader),
                     std::move(nameTable),
-                    sessionId,
+                    blockReadOptions,
                     keyColumns,
                     columnFilter,
                     readRange);

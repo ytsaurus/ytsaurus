@@ -25,17 +25,17 @@ TChunkReaderBase::TChunkReaderBase(
     TBlockFetcherConfigPtr config,
     IChunkReaderPtr underlyingReader,
     IBlockCachePtr blockCache,
-    const TReadSessionId& sessionId)
+    const TClientBlockReadOptions& blockReadOptions)
     : Config_(std::move(config))
     , BlockCache_(std::move(blockCache))
     , UnderlyingReader_(std::move(underlyingReader))
-    , ReadSessionId_(sessionId)
+    , BlockReadOptions_(blockReadOptions)
     , AsyncSemaphore_(New<TAsyncSemaphore>(Config_->WindowSize))
     , Logger(NLogging::TLogger(TableClientLogger)
         .AddTag("ChunkId: %v", UnderlyingReader_->GetChunkId()))
 {
-    if (ReadSessionId_) {
-        Logger.AddTag("ReadSessionId: %v", ReadSessionId_);
+    if (BlockReadOptions_.ReadSessionId) {
+        Logger.AddTag("ReadSessionId: %v", BlockReadOptions_.ReadSessionId);
     }
 }
 
@@ -54,7 +54,7 @@ TFuture<void> TChunkReaderBase::DoOpen(
         UnderlyingReader_,
         BlockCache_,
         ECodec(miscExt.compression_codec()),
-        ReadSessionId_);
+        BlockReadOptions_);
 
     InitFirstBlockNeeded_ = true;
     YCHECK(SequentialBlockFetcher_->HasMoreBlocks());

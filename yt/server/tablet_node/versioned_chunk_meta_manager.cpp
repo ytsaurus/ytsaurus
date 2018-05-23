@@ -68,8 +68,7 @@ public:
     TFuture<TCachedVersionedChunkMetaPtr> GetMeta(
         IChunkReaderPtr chunkReader,
         const TTableSchema& schema,
-        const TWorkloadDescriptor& workloadDescriptor,
-        const TReadSessionId& readSessionId)
+        const TClientBlockReadOptions& blockReadOptions)
     {
         auto chunkId = chunkReader->GetChunkId();
         auto key = std::make_pair(chunkId, schema);
@@ -78,8 +77,7 @@ public:
             // TODO(savrus,psushin) Move call to dispatcher?
             auto asyncMeta = TCachedVersionedChunkMeta::Load(
                 std::move(chunkReader),
-                workloadDescriptor,
-                readSessionId,
+                blockReadOptions,
                 schema,
                 Bootstrap_->GetMemoryUsageTracker());
 
@@ -114,10 +112,9 @@ TVersionedChunkMetaManager::TVersionedChunkMetaManager(
 TFuture<TCachedVersionedChunkMetaPtr> TVersionedChunkMetaManager::GetMeta(
     IChunkReaderPtr chunkReader,
     const TTableSchema& schema,
-    const TWorkloadDescriptor& workloadDescriptor,
-    const TReadSessionId& readSessionId)
+    const TClientBlockReadOptions& blockReadOptions)
 {
-    return Impl_->GetMeta(std::move(chunkReader), schema, workloadDescriptor, readSessionId);
+    return Impl_->GetMeta(std::move(chunkReader), schema, blockReadOptions);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

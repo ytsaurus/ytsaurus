@@ -4,6 +4,8 @@
 
 #include <yt/server/misc/job_table_schema.h>
 
+#include <yt/ytlib/chunk_client/chunk_reader.h>
+
 #include <yt/ytlib/object_client/helpers.h>
 
 #include <yt/ytlib/job_proxy/user_job_io_factory.h>
@@ -55,7 +57,7 @@ void TUserJobWriteController::Init()
         Initialized_ = true;
     });
 
-    auto userJobIOFactory = CreateUserJobIOFactory(Host_->GetJobSpecHelper(), Host_->GetTrafficMeter());
+    auto userJobIOFactory = CreateUserJobIOFactory(Host_->GetJobSpecHelper(), TClientBlockReadOptions(), Host_->GetTrafficMeter());
 
     const auto& schedulerJobSpecExt = Host_->GetJobSpecHelper()->GetSchedulerJobSpecExt();
     auto outputTransactionId = FromProto<TTransactionId>(schedulerJobSpecExt.output_transaction_id());

@@ -20,8 +20,7 @@ public:
     TFuture<NTableClient::TCachedVersionedChunkMetaPtr> GetMeta(
         NChunkClient::IChunkReaderPtr chunkReader,
         const NTableClient::TTableSchema& schema,
-        const TWorkloadDescriptor& workloadDescriptor,
-        const NChunkClient::TReadSessionId& readSessionId);
+        const NChunkClient::TClientBlockReadOptions& blockReadOptions);
 
 private:
     class TImpl;

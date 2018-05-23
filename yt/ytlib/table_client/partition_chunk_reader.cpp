@@ -39,13 +39,14 @@ TPartitionChunkReader::TPartitionChunkReader(
     IChunkReaderPtr underlyingReader,
     TNameTablePtr nameTable,
     IBlockCachePtr blockCache,
+    const TClientBlockReadOptions& blockReadOptions,
     const TKeyColumns& keyColumns,
     int partitionTag)
     : TChunkReaderBase(
         config,
         underlyingReader,
         blockCache,
-        TReadSessionId())
+        blockReadOptions)
     , NameTable_(nameTable)
     , KeyColumns_(keyColumns)
     , PartitionTag_(partitionTag)
@@ -64,13 +65,8 @@ TFuture<void> TPartitionChunkReader::InitializeBlockSequence()
         TProtoExtensionTag<NProto::TKeyColumnsExt>::Value
     };
 
-    TClientBlockReadOptions options;
-    options.WorkloadDescriptor = Config_->WorkloadDescriptor;
-    options.ChunkReaderStatistics = New<TChunkReaderStatistics>(); //FIXME(savrus) pass correct value here
-    options.ReadSessionId = ReadSessionId_;
-
     ChunkMeta_ = WaitFor(UnderlyingReader_->GetMeta(
-        options,
+        BlockReadOptions_,
         PartitionTag_,
         extensionTags))
         .ValueOrThrow();
@@ -161,6 +157,7 @@ TPartitionMultiChunkReaderPtr CreatePartitionMultiChunkReader(
     TNameTablePtr nameTable,
     const TKeyColumns& keyColumns,
     int partitionTag,
+    const TClientBlockReadOptions& blockReadOptions,
     TTrafficMeterPtr trafficMeter)
 {
     std::vector<IReaderFactoryPtr> factories;
@@ -193,6 +190,7 @@ TPartitionMultiChunkReaderPtr CreatePartitionMultiChunkReader(
                         remoteReader,
                         nameTable,
                         blockCache,
+                        blockReadOptions,
                         keyColumns,
                         partitionTag);
                 };

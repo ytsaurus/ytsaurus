@@ -178,6 +178,7 @@ public:
             Host_->LocalDescriptor(),
             BIND(&IJobHost::ReleaseNetwork, Host_),
             SandboxDirectoryNames[ESandboxKind::Udf],
+            BlockReadOptions_,
             Host_->GetTrafficMeter());
 
         InputPipeBlinker_ = New<TPeriodicExecutor>(

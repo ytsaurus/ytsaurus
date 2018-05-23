@@ -30,7 +30,10 @@ protected:
         });
     }
 
-    TUnversionedOwningRow LookupRow(ISortedStorePtr store, const TOwningKey& key, TTimestamp timestamp)
+    TUnversionedOwningRow LookupRow(
+        ISortedStorePtr store,
+        const TOwningKey& key,
+        TTimestamp timestamp)
     {
         std::vector<TKey> lookupKeys(1, key.Get());
         auto sharedLookupKeys = MakeSharedRange(std::move(lookupKeys), key);
@@ -40,8 +43,7 @@ protected:
             timestamp,
             timestamp == AllCommittedTimestamp,
             TColumnFilter(),
-            TWorkloadDescriptor(),
-            NChunkClient::TReadSessionId());
+            BlockReadOptions_);
 
         lookupReader->Open()
             .Get()

@@ -350,6 +350,7 @@ class TArtifactCacheReaderConfig
     : public virtual NChunkClient::TBlockFetcherConfig
     , public virtual NTableClient::TTableReaderConfig
     , public virtual NApi::TFileReaderConfig
+    , public virtual TWorkloadConfig
 { };
 
 DEFINE_REFCOUNTED_TYPE(TArtifactCacheReaderConfig)
@@ -358,7 +359,7 @@ DEFINE_REFCOUNTED_TYPE(TArtifactCacheReaderConfig)
 
 class TRepairReaderConfig
     : public NChunkClient::TReplicationReaderConfig
-    , public TWorkloadConfig
+    , public virtual TWorkloadConfig
 { };
 
 DEFINE_REFCOUNTED_TYPE(TRepairReaderConfig)
@@ -367,7 +368,7 @@ DEFINE_REFCOUNTED_TYPE(TRepairReaderConfig)
 
 class TSealReaderConfig
     : public NChunkClient::TReplicationReaderConfig
-    , public TWorkloadConfig
+    , public virtual TWorkloadConfig
 { };
 
 DEFINE_REFCOUNTED_TYPE(TSealReaderConfig)

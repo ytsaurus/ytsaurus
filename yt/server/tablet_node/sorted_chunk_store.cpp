@@ -120,8 +120,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
     TTimestamp timestamp,
     bool produceAllVersions,
     const TColumnFilter& columnFilter,
-    const TWorkloadDescriptor& workloadDescriptor,
-    const TReadSessionId& sessionId)
+    const TClientBlockReadOptions& blockReadOptions)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -131,7 +130,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
         timestamp,
         produceAllVersions,
         columnFilter,
-        sessionId,
+        blockReadOptions,
         tabletSnapshot->TableSchema);
     if (reader) {
         return reader;
@@ -146,24 +145,20 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
             timestamp,
             produceAllVersions,
             columnFilter,
-            workloadDescriptor,
-            sessionId);
+            blockReadOptions);
     }
 
     auto chunkReader = GetChunkReader();
-    auto chunkState = PrepareCachedChunkState(chunkReader, workloadDescriptor, sessionId);
+    auto chunkState = PrepareCachedChunkState(chunkReader, blockReadOptions);
 
-    auto config = CloneYsonSerializable(ReaderConfig_);
-    config->WorkloadDescriptor = workloadDescriptor;
-
-    ValidateBlockSize(tabletSnapshot, chunkState, workloadDescriptor);
+    ValidateBlockSize(tabletSnapshot, chunkState, blockReadOptions.WorkloadDescriptor);
 
     return CreateVersionedChunkReader(
-        std::move(config),
+        ReaderConfig_,
         std::move(chunkReader),
         chunkState,
         chunkState->ChunkMeta,
-        sessionId,
+        blockReadOptions,
         std::move(ranges),
         columnFilter,
         timestamp,
@@ -175,7 +170,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateCacheBasedReader(
     TTimestamp timestamp,
     bool produceAllVersions,
     const TColumnFilter& columnFilter,
-    const TReadSessionId& sessionId,
+    const TClientBlockReadOptions& blockReadOptions,
     const TTableSchema& schema)
 {
     VERIFY_THREAD_AFFINITY_ANY();
@@ -191,7 +186,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateCacheBasedReader(
 
     return CreateCacheBasedVersionedChunkReader(
         ChunkState_,
-        sessionId,
+        blockReadOptions,
         std::move(ranges),
         columnFilter,
         timestamp,
@@ -204,8 +199,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
     TTimestamp timestamp,
     bool produceAllVersions,
     const TColumnFilter& columnFilter,
-    const TWorkloadDescriptor& workloadDescriptor,
-    const TReadSessionId& sessionId)
+    const TClientBlockReadOptions& blockReadOptions)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -215,7 +209,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
         timestamp,
         produceAllVersions,
         columnFilter,
-        sessionId,
+        blockReadOptions,
         tabletSnapshot->TableSchema);
     if (reader) {
         return reader;
@@ -230,25 +224,21 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
             timestamp,
             produceAllVersions,
             columnFilter,
-            workloadDescriptor,
-            sessionId);
+            blockReadOptions);
     }
 
     auto blockCache = GetBlockCache();
     auto chunkReader = GetChunkReader();
-    auto chunkState = PrepareCachedChunkState(chunkReader, workloadDescriptor, sessionId);
+    auto chunkState = PrepareCachedChunkState(chunkReader, blockReadOptions);
 
-    auto config = CloneYsonSerializable(ReaderConfig_);
-    config->WorkloadDescriptor = workloadDescriptor;
-
-    ValidateBlockSize(tabletSnapshot, chunkState, workloadDescriptor);
+    ValidateBlockSize(tabletSnapshot, chunkState, blockReadOptions.WorkloadDescriptor);
 
     return CreateVersionedChunkReader(
-        std::move(config),
+        ReaderConfig_,
         std::move(chunkReader),
         chunkState,
         chunkState->ChunkMeta,
-        sessionId,
+        blockReadOptions,
         keys,
         columnFilter,
         timestamp,
@@ -260,7 +250,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateCacheBasedReader(
     TTimestamp timestamp,
     bool produceAllVersions,
     const TColumnFilter& columnFilter,
-    const TReadSessionId& sessionId,
+    const TClientBlockReadOptions& blockReadOptions,
     const TTableSchema& schema)
 {
     VERIFY_THREAD_AFFINITY_ANY();
@@ -276,7 +266,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateCacheBasedReader(
 
     return CreateCacheBasedVersionedChunkReader(
         ChunkState_,
-        sessionId,
+        blockReadOptions,
         keys,
         columnFilter,
         timestamp,
@@ -306,8 +296,7 @@ TError TSortedChunkStore::CheckRowLocks(
 
 TChunkStatePtr TSortedChunkStore::PrepareCachedChunkState(
     IChunkReaderPtr chunkReader,
-    const TWorkloadDescriptor& workloadDescriptor,
-    const TReadSessionId& readSessionId)
+    const TClientBlockReadOptions& blockReadOptions)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -316,8 +305,7 @@ TChunkStatePtr TSortedChunkStore::PrepareCachedChunkState(
     auto asyncChunkMeta = ChunkMetaManager_->GetMeta(
         chunkReader,
         Schema_,
-        workloadDescriptor,
-        readSessionId);
+        blockReadOptions);
     auto chunkMeta = WaitFor(asyncChunkMeta)
         .ValueOrThrow();
 

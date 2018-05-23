@@ -22,6 +22,8 @@
 #include <yt/ytlib/api/native_transaction.h>
 #include <yt/ytlib/api/transaction.h>
 
+#include <yt/ytlib/chunk_client/chunk_reader.h>
+#include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
 #include <yt/ytlib/chunk_client/chunk_spec.h>
 #include <yt/ytlib/chunk_client/config.h>
 
@@ -698,11 +700,15 @@ private:
 
     void PartitionEden(TTask* task)
     {
-        auto sessionId = TReadSessionId::Create();
+        TClientBlockReadOptions blockReadOptions;
+        blockReadOptions.WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemTabletPartitioning),
+        blockReadOptions.ChunkReaderStatistics = New<TChunkReaderStatistics>();
+        blockReadOptions.ReadSessionId = TReadSessionId::Create();
+
         NLogging::TLogger Logger(TabletNodeLogger);
         Logger.AddTag("TabletId: %v, ReadSessionId: %v",
             task->TabletId,
-            sessionId);
+            blockReadOptions.ReadSessionId);
 
         auto doneGuard = Finally([&] {
             ScheduleMorePartitionings();
@@ -800,8 +806,7 @@ private:
                 tablet->GetNextPivotKey(),
                 currentTimestamp,
                 MinTimestamp, // NB: No major compaction during Eden partitioning.
-                TWorkloadDescriptor(EWorkloadCategory::SystemTabletPartitioning),
-                sessionId,
+                blockReadOptions,
                 stores.size());
 
             INativeTransactionPtr transaction;
@@ -889,6 +894,8 @@ private:
                 reader->GetDataStatistics(),
                 reader->GetDecompressionStatistics(),
                 PartitioningTag_);
+
+            // TODO(savrus): Chunk reader statistics.
 
             LOG_INFO("Eden partitioning completed (RowCount: %v, StoreIdsToAdd: %v, StoreIdsToRemove: %v, WallTime: %v)",
                 rowCount,
@@ -1074,11 +1081,15 @@ private:
 
     void CompactPartition(TTask* task)
     {
-        auto sessionId = TReadSessionId::Create();
+        TClientBlockReadOptions blockReadOptions;
+        blockReadOptions.WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemTabletCompaction),
+        blockReadOptions.ChunkReaderStatistics = New<TChunkReaderStatistics>();
+        blockReadOptions.ReadSessionId = TReadSessionId::Create();
+
         NLogging::TLogger Logger(TabletNodeLogger);
         Logger.AddTag("TabletId: %v, ReadSessionId: %v",
             task->TabletId,
-            sessionId);
+            blockReadOptions.ReadSessionId);
 
         auto doneGuard = Finally([&] {
             ScheduleMoreCompactions();
@@ -1181,8 +1192,7 @@ private:
                 tablet->GetNextPivotKey(),
                 currentTimestamp,
                 majorTimestamp,
-                TWorkloadDescriptor(EWorkloadCategory::SystemTabletCompaction),
-                sessionId,
+                blockReadOptions,
                 stores.size());
 
             INativeTransactionPtr transaction;
@@ -1269,6 +1279,8 @@ private:
                 reader->GetDataStatistics(),
                 reader->GetDecompressionStatistics(),
                 CompactionTag_);
+
+            // TODO(savrus): Chunk reader statistics.
 
             LOG_INFO("Partition compaction completed (RowCount: %v, StoreIdsToAdd: %v, StoreIdsToRemove: %v, WallTime: %v)",
                 rowCount,

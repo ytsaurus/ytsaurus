@@ -68,8 +68,7 @@ using NYT::TRange;
 
 TColumnarChunkMetaPtr DownloadChunkMeta(
     IChunkReaderPtr chunkReader,
-    const TWorkloadDescriptor& workloadDescriptor,
-    const TReadSessionId& readSessionId,
+    const TClientBlockReadOptions& blockReadOptions,
     TNullable<int> partitionTag)
 {
     // Download chunk meta.
@@ -81,13 +80,8 @@ TColumnarChunkMetaPtr DownloadChunkMeta(
         TProtoExtensionTag<TNameTableExt>::Value
     };
 
-    TClientBlockReadOptions options;
-    options.WorkloadDescriptor = workloadDescriptor;
-    options.ChunkReaderStatistics = New<TChunkReaderStatistics>(); //FIXME(savrus) pass correct value here
-    options.ReadSessionId = readSessionId;
-
     auto asynChunkMeta = chunkReader->GetMeta(
-        options,
+        blockReadOptions,
         partitionTag,
         extensionTags);
     auto chunkMeta = WaitFor(asynChunkMeta)
@@ -108,7 +102,7 @@ public:
         TChunkReaderOptionsPtr options,
         const TChunkId& chunkId,
         TNameTablePtr nameTable,
-        const TReadSessionId& sessionId,
+        const TClientBlockReadOptions& blockReadOptions,
         const TColumnFilter& columnFilter,
         const TKeyColumns& keyColumns)
         : ChunkState_(chunkState)
@@ -123,8 +117,8 @@ public:
             .AddTag("ChunkReaderId: %v", TGuid::Create())
             .AddTag("ChunkId: %v", chunkId))
     {
-        if (sessionId) {
-            Logger.AddTag("ReadSessionId: %v", sessionId);
+        if (blockReadOptions.ReadSessionId) {
+            Logger.AddTag("ReadSessionId: %v", blockReadOptions.ReadSessionId);
         }
 
         if (Config_->SamplingRate) {
@@ -288,7 +282,7 @@ public:
         TChunkReaderOptionsPtr options,
         IChunkReaderPtr underlyingReader,
         TNameTablePtr nameTable,
-        const TReadSessionId& sessionId,
+        const TClientBlockReadOptions& blockReadOptions,
         const TKeyColumns& keyColumns,
         const TColumnFilter& columnFilter,
         TNullable<int> partitionTag);
@@ -332,7 +326,7 @@ THorizontalSchemalessChunkReaderBase::THorizontalSchemalessChunkReaderBase(
     TChunkReaderOptionsPtr options,
     IChunkReaderPtr underlyingReader,
     TNameTablePtr nameTable,
-    const TReadSessionId& sessionId,
+    const TClientBlockReadOptions& blockReadOptions,
     const TKeyColumns& keyColumns,
     const TColumnFilter& columnFilter,
     TNullable<int> partitionTag)
@@ -340,14 +334,14 @@ THorizontalSchemalessChunkReaderBase::THorizontalSchemalessChunkReaderBase(
         config,
         underlyingReader,
         chunkState->BlockCache,
-        sessionId)
+        blockReadOptions)
     , TSchemalessChunkReaderBase(
         chunkState,
         config,
         options,
         underlyingReader->GetChunkId(),
         nameTable,
-        sessionId,
+        blockReadOptions,
         columnFilter,
         keyColumns)
     , PartitionTag_(std::move(partitionTag))
@@ -435,7 +429,7 @@ public:
         TChunkReaderOptionsPtr options,
         IChunkReaderPtr underlyingReader,
         TNameTablePtr nameTable,
-        const TReadSessionId& sessionId,
+        const TClientBlockReadOptions& blockReadOptions,
         const TKeyColumns& keyColumns,
         const TColumnFilter& columnFilter,
         const TReadRange& readRange,
@@ -470,7 +464,7 @@ THorizontalSchemalessRangeChunkReader::THorizontalSchemalessRangeChunkReader(
     TChunkReaderOptionsPtr options,
     IChunkReaderPtr underlyingReader,
     TNameTablePtr nameTable,
-    const TReadSessionId& sessionId,
+    const TClientBlockReadOptions& blockReadOptions,
     const TKeyColumns& keyColumns,
     const TColumnFilter& columnFilter,
     const TReadRange& readRange,
@@ -482,7 +476,7 @@ THorizontalSchemalessRangeChunkReader::THorizontalSchemalessRangeChunkReader(
         std::move(options),
         std::move(underlyingReader),
         std::move(nameTable),
-        sessionId,
+        blockReadOptions,
         keyColumns,
         columnFilter,
         std::move(partitionTag))
@@ -723,7 +717,7 @@ public:
         TChunkReaderOptionsPtr options,
         NChunkClient::IChunkReaderPtr underlyingReader,
         TNameTablePtr nameTable,
-        const TReadSessionId& sessionId,
+        const TClientBlockReadOptions& blockReadOptions,
         const TKeyColumns& keyColumns,
         const TColumnFilter& columnFilter,
         const TSharedRange<TKey>& keys,
@@ -755,7 +749,7 @@ THorizontalSchemalessLookupChunkReader::THorizontalSchemalessLookupChunkReader(
     TChunkReaderOptionsPtr options,
     NChunkClient::IChunkReaderPtr underlyingReader,
     TNameTablePtr nameTable,
-    const TReadSessionId& sessionId,
+    const TClientBlockReadOptions& blockReadOptions,
     const TKeyColumns& keyColumns,
     const TColumnFilter& columnFilter,
     const TSharedRange<TKey>& keys,
@@ -768,7 +762,7 @@ THorizontalSchemalessLookupChunkReader::THorizontalSchemalessLookupChunkReader(
         std::move(options),
         std::move(underlyingReader),
         std::move(nameTable),
-        sessionId,
+        blockReadOptions,
         keyColumns,
         columnFilter,
         std::move(partitionTag))
@@ -941,7 +935,7 @@ public:
         TChunkReaderOptionsPtr options,
         IChunkReaderPtr underlyingReader,
         TNameTablePtr nameTable,
-        const TReadSessionId& sessionId,
+        const TClientBlockReadOptions& blockReadOptions,
         const TKeyColumns& keyColumns,
         const TColumnFilter& columnFilter,
         const TReadRange& readRange)
@@ -951,7 +945,7 @@ public:
             options,
             underlyingReader->GetChunkId(),
             nameTable,
-            sessionId,
+            blockReadOptions,
             columnFilter,
             keyColumns)
         , TColumnarRangeChunkReaderBase(
@@ -959,7 +953,7 @@ public:
             config,
             underlyingReader,
             chunkState->BlockCache,
-            sessionId)
+            blockReadOptions)
     {
         LOG_DEBUG("Reading range %v", readRange);
 
@@ -1370,7 +1364,7 @@ public:
         TChunkReaderOptionsPtr options,
         IChunkReaderPtr underlyingReader,
         TNameTablePtr nameTable,
-        const TReadSessionId& sessionId,
+        const TClientBlockReadOptions& blockReadOptions,
         const TKeyColumns& keyColumns,
         const TColumnFilter& columnFilter,
         const TSharedRange<TKey>& keys,
@@ -1381,7 +1375,7 @@ public:
             options,
             underlyingReader->GetChunkId(),
             nameTable,
-            sessionId,
+            blockReadOptions,
             columnFilter,
             keyColumns)
         , TColumnarLookupChunkReaderBase(
@@ -1389,7 +1383,7 @@ public:
             config,
             underlyingReader,
             chunkState->BlockCache,
-            sessionId)
+            blockReadOptions)
         , PerformanceCounters_(std::move(performanceCounters))
     {
         Keys_ = keys;
@@ -1636,7 +1630,7 @@ ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
     TChunkReaderOptionsPtr options,
     NChunkClient::IChunkReaderPtr underlyingReader,
     TNameTablePtr nameTable,
-    const TReadSessionId& sessionId,
+    const TClientBlockReadOptions& blockReadOptions,
     const TKeyColumns& keyColumns,
     const TColumnFilter& columnFilter,
     const TReadRange& readRange,
@@ -1653,7 +1647,7 @@ ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
                 options,
                 underlyingReader,
                 nameTable,
-                sessionId,
+                blockReadOptions,
                 keyColumns,
                 columnFilter,
                 readRange,
@@ -1667,7 +1661,7 @@ ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
                 options,
                 underlyingReader,
                 nameTable,
-                sessionId,
+                blockReadOptions,
                 keyColumns,
                 columnFilter,
                 readRange);
@@ -1686,7 +1680,7 @@ ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
     TChunkReaderOptionsPtr options,
     NChunkClient::IChunkReaderPtr underlyingReader,
     TNameTablePtr nameTable,
-    const TReadSessionId& sessionId,
+    const TClientBlockReadOptions& blockReadOptions,
     const TKeyColumns& keyColumns,
     const TColumnFilter& columnFilter,
     const TSharedRange<TKey>& keys,
@@ -1705,7 +1699,7 @@ ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
                 std::move(options),
                 std::move(underlyingReader),
                 std::move(nameTable),
-                sessionId,
+                blockReadOptions,
                 keyColumns,
                 columnFilter,
                 keys,
@@ -1720,7 +1714,7 @@ ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
                 std::move(options),
                 std::move(underlyingReader),
                 std::move(nameTable),
-                sessionId,
+                blockReadOptions,
                 keyColumns,
                 columnFilter,
                 keys,
@@ -1757,7 +1751,7 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
     const TDataSourceDirectoryPtr& dataSourceDirectory,
     const std::vector<TDataSliceDescriptor>& dataSliceDescriptors,
     TNameTablePtr nameTable,
-    const TReadSessionId& sessionId,
+    const TClientBlockReadOptions& blockReadOptions,
     const TColumnFilter& columnFilter,
     const TKeyColumns& keyColumns,
     TNullable<int> partitionTag,
@@ -1790,7 +1784,7 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                         chunkSpec.has_upper_limit() ? TReadLimit(chunkSpec.upper_limit()) : TReadLimit()
                     };
 
-                    auto asyncChunkMeta = BIND(DownloadChunkMeta, remoteReader, config->WorkloadDescriptor, sessionId, partitionTag)
+                    auto asyncChunkMeta = BIND(DownloadChunkMeta, remoteReader, blockReadOptions, partitionTag)
                         .AsyncVia(NChunkClient::TDispatcher::Get()->GetReaderInvoker())
                         .Run();
                     auto chunkMeta = WaitFor(asyncChunkMeta)
@@ -1811,7 +1805,7 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                         options,
                         remoteReader,
                         nameTable,
-                        sessionId,
+                        blockReadOptions,
                         keyColumns,
                         columnFilter.All ? CreateColumnFilter(dataSource.Columns(), nameTable) : columnFilter,
                         range,
@@ -1836,7 +1830,7 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                         dataSourceDirectory,
                         dataSliceDescriptor,
                         nameTable,
-                        sessionId,
+                        blockReadOptions,
                         columnFilter.All ? CreateColumnFilter(dataSource.Columns(), nameTable) : columnFilter,
                         trafficMeter,
                         throttler);
@@ -1872,7 +1866,7 @@ public:
         const TDataSourceDirectoryPtr& dataSourceDirectory,
         const std::vector<TDataSliceDescriptor>& dataSliceDescriptors,
         TNameTablePtr nameTable,
-        const TReadSessionId& sessionId,
+        const TClientBlockReadOptions& blockReadOptions,
         const TColumnFilter& columnFilter,
         const TKeyColumns& keyColumns,
         TNullable<int> partitionTag,
@@ -1927,7 +1921,7 @@ TSchemalessMultiChunkReader<TBase>::TSchemalessMultiChunkReader(
     const TDataSourceDirectoryPtr& dataSourceDirectory,
     const std::vector<TDataSliceDescriptor>& dataSliceDescriptors,
     TNameTablePtr nameTable,
-    const TReadSessionId& sessionId,
+    const TClientBlockReadOptions& blockReadOptions,
     const TColumnFilter& columnFilter,
     const TKeyColumns& keyColumns,
     TNullable<int> partitionTag,
@@ -1946,7 +1940,7 @@ TSchemalessMultiChunkReader<TBase>::TSchemalessMultiChunkReader(
             dataSourceDirectory,
             dataSliceDescriptors,
             nameTable,
-            sessionId,
+            blockReadOptions,
             columnFilter,
             keyColumns,
             partitionTag,
@@ -2076,7 +2070,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessSequentialMultiReader(
     const TDataSourceDirectoryPtr& dataSourceDirectory,
     const std::vector<TDataSliceDescriptor>& dataSliceDescriptors,
     TNameTablePtr nameTable,
-    const TReadSessionId& sessionId,
+    const TClientBlockReadOptions& blockReadOptions,
     const TColumnFilter& columnFilter,
     const TKeyColumns &keyColumns,
     TNullable<int> partitionTag,
@@ -2093,7 +2087,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessSequentialMultiReader(
         dataSourceDirectory,
         dataSliceDescriptors,
         nameTable,
-        sessionId,
+        blockReadOptions,
         columnFilter,
         keyColumns,
         partitionTag,
@@ -2116,7 +2110,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessParallelMultiReader(
     const TDataSourceDirectoryPtr& dataSourceDirectory,
     const std::vector<TDataSliceDescriptor>& dataSliceDescriptors,
     TNameTablePtr nameTable,
-    const TReadSessionId& sessionId,
+    const TClientBlockReadOptions& blockReadOptions,
     const TColumnFilter& columnFilter,
     const TKeyColumns &keyColumns,
     TNullable<int> partitionTag,
@@ -2133,7 +2127,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessParallelMultiReader(
         dataSourceDirectory,
         dataSliceDescriptors,
         nameTable,
-        sessionId,
+        blockReadOptions,
         columnFilter,
         keyColumns,
         partitionTag,
@@ -2160,7 +2154,7 @@ public:
         const TDataSourceDirectoryPtr& dataSourceDirectory,
         const TDataSliceDescriptor& dataSliceDescriptor,
         TNameTablePtr nameTable,
-        const TReadSessionId& sessionId,
+        const TClientBlockReadOptions& blockReadOptions,
         TColumnFilter columnFilter,
         TTrafficMeterPtr trafficMeter,
         IThroughputThrottlerPtr throttler);
@@ -2460,14 +2454,14 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
     const TDataSourceDirectoryPtr& dataSourceDirectory,
     const TDataSliceDescriptor& dataSliceDescriptor,
     TNameTablePtr nameTable,
-    const TReadSessionId& sessionId,
+    const TClientBlockReadOptions& blockReadOptions,
     TColumnFilter columnFilter,
     TTrafficMeterPtr trafficMeter,
     IThroughputThrottlerPtr throttler)
 {
     auto Logger = TableClientLogger;
-    if (sessionId) {
-        Logger.AddTag("ReadSessionId: %v", sessionId);
+    if (blockReadOptions.ReadSessionId) {
+        Logger.AddTag("ReadSessionId: %v", blockReadOptions.ReadSessionId);
     }
 
     const auto& dataSource = dataSourceDirectory->DataSources()[dataSliceDescriptor.GetDataSourceIndex()];
@@ -2548,7 +2542,7 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
         localDescriptor,
         blockCache,
         nodeDirectory,
-        sessionId,
+        blockReadOptions,
         chunkSpecs,
         versionedReadSchema,
         performanceCounters,
@@ -2598,8 +2592,7 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
 
         auto asyncChunkMeta = TCachedVersionedChunkMeta::Load(
             remoteReader,
-            config->WorkloadDescriptor,
-            sessionId,
+            blockReadOptions,
             versionedReadSchema);
         auto chunkMeta = WaitFor(asyncChunkMeta)
             .ValueOrThrow();
@@ -2616,7 +2609,7 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
             std::move(remoteReader),
             std::move(chunkState),
             std::move(chunkMeta),
-            sessionId,
+            blockReadOptions,
             lowerLimit.GetKey(),
             upperLimit.GetKey(),
             TColumnFilter(),
@@ -2671,7 +2664,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessMergingMultiChunkReader(
     const TDataSourceDirectoryPtr& dataSourceDirectory,
     const TDataSliceDescriptor& dataSliceDescriptor,
     TNameTablePtr nameTable,
-    const TReadSessionId& sessionId,
+    const TClientBlockReadOptions& blockReadOptions,
     const TColumnFilter& columnFilter,
     NChunkClient::TTrafficMeterPtr trafficMeter,
     IThroughputThrottlerPtr throttler)
@@ -2686,7 +2679,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessMergingMultiChunkReader(
         dataSourceDirectory,
         dataSliceDescriptor,
         nameTable,
-        sessionId,
+        blockReadOptions,
         columnFilter,
         trafficMeter,
         throttler);

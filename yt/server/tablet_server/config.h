@@ -185,11 +185,6 @@ public:
             .DefaultNew();
         RegisterParameter("tablet_balancer", TabletBalancer)
             .DefaultNew();
-
-        RegisterPreprocessor([&] () {
-            // Override default workload descriptors.
-            ChunkReader->WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::UserInteractive);
-        });
     }
 };
 

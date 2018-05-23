@@ -184,20 +184,15 @@ ISchemafulReaderPtr TOrderedChunkStore::CreateReader(
     i64 lowerRowIndex,
     i64 upperRowIndex,
     const TColumnFilter& columnFilter,
-    const TWorkloadDescriptor& workloadDescriptor,
-    const TReadSessionId& sessionId)
+    const TClientBlockReadOptions& blockReadOptions)
 {
     auto chunkReader = GetChunkReader();
     auto asyncChunkMeta = ChunkMetaManager_->GetMeta(
         chunkReader,
         Schema_,
-        workloadDescriptor,
-        sessionId);
+        blockReadOptions);
     auto chunkMeta = WaitFor(asyncChunkMeta)
         .ValueOrThrow();
-
-    auto config = CloneYsonSerializable(ReaderConfig_);
-    config->WorkloadDescriptor = workloadDescriptor;
 
     TReadLimit lowerLimit;
     lowerRowIndex = std::min(std::max(lowerRowIndex, StartingRowIndex_), StartingRowIndex_ + GetRowCount());
@@ -242,9 +237,9 @@ ISchemafulReaderPtr TOrderedChunkStore::CreateReader(
     auto underlyingReader = CreateSchemafulChunkReader(
         chunkState,
         chunkMeta,
-        config,
+        ReaderConfig_,
         std::move(chunkReader),
-        sessionId,
+        blockReadOptions,
         readSchema,
         TKeyColumns(),
         {readRange});

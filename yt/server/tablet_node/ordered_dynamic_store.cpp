@@ -20,11 +20,13 @@
 #include <yt/ytlib/table_client/cached_versioned_chunk_meta.h>
 #include <yt/ytlib/table_client/chunk_state.h>
 
+#include <yt/ytlib/chunk_client/chunk_meta.pb.h>
+#include <yt/ytlib/chunk_client/chunk_reader.h>
+#include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
+#include <yt/ytlib/chunk_client/chunk_spec.pb.h>
 #include <yt/ytlib/chunk_client/config.h>
 #include <yt/ytlib/chunk_client/memory_reader.h>
 #include <yt/ytlib/chunk_client/memory_writer.h>
-#include <yt/ytlib/chunk_client/chunk_spec.pb.h>
-#include <yt/ytlib/chunk_client/chunk_meta.pb.h>
 
 namespace NYT {
 namespace NTabletNode {
@@ -375,7 +377,7 @@ void TOrderedDynamicStore::AsyncLoad(TLoadContext& context)
             New<TColumnarChunkMeta>(chunkMeta),
             New<TChunkReaderConfig>(),
             chunkReader,
-            TReadSessionId(),
+            TClientBlockReadOptions(),
             Schema_,
             TKeyColumns(),
             TReadRange());
@@ -424,8 +426,7 @@ ISchemafulReaderPtr TOrderedDynamicStore::CreateReader(
     i64 lowerRowIndex,
     i64 upperRowIndex,
     const TColumnFilter& columnFilter,
-    const TWorkloadDescriptor& /*workloadDescriptor*/,
-    const TReadSessionId& /*sessionId*/)
+    const NChunkClient::TClientBlockReadOptions& /*blockReadOptions*/)
 {
     return DoCreateReader(
         tabletIndex,

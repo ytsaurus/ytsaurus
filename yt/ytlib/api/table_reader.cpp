@@ -4,6 +4,8 @@
 #include "native_connection.h"
 
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/ytlib/chunk_client/chunk_reader.h>
+#include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
 #include <yt/ytlib/chunk_client/chunk_replica.h>
 #include <yt/ytlib/chunk_client/chunk_spec.h>
 #include <yt/ytlib/chunk_client/data_source.h>
@@ -58,6 +60,7 @@ using namespace NYTree;
 using namespace NYson;
 using namespace NRpc;
 
+using NChunkClient::TChunkReaderStatistics;
 using NChunkClient::TDataSliceDescriptor;
 using NYT::TRange;
 
@@ -111,7 +114,8 @@ private:
     const IThroughputThrottlerPtr Throttler_;
 
     const TTransactionId TransactionId_;
-    const TReadSessionId ReadSessionId_;
+
+    TClientBlockReadOptions BlockReadOptions_;
 
     TFuture<void> ReadyEvent_;
 
@@ -135,7 +139,7 @@ TSchemalessTableReader::TSchemalessTableReader(
     const TColumnFilter& columnFilter,
     bool unordered,
     IThroughputThrottlerPtr throttler)
-    : Config_(CloneYsonSerializable(std::move(config)))
+    : Config_(std::move(config))
     , Options_(std::move(options))
     , Client_(std::move(client))
     , Transaction_(std::move(transaction))
@@ -145,17 +149,19 @@ TSchemalessTableReader::TSchemalessTableReader(
     , Unordered_(unordered)
     , Throttler_(std::move(throttler))
     , TransactionId_(Transaction_ ? Transaction_->GetId() : NullTransactionId)
-    , ReadSessionId_(TReadSessionId::Create())
 {
     YCHECK(Config_);
     YCHECK(Client_);
 
-    Config_->WorkloadDescriptor.Annotations.push_back(Format("TablePath: %v", RichPath_.GetPath()));
+    BlockReadOptions_.WorkloadDescriptor = Config_->WorkloadDescriptor;
+    BlockReadOptions_.WorkloadDescriptor.Annotations.push_back(Format("TablePath: %v", RichPath_.GetPath()));
+    BlockReadOptions_.ChunkReaderStatistics = New<TChunkReaderStatistics>();
+    BlockReadOptions_.ReadSessionId = TReadSessionId::Create();
 
     Logger.AddTag("Path: %v, TransactionId: %v, ReadSessionId: %v",
         RichPath_.GetPath(),
         TransactionId_,
-        ReadSessionId_);
+        BlockReadOptions_.ReadSessionId);
 
     ReadyEvent_ = BIND(&TSchemalessTableReader::DoOpen, MakeStrong(this))
         .AsyncVia(NChunkClient::TDispatcher::Get()->GetReaderInvoker())
@@ -285,7 +291,7 @@ void TSchemalessTableReader::DoOpen()
             dataSourceDirectory,
             dataSliceDescriptor,
             NameTable_,
-            ReadSessionId_,
+            BlockReadOptions_,
             ColumnFilter_,
             /* trafficMeter */ nullptr,
             Throttler_);
@@ -314,7 +320,7 @@ void TSchemalessTableReader::DoOpen()
             dataSourceDirectory,
             std::move(dataSliceDescriptors),
             NameTable_,
-            ReadSessionId_,
+            BlockReadOptions_,
             ColumnFilter_,
             schema.GetKeyColumns(),
             /* partitionTag */ Null,

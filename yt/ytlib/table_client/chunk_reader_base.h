@@ -22,7 +22,7 @@ public:
         NChunkClient::TBlockFetcherConfigPtr config,
         NChunkClient::IChunkReaderPtr underlyingReader,
         NChunkClient::IBlockCachePtr blockCache,
-        const NChunkClient::TReadSessionId& sessionId);
+        const NChunkClient::TClientBlockReadOptions& blockReadOptions);
 
     virtual TFuture<void> GetReadyEvent() override;
 
@@ -38,7 +38,7 @@ protected:
     const NChunkClient::TBlockFetcherConfigPtr Config_;
     const NChunkClient::IBlockCachePtr BlockCache_;
     const NChunkClient::IChunkReaderPtr UnderlyingReader_;
-    const NChunkClient::TReadSessionId ReadSessionId_;
+    const NChunkClient::TClientBlockReadOptions BlockReadOptions_;
 
     NChunkClient::TSequentialBlockFetcherPtr SequentialBlockFetcher_;
     NConcurrency::TAsyncSemaphorePtr AsyncSemaphore_;

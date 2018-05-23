@@ -68,7 +68,7 @@ public:
                 dataSourceDirectory,
                 std::move(dataSliceDescriptors),
                 nameTable,
-                TReadSessionId(),
+                BlockReadOptions_,
                 TColumnFilter(),
                 keyColumns,
                 /* partitionTag */ Null,
