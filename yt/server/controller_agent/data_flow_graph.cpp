@@ -286,7 +286,7 @@ public:
         }
     }
 
-    void RegisterFlow(
+    void UpdateEdgeStatistics(
         const TDataFlowGraph::TVertexDescriptor& from,
         const TDataFlowGraph::TVertexDescriptor& to,
         const TDataStatistics& statistics)
@@ -427,12 +427,12 @@ void TDataFlowGraph::Persist(const TPersistenceContext& context)
     Impl_->Persist(context);
 }
 
-void TDataFlowGraph::RegisterFlow(
+void TDataFlowGraph::UpdateEdgeStatistics(
     const TVertexDescriptor& from,
     const TVertexDescriptor& to,
     const NChunkClient::NProto::TDataStatistics& statistics)
 {
-    Impl_->RegisterFlow(from, to, statistics);
+    Impl_->UpdateEdgeStatistics(from, to, statistics);
 }
 
 void TDataFlowGraph::RegisterCounter(

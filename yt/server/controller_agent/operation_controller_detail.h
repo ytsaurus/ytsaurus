@@ -523,7 +523,6 @@ protected:
     virtual void SyncPrepare();
     void InitUnrecognizedSpec();
     void FillInitializationResult(TOperationControllerInitializationResult* result);
-    void InitOrchid();
     void ValidateIntermediateDataAccess(const TString& user, NYTree::EPermission permission) const;
     void InitUpdatingTables();
 

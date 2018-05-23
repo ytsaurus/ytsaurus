@@ -334,9 +334,9 @@ print "x={0}\ty={1}".format(x, y)
 
         wait(lambda: op.get_job_count("completed") == 1)
 
-        operation_path = get_operation_path(op.id)
-        get(operation_path + "/orchid/data_flow_graph/vertices")
-        intermediate_live_data = read_table(operation_path + "/orchid/data_flow_graph/vertices/partition_map/live_previews/0")
+        operation_path = op.get_path()
+        get(operation_path + "/controller_orchid/data_flow_graph/vertices")
+        intermediate_live_data = read_table(operation_path + "/controller_orchid/data_flow_graph/vertices/partition_map/live_previews/0")
 
         intermediate_acl = get(operation_path + "/intermediate_data_access/@acl")
         assert acl == intermediate_acl

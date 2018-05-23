@@ -580,14 +580,14 @@ print row + table_index
             spec={"data_size_per_job": 1})
 
         jobs = wait_breakpoint(job_count=2)
-        operation_path = get_operation_path(op.id)
+        operation_path = op.get_path()
         for job_id in jobs[:2]:
             release_breakpoint(job_id=job_id)
 
         wait(lambda : op.get_job_count("completed") == 2)
 
-        live_preview_data1 = read_table(operation_path + "/orchid/data_flow_graph/vertices/map/live_previews/0")
-        live_preview_data2 = read_table(operation_path + "/orchid/data_flow_graph/vertices/map/live_previews/1")
+        live_preview_data1 = read_table(operation_path + "/controller_orchid/data_flow_graph/vertices/map/live_previews/0")
+        live_preview_data2 = read_table(operation_path + "/controller_orchid/data_flow_graph/vertices/map/live_previews/1")
         live_preview_data1 = [d["a"] for d in live_preview_data1]
         live_preview_data2 = [d["b"] for d in live_preview_data2]
         assert sorted(live_preview_data1) == sorted(live_preview_data2)

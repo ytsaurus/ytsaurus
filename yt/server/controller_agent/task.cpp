@@ -504,11 +504,11 @@ TJobCompletedResult TTask::OnJobCompleted(TJobletPtr joblet, TCompletedJobSummar
         YCHECK(InputVertex_ != "");
 
         auto vertex = GetVertexDescriptor();
-        TaskHost_->GetDataFlowGraph()->RegisterFlow(InputVertex_, vertex, inputStatistics);
+        TaskHost_->GetDataFlowGraph()->UpdateEdgeStatistics(InputVertex_, vertex, inputStatistics);
         // TODO(max42): rewrite this properly one day.
         for (int index = 0; index < EdgeDescriptors_.size(); ++index) {
             if (EdgeDescriptors_[index].IsFinalOutput) {
-                TaskHost_->GetDataFlowGraph()->RegisterFlow(
+                TaskHost_->GetDataFlowGraph()->UpdateEdgeStatistics(
                     vertex,
                     TDataFlowGraph::SinkDescriptor,
                     outputStatisticsMap[index]);

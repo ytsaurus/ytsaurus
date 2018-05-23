@@ -198,7 +198,7 @@ void TSchemalessTableReader::DoOpen()
                 userObject.Type);
         }
     } else {
-        LOG_INFO("Table is virtual, performing further operations with its original address rather with its object id");
+        LOG_INFO("Table is virtual, performing further operations with its original path rather with its object id");
         objectIdPath = path;
     }
 

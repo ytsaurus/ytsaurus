@@ -306,7 +306,7 @@ private:
     }
 };
 
-IYPathServicePtr IYPathService::AddPermissionValidator(TCallback<void(const TString&, EPermission)> validationCallback)
+IYPathServicePtr IYPathService::WithPermissionValidator(TCallback<void(const TString&, EPermission)> validationCallback)
 {
     return New<TPermissionValidatingYPathService>(this, std::move(validationCallback));
 }
