@@ -500,7 +500,7 @@ private:
     const TCellTag NativeCellTag_;
 
     const NProfiling::TProfiler& Profiler = TabletNodeProfiler;
-    NProfiling::TAggregateCounter TransactionSerializationLagCounter_ = {"/transaction_serialization_lag"};
+    NProfiling::TAggregateGauge TransactionSerializationLagCounter_ = {"/transaction_serialization_lag"};
 
     TEntityMap<TTransaction> PersistentTransactionMap_;
     TEntityMap<TTransaction> TransientTransactionMap_;

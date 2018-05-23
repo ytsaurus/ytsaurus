@@ -398,8 +398,8 @@ private:
     TSimpleCounter ArchiveErrorCounter_ = {"/archive_errors"};
     TSimpleCounter RemoveErrorCounter_ = {"/remove_errors"};
 
-    TAggregateCounter AnalyzeOperationsTimeCounter_ = {"/analyze_operations_time"};
-    TAggregateCounter OperationsRowsPreparationTimeCounter_ = {"/operations_rows_preparation_time"};
+    TAggregateGauge AnalyzeOperationsTimeCounter_ = {"/analyze_operations_time"};
+    TAggregateGauge OperationsRowsPreparationTimeCounter_ = {"/operations_rows_preparation_time"};
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 

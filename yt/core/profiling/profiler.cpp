@@ -86,7 +86,7 @@ TCpuInstant TCounterBase::GetUpdateDeadline() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TAggregateCounter::TAggregateCounter(
+TAggregateGauge::TAggregateGauge(
     const NYPath::TYPath& path,
     const TTagIdList& tagIds,
     EAggregateMode mode,
@@ -97,14 +97,14 @@ TAggregateCounter::TAggregateCounter(
     Reset();
 }
 
-TAggregateCounter::TAggregateCounter(const TAggregateCounter& other)
+TAggregateGauge::TAggregateGauge(const TAggregateGauge& other)
     : TCounterBase(other)
 {
     *this = other;
     Reset();
 }
 
-TAggregateCounter& TAggregateCounter::operator=(const TAggregateCounter& other)
+TAggregateGauge& TAggregateGauge::operator=(const TAggregateGauge& other)
 {
     static_cast<TCounterBase&>(*this) = static_cast<const TCounterBase&>(other);
     Mode_ = other.Mode_;
@@ -112,7 +112,7 @@ TAggregateCounter& TAggregateCounter::operator=(const TAggregateCounter& other)
     return *this;
 }
 
-void TAggregateCounter::Reset()
+void TAggregateGauge::Reset()
 {
     Min_ = std::numeric_limits<TValue>::max();
     Max_ = std::numeric_limits<TValue>::min();
@@ -280,13 +280,13 @@ TDuration TProfiler::DoTimingCheckpoint(
     }
 }
 
-void TProfiler::Update(TAggregateCounter& counter, TValue value) const
+void TProfiler::Update(TAggregateGauge& counter, TValue value) const
 {
     counter.Current_ = value;
     OnUpdated(counter, value);
 }
 
-TValue TProfiler::Increment(TAggregateCounter& counter, TValue delta) const
+TValue TProfiler::Increment(TAggregateGauge& counter, TValue delta) const
 {
     auto value = (counter.Current_ += delta);
     OnUpdated(counter, value);
@@ -311,7 +311,7 @@ bool TProfiler::IsCounterEnabled(const TCounterBase& counter) const
     return Enabled_ && !counter.Path_.empty();
 }
 
-void TProfiler::OnUpdated(TAggregateCounter& counter, TValue value) const
+void TProfiler::OnUpdated(TAggregateGauge& counter, TValue value) const
 {
     if (!IsCounterEnabled(counter)) {
         return;

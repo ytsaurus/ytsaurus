@@ -80,10 +80,10 @@ static const auto& Logger = NodeTrackerServerLogger;
 static const auto ProfilingPeriod = TDuration::Seconds(10);
 static const auto TotalNodeStatisticsUpdatePeriod = TDuration::Seconds(1);
 
-static NProfiling::TAggregateCounter FullHeartbeatTimeCounter("/full_heartbeat_time");
-static NProfiling::TAggregateCounter IncrementalHeartbeatTimeCounter("/incremental_heartbeat_time");
-static NProfiling::TAggregateCounter NodeUnregisterTimeCounter("/node_unregister_time");
-static NProfiling::TAggregateCounter NodeDisposeTimeCounter("/node_dispose_time");
+static NProfiling::TAggregateGauge FullHeartbeatTimeCounter("/full_heartbeat_time");
+static NProfiling::TAggregateGauge IncrementalHeartbeatTimeCounter("/incremental_heartbeat_time");
+static NProfiling::TAggregateGauge NodeUnregisterTimeCounter("/node_unregister_time");
+static NProfiling::TAggregateGauge NodeDisposeTimeCounter("/node_dispose_time");
 
 ////////////////////////////////////////////////////////////////////////////////
 

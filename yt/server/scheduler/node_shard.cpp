@@ -60,9 +60,9 @@ using NYT::ToProto;
 
 static const auto& Profiler = SchedulerProfiler;
 
-static NProfiling::TAggregateCounter AnalysisTimeCounter;
-static NProfiling::TAggregateCounter StrategyJobProcessingTimeCounter;
-static NProfiling::TAggregateCounter ScheduleTimeCounter;
+static NProfiling::TAggregateGauge AnalysisTimeCounter;
+static NProfiling::TAggregateGauge StrategyJobProcessingTimeCounter;
+static NProfiling::TAggregateGauge ScheduleTimeCounter;
 
 ////////////////////////////////////////////////////////////////////////////////
 

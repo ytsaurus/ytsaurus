@@ -259,8 +259,8 @@ private:
 
     TRingQueue<NRpc::TMutationId> PendingMutationIds_;
 
-    NProfiling::TAggregateCounter BatchCommitTimeCounter_;
-    NProfiling::TAggregateCounter MutationWatiTimeCounter_;
+    NProfiling::TAggregateGauge BatchCommitTimeCounter_;
+    NProfiling::TAggregateGauge MutationWatiTimeCounter_;
 
     THashMap<TString, TMutationTypeDescriptor> TypeToDescriptor_;
 

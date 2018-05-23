@@ -1323,13 +1323,13 @@ const TProfiler& TObjectManager::GetProfiler()
     return Profiler;
 }
 
-NProfiling::TAggregateCounter* TObjectManager::GetMethodExecTimeCounter(EObjectType type, const TString& method)
+NProfiling::TAggregateGauge* TObjectManager::GetMethodExecTimeCounter(EObjectType type, const TString& method)
 {
     auto key = std::make_pair(type, method);
     auto it = MethodToEntry_.find(key);
     if (it == MethodToEntry_.end()) {
         auto entry = std::make_unique<TMethodEntry>();
-        entry->ExecTimeCounter = NProfiling::TAggregateCounter(
+        entry->ExecTimeCounter = NProfiling::TAggregateGauge(
             "/verb_execute_time",
             {
                 TProfileManager::Get()->RegisterTag("type", type),
