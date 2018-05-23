@@ -73,11 +73,11 @@ private:
     NProfiling::TProfiler Profiler;
     NProfiling::TSimpleCounter EnqueuedCounter;
     NProfiling::TSimpleCounter DequeuedCounter;
-    NProfiling::TAggregateCounter SizeCounter;
-    NProfiling::TAggregateCounter WaitTimeCounter;
-    NProfiling::TAggregateCounter ExecTimeCounter;
+    NProfiling::TAggregateGauge SizeCounter;
+    NProfiling::TAggregateGauge WaitTimeCounter;
+    NProfiling::TAggregateGauge ExecTimeCounter;
     NProfiling::TSimpleCounter CumulativeTimeCounter;
-    NProfiling::TAggregateCounter TotalTimeCounter;
+    NProfiling::TAggregateGauge TotalTimeCounter;
 };
 
 DEFINE_REFCOUNTED_TYPE(TInvokerQueue)

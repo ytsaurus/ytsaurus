@@ -35,7 +35,7 @@ static const auto& Profiler = BusProfiler;
 
 static constexpr auto CheckPeriod = TDuration::Seconds(15);
 
-static NProfiling::TAggregateCounter AcceptTime("/accept_time");
+static NProfiling::TAggregateGauge AcceptTime("/accept_time");
 
 ////////////////////////////////////////////////////////////////////////////////
 

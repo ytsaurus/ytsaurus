@@ -120,17 +120,17 @@ DEFINE_ENUM(EAggregateMode,
  *
  *  \note Thread-safe.
  */
-class TAggregateCounter
+class TAggregateGauge
     : public TCounterBase
 {
 public:
-    TAggregateCounter(
+    TAggregateGauge(
         const NYPath::TYPath& path = NYPath::TYPath(),
         const TTagIdList& tagIds = EmptyTagIds,
         EAggregateMode mode = EAggregateMode::Max,
         TDuration interval = TDuration::MilliSeconds(1000));
-    TAggregateCounter(const TAggregateCounter& other);
-    TAggregateCounter& operator = (const TAggregateCounter& other);
+    TAggregateGauge(const TAggregateGauge& other);
+    TAggregateGauge& operator = (const TAggregateGauge& other);
 
 private:
     EAggregateMode Mode_;
@@ -146,7 +146,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! A rudimentary but much cheaper version of TAggregateCounter capable of
+//! A rudimentary but much cheaper version of TAggregateGauge capable of
 //! maintaining just the value itself but not any of its aggregates.
 class TSimpleCounter
     : public TCounterBase
@@ -232,11 +232,11 @@ public:
 
 
     //! Updates the counter value and possibly enqueues samples.
-    void Update(TAggregateCounter& counter, TValue value) const;
+    void Update(TAggregateGauge& counter, TValue value) const;
 
     //! Increments the counter value and possibly enqueues aggregate samples.
     //! Returns the incremented value.
-    TValue Increment(TAggregateCounter& counter, TValue delta = 1) const;
+    TValue Increment(TAggregateGauge& counter, TValue delta = 1) const;
 
     //! Updates the counter value and possibly enqueues samples.
     void Update(TSimpleCounter& counter, TValue value) const;
@@ -251,7 +251,7 @@ private:
 
     bool IsCounterEnabled(const TCounterBase& counter) const;
 
-    void OnUpdated(TAggregateCounter& counter, TValue value) const;
+    void OnUpdated(TAggregateGauge& counter, TValue value) const;
     void OnUpdated(TSimpleCounter& counter) const;
 
     TDuration DoTimingCheckpoint(
@@ -343,7 +343,7 @@ class TAggregatedTimingGuard
     : private TNonCopyable
 {
 public:
-    TAggregatedTimingGuard(const TProfiler* profiler, TAggregateCounter* counter)
+    TAggregatedTimingGuard(const TProfiler* profiler, TAggregateGauge* counter)
         : Profiler_(profiler)
         , Counter_(counter)
         , Start_(GetCpuInstant())
@@ -377,7 +377,7 @@ public:
 
 private:
     const TProfiler* Profiler_;
-    TAggregateCounter* Counter_;
+    TAggregateGauge* Counter_;
     TCpuInstant Start_;
 
 };

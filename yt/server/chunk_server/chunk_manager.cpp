@@ -102,7 +102,7 @@ static const auto ProfilingPeriod = TDuration::MilliSeconds(1000);
 // NB: Changing this value will invalidate all changelogs!
 static const auto ReplicaApproveTimeout = TDuration::Seconds(60);
 
-static NProfiling::TAggregateCounter ChunkTreeRebalacnceTimeCounter("/chunk_tree_rebalance_time");
+static NProfiling::TAggregateGauge ChunkTreeRebalacnceTimeCounter("/chunk_tree_rebalance_time");
 
 ////////////////////////////////////////////////////////////////////////////////
 

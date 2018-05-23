@@ -354,11 +354,11 @@ private:
     std::atomic<int> QueueSize_ = {0};
 
     TProfiler Profiler_;
-    TAggregateCounter BucketCounter_;
-    TAggregateCounter SizeCounter_;
-    TAggregateCounter WaitTimeCounter_;
-    TAggregateCounter ExecTimeCounter_;
-    TAggregateCounter TotalTimeCounter_;
+    TAggregateGauge BucketCounter_;
+    TAggregateGauge SizeCounter_;
+    TAggregateGauge WaitTimeCounter_;
+    TAggregateGauge ExecTimeCounter_;
+    TAggregateGauge TotalTimeCounter_;
 
     void AccountCurrentlyExecutingBuckets()
     {

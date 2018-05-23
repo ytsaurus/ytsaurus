@@ -230,7 +230,7 @@ private:
     NProfiling::TSimpleCounter ThrottledReadsCounter_;
     NProfiling::TSimpleCounter ThrottledWritesCounter_;
 
-    NProfiling::TAggregateCounter PutBlocksWallTimeCounter_;
+    NProfiling::TAggregateGauge PutBlocksWallTimeCounter_;
 
     static EIOCategory ToIOCategory(const TWorkloadDescriptor& workloadDescriptor);
     NProfiling::TSimpleCounter& GetPendingIOSizeCounter(

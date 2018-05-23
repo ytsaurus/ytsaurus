@@ -243,8 +243,8 @@ private:
     NLogging::TLogger Logger;
 
     NProfiling::TProfiler Profiler;
-    NProfiling::TAggregateCounter CountCounter_;
-    NProfiling::TAggregateCounter SpaceCounter_;
+    NProfiling::TAggregateGauge CountCounter_;
+    NProfiling::TAggregateGauge SpaceCounter_;
 
     DECLARE_THREAD_AFFINITY_SLOT(HomeThread);
 

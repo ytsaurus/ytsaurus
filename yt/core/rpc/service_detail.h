@@ -435,16 +435,16 @@ protected:
         NProfiling::TSimpleCounter TimedOutRequestCounter;
 
         //! Time spent while handling the request.
-        NProfiling::TAggregateCounter ExecutionTimeCounter;
+        NProfiling::TAggregateGauge ExecutionTimeCounter;
 
         //! Time spent at the caller's side before the request arrived into the server queue.
-        NProfiling::TAggregateCounter RemoteWaitTimeCounter;
+        NProfiling::TAggregateGauge RemoteWaitTimeCounter;
 
         //! Time spent while the request was waiting in the server queue.
-        NProfiling::TAggregateCounter LocalWaitTimeCounter;
+        NProfiling::TAggregateGauge LocalWaitTimeCounter;
 
         //! Time between the request arrival and the moment when it is fully processed.
-        NProfiling::TAggregateCounter TotalTimeCounter;
+        NProfiling::TAggregateGauge TotalTimeCounter;
 
         //! Counts the number of bytes in requests message body.
         NProfiling::TSimpleCounter RequestMessageBodySizeCounter;
@@ -473,7 +473,7 @@ protected:
         const NProfiling::TTagIdList TagIds;
 
         //! The number of currently queued requests.
-        NProfiling::TAggregateCounter QueueSizeCounter;
+        NProfiling::TAggregateGauge QueueSizeCounter;
 
         std::atomic<int> ConcurrencySemaphore = {0};
         TLockFreeQueue<TServiceContextPtr> RequestQueue;

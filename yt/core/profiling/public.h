@@ -14,7 +14,7 @@ class TResourceTracker;
 
 class TTimer;
 class TSimpleCounter;
-class TAggregateCounter;
+class TAggregateGauge;
 
 struct TQueuedSample;
 

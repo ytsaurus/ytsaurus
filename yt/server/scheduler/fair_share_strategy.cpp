@@ -969,10 +969,10 @@ private:
             }
         }
 
-        TAggregateCounter PrescheduleJobTime;
-        TAggregateCounter TotalControllerScheduleJobTime;
-        TAggregateCounter ExecControllerScheduleJobTime;
-        TAggregateCounter StrategyScheduleJobTime;
+        TAggregateGauge PrescheduleJobTime;
+        TAggregateGauge TotalControllerScheduleJobTime;
+        TAggregateGauge ExecControllerScheduleJobTime;
+        TAggregateGauge StrategyScheduleJobTime;
         TSimpleCounter ScheduleJobCount;
         TSimpleCounter ScheduleJobFailureCount;
         TEnumIndexedVector<TSimpleCounter, EScheduleJobFailReason> ControllerScheduleJobFail;
@@ -981,9 +981,9 @@ private:
     TProfilingCounters NonPreemptiveProfilingCounters;
     TProfilingCounters PreemptiveProfilingCounters;
 
-    TAggregateCounter FairShareUpdateTimeCounter;
-    TAggregateCounter FairShareLogTimeCounter;
-    TAggregateCounter AnalyzePreemptableJobsTimeCounter;
+    TAggregateGauge FairShareUpdateTimeCounter;
+    TAggregateGauge FairShareLogTimeCounter;
+    TAggregateGauge AnalyzePreemptableJobsTimeCounter;
 
     TCpuInstant LastSchedulingInformationLoggedTime_ = 0;
 
