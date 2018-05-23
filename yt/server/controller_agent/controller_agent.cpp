@@ -348,7 +348,6 @@ public:
     TOperationPtr GetOperationOrThrow(const TOperationId& operationId) const
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(Connected_);
 
         auto operation = FindOperation(operationId);
         if (!operation) {
