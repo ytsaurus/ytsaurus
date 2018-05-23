@@ -87,11 +87,13 @@ public:
 
     ~TSessionCounterGuard()
     {
-        Location_->UpdateSessionCount(ESessionType::User, -1);
+        if (Location_) {
+            Location_->UpdateSessionCount(ESessionType::User, -1);
+        }
     }
 
 private:
-    const TLocationPtr Location_;
+    TLocationPtr Location_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -594,7 +596,7 @@ private:
         auto seedReplicas = FromProto<TChunkReplicaList>(chunkSpec.replicas());
 
         auto Logger = DataNodeLogger;
-        Logger.AddTag("ChunkId: %v, ReadSessionId: %v", chunkId, readSessionId);
+        Logger.AddTag("ChunkId: %v, ReadSessionId: %v, Location: %v", chunkId, readSessionId, location->GetId());
 
         try {
             auto options = New<TRemoteReaderOptions>();
@@ -863,8 +865,9 @@ private:
         const TChunkId& chunkId,
         std::function<void(IOutputStream*)> producer)
     {
-        LOG_INFO("Producing artifact file (ChunkId: %v)",
-            chunkId);
+        LOG_INFO("Producing artifact file (ChunkId: %v, Location: %v)",
+            chunkId,
+            location->GetId());
 
         auto dataFileName = location->GetChunkPath(chunkId);
         auto metaFileName = dataFileName + ArtifactMetaSuffix;
