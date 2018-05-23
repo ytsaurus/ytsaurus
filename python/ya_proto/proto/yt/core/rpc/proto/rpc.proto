@@ -1,4 +1,4 @@
-package NYT.NRpc.NProto;
+package NYtPython.NRpc.NProto;
 
 option java_package = "ru.yandex.yt.rpc";
 option java_multiple_files = true;
@@ -10,16 +10,16 @@ import "proto/yt/core/misc/proto/error.proto";
 
 message TRequestHeader
 {
-    optional NYT.NProto.TGuid request_id = 1;
+    optional NYtPython.NProto.TGuid request_id = 1;
     required string service = 2;
     required string method = 3;
-    optional NYT.NProto.TGuid realm_id = 8;
+    optional NYtPython.NProto.TGuid realm_id = 8;
 
     optional int32 protocol_version = 9 [default = 0];
 
     optional int64 start_time = 7;
     optional bool retry = 11 [default = false];
-    optional NYT.NProto.TGuid mutation_id = 13;
+    optional NYtPython.NProto.TGuid mutation_id = 13;
 
     optional int64 timeout = 10;
 
@@ -62,10 +62,10 @@ message TBalancingExt
 
 message TResponseHeader
 {
-    optional NYT.NProto.TGuid request_id = 1;
+    optional NYtPython.NProto.TGuid request_id = 1;
     
     // If omitted then OK is assumed.
-    optional NYT.NProto.TError error = 2;
+    optional NYtPython.NProto.TError error = 2;
 
     optional int32 response_format = 3;
 }
@@ -74,10 +74,10 @@ message TResponseHeader
 
 message TRequestCancelationHeader
 {
-    required NYT.NProto.TGuid request_id = 1;
+    required NYtPython.NProto.TGuid request_id = 1;
     required string service = 2;
     required string method = 3;
-    optional NYT.NProto.TGuid realm_id = 4;
+    optional NYtPython.NProto.TGuid realm_id = 4;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

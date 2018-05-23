@@ -1,6 +1,6 @@
-package NYT.NYTree.NProto;
+package NYtPython.NYTree.NProto;
 
-import "proto/yt/core/yson/proto/protobuf_interop.proto";
+import "yt/core/yson/proto/protobuf_interop.proto";
 
 option java_package = "ru.yandex.yt.ytree";
 option java_multiple_files = true;

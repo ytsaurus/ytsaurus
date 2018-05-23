@@ -1,7 +1,7 @@
 package NYP.NClient.NApi.NProto;
 
 import "proto/yp/client/api/proto/cluster_api.proto";
-import "proto/yt/core/yson/proto/protobuf_interop.proto";
+import "yt/core/yson/proto/protobuf_interop.proto";
 import "proto/yt/core/ytree/proto/attributes.proto";
 import "proto/yt/core/misc/proto/error.proto";
 
@@ -169,8 +169,8 @@ message TResource
     optional TResourceMeta meta = 1;
     optional TResourceSpec spec = 2;
     optional TResourceStatus status = 3;
-    optional NYT.NYTree.NProto.TAttributeDictionary labels = 4;
-    optional NYT.NYTree.NProto.TAttributeDictionary annotations = 5;
+    optional NYtPython.NYTree.NProto.TAttributeDictionary labels = 4;
+    optional NYtPython.NYTree.NProto.TAttributeDictionary annotations = 5;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -329,8 +329,8 @@ message TNode
     optional TNodeMeta meta = 1;
     optional TNodeSpec spec = 2;
     optional TNodeStatus status = 3;
-    optional NYT.NYTree.NProto.TAttributeDictionary labels = 4;
-    optional NYT.NYTree.NProto.TAttributeDictionary annotations = 5;
+    optional NYtPython.NYTree.NProto.TAttributeDictionary labels = 4;
+    optional NYtPython.NYTree.NProto.TAttributeDictionary annotations = 5;
     optional TNodeControl control = 6;
 }
 
@@ -410,7 +410,7 @@ message TPodSpec
         required string vlan_id = 2;
 
         // These labels get propagated to /pod/status/ip6_address_allocations/*/labels
-        optional NYT.NYTree.NProto.TAttributeDictionary labels = 3;
+        optional NYtPython.NYTree.NProto.TAttributeDictionary labels = 3;
 
         // If given, specifies the exact IP6 address to use thus disabling IP Broker.
         // This feature will only be used for migration and will be deprecated afterwards.
@@ -431,7 +431,7 @@ message TPodSpec
         required string vlan_id = 1;
 
         // These labels get propagated to /node/status/ip6_subnet_allocations/*/labels
-        optional NYT.NYTree.NProto.TAttributeDictionary labels = 2;
+        optional NYtPython.NYTree.NProto.TAttributeDictionary labels = 2;
     }
     // IP6 subnets to allocate for this pod upon assignment.
     repeated TIP6SubnetRequest ip6_subnet_requests = 6;
@@ -442,7 +442,7 @@ message TPodSpec
         required string id = 1;
 
         // These labels get propagated to /pod/status/disk_volume_allocations/*/labels
-        optional NYT.NYTree.NProto.TAttributeDictionary labels = 2;
+        optional NYtPython.NYTree.NProto.TAttributeDictionary labels = 2;
 
         // E.g. ssd, hdd.
         required string storage_class = 3;
@@ -579,7 +579,7 @@ message TPodStatus
         optional string vlan_id = 2;
 
         // Copied from /pod/spec/ip6_subnet_requests/*/labels
-        optional NYT.NYTree.NProto.TAttributeDictionary labels = 3;
+        optional NYtPython.NYTree.NProto.TAttributeDictionary labels = 3;
 
         // True if the the address was manually specified via /pod/spec/ip6_address_allocations/*/manual_address.
         optional bool manual = 4;
@@ -605,7 +605,7 @@ message TPodStatus
         optional string vlan_id = 2;
 
         // Copied from /node/spec/ip6_address_requests/*/labels
-        optional NYT.NYTree.NProto.TAttributeDictionary labels = 3;
+        optional NYtPython.NYTree.NProto.TAttributeDictionary labels = 3;
     }
     repeated TIP6SubnetAllocation ip6_subnet_allocations = 6;
 
@@ -615,7 +615,7 @@ message TPodStatus
         optional string id = 1;
 
         // Copied from /pod/spec/ip6_subnet_requests/*/labels.
-        optional NYT.NYTree.NProto.TAttributeDictionary labels = 3;
+        optional NYtPython.NYTree.NProto.TAttributeDictionary labels = 3;
 
         // Total volume capacity.
         optional uint64 capacity = 4;
@@ -662,7 +662,7 @@ message TPodStatus
         optional string node_id = 2;
         optional uint64 last_updated = 3;
         optional string message = 4;
-        optional NYT.NProto.TError error = 5;
+        optional NYtPython.NProto.TError error = 5;
     }
     optional TScheduling scheduling = 9;
 
@@ -705,8 +705,8 @@ message TPod
     optional TPodMeta meta = 1;
     optional TPodSpec spec = 2;
     optional TPodStatus status = 3;
-    optional NYT.NYTree.NProto.TAttributeDictionary labels = 4;
-    optional NYT.NYTree.NProto.TAttributeDictionary annotations = 5;
+    optional NYtPython.NYTree.NProto.TAttributeDictionary labels = 4;
+    optional NYtPython.NYTree.NProto.TAttributeDictionary annotations = 5;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -751,8 +751,8 @@ message TPodSet
     optional TPodSetMeta meta = 1;
     optional TPodSetSpec spec = 2;
     optional TPodSetStatus status = 3;
-    optional NYT.NYTree.NProto.TAttributeDictionary labels = 4;
-    optional NYT.NYTree.NProto.TAttributeDictionary annotations = 5;
+    optional NYtPython.NYTree.NProto.TAttributeDictionary labels = 4;
+    optional NYtPython.NYTree.NProto.TAttributeDictionary annotations = 5;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -783,8 +783,8 @@ message TEndpoint
     optional TEndpointMeta meta = 1;
     optional TEndpointSpec spec = 2;
     optional TEndpointStatus status = 3;
-    optional NYT.NYTree.NProto.TAttributeDictionary labels = 4;
-    optional NYT.NYTree.NProto.TAttributeDictionary annotations = 5;
+    optional NYtPython.NYTree.NProto.TAttributeDictionary labels = 4;
+    optional NYtPython.NYTree.NProto.TAttributeDictionary annotations = 5;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -816,8 +816,8 @@ message TEndpointSet
     optional TEndpointSetMeta meta = 1;
     optional TEndpointSetSpec spec = 2;
     optional TEndpointSetStatus status = 3;
-    optional NYT.NYTree.NProto.TAttributeDictionary labels = 4;
-    optional NYT.NYTree.NProto.TAttributeDictionary annotations = 5;
+    optional NYtPython.NYTree.NProto.TAttributeDictionary labels = 4;
+    optional NYtPython.NYTree.NProto.TAttributeDictionary annotations = 5;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -843,8 +843,8 @@ message TNetworkProject
     optional TNetworkProjectMeta meta = 1;
     optional TNetworkProjectSpec spec = 2;
     optional TNetworkProjectStatus status = 3;
-    optional NYT.NYTree.NProto.TAttributeDictionary labels = 4;
-    optional NYT.NYTree.NProto.TAttributeDictionary annotations = 5;
+    optional NYtPython.NYTree.NProto.TAttributeDictionary labels = 4;
+    optional NYtPython.NYTree.NProto.TAttributeDictionary annotations = 5;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -869,8 +869,8 @@ message TNodeSegment
     optional TNodeSegmentMeta meta = 1;
     optional TNodeSegmentSpec spec = 2;
     optional TNodeSegmentStatus status = 3;
-    optional NYT.NYTree.NProto.TAttributeDictionary labels = 4;
-    optional NYT.NYTree.NProto.TAttributeDictionary annotations = 5;
+    optional NYtPython.NYTree.NProto.TAttributeDictionary labels = 4;
+    optional NYtPython.NYTree.NProto.TAttributeDictionary annotations = 5;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -898,8 +898,8 @@ message TVirtualService
     optional TVirtualServiceMeta meta = 1;
     optional TVirtualServiceSpec spec = 2;
     optional TVirtualServiceStatus status = 3;
-    optional NYT.NYTree.NProto.TAttributeDictionary labels = 4;
-    optional NYT.NYTree.NProto.TAttributeDictionary annotations = 5;
+    optional NYtPython.NYTree.NProto.TAttributeDictionary labels = 4;
+    optional NYtPython.NYTree.NProto.TAttributeDictionary annotations = 5;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

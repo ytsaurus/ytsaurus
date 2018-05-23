@@ -1,6 +1,6 @@
 package NYP.NClient.NApi.NProto;
 
-import "proto/yt/core/yson/proto/protobuf_interop.proto";
+import "yt/core/yson/proto/protobuf_interop.proto";
 
 import "proto/yp/client/api/proto/data_model.proto";
 

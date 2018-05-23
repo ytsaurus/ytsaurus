@@ -2,7 +2,6 @@ SET(PROTO_SRCS
 proto/yt/core/misc/proto/error.proto
 proto/yt/core/misc/proto/guid.proto
 proto/yt/core/misc/proto/protobuf_helpers.proto
-proto/yt/core/yson/proto/protobuf_interop.proto
 proto/yt/core/ytree/proto/attributes.proto
 proto/yt/core/ytree/proto/ypath.proto
 proto/yt/core/rpc/proto/rpc.proto

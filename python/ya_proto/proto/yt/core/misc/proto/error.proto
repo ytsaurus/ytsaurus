@@ -1,4 +1,4 @@
-package NYT.NProto;
+package NYtPython.NProto;
 
 option java_package = "ru.yandex.yt";
 option java_multiple_files = true;
@@ -11,7 +11,7 @@ message TError
 {
     required int32 code = 1;
     optional string message = 2;
-    optional NYT.NYTree.NProto.TAttributeDictionary attributes = 3;
+    optional NYtPython.NYTree.NProto.TAttributeDictionary attributes = 3;
     repeated TError inner_errors = 4;
 }
 

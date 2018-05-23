@@ -1,4 +1,4 @@
-package NYT.NProto;
+package NYtPython.NProto;
 
 option java_package = "ru.yandex.yt";
 option java_multiple_files = true;

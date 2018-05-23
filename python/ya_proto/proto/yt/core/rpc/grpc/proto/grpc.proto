@@ -1,4 +1,4 @@
-package NYT.NRpc.NGrpc.NProto;
+package NYtPython.NRpc.NGrpc.NProto;
 
 import "proto/yt/core/rpc/proto/rpc.proto";
 
