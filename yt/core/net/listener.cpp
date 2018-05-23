@@ -54,7 +54,7 @@ public:
         }
     }
 
-    const TNetworkAddress& Address() const
+    const TNetworkAddress& GetAddress() const
     {
         return Address_;
     }
@@ -157,9 +157,9 @@ public:
         return Impl_->Accept();
     }
 
-    virtual const TNetworkAddress& Address() const override
+    virtual const TNetworkAddress& GetAddress() const override
     {
-        return Impl_->Address();
+        return Impl_->GetAddress();
     }
 
     ~TListener()
@@ -197,7 +197,7 @@ IListenerPtr CreateListener(
         auto impl = New<TListenerImpl>(
             serverSocket,
             realAddress,
-            Format("listener[%v]", realAddress),
+            Format("Listener{%v}", realAddress),
             poller);
         return New<TListener>(impl);
     } catch (const std::exception& ) {

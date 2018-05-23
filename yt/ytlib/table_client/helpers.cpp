@@ -173,7 +173,7 @@ void PipeInputToOutput(
 ////////////////////////////////////////////////////////////////////////////////
 
 // NB: not using TYsonString here to avoid copying.
-TUnversionedValue MakeUnversionedValue(const TStringBuf& ysonString, int id, TStatelessLexer& lexer)
+TUnversionedValue MakeUnversionedValue(TStringBuf ysonString, int id, TStatelessLexer& lexer)
 {
     TToken token;
     lexer.GetToken(ysonString, &token);

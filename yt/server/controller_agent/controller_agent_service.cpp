@@ -37,7 +37,7 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CommitOperation));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CompleteOperation));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(AbortOperation));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(DisposeOperation));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(UnregisterOperation));
     }
 
 private:
@@ -148,9 +148,9 @@ private:
             auto result = WaitFor(controllerAgent->InitializeOperation(operation, transactions))
                 .ValueOrThrow();
 
-            response->set_immutable_attributes(result.Attributes.Immutable.GetData());
             response->set_mutable_attributes(result.Attributes.Mutable.GetData());
             response->set_brief_spec(result.Attributes.BriefSpec.GetData());
+            response->set_full_spec(result.Attributes.FullSpec.GetData());
             response->set_unrecognized_spec(result.Attributes.UnrecognizedSpec.GetData());
             context->Reply();
         });
@@ -308,7 +308,7 @@ private:
         });
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NProto, DisposeOperation)
+    DECLARE_RPC_SERVICE_METHOD(NProto, UnregisterOperation)
     {
         auto incarnationId = FromProto<TIncarnationId>(request->incarnation_id());
         auto operationId = FromProto<TOperationId>(request->operation_id());
@@ -324,6 +324,8 @@ private:
             auto operation = controllerAgent->GetOperationOrThrow(operationId);
             WaitFor(controllerAgent->DisposeOperation(operation))
                 .ThrowOnError();
+
+            controllerAgent->UnregisterOperation(operationId);
 
             context->Reply();
         });

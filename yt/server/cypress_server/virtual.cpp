@@ -597,6 +597,29 @@ private:
         return ypathExt.mutating() ? EPermission::Write : EPermission::Read;
     }
 
+    virtual TResolveResult Resolve(const TYPath& path, const NRpc::IServiceContextPtr& context) override
+    {
+        NYPath::TTokenizer tokenizer(path);
+        tokenizer.Advance();
+
+        if (tokenizer.GetType() == NYPath::ETokenType::Ampersand) {
+            // We are explicitly asked not to redirect to the underlying service.
+            return TBase::ResolveSelf(TYPath(tokenizer.GetSuffix()), context);
+        }
+
+        if (tokenizer.GetType() == NYPath::ETokenType::EndOfStream) {
+            return ResolveSelf(TYPath(tokenizer.GetSuffix()), context);
+        }
+
+        tokenizer.Expect(NYPath::ETokenType::Slash);
+
+        if (tokenizer.Advance() == NYPath::ETokenType::At) {
+            return ResolveAttributes(TYPath(tokenizer.GetSuffix()), context);
+        } else {
+            return ResolveRecursive(TYPath(tokenizer.GetInput()), context);
+        }
+    }
+
     virtual TResolveResult ResolveSelf(const TYPath& path, const IServiceContextPtr& context) override
     {
         auto service = GetService();
@@ -604,6 +627,7 @@ private:
         if ((Options_ & EVirtualNodeOptions::RedirectSelf) != EVirtualNodeOptions::None &&
             method != "Remove" &&
             method != "GetBasicAttributes" &&
+            method != "Create" &&
             method != "CheckPermission")
         {
             auto permission = PermissionFromRequest(context);

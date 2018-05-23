@@ -9,7 +9,7 @@
 
 #include <yt/ytlib/cgroup/cgroup.h>
 
-#include <yt/core/bus/tcp_client.h>
+#include <yt/core/bus/tcp/client.h>
 
 #include <yt/core/rpc/bus/channel.h>
 

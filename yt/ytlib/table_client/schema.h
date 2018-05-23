@@ -91,13 +91,13 @@ public:
         bool strict = true,
         bool uniqueKeys = false);
 
-    const TColumnSchema* FindColumn(const TStringBuf& name) const;
-    const TColumnSchema& GetColumn(const TStringBuf& name) const;
-    const TColumnSchema& GetColumnOrThrow(const TStringBuf& name) const;
+    const TColumnSchema* FindColumn(TStringBuf name) const;
+    const TColumnSchema& GetColumn(TStringBuf name) const;
+    const TColumnSchema& GetColumnOrThrow(TStringBuf name) const;
 
     int GetColumnIndex(const TColumnSchema& column) const;
-    int GetColumnIndex(const TStringBuf& name) const;
-    int GetColumnIndexOrThrow(const TStringBuf& name) const;
+    int GetColumnIndex(TStringBuf name) const;
+    int GetColumnIndexOrThrow(TStringBuf name) const;
 
     TTableSchema Filter(const TColumnFilter& columnFilter) const;
     TTableSchema Filter(const THashSet<TString>& columns) const;

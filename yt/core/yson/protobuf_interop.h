@@ -29,7 +29,16 @@ const TProtobufMessageType* ReflectProtobufMessageType();
  */
 const TProtobufMessageType* ReflectProtobufMessageType(const ::google::protobuf::Descriptor* descriptor);
 
-//! Creates a YSON consumer that converts IYsonCosumer calls into
+////////////////////////////////////////////////////////////////////////////////
+
+struct TProtobufWriterOptions
+{
+    //! If |true| then fields with name not found in protobuf metadata are
+    //! silently skipped; otherwise an exception is thrown.
+    bool SkipUnknownFields = false;
+};
+
+//! Creates a YSON consumer that converts IYsonConsumer calls into
 //! a byte sequence in protobuf wire format.
 /*!
  *  The resulting sequence of bytes is actually fed into the output stream
@@ -38,7 +47,17 @@ const TProtobufMessageType* ReflectProtobufMessageType(const ::google::protobuf:
  */
 std::unique_ptr<IYsonConsumer> CreateProtobufWriter(
     ::google::protobuf::io::ZeroCopyOutputStream* outputStream,
-    const TProtobufMessageType* rootType);
+    const TProtobufMessageType* rootType,
+    const TProtobufWriterOptions& options = TProtobufWriterOptions());
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TProtobufParserOptions
+{
+    //! If |true| then fields with numbers not found in protobuf metadata are
+    //! silently skipped; otherwise an exception is thrown.
+    bool SkipUnknownFields = false;
+};
 
 //! Parses a byte sequence and translates it into IYsonConsumer calls.
 /*!
@@ -55,7 +74,8 @@ std::unique_ptr<IYsonConsumer> CreateProtobufWriter(
 void ParseProtobuf(
     IYsonConsumer* consumer,
     ::google::protobuf::io::ZeroCopyInputStream* inputStream,
-    const TProtobufMessageType* rootType);
+    const TProtobufMessageType* rootType,
+    const TProtobufParserOptions& options = TProtobufParserOptions());
 
 ////////////////////////////////////////////////////////////////////////////////
 

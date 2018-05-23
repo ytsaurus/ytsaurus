@@ -1,6 +1,5 @@
 SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/auto_merge_ut.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/blackbox_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_pools_helpers.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_requisition_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_slice_fetcher_mock.cpp

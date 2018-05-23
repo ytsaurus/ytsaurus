@@ -491,7 +491,7 @@ private:
 class TStatelessYsonParserImplBase
 {
 public:
-    virtual void Parse(const TStringBuf& data, EYsonType type = EYsonType::Node) = 0;
+    virtual void Parse(TStringBuf data, EYsonType type = EYsonType::Node) = 0;
     virtual void Stop() = 0;
 
     virtual ~TStatelessYsonParserImplBase()
@@ -513,7 +513,7 @@ public:
         : Parser(TStringReader(), consumer, memoryLimit)
     { }
 
-    void Parse(const TStringBuf& data, EYsonType type = EYsonType::Node) override
+    void Parse(TStringBuf data, EYsonType type = EYsonType::Node) override
     {
         Parser.SetBuffer(data.begin(), data.end());
         Parser.DoParse(type);

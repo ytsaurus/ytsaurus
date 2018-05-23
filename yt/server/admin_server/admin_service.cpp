@@ -37,7 +37,7 @@ public:
 private:
     const ICoreDumperPtr CoreDumper_;
 
-    void ValidateRoot(const TStringBuf& user)
+    void ValidateRoot(TStringBuf user)
     {
         if (user != RootUserName) {
             THROW_ERROR_EXCEPTION("Only root is allowed to use AdminService");

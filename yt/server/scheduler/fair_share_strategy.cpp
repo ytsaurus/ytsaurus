@@ -12,6 +12,7 @@
 #include <yt/core/concurrency/periodic_executor.h>
 #include <yt/core/concurrency/thread_pool.h>
 
+#include <yt/core/misc/algorithm_helpers.h>
 #include <yt/core/misc/finally.h>
 
 #include <yt/core/profiling/profile_manager.h>
@@ -87,6 +88,11 @@ public:
         auto it = TreeIdToPoolIdMap_.find(treeId);
         YCHECK(it != TreeIdToPoolIdMap_.end());
         return it->second;
+    }
+
+    void EraseTree(const TString& treeId)
+    {
+        YCHECK(TreeIdToPoolIdMap_.erase(treeId) == 1);
     }
 };
 
@@ -996,7 +1002,7 @@ private:
         TFairShareContext* context,
         TCpuInstant startTime,
         const std::function<void(TProfilingCounters&, int, TDuration)> profileTimings,
-        const std::function<void(const TStringBuf&)> logAndCleanSchedulingStatistics)
+        const std::function<void(TStringBuf)> logAndCleanSchedulingStatistics)
     {
         auto& rootElement = rootElementSnapshot->RootElement;
 
@@ -1019,17 +1025,17 @@ private:
                     prescheduleExecuted = true;
                     context->PrescheduledCalled = true;
                 }
-                ++context->NonPreemptiveScheduleJobAttempts;
+                ++context->SchedulingStatistics.NonPreemptiveScheduleJobAttempts;
                 if (!rootElement->ScheduleJob(context)) {
                     break;
                 }
             }
             profileTimings(
                 NonPreemptiveProfilingCounters,
-                context->NonPreemptiveScheduleJobAttempts,
+                context->SchedulingStatistics.NonPreemptiveScheduleJobAttempts,
                 scheduleTimer.GetElapsedTime() - prescheduleDuration - context->TotalScheduleJobDuration);
 
-            if (context->NonPreemptiveScheduleJobAttempts > 0) {
+            if (context->SchedulingStatistics.NonPreemptiveScheduleJobAttempts > 0) {
                 logAndCleanSchedulingStatistics(AsStringBuf("Non preemptive"));
             }
         }
@@ -1040,7 +1046,7 @@ private:
         TFairShareContext* context,
         TCpuInstant startTime,
         const std::function<void(TProfilingCounters&, int, TDuration)>& profileTimings,
-        const std::function<void(const TStringBuf&)>& logAndCleanSchedulingStatistics)
+        const std::function<void(TStringBuf)>& logAndCleanSchedulingStatistics)
     {
         auto& rootElement = rootElementSnapshot->RootElement;
         auto& config = rootElementSnapshot->Config;
@@ -1050,7 +1056,7 @@ private:
         }
 
         if (!context->PrescheduledCalled) {
-            context->HasAggressivelyStarvingNodes = rootElement->HasAggressivelyStarvingNodes(context, false);
+            context->SchedulingStatistics.HasAggressivelyStarvingNodes = rootElement->HasAggressivelyStarvingNodes(context, false);
         }
 
         // Compute discount to node usage.
@@ -1071,7 +1077,7 @@ private:
                     continue;
                 }
 
-                if (IsJobPreemptable(job, operationElement, context->HasAggressivelyStarvingNodes, config)) {
+                if (IsJobPreemptable(job, operationElement, context->SchedulingStatistics.HasAggressivelyStarvingNodes, config)) {
                     auto* parent = operationElement->GetParent();
                     while (parent) {
                         discountedPools.insert(parent);
@@ -1084,7 +1090,7 @@ private:
             }
         }
 
-        context->ResourceUsageDiscount = context->SchedulingContext->ResourceUsageDiscount();
+        context->SchedulingStatistics.ResourceUsageDiscount = context->SchedulingContext->ResourceUsageDiscount();
 
         int startedBeforePreemption = context->SchedulingContext->StartedJobs().size();
 
@@ -1114,7 +1120,7 @@ private:
                     prescheduleExecuted = true;
                 }
 
-                ++context->PreemptiveScheduleJobAttempts;
+                ++context->SchedulingStatistics.PreemptiveScheduleJobAttempts;
                 if (!rootElement->ScheduleJob(context)) {
                     break;
                 }
@@ -1125,16 +1131,16 @@ private:
             }
             profileTimings(
                 PreemptiveProfilingCounters,
-                context->PreemptiveScheduleJobAttempts,
+                context->SchedulingStatistics.PreemptiveScheduleJobAttempts,
                 timer.GetElapsedTime() - prescheduleDuration - context->TotalScheduleJobDuration);
-            if (context->PreemptiveScheduleJobAttempts > 0) {
+            if (context->SchedulingStatistics.PreemptiveScheduleJobAttempts > 0) {
                 logAndCleanSchedulingStatistics(AsStringBuf("Preemptive"));
             }
         }
 
         int startedAfterPreemption = context->SchedulingContext->StartedJobs().size();
 
-        context->ScheduledDuringPreemption = startedAfterPreemption - startedBeforePreemption;
+        context->SchedulingStatistics.ScheduledDuringPreemption = startedAfterPreemption - startedBeforePreemption;
 
         // Reset discounts.
         context->SchedulingContext->ResourceUsageDiscount() = ZeroJobResources();
@@ -1179,7 +1185,7 @@ private:
         bool nodeLimitsViolated = true;
         bool poolsLimitsViolated = true;
 
-        context->PreemptableJobCount = preemptableJobs.size();
+        context->SchedulingStatistics.PreemptableJobCount = preemptableJobs.size();
 
         for (const auto& job : preemptableJobs) {
             auto* operationElement = rootElementSnapshot->FindOperationElement(job->GetOperationId());
@@ -1264,7 +1270,7 @@ private:
             LastSchedulingInformationLoggedTime_ = now;
         }
 
-        auto logAndCleanSchedulingStatistics = [&] (const TStringBuf& stageName) {
+        auto logAndCleanSchedulingStatistics = [&] (TStringBuf stageName) {
             if (!enableSchedulingInfoLogging) {
                 return;
             }
@@ -1310,19 +1316,7 @@ private:
             LOG_DEBUG("Skip preemptive scheduling");
         }
 
-        LOG_DEBUG("Heartbeat info (StartedJobs: %v, PreemptedJobs: %v, "
-            "JobsScheduledDuringPreemption: %v, PreemptableJobs: %v, PreemptableResources: %v, "
-            "ControllerScheduleJobCount: %v, NonPreemptiveScheduleJobAttempts: %v, PreemptiveScheduleJobAttempts: %v, HasAggressivelyStarvingNodes: %v, Address: %v)",
-            schedulingContext->StartedJobs().size(),
-            schedulingContext->PreemptedJobs().size(),
-            context.ScheduledDuringPreemption,
-            context.PreemptableJobCount,
-            FormatResources(context.ResourceUsageDiscount),
-            context.ControllerScheduleJobCount,
-            context.NonPreemptiveScheduleJobAttempts,
-            context.PreemptiveScheduleJobAttempts,
-            context.HasAggressivelyStarvingNodes,
-            schedulingContext->GetNodeDescriptor().Address);
+        schedulingContext->SetSchedulingStatistics(context.SchedulingStatistics);
     }
 
     bool IsJobPreemptable(
@@ -2112,8 +2106,7 @@ public:
         const auto& state = GetOperationState(operation->GetId());
         for (const auto& pair : state->TreeIdToPoolIdMap()) {
             const auto& treeId = pair.first;
-            auto unregistrationResult = GetTree(treeId)->UnregisterOperation(state);
-            ActivateOperations(unregistrationResult.OperationsToActivate);
+            DoUnregisterOperationFromTree(state, treeId);
         }
 
         {
@@ -2122,6 +2115,31 @@ public:
         }
 
         YCHECK(OperationIdToOperationState_.erase(operation->GetId()) == 1);
+    }
+
+    virtual void UnregisterOperationFromTree(const TOperationId& operationId, const TString& treeId) override
+    {
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
+
+        const auto& state = GetOperationState(operationId);
+        if (!state->TreeIdToPoolIdMap().has(treeId)) {
+            LOG_INFO("Operation to be removed from a tentative tree was not found in that tree (OperationId: %v, TreeId: %v)",
+                operationId,
+                treeId);
+            return;
+        }
+
+        DoUnregisterOperationFromTree(state, treeId);
+
+        state->EraseTree(treeId);
+
+        LOG_INFO("Operation removed from a tentative tree (OperationId: %v, TreeId: %v)", operationId, treeId);
+    }
+
+    void DoUnregisterOperationFromTree(TFairShareStrategyOperationStatePtr operationState, const TString& treeId)
+    {
+        auto unregistrationResult = GetTree(treeId)->UnregisterOperation(operationState);
+        ActivateOperations(unregistrationResult.OperationsToActivate);
     }
 
     virtual void DisableOperation(IOperationStrategyHost* operation) override
@@ -2727,12 +2745,38 @@ private:
         auto spec = ParseSpec(operation, operation->GetSpec());
 
         std::vector<TString> trees;
+        std::vector<TString> tentativeTrees;
 
         // Skipping unknown trees.
         for (const auto& treeId : spec->PoolTrees) {
             if (FindTree(treeId)) {
                 trees.push_back(treeId);
             }
+        }
+
+        auto operationType = operation->GetType();
+        // These types of operations imply data shuffling and should only be
+        // launched in non-tentative trees.
+        if (operationType != EOperationType::Sort &&
+            operationType != EOperationType::MapReduce &&
+            operationType != EOperationType::JoinReduce &&
+            operationType != EOperationType::RemoteCopy)
+        {
+            for (const auto& treeId : spec->TentativePoolTrees) {
+                if (FindTree(treeId)) {
+                    tentativeTrees.push_back(treeId);
+                }
+            }
+        }
+
+        if (!tentativeTrees.empty() && trees.empty()) {
+            THROW_ERROR_EXCEPTION("Regular pool trees must be specified for tentative pool trees to work properly");
+        }
+
+        std::sort(trees.begin(), trees.end());
+        std::sort(tentativeTrees.begin(), tentativeTrees.end());
+        if (Intersects(trees.begin(), trees.end(), tentativeTrees.begin(), tentativeTrees.end())) {
+            THROW_ERROR_EXCEPTION("Regular and tentative pool trees must not intersect");
         }
 
         if (trees.empty()) {
@@ -2758,7 +2802,10 @@ private:
 
         THashMap<TString, TString> pools;
 
-        for (const auto& treeId : trees) {
+        std::vector<TString> allTrees = trees;
+        allTrees.insert(allTrees.end(), tentativeTrees.begin(), tentativeTrees.end());
+
+        for (const auto& treeId : allTrees) {
             auto optionsIt = spec->SchedulingOptionsPerPoolTree.find(treeId);
 
             TNullable<TString> pool;

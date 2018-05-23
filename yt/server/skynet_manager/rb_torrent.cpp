@@ -12,6 +12,7 @@
 namespace NYT {
 namespace NSkynetManager {
 
+using namespace NCrypto;
 using namespace NYson;
 using namespace NYTree;
 
@@ -26,7 +27,7 @@ public:
         : Out_(Buffer_)
     { }
 
-    virtual void OnStringScalar(const TStringBuf& value) override
+    virtual void OnStringScalar(TStringBuf value) override
     {
         Out_ << value.Size() << ":" << value;
     }
@@ -75,7 +76,7 @@ public:
         LastKeyStack_.emplace_back("");
     }
 
-    virtual void OnKeyedItem(const TStringBuf& name) override
+    virtual void OnKeyedItem(TStringBuf name) override
     {
         if (name < LastKeyStack_.back()) {
             THROW_ERROR_EXCEPTION("Keys in Bencode dictionary are not sorted")
@@ -103,7 +104,7 @@ public:
         Y_UNREACHABLE();
     }
 
-    virtual void OnRaw(const TStringBuf& /*yson*/, NYson::EYsonType /*type*/)
+    virtual void OnRaw(TStringBuf /*yson*/, NYson::EYsonType /*type*/)
     {
         Y_UNREACHABLE();
     }

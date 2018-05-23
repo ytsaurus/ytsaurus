@@ -11,7 +11,7 @@ namespace NYson {
 class TNullYsonConsumer
     : public IYsonConsumer
 {
-    virtual void OnStringScalar(const TStringBuf& /*value*/) override;
+    virtual void OnStringScalar(TStringBuf /*value*/) override;
 
     virtual void OnInt64Scalar(i64 /*value*/) override;
 
@@ -31,7 +31,7 @@ class TNullYsonConsumer
 
     virtual void OnBeginMap() override;
 
-    virtual void OnKeyedItem(const TStringBuf& /*name*/) override;
+    virtual void OnKeyedItem(TStringBuf /*name*/) override;
 
     virtual void OnEndMap() override;
 
@@ -39,7 +39,7 @@ class TNullYsonConsumer
 
     virtual void OnEndAttributes() override;
 
-    virtual void OnRaw(const TStringBuf& /*yson*/, EYsonType /*type*/);
+    virtual void OnRaw(TStringBuf /*yson*/, EYsonType /*type*/);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

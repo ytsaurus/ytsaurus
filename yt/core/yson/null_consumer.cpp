@@ -6,7 +6,7 @@ namespace NYson {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TNullYsonConsumer::OnStringScalar(const TStringBuf& /*value*/)
+void TNullYsonConsumer::OnStringScalar(TStringBuf /*value*/)
 { }
 
 void TNullYsonConsumer::OnInt64Scalar(i64 /*value*/)
@@ -36,7 +36,7 @@ void TNullYsonConsumer::OnEndList()
 void TNullYsonConsumer::OnBeginMap()
 { }
 
-void TNullYsonConsumer::OnKeyedItem(const TStringBuf& /*name*/)
+void TNullYsonConsumer::OnKeyedItem(TStringBuf /*name*/)
 { }
 
 void TNullYsonConsumer::OnEndMap()
@@ -48,7 +48,7 @@ void TNullYsonConsumer::OnBeginAttributes()
 void TNullYsonConsumer::OnEndAttributes()
 { }
 
-void TNullYsonConsumer::OnRaw(const TStringBuf& /*yson*/, EYsonType /*type*/)
+void TNullYsonConsumer::OnRaw(TStringBuf /*yson*/, EYsonType /*type*/)
 { }
 
 ////////////////////////////////////////////////////////////////////////////////

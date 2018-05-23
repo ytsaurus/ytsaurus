@@ -155,7 +155,7 @@ private:
             retentionConfig = ConvertTo<TRetentionConfigPtr>(TYsonString(request->retention_config()));
         }
 
-        context->SetRequestInfo("TabletId: %v, Timestamp: %llx, RequestCodec: %v, ResponseCodec: %v, ReadSessionId: %v, RetentionConfig: %Qv",
+        context->SetRequestInfo("TabletId: %v, Timestamp: %llx, RequestCodec: %v, ResponseCodec: %v, ReadSessionId: %v, RetentionConfig: %v",
             tabletId,
             timestamp,
             requestCodecId,

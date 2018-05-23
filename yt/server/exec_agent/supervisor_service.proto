@@ -36,6 +36,7 @@ message TReqOnJobFinished
     required string statistics = 3;
     optional uint64 start_time = 4;
     optional uint64 finish_time = 5;
+    optional string stderr = 6;
 }
 
 message TRspOnJobFinished

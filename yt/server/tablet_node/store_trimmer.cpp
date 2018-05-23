@@ -167,7 +167,8 @@ private:
                 TTransactionStartOptions options;
                 options.AutoAbort = false;
                 auto attributes = CreateEphemeralAttributes();
-                attributes->Set("title", Format("Tablet trim: tablet %v",
+                attributes->Set("title", Format("Tablet trim: table %v, tablet %v",
+                    tablet->GetTablePath(),
                     tabletId));
                 options.Attributes = std::move(attributes);
 

@@ -322,7 +322,7 @@ class TStatisticsBuildingConsumer
     , public IBuildingYsonConsumer<TStatistics>
 {
 public:
-    virtual void OnStringScalar(const TStringBuf& value) override
+    virtual void OnStringScalar(TStringBuf value) override
     {
         if (!AtAttributes_) {
             THROW_ERROR_EXCEPTION("String scalars are not allowed for statistics");
@@ -403,7 +403,7 @@ public:
         }
     }
 
-    virtual void OnKeyedItem(const TStringBuf& key) override
+    virtual void OnKeyedItem(TStringBuf key) override
     {
         if (AtAttributes_) {
             if (key != "timestamp") {

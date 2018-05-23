@@ -21,7 +21,7 @@ namespace NSkynetManager {
 
 typedef TString TShardName;
 
-TStringBuf GetShardName(const TStringBuf& rbTorrentId);
+TStringBuf GetShardName(TStringBuf rbTorrentId);
 
 TString FormatShareKey(const TShareKey& shareKey);
 
@@ -170,7 +170,7 @@ public:
 
     void Unshare(const TShareKey& key);
 
-    TNullable<TDiscoveryInfo> TryDiscover(const TStringBuf& rbTorrentId);
+    TNullable<TDiscoveryInfo> TryDiscover(TStringBuf rbTorrentId);
 
     std::vector<TShardName> ListShards();
     std::vector<TShareKey> ListActiveShares(const TShardName& shardName, const TString& cluster);

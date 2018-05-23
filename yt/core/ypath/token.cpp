@@ -12,7 +12,7 @@ const TStringBuf ListEndToken("end");
 const TStringBuf ListBeforeToken("before:");
 const TStringBuf ListAfterToken("after:");
 
-TStringBuf ExtractListIndex(const TStringBuf& token)
+TStringBuf ExtractListIndex(TStringBuf token)
 {
     if (token[0] >= '0' && token[0] <= '9') {
         return token;
@@ -26,7 +26,7 @@ TStringBuf ExtractListIndex(const TStringBuf& token)
     }
 }
 
-int ParseListIndex(const TStringBuf& token)
+int ParseListIndex(TStringBuf token)
 {
     try {
         return FromString<int>(token);
@@ -36,7 +36,7 @@ int ParseListIndex(const TStringBuf& token)
     }
 }
 
-TString ToYPathLiteral(const TStringBuf& value)
+TString ToYPathLiteral(TStringBuf value)
 {
     //! Keep it synchronized with the same functions in python, C++ and other APIs.
     static const char* HexChars = "0123456789abcdef";

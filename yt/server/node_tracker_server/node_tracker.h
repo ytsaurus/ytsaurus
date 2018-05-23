@@ -36,7 +36,7 @@ public:
         NNodeTrackerClient::NProto::TReqRegisterNode,
         NNodeTrackerClient::NProto::TRspRegisterNode>;
     using TCtxRegisterNodePtr = TIntrusivePtr<TCtxRegisterNode>;
-    void ProcessRegisterNode(TCtxRegisterNodePtr context);
+    void ProcessRegisterNode(const TString& address, TCtxRegisterNodePtr context);
 
     typedef NRpc::TTypedServiceContext<
         NNodeTrackerClient::NProto::TReqFullHeartbeat,

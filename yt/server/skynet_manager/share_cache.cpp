@@ -20,7 +20,7 @@ DECLARE_REFCOUNTED_TYPE(IShareHost)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TStringBuf GetShardName(const TStringBuf& rbTorrentId)
+TStringBuf GetShardName(TStringBuf rbTorrentId)
 {
     constexpr int offset = sizeof("rbtorrent");
     return rbTorrentId.substr(offset, 2);
@@ -282,7 +282,7 @@ void TShareCache::Unshare(const TShareKey& key)
 }
 
 TNullable<TDiscoveryInfo> TShareCache::TryDiscover(
-    const TStringBuf& rbTorrentId)
+    TStringBuf rbTorrentId)
 {
     auto guard = Guard(Lock_);
     auto shardName = GetShardName(rbTorrentId);

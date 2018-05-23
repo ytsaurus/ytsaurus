@@ -137,7 +137,9 @@ void TBlobChunkBase::InitBlocksExt(const TChunkMeta& meta)
 
 bool TBlobChunkBase::IsFatalError(const TError& error) const
 {
-    if (error.FindMatching(NChunkClient::EErrorCode::BlockOutOfRange)) {
+    if (error.FindMatching(NChunkClient::EErrorCode::BlockOutOfRange) || 
+        error.FindMatching(NYT::EErrorCode::Canceled)) 
+    {
         return false;
     }
 
@@ -226,8 +228,6 @@ TFuture<void> TBlobChunkBase::OnBlocksExtLoaded(
     }
 
     // Actually serve the request: delegate to the appropriate thread.
-    auto priority = workloadDescriptor.GetPriority();
-    auto invoker = CreateFixedPriorityInvoker(Location_->GetDataReadInvoker(), priority);
     return
         throttleFuture.Apply(BIND([=, this_ = MakeStrong(this)] {
             auto pendingIOGuard = Location_->IncreasePendingIOSize(
@@ -236,15 +236,11 @@ TFuture<void> TBlobChunkBase::OnBlocksExtLoaded(
                 pendingDataSize);
             // Note that outer Apply checks that the return value is of type
             // TError and returns the TFuture<void> instead of TFuture<TError> here.
-            return BIND(
-                &TBlobChunkBase::DoReadBlockSet,
-                this_,
+            TBlobChunkBase::DoReadBlockSet(
                 session,
                 workloadDescriptor,
-                Passed(std::move(pendingIOGuard)))
-                .AsyncVia(std::move(invoker))
-                .Run();
-        }));
+                std::move(pendingIOGuard));
+        }).AsyncVia(GetCurrentInvoker()));
 }
 
 void TBlobChunkBase::DoReadBlockSet(
@@ -285,12 +281,11 @@ void TBlobChunkBase::DoReadBlockSet(
 
         TWallTimer timer;
         // NB: The reader is synchronous.
-        auto blocksOrError = reader->ReadBlocks(
+        auto blocksOrError = WaitFor(reader->ReadBlocks(
             workloadDescriptor,
             TReadSessionId(),
             firstBlockIndex,
-            blocksToRead)
-            .Get();
+            blocksToRead));
         auto readTime = timer.GetElapsedTime();
 
         if (!blocksOrError.IsOK()) {

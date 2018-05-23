@@ -17,6 +17,7 @@ class TResourceLimitsConfig
 public:
     int UserSlots;
     double Cpu;
+    int Gpu;
     int Network;
     i64 UserMemory;
     i64 SystemMemory;
@@ -37,6 +38,9 @@ public:
         RegisterParameter("cpu", Cpu)
             .GreaterThanOrEqual(0)
             .Default(1);
+        RegisterParameter("gpu", Gpu)
+            .GreaterThanOrEqual(0)
+            .Default(0);
         RegisterParameter("network", Network)
             .GreaterThanOrEqual(0)
             .Default(100);
@@ -149,6 +153,7 @@ public:
     TDuration MaxRepeatDelay;
     int MaxInProgressJobDataSize;
     int MaxInProgressJobSpecDataSize;
+    int MaxInProgressJobStderrDataSize;
     int MaxItemsInBatch;
     TString User;
 
@@ -165,6 +170,8 @@ public:
         RegisterParameter("max_in_progress_job_data_size", MaxInProgressJobDataSize)
             .Default(250_MB);
         RegisterParameter("max_in_progress_job_spec_data_size", MaxInProgressJobSpecDataSize)
+            .Default(250_MB);
+        RegisterParameter("max_in_progress_job_stderr_data_size", MaxInProgressJobStderrDataSize)
             .Default(250_MB);
         RegisterParameter("max_items_in_batch", MaxItemsInBatch)
             .Default(1000);

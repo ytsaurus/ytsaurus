@@ -137,7 +137,7 @@ class TestErasure(YTEnvSetup):
             
         correct_data = read_table("//tmp/table")
 
-        set("//sys/@config/enable_chunk_replicator", False)
+        set("//sys/@config/chunk_manager/enable_chunk_replicator", False, recursive=True)
         wait(lambda: not get("//sys/@chunk_replicator_enabled"))
 
         try:
@@ -162,7 +162,7 @@ class TestErasure(YTEnvSetup):
             assert time_passed <= 10
             assert data == correct_data
         finally:
-            set("//sys/@config/enable_chunk_replicator", True)
+            set("//sys/@config/chunk_manager/enable_chunk_replicator", True, recursive=True)
             wait(lambda: get("//sys/@chunk_replicator_enabled"))
 
     def test_throw_error(self):

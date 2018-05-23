@@ -507,6 +507,7 @@ void TServiceBase::HandleRequest(
     auto handleError = [&] (auto&&... args) {
         auto error = TError(std::forward<decltype(args)>(args)...)
             << TErrorAttribute("request_id", requestId)
+            << TErrorAttribute("realm_id", ServiceId_.RealmId)
             << TErrorAttribute("service", ServiceId_.ServiceName)
             << TErrorAttribute("method", method)
             << TErrorAttribute("endpoint", replyBus->GetEndpointDescription());

@@ -55,7 +55,7 @@ class TJoblet
 public:
     //! Default constructor is for serialization only.
     TJoblet();
-    TJoblet(TTask* task, int jobIndex, int taskJobIndex, const TString& treeId);
+    TJoblet(TTask* task, int jobIndex, int taskJobIndex, const TString& treeId, bool treeIsTentative);
 
     // Controller encapsulates lifetime of both, tasks and joblets.
     TTask* Task;
@@ -68,6 +68,8 @@ public:
     // It is necessary to store tree id here since it is required to
     // create job metrics updater after revive.
     TString TreeId;
+    // Is the tree marked as tentative in the spec?
+    bool TreeIsTentative = false;
 
     TFuture<TSharedRef> JobSpecProtoFuture;
 

@@ -41,7 +41,7 @@ public:
     // Future is set when all block get written to underlying writer.
     TFuture<void> Flush();
 
-    const TCodecDuration& GetCompressionTime() const;
+    const TCodecDuration& GetCompressionDuration() const;
 
 private:
     const TEncodingWriterConfigPtr Config_;
@@ -49,27 +49,27 @@ private:
     const IChunkWriterPtr ChunkWriter_;
     const IBlockCachePtr BlockCache_;
 
-    NLogging::TLogger Logger;
-    NChunkClient::TCodecDuration CodecTime_;
+    const NLogging::TLogger Logger;
+    const NConcurrency::TAsyncSemaphorePtr Semaphore_;
+    NCompression::ICodec* const Codec_;
+    const IInvokerPtr CompressionInvoker_;
+    const TCallback<void(const TErrorOr<TBlock>&)> WritePendingBlockCallback_;
 
+    std::atomic<double> CompressionRatio_ = {0};
     std::atomic<i64> UncompressedSize_ = {0};
     std::atomic<i64> CompressedSize_ = {0};
 
+    NChunkClient::TCodecDuration CodecTime_;
+
     int AddedBlockIndex_ = 0;
     int WrittenBlockIndex_ = 0;
-
-    std::atomic<double> CompressionRatio_;
-
-    IInvokerPtr CompressionInvoker_;
-    NConcurrency::TAsyncSemaphorePtr Semaphore_;
-    NCompression::ICodec* Codec_;
 
     NConcurrency::TNonblockingQueue<TBlock> PendingBlocks_;
 
     TFuture<void> OpenFuture_;
     TPromise<void> CompletionError_ = NewPromise<void>();
-    TCallback<void(const TErrorOr<TBlock>&)> WritePendingBlockCallback_;
 
+private:
     void WritePendingBlock(const TErrorOr<TBlock>& blockOrError);
 
     void EnsureOpen();
@@ -87,7 +87,6 @@ private:
     void VerifyVector(
         const std::vector<TSharedRef>& uncompressedVectorizedBlock,
         const TSharedRef& compressedBlock);
-
 };
 
 DEFINE_REFCOUNTED_TYPE(TEncodingWriter)

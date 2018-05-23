@@ -254,7 +254,7 @@ TValue GetValue(const NAst::TLiteralValue& literalValue)
 TSharedRange<TRow> LiteralTupleListToRows(
     const NAst::TLiteralValueTupleList& literalTuples,
     const std::vector<EValueType>& argTypes,
-    const TStringBuf& source)
+    TStringBuf source)
 {
     auto rowBuffer = New<TRowBuffer>(TQueryPreparerBufferTag());
     TUnversionedRowBuilder rowBuilder;
@@ -717,8 +717,8 @@ TTypeSet InferFunctionTypes(
     const TFunctionTypeInferrer* inferrer,
     const std::vector<TTypeSet>& effectiveTypes,
     std::vector<TTypeSet>* genericAssignments,
-    const TStringBuf& functionName,
-    const TStringBuf& source)
+    TStringBuf functionName,
+    TStringBuf source)
 {
     std::vector<TTypeSet> typeConstraints;
     std::vector<size_t> formalArguments;
@@ -943,8 +943,8 @@ TTypeSet InferBinaryExprTypes(
     const TTypeSet& lhsTypes,
     const TTypeSet& rhsTypes,
     TTypeSet* genericAssignments,
-    const TStringBuf& lhsSource,
-    const TStringBuf& rhsSource)
+    TStringBuf lhsSource,
+    TStringBuf rhsSource)
 {
     if (IsRelationalBinaryOp(opCode) && (lhsTypes & rhsTypes).IsEmpty()) {
         return TTypeSet{EValueType::Boolean};
@@ -988,8 +988,8 @@ std::pair<EValueType, EValueType> RefineBinaryExprTypes(
     const TTypeSet& lhsTypes,
     const TTypeSet& rhsTypes,
     TTypeSet* genericAssignments,
-    const TStringBuf& lhsSource,
-    const TStringBuf& rhsSource)
+    TStringBuf lhsSource,
+    TStringBuf rhsSource)
 {
     if (IsRelationalBinaryOp(opCode) && (lhsTypes & rhsTypes).IsEmpty()) {
         // empty intersersection (Any, alpha) || (alpha, Any), where alpha = {bool, int, uint, double, string}
@@ -1024,7 +1024,7 @@ TTypeSet InferUnaryExprTypes(
     EUnaryOp opCode,
     const TTypeSet& argTypes,
     TTypeSet* genericAssignments,
-    const TStringBuf& opSource)
+    TStringBuf opSource)
 {
     const auto& unaryOperators = GetUnaryOperatorTypers();
 
@@ -1067,7 +1067,7 @@ EValueType RefineUnaryExprTypes(
     return argType;
 }
 
-EValueType GetFrontWithCheck(const TTypeSet& typeSet, const TStringBuf& source)
+EValueType GetFrontWithCheck(const TTypeSet& typeSet, TStringBuf source)
 {
     auto result = typeSet.GetFront();
     if (result == EValueType::Null) {
@@ -2026,7 +2026,7 @@ TConstExpressionPtr BuildPredicate(
     const NAst::TExpressionList& expressionAst,
     const TSchemaProxyPtr& schemaProxy,
     const TTypedExpressionBuilder& builder,
-    const TStringBuf& name)
+    TStringBuf name)
 {
     if (expressionAst.size() != 1) {
         THROW_ERROR_EXCEPTION("Expecting scalar expression")

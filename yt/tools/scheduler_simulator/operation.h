@@ -22,6 +22,7 @@ public:
     TOperation(const TOperationDescription& description);
 
     virtual const NScheduler::TOperationId& GetId() const override;
+    virtual NScheduler::EOperationType GetType() const override;
     virtual bool IsSchedulable() const override;
     virtual TInstant GetStartTime() const override;
     virtual TString GetAuthenticatedUser() const override;
@@ -38,6 +39,7 @@ public:
 
 private:
     const NScheduler::TOperationId Id_;
+    const NScheduler::EOperationType Type_;
     const NYTree::IMapNodePtr Spec_;
     const TString AuthenticatedUser_;
     const TInstant StartTime_;

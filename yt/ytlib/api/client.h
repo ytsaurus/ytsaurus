@@ -298,6 +298,14 @@ struct TTransactionCommitOptions
     //! If |true| then all participants will use the commit timestamp provided by the coordinator.
     //! If |false| then the participants will use individual commit timestamps based on their cell tag.
     bool InheritCommitTimestamp = true;
+
+    //! If |true| then the coordinator will generate a non-null prepare timestamp (which is a lower bound for
+    //! the upcoming commit timestamp) and send it to all the participants.
+    //! If |false| then no prepare timestamp is generated and null value is provided to the participants.
+    //! The latter is useful for async replication that does not involve any local write operations
+    //! and also relies on ETransactionCoordinatorCommitMode::Lazy transactions whose commit may be delayed
+    //! for an arbitrary period of time in case of replica failure.
+    bool GeneratePrepareTimestamp = true;
 };
 
 struct TTransactionCommitResult
@@ -695,7 +703,7 @@ struct TListJobsOptions
     i64 Offset = 0;
 
     bool IncludeCypress = false;
-    bool IncludeScheduler = false;
+    bool IncludeControllerAgent = false;
     bool IncludeArchive = false;
 
     EDataSource DataSource = EDataSource::Auto;
@@ -735,7 +743,7 @@ struct TGetOperationOptions
     , public TMasterReadOptions
 {
     TNullable<THashSet<TString>> Attributes;
-    bool IncludeScheduler = false;
+    bool IncludeRuntime = false;
 
     TGetOperationOptions()
     { }
@@ -822,7 +830,7 @@ struct TListJobsResult
 {
     std::vector<TJob> Jobs;
     TNullable<int> CypressJobCount;
-    TNullable<int> SchedulerJobCount;
+    TNullable<int> ControllerAgentJobCount;
     TNullable<int> ArchiveJobCount;
 
     TListJobsStatistics Statistics;

@@ -25,7 +25,7 @@ DEFINE_ENUM(EJsonCallbacksNodeType,
 class TJsonCallbacks
 {
 public:
-    virtual void OnStringScalar(const TStringBuf& value) = 0;
+    virtual void OnStringScalar(TStringBuf value) = 0;
     virtual void OnInt64Scalar(i64 value) = 0;
     virtual void OnUint64Scalar(ui64 value) = 0;
     virtual void OnDoubleScalar(double value) = 0;
@@ -34,7 +34,7 @@ public:
     virtual void OnBeginList() = 0;
     virtual void OnEndList() = 0;
     virtual void OnBeginMap() = 0;
-    virtual void OnKeyedItem(const TStringBuf& key) = 0;
+    virtual void OnKeyedItem(TStringBuf key) = 0;
     virtual void OnEndMap() = 0;
 
     virtual ~TJsonCallbacks()
@@ -54,7 +54,7 @@ public:
         i64 memoryLimit,
         NJson::EJsonAttributesMode attributesMode);
 
-    virtual void OnStringScalar(const TStringBuf& value) override;
+    virtual void OnStringScalar(TStringBuf value) override;
     virtual void OnInt64Scalar(i64 value) override;
     virtual void OnUint64Scalar(ui64 value) override;
     virtual void OnDoubleScalar(double value) override;
@@ -63,7 +63,7 @@ public:
     virtual void OnBeginList() override;
     virtual void OnEndList() override;
     virtual void OnBeginMap() override;
-    virtual void OnKeyedItem(const TStringBuf& key) override;
+    virtual void OnKeyedItem(TStringBuf key) override;
     virtual void OnEndMap() override;
 
 private:
@@ -100,7 +100,7 @@ public:
         NYson::EYsonType ysonType,
         const TUtf8Transcoder& utf8Transcoder);
 
-    virtual void OnStringScalar(const TStringBuf& value) override;
+    virtual void OnStringScalar(TStringBuf value) override;
     virtual void OnInt64Scalar(i64 value) override;
     virtual void OnUint64Scalar(ui64 value) override;
     virtual void OnDoubleScalar(double value) override;
@@ -109,7 +109,7 @@ public:
     virtual void OnBeginList() override;
     virtual void OnEndList() override;
     virtual void OnBeginMap() override;
-    virtual void OnKeyedItem(const TStringBuf& key) override;
+    virtual void OnKeyedItem(TStringBuf key) override;
     virtual void OnEndMap() override;
 
 private:

@@ -88,8 +88,7 @@ void TMessageQueueOutbox<TItem>::HandleStatus(const TProtoMessage& message)
     auto lastConfirmedItemId = FirstItemId_;
     while (FirstItemId_ < nextExpectedItemId) {
         Queue_.pop();
-        ++FirstItemId_;
-        ++lastConfirmedItemId;
+        lastConfirmedItemId = FirstItemId_++;
     }
     LOG_DEBUG("Outbox items confirmed (ItemIds: %v-%v)",
         firstConfirmedItemId,

@@ -146,7 +146,7 @@ public:
         Buffer_ = TSharedMutableRef::Allocate<TJsonParserBufferTag>(Config_->BufferSize, false);
     }
 
-    void Read(const TStringBuf& data);
+    void Read(TStringBuf data);
     void Finish();
 
     void Parse(IInputStream* input);
@@ -178,7 +178,7 @@ void TJsonParser::TImpl::OnError(const char* data, int len)
     THROW_ERROR_EXCEPTION(error);
 }
 
-void TJsonParser::TImpl::Read(const TStringBuf& data)
+void TJsonParser::TImpl::Read(TStringBuf data)
 {
     if (yajl_parse(
         YajlHandle_,
@@ -220,7 +220,7 @@ TJsonParser::TJsonParser(
 
 TJsonParser::~TJsonParser() = default;
 
-void TJsonParser::Read(const TStringBuf& data)
+void TJsonParser::Read(TStringBuf data)
 {
     Impl_->Read(data);
 }

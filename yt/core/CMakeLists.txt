@@ -1,9 +1,12 @@
 add_subdirectory(codegen)
 add_subdirectory(rpc/grpc)
 add_subdirectory(rpc/http)
+add_subdirectory(http)
+add_subdirectory(https)
 add_subdirectory(crypto)
 add_subdirectory(re2)
 add_subdirectory(skiff)
+add_subdirectory(erasure)
 
 include(Sources.txt)
 

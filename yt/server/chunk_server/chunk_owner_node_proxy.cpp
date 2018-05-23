@@ -43,6 +43,7 @@
 namespace NYT {
 namespace NChunkServer {
 
+using namespace NCrypto;
 using namespace NConcurrency;
 using namespace NYson;
 using namespace NYTree;

@@ -371,7 +371,7 @@ const TString& TServiceContextWrapper::GetMethod() const
     return UnderlyingContext_->GetMethod();
 }
 
-const TRealmId& TServiceContextWrapper::GetRealmId() const 
+const TRealmId& TServiceContextWrapper::GetRealmId() const
 {
     return UnderlyingContext_->GetRealmId();
 }
@@ -455,7 +455,7 @@ std::vector<TSharedRef>& TServiceContextWrapper::ResponseAttachments()
     return UnderlyingContext_->ResponseAttachments();
 }
 
-const NProto::TRequestHeader& TServiceContextWrapper::RequestHeader() const 
+const NProto::TRequestHeader& TServiceContextWrapper::RequestHeader() const
 {
     return UnderlyingContext_->RequestHeader();
 }

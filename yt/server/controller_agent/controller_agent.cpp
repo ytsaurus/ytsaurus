@@ -145,6 +145,10 @@ public:
         , MasterConnector_(std::make_unique<TMasterConnector>(
             Config_,
             Bootstrap_))
+        , CachedExecNodeDescriptorsByTags_(New<TSyncExpiringCache<TSchedulingTagFilter, TRefCountedExecNodeDescriptorMapPtr>>(
+            BIND(&TImpl::FilterExecNodes, MakeStrong(this)),
+            Config_->SchedulingTagFilterExpireTimeout,
+            Bootstrap_->GetControlInvoker()))
         , SchedulerProxy_(Bootstrap_->GetMasterClient()->GetSchedulerChannel())
         , MemoryTagQueue_(Config_)
     { }
@@ -290,6 +294,8 @@ public:
         }
 
         MemoryTagQueue_.UpdateConfig(Config_);
+
+        CachedExecNodeDescriptorsByTags_->SetExpirationTimeout(Config_->SchedulingTagFilterExpireTimeout);
     }
 
 
@@ -394,17 +400,17 @@ public:
         LOG_DEBUG("Operation registered (OperationId: %v)", operationId);
     }
 
-    void UnregisterOperation(const TOperationPtr& operation)
+    void UnregisterOperation(const TOperationId& operationId)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(Connected_);
 
+        auto operation = GetOperationOrThrow(operationId);
         const auto& controller = operation->GetController();
         if (controller) {
             controller->Cancel();
         }
 
-        auto operationId = operation->GetId();
         YCHECK(IdToOperation_.erase(operationId) == 1);
 
         MasterConnector_->UnregisterOperation(operationId);
@@ -562,8 +568,9 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(Connected_);
-
-        auto controller = GetOperationOrThrow(operationId)->GetController();
+            
+        auto operation = GetOperationOrThrow(operationId);
+        auto controller = operation->GetController();
         return BIND(&IOperationController::BuildOperationInfo, controller)
             .AsyncVia(controller->GetCancelableInvoker())
             .Run();
@@ -575,8 +582,9 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(Connected_);
-
-        auto controller = GetOperationOrThrow(operationId)->GetController();
+            
+        auto operation = GetOperationOrThrow(operationId);
+        auto controller = operation->GetController();
         return BIND(&IOperationController::BuildJobYson, controller)
             .AsyncVia(controller->GetCancelableInvoker())
             .Run(jobId, /* outputStatistics */ true);
@@ -638,13 +646,14 @@ private:
 
     TReaderWriterSpinLock ExecNodeDescriptorsLock_;
     TRefCountedExecNodeDescriptorMapPtr CachedExecNodeDescriptors_ = New<TRefCountedExecNodeDescriptorMap>();
-    TIntrusivePtr<TSyncExpiringCache<TSchedulingTagFilter, TRefCountedExecNodeDescriptorMapPtr>> CachedExecNodeDescriptorsByTags_;
+    const TIntrusivePtr<TSyncExpiringCache<TSchedulingTagFilter, TRefCountedExecNodeDescriptorMapPtr>> CachedExecNodeDescriptorsByTags_;
 
     TControllerAgentTrackerServiceProxy SchedulerProxy_;
 
     TInstant LastExecNodesUpdateTime_;
-    TInstant LastOperationAlertsUpdateTime_;
-    TInstant LastSuspiciousJobsUpdateTime_;
+    TInstant LastOperationsSendTime_;
+    TInstant LastOperationAlertsSendTime_;
+    TInstant LastSuspiciousJobsSendTime_;
 
     TIntrusivePtr<TMessageQueueOutbox<TAgentToSchedulerOperationEvent>> OperationEventsOutbox_;
     TIntrusivePtr<TMessageQueueOutbox<TAgentToSchedulerJobEvent>> JobEventsOutbox_;
@@ -697,6 +706,8 @@ private:
 
     void OnConnecting()
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
         // NB: We cannot be sure the previous incarnation did a proper cleanup due to possible
         // fiber cancelation.
         DoCleanup();
@@ -780,11 +791,6 @@ private:
             NLogging::TLogger(ControllerAgentLogger)
                 .AddTag("Kind: SchedulerToAgentScheduleJobRequests, IncarnationId: %v", IncarnationId_));
 
-        CachedExecNodeDescriptorsByTags_ = New<TSyncExpiringCache<TSchedulingTagFilter, TRefCountedExecNodeDescriptorMapPtr>>(
-            BIND(&TImpl::FilterExecNodes, MakeStrong(this)),
-            Config_->SchedulingTagFilterExpireTimeout,
-            CancelableControlInvoker_);
-
         HeartbeatExecutor_ = New<TPeriodicExecutor>(
             CancelableControlInvoker_,
             BIND(&TControllerAgent::TImpl::SendHeartbeat, MakeWeak(this)),
@@ -796,6 +802,8 @@ private:
 
     void DoDisconnect(const TError& error) noexcept
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
         TForbidContextSwitchGuard contextSwitchGuard;
 
         if (Connected_) {
@@ -813,6 +821,8 @@ private:
 
     void DoCleanup()
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
         Connected_ = false;
         ConnectionTime_.store(TInstant::Zero());
         IncarnationId_ = {};
@@ -830,9 +840,7 @@ private:
         }
         CancelableControlInvoker_.Reset();
 
-        if (CachedExecNodeDescriptorsByTags_) {
-            CachedExecNodeDescriptorsByTags_.Reset();
-        }
+        CachedExecNodeDescriptorsByTags_->Clear();
 
         if (HeartbeatExecutor_) {
             HeartbeatExecutor_->Stop();
@@ -848,19 +856,27 @@ private:
         ScheduleJobRequestsInbox_.reset();
     }
 
-    TControllerAgentTrackerServiceProxy::TReqHeartbeatPtr PrepareHeartbeatRequest(
-        bool* execNodesRequested,
-        bool* operationAlertsSent,
-        bool* suspiciousJobsSent)
+    struct TPreparedHeartbeatRequest
     {
-        auto req = SchedulerProxy_.Heartbeat();
-        req->SetTimeout(Config_->SchedulerHeartbeatRpcTimeout);
-        req->SetHeavy(true);
-        req->set_agent_id(Bootstrap_->GetAgentId());
-        ToProto(req->mutable_incarnation_id(), IncarnationId_);
+        TControllerAgentTrackerServiceProxy::TReqHeartbeatPtr RpcRequest;
+        bool ExecNodesRequested = false;
+        bool OperationsSent = false;
+        bool OperationAlertsSent = false;
+        bool SuspiciousJobsSent = false;
+    };
+
+    TPreparedHeartbeatRequest PrepareHeartbeatRequest()
+    {
+        TPreparedHeartbeatRequest preparedRequest;
+
+        auto request = preparedRequest.RpcRequest = SchedulerProxy_.Heartbeat();
+        request->SetTimeout(Config_->SchedulerHeartbeatRpcTimeout);
+        request->SetHeavy(true);
+        request->set_agent_id(Bootstrap_->GetAgentId());
+        ToProto(request->mutable_incarnation_id(), IncarnationId_);
 
         OperationEventsOutbox_->BuildOutcoming(
-            req->mutable_agent_to_scheduler_operation_events(),
+            request->mutable_agent_to_scheduler_operation_events(),
             [] (auto* protoEvent, const auto& event) {
                 protoEvent->set_event_type(static_cast<int>(event.EventType));
                 ToProto(protoEvent->mutable_operation_id(), event.OperationId);
@@ -872,13 +888,16 @@ private:
                     case EAgentToSchedulerOperationEventType::Suspended:
                         ToProto(protoEvent->mutable_error(), event.Error);
                         break;
+                    case EAgentToSchedulerOperationEventType::BannedInTentativeTree:
+                        ToProto(protoEvent->mutable_tentative_tree_id(), event.TentativeTreeId);
+                        break;
                     default:
                         Y_UNREACHABLE();
                 }
             });
 
         JobEventsOutbox_->BuildOutcoming(
-            req->mutable_agent_to_scheduler_job_events(),
+            request->mutable_agent_to_scheduler_job_events(),
             [] (auto* protoEvent, const auto& event) {
                 protoEvent->set_event_type(static_cast<int>(event.EventType));
                 ToProto(protoEvent->mutable_job_id(), event.JobId);
@@ -891,10 +910,13 @@ private:
                 if (event.ArchiveJobSpec) {
                     protoEvent->set_archive_job_spec(event.ArchiveJobSpec.Get());
                 }
+                if (event.ArchiveStderr) {
+                    protoEvent->set_archive_stderr(event.ArchiveStderr.Get());
+                }
             });
 
         ScheduleJobResposesOutbox_->BuildOutcoming(
-            req->mutable_agent_to_scheduler_schedule_job_responses(),
+            request->mutable_agent_to_scheduler_schedule_job_responses(),
             [] (auto* protoResponse, const auto& response) {
                 const auto& scheduleJobResult = *response.Result;
                 ToProto(protoResponse->mutable_job_id(), response.JobId);
@@ -916,69 +938,84 @@ private:
                 }
             });
 
-        JobEventsInbox_->ReportStatus(req->mutable_scheduler_to_agent_job_events());
-        OperationEventsInbox_->ReportStatus(req->mutable_scheduler_to_agent_operation_events());
-        ScheduleJobRequestsInbox_->ReportStatus(req->mutable_scheduler_to_agent_schedule_job_requests());
+        JobEventsInbox_->ReportStatus(request->mutable_scheduler_to_agent_job_events());
+        OperationEventsInbox_->ReportStatus(request->mutable_scheduler_to_agent_operation_events());
+        ScheduleJobRequestsInbox_->ReportStatus(request->mutable_scheduler_to_agent_schedule_job_requests());
 
         auto now = TInstant::Now();
-        *execNodesRequested = LastExecNodesUpdateTime_ + Config_->ExecNodesUpdatePeriod < now;
-        *operationAlertsSent = LastOperationAlertsUpdateTime_ + Config_->OperationAlertsUpdatePeriod < now;
-        *suspiciousJobsSent = LastSuspiciousJobsUpdateTime_ + Config_->SuspiciousJobsUpdatePeriod < now;
+        preparedRequest.ExecNodesRequested = LastExecNodesUpdateTime_ + Config_->ExecNodesUpdatePeriod < now;
+        preparedRequest.OperationsSent = LastOperationsSendTime_ + Config_->OperationsPushPeriod < now;
+        preparedRequest.OperationAlertsSent = LastOperationAlertsSendTime_ + Config_->OperationAlertsPushPeriod < now;
+        preparedRequest.SuspiciousJobsSent = LastSuspiciousJobsSendTime_ + Config_->SuspiciousJobsPushPeriod < now;
 
-        for (const auto& pair : GetOperations()) {
-            const auto& operationId = pair.first;
-            const auto& operation = pair.second;
-            auto controller = operation->GetController();
+        if (preparedRequest.OperationsSent) {
+            for (const auto& pair : GetOperations()) {
+                const auto& operationId = pair.first;
+                const auto& operation = pair.second;
+                auto controller = operation->GetController();
 
-            auto* protoOperation = req->add_operations();
-            ToProto(protoOperation->mutable_operation_id(), operationId);
+                auto* protoOperation = request->add_operations();
+                ToProto(protoOperation->mutable_operation_id(), operationId);
 
-            {
-                auto jobMetricsDelta = controller->PullJobMetricsDelta();
-                ToProto(protoOperation->mutable_job_metrics(), jobMetricsDelta);
-            }
-
-            if (*operationAlertsSent) {
-                auto* protoAlerts = protoOperation->mutable_alerts();
-                for (const auto& pair : controller->GetAlerts()) {
-                    auto alertType = pair.first;
-                    const auto& alert = pair.second;
-                    auto* protoAlert = protoAlerts->add_alerts();
-                    protoAlert->set_type(static_cast<int>(alertType));
-                    ToProto(protoAlert->mutable_error(), alert);
+                {
+                    auto jobMetricsDelta = controller->PullJobMetricsDelta();
+                    ToProto(protoOperation->mutable_job_metrics(), jobMetricsDelta);
                 }
-            }
 
-            if (suspiciousJobsSent) {
-                protoOperation->set_suspicious_jobs(controller->GetSuspiciousJobsYson().GetData());
-            }
+                if (preparedRequest.OperationAlertsSent) {
+                    auto* protoAlerts = protoOperation->mutable_alerts();
+                    for (const auto& pair : controller->GetAlerts()) {
+                        auto alertType = pair.first;
+                        const auto& alert = pair.second;
+                        auto* protoAlert = protoAlerts->add_alerts();
+                        protoAlert->set_type(static_cast<int>(alertType));
+                        ToProto(protoAlert->mutable_error(), alert);
+                    }
+                }
 
-            protoOperation->set_pending_job_count(controller->GetPendingJobCount());
-            ToProto(protoOperation->mutable_needed_resources(), controller->GetNeededResources());
-            ToProto(protoOperation->mutable_min_needed_job_resources(), controller->GetMinNeededJobResources());
+                if (preparedRequest.SuspiciousJobsSent) {
+                    protoOperation->set_suspicious_jobs(controller->GetSuspiciousJobsYson().GetData());
+                }
+
+                protoOperation->set_pending_job_count(controller->GetPendingJobCount());
+                ToProto(protoOperation->mutable_needed_resources(), controller->GetNeededResources());
+                ToProto(protoOperation->mutable_min_needed_job_resources(), controller->GetMinNeededJobResources());
+            }
         }
 
-        req->set_exec_nodes_requested(*execNodesRequested);
+        request->set_exec_nodes_requested(preparedRequest.ExecNodesRequested);
 
-        return req;
+        return preparedRequest;
+    }
+
+    void ConfirmHeartbeatRequest(const TPreparedHeartbeatRequest& preparedRequest)
+    {
+        auto now = TInstant::Now();
+        if (preparedRequest.ExecNodesRequested) {
+            LastExecNodesUpdateTime_ = now;
+        }
+        if (preparedRequest.OperationsSent) {
+            LastOperationsSendTime_ = now;
+        }
+        if (preparedRequest.OperationAlertsSent) {
+            LastOperationAlertsSendTime_ = now;
+        }
+        if (preparedRequest.SuspiciousJobsSent) {
+            LastSuspiciousJobsSendTime_ = now;
+        }
     }
 
     void SendHeartbeat()
     {
-        bool execNodesRequested;
-        bool operationAlertsSent;
-        bool suspiciousJobsSent;
-        auto req = PrepareHeartbeatRequest(
-            &execNodesRequested,
-            &operationAlertsSent,
-            &suspiciousJobsSent);
+        auto preparedRequest = PrepareHeartbeatRequest();
 
-        LOG_DEBUG("Sending heartbeat (ExecNodesRequested: %v, OperationAlertsSent: %v, SuspiciousJobsSent: %v)",
-            execNodesRequested,
-            operationAlertsSent,
-            suspiciousJobsSent);
+        LOG_DEBUG("Sending heartbeat (ExecNodesRequested: %v, OperationsSent: %v, OperationAlertsSent: %v, SuspiciousJobsSent: %v)",
+            preparedRequest.ExecNodesRequested,
+            preparedRequest.OperationsSent,
+            preparedRequest.OperationAlertsSent,
+            preparedRequest.SuspiciousJobsSent);
 
-        auto rspOrError = WaitFor(req->Invoke());
+        auto rspOrError = WaitFor(preparedRequest.RpcRequest->Invoke());
         if (!rspOrError.IsOK()) {
             if (NRpc::IsRetriableError(rspOrError)) {
                 LOG_WARNING(rspOrError, "Error reporting heartbeat to scheduler");
@@ -1022,19 +1059,10 @@ private:
                     operationId);
                 continue;
             }
-            UnregisterOperation(operation);
+            UnregisterOperation(operation->GetId());
         }
 
-        auto now = TInstant::Now();
-        if (execNodesRequested) {
-            LastExecNodesUpdateTime_ = now;
-        }
-        if (operationAlertsSent) {
-            LastOperationAlertsUpdateTime_ = now;
-        }
-        if (suspiciousJobsSent) {
-            LastSuspiciousJobsUpdateTime_ = now;
-        }
+        ConfirmHeartbeatRequest(preparedRequest);
     }
 
     void HandleJobEvents(const TControllerAgentTrackerServiceProxy::TRspHeartbeatPtr& rsp)
@@ -1261,10 +1289,13 @@ private:
             return keys;
         }
 
-        virtual IYPathServicePtr FindItemService(const TStringBuf& key) const override
+        virtual IYPathServicePtr FindItemService(TStringBuf key) const override
         {
             auto operationId = TOperationId::FromString(key);
-            auto operation = ControllerAgent_->GetOperationOrThrow(operationId);
+            auto operation = ControllerAgent_->FindOperation(operationId);
+            if (!operation) {
+                return nullptr;
+            }
             return operation->GetController()->GetOrchid();
         }
 
@@ -1397,6 +1428,11 @@ const TOperationIdToOperationMap& TControllerAgent::GetOperations()
 void TControllerAgent::RegisterOperation(const NProto::TOperationDescriptor& descriptor)
 {
     Impl_->RegisterOperation(descriptor);
+}
+
+void TControllerAgent::UnregisterOperation(const TOperationId& operationId)
+{
+    Impl_->UnregisterOperation(operationId);
 }
 
 TFuture<TOperationControllerInitializationResult> TControllerAgent::InitializeOperation(

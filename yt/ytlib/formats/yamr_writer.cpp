@@ -142,7 +142,7 @@ private:
         TryFlushBuffer(true);
     }
 
-    void ValidateColumnType(const TUnversionedValue* value, const TStringBuf& columnName)
+    void ValidateColumnType(const TUnversionedValue* value, TStringBuf columnName)
     {
         if (value->Type != EValueType::String) {
             THROW_ERROR_EXCEPTION("Wrong type %Qlv of column %Qv in YAMR record",

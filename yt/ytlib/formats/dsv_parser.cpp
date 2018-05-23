@@ -27,7 +27,7 @@ public:
         TDsvFormatConfigPtr config,
         bool wrapWithmap);
 
-    virtual void Read(const TStringBuf& data) override;
+    virtual void Read(TStringBuf data) override;
     virtual void Finish() override;
 
 private:
@@ -79,7 +79,7 @@ TDsvParser::TDsvParser(
     ConfigureEscapeTables(config, false /* addCarriageReturn */, &KeyEscapeTable_, &ValueEscapeTable_);
 }
 
-void TDsvParser::Read(const TStringBuf& data)
+void TDsvParser::Read(TStringBuf data)
 {
     auto current = data.begin();
     while (current != data.end()) {
@@ -215,7 +215,7 @@ void ParseDsv(
 }
 
 void ParseDsv(
-    const TStringBuf& data,
+    TStringBuf data,
     IYsonConsumer* consumer,
     TDsvFormatConfigPtr config)
 {

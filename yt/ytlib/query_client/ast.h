@@ -88,7 +88,7 @@ struct TExpression
         return dynamic_cast<TDerived*>(this);
     }
 
-    TStringBuf GetSource(const TStringBuf& source) const;
+    TStringBuf GetSource(TStringBuf source) const;
 
     TSourceLocation SourceLocation;
 };
@@ -161,7 +161,7 @@ struct TAliasExpression
     TAliasExpression(
         const TSourceLocation& sourceLocation,
         const TExpressionPtr& expression,
-        const TStringBuf& name)
+        TStringBuf name)
         : TExpression(sourceLocation)
         , Expression(expression)
         , Name(TString(name))
@@ -180,7 +180,7 @@ struct TFunctionExpression
 {
     TFunctionExpression(
         const TSourceLocation& sourceLocation,
-        const TStringBuf& functionName,
+        TStringBuf functionName,
         TExpressionList arguments)
         : TExpression(sourceLocation)
         , FunctionName(functionName)
@@ -385,9 +385,9 @@ struct TAstHead
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TStringBuf GetSource(TSourceLocation sourceLocation, const TStringBuf& source);
+TStringBuf GetSource(TSourceLocation sourceLocation, TStringBuf source);
 
-TString FormatId(const TStringBuf& id);
+TString FormatId(TStringBuf id);
 TString FormatLiteralValue(const TLiteralValue& value);
 TString FormatReference(const TReference& ref);
 TString FormatExpression(const TExpression& expr);

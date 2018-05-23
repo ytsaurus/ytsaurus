@@ -22,7 +22,7 @@ public:
         TBootstrap* bootstrap,
         const TOperationId& operationId);
 
-    TSharedRef Run(const NYTree::TYPath& snapshotPath);
+    TSharedRef Run();
 
 private:
     const TControllerAgentConfigPtr Config_;

@@ -22,22 +22,22 @@ namespace NNet {
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Constructs an address of the form |hostName:port|.
-TString BuildServiceAddress(const TStringBuf& hostName, int port);
+TString BuildServiceAddress(TStringBuf hostName, int port);
 
 //! Parses service address into host name and port number.
 //! Both #hostName and #port can be |NULL|.
 //! Throws if the address is malformed.
 void ParseServiceAddress(
-    const TStringBuf& address,
+    TStringBuf address,
     TStringBuf* hostName,
     int* port);
 
 //! Extracts port number from a service address.
 //! Throws if the address is malformed.
-int GetServicePort(const TStringBuf& address);
+int GetServicePort(TStringBuf address);
 
 //! Extracts host name from a service address.
-TStringBuf GetServiceHostName(const TStringBuf& address);
+TStringBuf GetServiceHostName(TStringBuf address);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -58,8 +58,8 @@ public:
     socklen_t* GetLengthPtr();
     ui16 GetPort() const;
 
-    static TErrorOr<TNetworkAddress> TryParse(const TStringBuf& address);
-    static TNetworkAddress Parse(const TStringBuf& address);
+    static TErrorOr<TNetworkAddress> TryParse(TStringBuf address);
+    static TNetworkAddress Parse(TStringBuf address);
 
     static TNetworkAddress CreateIPv6Any(int port);
     static TNetworkAddress CreateIPv6Loopback(int port);
@@ -91,8 +91,8 @@ public:
 
     TIP6Address() = default;
 
-    static TIP6Address FromString(const TStringBuf& str);
-    static bool FromString(const TStringBuf& str, TIP6Address* address);
+    static TIP6Address FromString(TStringBuf str);
+    static bool FromString(TStringBuf str, TIP6Address* address);
 
     static TIP6Address FromRawBytes(const ui8* raw);
     static TIP6Address FromRawWords(const ui16* raw);
@@ -111,7 +111,7 @@ private:
     std::array<ui8, ByteSize> Raw_ = {};
 };
 
-void FormatValue(TStringBuilder* builder, const TIP6Address& address, const TStringBuf& spec);
+void FormatValue(TStringBuilder* builder, const TIP6Address& address, TStringBuf spec);
 TString ToString(const TIP6Address& address);
 
 bool operator == (const TIP6Address& lhs, const TIP6Address& rhs);
@@ -133,8 +133,8 @@ public:
     TIP6Network() = default;
     TIP6Network(const TIP6Address& network, const TIP6Address& mask);
 
-    static TIP6Network FromString(const TStringBuf& str);
-    static bool FromString(const TStringBuf& str, TIP6Network* network);
+    static TIP6Network FromString(TStringBuf str);
+    static bool FromString(TStringBuf str, TIP6Network* network);
 
     bool Contains(const TIP6Address& address) const;
 
@@ -147,7 +147,7 @@ private:
     TIP6Address Mask_;
 };
 
-void FormatValue(TStringBuilder* builder, const TIP6Network& network, const TStringBuf& spec);
+void FormatValue(TStringBuilder* builder, const TIP6Network& network, TStringBuf spec);
 TString ToString(const TIP6Network& network);
 
 void Deserialize(TIP6Network& value, NYTree::INodePtr node);

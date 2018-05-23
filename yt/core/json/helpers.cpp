@@ -5,7 +5,7 @@ namespace NJson {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool IsSpecialJsonKey(const TStringBuf& key)
+bool IsSpecialJsonKey(TStringBuf key)
 {
     return key.size() > 0 && key[0] == '$';
 }

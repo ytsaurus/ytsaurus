@@ -23,6 +23,9 @@ DECLARE_REFCOUNTED_STRUCT(TTcpDispatcherCounters)
 using TTosLevel = int;
 constexpr int DefaultTosLevel = 0;
 
+constexpr size_t MaxMessagePartCount = 1 << 28;
+constexpr size_t MaxMessagePartSize = 1_GB;
+
 DEFINE_ENUM(EDeliveryTrackingLevel,
     (None)
     (ErrorOnly)

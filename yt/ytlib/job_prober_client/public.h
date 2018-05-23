@@ -17,6 +17,10 @@ namespace NJobProberClient {
 
 DECLARE_REFCOUNTED_STRUCT(IJobProbe)
 
+DEFINE_ENUM(EErrorCode,
+    ((JobIsNotRunning) (17000))
+);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NJobProberClient

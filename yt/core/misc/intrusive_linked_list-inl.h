@@ -33,7 +33,7 @@ int TIntrusiveLinkedList<TItem, TItemToNode>::GetSize() const
 template <class TItem, class TItemToNode>
 void TIntrusiveLinkedList<TItem, TItemToNode>::PushBack(TItem* item)
 {
-    auto* node = ItemToNode_(Back_);
+    auto* node = ItemToNode_(item);
     if (Back_) {
         ItemToNode_(Back_)->Next = item;
     } else {

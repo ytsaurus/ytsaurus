@@ -40,6 +40,7 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(NRpc::TMutationId, MutationId);
     DEFINE_BYREF_RO_PROPERTY(std::vector<TCellId>, ParticipantCellIds);
     DEFINE_BYVAL_RO_PROPERTY(bool, Distributed);
+    DEFINE_BYVAL_RO_PROPERTY(bool, GeneratePrepareTimestamp);
     DEFINE_BYVAL_RO_PROPERTY(bool, InheritCommitTimestamp);
     DEFINE_BYVAL_RO_PROPERTY(NApi::ETransactionCoordinatorCommitMode, CoordinatorCommitMode);
     DEFINE_BYVAL_RW_PROPERTY(bool, Persistent);
@@ -55,6 +56,7 @@ public:
         const NRpc::TMutationId& mutationId,
         const std::vector<TCellId>& participantCellIds,
         bool distributed,
+        bool generatePrepareTimestamp,
         bool inheritCommitTimestamp,
         NApi::ETransactionCoordinatorCommitMode coordinatorCommitMode);
 

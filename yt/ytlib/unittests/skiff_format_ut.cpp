@@ -1288,7 +1288,7 @@ TEST(TSkiffParser, TestBadYsonWireType)
         CreateSimpleTypeSchema(EWireType::Yson32)->SetName("yson"),
     });
 
-    auto parseYsonUsingSkiff = [&] (const TStringBuf& ysonValue) {
+    auto parseYsonUsingSkiff = [&] (TStringBuf ysonValue) {
         TCollectingValueConsumer collectedRows;
         auto parser = CreateParserForSkiff(skiffSchema, &collectedRows);
         TStringStream dataStream;

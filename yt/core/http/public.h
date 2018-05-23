@@ -1,6 +1,6 @@
 #pragma once
 
-#include <yt/core/misc/intrusive_ptr.h>
+#include <yt/core/misc/common.h>
 
 namespace NYT {
 namespace NHttp {

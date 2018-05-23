@@ -77,7 +77,7 @@ void Serialize(const TString& value, IYsonConsumer* consumer)
 }
 
 // TStringBuf
-void Serialize(const TStringBuf& value, IYsonConsumer* consumer)
+void Serialize(TStringBuf value, IYsonConsumer* consumer)
 {
     consumer->OnStringScalar(value);
 }

@@ -59,7 +59,7 @@ const TCellTag PrimaryMasterCellTag = 0xf003;
 const TCellTag InvalidCellTag = 0xf004;
 
 //! A static limit for the number of secondary master cells.
-const int MaxSecondaryMasterCells = 8;
+const int MaxSecondaryMasterCells = 32;
 
 using TCellTagList = SmallVector<TCellTag, MaxSecondaryMasterCells + 1>;
 
@@ -236,11 +236,11 @@ struct TVersionedObjectId
     bool IsBranched() const;
 
 
-    static TVersionedObjectId FromString(const TStringBuf& str);
+    static TVersionedObjectId FromString(TStringBuf str);
 };
 
 //! Formats id into a string (for debugging and logging purposes mainly).
-void FormatValue(TStringBuilder* builder, const TVersionedObjectId& id, const TStringBuf& spec);
+void FormatValue(TStringBuilder* builder, const TVersionedObjectId& id, TStringBuf spec);
 
 //! Converts id into a string (for debugging and logging purposes mainly).
 TString ToString(const TVersionedObjectId& id);

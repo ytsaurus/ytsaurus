@@ -31,9 +31,10 @@
 
 #include <yt/ytlib/core_dump/core_dumper.h>
 
-#include <yt/core/bus/config.h>
 #include <yt/core/bus/server.h>
-#include <yt/core/bus/tcp_server.h>
+
+#include <yt/core/bus/tcp/config.h>
+#include <yt/core/bus/tcp/server.h>
 
 #include <yt/core/http/server.h>
 
@@ -45,6 +46,7 @@
 
 #include <yt/core/misc/core_dumper.h>
 #include <yt/core/misc/ref_counted_tracker.h>
+#include <yt/core/misc/ref_counted_tracker_statistics_producer.h>
 #include <yt/core/misc/lfalloc_helpers.h>
 #include <yt/core/misc/proc.h>
 
@@ -55,8 +57,6 @@
 #include <yt/core/rpc/response_keeper.h>
 #include <yt/core/rpc/retrying_channel.h>
 #include <yt/core/rpc/server.h>
-
-#include <yt/core/tools/tools.h>
 
 #include <yt/core/ytree/virtual.h>
 #include <yt/core/ytree/ypath_client.h>
@@ -115,18 +115,6 @@ void TBootstrap::DoRun()
 {
     LOG_INFO("Starting scheduler");
 
-    if (Config_->Scheduler->ControlThreadPriority) {
-        WaitFor(BIND([priority = *Config_->Scheduler->ControlThreadPriority] {
-                auto config = New<TSetThreadPriorityConfig>();
-                config->ThreadId = GetCurrentThreadId();
-                config->Priority = priority;
-                NTools::RunTool<TSetThreadPriorityAsRootTool>(config);
-            })
-            .AsyncVia(GetControlInvoker(EControlQueue::Default))
-            .Run())
-            .ThrowOnError();
-    }
-
     TNativeConnectionOptions connectionOptions;
     connectionOptions.RetryRequestQueueSizeLimitExceeded = true;
     Connection_ = CreateNativeConnection(Config_->ClusterConnection, connectionOptions);
@@ -161,7 +149,7 @@ void TBootstrap::DoRun()
     MonitoringManager_ = New<TMonitoringManager>();
     MonitoringManager_->Register(
         "/ref_counted",
-        TRefCountedTracker::Get()->GetMonitoringProducer());
+        CreateRefCountedTrackerStatisticsProducer());
     MonitoringManager_->Start();
 
     LFAllocProfiler_ = std::make_unique<NLFAlloc::TLFAllocProfiler>();

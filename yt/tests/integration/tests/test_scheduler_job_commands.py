@@ -63,7 +63,7 @@ class TestJobProber(YTEnvSetup):
             command="{notify_running} ; sleep 5000".format(notify_running=events_on_fs().notify_event_cmd("job_is_running")))
 
         events_on_fs().wait_event("job_is_running")
-        jobs = ls("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op.id))
+        jobs = list(op.get_running_jobs())
         time.sleep(1.0) # give job proxy some time to send a heartbeat
         result = strace_job(jobs[0])
 

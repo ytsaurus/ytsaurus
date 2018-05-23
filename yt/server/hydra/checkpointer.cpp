@@ -178,22 +178,34 @@ private:
         VERIFY_THREAD_AFFINITY(Owner_->ControlThread);
 
         int successCount = 0;
-        for (TPeerId id1 = 0; id1 < SnapshotChecksums_.size(); ++id1) {
-            auto& checksum1 = SnapshotChecksums_[id1];
-            if (checksum1) {
+        bool checksumMismatch = false;
+        TNullable<TChecksum> canonicalChecksum;
+        for (TPeerId id = 0; id < SnapshotChecksums_.size(); ++id) {
+            auto checksum = SnapshotChecksums_[id];
+            if (checksum) {
                 ++successCount;
-            }
-            for (TPeerId id2 = id1 + 1; id2 < SnapshotChecksums_.size(); ++id2) {
-                const auto& checksum2 = SnapshotChecksums_[id2];
-                if (checksum1 && checksum2 && checksum1 != checksum2) {
-                    LOG_ERROR("Snapshot checksum mismatch (SnapshotId: %v)",
-                        Version_.SegmentId + 1);
+                if (canonicalChecksum) {
+                    checksumMismatch |= (*canonicalChecksum != *checksum);
+                } else {
+                    canonicalChecksum = checksum;
                 }
             }
         }
 
         LOG_INFO("Distributed snapshot creation finished (SuccessCount: %v)",
             successCount);
+
+        if (checksumMismatch) {
+            for (TPeerId id = 0; id < SnapshotChecksums_.size(); ++id) {
+                auto checksum = SnapshotChecksums_[id];
+                if (checksum) {
+                    LOG_ERROR("Snapshot checksum mismatch (SnapshotId: %v, PeerId: %v, Checksum: %llx)",
+                        Version_.SegmentId + 1,
+                        id,
+                        *checksum);
+                }
+            }
+        }
 
         auto owner = Owner_;
         Owner_->EpochContext_->EpochUserAutomatonInvoker->Invoke(BIND([owner] () {

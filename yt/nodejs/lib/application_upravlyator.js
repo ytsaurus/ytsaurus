@@ -215,6 +215,18 @@ YtApplicationUpravlyator.prototype.dispatch = function(req, rsp, next)
             case "/get-all-roles":
             case "/get-all-roles/":
                 return self._dispatchGetAllRoles(req, rsp);
+
+            case "/_group_hints":
+            case "/_group_hints/":
+                return self._dispatchGroupHints(req, rsp);
+            case "/_responsibles":
+            case "/_responsibles/":
+                return self._dispatchGetResponsibles(req, rsp);
+                /*
+            case "/_create_group":
+            case "/_create_group/":
+                return self._dispatchCreateGroup(req, rsp);
+                */
         }
         throw new YtError("Unknown URI");
     }).catch(self._dispatchError.bind(self, req, rsp));
@@ -407,6 +419,99 @@ YtApplicationUpravlyator.prototype._dispatchGetAllRoles = function(req, rsp)
             err, "Failed to get Upravlyator users and roles"));
     });
 };
+
+YtApplicationUpravlyator.prototype._dispatchGroupHints = function(req, rsp)
+{
+    var self = this;
+
+    return Q.cast(req.body).then(function(body) {
+        var path = body.path;
+        var perm = body.permissions.split(",").sort();
+
+        var acls = self.driver.executeSimple("get", {
+            path: path + "/@effective_acl"
+        });
+
+        return Q.all([perm, acls]);
+    }).spread(function(perm, acls) {
+        var result = [];
+        utils.getYsonValue(acls).forEach(function(acl) {
+            var value = utils.getYsonValue(acl);
+            var subjects = value["subjects"];
+            var permissions = value["permissions"].sort();
+
+            var flag = true;
+
+            if (perm.length != permissions.length) {
+                flag = false;
+            }
+
+            if (flag) {
+                for (var i = 0; i < perm.length; ++i) {
+                    if (perm[i] != permissions[i]) {
+                        flag = false;
+                        break;
+                    }
+                }
+            }
+
+            if (flag) {
+                result = result.concat(subjects);
+            }
+        });
+        return utils.dispatchJson(rsp, { code: 0, subjects: result, permissions: perm });
+    });
+}
+
+YtApplicationUpravlyator.prototype._dispatchGetResponsibles = function(req, rsp)
+{
+    var self = this;
+
+    return Q.cast(req.body).then(function(body) {
+        var path = body.path;
+
+        return self.driver.executeSimple("get", {
+            path: path + "/@account"
+        });
+    }).then(function(account) {
+        return self.driver.executeSimple("get", {
+            path: "//sys/accounts/" + account + "/@responsibles"
+        });
+    }).then(function(responsibles) {
+        return utils.dispatchJson(rsp, { code: 0, responsibles: responsibles });
+    });
+}
+
+YtApplicationUpravlyator.prototype._dispatchCreateGroup = function(req, rsp)
+{
+    var self = this;
+    return Q.cast(req.body).then(function(body) {
+        var path = body.path;
+        var name = body.name;
+        var responsibles = body.responsibles.split(",");
+        var permissions = body.permissions.split(",");
+
+        return Q.all([path, name, permissions, self.driver.executeSimple("create", {
+            type: "group",
+            name: name,
+            attributes: {
+                name: name,
+                upravlyator_managed: "true",
+                upravlyator_responsibles: responsibles
+            }
+        })]);
+    }).spread(function(path, name, permissions) {
+        return self.driver.executeSimple("set", {
+            path: path + "/@acl/end"
+        }, {
+            action: "allow",
+            subjects: [name],
+            permissions: permissions
+        });
+    }).then(function() {
+        return utils.dispatchJson(rsp, { code: 0 });
+    });
+}
 
 YtApplicationUpravlyator.prototype._captureBody = function(req, rsp)
 {

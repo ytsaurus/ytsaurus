@@ -10,7 +10,7 @@ TUtf8Transcoder::TUtf8Transcoder(bool enableEscaping)
     : EnableEncoding_(enableEscaping)
 { }
     
-TStringBuf TUtf8Transcoder::Encode(const TStringBuf& str)
+TStringBuf TUtf8Transcoder::Encode(TStringBuf str)
 {
     if (!EnableEncoding_) {
         return str;
@@ -42,7 +42,7 @@ TStringBuf TUtf8Transcoder::Encode(const TStringBuf& str)
     }
 }
 
-TStringBuf TUtf8Transcoder::Decode(const TStringBuf& str)
+TStringBuf TUtf8Transcoder::Decode(TStringBuf str)
 {
     if (!EnableEncoding_) {
         return str;

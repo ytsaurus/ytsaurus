@@ -27,7 +27,7 @@ void ParseDsv(
     TDsvFormatConfigPtr config = New<TDsvFormatConfig>());
 
 void ParseDsv(
-    const TStringBuf& data,
+    TStringBuf data,
     NYson::IYsonConsumer* consumer,
     TDsvFormatConfigPtr config = New<TDsvFormatConfig>());
 

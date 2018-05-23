@@ -400,6 +400,7 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
 
     response->set_enable_job_reporter(Config_->EnableJobReporter);
     response->set_enable_job_spec_reporter(Config_->EnableJobSpecReporter);
+    response->set_enable_job_stderr_reporter(Config_->EnableJobStderrReporter);
     response->set_operation_archive_version(Host_->GetOperationArchiveVersion());
 
     BeginNodeHeartbeatProcessing(node);
@@ -439,6 +440,25 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
             Y_UNUSED(WaitFor(Host_->GetStrategy()->ScheduleJobs(schedulingContext)));
             node->SetHasOngoingJobsScheduling(false);
         }
+
+        const auto statistics = schedulingContext->GetSchedulingStatistics();
+        context->SetResponseInfo(
+            "NodeId: %v, Address: %v, "
+            "StartedJobs: %v, PreemptedJobs: %v, "
+            "JobsScheduledDuringPreemption: %v, PreemptableJobs: %v, PreemptableResources: %v, "
+            "ControllerScheduleJobCount: %v, NonPreemptiveScheduleJobAttempts: %v, "
+            "PreemptiveScheduleJobAttempts: %v, HasAggressivelyStarvingNodes: %v",
+            nodeId,
+            descriptor.GetDefaultAddress(),
+            schedulingContext->StartedJobs().size(),
+            schedulingContext->PreemptedJobs().size(),
+            statistics.ScheduledDuringPreemption,
+            statistics.PreemptableJobCount,
+            FormatResources(statistics.ResourceUsageDiscount),
+            statistics.ControllerScheduleJobCount,
+            statistics.NonPreemptiveScheduleJobAttempts,
+            statistics.PreemptiveScheduleJobAttempts,
+            statistics.HasAggressivelyStarvingNodes);
 
         TotalResourceUsage_ -= node->GetResourceUsage();
         node->SetResourceUsage(schedulingContext->ResourceUsage());
@@ -624,11 +644,35 @@ TNodeDescriptor TNodeShard::GetJobNode(const TJobId& jobId, const TString& user)
 
     ValidateConnected();
 
-    auto job = GetJobOrThrow(jobId);
+    auto job = FindJob(jobId);
 
-    Host_->ValidateOperationPermission(user, job->GetOperationId(), EPermission::Write);
+    TExecNodePtr node;
+    TOperationId operationId;
 
-    return job->GetNode()->NodeDescriptor();
+    if (!job) {
+        node = FindNodeByJob(jobId);
+        if (!node) {
+            THROW_ERROR_EXCEPTION(
+                NScheduler::EErrorCode::NoSuchJob,
+                "Job %v not found", jobId);
+        }
+
+        auto it = node->RecentlyFinishedJobs().find(jobId);
+        if (it == node->RecentlyFinishedJobs().end()) {
+            THROW_ERROR_EXCEPTION(
+                NScheduler::EErrorCode::NoSuchJob,
+                "Job %v not found", jobId);
+        }
+
+        operationId = it->second.OperationId;
+    } else {
+        node = job->GetNode();
+        operationId = job->GetOperationId();
+    }
+
+    Host_->ValidateOperationPermission(user, operationId, EPermission::Write);
+
+    return node->NodeDescriptor();
 }
 
 TYsonString TNodeShard::StraceJob(const TJobId& jobId, const TString& user)
@@ -913,7 +957,7 @@ void TNodeShard::FailJob(const TJobId& jobId)
     job->SetFailRequested(true);
 }
 
-void TNodeShard::ReleaseJob(const TJobId& jobId, bool archiveJobSpec)
+void TNodeShard::ReleaseJob(const TJobId& jobId, bool archiveJobSpec, bool archiveStderr)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
     YCHECK(Connected_);
@@ -922,12 +966,13 @@ void TNodeShard::ReleaseJob(const TJobId& jobId, bool archiveJobSpec)
     // could have been unregistered.
     auto nodeId = NodeIdFromJobId(jobId);
     if (auto execNode = FindNodeByJob(jobId)) {
-        LOG_DEBUG("Adding job that should be removed (JobId: %v, NodeId: %v, NodeAddress: %v, ArchiveJobSpec: %v)",
+        LOG_DEBUG("Adding job that should be removed (JobId: %v, NodeId: %v, NodeAddress: %v, ArchiveJobSpec: %v, ArchiveStderr: %v)",
             jobId,
             nodeId,
             execNode->GetDefaultAddress(),
-            archiveJobSpec);
-        execNode->JobsToRemove().emplace_back(TJobToRelease{jobId, archiveJobSpec});
+            archiveJobSpec,
+            archiveStderr);
+        execNode->JobsToRemove().emplace_back(TJobToRelease{jobId, archiveJobSpec, archiveStderr});
     } else {
         LOG_DEBUG("Execution node was unregistered for a job that should be removed (JobId: %v, NodeId: %v)",
             jobId,
@@ -1309,16 +1354,18 @@ void TNodeShard::ProcessHeartbeatJobs(
     {
         for (const auto& jobToRemove : node->JobsToRemove()) {
             const auto& jobId = jobToRemove.JobId;
-            const auto& archiveJobSpec = jobToRemove.ArchiveJobSpec;
+            auto archiveJobSpec = jobToRemove.ArchiveJobSpec;
+            auto archiveStderr = jobToRemove.ArchiveStderr;
 
             LOG_DEBUG("Asking node to remove job "
-                "(JobId: %v, NodeId: %v, NodeAddress: %v, ArchiveJobSpec: %v)",
+                "(JobId: %v, NodeId: %v, NodeAddress: %v, ArchiveJobSpec: %v, ArchiveStderr: %v)",
                 jobId,
                 nodeId,
                 nodeAddress,
-                archiveJobSpec);
+                archiveJobSpec,
+                archiveStderr);
             RemoveRecentlyFinishedJob(jobId);
-            ToProto(response->add_jobs_to_remove(), TJobToRelease{jobId, archiveJobSpec});
+            ToProto(response->add_jobs_to_remove(), TJobToRelease{jobId, archiveJobSpec, archiveStderr});
         }
         node->JobsToRemove().clear();
     }

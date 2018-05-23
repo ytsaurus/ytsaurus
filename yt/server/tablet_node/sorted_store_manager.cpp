@@ -442,7 +442,7 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
         std::vector<TVersionedRow> rows;
         rows.reserve(MaxRowsPerFlushRead);
 
-        LOG_DEBUG("Sorted store flush started (StoreId: %v, MergeRowsOnFlush: %v, RetentionConfig: %Qv)",
+        LOG_DEBUG("Sorted store flush started (StoreId: %v, MergeRowsOnFlush: %v, RetentionConfig: %v)",
             store->GetId(),
             tabletSnapshot->Config->MergeRowsOnFlush,
             ConvertTo<TRetentionConfigPtr>(tabletSnapshot->Config));
@@ -486,7 +486,7 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
             tabletSnapshot->WriterOptions->ReplicationFactor,
             dataStatistics.regular_disk_space(),
             dataStatistics.erasure_disk_space());
-        LOG_DEBUG("Flushed sorted store (StoreId: %v, ChunkId: %v, DiskSpace: %v, MergeRowsOnFlush: %v)",
+        LOG_DEBUG("Flushed sorted store (StoreId: %v, ChunkId: %v, DiskSpace: %v)",
             store->GetId(),
             chunkWriter->GetChunkId(),
             diskSpace);

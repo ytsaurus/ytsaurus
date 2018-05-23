@@ -36,6 +36,7 @@
 namespace NYT {
 namespace NApi {
 
+using namespace NCrypto;
 using namespace NConcurrency;
 using namespace NRpc;
 using namespace NYTree;

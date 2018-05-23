@@ -24,10 +24,6 @@ public:
             .Default(std::numeric_limits<i64>::max())
             .GreaterThanOrEqual(0);
 
-        RegisterParameter("update_interval", UpdateInterval)
-            .Default(TDuration::Seconds(30));
-
-        // Soon to be removed. All inter-DC edge-related info will be moved to Cypress.
         RegisterParameter("capacities", Capacities)
             .Default();
 
@@ -73,7 +69,6 @@ public:
     }
 
 private:
-
     // src DC -> dst DC -> data size.
     // NB: that null DC is encoded as an empty string here.
     THashMap<TString, THashMap<TString, i64>> Capacities;
@@ -82,8 +77,9 @@ private:
     NProfiling::TCpuDuration CpuUpdateInterval;
 };
 
-DECLARE_REFCOUNTED_CLASS(TInterDCLimitsConfig)
 DEFINE_REFCOUNTED_TYPE(TInterDCLimitsConfig)
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TChunkManagerConfig
     : public NYTree::TYsonSerializable
@@ -173,6 +169,10 @@ public:
 
     //! Same as #MaxReplicasPerRack but only applies to erasure chunks.
     int MaxErasureReplicasPerRack;
+
+    //! Enables storing more than one chunk part per node.
+    //! Should only be used in local mode to enable writing erasure chunks in a cluster with just one node.
+    bool AllowMultipleErasurePartsPerNode;
 
     //! Interval between consequent replicator state checks.
     TDuration ReplicatorEnabledCheckPeriod;
@@ -274,6 +274,8 @@ public:
         RegisterParameter("max_erasure_replicas_per_rack", MaxErasureReplicasPerRack)
             .GreaterThanOrEqual(0)
             .Default(std::numeric_limits<int>::max());
+        RegisterParameter("allow_multiple_erasure_parts_per_node", AllowMultipleErasurePartsPerNode)
+            .Default(false);
 
         RegisterParameter("replicator_enabled_check_period", ReplicatorEnabledCheckPeriod)
             .Default(TDuration::Seconds(1));
@@ -344,6 +346,23 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TMediumConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TDynamicChunkManagerConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    bool EnableChunkReplicator;
+
+    TDynamicChunkManagerConfig()
+    {
+        RegisterParameter("enable_chunk_replicator", EnableChunkReplicator)
+            .Default(true);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TDynamicChunkManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

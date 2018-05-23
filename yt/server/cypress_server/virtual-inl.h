@@ -48,7 +48,7 @@ protected:
         return Map_->GetSize();
     }
 
-    virtual NYTree::IYPathServicePtr FindItemService(const TStringBuf& key) const override
+    virtual NYTree::IYPathServicePtr FindItemService(TStringBuf key) const override
     {
         auto id = NHydra::TEntityKey<TValue>::FromString(key);
         auto* object = Map_->Find(id);

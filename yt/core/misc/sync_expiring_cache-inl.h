@@ -15,7 +15,7 @@ TSyncExpiringCache<TKey, TValue>::TSyncExpiringCache(
     TDuration expirationTimeout,
     IInvokerPtr invoker)
     : CalculateValueAction_(std::move(calculateValueAction))
-    , ExpirationTimeout_(expirationTimeout)
+    , ExpirationTimeout_(NProfiling::DurationToCpuDuration(expirationTimeout))
     , EvictionExecutor_(New<NConcurrency::TPeriodicExecutor>(
         invoker,
         BIND(&TSyncExpiringCache::DeleteExpiredItems, MakeWeak(this)),
@@ -36,7 +36,7 @@ TValue TSyncExpiringCache<TKey, TValue>::Get(const TKey& key)
         auto it = Map_.find(key);
         if (it != Map_.end()) {
             auto& entry = it->second;
-            if (now <= entry.LastUpdateTime + NProfiling::DurationToCpuDuration(ExpirationTimeout_)) {
+            if (now <= entry.LastUpdateTime + ExpirationTimeout_.load()) {
                 entry.LastAccessTime = now;
                 return entry.Value;
             }
@@ -72,9 +72,15 @@ void TSyncExpiringCache<TKey, TValue>::Clear()
 }
 
 template <class TKey, class TValue>
+void TSyncExpiringCache<TKey, TValue>::SetExpirationTimeout(TDuration expirationTimeout)
+{
+    ExpirationTimeout_.store(NProfiling::DurationToCpuDuration(expirationTimeout));
+}
+
+template <class TKey, class TValue>
 void TSyncExpiringCache<TKey, TValue>::DeleteExpiredItems()
 {
-    auto deadline = NProfiling::GetCpuInstant() - NProfiling::DurationToCpuDuration(ExpirationTimeout_);
+    auto deadline = NProfiling::GetCpuInstant() - ExpirationTimeout_.load();
 
     std::vector<TKey> keysToRemove;
     {

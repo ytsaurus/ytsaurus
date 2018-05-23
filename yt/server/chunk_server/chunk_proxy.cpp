@@ -326,17 +326,14 @@ private:
                     break;
                 }
 
-                auto replication = chunk->ComputeReplication(chunkManager->GetChunkRequisitionRegistry());
-                if (!replication) {
-                    replication = TChunkReplication();
-                }
+                auto replication = chunk->GetAggregatedReplication(chunkManager->GetChunkRequisitionRegistry());
 
                 if (key == EInternedAttributeKey::Vital) {
                     BuildYsonFluently(consumer)
-                        .Value(replication->GetVital());
+                        .Value(replication.GetVital());
                 } else {
                     BuildYsonFluently(consumer)
-                        .Value(TSerializableChunkReplication(*replication, chunkManager));
+                        .Value(TSerializableChunkReplication(replication, chunkManager));
                 }
                 return true;
             }
@@ -346,7 +343,7 @@ private:
                     break;
                 }
 
-                auto requisition = chunk->ComputeRequisition(chunkManager->GetChunkRequisitionRegistry());
+                auto requisition = chunk->GetAggregatedRequisition(chunkManager->GetChunkRequisitionRegistry());
                 BuildYsonFluently(consumer)
                     .Value(TSerializableChunkRequisition(requisition, chunkManager));
                 return true;
@@ -384,7 +381,7 @@ private:
                 BuildYsonFluently(consumer)
                     .DoMapFor(0, static_cast<int>(cellTags.size()), [&] (TFluentMap fluent, int index) {
                         auto cellTag = cellTags[index];
-                        const auto& exportData = chunk->GetExportData(index);
+                        const auto exportData = chunk->GetExportData(index);
                         if (exportData.RefCounter > 0) {
                             auto requisitionIndex = exportData.ChunkRequisitionIndex;
                             const auto& requisition = requisitionRegistry->GetRequisition(requisitionIndex);
@@ -404,7 +401,7 @@ private:
                 BuildYsonFluently(consumer)
                     .DoMapFor(0, static_cast<int>(cellTags.size()), [&] (TFluentMap fluent, int index) {
                         auto cellTag = cellTags[index];
-                        const auto& exportData = chunk->GetExportData(index);
+                        const auto exportData = chunk->GetExportData(index);
                         if (exportData.RefCounter > 0) {
                             fluent
                                 .Item(ToString(cellTag)).Value(exportData.ChunkRequisitionIndex);
@@ -437,7 +434,7 @@ private:
                 BuildYsonFluently(consumer)
                     .DoMapFor(0, static_cast<int>(cellTags.size()), [&] (TFluentMap fluent, int index) {
                         auto cellTag = cellTags[index];
-                        const auto& exportData = chunk->GetExportData(index);
+                        const auto exportData = chunk->GetExportData(index);
                         if (exportData.RefCounter > 0) {
                             auto requisitionIndex = exportData.ChunkRequisitionIndex;
                             const auto& replication = requisitionRegistry->GetReplication(requisitionIndex);

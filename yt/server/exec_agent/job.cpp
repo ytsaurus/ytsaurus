@@ -24,6 +24,7 @@
 #include <yt/ytlib/chunk_client/data_source.h>
 #include <yt/ytlib/chunk_client/traffic_meter.h>
 
+#include <yt/ytlib/job_prober_client/public.h>
 #include <yt/ytlib/job_prober_client/job_probe.h>
 #include <yt/ytlib/job_prober_client/job_prober_service_proxy.h>
 
@@ -380,6 +381,12 @@ public:
         StderrSize_ = value;
     }
 
+    virtual void SetStderr(const TString& value) override
+    {
+        VERIFY_THREAD_AFFINITY(ControllerThread);
+        Stderr_ = value;
+    }
+
     virtual TYsonString GetStatistics() const override
     {
         VERIFY_THREAD_AFFINITY(ControllerThread);
@@ -427,6 +434,11 @@ public:
     virtual TString GetStderr() override
     {
         VERIFY_THREAD_AFFINITY(ControllerThread);
+
+        if (Stderr_) {
+            return *Stderr_;
+        }
+
         ValidateJobRunning();
 
         try {
@@ -503,6 +515,13 @@ public:
                 .Events(JobEvents_));
     }
 
+    virtual void ReportStderr() override
+    {
+        ReportStatistics(
+            TJobStatistics()
+                .Stderr(GetStderr()));
+    }
+
     virtual void Interrupt() override
     {
         VERIFY_THREAD_AFFINITY(ControllerThread);
@@ -570,6 +589,8 @@ private:
 
     double Progress_ = 0.0;
     ui64 StderrSize_ = 0;
+
+    TNullable<TString> Stderr_;
 
     TYsonString Statistics_ = TYsonString("{}");
     TInstant StatisticsLastSendTime_ = TInstant::Now();
@@ -655,7 +676,7 @@ private:
     void ValidateJobRunning() const
     {
         if (JobPhase_ != EJobPhase::Running) {
-            THROW_ERROR_EXCEPTION("Job %v is not running", Id_)
+            THROW_ERROR_EXCEPTION(NJobProberClient::EErrorCode::JobIsNotRunning, "Job %v is not running", Id_)
                 << TErrorAttribute("job_state", JobState_)
                 << TErrorAttribute("job_phase", JobPhase_);
         }

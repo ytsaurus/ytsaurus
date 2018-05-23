@@ -14,7 +14,7 @@ void IYsonConsumer::OnRaw(const TYsonString& yson)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TYsonConsumerBase::OnRaw(const TStringBuf& str, EYsonType type)
+void TYsonConsumerBase::OnRaw(TStringBuf str, EYsonType type)
 {
     ParseYsonStringBuffer(str, type, this);
 }

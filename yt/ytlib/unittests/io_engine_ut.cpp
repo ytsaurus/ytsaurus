@@ -45,7 +45,7 @@ TEST_P(TReadWriteTest, Simple)
 
     auto engine = CreateIOEngine(type, config);
     TString fName = GenerateRandomFileName("IOEngineTestWrite");
-    auto file = engine->Open(fName, RdWr | CreateAlways);
+    auto file = engine->Open(fName, RdWr | CreateAlways).Get().ValueOrThrow();
 
     auto data = Allocate(4096);
     ::memset(data.Begin(), 0xdeadbeaf, data.Size());

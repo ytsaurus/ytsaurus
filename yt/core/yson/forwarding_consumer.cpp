@@ -47,7 +47,7 @@ void TForwardingYsonConsumer::FinishForwarding()
     }
 }
 
-void TForwardingYsonConsumer::OnStringScalar(const TStringBuf& value)
+void TForwardingYsonConsumer::OnStringScalar(TStringBuf value)
 {
     if (CheckForwarding()) {
         ForwardingConsumer_->OnStringScalar(value);
@@ -146,7 +146,7 @@ void TForwardingYsonConsumer::OnBeginMap()
     }
 }
 
-void TForwardingYsonConsumer::OnKeyedItem(const TStringBuf& name)
+void TForwardingYsonConsumer::OnKeyedItem(TStringBuf name)
 {
     if (CheckForwarding()) {
         ForwardingConsumer_->OnKeyedItem(name);
@@ -165,7 +165,7 @@ void TForwardingYsonConsumer::OnEndMap()
     }
 }
 
-void TForwardingYsonConsumer::OnRaw(const TStringBuf& yson, EYsonType type)
+void TForwardingYsonConsumer::OnRaw(TStringBuf yson, EYsonType type)
 {
     if (CheckForwarding()) {
         ForwardingConsumer_->OnRaw(yson, type);
@@ -197,7 +197,7 @@ void TForwardingYsonConsumer::OnEndAttributes()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TForwardingYsonConsumer::OnMyStringScalar(const TStringBuf& /*value*/)
+void TForwardingYsonConsumer::OnMyStringScalar(TStringBuf /*value*/)
 {
     Y_UNREACHABLE();
 }
@@ -247,7 +247,7 @@ void TForwardingYsonConsumer::OnMyBeginMap()
     Y_UNREACHABLE();
 }
 
-void TForwardingYsonConsumer::OnMyKeyedItem(const TStringBuf& /*name*/)
+void TForwardingYsonConsumer::OnMyKeyedItem(TStringBuf /*name*/)
 {
     Y_UNREACHABLE();
 }
@@ -267,7 +267,7 @@ void TForwardingYsonConsumer::OnMyEndAttributes()
     Y_UNREACHABLE();
 }
 
-void TForwardingYsonConsumer::OnMyRaw(const TStringBuf& yson, EYsonType type)
+void TForwardingYsonConsumer::OnMyRaw(TStringBuf yson, EYsonType type)
 {
     TYsonConsumerBase::OnRaw(yson, type);
 }

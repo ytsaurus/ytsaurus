@@ -410,6 +410,9 @@ TOperationControllerInitializationResult TOperationControllerBase::InitializeRev
     InitUnrecognizedSpec();
     InitializeOrchid();
 
+    WaitFor(Host->UpdateInitializedOperationNode())
+        .ThrowOnError();
+
     LOG_INFO("Operation initialized");
 
     TOperationControllerInitializationResult result;
@@ -439,6 +442,9 @@ TOperationControllerInitializationResult TOperationControllerBase::InitializeCle
 
     InitUnrecognizedSpec();
     InitializeOrchid();
+
+    WaitFor(Host->UpdateInitializedOperationNode())
+        .ThrowOnError();
 
     LOG_INFO("Operation initialized");
 
@@ -540,15 +546,13 @@ void TOperationControllerBase::InitUnrecognizedSpec()
 
 void TOperationControllerBase::FillInitializationResult(TOperationControllerInitializationResult* result)
 {
-    result->Attributes.Immutable = BuildYsonStringFluently<EYsonType::MapFragment>()
-        .Do(BIND(&TOperationControllerBase::BuildInitializeImmutableAttributes, Unretained(this)))
-        .Finish();
     result->Attributes.Mutable = BuildYsonStringFluently<EYsonType::MapFragment>()
         .Do(BIND(&TOperationControllerBase::BuildInitializeMutableAttributes, Unretained(this)))
         .Finish();
     result->Attributes.BriefSpec = BuildYsonStringFluently<EYsonType::MapFragment>()
         .Do(BIND(&TOperationControllerBase::BuildBriefSpec, Unretained(this)))
         .Finish();
+    result->Attributes.FullSpec = ConvertToYsonString(Spec_);
     result->Attributes.UnrecognizedSpec = ConvertToYsonString(UnrecognizedSpec_);
     result->Transactions = GetTransactions();
 }
@@ -572,35 +576,45 @@ void TOperationControllerBase::InitUpdatingTables()
 
 void TOperationControllerBase::InitializeOrchid()
 {
-    auto createService = [&] (auto fluentMethod) -> IYPathServicePtr {
-        return IYPathService::FromProducer(BIND([fluentMethod = std::move(fluentMethod)] (IYsonConsumer* consumer) {
+    auto createService = [=] (auto fluentMethod) -> IYPathServicePtr {
+        return IYPathService::FromProducer(BIND([fluentMethod = std::move(fluentMethod), weakThis = MakeWeak(this)] (IYsonConsumer* consumer) {
+            auto strongThis = weakThis.Lock();
+            if (!strongThis) {
+                THROW_ERROR_EXCEPTION(NYTree::EErrorCode::ResolveError, "Operation controller was destroyed");
+            }
             BuildYsonFluently(consumer)
+                .Do(fluentMethod);
+        }));
+    };
+
+    // Methods like BuildProgress, BuildBriefProgress, buildJobsYson and BuildJobSplitterInfo build map fragment,
+    // so we have to enclose them with a map in order to pass into createService helper.
+    // TODO(max42): get rid of this when GetOperationInfo is not stopping us from changing Build* signatures any more.
+    auto wrapWithMap = [=] (auto fluentMethod) {
+        return [=, fluentMethod = std::move(fluentMethod)] (TFluentAny fluent) {
+            fluent
                 .BeginMap()
                     .Do(fluentMethod)
                 .EndMap();
-        }))
-            ->Via(CancelableInvoker)
+        };
+    };
+
+    auto createCachedMapService = [=] (auto fluentMethod) -> IYPathServicePtr {
+        return createService(wrapWithMap(std::move(fluentMethod)))
+            ->Via(Invoker)
             ->Cached(Config->ControllerStaticOrchidUpdatePeriod);
     };
 
+    // NB: we may safely pass unretained this below as all the callbacks are wrapped with a createService helper
+    // that takes care on checking the controller presence and properly replying in case it is already destroyed.
     Orchid_ = New<TCompositeMapService>()
-        ->AddChild("progress", createService(BIND(&TOperationControllerBase::BuildProgress, MakeWeak(this))))
-        ->AddChild("brief_progress", createService(BIND(&TOperationControllerBase::BuildBriefProgress, MakeWeak(this))))
-        ->AddChild("running_jobs", createService(BIND(&TOperationControllerBase::BuildJobsYson, MakeWeak(this))))
-        ->AddChild("job_splitter", createService(BIND(&TOperationControllerBase::BuildJobSplitterInfo, MakeWeak(this))))
-        ->AddChild("memory_usage", IYPathService::FromProducer(BIND([weakThis = MakeWeak(this)] (IYsonConsumer* consumer) {
-            if (auto this_ = weakThis.Lock()) {
-                BuildYsonFluently(consumer)
-                    .Value(this_->GetMemoryUsage());
-            }
-        })))
-        ->AddChild("state", IYPathService::FromProducer(BIND([weakThis = MakeWeak(this)] (IYsonConsumer* consumer) {
-            if (auto this_ = weakThis.Lock()) {
-                BuildYsonFluently(consumer)
-                    .Value(this_->State.load());
-            }
-        })))
-            ->Via(CancelableInvoker);
+        ->AddChild("progress", createCachedMapService(BIND(&TOperationControllerBase::BuildProgress, Unretained(this))))
+        ->AddChild("brief_progress", createCachedMapService(BIND(&TOperationControllerBase::BuildBriefProgress, Unretained(this))))
+        ->AddChild("running_jobs", createCachedMapService(BIND(&TOperationControllerBase::BuildJobsYson, Unretained(this))))
+        ->AddChild("job_splitter", createCachedMapService(BIND(&TOperationControllerBase::BuildJobSplitterInfo, Unretained(this))))
+        ->AddChild("memory_usage", createService(BIND(&TOperationControllerBase::BuildMemoryUsageYson, Unretained(this))))
+        ->AddChild("state", createService(BIND(&TOperationControllerBase::BuildStateYson, Unretained(this))))
+        ->Via(Invoker);
 }
 
 void TOperationControllerBase::DoInitialize()
@@ -1861,7 +1875,11 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
             jobSummary->UnreadInputDataSlices.size(),
             jobSummary->SplitJobCount);
     }
-    joblet->Task->OnJobCompleted(joblet, *jobSummary);
+    auto taskResult = joblet->Task->OnJobCompleted(joblet, *jobSummary);
+    if (taskResult.BanTree) {
+        Host->OnOperationBannedInTentativeTree(joblet->TreeId);
+    }
+
     if (JobSplitter_) {
         JobSplitter_->OnJobCompleted(*jobSummary);
     }
@@ -3311,7 +3329,7 @@ void TOperationControllerBase::DoScheduleLocalJob(
                 break;
             }
 
-            bestTask->ScheduleJob(context, jobLimits, treeId, scheduleJobResult);
+            bestTask->ScheduleJob(context, jobLimits, treeId, IsTreeTentative(treeId), scheduleJobResult);
             if (scheduleJobResult->StartDescriptor) {
                 UpdateTask(bestTask);
                 break;
@@ -3436,7 +3454,7 @@ void TOperationControllerBase::DoScheduleNonLocalJob(
                     break;
                 }
 
-                task->ScheduleJob(context, jobLimits, treeId, scheduleJobResult);
+                task->ScheduleJob(context, jobLimits, treeId, IsTreeTentative(treeId), scheduleJobResult);
                 if (scheduleJobResult->StartDescriptor) {
                     UpdateTask(task);
                     return;
@@ -3464,6 +3482,11 @@ void TOperationControllerBase::DoScheduleNonLocalJob(
                 noPendingJobsTaskCount);
         }
     }
+}
+
+bool TOperationControllerBase::IsTreeTentative(const TString& treeId) const
+{
+    return Spec_->TentativePoolTrees.has(treeId);
 }
 
 TCancelableContextPtr TOperationControllerBase::GetCancelableContext() const
@@ -3767,18 +3790,28 @@ void TOperationControllerBase::ProcessFinishedJobResult(std::unique_ptr<TJobSumm
         return;
     }
 
+    bool shouldCreateJobNode =
+        (requestJobNodeCreation && JobNodeCount_ < Config->MaxJobNodesPerOperation) ||
+        (stderrChunkId && StderrCount_ < Spec_->MaxStderrCount);
+
+    if (stderrChunkId && shouldCreateJobNode) {
+        summary->ArchiveStderr = true;
+    }
+
     auto inputPaths = BuildInputPathYson(joblet);
     auto finishedJob = New<TFinishedJobInfo>(joblet, std::move(*summary), std::move(inputPaths));
     // NB: we do not want these values to get into the snapshot as they may be pretty large.
     finishedJob->Summary.StatisticsYson = TYsonString();
     finishedJob->Summary.Statistics.Reset();
-    FinishedJobs_.insert(std::make_pair(jobId, finishedJob));
 
-    bool shouldCreateJobNode =
-        (requestJobNodeCreation && JobNodeCount_ < Config->MaxJobNodesPerOperation) ||
-        (stderrChunkId && StderrCount_ < Spec_->MaxStderrCount);
+    if (finishedJob->Summary.ArchiveJobSpec || finishedJob->Summary.ArchiveStderr) {
+        FinishedJobs_.insert(std::make_pair(jobId, finishedJob));
+    }
 
     if (!shouldCreateJobNode) {
+        if (stderrChunkId) {
+            Host->AddChunkTreesToUnstageList({stderrChunkId}, false /* recursive */);
+        }
         return;
     }
 
@@ -5972,15 +6005,6 @@ bool TOperationControllerBase::HasProgress() const
     }
 }
 
-void TOperationControllerBase::BuildInitializeImmutableAttributes(TFluentMap fluent) const
-{
-    VERIFY_INVOKER_AFFINITY(Invoker);
-
-    fluent
-        .Item("unrecognized_spec").Value(UnrecognizedSpec_)
-        .Item("full_spec").Value(Spec_);
-}
-
 void TOperationControllerBase::BuildInitializeMutableAttributes(TFluentMap fluent) const
 {
     VERIFY_INVOKER_AFFINITY(Invoker);
@@ -6152,17 +6176,6 @@ TYsonString TOperationControllerBase::BuildJobYson(const TJobId& id, bool output
         }
     }
 
-    // Case of finished job.
-    // NB: Temporaly disabled. We should improve UI to consider completed jobs in orchid.
-    //{
-    //    auto it = FinishedJobs_.find(id);
-    //    if (it != FinishedJobs_.end()) {
-    //        const auto& job = it->second;
-    //        YCHECK(!attributesBuilder);
-    //        attributesBuilder = BIND(&TOperationControllerBase::BuildFinishedJobAttributes, MakeStrong(this), job);
-    //    }
-    //}
-
     YCHECK(attributesBuilder);
 
     return BuildYsonStringFluently()
@@ -6173,12 +6186,15 @@ TYsonString TOperationControllerBase::BuildJobYson(const TJobId& id, bool output
 
 IYPathServicePtr TOperationControllerBase::GetOrchid() const
 {
+    if (CancelableContext->IsCanceled()) {
+        return nullptr;
+    }
     return Orchid_;
 }
 
 void TOperationControllerBase::BuildJobsYson(TFluentMap fluent) const
 {
-    VERIFY_INVOKER_AFFINITY(CancelableInvoker);
+    VERIFY_INVOKER_AFFINITY(Invoker);
 
     auto now = GetInstant();
     if (CachedRunningJobsUpdateTime_ + Config->CachedRunningJobsUpdatePeriod < now) {
@@ -6280,11 +6296,16 @@ void TOperationControllerBase::ReleaseJobs(const std::vector<TJobId>& jobIds)
 
     for (const auto& jobId : jobIds) {
         bool archiveJobSpec = false;
+        bool archiveStderr = false;
+
         auto it = FinishedJobs_.find(jobId);
         if (it != FinishedJobs_.end()) {
-            archiveJobSpec = it->second->Summary.ArchiveJobSpec;
+            const auto& jobSummary = it->second->Summary;
+            archiveJobSpec = jobSummary.ArchiveJobSpec;
+            archiveStderr = jobSummary.ArchiveStderr;
+            FinishedJobs_.erase(it);
         }
-        jobsToRelease.emplace_back(TJobToRelease{jobId, archiveJobSpec});
+        jobsToRelease.emplace_back(TJobToRelease{jobId, archiveJobSpec, archiveStderr});
     }
     Host->ReleaseJobs(jobsToRelease);
 }
@@ -6400,7 +6421,7 @@ TYsonString TOperationControllerBase::BuildInputPathYson(const TJobletPtr& joble
 
 void TOperationControllerBase::BuildJobSplitterInfo(TFluentMap fluent) const
 {
-    VERIFY_INVOKER_AFFINITY(SuspendableInvoker);
+    VERIFY_INVOKER_AFFINITY(Invoker);
 
     if (IsPrepared() && JobSplitter_) {
         JobSplitter_->BuildJobSplitterInfo(fluent);

@@ -38,6 +38,7 @@
 namespace NYT {
 namespace NSkynetManager {
 
+using namespace NCrypto;
 using namespace NConcurrency;
 using namespace NYson;
 using namespace NYTree;

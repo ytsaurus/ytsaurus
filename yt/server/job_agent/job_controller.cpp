@@ -163,7 +163,7 @@ private:
     /*!
      *  It is illegal to call #Remove before the job is stopped.
      */
-    void RemoveJob(IJobPtr job, bool archiveJobSpec);
+    void RemoveJob(IJobPtr job, bool archiveJobSpec, bool archiveStderr);
 
     TJobFactory GetFactory(EJobType type) const;
 
@@ -624,7 +624,7 @@ void TJobController::TImpl::InterruptJob(IJobPtr job)
     }
 }
 
-void TJobController::TImpl::RemoveJob(IJobPtr job, bool archiveJobSpec)
+void TJobController::TImpl::RemoveJob(IJobPtr job, bool archiveJobSpec, bool archiveStderr)
 {
     YCHECK(job->GetPhase() > EJobPhase::Cleanup);
     YCHECK(job->GetResourceUsage() == ZeroNodeResources());
@@ -632,6 +632,11 @@ void TJobController::TImpl::RemoveJob(IJobPtr job, bool archiveJobSpec)
     if (archiveJobSpec) {
         LOG_INFO("Job spec archived (JobId: %v)", job->GetId());
         job->ReportSpec();
+    }
+
+    if (archiveStderr) {
+        LOG_INFO("Stderr archived (JobId: %v)", job->GetId());
+        job->ReportStderr();
     }
 
     YCHECK(Jobs_.erase(job->GetId()) == 1);
@@ -849,7 +854,7 @@ void TJobController::TImpl::ProcessHeartbeatResponse(
 
         auto job = FindJob(jobId);
         if (job) {
-            RemoveJob(job, jobToRemove.ArchiveJobSpec);
+            RemoveJob(job, jobToRemove.ArchiveJobSpec, jobToRemove.ArchiveStderr);
         } else {
             LOG_WARNING("Requested to remove a non-existent job (JobId: %v)",
                 jobId);

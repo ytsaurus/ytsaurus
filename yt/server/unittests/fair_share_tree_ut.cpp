@@ -180,6 +180,11 @@ public:
         , Controller_(New<TOperationControllerStrategyHostMock>(jobResourcesList))
     { }
 
+    virtual EOperationType GetType() const override
+    {
+        Y_UNREACHABLE();
+    }
+
     virtual bool IsSchedulable() const override
     {
         return true;

@@ -31,7 +31,7 @@ TJsonCallbacksBuildingNodesImpl::TJsonCallbacksBuildingNodesImpl(
     TreeBuilder_->BeginTree();
 }
 
-void TJsonCallbacksBuildingNodesImpl::OnStringScalar(const TStringBuf& value)
+void TJsonCallbacksBuildingNodesImpl::OnStringScalar(TStringBuf value)
 {
     AccountMemory(value.Size());
     OnItemStarted();
@@ -102,7 +102,7 @@ void TJsonCallbacksBuildingNodesImpl::OnBeginMap()
     Stack_.push_back(EJsonCallbacksNodeType::Map);
 }
 
-void TJsonCallbacksBuildingNodesImpl::OnKeyedItem(const TStringBuf& key)
+void TJsonCallbacksBuildingNodesImpl::OnKeyedItem(TStringBuf key)
 {
     AccountMemory(sizeof(key.size()));
     TreeBuilder_->OnKeyedItem(Utf8Transcoder_.Decode(key));
@@ -325,7 +325,7 @@ TJsonCallbacksForwardingImpl::TJsonCallbacksForwardingImpl(
     , Utf8Transcoder_(utf8Transcoder)
 { }
 
-void TJsonCallbacksForwardingImpl::OnStringScalar(const TStringBuf& value)
+void TJsonCallbacksForwardingImpl::OnStringScalar(TStringBuf value)
 {
     OnItemStarted();
     Consumer_->OnStringScalar(Utf8Transcoder_.Decode(value));
@@ -388,7 +388,7 @@ void TJsonCallbacksForwardingImpl::OnBeginMap()
     Consumer_->OnBeginMap();
 }
 
-void TJsonCallbacksForwardingImpl::OnKeyedItem(const TStringBuf& key)
+void TJsonCallbacksForwardingImpl::OnKeyedItem(TStringBuf key)
 {
     Consumer_->OnKeyedItem(Utf8Transcoder_.Decode(key));
 }

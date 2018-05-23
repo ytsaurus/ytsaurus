@@ -6,8 +6,8 @@
 #include <yt/server/cell_proxy/bootstrap.h>
 #include <yt/server/cell_proxy/config.h>
 
-#include <yt/server/blackbox/cookie_authenticator.h>
-#include <yt/server/blackbox/token_authenticator.h>
+#include <yt/ytlib/auth/cookie_authenticator.h>
+#include <yt/ytlib/auth/token_authenticator.h>
 
 #include <yt/ytlib/api/native_client.h>
 #include <yt/ytlib/api/native_connection.h>
@@ -43,7 +43,7 @@ using namespace NYTree;
 using namespace NConcurrency;
 using namespace NRpc;
 using namespace NCompression;
-using namespace NBlackbox;
+using namespace NAuth;
 using namespace NTableClient;
 using namespace NTabletClient;
 using namespace NObjectClient;
@@ -243,7 +243,7 @@ private:
         }
 
         if (!Bootstrap_->GetConfig()->EnableAuthentication) {
-            auto it = AuthenticatedClients_.find("root");
+            auto it = AuthenticatedClients_.find(NSecurityClient::RootUserName);
             YCHECK(it != AuthenticatedClients_.end());
             return it->second;
         }
@@ -267,23 +267,29 @@ private:
         }
 
         // TODO(sandello): Use a cache here.
-        TAuthenticationResult authenticationResult;
-        const auto& credentials = header.GetExtension(NProto::TCredentialsExt::credentials_ext);
-        if (!credentials.has_user_ip()) {
+        const auto& credentialsExt = header.GetExtension(NProto::TCredentialsExt::credentials_ext);
+        if (!credentialsExt.has_user_ip()) {
             replyWithMissingUserIP();
             return nullptr;
         }
-        if (credentials.has_session_id() || credentials.has_ssl_session_id()) {
-            auto asyncAuthenticationResult = Bootstrap_->GetCookieAuthenticator()->Authenticate(
-                credentials.session_id(),
-                credentials.ssl_session_id(),
-                credentials.domain(),
-                credentials.user_ip());
+
+        TAuthenticationResult authenticationResult;
+        if (credentialsExt.has_session_id() || credentialsExt.has_ssl_session_id()) {
+            TCookieCredentials credentials;
+            credentials.SessionId = credentialsExt.session_id();
+            credentials.SslSessionId = credentialsExt.ssl_session_id();
+            credentials.Host = credentialsExt.domain();
+            credentials.UserIP = credentialsExt.user_ip();
+            const auto& authenticator = Bootstrap_->GetCookieAuthenticator();
+            auto asyncAuthenticationResult = authenticator->Authenticate(credentials);
             authenticationResult = WaitFor(asyncAuthenticationResult)
                 .ValueOrThrow();
-        } else if (credentials.has_token()) {
-            auto asyncAuthenticationResult = Bootstrap_->GetTokenAuthenticator()->Authenticate(
-                TTokenCredentials{credentials.token(), credentials.user_ip()});
+        } else if (credentialsExt.has_token()) {
+            TTokenCredentials credentials;
+            credentials.Token = credentialsExt.token();
+            credentials.UserIP = credentialsExt.user_ip();
+            const auto& authenticator = Bootstrap_->GetTokenAuthenticator();
+            auto asyncAuthenticationResult = authenticator->Authenticate(credentials);
             authenticationResult = WaitFor(asyncAuthenticationResult)
                 .ValueOrThrow();
         } else {

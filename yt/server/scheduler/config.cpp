@@ -182,12 +182,56 @@ TTestingOptions::TTestingOptions()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TOperationsCleanerConfig::TOperationsCleanerConfig()
+{
+    RegisterParameter("enable", Enable)
+        .Default(false);
+    RegisterParameter("enable_archivation", EnableArchivation)
+        .Default(true);
+    RegisterParameter("clean_delay", CleanDelay)
+        .Default(TDuration::Minutes(5));
+    RegisterParameter("archivation_period", ArchivationPeriod)
+        .Default(TDuration::Seconds(30));
+    RegisterParameter("remove_batch_size", RemoveBatchSize)
+        .Default(256);
+    RegisterParameter("remove_batch_timeout", RemoveBatchTimeout)
+        .Default(TDuration::Seconds(5));
+    RegisterParameter("archive_batch_size", ArchiveBatchSize)
+        .Default(100);
+    RegisterParameter("archive_batch_timeout", ArchiveBatchTimeout)
+        .Default(TDuration::Seconds(5));
+    RegisterParameter("max_operation_age", MaxOperationAge)
+        .Default(TDuration::Hours(6));
+    RegisterParameter("max_operation_count_per_user", MaxOperationCountPerUser)
+        .Default(200);
+    RegisterParameter("soft_retained_operation_count", SoftRetainedOperationCount)
+        .Default(200);
+    RegisterParameter("hard_retained_operation_count", HardRetainedOperationCount)
+        .Default(4000);
+    RegisterParameter("min_archivation_retry_sleep_delay", MinArchivationRetrySleepDelay)
+        .Default(TDuration::Seconds(3));
+    RegisterParameter("max_archivation_retry_sleep_delay", MaxArchivationRetrySleepDelay)
+        .Default(TDuration::Minutes(1));
+    RegisterParameter("max_operation_count_enqueued_for_archival", MaxOperationCountEnqueuedForArchival)
+        .Default(7000);
+    RegisterParameter("archivation_enable_delay", ArchivationEnableDelay)
+        .Default(TDuration::Minutes(30));
+
+    RegisterPostprocessor([&] {
+        if (MaxArchivationRetrySleepDelay <= MinArchivationRetrySleepDelay) {
+            THROW_ERROR_EXCEPTION("\"max_archivation_retry_sleep_delay\" must be greater than "
+                "\"min_archivation_retry_sleep_delay\"")
+                << TErrorAttribute("min_archivation_retry_sleep_delay", MinArchivationRetrySleepDelay)
+                << TErrorAttribute("max_archivation_retry_sleep_delay", MaxArchivationRetrySleepDelay);
+        }
+    });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TSchedulerConfig::TSchedulerConfig()
 {
     SetUnrecognizedStrategy(NYTree::EUnrecognizedStrategy::KeepRecursive);
-
-    RegisterParameter("control_thread_priority", ControlThreadPriority)
-        .Default();
 
     RegisterParameter("node_shard_count", NodeShardCount)
         .Default(4)
@@ -259,6 +303,8 @@ TSchedulerConfig::TSchedulerConfig()
         .Default(false);
     RegisterParameter("enable_job_spec_reporter", EnableJobSpecReporter)
         .Default(false);
+    RegisterParameter("enable_job_stderr_reporter", EnableJobStderrReporter)
+        .Default(false);
 
     RegisterParameter("job_interrupt_timeout", JobInterruptTimeout)
         .Default(TDuration::Seconds(10));
@@ -283,6 +329,9 @@ TSchedulerConfig::TSchedulerConfig()
 
     RegisterParameter("scheduling_tag_filter_expire_timeout", SchedulingTagFilterExpireTimeout)
         .Default(TDuration::Seconds(10));
+
+    RegisterParameter("operations_cleaner", OperationsCleaner)
+        .DefaultNew();
 
     RegisterParameter("operations_update_period", OperationsUpdatePeriod)
         .Default(TDuration::Seconds(3));

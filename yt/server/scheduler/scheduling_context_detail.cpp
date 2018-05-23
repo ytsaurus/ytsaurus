@@ -23,8 +23,8 @@ TSchedulingContextBase::TSchedulingContextBase(
     , ResourceLimits_(node->GetResourceLimits())
     , DiskInfo_(node->GetDiskInfo())
     , RunningJobs_(runningJobs)
-    , Config_(config)
-    , Node_(node)
+    , Config_(std::move(config))
+    , Node_(std::move(node))
     , NodeDescriptor_(Node_->BuildExecDescriptor())
     , NodeTags_(Node_->Tags())
 { }
@@ -34,7 +34,7 @@ const TExecNodeDescriptor& TSchedulingContextBase::GetNodeDescriptor() const
     return NodeDescriptor_;
 }
 
-bool TSchedulingContextBase::CanSatisfyResouceRequest(const TJobResources& jobResources) const
+bool TSchedulingContextBase::CanSatisfyResourceRequest(const TJobResources& jobResources) const
 {
     return Dominates(
         ResourceLimits_,
@@ -44,22 +44,18 @@ bool TSchedulingContextBase::CanSatisfyResouceRequest(const TJobResources& jobRe
 bool TSchedulingContextBase::CanStartJob(const TJobResourcesWithQuota& jobResourcesWithQuota) const
 {
     return
-        CanSatisfyResouceRequest(jobResourcesWithQuota.ToJobResources()) &&
+        CanSatisfyResourceRequest(jobResourcesWithQuota.ToJobResources()) &&
         CanSatisfyDiskRequest(DiskInfo_, jobResourcesWithQuota.GetDiskQuota());
 }
 
 bool TSchedulingContextBase::CanStartMoreJobs() const
 {
-    if (!CanSatisfyResouceRequest(MinSpareNodeResources())) {
+    if (!CanSatisfyResourceRequest(MinSpareNodeResources())) {
         return false;
     }
 
     auto maxJobStarts = Config_->MaxStartedJobsPerHeartbeat;
-    if (maxJobStarts && StartedJobs_.size() >= maxJobStarts.Get()) {
-        return false;
-    }
-
-    return true;
+    return !maxJobStarts.HasValue() || StartedJobs_.size() < maxJobStarts.Get();
 }
 
 bool TSchedulingContextBase::CanSchedule(const TSchedulingTagFilter& filter) const

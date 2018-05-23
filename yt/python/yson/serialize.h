@@ -83,7 +83,7 @@ class TGilGuardedYsonConsumer
 public:
     explicit TGilGuardedYsonConsumer(IYsonConsumer* consumer);
 
-    virtual void OnStringScalar(const TStringBuf& value) override;
+    virtual void OnStringScalar(TStringBuf value) override;
     virtual void OnInt64Scalar(i64 value) override;
     virtual void OnUint64Scalar(ui64 value) override;
     virtual void OnDoubleScalar(double value) override;
@@ -93,7 +93,7 @@ public:
     virtual void OnListItem() override;
     virtual void OnEndList() override;
     virtual void OnBeginMap() override;
-    virtual void OnKeyedItem(const TStringBuf& key) override;
+    virtual void OnKeyedItem(TStringBuf key) override;
     virtual void OnEndMap() override;
     virtual void OnBeginAttributes() override;
     virtual void OnEndAttributes() override;

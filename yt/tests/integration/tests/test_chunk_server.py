@@ -107,7 +107,7 @@ class TestChunkServer(YTEnvSetup):
     def test_disable_replicator_when_explicitly_requested_so(self):
         assert get("//sys/@chunk_replicator_enabled")
 
-        set("//sys/@config/enable_chunk_replicator", False)
+        set("//sys/@config/chunk_manager/enable_chunk_replicator", False, recursive=True)
 
         wait(lambda: not get("//sys/@chunk_replicator_enabled"))
 
@@ -137,7 +137,7 @@ class TestChunkServer(YTEnvSetup):
         new_requisition_index = next(iter(new_requisition_indexes))
 
         new_requisition = get("{0}/{1}".format(master_orchid_path, new_requisition_index))
-        assert new_requisition["ref_counter"] == 1
+        assert new_requisition["ref_counter"] == 2 # one for 'local', one for 'aggregated' requisition
         assert new_requisition["vital"]
         assert len(new_requisition["entries"]) == 1
         assert new_requisition["entries"][0]["replication_policy"]["replication_factor"] == 4
@@ -174,3 +174,30 @@ class TestChunkServerMulticell(TestChunkServer):
 
     def test_chunk_requisition_registry_orchid(self):
         pass
+
+##################################################################
+
+class TestMultipleErasurePartsPerNode(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 1
+    DELTA_MASTER_CONFIG = {
+        "chunk_manager": {
+            "allow_multiple_erasure_parts_per_node": True
+        }
+    }
+
+    def test_allow_multiple_erasure_parts_per_node(self):
+        create("table", "//tmp/t", attributes={"erasure_codec": "lrc_12_2_2"})
+        rows = [{"a": "b"}]
+        write_table("//tmp/t", rows)
+        assert read_table("//tmp/t") == rows
+
+        chunk_ids = get("//tmp/t/@chunk_ids")
+        assert len(chunk_ids) == 1
+        chunk_id = chunk_ids[0]
+
+        status = get("#" + chunk_id + "/@replication_status/default")
+        assert not status["data_missing"]
+        assert not status["parity_missing"]
+        assert not status["overreplicated"]
+        assert not status["underreplicated"]

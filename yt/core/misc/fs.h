@@ -135,7 +135,7 @@ void Umount(const TString& path, bool detach);
 //! The filesystem must be mounted with quotas enabled.
 void SetQuota(
     int userId,
-    const TStringBuf& path,
+    TStringBuf path,
     TNullable<i64> diskSpaceLimit,
     TNullable<i64> inodeLimit);
 
