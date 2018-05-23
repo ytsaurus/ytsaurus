@@ -18,7 +18,7 @@ namespace {
 template <class T>
 void ValidateSignature(const T& header)
 {
-    LOG_FATAL_UNLESS(header.Signature == T::ExpectedSignature,
+    LOG_FATAL_UNLESS(header.Signature == T::ExpectedSignature || header.Signature == T::ExpectedSignatureOld,
         "Invalid signature: expected %" PRIx64 ", got %" PRIx64,
         T::ExpectedSignature,
         header.Signature);
@@ -120,13 +120,22 @@ void TAsyncFileChangelogIndex::Read(const TNullable<i32>& truncatedRecordCount)
 
         // Read and check index header.
         TChangelogIndexHeader indexHeader;
-        ReadPod(indexStream, indexHeader);
+        static_assert(sizeof(indexHeader) >= 12, "Sizeof index header must be >= 12");
+        indexStream.Load(&indexHeader, 12);
         ValidateSignature(indexHeader);
         YCHECK(indexHeader.IndexRecordCount >= 0);
+        if (indexHeader.Signature == indexHeader.ExpectedSignature) {
+            indexStream.Skip(sizeof(indexHeader.Padding));
+        }
+
+        // COMPAT(aozeritsky): old format
+        if (indexHeader.Signature == indexHeader.ExpectedSignatureOld) {
+            OldFormat_ = true;
+        }
 
         // Read index records.
         for (int i = 0; i < indexHeader.IndexRecordCount; ++i) {
-            if (indexStream.Avail() < sizeof(TChangelogIndexHeader)) {
+            if (indexStream.Avail() < sizeof(TChangelogIndexRecord)) {
                 break;
             }
 
@@ -143,7 +152,13 @@ void TAsyncFileChangelogIndex::Read(const TNullable<i32>& truncatedRecordCount)
 void TAsyncFileChangelogIndex::TruncateInvalidRecords(i64 correctPrefixSize)
 {
     LOG_WARNING_IF(correctPrefixSize < Index_.size(), "Changelog index contains invalid records, truncated");
+    YCHECK(correctPrefixSize <= Index_.size());
     Index_.resize(correctPrefixSize);
+
+    // COMPAT(aozeritsky): old format
+    if (OldFormat_) {
+        return;
+    }
 
     IndexFile_.reset(new TFile(IndexFileName_, RdWr | Seq | OpenAlways | CloseOnExec));
     IndexFile_->Resize(sizeof(TChangelogIndexHeader) + Index_.size() * sizeof(TChangelogIndexRecord));
@@ -203,11 +218,14 @@ void TAsyncFileChangelogIndex::ProcessRecord(int recordId, i64 currentFilePositi
         CurrentBlockSize_ = 0;
         Index_.emplace_back(recordId, currentFilePosition);
 
-        NFS::ExpectIOErrors([&] () {
-            WritePod(*IndexFile_, Index_.back());
-        });
+        // COMPAT(aozeritsky): old format
+        if (!OldFormat_) {
+            NFS::ExpectIOErrors([&]() {
+                WritePod(*IndexFile_, Index_.back());
+            });
 
-        UpdateIndexHeader();
+            UpdateIndexHeader();
+        }
 
         LOG_DEBUG("Changelog index record added (RecordId: %v, Offset: %v)",
             recordId,
@@ -235,6 +253,8 @@ void TAsyncFileChangelogIndex::Append(int firstRecordId, i64 filePosition, int r
 
 void TAsyncFileChangelogIndex::FlushData()
 {
+    YCHECK(!OldFormat_);
+
     IndexFile_->FlushData();
 }
 

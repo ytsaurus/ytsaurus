@@ -3,11 +3,13 @@
 #include <yt/server/hydra/changelog.h>
 #include <yt/server/hydra/config.h>
 #include <yt/server/hydra/format.h>
+#include <yt/server/hydra/file_helpers.h>
 #include <yt/server/hydra/sync_file_changelog.h>
 
 #include <yt/ytlib/chunk_client/io_engine.h>
 #include <yt/ytlib/hydra/hydra_manager.pb.h>
 
+#include <yt/core/misc/checksum.h>
 #include <yt/core/misc/fs.h>
 
 #include <yt/core/profiling/timing.h>
@@ -277,6 +279,80 @@ TEST_F(TSyncFileChangelogTest, MissingIndex)
         NFS::Remove(TemporaryIndexFile->Name());
         auto changelog = OpenChangelog();
         CheckRead<ui8>(changelog, 0, logRecordCount, logRecordCount);
+    }
+}
+
+TEST_F(TSyncFileChangelogTest, BackwardCompatibility)
+{
+    auto recordCount = 10;
+    auto firstRecordId = 0;
+    auto records = MakeRecords<ui32>(0, recordCount);
+
+    TChangelogHeader header(0, TChangelogHeader::NotTruncatedRecordCount, 2);
+    header.Signature = TChangelogHeader::ExpectedSignatureOld;
+    header.HeaderSize = sizeof(TChangelogHeader);
+
+    TFileWrapper file(TemporaryFile->Name(), WrOnly | CreateAlways);
+    WritePod(file, header);
+
+    for (int index = 0; index < records.size(); ++index) {
+        const auto& record = records[index];
+        TChangelogRecordHeader header(firstRecordId + index, record.Size(), GetChecksum(record), 0);
+        file.Write(&header, 16);
+        WritePadded(file, record);
+    }
+
+    auto changelog = OpenChangelog();
+    CheckRead<ui32>(changelog, firstRecordId, recordCount, recordCount);
+}
+
+TEST_F(TSyncFileChangelogTest, Padding)
+{
+    {
+        const int alignment = 4096;
+        auto changelog = CreateChangelog<ui8>(0);
+
+        TChangelogRecordHeader header;
+        TFileWrapper file(TemporaryFile->Name(), RdOnly);
+
+        auto record = TSharedMutableRef::Allocate(12, false);
+        changelog->Append(0, {record});
+        changelog->Flush();
+
+        auto chunks = changelog->Read(0, std::numeric_limits<int>::max(), std::numeric_limits<i64>::max());
+        EXPECT_EQ(chunks.size(), 1);
+
+        auto paddingSize = alignment - AlignUp(record.Size()) - AlignUp(sizeof(header));
+        file.Seek(-alignment, sEnd);
+        EXPECT_EQ(file.Load(&header, sizeof(header)), sizeof(header));
+        EXPECT_EQ(header.RecordId, 0);
+        EXPECT_EQ(header.DataSize, record.Size());
+        EXPECT_EQ(header.Padding, paddingSize);
+
+        record = TSharedMutableRef::Allocate(alignment - 2 * sizeof(header), false);
+        changelog->Append(1, {record});
+        changelog->Flush();
+
+        paddingSize = alignment - AlignUp(record.Size()) - AlignUp(sizeof(header));
+        ASSERT_EQ(paddingSize, 16);
+
+        file.Seek(-alignment, sEnd);
+        EXPECT_EQ(file.Load(&header, sizeof(header)), sizeof(header));
+        EXPECT_EQ(header.RecordId, 1);
+        EXPECT_EQ(header.DataSize, record.Size());
+        EXPECT_EQ(header.Padding, paddingSize);
+
+        changelog->Append(2, {record});
+        changelog->Flush();
+
+        chunks = changelog->Read(0, std::numeric_limits<int>::max(), std::numeric_limits<i64>::max());
+        EXPECT_EQ(chunks.size(), 3);
+    }
+
+    {
+        auto changelog = OpenChangelog();
+        auto chunks = changelog->Read(0, std::numeric_limits<int>::max(), std::numeric_limits<i64>::max());
+        EXPECT_EQ(chunks.size(), 3);
     }
 }
 
