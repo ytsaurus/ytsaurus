@@ -50,6 +50,8 @@ private:
     std::unique_ptr<TFile> IndexFile_;
 
     i64 CurrentBlockSize_ = 0;
+
+    bool OldFormat_ = false;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
