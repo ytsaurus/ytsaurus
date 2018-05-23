@@ -27,6 +27,7 @@
 
 #include <yt/ytlib/chunk_client/block_cache.h>
 #include <yt/ytlib/chunk_client/chunk_reader.h>
+#include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
 #include <yt/ytlib/chunk_client/chunk_spec.pb.h>
 #include <yt/ytlib/chunk_client/helpers.h>
 #include <yt/ytlib/chunk_client/replication_reader.h>
@@ -119,9 +120,11 @@ struct TSelectCpuCounters
 {
     explicit TSelectCpuCounters(const TTagIdList& list)
         : CpuTime("/select/cpu_time", list)
+        , ChunkReaderStatisticsCounters("/select/chunk_reader_statistics", list)
     { }
 
     TMonotonicCounter CpuTime;
+    TChunkReaderStatisticsCounters ChunkReaderStatisticsCounters;
 };
 
 using TSelectCpuProfilerTrait = TSimpleProfilerTrait<TSelectCpuCounters>;
@@ -658,8 +661,7 @@ private:
         if (!profilerTags.empty()) {
             auto& counters = GetLocallyGloballyCachedValue<TSelectCpuProfilerTrait>(profilerTags);
             TabletNodeProfiler.Increment(counters.CpuTime, DurationToValue(statistics.SyncTime));
-
-            //FIXME(savrus) chunk reader statistics
+            counters.ChunkReaderStatisticsCounters.Increment(TabletNodeProfiler, BlockReadOptions_.ChunkReaderStatistics);
         }
 
         return statistics;

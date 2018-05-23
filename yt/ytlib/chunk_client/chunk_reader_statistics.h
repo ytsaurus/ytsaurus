@@ -1,7 +1,10 @@
 #pragma once
 
 #include "public.h"
+
 #include <yt/ytlib/chunk_client/chunk_reader_statistics.pb.h>
+
+#include <yt/core/profiling/profiler.h>
 
 namespace NYT {
 namespace NChunkClient {
@@ -20,6 +23,27 @@ DEFINE_REFCOUNTED_TYPE(TChunkReaderStatistics)
 
 void ToProto(NProto::TChunkReaderStatistics* protoChunkReaderStatistics, const TChunkReaderStatisticsPtr& chunkReaderStatistics);
 void FromProto(TChunkReaderStatisticsPtr chunkReaderStatistics, NProto::TChunkReaderStatistics* protoChunkReaderStatistics);
+
+void UpdateFromProto(const TChunkReaderStatisticsPtr* chunkReaderStatisticsPtr, const NProto::TChunkReaderStatistics& protoChunkReaderStatistics);
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TChunkReaderStatisticsCounters
+{
+public:
+    explicit TChunkReaderStatisticsCounters(
+        const NYPath::TYPath& path = NYPath::TYPath(),
+        const NProfiling::TTagIdList& tagIds = NProfiling::EmptyTagIds);
+
+    void Increment(
+        const NProfiling::TProfiler& profiler,
+        const TChunkReaderStatisticsPtr& chunkReaderStatistics);
+
+private:
+    NProfiling::TMonotonicCounter DataBytesReadFromDisk;
+    NProfiling::TMonotonicCounter DataBytesReadFromCache;
+    NProfiling::TMonotonicCounter MetaBytesReadFromDisk;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 

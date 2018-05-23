@@ -480,7 +480,7 @@ private:
             SetRpcAttachedBlocks(response, blocks);
         }
 
-        ToProto(response->mutable_disk_read_statistics(), chunkReaderStatistics);
+        ToProto(response->mutable_chunk_reader_statistics(), chunkReaderStatistics);
 
         int blocksWithData = 0;
         for (const auto& block : response->Attachments()) {
@@ -597,7 +597,7 @@ private:
             SetRpcAttachedBlocks(response, blocks);
         }
 
-        ToProto(response->mutable_disk_read_statistics(), chunkReaderStatistics);
+        ToProto(response->mutable_chunk_reader_statistics(), chunkReaderStatistics);
 
         int blocksWithData = static_cast<int>(response->Attachments().size());
         i64 blocksSize = GetByteSize(response->Attachments());
@@ -673,7 +673,7 @@ private:
             *response->mutable_chunk_meta() = partitionTag
                 ? FilterChunkMetaByPartitionTag(*meta, *partitionTag)
                 : static_cast<TChunkMeta>(*meta);
-            ToProto(response->mutable_disk_read_statistics(), options.ChunkReaderStatistics);
+            ToProto(response->mutable_chunk_reader_statistics(), options.ChunkReaderStatistics);
         }).AsyncVia(MetaProcessorThread_->GetInvoker())));
     }
 
