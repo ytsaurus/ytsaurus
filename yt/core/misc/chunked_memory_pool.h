@@ -17,6 +17,11 @@ public:
     TAllocationHolder(const TAllocationHolder&) = delete;
     TAllocationHolder(TAllocationHolder&&) = default;
 
+    void operator delete(void* ptr) noexcept
+    {
+        ::free(ptr);
+    }
+
     template <class TDerived>
     static TDerived* Allocate(size_t size)
     {
