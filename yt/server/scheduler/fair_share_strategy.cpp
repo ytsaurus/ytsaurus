@@ -963,7 +963,7 @@ private:
                 auto tags = GetFailReasonProfilingTags(reason);
                 tags.push_back(treeIdProfilingTag);
 
-                ControllerScheduleJobFail[reason] = TSimpleCounter(
+                ControllerScheduleJobFail[reason] = TMonotonicCounter(
                     prefix + "/controller_schedule_job_fail",
                     tags);
             }
@@ -973,9 +973,9 @@ private:
         TAggregateGauge TotalControllerScheduleJobTime;
         TAggregateGauge ExecControllerScheduleJobTime;
         TAggregateGauge StrategyScheduleJobTime;
-        TSimpleCounter ScheduleJobCount;
-        TSimpleCounter ScheduleJobFailureCount;
-        TEnumIndexedVector<TSimpleCounter, EScheduleJobFailReason> ControllerScheduleJobFail;
+        TMonotonicCounter ScheduleJobCount;
+        TMonotonicCounter ScheduleJobFailureCount;
+        TEnumIndexedVector<TMonotonicCounter, EScheduleJobFailReason> ControllerScheduleJobFail;
     };
 
     TProfilingCounters NonPreemptiveProfilingCounters;

@@ -71,12 +71,12 @@ private:
     std::atomic<int> QueueSize = {0};
 
     NProfiling::TProfiler Profiler;
-    NProfiling::TSimpleCounter EnqueuedCounter;
-    NProfiling::TSimpleCounter DequeuedCounter;
+    NProfiling::TMonotonicCounter EnqueuedCounter;
+    NProfiling::TMonotonicCounter DequeuedCounter;
     NProfiling::TAggregateGauge SizeCounter;
     NProfiling::TAggregateGauge WaitTimeCounter;
     NProfiling::TAggregateGauge ExecTimeCounter;
-    NProfiling::TSimpleCounter CumulativeTimeCounter;
+    NProfiling::TMonotonicCounter CumulativeTimeCounter;
     NProfiling::TAggregateGauge TotalTimeCounter;
 };
 

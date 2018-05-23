@@ -114,10 +114,10 @@ private:
     const NProfiling::TProfiler Profiler;
     TAsyncSemaphorePtr PartitioningSemaphore_;
     TAsyncSemaphorePtr CompactionSemaphore_;
-    NProfiling::TSimpleCounter FeasiblePartitioningsCounter_;
-    NProfiling::TSimpleCounter FeasibleCompactionsCounter_;
-    NProfiling::TSimpleCounter ScheduledPartitioningsCounter_;
-    NProfiling::TSimpleCounter ScheduledCompactionsCounter_;
+    NProfiling::TSimpleGauge FeasiblePartitioningsCounter_;
+    NProfiling::TSimpleGauge FeasibleCompactionsCounter_;
+    NProfiling::TMonotonicCounter ScheduledPartitioningsCounter_;
+    NProfiling::TMonotonicCounter ScheduledCompactionsCounter_;
     const NProfiling::TTagId CompactionTag_ = NProfiling::TProfileManager::Get()->RegisterTag("method", "compaction");
     const NProfiling::TTagId PartitioningTag_ = NProfiling::TProfileManager::Get()->RegisterTag("method", "partitioning");
 
@@ -558,7 +558,7 @@ private:
         std::vector<std::unique_ptr<TTask>>* candidates,
         std::vector<std::unique_ptr<TTask>>* tasks,
         size_t* index,
-        NProfiling::TSimpleCounter& counter)
+        NProfiling::TSimpleGauge& counter)
     {
         Profiler.Update(counter, candidates->size());
 
@@ -595,7 +595,7 @@ private:
         std::vector<std::unique_ptr<TTask>>* tasks,
         size_t* index,
         const TAsyncSemaphorePtr& semaphore,
-        NProfiling::TSimpleCounter& counter,
+        NProfiling::TMonotonicCounter& counter,
         void (TStoreCompactor::*action)(TTask*))
     {
         auto taskGuard = Guard(TaskSpinLock_);

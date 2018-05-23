@@ -467,7 +467,7 @@ private:
     TEpochContextPtr ControlEpochContext_;
     TEpochContextPtr AutomatonEpochContext_;
 
-    THashMap<TString, NProfiling::TSimpleCounter> RestartCounters_;
+    THashMap<TString, NProfiling::TMonotonicCounter> RestartCounters_;
 
     DECLARE_RPC_SERVICE_METHOD(NProto, LookupChangelog)
     {
@@ -912,7 +912,7 @@ private:
             auto tagIds = NProfiling::TTagIdList{
                 NProfiling::TProfileManager::Get()->RegisterTag("cell_id", CellManager_->GetCellId()),
                 NProfiling::TProfileManager::Get()->RegisterTag("reason", message)};
-            auto counter = NProfiling::TSimpleCounter("/restart_count", tagIds);
+            auto counter = NProfiling::TMonotonicCounter("/restart_count", tagIds);
             it = RestartCounters_.insert(std::make_pair(message, counter)).first;
         }
 

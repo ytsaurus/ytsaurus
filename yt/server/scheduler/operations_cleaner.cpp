@@ -390,13 +390,13 @@ private:
 
     TProfiler Profiler = {"/operations_cleaner"};
 
-    TSimpleCounter RemovePendingCounter_ = {"/remove_pending"};
-    TSimpleCounter ArchivePendingCounter_ = {"/archive_pending"};
-    TSimpleCounter ArchivedCounter_ = {"/archived"};
-    TSimpleCounter RemovedCounter_ = {"/removed"};
-    TSimpleCounter CommittedDataWeightCounter_ = {"/committed_data_weight"};
-    TSimpleCounter ArchiveErrorCounter_ = {"/archive_errors"};
-    TSimpleCounter RemoveErrorCounter_ = {"/remove_errors"};
+    TSimpleGauge RemovePendingCounter_ {"/remove_pending"};
+    TSimpleGauge ArchivePendingCounter_ {"/archive_pending"};
+    TMonotonicCounter ArchivedCounter_ {"/archived"};
+    TMonotonicCounter RemovedCounter_ {"/removed"};
+    TMonotonicCounter CommittedDataWeightCounter_ {"/committed_data_weight"};
+    TMonotonicCounter ArchiveErrorCounter_ {"/archive_errors"};
+    TMonotonicCounter RemoveErrorCounter_ {"/remove_errors"};
 
     TAggregateGauge AnalyzeOperationsTimeCounter_ = {"/analyze_operations_time"};
     TAggregateGauge OperationsRowsPreparationTimeCounter_ = {"/operations_rows_preparation_time"};

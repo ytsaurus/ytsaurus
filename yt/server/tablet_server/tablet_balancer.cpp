@@ -130,7 +130,7 @@ private:
     THashSet<const TTabletCellBundle*> BundlesWithActiveActions_;
 
     const NProfiling::TProfiler Profiler;
-    NProfiling::TSimpleCounter QueueSizeCounter_;
+    NProfiling::TSimpleGauge QueueSizeCounter_;
 
     bool BalanceCells_ = false;
 

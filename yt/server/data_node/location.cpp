@@ -120,7 +120,8 @@ TLocation::TLocation(
         for (auto direction : TEnumTraits<EIODirection>::GetDomainValues()) {
             for (auto category : TEnumTraits<EIOCategory>::GetDomainValues()) {
                 auto& counter = (this->*getCounter)(direction, category);
-                counter = NProfiling::TSimpleCounter(
+                typedef typename std::remove_reference<decltype(counter)>::type TCounter;
+                counter = TCounter(
                     path,
                     {
                         profileManager->RegisterTag("direction", direction),
@@ -348,7 +349,7 @@ EIOCategory TLocation::ToIOCategory(const TWorkloadDescriptor& workloadDescripto
     }
 }
 
-NProfiling::TSimpleCounter& TLocation::GetPendingIOSizeCounter(
+NProfiling::TSimpleGauge& TLocation::GetPendingIOSizeCounter(
     EIODirection direction,
     EIOCategory category)
 {
@@ -358,7 +359,7 @@ NProfiling::TSimpleCounter& TLocation::GetPendingIOSizeCounter(
     return PendingIOSizeCounters_[index];
 }
 
-NProfiling::TSimpleCounter& TLocation::GetCompletedIOSizeCounter(
+NProfiling::TMonotonicCounter& TLocation::GetCompletedIOSizeCounter(
     EIODirection direction,
     EIOCategory category)
 {

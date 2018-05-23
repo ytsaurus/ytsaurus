@@ -591,7 +591,7 @@ private:
 
 struct TDecoratedAutomaton::TMutationTypeDescriptor
 {
-    TSimpleCounter CumulativeTimeCounter;
+    TMonotonicCounter CumulativeTimeCounter;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1033,7 +1033,7 @@ TDecoratedAutomaton::TMutationTypeDescriptor* TDecoratedAutomaton::GetTypeDescri
     TTagIdList tagIds{
         TProfileManager::Get()->RegisterTag("type", type)
     };
-    descriptor->CumulativeTimeCounter = TSimpleCounter(
+    descriptor->CumulativeTimeCounter = TMonotonicCounter(
         "/cumulative_mutation_time",
         tagIds);
 
