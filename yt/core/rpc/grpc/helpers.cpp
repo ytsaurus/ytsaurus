@@ -270,7 +270,7 @@ TString SerializeError(const TError& error)
     return serializedError;
 }
 
-TError DeserializeError(const TStringBuf& serializedError)
+TError DeserializeError(TStringBuf serializedError)
 {
     NYT::NProto::TError protoError;
     google::protobuf::io::ArrayInputStream input(serializedError.data(), serializedError.size());
@@ -280,27 +280,16 @@ TError DeserializeError(const TStringBuf& serializedError)
     return FromProto<TError>(protoError);
 }
 
-TString LoadPemBlob(const TPemBlobConfigPtr& config)
-{
-    if (config->FileName) {
-        return TFileInput(*config->FileName).ReadAll();
-    } else if (config->Value) {
-        return *config->Value;
-    } else {
-        Y_UNREACHABLE();
-    }
-}
-
 TGrpcPemKeyCertPair LoadPemKeyCertPair(const TSslPemKeyCertPairConfigPtr& config)
 {
     return TGrpcPemKeyCertPair(
-        LoadPemBlob(config->PrivateKey),
-        LoadPemBlob(config->CertChain));
+        config->PrivateKey->LoadBlob(),
+        config->CertChain->LoadBlob());
 }
 
 TGrpcChannelCredentialsPtr LoadChannelCredentials(const TChannelCredentialsConfigPtr& config)
 {
-    auto rootCerts = config->PemRootCerts ? LoadPemBlob(config->PemRootCerts) : TString();
+    auto rootCerts = config->PemRootCerts ? config->PemRootCerts->LoadBlob() : TString();
     auto keyCertPair = LoadPemKeyCertPair(config->PemKeyCertPair);
     return TGrpcChannelCredentialsPtr(grpc_ssl_credentials_create(
         rootCerts ? rootCerts.c_str() : nullptr,
@@ -310,7 +299,7 @@ TGrpcChannelCredentialsPtr LoadChannelCredentials(const TChannelCredentialsConfi
 
 TGrpcServerCredentialsPtr LoadServerCredentials(const TServerCredentialsConfigPtr& config)
 {
-    auto rootCerts = config->PemRootCerts? LoadPemBlob(config->PemRootCerts) : TString();
+    auto rootCerts = config->PemRootCerts? config->PemRootCerts->LoadBlob() : TString();
     std::vector<TGrpcPemKeyCertPair> keyCertPairs;
     std::vector<grpc_ssl_pem_key_cert_pair> nativeKeyCertPairs;
     for (const auto& pairConfig : config->PemKeyCertPairs) {

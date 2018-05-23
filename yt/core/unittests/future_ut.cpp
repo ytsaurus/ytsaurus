@@ -716,6 +716,72 @@ TEST_W(TFutureTest, Holder)
     EXPECT_TRUE(promise.IsCanceled());
 }
 
+TEST_F(TFutureTest, JustAbanbon)
+{
+    NewPromise<void>();
+}
+
+TEST_F(TFutureTest, AbanbonIsSet)
+{
+    auto promise = NewPromise<void>();
+    auto future = promise.ToFuture();
+    promise.Reset();
+    EXPECT_TRUE(future.IsSet());
+}
+
+TEST_F(TFutureTest, AbanbonTryGet)
+{
+    auto promise = NewPromise<void>();
+    auto future = promise.ToFuture();
+    promise.Reset();
+    EXPECT_EQ(EErrorCode::Canceled, future.TryGet()->GetCode());
+}
+
+TEST_F(TFutureTest, AbanbonGet)
+{
+    auto promise = NewPromise<void>();
+    auto future = promise.ToFuture();
+    promise.Reset();
+    EXPECT_EQ(EErrorCode::Canceled, future.Get().GetCode());
+}
+
+TEST_F(TFutureTest, AbanbonSubscribe)
+{
+    auto promise = NewPromise<void>();
+    auto future = promise.ToFuture();
+    promise.Reset();
+    bool called = false;
+    future.Subscribe(BIND([&] (const TError&) mutable { called = true; }));
+    EXPECT_TRUE(called);
+}
+
+TEST_F(TFutureTest, SubscribeAbanbon)
+{
+    bool called = false;
+    auto promise = NewPromise<void>();
+    auto future = promise.ToFuture();
+    future.Subscribe(BIND([&] (const TError&) mutable {
+        VERIFY_INVOKER_AFFINITY(GetFinalizerInvoker());
+        called = true;
+    }));
+    promise.Reset();
+    Sleep(SleepQuantum);
+    EXPECT_TRUE(called);
+}
+
+TEST_F(TFutureTest, OnCanceledAbanbon)
+{
+    bool called = false;
+    auto promise = NewPromise<void>();
+    auto future = promise.ToFuture();
+    promise.OnCanceled(BIND([&] () mutable {
+        called = true;
+    }));
+    promise.Reset();
+    Sleep(SleepQuantum);
+    EXPECT_FALSE(called);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace

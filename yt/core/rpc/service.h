@@ -177,7 +177,6 @@ struct IServiceContext
 
     //! Replies with a given error when the latter is set.
     void ReplyFrom(TFuture<void> asyncError);
-
 };
 
 DEFINE_REFCOUNTED_TYPE(IServiceContext)

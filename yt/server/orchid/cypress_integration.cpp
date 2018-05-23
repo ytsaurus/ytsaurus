@@ -167,7 +167,7 @@ INodeTypeHandlerPtr CreateOrchidTypeHandler(NCellMaster::TBootstrap* bootstrap)
         BIND([=] (INodePtr owningNode) -> IYPathServicePtr {
             return New<TOrchidYPathService>(bootstrap->GetNodeChannelFactory(), owningNode);
         }),
-        EVirtualNodeOptions::None);
+        EVirtualNodeOptions::RedirectSelf);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

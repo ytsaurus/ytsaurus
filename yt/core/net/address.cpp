@@ -50,12 +50,12 @@ static const NProfiling::TProfiler Profiler("/network");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString BuildServiceAddress(const TStringBuf& hostName, int port)
+TString BuildServiceAddress(TStringBuf hostName, int port)
 {
     return Format("%v:%v", hostName, port);
 }
 
-void ParseServiceAddress(const TStringBuf& address, TStringBuf* hostName, int* port)
+void ParseServiceAddress(TStringBuf address, TStringBuf* hostName, int* port)
 {
     auto colonIndex = address.find_last_of(':');
     if (colonIndex == TString::npos) {
@@ -77,14 +77,14 @@ void ParseServiceAddress(const TStringBuf& address, TStringBuf* hostName, int* p
     }
 }
 
-int GetServicePort(const TStringBuf& address)
+int GetServicePort(TStringBuf address)
 {
     int result;
     ParseServiceAddress(address, nullptr, &result);
     return result;
 }
 
-TStringBuf GetServiceHostName(const TStringBuf& address)
+TStringBuf GetServiceHostName(TStringBuf address)
 {
     TStringBuf result;
     ParseServiceAddress(address, &result, nullptr);
@@ -217,7 +217,7 @@ socklen_t* TNetworkAddress::GetLengthPtr()
     return &Length;
 }
 
-TErrorOr<TNetworkAddress> TNetworkAddress::TryParse(const TStringBuf& address)
+TErrorOr<TNetworkAddress> TNetworkAddress::TryParse(TStringBuf address)
 {
     int closingBracketIndex = address.find(']');
     if (closingBracketIndex == TString::npos || address.empty() || address[0] != '[') {
@@ -304,7 +304,7 @@ TNetworkAddress TNetworkAddress::CreateUnixDomainAddress(const TString& name)
 #endif
 }
 
-TNetworkAddress TNetworkAddress::Parse(const TStringBuf& address)
+TNetworkAddress TNetworkAddress::Parse(TStringBuf address)
 {
     return TryParse(address).ValueOrThrow();
 }
@@ -519,7 +519,7 @@ bool ParseIP6Address(TStringBuf* str, TIP6Address* address)
     return true;
 }
 
-bool ParseMask(const TStringBuf& buf, int* maskSize)
+bool ParseMask(TStringBuf buf, int* maskSize)
 {
     if (buf.size() < 2 || buf[0] != '/') {
         return false;
@@ -590,7 +590,7 @@ TIP6Address TIP6Address::FromRawDWords(const ui32* raw)
     return FromRawBytes(reinterpret_cast<const ui8*>(raw));
 }
 
-TIP6Address TIP6Address::FromString(const TStringBuf& str)
+TIP6Address TIP6Address::FromString(TStringBuf str)
 {
     TIP6Address result;
     if (!FromString(str, &result)) {
@@ -599,7 +599,7 @@ TIP6Address TIP6Address::FromString(const TStringBuf& str)
     return result;
 }
 
-bool TIP6Address::FromString(const TStringBuf& str, TIP6Address* address)
+bool TIP6Address::FromString(TStringBuf str, TIP6Address* address)
 {
     TStringBuf buf = str;
     if (!ParseIP6Address(&buf, address) || !buf.empty()) {
@@ -608,7 +608,7 @@ bool TIP6Address::FromString(const TStringBuf& str, TIP6Address* address)
     return true;
 }
 
-void FormatValue(TStringBuilder* builder, const TIP6Address& address, const TStringBuf& spec)
+void FormatValue(TStringBuilder* builder, const TIP6Address& address, TStringBuf spec)
 {
     const auto* parts = reinterpret_cast<const ui16*>(address.GetRawBytes());
     std::pair<int, int> maxRun = {-1, -1};
@@ -737,7 +737,7 @@ bool TIP6Network::Contains(const TIP6Address& address) const
     return masked == Network_;
 }
 
-TIP6Network TIP6Network::FromString(const TStringBuf& str)
+TIP6Network TIP6Network::FromString(TStringBuf str)
 {
     TIP6Network network;
     if (!FromString(str, &network)) {
@@ -746,7 +746,7 @@ TIP6Network TIP6Network::FromString(const TStringBuf& str)
     return network;
 }
 
-bool TIP6Network::FromString(const TStringBuf& str, TIP6Network* network)
+bool TIP6Network::FromString(TStringBuf str, TIP6Network* network)
 {
     auto buf = str;
     if (!ParseIP6Address(&buf, &network->Network_)) {
@@ -771,7 +771,7 @@ bool TIP6Network::FromString(const TStringBuf& str, TIP6Network* network)
     return true;
 }
 
-void FormatValue(TStringBuilder* builder, const TIP6Network& network, const TStringBuf& spec)
+void FormatValue(TStringBuilder* builder, const TIP6Network& network, TStringBuf spec)
 {
     builder->AppendFormat("%v/%v",
         network.GetAddress(),

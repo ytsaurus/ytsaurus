@@ -48,7 +48,7 @@ public:
         AddNode(node, false);
     }
 
-    virtual void OnMyStringScalar(const TStringBuf& value) override
+    virtual void OnMyStringScalar(TStringBuf value) override
     {
         auto node = Factory->CreateString();
         node->SetValue(TString(value));
@@ -110,7 +110,7 @@ public:
         AddNode(Factory->CreateMap(), true);
     }
 
-    virtual void OnMyKeyedItem(const TStringBuf& key) override
+    virtual void OnMyKeyedItem(TStringBuf key) override
     {
         Key = TString(key);
     }

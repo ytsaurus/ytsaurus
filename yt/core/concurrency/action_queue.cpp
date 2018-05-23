@@ -629,15 +629,21 @@ public:
 
     virtual void Invoke(TClosure callback) override
     {
-        UnderlyingInvoker_->Invoke(BIND([callback = std::move(callback), memoryTag = MemoryTag_] () mutable
-        {
-            TMemoryTagGuard guard(memoryTag);
-            callback.Run();
-        }));
+        UnderlyingInvoker_->Invoke(BIND(
+            &TMemoryTaggingInvoker::RunCallback,
+            MakeStrong(this),
+            Passed(std::move(callback))));
     }
 
 private:
     TMemoryTag MemoryTag_;
+
+    void RunCallback(TClosure callback)
+    {
+        TCurrentInvokerGuard currentInvokerGuard(this);
+        TMemoryTagGuard memoryTagGuard(MemoryTag_);
+        callback.Run();
+    }
 };
 
 IInvokerPtr CreateMemoryTaggingInvoker(IInvokerPtr underlyingInvoker, TMemoryTag tag)

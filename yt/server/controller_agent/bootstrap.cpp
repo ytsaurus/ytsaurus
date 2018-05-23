@@ -31,9 +31,10 @@
 
 #include <yt/ytlib/core_dump/core_dumper.h>
 
-#include <yt/core/bus/config.h>
 #include <yt/core/bus/server.h>
-#include <yt/core/bus/tcp_server.h>
+
+#include <yt/core/bus/tcp/config.h>
+#include <yt/core/bus/tcp/server.h>
 
 #include <yt/core/http/server.h>
 
@@ -44,6 +45,7 @@
 
 #include <yt/core/misc/core_dumper.h>
 #include <yt/core/misc/ref_counted_tracker.h>
+#include <yt/core/misc/ref_counted_tracker_statistics_producer.h>
 #include <yt/core/misc/lfalloc_helpers.h>
 #include <yt/core/misc/proc.h>
 
@@ -145,7 +147,7 @@ void TBootstrap::DoRun()
     MonitoringManager_ = New<TMonitoringManager>();
     MonitoringManager_->Register(
         "/ref_counted",
-        TRefCountedTracker::Get()->GetMonitoringProducer());
+        CreateRefCountedTrackerStatisticsProducer());
     MonitoringManager_->Start();
 
     LFAllocProfiler_ = std::make_unique<NLFAlloc::TLFAllocProfiler>();

@@ -1521,8 +1521,7 @@ public:
     virtual TFuture<void> GetReadyEvent() override
     {
         if (IsAborted()) {
-            return MakeFuture(TError("Transaction %v aborted",
-                 TransactionId_));
+            return MakeFuture(GetAbortError());
         }
         return UnderlyingWriter_->GetReadyEvent();
     }

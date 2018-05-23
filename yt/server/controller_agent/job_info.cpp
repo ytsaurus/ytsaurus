@@ -31,11 +31,12 @@ TJoblet::TJoblet()
     , OutputCookie(-1)
 { }
 
-TJoblet::TJoblet(TTask* task, int jobIndex, int taskJobIndex, const TString& treeId)
+TJoblet::TJoblet(TTask* task, int jobIndex, int taskJobIndex, const TString& treeId, bool treeIsTentative)
     : Task(std::move(task))
     , JobIndex(jobIndex)
     , TaskJobIndex(taskJobIndex)
     , TreeId(treeId)
+    , TreeIsTentative(treeIsTentative)
     , OutputCookie(IChunkPoolOutput::NullCookie)
 { }
 
@@ -76,6 +77,7 @@ void TJoblet::Persist(const TPersistenceContext& context)
     Persist(context, CoreTableChunkListId);
     Persist(context, JobMetrics);
     Persist(context, TreeId);
+    Persist(context, TreeIsTentative);
 
     if (context.IsLoad()) {
         Revived = true;

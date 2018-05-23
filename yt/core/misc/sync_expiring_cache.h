@@ -21,6 +21,8 @@ public:
     TValue Get(const TKey& key);
     void Clear();
 
+    void SetExpirationTimeout(TDuration expirationTimeout);
+
 private:
     struct TEntry
     {
@@ -33,7 +35,7 @@ private:
     THashMap<TKey, TEntry> Map_;
 
     const TCallback<TValue(const TKey&)> CalculateValueAction_;
-    const TDuration ExpirationTimeout_;
+    std::atomic<NProfiling::TCpuDuration> ExpirationTimeout_;
     NConcurrency::TPeriodicExecutorPtr EvictionExecutor_;
 
     void DeleteExpiredItems();

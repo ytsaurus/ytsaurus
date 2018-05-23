@@ -211,9 +211,9 @@ protected:
             BuildInputOutputJobSpec(joblet, jobSpec);
         }
 
-        virtual void OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary) override
+        virtual TJobCompletedResult OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary) override
         {
-            TTask::OnJobCompleted(joblet, jobSummary);
+            auto result = TTask::OnJobCompleted(joblet, jobSummary);
 
             TChunkStripeKey key = 0;
             if (Controller_->OrderedOutputRequired_) {
@@ -221,6 +221,8 @@ protected:
             }
 
             RegisterOutput(&jobSummary.Result, joblet->ChunkListIds, joblet, key);
+
+            return result;
         }
 
         virtual void OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& jobSummary) override

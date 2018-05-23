@@ -1,10 +1,13 @@
 #include <yt/core/test_framework/framework.h>
 
 #include <yt/core/bus/bus.h>
-#include <yt/core/bus/config.h>
 #include <yt/core/bus/server.h>
-#include <yt/core/bus/tcp_client.h>
-#include <yt/core/bus/tcp_server.h>
+
+#include <yt/core/bus/tcp/config.h>
+#include <yt/core/bus/tcp/client.h>
+#include <yt/core/bus/tcp/server.h>
+
+#include <yt/core/crypto/config.h>
 
 #include <yt/core/concurrency/action_queue.h>
 #include <yt/core/concurrency/delayed_executor.h>
@@ -34,6 +37,7 @@ namespace {
 using namespace NYT::NBus;
 using namespace NYT::NRpc::NBus;
 using namespace NConcurrency;
+using namespace NCrypto;
 
 static const TString DefaultAddress = "localhost:2000";
 
@@ -474,12 +478,12 @@ public:
         auto channelConfig = New<NGrpc::TChannelConfig>();
         if (EnableSsl) {
             channelConfig->Credentials = New<NGrpc::TChannelCredentialsConfig>();
-            channelConfig->Credentials->PemRootCerts = New<NGrpc::TPemBlobConfig>();
+            channelConfig->Credentials->PemRootCerts = New<TPemBlobConfig>();
             channelConfig->Credentials->PemRootCerts->Value = RootCert;
             channelConfig->Credentials->PemKeyCertPair = New<NGrpc::TSslPemKeyCertPairConfig>();
-            channelConfig->Credentials->PemKeyCertPair->PrivateKey = New<NGrpc::TPemBlobConfig>();
+            channelConfig->Credentials->PemKeyCertPair->PrivateKey = New<TPemBlobConfig>();
             channelConfig->Credentials->PemKeyCertPair->PrivateKey->Value = ClientKey;
-            channelConfig->Credentials->PemKeyCertPair->CertChain = New<NGrpc::TPemBlobConfig>();
+            channelConfig->Credentials->PemKeyCertPair->CertChain = New<TPemBlobConfig>();
             channelConfig->Credentials->PemKeyCertPair->CertChain->Value = ClientCert;
         }
         channelConfig->Address = address;
@@ -491,12 +495,12 @@ public:
         auto serverAddressConfig = New<NGrpc::TServerAddressConfig>();
         if (EnableSsl) {
             serverAddressConfig->Credentials = New<NGrpc::TServerCredentialsConfig>();
-            serverAddressConfig->Credentials->PemRootCerts = New<NGrpc::TPemBlobConfig>();
+            serverAddressConfig->Credentials->PemRootCerts = New<TPemBlobConfig>();
             serverAddressConfig->Credentials->PemRootCerts->Value = RootCert;
             serverAddressConfig->Credentials->PemKeyCertPairs.push_back(New<NGrpc::TSslPemKeyCertPairConfig>());
-            serverAddressConfig->Credentials->PemKeyCertPairs[0]->PrivateKey = New<NGrpc::TPemBlobConfig>();
+            serverAddressConfig->Credentials->PemKeyCertPairs[0]->PrivateKey = New<TPemBlobConfig>();
             serverAddressConfig->Credentials->PemKeyCertPairs[0]->PrivateKey->Value = ServerKey;
-            serverAddressConfig->Credentials->PemKeyCertPairs[0]->CertChain = New<NGrpc::TPemBlobConfig>();
+            serverAddressConfig->Credentials->PemKeyCertPairs[0]->CertChain = New<TPemBlobConfig>();
             serverAddressConfig->Credentials->PemKeyCertPairs[0]->CertChain->Value = ServerCert;
         }
         serverAddressConfig->Address = DefaultAddress;

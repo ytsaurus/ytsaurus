@@ -20,6 +20,7 @@ message TJobResources
     optional double cpu = 2;
     optional int64 memory = 3;
     optional int32 network = 4;
+    optional int32 gpu = 5;
 }
 
 // TODO(babenko): consider renaming
@@ -30,6 +31,7 @@ message TJobResourcesWithQuota
     optional int64 memory = 3;
     optional int32 network = 4;
     optional int64 disk_quota = 5;
+    optional int32 gpu = 6;
 }
 
 message TFileDescriptor

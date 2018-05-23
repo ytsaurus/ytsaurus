@@ -178,13 +178,73 @@ DEFINE_REFCOUNTED_TYPE(TTestingOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TOperationsCleanerConfig
+    : public virtual NYTree::TYsonSerializable
+{
+public:
+    //! Enables cleaner.
+    bool Enable;
+
+    //! Enables archivation, if set to false then operations will be removed from Cypress
+    //! without insertion to archive.
+    bool EnableArchivation;
+
+    //! Operations are kept in Cypress for this duration after finish.
+    TDuration CleanDelay;
+
+    //! Archivation period.
+    TDuration ArchivationPeriod;
+
+    //! Number of operations to remove in one batch.
+    int RemoveBatchSize;
+
+    //! Timeout for removal batch to be collected. If timeout expires then
+    //! removal of smaller batch will be performed.
+    TDuration RemoveBatchTimeout;
+
+    //! Operations older than this timeout will be removed.
+    TDuration MaxOperationAge;
+
+    //! Number of operations to archive in one batch.
+    //! Should be moderate since row of operation is rather big.
+    int ArchiveBatchSize;
+
+    //! Timeout for archival batch to be collected. If timeout expires then
+    //! archivation of smaller batch will be performed.
+    TDuration ArchiveBatchTimeout;
+
+    //! Leave no more than this amount of operation per each user.
+    int MaxOperationCountPerUser;
+
+    //! Leave no more than this amount of completed and aborted operations.
+    int SoftRetainedOperationCount;
+
+    //! Leave no more than this amount of operations in total.
+    int HardRetainedOperationCount;
+
+    //! Min sleep delay in retries between two insertion invocations.
+    TDuration MinArchivationRetrySleepDelay;
+
+    //! Max sleep delay in retries between two insertion invocations.
+    TDuration MaxArchivationRetrySleepDelay;
+
+    //! Archivation will be disabled if enqueued operation count exceeds this limit.
+    int MaxOperationCountEnqueuedForArchival;
+
+    //! Duration after which archivation will be turned on again.
+    TDuration ArchivationEnableDelay;
+
+    TOperationsCleanerConfig();
+};
+
+DEFINE_REFCOUNTED_TYPE(TOperationsCleanerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TSchedulerConfig
     : public TFairShareStrategyConfig
 {
 public:
-    //! Priority of control thread.
-    TNullable<int> ControlThreadPriority;
-
     //! Number of shards the nodes are split into.
     int NodeShardCount;
 
@@ -251,8 +311,11 @@ public:
     // Enables job reporter to send job events/statistics etc.
     bool EnableJobReporter;
 
-    // Enables job spec reporter to send job specs.
+    // Enables job reporter to send job specs.
     bool EnableJobSpecReporter;
+
+    // Enables job reporter to send job stderrs.
+    bool EnableJobStderrReporter;
 
     // Timeout to try interrupt job before abort it.
     TDuration JobInterruptTimeout;
@@ -297,6 +360,9 @@ public:
     NYTree::IMapNodePtr SpecTemplate;
 
     int MinAgentCountForWaitingOperation;
+
+    // Operations cleaner config.
+    TOperationsCleanerConfigPtr OperationsCleaner;
 
     TSchedulerConfig();
 };

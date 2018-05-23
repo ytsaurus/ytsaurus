@@ -39,6 +39,11 @@ public:
     /*!
      *  \note Thread affinity: any
      */
+    const TOperationsCleanerPtr& GetOperationsCleaner() const;
+
+    /*!
+     *  \note Thread affinity: any
+     */
     NYTree::IYPathServicePtr GetOrchidService() const;
 
     /*!
@@ -105,6 +110,7 @@ public:
     void OnOperationFailed(const TOperationPtr& operation, const TError& error);
     void OnOperationSuspended(const TOperationPtr& operation, const TError& error);
     void OnOperationAgentUnregistered(const TOperationPtr& operation);
+    void OnOperationBannedInTentativeTree(const TOperationPtr& operation, const TString& treeId);
 
     TFuture<NYson::TYsonString> Strace(const TJobId& jobId, const TString& user);
     TFuture<void> DumpInputContext(const TJobId& jobId, const NYPath::TYPath& path, const TString& user);

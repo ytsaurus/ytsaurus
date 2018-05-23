@@ -2,11 +2,6 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/admin_server/admin_service.cpp
   ${CMAKE_CURRENT_LIST_DIR}/admin_server/private.cpp
 
-  ${CMAKE_CURRENT_LIST_DIR}/blackbox/cookie_authenticator.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/blackbox/default_blackbox_service.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/blackbox/token_authenticator.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/blackbox/private.cpp
-
   ${CMAKE_CURRENT_LIST_DIR}/containers/instance.cpp
   ${CMAKE_CURRENT_LIST_DIR}/containers/porto_executor.cpp
   ${CMAKE_CURRENT_LIST_DIR}/containers/private.cpp
@@ -78,6 +73,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/controller_agent/bootstrap.cpp
   ${CMAKE_CURRENT_LIST_DIR}/controller_agent/chunk_list_pool.cpp
   ${CMAKE_CURRENT_LIST_DIR}/controller_agent/chunk_pool_adapters.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/controller_agent/tentative_tree_eligibility.cpp
   ${CMAKE_CURRENT_LIST_DIR}/controller_agent/controller_agent.cpp
   ${CMAKE_CURRENT_LIST_DIR}/controller_agent/config.cpp
   ${CMAKE_CURRENT_LIST_DIR}/controller_agent/controller_agent_service.cpp
@@ -332,6 +328,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/event_log.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/exec_node.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/fair_share_strategy.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/scheduler/operations_cleaner.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/fair_share_tree_element.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/fair_share_strategy_operation_controller.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/helpers.cpp

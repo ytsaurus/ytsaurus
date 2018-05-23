@@ -51,10 +51,14 @@ struct TJobTag
 struct TJobSpecTag
 { };
 
+struct TJobStderrTag
+{ };
+
 namespace {
 
 static const TProfiler JobProfiler("/statistics_reporter/jobs");
 static const TProfiler JobSpecProfiler("/statistics_reporter/job_specs");
+static const TProfiler JobStderrProfiler("/statistics_reporter/stderrs");
 static const TLogger ReporterLogger("JobReporter");
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -362,38 +366,41 @@ private:
         size_t dataWeight = 0;
         for (auto&& statistics : batch) {
             TUnversionedRowBuilder builder;
-            builder.AddValue(MakeUnversionedUint64Value(statistics.OperationId().Parts64[0], Table_.Ids.OperationIdHi));
-            builder.AddValue(MakeUnversionedUint64Value(statistics.OperationId().Parts64[1], Table_.Ids.OperationIdLo));
-            builder.AddValue(MakeUnversionedUint64Value(statistics.JobId().Parts64[0], Table_.Ids.JobIdHi));
-            builder.AddValue(MakeUnversionedUint64Value(statistics.JobId().Parts64[1], Table_.Ids.JobIdLo));
+            builder.AddValue(MakeUnversionedUint64Value(statistics.OperationId().Parts64[0], Table_.Index.OperationIdHi));
+            builder.AddValue(MakeUnversionedUint64Value(statistics.OperationId().Parts64[1], Table_.Index.OperationIdLo));
+            builder.AddValue(MakeUnversionedUint64Value(statistics.JobId().Parts64[0], Table_.Index.JobIdHi));
+            builder.AddValue(MakeUnversionedUint64Value(statistics.JobId().Parts64[1], Table_.Index.JobIdLo));
             if (statistics.Type()) {
-                builder.AddValue(MakeUnversionedStringValue(*statistics.Type(), Table_.Ids.Type));
+                builder.AddValue(MakeUnversionedStringValue(*statistics.Type(), Table_.Index.Type));
             }
             if (statistics.State()) {
                 builder.AddValue(MakeUnversionedStringValue(
                     *statistics.State(),
                     GetSharedData()->GetOperationArchiveVersion() >= 16
-                        ? Table_.Ids.TransientState
-                        : Table_.Ids.State));
+                        ? Table_.Index.TransientState
+                        : Table_.Index.State));
             }
             if (statistics.StartTime()) {
-                builder.AddValue(MakeUnversionedInt64Value(*statistics.StartTime(), Table_.Ids.StartTime));
+                builder.AddValue(MakeUnversionedInt64Value(*statistics.StartTime(), Table_.Index.StartTime));
             }
             if (statistics.FinishTime()) {
-                builder.AddValue(MakeUnversionedInt64Value(*statistics.FinishTime(), Table_.Ids.FinishTime));
+                builder.AddValue(MakeUnversionedInt64Value(*statistics.FinishTime(), Table_.Index.FinishTime));
             }
-            builder.AddValue(MakeUnversionedStringValue(DefaultLocalAddress_, Table_.Ids.Address));
+            builder.AddValue(MakeUnversionedStringValue(DefaultLocalAddress_, Table_.Index.Address));
             if (statistics.Error()) {
-                builder.AddValue(MakeUnversionedAnyValue(*statistics.Error(), Table_.Ids.Error));
+                builder.AddValue(MakeUnversionedAnyValue(*statistics.Error(), Table_.Index.Error));
             }
             if (statistics.Statistics()) {
-                builder.AddValue(MakeUnversionedAnyValue(*statistics.Statistics(), Table_.Ids.Statistics));
+                builder.AddValue(MakeUnversionedAnyValue(*statistics.Statistics(), Table_.Index.Statistics));
             }
             if (statistics.Events()) {
-                builder.AddValue(MakeUnversionedAnyValue(*statistics.Events(), Table_.Ids.Events));
+                builder.AddValue(MakeUnversionedAnyValue(*statistics.Events(), Table_.Index.Events));
+            }
+            if (statistics.Stderr()) {
+                builder.AddValue(MakeUnversionedUint64Value(statistics.Stderr()->Size(), Table_.Index.StderrSize));
             }
             if (GetSharedData()->GetOperationArchiveVersion() >= 18) {
-                builder.AddValue(MakeUnversionedInt64Value(TInstant::Now().MicroSeconds(), Table_.Ids.UpdateTime));
+                builder.AddValue(MakeUnversionedInt64Value(TInstant::Now().MicroSeconds(), Table_.Index.UpdateTime));
             }
             rows.push_back(rowBuffer->Capture(builder.GetRow()));
             dataWeight += GetDataWeight(rows.back());
@@ -441,17 +448,17 @@ private:
         size_t dataWeight = 0;
         for (auto&& statistics : batch) {
             TUnversionedRowBuilder builder;
-            builder.AddValue(MakeUnversionedUint64Value(statistics.JobId().Parts64[0], Table_.Ids.JobIdHi));
-            builder.AddValue(MakeUnversionedUint64Value(statistics.JobId().Parts64[1], Table_.Ids.JobIdLo));
+            builder.AddValue(MakeUnversionedUint64Value(statistics.JobId().Parts64[0], Table_.Index.JobIdHi));
+            builder.AddValue(MakeUnversionedUint64Value(statistics.JobId().Parts64[1], Table_.Index.JobIdLo));
             if (statistics.Spec()) {
-                builder.AddValue(MakeUnversionedStringValue(*statistics.Spec(), Table_.Ids.Spec));
+                builder.AddValue(MakeUnversionedStringValue(*statistics.Spec(), Table_.Index.Spec));
             }
             if (statistics.SpecVersion()) {
-                builder.AddValue(MakeUnversionedInt64Value(*statistics.SpecVersion(), Table_.Ids.SpecVersion));
+                builder.AddValue(MakeUnversionedInt64Value(*statistics.SpecVersion(), Table_.Index.SpecVersion));
             }
             if (GetSharedData()->GetOperationArchiveVersion() >= 16) {
                 if (statistics.Type()) {
-                    builder.AddValue(MakeUnversionedStringValue(*statistics.Type(), Table_.Ids.Type));
+                    builder.AddValue(MakeUnversionedStringValue(*statistics.Type(), Table_.Index.Type));
                 }
             }
             rows.push_back(rowBuffer->Capture(builder.GetRow()));
@@ -460,6 +467,57 @@ private:
 
         transaction.WriteRows(
             GetOperationsArchiveJobSpecsPath(),
+            Table_.NameTable,
+            MakeSharedRange(std::move(rows), std::move(rowBuffer)));
+
+        return dataWeight;
+    }
+};
+
+class TJobStderrHandler
+    : public THandlerBase
+{
+public:
+    TJobStderrHandler(
+        TSharedDataPtr data,
+        const TStatisticsReporterConfigPtr& config,
+        INativeClientPtr client,
+        IInvokerPtr invoker)
+        : THandlerBase(
+            std::move(data),
+            config,
+            "stderrs",
+            std::move(client),
+            invoker,
+            JobStderrProfiler,
+            config->MaxInProgressJobStderrDataSize)
+    { }
+
+private:
+    const TJobStderrTableDescriptor Table_;
+
+    virtual size_t HandleBatchTransaction(ITransaction& transaction, const TBatch& batch) override
+    {
+        std::vector<TUnversionedRow> rows;
+        auto rowBuffer = New<TRowBuffer>(TJobStderrTag());
+
+        size_t dataWeight = 0;
+        for (auto&& statistics : batch) {
+            TUnversionedRowBuilder builder;
+            builder.AddValue(MakeUnversionedUint64Value(statistics.OperationId().Parts64[0], Table_.Ids.OperationIdHi));
+            builder.AddValue(MakeUnversionedUint64Value(statistics.OperationId().Parts64[1], Table_.Ids.OperationIdLo));
+            builder.AddValue(MakeUnversionedUint64Value(statistics.JobId().Parts64[0], Table_.Ids.JobIdHi));
+            builder.AddValue(MakeUnversionedUint64Value(statistics.JobId().Parts64[1], Table_.Ids.JobIdLo));
+            if (statistics.Stderr()) {
+                builder.AddValue(MakeUnversionedStringValue(*statistics.Stderr(), Table_.Ids.Stderr));
+            }
+
+            rows.push_back(rowBuffer->Capture(builder.GetRow()));
+            dataWeight += GetDataWeight(rows.back());
+        }
+
+        transaction.WriteRows(
+            GetOperationsArchiveJobStderrsPath(),
             Table_.NameTable,
             MakeSharedRange(std::move(rows), std::move(rowBuffer)));
 
@@ -493,12 +551,21 @@ public:
                 reporterConfig,
                 Client_,
                 Reporter_->GetInvoker()))
+        , JobStderrHandler_(
+            New<TJobStderrHandler>(
+                Data_,
+                reporterConfig,
+                Client_,
+                Reporter_->GetInvoker()))
     { }
 
     void ReportStatistics(TJobStatistics&& statistics)
     {
         if (IsSpecEntry(statistics)) {
             JobSpecHandler_->Enqueue(statistics.ExtractSpec());
+        }
+        if (statistics.Stderr()) {
+            JobStderrHandler_->Enqueue(statistics.ExtractStderr());
         }
         if (!statistics.IsEmpty()) {
             JobHandler_->Enqueue(std::move(statistics));
@@ -515,6 +582,11 @@ public:
         JobSpecHandler_->SetEnabled(enable);
     }
 
+    void SetStderrEnabled(bool enable)
+    {
+        JobStderrHandler_->SetEnabled(enable);
+    }
+
     void SetOperationArchiveVersion(int version)
     {
         Data_->SetOperationArchiveVersion(version);
@@ -526,6 +598,7 @@ private:
     const TSharedDataPtr Data_ = New<TSharedData>();
     const TJobHandlerPtr JobHandler_;
     const THandlerBasePtr JobSpecHandler_;
+    const THandlerBasePtr JobStderrHandler_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -557,6 +630,13 @@ void TStatisticsReporter::SetSpecEnabled(bool enable)
 {
     if (Impl_) {
         Impl_->SetSpecEnabled(enable);
+    }
+}
+
+void TStatisticsReporter::SetStderrEnabled(bool enable)
+{
+    if (Impl_) {
+        Impl_->SetStderrEnabled(enable);
     }
 }
 

@@ -314,9 +314,11 @@ TControllerAgentConfig::TControllerAgentConfig()
 
     RegisterParameter("exec_nodes_update_period", ExecNodesUpdatePeriod)
         .Default(TDuration::Seconds(10));
-    RegisterParameter("operation_alerts_update_period", OperationAlertsUpdatePeriod)
+    RegisterParameter("operations_push_period", OperationsPushPeriod)
+        .Default(TDuration::Seconds(1));
+    RegisterParameter("operation_alerts_push_period", OperationAlertsPushPeriod)
         .Default(TDuration::Seconds(3));
-    RegisterParameter("suspicious_jobs_update_period", SuspiciousJobsUpdatePeriod)
+    RegisterParameter("suspicious_jobs_push_period", SuspiciousJobsPushPeriod)
         .Default(TDuration::Seconds(3));
 
     RegisterParameter("controller_thread_count", ControllerThreadCount)

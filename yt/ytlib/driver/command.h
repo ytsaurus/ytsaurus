@@ -60,14 +60,14 @@ void ProduceEmptyOutput(ICommandContextPtr context);
 //! Run |producer| (v3) or open a map with key |name| and run |producer| then close map (v4).
 void ProduceSingleOutput(
     ICommandContextPtr context,
-    const TStringBuf& name,
+    TStringBuf name,
     std::function<void(NYson::IYsonConsumer*)> producer);
 
 //! Produces either |value| (v3) or map {|name|=|value|} (v4).
 template <typename T>
 void ProduceSingleOutputValue(
     ICommandContextPtr context,
-    const TStringBuf& name,
+    TStringBuf name,
     const T& value);
 
 ////////////////////////////////////////////////////////////////////////////////

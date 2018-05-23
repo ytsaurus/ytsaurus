@@ -537,7 +537,7 @@ private:
             return 0;
         }
 
-        virtual IYPathServicePtr FindItemService(const TStringBuf& key) const override
+        virtual IYPathServicePtr FindItemService(TStringBuf key) const override
         {
             if (auto owner = Owner_.Lock()) {
                 if (auto tablet = owner->FindTablet(TTabletId::FromString(key))) {
@@ -864,7 +864,7 @@ private:
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
         auto mountRevision = request->mount_revision();
         auto tableId = FromProto<TObjectId>(request->table_id());
-        auto path = request->has_path() ? request->path() : "";
+        const auto& path = request->path();
         auto schema = FromProto<TTableSchema>(request->schema());
         auto pivotKey = request->has_pivot_key() ? FromProto<TOwningKey>(request->pivot_key()) : TOwningKey();
         auto nextPivotKey = request->has_next_pivot_key() ? FromProto<TOwningKey>(request->next_pivot_key()) : TOwningKey();
@@ -909,12 +909,13 @@ private:
 
         tablet->SetState(freeze ? ETabletState::Frozen : ETabletState::Mounted);
 
-        LOG_INFO_UNLESS(IsRecovery(), "Tablet mounted (TabletId: %v, MountRevision: %llx, TableId: %v, Keys: %v .. %v, "
+        LOG_INFO_UNLESS(IsRecovery(), "Tablet mounted (TabletId: %v, MountRevision: %llx, TableId: %v, TablePath: %v, Keys: %v .. %v, "
             "StoreCount: %v, PartitionCount: %v, TotalRowCount: %v, TrimmedRowCount: %v, Atomicity: %v, "
             "CommitOrdering: %v, Frozen: %v, UpstreamReplicaId: %v)",
             tabletId,
             mountRevision,
             tableId,
+            path,
             pivotKey,
             nextPivotKey,
             request->stores_size(),
@@ -1017,6 +1018,12 @@ private:
         tablet->FillProfilerTags(Slot_->GetCellId());
         tablet->UpdateReplicaCounters();
         UpdateTabletSnapshot(tablet);
+
+        for (auto& pair : tablet->Replicas()) {
+            auto& replicaInfo = pair.second;
+            StopTableReplicaEpoch(&replicaInfo);
+            StartTableReplicaEpoch(tablet, &replicaInfo);
+        }
 
         LOG_INFO_UNLESS(IsRecovery(), "Tablet remounted (TabletId: %v)",
             tabletId);
@@ -1772,7 +1779,14 @@ private:
             return;
         }
 
-        AddTableReplica(tablet, request->replica());
+        auto* replicaInfo = AddTableReplica(tablet, request->replica());
+        if (!replicaInfo) {
+            return;
+        }
+
+        if (IsLeader()) {
+            StartTableReplicaEpoch(tablet, replicaInfo);
+        }
     }
 
     void HydraRemoveTableReplica(TReqRemoveTableReplica* request)
@@ -2681,6 +2695,7 @@ private:
 
     void StartTableReplicaEpoch(TTablet* tablet, TTableReplicaInfo* replicaInfo)
     {
+        YCHECK(!replicaInfo->GetReplicator());
         replicaInfo->SetReplicator(New<TTableReplicator>(
             Config_,
             tablet,
@@ -2689,7 +2704,6 @@ private:
             Slot_,
             Bootstrap_->GetTabletSlotManager(),
             CreateSerializedInvoker(Bootstrap_->GetTableReplicatorPoolInvoker())));
-
         if (replicaInfo->GetState() == ETableReplicaState::Enabled) {
             replicaInfo->GetReplicator()->Enable();
         }
@@ -2697,9 +2711,10 @@ private:
 
     void StopTableReplicaEpoch(TTableReplicaInfo* replicaInfo)
     {
-        if (replicaInfo->GetReplicator()) {
-            replicaInfo->GetReplicator()->Disable();
+        if (!replicaInfo->GetReplicator()) {
+            return;
         }
+        replicaInfo->GetReplicator()->Disable();
         replicaInfo->SetReplicator(nullptr);
     }
 
@@ -3079,7 +3094,7 @@ private:
     }
 
 
-    void AddTableReplica(TTablet* tablet, const TTableReplicaDescriptor& descriptor)
+    TTableReplicaInfo* AddTableReplica(TTablet* tablet, const TTableReplicaDescriptor& descriptor)
     {
         auto replicaId = FromProto<TTableReplicaId>(descriptor.replica_id());
         auto& replicas = tablet->Replicas();
@@ -3087,7 +3102,7 @@ private:
             LOG_WARNING_UNLESS(IsRecovery(), "Requested to add an already existing table replica (TabletId: %v, ReplicaId: %v)",
                 tablet->GetId(),
                 replicaId);
-            return;
+            return nullptr;
         }
 
         auto pair = replicas.emplace(replicaId, TTableReplicaInfo(replicaId));
@@ -3100,10 +3115,6 @@ private:
         replicaInfo.SetState(ETableReplicaState::Disabled);
         replicaInfo.SetMode(ETableReplicaMode(descriptor.mode()));
         replicaInfo.MergeFromStatistics(descriptor.statistics());
-
-        if (IsLeader()) {
-            StartTableReplicaEpoch(tablet, &replicaInfo);
-        }
 
         tablet->UpdateReplicaCounters();
         UpdateTabletSnapshot(tablet);
@@ -3118,6 +3129,8 @@ private:
             replicaInfo.GetStartReplicationTimestamp(),
             replicaInfo.GetCurrentReplicationRowIndex(),
             replicaInfo.GetCurrentReplicationTimestamp());
+
+        return &replicaInfo;
     }
 
     void RemoveTableReplica(TTablet* tablet, const TTableReplicaId& replicaId)

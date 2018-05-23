@@ -180,7 +180,7 @@ void TAttributeDictionaryValueSerializer::Load(TStreamLoadContext& context, IAtt
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ValidateYTreeKey(const TStringBuf& key)
+void ValidateYTreeKey(TStringBuf key)
 {
     Y_UNUSED(key);
     // XXX(vvvv): Disabled due to existing data with empty keys, see https://st.yandex-team.ru/YQL-2640

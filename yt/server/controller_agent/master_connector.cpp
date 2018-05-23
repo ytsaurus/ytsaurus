@@ -121,6 +121,15 @@ public:
             request));
     }
 
+    TFuture<void> UpdateInitializedOperationNode(const TOperationId& operationId)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        return BIND(&TImpl::DoUpdateInitializedOperationNode, MakeStrong(this), operationId)
+            .AsyncVia(CancelableControlInvoker_)
+            .Run();
+    }
+
     TFuture<void> FlushOperationNode(const TOperationId& operationId)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -414,6 +423,16 @@ private:
         return batchReq;
     }
 
+    TObjectServiceProxy::TReqExecuteBatchPtr StartObjectBatchRequestWithPrerequisites(
+        EMasterChannelKind channelKind = EMasterChannelKind::Leader,
+        TCellTag cellTag = PrimaryMasterCellTag)
+    {
+        auto batchReq = StartObjectBatchRequest(channelKind, cellTag);
+        auto* prerequisitesExt = batchReq->Header().MutableExtension(NObjectClient::NProto::TPrerequisitesExt::prerequisites_ext);
+        ToProto(prerequisitesExt->add_transactions()->mutable_transaction_id(), Bootstrap_->GetControllerAgent()->GetIncarnationId());
+        return batchReq;
+    }
+
     TChunkServiceProxy::TReqExecuteBatchPtr StartChunkBatchRequest(TCellTag cellTag = PrimaryMasterCellTag)
     {
         TChunkServiceProxy proxy(Bootstrap_
@@ -511,6 +530,42 @@ private:
         }
     }
 
+    void DoUpdateInitializedOperationNode(const TOperationId& operationId)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        const auto& controllerAgent = Bootstrap_->GetControllerAgent();
+        auto operation = controllerAgent->GetOperation(operationId);
+
+        auto paths = GetOperationPaths(operation->GetId(), operation->GetEnableCompatibleStorageMode());
+
+        auto batchReq = StartObjectBatchRequestWithPrerequisites();
+        GenerateMutationId(batchReq);
+
+        for (const auto& operationPath : paths) {
+            // Update controller agent address.
+            {
+                auto req = TYPathProxy::Set(operationPath + "/@controller_agent_address");
+                req->set_value(ConvertToYsonString(GetDefaultAddress(Bootstrap_->GetLocalAddresses())).GetData());
+                batchReq->AddRequest(req, "set_controller_agent_address");
+            }
+            // Update controller agent orchid, it should point to this controller agent.
+            {
+                auto req = TCypressYPathProxy::Create(operationPath + "/controller_orchid");
+                req->set_force(true);
+                req->set_type(static_cast<int>(EObjectType::Orchid));
+                auto attributes = CreateEphemeralAttributes();
+                attributes->Set("remote_addresses", Bootstrap_->GetLocalAddresses());
+                attributes->Set("remote_root", "//controller_agent/operations/" + ToYPathLiteral(ToString(operationId)));
+                ToProto(req->mutable_node_attributes(), *attributes);
+                batchReq->AddRequest(req, "create_controller_orchid");
+            }
+        }
+
+        auto batchRspOrError = WaitFor(batchReq->Invoke());
+        THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError));
+    }
+
     void DoUpdateOperationNode(const TOperationPtr& operation)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -605,7 +660,7 @@ private:
         }
 
         try {
-            UpdateOperationNodeAttributes(operationId);
+            UpdateOperationNodes(operationId);
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error updating operation %v node",
                 operationId)
@@ -639,7 +694,7 @@ private:
             .AsyncVia(CancelableControlInvoker_);
     }
 
-    void UpdateOperationNodeAttributes(const TOperationId& operationId)
+    void UpdateOperationNodes(const TOperationId& operationId)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -658,7 +713,7 @@ private:
 
         auto paths = GetOperationPaths(operationId, operation->GetEnableCompatibleStorageMode());
 
-        auto batchReq = StartObjectBatchRequest();
+        auto batchReq = StartObjectBatchRequestWithPrerequisites();
         GenerateMutationId(batchReq);
 
         auto progress = controller->GetProgress();
@@ -684,13 +739,6 @@ private:
                 req->set_value(briefProgress.GetData());
             }
 
-            // Set controller agent address.
-            {
-                auto req = multisetReq->add_subrequests();
-                req->set_key("controller_agent_address");
-                req->set_value(ConvertToYsonString(GetDefaultAddress(Bootstrap_->GetLocalAddresses())).GetData());
-            }
-
             batchReq->AddRequest(multisetReq, "update_op_node");
         }
 
@@ -712,7 +760,7 @@ private:
             return {};
         }
 
-        auto batchReq = StartObjectBatchRequest();
+        auto batchReq = StartObjectBatchRequestWithPrerequisites();
 
         for (const auto& request : requests) {
             const auto& jobId = request.JobId;
@@ -800,7 +848,7 @@ private:
 
         // BeginUpload
         {
-            auto batchReq = StartObjectBatchRequest();
+            auto batchReq = StartObjectBatchRequestWithPrerequisites();
 
             for (const auto& pair : tableIdToInfo) {
                 const auto& tableId = pair.first;
@@ -903,7 +951,7 @@ private:
 
         // EndUpload
         {
-            auto batchReq = StartObjectBatchRequest();
+            auto batchReq = StartObjectBatchRequestWithPrerequisites();
 
             for (const auto& pair : tableIdToInfo) {
                 const auto& tableId = pair.first;
@@ -953,63 +1001,47 @@ private:
 
     TOperationSnapshot DoDownloadSnapshot(const TOperationId& operationId)
     {
-        std::vector<NYTree::TYPath> paths = {
-            GetNewSnapshotPath(operationId),
-            GetSnapshotPath(operationId)
-        };
-
         auto batchReq = StartObjectBatchRequest();
-        for (const auto& path : paths) {
-            auto req = TYPathProxy::Get(path + "/@version");
+
+        {
+            auto req = TYPathProxy::Get(GetNewSnapshotPath(operationId) + "/@version");
             batchReq->AddRequest(req, "get_version");
         }
 
         auto batchRspOrError = WaitFor(batchReq->Invoke());
         const auto& batchRsp = batchRspOrError.ValueOrThrow();
 
-        auto rsps = batchRsp->GetResponses<TYPathProxy::TRspGet>("get_version");
-        YCHECK(rsps.size() == paths.size());
+        auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_version");
 
-        TNullable<int> version;
-        NYTree::TYPath snapshotPath;
 
-        for (int index = 0; index < paths.size(); ++index) {
-            const auto& rsp = rsps[index];
-
-            if (rsp.IsOK()) {
-                const auto& versionRsp = rsp.Value();
-                version = ConvertTo<int>(TYsonString(versionRsp->value()));
-                snapshotPath = paths[index];
-                break;
-            } else {
-                if (!rsp.FindMatching(NYTree::EErrorCode::ResolveError)) {
-                    THROW_ERROR_EXCEPTION("Error getting snapshot version")
-                        << rsp;
-                }
+        if (!rspOrError.IsOK()) {
+            if (rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
+                THROW_ERROR_EXCEPTION("Snapshot does not exist");
             }
+
+            THROW_ERROR_EXCEPTION("Error getting snapshot version")
+                << rspOrError;
         }
 
-        if (!version) {
-            THROW_ERROR_EXCEPTION("Snapshot does not exist");
-        }
+        const auto& rsp = rspOrError.Value();
+        int version = ConvertTo<int>(TYsonString(rsp->value()));
 
-        LOG_INFO("Snapshot found (OperationId: %v, Version: %v, Path: %v)",
+        LOG_INFO("Snapshot found (OperationId: %v, Version: %v)",
             operationId,
-            *version,
-            snapshotPath);
+            version);
 
-        if (!ValidateSnapshotVersion(*version)) {
+        if (!ValidateSnapshotVersion(version)) {
             THROW_ERROR_EXCEPTION("Snapshot version validation failed");
         }
 
         TOperationSnapshot snapshot;
-        snapshot.Version = *version;
+        snapshot.Version = version;
         try {
             auto downloader = New<TSnapshotDownloader>(
                 Config_,
                 Bootstrap_,
                 operationId);
-            snapshot.Data = downloader->Run(snapshotPath);
+            snapshot.Data = downloader->Run();
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error downloading snapshot") << ex;
         }
@@ -1041,9 +1073,9 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        auto batchReq = StartObjectBatchRequest();
-        for (const auto& path : {GetSnapshotPath(operationId), GetNewSnapshotPath(operationId)}) {
-            auto req = TYPathProxy::Remove(path);
+        auto batchReq = StartObjectBatchRequestWithPrerequisites();
+        {
+            auto req = TYPathProxy::Remove(GetNewSnapshotPath(operationId));
             req->set_force(true);
             batchReq->AddRequest(req, "remove_snapshot");
         }
@@ -1321,6 +1353,11 @@ void TMasterConnector::CreateJobNode(const TOperationId& operationId, const TCre
 TFuture<void> TMasterConnector::FlushOperationNode(const TOperationId& operationId)
 {
     return Impl_->FlushOperationNode(operationId);
+}
+
+TFuture<void> TMasterConnector::UpdateInitializedOperationNode(const TOperationId& operationId)
+{
+    return Impl_->UpdateInitializedOperationNode(operationId);
 }
 
 TFuture<void> TMasterConnector::AttachToLivePreview(

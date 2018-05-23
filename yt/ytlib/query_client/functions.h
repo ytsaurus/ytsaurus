@@ -96,7 +96,7 @@ public:
         TTypeSet* constraint,
         TNullable<EValueType>* stateType,
         TNullable<EValueType>* resultType,
-        const TStringBuf& name) const;
+        TStringBuf name) const;
 
 private:
     const std::unordered_map<TTypeArgument, TUnionType> TypeArgumentConstraints_;

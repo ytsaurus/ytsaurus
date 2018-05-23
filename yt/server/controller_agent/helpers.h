@@ -156,6 +156,28 @@ void BuildFileSpecs(NScheduler::NProto::TUserJobSpec* jobSpec, const std::vector
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class T>
+class TAvgSummary
+{
+public:
+    DEFINE_BYVAL_RO_PROPERTY(T, Sum);
+    DEFINE_BYVAL_RO_PROPERTY(i64, Count);
+    DEFINE_BYVAL_RO_PROPERTY(TNullable<T>, Avg);
+
+public:
+    TAvgSummary();
+    TAvgSummary(T sum, i64 count);
+
+    void AddSample(T sample);
+
+    void Persist(const TPersistenceContext& context);
+
+private:
+    TNullable<T> CalcAvg();
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 NApi::INativeConnectionPtr FindRemoteConnection(
     const NApi::INativeConnectionPtr& connection,
     NObjectClient::TCellTag cellTag);

@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <yt/server/blackbox/public.h>
-
 #include <yt/server/rpc_proxy/public.h>
+
+#include <yt/ytlib/auth/public.h>
 
 #include <yt/ytlib/api/public.h>
 
@@ -40,8 +40,8 @@ public:
     const IInvokerPtr& GetWorkerInvoker() const;
     const NApi::INativeConnectionPtr& GetNativeConnection() const;
     const NApi::INativeClientPtr& GetNativeClient() const;
-    const NBlackbox::ITokenAuthenticatorPtr& GetTokenAuthenticator() const;
-    const NBlackbox::ICookieAuthenticatorPtr& GetCookieAuthenticator() const;
+    const NAuth::ITokenAuthenticatorPtr& GetTokenAuthenticator() const;
+    const NAuth::ICookieAuthenticatorPtr& GetCookieAuthenticator() const;
     const NRpcProxy::IProxyCoordinatorPtr& GetProxyCoordinator() const;
     const NNodeTrackerClient::TAddressMap& GetLocalAddresses() const;
 
@@ -63,8 +63,8 @@ private:
 
     NApi::INativeConnectionPtr NativeConnection_;
     NApi::INativeClientPtr NativeClient_;
-    NBlackbox::ITokenAuthenticatorPtr TokenAuthenticator_;
-    NBlackbox::ICookieAuthenticatorPtr CookieAuthenticator_;
+    NAuth::ITokenAuthenticatorPtr TokenAuthenticator_;
+    NAuth::ICookieAuthenticatorPtr CookieAuthenticator_;
     NRpcProxy::IProxyCoordinatorPtr ProxyCoordinator_;
     NNodeTrackerClient::TAddressMap LocalAddresses_;
 

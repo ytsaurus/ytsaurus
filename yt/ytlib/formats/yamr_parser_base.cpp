@@ -62,7 +62,7 @@ TYamrDelimitedBaseParser::TYamrDelimitedBaseParser(
         &ValueEscapeTable_);
 }
 
-void TYamrDelimitedBaseParser::Read(const TStringBuf& data)
+void TYamrDelimitedBaseParser::Read(TStringBuf data)
 {
     auto current = data.begin();
     auto end = data.end();
@@ -109,7 +109,7 @@ std::unique_ptr<IAttributeDictionary> TYamrDelimitedBaseParser::GetDebugInfo() c
     return result;
 }
 
-void TYamrDelimitedBaseParser::ProcessTableSwitch(const TStringBuf& tableIndex)
+void TYamrDelimitedBaseParser::ProcessTableSwitch(TStringBuf tableIndex)
 {
     Y_ASSERT(!ExpectingEscapedChar);
     Y_ASSERT(State == EState::InsideKey);
@@ -128,7 +128,7 @@ void TYamrDelimitedBaseParser::ProcessTableSwitch(const TStringBuf& tableIndex)
     Consumer->SwitchTable(value);
 }
 
-void TYamrDelimitedBaseParser::ProcessKey(const TStringBuf& key)
+void TYamrDelimitedBaseParser::ProcessKey(TStringBuf key)
 {
     Y_ASSERT(!ExpectingEscapedChar);
     Y_ASSERT(State == EState::InsideKey);
@@ -136,7 +136,7 @@ void TYamrDelimitedBaseParser::ProcessKey(const TStringBuf& key)
     State = Config_->HasSubkey ? EState::InsideSubkey : EState::InsideValue;
 }
 
-void TYamrDelimitedBaseParser::ProcessSubkey(const TStringBuf& subkey)
+void TYamrDelimitedBaseParser::ProcessSubkey(TStringBuf subkey)
 {
     Y_ASSERT(!ExpectingEscapedChar);
     Y_ASSERT(State == EState::InsideSubkey);
@@ -144,7 +144,7 @@ void TYamrDelimitedBaseParser::ProcessSubkey(const TStringBuf& subkey)
     State = EState::InsideValue;
 }
 
-void TYamrDelimitedBaseParser::ProcessSubkeyBadFormat(const TStringBuf& subkey)
+void TYamrDelimitedBaseParser::ProcessSubkeyBadFormat(TStringBuf subkey)
 {
     Y_ASSERT(!ExpectingEscapedChar);
     Y_ASSERT(State == EState::InsideSubkey);
@@ -153,7 +153,7 @@ void TYamrDelimitedBaseParser::ProcessSubkeyBadFormat(const TStringBuf& subkey)
     State = EState::InsideKey;
 }
 
-void TYamrDelimitedBaseParser::ProcessValue(const TStringBuf& value)
+void TYamrDelimitedBaseParser::ProcessValue(TStringBuf value)
 {
     Y_ASSERT(!ExpectingEscapedChar);
     Y_ASSERT(State == EState::InsideValue);
@@ -163,7 +163,7 @@ void TYamrDelimitedBaseParser::ProcessValue(const TStringBuf& value)
 }
 
 const char* TYamrDelimitedBaseParser::ProcessToken(
-    void (TYamrDelimitedBaseParser::*processor)(const TStringBuf& value),
+    void (TYamrDelimitedBaseParser::*processor)(TStringBuf value),
     const char* begin,
     const char* next)
 {
@@ -291,7 +291,7 @@ TYamrLenvalBaseParser::TYamrLenvalBaseParser(
     , State(EState::InsideKey)
 { }
 
-void TYamrLenvalBaseParser::Read(const TStringBuf& data)
+void TYamrLenvalBaseParser::Read(TStringBuf data)
 {
     auto current = data.begin();
     while (current != data.end()) {

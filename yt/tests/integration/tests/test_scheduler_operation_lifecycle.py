@@ -646,6 +646,12 @@ class SchedulerReviveBase(YTEnvSetup):
 
         self.Env.start_schedulers()
 
+        # complete_operation retry may come when operation is in reviving state. In this case we should complete operation again.
+        wait(lambda: op.get_state() in ("running", "completed"))
+
+        if op.get_state() == "running":
+            op.complete()
+
         op.track()
 
         events = get("//sys/operations/{0}/@events".format(op.id))
@@ -740,10 +746,8 @@ class SchedulerReviveBase(YTEnvSetup):
 
         self._wait_for_state(op, "running")
 
-        failed_jobs_path = "//sys/scheduler/orchid/scheduler/operations/" + op.id + "/progress/jobs/failed"
-
         def failed_jobs_exist():
-            return exists(failed_jobs_path) and get(failed_jobs_path) >= 3
+            return op.get_job_count("failed") >= 3
 
         wait(failed_jobs_exist)
 
@@ -755,7 +759,7 @@ class SchedulerReviveBase(YTEnvSetup):
         self.Env.kill_schedulers()
         self.Env.start_schedulers()
 
-        wait(lambda: exists(failed_jobs_path) and get(failed_jobs_path) >= 3)
+        wait(lambda: op.get_job_count("failed") >= 3)
 
 class TestSchedulerReviveMap(SchedulerReviveBase):
     OP_TYPE = "map"
@@ -863,7 +867,7 @@ class TestControllerAgent(YTEnvSetup):
             dont_track=True)
         self._wait_for_state(op, "running")
 
-        snapshot_path = op._get_new_operation_path() + "/snapshot"
+        snapshot_path = op.get_path() + "/snapshot"
         wait(lambda: exists(snapshot_path))
 
         self.Env.kill_controller_agents()

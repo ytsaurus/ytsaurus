@@ -13,7 +13,7 @@ TStatelessLexer::TStatelessLexer()
 TStatelessLexer::~TStatelessLexer()
 { }
 
-size_t TStatelessLexer::GetToken(const TStringBuf& data, TToken* token)
+size_t TStatelessLexer::GetToken(TStringBuf data, TToken* token)
 {
     return Impl->GetToken(data, token);
 }

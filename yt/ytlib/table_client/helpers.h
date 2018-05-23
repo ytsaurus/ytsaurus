@@ -76,7 +76,7 @@ void PipeInputToOutput(
 
 // NB: not using TYsonString here to avoid copying.
 TUnversionedValue MakeUnversionedValue(
-    const TStringBuf& ysonString, int id,
+    TStringBuf ysonString, int id,
     NYson::TStatelessLexer& lexer);
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -66,11 +66,11 @@ private:
 
     TMutex Mutex_;
     std::atomic<bool> HasCachedDataFile_ = {false};
-    std::shared_ptr<TFileHandle> CachedDataFile_;
+    TFuture<std::shared_ptr<TFileHandle>> CachedDataFile_;
     std::atomic<bool> HasCachedBlocksExt_ = {false};
     TFuture<NProto::TBlocksExt> CachedBlocksExt_;
 
-    TFuture<std::vector<TBlock>> DoReadBlocks(int firstBlockIndex, int blockCount);
+    TFuture<std::vector<TBlock>> DoReadBlocks(int firstBlockIndex, int blockCount, const TWorkloadDescriptor& workloadDescriptor);
     std::vector<TBlock> OnDataBlock(
         int firstBlockIndex,
         int blockCount,

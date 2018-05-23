@@ -207,6 +207,11 @@ public:
         JobStderrSize_ = value;
     }
 
+    virtual void SetStderr(const TString& value) override
+    {
+        Y_UNREACHABLE();
+    }
+
     virtual TYsonString GetStatistics() const override
     {
         return TYsonString();
@@ -292,6 +297,11 @@ public:
         Y_UNREACHABLE();
     }
 
+    virtual void ReportStderr() override
+    {
+        Y_UNREACHABLE();
+    }
+
     virtual bool GetStored() const override
     {
         return false;
@@ -318,6 +328,8 @@ protected:
 
     double Progress_ = 0.0;
     ui64 JobStderrSize_ = 0;
+
+    TString Stderr_;
 
     TFuture<void> JobFuture_;
 

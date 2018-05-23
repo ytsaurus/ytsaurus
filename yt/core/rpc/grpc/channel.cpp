@@ -378,13 +378,14 @@ private:
             YCHECK(result == GRPC_CALL_OK);
         }
 
-        void NotifyError(const TStringBuf& reason, const TError& error)
+        void NotifyError(TStringBuf reason, const TError& error)
         {
             if (Notified_.test_and_set()) {
                 return;
             }
 
             auto detailedError = error
+                << TErrorAttribute("realm_id", Request_->GetRealmId())
                 << TErrorAttribute("service", Request_->GetService())
                 << TErrorAttribute("method", Request_->GetMethod())
                 << TErrorAttribute("request_id", Request_->GetRequestId())

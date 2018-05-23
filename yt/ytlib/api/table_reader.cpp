@@ -355,8 +355,7 @@ TFuture<void> TSchemalessTableReader::GetReadyEvent()
     }
 
     if (IsAborted()) {
-        return MakeFuture(TError("Transaction %v aborted",
-            TransactionId_));
+        return MakeFuture(GetAbortError());
     }
 
     YCHECK(UnderlyingReader_);

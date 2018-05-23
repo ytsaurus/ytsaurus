@@ -11,8 +11,8 @@ class TUtf8Transcoder
 public:
     explicit TUtf8Transcoder(bool enableEncoding = true);
 
-    TStringBuf Encode(const TStringBuf& str);
-    TStringBuf Decode(const TStringBuf& str);
+    TStringBuf Encode(TStringBuf str);
+    TStringBuf Decode(TStringBuf str);
 
 private:
     bool EnableEncoding_;

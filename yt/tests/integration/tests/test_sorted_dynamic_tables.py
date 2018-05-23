@@ -1961,7 +1961,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         t11 = get("//tmp/t/@unflushed_timestamp")
         assert t4 < t11
 
-        tx = start_transaction()
+        tx = start_transaction(timeout=60000)
         lock("//tmp/t", mode="snapshot", tx=tx)
         t5 = get("//tmp/t/@retained_timestamp", tx=tx)
         t6 = get("//tmp/t/@unflushed_timestamp", tx=tx)

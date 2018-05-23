@@ -13,16 +13,11 @@ class TForkAwareSpinLock
     : private TNonCopyable
 {
 public:
-    TForkAwareSpinLock();
-    ~TForkAwareSpinLock();
-
     void Acquire();
     void Release();
 
 private:
-    class TImpl;
-    const std::unique_ptr<TImpl> Impl_;
-
+    TAdaptiveLock SpinLock_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

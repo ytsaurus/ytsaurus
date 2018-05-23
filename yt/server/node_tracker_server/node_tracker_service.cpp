@@ -91,7 +91,7 @@ private:
             node->ValidateNotBanned();
         }
 
-        nodeTracker->ProcessRegisterNode(context);
+        nodeTracker->ProcessRegisterNode(address, context);
     }
 
     DECLARE_RPC_SERVICE_METHOD(NNodeTrackerClient::NProto, FullHeartbeat)

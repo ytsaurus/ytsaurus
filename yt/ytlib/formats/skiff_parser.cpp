@@ -42,7 +42,7 @@ public:
         YCHECK(InsideValue_ == false);
     }
 
-    virtual void OnStringScalar(const TStringBuf& value) override
+    virtual void OnStringScalar(TStringBuf value) override
     {
         if (InsideValue_) {
             ColumnConsumer_.OnStringScalar(value);
@@ -121,7 +121,7 @@ public:
         }
     }
 
-    virtual void OnKeyedItem(const TStringBuf& name) override
+    virtual void OnKeyedItem(TStringBuf name) override
     {
         if (InsideValue_) {
             ColumnConsumer_.OnKeyedItem(name);
@@ -231,7 +231,7 @@ public:
         ValueConsumer_->OnEndRow();
     }
 
-    Y_FORCE_INLINE void OnStringScalar(const TStringBuf& value, ui16 columnId)
+    Y_FORCE_INLINE void OnStringScalar(TStringBuf value, ui16 columnId)
     {
         ValueConsumer_->OnValue(MakeUnversionedStringValue(value, columnId));
     }
@@ -261,7 +261,7 @@ public:
         ValueConsumer_->OnValue(MakeUnversionedSentinelValue(EValueType::Null, columnId));
     }
 
-    Y_FORCE_INLINE void OnYsonString(const TStringBuf& value, ui16 columnId)
+    Y_FORCE_INLINE void OnYsonString(TStringBuf value, ui16 columnId)
     {
         YsonToUnversionedValueConverter_.SetColumnIndex(columnId);
         ParseYsonStringBuffer(
@@ -270,7 +270,7 @@ public:
             &YsonToUnversionedValueConverter_);
     }
 
-    Y_FORCE_INLINE void OnOtherColumns(const TStringBuf& value)
+    Y_FORCE_INLINE void OnOtherColumns(TStringBuf value)
     {
         ParseYsonStringBuffer(
             value,
@@ -308,7 +308,7 @@ public:
             RowIndexColumnName));
     }
 
-    void Read(const TStringBuf& data) override
+    void Read(TStringBuf data) override
     {
         if (!data.Empty()) {
             Parser_->Read(data);

@@ -317,8 +317,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
                 command="sleep 100",
                 spec={"job_count": job_count})
 
-            running_jobs_path = "//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op.id)
-            wait(lambda: exists(running_jobs_path) and len(ls(running_jobs_path)) > 1)
+            wait(lambda: len(op.get_running_jobs()) > 1)
 
             assert op.get_job_count("total") == job_count
             op.abort()
@@ -541,9 +540,8 @@ print row + table_index
             spec={"data_size_per_job": 1})
         jobs = wait_breakpoint(job_count=2)
 
-        operation_path = get_operation_path(op.id)
-
-        async_transaction_id = get("//sys/operations/" + op.id + "/@async_scheduler_transaction_id")
+        operation_path = get_operation_cypress_path(op.id)
+        async_transaction_id = get(operation_path + "/@async_scheduler_transaction_id")
         assert exists(operation_path + "/output_0", tx=async_transaction_id)
         assert effective_acl == get(operation_path + "/output_0/@acl", tx=async_transaction_id)
         assert schema == get(operation_path + "/output_0/@schema", tx=async_transaction_id)
@@ -1024,7 +1022,7 @@ done
             command="sleep 5; echo '{a=1}'",
             dont_track=True)
         time.sleep(2.0)
-        assert len(get("//sys/scheduler/orchid/scheduler/operations/{0}/job_splitter".format(op.id))) == 0
+        assert len(get(op.get_path() + "/controller_orchid/job_splitter")) == 0
         op.track()
 
 ##################################################################

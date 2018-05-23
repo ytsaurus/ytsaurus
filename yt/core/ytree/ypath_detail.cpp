@@ -1162,7 +1162,7 @@ private:
     std::unique_ptr<TBufferedBinaryYsonWriter> AttributeWriter_;
 
 
-    virtual void OnMyKeyedItem(const TStringBuf& key) override
+    virtual void OnMyKeyedItem(TStringBuf key) override
     {
         AttributeWriter_.reset(new TBufferedBinaryYsonWriter(&AttributeStream_));
         Forward(
@@ -1193,7 +1193,7 @@ void TNodeSetterBase::ThrowInvalidType(ENodeType actualType)
         actualType);
 }
 
-void TNodeSetterBase::OnMyStringScalar(const TStringBuf& /*value*/)
+void TNodeSetterBase::OnMyStringScalar(TStringBuf /*value*/)
 {
     ThrowInvalidType(ENodeType::String);
 }

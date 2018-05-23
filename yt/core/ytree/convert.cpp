@@ -23,7 +23,7 @@ TYsonString ConvertToYsonString(const char* value)
     return ConvertToYsonString(TString(value));
 }
 
-TYsonString ConvertToYsonString(const TStringBuf& value)
+TYsonString ConvertToYsonString(TStringBuf value)
 {
     return ConvertToYsonString(TString(value));
 }

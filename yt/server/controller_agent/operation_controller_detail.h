@@ -4,6 +4,7 @@
 
 #include "auto_merge_director.h"
 #include "chunk_list_pool.h"
+#include "tentative_tree_eligibility.h"
 #include "job_memory.h"
 #include "job_splitter.h"
 #include "operation_controller.h"
@@ -838,7 +839,6 @@ protected:
     void ValidateOutputSchemaOrdered() const;
     void ValidateOutputSchemaCompatibility(bool ignoreSortOrder, bool validateComputedColumns = false) const;
 
-    virtual void BuildInitializeImmutableAttributes(NYTree::TFluentMap fluent) const;
     virtual void BuildInitializeMutableAttributes(NYTree::TFluentMap fluent) const;
     virtual void BuildPrepareAttributes(NYTree::TFluentMap fluent) const;
     virtual void BuildBriefSpec(NYTree::TFluentMap fluent) const;
@@ -977,6 +977,7 @@ private:
     int JobNodeCount_ = 0;
     int JobSpecCompletedArchiveCount_ = 0;
 
+    // Containts finished jobs (right now it is used only for archive job spec flag).
     THashMap<TJobId, TFinishedJobInfoPtr> FinishedJobs_;
 
     class TSink;
@@ -1102,6 +1103,8 @@ private:
     void UpdateSuspiciousJobsYson();
 
     void ReleaseJobs(const std::vector<TJobId>& jobIds);
+
+    bool IsTreeTentative(const TString& treeId) const;
 
     //! Helper class that implements IChunkPoolInput interface for output tables.
     class TSink

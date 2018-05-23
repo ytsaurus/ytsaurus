@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/core/ytree/yson_serializable.h>
+#include <yt/core/crypto/config.h>
 
 #include <contrib/libs/grpc/include/grpc/grpc_security_constants.h>
 
@@ -12,41 +12,12 @@ namespace NGrpc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TPemBlobConfig
-    : public NYTree::TYsonSerializable
-{
-public:
-    TNullable<TString> FileName;
-    TNullable<TString> Value;
-
-    TPemBlobConfig()
-    {
-        RegisterParameter("file_name", FileName)
-            .Optional();
-        RegisterParameter("value", Value)
-            .Optional();
-
-        RegisterPostprocessor([&] {
-            if (FileName && Value) {
-                THROW_ERROR_EXCEPTION("Cannot specify both \"file_name\" and \"value\"");
-            }
-            if (!FileName && !Value) {
-                THROW_ERROR_EXCEPTION("Must specify either \"file_name\" or \"value\"");
-            }
-        });
-    }
-};
-
-DEFINE_REFCOUNTED_TYPE(TPemBlobConfig)
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TSslPemKeyCertPairConfig
     : public NYTree::TYsonSerializable
 {
 public:
-    TPemBlobConfigPtr PrivateKey;
-    TPemBlobConfigPtr CertChain;
+    NCrypto::TPemBlobConfigPtr PrivateKey;
+    NCrypto::TPemBlobConfigPtr CertChain;
         
     TSslPemKeyCertPairConfig()
     {
@@ -75,7 +46,7 @@ class TServerCredentialsConfig
     : public NYTree::TYsonSerializable
 {
 public:
-    TPemBlobConfigPtr PemRootCerts;
+    NCrypto::TPemBlobConfigPtr PemRootCerts;
     std::vector<TSslPemKeyCertPairConfigPtr> PemKeyCertPairs;
     EClientCertificateRequest ClientCertificateRequest;
 
@@ -135,7 +106,7 @@ class TChannelCredentialsConfig
     : public NYTree::TYsonSerializable
 {
 public:
-    TPemBlobConfigPtr PemRootCerts;
+    NCrypto::TPemBlobConfigPtr PemRootCerts;
     TSslPemKeyCertPairConfigPtr PemKeyCertPair;
 
     TChannelCredentialsConfig()

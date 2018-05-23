@@ -25,7 +25,7 @@
 #include <yt/core/rpc/retrying_channel.h>
 #include <yt/core/rpc/dispatcher.h>
 
-#include <yt/core/bus/tcp_dispatcher.h>
+#include <yt/core/bus/tcp/dispatcher.h>
 
 #include <util/random/random.h>
 

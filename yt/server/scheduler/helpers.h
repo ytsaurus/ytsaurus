@@ -39,6 +39,19 @@ NNodeTrackerClient::TNodeId NodeIdFromJobId(const TJobId& jobId);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TListOperationsResult
+{
+    std::vector<std::pair<TOperationId, EOperationState>> OperationsToRevive;
+    std::vector<TOperationId> OperationsToArchive;
+    std::vector<TOperationId> OperationsToRemove;
+    std::vector<TOperationId> OperationsToSync;
+};
+
+TListOperationsResult ListOperations(
+    TCallback<NObjectClient::TObjectServiceProxy::TReqExecuteBatchPtr()> createBatchRequest);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NScheduler
 } // namespace NYT
 

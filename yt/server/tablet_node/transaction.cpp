@@ -173,6 +173,7 @@ bool TTransaction::IsActive() const
 {
     return State_ == ETransactionState::Active;
 }
+
 bool TTransaction::IsCommitted() const
 {
     return State_ == ETransactionState::Committed;

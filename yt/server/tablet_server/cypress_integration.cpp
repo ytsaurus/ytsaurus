@@ -193,7 +193,7 @@ private:
         return tabletManager->TabletCellBundles().GetSize();
     }
 
-    virtual IYPathServicePtr FindItemService(const TStringBuf& key) const override
+    virtual IYPathServicePtr FindItemService(TStringBuf key) const override
     {
         const auto& tabletManager = Bootstrap_->GetTabletManager();
         auto* cellBundle = tabletManager->FindTabletCellBundleByName(TString(key));

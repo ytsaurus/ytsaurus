@@ -50,7 +50,7 @@ void FromProto(TTimestampMap* map, const NProto::TTimestampMap& protoMap)
     }
 }
 
-void FormatValue(TStringBuilder* builder, const TTimestampMap& map, const TStringBuf& /*spec*/)
+void FormatValue(TStringBuilder* builder, const TTimestampMap& map, TStringBuf /*spec*/)
 {
     builder->AppendChar('{');
     bool first = true;

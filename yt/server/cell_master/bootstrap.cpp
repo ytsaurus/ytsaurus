@@ -81,9 +81,10 @@
 
 #include <yt/ytlib/core_dump/core_dumper.h>
 
-#include <yt/core/bus/config.h>
 #include <yt/core/bus/server.h>
-#include <yt/core/bus/tcp_server.h>
+
+#include <yt/core/bus/tcp/config.h>
+#include <yt/core/bus/tcp/server.h>
 
 #include <yt/core/net/local_address.h>
 
@@ -91,6 +92,7 @@
 
 #include <yt/core/misc/core_dumper.h>
 #include <yt/core/misc/ref_counted_tracker.h>
+#include <yt/core/misc/ref_counted_tracker_statistics_producer.h>
 #include <yt/core/misc/lfalloc_helpers.h>
 
 #include <yt/core/profiling/profile_manager.h>
@@ -562,7 +564,7 @@ void TBootstrap::DoInitialize()
     MonitoringManager_ = New<TMonitoringManager>();
     MonitoringManager_->Register(
         "/ref_counted",
-        TRefCountedTracker::Get()->GetMonitoringProducer());
+        CreateRefCountedTrackerStatisticsProducer());
     MonitoringManager_->Register(
         "/hydra",
         HydraFacade_->GetHydraManager()->GetMonitoringProducer());

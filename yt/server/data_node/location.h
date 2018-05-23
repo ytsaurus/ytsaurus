@@ -84,9 +84,6 @@ public:
     //! are allowed to use.
     i64 GetQuota() const;
 
-    //! Returns an invoker for reading chunk data.
-    IPrioritizedInvokerPtr GetDataReadInvoker();
-
     //! Returns an invoker for reading chunk meta.
     IPrioritizedInvokerPtr GetMetaReadInvoker();
 
@@ -208,9 +205,6 @@ private:
     i64 UsedSpace_ = 0;
     TEnumIndexedVector<int, ESessionType> PerTypeSessionCount_;
     int ChunkCount_ = 0;
-
-    const NConcurrency::TThreadPoolPtr DataReadThreadPool_;
-    const IPrioritizedInvokerPtr DataReadInvoker_;
 
     const NConcurrency::TActionQueuePtr MetaReadQueue_;
     const IPrioritizedInvokerPtr MetaReadInvoker_;

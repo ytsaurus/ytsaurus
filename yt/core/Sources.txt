@@ -4,15 +4,16 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/actions/invoker_detail.cpp
   ${CMAKE_CURRENT_LIST_DIR}/actions/invoker_util.cpp
 
-  ${CMAKE_CURRENT_LIST_DIR}/bus/config.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/bus/packet.cpp
   ${CMAKE_CURRENT_LIST_DIR}/bus/public.cpp
   ${CMAKE_CURRENT_LIST_DIR}/bus/private.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/bus/tcp_client.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/bus/tcp_connection.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/bus/tcp_dispatcher.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/bus/tcp_dispatcher_impl.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/bus/tcp_server.cpp
+
+  ${CMAKE_CURRENT_LIST_DIR}/bus/tcp/connection.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/bus/tcp/dispatcher.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/bus/tcp/dispatcher_impl.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/bus/tcp/config.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/bus/tcp/packet.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/bus/tcp/client.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/bus/tcp/server.cpp
 
   ${CMAKE_CURRENT_LIST_DIR}/compression/brotli.cpp
   ${CMAKE_CURRENT_LIST_DIR}/compression/bzip2.cpp
@@ -62,13 +63,6 @@ SET(YT_SRCS
 
   ${CMAKE_CURRENT_LIST_DIR}/crypto/proto/crypto.proto
 
-  ${CMAKE_CURRENT_LIST_DIR}/erasure/codec.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/erasure/helpers.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/erasure/jerasure.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/erasure/lrc.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/erasure/public.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/erasure/reed_solomon.cpp
-
   ${CMAKE_CURRENT_LIST_DIR}/logging/config.cpp
   ${CMAKE_CURRENT_LIST_DIR}/logging/log.cpp
   ${CMAKE_CURRENT_LIST_DIR}/logging/log_manager.cpp
@@ -113,6 +107,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/misc/ref.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/ref_counted.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/ref_counted_tracker.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/misc/ref_counted_tracker_statistics_producer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/safe_assert.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/serialize.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/small_vector.cpp
@@ -140,14 +135,6 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/net/socket.cpp
   ${CMAKE_CURRENT_LIST_DIR}/net/dns_resolver.cpp
   ${CMAKE_CURRENT_LIST_DIR}/net/local_address.cpp
-
-  ${CMAKE_CURRENT_LIST_DIR}/http/client.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/http/config.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/http/http.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/http/private.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/http/server.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/http/stream.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/http/helpers.cpp
 
   ${CMAKE_CURRENT_LIST_DIR}/pipes/io_dispatcher.cpp
   ${CMAKE_CURRENT_LIST_DIR}/pipes/pipe.cpp

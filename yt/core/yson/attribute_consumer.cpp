@@ -21,7 +21,7 @@ void TAttributeFragmentConsumer::OnRaw(TFuture<TYsonString> asyncStr)
     UnderlyingConsumer_->OnRaw(std::move(asyncStr));
 }
 
-void TAttributeFragmentConsumer::OnRaw(const TStringBuf& yson, EYsonType type)
+void TAttributeFragmentConsumer::OnRaw(TStringBuf yson, EYsonType type)
 {
     if (!yson.empty()) {
         Begin();
@@ -46,7 +46,7 @@ void TAttributeFragmentConsumer::OnEndMap()
     UnderlyingConsumer_->OnEndMap();
 }
 
-void TAttributeFragmentConsumer::OnKeyedItem(const TStringBuf& key)
+void TAttributeFragmentConsumer::OnKeyedItem(TStringBuf key)
 {
     Begin();
     UnderlyingConsumer_->OnKeyedItem(key);
@@ -97,7 +97,7 @@ void TAttributeFragmentConsumer::OnInt64Scalar(i64 value)
     UnderlyingConsumer_->OnInt64Scalar(value);
 }
 
-void TAttributeFragmentConsumer::OnStringScalar(const TStringBuf& value)
+void TAttributeFragmentConsumer::OnStringScalar(TStringBuf value)
 {
     UnderlyingConsumer_->OnStringScalar(value);
 }
@@ -121,12 +121,12 @@ void TAttributeFragmentConsumer::End()
 
 TAttributeValueConsumer::TAttributeValueConsumer(
     IAsyncYsonConsumer* underlyingConsumer,
-    const TStringBuf& key)
+    TStringBuf key)
     : UnderlyingConsumer_(underlyingConsumer)
     , Key_(key)
 { }
 
-void TAttributeValueConsumer::OnStringScalar(const TStringBuf& value)
+void TAttributeValueConsumer::OnStringScalar(TStringBuf value)
 {
     ProduceKeyIfNeeded();
     UnderlyingConsumer_->OnStringScalar(value);
@@ -186,7 +186,7 @@ void TAttributeValueConsumer::OnBeginMap()
     UnderlyingConsumer_->OnBeginMap();
 }
 
-void TAttributeValueConsumer::OnKeyedItem(const TStringBuf& key)
+void TAttributeValueConsumer::OnKeyedItem(TStringBuf key)
 {
     ProduceKeyIfNeeded();
     UnderlyingConsumer_->OnKeyedItem(key);
@@ -210,7 +210,7 @@ void TAttributeValueConsumer::OnEndAttributes()
     UnderlyingConsumer_->OnEndAttributes();
 }
 
-void TAttributeValueConsumer::OnRaw(const TStringBuf& yson, EYsonType type)
+void TAttributeValueConsumer::OnRaw(TStringBuf yson, EYsonType type)
 {
     ProduceKeyIfNeeded();
     UnderlyingConsumer_->OnRaw(yson, type);

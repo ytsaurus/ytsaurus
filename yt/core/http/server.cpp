@@ -63,6 +63,11 @@ public:
         Handlers_.Add(path, handler);
     }
 
+    virtual const TNetworkAddress& GetAddress() const override
+    {
+        return Listener_->GetAddress();
+    }
+
     virtual void Start() override
     {
         if (Started_) {

@@ -60,6 +60,9 @@ message TAgentToSchedulerOperationEvent
 
     // for Suspended, Aborted, Failed
     optional NYT.NProto.TError error = 3;
+
+    // for BannedInTentativeTree
+    optional string tentative_tree_id = 4;
 }
 
 message TAgentToSchedulerJobEvent
@@ -74,6 +77,7 @@ message TAgentToSchedulerJobEvent
     optional int32 interrupt_reason = 4; // EInterruptReason
 
     optional bool archive_job_spec = 5;
+    optional bool archive_stderr = 6;
 }
 
 message TSchedulerToAgentJobEvent

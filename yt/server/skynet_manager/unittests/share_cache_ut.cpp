@@ -11,9 +11,12 @@ namespace NYT {
 namespace NSkynetManager {
 namespace {
 
+using namespace NCrypto;
+using namespace NConcurrency;
+
 using namespace ::testing;
 
-using namespace NConcurrency;
+////////////////////////////////////////////////////////////////////////////////
 
 struct TShareHostMock
     : public IShareHost
@@ -208,6 +211,8 @@ TEST_F(TShareCacheTest, UnshareInTheMiddleOfShare)
 
     EXPECT_FALSE(cache->TryDiscover(rbTorrentId));
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
 } // namespace NSkynetManager

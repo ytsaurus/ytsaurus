@@ -16,7 +16,7 @@ class TControllerAgentServiceProxy
 {
 public:
     DEFINE_RPC_PROXY(TControllerAgentServiceProxy, ControllerAgentService,
-        .SetProtocolVersion(1));
+        .SetProtocolVersion(3));
 
     DEFINE_RPC_PROXY_METHOD(NProto, GetOperationInfo);
     DEFINE_RPC_PROXY_METHOD(NProto, GetJobInfo);
@@ -28,7 +28,7 @@ public:
     DEFINE_RPC_PROXY_METHOD(NProto, CommitOperation);
     DEFINE_RPC_PROXY_METHOD(NProto, CompleteOperation);
     DEFINE_RPC_PROXY_METHOD(NProto, AbortOperation);
-    DEFINE_RPC_PROXY_METHOD(NProto, DisposeOperation);
+    DEFINE_RPC_PROXY_METHOD(NProto, UnregisterOperation);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

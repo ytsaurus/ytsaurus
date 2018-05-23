@@ -262,6 +262,10 @@ private:
 
         const auto& slotManager = Bootstrap_->GetTabletSlotManager();
         auto tabletSnapshot = slotManager->FindTabletSnapshot(tablet->GetId());
+        if (!tabletSnapshot) {
+            LOG_DEBUG("Tablet snapshot is missing, aborting flush");
+            return;
+        }
 
         try {
             auto beginInstant = TInstant::Now();
@@ -275,7 +279,8 @@ private:
                 TTransactionStartOptions options;
                 options.AutoAbort = false;
                 auto attributes = CreateEphemeralAttributes();
-                attributes->Set("title", Format("Store flush: store %v, tablet %v",
+                attributes->Set("title", Format("Store flush: table %v, store %v, tablet %v",
+                    tabletSnapshot->TablePath,
                     store->GetId(),
                     tabletId));
                 options.Attributes = std::move(attributes);

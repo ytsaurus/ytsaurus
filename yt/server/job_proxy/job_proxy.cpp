@@ -33,8 +33,8 @@
 
 #include <yt/ytlib/scheduler/public.h>
 
-#include <yt/core/bus/tcp_client.h>
-#include <yt/core/bus/tcp_server.h>
+#include <yt/core/bus/tcp/client.h>
+#include <yt/core/bus/tcp/server.h>
 
 #include <yt/core/concurrency/action_queue.h>
 #include <yt/core/concurrency/periodic_executor.h>
@@ -525,6 +525,9 @@ void TJobProxy::ReportResult(
     req->set_statistics(statistics.GetData());
     req->set_start_time(ToProto<i64>(startTime));
     req->set_finish_time(ToProto<i64>(finishTime));
+    if (GetJobSpecHelper()->GetSchedulerJobSpecExt().has_user_job_spec()) {
+        req->set_stderr(GetStderr());
+    }
 
     auto rspOrError = req->Invoke().Get();
     if (!rspOrError.IsOK()) {

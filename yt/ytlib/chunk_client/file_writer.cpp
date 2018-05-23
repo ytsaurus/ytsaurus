@@ -48,32 +48,49 @@ TFileWriter::TFileWriter(
     Buffer_ = data;
 }
 
+void TFileWriter::TryLockDataFile(TPromise<void> promise)
+{
+    if (DataFile_->Flock(LOCK_EX | LOCK_NB) < 0 && errno == EWOULDBLOCK) {
+        NConcurrency::TDelayedExecutor::Submit(
+            BIND(&TFileWriter::TryLockDataFile, MakeStrong(this), promise),
+            TDuration::MilliSeconds(10));
+    } else {
+        IsOpen_ = true;
+        promise.Set();
+    }
+}
+
+TFuture<void> TFileWriter::LockDataFile(const std::shared_ptr<TFileHandle>& file)
+{
+    DataFile_ = file;
+
+    TPromise<void> promise = NewPromise<void>();
+    TryLockDataFile(promise);
+    return promise;
+}
+
 TFuture<void> TFileWriter::Open()
 {
     YCHECK(!IsOpen_);
     YCHECK(!IsClosed_);
+    YCHECK(!IsOpening_);
 
-    try {
-        NFS::ExpectIOErrors([&] () {
-            auto mode = FileMode;
-            if (EnableWriteDirectIO_) {
-                mode |= DirectAligned;
-            }
-            // NB: Races are possible between file creation and a call to flock.
-            // Unfortunately in Linux we can't create'n'flock a file atomically.
-            DataFile_ = IOEngine_->Open(FileName_ + NFS::TempFileSuffix, mode);
-            DataFile_->Flock(LOCK_EX);
-        });
-    } catch (const std::exception& ex) {
-        return MakeFuture(TError(
-            "Error opening chunk data file %v",
-            FileName_)
-             << ex);
+    IsOpening_ = true;
+
+    auto mode = FileMode;
+    if (EnableWriteDirectIO_) {
+        mode |= DirectAligned;
     }
-
-    IsOpen_ = true;
-
-    return VoidFuture;
+    // NB: Races are possible between file creation and a call to flock.
+    // Unfortunately in Linux we can't create'n'flock a file atomically.
+    return IOEngine_->Open(FileName_ + NFS::TempFileSuffix, mode)
+        .Apply(BIND(&TFileWriter::LockDataFile, MakeStrong(this)))
+        .Apply(BIND([this, this_ = MakeStrong(this)] (const TErrorOr<void>& error) {
+            IsOpening_ = false;
+            if (!error.IsOK()) {
+                THROW_ERROR error;
+            }
+        }));
 }
 
 bool TFileWriter::WriteBlock(const TBlock& block)

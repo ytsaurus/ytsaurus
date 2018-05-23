@@ -48,7 +48,7 @@ i64 GetBasicPriority(EWorkloadCategory category);
 void FormatValue(
     TStringBuilder* builder,
     const TWorkloadDescriptor& descriptor,
-    const TStringBuf& format);
+    TStringBuf format);
 TString ToString(const TWorkloadDescriptor& descriptor);
 
 void ToProto(NYT::NProto::TWorkloadDescriptor* protoDescriptor, const TWorkloadDescriptor& descriptor);

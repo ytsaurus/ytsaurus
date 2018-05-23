@@ -232,12 +232,6 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeRegularChunkStatisti
 {
     TChunkStatistics result;
 
-    auto maybeReplicationFactors = chunk->ComputeReplicationFactors(GetChunkRequisitionRegistry());
-    if (!maybeReplicationFactors) {
-        return result;
-    }
-    const auto& replicationFactors = *maybeReplicationFactors;
-
     TPerMediumArray<bool> hasUnsafelyPlacedReplicas{};
     TPerMediumArray<std::array<ui8, RackIndexBound>> perRackReplicaCounters{};
 
@@ -263,6 +257,8 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeRegularChunkStatisti
             }
         }
     }
+
+    const auto replicationFactors = chunk->GetAggregatedReplicationFactors(GetChunkRequisitionRegistry());
 
     bool precarious = true;
     bool allMediaTransient = true;
@@ -395,12 +391,6 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeErasureChunkStatisti
 {
     TChunkStatistics result;
 
-    auto maybeChunkReplication = chunk->ComputeReplication(GetChunkRequisitionRegistry());
-    if (!maybeChunkReplication) {
-        return result; // See ComputeReplication's comment for an explanation.
-    }
-    const auto& chunkReplication = *maybeChunkReplication;
-
     auto* codec = NErasure::GetCodec(chunk->GetErasureCodec());
 
     TPerMediumArray<std::array<TNodePtrWithIndexesList, ChunkReplicaIndexBound>> decommissionedReplicas{};
@@ -429,7 +419,9 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeErasureChunkStatisti
             ++mediumStatistics.ReplicaCount[replicaIndex];
             ++totalReplicaCounts[mediumIndex];
         }
-        node->SetVisitMark(mediumIndex, mark);
+        if (!Config_->AllowMultipleErasurePartsPerNode) {
+            node->SetVisitMark(mediumIndex, mark);
+        }
         const auto* rack = node->GetRack();
         if (rack) {
             int rackIndex = rack->GetIndex();
@@ -441,6 +433,8 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeErasureChunkStatisti
             }
         }
     }
+
+    const auto chunkReplication = chunk->GetAggregatedReplication(GetChunkRequisitionRegistry());
 
     bool allMediaTransient = true;
     bool allMediaDataPartsOnly = true;
@@ -672,11 +666,7 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeJournalChunkStatisti
 {
     TChunkStatistics results;
 
-    auto maybeReplication = chunk->ComputeReplication(GetChunkRequisitionRegistry());
-    if (!maybeReplication) {
-        return results;
-    }
-    const auto& replication = *maybeReplication;
+    const auto replication = chunk->GetAggregatedReplication(GetChunkRequisitionRegistry());
 
     // NB: Journal chunks always have a single configured medium.
     auto mediumIndex = -1;
@@ -986,11 +976,7 @@ bool TChunkReplicator::CreateReplicationJob(
     }
 
     int targetMediumIndex = targetMedium->GetIndex();
-    auto maybeReplicationFactor = chunk->ComputeReplicationFactor(targetMediumIndex, GetChunkRequisitionRegistry());
-    if (!maybeReplicationFactor) {
-        return true;
-    }
-    const auto& replicationFactor = *maybeReplicationFactor;
+    const auto replicationFactor = chunk->GetAggregatedReplicationFactor(targetMediumIndex, GetChunkRequisitionRegistry());
 
     auto statistics = ComputeChunkStatistics(chunk);
     const auto& mediumStatistics = statistics.PerMediumStatistics[targetMediumIndex];
@@ -1500,11 +1486,7 @@ void TChunkReplicator::RefreshChunk(TChunk* chunk)
         return;
     }
 
-    auto maybeReplication = chunk->ComputeReplication(GetChunkRequisitionRegistry());
-    if (!maybeReplication) {
-        return;
-    }
-    const auto& replication = *maybeReplication;
+    const auto replication = chunk->GetAggregatedReplication(GetChunkRequisitionRegistry());
 
     ResetChunkStatus(chunk);
     RemoveChunkFromQueuesOnRefresh(chunk);
@@ -1828,7 +1810,7 @@ void TChunkReplicator::OnCheckEnabled()
 
 void TChunkReplicator::OnCheckEnabledPrimary()
 {
-    if (!Bootstrap_->GetConfigManager()->GetConfig()->EnableChunkReplicator) {
+    if (!Bootstrap_->GetConfigManager()->GetConfig()->ChunkManager->EnableChunkReplicator) {
         if (!Enabled_ || *Enabled_) {
             LOG_INFO("Chunk replicator is disabled, see //sys/@config");
         }
@@ -2106,7 +2088,7 @@ TChunkRequisition TChunkReplicator::ComputeChunkRequisition(const TChunk* chunk)
         for (const auto* owningNode : chunkList->TrunkOwningNodes()) {
             auto* account = owningNode->GetAccount();
             if (account) {
-                requisition.CombineWith(owningNode->Replication(), account, true);
+                requisition.AggregateWith(owningNode->Replication(), account, true);
             }
 
             found = true;
@@ -2129,10 +2111,10 @@ TChunkRequisition TChunkReplicator::ComputeChunkRequisition(const TChunk* chunk)
     if (found) {
         Y_ASSERT(requisition.ToReplication().IsValid());
     } else {
-        // Leave intact not just staged chunks, but any chunk that isn't linked
-        // to a trunk owner.
-        auto globalRequisitionIndex = chunk->GetLocalRequisitionIndex();
-        requisition = GetChunkRequisitionRegistry()->GetRequisition(globalRequisitionIndex);
+        // Chunks that aren't linked to any trunk owner are assigned empty requisition.
+        // This doesn't mean the replicator will act upon it, though, as the chunk will
+        // remember its last non-empty aggregated requisition.
+        requisition = GetChunkRequisitionRegistry()->GetRequisition(EmptyChunkRequisitionIndex);
     }
 
     CacheRequisition(chunk, requisition);
@@ -2292,8 +2274,6 @@ void TChunkReplicator::UpdateInterDCEdgeCapacities()
         return;
     }
 
-    // This will soon be replaced by getting capacities from node tracker.
-
     InterDCEdgeCapacities_.clear();
 
     auto capacities = Config_->InterDCLimits->GetCapacities();
@@ -2302,29 +2282,35 @@ void TChunkReplicator::UpdateInterDCEdgeCapacities()
 
     const auto& nodeTracker = Bootstrap_->GetNodeTracker();
 
-    auto updateForSrcDC = [&] (const TDataCenter* srcDataCenter, const TNullable<TString>& srcDataCenterName) {
+    auto updateForSrcDC = [&] (const TDataCenter* srcDataCenter) {
+        const TNullable<TString>& srcDataCenterName = srcDataCenter
+            ? static_cast<TNullable<TString>>(srcDataCenter->GetName())
+            : Null;
         auto& interDCEdgeCapacities = InterDCEdgeCapacities_[srcDataCenter];
         const auto& newInterDCEdgeCapacities = capacities[srcDataCenterName];
 
-        auto updateForDstDC = [&] (const TDataCenter* dstDataCenter, const TNullable<TString>& dstDataCenterName) {
+        auto updateForDstDC = [&] (const TDataCenter* dstDataCenter) {
+            const TNullable<TString>& dstDataCenterName = dstDataCenter
+                ? static_cast<TNullable<TString>>(dstDataCenter->GetName())
+                : Null;
             auto it = newInterDCEdgeCapacities.find(dstDataCenterName);
             if (it != newInterDCEdgeCapacities.end()) {
                 interDCEdgeCapacities[dstDataCenter] = it->second / secondaryCellCount;
             }
         };
 
-        updateForDstDC(nullptr, Null);
+        updateForDstDC(nullptr);
         for (const auto& pair : nodeTracker->DataCenters()) {
             if (IsObjectAlive(pair.second)) {
-                updateForDstDC(pair.second, pair.second->GetName());
+                updateForDstDC(pair.second);
             }
         }
     };
 
-    updateForSrcDC(nullptr, Null);
+    updateForSrcDC(nullptr);
     for (const auto& pair : nodeTracker->DataCenters()) {
         if (IsObjectAlive(pair.second)) {
-            updateForSrcDC(pair.second, pair.second->GetName());
+            updateForSrcDC(pair.second);
         }
     }
 

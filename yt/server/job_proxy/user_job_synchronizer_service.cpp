@@ -3,7 +3,9 @@
 #include "user_job_synchronizer_proxy.h"
 
 #include <yt/core/rpc/service_detail.h>
-#include <yt/core/bus/tcp_client.h>
+
+#include <yt/core/bus/tcp/client.h>
+
 #include <yt/core/rpc/bus/channel.h>
 
 namespace NYT {

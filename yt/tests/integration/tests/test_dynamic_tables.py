@@ -1130,7 +1130,7 @@ class TestTabletActions(TestDynamicTablesBase):
     @pytest.mark.parametrize("skip_freezing", [False, True])
     @pytest.mark.parametrize("freeze", [False, True])
     def test_action_move(self, skip_freezing, freeze):
-        set("//sys/@config/enable_tablet_balancer", False)
+        set("//sys/@config/tablet_manager/enable_tablet_balancer", False, recursive=True)
         self._configure_bundle("default")
         cells = self.sync_create_cells(2)
         self._create_sorted_table("//tmp/t")
@@ -1165,7 +1165,7 @@ class TestTabletActions(TestDynamicTablesBase):
     @pytest.mark.parametrize("skip_freezing", [False, True])
     @pytest.mark.parametrize("freeze", [False, True])
     def test_action_reshard(self, skip_freezing, freeze):
-        set("//sys/@config/enable_tablet_balancer", False)
+        set("//sys/@config/tablet_manager/enable_tablet_balancer", False, recursive=True)
         self._configure_bundle("default")
         cells = self.sync_create_cells(2)
         self._create_sorted_table("//tmp/t")
@@ -1202,7 +1202,7 @@ class TestTabletActions(TestDynamicTablesBase):
 
     @pytest.mark.parametrize("freeze", [False, True])
     def test_cells_balance(self, freeze):
-        set("//sys/@config/enable_tablet_balancer", False)
+        set("//sys/@config/tablet_manager/enable_tablet_balancer", False, recursive=True)
         self._configure_bundle("default")
         cells = self.sync_create_cells(2)
         self._create_sorted_table("//tmp/t1")
@@ -1219,7 +1219,7 @@ class TestTabletActions(TestDynamicTablesBase):
             self.sync_freeze_table("//tmp/t1")
             self.sync_freeze_table("//tmp/t2")
 
-        set("//sys/@config/enable_tablet_balancer", True)
+        set("//sys/@config/tablet_manager/enable_tablet_balancer", True, recursive=True)
         sleep(1)
         expected_state = "frozen" if freeze else "mounted"
         self._wait_for_tablets("//tmp/t1", expected_state)
@@ -1229,7 +1229,7 @@ class TestTabletActions(TestDynamicTablesBase):
         assert cell0 != cell1
 
     def test_cells_balance_in_bundle(self):
-        set("//sys/@config/enable_tablet_balancer", False)
+        set("//sys/@config/tablet_manager/enable_tablet_balancer", False, recursive=True)
         create_tablet_cell_bundle("b")
         self._configure_bundle("default")
         self._configure_bundle("b")
@@ -1245,13 +1245,69 @@ class TestTabletActions(TestDynamicTablesBase):
             insert_rows(table, [{"key": i, "value": "A"*128} for i in xrange(4)])
             self.sync_flush_table(table)
 
-        set("//sys/@config/enable_tablet_balancer", True)
+        set("//sys/@config/tablet_manager/enable_tablet_balancer", True, recursive=True)
         for pair in pairs:
             table = pair[0]
             self._wait_for_tablets(table, "mounted")
             dcells = [tablet["cell_id"] for tablet in get(table + "/@tablets")]
             count = [cells.count(cell) for cell in pair[1]]
             assert all(c == count[0] for c in count)
+
+    def test_tablet_balancer_with_active_action(self):
+        node = ls("//sys/nodes")[0]
+        set("//sys/nodes/{0}/@user_tags".format(node), ["custom"])
+
+        create_tablet_cell_bundle("broken")
+        self._configure_bundle("default")
+        set("//sys/tablet_cell_bundles/broken/@node_tag_filter", "custom")
+        set("//sys/tablet_cell_bundles/default/@node_tag_filter", "!custom")
+
+        cells_on_broken = self.sync_create_cells(1, tablet_cell_bundle="broken")
+        cells_on_default = self.sync_create_cells(2, tablet_cell_bundle="default")
+
+        self._create_sorted_table("//tmp/t1", tablet_cell_bundle="broken")
+        self._create_sorted_table("//tmp/t2", tablet_cell_bundle="default")
+
+        reshard_table("//tmp/t2", [[], [1]])
+        assert get("//tmp/t2/@tablet_count") == 2
+
+        self.sync_mount_table("//tmp/t1", cell_id=cells_on_broken[0])
+        self._decommission_all_peers(cells_on_broken[0])
+
+        action = create("tablet_action", "", attributes={
+            "kind": "move",
+            "keep_finished": True,
+            "tablet_ids": [get("//tmp/t1/@tablets/0/tablet_id")],
+            "cell_ids": [cells_on_broken[0]]})
+        assert get("#{}/@state".format(action)) == "freezing"
+
+        # test tablet balancing
+        self.sync_mount_table("//tmp/t2")
+
+        wait(lambda: get("//tmp/t2/@tablet_count") == 1)
+        assert get("#{}/@state".format(action)) == "freezing"
+
+        # test cell balancing
+        def get_cells_of_tablets(table):
+            return [ tablet["cell_id"] for tablet in list(get("{}/@tablets".format(table))) ]
+
+        self.sync_unmount_table("//tmp/t2")
+        set("//sys/@config/enable_tablet_balancer", False)
+        set("//tmp/t2/@in_memory_mode", "uncompressed")
+        reshard_table("//tmp/t2", [[], [1]])
+
+        self.sync_mount_table("//tmp/t2", cell_id=cells_on_default[0])
+        insert_rows("//tmp/t2", [{"key": i, "value": "A"*128} for i in xrange(2)])
+        self.sync_flush_table("//tmp/t2");
+
+        set("//sys/@config/enable_tablet_balancer", True)
+        def wait_func():
+            t = get_cells_of_tablets("//tmp/t2")
+            assert len(t) == 2
+            return t[0] != t[1]
+        wait(wait_func)
+
+        assert get("#{}/@state".format(action)) == "freezing"
 
     def test_tablet_merge(self):
         self._configure_bundle("default")
@@ -1264,7 +1320,7 @@ class TestTabletActions(TestDynamicTablesBase):
         assert get("//tmp/t/@tablet_count") == 1
 
     def test_tablet_split(self):
-        set("//sys/@config/enable_tablet_balancer", False)
+        set("//sys/@config/tablet_manager/enable_tablet_balancer", False, recursive=True)
         self._configure_bundle("default")
         self.sync_create_cells(2)
         self._create_sorted_table("//tmp/t")
@@ -1284,7 +1340,7 @@ class TestTabletActions(TestDynamicTablesBase):
         reshard_table("//tmp/t", [[]])
         self.sync_mount_table("//tmp/t")
 
-        set("//sys/@config/enable_tablet_balancer", True)
+        set("//sys/@config/tablet_manager/enable_tablet_balancer", True, recursive=True)
         sleep(1)
         self._wait_for_tablets("//tmp/t", "mounted")
         assert len(get("//tmp/t/@chunk_ids")) > 1
@@ -1332,7 +1388,7 @@ class TestTabletActions(TestDynamicTablesBase):
     @pytest.mark.parametrize("freeze", [False, True])
     @flaky(max_runs=5)
     def test_action_failed_after_table_removed(self, skip_freezing, freeze):
-        set("//sys/@config/enable_tablet_balancer", False)
+        set("//sys/@config/tablet_manager/enable_tablet_balancer", False, recursive=True)
         self._configure_bundle("default")
         cells = self.sync_create_cells(2)
         self._create_sorted_table("//tmp/t")
@@ -1365,7 +1421,7 @@ class TestTabletActions(TestDynamicTablesBase):
         expected_action_state = "failed"
         expected_state = "frozen" if freeze else "mounted"
 
-        set("//sys/@config/enable_tablet_balancer", False)
+        set("//sys/@config/tablet_manager/enable_tablet_balancer", False, recursive=True)
         self._configure_bundle("default")
         cells = self.sync_create_cells(2)
         self._create_sorted_table("//tmp/t")
@@ -1396,7 +1452,7 @@ class TestTabletActions(TestDynamicTablesBase):
     @pytest.mark.parametrize("freeze", [False, True])
     @flaky(max_runs=5)
     def test_action_failed_after_cell_destroyed(self, skip_freezing, freeze):
-        set("//sys/@config/enable_tablet_balancer", False)
+        set("//sys/@config/tablet_manager/enable_tablet_balancer", False, recursive=True)
         self._configure_bundle("default")
         cells = self.sync_create_cells(2)
         self._create_sorted_table("//tmp/t")

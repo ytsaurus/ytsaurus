@@ -18,7 +18,7 @@ struct IYsonConsumer
     /*!
      *  \param value A scalar value.
      */
-    virtual void OnStringScalar(const TStringBuf& value) = 0;
+    virtual void OnStringScalar(TStringBuf value) = 0;
 
     //! The current item is an integer scalar (IInt64Node).
     /*!
@@ -75,7 +75,7 @@ struct IYsonConsumer
     /*!
      *  \param key Item key in the map.
      */
-    virtual void OnKeyedItem(const TStringBuf& key) = 0;
+    virtual void OnKeyedItem(TStringBuf key) = 0;
 
     //! Ends the current map.
     virtual void OnEndMap() = 0;
@@ -99,7 +99,7 @@ struct IYsonConsumer
      *  \param yson Serialized data.
      *  \param type Type of data.
      */
-    virtual void OnRaw(const TStringBuf& yson, EYsonType type) = 0;
+    virtual void OnRaw(TStringBuf yson, EYsonType type) = 0;
 
 
     // Extension methods.
@@ -123,7 +123,7 @@ class TYsonConsumerBase
 {
 public:
     //! Parses #str and converts it into a sequence of elementary calls.
-    virtual void OnRaw(const TStringBuf& str, EYsonType type) override;
+    virtual void OnRaw(TStringBuf str, EYsonType type) override;
     using IYsonConsumer::OnRaw;
 
 };

@@ -80,6 +80,7 @@ message TNodeResources
     optional int64 replication_data_size = 9;
     optional int64 repair_data_size = 10;
     optional int64 system_memory = 11;
+    optional int32 gpu = 12;
 }
 
 message TDiskResourcesInfo
@@ -107,6 +108,7 @@ message TNodeResourceLimitsOverrides
     optional int32 seal_slots = 8;
     optional int64 user_memory = 9;
     optional int64 system_memory = 10;
+    optional int32 gpu = 11;
 }
 
 // A collection of network name to address mappings.

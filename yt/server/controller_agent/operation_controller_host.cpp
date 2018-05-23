@@ -39,6 +39,7 @@ void TOperationControllerHost::InterruptJob(const TJobId& jobId, EInterruptReaso
         jobId,
         {},
         reason,
+        {},
         {}
     });
     LOG_DEBUG("Job interrupt request enqueued (OperationId: %v, JobCount: %v)",
@@ -53,6 +54,7 @@ void TOperationControllerHost::AbortJob(const TJobId& jobId, const TError& error
         jobId,
         error,
         {},
+        {},
         {}
     });
     LOG_DEBUG("Job abort request enqueued (OperationId: %v, JobId: %v)",
@@ -65,6 +67,7 @@ void TOperationControllerHost::FailJob(const TJobId& jobId)
     JobEventsOutbox_->Enqueue(TAgentToSchedulerJobEvent{
         EAgentToSchedulerJobEventType::Failed,
         jobId,
+        {},
         {},
         {},
         {}
@@ -84,7 +87,8 @@ void TOperationControllerHost::ReleaseJobs(const std::vector<TJobToRelease>& job
             jobToRelease.JobId,
             {},
             {},
-            jobToRelease.ArchiveJobSpec
+            jobToRelease.ArchiveJobSpec,
+            jobToRelease.ArchiveStderr
         });
     }
     JobEventsOutbox_->Enqueue(std::move(events));
@@ -110,6 +114,13 @@ TFuture<void> TOperationControllerHost::RemoveSnapshot()
 TFuture<void> TOperationControllerHost::FlushOperationNode()
 {
     return BIND(&NControllerAgent::TMasterConnector::FlushOperationNode, Bootstrap_->GetControllerAgent()->GetMasterConnector())
+        .AsyncVia(CancelableControlInvoker_)
+        .Run(OperationId_);
+}
+
+TFuture<void> TOperationControllerHost::UpdateInitializedOperationNode()
+{
+    return BIND(&NControllerAgent::TMasterConnector::UpdateInitializedOperationNode, Bootstrap_->GetControllerAgent()->GetMasterConnector())
         .AsyncVia(CancelableControlInvoker_)
         .Run(OperationId_);
 }
@@ -254,6 +265,19 @@ void TOperationControllerHost::OnOperationSuspended(const TError& error)
     });
     LOG_DEBUG(error, "Operation suspension notification enqueued (OperationId: %v)",
         OperationId_);
+}
+
+void TOperationControllerHost::OnOperationBannedInTentativeTree(const TString& treeId)
+{
+    OperationEventsOutbox_->Enqueue(TAgentToSchedulerOperationEvent{
+        EAgentToSchedulerOperationEventType::BannedInTentativeTree,
+        OperationId_,
+        {},
+        treeId
+    });
+    LOG_DEBUG("Operation tentative tree ban notification enqueued (OperationId: %v, TreeId: %v)",
+        OperationId_,
+        treeId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

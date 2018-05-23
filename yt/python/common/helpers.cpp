@@ -166,7 +166,7 @@ TPythonStringCache::TPythonStringCache(bool enableCache, const TNullable<TString
     }
 }
 
-PyObject* TPythonStringCache::GetPythonString(const TStringBuf& string)
+PyObject* TPythonStringCache::GetPythonString(TStringBuf string)
 {
     if (CacheEnabled_) {
         auto it = Cache_->find(string);

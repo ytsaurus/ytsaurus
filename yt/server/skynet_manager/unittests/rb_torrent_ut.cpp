@@ -6,9 +6,14 @@
 
 #include <yt/core/ytree/fluent.h>
 
-using namespace NYT;
+namespace NYT {
+namespace NSkynetManager {
+namespace {
+
 using namespace NYT::NYTree;
-using namespace NYT::NSkynetManager;
+using namespace NYT::NCrypto;
+
+////////////////////////////////////////////////////////////////////////////////
 
 TEST(TRbTorrentTest, Sample)
 {
@@ -57,3 +62,9 @@ TEST(TRbTorrentTest, EmptyFiles)
     auto resource = GenerateResource(meta);
     ASSERT_EQ("rbtorrent:2c337a0f3fcb40715cf8e8eba3a18ea1c071972f", resource.RbTorrentId);
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace
+} // namespace NSkynetManager
+} // namespace NYT

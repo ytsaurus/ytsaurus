@@ -17,7 +17,7 @@ class TAsyncYsonWriter
 public:
     explicit TAsyncYsonWriter(EYsonType type = EYsonType::Node);
 
-    virtual void OnStringScalar(const TStringBuf& value) override;
+    virtual void OnStringScalar(TStringBuf value) override;
     virtual void OnInt64Scalar(i64 value) override;
     virtual void OnUint64Scalar(ui64 value) override;
     virtual void OnDoubleScalar(double value) override;
@@ -27,11 +27,11 @@ public:
     virtual void OnListItem() override;
     virtual void OnEndList() override;
     virtual void OnBeginMap() override;
-    virtual void OnKeyedItem(const TStringBuf& key) override;
+    virtual void OnKeyedItem(TStringBuf key) override;
     virtual void OnEndMap() override;
     virtual void OnBeginAttributes() override;
     virtual void OnEndAttributes() override;
-    virtual void OnRaw(const TStringBuf& yson, EYsonType type) override;
+    virtual void OnRaw(TStringBuf yson, EYsonType type) override;
     virtual void OnRaw(TFuture<TYsonString> asyncStr) override;
 
     TFuture<TYsonString> Finish();

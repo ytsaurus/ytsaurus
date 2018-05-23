@@ -121,12 +121,12 @@ inline TUnversionedValue MakeUnversionedBooleanValue(bool value, int id = 0, boo
     return MakeBooleanValue<TUnversionedValue>(value, id, aggregate);
 }
 
-inline TUnversionedValue MakeUnversionedStringValue(const TStringBuf& value, int id = 0, bool aggregate = false)
+inline TUnversionedValue MakeUnversionedStringValue(TStringBuf value, int id = 0, bool aggregate = false)
 {
     return MakeStringValue<TUnversionedValue>(value, id, aggregate);
 }
 
-inline TUnversionedValue MakeUnversionedAnyValue(const TStringBuf& value, int id = 0, bool aggregate = false)
+inline TUnversionedValue MakeUnversionedAnyValue(TStringBuf value, int id = 0, bool aggregate = false)
 {
     return MakeAnyValue<TUnversionedValue>(value, id, aggregate);
 }

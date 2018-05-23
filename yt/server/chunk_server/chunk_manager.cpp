@@ -616,7 +616,7 @@ public:
 
         const auto& requisition = forcedRequisition
             ? *forcedRequisition
-            : chunk->ComputeRequisition(GetChunkRequisitionRegistry());
+            : chunk->GetAggregatedRequisition(GetChunkRequisitionRegistry());
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         securityManager->UpdateResourceUsage(chunk, requisition, delta);
     }
@@ -848,7 +848,7 @@ public:
         }
 
         auto externalRequisitionIndexBefore = chunk->GetExternalRequisitionIndex(cellIndex);
-        auto requisitionBefore = chunk->ComputeRequisition(GetChunkRequisitionRegistry());
+        auto requisitionBefore = chunk->GetAggregatedRequisition(GetChunkRequisitionRegistry());
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         chunk->Unexport(cellIndex, importRefCounter, GetChunkRequisitionRegistry(), objectManager);
@@ -1192,6 +1192,7 @@ private:
     bool NeedInitializeMediumConfig_ = false;
     bool NeedRecomputeRequisitionRefCounts_ = false;
     bool NeedToFixExportRequisitionIndexes_ = false;
+    bool NeedToInitializeAggregatedRequisitionIndexes_ = false;
 
     TPeriodicExecutorPtr ProfilingExecutor_;
 
@@ -1611,7 +1612,7 @@ private:
 
             auto requisitionBefore = chunk->IsForeign()
                 ? TChunkRequisition() // Not used.
-                : chunk->ComputeRequisition(GetChunkRequisitionRegistry());
+                : chunk->GetAggregatedRequisition(GetChunkRequisitionRegistry());
 
             if (local) {
                 chunk->SetLocalRequisitionIndex(newRequisitionIndex, GetChunkRequisitionRegistry(), objectManager);
@@ -2111,10 +2112,13 @@ private:
         NeedInitializeMediumConfig_ = context.GetVersion() < 629;
 
         // COMPAT(shakurov)
-        NeedRecomputeRequisitionRefCounts_ = context.GetVersion() < 704;
+        NeedRecomputeRequisitionRefCounts_ = context.GetVersion() < 710;
 
         // COMPAT(shakurov)
         NeedToFixExportRequisitionIndexes_ = context.GetVersion() >= 700 && context.GetVersion() < 707;
+
+        // COMPAT(shakurov)
+        NeedToInitializeAggregatedRequisitionIndexes_ = context.GetVersion() < 710;
     }
 
     virtual void OnBeforeSnapshotLoaded() override
@@ -2194,6 +2198,21 @@ private:
             for (const auto& pair : ChunkMap_) {
                 auto* chunk = pair.second;
                 chunk->FixExportRequisitionIndexes();
+            }
+        }
+
+        // COMPAT(shakurov)
+        if (NeedToInitializeAggregatedRequisitionIndexes_) {
+            auto* registry = GetChunkRequisitionRegistry();
+            const auto& objectManager = Bootstrap_->GetObjectManager();
+
+            for (const auto& pair : ChunkMap_) {
+                auto* chunk = pair.second;
+                // NB: this may have no effect for those rare chunks that have no trunk owners.
+                // In that case, the aggregated requisition will be left equal to migration requisition.
+                // This will be corrected on chunk's next requisition update (which is bound to
+                // happen since having no trunk owners is always a temporary state).
+                chunk->UpdateAggregatedRequisitionIndex(registry, objectManager);
             }
         }
 

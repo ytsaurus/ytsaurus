@@ -12,6 +12,7 @@
 namespace NYT {
 namespace NChunkServer {
 
+using namespace NCrypto;
 using namespace NYTree;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;

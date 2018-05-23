@@ -79,6 +79,7 @@ DECLARE_REFCOUNTED_CLASS(TBundleNodeTracker)
 DECLARE_REFCOUNTED_CLASS(TTabletManagerConfig)
 DECLARE_REFCOUNTED_CLASS(TTabletBalancerConfig)
 DECLARE_REFCOUNTED_CLASS(TTabletBalancerMasterConfig)
+DECLARE_REFCOUNTED_CLASS(TDynamicTabletManagerConfig)
 
 class TTableReplica;
 

@@ -49,8 +49,11 @@ DECLARE_REFCOUNTED_CLASS(TFairShareStrategyConfig)
 DECLARE_REFCOUNTED_CLASS(TFairShareStrategyOperationControllerConfig)
 DECLARE_REFCOUNTED_CLASS(TFairShareStrategyTreeConfig)
 DECLARE_REFCOUNTED_CLASS(TTestingOptions)
+DECLARE_REFCOUNTED_CLASS(TOperationsCleanerConfig)
 DECLARE_REFCOUNTED_CLASS(TSchedulerConfig)
 DECLARE_REFCOUNTED_CLASS(TSchedulerBootstrapConfig)
+
+DECLARE_REFCOUNTED_CLASS(TOperationsCleaner)
 
 DECLARE_REFCOUNTED_CLASS(TScheduler)
 DECLARE_REFCOUNTED_CLASS(TControllerAgentTracker)
@@ -115,6 +118,7 @@ DEFINE_ENUM(EAgentToSchedulerOperationEventType,
     ((Suspended)                (1))
     ((Failed)                   (2))
     ((Aborted)                  (3))
+    ((BannedInTentativeTree)    (4))
 );
 
 DEFINE_ENUM(EAgentToSchedulerJobEventType,
@@ -145,6 +149,7 @@ DEFINE_ENUM(EControlQueue,
     (Operation)
     (AgentTracker)
     (NodeTracker)
+    (OperationsCleaner)
 );
 
 ////////////////////////////////////////////////////////////////////////////////

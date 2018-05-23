@@ -59,14 +59,6 @@ TYPath GetNewOperationPath(const TOperationId& operationId)
         ToYPathLiteral(ToString(operationId));
 }
 
-TYPath GetOperationProgressFromOrchid(const TOperationId& operationId)
-{
-    return
-        "//sys/scheduler/orchid/scheduler/operations/" +
-        ToYPathLiteral(ToString(operationId)) +
-        "/progress";
-}
-
 TYPath GetJobsPath(const TOperationId& operationId)
 {
     return
@@ -121,6 +113,24 @@ TYPath GetNewFailContextPath(const TOperationId& operationId, const TJobId& jobI
     return
         GetNewJobPath(operationId, jobId)
         + "/fail_context";
+}
+
+TYPath GetSchedulerOrchidOperationPath(const TOperationId& operationId)
+{
+    return
+        "//sys/scheduler/orchid/scheduler/operations/" +
+        ToYPathLiteral(ToString(operationId));
+}
+
+TYPath GetControllerAgentOrchidOperationPath(
+    const TString& controllerAgentAddress,
+    const TOperationId& operationId)
+{
+    return
+        "//sys/controller_agents/instances/" +
+        controllerAgentAddress +
+        "/orchid/controller_agent/operations/" +
+        ToYPathLiteral(ToString(operationId));
 }
 
 TYPath GetSnapshotPath(const TOperationId& operationId)
@@ -230,6 +240,12 @@ const TYPath& GetOperationsArchiveJobSpecsPath()
     return path;
 }
 
+const TYPath& GetOperationsArchiveJobStderrsPath()
+{
+    static TYPath path = "//sys/operations_archive/stderrs";
+    return path;
+}
+
 bool IsOperationFinished(EOperationState state)
 {
     return
@@ -263,7 +279,17 @@ bool IsOperationInProgress(EOperationState state)
         state == EOperationState::Aborting;
 }
 
-void ValidateEnvironmentVariableName(const TStringBuf& name)
+bool IsOperationWithUserJobs(EOperationType operationType)
+{
+    return
+        operationType == EOperationType::Map ||
+        operationType == EOperationType::Reduce ||
+        operationType == EOperationType::MapReduce ||
+        operationType == EOperationType::JoinReduce ||
+        operationType == EOperationType::Vanilla;
+}
+
+void ValidateEnvironmentVariableName(TStringBuf name)
 {
     static const int MaximumNameLength = 1 << 16; // 64 kilobytes.
     if (name.size() > MaximumNameLength) {

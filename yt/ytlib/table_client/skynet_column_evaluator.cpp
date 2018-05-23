@@ -10,6 +10,8 @@
 namespace NYT {
 namespace NTableClient {
 
+using namespace NCrypto;
+
 static constexpr i64 SkynetPartSize = 4_MB;
 
 ////////////////////////////////////////////////////////////////////////////////

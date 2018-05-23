@@ -74,10 +74,10 @@ message TReqInitializeOperation
 
 message TRspInitializeOperation
 {
-    required bytes immutable_attributes = 1; // YSON
-    required bytes mutable_attributes = 2; // YSON
-    required bytes brief_spec = 3; // YSON
-    required bytes unrecognized_spec = 4; // YSON
+    required bytes mutable_attributes = 1; // YSON
+    required bytes brief_spec = 2; // YSON
+    required bytes unrecognized_spec = 3; // YSON
+    required bytes full_spec = 4; // YSON
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -166,13 +166,13 @@ message TRspAbortOperation
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TReqDisposeOperation
+message TReqUnregisterOperation
 {
     required NYT.NProto.TGuid incarnation_id = 1;
     required NYT.NProto.TGuid operation_id = 2;
 }
 
-message TRspDisposeOperation
+message TRspUnregisterOperation
 { }
 
 ////////////////////////////////////////////////////////////////////////////////

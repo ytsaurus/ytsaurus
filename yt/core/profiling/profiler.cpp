@@ -207,7 +207,7 @@ TTimer TProfiler::TimingStart(
 
 TDuration TProfiler::TimingStop(
     TTimer& timer,
-    const TStringBuf& key) const
+    TStringBuf key) const
 {
     return DoTimingStop(timer, key, Null);
 }
@@ -249,7 +249,7 @@ TDuration TProfiler::DoTimingStop(
 
 TDuration TProfiler::TimingCheckpoint(
     TTimer& timer,
-    const TStringBuf& key) const
+    TStringBuf key) const
 {
     return DoTimingCheckpoint(timer, key, Null);
 }

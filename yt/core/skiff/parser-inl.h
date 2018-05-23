@@ -210,7 +210,7 @@ TSkiffMultiTableParser<TConsumer>::~TSkiffMultiTableParser()
 { }
 
 template <class TConsumer>
-void TSkiffMultiTableParser<TConsumer>::Read(const TStringBuf& data)
+void TSkiffMultiTableParser<TConsumer>::Read(TStringBuf data)
 {
     if (!ParserCoroutine_.IsCompleted()) {
         ParserCoroutine_.Run(data);

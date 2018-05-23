@@ -13,6 +13,7 @@ fi
 MASTERS=""
 PROXIES=""
 SCHEDULERS=""
+CONTROLLERAGENTS=""
 NODES=""
 RPCPROXIES=""
 
@@ -37,6 +38,11 @@ case $CLUSTER in
     MASTERS="m0[1-3]i.perelman.yt.yandex.net"
     NODES="n0[002-426]i.perelman.yt.yandex.net"
     PROXIES="c0[1-2]i.perelman.yt.yandex.net"
+    ;;
+    bohr)
+    MASTERS="m0[1-3]-sas.bohr.yt.yandex.net"
+    NODES="n0[001-139]-sas.bohr.yt.yandex.net"
+    PROXIES="c0[1-2]-sas.bohr.yt.yandex.net"
     ;;
     vanga)
     MASTERS="m02i.vanga.yt.yandex.net,m03f.vanga.yt.yandex.net,m04h.vanga.yt.yandex.net"
@@ -72,12 +78,14 @@ esac
 
 if [ "${PROXIES}" == "" ]; then PROXIES="${MASTERS}"; fi
 if [ "${SCHEDULERS}" == "" ]; then SCHEDULERS="${MASTERS}"; fi
+if [ "${CONTROLLERAGENTS}" == "" ]; then CONTROLLERAGENTS="${SCHEDULERS}"; fi
 if [ "${RPCPROXIES}" == "" ]; then RPCPROXIES="${NODES}"; fi
 
 echo "Updating ${CLUSTER} to version ${VERSION} ${READONLY}"
 echo "Masters: ${MASTERS}"
 echo "HTTP Proxies: ${PROXIES}"
 echo "Schedulers: ${SCHEDULERS}"
+echo "Controller agents: ${CONTROLLERAGENTS}"
 echo "Nodes: ${NODES}"
 echo "RPC Proxies: ${RPCPROXIES}"
 
@@ -123,17 +131,20 @@ function waitconfig {
 waitversion $MASTERS ytserver-master
 waitversion $PROXIES ytserver-master
 waitversion $SCHEDULERS ytserver-scheduler
+waitversion $CONTROLLERAGENTS ytserver-controller-agent
 waitversion $NODES ytserver-node
 waitversion $RPCPROXIES ytserver-proxy
 
 buildsnapshot "${MASTERS}" "${READONLY}"
 if [ $? -eq 0 ]; then echo "Snapshot built"; else echo "Snapshot failed"; exit; fi
 
+command="restart"
 update $MASTERS "sudo sv restart yt_master"
-update $PROXIES "sudo sv restart yt_http_proxy"
-update $SCHEDULERS "sudo sv restart yt_scheduler"
-update $NODES "sudo sv restart yt_node"
-update $RPCPROXIES "sudo sv restart yt_proxy"
+update $PROXIES "sudo sv ${command} yt_http_proxy"
+update $SCHEDULERS "sudo sv ${command} yt_scheduler"
+update $CONTROLLERAGENTS "sudo sv ${command} yt_controller_agent"
+update $NODES "sudo sv ${command} yt_node"
+update $RPCPROXIES "sudo sv ${command} yt_proxy"
 
 #update $NODES "sudo rm -f /var/lock/yt-is-crashing ; sudo sv restart yt_node"
 

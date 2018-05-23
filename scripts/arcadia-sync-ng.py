@@ -226,7 +226,7 @@ def git_verify_head_pushed(git):
         raise CheckError("remote repo doesn't contain HEAD")
 
 def verify_svn_match_git(git, git_relpath, local_svn, svn_relpath):
-    git_rel_paths = set(iter_relpath_translate(git_iter_files_to_sync(git, git_relpath), git_relpath, ""))
+    git_rel_paths = set(iter_relpath_translate(git_iter_files_to_sync(git, ":/" + git_relpath), git_relpath, ""))
     svn_tracked_rel_paths = set(
         iter_relpath_translate(
             (
@@ -363,7 +363,7 @@ def action_copy_to_local_svn(ctx, args):
     rmrf(local_svn.abspath(ctx.svn_relpath))
 
     # Copy files
-    git_rel_file_list = list(git_iter_files_to_sync(ctx.git, ctx.git_relpath))
+    git_rel_file_list = list(git_iter_files_to_sync(ctx.git, ":/" + ctx.git_relpath))
     svn_rel_file_list = list(iter_relpath_translate(git_rel_file_list, ctx.git_relpath, ctx.svn_relpath))
     assert len(git_rel_file_list) == len(svn_rel_file_list)
     for rel_git_file, rel_svn_file in itertools.izip(git_rel_file_list, svn_rel_file_list):

@@ -35,6 +35,7 @@ void Serialize(const TExtendedJobResources& resources, IYsonConsumer* consumer)
     BuildYsonFluently(consumer)
         .BeginMap()
             .Item("cpu").Value(resources.GetCpu())
+            .Item("gpu").Value(resources.GetGpu())
             .Item("user_slots").Value(resources.GetUserSlots())
             .Item("job_proxy_memory").Value(resources.GetJobProxyMemory())
             .Item("user_job_memory").Value(resources.GetUserJobMemory())
@@ -48,6 +49,7 @@ void TExtendedJobResources::Persist(const TStreamPersistenceContext& context)
     using NYT::Persist;
 
     Persist(context, Cpu_);
+    Persist(context, Gpu_);
     Persist(context, UserSlots_);
     Persist(context, JobProxyMemory_);
     Persist(context, UserJobMemory_);
@@ -85,13 +87,16 @@ TString FormatResource(
     const TJobResources& limits)
 {
     return Format(
-        "UserSlots: %v/%v, Cpu: %v/%v, Memory: %v/%v, Network: %v/%v",
+        "UserSlots: %v/%v, Cpu: %v/%v, Gpu: %v/%v, Memory: %v/%v, Network: %v/%v",
         // User slots
         usage.GetUserSlots(),
         limits.GetUserSlots(),
         // Cpu
         usage.GetCpu(),
         limits.GetCpu(),
+        // Gpu
+        usage.GetGpu(),
+        limits.GetGpu(),
         // Memory (in MB)
         usage.GetMemory() / (1024 * 1024),
         limits.GetMemory() / (1024 * 1024),
@@ -118,9 +123,10 @@ TString FormatResourceUsage(
 TString FormatResources(const TJobResources& resources)
 {
     return Format(
-        "{UserSlots: %v, Cpu: %v, Memory: %v, Network: %v}",
+        "{UserSlots: %v, Cpu: %v, Gpu: %v, Memory: %v, Network: %v}",
         resources.GetUserSlots(),
         resources.GetCpu(),
+        resources.GetGpu(),
         resources.GetMemory() / 1_MB,
         resources.GetNetwork());
 }
@@ -128,9 +134,10 @@ TString FormatResources(const TJobResources& resources)
 TString FormatResources(const TJobResourcesWithQuota& resources)
 {
     return Format(
-        "{UserSlots: %v, Cpu: %v, Memory: %v, Network: %v, DiskQuota: %v}",
+        "{UserSlots: %v, Cpu: %v, Gpu: %v, Memory: %v, Network: %v, DiskQuota: %v}",
         resources.GetUserSlots(),
         resources.GetCpu(),
+        resources.GetGpu(),
         resources.GetMemory() / 1_MB,
         resources.GetNetwork(),
         resources.GetDiskQuota()
@@ -141,9 +148,10 @@ TString FormatResources(const TJobResourcesWithQuota& resources)
 TString FormatResources(const TExtendedJobResources& resources)
 {
     return Format(
-        "{UserSlots: %v, Cpu: %v, JobProxyMemory: %v, UserJobMemory: %v, FootprintMemory: %v, Network: %v}",
+        "{UserSlots: %v, Cpu: %v, Gpu: %v, JobProxyMemory: %v, UserJobMemory: %v, FootprintMemory: %v, Network: %v}",
         resources.GetUserSlots(),
         resources.GetCpu(),
+        resources.GetGpu(),
         resources.GetJobProxyMemory() / 1_MB,
         resources.GetUserJobMemory() / 1_MB,
         resources.GetFootprintMemory() / 1_MB,
@@ -455,6 +463,7 @@ TJobResources GetMinSpareResources()
     TJobResources result;
     result.SetUserSlots(1);
     result.SetCpu(1);
+    result.SetGpu(0);
     result.SetMemory(LowWatermarkMemorySize);
     return result;
 }
@@ -487,6 +496,7 @@ namespace NProto {
 void ToProto(NScheduler::NProto::TJobResources* protoResources, const NScheduler::TJobResources& resources)
 {
     protoResources->set_cpu(static_cast<double>(resources.GetCpu()));
+    protoResources->set_gpu(resources.GetGpu());
     protoResources->set_user_slots(resources.GetUserSlots());
     protoResources->set_memory(resources.GetMemory());
     protoResources->set_network(resources.GetNetwork());
@@ -495,6 +505,7 @@ void ToProto(NScheduler::NProto::TJobResources* protoResources, const NScheduler
 void FromProto(NScheduler::TJobResources* resources, const NScheduler::NProto::TJobResources& protoResources)
 {
     resources->SetCpu(TCpuResource(protoResources.cpu()));
+    resources->SetGpu(protoResources.gpu());
     resources->SetUserSlots(protoResources.user_slots());
     resources->SetMemory(protoResources.memory());
     resources->SetNetwork(protoResources.network());
@@ -503,6 +514,7 @@ void FromProto(NScheduler::TJobResources* resources, const NScheduler::NProto::T
 void ToProto(NScheduler::NProto::TJobResourcesWithQuota* protoResources, const NScheduler::TJobResourcesWithQuota& resources)
 {
     protoResources->set_cpu(static_cast<double>(resources.GetCpu()));
+    protoResources->set_gpu(resources.GetGpu());
     protoResources->set_user_slots(resources.GetUserSlots());
     protoResources->set_memory(resources.GetMemory());
     protoResources->set_network(resources.GetNetwork());
@@ -512,6 +524,7 @@ void ToProto(NScheduler::NProto::TJobResourcesWithQuota* protoResources, const N
 void FromProto(NScheduler::TJobResourcesWithQuota* resources, const NScheduler::NProto::TJobResourcesWithQuota& protoResources)
 {
     resources->SetCpu(TCpuResource(protoResources.cpu()));
+    resources->SetGpu(protoResources.gpu());
     resources->SetUserSlots(protoResources.user_slots());
     resources->SetMemory(protoResources.memory());
     resources->SetNetwork(protoResources.network());
