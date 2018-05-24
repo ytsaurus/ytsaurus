@@ -217,6 +217,7 @@ private:
                 CurrentRowIndex_ = BeginRowIndex_;
             }
 
+            // TODO(savrus) profile chunk reader statistics.
             TClientBlockReadOptions options;
             options.WorkloadDescriptor = Config_->WorkloadDescriptor;
             options.ChunkReaderStatistics = New<TChunkReaderStatistics>();

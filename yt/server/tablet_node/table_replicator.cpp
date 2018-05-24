@@ -250,6 +250,7 @@ private:
             i64 newReplicationRowIndex;
             TTimestamp newReplicationTimestamp;
 
+            // TODO(savrus) profile chunk reader statistics.
             TClientBlockReadOptions blockReadOptions;
             blockReadOptions.WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemReplication),
             blockReadOptions.ReadSessionId = TReadSessionId::Create();
@@ -278,8 +279,6 @@ private:
                     YCHECK(readReplicationBatch());
                 }
             }
-
-            // FIXME(savrus) chunk reader statistics
 
             PROFILE_AGGREGATED_TIMING(counters->ReplicationRowsWriteTime) {
                 TModifyRowsOptions options;
