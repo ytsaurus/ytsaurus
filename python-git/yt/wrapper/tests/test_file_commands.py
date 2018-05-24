@@ -2,6 +2,7 @@
 
 from .helpers import TEST_DIR, set_config_option, set_config_options
 
+from yt.wrapper.driver import make_request
 from yt.packages.six import PY3
 
 import yt.wrapper as yt
@@ -116,3 +117,19 @@ class TestFileCommands(object):
                 else:
                     yt.write_file(TEST_DIR + "/file", f, is_stream_compressed=True)
                     assert b"test write compressed file data" == yt.read_file(TEST_DIR + "/file").read()
+
+    def test_etag(self):
+        if yt.config["backend"] == "native":
+            pytest.skip()
+
+        file_path = TEST_DIR + "/file"
+        yt.write_file(file_path, b"")
+        assert yt.read_file(file_path).read() == b""
+
+        revision = yt.get(file_path + "/@revision")
+        response_stream = make_request("read_file", {"path": file_path}, return_content=False)
+        response = response_stream._get_response()
+        # COMPAT(ignat): remove this if.
+        if "ETag" in response.headers:
+            assert int(response.headers["ETag"]) == revision
+
