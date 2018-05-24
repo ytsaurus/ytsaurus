@@ -33,6 +33,7 @@ def safe_add_new_replica(args, freezes, tmp_objects):
     replica_path = args.replica_path
     source_replica_id = args.source_replica
     force = args.force
+    temp_prefix = args.temp_prefix
 
     print "Set new replicated table ttl"
     yt.set(replicated_table + "/@min_replication_log_ttl", 1000 * 60 * 60 * 24 * 30)
@@ -79,7 +80,7 @@ def safe_add_new_replica(args, freezes, tmp_objects):
     yt.unfreeze_table(replicated_table)
     freezes.pop(0)
 
-    dump_table = yt_source.create_temp_table(prefix="//home/savrus/restores/")
+    dump_table = yt_source.create_temp_table(prefix=temp_prefix)
     assert dump_table != None
     tmp_objects["dump_table"] = [source_replica["cluster_name"], dump_table]
 
@@ -175,7 +176,8 @@ def safe_add_new_replica(args, freezes, tmp_objects):
 
     tmp_objects.pop("replica")
     tmp_objects.pop("replica_table")
-  
+
+    print "SUCCESS!!!!!!"
 
 def add_new_replica(args):
     replicated_table = args.table
@@ -230,6 +232,7 @@ if __name__ == "__main__":
     parser.add_argument("--replica-cluster", type=str, required=True, help="Replica cluster name")
     parser.add_argument("--replica-path", type=str, required=True, help="Replica cluster path")
     parser.add_argument("--source-replica", type=str, required=True, help="Use specific replica")
+    parser.add_argument("--temp-prefix", type=str, default="//tmp/", help="Use specific replica")
     parser.add_argument("--force", action="store_true", default=False, help="Remove replica table if exists")
 
     args = parser.parse_args()
