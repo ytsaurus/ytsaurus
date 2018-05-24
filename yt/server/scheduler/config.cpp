@@ -190,7 +190,7 @@ TOperationsCleanerConfig::TOperationsCleanerConfig()
         .Default(true);
     RegisterParameter("clean_delay", CleanDelay)
         .Default(TDuration::Minutes(5));
-    RegisterParameter("archivation_period", ArchivationPeriod)
+    RegisterParameter("analysis_period", AnalysisPeriod)
         .Default(TDuration::Seconds(30));
     RegisterParameter("remove_batch_size", RemoveBatchSize)
         .Default(256);

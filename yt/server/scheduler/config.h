@@ -192,8 +192,8 @@ public:
     //! Operations are kept in Cypress for this duration after finish.
     TDuration CleanDelay;
 
-    //! Archivation period.
-    TDuration ArchivationPeriod;
+    //! Analysis period.
+    TDuration AnalysisPeriod;
 
     //! Number of operations to remove in one batch.
     int RemoveBatchSize;

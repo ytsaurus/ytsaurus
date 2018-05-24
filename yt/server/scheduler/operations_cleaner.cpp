@@ -13,6 +13,8 @@
 
 #include <yt/ytlib/table_client/row_buffer.h>
 
+#include <yt/core/actions/cancelable_context.h>
+
 #include <yt/core/concurrency/action_queue.h>
 #include <yt/core/concurrency/nonblocking_batch.h>
 #include <yt/core/concurrency/periodic_executor.h>
@@ -252,15 +254,9 @@ public:
     TImpl(TOperationsCleanerConfigPtr config, TBootstrap* bootstrap)
         : Config_(std::move(config))
         , Bootstrap_(bootstrap)
-        , ArchivationExecutor_(New<TPeriodicExecutor>(
-            GetInvoker(),
-            BIND(&TImpl::OnAnalyzeOperations, MakeWeak(this)),
-            Config_->ArchivationPeriod))
         , RemoveBatcher_(Config_->RemoveBatchSize, Config_->RemoveBatchTimeout)
         , ArchiveBatcher_(Config_->ArchiveBatchSize, Config_->ArchiveBatchTimeout)
-    {
-        VERIFY_INVOKER_THREAD_AFFINITY(GetInvoker(), ControlThread);
-    }
+    { }
 
     void Start()
     {
@@ -373,7 +369,10 @@ private:
     TOperationsCleanerConfigPtr Config_;
     const TBootstrap* const Bootstrap_;
 
-    const TPeriodicExecutorPtr ArchivationExecutor_;
+    TPeriodicExecutorPtr AnalysisExecutor_;
+
+    TCancelableContextPtr CancelableContext_;
+    IInvokerPtr CancelableControlInvoker_;
 
     int ArchiveVersion_ = -1;
 
@@ -406,7 +405,7 @@ private:
 private:
     IInvokerPtr GetInvoker() const
     {
-        return Bootstrap_->GetControlInvoker(EControlQueue::OperationsCleaner);
+        return CancelableControlInvoker_;
     }
 
     void ScheduleRemoveOperations()
@@ -423,9 +422,21 @@ private:
     {
         if (Config_->Enable && !Enabled_) {
             Enabled_ = true;
+
+            YCHECK(!CancelableContext_);
+            CancelableContext_ = New<TCancelableContext>();
+            CancelableControlInvoker_ = CancelableContext_->CreateInvoker(
+                Bootstrap_->GetControlInvoker(EControlQueue::OperationsCleaner));
+
+            AnalysisExecutor_ = New<TPeriodicExecutor>(
+                CancelableControlInvoker_,
+                BIND(&TImpl::OnAnalyzeOperations, MakeWeak(this)),
+                Config_->AnalysisPeriod);
+
+            AnalysisExecutor_->Start();
+
             ScheduleRemoveOperations();
             ScheduleArchiveOperations();
-            ArchivationExecutor_->Start();
             DoStartArchivation();
 
             // If operations cleaner was disabled during scheduler runtime and then
@@ -469,9 +480,14 @@ private:
 
         Enabled_ = false;
 
-        TDelayedExecutor::CancelAndClear(ArchivationStartCookie_);
+        CancelableContext_->Cancel();
+        CancelableContext_.Reset();
+        CancelableControlInvoker_ = nullptr;
 
-        ArchivationExecutor_->Stop();
+        AnalysisExecutor_->Stop();
+        AnalysisExecutor_.Reset();
+
+        TDelayedExecutor::CancelAndClear(ArchivationStartCookie_);
 
         DoStopArchivation();
 
@@ -701,10 +717,6 @@ private:
                 }
             }
 
-            if (!IsEnabled()) {
-                return;
-            }
-
             for (const auto& operationId : batch) {
                 YCHECK(OperationMap_.erase(operationId) == 1);
                 EnqueueForRemoval(operationId);
@@ -713,9 +725,7 @@ private:
             Profiler.Increment(ArchivePendingCounter_, -batch.size());
         }
 
-        if (IsEnabled()) {
-            ScheduleArchiveOperations();
-        }
+        ScheduleArchiveOperations();
     }
 
     void RemoveOperations()
@@ -786,18 +796,14 @@ private:
             Profiler.Increment(RemovedCounter_, removedCount);
             Profiler.Increment(RemoveErrorCounter_, failedOperationIds.size());
 
-            if (IsEnabled()) {
-                for (const auto& operationId : failedOperationIds) {
-                    RemoveBatcher_.Enqueue(operationId);
-                }
-
-                Profiler.Increment(RemovePendingCounter_, -removedCount);
+            for (const auto& operationId : failedOperationIds) {
+                RemoveBatcher_.Enqueue(operationId);
             }
+
+            Profiler.Increment(RemovePendingCounter_, -removedCount);
         }
 
-        if (IsEnabled()) {
-            ScheduleRemoveOperations();
-        }
+        ScheduleRemoveOperations();
     }
 
     void TemporaryDisableArchivation()
