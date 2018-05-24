@@ -22,6 +22,7 @@
 #include <util/generic/maybe.h>
 #include <util/folder/path.h>
 #include <util/system/env.h>
+#include <util/system/mktemp.h>
 #include <util/system/tempfile.h>
 #include <util/thread/pool.h>
 
@@ -305,6 +306,44 @@ public:
     }
 };
 REGISTER_MAPPER(TMapperThatWritesCustomStatistics);
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TVanillaAppendingToFile : public IVanillaJob
+{
+public:
+    TVanillaAppendingToFile() = default;
+    TVanillaAppendingToFile(TStringBuf fileName, TStringBuf message)
+        : FileName_(fileName)
+        , Message_(message)
+    { }
+
+    void Do() override
+    {
+        TFile file(FileName_, EOpenModeFlag::ForAppend);
+        file.Write(~Message_, +Message_);
+    }
+
+    Y_SAVELOAD_JOB(FileName_, Message_);
+
+private:
+    TString FileName_;
+    TString Message_;
+};
+REGISTER_VANILLA_JOB(TVanillaAppendingToFile);
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TFailingVanilla : public IVanillaJob
+{
+public:
+    void Do() override
+    {
+        Cerr << "I'm writing to stderr, then gonna fail" << Endl;
+        ::exit(1);
+    }
+};
+REGISTER_VANILLA_JOB(TFailingVanilla);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1315,6 +1354,49 @@ Y_UNIT_TEST_SUITE(Operations)
                     .FileStorage("//testing/file_storage")
                     .FileStorageTransactionId(tx2->GetId()));
         }
+    }
+
+    Y_UNIT_TEST(Vanilla)
+    {
+        auto client = CreateTestClient();
+
+        TString fileName = MakeTempName();
+        TString message = "Hello world!";
+        ui64 firstJobCount = 2, secondJobCount = 3;
+
+        client->RunVanilla(TVanillaOperationSpec()
+            .AddTask(TVanillaTask()
+                .Name("first")
+                .Job(new TVanillaAppendingToFile(fileName, message))
+                .JobCount(firstJobCount))
+            .AddTask(TVanillaTask()
+                .Name("second")
+                .Job(new TVanillaAppendingToFile(fileName, message))
+                .JobCount(secondJobCount)));
+
+        TIFStream stream(fileName);
+        UNIT_ASSERT_VALUES_EQUAL(stream.ReadAll().size(), (firstJobCount + secondJobCount) * message.size());
+    }
+
+    Y_UNIT_TEST(FailingVanilla)
+    {
+        auto client = CreateTestClient();
+
+        TYPath stderrPath = "//testing/stderr";
+
+        client->Create(stderrPath, NT_TABLE);
+
+        UNIT_ASSERT_EXCEPTION(
+            client->RunVanilla(TVanillaOperationSpec()
+                .AddTask(TVanillaTask()
+                    .Name("task")
+                    .Job(new TFailingVanilla())
+                    .JobCount(2))
+                .StderrTablePath(stderrPath)
+                .MaxFailedJobCount(5)),
+            TOperationFailedError);
+
+        UNIT_ASSERT_UNEQUAL(client->Get(stderrPath + "/@row_count"), 0);
     }
 
     Y_UNIT_TEST(RetryLockConflict)

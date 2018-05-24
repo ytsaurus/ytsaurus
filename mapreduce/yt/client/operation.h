@@ -126,6 +126,12 @@ TOperationId ExecuteErase(
     const TEraseOperationSpec& spec,
     const TOperationOptions& options);
 
+TOperationId ExecuteVanilla(
+    const TAuth& auth,
+    const TTransactionId& transactionId,
+    const TVanillaOperationSpec& spec,
+    const TOperationOptions& options);
+
 EOperationState CheckOperation(
     const TAuth& auth,
     const TOperationId& operationId);

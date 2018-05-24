@@ -157,8 +157,7 @@ void Initialize(int argc, const char* argv[], const TInitializeOptions& options)
     }
 
     // Now we are definitely in job.
-    // We take this setting from environment variable to
-    // be consistent with client code.
+    // We take this setting from environment variable to be consistent with client code.
     TConfig::Get()->UseClientProtobuf = IsTrue(GetEnv("YT_USE_CLIENT_PROTOBUF", ""));
 
     TString jobType = argv[1];

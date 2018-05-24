@@ -167,6 +167,10 @@ public:
         const TEraseOperationSpec& spec,
         const TOperationOptions& options) override;
 
+    IOperationPtr RunVanilla(
+        const TVanillaOperationSpec& spec,
+        const TOperationOptions& options = TOperationOptions()) override;
+
     EOperationState CheckOperation(const TOperationId& operationId) override;
 
     void AbortOperation(const TOperationId& operationId) override;
