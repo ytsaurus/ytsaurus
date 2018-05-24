@@ -17,12 +17,11 @@
 
 #include <util/system/align.h>
 
-#include <mutex>
-
 namespace NYT {
 namespace NHydra {
 
 using namespace NHydra::NProto;
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -218,7 +217,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        std::lock_guard<std::mutex> guard(Mutex_);
+        auto guard = Guard(Lock_);
 
         Error_.ThrowOnError();
         ValidateNotOpen();
@@ -275,7 +274,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        std::lock_guard<std::mutex> guard(Mutex_);
+        auto guard = Guard(Lock_);
 
         Error_.ThrowOnError();
 
@@ -305,7 +304,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        std::lock_guard<std::mutex> guard(Mutex_);
+        auto guard = Guard(Lock_);
 
         Error_.ThrowOnError();
         ValidateNotOpen();
@@ -335,7 +334,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        std::lock_guard<std::mutex> guard(Mutex_);
+        auto guard = Guard(Lock_);
         return Meta_;
     }
 
@@ -343,7 +342,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        std::lock_guard<std::mutex> guard(Mutex_);
+        auto guard = Guard(Lock_);
         return RecordCount_;
     }
 
@@ -351,7 +350,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        std::lock_guard<std::mutex> guard(Mutex_);
+        auto guard = Guard(Lock_);
         return CurrentFilePosition_;
     }
 
@@ -359,7 +358,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        std::lock_guard<std::mutex> guard(Mutex_);
+        auto guard = Guard(Lock_);
         return Open_;
     }
 
@@ -372,7 +371,7 @@ public:
 
         VERIFY_THREAD_AFFINITY_ANY();
 
-        std::lock_guard<std::mutex> guard(Mutex_);
+        auto guard = Guard(Lock_);
 
         Error_.ThrowOnError();
         ValidateOpen();
@@ -423,7 +422,8 @@ public:
             ::memcpy(reinterpret_cast<void*>(data.Begin()), AppendOutput_.Blob().Begin(), AppendOutput_.Size());
 
             // Write blob to file.
-            IOEngine_->Pwrite(DataFile_, data, CurrentFilePosition_).Get().ThrowOnError();
+            WaitFor(IOEngine_->Pwrite(DataFile_, data, CurrentFilePosition_))
+                .ThrowOnError();
 
             // Process written records (update index etc).
             IndexFile_.Append(firstRecordId, CurrentFilePosition_, AppendSizes_);
@@ -445,7 +445,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        std::lock_guard<std::mutex> guard(Mutex_);
+        auto guard = Guard(Lock_);
 
         Error_.ThrowOnError();
         ValidateOpen();
@@ -454,8 +454,14 @@ public:
 
         try {
             if (Config_->EnableSync) {
-                IOEngine_->FlushData(DataFile_).Get().ValueOrThrow();
-                IndexFile_.FlushData();
+                std::vector<TFuture<void>> futures;
+                futures.reserve(2);
+                futures.push_back(IndexFile_.FlushData());
+                futures.push_back(IOEngine_->FlushData(DataFile_)
+                    .Apply(BIND([] (const TErrorOr<bool>& error) {
+                        error.ThrowOnError();
+                    })));
+                WaitFor(Combine(futures)).ThrowOnError();
             }
         } catch (const std::exception& ex) {
             LOG_ERROR(ex, "Error flushing changelog");
@@ -473,7 +479,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        std::lock_guard<std::mutex> guard(Mutex_);
+        auto guard = Guard(Lock_);
 
         Error_.ThrowOnError();
         ValidateOpen();
@@ -561,7 +567,7 @@ public:
 
         VERIFY_THREAD_AFFINITY_ANY();
 
-        std::lock_guard<std::mutex> guard(Mutex_);
+        auto guard = Guard(Lock_);
 
         Error_.ThrowOnError();
         ValidateOpen();
@@ -589,7 +595,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        std::lock_guard<std::mutex> guard(Mutex_);
+        auto guard = Guard(Lock_);
 
         YCHECK(CurrentFilePosition_ <= size);
 
@@ -816,6 +822,8 @@ private:
             return;
         }
 
+        IndexFile_.FlushData().Get().ThrowOnError();
+
         auto correctSize = ::AlignUp<i64>(CurrentFilePosition_, Alignment_);
         // rewrite the last 4K-block in case of incorrect size?
         if (correctSize > CurrentFilePosition_) {
@@ -883,7 +891,7 @@ private:
 
     //! Auxiliary data.
     //! Protects file resources.
-    mutable std::mutex Mutex_;
+    mutable TSpinLock Lock_;
     NLogging::TLogger Logger;
 
 };

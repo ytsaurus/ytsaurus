@@ -95,9 +95,9 @@ TIndexBucket::TIndexBucket(size_t capacity, i64 alignment, i64 offset)
     }
 }
 
-void TIndexBucket::Write(const std::shared_ptr<TFileHandle>& file, const NChunkClient::IIOEnginePtr& io) const
+TFuture<void> TIndexBucket::Write(const std::shared_ptr<TFileHandle>& file, const NChunkClient::IIOEnginePtr& io) const
 {
-    io->Pwrite(file, Data_, Offset_).Get().ThrowOnError();
+    return io->Pwrite(file, Data_, Offset_);
 }
 
 void TIndexBucket::Push(const TChangelogIndexRecord& record)
@@ -288,26 +288,29 @@ void TAsyncFileChangelogIndex::Search(
     }
 }
 
-void TAsyncFileChangelogIndex::FlushDirtyBuckets()
+TFuture<void> TAsyncFileChangelogIndex::FlushDirtyBuckets()
 {
     if (!HasDirtyBuckets_) {
-        return;
+        return VoidFuture;
     }
 
+    std::vector<TFuture<void>> asyncResults;
+    asyncResults.reserve(DirtyBuckets_.size() + 2);
+
     if (FirstIndexBucket_ != CurrentIndexBucket_) {
-        FirstIndexBucket_->Write(IndexFile_, IOEngine_);
+        asyncResults.push_back(FirstIndexBucket_->Write(IndexFile_, IOEngine_));
     }
 
     for (const auto& block : DirtyBuckets_) {
-        block->Write(IndexFile_, IOEngine_);
+        asyncResults.push_back(block->Write(IndexFile_, IOEngine_));
     }
 
-    CurrentIndexBucket_->Write(IndexFile_, IOEngine_);
+    asyncResults.push_back(CurrentIndexBucket_->Write(IndexFile_, IOEngine_));
 
     DirtyBuckets_.clear();
     HasDirtyBuckets_ = false;
 
-    LOG_DEBUG("Finished appending to changelog index %v", IndexFileName_);
+    return Combine(asyncResults);
 }
 
 void TAsyncFileChangelogIndex::UpdateIndexBuckets()
@@ -361,16 +364,11 @@ void TAsyncFileChangelogIndex::ProcessRecord(int recordId, i64 currentFilePositi
 
 void TAsyncFileChangelogIndex::Append(int firstRecordId, i64 filePosition, const std::vector<int>& appendSizes)
 {
-    std::vector<TFuture<void>> futures;
     int totalRecords = appendSizes.size();
     for (int index = 0; index < totalRecords; ++index) {
         auto recordSize = appendSizes[index];
         ProcessRecord(firstRecordId + index, filePosition, recordSize);
         filePosition += recordSize;
-    }
-
-    if (!OldFormat_) {
-        FlushDirtyBuckets();
     }
 }
 
@@ -379,11 +377,17 @@ void TAsyncFileChangelogIndex::Append(int firstRecordId, i64 filePosition, int r
     return Append(firstRecordId, filePosition, std::vector<int>({recordSize}));
 }
 
-void TAsyncFileChangelogIndex::FlushData()
+TFuture<void> TAsyncFileChangelogIndex::FlushData()
 {
     YCHECK(!OldFormat_);
 
-    IOEngine_->FlushData(IndexFile_).Get().ValueOrThrow();
+    std::vector<TFuture<void>> asyncResults;
+    asyncResults.reserve(2);
+    asyncResults.push_back(FlushDirtyBuckets());
+    asyncResults.push_back(IOEngine_->FlushData(IndexFile_).Apply(BIND([] (const TErrorOr<bool>& error) {
+        error.ThrowOnError();
+    })));
+    return Combine(asyncResults);
 }
 
 void TAsyncFileChangelogIndex::Close()

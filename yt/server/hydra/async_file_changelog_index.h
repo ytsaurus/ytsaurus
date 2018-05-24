@@ -3,6 +3,8 @@
 #include "format.h"
 #include "file_helpers.h"
 
+#include <yt/core/actions/future.h>
+
 #include <yt/ytlib/chunk_client/public.h>
 
 #include <util/system/align.h>
@@ -21,7 +23,7 @@ public:
     void PushHeader();
     void Push(const TChangelogIndexRecord& record);
 
-    void Write(const std::shared_ptr<TFileHandle>& file, const NChunkClient::IIOEnginePtr& io) const;
+    TFuture<void> Write(const std::shared_ptr<TFileHandle>& file, const NChunkClient::IIOEnginePtr& io) const;
     void UpdateRecordCount(int newRecordCount);
     i64 GetOffset() const;
     int GetCurrentIndexId() const;
@@ -46,7 +48,7 @@ public:
         i64 indexBlockSize);
 
     void Create();
-    void FlushData();
+    TFuture<void> FlushData();
     void Close();
 
     void Append(int firstRecordId, i64 filePosition, const std::vector<int>& appendSizes);
@@ -76,7 +78,7 @@ public:
 
 private:
     void ProcessRecord(int recordId, i64 filePosition, int recordSize);
-    void FlushDirtyBuckets();
+    TFuture<void> FlushDirtyBuckets();
     void UpdateIndexBuckets();
 
     const NChunkClient::IIOEnginePtr IOEngine_;
