@@ -4,6 +4,7 @@
 #include "file_helpers.h"
 #include "format.h"
 
+#include <yt/ytlib/chunk_client/io_engine.h>
 #include <yt/ytlib/hydra/hydra_manager.pb.h>
 
 #include <yt/core/concurrency/thread_affinity.h>
@@ -192,7 +193,7 @@ public:
         : IOEngine_(ioEngine)
         , FileName_(fileName)
         , Config_(config)
-        , IndexFile_(IOEngine_, fileName + "." + ChangelogIndexExtension, Config_->IndexBlockSize)
+        , IndexFile_(IOEngine_, fileName + "." + ChangelogIndexExtension, Alignment_, Config_->IndexBlockSize)
         , Logger(HydraLogger)
     {
         Logger.AddTag("Path: %v", FileName_);
@@ -225,11 +226,15 @@ public:
         try {
             // Read and check changelog header.
             TChangelogHeader header;
+            std::unique_ptr<TFileWrapper> dataFile;
 
             NFS::ExpectIOErrors([&] () {
-                DataFile_.reset(new TFileWrapper(FileName_, RdWr | Seq | CloseOnExec));
+                dataFile.reset(new TFileWrapper(FileName_, RdOnly | Seq | CloseOnExec));
+
+                DataFile_ = IOEngine_->Open(FileName_, RdWr | Seq | CloseOnExec).Get().ValueOrThrow();
+
                 LockDataFile();
-                ReadPod(*DataFile_, header);
+                ReadPod(*dataFile, header);
             });
 
             ValidateSignature(header);
@@ -241,7 +246,7 @@ public:
             auto serializedMeta = TSharedMutableRef::Allocate(header.MetaSize);
 
             NFS::ExpectIOErrors([&] () {
-                ReadPadded(*DataFile_, serializedMeta);
+                ReadPadded(*dataFile, serializedMeta);
             });
 
             DeserializeProto(&Meta_, serializedMeta);
@@ -251,8 +256,8 @@ public:
                 ? Null
                 : MakeNullable(header.TruncatedRecordCount);
 
-            ReadIndex(header);
-            ReadChangelogUntilEnd(header);
+            ReadIndex(dataFile, header);
+            ReadChangelogUntilEnd(dataFile, header);
         } catch (const std::exception& ex) {
             LOG_ERROR(ex, "Error opening changelog");
             Error_ = ex;
@@ -313,7 +318,7 @@ public:
             CreateDataFile();
             IndexFile_.Create();
 
-            CurrentFilePosition_ = DataFile_->GetPosition();
+            CurrentFilePosition_ = DataFile_->GetLength();
         } catch (const std::exception& ex) {
             LOG_ERROR(ex, "Error creating changelog");
             Error_ = ex;
@@ -414,11 +419,11 @@ public:
             YCHECK(::AlignUp(CurrentFilePosition_, Alignment_) == CurrentFilePosition_);
             YCHECK(::AlignUp<i64>(AppendOutput_.Size(), Alignment_) == AppendOutput_.Size());
 
-            NFS::ExpectIOErrors([&] () {
-                // Write blob to file.
-                DataFile_->Seek(CurrentFilePosition_, sSet);
-                DataFile_->Write(AppendOutput_.Begin(), AppendOutput_.Size());
-            });
+            auto data = TAsyncFileChangelogIndex::AllocateAligned<TNull>(AppendOutput_.Size(), false, Alignment_);
+            ::memcpy(reinterpret_cast<void*>(data.Begin()), AppendOutput_.Blob().Begin(), AppendOutput_.Size());
+
+            // Write blob to file.
+            IOEngine_->Pwrite(DataFile_, data, CurrentFilePosition_).Get().ThrowOnError();
 
             // Process written records (update index etc).
             IndexFile_.Append(firstRecordId, CurrentFilePosition_, AppendSizes_);
@@ -449,10 +454,8 @@ public:
 
         try {
             if (Config_->EnableSync) {
-                NFS::ExpectIOErrors([&] () {
-                    DataFile_->FlushData();
-                    IndexFile_.FlushData();
-                });
+                IOEngine_->FlushData(DataFile_).Get().ValueOrThrow();
+                IndexFile_.FlushData();
             }
         } catch (const std::exception& ex) {
             LOG_ERROR(ex, "Error flushing changelog");
@@ -645,16 +648,17 @@ private:
     {
         int index = 0;
         while (true) {
-            try {
-                LOG_DEBUG("Locking data file");
-                DataFile_->Flock(LOCK_EX | LOCK_NB);
+            LOG_DEBUG("Locking data file");
+            if (DataFile_->Flock(LOCK_EX | LOCK_NB) == 0) {
                 LOG_DEBUG("Data file locked successfullly");
                 break;
-            } catch (const std::exception& ex) {
+            } else {
                 if (++index >= MaxLockRetries) {
-                    throw;
+                    THROW_ERROR_EXCEPTION(
+                        "Cannot flock %Qv",
+                        FileName_) << TError::FromSystem();
                 }
-                LOG_WARNING(ex, "Error locking data file; backing off and retrying");
+                LOG_WARNING("Error locking data file; backing off and retrying");
                 Sleep(LockBackoffTime);
             }
         }
@@ -683,8 +687,7 @@ private:
 
             NFS::Replace(tempFileName, FileName_);
 
-            DataFile_ = std::make_unique<TFileWrapper>(FileName_, RdWr | Seq | CloseOnExec);
-            DataFile_->Seek(0, sEnd);
+            DataFile_ = IOEngine_->Open(FileName_, RdWr | Seq | CloseOnExec).Get().ValueOrThrow();
         });
     }
 
@@ -692,21 +695,24 @@ private:
     void UpdateLogHeader()
     {
         NFS::ExpectIOErrors([&] () {
-            DataFile_->FlushData();
-            i64 oldPosition = DataFile_->GetPosition();
-            DataFile_->Seek(0, sSet);
+            IOEngine_->FlushData(DataFile_).Get().ValueOrThrow();
+
             TChangelogHeader header(
                 SerializedMeta_.Size(),
                 TruncatedRecordCount_ ? *TruncatedRecordCount_ : TChangelogHeader::NotTruncatedRecordCount,
                 Alignment_);
-            WritePod(*DataFile_, header);
-            DataFile_->FlushData();
-            DataFile_->Seek(oldPosition, sSet);
+
+            auto data = TAsyncFileChangelogIndex::AllocateAligned<TNull>(header.HeaderSize, false, Alignment_);
+            ::memcpy(data.Begin(), &header, sizeof(header));
+            ::memcpy(data.Begin() + sizeof(header), SerializedMeta_.Begin(), SerializedMeta_.Size());
+
+            IOEngine_->Pwrite(DataFile_, data, 0).Get().ThrowOnError();
+            IOEngine_->FlushData(DataFile_).Get().ValueOrThrow();
         });
     }
 
     //! Reads the maximal valid prefix of index, truncates bad index records.
-    void ReadIndex(const TChangelogHeader& header)
+    void ReadIndex(const std::unique_ptr<TFileWrapper>& dataFile, const TChangelogHeader& header)
     {
         NFS::ExpectIOErrors([&] () {
             auto truncatedRecordCount = header.TruncatedRecordCount == TChangelogHeader::NotTruncatedRecordCount
@@ -714,7 +720,7 @@ private:
                 : MakeNullable(header.TruncatedRecordCount);
 
             IndexFile_.Read(truncatedRecordCount);
-            auto correctPrefixSize = ComputeValidIndexPrefix(IndexFile_.Records(), header, &*DataFile_, OldFormat_);
+            auto correctPrefixSize = ComputeValidIndexPrefix(IndexFile_.Records(), header, &*dataFile, OldFormat_);
             IndexFile_.TruncateInvalidRecords(correctPrefixSize);
         });
     }
@@ -727,25 +733,18 @@ private:
         result.UpperBound = TChangelogIndexRecord(RecordCount_, CurrentFilePosition_);
         IndexFile_.Search(&result.LowerBound, &result.UpperBound, firstRecordId, lastRecordId, maxBytes);
 
-        struct TSyncChangelogEnvelopeTag { };
-        result.Blob = TSharedMutableRef::Allocate<TSyncChangelogEnvelopeTag>(result.GetLength(), false);
+        result.Blob = IOEngine_->Pread(DataFile_, result.GetLength(), result.GetStartPosition()).Get().Value();
 
-        NFS::ExpectIOErrors([&] () {
-            size_t bytesRead = DataFile_->Pread(
-                result.Blob.Begin(),
-                result.GetLength(),
-                result.GetStartPosition());
-            YCHECK(bytesRead == result.GetLength());
-        });
+        YCHECK(result.Blob.Size() == result.GetLength());
 
         return result;
     }
 
     //! Reads changelog starting from the last indexed record until the end of file.
-    void ReadChangelogUntilEnd(const TChangelogHeader& header)
+    void ReadChangelogUntilEnd(const std::unique_ptr<TFileWrapper>& dataFile, const TChangelogHeader& header)
     {
         // Extract changelog properties from index.
-        i64 fileLength = DataFile_->GetLength();
+        i64 fileLength = dataFile->GetLength();
         if (IndexFile_.IsEmpty()) {
             RecordCount_ = 0;
             CurrentFilePosition_ = header.HeaderSize;
@@ -756,10 +755,10 @@ private:
 
         // Seek to proper position in file, initialize checkable reader.
         NFS::ExpectIOErrors([&] () {
-            DataFile_->Seek(CurrentFilePosition_, sSet);
+            dataFile->Seek(CurrentFilePosition_, sSet);
         });
 
-        TCheckedReader<TFileWrapper> dataReader(*DataFile_);
+        TCheckedReader<TFileWrapper> dataReader(*dataFile);
         TNullable<TRecordInfo> lastCorrectRecordInfo;
 
         if (!IndexFile_.IsEmpty()) {
@@ -783,14 +782,6 @@ private:
                         << TErrorAttribute("record_id", RecordCount_)
                         << TErrorAttribute("offset", CurrentFilePosition_)
                         << recordInfoOrError;
-                }
-
-                if (!OldFormat_) {
-                    NFS::ExpectIOErrors([&]() {
-                        DataFile_->Resize(CurrentFilePosition_);
-                        DataFile_->FlushData();
-                        DataFile_->Seek(0, sEnd);
-                    });
                 }
 
                 LOG_WARNING(recordInfoOrError, "Broken record found in changelog, trimmed (RecordId: %v, Offset: %v)",
@@ -882,7 +873,7 @@ private:
     TChangelogMeta Meta_;
     TSharedRef SerializedMeta_;
 
-    std::unique_ptr<TFileWrapper> DataFile_;
+    std::shared_ptr<TFileHandle> DataFile_;
     TAsyncFileChangelogIndex IndexFile_;
 
     // Reused by Append.

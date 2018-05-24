@@ -4,6 +4,8 @@
 
 #include <yt/core/misc/fs.h>
 
+#include <yt/ytlib/chunk_client/io_engine.h>
+
 namespace NYT {
 namespace NHydra {
 
@@ -78,14 +80,80 @@ typename std::vector<T>::const_iterator FirstGreater(
 
 } // namespace
 
+TIndexBucket::TIndexBucket(size_t capacity, i64 alignment, i64 offset)
+    : Capacity_(capacity)
+    , Data_(TAsyncFileChangelogIndex::AllocateAligned<TNull>(capacity * sizeof(TChangelogIndexRecord), false, alignment))
+    , Offset_(offset)
+{
+    auto maxCurrentIndexRecords = alignment / sizeof(TChangelogIndexRecord);
+    Index_ = reinterpret_cast<TChangelogIndexRecord*>(Data_.Begin());
+
+    for (int i = 0; i < maxCurrentIndexRecords; ++i) {
+        Index_[i].FilePosition = -1;
+        Index_[i].RecordId = -1;
+        Index_[i].Padding = -1;
+    }
+}
+
+void TIndexBucket::Write(const std::shared_ptr<TFileHandle>& file, const NChunkClient::IIOEnginePtr& io) const
+{
+    io->Pwrite(file, Data_, Offset_).Get().ThrowOnError();
+}
+
+void TIndexBucket::Push(const TChangelogIndexRecord& record)
+{
+    Index_[CurrentIndexId_++] = record;
+}
+
+void TIndexBucket::PushHeader()
+{
+    YCHECK(CurrentIndexId_ == 0);
+
+    static_assert(sizeof(TChangelogIndexHeader) <= sizeof(TChangelogIndexRecord),
+        "sizeof(TChangelogIndexHeader) <= sizeof(TChangelogIndexRecord)");
+
+    CurrentIndexId_++;
+    Header_ = reinterpret_cast<TChangelogIndexHeader*>(Data_.Begin());
+    new (Header_) TChangelogIndexHeader(0);
+}
+
+void TIndexBucket::UpdateRecordCount(int newRecordCount)
+{
+    YCHECK(Offset_ == 0);
+    Header_->IndexRecordCount = newRecordCount;
+}
+
+i64 TIndexBucket::GetOffset() const
+{
+    return Offset_;
+}
+
+int TIndexBucket::GetCurrentIndexId() const
+{
+    return CurrentIndexId_;
+}
+
+bool TIndexBucket::HasSpace() const
+{
+    return CurrentIndexId_ < Capacity_;
+}
+
 TAsyncFileChangelogIndex::TAsyncFileChangelogIndex(
     const NChunkClient::IIOEnginePtr& IOEngine,
     const TString& name,
+    i64 alignment,
     i64 indexBlockSize)
     : IOEngine_(IOEngine)
     , IndexFileName_(name)
+    , Alignment_(alignment)
     , IndexBlockSize_(indexBlockSize)
-{ }
+    , MaxIndexRecordsPerBucket_(Alignment_ / sizeof(TChangelogIndexRecord))
+    , FirstIndexBucket_(New<TIndexBucket>(MaxIndexRecordsPerBucket_, Alignment_, 0))
+    , CurrentIndexBucket_(FirstIndexBucket_)
+{
+    FirstIndexBucket_->PushHeader();
+    YCHECK(Alignment_ % sizeof(TChangelogIndexRecord) == 0);
+}
 
 //! Creates an empty index file.
 void TAsyncFileChangelogIndex::Create()
@@ -101,8 +169,7 @@ void TAsyncFileChangelogIndex::Create()
 
     NFS::Replace(tempFileName, IndexFileName_);
 
-    IndexFile_ = std::make_unique<TFile>(IndexFileName_, RdWr);
-    IndexFile_->Seek(0, sEnd);
+    IndexFile_ = IOEngine_->Open(IndexFileName_, WrOnly | CloseOnExec).Get().ValueOrThrow();
 }
 
 void TAsyncFileChangelogIndex::Read(const TNullable<i32>& truncatedRecordCount)
@@ -160,9 +227,43 @@ void TAsyncFileChangelogIndex::TruncateInvalidRecords(i64 correctPrefixSize)
         return;
     }
 
-    IndexFile_.reset(new TFile(IndexFileName_, RdWr | Seq | OpenAlways | CloseOnExec));
+    FirstIndexBucket_->UpdateRecordCount(Index_.size());
+
+    auto totalRecordCount = Index_.size();
+    // first bucket contains header
+    auto firstRecordId = FirstIndexBucket_->GetCurrentIndexId();
+    auto firstBlockRecordCount = std::min<int>((MaxIndexRecordsPerBucket_ - firstRecordId), totalRecordCount);
+
+    for (int index = 0; index < firstBlockRecordCount; ++index) {
+        FirstIndexBucket_->Push(Index_[index]);
+    }
+
+    if ((totalRecordCount + firstRecordId) >= MaxIndexRecordsPerBucket_) {
+        // [FirstIndexBucket][IndexBucket][IndexBucket]...[CurrentIndexBucket]
+        // fill CurrentIndexBucket from Index
+
+        // calculate record index of the first record of CurrentIndexBucket
+        auto recordIndex = (totalRecordCount + firstRecordId) / MaxIndexRecordsPerBucket_;
+        recordIndex *= MaxIndexRecordsPerBucket_;
+        recordIndex -= firstRecordId;
+
+        // calculate file offset of CurrentIndexBucket
+        auto indexOffset = (recordIndex + firstRecordId) * sizeof(TChangelogIndexRecord);
+
+        YCHECK(indexOffset % Alignment_ == 0);
+
+        CurrentIndexBucket_ = New<TIndexBucket>(MaxIndexRecordsPerBucket_, Alignment_, indexOffset);
+        auto recordCount = totalRecordCount - recordIndex;
+
+        YCHECK(recordCount < MaxIndexRecordsPerBucket_);
+
+        for (int index = 0; index < recordCount; ++index) {
+            CurrentIndexBucket_->Push(Index_[recordIndex + index]);
+        }
+    }
+
+    IndexFile_ = IOEngine_->Open(IndexFileName_, WrOnly | CloseOnExec).Get().ValueOrThrow();
     IndexFile_->Resize(sizeof(TChangelogIndexHeader) + Index_.size() * sizeof(TChangelogIndexRecord));
-    IndexFile_->Seek(0, sEnd);
 }
 
 void TAsyncFileChangelogIndex::Search(
@@ -187,17 +288,47 @@ void TAsyncFileChangelogIndex::Search(
     }
 }
 
-//! Rewrites index header.
-void TAsyncFileChangelogIndex::UpdateIndexHeader()
+void TAsyncFileChangelogIndex::FlushDirtyBuckets()
 {
-    NFS::ExpectIOErrors([&] () {
-        IndexFile_->FlushData();
-        i64 oldPosition = IndexFile_->GetPosition();
-        IndexFile_->Seek(0, sSet);
-        TChangelogIndexHeader header(Index_.size());
-        WritePod(*IndexFile_, header);
-        IndexFile_->Seek(oldPosition, sSet);
-    });
+    if (!HasDirtyBuckets_) {
+        return;
+    }
+
+    if (FirstIndexBucket_ != CurrentIndexBucket_) {
+        FirstIndexBucket_->Write(IndexFile_, IOEngine_);
+    }
+
+    for (const auto& block : DirtyBuckets_) {
+        block->Write(IndexFile_, IOEngine_);
+    }
+
+    CurrentIndexBucket_->Write(IndexFile_, IOEngine_);
+
+    DirtyBuckets_.clear();
+    HasDirtyBuckets_ = false;
+
+    LOG_DEBUG("Finished appending to changelog index %v", IndexFileName_);
+}
+
+void TAsyncFileChangelogIndex::UpdateIndexBuckets()
+{
+    auto& indexRecord = Index_.back();
+
+    CurrentIndexBucket_->Push(indexRecord);
+
+    if (!CurrentIndexBucket_->HasSpace()) {
+        auto bucketOffset = CurrentIndexBucket_->GetOffset() + MaxIndexRecordsPerBucket_ * sizeof(TChangelogIndexRecord);
+
+        if (CurrentIndexBucket_ != FirstIndexBucket_) {
+            DirtyBuckets_.push_back(std::move(CurrentIndexBucket_));
+        }
+
+        CurrentIndexBucket_ = New<TIndexBucket>(MaxIndexRecordsPerBucket_, Alignment_, bucketOffset);
+    }
+
+    FirstIndexBucket_->UpdateRecordCount(Index_.size());
+
+    HasDirtyBuckets_ = true;
 }
 
 //! Processes records that are being or written.
@@ -218,18 +349,11 @@ void TAsyncFileChangelogIndex::ProcessRecord(int recordId, i64 currentFilePositi
         CurrentBlockSize_ = 0;
         Index_.emplace_back(recordId, currentFilePosition);
 
-        // COMPAT(aozeritsky): old format
-        if (!OldFormat_) {
-            NFS::ExpectIOErrors([&]() {
-                WritePod(*IndexFile_, Index_.back());
-            });
-
-            UpdateIndexHeader();
-        }
-
         LOG_DEBUG("Changelog index record added (RecordId: %v, Offset: %v)",
             recordId,
             currentFilePosition);
+
+        UpdateIndexBuckets();
     }
     // Record appended successfully.
     CurrentBlockSize_ += totalSize;
@@ -244,6 +368,10 @@ void TAsyncFileChangelogIndex::Append(int firstRecordId, i64 filePosition, const
         ProcessRecord(firstRecordId + index, filePosition, recordSize);
         filePosition += recordSize;
     }
+
+    if (!OldFormat_) {
+        FlushDirtyBuckets();
+    }
 }
 
 void TAsyncFileChangelogIndex::Append(int firstRecordId, i64 filePosition, int recordSize)
@@ -255,7 +383,7 @@ void TAsyncFileChangelogIndex::FlushData()
 {
     YCHECK(!OldFormat_);
 
-    IndexFile_->FlushData();
+    IOEngine_->FlushData(IndexFile_).Get().ValueOrThrow();
 }
 
 void TAsyncFileChangelogIndex::Close()
