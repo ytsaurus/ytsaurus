@@ -1271,7 +1271,7 @@ private:
                 tabletSnapshot,
                 writer->GetDataStatistics(),
                 writer->GetCompressionStatistics(),
-               CompactionTag_);
+                CompactionTag_);
 
             ProfileChunkReader(
                 tabletSnapshot,
@@ -1279,8 +1279,6 @@ private:
                 reader->GetDecompressionStatistics(),
                 blockReadOptions.ChunkReaderStatistics,
                 CompactionTag_);
-
-            // TODO(savrus): Chunk reader statistics.
 
             LOG_INFO("Partition compaction completed (RowCount: %v, StoreIdsToAdd: %v, StoreIdsToRemove: %v, WallTime: %v)",
                 rowCount,

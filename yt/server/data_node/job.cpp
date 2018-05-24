@@ -87,7 +87,6 @@ public:
         , StartTime_(TInstant::Now())
         , Bootstrap_(bootstrap)
         , ResourceLimits_(resourceLimits)
-        //FIXME(savrus) BlockReadOptions here
     {
         Logger.AddTag("JobId: %v, JobType: %v",
             JobId_,
@@ -691,9 +690,11 @@ private:
         }
 
         {
+            // TODO(savrus) profile chunk reader statistics.
             TClientBlockReadOptions options;
             options.WorkloadDescriptor = Config_->RepairReader->WorkloadDescriptor;
-            options.ChunkReaderStatistics = New<TChunkReaderStatistics>(); //FIXME(savrus) pass correct value here
+            options.ChunkReaderStatistics = New<TChunkReaderStatistics>();
+
             auto result = RepairErasedParts(
                 codec,
                 erasedPartIndexes,
@@ -802,9 +803,10 @@ private:
                 /* trafficMeter */ nullptr,
                 Bootstrap_->GetReplicationInThrottler());
 
+            // TODO(savrus) profile chunk reader statistics.
             TClientBlockReadOptions options;
             options.WorkloadDescriptor = Config_->RepairReader->WorkloadDescriptor;
-            options.ChunkReaderStatistics = New<TChunkReaderStatistics>(); //FIXME(savrus) pass correct value here
+            options.ChunkReaderStatistics = New<TChunkReaderStatistics>();
 
             while (currentRowCount < sealRowCount) {
                 auto asyncBlocks  = reader->ReadBlocks(

@@ -164,7 +164,6 @@ void TJournalChunk::DoReadBlockRange(
 
         TWallTimer timer;
 
-        //FIXME put chunkReaderStatistics here.
         auto asyncBlocks = changelog->Read(
             firstBlockIndex,
             std::min(blockCount, config->MaxBlocksPerRead),
