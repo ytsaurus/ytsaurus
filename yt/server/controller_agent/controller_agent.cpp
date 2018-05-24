@@ -568,7 +568,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(Connected_);
-            
+
         auto operation = GetOperationOrThrow(operationId);
         auto controller = operation->GetController();
         return BIND(&IOperationController::BuildOperationInfo, controller)
@@ -582,7 +582,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(Connected_);
-            
+
         auto operation = GetOperationOrThrow(operationId);
         auto controller = operation->GetController();
         return BIND(&IOperationController::BuildJobYson, controller)
@@ -1291,11 +1291,16 @@ private:
 
         virtual IYPathServicePtr FindItemService(TStringBuf key) const override
         {
+            if (!ControllerAgent_->IsConnected()) {
+                return nullptr;
+            }
+
             auto operationId = TOperationId::FromString(key);
             auto operation = ControllerAgent_->FindOperation(operationId);
             if (!operation) {
                 return nullptr;
             }
+
             return operation->GetController()->GetOrchid();
         }
 
