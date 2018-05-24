@@ -2,6 +2,7 @@
 
 import yt.wrapper as yt
 import yt.transfer_manager.client as tm
+import yt.yson as yson
 
 import argparse
 from datetime import datetime
@@ -49,10 +50,23 @@ def safe_add_new_replica(args, freezes, tmp_objects):
     yt_source = yt.YtClient(proxy=source_replica["cluster_name"])
     yt_destination = yt.YtClient(proxy=replica_cluster)
 
+    print "Waiting until replica lag is zero"
+
     while source_replica["replication_lag_time"] > 0:
-        print "Wait until replica lag is zero", source_replica
+        print "Wait until replica lag time is zero", source_replica
         time.sleep(1)
         source_replica = get_src_replica()
+
+    def check_current_replication_row_index():
+        tablets = yt.get("#" + source_replica_id + "/@tablets")
+        for tablet in tablets:
+            if tablet["current_replication_row_index"] != tablet["flushed_row_count"]:
+                print "Wait current_replication_row_index matches flushed_row_count"
+                print tablets
+                return False
+        return True
+    while not check_current_replication_row_index():
+        time.sleep(1)
     
     print "Freezing replica", source_replica["replica_path"]
     yt_source.freeze_table(source_replica["replica_path"], sync=True)
@@ -181,6 +195,8 @@ def add_new_replica(args):
         print "Failed"
         print exc
         pass
+    except:
+        pass
 
     if len(freezes) > 0:
         print "Executed abnormally, unfreeze tables: ", freezes
@@ -192,7 +208,13 @@ def add_new_replica(args):
         print "Remove temporary tables:", tmp_objects
         for cluster, obj in tmp_objects.values():
             ytc = yt.YtClient(proxy=cluster)
-            ytc.remove(obj)
+            while True:
+                try:
+                    ytc.remove(obj)
+                    break
+                except Exception:
+                    time.sleep(10)
+                    pass
 
     print "Restore old min_replication_log_ttl"
     if replicated_table_ttl == 5*60*1000:
