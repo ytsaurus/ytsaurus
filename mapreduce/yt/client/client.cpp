@@ -402,6 +402,18 @@ IOperationPtr TClientBase::Erase(
     return CreateOperationAndWaitIfRequired(operationId, GetParentClient(), options);
 }
 
+IOperationPtr TClientBase::RunVanilla(
+    const TVanillaOperationSpec& spec,
+    const TOperationOptions& options)
+{
+    auto operationId = ExecuteVanilla(
+        Auth_,
+        TransactionId_,
+        spec,
+        options);
+    return CreateOperationAndWaitIfRequired(operationId, GetParentClient(), options);
+}
+
 EOperationState TClientBase::CheckOperation(const TOperationId& operationId)
 {
     return NYT::NDetail::CheckOperation(Auth_, operationId);

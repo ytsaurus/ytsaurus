@@ -981,10 +981,14 @@ const TMultiFormatDesc& MergeIntermediateDesc(const TMultiFormatDesc& lh, const 
 TOperationId StartOperation(
     const TAuth& auth,
     const TTransactionId& transactionId,
-    const TString& operationName,
-    const TString& ysonSpec)
+    const TString& operationType,
+    const TString& ysonSpec,
+    bool useStartOperationRequest = false)
 {
-    THttpHeader header("POST", operationName);
+    THttpHeader header("POST", (useStartOperationRequest ? "start_op" : operationType));
+    if (useStartOperationRequest) {
+        header.AddParameter("operation_type", operationType);
+    }
     header.AddTransactionId(transactionId);
     header.AddMutationId();
 
@@ -992,7 +996,7 @@ TOperationId StartOperation(
         RetryRequest(auth, header, TStringBuf(ysonSpec), false, true));
 
     LOG_INFO("Operation %s started (%s): http://%s/#page=operation&mode=detail&id=%s&tab=details",
-        ~GetGuidAsString(operationId), ~operationName, ~auth.ServerName, ~GetGuidAsString(operationId));
+        ~GetGuidAsString(operationId), ~operationType, ~auth.ServerName, ~GetGuidAsString(operationId));
 
     TOperationExecutionTimeTracker::Get()->Start(operationId);
 
@@ -1115,8 +1119,8 @@ namespace {
 
 void BuildUserJobFluently1(
     const TJobPreparer& preparer,
-    const TFormat& inputFormat,
-    const TFormat& outputFormat,
+    const TMaybe<TFormat>& inputFormat,
+    const TMaybe<TFormat>& outputFormat,
     TFluentMap fluent)
 {
     TMaybe<i64> memoryLimit = preparer.GetSpec().MemoryLimit_;
@@ -1133,19 +1137,23 @@ void BuildUserJobFluently1(
     }
 
     fluent
-    .Item("file_paths").List(preparer.GetFiles())
-    .Item("input_format").Value(inputFormat.Config)
-    .Item("output_format").Value(outputFormat.Config)
-    .Item("command").Value(preparer.GetCommand())
-    .Item("class_name").Value(preparer.GetClassName())
-    .DoIf(memoryLimit.Defined(), [&] (TFluentMap fluentMap) {
-        fluentMap.Item("memory_limit").Value(*memoryLimit);
-    })
-    .DoIf(preparer.ShouldMountSandbox(), [&] (TFluentMap fluentMap) {
-        fluentMap.Item("tmpfs_path").Value(".");
-        fluentMap.Item("tmpfs_size").Value(tmpfsSize);
-        fluentMap.Item("copy_files").Value(true);
-    });
+        .Item("file_paths").List(preparer.GetFiles())
+        .Item("command").Value(preparer.GetCommand())
+        .Item("class_name").Value(preparer.GetClassName())
+        .DoIf(inputFormat.Defined(), [&] (TFluentMap fluentMap) {
+            fluentMap.Item("input_format").Value(inputFormat->Config);
+        })
+        .DoIf(outputFormat.Defined(), [&] (TFluentMap fluentMap) {
+            fluentMap.Item("output_format").Value(outputFormat->Config);
+        })
+        .DoIf(memoryLimit.Defined(), [&] (TFluentMap fluentMap) {
+            fluentMap.Item("memory_limit").Value(*memoryLimit);
+        })
+        .DoIf(preparer.ShouldMountSandbox(), [&] (TFluentMap fluentMap) {
+            fluentMap.Item("tmpfs_path").Value(".");
+            fluentMap.Item("tmpfs_size").Value(tmpfsSize);
+            fluentMap.Item("copy_files").Value(true);
+        });
 }
 
 void BuildCommonOperationPart(const TOperationOptions& options, TFluentMap fluent)
@@ -1166,9 +1174,8 @@ void BuildCommonOperationPart(const TOperationOptions& options, TFluentMap fluen
             fluentMap.Item("pool").Value(pool);
         })
         .DoIf(options.SecureVault_.Defined(), [&] (TFluentMap fluentMap) {
-            if (!options.SecureVault_->IsMap()) {
-                ythrow yexception() << "SecureVault must be a map node";
-            }
+            Y_ENSURE(options.SecureVault_->IsMap(),
+                "SecureVault must be a map node, got " << options.SecureVault_->GetType());
             fluentMap.Item("secure_vault").Value(*options.SecureVault_);
         });
 }
@@ -2028,6 +2035,54 @@ TOperationId ExecuteErase(
         MergeSpec(specNode, options));
 
     LogYPath(operationId, tablePath, "table_path");
+
+    return operationId;
+}
+
+TOperationId ExecuteVanilla(
+    const TAuth& auth,
+    const TTransactionId& transactionId,
+    const TVanillaOperationSpec& spec,
+    const TOperationOptions& options)
+{
+
+    auto addTask = [&](TFluentMap fluent, const TVanillaTask& task) {
+        TJobPreparer jobPreparer(
+            auth,
+            transactionId,
+            "--yt-map",
+            task.Spec_,
+            task.Job_.Get(),
+            /* outputTableCount = */ 0,
+            /* smallFileList = */ {},
+            options);
+
+        fluent
+            .Item(task.Name_).BeginMap()
+                .Item("job_count").Value(task.JobCount_)
+                .Do(std::bind(
+                    BuildUserJobFluently1,
+                    std::cref(jobPreparer),
+                    /* inputFormat = */ Nothing(),
+                    /* outputFormat = */ Nothing(),
+                    std::placeholders::_1))
+            .EndMap();
+    };
+
+    TNode specNode = BuildYsonNodeFluently()
+    .BeginMap().Item("spec").BeginMap()
+        .Item("tasks").DoMapFor(spec.Tasks_, addTask)
+        .Do(std::bind(BuildCommonOperationPart, options, std::placeholders::_1))
+    .EndMap().EndMap();
+
+    BuildCommonUserOperationPart(spec, &specNode["spec"]);
+
+    auto operationId = StartOperation(
+        auth,
+        transactionId,
+        "vanilla",
+        MergeSpec(specNode, options),
+        /* useGetOperationRequest = */ true);
 
     return operationId;
 }

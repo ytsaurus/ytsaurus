@@ -431,6 +431,27 @@ struct TEraseOperationSpec
     FLUENT_FIELD_DEFAULT(bool, CombineChunks, false);
 };
 
+
+class IVanillaJob;
+
+struct TVanillaTask
+{
+    using TSelf = TVanillaTask;
+
+    FLUENT_FIELD(TString, Name);
+    FLUENT_FIELD(::TIntrusivePtr<IVanillaJob>, Job);
+    FLUENT_FIELD(TUserJobSpec, Spec);
+    FLUENT_FIELD(ui64, JobCount);
+};
+
+struct TVanillaOperationSpec
+    : TUserOperationSpecBase<TVanillaOperationSpec>
+{
+    using TSelf = TVanillaOperationSpec;
+
+    FLUENT_VECTOR_FIELD(TVanillaTask, Task);
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 const TNode& GetJobSecureVault();
@@ -474,6 +495,7 @@ public:
         Reducer,
         ReducerAggregator,
         RawJob,
+        VanillaJob,
     };
 
     virtual void Save(IOutputStream& stream) const
@@ -631,6 +653,17 @@ public:
     static constexpr EType JobType = EType::RawJob;
 
     virtual void Do(const TRawJobContext& jobContext) = 0;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class IVanillaJob
+    : public IJob
+{
+public:
+    static constexpr EType JobType = EType::VanillaJob;
+
+    virtual void Do() = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -823,6 +856,9 @@ struct IOperationClient
         const TEraseOperationSpec& spec,
         const TOperationOptions& options = TOperationOptions()) = 0;
 
+    virtual IOperationPtr RunVanilla(
+        const TVanillaOperationSpec& spec,
+        const TOperationOptions& options = TOperationOptions()) = 0;
 
     virtual void AbortOperation(
         const TOperationId& operationId) = 0;

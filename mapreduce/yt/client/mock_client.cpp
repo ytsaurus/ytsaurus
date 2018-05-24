@@ -337,6 +337,9 @@ EOperationState TMockClient::CheckOperation(const TOperationId&) {
     return EOperationState::Completed;
 }
 
+IOperationPtr TMockClient::RunVanilla(const TVanillaOperationSpec&, const TOperationOptions&) {
+    return nullptr;
+}
 
 IOperationPtr TMockClient::DoMap(const TMapOperationSpec&, IJob*, const TOperationOptions&) {
     return nullptr;

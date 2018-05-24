@@ -486,6 +486,16 @@ int RunRawJob(size_t outputTableCount, IInputStream& jobStateStream)
     return 0;
 }
 
+template <class TVanillaJob>
+int RunVanillaJob(size_t outputTableCount, IInputStream& jobStateStream)
+{
+    Y_VERIFY(outputTableCount == 0, "Vanilla job doesn't expect nonzero 'outputTableCount'");
+    TVanillaJob job;
+    job.Load(jobStateStream);
+    job.Do();
+    return 0;
+}
+
 template <class TJob>
 int RunJob(size_t outputTableCount, IInputStream& jobStateStream)
 {
@@ -550,19 +560,19 @@ public:
     template <class TJob>
     void RegisterJob(const char* name)
     {
-        const auto* typeInfoPtr = &typeid(TJob);
-        CheckNotRegistered(typeInfoPtr, name);
-        JobNames[typeInfoPtr] = name;
-        JobFunctions[name] = RunJob<TJob>;
+        RegisterJobImpl<TJob>(name, RunJob<TJob>);
     }
 
     template <class TRawJob>
     void RegisterRawJob(const char* name)
     {
-        const auto* typeInfoPtr = &typeid(TRawJob);
-        CheckNotRegistered(typeInfoPtr, name);
-        JobNames[typeInfoPtr] = name;
-        JobFunctions[name] = RunRawJob<TRawJob>;
+        RegisterJobImpl<TRawJob>(name, RunRawJob<TRawJob>);
+    }
+
+    template <class TVanillaJob>
+    void RegisterVanillaJob(const char* name)
+    {
+        RegisterJobImpl<TVanillaJob>(name, RunVanillaJob<TVanillaJob>);
     }
 
     TString GetJobName(IJob* job)
@@ -581,6 +591,14 @@ public:
 private:
     THashMap<const std::type_info*, TString> JobNames;
     THashMap<TString, TJobFunction> JobFunctions;
+
+    template <typename TJob, typename TRunner>
+    void RegisterJobImpl(const char* name, TRunner runner) {
+        const auto* typeInfoPtr = &typeid(TJob);
+        CheckNotRegistered(typeInfoPtr, name);
+        JobNames[typeInfoPtr] = name;
+        JobFunctions[name] = runner;
+    }
 
     void CheckNotRegistered(const std::type_info* typeInfoPtr, const char* name)
     {
@@ -642,6 +660,17 @@ struct TRawJobRegistrator
     }
 };
 
+template <class TVanillaJob>
+struct TVanillaJobRegistrator
+{
+    TVanillaJobRegistrator(const char* name)
+    {
+        static_assert(TVanillaJob::JobType == IJob::EType::VanillaJob,
+            "REGISTER_VANILLA_JOB is not compatible with this job class");
+        NYT::TJobFactory::Get()->RegisterVanillaJob<TVanillaJob>(name);
+    }
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 inline TString YtRegistryTypeName(const TString& name) {
@@ -676,6 +705,13 @@ Y_GENERATE_UNIQUE_ID(TJobRegistrator)(name);
 
 #define REGISTER_RAW_JOB(className) \
 REGISTER_NAMED_RAW_JOB((~NYT::YtRegistryTypeName(TypeName<className>())), className)
+
+#define REGISTER_NAMED_VANILLA_JOB(name, className) \
+static NYT::TVanillaJobRegistrator<className> \
+Y_GENERATE_UNIQUE_ID(TJobRegistrator)(name);
+
+#define REGISTER_VANILLA_JOB(className) \
+REGISTER_NAMED_VANILLA_JOB((~NYT::YtRegistryTypeName(TypeName<className>())), className)
 
 ////////////////////////////////////////////////////////////////////////////////
 
