@@ -58,6 +58,9 @@ TEST_P(TAsyncFileChangelogIndexTest, Simple)
 
     index.Append(2, 16, 1);
 
+    index.FlushData().Get()
+        .ThrowOnError();
+
     std::vector<int> appendSizes;
     int filePosition = 17;
     for (int i = 0; i < 1024; ++i) {
@@ -65,6 +68,8 @@ TEST_P(TAsyncFileChangelogIndexTest, Simple)
     }
 
     index.Append(3, filePosition, appendSizes);
+    index.FlushData().Get()
+        .ThrowOnError();
 
     for (auto i : appendSizes) {
         filePosition += i;
