@@ -94,7 +94,7 @@ def initialize_world(client=None, idm=None, proxy_address=None, ui_address=None,
     for group in groups:
         create("group", group, client)
 
-    for cron_user in ("cron", "cron_merge", "cron_compression"):
+    for cron_user in ("cron", "cron_merge", "cron_compression", "cron_operations", "cron_tmp"):
         add_member(cron_user, "superusers", client)
         client.set("//sys/users/" + cron_user + "/@request_queue_size_limit", 500)
 
