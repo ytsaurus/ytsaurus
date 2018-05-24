@@ -202,6 +202,29 @@ TEST_F(TSyncFileChangelogTest, Meta)
     }
 }
 
+TEST_F(TSyncFileChangelogTest, MetaWithTruncate)
+{
+    TChangelogMeta meta;
+    meta.set_prev_record_count(123);
+    auto record = GenerateBlob(2000);
+
+    {
+        auto changelog = New<TSyncFileChangelog>(IOEngine, TemporaryFile->Name(), New<TFileChangelogConfig>());
+        changelog->Create(meta);
+        changelog->Append(0, std::vector<TSharedRef>(1, record));
+        changelog->Flush();
+        changelog->Truncate(1);
+        changelog->Flush();
+    }
+    {
+        auto changelog = New<TSyncFileChangelog>(IOEngine, TemporaryFile->Name(), New<TFileChangelogConfig>());
+        changelog->Open();
+        EXPECT_EQ(meta.prev_record_count(), changelog->GetMeta().prev_record_count());
+        EXPECT_EQ(1, changelog->GetRecordCount());
+        EXPECT_TRUE(TRef::AreBitwiseEqual(record, changelog->Read(0, 1, std::numeric_limits<i64>::max())[0]));
+    }
+}
+
 TEST_F(TSyncFileChangelogTest, ReadWrite)
 {
     const int logRecordCount = 16;
