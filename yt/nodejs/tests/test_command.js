@@ -535,11 +535,6 @@ describe("YtCommand - v2 command heaviness", function() {
             ask("GET", V + "/read", {},
             function(rsp) { rsp.statusCode.should.eql(503); }, done).end();
         });
-
-        it("should return 200 anywhere", function(done) {
-            ask("GET", V + "/read?force_ok=true", {},
-            function(rsp) { rsp.should.be.http2xx; }, done).end();
-        });
     });
 });
 

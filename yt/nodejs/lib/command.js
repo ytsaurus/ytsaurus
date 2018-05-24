@@ -307,10 +307,6 @@ YtCommand.prototype._epilogue = function(result, bytes_in, bytes_out) {
         });
     }
 
-    if (this.force_ok) {
-        this.rsp.statusCode = 200;
-    }
-
     var extra_headers = {
         "X-YT-Error": result.toJson(),
         "X-YT-Response-Code": utils.escapeHeader(result.getCode()),
@@ -361,8 +357,6 @@ YtCommand.prototype._epilogue = function(result, bytes_in, bytes_out) {
 YtCommand.prototype._parseRequest = function() {
     this.__DBG("_parseRequest");
 
-    var forceOK;
-
     this.req.parsedUrl = url.parse(this.req.url);
     this.req.parsedQuery = qs.parse(this.req.parsedUrl.query);
 
@@ -379,9 +373,6 @@ YtCommand.prototype._parseRequest = function() {
     if (has_omit_trailers_option) {
         this.omit_trailers = true;
     }
-
-    forceOK = this.req.parsedQuery["force_ok"];
-    this.force_ok = (forceOK == "true") || (forceOK == "1");
 };
 
 YtCommand.prototype._getName = function() {
