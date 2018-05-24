@@ -269,6 +269,7 @@ class TestSkynetIntegration(YTEnvSetup):
 
 ##################################################################
 
+@pytest.mark.xfail(run=False, reason="Merging new implementation")
 class TestSkynetManager(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 5
