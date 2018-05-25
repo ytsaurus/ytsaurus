@@ -44,12 +44,15 @@
 #include <yt/ytlib/node_tracker_client/public.h>
 
 #include <yt/ytlib/table_client/table_ypath_proxy.h>
-#include <yt/client/table_client/unversioned_row.h>
-#include <yt/client/table_client/value_consumer.h>
+
+#include <yt/ytlib/api/native/public.h>
 
 #include <yt/ytlib/query_client/public.h>
 
 #include <yt/ytlib/scheduler/job_resources.h>
+
+#include <yt/client/table_client/unversioned_row.h>
+#include <yt/client/table_client/value_consumer.h>
 
 #include <yt/core/actions/cancelable_context.h>
 
@@ -761,7 +764,10 @@ protected:
         const NTableClient::TKeyColumns& fullColumns,
         const NTableClient::TKeyColumns& prefixColumns);
 
-    NApi::ITransactionPtr AttachTransaction(const NTransactionClient::TTransactionId& transactionId, bool ping = false);
+    NApi::ITransactionPtr AttachTransaction(
+        const NTransactionClient::TTransactionId& transactionId,
+        const NApi::NNative::IClientPtr& client,
+        bool ping = false);
     const NApi::ITransactionPtr& GetTransactionForOutputTable(const TOutputTable& table) const;
 
     virtual void AttachToIntermediateLivePreview(const NChunkClient::TChunkId& chunkId) override;
