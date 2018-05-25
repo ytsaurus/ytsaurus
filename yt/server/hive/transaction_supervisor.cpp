@@ -1452,7 +1452,7 @@ private:
         auto it = WeakParticipantMap_.find(cellId);
         if (it != WeakParticipantMap_.end()) {
             auto participant = it->second.Lock();
-            if (participant) {
+            if (participant && participant->GetState() == ETransactionParticipantState::Valid) {
                 return participant;
             }
             WeakParticipantMap_.erase(it);
