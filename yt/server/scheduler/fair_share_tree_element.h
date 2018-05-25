@@ -177,6 +177,7 @@ public:
     virtual int EnumerateNodes(int startIndex);
 
     int GetTreeIndex() const;
+    void SetTreeIndex(int treeIndex);
 
     virtual void UpdateTreeConfig(const TFairShareStrategyTreeConfigPtr& config);
 

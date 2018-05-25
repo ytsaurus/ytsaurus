@@ -445,6 +445,7 @@ public:
                 }
             }
 
+            ResetTreeIndexes();
             RootElement->Update(GlobalDynamicAttributes_);
             RootElementSnapshot = CreateRootElementSnapshot();
         } catch (const std::exception& ex) {
@@ -610,6 +611,7 @@ public:
         // Run periodic update.
         PROFILE_AGGREGATED_TIMING(FairShareUpdateTimeCounter) {
             // The root element gets the whole cluster.
+            ResetTreeIndexes();
             RootElement->Update(GlobalDynamicAttributes_);
 
             // Collect alerts after update.
@@ -658,6 +660,14 @@ public:
             for (const auto& pair : OperationIdToElement) {
                 ProfileOperationElement(pair.second);
             }
+        }
+    }
+
+    void ResetTreeIndexes()
+    {
+        for (const auto& pair : OperationIdToElement) {
+            auto& element = pair.second;
+            element->SetTreeIndex(UnassignedTreeIndex);
         }
     }
 
@@ -993,6 +1003,7 @@ private:
         if (index == UnassignedTreeIndex) {
             return TDynamicAttributes();
         } else {
+            YCHECK(index < GlobalDynamicAttributes_.size());
             return GlobalDynamicAttributes_[index];
         }
     }
