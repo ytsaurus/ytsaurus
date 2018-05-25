@@ -76,11 +76,11 @@ public:
         , Bootstrap_(bootstrap)
     { }
 
-    virtual void Init(int slotCount) override
+    virtual void Init(int slotCount, double jobsCpuLimit) override
     {
         // Shutdown all possible processes.
         try {
-            DoInit(slotCount);
+            DoInit(slotCount, jobsCpuLimit);
         } catch (const std::exception& ex) {
             auto error = TError("Failed to clean up processes during initialization")
                 << ex;
@@ -176,7 +176,7 @@ protected:
 
     bool Enabled_ = true;
 
-    virtual void DoInit(int slotCount)
+    virtual void DoInit(int slotCount, double /* jobsCpuLimit */)
     {
         for (int slotIndex = 0; slotIndex < slotCount; ++slotIndex) {
             CleanProcesses(slotIndex);
@@ -305,13 +305,13 @@ private:
     const TCGroupJobEnvironmentConfigPtr Config_;
     const TActionQueuePtr MounterThread_ = New<TActionQueue>("Mounter");
 
-    virtual void DoInit(int slotCount) override
+    virtual void DoInit(int slotCount, double jobsCpuLimit) override
     {
         if (!HasRootPermissions()) {
             THROW_ERROR_EXCEPTION("Failed to initialize \"cgroup\" job environment: root permissions required");
         }
 
-        TProcessJobEnvironmentBase::DoInit(slotCount);
+        TProcessJobEnvironmentBase::DoInit(slotCount, jobsCpuLimit);
     }
 
     virtual void AddArguments(TProcessBasePtr process, int slotIndex) override
@@ -388,14 +388,14 @@ private:
     const bool HasRootPermissions_ = HasRootPermissions();
     const TActionQueuePtr MounterThread_ = New<TActionQueue>("Mounter");
 
-    virtual void DoInit(int slotCount) override
+    virtual void DoInit(int slotCount, double jobsCpuLimit) override
     {
         if (!HasRootPermissions_ && Config_->EnforceJobControl) {
             THROW_ERROR_EXCEPTION("Failed to initialize \"simple\" job environment: "
                 "\"enforce_job_control\" option set, but no root permissions provided");
         }
 
-        TProcessJobEnvironmentBase::DoInit(slotCount);
+        TProcessJobEnvironmentBase::DoInit(slotCount, jobsCpuLimit);
     }
 };
 
@@ -554,7 +554,7 @@ private:
         }
     }
 
-    virtual void DoInit(int slotCount) override
+    virtual void DoInit(int slotCount, double jobsCpuLimit) override
     {
         auto portoFatalErrorHandler = BIND([weakThis_ = MakeWeak(this)](const TError& error) {
             // We use weak ptr to avoid cyclic references between container manager and job environment.
@@ -587,7 +587,7 @@ private:
                     metaInstanceName,
                     PortoExecutor_);
                 instance->SetIOWeight(Config_->JobsIOWeight);
-                instance->SetCpuWeight(Config_->JobsCpuWeight);
+                instance->SetCpuLimit(jobsCpuLimit);
                 return instance;
             }
         };
@@ -614,7 +614,7 @@ private:
                 << ex;
         }
 
-        TProcessJobEnvironmentBase::DoInit(slotCount);
+        TProcessJobEnvironmentBase::DoInit(slotCount, jobsCpuLimit);
 
 #ifdef __linux__
         // To these moment all old processed must have been killed, so we can safely clean up old volumes
