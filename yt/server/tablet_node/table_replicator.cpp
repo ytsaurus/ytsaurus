@@ -93,7 +93,7 @@ public:
         , Throttler_(CreateReconfigurableThroughputThrottler(
             MountConfig_->ReplicationThrottler,
             Logger,
-            Profiler))
+            NProfiling::TProfiler(Profiler.GetPathPrefix() + "/replication_data_weight_throttler")))
     { }
 
     void Enable()
