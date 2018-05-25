@@ -185,8 +185,12 @@ def initialize_world(client=None, idm=None, proxy_address=None, ui_address=None,
 
     client.create("map_node", "//sys/admin/lock/autorestart/nodes/disabled", recursive=True, ignore_existing=True)
 
+    for medium in ["default", "ssd_journals"]:
+        if not client.exists("//sys/media/%s" % medium):
+            client.create("medium", attributes={"name": medium})
+
     # add_acl to schemas
-    for schema in ["user", "group", "tablet_cell"]:
+    for schema in ["user", "group", "tablet_cell", "tablet_cell_bundle"]:
         if client.exists("//sys/schemas/%s" % schema):
             client.set("//sys/schemas/%s/@acl" % schema,
                        [
@@ -227,6 +231,18 @@ def initialize_world(client=None, idm=None, proxy_address=None, ui_address=None,
         yamr_table_schema = [{"name": name, "type": "any", "sort_order": "ascending"}
                              for name in ["key", "subkey"]] + [{"name": "value", "type": "any"}]
         client.create("table", "//sys/empty_yamr_table", attributes={"schema": yamr_table_schema})
+
+    if client.exists("//sys/schemas/tablet_cell_bundle"):
+        client.set("//sys/schemas/tablet_cell_bundle/@options",
+              [{
+                  "snapshot_replication_factor": 5,
+                  "snapshot_primary_medium": "default",
+                  "changelog_write_quorum": 3,
+                  "changelog_replication_factor": 5,
+                  "changelog_read_quorum": 3,
+                  "changelog_primary_medium": "ssd_journals"
+              }])
+        client.set("//sys/schemas/tablet_cell_bundle/@enable_bundle_balancer", False)
 
     add_acl("//tmp", {"action": "allow", "subjects": [everyone_group], "permissions": ["write", "remove", "read"]}, client)
 
