@@ -25,7 +25,7 @@ namespace NExecAgent {
 struct IJobEnvironment
     : public virtual TRefCounted
 {
-    virtual void Init(int slotCount) = 0;
+    virtual void Init(int slotCount, double jobsCpuLimit) = 0;
 
     virtual TFuture<void> RunJobProxy(
         int slotIndex,
