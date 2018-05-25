@@ -38,7 +38,7 @@ TTransaction::TTransaction(
     EAtomicity atomicity,
     EDurability durability,
     TDuration timeout,
-    TDuration pingPeriod,
+    TNullable<TDuration> pingPeriod,
     bool sticky)
     : Connection_(std::move(connection))
     , Client_(std::move(client))
@@ -712,6 +712,10 @@ TFuture<void> TTransaction::SendPing()
 
 void TTransaction::RunPeriodicPings()
 {
+    if (!PingPeriod_) {
+        return;
+    }
+
     if (!IsPingableState()) {
         return;
     }
@@ -731,7 +735,7 @@ void TTransaction::RunPeriodicPings()
 
         TDelayedExecutor::Submit(
             BIND(&TTransaction::RunPeriodicPings, MakeWeak(this)),
-            PingPeriod_);
+            *PingPeriod_);
     }));
 }
 

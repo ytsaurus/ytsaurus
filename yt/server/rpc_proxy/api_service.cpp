@@ -17,6 +17,8 @@
 #include <yt/ytlib/rpc_proxy/api_service_proxy.h>
 #include <yt/ytlib/rpc_proxy/helpers.h>
 
+#include <yt/ytlib/tablet_client/table_mount_cache.h>
+
 #include <yt/ytlib/security_client/public.h>
 
 #include <yt/ytlib/table_client/name_table.h>
@@ -48,6 +50,7 @@ using namespace NTableClient;
 using namespace NTabletClient;
 using namespace NObjectClient;
 using namespace NTransactionClient;
+using namespace NYPath;
 
 using NYT::FromProto;
 using NYT::ToProto;
@@ -99,7 +102,7 @@ void FromProto(
         auto& item = options->PrerequisiteTransactionIds[i];
         FromProto(&item, protoItem.transaction_id());
     }
-    options->PrerequisiteRevisions.reserve(proto.revisions_size());
+    options->PrerequisiteRevisions.resize(proto.revisions_size());
     for (int i = 0; i < proto.revisions_size(); ++i) {
         const auto& protoItem = proto.revisions(i);
         options->PrerequisiteRevisions[i] = New<TPrerequisiteRevisionConfig>();
@@ -164,6 +167,15 @@ void FromProto(
     }
 }
 
+void FromProto(
+    TTabletReadOptions* options,
+    const NProto::TTabletReadOptions& proto)
+{
+    if (proto.has_read_from()) {
+        options->ReadFrom = CheckedEnumCast<NHydra::EPeerKind>(proto.read_from());
+    }
+}
+
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -187,6 +199,7 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PingTransaction));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(AbortTransaction));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CommitTransaction));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(AttachTransaction));
 
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ExistsNode));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetNode));
@@ -218,10 +231,14 @@ public:
 
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ModifyRows));
 
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(BuildSnapshot));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(GCCollect));
+
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(CreateObject));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetTableMountInfo));
+
         if (!Bootstrap_->GetConfig()->EnableAuthentication) {
-            const auto& connection = Bootstrap_->GetNativeConnection();
-            auto client = connection->CreateNativeClient(TClientOptions("root"));
-            YCHECK(AuthenticatedClients_.insert(std::make_pair("root", client)).second);
+            GetOrCreateClient(NSecurityClient::RootUserName);
         }
     }
 
@@ -233,6 +250,23 @@ private:
     // TODO(sandello): Introduce expiration times for clients.
     THashMap<TString, INativeClientPtr> AuthenticatedClients_;
 
+    INativeClientPtr GetOrCreateClient(const TString& user)
+    {
+        auto guard = Guard(SpinLock_);
+
+        auto it = AuthenticatedClients_.find(user);
+        if (it == AuthenticatedClients_.end()) {
+            const auto& connection = Bootstrap_->GetNativeConnection();
+            auto client = connection->CreateNativeClient(TClientOptions(user));
+            YCHECK(AuthenticatedClients_.insert(std::make_pair(user, client)).second);
+
+            LOG_DEBUG("Created native client (User: %v)", user);
+
+            return client;
+        }
+
+        return it->second;
+    }
 
     INativeClientPtr GetAuthenticatedClientOrAbortContext(
         const IServiceContextPtr& context,
@@ -243,9 +277,7 @@ private:
         }
 
         if (!Bootstrap_->GetConfig()->EnableAuthentication) {
-            auto it = AuthenticatedClients_.find(NSecurityClient::RootUserName);
-            YCHECK(it != AuthenticatedClients_.end());
-            return it->second;
+            return GetOrCreateClient(context->GetUser());
         }
 
         auto replyWithMissingCredentials = [&] () {
@@ -312,19 +344,7 @@ private:
                 request->ShortDebugString());
         }
 
-        {
-            auto guard = Guard(SpinLock_);
-            auto it = AuthenticatedClients_.find(user);
-            auto jt = AuthenticatedClients_.end();
-            if (it == jt) {
-                const auto& connection = Bootstrap_->GetNativeConnection();
-                auto client = connection->CreateNativeClient(TClientOptions(user));
-                bool inserted = false;
-                std::tie(it, inserted) = AuthenticatedClients_.insert(std::make_pair(user, client));
-                YCHECK(inserted);
-            }
-            return it->second;
-        }
+        return GetOrCreateClient(user);
     }
 
     ITransactionPtr GetTransactionOrAbortContext(
@@ -539,6 +559,121 @@ private:
         CompleteCallWith(
             context,
             transaction->Abort());
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, AttachTransaction)
+    {
+        auto client = GetAuthenticatedClientOrAbortContext(context, request);
+        if (!client) {
+            return;
+        }
+
+        auto transactionId = FromProto<TTransactionId>(request->transaction_id());
+        TTransactionAttachOptions options;
+        if (request->has_auto_abort()) {
+            options.AutoAbort = request->auto_abort();
+        }
+        if (request->has_sticky()) {
+            options.Sticky = request->sticky();
+        }
+        if (request->has_ping_period()) {
+            options.PingPeriod = TDuration::FromValue(request->ping_period());
+        }
+        if (request->has_ping()) {
+            options.Ping = request->ping();
+        }
+        if (request->has_ping_ancestors()) {
+            options.PingAncestors = request->ping_ancestors();
+        }
+
+        context->SetRequestInfo("TransactionId: %v, Sticky: %v",
+            transactionId,
+            options.Sticky);
+
+        auto transaction = GetTransactionOrAbortContext(
+            context,
+            request,
+            transactionId,
+            options);
+        if (!transaction) {
+            return;
+        }
+
+        response->set_type(static_cast<NProto::ETransactionType>(transaction->GetType()));
+        response->set_start_timestamp(transaction->GetStartTimestamp());
+        response->set_atomicity(static_cast<NProto::EAtomicity>(transaction->GetAtomicity()));
+        response->set_durability(static_cast<NProto::EDurability>(transaction->GetDurability()));
+        response->set_timeout(static_cast<i64>(transaction->GetTimeout().GetValue()));
+
+        context->Reply();
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, CreateObject)
+    {
+        auto client = GetAuthenticatedClientOrAbortContext(context, request);
+        if (!client) {
+            return;
+        }
+
+        auto type = FromProto<EObjectType>(request->type());
+        TCreateObjectOptions options;
+        if (request->has_attributes()) {
+            options.Attributes = NYTree::FromProto(request->attributes());
+        }
+
+        context->SetRequestInfo("Type: %v", type);
+
+        CompleteCallWith(
+            context,
+            client->CreateObject(type, options),
+            [] (const auto& context, const NObjectClient::TObjectId& objectId) {
+                auto* response = &context->Response();
+                ToProto(response->mutable_object_id(), objectId);
+
+                context->SetResponseInfo("ObjectId: %v", objectId);
+            });
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, GetTableMountInfo)
+    {
+        auto client = GetAuthenticatedClientOrAbortContext(context, request);
+        if (!client) {
+            return;
+        }
+
+        auto path = FromProto<TYPath>(request->path());
+
+        context->SetRequestInfo("Path: %v", path);
+
+        const auto& connection = client->GetConnection();
+        const auto& tableMountCache = connection->GetTableMountCache();
+        CompleteCallWith(
+            context,
+            tableMountCache->GetTableInfo(path),
+            [] (const auto& context, const TTableMountInfoPtr& tableMountInfo) {
+                auto* response = &context->Response();
+                ToProto(response->mutable_table_id(), tableMountInfo->TableId);
+                const auto& primarySchema = tableMountInfo->Schemas[ETableSchemaKind::Primary];
+                ToProto(response->mutable_schema(), primarySchema);
+                for (const auto& tabletInfoPtr : tableMountInfo->Tablets) {
+                    ToProto(response->add_tablets(), *tabletInfoPtr);
+                }
+
+                response->set_dynamic(tableMountInfo->Dynamic);
+                ToProto(response->mutable_upstream_replica_id(), tableMountInfo->UpstreamReplicaId);
+                for (const auto& replica : tableMountInfo->Replicas) {
+                    auto* protoReplica = response->add_replicas();
+                    ToProto(protoReplica->mutable_replica_id(), replica->ReplicaId);
+                    protoReplica->set_cluster_name(replica->ClusterName);
+                    protoReplica->set_replica_path(replica->ReplicaPath);
+                    protoReplica->set_mode(static_cast<i32>(replica->Mode));
+                }
+
+                context->SetResponseInfo("Dynamic: %v, TabletCount: %v, ReplicaCount: %v",
+                    tableMountInfo->Dynamic,
+                    tableMountInfo->Tablets.size(),
+                    tableMountInfo->Replicas.size());
+            });
     }
 
     ////////////////////////////////////////////////////////////////////////////////
@@ -887,6 +1022,9 @@ private:
         }
         if (request->has_preserve_creation_time()) {
             options.PreserveCreationTime = request->preserve_creation_time();
+        }
+        if (request->has_source_transaction_id()) {
+            options.SourceTransactionId = FromProto<TTransactionId>(request->source_transaction_id());
         }
         if (request->has_transactional_options()) {
             FromProto(&options, request->transactional_options());
@@ -1353,6 +1491,10 @@ private:
         *nameTable = TNameTable::FromSchema(rowset->Schema());
         *keys = MakeSharedRange(rowset->GetRows(), rowset);
 
+        if (request->has_tablet_read_options()) {
+            FromProto(options, request->tablet_read_options());
+        }
+
         SetTimeoutOptions(options, context.Get());
         for (int i = 0; i < request->columns_size(); ++i) {
             options->ColumnFilter.All = false;
@@ -1648,6 +1790,76 @@ private:
             options);
 
         context->Reply();
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, BuildSnapshot)
+    {
+        if (Bootstrap_->GetConfig()->EnableAuthentication ||
+            context->GetUser() != NSecurityClient::RootUserName)
+        {
+            context->Reply(TError(
+                NSecurityClient::EErrorCode::AuthorizationError,
+                "Only root can call \"BuildSnapshot\""));
+            return;
+        }
+
+        auto client = GetAuthenticatedClientOrAbortContext(context, request);
+        if (!client) {
+            return;
+        }
+
+        auto connection = client->GetConnection();
+        auto admin = connection->CreateAdmin();
+
+        TBuildSnapshotOptions options;
+        if (request->has_cell_id()) {
+            FromProto(&options.CellId, request->cell_id());
+        }
+        if (request->has_set_read_only()) {
+            options.SetReadOnly = request->set_read_only();
+        }
+
+        context->SetRequestInfo("CellId: %v, SetReadOnly: %v",
+            options.CellId,
+            options.SetReadOnly);
+
+        CompleteCallWith(
+            context,
+            admin->BuildSnapshot(options),
+            [] (const auto& context, int snapshotId) {
+                auto* response = &context->Response();
+                response->set_snapshot_id(snapshotId);
+                context->SetResponseInfo("SnapshotId: %v", snapshotId);
+            });
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, GCCollect)
+    {
+        if (Bootstrap_->GetConfig()->EnableAuthentication ||
+            context->GetUser() != NSecurityClient::RootUserName)
+        {
+            context->Reply(TError(
+                NSecurityClient::EErrorCode::AuthorizationError,
+                "Only root can call \"GCCollect\""));
+            return;
+        }
+
+        auto client = GetAuthenticatedClientOrAbortContext(context, request);
+        if (!client) {
+            return;
+        }
+
+        auto connection = client->GetConnection();
+        auto admin = connection->CreateAdmin();
+
+        TGCCollectOptions options;
+        if (request->has_cell_id()) {
+            FromProto(&options.CellId, request->cell_id());
+        }
+
+        context->SetRequestInfo("CellId: %v", options.CellId);
+
+        CompleteCallWith(context, admin->GCCollect(options));
     }
 };
 

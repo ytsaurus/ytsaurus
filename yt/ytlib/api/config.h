@@ -52,10 +52,14 @@ class TConnectionConfig
 public:
     EConnectionType ConnectionType;
 
+    TTableMountCacheConfigPtr TableMountCache;
+
     TConnectionConfig()
     {
         RegisterParameter("connection_type", ConnectionType)
             .Default(EConnectionType::Native);
+        RegisterParameter("table_mount_cache", TableMountCache)
+            .DefaultNew();
     }
 };
 
@@ -108,7 +112,6 @@ public:
     NScheduler::TSchedulerConnectionConfigPtr Scheduler;
     NTransactionClient::TTransactionManagerConfigPtr TransactionManager;
     NChunkClient::TBlockCacheConfigPtr BlockCache;
-    TTableMountCacheConfigPtr TableMountCache;
     NHiveClient::TClusterDirectorySynchronizerConfigPtr ClusterDirectorySynchronizer;
 
     NQueryClient::TExecutorConfigPtr QueryEvaluator;

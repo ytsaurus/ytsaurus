@@ -3,7 +3,7 @@ import __builtin__
 
 from test_dynamic_tables import TestDynamicTablesBase
 
-from yt_env_setup import wait
+from yt_env_setup import wait, skip_if_rpc_driver_backend
 from yt_commands import *
 from yt.yson import YsonEntity, loads
 from yt.environment.helpers import wait
@@ -390,6 +390,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         with pytest.raises(YtError):
             insert_rows("//tmp/t", rows)
 
+    @skip_if_rpc_driver_backend
     def test_read_invalid_limits(self):
         self.sync_create_cells(1)
 
@@ -403,6 +404,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         with pytest.raises(YtError): read_table("//tmp/t[#5:]")
         with pytest.raises(YtError): read_table("<ranges=[{lower_limit={offset = 0};upper_limit={offset = 1}}]>//tmp/t")
 
+    @skip_if_rpc_driver_backend
     @pytest.mark.parametrize("erasure_codec", ["none", "reed_solomon_6_3", "lrc_12_2_2"])
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
     def test_read_table(self, optimize_for, erasure_codec):
@@ -428,6 +430,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         wait(lambda: read_table("<timestamp=%s>//tmp/t" %(ts)) == rows1)
         assert get("//tmp/t/@chunk_count") == 2
 
+    @skip_if_rpc_driver_backend
     def test_read_snapshot_lock(self):
         self.sync_create_cells(1)
         self._create_simple_table("//tmp/t")
@@ -512,6 +515,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         abort_transaction(tx)
         verify_chunk_tree_refcount("//tmp/t", 1, [1, 1])
 
+    @skip_if_rpc_driver_backend
     def test_read_table_ranges(self):
         self.sync_create_cells(1)
         self._create_simple_table("//tmp/t", pivot_keys=[[], [5]])
@@ -557,6 +561,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         assert read_table("//tmp/t[(2):(9)]") == rows[2:9]
         assert get("//tmp/t/@chunk_count") == 6
 
+    @skip_if_rpc_driver_backend
     def test_read_table_when_chunk_crosses_tablet_boundaries(self):
         create("table", "//tmp/t",
             attributes={
@@ -582,6 +587,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         reshard_table("//tmp/t", [[], [2], [4]])
         do_test()
 
+    @skip_if_rpc_driver_backend
     def test_write_table(self):
         self.sync_create_cells(1)
         self._create_simple_table("//tmp/t")
@@ -681,6 +687,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         actual = lookup_rows("//tmp/t", [{"key2" : 1}])
         assert_items_equal(actual, expected)
 
+    @skip_if_rpc_driver_backend
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
     def test_aggregate_columns(self, optimize_for):
         self.sync_create_cells(1)
@@ -1755,6 +1762,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         assert not get("//tmp/t/@schema/@unique_keys")
         with pytest.raises(YtError): alter_table("//tmp/t", dynamic=True)
 
+    @skip_if_rpc_driver_backend
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
     @pytest.mark.parametrize("in_memory_mode, enable_lookup_hash_table", [
         ["none", False],
@@ -1845,6 +1853,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         actual = select_rows("key, avalue from [//tmp/t]")
         assert_items_equal(actual, expected)
 
+    @skip_if_rpc_driver_backend
     def test_chunk_list_kind(self):
         self.sync_create_cells(1)
         create("table", "//tmp/t",
@@ -2211,6 +2220,7 @@ class TestSortedDynamicTablesMetadataCaching(TestSortedDynamicTablesBase):
         expected = [{"key": i, "key2": None, "value": str(i)} for i in xrange(2)]
         assert_items_equal(select_rows("* from [//tmp/t]"), expected)
 
+    @skip_if_rpc_driver_backend
     def test_metadata_cache_invalidation(self):
         self.sync_create_cells(1)
         self._create_simple_table("//tmp/t1", enable_compaction_and_partitioning=False)
@@ -2250,6 +2260,8 @@ class TestSortedDynamicTablesMetadataCaching(TestSortedDynamicTablesBase):
         rows = [{"key": i, "value": str(i+1)} for i in xrange(3)]
         with pytest.raises(YtError): insert_rows("//tmp/t1", rows)
         insert_rows("//tmp/t1", rows)
+
+        insert_rows("//tmp/t1", rows)
         assert_items_equal(lookup_rows("//tmp/t1", keys), rows)
 
 ##################################################################
@@ -2260,3 +2272,12 @@ class TestSortedDynamicTablesMulticell(TestSortedDynamicTables):
 class TestSortedDynamicTablesMetadataCachingMulticell(TestSortedDynamicTablesMetadataCaching):
     NUM_SECONDARY_MASTER_CELLS = 2
 
+##################################################################
+
+class TestSortedDynamicTablesRpcProxy(TestSortedDynamicTables):
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True
+
+class TestSortedDynamicTablesMetadataCachingRpcProxy(TestSortedDynamicTablesMetadataCaching):
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True

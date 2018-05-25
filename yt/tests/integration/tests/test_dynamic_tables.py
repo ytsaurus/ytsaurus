@@ -1524,3 +1524,22 @@ class TestDynamicTablesMulticell(TestDynamicTables):
     def test_cannot_make_external_table_dynamic(self):
         create("table", "//tmp/t")
         with pytest.raises(YtError): alter_table("//tmp/t", dynamic=True)
+
+##################################################################
+
+class TestDynamicTablesRpcProxy(TestDynamicTables):
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True
+
+class TestDynamicTablesResourceLimitsRpcProxy(TestDynamicTablesResourceLimits):
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True
+
+class TestDynamicTableStateTransitionsRpcProxy(TestDynamicTableStateTransitions):
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True
+
+class TestTabletActionsRpcProxy(TestTabletActions):
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True
+

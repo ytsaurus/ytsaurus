@@ -21,7 +21,7 @@ NApi::ITransactionPtr CreateTransaction(
     NTransactionClient::EAtomicity atomicity,
     NTransactionClient::EDurability durability,
     TDuration timeout,
-    TDuration pingPeriod,
+    TNullable<TDuration> pingPeriod,
     bool sticky);
 
 ////////////////////////////////////////////////////////////////////////////////

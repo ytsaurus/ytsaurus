@@ -7,6 +7,10 @@ namespace NRpcProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+NRpc::IChannelPtr CreateUserInjectingChannel(
+    NRpc::IChannelPtr underlyingChannel,
+    const TString& user);
+
 NRpc::IChannelPtr CreateTokenInjectingChannel(
     NRpc::IChannelPtr underlyingChannel,
     const TString& user,

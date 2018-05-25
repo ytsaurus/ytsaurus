@@ -33,7 +33,7 @@ public:
         NTransactionClient::EAtomicity atomicity,
         NTransactionClient::EDurability durability,
         TDuration timeout,
-        TDuration pingPeriod,
+        TNullable<TDuration> pingPeriod,
         bool sticky);
 
     // ITransaction implementation
@@ -192,7 +192,7 @@ private:
     const NTransactionClient::EAtomicity Atomicity_;
     const NTransactionClient::EDurability Durability_;
     const TDuration Timeout_;
-    const TDuration PingPeriod_;
+    const TNullable<TDuration> PingPeriod_;
     const bool Sticky_;
 
     TSpinLock SpinLock_;

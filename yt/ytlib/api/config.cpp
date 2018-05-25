@@ -64,8 +64,6 @@ TNativeConnectionConfig::TNativeConnectionConfig()
         .DefaultNew();
     RegisterParameter("block_cache", BlockCache)
         .DefaultNew();
-    RegisterParameter("table_mount_cache", TableMountCache)
-        .DefaultNew();
     RegisterParameter("cluster_directory_synchronizer", ClusterDirectorySynchronizer)
         .DefaultNew();
 

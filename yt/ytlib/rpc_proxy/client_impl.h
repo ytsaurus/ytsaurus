@@ -25,11 +25,8 @@ public:
 
     // Transactions
     virtual NApi::ITransactionPtr AttachTransaction(
-        const NTransactionClient::TTransactionId&,
-        const NApi::TTransactionAttachOptions&) override
-    {
-        Y_UNIMPLEMENTED();
-    }
+        const NTransactionClient::TTransactionId& transactionId,
+        const NApi::TTransactionAttachOptions& options) override;
 
     // Tables
     virtual TFuture<void> MountTable(

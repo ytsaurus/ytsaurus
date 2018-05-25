@@ -10,7 +10,7 @@ from yt_driver_bindings import Driver
 from yt.yson import to_yson_type, YsonEntity
 from yt.environment.helpers import assert_items_equal
 
-from yt_env_setup import YTEnvSetup
+from yt_env_setup import YTEnvSetup, skip_if_rpc_driver_backend
 from yt_commands import *
 
 ##################################################################
@@ -849,6 +849,7 @@ class TestCypress(YTEnvSetup):
         remove("//tmp/t1")
         assert get("//tmp/t2&/@broken")
 
+    @skip_if_rpc_driver_backend
     def test_link4(self):
         set("//tmp/t1", 1)
         link("//tmp/t1", "//tmp/t2")
@@ -1080,6 +1081,7 @@ class TestCypress(YTEnvSetup):
         c2 = get("//tmp/@access_counter")
         assert c1 == c2
 
+    @skip_if_rpc_driver_backend
     def test_access_stat_suppress3(self):
         time.sleep(1)
         create("table", "//tmp/t")
@@ -1089,6 +1091,7 @@ class TestCypress(YTEnvSetup):
         c2 = get("//tmp/t/@access_counter")
         assert c1 == c2
 
+    @skip_if_rpc_driver_backend
     def test_access_stat_suppress4(self):
         time.sleep(1)
         create("file", "//tmp/f")
@@ -1799,6 +1802,17 @@ class TestCypressMulticell(TestCypress):
         # Unfortunately, it's difficult to actually check anything here.
         create("table", "//tmp/t", attributes={"external_cell_bias": 0.0})
         assert not exists("//tmp/t/@external_cell_bias")
+
+##################################################################
+
+class TestCypressRpcProxy(TestCypress):
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True
+
+##################################################################
+
+class TestCypressMulticellRpcProxy(TestCypressMulticell, TestCypressRpcProxy):
+    pass
 
 ##################################################################
 
