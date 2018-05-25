@@ -690,6 +690,30 @@ class TestReplicatedDynamicTables(TestDynamicTablesBase):
             ([_maybe_add_system_fields({"key": 2, "value1": "test", "value2": YsonEntity()})] if with_data else \
             []))
 
+    @pytest.mark.parametrize("schema", [SIMPLE_SCHEMA, SIMPLE_SCHEMA_ORDERED])
+    def test_start_replication_row_indexes(self, schema):
+        self._create_cells()
+        self._create_replicated_table("//tmp/t", schema)
+
+        rows = [{"key": i, "value1": str(i)} for i in xrange(3)]
+
+        for i in xrange(2):
+            insert_rows("//tmp/t", [rows[i]], require_sync_replica=False)
+            self.sync_flush_table("//tmp/t")
+
+        insert_rows("//tmp/t", [rows[2]], require_sync_replica=False)
+
+        for i in xrange(4):
+            replica_path = "//tmp/r{0}".format(i)
+            replica_id = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, replica_path, attributes={
+                "start_replication_row_indexes": [i]
+            })
+            self._create_replica_table(replica_path, replica_id, schema)
+            self.sync_enable_table_replica(replica_id)
+
+        for i in xrange(4):
+            wait(lambda: select_rows("key, value1 from [//tmp/r{0}]".format(i), driver=self.replica_driver) == rows[i:])
+
     @pytest.mark.parametrize("ttl, chunk_count, trimmed_row_count, mode",
         [a + b
             for a in [(0, 1, 1), (60000, 2, 0)]
