@@ -147,7 +147,8 @@ class YTInstance(object):
                  jobs_cpu_limit=None, jobs_user_slot_count=None, node_memory_limit_addition=None,
                  node_chunk_store_quota=None, allow_chunk_storage_in_tmpfs=False, modify_configs_func=None,
                  kill_child_processes=False, use_porto_for_servers=False, watcher_config=None,
-                 add_binaries_to_path=True):
+                 add_binaries_to_path=True, driver_backend="native"):
+
         _configure_logger()
         if add_binaries_to_path:
             _add_binaries_to_path()
@@ -178,6 +179,13 @@ class YTInstance(object):
             self.abi_version = abi_versions.pop()
         else:
             raise YtError("Failed to find YT binaries (ytserver, ytserver-*) in $PATH. Make sure that YT is installed.")
+
+        valid_driver_backends = ("native", "rpc")
+        if driver_backend not in valid_driver_backends:
+            raise YtError('Unrecognized driver backend: expected one of {0}, got "{1}"'.format(valid_driver_backends, driver_backend))
+
+        if driver_backend == "rpc" and not has_rpc_proxy:
+            raise YtError("Driver with RPC backend is requested but RPC proxies aren't enabled.")
 
         self._uuid = generate_uuid()
         self._lock = RLock()
@@ -246,6 +254,7 @@ class YTInstance(object):
         self._kill_child_processes = kill_child_processes
         self._started = False
         self._wait_functions = []
+        self.driver_backend = driver_backend
 
         if watcher_config is None:
             watcher_config = get_watcher_config()
@@ -361,6 +370,7 @@ class YTInstance(object):
         provision["proxy"]["http_port"] = proxy_port
         provision["rpc_proxy"]["enable"] = self.has_rpc_proxy
         provision["rpc_proxy"]["rpc_port"] = rpc_proxy_port
+        provision["driver"]["backend"] = self.driver_backend
         provision["skynet_manager"]["count"] = self.skynet_manager_count
         provision["fqdn"] = self._hostname
         provision["enable_debug_logging"] = self._enable_debug_logging
@@ -424,6 +434,9 @@ class YTInstance(object):
 
             self.start_master_cell(sync=False)
 
+            if self.has_rpc_proxy:
+                self.start_rpc_proxy(sync=False)
+
             for func in self._wait_functions:
                 func()
 
@@ -448,8 +461,6 @@ class YTInstance(object):
                 self.start_schedulers(sync=False)
             if self.controller_agent_count > 0:
                 self.start_controller_agents(sync=False)
-            if self.has_rpc_proxy:
-                self.start_rpc_proxy(sync=False)
             if self.skynet_manager_count > 0:
                 self.start_skynet_managers(sync=False)
 
@@ -959,6 +970,8 @@ class YTInstance(object):
 
         with open(driver_config_path, "rb") as f:
             driver_config = yson.load(f)
+
+        driver_config["connection_type"] = "native"
 
         config = {
             "backend": "native",
