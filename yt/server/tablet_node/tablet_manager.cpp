@@ -2795,6 +2795,17 @@ private:
                         .Item("total_row_count").Value(tablet->GetTotalRowCount())
                         .Item("trimmed_row_count").Value(tablet->GetTrimmedRowCount());
                 })
+                .DoIf(!tablet->IsReplicated(), [&] (TFluentMap fluent) {
+                    fluent
+                        .Item("replicas").DoMapFor(
+                            tablet->Replicas(),
+                            [&] (TFluentMap fluent, const std::pair<const TTableReplicaId, TTableReplicaInfo>& pair) {
+                                const auto& replica = pair.second;
+                                fluent
+                                    .Item(ToString(replica.GetId()))
+                                    .Do(BIND(&TImpl::BuildReplicaOrchidYson, Unretained(this), replica));
+                            });
+                })
             .EndMap();
     }
 
@@ -2830,6 +2841,24 @@ private:
             .EndMap();
     }
 
+    void BuildReplicaOrchidYson(const TTableReplicaInfo& replica, TFluentAny fluent)
+    {
+        fluent
+            .BeginAttributes()
+                .Item("opaque").Value(true)
+            .EndAttributes()
+            .BeginMap()
+                .Item("cluster_name").Value(replica.GetClusterName())
+                .Item("replica_path").Value(replica.GetReplicaPath())
+                .Item("state").Value(replica.GetState())
+                .Item("mode").Value(replica.GetMode())
+                .Item("start_replication_timestamp").Value(replica.GetStartReplicationTimestamp())
+                .Item("current_replication_row_index").Value(replica.GetCurrentReplicationRowIndex())
+                .Item("current_replication_timestamp").Value(replica.GetCurrentReplicationTimestamp())
+                .Item("prepared_replication_transaction").Value(replica.GetPreparedReplicationTransactionId())
+                .Item("prepared_replication_row_index").Value(replica.GetPreparedReplicationRowIndex())
+            .EndMap();
+    }
 
     TNodeMemoryTrackerGuard* GetMemoryTrackerGuardFromStoreType(EStoreType type)
     {
