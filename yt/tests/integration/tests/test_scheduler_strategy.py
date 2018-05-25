@@ -1068,12 +1068,10 @@ class TestSchedulerAggressiveStarvationPreemption(YTEnvSetup):
                 dont_track=True)
             ops.append(op)
 
-        time.sleep(3)
-
         for op in ops:
-            assert assert_almost_equal(get_fair_share_ratio(op.id), 1.0 / 4.0)
-            assert assert_almost_equal(get_usage_ratio(op.id), 1.0 / 4.0)
-            assert len(op.get_running_jobs()) == 3
+            wait(lambda: assert_almost_equal(get_fair_share_ratio(op.id), 1.0 / 4.0))
+            wait(lambda: assert_almost_equal(get_usage_ratio(op.id), 1.0 / 4.0))
+            wait(lambda: len(op.get_running_jobs()) == 3)
 
         special_op = ops[0]
         special_op_jobs = [
@@ -1098,9 +1096,7 @@ class TestSchedulerAggressiveStarvationPreemption(YTEnvSetup):
             },
             dont_track=True)
 
-        time.sleep(3)
-
-        assert len(op.get_running_jobs()) == 1
+        wait(lambda: len(op.get_running_jobs()) == 1)
 
         special_op_running_job_count = len(special_op.get_running_jobs())
         assert special_op_running_job_count >= 2
