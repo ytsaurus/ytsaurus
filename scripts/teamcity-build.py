@@ -34,6 +34,10 @@ import xml.etree.ElementTree as etree
 import xml.parsers.expat
 import urlparse
 
+import urllib3
+urllib3.disable_warnings()
+import requests
+
 try:
     sys.path.insert(0, os.path.join(os.path.dirname(__file__), "nanny-releaselib", "src"))
     from releaselib.sandbox import client as sandbox_client
@@ -656,6 +660,45 @@ def run_perl_tests(options, build_context):
         return
     run_pytest(options, "perl", "{0}/perl/tests".format(options.checkout_directory))
 
+def log_sandbox_upload(options, build_context, task_id):
+    client = requests.Session()
+    client.headers.update({
+        "Authorization ": "OAuth {0}".format(os.environ["TEAMCITY_SANDBOX_TOKEN"]),
+        "Accept" : "application/json; charset=utf-8",
+        "Content-type" : "application/json",
+    })
+    resp = client.get("https://sandbox.yandex-team.ru/api/v1.0/task/{0}/resources".format(task_id))
+    api_data = resp.json()
+
+    resources = dict(
+        (item["type"], item["id"])
+        for item in api_data["items"]
+        if item["type"] != "TASK_LOGS"
+    )
+
+    log_record = {
+        "version" : build_context["yt_version"],
+        "build_number" : options.build_number,
+        "task_id" : task_id,
+        "git_branch" : options.git_branch,
+        "git_commit" : options.build_vcs_number,
+        "build_time" : build_context["build_time"],
+        "build_type" : options.type,
+        "build_host" : socket.getfqdn(),
+        "build_btid" : options.btid,
+        "ubuntu_codename" : options.codename,
+        "resources" : resources,
+    }
+
+    # Add to locke.
+    src_root = os.path.dirname(os.path.dirname(__file__))
+    sys.path.insert(0, os.path.join(src_root, "python"))
+
+    import yt.wrapper
+    yt.wrapper.config["proxy"]["url"] = "locke"
+    yt.wrapper.config["token"] = os.environ["TEAMCITY_YT_TOKEN"]
+    yt.wrapper.insert_rows("//sys/admin/skynet/resources", [log_record])
+
 @build_step
 def wait_for_sandbox_upload(options, build_context):
     if not options.package or sys.version_info < (2, 7):
@@ -669,6 +712,10 @@ def wait_for_sandbox_upload(options, build_context):
         cli.wait_for_complete(task_id)
     except sandbox_client.SandboxTaskError as err:
         teamcity_message("Failed waiting for task: {0}".format(err), status="WARNING")
+    try:
+        log_sandbox_upload(options, build_context, task_id)
+    except Exception as err:
+        teamcity_message("Failed to log sandbox upload: {0}".format(err), status="WARNING")
 
 @cleanup_step
 def clean_sandbox_upload(options, build_context):
