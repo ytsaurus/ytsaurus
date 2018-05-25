@@ -663,7 +663,7 @@ def run_perl_tests(options, build_context):
 def log_sandbox_upload(options, build_context, task_id):
     client = requests.Session()
     client.headers.update({
-        "Authorization ": "OAuth {0}".format(os.environ["TEAMCITY_SANDBOX_TOKEN"]),
+        "Authorization" : "OAuth {0}".format(os.environ["TEAMCITY_SANDBOX_TOKEN"]),
         "Accept" : "application/json; charset=utf-8",
         "Content-type" : "application/json",
     })
