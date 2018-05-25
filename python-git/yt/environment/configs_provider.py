@@ -115,12 +115,15 @@ _default_provision = {
         "enable": False,
         "rpc_port": None,
     },
+    "driver": {
+        "backend": "native",
+    },
     "skynet_manager": {
         "count": 0,
     },
     "enable_debug_logging": True,
     "fqdn": socket.getfqdn(),
-    "enable_master_cache": False
+    "enable_master_cache": False,
 }
 
 def get_default_provision():
@@ -158,23 +161,25 @@ class ConfigsProvider(object):
 
         proxy_config = self._build_proxy_config(provision, proxy_dir, deepcopy(connection_configs), ports_generator,
                                                 logs_dir, master_cache_nodes=node_addresses)
-        driver_configs = self._build_driver_configs(provision, deepcopy(connection_configs),
-                                                    master_cache_nodes=node_addresses)
         proxy_address = "{0}:{1}".format(provision["fqdn"], proxy_config["port"])
 
         rpc_proxy_config = None
         rpc_client_config = None
+        rpc_proxy_addresses = None
         if provision["rpc_proxy"]["enable"]:
             rpc_proxy_config = self._build_rpc_proxy_config(provision, logs_dir, deepcopy(connection_configs), ports_generator)
-            rpc_proxy_address = "{0}:{1}".format(provision["fqdn"], rpc_proxy_config["rpc_port"])
+            rpc_proxy_addresses = ["{0}:{1}".format(provision["fqdn"], rpc_proxy_config["rpc_port"])]
             rpc_client_config = {
                 "connection_type": "rpc",
-                "addresses": [rpc_proxy_address]
+                "addresses": rpc_proxy_addresses
             }
+
+        driver_configs = self._build_driver_configs(provision, deepcopy(connection_configs),
+                                                    master_cache_nodes=node_addresses, rpc_proxy_addresses=rpc_proxy_addresses)
 
         skynet_manager_configs = None
         if provision["skynet_manager"]["count"] > 0:
-            skynet_manager_configs = self._build_skynet_manager_configs(provision, logs_dir, proxy_address, rpc_proxy_address, ports_generator)
+            skynet_manager_configs = self._build_skynet_manager_configs(provision, logs_dir, proxy_address, rpc_proxy_addresses, ports_generator)
 
         cluster_configuration = {
             "master": master_configs,
@@ -213,7 +218,7 @@ class ConfigsProvider(object):
         pass
 
     @abc.abstractmethod
-    def _build_driver_configs(self, provision, master_connection_configs, master_cache_nodes):
+    def _build_driver_configs(self, provision, master_connection_configs, master_cache_nodes, rpc_proxy_addresses):
         pass
 
     @abc.abstractmethod
@@ -221,7 +226,7 @@ class ConfigsProvider(object):
         pass
 
     @abc.abstractmethod
-    def _build_skynet_manager_configs(self, provision, logs_dir, proxy_address, rpc_proxy_address, ports_generator):
+    def _build_skynet_manager_configs(self, provision, logs_dir, proxy_address, rpc_proxy_addresses, ports_generator):
         pass
 
 def init_logging(node, path, name, enable_debug_logging):
@@ -608,13 +613,18 @@ class ConfigsProvider_19(ConfigsProvider):
 
         return configs, addresses
 
-    def _build_driver_configs(self, provision, master_connection_configs, master_cache_nodes):
+    def _build_driver_configs(self, provision, master_connection_configs, master_cache_nodes, rpc_proxy_addresses):
         secondary_cell_tags = master_connection_configs["secondary_cell_tags"]
         primary_cell_tag = master_connection_configs["primary_cell_tag"]
 
         configs = {}
         for cell_index in xrange(provision["master"]["secondary_cell_count"] + 1):
             config = default_configs.get_driver_config()
+
+            if provision["driver"]["backend"] == "rpc":
+                config["connection_type"] = "rpc"
+                config["addresses"] = rpc_proxy_addresses
+
             if cell_index == 0:
                 tag = primary_cell_tag
                 update_inplace(config, self._build_cluster_connection_config(
@@ -653,7 +663,7 @@ class ConfigsProvider_19(ConfigsProvider):
         config["logging"] = init_logging(config.get("logging"), proxy_logs_dir, "rpc-proxy", provision["enable_debug_logging"])
         return config
 
-    def _build_skynet_manager_configs(self, provision, logs_dir, proxy_address, rpc_proxy_address, ports_generator):
+    def _build_skynet_manager_configs(self, provision, logs_dir, proxy_address, rpc_proxy_addresses, ports_generator):
         configs = []
         for manager_index in xrange(provision["skynet_manager"]["count"]):
             config = {
@@ -667,10 +677,11 @@ class ConfigsProvider_19(ConfigsProvider):
                     "cluster_name": "local",
                     "proxy_url": "http://" + proxy_address,
                     "root": "//sys/skynet_manager",
+                    "user": "root",
                     "oauth_token_env": "",
                     "connection": {
                         "connection_type": "rpc",
-                        "addresses": [rpc_proxy_address]
+                        "addresses": rpc_proxy_addresses
                     }
                 }
             ]
