@@ -430,7 +430,8 @@ public:
         const TString& clusterName,
         const TYPath& replicaPath,
         ETableReplicaMode mode,
-        TTimestamp startReplicationTimestamp)
+        TTimestamp startReplicationTimestamp,
+        const std::vector<i64>& startReplicationRowIndexes)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -445,6 +446,8 @@ public:
                     clusterName);
             }
         }
+
+        YCHECK(startReplicationRowIndexes.empty() || startReplicationRowIndexes.size() == table->Tablets().size());
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto id = objectManager->GenerateId(EObjectType::TableReplica, NullObjectId);
@@ -468,10 +471,15 @@ public:
             startReplicationTimestamp);
 
         const auto& hiveManager = Bootstrap_->GetHiveManager();
-        for (auto* tablet : table->Tablets()) {
+        for (int tabletIndex = 0; tabletIndex < table->Tablets().size(); ++tabletIndex) {
+            auto* tablet = table->Tablets()[tabletIndex];
             auto pair = tablet->Replicas().emplace(replica, TTableReplicaInfo());
             YCHECK(pair.second);
             auto& replicaInfo = pair.first->second;
+
+            if (!startReplicationRowIndexes.empty()) {
+                replicaInfo.SetCurrentReplicationRowIndex(startReplicationRowIndexes[tabletIndex]);
+            }
 
             if (!tablet->IsActive()) {
                 replicaInfo.SetState(ETableReplicaState::None);
@@ -4697,14 +4705,16 @@ TTableReplica* TTabletManager::CreateTableReplica(
     const TString& clusterName,
     const TYPath& replicaPath,
     ETableReplicaMode mode,
-    TTimestamp startReplicationTimestamp)
+    TTimestamp startReplicationTimestamp,
+    const std::vector<i64>& startReplicationRowIndexes)
 {
     return Impl_->CreateTableReplica(
         table,
         clusterName,
         replicaPath,
         mode,
-        startReplicationTimestamp);
+        startReplicationTimestamp,
+        startReplicationRowIndexes);
 }
 
 void TTabletManager::DestroyTableReplica(TTableReplica* replica)
