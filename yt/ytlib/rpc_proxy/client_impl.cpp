@@ -1,5 +1,7 @@
 #include "client_impl.h"
 #include "helpers.h"
+#include "config.h"
+#include "transaction.h"
 #include "private.h"
 
 #include <yt/core/net/address.h>
@@ -9,6 +11,7 @@
 #include <yt/core/ytree/convert.h>
 
 #include <yt/ytlib/api/rowset.h>
+#include <yt/ytlib/api/transaction.h>
 
 #include <yt/ytlib/table_client/unversioned_row.h>
 #include <yt/ytlib/table_client/row_base.h>
@@ -30,6 +33,7 @@ using namespace NApi;
 using namespace NRpc;
 using namespace NTableClient;
 using namespace NTabletClient;
+using namespace NTransactionClient;
 using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -59,6 +63,48 @@ TClientPtr TClient::GetRpcProxyClient()
 IChannelPtr TClient::GetChannel()
 {
     return Channel_;
+}
+
+ITransactionPtr TClient::AttachTransaction(
+    const TTransactionId& transactionId,
+    const TTransactionAttachOptions& options)
+{
+    auto connection = GetRpcProxyConnection();
+    auto client = GetRpcProxyClient();
+    auto channel = GetChannel();
+
+    TApiServiceProxy proxy(channel);
+
+    auto req = proxy.AttachTransaction();
+    ToProto(req->mutable_transaction_id(), transactionId);
+    req->set_auto_abort(options.AutoAbort);
+    req->set_sticky(options.Sticky);
+    if (options.PingPeriod) {
+        req->set_ping_period(options.PingPeriod->GetValue());
+    }
+    req->set_ping(options.Ping);
+    req->set_ping_ancestors(options.PingAncestors);
+
+    auto rspOrError = NConcurrency::WaitFor(req->Invoke());
+    const auto& rsp = rspOrError.ValueOrThrow();
+    auto transactionType = static_cast<ETransactionType>(rsp->type());
+    auto startTimestamp = static_cast<TTimestamp>(rsp->start_timestamp());
+    auto atomicity = static_cast<EAtomicity>(rsp->atomicity());
+    auto durability = static_cast<EDurability>(rsp->durability());
+    auto timeout = TDuration::FromValue(NYT::FromProto<i64>(rsp->timeout()));
+
+    return CreateTransaction(
+        std::move(connection),
+        std::move(client),
+        std::move(channel),
+        transactionId,
+        startTimestamp,
+        transactionType,
+        atomicity,
+        durability,
+        timeout,
+        options.PingPeriod,
+        options.Sticky);
 }
 
 TFuture<void> TClient::MountTable(
@@ -194,7 +240,7 @@ TFuture<void> TClient::ReshardTable(
     ToProto(req->mutable_mutating_options(), options);
     ToProto(req->mutable_tablet_range_options(), options);
 
-    return req->Invoke().As<void>();;
+    return req->Invoke().As<void>();
 }
 
 TFuture<void> TClient::TrimTable(

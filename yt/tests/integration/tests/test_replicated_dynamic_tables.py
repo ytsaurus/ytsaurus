@@ -2,7 +2,7 @@ import pytest
 
 from test_dynamic_tables import TestDynamicTablesBase
 
-from yt_env_setup import YTEnvSetup
+from yt_env_setup import YTEnvSetup, skip_if_rpc_driver_backend
 from yt_commands import *
 from time import sleep
 from yt.yson import YsonEntity
@@ -387,6 +387,7 @@ class TestReplicatedDynamicTables(TestDynamicTablesBase):
         delete_rows("//tmp/t", [{"key": 1}], require_sync_replica=False)
         wait(lambda: select_rows("* from [//tmp/r]", driver=self.replica_driver) == [])
 
+    @skip_if_rpc_driver_backend
     def test_async_replication_ordered(self):
         self._create_cells()
         self._create_replicated_table("//tmp/t", self.SIMPLE_SCHEMA_ORDERED)
@@ -983,3 +984,10 @@ class TestReplicatedDynamicTables(TestDynamicTablesBase):
 
 class TestReplicatedDynamicTablesMulticell(TestReplicatedDynamicTables):
     NUM_SECONDARY_MASTER_CELLS = 2
+
+##################################################################
+
+class TestReplicatedDynamicTablesRpcProxy(TestReplicatedDynamicTables):
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True
+

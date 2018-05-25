@@ -1,4 +1,5 @@
 #include "table_mount_cache.h"
+#include "table_mount_cache_detail.h"
 #include "private.h"
 #include "config.h"
 
@@ -20,9 +21,7 @@
 #include <yt/ytlib/tablet_client/public.h>
 
 #include <yt/core/concurrency/delayed_executor.h>
-#include <yt/core/concurrency/rw_spinlock.h>
 
-#include <yt/core/misc/async_expiring_cache.h>
 #include <yt/core/misc/string.h>
 
 #include <yt/core/rpc/proto/rpc.pb.h>
@@ -45,72 +44,6 @@ using namespace NTableClient;
 using namespace NHiveClient;
 using namespace NNodeTrackerClient;
 using namespace NQueryClient;
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TTabletCache
-{
-public:
-    TTabletInfoPtr Find(const TTabletId& tabletId)
-    {
-        TReaderGuard guard(SpinLock_);
-        RemoveExpiredEntries();
-        auto it = Map_.find(tabletId);
-        return it != Map_.end() ? it->second.Lock() : nullptr;
-    }
-
-    TTabletInfoPtr Insert(TTabletInfoPtr tabletInfo)
-    {
-        TWriterGuard guard(SpinLock_);
-        auto it = Map_.find(tabletInfo->TabletId);
-        if (it != Map_.end()) {
-            if (auto existingTabletInfo = it->second.Lock()) {
-                if (tabletInfo->MountRevision < existingTabletInfo->MountRevision) {
-                    THROW_ERROR_EXCEPTION("Tablet mount revision %v is outdated",
-                        tabletInfo->MountRevision);
-                }
-
-                for (const auto& owner : existingTabletInfo->Owners) {
-                    if (!owner.IsExpired()) {
-                        tabletInfo->Owners.push_back(owner);
-                    }
-                }
-            }
-
-            it->second = MakeWeak(tabletInfo);
-        } else {
-            YCHECK(Map_.insert({tabletInfo->TabletId, tabletInfo}).second);
-        }
-        return tabletInfo;
-    }
-
-private:
-    THashMap<TTabletId, TWeakPtr<TTabletInfo>> Map_;
-    TReaderWriterSpinLock SpinLock_;
-    TInstant LastExpiredRemovalTime_;
-    static const TDuration ExpiringTimeout_;
-
-    void RemoveExpiredEntries()
-    {
-        if (LastExpiredRemovalTime_ + ExpiringTimeout_ < Now()) {
-            return;
-        }
-
-        std::vector<TTabletId> removeIds;
-        for (auto it = Map_.begin(); it != Map_.end(); ++it) {
-            if (it->second.IsExpired()) {
-                removeIds.push_back(it->first);
-            }
-        }
-        for (const auto& tabletId : removeIds) {
-            Map_.erase(tabletId);
-        }
-
-        LastExpiredRemovalTime_ = Now();
-    }
-};
-
-const TDuration TTabletCache::ExpiringTimeout_ = TDuration::Seconds(1);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -249,8 +182,7 @@ void TTableMountInfo::ValidateReplicated() const
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTableMountCache
-    : public ITableMountCache
-    , public TAsyncExpiringCache<TYPath, TTableMountInfoPtr>
+    : public TTableMountCacheBase
 {
 public:
     TTableMountCache(
@@ -258,83 +190,12 @@ public:
         IChannelPtr masterChannel,
         TCellDirectoryPtr cellDirectory,
         const NLogging::TLogger& logger)
-        : TAsyncExpiringCache(config)
-        , Config_(std::move(config))
+        : TTableMountCacheBase(std::move(config), logger)
         , CellDirectory_(std::move(cellDirectory))
-        , Logger(logger)
-        , ObjectProxy_(masterChannel)
+        , ObjectProxy_(std::move(masterChannel))
     { }
 
-    virtual TFuture<TTableMountInfoPtr> GetTableInfo(const TYPath& path) override
-    {
-        return TAsyncExpiringCache::Get(path);
-    }
-
-    virtual TTabletInfoPtr FindTablet(const TTabletId& tabletId) override
-    {
-        return TabletCache_.Find(tabletId);
-    }
-
-    virtual void InvalidateTablet(TTabletInfoPtr tabletInfo) override
-    {
-        for (const auto& weakOwner : tabletInfo->Owners) {
-            if (auto owner = weakOwner.Lock()) {
-                Invalidate(owner->Path);
-            }
-        }
-    }
-
-    virtual std::pair<bool, TTabletInfoPtr> InvalidateOnError(const TError& error) override
-    {
-        static std::vector<NTabletClient::EErrorCode> retriableCodes = {
-            NTabletClient::EErrorCode::NoSuchTablet,
-            NTabletClient::EErrorCode::TabletNotMounted,
-            NTabletClient::EErrorCode::InvalidMountRevision
-        };
-
-        if (!error.IsOK()) {
-            for (auto errCode : retriableCodes) {
-                if (auto retriableError = error.FindMatching(errCode)) {
-                    // COMPAT(savrus) Not all above exceptions had tablet_id attribute in early 19.2 versions.
-                    auto tabletId = retriableError->Attributes().Find<TTabletId>("tablet_id");
-                    if (!tabletId) {
-                        continue;
-                    }
-                    auto tabletInfo = FindTablet(*tabletId);
-                    if (tabletInfo) {
-                        LOG_DEBUG(error, "Invalidating tablet in table mount cache (TabletId: %v, Owners:%v)",
-                            tabletInfo->TabletId,
-                            MakeFormattableRange(tabletInfo->Owners, [] (TStringBuilder* builder, const TWeakPtr<TTableMountInfo>& weakOwner) {
-                                if (auto owner = weakOwner.Lock()) {
-                                    FormatValue(builder, owner->Path, TStringBuf());
-                                }
-                            }));
-
-                        LOG_DEBUG(error, "Invalidating tablet in table mount cache (TabletId: %v)", *tabletId);
-                        InvalidateTablet(tabletInfo);
-                    }
-                    return std::make_pair(true, tabletInfo);
-                }
-            }
-        }
-
-        return std::make_pair(false, nullptr);
-    }
-
-    virtual void Clear()
-    {
-        TAsyncExpiringCache::Clear();
-        LOG_DEBUG("Table mount info cache cleared");
-    }
-
 private:
-    const TTableMountCacheConfigPtr Config_;
-    const TCellDirectoryPtr CellDirectory_;
-
-    const NLogging::TLogger Logger;
-
-    TObjectServiceProxy ObjectProxy_;
-    TTabletCache TabletCache_;
 
     virtual TFuture<TTableMountInfoPtr> DoGet(const TYPath& path) override
     {
@@ -459,6 +320,10 @@ private:
                 return tableInfo;
             }));
     }
+
+private:
+    const TCellDirectoryPtr CellDirectory_;
+    TObjectServiceProxy ObjectProxy_;
 };
 
 ITableMountCachePtr CreateNativeTableMountCache(

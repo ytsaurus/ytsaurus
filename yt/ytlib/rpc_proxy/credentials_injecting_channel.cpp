@@ -14,19 +14,13 @@ using namespace NRpc;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTokenInjectingChannel
+class TUserInjectingChannel
     : public TChannelWrapper
 {
 public:
-    TTokenInjectingChannel(
-        IChannelPtr underlyingChannel,
-        const TString& user,
-        const TString& token,
-        const TString& userIP)
+    TUserInjectingChannel(IChannelPtr underlyingChannel, const TString& user)
         : TChannelWrapper(std::move(underlyingChannel))
         , User_(user)
-        , Token_(token)
-        , UserIP_(userIP)
     { }
 
     virtual IClientRequestControlPtr Send(
@@ -34,18 +28,57 @@ public:
         IClientResponseHandlerPtr responseHandler,
         const TSendOptions& options) override
     {
-        request->SetUser(User_);
-        auto* ext = request->Header().MutableExtension(NProto::TCredentialsExt::credentials_ext);
-        ext->set_token(Token_);
-        ext->set_user_ip(UserIP_);
-        return UnderlyingChannel_->Send(
+        DoInject(request);
+
+        return TChannelWrapper::Send(
             std::move(request),
             std::move(responseHandler),
             options);
     }
 
+protected:
+    virtual void DoInject(const IClientRequestPtr& request)
+    {
+        request->SetUser(User_);
+    }
+
 private:
     const TString User_;
+};
+
+IChannelPtr CreateUserInjectingChannel(IChannelPtr underlyingChannel, const TString& user)
+{
+    YCHECK(underlyingChannel);
+    return New<TUserInjectingChannel>(std::move(underlyingChannel), user);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TTokenInjectingChannel
+    : public TUserInjectingChannel
+{
+public:
+    TTokenInjectingChannel(
+        IChannelPtr underlyingChannel,
+        const TString& user,
+        const TString& token,
+        const TString& userIP)
+        : TUserInjectingChannel(std::move(underlyingChannel), user)
+        , Token_(token)
+        , UserIP_(userIP)
+    { }
+
+protected:
+    virtual void DoInject(const IClientRequestPtr& request) override
+    {
+        TUserInjectingChannel::DoInject(request);
+
+        auto* ext = request->Header().MutableExtension(NProto::TCredentialsExt::credentials_ext);
+        ext->set_token(Token_);
+        ext->set_user_ip(UserIP_);
+    }
+
+private:
     const TString Token_;
     const TString UserIP_;
 };
@@ -67,7 +100,7 @@ IChannelPtr CreateTokenInjectingChannel(
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCookieInjectingChannel
-    : public TChannelWrapper
+    : public TUserInjectingChannel
 {
 public:
     TCookieInjectingChannel(
@@ -77,33 +110,26 @@ public:
         const TString& sessionId,
         const TString& sslSessionId,
         const TString& userIP)
-        : TChannelWrapper(std::move(underlyingChannel))
-        , User_(user)
+        : TUserInjectingChannel(std::move(underlyingChannel), user)
         , Domain_(domain)
         , SessionId_(sessionId)
         , SslSessionId_(sslSessionId)
         , UserIP_(userIP)
     { }
 
-    virtual IClientRequestControlPtr Send(
-        IClientRequestPtr request,
-        IClientResponseHandlerPtr responseHandler,
-        const TSendOptions& options) override
+protected:
+    virtual void DoInject(const IClientRequestPtr& request) override
     {
-        request->SetUser(User_);
+        TUserInjectingChannel::DoInject(request);
+
         auto* ext = request->Header().MutableExtension(NProto::TCredentialsExt::credentials_ext);
         ext->set_domain(Domain_);
         ext->set_session_id(SessionId_);
         ext->set_ssl_session_id(SslSessionId_);
         ext->set_user_ip(UserIP_);
-        return UnderlyingChannel_->Send(
-            std::move(request),
-            std::move(responseHandler),
-            options);
     }
 
 private:
-    const TString User_;
     const TString Domain_;
     const TString SessionId_;
     const TString SslSessionId_;

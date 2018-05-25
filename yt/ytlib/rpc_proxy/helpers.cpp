@@ -1,6 +1,5 @@
 #include "helpers.h"
 
-#include <yt/ytlib/api/client.h>
 #include <yt/ytlib/api/rowset.h>
 
 #include <yt/ytlib/table_client/unversioned_row.h>
@@ -9,6 +8,7 @@
 #include <yt/ytlib/table_client/name_table.h>
 #include <yt/ytlib/table_client/schema.h>
 
+#include <yt/ytlib/tablet_client/table_mount_cache.h>
 #include <yt/ytlib/tablet_client/wire_protocol.h>
 
 namespace NYT {
@@ -94,6 +94,13 @@ void ToProto(
     }
 }
 
+void ToProto(
+    NProto::TTabletReadOptions* proto,
+    const NApi::TTabletReadOptions& options)
+{
+    proto->set_read_from(static_cast<NProto::ETabletReadKind>(options.ReadFrom));
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // RESULTS
 ////////////////////////////////////////////////////////////////////////////////
@@ -124,6 +131,93 @@ void FromProto(
     const NProto::TPutFileToCacheResult& proto)
 {
     result->Path = proto.path();
+}
+
+
+void ToProto(NProto::TColumnSchema* protoSchema, const NTableClient::TColumnSchema& schema)
+{
+    protoSchema->set_name(schema.Name());
+    protoSchema->set_type(static_cast<int>(schema.GetPhysicalType()));
+    protoSchema->set_logical_type(static_cast<int>(schema.LogicalType()));
+    if (schema.Lock()) {
+        protoSchema->set_lock(*schema.Lock());
+    }
+    if (schema.Expression()) {
+        protoSchema->set_expression(*schema.Expression());
+    }
+    if (schema.Aggregate()) {
+        protoSchema->set_aggregate(*schema.Aggregate());
+    }
+    if (schema.SortOrder()) {
+        protoSchema->set_sort_order(static_cast<int>(*schema.SortOrder()));
+    }
+    if (schema.Group()) {
+        protoSchema->set_group(*schema.Group());
+    }
+    if (schema.Required()) {
+        protoSchema->set_required(schema.Required());
+    }
+}
+
+void FromProto(NTableClient::TColumnSchema* schema, const NProto::TColumnSchema& protoSchema)
+{
+    schema->SetName(protoSchema.name());
+    if (protoSchema.has_logical_type()) {
+        schema->SetLogicalType(CheckedEnumCast<ELogicalValueType>(protoSchema.logical_type()));
+        YCHECK(schema->GetPhysicalType() == CheckedEnumCast<EValueType>(protoSchema.type()));
+    } else {
+        schema->SetLogicalType(GetLogicalType(CheckedEnumCast<EValueType>(protoSchema.type())));
+    }
+    schema->SetLock(protoSchema.has_lock() ? MakeNullable(protoSchema.lock()) : Null);
+    schema->SetExpression(protoSchema.has_expression() ? MakeNullable(protoSchema.expression()) : Null);
+    schema->SetAggregate(protoSchema.has_aggregate() ? MakeNullable(protoSchema.aggregate()) : Null);
+    schema->SetSortOrder(protoSchema.has_sort_order() ? MakeNullable(ESortOrder(protoSchema.sort_order())) : Null);
+    schema->SetGroup(protoSchema.has_group() ? MakeNullable(protoSchema.group()) : Null);
+    schema->SetRequired(protoSchema.required());
+}
+
+void ToProto(NProto::TTableSchema* protoSchema, const NTableClient::TTableSchema& schema)
+{
+    using NYT::ToProto;
+
+    ToProto(protoSchema->mutable_columns(), schema.Columns());
+    protoSchema->set_strict(schema.GetStrict());
+    protoSchema->set_unique_keys(schema.GetUniqueKeys());
+}
+
+void FromProto(NTableClient::TTableSchema* schema, const NProto::TTableSchema& protoSchema)
+{
+    using NYT::FromProto;
+
+    *schema = NTableClient::TTableSchema(
+        FromProto<std::vector<NTableClient::TColumnSchema>>(protoSchema.columns()),
+        protoSchema.strict(),
+        protoSchema.unique_keys());
+}
+
+void ToProto(NProto::TTabletInfo* protoTabletInfo, const NTabletClient::TTabletInfo& tabletInfo)
+{
+    ToProto(protoTabletInfo->mutable_tablet_id(), tabletInfo.TabletId);
+    protoTabletInfo->set_mount_revision(tabletInfo.MountRevision);
+    protoTabletInfo->set_state(static_cast<i32>(tabletInfo.State));
+    ToProto(protoTabletInfo->mutable_pivot_key(), tabletInfo.PivotKey);
+    if (tabletInfo.CellId) {
+        ToProto(protoTabletInfo->mutable_cell_id(), tabletInfo.CellId);
+    }
+}
+
+void FromProto(NTabletClient::TTabletInfo* tabletInfo, const NProto::TTabletInfo& protoTabletInfo)
+{
+    using NYT::FromProto;
+
+    tabletInfo->TabletId =
+        FromProto<TTabletId>(protoTabletInfo.tablet_id());
+    tabletInfo->MountRevision = protoTabletInfo.mount_revision();
+    tabletInfo->State = CheckedEnumCast<ETabletState>(protoTabletInfo.state());
+    tabletInfo->PivotKey = FromProto<NTableClient::TOwningKey>(protoTabletInfo.pivot_key());
+    if (protoTabletInfo.has_cell_id()) {
+        tabletInfo->CellId = FromProto<TTabletCellId>(protoTabletInfo.cell_id());
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
