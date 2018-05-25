@@ -215,7 +215,7 @@ def sky_share(resource, cwd):
         raise RuntimeError("Failed to parse rbtorrent url: {0}".format(rbtorrent))
     return rbtorrent
 
-def share_packages(options, version):
+def share_packages(options, build_context):
     # Share all important packages via skynet and store in sandbox.
     upload_packages = [
         "yandex-yt-python-skynet-driver",
@@ -236,7 +236,6 @@ def share_packages(options, version):
     ]
 
     try:
-        build_time = datetime.now().isoformat()
         cli = sandbox_client.SandboxClient(oauth_token=os.environ["TEAMCITY_SANDBOX_TOKEN"])
 
         dir = os.path.join(options.working_directory, "./ARTIFACTS")
@@ -271,11 +270,11 @@ def share_packages(options, version):
                 teamcity_message("Created sandbox upload task: package: {0}, task_id: {1}, torrent_id: {2}".format(pkg, task_id, torrent_id))
                 rows.append({
                     "package" : pkg,
-                    "version" : version,
+                    "version" : build_context["yt_version"],
                     "ubuntu_codename" : options.codename,
                     "torrent_id" : torrent_id,
                     "task_id" : task_id,
-                    "build_time" : build_time})
+                    "build_time" : build_context["build_time"]})
 
         # Add to locke.
         src_root = os.path.dirname(os.path.dirname(__file__))
@@ -302,13 +301,14 @@ def package(options, build_context):
         with open("ytversion") as handle:
             version = handle.read().strip()
         build_context["yt_version"] = version
+        build_context["build_time"] = datetime.now().isoformat()
 
         teamcity_message("We have built a package")
         teamcity_interact("setParameter", name="yt.package_built", value=1)
         teamcity_interact("setParameter", name="yt.package_version", value=version)
         teamcity_interact("buildStatus", text="{{build.status.text}}; Package: {0}".format(version))
 
-        share_packages(options, version)
+        share_packages(options, build_context)
 
         artifacts = glob.glob("./ARTIFACTS/yandex-*{0}*.changes".format(version))
         if artifacts:
