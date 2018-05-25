@@ -257,20 +257,15 @@ public:
         return properties.at("absolute_name")
              .ValueOrThrow();
     }
-
-    virtual void SetCpuLimit(double cores) override
-    {
-        SetProperty("cpu_limit", ToString(cores) + "c");
-    }
-
+    
     virtual void SetCpuShare(double cores) override
     {
         SetProperty("cpu_guarantee", ToString(cores) + "c");
     }
 
-    virtual void SetCpuWeight(double weight) override
+    virtual void SetCpuLimit(double cores) override
     {
-        SetProperty("cpu_weight", ToString(weight));
+        SetProperty("cpu_limit", ToString(cores) + "c");
     }
 
     virtual void SetIsolate() override
