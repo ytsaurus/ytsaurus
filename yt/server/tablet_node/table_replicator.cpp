@@ -26,6 +26,7 @@
 
 #include <yt/ytlib/transaction_client/action.h>
 #include <yt/ytlib/transaction_client/helpers.h>
+#include <yt/ytlib/transaction_client/timestamp_provider.h>
 
 #include <yt/ytlib/security_client/public.h>
 
@@ -206,9 +207,10 @@ private:
                 auto rowCount = std::max(
                     static_cast<i64>(0),
                     tabletRuntimeData->TotalRowCount.load() - replicaRuntimeData->CurrentReplicationRowIndex.load());
+                const auto& timestampProvider = LocalConnection_->GetTimestampProvider();
                 auto time = (rowCount == 0)
                     ? TDuration::Zero()
-                    : TimestampDiffToDuration(replicaRuntimeData->CurrentReplicationTimestamp, tabletRuntimeData->LastWriteTimestamp).second;
+                    : TimestampToInstant(timestampProvider->GetLatestTimestamp()).second - TimestampToInstant(replicaRuntimeData->CurrentReplicationTimestamp).first;
                 TabletNodeProfiler.Update(counters->LagRowCount, rowCount);
                 TabletNodeProfiler.Update(counters->LagTime, NProfiling::DurationToValue(time));
             });
