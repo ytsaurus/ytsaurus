@@ -1757,15 +1757,12 @@ class TestFairShareTreesReconfiguration(YTEnvSetup):
         set("//sys/nodes/" + node + "/@user_tags/end", "other")
         set("//sys/pool_trees/default/@nodes_filter", "!other")
         create("map_node", "//sys/pool_trees/other", attributes={"nodes_filter": "other"})
-        set("//sys/pool_trees/default/@nodes_filter", "!other")
-
-        time.sleep(1.0)
 
         orchid_root = "//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree"
-        assert get(orchid_root + "/default/node_count") == 2
-        assert get(orchid_root + "/other/node_count") == 1
-        assert_almost_equal(get(orchid_root + "/default/resource_limits")["cpu"], 2)
-        assert_almost_equal(get(orchid_root + "/other/resource_limits")["cpu"], 1)
+        wait(lambda: get(orchid_root + "/default/node_count") == 2)
+        wait(lambda: get(orchid_root + "/other/node_count") == 1)
+        assert assert_almost_equal(get(orchid_root + "/default/resource_limits")["cpu"], 2)
+        assert assert_almost_equal(get(orchid_root + "/other/resource_limits")["cpu"], 1)
         assert node in get(orchid_root + "/other/node_addresses")
         assert node not in get(orchid_root + "/default/node_addresses")
 
@@ -1785,15 +1782,13 @@ class TestFairShareTreesReconfiguration(YTEnvSetup):
             spec={"pool_trees": ["other"], "data_size_per_job": 1},
             dont_track=True)
 
-        time.sleep(1.0)
-
         def get_fair_share(tree, op_id):
             return get("//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/{0}/fair_share_info/operations/{1}/fair_share_ratio"
                        .format(tree, op_id))
 
-        assert assert_almost_equal(get_fair_share("default", op1.id), 1.0)
-        assert assert_almost_equal(get_fair_share("other", op1.id), 0.5)
-        assert assert_almost_equal(get_fair_share("other", op2.id), 0.5)
+        wait(lambda: assert_almost_equal(get_fair_share("default", op1.id), 1.0))
+        wait(lambda: assert_almost_equal(get_fair_share("other", op1.id), 0.5))
+        wait(lambda: assert_almost_equal(get_fair_share("other", op2.id), 0.5))
 
     def test_default_tree_update(self):
         node = ls("//sys/nodes")[0]
