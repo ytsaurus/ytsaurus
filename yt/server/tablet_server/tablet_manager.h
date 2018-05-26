@@ -152,7 +152,7 @@ private:
         const NYPath::TYPath& replicaPath,
         ETableReplicaMode mode,
         NTransactionClient::TTimestamp startReplicationTimestamp,
-        const std::vector<i64>& startReplicationRowIndexes);
+        const TNullable<std::vector<i64>>& startReplicationRowIndexes);
     void DestroyTableReplica(TTableReplica* replica);
 
     TTabletAction* CreateTabletAction(

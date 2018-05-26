@@ -53,7 +53,7 @@ public:
         auto clusterName = attributes->GetAndRemove<TString>("cluster_name");
         auto replicaPath = attributes->GetAndRemove<TString>("replica_path");
         auto startReplicationTimestamp = attributes->GetAndRemove<NTransactionClient::TTimestamp>("start_replication_timestamp", NTransactionClient::MinTimestamp);
-        auto startReplicationRowIndexes = attributes->GetAndRemove<std::vector<i64>>("start_replication_row_indexes", std::vector<i64>());
+        auto startReplicationRowIndexes = attributes->FindAndRemove<std::vector<i64>>("start_replication_row_indexes");
         auto mode = attributes->GetAndRemove<ETableReplicaMode>("mode", ETableReplicaMode::Async);
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
@@ -64,10 +64,10 @@ public:
         }
         auto* table = trunkNode->As<TReplicatedTableNode>();
 
-        if (!startReplicationRowIndexes.empty() && startReplicationRowIndexes.size() != table->Tablets().size()) {
+        if (startReplicationRowIndexes && startReplicationRowIndexes->size() != table->Tablets().size()) {
             THROW_ERROR_EXCEPTION("Invalid size of \"start_replication_row_indexes\": expected zero or %v, got %v",
                 table->Tablets().size(),
-                startReplicationRowIndexes.size());
+                startReplicationRowIndexes->size());
         }
 
         cypressManager->LockNode(table, nullptr, ELockMode::Exclusive);
