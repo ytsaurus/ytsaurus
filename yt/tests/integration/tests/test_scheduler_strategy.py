@@ -1779,8 +1779,11 @@ class TestFairShareTreesReconfiguration(YTEnvSetup):
             dont_track=True)
 
         def get_fair_share(tree, op_id):
-            return get("//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/{0}/fair_share_info/operations/{1}/fair_share_ratio"
-                       .format(tree, op_id))
+            try:
+                return get("//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/{0}/fair_share_info/operations/{1}/fair_share_ratio"
+                           .format(tree, op_id))
+            except YtError:
+                return 0.0
 
         wait(lambda: assert_almost_equal(get_fair_share("default", op1.id), 1.0))
         wait(lambda: assert_almost_equal(get_fair_share("other", op1.id), 0.5))
