@@ -59,9 +59,10 @@ void TCellManager::BuildTags()
     auto* profilingManager = NProfiling::TProfileManager::Get();
     for (TPeerId id = 0; id < GetTotalPeerCount(); ++id) {
         const auto& config = GetPeerConfig(id);
-        if (config.Address) {
-            PeerTags_.push_back(profilingManager->RegisterTag("address", *config.Address));
-        }
+        PeerTags_.push_back(
+            config.Address
+            ? profilingManager->RegisterTag("address", *config.Address)
+            : -1);
     }
 
     AllPeersTag_ = profilingManager->RegisterTag("address", "all");
@@ -111,7 +112,9 @@ IChannelPtr TCellManager::GetPeerChannel(TPeerId id) const
 
 NProfiling::TTagId TCellManager::GetPeerTag(TPeerId id) const
 {
-    return PeerTags_[id];
+    auto tag = PeerTags_[id];
+    YCHECK(tag != -1);
+    return tag;
 }
 
 NProfiling::TTagId TCellManager::GetAllPeersTag() const
