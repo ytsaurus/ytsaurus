@@ -477,7 +477,7 @@ public:
             YCHECK(pair.second);
             auto& replicaInfo = pair.first->second;
 
-            if (!startReplicationRowIndexes) {
+            if (startReplicationRowIndexes) {
                 replicaInfo.SetCurrentReplicationRowIndex((*startReplicationRowIndexes)[tabletIndex]);
             }
 
