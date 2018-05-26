@@ -431,7 +431,7 @@ public:
         const TYPath& replicaPath,
         ETableReplicaMode mode,
         TTimestamp startReplicationTimestamp,
-        const std::vector<i64>& startReplicationRowIndexes)
+        const TNullable<std::vector<i64>>& startReplicationRowIndexes)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -447,7 +447,7 @@ public:
             }
         }
 
-        YCHECK(startReplicationRowIndexes.empty() || startReplicationRowIndexes.size() == table->Tablets().size());
+        YCHECK(!startReplicationRowIndexes || startReplicationRowIndexes->size() == table->Tablets().size());
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto id = objectManager->GenerateId(EObjectType::TableReplica, NullObjectId);
@@ -477,8 +477,8 @@ public:
             YCHECK(pair.second);
             auto& replicaInfo = pair.first->second;
 
-            if (!startReplicationRowIndexes.empty()) {
-                replicaInfo.SetCurrentReplicationRowIndex(startReplicationRowIndexes[tabletIndex]);
+            if (!startReplicationRowIndexes) {
+                replicaInfo.SetCurrentReplicationRowIndex((*startReplicationRowIndexes)[tabletIndex]);
             }
 
             if (!tablet->IsActive()) {
@@ -4706,7 +4706,7 @@ TTableReplica* TTabletManager::CreateTableReplica(
     const TYPath& replicaPath,
     ETableReplicaMode mode,
     TTimestamp startReplicationTimestamp,
-    const std::vector<i64>& startReplicationRowIndexes)
+    const  TNullable<std::vector<i64>>& startReplicationRowIndexes)
 {
     return Impl_->CreateTableReplica(
         table,
