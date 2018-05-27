@@ -402,6 +402,9 @@ private:
             if (GetSharedData()->GetOperationArchiveVersion() >= 18) {
                 builder.AddValue(MakeUnversionedInt64Value(TInstant::Now().MicroSeconds(), Table_.Index.UpdateTime));
             }
+            if (GetSharedData()->GetOperationArchiveVersion() >= 20 && statistics.Spec()) {
+                builder.AddValue(MakeUnversionedBooleanValue(statistics.Spec().HasValue(), Table_.Index.HasSpec));
+            }
             rows.push_back(rowBuffer->Capture(builder.GetRow()));
             dataWeight += GetDataWeight(rows.back());
         }

@@ -695,6 +695,7 @@ struct TListJobsOptions
     TNullable<TString> Address;
     TNullable<bool> WithStderr;
     TNullable<bool> WithFailContext;
+    TNullable<bool> WithSpec;
 
     EJobSortField SortField = EJobSortField::None;
     EJobSortDirection SortOrder = EJobSortDirection::Ascending;

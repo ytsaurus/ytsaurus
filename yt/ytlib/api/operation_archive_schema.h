@@ -110,6 +110,7 @@ struct TJobTableDescriptor
         const int Statistics;
         const int Events;
         const int StderrSize;
+        const int HasSpec;
     };
 
     const NTableClient::TNameTablePtr NameTable;

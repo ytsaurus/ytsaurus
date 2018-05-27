@@ -265,6 +265,9 @@ class TestListJobs(YTEnvSetup):
         res = list_jobs(op.id, with_stderr=False, **archive_options)["jobs"]
         assert sorted(jobs_without_stderr) == sorted([job["id"] for job in res])
 
+        # All completed and failed jobs.
+        assert len(list_jobs(op.id, with_spec=True, **archive_options)["jobs"]) == 5
+
         # Clean operations to archive.
         clean_operations(self.Env.create_native_client())
         sleep(1)  # statistics_reporter
