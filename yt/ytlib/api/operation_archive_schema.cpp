@@ -90,6 +90,7 @@ TJobTableDescriptor::TIndex::TIndex(const TNameTablePtr& n)
     , Statistics(n->RegisterName("statistics"))
     , Events(n->RegisterName("events"))
     , StderrSize(n->RegisterName("stderr_size"))
+    , HasSpec(n->RegisterName("has_spec"))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////

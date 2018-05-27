@@ -218,8 +218,8 @@ TJobStatistics TJobStatistics::ExtractSpec()
 {
     TJobStatistics copy;
     copy.JobId_ = JobId_;
-    copy.Spec_ = std::move(Spec_);
-    copy.SpecVersion_ = std::move(SpecVersion_);
+    copy.Spec_ = Spec_;
+    copy.SpecVersion_ = SpecVersion_;
     copy.Type_ = Type_;
     return copy;
 }

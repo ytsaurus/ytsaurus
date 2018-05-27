@@ -4802,6 +4802,14 @@ private:
             }
         }
 
+        if (options.WithSpec) {
+            if (*options.WithSpec) {
+                itemsQueryBuilder.AddWhereExpression("(has_spec AND NOT is_null(has_spec))");
+            } else {
+                itemsQueryBuilder.AddWhereExpression("(NOT has_spec OR is_null(has_spec))");
+            }
+        }
+
         // TODO(ignat): add 'fail_context_size' to archive.
         if (options.WithFailContext && *options.WithFailContext) {
             itemsQueryBuilder.AddWhereExpression("false");
@@ -5086,6 +5094,12 @@ private:
                     stderrSize = stderrNode->Attributes().Get<i64>("uncompressed_data_size");
                 }
 
+                if (options.WithSpec) {
+                    if (*options.WithSpec == (state == EJobState::Running)) {
+                        continue;
+                    }
+                }
+
                 if (options.WithStderr) {
                     if (*options.WithStderr && stderrSize <= 0) {
                         continue;
@@ -5169,6 +5183,13 @@ private:
                 auto address = values->GetChild("address")->AsString()->GetValue();
 
                 auto stderrSize = values->GetChild("stderr_size")->AsInt64()->GetValue();
+
+                if (options.WithSpec) {
+                    if (*options.WithSpec == (state == EJobState::Running)) {
+                        continue;
+                    }
+                }
+
                 if (options.WithStderr) {
                     if (*options.WithStderr && stderrSize <= 0) {
                         continue;
