@@ -630,7 +630,7 @@ class SchedulerReviveBase(YTEnvSetup):
         wait(lambda: op.get_job_count("completed") == 1 and op.get_job_count("running") == 1)
 
         # Wait for snapshot after job completion.
-        time.sleep(2)
+        time.sleep(3)
 
         # This request will be retried with the new incarnation of the scheduler.
         op.complete(ignore_result=True)
