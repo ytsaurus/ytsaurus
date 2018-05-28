@@ -89,6 +89,8 @@
 
 #include <yt/ytlib/core_dump/core_dumper.h>
 
+#include <yt/ytlib/table_client/chunk_meta_extensions.h>
+
 #include <yt/core/bus/server.h>
 
 #include <yt/core/bus/tcp/config.h>
@@ -148,6 +150,7 @@ using namespace NTransactionServer;
 using namespace NHiveClient;
 using namespace NHiveServer;
 using namespace NObjectClient;
+using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -287,6 +290,8 @@ void TBootstrap::DoRun()
     NetworkStatistics = New<TNetworkStatistics>(Config->DataNode);
 
     BlockCache = CreateServerBlockCache(Config->DataNode, this);
+
+    BlockMetaCache = New<TBlockMetaCache>(Config->DataNode->BlockMetaCache, TProfiler("/data_node/block_meta_cache"));
 
     PeerBlockDistributor = New<TPeerBlockDistributor>(Config->DataNode->PeerBlockDistributor, this);
     PeerBlockTable = New<TPeerBlockTable>(Config->DataNode->PeerBlockTable, this);
@@ -724,6 +729,11 @@ const TChunkMetaManagerPtr& TBootstrap::GetChunkMetaManager() const
 const IBlockCachePtr& TBootstrap::GetBlockCache() const
 {
     return BlockCache;
+}
+
+const TBlockMetaCachePtr& TBootstrap::GetBlockMetaCache() const
+{
+    return BlockMetaCache;
 }
 
 const TPeerBlockDistributorPtr& TBootstrap::GetPeerBlockDistributor() const

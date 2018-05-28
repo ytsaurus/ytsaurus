@@ -1,9 +1,9 @@
 #include "local_chunk_reader.h"
+#include "chunk_block_manager.h"
 #include "chunk_store.h"
 
 #include <yt/server/cell_node/bootstrap.h>
 
-#include "chunk_block_manager.h"
 #include <yt/server/data_node/chunk.h>
 
 #include <yt/ytlib/chunk_client/block_cache.h>
@@ -21,6 +21,8 @@ using namespace NChunkClient::NProto;
 using namespace NTableClient;
 using namespace NDataNode;
 using namespace NCellNode;
+using namespace NTableClient;
+using namespace NTableClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -33,11 +35,13 @@ public:
         IChunkPtr chunk,
         TChunkBlockManagerPtr chunkBlockManager,
         IBlockCachePtr blockCache,
+        TBlockMetaCachePtr blockMetaCache,
         TClosure failureHandler)
         : Config_(std::move(config))
         , Chunk_(std::move(chunk))
         , ChunkBlockManager_(std::move(chunkBlockManager))
         , BlockCache_(std::move(blockCache))
+        , BlockMetaCache_(std::move(blockMetaCache))
         , FailureHandler_(std::move(failureHandler))
     { }
 
@@ -93,9 +97,24 @@ public:
                 ThrowError(metaOrError);
             }
             const auto& meta = metaOrError.Value();
-            return partitionTag
-                ? FilterChunkMetaByPartitionTag(*meta, *partitionTag)
-                : TChunkMeta(*meta);
+
+            if (partitionTag) {
+                auto cachedBlockMeta = BlockMetaCache_
+                    ? BlockMetaCache_->Find(GetChunkId())
+                    : TCachedBlockMetaPtr();
+
+                if (!cachedBlockMeta) {
+                    auto blockMetaExt = GetProtoExtension<TBlockMetaExt>(meta->extensions());
+                    cachedBlockMeta = New<TCachedBlockMeta>(GetChunkId(), std::move(blockMetaExt));
+                    if (BlockMetaCache_) {
+                        BlockMetaCache_->TryInsert(cachedBlockMeta);
+                    }
+                }
+
+                return FilterChunkMetaByPartitionTag(*meta, cachedBlockMeta, *partitionTag);
+            } else {
+                return TChunkMeta(*meta);
+            }
         }));
     }
 
@@ -114,6 +133,7 @@ private:
     const IChunkPtr Chunk_;
     const TChunkBlockManagerPtr ChunkBlockManager_;
     const IBlockCachePtr BlockCache_;
+    const TBlockMetaCachePtr BlockMetaCache_;
     const TClosure FailureHandler_;
 
     struct TReadBlockSetSession
@@ -202,6 +222,7 @@ IChunkReaderPtr CreateLocalChunkReader(
     IChunkPtr chunk,
     TChunkBlockManagerPtr chunkBlockManager,
     IBlockCachePtr blockCache,
+    TBlockMetaCachePtr blockMetaCache,
     TClosure failureHandler)
 {
     return New<TLocalChunkReader>(
@@ -209,6 +230,7 @@ IChunkReaderPtr CreateLocalChunkReader(
         std::move(chunk),
         std::move(chunkBlockManager),
         std::move(blockCache),
+        std::move(blockMetaCache),
         std::move(failureHandler));
 }
 

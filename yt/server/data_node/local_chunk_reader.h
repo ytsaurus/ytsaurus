@@ -4,6 +4,8 @@
 
 #include <yt/ytlib/chunk_client/public.h>
 
+#include <yt/ytlib/table_client/public.h>
+
 #include <yt/core/actions/callback.h>
 
 namespace NYT {
@@ -21,6 +23,7 @@ NChunkClient::IChunkReaderPtr CreateLocalChunkReader(
     IChunkPtr chunk,
     TChunkBlockManagerPtr chunkBlockManager,
     NChunkClient::IBlockCachePtr blockCache,
+    NTableClient::TBlockMetaCachePtr blockMetaCache,
     TClosure failureHandler = TClosure());
 
 ////////////////////////////////////////////////////////////////////////////////
