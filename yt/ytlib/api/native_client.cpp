@@ -1897,28 +1897,31 @@ private:
             // TODO(sandello): Those bind states must be in a cross-session shared state. Check this when refactor out batches.
             TTabletCellLookupSession::TEncoder boundEncoder = std::bind(encoderWithMapping, remappedColumnFilter, std::placeholders::_1);
             TTabletCellLookupSession::TDecoder boundDecoder = std::bind(decoderWithMapping, resultSchemaData, std::placeholders::_1);
-            for (int index = 0; index < sortedKeys.size(); ++index) {
-                keyIndexToResultIndex[sortedKeys[index].second] = currentResultIndex;
-                if (index == 0 || sortedKeys[index].first != sortedKeys[index - 1].first) {
-                    auto key = sortedKeys[index].first;
-                    auto tabletInfo = GetSortedTabletForRow(tableInfo, key);
-                    const auto& cellId = tabletInfo->CellId;
-                    auto it = cellIdToSession.find(cellId);
-                    if (it == cellIdToSession.end()) {
-                        auto session = New<TTabletCellLookupSession>(
-                            Connection_->GetConfig(),
-                            Connection_->GetNetworks(),
-                            cellId,
-                            options,
-                            tableInfo,
-                            retentionConfig,
-                            boundEncoder,
-                            boundDecoder);
-                        it = cellIdToSession.insert(std::make_pair(cellId, std::move(session))).first;
-                    }
-                    const auto& session = it->second;
-                    session->AddKey(currentResultIndex++, std::move(tabletInfo), key);
+            for (int index = 0; index < sortedKeys.size();) {
+                auto key = sortedKeys[index].first;
+                auto tabletInfo = GetSortedTabletForRow(tableInfo, key);
+                const auto& cellId = tabletInfo->CellId;
+                auto it = cellIdToSession.find(cellId);
+                if (it == cellIdToSession.end()) {
+                    auto session = New<TTabletCellLookupSession>(
+                        Connection_->GetConfig(),
+                        Connection_->GetNetworks(),
+                        cellId,
+                        options,
+                        tableInfo,
+                        retentionConfig,
+                        boundEncoder,
+                        boundDecoder);
+                    it = cellIdToSession.insert(std::make_pair(cellId, std::move(session))).first;
                 }
+                const auto& session = it->second;
+                session->AddKey(currentResultIndex, std::move(tabletInfo), key);
+
+                do {
+                    keyIndexToResultIndex[sortedKeys[index].second] = currentResultIndex;
+                    ++index;
+                } while (index < sortedKeys.size() && sortedKeys[index].first == key);
+                ++currentResultIndex;
             }
 
             std::vector<TFuture<void>> asyncResults;
@@ -1933,7 +1936,7 @@ private:
                 .ThrowOnError();
 
             // Rows are type-erased here and below to handle different kinds of rowsets.
-            uniqueResultRows.resize(currentResultIndex + 1);
+            uniqueResultRows.resize(currentResultIndex);
 
             for (const auto& pair : cellIdToSession) {
                 const auto& session = pair.second;
