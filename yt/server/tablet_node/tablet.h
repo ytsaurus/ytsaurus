@@ -50,7 +50,7 @@ DEFINE_REFCOUNTED_TYPE(TRuntimeTableReplicaData)
 struct TReplicaCounters
 {
     TReplicaCounters() = default;
-    TReplicaCounters(const NProfiling::TTagIdList& list);
+    explicit TReplicaCounters(const NProfiling::TTagIdList& list);
 
     NProfiling::TAggregateGauge LagRowCount;
     NProfiling::TAggregateGauge LagTime;
@@ -268,8 +268,6 @@ public:
 
     void PopulateStatistics(NTabletClient::NProto::TTableReplicaStatistics* statistics) const;
     void MergeFromStatistics(const NTabletClient::NProto::TTableReplicaStatistics& statistics);
-
-    NProfiling::TProfiler BuildReplicatorProfiler() const;
 
 private:
     const TRuntimeTableReplicaDataPtr RuntimeData_ = New<TRuntimeTableReplicaData>();
