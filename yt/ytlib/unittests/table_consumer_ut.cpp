@@ -91,16 +91,16 @@ TEST(TYsonParserTest, ContextInExceptions_TableConsumer)
 {
     try {
         TEmptyValueConsumer emptyValueConsumer;
-        TYsonParser parser(new TTableConsumer(&emptyValueConsumer), EYsonType::ListFragment);
+        TTableConsumer consumer(&emptyValueConsumer);
+        TYsonParser parser(&consumer, EYsonType::ListFragment);
         parser.Read("{foo=bar};");
         parser.Read("{bar=baz};LOG_IN");
         parser.Read("FO something happened");
         parser.Finish();
+        GTEST_FAIL() << "Expected exception to be thrown";
     } catch (const std::exception& ex) {
         EXPECT_THAT(ex.what(), testing::HasSubstr("LOG_INFO something happened"));
-        return;
     }
-    GTEST_FAIL() << "Expected exception to be thrown";
 }
 
 ////////////////////////////////////////////////////////////////////////////////
