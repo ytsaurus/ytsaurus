@@ -45,10 +45,12 @@ std::shared_ptr<TMutableRef> TPooledMemoryChunkProvider<Size, PoolCategory>::All
     result->SetCookie(cookie);
     result->MemoryTracker = MemoryTracker_;
     if (result->MemoryTracker) {
-        result->MemoryTrackerGuard = NNodeTrackerClient::TNodeMemoryTrackerGuard::Acquire(
+        auto guardOrError = NNodeTrackerClient::TNodeMemoryTrackerGuard::TryAcquire(
             result->MemoryTracker,
             MainCategory_,
             Size);
+
+        result->MemoryTrackerGuard = std::move(guardOrError.ValueOrThrow());
     }
     YCHECK(result->Size() != 0);
 
