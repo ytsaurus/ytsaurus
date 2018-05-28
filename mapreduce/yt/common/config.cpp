@@ -184,7 +184,7 @@ TConfig::TConfig()
     JobBinary = GetEnv("YT_JOB_BINARY");
 
     UseClientProtobuf = GetBool("YT_USE_CLIENT_PROTOBUF", false);
-    NodeReaderFormat = ENodeReaderFormat::Yson;
+    NodeReaderFormat = ENodeReaderFormat::Auto;
 
     MountSandboxInTmpfs = GetBool("YT_MOUNT_SANDBOX_IN_TMPFS");
 
