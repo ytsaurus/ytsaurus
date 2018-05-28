@@ -268,32 +268,27 @@ private:
         }
 
         try {
-            auto beginInstant = TInstant::Now();
+            NProfiling::TWallTimer timer;
 
             LOG_INFO("Store flush started");
 
-            INativeTransactionPtr transaction;
-            {
-                LOG_INFO("Creating store flush transaction");
+            TTransactionStartOptions options;
+            options.AutoAbort = false;
+            auto attributes = CreateEphemeralAttributes();
+            attributes->Set("title", Format("Store flush: table %v, store %v, tablet %v",
+                tabletSnapshot->TablePath,
+                store->GetId(),
+                tabletId));
+            options.Attributes = std::move(attributes);
 
-                TTransactionStartOptions options;
-                options.AutoAbort = false;
-                auto attributes = CreateEphemeralAttributes();
-                attributes->Set("title", Format("Store flush: table %v, store %v, tablet %v",
-                    tabletSnapshot->TablePath,
-                    store->GetId(),
-                    tabletId));
-                options.Attributes = std::move(attributes);
+            auto asyncTransaction = Bootstrap_->GetMasterClient()->StartNativeTransaction(
+                NTransactionClient::ETransactionType::Master,
+                options);
+            auto transaction = WaitFor(asyncTransaction)
+                .ValueOrThrow();
 
-                auto asyncTransaction = Bootstrap_->GetMasterClient()->StartNativeTransaction(
-                    NTransactionClient::ETransactionType::Master,
-                    options);
-                transaction = WaitFor(asyncTransaction)
-                    .ValueOrThrow();
-
-                LOG_INFO("Store flush transaction created (TransactionId: %v)",
-                    transaction->GetId());
-            }
+            LOG_INFO("Store flush transaction created (TransactionId: %v)",
+                transaction->GetId());
 
             auto asyncFlushResult = flushCallback
                 .AsyncVia(ThreadPool_->GetInvoker())
@@ -302,13 +297,10 @@ private:
             auto flushResult = WaitFor(asyncFlushResult)
                 .ValueOrThrow();
 
-            auto endInstant = TInstant::Now();
-
-            LOG_INFO("Store flush completed (ChunkIds: %v, WallTime: %v)",
+            LOG_INFO("Store chunks written (ChunkIds: %v)",
                 MakeFormattableRange(flushResult, [] (TStringBuilder* builder, const TAddStoreDescriptor& descriptor) {
                     FormatValue(builder, FromProto<TChunkId>(descriptor.store_id()), TStringBuf());
-                }),
-                endInstant - beginInstant);
+                }));
 
             NTabletServer::NProto::TReqUpdateTabletStores actionRequest;
             ToProto(actionRequest.mutable_tablet_id(), tabletId);
@@ -325,8 +317,10 @@ private:
                 .ThrowOnError();
 
             storeManager->EndStoreFlush(store);
-
             tabletSnapshot->RuntimeData->Errors[ETabletBackgroundActivity::Flush].Store(TError());
+
+            LOG_INFO("Store flush completed (WallTime: %v)",
+                timer.GetElapsedTime());
         } catch (const std::exception& ex) {
             auto error = TError(ex)
                 << TErrorAttribute("tablet_id", tabletSnapshot->TabletId)
