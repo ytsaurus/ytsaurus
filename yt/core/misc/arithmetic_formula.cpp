@@ -591,10 +591,6 @@ TIntrusivePtr<TGenericFormulaImpl> MakeGenericFormulaImpl(const TString& formula
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TArithmeticFormula::TArithmeticFormula()
-    : Impl_(MakeGenericFormulaImpl(TString(), EEvaluationContext::Arithmetic))
-{ }
-
 TArithmeticFormula::TArithmeticFormula(TIntrusivePtr<TGenericFormulaImpl> impl)
     : Impl_(std::move(impl))
 { }
