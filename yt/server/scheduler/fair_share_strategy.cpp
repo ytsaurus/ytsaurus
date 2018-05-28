@@ -1212,7 +1212,7 @@ private:
                 nodeLimitsViolated = !Dominates(context->SchedulingContext->ResourceLimits(), context->SchedulingContext->ResourceUsage());
             }
             if (!nodeLimitsViolated && poolsLimitsViolated) {
-                poolsLimitsViolated = findPoolWithViolatedLimits() == nullptr;
+                poolsLimitsViolated = findPoolWithViolatedLimits() != nullptr;
             }
 
             if (!nodeLimitsViolated && !poolsLimitsViolated) {
