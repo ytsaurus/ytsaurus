@@ -115,12 +115,8 @@ Y_UNIT_TEST_SUITE(TableIo) {
         TConfig::Get()->NodeReaderFormat = ENodeReaderFormat::Yson;
         NonEmptyColumns(false);
     }
-    Y_UNIT_TEST(NonEmptyColumns_Skiff)
-    {
-        TConfigSaverGuard configGuard;
-        TConfig::Get()->NodeReaderFormat = ENodeReaderFormat::Skiff;
-        UNIT_ASSERT_EXCEPTION(NonEmptyColumns(true), yexception);
-    }
+    // TODO(levysotsky): Add Y_UNIT_TEST(NonEmptyColumns_Skiff) when client Skiff reader is ready.
+    // See r3614168
 
     void EmptyColumns(bool strictSchema)
     {
@@ -144,12 +140,8 @@ Y_UNIT_TEST_SUITE(TableIo) {
         TConfig::Get()->NodeReaderFormat = ENodeReaderFormat::Yson;
         EmptyColumns(false);
     }
-    Y_UNIT_TEST(EmptyColumns_Skiff)
-    {
-        TConfigSaverGuard configGuard;
-        TConfig::Get()->NodeReaderFormat = ENodeReaderFormat::Skiff;
-        UNIT_ASSERT_EXCEPTION(EmptyColumns(true), yexception);
-    }
+    // TODO(levysotsky): Add Y_UNIT_TEST(EmptyColumns_Skiff) when client Skiff reader is ready.
+    // See r3614168
 
     void MissingColumns()
     {
@@ -367,7 +359,9 @@ Y_UNIT_TEST_SUITE(TableIo) {
     }
     Y_UNIT_TEST(NodeReader_Skiff_NonStrict)
     {
-        UNIT_ASSERT_EXCEPTION(TestNodeReader(ENodeReaderFormat::Skiff, false), yexception);
+        // TODO(levysotsky): Assert an exception here when client Skiff reader is ready.
+        // See r3614168
+        TestNodeReader(ENodeReaderFormat::Skiff, false);
     }
     Y_UNIT_TEST(NodeReader_Auto_Strict)
     {

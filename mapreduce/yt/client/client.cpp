@@ -474,21 +474,11 @@ THolder<TClientWriter> TClientBase::CreateClientWriter(
 ::TIntrusivePtr<INodeReaderImpl> TClientBase::CreateNodeReader(
     const TRichYPath& path, const TTableReaderOptions& options)
 {
-    auto skiffSchema = CreateSkiffSchemaIfNecessary(
-        Auth_,
-        TransactionId_,
-        TConfig::Get()->NodeReaderFormat,
-        {path},
-        TCreateSkiffSchemaOptions().HasRangeIndex(true));
-
-    if (skiffSchema) {
-        auto format = CreateSkiffFormat(skiffSchema);
-        return new TSkiffTableReader(CreateClientReader(path, format, options), skiffSchema);
-    } else {
-        return new TNodeTableReader(
-            CreateClientReader(path, TFormat::YsonBinary(), options),
-            options.SizeLimit_);
-    };
+    // Skiff is disabled here because of large header problem (see https://st.yandex-team.ru/YT-6926).
+    // Revert this code to r3614168 when it is fixed.
+    return new TNodeTableReader(
+        CreateClientReader(path, TFormat::YsonBinary(), options),
+        options.SizeLimit_);
 }
 
 ::TIntrusivePtr<IYaMRReaderImpl> TClientBase::CreateYaMRReader(
