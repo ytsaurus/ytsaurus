@@ -89,11 +89,13 @@ public:
             .AddTag("TabletId: %v, ReplicaId: %v",
                 TabletId_,
                 ReplicaId_))
-        , Profiler(replicaInfo->BuildReplicatorProfiler())
+        , Profiler(TabletNodeProfiler)
         , Throttler_(CreateReconfigurableThroughputThrottler(
             MountConfig_->ReplicationThrottler,
             Logger,
-            NProfiling::TProfiler(Profiler.GetPathPrefix() + "/replication_data_weight_throttler")))
+            NProfiling::TProfiler(
+                Profiler.GetPathPrefix() + "/replica/replication_data_weight_throttler",
+                replicaInfo->GetCounters()->Tags)))
     { }
 
     void Enable()
@@ -145,18 +147,6 @@ private:
             TDelayedExecutor::WaitForDuration(ReplicationTickPeriod);
             FiberIteration();
         }
-    }
-
-    bool CheckThrottler(i64 dataWeight)
-    {
-        Throttler_->Acquire(dataWeight);
-        if (Throttler_->IsOverdraft()) {
-            LOG_DEBUG("Bandwidth limit is reached (TotalCount: %v, DataWeight: %v)",
-                Throttler_->GetQueueTotalCount(),
-                dataWeight);
-            return false;
-        }
-        return true;
     }
 
     void FiberIteration()
@@ -214,8 +204,8 @@ private:
                 auto time = (rowCount == 0)
                     ? TDuration::Zero()
                     : TimestampToInstant(timestampProvider->GetLatestTimestamp()).second - TimestampToInstant(replicaRuntimeData->CurrentReplicationTimestamp).first;
-                TabletNodeProfiler.Update(counters->LagRowCount, rowCount);
-                TabletNodeProfiler.Update(counters->LagTime, NProfiling::DurationToValue(time));
+                Profiler.Update(counters->LagRowCount, rowCount);
+                Profiler.Update(counters->LagTime, NProfiling::DurationToValue(time));
             });
 
             if (totalRowCount <= lastReplicationRowIndex) {
@@ -477,16 +467,8 @@ private:
         auto prevTimestamp = replicaSnapshot->RuntimeData->CurrentReplicationTimestamp.load();
 
         // Throttling control.
-        i64 dataWeightToAcquire = 0;
-        auto flushThrottler = [&] {
-            Throttler_->Acquire(dataWeightToAcquire);
-            dataWeightToAcquire = 0;
-        };
         auto acquireThrottler = [&] (i64 dataWeight) {
-            dataWeightToAcquire += dataWeight;
-            if (dataWeightToAcquire >= 1) {
-                flushThrottler();
-            }
+            Throttler_->Acquire(dataWeight);
         };
         auto isThrottlerOverdraft = [&] {
             if (!Throttler_->IsOverdraft()) {
@@ -574,8 +556,6 @@ private:
                 prevTimestamp = timestamp;
             }
         }
-
-        flushThrottler();
 
         *newReplicationRowIndex = startRowIndex + rowCount;
         *newReplicationTimestamp = prevTimestamp;

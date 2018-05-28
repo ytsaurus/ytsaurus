@@ -282,13 +282,6 @@ void TTableReplicaInfo::MergeFromStatistics(const TTableReplicaStatistics& stati
     RuntimeData_->MergeFrom(statistics);
 }
 
-TProfiler TTableReplicaInfo::BuildReplicatorProfiler() const
-{
-    return TProfiler(
-        TabletNodeProfiler.GetPathPrefix() + "/replicator",
-        GetCounters()->Tags);
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 TTablet::TTablet(
