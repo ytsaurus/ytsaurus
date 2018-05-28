@@ -651,10 +651,18 @@ private:
                 throw TFiberCanceledException();
             }
 
-            *response->mutable_chunk_meta() = partitionTag
-                ? FilterChunkMetaByPartitionTag(*meta, *partitionTag)
-                : static_cast<TChunkMeta>(*meta);
-        }).AsyncVia(MetaProcessorThread_->GetInvoker())));
+            if (partitionTag) {
+                auto cachedBlockMeta = Bootstrap_->GetBlockMetaCache()->Find(chunkId);
+                if (!cachedBlockMeta) {
+                    auto blockMetaExt = GetProtoExtension<TBlockMetaExt>(meta->extensions());
+                    cachedBlockMeta = New<TCachedBlockMeta>(chunkId, std::move(blockMetaExt));
+                    Bootstrap_->GetBlockMetaCache()->TryInsert(cachedBlockMeta);
+                }
+
+                *response->mutable_chunk_meta() = FilterChunkMetaByPartitionTag(*meta, cachedBlockMeta, *partitionTag);
+            } else {
+                *response->mutable_chunk_meta() = static_cast<TChunkMeta>(*meta);
+            }        }).AsyncVia(MetaProcessorThread_->GetInvoker())));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, GetChunkSlices)
