@@ -694,6 +694,7 @@ IChunkReaderPtr TChunkStoreBase::GetChunkReader()
             chunk,
             ChunkBlockManager_,
             GetBlockCache(),
+            nullptr /* blockMetaCache */,
             BIND(&TChunkStoreBase::OnLocalReaderFailed, MakeWeak(this)));
         chunkReaderIsLocal = true;
     } else {

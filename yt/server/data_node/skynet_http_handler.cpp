@@ -124,7 +124,8 @@ public:
             readerConfig,
             chunkPtr,
             Bootstrap_->GetChunkBlockManager(),
-            Bootstrap_->GetBlockCache());
+            Bootstrap_->GetBlockCache(),
+            Bootstrap_->GetBlockMetaCache() );
 
         auto chunkState = New<TChunkState>(
             Bootstrap_->GetBlockCache(),

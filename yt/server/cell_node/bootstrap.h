@@ -80,6 +80,7 @@ public:
     const NDataNode::TChunkBlockManagerPtr& GetChunkBlockManager() const;
     const NDataNode::TNetworkStatisticsPtr& GetNetworkStatistics() const;
     const NChunkClient::IBlockCachePtr& GetBlockCache() const;
+    const NTableClient::TBlockMetaCachePtr& GetBlockMetaCache() const;
     const NDataNode::TPeerBlockDistributorPtr& GetPeerBlockDistributor() const;
     const NDataNode::TPeerBlockTablePtr& GetPeerBlockTable() const;
     const NDataNode::TPeerBlockUpdaterPtr& GetPeerBlockUpdater() const;
@@ -149,6 +150,7 @@ private:
     NDataNode::TChunkBlockManagerPtr ChunkBlockManager;
     NDataNode::TNetworkStatisticsPtr NetworkStatistics;
     NChunkClient::IBlockCachePtr BlockCache;
+    NTableClient::TBlockMetaCachePtr BlockMetaCache;
     NDataNode::TPeerBlockTablePtr PeerBlockTable;
     NDataNode::TPeerBlockUpdaterPtr PeerBlockUpdater;
     NDataNode::TPeerBlockDistributorPtr PeerBlockDistributor;
