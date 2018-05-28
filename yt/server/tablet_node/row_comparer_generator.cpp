@@ -520,7 +520,7 @@ void TComparerBuilder::BuildMainLoop(
         SetInsertPoint(NextBB_);
         NextBB_ = CreateBB("iteration");
     }
-    NextBB_->removeFromParent();
+    NextBB_->eraseFromParent();
     CreateBr(LastBB_);
     SetInsertPoint(LastBB_);
 }
