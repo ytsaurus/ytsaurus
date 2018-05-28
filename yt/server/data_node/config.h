@@ -471,6 +471,9 @@ public:
     //! Cache for chunk metas.
     TSlruCacheConfigPtr ChunkMetaCache;
 
+    //! Cache for partition block metas.
+    TSlruCacheConfigPtr BlockMetaCache;
+
     //! Cache for all types of blocks.
     NChunkClient::TBlockCacheConfigPtr BlockCache;
 
@@ -665,6 +668,8 @@ public:
 
         RegisterParameter("chunk_meta_cache", ChunkMetaCache)
             .DefaultNew();
+        RegisterParameter("block_meta_cache", BlockMetaCache)
+            .DefaultNew();
         RegisterParameter("block_cache", BlockCache)
             .DefaultNew();
         RegisterParameter("blob_reader_cache", BlobReaderCache)
@@ -805,6 +810,8 @@ public:
 
         RegisterPreprocessor([&] () {
             ChunkMetaCache->Capacity = 1_GB;
+
+            BlockMetaCache->Capacity = 100 * 1_MB;
 
             BlockCache->CompressedData->Capacity = 1_GB;
             BlockCache->UncompressedData->Capacity = 1_GB;
