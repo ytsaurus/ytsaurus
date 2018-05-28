@@ -860,6 +860,45 @@ TEST_F(TRefineKeyRangeTest, RangesProductWithOverlappingKeyPositions)
     EXPECT_EQ(YsonToKey("4;3;6;" _MAX_), result[3].second);
 }
 
+TEST_F(TRefineKeyRangeTest, BetweenRanges)
+{
+    auto expr = PrepareExpression(
+        R"(
+            (k, l) between (
+                (1) and (1, 20),
+                (2, 30) and (2, 40),
+                (3, 50) and (3),
+                4 and 5
+            )
+        )",
+        GetSampleTableSchema());
+
+    auto rowBuffer = New<TRowBuffer>();
+    auto keyTrie = ExtractMultipleConstraints(
+        expr,
+        GetSampleKeyColumns(),
+        rowBuffer);
+
+    auto result = GetRangesFromTrieWithinRange(
+        std::make_pair(YsonToKey("0"), YsonToKey("100")),
+        keyTrie,
+        rowBuffer);
+
+    EXPECT_EQ(4, result.size());
+
+    EXPECT_EQ(YsonToKey("1;" _MIN_), result[0].first);
+    EXPECT_EQ(YsonToKey("1;20;" _MAX_), result[0].second);
+
+    EXPECT_EQ(YsonToKey("2;30"), result[1].first);
+    EXPECT_EQ(YsonToKey("2;40;" _MAX_), result[1].second);
+
+    EXPECT_EQ(YsonToKey("3;50"), result[2].first);
+    EXPECT_EQ(YsonToKey("3;" _MAX_ ";" _MAX_), result[2].second);
+
+    EXPECT_EQ(YsonToKey("4"), result[3].first);
+    EXPECT_EQ(YsonToKey("5;" _MAX_), result[3].second);
+}
+
 TEST_F(TRefineKeyRangeTest, NormalizeShortKeys)
 {
     auto expr = PrepareExpression(

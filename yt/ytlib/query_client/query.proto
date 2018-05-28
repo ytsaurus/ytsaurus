@@ -88,6 +88,16 @@ message TInExpression
     required bytes values = 2;
 }
 
+message TBetweenExpression
+{
+    extend TExpression
+    {
+        optional TBetweenExpression between_expression = 110;
+    }
+    repeated TExpression arguments = 1;
+    required bytes ranges = 2;
+}
+
 message TTransformExpression
 {
     extend TExpression

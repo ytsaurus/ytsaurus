@@ -920,7 +920,7 @@ INSTANTIATE_TEST_CASE_P(
                     Make<TBinaryOpExpression>(EBinaryOp::LessOrEqual,
                         Make<TReferenceExpression>("k"),
                         Make<TReferenceExpression>("m")))),
-            "NOT a < b = c > b OR k BETWEEN l AND m")
+            "NOT a < b = c > b OR k >= l AND k <= m")
 ));
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1732,18 +1732,181 @@ private:
 
         // TODO(sandello): Use code-generated comparer here.
         std::sort(sortedKeys.begin(), sortedKeys.end());
-        std::vector<int> keyIndexToResultIndex(keys.Size());
-        int currentResultIndex = -1;
+        std::vector<size_t> keyIndexToResultIndex(keys.Size());
+        size_t currentResultIndex = 0;
 
-        THashMap<TCellId, TTabletCellLookupSessionPtr> cellIdToSession;
+        auto outputRowBuffer = New<TRowBuffer>(TLookupRowsOutputBufferTag());
+        std::vector<TTypeErasedRow> uniqueResultRows;
 
-        // TODO(sandello): Reuse code from QL here to partition sorted keys between tablets.
-        // Get rid of hash map.
-        // TODO(sandello): Those bind states must be in a cross-session shared state. Check this when refactor out batches.
-        TTabletCellLookupSession::TEncoder boundEncoder = std::bind(encoderWithMapping, remappedColumnFilter, std::placeholders::_1);
-        TTabletCellLookupSession::TDecoder boundDecoder = std::bind(decoderWithMapping, resultSchemaData, std::placeholders::_1);
-        for (int index = 0; index < sortedKeys.size(); ++index) {
-            if (index == 0 || sortedKeys[index].first != sortedKeys[index - 1].first) {
+        if (Connection_->GetConfig()->EnableLookupMultiread) {
+            struct TBatch
+            {
+                NObjectClient::TObjectId TabletId;
+                i64 MountRevision = 0;
+                std::vector<TKey> Keys;
+                size_t OffsetInResult;
+
+                TQueryServiceProxy::TRspMultireadPtr Response;
+            };
+
+            std::vector<std::vector<TBatch>> batchesByCells;
+            yhash<TCellId, size_t> cellIdToBatchIndex;
+
+            {
+                auto itemsBegin = sortedKeys.begin();
+                auto itemsEnd = sortedKeys.end();
+
+                size_t keySize = schema.GetKeyColumnCount();
+
+                itemsBegin = std::lower_bound(
+                    itemsBegin,
+                    itemsEnd,
+                    tableInfo->LowerCapBound.Get(),
+                    [&] (const auto& item, TKey pivot) {
+                        return CompareRows(item.first, pivot, keySize) < 0;
+                    });
+
+                itemsEnd = std::upper_bound(
+                    itemsBegin,
+                    itemsEnd,
+                    tableInfo->UpperCapBound.Get(),
+                    [&] (TKey pivot, const auto& item) {
+                        return CompareRows(pivot, item.first, keySize) < 0;
+                    });
+
+                auto nextShardIt = tableInfo->Tablets.begin() + 1;
+                for (auto itemsIt = itemsBegin; itemsIt != itemsEnd;) {
+                    YCHECK(!tableInfo->Tablets.empty());
+
+                    // Run binary search to find the relevant tablets.
+                    nextShardIt = std::upper_bound(
+                        nextShardIt,
+                        tableInfo->Tablets.end(),
+                        itemsIt->first,
+                        [&] (TKey key, const TTabletInfoPtr& tabletInfo) {
+                            return CompareRows(key, tabletInfo->PivotKey.Get(), keySize) < 0;
+                        });
+
+                    const auto& startShard = *(nextShardIt - 1);
+                    auto nextPivotKey = (nextShardIt == tableInfo->Tablets.end())
+                        ? tableInfo->UpperCapBound
+                        : (*nextShardIt)->PivotKey;
+
+                    // Binary search to reduce expensive row comparisons
+                    auto endItemsIt = std::lower_bound(
+                        itemsIt,
+                        itemsEnd,
+                        nextPivotKey.Get(),
+                        [&] (const auto& item, TKey pivot) {
+                            return CompareRows(item.first, pivot) < 0;
+                        });
+
+                    ValidateTabletMountedOrFrozen(tableInfo, startShard);
+
+                    auto emplaced = cellIdToBatchIndex.emplace(startShard->CellId, batchesByCells.size());
+                    if (emplaced.second) {
+                        batchesByCells.emplace_back();
+                    }
+
+                    TBatch batch;
+                    batch.TabletId = startShard->TabletId;
+                    batch.MountRevision = startShard->MountRevision;
+                    batch.OffsetInResult = currentResultIndex;
+
+                    std::vector<TKey> rows;
+                    rows.reserve(endItemsIt - itemsIt);
+
+                    while (itemsIt != endItemsIt) {
+                        auto key = itemsIt->first;
+                        rows.push_back(key);
+
+                        do {
+                            keyIndexToResultIndex[itemsIt->second] = currentResultIndex;
+                            ++itemsIt;
+                        } while (itemsIt != endItemsIt && itemsIt->first == key);
+                        ++currentResultIndex;
+                    }
+
+                    batch.Keys = std::move(rows);
+                    batchesByCells[emplaced.first->second].push_back(std::move(batch));
+                }
+            }
+
+            TTabletCellLookupSession::TEncoder boundEncoder = std::bind(encoderWithMapping, remappedColumnFilter, std::placeholders::_1);
+            TTabletCellLookupSession::TDecoder boundDecoder = std::bind(decoderWithMapping, resultSchemaData, std::placeholders::_1);
+
+            auto* codec = NCompression::GetCodec(Connection_->GetConfig()->LookupRowsRequestCodec);
+
+            std::vector<TFuture<TQueryServiceProxy::TRspMultireadPtr>> asyncResults(batchesByCells.size());
+
+            const auto& cellDirectory = Connection_->GetCellDirectory();
+            const auto& networks = Connection_->GetNetworks();
+
+            for (const auto& item : cellIdToBatchIndex) {
+                size_t cellIndex = item.second;
+                const auto& batches = batchesByCells[cellIndex];
+
+                auto channel = CreateTabletReadChannel(
+                    ChannelFactory_,
+                    cellDirectory->GetDescriptorOrThrow(item.first),
+                    options,
+                    networks);
+
+                TQueryServiceProxy proxy(channel);
+                proxy.SetDefaultTimeout(options.Timeout);
+                proxy.SetDefaultRequestAck(false);
+
+                auto req = proxy.Multiread();
+                req->SetMultiplexingBand(NRpc::EMultiplexingBand::Heavy);
+                req->set_request_codec(static_cast<int>(Connection_->GetConfig()->LookupRowsRequestCodec));
+                req->set_response_codec(static_cast<int>(Connection_->GetConfig()->LookupRowsResponseCodec));
+                req->set_timestamp(options.Timestamp);
+
+
+                if (retentionConfig) {
+                    req->set_retention_config(*retentionConfig);
+                }
+
+                for (const auto& batch : batches) {
+                    ToProto(req->add_tablet_ids(), batch.TabletId);
+                    req->add_mount_revisions(batch.MountRevision);
+                    TSharedRef requestData = codec->Compress(boundEncoder(batch.Keys));
+                    req->Attachments().push_back(requestData);
+                }
+
+                asyncResults[cellIndex] = req->Invoke();
+            }
+
+            auto results = WaitFor(Combine(std::move(asyncResults)))
+                .ValueOrThrow();
+
+            uniqueResultRows.resize(currentResultIndex);
+
+            auto* responseCodec = NCompression::GetCodec(Connection_->GetConfig()->LookupRowsResponseCodec);
+
+            for (size_t cellIndex = 0; cellIndex < results.size(); ++cellIndex) {
+                const auto& batches = batchesByCells[cellIndex];
+
+                for (size_t batchIndex = 0; batchIndex < batches.size(); ++batchIndex) {
+                    auto responseData = responseCodec->Decompress(results[cellIndex]->Attachments()[batchIndex]);
+                    TWireProtocolReader reader(responseData, outputRowBuffer);
+
+                    const auto& batch = batches[batchIndex];
+
+                    for (size_t index = 0; index < batch.Keys.size(); ++index) {
+                        uniqueResultRows[batch.OffsetInResult + index] = boundDecoder(&reader);
+                    }
+                }
+            }
+        } else {
+            THashMap<TCellId, TTabletCellLookupSessionPtr> cellIdToSession;
+
+            // TODO(sandello): Reuse code from QL here to partition sorted keys between tablets.
+            // Get rid of hash map.
+            // TODO(sandello): Those bind states must be in a cross-session shared state. Check this when refactor out batches.
+            TTabletCellLookupSession::TEncoder boundEncoder = std::bind(encoderWithMapping, remappedColumnFilter, std::placeholders::_1);
+            TTabletCellLookupSession::TDecoder boundDecoder = std::bind(decoderWithMapping, resultSchemaData, std::placeholders::_1);
+            for (int index = 0; index < sortedKeys.size();) {
                 auto key = sortedKeys[index].first;
                 auto tabletInfo = GetSortedTabletForRow(tableInfo, key);
                 const auto& cellId = tabletInfo->CellId;
@@ -1761,32 +1924,33 @@ private:
                     it = cellIdToSession.insert(std::make_pair(cellId, std::move(session))).first;
                 }
                 const auto& session = it->second;
-                session->AddKey(++currentResultIndex, std::move(tabletInfo), key);
+                session->AddKey(currentResultIndex, std::move(tabletInfo), key);
+
+                do {
+                    keyIndexToResultIndex[sortedKeys[index].second] = currentResultIndex;
+                    ++index;
+                } while (index < sortedKeys.size() && sortedKeys[index].first == key);
+                ++currentResultIndex;
             }
 
-            keyIndexToResultIndex[sortedKeys[index].second] = currentResultIndex;
-        }
+            std::vector<TFuture<void>> asyncResults;
+            for (const auto& pair : cellIdToSession) {
+                const auto& session = pair.second;
+                asyncResults.push_back(session->Invoke(
+                    ChannelFactory_,
+                    Connection_->GetCellDirectory()));
+            }
 
-        std::vector<TFuture<void>> asyncResults;
-        for (const auto& pair : cellIdToSession) {
-            const auto& session = pair.second;
-            asyncResults.push_back(session->Invoke(
-                ChannelFactory_,
-                Connection_->GetCellDirectory()));
-        }
+            WaitFor(Combine(std::move(asyncResults)))
+                .ThrowOnError();
 
-        WaitFor(Combine(std::move(asyncResults)))
-            .ThrowOnError();
+            // Rows are type-erased here and below to handle different kinds of rowsets.
+            uniqueResultRows.resize(currentResultIndex);
 
-        // Rows are type-erased here and below to handle different kinds of rowsets.
-        std::vector<TTypeErasedRow> uniqueResultRows;
-        uniqueResultRows.resize(currentResultIndex + 1);
-
-        auto outputRowBuffer = New<TRowBuffer>(TLookupRowsOutputBufferTag());
-
-        for (const auto& pair : cellIdToSession) {
-            const auto& session = pair.second;
-            session->ParseResponse(outputRowBuffer, &uniqueResultRows);
+            for (const auto& pair : cellIdToSession) {
+                const auto& session = pair.second;
+                session->ParseResponse(outputRowBuffer, &uniqueResultRows);
+            }
         }
 
         if (!remappedColumnFilter.All) {

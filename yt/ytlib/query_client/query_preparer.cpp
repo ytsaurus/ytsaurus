@@ -54,6 +54,8 @@ void ExtractFunctionNames(
         ExtractFunctionNames(binaryExpr->Rhs, functions);
     } else if (auto inExpr = expr->As<NAst::TInExpression>()) {
         ExtractFunctionNames(inExpr->Expr, functions);
+    } else if (auto betweenExpr = expr->As<NAst::TBetweenExpression>()) {
+        ExtractFunctionNames(betweenExpr->Expr, functions);
     } else if (auto transformExpr = expr->As<NAst::TTransformExpression>()) {
         ExtractFunctionNames(transformExpr->Expr, functions);
         ExtractFunctionNames(transformExpr->DefaultExpr, functions);
@@ -251,6 +253,33 @@ TValue GetValue(const NAst::TLiteralValue& literalValue)
     }
 }
 
+
+void BuildRow(
+    TUnversionedRowBuilder* rowBuilder,
+    const NAst::TLiteralValueTuple& tuple,
+    const std::vector<EValueType>& argTypes,
+    const TStringBuf& source)
+{
+    for (int i = 0; i < tuple.size(); ++i) {
+        auto valueType = GetType(tuple[i]);
+        auto value = GetValue(tuple[i]);
+
+        if (valueType == EValueType::Null) {
+            value = MakeUnversionedSentinelValue(EValueType::Null);
+        } else if (valueType != argTypes[i]) {
+            if (IsArithmeticType(valueType) && IsArithmeticType(argTypes[i])) {
+                value = CastValueWithCheck(value, argTypes[i]);
+            } else {
+                THROW_ERROR_EXCEPTION("Types mismatch in tuple")
+                << TErrorAttribute("source", source)
+                << TErrorAttribute("actual_type", valueType)
+                << TErrorAttribute("expected_type", argTypes[i]);
+            }
+        }
+        rowBuilder->AddValue(value);
+    }
+}
+
 TSharedRange<TRow> LiteralTupleListToRows(
     const NAst::TLiteralValueTupleList& literalTuples,
     const std::vector<EValueType>& argTypes,
@@ -264,30 +293,71 @@ TSharedRange<TRow> LiteralTupleListToRows(
             THROW_ERROR_EXCEPTION("Arguments size mismatch in tuple")
                 << TErrorAttribute("source", source);
         }
-        for (int i = 0; i < tuple.size(); ++i) {
-            auto valueType = GetType(tuple[i]);
-            auto value = GetValue(tuple[i]);
 
-            if (valueType == EValueType::Null) {
-                value = MakeUnversionedSentinelValue(EValueType::Null);
-            } else if (valueType != argTypes[i]) {
-                if (IsArithmeticType(valueType) && IsArithmeticType(argTypes[i])) {
-                    value = CastValueWithCheck(value, argTypes[i]);
-                } else {
-                    THROW_ERROR_EXCEPTION("Types mismatch in tuple")
-                    << TErrorAttribute("source", source)
-                    << TErrorAttribute("actual_type", valueType)
-                    << TErrorAttribute("expected_type", argTypes[i]);
-                }
-            }
-            rowBuilder.AddValue(value);
-        }
+        BuildRow(&rowBuilder, tuple, argTypes, source);
+
         rows.push_back(rowBuffer->Capture(rowBuilder.GetRow()));
         rowBuilder.Reset();
     }
 
     std::sort(rows.begin(), rows.end());
     return MakeSharedRange(std::move(rows), std::move(rowBuffer));
+}
+
+TSharedRange<TRowRange> LiteralRangesListToRows(
+    const NAst::TLiteralValueRangeList& literalRanges,
+    const std::vector<EValueType>& argTypes,
+    const TStringBuf& source)
+{
+    auto rowBuffer = New<TRowBuffer>(TQueryPreparerBufferTag());
+    TUnversionedRowBuilder rowBuilder;
+    std::vector<TRowRange> ranges;
+    for (const auto& range : literalRanges) {
+        if (range.first.size() > argTypes.size()) {
+            THROW_ERROR_EXCEPTION("Arguments size mismatch in tuple")
+                << TErrorAttribute("source", source);
+        }
+
+        if (range.second.size() > argTypes.size()) {
+            THROW_ERROR_EXCEPTION("Arguments size mismatch in tuple")
+                << TErrorAttribute("source", source);
+        }
+
+        BuildRow(&rowBuilder, range.first, argTypes, source);
+        auto lower = rowBuffer->Capture(rowBuilder.GetRow());
+        rowBuilder.Reset();
+
+        BuildRow(&rowBuilder, range.second, argTypes, source);
+        auto upper = rowBuffer->Capture(rowBuilder.GetRow());
+        rowBuilder.Reset();
+
+        if (CompareRows(lower, upper, std::min(lower.GetCount(), upper.GetCount())) > 0) {
+            THROW_ERROR_EXCEPTION("Lower bound is greater than upper")
+                << TErrorAttribute("lower", lower)
+                << TErrorAttribute("upper", upper);
+        }
+
+        ranges.emplace_back(lower, upper);
+    }
+
+    std::sort(ranges.begin(), ranges.end());
+
+    for (size_t index = 1; index < ranges.size(); ++index) {
+        TRow previousUpper = ranges[index - 1].second;
+        TRow currentLower = ranges[index].first;
+
+        if (CompareRows(
+            previousUpper,
+            currentLower,
+            std::min(previousUpper.GetCount(), currentLower.GetCount())) >= 0)
+        {
+            THROW_ERROR_EXCEPTION("Ranges are not disjoint")
+                << TErrorAttribute("first", ranges[index - 1])
+                << TErrorAttribute("second", ranges[index]);
+        }
+    }
+
+    return MakeSharedRange(std::move(ranges), std::move(rowBuffer));
 }
 
 TNullable<TUnversionedValue> FoldConstants(
@@ -1112,8 +1182,22 @@ struct TTypedExpressionBuilder
         ISchemaProxyPtr schema,
         std::set<TString>& usedAliases) const;
 
+    void InferArgumentTypes(
+        std::vector<TConstExpressionPtr>* typedArguments,
+        std::vector<EValueType>* argTypes,
+        const NAst::TExpressionList& expressions,
+        ISchemaProxyPtr schema,
+        std::set<TString>& usedAliases,
+        TStringBuf operatorName,
+        TStringBuf source) const;
+
     TUntypedExpression DoBuildUntypedInExpression(
         const NAst::TInExpression* inExpr,
+        ISchemaProxyPtr schema,
+        std::set<TString>& usedAliases) const;
+
+    TUntypedExpression DoBuildUntypedBetweenExpression(
+        const NAst::TBetweenExpression* betweenExpr,
         ISchemaProxyPtr schema,
         std::set<TString>& usedAliases) const;
 
@@ -1164,6 +1248,8 @@ struct TTypedExpressionBuilder
             return DoBuildUntypedBinaryExpression(binaryExpr, schema, usedAliases);
         } else if (auto inExpr = expr->As<NAst::TInExpression>()) {
             return DoBuildUntypedInExpression(inExpr, schema, usedAliases);
+        } else if (auto betweenExpr = expr->As<NAst::TBetweenExpression>()) {
+            return DoBuildUntypedBetweenExpression(betweenExpr, schema, usedAliases);
         } else if (auto transformExpr = expr->As<NAst::TTransformExpression>()) {
             return DoBuildUntypedTransformExpression(transformExpr, schema, usedAliases);
         }
@@ -1536,34 +1622,86 @@ TUntypedExpression TTypedExpressionBuilder::DoBuildUntypedBinaryExpression(
     }
 }
 
+void TTypedExpressionBuilder::InferArgumentTypes(
+    std::vector<TConstExpressionPtr>* typedArguments,
+    std::vector<EValueType>* argTypes,
+    const NAst::TExpressionList& expressions,
+    ISchemaProxyPtr schema,
+    std::set<TString>& usedAliases,
+    TStringBuf operatorName,
+    TStringBuf source) const
+{
+    std::unordered_set<TString> columnNames;
+
+    for (const auto& argument : expressions) {
+        auto untypedArgument = DoBuildUntypedExpression(argument.Get(), schema, usedAliases);
+
+        EValueType argType = GetFrontWithCheck(untypedArgument.FeasibleTypes, argument->GetSource(Source));
+        auto typedArgument = untypedArgument.Generator(argType);
+
+        typedArguments->push_back(typedArgument);
+        argTypes->push_back(argType);
+        if (auto reference = typedArgument->As<TReferenceExpression>()) {
+            if (!columnNames.insert(reference->ColumnName).second) {
+                THROW_ERROR_EXCEPTION("%v operator has multiple references to column %Qv",
+                    operatorName,
+                    reference->ColumnName)
+                    << TErrorAttribute("source", source);
+            }
+        }
+    }
+}
+
 TUntypedExpression TTypedExpressionBuilder::DoBuildUntypedInExpression(
     const NAst::TInExpression* inExpr,
     ISchemaProxyPtr schema,
     std::set<TString>& usedAliases) const
 {
     std::vector<TConstExpressionPtr> typedArguments;
-    std::unordered_set<TString> columnNames;
     std::vector<EValueType> argTypes;
 
-    for (const auto& argument : inExpr->Expr) {
-        auto untypedArgument = DoBuildUntypedExpression(argument.Get(), schema, usedAliases);
+    auto source = inExpr->GetSource(Source);
 
-        EValueType argType = GetFrontWithCheck(untypedArgument.FeasibleTypes, argument->GetSource(Source));
-        auto typedArgument = untypedArgument.Generator(argType);
+    InferArgumentTypes(
+        &typedArguments,
+        &argTypes,
+        inExpr->Expr,
+        schema,
+        usedAliases,
+        "IN",
+        inExpr->GetSource(Source));
 
-        typedArguments.push_back(typedArgument);
-        argTypes.push_back(argType);
-        if (auto reference = typedArgument->As<TReferenceExpression>()) {
-            if (!columnNames.insert(reference->ColumnName).second) {
-                THROW_ERROR_EXCEPTION("IN operator has multiple references to column %Qv",
-                    reference->ColumnName)
-                    << TErrorAttribute("source", inExpr->GetSource(Source));
-            }
-        }
-    }
-
-    auto capturedRows = LiteralTupleListToRows(inExpr->Values, argTypes, inExpr->GetSource(Source));
+    auto capturedRows = LiteralTupleListToRows(inExpr->Values, argTypes, source);
     auto result = New<TInExpression>(std::move(typedArguments), std::move(capturedRows));
+
+    TTypeSet resultTypes({EValueType::Boolean});
+    TExpressionGenerator generator = [result] (EValueType type) mutable {
+        return result;
+    };
+    return TUntypedExpression{resultTypes, std::move(generator), false};
+}
+
+TUntypedExpression TTypedExpressionBuilder::DoBuildUntypedBetweenExpression(
+    const NAst::TBetweenExpression* betweenExpr,
+    ISchemaProxyPtr schema,
+    std::set<TString>& usedAliases) const
+{
+    std::vector<TConstExpressionPtr> typedArguments;
+    std::vector<EValueType> argTypes;
+
+    auto source = betweenExpr->GetSource(Source);
+
+    InferArgumentTypes(
+        &typedArguments,
+        &argTypes,
+        betweenExpr->Expr,
+        schema,
+        usedAliases,
+        "BETWEEN",
+        source);
+
+    auto capturedRows = LiteralRangesListToRows(betweenExpr->Values, argTypes, source);
+    auto result = New<TBetweenExpression>(std::move(typedArguments), std::move(capturedRows));
 
     TTypeSet resultTypes({EValueType::Boolean});
     TExpressionGenerator generator = [result] (EValueType type) mutable {
@@ -1578,27 +1716,18 @@ TUntypedExpression TTypedExpressionBuilder::DoBuildUntypedTransformExpression(
     std::set<TString>& usedAliases) const
 {
     std::vector<TConstExpressionPtr> typedArguments;
-    std::unordered_set<TString> columnNames;
     std::vector<EValueType> argTypes;
 
     auto source = transformExpr->GetSource(Source);
 
-    for (const auto& argument : transformExpr->Expr) {
-        auto untypedArgument = DoBuildUntypedExpression(argument.Get(), schema, usedAliases);
-
-        EValueType argType = GetFrontWithCheck(untypedArgument.FeasibleTypes, argument->GetSource(Source));
-        auto typedArgument = untypedArgument.Generator(argType);
-
-        typedArguments.push_back(typedArgument);
-        argTypes.push_back(argType);
-        if (auto reference = typedArgument->As<TReferenceExpression>()) {
-            if (!columnNames.insert(reference->ColumnName).second) {
-                THROW_ERROR_EXCEPTION("TRANSFORM operator has multiple references to column %Qv",
-                    reference->ColumnName)
-                    << TErrorAttribute("source", source);
-            }
-        }
-    }
+    InferArgumentTypes(
+        &typedArguments,
+        &argTypes,
+        transformExpr->Expr,
+        schema,
+        usedAliases,
+        "TRANSFORM",
+        source);
 
     if (transformExpr->From.size() != transformExpr->To.size()) {
         THROW_ERROR_EXCEPTION("Size mismatch for source and result arrays in TRANSFORM operator")
