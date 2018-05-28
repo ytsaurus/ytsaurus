@@ -325,7 +325,15 @@ private:
             WaitFor(controllerAgent->DisposeOperation(operation))
                 .ThrowOnError();
 
-            controllerAgent->UnregisterOperation(operationId);
+            // TODO(ignat): fix this.
+            if (controllerAgent->IsConnected()) {
+                controllerAgent->UnregisterOperation(operationId);
+            } else {
+                LOG_ERROR(
+                    "Skipping operation unregistering because controller agent disconnected during "
+                    "operation disposal (OperationId: %v)",
+                    operationId);
+            }
 
             context->Reply();
         });
