@@ -678,7 +678,7 @@ def log_sandbox_upload(options, build_context, task_id):
 
     log_record = {
         "version" : build_context["yt_version"],
-        "build_number" : options.build_number,
+        "build_number" : int(options.build_number),
         "task_id" : task_id,
         "git_branch" : options.git_branch,
         "git_commit" : options.build_vcs_number,
