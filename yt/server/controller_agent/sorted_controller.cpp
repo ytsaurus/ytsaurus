@@ -942,7 +942,7 @@ public:
 
     virtual bool IsOutputLivePreviewSupported() const override
     {
-        return true;
+        return Spec_->EnableLegacyLivePreview;
     }
 
     virtual i64 GetForeignInputDataWeight() const override
