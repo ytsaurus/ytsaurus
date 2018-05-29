@@ -78,6 +78,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/misc/bloom_filter.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/checkpointable_stream.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/checksum.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/misc/chunked_input_stream.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/chunked_memory_allocator.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/chunked_memory_pool.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/chunked_output_stream.cpp

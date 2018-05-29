@@ -1041,7 +1041,7 @@ private:
                 Config_,
                 Bootstrap_,
                 operationId);
-            snapshot.Data = downloader->Run();
+            snapshot.Blocks = downloader->Run();
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error downloading snapshot") << ex;
         }

@@ -64,6 +64,7 @@
 #include <yt/core/erasure/codec.h>
 
 #include <yt/core/misc/fs.h>
+#include <yt/core/misc/chunked_input_stream.h>
 #include <yt/core/misc/collection_helpers.h>
 #include <yt/core/misc/numeric_helpers.h>
 
@@ -770,7 +771,7 @@ void TOperationControllerBase::SafeMaterialize()
             SaveSnapshot(&stringStream);
             TOperationSnapshot snapshot;
             snapshot.Version = GetCurrentSnapshotVersion();
-            snapshot.Data = TSharedRef::FromString(stringStream.Str());
+            snapshot.Blocks = {TSharedRef::FromString(stringStream.Str())};
             DoLoadSnapshot(snapshot);
         }
 
@@ -837,7 +838,7 @@ TOperationControllerReviveResult TOperationControllerBase::Revive()
     // this is not a vanilla operation.
     ValidateRevivalAllowed();
 
-    if (!Snapshot.Data) {
+    if (Snapshot.Blocks.empty()) {
         LOG_INFO("Snapshot data is missing, preparing operation from scratch");
         TOperationControllerReviveResult result;
         result.RevivedFromSnapshot = false;
@@ -1303,11 +1304,12 @@ void TOperationControllerBase::ReinstallLivePreview()
 
 void TOperationControllerBase::DoLoadSnapshot(const TOperationSnapshot& snapshot)
 {
-    LOG_INFO("Started loading snapshot (Size: %v, Version: %v)",
-        snapshot.Data.Size(),
+    LOG_INFO("Started loading snapshot (Size: %v, BlockCount: %v, Version: %v)",
+        GetByteSize(snapshot.Blocks),
+        snapshot.Blocks.size(),
         snapshot.Version);
 
-    TMemoryInput input(snapshot.Data.Begin(), snapshot.Data.Size());
+    TChunkedInputStream input(snapshot.Blocks);
 
     TLoadContext context;
     context.SetInput(&input);

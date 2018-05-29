@@ -32,7 +32,7 @@ TSnapshotDownloader::TSnapshotDownloader(
     YCHECK(Bootstrap_);
 }
 
-TSharedRef TSnapshotDownloader::Run()
+std::vector<TSharedRef> TSnapshotDownloader::Run()
 {
     LOG_INFO("Starting downloading snapshot");
 
@@ -57,8 +57,7 @@ TSharedRef TSnapshotDownloader::Run()
 
     LOG_INFO("Snapshot downloaded successfully");
 
-    struct TSnapshotDataTag { };
-    return MergeRefsToRef<TSnapshotDataTag>(blocks);
+    return blocks;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
