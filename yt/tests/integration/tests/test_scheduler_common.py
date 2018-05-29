@@ -1429,6 +1429,33 @@ class TestSchedulerRevive(YTEnvSetup):
         op.track()
         assert sorted(read_table("//tmp/t2")) == sorted(data)
 
+    def test_disabled_live_preview(self):
+        create_user("u")
+
+        data = [{"foo": i} for i in range(3)]
+
+        create("table", "//tmp/t1")
+        write_table("//tmp/t1", data)
+
+        create("table", "//tmp/t2")
+
+        op = map(
+            wait_for_jobs=True,
+            dont_track=True,
+            command=with_breakpoint("BREAKPOINT ; cat"),
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            spec={"data_size_per_job": 1,
+                  "enable_legacy_live_preview": False})
+
+        jobs = wait_breakpoint(job_count=2)
+
+        operation_path = get_operation_cypress_path(op.id)
+
+        async_transaction_id = get("//sys/operations/" + op.id + "/@async_scheduler_transaction_id")
+        assert not exists(operation_path + "/output_0", tx=async_transaction_id)
+
+
 ################################################################################
 
 class TestJobRevivalBase(YTEnvSetup):

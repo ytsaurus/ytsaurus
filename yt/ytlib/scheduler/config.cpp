@@ -215,6 +215,9 @@ TOperationSpecBase::TOperationSpecBase()
     RegisterParameter("enable_compatible_storage_mode", EnableCompatibleStorageMode)
         .Default(true);
 
+    RegisterParameter("enable_legacy_live_preview", EnableLegacyLivePreview)
+        .Default(true);
+
     RegisterParameter("started_by", StartedBy)
         .Default();
     RegisterParameter("annotations", Annotations)
