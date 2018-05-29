@@ -8,7 +8,8 @@ namespace NAuth {
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_REFCOUNTED_CLASS(TDefaultBlackboxServiceConfig)
-DECLARE_REFCOUNTED_CLASS(TTokenAuthenticatorConfig)
+DECLARE_REFCOUNTED_CLASS(TBlackboxTokenAuthenticatorConfig)
+DECLARE_REFCOUNTED_CLASS(TCypressTokenAuthenticatorConfig)
 DECLARE_REFCOUNTED_CLASS(TCachingTokenAuthenticatorConfig)
 DECLARE_REFCOUNTED_CLASS(TCookieAuthenticatorConfig)
 DECLARE_REFCOUNTED_CLASS(TCachingCookieAuthenticatorConfig)

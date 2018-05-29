@@ -267,7 +267,7 @@ class TTokenAuthenticatorTest
 {
 protected:
     TTokenAuthenticatorTest()
-        : Config_(New<TTokenAuthenticatorConfig>())
+        : Config_(New<TBlackboxTokenAuthenticatorConfig>())
         , Blackbox_(New<TMockBlackboxService>())
         , Authenticator_(CreateBlackboxTokenAuthenticator(Config_, Blackbox_))
     { }
@@ -283,7 +283,7 @@ protected:
         return Authenticator_->Authenticate(TTokenCredentials{token, userIp});
     }
 
-    TTokenAuthenticatorConfigPtr Config_;
+    TBlackboxTokenAuthenticatorConfigPtr Config_;
     TIntrusivePtr<TMockBlackboxService> Blackbox_;
     TIntrusivePtr<ITokenAuthenticator> Authenticator_;
 };
