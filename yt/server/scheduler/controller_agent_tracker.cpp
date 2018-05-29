@@ -635,7 +635,7 @@ public:
         YCHECK(agent->Operations().insert(operation).second);
         operation->SetAgent(agent.Get());
 
-        LOG_DEBUG("Operation assigned to agent (AgentId: %v, OperationId: %v)",
+        LOG_INFO("Operation assigned to agent (AgentId: %v, OperationId: %v)",
             agent->GetId(),
             operation->GetId());
     }
