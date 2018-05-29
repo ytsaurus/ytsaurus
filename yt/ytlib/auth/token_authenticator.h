@@ -20,6 +20,8 @@ struct ITokenAuthenticator
 
 DEFINE_REFCOUNTED_TYPE(ITokenAuthenticator)
 
+////////////////////////////////////////////////////////////////////////////////
+
 ITokenAuthenticatorPtr CreateBlackboxTokenAuthenticator(
     TBlackboxTokenAuthenticatorConfigPtr config,
     IBlackboxServicePtr blackbox);
@@ -31,6 +33,9 @@ ITokenAuthenticatorPtr CreateCypressTokenAuthenticator(
 ITokenAuthenticatorPtr CreateCachingTokenAuthenticator(
     TAsyncExpiringCacheConfigPtr config,
     ITokenAuthenticatorPtr authenticator);
+
+ITokenAuthenticatorPtr CreateCompositeTokenAuthenticator(
+    std::vector<ITokenAuthenticatorPtr> authenticators);
 
 ////////////////////////////////////////////////////////////////////////////////
 

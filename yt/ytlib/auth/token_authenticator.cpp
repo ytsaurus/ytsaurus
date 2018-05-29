@@ -44,8 +44,7 @@ public:
         const auto& token = credentials.Token;
         const auto& userIP = credentials.UserIP;
         auto tokenMD5 = TMD5Hasher().Append(token).GetHexDigestUpper();
-        LOG_DEBUG(
-            "Authenticating user with token via Blackbox (TokenMD5: %v, UserIP: %v)",
+        LOG_DEBUG("Authenticating user with token via Blackbox (TokenMD5: %v, UserIP: %v)",
             tokenMD5,
             userIP);
         return Blackbox_->Call("oauth", {{"oauth_token", token}, {"userip", userIP}})
@@ -70,8 +69,7 @@ private:
                 << TErrorAttribute("token_md5", tokenMD5);
         }
 
-        LOG_DEBUG(
-            "Authentication successful (TokenMD5: %v, Login: %v, Realm: %v)",
+        LOG_DEBUG("Blackbox authentication successful (TokenMD5: %v, Login: %v, Realm: %v)",
             tokenMD5,
             result.Value().Login,
             result.Value().Realm);
@@ -159,8 +157,7 @@ public:
         const auto& token = credentials.Token;
         const auto& userIP = credentials.UserIP;
         auto tokenMD5 = TMD5Hasher().Append(token).GetHexDigestUpper();
-        LOG_DEBUG(
-            "Authenticating user with token via Cypress (TokenMD5: %v, UserIP: %v)",
+        LOG_DEBUG("Authenticating user with token via Cypress (TokenMD5: %v, UserIP: %v)",
             tokenMD5,
             userIP);
 
@@ -249,6 +246,78 @@ ITokenAuthenticatorPtr CreateCachingTokenAuthenticator(
     ITokenAuthenticatorPtr authenticator)
 {
     return New<TCachingTokenAuthenticator>(std::move(config), std::move(authenticator));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TCompositeTokenAuthenticator
+    : public ITokenAuthenticator
+{
+public:
+    explicit TCompositeTokenAuthenticator(std::vector<ITokenAuthenticatorPtr> authenticators)
+        : Authenticators_(std::move(authenticators))
+    { }
+
+    virtual TFuture<TAuthenticationResult> Authenticate(
+        const TTokenCredentials& credentials) override
+    {
+        return New<TAuthenticationSession>(this, credentials)->GetResult();
+    }
+
+private:
+    const std::vector<ITokenAuthenticatorPtr> Authenticators_;
+
+    class TAuthenticationSession
+        : public TRefCounted
+    {
+    public:
+        TAuthenticationSession(
+            TIntrusivePtr<TCompositeTokenAuthenticator> owner,
+            const TTokenCredentials& credentials)
+            : Owner_(std::move(owner))
+            , Credentials_(credentials)
+        {
+            InvokeNext();
+        }
+
+        TFuture<TAuthenticationResult> GetResult()
+        {
+            return Promise_;
+        }
+
+    private:
+        const TIntrusivePtr<TCompositeTokenAuthenticator> Owner_;
+        const TTokenCredentials Credentials_;
+
+        TPromise<TAuthenticationResult> Promise_;
+        std::vector<TError> Errors_;
+        size_t CurrentIndex_ = 0;
+
+    private:
+        void InvokeNext()
+        {
+            if (CurrentIndex_ >= Owner_->Authenticators_.size()) {
+                THROW_ERROR_EXCEPTION("Authentication failed")
+                    << Errors_;
+            }
+
+            const auto& authenticator = Owner_->Authenticators_[CurrentIndex_++];
+            authenticator->Authenticate(Credentials_).Subscribe(
+                BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TAuthenticationResult>& result) {
+                    if (result.IsOK()) {
+                        Promise_.Set(result.Value());
+                    } else {
+                        InvokeNext();
+                    }
+                }));
+        }
+    };
+};
+
+ITokenAuthenticatorPtr CreateCompositeTokenAuthenticator(
+    std::vector<ITokenAuthenticatorPtr> authenticators)
+{
+    return New<TCompositeTokenAuthenticator>(std::move(authenticators));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
