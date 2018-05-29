@@ -2,8 +2,7 @@
 
 #include <yt/core/rpc/client.h>
 #include <yt/core/rpc/channel_detail.h>
-
-#include <yt/ytlib/rpc_proxy/proto/api_service.pb.h>
+#include <yt/core/rpc/proto/rpc.pb.h>
 
 namespace NYT {
 namespace NRpcProxy {
@@ -73,7 +72,7 @@ protected:
     {
         TUserInjectingChannel::DoInject(request);
 
-        auto* ext = request->Header().MutableExtension(NProto::TCredentialsExt::credentials_ext);
+        auto* ext = request->Header().MutableExtension(NRpc::NProto::TCredentialsExt::credentials_ext);
         ext->set_token(Token_);
         ext->set_user_ip(UserIP_);
     }
@@ -122,7 +121,7 @@ protected:
     {
         TUserInjectingChannel::DoInject(request);
 
-        auto* ext = request->Header().MutableExtension(NProto::TCredentialsExt::credentials_ext);
+        auto* ext = request->Header().MutableExtension(NRpc::NProto::TCredentialsExt::credentials_ext);
         ext->set_domain(Domain_);
         ext->set_session_id(SessionId_);
         ext->set_ssl_session_id(SslSessionId_);

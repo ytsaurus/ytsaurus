@@ -19,6 +19,7 @@ DECLARE_REFCOUNTED_CLASS(TChannelConfig)
 
 extern const char* const RequestIdMetadataKey;
 extern const char* const UserMetadataKey;
+extern const char* const TokenMetadataKey;
 extern const char* const ErrorMetadataKey;
 
 constexpr int GenericErrorStatusCode = 100;
