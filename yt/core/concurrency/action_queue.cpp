@@ -363,6 +363,7 @@ public:
     {
         auto guard = Guard(SpinLock_);
         if (Semaphore_ < MaxConcurrentInvocations_) {
+            YCHECK(Queue_.empty());
             IncrementSemaphore(+1);
             guard.Release();
             RunCallback(std::move(callback));
@@ -402,7 +403,7 @@ private:
         }
 
     private:
-        const TIntrusivePtr<TBoundedConcurrencyInvoker> Owner_;
+        TIntrusivePtr<TBoundedConcurrencyInvoker> Owner_;
     };
 
     void IncrementSemaphore(int delta)
