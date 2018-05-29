@@ -232,8 +232,10 @@ private:
         auto responseCodecId = NCompression::ECodec(request->response_codec());
         auto timestamp = TTimestamp(request->timestamp());
         // TODO(sandello): Extract this out of RPC request.
-        auto workloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::UserInteractive);
-        auto sessionId = TReadSessionId::Create();
+        TClientBlockReadOptions blockReadOptions;
+        blockReadOptions.WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::UserInteractive);
+        blockReadOptions.ChunkReaderStatistics = New<TChunkReaderStatistics>();
+        blockReadOptions.ReadSessionId = TReadSessionId::Create();
 
         TRetentionConfigPtr retentionConfig;
         if (request->has_retention_config()) {
@@ -267,7 +269,7 @@ private:
                             timestamp,
                             requestCodecId,
                             responseCodecId,
-                            sessionId,
+                            blockReadOptions.ReadSessionId,
                             retentionConfig);
 
                         auto requestData = requestCodec->Decompress(request->Attachments()[index]);
@@ -288,8 +290,7 @@ private:
                             tabletSnapshot,
                             timestamp,
                             user,
-                            workloadDescriptor,
-                            sessionId,
+                            blockReadOptions,
                             retentionConfig,
                             &reader,
                             &writer);
