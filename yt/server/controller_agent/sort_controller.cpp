@@ -3250,12 +3250,12 @@ private:
 
     virtual bool IsOutputLivePreviewSupported() const override
     {
-        return true;
+        return Spec->EnableLegacyLivePreview;
     }
 
     virtual bool IsIntermediateLivePreviewSupported() const override
     {
-        return true;
+        return Spec->EnableLegacyLivePreview;
     }
 
     virtual bool IsInputDataSizeHistogramSupported() const override

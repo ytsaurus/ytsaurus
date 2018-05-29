@@ -383,6 +383,9 @@ public:
     //! Controls operation storage mode.
     bool EnableCompatibleStorageMode;
 
+    //! Option controlling the presence of a legacy live preview.
+    bool EnableLegacyLivePreview;
+
     TOperationSpecBase();
 
 private:
