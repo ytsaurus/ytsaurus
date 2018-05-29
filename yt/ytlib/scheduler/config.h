@@ -379,6 +379,9 @@ public:
     //! Controls operation storage mode.
     bool EnableCompatibleStorageMode;
 
+    //! Option controlling the presence of a legacy live preview.
+    bool EnableLegacyLivePreview;
+
     //! These fields are not used in scheduler but specified in order
     //! to not appear in unrecognized spec.
     NYTree::IMapNodePtr StartedBy;

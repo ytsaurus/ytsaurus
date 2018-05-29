@@ -604,7 +604,7 @@ private:
 
     virtual bool IsOutputLivePreviewSupported() const override
     {
-        return true;
+        return Spec->EnableLegacyLivePreview;
     }
 
     // Unsorted helpers.
