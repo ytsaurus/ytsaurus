@@ -96,7 +96,7 @@ struct TSnapshotCookie
 struct TOperationSnapshot
 {
     int Version = -1;
-    TSharedRef Data;
+    std::vector<TSharedRef> Blocks;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -22,7 +22,7 @@ public:
         TBootstrap* bootstrap,
         const TOperationId& operationId);
 
-    TSharedRef Run();
+    std::vector<TSharedRef> Run();
 
 private:
     const TControllerAgentConfigPtr Config_;
