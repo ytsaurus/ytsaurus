@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/ytlib/api/public.h>
+
 #include <yt/core/actions/public.h>
 
 namespace NYT {
@@ -19,8 +21,12 @@ struct ITokenAuthenticator
 DEFINE_REFCOUNTED_TYPE(ITokenAuthenticator)
 
 ITokenAuthenticatorPtr CreateBlackboxTokenAuthenticator(
-    TTokenAuthenticatorConfigPtr config,
+    TBlackboxTokenAuthenticatorConfigPtr config,
     IBlackboxServicePtr blackbox);
+
+ITokenAuthenticatorPtr CreateCypressTokenAuthenticator(
+    TCypressTokenAuthenticatorConfigPtr config,
+    NApi::IClientPtr client);
 
 ITokenAuthenticatorPtr CreateCachingTokenAuthenticator(
     TAsyncExpiringCacheConfigPtr config,

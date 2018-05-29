@@ -1,5 +1,9 @@
 #pragma once
 
+#include "public.h"
+
+#include <yt/core/ypath/public.h>
+
 #include <yt/core/misc/config.h>
 
 namespace NYT {
@@ -40,11 +44,11 @@ DEFINE_REFCOUNTED_TYPE(TDefaultBlackboxServiceConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTokenAuthenticatorConfig
+class TBlackboxTokenAuthenticatorConfig
     : public virtual NYTree::TYsonSerializable
 {
 public:
-    TTokenAuthenticatorConfig()
+    TBlackboxTokenAuthenticatorConfig()
     {
         RegisterParameter("scope", Scope);
         RegisterParameter("enable_scope_check", EnableScopeCheck)
@@ -55,12 +59,31 @@ public:
     bool EnableScopeCheck = true;
 };
 
-DEFINE_REFCOUNTED_TYPE(TTokenAuthenticatorConfig)
+DEFINE_REFCOUNTED_TYPE(TBlackboxTokenAuthenticatorConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TCypressTokenAuthenticatorConfig
+    : public virtual NYTree::TYsonSerializable
+{
+public:
+    TCypressTokenAuthenticatorConfig()
+    {
+        RegisterParameter("root_path", RootPath);
+        RegisterParameter("realm", Realm)
+            .Default("cypress");
+    }
+
+    NYPath::TYPath RootPath;
+    TString Realm;
+};
+
+DEFINE_REFCOUNTED_TYPE(TCypressTokenAuthenticatorConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCachingTokenAuthenticatorConfig
-    : public TTokenAuthenticatorConfig
+    : public TBlackboxTokenAuthenticatorConfig
     , public TAsyncExpiringCacheConfig
 { };
 
