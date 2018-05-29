@@ -274,11 +274,13 @@ private:
         EServerCallStage Stage_ = EServerCallStage::Accept;
         TSharedRefArray ResponseMessage_;
 
+        TString PeerAddress_;
         TRequestId RequestId_;
         TNullable<TString> User_;
+        TNullable<NGrpc::NProto::TSslCredentialsExt> SslCredentialsExt_;
+        TNullable<NRpc::NProto::TCredentialsExt> RpcCredentialsExt_;
         TString ServiceName_;
         TString MethodName_;
-        TNullable<TString> PeerIdentity_;
         TNullable<TDuration> Timeout_;
         IServicePtr Service_;
 
@@ -319,8 +321,12 @@ private:
 
             New<TCallHandler>(Owner_);
 
+            ParsePeerAddress();
             ParseRequestId();
             ParseUser();
+            ParseRpcCredentials();
+            ParseSslCredentials();
+            ParseTimeout();
 
             if (!ParseRoutingParameters()) {
                 LOG_DEBUG("Malformed request routing parameters (RawMethod: %v, RequestId: %v)",
@@ -330,17 +336,12 @@ private:
                 return;
             }
 
-            ParseAuthParameters();
-
-            ParseTimeout();
-
-            LOG_DEBUG("Request accepted (RequestId: %v, Method: %v:%v, User: %v, PeerIdentity: %v, PeerAddress: %v, Timeout: %v)",
+            LOG_DEBUG("Request accepted (RequestId: %v, Method: %v:%v, User: %v, PeerAddress: %v, Timeout: %v)",
                 RequestId_,
                 ServiceName_,
                 MethodName_,
                 User_,
-                PeerIdentity_,
-                TStringBuf(GetPeerAddress().get()),
+                PeerAddress_,
                 Timeout_);
 
             Service_ = Owner_->FindService(TServiceId(ServiceName_));
@@ -358,6 +359,13 @@ private:
             ops[0].data.recv_message.recv_message = RequestBodyBuffer_.GetPtr();
 
             StartBatch(ops, EServerCallCookie::Normal);
+        }
+
+
+        void ParsePeerAddress()
+        {
+            auto addressString = MakeGprString(grpc_call_get_peer(Call_.Unwrap()));
+            PeerAddress_ = TString(addressString.get());
         }
 
         void ParseRequestId()
@@ -386,7 +394,22 @@ private:
             User_ = TString(userString);
         }
 
-        void ParseAuthParameters()
+        void ParseRpcCredentials()
+        {
+            auto tokenString = CallMetadata_.Find(TokenMetadataKey);
+            if (!tokenString) {
+                return;
+            }
+
+            RpcCredentialsExt_.Emplace();
+
+            if (tokenString) {
+                RpcCredentialsExt_->set_token(TString(tokenString));
+                RpcCredentialsExt_->set_user_ip(PeerAddress_);
+            }
+        }
+
+        void ParseSslCredentials()
         {
             auto authContext = TGrpcAuthContextPtr(grpc_call_auth_context(Call_.Unwrap()));
             if (!authContext) {
@@ -404,7 +427,8 @@ private:
                 return;
             }
 
-            PeerIdentity_ = TString(peerIdentityProperty->value);
+            SslCredentialsExt_.Emplace();
+            SslCredentialsExt_->set_peer_identity(TString(peerIdentityProperty->value));
         }
 
         void ParseTimeout()
@@ -442,11 +466,6 @@ private:
             return true;
         }
 
-        TGprString GetPeerAddress()
-        {
-            return MakeGprString(grpc_call_get_peer(Call_.Unwrap()));
-        }
-
         void OnRequestReceived(bool success)
         {
             if (!success) {
@@ -476,9 +495,11 @@ private:
             if (Timeout_) {
                 header->set_timeout(ToProto<i64>(*Timeout_));
             }
-            if (PeerIdentity_) {
-                auto* ext = header->MutableExtension(NGrpc::NProto::TSslCredentialsExt::ssl_credentials_ext);
-                ext->set_peer_identity(*PeerIdentity_);
+            if (SslCredentialsExt_) {
+                *header->MutableExtension(NGrpc::NProto::TSslCredentialsExt::ssl_credentials_ext) = std::move(*SslCredentialsExt_);
+            }
+            if (RpcCredentialsExt_) {
+                *header->MutableExtension(NRpc::NProto::TCredentialsExt::credentials_ext) = std::move(*RpcCredentialsExt_);
             }
 
             {

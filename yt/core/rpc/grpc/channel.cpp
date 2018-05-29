@@ -159,6 +159,13 @@ private:
             InitialMetadataBuilder_.Add(RequestIdMetadataKey, ToString(Request_->GetRequestId()));
             InitialMetadataBuilder_.Add(UserMetadataKey, Request_->GetUser());
 
+            if (Request_->Header().HasExtension(NRpc::NProto::TCredentialsExt::credentials_ext)) {
+                const auto& credentialsExt = Request_->Header().GetExtension(NRpc::NProto::TCredentialsExt::credentials_ext);
+                if (credentialsExt.has_token()) {
+                    InitialMetadataBuilder_.Add(TokenMetadataKey, credentialsExt.token());
+                }
+            }
+
             auto serializedMessage = Request_->Serialize();
 
             // Attachments are not supported.
