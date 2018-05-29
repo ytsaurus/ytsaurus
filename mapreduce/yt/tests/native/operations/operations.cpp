@@ -22,6 +22,7 @@
 #include <util/generic/maybe.h>
 #include <util/folder/path.h>
 #include <util/system/env.h>
+#include <util/system/fs.h>
 #include <util/system/mktemp.h>
 #include <util/system/tempfile.h>
 #include <util/thread/pool.h>
@@ -1360,7 +1361,7 @@ Y_UNIT_TEST_SUITE(Operations)
     {
         auto client = CreateTestClient();
 
-        TString fileName = MakeTempName();
+        TString fileName = MakeTempName(NFs::CurrentWorkingDirectory().c_str());
         TString message = "Hello world!";
         ui64 firstJobCount = 2, secondJobCount = 3;
 
