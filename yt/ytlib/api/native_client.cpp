@@ -1750,7 +1750,7 @@ private:
             };
 
             std::vector<std::vector<TBatch>> batchesByCells;
-            yhash<TCellId, size_t> cellIdToBatchIndex;
+            THashMap<TCellId, size_t> cellIdToBatchIndex;
 
             {
                 auto itemsBegin = sortedKeys.begin();
