@@ -6,6 +6,7 @@
 #include "message.h"
 #include "response_keeper.h"
 #include "server_detail.h"
+#include "authenticator.h"
 
 #include <yt/core/bus/bus.h>
 
@@ -76,28 +77,22 @@ class TServiceBase::TServiceContext
 {
 public:
     TServiceContext(
-        TServiceBasePtr service,
-        const TRequestId& requestId,
-        NBus::IBusPtr replyBus,
-        TRuntimeMethodInfoPtr runtimeInfo,
-        const NTracing::TTraceContext& traceContext,
-        std::unique_ptr<NProto::TRequestHeader> header,
-        TSharedRefArray requestMessage,
-        TString globalRequestInfo,
-        const NLogging::TLogger& logger,
-        NLogging::ELogLevel logLevel)
+        TServiceBasePtr&& service,
+        TAcceptedRequest&& acceptedRequest,
+        TString&& globalRequestInfo,
+        const NLogging::TLogger& logger)
         : TServiceContextBase(
-            std::move(header),
-            std::move(requestMessage),
+            std::move(acceptedRequest.Header),
+            std::move(acceptedRequest.Message),
             logger,
-            logLevel)
+            acceptedRequest.RuntimeInfo->Descriptor.LogLevel)
         , Service_(std::move(service))
-        , RequestId_(requestId)
-        , ReplyBus_(std::move(replyBus))
-        , RuntimeInfo_(std::move(runtimeInfo))
+        , RequestId_(acceptedRequest.RequestId)
+        , ReplyBus_(std::move(acceptedRequest.ReplyBus))
+        , RuntimeInfo_(std::move(acceptedRequest.RuntimeInfo))
         , GlobalRequestInfo_(std::move(globalRequestInfo))
         , PerformanceCounters_(Service_->LookupMethodPerformanceCounters(RuntimeInfo_, User_))
-        , TraceContext_(traceContext)
+        , TraceContext_(acceptedRequest.TraceContext)
         , ArrivalInstant_(GetCpuInstant())
     {
         Y_ASSERT(RequestMessage_);
@@ -474,15 +469,17 @@ TServiceBase::TServiceBase(
     IInvokerPtr defaultInvoker,
     const TServiceDescriptor& descriptor,
     const NLogging::TLogger& logger,
-    const TRealmId& realmId)
+    const TRealmId& realmId,
+    IAuthenticatorPtr authenticator)
     : Logger(logger)
     , DefaultInvoker_(std::move(defaultInvoker))
+    , Authenticator_(std::move(authenticator))
     , ServiceId_(descriptor.GetFullServiceName(), realmId)
     , ProtocolVersion_(descriptor.ProtocolVersion)
+    , ServiceTagId_ (NProfiling::TProfileManager::Get()->RegisterTag("service", ServiceId_.ServiceName))
+    , AuthenticationQueueSizeCounter_("/authentication_queue_size", {ServiceTagId_})
 {
     YCHECK(DefaultInvoker_);
-
-    ServiceTagId_ = NProfiling::TProfileManager::Get()->RegisterTag("service", ServiceId_.ServiceName);
 
     RegisterMethod(RPC_SERVICE_METHOD_DESC(Discover)
         .SetInvoker(TDispatcher::Get()->GetLightInvoker())
@@ -504,78 +501,47 @@ void TServiceBase::HandleRequest(
     auto requestProtocolVersion = header->protocol_version();
 
     TRuntimeMethodInfoPtr runtimeInfo;
-    auto handleError = [&] (auto&&... args) {
-        auto error = TError(std::forward<decltype(args)>(args)...)
-            << TErrorAttribute("request_id", requestId)
-            << TErrorAttribute("realm_id", ServiceId_.RealmId)
-            << TErrorAttribute("service", ServiceId_.ServiceName)
-            << TErrorAttribute("method", method)
-            << TErrorAttribute("endpoint", replyBus->GetEndpointDescription());
-
-        auto logLevel = error.GetCode() == EErrorCode::Unavailable
-            ? NLogging::ELogLevel::Debug
-            : NLogging::ELogLevel::Warning;
-        LOG_EVENT(Logger, logLevel, error);
-
-        auto errorMessage = CreateErrorResponseMessage(requestId, error);
-        replyBus->Send(errorMessage, NBus::TSendOptions(EDeliveryTrackingLevel::None));
+    auto replyError = [&] (TError error) {
+        ReplyError(std::move(error), *header, replyBus);
     };
 
     if (Stopped_) {
-        handleError(
+        replyError(TError(
             EErrorCode::Unavailable,
-            "Service is stopped");
+            "Service is stopped"));
         return;
     }
 
     if (requestProtocolVersion != GenericProtocolVersion &&
-        requestProtocolVersion != ProtocolVersion_)
-    {
-        handleError(
+        requestProtocolVersion != ProtocolVersion_) {
+        replyError(TError(
             EErrorCode::ProtocolError,
             "Protocol version mismatch: expected %v, received %v",
             ProtocolVersion_,
-            requestProtocolVersion);
+            requestProtocolVersion));
         return;
     }
 
     runtimeInfo = FindMethodInfo(method);
     if (!runtimeInfo) {
-        handleError(
+        replyError(TError(
             EErrorCode::NoSuchMethod,
-            "Unknown method");
+            "Unknown method"));
         return;
     }
 
     // Not actually atomic but should work fine as long as some small error is OK.
-    if (runtimeInfo->QueueSizeCounter.GetCurrent() > runtimeInfo->Descriptor.MaxQueueSize) {
-        handleError(
-            TError(
-                NRpc::EErrorCode::RequestQueueSizeLimitExceeded,
-                "Request queue size limit exceeded")
-            << TErrorAttribute("limit", runtimeInfo->Descriptor.MaxQueueSize));
+    auto maxQueueSize = runtimeInfo->Descriptor.MaxQueueSize;
+    if (runtimeInfo->QueueSizeCounter.GetCurrent() > maxQueueSize) {
+        replyError(TError(
+            NRpc::EErrorCode::RequestQueueSizeLimitExceeded,
+            "Request queue size limit exceeded")
+            << TErrorAttribute("limit", maxQueueSize));
         return;
     }
 
     auto traceContext = GetTraceContext(*header);
     NTracing::TTraceContextGuard traceContextGuard(traceContext);
-
-    auto globalRequestInfo = FormatRequestInfo(
-        message,
-        *header,
-        replyBus);
-
-    auto context = New<TServiceContext>(
-        this,
-        requestId,
-        std::move(replyBus),
-        runtimeInfo,
-        traceContext,
-        std::move(header),
-        std::move(message),
-        std::move(globalRequestInfo),
-        Logger,
-        runtimeInfo->Descriptor.LogLevel);
 
     TRACE_ANNOTATION(
         traceContext,
@@ -587,6 +553,103 @@ void TServiceBase::HandleRequest(
         ServiceId_.ServiceName,
         method,
         NTracing::ServerReceiveAnnotation);
+
+    TAcceptedRequest acceptedRequest{
+        requestId,
+        std::move(replyBus),
+        std::move(runtimeInfo),
+        traceContext,
+        std::move(header),
+        std::move(message)
+    };
+
+    if (!Authenticator_) {
+        HandleAuthenticatedRequest(std::move(acceptedRequest));
+        return;
+    }
+
+    // Not actually atomic but should work fine as long as some small error is OK.
+    auto maxAuthenticationQueueSize = MaxAuthenticationQueueSize_;
+    if (AuthenticationQueueSizeCounter_.GetCurrent() > maxAuthenticationQueueSize) {
+        replyError(TError(
+            NRpc::EErrorCode::RequestQueueSizeLimitExceeded,
+            "Authentication request queue size limit exceeded")
+            << TErrorAttribute("limit", maxAuthenticationQueueSize));
+        return;
+    }
+    Profiler.Increment(AuthenticationQueueSizeCounter_, +1);
+
+    auto asyncAuthResult = Authenticator_->Authenticate(*acceptedRequest.Header);
+    if (asyncAuthResult.IsSet()) {
+        OnRequestAuthenticated(std::move(acceptedRequest), asyncAuthResult.Get());
+    } else {
+        asyncAuthResult.Subscribe(
+            BIND(&TServiceBase::OnRequestAuthenticated, MakeStrong(this), Passed(std::move(acceptedRequest))));
+    }
+}
+
+void TServiceBase::ReplyError(
+    TError error,
+    const NProto::TRequestHeader& header,
+    const IBusPtr& replyBus)
+{
+    auto requestId = FromProto<TRequestId>(header.request_id());
+    auto richError = std::move(error)
+        << TErrorAttribute("request_id", requestId)
+        << TErrorAttribute("realm_id", ServiceId_.RealmId)
+        << TErrorAttribute("service", ServiceId_.ServiceName)
+        << TErrorAttribute("method", header.method())
+        << TErrorAttribute("endpoint", replyBus->GetEndpointDescription());
+
+    auto code = richError.GetCode();
+    auto logLevel =
+        code == NRpc::EErrorCode::NoSuchMethod || code == NRpc::EErrorCode::ProtocolError
+        ? NLogging::ELogLevel::Warning
+        : NLogging::ELogLevel::Debug;
+    LOG_EVENT(Logger, logLevel, richError);
+
+    auto errorMessage = CreateErrorResponseMessage(requestId, richError);
+    replyBus->Send(errorMessage, NBus::TSendOptions(EDeliveryTrackingLevel::None));
+}
+
+void TServiceBase::OnRequestAuthenticated(
+    TAcceptedRequest&& acceptedRequest,
+    const TErrorOr<TAuthenticationResult>& authResultOrError)
+{
+    Profiler.Increment(AuthenticationQueueSizeCounter_, -1);
+    if (authResultOrError.IsOK()) {
+        const auto& authResult = authResultOrError.Value();
+        LOG_DEBUG("Request authenticated (RequestId: %v, User: %v)",
+            acceptedRequest.RequestId,
+            authResult.User);
+        acceptedRequest.Header->set_user(std::move(authResult.User));
+        HandleAuthenticatedRequest(std::move(acceptedRequest));
+    } else {
+        ReplyError(
+            TError(
+                NYT::NRpc::EErrorCode::AuthenticationError,
+                "Request authentication failed")
+            << authResultOrError,
+            *acceptedRequest.Header,
+            acceptedRequest.ReplyBus);
+    }
+}
+
+void TServiceBase::HandleAuthenticatedRequest(
+    TAcceptedRequest acceptedRequest)
+{
+    auto runtimeInfo = acceptedRequest.RuntimeInfo;
+
+    auto globalRequestInfo = FormatRequestInfo(
+        acceptedRequest.Message,
+        *acceptedRequest.Header,
+        acceptedRequest.ReplyBus);
+
+    auto context = New<TServiceContext>(
+        this,
+        std::move(acceptedRequest),
+        std::move(globalRequestInfo),
+        Logger);
 
     runtimeInfo->RequestQueue.Enqueue(std::move(context));
     ScheduleRequests(runtimeInfo);
@@ -833,6 +896,9 @@ void TServiceBase::Configure(INodePtr configNode)
 {
     try {
         auto config = ConvertTo<TServiceConfigPtr>(configNode);
+
+        MaxAuthenticationQueueSize_ = config->MaxAuthenticationQueueSize;
+
         for (const auto& pair : config->Methods) {
             const auto& methodName = pair.first;
             const auto& methodConfig = pair.second;
@@ -844,21 +910,11 @@ void TServiceBase::Configure(INodePtr configNode)
             }
 
             auto& descriptor = runtimeInfo->Descriptor;
-            if (methodConfig->Heavy) {
-                descriptor.SetHeavy(*methodConfig->Heavy);
-            }
-            if (methodConfig->ResponseCodec) {
-                descriptor.SetResponseCodec(*methodConfig->ResponseCodec);
-            }
-            if (methodConfig->MaxQueueSize) {
-                descriptor.SetMaxQueueSize(*methodConfig->MaxQueueSize);
-            }
-            if (methodConfig->MaxConcurrency) {
-                descriptor.SetMaxConcurrency(*methodConfig->MaxConcurrency);
-            }
-            if (methodConfig->LogLevel) {
-                descriptor.SetLogLevel(*methodConfig->LogLevel);
-            }
+            descriptor.SetHeavy(methodConfig->Heavy);
+            descriptor.SetResponseCodec(methodConfig->ResponseCodec);
+            descriptor.SetMaxQueueSize(methodConfig->MaxQueueSize);
+            descriptor.SetMaxConcurrency(methodConfig->MaxConcurrency);
+            descriptor.SetLogLevel(methodConfig->LogLevel);
         }
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error configuring RPC service %v",
@@ -893,7 +949,7 @@ TServiceBase::TRuntimeMethodInfoPtr TServiceBase::GetMethodInfo(const TString& m
     return runtimeInfo;
 }
 
-IInvokerPtr TServiceBase::GetDefaultInvoker() const
+const IInvokerPtr& TServiceBase::GetDefaultInvoker() const
 {
     return DefaultInvoker_;
 }

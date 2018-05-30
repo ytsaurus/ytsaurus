@@ -34,10 +34,15 @@ class TServiceConfig
 public:
     THashMap<TString, TMethodConfigPtr> Methods;
 
+    static const int DefaultMaxAuthenticationQueueSize;
+    int MaxAuthenticationQueueSize;
+
     TServiceConfig()
     {
         RegisterParameter("methods", Methods)
             .Default();
+        RegisterParameter("max_authentication_queue_size", MaxAuthenticationQueueSize)
+            .Default(DefaultMaxAuthenticationQueueSize);
     }
 };
 
@@ -49,24 +54,33 @@ class TMethodConfig
     : public NYTree::TYsonSerializable
 {
 public:
-    TNullable<bool> Heavy;
-    TNullable<NCompression::ECodec> ResponseCodec;
-    TNullable<int> MaxQueueSize;
-    TNullable<int> MaxConcurrency;
-    TNullable<NLogging::ELogLevel> LogLevel;
+    static const bool DefaultHeavy;
+    bool Heavy;
+
+    static const NCompression::ECodec DefaultResponseCodec;
+    NCompression::ECodec ResponseCodec;
+
+    static const int DefaultMaxQueueSize;
+    int MaxQueueSize;
+
+    static const int DefaultMaxConcurrency;
+    int MaxConcurrency;
+
+    static const NLogging::ELogLevel DefaultLogLevel;
+    NLogging::ELogLevel LogLevel;
 
     TMethodConfig()
     {
         RegisterParameter("heavy", Heavy)
-            .Default();
+            .Default(DefaultHeavy);
         RegisterParameter("response_codec", ResponseCodec)
-            .Default();
+            .Default(DefaultResponseCodec);
         RegisterParameter("max_queue_size", MaxQueueSize)
-            .Default();
+            .Default(DefaultMaxQueueSize);
         RegisterParameter("max_concurrency", MaxConcurrency)
-            .Default();
+            .Default(DefaultMaxConcurrency);
         RegisterParameter("log_level", LogLevel)
-            .Default();
+            .Default(DefaultLogLevel);
     }
 };
 
@@ -251,8 +265,9 @@ class TDispatcherConfig
     : public NYTree::TYsonSerializable
 {
 public:
-    static constexpr int DefaultHeavyPoolSize = 16;
+    static const int DefaultHeavyPoolSize;
     int HeavyPoolSize;
+
     TEnumIndexedVector<TMultiplexingBandConfigPtr, EMultiplexingBand> MultiplexingBands;
 
     TDispatcherConfig()
