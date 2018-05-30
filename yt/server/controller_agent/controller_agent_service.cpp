@@ -321,11 +321,7 @@ private:
         controllerAgent->ValidateIncarnation(incarnationId);
 
         WrapAgentException([&] {
-            auto operation = controllerAgent->GetOperationOrThrow(operationId);
-            WaitFor(controllerAgent->DisposeOperation(operation))
-                .ThrowOnError();
-
-            controllerAgent->UnregisterOperation(operationId);
+            controllerAgent->UnregisterOperation(operationId, /* dispose */ true);
 
             context->Reply();
         });
