@@ -404,7 +404,12 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
     response->set_operation_archive_version(Host_->GetOperationArchiveVersion());
 
     BeginNodeHeartbeatProcessing(node);
-    auto finallyGuard = Finally([&] { EndNodeHeartbeatProcessing(node); });
+    auto finallyGuard = Finally([&, cancelableContext = CancelableContext_] {
+        if (cancelableContext->IsCanceled()) {
+            return;
+        }
+        EndNodeHeartbeatProcessing(node);
+    });
 
     std::vector<TJobPtr> runningJobs;
     bool hasWaitingJobs = false;
