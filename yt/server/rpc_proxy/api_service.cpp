@@ -293,19 +293,19 @@ private:
         };
 
         const auto& header = context->GetRequestHeader();
-        if (!header.HasExtension(NProto::TCredentialsExt::credentials_ext)) {
+        if (!header.HasExtension(NRpc::NProto::TCredentialsExt::credentials_ext)) {
             replyWithMissingCredentials();
             return nullptr;
         }
 
         // TODO(sandello): Use a cache here.
-        const auto& credentialsExt = header.GetExtension(NProto::TCredentialsExt::credentials_ext);
+        const auto& credentialsExt = header.GetExtension(NRpc::NProto::TCredentialsExt::credentials_ext);
         if (!credentialsExt.has_user_ip()) {
             replyWithMissingUserIP();
             return nullptr;
         }
 
-        TAuthenticationResult authenticationResult;
+        NAuth::TAuthenticationResult authenticationResult;
         if (credentialsExt.has_session_id() || credentialsExt.has_ssl_session_id()) {
             TCookieCredentials credentials;
             credentials.SessionId = credentialsExt.session_id();
