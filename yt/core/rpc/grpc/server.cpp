@@ -17,7 +17,6 @@
 
 #include <contrib/libs/grpc/include/grpc/grpc.h>
 #include <contrib/libs/grpc/include/grpc/grpc_security.h>
-#include <contrib/libs/grpc/include/grpc/impl/codegen/grpc_types.h>
 
 #include <array>
 
@@ -185,7 +184,7 @@ private:
                 GetTag());
             YCHECK(result == GRPC_CALL_OK);
 
-            EndpointDescription_ = CallDetails_->host;
+            EndpointDescription_ = ToString(CallDetails_->host);
 
             Ref();
         }
@@ -291,7 +290,7 @@ private:
         TGrpcCallPtr Call_;
         TGrpcByteBufferPtr RequestBodyBuffer_;
         TGrpcByteBufferPtr ResponseBodyBuffer_;
-        TString ErrorMessage_;
+        grpc_slice ErrorMessage_;
         int Canceled_ = 0;
 
 
@@ -322,7 +321,7 @@ private:
 
             if (!ParseRoutingParameters()) {
                 LOG_DEBUG("Malformed request routing parameters (RawMethod: %v, RequestId: %v)",
-                    CallDetails_->method,
+                    ToStringBuf(CallDetails_->method),
                     RequestId_);
                 Unref();
                 return;
@@ -414,18 +413,24 @@ private:
 
         bool ParseRoutingParameters()
         {
-            if (CallDetails_->method[0] != '/') {
+            const size_t methodLength = GRPC_SLICE_LENGTH(CallDetails_->method);
+            if (methodLength == 0) {
                 return false;
             }
 
-            const char* secondSlash = strchr(CallDetails_->method + 1, '/');
-            if (!secondSlash) {
+            if (*GRPC_SLICE_START_PTR(CallDetails_->method) != '/') {
                 return false;
             }
 
-            auto methodLength = strlen(CallDetails_->method);
-            ServiceName_.assign(CallDetails_->method + 1, secondSlash);
-            MethodName_.assign(secondSlash + 1, CallDetails_->method + methodLength);
+            auto methodWithoutLeadingSlash = grpc_slice_sub_no_ref(CallDetails_->method, 1, methodLength);
+            const int secondSlashIndex = grpc_slice_chr(methodWithoutLeadingSlash, '/');
+            if (secondSlashIndex < 0) {
+                return false;
+            }
+
+            const char *serviceNameStart = reinterpret_cast<const char *>(GRPC_SLICE_START_PTR(methodWithoutLeadingSlash));
+            ServiceName_.assign(serviceNameStart, secondSlashIndex);
+            MethodName_.assign(serviceNameStart + secondSlashIndex + 1, methodLength - 1 - (secondSlashIndex + 1));
             return true;
         }
 
@@ -554,7 +559,7 @@ private:
             TError error;
             if (responseHeader.has_error() && responseHeader.error().code() != static_cast<int>(NYT::EErrorCode::OK)) {
                 FromProto(&error, responseHeader.error());
-                ErrorMessage_ = ToString(error);
+                ErrorMessage_ = grpc_slice_from_copied_string(ToString(error).c_str());
                 TrailingMetadataBuilder_.Add(ErrorMetadataKey, SerializeError(error));
             } else {
                 // Attachments are not supported.
@@ -573,7 +578,7 @@ private:
             ops.back().flags = 0;
             ops.back().reserved = nullptr;
             ops.back().data.send_status_from_server.status = error.IsOK() ? GRPC_STATUS_OK : grpc_status_code(GenericErrorStatusCode);
-            ops.back().data.send_status_from_server.status_details = error.IsOK() ? nullptr : ErrorMessage_.c_str();
+            ops.back().data.send_status_from_server.status_details = error.IsOK() ? nullptr : &ErrorMessage_;
             ops.back().data.send_status_from_server.trailing_metadata_count = TrailingMetadataBuilder_.GetSize();
             ops.back().data.send_status_from_server.trailing_metadata = TrailingMetadataBuilder_.Unwrap();
 
