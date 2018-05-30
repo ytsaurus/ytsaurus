@@ -2,7 +2,6 @@
 #include "private.h"
 #include "config.h"
 #include "garbage_collector.h"
-#include "interned_attributes.h"
 #include "master.h"
 #include "master_type_handler.h"
 
@@ -17,6 +16,8 @@
 #include <yt/server/cypress_server/node_detail.h>
 
 #include <yt/server/election/election_manager.h>
+
+#include <yt/server/misc/interned_attributes.h>
 
 #include <yt/server/security_server/group.h>
 #include <yt/server/security_server/security_manager.h>

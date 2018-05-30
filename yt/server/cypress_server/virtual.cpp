@@ -8,7 +8,7 @@
 
 #include <yt/server/hydra/hydra_manager.h>
 
-#include <yt/server/object_server/interned_attributes.h>
+#include <yt/server/misc/interned_attributes.h>
 
 #include <yt/server/security_server/user.h>
 

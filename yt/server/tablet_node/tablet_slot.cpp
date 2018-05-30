@@ -42,7 +42,7 @@
 
 #include <yt/server/cell_node/bootstrap.h>
 
-#include <yt/server/object_server/interned_attributes.h>
+#include <yt/server/misc/interned_attributes.h>
 
 #include <yt/ytlib/api/native_connection.h>
 #include <yt/ytlib/api/native_client.h>
@@ -86,7 +86,6 @@ using namespace NHiveClient;
 using namespace NHiveServer;
 using namespace NTabletClient::NProto;
 using namespace NObjectClient;
-using namespace NObjectServer;
 using namespace NApi;
 
 using NHydra::EPeerState;

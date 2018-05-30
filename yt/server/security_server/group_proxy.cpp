@@ -3,7 +3,7 @@
 #include "security_manager.h"
 #include "subject_proxy_detail.h"
 
-#include <yt/server/object_server/interned_attributes.h>
+#include <yt/server/misc/interned_attributes.h>
 
 #include <yt/ytlib/security_client/group_ypath.pb.h>
 

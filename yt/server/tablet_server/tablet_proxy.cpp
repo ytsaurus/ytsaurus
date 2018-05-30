@@ -8,7 +8,8 @@
 
 #include <yt/server/chunk_server/chunk_list.h>
 
-#include <yt/server/object_server/interned_attributes.h>
+#include <yt/server/misc/interned_attributes.h>
+
 #include <yt/server/object_server/object_detail.h>
 
 #include <yt/server/table_server/table_node.h>

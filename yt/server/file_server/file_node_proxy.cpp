@@ -4,7 +4,7 @@
 
 #include <yt/server/chunk_server/chunk_owner_node_proxy.h>
 
-#include <yt/server/object_server/interned_attributes.h>
+#include <yt/server/misc/interned_attributes.h>
 
 #include <yt/ytlib/chunk_client/chunk_meta.pb.h>
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>

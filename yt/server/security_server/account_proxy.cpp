@@ -4,7 +4,8 @@
 
 #include <yt/server/cell_master/bootstrap.h>
 
-#include <yt/server/object_server/interned_attributes.h>
+#include <yt/server/misc/interned_attributes.h>
+
 #include <yt/server/object_server/object_detail.h>
 
 #include <yt/server/chunk_server/chunk_manager.h>

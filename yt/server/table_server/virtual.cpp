@@ -1,6 +1,6 @@
 #include "virtual.h"
 
-#include <yt/server/object_server/interned_attributes.h>
+#include <yt/server/misc/interned_attributes.h>
 
 #include <yt/ytlib/chunk_client/input_chunk.h>
 #include <yt/ytlib/chunk_client/data_source.h>
@@ -209,15 +209,6 @@ void TVirtualStaticTable::DoWriteAttributesFragment(
             }
         });
 }
-
-////////////////////////////////////////////////////////////////////////////////
-
-#define XX(camelCaseName, snakeCaseName) \
-    REGISTER_INTERNED_ATTRIBUTE(snakeCaseName, EInternedAttributeKey::camelCaseName)
-
-FOR_EACH_INTERNED_ATTRIBUTE(XX)
-
-#undef XX
 
 ////////////////////////////////////////////////////////////////////////////////
 
