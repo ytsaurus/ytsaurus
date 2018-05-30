@@ -18,7 +18,6 @@ prepare_archive_directory() {
     local yt_python_version="$1" && shift
     local yt_yson_bindings_version="$1" && shift
 
-    local yt_web_interface_version="0.7.0-694" # Fixed for now
     local nodejs_version="0.8.26" # Fixed for now
 
     local current_dir="$(pwd)"
@@ -46,14 +45,12 @@ prepare_archive_directory() {
     download_and_extract yandex-yt-python-driver $yt_version
     download_and_extract yandex-yt-python $yt_python_version
     download_and_extract yandex-yt-python-yson $yt_yson_bindings_version
-    download_and_extract yandex-yt-web-interface $yt_web_interface_version
     download_and_extract nodejs $nodejs_version
 
     mkdir -p "$archive_dir/bin"
     mkdir -p "$archive_dir/python/yt"
     mkdir -p "$archive_dir/python/yt_yson_bindings"
     mkdir -p "$archive_dir/python/yt_driver_bindings"
-    mkdir -p "$archive_dir/yt-thor"
     mkdir -p "$archive_dir/node"
 
     for dir in yandex-yt-master yandex-yt-scheduler yandex-yt-proxy yandex-yt-node; do
@@ -87,8 +84,6 @@ prepare_archive_directory() {
         cp -r -L yandex-yt-python-driver/usr/share/pyshared/yt_driver_bindings/* "$archive_dir/python/yt_driver_bindings"
         cp -r -L yandex-yt-python-driver/usr/lib/pyshared/python2.7/yt_driver_bindings/* "$archive_dir/python/yt_driver_bindings"
     fi
-
-    cp -r yandex-yt-web-interface/usr/share/yt-thor/* "$archive_dir/yt-thor"
 
     cp -r nodejs/usr/* "$archive_dir/node"
 
