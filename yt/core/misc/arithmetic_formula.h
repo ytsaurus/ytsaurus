@@ -23,7 +23,7 @@ class TGenericFormulaImpl;
 class TArithmeticFormula
 {
 public:
-    TArithmeticFormula() = delete;
+    TArithmeticFormula();
     TArithmeticFormula(const TArithmeticFormula& other);
     TArithmeticFormula(TArithmeticFormula&& other);
     TArithmeticFormula& operator=(const TArithmeticFormula& other);
