@@ -6,6 +6,7 @@
 #include "dispatcher.h"
 #include "server_detail.h"
 #include "service.h"
+#include "config.h"
 
 #include <yt/core/concurrency/action_queue.h>
 #include <yt/core/concurrency/rw_spinlock.h>
@@ -80,7 +81,6 @@ private:
     friend class TTypedServiceContext;
 
     IServiceContext* Context_ = nullptr;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -90,10 +90,10 @@ struct THandlerInvocationOptions
 {
     //! Should we be deserializing the request and serializing the request
     //! in a separate thread?
-    bool Heavy = false;
+    bool Heavy = TMethodConfig::DefaultHeavy;
 
     //! The codec to compress response body.
-    NCompression::ECodec ResponseCodec = NCompression::ECodec::None;
+    NCompression::ECodec ResponseCodec = TMethodConfig::DefaultResponseCodec;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -304,6 +304,7 @@ protected:
     //! Information needed to a register a service method.
     struct TMethodDescriptor
     {
+        // Defaults.
         TMethodDescriptor(
             const TString& method,
             TLiteHandler liteHandler,
@@ -326,17 +327,17 @@ protected:
         THandlerInvocationOptions Options;
 
         //! Maximum number of requests in queue (both waiting and executing).
-        int MaxQueueSize = 10000;
+        int MaxQueueSize = TMethodConfig::DefaultMaxQueueSize;
 
         //! Maximum number of requests executing concurrently.
-        int MaxConcurrency = 1000;
+        int MaxConcurrency = TMethodConfig::DefaultMaxConcurrency;
 
         //! System requests are completely transparent to derived classes;
         //! in particular, |BeforeInvoke| is not called.
         bool System = false;
 
         //! Log level for events emitted via |Set(Request|Response)Info|-like functions.
-        NLogging::ELogLevel LogLevel = NLogging::ELogLevel::Debug;
+        NLogging::ELogLevel LogLevel = TMethodConfig::DefaultLogLevel;
 
         //! Cancelable requests can be canceled by clients.
         //! This, however, requires additional book-keeping at server-side so one is advised
@@ -504,7 +505,8 @@ protected:
         IInvokerPtr defaultInvoker,
         const TServiceDescriptor& descriptor,
         const NLogging::TLogger& logger,
-        const TRealmId& realmId = NullRealmId);
+        const TRealmId& realmId = NullRealmId,
+        IAuthenticatorPtr authenticator = nullptr);
 
     //! Registers a method.
     TRuntimeMethodInfoPtr RegisterMethod(const TMethodDescriptor& descriptor);
@@ -517,7 +519,7 @@ protected:
     TRuntimeMethodInfoPtr GetMethodInfo(const TString& method);
 
     //! Returns the default invoker passed during construction.
-    IInvokerPtr GetDefaultInvoker() const;
+    const IInvokerPtr& GetDefaultInvoker() const;
 
     //! Called right before each method handler invocation.
     virtual void BeforeInvoke(IServiceContext* context);
@@ -543,10 +545,11 @@ protected:
 
 private:
     const IInvokerPtr DefaultInvoker_;
+    const IAuthenticatorPtr Authenticator_;
     const TServiceId ServiceId_;
     const int ProtocolVersion_;
 
-    NProfiling::TTagId ServiceTagId_;
+    const NProfiling::TTagId ServiceTagId_;
 
     NConcurrency::TReaderWriterSpinLock MethodMapLock_;
     THashMap<TString, TRuntimeMethodInfoPtr> MethodMap_;
@@ -559,9 +562,31 @@ private:
     TPromise<void> StopResult_ = NewPromise<void>();
     std::atomic<int> ActiveRequestCount_ = {0};
 
+    NProfiling::TSimpleGauge AuthenticationQueueSizeCounter_;
+    int MaxAuthenticationQueueSize_ = TServiceConfig::DefaultMaxAuthenticationQueueSize;
+
+private:
+    struct TAcceptedRequest
+    {
+        TRequestId RequestId;
+        NBus::IBusPtr ReplyBus;
+        TRuntimeMethodInfoPtr RuntimeInfo;
+        NTracing::TTraceContext TraceContext;
+        std::unique_ptr<NRpc::NProto::TRequestHeader> Header;
+        TSharedRefArray Message;
+    };
 
     void OnRequestTimeout(const TRequestId& requestId, bool aborted);
     void OnReplyBusTerminated(NYT::NBus::IBusPtr bus, const TError& error);
+
+    void ReplyError(
+        TError error,
+        const NProto::TRequestHeader& header,
+        const NBus::IBusPtr& replyBus);
+    void OnRequestAuthenticated(
+        TAcceptedRequest&& acceptedRequest,
+        const TErrorOr<TAuthenticationResult>& authResultOrError);
+    void HandleAuthenticatedRequest(TAcceptedRequest acceptedRequest);
 
     static bool TryAcquireRequestSemaphore(const TRuntimeMethodInfoPtr& runtimeInfo);
     static void ReleaseRequestSemaphore(const TRuntimeMethodInfoPtr& runtimeInfo);

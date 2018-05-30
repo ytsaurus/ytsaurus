@@ -11,6 +11,8 @@ namespace NProto {
 
 class TReqDiscover;
 class TRspDiscover;
+class TRequestHeader;
+class TResponseHeader;
 
 } // namespace NProto
 
@@ -31,6 +33,8 @@ class TTypedServiceContext;
 
 struct TServiceId;
 
+struct TAuthenticationResult;
+
 DECLARE_REFCOUNTED_STRUCT(IClientRequest)
 DECLARE_REFCOUNTED_STRUCT(IClientRequestControl)
 DECLARE_REFCOUNTED_STRUCT(IClientResponseHandler)
@@ -41,6 +45,7 @@ DECLARE_REFCOUNTED_STRUCT(IServiceContext)
 DECLARE_REFCOUNTED_STRUCT(IChannel)
 DECLARE_REFCOUNTED_STRUCT(IChannelFactory)
 DECLARE_REFCOUNTED_STRUCT(IRoamingChannelProvider)
+DECLARE_REFCOUNTED_STRUCT(IAuthenticator)
 
 DECLARE_REFCOUNTED_CLASS(TClientContext)
 DECLARE_REFCOUNTED_CLASS(TServiceBase)
@@ -94,6 +99,7 @@ DEFINE_ENUM(EErrorCode,
     ((Unavailable)                  (105))
     ((PoisonPill)                   (106))
     ((RequestQueueSizeLimitExceeded)(108))
+    ((AuthenticationError)          (109))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

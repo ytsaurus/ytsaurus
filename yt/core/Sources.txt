@@ -152,6 +152,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/rpc/caching_channel_factory.cpp
   ${CMAKE_CURRENT_LIST_DIR}/rpc/channel_detail.cpp
   ${CMAKE_CURRENT_LIST_DIR}/rpc/client.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/rpc/config.cpp
   ${CMAKE_CURRENT_LIST_DIR}/rpc/dispatcher.cpp
   ${CMAKE_CURRENT_LIST_DIR}/rpc/helpers.cpp
   ${CMAKE_CURRENT_LIST_DIR}/rpc/local_channel.cpp
@@ -171,6 +172,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/rpc/throttling_channel.cpp
   ${CMAKE_CURRENT_LIST_DIR}/rpc/latency_taming_channel.cpp
   ${CMAKE_CURRENT_LIST_DIR}/rpc/message_format.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/rpc/authenticator.cpp
 
   ${CMAKE_CURRENT_LIST_DIR}/rpc/bus/server.cpp
   ${CMAKE_CURRENT_LIST_DIR}/rpc/bus/channel.cpp
