@@ -18,11 +18,11 @@ public:
     virtual size_t DoNext(const void** ptr, size_t len) override;
 
 private:
-    void SkipCompletedBlocks();
-
     const std::vector<TSharedRef>& Blocks_;
-    size_t Index_;
-    size_t Position_;
+    size_t Index_ = 0;
+    size_t Position_ = 0;
+
+    void SkipCompletedBlocks();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
