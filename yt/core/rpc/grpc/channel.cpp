@@ -18,6 +18,7 @@
 #include <contrib/libs/grpc/include/grpc/grpc.h>
 #include <contrib/libs/grpc/include/grpc/impl/codegen/grpc_types.h>
 #include <contrib/libs/grpc/include/grpc/support/alloc.h>
+#include <contrib/libs/grpc/include/grpcpp/support/slice.h>
 
 #include <array>
 
@@ -146,15 +147,20 @@ private:
                 Request_->GetMethod(),
                 Options_.Timeout);
 
+            auto methodSlice = grpc::SliceFromCopiedString(
+                Format("/%v/%v", Request_->GetService(), Request_->GetMethod()));
+
             Call_ = TGrpcCallPtr(grpc_channel_create_call(
                 Owner_->Channel_.Unwrap(),
                 nullptr,
                 0,
                 CompletionQueue_,
-                Format("/%v/%v", Request_->GetService(), Request_->GetMethod()).c_str(),
+                methodSlice,
                 nullptr,
                 GetDeadline(),
                 nullptr));
+
+            grpc_slice_unref(methodSlice);
 
             InitialMetadataBuilder_.Add(RequestIdMetadataKey, ToString(Request_->GetRequestId()));
 
@@ -189,9 +195,7 @@ private:
 
         ~TCallHandler()
         {
-            if (ResponseStatusDetails_) {
-                gpr_free(ResponseStatusDetails_);
-            }
+            grpc_slice_unref(ResponseStatusDetails_);
         }
 
         // TCompletionQueueTag overrides
@@ -245,8 +249,7 @@ private:
         TGrpcByteBufferPtr ResponseBodyBuffer_;
         TGrpcMetadataArray ResponseFinalMetdata_;
         grpc_status_code ResponseStatusCode_ = GRPC_STATUS_UNKNOWN;
-        char* ResponseStatusDetails_ = nullptr;
-        size_t ResponseStatusCapacity_ = 0;
+        grpc_slice ResponseStatusDetails_ = grpc_empty_slice();
 
         EClientCallStage Stage_;
         std::atomic_flag Notified_ = ATOMIC_FLAG_INIT;
@@ -318,7 +321,6 @@ private:
             ops[1].data.recv_status_on_client.trailing_metadata = ResponseFinalMetdata_.Unwrap();
             ops[1].data.recv_status_on_client.status = &ResponseStatusCode_;
             ops[1].data.recv_status_on_client.status_details = &ResponseStatusDetails_;
-            ops[1].data.recv_status_on_client.status_details_capacity = &ResponseStatusCapacity_;
 
             StartBatch(ops);
         }
@@ -357,7 +359,7 @@ private:
                     error = DeserializeError(serializedError);
                 } else {
                     error = TError(NRpc::EErrorCode::TransportError, "GRPC error")
-                        << TErrorAttribute("details", TString(ResponseStatusDetails_));
+                        << TErrorAttribute("details", grpc::StringFromCopiedSlice(ResponseStatusDetails_));
                 }
                 NotifyError(AsStringBuf("Request failed"), error);
             }

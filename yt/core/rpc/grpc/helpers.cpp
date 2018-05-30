@@ -16,6 +16,7 @@
 #include <contrib/libs/protobuf/io/zero_copy_stream_impl_lite.h>
 #include <contrib/libs/grpc/include/grpc/impl/codegen/grpc_types.h>
 #include <contrib/libs/grpc/include/grpc/support/alloc.h>
+#include <contrib/libs/grpc/include/grpcpp/support/slice.h>
 
 namespace NYT {
 namespace NRpc {
@@ -51,8 +52,10 @@ TStringBuf TGrpcMetadataArray::Find(const char* key) const
 {
     for (size_t index = 0; index < Native_.count; ++index) {
         const auto& metadata = Native_.metadata[index];
-        if (strcmp(metadata.key, key) == 0) {
-            return TStringBuf(metadata.value, metadata.value_length);
+        if (grpc::StringRefFromSlice(&metadata.key) == key) {
+            return TStringBuf(
+                reinterpret_cast<const char*>(GRPC_SLICE_START_PTR(metadata.value)),
+                GRPC_SLICE_LENGTH(metadata.value));
         }
     }
 
@@ -64,9 +67,8 @@ TStringBuf TGrpcMetadataArray::Find(const char* key) const
 void TGrpcMetadataArrayBuilder::Add(const char* key, TString value)
 {
     grpc_metadata metadata;
-    metadata.key = key;
-    metadata.value = value.c_str();
-    metadata.value_length = value.length();
+    metadata.key = grpc_slice_from_static_string(key);
+    metadata.value = grpc_slice_from_static_buffer(value.c_str(), value.length());
     metadata.flags = 0;
     NativeMetadata_.push_back(metadata);
     Strings_.emplace_back(std::move(value));
