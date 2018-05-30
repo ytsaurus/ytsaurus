@@ -116,7 +116,7 @@ public:
     const TOperationIdToOperationMap& GetOperations();
 
     void RegisterOperation(const NProto::TOperationDescriptor& descriptor);
-    void UnregisterOperation(const TOperationId& operationId);
+    void UnregisterOperation(const TOperationId& operationId, bool dispose);
     TFuture<TOperationControllerInitializationResult> InitializeOperation(const TOperationPtr& operation, const TNullable<TControllerTransactions>& transactions);
     TFuture<TOperationControllerPrepareResult> PrepareOperation(const TOperationPtr& operation);
     TFuture<void> MaterializeOperation(const TOperationPtr& operation);
@@ -124,7 +124,6 @@ public:
     TFuture<void> CommitOperation(const TOperationPtr& operation);
     TFuture<void> CompleteOperation(const TOperationPtr& operation);
     TFuture<void> AbortOperation(const TOperationPtr& operation);
-    TFuture<void> DisposeOperation(const TOperationPtr& operation);
 
     //! Extracts specs for given jobs; nulls indicate failures (e.g. missing jobs).
     TFuture<std::vector<TErrorOr<TSharedRef>>> ExtractJobSpecs(const std::vector<TJobSpecRequest>& requests);

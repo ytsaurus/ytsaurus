@@ -400,14 +400,22 @@ public:
         LOG_DEBUG("Operation registered (OperationId: %v)", operationId);
     }
 
-    void UnregisterOperation(const TOperationId& operationId)
+    void UnregisterOperation(const TOperationId& operationId, bool dispose)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(Connected_);
 
+        SwitchTo(CancelableControlInvoker_);
+
         auto operation = GetOperationOrThrow(operationId);
         const auto& controller = operation->GetController();
         if (controller) {
+            if (dispose) {
+                WaitFor(BIND(&IOperationControllerSchedulerHost::Dispose, controller)
+                    .AsyncVia(controller->GetInvoker())
+                    .Run())
+                    .ThrowOnError();
+            }
             controller->Cancel();
         }
 
@@ -514,24 +522,6 @@ public:
             .AsyncVia(controller->GetInvoker())
             .Run();
     }
-
-    TFuture<void> DisposeOperation(const TOperationPtr& operation)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(Connected_);
-
-        const auto& controller = operation->GetController();
-        if (!controller) {
-            LOG_DEBUG("No controller to dispose (OperationId: %v)",
-                operation->GetId());
-            return VoidFuture;
-        }
-
-        return BIND(&IOperationControllerSchedulerHost::Dispose, controller)
-            .AsyncVia(controller->GetInvoker())
-            .Run();
-    }
-
 
     TFuture<std::vector<TErrorOr<TSharedRef>>> ExtractJobSpecs(const std::vector<TJobSpecRequest>& requests)
     {
@@ -1059,7 +1049,7 @@ private:
                     operationId);
                 continue;
             }
-            UnregisterOperation(operation->GetId());
+            UnregisterOperation(operation->GetId(), /* dispose */ false);
         }
 
         ConfirmHeartbeatRequest(preparedRequest);
@@ -1435,9 +1425,9 @@ void TControllerAgent::RegisterOperation(const NProto::TOperationDescriptor& des
     Impl_->RegisterOperation(descriptor);
 }
 
-void TControllerAgent::UnregisterOperation(const TOperationId& operationId)
+void TControllerAgent::UnregisterOperation(const TOperationId& operationId, bool dispose)
 {
-    Impl_->UnregisterOperation(operationId);
+    Impl_->UnregisterOperation(operationId, dispose);
 }
 
 TFuture<TOperationControllerInitializationResult> TControllerAgent::InitializeOperation(
@@ -1477,11 +1467,6 @@ TFuture<void> TControllerAgent::CompleteOperation(const TOperationPtr& operation
 TFuture<void> TControllerAgent::AbortOperation(const TOperationPtr& operation)
 {
     return Impl_->AbortOperation(operation);
-}
-
-TFuture<void> TControllerAgent::DisposeOperation(const TOperationPtr& operation)
-{
-    return Impl_->DisposeOperation(operation);
 }
 
 TFuture<std::vector<TErrorOr<TSharedRef>>> TControllerAgent::ExtractJobSpecs(
