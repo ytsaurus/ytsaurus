@@ -16,8 +16,6 @@
 #include <yt/core/profiling/timing.h>
 
 #include <contrib/libs/grpc/include/grpc/grpc.h>
-#include <contrib/libs/grpc/include/grpc/impl/codegen/grpc_types.h>
-#include <contrib/libs/grpc/include/grpc/support/alloc.h>
 
 #include <array>
 
@@ -146,15 +144,17 @@ private:
                 Request_->GetMethod(),
                 Options_.Timeout);
 
+            auto methodSlice = BuildGrpcMethodString();
             Call_ = TGrpcCallPtr(grpc_channel_create_call(
                 Owner_->Channel_.Unwrap(),
                 nullptr,
                 0,
                 CompletionQueue_,
-                Format("/%v/%v", Request_->GetService(), Request_->GetMethod()).c_str(),
+                methodSlice,
                 nullptr,
                 GetDeadline(),
                 nullptr));
+            grpc_slice_unref(methodSlice);
 
             InitialMetadataBuilder_.Add(RequestIdMetadataKey, ToString(Request_->GetRequestId()));
 
@@ -189,9 +189,7 @@ private:
 
         ~TCallHandler()
         {
-            if (ResponseStatusDetails_) {
-                gpr_free(ResponseStatusDetails_);
-            }
+            grpc_slice_unref(ResponseStatusDetails_);
         }
 
         // TCompletionQueueTag overrides
@@ -245,14 +243,33 @@ private:
         TGrpcByteBufferPtr ResponseBodyBuffer_;
         TGrpcMetadataArray ResponseFinalMetdata_;
         grpc_status_code ResponseStatusCode_ = GRPC_STATUS_UNKNOWN;
-        char* ResponseStatusDetails_ = nullptr;
-        size_t ResponseStatusCapacity_ = 0;
+        grpc_slice ResponseStatusDetails_ = grpc_empty_slice();
 
         EClientCallStage Stage_;
         std::atomic_flag Notified_ = ATOMIC_FLAG_INIT;
 
         TGrpcMetadataArrayBuilder InitialMetadataBuilder_;
 
+
+        //! Builds /<service>/<method> string.
+        grpc_slice BuildGrpcMethodString()
+        {
+            auto length =
+                1 + // slash
+                Request_->GetService().length() +
+                1 + // slash
+                Request_->GetMethod().length();
+            auto slice = grpc_slice_malloc(length);
+            auto* ptr = GRPC_SLICE_START_PTR(slice);
+            *ptr++ = '/';
+            ::memcpy(ptr, Request_->GetService().c_str(), Request_->GetService().length());
+            ptr += Request_->GetService().length();
+            *ptr++ = '/';
+            ::memcpy(ptr, Request_->GetMethod().c_str(), Request_->GetMethod().length());
+            ptr += Request_->GetMethod().length();
+            Y_ASSERT(ptr == GRPC_SLICE_END_PTR(slice));
+            return slice;
+        }
 
         gpr_timespec GetDeadline() const
         {
@@ -318,7 +335,7 @@ private:
             ops[1].data.recv_status_on_client.trailing_metadata = ResponseFinalMetdata_.Unwrap();
             ops[1].data.recv_status_on_client.status = &ResponseStatusCode_;
             ops[1].data.recv_status_on_client.status_details = &ResponseStatusDetails_;
-            ops[1].data.recv_status_on_client.status_details_capacity = &ResponseStatusCapacity_;
+            ops[1].data.recv_status_on_client.error_string = nullptr;
 
             StartBatch(ops);
         }
@@ -357,7 +374,7 @@ private:
                     error = DeserializeError(serializedError);
                 } else {
                     error = TError(NRpc::EErrorCode::TransportError, "GRPC error")
-                        << TErrorAttribute("details", TString(ResponseStatusDetails_));
+                        << TErrorAttribute("details", ToString(ResponseStatusDetails_));
                 }
                 NotifyError(AsStringBuf("Request failed"), error);
             }
