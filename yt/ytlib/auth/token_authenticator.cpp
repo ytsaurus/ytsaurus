@@ -10,6 +10,8 @@
 
 #include <yt/core/crypto/crypto.h>
 
+#include <yt/core/rpc/authenticator.h>
+
 #include <util/string/split.h>
 
 namespace NYT {
@@ -318,6 +320,42 @@ ITokenAuthenticatorPtr CreateCompositeTokenAuthenticator(
     std::vector<ITokenAuthenticatorPtr> authenticators)
 {
     return New<TCompositeTokenAuthenticator>(std::move(authenticators));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TTokenAuthenticatorWrapper
+    : public NRpc::IAuthenticator
+{
+public:
+    explicit TTokenAuthenticatorWrapper(ITokenAuthenticatorPtr underlying)
+        : Underlying_(std::move(underlying))
+    { }
+
+    virtual TFuture<NRpc::TAuthenticationResult> Authenticate(const NRpc::NProto::TRequestHeader& header) override
+    {
+        if (!header.HasExtension(NRpc::NProto::TCredentialsExt::credentials_ext)) {
+            return Null;
+        }
+
+        const auto& ext = header.GetExtension(NRpc::NProto::TCredentialsExt::credentials_ext);
+        TTokenCredentials credentials;
+        credentials.UserIP = ext.user_ip();
+        credentials.Token = ext.token();
+        return Underlying_->Authenticate(credentials).Apply(
+            BIND([=] (const TAuthenticationResult& authResult) {
+                NRpc::TAuthenticationResult rpcResult;
+                rpcResult.User = authResult.Login;
+                return rpcResult;
+            }));
+    }
+private:
+    const ITokenAuthenticatorPtr Underlying_;
+};
+
+NRpc::IAuthenticatorPtr CreateTokenAuthenticatorWrapper(ITokenAuthenticatorPtr underlying)
+{
+    return New<TTokenAuthenticatorWrapper>(std::move(underlying));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

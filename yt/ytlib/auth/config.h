@@ -63,6 +63,15 @@ DEFINE_REFCOUNTED_TYPE(TBlackboxTokenAuthenticatorConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TCachingBlackboxTokenAuthenticatorConfig
+    : public TBlackboxTokenAuthenticatorConfig
+    , public TAsyncExpiringCacheConfig
+{ };
+
+DEFINE_REFCOUNTED_TYPE(TCachingBlackboxTokenAuthenticatorConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TCypressTokenAuthenticatorConfig
     : public virtual NYTree::TYsonSerializable
 {
@@ -82,12 +91,12 @@ DEFINE_REFCOUNTED_TYPE(TCypressTokenAuthenticatorConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCachingTokenAuthenticatorConfig
-    : public TBlackboxTokenAuthenticatorConfig
+class TCachingCypressTokenAuthenticatorConfig
+    : public TCypressTokenAuthenticatorConfig
     , public TAsyncExpiringCacheConfig
 { };
 
-DEFINE_REFCOUNTED_TYPE(TCachingTokenAuthenticatorConfig)
+DEFINE_REFCOUNTED_TYPE(TCachingCypressTokenAuthenticatorConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
