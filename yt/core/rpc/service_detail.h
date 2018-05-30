@@ -569,7 +569,7 @@ private:
     struct TAcceptedRequest
     {
         TRequestId RequestId;
-        NBus::IBusPtr ReplyBus;
+        NYT::NBus::IBusPtr ReplyBus;
         TRuntimeMethodInfoPtr RuntimeInfo;
         NTracing::TTraceContext TraceContext;
         std::unique_ptr<NRpc::NProto::TRequestHeader> Header;
@@ -582,7 +582,7 @@ private:
     void ReplyError(
         TError error,
         const NProto::TRequestHeader& header,
-        const NBus::IBusPtr& replyBus);
+        const NYT::NBus::IBusPtr& replyBus);
     void OnRequestAuthenticated(
         TAcceptedRequest&& acceptedRequest,
         const TErrorOr<TAuthenticationResult>& authResultOrError);

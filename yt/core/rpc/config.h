@@ -253,7 +253,7 @@ public:
     TMultiplexingBandConfig()
     {
         RegisterParameter("tos_level", TosLevel)
-            .Default(NBus::DefaultTosLevel);
+            .Default(NYT::NBus::DefaultTosLevel);
     }
 };
 
