@@ -13,7 +13,7 @@
 #include <yt/server/chunk_server/chunk_owner_base.h>
 #include <yt/server/chunk_server/medium.h>
 
-#include <yt/server/object_server/interned_attributes.h>
+#include <yt/server/misc/interned_attributes.h>
 
 #include <yt/server/security_server/account.h>
 #include <yt/server/security_server/security_manager.h>

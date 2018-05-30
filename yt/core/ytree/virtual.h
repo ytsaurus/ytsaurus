@@ -1,6 +1,5 @@
 #pragma once
 
-#include "interned_attributes.h"
 #include "system_attribute_provider.h"
 #include "ypath_detail.h"
 
