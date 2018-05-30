@@ -25,7 +25,7 @@ public:
     NApi::TNativeConnectionConfigPtr ClusterConnection;
     NAuth::TDefaultBlackboxServiceConfigPtr Blackbox;
     NAuth::TCookieAuthenticatorConfigPtr CookieAuthenticator;
-    NAuth::TCachingTokenAuthenticatorConfigPtr TokenAuthenticator;
+    NAuth::TCachingBlackboxTokenAuthenticatorConfigPtr TokenAuthenticator;
     NRpcProxy::TApiServiceConfigPtr ApiService;
     NRpcProxy::TDiscoveryServiceConfigPtr DiscoveryService;
     //! Known RPC proxy addresses.
