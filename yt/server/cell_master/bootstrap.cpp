@@ -593,9 +593,9 @@ void TBootstrap::DoInitialize()
     SetNodeByYPath(
         orchidRoot,
         "/chunk_manager",
-        CreateVirtualNode(ChunkManager_->GetOrchidService()));
+        CreateVirtualNode(ChunkManager_->GetOrchidService()->Via(GetControlInvoker())));
 
-    OrchidHttpHandler_ = NMonitoring::GetOrchidYPathHttpHandler(orchidRoot->Via(GetControlInvoker()));
+    OrchidHttpHandler_ = NMonitoring::GetOrchidYPathHttpHandler(orchidRoot);
 
     SetBuildAttributes(orchidRoot, "master");
 

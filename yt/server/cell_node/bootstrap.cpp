@@ -563,7 +563,7 @@ void TBootstrap::DoRun()
 
     HttpServer->AddHandler(
         "/orchid/",
-        NMonitoring::GetOrchidYPathHttpHandler(OrchidRoot->Via(GetControlInvoker())));
+        NMonitoring::GetOrchidYPathHttpHandler(OrchidRoot));
 
     SkynetHttpServer->AddHandler(
         "/read_skynet_part",

@@ -166,7 +166,7 @@ void TBootstrap::DoRun()
 
     HttpServer_->AddHandler(
         "/orchid/",
-        NMonitoring::GetOrchidYPathHttpHandler(orchidRoot->Via(GetControlInvoker())));
+        NMonitoring::GetOrchidYPathHttpHandler(orchidRoot));
 
     LOG_INFO("Listening for HTTP requests on port %v", Config_->MonitoringPort);
     HttpServer_->Start();
