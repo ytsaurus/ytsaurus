@@ -909,9 +909,8 @@ private:
     {
         auto it = RestartCounters_.find(message);
         if (it == RestartCounters_.end()) {
-            auto tagIds = NProfiling::TTagIdList{
-                NProfiling::TProfileManager::Get()->RegisterTag("cell_id", CellManager_->GetCellId()),
-                NProfiling::TProfileManager::Get()->RegisterTag("reason", message)};
+            auto tagIds = CellManager_->GetProfilerTags();
+            tagIds.push_back(NProfiling::TProfileManager::Get()->RegisterTag("reason", message));
             auto counter = NProfiling::TMonotonicCounter("/restart_count", tagIds);
             it = RestartCounters_.insert(std::make_pair(message, counter)).first;
         }

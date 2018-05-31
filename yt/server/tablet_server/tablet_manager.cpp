@@ -2814,6 +2814,8 @@ private:
             const auto* cellBundle = cell->GetCellBundle();
             protoInfo->set_options(ConvertToYsonString(cellBundle->GetOptions()).GetData());
 
+            protoInfo->set_tablet_cell_bundle(cellBundle->GetName());
+
             LOG_DEBUG_UNLESS(IsRecovery(), "Tablet slot creation requested (Address: %v, CellId: %v, PeerId: %v)",
                 node->GetDefaultAddress(),
                 cellId,

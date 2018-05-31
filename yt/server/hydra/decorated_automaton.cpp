@@ -613,8 +613,8 @@ TDecoratedAutomaton::TDecoratedAutomaton(
     , ControlInvoker_(std::move(controlInvoker))
     , SystemInvoker_(New<TSystemInvoker>(this))
     , SnapshotStore_(std::move(snapshotStore))
-    , BatchCommitTimeCounter_("/batch_commit_time")
-    , MutationWatiTimeCounter_("/mutation_wait_time", {CellManager_->GetCellIdTag()})
+    , BatchCommitTimeCounter_("/batch_commit_time", {CellManager_->GetCellIdTag()})
+    , MutationWatiTimeCounter_("/mutation_wait_time", CellManager_->GetProfilerTags())
     , Logger(NLogging::TLogger(HydraLogger)
         .AddTag("CellId: %v", CellManager_->GetCellId()))
 {
