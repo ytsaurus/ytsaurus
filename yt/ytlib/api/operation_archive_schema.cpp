@@ -54,21 +54,6 @@ TOrderedByStartTimeTableDescriptor::TIndex::TIndex(const TNameTablePtr& nameTabl
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TStderrsTableDescriptor::TStderrsTableDescriptor()
-    : NameTable(New<TNameTable>())
-    , Index(NameTable)
-{ }
-
-TStderrsTableDescriptor::TIndex::TIndex(const TNameTablePtr& nameTable)
-    : OperationIdHi(nameTable->RegisterName("operation_id_hi"))
-    , OperationIdLo(nameTable->RegisterName("operation_id_lo"))
-    , JobIdHi(nameTable->RegisterName("job_id_hi"))
-    , JobIdLo(nameTable->RegisterName("job_id_lo"))
-    , Stderr(nameTable->RegisterName("stderr"))
-{ }
-
-////////////////////////////////////////////////////////////////////////////////
-
 TJobTableDescriptor::TJobTableDescriptor()
     : NameTable(New<TNameTable>())
     , Index(NameTable)
@@ -91,6 +76,7 @@ TJobTableDescriptor::TIndex::TIndex(const TNameTablePtr& n)
     , Events(n->RegisterName("events"))
     , StderrSize(n->RegisterName("stderr_size"))
     , HasSpec(n->RegisterName("has_spec"))
+    , HasFailContext(n->RegisterName("has_fail_context"))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -121,6 +107,21 @@ TJobStderrTableDescriptor::TIndex::TIndex(const NTableClient::TNameTablePtr& n)
     , JobIdHi(n->RegisterName("job_id_hi"))
     , JobIdLo(n->RegisterName("job_id_lo"))
     , Stderr(n->RegisterName("stderr"))
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+TJobFailContextTableDescriptor::TJobFailContextTableDescriptor()
+    : NameTable(New<TNameTable>())
+    , Ids(NameTable)
+{ }
+
+TJobFailContextTableDescriptor::TIndex::TIndex(const NTableClient::TNameTablePtr& n)
+    : OperationIdHi(n->RegisterName("operation_id_hi"))
+    , OperationIdLo(n->RegisterName("operation_id_lo"))
+    , JobIdHi(n->RegisterName("job_id_hi"))
+    , JobIdLo(n->RegisterName("job_id_lo"))
+    , FailContext(n->RegisterName("fail_context"))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -89,7 +89,8 @@ void TOperationControllerHost::ReleaseJobs(const std::vector<TJobToRelease>& job
             {},
             {},
             jobToRelease.ArchiveJobSpec,
-            jobToRelease.ArchiveStderr
+            jobToRelease.ArchiveStderr,
+            jobToRelease.ArchiveFailContext
         });
     }
     JobEventsOutbox_->Enqueue(std::move(events));

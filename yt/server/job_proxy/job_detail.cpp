@@ -71,6 +71,13 @@ TString TJob::GetStderr()
         "Getting stderr is not supported for built-in jobs");
 }
 
+TNullable<TString> TJob::GetFailContext()
+{
+    THROW_ERROR_EXCEPTION(
+        EErrorCode::UnsupportedJobType,
+        "Getting stderr is not supported for built-in jobs");
+}
+
 TYsonString TJob::StraceJob()
 {
     THROW_ERROR_EXCEPTION(

@@ -248,6 +248,12 @@ const TYPath& GetOperationsArchiveJobStderrsPath()
     return path;
 }
 
+const TYPath& GetOperationsArchiveJobFailContextsPath()
+{
+    static TYPath path = "//sys/operations_archive/fail_contexts";
+    return path;
+}
+
 bool IsOperationFinished(EOperationState state)
 {
     return

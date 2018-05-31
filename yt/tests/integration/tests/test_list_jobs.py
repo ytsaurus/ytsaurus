@@ -51,6 +51,7 @@ class TestListJobs(YTEnvSetup):
             "enable_job_reporter": True,
             "enable_job_spec_reporter": True,
             "enable_job_stderr_reporter": True,
+            "enable_job_fail_context_reporter": True,
             "static_orchid_cache_update_period": 100,
         },
     }
@@ -167,6 +168,7 @@ class TestListJobs(YTEnvSetup):
         jobs_without_stderr = []
         jobs_with_fail_context = []
         jobs_without_fail_context = []
+        fail_context_example = None
 
         for job_id, job in jobs.iteritems():
             if job.attributes["job_type"] == "partition_map":
@@ -183,6 +185,8 @@ class TestListJobs(YTEnvSetup):
                 jobs_without_stderr.append(job_id)
             if "fail_context" in job:
                 jobs_with_fail_context.append(job_id)
+                fail_context_example = (job_id, get_job_fail_context(op.id, job_id))
+                assert fail_context_example[1]
             else:
                 jobs_without_fail_context.append(job_id)
 
@@ -276,6 +280,9 @@ class TestListJobs(YTEnvSetup):
         archive_options = dict(data_source="archive")
         auto_options = dict(data_source="auto")
 
+        # Test fail context download from archive.
+        assert fail_context_example[1] == get_job_fail_context(op.id, fail_context_example[0])
+
         for options in (manual_options, archive_options, auto_options):
             res = list_jobs(op.id, **options)
             assert res["cypress_job_count"] == yson.YsonEntity()
@@ -332,6 +339,12 @@ class TestListJobs(YTEnvSetup):
 
             res = list_jobs(op.id, with_stderr=False, **options)["jobs"]
             assert sorted(jobs_without_stderr) == sorted([job["id"] for job in res])
+
+            res = list_jobs(op.id,  with_fail_context=True, **options)["jobs"]
+            assert sorted(jobs_with_fail_context) == sorted([job["id"] for job in res])
+
+            res = list_jobs(op.id, with_fail_context=False, **options)["jobs"]
+            assert sorted(jobs_without_fail_context) == sorted([job["id"] for job in res])
 
             validate_address_filter(op, True, False, False)
 

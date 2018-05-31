@@ -214,6 +214,11 @@ public:
         Y_UNREACHABLE();
     }
 
+    virtual void SetFailContext(const TString& value) override
+    {
+        Y_UNREACHABLE();
+    }
+
     virtual TYsonString GetStatistics() const override
     {
         return TYsonString();
@@ -264,6 +269,11 @@ public:
         THROW_ERROR_EXCEPTION("Getting stderr is not supported");
     }
 
+    virtual TNullable<TString> GetFailContext() override
+    {
+        THROW_ERROR_EXCEPTION("Getting fail context is not supported");
+    }
+
     virtual TYsonString StraceJob() override
     {
         THROW_ERROR_EXCEPTION("Stracing is not supported");
@@ -300,6 +310,11 @@ public:
     }
 
     virtual void ReportStderr() override
+    {
+        Y_UNREACHABLE();
+    }
+
+    virtual void ReportFailContext() override
     {
         Y_UNREACHABLE();
     }

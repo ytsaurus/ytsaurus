@@ -1022,6 +1022,7 @@ public:
                         auto interruptReason = static_cast<EInterruptReason>(protoEvent->interrupt_reason());
                         auto archiveJobSpec = protoEvent->archive_job_spec();
                         auto archiveStderr = protoEvent->archive_stderr();
+                        auto archiveFailContext = protoEvent->archive_fail_context();
                         switch (eventType) {
                             case EAgentToSchedulerJobEventType::Interrupted:
                                 nodeShard->InterruptJob(jobId, interruptReason);
@@ -1033,7 +1034,7 @@ public:
                                 nodeShard->FailJob(jobId);
                                 break;
                             case EAgentToSchedulerJobEventType::Released:
-                                nodeShard->ReleaseJob(jobId, archiveJobSpec, archiveStderr);
+                                nodeShard->ReleaseJob(jobId, archiveJobSpec, archiveStderr, archiveFailContext);
                                 break;
                             default:
                                 Y_UNREACHABLE();

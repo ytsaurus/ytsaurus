@@ -920,6 +920,9 @@ private:
                 if (event.ArchiveStderr) {
                     protoEvent->set_archive_stderr(event.ArchiveStderr.Get());
                 }
+                if (event.ArchiveFailContext) {
+                    protoEvent->set_archive_fail_context(event.ArchiveFailContext.Get());
+                }
             });
 
         ScheduleJobResposesOutbox_->BuildOutcoming(

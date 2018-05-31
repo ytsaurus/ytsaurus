@@ -320,6 +320,9 @@ public:
     // Enables job reporter to send job stderrs.
     bool EnableJobStderrReporter;
 
+    // Enables job reporter to send job fail contexts.
+    bool EnableJobFailContextReporter;
+
     // Timeout to try interrupt job before abort it.
     TDuration JobInterruptTimeout;
 

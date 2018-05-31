@@ -139,7 +139,7 @@ static TString CreateNamedPipePath()
 ////////////////////////////////////////////////////////////////////////////////
 
 class TUserJob
-: public TJob
+    : public TJob
 {
 public:
     TUserJob(
@@ -464,6 +464,8 @@ private:
 
     TCoreProcessorServicePtr CoreProcessorService_;
 
+    TNullable<TString> FailContext_;
+
     void Prepare()
     {
         PreparePipes();
@@ -592,6 +594,17 @@ private:
         auto contexts = WaitFor(UserJobReadController_->GetInputContext())
             .ValueOrThrow();
 
+        size_t size = 0;
+        for (const auto& context : contexts) {
+            size += context.Size();
+        }
+
+        FailContext_ = TString();
+        FailContext_->reserve(size);
+        for (const auto& context : contexts) {
+            FailContext_->append(context.Begin(), context.Size());
+        }
+
         auto contextChunkIds = DoDumpInputContext(contexts);
 
         YCHECK(contextChunkIds.size() <= 1);
@@ -644,6 +657,13 @@ private:
         }
 
         return result;
+    }
+
+    virtual TNullable<TString> GetFailContext() override
+    {
+        ValidatePrepared();
+
+        return FailContext_;
     }
 
     virtual TString GetStderr() override
