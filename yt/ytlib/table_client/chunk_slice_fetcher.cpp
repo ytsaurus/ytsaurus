@@ -57,10 +57,10 @@ public:
             config,
             nodeDirectory,
             invoker,
-            rowBuffer,
             chunkScraper,
             client,
             logger)
+        , RowBuffer_(std::move(rowBuffer))
         , ChunkSliceSize_(chunkSliceSize)
         , KeyColumns_(keyColumns)
         , SliceByKeys_(sliceByKeys)
@@ -86,6 +86,7 @@ public:
     }
 
 private:
+    const NTableClient::TRowBufferPtr RowBuffer_;
     const i64 ChunkSliceSize_;
     const TKeyColumns KeyColumns_;
     const bool SliceByKeys_;

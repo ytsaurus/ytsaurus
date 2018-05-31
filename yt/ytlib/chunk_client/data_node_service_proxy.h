@@ -33,6 +33,7 @@ public:
     DEFINE_RPC_PROXY_METHOD(NProto, UpdatePeer);
     DEFINE_RPC_PROXY_METHOD(NProto, GetTableSamples);
     DEFINE_RPC_PROXY_METHOD(NProto, GetChunkSlices);
+    DEFINE_RPC_PROXY_METHOD(NProto, GetColumnarStatistics);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

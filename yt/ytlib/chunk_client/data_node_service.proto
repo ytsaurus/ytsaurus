@@ -301,3 +301,25 @@ message TRspGetChunkSlices
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+// Scheduler calls this method to get a better estimation for input data weight.
+// Such information is also exposed to a client by an API method.
+message TReqGetColumnarStatistics
+{
+    repeated NYT.NProto.TGuid chunk_ids = 1;
+    repeated string column_names = 2;
+    required NYT.NProto.TWorkloadDescriptor workload_descriptor = 3;
+}
+
+message TRspGetColumnarStatistics
+{
+    message TColumnarStatistics
+    {
+        optional NYT.NProto.TError error = 1;
+        repeated int64 data_weights = 2;
+    }
+
+    repeated TColumnarStatistics statistics_responses = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////

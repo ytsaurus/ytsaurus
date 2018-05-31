@@ -56,7 +56,6 @@ public:
         TFetcherConfigPtr config,
         NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
         IInvokerPtr invoker,
-        NTableClient::TRowBufferPtr rowBuffer,
         IFetcherChunkScraperPtr chunkScraper,
         NApi::INativeClientPtr client,
         const NLogging::TLogger& logger);
@@ -68,7 +67,6 @@ protected:
     const TFetcherConfigPtr Config_;
     const NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory_;
     const IInvokerPtr Invoker_;
-    const NTableClient::TRowBufferPtr RowBuffer_;
     const IFetcherChunkScraperPtr ChunkScraper_;
     const NLogging::TLogger Logger;
 

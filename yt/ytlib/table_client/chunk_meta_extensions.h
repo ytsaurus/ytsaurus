@@ -20,6 +20,7 @@ DECLARE_PROTO_EXTENSION(NTableClient::NProto::TBoundaryKeysExt, 55)
 DECLARE_PROTO_EXTENSION(NTableClient::NProto::TSamplesExt, 56)
 DECLARE_PROTO_EXTENSION(NTableClient::NProto::TPartitionsExt, 59)
 DECLARE_PROTO_EXTENSION(NTableClient::NProto::TColumnMetaExt, 58)
+DECLARE_PROTO_EXTENSION(NTableClient::NProto::TColumnarStatisticsExt, 60)
 
 // Moved from old table client.
 DECLARE_PROTO_EXTENSION(NTableClient::NProto::TKeyColumnsExt, 14)

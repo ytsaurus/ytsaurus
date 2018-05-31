@@ -133,6 +133,8 @@ public:
             .SetCancelable(true)
             .SetResponseCodec(NCompression::ECodec::Lz4)
             .SetHeavy(true));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetColumnarStatistics)
+            .SetCancelable(true));
     }
 
 private:
@@ -1113,6 +1115,111 @@ private:
                 maxSampleSize,
                 hasWeights ? samplesExt.weights(index) : samplesExt.entries(index).length(),
                 keySetWriter);
+        }
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, GetColumnarStatistics)
+    {
+        auto columnNames = FromProto<std::vector<TString>>(request->column_names());
+        auto workloadDescriptor = FromProto<TWorkloadDescriptor>(request->workload_descriptor());
+
+        context->SetRequestInfo(
+            "ColumnNames: %v, ChunkCount: %v, Workload: %v",
+            columnNames,
+            request->chunk_ids_size(),
+            workloadDescriptor);
+
+        ValidateConnected();
+
+        const auto& chunkStore = Bootstrap_->GetChunkStore();
+
+        std::vector<TFuture<void>> asyncResults;
+
+        for (const auto& protoChunkId : request->chunk_ids()) {
+            auto* statisticsResponse = response->add_statistics_responses();
+            auto chunkId = FromProto<TChunkId>(protoChunkId);
+
+            auto chunk = chunkStore->FindChunk(chunkId);
+            if (!chunk) {
+                auto error = TError(
+                    NChunkClient::EErrorCode::NoSuchChunk,
+                    "No such chunk %v",
+                    chunkId);
+                LOG_WARNING(error);
+                ToProto(statisticsResponse->mutable_error(), error);
+                continue;
+            }
+
+            TBlockReadOptions options;
+            options.WorkloadDescriptor = workloadDescriptor;
+            options.ChunkReaderStatistics = New<TChunkReaderStatistics>();
+
+            auto asyncChunkMeta = chunk->ReadMeta(options);
+            asyncResults.push_back(asyncChunkMeta.Apply(
+                BIND(
+                    &TDataNodeService::ProcessColumnarStatistics,
+                    MakeStrong(this),
+                    columnNames,
+                    chunkId,
+                    statisticsResponse)
+                    .AsyncVia(WorkerThread_->GetInvoker())));
+        }
+
+        auto combinedResult = Combine(asyncResults);
+        context->SubscribeCanceled(BIND([combinedResult = combinedResult] () mutable {
+            combinedResult.Cancel();
+        }));
+        context->ReplyFrom(combinedResult);
+    }
+
+    void ProcessColumnarStatistics(
+        std::vector<TString> columnNames,
+        TChunkId chunkId,
+        TRspGetColumnarStatistics::TColumnarStatistics* statisticsResponse,
+        const TErrorOr<TRefCountedChunkMetaPtr>& metaOrError)
+    {
+        try {
+            THROW_ERROR_EXCEPTION_IF_FAILED(metaOrError, "Error getting meta of chunk %v",
+                chunkId);
+            const auto& meta = *metaOrError.Value();
+
+            auto type = EChunkType(meta.type());
+            if (type != EChunkType::Table) {
+                THROW_ERROR_EXCEPTION("Invalid type of chunk %v: expected %Qlv, actual %Qlv",
+                    chunkId,
+                    EChunkType::Table,
+                    type);
+            }
+
+            auto maybeColumnarStatisticsExt = FindProtoExtension<TColumnarStatisticsExt>(meta.extensions());
+            if (!maybeColumnarStatisticsExt) {
+                ToProto(
+                    statisticsResponse->mutable_error(),
+                    TError(NChunkClient::EErrorCode::ExtensionMissing, "Columnar statistics chunk meta extension missing"));
+                return;
+            }
+            auto columnarStatisticsExt = *maybeColumnarStatisticsExt;
+
+            auto nameTableExt = FindProtoExtension<TNameTableExt>(meta.extensions());
+            TNameTablePtr nameTable;
+            if (nameTableExt) {
+                nameTable = FromProto<TNameTablePtr>(*nameTableExt);
+            } else {
+                auto schemaExt = GetProtoExtension<TTableSchemaExt>(meta.extensions());
+                nameTable = TNameTable::FromSchema(FromProto<TTableSchema>(schemaExt));
+            }
+
+            for (const auto& columnName : columnNames) {
+                if (auto id = nameTable->FindId(columnName)) {
+                    statisticsResponse->add_data_weights(columnarStatisticsExt.data_weights(*id));
+                } else {
+                    statisticsResponse->add_data_weights(0);
+                }
+            }
+        } catch (const std::exception& ex) {
+            auto error = TError(ex);
+            LOG_WARNING(error);
+            ToProto(statisticsResponse->mutable_error(), error);
         }
     }
 

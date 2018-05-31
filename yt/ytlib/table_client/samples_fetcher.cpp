@@ -66,10 +66,10 @@ TSamplesFetcher::TSamplesFetcher(
         config,
         nodeDirectory,
         invoker,
-        rowBuffer,
         chunkScraper,
         client,
         logger)
+    , RowBuffer_(std::move(rowBuffer))
     , SamplingPolicy_(samplingPolicy)
     , KeyColumns_(keyColumns)
     , DesiredSampleCount_(desiredSampleCount)

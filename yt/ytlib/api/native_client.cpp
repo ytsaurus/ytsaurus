@@ -73,6 +73,7 @@
 #include <yt/ytlib/table_client/chunk_meta_extensions.h>
 #include <yt/ytlib/table_client/schemaful_reader.h>
 #include <yt/ytlib/table_client/row_merger.h>
+#include <yt/ytlib/table_client/columnar_statistics_fetcher.h>
 
 #include <yt/ytlib/tablet_client/table_mount_cache.h>
 #include <yt/ytlib/tablet_client/tablet_service_proxy.h>
@@ -792,6 +793,11 @@ public:
     {
         return NApi::CreateTableWriter(this, path, options);
     }
+
+    IMPLEMENT_METHOD(TColumnarStatistics, GetColumnarStatistics, (
+        const TRichYPath& path,
+        const TGetColumnarStatisticsOptions& options),
+        (path, options))
 
     IMPLEMENT_METHOD(TGetFileFromCacheResult, GetFileFromCache, (
         const TString& md5,
@@ -2222,6 +2228,42 @@ private:
             options.Timestamp);
 
         return replicaIds;
+    }
+
+    TColumnarStatistics DoGetColumnarStatistics(
+        const TRichYPath& path,
+        const TGetColumnarStatisticsOptions& options)
+    {
+        LOG_INFO("Collecting table input chunks (Path: %v)", path);
+
+        auto nodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
+        auto inputChunks = CollectStaticTableInputChunks(
+            path,
+            this,
+            nodeDirectory,
+            options.FetchChunkSpecConfig,
+            options.TransactionId,
+            Logger);
+
+        LOG_INFO("Fetching columnar statistics (Columns: %v)", *path.GetColumns());
+
+        auto fetcher = New<TColumnarStatisticsFetcher>(
+            options.FetcherConfig,
+            nodeDirectory,
+            GetCurrentInvoker(),
+            nullptr /* scraper */,
+            this,
+            Logger,
+            *path.GetColumns());
+
+        for (const auto& inputChunk : inputChunks) {
+            fetcher->AddChunk(inputChunk);
+        }
+
+        WaitFor(fetcher->Fetch())
+            .ThrowOnError();
+
+        return fetcher->GetColumnarStatistics();
     }
 
     std::vector<TTabletInfo> DoGetTabletInfos(

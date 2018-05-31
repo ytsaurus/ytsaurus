@@ -200,14 +200,12 @@ TFetcherBase::TFetcherBase(
     TFetcherConfigPtr config,
     TNodeDirectoryPtr nodeDirectory,
     IInvokerPtr invoker,
-    TRowBufferPtr rowBuffer,
     IFetcherChunkScraperPtr chunkScraper,
     INativeClientPtr client,
     const NLogging::TLogger& logger)
     : Config_(std::move(config))
     , NodeDirectory_(std::move(nodeDirectory))
     , Invoker_(invoker)
-    , RowBuffer_(std::move(rowBuffer))
     , ChunkScraper_(std::move(chunkScraper))
     , Logger(logger)
     , Client_(std::move(client))
