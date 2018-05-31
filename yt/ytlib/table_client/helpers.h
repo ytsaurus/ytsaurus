@@ -145,7 +145,7 @@ void ValidateDynamicTableTimestamp(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<NChunkClient::TInputChunkPtr> CollectStaticTableInputChunks(
+std::vector<NChunkClient::TInputChunkPtr> CollectTableInputChunks(
     const NYPath::TRichYPath& path,
     const NApi::INativeClientPtr& client,
     const NNodeTrackerClient::TNodeDirectoryPtr& nodeDirectory,

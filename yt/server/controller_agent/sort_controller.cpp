@@ -2262,15 +2262,7 @@ private:
         PROFILE_TIMING ("/input_processing_time") {
             int sampleCount = SuggestPartitionCount() * Spec->SamplesPerPartition;
 
-            if (Spec->UnavailableChunkStrategy == EUnavailableChunkAction::Wait) {
-                FetcherChunkScraper = CreateFetcherChunkScraper(
-                    Config->ChunkScraper,
-                    GetCancelableInvoker(),
-                    Host->GetChunkLocationThrottlerManager(),
-                    InputClient,
-                    InputNodeDirectory_,
-                    Logger);
-            }
+            FetcherChunkScraper = CreateFetcherChunkScraper();
 
             auto samplesRowBuffer = New<TRowBuffer>(
                 TRowBufferTag(),

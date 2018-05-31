@@ -17,24 +17,6 @@ using namespace NLogging;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TColumnarStatisticsFetcher::TColumnarStatisticsFetcher(
-    TFetcherConfigPtr config,
-    TNodeDirectoryPtr nodeDirectory,
-    IInvokerPtr invoker,
-    IFetcherChunkScraperPtr chunkScraper,
-    INativeClientPtr client,
-    const TLogger& logger,
-    std::vector<TString> columnNames)
-    : TFetcherBase(
-        std::move(config),
-        std::move(nodeDirectory),
-        std::move(invoker),
-        std::move(chunkScraper),
-        std::move(client),
-        logger)
-    , ColumnNames_(std::move(columnNames))
-{ }
-
 TFuture<void> TColumnarStatisticsFetcher::FetchFromNode(
     TNodeId nodeId,
     std::vector<int> chunkIndexes)
@@ -50,12 +32,13 @@ TFuture<void> TColumnarStatisticsFetcher::DoFetchFromNode(TNodeId nodeId, std::v
     proxy.SetDefaultTimeout(Config_->NodeRpcTimeout);
 
     auto req = proxy.GetColumnarStatistics();
-    NYT::ToProto(req->mutable_column_names(), ColumnNames_);
-    for (int chunkIndex : chunkIndexes) {
-        ToProto(req->add_chunk_ids(), Chunks_[chunkIndex]->ChunkId());
-    }
-
     ToProto(req->mutable_workload_descriptor(), TWorkloadDescriptor(EWorkloadCategory::UserBatch));
+
+    for (int chunkIndex : chunkIndexes) {
+        auto* subrequest = req->add_subrequests();
+        NYT::ToProto(subrequest->mutable_column_names(), ChunkColumnNames_[chunkIndex]);
+        ToProto(subrequest->mutable_chunk_id(), Chunks_[chunkIndex]->ChunkId());
+    }
 
     return req->Invoke().Apply(
         BIND(&TColumnarStatisticsFetcher::OnResponse, MakeStrong(this), nodeId, Passed(std::move(chunkIndexes)))
@@ -79,41 +62,60 @@ void TColumnarStatisticsFetcher::OnResponse(
 
     for (int index = 0; index < chunkIndexes.size(); ++index) {
         int chunkIndex = chunkIndexes[index];
-        const auto& statisticsResponse = rsp->statistics_responses(index);
-        if (statisticsResponse.has_error()) {
-            auto error = NYT::FromProto<TError>(statisticsResponse.error());
+        const auto& subresponse = rsp->subresponses(index);
+        if (subresponse.has_error()) {
+            auto error = NYT::FromProto<TError>(subresponse.error());
             if (error.FindMatching(NChunkClient::EErrorCode::ExtensionMissing)) {
-                // This is an old chunk. Process it properly.
+                // This is an old chunk. Process it somehow.
                 ChunkStatistics_[chunkIndex].LegacyChunkDataWeight = Chunks_[chunkIndex]->GetDataWeight();
             } else {
                 OnChunkFailed(nodeId, chunkIndex, error);
             }
         } else {
-            ChunkStatistics_[chunkIndex].ColumnDataWeights = NYT::FromProto<std::vector<i64>>(statisticsResponse.data_weights());
-            YCHECK(ChunkStatistics_[chunkIndex].ColumnDataWeights.size() == ColumnNames_.size());
+            ChunkStatistics_[chunkIndex].ColumnDataWeights = NYT::FromProto<std::vector<i64>>(subresponse.data_weights());
+            YCHECK(ChunkStatistics_[chunkIndex].ColumnDataWeights.size() == ChunkColumnNames_[chunkIndex].size());
         }
     }
 }
 
-TColumnarStatistics TColumnarStatisticsFetcher::GetColumnarStatistics() const
+const std::vector<TColumnarStatistics>& TColumnarStatisticsFetcher::GetChunkStatistics() const
 {
-    auto statistics = GetEmptyStatistics();
-    for (const auto& chunkStatistics : ChunkStatistics_) {
-        statistics += chunkStatistics;
+    return ChunkStatistics_;
+}
+
+void TColumnarStatisticsFetcher::SetColumnSelectivityFactors() const
+{
+    for (int index = 0; index < Chunks_.size(); ++index) {
+        if (ChunkStatistics_[index].LegacyChunkDataWeight == 0) {
+            // We have columnar statistics, so we can adjust input chunk data weight by setting column selectivity factor.
+            // NB: we should add total row count to the column data weights because otherwise for the empty column list
+            // there will be zero data weight which does not allow unordered pool to work properly.
+            i64 totalColumnDataWeight = Chunks_[index]->GetTotalRowCount();
+            for (i64 dataWeight : ChunkStatistics_[index].ColumnDataWeights) {
+                totalColumnDataWeight += dataWeight;
+            }
+            auto totalDataWeight = Chunks_[index]->GetTotalDataWeight();
+            Chunks_[index]->SetColumnSelectivityFactor(static_cast<double>(totalColumnDataWeight) / totalDataWeight);
+        }
     }
-    return statistics;
 }
 
 TFuture<void> TColumnarStatisticsFetcher::Fetch()
 {
-    ChunkStatistics_.resize(Chunks_.size(), GetEmptyStatistics());
+    ChunkStatistics_.resize(Chunks_.size());
 
     return TFetcherBase::Fetch();
 }
 
-TColumnarStatistics TColumnarStatisticsFetcher::GetEmptyStatistics() const
+void TColumnarStatisticsFetcher::AddChunk(TInputChunkPtr chunk, std::vector<TString> columnNames)
 {
-    return TColumnarStatistics{std::vector<i64>(ColumnNames_.size(), 0), 0};
+    if (columnNames.empty()) {
+        // Do not fetch anything. The less rpc requests, the better.
+        Chunks_.emplace_back(std::move(chunk));
+    } else {
+        TFetcherBase::AddChunk(std::move(chunk));
+    }
+    ChunkColumnNames_.emplace_back(std::move(columnNames));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

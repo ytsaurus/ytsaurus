@@ -279,9 +279,8 @@ TGetTableColumnarStatisticsCommand::TGetTableColumnarStatisticsCommand()
     RegisterPostprocessor([&] {
         Path = Path.Normalize();
         const auto& columns = Path.GetColumns();
-        if (!columns || columns->empty()) {
-            THROW_ERROR_EXCEPTION("It is required to specify at least one column in YPath "
-                "column selector for getting columnar statistics");
+        if (!columns) {
+            THROW_ERROR_EXCEPTION("It is required to specify column selectors in YPath for getting columnar statistics");
         }
     });
 }
@@ -291,18 +290,25 @@ void TGetTableColumnarStatisticsCommand::DoExecute(ICommandContextPtr context)
     Options.FetchChunkSpecConfig = context->GetConfig()->TableReader;
     Options.FetcherConfig = context->GetConfig()->Fetcher;
 
+    auto columns = *Path.GetColumns();
+
     auto transaction = AttachTransaction(context, false);
     auto statistics = WaitFor(context->GetClient()->GetColumnarStatistics(Path, Options))
         .ValueOrThrow();
+    YCHECK(columns.size() == statistics.ColumnDataWeights.size());
     auto producer = [&] (IYsonConsumer* consumer) {
         BuildYsonFluently(consumer)
             .BeginMap()
-                .Item("column_data_weights").Value(statistics.ColumnDataWeights)
+                .Item("column_data_weights").DoMap([&] (TFluentMap fluent) {
+                    for (int index = 0; index < columns.size(); ++index) {
+                        fluent
+                            .Item(columns[index]).Value(statistics.ColumnDataWeights[index]);
+                    }
+                })
                 .Item("legacy_chunks_data_weight").Value(statistics.LegacyChunkDataWeight)
             .EndMap();
     };
     ProduceOutput(context, producer, producer);
-    ProduceEmptyOutput(context);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

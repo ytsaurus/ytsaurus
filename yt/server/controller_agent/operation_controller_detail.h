@@ -857,6 +857,8 @@ protected:
 
     NChunkPools::TInputStreamDirectory GetInputStreamDirectory() const;
 
+    NChunkClient::IFetcherChunkScraperPtr CreateFetcherChunkScraper() const;
+
 private:
     typedef TOperationControllerBase TThis;
 

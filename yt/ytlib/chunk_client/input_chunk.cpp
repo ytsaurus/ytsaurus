@@ -30,12 +30,12 @@ TInputChunkBase::TInputChunkBase(const NProto::TChunkSpec& chunkSpec)
     const auto& chunkMeta = chunkSpec.chunk_meta();
     auto miscExt = GetProtoExtension<NProto::TMiscExt>(chunkMeta.extensions());
 
-    UncompressedDataSize_ = miscExt.uncompressed_data_size();
+    TotalUncompressedDataSize_ = miscExt.uncompressed_data_size();
 
     // NB(psushin): we don't use overrides from master, since we can do the same estimates ourself.
     TotalDataWeight_ = miscExt.has_data_weight() && miscExt.data_weight() > 0
         ? miscExt.data_weight()
-        : UncompressedDataSize_;
+        : TotalUncompressedDataSize_;
 
     TotalRowCount_ = miscExt.row_count();
 
@@ -97,13 +97,14 @@ void TInputChunkBase::CheckOffsets()
     static_assert(offsetof(TInputChunkBase, RangeIndex_) == 96, "invalid offset");
     static_assert(offsetof(TInputChunkBase, TableChunkFormat_) == 100, "invalid offset");
     static_assert(offsetof(TInputChunkBase, ChunkIndex_) == 104, "invalid offsetof");
-    static_assert(offsetof(TInputChunkBase, UncompressedDataSize_) == 112, "invalid offset");
+    static_assert(offsetof(TInputChunkBase, TotalUncompressedDataSize_) == 112, "invalid offset");
     static_assert(offsetof(TInputChunkBase, TotalRowCount_) == 120, "invalid offset");
     static_assert(offsetof(TInputChunkBase, CompressedDataSize_) == 128, "invalid offset");
     static_assert(offsetof(TInputChunkBase, TotalDataWeight_) == 136, "invalid offset");
     static_assert(offsetof(TInputChunkBase, MaxBlockSize_) == 144, "invalid offset");
     static_assert(offsetof(TInputChunkBase, UniqueKeys_) == 152, "invalid offset");
-    static_assert(sizeof(TInputChunkBase) == 160, "invalid sizeof");
+    static_assert(offsetof(TInputChunkBase, ColumnSelectivityFactor_) == 160, "invalid offset");
+    static_assert(sizeof(TInputChunkBase) == 168, "invalid sizeof");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -194,12 +195,20 @@ i64 TInputChunk::GetRowCount() const
 i64 TInputChunk::GetDataWeight() const
 {
     auto rowCount = GetRowCount();
+    auto rowSelectivityFactor = static_cast<double>(rowCount) / TotalRowCount_;
+    return std::ceil(TotalDataWeight_ * ColumnSelectivityFactor_ * rowSelectivityFactor);
+}
 
-    if (rowCount == TotalRowCount_) {
-        return TotalDataWeight_;
+i64 TInputChunk::GetUncompressedDataSize() const
+{
+    auto rowCount = GetRowCount();
+    auto rowSelectivityFactor = static_cast<double>(rowCount) / TotalRowCount_;
+    if (TableChunkFormat_ == ETableChunkFormat::UnversionedColumnar ||
+        TableChunkFormat_ == ETableChunkFormat::VersionedColumnar)
+    {
+        return std::ceil(TotalUncompressedDataSize_ * ColumnSelectivityFactor_ * rowSelectivityFactor);
     } else {
-        i64 dataWeightPerRow = DivCeil(TotalDataWeight_, TotalRowCount_);
-        return dataWeightPerRow * rowCount;
+        return std::ceil(TotalUncompressedDataSize_ * rowSelectivityFactor);
     }
 }
 

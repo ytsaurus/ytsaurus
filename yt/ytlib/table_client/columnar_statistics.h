@@ -15,6 +15,8 @@ struct TColumnarStatistics
     i64 LegacyChunkDataWeight = 0;
 
     TColumnarStatistics& operator +=(const TColumnarStatistics& other);
+
+    static TColumnarStatistics MakeEmpty(int columnCount);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

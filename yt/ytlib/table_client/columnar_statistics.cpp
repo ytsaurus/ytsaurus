@@ -14,6 +14,11 @@ TColumnarStatistics& TColumnarStatistics::operator +=(const TColumnarStatistics&
     return *this;
 }
 
+TColumnarStatistics TColumnarStatistics::MakeEmpty(int columnCount)
+{
+    return TColumnarStatistics{std::vector<i64>(columnCount, 0), 0};
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NTableClient

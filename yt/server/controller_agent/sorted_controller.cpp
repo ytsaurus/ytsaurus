@@ -563,15 +563,7 @@ protected:
 private:
     IChunkSliceFetcherPtr CreateChunkSliceFetcher()
     {
-        if (Spec_->UnavailableChunkStrategy == EUnavailableChunkAction::Wait) {
-            FetcherChunkScraper_ = CreateFetcherChunkScraper(
-                Config->ChunkScraper,
-                GetCancelableInvoker(),
-                Host->GetChunkLocationThrottlerManager(),
-                InputClient,
-                InputNodeDirectory_,
-                Logger);
-        }
+        FetcherChunkScraper_ = CreateFetcherChunkScraper();
 
         return NTableClient::CreateChunkSliceFetcher(
             Config->Fetcher,

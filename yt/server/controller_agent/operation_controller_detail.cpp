@@ -47,6 +47,7 @@
 #include <yt/ytlib/scheduler/helpers.h>
 
 #include <yt/ytlib/table_client/chunk_meta_extensions.h>
+#include <yt/ytlib/table_client/columnar_statistics_fetcher.h>
 #include <yt/ytlib/table_client/data_slice_fetcher.h>
 #include <yt/ytlib/table_client/helpers.h>
 #include <yt/ytlib/table_client/schema.h>
@@ -997,6 +998,19 @@ TInputStreamDirectory TOperationControllerBase::GetInputStreamDirectory() const
         inputStreams.emplace_back(inputTable.IsTeleportable, inputTable.IsPrimary(), inputTable.IsDynamic /* isVersioned */);
     }
     return TInputStreamDirectory(std::move(inputStreams));
+}
+
+IFetcherChunkScraperPtr TOperationControllerBase::CreateFetcherChunkScraper() const
+{
+    return Spec_->UnavailableChunkStrategy == EUnavailableChunkAction::Wait
+        ? NChunkClient::CreateFetcherChunkScraper(
+            Config->ChunkScraper,
+            GetCancelableInvoker(),
+            Host->GetChunkLocationThrottlerManager(),
+            InputClient,
+            InputNodeDirectory_,
+            Logger)
+        : nullptr;
 }
 
 TTransactionId TOperationControllerBase::GetInputTransactionParentId()
@@ -4110,6 +4124,14 @@ void TOperationControllerBase::FetchInputTables()
     queryOptions.VerboseLogging = true;
     queryOptions.RangeExpansionLimit = Config->MaxRangesOnTable;
 
+    // We fetch columnar statistics only for the tables that have column selectors specified.
+    struct TFetchRequest
+    {
+        TInputChunkPtr Chunk;
+        std::vector<TString> ColumnNames;
+    };
+    std::vector<TFetchRequest> fetchRequests;
+
     for (int tableIndex = 0; tableIndex < static_cast<int>(InputTables.size()); ++tableIndex) {
         auto& table = InputTables[tableIndex];
         auto ranges = table.Path.GetRanges();
@@ -4117,6 +4139,7 @@ void TOperationControllerBase::FetchInputTables()
         if (ranges.empty()) {
             continue;
         }
+        bool hasColumnSelectors = table.Path.GetColumns().HasValue();
 
         if (InputQuery && table.Schema.IsSorted()) {
             auto rangeInferrer = CreateRangeInferrer(
@@ -4150,10 +4173,11 @@ void TOperationControllerBase::FetchInputTables()
                 << TErrorAttribute("table_path", table.Path.GetPath());
         }
 
-        LOG_INFO("Fetching input table (Path: %v, RangeCount: %v, InferredRangeCount: %v)",
+        LOG_INFO("Fetching input table (Path: %v, RangeCount: %v, InferredRangeCount: %v, HasColumnSelectors: %v)",
             table.Path.GetPath(),
             originalRangeCount,
-            ranges.size());
+            ranges.size(),
+            hasColumnSelectors);
 
         std::vector<NChunkClient::NProto::TChunkSpec> chunkSpecs;
         FetchChunkSpecs(
@@ -4187,17 +4211,40 @@ void TOperationControllerBase::FetchInputTables()
             if (inputChunk->GetRowCount() > 0) {
                 // Input chunks may have zero row count in case of unsensible read range with coinciding
                 // lower and upper row index. We skip such chunks.
-                table.Chunks.emplace_back(std::move(inputChunk));
+                table.Chunks.emplace_back(inputChunk);
                 for (const auto& extension : chunkSpec.chunk_meta().extensions().extensions()) {
                     totalExtensionSize += extension.data().size();
                 }
                 RegisterInputChunk(table.Chunks.back());
+                if (hasColumnSelectors) {
+                    fetchRequests.emplace_back(TFetchRequest{inputChunk, *table.Path.GetColumns()});
+                }
             }
         }
 
         LOG_INFO("Input table fetched (Path: %v, ChunkCount: %v)",
             table.Path.GetPath(),
             table.Chunks.size());
+    }
+
+    if (!fetchRequests.empty()) {
+        LOG_INFO("Fetching columnar statistics for tables with column selectors (ChunkCount: %v)",
+            fetchRequests.size());
+
+        auto fetcher = New<TColumnarStatisticsFetcher>(
+            Config->Fetcher,
+            InputNodeDirectory_,
+            CancelableInvoker,
+            CreateFetcherChunkScraper(),
+            InputClient,
+            Logger);
+        for (const auto& request : fetchRequests) {
+            fetcher->AddChunk(std::move(request.Chunk), std::move(request.ColumnNames));
+        }
+        WaitFor(fetcher->Fetch())
+            .ThrowOnError();
+        LOG_INFO("Columnar statistics fetched");
+        fetcher->SetColumnSelectivityFactors();
     }
 
     LOG_INFO("Finished fetching input tables (TotalChunkCount: %v, TotalExtensionSize: %v)",
@@ -5181,16 +5228,9 @@ std::vector<TInputDataSlicePtr> TOperationControllerBase::CollectPrimaryVersione
 {
     auto createScraperForFetcher = [&] () -> IFetcherChunkScraperPtr {
         if (Spec_->UnavailableChunkStrategy == EUnavailableChunkAction::Wait) {
-            auto scraper = CreateFetcherChunkScraper(
-                Config->ChunkScraper,
-                GetCancelableInvoker(),
-                Host->GetChunkLocationThrottlerManager(),
-                InputClient,
-                InputNodeDirectory_,
-                Logger);
+            auto scraper = CreateFetcherChunkScraper();
             DataSliceFetcherChunkScrapers.push_back(scraper);
             return scraper;
-
         } else {
             return IFetcherChunkScraperPtr();
         }
