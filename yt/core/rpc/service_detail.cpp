@@ -619,9 +619,10 @@ void TServiceBase::OnRequestAuthenticated(
     Profiler.Increment(AuthenticationQueueSizeCounter_, -1);
     if (authResultOrError.IsOK()) {
         const auto& authResult = authResultOrError.Value();
-        LOG_DEBUG("Request authenticated (RequestId: %v, User: %v)",
+        LOG_DEBUG("Request authenticated (RequestId: %v, User: %v, Realm: %v)",
             acceptedRequest.RequestId,
-            authResult.User);
+            authResult.User,
+            authResult.Realm);
         acceptedRequest.Header->set_user(std::move(authResult.User));
         HandleAuthenticatedRequest(std::move(acceptedRequest));
     } else {
