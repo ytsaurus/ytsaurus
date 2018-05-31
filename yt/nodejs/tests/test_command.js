@@ -744,7 +744,7 @@ describe("YtCommand - v2 command parameters", function() {
             rsp.body.should.be.empty;
             stub.should.have.been.calledOnce;
             stub.firstCall.args[7].Print()
-                .should.eql('{"output_format"=<"boolean_as_string"=%true;>"json";"input_format"=<"boolean_as_string"=%true;>"json";"path"=<"append"="true";>"//home";}');
+                .should.eql('{"input_format"=<"boolean_as_string"=%true;>"json";"output_format"=<"boolean_as_string"=%true;>"json";"path"=<"append"="true";>"//home";}');
         }, done).end('{"path":{"$value":"//home","$attributes":{"append":"true"}}}');
     });
 
@@ -757,7 +757,7 @@ describe("YtCommand - v2 command parameters", function() {
             rsp.body.should.be.empty;
             stub.should.have.been.calledOnce;
             stub.firstCall.args[7].Print()
-                .should.eql('{"output_format"=<"boolean_as_string"=%true;>"json";"input_format"=<"boolean_as_string"=%true;>"json";"\\x80"="\\xFF";}');
+                .should.eql('{"input_format"=<"boolean_as_string"=%true;>"json";"output_format"=<"boolean_as_string"=%true;>"json";"\\x80"="\\xFF";}');
 
         }, done).end('{"\\u0080":"\\u00FF"}');
     });
@@ -912,7 +912,7 @@ describe("YtCommand - v2 command parameters", function() {
                 rsp.should.be.http2xx;
                 rsp.body.should.be.empty;
                 stub.should.have.been.calledOnce;
-                stub.firstCall.args[7].Print().should.eql('{"output_format"="json";"input_format"="json";"path"=<"append"="true";>"//home";}');
+                stub.firstCall.args[7].Print().should.eql('{"input_format"="json";"output_format"="json";"path"=<"append"="true";>"//home";}');
             }, done).end('{"path":{"$value":"//home","$attributes":{"append":"true"}}}');
         });
 
@@ -924,7 +924,7 @@ describe("YtCommand - v2 command parameters", function() {
                 rsp.should.be.http2xx;
                 rsp.body.should.be.empty;
                 stub.should.have.been.calledOnce;
-                stub.firstCall.args[7].Print().should.eql('{"output_format"="json";"input_format"="json";"\\x80"="\\xFF";}');
+                stub.firstCall.args[7].Print().should.eql('{"input_format"="json";"output_format"="json";"\\x80"="\\xFF";}');
 
             }, done).end('{"\\u0080":"\\u00FF"}');
         });
