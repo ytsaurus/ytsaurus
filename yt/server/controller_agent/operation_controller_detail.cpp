@@ -3858,6 +3858,9 @@ void TOperationControllerBase::ProcessFinishedJobResult(std::unique_ptr<TJobSumm
     if (stderrChunkId && shouldCreateJobNode) {
         summary->ArchiveStderr = true;
     }
+    if (failContextChunkId && shouldCreateJobNode) {
+        summary->ArchiveFailContext = true;
+    }
 
     auto inputPaths = BuildInputPathYson(joblet);
     auto finishedJob = New<TFinishedJobInfo>(joblet, std::move(*summary), std::move(inputPaths));
@@ -3865,7 +3868,7 @@ void TOperationControllerBase::ProcessFinishedJobResult(std::unique_ptr<TJobSumm
     finishedJob->Summary.StatisticsYson = TYsonString();
     finishedJob->Summary.Statistics.Reset();
 
-    if (finishedJob->Summary.ArchiveJobSpec || finishedJob->Summary.ArchiveStderr) {
+    if (finishedJob->Summary.ArchiveJobSpec || finishedJob->Summary.ArchiveStderr || finishedJob->Summary.ArchiveFailContext) {
         FinishedJobs_.insert(std::make_pair(jobId, finishedJob));
     }
 
@@ -6324,15 +6327,17 @@ void TOperationControllerBase::ReleaseJobs(const std::vector<TJobId>& jobIds)
     for (const auto& jobId : jobIds) {
         bool archiveJobSpec = false;
         bool archiveStderr = false;
+        bool archiveFailContext = false;
 
         auto it = FinishedJobs_.find(jobId);
         if (it != FinishedJobs_.end()) {
             const auto& jobSummary = it->second->Summary;
             archiveJobSpec = jobSummary.ArchiveJobSpec;
             archiveStderr = jobSummary.ArchiveStderr;
+            archiveFailContext = jobSummary.ArchiveFailContext;
             FinishedJobs_.erase(it);
         }
-        jobsToRelease.emplace_back(TJobToRelease{jobId, archiveJobSpec, archiveStderr});
+        jobsToRelease.emplace_back(TJobToRelease{jobId, archiveJobSpec, archiveStderr, archiveFailContext});
     }
     Host->ReleaseJobs(jobsToRelease);
 }

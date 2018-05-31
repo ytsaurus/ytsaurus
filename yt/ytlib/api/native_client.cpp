@@ -4109,20 +4109,20 @@ private:
         const TJobId& jobId)
     {
         try {
-            TStderrsTableDescriptor tableDescriptor;
+            TJobStderrTableDescriptor tableDescriptor;
 
             auto rowBuffer = New<TRowBuffer>();
 
             std::vector<TUnversionedRow> keys;
             auto key = rowBuffer->AllocateUnversioned(4);
-            key[0] = MakeUnversionedUint64Value(operationId.Parts64[0], tableDescriptor.Index.OperationIdHi);
-            key[1] = MakeUnversionedUint64Value(operationId.Parts64[1], tableDescriptor.Index.OperationIdLo);
-            key[2] = MakeUnversionedUint64Value(jobId.Parts64[0], tableDescriptor.Index.JobIdHi);
-            key[3] = MakeUnversionedUint64Value(jobId.Parts64[1], tableDescriptor.Index.JobIdLo);
+            key[0] = MakeUnversionedUint64Value(operationId.Parts64[0], tableDescriptor.Ids.OperationIdHi);
+            key[1] = MakeUnversionedUint64Value(operationId.Parts64[1], tableDescriptor.Ids.OperationIdLo);
+            key[2] = MakeUnversionedUint64Value(jobId.Parts64[0], tableDescriptor.Ids.JobIdHi);
+            key[3] = MakeUnversionedUint64Value(jobId.Parts64[1], tableDescriptor.Ids.JobIdLo);
             keys.push_back(key);
 
             TLookupRowsOptions lookupOptions;
-            lookupOptions.ColumnFilter = NTableClient::TColumnFilter({tableDescriptor.Index.Stderr});
+            lookupOptions.ColumnFilter = NTableClient::TColumnFilter({tableDescriptor.Ids.Stderr});
             lookupOptions.KeepMissingRows = true;
 
             auto rowset = WaitFor(LookupRows(
@@ -4186,6 +4186,57 @@ private:
             << TErrorAttribute("job_id", jobId);
     }
 
+    TSharedRef DoGetJobFailContextFromArchive(
+        const TOperationId& operationId,
+        const TJobId& jobId)
+    {
+        try {
+            TJobFailContextTableDescriptor tableDescriptor;
+
+            auto rowBuffer = New<TRowBuffer>();
+
+            std::vector<TUnversionedRow> keys;
+            auto key = rowBuffer->AllocateUnversioned(4);
+            key[0] = MakeUnversionedUint64Value(operationId.Parts64[0], tableDescriptor.Ids.OperationIdHi);
+            key[1] = MakeUnversionedUint64Value(operationId.Parts64[1], tableDescriptor.Ids.OperationIdLo);
+            key[2] = MakeUnversionedUint64Value(jobId.Parts64[0], tableDescriptor.Ids.JobIdHi);
+            key[3] = MakeUnversionedUint64Value(jobId.Parts64[1], tableDescriptor.Ids.JobIdLo);
+            keys.push_back(key);
+
+            TLookupRowsOptions lookupOptions;
+            lookupOptions.ColumnFilter = NTableClient::TColumnFilter({tableDescriptor.Ids.FailContext});
+            lookupOptions.KeepMissingRows = true;
+
+            auto rowset = WaitFor(LookupRows(
+                "//sys/operations_archive/fail_contexts",
+                tableDescriptor.NameTable,
+                MakeSharedRange(keys, rowBuffer),
+                lookupOptions))
+                .ValueOrThrow();
+
+            auto rows = rowset->GetRows();
+            YCHECK(!rows.Empty());
+
+            if (rows[0]) {
+                auto value = rows[0][0];
+
+                YCHECK(value.Type == EValueType::String);
+                return TSharedRef::MakeCopy<char>(TRef(value.Data.String, value.Length));
+            }
+        } catch (const TErrorException& exception) {
+            auto matchedError = exception.Error().FindMatching(NYTree::EErrorCode::ResolveError);
+
+            if (!matchedError) {
+                THROW_ERROR_EXCEPTION("Failed to get job fail_context from archive")
+                    << TErrorAttribute("operation_id", operationId)
+                    << TErrorAttribute("job_id", jobId)
+                    << exception.Error();
+            }
+        }
+
+        return TSharedRef();
+    }
+
     TSharedRef DoGetJobFailContextFromCypress(
         const TOperationId& operationId,
         const TJobId& jobId)
@@ -4244,9 +4295,18 @@ private:
         const TJobId& jobId,
         const TGetJobFailContextOptions& /*options*/)
     {
-        auto failContextRef = DoGetJobFailContextFromCypress(operationId, jobId);
-        if (failContextRef) {
-            return failContextRef;
+        {
+            auto failContextRef = DoGetJobFailContextFromCypress(operationId, jobId);
+            if (failContextRef) {
+                return failContextRef;
+            }
+        }
+
+        if (DoGetOperationsArchiveVersion() >= 21) {
+            auto failContextRef = DoGetJobFailContextFromArchive(operationId, jobId);
+            if (failContextRef) {
+                return failContextRef;
+            }
         }
 
         THROW_ERROR_EXCEPTION(NScheduler::EErrorCode::NoSuchJob, "Job fail context is not found")
@@ -4966,7 +5026,7 @@ private:
             }
         }
 
-        if (options.WithSpec) {
+        if (archiveVersion >= 20 && options.WithSpec) {
             if (*options.WithSpec) {
                 itemsQueryBuilder.AddWhereExpression("(has_spec AND NOT is_null(has_spec))");
             } else {
@@ -4974,9 +5034,16 @@ private:
             }
         }
 
-        // TODO(ignat): add 'fail_context_size' to archive.
-        if (options.WithFailContext && *options.WithFailContext) {
-            itemsQueryBuilder.AddWhereExpression("false");
+        if (options.WithFailContext) {
+            if (archiveVersion >= 21) {
+                if (*options.WithFailContext) {
+                    itemsQueryBuilder.AddWhereExpression("(has_fail_context AND NOT is_null(has_fail_context))");
+                } else {
+                    itemsQueryBuilder.AddWhereExpression("(NOT has_fail_context OR is_null(has_fail_context))");
+                }
+            } else {
+                itemsQueryBuilder.AddWhereExpression("false");
+            }
         }
 
         if (options.Address) {

@@ -37,6 +37,7 @@ message TReqOnJobFinished
     optional uint64 start_time = 4;
     optional uint64 finish_time = 5;
     optional string stderr = 6;
+    optional string fail_context = 7;
 }
 
 message TRspOnJobFinished

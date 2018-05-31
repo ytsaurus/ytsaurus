@@ -154,6 +154,7 @@ public:
     int MaxInProgressJobDataSize;
     int MaxInProgressJobSpecDataSize;
     int MaxInProgressJobStderrDataSize;
+    int MaxInProgressJobFailContextDataSize;
     int MaxItemsInBatch;
     TString User;
 
@@ -172,6 +173,8 @@ public:
         RegisterParameter("max_in_progress_job_spec_data_size", MaxInProgressJobSpecDataSize)
             .Default(250_MB);
         RegisterParameter("max_in_progress_job_stderr_data_size", MaxInProgressJobStderrDataSize)
+            .Default(250_MB);
+        RegisterParameter("max_in_progress_job_fail_context_data_size", MaxInProgressJobFailContextDataSize)
             .Default(250_MB);
         RegisterParameter("max_items_in_batch", MaxItemsInBatch)
             .Default(1000);

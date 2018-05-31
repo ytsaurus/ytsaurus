@@ -308,6 +308,8 @@ TSchedulerConfig::TSchedulerConfig()
         .Default(false);
     RegisterParameter("enable_job_stderr_reporter", EnableJobStderrReporter)
         .Default(false);
+    RegisterParameter("enable_job_fail_context_reporter", EnableJobFailContextReporter)
+        .Default(false);
 
     RegisterParameter("job_interrupt_timeout", JobInterruptTimeout)
         .Default(TDuration::Seconds(10));

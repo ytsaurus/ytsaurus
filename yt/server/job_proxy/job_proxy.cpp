@@ -527,6 +527,10 @@ void TJobProxy::ReportResult(
     req->set_finish_time(ToProto<i64>(finishTime));
     if (GetJobSpecHelper()->GetSchedulerJobSpecExt().has_user_job_spec()) {
         req->set_stderr(GetStderr());
+        auto failContext = Job_->GetFailContext();
+        if (failContext) {
+            req->set_fail_context(*failContext);
+        }
     }
 
     auto rspOrError = req->Invoke().Get();
