@@ -46,8 +46,10 @@ class TNoopAuthenticator
 public:
     virtual TFuture<TAuthenticationResult> Authenticate(const NRpc::NProto::TRequestHeader& header) override
     {
+        static const auto Realm = TString("noop");
         TAuthenticationResult result{
-            header.has_user() ? header.user() : RootUserName
+            header.has_user() ? header.user() : RootUserName,
+            Realm
         };
         return MakeFuture<TAuthenticationResult>(result);
     }

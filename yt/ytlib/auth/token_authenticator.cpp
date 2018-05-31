@@ -346,6 +346,7 @@ public:
             BIND([=] (const TAuthenticationResult& authResult) {
                 NRpc::TAuthenticationResult rpcResult;
                 rpcResult.User = authResult.Login;
+                rpcResult.Realm = authResult.Realm;
                 return rpcResult;
             }));
     }

@@ -12,6 +12,7 @@ namespace NRpc {
 struct TAuthenticationResult
 {
     TString User;
+    TString Realm;
 };
 
 struct IAuthenticator
