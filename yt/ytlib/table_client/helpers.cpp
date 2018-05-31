@@ -761,7 +761,7 @@ void ValidateDynamicTableTimestamp(
 ////////////////////////////////////////////////////////////////////////////////
 
 // TODO(max42): unify with input chunk collection procedure in operation_controller_detail.cpp.
-std::vector<TInputChunkPtr> CollectStaticTableInputChunks(
+std::vector<TInputChunkPtr> CollectTableInputChunks(
     const TRichYPath& path,
     const INativeClientPtr& client,
     const TNodeDirectoryPtr& nodeDirectory,

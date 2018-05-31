@@ -69,6 +69,9 @@ using namespace NProfiling;
 using NChunkClient::TChunkReaderStatistics;
 using NYT::FromProto;
 
+using TRefCountedColumnarStatisticsSubresponse = TRefCountedProto<TRspGetColumnarStatistics::TSubresponse>;
+using TRefCountedColumnarStatisticsSubresponsePtr = TIntrusivePtr<TRefCountedColumnarStatisticsSubresponse>;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TDataNodeService
@@ -1120,24 +1123,25 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, GetColumnarStatistics)
     {
-        auto columnNames = FromProto<std::vector<TString>>(request->column_names());
         auto workloadDescriptor = FromProto<TWorkloadDescriptor>(request->workload_descriptor());
 
         context->SetRequestInfo(
-            "ColumnNames: %v, ChunkCount: %v, Workload: %v",
-            columnNames,
-            request->chunk_ids_size(),
+            "SubrequestCount: %v, Workload: %v",
+            request->subrequests_size(),
             workloadDescriptor);
 
         ValidateConnected();
 
         const auto& chunkStore = Bootstrap_->GetChunkStore();
 
+        std::vector<TRefCountedColumnarStatisticsSubresponsePtr> subresponses;
         std::vector<TFuture<void>> asyncResults;
 
-        for (const auto& protoChunkId : request->chunk_ids()) {
-            auto* statisticsResponse = response->add_statistics_responses();
-            auto chunkId = FromProto<TChunkId>(protoChunkId);
+        for (const auto& subrequest : request->subrequests()) {
+            auto chunkId = FromProto<TChunkId>(subrequest.chunk_id());
+
+            auto subresponse = New<TRefCountedColumnarStatisticsSubresponse>();
+            subresponses.emplace_back(subresponse);
 
             auto chunk = chunkStore->FindChunk(chunkId);
             if (!chunk) {
@@ -1146,9 +1150,10 @@ private:
                     "No such chunk %v",
                     chunkId);
                 LOG_WARNING(error);
-                ToProto(statisticsResponse->mutable_error(), error);
+                ToProto(subresponse->mutable_error(), error);
                 continue;
             }
+            auto columnNames = FromProto<std::vector<TString>>(subrequest.column_names());
 
             TBlockReadOptions options;
             options.WorkloadDescriptor = workloadDescriptor;
@@ -1161,7 +1166,7 @@ private:
                     MakeStrong(this),
                     columnNames,
                     chunkId,
-                    statisticsResponse)
+                    Passed(std::move(subresponse)))
                     .AsyncVia(WorkerThread_->GetInvoker())));
         }
 
@@ -1169,13 +1174,17 @@ private:
         context->SubscribeCanceled(BIND([combinedResult = combinedResult] () mutable {
             combinedResult.Cancel();
         }));
-        context->ReplyFrom(combinedResult);
+        context->ReplyFrom(combinedResult.Apply(BIND([subresponses = std::move(subresponses), response] () mutable {
+            for (int index = 0; index < subresponses.size(); ++index) {
+                response->add_subresponses()->Swap(subresponses[index].Get());
+            }
+        })));
     }
 
     void ProcessColumnarStatistics(
         std::vector<TString> columnNames,
         TChunkId chunkId,
-        TRspGetColumnarStatistics::TColumnarStatistics* statisticsResponse,
+        TRefCountedColumnarStatisticsSubresponsePtr subresponse,
         const TErrorOr<TRefCountedChunkMetaPtr>& metaOrError)
     {
         try {
@@ -1194,7 +1203,7 @@ private:
             auto maybeColumnarStatisticsExt = FindProtoExtension<TColumnarStatisticsExt>(meta.extensions());
             if (!maybeColumnarStatisticsExt) {
                 ToProto(
-                    statisticsResponse->mutable_error(),
+                    subresponse->mutable_error(),
                     TError(NChunkClient::EErrorCode::ExtensionMissing, "Columnar statistics chunk meta extension missing"));
                 return;
             }
@@ -1211,15 +1220,15 @@ private:
 
             for (const auto& columnName : columnNames) {
                 if (auto id = nameTable->FindId(columnName)) {
-                    statisticsResponse->add_data_weights(columnarStatisticsExt.data_weights(*id));
+                    subresponse->add_data_weights(columnarStatisticsExt.data_weights(*id));
                 } else {
-                    statisticsResponse->add_data_weights(0);
+                    subresponse->add_data_weights(0);
                 }
             }
         } catch (const std::exception& ex) {
             auto error = TError(ex);
             LOG_WARNING(error);
-            ToProto(statisticsResponse->mutable_error(), error);
+            ToProto(subresponse->mutable_error(), error);
         }
     }
 

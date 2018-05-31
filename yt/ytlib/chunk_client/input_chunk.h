@@ -41,13 +41,18 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(NTableClient::ETableChunkFormat, TableChunkFormat);
     DEFINE_BYVAL_RW_PROPERTY(i64, ChunkIndex, -1);
 
-    DEFINE_BYVAL_RW_PROPERTY(i64, UncompressedDataSize);
+    DEFINE_BYVAL_RW_PROPERTY(i64, TotalUncompressedDataSize);
     DEFINE_BYVAL_RW_PROPERTY(i64, TotalRowCount);
     DEFINE_BYVAL_RW_PROPERTY(i64, CompressedDataSize); // for TSortControllerBase
     DEFINE_BYVAL_RW_PROPERTY(i64, TotalDataWeight);
     DEFINE_BYVAL_RO_PROPERTY(i64, MaxBlockSize); // for TChunkStripeStatistics
 
     DEFINE_BYVAL_RO_PROPERTY(bool, UniqueKeys, false); // for TChunkStripeStatistics
+
+    //! Factor providing a ratio of selected columns data weight to the total data weight.
+    //! It is used to propagate the reduction of a chunk total weight to chunk and data slices
+    //! that are formed from it.
+    DEFINE_BYVAL_RW_PROPERTY(double, ColumnSelectivityFactor, 1.0);
 
 public:
     TInputChunkBase() = default;
@@ -104,6 +109,7 @@ public:
 
     i64 GetRowCount() const;
     i64 GetDataWeight() const;
+    i64 GetUncompressedDataSize() const;
 
     friend void ToProto(NProto::TChunkSpec* chunkSpec, const TInputChunkPtr& inputChunk, EDataSourceType dataSourceType);
 };

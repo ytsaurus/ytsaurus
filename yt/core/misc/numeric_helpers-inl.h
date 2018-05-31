@@ -26,6 +26,15 @@ T DivCeil(const T& numerator, const T& denominator)
     return res.quot + (res.rem > static_cast<T>(0) ? static_cast<T>(1) : static_cast<T>(0));
 }
 
+// A version of division that is a bit less noisy around the situation when numerator is almost divisible by denominator.
+// Round up if the remainder is at least half of denominator, otherwise round down.
+template <typename T>
+T DivRound(const T& numerator, const T& denominator)
+{
+    auto res = std::div(numerator, denominator);
+    return res.quot + (res.rem >= (denominator + 1) / 2 ? static_cast<T>(1) : static_cast<T>(0));
+}
+
 template <class T>
 T RoundUp(const T& numerator, const T& denominator)
 {

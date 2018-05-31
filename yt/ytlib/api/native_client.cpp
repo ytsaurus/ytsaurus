@@ -2237,7 +2237,7 @@ private:
         LOG_INFO("Collecting table input chunks (Path: %v)", path);
 
         auto nodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
-        auto inputChunks = CollectStaticTableInputChunks(
+        auto inputChunks = CollectTableInputChunks(
             path,
             this,
             nodeDirectory,
@@ -2253,17 +2253,21 @@ private:
             GetCurrentInvoker(),
             nullptr /* scraper */,
             this,
-            Logger,
-            *path.GetColumns());
+            Logger);
 
         for (const auto& inputChunk : inputChunks) {
-            fetcher->AddChunk(inputChunk);
+            fetcher->AddChunk(inputChunk, *path.GetColumns());
         }
 
         WaitFor(fetcher->Fetch())
             .ThrowOnError();
 
-        return fetcher->GetColumnarStatistics();
+        const auto& chunkStatistics = fetcher->GetChunkStatistics();
+        TColumnarStatistics totalStatistics = TColumnarStatistics::MakeEmpty(path.GetColumns()->size());
+        for (const auto& statistics : chunkStatistics) {
+            totalStatistics += statistics;
+        }
+        return totalStatistics;
     }
 
     std::vector<TTabletInfo> DoGetTabletInfos(
