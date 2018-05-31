@@ -236,6 +236,7 @@ public:
             NProfiling::TProfileManager::Get()->RegisterTag("peer_id", PeerId_)
         }
         , OptionsString_(TYsonString(createInfo.options()))
+        , TabletCellBundle(createInfo.tablet_cell_bundle())
         , Logger(NLogging::TLogger(TabletNodeLogger)
             .AddTag("CellId: %v, PeerId: %v",
                 CellDescriptor_.CellId,
@@ -462,6 +463,13 @@ public:
                 channelFactory,
                 PeerId_);
 
+            auto tagIds = NProfiling::TTagIdList{
+                NProfiling::TProfileManager::Get()->RegisterTag(
+                    "tablet_cell_bundle",
+                    TabletCellBundle ? TabletCellBundle : UnknownProfilingTag)};
+
+            CellManager_->SetCustomTags(tagIds);
+
             Automaton_ = New<TTabletAutomaton>(
                 Owner_,
                 SnapshotQueue_->GetInvoker());
@@ -640,6 +648,8 @@ private:
 
     const TYsonString OptionsString_;
     TTabletCellOptionsPtr Options_;
+
+    const TString TabletCellBundle;
 
     TTransactionId PrerequisiteTransactionId_;
     ITransactionPtr PrerequisiteTransaction_;  // only created for leaders

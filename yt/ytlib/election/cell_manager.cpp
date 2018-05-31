@@ -68,6 +68,13 @@ void TCellManager::BuildTags()
     AllPeersTag_ = profilingManager->RegisterTag("address", "all");
     PeerQuorumTag_ = profilingManager->RegisterTag("address", "quorum");
     CellIdTag_ = profilingManager->RegisterTag("cell_id", Config_->CellId);
+    UpdateProfilerTags();
+}
+
+void TCellManager::UpdateProfilerTags()
+{
+    ProfilerTags_ = CustomTags_;
+    ProfilerTags_.push_back(CellIdTag_);
 }
 
 const TCellId& TCellManager::GetCellId() const
@@ -130,6 +137,22 @@ NProfiling::TTagId TCellManager::GetPeerQuorumTag() const
 NProfiling::TTagId TCellManager::GetCellIdTag() const
 {
     return CellIdTag_;
+}
+
+NProfiling::TTagIdList TCellManager::GetCustomTags() const
+{
+    return CustomTags_;
+}
+
+NProfiling::TTagIdList TCellManager::GetProfilerTags() const
+{
+    return ProfilerTags_;
+}
+
+void TCellManager::SetCustomTags(const NProfiling::TTagIdList& customTags)
+{
+    CustomTags_ = customTags;
+    UpdateProfilerTags();
 }
 
 void TCellManager::Reconfigure(TCellConfigPtr newConfig)
