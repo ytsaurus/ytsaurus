@@ -1224,6 +1224,8 @@ public:
                 // No break intentionaly.
             case ETabletActionState::Failed: {
                 if (!action->GetKeepFinished()) {
+                    UnbindTabletAction(action);
+
                     const auto& objectManager = Bootstrap_->GetObjectManager();
                     objectManager->UnrefObject(action);
                 }
