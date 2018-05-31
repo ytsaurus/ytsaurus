@@ -16,6 +16,7 @@
 #include <yt/ytlib/table_client/schemaless_chunk_writer.h>
 #include <yt/ytlib/table_client/versioned_writer.h>
 #include <yt/ytlib/table_client/table_consumer.h>
+#include <yt/ytlib/table_client/columnar_statistics.h>
 
 #include <yt/ytlib/tablet_client/table_mount_cache.h>
 
@@ -267,6 +268,40 @@ void TWriteTableCommand::DoExecute(ICommandContextPtr context)
     WaitFor(writer->Close())
         .ThrowOnError();
 
+    ProduceEmptyOutput(context);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TGetTableColumnarStatisticsCommand::TGetTableColumnarStatisticsCommand()
+{
+    RegisterParameter("path", Path);
+    RegisterPostprocessor([&] {
+        Path = Path.Normalize();
+        const auto& columns = Path.GetColumns();
+        if (!columns || columns->empty()) {
+            THROW_ERROR_EXCEPTION("It is required to specify at least one column in YPath "
+                "column selector for getting columnar statistics");
+        }
+    });
+}
+
+void TGetTableColumnarStatisticsCommand::DoExecute(ICommandContextPtr context)
+{
+    Options.FetchChunkSpecConfig = context->GetConfig()->TableReader;
+    Options.FetcherConfig = context->GetConfig()->Fetcher;
+
+    auto transaction = AttachTransaction(context, false);
+    auto statistics = WaitFor(context->GetClient()->GetColumnarStatistics(Path, Options))
+        .ValueOrThrow();
+    auto producer = [&] (IYsonConsumer* consumer) {
+        BuildYsonFluently(consumer)
+            .BeginMap()
+                .Item("column_data_weights").Value(statistics.ColumnDataWeights)
+                .Item("legacy_chunks_data_weight").Value(statistics.LegacyChunkDataWeight)
+            .EndMap();
+    };
+    ProduceOutput(context, producer, producer);
     ProduceEmptyOutput(context);
 }
 

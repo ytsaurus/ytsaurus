@@ -21,6 +21,7 @@
 #include <yt/ytlib/table_client/config.h>
 #include <yt/ytlib/table_client/row_base.h>
 #include <yt/ytlib/table_client/schema.h>
+#include <yt/ytlib/table_client/columnar_statistics.h>
 
 #include <yt/ytlib/tablet_client/public.h>
 
@@ -578,6 +579,14 @@ struct TTableWriterOptions
     NTableClient::TTableWriterConfigPtr Config;
 };
 
+struct TGetColumnarStatisticsOptions
+    : public TTransactionalOptions
+    , public TTimeoutOptions
+{
+    NChunkClient::TFetchChunkSpecConfigPtr FetchChunkSpecConfig;
+    NChunkClient::TFetcherConfigPtr FetcherConfig;
+};
+
 struct TLocateSkynetShareOptions
     : public TTimeoutOptions
 {
@@ -1065,6 +1074,10 @@ struct IClient
     virtual TFuture<TSkynetSharePartsLocationsPtr> LocateSkynetShare(
         const NYPath::TRichYPath& path,
         const TLocateSkynetShareOptions& options = TLocateSkynetShareOptions()) = 0;
+
+    virtual TFuture<NTableClient::TColumnarStatistics> GetColumnarStatistics(
+        const NYPath::TRichYPath& path,
+        const TGetColumnarStatisticsOptions& options = TGetColumnarStatisticsOptions()) = 0;
 
     // Files
     virtual TFuture<TGetFileFromCacheResult> GetFileFromCache(
