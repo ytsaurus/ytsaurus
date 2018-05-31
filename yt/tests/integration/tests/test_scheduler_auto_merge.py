@@ -470,7 +470,7 @@ class TestSchedulerAutoMerge(YTEnvSetup):
                 op.track() # this should raise an exception
             for i in range(2):
                 for vertex in live_preview_appeared:
-                    path = get_operation_path(op.id) + "/orchid/data_flow_graph/vertices/{0}/live_previews/{1}".format(vertex, i)
+                    path = op.get_path() + "/orchid/data_flow_graph/vertices/{0}/live_previews/{1}".format(vertex, i)
                     try:
                         if not exists(path, verbose=False):
                             continue
