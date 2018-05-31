@@ -1411,7 +1411,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        if (!update->Operation->GetShouldFlush()) {
+        if (!update->Operation->GetShouldFlush() && !update->Operation->GetShouldFlushAcl()) {
             return {};
         }
 

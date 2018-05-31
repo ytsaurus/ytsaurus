@@ -776,8 +776,8 @@ public:
             MakeStrong(this),
             operation,
             error,
-        /* abortRunningJobs */ true,
-        /* setAlert */ true));
+            /* abortRunningJobs */ true,
+            /* setAlert */ true));
     }
 
     void OnOperationAgentUnregistered(const TOperationPtr& operation)
