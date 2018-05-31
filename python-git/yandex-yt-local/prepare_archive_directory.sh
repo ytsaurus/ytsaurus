@@ -41,6 +41,7 @@ prepare_archive_directory() {
     download_and_extract yandex-yt-proxy $yt_version
     download_and_extract yandex-yt-master $yt_version
     download_and_extract yandex-yt-scheduler $yt_version
+    download_and_extract yandex-yt-controller-agent $yt_version
     download_and_extract yandex-yt-http-proxy $yt_version
     download_and_extract yandex-yt-python-driver $yt_version
     download_and_extract yandex-yt-python $yt_python_version
@@ -53,7 +54,7 @@ prepare_archive_directory() {
     mkdir -p "$archive_dir/python/yt_driver_bindings"
     mkdir -p "$archive_dir/node"
 
-    for dir in yandex-yt-master yandex-yt-scheduler yandex-yt-proxy yandex-yt-node; do
+    for dir in yandex-yt-master yandex-yt-scheduler yandex-yt-proxy yandex-yt-node yandex-yt-controller-agent; do
         for binary in $(find $dir/usr/bin -name "ytserver*"); do
             cp -r "$binary" "$archive_dir/bin"
         done
