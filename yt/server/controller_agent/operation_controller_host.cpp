@@ -286,11 +286,14 @@ void TOperationControllerHost::ValidateOperationPermission(
     EPermission permission,
     const TString& subnodePath)
 {
-    Bootstrap_->GetControllerAgent()->ValidateOperationPermission(
-        user,
-        OperationId_,
-        permission,
-        subnodePath);
+    WaitFor(BIND(&TControllerAgent::ValidateOperationPermission, Bootstrap_->GetControllerAgent())
+        .AsyncVia(CancelableControlInvoker_)
+        .Run(
+            user,
+            OperationId_,
+            permission,
+            subnodePath))
+        .ThrowOnError();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

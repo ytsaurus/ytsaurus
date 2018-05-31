@@ -625,11 +625,11 @@ void TOperationControllerBase::InitializeOrchid()
         ->AddChild("job_splitter", createCachedMapService(BIND(&TOperationControllerBase::BuildJobSplitterInfo, Unretained(this))))
         ->AddChild("memory_usage", createService(BIND(&TOperationControllerBase::BuildMemoryUsageYson, Unretained(this))))
         ->AddChild("state", createService(BIND(&TOperationControllerBase::BuildStateYson, Unretained(this))))
-        ->AddChild("data_flow_graph", DataFlowGraph_->GetService());
+        ->AddChild("data_flow_graph", DataFlowGraph_->GetService()
+            ->WithPermissionValidator(BIND(&TOperationControllerBase::ValidateIntermediateDataAccess, MakeWeak(this))));
     service->SetOpaque(false);
     Orchid_ = service
-        ->Via(Invoker)
-        ->WithPermissionValidator(BIND(&TOperationControllerBase::ValidateIntermediateDataAccess, MakeWeak(this)));
+        ->Via(Invoker);
 }
 
 void TOperationControllerBase::DoInitialize()
