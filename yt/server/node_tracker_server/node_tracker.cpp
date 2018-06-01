@@ -78,7 +78,6 @@ using namespace NProfiling;
 
 static const auto& Logger = NodeTrackerServerLogger;
 static const auto ProfilingPeriod = TDuration::Seconds(10);
-static const auto TotalNodeStatisticsUpdatePeriod = TDuration::Seconds(1);
 
 static NProfiling::TAggregateGauge FullHeartbeatTimeCounter("/full_heartbeat_time");
 static NProfiling::TAggregateGauge IncrementalHeartbeatTimeCounter("/incremental_heartbeat_time");
@@ -258,7 +257,7 @@ public:
     void Initialize()
     {
         const auto& configManager = Bootstrap_->GetConfigManager();
-        configManager->SubscribeConfigChanged(BIND(&TImpl::OnConfigChanged, MakeWeak(this)));
+        configManager->SubscribeConfigChanged(BIND(&TImpl::OnDynamicConfigChanged, MakeWeak(this)));
 
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         transactionManager->SubscribeTransactionCommitted(BIND(&TImpl::OnTransactionFinished, MakeWeak(this)));
@@ -364,6 +363,19 @@ public:
     DEFINE_SIGNAL(void(TDataCenter*), DataCenterCreated);
     DEFINE_SIGNAL(void(TDataCenter*), DataCenterRenamed);
     DEFINE_SIGNAL(void(TDataCenter*), DataCenterDestroyed);
+
+
+    const TDynamicNodeTrackerConfigPtr& GetDynamicConfig()
+    {
+        return Bootstrap_->GetConfigManager()->GetConfig()->NodeTracker;
+    }
+
+    void OnDynamicConfigChanged()
+    {
+        RebuildNodeGroups();
+        RecomputePendingRegisterNodeMutationCounters();
+    }
+
 
     void DestroyNode(TNode* node)
     {
@@ -809,7 +821,10 @@ public:
             TotalNodeStatistics_.ChunkReplicaCount += statistics.total_stored_chunk_count();
             TotalNodeStatistics_.FullNodeCount += statistics.full() ? 1 : 0;
         }
-        TotalNodeStatisticsUpdateDeadline_ = now + DurationToCpuDuration(TotalNodeStatisticsUpdatePeriod);
+
+        const auto& dynamicConfig = GetDynamicConfig();
+        TotalNodeStatisticsUpdateDeadline_ = now + DurationToCpuDuration(dynamicConfig->TotalNodeStatisticsUpdatePeriod);
+
         return TotalNodeStatistics_;
     }
 
@@ -1255,7 +1270,7 @@ private:
             YCHECK(NameToDataCenterMap_.insert(std::make_pair(dc->GetName(), dc)).second);
         }
 
-        OnConfigChanged();
+        OnDynamicConfigChanged();
     }
 
     virtual void OnRecoveryStarted() override
@@ -1274,7 +1289,7 @@ private:
     {
         TMasterAutomatonPart::OnRecoveryComplete();
 
-        OnConfigChanged();
+        OnDynamicConfigChanged();
         Profiler.SetEnabled(true);
     }
 
@@ -1762,12 +1777,6 @@ private:
         return GetGroupsForNode(node);
     }
 
-    void OnConfigChanged()
-    {
-        RebuildNodeGroups();
-        RecomputePendingRegisterNodeMutationCounters();
-    }
-
     void RebuildNodeGroups()
     {
         for (const auto& pair : NodeMap_) {
@@ -1777,8 +1786,8 @@ private:
 
         NodeGroups_.clear();
 
-        const auto& config = Bootstrap_->GetConfigManager()->GetConfig()->NodeTracker;
-        for (const auto& pair : config->NodeGroups) {
+        const auto& dynamicConfig = GetDynamicConfig();
+        for (const auto& pair : dynamicConfig->NodeGroups) {
             NodeGroups_.emplace_back();
             auto& group = NodeGroups_.back();
             group.Id = pair.first;
