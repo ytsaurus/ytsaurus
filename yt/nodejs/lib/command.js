@@ -1027,7 +1027,7 @@ YtCommand.prototype._execute = function(cb) {
                 self.rsp.setHeader("ETag", etag_string);
 
                 header = utils.gather(self.req.headers, "if-none-match");
-                if (header && typeof(header) === "string" && header === value.Print()) {
+                if (header && typeof(header) === "string" && header === etag_string) {
                     self.rsp.statusCode = 304;
                 }
             }
