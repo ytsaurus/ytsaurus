@@ -873,6 +873,10 @@ TOperationControllerReviveResult TOperationControllerBase::Revive()
     InitInputChunkScraper();
     InitIntermediateChunkScraper();
 
+    if (UnavailableIntermediateChunkCount > 0) {
+        IntermediateChunkScraper->Start();
+    }
+
     UpdateMinNeededJobResources();
 
     ReinstallLivePreview();
