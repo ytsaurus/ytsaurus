@@ -190,7 +190,7 @@ void TRequestTracker::OnFlush()
         return;
     }
 
-    LOG_DEBUG("Starting user statistics commit for %v users",
+    LOG_DEBUG("Starting user statistics commit (UserCount: %)",
         Request_.entries_size());
 
     const auto& hydraFacade = Bootstrap_->GetHydraFacade();
