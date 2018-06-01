@@ -42,7 +42,7 @@ struct IFetcher
     : public virtual TRefCounted
 {
     virtual void AddChunk(TInputChunkPtr chunk) = 0;
-
+    virtual int GetChunkCount() const = 0;
     virtual TFuture<void> Fetch() = 0;
 };
 
@@ -61,6 +61,7 @@ public:
         const NLogging::TLogger& logger);
 
     virtual void AddChunk(TInputChunkPtr chunk) override;
+    virtual int GetChunkCount() const override;
     virtual TFuture<void> Fetch() override;
 
 protected:

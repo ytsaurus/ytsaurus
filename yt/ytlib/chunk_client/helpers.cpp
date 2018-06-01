@@ -315,8 +315,14 @@ i64 GetChunkDataWeight(const NProto::TChunkSpec& chunkSpec)
     if (chunkSpec.has_data_weight_override()) {
         return chunkSpec.data_weight_override();
     }
-    auto miscExt = FindProtoExtension<NProto::TMiscExt>(chunkSpec.chunk_meta().extensions());
-    return miscExt->data_weight();
+    const auto& miscExt = GetProtoExtension<NProto::TMiscExt>(chunkSpec.chunk_meta().extensions());
+    return miscExt.data_weight();
+}
+
+i64 GetChunkUncompressedDataSize(const NProto::TChunkSpec& chunkSpec)
+{
+    const auto& miscExt = GetProtoExtension<NProto::TMiscExt>(chunkSpec.chunk_meta().extensions());
+    return miscExt.uncompressed_data_size();
 }
 
 i64 GetChunkReaderMemoryEstimate(const NProto::TChunkSpec& chunkSpec, TMultiChunkReaderConfigPtr config)

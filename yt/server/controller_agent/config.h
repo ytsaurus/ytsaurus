@@ -520,9 +520,6 @@ public:
     //! Maximum number of chunks per single fetch.
     int MaxChunksPerFetch;
 
-    //! Maximum size of file allowed to be passed to jobs.
-    i64 MaxFileSize;
-
     //! Maximum number of input tables an operation can have.
     int MaxInputTableCount;
 
@@ -531,6 +528,12 @@ public:
 
     //! Maximum number of files per user job.
     int MaxUserFileCount;
+    //! Maximum size of file allowed to be passed to jobs.
+    i64 MaxUserFileSize;
+    //! Maximum data weight of table file allowed to be passed to jobs.
+    i64 MaxUserFileTableDataWeight;
+    //! Maximum chunk count of file allowed to be passed to jobs.
+    i64 MaxUserFileChunkCount;
 
     //! Don't check resource demand for sanity if the number of online
     //! nodes is less than this bound.

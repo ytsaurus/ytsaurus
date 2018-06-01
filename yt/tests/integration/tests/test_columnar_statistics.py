@@ -11,7 +11,8 @@ class TestColumnarStatistics(YTEnvSetup):
 
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "controller_agent": {
-            "enable_map_job_size_adjustment": False
+            "enable_map_job_size_adjustment": False,
+            "max_user_file_table_data_weight": 2000,
         }
     }
 
@@ -72,7 +73,6 @@ class TestColumnarStatistics(YTEnvSetup):
                    spec={"data_weight_per_job": 10})
         op.track()
         assert 9 <= get("//tmp/d/@chunk_count") <= 11
-
 
     def test_table_file_in_sandbox(self):
         create("table", "//tmp/t")

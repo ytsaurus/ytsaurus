@@ -217,6 +217,11 @@ void TFetcherBase::AddChunk(TInputChunkPtr chunk)
     Chunks_.push_back(chunk);
 }
 
+int TFetcherBase::GetChunkCount() const
+{
+    return Chunks_.size();
+}
+
 TFuture<void> TFetcherBase::Fetch()
 {
     BIND(&TFetcherBase::StartFetchingRound, MakeWeak(this))

@@ -536,6 +536,7 @@ protected:
     virtual void PrepareOutputTables();
     void LockOutputTablesAndGetAttributes();
     void FetchUserFiles();
+    void ValidateUserFileSizes();
     void DoFetchUserFiles(const TUserJobSpecPtr& userJobSpec, std::vector<TUserFile>& files);
     void LockUserFiles();
     void GetUserFilesAttributes();

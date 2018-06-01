@@ -737,6 +737,7 @@ void TOperationControllerBase::SafeMaterialize()
     try {
         FetchInputTables();
         FetchUserFiles();
+        ValidateUserFileSizes();
 
         PickIntermediateDataCell();
         InitChunkListPools();
@@ -4124,14 +4125,15 @@ void TOperationControllerBase::FetchInputTables()
     queryOptions.VerboseLogging = true;
     queryOptions.RangeExpansionLimit = Config->MaxRangesOnTable;
 
-    // We fetch columnar statistics only for the tables that have column selectors specified.
-    struct TFetchRequest
-    {
-        TInputChunkPtr Chunk;
-        std::vector<TString> ColumnNames;
-    };
-    std::vector<TFetchRequest> fetchRequests;
+    auto columnarStatisticsFetcher = New<TColumnarStatisticsFetcher>(
+        Config->Fetcher,
+        InputNodeDirectory_,
+        CancelableInvoker,
+        CreateFetcherChunkScraper(),
+        InputClient,
+        Logger);
 
+    // We fetch columnar statistics only for the tables that have column selectors specified.
     for (int tableIndex = 0; tableIndex < static_cast<int>(InputTables.size()); ++tableIndex) {
         auto& table = InputTables[tableIndex];
         auto ranges = table.Path.GetRanges();
@@ -4217,7 +4219,7 @@ void TOperationControllerBase::FetchInputTables()
                 }
                 RegisterInputChunk(table.Chunks.back());
                 if (hasColumnSelectors) {
-                    fetchRequests.emplace_back(TFetchRequest{inputChunk, *table.Path.GetColumns()});
+                    columnarStatisticsFetcher->AddChunk(inputChunk, *table.Path.GetColumns());
                 }
             }
         }
@@ -4227,24 +4229,13 @@ void TOperationControllerBase::FetchInputTables()
             table.Chunks.size());
     }
 
-    if (!fetchRequests.empty()) {
-        LOG_INFO("Fetching columnar statistics for tables with column selectors (ChunkCount: %v)",
-            fetchRequests.size());
-
-        auto fetcher = New<TColumnarStatisticsFetcher>(
-            Config->Fetcher,
-            InputNodeDirectory_,
-            CancelableInvoker,
-            CreateFetcherChunkScraper(),
-            InputClient,
-            Logger);
-        for (const auto& request : fetchRequests) {
-            fetcher->AddChunk(std::move(request.Chunk), std::move(request.ColumnNames));
-        }
-        WaitFor(fetcher->Fetch())
+    if (columnarStatisticsFetcher->GetChunkCount() > 0) {
+        LOG_INFO("Fetching chunk columnar statistics for tables with column selectors (ChunkCount: %v)",
+            columnarStatisticsFetcher->GetChunkCount());
+        WaitFor(columnarStatisticsFetcher->Fetch())
             .ThrowOnError();
         LOG_INFO("Columnar statistics fetched");
-        fetcher->SetColumnSelectivityFactors();
+        columnarStatisticsFetcher->ApplyColumnSelectivityFactors();
     }
 
     LOG_INFO("Finished fetching input tables (TotalChunkCount: %v, TotalExtensionSize: %v)",
@@ -4696,9 +4687,11 @@ void TOperationControllerBase::DoFetchUserFiles(const TUserJobSpecPtr& userJobSp
                     },
                     Logger,
                     &file.ChunkSpecs);
+
                 break;
 
             case EObjectType::File: {
+                // TODO(max42): use FetchChunkSpecs here.
                 auto channel = InputClient->GetMasterChannelOrThrow(
                     EMasterChannelKind::Follower,
                     file.CellTag);
@@ -4754,6 +4747,87 @@ void TOperationControllerBase::FetchUserFiles()
                 << ex;
         }
     }
+}
+
+void TOperationControllerBase::ValidateUserFileSizes()
+{
+    LOG_INFO("Validating user file sizes");
+    auto columnarStatisticsFetcher = New<TColumnarStatisticsFetcher>(
+        Config->Fetcher,
+        InputNodeDirectory_,
+        CancelableInvoker,
+        CreateFetcherChunkScraper(),
+        InputClient,
+        Logger);
+
+    // Collect columnar statistics for table files with column selectors.
+    for (auto& pair : UserJobFiles_) {
+        auto& files = pair.second;
+        for (auto& file : files) {
+            if (file.Type == EObjectType::Table) {
+                for (const auto& chunkSpec : file.ChunkSpecs) {
+                    auto chunk = New<TInputChunk>(chunkSpec);
+                    file.Chunks.emplace_back(chunk);
+                    if (file.Path.GetColumns()) {
+                        columnarStatisticsFetcher->AddChunk(chunk, *file.Path.GetColumns());
+                    }
+                }
+            }
+        }
+    }
+    
+    if (columnarStatisticsFetcher->GetChunkCount() > 0) {
+        LOG_INFO("Fetching columnar statistics for table files with column selectors (ChunkCount: %v)",
+            columnarStatisticsFetcher->GetChunkCount());
+        WaitFor(columnarStatisticsFetcher->Fetch())
+            .ThrowOnError();
+        columnarStatisticsFetcher->ApplyColumnSelectivityFactors();
+    }
+
+    for (auto& pair : UserJobFiles_) {
+        auto& files = pair.second;
+        for (const auto& file : files) {
+            LOG_DEBUG("Validating user file (FileName: %v, Path: %v, Type: %v, HasColumns: %v)",
+                file.FileName,
+                file.Path,
+                file.Type,
+                file.Path.GetColumns().HasValue());
+            auto chunkCount = file.Type == NObjectClient::EObjectType::File ? file.ChunkCount : file.Chunks.size();
+            if (chunkCount > Config->MaxUserFileChunkCount) {
+                THROW_ERROR_EXCEPTION(
+                    "User file %v exceeds chunk count limit: %v > %v",
+                    file.Path,
+                    chunkCount,
+                    Config->MaxUserFileChunkCount);
+            }
+            if (file.Type == NObjectClient::EObjectType::Table) {
+                i64 dataWeight = 0;
+                for (const auto& chunk : file.Chunks) {
+                    dataWeight += chunk->GetDataWeight();
+                }
+                if (dataWeight > Config->MaxUserFileTableDataWeight) {
+                    THROW_ERROR_EXCEPTION(
+                        "User file table %v exceeds data weight limit: %v > %v",
+                        file.Path,
+                        dataWeight,
+                        Config->MaxUserFileTableDataWeight);
+                }
+            } else {
+                i64 uncompressedSize = 0;
+                for (const auto& chunkSpec : file.ChunkSpecs) {
+                    uncompressedSize += GetChunkUncompressedDataSize(chunkSpec);
+                }
+                if (uncompressedSize > Config->MaxUserFileSize) {
+                    THROW_ERROR_EXCEPTION(
+                        "User file %v exceeds size limit: %v > %v",
+                        file.Path,
+                        uncompressedSize,
+                        Config->MaxUserFileSize);
+                }
+            }
+        }
+    }
+
 }
 
 void TOperationControllerBase::LockUserFiles()
@@ -4862,7 +4936,6 @@ void TOperationControllerBase::GetUserFilesAttributes()
                 }
                 attributeKeys.push_back("key");
                 attributeKeys.push_back("chunk_count");
-                attributeKeys.push_back("uncompressed_data_size");
                 ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
                 batchReq->AddRequest(req, "get_attributes");
             }
@@ -4953,22 +5026,13 @@ void TOperationControllerBase::GetUserFilesAttributes()
                             Y_UNREACHABLE();
                     }
 
-                    i64 fileSize = attributes.Get<i64>("uncompressed_data_size");
-                    if (fileSize > Config->MaxFileSize) {
-                        THROW_ERROR_EXCEPTION(
-                            "User file %v exceeds size limit: %v > %v",
-                            path,
-                            fileSize,
-                            Config->MaxFileSize);
-                    }
-
                     i64 chunkCount = attributes.Get<i64>("chunk_count");
-                    if (chunkCount > Config->MaxChunksPerFetch) {
+                    if (file.Type == EObjectType::File && chunkCount > Config->MaxUserFileChunkCount) {
                         THROW_ERROR_EXCEPTION(
                             "User file %v exceeds chunk count limit: %v > %v",
                             path,
                             chunkCount,
-                            Config->MaxChunksPerFetch);
+                            Config->MaxUserFileChunkCount);
                     }
                     file.ChunkCount = chunkCount;
 

@@ -337,6 +337,9 @@ TUserJobSpec::TUserJobSpec()
         for (const auto& pair : Environment) {
             ValidateEnvironmentVariableName(pair.first);
         }
+        for (auto& path : FilePaths) {
+            path = path.Normalize();
+        }
     });
 }
 
