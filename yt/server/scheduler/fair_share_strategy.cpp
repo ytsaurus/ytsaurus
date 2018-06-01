@@ -2305,12 +2305,20 @@ public:
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
+        if (!FindOperationState(operationId)) {
+            return;
+        }
+
         DoBuildOperationProgress(&TFairShareTree::BuildOperationProgress, operationId, fluent);
     }
 
     virtual void BuildBriefOperationProgress(const TOperationId& operationId, TFluentMap fluent) override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
+
+        if (!FindOperationState(operationId)) {
+            return;
+        }
 
         DoBuildOperationProgress(&TFairShareTree::BuildBriefOperationProgress, operationId, fluent);
     }
@@ -2865,6 +2873,15 @@ private:
 
         WaitFor(Combine(futures))
             .ThrowOnError();
+    }
+
+    TFairShareStrategyOperationStatePtr FindOperationState(const TOperationId& operationId) const
+    {
+        auto it = OperationIdToOperationState_.find(operationId);
+        if (it == OperationIdToOperationState_.end()) {
+            return nullptr;
+        }
+        return it->second;
     }
 
     TFairShareStrategyOperationStatePtr GetOperationState(const TOperationId& operationId) const
