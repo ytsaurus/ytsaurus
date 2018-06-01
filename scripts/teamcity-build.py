@@ -44,6 +44,15 @@ try:
 except:
     sandbox_client = None
 
+try:
+    src_root = os.path.dirname(os.path.dirname(__file__))
+    sys.path.insert(0, os.path.join(src_root, "python"))
+
+    import yt.wrapper
+    yt.wrapper.config["token"] = os.environ["TEAMCITY_YT_TOKEN"]
+except:
+    yt = None
+
 def yt_processes_cleanup():
     kill_by_name("^ytserver")
     kill_by_name("^node")
@@ -281,12 +290,7 @@ def share_packages(options, build_context):
                     "build_time" : build_context["build_time"]})
 
         # Add to locke.
-        src_root = os.path.dirname(os.path.dirname(__file__))
-        sys.path.insert(0, os.path.join(src_root, "python"))
-
-        import yt.wrapper
         yt.wrapper.config["proxy"]["url"] = "locke"
-        yt.wrapper.config["token"] = os.environ["TEAMCITY_YT_TOKEN"]
         yt.wrapper.insert_rows("//sys/admin/skynet/packages",  rows)
 
     except Exception as err:
@@ -691,12 +695,7 @@ def log_sandbox_upload(options, build_context, task_id):
     }
 
     # Add to locke.
-    src_root = os.path.dirname(os.path.dirname(__file__))
-    sys.path.insert(0, os.path.join(src_root, "python"))
-
-    import yt.wrapper
     yt.wrapper.config["proxy"]["url"] = "locke"
-    yt.wrapper.config["token"] = os.environ["TEAMCITY_YT_TOKEN"]
     yt.wrapper.insert_rows("//sys/admin/skynet/resources", [log_record])
 
 @build_step
