@@ -405,7 +405,9 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(Connected_);
 
-        SwitchTo(CancelableControlInvoker_);
+        if (dispose) {
+            SwitchTo(CancelableControlInvoker_);
+        }
 
         auto operation = GetOperationOrThrow(operationId);
         const auto& controller = operation->GetController();
