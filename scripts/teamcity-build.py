@@ -674,13 +674,22 @@ def log_sandbox_upload(options, build_context, task_id):
     resp = client.get("https://sandbox.yandex-team.ru/api/v1.0/task/{0}/resources".format(task_id))
     api_data = resp.json()
 
-    resources = dict(
-        (item["type"], item["id"])
-        for item in api_data["items"]
-        if item["type"] != "TASK_LOGS"
-    )
+    resources = {}
+    resource_rows = []
+    for resource in api_data["items"]:
+        if resource["type"] == "TASK_LOGS":
+            continue
+        resources.update({
+            resource["type"] : resource["id"],
+        })
+        resource_rows.append({
+            "id" : resource["id"],
+            "type" : resource["type"],
+            "build_number" : int(options.build_number),
+            "version" : build_context["yt_version"],
+        })
 
-    log_record = {
+    build_log_record = {
         "version" : build_context["yt_version"],
         "build_number" : int(options.build_number),
         "task_id" : task_id,
@@ -696,7 +705,8 @@ def log_sandbox_upload(options, build_context, task_id):
 
     # Add to locke.
     yt.wrapper.config["proxy"]["url"] = "locke"
-    yt.wrapper.insert_rows("//sys/admin/skynet/resources", [log_record])
+    yt.wrapper.insert_rows("//sys/admin/skynet/builds", [build_log_record])
+    yt.wrapper.insert_rows("//sys/admin/skynet/resources", resource_rows)
 
 @build_step
 def wait_for_sandbox_upload(options, build_context):
