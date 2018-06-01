@@ -116,7 +116,6 @@ using NTransactionServer::TTransaction;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = TabletServerLogger;
-static const auto CleanupPeriod = TDuration::Seconds(10);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -181,6 +180,9 @@ public:
 
     void Initialize()
     {
+        const auto& configManager = Bootstrap_->GetConfigManager();
+        configManager->SubscribeConfigChanged(BIND(&TImpl::OnDynamicConfigChanged, MakeWeak(this));
+
         const auto& objectManager = Bootstrap_->GetObjectManager();
         objectManager->RegisterHandler(CreateTabletCellBundleTypeHandler(Bootstrap_, &TabletCellBundleMap_));
         objectManager->RegisterHandler(CreateTabletCellTypeHandler(Bootstrap_, &TabletCellMap_));
@@ -2504,6 +2506,20 @@ private:
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
 
+    const TDynamicTabletManagerConfigPtr& GetDynamicConfig()
+    {
+        return Bootstrap_->GetConfigManager()->GetConfig()->TabletManager;
+    }
+
+    void OnDynamicConfigChanged()
+    {
+        if (CleanupExecutor_) {
+            const auto& dynamicConfig = GetDynamicConfig();
+            CleanupExecutor_->SetPeriod(dynamicConfig->TabletCellsCleanupPeriod);
+        }
+    }
+
+
     void SaveKeys(NCellMaster::TSaveContext& context) const
     {
         TabletCellBundleMap_.SaveKeys(context);
@@ -3772,13 +3788,14 @@ private:
         if (Bootstrap_->IsPrimaryMaster()) {
             TabletTracker_->Start();
             TabletBalancer_->Start();
-        }
 
-        CleanupExecutor_ = New<TPeriodicExecutor>(
-            Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Periodic),
-            BIND(&TImpl::OnCleanup, MakeWeak(this)),
-            CleanupPeriod);
-        CleanupExecutor_->Start();
+            const auto& dynamicConfig = GetDynamicConfig();
+            CleanupExecutor_ = New<TPeriodicExecutor>(
+                Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Periodic),
+                BIND(&TImpl::OnCleanup, MakeWeak(this)),
+                dynamicConfig->TabletCellsCleanupPeriod);
+            CleanupExecutor_->Start();
+        }
     }
 
     virtual void OnStopLeading() override
@@ -4166,7 +4183,7 @@ private:
         NTabletNode::TTabletChunkWriterConfigPtr* writerConfig,
         TTableWriterOptionsPtr* writerOptions)
     {
-        const auto& configManager = Bootstrap_->GetConfigManager();
+        const auto& dynamicConfig = GetDynamicConfig();
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto tableProxy = objectManager->GetProxy(table);
         const auto& tableAttributes = tableProxy->Attributes();
@@ -4174,7 +4191,7 @@ private:
         // Parse and prepare mount config.
         try {
             *mountConfig = ConvertTo<TTableMountConfigPtr>(tableAttributes);
-            (*mountConfig)->ProfilingMode = configManager->GetConfig()->TabletManager->DynamicTableProfilingMode;
+            (*mountConfig)->ProfilingMode = dynamicConfig->DynamicTableProfilingMode;
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error parsing table mount configuration")
                 << ex;
