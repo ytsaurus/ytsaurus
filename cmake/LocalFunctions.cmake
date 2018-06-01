@@ -407,7 +407,7 @@ function (CYTHON source)
     ${_c_source}
     PROPERTIES
     GENERATED TRUE
-    LANGUAGE C
+    LANGUAGE CXX
   )
 
   set_target_properties(
