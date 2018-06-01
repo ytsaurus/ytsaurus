@@ -1,6 +1,6 @@
-#include "chunk_writer_pool.h"
 #include "config.h"
 #include "in_memory_manager.h"
+#include "in_memory_chunk_writer.h"
 #include "partition.h"
 #include "private.h"
 #include "slot_manager.h"
@@ -944,18 +944,6 @@ private:
         auto writerOptions = CloneYsonSerializable(tabletSnapshot->WriterOptions);
         writerOptions->ValidateResourceUsageIncrease = false;
 
-        int writerPoolSize = std::min(
-            static_cast<int>(pivotKeys.size()),
-            Config_->StoreCompactor->PartitioningWriterPoolSize);
-        TChunkWriterPool writerPool(
-            Bootstrap_->GetInMemoryManager(),
-            tabletSnapshot,
-            writerPoolSize,
-            writerConfig,
-            writerOptions,
-            Bootstrap_->GetMasterClient(),
-            transaction->GetId());
-
         std::vector<TVersionedRow> writeRows;
         writeRows.reserve(MaxRowsPerWrite);
 
@@ -968,6 +956,11 @@ private:
         int writeRowCount = 0;
         IVersionedMultiChunkWriterPtr currentWriter;
 
+        auto inMemoryManager = Bootstrap_->GetInMemoryManager();
+        auto blockCache = Bootstrap_->GetInMemoryManager()->CreateInterceptingBlockCache(
+            tabletSnapshot->Config->InMemoryMode,
+            tabletSnapshot->InMemoryConfigRevision);
+
         auto ensurePartitionStarted = [&] () {
             if (currentWriter)
                 return;
@@ -977,7 +970,20 @@ private:
                 currentPivotKey,
                 nextPivotKey);
 
-            currentWriter = writerPool.AllocateWriter();
+            auto underlyingWriter = CreateVersionedMultiChunkWriter(
+                writerConfig,
+                writerOptions,
+                tabletSnapshot->PhysicalSchema,
+                Bootstrap_->GetMasterClient(),
+                Bootstrap_->GetMasterClient()->GetNativeConnection()->GetPrimaryMasterCellTag(),
+                transaction->GetId(),
+                NullChunkListId,
+                GetUnlimitedThrottler(),
+                blockCache);
+            currentWriter = CreateInMemoryVersionedMultiChunkWriter(
+                inMemoryManager,
+                tabletSnapshot,
+                std::move(underlyingWriter));
         };
 
         auto flushOutputRows = [&] () {
@@ -1003,6 +1009,9 @@ private:
             ++currentPartitionRowCount;
         };
 
+        std::vector<TFuture<void>> asyncCloseResults;
+        std::vector<IVersionedMultiChunkWriterPtr> releasedWriters;
+
         auto flushPartition = [&] () {
             flushOutputRows();
 
@@ -1011,7 +1020,8 @@ private:
                     currentPartitionIndex,
                     currentPartitionRowCount);
 
-                writerPool.ReleaseWriter(currentWriter);
+                asyncCloseResults.push_back(currentWriter->Close());
+                releasedWriters.push_back(std::move(currentWriter));
                 currentWriter.Reset();
             }
 
@@ -1075,7 +1085,10 @@ private:
 
         YCHECK(readRowCount == writeRowCount);
 
-        return std::make_tuple(writerPool.GetAllWriters(), readRowCount);
+        WaitFor(Combine(asyncCloseResults))
+            .ThrowOnError();
+
+        return std::make_tuple(releasedWriters, readRowCount);
     }
 
     void CompactPartition(TTask* task)
@@ -1328,15 +1341,25 @@ private:
         writerOptions->ChunksEden = isEden;
         writerOptions->ValidateResourceUsageIncrease = false;
 
-        TChunkWriterPool writerPool(
-            Bootstrap_->GetInMemoryManager(),
-            tabletSnapshot,
-            1,
+        auto inMemoryManager = Bootstrap_->GetInMemoryManager();
+        auto blockCache = Bootstrap_->GetInMemoryManager()->CreateInterceptingBlockCache(
+            tabletSnapshot->Config->InMemoryMode,
+            tabletSnapshot->InMemoryConfigRevision);
+
+        auto underlyingWriter = CreateVersionedMultiChunkWriter(
             writerConfig,
             writerOptions,
+            tabletSnapshot->PhysicalSchema,
             Bootstrap_->GetMasterClient(),
-            transaction->GetId());
-        auto writer = writerPool.AllocateWriter();
+            Bootstrap_->GetMasterClient()->GetNativeConnection()->GetPrimaryMasterCellTag(),
+            transaction->GetId(),
+            NullChunkListId,
+            GetUnlimitedThrottler(),
+            blockCache);
+        auto writer = CreateInMemoryVersionedMultiChunkWriter(
+            inMemoryManager,
+            tabletSnapshot,
+            std::move(underlyingWriter));
 
         WaitFor(reader->Open())
             .ThrowOnError();
