@@ -50,6 +50,8 @@
 
 #include <yt/core/misc/enum.h>
 
+#include <yt/core/profiling/profiler.h>
+
 namespace NYT {
 namespace NApi {
 
@@ -560,6 +562,7 @@ struct TJournalWriterOptions
 {
     TJournalWriterConfigPtr Config;
     bool EnableMultiplexing = true;
+    NProfiling::TProfiler Profiler;
 };
 
 struct TTableReaderOptions

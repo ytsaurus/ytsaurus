@@ -435,12 +435,20 @@ public:
             PrerequisiteTransaction_ ? PrerequisiteTransaction_->GetId() : NullTransactionId);
         SnapshotStoreThunk_->SetUnderlying(snapshotStore);
 
+        auto bundleTag = NProfiling::TProfileManager::Get()->RegisterTag(
+            "tablet_cell_bundle",
+            TabletCellBundle ? TabletCellBundle : UnknownProfilingTag);
+        auto changelogTags = {
+            NProfiling::TProfileManager::Get()->RegisterTag("cell_id", CellDescriptor_.CellId),
+            bundleTag};
+
         auto changelogStoreFactory = CreateRemoteChangelogStoreFactory(
             Config_->Changelogs,
             Options_,
             Format("//sys/tablet_cells/%v/changelogs", GetCellId()),
             Bootstrap_->GetMasterClient(),
-            PrerequisiteTransaction_ ? PrerequisiteTransaction_->GetId() : NullTransactionId);
+            PrerequisiteTransaction_ ? PrerequisiteTransaction_->GetId() : NullTransactionId,
+            changelogTags);
         ChangelogStoreFactoryThunk_->SetUnderlying(changelogStoreFactory);
 
         auto cellConfig = CellDescriptor_.ToConfig(Bootstrap_->GetLocalNetworks());
@@ -463,12 +471,7 @@ public:
                 channelFactory,
                 PeerId_);
 
-            auto tagIds = NProfiling::TTagIdList{
-                NProfiling::TProfileManager::Get()->RegisterTag(
-                    "tablet_cell_bundle",
-                    TabletCellBundle ? TabletCellBundle : UnknownProfilingTag)};
-
-            CellManager_->SetCustomTags(tagIds);
+            CellManager_->SetCustomTags({bundleTag});
 
             Automaton_ = New<TTabletAutomaton>(
                 Owner_,
