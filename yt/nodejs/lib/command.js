@@ -303,7 +303,7 @@ YtCommand.prototype._epilogue = function(result, bytes_in, bytes_out) {
     if (result.isUserBanned()) {
         this.sticky_cache.set(this.user, {
             code: this.rsp.statusCode,
-            body: YtError("User is banned")
+            body: (new YtError("User '" + this.user + "' is banned")).toJson()
         });
     }
 
