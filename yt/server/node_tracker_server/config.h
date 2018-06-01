@@ -80,11 +80,14 @@ class TDynamicNodeTrackerConfig
 {
 public:
     THashMap<TString, TNodeGroupConfigPtr> NodeGroups;
+    TDuration TotalNodeStatisticsUpdatePeriod;
 
     TDynamicNodeTrackerConfig()
     {
         RegisterParameter("node_groups", NodeGroups)
             .Default();
+        RegisterParameter("total_node_statistics_update_period", TotalNodeStatisticsUpdatePeriod)
+            .Default(TDuration::Seconds(60));
     }
 };
 
