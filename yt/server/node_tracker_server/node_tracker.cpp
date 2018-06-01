@@ -1741,6 +1741,7 @@ private:
             NProfiling::TTagIdList tagIds{
                 medium->GetProfilingTag()
             };
+            auto mediumIndex = medium->GetIndex();
             Profiler.Enqueue("/available_space_per_medium", statistics.SpacePerMedium[mediumIndex].Available, EMetricType::Gauge, tagIds);
             Profiler.Enqueue("/used_space_per_medium", statistics.SpacePerMedium[mediumIndex].Used, EMetricType::Gauge, tagIds);
         }
