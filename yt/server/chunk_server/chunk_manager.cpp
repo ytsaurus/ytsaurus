@@ -19,6 +19,8 @@
 #include <yt/server/cell_master/hydra_facade.h>
 #include <yt/server/cell_master/multicell_manager.h>
 #include <yt/server/cell_master/serialize.h>
+#include <yt/server/cell_master/config_manager.h>
+#include <yt/server/cell_master/config.h>
 
 #include <yt/server/chunk_server/chunk_manager.pb.h>
 
@@ -99,8 +101,6 @@ using NYT::ToProto;
 
 static const auto& Logger = ChunkServerLogger;
 static const auto ProfilingPeriod = TDuration::MilliSeconds(1000);
-// NB: Changing this value will invalidate all changelogs!
-static const auto ReplicaApproveTimeout = TDuration::Seconds(60);
 
 static NProfiling::TAggregateGauge ChunkTreeRebalacnceTimeCounter("/chunk_tree_rebalance_time");
 
@@ -1275,6 +1275,12 @@ private:
     THashMap<const TDataCenter*, TTagId> DestinationDataCenterToTag_;
 
 
+    const TDynamicChunkManagerConfigPtr& GetDynamicConfig()
+    {
+        return Bootstrap_->GetConfigManager()->GetConfig()->ChunkManager;
+    }
+
+
     TChunk* DoCreateChunk(EObjectType chunkType)
     {
         auto id = Bootstrap_->GetObjectManager()->GenerateId(chunkType, NullObjectId);
@@ -1507,6 +1513,7 @@ private:
         auto mutationTimestamp = mutationContext->GetTimestamp();
 
         auto& unapprovedReplicas = node->UnapprovedReplicas();
+        const auto& dynamicConfig = GetDynamicConfig();
         for (auto it = unapprovedReplicas.begin(); it != unapprovedReplicas.end();) {
             auto jt = it++;
             auto replica = jt->first;
@@ -1514,7 +1521,7 @@ private:
             auto reason = ERemoveReplicaReason::None;
             if (!IsObjectAlive(replica.GetPtr())) {
                 reason = ERemoveReplicaReason::ChunkDestroyed;
-            } else if (mutationTimestamp > registerTimestamp + ReplicaApproveTimeout) {
+            } else if (mutationTimestamp > registerTimestamp + dynamicConfig->ReplicaApproveTimeout) {
                 reason = ERemoveReplicaReason::ApproveTimeout;
             }
             if (reason != ERemoveReplicaReason::None) {
