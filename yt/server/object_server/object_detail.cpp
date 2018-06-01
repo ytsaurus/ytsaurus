@@ -189,10 +189,10 @@ void TObjectProxyBase::Invoke(const IServiceContextPtr& context)
         user->GetName());
 
     const auto& Profiler = objectManager->GetProfiler();
-    auto* counter = objectManager->GetMethodExecTimeCounter(Object_->GetType(), context->GetMethod());
-    PROFILE_AGGREGATED_TIMING (*counter) {
-        TSupportsAttributes::Invoke(context);
-    }
+    auto* counter = objectManager->GetMethodCumulativeExecuteTimeCounter(Object_->GetType(), context->GetMethod());
+    NProfiling::TWallTimer timer;
+    TSupportsAttributes::Invoke(context);
+    Profiler.Increment(*counter, timer.GetElapsedValue());
 }
 
 void TObjectProxyBase::DoWriteAttributesFragment(
