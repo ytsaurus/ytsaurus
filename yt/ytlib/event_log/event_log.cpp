@@ -129,9 +129,6 @@ public:
             nameTable,
             Config_->Path);
 
-        // Open is always synchronous for buffered writer.
-        YCHECK(EventLogWriter_->Open().IsSet());
-
         PendingRowsFlushExecutor_ = New<TPeriodicExecutor>(
             invoker,
             BIND(&TImpl::OnPendingEventLogRowsFlush, Unretained(this)),

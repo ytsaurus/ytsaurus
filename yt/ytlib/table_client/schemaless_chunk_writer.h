@@ -91,7 +91,7 @@ ISchemalessMultiChunkWriterPtr CreatePartitionMultiChunkWriter(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ISchemalessWriterPtr CreateSchemalessTableWriter(
+TFuture<ISchemalessWriterPtr> CreateSchemalessTableWriter(
     TTableWriterConfigPtr config,
     TTableWriterOptionsPtr options,
     const NYPath::TRichYPath& richPath,

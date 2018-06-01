@@ -303,10 +303,6 @@ TCallback<void(TSaveContext&)> TOrderedDynamicStore::AsyncSave()
             chunkWriter);
         auto tableWriter = CreateSchemafulWriterAdapter(schemalessTableWriter);
 
-        LOG_DEBUG("Opening table writer");
-        WaitFor(schemalessTableWriter->Open())
-            .ThrowOnError();
-
         std::vector<TUnversionedRow> rows;
         rows.reserve(SnapshotRowsPerRead);
 

@@ -77,11 +77,6 @@ public:
 #endif
     { }
 
-    virtual TFuture<void> Open() override
-    {
-        return VoidFuture;
-    }
-
     virtual TFuture<void> GetReadyEvent() override
     {
         return EncodingChunkWriter_->GetReadyEvent();
@@ -707,7 +702,7 @@ IVersionedMultiChunkWriterPtr CreateVersionedMultiChunkWriter(
             blockCache);
     };
 
-    return New<TVersionedMultiChunkWriter>(
+    auto writer = New<TVersionedMultiChunkWriter>(
         config,
         options,
         client,
@@ -718,6 +713,10 @@ IVersionedMultiChunkWriterPtr CreateVersionedMultiChunkWriter(
         /* trafficMeter */ nullptr,
         throttler,
         blockCache);
+
+    writer->Init();
+
+    return writer;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

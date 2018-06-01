@@ -80,6 +80,7 @@ void TUserJobWriteController::Init()
             schema = FromProto<TTableSchema>(outputSpec.table_schema());
         }
 
+        // ToDo(psushin): open writers in parallel.
         auto writer = userJobIOFactory->CreateWriter(
             Host_->GetClient(),
             writerConfig,
@@ -89,9 +90,6 @@ void TUserJobWriteController::Init()
             schema,
             TChunkTimestamps{timestamp, timestamp});
 
-        // ToDo(psushin): open writers in parallel.
-        auto error = WaitFor(writer->Open());
-        THROW_ERROR_EXCEPTION_IF_FAILED(error);
         Writers_.push_back(writer);
     }
 

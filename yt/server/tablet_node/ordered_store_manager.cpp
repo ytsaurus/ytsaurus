@@ -226,9 +226,6 @@ TStoreFlushCallback TOrderedStoreManager::MakeStoreFlushCallback(
             chunkTimestamps,
             blockCache);
 
-        WaitFor(tableWriter->Open())
-            .ThrowOnError();
-
         std::vector<TUnversionedRow> rows;
         rows.reserve(MaxRowsPerFlushRead);
 
