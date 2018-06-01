@@ -196,20 +196,23 @@ i64 TInputChunk::GetDataWeight() const
 {
     auto rowCount = GetRowCount();
     auto rowSelectivityFactor = static_cast<double>(rowCount) / TotalRowCount_;
-    return std::ceil(TotalDataWeight_ * ColumnSelectivityFactor_ * rowSelectivityFactor);
+    return std::max<i64>(std::ceil(TotalDataWeight_ * ColumnSelectivityFactor_ * rowSelectivityFactor), rowCount);
 }
 
 i64 TInputChunk::GetUncompressedDataSize() const
 {
     auto rowCount = GetRowCount();
     auto rowSelectivityFactor = static_cast<double>(rowCount) / TotalRowCount_;
+    i64 result;
     if (TableChunkFormat_ == ETableChunkFormat::UnversionedColumnar ||
         TableChunkFormat_ == ETableChunkFormat::VersionedColumnar)
     {
-        return std::ceil(TotalUncompressedDataSize_ * ColumnSelectivityFactor_ * rowSelectivityFactor);
+        result = std::ceil(TotalUncompressedDataSize_ * ColumnSelectivityFactor_ * rowSelectivityFactor);
     } else {
-        return std::ceil(TotalUncompressedDataSize_ * rowSelectivityFactor);
+        result = std::ceil(TotalUncompressedDataSize_ * rowSelectivityFactor);
     }
+    result = std::max<i64>(result, 1);
+    return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

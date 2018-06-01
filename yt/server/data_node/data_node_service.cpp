@@ -1137,6 +1137,8 @@ private:
         std::vector<TRefCountedColumnarStatisticsSubresponsePtr> subresponses;
         std::vector<TFuture<void>> asyncResults;
 
+        TNameTablePtr nameTable = NYT::FromProto<TNameTablePtr>(request->name_table());
+
         for (const auto& subrequest : request->subrequests()) {
             auto chunkId = FromProto<TChunkId>(subrequest.chunk_id());
 
@@ -1153,7 +1155,11 @@ private:
                 ToProto(subresponse->mutable_error(), error);
                 continue;
             }
-            auto columnNames = FromProto<std::vector<TString>>(subrequest.column_names());
+            auto columnIds = FromProto<std::vector<int>>(subrequest.column_ids());
+            std::vector<TString> columnNames;
+            for (auto id : columnIds) {
+                columnNames.emplace_back(nameTable->GetName(id));
+            }
 
             TBlockReadOptions options;
             options.WorkloadDescriptor = workloadDescriptor;
@@ -1164,7 +1170,7 @@ private:
                 BIND(
                     &TDataNodeService::ProcessColumnarStatistics,
                     MakeStrong(this),
-                    columnNames,
+                    Passed(std::move(columnNames)),
                     chunkId,
                     Passed(std::move(subresponse)))
                     .AsyncVia(WorkerThread_->GetInvoker())));
@@ -1204,10 +1210,10 @@ private:
             if (!maybeColumnarStatisticsExt) {
                 ToProto(
                     subresponse->mutable_error(),
-                    TError(NChunkClient::EErrorCode::ExtensionMissing, "Columnar statistics chunk meta extension missing"));
+                    TError(NChunkClient::EErrorCode::MissingExtension, "Columnar statistics chunk meta extension missing"));
                 return;
             }
-            auto columnarStatisticsExt = *maybeColumnarStatisticsExt;
+            const auto& columnarStatisticsExt = *maybeColumnarStatisticsExt;
 
             auto nameTableExt = FindProtoExtension<TNameTableExt>(meta.extensions());
             TNameTablePtr nameTable;

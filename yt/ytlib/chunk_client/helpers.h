@@ -108,6 +108,7 @@ void LocateChunks(
 ////////////////////////////////////////////////////////////////////////////////
 
 i64 GetChunkDataWeight(const NProto::TChunkSpec& chunkSpec);
+i64 GetChunkUncompressedDataSize(const NProto::TChunkSpec& chunkSpec);
 i64 GetChunkReaderMemoryEstimate(const NProto::TChunkSpec& chunkSpec, TMultiChunkReaderConfigPtr config);
 
 IChunkReaderPtr CreateRemoteReader(

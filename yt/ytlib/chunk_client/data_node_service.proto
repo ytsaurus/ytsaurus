@@ -11,6 +11,7 @@ import "yt/ytlib/chunk_client/chunk_reader_statistics.proto";
 import "yt/ytlib/chunk_client/chunk_slice.proto";
 import "yt/ytlib/chunk_client/data_statistics.proto";
 import "yt/ytlib/chunk_client/session_id.proto";
+import "yt/ytlib/table_client/chunk_meta.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -303,17 +304,18 @@ message TRspGetChunkSlices
 ////////////////////////////////////////////////////////////////////////////////
 
 // Scheduler calls this method to get a better estimation for input data weight.
-// Such information is also exposed to a client by an API method.
+// Such information is also exposed to a client via an API method.
 message TReqGetColumnarStatistics
 {
+    required NYT.NTableClient.NProto.TNameTableExt name_table = 1;
     message TSubrequest
     {
         required NYT.NProto.TGuid chunk_id = 1;
-        repeated string column_names = 2;
+        repeated int32 column_ids = 2;
     }
 
-    repeated TSubrequest subrequests = 1;
-    required NYT.NProto.TWorkloadDescriptor workload_descriptor = 2;
+    repeated TSubrequest subrequests = 2;
+    required NYT.NProto.TWorkloadDescriptor workload_descriptor = 3;
 }
 
 message TRspGetColumnarStatistics

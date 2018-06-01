@@ -24,7 +24,7 @@ public:
     //! Return per-chunk columnar statistics.
     const std::vector<TColumnarStatistics>& GetChunkStatistics() const;
     //! Set column selectivity factor for all processed chunks according to the fetched columnar statistics.
-    void SetColumnSelectivityFactors() const;
+    void ApplyColumnSelectivityFactors() const;
 
     TFuture<void> Fetch() override;
 
