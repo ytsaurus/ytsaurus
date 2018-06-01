@@ -66,7 +66,7 @@ public:
 
     void WaitForOperation(const TOperationId&) override;
 
-    EOperationState CheckOperation(const TOperationId&) override;
+    EOperationBriefState CheckOperation(const TOperationId&) override;
 
     IOperationPtr RunVanilla(const TVanillaOperationSpec&, const TOperationOptions&) override;
 
