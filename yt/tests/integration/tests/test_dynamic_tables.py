@@ -745,7 +745,11 @@ class TestDynamicTablesPermissions(TestDynamicTablesBase):
             insert_rows("//tmp/t", [{"key": 0, "value": "0"}], authenticated_user="u")
         with pytest.raises(YtError):
             trim_rows("//tmp/t", 0, 1, authenticated_user="u")
-        trim_rows("//tmp/t", 0, 1)
+        assert select_rows("key, value from [//tmp/t]", authenticated_user="u") == [{"key": 0, "value": "0"}]
+        set("//sys/@config/enable_safe_mode", False)
+        trim_rows("//tmp/t", 0, 1, authenticated_user="u")
+        insert_rows("//tmp/t", [{"key": 1, "value": "1"}], authenticated_user="u")
+        assert select_rows("key, value from [//tmp/t]", authenticated_user="u") == [{"key": 1, "value": "1"}]
 
 ##################################################################
 
