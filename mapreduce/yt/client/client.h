@@ -171,7 +171,7 @@ public:
         const TVanillaOperationSpec& spec,
         const TOperationOptions& options = TOperationOptions()) override;
 
-    EOperationState CheckOperation(const TOperationId& operationId) override;
+    EOperationBriefState CheckOperation(const TOperationId& operationId) override;
 
     void AbortOperation(const TOperationId& operationId) override;
 

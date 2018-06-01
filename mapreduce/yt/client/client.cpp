@@ -414,7 +414,7 @@ IOperationPtr TClientBase::RunVanilla(
     return CreateOperationAndWaitIfRequired(operationId, GetParentClient(), options);
 }
 
-EOperationState TClientBase::CheckOperation(const TOperationId& operationId)
+EOperationBriefState TClientBase::CheckOperation(const TOperationId& operationId)
 {
     return NYT::NDetail::CheckOperation(Auth_, operationId);
 }

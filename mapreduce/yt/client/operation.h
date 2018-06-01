@@ -28,7 +28,7 @@ public:
     virtual const TOperationId& GetId() const override;
     virtual NThreading::TFuture<void> Watch() override;
     virtual TVector<TFailedJobInfo> GetFailedJobInfo(const TGetFailedJobInfoOptions& options = TGetFailedJobInfoOptions()) override;
-    virtual EOperationState GetState() override;
+    virtual EOperationBriefState GetBriefState() override;
     virtual TMaybe<TYtError> GetError() override;
     virtual TJobStatistics GetJobStatistics() override;
     virtual TMaybe<TOperationBriefProgress> GetBriefProgress() override;
@@ -132,7 +132,7 @@ TOperationId ExecuteVanilla(
     const TVanillaOperationSpec& spec,
     const TOperationOptions& options);
 
-EOperationState CheckOperation(
+EOperationBriefState CheckOperation(
     const TAuth& auth,
     const TOperationId& operationId);
 

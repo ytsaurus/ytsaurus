@@ -668,7 +668,7 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-enum class EOperationState : int
+enum class EOperationBriefState : int
 {
     InProgress    /* "in_progress" */,
     Completed     /* "completed" */,
@@ -735,11 +735,11 @@ struct IOperation
     virtual TVector<TFailedJobInfo> GetFailedJobInfo(const TGetFailedJobInfoOptions& options = TGetFailedJobInfoOptions()) = 0;
 
     //
-    // Return current operation status.
-    virtual EOperationState GetState() = 0;
+    // Return current operation brief state.
+    virtual EOperationBriefState GetBriefState() = 0;
 
     //
-    // Will return Nothing if operation is in EOperationState::Completed or EOperationState::InProgress state.
+    // Will return Nothing if operation is in EOperationBriefState::Completed or EOperationBriefState::InProgress state.
     // For failed / aborted operation will return nonempty error explaining operation fail / abort.
     virtual TMaybe<TYtError> GetError() = 0;
 
@@ -871,9 +871,9 @@ struct IOperationClient
 
     //
     // Checks and returns operation status.
-    // NOTE: this function will never return EOperationState::Failed or EOperationState::Aborted status,
+    // NOTE: this function will never return EOperationBriefState::Failed or EOperationBriefState::Aborted status,
     // it will throw TOperationFailedError instead.
-    virtual EOperationState CheckOperation(
+    virtual EOperationBriefState CheckOperation(
         const TOperationId& operationId) = 0;
 
 private:

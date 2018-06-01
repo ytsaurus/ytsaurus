@@ -788,7 +788,7 @@ private:
 
 struct TOperationAttributes
 {
-    EOperationState State = EOperationState::InProgress;
+    EOperationBriefState State = EOperationBriefState::InProgress;
     TMaybe<TYtError> Error;
     TMaybe<TJobStatistics> JobStatistics;
     TMaybe<TOperationBriefProgress> BriefProgress;
@@ -801,15 +801,15 @@ TOperationAttributes ParseOperationInfo(const TNode& node)
     TOperationAttributes result;
 
     const auto& state = node["state"].AsString();
-    // We don't use FromString here, because EOperationState::InProgress unites many states: "initializing", "running", etc.
+    // We don't use FromString here, because EOperationBriefState::InProgress unites many states: "initializing", "running", etc.
     if (state == "completed") {
-        result.State = EOperationState::Completed;
+        result.State = EOperationBriefState::Completed;
     } else if (state == "aborted") {
-        result.State = EOperationState::Aborted;
+        result.State = EOperationBriefState::Aborted;
     } else if (state == "failed") {
-        result.State = EOperationState::Failed;
+        result.State = EOperationBriefState::Failed;
     }
-    if (result.State == EOperationState::Aborted || result.State == EOperationState::Failed) {
+    if (result.State == EOperationBriefState::Aborted || result.State == EOperationBriefState::Failed) {
         result.Error = TYtError(node["result"]["error"]);
     }
 
@@ -1003,7 +1003,7 @@ TOperationId StartOperation(
     return operationId;
 }
 
-EOperationState CheckOperation(
+EOperationBriefState CheckOperation(
     const TAuth& auth,
     const TOperationId& operationId)
 {
@@ -1014,9 +1014,9 @@ EOperationState CheckOperation(
                 .AddAttribute(OA_STATE)
                 .AddAttribute(OA_RESULT)));
         auto attributes = ParseOperationInfo(opInfo);
-        if (attributes.State == EOperationState::Completed) {
-            return EOperationState::Completed;
-        } else if (attributes.State == EOperationState::Aborted || attributes.State == EOperationState::Failed) {
+        if (attributes.State == EOperationBriefState::Completed) {
+            return EOperationBriefState::Completed;
+        } else if (attributes.State == EOperationBriefState::Aborted || attributes.State == EOperationBriefState::Failed) {
             LOG_ERROR("Operation %s %s (%s)",
                 ~GetGuidAsString(operationId),
                 ~::ToString(attributes.State),
@@ -1025,14 +1025,14 @@ EOperationState CheckOperation(
             auto failedJobInfoList = GetFailedJobInfo(auth, operationId, TGetFailedJobInfoOptions());
 
             ythrow TOperationFailedError(
-                attributes.State == EOperationState::Aborted
+                attributes.State == EOperationBriefState::Aborted
                     ? TOperationFailedError::Aborted
                     : TOperationFailedError::Failed,
                 operationId,
                 *attributes.Error,
                 failedJobInfoList);
         }
-        return EOperationState::InProgress;
+        return EOperationBriefState::InProgress;
     } else {
         auto opIdStr = GetGuidAsString(operationId);
         auto opPath = Sprintf("//sys/operations/%s", ~opIdStr);
@@ -1045,7 +1045,7 @@ EOperationState CheckOperation(
         TString state = Get(auth, TTransactionId(), statePath).AsString();
 
         if (state == "completed") {
-            return EOperationState::Completed;
+            return EOperationBriefState::Completed;
 
         } else if (state == "aborted" || state == "failed") {
             LOG_ERROR("Operation %s %s (%s)",
@@ -1070,7 +1070,7 @@ EOperationState CheckOperation(
                 failedJobInfoList);
         }
 
-        return EOperationState::InProgress;
+        return EOperationBriefState::InProgress;
     }
 }
 
@@ -1083,7 +1083,7 @@ void WaitForOperation(
 
     while (true) {
         auto status = CheckOperation(auth, operationId);
-        if (status == EOperationState::Completed) {
+        if (status == EOperationBriefState::Completed) {
             LOG_INFO("Operation %s completed (%s)",
                 ~GetGuidAsString(operationId),
                 ~ToString(TOperationExecutionTimeTracker::Get()->Finish(operationId)));
@@ -2101,7 +2101,7 @@ public:
     const TOperationId& GetId() const;
     NThreading::TFuture<void> Watch(TYtPoller& ytPoller);
 
-    EOperationState GetState();
+    EOperationBriefState GetBriefState();
     TMaybe<TYtError> GetError();
     TJobStatistics GetJobStatistics();
     TMaybe<TOperationBriefProgress> GetBriefProgress();
@@ -2164,7 +2164,7 @@ public:
             const auto& info = OperationState_.GetValue();
             TOperationAttributes attributes;
             attributes = ParseOperationInfo(info);
-            if (attributes.State != EOperationState::InProgress) {
+            if (attributes.State != EOperationBriefState::InProgress) {
                 OperationImpl_->AsyncFinishOperation(attributes);
                 return PollBreak;
             } else {
@@ -2216,9 +2216,9 @@ NThreading::TFuture<void> TOperation::TOperationImpl::Watch(TYtPoller& ytPoller)
     return *CompletePromise_;
 }
 
-EOperationState TOperation::TOperationImpl::GetState()
+EOperationBriefState TOperation::TOperationImpl::GetBriefState()
 {
-    EOperationState result = EOperationState::InProgress;
+    EOperationBriefState result = EOperationBriefState::InProgress;
     UpdateAttributesAndCall(false, [&] (const TOperationAttributes& attributes) {
         result = attributes.State;
     });
@@ -2271,7 +2271,7 @@ void TOperation::TOperationImpl::UpdateAttributesAndCall(bool needJobStatistics,
 {
     {
         auto g = Guard(Lock_);
-        if (Attributes_.State != EOperationState::InProgress
+        if (Attributes_.State != EOperationBriefState::InProgress
             && (!needJobStatistics || Attributes_.JobStatistics.Defined()))
         {
             func(Attributes_);
@@ -2302,7 +2302,7 @@ void TOperation::TOperationImpl::UpdateAttributesAndCall(bool needJobStatistics,
 
     func(attributes);
 
-    if (attributes.State != EOperationState::InProgress) {
+    if (attributes.State != EOperationBriefState::InProgress) {
         auto g = Guard(Lock_);
         Attributes_ = std::move(attributes);
     }
@@ -2347,7 +2347,7 @@ void* TOperation::TOperationImpl::SyncFinishOperationProc(void* pArgs)
 
 void TOperation::TOperationImpl::SyncFinishOperationImpl(const TOperationAttributes& attributes)
 {
-    Y_VERIFY(attributes.State != EOperationState::InProgress);
+    Y_VERIFY(attributes.State != EOperationBriefState::InProgress);
 
     {
         try {
@@ -2363,15 +2363,15 @@ void TOperation::TOperationImpl::SyncFinishOperationImpl(const TOperationAttribu
         }
     }
 
-    if (attributes.State == EOperationState::Completed) {
+    if (attributes.State == EOperationBriefState::Completed) {
         CompletePromise_->SetValue();
-    } else if (attributes.State == EOperationState::Aborted || attributes.State == EOperationState::Failed) {
+    } else if (attributes.State == EOperationBriefState::Aborted || attributes.State == EOperationBriefState::Failed) {
         auto error = *attributes.Error;
         LOG_ERROR("Operation %s is `%s' with error: %s",
             ~GetGuidAsString(Id_), ~::ToString(attributes.State), ~error.FullDescription());
         TString additionalExceptionText;
         TVector<TFailedJobInfo> failedJobStderrInfo;
-        if (attributes.State == EOperationState::Failed) {
+        if (attributes.State == EOperationBriefState::Failed) {
             try {
                 failedJobStderrInfo = NYT::NDetail::GetFailedJobInfo(Auth_, Id_, TGetFailedJobInfoOptions());
             } catch (const yexception& e) {
@@ -2382,7 +2382,7 @@ void TOperation::TOperationImpl::SyncFinishOperationImpl(const TOperationAttribu
         CompletePromise_->SetException(
             std::make_exception_ptr(
                 TOperationFailedError(
-                    attributes.State == EOperationState::Failed ? TOperationFailedError::Failed : TOperationFailedError::Aborted,
+                    attributes.State == EOperationBriefState::Failed ? TOperationFailedError::Failed : TOperationFailedError::Aborted,
                     Id_,
                     error,
                     failedJobStderrInfo) << additionalExceptionText));
@@ -2412,9 +2412,9 @@ TVector<TFailedJobInfo> TOperation::GetFailedJobInfo(const TGetFailedJobInfoOpti
     return NYT::NDetail::GetFailedJobInfo(Client_->GetAuth(), GetId(), options);
 }
 
-EOperationState TOperation::GetState()
+EOperationBriefState TOperation::GetBriefState()
 {
-    return Impl_->GetState();
+    return Impl_->GetBriefState();
 }
 
 TMaybe<TYtError> TOperation::GetError()

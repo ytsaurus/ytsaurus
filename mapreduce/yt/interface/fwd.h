@@ -274,7 +274,7 @@ namespace NYT {
     template <class TR, class TW>
     class IAggregatorReducer;
 
-    enum class EOperationState : int;
+    enum class EOperationBriefState : int;
 
     struct TOperationOptions;
 
