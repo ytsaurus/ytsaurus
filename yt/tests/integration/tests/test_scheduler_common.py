@@ -357,8 +357,7 @@ class TestJobStderr(YTEnvSetup):
 
         command = with_breakpoint("""
                 BREAKPOINT;
-                grep -v row_19 > /dev/null;
-                IS_FAILING_JOB=$?;
+                IS_FAILING_JOB=$(($YT_JOB_INDEX==19));
                 echo stderr 1>&2;
                 if [ $IS_FAILING_JOB -eq 1 ]; then
                     exit 125;
