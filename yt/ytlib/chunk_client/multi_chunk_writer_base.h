@@ -35,7 +35,8 @@ public:
         NConcurrency::IThroughputThrottlerPtr throttler,
         IBlockCachePtr blockCache);
 
-    virtual TFuture<void> Open() override;
+    void Init();
+
     virtual TFuture<void> Close() override;
 
     virtual TFuture<void> GetReadyEvent() override;

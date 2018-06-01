@@ -424,9 +424,6 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
             chunkWriter,
             blockCache);
 
-        WaitFor(tableWriter->Open())
-            .ThrowOnError();
-
         TVersionedRowMerger rowMerger(
             New<TRowBuffer>(TMergeRowsOnFlushTag()),
             tabletSnapshot->QuerySchema.GetColumnCount(),

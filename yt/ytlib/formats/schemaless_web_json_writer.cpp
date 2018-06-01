@@ -33,7 +33,7 @@ static const TString IncompleteValue = "{\"$incomplete\":\"true\",\"$type\":\"an
 
 class TSchemalessWriterForWebJson
     : public ISchemalessFormatWriter
-{ 
+{
 public:
     TSchemalessWriterForWebJson(
         NConcurrency::IAsyncOutputStreamPtr output,
@@ -41,7 +41,6 @@ public:
         TNameTablePtr nameTable);
 
     virtual bool Write(const TRange<TUnversionedRow>& rows) override;
-    virtual TFuture<void> Open() override;
     virtual TFuture<void> GetReadyEvent() override;
     virtual const TNameTablePtr& GetNameTable() const override;
     virtual const TTableSchema& GetSchema() const override;
@@ -86,9 +85,9 @@ TSchemalessWriterForWebJson::TSchemalessWriterForWebJson(
     : Output_(std::move(output))
     , Config_(std::move(config))
     , NameTable_(std::move(nameTable))
-{ 
+{
     Buffer_.Reserve(ContextBufferCapacity);
- 
+
     auto jsonConfig = New<TJsonFormatConfig>();
     jsonConfig->Stringify = true;
     jsonConfig->AnnotateWithTypes = true;
@@ -106,7 +105,7 @@ TSchemalessWriterForWebJson::TSchemalessWriterForWebJson(
         TableIndexId_ = NameTable_->GetIdOrRegisterName(TableIndexColumnName);
     } catch (const std::exception& ex) {
         Error_ = TError("Failed to add system columns to name table for a format writer") << ex;
-    } 
+    }
 }
 
 bool TSchemalessWriterForWebJson::Write(const TRange<TUnversionedRow> &rows)
@@ -123,11 +122,6 @@ bool TSchemalessWriterForWebJson::Write(const TRange<TUnversionedRow> &rows)
     }
 
     return true;
-}
-
-TFuture<void> TSchemalessWriterForWebJson::Open()
-{
-    return VoidFuture;
 }
 
 TFuture<void> TSchemalessWriterForWebJson::GetReadyEvent()
@@ -304,7 +298,7 @@ void TSchemalessWriterForWebJson::DoWrite(const TRange<NTableClient::TUnversione
         auto row = rows[index];
         int size = row.GetCount();
 
-        std::vector<std::pair<TSharedRef, int>> currentRow; 
+        std::vector<std::pair<TSharedRef, int>> currentRow;
 
         for (int i = 0; i < size; ++i) {
             auto& value = row[i];
@@ -363,7 +357,7 @@ void TSchemalessWriterForWebJson::DoWrite(const TRange<NTableClient::TUnversione
             [] (const std::pair<TSharedRef, int>& lhs,
                 const std::pair<TSharedRef, int>& rhs) {
                 return lhs.second < rhs.second;
-            });     
+            });
 
         ResultRows_.emplace_back(std::move(currentRow));
     }

@@ -86,8 +86,6 @@ protected:
             options,
             Schema,
             MemoryWriter);
-
-        EXPECT_TRUE(ChunkWriter->Open().Get().IsOK());
     }
 
     void GetRowAndResetWriter()
@@ -361,8 +359,6 @@ protected:
             options,
             writeSchema,
             memoryWriter);
-
-        EXPECT_TRUE(chunkWriter->Open().Get().IsOK());
 
         chunkWriter->Write(InitialRows_);
         EXPECT_TRUE(chunkWriter->Close().Get().IsOK());

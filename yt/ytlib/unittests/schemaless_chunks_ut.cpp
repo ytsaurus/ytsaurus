@@ -212,7 +212,6 @@ protected:
         WriteNameTable_ = chunkWriter->GetNameTable();
         InitNameTable(WriteNameTable_);
 
-        EXPECT_TRUE(chunkWriter->Open().Get().IsOK());
         chunkWriter->Write(Rows_);
         EXPECT_TRUE(chunkWriter->Close().Get().IsOK());
 
@@ -526,7 +525,6 @@ protected:
         WriteNameTable_ = chunkWriter->GetNameTable();
         InitRows(rowCount, schema, WriteNameTable_);
 
-        EXPECT_TRUE(chunkWriter->Open().Get().IsOK());
         chunkWriter->Write(Rows_);
         EXPECT_TRUE(chunkWriter->Close().Get().IsOK());
 

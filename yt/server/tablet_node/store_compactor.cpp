@@ -1341,9 +1341,6 @@ private:
         WaitFor(reader->Open())
             .ThrowOnError();
 
-        WaitFor(writer->Open())
-            .ThrowOnError();
-
         std::vector<TVersionedRow> rows;
         rows.reserve(MaxRowsPerRead);
 

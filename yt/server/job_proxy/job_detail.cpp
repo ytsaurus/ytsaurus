@@ -131,8 +131,6 @@ TJobResult TSimpleJobBase::Run()
             Initialized_ = true;
 
             CreateWriter();
-            WaitFor(Writer_->Open())
-                .ThrowOnError();
 
             PROFILE_TIMING_CHECKPOINT("init");
 

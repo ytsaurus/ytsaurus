@@ -34,17 +34,13 @@ TFuture<ISchemalessWriterPtr> CreateTableWriter(
         transaction = client->AttachTransaction(options.TransactionId, transactionOptions);
     }
 
-    auto writer = CreateSchemalessTableWriter(
+    return CreateSchemalessTableWriter(
         options.Config,
         writerOptions,
         path,
         nameTable,
         client,
         transaction);
-
-    return writer->Open().Apply(BIND([=] () {
-        return writer;
-    }));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

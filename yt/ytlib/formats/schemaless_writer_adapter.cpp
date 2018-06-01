@@ -56,11 +56,6 @@ TSchemalessFormatWriterBase::TSchemalessFormatWriterBase(
     }
 }
 
-TFuture<void> TSchemalessFormatWriterBase::Open()
-{
-    return VoidFuture;
-}
-
 TFuture<void> TSchemalessFormatWriterBase::GetReadyEvent()
 {
     return MakeFuture(Error_);

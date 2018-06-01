@@ -42,7 +42,6 @@ public:
 
     virtual TFuture<void> GetReadyEvent() override;
 
-    virtual TFuture<void> Open() override;
     virtual TFuture<void> Close() override;
 
     virtual i64 GetMetaSize() const override;
@@ -67,7 +66,7 @@ private:
 
 
     TBlob Buffer_ { TFileChunkWriterBufferTag() };
-    
+
     TBlocksExt BlocksExt_;
     i64 BlocksExtSize_ = 0;
 
@@ -141,11 +140,6 @@ void TFileChunkWriter::FlushBlock()
     BlocksExtSize_ += sizeof(TBlockInfo);
 
     EncodingChunkWriter_->WriteBlock(TSharedRef::FromBlob(std::move(Buffer_)));
-}
-
-TFuture<void> TFileChunkWriter::Open()
-{
-    return VoidFuture;
 }
 
 TFuture<void> TFileChunkWriter::Close()
@@ -253,21 +247,25 @@ IFileMultiChunkWriterPtr CreateFileMultiChunkWriter(
     auto createChunkWriter = [=] (IChunkWriterPtr chunkWriter) {
          return CreateFileChunkWriter(
             config,
-            options, 
+            options,
             chunkWriter);
     };
 
-    return New<TFileMultiChunkWriter>(
-        config, 
-        options, 
+    auto writer = New<TFileMultiChunkWriter>(
+        config,
+        options,
         client,
         cellTag,
-        transactionId, 
-        parentChunkListId, 
+        transactionId,
+        parentChunkListId,
         createChunkWriter,
         trafficMeter,
         throttler,
         blockCache);
+
+    writer->Init();
+
+    return writer;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

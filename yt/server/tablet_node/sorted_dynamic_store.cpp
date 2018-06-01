@@ -1867,10 +1867,6 @@ TCallback<void(TSaveContext& context)> TSortedDynamicStore::AsyncSave()
             Schema_,
             chunkWriter);
 
-        LOG_DEBUG("Opening table writer");
-        WaitFor(tableWriter->Open())
-            .ThrowOnError();
-
         std::vector<TVersionedRow> rows;
         rows.reserve(SnapshotRowsPerRead);
 
