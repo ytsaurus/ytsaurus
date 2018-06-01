@@ -1596,7 +1596,6 @@ class TestSchedulerRevive(YTEnvSetup):
         assert not exists(operation_path + "/output_0", tx=async_transaction_id)
 
 
-
 ################################################################################
 
 class TestJobRevivalBase(YTEnvSetup):
