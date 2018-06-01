@@ -718,6 +718,34 @@ class TestDynamicTables(TestDynamicTablesBase):
 
         assert get("//sys/tablet_cell_bundles/b/@nodes") == [node]
 
+##################################################################
+
+class TestDynamicTablesPermissions(TestDynamicTablesBase):
+    DELTA_NODE_CONFIG = {
+        "tablet_node": {
+            "security_manager": {
+                "table_permission_cache": {
+                    "expire_after_access_time": 0,
+                },
+            },
+        },
+        "master_cache_service": {
+            "capacity": 0
+        },
+    }
+
+    def test_safe_mode(self):
+        self.sync_create_cells(1)
+        create_user("u")
+        self._create_ordered_table("//tmp/t")
+        self.sync_mount_table("//tmp/t")
+        insert_rows("//tmp/t", [{"key": 0, "value": "0"}], authenticated_user="u")
+        set("//sys/@config/enable_safe_mode", True)
+        with pytest.raises(YtError):
+            insert_rows("//tmp/t", [{"key": 0, "value": "0"}], authenticated_user="u")
+        with pytest.raises(YtError):
+            trim_rows("//tmp/t", 0, 1, authenticated_user="u")
+        trim_rows("//tmp/t", 0, 1)
 
 ##################################################################
 
