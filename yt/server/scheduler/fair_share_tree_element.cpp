@@ -249,8 +249,9 @@ void TSchedulerElement::UpdateAttributes()
         Attributes_.DominantLimit == 0 ? 1.0 : dominantDemand / Attributes_.DominantLimit;
 
     double possibleUsageRatio = Attributes_.DemandRatio;
-    if (GetResourceUsageRatio() < TreeConfig_->ThresholdToEnableMaxPossibleUsageRegularization * Attributes_.DemandRatio) {
+    if (GetResourceUsageRatio() <= TreeConfig_->ThresholdToEnableMaxPossibleUsageRegularization * Attributes_.DemandRatio) {
         auto possibleUsage = usage + ComputePossibleResourceUsage(maxPossibleResourceUsage - usage);
+        possibleUsage = Min(possibleUsage, MaxPossibleResourceUsage_);
         possibleUsageRatio = GetDominantResourceUsage(possibleUsage, TotalResourceLimits_);
     }
 

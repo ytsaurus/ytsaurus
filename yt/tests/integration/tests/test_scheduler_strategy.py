@@ -119,11 +119,7 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
         resource_limits = {"cpu": 1, "memory": 1000 * 1024 * 1024, "network": 10}
         create("map_node", "//sys/pools/test_pool", attributes={"resource_limits": resource_limits})
 
-        while True:
-            pools = get("//sys/scheduler/orchid/scheduler/pools")
-            if "test_pool" in pools:
-                break
-            time.sleep(0.1)
+        wait(lambda: "test_pool" in get("//sys/scheduler/orchid/scheduler/pools"))
 
         stats = get("//sys/scheduler/orchid/scheduler")
         pool_resource_limits = stats["pools"]["test_pool"]["resource_limits"]
@@ -159,6 +155,29 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
         for resource, limit in resource_limits.iteritems():
             resource_name = "user_memory" if resource == "memory" else resource
             assert assert_almost_equal(op_limits[resource_name], limit)
+
+    def DISABLED_test_resource_limits_preemption(self):
+        create("map_node", "//sys/pools/test_pool2")
+        wait(lambda: "test_pool2" in get("//sys/scheduler/orchid/scheduler/pools"))
+
+        self._prepare_tables()
+        data = [{"foo": i} for i in xrange(3)]
+        write_table("//tmp/t_in", data)
+
+        op = map(
+            dont_track=True,
+            command="sleep 100",
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            spec={"job_count": 3, "pool": "test_pool2"})
+        wait(lambda: len(op.get_running_jobs()) == 3)
+
+        resource_limits = {"cpu": 1}
+        set("//sys/pools/test_pool2/@resource_limits", resource_limits)
+
+        wait(lambda: assert_almost_equal(get("//sys/scheduler/orchid/scheduler/pools/test_pool2/resource_limits/cpu"), 1))
+
+        wait(lambda: len(op.get_running_jobs()) == 1)
 
     # Remove flaky after YT-8784.
     @flaky(max_runs=5)
