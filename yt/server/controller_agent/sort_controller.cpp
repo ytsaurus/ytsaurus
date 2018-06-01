@@ -1054,6 +1054,11 @@ protected:
             return TTask::GetChunkMapping();
         }
 
+        virtual bool CanLoseJobs() const override
+        {
+            return Controller->Spec->EnableIntermediateOutputRecalculation;
+        }
+
     private:
         DECLARE_DYNAMIC_PHOENIX_TYPE(TSimpleSortTask, 0xb32d4f02);
 
@@ -2352,10 +2357,9 @@ private:
         Partitions.push_back(partition);
         partition->ChunkPoolOutput = SimpleSortPool.get();
         partition->SortTask->AddInput(stripes);
-        partition->SortTask->SetInputVertex(FormatEnum(GetPartitionJobType()));
+        FinishTaskInput(partition->SortTask);
         partition->SortedMergeTask->SetInputVertex(FormatEnum(GetIntermediateSortJobType()));
 
-        partition->SortTask->FinishInput();
 
         // NB: Cannot use TotalEstimatedInputDataWeight due to slicing and rounding issues.
         SortDataWeightCounter->Increment(SimpleSortPool->GetTotalDataWeight());
