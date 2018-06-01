@@ -1047,6 +1047,7 @@ public:
         YCHECK(NameToMediumMap_.erase(medium->GetName()) == 1);
         YCHECK(NameToMediumMap_.emplace(newName, medium).second);
         medium->SetName(newName);
+        InitMediumProfiling(medium);
     }
 
     void SetMediumPriority(TMedium* medium, int priority)
@@ -2222,6 +2223,7 @@ private:
 
         for (const auto& pair : MediumMap_) {
             auto* medium = pair.second;
+            InitMediumProfiling(medium);
             RegisterMedium(medium);
         }
 
@@ -2883,6 +2885,7 @@ private:
         }
 
         auto* medium = MediumMap_.Insert(id, std::move(mediumHolder));
+        InitMediumProfiling(medium);
         RegisterMedium(medium);
         InitializeMediumConfig(medium);
 
@@ -2890,6 +2893,11 @@ private:
         YCHECK(medium->RefObject() == 1);
 
         return medium;
+    }
+
+    void InitMediumProfiling(TMedium* medium)
+    {
+        medium->SetProfilingTag(TProfileManager::Get()->RegisterTag("medium", medium->GetName()));
     }
 
     void RegisterMedium(TMedium* medium)
@@ -2937,7 +2945,6 @@ private:
             THROW_ERROR_EXCEPTION("Medium priority must be in range [0,%v]", MaxMediumPriority);
         }
     }
-
 };
 
 DEFINE_ENTITY_MAP_ACCESSORS(TChunkManager::TImpl, Chunk, TChunk, ChunkMap_)
