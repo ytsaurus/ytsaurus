@@ -321,9 +321,9 @@ private:
         controllerAgent->ValidateIncarnation(incarnationId);
 
         WrapAgentException([&] {
-            controllerAgent->UnregisterOperation(operationId, /* dispose */ true);
-
-            context->Reply();
+            context->ReplyFrom(
+                controllerAgent->DisposeAndUnregisterOperation(operationId)
+            );
         });
     }
 };

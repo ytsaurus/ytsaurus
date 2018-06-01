@@ -400,24 +400,38 @@ public:
         LOG_DEBUG("Operation registered (OperationId: %v)", operationId);
     }
 
-    void UnregisterOperation(const TOperationId& operationId, bool dispose)
+    void DoDisposeAndUnregisterOperation(const TOperationId& operationId)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(Connected_);
 
-        if (dispose) {
-            SwitchTo(CancelableControlInvoker_);
+        auto operation = GetOperationOrThrow(operationId);
+        const auto& controller = operation->GetController();
+        if (controller) {
+            WaitFor(BIND(&IOperationControllerSchedulerHost::Dispose, controller)
+                .AsyncVia(controller->GetInvoker())
+                .Run())
+                .ThrowOnError();
         }
+
+        UnregisterOperation(operationId);
+    }
+
+    TFuture<void> DisposeAndUnregisterOperation(const TOperationId& operationId)
+    {
+        return BIND(&TImpl::DoDisposeAndUnregisterOperation, MakeStrong(this), operationId)
+            .AsyncVia(CancelableControlInvoker_)
+            .Run();
+    }
+
+    void UnregisterOperation(const TOperationId& operationId)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+        YCHECK(Connected_);
 
         auto operation = GetOperationOrThrow(operationId);
         const auto& controller = operation->GetController();
         if (controller) {
-            if (dispose) {
-                WaitFor(BIND(&IOperationControllerSchedulerHost::Dispose, controller)
-                    .AsyncVia(controller->GetInvoker())
-                    .Run())
-                    .ThrowOnError();
-            }
             controller->Cancel();
         }
 
@@ -1071,7 +1085,7 @@ private:
                     operationId);
                 continue;
             }
-            UnregisterOperation(operation->GetId(), /* dispose */ false);
+            UnregisterOperation(operation->GetId());
         }
 
         ConfirmHeartbeatRequest(preparedRequest);
@@ -1447,9 +1461,9 @@ void TControllerAgent::RegisterOperation(const NProto::TOperationDescriptor& des
     Impl_->RegisterOperation(descriptor);
 }
 
-void TControllerAgent::UnregisterOperation(const TOperationId& operationId, bool dispose)
+TFuture<void> TControllerAgent::DisposeAndUnregisterOperation(const TOperationId& operationId)
 {
-    Impl_->UnregisterOperation(operationId, dispose);
+    return Impl_->DisposeAndUnregisterOperation(operationId);
 }
 
 TFuture<TOperationControllerInitializationResult> TControllerAgent::InitializeOperation(
