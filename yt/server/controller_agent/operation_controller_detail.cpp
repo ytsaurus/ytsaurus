@@ -6862,7 +6862,11 @@ void TOperationControllerBase::InferSchemaFromInput(const TKeyColumns& keyColumn
     OutputTables_[0].TableUploadOptions.SchemaMode = InputTables[0].SchemaMode;
     for (const auto& table : InputTables) {
         if (table.SchemaMode != OutputTables_[0].TableUploadOptions.SchemaMode) {
-            THROW_ERROR_EXCEPTION("Cannot infer output schema from input, tables have different schema modes");
+            THROW_ERROR_EXCEPTION("Cannot infer output schema from input, tables have different schema modes")
+                    << TErrorAttribute("input_table1_path", table.GetPath())
+                    << TErrorAttribute("input_table1_schema_mode", table.SchemaMode)
+                    << TErrorAttribute("input_table2_path", InputTables[0].GetPath())
+                    << TErrorAttribute("input_table2_schema_mode", InputTables[0].SchemaMode);
         }
     }
 
