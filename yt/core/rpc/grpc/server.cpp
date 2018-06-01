@@ -298,7 +298,8 @@ private:
         TGrpcCallPtr Call_;
         TGrpcByteBufferPtr RequestBodyBuffer_;
         TGrpcByteBufferPtr ResponseBodyBuffer_;
-        grpc_slice ErrorMessage_;
+        TString ErrorMessage_;
+        grpc_slice ErrorMessageSlice_ = grpc_empty_slice();
         int Canceled_ = 0;
 
 
@@ -563,7 +564,8 @@ private:
             TError error;
             if (responseHeader.has_error() && responseHeader.error().code() != static_cast<int>(NYT::EErrorCode::OK)) {
                 FromProto(&error, responseHeader.error());
-                ErrorMessage_ = grpc_slice_from_copied_string(ToString(error).c_str());
+                ErrorMessage_ = ToString(error);
+                ErrorMessageSlice_ = grpc_slice_from_static_string(ErrorMessage_.c_str());
                 TrailingMetadataBuilder_.Add(ErrorMetadataKey, SerializeError(error));
             } else {
                 // Attachments are not supported.
@@ -582,7 +584,7 @@ private:
             ops.back().flags = 0;
             ops.back().reserved = nullptr;
             ops.back().data.send_status_from_server.status = error.IsOK() ? GRPC_STATUS_OK : grpc_status_code(GenericErrorStatusCode);
-            ops.back().data.send_status_from_server.status_details = error.IsOK() ? nullptr : &ErrorMessage_;
+            ops.back().data.send_status_from_server.status_details = error.IsOK() ? nullptr : &ErrorMessageSlice_;
             ops.back().data.send_status_from_server.trailing_metadata_count = TrailingMetadataBuilder_.GetSize();
             ops.back().data.send_status_from_server.trailing_metadata = TrailingMetadataBuilder_.Unwrap();
 
