@@ -211,7 +211,7 @@ public:
     void ConfirmObjectLifeStageToPrimaryMaster(TObjectBase* object);
 
     const NProfiling::TProfiler& GetProfiler();
-    NProfiling::TAggregateGauge* GetMethodExecTimeCounter(EObjectType type, const TString& method);
+    NProfiling::TMonotonicCounter* GetMethodCumulativeExecuteTimeCounter(EObjectType type, const TString& method);
 
     TEpoch GetCurrentEpoch();
 
@@ -239,7 +239,7 @@ private:
 
     struct TMethodEntry
     {
-        NProfiling::TAggregateGauge ExecTimeCounter;
+        NProfiling::TMonotonicCounter CumulativeExecuteTimeCounter;
     };
 
     THashMap<std::pair<EObjectType, TString>, std::unique_ptr<TMethodEntry>> MethodToEntry_;
