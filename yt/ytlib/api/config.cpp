@@ -117,7 +117,7 @@ TNativeConnectionConfig::TNativeConnectionConfig()
         .GreaterThan(0)
         .Default(1000);
     RegisterParameter("enable_lookup_multiread", EnableLookupMultiread)
-        .Default(true);
+        .Default(false);
 
     RegisterParameter("udf_registry_path", UdfRegistryPath)
         .Default("//tmp/udfs");
