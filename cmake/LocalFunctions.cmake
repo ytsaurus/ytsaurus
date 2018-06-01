@@ -413,7 +413,7 @@ function (CYTHON source)
   set_target_properties(
     ${_basename}
     PROPERTIES
-    COMPILE_FLAGS "-I${PYTHON_2_7_INCLUDE_DIR} --std=c99"
+    COMPILE_FLAGS "-I${PYTHON_2_7_INCLUDE_DIR}"
     LINK_FLAGS "-lrt"
   )
 endfunction()
