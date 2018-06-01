@@ -80,7 +80,7 @@ class YtShellTestException(Exception):
         if self.stdout is not None:
             out += ["-- STDOUT " + "-" * 70, self.stdout]
         if self.stderr is not None:
-            out += ["-- STDERR " + "-" * 70, self.stdout]
+            out += ["-- STDERR " + "-" * 70, self.stderr]
         if len(out) > 1:
             out += ["-" * 80]
         return "\n".join(out)
