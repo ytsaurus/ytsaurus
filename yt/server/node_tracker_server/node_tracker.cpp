@@ -1723,10 +1723,11 @@ private:
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         for (const auto& pair : chunkManager->Media()) {
             const auto* medium = pair.second;
-            auto tag = TProfileManager::Get()->RegisterTag("medium", medium->GetName());
-            int mediumIndex = medium->GetIndex();
-            Profiler.Enqueue("/available_space_per_medium", statistics.SpacePerMedium[mediumIndex].Available, EMetricType::Gauge, {tag});
-            Profiler.Enqueue("/used_space_per_medium", statistics.SpacePerMedium[mediumIndex].Used, EMetricType::Gauge, {tag});
+            NProfiling::TTagIdList tagIds{
+                medium->GetProfilingTag()
+            };
+            Profiler.Enqueue("/available_space_per_medium", statistics.SpacePerMedium[mediumIndex].Available, EMetricType::Gauge, tagIds);
+            Profiler.Enqueue("/used_space_per_medium", statistics.SpacePerMedium[mediumIndex].Used, EMetricType::Gauge, tagIds);
         }
 
         Profiler.Enqueue("/chunk_replica_count", statistics.ChunkReplicaCount, EMetricType::Gauge);
