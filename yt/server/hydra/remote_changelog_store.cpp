@@ -54,13 +54,15 @@ public:
         const TYPath& remotePath,
         IClientPtr client,
         ITransactionPtr prerequisiteTransaction,
-        TVersion reachableVersion)
+        TVersion reachableVersion,
+        const NProfiling::TTagIdList& profilerTags)
         : Config_(config)
         , Options_(options)
         , Path_(remotePath)
         , Client_(client)
         , PrerequisiteTransaction_(prerequisiteTransaction)
         , ReachableVersion_(reachableVersion)
+        , ProfilerTags_(profilerTags)
     {
         Logger.AddTag("Path: %v", Path_);
     }
@@ -91,6 +93,7 @@ private:
     const IClientPtr Client_;
     const ITransactionPtr PrerequisiteTransaction_;
     const TVersion ReachableVersion_;
+    const NProfiling::TTagIdList ProfilerTags_;
 
     NLogging::TLogger Logger = HydraLogger;
 
@@ -132,6 +135,9 @@ private:
                 options.PrerequisiteTransactionIds.push_back(PrerequisiteTransaction_->GetId());
                 options.Config = Config_->Writer;
                 options.EnableMultiplexing = Options_->EnableChangelogMultiplexing;
+                options.Profiler = NProfiling::TProfiler(
+                    HydraProfiler.GetPathPrefix() + "/remote_changelog",
+                    ProfilerTags_);
                 writer = Client_->CreateJournalWriter(path, options);
                 WaitFor(writer->Open())
                     .ThrowOnError();
@@ -341,12 +347,14 @@ public:
         TRemoteChangelogStoreOptionsPtr options,
         const TYPath& remotePath,
         IClientPtr client,
-        const TTransactionId& prerequisiteTransactionId)
+        const TTransactionId& prerequisiteTransactionId,
+        const NProfiling::TTagIdList& profilerTags)
         : Config_(config)
         , Options_(options)
         , Path_(remotePath)
         , MasterClient_(client)
         , PrerequisiteTransactionId_(prerequisiteTransactionId)
+        , ProfilerTags_(profilerTags)
     {
         Logger.AddTag("Path: %v", Path_);
     }
@@ -364,6 +372,7 @@ private:
     const TYPath Path_;
     const IClientPtr MasterClient_;
     const TTransactionId PrerequisiteTransactionId_;
+    const NProfiling::TTagIdList ProfilerTags_;
 
     NLogging::TLogger Logger = HydraLogger;
 
@@ -385,7 +394,8 @@ private:
                 Path_,
                 MasterClient_,
                 prerequisiteTransaction,
-                reachableVersion);
+                reachableVersion,
+                ProfilerTags_);
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error locking remote changelog store")
                 << TErrorAttribute("changelog_path", Path_)
@@ -479,14 +489,16 @@ IChangelogStoreFactoryPtr CreateRemoteChangelogStoreFactory(
     TRemoteChangelogStoreOptionsPtr options,
     const TYPath& path,
     IClientPtr client,
-    const TTransactionId& prerequisiteTransactionId)
+    const TTransactionId& prerequisiteTransactionId,
+    const NProfiling::TTagIdList& profilerTags)
 {
     return New<TRemoteChangelogStoreFactory>(
         config,
         options,
         path,
         client,
-        prerequisiteTransactionId);
+        prerequisiteTransactionId,
+        profilerTags);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
