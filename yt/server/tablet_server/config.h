@@ -229,12 +229,16 @@ class TDynamicTabletManagerConfig
     : public NYTree::TYsonSerializable
 {
 public:
+    TDuration TabletCellsCleanupPeriod;
+
     NTabletNode::EDynamicTableProfilingMode DynamicTableProfilingMode;
 
     TDynamicTabletBalancerMasterConfigPtr TabletBalancer;
 
     TDynamicTabletManagerConfig()
     {
+        RegisterParameter("tablet_cells_cleanup_period", TabletCellsCleanupPeriod)
+            .Default(TDuration::Seconds(60));
         RegisterParameter("dynamic_table_profiling_mode", DynamicTableProfilingMode)
             .Default(NTabletNode::EDynamicTableProfilingMode::Path);
         RegisterParameter("tablet_balancer", TabletBalancer)
