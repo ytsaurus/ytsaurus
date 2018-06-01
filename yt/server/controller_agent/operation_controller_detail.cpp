@@ -445,7 +445,6 @@ TOperationControllerInitializationResult TOperationControllerBase::InitializeCle
         .ThrowOnError();
 
     InitUnrecognizedSpec();
-    InitializeOrchid();
 
     WaitFor(Host->UpdateInitializedOperationNode())
         .ThrowOnError();
@@ -6113,9 +6112,12 @@ void TOperationControllerBase::BuildProgress(TFluentMap fluent) const
             .Item("duration").Value(ScheduleJobStatistics_->Duration)
             .Item("failed").Value(ScheduleJobStatistics_->Failed)
         .EndMap()
-		.Item("data_flow_graph").DoMap(BIND([&] (TFluentMap fluent) {
-			DataFlowGraph_->BuildLegacyYson(fluent);
-		}))
+		.DoIf(DataFlowGraph_.operator bool(), [=] (TFluentMap fluent) {
+		    fluent
+                .Item("data_flow_graph").BeginMap()
+                    .Do(BIND(&TDataFlowGraph::BuildLegacyYson, DataFlowGraph_))
+                .EndMap();
+		})
         .DoIf(EstimatedInputDataSizeHistogram_.operator bool(), [=] (TFluentMap fluent) {
             EstimatedInputDataSizeHistogram_->BuildHistogramView();
             fluent
