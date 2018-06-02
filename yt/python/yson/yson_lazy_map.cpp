@@ -9,15 +9,16 @@ namespace NYTree {
 
 void LazyDictCopy(TLazyDict* source, TLazyDict* destination, bool deep)
 {
-    static Py::Callable deepcopyFunction;
-    if (deepcopyFunction.isNone()) {
-        auto ptr = PyImport_ImportModule("copy");
-        if (!ptr) {
-            throw Py::RuntimeError("Failed to import module copy");
+    thread_local PyObject* deepcopyFunction = nullptr;
+    if (!deepcopyFunction) {
+        auto copyModule = Py::Object(PyImport_ImportModule("copy"), /* owned */ true);
+        if (copyModule.isNull()) {
+            throw Py::RuntimeError("Failed to import \"copy\" module");
         }
-        auto module = Py::Object(ptr);
-        deepcopyFunction = Py::Callable(Py::GetAttr(module, "deepcopy"));
-        deepcopyFunction.increment_reference_count();
+        deepcopyFunction = PyObject_GetAttrString(copyModule.ptr(), "deepcopy");
+        if (!deepcopyFunction) {
+            throw Py::RuntimeError("Failed to find \"deepcopy\" function in \"copy\" module");
+        }
     }
 
     for (const auto& item: *source->GetUnderlyingHashMap()) {
@@ -26,7 +27,7 @@ void LazyDictCopy(TLazyDict* source, TLazyDict* destination, bool deep)
 
         if (value.Value) {
             if (deep) {
-                destination->SetItem(key, deepcopyFunction.apply(Py::TupleN(value.Value.Get())));
+                destination->SetItem(key, Py::Callable(deepcopyFunction).apply(Py::TupleN(value.Value.Get())));
             } else {
                 destination->SetItem(key, value.Value.Get());
             }

@@ -20,7 +20,6 @@ namespace Py {
 
 static_assert(sizeof(PY_LONG_LONG) == sizeof(i64), "Py_LONG_LONG size does not equal i64 size");
 
-bool IsInstance(const Object& obj, const Object& cls);
 bool IsInteger(const Object& obj);
 bool IsFloat(const Object& obj);
 
@@ -103,7 +102,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Py::Callable GetYsonTypeClass(const std::string& name);
+PyObject* GetYsonTypeClass(const std::string& name);
 
 ////////////////////////////////////////////////////////////////////////////////
 
