@@ -133,3 +133,8 @@ class TestFileCommands(object):
         if "ETag" in response.headers:
             assert int(response.headers["ETag"]) == revision
 
+            import yt.packages.requests as requests
+            response = requests.get("http://{0}/api/v3/read_file".format(yt.config["proxy"]["url"]),
+                                    params={"path": file_path}, headers={"If-None-Match": revision})
+            assert response.status_code == 304
+
