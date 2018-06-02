@@ -198,10 +198,10 @@ def verify_svn_match_git(git, svn):
             "files that are in git and not in svn:\n\n"
             "{only_in_git}\n"
             "files that are in svn and not in git:\n\n"
-            "{only_in_svn}").format(
+            "{only_in_svn}".format(
                 only_in_git=idented_lines(only_in_git),
                 only_in_svn=idented_lines(only_in_svn),
-            )
+            ))
 
     diffed = []
     for relpath in git_rel_paths:
