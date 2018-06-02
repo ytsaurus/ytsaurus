@@ -12,7 +12,7 @@ void LazyDictCopy(TLazyDict* source, TLazyDict* destination, bool deep)
     thread_local PyObject* deepcopyFunction = nullptr;
     if (!deepcopyFunction) {
         auto copyModule = Py::Object(PyImport_ImportModule("copy"), /* owned */ true);
-        if (copyModule.isNull()) {
+        if (copyModule.ptr() == nullptr) {
             throw Py::RuntimeError("Failed to import \"copy\" module");
         }
         deepcopyFunction = PyObject_GetAttrString(copyModule.ptr(), "deepcopy");
