@@ -6,8 +6,25 @@ from yt_env_setup import resolve_test_paths
 
 from yt.common import update_inplace
 
+import functools
 import pytest
 
+def get_config_patcher(patches):
+    def apply_config_patches(configs, ytserver_version, cluster_index):
+        assert cluster_index == 0
+        for tag in [configs["master"]["primary_cell_tag"]] + configs["master"]["secondary_cell_tags"]:
+            for index, config in enumerate(configs["master"][tag]):
+                configs["master"][tag][index] = update_inplace(config, patches.get("DELTA_MASTER_CONFIG", {}))
+        for index, config in enumerate(configs["scheduler"]):
+            configs["scheduler"][index] = update_inplace(config, patches.get("DELTA_SCHEDULER_CONFIG", {}))
+        for index, config in enumerate(configs["controller_agent"]):
+            delta_config = patches.get("DELTA_CONTROLLER_AGENT_CONFIG", cluster_index)
+            configs["controller_agent"][index] = update_inplace(config, delta_config)
+        for index, config in enumerate(configs["node"]):
+            configs["node"][index] = update_inplace(config, patches.get("DELTA_NODE_CONFIG", {}))
+        for key, config in configs["driver"].iteritems():
+            configs["driver"][key] = update_inplace(config, patches.get("DELTA_DRIVER_CONFIG", {}))
+    return apply_config_patches
 
 class ExecutableItem(pytest.Item):
     def __init__(self, parent):
@@ -44,24 +61,28 @@ class ExecutableItem(pytest.Item):
             "NUM_NODES": "node_count"
         }
 
+        config_keys = {
+            "DELTA_MASTER_CONFIG",
+            "DELTA_SCHEDULER_CONFIG",
+            "DELTA_CONTROLLER_AGENT_CONFIG",
+            "DELTA_NODE_CONFIG",
+            "DELTA_DRIVER_CONFIG"
+        }
+
         kwargs = {}
         config_patches = {}
         for key, value in self.extract_attrs(str(self.fspath)):
-            if key == "DELTA_MASTER_CONFIG":
-                config_patches['master'] = value
-                continue
-
             print 'Setting "%s" to "%s"' % (key, value)
-            kwargs[params_map[key]] = value
+            if key in params_map.keys():
+                kwargs[params_map[key]] = value
+            elif key in config_keys:
+                config_patches[key] = value
 
-        def modify_configs(configs, abi_version):
-            if 'master' in config_patches:
-                for tag in [configs["master"]["primary_cell_tag"]] + configs["master"]["secondary_cell_tags"]:
-                    for index, config in enumerate(configs["master"][tag]):
-                        configs["master"][tag][index] = update_inplace(config, config_patches['master'])
-        kwargs['modify_configs_func'] = modify_configs
+        modify_configs_func = functools.partial(
+            get_config_patcher(config_patches),
+            cluster_index=0)
 
-        env = YTInstance(self.environment_path, **kwargs)
+        env = YTInstance(self.environment_path, modify_configs_func=modify_configs_func, **kwargs)
         try:
             env.start()
             self.on_runtest(env)

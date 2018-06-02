@@ -200,6 +200,15 @@ public:
     //! Tablet cell decommissioner config.
     TTabletCellDecommissionerConfigPtr TabletCellDecommissioner;
 
+    //! Multicell tablet cell statistics gossip period.
+    TDuration TabletCellStatisticsGossipPeriod;
+
+    //! Multicell table (e.g. chunk owner) statistics gossip period.
+    TDuration TableStatisticsGossipPeriod;
+
+    //! Throttler for table statistics gossip.
+    NConcurrency::TThroughputThrottlerConfigPtr TableStatisticsGossipThrottler;
+
     TTabletManagerConfig()
     {
         RegisterParameter("peer_revocation_timeout", PeerRevocationTimeout)
@@ -233,6 +242,12 @@ public:
         RegisterParameter("tablet_balancer", TabletBalancer)
             .DefaultNew();
         RegisterParameter("tablet_cell_decommissioner", TabletCellDecommissioner)
+            .DefaultNew();
+        RegisterParameter("tablet_cell_statistics_gossip_period", TabletCellStatisticsGossipPeriod)
+            .Default(TDuration::Seconds(1));
+        RegisterParameter("table_statistics_gossip_period", TableStatisticsGossipPeriod)
+            .Default(TDuration::Seconds(1));
+        RegisterParameter("table_statistics_gossip_throttler", TableStatisticsGossipThrottler)
             .DefaultNew();
     }
 };

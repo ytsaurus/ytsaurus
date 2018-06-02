@@ -123,6 +123,8 @@ DEFINE_ENUM(EUnavailableChunkStrategy,
     ((Skip)         (2))
 );
 
+using TTableId = NObjectClient::TObjectId;
+
 //! NB: |int| is important since we use negative values to indicate that
 //! certain values need to be dropped. Cf. #TRowBuffer::CaptureAndPermuteRow.
 using TNameTableToSchemaIdMapping = SmallVector<int, TypicalColumnCount>;

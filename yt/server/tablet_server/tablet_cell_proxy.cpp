@@ -16,16 +16,54 @@
 
 #include <yt/ytlib/tablet_client/config.h>
 
+#include <yt/core/ytree/convert.h>
 #include <yt/core/ytree/fluent.h>
+#include <yt/core/ytree/proto/ypath.pb.h>
+
+#include <yt/core/misc/protobuf_helpers.h>
 
 namespace NYT {
 namespace NTabletServer {
 
+using namespace NConcurrency;
+using namespace NNodeTrackerServer;
+using namespace NObjectClient;
+using namespace NObjectServer;
+using namespace NRpc;
 using namespace NYTree;
 using namespace NYson;
-using namespace NRpc;
-using namespace NObjectServer;
-using namespace NNodeTrackerServer;
+
+using NYT::ToProto;
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace NDetail {
+
+TYsonString CombineObjectIds(
+    const std::vector<TObjectId>& objectIds,
+    const std::vector<std::vector<TObjectId>>& remoteObjectIds)
+{
+    TStringStream stream;
+    TBufferedBinaryYsonWriter writer(&stream);
+    writer.OnBeginList();
+
+    for (const auto& objectId : objectIds) {
+        writer.OnStringScalar(ToString(objectId));
+    }
+
+    for (const auto& objectIds : remoteObjectIds) {
+        for (const auto& objectId : objectIds) {
+            writer.OnStringScalar(ToString(objectId));
+        }
+    }
+
+    writer.OnEndList();
+    writer.Flush();
+
+    return TYsonString(stream.Str());
+}
+
+} // namesapce NDetail
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -46,10 +84,35 @@ private:
     virtual void ValidateRemoval() override
     {
         const auto* cell = GetThisImpl();
-        if (!cell->Tablets().empty()) {
-            THROW_ERROR_EXCEPTION("Cannot remove tablet cell %v since it has %v active tablet(s)",
-                cell->GetId(),
-                cell->Tablets().size());
+
+        if (!cell->ClusterStatistics().Decommissioned) {
+            THROW_ERROR_EXCEPTION("Cannot remove tablet cell %v since it is not decommissioned",
+                cell->GetId());
+        }
+
+        if (cell->ClusterStatistics().TabletCount != 0) {
+            THROW_ERROR_EXCEPTION("Cannot remove tablet cell %v since it has active tablet(s)",
+                cell->GetId());
+        }
+    }
+
+    virtual void RemoveSelf(TReqRemove* request, TRspRemove* response, const TCtxRemovePtr& context) override
+    {
+        auto* cell = GetThisImpl();
+        if (cell->GetDecommissioned()) {
+            TBase::RemoveSelf(request, response, context);
+        } else {
+            ValidatePermission(EPermissionCheckScope::This, EPermission::Remove);
+
+            if (!Bootstrap_->IsPrimaryMaster()) {
+                THROW_ERROR_EXCEPTION("Tablet cell is the primary world object and cannot be removed by a secondary master");
+            }
+
+            auto req = TYPathProxy::Set("/@decommissioned");
+            req->set_value(ConvertToYsonString(true).GetData());
+            SyncExecuteVerb(this, req);
+
+            context->Reply();
         }
     }
 
@@ -60,13 +123,15 @@ private:
         const auto* cell = GetThisImpl();
 
         descriptors->push_back(EInternedAttributeKey::LeadingPeerId);
-        descriptors->push_back(EInternedAttributeKey::Health);
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Health)
+            .SetOpaque(true));
         descriptors->push_back(EInternedAttributeKey::Peers);
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::TabletIds)
             .SetOpaque(true));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ActionIds)
             .SetOpaque(true));
-        descriptors->push_back(EInternedAttributeKey::TabletCount);
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::TabletCount)
+            .SetOpaque(true));
         descriptors->push_back(EInternedAttributeKey::ConfigVersion);
         descriptors->push_back(EInternedAttributeKey::TotalStatistics);
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::PrerequisiteTransactionId)
@@ -77,6 +142,8 @@ private:
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Decommissioned)
             .SetReplicated(true)
             .SetWritable(true));
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::MulticellStatistics)
+            .SetOpaque(true));
     }
 
     virtual bool GetBuiltinAttribute(TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override
@@ -92,9 +159,12 @@ private:
                 return true;
 
             case EInternedAttributeKey::Health:
-                BuildYsonFluently(consumer)
-                    .Value(cell->GetHealth());
-                return true;
+                if (!Bootstrap_->IsPrimaryMaster() || !Bootstrap_->IsMulticell()) {
+                    BuildYsonFluently(consumer)
+                        .Value(cell->GetHealth());
+                    return true;
+                }
+                break;
 
             case EInternedAttributeKey::Peers:
                 BuildYsonFluently(consumer)
@@ -118,25 +188,35 @@ private:
                 return true;
 
             case EInternedAttributeKey::TabletIds:
-                BuildYsonFluently(consumer)
-                    .DoListFor(cell->Tablets(), [] (TFluentList fluent, const TTablet* tablet) {
-                        fluent
-                            .Item().Value(tablet->GetId());
-                    });
-                return true;
+                if (!Bootstrap_->IsPrimaryMaster()) {
+                    BuildYsonFluently(consumer)
+                        .DoListFor(cell->Tablets(), [] (TFluentList fluent, const TTablet* tablet) {
+                            fluent
+                                .Item().Value(tablet->GetId());
+                        });
+                    return true;
+                }
+                break;
 
             case EInternedAttributeKey::ActionIds:
-                BuildYsonFluently(consumer)
-                    .DoListFor(cell->Actions(), [] (TFluentList fluent, const TTabletAction* action) {
-                        fluent
-                            .Item().Value(action->GetId());
-                    });
-                return true;
+                if (!Bootstrap_->IsPrimaryMaster()) {
+                    BuildYsonFluently(consumer)
+                        .DoListFor(cell->Actions(), [] (TFluentList fluent, const TTabletAction* action) {
+                            fluent
+                                .Item().Value(action->GetId());
+                        });
+                    return true;
+                }
+                break;
 
-            case EInternedAttributeKey::TabletCount:
-                BuildYsonFluently(consumer)
-                    .Value(cell->Tablets().size());
-                return true;
+            case EInternedAttributeKey::TabletCount: {
+                if (!Bootstrap_->IsPrimaryMaster()) {
+                    BuildYsonFluently(consumer)
+                        .Value(cell->Tablets().size());
+                    return true;
+                }
+                break;
+            }
 
             case EInternedAttributeKey::ConfigVersion:
                 BuildYsonFluently(consumer)
@@ -146,8 +226,18 @@ private:
             case EInternedAttributeKey::TotalStatistics:
                 BuildYsonFluently(consumer)
                     .Value(New<TSerializableTabletCellStatistics>(
-                        cell->TotalStatistics(),
+                        cell->ClusterStatistics(),
                         chunkManager));
+                return true;
+
+            case EInternedAttributeKey::MulticellStatistics:
+                BuildYsonFluently(consumer)
+                    .DoMapFor(cell->MulticellStatistics(), [&] (TFluentMap fluent, const std::pair<TCellTag, const TTabletCellStatistics&>& pair) {
+                        auto serializableStatistics = New<TSerializableTabletCellStatistics>(
+                            pair.second,
+                            chunkManager);
+                        fluent.Item(ToString(pair.first)).Value(serializableStatistics);
+                    });
                 return true;
 
             case EInternedAttributeKey::PrerequisiteTransactionId:
@@ -178,6 +268,94 @@ private:
         return TBase::GetBuiltinAttribute(key, consumer);
     }
 
+    virtual TFuture<NYson::TYsonString> GetBuiltinAttributeAsync(NYTree::TInternedAttributeKey key) override
+    {
+        const auto* cell = GetThisImpl();
+
+        switch (key) {
+            case EInternedAttributeKey::Health: {
+                YCHECK(Bootstrap_->IsPrimaryMaster());
+
+                auto health = cell->GetHealth();
+                return FetchFromSwarm<ETabletCellHealth>(key)
+                    .Apply(BIND([health] (const std::vector<ETabletCellHealth>& remoteHealths) mutable {
+                        auto combineHealths = [] (auto lhs, auto rhs) {
+                            static std::array<ETabletCellHealth, 4> healthOrder{{
+                                ETabletCellHealth::Failed,
+                                ETabletCellHealth::Degraded,
+                                ETabletCellHealth::Initializing,
+                                ETabletCellHealth::Good}};
+
+                            for (auto health : healthOrder) {
+                                if (lhs == health || rhs == health) {
+                                    return health;
+                                }
+                            }
+
+                            return ETabletCellHealth::Failed;
+                        };
+
+                        for (auto remoteHealth : remoteHealths) {
+                            health = combineHealths(health, remoteHealth);
+                        }
+
+                        return ConvertToYsonString(health);
+                    })
+                    .AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker()));
+            }
+
+            case EInternedAttributeKey::TabletCount: {
+                YCHECK(Bootstrap_->IsPrimaryMaster());
+
+                int tabletCount = cell->Tablets().size();
+                return FetchFromSwarm<int>(key)
+                    .Apply(BIND([tabletCount] (const std::vector<int>& tabletCounts) {
+                        auto totalTabletCount = std::accumulate(
+                            tabletCounts.begin(),
+                            tabletCounts.end(),
+                            tabletCount);
+                        return ConvertToYsonString(totalTabletCount);
+                    })
+                    .AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker()));
+            }
+
+            case EInternedAttributeKey::TabletIds: {
+                YCHECK(Bootstrap_->IsPrimaryMaster());
+
+                std::vector<TTabletId> tabletIds;
+                for (const auto& tablet : cell->Tablets()) {
+                    tabletIds.push_back(tablet->GetId());
+                }
+
+                return FetchFromSwarm<std::vector<TTabletId>>(key)
+                    .Apply(BIND([tabletIds = std::move(tabletIds)] (const std::vector<std::vector<TTabletId>>& remoteTabletIds) {
+                        return NDetail::CombineObjectIds(tabletIds, remoteTabletIds);
+                    })
+                    .AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker()));
+            }
+
+            case EInternedAttributeKey::ActionIds: {
+                YCHECK(Bootstrap_->IsPrimaryMaster());
+
+                std::vector<TTabletActionId> actionIds;
+                for (const auto& action : cell->Actions()) {
+                    actionIds.push_back(action->GetId());
+                }
+
+                return FetchFromSwarm<std::vector<TTabletActionId>>(key)
+                    .Apply(BIND([actionIds = std::move(actionIds)] (const std::vector<std::vector<TTabletActionId>>& remoteActionIds) {
+                        return NDetail::CombineObjectIds(actionIds, remoteActionIds);
+                    })
+                    .AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker()));
+            }
+
+            default:
+                break;
+        }
+
+        return TBase::GetBuiltinAttributeAsync(key);
+    }
+
     bool SetBuiltinAttribute(TInternedAttributeKey key, const TYsonString& value)
     {
         auto* cell = GetThisImpl();
@@ -201,6 +379,7 @@ private:
 
         return TBase::SetBuiltinAttribute(key, value);
     }
+
 };
 
 IObjectProxyPtr CreateTabletCellProxy(

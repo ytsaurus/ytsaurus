@@ -2,6 +2,7 @@
 
 #include "public.h"
 #include "cluster_resources.h"
+#include "security_manager_base.h"
 
 #include <yt/server/cell_master/public.h>
 
@@ -50,33 +51,26 @@ struct TPermissionCheckResult
  *  \see #TSecurityManager::ResetAuthenticatedUser
  */
 class TAuthenticatedUserGuard
+    : public TNonCopyable
 {
 public:
     TAuthenticatedUserGuard(TSecurityManagerPtr securityManager, TUser* user);
-    TAuthenticatedUserGuard(const TAuthenticatedUserGuard& other) = delete;
-    TAuthenticatedUserGuard(TAuthenticatedUserGuard&& other);
-
     ~TAuthenticatedUserGuard();
-
-    TAuthenticatedUserGuard& operator=(const TAuthenticatedUserGuard& other) = delete;
-    TAuthenticatedUserGuard& operator=(TAuthenticatedUserGuard&& other);
 
 private:
     TSecurityManagerPtr SecurityManager_;
-
-    void Release();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSecurityManager
-    : public TRefCounted
+    : public ISecurityManagerBase
 {
 public:
     TSecurityManager(
         TSecurityManagerConfigPtr config,
         NCellMaster::TBootstrap* bootstrap);
-    ~TSecurityManager();
+    virtual ~TSecurityManager() override;
 
     void Initialize();
 
@@ -194,11 +188,17 @@ public:
     //! Sets the authenticated user.
     void SetAuthenticatedUser(TUser* user);
 
-    //! Resets the authenticated user.
-    void ResetAuthenticatedUser();
+    //! Sets the authenticated user by user name.
+    virtual void SetAuthenticatedUserByNameOrThrow(const TString& userName) override;
 
     //! Returns the current user or |nullptr| if there's no one.
     TUser* GetAuthenticatedUser();
+
+    //! Returns the current user or Null if there's no one.
+    virtual TNullable<TString> GetAuthenticatedUserName() override;
+
+    //! Resets the authenticated user.
+    virtual void ResetAuthenticatedUser() override;
 
 
     //! Checks if #object ACL allows access with #permission.

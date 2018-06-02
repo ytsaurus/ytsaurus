@@ -284,6 +284,11 @@ struct TTransactionStartOptions
     //! If not null then the transaction must use this externally provided start timestamp.
     //! Only applicable to tablet transactions.
     NTransactionClient::TTimestamp StartTimestamp = NTransactionClient::NullTimestamp;
+
+    //! Only for master transactions at secondary cell.
+    NObjectClient::TCellTag CellTag = NObjectClient::PrimaryMasterCellTag;
+
+    bool Multicell = false;
 };
 
 struct TTransactionAttachOptions

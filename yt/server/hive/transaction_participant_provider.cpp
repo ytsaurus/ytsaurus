@@ -28,17 +28,19 @@ public:
     TCellDirectoryTransactionParticipantProvider(
         TCellDirectoryPtr cellDirectory,
         ITimestampProviderPtr timestampProvider,
-        TCellTag cellTag)
+        TCellTagList cellTags)
         : CellDirectory_(std::move(cellDirectory))
         , TimestampProvider_(std::move(timestampProvider))
-        , CellTag_(cellTag)
+        , CellTags_(cellTags)
     { }
 
     virtual ITransactionParticipantPtr TryCreate(
         const TCellId& cellId,
         const TTransactionParticipantOptions& options) override
     {
-        if (CellTagFromId(cellId) != CellTag_) {
+        if (std::find(CellTags_.begin(), CellTags_.end(), CellTagFromId(cellId)) == CellTags_.end()) {
+            // NB: This is necessary for replicated tables. If cell is foreign, then next participant
+            // provider is used, which is cluster directory participant provider.
             return nullptr;
         }
         return NNative::CreateTransactionParticipant(
@@ -53,18 +55,18 @@ public:
 private:
     const TCellDirectoryPtr CellDirectory_;
     const ITimestampProviderPtr TimestampProvider_;
-    const TCellTag CellTag_;
+    const TCellTagList CellTags_;
 };
 
 ITransactionParticipantProviderPtr CreateTransactionParticipantProvider(
     TCellDirectoryPtr cellDirectory,
     ITimestampProviderPtr timestampProvider,
-    TCellTag cellTag)
+    TCellTagList cellTags)
 {
     return New<TCellDirectoryTransactionParticipantProvider>(
         std::move(cellDirectory),
         std::move(timestampProvider),
-        cellTag);
+        cellTags);
 }
 
 ITransactionParticipantProviderPtr CreateTransactionParticipantProvider(
@@ -75,7 +77,7 @@ ITransactionParticipantProviderPtr CreateTransactionParticipantProvider(
     return CreateTransactionParticipantProvider(
         connection->GetCellDirectory(),
         connection->GetTimestampProvider(),
-        connection->GetCellTag());
+        {connection->GetCellTag()});
 }
 
 ////////////////////////////////////////////////////////////////////////////////

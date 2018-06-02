@@ -5,6 +5,8 @@
 // COMPAT(babenko)
 #include "private.h"
 
+#include <yt/server/tablet_server/tablet_manager.pb.h>
+
 #include <yt/server/cell_master/serialize.h>
 
 #include <yt/server/table_server/table_node.h>
@@ -14,6 +16,8 @@
 #include <yt/server/chunk_server/medium.h>
 
 #include <yt/ytlib/transaction_client/helpers.h>
+
+#include <yt/core/misc/protobuf_helpers.h>
 
 #include <yt/core/ytree/fluent.h>
 
@@ -28,9 +32,12 @@ using namespace NTabletClient;
 using namespace NTransactionClient;
 using namespace NYTree;
 
+using NYT::FromProto;
+using NYT::ToProto;
+
 ////////////////////////////////////////////////////////////////////////////////
 
-void TTabletCellStatistics::Persist(NCellMaster::TPersistenceContext& context)
+void TTabletCellStatisticsBase::Persist(NCellMaster::TPersistenceContext& context)
 {
     using NYT::Persist;
 
@@ -46,6 +53,10 @@ void TTabletCellStatistics::Persist(NCellMaster::TPersistenceContext& context)
     Persist(context, PreloadCompletedStoreCount);
     Persist(context, PreloadFailedStoreCount);
     // COMPAT(savrus)
+    if (context.GetVersion() >= 718) {
+        Persist(context, TabletCount);
+    }
+    // COMPAT(savrus)
     if (context.GetVersion() >= 600) {
         Persist(context, TabletCountPerMemoryMode);
     }
@@ -53,6 +64,22 @@ void TTabletCellStatistics::Persist(NCellMaster::TPersistenceContext& context)
     if (context.GetVersion() >= 623) {
         Persist(context, DynamicMemoryPoolSize);
     }
+}
+
+void TUncountableTabletCellStatisticsBase::Persist(NCellMaster::TPersistenceContext& context)
+{
+    using NYT::Persist;
+
+    // COMPAT(savrus)
+    if (context.GetVersion() >= 718) {
+        Persist(context, Decommissioned);
+    }
+}
+
+void TTabletCellStatistics::Persist(NCellMaster::TPersistenceContext& context)
+{
+    TTabletCellStatisticsBase::Persist(context);
+    TUncountableTabletCellStatisticsBase::Persist(context);
 }
 
 void TTabletStatisticsBase::Persist(NCellMaster::TPersistenceContext& context)
@@ -64,11 +91,11 @@ void TTabletStatisticsBase::Persist(NCellMaster::TPersistenceContext& context)
 
 void TTabletStatistics::Persist(NCellMaster::TPersistenceContext& context)
 {
-    TTabletCellStatistics::Persist(context);
+    TTabletCellStatisticsBase::Persist(context);
     TTabletStatisticsBase::Persist(context);
 }
 
-TTabletCellStatistics& operator +=(TTabletCellStatistics& lhs, const TTabletCellStatistics& rhs)
+TTabletCellStatisticsBase& operator +=(TTabletCellStatisticsBase& lhs, const TTabletCellStatisticsBase& rhs)
 {
     lhs.UnmergedRowCount += rhs.UnmergedRowCount;
     lhs.UncompressedDataSize += rhs.UncompressedDataSize;
@@ -87,6 +114,7 @@ TTabletCellStatistics& operator +=(TTabletCellStatistics& lhs, const TTabletCell
     lhs.PreloadCompletedStoreCount += rhs.PreloadCompletedStoreCount;
     lhs.PreloadFailedStoreCount += rhs.PreloadFailedStoreCount;
     lhs.DynamicMemoryPoolSize += rhs.DynamicMemoryPoolSize;
+    lhs.TabletCount += rhs.TabletCount;
     std::transform(
         std::begin(lhs.TabletCountPerMemoryMode),
         std::end(lhs.TabletCountPerMemoryMode),
@@ -96,29 +124,14 @@ TTabletCellStatistics& operator +=(TTabletCellStatistics& lhs, const TTabletCell
     return lhs;
 }
 
-TTabletCellStatistics operator +(const TTabletCellStatistics& lhs, const TTabletCellStatistics& rhs)
+TTabletCellStatisticsBase operator +(const TTabletCellStatisticsBase& lhs, const TTabletCellStatisticsBase& rhs)
 {
     auto result = lhs;
     result += rhs;
     return result;
 }
 
-TTabletStatistics& operator +=(TTabletStatistics& lhs, const TTabletStatistics& rhs)
-{
-    static_cast<TTabletCellStatistics&>(lhs) += rhs;
-
-    lhs.OverlappingStoreCount = std::max(lhs.OverlappingStoreCount, rhs.OverlappingStoreCount);
-    return lhs;
-}
-
-TTabletStatistics operator +(const TTabletStatistics& lhs, const TTabletStatistics& rhs)
-{
-    auto result = lhs;
-    result += rhs;
-    return result;
-}
-
-TTabletCellStatistics& operator -=(TTabletCellStatistics& lhs, const TTabletCellStatistics& rhs)
+TTabletCellStatisticsBase& operator -=(TTabletCellStatisticsBase& lhs, const TTabletCellStatisticsBase& rhs)
 {
     lhs.UnmergedRowCount -= rhs.UnmergedRowCount;
     lhs.UncompressedDataSize -= rhs.UncompressedDataSize;
@@ -137,12 +150,39 @@ TTabletCellStatistics& operator -=(TTabletCellStatistics& lhs, const TTabletCell
     lhs.PreloadCompletedStoreCount -= rhs.PreloadCompletedStoreCount;
     lhs.PreloadFailedStoreCount -= rhs.PreloadFailedStoreCount;
     lhs.DynamicMemoryPoolSize -= rhs.DynamicMemoryPoolSize;
+    lhs.TabletCount -= rhs.TabletCount;
     std::transform(
         std::begin(lhs.TabletCountPerMemoryMode),
         std::end(lhs.TabletCountPerMemoryMode),
         std::begin(rhs.TabletCountPerMemoryMode),
         std::begin(lhs.TabletCountPerMemoryMode),
         std::minus<i64>());
+    return lhs;
+}
+
+TTabletCellStatisticsBase operator -(const TTabletCellStatisticsBase& lhs, const TTabletCellStatisticsBase& rhs)
+{
+    auto result = lhs;
+    result -= rhs;
+    return result;
+}
+
+TTabletCellStatistics& operator +=(TTabletCellStatistics& lhs, const TTabletCellStatistics& rhs)
+{
+    static_cast<TTabletCellStatisticsBase&>(lhs) += rhs;
+    return lhs;
+}
+
+TTabletCellStatistics operator +(const TTabletCellStatistics& lhs, const TTabletCellStatistics& rhs)
+{
+    auto result = lhs;
+    result += rhs;
+    return result;
+}
+
+TTabletCellStatistics& operator -=(TTabletCellStatistics& lhs, const TTabletCellStatistics& rhs)
+{
+    static_cast<TTabletCellStatisticsBase&>(lhs) += rhs;
     return lhs;
 }
 
@@ -153,24 +193,75 @@ TTabletCellStatistics operator -(const TTabletCellStatistics& lhs, const TTablet
     return result;
 }
 
+TTabletStatistics& operator +=(TTabletStatistics& lhs, const TTabletStatistics& rhs)
+{
+    static_cast<TTabletCellStatisticsBase&>(lhs) += rhs;
+
+    lhs.OverlappingStoreCount = std::max(lhs.OverlappingStoreCount, rhs.OverlappingStoreCount);
+    return lhs;
+}
+
+TTabletStatistics operator +(const TTabletStatistics& lhs, const TTabletStatistics& rhs)
+{
+    auto result = lhs;
+    result += rhs;
+    return result;
+}
+
+void ToProto(NProto::TProtoTabletCellStatistics* protoStatistics, const TTabletCellStatistics& statistics)
+{
+    protoStatistics->set_unmerged_row_count(statistics.UnmergedRowCount);
+    protoStatistics->set_uncompressed_data_size(statistics.UncompressedDataSize);
+    protoStatistics->set_compressed_data_size(statistics.CompressedDataSize);
+    protoStatistics->set_memory_size(statistics.MemorySize);
+    protoStatistics->set_chunk_count(statistics.ChunkCount);
+    protoStatistics->set_partition_count(statistics.PartitionCount);
+    protoStatistics->set_store_count(statistics.StoreCount);
+    protoStatistics->set_preload_pending_store_count(statistics.PreloadPendingStoreCount);
+    protoStatistics->set_preload_completed_store_count(statistics.PreloadCompletedStoreCount);
+    protoStatistics->set_preload_failed_store_count(statistics.PreloadFailedStoreCount);
+    protoStatistics->set_dynamic_memory_pool_size(statistics.DynamicMemoryPoolSize);
+    protoStatistics->set_tablet_count(statistics.TabletCount);
+    protoStatistics->set_decommissioned(statistics.Decommissioned);
+
+    ToProto(protoStatistics->mutable_disk_space_per_medium(), TRange<i64>(statistics.DiskSpacePerMedium, MaxMediumCount));
+    ToProto(protoStatistics->mutable_tablet_count_per_memory_mode(), statistics.TabletCountPerMemoryMode);
+}
+
+void FromProto(TTabletCellStatistics* statistics, const NProto::TProtoTabletCellStatistics& protoStatistics)
+{
+    statistics->UnmergedRowCount = protoStatistics.unmerged_row_count();
+    statistics->UncompressedDataSize = protoStatistics.uncompressed_data_size();
+    statistics->CompressedDataSize = protoStatistics.compressed_data_size();
+    statistics->MemorySize = protoStatistics.memory_size();
+    statistics->ChunkCount = protoStatistics.chunk_count();
+    statistics->PartitionCount = protoStatistics.partition_count();
+    statistics->StoreCount = protoStatistics.store_count();
+    statistics->PreloadPendingStoreCount = protoStatistics.preload_pending_store_count();
+    statistics->PreloadCompletedStoreCount = protoStatistics.preload_completed_store_count();
+    statistics->PreloadFailedStoreCount = protoStatistics.preload_failed_store_count();
+    statistics->DynamicMemoryPoolSize = protoStatistics.dynamic_memory_pool_size();
+    statistics->TabletCount = protoStatistics.tablet_count();
+    statistics->Decommissioned = protoStatistics.decommissioned();
+
+    auto diskSpacePerMedium = TMutableRange<i64>(statistics->DiskSpacePerMedium, MaxMediumCount);
+    FromProto(&diskSpacePerMedium, protoStatistics.disk_space_per_medium());
+    FromProto(&statistics->TabletCountPerMemoryMode, protoStatistics.tablet_count_per_memory_mode());
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
-TSerializableTabletCellStatistics::TSerializableTabletCellStatistics()
+TSerializableTabletCellStatisticsBase::TSerializableTabletCellStatisticsBase()
 {
     InitParameters();
 }
 
-TSerializableTabletCellStatistics::TSerializableTabletCellStatistics(
-    const TTabletCellStatistics& statistics,
+TSerializableTabletCellStatisticsBase::TSerializableTabletCellStatisticsBase(
+    const TTabletCellStatisticsBase& statistics,
     const NChunkServer::TChunkManagerPtr& chunkManager)
-    : TTabletCellStatistics(statistics)
+    : TTabletCellStatisticsBase(statistics)
 {
     InitParameters();
-
-    TabletCount_ = std::accumulate(
-        TabletCountPerMemoryMode.begin(),
-        TabletCountPerMemoryMode.end(),
-        0);
 
     DiskSpace_ = 0;
     for (const auto& pair : chunkManager->Media()) {
@@ -185,7 +276,7 @@ TSerializableTabletCellStatistics::TSerializableTabletCellStatistics(
     }
 }
 
-void TSerializableTabletCellStatistics::InitParameters()
+void TSerializableTabletCellStatisticsBase::InitParameters()
 {
     RegisterParameter("unmerged_row_count", UnmergedRowCount);
     RegisterParameter("uncompressed_data_size", UncompressedDataSize);
@@ -200,7 +291,7 @@ void TSerializableTabletCellStatistics::InitParameters()
     RegisterParameter("preload_completed_store_count", PreloadCompletedStoreCount);
     RegisterParameter("preload_failed_store_count", PreloadFailedStoreCount);
     RegisterParameter("dynamic_memory_pool_size", DynamicMemoryPoolSize);
-    RegisterParameter("tablet_count", TabletCount_);
+    RegisterParameter("tablet_count", TabletCount);
     RegisterParameter("tablet_count_per_memory_mode", TabletCountPerMemoryMode);
 }
 
@@ -221,15 +312,44 @@ void TSerializableTabletStatisticsBase::InitParameters()
     RegisterParameter("overlapping_store_count", OverlappingStoreCount);
 }
 
+TSerializableUncountableTabletCellStatisticsBase::TSerializableUncountableTabletCellStatisticsBase()
+{
+    InitParameters();
+}
+
+TSerializableUncountableTabletCellStatisticsBase::TSerializableUncountableTabletCellStatisticsBase(
+    const TUncountableTabletCellStatisticsBase& statistics)
+    : TUncountableTabletCellStatisticsBase(statistics)
+{
+    InitParameters();
+}
+
+void TSerializableUncountableTabletCellStatisticsBase::InitParameters()
+{
+    RegisterParameter("decommissioned", Decommissioned);
+}
+
+TSerializableTabletCellStatistics::TSerializableTabletCellStatistics()
+    : TSerializableTabletCellStatisticsBase()
+    , TSerializableUncountableTabletCellStatisticsBase()
+{ }
+
+TSerializableTabletCellStatistics::TSerializableTabletCellStatistics(
+    const TTabletCellStatistics& statistics,
+    const NChunkServer::TChunkManagerPtr& chunkManager)
+    : TSerializableTabletCellStatisticsBase(statistics, chunkManager)
+    , TSerializableUncountableTabletCellStatisticsBase(statistics)
+{ }
+
 TSerializableTabletStatistics::TSerializableTabletStatistics()
-    : TSerializableTabletCellStatistics()
+    : TSerializableTabletCellStatisticsBase()
     , TSerializableTabletStatisticsBase()
 { }
 
 TSerializableTabletStatistics::TSerializableTabletStatistics(
     const TTabletStatistics& statistics,
     const NChunkServer::TChunkManagerPtr& chunkManager)
-    : TSerializableTabletCellStatistics(statistics, chunkManager)
+    : TSerializableTabletCellStatisticsBase(statistics, chunkManager)
     , TSerializableTabletStatisticsBase(statistics)
 { }
 
@@ -302,6 +422,7 @@ void TTablet::Save(TSaveContext& context) const
     Save(context, RetainedTimestamp_);
     Save(context, Errors_);
     Save(context, ErrorCount_);
+    Save(context, ExpectedState_);
 }
 
 void TTablet::Load(TLoadContext& context)
@@ -349,6 +470,10 @@ void TTablet::Load(TLoadContext& context)
     if (context.GetVersion() >= 628) {
         Load(context, Errors_);
         Load(context, ErrorCount_);
+    }
+    // COMPAT(savrus)
+    if (context.GetVersion() >= 718) {
+        Load(context, ExpectedState_);
     }
 }
 
@@ -453,10 +578,32 @@ void TTablet::SetState(ETabletState state)
 {
     if (Table_) {
         auto* table = Table_->GetTrunkNode();
+        YCHECK(table->TabletCountByState()[State_] > 0);
         --table->MutableTabletCountByState()[State_];
         ++table->MutableTabletCountByState()[state];
     }
+
+    if (!Action_) {
+        SetExpectedState(state);
+    }
+
     State_ = state;
+}
+
+ETabletState TTablet::GetExpectedState() const
+{
+    return ExpectedState_;
+}
+
+void TTablet::SetExpectedState(ETabletState state)
+{
+    if (Table_) {
+        auto* table = Table_->GetTrunkNode();
+        YCHECK(table->TabletCountByExpectedState()[ExpectedState_] > 0);
+        --table->MutableTabletCountByExpectedState()[ExpectedState_];
+        ++table->MutableTabletCountByExpectedState()[state];
+    }
+    ExpectedState_ = state;
 }
 
 TTableNode* TTablet::GetTable() const
@@ -467,7 +614,11 @@ TTableNode* TTablet::GetTable() const
 void TTablet::SetTable(TTableNode* table)
 {
     if (Table_) {
+        YCHECK(Table_->GetTrunkNode()->TabletCountByState()[State_] > 0);
+        YCHECK(Table_->GetTrunkNode()->TabletCountByExpectedState()[ExpectedState_] > 0);
         --Table_->GetTrunkNode()->MutableTabletCountByState()[State_];
+        --Table_->GetTrunkNode()->MutableTabletCountByExpectedState()[ExpectedState_];
+
         int restTabletErrorCount = Table_->GetTabletErrorCount() - GetErrorCount();
         Y_ASSERT(restTabletErrorCount >= 0);
         Table_->SetTabletErrorCount(restTabletErrorCount);
@@ -475,12 +626,14 @@ void TTablet::SetTable(TTableNode* table)
     if (table) {
         YCHECK(table->IsTrunk());
         ++table->MutableTabletCountByState()[State_];
+        ++table->MutableTabletCountByExpectedState()[ExpectedState_];
+
         table->SetTabletErrorCount(table->GetTabletErrorCount() + GetErrorCount());
     }
     Table_ = table;
 }
 
-void TTablet::SetErrors(std::vector<TError> errors)
+void TTablet::SetErrors(const TTabletErrors& errors)
 {
     if (Table_) {
         int restTabletErrorCount = Table_->GetTabletErrorCount() - GetErrorCount();
@@ -489,15 +642,13 @@ void TTablet::SetErrors(std::vector<TError> errors)
     }
 
     ErrorCount_ = 0;
-    for (auto errorKey : TEnumTraits<ETabletBackgroundActivity>::GetDomainValues()) {
-        size_t idx = static_cast<size_t>(errorKey);
-        if (idx < errors.size()) {
-            Errors_[errorKey] = errors[idx];
-            ErrorCount_ += !errors[idx].IsOK();
-        } else {
-            Errors_[errorKey] = TError{};
+    for (auto key : TEnumTraits<ETabletBackgroundActivity>::GetDomainValues()) {
+        if (errors.IsDomainValue(key) && !errors[key].IsOK()) {
+            ++ErrorCount_;
         }
     }
+
+    Errors_ = errors;
 
     if (Table_) {
         Table_->SetTabletErrorCount(Table_->GetTabletErrorCount() + GetErrorCount());

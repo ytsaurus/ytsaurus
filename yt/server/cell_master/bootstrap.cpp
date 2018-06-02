@@ -526,6 +526,13 @@ void TBootstrap::DoInitialize()
     // Initialize periodic latest timestamp update.
     TimestampProvider_->GetLatestTimestamp();
 
+    TCellTagList participants{PrimaryCellTag_};
+    if (IsPrimaryMaster()) {
+        participants.insert(participants.end(), SecondaryCellTags_.begin(), SecondaryCellTags_.end());
+    } else {
+        participants.push_back(CellTag_);
+    }
+
     TransactionSupervisor_ = New<TTransactionSupervisor>(
         Config_->TransactionSupervisor,
         HydraFacade_->GetAutomatonInvoker(EAutomatonThreadQueue::TransactionSupervisor),
@@ -534,13 +541,14 @@ void TBootstrap::DoInitialize()
         HydraFacade_->GetAutomaton(),
         HydraFacade_->GetResponseKeeper(),
         TransactionManager_,
+        SecurityManager_,
         CellId_,
         TimestampProvider_,
         std::vector<ITransactionParticipantProviderPtr>{
             CreateTransactionParticipantProvider(
                 CellDirectory_,
                 TimestampProvider_,
-                CellTag_)
+                participants)
         });
 
     fileSnapshotStore->Initialize();

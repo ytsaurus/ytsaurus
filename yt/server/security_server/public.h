@@ -40,6 +40,7 @@ DECLARE_ENTITY_TYPE(TUser, TUserId, NObjectClient::TDirectObjectIdHash)
 DECLARE_ENTITY_TYPE(TGroup, TGroupId, NObjectClient::TDirectObjectIdHash)
 
 DECLARE_REFCOUNTED_CLASS(TSerializableClusterResources)
+DECLARE_REFCOUNTED_STRUCT(ISecurityManagerBase)
 
 class TSubject;
 

@@ -140,12 +140,26 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
         }
 
         if (dynamic) {
+            if (!node->IsForeign()) {
+                tabletManager->ValidateMakeTableDynamic(node);
+            }
+
             tabletManager->MakeTableDynamic(node);
 
-            if (maybeTabletCount) {
-                tabletManager->ReshardTable(node, 0, 0, *maybeTabletCount, {});
-            } else if (maybePivotKeys) {
-                tabletManager->ReshardTable(node, 0, 0, maybePivotKeys->size(), *maybePivotKeys);
+            if (!node->IsForeign()) {
+                if (maybeTabletCount) {
+                    tabletManager->ValidateReshardTable(node, 0, 0, *maybeTabletCount, {}, true);
+                } else if (maybePivotKeys) {
+                    tabletManager->ValidateReshardTable(node, 0, 0, maybePivotKeys->size(), *maybePivotKeys, true);
+                }
+            }
+
+            if (!node->IsExternal()) {
+                if (maybeTabletCount) {
+                    tabletManager->ReshardTable(node, 0, 0, *maybeTabletCount, {});
+                } else if (maybePivotKeys) {
+                    tabletManager->ReshardTable(node, 0, 0, maybePivotKeys->size(), *maybePivotKeys);
+                }
             }
 
             node->SetUpstreamReplicaId(upstreamReplicaId);
@@ -206,12 +220,14 @@ void TTableNodeTypeHandlerBase<TImpl>::DoClone(
     ENodeCloneMode mode,
     TAccount* account)
 {
-    const auto& securityManager = this->Bootstrap_->GetSecurityManager();
-    securityManager->ValidateResourceUsageIncrease(
-        account,
-        TClusterResources().SetTabletCount(sourceNode->GetTrunkNode()->Tablets().size()));
-
     const auto& tabletManager = this->Bootstrap_->GetTabletManager();
+
+    tabletManager->ValidateCloneTable(
+        sourceNode,
+        clonedNode,
+        factory->GetTransaction(),
+        mode,
+        account);
 
     TBase::DoClone(sourceNode, clonedNode, factory, mode, account);
 
@@ -219,7 +235,6 @@ void TTableNodeTypeHandlerBase<TImpl>::DoClone(
         tabletManager->CloneTable(
             sourceNode,
             clonedNode,
-            factory->GetTransaction(),
             mode);
     }
 
@@ -238,9 +253,16 @@ void TTableNodeTypeHandlerBase<TImpl>::DoClone(
     clonedNode->SetMaxTabletSize(sourceNode->GetMaxTabletSize());
     clonedNode->SetDesiredTabletSize(sourceNode->GetDesiredTabletSize());
     clonedNode->SetDesiredTabletCount(sourceNode->GetDesiredTabletCount());
+    clonedNode->SetDynamic(sourceNode->IsDynamic());
 
     auto* trunkSourceNode = sourceNode->GetTrunkNode();
     tabletManager->SetTabletCellBundle(clonedNode, trunkSourceNode->GetTabletCellBundle());
+}
+
+template <class TImpl>
+bool TTableNodeTypeHandlerBase<TImpl>::IsExternalizable() const
+{
+    return true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -252,11 +274,6 @@ TTableNodeTypeHandler::TTableNodeTypeHandler(TBootstrap* bootstrap)
 EObjectType TTableNodeTypeHandler::GetObjectType() const
 {
     return EObjectType::Table;
-}
-
-bool TTableNodeTypeHandler::IsExternalizable() const
-{
-    return true;
 }
 
 ICypressNodeProxyPtr TTableNodeTypeHandler::DoGetProxy(

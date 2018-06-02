@@ -5,6 +5,8 @@
 
 #include <yt/server/cell_node/public.h>
 
+#include <yt/server/security_server/security_manager_base.h>
+
 #include <yt/core/actions/future.h>
 
 #include <yt/core/misc/nullable.h>
@@ -22,22 +24,16 @@ namespace NTabletNode {
  *  \see #TSecurityManager::ResetAuthenticatedUser
  */
 class TAuthenticatedUserGuard
-    : private TNonCopyable
+    : public NSecurityServer::TAuthenticatedUserGuardBase
 {
 public:
     TAuthenticatedUserGuard(TSecurityManagerPtr securityManager, const TNullable<TString>& maybeUser);
-    ~TAuthenticatedUserGuard();
-
-private:
-    const TSecurityManagerPtr SecurityManager_;
-    const bool IsNull_;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSecurityManager
-    : public TRefCounted
+    : public NSecurityServer::ISecurityManagerBase
 {
 public:
     TSecurityManager(
@@ -45,9 +41,9 @@ public:
         NCellNode::TBootstrap* bootstrap);
     ~TSecurityManager();
 
-    void SetAuthenticatedUser(const TString& user);
-    void ResetAuthenticatedUser();
-    TNullable<TString> GetAuthenticatedUser();
+    virtual void SetAuthenticatedUserByNameOrThrow(const TString& user) override;
+    virtual void ResetAuthenticatedUser() override;
+    virtual TNullable<TString> GetAuthenticatedUserName() override;
 
     TFuture<void> CheckPermission(
         const TTabletSnapshotPtr& tabletSnapshot,

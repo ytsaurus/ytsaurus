@@ -4366,6 +4366,7 @@ void TOperationControllerBase::LockInputTables()
         THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Failed to lock input table %Qv", path);
         const auto& rsp = rspOrError.Value();
         table.ObjectId = FromProto<TObjectId>(rsp->node_id());
+        table.CellTag = FromProto<TCellTag>(rsp->cell_tag());
     }
 }
 
@@ -4389,14 +4390,24 @@ void TOperationControllerBase::GetInputTablesAttributes()
         }
     }
 
-    {
-        auto channel = InputClient->GetMasterChannelOrThrow(EMasterChannelKind::Follower);
+    THashMap<TCellTag, std::vector<TInputTable*>> cellTagToTables;
+    for (auto& table : InputTables) {
+        cellTagToTables[table.CellTag].push_back(&table);
+    }
+
+    for (const auto& pair : cellTagToTables) {
+        auto cellTag = pair.first;
+        const auto& tables = pair.second;
+
+        auto channel = InputClient->GetMasterChannelOrThrow(
+            EMasterChannelKind::Follower,
+            cellTag);
         TObjectServiceProxy proxy(channel);
 
         auto batchReq = proxy.ExecuteBatch();
 
-        for (const auto& table : InputTables) {
-            auto objectIdPath = FromObjectId(table.ObjectId);
+        for (const auto* table : tables) {
+            auto objectIdPath = FromObjectId(table->ObjectId);
             {
                 auto req = TTableYPathProxy::Get(objectIdPath + "/@");
                 std::vector<TString> attributeKeys{
@@ -4408,7 +4419,7 @@ void TOperationControllerBase::GetInputTablesAttributes()
                     "unflushed_timestamp"
                 };
                 ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
-                SetTransactionId(req, *table.TransactionId);
+                SetTransactionId(req, *table->TransactionId);
                 batchReq->AddRequest(req, "get_attributes");
             }
         }
@@ -4419,25 +4430,26 @@ void TOperationControllerBase::GetInputTablesAttributes()
 
         auto lockInRspsOrError = batchRsp->GetResponses<TTableYPathProxy::TRspLock>("lock");
         auto getInAttributesRspsOrError = batchRsp->GetResponses<TTableYPathProxy::TRspGet>("get_attributes");
-        for (int index = 0; index < InputTables.size(); ++index) {
-            auto& table = InputTables[index];
-            auto path = table.Path.GetPath();
+        for (int index = 0; index < tables.size(); ++index) {
+            auto& table = tables[index];
+            auto path = table->Path.GetPath();
             {
                 const auto& rsp = getInAttributesRspsOrError[index].Value();
                 auto attributes = ConvertToAttributes(TYsonString(rsp->value()));
 
-                table.IsDynamic = attributes->Get<bool>("dynamic");
-                table.Schema = attributes->Get<TTableSchema>("schema");
-                table.SchemaMode = attributes->Get<ETableSchemaMode>("schema_mode");
-                table.ChunkCount = attributes->Get<int>("chunk_count");
+                table->IsDynamic = attributes->Get<bool>("dynamic");
+                table->Schema = attributes->Get<TTableSchema>("schema");
+                table->SchemaMode = attributes->Get<ETableSchemaMode>("schema_mode");
+                table->ChunkCount = attributes->Get<int>("chunk_count");
 
                 // Validate that timestamp is correct.
-                ValidateDynamicTableTimestamp(table.Path, table.IsDynamic, table.Schema, *attributes);
+                ValidateDynamicTableTimestamp(table->Path, table->IsDynamic, table->Schema, *attributes);
             }
-            LOG_INFO("Input table locked (Path: %v, Schema: %v, ChunkCount: %v)",
+            LOG_INFO("Input table locked (Path: %v, Schema: %v, Dynamic: %v, ChunkCount: %v)",
                 path,
-                table.Schema,
-                table.ChunkCount);
+                table->Schema,
+                table->IsDynamic,
+                table->ChunkCount);
         }
     }
 }

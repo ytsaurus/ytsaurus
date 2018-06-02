@@ -585,6 +585,7 @@ public:
             NProto::TReqPrepareTransactionCommit request;
             ToProto(request.mutable_transaction_id(), transactionId);
             request.set_prepare_timestamp(prepareTimestamp);
+            request.set_user_name(*securityManager->GetAuthenticatedUserName());
 
             const auto& multicellManager = Bootstrap_->GetMulticellManager();
             multicellManager->PostToMasters(request, transaction->SecondaryCellTags());
@@ -697,16 +698,21 @@ private:
         auto timeout = FromProto<TDuration>(request->timeout());
 
         TCellTagList secondaryCellTags;
-        if (Bootstrap_->IsPrimaryMaster()) {
-            const auto& multicellManager = Bootstrap_->GetMulticellManager();
-            secondaryCellTags = multicellManager->GetRegisteredMasterCellTags();
+        auto replicateToCellTags = FromProto<TCellTagList>(request->replicate_to_cell_tags());
+
+        if (replicateToCellTags.empty()) {
+            if (Bootstrap_->IsPrimaryMaster()) {
+                const auto& multicellManager = Bootstrap_->GetMulticellManager();
+                secondaryCellTags = multicellManager->GetRegisteredMasterCellTags();
+                replicateToCellTags = secondaryCellTags;
+            }
         }
 
         auto* transaction = StartTransaction(
             parent,
             prerequisiteTransactions,
             secondaryCellTags,
-            secondaryCellTags,
+            replicateToCellTags,
             timeout,
             title,
             *attributes,
@@ -753,6 +759,12 @@ private:
     {
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
         auto prepareTimestamp = request->prepare_timestamp();
+        auto userName = request->user_name();
+
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+        auto* user = securityManager->GetUserByNameOrThrow(userName);
+        TAuthenticatedUserGuard(securityManager, user);
+
         PrepareTransactionCommit(transactionId, true, prepareTimestamp);
     }
 

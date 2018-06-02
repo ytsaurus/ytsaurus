@@ -1,6 +1,6 @@
 import pytest
 
-from yt_env_setup import YTEnvSetup, unix_only, wait
+from yt_env_setup import YTEnvSetup, unix_only, wait, parametrize_external
 from yt.environment.helpers import assert_items_equal
 from yt_commands import *
 
@@ -27,6 +27,14 @@ class TestSchedulerMapReduceCommands(YTEnvSetup):
             "enable_partition_map_job_size_adjustment" : True
         }
     }
+
+    def _create_simple_dynamic_table(self, path, sort_order="ascending", **attributes):
+        if "schema" not in attributes:
+            attributes.update({"schema": [
+                {"name": "key", "type": "int64", "sort_order": sort_order},
+                {"name": "value", "type": "string"}]
+            })
+        create_dynamic_table(path, **attributes)
 
     @pytest.mark.parametrize("method", ["map_sort_reduce", "map_reduce", "map_reduce_1p", "reduce_combiner_dev_null",
                                         "force_reduce_combiners", "ordered_map_reduce"])
@@ -719,22 +727,12 @@ print "x={0}\ty={1}".format(x, y)
         actual = read_table("//tmp/t_output")
         assert_items_equal(actual, expected)
 
+    @parametrize_external
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
     @pytest.mark.parametrize("sort_order", [None, "ascending"])
-    def test_map_reduce_on_dynamic_table(self, sort_order, optimize_for):
-        def _create_dynamic_table(path):
-            create("table", path,
-                attributes = {
-                    "schema": [
-                        {"name": "key", "type": "int64", "sort_order": sort_order},
-                        {"name": "value", "type": "string"}
-                    ],
-                    "dynamic": True,
-                    "optimize_for": optimize_for
-                })
-
+    def test_map_reduce_on_dynamic_table(self, external, sort_order, optimize_for):
         sync_create_cells(1)
-        _create_dynamic_table("//tmp/t")
+        self._create_simple_dynamic_table("//tmp/t", sort_order=sort_order, optimize_for=optimize_for, external=external)
 
         create("table", "//tmp/t_out")
 

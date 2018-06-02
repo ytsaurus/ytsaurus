@@ -25,6 +25,7 @@ using namespace NYson;
 using namespace NYTree;
 using namespace NObjectServer;
 using namespace NTransactionClient;
+using namespace NObjectClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -50,6 +51,7 @@ private:
         const auto* table = tablet->GetTable();
 
         descriptors->push_back(EInternedAttributeKey::State);
+        descriptors->push_back(EInternedAttributeKey::ExpectedState);
         descriptors->push_back(EInternedAttributeKey::Statistics);
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::TablePath)
             .SetOpaque(true));
@@ -97,6 +99,11 @@ private:
                     .Value(tablet->GetState());
                 return true;
 
+            case EInternedAttributeKey::ExpectedState:
+                BuildYsonFluently(consumer)
+                    .Value(tablet->GetExpectedState());
+                return true;
+
             case EInternedAttributeKey::Statistics:
                 BuildYsonFluently(consumer)
                     .Value(New<TSerializableTabletStatistics>(
@@ -105,11 +112,12 @@ private:
                 return true;
 
             case EInternedAttributeKey::TablePath:
-                if (!IsObjectAlive(tablet->GetTable())) {
+                if (!IsObjectAlive(table) || table->IsForeign()) {
                     break;
                 }
                 BuildYsonFluently(consumer)
                     .Value(cypressManager->GetNodePath(
+                        //table->GetTrunkNode(),
                         tablet->GetTable()->GetTrunkNode(),
                         nullptr));
                 return true;
@@ -118,7 +126,6 @@ private:
                 BuildYsonFluently(consumer)
                     .Value(tablet->GetTrimmedRowCount());
                 return true;
-
 
             case EInternedAttributeKey::FlushedRowCount:
                 BuildYsonFluently(consumer)
@@ -223,6 +230,26 @@ private:
         }
 
         return TBase::GetBuiltinAttribute(key, consumer);
+    }
+
+    virtual TFuture<NYson::TYsonString> GetBuiltinAttributeAsync(NYTree::TInternedAttributeKey key) override
+    {
+        const auto* tablet = GetThisImpl();
+
+        switch (key) {
+            case EInternedAttributeKey::TablePath: {
+                auto* table = tablet->GetTable();
+                if (!IsObjectAlive(table)) {
+                    break;
+                }
+                return FetchFromShepherd(FromObjectId(table->GetId()) + "/@path");
+            }
+
+            default:
+                break;
+        }
+
+        return TBase::GetBuiltinAttributeAsync(key);
     }
 };
 

@@ -37,16 +37,17 @@
 namespace NYT {
 namespace NTabletNode {
 
-using namespace NConcurrency;
-using namespace NYTree;
 using namespace NApi;
-using namespace NNodeTrackerClient;
 using namespace NChunkClient;
-using namespace NTransactionClient;
+using namespace NConcurrency;
 using namespace NHydra;
+using namespace NNodeTrackerClient;
+using namespace NObjectClient;
 using namespace NTabletClient;
-using namespace NTabletServer::NProto;
 using namespace NTabletNode::NProto;
+using namespace NTabletServer::NProto;
+using namespace NTransactionClient;
+using namespace NYTree;
 
 using NYT::FromProto;
 
@@ -277,6 +278,7 @@ private:
             LOG_INFO("Store flush started");
 
             TTransactionStartOptions options;
+            options.CellTag = CellTagFromId(tablet->GetId());
             options.AutoAbort = false;
             auto attributes = CreateEphemeralAttributes();
             attributes->Set("title", Format("Store flush: table %v, store %v, tablet %v",
@@ -313,7 +315,8 @@ private:
             ToProto(actionRequest.add_stores_to_remove()->mutable_store_id(), store->GetId());
 
             auto actionData = MakeTransactionActionData(actionRequest);
-            transaction->AddAction(Bootstrap_->GetMasterClient()->GetNativeConnection()->GetPrimaryMasterCellId(), actionData);
+            auto masterCellId = Bootstrap_->GetCellId(CellTagFromId(tabletSnapshot->TabletId));
+            transaction->AddAction(masterCellId, actionData);
             transaction->AddAction(slot->GetCellId(), actionData);
 
             const auto& tabletManager = slot->GetTabletManager();

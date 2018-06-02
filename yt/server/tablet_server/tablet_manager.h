@@ -51,6 +51,53 @@ public:
     TTabletStatistics GetTabletStatistics(const TTablet* tablet);
 
 
+    void ValidateMountTable(
+        NTableServer::TTableNode* table,
+        int firstTabletIndex,
+        int lastTabletIndex,
+        TTabletCell* hintCell,
+        bool freeze,
+        NTransactionClient::TTimestamp mountTimestamp);
+
+    void ValidateUnmountTable(
+        NTableServer::TTableNode* table,
+        bool force,
+        int firstTabletIndex = -1,
+        int lastTabletIndex = -1);
+
+    void ValidateRemountTable(
+        NTableServer::TTableNode* table,
+        int firstTabletIndex = -1,
+        int lastTabletIndex = -1);
+
+    void ValidateFreezeTable(
+        NTableServer::TTableNode* table,
+        int firstTabletIndex,
+        int lastTabletIndex);
+
+    void ValidateUnfreezeTable(
+        NTableServer::TTableNode* table,
+        int firstTabletIndex = -1,
+        int lastTabletIndex = -1);
+
+    void ValidateReshardTable(
+        NTableServer::TTableNode* table,
+        int firstTabletIndex,
+        int lastTabletIndex,
+        int newTabletCount,
+        const std::vector<NTableClient::TOwningKey>& pivotKeys,
+        bool create = false);
+
+    void ValidateMakeTableDynamic(NTableServer::TTableNode* table);
+    void ValidateMakeTableStatic(NTableServer::TTableNode* table);
+
+    void ValidateCloneTable(
+        NTableServer::TTableNode* sourceTable,
+        NTableServer::TTableNode* clonedTable,
+        NTransactionServer::TTransaction* transaction,
+        NCypressServer::ENodeCloneMode mode,
+        NSecurityServer::TAccount* account);
+
     void MountTable(
         NTableServer::TTableNode* table,
         int firstTabletIndex,
@@ -90,7 +137,6 @@ public:
     void CloneTable(
         NTableServer::TTableNode* sourceTable,
         NTableServer::TTableNode* clonedTable,
-        NTransactionServer::TTransaction* transaction,
         NCypressServer::ENodeCloneMode mode);
 
     void MakeTableDynamic(NTableServer::TTableNode* table);
@@ -164,7 +210,6 @@ private:
         const std::vector<NTableClient::TOwningKey>& pivotKeys,
         const TNullable<int>& tabletCount,
         bool skipFreezing,
-        const TNullable<bool>& freeze,
         bool preserve);
 
     void DestroyTabletAction(TTabletAction* action);

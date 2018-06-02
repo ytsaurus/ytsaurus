@@ -30,7 +30,7 @@ DEFINE_REFCOUNTED_TYPE(ITransactionParticipantProvider)
 ITransactionParticipantProviderPtr CreateTransactionParticipantProvider(
     NHiveClient::TCellDirectoryPtr cellDirectory,
     NTransactionClient::ITimestampProviderPtr timestampProvider,
-    NObjectClient::TCellTag cellTag);
+    NObjectClient::TCellTagList cellTags);
 
 ITransactionParticipantProviderPtr CreateTransactionParticipantProvider(
     NApi::NNative::IConnectionPtr connection);

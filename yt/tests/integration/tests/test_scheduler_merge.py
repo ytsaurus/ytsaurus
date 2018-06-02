@@ -1,7 +1,7 @@
 import pytest
 import yt.yson as yson
 
-from yt_env_setup import YTEnvSetup, unix_only
+from yt_env_setup import YTEnvSetup, unix_only, parametrize_external
 from yt_commands import *
 
 from yt.environment.helpers import assert_items_equal
@@ -75,6 +75,14 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         self.v2 = v2
 
         create("table", "//tmp/t_out")
+
+    def _create_simple_dynamic_table(self, path, **attributes):
+        if "schema" not in attributes:
+            attributes.update({"schema": [
+                {"name": "key", "type": "int64", "sort_order": "ascending"},
+                {"name": "value", "type": "string"}]
+            })
+        create_dynamic_table(path, **attributes)
 
     # usual cases
     def test_unordered(self):
@@ -938,20 +946,11 @@ class TestSchedulerMergeCommands(YTEnvSetup):
                 out="//tmp/output",
                 spec={"schema_inference_mode" : "from_output"})
 
+    @parametrize_external
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
-    def test_sorted_merge_on_dynamic_table(self, optimize_for):
-        def _create_dynamic_table(path):
-            create("table", path,
-                attributes = {
-                    "schema": [
-                        {"name": "key", "type": "int64", "sort_order": "ascending"},
-                        {"name": "value", "type": "string"}],
-                    "dynamic": True,
-                    "optimize_for": optimize_for
-                })
-
+    def test_sorted_merge_on_dynamic_table(self, external, optimize_for):
         sync_create_cells(1)
-        _create_dynamic_table("//tmp/t")
+        self._create_simple_dynamic_table("//tmp/t", optimize_for=optimize_for, external=external)
 
         create("table", "//tmp/t_out")
 

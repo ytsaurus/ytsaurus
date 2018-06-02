@@ -730,22 +730,23 @@ void TMasterConnector::ReportIncrementalNodeHeartbeat(TCellTag cellTag)
         *request->add_removed_chunks() = BuildRemoveChunkInfo(chunk);
     }
 
-    if (cellTag == primaryCellTag) {
-        auto slotManager = Bootstrap_->GetTabletSlotManager();
-        for (auto slot : slotManager->Slots()) {
-            auto* protoSlotInfo = request->add_tablet_slots();
-            if (slot) {
-                ToProto(protoSlotInfo->mutable_cell_info(), slot->GetCellDescriptor().ToInfo());
-                protoSlotInfo->set_peer_state(static_cast<int>(slot->GetControlState()));
-                protoSlotInfo->set_peer_id(slot->GetPeerId());
-                protoSlotInfo->set_dynamic_config_version(slot->GetDynamicConfigVersion());
-            } else {
-                protoSlotInfo->set_peer_state(static_cast<int>(NHydra::EPeerState::None));
-            }
+    auto slotManager = Bootstrap_->GetTabletSlotManager();
+    for (auto slot : slotManager->Slots()) {
+        auto* protoSlotInfo = request->add_tablet_slots();
+        if (slot) {
+            ToProto(protoSlotInfo->mutable_cell_info(), slot->GetCellDescriptor().ToInfo());
+            protoSlotInfo->set_peer_state(static_cast<int>(slot->GetControlState()));
+            protoSlotInfo->set_peer_id(slot->GetPeerId());
+            protoSlotInfo->set_dynamic_config_version(slot->GetDynamicConfigVersion());
+        } else {
+            protoSlotInfo->set_peer_state(static_cast<int>(NHydra::EPeerState::None));
         }
+    }
 
-        auto tabletSnapshots = slotManager->GetTabletSnapshots();
-        for (const auto& tabletSnapshot : tabletSnapshots) {
+    auto tabletSnapshots = slotManager->GetTabletSnapshots();
+    for (const auto& tabletSnapshot : tabletSnapshots) {
+        if (CellTagFromId(tabletSnapshot->TabletId) == cellTag) {
+
             auto* protoTabletInfo = request->add_tablets();
             ToProto(protoTabletInfo->mutable_tablet_id(), tabletSnapshot->TabletId);
 
@@ -761,11 +762,7 @@ void TMasterConnector::ReportIncrementalNodeHeartbeat(TCellTag cellTag)
             protoTabletStatistics->set_unflushed_timestamp(tabletSnapshot->RuntimeData->UnflushedTimestamp);
             protoTabletStatistics->set_dynamic_memory_pool_size(tabletSnapshot->RuntimeData->DynamicMemoryPoolSize);
 
-            TEnumIndexedVector<TError, ETabletBackgroundActivity> errors;
-            for (auto key : TEnumTraits<ETabletBackgroundActivity>::GetDomainValues()) {
-                errors[key] = tabletSnapshot->RuntimeData->Errors[key].Load();
-            }
-            ToProto(protoTabletInfo->mutable_errors(), std::vector<TError>(errors.begin(), errors.end()));
+            ToProto(protoTabletInfo->mutable_errors(), tabletSnapshot->RuntimeData->Errors);
 
             for (const auto& pair : tabletSnapshot->Replicas) {
                 const auto& replicaId = pair.first;

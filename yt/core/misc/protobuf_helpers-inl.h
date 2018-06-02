@@ -203,7 +203,7 @@ void ToProtoArrayImpl(
     const TOriginalArray& originalArray)
 {
     serializedArray->Clear();
-    serializedArray->Reserve(serializedArray->size());
+    serializedArray->Reserve(originalArray.size());
     for (const auto& item : originalArray) {
         ToProto(serializedArray->Add(), item);
     }
@@ -217,6 +217,64 @@ void FromProtoArrayImpl(
     originalArray->clear();
     originalArray->resize(serializedArray.size());
     for (int i = 0; i < serializedArray.size(); ++i) {
+        FromProto(&(*originalArray)[i], serializedArray.Get(i));
+    }
+}
+
+template <class TProtoPair, class TValue>
+typename std::enable_if<!std::is_trivial<TValue>::value, void>::type SetPairValueImpl(TProtoPair& pair, const TValue& value)
+{
+    ToProto(pair->mutable_value(), value);
+}
+
+template <class TProtoPair, class TValue>
+typename std::enable_if<std::is_trivial<TValue>::value, void>::type SetPairValueImpl(TProtoPair& pair, const TValue& value)
+{
+   pair->set_value(value);
+}
+
+template <class TSerializedArray, class T, class E, E Min, E Max>
+void ToProtoArrayImpl(
+    TSerializedArray* serializedArray,
+    const TEnumIndexedVector<T, E, Min, Max>& originalArray)
+{
+    serializedArray->Clear();
+    for (auto key : TEnumTraits<E>::GetDomainValues()) {
+        if (originalArray.IsDomainValue(key)) {
+            const auto& value = originalArray[key];
+            auto* pair = serializedArray->Add();
+            pair->set_key(static_cast<i32>(key));
+            SetPairValueImpl(pair, value);
+        }
+    }
+}
+
+template <class T, class E, E Min, E Max, class TSerializedArray>
+void FromProtoArrayImpl(
+    TEnumIndexedVector<T, E, Min, Max>* originalArray,
+    const TSerializedArray& serializedArray)
+{
+    for (auto key : TEnumTraits<E>::GetDomainValues()) {
+        if (originalArray->IsDomainValue(key)) {
+            (*originalArray)[key] = T{};
+        }
+    }
+    for (const auto& pair: serializedArray) {
+        const auto& key = static_cast<E>(pair.key());
+        if (originalArray->IsDomainValue(key)) {
+            FromProto(&(*originalArray)[key], pair.value());
+        }
+    }
+}
+
+template <class TOriginal, class TSerializedArray>
+void FromProtoArrayImpl(
+    TMutableRange<TOriginal>* originalArray,
+    const TSerializedArray& serializedArray)
+{
+    std::fill(originalArray->begin(), originalArray->end(), TOriginal());
+    // NB: Only takes items with known indexes. Be careful when protocol is changed.
+    for (int i = 0; i < serializedArray.size() && i < originalArray->Size(); ++i) {
         FromProto(&(*originalArray)[i], serializedArray.Get(i));
     }
 }
@@ -267,6 +325,22 @@ template <class TSerialized, class TOriginal>
 void ToProto(
     ::google::protobuf::RepeatedField<TSerialized>* serializedArray,
     TRange<TOriginal> originalArray)
+{
+    NDetail::ToProtoArrayImpl(serializedArray, originalArray);
+}
+
+template <class TSerialized, class T, class E, E Min, E Max>
+void ToProto(
+    ::google::protobuf::RepeatedField<TSerialized>* serializedArray,
+    const TEnumIndexedVector<T, E, Min, Max>& originalArray)
+{
+    NDetail::ToProtoArrayImpl(serializedArray, originalArray);
+}
+
+template <class TSerialized, class T, class E, E Min, E Max>
+void ToProto(
+    ::google::protobuf::RepeatedPtrField<TSerialized>* serializedArray,
+    const TEnumIndexedVector<T, E, Min, Max>& originalArray)
 {
     NDetail::ToProtoArrayImpl(serializedArray, originalArray);
 }
