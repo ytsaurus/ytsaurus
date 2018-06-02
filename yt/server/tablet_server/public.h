@@ -15,6 +15,14 @@ namespace NTabletServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace NProto {
+
+class TProtoTabletCellStatistics;
+
+} // namespace NProto
+
+////////////////////////////////////////////////////////////////////////////////
+
 using NHydra::TPeerId;
 using NHydra::InvalidPeerId;
 using NHydra::EPeerState;
@@ -77,6 +85,7 @@ DEFINE_ENUM(ETabletActionState,
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_REFCOUNTED_CLASS(TTabletManager)
+DECLARE_REFCOUNTED_CLASS(TTabletService)
 DECLARE_REFCOUNTED_CLASS(TTabletBalancer)
 DECLARE_REFCOUNTED_CLASS(TBundleNodeTracker)
 DECLARE_REFCOUNTED_CLASS(TTabletCellDecommissioner)

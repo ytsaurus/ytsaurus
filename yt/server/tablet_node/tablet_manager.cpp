@@ -934,7 +934,7 @@ private:
             TRspMountTablet response;
             ToProto(response.mutable_tablet_id(), tabletId);
             response.set_frozen(freeze);
-            PostMasterMutation(response);
+            PostMasterMutation(tabletId, response);
         }
 
         if (!IsRecovery()) {
@@ -1080,7 +1080,7 @@ private:
 
         TRspUnfreezeTablet response;
         ToProto(response.mutable_tablet_id(), tabletId);
-        PostMasterMutation(response);
+        PostMasterMutation(tabletId, response);
     }
 
     void HydraSetTabletState(TReqSetTabletState* request)
@@ -1150,7 +1150,7 @@ private:
 
                 TRspUnmountTablet response;
                 ToProto(response.mutable_tablet_id(), tabletId);
-                PostMasterMutation(response);
+                PostMasterMutation(tabletId, response);
                 break;
             }
 
@@ -1177,7 +1177,7 @@ private:
 
                 TRspFreezeTablet response;
                 ToProto(response.mutable_tablet_id(), tabletId);
-                PostMasterMutation(response);
+                PostMasterMutation(tabletId, response);
                 break;
             }
 
@@ -2641,7 +2641,6 @@ private:
         CommitTabletMutation(request);
     }
 
-
     void CommitTabletMutation(const ::google::protobuf::MessageLite& message)
     {
         auto mutation = CreateMutation(Slot_->GetHydraManager(), message);
@@ -2650,10 +2649,14 @@ private:
         }));
     }
 
-    void PostMasterMutation(const ::google::protobuf::MessageLite& message)
+    void PostMasterMutation(TTabletId tabletId, const ::google::protobuf::MessageLite& message)
     {
         const auto& hiveManager = Slot_->GetHiveManager();
-        hiveManager->PostMessage(Slot_->GetMasterMailbox(), message);
+        auto* mailbox = hiveManager->GetOrCreateMailbox(Bootstrap_->GetCellId(CellTagFromId(tabletId)));
+        if (!mailbox) {
+            mailbox = Slot_->GetMasterMailbox();
+        }
+        hiveManager->PostMessage(mailbox, message);
     }
 
 
@@ -3222,7 +3225,7 @@ private:
             ToProto(response.mutable_tablet_id(), tablet->GetId());
             ToProto(response.mutable_replica_id(), replicaInfo->GetId());
             response.set_mount_revision(tablet->GetMountRevision());
-            PostMasterMutation(response);
+            PostMasterMutation(tablet->GetId(), response);
         }
     }
 
@@ -3233,7 +3236,7 @@ private:
         ToProto(request.mutable_replica_id(), replicaInfo.GetId());
         request.set_mount_revision(tablet->GetMountRevision());
         replicaInfo.PopulateStatistics(request.mutable_statistics());
-        PostMasterMutation(request);
+        PostMasterMutation(tablet->GetId(), request);
     }
 
 
@@ -3245,15 +3248,12 @@ private:
         }
         tablet->SetTrimmedRowCount(trimmedRowCount);
 
-        const auto& hiveManager = Slot_->GetHiveManager();
-        auto* masterMailbox = Slot_->GetMasterMailbox();
-
         {
             TReqUpdateTabletTrimmedRowCount masterRequest;
             ToProto(masterRequest.mutable_tablet_id(), tablet->GetId());
             masterRequest.set_mount_revision(tablet->GetMountRevision());
             masterRequest.set_trimmed_row_count(trimmedRowCount);
-            hiveManager->PostMessage(masterMailbox, masterRequest);
+            PostMasterMutation(tablet->GetId(), masterRequest);
         }
 
         LOG_DEBUG_UNLESS(IsRecovery(), "Rows trimmed (TabletId: %v, TrimmedRowCount: %v -> %v)",

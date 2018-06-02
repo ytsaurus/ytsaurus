@@ -917,10 +917,16 @@ def remove_tablet_cell_bundle(name, driver=None):
     remove("//sys/tablet_cell_bundles/" + name, driver=driver)
 
 def remove_tablet_cell(id, driver=None):
-    remove("//sys/tablet_cells/" + id, driver=driver)
+    remove("//sys/tablet_cells/" + id, driver=driver, force=True)
+
+def sync_remove_tablet_cells(cells, driver=None):
+    cells = __builtin__.set(cells)
+    for id in cells:
+        remove_tablet_cell(id, driver=driver)
+    wait(lambda: len(cells.intersection(__builtin__.set(get("//sys/tablet_cells", driver=driver)))) == 0)
 
 def remove_tablet_action(id, driver=None):
-    remove("//sys/tablet_actions/" + id, driver=driver)
+    remove("#" + id, driver=driver)
 
 def create_table_replica(table_path, cluster_name, replica_path, **kwargs):
     kwargs["type"] = "table_replica"
@@ -1228,8 +1234,7 @@ def sync_flush_table(path, driver=None):
 def sync_compact_table(path, driver=None):
     chunk_ids = __builtin__.set(get(path + "/@chunk_ids", driver=driver))
     sync_unmount_table(path, driver=driver)
-    revision = get("//sys/@current_commit_revision", driver=driver)
-    set(path + "/@forced_compaction_revision", revision, driver=driver)
+    set(path + "/@forced_compaction_revision", 1, driver=driver)
     sync_mount_table(path, driver=driver)
 
     print >>sys.stderr, "Waiting for tablets to become compacted..."
@@ -1254,3 +1259,12 @@ def sync_disable_table_replica(replica_id, driver=None):
 
     print >>sys.stderr, "Waiting for replica to become disabled..."
     wait(lambda: get("#{0}/@state".format(replica_id), driver=driver) == "disabled")
+
+def create_table_with_attributes(path, **attributes):
+    create("table", path, attributes=attributes)
+
+def create_dynamic_table(path, **attributes):
+    if "dynamic" not in attributes:
+        attributes.update({"dynamic": True})
+    create_table_with_attributes(path, **attributes)
+

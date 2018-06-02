@@ -14,18 +14,14 @@ from time import sleep
 ##################################################################
 
 class TestOrderedDynamicTables(TestDynamicTablesBase):
-    def _create_simple_table(self, path, dynamic=True, **extra_attributes):
-        attributes={
-            "dynamic": dynamic,
-            "external": False,
-            "schema": [
+    def _create_simple_table(self, path, **attributes):
+        if "schema" not in attributes:
+            attributes.update({"schema": [
                 {"name": "a", "type": "int64"},
                 {"name": "b", "type": "double"},
-                {"name": "c", "type": "string"}
-            ]
-        }
-        attributes.update(extra_attributes)
-        create("table", path, attributes=attributes)
+                {"name": "c", "type": "string"}]
+            })
+        create_dynamic_table(path, **attributes)
 
     def _wait_for_in_memory_stores_preload(self, table):
         for tablet in get(table + "/@tablets"):
@@ -167,6 +163,7 @@ class TestOrderedDynamicTables(TestDynamicTablesBase):
 
         if not dynamic:
             sync_unmount_table("//tmp/t")
+            wait(lambda: not exists("//tmp/t/@last_mount_transaction_id"))
             assert get("//tmp/t/@chunk_count") == 1
             sync_mount_table("//tmp/t")
 
@@ -201,6 +198,7 @@ class TestOrderedDynamicTables(TestDynamicTablesBase):
             insert_rows("//tmp/t", write_rows)
             if k < 4:
                 sync_unmount_table("//tmp/t")
+                wait(lambda: not exists("//tmp/t/@last_mount_transaction_id"))
                 assert get("//tmp/t/@chunk_count") == k + 1
                 sync_mount_table("//tmp/t")
 
@@ -264,7 +262,9 @@ class TestOrderedDynamicTables(TestDynamicTablesBase):
 
         write_table("//tmp/t", [{"a": 0}])
         concatenate(["//tmp/t", "//tmp/t"], "//tmp/t")
-        with pytest.raises(YtError): alter_table("//tmp/t", dynamic=True)
+        alter_table("//tmp/t", dynamic=True)
+        with pytest.raises(YtError):
+            mount_table("//tmp/t")
 
     @skip_if_rpc_driver_backend
     def test_chunk_list_kind(self):
@@ -660,12 +660,14 @@ class TestOrderedDynamicTables(TestDynamicTablesBase):
         for i in xrange(5):
             insert_rows("//tmp/t", [{"$tablet_index": i, "a": i}])
         sync_unmount_table("//tmp/t")
+        wait(lambda: not exists("//tmp/t/@last_mount_transaction_id"))
         assert get("//tmp/t/@chunk_count") == 10
         sync_mount_table("//tmp/t")
         for i in xrange(5):
             trim_rows("//tmp/t", i, 1)
         wait(lambda: get("//tmp/t/@chunk_count") == 5)
         sync_unmount_table("//tmp/t")
+        wait(lambda: not exists("//tmp/t/@last_mount_transaction_id"))
         copy("//tmp/t", "//tmp/t2")
         reshard_table("//tmp/t", 1)
 
@@ -677,6 +679,7 @@ class TestOrderedDynamicTables(TestDynamicTablesBase):
         sync_flush_table("//tmp/t")
         trim_rows("//tmp/t", 0, 1)
         sync_freeze_table("//tmp/t")
+        wait(lambda: not exists("//tmp/t/@last_mount_transaction_id"))
         copy("//tmp/t", "//tmp/t2")
         sync_unfreeze_table("//tmp/t")
         insert_rows("//tmp/t", [{"a": 1}])
@@ -685,13 +688,9 @@ class TestOrderedDynamicTables(TestDynamicTablesBase):
 
     def test_timestamp_column(self):
         sync_create_cells(1)
-        create("table", "//tmp/t", attributes={
-            "dynamic": True,
-            "schema": [
-                {"name": "a", "type": "string"},
-                {"name": "$timestamp", "type": "uint64"}
-            ]
-        })
+        create_dynamic_table("//tmp/t", schema=[
+            {"name": "a", "type": "string"},
+            {"name": "$timestamp", "type": "uint64"}])
         sync_mount_table("//tmp/t")
 
         timestamp0 = generate_timestamp()

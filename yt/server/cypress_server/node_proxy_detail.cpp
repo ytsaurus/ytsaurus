@@ -689,6 +689,9 @@ bool TNontemplateCypressNodeProxyBase::GetBuiltinAttribute(
 void TNontemplateCypressNodeProxyBase::ValidateStorageParametersUpdate()
 { }
 
+void TNontemplateCypressNodeProxyBase::ValidateLockPossible()
+{ }
+
 void TNontemplateCypressNodeProxyBase::BeforeInvoke(const IServiceContextPtr& context)
 {
     AccessTrackingSuppressed = GetSuppressAccessTracking(context->RequestHeader());
@@ -1193,6 +1196,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Lock)
     ValidatePermission(
         EPermissionCheckScope::This,
         mode == ELockMode::Snapshot ? EPermission::Read : EPermission::Write);
+    ValidateLockPossible();
 
     const auto& cypressManager = Bootstrap_->GetCypressManager();
     auto* lock = cypressManager->CreateLock(
@@ -1204,6 +1208,9 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Lock)
     auto lockId = lock->GetId();
     ToProto(response->mutable_lock_id(), lockId);
     ToProto(response->mutable_node_id(), lock->GetTrunkNode()->GetId());
+    response->set_cell_tag(TrunkNode->GetExternalCellTag() == NotReplicatedCellTag
+        ? Bootstrap_->GetCellTag()
+        : TrunkNode->GetExternalCellTag());
 
     context->SetResponseInfo("LockId: %v",
         lockId);

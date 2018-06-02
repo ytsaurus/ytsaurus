@@ -101,6 +101,16 @@ void FromProto(
     TOriginalArray* originalArray,
     const ::google::protobuf::RepeatedField<TSerialized>& serializedArray);
 
+template <class TSerialized, class T, class E, E Min, E Max>
+void ToProto(
+    ::google::protobuf::RepeatedField<TSerialized>* serializedArray,
+    const TEnumIndexedVector<T, E, Min, Max>& originalArray);
+
+template <class TSerialized, class T, class E, E Min, E Max>
+void ToProto(
+    ::google::protobuf::RepeatedPtrField<TSerialized>* serializedArray,
+    const TEnumIndexedVector<T, E, Min, Max>& originalArray);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TSerialized, class TOriginal, class... TArgs>

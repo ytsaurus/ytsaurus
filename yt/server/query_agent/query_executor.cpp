@@ -333,7 +333,7 @@ public:
         }
 
         const auto& securityManager = Bootstrap_->GetSecurityManager();
-        MaybeUser_ = securityManager->GetAuthenticatedUser();
+        MaybeUser_ = securityManager->GetAuthenticatedUserName();
 
         return BIND(&TQueryExecution::DoExecute, MakeStrong(this))
             .AsyncVia(Invoker_)

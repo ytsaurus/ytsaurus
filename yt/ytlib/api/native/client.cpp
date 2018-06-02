@@ -87,6 +87,8 @@
 #include <yt/ytlib/tablet_client/table_replica_ypath.h>
 
 #include <yt/client/transaction_client/timestamp_provider.h>
+
+#include <yt/ytlib/transaction_client/action.h>
 #include <yt/ytlib/transaction_client/transaction_manager.h>
 
 #include <yt/core/compression/codec.h>
@@ -102,6 +104,8 @@
 #include <yt/core/profiling/timing.h>
 
 #include <yt/core/rpc/helpers.h>
+
+#include <yt/core/ypath/tokenizer.h>
 
 #include <yt/core/ytree/helpers.h>
 #include <yt/core/ytree/fluent.h>
@@ -359,7 +363,7 @@ public:
         TransactionManager_ = New<TTransactionManager>(
             Connection_->GetConfig()->TransactionManager,
             Connection_->GetConfig()->PrimaryMaster->CellId,
-            Connection_->GetMasterChannelOrThrow(EMasterChannelKind::Leader),
+            Connection_,
             Options_.User,
             Connection_->GetTimestampProvider(),
             Connection_->GetCellDirectory());
@@ -2256,30 +2260,91 @@ private:
         return results;
     }
 
+    void ResolveExternalNode(const TYPath& path, TTableId* tableId, TCellTag* cellTag, TString* fullPath = nullptr)
+    {
+        TMasterReadOptions options;
+        options.ReadFrom = EMasterChannelKind::Leader;
+        auto proxy = CreateReadProxy<TObjectServiceProxy>(options);
+        auto batchReq = proxy->ExecuteBatch();
+        
+        auto* balancingHeaderExt = batchReq->Header().MutableExtension(NRpc::NProto::TBalancingExt::balancing_ext);
+        balancingHeaderExt->set_enable_stickness(true);
+        balancingHeaderExt->set_sticky_group_size(1);
+
+        {
+            auto req = TTableYPathProxy::Get(path + "/@");
+            std::vector<TString> attributeKeys{"id", "external_cell_tag"};
+            if (fullPath) {
+                attributeKeys.push_back("path");
+            }
+            ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
+            batchReq->AddRequest(req, "get_attributes");
+        }
+
+        auto batchRspOrError = WaitFor(batchReq->Invoke());
+        THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error getting attriubtes of table %v", path);
+        const auto& batchRsp = batchRspOrError.Value();
+        auto getAttributesRspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_attributes");
+        auto& rsp = getAttributesRspOrError.Value();
+        auto attributes = ConvertToAttributes(TYsonString(rsp->value()));
+        *tableId = attributes->Get<TTableId>("id");
+        *cellTag = attributes->Get<TCellTag>("external_cell_tag", PrimaryMasterCellTag);
+        if (fullPath) {
+            *fullPath = attributes->Get<TString>("path");
+        }
+    }
+
     void DoMountTable(
         const TYPath& path,
         const TMountTableOptions& options)
     {
-        auto req = TTableYPathProxy::Mount(path);
-        SetMutationId(req, options);
+        TTableId tableId;
+        TCellTag cellTag;
+        TString fullPath;
+        ResolveExternalNode(path, &tableId, &cellTag, &fullPath);
 
+        TTransactionStartOptions txOptions;
+        txOptions.Multicell = cellTag != PrimaryMasterCellTag;
+        txOptions.CellTag = cellTag;
+        auto asyncTransaction = StartNativeTransaction(
+            NTransactionClient::ETransactionType::Master,
+            txOptions);
+        auto transaction = WaitFor(asyncTransaction)
+            .ValueOrThrow();
+
+        NTableClient::NProto::TReqMount req;
+
+        ToProto(req.mutable_table_id(), tableId);
+        req.set_path(fullPath);
+ 
         if (options.FirstTabletIndex) {
-            req->set_first_tablet_index(*options.FirstTabletIndex);
+            req.set_first_tablet_index(*options.FirstTabletIndex);
         }
         if (options.LastTabletIndex) {
-            req->set_last_tablet_index(*options.LastTabletIndex);
+            req.set_last_tablet_index(*options.LastTabletIndex);
         }
         if (options.CellId) {
-            ToProto(req->mutable_cell_id(), options.CellId);
+            ToProto(req.mutable_cell_id(), options.CellId);
         }
-        req->set_freeze(options.Freeze);
+        req.set_freeze(options.Freeze);
 
         auto mountTimestamp = WaitFor(Connection_->GetTimestampProvider()->GenerateTimestamps())
             .ValueOrThrow();
-        req->set_mount_timestamp(mountTimestamp);
+        req.set_mount_timestamp(mountTimestamp);
 
-        auto proxy = CreateWriteProxy<TObjectServiceProxy>();
-        WaitFor(proxy->Execute(req))
+        auto actionData = MakeTransactionActionData(req);
+        auto primaryCellId = GetNativeConnection()->GetPrimaryMasterCellId();
+        transaction->AddAction(primaryCellId, actionData);
+
+        if (cellTag != PrimaryMasterCellTag) {
+            transaction->AddAction(ReplaceCellTagInId(primaryCellId, cellTag), actionData);
+        }
+
+        // For mutation context
+        TTransactionCommitOptions commitOptions;
+        commitOptions.Force2PC = true;
+
+        WaitFor(transaction->Commit(commitOptions))
             .ThrowOnError();
     }
 
@@ -2287,19 +2352,44 @@ private:
         const TYPath& path,
         const TUnmountTableOptions& options)
     {
-        auto req = TTableYPathProxy::Unmount(path);
-        SetMutationId(req, options);
+        TTableId tableId;
+        TCellTag cellTag;
+        ResolveExternalNode(path, &tableId, &cellTag);
 
+        TTransactionStartOptions txOptions;
+        txOptions.Multicell = cellTag != PrimaryMasterCellTag;
+        txOptions.CellTag = cellTag;
+        auto asyncTransaction = StartNativeTransaction(
+            NTransactionClient::ETransactionType::Master,
+            txOptions);
+        auto transaction = WaitFor(asyncTransaction)
+            .ValueOrThrow();
+
+        NTableClient::NProto::TReqUnmount req;
+
+        ToProto(req.mutable_table_id(), tableId);
+ 
         if (options.FirstTabletIndex) {
-            req->set_first_tablet_index(*options.FirstTabletIndex);
+            req.set_first_tablet_index(*options.FirstTabletIndex);
         }
         if (options.LastTabletIndex) {
-            req->set_last_tablet_index(*options.LastTabletIndex);
+            req.set_last_tablet_index(*options.LastTabletIndex);
         }
-        req->set_force(options.Force);
+        req.set_force(options.Force);
 
-        auto proxy = CreateWriteProxy<TObjectServiceProxy>();
-        WaitFor(proxy->Execute(req))
+        auto actionData = MakeTransactionActionData(req);
+        auto primaryCellId = GetNativeConnection()->GetPrimaryMasterCellId();
+        transaction->AddAction(primaryCellId, actionData);
+
+        if (cellTag != PrimaryMasterCellTag) {
+            transaction->AddAction(ReplaceCellTagInId(primaryCellId, cellTag), actionData);
+        }
+
+        // For mutation context
+        TTransactionCommitOptions commitOptions;
+        commitOptions.Force2PC = true;
+
+        WaitFor(transaction->Commit(commitOptions))
             .ThrowOnError();
     }
 
@@ -2307,18 +2397,43 @@ private:
         const TYPath& path,
         const TRemountTableOptions& options)
     {
-        auto req = TTableYPathProxy::Remount(path);
-        SetMutationId(req, options);
+        TTableId tableId;
+        TCellTag cellTag;
+        ResolveExternalNode(path, &tableId, &cellTag);
 
+        TTransactionStartOptions txOptions;
+        txOptions.Multicell = cellTag != PrimaryMasterCellTag;
+        txOptions.CellTag = cellTag;
+        auto asyncTransaction = StartNativeTransaction(
+            NTransactionClient::ETransactionType::Master,
+            txOptions);
+        auto transaction = WaitFor(asyncTransaction)
+            .ValueOrThrow();
+
+        NTableClient::NProto::TReqRemount req;
+
+        ToProto(req.mutable_table_id(), tableId);
+ 
         if (options.FirstTabletIndex) {
-            req->set_first_tablet_index(*options.FirstTabletIndex);
+            req.set_first_tablet_index(*options.FirstTabletIndex);
         }
         if (options.LastTabletIndex) {
-            req->set_first_tablet_index(*options.LastTabletIndex);
+            req.set_first_tablet_index(*options.LastTabletIndex);
         }
 
-        auto proxy = CreateWriteProxy<TObjectServiceProxy>();
-        WaitFor(proxy->Execute(req))
+        auto actionData = MakeTransactionActionData(req);
+        auto primaryCellId = GetNativeConnection()->GetPrimaryMasterCellId();
+        transaction->AddAction(primaryCellId, actionData);
+
+        if (cellTag != PrimaryMasterCellTag) {
+            transaction->AddAction(ReplaceCellTagInId(primaryCellId, cellTag), actionData);
+        }
+
+        // For mutation context
+        TTransactionCommitOptions commitOptions;
+        commitOptions.Force2PC = true;
+
+        WaitFor(transaction->Commit(commitOptions))
             .ThrowOnError();
     }
 
@@ -2326,18 +2441,43 @@ private:
         const TYPath& path,
         const TFreezeTableOptions& options)
     {
-        auto req = TTableYPathProxy::Freeze(path);
-        SetMutationId(req, options);
+        TTableId tableId;
+        TCellTag cellTag;
+        ResolveExternalNode(path, &tableId, &cellTag);
 
+        TTransactionStartOptions txOptions;
+        txOptions.Multicell = cellTag != PrimaryMasterCellTag;
+        txOptions.CellTag = cellTag;
+        auto asyncTransaction = StartNativeTransaction(
+            NTransactionClient::ETransactionType::Master,
+            txOptions);
+        auto transaction = WaitFor(asyncTransaction)
+            .ValueOrThrow();
+
+        NTableClient::NProto::TReqFreeze req;
+
+        ToProto(req.mutable_table_id(), tableId);
+ 
         if (options.FirstTabletIndex) {
-            req->set_first_tablet_index(*options.FirstTabletIndex);
+            req.set_first_tablet_index(*options.FirstTabletIndex);
         }
         if (options.LastTabletIndex) {
-            req->set_last_tablet_index(*options.LastTabletIndex);
+            req.set_last_tablet_index(*options.LastTabletIndex);
         }
 
-        auto proxy = CreateWriteProxy<TObjectServiceProxy>();
-        WaitFor(proxy->Execute(req))
+        auto actionData = MakeTransactionActionData(req);
+        auto primaryCellId = GetNativeConnection()->GetPrimaryMasterCellId();
+        transaction->AddAction(primaryCellId, actionData);
+
+        if (cellTag != PrimaryMasterCellTag) {
+            transaction->AddAction(ReplaceCellTagInId(primaryCellId, cellTag), actionData);
+        }
+
+        // For mutation context
+        TTransactionCommitOptions commitOptions;
+        commitOptions.Force2PC = true;
+
+        WaitFor(transaction->Commit(commitOptions))
             .ThrowOnError();
     }
 
@@ -2345,33 +2485,59 @@ private:
         const TYPath& path,
         const TUnfreezeTableOptions& options)
     {
-        auto req = TTableYPathProxy::Unfreeze(path);
-        SetMutationId(req, options);
+        TTableId tableId;
+        TCellTag cellTag;
+        ResolveExternalNode(path, &tableId, &cellTag);
+
+        TTransactionStartOptions txOptions;
+        txOptions.Multicell = cellTag != PrimaryMasterCellTag;
+        txOptions.CellTag = cellTag;
+        auto asyncTransaction = StartNativeTransaction(
+            NTransactionClient::ETransactionType::Master,
+            txOptions);
+        auto transaction = WaitFor(asyncTransaction)
+            .ValueOrThrow();
+
+        NTableClient::NProto::TReqUnfreeze req;
+
+        ToProto(req.mutable_table_id(), tableId);
 
         if (options.FirstTabletIndex) {
-            req->set_first_tablet_index(*options.FirstTabletIndex);
+            req.set_first_tablet_index(*options.FirstTabletIndex);
         }
         if (options.LastTabletIndex) {
-            req->set_last_tablet_index(*options.LastTabletIndex);
+            req.set_last_tablet_index(*options.LastTabletIndex);
         }
 
-        auto proxy = CreateWriteProxy<TObjectServiceProxy>();
-        WaitFor(proxy->Execute(req))
+        auto actionData = MakeTransactionActionData(req);
+        auto primaryCellId = GetNativeConnection()->GetPrimaryMasterCellId();
+        transaction->AddAction(primaryCellId, actionData);
+
+        if (cellTag != PrimaryMasterCellTag) {
+            transaction->AddAction(ReplaceCellTagInId(primaryCellId, cellTag), actionData);
+        }
+
+        // For mutation context
+        TTransactionCommitOptions commitOptions;
+        commitOptions.Force2PC = true;
+
+        WaitFor(transaction->Commit(commitOptions))
             .ThrowOnError();
     }
 
-    TTableYPathProxy::TReqReshardPtr MakeReshardRequest(
-        const TYPath& path,
+    NTableClient::NProto::TReqReshard MakeReshardRequest(
+        const TTableId& tableId,
         const TReshardTableOptions& options)
     {
-        auto req = TTableYPathProxy::Reshard(path);
-        SetMutationId(req, options);
+        NTableClient::NProto::TReqReshard req;
 
+        ToProto(req.mutable_table_id(), tableId);
+ 
         if (options.FirstTabletIndex) {
-            req->set_first_tablet_index(*options.FirstTabletIndex);
+            req.set_first_tablet_index(*options.FirstTabletIndex);
         }
         if (options.LastTabletIndex) {
-            req->set_last_tablet_index(*options.LastTabletIndex);
+            req.set_last_tablet_index(*options.LastTabletIndex);
         }
         return req;
     }
@@ -2381,12 +2547,36 @@ private:
         const std::vector<NTableClient::TOwningKey>& pivotKeys,
         const TReshardTableOptions& options)
     {
-        auto req = MakeReshardRequest(path, options);
-        ToProto(req->mutable_pivot_keys(), pivotKeys);
-        req->set_tablet_count(pivotKeys.size());
+        TTableId tableId;
+        TCellTag cellTag;
+        ResolveExternalNode(path, &tableId, &cellTag);
 
-        auto proxy = CreateWriteProxy<TObjectServiceProxy>();
-        WaitFor(proxy->Execute(req))
+        TTransactionStartOptions txOptions;
+        txOptions.Multicell = cellTag != PrimaryMasterCellTag;
+        txOptions.CellTag = cellTag;
+        auto asyncTransaction = StartNativeTransaction(
+            NTransactionClient::ETransactionType::Master,
+            txOptions);
+        auto transaction = WaitFor(asyncTransaction)
+            .ValueOrThrow();
+
+        auto req = MakeReshardRequest(tableId, options);
+        ToProto(req.mutable_pivot_keys(), pivotKeys);
+        req.set_tablet_count(pivotKeys.size());
+
+        auto actionData = MakeTransactionActionData(req);
+        auto primaryCellId = GetNativeConnection()->GetPrimaryMasterCellId();
+        transaction->AddAction(primaryCellId, actionData);
+
+        if (cellTag != PrimaryMasterCellTag) {
+            transaction->AddAction(ReplaceCellTagInId(primaryCellId, cellTag), actionData);
+        }
+
+        // For mutation context
+        TTransactionCommitOptions commitOptions;
+        commitOptions.Force2PC = true;
+
+        WaitFor(transaction->Commit(commitOptions))
             .ThrowOnError();
     }
 
@@ -2395,11 +2585,35 @@ private:
         int tabletCount,
         const TReshardTableOptions& options)
     {
-        auto req = MakeReshardRequest(path, options);
-        req->set_tablet_count(tabletCount);
+        TTableId tableId;
+        TCellTag cellTag;
+        ResolveExternalNode(path, &tableId, &cellTag);
 
-        auto proxy = CreateWriteProxy<TObjectServiceProxy>();
-        WaitFor(proxy->Execute(req))
+        TTransactionStartOptions txOptions;
+        txOptions.Multicell = cellTag != PrimaryMasterCellTag;
+        txOptions.CellTag = cellTag;
+        auto asyncTransaction = StartNativeTransaction(
+            NTransactionClient::ETransactionType::Master,
+            txOptions);
+        auto transaction = WaitFor(asyncTransaction)
+            .ValueOrThrow();
+
+        auto req = MakeReshardRequest(tableId, options);
+        req.set_tablet_count(tabletCount);
+
+        auto actionData = MakeTransactionActionData(req);
+        auto primaryCellId = GetNativeConnection()->GetPrimaryMasterCellId();
+        transaction->AddAction(primaryCellId, actionData);
+
+        if (cellTag != PrimaryMasterCellTag) {
+            transaction->AddAction(ReplaceCellTagInId(primaryCellId, cellTag), actionData);
+        }
+
+        // For mutation context
+        TTransactionCommitOptions commitOptions;
+        commitOptions.Force2PC = true;
+
+        WaitFor(transaction->Commit(commitOptions))
             .ThrowOnError();
     }
 
@@ -2459,6 +2673,8 @@ private:
         const TTableReplicaId& replicaId,
         const TAlterTableReplicaOptions& options)
     {
+        auto cellTag = CellTagFromId(replicaId);
+
         auto req = TTableReplicaYPathProxy::Alter(FromObjectId(replicaId));
         if (options.Enabled) {
             req->set_enabled(*options.Enabled);
@@ -2466,7 +2682,7 @@ private:
         if (options.Mode) {
             req->set_mode(static_cast<int>(*options.Mode));
         }
-        auto proxy = CreateWriteProxy<TObjectServiceProxy>();
+        auto proxy = CreateWriteProxy<TObjectServiceProxy>(cellTag);
         WaitFor(proxy->Execute(req))
             .ThrowOnError();
     }
@@ -2536,7 +2752,21 @@ private:
         const TYPath& path,
         const TRemoveNodeOptions& options)
     {
-        auto proxy = CreateWriteProxy<TObjectServiceProxy>();
+        TCellTag cellTag = PrimaryMasterCellTag;
+
+        NYPath::TTokenizer tokenizer(path);
+        if (tokenizer.Advance() == NYPath::ETokenType::Literal) {
+            const auto& token = tokenizer.GetToken();
+            if (token.StartsWith(ObjectIdPathPrefix)) {
+                TStringBuf objectIdString(token.begin() + ObjectIdPathPrefix.length(), token.end());
+                TObjectId objectId;
+                if (TObjectId::FromString(objectIdString, &objectId)) {
+                    cellTag = CellTagFromId(objectId);
+                }
+            }
+        }
+
+        auto proxy = CreateWriteProxy<TObjectServiceProxy>(cellTag);
         auto batchReq = proxy->ExecuteBatch();
         SetPrerequisites(batchReq, options);
 
@@ -3072,15 +3302,43 @@ private:
         EObjectType type,
         const TCreateObjectOptions& options)
     {
-        auto proxy = CreateWriteProxy<TObjectServiceProxy>();
+        auto attributes = options.Attributes;
+        TCellTag cellTag = PrimaryMasterCellTag;
+
+        if (type == EObjectType::TableReplica) {
+            TNullable<TString> path;
+            if (!attributes || !(path = attributes->Find<TString>("table_path"))) {
+                THROW_ERROR_EXCEPTION("Attribute \"table_path\" is not found");
+            }
+
+            TTableId tableId;
+            ResolveExternalNode(*path, &tableId, &cellTag);
+
+            auto newAttributes = options.Attributes->Clone();   
+            newAttributes->Set("table_path", FromObjectId(tableId));
+
+            attributes = std::move(newAttributes);
+        } else if (type == EObjectType::TabletAction) {
+            TNullable<std::vector<TTabletId>> tabletIds;
+            if (!attributes ||
+                !(tabletIds = attributes->Find<std::vector<TTabletId>>("tablet_ids")) ||
+                tabletIds->empty())
+            {
+                THROW_ERROR_EXCEPTION("Attribute \"tablet_ids\" is not found or is empty");
+            }
+
+            cellTag = CellTagFromId((*tabletIds)[0]);
+        }
+
+        auto proxy = CreateWriteProxy<TObjectServiceProxy>(cellTag);
         auto batchReq = proxy->ExecuteBatch();
         SetPrerequisites(batchReq, options);
 
         auto req = TMasterYPathProxy::CreateObject();
         SetMutationId(req, options);
         req->set_type(static_cast<int>(type));
-        if (options.Attributes) {
-            ToProto(req->mutable_object_attributes(), *options.Attributes);
+        if (attributes) {
+            ToProto(req->mutable_object_attributes(), *attributes);
         }
         batchReq->AddRequest(req);
 

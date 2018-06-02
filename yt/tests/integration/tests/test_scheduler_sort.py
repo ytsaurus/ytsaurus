@@ -630,16 +630,8 @@ class TestSchedulerSortCommands(YTEnvSetup):
             {"name": "value", "type": "string"}
         ]
 
-        def _create_dynamic_table(path):
-            create("table", path,
-                attributes = {
-                    "schema": schema,
-                    "dynamic": True,
-                    "optimize_for": optimize_for
-                })
-
         sync_create_cells(1)
-        _create_dynamic_table("//tmp/t")
+        create_dynamic_table("//tmp/t", schema=schema, optimize_for=optimize_for)
 
         create("table", "//tmp/t_out")
 

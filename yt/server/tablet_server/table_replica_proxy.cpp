@@ -26,6 +26,7 @@ namespace NTabletServer {
 using namespace NYTree;
 using namespace NYson;
 using namespace NTabletClient;
+using namespace NObjectClient;
 using namespace NObjectServer;
 using namespace NCypressServer;
 using namespace NTransactionClient;
@@ -58,7 +59,9 @@ private:
     {
         attributes->push_back(EInternedAttributeKey::ClusterName);
         attributes->push_back(EInternedAttributeKey::ReplicaPath);
-        attributes->push_back(EInternedAttributeKey::TablePath);
+        attributes->push_back(EInternedAttributeKey::TableId);
+        attributes->push_back(TAttributeDescriptor(EInternedAttributeKey::TablePath)
+            .SetOpaque(true));
         attributes->push_back(EInternedAttributeKey::StartReplicationTimestamp);
         attributes->push_back(EInternedAttributeKey::State);
         attributes->push_back(EInternedAttributeKey::Mode);
@@ -92,10 +95,18 @@ private:
                     .Value(replica->GetStartReplicationTimestamp());
                 return true;
 
-            case EInternedAttributeKey::TablePath: {
-                const auto& cypressManager = Bootstrap_->GetCypressManager();
+            case EInternedAttributeKey::TableId: {
                 BuildYsonFluently(consumer)
-                    .Value(cypressManager->GetNodePath(replica->GetTable(), nullptr));
+                    .Value(replica->GetTable()->GetId());
+                return true;
+            }
+
+            case EInternedAttributeKey::TablePath: {
+                if (table->IsForeign()) {
+                    break;
+                }
+                BuildYsonFluently(consumer)
+                    .Value(replica->GetTable()->GetId());
                 return true;
             }
 
@@ -141,6 +152,23 @@ private:
         }
 
         return TBase::GetBuiltinAttribute(key, consumer);
+    }
+
+    virtual TFuture<NYson::TYsonString> GetBuiltinAttributeAsync(NYTree::TInternedAttributeKey key) override
+    {
+        auto* replica = GetThisImpl();
+        auto* table = replica->GetTable();
+
+        switch (key) {
+            case EInternedAttributeKey::TablePath: {
+                return FetchFromShepherd(FromObjectId(table->GetId()) + "/@path");
+            }
+
+            default:
+                break;
+        }
+
+        return TBase::GetBuiltinAttributeAsync(key);
     }
 
     virtual bool DoInvoke(const NRpc::IServiceContextPtr& context) override

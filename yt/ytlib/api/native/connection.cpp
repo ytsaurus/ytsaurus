@@ -156,7 +156,7 @@ public:
 
         TableMountCache_ = CreateNativeTableMountCache(
             Config_->TableMountCache,
-            GetMasterChannelOrThrow(EMasterChannelKind::Cache),
+            this,
             CellDirectory_,
             Logger);
 

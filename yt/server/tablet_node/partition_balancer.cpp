@@ -42,12 +42,13 @@
 namespace NYT {
 namespace NTabletNode {
 
+using namespace NChunkClient;
 using namespace NConcurrency;
 using namespace NHydra;
+using namespace NNodeTrackerClient;
+using namespace NObjectClient;
 using namespace NTableClient;
 using namespace NTabletClient;
-using namespace NNodeTrackerClient;
-using namespace NChunkClient;
 using namespace NTabletNode::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -418,7 +419,8 @@ private:
         {
             // XXX(babenko): multicell
             auto channel = Bootstrap_->GetMasterClient()->GetMasterChannelOrThrow(
-                NApi::EMasterChannelKind::Follower);
+                NApi::EMasterChannelKind::Follower,
+                CellTagFromId(tablet->GetId()));
             TChunkServiceProxy proxy(channel);
 
             auto req = proxy.LocateChunks();

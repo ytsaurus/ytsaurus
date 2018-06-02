@@ -91,30 +91,10 @@ TAuthenticatedUserGuard::TAuthenticatedUserGuard(TSecurityManagerPtr securityMan
     }
 }
 
-TAuthenticatedUserGuard::TAuthenticatedUserGuard(TAuthenticatedUserGuard&& other)
-{
-    std::swap(SecurityManager_, other.SecurityManager_);
-}
-
 TAuthenticatedUserGuard::~TAuthenticatedUserGuard()
 {
     if (SecurityManager_) {
         SecurityManager_->ResetAuthenticatedUser();
-    }
-}
-
-TAuthenticatedUserGuard& TAuthenticatedUserGuard::operator=(TAuthenticatedUserGuard&& other)
-{
-    Release();
-    std::swap(SecurityManager_, other.SecurityManager_);
-    return *this;
-}
-
-void TAuthenticatedUserGuard::Release()
-{
-    if (SecurityManager_) {
-        SecurityManager_->ResetAuthenticatedUser();
-        SecurityManager_.Reset();
     }
 }
 
@@ -913,6 +893,11 @@ public:
         AuthenticatedUser_ = user;
     }
 
+    void SetAuthenticatedUserByNameOrThrow(TString userName)
+    {
+        SetAuthenticatedUser(GetUserByNameOrThrow(userName));
+    }
+
     void ResetAuthenticatedUser()
     {
         AuthenticatedUser_ = nullptr;
@@ -921,6 +906,14 @@ public:
     TUser* GetAuthenticatedUser()
     {
         return AuthenticatedUser_ ? AuthenticatedUser_ : RootUser_;
+    }
+
+    TNullable<TString> GetAuthenticatedUserName()
+    {
+        if (auto* user = GetAuthenticatedUser()) {
+            return user->GetName();
+        }
+        return Null;
     }
 
     static TNullable<EAceInheritanceMode> GetInheritedInheritanceMode(EAceInheritanceMode mode, int depth)
@@ -2773,6 +2766,11 @@ void TSecurityManager::SetAuthenticatedUser(TUser* user)
     Impl_->SetAuthenticatedUser(user);
 }
 
+void TSecurityManager::SetAuthenticatedUserByNameOrThrow(const TString& userName)
+{
+    Impl_->SetAuthenticatedUserByNameOrThrow(userName);
+}
+
 void TSecurityManager::ResetAuthenticatedUser()
 {
     Impl_->ResetAuthenticatedUser();
@@ -2781,6 +2779,11 @@ void TSecurityManager::ResetAuthenticatedUser()
 TUser* TSecurityManager::GetAuthenticatedUser()
 {
     return Impl_->GetAuthenticatedUser();
+}
+
+TNullable<TString> TSecurityManager::GetAuthenticatedUserName()
+{
+    return Impl_->GetAuthenticatedUserName();
 }
 
 TPermissionCheckResult TSecurityManager::CheckPermission(

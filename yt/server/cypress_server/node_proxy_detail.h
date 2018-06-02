@@ -50,6 +50,7 @@ public:
     virtual NYTree::IAttributeDictionary* MutableAttributes() override;
 
     virtual void ValidateStorageParametersUpdate();
+    virtual void ValidateLockPossible();
 
 protected:
     class TCustomAttributeDictionary

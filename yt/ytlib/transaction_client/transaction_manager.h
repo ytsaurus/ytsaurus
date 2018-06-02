@@ -5,6 +5,8 @@
 
 #include <yt/client/api/client.h>
 
+#include <yt/ytlib/api/native/public.h>
+
 #include <yt/ytlib/hive/public.h>
 
 #include <yt/ytlib/hydra/public.h>
@@ -130,7 +132,7 @@ public:
     TTransactionManager(
         TTransactionManagerConfigPtr config,
         const NHiveClient::TCellId& primaryCellId,
-        NRpc::IChannelPtr masterChannel,
+        NApi::NNative::IConnectionPtr connection,
         const TString& user,
         ITimestampProviderPtr timestampProvider,
         NHiveClient::TCellDirectoryPtr cellDirectory);

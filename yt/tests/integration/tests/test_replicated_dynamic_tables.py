@@ -113,7 +113,17 @@ class TestReplicatedDynamicTablesBase(TestDynamicTablesBase):
 
 class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
     def test_replicated_table_must_be_dynamic(self):
-        with pytest.raises(YtError): create("replicated_table", "//tmp/t")
+        with pytest.raises(YtError):
+            create("replicated_table", "//tmp/t")
+
+    def test_replicated_table_clone_forbidden(self):
+        self._create_cells()
+        self._create_replicated_table("//tmp/t")
+
+        with pytest.raises(YtError):
+            move("//tmp/t", "//tmp/s")
+        with pytest.raises(YtError):
+            copy("//tmp/t", "//tmp/s")
 
     @pytest.mark.parametrize("schema", [SIMPLE_SCHEMA, SIMPLE_SCHEMA_ORDERED])
     def test_simple(self, schema):
@@ -768,7 +778,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
 
         sync_unmount_table("//tmp/t")
 
-        assert get("//tmp/t/@chunk_count") == chunk_count
+        wait(lambda: get("//tmp/t/@chunk_count") == chunk_count)
         assert get("//tmp/t/@tablets/0/flushed_row_count") == 2
         assert get("//tmp/t/@tablets/0/trimmed_row_count") == trimmed_row_count
 
@@ -1072,6 +1082,34 @@ class TestReplicatedDynamicTablesSafeMode(TestReplicatedDynamicTablesBase):
 
 class TestReplicatedDynamicTablesMulticell(TestReplicatedDynamicTables):
     NUM_SECONDARY_MASTER_CELLS = 2
+    DELTA_MASTER_CONFIG = {
+        "tablet_manager": {
+            "tablet_cell_decommissioner": {
+                "decommission_check_period": 100,
+                "orphans_check_period": 100,
+            }
+        },
+    }
+
+    @pytest.mark.parametrize("mode", ["sync", "async"])
+    def test_external_replicated_table(self, mode):
+        self._create_cells()
+        self._create_replicated_table("//tmp/t")
+        replica_id = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r", attributes={"mode": mode})
+        self._create_replica_table("//tmp/r", replica_id)
+
+        assert get("//tmp/t/@external") == True
+        print get("//tmp/t/@external_cell_tag")
+
+        assert get("//tmp/r/@external", driver=self.replica_driver) == True
+        print get("//tmp/r/@external_cell_tag", driver=self.replica_driver)
+
+        assert get("#" + replica_id + "/@table_path") == "//tmp/t"
+
+        sync_enable_table_replica(replica_id)
+
+        insert_rows("//tmp/t", [{"key": 1, "value1": "test", "value2": 123}], require_sync_replica=False)
+        wait(lambda: select_rows("* from [//tmp/r]", driver=self.replica_driver) == [{"key": 1, "value1": "test", "value2": 123}])
 
 ##################################################################
 

@@ -24,7 +24,8 @@ TCommit::TCommit(
     bool distributed,
     bool generatePrepareTimestamp,
     bool inheritCommitTimestamp,
-    NApi::ETransactionCoordinatorCommitMode coordinatorCommitMode)
+    NApi::ETransactionCoordinatorCommitMode coordinatorCommitMode,
+    TString user)
     : TransactionId_(transationId)
     , MutationId_(mutationId)
     , ParticipantCellIds_(participantCellIds)
@@ -32,6 +33,7 @@ TCommit::TCommit(
     , GeneratePrepareTimestamp_(generatePrepareTimestamp)
     , InheritCommitTimestamp_(inheritCommitTimestamp)
     , CoordinatorCommitMode_(coordinatorCommitMode)
+    , User_(user)
 { }
 
 TFuture<TSharedRefArray> TCommit::GetAsyncResponseMessage()
@@ -58,6 +60,7 @@ void TCommit::Save(TSaveContext& context) const
     Save(context, CommitTimestamps_);
     Save(context, PersistentState_);
     Save(context, CoordinatorCommitMode_);
+    Save(context, User_);
 }
 
 void TCommit::Load(TLoadContext& context)
@@ -83,6 +86,12 @@ void TCommit::Load(TLoadContext& context)
         Load(context, CoordinatorCommitMode_);
     } else {
         CoordinatorCommitMode_ = NApi::ETransactionCoordinatorCommitMode::Eager;
+    }
+    // COMPAT(savrus)
+    if (context.GetVersion() >= 718) {
+        Load(context, User_);
+    } else {
+        User_ = RootUserName;
     }
 }
 

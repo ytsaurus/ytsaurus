@@ -17,6 +17,9 @@ message TReqMount
 
     required bool freeze = 4;
     optional uint64 mount_timestamp = 5 [default = 0];
+
+    required NYT.NProto.TGuid table_id = 6;
+    required string path = 7;
 }
 
 message TRspMount
@@ -29,7 +32,8 @@ message TReqUnmount
     // If omitted then all tablets are affected.
     required int32 first_tablet_index = 1 [default = -1];
     required int32 last_tablet_index = 2 [default = -1];
-    required bool force = 3 [default = false];
+    required bool force = 3;
+    required NYT.NProto.TGuid table_id = 4;
 }
 
 message TRspUnmount
@@ -42,6 +46,7 @@ message TReqRemount
     // If omitted then all tablets are affected.
     required int32 first_tablet_index = 1 [default = -1];
     required int32 last_tablet_index = 2 [default = -1];
+    required NYT.NProto.TGuid table_id = 3;
 }
 
 message TRspRemount
@@ -54,6 +59,7 @@ message TReqFreeze
     // If omitted then all tablets are affected.
     required int32 first_tablet_index = 1 [default = -1];
     required int32 last_tablet_index = 2 [default = -1];
+    required NYT.NProto.TGuid table_id = 3;
 }
 
 message TRspFreeze
@@ -66,6 +72,7 @@ message TReqUnfreeze
     // If omitted then all tablets are affected.
     required int32 first_tablet_index = 1 [default = -1];
     required int32 last_tablet_index = 2 [default = -1];
+    required NYT.NProto.TGuid table_id = 3;
 }
 
 message TRspUnfreeze
@@ -81,6 +88,7 @@ message TReqReshard
     // For sorted tables only.
     repeated bytes pivot_keys = 3;
     required int32 tablet_count = 4;
+    required NYT.NProto.TGuid table_id = 5;
 }
 
 message TRspReshard
