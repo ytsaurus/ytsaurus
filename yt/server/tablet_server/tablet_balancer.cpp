@@ -219,7 +219,7 @@ private:
             const auto* action = pair.second;
             if (action->GetState() == ETabletActionState::Orphaned) {
                 const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
-                CreateMutation(hydraManager, TReqKickOrphans())
+                CreateMutation(hydraManager, TReqKickOrphanedTabletActions())
                     ->CommitAndLog(Logger);
                 break;
             }
