@@ -93,5 +93,8 @@ message TReqCreateTabletAction
     optional bool keep_finished = 6 [default = false];
 }
 
+message TReqKickOrphans
+{ }
+
 ////////////////////////////////////////////////////////////////////////////////
 
