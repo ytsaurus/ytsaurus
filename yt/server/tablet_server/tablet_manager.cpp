@@ -169,7 +169,7 @@ public:
         RegisterMethod(BIND(&TImpl::HydraOnTableReplicaDisabled, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraUpdateTabletTrimmedRowCount, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraCreateTabletAction, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraKickOrphans, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraKickOrphanedTabletActions, Unretained(this)));
 
         if (Bootstrap_->IsPrimaryMaster()) {
             const auto& nodeTracker = Bootstrap_->GetNodeTracker();
@@ -1234,7 +1234,7 @@ public:
         }
     }
 
-    void HydraKickOrphans(TReqKickOrphans* request)
+    void HydraKickOrphanedTabletActions(TReqKickOrphanedTabletActions* /*request*/)
     {
         THashSet<TTabletCellBundle*> healthyBundles;
         for (const auto& pair : TabletCellMap_) {

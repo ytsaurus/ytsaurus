@@ -203,7 +203,6 @@ private:
     }
 };
 
-
 IObjectProxyPtr CreateTabletCellProxy(
     NCellMaster::TBootstrap* bootstrap,
     TObjectTypeMetadata* metadata,
