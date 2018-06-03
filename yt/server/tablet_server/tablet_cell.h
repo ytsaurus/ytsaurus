@@ -58,6 +58,8 @@ public:
 
     DEFINE_BYVAL_RW_PROPERTY(TTabletCellBundle*, CellBundle);
 
+    DEFINE_BYVAL_RW_PROPERTY(bool, Decommissioned);
+
 public:
     explicit TTabletCell(const TTabletCellId& id);
 

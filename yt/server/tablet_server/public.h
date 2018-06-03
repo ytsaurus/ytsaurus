@@ -64,6 +64,7 @@ DEFINE_ENUM(ETabletActionState,
     ((Frozen)                   (2))
     ((Unmounting)               (3))
     ((Unmounted)                (4))
+    ((Orphaned)                (10))
     ((Mounting)                 (5))
     ((Mounted)                  (6))
     ((Completed)                (7))

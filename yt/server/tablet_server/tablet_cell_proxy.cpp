@@ -74,6 +74,9 @@ private:
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::TabletCellBundle)
             .SetReplicated(true)
             .SetMandatory(true));
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Decommissioned)
+            .SetReplicated(true)
+            .SetWritable(true));
     }
 
     virtual bool GetBuiltinAttribute(TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override
@@ -163,6 +166,11 @@ private:
                     .Value(cell->GetCellBundle()->GetName());
                 return true;
 
+            case EInternedAttributeKey::Decommissioned:
+                BuildYsonFluently(consumer)
+                    .Value(cell->GetDecommissioned());
+                return true;
+
             default:
                 break;
         }
@@ -170,7 +178,31 @@ private:
         return TBase::GetBuiltinAttribute(key, consumer);
     }
 
+    bool SetBuiltinAttribute(TInternedAttributeKey key, const TYsonString& value)
+    {
+        auto* cell = GetThisImpl();
+        const auto& tabletManager = Bootstrap_->GetTabletManager();
+
+        switch (key) {
+            case EInternedAttributeKey::Decommissioned: {
+                ValidatePermission(EPermissionCheckScope::This, EPermission::Administer);
+
+                auto decommissioned = ConvertTo<bool>(value);
+
+                if (decommissioned) {
+                    tabletManager->DecomissionTabletCell(cell);
+                } else if (cell->GetDecommissioned()) {
+                    THROW_ERROR_EXCEPTION("Tablet cell cannot be undecommissioned");
+                }
+
+                return true;
+            }
+        }
+
+        return TBase::SetBuiltinAttribute(key, value);
+    }
 };
+
 
 IObjectProxyPtr CreateTabletCellProxy(
     NCellMaster::TBootstrap* bootstrap,

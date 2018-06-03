@@ -105,11 +105,11 @@ public:
 
     void OnTabletHeartbeat(TTablet* tablet)
     {
-        if (!Enabled_) {
+        if (!Started_) {
             return;
         }
 
-        if (!Started_) {
+        if (!Enabled_) {
             return;
         }
 
@@ -153,6 +153,7 @@ private:
     THashSet<TTabletId> QueuedTabletIds_;
     THashSet<const TTablet*> TouchedTablets_;
     THashSet<const TTableNode*> TablesWithActiveActions_;
+    THashSet<const TTabletCell*> CellsWithActiveActions_;
     THashSet<const TTabletCellBundle*> BundlesWithActiveActions_;
     THashSet<TTabletCellBundleId> BundlesPendingCellBalancing_;
     TTimeFormula FallbackBalancingSchedule_;
@@ -195,11 +196,18 @@ private:
 
     void Balance()
     {
+        FillActiveTabletActions();
+
+        KickOrphans();
+
+        if (ProcessDecommissionedCells()) {
+            return;
+        }
+
         if (!Enabled_) {
             return;
         }
 
-        FillActiveTabletActions();
         CurrentTime_ = TruncatedNow();
 
         BalanceTablets();
@@ -208,10 +216,25 @@ private:
         LastBalancingTime_ = CurrentTime_;
     }
 
+    void KickOrphans()
+    {
+        const auto& tabletManager = Bootstrap_->GetTabletManager();
+        for (const auto& pair : tabletManager->TabletActions()) {
+            const auto* action = pair.second;
+            if (action->GetState() == ETabletActionState::Orphaned) {
+                const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
+                CreateMutation(hydraManager, TReqKickOrphans())
+                    ->CommitAndLog(Logger);
+                break;
+            }
+        }
+    }
+
     void FillActiveTabletActions()
     {
         TablesWithActiveActions_.clear();
         BundlesWithActiveActions_.clear();
+        CellsWithActiveActions_.clear();
 
         const auto& tabletManager = Bootstrap_->GetTabletManager();
         for (const auto& pair : tabletManager->TabletActions()) {
@@ -223,9 +246,37 @@ private:
                 for (const auto* tablet : action->Tablets()) {
                     TablesWithActiveActions_.insert(tablet->GetTable());
                     BundlesWithActiveActions_.insert(tablet->GetTable()->GetTabletCellBundle());
+                    if (tablet->GetState() != ETabletState::Unmounted) {
+                        CellsWithActiveActions_.insert(tablet->GetCell());
+                    }
                 }
             }
         }
+    }
+
+    bool ProcessDecommissionedCells()
+    {
+        bool foundDecomissions = false;
+
+        const auto& tabletManager = Bootstrap_->GetTabletManager();
+        for (const auto& pair : tabletManager->TabletCells()) {
+            const auto* cell = pair.second;
+            if (cell->GetDecommissioned() && !CellsWithActiveActions_.has(cell)) {
+                for (auto* tablet : cell->Tablets()) {
+                    TReqCreateTabletAction request;
+                    request.set_kind(static_cast<int>(ETabletActionKind::Move));
+                    ToProto(request.mutable_tablet_ids(), std::vector<TTabletId>{tablet->GetId()});
+
+                    const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
+                    CreateMutation(hydraManager, request)
+                        ->CommitAndLog(Logger);
+
+                    foundDecomissions = true;
+                }
+            }
+        }
+
+        return foundDecomissions;
     }
 
     void BalanceTabletCells()
