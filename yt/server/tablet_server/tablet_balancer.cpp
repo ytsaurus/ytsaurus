@@ -105,11 +105,7 @@ public:
 
     void OnTabletHeartbeat(TTablet* tablet)
     {
-        if (!Started_) {
-            return;
-        }
-
-        if (!Enabled_) {
+        if (!Enabled_ || !Started_) {
             return;
         }
 
