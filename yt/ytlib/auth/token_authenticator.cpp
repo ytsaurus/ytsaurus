@@ -310,6 +310,7 @@ private:
                     if (result.IsOK()) {
                         Promise_.Set(result.Value());
                     } else {
+                        Errors_.push_back(result);
                         InvokeNext();
                     }
                 }));
