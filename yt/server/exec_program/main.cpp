@@ -95,6 +95,12 @@ protected:
         }
         TThread::CurrentThreadSetName("ExecMain");
 
+        try {
+            SafeCreateStderrFile("../executor_stderr");
+        } catch (...) {
+            Exit(4);
+        }
+
         // Don't start any other singleton or parse config in executor mode.
         // Explicitly shut down log manager to ensure it doesn't spoil dup-ed descriptors.
         NLogging::TLogManager::StaticShutdown();
@@ -153,6 +159,7 @@ protected:
         }
 
         if (!executorError.IsOK()) {
+            fprintf(stderr, "Failed to prepare pipes, unexpected executor error\n%s", ~ToString(executorError));
             Exit(3);
             return;
         }
