@@ -99,6 +99,10 @@ public:
         }
 
         YCHECK(ActiveDrivers.emplace(Id_, UnderlyingDriver_).second);
+
+        auto config = ConvertTo<NApi::TConnectionConfigPtr>(ConfigNode_);
+
+        LOG_DEBUG("Driver created (ConnectionType: %v)", config->ConnectionType);
     }
 
     ~TDriver()
