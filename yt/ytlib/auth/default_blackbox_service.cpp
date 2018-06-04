@@ -188,11 +188,6 @@ private:
     {
         auto timeout = std::min(deadline - TInstant::Now(), Config_->AttemptTimeout);
 
-        // XXX(babenko): setting timeout less than 1 sec will lead to no timeout set at all; YT-8474
-        if (timeout < TDuration::Seconds(1)) {
-            timeout = TDuration::Seconds(1);
-        }
-
         TString buffer;
         INodePtr result;
 
