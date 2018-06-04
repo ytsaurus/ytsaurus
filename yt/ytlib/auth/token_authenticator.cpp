@@ -291,7 +291,7 @@ private:
         const TIntrusivePtr<TCompositeTokenAuthenticator> Owner_;
         const TTokenCredentials Credentials_;
 
-        TPromise<TAuthenticationResult> Promise_;
+        TPromise<TAuthenticationResult> Promise_ = NewPromise<TAuthenticationResult>();
         std::vector<TError> Errors_;
         size_t CurrentIndex_ = 0;
 
@@ -299,8 +299,9 @@ private:
         void InvokeNext()
         {
             if (CurrentIndex_ >= Owner_->Authenticators_.size()) {
-                THROW_ERROR_EXCEPTION("Authentication failed")
-                    << Errors_;
+                Promise_.Set(TError("Authentication failed")
+                    << Errors_);
+                return;
             }
 
             const auto& authenticator = Owner_->Authenticators_[CurrentIndex_++];
