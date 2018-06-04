@@ -374,10 +374,17 @@ public:
 
         auto stringObject = Py::Bytes(ExtractArgument(args, kwargs, "string"));
         auto protoClassObject = Py::Callable(ExtractArgument(args, kwargs, "proto_class"));
+
+        TNullable<bool> skipUnknownFields;
+        if (HasArgument(args, kwargs, "skip_unknown_fields")) {
+            auto arg = ExtractArgument(args, kwargs, "skip_unknown_fields");
+            skipUnknownFields = Py::Boolean(arg);
+        }
+
         ValidateArgumentsEmpty(args, kwargs);
 
         try {
-            return LoadsProtoImpl(stringObject, protoClassObject);
+            return LoadsProtoImpl(stringObject, protoClassObject, skipUnknownFields);
         } CATCH("Yson loads_proto failed");
     }
 
@@ -684,6 +691,8 @@ private:
         TProtobufParserOptions options;
         if (skipUnknownFields) {
             options.SkipUnknownFields = *skipUnknownFields;
+        } else {
+            options.SkipUnknownFields = true;
         }
 
         ParseProtobuf(&writer, &inputStream, messageType, options);
@@ -691,7 +700,7 @@ private:
         return Py::ConvertToPythonString(result);
     }
 
-    Py::Object LoadsProtoImpl(Py::Object stringObject, Py::Object protoClassObject)
+    Py::Object LoadsProtoImpl(Py::Object stringObject, Py::Object protoClassObject, TNullable<bool> skipUnknownFields)
     {
         auto descriptorObject = GetAttr(protoClassObject, "DESCRIPTOR");
         RegisterFileDescriptor(GetAttr(descriptorObject, "file"));
@@ -703,7 +712,13 @@ private:
         TString result;
         ::google::protobuf::io::StringOutputStream outputStream(&result);
 
-        auto writer = CreateProtobufWriter(&outputStream, messageType);
+        TProtobufWriterOptions options;
+        if (skipUnknownFields) {
+            options.SkipUnknownFields = *skipUnknownFields;
+        } else {
+            options.SkipUnknownFields = true;
+        }
+        auto writer = CreateProtobufWriter(&outputStream, messageType, options);
 
         ParseYsonStringBuffer(ConvertToStringBuf(stringObject), EYsonType::Node, writer.get());
 
