@@ -184,8 +184,6 @@ private:
                 GetTag());
             YCHECK(result == GRPC_CALL_OK);
 
-            EndpointDescription_ = ToString(CallDetails_->host);
-
             Ref();
         }
 
@@ -229,7 +227,7 @@ private:
         // IBus overrides
         virtual const TString& GetEndpointDescription() const override
         {
-            return EndpointDescription_;
+            return PeerAddress_;
         }
 
         virtual const NYTree::IAttributeDictionary& GetEndpointAttributes() const override
@@ -283,8 +281,6 @@ private:
         TNullable<TDuration> Timeout_;
         IServicePtr Service_;
 
-        TString EndpointDescription_;
-
         TGrpcMetadataArrayBuilder InitialMetadataBuilder_;
         TGrpcMetadataArrayBuilder TrailingMetadataBuilder_;
 
@@ -336,8 +332,9 @@ private:
                 return;
             }
 
-            LOG_DEBUG("Request accepted (RequestId: %v, Method: %v:%v, User: %v, PeerAddress: %v, Timeout: %v)",
+            LOG_DEBUG("Request accepted (RequestId: %v, Host: %v, Method: %v:%v, User: %v, PeerAddress: %v, Timeout: %v)",
                 RequestId_,
+                ToStringBuf(CallDetails_->host),
                 ServiceName_,
                 MethodName_,
                 User_,
