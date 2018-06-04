@@ -106,7 +106,11 @@ public:
         const NProto::TChunkSpec& protoChunkSpec);
 
     //! Tries to split chunk slice into parts of almost equal size, about #sliceDataSize.
-    std::vector<TInputChunkSlicePtr> SliceEvenly(i64 sliceDataWeight, i64 sliceRowCount) const;
+    //! If #rowBuffer is given, also capture
+    std::vector<TInputChunkSlicePtr> SliceEvenly(
+        i64 sliceDataWeight,
+        i64 sliceRowCount,
+        NTableClient::TRowBufferPtr rowBuffer = nullptr) const;
     std::pair<TInputChunkSlicePtr, TInputChunkSlicePtr>  SplitByRowIndex(i64 splitRow) const;
 
     i64 GetLocality(int replicaIndex) const;

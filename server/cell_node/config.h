@@ -47,7 +47,7 @@ DEFINE_REFCOUNTED_TYPE(TResourceLimitsConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TBatchingChunkServiceConfig
+class   TBatchingChunkServiceConfig
     : public NYTree::TYsonSerializable
 {
 public:
@@ -114,6 +114,8 @@ public:
     //! Limits for the node process and all jobs controlled by it.
     TResourceLimitsConfigPtr ResourceLimits;
 
+    i64 FootprintMemorySize;
+
     int SkynetHttpPort;
 
     TCellNodeConfig()
@@ -141,6 +143,10 @@ public:
             .Default();
         RegisterParameter("resource_limits", ResourceLimits)
             .DefaultNew();
+
+        RegisterParameter("footprint_memory_size", FootprintMemorySize)
+            .Default(1_GB)
+            .GreaterThanOrEqual(100 * 1_MB);
 
         RegisterParameter("skynet_http_port", SkynetHttpPort)
             .Default(10080);

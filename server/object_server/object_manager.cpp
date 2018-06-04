@@ -2,7 +2,6 @@
 #include "private.h"
 #include "config.h"
 #include "garbage_collector.h"
-#include "interned_attributes.h"
 #include "master.h"
 #include "master_type_handler.h"
 
@@ -17,6 +16,8 @@
 #include <yt/server/cypress_server/node_detail.h>
 
 #include <yt/server/election/election_manager.h>
+
+#include <yt/server/misc/interned_attributes.h>
 
 #include <yt/server/security_server/group.h>
 #include <yt/server/security_server/security_manager.h>
@@ -1323,21 +1324,23 @@ const TProfiler& TObjectManager::GetProfiler()
     return Profiler;
 }
 
-NProfiling::TAggregateCounter* TObjectManager::GetMethodExecTimeCounter(EObjectType type, const TString& method)
+NProfiling::TMonotonicCounter* TObjectManager::GetMethodCumulativeExecuteTimeCounter(
+    EObjectType type,
+    const TString& method)
 {
     auto key = std::make_pair(type, method);
     auto it = MethodToEntry_.find(key);
     if (it == MethodToEntry_.end()) {
         auto entry = std::make_unique<TMethodEntry>();
-        entry->ExecTimeCounter = NProfiling::TAggregateCounter(
-            "/verb_execute_time",
+        entry->CumulativeExecuteTimeCounter = NProfiling::TMonotonicCounter(
+            "/cumulative_execute_time",
             {
                 TProfileManager::Get()->RegisterTag("type", type),
                 TProfileManager::Get()->RegisterTag("method", method)
             });
         it = MethodToEntry_.emplace(key, std::move(entry)).first;
     }
-    return &it->second->ExecTimeCounter;
+    return &it->second->CumulativeExecuteTimeCounter;
 }
 
 TEpoch TObjectManager::GetCurrentEpoch()

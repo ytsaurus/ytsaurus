@@ -195,6 +195,18 @@ bool Compare(
         for (size_t index = 0; index < inLhs->Values.Size(); ++index) {
             CHECK(inLhs->Values[index] == inRhs->Values[index])
         }
+    } else if (auto betweenLhs = lhs->As<TBetweenExpression>()) {
+        auto betweenRhs = rhs->As<TBetweenExpression>();
+        CHECK(betweenRhs)
+        CHECK(betweenLhs->Arguments.size() == betweenRhs->Arguments.size())
+        for (size_t index = 0; index < betweenLhs->Arguments.size(); ++index) {
+            CHECK(Compare(betweenLhs->Arguments[index], lhsSchema, betweenRhs->Arguments[index], rhsSchema, maxIndex))
+        }
+
+        CHECK(betweenLhs->Ranges.Size() == betweenRhs->Ranges.Size())
+        for (size_t index = 0; index < betweenLhs->Ranges.Size(); ++index) {
+            CHECK(betweenLhs->Ranges[index] == betweenRhs->Ranges[index])
+        }
     } else if (auto transformLhs = lhs->As<TTransformExpression>()) {
         auto transformRhs = rhs->As<TTransformExpression>();
         CHECK(transformRhs)
@@ -313,6 +325,17 @@ void ToProto(NProto::TExpression* serialized, const TConstExpressionPtr& origina
         NTabletClient::TWireProtocolWriter writer;
         writer.WriteUnversionedRowset(inExpr->Values);
         ToProto(proto->mutable_values(), MergeRefsToString(writer.Finish()));
+    } else if (auto betweenExpr = original->As<TBetweenExpression>()) {
+        serialized->set_kind(static_cast<int>(EExpressionKind::Between));
+        auto* proto = serialized->MutableExtension(NProto::TBetweenExpression::between_expression);
+        ToProto(proto->mutable_arguments(), betweenExpr->Arguments);
+
+        NTabletClient::TWireProtocolWriter rangesWriter;
+        for (const auto& range : betweenExpr->Ranges) {
+            rangesWriter.WriteUnversionedRow(range.first);
+            rangesWriter.WriteUnversionedRow(range.second);
+        }
+        ToProto(proto->mutable_ranges(), MergeRefsToString(rangesWriter.Finish()));
     } else if (auto transformExpr = original->As<TTransformExpression>()) {
         serialized->set_kind(static_cast<int>(EExpressionKind::Transform));
         auto* proto = serialized->MutableExtension(NProto::TTransformExpression::transform_expression);
@@ -401,8 +424,28 @@ void FromProto(TConstExpressionPtr* original, const NProto::TExpression& seriali
             FromProto(&result->Arguments, ext.arguments());
             NTabletClient::TWireProtocolReader reader(
                 TSharedRef::FromString(ext.values()),
-                New<TRowBuffer>(TInExpressionValuesTag()));
+                New<TRowBuffer>(TExpressionRowsetTag()));
             result->Values = reader.ReadUnversionedRowset(true);
+            *original = result;
+            return;
+        }
+
+        case EExpressionKind::Between: {
+            auto result = New<TBetweenExpression>(type);
+            const auto& ext = serialized.GetExtension(NProto::TBetweenExpression::between_expression);
+            FromProto(&result->Arguments, ext.arguments());
+
+            TRowRanges ranges;
+            auto rowBuffer = New<TRowBuffer>(TExpressionRowsetTag());
+            NTabletClient::TWireProtocolReader rangesReader(
+                TSharedRef::FromString<TExpressionRowsetTag>(ext.ranges()),
+                rowBuffer);
+            while (!rangesReader.IsFinished()) {
+                auto lowerBound = rangesReader.ReadUnversionedRow(true);
+                auto upperBound = rangesReader.ReadUnversionedRow(true);
+                ranges.emplace_back(lowerBound, upperBound);
+            }
+            result->Ranges = MakeSharedRange(std::move(ranges), rowBuffer);
             *original = result;
             return;
         }
@@ -413,7 +456,7 @@ void FromProto(TConstExpressionPtr* original, const NProto::TExpression& seriali
             FromProto(&result->Arguments, ext.arguments());
             NTabletClient::TWireProtocolReader reader(
                 TSharedRef::FromString(ext.values()),
-                New<TRowBuffer>());
+                New<TRowBuffer>(TExpressionRowsetTag()));
             result->Values = reader.ReadUnversionedRowset(true);
             if (ext.has_default_expression()) {
                 FromProto(&result->DefaultExpression, ext.default_expression());

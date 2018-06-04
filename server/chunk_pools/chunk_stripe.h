@@ -42,7 +42,7 @@ struct TChunkStripe
     : public TIntrinsicRefCounted
 {
     TChunkStripe(bool foreign = false, bool solid = false);
-    explicit TChunkStripe(NChunkClient::TInputDataSlicePtr dataSlice, bool foreign = false);
+    explicit TChunkStripe(NChunkClient::TInputDataSlicePtr dataSlice, bool foreign = false, bool solid = false);
     explicit TChunkStripe(NChunkClient::TChunkListId, TBoundaryKeys boundaryKeys = TBoundaryKeys());
 
     TChunkStripeStatistics GetStatistics() const;

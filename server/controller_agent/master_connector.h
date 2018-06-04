@@ -40,6 +40,8 @@ public:
 
     TFuture<void> FlushOperationNode(const TOperationId& operationId);
 
+    TFuture<void> UpdateInitializedOperationNode(const TOperationId& operationId);
+
     TFuture<void> AttachToLivePreview(
         const TOperationId& operationId,
         const NObjectClient::TTransactionId& transactionId,

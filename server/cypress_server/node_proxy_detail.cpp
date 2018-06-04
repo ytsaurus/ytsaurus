@@ -13,7 +13,7 @@
 #include <yt/server/chunk_server/chunk_owner_base.h>
 #include <yt/server/chunk_server/medium.h>
 
-#include <yt/server/object_server/interned_attributes.h>
+#include <yt/server/misc/interned_attributes.h>
 
 #include <yt/server/security_server/account.h>
 #include <yt/server/security_server/security_manager.h>
@@ -987,7 +987,8 @@ ICypressNodeProxyPtr TNontemplateCypressNodeProxyBase::GetProxy(TCypressNodeBase
 
 void TNontemplateCypressNodeProxyBase::ValidatePermission(
     EPermissionCheckScope scope,
-    EPermission permission)
+    EPermission permission,
+    const TString& /* user */)
 {
     auto* node = GetThisImpl();
     // NB: Suppress permission checks for nodes upon construction.
@@ -1358,7 +1359,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Copy)
     auto* trunkSourceImpl = sourceProxy->GetTrunkNode();
     auto* sourceImpl = removeSource
         ? LockImpl(trunkSourceImpl, ELockMode::Exclusive, true)
-        : GetImpl(trunkSourceImpl);
+        : cypressManager->GetVersionedNode(trunkSourceImpl, sourceTransaction);
 
     if (IsAncestorOf(trunkSourceImpl, TrunkNode)) {
         THROW_ERROR_EXCEPTION("Cannot copy or move a node to its descendant");

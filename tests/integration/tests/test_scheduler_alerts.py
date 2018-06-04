@@ -209,7 +209,7 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
 
         time.sleep(1.5)
 
-        for job in ls("//sys/scheduler/orchid/scheduler/operations/{}/running_jobs".format(op.id)):
+        for job in op.get_running_jobs():
             abort_job(job)
 
         time.sleep(1.5)
@@ -318,8 +318,7 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
         create("table", "//tmp/t_out", **kwargs)
 
     def wait_for_running_jobs(self, operation):
-        running_jobs_path = "//sys/scheduler/orchid/scheduler/operations/{}/progress/jobs/running".format(operation.id)
-        wait(lambda: get(running_jobs_path, default=0) >= 1)
+        wait(lambda: operation.get_job_count("running") >= 1)
 
 
 ##################################################################

@@ -70,6 +70,7 @@ public:
     const NTabletNode::TSlotManagerPtr& GetTabletSlotManager() const;
     const NTabletNode::TSecurityManagerPtr& GetSecurityManager() const;
     const NTabletNode::TInMemoryManagerPtr& GetInMemoryManager() const;
+    const NTabletNode::TVersionedChunkMetaManagerPtr& GetVersionedChunkMetaManager() const;
     const NExecAgent::TSlotManagerPtr& GetExecSlotManager() const;
     TNodeMemoryTracker* GetMemoryUsageTracker() const;
     const NDataNode::TChunkStorePtr& GetChunkStore() const;
@@ -80,6 +81,7 @@ public:
     const NDataNode::TChunkBlockManagerPtr& GetChunkBlockManager() const;
     const NDataNode::TNetworkStatisticsPtr& GetNetworkStatistics() const;
     const NChunkClient::IBlockCachePtr& GetBlockCache() const;
+    const NTableClient::TBlockMetaCachePtr& GetBlockMetaCache() const;
     const NDataNode::TPeerBlockDistributorPtr& GetPeerBlockDistributor() const;
     const NDataNode::TPeerBlockTablePtr& GetPeerBlockTable() const;
     const NDataNode::TPeerBlockUpdaterPtr& GetPeerBlockUpdater() const;
@@ -149,6 +151,7 @@ private:
     NDataNode::TChunkBlockManagerPtr ChunkBlockManager;
     NDataNode::TNetworkStatisticsPtr NetworkStatistics;
     NChunkClient::IBlockCachePtr BlockCache;
+    NTableClient::TBlockMetaCachePtr BlockMetaCache;
     NDataNode::TPeerBlockTablePtr PeerBlockTable;
     NDataNode::TPeerBlockUpdaterPtr PeerBlockUpdater;
     NDataNode::TPeerBlockDistributorPtr PeerBlockDistributor;
@@ -179,6 +182,7 @@ private:
     NTabletNode::TSlotManagerPtr TabletSlotManager;
     NTabletNode::TSecurityManagerPtr SecurityManager;
     NTabletNode::TInMemoryManagerPtr InMemoryManager;
+    NTabletNode::TVersionedChunkMetaManagerPtr VersionedChunkMetaManager;
 
     NQueryClient::TColumnEvaluatorCachePtr ColumnEvaluatorCache;
     NQueryClient::ISubexecutorPtr QueryExecutor;

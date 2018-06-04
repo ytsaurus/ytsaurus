@@ -300,10 +300,10 @@ YtCommand.prototype._epilogue = function(result, bytes_in, bytes_out) {
         this.rsp.statusCode = 429;
     }
 
-    if (result.isUserBanned() || result.isRequestQueueSizeLimitExceeded()) {
+    if (result.isUserBanned()) {
         this.sticky_cache.set(this.user, {
             code: this.rsp.statusCode,
-            body: result.toJson()
+            body: (new YtError("User '" + this.user + "' is banned")).toJson()
         });
     }
 
@@ -1015,6 +1015,21 @@ YtCommand.prototype._execute = function(cb) {
                     self.response_parameters.Print(
                         binding.ECompression_None,
                         self.header_format));
+            }
+
+            if (typeof(key) === "string" && key === "revision") {
+                var etag_string = value.Print();
+                // Etag has ui64 type that cannot be represented as javascript number.
+                // Therefore we dump it into yson and strip "u" if necessary.
+                if (etag_string[etag_string.length - 1] == "u") {
+                    etag_string = etag_string.substr(0, etag_string.length - 1);
+                }
+                self.rsp.setHeader("ETag", etag_string);
+
+                header = utils.gather(self.req.headers, "if-none-match");
+                if (header && typeof(header) === "string" && header === etag_string) {
+                    self.rsp.statusCode = 304;
+                }
             }
         },
         function execute$interceptor(result, bytes_in, bytes_out) {

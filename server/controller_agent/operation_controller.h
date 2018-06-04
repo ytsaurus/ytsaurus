@@ -96,7 +96,7 @@ struct TSnapshotCookie
 struct TOperationSnapshot
 {
     int Version = -1;
-    TSharedRef Data;
+    std::vector<TSharedRef> Blocks;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -146,6 +146,7 @@ struct TJobSummary
 
     bool ArchiveJobSpec = false;
     bool ArchiveStderr = false;
+    bool ArchiveFailContext = false;
 };
 
 struct TCompletedJobSummary
@@ -201,6 +202,7 @@ struct IOperationControllerHost
     virtual TFuture<void> RemoveSnapshot() = 0;
 
     virtual TFuture<void> FlushOperationNode() = 0;
+    virtual TFuture<void> UpdateInitializedOperationNode() = 0;
     virtual void CreateJobNode(const TCreateJobNodeRequest& request) = 0;
 
     virtual TFuture<void> AttachChunkTreesToLivePreview(
@@ -230,6 +232,12 @@ struct IOperationControllerHost
     virtual void OnOperationAborted(const TError& error) = 0;
     virtual void OnOperationFailed(const TError& error) = 0;
     virtual void OnOperationSuspended(const TError& error) = 0;
+    virtual void OnOperationBannedInTentativeTree(const TString& treeId) = 0;
+
+    virtual void ValidateOperationPermission(
+        const TString& user,
+        NYTree::EPermission permission,
+        const TString& subnodePath = "") = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IOperationControllerHost)

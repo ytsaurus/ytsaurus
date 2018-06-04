@@ -4,6 +4,7 @@
 #include "config.h"
 #include "file_changelog_dispatcher.h"
 
+#include <yt/ytlib/chunk_client/io_engine.h>
 #include <yt/ytlib/hydra/hydra_manager.pb.h>
 
 #include <yt/core/misc/async_cache.h>
@@ -125,6 +126,14 @@ public:
         return UnderlyingChangelog_->Close();
     }
 
+    virtual TFuture<void> Preallocate(size_t size) override
+    {
+        if (auto future = CheckLock()) {
+            return future;
+        }
+        return UnderlyingChangelog_->Preallocate(size);
+    }
+
 private:
     const ui64 Epoch_;
     const TLocalChangelogStoreLockPtr Lock_;
@@ -199,6 +208,11 @@ public:
         return UnderlyingChangelog_->Close();
     }
 
+    virtual TFuture<void> Preallocate(size_t size) override
+    {
+        return UnderlyingChangelog_->Preallocate(size);
+    }
+
 private:
     const IChangelogPtr UnderlyingChangelog_;
 
@@ -212,12 +226,15 @@ class TLocalChangelogStoreFactory
 {
 public:
     TLocalChangelogStoreFactory(
+        const NChunkClient::IIOEnginePtr& ioEngine,
         TFileChangelogStoreConfigPtr config,
         const TString& threadName,
         const NProfiling::TProfiler& profiler)
         : TAsyncSlruCacheBase(config->ChangelogReaderCache)
+        , IOEngine_(ioEngine)
         , Config_(config)
         , Dispatcher_(New<TFileChangelogDispatcher>(
+            IOEngine_,
             Config_,
             threadName,
             profiler))
@@ -255,6 +272,7 @@ public:
     }
 
 private:
+    const NChunkClient::IIOEnginePtr IOEngine_;
     const TFileChangelogStoreConfigPtr Config_;
     const TFileChangelogDispatcherPtr Dispatcher_;
 
@@ -425,7 +443,11 @@ IChangelogStoreFactoryPtr CreateLocalChangelogStoreFactory(
     const TString& threadName,
     const NProfiling::TProfiler& profiler)
 {
-    auto store = New<TLocalChangelogStoreFactory>(config, threadName, profiler);
+    auto store = New<TLocalChangelogStoreFactory>(
+        NChunkClient::CreateIOEngine(config->IOEngineType, config->IOConfig),
+        config,
+        threadName,
+        profiler);
     store->Start();
     return store;
 }

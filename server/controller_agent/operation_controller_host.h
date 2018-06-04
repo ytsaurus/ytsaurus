@@ -6,6 +6,8 @@
 
 #include <yt/ytlib/scheduler/job_resources.h>
 
+#include <yt/core/ytree/permission.h>
+
 namespace NYT {
 namespace NControllerAgent {
 
@@ -16,6 +18,7 @@ struct TAgentToSchedulerOperationEvent
     NScheduler::EAgentToSchedulerOperationEventType EventType;
     TOperationId OperationId;
     TError Error;
+    TString TentativeTreeId;
 };
 
 struct TAgentToSchedulerJobEvent
@@ -26,6 +29,7 @@ struct TAgentToSchedulerJobEvent
     TNullable<EInterruptReason> InterruptReason;
     TNullable<bool> ArchiveJobSpec;
     TNullable<bool> ArchiveStderr;
+    TNullable<bool> ArchiveFailContext;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -50,6 +54,7 @@ public:
     virtual TFuture<void> RemoveSnapshot() override;
 
     virtual TFuture<void> FlushOperationNode() override;
+    virtual TFuture<void> UpdateInitializedOperationNode() override;
     virtual void CreateJobNode(const TCreateJobNodeRequest& request) override;
 
     virtual TFuture<void> AttachChunkTreesToLivePreview(
@@ -80,6 +85,12 @@ public:
     virtual void OnOperationAborted(const TError& error) override;
     virtual void OnOperationFailed(const TError& error) override;
     virtual void OnOperationSuspended(const TError& error) override;
+    virtual void OnOperationBannedInTentativeTree(const TString& treeId) override;
+
+    virtual void ValidateOperationPermission(
+        const TString& user,
+        NYTree::EPermission permission,
+        const TString& subnodePath) override;
 
 private:
     const TOperationId OperationId_;

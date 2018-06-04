@@ -15,6 +15,7 @@
 #include <yt/server/cell_master/hydra_facade.h>
 #include <yt/server/cell_master/multicell_manager.h>
 #include <yt/server/cell_master/serialize.h>
+#include <yt/server/cell_master/config.h>
 
 #include <yt/server/chunk_server/chunk_manager.h>
 #include <yt/server/chunk_server/chunk_requisition.h>
@@ -426,19 +427,20 @@ public:
         auto* stagingTransaction = chunk->GetStagingTransaction();
         auto* stagingAccount = chunk->GetStagingAccount();
 
-        Y_ASSERT(requisition.GetEntryCount() == 1);
-        // If a chunk has been created before the migration but is being confirmed after it,
-        // charge it to the staging account anyway: it's ok, because transaction resource usage accounting
-        // isn't really delta-based, and it's nicer from the user's point of view.
-        auto* requisitionAccount = requisition.begin()->Account;
-        Y_ASSERT(requisitionAccount == stagingAccount || requisitionAccount == ChunkWiseAccountingMigrationAccount_);
+        auto chargeTransaction = [&] (TAccount* account, int mediumIndex, int chunkCount, i64 diskSpace, bool /*committed*/) {
+            // If a chunk has been created before the migration but is being confirmed after it,
+            // charge it to the staging account anyway: it's ok, because transaction resource usage accounting
+            // isn't really delta-based, and it's nicer from the user's point of view.
+            if (Y_UNLIKELY(account == ChunkWiseAccountingMigrationAccount_)) {
+                account = stagingAccount;
+            }
 
-        auto diskSpace = chunk->ChunkInfo().disk_space();
-        auto erasureCodec = chunk->GetErasureCodec();
-        auto replication = requisition.ToReplication();
-        auto resourceDelta = GetStagedResourceUsage(diskSpace, erasureCodec, replication) * delta;
-        auto* transactionUsage = GetTransactionAccountUsage(stagingTransaction, stagingAccount);
-        *transactionUsage += resourceDelta;
+            auto* transactionUsage = GetTransactionAccountUsage(stagingTransaction, account);
+            transactionUsage->DiskSpace[mediumIndex] += diskSpace;
+            transactionUsage->ChunkCount += chunkCount;
+        };
+
+        ComputeChunkResourceDelta(chunk, requisition, delta, chargeTransaction);
     }
 
     void SetAccount(
@@ -939,6 +941,14 @@ public:
             return result;
         }
 
+        // Fast lane: cluster is in safe mode.
+        if (permission != EPermission::Read &&
+            Bootstrap_->GetConfigManager()->GetConfig()->EnableSafeMode)
+        {
+            result.Action = ESecurityAction::Deny;
+            return result;
+        }
+
         // Slow lane: check ACLs through the object hierarchy.
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto* currentObject = object;
@@ -1025,23 +1035,16 @@ public:
             return;
         }
 
-        if (!IsUserRootOrSuperuser(user) &&
-            permission != EPermission::Read &&
-            Bootstrap_->GetConfigManager()->GetConfig()->EnableSafeMode)
-        {
-            THROW_ERROR_EXCEPTION(NSecurityClient::EErrorCode::SafeModeEnabled,
-                "Access denied: cluster is in safe mode. "
-                "Check for the announces before reporting any issues")
-                << TErrorAttribute("permission", permission)
-                << TErrorAttribute("user", user->GetName())
-                << TErrorAttribute("object", object->GetId());
-        }
-
         auto result = CheckPermission(object, user, permission);
         if (result.Action == ESecurityAction::Deny) {
             const auto& objectManager = Bootstrap_->GetObjectManager();
             TError error;
-            if (result.Object && result.Subject) {
+            if (Bootstrap_->GetConfigManager()->GetConfig()->EnableSafeMode) {
+                error = TError(
+                    NSecurityClient::EErrorCode::AuthorizationError,
+                    "Access denied: cluster is in safe mode. "
+                    "Check for the announces before reporting any issues");
+            } else if (result.Object && result.Subject) {
                 error = TError(
                     NSecurityClient::EErrorCode::AuthorizationError,
                     "Access denied: %Qlv permission for %v is denied for %Qv by ACE at %v",
@@ -1307,21 +1310,6 @@ private:
     // COMPAT(babenko)
     bool RecomputeAccountResourceUsage_ = false;
     bool ValidateAccountResourceUsage_ = false;
-
-    TClusterResources GetStagedResourceUsage(
-        i64 diskSpace,
-        NErasure::ECodec erasureCodec,
-        const TChunkReplication& replication) const
-    {
-        auto result = TClusterResources().SetChunkCount(1);
-
-        for (auto index = 0; index < MaxMediumCount; ++index) {
-            const auto& policy = replication[index];
-            result.DiskSpace[index] = GetDiskSpaceToCharge(diskSpace, erasureCodec, policy);
-        }
-
-        return result;
-    }
 
     static i64 GetDiskSpaceToCharge(i64 diskSpace, NErasure::ECodec erasureCodec, TReplicationPolicy policy)
     {
@@ -1707,6 +1695,9 @@ private:
             return;
         }
 
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
+        chunkManager->MaybeRecomputeChunkRequisitons();
+
         DumpAccountResourceUsage(false);
 
         // NB: transaction resource usage isn't recomputed.
@@ -1776,7 +1767,6 @@ private:
             }
         };
 
-        const auto& chunkManager = Bootstrap_->GetChunkManager();
         const auto* requisitionRegistry = chunkManager->GetChunkRequisitionRegistry();
 
         for (const auto& pair : chunkManager->Chunks()) {

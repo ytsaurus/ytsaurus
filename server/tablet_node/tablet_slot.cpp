@@ -42,7 +42,7 @@
 
 #include <yt/server/cell_node/bootstrap.h>
 
-#include <yt/server/object_server/interned_attributes.h>
+#include <yt/server/misc/interned_attributes.h>
 
 #include <yt/ytlib/api/native_connection.h>
 #include <yt/ytlib/api/native_client.h>
@@ -86,7 +86,6 @@ using namespace NHiveClient;
 using namespace NHiveServer;
 using namespace NTabletClient::NProto;
 using namespace NObjectClient;
-using namespace NObjectServer;
 using namespace NApi;
 
 using NHydra::EPeerState;
@@ -237,6 +236,7 @@ public:
             NProfiling::TProfileManager::Get()->RegisterTag("peer_id", PeerId_)
         }
         , OptionsString_(TYsonString(createInfo.options()))
+        , TabletCellBundle(createInfo.tablet_cell_bundle())
         , Logger(NLogging::TLogger(TabletNodeLogger)
             .AddTag("CellId: %v, PeerId: %v",
                 CellDescriptor_.CellId,
@@ -435,12 +435,20 @@ public:
             PrerequisiteTransaction_ ? PrerequisiteTransaction_->GetId() : NullTransactionId);
         SnapshotStoreThunk_->SetUnderlying(snapshotStore);
 
+        auto bundleTag = NProfiling::TProfileManager::Get()->RegisterTag(
+            "tablet_cell_bundle",
+            TabletCellBundle ? TabletCellBundle : UnknownProfilingTag);
+        auto changelogTags = {
+            NProfiling::TProfileManager::Get()->RegisterTag("cell_id", CellDescriptor_.CellId),
+            bundleTag};
+
         auto changelogStoreFactory = CreateRemoteChangelogStoreFactory(
             Config_->Changelogs,
             Options_,
             Format("//sys/tablet_cells/%v/changelogs", GetCellId()),
             Bootstrap_->GetMasterClient(),
-            PrerequisiteTransaction_ ? PrerequisiteTransaction_->GetId() : NullTransactionId);
+            PrerequisiteTransaction_ ? PrerequisiteTransaction_->GetId() : NullTransactionId,
+            changelogTags);
         ChangelogStoreFactoryThunk_->SetUnderlying(changelogStoreFactory);
 
         auto cellConfig = CellDescriptor_.ToConfig(Bootstrap_->GetLocalNetworks());
@@ -462,6 +470,8 @@ public:
                 cellConfig,
                 channelFactory,
                 PeerId_);
+
+            CellManager_->SetCustomTags({bundleTag});
 
             Automaton_ = New<TTabletAutomaton>(
                 Owner_,
@@ -641,6 +651,8 @@ private:
 
     const TYsonString OptionsString_;
     TTabletCellOptionsPtr Options_;
+
+    const TString TabletCellBundle;
 
     TTransactionId PrerequisiteTransactionId_;
     ITransactionPtr PrerequisiteTransaction_;  // only created for leaders

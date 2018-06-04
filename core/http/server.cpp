@@ -103,8 +103,8 @@ private:
     std::atomic<bool> Started_ = {false};
     TRequestPathMatcher Handlers_;
 
-    TSimpleCounter ConnectionsAccepted_{"/connections_accepted"};
-    TSimpleCounter ConnectionsDropped_{"/connections_dropped"};
+    TMonotonicCounter ConnectionsAccepted_{"/connections_accepted"};
+    TMonotonicCounter ConnectionsDropped_{"/connections_dropped"};
 
 
     void MainLoop()

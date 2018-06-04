@@ -12,6 +12,7 @@ struct TJobToRelease
     TJobId JobId;
     bool ArchiveJobSpec = false;
     bool ArchiveStderr = false;
+    bool ArchiveFailContext = false;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

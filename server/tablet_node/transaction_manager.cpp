@@ -500,7 +500,7 @@ private:
     const TCellTag NativeCellTag_;
 
     const NProfiling::TProfiler& Profiler = TabletNodeProfiler;
-    NProfiling::TAggregateCounter TransactionSerializationLagCounter_ = {"/transaction_serialization_lag"};
+    NProfiling::TAggregateGauge TransactionSerializationLagCounter_ = {"/transaction_serialization_lag"};
 
     TEntityMap<TTransaction> PersistentTransactionMap_;
     TEntityMap<TTransaction> TransientTransactionMap_;
@@ -642,7 +642,7 @@ private:
                 YCHECK(!transaction->GetForeign());
                 SerializingTransactionHeap_.push_back(transaction);
             }
-            if (transaction->IsPrepared() && !transaction->IsCommitted()) {
+            if (transaction->IsPrepared()) {
                 RegisterPrepareTimestamp(transaction);
             }
         }
@@ -949,7 +949,9 @@ private:
             return;
         }
         auto prepareTimestamp = transaction->GetPrepareTimestamp();
-        YCHECK(prepareTimestamp != NullTimestamp);
+        if (prepareTimestamp == NullTimestamp) {
+            return;
+        }
         YCHECK(PreparedTransactions_.emplace(prepareTimestamp, transaction).second);
     }
 

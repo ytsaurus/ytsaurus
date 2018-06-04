@@ -23,7 +23,7 @@ private:
     typedef TLexerBase<TReaderWithContext<TBlockStream, MaxContextSize>, EnableLinePositionInfo> TBase;
     TConsumer* Consumer;
     int NestingLevel = 0;
-    static const int NestingLevelLimit = 128;
+    static const int NestingLevelLimit = 64;
     bool Stopped_ = false;
 
 public:

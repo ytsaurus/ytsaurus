@@ -84,9 +84,6 @@ public:
     //! are allowed to use.
     i64 GetQuota() const;
 
-    //! Returns an invoker for reading chunk data.
-    IPrioritizedInvokerPtr GetDataReadInvoker();
-
     //! Returns an invoker for reading chunk meta.
     IPrioritizedInvokerPtr GetMetaReadInvoker();
 
@@ -209,9 +206,6 @@ private:
     TEnumIndexedVector<int, ESessionType> PerTypeSessionCount_;
     int ChunkCount_ = 0;
 
-    const NConcurrency::TThreadPoolPtr DataReadThreadPool_;
-    const IPrioritizedInvokerPtr DataReadInvoker_;
-
     const NConcurrency::TActionQueuePtr MetaReadQueue_;
     const IPrioritizedInvokerPtr MetaReadInvoker_;
 
@@ -230,19 +224,19 @@ private:
     TDiskHealthCheckerPtr HealthChecker_;
 
     //! Indexed by |(ioDirection, ioCategory)|.
-    std::vector<NProfiling::TSimpleCounter> PendingIOSizeCounters_;
-    std::vector<NProfiling::TSimpleCounter> CompletedIOSizeCounters_;
+    std::vector<NProfiling::TSimpleGauge> PendingIOSizeCounters_;
+    std::vector<NProfiling::TMonotonicCounter> CompletedIOSizeCounters_;
 
-    NProfiling::TSimpleCounter ThrottledReadsCounter_;
-    NProfiling::TSimpleCounter ThrottledWritesCounter_;
+    NProfiling::TMonotonicCounter ThrottledReadsCounter_;
+    NProfiling::TMonotonicCounter ThrottledWritesCounter_;
 
-    NProfiling::TAggregateCounter PutBlocksWallTimeCounter_;
+    NProfiling::TAggregateGauge PutBlocksWallTimeCounter_;
 
     static EIOCategory ToIOCategory(const TWorkloadDescriptor& workloadDescriptor);
-    NProfiling::TSimpleCounter& GetPendingIOSizeCounter(
+    NProfiling::TSimpleGauge& GetPendingIOSizeCounter(
         EIODirection direction,
         EIOCategory category);
-    NProfiling::TSimpleCounter& GetCompletedIOSizeCounter(
+    NProfiling::TMonotonicCounter& GetCompletedIOSizeCounter(
         EIODirection direction,
         EIOCategory category);
 

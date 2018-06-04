@@ -30,17 +30,17 @@ public:
     virtual bool IsActive() const override;
 
     virtual TFuture<NChunkClient::TRefCountedChunkMetaPtr> ReadMeta(
-        const TWorkloadDescriptor& workloadDescriptor,
+        const TBlockReadOptions& options,
         const TNullable<std::vector<int>>& extensionTags = Null) override;
 
     virtual TFuture<std::vector<NChunkClient::TBlock>> ReadBlockSet(
         const std::vector<int>& blockIndexes,
-        const TBlockReadOptions& options) override;
+        const TBlockReadOptions& options);
 
     virtual TFuture<std::vector<NChunkClient::TBlock>> ReadBlockRange(
         int firstBlockIndex,
         int blockCount,
-        const TBlockReadOptions& options) override;
+        const TBlockReadOptions& options);
 
     virtual void SyncRemove(bool force) override;
 
@@ -67,6 +67,7 @@ private:
 
         std::vector<TBlockEntry> Entries;
         std::vector<NChunkClient::TBlock> Blocks;
+        TBlockReadOptions Options;
     };
 
     using TReadBlockSetSessionPtr = TIntrusivePtr<TReadBlockSetSession>;
@@ -82,20 +83,17 @@ private:
     bool IsFatalError(const TError& error) const;
 
 
-    TFuture<void> LoadBlocksExt(const TWorkloadDescriptor& workloadDescriptor);
+    TFuture<void> LoadBlocksExt(const TBlockReadOptions& options);
     const NChunkClient::NProto::TBlocksExt& GetBlocksExt();
     void InitBlocksExt(const NChunkClient::NProto::TChunkMeta& meta);
 
     void DoReadMeta(
         TChunkReadGuard readGuard,
         TCachedChunkMetaCookie cookie,
-        const TWorkloadDescriptor& workloadDescriptor);
-    TFuture<void> OnBlocksExtLoaded(
-        TReadBlockSetSessionPtr session,
-        const TWorkloadDescriptor& workloadDescriptor);
+        const TBlockReadOptions& options);
+    TFuture<void> OnBlocksExtLoaded(TReadBlockSetSessionPtr session);
     void DoReadBlockSet(
         TReadBlockSetSessionPtr session,
-        const TWorkloadDescriptor& workloadDescriptor,
         TPendingIOGuard pendingIOGuard);
 };
 

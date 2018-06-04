@@ -28,6 +28,7 @@ DEFINE_ENUM(EFoldingObjectType,
     (UnaryOpExpr)
     (BinaryOpExpr)
     (InExpr)
+    (BetweenExpr)
     (TransformExpr)
 
     (NamedExpression)
@@ -516,6 +517,35 @@ size_t TExpressionProfiler::Profile(
             fragments->DebugInfos.emplace_back(expr, argIds);
             fragments->Items.emplace_back(
                 MakeCodegenInExpr(argIds, index, hashtableIndex, ComparerManager_),
+                expr->Type,
+                false);
+        }
+        return emplaced.first->second;
+    } else if (auto betweenExpr = expr->As<TBetweenExpression>()) {
+        id.AddInteger(static_cast<int>(EFoldingObjectType::BetweenExpr));
+
+        std::vector<size_t> argIds;
+        for (const auto& argument : betweenExpr->Arguments) {
+            argIds.push_back(Profile(argument, schema, fragments, isIsolated));
+            id.AddInteger(argIds.back());
+        }
+
+        for (const auto& range : betweenExpr->Ranges) {
+            id.AddString(ToString(range.first).c_str());
+            id.AddString(ToString(range.second).c_str());
+        }
+
+        auto emplaced = fragments->Fingerprints.emplace(id, fragments->Items.size());
+        if (emplaced.second || isIsolated) {
+            Fold(id);
+            for (size_t argId : argIds) {
+                ++fragments->Items[argId].UseCount;
+            }
+
+            int index = Variables_->AddOpaque<TSharedRange<TRowRange>>(betweenExpr->Ranges);
+            fragments->DebugInfos.emplace_back(expr, argIds);
+            fragments->Items.emplace_back(
+                MakeCodegenBetweenExpr(argIds, index, ComparerManager_),
                 expr->Type,
                 false);
         }

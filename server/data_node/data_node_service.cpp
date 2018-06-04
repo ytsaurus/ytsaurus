@@ -18,6 +18,7 @@
 #include <yt/server/cell_node/bootstrap.h>
 
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
 #include <yt/ytlib/chunk_client/chunk_slice.h>
 #include <yt/ytlib/chunk_client/chunk_spec.pb.h>
 #include <yt/ytlib/chunk_client/data_node_service.pb.h>
@@ -65,6 +66,7 @@ using namespace NTableClient;
 using namespace NTableClient::NProto;
 using namespace NProfiling;
 
+using NChunkClient::TChunkReaderStatistics;
 using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -449,6 +451,8 @@ private:
             }
         }
 
+        auto chunkReaderStatistics = New<TChunkReaderStatistics>();
+
         if (fetchFromCache || fetchFromDisk) {
             TBlockReadOptions options;
             options.WorkloadDescriptor = workloadDescriptor;
@@ -456,6 +460,7 @@ private:
             options.BlockCache = Bootstrap_->GetBlockCache();
             options.FetchFromCache = fetchFromCache && !netThrottling;
             options.FetchFromDisk = fetchFromDisk && !netThrottling && !diskThrottling;
+            options.ChunkReaderStatistics = chunkReaderStatistics;
 
             auto chunkBlockManager = Bootstrap_->GetChunkBlockManager();
             auto asyncBlocks = chunkBlockManager->ReadBlockSet(
@@ -474,6 +479,8 @@ private:
             }
             SetRpcAttachedBlocks(response, blocks);
         }
+
+        ToProto(response->mutable_chunk_reader_statistics(), chunkReaderStatistics);
 
         int blocksWithData = 0;
         for (const auto& block : response->Attachments()) {
@@ -567,6 +574,8 @@ private:
                 context->GetEndpointAttributes().Get("network", DefaultNetworkName));
         }
 
+        auto chunkReaderStatistics = New<TChunkReaderStatistics>();
+
         if (fetchFromCache || fetchFromDisk) {
             TBlockReadOptions options;
             options.WorkloadDescriptor = workloadDescriptor;
@@ -574,6 +583,7 @@ private:
             options.BlockCache = Bootstrap_->GetBlockCache();
             options.FetchFromCache = fetchFromCache && !netThrottling;
             options.FetchFromDisk = fetchFromDisk && !netThrottling && !diskThrottling;
+            options.ChunkReaderStatistics = chunkReaderStatistics;
 
             auto chunkBlockManager = Bootstrap_->GetChunkBlockManager();
             auto asyncBlocks = chunkBlockManager->ReadBlockRange(
@@ -586,6 +596,8 @@ private:
                 .ValueOrThrow();
             SetRpcAttachedBlocks(response, blocks);
         }
+
+        ToProto(response->mutable_chunk_reader_statistics(), chunkReaderStatistics);
 
         int blocksWithData = static_cast<int>(response->Attachments().size());
         i64 blocksSize = GetByteSize(response->Attachments());
@@ -645,15 +657,33 @@ private:
         auto chunkRegistry = Bootstrap_->GetChunkRegistry();
         auto chunk = chunkRegistry->GetChunkOrThrow(chunkId);
 
-        auto asyncChunkMeta = chunk->ReadMeta(workloadDescriptor, extensionTags);
+        TBlockReadOptions options;
+        options.WorkloadDescriptor = workloadDescriptor;
+        options.ChunkReaderStatistics = New<TChunkReaderStatistics>();
+
+        auto asyncChunkMeta = chunk->ReadMeta(
+            options,
+            extensionTags);
+
         context->ReplyFrom(asyncChunkMeta.Apply(BIND([=] (const TRefCountedChunkMetaPtr& meta) {
             if (context->IsCanceled()) {
                 throw TFiberCanceledException();
             }
 
-            *response->mutable_chunk_meta() = partitionTag
-                ? FilterChunkMetaByPartitionTag(*meta, *partitionTag)
-                : static_cast<TChunkMeta>(*meta);
+            if (partitionTag) {
+                auto cachedBlockMeta = Bootstrap_->GetBlockMetaCache()->Find(chunkId);
+                if (!cachedBlockMeta) {
+                    auto blockMetaExt = GetProtoExtension<TBlockMetaExt>(meta->extensions());
+                    cachedBlockMeta = New<TCachedBlockMeta>(chunkId, std::move(blockMetaExt));
+                    Bootstrap_->GetBlockMetaCache()->TryInsert(cachedBlockMeta);
+                }
+
+                *response->mutable_chunk_meta() = FilterChunkMetaByPartitionTag(*meta, cachedBlockMeta, *partitionTag);
+            } else {
+                *response->mutable_chunk_meta() = static_cast<TChunkMeta>(*meta);
+            }
+
+            ToProto(response->mutable_chunk_reader_statistics(), options.ChunkReaderStatistics);
         }).AsyncVia(MetaProcessorThread_->GetInvoker())));
     }
 
@@ -694,7 +724,11 @@ private:
                 continue;
             }
 
-            auto asyncResult = chunk->ReadMeta(workloadDescriptor);
+            TBlockReadOptions options;
+            options.WorkloadDescriptor = workloadDescriptor;
+            options.ChunkReaderStatistics = New<TChunkReaderStatistics>();
+
+            auto asyncResult = chunk->ReadMeta(options);
             asyncResults.push_back(asyncResult.Apply(
                 BIND(
                     &TDataNodeService::MakeChunkSlices,
@@ -826,7 +860,11 @@ private:
                 continue;
             }
 
-            auto asyncChunkMeta = chunk->ReadMeta(workloadDescriptor);
+            TBlockReadOptions options;
+            options.WorkloadDescriptor = workloadDescriptor;
+            options.ChunkReaderStatistics = New<TChunkReaderStatistics>();
+
+            auto asyncChunkMeta = chunk->ReadMeta(options);
             asyncResults.push_back(asyncChunkMeta.Apply(
                 BIND(
                     &TDataNodeService::ProcessSample,

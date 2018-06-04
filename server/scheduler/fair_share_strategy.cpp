@@ -12,6 +12,7 @@
 #include <yt/core/concurrency/periodic_executor.h>
 #include <yt/core/concurrency/thread_pool.h>
 
+#include <yt/core/misc/algorithm_helpers.h>
 #include <yt/core/misc/finally.h>
 
 #include <yt/core/profiling/profile_manager.h>
@@ -87,6 +88,11 @@ public:
         auto it = TreeIdToPoolIdMap_.find(treeId);
         YCHECK(it != TreeIdToPoolIdMap_.end());
         return it->second;
+    }
+
+    void EraseTree(const TString& treeId)
+    {
+        YCHECK(TreeIdToPoolIdMap_.erase(treeId) == 1);
     }
 };
 
@@ -439,6 +445,7 @@ public:
                 }
             }
 
+            ResetTreeIndexes();
             RootElement->Update(GlobalDynamicAttributes_);
             RootElementSnapshot = CreateRootElementSnapshot();
         } catch (const std::exception& ex) {
@@ -604,6 +611,7 @@ public:
         // Run periodic update.
         PROFILE_AGGREGATED_TIMING(FairShareUpdateTimeCounter) {
             // The root element gets the whole cluster.
+            ResetTreeIndexes();
             RootElement->Update(GlobalDynamicAttributes_);
 
             // Collect alerts after update.
@@ -652,6 +660,14 @@ public:
             for (const auto& pair : OperationIdToElement) {
                 ProfileOperationElement(pair.second);
             }
+        }
+    }
+
+    void ResetTreeIndexes()
+    {
+        for (const auto& pair : OperationIdToElement) {
+            auto& element = pair.second;
+            element->SetTreeIndex(UnassignedTreeIndex);
         }
     }
 
@@ -957,27 +973,27 @@ private:
                 auto tags = GetFailReasonProfilingTags(reason);
                 tags.push_back(treeIdProfilingTag);
 
-                ControllerScheduleJobFail[reason] = TSimpleCounter(
+                ControllerScheduleJobFail[reason] = TMonotonicCounter(
                     prefix + "/controller_schedule_job_fail",
                     tags);
             }
         }
 
-        TAggregateCounter PrescheduleJobTime;
-        TAggregateCounter TotalControllerScheduleJobTime;
-        TAggregateCounter ExecControllerScheduleJobTime;
-        TAggregateCounter StrategyScheduleJobTime;
-        TSimpleCounter ScheduleJobCount;
-        TSimpleCounter ScheduleJobFailureCount;
-        TEnumIndexedVector<TSimpleCounter, EScheduleJobFailReason> ControllerScheduleJobFail;
+        TAggregateGauge PrescheduleJobTime;
+        TAggregateGauge TotalControllerScheduleJobTime;
+        TAggregateGauge ExecControllerScheduleJobTime;
+        TAggregateGauge StrategyScheduleJobTime;
+        TMonotonicCounter ScheduleJobCount;
+        TMonotonicCounter ScheduleJobFailureCount;
+        TEnumIndexedVector<TMonotonicCounter, EScheduleJobFailReason> ControllerScheduleJobFail;
     };
 
     TProfilingCounters NonPreemptiveProfilingCounters;
     TProfilingCounters PreemptiveProfilingCounters;
 
-    TAggregateCounter FairShareUpdateTimeCounter;
-    TAggregateCounter FairShareLogTimeCounter;
-    TAggregateCounter AnalyzePreemptableJobsTimeCounter;
+    TAggregateGauge FairShareUpdateTimeCounter;
+    TAggregateGauge FairShareLogTimeCounter;
+    TAggregateGauge AnalyzePreemptableJobsTimeCounter;
 
     TCpuInstant LastSchedulingInformationLoggedTime_ = 0;
 
@@ -987,6 +1003,7 @@ private:
         if (index == UnassignedTreeIndex) {
             return TDynamicAttributes();
         } else {
+            YCHECK(index < GlobalDynamicAttributes_.size());
             return GlobalDynamicAttributes_[index];
         }
     }
@@ -1195,7 +1212,7 @@ private:
                 nodeLimitsViolated = !Dominates(context->SchedulingContext->ResourceLimits(), context->SchedulingContext->ResourceUsage());
             }
             if (!nodeLimitsViolated && poolsLimitsViolated) {
-                poolsLimitsViolated = findPoolWithViolatedLimits() == nullptr;
+                poolsLimitsViolated = findPoolWithViolatedLimits() != nullptr;
             }
 
             if (!nodeLimitsViolated && !poolsLimitsViolated) {
@@ -2100,8 +2117,7 @@ public:
         const auto& state = GetOperationState(operation->GetId());
         for (const auto& pair : state->TreeIdToPoolIdMap()) {
             const auto& treeId = pair.first;
-            auto unregistrationResult = GetTree(treeId)->UnregisterOperation(state);
-            ActivateOperations(unregistrationResult.OperationsToActivate);
+            DoUnregisterOperationFromTree(state, treeId);
         }
 
         {
@@ -2110,6 +2126,31 @@ public:
         }
 
         YCHECK(OperationIdToOperationState_.erase(operation->GetId()) == 1);
+    }
+
+    virtual void UnregisterOperationFromTree(const TOperationId& operationId, const TString& treeId) override
+    {
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
+
+        const auto& state = GetOperationState(operationId);
+        if (!state->TreeIdToPoolIdMap().has(treeId)) {
+            LOG_INFO("Operation to be removed from a tentative tree was not found in that tree (OperationId: %v, TreeId: %v)",
+                operationId,
+                treeId);
+            return;
+        }
+
+        DoUnregisterOperationFromTree(state, treeId);
+
+        state->EraseTree(treeId);
+
+        LOG_INFO("Operation removed from a tentative tree (OperationId: %v, TreeId: %v)", operationId, treeId);
+    }
+
+    void DoUnregisterOperationFromTree(TFairShareStrategyOperationStatePtr operationState, const TString& treeId)
+    {
+        auto unregistrationResult = GetTree(treeId)->UnregisterOperation(operationState);
+        ActivateOperations(unregistrationResult.OperationsToActivate);
     }
 
     virtual void DisableOperation(IOperationStrategyHost* operation) override
@@ -2264,12 +2305,20 @@ public:
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
+        if (!FindOperationState(operationId)) {
+            return;
+        }
+
         DoBuildOperationProgress(&TFairShareTree::BuildOperationProgress, operationId, fluent);
     }
 
     virtual void BuildBriefOperationProgress(const TOperationId& operationId, TFluentMap fluent) override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
+
+        if (!FindOperationState(operationId)) {
+            return;
+        }
 
         DoBuildOperationProgress(&TFairShareTree::BuildBriefOperationProgress, operationId, fluent);
     }
@@ -2715,12 +2764,38 @@ private:
         auto spec = ParseSpec(operation, operation->GetSpec());
 
         std::vector<TString> trees;
+        std::vector<TString> tentativeTrees;
 
         // Skipping unknown trees.
         for (const auto& treeId : spec->PoolTrees) {
             if (FindTree(treeId)) {
                 trees.push_back(treeId);
             }
+        }
+
+        auto operationType = operation->GetType();
+        // These types of operations imply data shuffling and should only be
+        // launched in non-tentative trees.
+        if (operationType != EOperationType::Sort &&
+            operationType != EOperationType::MapReduce &&
+            operationType != EOperationType::JoinReduce &&
+            operationType != EOperationType::RemoteCopy)
+        {
+            for (const auto& treeId : spec->TentativePoolTrees) {
+                if (FindTree(treeId)) {
+                    tentativeTrees.push_back(treeId);
+                }
+            }
+        }
+
+        if (!tentativeTrees.empty() && trees.empty()) {
+            THROW_ERROR_EXCEPTION("Regular pool trees must be specified for tentative pool trees to work properly");
+        }
+
+        std::sort(trees.begin(), trees.end());
+        std::sort(tentativeTrees.begin(), tentativeTrees.end());
+        if (Intersects(trees.begin(), trees.end(), tentativeTrees.begin(), tentativeTrees.end())) {
+            THROW_ERROR_EXCEPTION("Regular and tentative pool trees must not intersect");
         }
 
         if (trees.empty()) {
@@ -2746,7 +2821,10 @@ private:
 
         THashMap<TString, TString> pools;
 
-        for (const auto& treeId : trees) {
+        std::vector<TString> allTrees = trees;
+        allTrees.insert(allTrees.end(), tentativeTrees.begin(), tentativeTrees.end());
+
+        for (const auto& treeId : allTrees) {
             auto optionsIt = spec->SchedulingOptionsPerPoolTree.find(treeId);
 
             TNullable<TString> pool;
@@ -2795,6 +2873,15 @@ private:
 
         WaitFor(Combine(futures))
             .ThrowOnError();
+    }
+
+    TFairShareStrategyOperationStatePtr FindOperationState(const TOperationId& operationId) const
+    {
+        auto it = OperationIdToOperationState_.find(operationId);
+        if (it == OperationIdToOperationState_.end()) {
+            return nullptr;
+        }
+        return it->second;
     }
 
     TFairShareStrategyOperationStatePtr GetOperationState(const TOperationId& operationId) const

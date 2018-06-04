@@ -7,11 +7,12 @@
 #include <yt/server/cell_master/bootstrap.h>
 #include <yt/server/cell_master/config_manager.h>
 #include <yt/server/cell_master/hydra_facade.h>
-#include <yt/server/cell_master/public.h>
 #include <yt/server/cell_master/world_initializer.h>
+#include <yt/server/cell_master/config.h>
 
 #include <yt/server/tablet_server/tablet_manager.pb.h>
 
+#include <yt/core/misc/arithmetic_formula.h>
 #include <yt/core/misc/numeric_helpers.h>
 
 #include <yt/core/profiling/profiler.h>
@@ -24,6 +25,7 @@ namespace NTabletServer {
 using namespace NConcurrency;
 using namespace NCypressClient;
 using namespace NTableClient;
+using namespace NTableServer;
 using namespace NTabletClient;
 using namespace NTabletServer::NProto;
 using namespace NYTree;
@@ -35,12 +37,32 @@ static const auto& Logger = TabletServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
 // Formatter for TMemoryUsage.
 template <class T, class U>
 TString ToString(const std::pair<T, U>& pair)
 {
     return Format("(%v, %v)", pair.first, pair.second);
 }
+
+TInstant TruncateToMinutes(TInstant t)
+{
+    auto timeval = t.TimeVal();
+    timeval.tv_usec = 0;
+    timeval.tv_sec /= 60;
+    timeval.tv_sec *= 60;
+    return TInstant(timeval);
+}
+
+TInstant TruncatedNow()
+{
+    return TruncateToMinutes(Now());
+}
+
+constexpr static TDuration MinBalanceFrequency = TDuration::Minutes(1);
+
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -63,10 +85,12 @@ public:
             Config_->ConfigCheckPeriod))
         , Profiler("/tablet_server/tablet_balancer")
         , QueueSizeCounter_("/queue_size")
+        , LastBalancingTime_(TruncatedNow())
     { }
 
     void Start()
     {
+        OnCheckConfig();
         BalanceExecutor_->Start();
         ConfigCheckExecutor_->Start();
         Started_ = true;
@@ -98,7 +122,8 @@ public:
         auto size = GetTabletSize(tablet);
         auto bounds = GetTabletSizeConfig(tablet);
         if (size < bounds.MinTabletSize || size > bounds.MaxTabletSize) {
-            TabletIdQueue_.push_back(tablet->GetId());
+            auto bundleId = tablet->GetTable()->GetTabletCellBundle()->GetId();
+            TabletIdQueue_[bundleId].push_back(tablet->GetId());
             QueuedTabletIds_.insert(tablet->GetId());
             Profiler.Increment(QueueSizeCounter_);
             LOG_DEBUG("Tablet is put into balancer queue (TableId: %v, TabletId: %v)",
@@ -122,14 +147,21 @@ private:
 
     bool Enabled_ = false;
     bool Started_ = false;
-    std::deque<TTabletId> TabletIdQueue_;
+
+    THashMap<TTabletCellBundleId, std::deque<TTabletId>> TabletIdQueue_;
+
     THashSet<TTabletId> QueuedTabletIds_;
     THashSet<const TTablet*> TouchedTablets_;
+    THashSet<const TTableNode*> TablesWithActiveActions_;
+    THashSet<const TTabletCellBundle*> BundlesWithActiveActions_;
+    THashSet<TTabletCellBundleId> BundlesPendingCellBalancing_;
+    TTimeFormula FallbackBalancingSchedule_;
 
     const NProfiling::TProfiler Profiler;
-    NProfiling::TSimpleCounter QueueSizeCounter_;
+    NProfiling::TSimpleGauge QueueSizeCounter_;
 
-    bool BalanceCells_ = false;
+    TInstant LastBalancingTime_;
+    TInstant CurrentTime_;
 
     bool IsTabletReshardable(const TTablet* tablet)
     {
@@ -146,27 +178,41 @@ private:
             IsTabletUntouched(tablet);
     }
 
+    const TTimeFormula& GetBundleSchedule(const TTabletCellBundle* bundle)
+    {
+        const auto& local = bundle->TabletBalancerConfig()->TabletBalancerSchedule;
+        if (!local.IsEmpty()) {
+            LOG_DEBUG("Using local balancer schedule for bundle (BundleName: %v, ScheduleFormula: %Qv)",
+                bundle->GetName(),
+                local.GetFormula());
+            return local;
+        }
+        LOG_DEBUG("Using global balancer schedule for bundle (BundleName: %v, ScheduleFormula: %Qv)",
+            bundle->GetName(),
+            FallbackBalancingSchedule_.GetFormula());
+        return FallbackBalancingSchedule_;
+    }
+
     void Balance()
     {
         if (!Enabled_) {
             return;
         }
 
-        if (CheckActiveTabletActions()) {
-            return;
-        }
+        FillActiveTabletActions();
+        CurrentTime_ = TruncatedNow();
 
-        if (BalanceCells_) {
-            BalanceTabletCells();
-        } else {
-            BalanceTablets();
-        }
+        BalanceTablets();
+        BalanceTabletCells();
 
-        BalanceCells_ = !BalanceCells_;
+        LastBalancingTime_ = CurrentTime_;
     }
 
-    bool CheckActiveTabletActions()
+    void FillActiveTabletActions()
     {
+        TablesWithActiveActions_.clear();
+        BundlesWithActiveActions_.clear();
+
         const auto& tabletManager = Bootstrap_->GetTabletManager();
         for (const auto& pair : tabletManager->TabletActions()) {
             const auto* action = pair.second;
@@ -174,11 +220,12 @@ private:
             if (action->GetState() != ETabletActionState::Completed &&
                 action->GetState() != ETabletActionState::Failed)
             {
-                return true;
+                for (const auto* tablet : action->Tablets()) {
+                    TablesWithActiveActions_.insert(tablet->GetTable());
+                    BundlesWithActiveActions_.insert(tablet->GetTable()->GetTabletCellBundle());
+                }
             }
         }
-
-        return false;
     }
 
     void BalanceTabletCells()
@@ -195,6 +242,32 @@ private:
         }
 
         // TODO(savrus) balance other tablets.
+    }
+
+    bool DidBundleBalancingTimeHappen(const TTabletCellBundle* bundle)
+    {
+        const auto& formula = GetBundleSchedule(bundle);
+
+        try {
+            if (Config_->BalancePeriod >= MinBalanceFrequency) {
+                TInstant timePoint = LastBalancingTime_ + MinBalanceFrequency;
+                if (timePoint > CurrentTime_) {
+                    return false;
+                }
+                while (timePoint <= CurrentTime_) {
+                    if (formula.IsSatisfiedBy(timePoint)) {
+                        return true;
+                    }
+                    timePoint += MinBalanceFrequency;
+                }
+                return false;
+            } else {
+                return formula.IsSatisfiedBy(CurrentTime_);
+            }
+        } catch (TErrorException& ex) {
+            LOG_ERROR("Failed to evaluate tablet balancer schedule formula: %v", ex.Error().GetMessage());
+            return false;
+        }
     }
 
     void ReassignInMemoryTablets(const TTabletCellBundle* bundle)
@@ -308,10 +381,21 @@ private:
 
     void ReassignInMemoryTablets()
     {
+        // We cannot iterate through BundlesPendingCellBalancing_ directly
+        // because deleted bundles may be present.
         const auto& tabletManager = Bootstrap_->GetTabletManager();
-        for (const auto& pair : tabletManager->TabletCellBundles()) {
-            ReassignInMemoryTablets(pair.second);
+        THashSet<TTabletCellBundleId> failedToBalance;
+        for (const auto& bundleId : BundlesPendingCellBalancing_) {
+            auto bundle = tabletManager->FindTabletCellBundle(bundleId);
+            if (bundle && IsObjectAlive(bundle)) {
+                if (BundlesWithActiveActions_.has(bundle)) {
+                    failedToBalance.insert(bundleId);
+                } else {
+                    ReassignInMemoryTablets(bundle);
+                }
+            }
         }
+        BundlesPendingCellBalancing_ = std::move(failedToBalance);
     }
 
     void BalanceTablets()
@@ -322,7 +406,54 @@ private:
 
         TouchedTablets_.clear();
 
-        Profiler.Update(QueueSizeCounter_, TabletIdQueue_.size());
+        size_t totalSize = 0;
+        for (const auto& bundleQueue : TabletIdQueue_) {
+            totalSize += bundleQueue.second.size();
+        }
+        Profiler.Update(QueueSizeCounter_, totalSize);
+    }
+
+    void DoBalanceTablets(const TTabletCellBundle* bundle)
+    {
+        if (!TabletIdQueue_.has(bundle->GetId())) {
+            return;
+        }
+
+        const auto& tabletManager = Bootstrap_->GetTabletManager();
+
+        int actionCount = 0;
+
+        auto it = TabletIdQueue_.find(bundle->GetId());
+        if (it == TabletIdQueue_.end()) {
+            return;
+        }
+        auto& queue = it->second;
+        while (!queue.empty()) {
+            auto tabletId = queue.front();
+            queue.pop_front();
+            QueuedTabletIds_.erase(tabletId);
+
+            auto* tablet = tabletManager->FindTablet(tabletId);
+            if (!IsTabletReshardable(tablet) ||
+                TablesWithActiveActions_.has(tablet->GetTable()))
+            {
+                continue;
+            }
+
+            auto size = GetTabletSize(tablet);
+            auto bounds = GetTabletSizeConfig(tablet);
+            if (size < bounds.MinTabletSize || size > bounds.MaxTabletSize) {
+                if (MergeSplitTablet(tablet, bounds)) {
+                    ++actionCount;
+                }
+            }
+        }
+
+        Profiler.Enqueue(
+            "/tablet_merges",
+            actionCount,
+            NProfiling::EMetricType::Gauge,
+            {bundle->GetProfilingTag()});
     }
 
     void DoBalanceTablets()
@@ -330,31 +461,23 @@ private:
         // TODO(savrus) limit duration of single execution.
         const auto& tabletManager = Bootstrap_->GetTabletManager();
 
-        THashMap<TTabletCellBundle*, int> actionCounts;
+        for (const auto& bundle : tabletManager->TabletCellBundles()) {
+            if (DidBundleBalancingTimeHappen(bundle.second)) {
+                BundlesPendingCellBalancing_.insert(bundle.first);
 
-        while (!TabletIdQueue_.empty()) {
-            auto tabletId = TabletIdQueue_.front();
-            TabletIdQueue_.pop_front();
-            QueuedTabletIds_.erase(tabletId);
-
-            auto* tablet = tabletManager->FindTablet(tabletId);
-            if (!IsTabletReshardable(tablet)) {
-                continue;
-            }
-
-            auto size = GetTabletSize(tablet);
-            auto bounds = GetTabletSizeConfig(tablet);
-            if (size < bounds.MinTabletSize || size > bounds.MaxTabletSize) {
-                MergeSplitTablet(tablet, bounds, &actionCounts);
+                if (!BundlesWithActiveActions_.has(bundle.second)) {
+                    DoBalanceTablets(bundle.second);
+                }
             }
         }
-
-        for (const auto& pair : actionCounts) {
-            Profiler.Enqueue(
-                "/tablet_merges",
-                pair.second,
-                NProfiling::EMetricType::Gauge,
-                {pair.first->GetProfilingTag()});
+        std::vector<TTabletCellBundleId> toErase;
+        for (const auto& it : TabletIdQueue_) {
+            if (!tabletManager->FindTabletCellBundle(it.first)) {
+                toErase.push_back(it.first);
+            }
+        }
+        for (const auto& bundleId : toErase) {
+            TabletIdQueue_.erase(bundleId);
         }
     }
 
@@ -372,7 +495,7 @@ private:
         return TouchedTablets_.find(tablet) == TouchedTablets_.end();
     }
 
-    void MergeSplitTablet(TTablet* tablet, const TTabletSizeConfig& bounds, THashMap<TTabletCellBundle*, int>* actionCounts)
+    bool MergeSplitTablet(TTablet* tablet, const TTabletSizeConfig& bounds)
     {
         auto* table = tablet->GetTable();
 
@@ -422,7 +545,7 @@ private:
             LOG_DEBUG("Tablet balancer is unable to reshard tablet (TableId: %v, TabletId: %v)",
                 table->GetId(),
                 tablet->GetId());
-            return;
+            return false;
         }
 
         std::vector<TTabletId> tabletIds;
@@ -445,7 +568,7 @@ private:
         CreateMutation(hydraManager, request)
             ->CommitAndLog(Logger);
 
-        (*actionCounts)[table->GetTabletCellBundle()] += 1;
+        return true;
     }
 
     TTabletSizeConfig GetTabletSizeConfig(TTablet* tablet)
@@ -498,8 +621,8 @@ private:
         auto tabletSize = DivCeil(tableSize, cellCount);
         if (desiredTabletSize < tabletSize) {
             desiredTabletSize = tabletSize;
-            minTabletSize = desiredTabletSize / 1.9;
-            maxTabletSize = desiredTabletSize * 1.9;
+            minTabletSize = static_cast<i64>(desiredTabletSize / 1.9);
+            maxTabletSize = static_cast<i64>(desiredTabletSize * 1.9);
         }
 
         return TTabletSizeConfig{minTabletSize, maxTabletSize, desiredTabletSize};
@@ -530,13 +653,17 @@ private:
             return;
         }
 
-        if (!Bootstrap_->GetConfigManager()->GetConfig()->EnableTabletBalancer) {
+        const auto& balancerConfig = Bootstrap_->GetConfigManager()->GetConfig()->TabletManager->TabletBalancer;
+
+        if (!balancerConfig->EnableTabletBalancer) {
             if (Enabled_) {
                 LOG_INFO("Tablet balancer is disabled, see //sys/@config");
             }
             Enabled_ = false;
             return;
         }
+
+        FallbackBalancingSchedule_ = balancerConfig->TabletBalancerSchedule;
 
         if (!Enabled_) {
             LOG_INFO("Tablet balancer enabled");

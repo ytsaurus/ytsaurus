@@ -2,6 +2,8 @@ SET(PROTO_NAMESPACE yt/${YT_ABI})
 
 include(Sources.txt)
 
+add_subdirectory(auth)
+
 if(YT_ADD_HEADERS_TO_SRCS)
     file(GLOB_RECURSE HEADERS ${CMAKE_CURRENT_LIST_DIR}/*.h)
     set(YT_SRCS ${YT_SRCS} ${HEADERS})
@@ -24,6 +26,7 @@ target_link_libraries(yt-library-client
   yt-core-codegen
   yt-core-crypto
   yt-core-skiff
+  yt-core-erasure
 )
 
 if(${CMAKE_SYSTEM_NAME} MATCHES "Linux")

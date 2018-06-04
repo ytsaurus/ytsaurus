@@ -4,6 +4,7 @@
 
 #include "auto_merge_director.h"
 #include "chunk_list_pool.h"
+#include "tentative_tree_eligibility.h"
 #include "job_memory.h"
 #include "job_splitter.h"
 #include "operation_controller.h"
@@ -18,6 +19,7 @@
 #include <yt/server/chunk_pools/chunk_pool.h>
 #include <yt/server/chunk_pools/public.h>
 #include <yt/server/chunk_pools/chunk_stripe_key.h>
+#include <yt/server/chunk_pools/input_stream.h>
 
 #include <yt/server/chunk_server/public.h>
 
@@ -434,7 +436,7 @@ protected:
     std::vector<TAutoMergeTaskPtr> AutoMergeTasks;
     TTaskGroupPtr AutoMergeTaskGroup;
 
-    TDataFlowGraph DataFlowGraph_;
+    TDataFlowGraphPtr DataFlowGraph_;
 
     NYTree::IMapNodePtr UnrecognizedSpec_;
 
@@ -521,6 +523,7 @@ protected:
     virtual void SyncPrepare();
     void InitUnrecognizedSpec();
     void FillInitializationResult(TOperationControllerInitializationResult* result);
+    void ValidateIntermediateDataAccess(const TString& user, NYTree::EPermission permission) const;
     void InitUpdatingTables();
 
     // Preparation.
@@ -784,20 +787,6 @@ protected:
     //! Returns the list of lists of all input chunks collected from all foreign input tables.
     std::vector<std::deque<NChunkClient::TInputDataSlicePtr>> CollectForeignInputDataSlices(int foreignKeyColumnCount) const;
 
-    //! Converts a list of input chunks into a list of chunk stripes for further
-    //! processing. Each stripe receives exactly one chunk (as suitable for most
-    //! jobs except merge). The resulting stripes are of approximately equal
-    //! size. The size per stripe is either |maxSliceDataSize| or
-    //! |TotalEstimateInputDataSize / jobCount|, whichever is smaller. If the resulting
-    //! list contains less than |jobCount| stripes then |jobCount| is decreased
-    //! appropriately.
-    void SliceUnversionedChunks(
-        const std::vector<NChunkClient::TInputChunkPtr>& unversionedChunks,
-        const IJobSizeConstraintsPtr& jobSizeConstraints,
-        std::vector<NChunkPools::TChunkStripePtr>* result) const;
-    void SlicePrimaryUnversionedChunks(
-        const IJobSizeConstraintsPtr& jobSizeConstraints,
-        std::vector<NChunkPools::TChunkStripePtr>* result) const;
     void SlicePrimaryVersionedChunks(
         const IJobSizeConstraintsPtr& jobSizeConstraints,
         std::vector<NChunkPools::TChunkStripePtr>* result);
@@ -853,6 +842,11 @@ protected:
 
     virtual TDataFlowGraph* GetDataFlowGraph() override;
 
+    virtual void RegisterLivePreviewChunk(
+        const TDataFlowGraph::TVertexDescriptor& vertexDescriptor,
+        int index,
+        const NChunkClient::TInputChunkPtr& chunk) override;
+
     virtual const NConcurrency::IThroughputThrottlerPtr& GetJobSpecSliceThrottler() const override;
 
     void FinishTaskInput(const TTaskPtr& task);
@@ -860,6 +854,8 @@ protected:
     void SetOperationAlert(EOperationAlertType type, const TError& alert);
 
     void AbortAllJoblets();
+
+    NChunkPools::TInputStreamDirectory GetInputStreamDirectory() const;
 
 private:
     typedef TOperationControllerBase TThis;
@@ -1022,6 +1018,18 @@ private:
 
     std::unique_ptr<IJobSplitter> JobSplitter_;
 
+    void InitializeOrchid();
+
+    struct TLivePreviewChunkDescriptor
+    {
+        TDataFlowGraph::TVertexDescriptor VertexDescriptor;
+        int LivePreviewIndex = -1;
+
+        void Persist(const TPersistenceContext& context);
+    };
+
+    THashMap<NChunkClient::TInputChunkPtr, TLivePreviewChunkDescriptor> LivePreviewChunks_;
+
     ssize_t GetMemoryUsage() const;
 
     void BuildAndSaveProgress();
@@ -1044,6 +1052,8 @@ private:
     void IncreaseNeededResources(const TJobResources& resourcesDelta);
 
     void InitializeStandardEdgeDescriptors();
+
+    void AddChunksToUnstageList(std::vector<NChunkClient::TInputChunkPtr> chunks);
 
     std::vector<NApi::ITransactionPtr> GetTransactions();
 
@@ -1100,6 +1110,8 @@ private:
     void UpdateSuspiciousJobsYson();
 
     void ReleaseJobs(const std::vector<TJobId>& jobIds);
+
+    bool IsTreeTentative(const TString& treeId) const;
 
     //! Helper class that implements IChunkPoolInput interface for output tables.
     class TSink

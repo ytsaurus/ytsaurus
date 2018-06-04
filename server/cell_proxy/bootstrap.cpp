@@ -1,11 +1,11 @@
 #include "bootstrap.h"
 #include "config.h"
 
-#include <yt/server/admin_server/admin_service.h>
+#include <yt/ytlib/auth/default_blackbox_service.h>
+#include <yt/ytlib/auth/token_authenticator.h>
+#include <yt/ytlib/auth/cookie_authenticator.h>
 
-#include <yt/server/blackbox/default_blackbox_service.h>
-#include <yt/server/blackbox/token_authenticator.h>
-#include <yt/server/blackbox/cookie_authenticator.h>
+#include <yt/server/admin_server/admin_service.h>
 
 #include <yt/server/misc/address_helpers.h>
 
@@ -26,9 +26,10 @@
 
 #include <yt/ytlib/core_dump/core_dumper.h>
 
-#include <yt/core/bus/config.h>
 #include <yt/core/bus/server.h>
-#include <yt/core/bus/tcp_server.h>
+
+#include <yt/core/bus/tcp/config.h>
+#include <yt/core/bus/tcp/server.h>
 
 #include <yt/core/concurrency/action_queue.h>
 #include <yt/core/concurrency/thread_pool.h>
@@ -66,7 +67,7 @@ using namespace NYTree;
 using namespace NConcurrency;
 using namespace NApi;
 using namespace NRpcProxy;
-using namespace NBlackbox;
+using namespace NAuth;
 using namespace NLogging;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -165,7 +166,7 @@ void TBootstrap::DoRun()
 
     HttpServer_->AddHandler(
         "/orchid/",
-        NMonitoring::GetOrchidYPathHttpHandler(orchidRoot->Via(GetControlInvoker())));
+        NMonitoring::GetOrchidYPathHttpHandler(orchidRoot));
 
     LOG_INFO("Listening for HTTP requests on port %v", Config_->MonitoringPort);
     HttpServer_->Start();

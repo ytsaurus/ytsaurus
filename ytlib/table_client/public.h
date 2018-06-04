@@ -267,6 +267,9 @@ struct TChunkTimestamps;
 
 DECLARE_REFCOUNTED_CLASS(TSkynetColumnEvaluator)
 
+DECLARE_REFCOUNTED_CLASS(TCachedBlockMeta)
+DECLARE_REFCOUNTED_CLASS(TBlockMetaCache)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NTableClient

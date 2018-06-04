@@ -71,13 +71,13 @@ private:
     std::atomic<int> QueueSize = {0};
 
     NProfiling::TProfiler Profiler;
-    NProfiling::TSimpleCounter EnqueuedCounter;
-    NProfiling::TSimpleCounter DequeuedCounter;
-    NProfiling::TAggregateCounter SizeCounter;
-    NProfiling::TAggregateCounter WaitTimeCounter;
-    NProfiling::TAggregateCounter ExecTimeCounter;
-    NProfiling::TSimpleCounter CumulativeTimeCounter;
-    NProfiling::TAggregateCounter TotalTimeCounter;
+    NProfiling::TMonotonicCounter EnqueuedCounter;
+    NProfiling::TMonotonicCounter DequeuedCounter;
+    NProfiling::TAggregateGauge SizeCounter;
+    NProfiling::TAggregateGauge WaitTimeCounter;
+    NProfiling::TAggregateGauge ExecTimeCounter;
+    NProfiling::TMonotonicCounter CumulativeTimeCounter;
+    NProfiling::TAggregateGauge TotalTimeCounter;
 };
 
 DEFINE_REFCOUNTED_TYPE(TInvokerQueue)

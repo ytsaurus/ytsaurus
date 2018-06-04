@@ -4,16 +4,49 @@
 
 #include <yt/core/ytree/yson_serializable.h>
 
+#include <yt/core/misc/arithmetic_formula.h>
+
 namespace NYT {
 namespace NNodeTrackerServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TNodeTrackerConfig
+class TNodeGroupConfigBase
     : public NYTree::TYsonSerializable
 {
 public:
     int MaxConcurrentNodeRegistrations;
+
+    TNodeGroupConfigBase()
+    {
+        RegisterParameter("max_concurrent_node_registrations", MaxConcurrentNodeRegistrations)
+            .Default(5)
+            .GreaterThanOrEqual(0);
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TNodeGroupConfig
+    : public TNodeGroupConfigBase
+{
+public:
+    TBooleanFormula NodeTagFilter;
+
+    TNodeGroupConfig()
+    {
+        RegisterParameter("node_tag_filter", NodeTagFilter);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TNodeGroupConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TNodeTrackerConfig
+    : public TNodeGroupConfigBase
+{
+public:
     int MaxConcurrentNodeUnregistrations;
     int MaxConcurrentFullHeartbeats;
     int MaxConcurrentIncrementalHeartbeats;
@@ -22,9 +55,6 @@ public:
 
     TNodeTrackerConfig()
     {
-        RegisterParameter("max_concurrent_node_registrations", MaxConcurrentNodeRegistrations)
-            .Default(5)
-            .GreaterThan(0);
         RegisterParameter("max_concurrent_node_unregistrations", MaxConcurrentNodeUnregistrations)
             .Default(5)
             .GreaterThan(0);
@@ -42,6 +72,26 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TNodeTrackerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TDynamicNodeTrackerConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    THashMap<TString, TNodeGroupConfigPtr> NodeGroups;
+    TDuration TotalNodeStatisticsUpdatePeriod;
+
+    TDynamicNodeTrackerConfig()
+    {
+        RegisterParameter("node_groups", NodeGroups)
+            .Default();
+        RegisterParameter("total_node_statistics_update_period", TotalNodeStatisticsUpdatePeriod)
+            .Default(TDuration::Seconds(60));
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TDynamicNodeTrackerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

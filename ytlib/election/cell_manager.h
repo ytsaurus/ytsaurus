@@ -42,6 +42,9 @@ public:
     NProfiling::TTagId GetAllPeersTag() const;
     NProfiling::TTagId GetPeerQuorumTag() const;
     NProfiling::TTagId GetCellIdTag() const;
+    NProfiling::TTagIdList GetCustomTags() const;
+    NProfiling::TTagIdList GetProfilerTags() const;
+    void SetCustomTags(const NProfiling::TTagIdList& customTags);
 
     void Reconfigure(TCellConfigPtr newConfig);
 
@@ -60,12 +63,15 @@ private:
 
     std::vector<NRpc::IChannelPtr> PeerChannels_;
 
-    std::vector<NProfiling::TTagId> PeerTags_;
+    NProfiling::TTagIdList PeerTags_;
     NProfiling::TTagId AllPeersTag_;
     NProfiling::TTagId PeerQuorumTag_;
     NProfiling::TTagId CellIdTag_;
+    NProfiling::TTagIdList CustomTags_;
+    NProfiling::TTagIdList ProfilerTags_;
 
     void BuildTags();
+    void UpdateProfilerTags();
     NRpc::IChannelPtr CreatePeerChannel(TPeerId id);
 };
 

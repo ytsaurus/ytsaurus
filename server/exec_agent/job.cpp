@@ -387,6 +387,12 @@ public:
         Stderr_ = value;
     }
 
+    virtual void SetFailContext(const TString& value) override
+    {
+        VERIFY_THREAD_AFFINITY(ControllerThread);
+        FailContext_ = value;
+    }
+
     virtual TYsonString GetStatistics() const override
     {
         VERIFY_THREAD_AFFINITY(ControllerThread);
@@ -447,6 +453,13 @@ public:
             THROW_ERROR_EXCEPTION("Error requesting stderr from job proxy")
                 << ex;
         }
+    }
+
+    virtual TNullable<TString> GetFailContext() override
+    {
+        VERIFY_THREAD_AFFINITY(ControllerThread);
+
+        return FailContext_;
     }
 
     virtual TYsonString StraceJob() override
@@ -522,6 +535,17 @@ public:
                 .Stderr(GetStderr()));
     }
 
+    virtual void ReportFailContext() override
+    {
+        auto failContext = GetFailContext();
+
+        if (failContext) {
+            ReportStatistics(
+                TJobStatistics()
+                    .FailContext(*failContext));
+        }
+    }
+
     virtual void Interrupt() override
     {
         VERIFY_THREAD_AFFINITY(ControllerThread);
@@ -591,6 +615,7 @@ private:
     ui64 StderrSize_ = 0;
 
     TNullable<TString> Stderr_;
+    TNullable<TString> FailContext_;
 
     TYsonString Statistics_ = TYsonString("{}");
     TInstant StatisticsLastSendTime_ = TInstant::Now();

@@ -22,6 +22,8 @@
 #include <yt/ytlib/api/native_transaction.h>
 #include <yt/ytlib/api/transaction.h>
 
+#include <yt/ytlib/chunk_client/chunk_reader.h>
+#include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
 #include <yt/ytlib/chunk_client/chunk_spec.h>
 #include <yt/ytlib/chunk_client/config.h>
 
@@ -114,10 +116,10 @@ private:
     const NProfiling::TProfiler Profiler;
     TAsyncSemaphorePtr PartitioningSemaphore_;
     TAsyncSemaphorePtr CompactionSemaphore_;
-    NProfiling::TSimpleCounter FeasiblePartitioningsCounter_;
-    NProfiling::TSimpleCounter FeasibleCompactionsCounter_;
-    NProfiling::TSimpleCounter ScheduledPartitioningsCounter_;
-    NProfiling::TSimpleCounter ScheduledCompactionsCounter_;
+    NProfiling::TSimpleGauge FeasiblePartitioningsCounter_;
+    NProfiling::TSimpleGauge FeasibleCompactionsCounter_;
+    NProfiling::TMonotonicCounter ScheduledPartitioningsCounter_;
+    NProfiling::TMonotonicCounter ScheduledCompactionsCounter_;
     const NProfiling::TTagId CompactionTag_ = NProfiling::TProfileManager::Get()->RegisterTag("method", "compaction");
     const NProfiling::TTagId PartitioningTag_ = NProfiling::TProfileManager::Get()->RegisterTag("method", "partitioning");
 
@@ -558,7 +560,7 @@ private:
         std::vector<std::unique_ptr<TTask>>* candidates,
         std::vector<std::unique_ptr<TTask>>* tasks,
         size_t* index,
-        NProfiling::TSimpleCounter& counter)
+        NProfiling::TSimpleGauge& counter)
     {
         Profiler.Update(counter, candidates->size());
 
@@ -595,7 +597,7 @@ private:
         std::vector<std::unique_ptr<TTask>>* tasks,
         size_t* index,
         const TAsyncSemaphorePtr& semaphore,
-        NProfiling::TSimpleCounter& counter,
+        NProfiling::TMonotonicCounter& counter,
         void (TStoreCompactor::*action)(TTask*))
     {
         auto taskGuard = Guard(TaskSpinLock_);
@@ -698,11 +700,15 @@ private:
 
     void PartitionEden(TTask* task)
     {
-        auto sessionId = TReadSessionId::Create();
+        TClientBlockReadOptions blockReadOptions;
+        blockReadOptions.WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemTabletPartitioning),
+        blockReadOptions.ChunkReaderStatistics = New<TChunkReaderStatistics>();
+        blockReadOptions.ReadSessionId = TReadSessionId::Create();
+
         NLogging::TLogger Logger(TabletNodeLogger);
         Logger.AddTag("TabletId: %v, ReadSessionId: %v",
             task->TabletId,
-            sessionId);
+            blockReadOptions.ReadSessionId);
 
         auto doneGuard = Finally([&] {
             ScheduleMorePartitionings();
@@ -800,8 +806,7 @@ private:
                 tablet->GetNextPivotKey(),
                 currentTimestamp,
                 MinTimestamp, // NB: No major compaction during Eden partitioning.
-                TWorkloadDescriptor(EWorkloadCategory::SystemTabletPartitioning),
-                sessionId,
+                blockReadOptions,
                 stores.size());
 
             INativeTransactionPtr transaction;
@@ -888,6 +893,7 @@ private:
                 tabletSnapshot,
                 reader->GetDataStatistics(),
                 reader->GetDecompressionStatistics(),
+                blockReadOptions.ChunkReaderStatistics,
                 PartitioningTag_);
 
             LOG_INFO("Eden partitioning completed (RowCount: %v, StoreIdsToAdd: %v, StoreIdsToRemove: %v, WallTime: %v)",
@@ -1074,11 +1080,15 @@ private:
 
     void CompactPartition(TTask* task)
     {
-        auto sessionId = TReadSessionId::Create();
+        TClientBlockReadOptions blockReadOptions;
+        blockReadOptions.WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemTabletCompaction),
+        blockReadOptions.ChunkReaderStatistics = New<TChunkReaderStatistics>();
+        blockReadOptions.ReadSessionId = TReadSessionId::Create();
+
         NLogging::TLogger Logger(TabletNodeLogger);
         Logger.AddTag("TabletId: %v, ReadSessionId: %v",
             task->TabletId,
-            sessionId);
+            blockReadOptions.ReadSessionId);
 
         auto doneGuard = Finally([&] {
             ScheduleMoreCompactions();
@@ -1181,8 +1191,7 @@ private:
                 tablet->GetNextPivotKey(),
                 currentTimestamp,
                 majorTimestamp,
-                TWorkloadDescriptor(EWorkloadCategory::SystemTabletCompaction),
-                sessionId,
+                blockReadOptions,
                 stores.size());
 
             INativeTransactionPtr transaction;
@@ -1262,12 +1271,13 @@ private:
                 tabletSnapshot,
                 writer->GetDataStatistics(),
                 writer->GetCompressionStatistics(),
-               CompactionTag_);
+                CompactionTag_);
 
             ProfileChunkReader(
                 tabletSnapshot,
                 reader->GetDataStatistics(),
                 reader->GetDecompressionStatistics(),
+                blockReadOptions.ChunkReaderStatistics,
                 CompactionTag_);
 
             LOG_INFO("Partition compaction completed (RowCount: %v, StoreIdsToAdd: %v, StoreIdsToRemove: %v, WallTime: %v)",
@@ -1329,9 +1339,6 @@ private:
         auto writer = writerPool.AllocateWriter();
 
         WaitFor(reader->Open())
-            .ThrowOnError();
-
-        WaitFor(writer->Open())
             .ThrowOnError();
 
         std::vector<TVersionedRow> rows;

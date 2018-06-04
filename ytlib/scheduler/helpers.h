@@ -3,6 +3,9 @@
 #include "public.h"
 
 #include <yt/core/ytree/public.h>
+#include <yt/core/ytree/permission.h>
+
+#include <yt/core/logging/log.h>
 
 #include <yt/ytlib/transaction_client/public.h>
 
@@ -17,7 +20,6 @@ namespace NScheduler {
 
 NYPath::TYPath GetOperationsPath();
 NYPath::TYPath GetOperationPath(const TOperationId& operationId);
-NYPath::TYPath GetOperationProgressFromOrchid(const TOperationId& operationId);
 NYPath::TYPath GetJobsPath(const TOperationId& operationId);
 NYPath::TYPath GetJobPath(const TOperationId& operationId, const TJobId& jobId);
 NYPath::TYPath GetStderrPath(const TOperationId& operationId, const TJobId& jobId);
@@ -25,9 +27,11 @@ NYPath::TYPath GetSnapshotPath(const TOperationId& operationId);
 NYPath::TYPath GetSecureVaultPath(const TOperationId& operationId);
 NYPath::TYPath GetFailContextPath(const TOperationId& operationId, const TJobId& jobId);
 NYPath::TYPath GetNewFailContextPath(const TOperationId& operationId, const TJobId& jobId);
-NYPath::TYPath GetLivePreviewOutputPath(const TOperationId& operationId, int tableIndex);
-NYPath::TYPath GetLivePreviewStderrTablePath(const TOperationId& operationId);
-NYPath::TYPath GetLivePreviewIntermediatePath(const TOperationId& operationId);
+
+NYPath::TYPath GetSchedulerOrchidOperationPath(const TOperationId& operationId);
+NYPath::TYPath GetControllerAgentOrchidOperationPath(
+    const TString& controllerAgentAddress,
+    const TOperationId& operationId);
 
 // TODO(babenko): remove "New" infix once we fully migrate to this scheme
 NYPath::TYPath GetNewJobsPath(const TOperationId& operationId);
@@ -55,6 +59,7 @@ const NYPath::TYPath& GetOperationsArchiveVersionPath();
 const NYPath::TYPath& GetOperationsArchiveJobsPath();
 const NYPath::TYPath& GetOperationsArchiveJobSpecsPath();
 const NYPath::TYPath& GetOperationsArchiveJobStderrsPath();
+const NYPath::TYPath& GetOperationsArchiveJobFailContextsPath();
 
 bool IsOperationFinished(EOperationState state);
 bool IsOperationFinishing(EOperationState state);
@@ -83,6 +88,18 @@ struct TJobFile
 };
 
 void SaveJobFiles(NApi::INativeClientPtr client, const TOperationId& operationId, const std::vector<TJobFile>& files);
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Validate that given user has permission to an operation node of a given operation.
+//! If needed, access to a certain subnode may be checked, not to the whole operation node.
+void ValidateOperationPermission(
+    const TString& user,
+    const TOperationId& operationId,
+    const NApi::INativeClientPtr& client,
+    NYTree::EPermission permission,
+    const NLogging::TLogger& logger,
+    const TString& subnodePath = "");
 
 ////////////////////////////////////////////////////////////////////////////////
 

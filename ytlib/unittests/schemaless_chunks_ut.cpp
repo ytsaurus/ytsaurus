@@ -1,10 +1,12 @@
 #include <yt/core/test_framework/framework.h>
 #include "table_client_helpers.h"
 
+#include <yt/ytlib/chunk_client/chunk_reader.h>
+#include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
 #include <yt/ytlib/chunk_client/client_block_cache.h>
+#include <yt/ytlib/chunk_client/data_slice_descriptor.h>
 #include <yt/ytlib/chunk_client/memory_reader.h>
 #include <yt/ytlib/chunk_client/memory_writer.h>
-#include <yt/ytlib/chunk_client/data_slice_descriptor.h>
 
 #include <yt/ytlib/table_client/cached_versioned_chunk_meta.h>
 #include <yt/ytlib/table_client/chunk_state.h>
@@ -30,6 +32,7 @@ using namespace NConcurrency;
 using namespace NYTree;
 using namespace NYson;
 
+using NChunkClient::TChunkReaderStatistics;
 using NChunkClient::NProto::TChunkSpec;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -56,6 +59,7 @@ protected:
     IChunkReaderPtr MemoryReader_;
     TNameTablePtr WriteNameTable_;
     TChunkSpec ChunkSpec_;
+    TColumnarChunkMetaPtr ChunkMeta_;
 
     static TChunkedMemoryPool Pool_;
     static std::vector<TUnversionedRow> Rows_;
@@ -208,7 +212,6 @@ protected:
         WriteNameTable_ = chunkWriter->GetNameTable();
         InitNameTable(WriteNameTable_);
 
-        EXPECT_TRUE(chunkWriter->Open().Get().IsOK());
         chunkWriter->Write(Rows_);
         EXPECT_TRUE(chunkWriter->Close().Get().IsOK());
 
@@ -217,8 +220,8 @@ protected:
             std::move(memoryWriter->GetBlocks()));
 
         ToProto(ChunkSpec_.mutable_chunk_id(), NullChunkId);
-        ChunkSpec_.mutable_chunk_meta()->MergeFrom(memoryWriter->GetChunkMeta());
         ChunkSpec_.set_table_row_index(42);
+        ChunkMeta_ = New<TColumnarChunkMeta>(memoryWriter->GetChunkMeta());
     }
 
     static void InitNameTable(TNameTablePtr nameTable, int idShift = 0)
@@ -317,13 +320,17 @@ TEST_P(TSchemalessChunksTest, WithoutSampling)
         nullptr,
         nullptr);
 
+    TClientBlockReadOptions blockReadOptions;
+    blockReadOptions.ChunkReaderStatistics = New<TChunkReaderStatistics>();
+
     auto chunkReader = CreateSchemalessChunkReader(
         std::move(chunkState),
+        ChunkMeta_,
         New<TChunkReaderConfig>(),
         New<TChunkReaderOptions>(),
         MemoryReader_,
         readNameTable,
-        TReadSessionId(),
+        blockReadOptions,
         TKeyColumns(),
         columnFilter,
         std::get<3>(GetParam()));
@@ -518,7 +525,6 @@ protected:
         WriteNameTable_ = chunkWriter->GetNameTable();
         InitRows(rowCount, schema, WriteNameTable_);
 
-        EXPECT_TRUE(chunkWriter->Open().Get().IsOK());
         chunkWriter->Write(Rows_);
         EXPECT_TRUE(chunkWriter->Close().Get().IsOK());
 
@@ -527,7 +533,6 @@ protected:
             std::move(memoryWriter->GetBlocks()));
 
         ToProto(ChunkSpec_.mutable_chunk_id(), NullChunkId);
-        ChunkSpec_.mutable_chunk_meta()->MergeFrom(memoryWriter->GetChunkMeta());
         ChunkSpec_.set_table_row_index(42);
     }
 
@@ -538,29 +543,33 @@ protected:
         auto options = New<TChunkReaderOptions>();
         options->DynamicTable = true;
 
+        TClientBlockReadOptions blockReadOptions;
+        blockReadOptions.ChunkReaderStatistics = New<TChunkReaderStatistics>();
+
         auto asyncCachedMeta = TCachedVersionedChunkMeta::Load(
             MemoryReader_,
-            TWorkloadDescriptor(),
-            TReadSessionId(),
+            blockReadOptions,
             Schema_);
         auto chunkMeta = WaitFor(asyncCachedMeta)
             .ValueOrThrow();
+        chunkMeta->InitBlockLastKeys(keyColumns);
 
         auto chunkState = New<TChunkState>(
             GetNullBlockCache(),
             ChunkSpec_,
-            chunkMeta,
+            nullptr,
             nullptr,
             nullptr,
             nullptr);
 
         return CreateSchemalessChunkReader(
             std::move(chunkState),
+            chunkMeta,
             New<TChunkReaderConfig>(),
             options,
             MemoryReader_,
             WriteNameTable_,
-            TReadSessionId(),
+            blockReadOptions,
             keyColumns,
             TColumnFilter(),
             keys);

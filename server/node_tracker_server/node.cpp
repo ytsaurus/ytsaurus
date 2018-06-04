@@ -19,7 +19,7 @@
 
 #include <yt/core/net/address.h>
 
-#include <yt/core/misc/boolean_formula.h>
+#include <yt/core/misc/arithmetic_formula.h>
 #include <yt/core/misc/collection_helpers.h>
 
 #include <atomic>

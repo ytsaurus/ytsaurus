@@ -1,5 +1,6 @@
 #include "public.h"
-#include "cluster_config.h"
+
+#include <yt/core/actions/signal.h>
 
 namespace NYT {
 namespace NCellMaster {
@@ -17,6 +18,8 @@ public:
 
     const TDynamicClusterConfigPtr& GetConfig() const;
     void SetConfig(TDynamicClusterConfigPtr config);
+
+    DECLARE_SIGNAL(void(), ConfigChanged);
 
 private:
     class TImpl;

@@ -21,7 +21,7 @@
 #include <yt/core/ytree/fluent.h>
 #include <yt/core/ytree/yson_serializable.h>
 
-#include <yt/core/misc/boolean_formula.h>
+#include <yt/core/misc/arithmetic_formula.h>
 
 #include <yt/core/misc/phoenix.h>
 
@@ -132,6 +132,32 @@ DEFINE_REFCOUNTED_TYPE(TPoolConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TTentativeTreeEligibilityConfig
+    : public virtual NYTree::TYsonSerializable
+{
+public:
+    // The number of jobs of a task that have to finish before we allow any more
+    // jobs to start in a tentative tree. After this many jobs finish, we start
+    // making decisions on that task being eligible for the tree (or not).
+    int SampleJobCount;
+
+    // Maximum ratio between average job duration in a tentative tree to that in
+    // other (non-tentative) trees. Exceeding this ratio will render a task
+    // ineligible for the tentative tree.
+    double MaxTentativeJobDurationRatio;
+
+    // If either average job duration in the tentative tree or average job
+    // duration other trees is shorter that this, they're not compared (i.e. the
+    // #MaxTentativeJobDurationRatio is not checked).
+    TDuration MinJobDuration;
+
+    TTentativeTreeEligibilityConfig();
+};
+
+DEFINE_REFCOUNTED_TYPE(TTentativeTreeEligibilityConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TStrategyOperationSpec
     : public TSchedulableConfig
     , public virtual NPhoenix::TDynamicTag
@@ -150,6 +176,16 @@ public:
 
     //! Limit on the number of concurrent calls to ScheduleJob of single controller.
     TNullable<int> MaxConcurrentControllerScheduleJobCalls;
+
+    //! Tentative pool trees to schedule operation in.
+    //! Operation's job will be scheduled to these pool trees as long as they're
+    //! not much slower than those in other (non-tentative) trees.
+    //! If TentativePoolTrees is not empty, PoolTrees must not be empty, too.
+    THashSet<TString> TentativePoolTrees;
+
+    // Config for tentative pool tree eligibility - the part of the scheduler that decides
+    // whether a job should (or shouldn't) be launched in a pool tree marked as tentative.
+    TTentativeTreeEligibilityConfigPtr TentativeTreeEligibility;
 
     TStrategyOperationSpec();
 
@@ -327,10 +363,6 @@ public:
 
     TAutoMergeConfigPtr AutoMerge;
 
-    //! This field is not used in scheduler any more, but specified in order
-    //! to not appear in unrecognized spec.
-    NYTree::IMapNodePtr StartedBy;
-
     // TODO(max42): make this field per-task.
     TLogDigestConfigPtr JobProxyMemoryDigest;
 
@@ -346,6 +378,15 @@ public:
 
     //! Controls operation storage mode.
     bool EnableCompatibleStorageMode;
+
+    //! Option controlling the presence of a legacy live preview.
+    bool EnableLegacyLivePreview;
+
+    //! These fields are not used in scheduler but specified in order
+    //! to not appear in unrecognized spec.
+    NYTree::IMapNodePtr StartedBy;
+    NYTree::IMapNodePtr Description;
+    NYTree::IMapNodePtr Annotations;
 
     TOperationSpecBase();
 

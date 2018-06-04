@@ -14,7 +14,8 @@
 #include <yt/server/node_tracker_server/node_directory_builder.h>
 #include <yt/server/node_tracker_server/node_tracker.h>
 
-#include <yt/server/object_server/interned_attributes.h>
+#include <yt/server/misc/interned_attributes.h>
+
 #include <yt/server/object_server/object_detail.h>
 
 #include <yt/server/security_server/account.h>
@@ -381,7 +382,7 @@ private:
                 BuildYsonFluently(consumer)
                     .DoMapFor(0, static_cast<int>(cellTags.size()), [&] (TFluentMap fluent, int index) {
                         auto cellTag = cellTags[index];
-                        const auto& exportData = chunk->GetExportData(index);
+                        const auto exportData = chunk->GetExportData(index);
                         if (exportData.RefCounter > 0) {
                             auto requisitionIndex = exportData.ChunkRequisitionIndex;
                             const auto& requisition = requisitionRegistry->GetRequisition(requisitionIndex);
@@ -401,7 +402,7 @@ private:
                 BuildYsonFluently(consumer)
                     .DoMapFor(0, static_cast<int>(cellTags.size()), [&] (TFluentMap fluent, int index) {
                         auto cellTag = cellTags[index];
-                        const auto& exportData = chunk->GetExportData(index);
+                        const auto exportData = chunk->GetExportData(index);
                         if (exportData.RefCounter > 0) {
                             fluent
                                 .Item(ToString(cellTag)).Value(exportData.ChunkRequisitionIndex);
@@ -434,7 +435,7 @@ private:
                 BuildYsonFluently(consumer)
                     .DoMapFor(0, static_cast<int>(cellTags.size()), [&] (TFluentMap fluent, int index) {
                         auto cellTag = cellTags[index];
-                        const auto& exportData = chunk->GetExportData(index);
+                        const auto exportData = chunk->GetExportData(index);
                         if (exportData.RefCounter > 0) {
                             auto requisitionIndex = exportData.ChunkRequisitionIndex;
                             const auto& replication = requisitionRegistry->GetReplication(requisitionIndex);

@@ -11,6 +11,7 @@ namespace NControllerAgent {
 using namespace NChunkClient;
 using namespace NConcurrency;
 using namespace NScheduler;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -88,7 +89,8 @@ void TOperationControllerHost::ReleaseJobs(const std::vector<TJobToRelease>& job
             {},
             {},
             jobToRelease.ArchiveJobSpec,
-            jobToRelease.ArchiveStderr
+            jobToRelease.ArchiveStderr,
+            jobToRelease.ArchiveFailContext
         });
     }
     JobEventsOutbox_->Enqueue(std::move(events));
@@ -114,6 +116,13 @@ TFuture<void> TOperationControllerHost::RemoveSnapshot()
 TFuture<void> TOperationControllerHost::FlushOperationNode()
 {
     return BIND(&NControllerAgent::TMasterConnector::FlushOperationNode, Bootstrap_->GetControllerAgent()->GetMasterConnector())
+        .AsyncVia(CancelableControlInvoker_)
+        .Run(OperationId_);
+}
+
+TFuture<void> TOperationControllerHost::UpdateInitializedOperationNode()
+{
+    return BIND(&NControllerAgent::TMasterConnector::UpdateInitializedOperationNode, Bootstrap_->GetControllerAgent()->GetMasterConnector())
         .AsyncVia(CancelableControlInvoker_)
         .Run(OperationId_);
 }
@@ -258,6 +267,34 @@ void TOperationControllerHost::OnOperationSuspended(const TError& error)
     });
     LOG_DEBUG(error, "Operation suspension notification enqueued (OperationId: %v)",
         OperationId_);
+}
+
+void TOperationControllerHost::OnOperationBannedInTentativeTree(const TString& treeId)
+{
+    OperationEventsOutbox_->Enqueue(TAgentToSchedulerOperationEvent{
+        EAgentToSchedulerOperationEventType::BannedInTentativeTree,
+        OperationId_,
+        {},
+        treeId
+    });
+    LOG_DEBUG("Operation tentative tree ban notification enqueued (OperationId: %v, TreeId: %v)",
+        OperationId_,
+        treeId);
+}
+
+void TOperationControllerHost::ValidateOperationPermission(
+    const TString& user,
+    EPermission permission,
+    const TString& subnodePath)
+{
+    WaitFor(BIND(&TControllerAgent::ValidateOperationPermission, Bootstrap_->GetControllerAgent())
+        .AsyncVia(CancelableControlInvoker_)
+        .Run(
+            user,
+            OperationId_,
+            permission,
+            subnodePath))
+        .ThrowOnError();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

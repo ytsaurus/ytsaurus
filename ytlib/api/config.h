@@ -24,7 +24,7 @@
 
 #include <yt/ytlib/node_tracker_client/public.h>
 
-#include <yt/core/bus/config.h>
+#include <yt/core/bus/tcp/config.h>
 
 #include <yt/core/compression/public.h>
 
@@ -52,10 +52,14 @@ class TConnectionConfig
 public:
     EConnectionType ConnectionType;
 
+    TTableMountCacheConfigPtr TableMountCache;
+
     TConnectionConfig()
     {
         RegisterParameter("connection_type", ConnectionType)
             .Default(EConnectionType::Native);
+        RegisterParameter("table_mount_cache", TableMountCache)
+            .DefaultNew();
     }
 };
 
@@ -108,7 +112,6 @@ public:
     NScheduler::TSchedulerConnectionConfigPtr Scheduler;
     NTransactionClient::TTransactionManagerConfigPtr TransactionManager;
     NChunkClient::TBlockCacheConfigPtr BlockCache;
-    TTableMountCacheConfigPtr TableMountCache;
     NHiveClient::TClusterDirectorySynchronizerConfigPtr ClusterDirectorySynchronizer;
 
     NQueryClient::TExecutorConfigPtr QueryEvaluator;
@@ -127,8 +130,8 @@ public:
     NCompression::ECodec LookupRowsRequestCodec;
     NCompression::ECodec LookupRowsResponseCodec;
     int MaxRowsPerLookupRequest;
+    bool EnableLookupMultiread;
 
-    bool EnableUdf;
     NYPath::TYPath UdfRegistryPath;
     TAsyncExpiringCacheConfigPtr FunctionRegistryCache;
     TSlruCacheConfigPtr FunctionImplCache;

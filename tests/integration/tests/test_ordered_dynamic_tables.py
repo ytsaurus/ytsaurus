@@ -2,7 +2,7 @@ import pytest
 
 from test_dynamic_tables import TestDynamicTablesBase
 
-from yt_env_setup import YTEnvSetup, wait
+from yt_env_setup import YTEnvSetup, wait, skip_if_rpc_driver_backend
 from yt_commands import *
 
 from yt.environment.helpers import assert_items_equal
@@ -224,6 +224,7 @@ class TestOrderedDynamicTables(TestDynamicTablesBase):
         assert select_rows("a from [//tmp/t] where [$tablet_index] = 0 and [$row_index] >= 10 and [$row_index] < 20") == query_rows[10:20]
         assert select_rows("a from [//tmp/t] where [$tablet_index] = 0 and [$row_index] >= 10 and [$row_index] <= 20") == query_rows[10:21]
 
+    @skip_if_rpc_driver_backend
     def test_dynamic_to_static(self):
         self.sync_create_cells(1)
         self._create_simple_table("//tmp/t")
@@ -239,6 +240,7 @@ class TestOrderedDynamicTables(TestDynamicTablesBase):
         assert get("//tmp/t/@row_count") == 100
         assert read_table("//tmp/t") == rows
 
+    @skip_if_rpc_driver_backend
     def test_static_to_dynamic(self):
         self.sync_create_cells(1)
         self._create_simple_table("//tmp/t", dynamic=False)
@@ -255,6 +257,7 @@ class TestOrderedDynamicTables(TestDynamicTablesBase):
         self.sync_mount_table("//tmp/t")
         assert select_rows("a from [//tmp/t]") == [{"a": i % 100} for i in xrange(1000)]
 
+    @skip_if_rpc_driver_backend
     def test_no_duplicate_chunks_in_dynamic(self):
         self.sync_create_cells(1)
         self._create_simple_table("//tmp/t", dynamic=False)
@@ -263,6 +266,7 @@ class TestOrderedDynamicTables(TestDynamicTablesBase):
         concatenate(["//tmp/t", "//tmp/t"], "//tmp/t")
         with pytest.raises(YtError): alter_table("//tmp/t", dynamic=True)
 
+    @skip_if_rpc_driver_backend
     def test_chunk_list_kind(self):
         self.sync_create_cells(1)
         self._create_simple_table("//tmp/t", dynamic=False)
@@ -298,6 +302,7 @@ class TestOrderedDynamicTables(TestDynamicTablesBase):
         trim_rows("//tmp/t", 0, -10)
         wait(lambda: get("//tmp/t/@tablets/0/trimmed_row_count") == 0)
 
+    @skip_if_rpc_driver_backend
     def test_trim_drops_chunks(self):
         self.sync_create_cells(1)
         self._create_simple_table("//tmp/t", dynamic=False)
@@ -324,6 +329,7 @@ class TestOrderedDynamicTables(TestDynamicTablesBase):
         trim_rows("//tmp/t", 0, 1000)
         wait(lambda: get("#{0}/@statistics/row_count".format(tablet_chunk_list_id)) == 0)
 
+    @skip_if_rpc_driver_backend
     def test_read_obeys_trim(self):
         self.sync_create_cells(1)
         self._create_simple_table("//tmp/t")
@@ -333,6 +339,7 @@ class TestOrderedDynamicTables(TestDynamicTablesBase):
         trim_rows("//tmp/t", 0, 30)
         assert select_rows("a from [//tmp/t]") == [{"a": i} for i in xrange(30, 100)]
 
+    @skip_if_rpc_driver_backend
     def test_make_static_after_trim(self):
         self.sync_create_cells(1)
         self._create_simple_table("//tmp/t", dynamic=False)
@@ -351,6 +358,7 @@ class TestOrderedDynamicTables(TestDynamicTablesBase):
 
         assert read_table("//tmp/t") == [{"a": j * 10, "b": None, "c": None} for j in xrange(0, 100)]
 
+    @skip_if_rpc_driver_backend
     def test_trimmed_rows_perserved_on_unmount(self):
         self.sync_create_cells(1)
         self._create_simple_table("//tmp/t", dynamic=False)
@@ -377,6 +385,7 @@ class TestOrderedDynamicTables(TestDynamicTablesBase):
         self.sync_mount_table("//tmp/t")
         assert select_rows("a from [//tmp/t] where [$tablet_index] = 0 and [$row_index] between 110 and 120") == [{"a": j} for j in xrange(110, 121)]
 
+    @skip_if_rpc_driver_backend
     def test_trim_optimizes_chunk_list(self):
         self.sync_create_cells(1)
         self._create_simple_table("//tmp/t", dynamic=False)
@@ -565,6 +574,7 @@ class TestOrderedDynamicTables(TestDynamicTablesBase):
         actual = select_rows("a, b, c from [//tmp/t]")
         assert_items_equal(actual, rows)
 
+    @skip_if_rpc_driver_backend
     @pytest.mark.parametrize("erasure_codec", ["none", "reed_solomon_6_3", "lrc_12_2_2"])
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
     def test_read_table(self, optimize_for, erasure_codec):
@@ -708,3 +718,9 @@ class TestOrderedDynamicTables(TestDynamicTablesBase):
 
 class TestOrderedDynamicTablesMulticell(TestOrderedDynamicTables):
     NUM_SECONDARY_MASTER_CELLS = 2
+
+##################################################################
+
+class TestOrderedDynamicTablesRpcProxy(TestOrderedDynamicTables):
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True

@@ -42,8 +42,7 @@ public:
                 SyncLastCommittedTimestamp,
                 false,
                 TColumnFilter(),
-                TWorkloadDescriptor(),
-                TReadSessionId());
+                BlockReadOptions_);
 
             reader->Open().Get();
             reader->Read(&rows);

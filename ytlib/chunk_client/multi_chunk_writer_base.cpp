@@ -66,13 +66,9 @@ TNontemplateMultiChunkWriterBase::TNontemplateMultiChunkWriterBase(
     Logger.AddTag("TransactionId: %v", TransactionId_);
 }
 
-TFuture<void> TNontemplateMultiChunkWriterBase::Open()
+void TNontemplateMultiChunkWriterBase::Init()
 {
-    ReadyEvent_= BIND(&TNontemplateMultiChunkWriterBase::InitSession, MakeStrong(this))
-        .AsyncVia(TDispatcher::Get()->GetWriterInvoker())
-        .Run();
-
-    return ReadyEvent_;
+    InitSession();
 }
 
 TFuture<void> TNontemplateMultiChunkWriterBase::Close()
@@ -190,8 +186,6 @@ void TNontemplateMultiChunkWriterBase::InitSession()
         Throttler_);
 
     CurrentSession_.TemplateWriter = CreateTemplateWriter(CurrentSession_.UnderlyingWriter);
-    WaitFor(CurrentSession_.TemplateWriter->Open())
-        .ThrowOnError();
 
     SwitchingSession_ = false;
 }

@@ -120,17 +120,17 @@ DEFINE_ENUM(EAggregateMode,
  *
  *  \note Thread-safe.
  */
-class TAggregateCounter
+class TAggregateGauge
     : public TCounterBase
 {
 public:
-    TAggregateCounter(
+    TAggregateGauge(
         const NYPath::TYPath& path = NYPath::TYPath(),
         const TTagIdList& tagIds = EmptyTagIds,
         EAggregateMode mode = EAggregateMode::Max,
         TDuration interval = TDuration::MilliSeconds(1000));
-    TAggregateCounter(const TAggregateCounter& other);
-    TAggregateCounter& operator = (const TAggregateCounter& other);
+    TAggregateGauge(const TAggregateGauge& other);
+    TAggregateGauge& operator = (const TAggregateGauge& other);
 
 private:
     EAggregateMode Mode_;
@@ -146,18 +146,33 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! A rudimentary but much cheaper version of TAggregateCounter capable of
+//! A rudimentary but much cheaper version of TAggregateGauge capable of
 //! maintaining just the value itself but not any of its aggregates.
-class TSimpleCounter
+class TMonotonicCounter
     : public TCounterBase
 {
 public:
-    TSimpleCounter(
+    TMonotonicCounter(
         const NYPath::TYPath& path = NYPath::TYPath(),
         const TTagIdList& tagIds = EmptyTagIds,
         TDuration interval = TDuration::MilliSeconds(1000));
-    TSimpleCounter(const TSimpleCounter& other);
-    TSimpleCounter& operator = (const TSimpleCounter& other);
+    TMonotonicCounter(const TMonotonicCounter& other);
+    TMonotonicCounter& operator = (const TMonotonicCounter& other);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Exports single value as-is.
+class TSimpleGauge
+    : public TCounterBase
+{
+public:
+    TSimpleGauge(
+        const NYPath::TYPath& path = NYPath::TYPath(),
+        const TTagIdList& tagIds = EmptyTagIds,
+        TDuration interval = TDuration::MilliSeconds(1000));
+    TSimpleGauge(const TSimpleGauge& other);
+    TSimpleGauge& operator = (const TSimpleGauge& other);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -232,18 +247,17 @@ public:
 
 
     //! Updates the counter value and possibly enqueues samples.
-    void Update(TAggregateCounter& counter, TValue value) const;
+    void Update(TAggregateGauge& counter, TValue value) const;
 
     //! Increments the counter value and possibly enqueues aggregate samples.
     //! Returns the incremented value.
-    TValue Increment(TAggregateCounter& counter, TValue delta = 1) const;
+    TValue Increment(TAggregateGauge& counter, TValue delta = 1) const;
 
-    //! Updates the counter value and possibly enqueues samples.
-    void Update(TSimpleCounter& counter, TValue value) const;
+    void Update(TSimpleGauge& counter, TValue value) const;
+    TValue Increment(TSimpleGauge& counter, TValue value = 1) const;
 
-    //! Increments the counter value and possibly enqueues a sample.
-    //! Returns the incremented value.
-    TValue Increment(TSimpleCounter& counter, TValue delta = 1) const;
+    void Reset(TMonotonicCounter& counter) const;
+    TValue Increment(TMonotonicCounter& counter, TValue delta = 1) const;
 
 private:
     bool SelfProfiling_;
@@ -251,8 +265,8 @@ private:
 
     bool IsCounterEnabled(const TCounterBase& counter) const;
 
-    void OnUpdated(TAggregateCounter& counter, TValue value) const;
-    void OnUpdated(TSimpleCounter& counter) const;
+    void OnUpdated(TAggregateGauge& counter, TValue value) const;
+    void OnUpdated(TCounterBase& counter, EMetricType metricType) const;
 
     TDuration DoTimingCheckpoint(
         TTimer& timer,
@@ -343,7 +357,7 @@ class TAggregatedTimingGuard
     : private TNonCopyable
 {
 public:
-    TAggregatedTimingGuard(const TProfiler* profiler, TAggregateCounter* counter)
+    TAggregatedTimingGuard(const TProfiler* profiler, TAggregateGauge* counter)
         : Profiler_(profiler)
         , Counter_(counter)
         , Start_(GetCpuInstant())
@@ -377,7 +391,7 @@ public:
 
 private:
     const TProfiler* Profiler_;
-    TAggregateCounter* Counter_;
+    TAggregateGauge* Counter_;
     TCpuInstant Start_;
 
 };

@@ -17,16 +17,8 @@
 
 #include <contrib/libs/grpc/include/grpc/grpc.h>
 #include <contrib/libs/grpc/include/grpc/grpc_security.h>
-#include <contrib/libs/grpc/include/grpc/impl/codegen/grpc_types.h>
-#include <contrib/libs/grpc/include/grpcpp/support/slice.h>
 
 #include <array>
-
-template <>
-void Out<grpc_slice>(IOutputStream& o, const grpc_slice& p)
-{
-    o.Write(GRPC_SLICE_START_PTR(p), GRPC_SLICE_LENGTH(p));
-}
 
 namespace NYT {
 namespace NRpc {
@@ -192,7 +184,7 @@ private:
                 GetTag());
             YCHECK(result == GRPC_CALL_OK);
 
-            EndpointDescription_ = grpc::StringFromCopiedSlice(CallDetails_->host);
+            EndpointDescription_ = ToString(CallDetails_->host);
 
             Ref();
         }
@@ -281,10 +273,13 @@ private:
         EServerCallStage Stage_ = EServerCallStage::Accept;
         TSharedRefArray ResponseMessage_;
 
+        TString PeerAddress_;
         TRequestId RequestId_;
+        TNullable<TString> User_;
+        TNullable<NGrpc::NProto::TSslCredentialsExt> SslCredentialsExt_;
+        TNullable<NRpc::NProto::TCredentialsExt> RpcCredentialsExt_;
         TString ServiceName_;
         TString MethodName_;
-        TNullable<TString> PeerIdentity_;
         TNullable<TDuration> Timeout_;
         IServicePtr Service_;
 
@@ -326,26 +321,27 @@ private:
 
             New<TCallHandler>(Owner_);
 
+            ParsePeerAddress();
             ParseRequestId();
+            ParseUser();
+            ParseRpcCredentials();
+            ParseSslCredentials();
+            ParseTimeout();
 
             if (!ParseRoutingParameters()) {
                 LOG_DEBUG("Malformed request routing parameters (RawMethod: %v, RequestId: %v)",
-                    CallDetails_->method,
+                    ToStringBuf(CallDetails_->method),
                     RequestId_);
                 Unref();
                 return;
             }
 
-            ParseAuthParameters();
-
-            ParseTimeout();
-
-            LOG_DEBUG("Request accepted (RequestId: %v, Method: %v:%v, PeerIdentity: %v, PeerAddress: %v, Timeout: %v)",
+            LOG_DEBUG("Request accepted (RequestId: %v, Method: %v:%v, User: %v, PeerAddress: %v, Timeout: %v)",
                 RequestId_,
                 ServiceName_,
                 MethodName_,
-                PeerIdentity_,
-                TStringBuf(GetPeerAddress().get()),
+                User_,
+                PeerAddress_,
                 Timeout_);
 
             Service_ = Owner_->FindService(TServiceId(ServiceName_));
@@ -365,6 +361,13 @@ private:
             StartBatch(ops, EServerCallCookie::Normal);
         }
 
+
+        void ParsePeerAddress()
+        {
+            auto addressString = MakeGprString(grpc_call_get_peer(Call_.Unwrap()));
+            PeerAddress_ = TString(addressString.get());
+        }
+
         void ParseRequestId()
         {
             auto idString = CallMetadata_.Find(RequestIdMetadataKey);
@@ -381,7 +384,32 @@ private:
             }
         }
 
-        void ParseAuthParameters()
+        void ParseUser()
+        {
+            auto userString = CallMetadata_.Find(UserMetadataKey);
+            if (!userString) {
+                return;
+            }
+
+            User_ = TString(userString);
+        }
+
+        void ParseRpcCredentials()
+        {
+            auto tokenString = CallMetadata_.Find(TokenMetadataKey);
+            if (!tokenString) {
+                return;
+            }
+
+            RpcCredentialsExt_.Emplace();
+
+            if (tokenString) {
+                RpcCredentialsExt_->set_token(TString(tokenString));
+                RpcCredentialsExt_->set_user_ip(PeerAddress_);
+            }
+        }
+
+        void ParseSslCredentials()
         {
             auto authContext = TGrpcAuthContextPtr(grpc_call_auth_context(Call_.Unwrap()));
             if (!authContext) {
@@ -399,7 +427,8 @@ private:
                 return;
             }
 
-            PeerIdentity_ = TString(peerIdentityProperty->value);
+            SslCredentialsExt_.Emplace();
+            SslCredentialsExt_->set_peer_identity(TString(peerIdentityProperty->value));
         }
 
         void ParseTimeout()
@@ -422,11 +451,15 @@ private:
 
         bool ParseRoutingParameters()
         {
+            const size_t methodLength = GRPC_SLICE_LENGTH(CallDetails_->method);
+            if (methodLength == 0) {
+                return false;
+            }
+
             if (*GRPC_SLICE_START_PTR(CallDetails_->method) != '/') {
                 return false;
             }
 
-            const size_t methodLength = GRPC_SLICE_LENGTH(CallDetails_->method);
             auto methodWithoutLeadingSlash = grpc_slice_sub_no_ref(CallDetails_->method, 1, methodLength);
             const int secondSlashIndex = grpc_slice_chr(methodWithoutLeadingSlash, '/');
             if (secondSlashIndex < 0) {
@@ -437,11 +470,6 @@ private:
             ServiceName_.assign(serviceNameStart, secondSlashIndex);
             MethodName_.assign(serviceNameStart + secondSlashIndex + 1, methodLength - 1 - (secondSlashIndex + 1));
             return true;
-        }
-
-        TGprString GetPeerAddress()
-        {
-            return MakeGprString(grpc_call_get_peer(Call_.Unwrap()));
         }
 
         void OnRequestReceived(bool success)
@@ -464,15 +492,20 @@ private:
 
             auto header = std::make_unique<NRpc::NProto::TRequestHeader>();
             ToProto(header->mutable_request_id(), RequestId_);
+            if (User_) {
+                header->set_user(*User_);
+            }
             header->set_service(ServiceName_);
             header->set_method(MethodName_);
             header->set_protocol_version(GenericProtocolVersion);
             if (Timeout_) {
                 header->set_timeout(ToProto<i64>(*Timeout_));
             }
-            if (PeerIdentity_) {
-                auto* ext = header->MutableExtension(NGrpc::NProto::TSslCredentialsExt::ssl_credentials_ext);
-                ext->set_peer_identity(*PeerIdentity_);
+            if (SslCredentialsExt_) {
+                *header->MutableExtension(NGrpc::NProto::TSslCredentialsExt::ssl_credentials_ext) = std::move(*SslCredentialsExt_);
+            }
+            if (RpcCredentialsExt_) {
+                *header->MutableExtension(NRpc::NProto::TCredentialsExt::credentials_ext) = std::move(*RpcCredentialsExt_);
             }
 
             {

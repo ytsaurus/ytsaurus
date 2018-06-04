@@ -214,11 +214,13 @@ protected:
             BuildInputOutputJobSpec(joblet, jobSpec);
         }
 
-        virtual void OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary) override
+        virtual TJobCompletedResult OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary) override
         {
-            TTask::OnJobCompleted(joblet, jobSummary);
+            auto result = TTask::OnJobCompleted(joblet, jobSummary);
 
             RegisterOutput(&jobSummary.Result, joblet->ChunkListIds, joblet);
+
+            return result;
         }
 
         virtual void OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& jobSummary) override
@@ -240,6 +242,7 @@ protected:
     std::vector<TString> PrimaryKeyColumns_;
     std::vector<TString> ForeignKeyColumns_;
 
+    // XXX(max42): this field is effectively transient, do not persist it.
     IJobSizeConstraintsPtr JobSizeConstraints_;
 
     i64 InputSliceDataWeight_;
@@ -247,16 +250,6 @@ protected:
     IFetcherChunkScraperPtr FetcherChunkScraper_;
 
     // Custom bits of preparation pipeline.
-
-    TInputStreamDirectory GetInputStreamDirectory()
-    {
-        std::vector<TInputStreamDescriptor> inputStreams;
-        inputStreams.reserve(InputTables.size());
-        for (const auto& inputTable : InputTables) {
-            inputStreams.emplace_back(inputTable.IsTeleportable, inputTable.IsPrimary(), inputTable.IsDynamic /* isVersioned */);
-        }
-        return TInputStreamDirectory(inputStreams);
-    }
 
     virtual bool IsCompleted() const override
     {
@@ -338,18 +331,18 @@ protected:
             for (const auto& chunk : CollectPrimaryUnversionedChunks()) {
                 const auto& slice = CreateUnversionedInputDataSlice(CreateInputChunkSlice(chunk));
                 InferLimitsFromBoundaryKeys(slice, RowBuffer);
-                RegisterInputStripe(CreateChunkStripe(slice), SortedTask_);
+                SortedTask_->AddInput(CreateChunkStripe(slice));
                 ++primaryUnversionedSlices;
                 yielder.TryYield();
             }
             for (const auto& slice : CollectPrimaryVersionedDataSlices(InputSliceDataWeight_)) {
-                RegisterInputStripe(CreateChunkStripe(slice), SortedTask_);
+                SortedTask_->AddInput(CreateChunkStripe(slice));
                 ++primaryVersionedSlices;
                 yielder.TryYield();
             }
             for (const auto& tableSlices : CollectForeignInputDataSlices(ForeignKeyColumns_.size())) {
                 for (const auto& slice : tableSlices) {
-                    RegisterInputStripe(CreateChunkStripe(slice), SortedTask_);
+                    SortedTask_->AddInput(CreateChunkStripe(slice));
                     ++foreignSlices;
                     yielder.TryYield();
                 }
@@ -510,9 +503,9 @@ protected:
         jobOptions.EnablePeriodicYielder = true;
 
         if (Spec_->NightlyOptions) {
-            auto useNewEndpointKeys = Spec_->NightlyOptions->FindChild("use_new_endpoint_keys");
-            if (useNewEndpointKeys && useNewEndpointKeys->GetType() == ENodeType::Boolean) {
-                jobOptions.UseNewEndpointKeys = useNewEndpointKeys->AsBoolean()->GetValue();
+            auto logDetails = Spec_->NightlyOptions->FindChild("log_details");
+            if (logDetails && logDetails->GetType() == ENodeType::Boolean) {
+                jobOptions.LogDetails = logDetails->AsBoolean()->GetValue();
             }
         }
 
@@ -940,7 +933,7 @@ public:
 
     virtual bool IsOutputLivePreviewSupported() const override
     {
-        return true;
+        return Spec_->EnableLegacyLivePreview;
     }
 
     virtual i64 GetForeignInputDataWeight() const override

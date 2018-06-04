@@ -6,6 +6,8 @@
 
 #include <yt/ytlib/chunk_client/public.h>
 
+#include <yt/ytlib/job_tracker_client/statistics.h>
+
 namespace NYT {
 namespace NChunkClient {
 

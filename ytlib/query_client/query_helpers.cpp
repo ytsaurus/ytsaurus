@@ -155,6 +155,70 @@ TKeyTriePtr ExtractMultipleConstraints(
         }
 
         return UniteKeyTrie(keyTries);
+    } else if (auto betweenExpr = expr->As<TBetweenExpression>()) {
+        int argsSize = betweenExpr->Arguments.size();
+
+        std::vector<int> keyMapping(keyColumns.size(), -1);
+        for (int index = 0; index < argsSize; ++index) {
+            auto referenceExpr = betweenExpr->Arguments[index]->As<TReferenceExpression>();
+            if (referenceExpr) {
+                int keyPartIndex = ColumnNameToKeyPartIndex(keyColumns, referenceExpr->ColumnName);
+                if (keyPartIndex >= 0 && keyMapping[keyPartIndex] == -1) {
+                    keyMapping[keyPartIndex] = index;
+                }
+            }
+        }
+
+        std::vector<TKeyTriePtr> keyTries;
+        for (int rowIndex = 0; rowIndex < betweenExpr->Ranges.Size(); ++rowIndex) {
+            auto literalRange = betweenExpr->Ranges[rowIndex];
+
+            auto lower = literalRange.first;
+            auto upper = literalRange.second;
+
+            size_t prefix = 0;
+            while (prefix < lower.GetCount() && prefix < upper.GetCount() && lower[prefix] == upper[prefix]) {
+                ++prefix;
+            }
+
+            int rangeColumnIndex = -1;
+            auto rowConstraint = TKeyTrie::Universal();
+            for (int keyIndex = keyMapping.size() - 1; keyIndex >= 0; --keyIndex) {
+                auto index = keyMapping[keyIndex];
+                if (index >= 0 && index < prefix) {
+                    auto valueConstraint = New<TKeyTrie>(keyIndex);
+                    valueConstraint->Next.emplace_back(lower[index], std::move(rowConstraint));
+                    rowConstraint = std::move(valueConstraint);
+                }
+
+                if (index == prefix) {
+                    rangeColumnIndex = keyIndex;
+                }
+            }
+
+            if (rangeColumnIndex != -1) {
+                auto rangeConstraint = New<TKeyTrie>(rangeColumnIndex);
+                auto& bounds = rangeConstraint->Bounds;
+
+                bounds.emplace_back(
+                    lower.GetCount() > prefix
+                        ? lower[prefix]
+                        : MakeUnversionedSentinelValue(EValueType::Min),
+                    true);
+
+                bounds.emplace_back(
+                    upper.GetCount() > prefix
+                        ? upper[prefix]
+                        : MakeUnversionedSentinelValue(EValueType::Max),
+                    true);
+
+                rowConstraint = IntersectKeyTrie(rowConstraint, rangeConstraint);
+            }
+
+            keyTries.push_back(rowConstraint);
+        }
+
+        return UniteKeyTrie(keyTries);
     }
 
     return TKeyTrie::Universal();

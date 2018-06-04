@@ -6,6 +6,8 @@
 #include "tablet.h"
 #include "tablet_slot.h"
 
+#include <yt/ytlib/chunk_client/chunk_reader.h>
+
 #include <yt/ytlib/table_client/overlapping_reader.h>
 #include <yt/ytlib/table_client/row_buffer.h>
 #include <yt/ytlib/table_client/row_merger.h>
@@ -54,8 +56,7 @@ ISchemafulReaderPtr CreateSchemafulSortedTabletReader(
     const TColumnFilter& columnFilter,
     const TSharedRange<TRowRange>& bounds,
     TTimestamp timestamp,
-    const TWorkloadDescriptor& workloadDescriptor,
-    const TReadSessionId& sessionId)
+    const NChunkClient::TClientBlockReadOptions& blockReadOptions)
 {
     ValidateTabletRetainedTimestamp(tabletSnapshot, timestamp);
     YCHECK(bounds.Size() > 0);
@@ -115,8 +116,8 @@ ISchemafulReaderPtr CreateSchemafulSortedTabletReader(
         timestamp,
         lowerBound,
         upperBound,
-        workloadDescriptor,
-        sessionId,
+        blockReadOptions.WorkloadDescriptor,
+        blockReadOptions.ReadSessionId,
         MakeFormattableRange(stores, TStoreIdFormatter()),
         MakeFormattableRange(stores, TStoreRangeFormatter()),
         bounds.Size());
@@ -146,8 +147,7 @@ ISchemafulReaderPtr CreateSchemafulSortedTabletReader(
                 timestamp,
                 false,
                 columnFilter,
-                workloadDescriptor,
-                sessionId);
+                blockReadOptions);
         },
         [keyComparer = tabletSnapshot->RowKeyComparer] (
             const TUnversionedValue* lhsBegin,
@@ -164,8 +164,7 @@ ISchemafulReaderPtr CreateSchemafulOrderedTabletReader(
     TOwningKey lowerBound,
     TOwningKey upperBound,
     TTimestamp /*timestamp*/,
-    const TWorkloadDescriptor& workloadDescriptor,
-    const TReadSessionId& sessionId)
+    const NChunkClient::TClientBlockReadOptions& blockReadOptions)
 {
     // Deduce tablet index and row range from lower and upper bound.
     YCHECK(lowerBound.GetCount() >= 1);
@@ -254,8 +253,8 @@ ISchemafulReaderPtr CreateSchemafulOrderedTabletReader(
         tabletSnapshot->CellId,
         lowerRowIndex,
         upperRowIndex,
-        workloadDescriptor,
-        sessionId,
+        blockReadOptions.WorkloadDescriptor,
+        blockReadOptions.ReadSessionId,
         MakeFormattableRange(stores, TStoreIdFormatter()));
 
     std::vector<std::function<ISchemafulReaderPtr()>> readers;
@@ -267,8 +266,7 @@ ISchemafulReaderPtr CreateSchemafulOrderedTabletReader(
                 lowerRowIndex,
                 upperRowIndex,
                 columnFilter,
-                workloadDescriptor,
-                sessionId);
+                blockReadOptions);
         });
     }
 
@@ -281,8 +279,7 @@ ISchemafulReaderPtr CreateSchemafulTabletReader(
     TOwningKey lowerBound,
     TOwningKey upperBound,
     TTimestamp timestamp,
-    const TWorkloadDescriptor& workloadDescriptor,
-    const TReadSessionId& sessionId)
+    const NChunkClient::TClientBlockReadOptions& blockReadOptions)
 {
     if (tabletSnapshot->PhysicalSchema.IsSorted()) {
         return CreateSchemafulSortedTabletReader(
@@ -290,8 +287,7 @@ ISchemafulReaderPtr CreateSchemafulTabletReader(
             columnFilter,
             MakeSingletonRowRange(lowerBound, upperBound),
             timestamp,
-            workloadDescriptor,
-            sessionId);
+            blockReadOptions);
     } else {
         return CreateSchemafulOrderedTabletReader(
             std::move(tabletSnapshot),
@@ -299,8 +295,7 @@ ISchemafulReaderPtr CreateSchemafulTabletReader(
             std::move(lowerBound),
             std::move(upperBound),
             timestamp,
-            workloadDescriptor,
-            sessionId);
+            blockReadOptions);
     }
 }
 
@@ -314,8 +309,7 @@ ISchemafulReaderPtr CreateSchemafulPartitionReader(
     TPartitionSnapshotPtr paritionSnapshot,
     const TSharedRange<TKey>& keys,
     TTimestamp timestamp,
-    const TWorkloadDescriptor& workloadDescriptor,
-    const TReadSessionId& sessionId,
+    const NChunkClient::TClientBlockReadOptions& blockReadOptions,
     TRowBufferPtr rowBuffer)
 {
     auto minKey = *keys.Begin();
@@ -339,8 +333,8 @@ ISchemafulReaderPtr CreateSchemafulPartitionReader(
         tabletSnapshot->TabletId,
         tabletSnapshot->CellId,
         timestamp,
-        workloadDescriptor,
-        sessionId,
+        blockReadOptions.WorkloadDescriptor,
+        blockReadOptions.ReadSessionId,
         MakeFormattableRange(stores, TStoreIdFormatter()),
         MakeFormattableRange(stores, TStoreRangeFormatter()));
 
@@ -361,8 +355,7 @@ ISchemafulReaderPtr CreateSchemafulPartitionReader(
                     timestamp,
                     false,
                     columnFilter,
-                    workloadDescriptor,
-                    sessionId);
+                    blockReadOptions);
             } else {
                 return nullptr;
             }
@@ -376,8 +369,7 @@ ISchemafulReaderPtr CreateSchemafulTabletReader(
     const TColumnFilter& columnFilter,
     const TSharedRange<TKey>& keys,
     TTimestamp timestamp,
-    const TWorkloadDescriptor& workloadDescriptor,
-    const TReadSessionId& sessionId)
+    const NChunkClient::TClientBlockReadOptions& blockReadOptions)
 {
     ValidateTabletRetainedTimestamp(tabletSnapshot, timestamp);
 
@@ -424,8 +416,7 @@ ISchemafulReaderPtr CreateSchemafulTabletReader(
                 partitions[index],
                 partitionedKeys[index],
                 timestamp,
-                workloadDescriptor,
-                sessionId,
+                blockReadOptions,
                 rowBuffer);
             ++index;
             return reader;
@@ -446,8 +437,7 @@ IVersionedReaderPtr CreateVersionedTabletReader(
     TOwningKey upperBound,
     TTimestamp currentTimestamp,
     TTimestamp majorTimestamp,
-    const TWorkloadDescriptor& workloadDescriptor,
-    const TReadSessionId& sessionId,
+    const NChunkClient::TClientBlockReadOptions& blockReadOptions,
     int minConcurrency)
 {
     if (!tabletSnapshot->PhysicalSchema.IsSorted()) {
@@ -464,8 +454,8 @@ IVersionedReaderPtr CreateVersionedTabletReader(
         upperBound,
         currentTimestamp,
         majorTimestamp,
-        workloadDescriptor,
-        sessionId,
+        blockReadOptions.WorkloadDescriptor,
+        blockReadOptions.ReadSessionId,
         MakeFormattableRange(stores, TStoreIdFormatter()),
         MakeFormattableRange(stores, TStoreRangeFormatter()));
 
@@ -498,8 +488,7 @@ IVersionedReaderPtr CreateVersionedTabletReader(
                 AllCommittedTimestamp,
                 true,
                 TColumnFilter(),
-                workloadDescriptor,
-                sessionId);
+                blockReadOptions);
         },
         [keyComparer = tabletSnapshot->RowKeyComparer] (
             const TUnversionedValue* lhsBegin,

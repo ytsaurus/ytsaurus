@@ -211,9 +211,9 @@ protected:
             BuildInputOutputJobSpec(joblet, jobSpec);
         }
 
-        virtual void OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary) override
+        virtual TJobCompletedResult OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary) override
         {
-            TTask::OnJobCompleted(joblet, jobSummary);
+            auto result = TTask::OnJobCompleted(joblet, jobSummary);
 
             TChunkStripeKey key = 0;
             if (Controller_->OrderedOutputRequired_) {
@@ -221,6 +221,8 @@ protected:
             }
 
             RegisterOutput(&jobSummary.Result, joblet->ChunkListIds, joblet, key);
+
+            return result;
         }
 
         virtual void OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& jobSummary) override
@@ -262,16 +264,6 @@ protected:
     virtual TUserJobSpecPtr GetUserJobSpec() const
     {
         return nullptr;
-    }
-
-    TInputStreamDirectory GetInputStreamDirectory() const
-    {
-        std::vector<TInputStreamDescriptor> inputStreams;
-        inputStreams.reserve(InputTables.size());
-        for (const auto& inputTable : InputTables) {
-            inputStreams.emplace_back(inputTable.IsTeleportable, true /* isPrimary */, inputTable.IsDynamic /* isVersioned */);
-        }
-        return TInputStreamDirectory(inputStreams);
     }
 
     virtual bool IsCompleted() const override
@@ -328,6 +320,7 @@ protected:
             InputSliceDataWeight_);
     }
 
+    // XXX(max42): this helper seems redundant.
     TChunkStripePtr CreateChunkStripe(TInputDataSlicePtr dataSlice)
     {
         TChunkStripePtr chunkStripe = New<TChunkStripe>(false /* foreign */);
@@ -347,7 +340,7 @@ protected:
             int sliceCount = 0;
             for (auto& slice : CollectPrimaryInputDataSlices(InputSliceDataWeight_)) {
                 ValidateInputDataSlice(slice);
-                RegisterInputStripe(CreateChunkStripe(std::move(slice)), OrderedTask_);
+                OrderedTask_->AddInput(CreateChunkStripe(std::move(slice)));
                 ++sliceCount;
                 yielder.TryYield();
             }
@@ -774,7 +767,7 @@ private:
 
     virtual bool IsOutputLivePreviewSupported() const override
     {
-        return true;
+        return Spec_->EnableLegacyLivePreview;
     }
 
     virtual TStringBuf GetDataWeightParameterNameForJob(EJobType jobType) const override

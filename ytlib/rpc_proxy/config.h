@@ -2,9 +2,10 @@
 
 #include "public.h"
 
-#include <yt/core/bus/config.h>
+#include <yt/core/bus/tcp/config.h>
 
 #include <yt/ytlib/api/client.h>
+#include <yt/ytlib/api/config.h>
 
 namespace NYT {
 namespace NRpcProxy {
@@ -12,7 +13,7 @@ namespace NRpcProxy {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TConnectionConfig
-    : public virtual NYTree::TYsonSerializable
+    : public NApi::TConnectionConfig
 {
 public:
     TString Domain;

@@ -13,6 +13,8 @@
 
 #include <yt/ytlib/table_client/row_buffer.h>
 
+#include <yt/core/actions/cancelable_context.h>
+
 #include <yt/core/concurrency/action_queue.h>
 #include <yt/core/concurrency/nonblocking_batch.h>
 #include <yt/core/concurrency/periodic_executor.h>
@@ -117,7 +119,16 @@ namespace NDetail {
 
 TString GetFilterFactors(const TArchiveOperationRequest& request)
 {
-    auto briefSpecMapNode = ConvertToNode(request.BriefSpec)->AsMap();
+    auto dropYPathAttributes = [] (const TString& path) -> TString {
+        try {
+            auto parsedPath = NYPath::TRichYPath::Parse(path);
+            return parsedPath.GetPath();
+        } catch (const std::exception& ex) {
+            return "";
+        }
+    };
+
+    auto specMapNode = ConvertToNode(request.Spec)->AsMap();
 
     std::vector<TString> parts;
     parts.push_back(ToString(request.Id));
@@ -126,18 +137,31 @@ TString GetFilterFactors(const TArchiveOperationRequest& request)
     parts.push_back(FormatEnum(request.OperationType));
 
     for (const auto& key : {"pool", "title"}) {
-        auto node = briefSpecMapNode->FindChild(key);
-        if (node) {
+        auto node = specMapNode->FindChild(key);
+        if (node && node->GetType() == ENodeType::String) {
             parts.push_back(node->AsString()->GetValue());
         }
     }
 
     for (const auto& key : {"input_table_paths", "output_table_paths"}) {
-        auto node = briefSpecMapNode->FindChild(key);
-        if (node) {
-            auto listNode = node->AsList();
-            for (const auto& child : listNode->GetChildren()) {
-                parts.push_back(child->AsString()->GetValue());
+        auto node = specMapNode->FindChild(key);
+        if (node && node->GetType() == ENodeType::List) {
+            auto child = node->AsList()->FindChild(0);
+            if (child && child->GetType() == ENodeType::String) {
+                auto path = dropYPathAttributes(child->AsString()->GetValue());
+                if (!path.empty()) {
+                    parts.push_back(path);
+                }
+            }
+        }
+    }
+
+    for (const auto& key : {"output_table_path", "table_path"}) {
+        auto node = specMapNode->FindChild(key);
+        if (node && node->GetType() == ENodeType::String) {
+            auto path = dropYPathAttributes(node->AsString()->GetValue());
+            if (!path.empty()) {
+                parts.push_back(path);
             }
         }
     }
@@ -230,15 +254,9 @@ public:
     TImpl(TOperationsCleanerConfigPtr config, TBootstrap* bootstrap)
         : Config_(std::move(config))
         , Bootstrap_(bootstrap)
-        , ArchivationExecutor_(New<TPeriodicExecutor>(
-            GetInvoker(),
-            BIND(&TImpl::OnAnalyzeOperations, MakeWeak(this)),
-            Config_->ArchivationPeriod))
         , RemoveBatcher_(Config_->RemoveBatchSize, Config_->RemoveBatchTimeout)
         , ArchiveBatcher_(Config_->ArchiveBatchSize, Config_->ArchiveBatchTimeout)
-    {
-        VERIFY_INVOKER_THREAD_AFFINITY(GetInvoker(), ControlThread);
-    }
+    { }
 
     void Start()
     {
@@ -351,9 +369,10 @@ private:
     TOperationsCleanerConfigPtr Config_;
     const TBootstrap* const Bootstrap_;
 
-    const NLogging::TLogger Logger;
+    TPeriodicExecutorPtr AnalysisExecutor_;
 
-    const TPeriodicExecutorPtr ArchivationExecutor_;
+    TCancelableContextPtr CancelableContext_;
+    IInvokerPtr CancelableControlInvoker_;
 
     int ArchiveVersion_ = -1;
 
@@ -370,23 +389,23 @@ private:
 
     TProfiler Profiler = {"/operations_cleaner"};
 
-    TSimpleCounter RemovePendingCounter_ = {"/remove_pending"};
-    TSimpleCounter ArchivePendingCounter_ = {"/archive_pending"};
-    TSimpleCounter ArchivedCounter_ = {"/archived"};
-    TSimpleCounter RemovedCounter_ = {"/removed"};
-    TSimpleCounter CommittedDataWeightCounter_ = {"/committed_data_weight"};
-    TSimpleCounter ArchiveErrorCounter_ = {"/archive_errors"};
-    TSimpleCounter RemoveErrorCounter_ = {"/remove_errors"};
+    TSimpleGauge RemovePendingCounter_ {"/remove_pending"};
+    TSimpleGauge ArchivePendingCounter_ {"/archive_pending"};
+    TMonotonicCounter ArchivedCounter_ {"/archived"};
+    TMonotonicCounter RemovedCounter_ {"/removed"};
+    TMonotonicCounter CommittedDataWeightCounter_ {"/committed_data_weight"};
+    TMonotonicCounter ArchiveErrorCounter_ {"/archive_errors"};
+    TMonotonicCounter RemoveErrorCounter_ {"/remove_errors"};
 
-    TAggregateCounter AnalyzeOperationsTimeCounter_ = {"/analyze_operations_time"};
-    TAggregateCounter OperationsRowsPreparationTimeCounter_ = {"/operations_rows_preparation_time"};
+    TAggregateGauge AnalyzeOperationsTimeCounter_ = {"/analyze_operations_time"};
+    TAggregateGauge OperationsRowsPreparationTimeCounter_ = {"/operations_rows_preparation_time"};
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
 private:
     IInvokerPtr GetInvoker() const
     {
-        return Bootstrap_->GetControlInvoker(EControlQueue::OperationsCleaner);
+        return CancelableControlInvoker_;
     }
 
     void ScheduleRemoveOperations()
@@ -403,9 +422,21 @@ private:
     {
         if (Config_->Enable && !Enabled_) {
             Enabled_ = true;
+
+            YCHECK(!CancelableContext_);
+            CancelableContext_ = New<TCancelableContext>();
+            CancelableControlInvoker_ = CancelableContext_->CreateInvoker(
+                Bootstrap_->GetControlInvoker(EControlQueue::OperationsCleaner));
+
+            AnalysisExecutor_ = New<TPeriodicExecutor>(
+                CancelableControlInvoker_,
+                BIND(&TImpl::OnAnalyzeOperations, MakeWeak(this)),
+                Config_->AnalysisPeriod);
+
+            AnalysisExecutor_->Start();
+
             ScheduleRemoveOperations();
             ScheduleArchiveOperations();
-            ArchivationExecutor_->Start();
             DoStartArchivation();
 
             // If operations cleaner was disabled during scheduler runtime and then
@@ -449,9 +480,14 @@ private:
 
         Enabled_ = false;
 
-        TDelayedExecutor::CancelAndClear(ArchivationStartCookie_);
+        CancelableContext_->Cancel();
+        CancelableContext_.Reset();
+        CancelableControlInvoker_ = nullptr;
 
-        ArchivationExecutor_->Stop();
+        AnalysisExecutor_->Stop();
+        AnalysisExecutor_.Reset();
+
+        TDelayedExecutor::CancelAndClear(ArchivationStartCookie_);
 
         DoStopArchivation();
 
@@ -689,9 +725,7 @@ private:
             Profiler.Increment(ArchivePendingCounter_, -batch.size());
         }
 
-        if (IsEnabled()) {
-            ScheduleArchiveOperations();
-        }
+        ScheduleArchiveOperations();
     }
 
     void RemoveOperations()
@@ -725,21 +759,51 @@ private:
                 }
             }
 
+            std::vector<TOperationId> failedOperationIds;
+
             auto batchRspOrError = WaitFor(batchReq->Invoke());
-            auto error = GetCumulativeError(batchRspOrError);
-            if (error.IsOK()) {
-                LOG_DEBUG("Successfully removed operations from Cypress (BatchSize: %v)", batch.size());
-                Profiler.Increment(RemovedCounter_, batch.size());
-                Profiler.Increment(RemovePendingCounter_, -batch.size());
+            if (batchRspOrError.IsOK()) {
+                const auto& batchRsp = batchRspOrError.Value();
+                auto rsps = batchRsp->GetResponses<TYPathProxy::TRspRemove>("remove_operation");
+                auto rspsNew = batchRsp->GetResponses<TYPathProxy::TRspRemove>("remove_operation_new");
+                YCHECK(rsps.size() == rspsNew.size());
+                YCHECK(rsps.size() == batch.size());
+
+                for (int index = 0; index < batch.size(); ++index) {
+                    const auto& operationId = batch[index];
+
+                    for (const auto& rsp : {rsps[index], rspsNew[index]}) {
+                        if (!rsp.IsOK()) {
+                            if (rsp.FindMatching(NYTree::EErrorCode::ResolveError)) {
+                                continue;
+                            }
+
+                            LOG_DEBUG(rsp, "Failed to remove finished operation from Cypress (OperationId: %v)",
+                                operationId);
+                            failedOperationIds.push_back(operationId);
+                            break;
+                        }
+                    }
+                }
             } else {
-                LOG_WARNING(error, "Failed to remove finished operations from Cypress");
-                Profiler.Increment(RemoveErrorCounter_, 1);
+                LOG_WARNING(batchRspOrError, "Failed to remove finished operations from Cypress (BatchSize: %v)", batch.size());
+                failedOperationIds = batch;
             }
+
+            int removedCount = batch.size() - failedOperationIds.size();
+            LOG_DEBUG("Successfully removed %v operations from Cypress", removedCount);
+
+            Profiler.Increment(RemovedCounter_, removedCount);
+            Profiler.Increment(RemoveErrorCounter_, failedOperationIds.size());
+
+            for (const auto& operationId : failedOperationIds) {
+                RemoveBatcher_.Enqueue(operationId);
+            }
+
+            Profiler.Increment(RemovePendingCounter_, -removedCount);
         }
 
-        if (IsEnabled()) {
-            ScheduleRemoveOperations();
-        }
+        ScheduleRemoveOperations();
     }
 
     void TemporaryDisableArchivation()
@@ -790,7 +854,8 @@ private:
 
         auto operations = FetchOperationsFromCypressForCleaner(
             listOperationsResult.OperationsToArchive,
-            createBatchRequest);
+            createBatchRequest,
+            Config_->FetchBatchSize);
 
         for (auto& operation : operations) {
             SubmitForArchivation(std::move(operation));
@@ -857,40 +922,92 @@ void TOperationsCleaner::BuildOrchid(TFluentMap fluent) const
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace NDetail {
+
+template <class TForwardIt, class TFunctor, class TSize>
+void SplitAndApply(
+    TForwardIt begin,
+    TForwardIt end,
+    TFunctor functor,
+    TSize chunkSize = 1)
+{
+    if (chunkSize < 1) {
+        throw std::invalid_argument("Chunk size must be greater than zero");
+    }
+
+    auto current = begin;
+    while (current != end) {
+        auto distance = std::distance(current, end);
+        auto it = current;
+        if (distance < chunkSize) {
+            std::advance(it, distance);
+        } else {
+            std::advance(it, chunkSize);
+        }
+        functor(current, it);
+        current = it;
+    }
+}
+
+template <class T, class TFunctor, class TSize>
+void SplitAndApply(
+    const std::vector<T>& vec,
+    TFunctor functor,
+    TSize chunkSize = 1)
+{
+    SplitAndApply(
+        vec.begin(),
+        vec.end(),
+        [functor] (typename std::vector<T>::const_iterator begin, typename std::vector<T>::const_iterator end) {
+            std::vector<T> tmp(begin, end);
+            functor(tmp);
+        },
+        chunkSize);
+}
+
+} // namespace NDetail
+
+////////////////////////////////////////////////////////////////////////////////
+
 std::vector<TArchiveOperationRequest> FetchOperationsFromCypressForCleaner(
     const std::vector<TOperationId>& operationIds,
-    TCallback<TObjectServiceProxy::TReqExecuteBatchPtr()> createBatchRequest)
+    TCallback<TObjectServiceProxy::TReqExecuteBatchPtr()> createBatchRequest,
+    int batchSize)
 {
     using NYT::ToProto;
 
     std::vector<TArchiveOperationRequest> result;
 
-    auto batchReq = createBatchRequest();
+    auto fetchBatch = [&] (const std::vector<TOperationId>& batch) {
+        auto batchReq = createBatchRequest();
 
-    for (const auto& operationId : operationIds) {
-        auto req = TYPathProxy::Get(GetNewOperationPath(operationId) + "/@");
-        ToProto(req->mutable_attributes()->mutable_keys(), TArchiveOperationRequest::GetAttributeKeys());
-        batchReq->AddRequest(req, "get_op_attributes");
-    }
+        for (const auto& operationId : batch) {
+            auto req = TYPathProxy::Get(GetNewOperationPath(operationId) + "/@");
+            ToProto(req->mutable_attributes()->mutable_keys(), TArchiveOperationRequest::GetAttributeKeys());
+            batchReq->AddRequest(req, "get_op_attributes");
+        }
 
-    auto rspOrError = WaitFor(batchReq->Invoke());
-    auto error = GetCumulativeError(rspOrError);
-    THROW_ERROR_EXCEPTION_IF_FAILED(error, "Error requesting operations attributes for archivation");
+        auto rspOrError = WaitFor(batchReq->Invoke());
+        auto error = GetCumulativeError(rspOrError);
+        THROW_ERROR_EXCEPTION_IF_FAILED(error, "Error requesting operations attributes for archivation");
 
-    auto rsps = rspOrError.Value()->GetResponses<TYPathProxy::TRspGet>("get_op_attributes");
-    YCHECK(operationIds.size() == rsps.size());
+        auto rsps = rspOrError.Value()->GetResponses<TYPathProxy::TRspGet>("get_op_attributes");
+        YCHECK(batch.size() == rsps.size());
 
-    for (int index = 0; index < operationIds.size(); ++index) {
-        const auto& id = operationIds[index];
-        const auto& rspOrError = rsps[index];
+        for (int index = 0; index < batch.size(); ++index) {
+            const auto& id = batch[index];
+            const auto& rspOrError = rsps[index];
 
-        auto attributes = ConvertToAttributes(TYsonString(rspOrError.Value()->value()));
-        YCHECK(TOperationId::FromString(attributes->Get<TString>("key")) == id);
+            auto attributes = ConvertToAttributes(TYsonString(rspOrError.Value()->value()));
+            YCHECK(TOperationId::FromString(attributes->Get<TString>("key")) == id);
 
-        TArchiveOperationRequest req;
-        req.InitializeFromAttributes(*attributes);
-        result.push_back(req);
-    }
+            TArchiveOperationRequest req;
+            req.InitializeFromAttributes(*attributes);
+            result.push_back(req);
+        }
+    };
+
+    NDetail::SplitAndApply(operationIds, fetchBatch, batchSize);
 
     return result;
 }

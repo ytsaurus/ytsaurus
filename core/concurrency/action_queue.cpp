@@ -10,6 +10,8 @@
 
 #include <yt/core/ypath/token.h>
 
+#include <yt/core/misc/ring_queue.h>
+
 namespace NYT {
 namespace NConcurrency {
 
@@ -354,28 +356,35 @@ public:
         const NProfiling::TTagIdList& tagIds)
         : TInvokerWrapper(std::move(underlyingInvoker))
         , MaxConcurrentInvocations_(maxConcurrentInvocations)
-        , Semaphore_(0)
-        , Profiler("/bounded_concurrency_invoker")
         , SemaphoreCounter_("/semaphore", tagIds)
     { }
 
     virtual void Invoke(TClosure callback) override
     {
-        Queue_.Enqueue(std::move(callback));
-        ScheduleMore();
+        auto guard = Guard(SpinLock_);
+        if (Semaphore_ < MaxConcurrentInvocations_) {
+            YCHECK(Queue_.empty());
+            IncrementSemaphore(+1);
+            guard.Release();
+            RunCallback(std::move(callback));
+        } else {
+            Queue_.push(std::move(callback));
+        }
     }
 
 private:
-    int MaxConcurrentInvocations_;
+    const int MaxConcurrentInvocations_;
 
-    std::atomic<int> Semaphore_;
-    TLockFreeQueue<TClosure> Queue_;
+    const NProfiling::TProfiler Profiler = {"/bounded_concurrency_invoker"};
+    NProfiling::TSimpleGauge SemaphoreCounter_;
+
+    TSpinLock SpinLock_;
+    TRingQueue<TClosure> Queue_;
+    int Semaphore_ = 0;
 
     static PER_THREAD TBoundedConcurrencyInvoker* CurrentSchedulingInvoker_;
 
-    NProfiling::TProfiler Profiler;
-    NProfiling::TSimpleCounter SemaphoreCounter_;
-
+private:
     class TInvocationGuard
     {
     public:
@@ -395,11 +404,32 @@ private:
 
     private:
         TIntrusivePtr<TBoundedConcurrencyInvoker> Owner_;
-
     };
 
+    void IncrementSemaphore(int delta)
+    {
+        Semaphore_ += delta;
+        YCHECK(Semaphore_ >= 0 && Semaphore_ <= MaxConcurrentInvocations_);
+        Profiler.Update(SemaphoreCounter_, Semaphore_);
+    }
 
-    void RunCallback(TClosure callback, TInvocationGuard /*invocationGuard*/)
+    void RunCallback(TClosure callback)
+    {
+        // If UnderlyingInvoker_ is already terminated, Invoke may drop the guard right away.
+        // Protect by setting CurrentSchedulingInvoker_ and checking it on entering ScheduleMore.
+        CurrentSchedulingInvoker_ = this;
+
+        UnderlyingInvoker_->Invoke(BIND(
+            &TBoundedConcurrencyInvoker::DoRunCallback,
+            MakeStrong(this),
+            Passed(std::move(callback)),
+            Passed(TInvocationGuard(this))));
+
+        // Don't leave a dangling pointer behind.
+        CurrentSchedulingInvoker_ = nullptr;
+    }
+
+    void DoRunCallback(TClosure callback, TInvocationGuard /*invocationGuard*/)
     {
         TCurrentInvokerGuard guard(UnderlyingInvoker_); // sic!
         callback.Run();
@@ -407,56 +437,16 @@ private:
 
     void OnFinished()
     {
-        ReleaseSemaphore();
-        ScheduleMore();
-    }
-
-    void ScheduleMore()
-    {
-        // Prevent reenterant invocations.
-        if (CurrentSchedulingInvoker_ == this)
-            return;
-
-        while (true) {
-            if (!TryAcquireSemaphore())
-                break;
-
-            TClosure callback;
-            if (!Queue_.Dequeue(&callback)) {
-                ReleaseSemaphore();
-                break;
-            }
-
-            // If UnderlyingInvoker_ is already terminated, Invoke may drop the guard right away.
-            // Protect by setting CurrentSchedulingInvoker_ and checking it on entering ScheduleMore.
-            CurrentSchedulingInvoker_ = this;
-
-            UnderlyingInvoker_->Invoke(BIND(
-                &TBoundedConcurrencyInvoker::RunCallback,
-                MakeStrong(this),
-                Passed(std::move(callback)),
-                Passed(TInvocationGuard(this))));
-
-            // Don't leave a dangling pointer behind.
-            CurrentSchedulingInvoker_ = nullptr;
-        }
-    }
-
-    bool TryAcquireSemaphore()
-    {
-        if (++Semaphore_ <= MaxConcurrentInvocations_) {
-            Profiler.Increment(SemaphoreCounter_, 1);
-            return true;
+        auto guard = Guard(SpinLock_);
+        // See RunCallback.
+        if (Queue_.empty() || CurrentSchedulingInvoker_ == this) {
+            IncrementSemaphore(-1);
         } else {
-            --Semaphore_;
-            return false;
+            auto callback = std::move(Queue_.front());
+            Queue_.pop();
+            guard.Release();
+            RunCallback(std::move(callback));
         }
-    }
-
-    void ReleaseSemaphore()
-    {
-        YCHECK(--Semaphore_ >= 0);
-        Profiler.Increment(SemaphoreCounter_, -1);
     }
 };
 

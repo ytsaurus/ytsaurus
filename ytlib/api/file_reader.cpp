@@ -4,11 +4,13 @@
 #include "native_connection.h"
 #include "transaction.h"
 
-#include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
-#include <yt/ytlib/chunk_client/dispatcher.h>
-#include <yt/ytlib/chunk_client/read_limit.h>
-#include <yt/ytlib/chunk_client/helpers.h>
 #include <yt/ytlib/chunk_client/block.h>
+#include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/ytlib/chunk_client/chunk_reader.h>
+#include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
+#include <yt/ytlib/chunk_client/dispatcher.h>
+#include <yt/ytlib/chunk_client/helpers.h>
+#include <yt/ytlib/chunk_client/read_limit.h>
 
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
 
@@ -24,6 +26,8 @@
 #include <yt/ytlib/transaction_client/transaction_listener.h>
 
 #include <yt/core/concurrency/async_stream.h>
+
+#include <yt/core/yson/string.h>
 
 namespace NYT {
 namespace NApi {
@@ -43,7 +47,7 @@ using namespace NCypressClient;
 
 class TFileReader
     : public TTransactionListener
-    , public IAsyncZeroCopyInputStream
+    , public IFileReader
 {
 public:
     TFileReader(
@@ -54,17 +58,20 @@ public:
         , Path_(path)
         , Options_(options)
         , Config_(options.Config ? options.Config : New<TFileReaderConfig>())
-        , ReadSessionId_(TReadSessionId::Create())
         , Logger(ApiLogger)
     {
         if (Options_.TransactionId) {
             Transaction_ = Client_->AttachTransaction(Options_.TransactionId);
         }
 
+        BlockReadOptions_.WorkloadDescriptor = Config_->WorkloadDescriptor;
+        BlockReadOptions_.ChunkReaderStatistics = New<TChunkReaderStatistics>();
+        BlockReadOptions_.ReadSessionId = TReadSessionId::Create();
+
         Logger.AddTag("Path: %v, TransactionId: %v, ReadSessionId: %v",
             Path_,
             Options_.TransactionId,
-            ReadSessionId_);
+            BlockReadOptions_.ReadSessionId);
     }
 
     TFuture<void> Open()
@@ -91,19 +98,26 @@ public:
             BIND(&TFileReader::Read, MakeStrong(this)));
     }
 
+    virtual ui64 GetRevision() const override
+    {
+        return Revision_;
+    }
+
 private:
     const INativeClientPtr Client_;
     const TYPath Path_;
     const TFileReaderOptions Options_;
     const TFileReaderConfigPtr Config_;
-    const TReadSessionId ReadSessionId_;
 
     ITransactionPtr Transaction_;
+
+    TClientBlockReadOptions BlockReadOptions_;
+
+    ui64 Revision_ = 0;
 
     NFileClient::IFileReaderPtr Reader_;
 
     NLogging::TLogger Logger;
-
 
     void DoOpen()
     {
@@ -130,6 +144,29 @@ private:
                 Path_,
                 EObjectType::File,
                 userObject.Type);
+        }
+
+        {
+            auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Follower, cellTag);
+            TObjectServiceProxy proxy(channel);
+
+            auto req = TYPathProxy::Get(objectIdPath + "/@");
+
+            std::vector<TString> attributeKeys{
+                "revision"
+            };
+            ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
+
+            SetTransactionId(req, Transaction_);
+            SetSuppressAccessTracking(req, Options_.SuppressAccessTracking);
+
+            auto rspOrError = WaitFor(proxy.Execute(req));
+            THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting revision of file %v",
+                Path_);
+            const auto& rsp = rspOrError.Value();
+
+            auto attributes = ConvertToAttributes(NYson::TYsonString(rsp->value()));
+            Revision_ = attributes->Get<ui64>("revision", 0);
         }
 
         auto nodeDirectory = New<TNodeDirectory>();
@@ -185,7 +222,7 @@ private:
             TNodeDescriptor(),
             Client_->GetNativeConnection()->GetBlockCache(),
             nodeDirectory,
-            ReadSessionId_,
+            BlockReadOptions_,
             std::move(chunkSpecs));
 
         if (Transaction_) {
@@ -197,7 +234,7 @@ private:
 
 };
 
-TFuture<IAsyncZeroCopyInputStreamPtr> CreateFileReader(
+TFuture<IFileReaderPtr> CreateFileReader(
     INativeClientPtr client,
     const NYPath::TYPath& path,
     const TFileReaderOptions& options)
@@ -205,7 +242,7 @@ TFuture<IAsyncZeroCopyInputStreamPtr> CreateFileReader(
     auto fileReader = New<TFileReader>(client, path, options);
 
     return fileReader->Open().Apply(BIND([=] {
-        return static_cast<IAsyncZeroCopyInputStreamPtr>(fileReader);
+        return static_cast<IFileReaderPtr>(fileReader);
     }));
 }
 

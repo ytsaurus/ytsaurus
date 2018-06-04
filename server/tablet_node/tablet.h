@@ -49,13 +49,22 @@ DEFINE_REFCOUNTED_TYPE(TRuntimeTableReplicaData)
 
 struct TReplicaCounters
 {
-    TReplicaCounters(const NProfiling::TTagIdList& list);
+    TReplicaCounters() = default;
+    explicit TReplicaCounters(const NProfiling::TTagIdList& list);
 
-    NProfiling::TAggregateCounter LagRowCount;
-    NProfiling::TAggregateCounter LagTime;
+    NProfiling::TAggregateGauge LagRowCount;
+    NProfiling::TAggregateGauge LagTime;
+    NProfiling::TAggregateGauge ReplicationTransactionStartTime;
+    NProfiling::TAggregateGauge ReplicationTransactionCommitTime;
+    NProfiling::TAggregateGauge ReplicationRowsReadTime;
+    NProfiling::TAggregateGauge ReplicationRowsWriteTime;
+    NProfiling::TAggregateGauge ReplicationBatchRowCount;
+    NProfiling::TAggregateGauge ReplicationBatchDataWeight;
 
     const NProfiling::TTagIdList Tags;
 };
+
+extern TReplicaCounters NullReplicaCounters;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -64,7 +73,7 @@ struct TTableReplicaSnapshot
 {
     NTransactionClient::TTimestamp StartReplicationTimestamp;
     TRuntimeTableReplicaDataPtr RuntimeData;
-    TReplicaCounters* Counters = nullptr;
+    TReplicaCounters* Counters = &NullReplicaCounters;
 };
 
 DEFINE_REFCOUNTED_TYPE(TTableReplicaSnapshot)
@@ -199,7 +208,7 @@ struct TTabletCounters
 {
     TTabletCounters(const NProfiling::TTagIdList& list);
 
-    NProfiling::TAggregateCounter OverlappingStoreCount;
+    NProfiling::TAggregateGauge OverlappingStoreCount;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -234,7 +243,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(ETableReplicaState, State, ETableReplicaState::None);
 
     DEFINE_BYVAL_RW_PROPERTY(TTableReplicatorPtr, Replicator);
-    DEFINE_BYVAL_RW_PROPERTY(TReplicaCounters*, Counters, nullptr);
+    DEFINE_BYVAL_RW_PROPERTY(TReplicaCounters*, Counters, &NullReplicaCounters);
 
 public:
     TTableReplicaInfo() = default;
@@ -259,8 +268,6 @@ public:
 
     void PopulateStatistics(NTabletClient::NProto::TTableReplicaStatistics* statistics) const;
     void MergeFromStatistics(const NTabletClient::NProto::TTableReplicaStatistics& statistics);
-
-    NProfiling::TProfiler GetReplicatorProfiler() const;
 
 private:
     const TRuntimeTableReplicaDataPtr RuntimeData_ = New<TRuntimeTableReplicaData>();

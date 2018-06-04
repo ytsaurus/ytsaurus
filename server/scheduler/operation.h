@@ -82,6 +82,8 @@ using TOperationAlertMap = SmallDenseMap<
 
 struct IOperationStrategyHost
 {
+    virtual EOperationType GetType() const = 0;
+
     virtual bool IsSchedulable() const = 0;
 
     virtual TInstant GetStartTime() const = 0;

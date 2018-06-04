@@ -10,24 +10,6 @@ import "yt/core/ytree/proto/attributes.proto";
 import "yt/ytlib/hive/timestamp_map.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
-// Authentication.
-////////////////////////////////////////////////////////////////////////////////
-
-message TCredentialsExt
-{
-    extend NRpc.NProto.TRequestHeader
-    {
-        optional TCredentialsExt credentials_ext = 110;
-    }
-
-    optional string user_ip = 1;
-    optional string token = 2;
-    optional string domain = 3;
-    optional string session_id = 4;
-    optional string ssl_session_id = 5;
-}
-
-////////////////////////////////////////////////////////////////////////////////
 // Scalars.
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -78,6 +60,13 @@ enum ERowsetKind
     RK_SCHEMAFUL = 0;
     RK_UNVERSIONED = 1;
     RK_VERSIONED = 2;
+}
+
+enum ETabletReadKind
+{
+    TRK_LEADER = 0;
+    TRK_FOLLOWER = 1;
+    TRK_LEADER_OR_FOLLOWER = 2;
 }
 
 // XXX(babenko): this is a very unconventional analog of NYT.NYTree.NProto.TAttributeKeys
@@ -200,6 +189,8 @@ message TReqLookupRows
     repeated string columns = 2;
     optional bool keep_missing_rows = 4 [default = true];
 
+    optional TTabletReadOptions tablet_read_options = 106;
+
     required TRowsetDescriptor rowset_descriptor = 200;
 }
 
@@ -219,6 +210,8 @@ message TReqVersionedLookupRows
 
     repeated string columns = 2;
     optional bool keep_missing_rows = 4 [default = true];
+
+    optional TTabletReadOptions tablet_read_options = 106;
 
     required TRowsetDescriptor rowset_descriptor = 200;
 }
@@ -304,6 +297,30 @@ message TRspModifyRows
 {
 }
 
+//------------------------------------------------------------------------------
+
+message TReqBuildSnapshot
+{
+    optional NYT.NProto.TGuid cell_id = 1;
+    optional bool set_read_only = 2 [default = false];
+}
+
+message TRspBuildSnapshot
+{
+    required int64 snapshot_id = 1;
+}
+
+//------------------------------------------------------------------------------
+
+message TReqGCCollect
+{
+    optional NYT.NProto.TGuid cell_id = 1;
+}
+
+message TRspGCCollect
+{
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // OPTIONS
 ////////////////////////////////////////////////////////////////////////////////
@@ -364,6 +381,12 @@ message TTabletRangeOptions
 {
     optional int32 first_tablet_index = 1;
     optional int32 last_tablet_index = 2;
+}
+
+// 106
+message TTabletReadOptions
+{
+    optional ETabletReadKind read_from = 1 [default = TRK_LEADER];
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -439,6 +462,76 @@ message TReqListNode
 message TRspListNode
 {
     required bytes value = 1; // YSON
+}
+
+//------------------------------------------------------------------------------
+
+message TReqCreateObject
+{
+    required int32 type = 1; // NObjectClient::EObjectType
+    optional NYT.NYTree.NProto.TAttributeDictionary attributes = 2;
+}
+
+message TRspCreateObject
+{
+    required NYT.NProto.TGuid object_id = 1;
+}
+
+//------------------------------------------------------------------------------
+
+message TColumnSchema
+{
+    required string name = 1;
+
+    required int32 type = 2;
+    optional int32 logical_type = 3;
+
+    optional string lock = 4;
+    optional string expression = 5;
+    optional string aggregate = 6;
+    optional int32 sort_order = 7;
+    optional string group = 8;
+    optional bool required = 9 [default = false];
+}
+
+message TTableSchema
+{
+    repeated TColumnSchema columns = 1;
+    optional bool strict = 2 [default = true];
+    optional bool unique_keys = 3 [default = false];
+}
+
+message TTabletInfo
+{
+    required NYT.NProto.TGuid tablet_id = 1;
+    required int64 mount_revision = 2;
+    required int32 state = 3;
+    required bytes pivot_key = 4;
+    optional NYT.NProto.TGuid cell_id = 5;
+    optional int32 cell_config_version = 6;
+}
+
+message TReplicaInfo
+{
+    required NYT.NProto.TGuid replica_id = 1;
+    required string cluster_name = 2;
+    required string replica_path = 3;
+    required int32 mode = 4; // ETableReplicaMode
+}
+
+message TReqGetTableMountInfo
+{
+    required string path = 1;
+}
+
+message TRspGetTableMountInfo
+{
+    required NYT.NProto.TGuid table_id = 1;
+    required TTableSchema schema = 2;
+    repeated TTabletInfo tablets = 3;
+    required bool dynamic = 4;
+    required NYT.NProto.TGuid upstream_replica_id = 5;
+    repeated TReplicaInfo replicas = 6;
 }
 
 //------------------------------------------------------------------------------
@@ -532,6 +625,7 @@ message TReqCopyNode
     optional bool preserve_account = 5 [default = false];
     optional bool preserve_expiration_time = 6 [default = false];
     optional bool preserve_creation_time = 7 [default = false];
+    optional NYT.NProto.TGuid source_transaction_id = 8;
 
     optional TTransactionalOptions transactional_options = 100;
     optional TPrerequisiteOptions prerequisite_options = 101;
@@ -602,6 +696,28 @@ message TReqConcatenateNodes
 
 message TRspConcatenateNodes
 {
+}
+
+//------------------------------------------------------------------------------
+
+message TReqAttachTransaction
+{
+    required NYT.NProto.TGuid transaction_id = 1;
+
+    optional bool auto_abort = 2 [default = false];
+    optional bool sticky = 3 [default = false];
+    optional uint64 ping_period = 4; // TDuration
+    optional bool ping = 5 [default = true];
+    optional bool ping_ancestors = 6 [default = false];
+}
+
+message TRspAttachTransaction
+{
+    required ETransactionType type = 1;
+    required uint64 start_timestamp = 2;
+    required EAtomicity atomicity = 3;
+    required EDurability durability = 4;
+    required int64 timeout = 5;
 }
 
 //------------------------------------------------------------------------------

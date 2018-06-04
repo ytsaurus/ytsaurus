@@ -218,7 +218,9 @@ class TestSkynetIntegration(YTEnvSetup):
 
     def test_operation_output(self):
         create("table", "//tmp/input")
-        write_table("//tmp/input", {"sky_share_id": 0, "filename": "test.txt", "part_index": 0, "data": "foobar"})
+        write_table("//tmp/input", [
+            {"sky_share_id": 0, "filename": "test.txt", "part_index": 0, "data": "foobar"},
+            {"sky_share_id": 1, "filename": "test.txt", "part_index": 0, "data": "foobar"}])
 
         create("table", "//tmp/table", attributes={
             "enable_skynet_sharing": True,
@@ -230,6 +232,22 @@ class TestSkynetIntegration(YTEnvSetup):
         assert 6 == row["data_size"]
         assert "sha1" in row
         assert "md5" in row
+
+        create("table", "//tmp/table2", attributes={
+            "enable_skynet_sharing": True,
+            "schema": SKYNET_TABLE_SCHEMA,
+        })
+
+        map(in_="//tmp/input", out="//tmp/table2", command="cat")
+
+        create("table", "//tmp/merged", attributes={
+            "enable_skynet_sharing": True,
+            "schema": SKYNET_TABLE_SCHEMA,
+        })
+
+        merge(mode="sorted",
+            in_=["//tmp/table", "//tmp/table2"],
+            out="//tmp/merged")
 
     def test_same_filename_in_two_shards(self):
         create("table", "//tmp/table", attributes={
@@ -269,6 +287,7 @@ class TestSkynetIntegration(YTEnvSetup):
 
 ##################################################################
 
+@pytest.mark.xfail(run=False, reason="Merging new implementation")
 class TestSkynetManager(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 5

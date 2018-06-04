@@ -109,8 +109,8 @@ struct TWriteCounters
         , DataWeight("/write/data_weight", list)
     { }
 
-    TSimpleCounter RowCount;
-    TSimpleCounter DataWeight;
+    TMonotonicCounter RowCount;
+    TMonotonicCounter DataWeight;
 };
 
 using TWriteProfilerTrait = TTabletProfilerTrait<TWriteCounters>;
@@ -122,8 +122,8 @@ struct TCommitCounters
         , DataWeight("/commit/data_weight", list)
     { }
 
-    TSimpleCounter RowCount;
-    TSimpleCounter DataWeight;
+    TMonotonicCounter RowCount;
+    TMonotonicCounter DataWeight;
 };
 
 using TCommitProfilerTrait = TTabletProfilerTrait<TCommitCounters>;
@@ -247,8 +247,7 @@ public:
         TTabletSnapshotPtr tabletSnapshot,
         TTimestamp timestamp,
         const TString& user,
-        const TWorkloadDescriptor& workloadDescriptor,
-        const TReadSessionId& sessionId,
+        const NChunkClient::TClientBlockReadOptions& blockReadOptions,
         TRetentionConfigPtr retentionConfig,
         TWireProtocolReader* reader,
         TWireProtocolWriter* writer)
@@ -263,8 +262,7 @@ public:
                 tabletSnapshot,
                 timestamp,
                 user,
-                workloadDescriptor,
-                sessionId,
+                blockReadOptions,
                 retentionConfig,
                 reader,
                 writer);
@@ -864,7 +862,7 @@ private:
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
         auto mountRevision = request->mount_revision();
         auto tableId = FromProto<TObjectId>(request->table_id());
-        auto path = request->has_path() ? request->path() : "";
+        const auto& path = request->path();
         auto schema = FromProto<TTableSchema>(request->schema());
         auto pivotKey = request->has_pivot_key() ? FromProto<TOwningKey>(request->pivot_key()) : TOwningKey();
         auto nextPivotKey = request->has_next_pivot_key() ? FromProto<TOwningKey>(request->next_pivot_key()) : TOwningKey();
@@ -909,12 +907,13 @@ private:
 
         tablet->SetState(freeze ? ETabletState::Frozen : ETabletState::Mounted);
 
-        LOG_INFO_UNLESS(IsRecovery(), "Tablet mounted (TabletId: %v, MountRevision: %llx, TableId: %v, Keys: %v .. %v, "
+        LOG_INFO_UNLESS(IsRecovery(), "Tablet mounted (TabletId: %v, MountRevision: %llx, TableId: %v, TablePath: %v, Keys: %v .. %v, "
             "StoreCount: %v, PartitionCount: %v, TotalRowCount: %v, TrimmedRowCount: %v, Atomicity: %v, "
             "CommitOrdering: %v, Frozen: %v, UpstreamReplicaId: %v)",
             tabletId,
             mountRevision,
             tableId,
+            path,
             pivotKey,
             nextPivotKey,
             request->stores_size(),
@@ -1017,6 +1016,12 @@ private:
         tablet->FillProfilerTags(Slot_->GetCellId());
         tablet->UpdateReplicaCounters();
         UpdateTabletSnapshot(tablet);
+
+        for (auto& pair : tablet->Replicas()) {
+            auto& replicaInfo = pair.second;
+            StopTableReplicaEpoch(&replicaInfo);
+            StartTableReplicaEpoch(tablet, &replicaInfo);
+        }
 
         LOG_INFO_UNLESS(IsRecovery(), "Tablet remounted (TabletId: %v)",
             tabletId);
@@ -1772,7 +1777,14 @@ private:
             return;
         }
 
-        AddTableReplica(tablet, request->replica());
+        auto* replicaInfo = AddTableReplica(tablet, request->replica());
+        if (!replicaInfo) {
+            return;
+        }
+
+        if (IsLeader()) {
+            StartTableReplicaEpoch(tablet, replicaInfo);
+        }
     }
 
     void HydraRemoveTableReplica(TReqRemoveTableReplica* request)
@@ -2486,8 +2498,7 @@ private:
         TTabletSnapshotPtr tabletSnapshot,
         TTimestamp timestamp,
         const TString& user,
-        const TWorkloadDescriptor& workloadDescriptor,
-        const TReadSessionId& sessionId,
+        const NChunkClient::TClientBlockReadOptions& blockReadOptions,
         TRetentionConfigPtr retentionConfig,
         TWireProtocolReader* reader,
         TWireProtocolWriter* writer)
@@ -2499,8 +2510,7 @@ private:
                     std::move(tabletSnapshot),
                     timestamp,
                     user,
-                    workloadDescriptor,
-                    sessionId,
+                    blockReadOptions,
                     reader,
                     writer);
                 break;
@@ -2510,8 +2520,7 @@ private:
                     std::move(tabletSnapshot),
                     timestamp,
                     user,
-                    workloadDescriptor,
-                    sessionId,
+                    blockReadOptions,
                     std::move(retentionConfig),
                     reader,
                     writer);
@@ -2681,6 +2690,7 @@ private:
 
     void StartTableReplicaEpoch(TTablet* tablet, TTableReplicaInfo* replicaInfo)
     {
+        YCHECK(!replicaInfo->GetReplicator());
         replicaInfo->SetReplicator(New<TTableReplicator>(
             Config_,
             tablet,
@@ -2689,7 +2699,6 @@ private:
             Slot_,
             Bootstrap_->GetTabletSlotManager(),
             CreateSerializedInvoker(Bootstrap_->GetTableReplicatorPoolInvoker())));
-
         if (replicaInfo->GetState() == ETableReplicaState::Enabled) {
             replicaInfo->GetReplicator()->Enable();
         }
@@ -2697,9 +2706,10 @@ private:
 
     void StopTableReplicaEpoch(TTableReplicaInfo* replicaInfo)
     {
-        if (replicaInfo->GetReplicator()) {
-            replicaInfo->GetReplicator()->Disable();
+        if (!replicaInfo->GetReplicator()) {
+            return;
         }
+        replicaInfo->GetReplicator()->Disable();
         replicaInfo->SetReplicator(nullptr);
     }
 
@@ -2785,6 +2795,17 @@ private:
                         .Item("total_row_count").Value(tablet->GetTotalRowCount())
                         .Item("trimmed_row_count").Value(tablet->GetTrimmedRowCount());
                 })
+                .DoIf(!tablet->IsReplicated(), [&] (TFluentMap fluent) {
+                    fluent
+                        .Item("replicas").DoMapFor(
+                            tablet->Replicas(),
+                            [&] (TFluentMap fluent, const std::pair<const TTableReplicaId, TTableReplicaInfo>& pair) {
+                                const auto& replica = pair.second;
+                                fluent
+                                    .Item(ToString(replica.GetId()))
+                                    .Do(BIND(&TImpl::BuildReplicaOrchidYson, Unretained(this), replica));
+                            });
+                })
             .EndMap();
     }
 
@@ -2820,6 +2841,24 @@ private:
             .EndMap();
     }
 
+    void BuildReplicaOrchidYson(const TTableReplicaInfo& replica, TFluentAny fluent)
+    {
+        fluent
+            .BeginAttributes()
+                .Item("opaque").Value(true)
+            .EndAttributes()
+            .BeginMap()
+                .Item("cluster_name").Value(replica.GetClusterName())
+                .Item("replica_path").Value(replica.GetReplicaPath())
+                .Item("state").Value(replica.GetState())
+                .Item("mode").Value(replica.GetMode())
+                .Item("start_replication_timestamp").Value(replica.GetStartReplicationTimestamp())
+                .Item("current_replication_row_index").Value(replica.GetCurrentReplicationRowIndex())
+                .Item("current_replication_timestamp").Value(replica.GetCurrentReplicationTimestamp())
+                .Item("prepared_replication_transaction").Value(replica.GetPreparedReplicationTransactionId())
+                .Item("prepared_replication_row_index").Value(replica.GetPreparedReplicationRowIndex())
+            .EndMap();
+    }
 
     TNodeMemoryTrackerGuard* GetMemoryTrackerGuardFromStoreType(EStoreType type)
     {
@@ -3037,9 +3076,9 @@ private:
                     storeId,
                     tablet,
                     Bootstrap_->GetBlockCache(),
-                    Bootstrap_->GetMemoryUsageTracker(),
                     Bootstrap_->GetChunkRegistry(),
                     Bootstrap_->GetChunkBlockManager(),
+                    Bootstrap_->GetVersionedChunkMetaManager(),
                     Bootstrap_->GetMasterClient(),
                     Bootstrap_->GetMasterConnector()->GetLocalDescriptor());
                 store->Initialize(descriptor);
@@ -3061,6 +3100,7 @@ private:
                     Bootstrap_->GetBlockCache(),
                     Bootstrap_->GetChunkRegistry(),
                     Bootstrap_->GetChunkBlockManager(),
+                    Bootstrap_->GetVersionedChunkMetaManager(),
                     Bootstrap_->GetMasterClient(),
                     Bootstrap_->GetMasterConnector()->GetLocalDescriptor());
                 store->Initialize(descriptor);
@@ -3079,7 +3119,7 @@ private:
     }
 
 
-    void AddTableReplica(TTablet* tablet, const TTableReplicaDescriptor& descriptor)
+    TTableReplicaInfo* AddTableReplica(TTablet* tablet, const TTableReplicaDescriptor& descriptor)
     {
         auto replicaId = FromProto<TTableReplicaId>(descriptor.replica_id());
         auto& replicas = tablet->Replicas();
@@ -3087,7 +3127,7 @@ private:
             LOG_WARNING_UNLESS(IsRecovery(), "Requested to add an already existing table replica (TabletId: %v, ReplicaId: %v)",
                 tablet->GetId(),
                 replicaId);
-            return;
+            return nullptr;
         }
 
         auto pair = replicas.emplace(replicaId, TTableReplicaInfo(replicaId));
@@ -3100,10 +3140,6 @@ private:
         replicaInfo.SetState(ETableReplicaState::Disabled);
         replicaInfo.SetMode(ETableReplicaMode(descriptor.mode()));
         replicaInfo.MergeFromStatistics(descriptor.statistics());
-
-        if (IsLeader()) {
-            StartTableReplicaEpoch(tablet, &replicaInfo);
-        }
 
         tablet->UpdateReplicaCounters();
         UpdateTabletSnapshot(tablet);
@@ -3118,6 +3154,8 @@ private:
             replicaInfo.GetStartReplicationTimestamp(),
             replicaInfo.GetCurrentReplicationRowIndex(),
             replicaInfo.GetCurrentReplicationTimestamp());
+
+        return &replicaInfo;
     }
 
     void RemoveTableReplica(TTablet* tablet, const TTableReplicaId& replicaId)
@@ -3324,8 +3362,7 @@ void TTabletManager::Read(
     TTabletSnapshotPtr tabletSnapshot,
     TTimestamp timestamp,
     const TString& user,
-    const TWorkloadDescriptor& workloadDescriptor,
-    const TReadSessionId& sessionId,
+    const NChunkClient::TClientBlockReadOptions& blockReadOptions,
     TRetentionConfigPtr retentionConfig,
     TWireProtocolReader* reader,
     TWireProtocolWriter* writer)
@@ -3334,8 +3371,7 @@ void TTabletManager::Read(
         std::move(tabletSnapshot),
         timestamp,
         user,
-        workloadDescriptor,
-        sessionId,
+        blockReadOptions,
         std::move(retentionConfig),
         reader,
         writer);

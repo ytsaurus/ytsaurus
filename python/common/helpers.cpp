@@ -4,11 +4,6 @@ namespace Py {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool IsInstance(const Object& obj, const Object& cls)
-{
-    return PyObject_IsInstance(*obj, *cls) == 1;
-}
-
 bool IsInteger(const Object& obj)
 {
 #if PY_MAJOR_VERSION < 3
@@ -196,18 +191,14 @@ PyObject* TPythonStringCache::GetPythonString(TStringBuf string)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Py::Callable GetYsonTypeClass(const std::string& name)
+PyObject* GetYsonTypeClass(const std::string& name)
 {
     // TODO(ignat): Make singleton
-    static Py::Object ysonTypesModule;
-    if (ysonTypesModule.isNone()) {
-        auto ptr = PyImport_ImportModule("yt.yson.yson_types");
-        if (!ptr) {
-            throw Py::RuntimeError("Failed to import module yt.yson.yson_types");
-        }
-        ysonTypesModule = ptr;
+    static PyObject* ysonTypesModule = PyImport_ImportModule("yt.yson.yson_types");
+    if (!ysonTypesModule) {
+        throw Py::RuntimeError("Failed to import module yt.yson.yson_types");
     }
-    return Py::Callable(GetAttr(ysonTypesModule, name));
+    return PyObject_GetAttrString(ysonTypesModule, name.c_str());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

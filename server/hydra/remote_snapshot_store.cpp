@@ -7,6 +7,7 @@
 #include <yt/ytlib/api/client.h>
 #include <yt/ytlib/api/config.h>
 #include <yt/ytlib/api/connection.h>
+#include <yt/ytlib/api/file_reader.h>
 #include <yt/ytlib/api/file_writer.h>
 #include <yt/ytlib/api/transaction.h>
 

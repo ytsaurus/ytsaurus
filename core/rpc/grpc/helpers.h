@@ -20,6 +20,9 @@ namespace NGrpc {
 using TGprString = std::unique_ptr<char, void(*)(void*)>;
 TGprString MakeGprString(char* str);
 
+TStringBuf ToStringBuf(grpc_slice slice);
+TString ToString(grpc_slice slice);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T, void(*Deletor)(T*)>

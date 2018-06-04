@@ -91,6 +91,7 @@ void TJobSummary::Persist(const NPhoenix::TPersistenceContext& context)
     Persist(context, LogAndProfile);
     Persist(context, ArchiveJobSpec);
     Persist(context, ArchiveStderr);
+    Persist(context, ArchiveFailContext);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

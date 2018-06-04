@@ -1,5 +1,6 @@
 #include "columnar_chunk_meta.h"
 #include "row_buffer.h"
+#include "name_table.h"
 
 namespace NYT {
 namespace NTableClient {
@@ -27,17 +28,26 @@ void TColumnarChunkMeta::InitExtensions(const TChunkMeta& chunkMeta)
     BlockMeta_ = New<TRefCountedBlockMeta>(GetProtoExtension<TBlockMetaExt>(chunkMeta.extensions()));
 
     // This is for old horizontal versioned chunks, since TCachedVersionedChunkMeta use this call.
-    auto columnMeta = FindProtoExtension<TColumnMetaExt>(chunkMeta.extensions());
-    if (columnMeta) {
+    if (auto columnMeta = FindProtoExtension<TColumnMetaExt>(chunkMeta.extensions())) {
         ColumnMeta_ = New<TRefCountedColumnMeta>(std::move(*columnMeta));
     }
 
-    auto maybeKeyColumnsExt = FindProtoExtension<TKeyColumnsExt>(chunkMeta.extensions());
-    auto tableSchemaExt = GetProtoExtension<TTableSchemaExt>(chunkMeta.extensions());
-    if (maybeKeyColumnsExt) {
-        FromProto(&ChunkSchema_, tableSchemaExt, *maybeKeyColumnsExt);
-    } else {
-        FromProto(&ChunkSchema_, tableSchemaExt);
+    auto keyColumnsExt = FindProtoExtension<TKeyColumnsExt>(chunkMeta.extensions());
+    auto tableSchemaExt = FindProtoExtension<TTableSchemaExt>(chunkMeta.extensions());
+    if (tableSchemaExt && keyColumnsExt) {
+        FromProto(&ChunkSchema_, *tableSchemaExt, *keyColumnsExt);
+    } else if (tableSchemaExt) {
+        FromProto(&ChunkSchema_, *tableSchemaExt);
+    } else if (keyColumnsExt) {
+        // COMPAT(savrus) No table schema is allowed only for old chunks.
+        YCHECK(ChunkFormat_ == ETableChunkFormat::SchemalessHorizontal);
+        TKeyColumns keyColumns = NYT::FromProto<TKeyColumns>(*keyColumnsExt);
+        ChunkSchema_ = TTableSchema::FromKeyColumns(keyColumns);
+    }
+
+    if (auto nameTableExt = FindProtoExtension<TNameTableExt>(chunkMeta.extensions())) {
+        ChunkNameTable_ = New<TNameTable>();
+        FromProto(&ChunkNameTable_, *nameTableExt);
     }
 }
 
@@ -76,8 +86,8 @@ i64 TColumnarChunkMeta::GetMemoryUsage() const
     return BlockLastKeysSize_ +
         sizeof(Misc_) +
         BlockMeta_->GetSize() +
-        (ColumnMeta_ ? ColumnMeta_->GetSize() : 0);
-    // TODO(psushin): account schema here, or make it ref-counted.
+        (ColumnMeta_ ? ColumnMeta_->GetSize() : 0) +
+        ChunkSchema_.GetMemoryUsage();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

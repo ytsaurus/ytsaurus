@@ -10,6 +10,9 @@
 
 #include <yt/server/tablet_node/tablet_manager.pb.h>
 
+#include <yt/ytlib/chunk_client/chunk_reader.h>
+#include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
+
 #include <yt/ytlib/hive/cluster_directory.h>
 
 #include <yt/ytlib/table_client/unversioned_row.h>
@@ -26,6 +29,7 @@
 
 #include <yt/ytlib/transaction_client/action.h>
 #include <yt/ytlib/transaction_client/helpers.h>
+#include <yt/ytlib/transaction_client/timestamp_provider.h>
 
 #include <yt/ytlib/security_client/public.h>
 
@@ -51,7 +55,6 @@ using namespace NYPath;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto MountConfigUpdatePeriod = TDuration::Seconds(3);
 static const auto ReplicationTickPeriod = TDuration::MilliSeconds(100);
 static const int TabletRowsPerRead = 1000;
 static const auto HardErrorAttribute = TErrorAttribute("hard", true);
@@ -81,21 +84,19 @@ public:
         , ReplicaId_(replicaInfo->GetId())
         , ClusterName_(replicaInfo->GetClusterName())
         , ReplicaPath_(replicaInfo->GetReplicaPath())
+        , MountConfig_(tablet->GetConfig())
         , Logger(NLogging::TLogger(TabletNodeLogger)
             .AddTag("TabletId: %v, ReplicaId: %v",
                 TabletId_,
                 ReplicaId_))
-        , MountConfigUpdateExecutor_(New<TPeriodicExecutor>(
-            Slot_->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Read),
-            BIND(&TImpl::OnUpdateMountConfig, MakeWeak(this)),
-            MountConfigUpdatePeriod))
+        , Profiler(TabletNodeProfiler)
         , Throttler_(CreateReconfigurableThroughputThrottler(
-            tablet->GetConfig()->ReplicationThrottler,
+            MountConfig_->ReplicationThrottler,
             Logger,
-            replicaInfo->GetReplicatorProfiler()))
-    {
-        MountConfigUpdateExecutor_->Start();
-    }
+            NProfiling::TProfiler(
+                Profiler.GetPathPrefix() + "/replica/replication_data_weight_throttler",
+                replicaInfo->GetCounters()->Tags)))
+    { }
 
     void Enable()
     {
@@ -131,39 +132,14 @@ private:
     const TTableReplicaId ReplicaId_;
     const TString ClusterName_;
     const TYPath ReplicaPath_;
+    const TTableMountConfigPtr MountConfig_;
 
     const NLogging::TLogger Logger;
+    const NProfiling::TProfiler Profiler;
 
-    const TPeriodicExecutorPtr MountConfigUpdateExecutor_;
     const IReconfigurableThroughputThrottlerPtr Throttler_;
 
     TFuture<void> FiberFuture_;
-
-    TSpinLock MountConfigLock_;
-    TTableMountConfigPtr MountConfig_;
-
-    TTableMountConfigPtr GetMountConfig()
-    {
-        auto guard = Guard(MountConfigLock_);
-        return MountConfig_;
-    }
-
-    void SetMountConfig(TTableMountConfigPtr config)
-    {
-        if (config) {
-            Throttler_->Reconfigure(config->ReplicationThrottler);
-        }
-        auto guard = Guard(MountConfigLock_);
-        MountConfig_ = std::move(config);
-    }
-
-    void OnUpdateMountConfig()
-    {
-        const auto& tabletManager = Slot_->GetTabletManager();
-        auto* tablet = tabletManager->FindTablet(TabletId_);
-        SetMountConfig(tablet ? tablet->GetConfig() : nullptr);
-    }
-
 
     void FiberMain()
     {
@@ -171,18 +147,6 @@ private:
             TDelayedExecutor::WaitForDuration(ReplicationTickPeriod);
             FiberIteration();
         }
-    }
-
-    bool CheckThrottler(i64 dataWeight)
-    {
-        Throttler_->Acquire(dataWeight);
-        if (Throttler_->IsOverdraft()) {
-            LOG_DEBUG("Bandwidth limit is reached (TotalCount: %v, DataWeight: %v)",
-                Throttler_->GetQueueTotalCount(),
-                dataWeight);
-            return false;
-        }
-        return true;
     }
 
     void FiberIteration()
@@ -201,11 +165,6 @@ private:
                     << HardErrorAttribute;
             }
 
-            auto mountConfig = GetMountConfig();
-            if (!mountConfig) {
-                THROW_ERROR_EXCEPTION("No mount configuration is available");
-            }
-
             auto foreignConnection = LocalConnection_->GetClusterDirectory()->FindConnection(ClusterName_);
             if (!foreignConnection) {
                 THROW_ERROR_EXCEPTION("Replica cluster %Qv is not known", ClusterName_)
@@ -220,6 +179,7 @@ private:
 
             const auto& tabletRuntimeData = tabletSnapshot->RuntimeData;
             const auto& replicaRuntimeData = replicaSnapshot->RuntimeData;
+            auto* counters = replicaSnapshot->Counters;
 
             // YT-8542: Fetch the last barrier timestamp _first_ to ensure proper serialization between
             // replicator and tablet slot threads.
@@ -240,14 +200,12 @@ private:
                 auto rowCount = std::max(
                     static_cast<i64>(0),
                     tabletRuntimeData->TotalRowCount.load() - replicaRuntimeData->CurrentReplicationRowIndex.load());
+                const auto& timestampProvider = LocalConnection_->GetTimestampProvider();
                 auto time = (rowCount == 0)
                     ? TDuration::Zero()
-                    : TimestampDiffToDuration(replicaRuntimeData->CurrentReplicationTimestamp, tabletRuntimeData->LastWriteTimestamp).second;
-                auto* counters = replicaSnapshot->Counters;
-                if (counters) {
-                    TabletNodeProfiler.Update(counters->LagRowCount, rowCount);
-                    TabletNodeProfiler.Update(counters->LagTime, NProfiling::DurationToValue(time));
-                }
+                    : TimestampToInstant(timestampProvider->GetLatestTimestamp()).second - TimestampToInstant(replicaRuntimeData->CurrentReplicationTimestamp).first;
+                Profiler.Update(counters->LagRowCount, rowCount);
+                Profiler.Update(counters->LagTime, NProfiling::DurationToValue(time));
             });
 
             if (totalRowCount <= lastReplicationRowIndex) {
@@ -259,19 +217,23 @@ private:
                 return;
             }
 
-            LOG_DEBUG("Starting replication transactions");
+            INativeTransactionPtr localTransaction;
+            ITransactionPtr foreignTransaction;
+            PROFILE_AGGREGATED_TIMING(counters->ReplicationTransactionStartTime) {
+                LOG_DEBUG("Starting replication transactions");
 
-            auto localClient = LocalConnection_->CreateNativeClient(TClientOptions(NSecurityClient::ReplicatorUserName));
-            auto localTransaction = WaitFor(localClient->StartNativeTransaction(ETransactionType::Tablet))
-                .ValueOrThrow();
+                auto localClient = LocalConnection_->CreateNativeClient(TClientOptions(NSecurityClient::ReplicatorUserName));
+                localTransaction = WaitFor(localClient->StartNativeTransaction(ETransactionType::Tablet))
+                    .ValueOrThrow();
 
-            auto foreignClient = foreignConnection->CreateClient(TClientOptions(NSecurityClient::ReplicatorUserName));
-            auto foreignTransaction = WaitFor(localTransaction->StartForeignTransaction(foreignClient))
-                .ValueOrThrow();
+                auto foreignClient = foreignConnection->CreateClient(TClientOptions(NSecurityClient::ReplicatorUserName));
+                foreignTransaction = WaitFor(localTransaction->StartForeignTransaction(foreignClient))
+                    .ValueOrThrow();
 
-            YCHECK(localTransaction->GetId() == foreignTransaction->GetId());
-            LOG_DEBUG("Replication transactions started (TransactionId: %v)",
-                localTransaction->GetId());
+                YCHECK(localTransaction->GetId() == foreignTransaction->GetId());
+                LOG_DEBUG("Replication transactions started (TransactionId: %v)",
+                    localTransaction->GetId());
+            }
 
             TRowBufferPtr rowBuffer;
             std::vector<TRowModification> replicationRows;
@@ -280,27 +242,37 @@ private:
             i64 newReplicationRowIndex;
             TTimestamp newReplicationTimestamp;
 
-            auto readReplicationBatch = [&] () {
-                return ReadReplicationBatch(
-                    mountConfig,
-                    tabletSnapshot,
-                    replicaSnapshot,
-                    startRowIndex,
-                    &replicationRows,
-                    &rowBuffer,
-                    &newReplicationRowIndex,
-                    &newReplicationTimestamp);
-            };
+            // TODO(savrus) profile chunk reader statistics.
+            TClientBlockReadOptions blockReadOptions;
+            blockReadOptions.WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemReplication),
+            blockReadOptions.ReadSessionId = TReadSessionId::Create();
+            blockReadOptions.ChunkReaderStatistics = New<TChunkReaderStatistics>();
 
-            if (!readReplicationBatch()) {
-                startRowIndex = ComputeStartRowIndex(
-                    mountConfig,
-                    tabletSnapshot,
-                    replicaSnapshot);
-                YCHECK(readReplicationBatch());
+            PROFILE_AGGREGATED_TIMING(counters->ReplicationRowsReadTime) {
+                auto readReplicationBatch = [&]() {
+                    return ReadReplicationBatch(
+                        MountConfig_,
+                        tabletSnapshot,
+                        replicaSnapshot,
+                        blockReadOptions,
+                        startRowIndex,
+                        &replicationRows,
+                        &rowBuffer,
+                        &newReplicationRowIndex,
+                        &newReplicationTimestamp);
+                };
+
+                if (!readReplicationBatch()) {
+                    startRowIndex = ComputeStartRowIndex(
+                        MountConfig_,
+                        tabletSnapshot,
+                        replicaSnapshot,
+                        blockReadOptions);
+                    YCHECK(readReplicationBatch());
+                }
             }
 
-            {
+            PROFILE_AGGREGATED_TIMING(counters->ReplicationRowsWriteTime) {
                 TModifyRowsOptions options;
                 options.UpstreamReplicaId = ReplicaId_;
                 foreignTransaction->ModifyRows(
@@ -319,16 +291,19 @@ private:
                 localTransaction->AddAction(Slot_->GetCellId(), MakeTransactionActionData(req));
             }
 
-            LOG_DEBUG("Started committing replication transaction");
-            {
+            PROFILE_AGGREGATED_TIMING(counters->ReplicationTransactionCommitTime) {
+                LOG_DEBUG("Started committing replication transaction");
+
                 TTransactionCommitOptions commitOptions;
                 commitOptions.CoordinatorCellId = Slot_->GetCellId();
                 commitOptions.Force2PC = true;
                 commitOptions.CoordinatorCommitMode = ETransactionCoordinatorCommitMode::Lazy;
+                commitOptions.GeneratePrepareTimestamp = false;
                 WaitFor(localTransaction->Commit(commitOptions))
                     .ThrowOnError();
+
+                LOG_DEBUG("Finished committing replication transaction");
             }
-            LOG_DEBUG("Finished committing replication transaction");
 
             if (lastReplicationTimestamp > newReplicationTimestamp) {
                 LOG_ERROR("Non-monotonic change to last replication timestamp attempted; ignored (LastReplicationTimestamp: %llx -> %llx)",
@@ -355,6 +330,7 @@ private:
     TTimestamp ReadLogRowTimestamp(
         const TTableMountConfigPtr& mountConfig,
         const TTabletSnapshotPtr& tabletSnapshot,
+        const TClientBlockReadOptions& blockReadOptions,
         i64 rowIndex)
     {
         auto reader = CreateSchemafulTabletReader(
@@ -363,8 +339,7 @@ private:
             MakeRowBound(rowIndex),
             MakeRowBound(rowIndex + 1),
             NullTimestamp,
-            TWorkloadDescriptor(EWorkloadCategory::SystemReplication),
-            TReadSessionId());
+            blockReadOptions);
 
         std::vector<TUnversionedRow> readerRows;
         readerRows.reserve(1);
@@ -406,7 +381,8 @@ private:
     i64 ComputeStartRowIndex(
         const TTableMountConfigPtr& mountConfig,
         const TTabletSnapshotPtr& tabletSnapshot,
-        const TTableReplicaSnapshotPtr& replicaSnapshot)
+        const TTableReplicaSnapshotPtr& replicaSnapshot,
+        const TClientBlockReadOptions& blockReadOptions)
     {
         auto trimmedRowCount = tabletSnapshot->RuntimeData->TrimmedRowCount.load();
         auto totalRowCount = tabletSnapshot->RuntimeData->TotalRowCount.load();
@@ -427,7 +403,7 @@ private:
 
         while (rowIndexLo < rowIndexHi - 1) {
             auto rowIndexMid = rowIndexLo + (rowIndexHi - rowIndexLo) / 2;
-            auto timestampMid = ReadLogRowTimestamp(mountConfig, tabletSnapshot, rowIndexMid);
+            auto timestampMid = ReadLogRowTimestamp(mountConfig, tabletSnapshot, blockReadOptions, rowIndexMid);
             if (timestampMid <= startReplicationTimestamp) {
                 rowIndexLo = rowIndexMid;
             } else {
@@ -438,7 +414,7 @@ private:
         auto startRowIndex = rowIndexLo;
         auto startTimestamp = NullTimestamp;
         while (startRowIndex < totalRowCount) {
-            startTimestamp = ReadLogRowTimestamp(mountConfig, tabletSnapshot, startRowIndex);
+            startTimestamp = ReadLogRowTimestamp(mountConfig, tabletSnapshot, blockReadOptions, startRowIndex);
             if (startTimestamp > startReplicationTimestamp) {
                 break;
             }
@@ -456,6 +432,7 @@ private:
         const TTableMountConfigPtr& mountConfig,
         const TTabletSnapshotPtr& tabletSnapshot,
         const TTableReplicaSnapshotPtr& replicaSnapshot,
+        const TClientBlockReadOptions& blockReadOptions,
         i64 startRowIndex,
         std::vector<TRowModification>* replicationRows,
         TRowBufferPtr* rowBuffer,
@@ -473,8 +450,7 @@ private:
             MakeRowBound(startRowIndex),
             MakeRowBound(std::numeric_limits<i64>::max()),
             NullTimestamp,
-            TWorkloadDescriptor(EWorkloadCategory::SystemReplication),
-            sessionId);
+            blockReadOptions);
 
         int timestampCount = 0;
         int rowCount = 0;
@@ -491,16 +467,8 @@ private:
         auto prevTimestamp = replicaSnapshot->RuntimeData->CurrentReplicationTimestamp.load();
 
         // Throttling control.
-        i64 dataWeightToAcquire = 0;
-        auto flushThrottler = [&] {
-            Throttler_->Acquire(dataWeightToAcquire);
-            dataWeightToAcquire = 0;
-        };
         auto acquireThrottler = [&] (i64 dataWeight) {
-            dataWeightToAcquire += dataWeight;
-            if (dataWeightToAcquire >= 1) {
-                flushThrottler();
-            }
+            Throttler_->Acquire(dataWeight);
         };
         auto isThrottlerOverdraft = [&] {
             if (!Throttler_->IsOverdraft()) {
@@ -549,7 +517,7 @@ private:
                     &timestamp);
 
                 if (timestamp <= replicaSnapshot->StartReplicationTimestamp) {
-                    YCHECK(row == readerRows[0]);
+                    YCHECK(row.GetHeader() == readerRows[0].GetHeader());
                     LOG_INFO("Replication log row violates timestamp bound (StartReplicationTimestamp: %llx, LogRecordTimestamp: %llx)",
                         replicaSnapshot->StartReplicationTimestamp,
                         timestamp);
@@ -589,10 +557,12 @@ private:
             }
         }
 
-        flushThrottler();
-
         *newReplicationRowIndex = startRowIndex + rowCount;
         *newReplicationTimestamp = prevTimestamp;
+
+        auto* counters = replicaSnapshot->Counters;
+        Profiler.Update(counters->ReplicationBatchRowCount, rowCount);
+        Profiler.Update(counters->ReplicationBatchDataWeight, dataWeight);
 
         LOG_DEBUG("Finished building replication batch (StartRowIndex: %v, RowCount: %v, DataWeight: %v, "
             "NewReplicationRowIndex: %v, NewReplicationTimestamp: %llx)",

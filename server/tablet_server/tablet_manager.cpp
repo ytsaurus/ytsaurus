@@ -116,7 +116,6 @@ using NTransactionServer::TTransaction;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = TabletServerLogger;
-static const auto CleanupPeriod = TDuration::Seconds(10);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -181,6 +180,9 @@ public:
 
     void Initialize()
     {
+        const auto& configManager = Bootstrap_->GetConfigManager();
+        configManager->SubscribeConfigChanged(BIND(&TImpl::OnDynamicConfigChanged, MakeWeak(this)));
+
         const auto& objectManager = Bootstrap_->GetObjectManager();
         objectManager->RegisterHandler(CreateTabletCellBundleTypeHandler(Bootstrap_, &TabletCellBundleMap_));
         objectManager->RegisterHandler(CreateTabletCellTypeHandler(Bootstrap_, &TabletCellMap_));
@@ -430,7 +432,8 @@ public:
         const TString& clusterName,
         const TYPath& replicaPath,
         ETableReplicaMode mode,
-        TTimestamp startReplicationTimestamp)
+        TTimestamp startReplicationTimestamp,
+        const TNullable<std::vector<i64>>& startReplicationRowIndexes)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -445,6 +448,8 @@ public:
                     clusterName);
             }
         }
+
+        YCHECK(!startReplicationRowIndexes || startReplicationRowIndexes->size() == table->Tablets().size());
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto id = objectManager->GenerateId(EObjectType::TableReplica, NullObjectId);
@@ -468,10 +473,15 @@ public:
             startReplicationTimestamp);
 
         const auto& hiveManager = Bootstrap_->GetHiveManager();
-        for (auto* tablet : table->Tablets()) {
+        for (int tabletIndex = 0; tabletIndex < table->Tablets().size(); ++tabletIndex) {
+            auto* tablet = table->Tablets()[tabletIndex];
             auto pair = tablet->Replicas().emplace(replica, TTableReplicaInfo());
             YCHECK(pair.second);
             auto& replicaInfo = pair.first->second;
+
+            if (startReplicationRowIndexes) {
+                replicaInfo.SetCurrentReplicationRowIndex((*startReplicationRowIndexes)[tabletIndex]);
+            }
 
             if (!tablet->IsActive()) {
                 replicaInfo.SetState(ETableReplicaState::None);
@@ -1216,6 +1226,8 @@ public:
                 // No break intentionaly.
             case ETabletActionState::Failed: {
                 if (!action->GetKeepFinished()) {
+                    UnbindTabletAction(action);
+
                     const auto& objectManager = Bootstrap_->GetObjectManager();
                     objectManager->UnrefObject(action);
                 }
@@ -2494,6 +2506,20 @@ private:
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
 
+    const TDynamicTabletManagerConfigPtr& GetDynamicConfig()
+    {
+        return Bootstrap_->GetConfigManager()->GetConfig()->TabletManager;
+    }
+
+    void OnDynamicConfigChanged()
+    {
+        if (CleanupExecutor_) {
+            const auto& dynamicConfig = GetDynamicConfig();
+            CleanupExecutor_->SetPeriod(dynamicConfig->TabletCellsCleanupPeriod);
+        }
+    }
+
+
     void SaveKeys(NCellMaster::TSaveContext& context) const
     {
         TabletCellBundleMap_.SaveKeys(context);
@@ -2787,6 +2813,8 @@ private:
 
             const auto* cellBundle = cell->GetCellBundle();
             protoInfo->set_options(ConvertToYsonString(cellBundle->GetOptions()).GetData());
+
+            protoInfo->set_tablet_cell_bundle(cellBundle->GetName());
 
             LOG_DEBUG_UNLESS(IsRecovery(), "Tablet slot creation requested (Address: %v, CellId: %v, PeerId: %v)",
                 node->GetDefaultAddress(),
@@ -3762,13 +3790,14 @@ private:
         if (Bootstrap_->IsPrimaryMaster()) {
             TabletTracker_->Start();
             TabletBalancer_->Start();
-        }
 
-        CleanupExecutor_ = New<TPeriodicExecutor>(
-            Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Periodic),
-            BIND(&TImpl::OnCleanup, MakeWeak(this)),
-            CleanupPeriod);
-        CleanupExecutor_->Start();
+            const auto& dynamicConfig = GetDynamicConfig();
+            CleanupExecutor_ = New<TPeriodicExecutor>(
+                Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Periodic),
+                BIND(&TImpl::OnCleanup, MakeWeak(this)),
+                dynamicConfig->TabletCellsCleanupPeriod);
+            CleanupExecutor_->Start();
+        }
     }
 
     virtual void OnStopLeading() override
@@ -4156,7 +4185,7 @@ private:
         NTabletNode::TTabletChunkWriterConfigPtr* writerConfig,
         TTableWriterOptionsPtr* writerOptions)
     {
-        const auto& configManager = Bootstrap_->GetConfigManager();
+        const auto& dynamicConfig = GetDynamicConfig();
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto tableProxy = objectManager->GetProxy(table);
         const auto& tableAttributes = tableProxy->Attributes();
@@ -4164,7 +4193,7 @@ private:
         // Parse and prepare mount config.
         try {
             *mountConfig = ConvertTo<TTableMountConfigPtr>(tableAttributes);
-            (*mountConfig)->ProfilingMode = configManager->GetConfig()->DynamicTableProfilingMode;
+            (*mountConfig)->ProfilingMode = dynamicConfig->DynamicTableProfilingMode;
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error parsing table mount configuration")
                 << ex;
@@ -4697,14 +4726,16 @@ TTableReplica* TTabletManager::CreateTableReplica(
     const TString& clusterName,
     const TYPath& replicaPath,
     ETableReplicaMode mode,
-    TTimestamp startReplicationTimestamp)
+    TTimestamp startReplicationTimestamp,
+    const  TNullable<std::vector<i64>>& startReplicationRowIndexes)
 {
     return Impl_->CreateTableReplica(
         table,
         clusterName,
         replicaPath,
         mode,
-        startReplicationTimestamp);
+        startReplicationTimestamp,
+        startReplicationRowIndexes);
 }
 
 void TTabletManager::DestroyTableReplica(TTableReplica* replica)

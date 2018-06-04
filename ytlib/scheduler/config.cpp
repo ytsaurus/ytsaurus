@@ -100,6 +100,20 @@ TSupportsSchedulingTagsConfig::TSupportsSchedulingTagsConfig()
     });
 }
 
+TTentativeTreeEligibilityConfig::TTentativeTreeEligibilityConfig()
+{
+    RegisterParameter("sample_job_count", SampleJobCount)
+        .Default(10)
+        .GreaterThan(0);
+
+    RegisterParameter("max_tentative_job_duration_ratio", MaxTentativeJobDurationRatio)
+        .Default(10.0)
+        .GreaterThan(0.0);
+
+    RegisterParameter("min_job_duration", MinJobDuration)
+        .Default(TDuration::Seconds(30));
+}
+
 TOperationSpecBase::TOperationSpecBase()
 {
     SetUnrecognizedStrategy(NYTree::EUnrecognizedStrategy::KeepRecursive);
@@ -186,9 +200,6 @@ TOperationSpecBase::TOperationSpecBase()
     RegisterParameter("auto_merge", AutoMerge)
         .DefaultNew();
 
-    RegisterParameter("started_by", StartedBy)
-        .Default();
-
     RegisterParameter("job_proxy_memory_digest", JobProxyMemoryDigest)
         .Default(New<TLogDigestConfig>(0.5, 2.0, 1.0));
 
@@ -203,6 +214,16 @@ TOperationSpecBase::TOperationSpecBase()
 
     RegisterParameter("enable_compatible_storage_mode", EnableCompatibleStorageMode)
         .Default(true);
+
+    RegisterParameter("enable_legacy_live_preview", EnableLegacyLivePreview)
+        .Default(true);
+
+    RegisterParameter("started_by", StartedBy)
+        .Default();
+    RegisterParameter("annotations", Annotations)
+        .Default();
+    RegisterParameter("description", Description)
+        .Default();
 
     RegisterPostprocessor([&] () {
         if (UnavailableChunkStrategy == EUnavailableChunkAction::Wait &&
@@ -953,6 +974,10 @@ TStrategyOperationSpec::TStrategyOperationSpec()
     RegisterParameter("max_concurrent_schedule_job_calls", MaxConcurrentControllerScheduleJobCalls)
         .Alias("max_concurrent_controller_schedule_job_calls")
         .Default();
+    RegisterParameter("tentative_pool_trees", TentativePoolTrees)
+        .Default();
+    RegisterParameter("tentative_tree_eligibility", TentativeTreeEligibility)
+        .DefaultNew();
 }
 
 TOperationFairShareStrategyTreeOptions::TOperationFairShareStrategyTreeOptions()

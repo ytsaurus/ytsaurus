@@ -11,7 +11,7 @@
 #include <yt/core/concurrency/config.h>
 
 #include <yt/core/misc/config.h>
-#include <yt/core/misc/boolean_formula.h>
+#include <yt/core/misc/arithmetic_formula.h>
 
 #include <yt/core/re2/re2.h>
 
@@ -350,6 +350,7 @@ class TArtifactCacheReaderConfig
     : public virtual NChunkClient::TBlockFetcherConfig
     , public virtual NTableClient::TTableReaderConfig
     , public virtual NApi::TFileReaderConfig
+    , public virtual TWorkloadConfig
 { };
 
 DEFINE_REFCOUNTED_TYPE(TArtifactCacheReaderConfig)
@@ -358,7 +359,7 @@ DEFINE_REFCOUNTED_TYPE(TArtifactCacheReaderConfig)
 
 class TRepairReaderConfig
     : public NChunkClient::TReplicationReaderConfig
-    , public TWorkloadConfig
+    , public virtual TWorkloadConfig
 { };
 
 DEFINE_REFCOUNTED_TYPE(TRepairReaderConfig)
@@ -367,7 +368,7 @@ DEFINE_REFCOUNTED_TYPE(TRepairReaderConfig)
 
 class TSealReaderConfig
     : public NChunkClient::TReplicationReaderConfig
-    , public TWorkloadConfig
+    , public virtual TWorkloadConfig
 { };
 
 DEFINE_REFCOUNTED_TYPE(TSealReaderConfig)
@@ -469,6 +470,9 @@ public:
 
     //! Cache for chunk metas.
     TSlruCacheConfigPtr ChunkMetaCache;
+
+    //! Cache for partition block metas.
+    TSlruCacheConfigPtr BlockMetaCache;
 
     //! Cache for all types of blocks.
     NChunkClient::TBlockCacheConfigPtr BlockCache;
@@ -664,6 +668,8 @@ public:
 
         RegisterParameter("chunk_meta_cache", ChunkMetaCache)
             .DefaultNew();
+        RegisterParameter("block_meta_cache", BlockMetaCache)
+            .DefaultNew();
         RegisterParameter("block_cache", BlockCache)
             .DefaultNew();
         RegisterParameter("blob_reader_cache", BlobReaderCache)
@@ -804,6 +810,8 @@ public:
 
         RegisterPreprocessor([&] () {
             ChunkMetaCache->Capacity = 1_GB;
+
+            BlockMetaCache->Capacity = 100 * 1_MB;
 
             BlockCache->CompressedData->Capacity = 1_GB;
             BlockCache->UncompressedData->Capacity = 1_GB;

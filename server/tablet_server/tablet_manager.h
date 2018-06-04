@@ -151,7 +151,8 @@ private:
         const TString& clusterName,
         const NYPath::TYPath& replicaPath,
         ETableReplicaMode mode,
-        NTransactionClient::TTimestamp startReplicationTimestamp);
+        NTransactionClient::TTimestamp startReplicationTimestamp,
+        const TNullable<std::vector<i64>>& startReplicationRowIndexes);
     void DestroyTableReplica(TTableReplica* replica);
 
     TTabletAction* CreateTabletAction(

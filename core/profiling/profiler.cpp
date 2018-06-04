@@ -86,7 +86,7 @@ TCpuInstant TCounterBase::GetUpdateDeadline() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TAggregateCounter::TAggregateCounter(
+TAggregateGauge::TAggregateGauge(
     const NYPath::TYPath& path,
     const TTagIdList& tagIds,
     EAggregateMode mode,
@@ -97,14 +97,14 @@ TAggregateCounter::TAggregateCounter(
     Reset();
 }
 
-TAggregateCounter::TAggregateCounter(const TAggregateCounter& other)
+TAggregateGauge::TAggregateGauge(const TAggregateGauge& other)
     : TCounterBase(other)
 {
     *this = other;
     Reset();
 }
 
-TAggregateCounter& TAggregateCounter::operator=(const TAggregateCounter& other)
+TAggregateGauge& TAggregateGauge::operator=(const TAggregateGauge& other)
 {
     static_cast<TCounterBase&>(*this) = static_cast<const TCounterBase&>(other);
     Mode_ = other.Mode_;
@@ -112,7 +112,7 @@ TAggregateCounter& TAggregateCounter::operator=(const TAggregateCounter& other)
     return *this;
 }
 
-void TAggregateCounter::Reset()
+void TAggregateGauge::Reset()
 {
     Min_ = std::numeric_limits<TValue>::max();
     Max_ = std::numeric_limits<TValue>::min();
@@ -122,20 +122,41 @@ void TAggregateCounter::Reset()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSimpleCounter::TSimpleCounter(
+TMonotonicCounter::TMonotonicCounter(
     const NYPath::TYPath& path,
     const TTagIdList& tagIds,
     TDuration interval)
     : TCounterBase(path, tagIds, interval)
 { }
 
-TSimpleCounter::TSimpleCounter(const TSimpleCounter& other)
+TMonotonicCounter::TMonotonicCounter(const TMonotonicCounter& other)
     : TCounterBase(other)
 {
     *this = other;
 }
 
-TSimpleCounter& TSimpleCounter::operator=(const TSimpleCounter& other)
+TMonotonicCounter& TMonotonicCounter::operator=(const TMonotonicCounter& other)
+{
+    static_cast<TCounterBase&>(*this) = static_cast<const TCounterBase&>(other);
+    return *this;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TSimpleGauge::TSimpleGauge(
+    const NYPath::TYPath& path,
+    const TTagIdList& tagIds,
+    TDuration interval)
+    : TCounterBase(path, tagIds, interval)
+{ }
+
+TSimpleGauge::TSimpleGauge(const TSimpleGauge& other)
+    : TCounterBase(other)
+{
+    *this = other;
+}
+
+TSimpleGauge& TSimpleGauge::operator=(const TSimpleGauge& other)
 {
     static_cast<TCounterBase&>(*this) = static_cast<const TCounterBase&>(other);
     return *this;
@@ -280,29 +301,42 @@ TDuration TProfiler::DoTimingCheckpoint(
     }
 }
 
-void TProfiler::Update(TAggregateCounter& counter, TValue value) const
+void TProfiler::Update(TAggregateGauge& counter, TValue value) const
 {
     counter.Current_ = value;
     OnUpdated(counter, value);
 }
 
-TValue TProfiler::Increment(TAggregateCounter& counter, TValue delta) const
+TValue TProfiler::Increment(TAggregateGauge& counter, TValue delta) const
 {
     auto value = (counter.Current_ += delta);
     OnUpdated(counter, value);
     return value;
 }
 
-void TProfiler::Update(TSimpleCounter& counter, TValue value) const
+void TProfiler::Update(TSimpleGauge& counter, TValue value) const
 {
-    counter.Current_.store(value, std::memory_order_relaxed);
-    OnUpdated(counter);
+    counter.Current_ = value;
+    OnUpdated(counter, EMetricType::Gauge);
 }
 
-TValue TProfiler::Increment(TSimpleCounter& counter, TValue delta) const
+TValue TProfiler::Increment(TSimpleGauge& counter, TValue delta) const
 {
     auto result = counter.Current_.fetch_add(delta, std::memory_order_relaxed) + delta;
-    OnUpdated(counter);
+    OnUpdated(counter, EMetricType::Gauge);
+    return result;
+}
+
+void TProfiler::Reset(TMonotonicCounter& counter) const
+{
+    counter.Current_ = 0;
+    OnUpdated(counter, EMetricType::Counter);
+}
+
+TValue TProfiler::Increment(TMonotonicCounter& counter, TValue delta) const
+{
+    auto result = counter.Current_.fetch_add(delta, std::memory_order_relaxed) + delta;
+    OnUpdated(counter, EMetricType::Counter);
     return result;
 }
 
@@ -311,16 +345,18 @@ bool TProfiler::IsCounterEnabled(const TCounterBase& counter) const
     return Enabled_ && !counter.Path_.empty();
 }
 
-void TProfiler::OnUpdated(TAggregateCounter& counter, TValue value) const
+void TProfiler::OnUpdated(TAggregateGauge& counter, TValue value) const
 {
     if (!IsCounterEnabled(counter)) {
         return;
     }
 
-    counter.SampleCount_ += 1;
-    counter.Sum_ += value;
-
     auto mode = counter.Mode_;
+
+    counter.SampleCount_ += 1;
+    if (mode == EAggregateMode::All || mode == EAggregateMode::Avg) {
+        counter.Sum_ += value;
+    }
 
     if (mode == EAggregateMode::All || mode == EAggregateMode::Min) {
         while (true) {
@@ -394,7 +430,7 @@ void TProfiler::OnUpdated(TAggregateCounter& counter, TValue value) const
     }
 }
 
-void TProfiler::OnUpdated(TSimpleCounter& counter) const
+void TProfiler::OnUpdated(TCounterBase& counter, EMetricType metricType) const
 {
     if (!IsCounterEnabled(counter)) {
         return;
@@ -413,7 +449,7 @@ void TProfiler::OnUpdated(TSimpleCounter& counter) const
     Enqueue(
         counter.Path_,
         counter.Current_.load(std::memory_order_relaxed),
-        EMetricType::Counter,
+        metricType,
         counter.TagIds_);
 }
 

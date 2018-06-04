@@ -470,7 +470,13 @@ Handle<Value> TNodeWrap::Print(const Arguments& args)
     Handle<Value> handle = Undefined();
 
     if (args.Length() == 0) {
-        auto string = ConvertToYsonString(node, EYsonFormat::Text);
+        TYsonString string;
+        try {
+            string = ConvertToYsonString(node, EYsonFormat::Text);
+        } catch (const std::exception& ex) {
+            return ThrowException(ConvertErrorToV8(ex));
+        }
+
         handle = String::New(string.GetData().c_str(), string.GetData().length());
     } else if (args.Length() == 2) {
         EXPECT_THAT_IS(args[0], Uint32);
@@ -479,10 +485,15 @@ Handle<Value> TNodeWrap::Print(const Arguments& args)
         ECompression compression = (ECompression)args[0]->Uint32Value();
         INodePtr format = TNodeWrap::UnwrapNode(args[1]);
 
-        auto result = ConvertNodeToBytes(
-            std::move(node),
-            compression,
-            std::move(format));
+        TString result;
+        try {
+            result = ConvertNodeToBytes(
+                std::move(node),
+                compression,
+                std::move(format));
+        } catch (const std::exception& ex) {
+            return ThrowException(ConvertErrorToV8(ex));
+        }
         handle = String::New(result.c_str(), result.length());
     }
 
