@@ -52,6 +52,13 @@ def get_driver_instance(client):
         else:
             raise YtError("Driver config is not specified")
 
+        if config["backend"] == "rpc":
+            if driver_config.get("backend") is None:
+                driver_config["backend"] = "rpc"
+            else:
+                raise YtError("Driver and client backend mismatch (driver_backend: {0}, client_backend: {1})"
+                    .format(driver_config["backend"], config["backend"]))
+
         set_option("_driver", driver_bindings.Driver(driver_config), client=client)
         driver = get_option("_driver", client=client)
     return driver

@@ -17,7 +17,7 @@ import time
 import pytest
 import datetime
 
-@pytest.mark.usefixtures("yt_env")
+@pytest.mark.usefixtures("yt_env_with_rpc")
 class TestCypressCommands(object):
     def test_ypath(self):
         path = yt.TablePath("<append=false;sort-by=[key]>//my/table")
@@ -531,6 +531,9 @@ class TestCypressCommands(object):
         yt.remove(TEST_DIR + "/child")
 
     def test_copy_move_sorted_table(self):
+        if yt.config["backend"] == "rpc":
+            pytest.skip()
+
         def is_sorted_by_y(table_path):
             sorted_by = yt.get_attribute(table_path, "sorted_by", None)
             if sorted_by is None:

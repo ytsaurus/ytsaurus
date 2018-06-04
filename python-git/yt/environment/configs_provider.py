@@ -174,8 +174,12 @@ class ConfigsProvider(object):
                 "addresses": rpc_proxy_addresses
             }
 
-        driver_configs = self._build_driver_configs(provision, deepcopy(connection_configs),
-                                                    master_cache_nodes=node_addresses, rpc_proxy_addresses=rpc_proxy_addresses)
+        driver_configs, rpc_driver_configs = \
+            self._build_driver_configs(provision, deepcopy(connection_configs),
+                                       master_cache_nodes=node_addresses, rpc_proxy_addresses=rpc_proxy_addresses)
+
+        if provision["driver"]["backend"] == "rpc":
+            driver_configs = rpc_driver_configs
 
         skynet_manager_configs = None
         if provision["skynet_manager"]["count"] > 0:
@@ -184,6 +188,7 @@ class ConfigsProvider(object):
         cluster_configuration = {
             "master": master_configs,
             "driver": driver_configs,
+            "rpc_driver": rpc_driver_configs,
             "scheduler": scheduler_configs,
             "controller_agent": controller_agent_configs,
             "node": node_configs,
@@ -618,38 +623,43 @@ class ConfigsProvider_19(ConfigsProvider):
         primary_cell_tag = master_connection_configs["primary_cell_tag"]
 
         configs = {}
-        for cell_index in xrange(provision["master"]["secondary_cell_count"] + 1):
-            config = default_configs.get_driver_config()
+        rpc_configs = {}
+        for driver_type in ("native", "rpc"):
+            for cell_index in xrange(provision["master"]["secondary_cell_count"] + 1):
+                config = default_configs.get_driver_config()
 
-            if provision["driver"]["backend"] == "rpc":
-                config["connection_type"] = "rpc"
-                config["addresses"] = rpc_proxy_addresses
+                if driver_type == "rpc":
+                    config["connection_type"] = "rpc"
+                    config["addresses"] = rpc_proxy_addresses
 
-            if cell_index == 0:
-                tag = primary_cell_tag
-                update_inplace(config, self._build_cluster_connection_config(
-                    master_connection_configs,
-                    master_cache_nodes=master_cache_nodes,
-                    enable_master_cache=provision["enable_master_cache"]))
-            else:
-                tag = secondary_cell_tags[cell_index - 1]
-                cell_connection_config = {
-                    "primary_master": master_connection_configs[secondary_cell_tags[cell_index - 1]],
-                    "timestamp_provider": {
-                        "addresses": master_connection_configs[primary_cell_tag]["addresses"]
-                    },
-                    "transaction_manager": {
-                        "default_ping_period": DEFAULT_TRANSACTION_PING_PERIOD
+                if cell_index == 0:
+                    tag = primary_cell_tag
+                    update_inplace(config, self._build_cluster_connection_config(
+                        master_connection_configs,
+                        master_cache_nodes=master_cache_nodes,
+                        enable_master_cache=provision["enable_master_cache"]))
+                else:
+                    tag = secondary_cell_tags[cell_index - 1]
+                    cell_connection_config = {
+                        "primary_master": master_connection_configs[secondary_cell_tags[cell_index - 1]],
+                        "timestamp_provider": {
+                            "addresses": master_connection_configs[primary_cell_tag]["addresses"]
+                        },
+                        "transaction_manager": {
+                            "default_ping_period": DEFAULT_TRANSACTION_PING_PERIOD
+                        }
                     }
-                }
-                update_inplace(cell_connection_config["primary_master"], _get_retrying_channel_config())
-                update_inplace(cell_connection_config["primary_master"], _get_rpc_config())
+                    update_inplace(cell_connection_config["primary_master"], _get_retrying_channel_config())
+                    update_inplace(cell_connection_config["primary_master"], _get_rpc_config())
 
-                update_inplace(config, cell_connection_config)
+                    update_inplace(config, cell_connection_config)
 
-            configs[tag] = config
+                if driver_type == "rpc":
+                    rpc_configs[tag] = config
+                else:
+                    configs[tag] = config
 
-        return configs
+        return configs, rpc_configs
 
     def _build_rpc_proxy_config(self, provision, proxy_logs_dir, master_connection_configs, ports_generator):
         config = {

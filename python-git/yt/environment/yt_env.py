@@ -409,7 +409,7 @@ class YTInstance(object):
             self._prepare_rpc_proxy(cluster_configuration["rpc_proxy"], cluster_configuration["rpc_client"], rpc_proxy_dir)
         if self.skynet_manager_count > 0:
             self._prepare_skynet_managers(cluster_configuration["skynet_manager"], skynet_manager_dirs)
-        self._prepare_driver(cluster_configuration["driver"], cluster_configuration["master"])
+        self._prepare_driver(cluster_configuration["driver"], cluster_configuration["rpc_driver"], cluster_configuration["master"])
         # COMPAT. Will be removed eventually.
         self._prepare_console_driver()
 
@@ -1001,34 +1001,47 @@ class YTInstance(object):
             if not err.is_resolve_error():
                 raise
 
-    def _prepare_driver(self, driver_configs, master_configs):
-        for cell_index in xrange(self.secondary_master_cell_count + 1):
-            if cell_index == 0:
-                tag = master_configs["primary_cell_tag"]
-                name = "driver"
-            else:
-                tag = master_configs["secondary_cell_tags"][cell_index - 1]
-                name = "driver_secondary_" + str(cell_index - 1)
+    def _prepare_driver(self, driver_configs, rpc_driver_configs, master_configs):
+        driver_types = ["native"]
+        if self.has_rpc_proxy:
+            driver_types.append("rpc")
 
-            config_path = os.path.join(self.configs_path, "driver-{0}.yson".format(cell_index))
+        for driver_type in driver_types:
+            for cell_index in xrange(self.secondary_master_cell_count + 1):
+                if cell_index == 0:
+                    tag = master_configs["primary_cell_tag"]
+                    name = "driver"
+                else:
+                    tag = master_configs["secondary_cell_tags"][cell_index - 1]
+                    name = "driver_secondary_" + str(cell_index - 1)
 
-            if self._load_existing_environment:
-                if not os.path.isfile(config_path):
-                    raise YtError("Driver config {0} not found".format(config_path))
-                config = read_config(config_path)
-            else:
-                config = driver_configs[tag]
-                write_config(config, config_path)
+                if driver_type == "rpc":
+                    prefix = "rpc_"
+                else:
+                    prefix = ""
 
-            # COMPAT
-            if cell_index == 0:
-                link_path = os.path.join(self.path, "driver.yson")
-                if os.path.exists(link_path):
-                    os.remove(link_path)
-                os.symlink(config_path, link_path)
+                config_path = os.path.join(self.configs_path, "{0}driver-{1}.yson".format(prefix, cell_index))
 
-            self.configs[name] = config
-            self.config_paths[name] = config_path
+                if self._load_existing_environment:
+                    if not os.path.isfile(config_path):
+                        raise YtError("Driver config {0} not found".format(config_path))
+                    config = read_config(config_path)
+                else:
+                    if driver_type == "rpc":
+                        config = rpc_driver_configs[tag]
+                    else:
+                        config = driver_configs[tag]
+                    write_config(config, config_path)
+
+                # COMPAT
+                if cell_index == 0:
+                    link_path = os.path.join(self.path, "driver.yson")
+                    if os.path.exists(link_path):
+                        os.remove(link_path)
+                    os.symlink(config_path, link_path)
+
+                self.configs[prefix + name] = config
+                self.config_paths[prefix + name] = config_path
 
         self.driver_logging_config = init_logging(None, self.logs_path, "driver", self._enable_debug_logging)
 
@@ -1231,7 +1244,7 @@ class YTInstance(object):
         with open(config_path, "w") as config_file:
             if self._enable_debug_logging:
                 for service, configs in iteritems(self.configs):
-                    if service.startswith("driver"):
+                    if service.startswith("driver") or service.startswith("rpc_driver"):
                         continue
 
                     for config in flatten(configs):

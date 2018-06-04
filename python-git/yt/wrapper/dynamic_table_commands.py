@@ -44,7 +44,7 @@ def _check_transaction_type(client):
     transaction_id = get_command_param("transaction_id", client=client)
     if transaction_id == null_transaction_id:
         return
-    if get_backend_type(client) == "native":
+    if get_backend_type(client) in ("native", "rpc"):
         return
     require(not is_master_transaction(transaction_id),
             lambda: YtError("Dynamic table commands can not be performed under master transaction"))
