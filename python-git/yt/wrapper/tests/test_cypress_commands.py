@@ -89,6 +89,9 @@ class TestCypressCommands(object):
 
     @pytest.mark.parametrize("enable_batch_mode", [False, True])
     def test_search(self, enable_batch_mode):
+        if yt.config["backend"] == "rpc":
+            pytest.skip()
+
         yt.mkdir(TEST_DIR + "/dir/other_dir", recursive=True)
         yt.create("table", TEST_DIR + "/dir/table")
         yt.write_file(TEST_DIR + "/file", b"")
@@ -232,6 +235,9 @@ class TestCypressCommands(object):
             yt.remove("//sys/accounts/test_account", force=True)
 
     def test_attributes_commands(self):
+        if yt.config["backend"] == "rpc":
+            pytest.skip()
+
         table = TEST_DIR + "/table_with_attributes"
         yt.write_table(table, [{"x": 1, "y": 1}, {"x": 2, "y": 2}], format="dsv")
         assert yt.row_count(table) == 2
@@ -307,6 +313,9 @@ class TestCypressCommands(object):
         assert yt.get_type(map_node) == "map_node"
 
     def test_simple_copy_move(self):
+        if yt.config["backend"] == "rpc":
+            pytest.skip()
+
         table = TEST_DIR + "/table"
         dir = TEST_DIR + "/dir"
         other_table = dir + "/other_table"
@@ -364,6 +373,9 @@ class TestCypressCommands(object):
 
     @flaky(max_runs=5)
     def test_transactions(self):
+        if yt.config["backend"] == "rpc":
+            pytest.skip()
+
         table = TEST_DIR + "/transaction_test_table"
 
         yt.create("table", table)
@@ -559,6 +571,9 @@ class TestCypressCommands(object):
         yt.create("table", TEST_DIR + "/table", attributes={"attr": u"капуста"})
 
     def test_concatenate(self):
+        if yt.config["backend"] == "rpc":
+            pytest.skip()
+
         tableA = TEST_DIR + "/tableA"
         tableB = TEST_DIR + "/tableB"
         output_table = TEST_DIR + "/outputTable"
