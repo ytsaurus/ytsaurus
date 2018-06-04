@@ -250,7 +250,6 @@ class YTEnvSetup(object):
             controller_agent_count=cls.get_param("NUM_CONTROLLER_AGENTS", index),
             has_proxy=cls.get_param("ENABLE_PROXY", index),
             has_rpc_proxy=cls.get_param("ENABLE_RPC_PROXY", index),
-            driver_backend=cls.get_param("DRIVER_BACKEND", index),
             skynet_manager_count=cls.get_param("NUM_SKYNET_MANAGERS", index),
             kill_child_processes=True,
             use_porto_for_servers=cls.get_param("USE_PORTO_FOR_SERVERS", index),
@@ -260,6 +259,7 @@ class YTEnvSetup(object):
             cell_tag=index * 10)
 
         instance._cluster_name = cls.get_cluster_name(index)
+        instance._driver_backend = cls.get_param("DRIVER_BACKEND", index)
 
         return instance
 
