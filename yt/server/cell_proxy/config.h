@@ -24,7 +24,7 @@ public:
     //! Proxy-to-master connection.
     NApi::TNativeConnectionConfigPtr ClusterConnection;
     NAuth::TDefaultBlackboxServiceConfigPtr Blackbox;
-    NAuth::TCookieAuthenticatorConfigPtr CookieAuthenticator;
+    NAuth::TBlackboxCookieAuthenticatorConfigPtr CookieAuthenticator;
     NAuth::TCachingBlackboxTokenAuthenticatorConfigPtr TokenAuthenticator;
     NRpcProxy::TApiServiceConfigPtr ApiService;
     NRpcProxy::TDiscoveryServiceConfigPtr DiscoveryService;
