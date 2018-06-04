@@ -260,6 +260,10 @@ void TAsyncFileChangelogIndex::FlushData()
 
 void TAsyncFileChangelogIndex::Close()
 {
+    if (!IndexFile_) {
+        return;
+    }
+
     NFS::ExpectIOErrors([&] () {
         IndexFile_->FlushData() ;
         IndexFile_->Close();
