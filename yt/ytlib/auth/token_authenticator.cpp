@@ -12,8 +12,6 @@
 
 #include <yt/core/rpc/authenticator.h>
 
-#include <util/string/split.h>
-
 namespace NYT {
 namespace NAuth {
 
@@ -341,6 +339,10 @@ public:
         }
 
         const auto& ext = header.GetExtension(NRpc::NProto::TCredentialsExt::credentials_ext);
+        if (!ext.has_token()) {
+            return Null;
+        }
+
         TTokenCredentials credentials;
         credentials.UserIP = ext.user_ip();
         credentials.Token = ext.token();

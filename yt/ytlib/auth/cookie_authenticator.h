@@ -4,6 +4,8 @@
 
 #include <yt/core/actions/future.h>
 
+#include <yt/core/rpc/public.h>
+
 namespace NYT {
 namespace NAuth {
 
@@ -18,13 +20,18 @@ struct ICookieAuthenticator
 
 DEFINE_REFCOUNTED_TYPE(ICookieAuthenticator)
 
-ICookieAuthenticatorPtr CreateCookieAuthenticator(
-    TCookieAuthenticatorConfigPtr config,
+////////////////////////////////////////////////////////////////////////////////
+
+ICookieAuthenticatorPtr CreateBlackboxCookieAuthenticator(
+    TBlackboxCookieAuthenticatorConfigPtr config,
     IBlackboxServicePtr blackbox);
 
 ICookieAuthenticatorPtr CreateCachingCookieAuthenticator(
     TAsyncExpiringCacheConfigPtr config,
     ICookieAuthenticatorPtr authenticator);
+
+NRpc::IAuthenticatorPtr CreateCookieAuthenticatorWrapper(
+    ICookieAuthenticatorPtr underlying);
 
 ////////////////////////////////////////////////////////////////////////////////
 

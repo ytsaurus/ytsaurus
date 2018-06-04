@@ -100,28 +100,28 @@ DEFINE_REFCOUNTED_TYPE(TCachingCypressTokenAuthenticatorConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCookieAuthenticatorConfig
+class TBlackboxCookieAuthenticatorConfig
     : public virtual NYTree::TYsonSerializable
 {
 public:
-    TCookieAuthenticatorConfig()
+    TBlackboxCookieAuthenticatorConfig()
     { }
 };
 
-DEFINE_REFCOUNTED_TYPE(TCookieAuthenticatorConfig)
+DEFINE_REFCOUNTED_TYPE(TBlackboxCookieAuthenticatorConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCachingCookieAuthenticatorConfig
-    : public TCookieAuthenticatorConfig
+class TCachingBlackboxCookieAuthenticatorConfig
+    : public TBlackboxCookieAuthenticatorConfig
     , public TAsyncExpiringCacheConfig
 {
 public:
-    TCachingCookieAuthenticatorConfig()
+    TCachingBlackboxCookieAuthenticatorConfig()
     { }
 };
 
-DEFINE_REFCOUNTED_TYPE(TCachingCookieAuthenticatorConfig)
+DEFINE_REFCOUNTED_TYPE(TCachingBlackboxCookieAuthenticatorConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

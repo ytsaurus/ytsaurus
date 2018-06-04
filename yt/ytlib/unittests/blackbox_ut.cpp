@@ -351,9 +351,9 @@ class TCookieAuthenticatorTest
 {
 protected:
     TCookieAuthenticatorTest()
-        : Config_(New<TCookieAuthenticatorConfig>())
+        : Config_(New<TBlackboxCookieAuthenticatorConfig>())
         , Blackbox_(New<TMockBlackboxService>())
-        , Authenticator_(CreateCookieAuthenticator(Config_, Blackbox_))
+        , Authenticator_(CreateBlackboxCookieAuthenticator(Config_, Blackbox_))
     { }
 
     void MockCall(const TString& yson)
@@ -377,7 +377,7 @@ protected:
     }
 
 protected:
-    TCookieAuthenticatorConfigPtr Config_;
+    TBlackboxCookieAuthenticatorConfigPtr Config_;
     TIntrusivePtr<TMockBlackboxService> Blackbox_;
     TIntrusivePtr<ICookieAuthenticator> Authenticator_;
 };
