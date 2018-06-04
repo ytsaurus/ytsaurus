@@ -563,6 +563,7 @@ private:
     std::atomic<int> ActiveRequestCount_ = {0};
 
     NProfiling::TSimpleGauge AuthenticationQueueSizeCounter_;
+    NProfiling::TAggregateGauge AuthenticationTimeCounter_;
     int MaxAuthenticationQueueSize_ = TServiceConfig::DefaultMaxAuthenticationQueueSize;
 
 private:
@@ -584,6 +585,7 @@ private:
         const NProto::TRequestHeader& header,
         const NYT::NBus::IBusPtr& replyBus);
     void OnRequestAuthenticated(
+        const NProfiling::TWallTimer& timer,
         TAcceptedRequest&& acceptedRequest,
         const TErrorOr<TAuthenticationResult>& authResultOrError);
     void HandleAuthenticatedRequest(TAcceptedRequest acceptedRequest);
