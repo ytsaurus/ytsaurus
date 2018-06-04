@@ -88,13 +88,12 @@ protected:
         }
 
         ConfigureUids();
+        ConfigureCrashHandler();
 
         if (Pty_ == -1) {
             NJobProxy::RunJobSatellite(GetConfig(), Uid_, Environment_, JobId_);
         }
         TThread::CurrentThreadSetName("ExecMain");
-
-        ConfigureCrashHandler();
 
         // Don't start any other singleton or parse config in executor mode.
         // Explicitly shut down log manager to ensure it doesn't spoil dup-ed descriptors.
