@@ -52,11 +52,11 @@ public:
     {
         RegisterParameter("scope", Scope);
         RegisterParameter("enable_scope_check", EnableScopeCheck)
-            .Optional();
+            .Default(true);
     }
 
     TString Scope;
-    bool EnableScopeCheck = true;
+    bool EnableScopeCheck;
 };
 
 DEFINE_REFCOUNTED_TYPE(TBlackboxTokenAuthenticatorConfig)
