@@ -391,6 +391,16 @@ private:
             User_ = TString(userString);
         }
 
+        TString GetUserIP()
+        {
+            auto leftIndex = PeerAddress_.find('[');
+            auto rightIndex = PeerAddress_.find(']');
+            if (leftIndex == TString::npos || rightIndex == TString::npos || leftIndex > rightIndex) {
+                return PeerAddress_;
+            }
+            return PeerAddress_.substr(leftIndex + 1, rightIndex - leftIndex - 1);
+        }
+
         void ParseRpcCredentials()
         {
             auto tokenString = CallMetadata_.Find(TokenMetadataKey);
@@ -402,7 +412,7 @@ private:
 
             if (tokenString) {
                 RpcCredentialsExt_->set_token(TString(tokenString));
-                RpcCredentialsExt_->set_user_ip(PeerAddress_);
+                RpcCredentialsExt_->set_user_ip(GetUserIP());
             }
         }
 
