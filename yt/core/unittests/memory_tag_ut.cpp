@@ -176,7 +176,7 @@ void TestMemoryTaggingInvoker()
     EXPECT_NEAR(controller->GetMemoryUsage(), 128_MB, 1_MB);
 
     controller = nullptr;
-    EXPECT_NEAR(GetMemoryUsageForTag(1), 0, 1_KB);
+    EXPECT_NEAR(GetMemoryUsageForTag(1), 0, 1_MB);
 }
 
 void TestControllersInThreadPool()
