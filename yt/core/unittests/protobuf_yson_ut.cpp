@@ -673,12 +673,13 @@ TEST(TProtobufToYsonTest, Success)
     EXPECT_TRUE(AreNodesEqual(writtenNode, expectedNode));
 }
 
-TEST(TProtobufToYsonTest, CamelCase)
+TEST(TProtobufToYsonTest, Casing)
 {
     NYT::NProto::TCamelCaseStyleMessage message;
     message.set_somefield(1);
     message.set_anotherfield123(2);
     message.set_crazy_field(3);
+    message.set_enumfield(NYT::NProto::TCamelCaseStyleMessage::BLUE);
 
     TEST_PROLOGUE()
     message.SerializeToCodedStream(&codedStream);
@@ -690,6 +691,7 @@ TEST(TProtobufToYsonTest, CamelCase)
             .Item("some_field").Value(1)
             .Item("another_field123").Value(2)
             .Item("crazy_field").Value(3)
+            .Item("enum_field").Value("blue")
         .EndMap();
     EXPECT_TRUE(AreNodesEqual(writtenNode, expectedNode));
 }
