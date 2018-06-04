@@ -46,13 +46,23 @@ using TFieldNumberList = SmallVector<int, TypicalFieldCount>;
 
 namespace {
 
-TString DeriveYsonName(const TString& protobufName)
+bool IsCaseConsistent(const TString& protobufName)
 {
-    YCHECK(!protobufName.empty());
-    if (!isupper(protobufName[0])) {
-        return protobufName;
+    bool hasUpper = false;
+    bool hasLower = false;
+    for (auto ch : protobufName) {
+        if (isupper(ch)) {
+            hasUpper = true;
+        }
+        if (islower(ch)) {
+            hasLower = true;
+        }
     }
+    return !(hasUpper && hasLower);
+}
 
+TString ToUnderscoreCase(const TString& protobufName)
+{
     TStringBuilder builder;
     for (auto ch : protobufName) {
         if (isupper(ch)) {
@@ -65,6 +75,16 @@ TString DeriveYsonName(const TString& protobufName)
         }
     }
     return builder.Flush();
+}
+
+TString DeriveYsonName(const TString& protobufName)
+{
+    YCHECK(!protobufName.empty());
+    if (IsCaseConsistent(protobufName)) {
+        return to_lower(protobufName);
+    } else {
+        return ToUnderscoreCase(protobufName);
+    }
 }
 
 } // namespace
