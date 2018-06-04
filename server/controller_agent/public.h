@@ -44,6 +44,8 @@ using NScheduler::EJobState;
 using NScheduler::TOperationSpecBasePtr;
 using NScheduler::EOperationAlertType;
 
+DECLARE_REFCOUNTED_CLASS(TDataFlowGraph)
+
 DECLARE_REFCOUNTED_STRUCT(TBriefJobStatistics)
 
 DECLARE_REFCOUNTED_STRUCT(IJobSizeConstraints)
@@ -114,8 +116,6 @@ class TBootstrap;
 
 DECLARE_REFCOUNTED_CLASS(TProgressCounter)
 
-class TDataFlowGraph;
-
 class TMemoryTagQueue;
 
 using NScheduler::TIncarnationId;
@@ -142,6 +142,7 @@ DEFINE_ENUM(EScheduleJobFailReason,
     ((UnknownNode)                   (15))
     ((UnknownOperation)              (16))
     ((NoAgentAssigned)               (17))
+    ((TentativeTreeDeclined)         (18))
 );
 
 DEFINE_ENUM(EErrorCode,

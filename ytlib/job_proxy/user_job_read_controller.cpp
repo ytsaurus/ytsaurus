@@ -45,8 +45,7 @@ public:
         TNodeDescriptor nodeDescriptor,
         TClosure onNetworkRelease,
         IUserJobIOFactoryPtr userJobIOFactory,
-        TNullable<TString> udfDirectory,
-        NChunkClient::TTrafficMeterPtr trafficMeter)
+        TNullable<TString> udfDirectory)
         : JobSpecHelper_(std::move(jobSpecHelper))
         , Client_(std::move(client))
         , SerializedInvoker_(CreateSerializedInvoker(std::move(invoker)))
@@ -54,7 +53,6 @@ public:
         , OnNetworkRelease_(onNetworkRelease)
         , UserJobIOFactory_(userJobIOFactory)
         , UdfDirectory_(std::move(udfDirectory))
-        , TrafficMeter_(trafficMeter)
     { }
 
     //! Returns closure that launches data transfer to given async output.
@@ -230,7 +228,7 @@ private:
     void InitializeReader(TNameTablePtr nameTable, const TColumnFilter& columnFilter)
     {
         YCHECK(!Reader_);
-        Reader_ = CreateUserJobIOFactory(JobSpecHelper_, TrafficMeter_)->CreateReader(
+        Reader_ = UserJobIOFactory_->CreateReader(
             Client_,
             NodeDescriptor_,
             OnNetworkRelease_,
@@ -251,7 +249,6 @@ private:
     TNullable<TString> UdfDirectory_;
     std::atomic<bool> Initialized_ = {false};
     std::atomic<bool> Interrupted_ = {false};
-    NChunkClient::TTrafficMeterPtr TrafficMeter_;
 
     NLogging::TLogger Logger;
 };
@@ -314,7 +311,8 @@ IUserJobReadControllerPtr CreateUserJobReadController(
     TNodeDescriptor nodeDescriptor,
     TClosure onNetworkRelease,
     TNullable<TString> udfDirectory,
-    NChunkClient::TTrafficMeterPtr trafficMeter)
+    TClientBlockReadOptions& blockReadOptions,
+    TTrafficMeterPtr trafficMeter)
 {
     if (jobSpecHelper->GetJobType() != EJobType::Vanilla) {
         return New<TUserJobReadController>(
@@ -323,9 +321,8 @@ IUserJobReadControllerPtr CreateUserJobReadController(
             invoker,
             nodeDescriptor,
             onNetworkRelease,
-            CreateUserJobIOFactory(jobSpecHelper, trafficMeter),
-            udfDirectory,
-            trafficMeter);
+            CreateUserJobIOFactory(jobSpecHelper, blockReadOptions, trafficMeter),
+            udfDirectory);
     } else {
         return New<TVanillaUserJobReadController>();
     }

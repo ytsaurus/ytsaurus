@@ -145,7 +145,7 @@ private:
 
         CellTag_ = userObject.CellTag;
         ObjectId_ = userObject.ObjectId;
-        
+
         if (userObject.Type != EObjectType::File) {
             THROW_ERROR_EXCEPTION("Invalid type of %v: expected %Qlv, actual %Qlv",
                 Path_,
@@ -299,9 +299,6 @@ private:
             CellTag_,
             UploadTransaction_->GetId(),
             chunkListId);
-
-        WaitFor(Writer_->Open())
-            .ThrowOnError();
 
         LOG_INFO("File opened");
     }

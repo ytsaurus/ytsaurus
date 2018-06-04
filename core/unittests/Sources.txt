@@ -1,28 +1,29 @@
 SET(YT_SRCS
-  ${CMAKE_CURRENT_LIST_DIR}/callback_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/any_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/arithmetic_formula_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/async_expiring_cache_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/async_rw_lock_ut.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/async_stream_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/async_stream_pipe_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/async_stream_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/async_yson_writer_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/attributes_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/batch_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/bind_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/boolean_formula_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/bus_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/callback_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/checkpointable_stream_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/checksum_ut.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/compression_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/compression_stream_ut.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/count_down_latch_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/compression_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/coroutines_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/count_down_latch_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/crypto_ut.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/digest_ut.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/dnf_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/delayed_executor_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/dense_map_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/digest_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/dnf_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/enum_ut.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/async_expiring_cache_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/finally_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/fls_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/format_ut.cpp
@@ -32,8 +33,8 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/hash_filter_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/heap_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/histogram_ut.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/hyperloglog_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/http_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/hyperloglog_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/intrusive_ptr_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/json_parser_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/json_writer_ut.cpp
@@ -43,10 +44,10 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/memory_tag_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/mpl_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/mpsc_queue_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/net_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/network_address_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/nonblocking_queue_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/nullable_ut.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/net_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/pattern_formatter_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/periodic_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/persistent_queue_ut.cpp
@@ -55,9 +56,9 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/preprocessor_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/process_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/protobuf_yson_ut.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/ring_queue_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/random_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/ref_counted_tracker_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/ring_queue_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/rpc_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/serialize_ut.cpp
@@ -69,23 +70,24 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/subprocess_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/sync_expiring_cache_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/thread_affinity_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/time_formula_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/timer_ut.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/tree_builder_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/tls_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/tools_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/topological_ordering_ut.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/tls_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/tree_builder_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/url_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/variant_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/varint_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/weak_ptr_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/ypath_resolver_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/yson_parser_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/yson_serializable_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/yson_ut.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/ytree_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/yson_writer_ut.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/ypath_resolver_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/ytree_fluent_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/ytree_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/yverify_ut.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/weak_ptr_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/zigzag_ut.cpp
 
   ${CMAKE_CURRENT_LIST_DIR}/proto/protobuf_yson_ut.proto

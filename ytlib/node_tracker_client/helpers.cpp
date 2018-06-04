@@ -2,7 +2,7 @@
 
 #include <yt/ytlib/object_client/helpers.h>
 
-#include <yt/core/misc/boolean_formula.h>
+#include <yt/core/misc/arithmetic_formula.h>
 
 #include <yt/core/ytree/fluent.h>
 #include <yt/core/ytree/yson_serializable.h>
@@ -164,7 +164,7 @@ void ValidateNodeTags(const std::vector<TString>& tags)
 {
     for (const auto& tag : tags) {
         try {
-            ValidateBooleanFormulaVariable(tag);
+            ValidateFormulaVariable(tag);
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Invalid node tag %Qv", tag)
                 << ex;

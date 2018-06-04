@@ -2,7 +2,7 @@ import pytest
 
 from test_dynamic_tables import TestDynamicTablesBase
 
-from yt_env_setup import YTEnvSetup
+from yt_env_setup import YTEnvSetup, skip_if_rpc_driver_backend
 from yt_commands import *
 from time import sleep
 from yt.yson import YsonEntity
@@ -59,6 +59,11 @@ class TestReplicatedDynamicTables(TestDynamicTablesBase):
 
     EXPRESSION_SCHEMA = [
         {"name": "hash", "type": "int64", "sort_order": "ascending", "expression": "key % 10"},
+        {"name": "key", "type": "int64", "sort_order": "ascending"},
+        {"name": "value", "type": "int64"},
+    ]
+    EXPRESSIONLESS_SCHEMA = [
+        {"name": "hash", "type": "int64", "sort_order": "ascending"},
         {"name": "key", "type": "int64", "sort_order": "ascending"},
         {"name": "value", "type": "int64"},
     ]
@@ -382,6 +387,7 @@ class TestReplicatedDynamicTables(TestDynamicTablesBase):
         delete_rows("//tmp/t", [{"key": 1}], require_sync_replica=False)
         wait(lambda: select_rows("* from [//tmp/r]", driver=self.replica_driver) == [])
 
+    @skip_if_rpc_driver_backend
     def test_async_replication_ordered(self):
         self._create_cells()
         self._create_replicated_table("//tmp/t", self.SIMPLE_SCHEMA_ORDERED)
@@ -684,6 +690,30 @@ class TestReplicatedDynamicTables(TestDynamicTablesBase):
             ([_maybe_add_system_fields({"key": 2, "value1": "test", "value2": YsonEntity()})] if with_data else \
             []))
 
+    @pytest.mark.parametrize("schema", [SIMPLE_SCHEMA, SIMPLE_SCHEMA_ORDERED])
+    def test_start_replication_row_indexes(self, schema):
+        self._create_cells()
+        self._create_replicated_table("//tmp/t", schema)
+
+        rows = [{"key": i, "value1": str(i)} for i in xrange(3)]
+
+        for i in xrange(2):
+            insert_rows("//tmp/t", [rows[i]], require_sync_replica=False)
+            self.sync_flush_table("//tmp/t")
+
+        insert_rows("//tmp/t", [rows[2]], require_sync_replica=False)
+
+        for i in xrange(4):
+            replica_path = "//tmp/r{0}".format(i)
+            replica_id = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, replica_path, attributes={
+                "start_replication_row_indexes": [i]
+            })
+            self._create_replica_table(replica_path, replica_id, schema)
+            self.sync_enable_table_replica(replica_id)
+
+        for i in xrange(4):
+            wait(lambda: select_rows("key, value1 from [//tmp/r{0}]".format(i), driver=self.replica_driver) == rows[i:])
+
     @pytest.mark.parametrize("ttl, chunk_count, trimmed_row_count, mode",
         [a + b
             for a in [(0, 1, 1), (60000, 2, 0)]
@@ -784,10 +814,12 @@ class TestReplicatedDynamicTables(TestDynamicTablesBase):
         self.sync_enable_table_replica(replica_id)
         wait(lambda: get_lag_time() == 0)
 
+    @pytest.mark.parametrize("only_replica", [True, False])
     @pytest.mark.parametrize("dynamic", [True, False])
-    def test_expression_replication(self, dynamic):
+    def test_expression_replication(self, dynamic, only_replica):
         self._create_cells()
-        self._create_replicated_table("//tmp/t", schema=self.EXPRESSION_SCHEMA)
+        replicated_schema = self.EXPRESSIONLESS_SCHEMA if only_replica else self.EXPRESSION_SCHEMA
+        self._create_replicated_table("//tmp/t", schema=replicated_schema)
         replica_id = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r")
         self._create_replica_table("//tmp/r", replica_id, schema=self.EXPRESSION_SCHEMA)
 
@@ -976,3 +1008,10 @@ class TestReplicatedDynamicTables(TestDynamicTablesBase):
 
 class TestReplicatedDynamicTablesMulticell(TestReplicatedDynamicTables):
     NUM_SECONDARY_MASTER_CELLS = 2
+
+##################################################################
+
+class TestReplicatedDynamicTablesRpcProxy(TestReplicatedDynamicTables):
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True
+

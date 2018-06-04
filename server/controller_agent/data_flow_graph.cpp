@@ -5,20 +5,34 @@
 
 #include <yt/server/chunk_pools/chunk_pool.h>
 
+#include <yt/server/table_server/virtual.h>
+
 #include <yt/ytlib/chunk_client/data_statistics.h>
+#include <yt/ytlib/chunk_client/public.h>
 
 #include <yt/core/ytree/fluent.h>
+#include <yt/core/ytree/virtual.h>
 
 namespace NYT {
 namespace NControllerAgent {
 
 using namespace NYTree;
 using namespace NChunkClient::NProto;
+using namespace NChunkClient;
+using namespace NTableServer;
+using namespace NYson;
+using namespace NNodeTrackerClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+using TVertexDescriptor = TString;
+
 TString TDataFlowGraph::SourceDescriptor("source");
 TString TDataFlowGraph::SinkDescriptor("sink");
+
+DECLARE_REFCOUNTED_CLASS(TVertex)
+DECLARE_REFCOUNTED_CLASS(TEdge)
+DECLARE_REFCOUNTED_CLASS(TLivePreview)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -36,6 +50,7 @@ void TEdgeDescriptor::Persist(const TPersistenceContext& context)
     Persist(context, CellTag);
     Persist(context, ImmediatelyUnstageChunkLists);
     Persist(context, IsFinalOutput);
+    Persist(context, LivePreviewIndex);
 }
 
 TEdgeDescriptor& TEdgeDescriptor::operator =(const TEdgeDescriptor& other)
@@ -50,72 +65,374 @@ TEdgeDescriptor& TEdgeDescriptor::operator =(const TEdgeDescriptor& other)
     CellTag = other.CellTag;
     ImmediatelyUnstageChunkLists = other.ImmediatelyUnstageChunkLists;
     IsFinalOutput = other.IsFinalOutput;
+    LivePreviewIndex = other.LivePreviewIndex;
 
     return *this;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TDataFlowGraph::BuildYson(TFluentMap fluent) const
+class TLivePreview
+    : public TRefCounted
 {
-    auto topologicalOrdering = GetTopologicalOrdering();
-    fluent
-        .Item("vertices").BeginMap()
-            .DoFor(topologicalOrdering, [&] (TFluentMap fluent, const TVertexDescriptor& vertexDescriptor) {
-                auto it = JobCounters_.find(vertexDescriptor);
-                if (it != JobCounters_.end()) {
-                    fluent
-                        .Item(vertexDescriptor).BeginMap()
-                            .Item("job_counter").Value(JobCounters_.at(vertexDescriptor))
-                            .Item("job_type").Value(JobTypes_.at(vertexDescriptor))
-                        .EndMap();
-                }
-            })
-            .Item("total").BeginMap()
-                .Item("job_counter").Value(TotalJobCounter_)
-            .EndMap()
-        .EndMap()
-        .Item("edges")
-            .DoMapFor(topologicalOrdering, [&] (TFluentMap fluent, const TVertexDescriptor& from) {
-                auto it = Flow_.find(from);
-                if (it != Flow_.end()) {
-                    fluent.Item(from)
-                        .DoMapFor(it->second, [&] (TFluentMap fluent, const TFlowMap::value_type::second_type::value_type& pair) {
-                            auto to = pair.first;
-                            const auto& flow = pair.second;
-                            fluent
-                                .Item(to).BeginMap()
-                                    .Item("statistics").Value(flow)
-                                .EndMap();
-                        });
-                }
-            })
-        .Item("topological_ordering").List(topologicalOrdering);
-}
+public:
+    DEFINE_BYVAL_RO_PROPERTY(NYTree::IYPathServicePtr, Service);
+    DEFINE_BYREF_RW_PROPERTY(THashSet<NChunkClient::TInputChunkPtr>, Chunks);
 
-const std::vector<TDataFlowGraph::TVertexDescriptor>& TDataFlowGraph::GetTopologicalOrdering() const
+public:
+    TLivePreview() = default;
+
+    explicit TLivePreview(TNodeDirectoryPtr nodeDirectory)
+        : NodeDirectory_(std::move(nodeDirectory))
+    {
+        Initialize();
+    }
+
+    void Persist(const TPersistenceContext& context)
+    {
+        using NYT::Persist;
+
+        Persist<TSetSerializer<TDefaultSerializer, TUnsortedTag>>(context, Chunks_);
+        Persist(context, NodeDirectory_);
+
+        if (context.IsLoad()) {
+            Initialize();
+        }
+    }
+
+private:
+    TNodeDirectoryPtr NodeDirectory_;
+
+    void Initialize()
+    {
+        Service_ = New<TVirtualStaticTable>(Chunks_, NodeDirectory_);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TLivePreview)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TEdge
+    : public TRefCounted
 {
-    return TopologicalOrdering_.GetOrdering();
+public:
+    DEFINE_BYVAL_RO_PROPERTY(IYPathServicePtr, Service);
+    DEFINE_BYREF_RW_PROPERTY(TDataStatistics, Statistics);
+
+public:
+    TEdge()
+    {
+        Initialize();
+    }
+
+    void Persist(const TPersistenceContext& context)
+    {
+        using NYT::Persist;
+
+        Persist(context, Statistics_);
+
+        if (context.IsLoad()) {
+            Initialize();
+        }
+    }
+
+private:
+    void Initialize()
+    {
+        auto service = New<TCompositeMapService>()
+            ->AddChild("statistics", IYPathService::FromProducer(BIND([weakThis = MakeWeak(this)] (IYsonConsumer* consumer) {
+                if (auto this_ = weakThis.Lock()) {
+                    BuildYsonFluently(consumer)
+                        .Value(this_->Statistics_);
+                }
+            })));
+        service->SetOpaque(false);
+        Service_ = std::move(service);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TEdge)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TVertex
+    : public TRefCounted
+{
+public:
+    DEFINE_BYVAL_RO_PROPERTY(NYTree::IYPathServicePtr, Service);
+    DEFINE_BYREF_RW_PROPERTY(TProgressCounterPtr, JobCounter, New<TProgressCounter>(0));
+    DEFINE_BYVAL_RW_PROPERTY(EJobType, JobType);
+
+    using TLivePreviewList = std::vector<TLivePreviewPtr>;
+    DEFINE_BYVAL_RO_PROPERTY(TLivePreviewList, LivePreviews);
+
+    using TEdgeMap = THashMap<TVertexDescriptor, TEdgePtr>;
+    DEFINE_BYREF_RO_PROPERTY(TEdgeMap, Edges);
+
+public:
+    TVertex() = default;
+
+    explicit TVertex(TNodeDirectoryPtr nodeDirectory)
+        : NodeDirectory_(std::move(nodeDirectory))
+    {
+        Initialize();
+    }
+
+    const TEdgePtr& GetOrRegisterEdge(const TVertexDescriptor& to)
+    {
+        auto it = Edges_.find(to);
+        if (it == Edges_.end()) {
+            auto& edge = Edges_[to];
+            edge = New<TEdge>();
+            return edge;
+        } else {
+            return it->second;
+        }
+    }
+
+    void Persist(const TPersistenceContext& context)
+    {
+        using NYT::Persist;
+
+        Persist(context, JobCounter_);
+        Persist(context, JobType_);
+        Persist(context, LivePreviews_);
+        Persist(context, NodeDirectory_);
+
+        if (context.IsLoad()) {
+            Initialize();
+        }
+    }
+
+    void RegisterLivePreviewChunk(int index, TInputChunkPtr chunk)
+    {
+        if (index >= LivePreviews_.size()) {
+            LivePreviews_.resize(index + 1);
+        }
+        if (!LivePreviews_[index]) {
+            LivePreviews_[index] = New<TLivePreview>(NodeDirectory_);
+        }
+
+        YCHECK(LivePreviews_[index]->Chunks().insert(std::move(chunk)).second);
+    }
+
+    void UnregisterLivePreviewChunk(int index, TInputChunkPtr chunk)
+    {
+        YCHECK(0 <= index && index < LivePreviews_.size());
+        YCHECK(LivePreviews_[index]);
+
+        YCHECK(LivePreviews_[index]->Chunks().erase(std::move(chunk)));
+    }
+
+private:
+    TNodeDirectoryPtr NodeDirectory_;
+
+    void Initialize()
+    {
+        using TEdgeMapService = NYTree::TCollectionBoundMapService<TEdgeMap>;
+        auto edgeMapService = New<TEdgeMapService>(Edges_);
+        edgeMapService->SetOpaque(false);
+
+        using TLivePreviewListService = NYTree::TCollectionBoundListService<TLivePreviewList>;
+        auto livePreviewService = New<TLivePreviewListService>(LivePreviews_);
+
+        auto service = New<TCompositeMapService>();
+        service->AddChild("edges", edgeMapService);
+        service->AddChild("live_previews", livePreviewService);
+        service->SetOpaque(false);
+
+        Service_ = std::move(service);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TVertex)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TDataFlowGraph::TImpl
+    : public TRefCounted
+{
+public:
+    TImpl() = default;
+
+    TImpl(TNodeDirectoryPtr nodeDirectory)
+        : NodeDirectory_(std::move(nodeDirectory))
+    {
+        Initialize();
+    }
+
+    IYPathServicePtr GetService() const
+    {
+        return Service_;
+    }
+
+    const std::vector<TVertexDescriptor>& GetTopologicalOrdering() const
+    {
+        return TopologicalOrdering_.GetOrdering();
+    }
+
+    void Persist(const TPersistenceContext& context)
+    {
+        using NYT::Persist;
+
+        Persist(context, TotalJobCounter_);
+        Persist(context, Vertices_);
+        Persist(context, TopologicalOrdering_);
+        Persist(context, NodeDirectory_);
+
+        if (context.IsLoad()) {
+            Initialize();
+        }
+    }
+
+    void UpdateEdgeStatistics(
+        const TDataFlowGraph::TVertexDescriptor& from,
+        const TDataFlowGraph::TVertexDescriptor& to,
+        const TDataStatistics& statistics)
+    {
+        TopologicalOrdering_.AddEdge(from, to);
+        const auto& edge = GetOrRegisterEdge(from, to);
+        edge->Statistics() += statistics;
+    }
+
+    void RegisterCounter(
+        const TVertexDescriptor& descriptor,
+        const TProgressCounterPtr& counter,
+        EJobType jobType)
+    {
+        const auto& vertex = GetOrRegisterVertex(descriptor);
+        vertex->SetJobType(jobType);
+        counter->SetParent(vertex->JobCounter());
+    }
+
+    void RegisterLivePreviewChunk(const TVertexDescriptor& descriptor, int index, TInputChunkPtr chunk)
+    {
+        const auto& vertex = GetOrRegisterVertex(descriptor);
+        vertex->RegisterLivePreviewChunk(index, std::move(chunk));
+    }
+
+    void UnregisterLivePreviewChunk(const TVertexDescriptor& descriptor, int index, TInputChunkPtr chunk)
+    {
+        const auto& vertex = GetOrRegisterVertex(descriptor);
+        vertex->UnregisterLivePreviewChunk(index, std::move(chunk));
+    }
+
+    void BuildLegacyYson(TFluentMap fluent) const
+    {
+        auto topologicalOrdering = GetTopologicalOrdering();
+        fluent
+            .Item("vertices").BeginMap()
+                .DoFor(topologicalOrdering, [&] (TFluentMap fluent, const TVertexDescriptor& vertexDescriptor) {
+                    auto it = Vertices_.find(vertexDescriptor);
+                    if (it != Vertices_.end()) {
+                        fluent
+                            .Item(vertexDescriptor).BeginMap()
+                                .Item("job_counter").Value(it->second->JobCounter())
+                                .Item("job_type").Value(it->second->GetJobType())
+                            .EndMap();
+                    }
+                })
+                .Item("total").BeginMap()
+                    .Item("job_counter").Value(TotalJobCounter_)
+                .EndMap()
+            .EndMap()
+            .Item("edges")
+                .DoMapFor(topologicalOrdering, [&] (TFluentMap fluent, const TVertexDescriptor& from) {
+                    auto it = Vertices_.find(from);
+                    if (it != Vertices_.end()) {
+                        fluent.Item(from)
+                            .DoMapFor(it->second->Edges(), [&] (TFluentMap fluent, const auto& pair) {
+                                auto to = pair.first;
+                                const auto& edge = pair.second;
+                                fluent
+                                    .Item(to).BeginMap()
+                                        .Item("statistics").Value(edge->Statistics())
+                                    .EndMap();
+                            });
+                    }
+                })
+            .Item("topological_ordering").List(topologicalOrdering);
+    }
+
+private:
+    using TVertexMap = THashMap<TVertexDescriptor, TVertexPtr>;
+    TVertexMap Vertices_;
+
+    TProgressCounterPtr TotalJobCounter_ = New<TProgressCounter>(0);
+
+    TIncrementalTopologicalOrdering<TVertexDescriptor> TopologicalOrdering_;
+
+    TNodeDirectoryPtr NodeDirectory_;
+
+    NYTree::IYPathServicePtr Service_;
+
+    void Initialize()
+    {
+        using TVertexMapService = TCollectionBoundMapService<TVertexMap>;
+
+        auto vertexMapService = New<TVertexMapService>(Vertices_);
+        vertexMapService->SetOpaque(false);
+        auto service = New<TCompositeMapService>()
+            ->AddChild("vertices", std::move(vertexMapService))
+            ->AddChild("topological_ordering", IYPathService::FromProducer(BIND([weakThis = MakeWeak(this)] (IYsonConsumer* consumer) {
+                if (auto this_ = weakThis.Lock()) {
+                    BuildYsonFluently(consumer)
+                        .List(this_->GetTopologicalOrdering());
+                }
+            })));
+        service->SetOpaque(false);
+        Service_ = std::move(service);
+    }
+
+    const TVertexPtr& GetOrRegisterVertex(const TVertexDescriptor& descriptor)
+    {
+        auto it = Vertices_.find(descriptor);
+        if (it == Vertices_.end()) {
+            auto& vertex = Vertices_[descriptor];
+            vertex = New<TVertex>(NodeDirectory_);
+            vertex->JobCounter()->SetParent(TotalJobCounter_);
+            return vertex;
+        } else {
+            return it->second;
+        }
+    }
+
+    const TEdgePtr& GetOrRegisterEdge(const TVertexDescriptor& from, const TVertexDescriptor& to)
+    {
+        auto& vertex = GetOrRegisterVertex(from);
+        return vertex->GetOrRegisterEdge(to);
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+TDataFlowGraph::TDataFlowGraph()
+    : Impl_(New<TImpl>())
+{ }
+
+TDataFlowGraph::TDataFlowGraph(TNodeDirectoryPtr nodeDirectory)
+    : Impl_(New<TImpl>(std::move(nodeDirectory)))
+{ }
+
+TDataFlowGraph::~TDataFlowGraph() = default;
+
+IYPathServicePtr TDataFlowGraph::GetService() const
+{
+    return Impl_->GetService();
 }
 
 void TDataFlowGraph::Persist(const TPersistenceContext& context)
 {
-    using NYT::Persist;
-    Persist(context, JobCounters_);
-    Persist(context, JobTypes_);
-    Persist(context, TotalJobCounter_);
-    Persist(context, Flow_);
-    Persist(context, TopologicalOrdering_);
+    Impl_->Persist(context);
 }
 
-void TDataFlowGraph::RegisterFlow(
-    const TDataFlowGraph::TVertexDescriptor& from,
-    const TDataFlowGraph::TVertexDescriptor& to,
-    const TDataStatistics& statistics)
+void TDataFlowGraph::UpdateEdgeStatistics(
+    const TVertexDescriptor& from,
+    const TVertexDescriptor& to,
+    const NChunkClient::NProto::TDataStatistics& statistics)
 {
-    TopologicalOrdering_.AddEdge(from, to);
-    auto& flow = Flow_[from][to];
-    flow += statistics;
+    Impl_->UpdateEdgeStatistics(from, to, statistics);
 }
 
 void TDataFlowGraph::RegisterCounter(
@@ -123,21 +440,25 @@ void TDataFlowGraph::RegisterCounter(
     const TProgressCounterPtr& counter,
     EJobType jobType)
 {
-    auto& vertexCounter = JobCounters_[vertex];
-    if (!vertexCounter) {
-        vertexCounter = New<TProgressCounter>(0);
-        vertexCounter->SetParent(TotalJobCounter_);
-        JobTypes_[vertex] = jobType;
-    }
-    counter->SetParent(vertexCounter);
-
-    // Ensure that job type for each vertex is unique.
-    auto it = JobTypes_.find(vertex);
-    YCHECK(it != JobTypes_.end());
-    YCHECK(it->second == jobType);
+    Impl_->RegisterCounter(vertex, counter, jobType);
 }
 
-////////////////////////////////////////////////////////////////////////////////
+void TDataFlowGraph::RegisterLivePreviewChunk(const TVertexDescriptor& descriptor, int index, TInputChunkPtr chunk)
+{
+    Impl_->RegisterLivePreviewChunk(descriptor, index, std::move(chunk));
+}
+
+void TDataFlowGraph::UnregisterLivePreviewChunk(const TVertexDescriptor& descriptor, int index, TInputChunkPtr chunk)
+{
+    Impl_->UnregisterLivePreviewChunk(descriptor, index, std::move(chunk));
+}
+
+void TDataFlowGraph::BuildLegacyYson(TFluentMap fluent) const
+{
+    Impl_->BuildLegacyYson(fluent);
+}
+
+/////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NControllerAgent
 } // namespace NYT

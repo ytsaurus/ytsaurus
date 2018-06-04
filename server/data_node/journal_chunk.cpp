@@ -11,6 +11,7 @@
 #include <yt/server/hydra/sync_file_changelog.h>
 
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
 #include <yt/ytlib/chunk_client/ref_counted_proto.h>
 
 #include <yt/core/concurrency/scheduler.h>
@@ -33,7 +34,7 @@ using namespace NProfiling;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = DataNodeLogger;
-static TSimpleCounter DiskJournalReadByteCounter("/disk_journal_read_bytes");
+static TMonotonicCounter DiskJournalReadByteCounter("/disk_journal_read_bytes");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -82,7 +83,7 @@ TChunkInfo TJournalChunk::GetInfo() const
 }
 
 TFuture<TRefCountedChunkMetaPtr> TJournalChunk::ReadMeta(
-    const TWorkloadDescriptor& /*workloadDescriptor*/,
+    const TBlockReadOptions& /*options*/,
     const TNullable<std::vector<int>>& extensionTags)
 {
     VERIFY_THREAD_AFFINITY_ANY();
@@ -138,25 +139,14 @@ TFuture<std::vector<TBlock>> TJournalChunk::ReadBlockRange(
     }
 
     auto promise = NewPromise<std::vector<TBlock>>();
-
-    auto callback = BIND(
-        &TJournalChunk::DoReadBlockRange,
-        MakeStrong(this),
-        firstBlockIndex,
-        blockCount,
-        promise);
-
-    auto priority = options.WorkloadDescriptor.GetPriority();
-    Location_
-        ->GetDataReadInvoker()
-        ->Invoke(callback, priority);
-
+    TJournalChunk::DoReadBlockRange(firstBlockIndex, blockCount, options.ChunkReaderStatistics, promise);
     return promise;
 }
 
 void TJournalChunk::DoReadBlockRange(
     int firstBlockIndex,
     int blockCount,
+    NChunkClient::TChunkReaderStatisticsPtr chunkReaderStatistics,
     TPromise<std::vector<TBlock>> promise)
 {
     auto config = Bootstrap_->GetConfig()->DataNode;
@@ -193,6 +183,7 @@ void TJournalChunk::DoReadBlockRange(
         const auto& blocks = blocksOrError.Value();
         int blocksRead = static_cast<int>(blocks.size());
         i64 bytesRead = GetByteSize(blocks);
+        chunkReaderStatistics->DataBytesReadFromDisk += bytesRead;
 
         LOG_DEBUG("Finished reading journal chunk blocks (BlockIds: %v:%v-%v, LocationId: %v, BlocksReadActually: %v, BytesReadActually: %v)",
             Id_,

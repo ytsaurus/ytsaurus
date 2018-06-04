@@ -112,7 +112,10 @@ inline void TChunk::RefUsedRequisitions(TChunkRequisitionRegistry* registry) con
         return;
     }
 
-    for (const auto& data : ExportDataList_) {
+    YCHECK(ExportDataList_);
+
+    for (auto i = 0; i < NObjectClient::MaxSecondaryMasterCells; ++i) {
+        const auto& data = ExportDataList_[i];
         if (data.RefCounter != 0) {
             registry->Ref(data.ChunkRequisitionIndex);
         }
@@ -130,7 +133,10 @@ inline void TChunk::UnrefUsedRequisitions(
         return;
     }
 
-    for (const auto& data : ExportDataList_) {
+    YCHECK(ExportDataList_);
+
+    for (auto i = 0; i < NObjectClient::MaxSecondaryMasterCells; ++i) {
+        const auto& data = ExportDataList_[i];
         if (data.RefCounter != 0) {
             registry->Unref(data.ChunkRequisitionIndex, objectManager);
         }
@@ -156,6 +162,7 @@ inline void TChunk::SetLocalRequisitionIndex(
 
 inline TChunkRequisitionIndex TChunk::GetExternalRequisitionIndex(int cellIndex) const
 {
+    YCHECK(ExportDataList_);
     const auto& data = ExportDataList_[cellIndex];
     YCHECK(data.RefCounter != 0);
     return data.ChunkRequisitionIndex;
@@ -167,6 +174,7 @@ inline void TChunk::SetExternalRequisitionIndex(
     TChunkRequisitionRegistry* registry,
     const NObjectServer::TObjectManagerPtr& objectManager)
 {
+    YCHECK(ExportDataList_);
     auto& data = ExportDataList_[cellIndex];
     YCHECK(data.RefCounter != 0);
     registry->Unref(data.ChunkRequisitionIndex, objectManager);
@@ -205,7 +213,10 @@ inline TChunkRequisition TChunk::ComputeAggregatedRequisition(const TChunkRequis
         return result;
     }
 
-    for (const auto& data : ExportDataList_) {
+    YCHECK(ExportDataList_);
+
+    for (auto i = 0; i < NObjectClient::MaxSecondaryMasterCells; ++i) {
+        const auto& data = ExportDataList_[i];
         if (data.RefCounter != 0) {
             result |= registry->GetRequisition(data.ChunkRequisitionIndex);
         }

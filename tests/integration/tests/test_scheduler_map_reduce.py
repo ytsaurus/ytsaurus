@@ -310,7 +310,7 @@ print "x={0}\ty={1}".format(x, y)
 
         time.sleep(2)
 
-        operation_path = get_new_operation_cypress_path(op.id)
+        operation_path = get_operation_cypress_path(op.id)
         scheduler_transaction_id = get(operation_path + "/@async_scheduler_transaction_id")
         assert exists(operation_path + "/intermediate", tx=scheduler_transaction_id)
 
@@ -319,6 +319,34 @@ print "x={0}\ty={1}".format(x, y)
 
         op.track()
         assert read_table("//tmp/t2") == [{"foo": "bar"}]
+
+    def test_intermediate_new_live_preview(self):
+        create_user("u")
+        acl = [make_ace("allow", "u", "write")]
+
+        create("table", "//tmp/t1")
+        write_table("//tmp/t1", {"foo": "bar"})
+        create("table", "//tmp/t2")
+
+        op = map_reduce(dont_track=True, mapper_command="cat", reducer_command=with_breakpoint("cat; BREAKPOINT"),
+                        in_="//tmp/t1", out="//tmp/t2",
+                        sort_by=["foo"], spec={"intermediate_data_acl": acl})
+
+        wait(lambda: op.get_job_count("completed") == 1)
+
+        operation_path = op.get_path()
+        get(operation_path + "/controller_orchid/data_flow_graph/vertices")
+        intermediate_live_data = read_table(operation_path + "/controller_orchid/data_flow_graph/vertices/partition_map/live_previews/0")
+
+        intermediate_acl = get(operation_path + "/intermediate_data_access/@acl")
+        assert acl == intermediate_acl
+
+        release_breakpoint()
+
+        op.track()
+        assert intermediate_live_data == [{"foo": "bar"}]
+        assert read_table("//tmp/t2") == [{"foo": "bar"}]
+
 
     def test_incorrect_intermediate_data_acl(self):
         create_user("u")
@@ -343,7 +371,7 @@ print "x={0}\ty={1}".format(x, y)
                         in_="//tmp/t1", out="//tmp/t2",
                         sort_by=["foo"], spec={"intermediate_compression_codec": "brotli_3"})
         time.sleep(1)
-        operation_path = get_new_operation_cypress_path(op.id)
+        operation_path = get_operation_cypress_path(op.id)
         async_transaction_id = get(operation_path + "/@async_scheduler_transaction_id")
         assert "brotli_3" == get(operation_path + "/intermediate/@compression_codec", tx=async_transaction_id)
         op.abort()
@@ -493,7 +521,7 @@ print "x={0}\ty={1}".format(x, y)
 
         events_on_fs().wait_event("reducer_started", timeout=datetime.timedelta(1000))
 
-        job_ids = ls("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op.id))
+        job_ids = list(op.get_running_jobs())
         assert len(job_ids) == 1
         job_id = job_ids[0]
 

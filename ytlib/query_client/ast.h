@@ -22,6 +22,7 @@ DECLARE_REFCOUNTED_STRUCT(TFunctionExpression)
 DECLARE_REFCOUNTED_STRUCT(TUnaryOpExpression)
 DECLARE_REFCOUNTED_STRUCT(TBinaryOpExpression)
 DECLARE_REFCOUNTED_STRUCT(TInExpression)
+DECLARE_REFCOUNTED_STRUCT(TBetweenExpression)
 DECLARE_REFCOUNTED_STRUCT(TTransformExpression)
 
 using TIdentifierList = std::vector<TReferenceExpressionPtr>;
@@ -46,6 +47,7 @@ using TLiteralValue = TVariant<
 using TLiteralValueList = std::vector<TLiteralValue>;
 using TLiteralValueTuple = std::vector<TLiteralValue>;
 using TLiteralValueTupleList = std::vector<TLiteralValueTuple>;
+using TLiteralValueRangeList = std::vector<std::pair<TLiteralValueTuple, TLiteralValueTuple>>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -255,6 +257,26 @@ struct TInExpression
 };
 
 DEFINE_REFCOUNTED_TYPE(TInExpression)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TBetweenExpression
+    : public TExpression
+{
+    TBetweenExpression(
+        const TSourceLocation& sourceLocation,
+        TExpressionList expression,
+        const TLiteralValueRangeList& values)
+        : TExpression(sourceLocation)
+        , Expr(std::move(expression))
+        , Values(values)
+    { }
+
+    TExpressionList Expr;
+    TLiteralValueRangeList Values;
+};
+
+DEFINE_REFCOUNTED_TYPE(TBetweenExpression)
 
 ////////////////////////////////////////////////////////////////////////////////
 

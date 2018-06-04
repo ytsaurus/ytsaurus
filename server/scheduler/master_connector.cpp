@@ -972,7 +972,11 @@ private:
                 EMasterChannelKind::Follower,
                 PrimaryMasterCellTag);
 
-            auto operations = FetchOperationsFromCypressForCleaner(OperationIdsToArchive_, createBatchRequest);
+            auto operations = FetchOperationsFromCypressForCleaner(
+                OperationIdsToArchive_,
+                createBatchRequest,
+                Owner_->Config_->OperationsCleaner->FetchBatchSize);
+
             for (auto& operation : operations) {
                 operationsCleaner->SubmitForArchivation(std::move(operation));
             }
@@ -1325,7 +1329,8 @@ private:
             auto paths = GetOperationPaths(operation->GetId(), operation->GetEnableCompatibleStorageMode());
             for (const auto& operationPath : paths) {
                 // Set operation acl.
-                {
+                if (operation->GetShouldFlushAcl()) {
+                    operation->SetShouldFlushAcl(false);
                     auto aclBatchReq = StartObjectBatchRequest();
                     auto req = TYPathProxy::Set(operationPath + "/@acl");
                     req->set_value(BuildYsonStringFluently()
@@ -1410,7 +1415,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        if (!update->Operation->GetShouldFlush()) {
+        if (!update->Operation->GetShouldFlush() && !update->Operation->GetShouldFlushAcl()) {
             return {};
         }
 

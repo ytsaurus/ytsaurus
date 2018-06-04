@@ -1,7 +1,7 @@
 #include "job_satellite_connection.h"
 #include "private.h"
 
-#include <yt/core/bus/config.h>
+#include <yt/core/bus/tcp/config.h>
 
 #include <yt/core/misc/fs.h>
 

@@ -400,17 +400,41 @@ public:
         LOG_DEBUG("Operation registered (OperationId: %v)", operationId);
     }
 
-    void UnregisterOperation(const TOperationPtr& operation)
+    void DoDisposeAndUnregisterOperation(const TOperationId& operationId)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(Connected_);
 
+        auto operation = GetOperationOrThrow(operationId);
+        const auto& controller = operation->GetController();
+        if (controller) {
+            WaitFor(BIND(&IOperationControllerSchedulerHost::Dispose, controller)
+                .AsyncVia(controller->GetInvoker())
+                .Run())
+                .ThrowOnError();
+        }
+
+        UnregisterOperation(operationId);
+    }
+
+    TFuture<void> DisposeAndUnregisterOperation(const TOperationId& operationId)
+    {
+        return BIND(&TImpl::DoDisposeAndUnregisterOperation, MakeStrong(this), operationId)
+            .AsyncVia(CancelableControlInvoker_)
+            .Run();
+    }
+
+    void UnregisterOperation(const TOperationId& operationId)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+        YCHECK(Connected_);
+
+        auto operation = GetOperationOrThrow(operationId);
         const auto& controller = operation->GetController();
         if (controller) {
             controller->Cancel();
         }
 
-        auto operationId = operation->GetId();
         YCHECK(IdToOperation_.erase(operationId) == 1);
 
         MasterConnector_->UnregisterOperation(operationId);
@@ -515,24 +539,6 @@ public:
             .Run();
     }
 
-    TFuture<void> DisposeOperation(const TOperationPtr& operation)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(Connected_);
-
-        const auto& controller = operation->GetController();
-        if (!controller) {
-            LOG_DEBUG("No controller to dispose (OperationId: %v)",
-                operation->GetId());
-            return VoidFuture;
-        }
-
-        return BIND(&IOperationControllerSchedulerHost::Dispose, controller)
-            .AsyncVia(controller->GetInvoker())
-            .Run();
-    }
-
-
     TFuture<std::vector<TErrorOr<TSharedRef>>> ExtractJobSpecs(const std::vector<TJobSpecRequest>& requests)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -569,7 +575,8 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(Connected_);
 
-        auto controller = GetOperationOrThrow(operationId)->GetController();
+        auto operation = GetOperationOrThrow(operationId);
+        auto controller = operation->GetController();
         return BIND(&IOperationController::BuildOperationInfo, controller)
             .AsyncVia(controller->GetCancelableInvoker())
             .Run();
@@ -582,7 +589,8 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(Connected_);
 
-        auto controller = GetOperationOrThrow(operationId)->GetController();
+        auto operation = GetOperationOrThrow(operationId);
+        auto controller = operation->GetController();
         return BIND(&IOperationController::BuildJobYson, controller)
             .AsyncVia(controller->GetCancelableInvoker())
             .Run(jobId, /* outputStatistics */ true);
@@ -613,6 +621,23 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         return JobSpecSliceThrottler_;
+    }
+
+    void ValidateOperationPermission(
+        const TString& user,
+        const TOperationId& operationId,
+        EPermission permission,
+        const TString& subnodePath = "")
+    {
+        NScheduler::ValidateOperationPermission(
+            user,
+            operationId,
+            Bootstrap_->GetMasterClient(),
+            permission,
+            Logger,
+            subnodePath);
+
+        ValidateConnected();
     }
 
     DEFINE_SIGNAL(void(), SchedulerConnecting);
@@ -886,6 +911,9 @@ private:
                     case EAgentToSchedulerOperationEventType::Suspended:
                         ToProto(protoEvent->mutable_error(), event.Error);
                         break;
+                    case EAgentToSchedulerOperationEventType::BannedInTentativeTree:
+                        ToProto(protoEvent->mutable_tentative_tree_id(), event.TentativeTreeId);
+                        break;
                     default:
                         Y_UNREACHABLE();
                 }
@@ -907,6 +935,9 @@ private:
                 }
                 if (event.ArchiveStderr) {
                     protoEvent->set_archive_stderr(event.ArchiveStderr.Get());
+                }
+                if (event.ArchiveFailContext) {
+                    protoEvent->set_archive_fail_context(event.ArchiveFailContext.Get());
                 }
             });
 
@@ -1054,7 +1085,7 @@ private:
                     operationId);
                 continue;
             }
-            UnregisterOperation(operation);
+            UnregisterOperation(operation->GetId());
         }
 
         ConfirmHeartbeatRequest(preparedRequest);
@@ -1286,11 +1317,16 @@ private:
 
         virtual IYPathServicePtr FindItemService(TStringBuf key) const override
         {
+            if (!ControllerAgent_->IsConnected()) {
+                return nullptr;
+            }
+
             auto operationId = TOperationId::FromString(key);
             auto operation = ControllerAgent_->FindOperation(operationId);
             if (!operation) {
                 return nullptr;
             }
+
             return operation->GetController()->GetOrchid();
         }
 
@@ -1425,6 +1461,11 @@ void TControllerAgent::RegisterOperation(const NProto::TOperationDescriptor& des
     Impl_->RegisterOperation(descriptor);
 }
 
+TFuture<void> TControllerAgent::DisposeAndUnregisterOperation(const TOperationId& operationId)
+{
+    return Impl_->DisposeAndUnregisterOperation(operationId);
+}
+
 TFuture<TOperationControllerInitializationResult> TControllerAgent::InitializeOperation(
     const TOperationPtr& operation,
     const TNullable<TControllerTransactions>& transactions)
@@ -1464,11 +1505,6 @@ TFuture<void> TControllerAgent::AbortOperation(const TOperationPtr& operation)
     return Impl_->AbortOperation(operation);
 }
 
-TFuture<void> TControllerAgent::DisposeOperation(const TOperationPtr& operation)
-{
-    return Impl_->DisposeOperation(operation);
-}
-
 TFuture<std::vector<TErrorOr<TSharedRef>>> TControllerAgent::ExtractJobSpecs(
     const std::vector<TJobSpecRequest>& requests)
 {
@@ -1501,6 +1537,16 @@ const IThroughputThrottlerPtr& TControllerAgent::GetJobSpecSliceThrottler() cons
 {
     return Impl_->GetJobSpecSliceThrottler();
 }
+
+void TControllerAgent::ValidateOperationPermission(
+    const TString& user,
+    const TOperationId& operationId,
+    EPermission permission,
+    const TString& subnodePath)
+{
+    return Impl_->ValidateOperationPermission(user, operationId, permission, subnodePath);
+}
+
 
 DELEGATE_SIGNAL(TControllerAgent, void(), SchedulerConnecting, *Impl_);
 DELEGATE_SIGNAL(TControllerAgent, void(), SchedulerConnected, *Impl_);

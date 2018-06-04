@@ -127,6 +127,12 @@ def require_ytserver_root_privileges(func_or_class):
         return wrap_func
 
 
+def skip_if_rpc_driver_backend(func):
+    def wrapped_func(self, *args, **kwargs):
+        if self.DRIVER_BACKEND == "rpc":
+            pytest.skip("This test is not supported with RPC proxy driver backend")
+    return wrapped_func
+
 def require_enabled_core_dump(func):
     def wrapped_func(self, *args, **kwargs):
         rlimit_core = resource.getrlimit(resource.RLIMIT_CORE)
@@ -181,6 +187,7 @@ class YTEnvSetup(object):
     NUM_CONTROLLER_AGENTS = None
     ENABLE_PROXY = False
     ENABLE_RPC_PROXY = False
+    DRIVER_BACKEND = "native"
     NUM_SKYNET_MANAGERS = 0
 
     DELTA_DRIVER_CONFIG = {}
@@ -243,6 +250,7 @@ class YTEnvSetup(object):
             controller_agent_count=cls.get_param("NUM_CONTROLLER_AGENTS", index),
             has_proxy=cls.get_param("ENABLE_PROXY", index),
             has_rpc_proxy=cls.get_param("ENABLE_RPC_PROXY", index),
+            driver_backend=cls.get_param("DRIVER_BACKEND", index),
             skynet_manager_count=cls.get_param("NUM_SKYNET_MANAGERS", index),
             kill_child_processes=True,
             use_porto_for_servers=cls.get_param("USE_PORTO_FOR_SERVERS", index),
@@ -411,6 +419,9 @@ class YTEnvSetup(object):
     def setup_method(self, method):
         self.transactions_at_start = []
         for cluster_index in xrange(self.NUM_REMOTE_CLUSTERS + 1):
+            if self.USE_DYNAMIC_TABLES:
+                yt_commands.set("//sys/@config/tablet_manager/tablet_balancer/tablet_balancer_schedule", "1")
+
             driver = yt_commands.get_driver(cluster=self.get_cluster_name(cluster_index))
             if driver is None:
                 self.transactions_at_start.append(set())
@@ -453,10 +464,9 @@ class YTEnvSetup(object):
                 yt_commands.gc_collect(driver=driver)
                 self._remove_tablet_cells(driver=driver)
                 self._remove_tablet_cell_bundles(driver=driver)
+                self._remove_tablet_actions(driver=driver)
             self._remove_racks(driver=driver)
             self._remove_data_centers(driver=driver)
-            if self.get_param("ENABLE_MULTICELL_TEARDOWN", cluster_index):
-                self._remove_tablet_actions(driver=driver)
             self._reset_dynamic_cluster_config(driver=driver)
 
             yt_commands.gc_collect(driver=driver)

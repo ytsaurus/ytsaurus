@@ -84,8 +84,8 @@ using NChunkClient::TReadLimit;
 static const auto& Logger = ChunkServerLogger;
 static const auto& Profiler = ChunkServerProfiler;
 
-static NProfiling::TAggregateCounter RefreshTimeCounter("/refresh_time");
-static NProfiling::TAggregateCounter RequisitionUpdateTimeCounter("/requisition_update_time");
+static NProfiling::TAggregateGauge RefreshTimeCounter("/refresh_time");
+static NProfiling::TAggregateGauge RequisitionUpdateTimeCounter("/requisition_update_time");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1810,7 +1810,7 @@ void TChunkReplicator::OnCheckEnabled()
 
 void TChunkReplicator::OnCheckEnabledPrimary()
 {
-    if (!Bootstrap_->GetConfigManager()->GetConfig()->EnableChunkReplicator) {
+    if (!Bootstrap_->GetConfigManager()->GetConfig()->ChunkManager->EnableChunkReplicator) {
         if (!Enabled_ || *Enabled_) {
             LOG_INFO("Chunk replicator is disabled, see //sys/@config");
         }
@@ -2274,8 +2274,6 @@ void TChunkReplicator::UpdateInterDCEdgeCapacities()
         return;
     }
 
-    // This will soon be replaced by getting capacities from node tracker.
-
     InterDCEdgeCapacities_.clear();
 
     auto capacities = Config_->InterDCLimits->GetCapacities();
@@ -2284,29 +2282,35 @@ void TChunkReplicator::UpdateInterDCEdgeCapacities()
 
     const auto& nodeTracker = Bootstrap_->GetNodeTracker();
 
-    auto updateForSrcDC = [&] (const TDataCenter* srcDataCenter, const TNullable<TString>& srcDataCenterName) {
+    auto updateForSrcDC = [&] (const TDataCenter* srcDataCenter) {
+        const TNullable<TString>& srcDataCenterName = srcDataCenter
+            ? static_cast<TNullable<TString>>(srcDataCenter->GetName())
+            : Null;
         auto& interDCEdgeCapacities = InterDCEdgeCapacities_[srcDataCenter];
         const auto& newInterDCEdgeCapacities = capacities[srcDataCenterName];
 
-        auto updateForDstDC = [&] (const TDataCenter* dstDataCenter, const TNullable<TString>& dstDataCenterName) {
+        auto updateForDstDC = [&] (const TDataCenter* dstDataCenter) {
+            const TNullable<TString>& dstDataCenterName = dstDataCenter
+                ? static_cast<TNullable<TString>>(dstDataCenter->GetName())
+                : Null;
             auto it = newInterDCEdgeCapacities.find(dstDataCenterName);
             if (it != newInterDCEdgeCapacities.end()) {
                 interDCEdgeCapacities[dstDataCenter] = it->second / secondaryCellCount;
             }
         };
 
-        updateForDstDC(nullptr, Null);
+        updateForDstDC(nullptr);
         for (const auto& pair : nodeTracker->DataCenters()) {
             if (IsObjectAlive(pair.second)) {
-                updateForDstDC(pair.second, pair.second->GetName());
+                updateForDstDC(pair.second);
             }
         }
     };
 
-    updateForSrcDC(nullptr, Null);
+    updateForSrcDC(nullptr);
     for (const auto& pair : nodeTracker->DataCenters()) {
         if (IsObjectAlive(pair.second)) {
-            updateForSrcDC(pair.second, pair.second->GetName());
+            updateForSrcDC(pair.second);
         }
     }
 

@@ -12,17 +12,17 @@ using NPython::GetYsonTypeClass;
 TPythonObjectBuilder::TPythonObjectBuilder() = default;
 
 TPythonObjectBuilder::TPythonObjectBuilder(bool alwaysCreateAttributes, const TNullable<TString>& encoding)
-    : YsonMap(GetYsonTypeClass("YsonMap"))
-    , YsonList(GetYsonTypeClass("YsonList"))
-    , YsonString(GetYsonTypeClass("YsonString"))
+    : YsonMap(GetYsonTypeClass("YsonMap"), /* owned */ true)
+    , YsonList(GetYsonTypeClass("YsonList"), /* owned */ true)
+    , YsonString(GetYsonTypeClass("YsonString"), /* owned */ true)
 #if PY_MAJOR_VERSION >= 3
-    , YsonUnicode(GetYsonTypeClass("YsonUnicode"))
+    , YsonUnicode(GetYsonTypeClass("YsonUnicode"), /* owned */ true)
 #endif
-    , YsonInt64(GetYsonTypeClass("YsonInt64"))
-    , YsonUint64(GetYsonTypeClass("YsonUint64"))
-    , YsonDouble(GetYsonTypeClass("YsonDouble"))
-    , YsonBoolean(GetYsonTypeClass("YsonBoolean"))
-    , YsonEntity(GetYsonTypeClass("YsonEntity"))
+    , YsonInt64(GetYsonTypeClass("YsonInt64"), /* owned */ true)
+    , YsonUint64(GetYsonTypeClass("YsonUint64"), /* owned */ true)
+    , YsonDouble(GetYsonTypeClass("YsonDouble"), /* owned */ true)
+    , YsonBoolean(GetYsonTypeClass("YsonBoolean"), /* owned */ true)
+    , YsonEntity(GetYsonTypeClass("YsonEntity"), /* owned */ true)
     , AlwaysCreateAttributes_(alwaysCreateAttributes)
     , Encoding_(encoding)
 { }

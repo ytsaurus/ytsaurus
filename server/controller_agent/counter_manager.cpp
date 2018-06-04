@@ -16,7 +16,7 @@ TControllerAgentCounterManager::TControllerAgentCounterManager()
 {
     for (auto type : TEnumTraits<EOperationType>::GetDomainValues()) {
         auto tag = TProfileManager::Get()->RegisterTag("operation_type", FormatEnum(type));
-        AssertionsFailed_[type] = TSimpleCounter("/assertions_failed", {tag});
+        AssertionsFailed_[type] = TMonotonicCounter("/assertions_failed", {tag});
     }
 }
 

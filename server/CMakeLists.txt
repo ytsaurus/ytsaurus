@@ -11,6 +11,7 @@ add_library(yt-library-server ${YT_SRCS_RESOLVED})
 
 target_link_libraries(yt-library-server
   yt-library-client
+  yt-library-client-auth
   yt-core-re2
   deps-arcadia-library-http
 )

@@ -19,6 +19,8 @@
 #include <yt/server/cell_master/hydra_facade.h>
 #include <yt/server/cell_master/multicell_manager.h>
 #include <yt/server/cell_master/serialize.h>
+#include <yt/server/cell_master/config_manager.h>
+#include <yt/server/cell_master/config.h>
 
 #include <yt/server/chunk_server/chunk_manager.pb.h>
 
@@ -99,10 +101,8 @@ using NYT::ToProto;
 
 static const auto& Logger = ChunkServerLogger;
 static const auto ProfilingPeriod = TDuration::MilliSeconds(1000);
-// NB: Changing this value will invalidate all changelogs!
-static const auto ReplicaApproveTimeout = TDuration::Seconds(60);
 
-static NProfiling::TAggregateCounter ChunkTreeRebalacnceTimeCounter("/chunk_tree_rebalance_time");
+static NProfiling::TAggregateGauge ChunkTreeRebalacnceTimeCounter("/chunk_tree_rebalance_time");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1047,6 +1047,7 @@ public:
         YCHECK(NameToMediumMap_.erase(medium->GetName()) == 1);
         YCHECK(NameToMediumMap_.emplace(newName, medium).second);
         medium->SetName(newName);
+        InitMediumProfiling(medium);
     }
 
     void SetMediumPriority(TMedium* medium, int priority)
@@ -1170,6 +1171,46 @@ public:
         return &ChunkRequisitionRegistry_;
     }
 
+    void MaybeRecomputeChunkRequisitons()
+    {
+        if (ChunkRequisitionsRecomputed_) {
+            return;
+        }
+
+        // Recompute requisitions' ref counts.
+        if (NeedRecomputeRequisitionRefCounts_) {
+            for (const auto& pair : ChunkMap_) {
+                const auto* chunk = pair.second;
+                chunk->RefUsedRequisitions(GetChunkRequisitionRegistry());
+            }
+        }
+
+        // COMPAT(shakurov)
+        if (NeedToFixExportRequisitionIndexes_) {
+            for (const auto& pair : ChunkMap_) {
+                auto* chunk = pair.second;
+                chunk->FixExportRequisitionIndexes();
+            }
+        }
+
+        // COMPAT(shakurov)
+        if (NeedToInitializeAggregatedRequisitionIndexes_) {
+            auto* registry = GetChunkRequisitionRegistry();
+            const auto& objectManager = Bootstrap_->GetObjectManager();
+
+            for (const auto& pair : ChunkMap_) {
+                auto* chunk = pair.second;
+                // NB: this may have no effect for those rare chunks that have no trunk owners.
+                // In that case, the aggregated requisition will be left equal to migration requisition.
+                // This will be corrected on chunk's next requisition update (which is bound to
+                // happen since having no trunk owners is always a temporary state).
+                chunk->UpdateAggregatedRequisitionIndex(registry, objectManager);
+            }
+        }
+
+        ChunkRequisitionsRecomputed_ = true;
+    }
+
     DECLARE_ENTITY_MAP_ACCESSORS(Chunk, TChunk);
     DECLARE_ENTITY_MAP_ACCESSORS(ChunkList, TChunkList);
     DECLARE_ENTITY_WITH_IRREGULAR_PLURAL_MAP_ACCESSORS(Medium, Media, TMedium)
@@ -1193,6 +1234,8 @@ private:
     bool NeedRecomputeRequisitionRefCounts_ = false;
     bool NeedToFixExportRequisitionIndexes_ = false;
     bool NeedToInitializeAggregatedRequisitionIndexes_ = false;
+
+    bool ChunkRequisitionsRecomputed_ = false;
 
     TPeriodicExecutorPtr ProfilingExecutor_;
 
@@ -1231,6 +1274,12 @@ private:
     TEnumIndexedVector<TTagId, EJobType, EJobType::ReplicatorFirst, EJobType::ReplicatorLast> JobTypeToTag_;
     THashMap<const TDataCenter*, TTagId> SourceDataCenterToTag_;
     THashMap<const TDataCenter*, TTagId> DestinationDataCenterToTag_;
+
+
+    const TDynamicChunkManagerConfigPtr& GetDynamicConfig()
+    {
+        return Bootstrap_->GetConfigManager()->GetConfig()->ChunkManager;
+    }
 
 
     TChunk* DoCreateChunk(EObjectType chunkType)
@@ -1465,6 +1514,7 @@ private:
         auto mutationTimestamp = mutationContext->GetTimestamp();
 
         auto& unapprovedReplicas = node->UnapprovedReplicas();
+        const auto& dynamicConfig = GetDynamicConfig();
         for (auto it = unapprovedReplicas.begin(); it != unapprovedReplicas.end();) {
             auto jt = it++;
             auto replica = jt->first;
@@ -1472,7 +1522,7 @@ private:
             auto reason = ERemoveReplicaReason::None;
             if (!IsObjectAlive(replica.GetPtr())) {
                 reason = ERemoveReplicaReason::ChunkDestroyed;
-            } else if (mutationTimestamp > registerTimestamp + ReplicaApproveTimeout) {
+            } else if (mutationTimestamp > registerTimestamp + dynamicConfig->ReplicaApproveTimeout) {
                 reason = ERemoveReplicaReason::ApproveTimeout;
             }
             if (reason != ERemoveReplicaReason::None) {
@@ -2112,13 +2162,13 @@ private:
         NeedInitializeMediumConfig_ = context.GetVersion() < 629;
 
         // COMPAT(shakurov)
-        NeedRecomputeRequisitionRefCounts_ = context.GetVersion() < 704;
+        NeedRecomputeRequisitionRefCounts_ = context.GetVersion() < 710;
 
         // COMPAT(shakurov)
         NeedToFixExportRequisitionIndexes_ = context.GetVersion() >= 700 && context.GetVersion() < 707;
 
         // COMPAT(shakurov)
-        NeedToInitializeAggregatedRequisitionIndexes_ = context.GetVersion() < 709;
+        NeedToInitializeAggregatedRequisitionIndexes_ = context.GetVersion() < 710;
     }
 
     virtual void OnBeforeSnapshotLoaded() override
@@ -2180,41 +2230,13 @@ private:
 
         for (const auto& pair : MediumMap_) {
             auto* medium = pair.second;
+            InitMediumProfiling(medium);
             RegisterMedium(medium);
         }
 
         InitBuiltins();
 
-        // Recompute requisitions' ref counts.
-        if (NeedRecomputeRequisitionRefCounts_) {
-            for (const auto& pair : ChunkMap_) {
-                const auto* chunk = pair.second;
-                chunk->RefUsedRequisitions(GetChunkRequisitionRegistry());
-            }
-        }
-
-        // COMPAT(shakurov)
-        if (NeedToFixExportRequisitionIndexes_) {
-            for (const auto& pair : ChunkMap_) {
-                auto* chunk = pair.second;
-                chunk->FixExportRequisitionIndexes();
-            }
-        }
-
-        // COMPAT(shakurov)
-        if (NeedToInitializeAggregatedRequisitionIndexes_) {
-            auto* registry = GetChunkRequisitionRegistry();
-            const auto& objectManager = Bootstrap_->GetObjectManager();
-
-            for (const auto& pair : ChunkMap_) {
-                auto* chunk = pair.second;
-                // NB: this may have no effect for those rare chunks that have no trunk owners.
-                // In that case, the aggregated requisition will be left equal to migration requisition.
-                // This will be corrected on chunk's next requisition update (which is bound to
-                // happen since having no trunk owners is always a temporary state).
-                chunk->UpdateAggregatedRequisitionIndex(registry, objectManager);
-            }
-        }
+        MaybeRecomputeChunkRequisitons();
 
         if (NeedToRecomputeStatistics_) {
             RecomputeStatistics();
@@ -2870,6 +2892,7 @@ private:
         }
 
         auto* medium = MediumMap_.Insert(id, std::move(mediumHolder));
+        InitMediumProfiling(medium);
         RegisterMedium(medium);
         InitializeMediumConfig(medium);
 
@@ -2877,6 +2900,11 @@ private:
         YCHECK(medium->RefObject() == 1);
 
         return medium;
+    }
+
+    void InitMediumProfiling(TMedium* medium)
+    {
+        medium->SetProfilingTag(TProfileManager::Get()->RegisterTag("medium", medium->GetName()));
     }
 
     void RegisterMedium(TMedium* medium)
@@ -2924,7 +2952,6 @@ private:
             THROW_ERROR_EXCEPTION("Medium priority must be in range [0,%v]", MaxMediumPriority);
         }
     }
-
 };
 
 DEFINE_ENTITY_MAP_ACCESSORS(TChunkManager::TImpl, Chunk, TChunk, ChunkMap_)
@@ -3313,6 +3340,11 @@ TMedium* TChunkManager::GetMediumByNameOrThrow(const TString& name) const
 TChunkRequisitionRegistry* TChunkManager::GetChunkRequisitionRegistry()
 {
     return Impl_->GetChunkRequisitionRegistry();
+}
+
+void TChunkManager::MaybeRecomputeChunkRequisitons()
+{
+    return Impl_->MaybeRecomputeChunkRequisitons();
 }
 
 DELEGATE_ENTITY_MAP_ACCESSORS(TChunkManager, Chunk, TChunk, *Impl_)

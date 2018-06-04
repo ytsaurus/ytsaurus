@@ -4,8 +4,8 @@
 #include <yt/ytlib/object_client/object_service_proxy.h>
 #include <yt/ytlib/node_tracker_client/node_directory.h>
 
-#include <yt/core/bus/config.h>
-#include <yt/core/bus/tcp_client.h>
+#include <yt/core/bus/tcp/config.h>
+#include <yt/core/bus/tcp/client.h>
 
 #include <yt/core/rpc/bus/channel.h>
 #include <yt/core/rpc/retrying_channel.h>

@@ -16,9 +16,6 @@
 #include <yt/core/profiling/timing.h>
 
 #include <contrib/libs/grpc/include/grpc/grpc.h>
-#include <contrib/libs/grpc/include/grpc/impl/codegen/grpc_types.h>
-#include <contrib/libs/grpc/include/grpc/support/alloc.h>
-#include <contrib/libs/grpc/include/grpcpp/support/slice.h>
 
 #include <array>
 
@@ -147,9 +144,7 @@ private:
                 Request_->GetMethod(),
                 Options_.Timeout);
 
-            auto methodSlice = grpc::SliceFromCopiedString(
-                Format("/%v/%v", Request_->GetService(), Request_->GetMethod()));
-
+            auto methodSlice = BuildGrpcMethodString();
             Call_ = TGrpcCallPtr(grpc_channel_create_call(
                 Owner_->Channel_.Unwrap(),
                 nullptr,
@@ -159,10 +154,17 @@ private:
                 nullptr,
                 GetDeadline(),
                 nullptr));
-
             grpc_slice_unref(methodSlice);
 
             InitialMetadataBuilder_.Add(RequestIdMetadataKey, ToString(Request_->GetRequestId()));
+            InitialMetadataBuilder_.Add(UserMetadataKey, Request_->GetUser());
+
+            if (Request_->Header().HasExtension(NRpc::NProto::TCredentialsExt::credentials_ext)) {
+                const auto& credentialsExt = Request_->Header().GetExtension(NRpc::NProto::TCredentialsExt::credentials_ext);
+                if (credentialsExt.has_token()) {
+                    InitialMetadataBuilder_.Add(TokenMetadataKey, credentialsExt.token());
+                }
+            }
 
             auto serializedMessage = Request_->Serialize();
 
@@ -257,6 +259,26 @@ private:
         TGrpcMetadataArrayBuilder InitialMetadataBuilder_;
 
 
+        //! Builds /<service>/<method> string.
+        grpc_slice BuildGrpcMethodString()
+        {
+            auto length =
+                1 + // slash
+                Request_->GetService().length() +
+                1 + // slash
+                Request_->GetMethod().length();
+            auto slice = grpc_slice_malloc(length);
+            auto* ptr = GRPC_SLICE_START_PTR(slice);
+            *ptr++ = '/';
+            ::memcpy(ptr, Request_->GetService().c_str(), Request_->GetService().length());
+            ptr += Request_->GetService().length();
+            *ptr++ = '/';
+            ::memcpy(ptr, Request_->GetMethod().c_str(), Request_->GetMethod().length());
+            ptr += Request_->GetMethod().length();
+            Y_ASSERT(ptr == GRPC_SLICE_END_PTR(slice));
+            return slice;
+        }
+
         gpr_timespec GetDeadline() const
         {
             return Options_.Timeout
@@ -321,6 +343,7 @@ private:
             ops[1].data.recv_status_on_client.trailing_metadata = ResponseFinalMetdata_.Unwrap();
             ops[1].data.recv_status_on_client.status = &ResponseStatusCode_;
             ops[1].data.recv_status_on_client.status_details = &ResponseStatusDetails_;
+            ops[1].data.recv_status_on_client.error_string = nullptr;
 
             StartBatch(ops);
         }
@@ -359,7 +382,7 @@ private:
                     error = DeserializeError(serializedError);
                 } else {
                     error = TError(NRpc::EErrorCode::TransportError, "GRPC error")
-                        << TErrorAttribute("details", grpc::StringFromCopiedSlice(ResponseStatusDetails_));
+                        << TErrorAttribute("details", ToString(ResponseStatusDetails_));
                 }
                 NotifyError(AsStringBuf("Request failed"), error);
             }

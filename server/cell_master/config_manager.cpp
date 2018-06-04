@@ -2,6 +2,7 @@
 #include "bootstrap.h"
 #include "config_manager.h"
 #include "multicell_manager.h"
+#include "config.h"
 
 #include <yt/server/tablet_server/config.h>
 
@@ -52,7 +53,10 @@ public:
     {
         Config_ = std::move(config);
         ReplicateConfigToSecondaryMasters();
+        ConfigChanged_.Fire();
     }
+
+    DEFINE_SIGNAL(void(), ConfigChanged);
 
 private:
     TDynamicClusterConfigPtr Config_ = New<TDynamicClusterConfig>();
@@ -116,6 +120,8 @@ void TConfigManager::SetConfig(TDynamicClusterConfigPtr config)
 {
     Impl_->SetConfig(std::move(config));
 }
+
+DELEGATE_SIGNAL(TConfigManager, void(), ConfigChanged, *Impl_);
 
 ////////////////////////////////////////////////////////////////////////////////
 

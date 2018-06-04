@@ -2,6 +2,7 @@ from yt_env_setup import wait, YTEnvSetup
 from yt_commands import *
 import yt.environment.init_operation_archive as init_operation_archive
 from yt.wrapper.operation_commands import add_failed_operation_stderrs_to_error_message
+from yt.wrapper.common import uuid_hash_pair
 from yt.common import date_string_to_datetime
 
 from operations_archive import clean_operations
@@ -20,6 +21,14 @@ def validate_address_filter(op, include_archive, include_cypress, include_runtim
     for address in job_dict.keys():
         res = list_jobs(op.id, include_archive=include_archive, include_cypress=include_cypress, include_runtime=include_runtime, data_source="manual", address=address)["jobs"]
         assert sorted([job["id"] for job in res]) == sorted(job_dict[address])
+
+def get_stderr_from_table(operation_id, job_id):
+    operation_hash = uuid_hash_pair(operation_id)
+    job_hash = uuid_hash_pair(job_id)
+    rows = list(select_rows("stderr from [//sys/operations_archive/stderrs] where operation_id_lo={0}u and operation_id_hi={1}u and job_id_lo={2}u and job_id_hi={3}u"\
+        .format(operation_hash.lo, operation_hash.hi, job_hash.lo, job_hash.hi)))
+    assert len(rows) == 1
+    return rows[0]["stderr"]
 
 class TestListJobs(YTEnvSetup):
     DELTA_NODE_CONFIG = {
@@ -42,6 +51,7 @@ class TestListJobs(YTEnvSetup):
             "enable_job_reporter": True,
             "enable_job_spec_reporter": True,
             "enable_job_stderr_reporter": True,
+            "enable_job_fail_context_reporter": True,
             "static_orchid_cache_update_period": 100,
         },
     }
@@ -92,10 +102,7 @@ class TestListJobs(YTEnvSetup):
                 "map_job_count" : 3
             })
 
-        jobs_path = "//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op.id)
-
-        progress_path = "//sys/scheduler/orchid/scheduler/operations/{0}/progress/jobs".format(op.id)
-        wait(lambda: exists(progress_path) and get(progress_path)["failed"] == 1)
+        wait(lambda: op.get_job_count("failed") == 1)
 
         job_ids = wait_breakpoint()
         assert job_ids
@@ -108,7 +115,7 @@ class TestListJobs(YTEnvSetup):
 
         job_aborted = False
         for job in job_ids:
-            if job in get(jobs_path):
+            if job in op.get_running_jobs():
                 abort_job(job)
                 aborted_jobs.append(job)
                 job_aborted = True
@@ -161,6 +168,7 @@ class TestListJobs(YTEnvSetup):
         jobs_without_stderr = []
         jobs_with_fail_context = []
         jobs_without_fail_context = []
+        fail_context_example = None
 
         for job_id, job in jobs.iteritems():
             if job.attributes["job_type"] == "partition_map":
@@ -177,6 +185,8 @@ class TestListJobs(YTEnvSetup):
                 jobs_without_stderr.append(job_id)
             if "fail_context" in job:
                 jobs_with_fail_context.append(job_id)
+                fail_context_example = (job_id, get_job_fail_context(op.id, job_id))
+                assert fail_context_example[1]
             else:
                 jobs_without_fail_context.append(job_id)
 
@@ -252,8 +262,15 @@ class TestListJobs(YTEnvSetup):
         res = list_jobs(op.id,  with_stderr=True, **archive_options)["jobs"]
         assert sorted(jobs_with_stderr) == sorted([job["id"] for job in res])
 
+        job_id = sorted([job["id"] for job in res])[0]
+        res = get_stderr_from_table(op.id, job_id)
+        assert res == "foo\n"
+
         res = list_jobs(op.id, with_stderr=False, **archive_options)["jobs"]
         assert sorted(jobs_without_stderr) == sorted([job["id"] for job in res])
+
+        # All completed and failed jobs.
+        assert len(list_jobs(op.id, with_spec=True, **archive_options)["jobs"]) == 5
 
         # Clean operations to archive.
         clean_operations(self.Env.create_native_client())
@@ -262,6 +279,9 @@ class TestListJobs(YTEnvSetup):
         manual_options = dict(data_source="manual", include_cypress=False, include_controller_agent=False, include_archive=True)
         archive_options = dict(data_source="archive")
         auto_options = dict(data_source="auto")
+
+        # Test fail context download from archive.
+        assert fail_context_example[1] == get_job_fail_context(op.id, fail_context_example[0])
 
         for options in (manual_options, archive_options, auto_options):
             res = list_jobs(op.id, **options)
@@ -320,6 +340,12 @@ class TestListJobs(YTEnvSetup):
             res = list_jobs(op.id, with_stderr=False, **options)["jobs"]
             assert sorted(jobs_without_stderr) == sorted([job["id"] for job in res])
 
+            res = list_jobs(op.id,  with_fail_context=True, **options)["jobs"]
+            assert sorted(jobs_with_fail_context) == sorted([job["id"] for job in res])
+
+            res = list_jobs(op.id, with_fail_context=False, **options)["jobs"]
+            assert sorted(jobs_without_fail_context) == sorted([job["id"] for job in res])
+
             validate_address_filter(op, True, False, False)
 
     def test_running_jobs_stderr_size(self):
@@ -336,7 +362,7 @@ class TestListJobs(YTEnvSetup):
 
         jobs = wait_breakpoint()
         def get_stderr_size():
-            return get("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs/{1}/stderr_size".format(op.id, jobs[0]))
+            return get(get_operation_cypress_path(op.id) + "/controller_orchid/running_jobs/{0}/stderr_size".format(jobs[0]))
         wait(lambda: get_stderr_size() == len("MAPPER-STDERR-OUTPUT\n"))
 
         options = dict(data_source="manual", include_cypress=False, include_controller_agent=True, include_archive=False)
@@ -439,7 +465,7 @@ class TestListJobs(YTEnvSetup):
             command="echo foo >&2; false",
             spec={"max_failed_job_count": 1, "testing": {"cypress_storage_mode": "hash_buckets"}})
 
-        wait(lambda: get(get_new_operation_cypress_path(op.id) + "/@state") == "failed")
+        wait(lambda: get(get_operation_cypress_path(op.id) + "/@state") == "failed")
         jobs = list_jobs(op.id, data_source="auto")["jobs"]
         assert len(jobs) == 1
         assert jobs[0]["stderr_size"] > 0

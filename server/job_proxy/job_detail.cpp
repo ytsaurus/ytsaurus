@@ -4,6 +4,8 @@
 
 #include <yt/server/exec_agent/public.h>
 
+#include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
+
 #include <yt/ytlib/node_tracker_client/node_directory.h>
 
 #include <yt/ytlib/job_proxy/helpers.h>
@@ -33,6 +35,7 @@ using namespace NExecAgent;
 
 using NJobTrackerClient::TStatistics;
 using NChunkClient::TDataSliceDescriptor;
+using NChunkClient::TChunkReaderStatistics;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -48,6 +51,10 @@ TJob::TJob(IJobHostPtr host)
     , StartTime_(TInstant::Now())
 {
     YCHECK(Host_);
+
+    BlockReadOptions_.WorkloadDescriptor = Host_->GetJobSpecHelper()->GetJobIOConfig()->TableReader->WorkloadDescriptor;
+    BlockReadOptions_.ChunkReaderStatistics = New<TChunkReaderStatistics>();
+    BlockReadOptions_.ReadSessionId = TReadSessionId::Create();
 }
 
 std::vector<NChunkClient::TChunkId> TJob::DumpInputContext()
@@ -58,6 +65,13 @@ std::vector<NChunkClient::TChunkId> TJob::DumpInputContext()
 }
 
 TString TJob::GetStderr()
+{
+    THROW_ERROR_EXCEPTION(
+        EErrorCode::UnsupportedJobType,
+        "Getting stderr is not supported for built-in jobs");
+}
+
+TNullable<TString> TJob::GetFailContext()
 {
     THROW_ERROR_EXCEPTION(
         EErrorCode::UnsupportedJobType,
@@ -117,8 +131,6 @@ TJobResult TSimpleJobBase::Run()
             Initialized_ = true;
 
             CreateWriter();
-            WaitFor(Writer_->Open())
-                .ThrowOnError();
 
             PROFILE_TIMING_CHECKPOINT("init");
 
@@ -188,6 +200,7 @@ TStatistics TSimpleJobBase::GetStatistics() const
     if (Reader_) {
         result.AddSample("/data/input", Reader_->GetDataStatistics());
         Reader_->GetDecompressionStatistics().DumpTo(&result, "/codec/cpu/decode");
+        DumpChunkReaderStatistics(&result, "/chunk_reader_statistics", BlockReadOptions_.ChunkReaderStatistics);
     }
 
     if (Writer_) {

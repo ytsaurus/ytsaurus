@@ -6,6 +6,7 @@
 
 #include <yt/ytlib/chunk_client/chunk_reader.h>
 #include <yt/ytlib/chunk_client/dispatcher.h>
+#include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
 
 #include <yt/core/ytree/convert.h>
 
@@ -25,6 +26,7 @@ using namespace NYson;
 using namespace NYTree;
 
 using NYT::FromProto;
+using NChunkClient::TChunkReaderStatistics;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -49,13 +51,12 @@ TCachedVersionedChunkMetaPtr TCachedVersionedChunkMeta::Create(
 
 TFuture<TCachedVersionedChunkMetaPtr> TCachedVersionedChunkMeta::Load(
     IChunkReaderPtr chunkReader,
-    const TWorkloadDescriptor& workloadDescriptor,
-    const TReadSessionId& readSessionId,
+    const TClientBlockReadOptions& blockReadOptions,
     const TTableSchema& schema,
     TNodeMemoryTracker* memoryTracker)
 {
     auto chunkId = chunkReader->GetChunkId();
-    return chunkReader->GetMeta(workloadDescriptor, readSessionId)
+    return chunkReader->GetMeta(blockReadOptions)
         .Apply(BIND([=] (const NChunkClient::NProto::TChunkMeta& chunkMeta) {
             return TCachedVersionedChunkMeta::Create(chunkId, chunkMeta, schema, memoryTracker);
         }));
@@ -172,6 +173,12 @@ void TCachedVersionedChunkMeta::ValidateSchema(const TTableSchema& readerSchema)
         mapping.ReaderSchemaIndex = readerIndex;
         SchemaIdMapping_.push_back(mapping);
     }
+}
+
+i64 TCachedVersionedChunkMeta::GetMemoryUsage() const
+{
+    return TColumnarChunkMeta::GetMemoryUsage() +
+        Schema_.GetMemoryUsage();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

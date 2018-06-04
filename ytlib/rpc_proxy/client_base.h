@@ -108,15 +108,11 @@ public:
 
     // Objects
     virtual TFuture<NObjectClient::TObjectId> CreateObject(
-        NObjectClient::EObjectType,
-        const NApi::TCreateObjectOptions&) override
-    {
-        Y_UNIMPLEMENTED();
-    }
-
+        NObjectClient::EObjectType type,
+        const NApi::TCreateObjectOptions& options) override;
 
     // Files
-    virtual TFuture<NConcurrency::IAsyncZeroCopyInputStreamPtr> CreateFileReader(
+    virtual TFuture<NApi::IFileReaderPtr> CreateFileReader(
         const NYPath::TYPath&,
         const NApi::TFileReaderOptions&) override
     {

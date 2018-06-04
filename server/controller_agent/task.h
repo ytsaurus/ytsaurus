@@ -2,6 +2,7 @@
 
 #include "private.h"
 
+#include "tentative_tree_eligibility.h"
 #include "progress_counter.h"
 #include "serialize.h"
 #include "data_flow_graph.h"
@@ -89,11 +90,13 @@ public:
         ISchedulingContext* context,
         const TJobResources& jobLimits,
         const TString& treeId,
+        bool treeIsTentative,
         TScheduleJobResult* scheduleJobResult);
 
-    virtual void OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary);
+    virtual TJobCompletedResult OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary);
     virtual void OnJobFailed(TJobletPtr joblet, const TFailedJobSummary& jobSummary);
     virtual void OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& jobSummary);
+
     virtual void OnJobLost(TCompletedJobPtr completedJob);
 
     virtual void OnStripeRegistrationFailed(
@@ -257,6 +260,8 @@ private:
 
     //! For each lost job currently being replayed and destination pool, maps output cookie to corresponding input cookie.
     std::map<TCookieAndPool, NChunkPools::IChunkPoolInput::TCookie> LostJobCookieMap;
+
+    TTentativeTreeEligibility TentativeTreeEligibility_;
 
     mutable std::unique_ptr<IDigest> JobProxyMemoryDigest_;
     mutable std::unique_ptr<IDigest> UserJobMemoryDigest_;

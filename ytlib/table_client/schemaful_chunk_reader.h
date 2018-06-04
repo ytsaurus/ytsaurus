@@ -17,25 +17,14 @@ namespace NTableClient {
 //! Factory method, that creates a schemaful reader on top of any
 //! NChunkClient::IReader, e.g. TMemoryReader, TReplicationReader etc.
 ISchemafulReaderPtr CreateSchemafulChunkReader(
+    const TChunkStatePtr& chunkState,
+    const TColumnarChunkMetaPtr& chunkMeta,
     TChunkReaderConfigPtr config,
     NChunkClient::IChunkReaderPtr chunkReader,
-    NChunkClient::IBlockCachePtr blockCache,
-    const NChunkClient::TReadSessionId& sessionId,
+    const NChunkClient::TClientBlockReadOptions& blockReadOptions,
     const TTableSchema& resultSchema,
     const TKeyColumns& keyColumns,
-    const NChunkClient::NProto::TChunkMeta& chunkMeta,
     const NChunkClient::TReadRange& readRange,
-    TTimestamp timestamp = NullTimestamp);
-
-ISchemafulReaderPtr CreateSchemafulChunkReader(
-    TChunkReaderConfigPtr config,
-    NChunkClient::IChunkReaderPtr chunkReader,
-    NChunkClient::IBlockCachePtr blockCache,
-    const NChunkClient::TReadSessionId& sessionId,
-    const TTableSchema& resultSchema,
-    const TKeyColumns& keyColumns,
-    const NChunkClient::NProto::TChunkMeta& chunkMeta,
-    const TSharedRange<TKey>& keys,
     TTimestamp timestamp = NullTimestamp);
 
 ////////////////////////////////////////////////////////////////////////////////

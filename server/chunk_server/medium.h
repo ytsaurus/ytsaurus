@@ -26,6 +26,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(bool, Cache, false);
     // TODO(savrus): Switch to BYVAL when generic property getter will return reference.
     DEFINE_BYREF_RW_PROPERTY(TMediumConfigPtr, Config);
+    DEFINE_BYVAL_RW_PROPERTY(NProfiling::TTagId, ProfilingTag, -1);
 
     DEFINE_BYREF_RW_PROPERTY(NSecurityServer::TAccessControlDescriptor, Acd);
 

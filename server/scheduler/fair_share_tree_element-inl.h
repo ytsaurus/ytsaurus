@@ -35,6 +35,11 @@ inline int TSchedulerElement::GetTreeIndex() const
     return TreeIndex_;
 }
 
+inline void TSchedulerElement::SetTreeIndex(int treeIndex)
+{
+    TreeIndex_ = treeIndex;
+}
+
 inline bool TSchedulerElement::IsAlive() const
 {
     return SharedState_->GetAlive();

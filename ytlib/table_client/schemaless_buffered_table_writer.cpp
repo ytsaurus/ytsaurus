@@ -63,12 +63,8 @@ public:
         }
 
         Logger.AddTag("Path: %v", Path_);
-    }
 
-    virtual TFuture<void> Open() override
-    {
         FlushExecutor_->Start();
-        return VoidFuture;
     }
 
     virtual TFuture<void> GetReadyEvent() override
@@ -244,7 +240,7 @@ private:
             TRichYPath richPath(Path_);
             richPath.SetAppend(true);
 
-            auto writer = CreateSchemalessTableWriter(
+            auto asyncWriter = CreateSchemalessTableWriter(
                 Config_,
                 Options_,
                 richPath,
@@ -252,8 +248,9 @@ private:
                 Client_,
                 nullptr);
 
-            WaitFor(writer->Open())
-                .ThrowOnError();
+            auto writer = WaitFor(asyncWriter)
+                .ValueOrThrow();
+
             writer->Write(buffer->Rows());
             WaitFor(writer->Close())
                 .ThrowOnError();

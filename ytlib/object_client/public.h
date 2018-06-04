@@ -59,7 +59,7 @@ const TCellTag PrimaryMasterCellTag = 0xf003;
 const TCellTag InvalidCellTag = 0xf004;
 
 //! A static limit for the number of secondary master cells.
-const int MaxSecondaryMasterCells = 8;
+const int MaxSecondaryMasterCells = 32;
 
 using TCellTagList = SmallVector<TCellTag, MaxSecondaryMasterCells + 1>;
 

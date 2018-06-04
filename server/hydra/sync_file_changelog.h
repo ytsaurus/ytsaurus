@@ -2,6 +2,7 @@
 
 #include "private.h"
 
+#include <yt/ytlib/chunk_client/public.h>
 #include <yt/ytlib/hydra/hydra_manager.pb.h>
 
 #include <yt/core/misc/ref.h>
@@ -24,6 +25,7 @@ class TSyncFileChangelog
 public:
     //! Basic constructor.
     TSyncFileChangelog(
+        const NChunkClient::IIOEnginePtr& ioEngine,
         const TString& fileName,
         TFileChangelogConfigPtr config);
 
@@ -75,6 +77,8 @@ public:
 
     //! Synchronously seals the changelog truncating it if necessary.
     void Truncate(int recordCount);
+
+    void Preallocate(size_t size);
 
 private:
     class TImpl;

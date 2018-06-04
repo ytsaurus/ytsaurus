@@ -1,10 +1,18 @@
+#include "admin.h"
 #include "discovery_service_proxy.h"
 #include "connection_impl.h"
 #include "client_impl.h"
 #include "timestamp_provider.h"
 #include "config.h"
 #include "credentials_injecting_channel.h"
+#include "table_mount_cache.h"
+#include "helpers.h"
 #include "private.h"
+
+#include <yt/ytlib/api/admin.h>
+
+#include <yt/ytlib/tablet_client/native_table_mount_cache.h>
+#include <yt/ytlib/tablet_client/table_mount_cache.h>
 
 #include <yt/ytlib/transaction_client/remote_timestamp_provider.h>
 
@@ -42,6 +50,12 @@ TConnection::TConnection(TConnectionConfigPtr config)
         Config_->ProxyListUpdatePeriod))
 {
     ResetAddresses();
+
+    TableMountCache_ = CreateRpcProxyTableMountCache(
+        Config_->TableMountCache,
+        GetRandomPeerChannel(),
+        RpcProxyClientLogger);
+
     UpdateProxyListExecutor_->Start();
 }
 
@@ -52,7 +66,7 @@ NObjectClient::TCellTag TConnection::GetCellTag()
 
 const NTabletClient::ITableMountCachePtr& TConnection::GetTableMountCache()
 {
-    Y_UNIMPLEMENTED();
+    return TableMountCache_;
 }
 
 const NTransactionClient::ITimestampProviderPtr& TConnection::GetTimestampProvider()
@@ -76,7 +90,7 @@ IInvokerPtr TConnection::GetInvoker()
 
 IAdminPtr TConnection::CreateAdmin(const TAdminOptions&)
 {
-    Y_UNIMPLEMENTED();
+    return New<TAdmin>(GetRandomPeerChannel());
 }
 
 NApi::IClientPtr TConnection::CreateClient(const TClientOptions& options)
@@ -93,12 +107,26 @@ NHiveClient::ITransactionParticipantPtr TConnection::CreateTransactionParticipan
 
 void TConnection::ClearMetadataCaches()
 {
-    Y_UNIMPLEMENTED();
+    TableMountCache_->Clear();
 }
 
 void TConnection::Terminate()
 {
-    Y_UNIMPLEMENTED();
+    TFuture<std::vector<TError>> terminationFuture;
+    {
+        auto guard = Guard(AddressSpinLock_);
+        terminationFuture = TerminateAddressProviders(Addresses_);
+    }
+    auto errors = WaitFor(terminationFuture);
+    if (!errors.IsOK()) {
+        LOG_ERROR(errors, "Error while terminating connection");
+    }
+
+    for (const auto& error : errors.Value()) {
+        if (!error.IsOK()) {
+            LOG_ERROR(error, "Error while terminating connection");
+        }
+    }
 }
 
 IChannelPtr TConnection::GetRandomPeerChannel(IRoamingChannelProvider* provider)
@@ -173,6 +201,8 @@ IChannelPtr TConnection::CreateChannelAndRegisterProvider(
             options.SessionId.Get(TString()),
             options.SslSessionId.Get(TString()),
             localAddress);
+    } else {
+        channel = CreateUserInjectingChannel(channel, options.User);
     }
     return channel;
 }
@@ -259,7 +289,7 @@ void TConnection::OnProxyListUpdated()
 void TConnection::SetProxyList(std::vector<TString> addresses)
 {
     std::vector<TString> diff;
-    std::vector<TFuture<void>> terminated;
+    TFuture<std::vector<TError>> terminationFuture;
 
     std::sort(addresses.begin(), addresses.end());
 
@@ -276,25 +306,36 @@ void TConnection::SetProxyList(std::vector<TString> addresses)
             diff);
 
         Addresses_ = std::move(addresses);
-        for (const auto& unavailableAddress : diff) {
-            auto it = AddressToProviders_.find(unavailableAddress);
-            if (it == AddressToProviders_.end()) {
-                continue;
-            }
 
-            LOG_DEBUG("Terminating operable channels (Address: %v)",
-                unavailableAddress);
-
-            for (auto* operable : it->second) {
-                terminated.push_back(operable->Terminate(TError(
-                        NRpc::EErrorCode::Unavailable,
-                        "Channel is not unavailable")));
-                }
-            }
+        terminationFuture = TerminateAddressProviders(diff);
     }
 
-    WaitFor(CombineAll(terminated))
+    WaitFor(terminationFuture)
         .ThrowOnError();
+}
+
+TFuture<std::vector<TError>> TConnection::TerminateAddressProviders(const std::vector<TString>& addresses)
+{
+    VERIFY_SPINLOCK_AFFINITY(AddressSpinLock_);
+
+    std::vector<TFuture<void>> terminated;
+
+    for (const auto& address : addresses) {
+        auto it = AddressToProviders_.find(address);
+        if (it == AddressToProviders_.end()) {
+            continue;
+        }
+
+        LOG_DEBUG("Terminating operable channels (Address: %v)", address);
+
+        for (auto* operable : it->second) {
+            terminated.push_back(operable->Terminate(TError(
+                NRpc::EErrorCode::Unavailable,
+                "Channel is unavailable")));
+        }
+    }
+
+    return CombineAll(terminated);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

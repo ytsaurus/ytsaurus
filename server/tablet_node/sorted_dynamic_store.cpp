@@ -1779,8 +1779,7 @@ IVersionedReaderPtr TSortedDynamicStore::CreateReader(
     TTimestamp timestamp,
     bool produceAllVersions,
     const TColumnFilter& columnFilter,
-    const TWorkloadDescriptor& /*workloadDescriptor*/,
-    const TReadSessionId& /*sessionId*/)
+    const NChunkClient::TClientBlockReadOptions& /*blockReadOptions*/)
 {
     return New<TRangeReader>(
         this,
@@ -1798,8 +1797,7 @@ IVersionedReaderPtr TSortedDynamicStore::CreateReader(
     TTimestamp timestamp,
     bool produceAllVersions,
     const TColumnFilter& columnFilter,
-    const TWorkloadDescriptor& /*workloadDescriptor*/,
-    const TReadSessionId& /*sessionId*/)
+    const NChunkClient::TClientBlockReadOptions& /*blockReadOptions*/)
 {
     return New<TLookupReader>(
         this,
@@ -1869,10 +1867,6 @@ TCallback<void(TSaveContext& context)> TSortedDynamicStore::AsyncSave()
             Schema_,
             chunkWriter);
 
-        LOG_DEBUG("Opening table writer");
-        WaitFor(tableWriter->Open())
-            .ThrowOnError();
-
         std::vector<TVersionedRow> rows;
         rows.reserve(SnapshotRowsPerRead);
 
@@ -1931,10 +1925,11 @@ void TSortedDynamicStore::AsyncLoad(TLoadContext& context)
 
         auto chunkReader = CreateMemoryReader(chunkMeta, TBlock::Wrap(blocks));
 
+        TClientBlockReadOptions blockReadOptions;
+
         auto asyncCachedMeta = TCachedVersionedChunkMeta::Load(
             chunkReader,
-            TWorkloadDescriptor(),
-            TReadSessionId(),
+            blockReadOptions,
             Schema_,
             MemoryTracker_);
         auto cachedMeta = WaitFor(asyncCachedMeta)
@@ -1944,7 +1939,7 @@ void TSortedDynamicStore::AsyncLoad(TLoadContext& context)
         auto chunkState = New<TChunkState>(
             GetNullBlockCache(),
             chunkSpec,
-            std::move(cachedMeta),
+            nullptr,
             nullptr,
             New<TChunkReaderPerformanceCounters>(),
             nullptr);
@@ -1953,8 +1948,9 @@ void TSortedDynamicStore::AsyncLoad(TLoadContext& context)
         auto tableReader = CreateVersionedChunkReader(
             tableReaderConfig,
             chunkReader,
-            chunkState,
-            TReadSessionId(),
+            std::move(chunkState),
+            std::move(cachedMeta),
+            blockReadOptions,
             MinKey(),
             MaxKey(),
             TColumnFilter(),

@@ -138,6 +138,7 @@ public:
                 transactionId,
                 participantCellIds,
                 false,
+                true,
                 false,
                 ETransactionCoordinatorCommitMode::Eager,
                 NullMutationId));
@@ -235,15 +236,17 @@ private:
                 false,
                 true,
                 [
+                    this,
+                    this_ = MakeStrong(this),
                     transactionId = commit->GetTransactionId(),
-                    inheritCommitTimestamp = commit->GetInheritCommitTimestamp(),
-                    coordinatorTimestampProvider = CoordinatorTimestampProvider_
+                    generatePrepareTimestamp = commit->GetGeneratePrepareTimestamp(),
+                    inheritCommitTimestamp = commit->GetInheritCommitTimestamp()
                 ]
                 (const ITransactionParticipantPtr& participant) {
-                    const auto& timestampProvider = inheritCommitTimestamp
-                        ? coordinatorTimestampProvider
-                        : participant->GetTimestampProvider();
-                    auto prepareTimestamp = timestampProvider->GetLatestTimestamp();
+                    auto prepareTimestamp = GeneratePrepareTimestamp(
+                        participant,
+                        generatePrepareTimestamp,
+                        inheritCommitTimestamp);
                     return participant->PrepareTransaction(transactionId, prepareTimestamp);
                 });
         }
@@ -426,6 +429,20 @@ private:
                 "Participant cell %v is currently down",
                 CellId_);
         }
+
+        TTimestamp GeneratePrepareTimestamp(
+            const ITransactionParticipantPtr& participant,
+            bool generatePrepareTimestamp,
+            bool inheritCommitTimestamp)
+        {
+            if (!generatePrepareTimestamp) {
+                return NullTimestamp;
+            }
+            const auto& timestampProvider = inheritCommitTimestamp
+                ? CoordinatorTimestampProvider_
+                : participant->GetTimestampProvider();
+            return timestampProvider->GetLatestTimestamp();
+        }
     };
 
     using TWrappedParticipantPtr = TIntrusivePtr<TWrappedParticipant>;
@@ -497,14 +514,16 @@ private:
             auto transactionId = FromProto<TTransactionId>(request->transaction_id());
             auto participantCellIds = FromProto<std::vector<TCellId>>(request->participant_cell_ids());
             auto force2PC = request->force_2pc();
+            auto generatePrepareTimestamp = request->generate_prepare_timestamp();
             auto inheritCommitTimestamp = request->inherit_commit_timestamp();
             auto coordinatorCommitMode = static_cast<ETransactionCoordinatorCommitMode>(request->coordinator_commit_mode());
 
             context->SetRequestInfo("TransactionId: %v, ParticipantCellIds: %v, Force2PC: %v, "
-                "InheritCommitTimestamp: %v, CoordinatorCommitMode: %v",
+                "GeneratePrepareTimestamp: %v, InheritCommitTimestamp: %v, CoordinatorCommitMode: %v",
                 transactionId,
                 participantCellIds,
                 force2PC,
+                generatePrepareTimestamp,
                 inheritCommitTimestamp,
                 coordinatorCommitMode);
 
@@ -518,6 +537,7 @@ private:
                 transactionId,
                 participantCellIds,
                 force2PC,
+                generatePrepareTimestamp,
                 inheritCommitTimestamp,
                 coordinatorCommitMode,
                 context->GetMutationId());
@@ -670,6 +690,7 @@ private:
         const TTransactionId& transactionId,
         const std::vector<TCellId>& participantCellIds,
         bool force2PC,
+        bool generatePrepareTimestamp,
         bool inheritCommitTimestamp,
         ETransactionCoordinatorCommitMode coordinatorCommitMode,
         const TMutationId& mutationId)
@@ -687,6 +708,7 @@ private:
             mutationId,
             participantCellIds,
             force2PC || !participantCellIds.empty(),
+            generatePrepareTimestamp,
             inheritCommitTimestamp,
             coordinatorCommitMode);
 
@@ -729,13 +751,18 @@ private:
     {
         YCHECK(!commit->GetPersistent());
 
+        auto prepareTimestamp = commit->GetGeneratePrepareTimestamp()
+            ? TimestampProvider_->GetLatestTimestamp()
+            : NullTimestamp;
+
         NHiveServer::NProto::TReqCoordinatorCommitDistributedTransactionPhaseOne request;
         ToProto(request.mutable_transaction_id(), commit->GetTransactionId());
         ToProto(request.mutable_mutation_id(), commit->GetMutationId());
         ToProto(request.mutable_participant_cell_ids(), commit->ParticipantCellIds());
+        request.set_generate_prepare_timestamp(commit->GetGeneratePrepareTimestamp());
         request.set_inherit_commit_timestamp(commit->GetInheritCommitTimestamp());
         request.set_coordinator_commit_mode(static_cast<int>(commit->GetCoordinatorCommitMode()));
-        request.set_prepare_timestamp(TimestampProvider_->GetLatestTimestamp());
+        request.set_prepare_timestamp(prepareTimestamp);
         CreateMutation(HydraManager_, request)
             ->CommitAndLog(Logger);
     }
@@ -864,6 +891,7 @@ private:
                 mutationId,
                 std::vector<TCellId>(),
                 false,
+                true,
                 false,
                 ETransactionCoordinatorCommitMode::Eager);
             commit->CommitTimestamps() = commitTimestamps;
@@ -878,9 +906,10 @@ private:
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
         auto mutationId = FromProto<TMutationId>(request->mutation_id());
         auto participantCellIds = FromProto<std::vector<TCellId>>(request->participant_cell_ids());
+        auto generatePrepareTimestamp = request->generate_prepare_timestamp();
         auto inheritCommitTimestamp = request->inherit_commit_timestamp();
         auto coordindatorCommitMode = static_cast<ETransactionCoordinatorCommitMode>(request->coordinator_commit_mode());
-        auto prepareTimestamp = request->has_prepare_timestamp() ? request->prepare_timestamp() : MinTimestamp;
+        auto prepareTimestamp = request->prepare_timestamp();
 
         // Ensure commit existence (possibly moving it from transient to persistent).
         auto* commit = GetOrCreatePersistentCommit(
@@ -888,6 +917,7 @@ private:
             mutationId,
             participantCellIds,
             true,
+            generatePrepareTimestamp,
             inheritCommitTimestamp,
             coordindatorCommitMode);
 
@@ -1160,6 +1190,7 @@ private:
         const TMutationId& mutationId,
         const std::vector<TCellId>& participantCellIds,
         bool distributed,
+        bool generatePrepareTimestamp,
         bool inheritCommitTimestamp,
         ETransactionCoordinatorCommitMode coordinatorCommitMode)
     {
@@ -1168,6 +1199,7 @@ private:
             mutationId,
             participantCellIds,
             distributed,
+            generatePrepareTimestamp,
             inheritCommitTimestamp,
             coordinatorCommitMode);
         return TransientCommitMap_.Insert(transactionId, std::move(commitHolder));
@@ -1178,6 +1210,7 @@ private:
         const TMutationId& mutationId,
         const std::vector<TCellId>& participantCellIds,
         bool distributed,
+        bool generatePrepareTimstamp,
         bool inheritCommitTimstamp,
         ETransactionCoordinatorCommitMode coordinatorCommitMode)
     {
@@ -1192,6 +1225,7 @@ private:
                 mutationId,
                 participantCellIds,
                 distributed,
+                generatePrepareTimstamp,
                 inheritCommitTimstamp,
                 coordinatorCommitMode);
         }
@@ -1419,7 +1453,15 @@ private:
         if (it != WeakParticipantMap_.end()) {
             auto participant = it->second.Lock();
             if (participant) {
-                return participant;
+                auto state = participant->GetState();
+                if (state == ETransactionParticipantState::Valid) {
+                    return participant;
+                }
+                if (StrongParticipantMap_.erase(cellId) == 1) {
+                    LOG_DEBUG("Participant is not valid; invalidated (ParticipantCellId: %v, State: %v)",
+                        cellId,
+                        state);
+                }
             }
             WeakParticipantMap_.erase(it);
         }
@@ -1445,7 +1487,7 @@ private:
         for (auto it = StrongParticipantMap_.begin(); it != StrongParticipantMap_.end(); ) {
             auto jt = it++;
             if (jt->second->GetState() != ETransactionParticipantState::Valid) {
-                LOG_DEBUG("Participant cell invalidated (ParticipantCellId: %v)",
+                LOG_DEBUG("Participant invalidated (ParticipantCellId: %v)",
                     jt->first);
                 StrongParticipantMap_.erase(jt);
             }
@@ -1688,12 +1730,13 @@ private:
     {
         return
             version == 3 ||
-            version == 4;
+            version == 4 ||
+            version == 5;   // babenko
     }
 
     virtual int GetCurrentSnapshotVersion() override
     {
-        return 4;
+        return 5;
     }
 
 

@@ -1,0 +1,12 @@
+package NYT.NChunkClient.NProto;
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TChunkReaderStatistics
+{
+    required int64 data_bytes_read_from_disk = 1;
+    required int64 data_bytes_read_from_cache = 2;
+    required int64 meta_bytes_read_from_disk = 3;
+}
+
+////////////////////////////////////////////////////////////////////////////////

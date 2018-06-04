@@ -93,9 +93,6 @@ TBlobTableWriter::TBlobTableWriter(
         chunkListId,
         TChunkTimestamps(),
         trafficMeter);
-
-    WaitFor(MultiChunkWriter_->Open())
-        .ThrowOnError();
 }
 
 NScheduler::NProto::TOutputResult TBlobTableWriter::GetOutputResult() const

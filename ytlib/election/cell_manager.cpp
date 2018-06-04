@@ -3,8 +3,9 @@
 #include "config.h"
 
 #include <yt/core/bus/client.h>
-#include <yt/core/bus/config.h>
-#include <yt/core/bus/tcp_client.h>
+
+#include <yt/core/bus/tcp/config.h>
+#include <yt/core/bus/tcp/client.h>
 
 #include <yt/core/net/address.h>
 
@@ -58,14 +59,22 @@ void TCellManager::BuildTags()
     auto* profilingManager = NProfiling::TProfileManager::Get();
     for (TPeerId id = 0; id < GetTotalPeerCount(); ++id) {
         const auto& config = GetPeerConfig(id);
-        if (config.Address) {
-            PeerTags_.push_back(profilingManager->RegisterTag("address", *config.Address));
-        }
+        PeerTags_.push_back(
+            config.Address
+            ? profilingManager->RegisterTag("address", *config.Address)
+            : -1);
     }
 
     AllPeersTag_ = profilingManager->RegisterTag("address", "all");
     PeerQuorumTag_ = profilingManager->RegisterTag("address", "quorum");
     CellIdTag_ = profilingManager->RegisterTag("cell_id", Config_->CellId);
+    UpdateProfilerTags();
+}
+
+void TCellManager::UpdateProfilerTags()
+{
+    ProfilerTags_ = CustomTags_;
+    ProfilerTags_.push_back(CellIdTag_);
 }
 
 const TCellId& TCellManager::GetCellId() const
@@ -110,7 +119,9 @@ IChannelPtr TCellManager::GetPeerChannel(TPeerId id) const
 
 NProfiling::TTagId TCellManager::GetPeerTag(TPeerId id) const
 {
-    return PeerTags_[id];
+    auto tag = PeerTags_[id];
+    YCHECK(tag != -1);
+    return tag;
 }
 
 NProfiling::TTagId TCellManager::GetAllPeersTag() const
@@ -126,6 +137,22 @@ NProfiling::TTagId TCellManager::GetPeerQuorumTag() const
 NProfiling::TTagId TCellManager::GetCellIdTag() const
 {
     return CellIdTag_;
+}
+
+NProfiling::TTagIdList TCellManager::GetCustomTags() const
+{
+    return CustomTags_;
+}
+
+NProfiling::TTagIdList TCellManager::GetProfilerTags() const
+{
+    return ProfilerTags_;
+}
+
+void TCellManager::SetCustomTags(const NProfiling::TTagIdList& customTags)
+{
+    CustomTags_ = customTags;
+    UpdateProfilerTags();
 }
 
 void TCellManager::Reconfigure(TCellConfigPtr newConfig)

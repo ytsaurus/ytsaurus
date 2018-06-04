@@ -6,8 +6,8 @@
 #include <yt/ytlib/api/public.h>
 
 #include <yt/ytlib/chunk_client/data_slice_descriptor.h>
-#include <yt/ytlib/chunk_client/reader_base.h>
 #include <yt/ytlib/chunk_client/read_limit.h>
+#include <yt/ytlib/chunk_client/reader_base.h>
 
 #include <yt/ytlib/node_tracker_client/public.h>
 
@@ -39,11 +39,12 @@ DEFINE_REFCOUNTED_TYPE(ISchemalessChunkReader)
 
 ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
     const TChunkStatePtr& chunkState,
+    const TColumnarChunkMetaPtr& chunkMeta,
     TChunkReaderConfigPtr config,
     TChunkReaderOptionsPtr options,
     NChunkClient::IChunkReaderPtr underlyingReader,
     TNameTablePtr nameTable,
-    const NChunkClient::TReadSessionId& sessionId,
+    const NChunkClient::TClientBlockReadOptions& blockReadOptions,
     const TKeyColumns& keyColumns,
     const TColumnFilter& columnFilter,
     const NChunkClient::TReadRange& readRange,
@@ -51,11 +52,12 @@ ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
 
 ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
     const TChunkStatePtr& chunkState,
+    const TColumnarChunkMetaPtr& chunkMeta,
     TChunkReaderConfigPtr config,
     TChunkReaderOptionsPtr options,
     NChunkClient::IChunkReaderPtr underlyingReader,
     TNameTablePtr nameTable,
-    const NChunkClient::TReadSessionId& sessionId,
+    const NChunkClient::TClientBlockReadOptions& blockReadOptions,
     const TKeyColumns& keyColumns,
     const TColumnFilter& columnFilter,
     const TSharedRange<TKey>& keys,
@@ -93,7 +95,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessSequentialMultiReader(
     const NChunkClient::TDataSourceDirectoryPtr& dataSourceDirectory,
     const std::vector<NChunkClient::TDataSliceDescriptor>& dataSliceDescriptors,
     TNameTablePtr nameTable,
-    const NChunkClient::TReadSessionId& sessionId,
+    const NChunkClient::TClientBlockReadOptions& blockReadOptions,
     const TColumnFilter& columnFilter = TColumnFilter(),
     const TKeyColumns &keyColumns = TKeyColumns(),
     TNullable<int> partitionTag = Null,
@@ -112,7 +114,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessParallelMultiReader(
     const NChunkClient::TDataSourceDirectoryPtr& dataSourceDirectory,
     const std::vector<NChunkClient::TDataSliceDescriptor>& dataSliceDescriptors,
     TNameTablePtr nameTable,
-    const NChunkClient::TReadSessionId& sessionId,
+    const NChunkClient::TClientBlockReadOptions& blockReadOptions,
     const TColumnFilter& columnFilter = TColumnFilter(),
     const TKeyColumns& keyColumns = TKeyColumns(),
     TNullable<int> partitionTag = Null,
@@ -131,7 +133,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessMergingMultiChunkReader(
     const NChunkClient::TDataSourceDirectoryPtr& dataSourceDirectory,
     const NChunkClient::TDataSliceDescriptor& dataSliceDescriptor,
     TNameTablePtr nameTable,
-    const NChunkClient::TReadSessionId& sessionId,
+    const NChunkClient::TClientBlockReadOptions& blockReadOptions,
     const TColumnFilter& columnFilter,
     NChunkClient::TTrafficMeterPtr trafficMeter = nullptr,
     NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler());

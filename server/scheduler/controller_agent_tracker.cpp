@@ -278,7 +278,7 @@ public:
         return InvokeAgent<TControllerAgentServiceProxy::TRspCompleteOperation>(req).As<void>();
     }
 
-    virtual TFuture<void> Dispose() override
+    virtual TFuture<void> Unregister() override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -286,9 +286,9 @@ public:
             return VoidFuture;
         }
 
-        auto req = AgentProxy_->DisposeOperation();
+        auto req = AgentProxy_->UnregisterOperation();
         ToProto(req->mutable_operation_id(), OperationId_);
-        return InvokeAgent<TControllerAgentServiceProxy::TRspDisposeOperation>(req).As<void>();
+        return InvokeAgent<TControllerAgentServiceProxy::TRspUnregisterOperation>(req).As<void>();
     }
 
 
@@ -635,7 +635,7 @@ public:
         YCHECK(agent->Operations().insert(operation).second);
         operation->SetAgent(agent.Get());
 
-        LOG_DEBUG("Operation assigned to agent (AgentId: %v, OperationId: %v)",
+        LOG_INFO("Operation assigned to agent (AgentId: %v, OperationId: %v)",
             agent->GetId(),
             operation->GetId());
     }
@@ -989,6 +989,11 @@ public:
                     case EAgentToSchedulerOperationEventType::Failed:
                         scheduler->OnOperationFailed(operation, error);
                         break;
+                    case EAgentToSchedulerOperationEventType::BannedInTentativeTree: {
+                        auto treeId = protoEvent->tentative_tree_id();
+                        scheduler->OnOperationBannedInTentativeTree(operation, treeId);
+                        break;
+                    }
                     default:
                         Y_UNREACHABLE();
                 }
@@ -1017,6 +1022,7 @@ public:
                         auto interruptReason = static_cast<EInterruptReason>(protoEvent->interrupt_reason());
                         auto archiveJobSpec = protoEvent->archive_job_spec();
                         auto archiveStderr = protoEvent->archive_stderr();
+                        auto archiveFailContext = protoEvent->archive_fail_context();
                         switch (eventType) {
                             case EAgentToSchedulerJobEventType::Interrupted:
                                 nodeShard->InterruptJob(jobId, interruptReason);
@@ -1028,7 +1034,7 @@ public:
                                 nodeShard->FailJob(jobId);
                                 break;
                             case EAgentToSchedulerJobEventType::Released:
-                                nodeShard->ReleaseJob(jobId, archiveJobSpec, archiveStderr);
+                                nodeShard->ReleaseJob(jobId, archiveJobSpec, archiveStderr, archiveFailContext);
                                 break;
                             default:
                                 Y_UNREACHABLE();

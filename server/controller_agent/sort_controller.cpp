@@ -37,6 +37,8 @@
 
 #include <yt/core/ytree/permission.h>
 
+#include <yt/core/concurrency/periodic_yielder.h>
+
 #include <yt/core/misc/numeric_helpers.h>
 
 #include <cmath>
@@ -502,9 +504,9 @@ protected:
             TTask::OnJobStarted(joblet);
         }
 
-        virtual void OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary) override
+        virtual TJobCompletedResult OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary) override
         {
-            TTask::OnJobCompleted(joblet, jobSummary);
+            auto result = TTask::OnJobCompleted(joblet, jobSummary);
 
             RegisterOutput(&jobSummary.Result, joblet->ChunkListIds, joblet);
 
@@ -529,6 +531,8 @@ protected:
             // Kick-start sort and unordered merge tasks.
             Controller->CheckSortStartThreshold();
             Controller->CheckMergeStartThreshold();
+
+            return result;
         }
 
         virtual void OnJobLost(TCompletedJobPtr completedJob) override
@@ -827,9 +831,9 @@ protected:
             }
         }
 
-        virtual void OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary) override
+        virtual TJobCompletedResult OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary) override
         {
-            TPartitionBoundTask::OnJobCompleted(joblet, jobSummary);
+            auto result = TPartitionBoundTask::OnJobCompleted(joblet, jobSummary);
 
             Controller->SortDataWeightCounter->Completed(joblet->InputStripeList->TotalDataWeight);
 
@@ -866,6 +870,8 @@ protected:
             if (Controller->IsSortedMergeNeeded(Partition)) {
                 Controller->AddTaskPendingHint(Partition->SortedMergeTask);
             }
+
+            return result;
         }
 
         virtual void OnJobFailed(TJobletPtr joblet, const TFailedJobSummary& jobSummary) override
@@ -1048,6 +1054,11 @@ protected:
             // Shuffle pool is not used if simple sort is happening,
             // so we can use our own chunk mapping.
             return TTask::GetChunkMapping();
+        }
+
+        virtual bool CanLoseJobs() const override
+        {
+            return Controller->Spec->EnableIntermediateOutputRecalculation;
         }
 
     private:
@@ -1274,15 +1285,17 @@ protected:
             YCHECK(ActiveJoblets_.insert(joblet).second);
         }
 
-        virtual void OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary) override
+        virtual TJobCompletedResult OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary) override
         {
-            TMergeTask::OnJobCompleted(joblet, jobSummary);
+            auto result = TMergeTask::OnJobCompleted(joblet, jobSummary);
 
             Controller->SortedMergeJobCounter->Completed(1);
             YCHECK(ActiveJoblets_.erase(joblet) == 1);
             if (!InvalidatedJoblets_.has(joblet)) {
                 JobOutputs_.emplace_back(TJobOutput{joblet->ChunkListIds, jobSummary});
             }
+
+            return result;
         }
 
         virtual void OnJobFailed(TJobletPtr joblet, const TFailedJobSummary& jobSummary) override
@@ -1405,14 +1418,16 @@ protected:
             Controller->UnorderedMergeJobCounter->Start(1);
         }
 
-        virtual void OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary) override
+        virtual TJobCompletedResult OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary) override
         {
-            TMergeTask::OnJobCompleted(joblet, jobSummary);
+            auto result = TMergeTask::OnJobCompleted(joblet, jobSummary);
 
             Controller->UnorderedMergeJobCounter->Completed(1);
 
             Controller->AccountRows(jobSummary.Statistics);
             RegisterOutput(&jobSummary.Result, joblet->ChunkListIds, joblet);
+
+            return result;
         }
 
         virtual void OnJobFailed(TJobletPtr joblet, const TFailedJobSummary& jobSummary) override
@@ -1558,9 +1573,15 @@ protected:
 
     void InitPartitionPool(IJobSizeConstraintsPtr jobSizeConstraints, TJobSizeAdjusterConfigPtr jobSizeAdjusterConfig)
     {
+        TUnorderedChunkPoolOptions options;
+        options.JobSizeConstraints = std::move(jobSizeConstraints);
+        options.JobSizeAdjusterConfig = std::move(jobSizeAdjusterConfig);
+        options.OperationId = OperationId;
+        options.Task = PartitionTask->GetTitle();
+
         PartitionPool = CreateUnorderedChunkPool(
-            std::move(jobSizeConstraints),
-            std::move(jobSizeAdjusterConfig));
+            std::move(options),
+            GetInputStreamDirectory());
     }
 
     void InitShufflePool()
@@ -1580,9 +1601,14 @@ protected:
 
     void InitSimpleSortPool(IJobSizeConstraintsPtr jobSizeConstraints)
     {
+        TUnorderedChunkPoolOptions options;
+        options.JobSizeConstraints = std::move(jobSizeConstraints);
+        options.OperationId = OperationId;
+        options.Task = Partitions[0]->SortTask->GetTitle();
+
         SimpleSortPool = CreateUnorderedChunkPool(
-            std::move(jobSizeConstraints),
-            nullptr);
+            std::move(options),
+            GetInputStreamDirectory());
     }
 
     virtual bool IsCompleted() const override
@@ -1790,6 +1816,30 @@ protected:
 
     virtual TExtendedJobResources GetUnorderedMergeResources(
         const TChunkStripeStatisticsVector& statistics) const = 0;
+
+
+    void ProcessInputs(const TTaskPtr& inputTask, const IJobSizeConstraintsPtr& jobSizeConstraints)
+    {
+        TPeriodicYielder yielder(PrepareYieldPeriod);
+
+        int unversionedSlices = 0;
+        int versionedSlices = 0;
+        for (auto& chunk : CollectPrimaryUnversionedChunks()) {
+            const auto& slice = CreateUnversionedInputDataSlice(CreateInputChunkSlice(chunk));
+            inputTask->AddInput(New<TChunkStripe>(std::move(slice)));
+            ++unversionedSlices;
+            yielder.TryYield();
+        }
+        for (auto& slice : CollectPrimaryVersionedDataSlices(jobSizeConstraints->GetInputSliceDataWeight())) {
+            inputTask->AddInput(New<TChunkStripe>(std::move(slice)));
+            ++versionedSlices;
+            yielder.TryYield();
+        }
+
+        LOG_INFO("Processed inputs (UnversionedSlices: %v, VersionedSlices: %v)",
+            unversionedSlices,
+            versionedSlices);
+    }
 
     // Unsorted helpers.
 
@@ -2335,19 +2385,16 @@ private:
             TotalEstimatedInputDataWeight);
 
         std::vector<TChunkStripePtr> stripes;
-        SlicePrimaryUnversionedChunks(jobSizeConstraints, &stripes);
-        SlicePrimaryVersionedChunks(jobSizeConstraints, &stripes);
 
-        // Create the fake partition.
-        InitSimpleSortPool(jobSizeConstraints);
         auto partition = New<TPartition>(this, 0);
         Partitions.push_back(partition);
+        // Create the fake partition.
+        InitSimpleSortPool(jobSizeConstraints);
         partition->ChunkPoolOutput = SimpleSortPool.get();
-        partition->SortTask->AddInput(stripes);
-        partition->SortTask->SetInputVertex(FormatEnum(GetPartitionJobType()));
         partition->SortedMergeTask->SetInputVertex(FormatEnum(GetIntermediateSortJobType()));
+        ProcessInputs(partition->SortTask, jobSizeConstraints);
 
-        partition->SortTask->FinishInput();
+        FinishTaskInput(partition->SortTask);
 
         // NB: Cannot use TotalEstimatedInputDataWeight due to slicing and rounding issues.
         SortDataWeightCounter->Increment(SimpleSortPool->GetTotalDataWeight());
@@ -2457,18 +2504,15 @@ private:
         InitShufflePool();
 
         std::vector<TChunkStripePtr> stripes;
-        SlicePrimaryUnversionedChunks(partitionJobSizeConstraints, &stripes);
-        SlicePrimaryVersionedChunks(partitionJobSizeConstraints, &stripes);
-
-        InitPartitionPool(partitionJobSizeConstraints, nullptr);
 
         TEdgeDescriptor shuffleEdgeDescriptor = GetIntermediateEdgeDescriptorTemplate();
         shuffleEdgeDescriptor.DestinationPool = ShufflePoolInput.get();
         shuffleEdgeDescriptor.ChunkMapping = ShuffleChunkMapping_;
         shuffleEdgeDescriptor.TableWriterOptions->ReturnBoundaryKeys = false;
         PartitionTask = New<TPartitionTask>(this, std::vector<TEdgeDescriptor> {shuffleEdgeDescriptor});
+        InitPartitionPool(partitionJobSizeConstraints, nullptr);
         RegisterTask(PartitionTask);
-        PartitionTask->AddInput(stripes);
+        ProcessInputs(PartitionTask, partitionJobSizeConstraints);
         FinishTaskInput(PartitionTask);
 
         LOG_INFO("Sorting with partitioning (PartitionCount: %v, PartitionJobCount: %v, DataWeightPerPartitionJob: %v)",
@@ -3033,12 +3077,6 @@ private:
         InitShufflePool();
 
         std::vector<TChunkStripePtr> stripes;
-        SlicePrimaryUnversionedChunks(partitionJobSizeConstraints, &stripes);
-        SlicePrimaryVersionedChunks(partitionJobSizeConstraints, &stripes);
-
-        InitPartitionPool(partitionJobSizeConstraints, Config->EnablePartitionMapJobSizeAdjustment
-            ? Options->PartitionJobSizeAdjuster
-            : nullptr);
 
         std::vector<TEdgeDescriptor> partitionEdgeDescriptors;
 
@@ -3055,7 +3093,12 @@ private:
             MapperSinkEdges_.end());
 
         PartitionTask = New<TPartitionTask>(this, std::move(partitionEdgeDescriptors));
-        PartitionTask->AddInput(stripes);
+
+        InitPartitionPool(partitionJobSizeConstraints, Config->EnablePartitionMapJobSizeAdjustment
+            ? Options->PartitionJobSizeAdjuster
+            : nullptr);
+
+        ProcessInputs(PartitionTask, partitionJobSizeConstraints);
         RegisterTask(PartitionTask);
         FinishTaskInput(PartitionTask);
 
@@ -3242,12 +3285,12 @@ private:
 
     virtual bool IsOutputLivePreviewSupported() const override
     {
-        return true;
+        return Spec->EnableLegacyLivePreview;
     }
 
     virtual bool IsIntermediateLivePreviewSupported() const override
     {
-        return true;
+        return Spec->EnableLegacyLivePreview;
     }
 
     virtual bool IsInputDataSizeHistogramSupported() const override

@@ -59,6 +59,7 @@ private:
     const TConnectionConfigPtr Config_;
     const NConcurrency::TActionQueuePtr ActionQueue_;
     const NRpc::IChannelFactoryPtr ChannelFactory_;
+    NTabletClient::ITableMountCachePtr TableMountCache_;
 
     const NLogging::TLogger Logger;
 
@@ -87,6 +88,8 @@ private:
     void OnProxyListUpdated();
 
     void SetProxyList(std::vector<TString> addresses);
+
+    TFuture<std::vector<TError>> TerminateAddressProviders(const std::vector<TString>& addresses);
 };
 
 DEFINE_REFCOUNTED_TYPE(TConnection)

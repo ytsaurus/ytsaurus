@@ -7,6 +7,7 @@
 
 #include <yt/ytlib/chunk_client/chunk_meta.pb.h>
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
 
 #include <yt/core/concurrency/scheduler.h>
 
@@ -61,7 +62,9 @@ private:
         }
 
         return IYPathService::FromProducer(BIND([=] (IYsonConsumer* consumer) {
-            auto chunkMeta = NYT::NConcurrency::WaitFor(chunk->ReadMeta(TWorkloadDescriptor()))
+            TBlockReadOptions options;
+            options.ChunkReaderStatistics = New<TChunkReaderStatistics>();
+            auto chunkMeta = NYT::NConcurrency::WaitFor(chunk->ReadMeta(options))
                 .ValueOrThrow();
             auto blocksExt = GetProtoExtension<NChunkClient::NProto::TBlocksExt>(chunkMeta->extensions());
             BuildYsonFluently(consumer)

@@ -60,8 +60,6 @@ TLocation::TLocation(
     , Type_(type)
     , Id_(id)
     , Config_(config)
-    , DataReadThreadPool_(New<TThreadPool>(bootstrap->GetConfig()->DataNode->ReadThreadCount, Format("DataRead:%v", Id_)))
-    , DataReadInvoker_(CreatePrioritizedInvoker(DataReadThreadPool_->GetInvoker()))
     , MetaReadQueue_(New<TActionQueue>(Format("MetaRead:%v", Id_)))
     , MetaReadInvoker_(CreatePrioritizedInvoker(MetaReadQueue_->GetInvoker()))
     , WriteThreadPool_(New<TThreadPool>(Bootstrap_->GetConfig()->DataNode->WriteThreadCount, Format("DataWrite:%v", Id_)))
@@ -122,7 +120,8 @@ TLocation::TLocation(
         for (auto direction : TEnumTraits<EIODirection>::GetDomainValues()) {
             for (auto category : TEnumTraits<EIOCategory>::GetDomainValues()) {
                 auto& counter = (this->*getCounter)(direction, category);
-                counter = NProfiling::TSimpleCounter(
+                typedef typename std::remove_reference<decltype(counter)>::type TCounter;
+                counter = TCounter(
                     path,
                     {
                         profileManager->RegisterTag("direction", direction),
@@ -178,11 +177,6 @@ TString TLocation::GetPath() const
 i64 TLocation::GetQuota() const
 {
     return Config_->Quota.Get(std::numeric_limits<i64>::max());
-}
-
-IPrioritizedInvokerPtr TLocation::GetDataReadInvoker()
-{
-    return DataReadInvoker_;
 }
 
 IPrioritizedInvokerPtr TLocation::GetMetaReadInvoker()
@@ -355,7 +349,7 @@ EIOCategory TLocation::ToIOCategory(const TWorkloadDescriptor& workloadDescripto
     }
 }
 
-NProfiling::TSimpleCounter& TLocation::GetPendingIOSizeCounter(
+NProfiling::TSimpleGauge& TLocation::GetPendingIOSizeCounter(
     EIODirection direction,
     EIOCategory category)
 {
@@ -365,7 +359,7 @@ NProfiling::TSimpleCounter& TLocation::GetPendingIOSizeCounter(
     return PendingIOSizeCounters_[index];
 }
 
-NProfiling::TSimpleCounter& TLocation::GetCompletedIOSizeCounter(
+NProfiling::TMonotonicCounter& TLocation::GetCompletedIOSizeCounter(
     EIODirection direction,
     EIOCategory category)
 {

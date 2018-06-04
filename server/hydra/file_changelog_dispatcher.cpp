@@ -251,10 +251,12 @@ class TFileChangelogDispatcher::TImpl
 {
 public:
     TImpl(
+        const NChunkClient::IIOEnginePtr& ioEngine,
         const TFileChangelogDispatcherConfigPtr config,
         const TString& threadName,
         const TProfiler& profiler)
-        : Config_(config)
+        : IOEngine_(ioEngine)
+        , Config_(config)
         , ProcessQueuesCallback_(BIND(&TImpl::ProcessQueues, MakeWeak(this)))
         , ActionQueue_(New<TActionQueue>(threadName))
         , PeriodicExecutor_(New<TPeriodicExecutor>(
@@ -352,6 +354,13 @@ public:
             .Run(std::move(queue));
     }
 
+    TFuture<void> Preallocate(TFileChangelogQueuePtr queue, size_t size)
+    {
+        return BIND(&TImpl::DoPreallocate, MakeStrong(this))
+            .AsyncVia(GetInvoker())
+            .Run(std::move(queue), size);
+    }
+
     TFuture<void> FlushChangelogs()
     {
         return BIND(&TImpl::DoFlushChangelogs, MakeStrong(this))
@@ -359,7 +368,13 @@ public:
             .Run();
     }
 
+    const NChunkClient::IIOEnginePtr& GetIOEngine() const
+    {
+        return IOEngine_;
+    }
+
 private:
+    const NChunkClient::IIOEnginePtr IOEngine_;
     const TFileChangelogDispatcherConfigPtr Config_;
     const TClosure ProcessQueuesCallback_;
 
@@ -372,8 +387,8 @@ private:
 
     THashSet<TFileChangelogQueuePtr> Queues_;
 
-    TSimpleCounter RecordCounter_;
-    TSimpleCounter ByteCounter_;
+    TMonotonicCounter RecordCounter_;
+    TMonotonicCounter ByteCounter_;
 
 
     void Wakeup()
@@ -465,6 +480,15 @@ private:
         PROFILE_TIMING("/changelog_close_io_time") {
             const auto& changelog = queue->GetChangelog();
             changelog->Close();
+        }
+    }
+
+    void DoPreallocate(const TFileChangelogQueuePtr& queue, size_t size)
+    {
+        YCHECK(!queue->HasUnflushedRecords());
+        PROFILE_TIMING("/changelog_preallocate_io_time") {
+            const auto& changelog = queue->GetChangelog();
+            changelog->Preallocate(size);
         }
     }
 
@@ -565,6 +589,11 @@ public:
         return DispatcherImpl_->Close(Queue_);
     }
 
+    virtual TFuture<void> Preallocate(size_t size) override
+    {
+        return DispatcherImpl_->Preallocate(Queue_, size);
+    }
+
 private:
     const TFileChangelogDispatcher::TImplPtr DispatcherImpl_;
     const TFileChangelogConfigPtr Config_;
@@ -584,10 +613,12 @@ DEFINE_REFCOUNTED_TYPE(TFileChangelog)
 ////////////////////////////////////////////////////////////////////////////////
 
 TFileChangelogDispatcher::TFileChangelogDispatcher(
+    const NChunkClient::IIOEnginePtr& ioEngine,
     const TFileChangelogDispatcherConfigPtr& config,
     const TString& threadName,
     const TProfiler& profiler)
     : Impl_(New<TImpl>(
+        ioEngine,
         config,
         threadName,
         profiler))
@@ -605,7 +636,7 @@ IChangelogPtr TFileChangelogDispatcher::CreateChangelog(
     const TChangelogMeta& meta,
     const TFileChangelogConfigPtr& config)
 {
-    auto syncChangelog = New<TSyncFileChangelog>(path, config);
+    auto syncChangelog = New<TSyncFileChangelog>(Impl_->GetIOEngine(), path, config);
     syncChangelog->Create(meta);
 
     return New<TFileChangelog>(Impl_, config, syncChangelog);
@@ -615,7 +646,7 @@ IChangelogPtr TFileChangelogDispatcher::OpenChangelog(
     const TString& path,
     const TFileChangelogConfigPtr& config)
 {
-    auto syncChangelog = New<TSyncFileChangelog>(path, config);
+    auto syncChangelog = New<TSyncFileChangelog>(Impl_->GetIOEngine(), path, config);
     syncChangelog->Open();
 
     return New<TFileChangelog>(Impl_, config, syncChangelog);

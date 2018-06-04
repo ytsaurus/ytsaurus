@@ -12,7 +12,7 @@
 
 #include <yt/core/rpc/config.h>
 
-#include <yt/core/bus/config.h>
+#include <yt/core/bus/tcp/config.h>
 
 #include <yt/core/tracing/config.h>
 

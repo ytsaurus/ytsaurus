@@ -42,8 +42,7 @@ protected:
             lowerRowIndex,
             upperRowIndex,
             columnFilter,
-            TWorkloadDescriptor(),
-            TReadSessionId());
+            BlockReadOptions_);
 
         std::vector<TUnversionedOwningRow> allRows;
         std::vector<TUnversionedRow> someRows;

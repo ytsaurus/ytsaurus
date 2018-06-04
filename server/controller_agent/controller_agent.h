@@ -15,6 +15,7 @@
 #include <yt/ytlib/api/public.h>
 
 #include <yt/core/ytree/public.h>
+#include <yt/core/ytree/permission.h>
 
 #include <yt/core/concurrency/public.h>
 
@@ -116,6 +117,7 @@ public:
     const TOperationIdToOperationMap& GetOperations();
 
     void RegisterOperation(const NProto::TOperationDescriptor& descriptor);
+    TFuture<void> DisposeAndUnregisterOperation(const TOperationId& operationId);
     TFuture<TOperationControllerInitializationResult> InitializeOperation(const TOperationPtr& operation, const TNullable<TControllerTransactions>& transactions);
     TFuture<TOperationControllerPrepareResult> PrepareOperation(const TOperationPtr& operation);
     TFuture<void> MaterializeOperation(const TOperationPtr& operation);
@@ -123,7 +125,6 @@ public:
     TFuture<void> CommitOperation(const TOperationPtr& operation);
     TFuture<void> CompleteOperation(const TOperationPtr& operation);
     TFuture<void> AbortOperation(const TOperationPtr& operation);
-    TFuture<void> DisposeOperation(const TOperationPtr& operation);
 
     //! Extracts specs for given jobs; nulls indicate failures (e.g. missing jobs).
     TFuture<std::vector<TErrorOr<TSharedRef>>> ExtractJobSpecs(const std::vector<TJobSpecRequest>& requests);
@@ -147,6 +148,15 @@ public:
      *  \note Thread affinity: any
      */
     const NConcurrency::IThroughputThrottlerPtr& GetJobSpecSliceThrottler() const;
+
+    /*!
+     *  \note Thread affinity: any
+     */
+    void ValidateOperationPermission(
+        const TString& user,
+        const TOperationId& operationId,
+        NYTree::EPermission permission,
+        const TString& subnodePath = "");
 
     //! Raised when connection prcoess starts.
     //! Subscribers may throw and yield.

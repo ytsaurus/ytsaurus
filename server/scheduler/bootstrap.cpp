@@ -31,9 +31,10 @@
 
 #include <yt/ytlib/core_dump/core_dumper.h>
 
-#include <yt/core/bus/config.h>
 #include <yt/core/bus/server.h>
-#include <yt/core/bus/tcp_server.h>
+
+#include <yt/core/bus/tcp/config.h>
+#include <yt/core/bus/tcp/server.h>
 
 #include <yt/core/http/server.h>
 
@@ -172,7 +173,7 @@ void TBootstrap::DoRun()
     SetNodeByYPath(
         orchidRoot,
         "/scheduler",
-        CreateVirtualNode(Scheduler_->GetOrchidService()));
+        CreateVirtualNode(Scheduler_->GetOrchidService()->Via(GetControlInvoker(EControlQueue::Orchid))));
 
     SetBuildAttributes(orchidRoot, "scheduler");
 
@@ -186,7 +187,7 @@ void TBootstrap::DoRun()
 
     HttpServer_->AddHandler(
         "/orchid/",
-        NMonitoring::GetOrchidYPathHttpHandler(orchidRoot->Via(GetControlInvoker(EControlQueue::Orchid))));
+        NMonitoring::GetOrchidYPathHttpHandler(orchidRoot));
 
     RpcServer_->RegisterService(CreateSchedulerService(this));
     RpcServer_->RegisterService(CreateJobTrackerService(this));

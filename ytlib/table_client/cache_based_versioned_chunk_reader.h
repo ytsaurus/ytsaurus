@@ -27,7 +27,7 @@ namespace NTableClient {
 
 IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
     const TChunkStatePtr& state,
-    const NChunkClient::TReadSessionId& sessionId,
+    const NChunkClient::TClientBlockReadOptions& blockReadOptions,
     const TSharedRange<TKey>& keys,
     const TColumnFilter& columnFilter,
     TTimestamp timestamp,
@@ -35,7 +35,7 @@ IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
 
 IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
     const TChunkStatePtr& state,
-    const NChunkClient::TReadSessionId& sessionId,
+    const NChunkClient::TClientBlockReadOptions& blockReadOptions,
     TSharedRange<TRowRange> ranges,
     const TColumnFilter& columnFilter,
     TTimestamp timestamp,

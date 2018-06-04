@@ -33,10 +33,10 @@ static const double RatioComparisonPrecision = sqrt(RatioComputationPrecision);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TAggregateCounter& GetCounter(const TString& treeId, const TString& name)
+TAggregateGauge& GetCounter(const TString& treeId, const TString& name)
 {
     using TCounterKey = std::pair<TString, TString>;
-    using TCounterValue = std::unique_ptr<TAggregateCounter>;
+    using TCounterValue = std::unique_ptr<TAggregateGauge>;
 
     static THashMap<TCounterKey, TCounterValue> counters;
 
@@ -44,7 +44,7 @@ TAggregateCounter& GetCounter(const TString& treeId, const TString& name)
     auto it = counters.find(key);
     if (it == counters.end()) {
         auto tag = TProfileManager::Get()->RegisterTag("tree", treeId);
-        auto ptr = std::make_unique<TAggregateCounter>(name, TTagIdList{tag});
+        auto ptr = std::make_unique<TAggregateGauge>(name, TTagIdList{tag});
         it = counters.emplace(key, std::move(ptr)).first;
     }
 
@@ -249,8 +249,9 @@ void TSchedulerElement::UpdateAttributes()
         Attributes_.DominantLimit == 0 ? 1.0 : dominantDemand / Attributes_.DominantLimit;
 
     double possibleUsageRatio = Attributes_.DemandRatio;
-    if (GetResourceUsageRatio() < TreeConfig_->ThresholdToEnableMaxPossibleUsageRegularization * Attributes_.DemandRatio) {
+    if (GetResourceUsageRatio() <= TreeConfig_->ThresholdToEnableMaxPossibleUsageRegularization * Attributes_.DemandRatio) {
         auto possibleUsage = usage + ComputePossibleResourceUsage(maxPossibleResourceUsage - usage);
+        possibleUsage = Min(possibleUsage, MaxPossibleResourceUsage_);
         possibleUsageRatio = GetDominantResourceUsage(possibleUsage, TotalResourceLimits_);
     }
 

@@ -20,6 +20,7 @@
 
 #include <yt/ytlib/cgroup/cgroup.h>
 
+#include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
 #include <yt/ytlib/chunk_client/public.h>
 
 #include <yt/ytlib/core_dump/proto/core_info.pb.h>
@@ -138,7 +139,7 @@ static TString CreateNamedPipePath()
 ////////////////////////////////////////////////////////////////////////////////
 
 class TUserJob
-: public TJob
+    : public TJob
 {
 public:
     TUserJob(
@@ -178,6 +179,7 @@ public:
             Host_->LocalDescriptor(),
             BIND(&IJobHost::ReleaseNetwork, Host_),
             SandboxDirectoryNames[ESandboxKind::Udf],
+            BlockReadOptions_,
             Host_->GetTrafficMeter());
 
         InputPipeBlinker_ = New<TPeriodicExecutor>(
@@ -462,6 +464,8 @@ private:
 
     TCoreProcessorServicePtr CoreProcessorService_;
 
+    TNullable<TString> FailContext_;
+
     void Prepare()
     {
         PreparePipes();
@@ -590,6 +594,17 @@ private:
         auto contexts = WaitFor(UserJobReadController_->GetInputContext())
             .ValueOrThrow();
 
+        size_t size = 0;
+        for (const auto& context : contexts) {
+            size += context.Size();
+        }
+
+        FailContext_ = TString();
+        FailContext_->reserve(size);
+        for (const auto& context : contexts) {
+            FailContext_->append(context.Begin(), context.Size());
+        }
+
         auto contextChunkIds = DoDumpInputContext(contexts);
 
         YCHECK(contextChunkIds.size() <= 1);
@@ -642,6 +657,13 @@ private:
         }
 
         return result;
+    }
+
+    virtual TNullable<TString> GetFailContext() override
+    {
+        ValidatePrepared();
+
+        return FailContext_;
     }
 
     virtual TString GetStderr() override
@@ -932,6 +954,8 @@ private:
         if (const auto& codecStatistics = UserJobReadController_->GetDecompressionStatistics()) {
             codecStatistics->DumpTo(&statistics, "/codec/cpu/decode");
         }
+
+        DumpChunkReaderStatistics(&statistics, "/chunk_reader_statistics", BlockReadOptions_.ChunkReaderStatistics);
 
         int i = 0;
         for (const auto& writer : UserJobWriteController_->GetWriters()) {

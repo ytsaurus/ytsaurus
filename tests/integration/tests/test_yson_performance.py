@@ -4,6 +4,8 @@ from yt.wrapper.client import YtClient
 
 import yt.yson as yson
 
+from flaky import flaky
+
 import gc
 import os
 import sys
@@ -16,7 +18,7 @@ class Timer(object):
         self._running = False
         self._extra_info = None
         self._process = psutil.Process()
-        self._process.set_cpu_affinity([0])
+        self._process.cpu_affinity([0])
 
     def start(self):
         assert not self._running
@@ -25,8 +27,8 @@ class Timer(object):
         gc.disable()
         gc.collect()
 
-        self.start_memory_info = self._process.get_memory_info()
-        self.start_cpu_times = self._process.get_cpu_times()
+        self.start_memory_info = self._process.memory_info()
+        self.start_cpu_times = self._process.cpu_times()
         self.start_wall_clock = time.clock()
 
     def stop(self):
@@ -34,7 +36,7 @@ class Timer(object):
         self._running = False
 
         self.finish_wall_clock = time.clock()
-        self.finish_cpu_times = self._process.get_cpu_times()
+        self.finish_cpu_times = self._process.cpu_times()
 
         gc.collect()
         gc.enable()
@@ -79,6 +81,7 @@ class TestYsonPerformance(object):
         cls.client = YtClient(proxy=cls.DATASETS_CLUSTER,
                               token=os.environ.get("TEAMCITY_YT_TOKEN"))
 
+    @flaky(max_runs=5)
     @pytest.mark.parametrize("dataset,expected_loads_time,expected_dumps_time", [
         ("access_log", 5.0, 4.0),
         ("numbers", 2.5, 2.5)

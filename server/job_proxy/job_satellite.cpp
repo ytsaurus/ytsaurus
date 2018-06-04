@@ -9,8 +9,8 @@
 
 #include <yt/server/shell/shell_manager.h>
 
-#include <yt/core/bus/config.h>
-#include <yt/core/bus/tcp_server.h>
+#include <yt/core/bus/tcp/config.h>
+#include <yt/core/bus/tcp/server.h>
 
 #include <yt/core/concurrency/action_queue.h>
 

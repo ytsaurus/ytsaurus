@@ -6,6 +6,7 @@ add_subdirectory(https)
 add_subdirectory(crypto)
 add_subdirectory(re2)
 add_subdirectory(skiff)
+add_subdirectory(erasure)
 
 include(Sources.txt)
 

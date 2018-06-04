@@ -22,13 +22,15 @@ TCommit::TCommit(
     const TMutationId& mutationId,
     const std::vector<TCellId>& participantCellIds,
     bool distributed,
-    bool inheritCommitTimstamp,
+    bool generatePrepareTimestamp,
+    bool inheritCommitTimestamp,
     NApi::ETransactionCoordinatorCommitMode coordinatorCommitMode)
     : TransactionId_(transationId)
     , MutationId_(mutationId)
     , ParticipantCellIds_(participantCellIds)
     , Distributed_(distributed)
-    , InheritCommitTimestamp_(inheritCommitTimstamp)
+    , GeneratePrepareTimestamp_(generatePrepareTimestamp)
+    , InheritCommitTimestamp_(inheritCommitTimestamp)
     , CoordinatorCommitMode_(coordinatorCommitMode)
 { }
 
@@ -51,6 +53,7 @@ void TCommit::Save(TSaveContext& context) const
     Save(context, MutationId_);
     Save(context, ParticipantCellIds_);
     Save(context, Distributed_);
+    Save(context, GeneratePrepareTimestamp_);
     Save(context, InheritCommitTimestamp_);
     Save(context, CommitTimestamps_);
     Save(context, PersistentState_);
@@ -66,6 +69,12 @@ void TCommit::Load(TLoadContext& context)
     Load(context, MutationId_);
     Load(context, ParticipantCellIds_);
     Load(context, Distributed_);
+    // COMPAT(babenko)
+    if (context.GetVersion() >= 5) {
+        Load(context, GeneratePrepareTimestamp_);
+    } else {
+        GeneratePrepareTimestamp_ = true;
+    }
     Load(context, InheritCommitTimestamp_);
     Load(context, CommitTimestamps_);
     Load(context, PersistentState_);

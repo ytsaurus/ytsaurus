@@ -14,6 +14,8 @@
 #include <yt/core/concurrency/periodic_executor.h>
 #include <yt/core/concurrency/throughput_throttler.h>
 
+#include <yt/core/misc/finally.h>
+
 #include <util/random/shuffle.h>
 
 namespace NYT {
@@ -87,7 +89,11 @@ public:
             ChunkIds_.size());
 
         Started_ = false;
-        return PeriodicExecutor_->Stop();
+
+        return LocateFuture_
+            .Apply(BIND([this, this_ = MakeStrong(this)] (const TError& /* error */) {
+                return PeriodicExecutor_->Stop();
+            }));
     }
 
 private:
@@ -98,6 +104,8 @@ private:
     const TChunkLocatedHandler OnChunkLocated_;
     IInvokerPtr Invoker_;
 
+    TFuture<void> LocateFuture_ = VoidFuture;
+
     //! Non-const since we would like to shuffle it, to avoid scraping the same chunks
     //! on every restart.
     std::vector<TChunkId> ChunkIds_;
@@ -106,7 +114,7 @@ private:
 
     TChunkServiceProxy Proxy_;
 
-    bool Started_ = false;
+    std::atomic<bool> Started_ = { false };
     int NextChunkIndex_ = 0;
 
     const NConcurrency::TPeriodicExecutorPtr PeriodicExecutor_;
@@ -120,13 +128,21 @@ private:
 
         auto chunkCount = std::min<int>(ChunkIds_.size(), Config_->MaxChunksPerRequest);
 
-        Throttler_->Throttle(chunkCount)
-            .Subscribe(BIND(&TScraperTask::DoLocateChunks, MakeWeak(this))
+        LocateFuture_ = Throttler_->Throttle(chunkCount)
+            .Apply(BIND(&TScraperTask::DoLocateChunks, MakeWeak(this))
                 .Via(Invoker_));
     }
 
     void DoLocateChunks(const TError& error)
     {
+        if (!Started_) {
+            return;
+        }
+
+        auto finallyGuard = Finally([&] () {
+            PeriodicExecutor_->ScheduleNext();
+        });
+
         if (!error.IsOK()) {
             LOG_WARNING(error, "Chunk scraper throttler failed unexpectedly");
             return;
@@ -178,8 +194,6 @@ private:
                 OnChunkLocated_.Run(chunkId, replicas, false);
             }
         }
-
-        PeriodicExecutor_->ScheduleNext();
     }
 };
 

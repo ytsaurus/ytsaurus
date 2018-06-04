@@ -689,19 +689,16 @@ class EventsOnFs(object):
 
 ###########################################################################
 
-def get_new_operation_cypress_path(op_id):
-    return "//sys/operations/{}/{}".format("%02x" % (long(op_id.split("-")[3], 16) % 256), op_id)
-
 def get_operation_cypress_path(op_id):
-    return "//sys/operations/{}".format(op_id)
+    return "//sys/operations/{}/{}".format("%02x" % (long(op_id.split("-")[3], 16) % 256), op_id)
 
 class Operation(object):
     def __init__(self):
         self._tmpdir = ""
         self._poll_frequency = 0.1
 
-    def _get_new_operation_path(self):
-        return "//sys/operations/{0:02x}/{1}".format(int(self.id.split("-")[-1], 16) % 256, self.id)
+    def get_path(self):
+        return get_operation_cypress_path(self.id)
 
     def get_job_phase(self, job_id):
         job_path = "//sys/scheduler/orchid/scheduler/jobs/{0}".format(job_id)
@@ -722,7 +719,7 @@ class Operation(object):
             raise TimeoutError("Operation didn't become running within timeout")
 
     def get_job_count(self, state):
-        path = "//sys/scheduler/orchid/scheduler/operations/{0}/progress/jobs/{1}".format(self.id, state)
+        path = self.get_path() + "/controller_orchid/progress/jobs/" + str(state)
         if state == "aborted" or state == "completed":
             path += "/total"
         try:
@@ -733,17 +730,17 @@ class Operation(object):
             return 0
 
     def get_running_jobs(self):
-        jobs_path = "//sys/scheduler/orchid/scheduler/operations/" + self.id + "/running_jobs"
+        jobs_path = self.get_path() + "/controller_orchid/running_jobs"
         return get(jobs_path, verbose=False, default=[])
 
     def get_state(self, **kwargs):
         try:
-            return get(get_operation_cypress_path(self.id) + "/@state", verbose_error=False, **kwargs)
+            return get("//sys/operations/" + self.id + "/@state", verbose_error=False, **kwargs)
         except YtResponseError as err:
             if not err.is_resolve_error():
                 raise
 
-        return get(self._get_new_operation_path() + "/@state", **kwargs)
+        return get(self.get_path() + "/@state", **kwargs)
 
     def track(self):
         def build_progress():

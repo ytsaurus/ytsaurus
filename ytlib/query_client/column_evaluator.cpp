@@ -104,6 +104,20 @@ void TColumnEvaluator::EvaluateKeys(TMutableRow fullRow, const TRowBufferPtr& bu
     }
 }
 
+void TColumnEvaluator::EvaluateKeys(
+    TMutableVersionedRow fullRow,
+    const TRowBufferPtr& buffer) const
+{
+    auto row = buffer->Capture(fullRow.BeginKeys(), fullRow.GetKeyCount(), false);
+    EvaluateKeys(row, buffer);
+
+    for (int index = 0; index < fullRow.GetKeyCount(); ++index) {
+        if (Columns_[index].Evaluator) {
+            fullRow.BeginKeys()[index] = row[index];
+        }
+    }
+}
+
 const std::vector<int>& TColumnEvaluator::GetReferenceIds(int index) const
 {
     return Columns_[index].ReferenceIds;

@@ -190,7 +190,7 @@ TOperationsCleanerConfig::TOperationsCleanerConfig()
         .Default(true);
     RegisterParameter("clean_delay", CleanDelay)
         .Default(TDuration::Minutes(5));
-    RegisterParameter("archivation_period", ArchivationPeriod)
+    RegisterParameter("analysis_period", AnalysisPeriod)
         .Default(TDuration::Seconds(30));
     RegisterParameter("remove_batch_size", RemoveBatchSize)
         .Default(256);
@@ -200,6 +200,9 @@ TOperationsCleanerConfig::TOperationsCleanerConfig()
         .Default(100);
     RegisterParameter("archive_batch_timeout", ArchiveBatchTimeout)
         .Default(TDuration::Seconds(5));
+    RegisterParameter("fetch_batch_size", FetchBatchSize)
+        .GreaterThan(0)
+        .Default(100);
     RegisterParameter("max_operation_age", MaxOperationAge)
         .Default(TDuration::Hours(6));
     RegisterParameter("max_operation_count_per_user", MaxOperationCountPerUser)
@@ -304,6 +307,8 @@ TSchedulerConfig::TSchedulerConfig()
     RegisterParameter("enable_job_spec_reporter", EnableJobSpecReporter)
         .Default(false);
     RegisterParameter("enable_job_stderr_reporter", EnableJobStderrReporter)
+        .Default(false);
+    RegisterParameter("enable_job_fail_context_reporter", EnableJobFailContextReporter)
         .Default(false);
 
     RegisterParameter("job_interrupt_timeout", JobInterruptTimeout)

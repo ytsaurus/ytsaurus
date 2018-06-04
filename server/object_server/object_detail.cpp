@@ -17,7 +17,8 @@
 
 #include <yt/server/hydra/mutation_context.h>
 
-#include <yt/server/object_server/interned_attributes.h>
+#include <yt/server/misc/interned_attributes.h>
+
 #include <yt/server/object_server/object_manager.h>
 #include <yt/server/object_server/type_handler.h>
 
@@ -188,10 +189,10 @@ void TObjectProxyBase::Invoke(const IServiceContextPtr& context)
         user->GetName());
 
     const auto& Profiler = objectManager->GetProfiler();
-    auto* counter = objectManager->GetMethodExecTimeCounter(Object_->GetType(), context->GetMethod());
-    PROFILE_AGGREGATED_TIMING (*counter) {
-        TSupportsAttributes::Invoke(context);
-    }
+    auto* counter = objectManager->GetMethodCumulativeExecuteTimeCounter(Object_->GetType(), context->GetMethod());
+    NProfiling::TWallTimer timer;
+    TSupportsAttributes::Invoke(context);
+    Profiler.Increment(*counter, timer.GetElapsedValue());
 }
 
 void TObjectProxyBase::DoWriteAttributesFragment(
@@ -625,7 +626,7 @@ void TObjectProxyBase::ValidateNoTransaction()
     }
 }
 
-void TObjectProxyBase::ValidatePermission(EPermissionCheckScope scope, EPermission permission)
+void TObjectProxyBase::ValidatePermission(EPermissionCheckScope scope, EPermission permission, const TString& /* user */)
 {
     YCHECK(scope == EPermissionCheckScope::This);
     ValidatePermission(Object_, permission);
@@ -831,15 +832,6 @@ TAccessControlDescriptor* TNontemplateNonversionedObjectProxyBase::FindThisAcd()
     const auto& securityManager = Bootstrap_->GetSecurityManager();
     return securityManager->FindAcd(Object_);
 }
-
-////////////////////////////////////////////////////////////////////////////////
-
-#define XX(camelCaseName, snakeCaseName) \
-    REGISTER_INTERNED_ATTRIBUTE(snakeCaseName, EInternedAttributeKey::camelCaseName)
-
-FOR_EACH_INTERNED_ATTRIBUTE(XX)
-
-#undef XX
 
 ////////////////////////////////////////////////////////////////////////////////
 

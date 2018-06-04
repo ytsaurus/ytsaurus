@@ -280,6 +280,8 @@ TListJobsCommand::TListJobsCommand()
         .Optional();
     RegisterParameter("with_stderr", Options.WithStderr)
         .Optional();
+    RegisterParameter("with_spec", Options.WithSpec)
+        .Optional();
     RegisterParameter("with_fail_context", Options.WithFailContext)
         .Optional();
 
@@ -635,7 +637,8 @@ TGetOperationCommand::TGetOperationCommand()
     RegisterParameter("operation_id", OperationId);
     RegisterParameter("attributes", Options.Attributes)
         .Optional();
-    RegisterParameter("include_scheduler", Options.IncludeScheduler)
+    RegisterParameter("include_runtime", Options.IncludeRuntime)
+        .Alias("include_scheduler")
         .Optional();
 }
 

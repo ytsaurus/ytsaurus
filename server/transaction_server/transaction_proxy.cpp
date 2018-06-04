@@ -6,7 +6,7 @@
 
 #include <yt/server/cypress_server/node.h>
 
-#include <yt/server/object_server/interned_attributes.h>
+#include <yt/server/misc/interned_attributes.h>
 
 #include <yt/server/security_server/account.h>
 

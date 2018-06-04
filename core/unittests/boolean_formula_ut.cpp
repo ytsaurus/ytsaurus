@@ -1,6 +1,6 @@
 #include <yt/core/test_framework/framework.h>
 
-#include <yt/core/misc/boolean_formula.h>
+#include <yt/core/misc/arithmetic_formula.h>
 #include <yt/core/misc/error.h>
 
 namespace NYT {
@@ -90,8 +90,21 @@ INSTANTIATE_TEST_CASE_P(
         "a|(c!)",
         "a|(c&)",
         "a|(|c)",
-        "a|b&c",
-        "a&b|c"
+        "1",
+        "a||b",
+        "a&&b",
+        "a+b",
+        "a^b",
+        "a-b",
+        "a==b",
+        "a!=b",
+        "a>=b",
+        "a<=b",
+        "a>b",
+        "a<b",
+        "a*b",
+        "a/b",
+        "a%b"
 ));
 
 class TBooleanFormulaTest2

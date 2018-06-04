@@ -12,7 +12,7 @@ def _get_orchid_operation_path(op_id):
     return "//sys/scheduler/orchid/scheduler/operations/{0}/progress".format(op_id)
 
 def _get_operation_from_cypress(op_id):
-    result = get(get_new_operation_cypress_path(op_id) + "/@")
+    result = get(get_operation_cypress_path(op_id) + "/@")
     if "full_spec" in result:
         result["full_spec"].attributes.pop("opaque", None)
     result["type"] = result["operation_type"]
@@ -51,7 +51,8 @@ class TestGetOperation(YTEnvSetup):
             })
         wait_breakpoint()
 
-        wait(lambda: exists(get_new_operation_cypress_path(op.id)))
+        wait(lambda: exists(get_operation_cypress_path(op.id)))
+        wait(lambda: get(get_operation_cypress_path(op.id) + "/@brief_progress/jobs/running") == 1)
 
         res_get_operation = get_operation(op.id, include_scheduler=True)
         res_cypress = _get_operation_from_cypress(op.id)
@@ -122,11 +123,12 @@ class TestGetOperation(YTEnvSetup):
         wait_breakpoint()
 
         assert list(get_operation(op.id, attributes=["state"])) == ["state"]
-        assert get_operation(op.id, attributes=["PYSCH"]) == {}
+        with pytest.raises(YtError):
+            get_operation(op.id, attributes=["PYSCH"])
 
         for read_from in ("cache", "follower"):
             res_get_operation = get_operation(op.id, attributes=["progress", "state"], include_scheduler=True, read_from=read_from)
-            res_cypress = get(get_new_operation_cypress_path(op.id) + "/@", attributes=["progress", "state"])
+            res_cypress = get(get_operation_cypress_path(op.id) + "/@", attributes=["progress", "state"])
 
             assert sorted(list(res_get_operation)) == ["progress", "state"]
             assert sorted(list(res_cypress)) == ["progress", "state"]
@@ -140,7 +142,8 @@ class TestGetOperation(YTEnvSetup):
         res_get_operation_archive = get_operation(op.id, attributes=["progress", "state"])
         assert sorted(list(res_get_operation_archive)) == ["progress", "state"]
         assert res_get_operation_archive["state"] == "completed"
-        assert get_operation(op.id, attributes=["PYSCH"]) == {}
+        with pytest.raises(YtError):
+            get_operation(op.id, attributes=["PYSCH"])
 
     def test_get_operation_and_half_deleted_operation_node(self):
         create("table", "//tmp/t1")
@@ -152,12 +155,12 @@ class TestGetOperation(YTEnvSetup):
             command="cat")
 
         tx = start_transaction(timeout=300 * 1000)
-        lock(get_new_operation_cypress_path(op.id),
+        lock(get_operation_cypress_path(op.id),
             mode="shared",
             child_key="completion_transaction_id",
             transaction_id=tx)
 
         clean_operations(self.Env.create_native_client())
         assert not exists("//sys/operations/" + op.id)
-        assert exists(get_new_operation_cypress_path(op.id))
+        assert exists(get_operation_cypress_path(op.id))
         assert "state" in get_operation(op.id)

@@ -31,9 +31,10 @@
 
 #include <yt/ytlib/core_dump/core_dumper.h>
 
-#include <yt/core/bus/config.h>
 #include <yt/core/bus/server.h>
-#include <yt/core/bus/tcp_server.h>
+
+#include <yt/core/bus/tcp/config.h>
+#include <yt/core/bus/tcp/server.h>
 
 #include <yt/core/http/server.h>
 
@@ -169,7 +170,7 @@ void TBootstrap::DoRun()
     SetNodeByYPath(
         orchidRoot,
         "/controller_agent",
-        CreateVirtualNode(ControllerAgent_->GetOrchidService()));
+        CreateVirtualNode(ControllerAgent_->GetOrchidService()->Via(GetControlInvoker())));
 
     SetBuildAttributes(orchidRoot, "controller_agent");
 
@@ -183,7 +184,7 @@ void TBootstrap::DoRun()
 
     HttpServer_->AddHandler(
         "/orchid/",
-        NMonitoring::GetOrchidYPathHttpHandler(orchidRoot->Via(GetControlInvoker())));
+        NMonitoring::GetOrchidYPathHttpHandler(orchidRoot));
 
     RpcServer_->RegisterService(CreateJobSpecService(this));
     RpcServer_->RegisterService(CreateControllerAgentService(this));
