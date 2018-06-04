@@ -525,6 +525,12 @@ void RunJobSatellite(
     } else {
 
         NLogging::TLogManager::Get()->Configure(NLogging::TLogConfig::CreateLogFile("../job_satellite.log"));
+        try {
+            SafeCreateStderrFile("../satellite_stderr");
+        } catch (const std::exception& ex) {
+            LOG_ERROR("Failed to reopen satellite stderr");
+            _exit(1);
+        }
 
         siginfo_t processInfo;
         memset(&processInfo, 0, sizeof(siginfo_t));
