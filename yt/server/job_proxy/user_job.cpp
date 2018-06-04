@@ -1087,10 +1087,6 @@ private:
         });
 
         auto onProcessFinished = BIND([=, this_ = MakeStrong(this)] (const TError& satelliteError) {
-            // If process has crashed before sending notification we stuck
-            // on Syncroniser_->Wait() call, so cancel wait here.
-            Synchronizer_->CancelWait();
-
             try {
                 auto userJobError = Synchronizer_->GetUserProcessStatus();
 
@@ -1114,6 +1110,11 @@ private:
                      "Unable to get process status but satellite returns no errors");
                 OnIOErrorOrFinished(satelliteError, "Satellite failed");
             }
+
+            // If process has crashed before sending notification we stuck
+            // on Syncroniser_->Wait() call, so cancel wait here.
+            // Do this after JobProxyError is set (if necessary).
+            Synchronizer_->CancelWait();
         });
 
         auto runActions = [&] (const std::vector<TCallback<void()>>& actions,
