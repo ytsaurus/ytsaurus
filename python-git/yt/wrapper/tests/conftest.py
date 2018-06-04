@@ -68,7 +68,7 @@ class YtTestEnvironment(object):
         if env_options is None:
             env_options = {}
 
-        has_proxy = config["backend"] != "native"
+        has_proxy = config["backend"] not in ("native", "rpc")
 
         logging.getLogger("Yt.local").setLevel(logging.INFO)
 
@@ -147,6 +147,7 @@ class YtTestEnvironment(object):
                               node_count=5,
                               scheduler_count=1,
                               has_proxy=has_proxy,
+                              has_rpc_proxy=True,
                               port_locks_path=get_port_locks_path(),
                               fqdn="localhost",
                               modify_configs_func=modify_configs,
@@ -198,7 +199,10 @@ class YtTestEnvironment(object):
         self.config["is_local_mode"] = False
         self.config["pickling"]["enable_tmpfs_archive"] = ENABLE_JOB_CONTROL
         self.config["pickling"]["module_filter"] = lambda module: hasattr(module, "__file__") and not "driver_lib" in module.__file__
-        self.config["driver_config"] = self.env.configs["driver"]
+        if config["backend"] == "rpc":
+            self.config["driver_config"] = self.env.configs["rpc_driver"]
+        else:
+            self.config["driver_config"] = self.env.configs["driver"]
         self.config["local_temp_directory"] = local_temp_directory
         update_inplace(yt.config.config, self.config)
 
@@ -226,6 +230,8 @@ def init_environment_for_test_session(mode, **kwargs):
     config = {"api_version": "v3"}
     if mode == "native":
         config["backend"] = "native"
+    elif mode == "rpc":
+        config["backend"] = "rpc"
     else:
         config["backend"] = "http"
 
@@ -244,6 +250,12 @@ def init_environment_for_test_session(mode, **kwargs):
 
 @pytest.fixture(scope="session", params=["v3", "native"])
 def test_environment(request):
+    environment = init_environment_for_test_session(request.param)
+    request.addfinalizer(lambda: environment.cleanup())
+    return environment
+
+@pytest.fixture(scope="session", params=["v3", "native", "rpc"])
+def test_environment_with_rpc(request):
     environment = init_environment_for_test_session(request.param)
     request.addfinalizer(lambda: environment.cleanup())
     return environment
@@ -353,6 +365,17 @@ def yt_env(request, test_environment):
     yt.mkdir(TEST_DIR, recursive=True)
     request.addfinalizer(test_method_teardown)
     return test_environment
+
+@pytest.fixture(scope="function")
+def yt_env_with_rpc(request, test_environment_with_rpc):
+    """ YT cluster fixture.
+        Uses test_environment fixture.
+        Starts YT cluster once per session but checks its health before each test function.
+    """
+    test_environment_with_rpc.check_liveness()
+    yt.mkdir(TEST_DIR, recursive=True)
+    request.addfinalizer(test_method_teardown)
+    return test_environment_with_rpc
 
 @pytest.fixture(scope="function")
 def test_dynamic_library(request, yt_env):

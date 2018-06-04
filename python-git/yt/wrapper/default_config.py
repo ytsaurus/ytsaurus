@@ -47,9 +47,10 @@ def retries_config(**kwargs):
     return config
 
 default_config = {
-    # "http" | "native" | None
+    # "http" | "native" | "rpc" | None
     # If backend equals "http", then all requests will be done through http proxy and http_config will be used.
     # If backend equals "native", then all requests will be done through c++ bindings and driver_config will be used.
+    # If backend equals "rpc", then all requests will be done through c++ bindings to rpc proxies, driver_config will be used.
     # If backend equals None, thenits value will be automatically detected.
     "backend": None,
 
@@ -170,14 +171,14 @@ default_config = {
     # But in this case we loose type of integer nodes.
     "force_using_yson_for_formatted_requests": False,
 
-    # Driver configuration.
-    "driver_config": None,
-
     # Enables generating request id and passing it to native driver.
     "enable_passing_request_id_to_driver": False,
 
     # Username for native driver requests.
     "driver_user_name": None,
+
+    # Driver configuration.
+    "driver_config": None,
 
     # Path to driver config.
     # ATTENTION: It is comptatible with native yt binary written in C++, it means
