@@ -91,6 +91,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/zigzag_ut.cpp
 
   ${CMAKE_CURRENT_LIST_DIR}/proto/protobuf_yson_ut.proto
+  ${CMAKE_CURRENT_LIST_DIR}/proto/protobuf_yson_casing_ut.proto
   ${CMAKE_CURRENT_LIST_DIR}/proto/ref_counted_tracker_ut.proto
   ${CMAKE_CURRENT_LIST_DIR}/proto/rpc_ut.proto
 )
