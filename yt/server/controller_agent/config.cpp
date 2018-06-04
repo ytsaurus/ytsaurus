@@ -322,7 +322,7 @@ TControllerAgentConfig::TControllerAgentConfig()
         .Default(TDuration::Seconds(3));
 
     RegisterParameter("controller_thread_count", ControllerThreadCount)
-        .Default(4)
+        .Default(16)
         .GreaterThan(0);
 
     RegisterParameter("controller_static_orchid_update_period", ControllerStaticOrchidUpdatePeriod)
