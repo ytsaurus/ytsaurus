@@ -209,13 +209,13 @@ private:
             [=] (IStoreContext* context) {
                 context->WriteRow(
                     &IP6NoncesTable,
-                    ToDbValues(
+                    ToDBValues(
                         context->GetRowBuffer(),
                         node->GetId(),
                         nonce),
                     MakeArray(
                         &IP6NoncesTable.Fields.PodId),
-                    ToDbValues(
+                    ToDBValues(
                         context->GetRowBuffer(),
                         pod->GetId()));
             });
@@ -231,7 +231,7 @@ private:
             [=] (IStoreContext* context) {
                 context->DeleteRow(
                     &IP6NoncesTable,
-                    ToDbValues(
+                    ToDBValues(
                         context->GetRowBuffer(),
                         node->GetId(),
                         nonce));
@@ -522,11 +522,11 @@ private:
                     for (auto candidate : candidates) {
                         context->ScheduleLookup(
                             &IP6NoncesTable,
-                            ToDbValues(
+                            ToDBValues(
                                 context->GetRowBuffer(),
                                 node->GetId(),
                                 candidate),
-                            MakeArray<const TDbField*>(),
+                            MakeArray<const TDBField*>(),
                             [&, candidate = candidate] (const TNullable<TRange<TVersionedValue>>& maybeValues) {
                                 if (!maybeValues) {
                                     nonceSet.insert(candidate);

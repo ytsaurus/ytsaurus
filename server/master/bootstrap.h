@@ -10,6 +10,8 @@
 
 #include <yp/server/scheduler/public.h>
 
+#include <yp/server/access_control/public.h>
+
 #include <yt/core/concurrency/public.h>
 
 #include <yt/core/actions/public.h>
@@ -33,10 +35,10 @@ public:
     const NObjects::TTransactionManagerPtr& GetTransactionManager();
     const NNodes::TNodeTrackerPtr& GetNodeTracker();
     const NScheduler::TResourceManagerPtr& GetResourceManager();
+    const NAccessControl::TAccessControlManagerPtr& GetAccessControlManager();
 
     const TString& GetFqdn();
     const TString& GetClientGrpcAddress();
-    // COMPAT(babenko)
     const TString& GetSecureClientGrpcAddress();
     const TString& GetClientHttpAddress();
     const TString& GetSecureClientHttpAddress();

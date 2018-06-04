@@ -31,8 +31,12 @@ message TRspHandshake
 
 message TPodStatus
 {
-    // A YP-opaque ISS-compatible pod status exposed via status/iss_payload attribute.
-    optional bytes iss_payload = 1;
+    oneof payload
+    {
+        // COMPAT(babenko): A YP-opaque ISS-compatible pod status exposed via status/iss_payload attribute.
+        bytes iss_payload = 1;
+        NYP.NClient.NApi.NProto.TPodStatus.TAgent.TPodAgentPayload pod_agent_payload = 4;
+    }
 
     // The current state of POD's FSM at the agent.
     required NYP.NClient.NApi.NProto.EPodCurrentState current_state = 2;
@@ -43,8 +47,12 @@ message TPodStatus
 
 message TPodSpec
 {
-    // A YP-opaque ISS-compatible pod spec configured via spec/iss_payload attribute.
-    optional bytes iss_payload = 1;
+    oneof payload
+    {
+        // COMPAT(babenko): A YP-opaque ISS-compatible pod spec configured via spec/iss_payload attribute.
+        bytes iss_payload = 1;
+        NYP.NClient.NApi.NProto.TPodSpec.TPodAgentPayload pod_agent_payload = 9;
+    }
 
     message TProperty
     {

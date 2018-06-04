@@ -3,6 +3,7 @@
 #include "type_handler.h"
 #include "db_schema.h"
 #include "private.h"
+#include "helpers.h"
 
 #include <yt/ytlib/table_client/row_buffer.h>
 
@@ -37,11 +38,11 @@ using namespace google::protobuf::io;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const TDbField DummyField{"dummy"};
+static const TDBField DummyField{"dummy"};
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ToDbValue(TUnversionedValue* dbValue, const TGuid& value, const TRowBufferPtr& rowBuffer, int id)
+void ToDBValue(TUnversionedValue* dbValue, const TGuid& value, const TRowBufferPtr& rowBuffer, int id)
 {
     auto strValue = ToString(value);
     *dbValue = value
@@ -49,7 +50,7 @@ void ToDbValue(TUnversionedValue* dbValue, const TGuid& value, const TRowBufferP
         : MakeUnversionedSentinelValue(EValueType::Null);
 }
 
-void FromDbValue(TGuid* value, const NYT::NTableClient::TUnversionedValue& dbValue)
+void FromDBValue(TGuid* value, const NYT::NTableClient::TUnversionedValue& dbValue)
 {
     if (dbValue.Type == EValueType::Null) {
         *value = TGuid();
@@ -64,12 +65,12 @@ void FromDbValue(TGuid* value, const NYT::NTableClient::TUnversionedValue& dbVal
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ToDbValue(TUnversionedValue* dbValue, const TString& value, const TRowBufferPtr& rowBuffer, int id)
+void ToDBValue(TUnversionedValue* dbValue, const TString& value, const TRowBufferPtr& rowBuffer, int id)
 {
     *dbValue = rowBuffer->Capture(MakeUnversionedStringValue(value, id));
 }
 
-void FromDbValue(TString* value, const NYT::NTableClient::TUnversionedValue& dbValue)
+void FromDBValue(TString* value, const NYT::NTableClient::TUnversionedValue& dbValue)
 {
     if (dbValue.Type == EValueType::Null) {
         *value = TString();
@@ -84,12 +85,12 @@ void FromDbValue(TString* value, const NYT::NTableClient::TUnversionedValue& dbV
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ToDbValue(TUnversionedValue* dbValue, bool value, const TRowBufferPtr& rowBuffer, int id)
+void ToDBValue(TUnversionedValue* dbValue, bool value, const TRowBufferPtr& rowBuffer, int id)
 {
     *dbValue = rowBuffer->Capture(MakeUnversionedBooleanValue(value, id));
 }
 
-void FromDbValue(bool* value, const NYT::NTableClient::TUnversionedValue& dbValue)
+void FromDBValue(bool* value, const NYT::NTableClient::TUnversionedValue& dbValue)
 {
     if (dbValue.Type == EValueType::Null) {
         *value = false;
@@ -104,13 +105,13 @@ void FromDbValue(bool* value, const NYT::NTableClient::TUnversionedValue& dbValu
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ToDbValue(TUnversionedValue* dbValue, const TYsonString& value, const TRowBufferPtr& rowBuffer, int id)
+void ToDBValue(TUnversionedValue* dbValue, const TYsonString& value, const TRowBufferPtr& rowBuffer, int id)
 {
     Y_ASSERT(value.GetType() == EYsonType::Node);
     *dbValue = rowBuffer->Capture(MakeUnversionedAnyValue(value.GetData(), id));
 }
 
-void FromDbValue(TYsonString* value, const TUnversionedValue& dbValue)
+void FromDBValue(TYsonString* value, const TUnversionedValue& dbValue)
 {
     if (dbValue.Type != EValueType::Any) {
         THROW_ERROR_EXCEPTION("Cannot parse YSON string value from %Qlv",
@@ -121,12 +122,12 @@ void FromDbValue(TYsonString* value, const TUnversionedValue& dbValue)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ToDbValue(TUnversionedValue* dbValue, i64 value, const TRowBufferPtr& /*rowBuffer*/, int id)
+void ToDBValue(TUnversionedValue* dbValue, i64 value, const TRowBufferPtr& /*rowBuffer*/, int id)
 {
     *dbValue = MakeUnversionedInt64Value(value, id);
 }
 
-void FromDbValue(i64* value, const NYT::NTableClient::TUnversionedValue& dbValue)
+void FromDBValue(i64* value, const NYT::NTableClient::TUnversionedValue& dbValue)
 {
     if (dbValue.Type != EValueType::Int64) {
         THROW_ERROR_EXCEPTION("Cannot parse int64 value from %Qlv",
@@ -137,12 +138,12 @@ void FromDbValue(i64* value, const NYT::NTableClient::TUnversionedValue& dbValue
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ToDbValue(TUnversionedValue* dbValue, ui64 value, const TRowBufferPtr& /*rowBuffer*/, int id)
+void ToDBValue(TUnversionedValue* dbValue, ui64 value, const TRowBufferPtr& /*rowBuffer*/, int id)
 {
     *dbValue = MakeUnversionedUint64Value(value, id);
 }
 
-void FromDbValue(ui64* value, const NYT::NTableClient::TUnversionedValue& dbValue)
+void FromDBValue(ui64* value, const NYT::NTableClient::TUnversionedValue& dbValue)
 {
     if (dbValue.Type != EValueType::Uint64) {
         THROW_ERROR_EXCEPTION("Cannot parse uint64 value from %Qlv",
@@ -153,12 +154,12 @@ void FromDbValue(ui64* value, const NYT::NTableClient::TUnversionedValue& dbValu
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ToDbValue(TUnversionedValue* dbValue, ui32 value, const TRowBufferPtr& /*rowBuffer*/, int id)
+void ToDBValue(TUnversionedValue* dbValue, ui32 value, const TRowBufferPtr& /*rowBuffer*/, int id)
 {
     *dbValue = MakeUnversionedUint64Value(value, id);
 }
 
-void FromDbValue(ui32* value, const NYT::NTableClient::TUnversionedValue& dbValue)
+void FromDBValue(ui32* value, const NYT::NTableClient::TUnversionedValue& dbValue)
 {
     if (dbValue.Type != EValueType::Uint64) {
         THROW_ERROR_EXCEPTION("Cannot parse uint32 value from %Qlv",
@@ -169,12 +170,12 @@ void FromDbValue(ui32* value, const NYT::NTableClient::TUnversionedValue& dbValu
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ToDbValue(TUnversionedValue* dbValue, ui16 value, const TRowBufferPtr& /*rowBuffer*/, int id)
+void ToDBValue(TUnversionedValue* dbValue, ui16 value, const TRowBufferPtr& /*rowBuffer*/, int id)
 {
     *dbValue = MakeUnversionedUint64Value(value, id);
 }
 
-void FromDbValue(ui16* value, const NYT::NTableClient::TUnversionedValue& dbValue)
+void FromDBValue(ui16* value, const NYT::NTableClient::TUnversionedValue& dbValue)
 {
     if (dbValue.Type != EValueType::Uint64) {
         THROW_ERROR_EXCEPTION("Cannot parse uint16 value from %Qlv",
@@ -185,12 +186,12 @@ void FromDbValue(ui16* value, const NYT::NTableClient::TUnversionedValue& dbValu
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ToDbValue(TUnversionedValue* dbValue, double value, const TRowBufferPtr& /*rowBuffer*/, int id)
+void ToDBValue(TUnversionedValue* dbValue, double value, const TRowBufferPtr& /*rowBuffer*/, int id)
 {
     *dbValue = MakeUnversionedDoubleValue(value, id);
 }
 
-void FromDbValue(double* value, const NYT::NTableClient::TUnversionedValue& dbValue)
+void FromDBValue(double* value, const NYT::NTableClient::TUnversionedValue& dbValue)
 {
     if (dbValue.Type != EValueType::Double) {
         THROW_ERROR_EXCEPTION("Cannot parse double value from %Qlv",
@@ -201,12 +202,12 @@ void FromDbValue(double* value, const NYT::NTableClient::TUnversionedValue& dbVa
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ToDbValue(TUnversionedValue* dbValue, TInstant value, const TRowBufferPtr& /*rowBuffer*/, int id)
+void ToDBValue(TUnversionedValue* dbValue, TInstant value, const TRowBufferPtr& /*rowBuffer*/, int id)
 {
     *dbValue = MakeUnversionedUint64Value(value.MicroSeconds(), id);
 }
 
-void FromDbValue(TInstant* value, const NYT::NTableClient::TUnversionedValue& dbValue)
+void FromDBValue(TInstant* value, const NYT::NTableClient::TUnversionedValue& dbValue)
 {
     if (dbValue.Type != EValueType::Uint64) {
         THROW_ERROR_EXCEPTION("Cannot parse instant from %Qlv",
@@ -217,12 +218,12 @@ void FromDbValue(TInstant* value, const NYT::NTableClient::TUnversionedValue& db
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ToDbValue(TUnversionedValue* dbValue, const IMapNodePtr& value, const TRowBufferPtr& rowBuffer, int id)
+void ToDBValue(TUnversionedValue* dbValue, const IMapNodePtr& value, const TRowBufferPtr& rowBuffer, int id)
 {
     *dbValue = rowBuffer->Capture(MakeUnversionedAnyValue(ConvertToYsonString(value).GetData(), id));
 }
 
-void FromDbValue(IMapNodePtr* value, const TUnversionedValue& dbValue)
+void FromDBValue(IMapNodePtr* value, const TUnversionedValue& dbValue)
 {
     if (dbValue.Type == EValueType::Null) {
         *value = nullptr;
@@ -236,23 +237,23 @@ void FromDbValue(IMapNodePtr* value, const TUnversionedValue& dbValue)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ToDbValue(TUnversionedValue* dbValue, const TIP6Address& value, const TRowBufferPtr& rowBuffer, int id)
+void ToDBValue(TUnversionedValue* dbValue, const TIP6Address& value, const TRowBufferPtr& rowBuffer, int id)
 {
-    ToDbValue(dbValue, ToString(value), rowBuffer, id);
+    ToDBValue(dbValue, ToString(value), rowBuffer, id);
 }
 
-void FromDbValue(TIP6Address* value, const TUnversionedValue& dbValue)
+void FromDBValue(TIP6Address* value, const TUnversionedValue& dbValue)
 {
     if (dbValue.Type == EValueType::Null) {
         *value = TIP6Address();
     }
-    auto strValue = FromDbValue<TString>(dbValue);
+    auto strValue = FromDBValue<TString>(dbValue);
     *value = TIP6Address::FromString(strValue);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ToDbValueImpl(
+void ToDBValueImpl(
     TUnversionedValue* dbValue,
     const Message& value,
     const TProtobufMessageType* type,
@@ -271,7 +272,7 @@ void ToDbValueImpl(
     *dbValue = rowBuffer->Capture(MakeUnversionedAnyValue(ysonBytes, id));
 }
 
-void FromDbValueImpl(
+void FromDBValueImpl(
     Message* value,
     const TProtobufMessageType* type,
     const TUnversionedValue& dbValue)
@@ -295,7 +296,7 @@ void FromDbValueImpl(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ToDbValueImpl(
+void ToDBValueImpl(
     TUnversionedValue* dbValue,
     const std::function<bool(TUnversionedValue*)> producer,
     const NYT::NTableClient::TRowBufferPtr& rowBuffer,
@@ -313,7 +314,7 @@ void ToDbValueImpl(
         if (!producer(&itemValue)) {
             break;
         }
-        DbValueToYson(itemValue, &writer);
+        DBValueToYson(itemValue, &writer);
         ++count;
     }
     writer.OnEndList();
@@ -325,7 +326,7 @@ void ToDbValueImpl(
     }
 }
 
-void FromDbValueImpl(
+void FromDBValueImpl(
     std::function<google::protobuf::Message*()> appender,
     const TProtobufMessageType* type,
     const TUnversionedValue& dbValue)
@@ -459,15 +460,16 @@ void FromDbValueImpl(
 
         void NextElement()
         {
-            if (Underlying_) {
-                FlushElement();
-            }
+            FlushElement();
             WireBytes_.clear();
             Underlying_ = CreateProtobufWriter(&OutputStream_, Type_);
         }
 
         void FlushElement()
         {
+            if (!Underlying_) {
+                return;
+            }
             auto* value = Appender_();
             if (!value->ParseFromArray(WireBytes_.data(), WireBytes_.size())) {
                 THROW_ERROR_EXCEPTION("Error parsing %v from wire bytes",
@@ -483,7 +485,7 @@ void FromDbValueImpl(
         &consumer);
 }
 
-void FromDbValueImpl(
+void FromDBValueImpl(
     std::function<void(const TUnversionedValue&)> appender,
     const NYT::NTableClient::TUnversionedValue& dbValue)
 {
@@ -604,7 +606,7 @@ void FromDbValueImpl(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void DbValueToYson(const TUnversionedValue& dbValue, IYsonConsumer* consumer)
+void DBValueToYson(const TUnversionedValue& dbValue, IYsonConsumer* consumer)
 {
     switch (dbValue.Type) {
         case EValueType::Int64:
@@ -633,13 +635,13 @@ void DbValueToYson(const TUnversionedValue& dbValue, IYsonConsumer* consumer)
     }
 }
 
-TYsonString DbValueToYson(const TUnversionedValue& dbValue)
+TYsonString DBValueToYson(const TUnversionedValue& dbValue)
 {
     TString data;
     data.reserve(GetYsonSize(dbValue));
     TStringOutput output(data);
     TYsonWriter writer(&output, EYsonFormat::Binary);
-    DbValueToYson(dbValue, &writer);
+    DBValueToYson(dbValue, &writer);
     return TYsonString(std::move(data));
 }
 
@@ -656,12 +658,12 @@ TRange<TUnversionedValue> CaptureCompositeObjectKey(
     };
     if (parentType == EObjectType::Null) {
         return capture(
-            ToDbValues(
+            ToDBValues(
                 rowBuffer,
                 object->GetId()));
     } else {
         return capture(
-            ToDbValues(
+            ToDBValues(
                 rowBuffer,
                 object->GetParentId(),
                 object->GetId()));
@@ -688,7 +690,7 @@ void TObjectExistenceChecker::ScheduleCheck() const
     this_->CheckScheduled_ = true;
     Object_->GetSession()->ScheduleLoad(
         [=] (ILoadContext* context) {
-            this_->LoadFromDb(context);
+            this_->LoadFromDB(context);
         });
 }
 
@@ -702,7 +704,7 @@ bool TObjectExistenceChecker::Check() const
     return Exists_;
 }
 
-void TObjectExistenceChecker::LoadFromDb(ILoadContext* context)
+void TObjectExistenceChecker::LoadFromDB(ILoadContext* context)
 {
     Y_ASSERT(!Checked_);
 
@@ -722,7 +724,7 @@ void TObjectExistenceChecker::LoadFromDb(ILoadContext* context)
         const auto* table = typeHandler->GetTable();
         context->ScheduleLookup(
             table,
-            ToDbValues(
+            ToDBValues(
                 context->GetRowBuffer(),
                 Object_->GetId()),
             MakeArray(
@@ -733,7 +735,7 @@ void TObjectExistenceChecker::LoadFromDb(ILoadContext* context)
     } else {
         context->ScheduleLookup(
             &ParentsTable,
-            ToDbValues(
+            ToDBValues(
                 context->GetRowBuffer(),
                 Object_->GetId(),
                 Object_->GetType()),
@@ -742,7 +744,7 @@ void TObjectExistenceChecker::LoadFromDb(ILoadContext* context)
     }
 }
 
-void TObjectExistenceChecker::StoreToDb(IStoreContext* /*context*/)
+void TObjectExistenceChecker::StoreToDB(IStoreContext* /*context*/)
 {
     Y_UNREACHABLE();
 }
@@ -777,7 +779,7 @@ void TAttributeBase::DoScheduleLoad(int priority) const
     Owner_->GetSession()->ScheduleLoad(
         [=] (ILoadContext* context) {
             this_->LoadScheduled_ = false;
-            this_->LoadFromDb(context);
+            this_->LoadFromDB(context);
         },
         priority);
 }
@@ -792,14 +794,14 @@ void TAttributeBase::DoScheduleStore() const
     Owner_->GetSession()->ScheduleStore(
         [=] (IStoreContext* context) {
             this_->StoreScheduled_ = false;
-            this_->StoreToDb(context);
+            this_->StoreToDB(context);
         });
 }
 
-void TAttributeBase::LoadFromDb(ILoadContext* context)
+void TAttributeBase::LoadFromDB(ILoadContext* context)
 { }
 
-void TAttributeBase::StoreToDb(IStoreContext* context)
+void TAttributeBase::StoreToDB(IStoreContext* context)
 { }
 
 void TAttributeBase::OnObjectCreated()
@@ -838,14 +840,14 @@ const TObjectId& TParentIdAttribute::GetId() const
     return ParentId_;
 }
 
-void TParentIdAttribute::LoadFromDb(ILoadContext* context)
+void TParentIdAttribute::LoadFromDB(ILoadContext* context)
 {
     Y_ASSERT(!ParentId_);
     Y_ASSERT(!Missing_);
 
     context->ScheduleLookup(
         &ParentsTable,
-        ToDbValues(
+        ToDBValues(
             context->GetRowBuffer(),
             Owner_->GetId(),
             Owner_->GetType()),
@@ -854,15 +856,15 @@ void TParentIdAttribute::LoadFromDb(ILoadContext* context)
             if (maybeValues) {
                 Y_ASSERT(maybeValues->Size() == 1);
                 try {
-                    FromDbValue(&ParentId_, (*maybeValues)[0]);
+                    FromDBValue(&ParentId_, (*maybeValues)[0]);
                     LOG_DEBUG("Object parent resolved (ObjectId: %v, ObjectType: %v, ParentId: %v)",
                         Owner_->GetId(),
                         Owner_->GetType(),
                         ParentId_);
                 } catch (const std::exception& ex) {
-                    THROW_ERROR_EXCEPTION("Error loading parent id value of for object %v of type %Qlv",
-                        Owner_->GetId(),
-                        Owner_->GetType())
+                    THROW_ERROR_EXCEPTION("Error loading parent id value for %v %Qv",
+                        GetLowercaseHumanReadableTypeName(Owner_->GetType()),
+                        Owner_->GetId())
                         << ex;
                 }
             } else {
@@ -907,7 +909,7 @@ void TChildrenAttributeBase::DoRemove(TObject* child)
     }
 }
 
-void TChildrenAttributeBase::LoadFromDb(ILoadContext* context)
+void TChildrenAttributeBase::LoadFromDB(ILoadContext* context)
 {
     if (Children_) {
         return;
@@ -931,7 +933,7 @@ void TChildrenAttributeBase::LoadFromDb(ILoadContext* context)
             Children_->reserve(rows.Size());
             for (auto row : rows) {
                 Y_ASSERT(row.GetCount() == 1);
-                auto childId = FromDbValue<TObjectId>(row[0]);
+                auto childId = FromDBValue<TObjectId>(row[0]);
                 auto* child = Owner_->GetSession()->GetObject(GetChildrenType(), childId);
                 Children_->insert(child);
             }
@@ -993,7 +995,7 @@ void TScalarAttributeBase::OnStore()
     ScheduleStore();
 }
 
-void TScalarAttributeBase::LoadFromDb(ILoadContext* context)
+void TScalarAttributeBase::LoadFromDB(ILoadContext* context)
 {
     if (!LoadScheduled_) {
         return;
@@ -1014,11 +1016,11 @@ void TScalarAttributeBase::LoadFromDb(ILoadContext* context)
                 try {
                     LoadOldValue((*maybeValues)[0], context);
                 } catch (const std::exception& ex) {
-                    THROW_ERROR_EXCEPTION("Error loading value of [%v.%v] for object %Qv of type %Qlv",
+                    THROW_ERROR_EXCEPTION("Error loading value of [%v.%v] for %v %Qv",
                         table->Name,
                         Schema_->Field->Name,
-                        Owner_->GetId(),
-                        Owner_->GetType())
+                        GetLowercaseHumanReadableTypeName(Owner_->GetType()),
+                        Owner_->GetId())
                         << ex;
                 }
             } else {
@@ -1027,7 +1029,7 @@ void TScalarAttributeBase::LoadFromDb(ILoadContext* context)
         });
 }
 
-void TScalarAttributeBase::StoreToDb(IStoreContext* context)
+void TScalarAttributeBase::StoreToDB(IStoreContext* context)
 {
     auto ownerState = Owner_->GetState();
     if (ownerState == EObjectState::Removed || ownerState == EObjectState::CreatedRemoved) {
@@ -1043,11 +1045,11 @@ void TScalarAttributeBase::StoreToDb(IStoreContext* context)
     try {
         StoreNewValue(&value, context);
     } catch (const std::exception& ex) {
-        THROW_ERROR_EXCEPTION("Error storing value of [%v.%v] for object %Qv of type %Qlv",
+        THROW_ERROR_EXCEPTION("Error storing value of [%v.%v] for %v %Qv",
             table->Name,
             Schema_->Field->Name,
-            Owner_->GetId(),
-            Owner_->GetType())
+            GetLowercaseHumanReadableTypeName(Owner_->GetType()),
+            Owner_->GetId())
             << ex;
     }
 
@@ -1148,7 +1150,7 @@ void TOneToManyAttributeBase::DoRemove(TObject* many)
     DoScheduleStore();
 }
 
-void TOneToManyAttributeBase::LoadFromDb(ILoadContext* context)
+void TOneToManyAttributeBase::LoadFromDB(ILoadContext* context)
 {
     if (ForeignObjects_) {
         return;
@@ -1167,7 +1169,7 @@ void TOneToManyAttributeBase::LoadFromDb(ILoadContext* context)
             ForeignObjects_->reserve(rows.Size());
             for (auto row : rows) {
                 Y_ASSERT(row.GetCount() == 1);
-                auto foreignId = FromDbValue<TObjectId>(row[0]);
+                auto foreignId = FromDBValue<TObjectId>(row[0]);
                 auto* foreignObject = Owner_->GetSession()->GetObject(GetForeignObjectType(), foreignId);
                 ForeignObjects_->insert(foreignObject);
             }
@@ -1180,14 +1182,14 @@ void TOneToManyAttributeBase::LoadFromDb(ILoadContext* context)
         });
 }
 
-void TOneToManyAttributeBase::StoreToDb(IStoreContext* context)
+void TOneToManyAttributeBase::StoreToDB(IStoreContext* context)
 {
     const auto& rowBuffer = context->GetRowBuffer();
 
     for (auto* object : AddedForeignObjects_) {
         context->WriteRow(
             Schema_->Table,
-            ToDbValues(
+            ToDBValues(
                 rowBuffer,
                 Owner_->GetId(),
                 object->GetId()),
@@ -1198,7 +1200,7 @@ void TOneToManyAttributeBase::StoreToDb(IStoreContext* context)
     for (auto* object : RemovedForeignObjects_) {
         context->DeleteRow(
             Schema_->Table,
-            ToDbValues(
+            ToDBValues(
                 rowBuffer,
                 Owner_->GetId(),
                 object->GetId()));
@@ -1267,13 +1269,13 @@ void TAnnotationsAttribute::Store(const TString& key, const TNullable<TYsonStrin
     DoScheduleStore();
 }
 
-void TAnnotationsAttribute::LoadFromDb(ILoadContext* context)
+void TAnnotationsAttribute::LoadFromDB(ILoadContext* context)
 {
     const auto& rowBuffer = context->GetRowBuffer();
 
     auto ownerState = Owner_->GetState();
     if (ownerState == EObjectState::Removed || ownerState == EObjectState::Removing) {
-        auto primaryKey = ToDbValue(Owner_->GetId(), rowBuffer);
+        auto primaryKey = ToDBValue(Owner_->GetId(), rowBuffer);
         Y_ASSERT(primaryKey.Type == EValueType::String);
         TString primaryKeyString(primaryKey.Data.String, primaryKey.Length);
 
@@ -1296,7 +1298,7 @@ void TAnnotationsAttribute::LoadFromDb(ILoadContext* context)
 
                 for (auto row : rows) {
                     Y_ASSERT(row.GetCount() == 1);
-                    auto key = FromDbValue<TString>(row[0]);
+                    auto key = FromDBValue<TString>(row[0]);
                     YCHECK(KeyToValue_.emplace(key, Null).second);
                     YCHECK(ScheduledStoreKeys_.emplace(key).second);
                 }
@@ -1305,7 +1307,7 @@ void TAnnotationsAttribute::LoadFromDb(ILoadContext* context)
         for (const auto& attributeKey : ScheduledLoadKeys_) {
             context->ScheduleLookup(
                 &AnnotationsTable,
-                ToDbValues(
+                ToDBValues(
                     rowBuffer,
                     Owner_->GetId(),
                     Owner_->GetType(),
@@ -1315,7 +1317,7 @@ void TAnnotationsAttribute::LoadFromDb(ILoadContext* context)
                     if (maybeValues) {
                         Y_ASSERT(maybeValues->Size() == 1);
                         const auto& value = (*maybeValues)[0];
-                        KeyToValue_[attributeKey] = FromDbValue<TYsonString>(value);
+                        KeyToValue_[attributeKey] = FromDBValue<TYsonString>(value);
                     } else {
                         KeyToValue_[attributeKey] = Null;
                     }
@@ -1324,7 +1326,7 @@ void TAnnotationsAttribute::LoadFromDb(ILoadContext* context)
         }
 
         if (ScheduledLoadAll_) {
-            auto primaryKey = ToDbValue(Owner_->GetId(), rowBuffer);
+            auto primaryKey = ToDBValue(Owner_->GetId(), rowBuffer);
             Y_ASSERT(primaryKey.Type == EValueType::String);
             TString primaryKeyString(primaryKey.Data.String, primaryKey.Length);
 
@@ -1341,8 +1343,8 @@ void TAnnotationsAttribute::LoadFromDb(ILoadContext* context)
                     auto rows = rowset->GetRows();
                     for (auto row : rows) {
                         Y_ASSERT(row.GetCount() == 2);
-                        auto key = FromDbValue<TString>(row[0]);
-                        auto value = FromDbValue<TYsonString>(row[1]);
+                        auto key = FromDBValue<TString>(row[0]);
+                        auto value = FromDBValue<TYsonString>(row[1]);
                         KeyToValue_.emplace(std::move(key), std::move(value));
                     }
                 });
@@ -1350,14 +1352,14 @@ void TAnnotationsAttribute::LoadFromDb(ILoadContext* context)
     }
 }
 
-void TAnnotationsAttribute::StoreToDb(IStoreContext* context)
+void TAnnotationsAttribute::StoreToDB(IStoreContext* context)
 {
     for (const auto& attributeKey : ScheduledStoreKeys_) {
         auto it = KeyToValue_.find(attributeKey);
         Y_ASSERT(it != KeyToValue_.end());
         const auto& maybeAttributeValue = it->second;
 
-        auto keyValues = ToDbValues(
+        auto keyValues = ToDBValues(
             context->GetRowBuffer(),
             Owner_->GetId(),
             Owner_->GetType(),
@@ -1368,7 +1370,7 @@ void TAnnotationsAttribute::StoreToDb(IStoreContext* context)
                 &AnnotationsTable,
                 keyValues,
                 MakeArray(&AnnotationsTable.Fields.Value),
-                ToDbValues(
+                ToDBValues(
                     context->GetRowBuffer(),
                     *maybeAttributeValue));
         } else {

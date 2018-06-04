@@ -1,5 +1,9 @@
 #include "type_handler_detail.h"
 
+#include <yp/server/master/bootstrap.h>
+
+#include <yp/server/access_control/access_control_manager.h>
+
 #include <yt/ytlib/query_client/ast.h>
 
 namespace NYP {
@@ -27,13 +31,24 @@ TObjectTypeHandlerBase::TObjectTypeHandlerBase(
 
                     MakeAttributeSchema("type")
                         ->SetExpressionBuilder(
-                            [type = Type_](IQueryContext* /*context*/) {
+                            [type = Type_] (IQueryContext* /*context*/) {
                                 return New<TLiteralExpression>(NYT::NQueryClient::TSourceLocation(), FormatEnum(type));
                             }),
 
                     MakeAttributeSchema("creation_time")
-                        ->SetAttribute(TObject::CreationTimeSchema)
-            }),
+                        ->SetAttribute(TObject::CreationTimeSchema),
+
+                    MakeAttributeSchema("owner")
+                        ->SetAttribute(TObject::OwnerSchema),
+
+                    MakeAttributeSchema("inherit_acl")
+                        ->SetAttribute(TObject::InheritAclSchema)
+                        ->SetUpdatable(),
+
+                    MakeAttributeSchema("acl")
+                        ->SetAttribute(TObject::AclSchema)
+                        ->SetUpdatable()
+                }),
 
             MakeAttributeSchema("labels")
                 ->SetAttribute(TObject::LabelsSchema)
@@ -62,7 +77,7 @@ EObjectType TObjectTypeHandlerBase::GetParentType()
     return EObjectType::Null;
 }
 
-const TDbField* TObjectTypeHandlerBase::GetParentIdField()
+const TDBField* TObjectTypeHandlerBase::GetParentIdField()
 {
     return nullptr;
 }
@@ -75,6 +90,16 @@ TChildrenAttributeBase* TObjectTypeHandlerBase::GetParentChildrenAttribute(TObje
 TAttributeSchema* TObjectTypeHandlerBase::GetRootAttributeSchema()
 {
     return RootAttributeSchema_;
+}
+
+TObject* TObjectTypeHandlerBase::GetAccessControlParent(TObject* object)
+{
+    if (GetType() == EObjectType::Schema) {
+        return nullptr;
+    }
+    static const auto SchemaId = FormatEnum(GetType());
+    auto* session = object->GetSession();
+    return session->GetObject(EObjectType::Schema, SchemaId);
 }
 
 TAttributeSchema* TObjectTypeHandlerBase::GetIdAttributeSchema()
@@ -97,6 +122,10 @@ void TObjectTypeHandlerBase::BeforeObjectCreated(
 
     object->CreationTime() = TInstant::Now();
     object->Labels() = GetEphemeralNodeFactory()->CreateMap();
+
+    const auto& accessControlManager = Bootstrap_->GetAccessControlManager();
+    object->InheritAcl() = true;
+    object->Owner() = accessControlManager->GetAuthenticatedUser();
 }
 
 void TObjectTypeHandlerBase::AfterObjectCreated(
@@ -112,8 +141,7 @@ void TObjectTypeHandlerBase::BeforeObjectRemoved(
 void TObjectTypeHandlerBase::AfterObjectRemoved(
     const TTransactionPtr& /*transaction*/,
     TObject* object)
-{
-}
+{ }
 
 TAttributeSchema* TObjectTypeHandlerBase::MakeAttributeSchema(
     const TString& name)

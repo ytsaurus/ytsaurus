@@ -1,6 +1,7 @@
 #include "object_manager.h"
 #include "config.h"
 #include "type_handler.h"
+#include "schema_type_handler.h"
 #include "node_type_handler.h"
 #include "resource_type_handler.h"
 #include "pod_type_handler.h"
@@ -10,6 +11,8 @@
 #include "network_project_type_handler.h"
 #include "node_segment_type_handler.h"
 #include "virtual_service_type_handler.h"
+#include "user_type_handler.h"
+#include "group_type_handler.h"
 #include "object.h"
 #include "db_schema.h"
 #include "transaction_manager.h"
@@ -61,15 +64,18 @@ public:
 
     void Initialize()
     {
-        TypeHandlers_[EObjectType::Node] = CreateNodeTypeHandler(Bootstrap_);
-        TypeHandlers_[EObjectType::Resource] = CreateResourceTypeHandler(Bootstrap_);
-        TypeHandlers_[EObjectType::Pod] = CreatePodTypeHandler(Bootstrap_);
-        TypeHandlers_[EObjectType::PodSet] = CreatePodSetTypeHandler(Bootstrap_);
-        TypeHandlers_[EObjectType::Endpoint] = CreateEndpointTypeHandler(Bootstrap_);
-        TypeHandlers_[EObjectType::EndpointSet] = CreateEndpointSetTypeHandler(Bootstrap_);
-        TypeHandlers_[EObjectType::NetworkProject] = CreateNetworkProjectTypeHandler(Bootstrap_);
-        TypeHandlers_[EObjectType::NodeSegment] = CreateNodeSegmentTypeHandler(Bootstrap_);
-        TypeHandlers_[EObjectType::VirtualService] = CreateVirtualServiceTypeHandler(Bootstrap_);
+        RegisterTypeHandler(CreateSchemaTypeHandler(Bootstrap_));
+        RegisterTypeHandler(CreateNodeTypeHandler(Bootstrap_));
+        RegisterTypeHandler(CreateResourceTypeHandler(Bootstrap_));
+        RegisterTypeHandler(CreatePodTypeHandler(Bootstrap_));
+        RegisterTypeHandler(CreatePodSetTypeHandler(Bootstrap_));
+        RegisterTypeHandler(CreateEndpointTypeHandler(Bootstrap_));
+        RegisterTypeHandler(CreateEndpointSetTypeHandler(Bootstrap_));
+        RegisterTypeHandler(CreateNetworkProjectTypeHandler(Bootstrap_));
+        RegisterTypeHandler(CreateNodeSegmentTypeHandler(Bootstrap_));
+        RegisterTypeHandler(CreateVirtualServiceTypeHandler(Bootstrap_));
+        RegisterTypeHandler(CreateUserTypeHandler(Bootstrap_));
+        RegisterTypeHandler(CreateGroupTypeHandler(Bootstrap_));
 
         const auto& ytConnector = Bootstrap_->GetYTConnector();
         ytConnector->SubscribeValidateConnection(BIND(&TImpl::OnValidateConnection, MakeWeak(this)));
@@ -110,6 +116,13 @@ private:
 
     TEnumIndexedVector<std::unique_ptr<IObjectTypeHandler>, EObjectType> TypeHandlers_;
 
+private:
+    void RegisterTypeHandler(std::unique_ptr<IObjectTypeHandler> handler)
+    {
+        auto type = handler->GetType();
+        YCHECK(!TypeHandlers_[type]);
+        TypeHandlers_[type] = std::move(handler);
+    }
 
     void OnValidateConnection()
     {
@@ -137,10 +150,10 @@ private:
                     .Apply(BIND([=] (const TErrorOr<TYsonString>& ysonVersionOrError) {
                         if (ysonVersionOrError.IsOK()) {
                             auto version = ConvertTo<int>(ysonVersionOrError.Value());
-                            if (version != DbVersion) {
+                            if (version != DBVersion) {
                                 THROW_ERROR_EXCEPTION("Table %v version mismatch: expected %v, found %v",
                                     path,
-                                    DbVersion,
+                                    DBVersion,
                                     version);
                             }
                         } else {
@@ -227,8 +240,8 @@ private:
                         for (auto row : rowset->GetRows()) {
                             auto pair =
                                 typeHandler->GetParentType() == EObjectType::Null
-                                ? std::make_pair(FromDbValue<TObjectId>(row[0]), TObjectId())
-                                : std::make_pair(FromDbValue<TObjectId>(row[0]), FromDbValue<TObjectId>(row[1]));
+                                ? std::make_pair(FromDBValue<TObjectId>(row[0]), TObjectId())
+                                : std::make_pair(FromDBValue<TObjectId>(row[0]), FromDBValue<TObjectId>(row[1]));
                             idPairs.push_back(pair);
                         }
                     });
@@ -259,11 +272,11 @@ private:
                     if (typeHandler->GetParentType() == EObjectType::Null) {
                         context->DeleteRow(
                             typeHandler->GetTable(),
-                            ToDbValues(context->GetRowBuffer(), pair.first));
+                            ToDBValues(context->GetRowBuffer(), pair.first));
                     } else {
                         context->DeleteRow(
                             typeHandler->GetTable(),
-                            ToDbValues(context->GetRowBuffer(), pair.second, pair.first));
+                            ToDBValues(context->GetRowBuffer(), pair.second, pair.first));
                     }
                 }
             });

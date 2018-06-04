@@ -1,6 +1,9 @@
 package NYP.NClient.NApi.NProto;
 
+// COMPAT(babenko): will be dropped after switching to pod agent.
 import "proto/yp/client/api/proto/cluster_api.proto";
+import "proto/yp/client/api/proto/pod_agent.proto";
+
 import "yt/core/yson/proto/protobuf_interop.proto";
 import "proto/yt/core/ytree/proto/attributes.proto";
 import "proto/yt/core/misc/proto/error.proto";
@@ -12,6 +15,9 @@ option java_outer_classname = "DataModel";
 
 enum EObjectType
 {
+    OT_NULL = -1
+    [(NYT.NYson.NProto.enum_value_name) = "null"];
+
     OT_NODE = 0
     [(NYT.NYson.NProto.enum_value_name) = "node"];
 
@@ -38,6 +44,15 @@ enum EObjectType
 
     OT_VIRTUAL_SERVICE = 8
     [(NYT.NYson.NProto.enum_value_name) = "virtual_service"];
+
+    OT_USER = 9
+    [(NYT.NYson.NProto.enum_value_name) = "user"];
+
+    OT_GROUP = 10
+    [(NYT.NYson.NProto.enum_value_name) = "group"];
+
+    OT_SCHEMA = 256
+    [(NYT.NYson.NProto.enum_value_name) = "schema"];
 }
 
 enum EEventType
@@ -50,6 +65,74 @@ enum EEventType
 
     ET_OBJECT_UPDATED = 2
     [(NYT.NYson.NProto.enum_value_name) = "object_updated"];
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+enum EAccessControlAction
+{
+    ACA_ALLOW = 1
+    [(NYT.NYson.NProto.enum_value_name) = "allow"];
+
+    ACA_DENY = 2
+    [(NYT.NYson.NProto.enum_value_name) = "deny"];
+}
+
+enum EAccessControlPermission
+{
+    ACP_READ = 1
+    [(NYT.NYson.NProto.enum_value_name) = "read"];
+
+    ACA_WRITE = 2
+    [(NYT.NYson.NProto.enum_value_name) = "write"];
+
+    ACA_CREATE = 3
+    [(NYT.NYson.NProto.enum_value_name) = "create"];
+
+    ACA_SSH_ACCESS = 4
+    [(NYT.NYson.NProto.enum_value_name) = "ssh_access"];
+
+    ACA_ROOT_SSH_ACCESS = 5
+    [(NYT.NYson.NProto.enum_value_name) = "root_ssh_access"];
+}
+
+message TAccessControlEntry
+{
+    // Determines the access control action to take upon a match.
+    required EAccessControlAction action = 1;
+
+    // List of permissions this entry applies to.
+    repeated EAccessControlPermission permissions = 2;
+
+    // List of subjects (users and groups) this entry applies to.
+    repeated string subjects = 3;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TSchemaMeta
+{
+    optional string id = 1;
+    optional EObjectType type = 2;
+    optional uint64 creation_time = 3;
+    optional bool inherit_acl = 10;
+    repeated TAccessControlEntry acl = 11;
+    optional string owner = 12;
+}
+
+message TSchemaSpec
+{ }
+
+message TSchemaStatus
+{ }
+
+message TSchema
+{
+    optional TSchemaMeta meta = 1;
+    optional TSchemaSpec spec = 2;
+    optional TSchemaStatus status = 3;
+    optional NYtPython.NYTree.NProto.TAttributeDictionary labels = 4;
+    optional NYtPython.NYTree.NProto.TAttributeDictionary annotations = 5;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -80,9 +163,11 @@ message TResourceMeta
     optional string id = 1;
     optional EObjectType type = 2;
     optional uint64 creation_time = 3;
-
     required string node_id = 4;
     required EResourceKind kind = 5;
+    optional bool inherit_acl = 10;
+    repeated TAccessControlEntry acl = 11;
+    optional string owner = 12;
 }
 
 message TResourceSpec
@@ -222,6 +307,9 @@ message TNodeMeta
     optional string id = 1;
     optional EObjectType type = 2;
     optional uint64 creation_time = 3;
+    optional bool inherit_acl = 10;
+    repeated TAccessControlEntry acl = 11;
+    optional string owner = 12;
 }
 
 message TNodeSpec
@@ -371,17 +459,40 @@ message TPodMeta
     optional string id = 1;
     optional EObjectType type = 2;
     optional uint64 creation_time = 3;
-
     required string pod_set_id = 4;
+    optional bool inherit_acl = 10;
+    repeated TAccessControlEntry acl = 11;
+    optional string owner = 12;
 }
 
 message TPodSpec
 {
     // Raw ISS payload to be delivered to agent.
+    // COMPAT(babenko): will be deprecated after switching to pod agent.
     optional bytes iss_payload = 1;
 
     // Structured ISS spec.
+    // COMPAT(babenko): will be deprecated after switching to pod agent.
     optional NYP.NClient.NApi.NClusterApiProto.HostConfiguration iss = 9;
+
+
+    message TPodAgentDeploymentMeta
+    {
+        // URL to download pod agent binary from.
+        optional string url = 1;
+        // <scheme>:<hex value>. Supported schemes are "MD5" and "EMPTY".
+        optional string checksum = 2;
+    }
+
+    message TPodAgentPayload
+    {
+        optional NInfra.NPodAgent.API.TPodAgentSpec spec = 1;
+        optional TPodAgentDeploymentMeta meta = 2;
+    }
+
+    // Pod agent deployment and its workload specs.
+    // COMPAT(babenko): Either this or iss_payload/iss should be present.
+    optional TPodAgentPayload pod_agent_payload = 14;
 
     // Node id this pod must be assigned to.
     // XXX(babenko): WILL BE REMOVED SOON. DON'T USE.
@@ -557,10 +668,21 @@ message TPodStatus
         optional EPodCurrentState state = 1;
 
         // Raw ISS payload received from agent.
+        // COMPAT(babenko): will be deprecated after switching to pod agent.
         optional bytes iss_payload = 3;
 
         // Structured ISS status.
+        // COMPAT(babenko): will be deprecated after switching to pod agent.
         optional NYP.NClient.NApi.NClusterApiProto.HostCurrentState iss = 4;
+
+        message TPodAgentPayload
+        {
+            optional NInfra.NPodAgent.API.TPodAgentStatus status = 1;
+        }
+
+        // Pod agent status.
+        // COMPAT(babenko): Either this or iss_payload/iss should be present.
+        optional TPodAgentPayload pod_agent_payload = 5;
     }
     optional TAgent agent = 2;
 
@@ -716,6 +838,9 @@ message TPodSetMeta
     optional string id = 1;
     optional EObjectType type = 2;
     optional uint64 creation_time = 3;
+    optional bool inherit_acl = 10;
+    repeated TAccessControlEntry acl = 11;
+    optional string owner = 12;
 }
 
 message TPodSetSpec
@@ -762,8 +887,10 @@ message TEndpointMeta
     optional string id = 1;
     optional EObjectType type = 2;
     optional uint64 creation_time = 3;
-
     required string endpoint_set_id = 4;
+    optional bool inherit_acl = 10;
+    repeated TAccessControlEntry acl = 11;
+    optional string owner = 12;
 }
 
 message TEndpointSpec
@@ -794,6 +921,9 @@ message TEndpointSetMeta
     optional string id = 1;
     optional EObjectType type = 2;
     optional uint64 creation_time = 3;
+    optional bool inherit_acl = 10;
+    repeated TAccessControlEntry acl = 11;
+    optional string owner = 12;
 }
 
 message TEndpointSetSpec
@@ -827,6 +957,9 @@ message TNetworkProjectMeta
     optional string id = 1;
     optional EObjectType type = 2;
     optional uint64 creation_time = 3;
+    optional bool inherit_acl = 10;
+    repeated TAccessControlEntry acl = 11;
+    optional string owner = 12;
 }
 
 message TNetworkProjectSpec
@@ -854,6 +987,9 @@ message TNodeSegmentMeta
     optional string id = 1;
     optional EObjectType type = 2;
     optional uint64 creation_time = 3;
+    optional bool inherit_acl = 10;
+    repeated TAccessControlEntry acl = 11;
+    optional string owner = 12;
 }
 
 message TNodeSegmentSpec
@@ -880,6 +1016,9 @@ message TVirtualServiceMeta
     optional string id = 1;
     optional EObjectType type = 2;
     optional uint64 creation_time = 3;
+    optional bool inherit_acl = 10;
+    repeated TAccessControlEntry acl = 11;
+    optional string owner = 12;
 }
 
 message TVirtualServiceSpec
@@ -898,6 +1037,63 @@ message TVirtualService
     optional TVirtualServiceMeta meta = 1;
     optional TVirtualServiceSpec spec = 2;
     optional TVirtualServiceStatus status = 3;
+    optional NYtPython.NYTree.NProto.TAttributeDictionary labels = 4;
+    optional NYtPython.NYTree.NProto.TAttributeDictionary annotations = 5;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TUserMeta
+{
+    optional string id = 1;
+    optional EObjectType type = 2;
+    optional uint64 creation_time = 3;
+    optional bool inherit_acl = 10;
+    repeated TAccessControlEntry acl = 11;
+    optional string owner = 12;
+}
+
+message TUserSpec
+{ }
+
+message TUserStatus
+{ }
+
+message TUser
+{
+    optional TUserMeta meta = 1;
+    optional TUserSpec spec = 2;
+    optional TUserStatus status = 3;
+    optional NYtPython.NYTree.NProto.TAttributeDictionary labels = 4;
+    optional NYtPython.NYTree.NProto.TAttributeDictionary annotations = 5;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TGroupMeta
+{
+    optional string id = 1;
+    optional EObjectType type = 2;
+    optional uint64 creation_time = 3;
+    optional bool inherit_acl = 10;
+    repeated TAccessControlEntry acl = 11;
+    optional string owner = 12;
+}
+
+message TGroupSpec
+{
+    // List of subjects (users and groups) that are members of this group.
+    repeated string members = 1;
+}
+
+message TGroupStatus
+{ }
+
+message TGroup
+{
+    optional TGroupMeta meta = 1;
+    optional TGroupSpec spec = 2;
+    optional TGroupStatus status = 3;
     optional NYtPython.NYTree.NProto.TAttributeDictionary labels = 4;
     optional NYtPython.NYTree.NProto.TAttributeDictionary annotations = 5;
 }

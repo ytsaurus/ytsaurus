@@ -391,7 +391,7 @@ private:
         NClient::NApi::NProto::TResourceSpec spec;
         std::vector<NClient::NApi::NProto::TResourceStatus_TAllocation> scheduledAllocations;
         std::vector<NClient::NApi::NProto::TResourceStatus_TAllocation> actualAllocations;
-        FromDbRow(
+        FromDBRow(
             row,
             &resourceId,
             &nodeId,
@@ -518,7 +518,7 @@ private:
         TObjectId nodeId;
         TYsonString labels;
         NProto::TNodeStatusOther statusOther;
-        FromDbRow(
+        FromDBRow(
             row,
             &nodeId,
             &labels,
@@ -554,7 +554,7 @@ private:
         TObjectId segmentId;
         TYsonString labels;
         NClient::NApi::NProto::TNodeSegmentSpec spec;
-        FromDbRow(
+        FromDBRow(
             row,
             &segmentId,
             &labels,
@@ -604,7 +604,7 @@ private:
         NServer::NObjects::NProto::TPodSpecOther specOther;
         NServer::NObjects::NProto::TPodStatusOther statusOther;
         TYsonString labels;
-        FromDbRow(
+        FromDBRow(
             row,
             &podId,
             &podSetId,
@@ -659,7 +659,7 @@ private:
         TYsonString labels;
         std::vector<NClient::NApi::NProto::TPodSetSpec_TAntiaffinityConstraint> antiaffinityConstraints;
         TObjectId nodeSegmentId;
-        FromDbRow(
+        FromDBRow(
             row,
             &podSetId,
             &labels,
@@ -668,7 +668,7 @@ private:
 
         auto* nodeSegment = FindNodeSegment(nodeSegmentId);
         if (nodeSegmentId && !nodeSegment) {
-            LOG_WARNING("Pod set refers to an unknown node segment(PodSetId: %v, NodeSegmentId: %v)",
+            LOG_WARNING("Pod set refers to an unknown node segment (PodSetId: %v, NodeSegmentId: %v)",
                 podSetId,
                 nodeSegmentId);
             return;

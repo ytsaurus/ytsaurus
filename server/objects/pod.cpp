@@ -24,9 +24,15 @@ const TScalarAttributeSchema<TPod, TString> TPod::TStatus::TAgent::IssPayloadSch
     [] (TPod* pod) { return &pod->Status().Agent().IssPayload(); }
 };
 
+const TScalarAttributeSchema<TPod, TPod::TStatus::TAgent::TPodAgentPayload> TPod::TStatus::TAgent::PodAgentPayloadSchema{
+    &PodsTable.Fields.Status_Agent_PodAgentPayload,
+    [] (TPod* pod) { return &pod->Status().Agent().PodAgentPayload(); }
+};
+
 TPod::TStatus::TStatus::TAgent::TAgent(TPod* pod)
     : State_(pod, &StateSchema)
     , IssPayload_(pod, &IssPayloadSchema)
+    , PodAgentPayload_(pod, &PodAgentPayloadSchema)
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -66,6 +72,11 @@ const TScalarAttributeSchema<TPod, TString> TPod::TSpec::IssPayloadSchema{
     [] (TPod* pod) { return &pod->Spec().IssPayload(); }
 };
 
+const TScalarAttributeSchema<TPod, TPod::TSpec::TPodAgentPayload> TPod::TSpec::PodAgentPayloadSchema{
+    &PodsTable.Fields.Spec_PodAgentPayload,
+    [] (TPod* pod) { return &pod->Spec().PodAgentPayload(); }
+};
+
 const TScalarAttributeSchema<TPod, bool> TPod::TSpec::EnableSchedulingSchema{
     &PodsTable.Fields.Spec_EnableScheduling,
     [] (TPod* pod) { return &pod->Spec().EnableScheduling(); }
@@ -83,6 +94,7 @@ const TScalarAttributeSchema<TPod, TPod::TSpec::TOther> TPod::TSpec::OtherSchema
 TPod::TSpec::TSpec(TPod* pod)
     : Node_(pod, &NodeSchema)
     , IssPayload_(pod, &IssPayloadSchema)
+    , PodAgentPayload_(pod, &PodAgentPayloadSchema)
     , EnableScheduling_(pod, &EnableSchedulingSchema)
     , UpdateTimestamp_(pod, &UpdateTimestampSchema)
     , Other_(pod, &OtherSchema)
@@ -132,6 +144,7 @@ void TPod::UpdateSchedulingStatus(
         scheduling->clear_node_id();
     }
     scheduling->set_last_updated(ToProto<ui64>(TInstant::Now()));
+    scheduling->clear_error();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

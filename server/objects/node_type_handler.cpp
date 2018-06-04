@@ -62,12 +62,12 @@ public:
             });
     }
 
-    virtual const TDbTable* GetTable() override
+    virtual const TDBTable* GetTable() override
     {
         return &NodesTable;
     }
 
-    virtual const TDbField* GetIdField() override
+    virtual const TDBField* GetIdField() override
     {
         return &NodesTable.Fields.Meta_Id;
     }

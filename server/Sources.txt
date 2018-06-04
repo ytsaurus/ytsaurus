@@ -1,4 +1,8 @@
 SET(YP_SRCS
+  ${CMAKE_CURRENT_LIST_DIR}/access_control/access_control_manager.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/access_control/private.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/access_control/public.cpp
+
   ${CMAKE_CURRENT_LIST_DIR}/api/private.cpp
   ${CMAKE_CURRENT_LIST_DIR}/api/object_service.cpp
   ${CMAKE_CURRENT_LIST_DIR}/api/discovery_service.cpp
@@ -42,6 +46,15 @@ SET(YP_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/objects/type_handler_detail.cpp
   ${CMAKE_CURRENT_LIST_DIR}/objects/transaction_manager.cpp
   ${CMAKE_CURRENT_LIST_DIR}/objects/type_handler.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/objects/schema.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/objects/schema_type_handler.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/objects/subject.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/objects/subject_type_handler_detail.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/objects/schema_type_handler.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/objects/user.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/objects/user_type_handler.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/objects/group.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/objects/group_type_handler.cpp
   ${CMAKE_CURRENT_LIST_DIR}/objects/helpers.cpp
   ${CMAKE_CURRENT_LIST_DIR}/objects/proto/objects.proto
 

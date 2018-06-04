@@ -249,10 +249,10 @@ void TAttributeFetcher::DoPrefetch(
 
         case EAttributeFetchMethod::Evaluator:
             if (attribute->HasPreevaluator()) {
-                auto objectId = FromDbValue<TObjectId>(row[FetcherContext_->ObjectIdIndex]);
+                auto objectId = FromDBValue<TObjectId>(row[FetcherContext_->ObjectIdIndex]);
                 auto parentId = TypeHandler_->GetParentType() == EObjectType::Null
                     ? TObjectId()
-                    : FromDbValue<TObjectId>(row[FetcherContext_->ParentIdIndex]);
+                    : FromDBValue<TObjectId>(row[FetcherContext_->ParentIdIndex]);
                 auto* object = Transaction_->GetObject(TypeHandler_->GetType(), objectId, parentId);
                 attribute->RunPreevaluator(Transaction_, object);
             }
@@ -310,15 +310,15 @@ void TAttributeFetcher::DoFetch(
 
         case EAttributeFetchMethod::ExpressionBuilder: {
             const auto& value = row[CurrentIndex_++];
-            DbValueToYson(value, consumer);
+            DBValueToYson(value, consumer);
             break;
         }
 
         case EAttributeFetchMethod::Evaluator: {
-            auto objectId = FromDbValue<TObjectId>(row[FetcherContext_->ObjectIdIndex]);
+            auto objectId = FromDBValue<TObjectId>(row[FetcherContext_->ObjectIdIndex]);
             auto parentId = TypeHandler_->GetParentType() == EObjectType::Null
                 ? TObjectId()
-                : FromDbValue<TObjectId>(row[FetcherContext_->ParentIdIndex]);
+                : FromDBValue<TObjectId>(row[FetcherContext_->ParentIdIndex]);
             auto* object = Transaction_->GetObject(TypeHandler_->GetType(), objectId, parentId);
             if (resolveResult.SuffixPath.empty()) {
                 attribute->RunEvaluator(Transaction_, object, consumer);
@@ -390,6 +390,10 @@ TExpressionPtr BuildFilterExpression(
                 Visit(typedExpr->Rhs);
             } else if (auto* typedExpr = (*expr)->As<TInExpression>()) {
                 Visit(typedExpr->Expr);
+            } else if (auto* typedExpr = (*expr)->As<TBetweenExpression>()) {
+                Visit(typedExpr->Expr);
+            } else if (auto* typedExpr = (*expr)->As<TTransformExpression>()) {
+                Visit(typedExpr->Expr);
             } else {
                 Y_UNREACHABLE();
             }
@@ -441,6 +445,8 @@ TExpressionPtr BuildAndExpression(
 TStringBuf GetCapitalizedHumanReadableTypeName(EObjectType type)
 {
     switch (type) {
+        case EObjectType::Schema:
+            return AsStringBuf("Schema");
         case EObjectType::Node:
             return AsStringBuf("Node");
         case EObjectType::PodSet:
@@ -459,6 +465,10 @@ TStringBuf GetCapitalizedHumanReadableTypeName(EObjectType type)
             return AsStringBuf("Node segment");
         case EObjectType::VirtualService:
             return AsStringBuf("Virtual service");
+        case EObjectType::User:
+            return AsStringBuf("User");
+        case EObjectType::Group:
+            return AsStringBuf("Group");
         default:
             Y_UNREACHABLE();
     }
@@ -467,6 +477,8 @@ TStringBuf GetCapitalizedHumanReadableTypeName(EObjectType type)
 TStringBuf GetLowercaseHumanReadableTypeName(EObjectType type)
 {
     switch (type) {
+        case EObjectType::Schema:
+            return AsStringBuf("schema");
         case EObjectType::Node:
             return AsStringBuf("node");
         case EObjectType::PodSet:
@@ -485,6 +497,10 @@ TStringBuf GetLowercaseHumanReadableTypeName(EObjectType type)
             return AsStringBuf("node segment");
         case EObjectType::VirtualService:
             return AsStringBuf("virtual service");
+        case EObjectType::User:
+            return AsStringBuf("user");
+        case EObjectType::Group:
+            return AsStringBuf("group");
         default:
             Y_UNREACHABLE();
     }

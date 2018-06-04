@@ -156,6 +156,7 @@ public:
                         agentTimestamp,
                         masterTimestamp);
                     pod->Spec().IssPayload().ScheduleLoad();
+                    pod->Spec().PodAgentPayload().ScheduleLoad();
                     podsToUpdate.push_back(pod);
                 } else {
                     podsToKeep.push_back(pod);
@@ -170,6 +171,7 @@ public:
                         currentState);
                     pod->Status().Agent().State() = currentState;
                     pod->Status().Agent().IssPayload() = podEntry.status().iss_payload();
+                    pod->Status().Agent().PodAgentPayload() = podEntry.status().pod_agent_payload();
                 }
 
                 pod->Status().AgentSpecTimestamp() = agentTimestamp;
@@ -303,7 +305,7 @@ private:
                 pair.second);
         };
 
-        // ISS payload
+        // Payload
         protoSpec->set_iss_payload(podSpec.IssPayload());
 
         // Copy some fields from pod status/spec.

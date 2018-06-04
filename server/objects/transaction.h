@@ -171,6 +171,8 @@ public:
         const TObjectId& id,
         const TObjectId& parentId = {});
 
+    TSchema* GetSchema(EObjectType type);
+
     TNode* GetNode(const TObjectId& id);
     TNode* CreateNode(const TObjectId& id = TObjectId());
 

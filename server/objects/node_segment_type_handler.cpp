@@ -24,12 +24,12 @@ public:
             ->SetComposite();
     }
 
-    virtual const TDbTable* GetTable() override
+    virtual const TDBTable* GetTable() override
     {
         return &NodeSegmentsTable;
     }
 
-    virtual const TDbField* GetIdField() override
+    virtual const TDBField* GetIdField() override
     {
         return &NodeSegmentsTable.Fields.Meta_Id;
     }

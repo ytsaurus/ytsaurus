@@ -43,7 +43,7 @@ class TQueryContext
     : public IQueryContext
 {
 public:
-    virtual NAst::TExpressionPtr GetFieldExpression(const TDbField* field) override
+    virtual NAst::TExpressionPtr GetFieldExpression(const TDBField* field) override
     {
         if (field->Name != ObjectsTable.Fields.Labels.Name) {
             ThrowNotSupported();

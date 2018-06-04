@@ -7,6 +7,7 @@ proto/yt/core/ytree/proto/ypath.proto
 proto/yt/core/rpc/proto/rpc.proto
 proto/yt/core/rpc/grpc/proto/grpc.proto
 proto/yp/client/api/proto/cluster_api.proto
+proto/yp/client/api/proto/pod_agent.proto
 proto/yp/client/api/proto/data_model.proto
 proto/yp/client/api/proto/discovery_service.proto
 proto/yp/client/api/proto/object_service.proto

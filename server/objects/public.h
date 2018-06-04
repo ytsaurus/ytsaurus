@@ -33,8 +33,8 @@ struct IQueryContext;
 
 struct TObjectFilter;
 
-struct TDbField;
-struct TDbTable;
+struct TDBField;
+struct TDBTable;
 
 template <class T>
 class TScalarAttribute;
@@ -58,6 +58,10 @@ class TEndpointSet;
 class TNetworkProject;
 class TNodeSegment;
 class TVirtualService;
+class TSubject;
+class TUser;
+class TGroup;
+class TSchema;
 
 class TAttributeSchema;
 
@@ -87,18 +91,32 @@ class TChildrenAttributeBase;
 
 class TAnnotationsAttribute;
 
+DEFINE_ENUM(EObjectState,
+    (Normal)
+    (Creating)
+    (Created)
+    (Removing)
+    (Removed)
+    (CreatedRemoving)
+    (CreatedRemoved)
+    (Missing)
+);
+
 // Must be kept in sync with protos
 DEFINE_ENUM(EObjectType,
-    ((Null)         (-1))
-    ((Node)          (0))
-    ((Pod)           (1))
-    ((PodSet)        (2))
-    ((Resource)      (3))
-    ((NetworkProject)(4))
-    ((Endpoint)      (5))
-    ((EndpointSet)   (6))
-    ((NodeSegment)   (7))
-    ((VirtualService)(8))
+    ((Null)           (-1))
+    ((Node)            (0))
+    ((Pod)             (1))
+    ((PodSet)          (2))
+    ((Resource)        (3))
+    ((NetworkProject)  (4))
+    ((Endpoint)        (5))
+    ((EndpointSet)     (6))
+    ((NodeSegment)     (7))
+    ((VirtualService)  (8))
+    ((User)            (9))
+    ((Group)          (10))
+    ((Schema)        (256))
 );
 
 DEFINE_ENUM(EPodCurrentState,

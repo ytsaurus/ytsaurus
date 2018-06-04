@@ -471,7 +471,7 @@ bool TAttributeSchema::IsFallback() const
 }
 
 void TAttributeSchema::InitExpressionBuilder(
-    const TDbField* field,
+    const TDBField* field,
     const char* udfFormatter)
 {
     ExpressionBuilder_ =

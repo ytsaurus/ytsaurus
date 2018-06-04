@@ -63,7 +63,10 @@ public:
                             ->SetUpdatable(),
 
                         MakeAttributeSchema("iss")
-                            ->SetProtobufEvaluator<TPod, NClient::NApi::NClusterApiProto::HostCurrentState>(TPod::TStatus::TAgent::IssPayloadSchema)
+                            ->SetProtobufEvaluator<TPod, NClient::NApi::NClusterApiProto::HostCurrentState>(TPod::TStatus::TAgent::IssPayloadSchema),
+
+                        MakeAttributeSchema("pod_agent_payload")
+                            ->SetAttribute(TPod::TStatus::TAgent::PodAgentPayloadSchema)
                     }),
 
                 MakeAttributeSchema("generation_number")
@@ -89,6 +92,10 @@ public:
                 MakeAttributeSchema("iss")
                     ->SetProtobufEvaluator<TPod, NClient::NApi::NClusterApiProto::HostConfiguration>(TPod::TSpec::IssPayloadSchema)
                     ->SetProtobufSetter<TPod, NClient::NApi::NClusterApiProto::HostConfiguration>(TPod::TSpec::IssPayloadSchema),
+
+                MakeAttributeSchema("pod_agent_payload")
+                    ->SetAttribute(TPod::TSpec::PodAgentPayloadSchema)
+                    ->SetUpdatable(),
 
                 MakeAttributeSchema("node_id")
                     ->SetAttribute(TPod::TSpec::NodeSchema)
@@ -117,17 +124,17 @@ public:
         return EObjectType::PodSet;
     }
 
-    virtual const TDbField* GetIdField() override
+    virtual const TDBField* GetIdField() override
     {
         return &PodSetsTable.Fields.Meta_Id;
     }
 
-    virtual const TDbField* GetParentIdField() override
+    virtual const TDBField* GetParentIdField() override
     {
         return &PodsTable.Fields.Meta_PodSetId;
     }
 
-    virtual const TDbTable* GetTable() override
+    virtual const TDBTable* GetTable() override
     {
         return &PodsTable;
     }
@@ -135,6 +142,11 @@ public:
     virtual TChildrenAttributeBase* GetParentChildrenAttribute(TObject* parent) override
     {
         return &parent->As<TPodSet>()->Pods();
+    }
+
+    virtual TObject* GetAccessControlParent(TObject* object) override
+    {
+        return object->As<TPod>()->PodSet().Load();
     }
 
     virtual std::unique_ptr<TObject> InstantiateObject(

@@ -6,6 +6,7 @@ namespace NObjects {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+const TSchemasTable SchemasTable;
 const TObjectTableBase ObjectsTable;
 const TParentsTable ParentsTable;
 const TNodesTable NodesTable;
@@ -21,8 +22,12 @@ const TEndpointSetsTable EndpointSetsTable;
 const TNodeSegmentsTable NodeSegmentsTable;
 const TNodeSegmentToPodSetsTable NodeSegmentToPodSetsTable;
 const TVirtualServicesTable VirtualServicesTable;
+const TSubjectToTypeTable SubjectToTypeTable;
+const TUsersTable UsersTable;
+const TGroupsTable GroupsTable;
 
-const std::vector<const TDbTable*> Tables = {
+const std::vector<const TDBTable*> Tables = {
+    &SchemasTable,
     &ParentsTable,
     &NodesTable,
     &ResourcesTable,
@@ -36,7 +41,10 @@ const std::vector<const TDbTable*> Tables = {
     &EndpointSetsTable,
     &NodeSegmentsTable,
     &NodeSegmentToPodSetsTable,
-    &VirtualServicesTable
+    &VirtualServicesTable,
+    &SubjectToTypeTable,
+    &UsersTable,
+    &GroupsTable,
 };
 
 ////////////////////////////////////////////////////////////////////////////////

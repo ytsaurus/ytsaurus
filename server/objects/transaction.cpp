@@ -6,6 +6,7 @@
 #include "resource.h"
 #include "network_project.h"
 #include "virtual_service.h"
+#include "schema.h"
 #include "config.h"
 #include "db_schema.h"
 #include "type_handler.h"
@@ -21,6 +22,8 @@
 #include <yp/server/net/net_manager.h>
 
 #include <yp/server/scheduler/resource_manager.h>
+
+#include <yp/server/access_control/access_control_manager.h>
 
 #include <yt/ytlib/api/transaction.h>
 #include <yt/ytlib/api/client.h>
@@ -44,17 +47,18 @@ namespace NYP {
 namespace NServer {
 namespace NObjects {
 
+using namespace NAccessControl;
+
 using namespace NYT::NApi;
 using namespace NYT::NYPath;
 using namespace NYT::NYTree;
 using namespace NYT::NTableClient;
 using namespace NYT::NConcurrency;
 using namespace NYT::NQueryClient::NAst;
+using namespace NYT::NNet;
 
 using NYT::NQueryClient::TSourceLocation;
 using NYT::NQueryClient::EBinaryOp;
-
-using namespace NYT::NNet;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -117,7 +121,7 @@ public:
         , Query_(query)
     { }
 
-    virtual TExpressionPtr GetFieldExpression(const TDbField* field) override
+    virtual TExpressionPtr GetFieldExpression(const TDBField* field) override
     {
         auto it = FieldToExpression_.find(field);
         if (it == FieldToExpression_.end()) {
@@ -160,7 +164,7 @@ private:
     const EObjectType ObjectType_;
     TQuery* const Query_;
 
-    THashMap<const TDbField*, TExpressionPtr> FieldToExpression_;
+    THashMap<const TDBField*, TExpressionPtr> FieldToExpression_;
     THashMap<TString, TExpressionPtr> AnnotationNameToExpression_;
 };
 
@@ -233,6 +237,10 @@ public:
 
     TObject* CreateObject(EObjectType type, const IMapNodePtr& attributes, IUpdateContext* context)
     {
+        auto* schema = GetSchema(type);
+        const auto& accessControlManager = Bootstrap_->GetAccessControlManager();
+        accessControlManager->ValidatePermission(schema, EAccessControlPermission::Create);
+
         EnsureReadWrite();
         return AbortOnException(
             [&] {
@@ -251,6 +259,9 @@ public:
 
     void UpdateObject(TObject* object, const std::vector<TUpdateRequest>& requests, IUpdateContext* context)
     {
+        const auto& accessControlManager = Bootstrap_->GetAccessControlManager();
+        accessControlManager->ValidatePermission(object, EAccessControlPermission::Write);
+
         EnsureReadWrite();
         AbortOnException(
             [&] {
@@ -269,6 +280,9 @@ public:
 
     void RemoveObject(TObject* object, IUpdateContext* context)
     {
+        const auto& accessControlManager = Bootstrap_->GetAccessControlManager();
+        accessControlManager->ValidatePermission(object, EAccessControlPermission::Write);
+
         EnsureReadWrite();
         AbortOnException(
             [&] {
@@ -458,6 +472,13 @@ public:
     TObject* GetObject(EObjectType type, const TObjectId& id, const TObjectId& parentId = {})
     {
         return Session_.GetObject(type, id, parentId);
+    }
+
+    TSchema* GetSchema(EObjectType type)
+    {
+        static const auto typeToSchemaIdMap = BuildTypeToSchemaIdMap();
+        const auto& id = typeToSchemaIdMap[type];
+        return GetTypedObject<TSchema>(id);
     }
 
 
@@ -730,20 +751,20 @@ private:
             return RowBuffer_;
         }
 
-        virtual TString GetTablePath(const TDbTable* table) override
+        virtual TString GetTablePath(const TDBTable* table) override
         {
             const auto& ytConnector = Transaction_->Bootstrap_->GetYTConnector();
             return ytConnector->GetTablePath(table);
         }
 
         virtual void ScheduleLookup(
-            const TDbTable* table,
+            const TDBTable* table,
             const TRange<TUnversionedValue>& key,
-            const TRange<const TDbField*>& fields,
+            const TRange<const TDBField*>& fields,
             std::function<void(const TNullable<TRange<NYT::NTableClient::TVersionedValue>>&)> handler) override
         {
             LookupRequests_[std::make_pair(table, CaptureKey(key))].Subrequests.push_back(TLookupSubrequest{
-                SmallVector<const TDbField*, 2>(fields.begin(), fields.end()),
+                SmallVector<const TDBField*, 2>(fields.begin(), fields.end()),
                 SmallVector<int, 2>(),
                 handler
             });
@@ -793,8 +814,8 @@ private:
                 asyncResults.push_back(asyncResult.As<void>());
             }
 
-            THashMap<const TDbField*, int> fieldToId;
-            SmallVector<const TDbField*, 64> idToField;
+            THashMap<const TDBField*, int> fieldToId;
+            SmallVector<const TDBField*, 64> idToField;
 
             for (auto& pair : LookupRequests_) {
                 const auto* table = pair.first.first;
@@ -982,7 +1003,7 @@ private:
 
         struct TLookupSubrequest
         {
-            SmallVector<const TDbField*, 4> Fields;
+            SmallVector<const TDBField*, 4> Fields;
             SmallVector<int, 4> ResultColumnIds;
             std::function<void(const TNullable<TRange<NYT::NTableClient::TVersionedValue>>&)> Handler;
         };
@@ -994,7 +1015,7 @@ private:
             TString Tag;
         };
 
-        THashMap<std::pair<const TDbTable*, TKey>, TLookupRequest> LookupRequests_;
+        THashMap<std::pair<const TDBTable*, TKey>, TLookupRequest> LookupRequests_;
     };
 
     class TStoreContext
@@ -1012,22 +1033,22 @@ private:
         }
 
         virtual void WriteRow(
-            const TDbTable* table,
+            const TDBTable* table,
             const TRange<TUnversionedValue>& key,
-            const TRange<const TDbField*>& fields,
+            const TRange<const TDBField*>& fields,
             const TRange<TUnversionedValue>& values) override
         {
             Y_ASSERT(key.Size() == table->Key.size());
             Y_ASSERT(fields.Size() == values.Size());
             WriteRequests_[table].push_back(TWriteRequest{
                 CaptureKey(key),
-                SmallVector<const TDbField*, 4>(fields.begin(), fields.end()),
+                SmallVector<const TDBField*, 4>(fields.begin(), fields.end()),
                 SmallVector<TUnversionedValue, 4>(values.begin(), values.end())
             });
         }
 
         virtual void DeleteRow(
-            const TDbTable* table,
+            const TDBTable* table,
             const TRange<TUnversionedValue>& key) override
         {
             Y_ASSERT(key.Size() == table->Key.size());
@@ -1047,8 +1068,8 @@ private:
 
                 auto nameTable = BuildNameTable(table);
 
-                THashMap<const TDbField*, int> fieldToId;
-                SmallVector<const TDbField*, 64> idToField;
+                THashMap<const TDBField*, int> fieldToId;
+                SmallVector<const TDBField*, 64> idToField;
 
                 const auto& requests = pair.second;
 
@@ -1126,21 +1147,21 @@ private:
         struct TWriteRequest
         {
             TKey Key;
-            SmallVector<const TDbField*, 4> Fields;
+            SmallVector<const TDBField*, 4> Fields;
             SmallVector<TUnversionedValue, 4> Values;
         };
 
-        THashMap<const TDbTable*, std::vector<TWriteRequest>> WriteRequests_;
+        THashMap<const TDBTable*, std::vector<TWriteRequest>> WriteRequests_;
 
         struct TDeleteRequest
         {
             TKey Key;
         };
 
-        THashMap<const TDbTable*, std::vector<TDeleteRequest>> DeleteRequests_;
+        THashMap<const TDBTable*, std::vector<TDeleteRequest>> DeleteRequests_;
 
 
-        TYPath GetTablePath(const TDbTable* table)
+        TYPath GetTablePath(const TDBTable* table)
         {
             const auto& ytConnector = Transaction_->Bootstrap_->GetYTConnector();
             return ytConnector->GetTablePath(table);
@@ -1247,7 +1268,11 @@ private:
                 auto objectHolder = typeHandler->InstantiateObject(id, parentId, this);
                 auto* object = objectHolder.get();
                 it = InstantiatedObjects_.emplace(key, std::move(objectHolder)).first;
+
                 object->ScheduleExists();
+                object->Owner().ScheduleLoad();
+                object->InheritAcl().ScheduleLoad();
+                object->Acl().ScheduleLoad();
 
                 LOG_DEBUG("Object instantiated (ObjectId: %v, ParentId: %v, Type: %v)",
                     id,
@@ -1408,7 +1433,6 @@ private:
                 if (parentType != EObjectType::Null) {
                     const auto& parentId = object->GetParentId();
                     auto* parent = Owner_->Session_.GetObject(parentType, parentId);
-                    parent->ScheduleExists();
                     objectParentPairs.emplace_back(object, parent);
                 }
 
@@ -1464,12 +1488,12 @@ private:
 
                     context.WriteRow(
                         &ParentsTable,
-                        ToDbValues(
+                        ToDBValues(
                             context.GetRowBuffer(),
                             object->GetId(),
                             object->GetType()),
                         MakeArray(&ParentsTable.Fields.ParentId),
-                        ToDbValues(
+                        ToDBValues(
                             context.GetRowBuffer(),
                             parentId));
                 }
@@ -1502,13 +1526,13 @@ private:
                         table,
                         CaptureCompositeObjectKey(object, context.GetRowBuffer()),
                         MakeArray(&ObjectsTable.Fields.Meta_RemovalTime),
-                        ToDbValues(
+                        ToDBValues(
                             context.GetRowBuffer(),
                             now));
                     if (parentType != EObjectType::Null) {
                         context.DeleteRow(
                             &ParentsTable,
-                            ToDbValues(
+                            ToDBValues(
                                 context.GetRowBuffer(),
                                 object->GetId(),
                                 type));
@@ -1597,6 +1621,16 @@ private:
     THashSet<TPod*> PodsAwaitingSpecUpdate_;
 
 
+    static TEnumIndexedVector<TObjectId, EObjectType> BuildTypeToSchemaIdMap()
+    {
+        TEnumIndexedVector<TObjectId, EObjectType> result;
+        for (auto type : TEnumTraits<EObjectType>::GetDomainValues()) {
+            result[type] = FormatEnum(type);
+        }
+        return result;
+    }
+
+
     template <class T>
     T* GetTypedObject(const TObjectId& id)
     {
@@ -1625,7 +1659,7 @@ private:
         }
     }
 
-    static TNameTablePtr BuildNameTable(const TDbTable* table)
+    static TNameTablePtr BuildNameTable(const TDBTable* table)
     {
         auto nameTable = New<TNameTable>();
         for (size_t index = 0; index < table->Key.size(); ++index) {
@@ -2165,6 +2199,11 @@ void TTransaction::UpdateObject(TObject* object, const std::vector<TUpdateReques
 TObject* TTransaction::GetObject(EObjectType type, const TObjectId& id, const TObjectId& parentId)
 {
     return Impl_->GetObject(type, id, parentId);
+}
+
+TSchema* TTransaction::GetSchema(EObjectType type)
+{
+    return Impl_->GetSchema(type);
 }
 
 TGetQueryResult TTransaction::ExecuteGetQuery(

@@ -12,6 +12,8 @@
 #include <yp/server/objects/type_handler.h>
 #include <yp/server/objects/helpers.h>
 
+#include <yp/server/access_control/access_control_manager.h>
+
 #include <yp/client/api/object_service_proxy.h>
 
 #include <yt/core/ytree/convert.h>
@@ -24,6 +26,7 @@ namespace NApi {
 
 using namespace NMaster;
 using namespace NObjects;
+using namespace NAccessControl;
 using namespace NYT::NRpc;
 using namespace NYT::NYson;
 using namespace NYT::NYTree;
@@ -41,7 +44,8 @@ public:
         : TServiceBase(
             bootstrap,
             NClient::NApi::TObjectServiceProxy::GetDescriptor(),
-            NApi::Logger)
+            NApi::Logger,
+            bootstrap->GetAccessControlManager()->GetAuthenticator())
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GenerateTimestamp));
 
@@ -112,6 +116,12 @@ private:
     };
 
 
+    TAuthenticatedUserGuard MakeAuthenticatedUserGuard(const NRpc::IServiceContextPtr& context)
+    {
+        return TAuthenticatedUserGuard(Bootstrap_->GetAccessControlManager(), context->GetUser());
+    }
+
+
     DECLARE_RPC_SERVICE_METHOD(NClient::NApi::NProto, GenerateTimestamp)
     {
         context->SetRequestInfo();
@@ -180,6 +190,8 @@ private:
             transactionId,
             objectType);
 
+        auto authenticatedUserGuard = MakeAuthenticatedUserGuard(context);
+
         TTransactionWrapper transactionWrapper(transactionId, false, Bootstrap_);
         const auto& transaction = transactionWrapper.Unwrap();
 
@@ -220,6 +232,8 @@ private:
                     subrequest.Type);
             }));
 
+        auto authenticatedUserGuard = MakeAuthenticatedUserGuard(context);
+
         TTransactionWrapper transactionWrapper(transactionId, false, Bootstrap_);
         const auto& transaction = transactionWrapper.Unwrap();
 
@@ -259,6 +273,8 @@ private:
             objectType,
             objectId);
 
+        auto authenticatedUserGuard = MakeAuthenticatedUserGuard(context);
+
         TTransactionWrapper transactionWrapper(transactionId, false, Bootstrap_);
         const auto& transaction = transactionWrapper.Unwrap();
 
@@ -296,6 +312,8 @@ private:
                     subrequest.Type,
                     subrequest.Id);
             }));
+
+        auto authenticatedUserGuard = MakeAuthenticatedUserGuard(context);
 
         TTransactionWrapper transactionWrapper(transactionId, false, Bootstrap_);
         const auto& transaction = transactionWrapper.Unwrap();
@@ -338,6 +356,8 @@ private:
             objectType,
             objectId,
             updates.size());
+
+        auto authenticatedUserGuard = MakeAuthenticatedUserGuard(context);
 
         TTransactionWrapper transactionWrapper(transactionId, false, Bootstrap_);
         const auto& transaction = transactionWrapper.Unwrap();
@@ -388,6 +408,8 @@ private:
                     subrequest.Updates.size());
             }));
 
+        auto authenticatedUserGuard = MakeAuthenticatedUserGuard(context);
+
         TTransactionWrapper transactionWrapper(transactionId, false, Bootstrap_);
         const auto& transaction = transactionWrapper.Unwrap();
 
@@ -424,6 +446,8 @@ private:
             objectType,
             timestamp,
             selector.Paths);
+
+        auto authenticatedUserGuard = MakeAuthenticatedUserGuard(context);
 
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         auto transaction = WaitFor(transactionManager->StartReadOnlyTransaction(timestamp))
@@ -475,6 +499,8 @@ private:
             selector,
             options.Offset,
             options.Limit);
+
+        auto authenticatedUserGuard = MakeAuthenticatedUserGuard(context);
 
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         auto transaction = WaitFor(transactionManager->StartReadOnlyTransaction(timestamp))

@@ -47,17 +47,17 @@ public:
         return EObjectType::EndpointSet;
     }
 
-    virtual const TDbField* GetIdField() override
+    virtual const TDBField* GetIdField() override
     {
         return &EndpointsTable.Fields.Meta_Id;
     }
 
-    virtual const TDbField* GetParentIdField() override
+    virtual const TDBField* GetParentIdField() override
     {
         return &EndpointsTable.Fields.Meta_EndpointSetId;
     }
 
-    virtual const TDbTable* GetTable() override
+    virtual const TDBTable* GetTable() override
     {
         return &EndpointsTable;
     }
@@ -65,6 +65,11 @@ public:
     virtual TChildrenAttributeBase* GetParentChildrenAttribute(TObject* parent) override
     {
         return &parent->As<TEndpointSet>()->Endpoints();
+    }
+
+    virtual TObject* GetAccessControlParent(TObject* object) override
+    {
+        return object->As<TEndpoint>()->EndpointSet().Load();
     }
 
     virtual std::unique_ptr<TObject> InstantiateObject(

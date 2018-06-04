@@ -23,12 +23,12 @@ public:
             ->SetComposite();
     }
 
-    virtual const TDbTable* GetTable() override
+    virtual const TDBTable* GetTable() override
     {
         return &EndpointSetsTable;
     }
 
-    virtual const TDbField* GetIdField() override
+    virtual const TDBField* GetIdField() override
     {
         return &EndpointSetsTable.Fields.Meta_Id;
     }

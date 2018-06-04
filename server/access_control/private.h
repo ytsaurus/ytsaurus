@@ -1,0 +1,17 @@
+#pragma once
+
+#include <yt/core/logging/log.h>
+
+namespace NYP {
+namespace NServer {
+namespace NAccessControl {
+
+////////////////////////////////////////////////////////////////////////////////
+
+extern const NYT::NLogging::TLogger Logger;
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NAccessControl
+} // namespace NServer
+} // namespace NYP

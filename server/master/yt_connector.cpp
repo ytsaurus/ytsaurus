@@ -9,6 +9,9 @@
 #include <yt/ytlib/api/native_client.h>
 #include <yt/ytlib/api/transaction.h>
 
+#include <yt/ytlib/chunk_client/chunk_reader.h>
+#include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
+
 #include <yt/ytlib/query_client/functions.h>
 #include <yt/ytlib/query_client/functions_cache.h>
 
@@ -31,6 +34,7 @@ namespace NMaster {
 
 using namespace NYT::NApi;
 using namespace NYT::NCypressClient;
+using namespace NYT::NChunkClient;
 using namespace NYT::NObjectClient;
 using namespace NYT::NQueryClient;
 using namespace NYT::NTransactionClient;
@@ -103,7 +107,7 @@ public:
         return DBPath_;
     }
 
-    TYPath GetTablePath(const NObjects::TDbTable* table)
+    TYPath GetTablePath(const NObjects::TDBTable* table)
     {
         return DBPath_ + "/" + ToYPathLiteral(table->Name);
     }
@@ -228,16 +232,21 @@ private:
             options.Force = true;
             auto attributes = CreateEphemeralAttributes();
             attributes->Set("instance_tag", GetInstanceTag());
-            attributes->Set("client_grpc_address", Bootstrap_->GetClientGrpcAddress());
-            // COMPAT(babenko)
+            if (Bootstrap_->GetClientGrpcAddress()) {
+                attributes->Set("client_grpc_address", Bootstrap_->GetClientGrpcAddress());
+            }
             if (Bootstrap_->GetSecureClientGrpcAddress()) {
                 attributes->Set("secure_client_grpc_address", Bootstrap_->GetSecureClientGrpcAddress());
             }
-            attributes->Set("client_http_address", Bootstrap_->GetClientHttpAddress());
+            if (Bootstrap_->GetClientHttpAddress()) {
+                attributes->Set("client_http_address", Bootstrap_->GetClientHttpAddress());
+            }
             if (Bootstrap_->GetSecureClientHttpAddress()) {
                 attributes->Set("secure_client_http_address", Bootstrap_->GetSecureClientHttpAddress());
             }
-            attributes->Set("agent_grpc_address", Bootstrap_->GetAgentGrpcAddress());
+            if (Bootstrap_->GetAgentGrpcAddress()) {
+                attributes->Set("agent_grpc_address", Bootstrap_->GetAgentGrpcAddress());
+            }
             options.Attributes = std::move(attributes);
             WaitFor(Client_->CreateNode(instancePath, EObjectType::MapNode, options))
                 .ThrowOnError();
@@ -298,11 +307,15 @@ private:
                     functionNames,
                     descriptors);
 
+                TClientBlockReadOptions blockReadOptions;
+                blockReadOptions.ChunkReaderStatistics = New<TChunkReaderStatistics>();
+
                 FetchFunctionImplementationsFromCypress(
                     FunctionProfilers_,
                     nullptr,
                     externalCGInfo,
-                    Client_->GetFunctionImplCache());
+                    Client_->GetFunctionImplCache(),
+                    blockReadOptions);
             }
 
             UdfsLoaded_ = true;
@@ -503,7 +516,6 @@ private:
                 options.Attributes = std::vector<TString>{
                     "instance_tag",
                     "client_grpc_address",
-                    // COMPAT(babenko)
                     "secure_client_grpc_address",
                     "client_http_address",
                     "secure_client_http_address",
@@ -519,12 +531,11 @@ private:
             for (const auto& child : instancesList->GetChildren()) {
                 TMasterDiscoveryInfo info;
                 info.Fqdn = child->GetValue<TString>();
-                info.ClientGrpcAddress = child->Attributes().Get<TString>("client_grpc_address");
-                // COMPAT(babenko)
+                info.ClientGrpcAddress = child->Attributes().Get<TString>("client_grpc_address", TString());
                 info.SecureClientGrpcAddress = child->Attributes().Get<TString>("secure_client_grpc_address", TString());
-                info.ClientHttpAddress = child->Attributes().Get<TString>("client_http_address");
+                info.ClientHttpAddress = child->Attributes().Get<TString>("client_http_address", TString());
                 info.SecureClientHttpAddress = child->Attributes().Get<TString>("secure_client_http_address", TString());
-                info.AgentGrpcAddress = child->Attributes().Get<TString>("agent_grpc_address");
+                info.AgentGrpcAddress = child->Attributes().Get<TString>("agent_grpc_address", TString());
                 info.InstanceTag = child->Attributes().Get<TMasterInstanceTag>("instance_tag");
                 info.Alive = child->Attributes().Get<int>("lock_count") > 0;
                 info.Leading = (leaderFqdn && *leaderFqdn == info.Fqdn);
@@ -606,7 +617,7 @@ const TYPath& TYTConnector::GetDBPath()
     return Impl_->GetDBPath();
 }
 
-TYPath TYTConnector::GetTablePath(const NObjects::TDbTable* table)
+TYPath TYTConnector::GetTablePath(const NObjects::TDBTable* table)
 {
     return Impl_->GetTablePath(table);
 }

@@ -31,6 +31,7 @@ put_pb2(yp/client/api/proto/object_service.proto TARGETS)
 put_pb2(yp/client/api/proto/data_model.proto TARGETS)
 put_pb2(yp/client/api/proto/discovery_service.proto TARGETS)
 put_pb2(yp/client/api/proto/cluster_api.proto TARGETS)
+put_pb2(yp/client/api/proto/pod_agent.proto TARGETS)
 
 add_custom_target(
     yp-python-protos

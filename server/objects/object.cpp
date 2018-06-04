@@ -1,5 +1,6 @@
 #include "object.h"
 #include "db_schema.h"
+#include "helpers.h"
 
 namespace NYP {
 namespace NServer {
@@ -21,6 +22,21 @@ const TScalarAttributeSchema<TObject, NYT::NYTree::IMapNodePtr> TObject::LabelsS
     [] (TObject* object) { return &object->Labels(); }
 };
 
+const TScalarAttributeSchema<TObject, TObjectId> TObject::OwnerSchema{
+    &ObjectsTable.Fields.Meta_Owner,
+    [] (TObject* object) { return &object->Owner(); }
+};
+
+const TScalarAttributeSchema<TObject, bool> TObject::InheritAclSchema{
+    &ObjectsTable.Fields.Meta_InheritAcl,
+    [] (TObject* object) { return &object->InheritAcl(); }
+};
+
+const TScalarAttributeSchema<TObject, TObject::TAcl> TObject::AclSchema{
+    &ObjectsTable.Fields.Meta_Acl,
+    [] (TObject* object) { return &object->Acl(); }
+};
+
 TObject::TObject(
     const TObjectId& id,
     const TObjectId& parentId,
@@ -29,6 +45,9 @@ TObject::TObject(
     : CreationTime_(this, &CreationTimeSchema)
     , Labels_(this, &LabelsSchema)
     , Annotations_(this)
+    , Owner_(this, &OwnerSchema)
+    , InheritAcl_(this, &InheritAclSchema)
+    , Acl_(this, &AclSchema)
     , Id_(id)
     , TypeHandler_(typeHandler)
     , Session_(session)
@@ -104,7 +123,8 @@ void TObject::ValidateExists() const
     if (!Exists()) {
         THROW_ERROR_EXCEPTION(
             NClient::NApi::EErrorCode::MissingObjectId,
-            "Object %Qv does not exist",
+            "%v %Qv does not exist",
+            GetCapitalizedHumanReadableTypeName(GetType()),
             Id_);
     }
 }

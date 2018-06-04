@@ -51,7 +51,7 @@ TEST(BuildPortoProperties, TestTunnelProperties)
     EXPECT_EQ("hello_world.yandex.net", props.at("hostname"));
     EXPECT_EQ("L3 veth;ipip6 tun0 2a02:6b8:0:3400::aaaa 5678;MTU tun0 1450;MTU ip6tnl0 1450", props.at("net"));
     EXPECT_EQ("veth 5678;ip6tnl0 1234;tun0 1.2.3.4", props.at("ip"));
-    EXPECT_EQ("net.ipv4.conf.all.rp_filter:0;net.ipv4.conf.default.rp_filter:0", props.at("sysctl"));
+    EXPECT_EQ("net.ipv4.conf.all.rp_filter:0;net.ipv4.conf.default.rp_filter:0;net.ipv4.conf.veth.rp_filter:0;net.ipv4.conf.ip6tnl0.rp_filter:0", props.at("sysctl"));
 }
 
 TEST(BuildPortoProperties, Limits)

@@ -2,6 +2,8 @@
 
 #include "persistence.h"
 
+#include <yp/client/api/proto/data_model.pb.h>
+
 #include <yt/core/misc/property.h>
 #include <yt/core/misc/small_vector.h>
 
@@ -10,17 +12,6 @@ namespace NServer {
 namespace NObjects {
 
 ////////////////////////////////////////////////////////////////////////////////
-
-DEFINE_ENUM(EObjectState,
-    (Normal)
-    (Creating)
-    (Created)
-    (Removing)
-    (Removed)
-    (CreatedRemoving)
-    (CreatedRemoved)
-    (Missing)
-);
 
 class TObject
 {
@@ -55,6 +46,16 @@ public:
     DEFINE_BYREF_RW_PROPERTY_NO_INIT(TScalarAttribute<NYT::NYTree::IMapNodePtr>, Labels);
 
     DEFINE_BYREF_RW_PROPERTY_NO_INIT(TAnnotationsAttribute, Annotations);
+
+    static const TScalarAttributeSchema<TObject, TObjectId> OwnerSchema;
+    DEFINE_BYREF_RW_PROPERTY_NO_INIT(TScalarAttribute<TObjectId>, Owner);
+
+    static const TScalarAttributeSchema<TObject, bool> InheritAclSchema;
+    DEFINE_BYREF_RW_PROPERTY_NO_INIT(TScalarAttribute<bool>, InheritAcl);
+
+    using TAcl = std::vector<NClient::NApi::NProto::TAccessControlEntry>;
+    static const TScalarAttributeSchema<TObject, TAcl> AclSchema;
+    DEFINE_BYREF_RW_PROPERTY_NO_INIT(TScalarAttribute<TAcl>, Acl);
 
     void ScheduleExists() const;
     bool Exists() const;

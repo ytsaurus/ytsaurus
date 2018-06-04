@@ -10,12 +10,15 @@ namespace NMaster {
 
 TServiceBase::TServiceBase(
     TBootstrap* bootstrap,
-    const NYT::NRpc::TServiceDescriptor& descriptor,
-    const NLogging::TLogger& logger)
+    const NRpc::TServiceDescriptor& descriptor,
+    const NLogging::TLogger& logger,
+    NRpc::IAuthenticatorPtr authenticator)
     : NRpc::TServiceBase(
         bootstrap->GetWorkerPoolInvoker(),
         descriptor,
-        logger)
+        logger,
+        NRpc::NullRealmId,
+        std::move(authenticator))
     , Bootstrap_(bootstrap)
 { }
 

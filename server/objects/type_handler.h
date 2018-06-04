@@ -12,12 +12,13 @@ struct IObjectTypeHandler
 {
     virtual ~IObjectTypeHandler() = default;
 
-    virtual const TDbTable* GetTable() = 0;
-    virtual const TDbField* GetIdField() = 0;
+    virtual const TDBTable* GetTable() = 0;
+    virtual const TDBField* GetIdField() = 0;
     virtual EObjectType GetType() = 0;
     virtual EObjectType GetParentType() = 0;
-    virtual const TDbField* GetParentIdField() = 0;
+    virtual const TDBField* GetParentIdField() = 0;
     virtual TChildrenAttributeBase* GetParentChildrenAttribute(TObject* parent) = 0;
+    virtual TObject* GetAccessControlParent(TObject* object) = 0;
 
     virtual TAttributeSchema* GetRootAttributeSchema() = 0;
     virtual TAttributeSchema* GetIdAttributeSchema() = 0;

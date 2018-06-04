@@ -270,6 +270,8 @@ std::vector<std::pair<TString, TString>> BuildPortoProperties(
     if (!vsStatus.ip4_addresses().empty()) {
         sysctlProperties.emplace_back("net.ipv4.conf.all.rp_filter:0");
         sysctlProperties.emplace_back("net.ipv4.conf.default.rp_filter:0");
+        sysctlProperties.emplace_back("net.ipv4.conf.veth.rp_filter:0");
+        sysctlProperties.emplace_back("net.ipv4.conf.ip6tnl0.rp_filter:0");
     }
     if (!sysctlProperties.empty()) {
         result.emplace_back("sysctl", JoinToString(sysctlProperties.begin(), sysctlProperties.end(), AsStringBuf(";")));

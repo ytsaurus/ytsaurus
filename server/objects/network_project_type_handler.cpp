@@ -27,12 +27,12 @@ public:
             ->SetComposite();
     }
 
-    virtual const TDbTable* GetTable() override
+    virtual const TDBTable* GetTable() override
     {
         return &NetworkProjectsTable;
     }
 
-    virtual const TDbField* GetIdField() override
+    virtual const TDBField* GetIdField() override
     {
         return &NetworkProjectsTable.Fields.Meta_Id;
     }

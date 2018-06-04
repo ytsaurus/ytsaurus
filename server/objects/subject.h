@@ -1,0 +1,22 @@
+#pragma once
+
+#include "object.h"
+
+namespace NYP {
+namespace NServer {
+namespace NObjects {
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TSubject
+    : public TObject
+{
+public:
+    using TObject::TObject;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NObjects
+} // namespace NServer
+} // namespace NYP

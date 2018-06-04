@@ -10,9 +10,13 @@
 
 #include <yp/server/scheduler/config.h>
 
+#include <yp/server/access_control/config.h>
+
 #include <yt/ytlib/program/config.h>
 
 #include <yt/ytlib/api/config.h>
+
+#include <yt/ytlib/auth/config.h>
 
 #include <yt/core/http/config.h>
 
@@ -77,7 +81,6 @@ class TMasterConfig
 public:
     NHttp::TServerConfigPtr MonitoringServer;
     NYT::NRpc::NGrpc::TServerConfigPtr ClientGrpcServer;
-    // COMPAT(babenko)
     NYT::NRpc::NGrpc::TServerConfigPtr SecureClientGrpcServer;
     NYT::NRpc::NGrpc::TServerConfigPtr AgentGrpcServer;
     NYT::NHttps::TServerConfigPtr SecureClientHttpServer;
@@ -88,19 +91,22 @@ public:
     NObjects::TTransactionManagerConfigPtr TransactionManager;
     NNodes::TNodeTrackerConfigPtr NodeTracker;
     NScheduler::TSchedulerConfigPtr Scheduler;
+    NAccessControl::TAccessControlManagerConfigPtr AccessControlManager;
     int WorkerThreadPoolSize;
 
     TMasterConfig()
     {
         RegisterParameter("monitoring_server", MonitoringServer);
-        RegisterParameter("client_grpc_server", ClientGrpcServer);
-        // COMPAT(babenko)
+        RegisterParameter("client_grpc_server", ClientGrpcServer)
+            .Optional();
         RegisterParameter("secure_client_grpc_server", SecureClientGrpcServer)
             .Optional();
-        RegisterParameter("agent_grpc_server", AgentGrpcServer);
+        RegisterParameter("agent_grpc_server", AgentGrpcServer)
+            .Optional();
         RegisterParameter("secure_client_http_server", SecureClientHttpServer)
             .Optional();
-        RegisterParameter("client_http_server", ClientHttpServer);
+        RegisterParameter("client_http_server", ClientHttpServer)
+            .Optional();
         RegisterParameter("yt_connector", YTConnector);
         RegisterParameter("object_manager", ObjectManager)
             .DefaultNew();
@@ -112,16 +118,21 @@ public:
             .DefaultNew();
         RegisterParameter("scheduler", Scheduler)
             .DefaultNew();
+        RegisterParameter("access_control_manager", AccessControlManager)
+            .DefaultNew();
         RegisterParameter("worker_thread_pool_size", WorkerThreadPoolSize)
             .GreaterThan(0)
             .Default(8);
 
         RegisterPostprocessor([&] {
-            if (ClientGrpcServer->Addresses.size() != 1) {
-                THROW_ERROR_EXCEPTION("Exactly one GRPC API server address must be given");
+            if (ClientGrpcServer && ClientGrpcServer->Addresses.size() != 1) {
+                THROW_ERROR_EXCEPTION("Exactly one GRPC API server address must be given in \"client_grpc_server\"");
+            }
+            if (SecureClientGrpcServer && SecureClientGrpcServer->Addresses.size() != 1) {
+                THROW_ERROR_EXCEPTION("Exactly one GRPC API server address must be given \"secure_client_grpc_server\"");
             }
             if (AgentGrpcServer->Addresses.size() != 1) {
-                THROW_ERROR_EXCEPTION("Exactly one GRPC agent server address must be given");
+                THROW_ERROR_EXCEPTION("Exactly one GRPC agent server address must be given in \"agent_grpc_server\"");
             }
         });
     }

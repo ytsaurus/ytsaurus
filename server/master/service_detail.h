@@ -19,7 +19,8 @@ protected:
     TServiceBase(
         TBootstrap* bootstrap,
         const NYT::NRpc::TServiceDescriptor& descriptor,
-        const NLogging::TLogger& logger);
+        const NLogging::TLogger& logger,
+        NRpc::IAuthenticatorPtr authenticator = nullptr);
 
     virtual void BeforeInvoke(NRpc::IServiceContext* context) override;
 };

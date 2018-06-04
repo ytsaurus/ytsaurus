@@ -8,6 +8,7 @@ import pytest
 import os
 import sys
 import logging
+import time
 
 # TODO(ignat): avoid this hacks
 try:
@@ -30,7 +31,9 @@ OBJECT_TYPES = [
     "node",
     "endpoint",
     "endpoint_set",
-    "node_segment"
+    "node_segment",
+    "user",
+    "group"
 ]
 
 NODE_CONFIG = {
@@ -64,19 +67,32 @@ class YpTestEnvironment(object):
         else:
             self.yp_instance.prepare()
         self.yt_client = self.yp_instance.create_yt_client()
+        self.sync_access_control()
+
+    def sync_access_control(self):
+        # TODO(babenko): improve
+        time.sleep(1.0)
 
     def cleanup(self):
         self.yp_instance.stop()
 
-def test_method_setup():
+def test_method_setup(yp_env):
     print >>sys.stderr, "\n"
 
-def test_method_teardown(yp_client):
+def test_method_teardown(yp_env):
     print >>sys.stderr, "\n"
+    yp_client = yp_env.yp_client
     for object_type in OBJECT_TYPES:
+        if object_type == "schema":
+            continue
         object_ids = yp_client.select_objects(object_type, selectors=["/meta/id"])
-        for object_id in object_ids:
-            yp_client.remove_object(object_type, object_id[0])
+        for object_id_list in object_ids:
+            object_id = object_id_list[0]
+            if object_type == "user" and object_id == "root":
+                continue
+            if object_type == "group" and object_id == "superusers":
+                continue
+            yp_client.remove_object(object_type, object_id)
 
 
 @pytest.fixture(scope="session")
@@ -87,8 +103,8 @@ def test_environment(request):
 
 @pytest.fixture(scope="function")
 def yp_env(request, test_environment):
-    test_method_setup()
-    request.addfinalizer(lambda: test_method_teardown(test_environment.yp_client))
+    test_method_setup(test_environment)
+    request.addfinalizer(lambda: test_method_teardown(test_environment))
     return test_environment
 
 @pytest.fixture(scope="class")
@@ -101,8 +117,8 @@ def test_environment_configurable(request):
 
 @pytest.fixture(scope="function")
 def yp_env_configurable(request, test_environment_configurable):
-    test_method_setup()
-    request.addfinalizer(lambda: test_method_teardown(test_environment_configurable.yp_client))
+    test_method_setup(test_environment)
+    request.addfinalizer(lambda: test_method_teardown(test_environment_configurable))
     return test_environment_configurable
 
 @pytest.fixture(scope="function")

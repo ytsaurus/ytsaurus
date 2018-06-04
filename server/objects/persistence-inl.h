@@ -18,30 +18,30 @@ namespace NObjects {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-void ToDbValue(
+void ToDBValue(
     NYT::NTableClient::TUnversionedValue* dbValue,
     T value,
     const NYT::NTableClient::TRowBufferPtr& rowBuffer,
     int id,
     typename std::enable_if<TEnumTraits<T>::IsEnum, void>::type*)
 {
-    ToDbValue(dbValue, static_cast<i64>(value), rowBuffer, id);
+    ToDBValue(dbValue, static_cast<i64>(value), rowBuffer, id);
 }
 
 template <class T>
-void FromDbValue(
+void FromDBValue(
     T* value,
     const NYT::NTableClient::TUnversionedValue& dbValue,
     typename std::enable_if<TEnumTraits<T>::IsEnum, void>::type*)
 {
     i64 rawValue;
-    FromDbValue(&rawValue, dbValue);
+    FromDBValue(&rawValue, dbValue);
     *value = static_cast<T>(rawValue);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ToDbValueImpl(
+void ToDBValueImpl(
     NYT::NTableClient::TUnversionedValue* dbValue,
     const google::protobuf::Message& value,
     const NYT::NYson::TProtobufMessageType* type,
@@ -49,14 +49,14 @@ void ToDbValueImpl(
     int id);
 
 template <class T>
-void ToDbValue(
+void ToDBValue(
     NYT::NTableClient::TUnversionedValue* dbValue,
     const T& value,
     const NYT::NTableClient::TRowBufferPtr& rowBuffer,
     int id,
     typename std::enable_if<std::is_convertible<T*, google::protobuf::Message*>::value, void>::type*)
 {
-    ToDbValueImpl(
+    ToDBValueImpl(
         dbValue,
         value,
         NYT::NYson::ReflectProtobufMessageType<T>(),
@@ -64,18 +64,18 @@ void ToDbValue(
         id);
 }
 
-void FromDbValueImpl(
+void FromDBValueImpl(
     google::protobuf::Message* value,
     const NYT::NYson::TProtobufMessageType* type,
     const NYT::NTableClient::TUnversionedValue& dbValue);
 
 template <class T>
-void FromDbValue(
+void FromDBValue(
     T* value,
     const NYT::NTableClient::TUnversionedValue& dbValue,
     typename std::enable_if<std::is_convertible<T*, google::protobuf::Message*>::value, void>::type*)
 {
-    FromDbValueImpl(
+    FromDBValueImpl(
         value,
         NYT::NYson::ReflectProtobufMessageType<T>(),
         dbValue);
@@ -84,21 +84,21 @@ void FromDbValue(
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-void ToDbValue(
+void ToDBValue(
     NYT::NTableClient::TUnversionedValue* dbValue,
     const TNullable<T>& value,
     const NYT::NTableClient::TRowBufferPtr& rowBuffer,
     int id)
 {
     if (value) {
-        ToDbValue(dbValue, *value, rowBuffer, id);
+        ToDBValue(dbValue, *value, rowBuffer, id);
     } else {
         *dbValue = NYT::NTableClient::MakeUnversionedSentinelValue(NYT::NTableClient::EValueType::Null, id);
     }
 }
 
 template <class T>
-void FromDbValue(
+void FromDBValue(
     TNullable<T>* value,
     const NYT::NTableClient::TUnversionedValue& dbValue)
 {
@@ -106,52 +106,52 @@ void FromDbValue(
         *value = Null;
     } else {
         value->Emplace();
-        FromDbValue(value->GetPtr(), dbValue);
+        FromDBValue(value->GetPtr(), dbValue);
     }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ToDbValueImpl(
+void ToDBValueImpl(
     NYT::NTableClient::TUnversionedValue* dbValue,
     const std::function<bool(NYT::NTableClient::TUnversionedValue*)> producer,
     const NYT::NTableClient::TRowBufferPtr& rowBuffer,
     int id);
 
 template <class T>
-void ToDbValue(
+void ToDBValue(
     NYT::NTableClient::TUnversionedValue* dbValue,
     const std::vector<T>& values,
     const NYT::NTableClient::TRowBufferPtr& rowBuffer,
     int id)
 {
     size_t index = 0;
-    ToDbValueImpl(
+    ToDBValueImpl(
         dbValue,
         [&] (NYT::NTableClient::TUnversionedValue* itemValue) mutable -> bool {
             if (index == values.size()) {
                 return false;
             }
-            ToDbValue(itemValue, values[index++], rowBuffer);
+            ToDBValue(itemValue, values[index++], rowBuffer);
             return true;
         },
         rowBuffer,
         id);
 }
 
-void FromDbValueImpl(
+void FromDBValueImpl(
     std::function<google::protobuf::Message*()> appender,
     const NYT::NYson::TProtobufMessageType* type,
     const NYT::NTableClient::TUnversionedValue& dbValue);
 
 template <class T>
-void FromDbValue(
+void FromDBValue(
     std::vector<T>* values,
     const NYT::NTableClient::TUnversionedValue& dbValue,
     typename std::enable_if<std::is_convertible<T*, google::protobuf::Message*>::value, void>::type*)
 {
     values->clear();
-    FromDbValueImpl(
+    FromDBValueImpl(
         [&] {
             values->emplace_back();
             return &values->back();
@@ -160,30 +160,30 @@ void FromDbValue(
         dbValue);
 }
 
-void FromDbValueImpl(
+void FromDBValueImpl(
     std::function<void(const NYT::NTableClient::TUnversionedValue&)> appender,
     const NYT::NTableClient::TUnversionedValue& dbValue);
 
 template <class T>
-void FromDbValue(
+void FromDBValue(
     std::vector<T>* values,
     const NYT::NTableClient::TUnversionedValue& dbValue,
     typename std::enable_if<TIsScalarPersistentType<T>::Value, void>::type*)
 {
     values->clear();
-    FromDbValueImpl(
+    FromDBValueImpl(
         [&] (const NYT::NTableClient::TUnversionedValue& itemValue) {
             values->emplace_back();
-            FromDbValue(&values->back(), itemValue);
+            FromDBValue(&values->back(), itemValue);
         },
         dbValue);
 }
 
 template <size_t Index, class... Ts>
-struct TToDbValuesTraits;
+struct TToDBValuesTraits;
 
 template <size_t Index>
-struct TToDbValuesTraits<Index>
+struct TToDBValuesTraits<Index>
 {
     template <class V>
     static void Do(V*, const NYT::NTableClient::TRowBufferPtr&)
@@ -191,49 +191,49 @@ struct TToDbValuesTraits<Index>
 };
 
 template <size_t Index, class T, class... Ts>
-struct TToDbValuesTraits<Index, T, Ts...>
+struct TToDBValuesTraits<Index, T, Ts...>
 {
     template <class V>
     static void Do(V* array, const NYT::NTableClient::TRowBufferPtr& rowBuffer, const T& head, const Ts&... tail)
     {
-        ToDbValue(&(*array)[Index], head, rowBuffer);
-        TToDbValuesTraits<Index + 1, Ts...>::Do(array, rowBuffer, tail...);
+        ToDBValue(&(*array)[Index], head, rowBuffer);
+        TToDBValuesTraits<Index + 1, Ts...>::Do(array, rowBuffer, tail...);
     }
 };
 
 template <class... Ts>
-auto ToDbValues(
+auto ToDBValues(
     const NYT::NTableClient::TRowBufferPtr& rowBuffer,
     const Ts& ... values)
     -> std::array<NYT::NTableClient::TUnversionedValue, sizeof...(Ts)>
 {
     std::array<NYT::NTableClient::TUnversionedValue, sizeof...(Ts)> array;
-    TToDbValuesTraits<0, Ts...>::Do(&array, rowBuffer, values...);
+    TToDBValuesTraits<0, Ts...>::Do(&array, rowBuffer, values...);
     return array;
 }
 
 template <size_t Index, class... Ts>
-struct TFromDbRowTraits;
+struct TFromDBRowTraits;
 
 template <size_t Index>
-struct TFromDbRowTraits<Index>
+struct TFromDBRowTraits<Index>
 {
     static void Do(NYT::NTableClient::TUnversionedRow)
     { }
 };
 
 template <size_t Index, class T, class... Ts>
-struct TFromDbRowTraits<Index, T, Ts...>
+struct TFromDBRowTraits<Index, T, Ts...>
 {
     static void Do(NYT::NTableClient::TUnversionedRow row, T* head, Ts*... tail)
     {
-        FromDbValue(head, row[Index]);
-        TFromDbRowTraits<Index + 1, Ts...>::Do(row , tail...);
+        FromDBValue(head, row[Index]);
+        TFromDBRowTraits<Index + 1, Ts...>::Do(row , tail...);
     }
 };
 
 template <class... Ts>
-void FromDbRow(
+void FromDBRow(
     NYT::NTableClient::TUnversionedRow row,
     Ts*... values)
 {
@@ -242,24 +242,24 @@ void FromDbRow(
             sizeof...(Ts),
             row.GetCount());
     }
-    TFromDbRowTraits<0, Ts...>::Do(row, values...);
+    TFromDBRowTraits<0, Ts...>::Do(row, values...);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-NYT::NTableClient::TUnversionedValue ToDbValue(const T& value, const NYT::NTableClient::TRowBufferPtr& rowBuffer, int id)
+NYT::NTableClient::TUnversionedValue ToDBValue(const T& value, const NYT::NTableClient::TRowBufferPtr& rowBuffer, int id)
 {
     NYT::NTableClient::TUnversionedValue dbValue;
-    ToDbValue(&dbValue, value, rowBuffer, id);
+    ToDBValue(&dbValue, value, rowBuffer, id);
     return dbValue;
 }
 
 template <class T>
-T FromDbValue(const NYT::NTableClient::TUnversionedValue& dbValue)
+T FromDBValue(const NYT::NTableClient::TUnversionedValue& dbValue)
 {
     T value;
-    FromDbValue(&value, dbValue);
+    FromDBValue(&value, dbValue);
     return value;
 }
 
@@ -425,13 +425,13 @@ template <class T>
 void TScalarAttribute<T>::LoadOldValue(const NTableClient::TVersionedValue& value, ILoadContext* /*context*/)
 {
     OldValue_.Emplace();
-    FromDbValue(OldValue_.GetPtr(), static_cast<const NTableClient::TUnversionedValue&>(value));
+    FromDBValue(OldValue_.GetPtr(), static_cast<const NTableClient::TUnversionedValue&>(value));
 }
 
 template <class T>
 void TScalarAttribute<T>::StoreNewValue(NTableClient::TUnversionedValue* dbValue, IStoreContext* context)
 {
-    ToDbValue(dbValue, *NewValue_, context->GetRowBuffer());
+    ToDBValue(dbValue, *NewValue_, context->GetRowBuffer());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

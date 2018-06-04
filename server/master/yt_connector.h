@@ -22,7 +22,6 @@ struct TMasterDiscoveryInfo
 {
     TString Fqdn;
     TString ClientGrpcAddress;
-    // COMPAT(babenko)
     TString SecureClientGrpcAddress;
     TString ClientHttpAddress;
     TString SecureClientHttpAddress;
@@ -45,7 +44,7 @@ public:
     const NYT::NQueryClient::TFunctionProfilerMapPtr& GetFunctionProfilers();
     const NYT::NYPath::TYPath& GetRootPath();
     const NYT::NYPath::TYPath& GetDBPath();
-    NYT::NYPath::TYPath GetTablePath(const NObjects::TDbTable* table);
+    NYT::NYPath::TYPath GetTablePath(const NObjects::TDBTable* table);
     TClusterTag GetClusterTag();
     TMasterInstanceTag GetInstanceTag();
 

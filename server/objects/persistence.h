@@ -32,114 +32,114 @@ struct TIsScalarPersistentType
         std::is_same<T, TInstant>::value;
 };
 
-void ToDbValue(NYT::NTableClient::TUnversionedValue* dbValue, const TGuid& value, const NYT::NTableClient::TRowBufferPtr& rowBuffer, int id = 0);
-void FromDbValue(TGuid* value, const NYT::NTableClient::TUnversionedValue& dbValue);
+void ToDBValue(NYT::NTableClient::TUnversionedValue* dbValue, const TGuid& value, const NYT::NTableClient::TRowBufferPtr& rowBuffer, int id = 0);
+void FromDBValue(TGuid* value, const NYT::NTableClient::TUnversionedValue& dbValue);
 
-void ToDbValue(NYT::NTableClient::TUnversionedValue* dbValue, const TString& value, const NYT::NTableClient::TRowBufferPtr& rowBuffer, int id = 0);
-void FromDbValue(TString* value, const NYT::NTableClient::TUnversionedValue& dbValue);
+void ToDBValue(NYT::NTableClient::TUnversionedValue* dbValue, const TString& value, const NYT::NTableClient::TRowBufferPtr& rowBuffer, int id = 0);
+void FromDBValue(TString* value, const NYT::NTableClient::TUnversionedValue& dbValue);
 
-void ToDbValue(NYT::NTableClient::TUnversionedValue* dbValue, bool value, const NYT::NTableClient::TRowBufferPtr& rowBuffer, int id = 0);
-void FromDbValue(bool* value, const NYT::NTableClient::TUnversionedValue& dbValue);
+void ToDBValue(NYT::NTableClient::TUnversionedValue* dbValue, bool value, const NYT::NTableClient::TRowBufferPtr& rowBuffer, int id = 0);
+void FromDBValue(bool* value, const NYT::NTableClient::TUnversionedValue& dbValue);
 
-void ToDbValue(NYT::NTableClient::TUnversionedValue* dbValue, const NYT::NYson::TYsonString& value, const NYT::NTableClient::TRowBufferPtr& rowBuffer, int id = 0);
-void FromDbValue(NYT::NYson::TYsonString* value, const NYT::NTableClient::TUnversionedValue& dbValue);
+void ToDBValue(NYT::NTableClient::TUnversionedValue* dbValue, const NYT::NYson::TYsonString& value, const NYT::NTableClient::TRowBufferPtr& rowBuffer, int id = 0);
+void FromDBValue(NYT::NYson::TYsonString* value, const NYT::NTableClient::TUnversionedValue& dbValue);
 
-void ToDbValue(NYT::NTableClient::TUnversionedValue* dbValue, i64 value, const NYT::NTableClient::TRowBufferPtr& rowBuffer, int id = 0);
-void FromDbValue(i64* value, const NYT::NTableClient::TUnversionedValue& dbValue);
+void ToDBValue(NYT::NTableClient::TUnversionedValue* dbValue, i64 value, const NYT::NTableClient::TRowBufferPtr& rowBuffer, int id = 0);
+void FromDBValue(i64* value, const NYT::NTableClient::TUnversionedValue& dbValue);
 
-void ToDbValue(NYT::NTableClient::TUnversionedValue* dbValue, ui64 value, const NYT::NTableClient::TRowBufferPtr& rowBuffer, int id = 0);
-void FromDbValue(ui64* value, const NYT::NTableClient::TUnversionedValue& dbValue);
+void ToDBValue(NYT::NTableClient::TUnversionedValue* dbValue, ui64 value, const NYT::NTableClient::TRowBufferPtr& rowBuffer, int id = 0);
+void FromDBValue(ui64* value, const NYT::NTableClient::TUnversionedValue& dbValue);
 
-void ToDbValue(NYT::NTableClient::TUnversionedValue* dbValue, ui32 value, const NYT::NTableClient::TRowBufferPtr& rowBuffer, int id = 0);
-void FromDbValue(ui32* value, const NYT::NTableClient::TUnversionedValue& dbValue);
+void ToDBValue(NYT::NTableClient::TUnversionedValue* dbValue, ui32 value, const NYT::NTableClient::TRowBufferPtr& rowBuffer, int id = 0);
+void FromDBValue(ui32* value, const NYT::NTableClient::TUnversionedValue& dbValue);
 
-void ToDbValue(NYT::NTableClient::TUnversionedValue* dbValue, ui16 value, const NYT::NTableClient::TRowBufferPtr& rowBuffer, int id = 0);
-void FromDbValue(ui16* value, const NYT::NTableClient::TUnversionedValue& dbValue);
+void ToDBValue(NYT::NTableClient::TUnversionedValue* dbValue, ui16 value, const NYT::NTableClient::TRowBufferPtr& rowBuffer, int id = 0);
+void FromDBValue(ui16* value, const NYT::NTableClient::TUnversionedValue& dbValue);
 
-void ToDbValue(NYT::NTableClient::TUnversionedValue* dbValue, double value, const NYT::NTableClient::TRowBufferPtr& rowBuffer, int id = 0);
-void FromDbValue(double* value, const NYT::NTableClient::TUnversionedValue& dbValue);
+void ToDBValue(NYT::NTableClient::TUnversionedValue* dbValue, double value, const NYT::NTableClient::TRowBufferPtr& rowBuffer, int id = 0);
+void FromDBValue(double* value, const NYT::NTableClient::TUnversionedValue& dbValue);
 
-void ToDbValue(NYT::NTableClient::TUnversionedValue* dbValue, TInstant value, const NYT::NTableClient::TRowBufferPtr& rowBuffer, int id = 0);
-void FromDbValue(TInstant* value, const NYT::NTableClient::TUnversionedValue& dbValue);
+void ToDBValue(NYT::NTableClient::TUnversionedValue* dbValue, TInstant value, const NYT::NTableClient::TRowBufferPtr& rowBuffer, int id = 0);
+void FromDBValue(TInstant* value, const NYT::NTableClient::TUnversionedValue& dbValue);
 
-void ToDbValue(NYT::NTableClient::TUnversionedValue* dbValue, const NYT::NYTree::IMapNodePtr& value, const NYT::NTableClient::TRowBufferPtr& rowBuffer, int id = 0);
-void FromDbValue(NYT::NYTree::IMapNodePtr* value, const NYT::NTableClient::TUnversionedValue& dbValue);
+void ToDBValue(NYT::NTableClient::TUnversionedValue* dbValue, const NYT::NYTree::IMapNodePtr& value, const NYT::NTableClient::TRowBufferPtr& rowBuffer, int id = 0);
+void FromDBValue(NYT::NYTree::IMapNodePtr* value, const NYT::NTableClient::TUnversionedValue& dbValue);
 
-void ToDbValue(NYT::NTableClient::TUnversionedValue* dbValue, const NYT::NNet::TIP6Address& value, const NYT::NTableClient::TRowBufferPtr& rowBuffer, int id = 0);
-void FromDbValue(NYT::NNet::TIP6Address* value, const NYT::NTableClient::TUnversionedValue& dbValue);
+void ToDBValue(NYT::NTableClient::TUnversionedValue* dbValue, const NYT::NNet::TIP6Address& value, const NYT::NTableClient::TRowBufferPtr& rowBuffer, int id = 0);
+void FromDBValue(NYT::NNet::TIP6Address* value, const NYT::NTableClient::TUnversionedValue& dbValue);
 
 template <class T>
-void ToDbValue(
+void ToDBValue(
     NYT::NTableClient::TUnversionedValue* dbValue,
     T value,
     const NYT::NTableClient::TRowBufferPtr& rowBuffer,
     int id = 0,
     typename std::enable_if<TEnumTraits<T>::IsEnum, void>::type* = nullptr);
 template <class T>
-void FromDbValue(
+void FromDBValue(
     T* value,
     const NYT::NTableClient::TUnversionedValue& dbValue,
     typename std::enable_if<TEnumTraits<T>::IsEnum, void>::type* = nullptr);
 
 template <class T>
-NYT::NTableClient::TUnversionedValue ToDbValue(const T& value, const NYT::NTableClient::TRowBufferPtr& rowBuffer, int id = 0);
+NYT::NTableClient::TUnversionedValue ToDBValue(const T& value, const NYT::NTableClient::TRowBufferPtr& rowBuffer, int id = 0);
 template <class T>
-T FromDbValue(const NYT::NTableClient::TUnversionedValue& dbValue);
+T FromDBValue(const NYT::NTableClient::TUnversionedValue& dbValue);
 
 template <class T>
-void ToDbValue(
+void ToDBValue(
     NYT::NTableClient::TUnversionedValue* dbValue,
     const T& value,
     const NYT::NTableClient::TRowBufferPtr& rowBuffer,
     int id = 0,
     typename std::enable_if<std::is_convertible<T*, ::google::protobuf::Message*>::value, void>::type* = nullptr);
 template <class T>
-void FromDbValue(
+void FromDBValue(
     T* value,
     const NYT::NTableClient::TUnversionedValue& dbValue,
     typename std::enable_if<std::is_convertible<T*, ::google::protobuf::Message*>::value, void>::type* = nullptr);
 
 template <class T>
-void ToDbValue(
+void ToDBValue(
     NYT::NTableClient::TUnversionedValue* dbValue,
     const TNullable<T>& value,
     const NYT::NTableClient::TRowBufferPtr& rowBuffer,
     int id = 0);
 template <class T>
-void FromDbValue(
+void FromDBValue(
     TNullable<T>* value,
     const NYT::NTableClient::TUnversionedValue& dbValue);
 
 template <class T>
-void ToDbValue(
+void ToDBValue(
     NYT::NTableClient::TUnversionedValue* dbValue,
     const std::vector<T>& values,
     const NYT::NTableClient::TRowBufferPtr& rowBuffer,
     int id = 0);
 template <class T>
-void FromDbValue(
+void FromDBValue(
     std::vector<T>* values,
     const NYT::NTableClient::TUnversionedValue& dbValue,
     typename std::enable_if<std::is_convertible<T*, ::google::protobuf::Message*>::value, void>::type* = nullptr);
 template <class T>
-void FromDbValue(
+void FromDBValue(
     std::vector<T>* values,
     const NYT::NTableClient::TUnversionedValue& dbValue,
     typename std::enable_if<TIsScalarPersistentType<T>::Value, void>::type* = nullptr);
 
 template <class... Ts>
-auto ToDbValues(
+auto ToDBValues(
     const NYT::NTableClient::TRowBufferPtr& rowBuffer,
     const Ts& ... values)
     -> std::array<NYT::NTableClient::TUnversionedValue, sizeof...(Ts)>;
 
 template <class... Ts>
-void FromDbRow(
+void FromDBRow(
     NYT::NTableClient::TUnversionedRow row,
     Ts*... values);
 
-void DbValueToYson(const NYT::NTableClient::TUnversionedValue& dbValue, NYT::NYson::IYsonConsumer* consumer);
-NYT::NYson::TYsonString DbValueToYson(const NYT::NTableClient::TUnversionedValue& dbValue);
+void DBValueToYson(const NYT::NTableClient::TUnversionedValue& dbValue, NYT::NYson::IYsonConsumer* consumer);
+NYT::NYson::TYsonString DBValueToYson(const NYT::NTableClient::TUnversionedValue& dbValue);
 
 TRange<NYT::NTableClient::TUnversionedValue> CaptureCompositeObjectKey(
     const TObject* object,
@@ -147,19 +147,19 @@ TRange<NYT::NTableClient::TUnversionedValue> CaptureCompositeObjectKey(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TDbField
+struct TDBField
 {
     TString Name;
 };
 
-struct TDbTable
+struct TDBTable
 {
-    explicit TDbTable(const TString& name)
+    explicit TDBTable(const TString& name)
         : Name(name)
     { }
 
     TString Name;
-    std::vector<const TDbField*> Key;
+    std::vector<const TDBField*> Key;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -169,12 +169,12 @@ struct ILoadContext
     virtual ~ILoadContext() = default;
 
     virtual const NYT::NTableClient::TRowBufferPtr& GetRowBuffer() = 0;
-    virtual TString GetTablePath(const TDbTable* table) = 0;
+    virtual TString GetTablePath(const TDBTable* table) = 0;
 
     virtual void ScheduleLookup(
-        const TDbTable* table,
+        const TDBTable* table,
         const TRange<NYT::NTableClient::TUnversionedValue>& key,
-        const TRange<const TDbField*>& fields,
+        const TRange<const TDBField*>& fields,
         std::function<void(const TNullable<TRange<NYT::NTableClient::TVersionedValue>>&)> handler) = 0;
 
     virtual void ScheduleSelect(
@@ -189,13 +189,13 @@ struct IStoreContext
     virtual const NYT::NTableClient::TRowBufferPtr& GetRowBuffer() = 0;
 
     virtual void WriteRow(
-        const TDbTable* table,
+        const TDBTable* table,
         const TRange<NYT::NTableClient::TUnversionedValue>& key,
-        const TRange<const TDbField*>& fields,
+        const TRange<const TDBField*>& fields,
         const TRange<NYT::NTableClient::TUnversionedValue>& values) = 0;
 
     virtual void DeleteRow(
-        const TDbTable* table,
+        const TDBTable* table,
         const TRange<NYT::NTableClient::TUnversionedValue>& key) = 0;
 };
 
@@ -243,8 +243,8 @@ private:
     bool Checked_ = false;
     bool Exists_;
 
-    void LoadFromDb(ILoadContext* context);
-    void StoreToDb(IStoreContext* context);
+    void LoadFromDB(ILoadContext* context);
+    void StoreToDB(IStoreContext* context);
 };
 
 class TAttributeBase
@@ -264,8 +264,8 @@ protected:
     void DoScheduleLoad(int priority = ISession::DefaultLoadPriority) const;
     void DoScheduleStore() const;
 
-    virtual void LoadFromDb(ILoadContext* context);
-    virtual void StoreToDb(IStoreContext* context);
+    virtual void LoadFromDB(ILoadContext* context);
+    virtual void StoreToDB(IStoreContext* context);
 
     // IPersistentAttribute implementation
     virtual void OnObjectCreated() override;
@@ -291,7 +291,7 @@ private:
 
 
     // IPersistentAttribute implementation
-    virtual void LoadFromDb(ILoadContext* context) override;
+    virtual void LoadFromDB(ILoadContext* context) override;
 };
 
 template <class T>
@@ -329,7 +329,7 @@ protected:
     virtual EObjectType GetChildrenType() const = 0;
 
     // IPersistent implementation.
-    virtual void LoadFromDb(ILoadContext* context) override;
+    virtual void LoadFromDB(ILoadContext* context) override;
 };
 
 template <class T>
@@ -347,11 +347,11 @@ private:
 
 struct TScalarAttributeSchemaBase
 {
-    explicit TScalarAttributeSchemaBase(const TDbField* field)
+    explicit TScalarAttributeSchemaBase(const TDBField* field)
         : Field(field)
     { }
 
-    const TDbField* Field;
+    const TDBField* Field;
 };
 
 class TScalarAttributeBase
@@ -379,8 +379,8 @@ protected:
     void OnStore();
 
     // IPersistentAttribute implementation
-    virtual void LoadFromDb(ILoadContext* context) override;
-    virtual void StoreToDb(IStoreContext* context) override;
+    virtual void LoadFromDB(ILoadContext* context) override;
+    virtual void StoreToDB(IStoreContext* context) override;
     virtual void OnObjectCreated() override;
 
     virtual void SetDefaultValues() = 0;
@@ -393,7 +393,7 @@ struct TScalarAttributeSchema
     : public TScalarAttributeSchemaBase
 {
     explicit TScalarAttributeSchema(
-        const TDbField* field,
+        const TDBField* field,
         std::function<TScalarAttribute<TTypedValue>*(TTypedObject*)> attributeGetter = nullptr)
         : TScalarAttributeSchemaBase(field)
         , AttributeGetter(std::move(attributeGetter))
@@ -491,7 +491,7 @@ template <class TMany, class TOne>
 struct TManyToOneAttributeSchema
 {
     TManyToOneAttributeSchema(
-        const TDbField* field,
+        const TDBField* field,
         std::function<TManyToOneAttribute<TMany, TOne>*(TMany*)> forwardAttributeGetter,
         std::function<TOneToManyAttribute<TOne, TMany>*(TOne*)> inverseAttributeGetter)
         : Field(field)
@@ -499,7 +499,7 @@ struct TManyToOneAttributeSchema
         , InverseAttributeGetter(std::move(inverseAttributeGetter))
     { }
 
-    const TDbField* Field;
+    const TDBField* Field;
     std::function<TManyToOneAttribute<TMany, TOne>*(TMany*)> ForwardAttributeGetter;
     std::function<TOneToManyAttribute<TOne, TMany>*(TOne*)> InverseAttributeGetter;
 };
@@ -540,17 +540,17 @@ private:
 struct TOneToManyAttributeSchemaBase
 {
     TOneToManyAttributeSchemaBase(
-        const TDbTable* table,
-        const TDbField* primaryKeyField,
-        const TDbField* foreignKeyField)
+        const TDBTable* table,
+        const TDBField* primaryKeyField,
+        const TDBField* foreignKeyField)
         : Table(table)
         , PrimaryKeyField(primaryKeyField)
         , ForeignKeyField(foreignKeyField)
     { }
 
-    const TDbTable* Table;
-    const TDbField* PrimaryKeyField;
-    const TDbField* ForeignKeyField;
+    const TDBTable* Table;
+    const TDBField* PrimaryKeyField;
+    const TDBField* ForeignKeyField;
 };
 
 class TOneToManyAttributeBase
@@ -578,8 +578,8 @@ protected:
     virtual EObjectType GetForeignObjectType() const = 0;
 
     // IPersistent implementation.
-    virtual void LoadFromDb(ILoadContext* context) override;
-    virtual void StoreToDb(IStoreContext* context) override;
+    virtual void LoadFromDB(ILoadContext* context) override;
+    virtual void StoreToDB(IStoreContext* context) override;
 };
 
 template <class TOne, class TMany>
@@ -587,9 +587,9 @@ struct TOneToManyAttributeSchema
     : public TOneToManyAttributeSchemaBase
 {
     TOneToManyAttributeSchema(
-        const TDbTable* table,
-        const TDbField* primaryKeyField,
-        const TDbField* foreignKeyField,
+        const TDBTable* table,
+        const TDBField* primaryKeyField,
+        const TDBField* foreignKeyField,
         std::function<TOneToManyAttribute<TOne, TMany>*(TOne*)> forwardAttributeGetter,
         std::function<TManyToOneAttribute<TMany, TOne>*(TMany*)> inverseAttributeGetter)
         : TOneToManyAttributeSchemaBase(table, primaryKeyField, foreignKeyField)
@@ -645,8 +645,8 @@ private:
     THashMap<TString, TNullable<NYT::NYson::TYsonString>> KeyToValue_;
 
     // IPersistentAttribute implementation
-    virtual void LoadFromDb(ILoadContext* context) override;
-    virtual void StoreToDb(IStoreContext* context) override;
+    virtual void LoadFromDB(ILoadContext* context) override;
+    virtual void StoreToDB(IStoreContext* context) override;
     virtual void OnObjectCreated() override;
     virtual void OnObjectRemoved() override;
 };

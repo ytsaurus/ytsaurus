@@ -1,0 +1,584 @@
+// IMPORTED FROM https://a.yandex-team.ru/arc/trunk/arcadia/infra/pod_agent/libs/service_iface/protos/pod_agent.proto
+// PLEASE SEND ALL CHANGES THERE FIRST
+
+syntax = "proto3";
+
+//В данном случае описание интерфейса pod-driver выполняется для случая, когда изоляция осуществляется porto
+
+option java_package = "ru.yandex.yp.client.pods";
+option java_outer_classname = "Pod";
+
+package NInfra.NPodAgent.API;
+
+import "google/protobuf/timestamp.proto";
+import "yt/core/yson/proto/protobuf_interop.proto";
+
+//TODO: добавить секреты
+//TODO: itype (labels)
+//TODO: propabilty + core dump
+
+// NOTE: На первой итерации хочется выкристаллизовать минималистичный /spec /status интерфейс и по мере проработки use case
+// добавлять дополнительные поля.
+
+// Конфигурация Пода, передаваемая в Pod-agent.
+// NOTE: сущности верхнего уровня имеют уникальные в рамках Пода идентификаторы (поле Id)
+// и могут ссылаться друг на друга по этим идентификаторам (поля *Refs)
+// NOTE: Валидация - необходимо проверить, что нет висячих ссылок
+message TPodAgentSpec {
+    //pod revision, server-side монотонно возрастаюшая последовательность
+    uint32 Revision = 1;
+
+    //идентификатор пода
+    string Id = 2;
+
+    //Слои, которые необходимо скачать в рамках лимитов @see ResourceGang
+    TResourceGang Resources = 3;
+
+    //Все вольюмы
+    repeated TVolume Volumes = 4;
+
+    //Все workload
+    repeated TWorkload Workloads = 5;
+
+    //Все окружения, в которых могут быть запущены Workloads
+    repeated TSandbox Sandboxes = 8;
+}
+
+// Текущее состояние Пода, возвращаемое из Pod-agent
+message TPodAgentStatus {
+    //последняя известная pod revision
+    uint32 Revision = 1;
+
+    //идентификатор пода
+    string Id = 2;
+
+    // Момент отправки сообщения с агента
+    uint64 HostTimestamp = 3;
+
+    repeated TVolumeStatus Volumes = 4;
+
+    repeated TLayerStatus Resources = 5;
+
+    repeated TWorkloadStatus Workloads = 6;
+
+    repeated TSandboxStatus Sandboxes = 7;
+}
+
+// Спека для получения расширенного debug состояния pod_agent
+message TPodAgentDebugSpec {
+    repeated string WorkloadIds = 1;
+}
+
+// Расширенный debug status возвращаемый Pod-agent
+message TPodAgentDebugStatus {
+    // Состояние behavior tree для workloads в dot формате
+    map<string, string> WorkloadTreeDots = 1;
+}
+
+//============================== SPEC ==========================
+message TComputeResources {
+    uint64 VcpuGuarantee = 2;
+    uint64 VcpuLimit = 3;
+    uint64 MemoryGuarantee = 4;
+    uint64 MemoryLimit = 5;
+    uint64 AnonymousMemoryLimit = 6;
+
+    // Свойства porto-контейнеров хуков, задаваемые непосредственно.
+    // Описание формата https://wiki.yandex-team.ru/iss3/specifications/configuration/container/
+    map<string, string> Properties = 1;
+}
+
+// Проверки целостности ресурса
+message TVerification {
+    // Контрольная сумма, формат <схема>:<значение> Поддерживаемые схемы "MD5:", "EMPTY:"  "SHA256:" - case sensitive
+    string Checksum = 1;
+
+    // Периодичность проверки контрольной суммы. При значении 0 проверка будет выполнена только 1 раз.
+    //NOTE: добавить валидацию минимального значения периода проверки
+    uint64 CheckPeriodMs = 2;
+}
+
+message TSandboxResource {
+    string TaskType = 1;
+    string TaskId = 2;
+    string ResourceType = 3;
+    string ResourceId = 4;
+}
+
+message TResourceMeta {
+    oneof Meta {
+        TSandboxResource SandboxResource = 2;
+    }
+}
+
+message TResource {
+    string Id = 1; // Уникальное имя ресурса (в рамках pod'а)
+
+    //не нужно для Pod-agent
+    TResourceMeta Meta = 2; // Мета информация о ресурсе, необходимо для интеграции с CI/CD
+
+    //@see Verification
+    TVerification Verification = 3;
+
+    // URL для скачивания, протоколы: http, https, rbtorrent
+    // Для записи строчки в файл URL должен быть равен "raw:<строка>"
+    string Url = 4;
+
+    oneof StorageRef {
+        bool DefaultStorage = 5;
+        string FileStorageRef = 6; //Указатель на файловый сторедж
+    }
+}
+
+message TLayer {
+    // Уникальный идентификатор (произвольная строка)
+    string Id = 1;
+
+    TResource Resource = 2;
+}
+
+enum EVolumeMountMode {
+    EVolumeMountMode_READ_ONLY = 0 [(NYT.NYson.NProto.enum_value_name) = "read_only"];
+    EVolumeMountMode_READ_WRITE = 1 [(NYT.NYson.NProto.enum_value_name) = "read_write"];
+}
+
+//Позволяет монитровать один вольюм в разные mountPoint
+message TMountedVolume {
+    //id Volume который требуется подмонтировать
+    string VolumeRef = 1;
+    // точка монтирования
+    string MountPoint = 2;
+    //ro, rw
+    EVolumeMountMode Mode = 3;
+}
+
+message TRootfsVolume {
+    // Квота на размер
+    uint64 QuotaBytes = 1;
+
+    // Слои, из которых собирается volume
+    //NOTE: Валидация ids в списке должны быть уникальные
+    repeated string LayerRefs = 4;
+}
+
+message TFileStorage {
+    // Квота на размер
+    uint64 QuotaBytes = 1;
+}
+
+message TGenericVolume {
+    // Сейчас определено только свойство bind
+    // https://wiki.yandex-team.ru/iss3/specifications/configuration/instance/volumes/#polzovatelskijjbind
+    map<string, string> Properties = 3;
+
+    // Слои, из которых собирается volume
+    //NOTE: Валидация ids в списке должны быть уникальные
+    repeated string LayerRefs = 4;
+}
+
+message TVolume {
+    string Id = 1;
+
+    oneof Volume {
+        TFileStorage Storage = 3;
+        TGenericVolume Generic = 4;
+    }
+}
+
+// Ограничения на время исполнения и интервал между запусками хука. Все времена в миллисекундах.
+// maxExecutionTimeMs - ограничение на время выполнения.
+// Интервал между запусками рассчитывается по формуле
+// min(maxRestartPeriodMs, minRestartPeriodMs + restartPeriodScaleMs * (restartPeriodBackoff ^ step))
+// step считается с 0
+message TTimeLimit {
+    uint64 InitialDelayMs = 1;
+    uint64 RestartPeriodScaleMs = 2;
+    uint64 RestartPeriodBackOff = 3;
+    uint64 MaxRestartPeriodMs = 4;
+    uint64 MinRestartPeriodMs = 5;
+    uint64 MaxExecutionTimeMs = 6;
+}
+
+
+//Уточню позже
+message SecretEnvSelector {
+}
+
+message LiteralEnvSelector {
+    string Value = 1;
+}
+
+message TEnvVarValue {
+    oneof Value {
+        SecretEnvSelector SecretEnv = 2;
+        LiteralEnvSelector LiteralEnv = 3;
+    }
+}
+
+message TEnvVar {
+    string Name = 1;
+    TEnvVarValue Value = 2;
+}
+
+//pid-ns как изолируется относительно соседей
+message TWorkload {
+    // уникальный в рамках pod идентификатор Workload
+    string Id = 1;
+
+    //атрибуты контейнера (по сути это сквозной проброс опций Porto)
+    //Тут важно разделять интерфейс предоствляемый пользователию и внутренний между YP<->agent
+    TComputeResources ComputeResources = 2;
+
+    //Набор команд, запускаемых перед стартом основного процесса.
+    //Гарантируется, что каждая отработает at least once.
+    repeated string InitCommandLine = 3;
+
+    //Команда которая будет установлена в porto-container в качестве опции cmd. Т.е. entry point для контейнера.
+    string CommandLine = 4;
+
+    //Переменные окружения
+    repeated TEnvVar Env = 5;
+
+    //В случае возврата 0 - workload переходит в состояние ACTIVE, в других случаях SEMI_FAILED
+    //Нет такого кода возврата status hook, при котором контейнер будет убит
+    //Это соответствет текущему поведению instaceCTL и qloudinit
+    //     https://wiki.yandex-team.ru/jandekspoisk/sepe/instancectl/#ortho-tags
+    //     https://docs.platform.yandex-team.ru/doc/component#status_hook
+    // Если это поведение поменять сделать миграцию автоматической будет сложнее
+    // Если потребуется поведение, что в случае провала хука нужно килять инстанс - то добавим хук health
+    // Если пользователь хочет пробпросить кастомный стуктурированный status, то рекомендуемое место для этого
+    // stdout этого хука
+    TReadinessCheck ReadinessCheck = 6;
+
+    TStopPolicy StopPolicy = 7;
+
+    //Указатель на Sandbox, в котором надо запускаться
+    string SandboxRef = 8;
+}
+
+message TStopPolicy {
+    oneof Policy {
+        TUtilityContainer Stop = 1;
+        THTTPGet HttpStop = 2;
+    }
+}
+
+message TSandbox {
+    // уникальный в рамках pod идентификатор Sandbox
+    string Id = 1;
+
+    TRootfsVolume Rootfs = 2;
+
+    //NOTE: валидация должна гарантировать, что не может быть двух вольюмов в этом списке, у которых совпадает mountPoint
+    //NOTE: валидация уникальности id в списке
+    repeated TMountedVolume Volumes = 8;
+
+    // Процессы, запускаемые при подготовке Sandbox после создания вольюмов
+    repeated TUtilityContainer Init = 9;
+}
+
+message THTTPGet {
+    uint32 Port = 1;
+
+    string Path = 2;
+    string ExpectedAnswer = 3;
+
+    //@see TimeLimit
+    TTimeLimit TimeLimit = 4;
+}
+
+message TTcpCheck {
+    uint32 Port = 1;
+
+    //@see TimeLimit
+    TTimeLimit TimeLimit = 2;
+}
+
+message TReadinessCheck {
+    string Id = 1;
+
+    oneof Check {
+        TUtilityContainer Container = 2;
+        TTcpCheck TcpCheck = 3;
+        THTTPGet HttpCheck = 4;
+    }
+}
+
+//Наследует Env от TWorkload
+message TUtilityContainer {
+    string Id = 1;
+
+    //атрибуты контейнера (по сути это сквозной проброс опций Porto)
+    //Тут важно разделять интерфейс предоствляемый пользователю и внутренний между YP<->agent
+    TComputeResources ComputeResources = 2;
+
+    string CommandLine = 3;
+
+    //@see TimeLimit
+    TTimeLimit TimeLimit = 4;
+}
+
+//Позволяет выставить ограничение сверху на все закачки. Важным моментом является, что сумма лимитов
+//ресурсов может быть больше, чем даже лимиты Pod. Поэтому pod-agent должен будет запускать закачки так:
+//Снача запускаются закачки для активных workload и параллельно запускаются только те, которые можно разместить
+//в рамках лимитов sandbox
+message TResourceGang {
+    //Слои, все закачки происходят в рамках вычислительных
+    //Идея убрать произвольные ресурсы, а оставить слои в том, чтобы форсить пользователя готовить во вне воспроизводимое
+    //окружение для своего сервиса. По сути это аналог деплоя готовых docker образов.
+    repeated TLayer Layers = 2;
+
+    repeated TResource Resources = 3;
+}
+
+// ======================  STATUS ===================
+
+message TSandboxStatus {
+    string Id = 1;
+
+    ESandboxState SandboxState = 2;
+
+    repeated TUtilityContainer Inits = 3;
+
+    //Нужно понять удобно ли так
+    repeated string VolumeRefs = 4;
+
+    //Неструктурированное описание последней ошибки связанной c запуском контейнера
+    string FailReason = 5;
+
+    TCondition Ready = 6;
+
+    TCondition InProgress = 7;
+}
+
+enum ESandboxState {
+    ESandboxState_UNKNOWN = 0 [(NYT.NYson.NProto.enum_value_name) = "unknown"];
+    // Соответствует начальному состоянию, когда агент только получил новую конфигурацию sandbox
+    ESandboxState_INIT = 1 [(NYT.NYson.NProto.enum_value_name) = "init"];
+
+    // Соответсвует процессу сборки volume'ов
+    ESandboxState_WAITING_FOR_VOLUMES = 2 [(NYT.NYson.NProto.enum_value_name) = "waiting_for_volumes"];
+
+    // Вольюмы смонтированы, окружение готово к запуску хуков
+    ESandboxState_READY = 3 [(NYT.NYson.NProto.enum_value_name) = "ready"];
+
+    // Соотвествует процессу удаления workload
+    ESandboxState_REMOVING = 4 [(NYT.NYson.NProto.enum_value_name) = "removing"];
+
+    // Соотвестует удалённому worload
+    ESandboxState_REMOVED = 5 [(NYT.NYson.NProto.enum_value_name) = "removed"];
+
+    // Sandbox находится в невалидном состоянии и значит будет полнотью пересобран
+    ESandboxState_INVALID = 6 [(NYT.NYson.NProto.enum_value_name) = "invalid"];
+}
+
+//Состояние workload
+//Q: Почему нет DEBUG состояния, чтобы поотлаживать упавшую джобу
+//A: Дело в том, в pod agent не будет понятия джобы. pod agent запускает только сервисы.
+//     одним из сервисов может быть сервис, который выполняет джобы.
+enum EWorkloadState {
+    EWorkloadState_UNKNOWN = 0 [(NYT.NYson.NProto.enum_value_name) = "unknown"];
+
+    // Соответствует начальному состоянию, когда агент только получи новую конфигурацию workload
+    EWorkloadState_INIT = 1 [(NYT.NYson.NProto.enum_value_name) = "init"];
+
+    // Соответсвует ожиданию готовности Sandbox
+    EWorkloadState_WAITING_FOR_SANDBOX = 2 [(NYT.NYson.NProto.enum_value_name) = "waiting_for_sandbox"];
+
+    // readiness сообщает, что Workload не готов
+    EWorkloadState_SEMI_FAILURE = 3 [(NYT.NYson.NProto.enum_value_name) = "semi_failure"];
+
+    // start hook запущен и status еще ни разу не завершился
+    EWorkloadState_ACTIVATING = 4 [(NYT.NYson.NProto.enum_value_name) = "activating"];
+
+    // Соответствует запущенному start hook при условии что хотябы единожды status завершился успешно
+    EWorkloadState_ACTIVE = 5 [(NYT.NYson.NProto.enum_value_name) = "active"];
+
+    // Соотвестует остановке start hook и работе stop hook
+    EWorkloadState_DEACTIVATING = 6 [(NYT.NYson.NProto.enum_value_name) = "deactivating"];
+
+    // Соотвествует процессу удаления workload
+    EWorkloadState_REMOVING = 7 [(NYT.NYson.NProto.enum_value_name) = "removing"];
+
+    // Соотвестует удалённому worload
+    EWorkloadState_REMOVED = 8 [(NYT.NYson.NProto.enum_value_name) = "removed"];
+
+    // Workload находится в не валидном состоянии и значит будет полнотью пересобран
+    EWorkloadState_INVALID = 9 [(NYT.NYson.NProto.enum_value_name) = "invalid"];
+}
+
+// Описание результата выполнения хука
+enum EContainerState {
+    EContainerState_UNKNOWN = 0 [(NYT.NYson.NProto.enum_value_name) = "unknown"];
+
+    // Процесс завершился.
+    EContainerState_EXITED = 1 [(NYT.NYson.NProto.enum_value_name) = "exited"];
+
+    // Процесс убили из-за превышения памяти
+    EContainerState_OUT_OF_MEMORY = 2 [(NYT.NYson.NProto.enum_value_name) = "out_of_memory"];
+
+    // Произошел таймаут выполенния
+    EContainerState_TIMEOUT = 3 [(NYT.NYson.NProto.enum_value_name) = "timeout"];
+
+    // Процесс был убит извне (кто-то вызвал kill или destroy)
+    EContainerState_KILLED_EXTERNALLY = 4 [(NYT.NYson.NProto.enum_value_name) = "killed_externally"];
+
+    // Произошла системная ошибка (например ошибка от порто или т.п.)
+    EContainerState_SYSTEM_FAILURE = 5 [(NYT.NYson.NProto.enum_value_name) = "system_failure"];
+
+    EContainerState_RUNNING = 6 [(NYT.NYson.NProto.enum_value_name) = "running"];
+}
+
+//Q: Почему нет статистики контейнера
+//A: Я считаю, что в данном случае сливать статистику в обратную связь бесполезно, т.к. нет возможности строить графики
+//    если статистика реально нужна, то её надо выливать в какой-то из существующих сервисов: YT, solomon, golovan, statface
+message TContainerStatus {
+    EContainerState State = 1;
+
+    int32 ReturnCode = 2;
+
+    string Stderr = 3;
+
+    string Stdout = 4;
+
+    //Неструктурированное описание последней ошибки связанной c запуском контейнера
+    string FailReason = 5;
+
+    uint32 ZeroReturnCodeCounter = 6;
+    uint32 NonZeroReturnCodeCounter = 7;
+    uint32 OomCounter = 8;
+    uint32 TimeoutCounter = 9;
+    uint32 KilledExternallyCounter = 10;
+    uint32 SystemFailureCounter = 11;
+}
+
+enum EConditionStatus {
+    EConditionStatus_UNKNOWN = 0 [(NYT.NYson.NProto.enum_value_name) = "unknown"];
+    EConditionStatus_TRUE = 1 [(NYT.NYson.NProto.enum_value_name) = "true"];
+    EConditionStatus_FALSE = 2 [(NYT.NYson.NProto.enum_value_name) = "false"];
+}
+
+message TCondition {
+    EConditionStatus Status = 10; // True, False, Unknown
+    string Reason = 20; // One word (e.g. ProcessCrash) for computers and short summary
+    string Message = 30; // Some human readable message
+    google.protobuf.Timestamp LastTransitionTime = 40;
+}
+
+message TWorkloadStatus {
+
+    // уникальный в рамках pod идентификатор Workload
+    string Id = 1;
+
+    EWorkloadState WorkloadState = 2;
+
+    TContainerStatus Init = 3;
+
+    //Добавить валидацию, что указан непустой start
+    TContainerStatus Start = 4;
+
+    TContainerStatus Stop = 5;
+
+    TReadinessStatus ReadinessStatus = 6;
+
+    TCondition Ready = 7;
+
+    TCondition InProgress = 8;
+
+    // понять удобно ли
+    string SandboxRef = 9;
+}
+
+enum ECheckResult {
+    ECheckResult_PENDING = 0 [(NYT.NYson.NProto.enum_value_name) = "pending"];
+    ECheckResult_SUCCESS = 1 [(NYT.NYson.NProto.enum_value_name) = "success"];
+}
+
+message TEndpointCheckStatus {
+    ECheckResult CheckResult = 1;
+}
+
+message THttpCheckStatus {
+    ECheckResult CheckResult = 1;
+}
+
+message TReadinessStatus {
+    oneof Status {
+        TContainerStatus ReadinessHookStatus = 1;
+        TEndpointCheckStatus EndpointCheckStatus = 2;
+        THttpCheckStatus HttpCheckStatus = 3;
+    }
+}
+
+//Ресурс при скачивании и проверке проиходит через несколько стадий
+enum ELayerState {
+    ELayerState_UNKNOWN = 0 [(NYT.NYson.NProto.enum_value_name) = "unknown"];
+
+    //не существует
+    ELayerState_REMOVED = 1 [(NYT.NYson.NProto.enum_value_name) = "removed"];
+
+    //в процессе скачивания
+    ELayerState_DOWNLOADING = 2 [(NYT.NYson.NProto.enum_value_name) = "downloading"];
+
+    //Проверка контрольной суммы
+    ELayerState_VERIFYING = 3 [(NYT.NYson.NProto.enum_value_name) = "verifying"];
+
+    //импортируется
+    ELayerState_IMPORTING = 4 [(NYT.NYson.NProto.enum_value_name) = "importing"];
+
+    //готов к использованию
+    ELayerState_READY = 5 [(NYT.NYson.NProto.enum_value_name) = "ready"];
+}
+
+//TODO: нужно придумать как сделать прогресс скачивания
+message TLayerStatus {
+    string Id = 1;
+
+    ELayerState State = 2;
+
+    //NOTE: нет гарантии монотонно растущих счётчиков, т.к. их значения могут быть удалены на хосте
+    //Количество попыток скачать ресурс
+    uint32 DownloadAttemptsCounter = 3;
+
+    //Количество попыток проверить контрольную сумму
+    uint32 VerificationAttemptsCounter = 4;
+
+    //Общее количество ошибок связанное с ресурсом
+    uint32 FailCounter = 5;
+
+    //Неструктурированное описание последней ошибки связанной с ресурсом
+    string FailReason = 6;
+
+    TCondition Ready = 7;
+
+    TCondition InProgress = 8;
+}
+
+enum EVolumeState {
+    EVolumeState_UNKNOWN = 0 [(NYT.NYson.NProto.enum_value_name) = "unknown"];
+
+    //не существует
+    EVolumeState_NOT_EXISTS = 1 [(NYT.NYson.NProto.enum_value_name) = "not_exists"];
+
+    //в процессе сборки
+    EVolumeState_CREATING = 2 [(NYT.NYson.NProto.enum_value_name) = "creating"];
+
+    //готов
+    EVolumeState_READY = 3 [(NYT.NYson.NProto.enum_value_name) = "ready"];
+}
+
+message TVolumeStatus {
+    string Id = 1;
+
+    EVolumeState State = 2;
+
+    //Количество неудачных попыток собрать вольюм
+    uint32 FailCounter = 3;
+
+    //Неструктурированное описание последней ошибки связанной с томом
+    string FailReason = 4;
+
+    TCondition Ready = 5;
+
+    TCondition InProgress = 6;
+}

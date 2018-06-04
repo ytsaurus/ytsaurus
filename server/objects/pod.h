@@ -47,6 +47,10 @@ public:
 
             static const TScalarAttributeSchema<TPod, TString> IssPayloadSchema;
             DEFINE_BYREF_RW_PROPERTY_NO_INIT(TScalarAttribute<TString>, IssPayload);
+
+            using TPodAgentPayload = NClient::NApi::NProto::TPodStatus_TAgent_TPodAgentPayload;
+            static const TScalarAttributeSchema<TPod, TPodAgentPayload> PodAgentPayloadSchema;
+            DEFINE_BYREF_RW_PROPERTY_NO_INIT(TScalarAttribute<TPodAgentPayload>, PodAgentPayload);
         };
 
         DEFINE_BYREF_RW_PROPERTY_NO_INIT(TAgent, Agent);
@@ -75,6 +79,10 @@ public:
 
         static const TScalarAttributeSchema<TPod, TString> IssPayloadSchema;
         DEFINE_BYREF_RW_PROPERTY_NO_INIT(TScalarAttribute<TString>, IssPayload);
+
+        using TPodAgentPayload = NClient::NApi::NProto::TPodSpec_TPodAgentPayload;
+        static const TScalarAttributeSchema<TPod, TPodAgentPayload> PodAgentPayloadSchema;
+        DEFINE_BYREF_RW_PROPERTY_NO_INIT(TScalarAttribute<TPodAgentPayload>, PodAgentPayload);
 
         static const TScalarAttributeSchema<TPod, bool> EnableSchedulingSchema;
         DEFINE_BYREF_RW_PROPERTY_NO_INIT(TScalarAttribute<bool>, EnableScheduling);

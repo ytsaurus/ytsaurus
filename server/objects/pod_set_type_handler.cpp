@@ -33,12 +33,12 @@ public:
             ->SetComposite();
     }
 
-    virtual const TDbTable* GetTable() override
+    virtual const TDBTable* GetTable() override
     {
         return &PodSetsTable;
     }
 
-    virtual const TDbField* GetIdField() override
+    virtual const TDBField* GetIdField() override
     {
         return &PodSetsTable.Fields.Meta_Id;
     }

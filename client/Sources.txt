@@ -3,6 +3,7 @@ SET(YP_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/api/proto/discovery_service.proto
   ${CMAKE_CURRENT_LIST_DIR}/api/proto/data_model.proto
   ${CMAKE_CURRENT_LIST_DIR}/api/proto/cluster_api.proto
+  ${CMAKE_CURRENT_LIST_DIR}/api/proto/pod_agent.proto
 
   ${CMAKE_CURRENT_LIST_DIR}/nodes/proto/agent_service.proto
   ${CMAKE_CURRENT_LIST_DIR}/nodes/proto/node_tracker_service.proto

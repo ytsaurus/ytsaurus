@@ -20,7 +20,7 @@ struct IQueryContext
 {
     virtual ~IQueryContext() = default;
 
-    virtual NYT::NQueryClient::NAst::TExpressionPtr GetFieldExpression(const TDbField* field) = 0;
+    virtual NYT::NQueryClient::NAst::TExpressionPtr GetFieldExpression(const TDBField* field) = 0;
     virtual NYT::NQueryClient::NAst::TExpressionPtr GetAnnotationExpression(const TString& name) = 0;
 };
 
@@ -184,7 +184,7 @@ private:
     bool Fallback_ = false;
 
 
-    void InitExpressionBuilder(const TDbField* field, const char* udfFormatter = nullptr);
+    void InitExpressionBuilder(const TDBField* field, const char* udfFormatter = nullptr);
     template <class TTypedObject, class TTypedValue, class TSchema>
     void InitSetter(const TSchema& schema);
     template <class TTypedObject, class TTypedValue, class TSchema>

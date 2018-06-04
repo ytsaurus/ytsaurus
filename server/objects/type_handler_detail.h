@@ -24,8 +24,10 @@ public:
 
     virtual EObjectType GetType() override;
     virtual EObjectType GetParentType() override;
-    virtual const TDbField* GetParentIdField() override;
+    virtual const TDBField* GetParentIdField() override;
     virtual TChildrenAttributeBase* GetParentChildrenAttribute(TObject* parent) override;
+
+    virtual TObject* GetAccessControlParent(TObject* object) override;
 
     virtual TAttributeSchema* GetRootAttributeSchema() override;
     virtual TAttributeSchema* GetIdAttributeSchema() override;

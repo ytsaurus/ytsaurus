@@ -47,17 +47,17 @@ public:
         return EObjectType::Node;
     }
 
-    virtual const TDbTable* GetTable() override
+    virtual const TDBTable* GetTable() override
     {
         return &ResourcesTable;
     }
 
-    virtual const TDbField* GetIdField() override
+    virtual const TDBField* GetIdField() override
     {
         return &ResourcesTable.Fields.Meta_Id;
     }
 
-    virtual const TDbField* GetParentIdField() override
+    virtual const TDBField* GetParentIdField() override
     {
         return &ResourcesTable.Fields.Meta_NodeId;
     }
