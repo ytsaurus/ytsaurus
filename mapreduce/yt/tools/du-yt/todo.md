@@ -1,0 +1,3 @@
+- add tests
+- fix node merge by template
+- split into lib and tool
