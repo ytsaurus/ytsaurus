@@ -93,7 +93,6 @@ class TestSortedDynamicTablesBase(TestDynamicTablesBase):
             sleep(5)
         assert resharded
 
-
 ##################################################################
 
 class TestSortedDynamicTables(TestSortedDynamicTablesBase):
@@ -2054,6 +2053,63 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         assert get("#{0}/@child_ids".format(tablet_chunk_lists[2])) == [chunk_id]
         with pytest.raises(YtError):
             reshard_table("//tmp/t", [[]])
+
+    def test_required_columns(self):
+        schema = [
+                {"name": "key_req", "type": "int64", "sort_order": "ascending", "required": True},
+                {"name": "key_opt", "type": "int64", "sort_order": "ascending"},
+                {"name": "value_req", "type": "string", "required": True},
+                {"name": "value_opt", "type": "string"}]
+
+        self.sync_create_cells(1)
+        self._create_simple_table("//tmp/t", schema=schema)
+        self.sync_mount_table("//tmp/t")
+
+        with pytest.raises(YtError):
+            insert_rows("//tmp/t", [dict()])
+        with pytest.raises(YtError):
+            insert_rows("//tmp/t", [dict(key_req=1, value_opt="data")])
+        with pytest.raises(YtError):
+            insert_rows("//tmp/t", [dict(key_opt=1, value_req="data", value_opt="data")])
+
+        insert_rows("//tmp/t", [dict(key_req=1, value_req="data")])
+        insert_rows("//tmp/t", [dict(key_req=1, key_opt=1, value_req="data", value_opt="data")])
+        with pytest.raises(YtError):
+            insert_rows("//tmp/t", [dict(key_req=1, key_opt=1, value_opt="other_data")], update=True)
+
+        assert lookup_rows("//tmp/t", [dict(key_req=1, key_opt=1)]) == \
+                [dict(key_req=1, key_opt=1, value_req="data", value_opt="data")]
+
+        insert_rows("//tmp/t", [dict(key_req=1, key_opt=1, value_req="updated")], update=True)
+
+        assert lookup_rows("//tmp/t", [dict(key_req=1, key_opt=1)]) == \
+                [dict(key_req=1, key_opt=1, value_req="updated", value_opt="data")]
+
+    def test_required_computed_columns(self):
+        schema = [
+                {"name": "key", "type": "int64", "sort_order": "ascending"},
+                {"name": "computed", "type": "int64", "sort_order": "ascending", "expression": "key * 10", "required": True},
+                {"name": "value", "type": "string"}]
+
+        self.sync_create_cells(1)
+        with pytest.raises(YtError):
+            self._create_simple_table("//tmp/t", schema=schema)
+
+    def test_required_aggregate_columns(self):
+        schema = [
+                {"name": "key", "type": "int64", "sort_order": "ascending"},
+                {"name": "value", "type": "int64", "aggregate": "sum", "required": True}]
+
+        self.sync_create_cells(1)
+        self._create_simple_table("//tmp/t", schema=schema)
+        self.sync_mount_table("//tmp/t")
+
+        with pytest.raises(YtError):
+            insert_rows("//tmp/t", [dict(key=1)])
+        insert_rows("//tmp/t", [dict(key=1, value=2)])
+        with pytest.raises(YtError):
+            insert_rows("//tmp/t", [dict(key=1)])
+
 
 ##################################################################
 

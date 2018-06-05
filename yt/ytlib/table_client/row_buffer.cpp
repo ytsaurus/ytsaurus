@@ -102,10 +102,15 @@ std::vector<TMutableUnversionedRow> TRowBuffer::Capture(const TRange<TUnversione
 TMutableUnversionedRow TRowBuffer::CaptureAndPermuteRow(
     TUnversionedRow row,
     const TTableSchema& tableSchema,
-    const TNameTableToSchemaIdMapping& idMapping)
+    const TNameTableToSchemaIdMapping& idMapping,
+    std::vector<bool>* columnPresenceBuffer)
 {
     int keyColumnCount = tableSchema.GetKeyColumnCount();
     int columnCount = keyColumnCount;
+
+    if (columnPresenceBuffer) {
+        ValidateDuplicateAndRequiredValueColumns(row, tableSchema, idMapping, columnPresenceBuffer);
+    }
 
     for (const auto& value : row) {
         ui16 originalId = value.Id;
@@ -140,7 +145,8 @@ TMutableUnversionedRow TRowBuffer::CaptureAndPermuteRow(
 TMutableVersionedRow TRowBuffer::CaptureAndPermuteRow(
     TVersionedRow row,
     const TTableSchema& tableSchema,
-    const TNameTableToSchemaIdMapping& idMapping)
+    const TNameTableToSchemaIdMapping& idMapping,
+    std::vector<bool>* columnPresenceBuffer)
 {
     int keyColumnCount = tableSchema.GetKeyColumnCount();
     YCHECK(keyColumnCount == row.GetKeyCount());
@@ -165,6 +171,16 @@ TMutableVersionedRow TRowBuffer::CaptureAndPermuteRow(
     std::sort(writeTimestamps.begin(), writeTimestamps.end(), std::greater<TTimestamp>());
     writeTimestamps.erase(std::unique(writeTimestamps.begin(), writeTimestamps.end()), writeTimestamps.end());
     int writeTimestampCount = static_cast<int>(writeTimestamps.size());
+
+    if (columnPresenceBuffer) {
+        ValidateDuplicateAndRequiredValueColumns(
+            row,
+            tableSchema,
+            idMapping,
+            columnPresenceBuffer,
+            writeTimestamps.data(),
+            writeTimestampCount);
+    }
 
     auto capturedRow = TMutableVersionedRow::Allocate(
         &Pool_,
