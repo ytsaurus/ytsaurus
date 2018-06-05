@@ -394,13 +394,22 @@ void ValidateRowCount(int count);
  *  4. For values marked with #TUnversionedValue::Aggregate flag, the corresponding columns in #schema must
  *  be aggregating.
  *  5. Versioned values must be sorted by |id| (in ascending order) and then by |timestamp| (in descending order).
+ *  6. At least one non-key column must be specified.
  */
 void ValidateClientDataRow(
     TUnversionedRow row,
     const TTableSchema& schema,
     const TNameTableToSchemaIdMapping& idMapping,
     const TNameTablePtr& nameTable,
-    const TNullable<int>& tabletIndexColumnId = TNullable<int>());
+    TNullable<int> tabletIndexColumnId = TNullable<int>());
+
+//! Checks that #row contains no duplicate non-key columns and that all required columns are present. Skip values that map to negative ids via #idMapping.
+/*! It is assumed that ValidateClientDataRow was called before. */
+void ValidateDuplicateAndRequiredValueColumns(
+    TUnversionedRow row,
+    const TTableSchema& schema,
+    const TNameTableToSchemaIdMapping& idMapping,
+    std::vector<bool>* columnPresenceBuffer);
 
 //! Checks that #key is a valid client-side key. Throws on failure.
 /*! The components must pass #ValidateKeyValue check. */

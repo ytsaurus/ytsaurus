@@ -6,7 +6,7 @@ if ! mountpoint -q tests.sandbox ; then
         mkdir tests.sandbox
     fi
     echo "!!! mounting tests.sandbox as tmpfs"
-    sudo mount -t tmpfs -o size=4g tmpfs tests.sandbox
+    sudo mount -t tmpfs -o size=20g tmpfs tests.sandbox
 else
     # do nothing
     echo "!!! tests.sandbox already mounted as tmpfs"

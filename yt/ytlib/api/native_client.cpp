@@ -1726,7 +1726,7 @@ private:
 
         for (int index = 0; index < keys.Size(); ++index) {
             ValidateClientKey(keys[index], schema, idMapping, nameTable);
-            auto capturedKey = inputRowBuffer->CaptureAndPermuteRow(keys[index], schema, idMapping);
+            auto capturedKey = inputRowBuffer->CaptureAndPermuteRow(keys[index], schema, idMapping, nullptr);
 
             if (evaluator) {
                 evaluator->EvaluateKeys(capturedKey, inputRowBuffer);
@@ -2174,7 +2174,7 @@ private:
             THashSet<TTabletId> tabletIds;
             for (auto key : keys) {
                 ValidateClientKey(key, schema, idMapping, nameTable);
-                auto capturedKey = rowBuffer->CaptureAndPermuteRow(key, schema, idMapping);
+                auto capturedKey = rowBuffer->CaptureAndPermuteRow(key, schema, idMapping, nullptr);
 
                 if (evaluator) {
                     evaluator->EvaluateKeys(capturedKey, rowBuffer);
