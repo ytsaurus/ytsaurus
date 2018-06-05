@@ -2,6 +2,7 @@ package ru.yandex.yt.ytclient.proxy;
 
 import java.time.Duration;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
@@ -281,6 +282,10 @@ public class ApiServiceClient {
 
     public CompletableFuture<GUID> createNode(String path, ObjectType type) {
         return createNode(new CreateNode(path, type));
+    }
+
+    public CompletableFuture<GUID> createNode(String path, ObjectType type, Map<String, YTreeNode> attributes) {
+        return createNode(new CreateNode(path, type, attributes));
     }
 
     public CompletableFuture<Void> removeNode(RemoveNode req) {

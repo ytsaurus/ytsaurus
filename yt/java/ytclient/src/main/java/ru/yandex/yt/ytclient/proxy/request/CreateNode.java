@@ -1,23 +1,34 @@
 package ru.yandex.yt.ytclient.proxy.request;
 
+import java.util.HashMap;
+import java.util.Map;
+
+import com.google.protobuf.ByteString;
+
+import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
 import ru.yandex.yt.rpcproxy.TMutatingOptions;
 import ru.yandex.yt.rpcproxy.TPrerequisiteOptions;
 import ru.yandex.yt.rpcproxy.TReqCreateNode;
 import ru.yandex.yt.rpcproxy.TTransactionalOptions;
+import ru.yandex.yt.ytree.TAttributeDictionary;
 
 public class CreateNode extends MutateNode<CreateNode> {
     private final String path;
     private final int type;
 
-    // TODO: AttributeDictionary
-
     private boolean recursive = false;
     private boolean force = false;
     private boolean ignoreExisting = false;
+    private Map<String, YTreeNode> attributes = new HashMap<>();
 
     public CreateNode(String path, ObjectType type) {
         this.path = path;
         this.type = type.value();
+    }
+
+    public CreateNode(String path, ObjectType type, Map<String, YTreeNode> attributes) {
+        this(path, type);
+        setAttributes(attributes);
     }
 
     public CreateNode setRecursive(boolean recursive) {
@@ -32,6 +43,22 @@ public class CreateNode extends MutateNode<CreateNode> {
 
     public CreateNode setIgnoreExisting(boolean ignoreExisting) {
         this.ignoreExisting = ignoreExisting;
+        return this;
+    }
+
+    public CreateNode addAttribute(String name, YTreeNode value) {
+        this.attributes.put(name, value);
+        return this;
+    }
+
+    public CreateNode setAttributes(Map<String, YTreeNode> attributes) {
+        this.attributes.clear();
+        this.attributes.putAll(attributes);
+        return this;
+    }
+
+    public CreateNode clearAttributes() {
+        this.attributes.clear();
         return this;
     }
 
@@ -55,6 +82,14 @@ public class CreateNode extends MutateNode<CreateNode> {
             builder.mergeFrom(additionalData);
         }
 
+        if (!attributes.isEmpty()) {
+            final TAttributeDictionary.Builder aBuilder = builder.getAttributesBuilder();
+            for (Map.Entry<String, YTreeNode> me : attributes.entrySet()) {
+                aBuilder.addAttributesBuilder()
+                        .setKey(me.getKey())
+                        .setValue(ByteString.copyFrom(me.getValue().toBinary()));
+            }
+        }
         return builder;
     }
 }
