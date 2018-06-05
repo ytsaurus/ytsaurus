@@ -3496,6 +3496,7 @@ private:
         "spec",
         "full_spec",
         "unrecognized_spec",
+        "controller_address",
         "brief_progress",
         "brief_spec",
         "start_time",
