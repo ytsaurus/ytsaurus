@@ -153,10 +153,10 @@ public:
         }
     }
 
-    virtual void Resume(IChunkPoolInput::TCookie cookie) override
+    virtual void Resume(IChunkPoolInput::TCookie inputCookie) override
     {
-        for (auto internalCookie : InputCookieToInternalCookies_[cookie]) {
-            auto& suspendableStripe = Stripes[internalCookie];
+        for (auto cookie : InputCookieToInternalCookies_[inputCookie]) {
+            auto& suspendableStripe = Stripes[cookie];
             suspendableStripe.Resume();
 
             auto outputCookie = suspendableStripe.GetExtractedCookie();
@@ -631,7 +631,7 @@ private:
                 }
             }
 
-            LOG_TRACE("Slicing unversioned chunk (ChunkId: %v, DataWeight: %v, SliceDataWeight: %v, SliceRowCount: %v,"
+            LOG_TRACE("Slicing unversioned chunk (ChunkId: %v, DataWeight: %v, SliceDataWeight: %v, SliceRowCount: %v, "
                 "SliceCount: %v)",
                 chunk->ChunkId(),
                 chunk->GetDataWeight(),
@@ -644,7 +644,6 @@ private:
     void AddStripe(const TChunkStripePtr& stripe)
     {
         int internalCookie = Stripes.size();
-        Stripes.emplace_back(stripe);
 
         for (const auto& dataSlice : stripe->DataSlices) {
             YCHECK(dataSlice->Tag);
