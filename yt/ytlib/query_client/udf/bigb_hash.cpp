@@ -32,5 +32,4 @@ extern "C" uint64_t bigb_hash(
         return MultiHash(type, id);
     }
     return 0;
-
 }
