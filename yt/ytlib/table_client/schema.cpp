@@ -868,6 +868,10 @@ void ValidateColumnSchema(
             THROW_ERROR_EXCEPTION("Invalid aggregate function %Qv",
                 *columnSchema.Aggregate());
         }
+
+        if (columnSchema.Expression() && columnSchema.Required()) {
+            THROW_ERROR_EXCEPTION("Computed column cannot be required");
+        }
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error validating schema of a column %Qv",
             name)
@@ -952,10 +956,6 @@ void ValidateDynamicTableConstraints(const TTableSchema& schema)
                 THROW_ERROR_EXCEPTION("Dynamic table cannot have key column of type: %Qv",
                     column.GetPhysicalType());
             }
-            if (column.Required()) {
-                THROW_ERROR_EXCEPTION("Dynamic table cannot have required column",
-                    ELogicalValueType::Any);
-            }
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error validating column %Qv in dynamic table schema",
                 column.Name())
@@ -1031,6 +1031,20 @@ void ValidateColumnsMatch(const TTableSchema& oldSchema, const TTableSchema& new
 
     if (commonKeyColumnPrefix < oldSchema.GetKeyColumnCount() && newSchema.GetUniqueKeys()) {
         THROW_ERROR_EXCEPTION("Cannot have unique_keys = true after removing some of the key columns");
+    }
+}
+
+void ValidateNoRequiredColumnsAdded(const TTableSchema& oldSchema, const TTableSchema& newSchema)
+{
+    for (int newColumnIndex = 0; newColumnIndex < newSchema.Columns().size(); ++newColumnIndex) {
+        const auto& newColumn = newSchema.Columns()[newColumnIndex];
+        if (newColumn.Required()) {
+            const auto* oldColumn = oldSchema.FindColumn(newColumn.Name());
+            if (!oldColumn) {
+                THROW_ERROR_EXCEPTION("Cannot insert a new required column %Qv into a non-empty table",
+                    newColumn.Name());
+            }
+        }
     }
 }
 
@@ -1298,6 +1312,10 @@ void ValidateTableSchemaUpdate(
                 }
             }
         }
+    }
+
+    if (isTableDynamic) {
+        ValidateNoRequiredColumnsAdded(oldSchema, newSchema);
     }
 }
 

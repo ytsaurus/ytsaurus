@@ -277,6 +277,18 @@ void ValidateClientDataRow(
     const TNameTableToSchemaIdMapping& idMapping,
     const TNameTablePtr& nameTable);
 
+//! Checks that #row contains no duplicate value columns and that each required column
+//! contains a value for each known write timestamp.
+//! Skips values that map to negative ids with via #idMapping.
+/*! It is assumed that ValidateClientDataRow was called before. */
+void ValidateDuplicateAndRequiredValueColumns(
+    TVersionedRow row,
+    const TTableSchema& schema,
+    const TNameTableToSchemaIdMapping& idMapping,
+    std::vector<bool>* columnPresenceBuffer,
+    const TTimestamp* writeTimestamps,
+    int writeTimestampCount);
+
 TOwningKey RowToKey(TVersionedRow row);
 
 ////////////////////////////////////////////////////////////////////////////////
