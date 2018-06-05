@@ -4523,10 +4523,10 @@ private:
             [&] (const TNullable<TString>& pool, const TString& user, const EOperationState& state, const EOperationType& type, i64 count) {
                 if (pool) {
                     poolCounts[*pool] += count;
+                }
 
-                    if (options.Pool && *options.Pool != *pool) {
-                        return false;
-                    }
+                if (options.Pool && (!pool || *options.Pool != *pool)) {
+                    return false;
                 }
 
                 userCounts[user] += count;
