@@ -132,11 +132,11 @@ public class ModifyRowsRequest {
     }
 
     public ModifyRowsRequest addInsert(Map<String, ?> map) {
-        return addInsert(mapToValues(map, schema.getKeyColumnsCount()));
+        return addInsert(mapToValues(map, schema.getColumnsCount()));
     }
 
     public ModifyRowsRequest addUpdate(Map<String, ?> map, boolean aggregate) {
-        return addUpdate(mapToValues(map, schema.getColumns().size()), aggregate);
+        return addUpdate(mapToValues(map, schema.getColumnsCount()), aggregate);
     }
 
     public ModifyRowsRequest addUpdate(Map<String, ?> map) {
