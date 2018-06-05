@@ -125,5 +125,34 @@ DEFINE_REFCOUNTED_TYPE(TCachingBlackboxCookieAuthenticatorConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TAuthenticationManagerConfig
+    : public NYT::NYTree::TYsonSerializable
+{
+public:
+    bool RequireAuthentication;
+    NAuth::TCachingBlackboxTokenAuthenticatorConfigPtr BlackboxTokenAuthenticator;
+    NAuth::TCachingBlackboxCookieAuthenticatorConfigPtr BlackboxCookieAuthenticator;
+    NAuth::TDefaultBlackboxServiceConfigPtr BlackboxService;
+    NAuth::TCachingCypressTokenAuthenticatorConfigPtr CypressTokenAuthenticator;
+
+    TAuthenticationManagerConfig()
+    {
+        RegisterParameter("require_authentication", RequireAuthentication)
+            .Default(false);
+        RegisterParameter("blackbox_token_authenticator", BlackboxTokenAuthenticator)
+            .Optional();
+        RegisterParameter("blackbox_cookie_authenticator", BlackboxCookieAuthenticator)
+            .Optional();
+        RegisterParameter("blackbox_service", BlackboxService)
+            .Optional();
+        RegisterParameter("cypress_token_authenticator", CypressTokenAuthenticator)
+            .Optional();
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TAuthenticationManagerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NAuth
 } // namespace NYT
