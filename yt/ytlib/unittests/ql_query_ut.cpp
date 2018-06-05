@@ -4558,6 +4558,47 @@ TEST_F(TQueryEvaluateTest, TestFarmHash)
     SUCCEED();
 }
 
+TEST_F(TQueryEvaluateTest, TestMy)
+{
+    auto split = MakeSplit({
+        {"A", EValueType::String},
+    });
+
+    std::vector<TString> source = {
+        "A=\"y5653\"",
+        "A=\"y12345\"",
+        "A=\"gaid/12345\"",
+        "A=\"idfa/12345\"",
+        "A=\"p12345\"",
+
+        "A=\"y123d\"",
+        "A=\"432\"",
+        "A=\"y\"",
+        "A=\"\"",
+    };
+
+    auto resultSplit = MakeSplit({
+        {"x", EValueType::Uint64}
+    });
+
+    auto result = YsonToRows({
+        "x=5653u",
+        "x=12345u",
+        "x=12500498747441447453u",
+        "x=8168092260540327927u",
+        "x=15227085487202376105u",
+
+        "x=0u",
+        "x=0u",
+        "x=0u",
+        "x=0u",
+    }, resultSplit);
+
+    Evaluate("bigb_hash(A) as x FROM [//t]", split, source, ResultMatcher(result));
+
+    SUCCEED();
+}
+
 TEST_F(TQueryEvaluateTest, TestRegexParseError)
 {
     auto split = MakeSplit({

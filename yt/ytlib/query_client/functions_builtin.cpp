@@ -11,6 +11,7 @@
 #include "udf/is_prefix.h" // Y_IGNORE
 #include "udf/avg.h" // Y_IGNORE
 #include "udf/farm_hash.h" // Y_IGNORE
+#include "udf/bigb_hash.h" // Y_IGNORE
 #include "udf/make_map.h" // Y_IGNORE
 #include "udf/first.h" // Y_IGNORE
 #include "udf/format_guid.h" // Y_IGNORE
@@ -597,6 +598,13 @@ void RegisterBuiltinFunctions(
         UDF_BC(farm_hash));
 
     builder.RegisterFunction(
+        "bigb_hash",
+        std::vector<TType>{EValueType::String},
+        EValueType::Uint64,
+        UDF_BC(bigb_hash),
+        ECallingConvention::Simple);
+
+    builder.RegisterFunction(
         "make_map",
         std::unordered_map<TTypeArgument, TUnionType>(),
         std::vector<TType>{},
@@ -828,7 +836,7 @@ void RegisterBuiltinFunctions(
         EValueType::String,
         UDF_BC(dates),
         ECallingConvention::Simple);
-    
+
     std::vector<TString> timestampFloorFunctions = {
         "timestamp_floor_hour",
         "timestamp_floor_day",
