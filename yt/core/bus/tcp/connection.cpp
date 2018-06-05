@@ -14,8 +14,6 @@
 
 #include <yt/core/profiling/timing.h>
 
-#include <yt/core/rpc/public.h>
-
 #include <yt/core/ytree/convert.h>
 #include <yt/core/ytree/fluent.h>
 
@@ -98,7 +96,7 @@ TTcpConnection::~TTcpConnection()
 void TTcpConnection::Cleanup()
 {
     if (CloseError_.IsOK()) {
-        CloseError_ = TError(NRpc::EErrorCode::TransportError, "Bus terminated")
+        CloseError_ = TError(NBus::EErrorCode::TransportError, "Bus terminated")
             << *EndpointAttributes_;
     }
 
@@ -159,7 +157,7 @@ void TTcpConnection::Check()
     if (LastIncompleteWriteTime_.load(std::memory_order_relaxed) < now - WriteStallTimeout_) {
         Counters_->StalledWrites.fetch_add(1, std::memory_order_relaxed);
         Terminate(TError(
-            NRpc::EErrorCode::TransportError,
+            NBus::EErrorCode::TransportError,
             "Socket write stalled")
             << TErrorAttribute("timeout", Config_->WriteStallTimeout));
         return;
@@ -168,7 +166,7 @@ void TTcpConnection::Check()
     if (LastIncompleteReadTime_.load(std::memory_order_relaxed) < now - ReadStallTimeout_) {
         Counters_->StalledReads.fetch_add(1, std::memory_order_relaxed);
         Terminate(TError(
-            NRpc::EErrorCode::TransportError,
+            NBus::EErrorCode::TransportError,
             "Socket read stalled")
             << TErrorAttribute("timeout", Config_->ReadStallTimeout));
         return;
@@ -228,7 +226,7 @@ void TTcpConnection::ResolveAddress()
 {
     if (UnixDomainName_) {
         if (!IsLocalBusTransportEnabled()) {
-            Abort(TError(NRpc::EErrorCode::TransportError, "Local bus transport is not available"));
+            Abort(TError(NBus::EErrorCode::TransportError, "Local bus transport is not available"));
             return;
         }
 
@@ -240,7 +238,7 @@ void TTcpConnection::ResolveAddress()
         try {
             ParseServiceAddress(*Address_, &hostName, &Port_);
         } catch (const std::exception& ex) {
-            Abort(TError(ex).SetCode(NRpc::EErrorCode::TransportError));
+            Abort(TError(ex).SetCode(NBus::EErrorCode::TransportError));
             return;
         }
 
@@ -524,7 +522,7 @@ void TTcpConnection::OnSocketConnected(SOCKET socket)
     int error = GetSocketError();
     if (error != 0) {
         Abort(TError(
-            NRpc::EErrorCode::TransportError,
+            NBus::EErrorCode::TransportError,
             "Error connecting to %v",
             EndpointDescription_)
             << TError::FromSystem(error));
@@ -650,7 +648,7 @@ bool TTcpConnection::ReadSocket(char* buffer, size_t size, size_t* bytesRead)
 bool TTcpConnection::CheckReadError(ssize_t result)
 {
     if (result == 0) {
-        Abort(TError(NRpc::EErrorCode::TransportError, "Socket was closed"));
+        Abort(TError(NBus::EErrorCode::TransportError, "Socket was closed"));
         return false;
     }
 
@@ -658,7 +656,7 @@ bool TTcpConnection::CheckReadError(ssize_t result)
         int error = LastSystemError();
         if (IsSocketError(error)) {
             Counters_->ReadErrors.fetch_add(1, std::memory_order_relaxed);
-            Abort(TError(NRpc::EErrorCode::TransportError, "Socket read error")
+            Abort(TError(NBus::EErrorCode::TransportError, "Socket read error")
                 << TError::FromSystem(error));
         }
         return false;
@@ -671,7 +669,7 @@ bool TTcpConnection::AdvanceDecoder(size_t size)
 {
     if (!Decoder_.Advance(size)) {
         Counters_->DecoderErrors.fetch_add(1, std::memory_order_relaxed);
-        Abort(TError(NRpc::EErrorCode::TransportError, "Error decoding incoming packet"));
+        Abort(TError(NBus::EErrorCode::TransportError, "Error decoding incoming packet"));
         return false;
     }
 
@@ -700,7 +698,7 @@ bool TTcpConnection::OnPacketReceived() throw()
 bool TTcpConnection::OnAckPacketReceived()
 {
     if (UnackedMessages_.empty()) {
-        Abort(TError(NRpc::EErrorCode::TransportError, "Unexpected ack received"));
+        Abort(TError(NBus::EErrorCode::TransportError, "Unexpected ack received"));
         return false;
     }
 
@@ -708,7 +706,7 @@ bool TTcpConnection::OnAckPacketReceived()
 
     if (Decoder_.GetPacketId() != unackedMessage.PacketId) {
         Abort(TError(
-            NRpc::EErrorCode::TransportError,
+            NBus::EErrorCode::TransportError,
             "Ack for invalid packet ID received: expected %v, found %v",
             unackedMessage.PacketId,
             Decoder_.GetPacketId()));
@@ -935,7 +933,7 @@ bool TTcpConnection::MaybeEncodeFragments()
             packet.Message);
         if (!encodeResult) {
             Counters_->EncoderErrors.fetch_add(1, std::memory_order_relaxed);
-            Abort(TError(NRpc::EErrorCode::TransportError, "Error encoding outcoming packet"));
+            Abort(TError(NBus::EErrorCode::TransportError, "Error encoding outcoming packet"));
             return false;
         }
 
@@ -968,7 +966,7 @@ bool TTcpConnection::CheckWriteError(ssize_t result)
         int error = LastSystemError();
         if (IsSocketError(error)) {
             Counters_->WriteErrors.fetch_add(1, std::memory_order_relaxed);
-            Abort(TError(NRpc::EErrorCode::TransportError, "Socket write error")
+            Abort(TError(NBus::EErrorCode::TransportError, "Socket write error")
                 << TError::FromSystem(error));
         }
         return false;

@@ -12,8 +12,6 @@
 
 #include <yt/core/misc/error.h>
 
-#include <yt/core/rpc/public.h>
-
 #include <yt/core/ytree/convert.h>
 #include <yt/core/ytree/fluent.h>
 
@@ -52,7 +50,7 @@ public:
     ~TTcpClientBusProxy()
     {
         VERIFY_THREAD_AFFINITY_ANY();
-        Connection_->Terminate(TError(NRpc::EErrorCode::TransportError, "Bus terminated"));
+        Connection_->Terminate(TError(NBus::EErrorCode::TransportError, "Bus terminated"));
     }
 
     virtual const TString& GetEndpointDescription() const override
