@@ -231,7 +231,7 @@ ui32 TSortedStoreManager::ComputeLockMask(TUnversionedRow row)
     for (int index = KeyColumnCount_; index < row.GetCount(); ++index) {
         const auto& value = row[index];
         int lockIndex = columnIndexToLockIndex[value.Id];
-        lockMask |= (1 << lockIndex);
+        lockMask |= (1U << lockIndex);
     }
     Y_ASSERT(lockMask != 0);
     return lockMask;

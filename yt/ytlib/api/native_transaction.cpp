@@ -583,7 +583,7 @@ private:
                 THROW_ERROR_EXCEPTION("Replicated table %v cannot act as a replication sink",
                     tableInfo->Path);
             }
-            
+
             if (!tableInfo->Replicas.empty() &&
                 TableSession_->SyncReplicas().empty() &&
                 Options_.RequireSyncReplica)
@@ -602,7 +602,7 @@ private:
                         replicaData.ReplicaInfo->ReplicaPath,
                         NameTable_,
                         Modifications_,
-                        replicaOptions);                    
+                        replicaOptions);
                 } else {
                     // YT-7551: Local sync replicas must be handled differenly.
                     // We cannot add more modifications via ITransactions interface since
@@ -643,10 +643,17 @@ private:
 
             auto randomTabletInfo = tableInfo->GetRandomMountedTablet();
 
+            std::vector<bool> columnPresenceBuffer(primarySchema.GetColumnCount());
+
             for (const auto& modification : Modifications_) {
                 switch (modification.Type) {
                     case ERowModificationType::Write:
-                        ValidateClientDataRow(TUnversionedRow(modification.Row), writeSchema, writeIdMapping, NameTable_, tabletIndexColumnId);
+                        ValidateClientDataRow(
+                            TUnversionedRow(modification.Row),
+                            writeSchema,
+                            writeIdMapping,
+                            NameTable_,
+                            tabletIndexColumnId);
                         break;
 
                     case ERowModificationType::VersionedWrite:
@@ -658,7 +665,11 @@ private:
                             THROW_ERROR_EXCEPTION("Cannot perform versioned writes into a replicated table %v",
                                 tableInfo->Path);
                         }
-                        ValidateClientDataRow(TVersionedRow(modification.Row), versionedWriteSchema, versionedWriteIdMapping, NameTable_);
+                        ValidateClientDataRow(
+                            TVersionedRow(modification.Row),
+                            versionedWriteSchema,
+                            versionedWriteIdMapping,
+                            NameTable_);
                         break;
 
                     case ERowModificationType::Delete:
@@ -666,7 +677,11 @@ private:
                             THROW_ERROR_EXCEPTION("Cannot perform deletes in a non-sorted table %v",
                                 tableInfo->Path);
                         }
-                        ValidateClientKey(TUnversionedRow(modification.Row), deleteSchema, deleteIdMapping, NameTable_);
+                        ValidateClientKey(
+                            TUnversionedRow(modification.Row),
+                            deleteSchema,
+                            deleteIdMapping,
+                            NameTable_);
                         break;
 
                     default:
@@ -679,7 +694,8 @@ private:
                         auto capturedRow = rowBuffer->CaptureAndPermuteRow(
                             TUnversionedRow(modification.Row),
                             primarySchema,
-                            primaryIdMapping);
+                            primaryIdMapping,
+                            &columnPresenceBuffer);
                         TTabletInfoPtr tabletInfo;
                         if (tableInfo->IsSorted()) {
                             if (evaluator) {
@@ -704,7 +720,8 @@ private:
                         auto capturedRow = rowBuffer->CaptureAndPermuteRow(
                             TVersionedRow(modification.Row),
                             primarySchema,
-                            primaryIdMapping);
+                            primaryIdMapping,
+                            &columnPresenceBuffer);
                         if (evaluator) {
                             evaluator->EvaluateKeys(capturedRow, rowBuffer);
                         }
@@ -734,7 +751,7 @@ private:
 
         TTableCommitSessionPtr TableSession_;
 
-        
+
         static EWireProtocolCommand GetCommand(ERowModificationType modificationType)
         {
             switch (modificationType) {
@@ -835,13 +852,13 @@ private:
             TTabletInfoPtr tabletInfo,
             TTableMountInfoPtr tableInfo,
             TTableCommitSessionPtr tableSession,
-            TColumnEvaluatorPtr columnEvauator)
+            TColumnEvaluatorPtr columnEvaluator)
             : Transaction_(transaction)
             , TableInfo_(std::move(tableInfo))
             , TabletInfo_(std::move(tabletInfo))
             , TableSession_(std::move(tableSession))
             , Config_(transaction->Client_->GetNativeConnection()->GetConfig())
-            , ColumnEvaluator_(std::move(columnEvauator))
+            , ColumnEvaluator_(std::move(columnEvaluator))
             , TableMountCache_(transaction->Client_->GetNativeConnection()->GetTableMountCache())
             , ColumnCount_(TableInfo_->Schemas[ETableSchemaKind::Primary].Columns().size())
             , KeyColumnCount_(TableInfo_->Schemas[ETableSchemaKind::Primary].GetKeyColumnCount())
