@@ -4558,7 +4558,7 @@ TEST_F(TQueryEvaluateTest, TestFarmHash)
     SUCCEED();
 }
 
-TEST_F(TQueryEvaluateTest, TestMy)
+TEST_F(TQueryEvaluateTest, TestBigbHash)
 {
     auto split = MakeSplit({
         {"A", EValueType::String},
