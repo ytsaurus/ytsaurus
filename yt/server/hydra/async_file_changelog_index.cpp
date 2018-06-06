@@ -384,9 +384,7 @@ TFuture<void> TAsyncFileChangelogIndex::FlushData()
     std::vector<TFuture<void>> asyncResults;
     asyncResults.reserve(2);
     asyncResults.push_back(FlushDirtyBuckets());
-    asyncResults.push_back(IOEngine_->FlushData(IndexFile_).Apply(BIND([] (const TErrorOr<bool>& error) {
-        error.ThrowOnError();
-    })));
+    asyncResults.push_back(IOEngine_->FlushData(IndexFile_).As<void>());
     return Combine(asyncResults);
 }
 
