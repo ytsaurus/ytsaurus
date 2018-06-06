@@ -45,8 +45,6 @@ TCommitterBase::TCommitterBase(
     , CellManager_(std::move(cellManager))
     , DecoratedAutomaton_(std::move(decoratedAutomaton))
     , EpochContext_(epochContext)
-    , CommitCounter_("/commits")
-    , FlushCounter_("/flushes")
     , Logger(NLogging::TLogger(HydraLogger)
         .AddTag("CellId: %v", CellManager_->GetCellId()))
     , Profiler(NProfiling::TProfiler(
@@ -502,8 +500,6 @@ void TLeaderCommitter::FlushCurrentBatch()
     TDelayedExecutor::CancelAndClear(BatchTimeoutCookie_);
 
     currentBatch->Flush();
-
-    Profiler.Increment(FlushCounter_);
 }
 
 TLeaderCommitter::TBatchPtr TLeaderCommitter::GetOrCreateBatch(TVersion version)
@@ -625,9 +621,6 @@ TFuture<void> TFollowerCommitter::DoAcceptMutations(
             recordsData[index],
             index == recordsCount - 1 ? &result : nullptr);
     }
-
-    Profiler.Increment(CommitCounter_, recordsCount);
-    Profiler.Increment(FlushCounter_);
 
     return result;
 }
