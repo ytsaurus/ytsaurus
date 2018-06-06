@@ -28,7 +28,7 @@ public:
     TYtError();
     explicit TYtError(const TString& message);
     TYtError(int code, const TString& message);
-    TYtError(const NJson::TJsonValue& value);
+    TYtError(const ::NJson::TJsonValue& value);
     TYtError(const TNode& value);
 
     int GetCode() const;
