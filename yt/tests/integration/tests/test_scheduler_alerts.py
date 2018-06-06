@@ -62,6 +62,18 @@ class TestSchedulerAlerts(YTEnvSetup):
 
         wait(lambda: get("//sys/scheduler/@alerts") == [])
 
+    def test_snapshot_loading_alert(self):
+        controller_agent = ls("//sys/controller_agents/instances")[0]
+        assert len(get("//sys/controller_agents/instances/{0}/@alerts".format(controller_agent))) == 0
+
+        set("//sys/controller_agents/config", {"enable_snapshot_loading": False})
+
+        wait(lambda: len(get("//sys/controller_agents/instances/{0}/@alerts".format(controller_agent))) == 1)
+
+        set("//sys/controller_agents/config/enable_snapshot_loading", False)
+
+        wait(lambda: len(get("//sys/controller_agents/instances/{0}/@alerts".format(controller_agent))) == 1)
+
 ##################################################################
 
 
