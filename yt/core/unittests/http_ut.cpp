@@ -87,12 +87,12 @@ TEST(THttpHeaders, Simple)
     headers->Set("X-Test", "F");
 
     ASSERT_EQ(std::vector<TString>{{"F"}}, headers->GetAll("X-Test"));
-    ASSERT_EQ(TString{"F"}, headers->Get("X-Test"));
+    ASSERT_EQ(TString{"F"}, headers->GetOrThrow("X-Test"));
     ASSERT_EQ(TString{"F"}, *headers->Find("X-Test"));
 
     ASSERT_THROW(headers->GetAll("X-Test2"), TErrorException);
-    ASSERT_THROW(headers->Get("X-Test2"), TErrorException);
-    ASSERT_EQ(nullptr, headers->Find("X-Test2"));
+    ASSERT_THROW(headers->GetOrThrow("X-Test2"), TErrorException);
+    ASSERT_FALSE(headers->Find("X-Test2"));
 
     headers->Add("X-Test", "H");
     std::vector<TString> expected = {"F", "H"};
@@ -107,8 +107,8 @@ TEST(THttpHeaders, HeaderCaseIsIrrelevant)
     auto headers = New<THeaders>();
 
     headers->Set("x-tEsT", "F");
-    ASSERT_EQ(TString("F"), headers->Get("x-test"));
-    ASSERT_EQ(TString("F"), headers->Get("X-Test"));
+    ASSERT_EQ(TString("F"), headers->GetOrThrow("x-test"));
+    ASSERT_EQ(TString("F"), headers->GetOrThrow("X-Test"));
 
     TString buffer;
     TStringOutput output(buffer);
@@ -211,6 +211,12 @@ struct TFakeConnection
     {
         return 0;
     }
+
+    virtual void SetReadDeadline(TInstant deadline) override
+    { }
+
+    virtual void SetWriteDeadline(TInstant deadline) override
+    { }
 };
 
 DEFINE_REFCOUNTED_TYPE(TFakeConnection)
@@ -339,7 +345,8 @@ TEST(THttpOutputTest, Full)
 
     for (auto testCase : table) {
         auto fake = New<TFakeConnection>();
-        auto output = New<THttpOutput>(fake, std::get<0>(testCase), 1024);
+        auto config = New<THttpIOConfig>();
+        auto output = New<THttpOutput>(fake, std::get<0>(testCase), config);
 
         try {
             std::get<2>(testCase)(output.Get());
@@ -426,7 +433,7 @@ TEST(THttpInputTest, Simple)
                 EXPECT_EQ(in->GetUrl().Path, AsStringBuf("/chunked_w_trailing_headers"));
 
                 auto headers = in->GetHeaders();
-                ASSERT_EQ(TString("test"), headers->Get("X-Foo"));
+                ASSERT_EQ(TString("test"), headers->GetOrThrow("X-Foo"));
 
                 ASSERT_THROW(in->GetTrailers(), TErrorException);
 
@@ -435,8 +442,8 @@ TEST(THttpInputTest, Simple)
                 ExpectBodyEnd(in);
 
                 auto trailers = in->GetTrailers();
-                ASSERT_EQ(TString("*"), trailers->Get("Vary"));
-                ASSERT_EQ(TString("text/plain"), trailers->Get("Content-Type"));
+                ASSERT_EQ(TString("*"), trailers->GetOrThrow("Vary"));
+                ASSERT_EQ(TString("text/plain"), trailers->GetOrThrow("Content-Type"));
             }
         },
         TTestCase{
@@ -452,8 +459,10 @@ TEST(THttpInputTest, Simple)
     for (auto testCase : table) {
         auto fake = New<TFakeConnection>();
         fake->Input = std::get<1>(testCase);
+        auto config = New<THttpIOConfig>();
+        config->ReadBufferSize = 1024;
 
-        auto input = New<THttpInput>(fake, TNetworkAddress(), GetSyncInvoker(), std::get<0>(testCase), 1024);
+        auto input = New<THttpInput>(fake, TNetworkAddress(), GetSyncInvoker(), std::get<0>(testCase), config);
 
         try {
             std::get<2>(testCase)(input.Get());
@@ -647,7 +656,7 @@ public:
     virtual void HandleRequest(const IRequestPtr& req, const IResponseWriterPtr& rsp) override
     {
         for (const auto& header : ExpectedHeaders) {
-            EXPECT_EQ(header.second, req->GetHeaders()->Get(header.first));
+            EXPECT_EQ(header.second, req->GetHeaders()->GetOrThrow(header.first));
         }
 
         for (const auto& header : ReplyHeaders) {
@@ -681,8 +690,8 @@ TEST_P(THttpServerTest, HeadersTest)
     headers->Add("Accept-Charset", "utf-8");
 
     auto rsp = WaitFor(Client->Get(TestUrl + "/headers", headers)).ValueOrThrow();
-    EXPECT_EQ("nocache", rsp->GetHeaders()->Get("Cache-Control"));
-    EXPECT_EQ("test/plain; charset=utf-8", rsp->GetHeaders()->Get("Content-Type"));
+    EXPECT_EQ("nocache", rsp->GetHeaders()->GetOrThrow("Cache-Control"));
+    EXPECT_EQ("test/plain; charset=utf-8", rsp->GetHeaders()->GetOrThrow("Content-Type"));
 
     Server->Stop();
     Sleep(TDuration::MilliSeconds(10));
@@ -710,7 +719,7 @@ TEST_P(THttpServerTest, TrailersTest)
 
     auto rsp = WaitFor(Client->Get(TestUrl + "/trailers")).ValueOrThrow();
     auto body = ReadAll(rsp);
-    EXPECT_EQ("foo; bar", rsp->GetTrailers()->Get("X-Yt-Test"));
+    EXPECT_EQ("foo; bar", rsp->GetTrailers()->GetOrThrow("X-Yt-Test"));
 
     Server->Stop();
     Sleep(TDuration::MilliSeconds(10));

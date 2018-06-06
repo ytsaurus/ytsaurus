@@ -49,14 +49,6 @@ TFuture<TTableMountInfoPtr> TTableMountCache::DoGet(const TYPath& path)
     auto req = proxy.GetTableMountInfo();
     req->set_path(path);
 
-    auto* balancingHeaderExt = req->Header().MutableExtension(NRpc::NProto::TBalancingExt::balancing_ext);
-    balancingHeaderExt->set_enable_stickness(true);
-    balancingHeaderExt->set_sticky_group_size(1);
-
-    auto* cachingHeaderExt = req->Header().MutableExtension(NYTree::NProto::TCachingHeaderExt::caching_header_ext);
-    cachingHeaderExt->set_success_expiration_time(ToProto<i64>(Config_->ExpireAfterSuccessfulUpdateTime));
-    cachingHeaderExt->set_failure_expiration_time(ToProto<i64>(Config_->ExpireAfterFailedUpdateTime));
-
     return req->Invoke().Apply(
         BIND([= , this_ = MakeStrong(this)] (const TApiServiceProxy::TRspGetTableMountInfoPtr& rsp) {
             auto tableInfo = New<TTableMountInfo>();

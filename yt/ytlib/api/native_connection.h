@@ -41,6 +41,9 @@ struct INativeConnection
     virtual const NRpc::IChannelPtr& GetSchedulerChannel() = 0;
     virtual const NRpc::IChannelFactoryPtr& GetChannelFactory() = 0;
 
+    virtual const NTabletClient::ITableMountCachePtr& GetTableMountCache() = 0;
+    virtual const NTransactionClient::ITimestampProviderPtr& GetTimestampProvider() = 0;
+
     virtual INativeClientPtr CreateNativeClient(const TClientOptions& options = TClientOptions()) = 0;
 
     virtual INativeTransactionPtr RegisterStickyTransaction(INativeTransactionPtr transaction) = 0;

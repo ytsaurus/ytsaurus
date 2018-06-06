@@ -114,7 +114,7 @@ void TAbortTransactionCommand::DoExecute(ICommandContextPtr context)
 
 void TGenerateTimestampCommand::DoExecute(ICommandContextPtr context)
 {
-    auto timestampProvider = context->GetClient()->GetConnection()->GetTimestampProvider();
+    auto timestampProvider = context->GetClient()->GetTimestampProvider();
     auto timestamp = WaitFor(timestampProvider->GenerateTimestamps())
         .ValueOrThrow();
 

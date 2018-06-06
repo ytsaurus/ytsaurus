@@ -446,6 +446,28 @@ public:
         return WriteDirection_.GetStatistics();
     }
 
+    void SetReadDeadline(TInstant deadline)
+    {
+        if (ReadTimeout_) {
+            TDelayedExecutor::CancelAndClear(ReadTimeout_);
+        }
+
+        if (deadline) {
+            ReadTimeout_ = TDelayedExecutor::Submit(AbortFromReadTimeout_, deadline);
+        }
+    }
+
+    void SetWriteDeadline(TInstant deadline)
+    {
+        if (WriteTimeout_) {
+            TDelayedExecutor::CancelAndClear(WriteTimeout_);
+        }
+
+        if (deadline) {
+            WriteTimeout_ = TDelayedExecutor::Submit(AbortFromWriteTimeout_, deadline);
+        }        
+    }
+
 private:
     const TString Name_;
     const TNetworkAddress LocalAddress_;
@@ -498,8 +520,14 @@ private:
     IPollerPtr Poller_;
     bool DelayFirstRead_ = false;
 
+    TClosure AbortFromReadTimeout_, AbortFromWriteTimeout_;
+    TDelayedExecutorCookie ReadTimeout_, WriteTimeout_;
+
     void Init()
     {
+        AbortFromReadTimeout_ = BIND(&TFDConnectionImpl::AbortFromReadTimeout, MakeWeak(this));
+        AbortFromWriteTimeout_ = BIND(&TFDConnectionImpl::AbortFromWriteTimeout, MakeWeak(this));
+    
         ReadDirection_.DoIO = BIND(&TFDConnectionImpl::DoIO, MakeStrong(this), &ReadDirection_, false);
         ReadDirection_.PollFlag = EPollControl::Read;
         WriteDirection_.DoIO = BIND(&TFDConnectionImpl::DoIO, MakeStrong(this), &WriteDirection_, false);
@@ -637,6 +665,24 @@ private:
         ReadDirection_.DoIO.Reset();
         WriteDirection_.DoIO.Reset();
         ShutdownPromise_.Set();
+
+        if (WriteTimeout_) {
+            TDelayedExecutor::CancelAndClear(WriteTimeout_);
+        }
+
+        if (ReadTimeout_) {
+            TDelayedExecutor::CancelAndClear(ReadTimeout_);
+        }
+    }
+
+    void AbortFromReadTimeout()
+    {
+        Abort(TError("Read timeout"));
+    }
+
+    void AbortFromWriteTimeout()
+    {
+        Abort(TError("Write timeout"));
     }
 };
 
@@ -741,6 +787,16 @@ public:
     virtual TConnectionStatistics GetWriteStatistics() const override
     {
         return Impl_->GetWriteStatistics();
+    }
+
+    virtual void SetReadDeadline(TInstant deadline) override
+    {
+        Impl_->SetReadDeadline(deadline);
+    }
+
+    virtual void SetWriteDeadline(TInstant deadline) override
+    {
+        Impl_->SetWriteDeadline(deadline);
     }
 
 private:

@@ -1,7 +1,6 @@
 #pragma once
 
 #include "client_base.h"
-#include "discovering_channel.h"
 
 #include <yt/ytlib/api/client.h>
 
@@ -19,9 +18,11 @@ class TClient
 public:
     TClient(
         TConnectionPtr connection,
-        const NApi::TClientOptions& options);
+        NRpc::IChannelPtr channel);
 
     virtual TFuture<void> Terminate() override;
+    virtual const NTabletClient::ITableMountCachePtr& GetTableMountCache() override;
+    virtual const NTransactionClient::ITimestampProviderPtr& GetTimestampProvider() override;
 
     // Transactions
     virtual NApi::ITransactionPtr AttachTransaction(
@@ -278,6 +279,11 @@ public:
 private:
     const TConnectionPtr Connection_;
     const NRpc::IChannelPtr Channel_;
+    const NTabletClient::ITableMountCachePtr TableMountCache_;
+
+    TSpinLock TimestampProviderSpinLock_;
+    std::atomic<bool> TimestampProviderInitialized_ = {false};
+    NTransactionClient::ITimestampProviderPtr TimestampProvider_;
 
     virtual TConnectionPtr GetRpcProxyConnection() override;
     virtual TClientPtr GetRpcProxyClient() override;

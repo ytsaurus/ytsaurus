@@ -1,7 +1,7 @@
 #pragma once
 
 #include "public.h"
-#include "discovering_channel.h"
+#include "dynamic_channel_pool.h"
 
 #include <yt/core/concurrency/public.h>
 
@@ -21,7 +21,7 @@ class TConnection
 public:
     explicit TConnection(TConnectionConfigPtr config);
 
-    NRpc::IChannelPtr CreateChannelAndRegisterProvider(
+    TFuture<NRpc::IChannelPtr> CreateChannelAndRegisterProvider(
         const NApi::TClientOptions& options,
         NRpc::IRoamingChannelProvider* provider);
     void UnregisterProvider(
@@ -31,9 +31,6 @@ public:
 
     // IConnection implementation
     virtual NObjectClient::TCellTag GetCellTag() override;
-
-    virtual const NTabletClient::ITableMountCachePtr& GetTableMountCache() override;
-    virtual const NTransactionClient::ITimestampProviderPtr& GetTimestampProvider() override;
 
     virtual IInvokerPtr GetInvoker() override;
 
@@ -47,10 +44,6 @@ public:
 
     virtual void Terminate() override;
 
-    // IProxyConnection implementation
-    virtual TFuture<std::vector<NApi::TProxyInfo>> DiscoverProxies(
-        const NApi::TDiscoverProxyOptions& options = {}) override;
-
 private:
     friend class TClient;
     friend class TTransaction;
@@ -59,37 +52,26 @@ private:
     const TConnectionConfigPtr Config_;
     const NConcurrency::TActionQueuePtr ActionQueue_;
     const NRpc::IChannelFactoryPtr ChannelFactory_;
-    NTabletClient::ITableMountCachePtr TableMountCache_;
+    const TDynamicChannelPoolPtr ChannelPool_;
 
     const NLogging::TLogger Logger;
 
-    TSpinLock TimestampProviderSpinLock_;
-    std::atomic<bool> TimestampProviderInitialized_ = {false};
-    NTransactionClient::ITimestampProviderPtr TimestampProvider_;
-
     const NConcurrency::TPeriodicExecutorPtr UpdateProxyListExecutor_;
-
-    TSpinLock AddressSpinLock_;
-    std::vector<TString> Addresses_; // Must be sorted.
-    THashMap<TString, THashSet<NRpc::IRoamingChannelProvider*>> AddressToProviders_;
-    THashMap<NRpc::IRoamingChannelProvider*, TString> ProviderToAddress_;
-
     NRpc::IChannelPtr DiscoveryChannel_;
+    TPromise<std::vector<TString>> HttpDiscoveryPromise_;
     int ProxyListUpdatesFailedAttempts_ = 0;
 
-    TFuture<std::vector<NApi::TProxyInfo>> DiscoverProxies(
-        const NRpc::IChannelPtr& channel,
-        const NApi::TDiscoverProxyOptions& options = {});
+    TSpinLock HttpDiscoveryLock_;
+    // TODO(prime@): Create http endpoint for discovery that works without authentication.
+    TNullable<NApi::TClientOptions> HttpCredentials_;
+
+    std::vector<TString> DiscoverProxiesByRpc(const NRpc::IChannelPtr& channel);
+    std::vector<TString> DiscoverProxiesByHttp(const NApi::TClientOptions& options);
 
     void ResetAddresses();
+    void OnProxyListUpdate();
 
-    NRpc::IChannelPtr GetRandomPeerChannel(NRpc::IRoamingChannelProvider* provider = nullptr);
     TString GetLocalAddress();
-    void OnProxyListUpdated();
-
-    void SetProxyList(std::vector<TString> addresses);
-
-    TFuture<std::vector<TError>> TerminateAddressProviders(const std::vector<TString>& addresses);
 };
 
 DEFINE_REFCOUNTED_TYPE(TConnection)

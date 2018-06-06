@@ -324,7 +324,7 @@ public:
         ValidateArgumentsEmpty(args, kwargs);
 
         try {
-            UnderlyingDriver_->GetConnection()->ClearMetadataCaches();
+            UnderlyingDriver_->ClearMetadataCaches();
             return Py::None();
         } CATCH("Failed to clear metadata caches");
     }

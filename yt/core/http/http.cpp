@@ -79,10 +79,10 @@ const TString* THeaders::Find(const TString& header) const
         return nullptr;
     }
 
-    return &(it->second.Values[0]);
+    return &it->second.Values[0];
 }
 
-const TString& THeaders::Get(const TString& header) const
+TString THeaders::GetOrThrow(const TString& header) const
 {
     auto value = Find(header);
     if (!value) {

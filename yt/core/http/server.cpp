@@ -146,12 +146,12 @@ private:
             connection->RemoteAddress(),
             Poller_->GetInvoker(),
             EMessageType::Request,
-            Config_->ReadBufferSize);
+            Config_);
 
         auto response = New<THttpOutput>(
             connection,
             EMessageType::Response,
-            Config_->WriteBufferSize);
+            Config_);
 
         response->AddConnectionCloseHeader();
         response->SetStatus(EStatusCode::InternalServerError);

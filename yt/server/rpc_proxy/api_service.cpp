@@ -406,7 +406,8 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, GenerateTimestamps)
     {
-        if (!Coordinator_->IsOperable(context)) {
+        auto client = GetAuthenticatedClientOrAbortContext(context, request);
+        if (!client) {
             return;
         }
 
@@ -645,8 +646,7 @@ private:
 
         context->SetRequestInfo("Path: %v", path);
 
-        const auto& connection = client->GetConnection();
-        const auto& tableMountCache = connection->GetTableMountCache();
+        const auto& tableMountCache = client->GetTableMountCache();
         CompleteCallWith(
             context,
             tableMountCache->GetTableInfo(path),

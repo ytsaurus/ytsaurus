@@ -516,7 +516,7 @@ void TInsertRowsCommand::DoExecute(ICommandContextPtr context)
         context->GetConfig()->TableWriter,
         TableWriter);
 
-    auto tableMountCache = context->GetClient()->GetConnection()->GetTableMountCache();
+    auto tableMountCache = context->GetClient()->GetTableMountCache();
     auto tableInfo = WaitFor(tableMountCache->GetTableInfo(Path.GetPath()))
         .ValueOrThrow();
 
@@ -577,7 +577,7 @@ TLookupRowsCommand::TLookupRowsCommand()
 
 void TLookupRowsCommand::DoExecute(ICommandContextPtr context)
 {
-    auto tableMountCache = context->GetClient()->GetConnection()->GetTableMountCache();
+    auto tableMountCache = context->GetClient()->GetTableMountCache();
     auto asyncTableInfo = tableMountCache->GetTableInfo(Path.GetPath());
     auto tableInfo = WaitFor(asyncTableInfo)
         .ValueOrThrow();
@@ -660,7 +660,7 @@ TGetInSyncReplicasCommand::TGetInSyncReplicasCommand()
 
 void TGetInSyncReplicasCommand::DoExecute(ICommandContextPtr context)
 {
-    auto tableMountCache = context->GetClient()->GetConnection()->GetTableMountCache();
+    auto tableMountCache = context->GetClient()->GetTableMountCache();
     auto asyncTableInfo = tableMountCache->GetTableInfo(Path.GetPath());
     auto tableInfo = WaitFor(asyncTableInfo)
         .ValueOrThrow();
@@ -716,7 +716,7 @@ void TDeleteRowsCommand::DoExecute(ICommandContextPtr context)
         context->GetConfig()->TableWriter,
         TableWriter);
 
-    auto tableMountCache = context->GetClient()->GetConnection()->GetTableMountCache();
+    auto tableMountCache = context->GetClient()->GetTableMountCache();
     auto asyncTableInfo = tableMountCache->GetTableInfo(Path.GetPath());
     auto tableInfo = WaitFor(asyncTableInfo)
         .ValueOrThrow();

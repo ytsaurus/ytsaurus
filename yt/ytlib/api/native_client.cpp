@@ -476,6 +476,16 @@ public:
         return Connection_;
     }
 
+    virtual const ITableMountCachePtr& GetTableMountCache() override
+    {
+        return Connection_->GetTableMountCache();
+    }
+
+    virtual const ITimestampProviderPtr& GetTimestampProvider() override
+    {
+        return Connection_->GetTimestampProvider();
+    }
+
     virtual const INativeConnectionPtr& GetNativeConnection() override
     {
         return Connection_;
