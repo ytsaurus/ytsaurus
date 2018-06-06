@@ -1,3 +1,3 @@
 - add tests
-- fix node merge by template
+- fix node merge by template (aka `--use-number-sign` option)
 - split into lib and tool
