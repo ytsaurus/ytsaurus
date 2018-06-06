@@ -5,11 +5,12 @@
 #include "table_replica.h"
 #include "table_replica_type_handler.h"
 #include "tablet.h"
+#include "tablet_balancer.h"
 #include "tablet_cell.h"
 #include "tablet_cell_bundle.h"
 #include "tablet_cell_bundle_type_handler.h"
+#include "tablet_cell_decommissioner.h"
 #include "tablet_cell_type_handler.h"
-#include "tablet_balancer.h"
 #include "tablet_manager.h"
 #include "tablet_tracker.h"
 #include "tablet_type_handler.h"
@@ -136,6 +137,7 @@ public:
         , TabletTracker_(New<TTabletTracker>(Config_, Bootstrap_))
         , TabletBalancer_(New<TTabletBalancer>(Config_->TabletBalancer, Bootstrap_))
         , BundleNodeTracker_(New<TBundleNodeTracker>(Bootstrap_))
+        , TabletCellDecommissioner_(New<TTabletCellDecommissioner>(Config_->TabletCellDecommissioner, Bootstrap_))
     {
         VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::Default), AutomatonThread);
 
@@ -678,6 +680,12 @@ public:
                 }
             }
             freeze = state == ETabletState::Frozen;
+        }
+
+        for (auto* cell : cells) {
+            if (!IsCellActive(cell)) {
+                THROW_ERROR_EXCEPTION("Tablet cell %v is not active", cell->GetId());
+            }
         }
 
         switch (kind) {
@@ -1234,8 +1242,10 @@ public:
         }
     }
 
-    void HydraKickOrphanedTabletActions(TReqKickOrphanedTabletActions* /*request*/)
+    void HydraKickOrphanedTabletActions(TReqKickOrphanedTabletActions* request)
     {
+        auto orphanedActionIds = FromProto<std::vector<TTabletActionId>>(request->tablet_action_ids());
+
         THashSet<TTabletCellBundle*> healthyBundles;
         for (const auto& pair : TabletCellMap_) {
             auto* cell = pair.second;
@@ -1244,9 +1254,9 @@ public:
             }
         }
 
-        for (const auto& pair : TabletActionMap_) {
-            auto* action = pair.second;
-            if (action->GetState() == ETabletActionState::Orphaned) {
+        for (auto actionId : orphanedActionIds) {
+            auto* action = FindTabletAction(actionId);
+            if (IsObjectAlive(action) && action->GetState() == ETabletActionState::Orphaned) {
                 auto* bundle = action->Tablets().front()->GetTable()->GetTabletCellBundle();
                 if (healthyBundles.has(bundle)) {
                     ChangeTabletActionState(action, ETabletActionState::Unmounted);
@@ -2513,6 +2523,7 @@ private:
     const TTabletTrackerPtr TabletTracker_;
     const TTabletBalancerPtr TabletBalancer_;
     const TBundleNodeTrackerPtr BundleNodeTracker_;
+    const TTabletCellDecommissionerPtr TabletCellDecommissioner_;
 
     TEntityMap<TTabletCellBundle> TabletCellBundleMap_;
     TEntityMap<TTabletCell> TabletCellMap_;
@@ -3822,6 +3833,7 @@ private:
         if (Bootstrap_->IsPrimaryMaster()) {
             TabletTracker_->Start();
             TabletBalancer_->Start();
+            TabletCellDecommissioner_->Start();
 
             const auto& dynamicConfig = GetDynamicConfig();
             CleanupExecutor_ = New<TPeriodicExecutor>(
@@ -3840,6 +3852,7 @@ private:
 
         TabletTracker_->Stop();
         TabletBalancer_->Stop();
+        TabletCellDecommissioner_->Stop();
 
         if (CleanupExecutor_) {
             CleanupExecutor_->Stop();

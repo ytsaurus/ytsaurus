@@ -1128,6 +1128,10 @@ class TestTabletActions(TestDynamicTablesBase):
                 "enable_tablet_balancer": True,
                 "config_check_period": 100,
                 "balance_period": 100,
+            },
+            "tablet_cell_decommissioner": {
+                "decommission_check_period": 100,
+                "orphans_check_period": 100,
             }
         }
     }
