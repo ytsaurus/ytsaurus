@@ -50,6 +50,7 @@ public:
         : Changelog_(std::move(changelog))
         , Profiler(profiler)
         , Invoker_(NConcurrency::CreateBoundedConcurrencyInvoker(invoker, 1))
+        , ProcessQueueCallback_(BIND(&TFileChangelogQueue::Process, MakeWeak(this)))
         , FlushedRecordCount_(Changelog_->GetRecordCount())
     { }
 
@@ -195,7 +196,7 @@ public:
 
         bool expected = false;
         if (ProcessQueueCallbackPending_.compare_exchange_strong(expected, true)) {
-            GetInvoker()->Invoke(BIND(&TFileChangelogQueue::Process, MakeStrong(this)));
+            GetInvoker()->Invoke(ProcessQueueCallback_);
         }
     }
 
@@ -211,6 +212,7 @@ private:
     const TSyncFileChangelogPtr Changelog_;
     const TProfiler Profiler;
     const IInvokerPtr Invoker_;
+    const TClosure ProcessQueueCallback_;
 
     TSpinLock SpinLock_;
 

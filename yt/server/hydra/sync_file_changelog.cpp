@@ -457,10 +457,7 @@ public:
                 std::vector<TFuture<void>> futures;
                 futures.reserve(2);
                 futures.push_back(IndexFile_.FlushData());
-                futures.push_back(IOEngine_->FlushData(DataFile_)
-                    .Apply(BIND([] (const TErrorOr<bool>& error) {
-                        error.ThrowOnError();
-                    })));
+                futures.push_back(IOEngine_->FlushData(DataFile_).As<void>());
                 WaitFor(Combine(futures)).ThrowOnError();
             }
         } catch (const std::exception& ex) {
