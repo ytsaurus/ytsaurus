@@ -373,6 +373,10 @@ IOperationPtr TMockClient::RawMapReduce(const TRawMapReduceOperationSpec&, ::TIn
     return nullptr;
 }
 
+IOperationPtr TMockClient::AttachOperation(const TOperationId&) {
+    ythrow yexception() << "not implemented";
+}
+
 ITransactionPtr TMockClient::StartTransaction(const TStartTransactionOptions&) {
     return new TMockTransaction();
 }

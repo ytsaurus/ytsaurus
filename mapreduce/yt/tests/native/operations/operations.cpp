@@ -1500,6 +1500,42 @@ Y_UNIT_TEST_SUITE(Operations)
             UNIT_ASSERT_VALUES_EQUAL(getSortedBy(outputTable).Parts_, nonPrefixColumns.Parts_);
         }
     }
+
+    Y_UNIT_TEST(AttachOperation)
+    {
+        auto client = CreateTestClient();
+
+        {
+            auto writer = client->CreateTableWriter<TNode>("//testing/input");
+            writer->AddRow(TNode()("foo", "baz"));
+            writer->Finish();
+        }
+
+        auto operation = client->Map(
+            TMapOperationSpec()
+            .AddInput<TNode>("//testing/input")
+            .AddOutput<TNode>("//testing/output"),
+            new TSleepingMapper(TDuration::Seconds(100)),
+            TOperationOptions().Wait(false));
+
+        auto attached = client->AttachOperation(operation->GetId());
+
+        attached->AbortOperation();
+
+        UNIT_ASSERT_VALUES_EQUAL(operation->GetBriefState(), EOperationBriefState::Aborted);
+    }
+
+    Y_UNIT_TEST(AttachInexistingOperation)
+    {
+        auto client = CreateTestClient();
+
+        try {
+            client->AttachOperation(GetGuid("1-2-3-4"));
+            UNIT_FAIL("exception expected to be thrown");
+        } catch (const TErrorResponse& e) {
+            e.GetError().ContainsErrorCode(1915); // TODO: need named error code
+        }
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
