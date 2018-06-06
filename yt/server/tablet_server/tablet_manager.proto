@@ -94,7 +94,9 @@ message TReqCreateTabletAction
 }
 
 message TReqKickOrphanedTabletActions
-{ }
+{
+    repeated NYT.NProto.TGuid tablet_action_ids = 1;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

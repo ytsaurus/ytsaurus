@@ -7,7 +7,7 @@ namespace NCellMaster {
 
 int GetCurrentSnapshotVersion()
 {
-    return 713;
+    return 714;
 }
 
 bool ValidateSnapshotVersion(int version)
@@ -73,7 +73,8 @@ bool ValidateSnapshotVersion(int version)
         version == 710 ||
         version == 711 || // shakurov
         version == 712 || // aozeritsky
-        version == 713;   // savrus
+        version == 713 || // savrus: Add tablet cell decommission
+        version == 714;   // savrus: Change TReqKickOrphanedTabletActions
 }
 
 ////////////////////////////////////////////////////////////////////////////////
