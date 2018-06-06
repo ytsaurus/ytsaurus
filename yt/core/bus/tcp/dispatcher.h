@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <yt/core/misc/shutdownable.h>
-
 #include <yt/core/profiling/profiler.h>
+
+#include <yt/core/concurrency/public.h>
 
 namespace NYT {
 namespace NBus {
@@ -43,7 +43,6 @@ DEFINE_REFCOUNTED_TYPE(TTcpDispatcherCounters)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTcpDispatcher
-    : public IShutdownable
 {
 public:
     ~TTcpDispatcher();
@@ -52,9 +51,11 @@ public:
 
     static void StaticShutdown();
 
-    virtual void Shutdown() override;
+    void Shutdown();
 
     const TTcpDispatcherCountersPtr& GetCounters(const TString& networkName);
+
+    NConcurrency::IPollerPtr GetXferPoller();
 
 private:
     TTcpDispatcher();

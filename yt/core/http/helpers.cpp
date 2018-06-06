@@ -8,6 +8,7 @@
 #include <yt/core/yson/consumer.h>
 
 #include <yt/core/json/json_writer.h>
+#include <yt/core/json/json_parser.h>
 #include <yt/core/json/config.h>
 
 namespace NYT {
@@ -16,6 +17,8 @@ namespace NHttp {
 static const auto& Logger = HttpLogger;
 
 using namespace NJson;
+using namespace NYson;
+using namespace NYTree;
 using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -32,6 +35,20 @@ void FillYTErrorHeaders(const IResponseWriterPtr& rsp, const TError& error)
     rsp->GetHeaders()->Add("X-YT-Response-Code",
         ToString(static_cast<i64>(error.GetCode())));
     rsp->GetHeaders()->Add("X-YT-Response-Message", error.GetMessage());
+}
+
+TError ParseYTError(const IResponsePtr& rsp)
+{
+    auto errorJson = rsp->GetHeaders()->Find("X-YT-Error");
+    if (!errorJson) {
+        return {};
+    }
+
+    TStringInput errorJsonInput(*errorJson);
+    std::unique_ptr<IBuildingYsonConsumer<TError>> buildingConsumer;
+    CreateBuildingYsonConsumer(&buildingConsumer, EYsonType::Node);
+    ParseJson(&errorJsonInput, buildingConsumer.get());
+    return buildingConsumer->Finish();
 }
 
 class TErrorWrappingHttpHandler

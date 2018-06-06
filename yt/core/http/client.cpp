@@ -125,11 +125,11 @@ private:
             address,
             Invoker_,
             EMessageType::Response,
-            Config_->ReadBufferSize);
+            Config_);
         auto output = New<THttpOutput>(
             conn,
             EMessageType::Request,
-            Config_->WriteBufferSize);
+            Config_);
 
         return std::make_pair(std::move(output), std::move(input));
     }

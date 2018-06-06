@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/core/net/public.h>
+
 #include <yt/core/ytree/yson_serializable.h>
 
 namespace NYT {
@@ -9,8 +11,26 @@ namespace NHttp {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TServerConfig
+class THttpIOConfig
     : public NYTree::TYsonSerializable
+{
+public:
+    int ReadBufferSize;
+
+    TDuration HeaderReadTimeout;
+    TDuration BodyReadIdleTimeout;
+
+    TDuration WriteIdleTimeout;
+
+    THttpIOConfig();
+};
+
+DEFINE_REFCOUNTED_TYPE(THttpIOConfig);
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TServerConfig
+    : public THttpIOConfig
 {
 public:
     //! If zero then the port is chosen automatically.
@@ -18,9 +38,6 @@ public:
 
     //! Limit for number of open TCP connections.
     int MaxSimultaneousConnections;
-
-    int ReadBufferSize;
-    int WriteBufferSize;
 
     int BindRetryCount;
     TDuration BindRetryBackoff;
@@ -33,11 +50,10 @@ DEFINE_REFCOUNTED_TYPE(TServerConfig);
 ////////////////////////////////////////////////////////////////////////////////
 
 class TClientConfig
-    : public NYTree::TYsonSerializable
+    : public THttpIOConfig
 {
 public:
-    int ReadBufferSize;
-    int WriteBufferSize;
+    NNet::TDialerConfigPtr Dialer;
 
     TClientConfig();
 };

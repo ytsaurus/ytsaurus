@@ -92,11 +92,11 @@ class THttpInput
 {
 public:
     THttpInput(
-        const NConcurrency::IAsyncInputStreamPtr& reader,
+        const NNet::IConnectionPtr& connection,
         const NNet::TNetworkAddress& peerAddress,
         const IInvokerPtr& readInvoker,
         EMessageType messageType,
-        size_t bufferSize);
+        const THttpIOConfigPtr& config);
 
     virtual EMethod GetMethod() override;
     virtual const TUrlRef& GetUrl() override;
@@ -112,9 +112,10 @@ public:
     virtual const NNet::TNetworkAddress& GetRemoteAddress() const override;
 
 private:
-    const NConcurrency::IAsyncInputStreamPtr Reader_;
+    const NNet::IConnectionPtr Connection_;
     const NNet::TNetworkAddress RemoteAddress_;
     const EMessageType MessageType_;
+    const THttpIOConfigPtr Config_;
 
     TSharedMutableRef InputBuffer_;
     TSharedRef UnconsumedData_;
@@ -146,12 +147,12 @@ public:
         const THeadersPtr& headers,
         const NNet::IConnectionPtr& connection,
         EMessageType messageType,
-        size_t bufferSize);
+        const THttpIOConfigPtr& config);
 
     THttpOutput(
         const NNet::IConnectionPtr& connection,
         EMessageType messageType,
-        size_t bufferSize);
+        const THttpIOConfigPtr& config);
 
     virtual const THeadersPtr& GetHeaders() override;
     void SetHeaders(const THeadersPtr& headers);
@@ -173,6 +174,9 @@ public:
 private:
     const NNet::IConnectionPtr Connection_;
     const EMessageType MessageType_;
+    const THttpIOConfigPtr Config_;
+
+    TClosure ResetConnectionDeadline_;
 
     static const THashSet<TString> FilteredHeaders_;
 

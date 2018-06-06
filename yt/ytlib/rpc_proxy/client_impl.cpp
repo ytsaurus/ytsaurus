@@ -3,6 +3,8 @@
 #include "config.h"
 #include "transaction.h"
 #include "private.h"
+#include "table_mount_cache.h"
+#include "timestamp_provider.h"
 
 #include <yt/core/net/address.h>
 
@@ -13,6 +15,8 @@
 #include <yt/ytlib/api/rowset.h>
 #include <yt/ytlib/api/transaction.h>
 
+#include <yt/ytlib/transaction_client/remote_timestamp_provider.h>
+
 #include <yt/ytlib/table_client/unversioned_row.h>
 #include <yt/ytlib/table_client/row_base.h>
 #include <yt/ytlib/table_client/row_buffer.h>
@@ -20,6 +24,8 @@
 #include <yt/ytlib/table_client/schema.h>
 
 #include <yt/ytlib/tablet_client/wire_protocol.h>
+#include <yt/ytlib/tablet_client/native_table_mount_cache.h>
+#include <yt/ytlib/tablet_client/table_mount_cache.h>
 
 namespace NYT {
 namespace NRpcProxy {
@@ -40,10 +46,33 @@ using namespace NYTree;
 
 TClient::TClient(
     TConnectionPtr connection,
-    const TClientOptions& options)
+    IChannelPtr channel)
     : Connection_(std::move(connection))
-    , Channel_(CreateDiscoveringChannel(Connection_, options))
+    , Channel_(channel)
+    , TableMountCache_(CreateRpcProxyTableMountCache(
+        Connection_->GetConfig()->TableMountCache,
+        Channel_,
+        RpcProxyClientLogger))
 { }
+
+const ITableMountCachePtr& TClient::GetTableMountCache()
+{
+    return TableMountCache_;
+}
+
+const ITimestampProviderPtr& TClient::GetTimestampProvider()
+{
+    if (!TimestampProviderInitialized_.load()) {
+        auto guard = Guard(TimestampProviderSpinLock_);
+        if (!TimestampProvider_) {
+            TimestampProvider_ = CreateBatchingTimestampProvider(
+                CreateTimestampProvider(Channel_, Connection_->GetConfig()->RpcTimeout),
+                Connection_->GetConfig()->TimestampProviderUpdatePeriod);
+        }
+        TimestampProviderInitialized_.store(true);
+    }
+    return TimestampProvider_;
+}
 
 TFuture<void> TClient::Terminate()
 {

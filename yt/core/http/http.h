@@ -173,7 +173,7 @@ public:
     const TString* Find(const TString& header) const;
 
     //! Returns first header value, if any. Throws otherwise.
-    const TString& Get(const TString& header) const;
+    TString GetOrThrow(const TString& header) const;
 
     const std::vector<TString>& GetAll(const TString& header) const;
 

@@ -7,6 +7,8 @@
 namespace NYT {
 namespace NRpcProxy {
 
+using namespace NRpc;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTimestampProvider
@@ -14,24 +16,19 @@ class TTimestampProvider
 {
 public:
     TTimestampProvider(
-        TWeakPtr<TConnection> connection,
+        IChannelPtr channel,
         TDuration rpcTimeout)
-        : Connection_(std::move(connection))
+        : Channel_(std::move(channel))
         , RpcTimeout_(rpcTimeout)
     { }
 
 private:
-    const TWeakPtr<TConnection> Connection_;
+    const IChannelPtr Channel_;
     const TDuration RpcTimeout_;
 
     virtual TFuture<NTransactionClient::TTimestamp> DoGenerateTimestamps(int count) override
     {
-        auto connection = Connection_.Lock();
-        if (!connection) {
-            return MakeFuture<NTransactionClient::TTimestamp>(TError("Connection is closed"));
-        }
-
-        TApiServiceProxy proxy(connection->GetRandomPeerChannel());
+        TApiServiceProxy proxy(Channel_);
 
         auto req = proxy.GenerateTimestamps();
         req->SetTimeout(RpcTimeout_);
@@ -46,11 +43,11 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 NTransactionClient::ITimestampProviderPtr CreateTimestampProvider(
-    TWeakPtr<TConnection> connection,
+    IChannelPtr channel,
     TDuration rpcTimeout)
 {
     return New<TTimestampProvider>(
-        std::move(connection),
+        std::move(channel),
         rpcTimeout);
 }
 

@@ -2,25 +2,24 @@
 #include "discovery_service_proxy.h"
 #include "connection_impl.h"
 #include "client_impl.h"
-#include "timestamp_provider.h"
 #include "config.h"
 #include "credentials_injecting_channel.h"
-#include "table_mount_cache.h"
 #include "helpers.h"
 #include "private.h"
 
 #include <yt/ytlib/api/admin.h>
-
-#include <yt/ytlib/tablet_client/native_table_mount_cache.h>
-#include <yt/ytlib/tablet_client/table_mount_cache.h>
-
-#include <yt/ytlib/transaction_client/remote_timestamp_provider.h>
 
 #include <yt/core/net/local_address.h>
 #include <yt/core/net/address.h>
 
 #include <yt/core/concurrency/action_queue.h>
 #include <yt/core/concurrency/periodic_executor.h>
+
+#include <yt/core/bus/tcp/dispatcher.h>
+
+#include <yt/core/http/client.h>
+#include <yt/core/http/http.h>
+#include <yt/core/http/helpers.h>
 
 #include <yt/core/rpc/bus/channel.h>
 #include <yt/core/rpc/roaming_channel.h>
@@ -34,7 +33,59 @@ using namespace NApi;
 using namespace NBus;
 using namespace NRpc;
 using namespace NNet;
+using namespace NHttp;
+using namespace NYson;
+using namespace NYTree;
 using namespace NConcurrency;
+
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<TString> GetProxyListFromHttp(
+    const NHttp::TClientConfigPtr& config,
+    const TString& proxyUrl,
+    const TString& oauthToken)
+{
+    auto client = CreateClient(config, TTcpDispatcher::Get()->GetXferPoller());
+    auto headers = New<THeaders>();
+    headers->Add("Authorization", "OAuth " + oauthToken);
+    headers->Add("X-YT-Header-Format", "<format=text>yson");
+    headers->Add("X-YT-Parameters", "{path=\"//sys/rpc_proxies\"; output_format=<format=text>yson; read_from=cache}");
+
+    auto rsp = WaitFor(client->Get(proxyUrl + "/api/v3/list", headers))
+        .ValueOrThrow();
+    if (rsp->GetStatusCode() != EStatusCode::Ok) {
+        THROW_ERROR_EXCEPTION("Http proxy discovery failed")
+            << ParseYTError(rsp);
+    }
+    return ConvertTo<std::vector<TString>>(TYsonString{ToString(rsp->ReadBody())});
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+IChannelPtr CreateCredentialsInjectingChannel(
+    IChannelPtr underlying,
+    const TClientOptions& options,
+    const TString& domain,
+    const TString& localAddress)
+{
+    if (options.Token) {
+        return CreateTokenInjectingChannel(
+            underlying,
+            options.User,
+            *options.Token,
+            localAddress);
+    } else if (options.SessionId || options.SslSessionId) {
+        return CreateCookieInjectingChannel(
+            underlying,
+            options.User,
+            domain,
+            options.SessionId.Get(TString()),
+            options.SslSessionId.Get(TString()),
+            localAddress);
+    } else {
+        return CreateUserInjectingChannel(underlying, options.User);
+    }
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -42,45 +93,23 @@ TConnection::TConnection(TConnectionConfigPtr config)
     : Config_(std::move(config))
     , ActionQueue_(New<TActionQueue>("RpcProxyConn"))
     , ChannelFactory_(NRpc::NBus::CreateBusChannelFactory(Config_->BusClient))
+    , ChannelPool_(New<TDynamicChannelPool>(ChannelFactory_))
     , Logger(NLogging::TLogger(RpcProxyClientLogger)
         .AddTag("ConnectionId: %v", TGuid::Create()))
     , UpdateProxyListExecutor_(New<TPeriodicExecutor>(
         ActionQueue_->GetInvoker(),
-        BIND(&TConnection::OnProxyListUpdated, MakeWeak(this)),
+        BIND(&TConnection::OnProxyListUpdate, MakeWeak(this)),
         Config_->ProxyListUpdatePeriod))
 {
     ResetAddresses();
-
-    TableMountCache_ = CreateRpcProxyTableMountCache(
-        Config_->TableMountCache,
-        GetRandomPeerChannel(),
-        RpcProxyClientLogger);
-
-    UpdateProxyListExecutor_->Start();
+    if (!Config_->Addresses.empty()) {
+        UpdateProxyListExecutor_->Start();        
+    }
 }
 
 NObjectClient::TCellTag TConnection::GetCellTag()
 {
     Y_UNIMPLEMENTED();
-}
-
-const NTabletClient::ITableMountCachePtr& TConnection::GetTableMountCache()
-{
-    return TableMountCache_;
-}
-
-const NTransactionClient::ITimestampProviderPtr& TConnection::GetTimestampProvider()
-{
-    if (!TimestampProviderInitialized_.load()) {
-        auto guard = Guard(TimestampProviderSpinLock_);
-        if (!TimestampProvider_) {
-            TimestampProvider_ = NTransactionClient::CreateBatchingTimestampProvider(
-                CreateTimestampProvider(MakeWeak(this), Config_->RpcTimeout),
-                Config_->TimestampProviderUpdatePeriod);
-        }
-        TimestampProviderInitialized_.store(true);
-    }
-    return TimestampProvider_;
 }
 
 IInvokerPtr TConnection::GetInvoker()
@@ -90,12 +119,31 @@ IInvokerPtr TConnection::GetInvoker()
 
 IAdminPtr TConnection::CreateAdmin(const TAdminOptions&)
 {
-    return New<TAdmin>(GetRandomPeerChannel());
+    // This client is used only in tests
+    return New<TAdmin>(CreateDynamicChannel(ChannelPool_));
 }
 
 NApi::IClientPtr TConnection::CreateClient(const TClientOptions& options)
 {
-    return New<TClient>(this, options);
+    auto localAddress = GetLocalAddress();
+    LOG_DEBUG("Creating client (LocalAddress: %v)", localAddress);
+
+    if (Config_->ClusterUrl) {
+        auto guard = Guard(HttpDiscoveryLock_);
+        if (!HttpCredentials_) {
+            HttpCredentials_ = options;
+            UpdateProxyListExecutor_->Start();
+        }
+    }
+
+    auto channel = CreateDynamicChannel(ChannelPool_);
+    auto authenticatedChannel = CreateCredentialsInjectingChannel(
+        std::move(channel),
+        options,
+        Config_->Domain,
+        localAddress);
+        
+    return New<TClient>(this, std::move(authenticatedChannel));
 }
 
 NHiveClient::ITransactionParticipantPtr TConnection::CreateTransactionParticipant(
@@ -106,42 +154,12 @@ NHiveClient::ITransactionParticipantPtr TConnection::CreateTransactionParticipan
 }
 
 void TConnection::ClearMetadataCaches()
-{
-    TableMountCache_->Clear();
-}
+{ }
 
 void TConnection::Terminate()
 {
-    TFuture<std::vector<TError>> terminationFuture;
-    {
-        auto guard = Guard(AddressSpinLock_);
-        terminationFuture = TerminateAddressProviders(Addresses_);
-    }
-    auto errors = WaitFor(terminationFuture);
-    if (!errors.IsOK()) {
-        LOG_ERROR(errors, "Error while terminating connection");
-    }
-
-    for (const auto& error : errors.Value()) {
-        if (!error.IsOK()) {
-            LOG_ERROR(error, "Error while terminating connection");
-        }
-    }
-}
-
-IChannelPtr TConnection::GetRandomPeerChannel(IRoamingChannelProvider* provider)
-{
-    TString address;
-    {
-        auto guard = Guard(AddressSpinLock_);
-        YCHECK(!Addresses_.empty());
-        address = Addresses_[RandomNumber(Addresses_.size())];
-        if (provider) {
-            AddressToProviders_[address].insert(provider);
-            ProviderToAddress_[provider] = address;
-        }
-    }
-    return ChannelFactory_->CreateChannel(address);
+    ChannelPool_->Terminate();
+    UpdateProxyListExecutor_->Stop();
 }
 
 TString TConnection::GetLocalAddress()
@@ -166,176 +184,102 @@ TString TConnection::GetLocalAddress()
     return localAddressString;
 }
 
-TFuture<std::vector<TProxyInfo>> TConnection::DiscoverProxies(const TDiscoverProxyOptions& options)
-{
-    return DiscoverProxies(GetRandomPeerChannel(), options);
-}
-
 const TConnectionConfigPtr& TConnection::GetConfig()
 {
     return Config_;
 }
 
-IChannelPtr TConnection::CreateChannelAndRegisterProvider(
-    const NApi::TClientOptions& options,
-    IRoamingChannelProvider* provider)
-{
-    auto localAddress = GetLocalAddress();
-
-    LOG_DEBUG("Creating channel (LocalAddress: %v)",
-        localAddress);
-
-    auto channel = GetRandomPeerChannel(provider);
-
-    if (options.Token) {
-        channel = CreateTokenInjectingChannel(
-            channel,
-            options.User,
-            *options.Token,
-            localAddress);
-    } else if (options.SessionId || options.SslSessionId) {
-        channel = CreateCookieInjectingChannel(
-            channel,
-            options.User,
-            Config_->Domain,
-            options.SessionId.Get(TString()),
-            options.SslSessionId.Get(TString()),
-            localAddress);
-    } else {
-        channel = CreateUserInjectingChannel(channel, options.User);
-    }
-    return channel;
-}
-
-void TConnection::UnregisterProvider(IRoamingChannelProvider* provider)
-{
-    auto guard = Guard(AddressSpinLock_);
-    auto it1 = ProviderToAddress_.find(provider);
-    YCHECK(it1 != ProviderToAddress_.end());
-    auto it2 = AddressToProviders_.find(it1->second);
-    YCHECK(it2 != AddressToProviders_.end());
-
-    LOG_DEBUG("Channel provider unregistered (Address: %v)",
-        it1->second);
-
-    // Cleanup.
-    ProviderToAddress_.erase(it1);
-    YCHECK(it2->second.erase(provider) == 1);
-    if (it2->second.empty()) {
-        AddressToProviders_.erase(it2);
-    }
-}
-
-TFuture<std::vector<TProxyInfo>> TConnection::DiscoverProxies(const IChannelPtr& channel, const TDiscoverProxyOptions& /*options*/)
+std::vector<TString> TConnection::DiscoverProxiesByRpc(const IChannelPtr& channel)
 {
     TDiscoveryServiceProxy proxy(channel);
 
     auto req = proxy.DiscoverProxies();
     req->SetTimeout(Config_->RpcTimeout);
 
-    return req->Invoke().Apply(BIND([] (const TDiscoveryServiceProxy::TRspDiscoverProxiesPtr& rsp) {
-        std::vector<TProxyInfo> proxies;
-        for (const auto& address : rsp->addresses()) {
-            proxies.push_back({address});
-        }
-        return proxies;
-    }));
+    auto rsp = WaitFor(req->Invoke())
+        .ValueOrThrow();
+
+    std::vector<TString> proxies;
+    for (const auto& address : rsp->addresses()) {
+        proxies.push_back(address);
+    }
+    return proxies;
+}
+
+std::vector<TString> TConnection::DiscoverProxiesByHttp(const TClientOptions& options)
+{
+    try {
+        return GetProxyListFromHttp(
+            Config_->HttpClient,
+            *Config_->ClusterUrl,
+            options.Token.Get({}));
+    } catch (const std::exception& ex) {
+        THROW_ERROR_EXCEPTION("Error discovering proxies from HTTP")
+            << TError(ex);
+    }
 }
 
 void TConnection::ResetAddresses()
 {
-    LOG_INFO("Proxy address list reset (Addresses: %v)",
-        Config_->Addresses);
-
-    try {
-        SetProxyList(Config_->Addresses);
-    } catch (const std::exception& ex) {
-        LOG_ERROR(ex, "Error resetting proxy list");
+    if (!Config_->Addresses.empty()) {
+        LOG_INFO("Proxy address list reset (Addresses: %v)",
+            Config_->Addresses);
+        ChannelPool_->SetAddressList(MakeFuture(Config_->Addresses));
+    } else if (Config_->ClusterUrl) {
+        LOG_INFO("Fetching proxy address list from HTTP (ClusterUrl: %v)",
+            Config_->ClusterUrl);
+        HttpDiscoveryPromise_ = NewPromise<std::vector<TString>>();
+        ChannelPool_->SetAddressList(HttpDiscoveryPromise_.ToFuture());        
+    } else {
+        THROW_ERROR_EXCEPTION("Either \"cluster_url\" or \"addresses\" must be specified");
     }
 }
 
-void TConnection::OnProxyListUpdated()
+void TConnection::OnProxyListUpdate()
 {
     try {
-        if (!DiscoveryChannel_) {
-            DiscoveryChannel_ = GetRandomPeerChannel();
-        }
-        auto asyncProxies = DiscoverProxies(DiscoveryChannel_);
-        auto proxies = WaitFor(asyncProxies).ValueOrThrow();
-        if (proxies.empty()) {
-            LOG_DEBUG("Empty proxy list returned, skipping proxy list update");
-            return;
+        if (HttpDiscoveryPromise_ && !HttpDiscoveryPromise_.IsSet()) {
+            LOG_DEBUG("Updating proxy list from HTTP");
+            try {
+                YCHECK(HttpCredentials_);
+                auto proxies = DiscoverProxiesByHttp(*HttpCredentials_);
+                if (proxies.empty()) {
+                    LOG_ERROR("Empty proxy list returned, skipping proxy list update");
+                    return;
+                }
+
+                HttpDiscoveryPromise_.Set(proxies);
+            } catch (const std::exception& ex) {
+                HttpDiscoveryPromise_.Set(TError(ex));
+                HttpDiscoveryPromise_ = NewPromise<std::vector<TString>>();
+                ChannelPool_->SetAddressList(HttpDiscoveryPromise_.ToFuture());
+                throw;
+            }
+        } else {
+            LOG_DEBUG("Updating proxy list from RPC");
+            if (!DiscoveryChannel_) {
+                DiscoveryChannel_ = ChannelPool_->TryCreateChannel().ValueOrThrow();
+            }
+    
+            auto proxies = DiscoverProxiesByRpc(DiscoveryChannel_);
+            if (proxies.empty()) {
+                LOG_ERROR("Empty proxy list returned, skipping proxy list update");
+                return;
+            }
+
+            ChannelPool_->SetAddressList(MakeFuture(proxies));
         }
 
         ProxyListUpdatesFailedAttempts_ = 0;
-
-        std::vector<TString> addresses;
-        addresses.clear();
-        for (const auto& proxy : proxies) {
-            addresses.push_back(proxy.Address);
-        }
-
-        SetProxyList(addresses);
     } catch (const std::exception& ex) {
         LOG_WARNING(ex, "Error updating proxy list");
         DiscoveryChannel_.Reset();
         ++ProxyListUpdatesFailedAttempts_;
         if (ProxyListUpdatesFailedAttempts_ == Config_->MaxProxyListUpdateAttempts) {
+            ProxyListUpdatesFailedAttempts_ = 0;
             ResetAddresses();
         }
     }
-}
-
-void TConnection::SetProxyList(std::vector<TString> addresses)
-{
-    std::vector<TString> diff;
-    TFuture<std::vector<TError>> terminationFuture;
-
-    std::sort(addresses.begin(), addresses.end());
-
-    {
-        auto guard = Guard(AddressSpinLock_);
-        std::set_difference(
-            Addresses_.begin(),
-            Addresses_.end(),
-            addresses.begin(),
-            addresses.end(),
-            std::back_inserter(diff));
-
-        LOG_DEBUG("Proxy list updated (UnavailableAddresses: %v)",
-            diff);
-
-        Addresses_ = std::move(addresses);
-
-        terminationFuture = TerminateAddressProviders(diff);
-    }
-
-    WaitFor(terminationFuture)
-        .ThrowOnError();
-}
-
-TFuture<std::vector<TError>> TConnection::TerminateAddressProviders(const std::vector<TString>& addresses)
-{
-    VERIFY_SPINLOCK_AFFINITY(AddressSpinLock_);
-
-    std::vector<TFuture<void>> terminated;
-
-    for (const auto& address : addresses) {
-        auto it = AddressToProviders_.find(address);
-        if (it == AddressToProviders_.end()) {
-            continue;
-        }
-
-        LOG_DEBUG("Terminating operable channels (Address: %v)", address);
-
-        for (auto* operable : it->second) {
-            terminated.push_back(operable->Terminate(TError(
-                NRpc::EErrorCode::Unavailable,
-                "Channel is unavailable")));
-        }
-    }
-
-    return CombineAll(terminated);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

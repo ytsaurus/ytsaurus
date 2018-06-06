@@ -35,7 +35,7 @@ public:
         RegisterParameter("rto_scale", RtoScale)
             .GreaterThan(0.0)
             .Default(2.0);
-        
+
         RegisterPostprocessor([&] () {
             if (MaxRto < MinRto) {
                 THROW_ERROR_EXCEPTION("\"max_rto\" should be greater than or equal to \"min_rto\"");
