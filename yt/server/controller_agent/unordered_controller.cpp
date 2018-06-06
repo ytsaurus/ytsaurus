@@ -234,7 +234,6 @@ protected:
                         InputTables[index].Schema,
                         OutputTables_[0].TableUploadOptions.TableSchema,
                         false /* ignoreSortOrder */).IsOK();
-                    LOG_ERROR("XXX compatibility (TableIndex: %v, Teleportable: %v)", index, InputTables[index].IsTeleportable);
                 }
             }
         }
