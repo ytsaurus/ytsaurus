@@ -414,6 +414,13 @@ IOperationPtr TClientBase::RunVanilla(
     return CreateOperationAndWaitIfRequired(operationId, GetParentClient(), options);
 }
 
+IOperationPtr TClientBase::AttachOperation(const TOperationId& operationId)
+{
+    auto operation = ::MakeIntrusive<TOperation>(operationId, GetParentClient());
+    operation->GetBriefState(); // check that operation exists
+    return operation;
+}
+
 EOperationBriefState TClientBase::CheckOperation(const TOperationId& operationId)
 {
     return NYT::NDetail::CheckOperation(Auth_, operationId);

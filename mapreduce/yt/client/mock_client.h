@@ -82,6 +82,8 @@ public:
     IOperationPtr DoMapReduce(const TMapReduceOperationSpec&, IJob*, IJob*, IJob*, const TMultiFormatDesc&, const TMultiFormatDesc&, const TMultiFormatDesc&, const TMultiFormatDesc&, const TOperationOptions&) override;
     IOperationPtr RawMapReduce(const TRawMapReduceOperationSpec&, ::TIntrusivePtr<IRawJob>, ::TIntrusivePtr<IRawJob>, ::TIntrusivePtr<IRawJob>, const TOperationOptions&) override;
 
+    IOperationPtr AttachOperation(const TOperationId&) override;
+
     ITransactionPtr StartTransaction(const TStartTransactionOptions&) override;
 
     ITransactionPtr AttachTransaction(const TTransactionId&) override;

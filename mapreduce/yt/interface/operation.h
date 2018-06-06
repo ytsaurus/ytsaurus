@@ -749,7 +749,7 @@ struct IOperation
 
     //
     // Retrieve operation progress.
-    // Will return Nothing if operation has no running jobs yet, f.e. when it is materializing or has pending state
+    // Will return Nothing if operation has no running jobs yet, e.g. when it is materializing or has pending state.
     virtual TMaybe<TOperationBriefProgress> GetBriefProgress() = 0;
 
     //
@@ -875,6 +875,11 @@ struct IOperationClient
     // it will throw TOperationFailedError instead.
     virtual EOperationBriefState CheckOperation(
         const TOperationId& operationId) = 0;
+
+    //
+    // Creates operation object given operation id.
+    // Will throw TErrorResponse exception if operation doesn't exist.
+    virtual IOperationPtr AttachOperation(const TOperationId& operationId) = 0;
 
 private:
     virtual IOperationPtr DoMap(
