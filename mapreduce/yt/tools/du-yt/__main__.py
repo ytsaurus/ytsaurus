@@ -54,7 +54,8 @@ def _parse_options():
         '--use-resource-type',
         dest='use_resource_type',
         default="disk_space",
-        help='select resource ("disk_space", "node_count", "chunk_count")',)
+        choices=('disk_space', 'node_count', 'chunk_count', ),
+        help='resource type to account', )
     return p.parse_args()
 
 
