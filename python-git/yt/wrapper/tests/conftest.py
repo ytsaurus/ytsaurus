@@ -68,7 +68,7 @@ class YtTestEnvironment(object):
         if env_options is None:
             env_options = {}
 
-        has_proxy = config["backend"] not in ("native", "rpc")
+        has_proxy = config["backend"] not in ("native",)
 
         logging.getLogger("Yt.local").setLevel(logging.INFO)
 
@@ -199,9 +199,7 @@ class YtTestEnvironment(object):
         self.config["is_local_mode"] = False
         self.config["pickling"]["enable_tmpfs_archive"] = ENABLE_JOB_CONTROL
         self.config["pickling"]["module_filter"] = lambda module: hasattr(module, "__file__") and not "driver_lib" in module.__file__
-        if config["backend"] == "rpc":
-            self.config["driver_config"] = self.env.configs["rpc_driver"]
-        else:
+        if config["backend"] != "rpc":
             self.config["driver_config"] = self.env.configs["driver"]
         self.config["local_temp_directory"] = local_temp_directory
         update_inplace(yt.config.config, self.config)

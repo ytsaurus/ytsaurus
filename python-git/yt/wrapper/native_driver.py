@@ -3,6 +3,7 @@ from .common import require, generate_int64
 from .errors import YtResponseError, YtError
 from .string_iter_io import StringIterIO
 from .response_stream import ResponseStream
+from .http_helpers import get_proxy_url, get_token
 
 import yt.logger as logger
 import yt.yson as yson
@@ -13,6 +14,8 @@ try:
     from cStringIO import StringIO as BytesIO
 except ImportError:  # Python 3
     from io import BytesIO
+
+import sys
 
 driver_bindings = None
 def lazy_import_driver_bindings():
@@ -39,6 +42,32 @@ def read_config(path):
 def get_driver_instance(client):
     lazy_import_driver_bindings()
 
+    config = get_config(client)
+    if config["driver_logging_config"] is not None:
+        driver_bindings.configure_logging(config["driver_logging_config"])
+    elif config["enable_driver_logging_to_stderr"]:
+        logging_config = {
+            "rules": [
+                {
+                    "min_level": "debug",
+                    "writers": [
+                        "stderr",
+                    ],
+                },
+            ],
+            "writers": {
+                "stderr": {
+                    "type": "stderr",
+                },
+            },
+        }
+        driver_bindings.configure_logging(logging_config)
+    else:
+        driver_bindings.configure_logging({"rules": [], "writers": {}})
+
+    if config["driver_address_resolver_config"] is not None:
+        driver_bindings.configure_address_resolver(config["driver_address_resolver_config"])
+
     driver = get_option("_driver", client=client)
     if driver is None:
         if driver_bindings is None:
@@ -50,14 +79,20 @@ def get_driver_instance(client):
         elif config["driver_config_path"] is not None:
             driver_config = read_config(config["driver_config_path"])
         else:
-            raise YtError("Driver config is not specified")
+            if config["backend"] == "rpc":
+                if config["proxy"]["url"] is None:
+                    raise YtError("For rpc backend driver config or proxy url must be specified")
+                else:
+                    driver_config = {"connection_type": "rpc", "cluster_url": "http://" + get_proxy_url(client=client)}
+            else:
+                raise YtError("Driver config is not specified")
 
         if config["backend"] == "rpc":
-            if driver_config.get("backend") is None:
-                driver_config["backend"] = "rpc"
-            else:
-                raise YtError("Driver and client backend mismatch (driver_backend: {0}, client_backend: {1})"
-                    .format(driver_config["backend"], config["backend"]))
+            if driver_config.get("connection_type") is None:
+                driver_config["connection_type"] = "rpc"
+            elif config["backend"] != driver_config["connection_type"]:
+                raise YtError("Driver connection type and client backend mismatch (driver_connection_type: {0}, client_backend: {1})"
+                    .format(driver_config["connection_type"], config["backend"]))
 
         set_option("_driver", driver_bindings.Driver(driver_config), client=client)
         driver = get_option("_driver", client=client)
@@ -157,7 +192,8 @@ def make_request(command_name, params,
         parameters=params,
         input_stream=input_stream,
         output_stream=output_stream,
-        user=driver_user_name)
+        user=driver_user_name,
+        token=get_token())
 
     if get_config(client)["enable_passing_request_id_to_driver"]:
         request.id = request_id
