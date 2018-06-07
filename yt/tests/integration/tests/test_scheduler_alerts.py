@@ -70,9 +70,9 @@ class TestSchedulerAlerts(YTEnvSetup):
 
         wait(lambda: len(get("//sys/controller_agents/instances/{0}/@alerts".format(controller_agent))) == 1)
 
-        set("//sys/controller_agents/config/enable_snapshot_loading", False)
+        set("//sys/controller_agents/config/enable_snapshot_loading", True)
 
-        wait(lambda: len(get("//sys/controller_agents/instances/{0}/@alerts".format(controller_agent))) == 1)
+        wait(lambda: len(get("//sys/controller_agents/instances/{0}/@alerts".format(controller_agent))) == 0)
 
 ##################################################################
 

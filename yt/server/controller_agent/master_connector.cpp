@@ -1217,8 +1217,9 @@ private:
 
     void ValidateConfig()
     {
-        // First reset the alert.
+        // First reset the alerts.
         SetControllerAgentAlert(EControllerAgentAlertType::UnrecognizedConfigOptions, TError());
+        SetControllerAgentAlert(EControllerAgentAlertType::SnapshotLoadingDisabled, TError());
 
         if (Config_->EnableUnrecognizedAlert) {
             auto unrecognized = Config_->GetUnrecognizedRecursively();
