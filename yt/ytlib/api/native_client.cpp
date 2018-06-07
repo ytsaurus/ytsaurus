@@ -4813,6 +4813,13 @@ private:
         }
 
         std::sort(
+            archiveData.begin(),
+            archiveData.end(),
+            [] (const TOperation& lhs, const TOperation& rhs) {
+                return lhs.OperationId < rhs.OperationId;
+            });
+
+        std::sort(
             cypressData.begin(),
             cypressData.end(),
             [] (const TOperation& lhs, const TOperation& rhs) {
