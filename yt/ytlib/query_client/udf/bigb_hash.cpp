@@ -7,29 +7,13 @@ extern "C" uint64_t bigb_hash(
     char* s,
     int len)
 {
-    TStringBuf str{s, static_cast<size_t>(len)};
-    if (str.StartsWith('y')) {
-        str.Skip(1);
-        ui64 ans;
-        if (TryFromString(str, ans)) {
-            return ans;
-        } else {
-            return 0;
-        }
-    } else if (str.StartsWith('p')) {
-        str.Skip(1);
-        ui64 ans;
-        if (TryFromString(str, ans)) {
-            return MultiHash(TStringBuf{"puid"}, ans);
-        } else {
-            return 0;
-        }
+    TStringBuf uid{s, static_cast<size_t>(len)};
+    if (uid.length() == 0) {
+        return 0;
     }
-    auto index = str.find('/');
-    if (index != str.npos) {
-        TStringBuf type{str.data(), str.data() + index};
-        TStringBuf id{str.data() + index + 1, str.data() + str.length()};
-        return MultiHash(type, id);
+    ui64 ans;
+    if (uid[0] == 'y' && TryFromString(uid.SubStr(1), ans)) {
+        return ans;
     }
-    return 0;
+    return MultiHash(TStringBuf{"shard"}, uid);
 }

@@ -4565,16 +4565,14 @@ TEST_F(TQueryEvaluateTest, TestBigbHash)
     });
 
     std::vector<TString> source = {
-        "A=\"y5653\"",
         "A=\"y12345\"",
+        "A=\"y12345b\"",
+        "A=\"p12345\"",
         "A=\"gaid/12345\"",
         "A=\"idfa/12345\"",
-        "A=\"p12345\"",
-
-        "A=\"y123d\"",
-        "A=\"432\"",
-        "A=\"y\"",
+        "A=\"12345\"",
         "A=\"\"",
+        "A=\"y\"",
     };
 
     auto resultSplit = MakeSplit({
@@ -4582,16 +4580,15 @@ TEST_F(TQueryEvaluateTest, TestBigbHash)
     });
 
     auto result = YsonToRows({
-        "x=5653u",
         "x=12345u",
-        "x=12500498747441447453u",
-        "x=8168092260540327927u",
-        "x=15227085487202376105u",
+        "x=4325840212205223962u",
+        "x=7036960256067388486u",
+        "x=17724055447702487579u",
+        "x=5977914593781245279u",
 
+        "x=1820233801294503536u",
         "x=0u",
-        "x=0u",
-        "x=0u",
-        "x=0u",
+        "x=15359751383596667256u",
     }, resultSplit);
 
     Evaluate("bigb_hash(A) as x FROM [//t]", split, source, ResultMatcher(result));
