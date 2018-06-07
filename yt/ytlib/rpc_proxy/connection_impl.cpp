@@ -54,7 +54,8 @@ std::vector<TString> GetProxyListFromHttp(
     auto rsp = WaitFor(client->Get(proxyUrl + "/api/v3/list", headers))
         .ValueOrThrow();
     if (rsp->GetStatusCode() != EStatusCode::Ok) {
-        THROW_ERROR_EXCEPTION("Http proxy discovery failed")
+        THROW_ERROR_EXCEPTION("Http proxy discovery failed with code %v",
+            static_cast<int>(rsp->GetStatusCode()))
             << ParseYTError(rsp);
     }
     return ConvertTo<std::vector<TString>>(TYsonString{ToString(rsp->ReadBody())});

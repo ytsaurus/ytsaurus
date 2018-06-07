@@ -50,6 +50,9 @@ struct TDriverRequest
     //! Name of the user issuing the request.
     TString AuthenticatedUser = NSecurityClient::RootUserName;
 
+    //! User token.
+    TNullable<TString> UserToken;
+
     //! Provides means to return arbitrary structured data from any command.
     //! Must be filled before writing data to output stream.
     NYson::IYsonConsumer* ResponseParametersConsumer;
