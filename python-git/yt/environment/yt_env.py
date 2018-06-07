@@ -409,7 +409,15 @@ class YTInstance(object):
             self._prepare_rpc_proxy(cluster_configuration["rpc_proxy"], cluster_configuration["rpc_client"], rpc_proxy_dir)
         if self.skynet_manager_count > 0:
             self._prepare_skynet_managers(cluster_configuration["skynet_manager"], skynet_manager_dirs)
-        self._prepare_driver(cluster_configuration["driver"], cluster_configuration["rpc_driver"], cluster_configuration["master"])
+
+        http_proxy_url = None
+        if self.has_proxy:
+            http_proxy_url = "localhost:" + self.get_proxy_address().split(":", 1)[1]
+        self._prepare_driver(
+            cluster_configuration["driver"],
+            cluster_configuration["rpc_driver"],
+            cluster_configuration["master"],
+            http_proxy_url)
         # COMPAT. Will be removed eventually.
         self._prepare_console_driver()
 
@@ -1001,7 +1009,7 @@ class YTInstance(object):
             if not err.is_resolve_error():
                 raise
 
-    def _prepare_driver(self, driver_configs, rpc_driver_configs, master_configs):
+    def _prepare_driver(self, driver_configs, rpc_driver_configs, master_configs, http_proxy_url):
         driver_types = ["native"]
         if self.has_rpc_proxy:
             driver_types.append("rpc")
@@ -1029,6 +1037,10 @@ class YTInstance(object):
                 else:
                     if driver_type == "rpc":
                         config = rpc_driver_configs[tag]
+                        # TODO(ignat): Fix this hack.
+                        if "addresses" in config and http_proxy_url is not None:
+                            del config["addresses"]
+                            config["cluster_url"] = http_proxy_url
                     else:
                         config = driver_configs[tag]
                     write_config(config, config_path)
