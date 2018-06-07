@@ -164,7 +164,7 @@ void ValidateNodeTags(const std::vector<TString>& tags)
 {
     for (const auto& tag : tags) {
         try {
-            ValidateFormulaVariable(tag);
+            ValidateBooleanFormulaVariable(tag);
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Invalid node tag %Qv", tag)
                 << ex;
