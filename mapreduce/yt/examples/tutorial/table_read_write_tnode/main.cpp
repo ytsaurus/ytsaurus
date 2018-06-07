@@ -59,7 +59,7 @@ int main(int argc, const char** argv) {
                     .UpperLimit(TReadLimit().RowIndex(2)))); // читаем с 0й по 2ю строки, 2я невключительно
 
         Cout << "*** FIRST TWO ROWS ***" << Endl;
-        for (; reader->IsValid(); reader->Next()) { // reader имеет тот же самый интерфейс, что и reader в джобах
+        for (; reader->IsValid(); reader->Next()) {
             auto& row = reader->GetRow();
             Cout << "russian: " << row["russian"].AsString() << "; " << "english: " << row["english"].AsString() << Endl;
         }
@@ -72,7 +72,6 @@ int main(int argc, const char** argv) {
             .AddInput(table)
             .Output(table));
 
-        // Читаем первые 2 строки.
         auto reader = client->CreateTableReader<TNode>(TRichYPath(table).AddRange(
                 TReadRange()
                     .Exact(TReadLimit().Key({"three"})))); // если нужен один ключ а не диапазон, можно использовать
@@ -81,7 +80,7 @@ int main(int argc, const char** argv) {
                                                            // только для сортированных таблиц.
 
         Cout << "*** EXACT KEY ***" << Endl;
-        for (; reader->IsValid(); reader->Next()) { // reader имеет тот же самый интерфейс, что и reader в джобах
+        for (; reader->IsValid(); reader->Next()) {
             auto& row = reader->GetRow();
             Cout << "russian: " << row["russian"].AsString() << "; " << "english: " << row["english"].AsString() << Endl;
         }
