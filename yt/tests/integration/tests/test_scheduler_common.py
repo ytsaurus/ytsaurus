@@ -3492,7 +3492,7 @@ class TestControllerMemoryUsage(YTEnvSetup):
 
         usage_before = get(op.get_path() + "/controller_orchid/memory_usage")
         # Normal controller footprint should not exceed a few megabytes.
-        assert usage_before < 2 * 10**6
+        assert usage_before < 4 * 10**6
         print >>sys.stderr, "usage_before =", usage_before
 
         events.notify_event("start")
