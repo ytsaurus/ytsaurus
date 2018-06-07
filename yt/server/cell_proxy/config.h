@@ -19,32 +19,21 @@ namespace NCellProxy {
 
 class TCellProxyConfig
     : public TServerConfig
+    , public NAuth::TAuthenticationManagerConfig
 {
 public:
     //! Proxy-to-master connection.
     NApi::TNativeConnectionConfigPtr ClusterConnection;
-    NAuth::TDefaultBlackboxServiceConfigPtr Blackbox;
-    NAuth::TBlackboxCookieAuthenticatorConfigPtr CookieAuthenticator;
-    NAuth::TCachingBlackboxTokenAuthenticatorConfigPtr TokenAuthenticator;
     NRpcProxy::TApiServiceConfigPtr ApiService;
     NRpcProxy::TDiscoveryServiceConfigPtr DiscoveryService;
     //! Known RPC proxy addresses.
     NNodeTrackerClient::TNetworkAddressList Addresses;
     int WorkerThreadPoolSize;
-    //! Switch off for local mode and testing purposes only.
-    //! If enabled, every call is considered to be invoked as root.
-    bool EnableAuthentication;
 
     TCellProxyConfig()
     {
         RegisterParameter("cluster_connection", ClusterConnection);
 
-        RegisterParameter("blackbox", Blackbox)
-            .DefaultNew();
-        RegisterParameter("cookie_authenticator", CookieAuthenticator)
-            .DefaultNew();
-        RegisterParameter("token_authenticator", TokenAuthenticator)
-            .DefaultNew();
         RegisterParameter("api_service", ApiService)
             .DefaultNew();
         RegisterParameter("discovery_service", DiscoveryService)
@@ -54,8 +43,6 @@ public:
         RegisterParameter("worker_thread_pool_size", WorkerThreadPoolSize)
             .GreaterThan(0)
             .Default(8);
-        RegisterParameter("enable_authentication", EnableAuthentication)
-            .Default(true);
 
         RegisterPostprocessor([&] {
             ClusterConnection->ThreadPoolSize = Null;

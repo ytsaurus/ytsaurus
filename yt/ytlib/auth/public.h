@@ -2,6 +2,8 @@
 
 #include <yt/core/misc/public.h>
 
+#include <yt/core/net/address.h>
+
 namespace NYT {
 namespace NAuth {
 
@@ -15,7 +17,6 @@ DECLARE_REFCOUNTED_CLASS(TCachingCypressTokenAuthenticatorConfig)
 DECLARE_REFCOUNTED_CLASS(TBlackboxCookieAuthenticatorConfig)
 DECLARE_REFCOUNTED_CLASS(TCachingBlackboxCookieAuthenticatorConfig)
 DECLARE_REFCOUNTED_CLASS(TAuthenticationManagerConfig)
-
 DECLARE_REFCOUNTED_CLASS(TAuthenticationManager)
 
 DECLARE_REFCOUNTED_STRUCT(IBlackboxService)
@@ -47,7 +48,8 @@ DEFINE_ENUM(EBlackboxException,
 struct TTokenCredentials
 {
     TString Token;
-    TString UserIP;
+    // NB: UserIP may be ignored for caching purposes.
+    NNet::TNetworkAddress UserIP;
 };
 
 struct TCookieCredentials
@@ -55,7 +57,7 @@ struct TCookieCredentials
     TString SessionId;
     TString SslSessionId;
     TString Host;
-    TString UserIP;
+    NNet::TNetworkAddress UserIP;
 };
 
 struct TAuthenticationResult
@@ -68,7 +70,7 @@ inline bool operator ==(
     const TTokenCredentials& lhs,
     const TTokenCredentials& rhs)
 {
-    return std::tie(lhs.Token, lhs.UserIP) == std::tie(rhs.Token, rhs.UserIP);
+    return std::tie(lhs.Token) == std::tie(rhs.Token);
 }
 
 inline bool operator ==(
@@ -91,7 +93,6 @@ struct hash<NYT::NAuth::TTokenCredentials>
     {
         size_t result = 0;
         NYT::HashCombine(result, credentials.Token);
-        NYT::HashCombine(result, credentials.UserIP);
         return result;
     }
 };

@@ -49,7 +49,7 @@ public:
                 {"sessionid", credentials.SessionId},
                 {"sslsessionid", credentials.SslSessionId},
                 {"host", credentials.Host},
-                {"userip", credentials.UserIP}})
+                {"userip", credentials.UserIP.FormatIP()}})
             .Apply(BIND(
                 &TBlackboxCookieAuthenticator::OnCallResult,
                 MakeStrong(this),
@@ -162,13 +162,14 @@ public:
         : Underlying_(std::move(underlying))
     { }
 
-    virtual TFuture<NRpc::TAuthenticationResult> Authenticate(const NRpc::NProto::TRequestHeader& header) override
+    virtual TFuture<NRpc::TAuthenticationResult> Authenticate(
+        const NRpc::TAuthenticationContext& context) override
     {
-        if (!header.HasExtension(NRpc::NProto::TCredentialsExt::credentials_ext)) {
+        if (!context.Header->HasExtension(NRpc::NProto::TCredentialsExt::credentials_ext)) {
             return Null;
         }
 
-        const auto& ext = header.GetExtension(NRpc::NProto::TCredentialsExt::credentials_ext);
+        const auto& ext = context.Header->GetExtension(NRpc::NProto::TCredentialsExt::credentials_ext);
         if (!ext.has_session_id() && !ext.has_ssl_session_id()) {
             return Null;
         }
@@ -177,7 +178,7 @@ public:
         credentials.SessionId = ext.session_id();
         credentials.SslSessionId = ext.ssl_session_id();
         credentials.Host = ext.domain();
-        credentials.UserIP = ext.user_ip();
+        credentials.UserIP = context.UserIP;
         return Underlying_->Authenticate(credentials).Apply(
             BIND([=] (const TAuthenticationResult& authResult) {
                 NRpc::TAuthenticationResult rpcResult;

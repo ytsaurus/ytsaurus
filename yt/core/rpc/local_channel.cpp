@@ -12,6 +12,8 @@
 #include <yt/core/ytree/convert.h>
 #include <yt/core/ytree/fluent.h>
 
+#include <yt/core/net/address.h>
+
 #include <atomic>
 
 namespace NYT {
@@ -130,6 +132,11 @@ private:
         virtual TTcpDispatcherStatistics GetStatistics() const override
         {
             return {};
+        }
+
+        virtual const NNet::TNetworkAddress& GetEndpointAddress() const override
+        {
+            return NNet::NullNetworkAddress;
         }
 
         virtual TFuture<void> Send(TSharedRefArray message, const NBus::TSendOptions& /*options*/) override

@@ -70,12 +70,16 @@ public:
 
     TIP6Address ToIP6Address() const;
 
+    TString FormatIP() const;
+
 private:
     sockaddr_storage Storage;
     socklen_t Length;
 
     static socklen_t GetGenericLength(const sockaddr& sockAddr);
 };
+
+extern const TNetworkAddress NullNetworkAddress;
 
 TString ToString(const TNetworkAddress& address, bool withPort = true);
 
@@ -202,3 +206,13 @@ private:
 
 } // namespace NNet
 } // namespace NYT
+
+template <>
+struct hash<NYT::NNet::TNetworkAddress>
+{
+    inline size_t operator()(const NYT::NNet::TNetworkAddress& address) const
+    {
+        TStringBuf rawAddress{reinterpret_cast<const char*>(address.GetSockAddr()), address.GetLength()};
+        return rawAddress.hash();
+    }
+};

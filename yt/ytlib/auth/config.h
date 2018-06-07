@@ -126,7 +126,7 @@ DEFINE_REFCOUNTED_TYPE(TCachingBlackboxCookieAuthenticatorConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TAuthenticationManagerConfig
-    : public NYT::NYTree::TYsonSerializable
+    : public virtual NYT::NYTree::TYsonSerializable
 {
 public:
     bool RequireAuthentication;
@@ -137,13 +137,18 @@ public:
 
     TAuthenticationManagerConfig()
     {
+        // COMPAT(prime@)
         RegisterParameter("require_authentication", RequireAuthentication)
-            .Default(false);
+            .Alias("enable_authentication")
+            .Default(true);
         RegisterParameter("blackbox_token_authenticator", BlackboxTokenAuthenticator)
+            .Alias("token_authenticator")
             .Optional();
         RegisterParameter("blackbox_cookie_authenticator", BlackboxCookieAuthenticator)
+            .Alias("cookie_authenticator")
             .Optional();
         RegisterParameter("blackbox_service", BlackboxService)
+            .Alias("blackbox")
             .Optional();
         RegisterParameter("cypress_token_authenticator", CypressTokenAuthenticator)
             .Optional();

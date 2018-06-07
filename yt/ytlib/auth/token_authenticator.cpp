@@ -42,7 +42,7 @@ public:
         const TTokenCredentials& credentials) override
     {
         const auto& token = credentials.Token;
-        const auto& userIP = credentials.UserIP;
+        auto userIP = credentials.UserIP.FormatIP();
         auto tokenMD5 = TMD5Hasher().Append(token).GetHexDigestUpper();
         LOG_DEBUG("Authenticating user with token via Blackbox (TokenMD5: %v, UserIP: %v)",
             tokenMD5,
@@ -332,19 +332,20 @@ public:
         : Underlying_(std::move(underlying))
     { }
 
-    virtual TFuture<NRpc::TAuthenticationResult> Authenticate(const NRpc::NProto::TRequestHeader& header) override
+    virtual TFuture<NRpc::TAuthenticationResult> Authenticate(
+        const NRpc::TAuthenticationContext& context) override
     {
-        if (!header.HasExtension(NRpc::NProto::TCredentialsExt::credentials_ext)) {
+        if (!context.Header->HasExtension(NRpc::NProto::TCredentialsExt::credentials_ext)) {
             return Null;
         }
 
-        const auto& ext = header.GetExtension(NRpc::NProto::TCredentialsExt::credentials_ext);
+        const auto& ext = context.Header->GetExtension(NRpc::NProto::TCredentialsExt::credentials_ext);
         if (!ext.has_token()) {
             return Null;
         }
 
         TTokenCredentials credentials;
-        credentials.UserIP = ext.user_ip();
+        credentials.UserIP = context.UserIP;
         credentials.Token = ext.token();
         return Underlying_->Authenticate(credentials).Apply(
             BIND([=] (const TAuthenticationResult& authResult) {

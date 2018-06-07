@@ -51,6 +51,7 @@ public:
         SOCKET socket,
         const TString& endpointDescription,
         const NYTree::IAttributeDictionary& endpointAttributes,
+        const NNet::TNetworkAddress& endpointAddress,
         const TNullable<TString>& address,
         const TNullable<TString>& unixDomainName,
         IMessageHandlerPtr handler,
@@ -71,6 +72,7 @@ public:
     // IBus implementation.
     virtual const TString& GetEndpointDescription() const override;
     virtual const NYTree::IAttributeDictionary& GetEndpointAttributes() const override;
+    virtual const NNet::TNetworkAddress& GetEndpointAddress() const override;
     virtual TTcpDispatcherStatistics GetStatistics() const override;
     virtual TFuture<void> Send(TSharedRefArray message, const TSendOptions& options) override;
     virtual void SetTosLevel(TTosLevel tosLevel) override;
@@ -141,6 +143,7 @@ private:
     const TConnectionId Id_;
     const TString EndpointDescription_;
     const std::unique_ptr<NYTree::IAttributeDictionary> EndpointAttributes_;
+    const NNet::TNetworkAddress EndpointAddress_;
     const TNullable<TString> Address_;
     const TNullable<TString> UnixDomainName_;
     const IMessageHandlerPtr Handler_;

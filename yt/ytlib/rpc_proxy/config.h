@@ -30,6 +30,7 @@ public:
     TDuration DefaultPingPeriod;
     NBus::TTcpBusConfigPtr BusClient;
     NHttp::TClientConfigPtr HttpClient;
+    bool SendLegacyUserIP;
 
     TConnectionConfig()
     {
@@ -62,6 +63,9 @@ public:
             .DefaultNew();
         RegisterParameter("http_client", HttpClient)
             .DefaultNew();
+        // COMPAT(prime)
+        RegisterParameter("send_legacy_user_ip", SendLegacyUserIP)
+            .Default(true);
     }
 };
 
