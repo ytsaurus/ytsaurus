@@ -8,8 +8,6 @@
 
 #include <yt/core/concurrency/thread_affinity.h>
 
-#include <yt/core/net/address.h>
-
 #include <yt/core/misc/error.h>
 
 #include <yt/core/ytree/convert.h>
@@ -25,6 +23,7 @@
 namespace NYT {
 namespace NBus {
 
+using namespace NNet;
 using namespace NYson;
 using namespace NYTree;
 
@@ -63,6 +62,12 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
         return Connection_->GetEndpointAttributes();
+    }
+
+    virtual const NNet::TNetworkAddress& GetEndpointAddress() const override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+        return Connection_->GetEndpointAddress();
     }
 
     virtual TTcpDispatcherStatistics GetStatistics() const
@@ -157,6 +162,7 @@ public:
             INVALID_SOCKET,
             EndpointDescription_,
             *endpointAttributes,
+            TNetworkAddress{},
             Config_->Address,
             Config_->UnixDomainName,
             handler,

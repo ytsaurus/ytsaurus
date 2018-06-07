@@ -18,6 +18,8 @@
 
 #include <yt/core/bus/bus.h>
 
+#include <yt/core/net/address.h>
+
 #include <yt/core/profiling/timing.h>
 
 namespace NYT {

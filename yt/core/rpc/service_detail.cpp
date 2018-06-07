@@ -14,6 +14,7 @@
 #include <yt/core/concurrency/thread_affinity.h>
 
 #include <yt/core/net/local_address.h>
+#include <yt/core/net/address.h>
 
 #include <yt/core/misc/string.h>
 #include <yt/core/misc/tls_cache.h>
@@ -581,7 +582,11 @@ void TServiceBase::HandleRequest(
     Profiler.Increment(AuthenticationQueueSizeCounter_, +1);
 
     NProfiling::TWallTimer timer;
-    auto asyncAuthResult = Authenticator_->Authenticate(*acceptedRequest.Header);
+
+    TAuthenticationContext context;
+    context.Header = acceptedRequest.Header.get();
+    context.UserIP = acceptedRequest.ReplyBus->GetEndpointAddress();
+    auto asyncAuthResult = Authenticator_->Authenticate(context);
     if (asyncAuthResult.IsSet()) {
         OnRequestAuthenticated(timer, std::move(acceptedRequest), asyncAuthResult.Get());
     } else {

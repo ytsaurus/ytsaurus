@@ -125,8 +125,10 @@ IAdminPtr TConnection::CreateAdmin(const TAdminOptions&)
 
 NApi::IClientPtr TConnection::CreateClient(const TClientOptions& options)
 {
-    auto localAddress = GetLocalAddress();
-    LOG_DEBUG("Creating client (LocalAddress: %v)", localAddress);
+    TString localAddress;
+    if (Config_->SendLegacyUserIP) {
+        localAddress = GetLocalAddress();
+    }
 
     if (Config_->ClusterUrl) {
         auto guard = Guard(HttpDiscoveryLock_);

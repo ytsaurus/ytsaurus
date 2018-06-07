@@ -6,6 +6,8 @@
 
 #include <yt/core/bus/public.h>
 
+#include <yt/core/net/public.h>
+
 #include <yt/core/logging/log.h>
 
 #include <yt/core/misc/ref.h>

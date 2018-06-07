@@ -278,9 +278,12 @@ protected:
             .WillOnce(Return(MakeFuture<INodePtr>(ConvertTo<INodePtr>(TYsonString(yson)))));
     }
 
-    TFuture<TAuthenticationResult> Invoke(const TString& token, const TString& userIp)
+    TFuture<TAuthenticationResult> Invoke(const TString& token, const TString& userIP)
     {
-        return Authenticator_->Authenticate(TTokenCredentials{token, userIp});
+        return Authenticator_->Authenticate(TTokenCredentials{
+            token,
+            NNet::TNetworkAddress::Parse(userIP)
+        });
     }
 
     TBlackboxTokenAuthenticatorConfigPtr Config_;
@@ -292,7 +295,7 @@ TEST_F(TTokenAuthenticatorTest, FailOnUnderlyingFailure)
 {
     EXPECT_CALL(*Blackbox_, Call("oauth", _))
         .WillOnce(Return(MakeFuture<INodePtr>(TError("Underlying failure"))));
-    auto result = Invoke("mytoken", "myip").Get();
+    auto result = Invoke("mytoken", "127.0.0.1").Get();
     ASSERT_TRUE(!result.IsOK());
     EXPECT_THAT(CollectMessages(result), HasSubstr("Underlying failure"));
 }
@@ -300,7 +303,7 @@ TEST_F(TTokenAuthenticatorTest, FailOnUnderlyingFailure)
 TEST_F(TTokenAuthenticatorTest, FailOnInvalidResponse1)
 {
     MockCall("{}");
-    auto result = Invoke("mytoken", "myip").Get();
+    auto result = Invoke("mytoken", "127.0.0.1").Get();
     ASSERT_TRUE(!result.IsOK());
     EXPECT_THAT(CollectMessages(result), HasSubstr("invalid response"));
 }
@@ -308,7 +311,7 @@ TEST_F(TTokenAuthenticatorTest, FailOnInvalidResponse1)
 TEST_F(TTokenAuthenticatorTest, FailOnInvalidResponse2)
 {
     MockCall("{status={id=0}}");
-    auto result = Invoke("mytoken", "myip").Get();
+    auto result = Invoke("mytoken", "127.0.0.1").Get();
     ASSERT_TRUE(!result.IsOK());
     EXPECT_THAT(CollectMessages(result), AllOf(
         HasSubstr("invalid response"),
@@ -320,7 +323,7 @@ TEST_F(TTokenAuthenticatorTest, FailOnInvalidResponse2)
 TEST_F(TTokenAuthenticatorTest, FailOnRejection)
 {
     MockCall("{status={id=5}}");
-    auto result = Invoke("mytoken", "myip").Get();
+    auto result = Invoke("mytoken", "127.0.0.1").Get();
     ASSERT_TRUE(!result.IsOK());
     EXPECT_THAT(CollectMessages(result), HasSubstr("rejected token"));
 }
@@ -329,7 +332,7 @@ TEST_F(TTokenAuthenticatorTest, FailOnInvalidScope)
 {
     Config_->Scope = "yt:api";
     MockCall(R"yy({status={id=0};oauth={scope="i-am-hacker";client_id="i-am-hacker";client_name="yes-i-am"};login=hacker})yy");
-    auto result = Invoke("mytoken", "myip").Get();
+    auto result = Invoke("mytoken", "127.0.0.1").Get();
     ASSERT_TRUE(!result.IsOK());
     EXPECT_THAT(CollectMessages(result), HasSubstr("does not provide a valid scope"));
 }
@@ -338,7 +341,7 @@ TEST_F(TTokenAuthenticatorTest, Success)
 {
     Config_->Scope = "yt:api";
     MockCall(R"yy({status={id=0};oauth={scope="x:1 yt:api x:2";client_id="cid";client_name="nm"};login=sandello})yy");
-    auto result = Invoke("mytoken", "myip").Get();
+    auto result = Invoke("mytoken", "127.0.0.1").Get();
     ASSERT_TRUE(result.IsOK());
     EXPECT_EQ("sandello", result.Value().Login);
     EXPECT_EQ("blackbox:token:cid:nm", result.Value().Realm);
@@ -372,7 +375,7 @@ protected:
         credentials.SessionId = sessionId;
         credentials.SslSessionId = sslSessionId;
         credentials.Host = host;
-        credentials.UserIP = userIP;
+        credentials.UserIP = NNet::TNetworkAddress::Parse(userIP);
         return Authenticator_->Authenticate(credentials);
     }
 
@@ -386,7 +389,7 @@ TEST_F(TCookieAuthenticatorTest, FailOnUnderlyingFailure)
 {
     EXPECT_CALL(*Blackbox_, Call("sessionid", _))
         .WillOnce(Return(MakeFuture<INodePtr>(TError("Underlying failure"))));
-    auto result = Authenticate("mysessionid", "mysslsessionid", "myhost", "myip").Get();
+    auto result = Authenticate("mysessionid", "mysslsessionid", "myhost", "127.0.0.1").Get();
     ASSERT_TRUE(!result.IsOK());
     EXPECT_THAT(CollectMessages(result), HasSubstr("Underlying failure"));
 }
@@ -394,7 +397,7 @@ TEST_F(TCookieAuthenticatorTest, FailOnUnderlyingFailure)
 TEST_F(TCookieAuthenticatorTest, FailOnInvalidResponse1)
 {
     MockCall("{}");
-    auto result = Authenticate("mysessionid", "mysslsessionid", "myhost", "myip").Get();
+    auto result = Authenticate("mysessionid", "mysslsessionid", "myhost", "127.0.0.1").Get();
     ASSERT_TRUE(!result.IsOK());
     EXPECT_THAT(CollectMessages(result), HasSubstr("invalid response"));
 }
@@ -402,7 +405,7 @@ TEST_F(TCookieAuthenticatorTest, FailOnInvalidResponse1)
 TEST_F(TCookieAuthenticatorTest, FailOnInvalidResponse2)
 {
     MockCall("{status={id=0}}");
-    auto result = Authenticate("mysessionid", "mysslsessionid", "myhost", "myip").Get();
+    auto result = Authenticate("mysessionid", "mysslsessionid", "myhost", "127.0.0.1").Get();
     ASSERT_TRUE(!result.IsOK());
     EXPECT_THAT(CollectMessages(result), AllOf(
         HasSubstr("invalid response"),
@@ -412,7 +415,7 @@ TEST_F(TCookieAuthenticatorTest, FailOnInvalidResponse2)
 TEST_F(TCookieAuthenticatorTest, FailOnRejection)
 {
     MockCall("{status={id=5}}");
-    auto result = Authenticate("mysessionid", "mysslsessionid", "myhost", "myip").Get();
+    auto result = Authenticate("mysessionid", "mysslsessionid", "myhost", "127.0.0.1").Get();
     ASSERT_TRUE(!result.IsOK());
     EXPECT_THAT(CollectMessages(result), HasSubstr("rejected session cookie"));
 }
@@ -420,7 +423,7 @@ TEST_F(TCookieAuthenticatorTest, FailOnRejection)
 TEST_F(TCookieAuthenticatorTest, Success)
 {
     MockCall("{status={id=0};login=sandello}");
-    auto result = Authenticate("mysessionid", "mysslsessionid", "myhost", "myip").Get();
+    auto result = Authenticate("mysessionid", "mysslsessionid", "myhost", "127.0.0.1").Get();
     ASSERT_TRUE(result.IsOK());
     EXPECT_EQ("sandello", result.Value().Login);
     EXPECT_EQ("blackbox:cookie", result.Value().Realm);

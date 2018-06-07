@@ -1,10 +1,6 @@
 #include "bootstrap.h"
 #include "config.h"
 
-#include <yt/ytlib/auth/default_blackbox_service.h>
-#include <yt/ytlib/auth/token_authenticator.h>
-#include <yt/ytlib/auth/cookie_authenticator.h>
-
 #include <yt/server/admin_server/admin_service.h>
 
 #include <yt/server/misc/address_helpers.h>
@@ -25,6 +21,8 @@
 #include <yt/ytlib/orchid/orchid_service.h>
 
 #include <yt/ytlib/core_dump/core_dumper.h>
+
+#include <yt/ytlib/auth/authentication_manager.h>
 
 #include <yt/core/bus/server.h>
 
@@ -48,6 +46,7 @@
 #include <yt/core/rpc/response_keeper.h>
 #include <yt/core/rpc/retrying_channel.h>
 #include <yt/core/rpc/server.h>
+#include <yt/core/rpc/authenticator.h>
 
 #include <yt/core/http/server.h>
 
@@ -114,10 +113,10 @@ void TBootstrap::DoRun()
     clientOptions.User = NSecurityClient::RootUserName;
     NativeClient_ = NativeConnection_->CreateNativeClient(clientOptions);
 
-    auto blackbox = CreateDefaultBlackboxService(Config_->Blackbox, GetControlInvoker());
-    CookieAuthenticator_ = CreateBlackboxCookieAuthenticator(Config_->CookieAuthenticator, blackbox);
-    TokenAuthenticator_ = CreateBlackboxTokenAuthenticator(Config_->TokenAuthenticator, blackbox);
-    TokenAuthenticator_ = CreateCachingTokenAuthenticator(Config_->TokenAuthenticator, TokenAuthenticator_);
+    AuthenticationManager_ = New<TAuthenticationManager>(
+        Config_,
+        GetControlInvoker(),
+        NativeClient_);
     ProxyCoordinator_ = CreateProxyCoordinator();
 
     BusServer_ = CreateTcpBusServer(Config_->BusServer);
@@ -201,14 +200,9 @@ const INativeClientPtr& TBootstrap::GetNativeClient() const
     return NativeClient_;
 }
 
-const ITokenAuthenticatorPtr& TBootstrap::GetTokenAuthenticator() const
+const IAuthenticatorPtr& TBootstrap::GetRpcAuthenticator() const
 {
-    return TokenAuthenticator_;
-}
-
-const ICookieAuthenticatorPtr& TBootstrap::GetCookieAuthenticator() const
-{
-    return CookieAuthenticator_;
+    return AuthenticationManager_->GetRpcAuthenticator();
 }
 
 const IProxyCoordinatorPtr& TBootstrap::GetProxyCoordinator() const

@@ -58,6 +58,7 @@ TTcpConnection::TTcpConnection(
     int socket,
     const TString& endpointDescription,
     const IAttributeDictionary& endpointAttributes,
+    const TNetworkAddress& endpointAddress,
     const TNullable<TString>& address,
     const TNullable<TString>& unixDomainName,
     IMessageHandlerPtr handler,
@@ -67,6 +68,7 @@ TTcpConnection::TTcpConnection(
     , Id_(id)
     , EndpointDescription_(endpointDescription)
     , EndpointAttributes_(endpointAttributes.Clone())
+    , EndpointAddress_(endpointAddress)
     , Address_(address)
     , UnixDomainName_(unixDomainName)
     , Handler_(std::move(handler))
@@ -376,6 +378,11 @@ const TString& TTcpConnection::GetEndpointDescription() const
 const IAttributeDictionary& TTcpConnection::GetEndpointAttributes() const
 {
     return *EndpointAttributes_;
+}
+
+const TNetworkAddress& TTcpConnection::GetEndpointAddress() const
+{
+    return EndpointAddress_;
 }
 
 TTcpDispatcherStatistics TTcpConnection::GetStatistics() const
