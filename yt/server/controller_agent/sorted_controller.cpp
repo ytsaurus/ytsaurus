@@ -1436,7 +1436,7 @@ IOperationControllerPtr CreateAppropriateReduceController(
     bool isJoinReduce)
 {
     auto options = isJoinReduce ? config->JoinReduceOperationOptions : config->ReduceOperationOptions;
-    INodePtr mergedSpec = UpdateSpec(options->SpecTemplate, operation->GetSpec());
+    auto mergedSpec = UpdateSpec(options->SpecTemplate, operation->GetSpec());
     auto spec = ParseOperationSpec<TNewReduceOperationSpec>(mergedSpec);
     if (spec->UseNewController) {
         if (!spec->EnableKeyGuarantee.HasValue()) {
