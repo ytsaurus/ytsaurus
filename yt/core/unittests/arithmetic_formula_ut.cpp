@@ -229,16 +229,23 @@ TEST(TArithmeticFormulaTest, Equality)
 
 TEST(TArithmeticFormulaTest, TestValidateVariable)
 {
-    ValidateFormulaVariable("abc");
-    ValidateFormulaVariable("abc123");
-    ValidateFormulaVariable("ABc_123");
-    ValidateFormulaVariable("in");
-    EXPECT_THROW(ValidateFormulaVariable("123abc"), TErrorException);
-    EXPECT_THROW(ValidateFormulaVariable(" abc"), TErrorException);
-    EXPECT_THROW(ValidateFormulaVariable(" abc"), TErrorException);
-    EXPECT_THROW(ValidateFormulaVariable("ab c"), TErrorException);
-    EXPECT_THROW(ValidateFormulaVariable(""), TErrorException);
-    EXPECT_THROW(ValidateFormulaVariable("dollar$"), TErrorException);
+    ValidateArithmeticFormulaVariable("abc");
+    ValidateArithmeticFormulaVariable("abc123");
+    ValidateArithmeticFormulaVariable("ABc_123");
+    ValidateArithmeticFormulaVariable("in");
+
+    EXPECT_THROW(ValidateArithmeticFormulaVariable("123abc"), TErrorException);
+    EXPECT_THROW(ValidateArithmeticFormulaVariable(" abc"), TErrorException);
+    EXPECT_THROW(ValidateArithmeticFormulaVariable(" abc"), TErrorException);
+    EXPECT_THROW(ValidateArithmeticFormulaVariable("ab c"), TErrorException);
+    EXPECT_THROW(ValidateArithmeticFormulaVariable(""), TErrorException);
+    EXPECT_THROW(ValidateArithmeticFormulaVariable("dollar$"), TErrorException);
+    EXPECT_THROW(ValidateArithmeticFormulaVariable("a+b"), TErrorException);
+
+    // OK for boolean, but parse error for arithmetic
+    EXPECT_THROW(ValidateArithmeticFormulaVariable("var/2"), TErrorException);
+    EXPECT_THROW(ValidateArithmeticFormulaVariable("var-var-var"), TErrorException);
+    EXPECT_THROW(ValidateArithmeticFormulaVariable("tablet_common/news-queue"), TErrorException);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

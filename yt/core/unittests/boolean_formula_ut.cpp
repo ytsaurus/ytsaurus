@@ -49,7 +49,10 @@ INSTANTIATE_TEST_CASE_P(
         std::make_tuple("(a|c)&(b|c)", std::vector<TString>{"a", "b"}, true),
         std::make_tuple("(a|b)&c", std::vector<TString>{"a", "b"}, false),
         std::make_tuple("a|b|c", std::vector<TString>{"b"}, true),
-        std::make_tuple("!a & b & !c", std::vector<TString>{"b"}, true)
+        std::make_tuple("!a & b & !c", std::vector<TString>{"b"}, true),
+        std::make_tuple("var-1 | !var/2", std::vector<TString>{"var-1"}, true),
+        std::make_tuple("var-1 | !var/2", std::vector<TString>{"var/2"}, false),
+        std::make_tuple("var-1 | !var/2", std::vector<TString>{""}, true)
 ));
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -95,7 +98,6 @@ INSTANTIATE_TEST_CASE_P(
         "a&&b",
         "a+b",
         "a^b",
-        "a-b",
         "a==b",
         "a!=b",
         "a>=b",
@@ -103,8 +105,11 @@ INSTANTIATE_TEST_CASE_P(
         "a>b",
         "a<b",
         "a*b",
-        "a/b",
-        "a%b"
+        "a%b",
+        "/a",
+        "-",
+        "a /b",
+        "a & /b"
 ));
 
 class TBooleanFormulaTest2
@@ -123,6 +128,21 @@ TEST_F(TBooleanFormulaTest2, Equality)
     EXPECT_TRUE(formulaA.GetHash() == formulaB.GetHash());
     EXPECT_FALSE(formulaA.GetHash() == formulaC.GetHash());
 }
+
+TEST(TBooleanFormulaTest, ValidateVariable)
+{
+    ValidateBooleanFormulaVariable("var");
+    ValidateBooleanFormulaVariable("var/2");
+    ValidateBooleanFormulaVariable("var-var-var");
+    ValidateBooleanFormulaVariable("tablet_common/news-queue");
+    ValidateBooleanFormulaVariable("VAR123VAR");
+
+    EXPECT_THROW(ValidateBooleanFormulaVariable("2var"), TErrorException);
+    EXPECT_THROW(ValidateBooleanFormulaVariable("foo bar"), TErrorException);
+    EXPECT_THROW(ValidateBooleanFormulaVariable(""), TErrorException);
+    EXPECT_THROW(ValidateBooleanFormulaVariable("a+b"), TErrorException);
+}
+
 
 ////////////////////////////////////////////////////////////////////////////////
 
