@@ -848,5 +848,29 @@ std::vector<TInputChunkPtr> CollectTableInputChunks(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <typename TValue>
+void UpdateColumnarStatistics(TColumnarStatisticsExt& columnarStatisticsExt, const TRange<TValue>& values)
+{
+    for (const auto& value : values) {
+        auto id = value.Id;
+        if (id >= columnarStatisticsExt.data_weights().size()) {
+            columnarStatisticsExt.mutable_data_weights()->Resize(id + 1, 0);
+        }
+        columnarStatisticsExt.set_data_weights(id, columnarStatisticsExt.data_weights(id) + GetDataWeight(value));
+    }
+}
+
+// We explicitly instantiate the template function below for two possible value types. This allows us to not
+// include it to the -inl.h file and to move the implementation to the cpp file reducing the compilation time.
+template void UpdateColumnarStatistics<TUnversionedValue>(
+    TColumnarStatisticsExt& columnarStatisticsExt,
+    const TRange<TUnversionedValue>& values);
+template void UpdateColumnarStatistics<TVersionedValue>(
+    TColumnarStatisticsExt& columnarStatisticsExt,
+    const TRange<TVersionedValue>& values);
+
+////////////////////////////////////////////////////////////////////////////////
+
+
 } // namespace NYT
 } // namespace NTableClient

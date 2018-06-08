@@ -11,6 +11,8 @@
 #include <yt/ytlib/api/native_client.h>
 #include <yt/ytlib/api/native_connection.h>
 
+#include <yt/ytlib/table_client/helpers.h>
+
 #include <yt/ytlib/table_chunk_format/column_writer.h>
 #include <yt/ytlib/table_chunk_format/data_block_writer.h>
 #include <yt/ytlib/table_chunk_format/timestamp_writer.h>
@@ -193,6 +195,8 @@ protected:
     struct TVersionedChunkWriterBaseTag { };
     TSamplingRowMerger SamplingRowMerger_;
 
+    NProto::TColumnarStatisticsExt ColumnarStatisticsExt_;
+
 #if 0
     TBloomFilterBuilder KeyFilter_;
 #endif
@@ -221,6 +225,7 @@ protected:
         SetProtoExtension(meta.mutable_extensions(), ToProto<TTableSchemaExt>(Schema_));
         SetProtoExtension(meta.mutable_extensions(), BlockMetaExt_);
         SetProtoExtension(meta.mutable_extensions(), SamplesExt_);
+        SetProtoExtension(meta.mutable_extensions(), ColumnarStatisticsExt_);
 
 #if 0
         if (KeyFilter_.IsValid()) {
@@ -360,6 +365,10 @@ private:
 
         ++RowCount_;
         DataWeight_ += rowWeight;
+
+        UpdateColumnarStatistics(ColumnarStatisticsExt_, MakeRange(row.BeginKeys(), row.EndKeys()));
+        UpdateColumnarStatistics(ColumnarStatisticsExt_, MakeRange(row.BeginValues(), row.EndValues()));
+
         BlockWriter_->WriteRow(row, beginPreviousKey, endPreviousKey);
     }
 
