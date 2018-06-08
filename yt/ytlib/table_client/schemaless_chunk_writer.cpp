@@ -354,13 +354,7 @@ protected:
         DataWeight_ += weight;
         DataWeightSinceLastBlockFlush_ += weight;
 
-        for (const auto& value : row) {
-            auto id = value.Id;
-            if (id >= ColumnarStatisticsExt_.data_weights().size()) {
-                ColumnarStatisticsExt_.mutable_data_weights()->Resize(id + 1, 0);
-            }
-            ColumnarStatisticsExt_.set_data_weights(id, ColumnarStatisticsExt_.data_weights(id) + NTableClient::GetDataWeight(value));
-        }
+        UpdateColumnarStatistics(ColumnarStatisticsExt_, MakeRange(row.Begin(), row.End()));
 
         return weight;
     }
