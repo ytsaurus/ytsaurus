@@ -52,11 +52,11 @@ public:
     {
         RegisterParameter("scope", Scope);
         RegisterParameter("enable_scope_check", EnableScopeCheck)
-            .Optional();
+            .Default(true);
     }
 
     TString Scope;
-    bool EnableScopeCheck = true;
+    bool EnableScopeCheck;
 };
 
 DEFINE_REFCOUNTED_TYPE(TBlackboxTokenAuthenticatorConfig)
@@ -100,28 +100,62 @@ DEFINE_REFCOUNTED_TYPE(TCachingCypressTokenAuthenticatorConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCookieAuthenticatorConfig
+class TBlackboxCookieAuthenticatorConfig
     : public virtual NYTree::TYsonSerializable
 {
 public:
-    TCookieAuthenticatorConfig()
+    TBlackboxCookieAuthenticatorConfig()
     { }
 };
 
-DEFINE_REFCOUNTED_TYPE(TCookieAuthenticatorConfig)
+DEFINE_REFCOUNTED_TYPE(TBlackboxCookieAuthenticatorConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCachingCookieAuthenticatorConfig
-    : public TCookieAuthenticatorConfig
+class TCachingBlackboxCookieAuthenticatorConfig
+    : public TBlackboxCookieAuthenticatorConfig
     , public TAsyncExpiringCacheConfig
 {
 public:
-    TCachingCookieAuthenticatorConfig()
+    TCachingBlackboxCookieAuthenticatorConfig()
     { }
 };
 
-DEFINE_REFCOUNTED_TYPE(TCachingCookieAuthenticatorConfig)
+DEFINE_REFCOUNTED_TYPE(TCachingBlackboxCookieAuthenticatorConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TAuthenticationManagerConfig
+    : public virtual NYT::NYTree::TYsonSerializable
+{
+public:
+    bool RequireAuthentication;
+    NAuth::TCachingBlackboxTokenAuthenticatorConfigPtr BlackboxTokenAuthenticator;
+    NAuth::TCachingBlackboxCookieAuthenticatorConfigPtr BlackboxCookieAuthenticator;
+    NAuth::TDefaultBlackboxServiceConfigPtr BlackboxService;
+    NAuth::TCachingCypressTokenAuthenticatorConfigPtr CypressTokenAuthenticator;
+
+    TAuthenticationManagerConfig()
+    {
+        // COMPAT(prime@)
+        RegisterParameter("require_authentication", RequireAuthentication)
+            .Alias("enable_authentication")
+            .Default(true);
+        RegisterParameter("blackbox_token_authenticator", BlackboxTokenAuthenticator)
+            .Alias("token_authenticator")
+            .Optional();
+        RegisterParameter("blackbox_cookie_authenticator", BlackboxCookieAuthenticator)
+            .Alias("cookie_authenticator")
+            .Optional();
+        RegisterParameter("blackbox_service", BlackboxService)
+            .Alias("blackbox")
+            .Optional();
+        RegisterParameter("cypress_token_authenticator", CypressTokenAuthenticator)
+            .Optional();
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TAuthenticationManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

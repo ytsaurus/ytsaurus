@@ -4,7 +4,6 @@ option java_package = "ru.yandex.yt.rpcproxy";
 option java_outer_classname = "ApiProtos";
 option java_multiple_files = true;
 
-import "yt/core/rpc/proto/rpc.proto";
 import "yt/core/misc/proto/guid.proto";
 import "yt/core/ytree/proto/attributes.proto";
 import "yt/ytlib/hive/timestamp_map.proto";

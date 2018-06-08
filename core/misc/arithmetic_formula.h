@@ -11,8 +11,11 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Validates that a string is a correct formula variable name.
-void ValidateFormulaVariable(const TString& variable);
+//! Validates that a string is a correct arithmetic formula variable name.
+void ValidateArithmeticFormulaVariable(const TString& variable);
+
+//! Validates that a string is a correct boolean formula variable name.
+void ValidateBooleanFormulaVariable(const TString& variable);
 
 ////////////////////////////////////////////////////////////////////////////////
 

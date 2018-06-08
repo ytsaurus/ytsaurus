@@ -7,6 +7,8 @@
 
 #include <yt/core/crypto/crypto.h>
 
+#include <yt/core/rpc/authenticator.h>
+
 #include <util/string/split.h>
 
 namespace NYT {
@@ -23,12 +25,12 @@ static const auto& Logger = AuthLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 // TODO(sandello): Indicate to end-used that cookie must be resigned.
-class TCookieAuthenticator
+class TBlackboxCookieAuthenticator
     : public ICookieAuthenticator
 {
 public:
-    TCookieAuthenticator(
-        TCookieAuthenticatorConfigPtr config,
+    TBlackboxCookieAuthenticator(
+        TBlackboxCookieAuthenticatorConfigPtr config,
         IBlackboxServicePtr blackbox)
         : Config_(std::move(config))
         , Blackbox_(std::move(blackbox))
@@ -47,16 +49,16 @@ public:
                 {"sessionid", credentials.SessionId},
                 {"sslsessionid", credentials.SslSessionId},
                 {"host", credentials.Host},
-                {"userip", credentials.UserIP}})
+                {"userip", credentials.UserIP.FormatIP()}})
             .Apply(BIND(
-                &TCookieAuthenticator::OnCallResult,
+                &TBlackboxCookieAuthenticator::OnCallResult,
                 MakeStrong(this),
                 std::move(sessionIdMD5),
                 std::move(sslSessionIdMD5)));
     }
 
 private:
-    const TCookieAuthenticatorConfigPtr Config_;
+    const TBlackboxCookieAuthenticatorConfigPtr Config_;
     const IBlackboxServicePtr Blackbox_;
 
 private:
@@ -110,11 +112,11 @@ private:
     }
 };
 
-ICookieAuthenticatorPtr CreateCookieAuthenticator(
-    TCookieAuthenticatorConfigPtr config,
+ICookieAuthenticatorPtr CreateBlackboxCookieAuthenticator(
+    TBlackboxCookieAuthenticatorConfigPtr config,
     IBlackboxServicePtr blackbox)
 {
-    return New<TCookieAuthenticator>(std::move(config), std::move(blackbox));
+    return New<TBlackboxCookieAuthenticator>(std::move(config), std::move(blackbox));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -148,6 +150,50 @@ ICookieAuthenticatorPtr CreateCachingCookieAuthenticator(
     ICookieAuthenticatorPtr authenticator)
 {
     return New<TCachingCookieAuthenticator>(std::move(config), std::move(authenticator));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TCookieAuthenticatorWrapper
+    : public NRpc::IAuthenticator
+{
+public:
+    explicit TCookieAuthenticatorWrapper(ICookieAuthenticatorPtr underlying)
+        : Underlying_(std::move(underlying))
+    { }
+
+    virtual TFuture<NRpc::TAuthenticationResult> Authenticate(
+        const NRpc::TAuthenticationContext& context) override
+    {
+        if (!context.Header->HasExtension(NRpc::NProto::TCredentialsExt::credentials_ext)) {
+            return Null;
+        }
+
+        const auto& ext = context.Header->GetExtension(NRpc::NProto::TCredentialsExt::credentials_ext);
+        if (!ext.has_session_id() && !ext.has_ssl_session_id()) {
+            return Null;
+        }
+
+        TCookieCredentials credentials;
+        credentials.SessionId = ext.session_id();
+        credentials.SslSessionId = ext.ssl_session_id();
+        credentials.Host = ext.domain();
+        credentials.UserIP = context.UserIP;
+        return Underlying_->Authenticate(credentials).Apply(
+            BIND([=] (const TAuthenticationResult& authResult) {
+                NRpc::TAuthenticationResult rpcResult;
+                rpcResult.User = authResult.Login;
+                rpcResult.Realm = authResult.Realm;
+                return rpcResult;
+            }));
+    }
+private:
+    const ICookieAuthenticatorPtr Underlying_;
+};
+
+NRpc::IAuthenticatorPtr CreateCookieAuthenticatorWrapper(ICookieAuthenticatorPtr underlying)
+{
+    return New<TCookieAuthenticatorWrapper>(std::move(underlying));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -40,8 +40,7 @@ public:
     const IInvokerPtr& GetWorkerInvoker() const;
     const NApi::INativeConnectionPtr& GetNativeConnection() const;
     const NApi::INativeClientPtr& GetNativeClient() const;
-    const NAuth::ITokenAuthenticatorPtr& GetTokenAuthenticator() const;
-    const NAuth::ICookieAuthenticatorPtr& GetCookieAuthenticator() const;
+    const NRpc::IAuthenticatorPtr& GetRpcAuthenticator() const;
     const NRpcProxy::IProxyCoordinatorPtr& GetProxyCoordinator() const;
     const NNodeTrackerClient::TAddressMap& GetLocalAddresses() const;
 
@@ -63,8 +62,7 @@ private:
 
     NApi::INativeConnectionPtr NativeConnection_;
     NApi::INativeClientPtr NativeClient_;
-    NAuth::ITokenAuthenticatorPtr TokenAuthenticator_;
-    NAuth::ICookieAuthenticatorPtr CookieAuthenticator_;
+    NAuth::TAuthenticationManagerPtr AuthenticationManager_;
     NRpcProxy::IProxyCoordinatorPtr ProxyCoordinator_;
     NNodeTrackerClient::TAddressMap LocalAddresses_;
 

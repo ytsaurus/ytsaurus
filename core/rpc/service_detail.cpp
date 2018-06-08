@@ -14,6 +14,7 @@
 #include <yt/core/concurrency/thread_affinity.h>
 
 #include <yt/core/net/local_address.h>
+#include <yt/core/net/address.h>
 
 #include <yt/core/misc/string.h>
 #include <yt/core/misc/tls_cache.h>
@@ -478,6 +479,7 @@ TServiceBase::TServiceBase(
     , ProtocolVersion_(descriptor.ProtocolVersion)
     , ServiceTagId_ (NProfiling::TProfileManager::Get()->RegisterTag("service", ServiceId_.ServiceName))
     , AuthenticationQueueSizeCounter_("/authentication_queue_size", {ServiceTagId_})
+    , AuthenticationTimeCounter_("/authentication_time", {ServiceTagId_})
 {
     YCHECK(DefaultInvoker_);
 
@@ -579,12 +581,17 @@ void TServiceBase::HandleRequest(
     }
     Profiler.Increment(AuthenticationQueueSizeCounter_, +1);
 
-    auto asyncAuthResult = Authenticator_->Authenticate(*acceptedRequest.Header);
+    NProfiling::TWallTimer timer;
+
+    TAuthenticationContext context;
+    context.Header = acceptedRequest.Header.get();
+    context.UserIP = acceptedRequest.ReplyBus->GetEndpointAddress();
+    auto asyncAuthResult = Authenticator_->Authenticate(context);
     if (asyncAuthResult.IsSet()) {
-        OnRequestAuthenticated(std::move(acceptedRequest), asyncAuthResult.Get());
+        OnRequestAuthenticated(timer, std::move(acceptedRequest), asyncAuthResult.Get());
     } else {
         asyncAuthResult.Subscribe(
-            BIND(&TServiceBase::OnRequestAuthenticated, MakeStrong(this), Passed(std::move(acceptedRequest))));
+            BIND(&TServiceBase::OnRequestAuthenticated, MakeStrong(this), timer, Passed(std::move(acceptedRequest))));
     }
 }
 
@@ -613,9 +620,11 @@ void TServiceBase::ReplyError(
 }
 
 void TServiceBase::OnRequestAuthenticated(
+    const NProfiling::TWallTimer& timer,
     TAcceptedRequest&& acceptedRequest,
     const TErrorOr<TAuthenticationResult>& authResultOrError)
 {
+    Profiler.Update(AuthenticationTimeCounter_, timer.GetElapsedValue());
     Profiler.Increment(AuthenticationQueueSizeCounter_, -1);
     if (authResultOrError.IsOK()) {
         const auto& authResult = authResultOrError.Value();

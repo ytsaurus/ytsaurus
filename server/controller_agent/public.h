@@ -20,6 +20,7 @@ class TOperationDescriptor;
 DEFINE_ENUM(EControllerAgentAlertType,
     (UpdateConfig)
     (UnrecognizedConfigOptions)
+    (SnapshotLoadingDisabled)
 );
 
 DEFINE_ENUM(EControllerState,

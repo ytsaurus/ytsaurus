@@ -13,6 +13,8 @@
 
 #include <yt/core/misc/small_vector.h>
 
+#include <yt/core/net/address.h>
+
 #include <yt/core/ytree/convert.h>
 
 #include <contrib/libs/grpc/include/grpc/grpc.h>
@@ -184,8 +186,6 @@ private:
                 GetTag());
             YCHECK(result == GRPC_CALL_OK);
 
-            EndpointDescription_ = ToString(CallDetails_->host);
-
             Ref();
         }
 
@@ -229,7 +229,7 @@ private:
         // IBus overrides
         virtual const TString& GetEndpointDescription() const override
         {
-            return EndpointDescription_;
+            return PeerAddressString_;
         }
 
         virtual const NYTree::IAttributeDictionary& GetEndpointAttributes() const override
@@ -240,6 +240,11 @@ private:
         virtual TTcpDispatcherStatistics GetStatistics() const override
         {
             return {};
+        }
+
+        virtual const NNet::TNetworkAddress& GetEndpointAddress() const override
+        {
+            return PeerAddress_;
         }
 
         virtual TFuture<void> Send(TSharedRefArray message, const NBus::TSendOptions& /*options*/) override
@@ -273,7 +278,9 @@ private:
         EServerCallStage Stage_ = EServerCallStage::Accept;
         TSharedRefArray ResponseMessage_;
 
-        TString PeerAddress_;
+        TString PeerAddressString_;
+        NNet::TNetworkAddress PeerAddress_;
+        
         TRequestId RequestId_;
         TNullable<TString> User_;
         TNullable<NGrpc::NProto::TSslCredentialsExt> SslCredentialsExt_;
@@ -282,8 +289,6 @@ private:
         TString MethodName_;
         TNullable<TDuration> Timeout_;
         IServicePtr Service_;
-
-        TString EndpointDescription_;
 
         TGrpcMetadataArrayBuilder InitialMetadataBuilder_;
         TGrpcMetadataArrayBuilder TrailingMetadataBuilder_;
@@ -336,12 +341,13 @@ private:
                 return;
             }
 
-            LOG_DEBUG("Request accepted (RequestId: %v, Method: %v:%v, User: %v, PeerAddress: %v, Timeout: %v)",
+            LOG_DEBUG("Request accepted (RequestId: %v, Host: %v, Method: %v:%v, User: %v, PeerAddress: %v, Timeout: %v)",
                 RequestId_,
+                ToStringBuf(CallDetails_->host),
                 ServiceName_,
                 MethodName_,
                 User_,
-                PeerAddress_,
+                PeerAddressString_,
                 Timeout_);
 
             Service_ = Owner_->FindService(TServiceId(ServiceName_));
@@ -365,7 +371,11 @@ private:
         void ParsePeerAddress()
         {
             auto addressString = MakeGprString(grpc_call_get_peer(Call_.Unwrap()));
-            PeerAddress_ = TString(addressString.get());
+            PeerAddressString_ = TString(addressString.get());
+            auto address = NNet::TNetworkAddress::TryParse(PeerAddressString_);
+            if (address.IsOK()) {
+                PeerAddress_ = address.Value();
+            }
         }
 
         void ParseRequestId()
@@ -405,7 +415,6 @@ private:
 
             if (tokenString) {
                 RpcCredentialsExt_->set_token(TString(tokenString));
-                RpcCredentialsExt_->set_user_ip(PeerAddress_);
             }
         }
 

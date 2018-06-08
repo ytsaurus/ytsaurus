@@ -4,6 +4,8 @@
 
 #include <yt/core/bus/tcp/config.h>
 
+#include <yt/core/http/config.h>
+
 #include <yt/ytlib/api/client.h>
 #include <yt/ytlib/api/config.h>
 
@@ -17,6 +19,7 @@ class TConnectionConfig
 {
 public:
     TString Domain;
+    TNullable<TString> ClusterUrl;
     std::vector<TString> Addresses;
     TDuration PingPeriod;
     TDuration ProxyListUpdatePeriod;
@@ -26,13 +29,22 @@ public:
     TDuration DefaultTransactionTimeout;
     TDuration DefaultPingPeriod;
     NBus::TTcpBusConfigPtr BusClient;
+    NHttp::TClientConfigPtr HttpClient;
+    bool SendLegacyUserIP;
 
     TConnectionConfig()
     {
         RegisterParameter("domain", Domain)
             .Default("yt.yandex-team.ru");
+        RegisterParameter("cluster_url", ClusterUrl)
+            .Default();
         RegisterParameter("addresses", Addresses)
-            .NonEmpty();
+            .Default();
+        RegisterPostprocessor([this] {
+            if (!ClusterUrl && Addresses.empty()) {
+                THROW_ERROR_EXCEPTION("Either \"cluster_url\" or \"addresses\" must be specified");
+            }
+        });
         RegisterParameter("ping_period", PingPeriod)
             .Default(TDuration::Seconds(3));
         RegisterParameter("proxy_list_update_period", ProxyListUpdatePeriod)
@@ -49,6 +61,11 @@ public:
             .Default(TDuration::Seconds(5));
         RegisterParameter("bus_client", BusClient)
             .DefaultNew();
+        RegisterParameter("http_client", HttpClient)
+            .DefaultNew();
+        // COMPAT(prime)
+        RegisterParameter("send_legacy_user_ip", SendLegacyUserIP)
+            .Default(true);
     }
 };
 

@@ -115,6 +115,8 @@ struct IDriver
     //! Returns the list of descriptors for all supported commands.
     virtual const std::vector<TCommandDescriptor> GetCommandDescriptors() const = 0;
 
+    virtual void ClearMetadataCaches() = 0;
+
     //! Returns the underlying connection.
     virtual NApi::IConnectionPtr GetConnection() = 0;
 

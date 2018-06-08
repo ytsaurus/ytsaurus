@@ -5,6 +5,8 @@
 
 #include <yt/core/bus/bus.h>
 
+#include <yt/core/net/address.h>
+
 #include <yt/core/misc/protobuf_helpers.h>
 
 namespace NYT {

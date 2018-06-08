@@ -67,7 +67,7 @@ public:
             .Default((i64) 1 * 1024 * 1024);
 
         RegisterParameter("client_cache", ClientCache)
-            .DefaultNew();
+            .DefaultNew(1);
 
         RegisterParameter("api_version", ApiVersion)
             .Default(ApiVersion3);

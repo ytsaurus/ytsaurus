@@ -18,3 +18,7 @@ extend google.protobuf.MessageOptions
     optional bool attribute_dictionary = 3000;
 }
 
+extend google.protobuf.FileOptions
+{
+    optional bool derive_underscore_case_names = 3000;
+}

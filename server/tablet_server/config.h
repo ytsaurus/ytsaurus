@@ -116,6 +116,33 @@ DEFINE_REFCOUNTED_TYPE(TTabletBalancerMasterConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TTabletCellDecommissionerConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    TDuration DecommissionCheckPeriod;
+    TDuration OrphansCheckPeriod;
+
+    NConcurrency::TThroughputThrottlerConfigPtr DecommissionThrottler;
+    NConcurrency::TThroughputThrottlerConfigPtr KickOrphansThrottler;
+
+    TTabletCellDecommissionerConfig()
+    {
+        RegisterParameter("decommission_check_period", DecommissionCheckPeriod)
+            .Default(TDuration::Minutes(1));
+        RegisterParameter("orphans_check_period", OrphansCheckPeriod)
+            .Default(TDuration::Minutes(1));
+        RegisterParameter("decommission_throttler", DecommissionThrottler)
+            .DefaultNew();
+        RegisterParameter("kick_orphans_throttler", KickOrphansThrottler)
+            .DefaultNew();
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TTabletCellDecommissionerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TTabletManagerConfig
     : public NYTree::TYsonSerializable
 {
@@ -157,8 +184,11 @@ public:
     //! Chunk writer config for all dynamic tables.
     NTabletNode::TTabletChunkWriterConfigPtr ChunkWriter;
 
-    //! Tablet balancer (balancer) config.
+    //! Tablet balancer config.
     TTabletBalancerMasterConfigPtr TabletBalancer;
+
+    //! Tablet cell decommissioner config.
+    TTabletCellDecommissionerConfigPtr TabletCellDecommissioner;
 
     TTabletManagerConfig()
     {
@@ -191,6 +221,8 @@ public:
         RegisterParameter("chunk_writer", ChunkWriter)
             .DefaultNew();
         RegisterParameter("tablet_balancer", TabletBalancer)
+            .DefaultNew();
+        RegisterParameter("tablet_cell_decommissioner", TabletCellDecommissioner)
             .DefaultNew();
     }
 };

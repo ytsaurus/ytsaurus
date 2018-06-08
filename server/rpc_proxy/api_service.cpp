@@ -189,7 +189,9 @@ public:
         : TServiceBase(
             bootstrap->GetWorkerInvoker(),
             TApiServiceProxy::GetDescriptor(),
-            RpcProxyLogger)
+            RpcProxyLogger,
+            NullRealmId,
+            bootstrap->GetRpcAuthenticator())
         , Bootstrap_(bootstrap)
         , Coordinator_(bootstrap->GetProxyCoordinator())
     {
@@ -237,7 +239,7 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CreateObject));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetTableMountInfo));
 
-        if (!Bootstrap_->GetConfig()->EnableAuthentication) {
+        if (!Bootstrap_->GetConfig()->RequireAuthentication) {
             GetOrCreateClient(NSecurityClient::RootUserName);
         }
     }
@@ -268,6 +270,25 @@ private:
         return it->second;
     }
 
+    TString ExtractIP(TString address)
+    {
+        YCHECK(address.StartsWith("tcp://"));
+
+        address = address.substr(6);
+        {
+            auto index = address.rfind(':');
+            if (index != TString::npos) {
+                address = address.substr(0, index);
+            }
+        }
+
+        if (address.StartsWith("[") && address.EndsWith("]")) {
+            address = address.substr(1, address.length() - 2);
+        }
+
+        return address;
+    }
+
     INativeClientPtr GetAuthenticatedClientOrAbortContext(
         const IServiceContextPtr& context,
         const google::protobuf::Message* request)
@@ -276,66 +297,7 @@ private:
             return nullptr;
         }
 
-        if (!Bootstrap_->GetConfig()->EnableAuthentication) {
-            return GetOrCreateClient(context->GetUser());
-        }
-
-        auto replyWithMissingCredentials = [&] () {
-            context->Reply(TError(
-                NSecurityClient::EErrorCode::AuthenticationError,
-                "Request is missing credentials"));
-        };
-
-        auto replyWithMissingUserIP = [&] () {
-            context->Reply(TError(
-                NSecurityClient::EErrorCode::AuthenticationError,
-                "Request is missing originating address in credentials"));
-        };
-
-        const auto& header = context->GetRequestHeader();
-        if (!header.HasExtension(NRpc::NProto::TCredentialsExt::credentials_ext)) {
-            replyWithMissingCredentials();
-            return nullptr;
-        }
-
-        // TODO(sandello): Use a cache here.
-        const auto& credentialsExt = header.GetExtension(NRpc::NProto::TCredentialsExt::credentials_ext);
-        if (!credentialsExt.has_user_ip()) {
-            replyWithMissingUserIP();
-            return nullptr;
-        }
-
-        NAuth::TAuthenticationResult authenticationResult;
-        if (credentialsExt.has_session_id() || credentialsExt.has_ssl_session_id()) {
-            TCookieCredentials credentials;
-            credentials.SessionId = credentialsExt.session_id();
-            credentials.SslSessionId = credentialsExt.ssl_session_id();
-            credentials.Host = credentialsExt.domain();
-            credentials.UserIP = credentialsExt.user_ip();
-            const auto& authenticator = Bootstrap_->GetCookieAuthenticator();
-            auto asyncAuthenticationResult = authenticator->Authenticate(credentials);
-            authenticationResult = WaitFor(asyncAuthenticationResult)
-                .ValueOrThrow();
-        } else if (credentialsExt.has_token()) {
-            TTokenCredentials credentials;
-            credentials.Token = credentialsExt.token();
-            credentials.UserIP = credentialsExt.user_ip();
-            const auto& authenticator = Bootstrap_->GetTokenAuthenticator();
-            auto asyncAuthenticationResult = authenticator->Authenticate(credentials);
-            authenticationResult = WaitFor(asyncAuthenticationResult)
-                .ValueOrThrow();
-        } else {
-            replyWithMissingCredentials();
-            return nullptr;
-        }
-
         const auto& user = context->GetUser();
-        if (user != authenticationResult.Login) {
-            context->Reply(TError(
-                NSecurityClient::EErrorCode::AuthenticationError,
-                "Invalid credentials"));
-            return nullptr;
-        }
 
         // Pretty-printing Protobuf requires a bunch of effort, so we make it conditional.
         if (Bootstrap_->GetConfig()->ApiService->VerboseLogging) {
@@ -406,7 +368,8 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, GenerateTimestamps)
     {
-        if (!Coordinator_->IsOperable(context)) {
+        auto client = GetAuthenticatedClientOrAbortContext(context, request);
+        if (!client) {
             return;
         }
 
@@ -645,8 +608,7 @@ private:
 
         context->SetRequestInfo("Path: %v", path);
 
-        const auto& connection = client->GetConnection();
-        const auto& tableMountCache = connection->GetTableMountCache();
+        const auto& tableMountCache = client->GetTableMountCache();
         CompleteCallWith(
             context,
             tableMountCache->GetTableInfo(path),
@@ -1794,7 +1756,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, BuildSnapshot)
     {
-        if (Bootstrap_->GetConfig()->EnableAuthentication ||
+        if (Bootstrap_->GetConfig()->RequireAuthentication ||
             context->GetUser() != NSecurityClient::RootUserName)
         {
             context->Reply(TError(
@@ -1835,7 +1797,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, GCCollect)
     {
-        if (Bootstrap_->GetConfig()->EnableAuthentication ||
+        if (Bootstrap_->GetConfig()->RequireAuthentication ||
             context->GetUser() != NSecurityClient::RootUserName)
         {
             context->Reply(TError(

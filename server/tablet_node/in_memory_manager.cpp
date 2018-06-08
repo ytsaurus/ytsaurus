@@ -60,10 +60,14 @@ void FinalizeChunkData(
     const TInMemoryChunkDataPtr& data,
     const TChunkId& id,
     const TChunkMeta& meta,
-    const TTabletSnapshotPtr& tabletSnapshot,
-    TNodeMemoryTracker* memoryTracker)
+    const TTabletSnapshotPtr& tabletSnapshot)
 {
-    data->ChunkMeta = TCachedVersionedChunkMeta::Create(id, meta, tabletSnapshot->PhysicalSchema, memoryTracker);
+    data->ChunkMeta = TCachedVersionedChunkMeta::Create(id, meta, tabletSnapshot->PhysicalSchema);
+
+    if (data->MemoryTrackerGuard) {
+        data->MemoryTrackerGuard.UpdateSize(data->ChunkMeta->GetMemoryUsage());
+    }
+
     if (tabletSnapshot->HashTableSize > 0) {
         data->LookupHashTable = CreateChunkLookupHashTable(
             data->Blocks,
@@ -72,13 +76,6 @@ void FinalizeChunkData(
         if (data->LookupHashTable && data->MemoryTrackerGuard) {
             data->MemoryTrackerGuard.UpdateSize(data->LookupHashTable->GetByteSize());
         }
-    }
-
-    ToProto(data->ChunkSpec.mutable_chunk_id(), id);
-    if (data->ChunkMeta->GetChunkFormat() == ETableChunkFormat::UnversionedColumnar ||
-        data->ChunkMeta->GetChunkFormat() == ETableChunkFormat::SchemalessHorizontal)
-    {
-        data->ChunkSpec.mutable_chunk_meta()->MergeFrom(meta);
     }
 }
 
@@ -170,7 +167,7 @@ public:
             return;
         }
 
-        FinalizeChunkData(data, chunkId, chunkMeta, tabletSnapshot, Bootstrap_->GetMemoryUsageTracker());
+        FinalizeChunkData(data, chunkId, chunkMeta, tabletSnapshot);
     }
 
 private:
@@ -666,7 +663,7 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
         chunkData->MemoryTrackerGuard.UpdateSize(allocatedMemory - preallocatedMemory);
     }
 
-    FinalizeChunkData(chunkData, store->GetId(), meta, tabletSnapshot, memoryUsageTracker);
+    FinalizeChunkData(chunkData, store->GetId(), meta, tabletSnapshot);
 
     LOG_INFO(
         "Store preload completed (MemoryUsage: %v, LookupHashTable: %v)",

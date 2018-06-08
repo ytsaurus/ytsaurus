@@ -1128,6 +1128,10 @@ class TestTabletActions(TestDynamicTablesBase):
                 "enable_tablet_balancer": True,
                 "config_check_period": 100,
                 "balance_period": 100,
+            },
+            "tablet_cell_decommissioner": {
+                "decommission_check_period": 100,
+                "orphans_check_period": 100,
             }
         }
     }
@@ -1613,6 +1617,31 @@ class TestTabletActions(TestDynamicTablesBase):
         self.sync_mount_table("//tmp/t", cell_id=cells[0], freeze=freeze)
         move(cells[1])
         assert get("//sys/accounts/test_account/@resource_usage/tablet_static_memory") == size
+
+    def test_tablet_cell_decomission(self):
+        cells = self.sync_create_cells(2)
+        self._create_sorted_table("//tmp/t")
+        self.sync_mount_table("//tmp/t", cell_id=cells[0])
+        set("#{0}/@decommissioned".format(cells[0]), True)
+        with pytest.raises(YtError):
+            set("#{0}/@decommissioned".format(cells[0]), False)
+
+        wait(lambda: get("//tmp/t/@tablets/0/cell_id") == cells[1])
+        remove("#{0}".format(cells[0]))
+
+        set("#{0}/@decommissioned".format(cells[1]), True)
+        self._wait_for_tablets("//tmp/t", "unmounted")
+        remove("#{0}".format(cells[1]))
+
+        actions = get("//sys/tablet_actions")
+        assert len(actions) == 1
+        action = get("//sys/tablet_actions/{0}/@".format(actions.keys()[0]))
+        assert action["state"] == "orphaned"
+
+        cells = self.sync_create_cells(1)
+        self._wait_for_tablets("//tmp/t", "mounted")
+        assert get("//tmp/t/@tablets/0/cell_id") == cells[0]
+        assert len(get("//sys/tablet_actions")) == 0
 
 ##################################################################
 

@@ -10,6 +10,8 @@
 
 #include <yt/core/ytree/public.h>
 
+#include <yt/core/net/public.h>
+
 namespace NYT {
 namespace NBus {
 
@@ -67,6 +69,8 @@ struct IBus
     //! Returns the bus' endpoint attributes.
     //! Typically used for constructing errors.
     virtual const NYTree::IAttributeDictionary& GetEndpointAttributes() const = 0;
+
+    virtual const NNet::TNetworkAddress& GetEndpointAddress() const = 0;
 
     virtual TTcpDispatcherStatistics GetStatistics() const = 0;
 

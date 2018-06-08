@@ -99,6 +99,10 @@ public:
         }
 
         YCHECK(ActiveDrivers.emplace(Id_, UnderlyingDriver_).second);
+
+        auto config = ConvertTo<NApi::TConnectionConfigPtr>(ConfigNode_);
+
+        LOG_DEBUG("Driver created (ConnectionType: %v)", config->ConnectionType);
     }
 
     ~TDriver()
@@ -320,7 +324,7 @@ public:
         ValidateArgumentsEmpty(args, kwargs);
 
         try {
-            UnderlyingDriver_->GetConnection()->ClearMetadataCaches();
+            UnderlyingDriver_->ClearMetadataCaches();
             return Py::None();
         } CATCH("Failed to clear metadata caches");
     }
