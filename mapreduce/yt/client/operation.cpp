@@ -954,7 +954,10 @@ bool IsCompatible(const TDescriptorList& lhs, const TDescriptorList& rhs)
     return lhs.empty() || rhs.empty() || lhs == rhs;
 }
 
-const TMultiFormatDesc& MergeIntermediateDesc(const TMultiFormatDesc& lh, const TMultiFormatDesc& rh, const char* lhDescr, const char* rhDescr)
+const TMultiFormatDesc& MergeIntermediateDesc(
+    const TMultiFormatDesc& lh, const TMultiFormatDesc& rh,
+    const char* lhDescr, const char* rhDescr,
+    bool allowMultipleDescriptors = false)
 {
     if (rh.Format == TMultiFormatDesc::F_NONE) {
         return lh;
@@ -962,7 +965,7 @@ const TMultiFormatDesc& MergeIntermediateDesc(const TMultiFormatDesc& lh, const 
         return rh;
     } else if (lh.Format == rh.Format && IsCompatible(lh.ProtoDescriptors, rh.ProtoDescriptors)) {
         const auto& result = rh.ProtoDescriptors.empty() ? lh : rh;
-        if (result.ProtoDescriptors.size() > 1) {
+        if (result.ProtoDescriptors.size() > 1 && !allowMultipleDescriptors) {
             ythrow TApiUsageError() << "too many proto descriptors for intermediate table";
         }
         return result;
@@ -974,6 +977,19 @@ const TMultiFormatDesc& MergeIntermediateDesc(const TMultiFormatDesc& lh, const 
         ;
     }
 }
+
+void VerifyIntermediateDesc(const TMultiFormatDesc& desc, const TStringBuf& textDescription)
+{
+    if (desc.Format != TMultiFormatDesc::F_PROTO) {
+        return;
+    }
+    for (size_t i = 0; i != desc.ProtoDescriptors.size(); ++i) {
+        if (!desc.ProtoDescriptors[i]) {
+            ythrow TApiUsageError() << "Don't know message type for " << textDescription << "; table index: " << i << " (did you forgot to use Hint* function?)";
+        }
+    }
+}
+
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1793,13 +1809,19 @@ TOperationId ExecuteMapReduce(
     const auto& reduceOutputDesc = spec.GetOutputDesc();
     auto reduceInputDesc = MergeIntermediateDesc(reducerClassInputDesc, spec.ReduceInputHintDesc_,
         "spec from reducer CLASS input", "spec from HINT for reduce input");
+    VerifyIntermediateDesc(reduceInputDesc, "reducer input");
 
     auto reduceCombinerOutputDesc = MergeIntermediateDesc(reduceCombinerClassOutputDesc, spec.ReduceCombinerOutputHintDesc_,
         "spec derived from reduce combiner CLASS output", "spec from HINT for reduce combiner output");
+    VerifyIntermediateDesc(reduceCombinerOutputDesc, "reduce combiner output");
     auto reduceCombinerInputDesc = MergeIntermediateDesc(reduceCombinerClassInputDesc, spec.ReduceCombinerInputHintDesc_,
         "spec from reduce combiner CLASS input", "spec from HINT for reduce combiner input");
+    VerifyIntermediateDesc(reduceCombinerInputDesc, "reduce combiner input");
     auto mapOutputDesc = MergeIntermediateDesc(mapperClassOutputDesc, spec.MapOutputDesc_,
-        "spec from mapper CLASS output", "spec from HINT for map output");
+        "spec from mapper CLASS output", "spec from HINT for map output",
+        /* allowMultipleDescriptors = */ true);
+    VerifyIntermediateDesc(mapOutputDesc, "map output");
+
     const auto& mapInputDesc = spec.GetInputDesc();
 
     if (!mapper) {
