@@ -9,7 +9,6 @@ import "yt/ytlib/chunk_client/chunk_info.proto";
 import "yt/ytlib/chunk_client/chunk_meta.proto";
 import "yt/ytlib/chunk_client/chunk_reader_statistics.proto";
 import "yt/ytlib/chunk_client/chunk_slice.proto";
-import "yt/ytlib/chunk_client/data_statistics.proto";
 import "yt/ytlib/chunk_client/session_id.proto";
 import "yt/ytlib/table_client/chunk_meta.proto";
 
