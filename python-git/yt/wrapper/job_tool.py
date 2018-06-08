@@ -119,6 +119,11 @@ def download_file(path, destination_path):
         for chunk in chunk_iter_stream(yt.read_file(path), 16 * MB):
             f.write(chunk)
 
+def download_table(path, destination_path):
+    with open(destination_path, "wb") as f:
+        for r in yt.read_table(path, format=yson.dumps(path.attributes["format"]), raw=True):
+            f.write(r)
+
 def run_job(job_path):
     if not os.path.exists(job_path):
         raise yt.YtError("Job path {0} does not exist".format(job_path))
@@ -269,10 +274,18 @@ def prepare_job_environment(operation_id, job_id, job_path, run=False, full=Fals
 
     file_count = len(attributes["spec"][op_type]["file_paths"])
     for index, file_ in enumerate(attributes["spec"][op_type]["file_paths"]):
-        file_name = file_.attributes.get("file_name", yt.get_attribute(file_, "key"))
+        file_attrs = yt.get(file_ + "/@", attributes=["key", "type"])
+        file_name = file_.attributes.get("file_name", file_attrs.get("key"))
         logger.info("Downloading job file \"%s\" (%d of %d)", file_name, index + 1, file_count)
         destination_path = os.path.join(sandbox_path, file_name)
         download_file(file_, destination_path)
+        node_type = file_attrs["type"]
+        if node_type == "file":
+            download_file(file_, destination_path)
+        elif node_type == "table":
+            download_table(file_, destination_path)
+        else:
+            raise yt.YtError("Unknown format of job file node: {0}".format(node_type))
 
         if parse_bool(file_.attributes.get("executable", False)):
             os.chmod(destination_path, os.stat(destination_path).st_mode | stat.S_IXUSR)
