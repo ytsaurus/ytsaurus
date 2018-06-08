@@ -2556,8 +2556,8 @@ private:
 
     void OnDynamicConfigChanged()
     {
+        const auto& dynamicConfig = GetDynamicConfig();
         if (CleanupExecutor_) {
-            const auto& dynamicConfig = GetDynamicConfig();
             CleanupExecutor_->SetPeriod(dynamicConfig->TabletCellsCleanupPeriod);
         }
     }
