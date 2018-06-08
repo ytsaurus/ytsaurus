@@ -1,6 +1,7 @@
 #include <mapreduce/yt/tests/yt_unittest_lib/yt_unittest_lib.h>
 
 #include <mapreduce/yt/tests/native/proto_lib/all_types.pb.h>
+#include <mapreduce/yt/tests/native/proto_lib/row.pb.h>
 
 #include <mapreduce/yt/interface/client.h>
 #include <mapreduce/yt/interface/serialize.h>
@@ -147,6 +148,24 @@ REGISTER_MAPPER(TMapperThatChecksFile);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TIdAndKvSwapMapper : public IMapper<TTableReader<TNode>, TTableWriter<TNode>>
+{
+public:
+    virtual void Do(TReader* reader, TWriter* writer) override {
+        for (; reader->IsValid(); reader->Next()) {
+            const auto& node = reader->GetRow();
+            TNode swapped;
+            swapped["key"] = node["value"];
+            swapped["value"] = node["key"];
+            writer->AddRow(node, 0);
+            writer->AddRow(swapped, 1);
+        }
+    }
+};
+REGISTER_MAPPER(TIdAndKvSwapMapper);
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TMapperThatReadsProtobufFile : public IMapper<TTableReader<TNode>, TTableWriter<TAllTypesMessage>>
 {
 public:
@@ -224,6 +243,48 @@ public:
     }
 };
 REGISTER_MAPPER(TProtobufMapper);
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TSplitGoodUrlMapper : public IMapper<TTableReader<TUrlRow>, TTableWriter<::google::protobuf::Message>>
+{
+public:
+    virtual void Do(TReader* reader, TWriter* writer) override
+    {
+        for (; reader->IsValid(); reader->Next()) {
+            auto urlRow = reader->GetRow();
+            if (urlRow.GetHttpCode() == 200) {
+                TGoodUrl goodUrl;
+                goodUrl.SetUrl(urlRow.GetHost() + urlRow.GetPath());
+                writer->AddRow(goodUrl, 1);
+            }
+            writer->AddRow(urlRow, 0);
+        }
+    }
+};
+REGISTER_MAPPER(TSplitGoodUrlMapper);
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TCountHttpCodeTotalReducer : public IReducer<TTableReader<TUrlRow>, TTableWriter<THostRow>>
+{
+public:
+    virtual void Do(TReader* reader, TWriter* writer) override
+    {
+        THostRow hostRow;
+        i32 total = 0;
+        for (; reader->IsValid(); reader->Next()) {
+            auto urlRow = reader->GetRow();
+            if (!hostRow.HasHost()) {
+                hostRow.SetHost(urlRow.GetHost());
+            }
+            total += urlRow.GetHttpCode();
+        }
+        hostRow.SetHttpCodeTotal(total);
+        writer->AddRow(hostRow);
+    }
+};
+REGISTER_REDUCER(TCountHttpCodeTotalReducer);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -956,6 +1017,58 @@ Y_UNIT_TEST_SUITE(Operations)
             UNIT_ASSERT_VALUES_EQUAL(reader->GetRow()["TEST_ENV"], "mapperreducer");
         }
     }
+
+    Y_UNIT_TEST(MapReduceMapOutput)
+    {
+        auto client = CreateTestClient();
+        {
+            auto writer = client->CreateTableWriter<TNode>("//testing/input");
+            writer->AddRow(TNode()("key", "foo")("value", "bar"));
+            writer->Finish();
+        }
+
+        client->MapReduce(
+            TMapReduceOperationSpec()
+                .AddInput<TNode>("//testing/input")
+                .AddMapOutput<TNode>("//testing/map_output")
+                .AddOutput<TNode>("//testing/output")
+                .ReduceBy({"key"}),
+            new TIdAndKvSwapMapper,
+            new TIdReducer);
+
+        UNIT_ASSERT_VALUES_EQUAL(
+            ReadTable(client, "//testing/output"),
+            TVector<TNode>{TNode()("key", "foo")("value", "bar")});
+
+        UNIT_ASSERT_VALUES_EQUAL(
+            ReadTable(client, "//testing/map_output"),
+            TVector<TNode>{TNode()("key", "bar")("value", "foo")});
+    }
+
+    Y_UNIT_TEST(MapReduceMapOutputProtobuf)
+    {
+        auto client = CreateTestClient();
+        {
+            auto writer = client->CreateTableWriter<TUrlRow>("//testing/input");
+            TUrlRow row;
+            row.SetHost("http://example.com");
+            row.SetPath("/index.php");
+            row.SetHttpCode(200);
+            writer->AddRow(row);
+            writer->Finish();
+        }
+
+        client->MapReduce(
+            TMapReduceOperationSpec()
+                .AddInput<TUrlRow>("//testing/input")
+                .HintMapOutput<TUrlRow>()
+                .AddMapOutput<TGoodUrl>("//testing/map_output")
+                .AddOutput<THostRow>("//testing/output")
+                .ReduceBy({"key"}),
+            new TSplitGoodUrlMapper,
+            new TCountHttpCodeTotalReducer);
+    }
+
 
     Y_UNIT_TEST(AddLocalFile)
     {
