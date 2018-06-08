@@ -326,7 +326,7 @@ private:
 
             New<TCallHandler>(Owner_);
 
-            if (!ParsePeerAddress()) {
+            if (!TryParsePeerAddress()) {
                 LOG_DEBUG("Malformed peer address (PeerAddress: %v, RequestId: %v)",
                     PeerAddressString_,
                     RequestId_);
@@ -340,7 +340,7 @@ private:
             ParseSslCredentials();
             ParseTimeout();
 
-            if (!ParseRoutingParameters()) {
+            if (!TryParseRoutingParameters()) {
                 LOG_DEBUG("Malformed request routing parameters (RawMethod: %v, RequestId: %v)",
                     ToStringBuf(CallDetails_->method),
                     RequestId_);
@@ -374,7 +374,7 @@ private:
             StartBatch(ops, EServerCallCookie::Normal);
         }
 
-        bool ParsePeerAddress()
+        bool TryParsePeerAddress()
         {
             auto addressString = MakeGprString(grpc_call_get_peer(Call_.Unwrap()));
             PeerAddressString_ = TString(addressString.get());
@@ -472,7 +472,7 @@ private:
             Timeout_ = TDuration::MicroSeconds(static_cast<ui64>(micros));
         }
 
-        bool ParseRoutingParameters()
+        bool TryParseRoutingParameters()
         {
             const size_t methodLength = GRPC_SLICE_LENGTH(CallDetails_->method);
             if (methodLength == 0) {
