@@ -78,7 +78,7 @@ struct TPooledObjectTraitsBase
     static void Clean(TObject*)
     { }
 
-    static size_t GetMaxPoolSize()
+    static int GetMaxPoolSize()
     {
         return 256;
     }
