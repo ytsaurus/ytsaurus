@@ -326,7 +326,14 @@ private:
 
             New<TCallHandler>(Owner_);
 
-            ParsePeerAddress();
+            if (!ParsePeerAddress()) {
+                LOG_DEBUG("Malformed peer address (PeerAddress: %v, RequestId: %v)",
+                    PeerAddressString_,
+                    RequestId_);
+                Unref();
+                return;
+            }
+
             ParseRequestId();
             ParseUser();
             ParseRpcCredentials();
@@ -367,14 +374,21 @@ private:
             StartBatch(ops, EServerCallCookie::Normal);
         }
 
-
-        void ParsePeerAddress()
+        bool ParsePeerAddress()
         {
             auto addressString = MakeGprString(grpc_call_get_peer(Call_.Unwrap()));
             PeerAddressString_ = TString(addressString.get());
+
+            if (PeerAddressString_.StartsWith("ipv6:") || PeerAddressString_.StartsWith("ipv4:")) {
+                PeerAddressString_ = PeerAddressString_.substr(5);
+            }
+
             auto address = NNet::TNetworkAddress::TryParse(PeerAddressString_);
             if (address.IsOK()) {
                 PeerAddress_ = address.Value();
+                return true;
+            } else {
+                return false;
             }
         }
 
