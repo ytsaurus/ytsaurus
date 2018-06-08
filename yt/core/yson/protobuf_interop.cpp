@@ -752,7 +752,10 @@ private:
 
         SortFields(&typeEntry.RequiredFieldNumbers);
         ValidateNoFieldDuplicates(type, typeEntry.RequiredFieldNumbers);
-        ValidateRequiredFieldsPresent(type, typeEntry.RequiredFieldNumbers);
+
+        if (!Options_.SkipRequiredFields) {
+            ValidateRequiredFieldsPresent(type, typeEntry.RequiredFieldNumbers);
+        }
 
         TypeStack_.pop_back();
         if (TypeStack_.empty()) {
@@ -1090,7 +1093,10 @@ public:
 
                 SortFields(&typeEntry.RequiredFieldNumbers);
                 ValidateNoFieldDuplicates(type, typeEntry.RequiredFieldNumbers);
-                ValidateRequiredFieldsPresent(type, typeEntry.RequiredFieldNumbers);
+
+                if (!Options_.SkipRequiredFields) {
+                    ValidateRequiredFieldsPresent(type, typeEntry.RequiredFieldNumbers);
+                }
 
                 Consumer_->OnEndMap();
 

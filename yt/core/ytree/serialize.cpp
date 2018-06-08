@@ -225,7 +225,7 @@ void Deserialize(TInstant& value, INodePtr node)
     } else if (node->GetType() == ENodeType::Uint64) {
         value = TInstant::MilliSeconds(node->AsUint64()->GetValue());
     } else {
-        value = TInstant::ParseIso8601(node->AsString()->GetValue());
+        value = TInstant::ParseIso8601Deprecated(node->AsString()->GetValue());
     }
 }
 

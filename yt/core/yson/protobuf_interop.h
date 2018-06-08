@@ -36,6 +36,10 @@ struct TProtobufWriterOptions
     //! If |true| then fields with name not found in protobuf metadata are
     //! silently skipped; otherwise an exception is thrown.
     bool SkipUnknownFields = false;
+
+    //! If |true| then required fields not found in protobuf metadata are
+    //! silently skipped; otherwise an exception is thrown.
+    bool SkipRequiredFields = false;
 };
 
 //! Creates a YSON consumer that converts IYsonConsumer calls into
@@ -57,6 +61,10 @@ struct TProtobufParserOptions
     //! If |true| then fields with numbers not found in protobuf metadata are
     //! silently skipped; otherwise an exception is thrown.
     bool SkipUnknownFields = false;
+
+    //! If |true| then required fields not found in protobuf metadata are
+    //! silently skipped; otherwise an exception is thrown.
+    bool SkipRequiredFields = false;
 };
 
 //! Parses a byte sequence and translates it into IYsonConsumer calls.
