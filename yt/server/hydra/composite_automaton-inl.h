@@ -5,6 +5,8 @@
 
 #include "mutation.h"
 
+#include <yt/core/misc/object_pool.h>
+
 #include <yt/core/rpc/service_detail.h>
 
 namespace NYT {
@@ -99,13 +101,13 @@ void TCompositeAutomatonPart::RegisterMethod(
     RegisterMethod(
         TRequest::default_instance().GetTypeName(),
         BIND([=] (TMutationContext* context) {
-            TRequest request;
-            DeserializeProtoWithEnvelope(&request, context->Request().Data);
+            auto request = ObjectPool<TRequest>().Allocate();
+            DeserializeProtoWithEnvelope(request.get(), context->Request().Data);
 
             auto& mutationResponse = context->Response();
 
             try {
-                callback.Run(&request);
+                callback.Run(request.get());
                 static auto cachedResponseMessage = NRpc::CreateResponseMessage(NProto::TVoidMutationResponse());
                 mutationResponse.Data = cachedResponseMessage;
             } catch (const std::exception& ex) {
@@ -123,15 +125,16 @@ void TCompositeAutomatonPart::RegisterMethod(
     RegisterMethod(
         THandlerRequest::default_instance().GetTypeName(),
         BIND([=] (TMutationContext* context) {
-            THandlerRequest request;
-            DeserializeProtoWithEnvelope(&request, context->Request().Data);
+            auto request = ObjectPool<THandlerRequest>().Allocate();
+            auto response = ObjectPool<THandlerResponse>().Allocate();
+
+            DeserializeProtoWithEnvelope(request.get(), context->Request().Data);
 
             auto& mutationResponse = context->Response();
 
             try {
-                THandlerResponse response;
-                callback.Run(nullptr, &request, &response);
-                mutationResponse.Data = NRpc::CreateResponseMessage(response);
+                callback.Run(nullptr, request.get(), response.get());
+                mutationResponse.Data = NRpc::CreateResponseMessage(*response);
             } catch (const std::exception& ex) {
                 auto error = TError(ex);
                 LogHandlerError(error);
