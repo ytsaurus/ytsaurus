@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/core/net/address.h>
+
 #include <yt/core/actions/future.h>
 
 namespace NYT {
@@ -15,15 +17,22 @@ struct TAuthenticationResult
     TString Realm;
 };
 
+struct TAuthenticationContext
+{
+    const NRpc::NProto::TRequestHeader* Header;
+    NNet::TNetworkAddress UserIP;
+};
+
 struct IAuthenticator
     : public virtual TRefCounted
 {
-    //! Validates authentication credentials in #header.
-    //! Either returns an error or updates |user| field in #header to contain
+    //! Validates authentication credentials in #context.
+    //! Returns either an error or authentication result containing
     //! the actual (and validated) username.
-    //! Returns null if #header contains no credentials that can be parsed by
+    //! Returns null if #context contains no credentials that can be parsed by
     //! this authenticator.
-    virtual TFuture<TAuthenticationResult> Authenticate(const NRpc::NProto::TRequestHeader& header) = 0;
+    virtual TFuture<TAuthenticationResult> Authenticate(
+        const TAuthenticationContext& context) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IAuthenticator)

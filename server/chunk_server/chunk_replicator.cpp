@@ -247,8 +247,8 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeRegularChunkStatisti
         } else {
             ++replicaCount[mediumIndex];
         }
-        const auto* rack = replica.GetPtr()->GetRack();
 
+        const auto* rack = replica.GetPtr()->GetRack();
         if (rack) {
             int rackIndex = rack->GetIndex();
             int maxReplicasPerRack = ChunkPlacement_->GetMaxReplicasPerRack(mediumIndex, chunk, Null);

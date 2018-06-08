@@ -6,6 +6,8 @@
 
 #include <yt/core/misc/serialize.h>
 
+#include <yt/core/net/address.h>
+
 #include <yt/core/bus/bus.h>
 
 #include <yt/core/rpc/message.h>

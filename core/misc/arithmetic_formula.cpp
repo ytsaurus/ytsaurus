@@ -15,19 +15,54 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ValidateFormulaVariable(const TString& variable)
+DEFINE_ENUM(EEvaluationContext,
+    (Boolean)
+    (Arithmetic)
+);
+
+bool IsSymbolAllowedInName(char c, EEvaluationContext context, bool isFirst)
+{
+    const static THashSet<char> extraAllowedBooleanVariableTokens{'/', '-'};
+    if (std::isalpha(c) || c == '_') {
+        return true;
+    }
+    if (isFirst) {
+        return false;
+    }
+    if (std::isdigit(c)) {
+        return true;
+    }
+    if (context == EEvaluationContext::Boolean && extraAllowedBooleanVariableTokens.has(c)) {
+        return true;
+    }
+    return false;
+}
+
+void ValidateFormulaVariable(const TString& variable, EEvaluationContext context)
 {
     if (variable.empty()) {
         THROW_ERROR_EXCEPTION("Variable should not be empty");
     }
     for (char c : variable) {
-        if (!std::isalnum(c) && c != '_') {
+        if (!IsSymbolAllowedInName(c, context, false)) {
             THROW_ERROR_EXCEPTION("Invalid character %Qv in variable %Qv", c, variable);
         }
     }
-    if (std::isdigit(variable[0])) {
-        THROW_ERROR_EXCEPTION("Variable cannot start with digit: %Qv", variable);
+    if (!IsSymbolAllowedInName(variable[0], context, true)) {
+        THROW_ERROR_EXCEPTION("Invalid first character in variable: %Qv", variable);
     }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ValidateArithmeticFormulaVariable(const TString& variable)
+{
+    ValidateFormulaVariable(variable, EEvaluationContext::Arithmetic);
+}
+
+void ValidateBooleanFormulaVariable(const TString& variable)
+{
+    ValidateFormulaVariable(variable, EEvaluationContext::Boolean);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -125,11 +160,6 @@ bool operator!=(const TFormulaToken& lhs, const TFormulaToken& rhs)
     return !(lhs == rhs);
 }
 
-DEFINE_ENUM(EEvaluationContext,
-    (Boolean)
-    (Arithmetic)
-);
-
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -157,7 +187,7 @@ public:
 private:
     std::vector<TFormulaToken> ParsedFormula_;
 
-    static std::vector<TFormulaToken> Tokenize(const TString& formula);
+    static std::vector<TFormulaToken> Tokenize(const TString& formula, EEvaluationContext context);
     static std::vector<TFormulaToken> Parse(
         const TString& formula,
         const std::vector<TFormulaToken>& tokens,
@@ -320,7 +350,7 @@ THashSet<TString> TGenericFormulaImpl::GetVariables() const
     return variables;
 }
 
-std::vector<TFormulaToken> TGenericFormulaImpl::Tokenize(const TString& formula)
+std::vector<TFormulaToken> TGenericFormulaImpl::Tokenize(const TString& formula, EEvaluationContext context)
 {
     std::vector<TFormulaToken> result;
     size_t pos = 0;
@@ -435,9 +465,8 @@ std::vector<TFormulaToken> TGenericFormulaImpl::Tokenize(const TString& formula)
     };
 
     auto extractVariable = [&] {
-        YCHECK(!std::isdigit(formula[pos]));
         TString name;
-        while (pos < formula.Size() && (std::isalnum(formula[pos]) || formula[pos] == '_')) {
+        while (pos < formula.Size() && IsSymbolAllowedInName(formula[pos], context, name.empty())) {
             name += formula[pos++];
         }
         return name;
@@ -462,7 +491,7 @@ std::vector<TFormulaToken> TGenericFormulaImpl::Tokenize(const TString& formula)
             token.Type = EFormulaTokenType::Integer;
             token.Number = extractInteger();
             expectBinaryOperator = true;
-        } else if (std::isalnum(c) || c == '_') {
+        } else if (IsSymbolAllowedInName(formula[pos], context, true)) {
             token.Type = EFormulaTokenType::Variable;
             token.Name = extractVariable();
             expectBinaryOperator = true;
@@ -594,7 +623,7 @@ size_t TGenericFormulaImpl::CalculateHash(const std::vector<TFormulaToken> token
 
 TIntrusivePtr<TGenericFormulaImpl> MakeGenericFormulaImpl(const TString& formula, EEvaluationContext context)
 {
-    auto tokens = TGenericFormulaImpl::Tokenize(formula);
+    auto tokens = TGenericFormulaImpl::Tokenize(formula, context);
     auto parsed = TGenericFormulaImpl::Parse(formula, tokens, context);
     auto hash = TGenericFormulaImpl::CalculateHash(parsed);
     return New<TGenericFormulaImpl>(formula, hash, parsed);

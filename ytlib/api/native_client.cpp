@@ -476,6 +476,16 @@ public:
         return Connection_;
     }
 
+    virtual const ITableMountCachePtr& GetTableMountCache() override
+    {
+        return Connection_->GetTableMountCache();
+    }
+
+    virtual const ITimestampProviderPtr& GetTimestampProvider() override
+    {
+        return Connection_->GetTimestampProvider();
+    }
+
     virtual const INativeConnectionPtr& GetNativeConnection() override
     {
         return Connection_;
@@ -4523,10 +4533,10 @@ private:
             [&] (const TNullable<TString>& pool, const TString& user, const EOperationState& state, const EOperationType& type, i64 count) {
                 if (pool) {
                     poolCounts[*pool] += count;
+                }
 
-                    if (options.Pool && *options.Pool != *pool) {
-                        return false;
-                    }
+                if (options.Pool && (!pool || *options.Pool != *pool)) {
+                    return false;
                 }
 
                 userCounts[user] += count;
@@ -4801,6 +4811,13 @@ private:
                 archiveData.push_back(operation);
             }
         }
+
+        std::sort(
+            archiveData.begin(),
+            archiveData.end(),
+            [] (const TOperation& lhs, const TOperation& rhs) {
+                return lhs.OperationId < rhs.OperationId;
+            });
 
         std::sort(
             cypressData.begin(),

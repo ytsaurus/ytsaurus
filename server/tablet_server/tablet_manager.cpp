@@ -5,11 +5,12 @@
 #include "table_replica.h"
 #include "table_replica_type_handler.h"
 #include "tablet.h"
+#include "tablet_balancer.h"
 #include "tablet_cell.h"
 #include "tablet_cell_bundle.h"
 #include "tablet_cell_bundle_type_handler.h"
+#include "tablet_cell_decommissioner.h"
 #include "tablet_cell_type_handler.h"
-#include "tablet_balancer.h"
 #include "tablet_manager.h"
 #include "tablet_tracker.h"
 #include "tablet_type_handler.h"
@@ -136,6 +137,7 @@ public:
         , TabletTracker_(New<TTabletTracker>(Config_, Bootstrap_))
         , TabletBalancer_(New<TTabletBalancer>(Config_->TabletBalancer, Bootstrap_))
         , BundleNodeTracker_(New<TBundleNodeTracker>(Bootstrap_))
+        , TabletCellDecommissioner_(New<TTabletCellDecommissioner>(Config_->TabletCellDecommissioner, Bootstrap_))
     {
         VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::Default), AutomatonThread);
 
@@ -169,6 +171,7 @@ public:
         RegisterMethod(BIND(&TImpl::HydraOnTableReplicaDisabled, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraUpdateTabletTrimmedRowCount, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraCreateTabletAction, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraKickOrphanedTabletActions, Unretained(this)));
 
         if (Bootstrap_->IsPrimaryMaster()) {
             const auto& nodeTracker = Bootstrap_->GetNodeTracker();
@@ -652,6 +655,11 @@ public:
         }
 
         for (const auto* tablet : tablets) {
+            if (tablet->GetTable() != tablets[0]->GetTable()) {
+                THROW_ERROR_EXCEPTION("Tablets %v and %v belong to different tables",
+                    tablets[0]->GetId(),
+                    tablet->GetId());
+            }
             if (auto* action = tablet->GetAction()) {
                 THROW_ERROR_EXCEPTION("Tablet %v already participating in action %v",
                     tablet->GetId(),
@@ -672,6 +680,12 @@ public:
                 }
             }
             freeze = state == ETabletState::Frozen;
+        }
+
+        for (auto* cell : cells) {
+            if (!IsCellActive(cell)) {
+                THROW_ERROR_EXCEPTION("Tablet cell %v is not active", cell->GetId());
+            }
         }
 
         switch (kind) {
@@ -701,11 +715,6 @@ public:
                 for (int index = 1; index < tablets.size(); ++index) {
                     const auto& cur = tablets[index];
                     const auto& prev = tablets[index - 1];
-                    if (cur->GetTable() != prev->GetTable()) {
-                        THROW_ERROR_EXCEPTION("Tablets %v and %v belong to different tables",
-                            prev->GetId(),
-                            cur->GetId());
-                    }
                     if (cur->GetIndex() != prev->GetIndex() + 1) {
                         THROW_ERROR_EXCEPTION("Tablets %v and %v are not consequent",
                             prev->GetId(),
@@ -1083,28 +1092,17 @@ public:
             }
 
             case ETabletActionState::Unmounted: {
+                YCHECK(!action->Tablets().empty());
+                auto* table = action->Tablets().front()->GetTable();
+                if (!IsObjectAlive(table)) {
+                    THROW_ERROR_EXCEPTION("Table is not alive");
+                }
+
                 switch (action->GetKind()) {
-                    case ETabletActionKind::Move: {
-                        for (int index = 0; index < action->Tablets().size(); ++index) {
-                            if (!IsObjectAlive(action->Tablets()[index]->GetTable())) {
-                                THROW_ERROR_EXCEPTION("Table is not alive");
-                            }
-                            DoMountTablet(
-                                action->Tablets()[index],
-                                action->TabletCells().empty()
-                                    ? nullptr
-                                    : action->TabletCells()[index],
-                                action->GetFreeze());
-                        }
+                    case ETabletActionKind::Move:
                         break;
-                    }
 
                     case ETabletActionKind::Reshard: {
-                        auto* table = action->Tablets().front()->GetTable();
-                        if (!IsObjectAlive(table)) {
-                            THROW_ERROR_EXCEPTION("Table is not alive");
-                        }
-
                         int firstTabletIndex = action->Tablets().front()->GetIndex();
                         int lastTabletIndex = action->Tablets().back()->GetIndex();
 
@@ -1141,47 +1139,52 @@ public:
                             tablet->SetAction(action);
                         }
 
-                        TTableMountConfigPtr mountConfig;
-                        NTabletNode::TTabletChunkReaderConfigPtr readerConfig;
-                        NTabletNode::TTabletChunkWriterConfigPtr writerConfig;
-                        NTabletNode::TTabletWriterOptionsPtr writerOptions;
-                        GetTableSettings(table, &mountConfig, &readerConfig, &writerConfig, &writerOptions);
-                        auto serializedMountConfig = ConvertToYsonString(mountConfig);
-                        auto serializedReaderConfig = ConvertToYsonString(readerConfig);
-                        auto serializedWriterConfig = ConvertToYsonString(writerConfig);
-                        auto serializedWriterOptions = ConvertToYsonString(writerOptions);
-
-                        std::vector<std::pair<TTablet*, TTabletCell*>> assignment;
-                        if (action->TabletCells().empty()) {
-                            assignment = ComputeTabletAssignment(
-                                table,
-                                mountConfig,
-                                nullptr,
-                                action->Tablets());
-                        } else {
-                            for (int index = 0; index < action->Tablets().size(); ++index) {
-                                assignment.emplace_back(
-                                    action->Tablets()[index],
-                                    action->TabletCells()[index]);
-                            }
-                        }
-
-                        DoMountTablets(
-                            table,
-                            assignment,
-                            mountConfig->InMemoryMode,
-                            action->GetFreeze(),
-                            serializedMountConfig,
-                            serializedReaderConfig,
-                            serializedWriterConfig,
-                            serializedWriterOptions);
-
                         break;
                     }
 
                     default:
                         Y_UNREACHABLE();
                 }
+
+                TTableMountConfigPtr mountConfig;
+                NTabletNode::TTabletChunkReaderConfigPtr readerConfig;
+                NTabletNode::TTabletChunkWriterConfigPtr writerConfig;
+                NTabletNode::TTabletWriterOptionsPtr writerOptions;
+                GetTableSettings(table, &mountConfig, &readerConfig, &writerConfig, &writerOptions);
+                auto serializedMountConfig = ConvertToYsonString(mountConfig);
+                auto serializedReaderConfig = ConvertToYsonString(readerConfig);
+                auto serializedWriterConfig = ConvertToYsonString(writerConfig);
+                auto serializedWriterOptions = ConvertToYsonString(writerOptions);
+
+                std::vector<std::pair<TTablet*, TTabletCell*>> assignment;
+                if (action->TabletCells().empty()) {
+                    if (!CheckHasHealthyCells(table->GetTabletCellBundle())) {
+                        ChangeTabletActionState(action, ETabletActionState::Orphaned, false);
+                        break;
+                    }
+
+                    assignment = ComputeTabletAssignment(
+                        table,
+                        mountConfig,
+                        nullptr,
+                        action->Tablets());
+                } else {
+                    for (int index = 0; index < action->Tablets().size(); ++index) {
+                        assignment.emplace_back(
+                            action->Tablets()[index],
+                            action->TabletCells()[index]);
+                    }
+                }
+
+                DoMountTablets(
+                    table,
+                    assignment,
+                    mountConfig->InMemoryMode,
+                    action->GetFreeze(),
+                    serializedMountConfig,
+                    serializedReaderConfig,
+                    serializedWriterConfig,
+                    serializedWriterOptions);
 
                 ChangeTabletActionState(action, ETabletActionState::Mounting);
                 break;
@@ -1236,6 +1239,29 @@ public:
 
             default:
                 Y_UNREACHABLE();
+        }
+    }
+
+    void HydraKickOrphanedTabletActions(TReqKickOrphanedTabletActions* request)
+    {
+        auto orphanedActionIds = FromProto<std::vector<TTabletActionId>>(request->tablet_action_ids());
+
+        THashSet<TTabletCellBundle*> healthyBundles;
+        for (const auto& pair : TabletCellMap_) {
+            auto* cell = pair.second;
+            if (IsCellActive(cell)) {
+                healthyBundles.insert(cell->GetCellBundle());
+            }
+        }
+
+        for (auto actionId : orphanedActionIds) {
+            auto* action = FindTabletAction(actionId);
+            if (IsObjectAlive(action) && action->GetState() == ETabletActionState::Orphaned) {
+                auto* bundle = action->Tablets().front()->GetTable()->GetTabletCellBundle();
+                if (healthyBundles.has(bundle)) {
+                    ChangeTabletActionState(action, ETabletActionState::Unmounted);
+                }
+            }
         }
     }
 
@@ -2389,6 +2415,22 @@ public:
         return cell;
     }
 
+    void DecomissionTabletCell(TTabletCell* cell)
+    {
+        if (cell->GetDecommissioned()) {
+            return;
+        }
+
+        cell->SetDecommissioned(true);
+
+        auto actions = cell->Actions();
+        for (auto* action : actions) {
+            // NB: If destination cell disappears, don't drop action - let it continue with some other cells.
+            UnbindTabletActionFromCells(action);
+            OnTabletActionDisturbed(action, TError("Tablet cell %v has been decommissioned", cell->GetId()));
+        }
+    }
+
     TTabletCellBundle* FindTabletCellBundleByName(const TString& name)
     {
         auto it = NameToTabletCellBundleMap_.find(name);
@@ -2481,6 +2523,7 @@ private:
     const TTabletTrackerPtr TabletTracker_;
     const TTabletBalancerPtr TabletBalancer_;
     const TBundleNodeTrackerPtr BundleNodeTracker_;
+    const TTabletCellDecommissionerPtr TabletCellDecommissioner_;
 
     TEntityMap<TTabletCellBundle> TabletCellBundleMap_;
     TEntityMap<TTabletCell> TabletCellMap_;
@@ -3790,6 +3833,7 @@ private:
         if (Bootstrap_->IsPrimaryMaster()) {
             TabletTracker_->Start();
             TabletBalancer_->Start();
+            TabletCellDecommissioner_->Start();
 
             const auto& dynamicConfig = GetDynamicConfig();
             CleanupExecutor_ = New<TPeriodicExecutor>(
@@ -3808,6 +3852,7 @@ private:
 
         TabletTracker_->Stop();
         TabletBalancer_->Stop();
+        TabletCellDecommissioner_->Stop();
 
         if (CleanupExecutor_) {
             CleanupExecutor_->Stop();
@@ -3836,21 +3881,34 @@ private:
     }
 
 
-    void ValidateHasHealthyCells(TTabletCellBundle* cellBundle)
+    bool CheckHasHealthyCells(TTabletCellBundle* bundle)
     {
         for (const auto& pair : TabletCellMap_) {
             auto* cell = pair.second;
-            if (!IsObjectAlive(cell)) {
+            if (!IsCellActive(cell)) {
                 continue;
             }
-            if (cell->GetCellBundle() == cellBundle &&
+            if (cell->GetCellBundle() == bundle &&
                 cell->GetHealth() == ETabletCellHealth::Good)
             {
-                return;
+                return true;
             }
         }
-        THROW_ERROR_EXCEPTION("No healthy tablet cells in bundle %Qv",
-            cellBundle->GetName());
+
+        return false;
+    }
+
+    void ValidateHasHealthyCells(TTabletCellBundle* bundle)
+    {
+        if (!CheckHasHealthyCells(bundle)) {
+            THROW_ERROR_EXCEPTION("No healthy tablet cells in bundle %Qv",
+                bundle->GetName());
+        }
+    }
+
+    bool IsCellActive(TTabletCell* cell)
+    {
+        return IsObjectAlive(cell) && !cell->GetDecommissioned();
     }
 
     std::vector<std::pair<TTablet*, TTabletCell*>> ComputeTabletAssignment(
@@ -3861,7 +3919,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        if (hintCell) {
+        if (IsCellActive(hintCell)) {
             std::vector<std::pair<TTablet*, TTabletCell*>> assignment;
             for (auto* tablet : tabletsToMount) {
                 assignment.emplace_back(tablet, hintCell);
@@ -3911,6 +3969,10 @@ private:
 
         std::vector<TCellKey> cellKeys;
         for (auto* cell : GetValuesSortedByKey(TabletCellMap_)) {
+            if (!IsCellActive(cell)) {
+                continue;
+            }
+
             if (cell->GetCellBundle() == table->GetTabletCellBundle()) {
                 cellKeys.push_back(TCellKey{getCellSize(cell), cell});
             }
@@ -4661,6 +4723,11 @@ TTablet* TTabletManager::GetTabletOrThrow(const TTabletId& id)
 TTabletCell* TTabletManager::GetTabletCellOrThrow(const TTabletCellId& id)
 {
     return Impl_->GetTabletCellOrThrow(id);
+}
+
+void TTabletManager::DecomissionTabletCell(TTabletCell* cell)
+{
+    return Impl_->DecomissionTabletCell(cell);
 }
 
 TTabletCellBundle* TTabletManager::FindTabletCellBundleByName(const TString& name)

@@ -105,11 +105,7 @@ public:
 
     void OnTabletHeartbeat(TTablet* tablet)
     {
-        if (!Enabled_) {
-            return;
-        }
-
-        if (!Started_) {
+        if (!Enabled_ || !Started_) {
             return;
         }
 
@@ -195,11 +191,12 @@ private:
 
     void Balance()
     {
+        FillActiveTabletActions();
+
         if (!Enabled_) {
             return;
         }
 
-        FillActiveTabletActions();
         CurrentTime_ = TruncatedNow();
 
         BalanceTablets();
@@ -282,8 +279,9 @@ private:
         std::vector<const TTabletCell*> cells;
 
         for (const auto& pair : tabletManager->TabletCells()) {
-            if (pair.second->GetCellBundle() == bundle) {
-                cells.push_back(pair.second);
+            auto* cell = pair.second;
+            if (IsObjectAlive(cell) && !cell->GetDecommissioned() && cell->GetCellBundle() == bundle) {
+                cells.push_back(cell);
             }
         }
 

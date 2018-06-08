@@ -4,14 +4,14 @@ import yt_driver_bindings
 from yt.common import YtError, YtResponseError, flatten, update_inplace
 
 import copy as pycopy
-import os, stat
+import os
+import stat
 import sys
 import tempfile
 import time
 import calendar
 from datetime import datetime, timedelta
-import cStringIO
-from cStringIO import StringIO
+from cStringIO import StringIO, OutputType
 
 ###########################################################################
 
@@ -45,17 +45,18 @@ def _get_driver(driver):
 def init_drivers(clusters):
     for instance in clusters:
         if instance.master_count > 0:
-            secondary_driver_configs = [instance.configs["driver_secondary_" + str(i)]
+            if instance._cluster_name == "primary":
+                yt_driver_bindings.configure_logging(instance.driver_logging_config)
+
+            prefix = "" if instance._driver_backend == "native" else "rpc_"
+            secondary_driver_configs = [instance.configs[prefix + "driver_secondary_" + str(i)]
                                         for i in xrange(instance.secondary_master_cell_count)]
-            driver = Driver(config=instance.configs["driver"])
+            driver = Driver(config=instance.configs[prefix + "driver"])
             secondary_drivers = []
             for secondary_driver_config in secondary_driver_configs:
                 secondary_drivers.append(Driver(config=secondary_driver_config))
 
             clusters_drivers[instance._cluster_name] = [driver] + secondary_drivers
-
-            if instance._cluster_name == "primary":
-                yt_driver_bindings.configure_logging(instance.driver_logging_config)
 
 def terminate_drivers():
     clusters_drivers.clear()
@@ -147,7 +148,7 @@ def execute_command(command_name, parameters, input_stream=None, output_stream=N
         if parameters.get("output_format") is None:
             parameters["output_format"] = yson_format
         if output_stream is None:
-            output_stream = cStringIO.StringIO()
+            output_stream = StringIO()
 
     parameters = prepare_parameters(parameters)
 
@@ -191,7 +192,7 @@ def execute_command(command_name, parameters, input_stream=None, output_stream=N
             print >>sys.stderr, str(error)
             # NB: we want to see inner errors in teamcity.
         raise error
-    if isinstance(output_stream, cStringIO.OutputType):
+    if isinstance(output_stream, OutputType):
         result = output_stream.getvalue()
         if verbose:
             print >>sys.stderr, result

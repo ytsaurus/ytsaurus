@@ -64,6 +64,7 @@ DEFINE_ENUM(ETabletActionState,
     ((Frozen)                   (2))
     ((Unmounting)               (3))
     ((Unmounted)                (4))
+    ((Orphaned)                (10))
     ((Mounting)                 (5))
     ((Mounted)                  (6))
     ((Completed)                (7))
@@ -76,10 +77,12 @@ DEFINE_ENUM(ETabletActionState,
 DECLARE_REFCOUNTED_CLASS(TTabletManager)
 DECLARE_REFCOUNTED_CLASS(TTabletBalancer)
 DECLARE_REFCOUNTED_CLASS(TBundleNodeTracker)
+DECLARE_REFCOUNTED_CLASS(TTabletCellDecommissioner)
 
 DECLARE_REFCOUNTED_CLASS(TTabletManagerConfig)
 DECLARE_REFCOUNTED_CLASS(TTabletBalancerConfig)
 DECLARE_REFCOUNTED_CLASS(TTabletBalancerMasterConfig)
+DECLARE_REFCOUNTED_CLASS(TTabletCellDecommissionerConfig)
 DECLARE_REFCOUNTED_CLASS(TDynamicTabletBalancerMasterConfig)
 DECLARE_REFCOUNTED_CLASS(TDynamicTabletManagerConfig)
 

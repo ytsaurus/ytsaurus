@@ -165,6 +165,16 @@ public:
         return Underlying_->GetWriteStatistics();
     }
 
+    virtual void SetReadDeadline(TInstant deadline) override
+    {
+        Underlying_->SetReadDeadline(deadline);
+    }
+
+    virtual void SetWriteDeadline(TInstant deadline) override
+    {
+        Underlying_->SetWriteDeadline(deadline);
+    }
+
     virtual TFuture<size_t> Read(const TSharedMutableRef& buffer) override
     {
         auto promise = NewPromise<size_t>();

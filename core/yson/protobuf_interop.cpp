@@ -46,13 +46,8 @@ using TFieldNumberList = SmallVector<int, TypicalFieldCount>;
 
 namespace {
 
-TString DeriveYsonName(const TString& protobufName)
+TString ToUnderscoreCase(const TString& protobufName)
 {
-    YCHECK(!protobufName.empty());
-    if (!isupper(protobufName[0])) {
-        return protobufName;
-    }
-
     TStringBuilder builder;
     for (auto ch : protobufName) {
         if (isupper(ch)) {
@@ -65,6 +60,15 @@ TString DeriveYsonName(const TString& protobufName)
         }
     }
     return builder.Flush();
+}
+
+TString DeriveYsonName(const TString& protobufName, const google::protobuf::FileDescriptor* fileDescriptor)
+{
+    if (fileDescriptor->options().GetExtension(NYT::NYson::NProto::derive_underscore_case_names)) {
+        return ToUnderscoreCase(protobufName);
+    } else {
+        return protobufName;
+    }
 }
 
 } // namespace
@@ -103,7 +107,7 @@ private:
     template <class TDescriptor>
     TStringBuf GetYsonNameFromDescriptor(const TDescriptor* descriptor, const TString& annotatedName)
     {
-        auto ysonName = annotatedName ? annotatedName : DeriveYsonName(descriptor->name());
+        auto ysonName = annotatedName ? annotatedName : DeriveYsonName(descriptor->name(), descriptor->file());
         return InternString(ysonName);
     }
 

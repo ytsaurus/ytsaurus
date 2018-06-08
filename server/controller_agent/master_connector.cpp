@@ -1217,21 +1217,26 @@ private:
 
     void ValidateConfig()
     {
-        // First reset the alert.
+        // First reset the alerts.
         SetControllerAgentAlert(EControllerAgentAlertType::UnrecognizedConfigOptions, TError());
+        SetControllerAgentAlert(EControllerAgentAlertType::SnapshotLoadingDisabled, TError());
 
-        if (!Config_->EnableUnrecognizedAlert) {
-            return;
+        if (Config_->EnableUnrecognizedAlert) {
+            auto unrecognized = Config_->GetUnrecognizedRecursively();
+            if (unrecognized && unrecognized->GetChildCount() > 0) {
+                LOG_WARNING("Controller agent config contains unrecognized options (Unrecognized: %v)",
+                    ConvertToYsonString(unrecognized, EYsonFormat::Text));
+                SetControllerAgentAlert(
+                    EControllerAgentAlertType::UnrecognizedConfigOptions,
+                    TError("Controller agent config contains unrecognized options")
+                        << TErrorAttribute("unrecognized", unrecognized));
+            }
         }
 
-        auto unrecognized = Config_->GetUnrecognizedRecursively();
-        if (unrecognized && unrecognized->GetChildCount() > 0) {
-            LOG_WARNING("Controller agent config contains unrecognized options (Unrecognized: %v)",
-                ConvertToYsonString(unrecognized, EYsonFormat::Text));
-            SetControllerAgentAlert(
-                EControllerAgentAlertType::UnrecognizedConfigOptions,
-                TError("Controller agent config contains unrecognized options")
-                    << TErrorAttribute("unrecognized", unrecognized));
+        if (!Config_->EnableSnapshotLoading) {
+            auto error = TError("Snapshot loading is disabled; consider enabling it using the controller agent config");
+            LOG_WARNING(error);
+            SetControllerAgentAlert(EControllerAgentAlertType::SnapshotLoadingDisabled, error);
         }
     }
 

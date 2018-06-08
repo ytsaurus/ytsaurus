@@ -998,12 +998,13 @@ struct IClient
     //! Returns a async flag indicating completion.
     virtual TFuture<void> Terminate() = 0;
 
+    virtual const NTabletClient::ITableMountCachePtr& GetTableMountCache() = 0;
+    virtual const NTransactionClient::ITimestampProviderPtr& GetTimestampProvider() = 0;
 
     // Transactions
     virtual ITransactionPtr AttachTransaction(
         const NTransactionClient::TTransactionId& transactionId,
         const TTransactionAttachOptions& options = TTransactionAttachOptions()) = 0;
-
 
     // Tables
     virtual TFuture<void> MountTable(

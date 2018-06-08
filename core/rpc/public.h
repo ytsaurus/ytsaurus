@@ -2,6 +2,8 @@
 
 #include <yt/core/misc/guid.h>
 
+#include <yt/core/bus/public.h>
+
 namespace NYT {
 namespace NRpc {
 
@@ -92,7 +94,7 @@ constexpr int DefaultProtocolVersion = 0;
 constexpr int GenericProtocolVersion = -1;
 
 DEFINE_ENUM(EErrorCode,
-    ((TransportError)               (100))
+    ((TransportError)               (static_cast<int>(NBus::EErrorCode::TransportError)))
     ((ProtocolError)                (101))
     ((NoSuchService)                (102))
     ((NoSuchMethod)                 (103))

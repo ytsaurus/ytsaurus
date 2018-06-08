@@ -50,7 +50,8 @@ TSyncSlruCacheBase<TKey, TValue, THash>::TSyncSlruCacheBase(
 template <class TKey, class TValue, class THash>
 void TSyncSlruCacheBase<TKey, TValue, THash>::Clear()
 {
-    for (auto& shard : Shards_) {
+    for (size_t i = 0; i < Config_->ShardCount; ++i) {
+        auto& shard = Shards_[i];
         NConcurrency::TWriterGuard guard(shard.SpinLock);
 
         shard.TouchBufferPosition = 0;
@@ -58,7 +59,7 @@ void TSyncSlruCacheBase<TKey, TValue, THash>::Clear()
         shard.ItemMap.clear();
 
         TIntrusiveListWithAutoDelete<TItem, TDelete> youngerLruList;
-        shard.YoungerLruList_.Swap(youngerLruList);
+        shard.YoungerLruList.Swap(youngerLruList);
 
         TIntrusiveListWithAutoDelete<TItem, TDelete> olderLruList;
         shard.OlderLruList.Swap(olderLruList);

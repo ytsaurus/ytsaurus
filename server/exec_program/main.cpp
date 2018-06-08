@@ -88,13 +88,18 @@ protected:
         }
 
         ConfigureUids();
+        ConfigureCrashHandler();
 
         if (Pty_ == -1) {
             NJobProxy::RunJobSatellite(GetConfig(), Uid_, Environment_, JobId_);
         }
         TThread::CurrentThreadSetName("ExecMain");
 
-        ConfigureCrashHandler();
+        try {
+            SafeCreateStderrFile("../executor_stderr");
+        } catch (...) {
+            Exit(4);
+        }
 
         // Don't start any other singleton or parse config in executor mode.
         // Explicitly shut down log manager to ensure it doesn't spoil dup-ed descriptors.
@@ -154,6 +159,7 @@ protected:
         }
 
         if (!executorError.IsOK()) {
+            fprintf(stderr, "Failed to prepare pipes, unexpected executor error\n%s", ~ToString(executorError));
             Exit(3);
             return;
         }

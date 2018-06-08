@@ -32,6 +32,10 @@ DEFINE_ENUM(EDeliveryTrackingLevel,
     (Full)
 );
 
+DEFINE_ENUM(EErrorCode,
+    ((TransportError)               (100))
+);
+
 extern const TString DefaultNetworkName;
 extern const TString LocalNetworkName;
 

@@ -45,9 +45,12 @@ class TFileChangelogQueue
 public:
     explicit TFileChangelogQueue(
         TSyncFileChangelogPtr changelog,
-        const TProfiler& profiler)
+        const TProfiler& profiler,
+        const IInvokerPtr& invoker)
         : Changelog_(std::move(changelog))
         , Profiler(profiler)
+        , Invoker_(NConcurrency::CreateBoundedConcurrencyInvoker(invoker, 1))
+        , ProcessQueueCallback_(BIND(&TFileChangelogQueue::Process, MakeWeak(this)))
         , FlushedRecordCount_(Changelog_->GetRecordCount())
     { }
 
@@ -180,9 +183,36 @@ public:
         return records;
     }
 
+    const IInvokerPtr& GetInvoker()
+    {
+        return Invoker_;
+    }
+
+    void Wakeup()
+    {
+        if (ProcessQueueCallbackPending_.load(std::memory_order_relaxed)) {
+            return;
+        }
+
+        bool expected = false;
+        if (ProcessQueueCallbackPending_.compare_exchange_strong(expected, true)) {
+            GetInvoker()->Invoke(ProcessQueueCallback_);
+        }
+    }
+
+    void Process() {
+        ProcessQueueCallbackPending_ = false;
+
+        if (HasPendingFlushes()) {
+            RunPendingFlushes();
+        }
+    }
+
 private:
     const TSyncFileChangelogPtr Changelog_;
     const TProfiler Profiler;
+    const IInvokerPtr Invoker_;
+    const TClosure ProcessQueueCallback_;
 
     TSpinLock SpinLock_;
 
@@ -199,6 +229,7 @@ private:
     TPromise<void> FlushPromise_ = NewPromise<void>();
     std::atomic<bool> FlushForced_ = {false};
     std::atomic<NProfiling::TCpuInstant> LastFlushed_ = {0};
+    std::atomic<bool> ProcessQueueCallbackPending_ = {false};
 
     DECLARE_THREAD_AFFINITY_SLOT(SyncThread);
 
@@ -300,23 +331,23 @@ public:
 
     TFileChangelogQueuePtr CreateQueue(TSyncFileChangelogPtr syncChangelog)
     {
-        return New<TFileChangelogQueue>(std::move(syncChangelog), Profiler);
+        return New<TFileChangelogQueue>(std::move(syncChangelog), Profiler, GetInvoker());
     }
 
     void RegisterQueue(TFileChangelogQueuePtr queue)
     {
-        GetInvoker()->Invoke(BIND(&TImpl::DoRegisterQueue, MakeStrong(this), std::move(queue)));
+        queue->GetInvoker()->Invoke(BIND(&TImpl::DoRegisterQueue, MakeStrong(this), queue));
     }
 
     void UnregisterQueue(TFileChangelogQueuePtr queue)
     {
-        GetInvoker()->Invoke(BIND(&TImpl::DoUnregisterQueue, MakeStrong(this), std::move(queue)));
+        queue->GetInvoker()->Invoke(BIND(&TImpl::DoUnregisterQueue, MakeStrong(this), queue));
     }
 
     TFuture<void> Append(TFileChangelogQueuePtr queue, const TSharedRef& record)
     {
         auto result = queue->AsyncAppend(record);
-        Wakeup();
+        queue->Wakeup();
         Profiler.Increment(RecordCounter_);
         Profiler.Increment(ByteCounter_, record.Size());
         return result;
@@ -329,42 +360,49 @@ public:
         i64 maxBytes)
     {
         return BIND(&TImpl::DoRead, MakeStrong(this))
-            .AsyncVia(GetInvoker())
+            .AsyncVia(queue->GetInvoker())
             .Run(std::move(queue), firstRecordId, maxRecords, maxBytes);
     }
 
     TFuture<void> Flush(TFileChangelogQueuePtr queue)
     {
         auto result = queue->AsyncFlush();
-        Wakeup();
+        queue->Wakeup();
+        return result;
+    }
+
+    TFuture<void> ForceFlush(TFileChangelogQueuePtr queue)
+    {
+        auto result = queue->AsyncFlush();
+        queue->GetInvoker()->Invoke(BIND(&TFileChangelogQueue::Process, queue));
         return result;
     }
 
     TFuture<void> Truncate(TFileChangelogQueuePtr queue, int recordCount)
     {
         return BIND(&TImpl::DoTruncate, MakeStrong(this))
-            .AsyncVia(GetInvoker())
+            .AsyncVia(queue->GetInvoker())
             .Run(std::move(queue), recordCount);
     }
 
     TFuture<void> Close(TFileChangelogQueuePtr queue)
     {
         return BIND(&TImpl::DoClose, MakeStrong(this))
-            .AsyncVia(GetInvoker())
+            .AsyncVia(queue->GetInvoker())
             .Run(std::move(queue));
     }
 
     TFuture<void> Preallocate(TFileChangelogQueuePtr queue, size_t size)
     {
         return BIND(&TImpl::DoPreallocate, MakeStrong(this))
-            .AsyncVia(GetInvoker())
+            .AsyncVia(queue->GetInvoker())
             .Run(std::move(queue), size);
     }
 
     TFuture<void> FlushChangelogs()
     {
         return BIND(&TImpl::DoFlushChangelogs, MakeStrong(this))
-            .AsyncVia(GetInvoker())
+            .AsyncVia(ActionQueue_->GetInvoker())
             .Run();
     }
 
@@ -383,44 +421,15 @@ private:
 
     const TProfiler Profiler;
 
-    std::atomic<bool> ProcessQueuesCallbackPending_ = {false};
-
     THashSet<TFileChangelogQueuePtr> Queues_;
 
     TMonotonicCounter RecordCounter_;
     TMonotonicCounter ByteCounter_;
 
-
-    void Wakeup()
-    {
-        if (ProcessQueuesCallbackPending_.load(std::memory_order_relaxed)) {
-            // No need for pushing another ProcessQueuesCallback_
-            // since ProcessQueues will be scanning all registered queues anyway.
-            // However this only applies to _registered_ queues and our registration callback
-            // could still be on its way. Hence we always invoke ProcessQueue in DoRegisterQueue
-            // to make sure we didn't miss anything.
-            return;
-        }
-
-        bool expected = false;
-        if (ProcessQueuesCallbackPending_.compare_exchange_strong(expected, true)) {
-            ActionQueue_->GetInvoker()->Invoke(ProcessQueuesCallback_);
-        }
-    }
-
-    void ProcessQueue(const TFileChangelogQueuePtr& queue)
-    {
-        if (queue->HasPendingFlushes()) {
-            queue->RunPendingFlushes();
-        }
-    }
-
     void ProcessQueues()
     {
-        ProcessQueuesCallbackPending_ = false;
-
         for (const auto& queue : Queues_) {
-            ProcessQueue(queue);
+            queue->Wakeup();
         }
     }
 
@@ -433,7 +442,7 @@ private:
             queue->GetChangelog()->GetFileName());
 
         // See Wakeup.
-        ProcessQueue(queue);
+        queue->Process();
     }
 
     void DoUnregisterQueue(const TFileChangelogQueuePtr& queue)
@@ -577,7 +586,7 @@ public:
         Truncated_ = true;
         // NB: Ignoring the result seems fine since TSyncFileChangelog
         // will propagate any possible error as the result of all further calls.
-        Flush();
+        DispatcherImpl_->ForceFlush(Queue_);
         return DispatcherImpl_->Truncate(Queue_, recordCount);
     }
 
@@ -585,7 +594,7 @@ public:
     {
         Closed_ = true;
         // NB: See #Truncate above.
-        Flush();
+        DispatcherImpl_->ForceFlush(Queue_);
         return DispatcherImpl_->Close(Queue_);
     }
 

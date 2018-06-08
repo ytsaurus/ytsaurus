@@ -1336,7 +1336,7 @@ private:
     {
         auto it = TablePathToSession_.find(path);
         if (it == TablePathToSession_.end()) {
-            const auto& tableMountCache = Client_->GetConnection()->GetTableMountCache();
+            const auto& tableMountCache = Client_->GetTableMountCache();
             auto tableInfo = WaitFor(tableMountCache->GetTableInfo(path))
                 .ValueOrThrow();
 

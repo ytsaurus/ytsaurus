@@ -106,7 +106,7 @@ void TSkynetManager::Share(IRequestPtr req, IResponseWriterPtr rsp)
 
     TShareParameters params;
     try {
-        params.Load(ConvertToNode(TYsonString(req->GetHeaders()->Get("X-Yt-Parameters"))));
+        params.Load(ConvertToNode(TYsonString(req->GetHeaders()->GetOrThrow("X-Yt-Parameters"))));
     } catch (const std::exception& ex) {
         LOG_ERROR(ex, "Failed to parse request parameters");
 
@@ -401,13 +401,13 @@ IResponsePtr HandleRedirectAndCheckStatus(
     auto rsp = WaitFor(httpClient->Get(url, headers))
         .ValueOrThrow();
     if (rsp->GetStatusCode() == EStatusCode::TemporaryRedirect) {
-        rsp = WaitFor(httpClient->Get(rsp->GetHeaders()->Get("Location"), headers))
+        rsp = WaitFor(httpClient->Get(rsp->GetHeaders()->GetOrThrow("Location"), headers))
             .ValueOrThrow();
     }
 
     if (rsp->GetStatusCode() != EStatusCode::Ok && rsp->GetStatusCode() != EStatusCode::Accepted) {
-        THROW_ERROR_EXCEPTION("Proxy request failed with code %v",
-            rsp->GetStatusCode());
+        THROW_ERROR_EXCEPTION("Proxy request failed with code %v", rsp->GetStatusCode())
+            << ParseYTError(rsp);
     }
 
     return rsp;
@@ -416,9 +416,9 @@ IResponsePtr HandleRedirectAndCheckStatus(
 void CheckTrailers(const IResponsePtr& rsp)
 {
     if (rsp->GetStatusCode() == EStatusCode::Accepted) {
-        if (rsp->GetTrailers()->Get("X-Yt-Response-Code") != "0") {
-            THROW_ERROR_EXCEPTION("Error in response")
-                << TErrorAttribute("message", rsp->GetTrailers()->Get("X-Yt-Response-Message"));
+        if (rsp->GetTrailers()->GetOrThrow("X-Yt-Response-Code") != "0") {
+            THROW_ERROR_EXCEPTION("Error in trailers")
+                << ParseYTError(rsp);
         }
     }
 }
@@ -579,7 +579,7 @@ std::pair<TSkynetShareMeta, std::vector<TFileOffset>> ReadSkynetMetaFromTable(
     auto response = HandleRedirectAndCheckStatus(httpClient, proxyUrl + "/api/v3/read_table", headers);
     TYsonInput input(response, EYsonType::ListFragment);
 
-    auto responseAttributes = ConvertToNode(TYsonString(response->GetHeaders()->Get("X-Yt-Response-Parameters")));
+    auto responseAttributes = ConvertToNode(TYsonString(response->GetHeaders()->GetOrThrow("X-Yt-Response-Parameters")));
     auto rowIndex = responseAttributes->AsMap()->GetChild("start_row_index")->AsInt64()->GetValue();
 
     TSkynetTableValueConsumer consumer{rowIndex, {}};

@@ -318,6 +318,12 @@ public:
         return result;
     }
 
+    virtual void ClearMetadataCaches() override
+    {
+        Clear();
+        Connection_->ClearMetadataCaches();
+    }
+
     virtual IConnectionPtr GetConnection() override
     {
         return Connection_;
@@ -328,6 +334,8 @@ public:
         // TODO(ignat): find and eliminate reference loop.
         // Reset of the connection should be sufficient to release this connection.
         // But there is some reference loop and it does not work.
+
+        ClearMetadataCaches();
 
         // Release the connection with entire thread pools.
         if (Connection_) {

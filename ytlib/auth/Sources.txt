@@ -1,4 +1,5 @@
 SET(YT_SRCS
+  ${CMAKE_CURRENT_LIST_DIR}/authentication_manager.cpp
   ${CMAKE_CURRENT_LIST_DIR}/cookie_authenticator.cpp
   ${CMAKE_CURRENT_LIST_DIR}/default_blackbox_service.cpp
   ${CMAKE_CURRENT_LIST_DIR}/token_authenticator.cpp

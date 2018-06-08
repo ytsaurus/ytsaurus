@@ -40,9 +40,6 @@ protected:
     const TDecoratedAutomatonPtr DecoratedAutomaton_;
     TEpochContext* const EpochContext_;
 
-    NProfiling::TMonotonicCounter CommitCounter_;
-    NProfiling::TMonotonicCounter FlushCounter_;
-
     const NLogging::TLogger Logger;
     const NProfiling::TProfiler Profiler;
 

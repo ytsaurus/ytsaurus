@@ -50,13 +50,16 @@ public:
 TEST_P(TAsyncFileChangelogIndexTest, Simple)
 {
     TString IndexFileName = GenerateRandomFileName("TAsyncFileChangelogIndexTest.index");
-    TAsyncFileChangelogIndex index(IOEngine_, IndexFileName, 16);
+    TAsyncFileChangelogIndex index(IOEngine_, IndexFileName, 4096, 16);
 
     index.Create();
     index.Append(0, 0, 1);
     index.Append(1, 1, 15);
 
     index.Append(2, 16, 1);
+
+    index.FlushData().Get()
+        .ThrowOnError();
 
     std::vector<int> appendSizes;
     int filePosition = 17;
@@ -65,6 +68,8 @@ TEST_P(TAsyncFileChangelogIndexTest, Simple)
     }
 
     index.Append(3, filePosition, appendSizes);
+    index.FlushData().Get()
+        .ThrowOnError();
 
     for (auto i : appendSizes) {
         filePosition += i;
@@ -86,7 +91,7 @@ TEST_P(TAsyncFileChangelogIndexTest, Simple)
 
     index.Close();
 
-    TAsyncFileChangelogIndex index2(IOEngine_, IndexFileName, 16);
+    TAsyncFileChangelogIndex index2(IOEngine_, IndexFileName, 4096, 16);
     index2.Read();
     index2.TruncateInvalidRecords(index2.Records().size());
 
@@ -122,7 +127,7 @@ TEST_P(TAsyncFileChangelogIndexTest, BackwardCompatibility)
     file.Flush();
     file.Close();
 
-    TAsyncFileChangelogIndex index(IOEngine_, IndexFileName, 16);
+    TAsyncFileChangelogIndex index(IOEngine_, IndexFileName, 4096, 16);
     index.Read();
     index.TruncateInvalidRecords(index.Records().size());
 

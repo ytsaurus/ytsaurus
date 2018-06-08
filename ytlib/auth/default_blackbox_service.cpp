@@ -188,16 +188,10 @@ private:
     {
         auto timeout = std::min(deadline - TInstant::Now(), Config_->AttemptTimeout);
 
-        // XXX(babenko): setting timeout less than 1 sec will lead to no timeout set at all; YT-8474
-        if (timeout < TDuration::Seconds(1)) {
-            timeout = TDuration::Seconds(1);
-        }
-
         TString buffer;
         INodePtr result;
 
-        LOG_DEBUG(
-            "Calling Blackbox at %v (CallId: %v, Attempt: %v, Host: %v, Port: %v, Timeout: %v)",
+        LOG_DEBUG("Calling Blackbox (Url: %v, CallId: %v, Attempt: %v, Host: %v, Port: %v, Timeout: %v)",
             safeUrl,
             callId,
             attempt,
@@ -211,8 +205,7 @@ private:
             httpClient.DoGet(realUrl, &outputStream);
         }
 
-        LOG_DEBUG(
-            "Received Blackbox reply (CallId: %v, Attempt: %v)\n%v",
+        LOG_DEBUG("Received Blackbox reply (CallId: %v, Attempt: %v)\n%v",
             callId,
             attempt,
             buffer);
@@ -233,8 +226,7 @@ private:
                 << TErrorAttribute("actual_result_type", result->GetType());
         }
 
-        LOG_DEBUG(
-            "Parsed Blackbox reply (CallId: %v, Attempt: %v)",
+        LOG_DEBUG("Parsed Blackbox reply (CallId: %v, Attempt: %v)",
             callId,
             attempt);
 

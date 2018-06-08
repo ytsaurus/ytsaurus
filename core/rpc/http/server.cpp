@@ -21,9 +21,10 @@ namespace NHttp {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using namespace NYT::NConcurrency;
+using namespace NConcurrency;
+using namespace NYTree;
+using namespace NNet;
 using namespace NYT::NHttp;
-using namespace NYT::NYTree;
 using namespace NYT::NBus;
 using namespace NYT::NRpc;
 
@@ -70,10 +71,12 @@ public:
     explicit THttpReplyBus(
         IResponseWriterPtr rsp,
         const TString& endpointDescription,
-        std::unique_ptr<IAttributeDictionary> endpointAttributes)
+        std::unique_ptr<IAttributeDictionary> endpointAttributes,
+        const TNetworkAddress& endpointAddress)
         : Rsp_(std::move(rsp))
         , EndpointDescription_(endpointDescription)
         , EndpointAttributes_(std::move(endpointAttributes))
+        , EndpointAddress_(endpointAddress)
     { }
 
     virtual const TString& GetEndpointDescription() const override
@@ -84,6 +87,11 @@ public:
     virtual const IAttributeDictionary& GetEndpointAttributes() const override
     {
         return *EndpointAttributes_;
+    }
+
+    virtual const NNet::TNetworkAddress& GetEndpointAddress() const override
+    {
+        return EndpointAddress_;
     }
 
     virtual TTcpDispatcherStatistics GetStatistics() const override
@@ -150,6 +158,7 @@ private:
     const IResponseWriterPtr Rsp_;
     const TString EndpointDescription_;
     const std::unique_ptr<IAttributeDictionary> EndpointAttributes_;
+    const TNetworkAddress EndpointAddress_;
 
     TPromise<void> ReplySent_ = NewPromise<void>();
 };
@@ -187,7 +196,8 @@ public:
         }
 
         auto body = req->ReadBody();
-        auto endpointDescription = ToString(req->GetRemoteAddress());
+        auto remoteAddress = req->GetRemoteAddress();
+        auto endpointDescription = ToString(remoteAddress);
         auto endpointAttributes = ConvertToAttributes(BuildYsonStringFluently()
             .BeginMap()
                 .Item("address").Value(endpointDescription)
@@ -195,7 +205,8 @@ public:
         auto replyBus = New<THttpReplyBus>(
             rsp,
             endpointDescription,
-            std::move(endpointAttributes));
+            std::move(endpointAttributes),
+            remoteAddress);
         auto replySent = replyBus->ReplySent();
 
         auto requestMessage = CreateRequestMessage(*header, PushEnvelope(body), {});

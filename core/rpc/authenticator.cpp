@@ -15,10 +15,11 @@ public:
         : Authenticators_(std::move(authenticators))
     { }
 
-    virtual TFuture<TAuthenticationResult> Authenticate(const NRpc::NProto::TRequestHeader& header) override
+    virtual TFuture<TAuthenticationResult> Authenticate(
+        const TAuthenticationContext& context) override
     {
         for (const auto& authenticator : Authenticators_) {
-            auto asyncResult = authenticator->Authenticate(header);
+            auto asyncResult = authenticator->Authenticate(context);
             if (asyncResult) {
                 return asyncResult;
             }
@@ -44,11 +45,12 @@ class TNoopAuthenticator
     : public IAuthenticator
 {
 public:
-    virtual TFuture<TAuthenticationResult> Authenticate(const NRpc::NProto::TRequestHeader& header) override
+    virtual TFuture<TAuthenticationResult> Authenticate(
+        const TAuthenticationContext& context) override
     {
         static const auto Realm = TString("noop");
         TAuthenticationResult result{
-            header.has_user() ? header.user() : RootUserName,
+            context.Header->has_user() ? context.Header->user() : RootUserName,
             Realm
         };
         return MakeFuture<TAuthenticationResult>(result);
