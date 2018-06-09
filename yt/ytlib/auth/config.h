@@ -149,7 +149,7 @@ public:
             .Optional();
         RegisterParameter("blackbox_service", BlackboxService)
             .Alias("blackbox")
-            .Optional();
+            .DefaultNew();
         RegisterParameter("cypress_token_authenticator", CypressTokenAuthenticator)
             .Optional();
     }
