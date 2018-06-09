@@ -40,8 +40,7 @@ public:
     {
         const auto& ytConnector = Bootstrap_->GetYTConnector();
         const auto& client = ytConnector->GetClient();
-        const auto& connection = client->GetConnection();
-        const auto& timestampProvider = connection->GetTimestampProvider();
+        const auto& timestampProvider = client->GetTimestampProvider();
         return timestampProvider->GenerateTimestamps(1);
     }
 
@@ -74,7 +73,7 @@ public:
         if (startTimestamp == NullTimestamp) {
             LOG_DEBUG("Generating transaction start timestamp");
             const auto& ytConnector = Bootstrap_->GetYTConnector();
-            const auto& timestampProvider = ytConnector->GetClient()->GetConnection()->GetTimestampProvider();
+            const auto& timestampProvider = ytConnector->GetClient()->GetTimestampProvider();
             return timestampProvider->GenerateTimestamps().Apply(BIND(onTimestampGenerated));
         } else {
             return MakeFuture(onTimestampGenerated(startTimestamp));
