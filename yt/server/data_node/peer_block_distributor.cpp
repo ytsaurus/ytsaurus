@@ -137,7 +137,7 @@ bool TPeerBlockDistributor::ShouldDistributeBlocks()
         totalOutQueueSize >= Config_->OutQueueSizeActivationThreshold ||
         totalRequestedBlockSize >= Config_->TotalRequestedBlockSizeActivationThreshold * Config_->IterationPeriod.Seconds();
 
-    LOG_INFO("Determining if blocks should be distributed (IterationPeriod: %v, OutTraffic: %v, "
+    LOG_DEBUG("Determining if blocks should be distributed (IterationPeriod: %v, OutTraffic: %v, "
         "OutTrafficActivationThreshold: %v, OutThrottlerQueueSize: %v, DefaultNetworkPendingOutBytes: %v, "
         "TotalOutQueueSize: %v, OutQueueSizeActivationThreshold: %v, TotalRequestedBlockSize: %v, "
         "TotalRequestedBlockSizeActivationThreshold: %v, ShouldDistributeBlocks: %v)",
@@ -174,7 +174,7 @@ void TPeerBlockDistributor::DistributeBlocks()
     auto totalBlockSize = chosenBlocks.TotalSize;
 
     if (blocks.empty()) {
-        LOG_INFO("No blocks may be distributed on current iteration");
+        LOG_DEBUG("No blocks may be distributed on current iteration");
         return;
     }
 

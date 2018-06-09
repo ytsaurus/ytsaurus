@@ -2570,6 +2570,7 @@ class TestSchedulerGpu(YTEnvSetup):
         cls.node_counter += 1
         if cls.node_counter == 1:
             config["exec_agent"]["job_controller"]["resource_limits"]["gpu"] = 1
+            config["exec_agent"]["job_controller"]["test_gpu"] = True
 
     def test_job_count(self):
         gpu_nodes = [node for node in ls("//sys/nodes") if get("//sys/nodes/{}/@resource_limits/gpu".format(node)) > 0]

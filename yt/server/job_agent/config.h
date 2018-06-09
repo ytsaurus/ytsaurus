@@ -96,6 +96,10 @@ public:
     int StartPort;
     int PortCount;
 
+    //! This is a special testing option.
+    //! Instead of normal gpu discovery, it forces the node to believe the number of GPUs passed in the config.
+    bool TestGpu;
+
     TJobControllerConfig()
     {
         RegisterParameter("resource_limits", ResourceLimits)
@@ -130,6 +134,9 @@ public:
 
         RegisterParameter("port_count", PortCount)
             .Default(10000);
+
+        RegisterParameter("test_gpu", TestGpu)
+            .Default(false);
 
         RegisterPreprocessor([&] () {
             // 100 kB/sec * 1000 [nodes] = 100 MB/sec that corresponds to
