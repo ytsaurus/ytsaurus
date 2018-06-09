@@ -348,6 +348,8 @@ public:
 
     ui64 GenerateTimestamp() override;
 
+    TAuthorizationInfo WhoAmI() override;
+
     // Helper methods
     TYtPoller& GetYtPoller();
 
