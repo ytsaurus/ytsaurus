@@ -88,6 +88,10 @@ struct TCopyOptions
     FLUENT_FIELD_DEFAULT(bool, Force, false);
     FLUENT_FIELD_DEFAULT(bool, PreserveAccount, false);
     FLUENT_FIELD_OPTION(bool, PreserveExpirationTime);
+
+    // SourceTransactionId allows to copy nodes between transactions.
+    // When this option is set source node will be taken from specified transaction.
+    FLUENT_FIELD_OPTION(TTransactionId, SourceTransactionId);
 };
 
 // https://wiki.yandex-team.ru/yt/userdoc/api/#move

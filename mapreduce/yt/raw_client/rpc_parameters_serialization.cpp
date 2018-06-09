@@ -150,6 +150,9 @@ TNode SerializeParamsForCopy(
     result["recursive"] = options.Recursive_;
     result["force"] = options.Force_;
     result["preserve_account"] = options.PreserveAccount_;
+    if (options.SourceTransactionId_) {
+        result["source_transaction_id"] = GetGuidAsString(*options.SourceTransactionId_);
+    }
     if (options.PreserveExpirationTime_) {
         result["preserve_expiration_time"] = *options.PreserveExpirationTime_;
     }
