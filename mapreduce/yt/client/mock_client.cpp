@@ -447,6 +447,10 @@ TBatchRequestPtr TMockClient::CreateBatchRequest() {
     return nullptr;
 }
 
+TAuthorizationInfo TMockClient::WhoAmI() {
+    ythrow yexception() << "not implemented";
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT

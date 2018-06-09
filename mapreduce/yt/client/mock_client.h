@@ -125,6 +125,8 @@ public:
     ui64 GenerateTimestamp() override;
 
     TBatchRequestPtr CreateBatchRequest() override;
+
+    TAuthorizationInfo WhoAmI() override;
 };
 
 

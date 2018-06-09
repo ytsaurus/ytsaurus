@@ -21,6 +21,14 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TAuthorizationInfo
+{
+    TString Login;
+    TString Realm;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class ILock
     : public TThrRefBase
 {
@@ -40,6 +48,8 @@ public:
     // e.g. lock transaction was aborted.
     void Wait(TDuration timeout = TDuration::Max());
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 class IClientBase
     : public TThrRefBase
@@ -64,6 +74,8 @@ public:
     // https://wiki.yandex-team.ru/yt/userdoc/api/#executebatch18.4
     virtual TBatchRequestPtr CreateBatchRequest() = 0;
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 class ITransaction
     : virtual public IClientBase
@@ -103,6 +115,8 @@ public:
     // Ping transaction.
     virtual void Ping() = 0;
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 class IClient
     : virtual public IClientBase
@@ -194,6 +208,9 @@ public:
         const TAlterTableReplicaOptions& alterTableReplicaOptions) = 0;
 
     virtual ui64 GenerateTimestamp() = 0;
+
+    // Return YT username of current client.
+    virtual TAuthorizationInfo WhoAmI() = 0;
 };
 
 IClientPtr CreateClient(

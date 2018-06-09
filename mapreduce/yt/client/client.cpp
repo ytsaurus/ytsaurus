@@ -38,6 +38,8 @@
 
 #include <mapreduce/yt/raw_client/rpc_parameters_serialization.h>
 
+#include <library/json/json_reader.h>
+
 #include <util/generic/algorithm.h>
 #include <util/string/type.h>
 #include <util/system/env.h>
@@ -842,6 +844,20 @@ ui64 TClient::GenerateTimestamp()
     THttpHeader header("GET", "generate_timestamp");
     auto response = RetryRequest(Auth_, header, Nothing(), true);
     return NodeFromYsonString(response).AsUint64();
+}
+
+TAuthorizationInfo TClient::WhoAmI()
+{
+    THttpHeader header("GET", "auth/whoami", /* isApi = */ false);
+    auto response = RetryRequest(Auth_, header);
+    TAuthorizationInfo result;
+
+    NJson::TJsonValue jsonValue;
+    bool ok = NJson::ReadJsonTree(response, &jsonValue, /* throwOnError = */ true);
+    Y_VERIFY(ok);
+    result.Login = jsonValue["login"].GetString();
+    result.Realm = jsonValue["realm"].GetString();
+    return result;
 }
 
 TYtPoller& TClient::GetYtPoller()
