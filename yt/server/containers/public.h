@@ -25,6 +25,12 @@ struct TRootFS
     std::vector<TBind> Binds;
 };
 
+struct TDevice
+{
+    TString DeviceName;
+    bool Enabled;
+};
+
 DECLARE_REFCOUNTED_STRUCT(IContainerManager)
 DECLARE_REFCOUNTED_STRUCT(IInstance)
 DECLARE_REFCOUNTED_STRUCT(IPortoExecutor)

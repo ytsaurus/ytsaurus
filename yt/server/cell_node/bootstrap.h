@@ -72,6 +72,7 @@ public:
     const NTabletNode::TInMemoryManagerPtr& GetInMemoryManager() const;
     const NTabletNode::TVersionedChunkMetaManagerPtr& GetVersionedChunkMetaManager() const;
     const NExecAgent::TSlotManagerPtr& GetExecSlotManager() const;
+    const NJobAgent::TGpuManagerPtr& GetGpuManager() const;
     TNodeMemoryTracker* GetMemoryUsageTracker() const;
     const NDataNode::TChunkStorePtr& GetChunkStore() const;
     const NDataNode::TChunkCachePtr& GetChunkCache() const;
@@ -140,6 +141,7 @@ private:
     NJobAgent::TJobControllerPtr JobController;
     NJobAgent::TStatisticsReporterPtr StatisticsReporter;
     NExecAgent::TSlotManagerPtr ExecSlotManager;
+    NJobAgent::TGpuManagerPtr GpuManager;
     NJobProxy::TJobProxyConfigPtr JobProxyConfigTemplate;
     std::unique_ptr<TMemoryUsageTracker<NNodeTrackerClient::EMemoryCategory>> MemoryUsageTracker;
     NExecAgent::TSchedulerConnectorPtr SchedulerConnector;

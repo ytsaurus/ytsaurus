@@ -2,6 +2,8 @@
 
 #include <yt/server/exec_agent/config.h>
 
+#include <yt/server/job_agent/gpu_manager.h>
+
 #include <yt/ytlib/job_proxy/private.h>
 
 #ifdef _linux_
@@ -25,6 +27,7 @@ using namespace NConcurrency;
 using namespace NContainers;
 using namespace NCGroup;
 using namespace NExecAgent;
+using namespace NJobAgent;
 using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -459,8 +462,9 @@ class TPortoJobProxyEnvironment
     : public IJobProxyEnvironment
 {
 public:
-    TPortoJobProxyEnvironment(TPortoJobEnvironmentConfigPtr config, const TNullable<TRootFS>& rootFS)
+    TPortoJobProxyEnvironment(TPortoJobEnvironmentConfigPtr config, const TNullable<TRootFS>& rootFS, std::vector<TString> gpuDevices)
         : RootFS_(rootFS)
+        , GpuDevices_(std::move(gpuDevices))
         , BlockIOWatchdogPeriod_(config->BlockIOWatchdogPeriod)
         , PortoExecutor_(CreatePortoExecutor(config->PortoWaitTime, config->PortoPollPeriod))
         , Self_(GetSelfPortoInstance(PortoExecutor_))
@@ -499,6 +503,17 @@ public:
             instance->SetRoot(*RootFS_);
         }
 
+        TGpuManagerPtr manager = New<TGpuManager>();
+        std::vector<TDevice> devices;
+        for (const auto& device : manager->ListGpuDevices()) {
+            if (std::find(GpuDevices_.begin(), GpuDevices_.end(), device) == GpuDevices_.end()) {
+                devices.emplace_back(TDevice{device, false});
+            }
+        }
+
+        // Restrict access to devices, that are not explicitly granted.
+        instance->SetDevices(std::move(devices));
+
         return New<TPortoUserJobEnvironment>(
             SlotAbsoluteName_,
             PortoExecutor_,
@@ -508,6 +523,7 @@ public:
 
 private:
     const TNullable<TRootFS> RootFS_;
+    const std::vector<TString> GpuDevices_;
     const TDuration BlockIOWatchdogPeriod_;
     TString SlotAbsoluteName_;
     IPortoExecutorPtr PortoExecutor_;
@@ -530,7 +546,10 @@ DEFINE_REFCOUNTED_TYPE(TPortoJobProxyEnvironment)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IJobProxyEnvironmentPtr CreateJobProxyEnvironment(NYTree::INodePtr config, const TNullable<TRootFS>& rootFS)
+IJobProxyEnvironmentPtr CreateJobProxyEnvironment(
+    NYTree::INodePtr config,
+    const TNullable<TRootFS>& rootFS,
+    std::vector<TString> gpuDevices)
 {
 
     auto environmentConfig = ConvertTo<TJobEnvironmentConfigPtr>(config);
@@ -539,16 +558,25 @@ IJobProxyEnvironmentPtr CreateJobProxyEnvironment(NYTree::INodePtr config, const
             if (rootFS) {
                 THROW_ERROR_EXCEPTION("Cgroups job environment does not support custom root FS");
             }
+
+            if (!gpuDevices.empty()) {
+                LOG_WARNING("Cgroups job environment does not support GPU device isolation (Devices: %v)", gpuDevices);
+            }
+
             return New<TCGroupsJobProxyEnvironment>(ConvertTo<TCGroupJobEnvironmentConfigPtr>(config));
 
 #ifdef _linux_
         case EJobEnvironmentType::Porto:
-            return New<TPortoJobProxyEnvironment>(ConvertTo<TPortoJobEnvironmentConfigPtr>(config), rootFS);
+            return New<TPortoJobProxyEnvironment>(ConvertTo<TPortoJobEnvironmentConfigPtr>(config), rootFS, std::move(gpuDevices));
 #endif
 
         case EJobEnvironmentType::Simple:
             if (rootFS) {
                 THROW_ERROR_EXCEPTION("Simple job environment does not support custom root FS");
+            }
+
+            if (!gpuDevices.empty()) {
+                LOG_WARNING("Simple job environment does not support GPU device isolation (Devices: %v)", gpuDevices);
             }
             return nullptr;
 
