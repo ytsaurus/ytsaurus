@@ -49,6 +49,12 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
         }
     }
 
+    def setup_method(self, method):
+        super(TestResourceUsage, self).setup_method(method)
+        set("//sys/pool_trees/default/@preemptive_scheduling_backoff", 0)
+        set("//sys/pool_trees/default/@max_unpreemptable_running_job_count", 0)
+        time.sleep(0.5)
+
     def _check_running_jobs(self, op, desired_running_jobs):
         success_iter = 0
         min_success_iteration = 10
@@ -156,7 +162,7 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
             resource_name = "user_memory" if resource == "memory" else resource
             assert assert_almost_equal(op_limits[resource_name], limit)
 
-    def DISABLED_test_resource_limits_preemption(self):
+    def test_resource_limits_preemption(self):
         create("map_node", "//sys/pools/test_pool2")
         wait(lambda: "test_pool2" in get("//sys/scheduler/orchid/scheduler/pools"))
 
@@ -172,12 +178,12 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
             spec={"job_count": 3, "pool": "test_pool2"})
         wait(lambda: len(op.get_running_jobs()) == 3)
 
-        resource_limits = {"cpu": 1}
+        resource_limits = {"cpu": 2}
         set("//sys/pools/test_pool2/@resource_limits", resource_limits)
 
-        wait(lambda: assert_almost_equal(get("//sys/scheduler/orchid/scheduler/pools/test_pool2/resource_limits/cpu"), 1))
+        wait(lambda: assert_almost_equal(get("//sys/scheduler/orchid/scheduler/pools/test_pool2/resource_limits/cpu"), 2))
 
-        wait(lambda: len(op.get_running_jobs()) == 1)
+        wait(lambda: len(op.get_running_jobs()) == 2)
 
     # Remove flaky after YT-8784.
     @flaky(max_runs=5)
@@ -958,6 +964,46 @@ class TestSchedulerPreemption(YTEnvSetup):
 
         op1.abort()
         op2.abort()
+
+    def test_preemption_of_jobs_excessing_resource_limits(self):
+        create("table", "//tmp/t_in")
+        for i in xrange(3):
+            write_table("<append=%true>//tmp/t_in", {"foo": "bar"})
+
+        create("table", "//tmp/t_out")
+
+        op = map(
+            dont_track=True,
+            command="sleep 1000; cat",
+            in_=["//tmp/t_in"],
+            out="//tmp/t_out",
+            spec={"data_size_per_job": 1})
+
+        wait(lambda: len(op.get_running_jobs()) == 3)
+
+        update_op_parameters(op.id, parameters={
+            "scheduling_options_per_pool_tree": {
+                "default": {
+                    "resource_limits": {
+                        "user_slots": 1
+                    }
+                }
+            }
+        })
+
+        wait(lambda: len(op.get_running_jobs()) == 1)
+
+        update_op_parameters(op.id, parameters={
+            "scheduling_options_per_pool_tree": {
+                "default": {
+                    "resource_limits": {
+                        "user_slots": 0
+                    }
+                }
+            }
+        })
+
+        wait(lambda: len(op.get_running_jobs()) == 0)
 
 ##################################################################
 
