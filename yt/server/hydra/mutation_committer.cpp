@@ -49,7 +49,7 @@ TCommitterBase::TCommitterBase(
         .AddTag("CellId: %v", CellManager_->GetCellId()))
     , Profiler(NProfiling::TProfiler(
         HydraProfiler.GetPathPrefix(),
-        CellManager_->GetProfilerTags()))
+        Options_.ProfilingTagIds))
 {
     YCHECK(Config_);
     YCHECK(DecoratedAutomaton_);
