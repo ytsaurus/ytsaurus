@@ -122,8 +122,6 @@ public:
 
     void ClearChunkList(TChunkList* chunkList);
 
-    TJobPtr FindJob(const TJobId& id);
-
     void ScheduleJobs(
         TNode* node,
         const std::vector<TJobPtr>& currentJobs,

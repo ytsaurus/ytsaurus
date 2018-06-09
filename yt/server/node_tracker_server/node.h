@@ -54,6 +54,7 @@ public:
     using TChunkPtrWithIndex = NChunkServer::TChunkPtrWithIndex;
     using TChunkId = NChunkServer::TChunkId;
     using TChunk = NChunkServer::TChunk;
+    using TJobId = NChunkServer::TJobId;
     using TJobPtr = NChunkServer::TJobPtr;
     template <typename T>
     using TPerMediumArray = NChunkServer::TPerMediumArray<T>;
@@ -128,7 +129,8 @@ public:
     using TUnapprovedReplicaMap = THashMap<TChunkPtrWithIndexes, TInstant>;
     DEFINE_BYREF_RW_PROPERTY(TUnapprovedReplicaMap, UnapprovedReplicas);
 
-    DEFINE_BYREF_RW_PROPERTY(THashSet<TJobPtr>, Jobs);
+    using TJobMap = THashMap<TJobId, TJobPtr>;
+    DEFINE_BYREF_RO_PROPERTY(TJobMap, IdToJob);
 
     //! Indexed by priority. Each map is as follows:
     //! Key:
@@ -203,6 +205,10 @@ public:
 
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
+
+    TJobPtr FindJob(const TJobId& jobId);
+    void RegisterJob(const TJobPtr& job);
+    void UnregisterJob(const TJobPtr& job);
 
     // Chunk Manager stuff.
     void ReserveReplicas(int mediumIndex, int sizeHint);
@@ -283,6 +289,7 @@ private:
 
     ENodeState* LocalStatePtr_ = nullptr;
     ENodeState AggregatedState_ = ENodeState::Unknown;
+
 
     int GetHintedSessionCount(int mediumIndex) const;
 
