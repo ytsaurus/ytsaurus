@@ -659,10 +659,10 @@ struct TVisitor
     using TBase::Derived;
     using TBase::Visit;
 
-    void OnLiteral(const TLiteralExpression* literalExpr)
+    void OnLiteral(const TLiteralExpression* /*literalExpr*/)
     { }
 
-    void OnReference(const TReferenceExpression* referenceExpr)
+    void OnReference(const TReferenceExpression* /*referenceExpr*/)
     { }
 
     void OnUnary(const TUnaryOpExpression* unaryExpr)
@@ -906,7 +906,7 @@ struct TAbstractExpressionPrinter
         }
     }
 
-    void OnLiteral(const TLiteralExpression* literalExpr, TArgs... args)
+    void OnLiteral(const TLiteralExpression* literalExpr, TArgs... /*args*/)
     {
         if (OmitValues) {
             Builder->AppendChar('?');
@@ -915,7 +915,7 @@ struct TAbstractExpressionPrinter
         }
     }
 
-    void OnReference(const TReferenceExpression* referenceExpr, TArgs... args)
+    void OnReference(const TReferenceExpression* referenceExpr, TArgs... /*args*/)
     {
         Builder->AppendString(referenceExpr->ColumnName);
     }
