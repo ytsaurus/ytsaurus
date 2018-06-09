@@ -1183,59 +1183,63 @@ private:
             return nullptr;
         };
 
-        auto findPoolWithViolatedLimits = [&] () -> TCompositeSchedulerElement* {
-            for (const auto& job : context->SchedulingContext->StartedJobs()) {
-                auto violatedPool = findPoolWithViolatedLimitsForJob(job);
-                if (violatedPool) {
-                    return violatedPool;
-                }
-            }
-            return nullptr;
-        };
-
-        bool nodeLimitsViolated = true;
-        bool poolsLimitsViolated = true;
-
-        context->SchedulingStatistics.PreemptableJobCount = preemptableJobs.size();
-
-        for (const auto& job : preemptableJobs) {
-            auto* operationElement = rootElementSnapshot->FindOperationElement(job->GetOperationId());
+        auto findOperationElementForJob = [&] (const TJobPtr& job) -> TOperationElement* {
+            auto operationElement = rootElementSnapshot->FindOperationElement(job->GetOperationId());
             if (!operationElement || !operationElement->IsJobKnown(job->GetId())) {
                 LOG_DEBUG("Dangling preemptable job found (JobId: %v, OperationId: %v)",
                     job->GetId(),
                     job->GetOperationId());
-                continue;
+
+                return nullptr;
             }
 
-            // Update flags only if violation is not resolved yet to avoid costly computations.
-            if (nodeLimitsViolated) {
-                nodeLimitsViolated = !Dominates(context->SchedulingContext->ResourceLimits(), context->SchedulingContext->ResourceUsage());
-            }
-            if (!nodeLimitsViolated && poolsLimitsViolated) {
-                poolsLimitsViolated = findPoolWithViolatedLimits() != nullptr;
-            }
+            return operationElement;
+        };
 
-            if (!nodeLimitsViolated && !poolsLimitsViolated) {
+        context->SchedulingStatistics.PreemptableJobCount = preemptableJobs.size();
+
+        int currentJobIndex = 0;
+        for (; currentJobIndex < preemptableJobs.size(); ++currentJobIndex) {
+            if (Dominates(context->SchedulingContext->ResourceLimits(), context->SchedulingContext->ResourceUsage())) {
                 break;
             }
 
-            if (nodeLimitsViolated) {
-                if (jobStartedUsingPreemption) {
-                    job->SetPreemptionReason(Format("Preempted to start job %v of operation %v",
-                        jobStartedUsingPreemption->GetId(),
-                        jobStartedUsingPreemption->GetOperationId()));
-                } else {
-                    job->SetPreemptionReason(Format("Node resource limits violated"));
-                }
-                PreemptJob(job, operationElement, context);
+            const auto& job = preemptableJobs[currentJobIndex];
+            auto operationElement = findOperationElementForJob(job);
+            if (!operationElement) {
+                continue;
             }
-            if (poolsLimitsViolated) {
-                auto violatedPool = findPoolWithViolatedLimitsForJob(job);
-                if (violatedPool) {
-                    job->SetPreemptionReason(Format("Preempted due to violation of limits on pool %v",
-                        violatedPool->GetId()));
-                    PreemptJob(job, operationElement, context);
-                }
+
+            if (jobStartedUsingPreemption) {
+                job->SetPreemptionReason(Format("Preempted to start job %v of operation %v",
+                    jobStartedUsingPreemption->GetId(),
+                    jobStartedUsingPreemption->GetOperationId()));
+            } else {
+                job->SetPreemptionReason(Format("Node resource limits violated"));
+            }
+            PreemptJob(job, operationElement, context);
+        }
+
+        for (; currentJobIndex < preemptableJobs.size(); ++currentJobIndex) {
+            const auto& job = preemptableJobs[currentJobIndex];
+
+            auto operationElement = findOperationElementForJob(job);
+            if (!operationElement) {
+                continue;
+            }
+
+            if (!Dominates(operationElement->ResourceLimits(), operationElement->GetResourceUsage())) {
+                job->SetPreemptionReason(Format("Preempted due to violation of resource limits of operation %v",
+                    operationElement->GetId()));
+                PreemptJob(job, operationElement, context);
+                continue;
+            }
+
+            auto violatedPool = findPoolWithViolatedLimitsForJob(job);
+            if (violatedPool) {
+                job->SetPreemptionReason(Format("Preempted due to violation of limits on pool %v",
+                    violatedPool->GetId()));
+                PreemptJob(job, operationElement, context);
             }
         }
     }

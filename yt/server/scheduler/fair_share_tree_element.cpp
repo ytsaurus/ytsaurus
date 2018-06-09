@@ -249,10 +249,15 @@ void TSchedulerElement::UpdateAttributes()
         Attributes_.DominantLimit == 0 ? 1.0 : dominantDemand / Attributes_.DominantLimit;
 
     double possibleUsageRatio = Attributes_.DemandRatio;
-    if (GetResourceUsageRatio() <= TreeConfig_->ThresholdToEnableMaxPossibleUsageRegularization * Attributes_.DemandRatio) {
-        auto possibleUsage = usage + ComputePossibleResourceUsage(maxPossibleResourceUsage - usage);
-        possibleUsage = Min(possibleUsage, MaxPossibleResourceUsage_);
+    if (TreeConfig_->EnableNewPossibleResourceUsageComputation) {
+        auto possibleUsage = ComputePossibleResourceUsage(maxPossibleResourceUsage);
         possibleUsageRatio = GetDominantResourceUsage(possibleUsage, TotalResourceLimits_);
+    } else {
+        if (GetResourceUsageRatio() <= TreeConfig_->ThresholdToEnableMaxPossibleUsageRegularization * Attributes_.DemandRatio)
+        {
+            auto possibleUsage = usage + ComputePossibleResourceUsage(maxPossibleResourceUsage - usage);
+            possibleUsageRatio = GetDominantResourceUsage(possibleUsage, TotalResourceLimits_);
+        }
     }
 
     Attributes_.MaxPossibleUsageRatio = std::min(
@@ -585,13 +590,18 @@ void TCompositeSchedulerElement::UpdateTopDown(TDynamicAttributesList& dynamicAt
 
 TJobResources TCompositeSchedulerElement::ComputePossibleResourceUsage(TJobResources limit) const
 {
-    limit = Min(limit, MaxPossibleResourceUsage() - GetResourceUsage());
+    if (!TreeConfig_->EnableNewPossibleResourceUsageComputation) {
+        limit = Min(limit, MaxPossibleResourceUsage() - GetResourceUsage());
+    }
+
     auto additionalUsage = ZeroJobResources();
+
     for (const auto& child : EnabledChildren_) {
         auto childUsage = child->ComputePossibleResourceUsage(limit);
         limit -= childUsage;
         additionalUsage += childUsage;
     }
+
     return additionalUsage;
 }
 
@@ -1829,13 +1839,28 @@ void TOperationElement::UpdateTopDown(TDynamicAttributesList& dynamicAttributesL
 TJobResources TOperationElement::ComputePossibleResourceUsage(TJobResources limit) const
 {
     auto usage = GetResourceUsage();
-    // Max possible resource usage can be less than usage just after scheduler connection
-    // when not all nodes come with heartbeat to the scheduler.
-    limit = Max(ZeroJobResources(), Min(limit, MaxPossibleResourceUsage() - usage));
-    if (usage == ZeroJobResources()) {
-        return limit;
+    if (TreeConfig_->EnableNewPossibleResourceUsageComputation) {
+        if (!Dominates(limit, usage)) {
+            return usage * GetMinResourceRatio(limit, usage);
+        } else {
+            auto remainingDemand = ResourceDemand() - usage;
+            if (remainingDemand == ZeroJobResources()) {
+                return usage;
+            }
+
+            auto remainingLimit = Max(ZeroJobResources(), limit - usage);
+            // TODO(asaitgalin): Move this to MaxPossibleResourceUsage computation.
+            return usage + remainingDemand * GetMinResourceRatio(remainingLimit, remainingDemand);
+        }
     } else {
-        return usage * GetMinResourceRatio(limit, usage);
+        // Max possible resource usage can be less than usage just after scheduler connection
+        // when not all nodes come with heartbeat to the scheduler.
+        limit = Max(ZeroJobResources(), Min(limit, MaxPossibleResourceUsage() - usage));
+        if (usage == ZeroJobResources()) {
+            return limit;
+        } else {
+            return usage * GetMinResourceRatio(limit, usage);
+        }
     }
 }
 
