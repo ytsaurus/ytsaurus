@@ -89,7 +89,7 @@ private:
         for (const auto& jobStatus : request->jobs()) {
             auto jobId = FromProto<TJobId>(jobStatus.job_id());
             auto state = EJobState(jobStatus.state());
-            auto job = chunkManager->FindJob(jobId);
+            auto job = node->FindJob(jobId);
             if (job) {
                 job->SetState(state);
                 if (state == EJobState::Completed || state == EJobState::Failed) {
