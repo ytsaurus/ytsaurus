@@ -2653,8 +2653,8 @@ private:
             }
         }
 
-        InitBuiltins();
         BundleNodeTracker_->OnAfterSnapshotLoaded();
+        InitBuiltins();
 
         // COMPAT(babenko)
         if (InitializeCellBundles_) {
