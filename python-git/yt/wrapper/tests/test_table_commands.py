@@ -1,6 +1,6 @@
 from __future__ import with_statement
 
-from .helpers import TEST_DIR, check, set_config_option, get_tests_sandbox, set_config_options
+from .helpers import TEST_DIR, check, set_config_option, get_tests_sandbox, set_config_options, wait
 
 import yt.wrapper.py_wrapper as py_wrapper
 from yt.wrapper.driver import get_command_list
@@ -551,7 +551,16 @@ class TestTableCommands(object):
         client = yt.YtClient(config={"backend": "native", "driver_config": yt.config["driver_config"]})
         proxy = "//sys/proxies/" + client.list("//sys/proxies")[0]
         client.set(proxy + "/@banned".format(proxy), value)
-        time.sleep(1)
+
+        def check():
+            try:
+                yt.get("/")
+                return not value
+            except:
+                return value
+
+        time.sleep(0.5)
+        wait(check)
 
     def test_banned_proxy(self):
         if yt.config["backend"] == "native":
@@ -560,12 +569,9 @@ class TestTableCommands(object):
         table = TEST_DIR + "/table"
         yt.create("table", table)
 
-        self._set_banned("true")
+        self._set_banned(True)
         with set_config_option("proxy/retries/count", 1,
-                               final_action=lambda: self._set_banned("false")):
-            with pytest.raises(yt.YtProxyUnavailable):
-                yt.get(table)
-
+                               final_action=lambda: self._set_banned(False)):
             try:
                 yt.get(table)
             except yt.YtProxyUnavailable as err:
