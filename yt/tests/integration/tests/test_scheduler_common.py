@@ -1797,8 +1797,8 @@ class TestJobRevival(TestJobRevivalBase):
                      "auto_merge": {"mode": "manual", "chunk_count_per_merge_job": 3, "max_intermediate_chunk_count": 100}
                  })
 
-        # Comment about '+5' - we need some additional room for jobs that can be aborted.
-        wait(lambda: sum([events_on_fs().check_event("ready_for_revival_" + str(i)) for i in xrange(user_slots_limit + 5)]) == user_slots_limit)
+        # Comment about '+10' - we need some additional room for jobs that can be non-scheduled aborted.
+        wait(lambda: sum([events_on_fs().check_event("ready_for_revival_" + str(i)) for i in xrange(user_slots_limit + 10)]) == user_slots_limit)
 
         self._kill_and_start(components_to_kill)
         self.Env.kill_controller_agents()
