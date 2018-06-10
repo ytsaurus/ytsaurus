@@ -7,12 +7,14 @@ from yt.packages.six.moves import xrange
 
 import yt.wrapper as yt
 
+from flaky import flaky
+import pytest
+
 try:
     from cStringIO import StringIO as BytesIO
 except ImportError:  # Python 3
     from io import BytesIO
 
-import pytest
 import random
 import time
 from itertools import chain
@@ -278,6 +280,7 @@ def test_raw_dump_records():
     check_format(yt.YsonFormat(), [b'{"x"=1}', b'{"x"=2}'])
     check_format(yt.JsonFormat(), [b'{"x":1}', b'{"x":2}'])
 
+@flaky(max_runs=5)
 def test_yson_dump_rows_speed():
     format = yt.YsonFormat()
     rows = []
