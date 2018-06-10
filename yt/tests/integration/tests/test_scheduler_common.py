@@ -360,10 +360,15 @@ class TestJobStderr(YTEnvSetup):
                 IS_FAILING_JOB=$(($YT_JOB_INDEX>=19));
                 echo stderr 1>&2;
                 if [ $IS_FAILING_JOB -eq 1 ]; then
-                    exit 125;
+                    if mkdir {lock_dir}; then
+                        exit 125;
+                    else
+                        exit 0
+                    fi;
                 else
                     exit 0;
-                fi;""")
+                fi;"""
+                    .format(lock_dir=EventsOnFs()._get_event_filename("lock_dir")))
         op = map(
             dont_track=True,
             label="stderr_of_failed_jobs",
