@@ -3316,7 +3316,7 @@ fi
             dont_track=True)
 
         state_path = "//sys/scheduler/orchid/scheduler/operations/{0}/state".format(op.id)
-        wait(lambda: get(state_path) == "running")
+        wait(lambda: get(state_path) == "running", ignore_exceptions=True)
         time.sleep(1.0)  # Give scheduler some time to dump attributes to cypress.
 
         assert get(get_operation_cypress_path(op.id) + "/@state") == "running"
