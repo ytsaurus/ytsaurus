@@ -2760,6 +2760,7 @@ private:
         AddressToCell_.clear();
         TransactionToCellMap_.clear();
 
+        BundleNodeTracker_->Clear();
 
         DefaultTabletCellBundle_ = nullptr;
     }
