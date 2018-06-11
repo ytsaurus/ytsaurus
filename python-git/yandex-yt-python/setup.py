@@ -1,18 +1,9 @@
-from helpers import get_version
+from helpers import get_version, recursive
 
 from setuptools import setup, find_packages
 
 import os
 import sys
-
-try:
-    from itertools import imap
-except ImportError:  # Python 3
-    imap = map
-
-def recursive(path):
-    prefix = path.strip("/").replace("/", ".")
-    return list(imap(lambda package: prefix + "." + package, find_packages(path))) + [prefix]
 
 def main():
     version = get_version()

@@ -1,10 +1,21 @@
 import os
 import sys
 
+from setuptools import find_packages
+
 try:
     import subprocess32 as subprocess
 except ImportError:
     import subprocess
+
+try:
+    from itertools import imap
+except ImportError:  # Python 3
+    imap = map
+
+def recursive(path):
+    prefix = path.strip("/").replace("/", ".")
+    return list(imap(lambda package: prefix + "." + package, find_packages(path))) + [prefix]
 
 def get_version():
     if os.path.exists("VERSION"):
