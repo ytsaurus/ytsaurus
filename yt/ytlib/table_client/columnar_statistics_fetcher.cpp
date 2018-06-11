@@ -77,6 +77,7 @@ void TColumnarStatisticsFetcher::OnResponse(
             auto error = NYT::FromProto<TError>(subresponse.error());
             if (error.FindMatching(NChunkClient::EErrorCode::MissingExtension)) {
                 // This is an old chunk. Process it somehow.
+                ChunkStatistics_[chunkIndex] = TColumnarStatistics::MakeEmpty(ChunkColumnNames_[chunkIndex].size());
                 ChunkStatistics_[chunkIndex].LegacyChunkDataWeight = Chunks_[chunkIndex]->GetDataWeight();
             } else {
                 OnChunkFailed(nodeId, chunkIndex, error);

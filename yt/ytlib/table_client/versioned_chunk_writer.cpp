@@ -531,16 +531,20 @@ private:
             i64 weight = 0;
             int rowIndex = startRowIndex;
             for (; rowIndex < rows.Size() && weight < DataToBlockFlush_; ++rowIndex) {
-                auto rowWeight = NTableClient::GetDataWeight(rows[rowIndex]);
+                const auto& row = rows[rowIndex];
+                auto rowWeight = NTableClient::GetDataWeight(row);
                 if (rowIndex == 0) {
-                    ValidateRow(rows[rowIndex], rowWeight, LastKey_.Begin(), LastKey_.End());
+                    ValidateRow(row, rowWeight, LastKey_.Begin(), LastKey_.End());
                 } else {
                     ValidateRow(
-                        rows[rowIndex],
+                        row,
                         rowWeight,
                         rows[rowIndex - 1].BeginKeys(),
                         rows[rowIndex - 1].EndKeys());
                 }
+
+                UpdateColumnarStatistics(ColumnarStatisticsExt_, MakeRange(row.BeginKeys(), row.EndKeys()));
+                UpdateColumnarStatistics(ColumnarStatisticsExt_, MakeRange(row.BeginValues(), row.EndValues()));
 
                 weight += rowWeight;
             }

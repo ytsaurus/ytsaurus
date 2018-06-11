@@ -1207,7 +1207,8 @@ private:
             }
 
             auto maybeColumnarStatisticsExt = FindProtoExtension<TColumnarStatisticsExt>(meta.extensions());
-            if (!maybeColumnarStatisticsExt) {
+            // COMPAT(max42): remove second option when YT-8954 is at least several months old.
+            if (!maybeColumnarStatisticsExt || maybeColumnarStatisticsExt->data_weights_size() == 0) {
                 ToProto(
                     subresponse->mutable_error(),
                     TError(NChunkClient::EErrorCode::MissingExtension, "Columnar statistics chunk meta extension missing"));
