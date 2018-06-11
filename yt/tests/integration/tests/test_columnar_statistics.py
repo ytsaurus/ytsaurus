@@ -127,9 +127,11 @@ class TestColumnarStatistics(YTEnvSetup):
                 },
             })
 
-    def test_dynamic_tables(self):
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    def test_dynamic_tables(self, optimize_for):
         self.sync_create_cells(1)
         self._create_simple_dynamic_table("//tmp/t")
+        set("//tmp/t/@optimize_for", optimize_for)
 
         rows = [{"key": i, "value": str(i) * 1000} for i in range(10)]
         self.sync_mount_table("//tmp/t")
