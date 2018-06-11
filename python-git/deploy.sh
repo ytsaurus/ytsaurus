@@ -109,6 +109,9 @@ case $PACKAGE in
     yandex-yt-python-yson)
         REPOS="yandex-$CODENAME yt-$CODENAME"
         ;;
+    yandex-yt-python-proto)
+        REPOS="common yt-common"
+        ;;
 esac
 
 REPOS="$REPOS $EXTRA_REPOSITORIES"
