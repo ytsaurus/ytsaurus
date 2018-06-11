@@ -482,6 +482,8 @@ message TPodSpec
         optional string url = 1;
         // <scheme>:<hex value>. Supported schemes are "MD5" and "EMPTY".
         optional string checksum = 2;
+        // Arguments to be passed to pod agent via command line.
+        map<string, string> configuration = 3;
     }
 
     message TPodAgentPayload
