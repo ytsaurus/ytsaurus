@@ -364,7 +364,12 @@ if(YT_CAN_BUILD_PACKAGE)
       cat ${CMAKE_BINARY_DIR}/debian/changelog
       | sed 's/^yandex-yt/yandex-yt-python-driver/'
       > ${CMAKE_SOURCE_DIR}/python/yandex-yt-python-driver/debian/changelog
+    COMMAND
+      cat ${CMAKE_BINARY_DIR}/debian/changelog
+      | sed 's/^yandex-yt/yandex-yt-python-proto/'
+      > ${CMAKE_SOURCE_DIR}/python/yandex-yt-python-proto/debian/changelog
     COMMAND ${CMAKE_SOURCE_DIR}/python/build_driver.sh
+    COMMAND ${CMAKE_SOURCE_DIR}/python/build_proto.sh
     COMMAND mv
       ../yandex-*${YT_VERSION}*
       ${CMAKE_BINARY_DIR}/ARTIFACTS
