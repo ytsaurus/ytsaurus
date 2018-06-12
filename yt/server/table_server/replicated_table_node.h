@@ -14,6 +14,7 @@ class TReplicatedTableOptions
 {
 public:
     bool EnableReplicatedTableManager;
+    int SyncReplicas;
 
     // TODO(aozeritsky): add check list and other options here
 
@@ -21,6 +22,8 @@ public:
     {
         RegisterParameter("enable_replicated_table_manager", EnableReplicatedTableManager)
             .Default(false);
+        RegisterParameter("sync_replicas", SyncReplicas)
+            .Default(1);
     }
 };
 
