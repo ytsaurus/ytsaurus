@@ -146,6 +146,8 @@ public:
 
     NTabletServer::TTabletManagerConfigPtr TabletManager;
 
+    NTabletServer::TReplicatedTableManagerConfigPtr ReplicatedTableManager;
+
     NTransactionServer::TTimestampManagerConfigPtr TimestampManager;
 
     NTransactionClient::TRemoteTimestampProviderConfigPtr TimestampProvider;
