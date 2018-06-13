@@ -342,7 +342,7 @@ private:
                     // XXX(sandello): This relies on the typed service context implementation.
                     context->Reply(TError());
                 } else {
-                    context->Reply(TError(valueOrError.GetCode(), "Internal RPC call failed")
+                    context->Reply(TError("Internal RPC call failed")
                         << TError(valueOrError));
                 }
             }));
@@ -362,7 +362,7 @@ private:
                         context->Reply(TError(ex));
                     }
                 } else {
-                    context->Reply(TError(valueOrError.GetCode(), "Internal RPC call failed")
+                    context->Reply(TError("Internal RPC call failed")
                         << TError(valueOrError));
                 }
             }));
