@@ -167,6 +167,11 @@ void TConnection::Terminate()
 
 TString TConnection::GetLocalAddress()
 {
+    // Check local hostname and initialize it.
+    if (!TAddressResolver::Get()->IsLocalHostNameOK()) {
+        THROW_ERROR_EXCEPTION("Local hostname is not ok, more details in logs");
+    }
+
     // TODO(sandello): Extract this to a new TAddressResolver method.
     auto localHostname = GetLocalHostName();
     auto localAddress = TAddressResolver::Get()->Resolve(localHostname).Get().ValueOrThrow();
