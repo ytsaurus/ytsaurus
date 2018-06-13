@@ -316,6 +316,10 @@ i64 TGenericFormulaImpl::Eval(const THashMap<TString, i64>& values, EEvaluationC
                             << TErrorAttribute("values", values);
                     }
                     stack.pop_back();
+                    if (stack.back() == std::numeric_limits<i64>::min() && top == -1) {
+                        THROW_ERROR_EXCEPTION("Division of INT64_MIN by -1 in formula: %Qv", Formula_)
+                            << TErrorAttribute("values", values);
+                    }
                     if (token.Type == EFormulaTokenType::Divides) {
                         stack.back() = stack.back() / top;
                     } else {

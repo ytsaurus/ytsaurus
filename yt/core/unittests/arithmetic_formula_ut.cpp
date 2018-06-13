@@ -150,6 +150,12 @@ TEST(TArithmeticFormulaTest, Misc)
     auto modulusByZero = MakeArithmeticFormula("1%(10-5*2)");
     EXPECT_THROW(modulusByZero.Eval({}), TErrorException);
 
+    auto divideMinIntByMinusOne = MakeArithmeticFormula("a / -1");
+    EXPECT_THROW(divideMinIntByMinusOne.Eval({{"a", std::numeric_limits<i64>::min()}}), TErrorException);
+
+    auto minIntModuloMinusOne = MakeArithmeticFormula("a % -1");
+    EXPECT_THROW(minIntModuloMinusOne.Eval({{"a", std::numeric_limits<i64>::min()}}), TErrorException);
+
     auto formulaWithVariables = MakeArithmeticFormula("( a+ b)/c");
 
     // divide by zero
