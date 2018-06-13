@@ -4218,7 +4218,7 @@ void TOperationControllerBase::FetchInputTables()
                     totalExtensionSize += extension.data().size();
                 }
                 RegisterInputChunk(table.Chunks.back());
-                if (hasColumnSelectors) {
+                if (hasColumnSelectors && Spec_->UseColumnarStatistics) {
                     columnarStatisticsFetcher->AddChunk(inputChunk, *table.Path.GetColumns());
                 }
             }
@@ -4768,7 +4768,7 @@ void TOperationControllerBase::ValidateUserFileSizes()
                 for (const auto& chunkSpec : file.ChunkSpecs) {
                     auto chunk = New<TInputChunk>(chunkSpec);
                     file.Chunks.emplace_back(chunk);
-                    if (file.Path.GetColumns()) {
+                    if (file.Path.GetColumns() && Spec_->UseColumnarStatistics) {
                         columnarStatisticsFetcher->AddChunk(chunk, *file.Path.GetColumns());
                     }
                 }

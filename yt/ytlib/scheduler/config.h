@@ -388,6 +388,8 @@ public:
     NYTree::IMapNodePtr Description;
     NYTree::IMapNodePtr Annotations;
 
+    bool UseColumnarStatistics;
+
     TOperationSpecBase();
 
 private:

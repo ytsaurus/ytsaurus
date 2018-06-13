@@ -14,7 +14,12 @@ class TestColumnarStatistics(YTEnvSetup):
         "controller_agent": {
             "enable_map_job_size_adjustment": False,
             "max_user_file_table_data_weight": 2000,
-        }
+            "operation_options" : {
+                "spec_template" : {
+                    "use_columnar_statistics" : True,
+                },
+            },
+        },
     }
 
     def _expect_statistics(self, lower_row_index, upper_row_index, columns, expected_data_weights):

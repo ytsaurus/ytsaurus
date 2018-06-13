@@ -226,6 +226,9 @@ TOperationSpecBase::TOperationSpecBase()
     RegisterParameter("description", Description)
         .Default();
 
+    RegisterParameter("use_columnar_statistics", UseColumnarStatistics)
+        .Default(false);
+
     RegisterPostprocessor([&] () {
         if (UnavailableChunkStrategy == EUnavailableChunkAction::Wait &&
             UnavailableChunkTactics == EUnavailableChunkAction::Skip)
