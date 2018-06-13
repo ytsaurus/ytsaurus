@@ -41,7 +41,7 @@ case $CLUSTER in
     ;;
     bohr)
     MASTERS="m0[1-3]-sas.bohr.yt.yandex.net"
-    NODES="n0[001-139]-sas.bohr.yt.yandex.net"
+    NODES="n0[001-241]-sas.bohr.yt.yandex.net"
     PROXIES="c0[1-2]-sas.bohr.yt.yandex.net"
     ;;
     vanga)
