@@ -788,10 +788,6 @@ protected:
     //! Returns the list of lists of all input chunks collected from all foreign input tables.
     std::vector<std::deque<NChunkClient::TInputDataSlicePtr>> CollectForeignInputDataSlices(int foreignKeyColumnCount) const;
 
-    void SlicePrimaryVersionedChunks(
-        const IJobSizeConstraintsPtr& jobSizeConstraints,
-        std::vector<NChunkPools::TChunkStripePtr>* result);
-
     void InitUserJobSpec(
         NScheduler::NProto::TUserJobSpec* proto,
         TJobletPtr joblet) const;
