@@ -38,7 +38,7 @@ TMemoryTagGuard::TMemoryTagGuard(TMemoryTagGuard&& other)
     , PreviousTag_(other.PreviousTag_)
 {
     other.Active_ = false;
-    other.PreviousTag_ = false;
+    other.PreviousTag_ = NullMemoryTag;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
