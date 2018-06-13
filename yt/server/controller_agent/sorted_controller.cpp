@@ -1295,6 +1295,11 @@ public:
                     << TErrorAttribute("sort_by", SortKeyColumns_);
             }
 
+            if (Spec_->ReduceBy.empty()) {
+                THROW_ERROR_EXCEPTION("Reduce by can not be empty when key guarantee is enabled")
+                    << TErrorAttribute("operation_type", OperationType);
+            }
+
             PrimaryKeyColumns_ = Spec_->ReduceBy;
             ForeignKeyColumns_ = Spec_->JoinBy;
             if (!ForeignKeyColumns_.empty()) {
@@ -1313,6 +1318,10 @@ public:
                 THROW_ERROR_EXCEPTION("At least one of reduce_by or join_by is required for this operation");
             }
             PrimaryKeyColumns_ = CheckInputTablesSorted(!Spec_->ReduceBy.empty() ? Spec_->ReduceBy : Spec_->JoinBy);
+            if (PrimaryKeyColumns_.empty()) {
+                THROW_ERROR_EXCEPTION("At least one of reduce_by and join_by should be specified when key guarantee is disabled")
+                    << TErrorAttribute("operation_type", OperationType);
+            }
             SortKeyColumns_ = ForeignKeyColumns_ = PrimaryKeyColumns_;
         }
         LOG_INFO("Key columns adjusted (PrimaryKeyColumns: %v, ForeignKeyColumns: %v, SortKeyColumns: %v)",
