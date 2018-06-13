@@ -1062,7 +1062,7 @@ std::pair<EValueType, EValueType> RefineBinaryExprTypes(
     TStringBuf rhsSource)
 {
     if (IsRelationalBinaryOp(opCode) && (lhsTypes & rhsTypes).IsEmpty()) {
-        // empty intersersection (Any, alpha) || (alpha, Any), where alpha = {bool, int, uint, double, string}
+        // Empty intersection (Any, alpha) || (alpha, Any), where alpha = {bool, int, uint, double, string}
         if (lhsTypes.Get(EValueType::Any)) {
             return std::make_pair(EValueType::Any, rhsTypes.GetFront());
         }
