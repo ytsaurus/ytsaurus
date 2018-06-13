@@ -586,7 +586,6 @@ protected:
 
     void DoLoadSnapshot(const TOperationSnapshot& snapshot);
 
-    bool InputHasDynamicTables() const;
     bool InputHasVersionedTables() const;
     bool InputHasReadLimits() const;
 
@@ -653,7 +652,6 @@ protected:
 
     int EstimateSplitJobCount(const TCompletedJobSummary& jobSummary, const TJobletPtr& joblet);
     void ExtractInterruptDescriptor(TCompletedJobSummary& jobSummary) const;
-    virtual void ReinstallUnreadInputDataSlices(const std::vector<NChunkClient::TInputDataSlicePtr>& inputDataSlices);
 
     struct TStripeDescriptor
     {
@@ -771,9 +769,6 @@ protected:
         int tableIndex) override;
 
     bool HasEnoughChunkLists(bool isWritingStderrTable, bool isWritingCoreTable);
-
-    //! Called after preparation to decrease memory footprint.
-    void ClearInputChunkBoundaryKeys();
 
     //! Returns the list of all input chunks collected from all primary input tables.
     std::vector<NChunkClient::TInputChunkPtr> CollectPrimaryChunks(bool versioned) const;

@@ -5223,19 +5223,6 @@ void TOperationControllerBase::FillPrepareResult(TOperationControllerPrepareResu
         .Finish();
 }
 
-void TOperationControllerBase::ClearInputChunkBoundaryKeys()
-{
-    for (auto& pair : InputChunkMap) {
-        auto& inputChunkDescriptor = pair.second;
-        for (const auto& chunkSpec : inputChunkDescriptor.InputChunks) {
-            // We don't need boundary key ext after preparation phase (for primary tables only).
-            if (InputTables[chunkSpec->GetTableIndex()].IsPrimary()) {
-                chunkSpec->ReleaseBoundaryKeys();
-            }
-        }
-    }
-}
-
 // NB: must preserve order of chunks in the input tables, no shuffling.
 std::vector<TInputChunkPtr> TOperationControllerBase::CollectPrimaryChunks(bool versioned) const
 {
@@ -5429,16 +5416,6 @@ std::vector<std::deque<TInputDataSlicePtr>> TOperationControllerBase::CollectFor
     return result;
 }
 
-bool TOperationControllerBase::InputHasDynamicTables() const
-{
-    for (const auto& table : InputTables) {
-        if (table.IsDynamic) {
-            return true;
-        }
-    }
-    return false;
-}
-
 bool TOperationControllerBase::InputHasVersionedTables() const
 {
     for (const auto& table : InputTables) {
@@ -5482,12 +5459,6 @@ TString TOperationControllerBase::GetLoggingProgress() const
 bool TOperationControllerBase::IsJobInterruptible() const
 {
     return Spec_->AutoMerge->Mode == EAutoMergeMode::Disabled;
-}
-
-void TOperationControllerBase::ReinstallUnreadInputDataSlices(
-    const std::vector<NChunkClient::TInputDataSlicePtr>& inputDataSlices)
-{
-    Y_UNREACHABLE();
 }
 
 void TOperationControllerBase::ExtractInterruptDescriptor(TCompletedJobSummary& jobSummary) const
