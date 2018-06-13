@@ -5479,15 +5479,6 @@ TString TOperationControllerBase::GetLoggingProgress() const
         GetUnavailableInputChunkCount());
 }
 
-void TOperationControllerBase::SlicePrimaryVersionedChunks(
-    const IJobSizeConstraintsPtr& jobSizeConstraints,
-    std::vector<TChunkStripePtr>* result)
-{
-    for (const auto& dataSlice : CollectPrimaryVersionedDataSlices(jobSizeConstraints->GetInputSliceDataWeight())) {
-        result->push_back(New<TChunkStripe>(dataSlice));
-    }
-}
-
 bool TOperationControllerBase::IsJobInterruptible() const
 {
     return Spec_->AutoMerge->Mode == EAutoMergeMode::Disabled;
