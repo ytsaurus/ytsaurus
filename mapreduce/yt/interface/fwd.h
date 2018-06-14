@@ -241,6 +241,8 @@ namespace NYT {
     // operation.h
     ////////////////////////////////////////////////////////////////////////////////
 
+    class TFormatHints;
+
     struct TUserJobSpec;
 
     struct TMapOperationSpec;

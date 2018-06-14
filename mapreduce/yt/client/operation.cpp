@@ -3,6 +3,7 @@
 #include "client.h"
 #include "file_reader.h"
 #include "file_writer.h"
+#include "format_hints.h"
 #include "init.h"
 #include "operation_tracker.h"
 #include "retry_heavy_write_request.h"
@@ -66,6 +67,13 @@ namespace {
 
 constexpr bool USE_GET_OPERATION = true;
 constexpr bool USE_NEW_FILE_CACHE = false;
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ApplyFormatHints(
+    TFormat* format,
+    TMultiFormatDesc::EFormat rowType,
+    const TMaybe<TFormatHints>& formatHints);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -156,7 +164,7 @@ public:
         const TMultiFormatDesc& formatDesc,
         const TVector<TRichYPath>& tables,
         const TOperationOptions& options,
-        bool allowSkiff,
+        ENodeReaderFormat nodeReaderFormat,
         bool allowFormatFromTableAttribute)
         : FormatDesc_(formatDesc)
         , SkiffSchema_(nullptr)
@@ -165,8 +173,8 @@ public:
     {
         switch (FormatDesc_.Format) {
             case TMultiFormatDesc::F_NODE:
-                if (allowSkiff) {
-                    SkiffSchema_ = TryCreateSkiffSchema(auth, transactionId, tables, options);
+                if (nodeReaderFormat != ENodeReaderFormat::Yson) {
+                    SkiffSchema_ = TryCreateSkiffSchema(auth, transactionId, tables, options, nodeReaderFormat);
                 }
                 Format_ = SkiffSchema_
                     ? CreateSkiffFormat(SkiffSchema_)
@@ -220,6 +228,11 @@ public:
         }
     }
 
+    TMultiFormatDesc::EFormat GetRowType() const
+    {
+        return FormatDesc_.Format;
+    }
+
     const TMaybe<TNode>& GetFormatFromTableAttribute() const {
         return FormatFromTableAttribute_;
     }
@@ -235,18 +248,19 @@ private:
         const TAuth& auth,
         const TTransactionId& transactionId,
         const TVector<TRichYPath>& tables,
-        const TOperationOptions& options)
+        const TOperationOptions& options,
+        ENodeReaderFormat nodeReaderFormat)
     {
         bool hasInputQuery = options.Spec_.Defined() && options.Spec_->IsMap() && options.Spec_->HasKey("input_query");
         if (hasInputQuery) {
-            Y_ENSURE_EX(TConfig::Get()->NodeReaderFormat != ENodeReaderFormat::Skiff,
+            Y_ENSURE_EX(nodeReaderFormat != ENodeReaderFormat::Skiff,
                 TApiUsageError() << "Cannot use Skiff format for operations with 'input_query' in spec");
             return nullptr;
         }
         return CreateSkiffSchemaIfNecessary(
             auth,
             transactionId,
-            TConfig::Get()->NodeReaderFormat,
+            nodeReaderFormat,
             tables,
             TCreateSkiffSchemaOptions()
                 .HasKeySwitch(true));
@@ -288,27 +302,52 @@ TVector<TSmallJobFile> CreateFormatConfig(
     return result;
 }
 
+template <typename T>
+ENodeReaderFormat NodeReaderFormatFromHintAndGlobalConfig(const TUserJobFormatHintsBase<T>& formatHints)
+{
+    auto result = TConfig::Get()->NodeReaderFormat;
+    if (formatHints.InputFormatHints_ && formatHints.InputFormatHints_->SkipNullValuesForTNode_) {
+        Y_ENSURE_EX(
+            result != ENodeReaderFormat::Skiff,
+            TApiUsageError() << "skiff format doesn't support SkipNullValuesForTNode format hint");
+        result = ENodeReaderFormat::Yson;
+    }
+    return result;
+}
+
+template <class TSpec>
 TSimpleOperationIo CreateSimpleOperationIo(
     const TAuth& auth,
     const TTransactionId& transactionId,
-    const TOperationIOSpecBase& spec,
+    const TSpec& spec,
     const TOperationOptions& options,
     bool allowSkiff)
 {
     VerifyHasElements(spec.Inputs_, "input");
     VerifyHasElements(spec.Outputs_, "output");
 
+    ENodeReaderFormat nodeReaderFormat =
+        allowSkiff
+        ? NodeReaderFormatFromHintAndGlobalConfig(spec)
+        : ENodeReaderFormat::Yson;
+
     TFormatDescImpl inputDesc(auth, transactionId, spec.GetInputDesc(), spec.Inputs_, options,
-        allowSkiff, /* allowFormatFromTableAttribute = */ true);
+        nodeReaderFormat, /* allowFormatFromTableAttribute = */ true);
     TFormatDescImpl outputDesc(auth, transactionId, spec.GetOutputDesc(), spec.Outputs_, options,
-        /* allowSkiff = */ false, /* allowFormatFromTableAttribute = */ false);
+        ENodeReaderFormat::Yson, /* allowFormatFromTableAttribute = */ false);
+
+    TFormat inputFormat = inputDesc.GetFormat();
+    TFormat outputFormat = outputDesc.GetFormat();
+
+    ApplyFormatHints(&inputFormat, inputDesc.GetRowType(), spec.InputFormatHints_);
+    ApplyFormatHints(&outputFormat, outputDesc.GetRowType(), spec.OutputFormatHints_);
 
     return TSimpleOperationIo {
         CanonizePaths(auth, spec.Inputs_),
         CanonizePaths(auth, spec.Outputs_),
 
-        inputDesc.GetFormat(),
-        outputDesc.GetFormat(),
+        inputFormat,
+        outputFormat,
 
         CreateFormatConfig(inputDesc, outputDesc)
     };
@@ -978,6 +1017,17 @@ const TMultiFormatDesc& MergeIntermediateDesc(
     }
 }
 
+void ApplyFormatHints(TFormat* format, TMultiFormatDesc::EFormat rowType, const TMaybe<TFormatHints>& hints)
+{
+    switch (rowType) {
+        case TMultiFormatDesc::EFormat::F_NODE:
+            NYT::NDetail::ApplyFormatHints<TNode>(format, hints);
+            break;
+        default:
+            break;
+    }
+}
+
 void VerifyIntermediateDesc(const TMultiFormatDesc& desc, const TStringBuf& textDescription)
 {
     if (desc.Format != TMultiFormatDesc::F_PROTO) {
@@ -989,6 +1039,8 @@ void VerifyIntermediateDesc(const TMultiFormatDesc& desc, const TStringBuf& text
         }
     }
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
 
@@ -1866,25 +1918,45 @@ TOperationId ExecuteMapReduce(
     };
 
     if (mapper) {
+        auto nodeReaderFormat = NodeReaderFormatFromHintAndGlobalConfig(spec.MapperFormatHints_);
         TFormatDescImpl inputDescImpl(auth, transactionId, mapInputDesc, operationIo.Inputs, options,
-            /* allowSkiff = */ true, /* allowFormatFromTableAttribute = */ true);
+            nodeReaderFormat, /* allowFormatFromTableAttribute = */ true);
         TFormatDescImpl outputDescImpl(auth, transactionId, mapOutputDesc, operationIo.MapOutputs, options,
-            /* allowSkiff = */ false, /* allowFormatFromTableAttribute = */ false);
+            ENodeReaderFormat::Yson, /* allowFormatFromTableAttribute = */ false);
         operationIo.MapperJobFiles = CreateFormatConfig(inputDescImpl, outputDescImpl);
         operationIo.MapperInputFormat = inputDescImpl.GetFormat();
         operationIo.MapperOutputFormat = outputDescImpl.GetFormat();
+        ApplyFormatHints(
+            operationIo.MapperInputFormat.Get(),
+            inputDescImpl.GetRowType(),
+            spec.MapperFormatHints_.InputFormatHints_);
+
+        ApplyFormatHints(
+            operationIo.MapperOutputFormat.Get(),
+            outputDescImpl.GetRowType(),
+            spec.MapperFormatHints_.OutputFormatHints_);
     }
 
     if (reduceCombiner) {
         const bool isFirstStep = !mapper;
         auto inputs = isFirstStep ? operationIo.Inputs : TVector<TRichYPath>();
         TFormatDescImpl inputDescImpl(auth, transactionId, reduceCombinerInputDesc, inputs, options,
-            /* allowSkiff = */ false, /* allowFormatFromTableAttribute = */ isFirstStep);
+            ENodeReaderFormat::Yson, /* allowFormatFromTableAttribute = */ isFirstStep);
         TFormatDescImpl outputDescImpl(auth, transactionId, reduceCombinerOutputDesc, /* tables = */ {}, options,
-            /* allowSkiff = */ false, /* allowFormatFromTableAttribute = */ false);
+            ENodeReaderFormat::Yson, /* allowFormatFromTableAttribute = */ false);
         operationIo.ReduceCombinerJobFiles = CreateFormatConfig(inputDescImpl, outputDescImpl);
         operationIo.ReduceCombinerInputFormat = inputDescImpl.GetFormat();
         operationIo.ReduceCombinerOutputFormat = outputDescImpl.GetFormat();
+
+        ApplyFormatHints(
+            operationIo.ReduceCombinerInputFormat.Get(),
+            inputDescImpl.GetRowType(),
+            spec.ReduceCombinerFormatHints_.InputFormatHints_);
+        ApplyFormatHints(
+            operationIo.ReduceCombinerOutputFormat.Get(),
+            outputDescImpl.GetRowType(),
+            spec.ReduceCombinerFormatHints_.OutputFormatHints_);
+
         if (isFirstStep) {
             fixSpec(inputDescImpl);
         }
@@ -1893,12 +1965,22 @@ TOperationId ExecuteMapReduce(
     const bool isFirstStep = (!mapper && !reduceCombiner);
     auto inputs = isFirstStep ? operationIo.Inputs : TVector<TRichYPath>();
     TFormatDescImpl inputDescImpl(auth, transactionId, reduceInputDesc, inputs, options,
-        /* allowSkiff = */ false, /* allowFormatFromTableAttribute = */ isFirstStep);
+        ENodeReaderFormat::Yson, /* allowFormatFromTableAttribute = */ isFirstStep);
     TFormatDescImpl outputDescImpl(auth, transactionId, reduceOutputDesc, operationIo.Outputs, options,
-        /* allowSkiff = */ false, /* allowFormatFromTableAttribute = */ false);
+        ENodeReaderFormat::Yson, /* allowFormatFromTableAttribute = */ false);
     operationIo.ReducerJobFiles = CreateFormatConfig(inputDescImpl, outputDescImpl);
     operationIo.ReducerInputFormat = inputDescImpl.GetFormat();
     operationIo.ReducerOutputFormat = outputDescImpl.GetFormat();
+    ApplyFormatHints(
+        &operationIo.ReducerInputFormat,
+        inputDescImpl.GetRowType(),
+        spec.ReducerFormatHints_.InputFormatHints_);
+
+    ApplyFormatHints(
+        &operationIo.ReducerOutputFormat,
+        outputDescImpl.GetRowType(),
+        spec.ReducerFormatHints_.OutputFormatHints_);
+
     if (isFirstStep) {
         fixSpec(inputDescImpl);
     }

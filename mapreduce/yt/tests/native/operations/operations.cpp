@@ -1260,6 +1260,69 @@ Y_UNIT_TEST_SUITE(Operations)
         TestJobNodeReader(ENodeReaderFormat::Yson, false);
     }
 
+    Y_UNIT_TEST(TestSkiffOperationHint)
+    {
+        TConfigSaverGuard configGuard;
+        TConfig::Get()->NodeReaderFormat = ENodeReaderFormat::Auto;
+
+        auto client = CreateTestClient();
+
+        {
+            auto writer = client->CreateTableWriter<TNode>(
+                TRichYPath("//testing/input")
+                .Schema(TTableSchema()
+                    .Strict(true)
+                    .AddColumn(TColumnSchema().Name("key").Type(VT_STRING))
+                    .AddColumn(TColumnSchema().Name("value").Type(VT_STRING))));
+
+            writer->AddRow(TNode()("key", "foo")("value", TNode::CreateEntity()));
+            writer->Finish();
+        }
+
+        client->Map(
+            TMapOperationSpec()
+            .InputFormatHints(TFormatHints().SkipNullValuesForTNode(true))
+            .AddInput<TNode>("//testing/input")
+            .AddOutput<TNode>("//testing/output"),
+            new TIdMapper);
+
+        const std::vector<TNode> expected = {TNode()("key", "foo")};
+        auto reader = client->CreateTableReader<TNode>("//testing/output");
+        std::vector<TNode> actual;
+        for (; reader->IsValid(); reader->Next()) {
+            actual.push_back(reader->GetRow());
+        }
+        UNIT_ASSERT_VALUES_EQUAL(actual, expected);
+    }
+
+    Y_UNIT_TEST(TestSkiffOperationHintConfigurationConflict)
+    {
+        TConfigSaverGuard configGuard;
+        TConfig::Get()->NodeReaderFormat = ENodeReaderFormat::Skiff;
+
+        auto client = CreateTestClient();
+
+        {
+            auto writer = client->CreateTableWriter<TNode>(
+                TRichYPath("//testing/input")
+                .Schema(TTableSchema()
+                    .Strict(true)
+                    .AddColumn(TColumnSchema().Name("key").Type(VT_STRING))
+                    .AddColumn(TColumnSchema().Name("value").Type(VT_STRING))));
+            writer->AddRow(TNode()("key", "foo")("value", TNode::CreateEntity()));
+            writer->Finish();
+        }
+
+        UNIT_ASSERT_EXCEPTION(
+            client->Map(
+                TMapOperationSpec()
+                .InputFormatHints(TFormatHints().SkipNullValuesForTNode(true))
+                .AddInput<TNode>("//testing/input")
+                .AddOutput<TNode>("//testing/output"),
+                new TIdMapper),
+            TApiUsageError);
+    }
+
     void TestIncompleteReducer(ENodeReaderFormat nodeReaderFormat)
     {
         TConfigSaverGuard configGuard;
@@ -1612,6 +1675,70 @@ Y_UNIT_TEST_SUITE(Operations)
             UNIT_ASSERT_VALUES_EQUAL(getType(operation), "sort");
             UNIT_ASSERT_VALUES_EQUAL(getSortedBy(outputTable).Parts_, nonPrefixColumns.Parts_);
         }
+    }
+
+    Y_UNIT_TEST(FormatHint)
+    {
+        auto client = CreateTestClient();
+
+        {
+            auto writer = client->CreateTableWriter<TNode>(
+                TRichYPath("//testing/input")
+                .Schema(TTableSchema()
+                    .Strict(true)
+                    .AddColumn(TColumnSchema().Name("key").Type(VT_STRING).SortOrder(SO_ASCENDING))
+                    .AddColumn(TColumnSchema().Name("value").Type(VT_STRING))));
+
+            writer->AddRow(TNode()("key", "foo")("value", TNode::CreateEntity()));
+            writer->Finish();
+        }
+        const std::vector<TNode> expected = {TNode()("key", "foo")};
+        auto readOutputAndRemove = [&] () {
+            auto reader = client->CreateTableReader<TNode>("//testing/output");
+            std::vector<TNode> result;
+            for (; reader->IsValid(); reader->Next()) {
+                result.push_back(reader->GetRow());
+            }
+            client->Remove("//testing/output");
+            return result;
+        };
+
+        client->Map(
+            TMapOperationSpec()
+            .InputFormatHints(TFormatHints().SkipNullValuesForTNode(true))
+            .AddInput<TNode>("//testing/input")
+            .AddOutput<TNode>("//testing/output"),
+            new TIdMapper);
+        UNIT_ASSERT_VALUES_EQUAL(readOutputAndRemove(), expected);
+
+        client->Reduce(
+            TReduceOperationSpec()
+            .InputFormatHints(TFormatHints().SkipNullValuesForTNode(true))
+            .ReduceBy("key")
+            .AddInput<TNode>("//testing/input")
+            .AddOutput<TNode>("//testing/output"),
+            new TIdReducer);
+        UNIT_ASSERT_VALUES_EQUAL(readOutputAndRemove(), expected);
+
+        client->MapReduce(
+            TMapReduceOperationSpec()
+            .ReduceBy("key")
+            .MapperFormatHints(TUserJobFormatHints().InputFormatHints(TFormatHints().SkipNullValuesForTNode(true)))
+            .AddInput<TNode>("//testing/input")
+            .AddOutput<TNode>("//testing/output"),
+            new TIdMapper,
+            new TIdReducer);
+        UNIT_ASSERT_VALUES_EQUAL(readOutputAndRemove(), expected);
+
+        client->MapReduce(
+            TMapReduceOperationSpec()
+            .ReduceBy("key")
+            .ReducerFormatHints(TUserJobFormatHints().InputFormatHints(TFormatHints().SkipNullValuesForTNode(true)))
+            .AddInput<TNode>("//testing/input")
+            .AddOutput<TNode>("//testing/output"),
+            new TIdMapper,
+            new TIdReducer);
+        UNIT_ASSERT_VALUES_EQUAL(readOutputAndRemove(), expected);
     }
 
     Y_UNIT_TEST(AttachOperation)

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "common.h"
+#include "format.h"
 
 #include <util/datetime/base.h>
 
@@ -186,10 +187,29 @@ struct TFileWriterOptions
     FLUENT_FIELD_OPTION(bool, ComputeMD5);
 };
 
+class TFormatHints
+{
+public:
+    using TSelf = TFormatHints;
+
+    // When set to true TNode doesn't contain null column values.
+    //
+    // Only meaningful for TNode representation.
+    //
+    // Useful for sparse tables which have many columns in schema
+    // but only few columns are set in any row.
+    FLUENT_FIELD_DEFAULT(bool, SkipNullValuesForTNode, false);
+};
+
 struct TTableReaderOptions
     : public TIOOptions<TTableReaderOptions>
 {
     FLUENT_FIELD_DEFAULT(size_t, SizeLimit, 4 << 20);
+
+    // Allows to fine tune format that is used for reading tables.
+    //
+    // Has no effect when used with raw-reader.
+    FLUENT_FIELD_OPTION(TFormatHints, FormatHints);
 };
 
 
@@ -204,6 +224,11 @@ struct TTableWriterOptions
     // (due to limitations of HTTP protocol YT node have no chance to report error
     // before it reads the whole input so it just drops the connection).
     FLUENT_FIELD_DEFAULT(bool, SingleHttpRequest, false);
+
+    // Allows to fine tune format that is used for writing tables.
+    //
+    // Has no effect when used with raw-writer.
+    FLUENT_FIELD_OPTION(TFormatHints, FormatHints);
 };
 
 // https://wiki.yandex-team.ru/yt/userdoc/api/#starttx
