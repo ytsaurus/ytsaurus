@@ -16,6 +16,15 @@ def recursive(path):
 
 def main():
     version = get_version()
+    version = version.split("-")[0]
+    stable_versions = []
+    if os.path.exists("stable_versions"):
+        with open("stable_versions") as fin:
+            stable_versions = fin.read().split("\n")
+
+    if version not in stable_versions:
+        version = version + "a1"
+
     with open("yt/wrapper/version.py", "w") as version_output:
         version_output.write("VERSION='{0}'".format(version))
 
