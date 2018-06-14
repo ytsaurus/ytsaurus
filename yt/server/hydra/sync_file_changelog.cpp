@@ -183,7 +183,6 @@ size_t ComputeValidIndexPrefix(
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSyncFileChangelog::TImpl
-    : public TRefCounted
 {
 public:
     TImpl(
@@ -231,11 +230,9 @@ public:
             NFS::ExpectIOErrors([&] () {
                 dataFile.reset(new TFileWrapper(FileName_, RdOnly | Seq | CloseOnExec));
 
-                DataFile_ = WaitFor(IOEngine_->Open(FileName_, RdWr | Seq | CloseOnExec))
-                    .ValueOrThrow();
+                DataFile_ = IOEngine_->Open(FileName_, RdWr | Seq | CloseOnExec).Get().ValueOrThrow();
 
-                WaitFor(LockDataFile())
-                    .ThrowOnError();
+                LockDataFile();
                 ReadPod(*dataFile, header);
             });
 
@@ -649,29 +646,26 @@ private:
         }
     }
 
-    void TryLockDataFile(TPromise<void> promise, int retry)
-    {
-        if (DataFile_->Flock(LOCK_EX | LOCK_NB) != 0) {
-            if (++retry >= MaxLockRetries) {
-                promise.Set(TError("Cannot flock %Qv", FileName_) << TError::FromSystem());
-            } else {
-                LOG_WARNING("Error locking data file; backing off and retrying");
-                NConcurrency::TDelayedExecutor::Submit(
-                    BIND(&TImpl::TryLockDataFile, MakeStrong(this), promise, retry),
-                    LockBackoffTime);
-            }
-        } else {
-            LOG_DEBUG("Data file locked successfullly");
-            promise.Set();
-        }
-    }
-
     //! Flocks the data file, retrying if needed.
-    TFuture<void> LockDataFile()
+    void LockDataFile()
     {
-        TPromise<void> promise = NewPromise<void>();
-        TryLockDataFile(promise, 0);
-        return promise;
+        int index = 0;
+        while (true) {
+            LOG_DEBUG("Locking data file");
+            if (DataFile_->Flock(LOCK_EX | LOCK_NB) == 0) {
+                LOG_DEBUG("Data file locked successfullly");
+                break;
+            } else {
+                if (++index >= MaxLockRetries) {
+                    THROW_ERROR_EXCEPTION(
+                        "Cannot flock %Qv",
+                        FileName_) << TError::FromSystem();
+                }
+                LOG_WARNING("Error locking data file; backing off and retrying");
+                WaitFor(TDelayedExecutor::MakeDelayed(LockBackoffTime))
+                    .ThrowOnError();
+            }
+        }
     }
 
     //! Creates an empty data file.
@@ -906,7 +900,7 @@ TSyncFileChangelog::TSyncFileChangelog(
     const NChunkClient::IIOEnginePtr& ioEngine,
     const TString& fileName,
     TFileChangelogConfigPtr config)
-    : Impl_(New<TImpl>(
+    : Impl_(std::make_unique<TImpl>(
         ioEngine,
         fileName,
         config))

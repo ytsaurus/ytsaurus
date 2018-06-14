@@ -82,7 +82,7 @@ public:
 
 private:
     class TImpl;
-    const TIntrusivePtr<TImpl> Impl_;
+    const std::unique_ptr<TImpl> Impl_;
 
 };
 
