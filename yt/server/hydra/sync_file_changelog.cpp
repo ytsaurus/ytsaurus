@@ -183,6 +183,7 @@ size_t ComputeValidIndexPrefix(
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSyncFileChangelog::TImpl
+    : public TRefCounted
 {
 public:
     TImpl(
@@ -230,9 +231,11 @@ public:
             NFS::ExpectIOErrors([&] () {
                 dataFile.reset(new TFileWrapper(FileName_, RdOnly | Seq | CloseOnExec));
 
-                DataFile_ = IOEngine_->Open(FileName_, RdWr | Seq | CloseOnExec).Get().ValueOrThrow();
+                DataFile_ = WaitFor(IOEngine_->Open(FileName_, RdWr | Seq | CloseOnExec))
+                    .ValueOrThrow();
 
-                LockDataFile();
+                WaitFor(LockDataFile())
+                    .ThrowOnError();
                 ReadPod(*dataFile, header);
             });
 
@@ -646,25 +649,29 @@ private:
         }
     }
 
-    //! Flocks the data file, retrying if needed.
-    void LockDataFile()
+    void TryLockDataFile(TPromise<void> promise, int retry)
     {
-        int index = 0;
-        while (true) {
-            LOG_DEBUG("Locking data file");
-            if (DataFile_->Flock(LOCK_EX | LOCK_NB) == 0) {
-                LOG_DEBUG("Data file locked successfullly");
-                break;
+        if (DataFile_->Flock(LOCK_EX | LOCK_NB) != 0) {
+            if (++retry >= MaxLockRetries) {
+                promise.Set(TError("Cannot flock %Qv", FileName_) << TError::FromSystem());
             } else {
-                if (++index >= MaxLockRetries) {
-                    THROW_ERROR_EXCEPTION(
-                        "Cannot flock %Qv",
-                        FileName_) << TError::FromSystem();
-                }
                 LOG_WARNING("Error locking data file; backing off and retrying");
-                Sleep(LockBackoffTime);
+                NConcurrency::TDelayedExecutor::Submit(
+                    BIND(&TImpl::TryLockDataFile, MakeStrong(this), promise, retry),
+                    LockBackoffTime);
             }
+        } else {
+            LOG_DEBUG("Data file locked successfullly");
+            promise.Set();
         }
+    }
+
+    //! Flocks the data file, retrying if needed.
+    TFuture<void> LockDataFile()
+    {
+        TPromise<void> promise = NewPromise<void>();
+        TryLockDataFile(promise, 0);
+        return promise;
     }
 
     //! Creates an empty data file.
@@ -899,7 +906,7 @@ TSyncFileChangelog::TSyncFileChangelog(
     const NChunkClient::IIOEnginePtr& ioEngine,
     const TString& fileName,
     TFileChangelogConfigPtr config)
-    : Impl_(std::make_unique<TImpl>(
+    : Impl_(New<TImpl>(
         ioEngine,
         fileName,
         config))
