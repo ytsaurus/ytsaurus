@@ -338,7 +338,7 @@ def get_stderrs(operation, only_failed_jobs, client=None):
             try:
                 stderr = to_native_str(get_job_stderr(operation, job, client=client).read())
             except tuple(builtins.list(get_retriable_errors()) + [YtResponseError]) as err:
-                if err.is_no_such_job():
+                if isinstance(err, YtResponseError) and err.is_no_such_job():
                     pass
                 elif not ignore_errors:
                     raise
@@ -492,9 +492,9 @@ class Operation(object):
         """Returns iterator over operation progress states."""
         return get_operation_state_monitor(self.id, time_watcher, action, client=self.client)
 
-    def get_attributes(self):
+    def get_attributes(self, fields=None):
         """Returns all operation attributes."""
-        return get_operation_attributes(self.id, client=self.client)
+        return get_operation_attributes(self.id, fields=fields, client=self.client)
 
     def get_job_statistics(self):
         """Returns job statistics of operation."""
