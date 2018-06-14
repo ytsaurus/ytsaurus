@@ -5,6 +5,7 @@
 #include "client_writer.h"
 #include "file_reader.h"
 #include "file_writer.h"
+#include "format_hints.h"
 #include "lock.h"
 #include "mock_client.h"
 #include "operation.h"
@@ -483,10 +484,13 @@ THolder<TClientWriter> TClientBase::CreateClientWriter(
 ::TIntrusivePtr<INodeReaderImpl> TClientBase::CreateNodeReader(
     const TRichYPath& path, const TTableReaderOptions& options)
 {
+    auto format = TFormat::YsonBinary();
+    ApplyFormatHints<TNode>(&format, options.FormatHints_);
+
     // Skiff is disabled here because of large header problem (see https://st.yandex-team.ru/YT-6926).
     // Revert this code to r3614168 when it is fixed.
     return new TNodeTableReader(
-        CreateClientReader(path, TFormat::YsonBinary(), options),
+        CreateClientReader(path, format, options),
         options.SizeLimit_);
 }
 

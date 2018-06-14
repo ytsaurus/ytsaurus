@@ -1,5 +1,6 @@
 #pragma once
 
+#include "client_method_options.h"
 #include "io.h"
 #include "job_statistics.h"
 
@@ -24,6 +25,20 @@ struct TMultiFormatDesc
     EFormat Format = F_NONE;
     TVector<const ::google::protobuf::Descriptor*> ProtoDescriptors;
 };
+
+template <class TDerived>
+class TUserJobFormatHintsBase
+{
+public:
+    using TSelf = TDerived;
+
+    FLUENT_FIELD_OPTION(TFormatHints, InputFormatHints);
+    FLUENT_FIELD_OPTION(TFormatHints, OutputFormatHints);
+};
+
+class TUserJobFormatHints
+    : public TUserJobFormatHintsBase<TUserJobFormatHints>
+{ };
 
 template <class TDerived>
 class TRawOperationIoTableSpec
@@ -289,6 +304,7 @@ struct TMapOperationSpecBase
 struct TMapOperationSpec
     : public TMapOperationSpecBase<TMapOperationSpec>
     , public TOperationIOSpec<TMapOperationSpec>
+    , public TUserJobFormatHintsBase<TMapOperationSpec>
 { };
 
 struct TRawMapOperationSpec
@@ -317,6 +333,7 @@ struct TReduceOperationSpecBase
 struct TReduceOperationSpec
     : public TReduceOperationSpecBase<TReduceOperationSpec>
     , public TOperationIOSpec<TReduceOperationSpec>
+    , public TUserJobFormatHintsBase<TReduceOperationSpec>
 { };
 
 struct TRawReduceOperationSpec
@@ -343,6 +360,7 @@ struct TJoinReduceOperationSpecBase
 struct TJoinReduceOperationSpec
     : public TJoinReduceOperationSpecBase<TJoinReduceOperationSpec>
     , public TOperationIOSpec<TJoinReduceOperationSpec>
+    , public TUserJobFormatHintsBase<TJoinReduceOperationSpec>
 { };
 
 struct TRawJoinReduceOperationSpec
@@ -376,7 +394,13 @@ struct TMapReduceOperationSpec
     : public TMapReduceOperationSpecBase<TMapReduceOperationSpec>
     , public TOperationIOSpec<TMapReduceOperationSpec>
     , public TIntermediateTablesHintSpec<TMapReduceOperationSpec>
-{ };
+{
+    using TSelf = TMapReduceOperationSpec;
+
+    FLUENT_FIELD_DEFAULT(TUserJobFormatHints, MapperFormatHints, TUserJobFormatHints());
+    FLUENT_FIELD_DEFAULT(TUserJobFormatHints, ReducerFormatHints, TUserJobFormatHints());
+    FLUENT_FIELD_DEFAULT(TUserJobFormatHints, ReduceCombinerFormatHints, TUserJobFormatHints());
+};
 
 struct TRawMapReduceOperationSpec
     : public TMapReduceOperationSpecBase<TRawMapReduceOperationSpec>

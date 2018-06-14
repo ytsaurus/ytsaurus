@@ -992,6 +992,34 @@ Y_UNIT_TEST_SUITE(TableIo) {
 
         UNIT_ASSERT(client->Get("//testing/table/@row_count").AsInt64() > 0);
     }
+
+    Y_UNIT_TEST(TestFormatHint)
+    {
+        auto client = CreateTestClient();
+
+        {
+            auto writer = client->CreateTableWriter<TNode>("//testing/test_yson");
+            writer->AddRow(TNode()("key", "foo")("value", TNode::CreateEntity()));
+            writer->Finish();
+        }
+
+        {
+            auto reader = client->CreateTableReader<TNode>(
+                "//testing/test_yson",
+                TTableReaderOptions()
+                .FormatHints(TFormatHints().SkipNullValuesForTNode(true)));
+
+            TVector<TNode> result;
+            for (; reader->IsValid(); reader->Next()) {
+                result.push_back(reader->GetRow());
+            }
+
+            const TVector<TNode> expected = {
+                TNode()("key", "foo"),
+            };
+            UNIT_ASSERT_VALUES_EQUAL(result, expected);
+        }
+    }
 }
 
 Y_UNIT_TEST_SUITE(BlobTableIo) {
