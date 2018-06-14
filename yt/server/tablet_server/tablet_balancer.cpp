@@ -191,11 +191,11 @@ private:
 
     void Balance()
     {
-        FillActiveTabletActions();
-
         if (!Enabled_) {
             return;
         }
+
+        FillActiveTabletActions();
 
         CurrentTime_ = TruncatedNow();
 
@@ -379,14 +379,14 @@ private:
 
     void ReassignInMemoryTablets()
     {
-        // We cannot iterate through BundlesPendingCellBalancing_ directly
-        // because deleted bundles may be present.
         const auto& tabletManager = Bootstrap_->GetTabletManager();
         THashSet<TTabletCellBundleId> failedToBalance;
         for (const auto& bundleId : BundlesPendingCellBalancing_) {
             auto bundle = tabletManager->FindTabletCellBundle(bundleId);
             if (bundle && IsObjectAlive(bundle)) {
                 if (BundlesWithActiveActions_.has(bundle)) {
+                    LOG_DEBUG("Tablet balancer did not balance cells because bundle participates in action (Bundle: %v)",
+                        bundle->GetName());
                     failedToBalance.insert(bundleId);
                 } else {
                     ReassignInMemoryTablets(bundle);
@@ -443,8 +443,13 @@ private:
             if (size < bounds.MinTabletSize || size > bounds.MaxTabletSize) {
                 if (MergeSplitTablet(tablet, bounds)) {
                     ++actionCount;
+                    TablesWithActiveActions_.insert(tablet->GetTable());
                 }
             }
+        }
+
+        if (actionCount > 0) {
+            BundlesWithActiveActions_.insert(bundle);
         }
 
         Profiler.Enqueue(
