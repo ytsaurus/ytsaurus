@@ -19,7 +19,7 @@ static bool IsPrefix(const TVector<TString>& columns, const TNode::TListType& no
 ////////////////////////////////////////////////////////////////////////////////
 
 IOperationPtr LazySort(
-    const IClientPtr& client,
+    const IClientBasePtr& client,
     const TSortOperationSpec& spec,
     const TOperationOptions& options)
 {
