@@ -52,7 +52,7 @@ inline void TSchedulerElement::SetAlive(bool alive)
 
 inline void TSchedulerElement::SetFairShareRatio(double fairShareRatio)
 {
-    // This version is global and  used to balance preemption lists.
+    // This version is global and used to balance preemption lists.
     SharedState_->SetFairShareRatio(fairShareRatio);
     // This version is local for tree and used to compute satisfaction ratios.
     Attributes_.FairShareRatio = fairShareRatio;
