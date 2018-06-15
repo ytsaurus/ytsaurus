@@ -76,6 +76,13 @@ void TFixedPointNumber<U, P>::Persist(const NYT::TStreamPersistenceContext& cont
     Persist(context, Value_);
 }
 
+template <typename U, int P>
+TFixedPointNumber<U, P>& TFixedPointNumber<U, P>::operator *= (const double& value)
+{
+    Value_ = std::round(Value_ * value);
+    return *this;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 template <typename U, int P>
