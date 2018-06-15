@@ -47,7 +47,7 @@ DEFINE_REFCOUNTED_TYPE(TResourceLimitsConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TBatchingChunkServiceConfig
+class   TBatchingChunkServiceConfig
     : public NYTree::TYsonSerializable
 {
 public:

@@ -142,6 +142,9 @@ void TSchedulerConnector::SendHeartbeat()
     if (rsp->has_enable_job_stderr_reporter()) {
         reporter->SetStderrEnabled(rsp->enable_job_stderr_reporter());
     }
+    if (rsp->has_enable_job_fail_context_reporter()) {
+        reporter->SetFailContextEnabled(rsp->enable_job_fail_context_reporter());
+    }
     if (rsp->has_operation_archive_version()) {
         reporter->SetOperationArchiveVersion(rsp->operation_archive_version());
     }

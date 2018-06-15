@@ -100,6 +100,7 @@ void InferLimitsFromBoundaryKeys(const TInputDataSlicePtr& dataSlice, const NTab
 
 TNullable<TChunkId> IsUnavailable(const TInputDataSlicePtr& dataSlice, bool checkParityParts);
 bool CompareDataSlicesByLowerLimit(const TInputDataSlicePtr& slice1, const TInputDataSlicePtr& slice2);
+bool CompareChunkSlicesByLowerLimit(const TInputChunkSlicePtr& slice1, const TInputChunkSlicePtr& slice2);
 bool CanMergeSlices(const TInputDataSlicePtr& slice1, const TInputDataSlicePtr& slice2);
 i64 GetCumulativeRowCount(const std::vector<TInputDataSlicePtr>& dataSlices);
 i64 GetCumulativeDataWeight(const std::vector<TInputDataSlicePtr>& dataSlices);

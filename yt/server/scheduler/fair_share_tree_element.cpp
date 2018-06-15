@@ -33,10 +33,10 @@ static const double RatioComparisonPrecision = sqrt(RatioComputationPrecision);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TAggregateCounter& GetCounter(const TString& treeId, const TString& name)
+TAggregateGauge& GetCounter(const TString& treeId, const TString& name)
 {
     using TCounterKey = std::pair<TString, TString>;
-    using TCounterValue = std::unique_ptr<TAggregateCounter>;
+    using TCounterValue = std::unique_ptr<TAggregateGauge>;
 
     static THashMap<TCounterKey, TCounterValue> counters;
 
@@ -44,7 +44,7 @@ TAggregateCounter& GetCounter(const TString& treeId, const TString& name)
     auto it = counters.find(key);
     if (it == counters.end()) {
         auto tag = TProfileManager::Get()->RegisterTag("tree", treeId);
-        auto ptr = std::make_unique<TAggregateCounter>(name, TTagIdList{tag});
+        auto ptr = std::make_unique<TAggregateGauge>(name, TTagIdList{tag});
         it = counters.emplace(key, std::move(ptr)).first;
     }
 
@@ -249,9 +249,15 @@ void TSchedulerElement::UpdateAttributes()
         Attributes_.DominantLimit == 0 ? 1.0 : dominantDemand / Attributes_.DominantLimit;
 
     double possibleUsageRatio = Attributes_.DemandRatio;
-    if (GetResourceUsageRatio() < TreeConfig_->ThresholdToEnableMaxPossibleUsageRegularization * Attributes_.DemandRatio) {
-        auto possibleUsage = usage + ComputePossibleResourceUsage(maxPossibleResourceUsage - usage);
+    if (TreeConfig_->EnableNewPossibleResourceUsageComputation) {
+        auto possibleUsage = ComputePossibleResourceUsage(maxPossibleResourceUsage);
         possibleUsageRatio = GetDominantResourceUsage(possibleUsage, TotalResourceLimits_);
+    } else {
+        if (GetResourceUsageRatio() <= TreeConfig_->ThresholdToEnableMaxPossibleUsageRegularization * Attributes_.DemandRatio)
+        {
+            auto possibleUsage = usage + ComputePossibleResourceUsage(maxPossibleResourceUsage - usage);
+            possibleUsageRatio = GetDominantResourceUsage(possibleUsage, TotalResourceLimits_);
+        }
     }
 
     Attributes_.MaxPossibleUsageRatio = std::min(
@@ -584,13 +590,18 @@ void TCompositeSchedulerElement::UpdateTopDown(TDynamicAttributesList& dynamicAt
 
 TJobResources TCompositeSchedulerElement::ComputePossibleResourceUsage(TJobResources limit) const
 {
-    limit = Min(limit, MaxPossibleResourceUsage() - GetResourceUsage());
+    if (!TreeConfig_->EnableNewPossibleResourceUsageComputation) {
+        limit = Min(limit, MaxPossibleResourceUsage() - GetResourceUsage());
+    }
+
     auto additionalUsage = ZeroJobResources();
+
     for (const auto& child : EnabledChildren_) {
         auto childUsage = child->ComputePossibleResourceUsage(limit);
         limit -= childUsage;
         additionalUsage += childUsage;
     }
+
     return additionalUsage;
 }
 
@@ -1391,7 +1402,7 @@ std::vector<EFifoSortParameter> TPool::GetFifoSortParameters() const
     return FifoSortParameters_;
 }
 
-bool TPool::AreImmediateOperationsFobidden() const
+bool TPool::AreImmediateOperationsForbidden() const
 {
     return Config_->ForbidImmediateOperations;
 }
@@ -1428,7 +1439,7 @@ TOperationElementFixedState::TOperationElementFixedState(
     : OperationId_(operation->GetId())
     , Schedulable_(operation->IsSchedulable())
     , Operation_(operation)
-    , ControllerConfig_(controllerConfig)
+    , ControllerConfig_(std::move(controllerConfig))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1636,7 +1647,7 @@ void TOperationElement::Disable()
     LOG_DEBUG("Operation element disabled in strategy (OperationId: %v)", OperationId_);
 
     auto delta = SharedState_->Disable();
-    IncreaseResourceUsage(-delta);
+    IncreaseLocalResourceUsage(-delta);
 }
 
 void TOperationElement::Enable()
@@ -1747,7 +1758,7 @@ const TOperationElementSharedState::TJobProperties* TOperationElementSharedState
 TOperationElement::TOperationElement(
     TFairShareStrategyTreeConfigPtr treeConfig,
     TStrategyOperationSpecPtr spec,
-    TOperationFairShareStrategyTreeOptionsPtr runtimeParams,
+    TOperationFairShareTreeRuntimeParametersPtr runtimeParams,
     TFairShareStrategyOperationControllerPtr controller,
     TFairShareStrategyOperationControllerConfigPtr controllerConfig,
     ISchedulerStrategyHost* host,
@@ -1828,13 +1839,28 @@ void TOperationElement::UpdateTopDown(TDynamicAttributesList& dynamicAttributesL
 TJobResources TOperationElement::ComputePossibleResourceUsage(TJobResources limit) const
 {
     auto usage = GetResourceUsage();
-    // Max possible resource usage can be less than usage just after scheduler connection
-    // when not all nodes come with heartbeat to the scheduler.
-    limit = Max(ZeroJobResources(), Min(limit, MaxPossibleResourceUsage() - usage));
-    if (usage == ZeroJobResources()) {
-        return limit;
+    if (TreeConfig_->EnableNewPossibleResourceUsageComputation) {
+        if (!Dominates(limit, usage)) {
+            return usage * GetMinResourceRatio(limit, usage);
+        } else {
+            auto remainingDemand = ResourceDemand() - usage;
+            if (remainingDemand == ZeroJobResources()) {
+                return usage;
+            }
+
+            auto remainingLimit = Max(ZeroJobResources(), limit - usage);
+            // TODO(asaitgalin): Move this to MaxPossibleResourceUsage computation.
+            return usage + remainingDemand * GetMinResourceRatio(remainingLimit, remainingDemand);
+        }
     } else {
-        return usage * GetMinResourceRatio(limit, usage);
+        // Max possible resource usage can be less than usage just after scheduler connection
+        // when not all nodes come with heartbeat to the scheduler.
+        limit = Max(ZeroJobResources(), Min(limit, MaxPossibleResourceUsage() - usage));
+        if (usage == ZeroJobResources()) {
+            return limit;
+        } else {
+            return usage * GetMinResourceRatio(limit, usage);
+        }
     }
 }
 
@@ -2011,7 +2037,7 @@ bool TOperationElement::IsAggressiveStarvationPreemptionAllowed() const
 
 double TOperationElement::GetWeight() const
 {
-    return RuntimeParams_->Weight;
+    return RuntimeParams_->Weight.Get(1.0);
 }
 
 double TOperationElement::GetMinShareRatio() const
@@ -2457,7 +2483,7 @@ std::vector<EFifoSortParameter> TRootElement::GetFifoSortParameters() const
     Y_UNREACHABLE();
 }
 
-bool TRootElement::AreImmediateOperationsFobidden() const
+bool TRootElement::AreImmediateOperationsForbidden() const
 {
     return TreeConfig_->ForbidImmediateOperationsInRoot;
 }

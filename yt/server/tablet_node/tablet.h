@@ -50,16 +50,16 @@ DEFINE_REFCOUNTED_TYPE(TRuntimeTableReplicaData)
 struct TReplicaCounters
 {
     TReplicaCounters() = default;
-    TReplicaCounters(const NProfiling::TTagIdList& list);
+    explicit TReplicaCounters(const NProfiling::TTagIdList& list);
 
-    NProfiling::TAggregateCounter LagRowCount;
-    NProfiling::TAggregateCounter LagTime;
-    NProfiling::TAggregateCounter ReplicationTransactionStartTime;
-    NProfiling::TAggregateCounter ReplicationTransactionCommitTime;
-    NProfiling::TAggregateCounter ReplicationRowsReadTime;
-    NProfiling::TAggregateCounter ReplicationRowsWriteTime;
-    NProfiling::TAggregateCounter ReplicationBatchRowCount;
-    NProfiling::TAggregateCounter ReplicationBatchDataWeight;
+    NProfiling::TAggregateGauge LagRowCount;
+    NProfiling::TAggregateGauge LagTime;
+    NProfiling::TAggregateGauge ReplicationTransactionStartTime;
+    NProfiling::TAggregateGauge ReplicationTransactionCommitTime;
+    NProfiling::TAggregateGauge ReplicationRowsReadTime;
+    NProfiling::TAggregateGauge ReplicationRowsWriteTime;
+    NProfiling::TAggregateGauge ReplicationBatchRowCount;
+    NProfiling::TAggregateGauge ReplicationBatchDataWeight;
 
     const NProfiling::TTagIdList Tags;
 };
@@ -208,7 +208,7 @@ struct TTabletCounters
 {
     TTabletCounters(const NProfiling::TTagIdList& list);
 
-    NProfiling::TAggregateCounter OverlappingStoreCount;
+    NProfiling::TAggregateGauge OverlappingStoreCount;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -268,8 +268,6 @@ public:
 
     void PopulateStatistics(NTabletClient::NProto::TTableReplicaStatistics* statistics) const;
     void MergeFromStatistics(const NTabletClient::NProto::TTableReplicaStatistics& statistics);
-
-    NProfiling::TProfiler BuildReplicatorProfiler() const;
 
 private:
     const TRuntimeTableReplicaDataPtr RuntimeData_ = New<TRuntimeTableReplicaData>();

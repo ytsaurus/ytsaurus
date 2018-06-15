@@ -13,7 +13,10 @@
 #include <yt/ytlib/api/native_connection.h>
 #include <yt/ytlib/api/tablet_helpers.h>
 
+#include <yt/ytlib/chunk_client/chunk_reader.h>
+
 #include <yt/ytlib/node_tracker_client/channel.h>
+
 #include <yt/ytlib/object_client/helpers.h>
 
 #include <yt/ytlib/tablet_client/table_mount_cache.h>
@@ -40,6 +43,7 @@ namespace NQueryClient {
 using namespace NConcurrency;
 using namespace NTableClient;
 using namespace NTabletClient;
+using namespace NChunkClient;
 
 using NYT::ToProto;
 
@@ -171,6 +175,7 @@ public:
         TConstExternalCGInfoPtr externalCGInfo,
         TDataRanges dataSource,
         ISchemafulWriterPtr writer,
+        const TClientBlockReadOptions& blockReadOptions,
         const TQueryOptions& options) override
     {
         TRACE_CHILD("QueryClient", "Execute") {
@@ -185,6 +190,7 @@ public:
                     std::move(externalCGInfo),
                     std::move(dataSource),
                     options,
+                    blockReadOptions,
                     std::move(writer));
         }
     }
@@ -473,6 +479,7 @@ private:
         const TConstQueryPtr& query,
         const TConstExternalCGInfoPtr& externalCGInfo,
         const TQueryOptions& options,
+        const TClientBlockReadOptions& blockReadOptions,
         const ISchemafulWriterPtr& writer,
         int subrangesCount,
         std::function<std::pair<std::vector<TDataRanges>, TString>(int)> getSubsources)
@@ -493,7 +500,8 @@ private:
             functionGenerators,
             aggregateGenerators,
             externalCGInfo,
-            FunctionImplCache_);
+            FunctionImplCache_,
+            blockReadOptions);
 
         return CoordinateAndExecute(
             query,
@@ -529,6 +537,7 @@ private:
         TConstExternalCGInfoPtr externalCGInfo,
         TDataRanges dataSource,
         const TQueryOptions& options,
+        const TClientBlockReadOptions& blockReadOptions,
         ISchemafulWriterPtr writer)
     {
         auto Logger = MakeQueryLogger(query);
@@ -574,6 +583,7 @@ private:
             query,
             externalCGInfo,
             options,
+            blockReadOptions,
             writer,
             groupedSplits.size(),
             [&] (int index) {
@@ -586,6 +596,7 @@ private:
         TConstExternalCGInfoPtr externalCGInfo,
         TDataRanges dataSource,
         const TQueryOptions& options,
+        const TClientBlockReadOptions& blockReadOptions,
         ISchemafulWriterPtr writer)
     {
         auto Logger = MakeQueryLogger(query);
@@ -618,6 +629,7 @@ private:
             query,
             externalCGInfo,
             options,
+            blockReadOptions,
             writer,
             allSplits.size(),
             [&] (int index) {

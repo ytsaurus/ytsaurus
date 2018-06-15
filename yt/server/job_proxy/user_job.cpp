@@ -20,6 +20,7 @@
 
 #include <yt/ytlib/cgroup/cgroup.h>
 
+#include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
 #include <yt/ytlib/chunk_client/public.h>
 
 #include <yt/ytlib/core_dump/proto/core_info.pb.h>
@@ -138,7 +139,7 @@ static TString CreateNamedPipePath()
 ////////////////////////////////////////////////////////////////////////////////
 
 class TUserJob
-: public TJob
+    : public TJob
 {
 public:
     TUserJob(
@@ -178,6 +179,7 @@ public:
             Host_->LocalDescriptor(),
             BIND(&IJobHost::ReleaseNetwork, Host_),
             SandboxDirectoryNames[ESandboxKind::Udf],
+            BlockReadOptions_,
             Host_->GetTrafficMeter());
 
         InputPipeBlinker_ = New<TPeriodicExecutor>(
@@ -462,6 +464,8 @@ private:
 
     TCoreProcessorServicePtr CoreProcessorService_;
 
+    TNullable<TString> FailContext_;
+
     void Prepare()
     {
         PreparePipes();
@@ -590,6 +594,17 @@ private:
         auto contexts = WaitFor(UserJobReadController_->GetInputContext())
             .ValueOrThrow();
 
+        size_t size = 0;
+        for (const auto& context : contexts) {
+            size += context.Size();
+        }
+
+        FailContext_ = TString();
+        FailContext_->reserve(size);
+        for (const auto& context : contexts) {
+            FailContext_->append(context.Begin(), context.Size());
+        }
+
         auto contextChunkIds = DoDumpInputContext(contexts);
 
         YCHECK(contextChunkIds.size() <= 1);
@@ -642,6 +657,13 @@ private:
         }
 
         return result;
+    }
+
+    virtual TNullable<TString> GetFailContext() override
+    {
+        ValidatePrepared();
+
+        return FailContext_;
     }
 
     virtual TString GetStderr() override
@@ -933,6 +955,8 @@ private:
             codecStatistics->DumpTo(&statistics, "/codec/cpu/decode");
         }
 
+        DumpChunkReaderStatistics(&statistics, "/chunk_reader_statistics", BlockReadOptions_.ChunkReaderStatistics);
+
         int i = 0;
         for (const auto& writer : UserJobWriteController_->GetWriters()) {
             statistics.AddSample("/data/output/" + ToString(i), writer->GetDataStatistics());
@@ -1063,10 +1087,6 @@ private:
         });
 
         auto onProcessFinished = BIND([=, this_ = MakeStrong(this)] (const TError& satelliteError) {
-            // If process has crashed before sending notification we stuck
-            // on Syncroniser_->Wait() call, so cancel wait here.
-            Synchronizer_->CancelWait();
-
             try {
                 auto userJobError = Synchronizer_->GetUserProcessStatus();
 
@@ -1090,6 +1110,11 @@ private:
                      "Unable to get process status but satellite returns no errors");
                 OnIOErrorOrFinished(satelliteError, "Satellite failed");
             }
+
+            // If process has crashed before sending notification we stuck
+            // on Syncroniser_->Wait() call, so cancel wait here.
+            // Do this after JobProxyError is set (if necessary).
+            Synchronizer_->CancelWait();
         });
 
         auto runActions = [&] (const std::vector<TCallback<void()>>& actions,

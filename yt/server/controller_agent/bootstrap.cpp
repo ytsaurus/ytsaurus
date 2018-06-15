@@ -170,7 +170,7 @@ void TBootstrap::DoRun()
     SetNodeByYPath(
         orchidRoot,
         "/controller_agent",
-        CreateVirtualNode(ControllerAgent_->GetOrchidService()));
+        CreateVirtualNode(ControllerAgent_->GetOrchidService()->Via(GetControlInvoker())));
 
     SetBuildAttributes(orchidRoot, "controller_agent");
 
@@ -184,7 +184,7 @@ void TBootstrap::DoRun()
 
     HttpServer_->AddHandler(
         "/orchid/",
-        NMonitoring::GetOrchidYPathHttpHandler(orchidRoot->Via(GetControlInvoker())));
+        NMonitoring::GetOrchidYPathHttpHandler(orchidRoot));
 
     RpcServer_->RegisterService(CreateJobSpecService(this));
     RpcServer_->RegisterService(CreateControllerAgentService(this));

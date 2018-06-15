@@ -167,7 +167,7 @@ describe("error serialization", function() {
         err.toJson().should.eql('{' +
             '"code":42,' +
             '"message":"QWERTY",' +
-            '"attributes":{"a":{"z":["bar","baz"],"x":1,"y":"foo"}},' +
+            '"attributes":{"a":{"x":1,"y":"foo","z":["bar","baz"]}},' +
             '"inner_errors":[]' +
             '}');
     });

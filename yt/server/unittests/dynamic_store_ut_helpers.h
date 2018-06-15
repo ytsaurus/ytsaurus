@@ -12,6 +12,8 @@
 #include <yt/server/tablet_node/transaction.h>
 #include <yt/server/tablet_node/automaton.h>
 
+#include <yt/ytlib/chunk_client/chunk_reader.h>
+#include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
 #include <yt/ytlib/chunk_client/config.h>
 #include <yt/ytlib/chunk_client/memory_reader.h>
 #include <yt/ytlib/chunk_client/memory_writer.h>
@@ -119,6 +121,8 @@ protected:
         if (!sorted) {
             QueryNameTable_ = TNameTable::FromSchema(schema.ToQuery());
         }
+
+        BlockReadOptions_.ChunkReaderStatistics = New<NChunkClient::TChunkReaderStatistics>();
 
         Tablet_ = std::make_unique<TTablet>(
             New<TTableMountConfig>(),
@@ -350,6 +354,7 @@ protected:
     TNameTablePtr QueryNameTable_;
     std::unique_ptr<TTablet> Tablet_;
     TTimestamp CurrentTimestamp_ = 10000; // some reasonable starting point
+    NChunkClient::TClientBlockReadOptions BlockReadOptions_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

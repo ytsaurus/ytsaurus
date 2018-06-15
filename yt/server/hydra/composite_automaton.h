@@ -105,7 +105,7 @@ public:
         IInvokerPtr automatonInvoker);
 
 protected:
-    const IHydraManagerPtr HydraManager_;
+    IHydraManager* const HydraManager_;
     TCompositeAutomaton* const Automaton_;
     const IInvokerPtr AutomatonInvoker_;
 
@@ -210,10 +210,14 @@ public:
 protected:
     bool SerializationDumpEnabled_ = false;
 
-    NLogging::TLogger Logger;
+    const NLogging::TLogger Logger;
     NProfiling::TProfiler Profiler;
 
-    explicit TCompositeAutomaton(IInvokerPtr asyncSnapshotInvoker);
+protected:
+    explicit TCompositeAutomaton(
+        IInvokerPtr asyncSnapshotInvoker,
+        const TCellId& cellId,
+        const NProfiling::TTagIdList& profilingTagIds = {});
 
     void RegisterPart(TCompositeAutomatonPartPtr part);
 
@@ -238,6 +242,7 @@ private:
     struct TMethodDescriptor
     {
         TCallback<void(TMutationContext* context)> Callback;
+        NProfiling::TMonotonicCounter CumulativeTimeCounter;
     };
 
     struct TSaverDescriptorBase
@@ -266,6 +271,8 @@ private:
         TCallback<void(TLoadContext&)> Callback;
     };
 
+    IHydraManager* HydraManager_ = nullptr;
+
     std::vector<TWeakPtr<TCompositeAutomatonPart>> Parts_;
 
     THashMap<TString, TMethodDescriptor> MethodNameToDescriptor_;
@@ -276,7 +283,10 @@ private:
     std::vector<TSyncSaverDescriptor> SyncSavers_;
     std::vector<TAsyncSaverDescriptor> AsyncSavers_;
 
+    NProfiling::TMonotonicCounter MutationCounter_ = {"/mutation_count"};
+    NProfiling::TAggregateGauge MutationWaitTimeCounter_ = {"/mutation_wait_time"};
 
+private:
     void DoSaveSnapshot(
         NConcurrency::IAsyncOutputStreamPtr writer,
         NConcurrency::ESyncStreamAdapterStrategy strategy,
@@ -292,9 +302,11 @@ private:
     void OnRecoveryStarted();
     void OnRecoveryComplete();
 
+    TMethodDescriptor* GetMethodDescriptor(const TString& mutationType);
     std::vector<TCompositeAutomatonPartPtr> GetParts();
     void LogHandlerError(const TError& error);
 
+    bool IsRecovery() const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TCompositeAutomaton)

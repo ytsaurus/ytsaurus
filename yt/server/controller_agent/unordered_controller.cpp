@@ -64,7 +64,12 @@ public:
         TUnorderedTaskBase(TUnorderedControllerBase* controller, std::vector<TEdgeDescriptor> edgeDescriptors)
             : TTask(controller, std::move(edgeDescriptors))
             , Controller(controller)
-        { }
+        {
+            auto options = Controller->GetUnorderedChunkPoolOptions();
+            options.Task = GetTitle();
+
+            ChunkPool_ = CreateUnorderedChunkPool(std::move(options), Controller->GetInputStreamDirectory());
+        }
 
         virtual TTaskGroupPtr GetGroup() const override
         {
@@ -88,12 +93,12 @@ public:
 
         virtual IChunkPoolInput* GetChunkPoolInput() const override
         {
-            return Controller->UnorderedPool.get();
+            return ChunkPool_.get();
         }
 
         virtual IChunkPoolOutput* GetChunkPoolOutput() const override
         {
-            return Controller->UnorderedPool.get();
+            return ChunkPool_.get();
         }
 
         virtual void Persist(const TPersistenceContext& context) override
@@ -102,6 +107,7 @@ public:
 
             using NYT::Persist;
             Persist(context, Controller);
+            Persist(context, ChunkPool_);
         }
 
         virtual TUserJobSpecPtr GetUserJobSpec() const override
@@ -120,10 +126,6 @@ public:
 
             RegisterOutput(&jobSummary.Result, joblet->ChunkListIds, joblet);
 
-            if (jobSummary.InterruptReason != EInterruptReason::None) {
-                SplitByRowsAndReinstall(jobSummary.UnreadInputDataSlices, jobSummary.SplitJobCount);
-            }
-
             return result;
         }
 
@@ -135,10 +137,11 @@ public:
     private:
         TUnorderedControllerBase* Controller;
 
+        std::unique_ptr<IChunkPool> ChunkPool_;
+
         virtual TExtendedJobResources GetMinNeededResourcesHeavy() const override
         {
-            auto result = Controller->GetUnorderedOperationResources(
-                Controller->UnorderedPool->GetApproximateStripeStatistics());
+            auto result = Controller->GetUnorderedOperationResources(ChunkPool_->GetApproximateStripeStatistics());
             AddFootprintAndUserJobResources(result);
             return result;
         }
@@ -148,58 +151,6 @@ public:
             jobSpec->CopyFrom(Controller->JobSpecTemplate);
             AddSequentialInputSpec(jobSpec, joblet);
             AddOutputTableSpecs(jobSpec, joblet);
-        }
-
-        void SplitByRowsAndReinstall(
-            const std::vector<TInputDataSlicePtr>& dataSlices,
-            int jobCount)
-        {
-            i64 unreadRowCount = GetCumulativeRowCount(dataSlices);
-            i64 rowsPerJob = DivCeil<i64>(unreadRowCount, jobCount);
-            i64 rowsToAdd = rowsPerJob;
-            int sliceIndex = 0;
-            auto currentDataSlice = dataSlices[0];
-            std::vector<TInputDataSlicePtr> jobSlices;
-            while (true) {
-                i64 sliceRowCount = currentDataSlice->GetRowCount();
-                if (currentDataSlice->Type == EDataSourceType::UnversionedTable && sliceRowCount > rowsToAdd) {
-                    auto split = currentDataSlice->SplitByRowIndex(rowsToAdd);
-                    jobSlices.emplace_back(std::move(split.first));
-                    rowsToAdd = 0;
-                    currentDataSlice = std::move(split.second);
-                } else {
-                    jobSlices.emplace_back(std::move(currentDataSlice));
-                    rowsToAdd -= sliceRowCount;
-                    ++sliceIndex;
-                    if (sliceIndex == static_cast<int>(dataSlices.size())) {
-                        break;
-                    }
-                    currentDataSlice = dataSlices[sliceIndex];
-                }
-                if (rowsToAdd <= 0) {
-                    ReinstallInputDataSlices(jobSlices);
-                    jobSlices.clear();
-                    rowsToAdd = rowsPerJob;
-                }
-            }
-            if (!jobSlices.empty()) {
-                ReinstallInputDataSlices(jobSlices);
-            }
-        }
-
-        void ReinstallInputDataSlices(const std::vector<TInputDataSlicePtr>& inputDataSlices)
-        {
-            std::vector<TChunkStripePtr> stripes;
-            auto chunkStripe = New<TChunkStripe>(false /*foreign*/, true /*solid*/);
-            for (const auto& slice : inputDataSlices) {
-                chunkStripe->DataSlices.push_back(slice);
-            }
-            stripes.emplace_back(std::move(chunkStripe));
-            AddInput(stripes);
-
-            GetChunkPoolInput()->Finish();
-            AddPendingHint();
-            CheckCompleted();
         }
     };
 
@@ -233,9 +184,8 @@ public:
         Persist(context, Spec);
         Persist(context, JobIOConfig);
         Persist(context, JobSpecTemplate);
-        Persist(context, IsExplicitJobCount);
-        Persist(context, UnorderedPool);
-        Persist(context, UnorderedTask);
+        Persist(context, JobSizeConstraints_);
+        Persist(context, UnorderedTask_);
         Persist(context, UnorderedTaskGroup);
     }
 
@@ -249,12 +199,9 @@ protected:
     //! The template for starting new jobs.
     TJobSpec JobSpecTemplate;
 
-    //! Flag set when job count was explicitly specified.
-    bool IsExplicitJobCount;
+    IJobSizeConstraintsPtr JobSizeConstraints_;
 
-    std::unique_ptr<IChunkPool> UnorderedPool;
-
-    TUnorderedTaskPtr UnorderedTask;
+    TUnorderedTaskPtr UnorderedTask_;
     TTaskGroupPtr UnorderedTaskGroup;
 
     // Custom bits of preparation pipeline.
@@ -272,116 +219,150 @@ protected:
         RegisterTaskGroup(UnorderedTaskGroup);
     }
 
-    void InitUnorderedPool(IJobSizeConstraintsPtr jobSizeConstraints, TJobSizeAdjusterConfigPtr jobSizeAdjusterConfig)
-    {
-        UnorderedPool = CreateUnorderedChunkPool(jobSizeConstraints, jobSizeAdjusterConfig);
-    }
-
     virtual bool IsCompleted() const override
     {
         // Unordered task may be null, if all chunks were teleported.
-        return TOperationControllerBase::IsCompleted() && (!UnorderedTask || UnorderedTask->IsCompleted());
+        return TOperationControllerBase::IsCompleted() && (!UnorderedTask_ || UnorderedTask_->IsCompleted());
+    }
+
+    void InitTeleportableInputTables()
+    {
+        if (GetJobType() == EJobType::UnorderedMerge && !Spec->InputQuery) {
+            for (int index = 0; index < InputTables.size(); ++index) {
+                if (!InputTables[index].IsDynamic && !InputTables[index].Path.GetColumns()) {
+                    InputTables[index].IsTeleportable = ValidateTableSchemaCompatibility(
+                        InputTables[index].Schema,
+                        OutputTables_[0].TableUploadOptions.TableSchema,
+                        false /* ignoreSortOrder */).IsOK();
+                }
+            }
+        }
+    }
+
+    virtual i64 MinTeleportChunkSize() const = 0;
+
+    void InitJobSizeConstraints()
+    {
+        switch (OperationType) {
+            case EOperationType::Merge:
+                JobSizeConstraints_ = CreateMergeJobSizeConstraints(
+                    Spec,
+                    Options,
+                    PrimaryInputDataWeight,
+                    DataWeightRatio,
+                    InputCompressionRatio);
+                break;
+
+            case EOperationType::Map:
+                JobSizeConstraints_ = CreateUserJobSizeConstraints(
+                    Spec,
+                    Options,
+                    GetOutputTablePaths().size(),
+                    DataWeightRatio,
+                    PrimaryInputDataWeight,
+                    TotalEstimatedInputRowCount);
+                break;
+
+            default:
+                Y_UNREACHABLE();
+        }
+
+        LOG_INFO(
+            "Calculated operation parameters (JobCount: %v, DataWeightPerJob: %v, MaxDataWeightPerJob: %v, "
+            "InputSliceDataWeight: %v, IsExplicitJobCount: %v)",
+            JobSizeConstraints_->GetJobCount(),
+            JobSizeConstraints_->GetDataWeightPerJob(),
+            JobSizeConstraints_->GetMaxDataWeightPerJob(),
+            JobSizeConstraints_->GetInputSliceDataWeight(),
+            JobSizeConstraints_->GetInputSliceRowCount(),
+            JobSizeConstraints_->GetInputSliceDataWeight(),
+            JobSizeConstraints_->IsExplicitJobCount());
+    }
+
+    virtual TUnorderedChunkPoolOptions GetUnorderedChunkPoolOptions() const
+    {
+        TUnorderedChunkPoolOptions options;
+        options.MinTeleportChunkSize = MinTeleportChunkSize();
+        options.OperationId = OperationId;
+        options.JobSizeConstraints = JobSizeConstraints_;
+        options.SliceErasureChunksByParts = Spec->SliceErasureChunksByParts;
+
+        return options;
+    }
+
+    void ProcessInputs()
+    {
+        PROFILE_TIMING ("/input_processing_time") {
+            LOG_INFO("Processing inputs");
+
+            TPeriodicYielder yielder(PrepareYieldPeriod);
+
+            InitTeleportableInputTables();
+
+            int unversionedSlices = 0;
+            int versionedSlices = 0;
+            for (auto& chunk : CollectPrimaryUnversionedChunks()) {
+                const auto& slice = CreateUnversionedInputDataSlice(CreateInputChunkSlice(chunk));
+                UnorderedTask_->AddInput(New<TChunkStripe>(std::move(slice)));
+                ++unversionedSlices;
+                yielder.TryYield();
+            }
+            for (auto& slice : CollectPrimaryVersionedDataSlices(JobSizeConstraints_->GetInputSliceDataWeight())) {
+                UnorderedTask_->AddInput(New<TChunkStripe>(std::move(slice)));
+                ++versionedSlices;
+                yielder.TryYield();
+            }
+
+            LOG_INFO("Processed inputs (UnversionedSlices: %v, VersionedSlices: %v)",
+                unversionedSlices,
+                versionedSlices);
+        }
     }
 
     virtual void CustomPrepare() override
     {
-        // The total data size for processing (except teleport chunks).
-        i64 totalDataWeight = 0;
-        i64 totalRowCount = 0;
+        InitTeleportableInputTables();
 
-        // The number of output partitions generated so far.
-        // Each partition either corresponds to a teleport chunk.
-        int currentPartitionIndex = 0;
+        InitJobSizeConstraints();
 
-        PROFILE_TIMING ("/input_processing_time") {
-            LOG_INFO("Processing inputs");
+        auto autoMergeEnabled = TryInitAutoMerge(JobSizeConstraints_->GetJobCount(), DataWeightRatio);
 
-            std::vector<TInputChunkPtr> mergedChunks;
-
-            TPeriodicYielder yielder(PrepareYieldPeriod);
-            for (const auto& chunk : CollectPrimaryUnversionedChunks()) {
-                yielder.TryYield();
-                if (IsTeleportChunk(chunk)) {
-                    // Chunks not requiring merge go directly to the output chunk list.
-                    LOG_TRACE("Teleport chunk added (ChunkId: %v, Partition: %v)",
-                        chunk->ChunkId(),
-                        currentPartitionIndex);
-
-                    // Place the chunk directly to the output table.
-                    RegisterTeleportChunk(chunk, currentPartitionIndex, 0);
-                    ++currentPartitionIndex;
-                } else {
-                    mergedChunks.push_back(chunk);
-                    totalDataWeight += chunk->GetDataWeight();
-                    totalRowCount += chunk->GetRowCount();
+        auto edgeDescriptors = GetStandardEdgeDescriptors();
+        if (GetAutoMergeDirector()) {
+            YCHECK(AutoMergeTasks.size() == edgeDescriptors.size());
+            for (int index = 0; index < edgeDescriptors.size(); ++index) {
+                if (AutoMergeTasks[index]) {
+                    edgeDescriptors[index].DestinationPool = AutoMergeTasks[index]->GetChunkPoolInput();
+                    edgeDescriptors[index].ChunkMapping = AutoMergeTasks[index]->GetChunkMapping();
+                    edgeDescriptors[index].ImmediatelyUnstageChunkLists = true;
+                    edgeDescriptors[index].RequiresRecoveryInfo = true;
+                    edgeDescriptors[index].IsFinalOutput = false;
                 }
             }
+        }
 
-            auto versionedInputStatistics = CalculatePrimaryVersionedChunksStatistics();
-            totalDataWeight += versionedInputStatistics.first;
-            totalRowCount += versionedInputStatistics.second;
+        if (autoMergeEnabled) {
+            UnorderedTask_ = New<TAutoMergeableUnorderedTask>(this, std::move(edgeDescriptors));
+        } else {
+            UnorderedTask_ = New<TUnorderedTask>(this, GetStandardEdgeDescriptors());
+        }
 
-            // Create the task, if any data.
-            if (totalDataWeight > 0) {
-                auto createJobSizeConstraints = [&] () -> IJobSizeConstraintsPtr {
-                    switch (OperationType) {
-                        case EOperationType::Merge:
-                            return CreateMergeJobSizeConstraints(
-                                Spec,
-                                Options,
-                                totalDataWeight,
-                                DataWeightRatio,
-                                InputCompressionRatio);
+        RegisterTask(UnorderedTask_);
 
-                        default:
-                            return CreateUserJobSizeConstraints(
-                                Spec,
-                                Options,
-                                GetOutputTablePaths().size(),
-                                DataWeightRatio,
-                                totalDataWeight,
-                                totalRowCount);
-                    }
-                };
+        ProcessInputs();
 
-                auto jobSizeConstraints = createJobSizeConstraints();
-                IsExplicitJobCount = jobSizeConstraints->IsExplicitJobCount();
-                auto autoMergeEnabled = TryInitAutoMerge(jobSizeConstraints->GetJobCount(), DataWeightRatio);
+        FinishTaskInput(UnorderedTask_);
+        for (int index = 0; index < AutoMergeTasks.size(); ++index) {
+            if (AutoMergeTasks[index]) {
+                AutoMergeTasks[index]->FinishInput(UnorderedTask_->GetVertexDescriptor());
+            }
+        }
 
-                std::vector<TChunkStripePtr> stripes;
-                SliceUnversionedChunks(mergedChunks, jobSizeConstraints, &stripes);
-                SlicePrimaryVersionedChunks(jobSizeConstraints, &stripes);
-
-                InitUnorderedPool(
-                    std::move(jobSizeConstraints),
-                    GetJobSizeAdjusterConfig());
-
-                if (autoMergeEnabled) {
-                    UnorderedTask = New<TAutoMergeableUnorderedTask>(this, GetAutoMergeEdgeDescriptors());
-                } else {
-                    UnorderedTask = New<TUnorderedTask>(this, GetStandardEdgeDescriptors());
-                }
-                RegisterTask(UnorderedTask);
-
-                for (auto stripe : stripes) {
-                    yielder.TryYield();
-                    if (stripe) {
-                        UnorderedTask->AddInput(stripe);
-                    }
-                }
-
-                FinishTaskInput(UnorderedTask);
-                for (int index = 0; index < AutoMergeTasks.size(); ++index) {
-                    if (AutoMergeTasks[index]) {
-                        AutoMergeTasks[index]->FinishInput(UnorderedTask->GetVertexDescriptor());
-                    }
-                }
-
-                LOG_INFO("Inputs processed (JobCount: %v, IsExplicitJobCount: %v)",
-                    UnorderedTask->GetPendingJobCount(),
-                    IsExplicitJobCount);
-            } else {
-                LOG_INFO("Inputs processed, all chunks were teleported");
+        auto teleportChunks = UnorderedTask_->GetChunkPoolOutput()->GetTeleportChunks();
+        if (!teleportChunks.empty()) {
+            YCHECK(GetJobType() == EJobType::UnorderedMerge);
+            for (const auto& chunk : teleportChunks) {
+                RegisterTeleportChunk(chunk, 0 /* key */, 0 /* tableIndex */);
             }
         }
 
@@ -426,8 +407,6 @@ protected:
     // Unsorted helpers.
     virtual EJobType GetJobType() const = 0;
 
-    virtual TJobSizeAdjusterConfigPtr GetJobSizeAdjusterConfig() const = 0;
-
     virtual TUserJobSpecPtr GetUserJobSpec() const
     {
         return nullptr;
@@ -441,12 +420,6 @@ protected:
     void InitJobIOConfig()
     {
         JobIOConfig = CloneYsonSerializable(Spec->JobIO);
-    }
-
-    //! Returns |true| if the chunk can be included into the output as-is.
-    virtual bool IsTeleportChunk(const TInputChunkPtr& chunkSpec) const
-    {
-        return false;
     }
 
     virtual void PrepareInputQuery() override
@@ -542,11 +515,14 @@ private:
         return EJobType::Map;
     }
 
-    virtual TJobSizeAdjusterConfigPtr GetJobSizeAdjusterConfig() const override
+    virtual TUnorderedChunkPoolOptions GetUnorderedChunkPoolOptions() const override
     {
-        return Config->EnableMapJobSizeAdjustment
-            ? Options->JobSizeAdjuster
-            : nullptr;
+        auto options = TUnorderedControllerBase::GetUnorderedChunkPoolOptions();
+        if (Config->EnableMapJobSizeAdjustment) {
+            options.JobSizeAdjusterConfig = Options->JobSizeAdjuster;
+        }
+
+        return options;
     }
 
     virtual TJobSplitterConfigPtr GetJobSplitterConfig() const override
@@ -604,7 +580,7 @@ private:
 
     virtual bool IsOutputLivePreviewSupported() const override
     {
-        return true;
+        return Spec->EnableLegacyLivePreview;
     }
 
     // Unsorted helpers.
@@ -630,6 +606,11 @@ private:
         StartRowIndex += joblet->InputStripeList->TotalRowCount;
     }
 
+    virtual i64 MinTeleportChunkSize() const override
+    {
+        return std::numeric_limits<i64>::max();
+    }
+
     virtual bool IsInputDataSizeHistogramSupported() const override
     {
         return true;
@@ -639,7 +620,7 @@ private:
     {
         // We don't let jobs to be interrupted if MaxOutputTablesTimesJobCount is too much overdrafted.
         return
-            !IsExplicitJobCount &&
+            !JobSizeConstraints_->IsExplicitJobCount() &&
             2 * Options->MaxOutputTablesTimesJobsCount > JobCounter->GetTotal() * GetOutputTablePaths().size() &&
             2 * Options->MaxJobCount > JobCounter->GetTotal() &&
             TOperationControllerBase::IsJobInterruptible();
@@ -708,11 +689,6 @@ private:
         return EJobType::UnorderedMerge;
     }
 
-    virtual TJobSizeAdjusterConfigPtr GetJobSizeAdjusterConfig() const override
-    {
-        return nullptr;
-    }
-
     virtual std::vector<TRichYPath> GetOutputTablePaths() const override
     {
         std::vector<TRichYPath> result;
@@ -726,28 +702,15 @@ private:
         return !Spec->InputQuery;
     }
 
-    //! Returns |true| if the chunk can be included into the output as-is.
-    //! A typical implementation of #IsTeleportChunk that depends on whether chunks must be combined or not.
-    virtual bool IsTeleportChunk(const TInputChunkPtr& chunkSpec) const override
+    virtual i64 MinTeleportChunkSize() const override
     {
-        bool isSchemaCompatible =
-            ValidateTableSchemaCompatibility(
-                InputTables[chunkSpec->GetTableIndex()].Schema,
-                OutputTables_[0].TableUploadOptions.TableSchema,
-                false)
-            .IsOK();
-
-        if (Spec->ForceTransform ||
-            Spec->InputQuery ||
-            !isSchemaCompatible ||
-            InputTables[chunkSpec->GetTableIndex()].Path.GetColumns())
-        {
-            return false;
+        if (Spec->ForceTransform) {
+            return std::numeric_limits<i64>::max();
         }
-
-        return Spec->CombineChunks
-            ? chunkSpec->IsLargeCompleteChunk(Spec->JobIO->TableWriter->DesiredChunkSize)
-            : chunkSpec->IsCompleteChunk();
+        if (!Spec->CombineChunks) {
+            return 0;
+        }
+        return Spec->JobIO->TableWriter->DesiredChunkSize;
     }
 
     virtual void PrepareInputQuery() override

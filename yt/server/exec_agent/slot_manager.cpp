@@ -51,7 +51,10 @@ void TSlotManager::Initialize()
     JobEnvironment_ = CreateJobEnvironment(
         Config_->JobEnvironment,
         Bootstrap_);
-    JobEnvironment_->Init(SlotCount_);
+
+    JobEnvironment_->Init(
+        SlotCount_,
+        Bootstrap_->GetConfig()->ExecAgent->JobController->ResourceLimits->Cpu);
 
     if (!JobEnvironment_->IsEnabled()) {
         LOG_INFO("Job environment is disabled");

@@ -19,6 +19,7 @@
 #include <yt/server/chunk_pools/chunk_pool.h>
 #include <yt/server/chunk_pools/public.h>
 #include <yt/server/chunk_pools/chunk_stripe_key.h>
+#include <yt/server/chunk_pools/input_stream.h>
 
 #include <yt/server/chunk_server/public.h>
 
@@ -435,7 +436,7 @@ protected:
     std::vector<TAutoMergeTaskPtr> AutoMergeTasks;
     TTaskGroupPtr AutoMergeTaskGroup;
 
-    TDataFlowGraph DataFlowGraph_;
+    TDataFlowGraphPtr DataFlowGraph_;
 
     NYTree::IMapNodePtr UnrecognizedSpec_;
 
@@ -522,6 +523,7 @@ protected:
     virtual void SyncPrepare();
     void InitUnrecognizedSpec();
     void FillInitializationResult(TOperationControllerInitializationResult* result);
+    void ValidateIntermediateDataAccess(const TString& user, NYTree::EPermission permission) const;
     void InitUpdatingTables();
 
     // Preparation.
@@ -534,6 +536,7 @@ protected:
     virtual void PrepareOutputTables();
     void LockOutputTablesAndGetAttributes();
     void FetchUserFiles();
+    void ValidateUserFileSizes();
     void DoFetchUserFiles(const TUserJobSpecPtr& userJobSpec, std::vector<TUserFile>& files);
     void LockUserFiles();
     void GetUserFilesAttributes();
@@ -583,7 +586,6 @@ protected:
 
     void DoLoadSnapshot(const TOperationSnapshot& snapshot);
 
-    bool InputHasDynamicTables() const;
     bool InputHasVersionedTables() const;
     bool InputHasReadLimits() const;
 
@@ -650,7 +652,6 @@ protected:
 
     int EstimateSplitJobCount(const TCompletedJobSummary& jobSummary, const TJobletPtr& joblet);
     void ExtractInterruptDescriptor(TCompletedJobSummary& jobSummary) const;
-    virtual void ReinstallUnreadInputDataSlices(const std::vector<NChunkClient::TInputDataSlicePtr>& inputDataSlices);
 
     struct TStripeDescriptor
     {
@@ -769,9 +770,6 @@ protected:
 
     bool HasEnoughChunkLists(bool isWritingStderrTable, bool isWritingCoreTable);
 
-    //! Called after preparation to decrease memory footprint.
-    void ClearInputChunkBoundaryKeys();
-
     //! Returns the list of all input chunks collected from all primary input tables.
     std::vector<NChunkClient::TInputChunkPtr> CollectPrimaryChunks(bool versioned) const;
     std::vector<NChunkClient::TInputChunkPtr> CollectPrimaryUnversionedChunks() const;
@@ -784,24 +782,6 @@ protected:
 
     //! Returns the list of lists of all input chunks collected from all foreign input tables.
     std::vector<std::deque<NChunkClient::TInputDataSlicePtr>> CollectForeignInputDataSlices(int foreignKeyColumnCount) const;
-
-    //! Converts a list of input chunks into a list of chunk stripes for further
-    //! processing. Each stripe receives exactly one chunk (as suitable for most
-    //! jobs except merge). The resulting stripes are of approximately equal
-    //! size. The size per stripe is either |maxSliceDataSize| or
-    //! |TotalEstimateInputDataSize / jobCount|, whichever is smaller. If the resulting
-    //! list contains less than |jobCount| stripes then |jobCount| is decreased
-    //! appropriately.
-    void SliceUnversionedChunks(
-        const std::vector<NChunkClient::TInputChunkPtr>& unversionedChunks,
-        const IJobSizeConstraintsPtr& jobSizeConstraints,
-        std::vector<NChunkPools::TChunkStripePtr>* result) const;
-    void SlicePrimaryUnversionedChunks(
-        const IJobSizeConstraintsPtr& jobSizeConstraints,
-        std::vector<NChunkPools::TChunkStripePtr>* result) const;
-    void SlicePrimaryVersionedChunks(
-        const IJobSizeConstraintsPtr& jobSizeConstraints,
-        std::vector<NChunkPools::TChunkStripePtr>* result);
 
     void InitUserJobSpec(
         NScheduler::NProto::TUserJobSpec* proto,
@@ -854,6 +834,11 @@ protected:
 
     virtual TDataFlowGraph* GetDataFlowGraph() override;
 
+    virtual void RegisterLivePreviewChunk(
+        const TDataFlowGraph::TVertexDescriptor& vertexDescriptor,
+        int index,
+        const NChunkClient::TInputChunkPtr& chunk) override;
+
     virtual const NConcurrency::IThroughputThrottlerPtr& GetJobSpecSliceThrottler() const override;
 
     void FinishTaskInput(const TTaskPtr& task);
@@ -861,6 +846,10 @@ protected:
     void SetOperationAlert(EOperationAlertType type, const TError& alert);
 
     void AbortAllJoblets();
+
+    NChunkPools::TInputStreamDirectory GetInputStreamDirectory() const;
+
+    NChunkClient::IFetcherChunkScraperPtr CreateFetcherChunkScraper() const;
 
 private:
     typedef TOperationControllerBase TThis;
@@ -1025,6 +1014,16 @@ private:
 
     void InitializeOrchid();
 
+    struct TLivePreviewChunkDescriptor
+    {
+        TDataFlowGraph::TVertexDescriptor VertexDescriptor;
+        int LivePreviewIndex = -1;
+
+        void Persist(const TPersistenceContext& context);
+    };
+
+    THashMap<NChunkClient::TInputChunkPtr, TLivePreviewChunkDescriptor> LivePreviewChunks_;
+
     ssize_t GetMemoryUsage() const;
 
     void BuildAndSaveProgress();
@@ -1047,6 +1046,8 @@ private:
     void IncreaseNeededResources(const TJobResources& resourcesDelta);
 
     void InitializeStandardEdgeDescriptors();
+
+    void AddChunksToUnstageList(std::vector<NChunkClient::TInputChunkPtr> chunks);
 
     std::vector<NApi::ITransactionPtr> GetTransactions();
 

@@ -6,6 +6,7 @@
 #include "hydra_manager.h"
 
 #include <yt/core/misc/protobuf_helpers.h>
+#include <yt/core/misc/object_pool.h>
 
 #include <yt/core/rpc/message.h>
 #include <yt/core/rpc/helpers.h>
@@ -71,10 +72,10 @@ std::unique_ptr<TMutation> CreateMutation(
     mutation->SetHandler(
         BIND([=] (TMutationContext* mutationContext) {
             auto& mutationResponse = mutationContext->Response();
+            auto response = ObjectPool<TResponse>().Allocate();
             try {
-                TResponse response;
-                (target->*handler)(context, &context->Request(), &response);
-                mutationResponse.Data = NRpc::CreateResponseMessage(response);
+                (target->*handler)(context, &context->Request(), response.get());
+                mutationResponse.Data = NRpc::CreateResponseMessage(*response);
             } catch (const std::exception& ex) {
                 mutationResponse.Data = NRpc::CreateErrorResponseMessage(ex);
             }
@@ -96,10 +97,10 @@ std::unique_ptr<TMutation> CreateMutation(
     mutation->SetHandler(
         BIND([=, request = request] (TMutationContext* mutationContext) mutable {
             auto& mutationResponse = mutationContext->Response();
+            auto response = ObjectPool<TResponse>().Allocate();
             try {
-                TResponse response;
-                (target->*handler)(context, &request, &response);
-                mutationResponse.Data = NRpc::CreateResponseMessage(response);
+                (target->*handler)(context, &request, response.get());
+                mutationResponse.Data = NRpc::CreateResponseMessage(*response);
             } catch (const std::exception& ex) {
                 mutationResponse.Data = NRpc::CreateErrorResponseMessage(ex);
             }

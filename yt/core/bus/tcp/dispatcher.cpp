@@ -37,6 +37,11 @@ const TTcpDispatcherCountersPtr& TTcpDispatcher::GetCounters(const TString& netw
     return Impl_->GetCounters(networkName);
 }
 
+NConcurrency::IPollerPtr TTcpDispatcher::GetXferPoller()
+{
+    return Impl_->GetXferPoller();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 REGISTER_SHUTDOWN_CALLBACK(6, TTcpDispatcher::StaticShutdown);

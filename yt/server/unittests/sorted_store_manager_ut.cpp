@@ -144,8 +144,7 @@ protected:
                 Tablet_->BuildSnapshot(nullptr),
                 timestamp,
                 "ut",
-                TWorkloadDescriptor(),
-                TReadSessionId(),
+                BlockReadOptions_,
                 &reader,
                 &writer);
             struct TMergedTag { };

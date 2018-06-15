@@ -28,7 +28,7 @@ TMemoryUsageTracker<ECategory>::TMemoryUsageTracker(
     auto* profileManager = NProfiling::TProfileManager::Get();
     for (auto value : TEnumTraits<ECategory>::GetDomainValues()) {
         auto tagId = profileManager->RegisterTag("category", value);
-        Categories_[value].UsedCounter = NProfiling::TAggregateCounter(
+        Categories_[value].UsedCounter = NProfiling::TAggregateGauge(
             "/used",
             {tagId},
             NProfiling::EAggregateMode::Max);

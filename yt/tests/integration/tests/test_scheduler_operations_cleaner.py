@@ -22,7 +22,7 @@ class TestSchedulerOperationsCleaner(YTEnvSetup):
             "operations_cleaner": {
                 "enable": True,
                 # Analyze all operations each 100ms
-                "archivation_period": 100,
+                "analysis_period": 100,
                 # Wait each batch to remove not more than 100ms
                 "remove_batch_timeout": 100,
                 # Wait each batch to archive not more than 100ms
@@ -37,7 +37,8 @@ class TestSchedulerOperationsCleaner(YTEnvSetup):
                 # If more than this count of operations are enqueued and archivation
                 # can't succeed then operations will be just removed.
                 "max_operation_count_enqueued_for_archival": 5,
-                "max_operation_count_per_user": 3
+                "max_operation_count_per_user": 3,
+                "fetch_batch_size": 1
             },
             "static_orchid_cache_update_period": 100
         }

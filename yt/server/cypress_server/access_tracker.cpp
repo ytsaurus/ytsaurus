@@ -124,7 +124,7 @@ void TAccessTracker::OnFlush()
         return;
     }
 
-    LOG_DEBUG("Starting access statistics commit for %v nodes",
+    LOG_DEBUG("Starting access statistics commit (NodeCount: %v)",
         UpdateAccessStatisticsRequest_.updates_size());
 
     auto mutation = CreateMutation(hydraManager, UpdateAccessStatisticsRequest_);

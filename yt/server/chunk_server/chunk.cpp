@@ -109,7 +109,7 @@ void TChunk::Save(NCellMaster::TSaveContext& context) const
     Save(context, ExportCounter_);
     if (ExportCounter_ > 0) {
         YCHECK(ExportDataList_);
-        TRangeSerializer::Save(context, TRef(ExportDataList_.get(), MaxSecondaryMasterCells));
+        TRangeSerializer::Save(context, TRef(ExportDataList_.get(), MaxSecondaryMasterCells * sizeof(TChunkExportData)));
     }
 }
 
@@ -287,8 +287,16 @@ void TChunk::Load(NCellMaster::TLoadContext& context)
                 ExportDataList_[i] = oldExportDataList[i];
             }
         } else {
-            TRangeSerializer::Load(context, TMutableRef(ExportDataList_.get(), MaxSecondaryMasterCells));
+            TRangeSerializer::Load(context, TMutableRef(ExportDataList_.get(), MaxSecondaryMasterCells * sizeof(TChunkExportData)));
         }
+
+        auto isActuallyExported = false;
+        for (auto i = 0; i < MaxSecondaryMasterCells; ++i) {
+            if (ExportDataList_[i].RefCounter != 0) {
+                isActuallyExported = true;
+            }
+        }
+        YCHECK(isActuallyExported);
     }
     if (IsConfirmed()) {
         MiscExt_ = GetProtoExtension<TMiscExt>(ChunkMeta_.extensions());

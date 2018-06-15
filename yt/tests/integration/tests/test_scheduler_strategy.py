@@ -49,6 +49,12 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
         }
     }
 
+    def setup_method(self, method):
+        super(TestResourceUsage, self).setup_method(method)
+        set("//sys/pool_trees/default/@preemptive_scheduling_backoff", 0)
+        set("//sys/pool_trees/default/@max_unpreemptable_running_job_count", 0)
+        time.sleep(0.5)
+
     def _check_running_jobs(self, op, desired_running_jobs):
         success_iter = 0
         min_success_iteration = 10
@@ -119,11 +125,7 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
         resource_limits = {"cpu": 1, "memory": 1000 * 1024 * 1024, "network": 10}
         create("map_node", "//sys/pools/test_pool", attributes={"resource_limits": resource_limits})
 
-        while True:
-            pools = get("//sys/scheduler/orchid/scheduler/pools")
-            if "test_pool" in pools:
-                break
-            time.sleep(0.1)
+        wait(lambda: "test_pool" in get("//sys/scheduler/orchid/scheduler/pools"))
 
         stats = get("//sys/scheduler/orchid/scheduler")
         pool_resource_limits = stats["pools"]["test_pool"]["resource_limits"]
@@ -159,6 +161,29 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
         for resource, limit in resource_limits.iteritems():
             resource_name = "user_memory" if resource == "memory" else resource
             assert assert_almost_equal(op_limits[resource_name], limit)
+
+    def test_resource_limits_preemption(self):
+        create("map_node", "//sys/pools/test_pool2")
+        wait(lambda: "test_pool2" in get("//sys/scheduler/orchid/scheduler/pools"))
+
+        self._prepare_tables()
+        data = [{"foo": i} for i in xrange(3)]
+        write_table("//tmp/t_in", data)
+
+        op = map(
+            dont_track=True,
+            command="sleep 100",
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            spec={"job_count": 3, "pool": "test_pool2"})
+        wait(lambda: len(op.get_running_jobs()) == 3)
+
+        resource_limits = {"cpu": 2}
+        set("//sys/pools/test_pool2/@resource_limits", resource_limits)
+
+        wait(lambda: assert_almost_equal(get("//sys/scheduler/orchid/scheduler/pools/test_pool2/resource_limits/cpu"), 2))
+
+        wait(lambda: len(op.get_running_jobs()) == 2)
 
     # Remove flaky after YT-8784.
     @flaky(max_runs=5)
@@ -582,9 +607,9 @@ class TestSchedulerOperationLimits(YTEnvSetup):
 
             if should_raise:
                 with pytest.raises(YtError):
-                    execute(False)
+                    execute(dont_track=False)
             else:
-                op = execute(True)
+                op = execute(dont_track=True)
                 wait(lambda: op.get_state() in ("pending", "running"))
                 ops.append(op)
 
@@ -940,6 +965,46 @@ class TestSchedulerPreemption(YTEnvSetup):
         op1.abort()
         op2.abort()
 
+    def test_preemption_of_jobs_excessing_resource_limits(self):
+        create("table", "//tmp/t_in")
+        for i in xrange(3):
+            write_table("<append=%true>//tmp/t_in", {"foo": "bar"})
+
+        create("table", "//tmp/t_out")
+
+        op = map(
+            dont_track=True,
+            command="sleep 1000; cat",
+            in_=["//tmp/t_in"],
+            out="//tmp/t_out",
+            spec={"data_size_per_job": 1})
+
+        wait(lambda: len(op.get_running_jobs()) == 3)
+
+        update_op_parameters(op.id, parameters={
+            "scheduling_options_per_pool_tree": {
+                "default": {
+                    "resource_limits": {
+                        "user_slots": 1
+                    }
+                }
+            }
+        })
+
+        wait(lambda: len(op.get_running_jobs()) == 1)
+
+        update_op_parameters(op.id, parameters={
+            "scheduling_options_per_pool_tree": {
+                "default": {
+                    "resource_limits": {
+                        "user_slots": 0
+                    }
+                }
+            }
+        })
+
+        wait(lambda: len(op.get_running_jobs()) == 0)
+
 ##################################################################
 
 class TestSchedulerAggressivePreemption(YTEnvSetup):
@@ -1068,12 +1133,10 @@ class TestSchedulerAggressiveStarvationPreemption(YTEnvSetup):
                 dont_track=True)
             ops.append(op)
 
-        time.sleep(3)
-
         for op in ops:
-            assert assert_almost_equal(get_fair_share_ratio(op.id), 1.0 / 4.0)
-            assert assert_almost_equal(get_usage_ratio(op.id), 1.0 / 4.0)
-            assert len(op.get_running_jobs()) == 3
+            wait(lambda: assert_almost_equal(get_fair_share_ratio(op.id), 1.0 / 4.0))
+            wait(lambda: assert_almost_equal(get_usage_ratio(op.id), 1.0 / 4.0))
+            wait(lambda: len(op.get_running_jobs()) == 3)
 
         special_op = ops[0]
         special_op_jobs = [
@@ -1098,9 +1161,7 @@ class TestSchedulerAggressiveStarvationPreemption(YTEnvSetup):
             },
             dont_track=True)
 
-        time.sleep(3)
-
-        assert len(op.get_running_jobs()) == 1
+        wait(lambda: len(op.get_running_jobs()) == 1)
 
         special_op_running_job_count = len(special_op.get_running_jobs())
         assert special_op_running_job_count >= 2
@@ -1653,11 +1714,7 @@ class TestFairShareTreesReconfiguration(YTEnvSetup):
             write_table("<append=%true>//tmp/t_in", [{"x": i}])
         create("table", "//tmp/t_out")
 
-        node = ls("//sys/nodes")[0]
-        set("//sys/nodes/" + node + "/@user_tags/end", "other")
-        set("//sys/pool_trees/default/@nodes_filter", "!other")
-        create("map_node", "//sys/pool_trees/other", attributes={"nodes_filter": "other"})
-        set("//sys/pool_trees/default/@nodes_filter", "!other")
+        self.create_custom_pool_tree_with_one_node(pool_tree="other")
 
         time.sleep(1.0)
 
@@ -1676,11 +1733,7 @@ class TestFairShareTreesReconfiguration(YTEnvSetup):
             write_table("<append=%true>//tmp/t_in", [{"x": i}])
         create("table", "//tmp/t_out")
 
-        node = ls("//sys/nodes")[0]
-        set("//sys/nodes/" + node + "/@user_tags/end", "other")
-        set("//sys/pool_trees/default/@nodes_filter", "!other")
-        create("map_node", "//sys/pool_trees/other", attributes={"nodes_filter": "other"})
-        set("//sys/pool_trees/default/@nodes_filter", "!other")
+        self.create_custom_pool_tree_with_one_node(pool_tree="other")
 
         time.sleep(1.0)
 
@@ -1753,19 +1806,13 @@ class TestFairShareTreesReconfiguration(YTEnvSetup):
         for i in xrange(3):
             write_table("<append=%true>//tmp/t_in", [{"x": i}])
 
-        node = ls("//sys/nodes", attributes=["address"])[0]
-        set("//sys/nodes/" + node + "/@user_tags/end", "other")
-        set("//sys/pool_trees/default/@nodes_filter", "!other")
-        create("map_node", "//sys/pool_trees/other", attributes={"nodes_filter": "other"})
-        set("//sys/pool_trees/default/@nodes_filter", "!other")
-
-        time.sleep(1.0)
+        node = self.create_custom_pool_tree_with_one_node(pool_tree="other")
 
         orchid_root = "//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree"
-        assert get(orchid_root + "/default/node_count") == 2
-        assert get(orchid_root + "/other/node_count") == 1
-        assert_almost_equal(get(orchid_root + "/default/resource_limits")["cpu"], 2)
-        assert_almost_equal(get(orchid_root + "/other/resource_limits")["cpu"], 1)
+        wait(lambda: get(orchid_root + "/default/node_count") == 2)
+        wait(lambda: get(orchid_root + "/other/node_count") == 1)
+        assert assert_almost_equal(get(orchid_root + "/default/resource_limits")["cpu"], 2)
+        assert assert_almost_equal(get(orchid_root + "/other/resource_limits")["cpu"], 1)
         assert node in get(orchid_root + "/other/node_addresses")
         assert node not in get(orchid_root + "/default/node_addresses")
 
@@ -1785,21 +1832,19 @@ class TestFairShareTreesReconfiguration(YTEnvSetup):
             spec={"pool_trees": ["other"], "data_size_per_job": 1},
             dont_track=True)
 
-        time.sleep(1.0)
-
         def get_fair_share(tree, op_id):
-            return get("//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/{0}/fair_share_info/operations/{1}/fair_share_ratio"
-                       .format(tree, op_id))
+            try:
+                return get("//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/{0}/fair_share_info/operations/{1}/fair_share_ratio"
+                           .format(tree, op_id))
+            except YtError:
+                return 0.0
 
-        assert assert_almost_equal(get_fair_share("default", op1.id), 1.0)
-        assert assert_almost_equal(get_fair_share("other", op1.id), 0.5)
-        assert assert_almost_equal(get_fair_share("other", op2.id), 0.5)
+        wait(lambda: assert_almost_equal(get_fair_share("default", op1.id), 1.0))
+        wait(lambda: assert_almost_equal(get_fair_share("other", op1.id), 0.5))
+        wait(lambda: assert_almost_equal(get_fair_share("other", op2.id), 0.5))
 
     def test_default_tree_update(self):
-        node = ls("//sys/nodes")[0]
-        set("//sys/nodes/" + node + "/@user_tags/end", "other")
-        set("//sys/pool_trees/default/@nodes_filter", "!other")
-        create("map_node", "//sys/pool_trees/other", attributes={"nodes_filter": "other"})
+        self.create_custom_pool_tree_with_one_node(pool_tree="other")
         time.sleep(0.5)
 
         create("table", "//tmp/t_in")
@@ -1838,6 +1883,14 @@ class TestFairShareTreesReconfiguration(YTEnvSetup):
         assert op1.id not in other_tree_operations
         assert op2.id in other_tree_operations
         assert op2.id not in default_tree_operations
+
+    def create_custom_pool_tree_with_one_node(self, pool_tree):
+        tag = pool_tree
+        node = ls("//sys/nodes")[0]
+        set("//sys/nodes/" + node + "/@user_tags/end", tag)
+        create("map_node", "//sys/pool_trees/" + pool_tree, attributes={"nodes_filter": tag})
+        set("//sys/pool_trees/default/@nodes_filter", "!" + tag)
+        return node
 
 class TestSchedulingOptionsPerTree(YTEnvSetup):
     NUM_MASTERS = 1
@@ -1990,7 +2043,6 @@ class TestSchedulingOptionsPerTree(YTEnvSetup):
         other_node_list = self._prepare_pool_trees()
         spec = self._create_spec()
         self._patch_spec_for_tentativeness(spec)
-        other_nodes = frozenset(other_node_list)
 
         create("table", "//tmp/t_in")
         write_table("//tmp/t_in", [{"x": i} for i in xrange(30)])

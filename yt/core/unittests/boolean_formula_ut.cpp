@@ -1,6 +1,6 @@
 #include <yt/core/test_framework/framework.h>
 
-#include <yt/core/misc/boolean_formula.h>
+#include <yt/core/misc/arithmetic_formula.h>
 #include <yt/core/misc/error.h>
 
 namespace NYT {
@@ -49,7 +49,12 @@ INSTANTIATE_TEST_CASE_P(
         std::make_tuple("(a|c)&(b|c)", std::vector<TString>{"a", "b"}, true),
         std::make_tuple("(a|b)&c", std::vector<TString>{"a", "b"}, false),
         std::make_tuple("a|b|c", std::vector<TString>{"b"}, true),
-        std::make_tuple("!a & b & !c", std::vector<TString>{"b"}, true)
+        std::make_tuple("!a & b & !c", std::vector<TString>{"b"}, true),
+        std::make_tuple("var-1 | !var/2", std::vector<TString>{"var-1"}, true),
+        std::make_tuple("var-1 | !var/2", std::vector<TString>{"var/2"}, false),
+        std::make_tuple("var-1 | !var/2", std::vector<TString>{}, true),
+        std::make_tuple("!in-", std::vector<TString>{}, true),
+        std::make_tuple("in/|x", std::vector<TString>{"in/"}, true)
 ));
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -90,8 +95,24 @@ INSTANTIATE_TEST_CASE_P(
         "a|(c!)",
         "a|(c&)",
         "a|(|c)",
-        "a|b&c",
-        "a&b|c"
+        "1",
+        "a||b",
+        "a&&b",
+        "a+b",
+        "a^b",
+        "a==b",
+        "a!=b",
+        "a>=b",
+        "a<=b",
+        "a>b",
+        "a<b",
+        "a*b",
+        "a%b",
+        "/a",
+        "-",
+        "a /b",
+        "a & /b",
+        "in"
 ));
 
 class TBooleanFormulaTest2
@@ -110,6 +131,23 @@ TEST_F(TBooleanFormulaTest2, Equality)
     EXPECT_TRUE(formulaA.GetHash() == formulaB.GetHash());
     EXPECT_FALSE(formulaA.GetHash() == formulaC.GetHash());
 }
+
+TEST(TBooleanFormulaTest, ValidateVariable)
+{
+    ValidateBooleanFormulaVariable("var");
+    ValidateBooleanFormulaVariable("var/2");
+    ValidateBooleanFormulaVariable("var-var-var");
+    ValidateBooleanFormulaVariable("tablet_common/news-queue");
+    ValidateBooleanFormulaVariable("VAR123VAR");
+    ValidateBooleanFormulaVariable("IN");
+
+    EXPECT_THROW(ValidateBooleanFormulaVariable("2var"), TErrorException);
+    EXPECT_THROW(ValidateBooleanFormulaVariable("foo bar"), TErrorException);
+    EXPECT_THROW(ValidateBooleanFormulaVariable(""), TErrorException);
+    EXPECT_THROW(ValidateBooleanFormulaVariable("a+b"), TErrorException);
+    EXPECT_THROW(ValidateBooleanFormulaVariable("in"), TErrorException);
+}
+
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -25,8 +25,6 @@ class TSchemalessFormatWriterBase
     : public ISchemalessFormatWriter
 {
 public:
-    virtual TFuture<void> Open() override;
-
     virtual bool Write(const TRange<NTableClient::TUnversionedRow>& rows) override;
 
     virtual TFuture<void> GetReadyEvent() override;

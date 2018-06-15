@@ -10,6 +10,8 @@
 
 #include <yt/ytlib/scheduler/config.h>
 
+#include <yt/ytlib/chunk_client/config.h>
+
 #include <yt/ytlib/table_client/config.h>
 
 #include <yt/ytlib/transaction_client/config.h>
@@ -36,6 +38,7 @@ public:
     NTableClient::TTableWriterConfigPtr TableWriter;
     NApi::TJournalReaderConfigPtr JournalReader;
     NApi::TJournalWriterConfigPtr JournalWriter;
+    NChunkClient::TFetcherConfigPtr Fetcher;
     int ApiVersion;
 
     i64 ReadBufferRowCount;
@@ -58,6 +61,8 @@ public:
             .DefaultNew();
         RegisterParameter("journal_writer", JournalWriter)
             .DefaultNew();
+        RegisterParameter("fetcher", Fetcher)
+            .DefaultNew();
 
         RegisterParameter("read_buffer_row_count", ReadBufferRowCount)
             .Default((i64) 10000);
@@ -67,7 +72,7 @@ public:
             .Default((i64) 1 * 1024 * 1024);
 
         RegisterParameter("client_cache", ClientCache)
-            .DefaultNew();
+            .DefaultNew(1);
 
         RegisterParameter("api_version", ApiVersion)
             .Default(ApiVersion3);

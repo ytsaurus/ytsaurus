@@ -1,9 +1,9 @@
 #include "local_chunk_reader.h"
+#include "chunk_block_manager.h"
 #include "chunk_store.h"
 
 #include <yt/server/cell_node/bootstrap.h>
 
-#include "chunk_block_manager.h"
 #include <yt/server/data_node/chunk.h>
 
 #include <yt/ytlib/chunk_client/block_cache.h>
@@ -21,6 +21,8 @@ using namespace NChunkClient::NProto;
 using namespace NTableClient;
 using namespace NDataNode;
 using namespace NCellNode;
+using namespace NTableClient;
+using namespace NTableClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -33,21 +35,24 @@ public:
         IChunkPtr chunk,
         TChunkBlockManagerPtr chunkBlockManager,
         IBlockCachePtr blockCache,
+        TBlockMetaCachePtr blockMetaCache,
         TClosure failureHandler)
         : Config_(std::move(config))
         , Chunk_(std::move(chunk))
         , ChunkBlockManager_(std::move(chunkBlockManager))
         , BlockCache_(std::move(blockCache))
+        , BlockMetaCache_(std::move(blockMetaCache))
         , FailureHandler_(std::move(failureHandler))
     { }
 
     virtual TFuture<std::vector<TBlock>> ReadBlocks(
-        const TWorkloadDescriptor& workloadDescriptor,
-        const TReadSessionId& /*readSessionId*/,
+        const TClientBlockReadOptions& options,
         const std::vector<int>& blockIndexes) override
     {
         auto session = New<TReadBlockSetSession>();
-        session->WorkloadDescriptor = workloadDescriptor;
+        static_cast<TClientBlockReadOptions&>(session->Options) = options;
+        session->Options.BlockCache = BlockCache_;
+        session->Options.PopulateCache = Config_->PopulateCache;
         session->BlockIndexes = blockIndexes;
         session->Blocks.resize(blockIndexes.size());
         RequestBlockSet(session);
@@ -55,13 +60,12 @@ public:
     }
 
     virtual TFuture<std::vector<TBlock>> ReadBlocks(
-        const TWorkloadDescriptor& workloadDescriptor,
-        const TReadSessionId& /*readSessionId*/,
+        const TClientBlockReadOptions& clientOptions,
         int firstBlockIndex,
         int blockCount) override
     {
         TBlockReadOptions options;
-        options.WorkloadDescriptor = workloadDescriptor;
+        static_cast<TClientBlockReadOptions&>(options) = clientOptions;
         options.BlockCache = BlockCache_;
         options.PopulateCache = Config_->PopulateCache;
 
@@ -80,20 +84,37 @@ public:
     }
 
     virtual TFuture<TChunkMeta> GetMeta(
-        const TWorkloadDescriptor& workloadDescriptor,
-        const TReadSessionId& /*readSessionId*/,
+        const TClientBlockReadOptions& clientOptions,
         const TNullable<int>& partitionTag,
         const TNullable<std::vector<int>>& extensionTags) override
     {
-        auto asyncResult = Chunk_->ReadMeta(workloadDescriptor, extensionTags);
+        TBlockReadOptions options;
+        static_cast<TClientBlockReadOptions&>(options) = clientOptions;
+
+        auto asyncResult = Chunk_->ReadMeta(options, extensionTags);
         return asyncResult.Apply(BIND([=] (const TErrorOr<TRefCountedChunkMetaPtr>& metaOrError) {
             if (!metaOrError.IsOK()) {
                 ThrowError(metaOrError);
             }
             const auto& meta = metaOrError.Value();
-            return partitionTag
-                ? FilterChunkMetaByPartitionTag(*meta, *partitionTag)
-                : TChunkMeta(*meta);
+
+            if (partitionTag) {
+                auto cachedBlockMeta = BlockMetaCache_
+                    ? BlockMetaCache_->Find(GetChunkId())
+                    : TCachedBlockMetaPtr();
+
+                if (!cachedBlockMeta) {
+                    auto blockMetaExt = GetProtoExtension<TBlockMetaExt>(meta->extensions());
+                    cachedBlockMeta = New<TCachedBlockMeta>(GetChunkId(), std::move(blockMetaExt));
+                    if (BlockMetaCache_) {
+                        BlockMetaCache_->TryInsert(cachedBlockMeta);
+                    }
+                }
+
+                return FilterChunkMetaByPartitionTag(*meta, cachedBlockMeta, *partitionTag);
+            } else {
+                return TChunkMeta(*meta);
+            }
         }));
     }
 
@@ -112,12 +133,13 @@ private:
     const IChunkPtr Chunk_;
     const TChunkBlockManagerPtr ChunkBlockManager_;
     const IBlockCachePtr BlockCache_;
+    const TBlockMetaCachePtr BlockMetaCache_;
     const TClosure FailureHandler_;
 
     struct TReadBlockSetSession
         : public TIntrinsicRefCounted
     {
-        TWorkloadDescriptor WorkloadDescriptor;
+        TBlockReadOptions Options;
         std::vector<int> BlockIndexes;
         std::vector<TBlock> Blocks;
         TPromise<std::vector<TBlock>> Promise = NewPromise<std::vector<TBlock>>();
@@ -147,15 +169,10 @@ private:
                 return;
             }
 
-            TBlockReadOptions options;
-            options.WorkloadDescriptor = session->WorkloadDescriptor;
-            options.BlockCache = BlockCache_;
-            options.PopulateCache = Config_->PopulateCache;
-
             auto asyncResult = ChunkBlockManager_->ReadBlockSet(
                 Chunk_->GetId(),
                 blockIndexes,
-                options);
+                session->Options);
 
             asyncResult.Subscribe(
                 BIND(&TLocalChunkReader::OnBlockSetRead, MakeStrong(this), session, localIndexes));
@@ -205,6 +222,7 @@ IChunkReaderPtr CreateLocalChunkReader(
     IChunkPtr chunk,
     TChunkBlockManagerPtr chunkBlockManager,
     IBlockCachePtr blockCache,
+    TBlockMetaCachePtr blockMetaCache,
     TClosure failureHandler)
 {
     return New<TLocalChunkReader>(
@@ -212,6 +230,7 @@ IChunkReaderPtr CreateLocalChunkReader(
         std::move(chunk),
         std::move(chunkBlockManager),
         std::move(blockCache),
+        std::move(blockMetaCache),
         std::move(failureHandler));
 }
 

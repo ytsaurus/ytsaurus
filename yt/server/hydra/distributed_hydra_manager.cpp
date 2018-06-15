@@ -46,7 +46,6 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Profiler = HydraProfiler;
 static const auto PostponeBackoffTime = TDuration::MilliSeconds(100);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -146,6 +145,7 @@ public:
         , SnapshotStore_(snapshotStore)
         , Options_(options)
         , ElectionCallbacks_(New<TElectionCallbacks>(this))
+        , Profiler(NProfiling::TProfiler(HydraProfiler.GetPathPrefix(), Options_.ProfilingTagIds))
     {
         VERIFY_INVOKER_THREAD_AFFINITY(ControlInvoker_, ControlThread);
         VERIFY_INVOKER_THREAD_AFFINITY(AutomatonInvoker_, AutomatonThread);
@@ -157,7 +157,8 @@ public:
             automaton,
             AutomatonInvoker_,
             ControlInvoker_,
-            SnapshotStore_);
+            SnapshotStore_,
+            Profiler);
 
         RegisterMethod(RPC_SERVICE_METHOD_DESC(LookupChangelog));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ReadChangeLog)
@@ -451,6 +452,8 @@ private:
     const TDistributedHydraManagerOptions Options_;
 
     const IElectionCallbacksPtr ElectionCallbacks_;
+
+    const NProfiling::TProfiler Profiler;
 
     std::atomic<bool> ReadOnly_ = {false};
     const TLeaderLeasePtr LeaderLease_ = New<TLeaderLease>();
@@ -909,9 +912,8 @@ private:
     {
         auto it = RestartCounters_.find(message);
         if (it == RestartCounters_.end()) {
-            auto tagIds = NProfiling::TTagIdList{
-                NProfiling::TProfileManager::Get()->RegisterTag("cell_id", CellManager_->GetCellId()),
-                NProfiling::TProfileManager::Get()->RegisterTag("reason", message)};
+            auto tagIds = Options_.ProfilingTagIds;
+            tagIds.push_back(NProfiling::TProfileManager::Get()->RegisterTag("reason", message));
             auto counter = NProfiling::TMonotonicCounter("/restart_count", tagIds);
             it = RestartCounters_.insert(std::make_pair(message, counter)).first;
         }

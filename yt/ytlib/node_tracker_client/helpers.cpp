@@ -2,7 +2,7 @@
 
 #include <yt/ytlib/object_client/helpers.h>
 
-#include <yt/core/misc/boolean_formula.h>
+#include <yt/core/misc/arithmetic_formula.h>
 
 #include <yt/core/ytree/fluent.h>
 #include <yt/core/ytree/yson_serializable.h>

@@ -1,14 +1,22 @@
 #include "ordered_chunk_store.h"
 #include "tablet.h"
 #include "config.h"
+#include "versioned_chunk_meta_manager.h"
 
 #include <yt/server/tablet_node/tablet_manager.pb.h>
 
 #include <yt/ytlib/chunk_client/client_block_cache.h>
+#include <yt/ytlib/chunk_client/chunk_spec.h>
 
+#include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/ytlib/chunk_client/chunk_reader.h>
+#include <yt/ytlib/table_client/chunk_meta_extensions.h>
+
+#include <yt/ytlib/table_client/cached_versioned_chunk_meta.h>
 #include <yt/ytlib/table_client/schemaful_chunk_reader.h>
 #include <yt/ytlib/table_client/schemaful_reader.h>
 #include <yt/ytlib/table_client/row_buffer.h>
+#include <yt/ytlib/table_client/chunk_state.h>
 
 #include <yt/core/misc/protobuf_helpers.h>
 
@@ -21,6 +29,7 @@ using namespace NChunkClient;
 using namespace NNodeTrackerClient;
 using namespace NApi;
 using namespace NDataNode;
+using namespace NConcurrency;
 
 using NTabletNode::NProto::TAddStoreDescriptor;
 using NChunkClient::NProto::TDataStatistics;
@@ -126,6 +135,7 @@ TOrderedChunkStore::TOrderedChunkStore(
     IBlockCachePtr blockCache,
     TChunkRegistryPtr chunkRegistry,
     TChunkBlockManagerPtr chunkBlockManager,
+    TVersionedChunkMetaManagerPtr chunkMetaManager,
     INativeClientPtr client,
     const TNodeDescriptor& localDescriptor)
     : TStoreBase(config, id, tablet)
@@ -136,6 +146,7 @@ TOrderedChunkStore::TOrderedChunkStore(
         blockCache,
         chunkRegistry,
         chunkBlockManager,
+        chunkMetaManager,
         client,
         localDescriptor)
     , TOrderedStoreBase(config, id, tablet)
@@ -173,14 +184,15 @@ ISchemafulReaderPtr TOrderedChunkStore::CreateReader(
     i64 lowerRowIndex,
     i64 upperRowIndex,
     const TColumnFilter& columnFilter,
-    const TWorkloadDescriptor& workloadDescriptor,
-    const TReadSessionId& sessionId)
+    const TClientBlockReadOptions& blockReadOptions)
 {
-    auto blockCache = GetBlockCache();
     auto chunkReader = GetChunkReader();
-
-    auto config = CloneYsonSerializable(ReaderConfig_);
-    config->WorkloadDescriptor = workloadDescriptor;
+    auto asyncChunkMeta = ChunkMetaManager_->GetMeta(
+        chunkReader,
+        Schema_,
+        blockReadOptions);
+    auto chunkMeta = WaitFor(asyncChunkMeta)
+        .ValueOrThrow();
 
     TReadLimit lowerLimit;
     lowerRowIndex = std::min(std::max(lowerRowIndex, StartingRowIndex_), StartingRowIndex_ + GetRowCount());
@@ -214,14 +226,22 @@ ISchemafulReaderPtr TOrderedChunkStore::CreateReader(
         idMapping.push_back(querySchema.GetColumnIndex(readColumn.Name()));
     }
 
+    auto chunkState = New<TChunkState>(
+        GetBlockCache(),
+        NChunkClient::NProto::TChunkSpec(),
+        nullptr,
+        nullptr,
+        nullptr,
+        nullptr);
+
     auto underlyingReader = CreateSchemafulChunkReader(
-        config,
+        chunkState,
+        chunkMeta,
+        ReaderConfig_,
         std::move(chunkReader),
-        std::move(blockCache),
-        sessionId,
+        blockReadOptions,
         readSchema,
         TKeyColumns(),
-        GetChunkMeta(),
         {readRange});
 
     return New<TReader>(

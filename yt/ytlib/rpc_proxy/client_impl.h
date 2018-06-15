@@ -1,7 +1,6 @@
 #pragma once
 
 #include "client_base.h"
-#include "discovering_channel.h"
 
 #include <yt/ytlib/api/client.h>
 
@@ -19,17 +18,16 @@ class TClient
 public:
     TClient(
         TConnectionPtr connection,
-        const NApi::TClientOptions& options);
+        NRpc::IChannelPtr channel);
 
     virtual TFuture<void> Terminate() override;
+    virtual const NTabletClient::ITableMountCachePtr& GetTableMountCache() override;
+    virtual const NTransactionClient::ITimestampProviderPtr& GetTimestampProvider() override;
 
     // Transactions
     virtual NApi::ITransactionPtr AttachTransaction(
-        const NTransactionClient::TTransactionId&,
-        const NApi::TTransactionAttachOptions&) override
-    {
-        Y_UNIMPLEMENTED();
-    }
+        const NTransactionClient::TTransactionId& transactionId,
+        const NApi::TTransactionAttachOptions& options) override;
 
     // Tables
     virtual TFuture<void> MountTable(
@@ -103,7 +101,7 @@ public:
         const TString&,
         const NApi::TAddMemberOptions&) override
     {
-        Y_UNIMPLEMENTED();
+        ThrowUnimplemented("add_member");
     }
 
     virtual TFuture<void> RemoveMember(
@@ -111,7 +109,7 @@ public:
         const TString&,
         const NApi::TRemoveMemberOptions&) override
     {
-        Y_UNIMPLEMENTED();
+        ThrowUnimplemented("remove_member");
     }
 
     virtual TFuture<NApi::TCheckPermissionResult> CheckPermission(
@@ -120,7 +118,7 @@ public:
         NYTree::EPermission,
         const NApi::TCheckPermissionOptions&) override
     {
-        Y_UNIMPLEMENTED();
+        ThrowUnimplemented("check_permission");
     }
 
     // Scheduler
@@ -129,35 +127,35 @@ public:
         const NYson::TYsonString&,
         const NApi::TStartOperationOptions&) override
     {
-        Y_UNIMPLEMENTED();
+        ThrowUnimplemented("start_operation");
     }
 
     virtual TFuture<void> AbortOperation(
         const NScheduler::TOperationId&,
         const NApi::TAbortOperationOptions&) override
     {
-        Y_UNIMPLEMENTED();
+        ThrowUnimplemented("abort_operation");
     }
 
     virtual TFuture<void> SuspendOperation(
         const NScheduler::TOperationId&,
         const NApi::TSuspendOperationOptions&) override
     {
-        Y_UNIMPLEMENTED();
+        ThrowUnimplemented("suspend_operation");
     }
 
     virtual TFuture<void> ResumeOperation(
         const NScheduler::TOperationId&,
         const NApi::TResumeOperationOptions&) override
     {
-        Y_UNIMPLEMENTED();
+        ThrowUnimplemented("resume_operation");
     }
 
     virtual TFuture<void> CompleteOperation(
         const NScheduler::TOperationId&,
         const NApi::TCompleteOperationOptions&) override
     {
-        Y_UNIMPLEMENTED();
+        ThrowUnimplemented("complete_operation");
     }
 
     virtual TFuture<void> UpdateOperationParameters(
@@ -165,14 +163,14 @@ public:
         const NYson::TYsonString&,
         const NApi::TUpdateOperationParametersOptions&) override
     {
-        Y_UNIMPLEMENTED();
+        ThrowUnimplemented("opdate_operation_parameters");
     }
 
     virtual TFuture<NYson::TYsonString> GetOperation(
         const NScheduler::TOperationId&,
         const NApi::TGetOperationOptions&) override
     {
-        Y_UNIMPLEMENTED();
+        ThrowUnimplemented("get_operation");
     }
 
     virtual TFuture<void> DumpJobContext(
@@ -180,14 +178,14 @@ public:
         const NYPath::TYPath&,
         const NApi::TDumpJobContextOptions&) override
     {
-        Y_UNIMPLEMENTED();
+        ThrowUnimplemented("dump_job_context");
     }
 
     virtual TFuture<NConcurrency::IAsyncZeroCopyInputStreamPtr> GetJobInput(
         const NJobTrackerClient::TJobId&,
         const NApi::TGetJobInputOptions&) override
     {
-        Y_UNIMPLEMENTED();
+        ThrowUnimplemented("get_job_input");
     }
 
     virtual TFuture<TSharedRef> GetJobStderr(
@@ -195,7 +193,7 @@ public:
         const NJobTrackerClient::TJobId&,
         const NApi::TGetJobStderrOptions&) override
     {
-        Y_UNIMPLEMENTED();
+        ThrowUnimplemented("get_job_stderr");
     }
 
     virtual TFuture<TSharedRef> GetJobFailContext(
@@ -203,20 +201,20 @@ public:
         const NJobTrackerClient::TJobId&,
         const NApi::TGetJobFailContextOptions&) override
     {
-        Y_UNIMPLEMENTED();
+        ThrowUnimplemented("get_job_fail_context");
     }
 
     virtual TFuture<NApi::TListOperationsResult> ListOperations(
         const NApi::TListOperationsOptions&) override
     {
-        Y_UNIMPLEMENTED();
+        ThrowUnimplemented("list_operations");
     }
 
     virtual TFuture<NApi::TListJobsResult> ListJobs(
         const NJobTrackerClient::TOperationId&,
         const NApi::TListJobsOptions&) override
     {
-        Y_UNIMPLEMENTED();
+        ThrowUnimplemented("list_jobs");
     }
 
     virtual TFuture<NYson::TYsonString> GetJob(
@@ -224,14 +222,14 @@ public:
         const NJobTrackerClient::TJobId&,
         const NApi::TGetJobOptions&) override
     {
-        Y_UNIMPLEMENTED();
+        ThrowUnimplemented("get_job");
     }
 
     virtual TFuture<NYson::TYsonString> StraceJob(
         const NJobTrackerClient::TJobId&,
         const NApi::TStraceJobOptions&) override
     {
-        Y_UNIMPLEMENTED();
+        ThrowUnimplemented("strace_job");
     }
 
     virtual TFuture<void> SignalJob(
@@ -239,14 +237,14 @@ public:
         const TString&,
         const NApi::TSignalJobOptions&) override
     {
-        Y_UNIMPLEMENTED();
+        ThrowUnimplemented("signal_job");
     }
 
     virtual TFuture<void> AbandonJob(
         const NJobTrackerClient::TJobId&,
         const NApi::TAbandonJobOptions&) override
     {
-        Y_UNIMPLEMENTED();
+        ThrowUnimplemented("abandon_job");
     }
 
     virtual TFuture<NYson::TYsonString> PollJobShell(
@@ -254,26 +252,33 @@ public:
         const NYson::TYsonString&,
         const NApi::TPollJobShellOptions&) override
     {
-        Y_UNIMPLEMENTED();
+        ThrowUnimplemented("poll_job_shell");
     }
 
     virtual TFuture<void> AbortJob(
         const NJobTrackerClient::TJobId&,
         const NApi::TAbortJobOptions&) override
     {
-        Y_UNIMPLEMENTED();
+        ThrowUnimplemented("abort_job");
     }
 
     // Metadata
     virtual TFuture<NApi::TClusterMeta> GetClusterMeta(
         const NApi::TGetClusterMetaOptions&) override
     {
-        Y_UNIMPLEMENTED();
+        ThrowUnimplemented("get_cluster_meta");
     }
 
     virtual TFuture<NApi::TSkynetSharePartsLocationsPtr> LocateSkynetShare(
         const NYPath::TRichYPath&,
         const NApi::TLocateSkynetShareOptions&) override
+    {
+        ThrowUnimplemented("locate_skynet_share");
+    }
+
+    TFuture<NTableClient::TColumnarStatistics> GetColumnarStatistics(
+        const NYPath::TRichYPath&,
+        const NApi::TGetColumnarStatisticsOptions&) override
     {
         Y_UNIMPLEMENTED();
     }
@@ -281,6 +286,11 @@ public:
 private:
     const TConnectionPtr Connection_;
     const NRpc::IChannelPtr Channel_;
+    const NTabletClient::ITableMountCachePtr TableMountCache_;
+
+    TSpinLock TimestampProviderSpinLock_;
+    std::atomic<bool> TimestampProviderInitialized_ = {false};
+    NTransactionClient::ITimestampProviderPtr TimestampProvider_;
 
     virtual TConnectionPtr GetRpcProxyConnection() override;
     virtual TClientPtr GetRpcProxyClient() override;

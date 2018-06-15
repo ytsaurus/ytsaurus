@@ -1,7 +1,26 @@
 #include "config.h"
 
+#include <yt/core/net/config.h>
+
 namespace NYT {
 namespace NHttp {
+
+////////////////////////////////////////////////////////////////////////////////
+
+THttpIOConfig::THttpIOConfig()
+{
+    RegisterParameter("read_buffer_size", ReadBufferSize)
+        .Default(128_KB);
+
+    RegisterParameter("header_read_timeout", HeaderReadTimeout)
+        .Default(TDuration::Seconds(30));
+
+    RegisterParameter("body_read_idle_timeout", BodyReadIdleTimeout)
+        .Default(TDuration::Seconds(30));
+
+    RegisterParameter("write_idle_timeout", WriteIdleTimeout)
+        .Default(TDuration::Seconds(30));
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -12,12 +31,6 @@ TServerConfig::TServerConfig()
 
     RegisterParameter("max_simultaneous_connections", MaxSimultaneousConnections)
         .Default(50000);
-
-    RegisterParameter("read_buffer_size", ReadBufferSize)
-        .Default(128_KB);
-
-    RegisterParameter("write_buffer_size", WriteBufferSize)
-        .Default(128_KB);
 
     RegisterParameter("bind_retry_count", BindRetryCount)
         .Default(5);
@@ -30,11 +43,8 @@ TServerConfig::TServerConfig()
 
 TClientConfig::TClientConfig()
 {
-    RegisterParameter("read_buffer_size", ReadBufferSize)
-        .Default(128_KB);
-
-    RegisterParameter("write_buffer_size", WriteBufferSize)
-        .Default(128_KB);
+    RegisterParameter("dialer", Dialer)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -99,6 +99,10 @@ public:
         }
 
         YCHECK(ActiveDrivers.emplace(Id_, UnderlyingDriver_).second);
+
+        auto config = ConvertTo<NApi::TConnectionConfigPtr>(ConfigNode_);
+
+        LOG_DEBUG("Driver created (ConnectionType: %v)", config->ConnectionType);
     }
 
     ~TDriver()
@@ -150,6 +154,14 @@ public:
         auto user = GetAttr(pyRequest, "user");
         if (!user.isNone()) {
             request.AuthenticatedUser = ConvertStringObjectToString(user);
+        }
+
+        // COMPAT: check can be removed in future.
+        if (pyRequest.hasAttr("token")) {
+            auto token = GetAttr(pyRequest, "token");
+            if (!token.isNone()) {
+                request.UserToken = ConvertStringObjectToString(token);
+            }
         }
 
         if (pyRequest.hasAttr("id")) {
@@ -320,7 +332,7 @@ public:
         ValidateArgumentsEmpty(args, kwargs);
 
         try {
-            UnderlyingDriver_->GetConnection()->ClearMetadataCaches();
+            UnderlyingDriver_->ClearMetadataCaches();
             return Py::None();
         } CATCH("Failed to clear metadata caches");
     }
@@ -390,6 +402,7 @@ public:
         TCommandDescriptor::InitType();
 
         add_keyword_method("configure_logging", &TDriverModule::ConfigureLogging, "Configures YT driver logging");
+        add_keyword_method("configure_address_resolver", &TDriverModule::ConfigureAddressResolver, "Configures YT address resolver");
         add_keyword_method("configure_tracing", &TDriverModule::ConfigureTracing, "Configures YT driver tracing");
 
         initialize("Python bindings for YT driver");
@@ -412,6 +425,20 @@ public:
         auto config = ConvertTo<NLogging::TLogConfigPtr>(configNode);
 
         NLogging::TLogManager::Get()->Configure(config);
+
+        return Py::None();
+    }
+
+    Py::Object ConfigureAddressResolver(const Py::Tuple& args_, const Py::Dict& kwargs_)
+    {
+        auto args = args_;
+        auto kwargs = kwargs_;
+
+        auto configNode = ConvertObjectToNode(ExtractArgument(args, kwargs, "config"));
+        ValidateArgumentsEmpty(args, kwargs);
+        auto config = ConvertTo<NNet::TAddressResolverConfigPtr>(configNode);
+
+        NNet::TAddressResolver::Get()->Configure(config);
 
         return Py::None();
     }

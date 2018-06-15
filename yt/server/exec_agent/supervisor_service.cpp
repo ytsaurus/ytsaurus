@@ -91,6 +91,10 @@ DEFINE_RPC_SERVICE_METHOD(TSupervisorService, OnJobFinished)
         job->SetStderr(request->stderr());
     }
 
+    if (request->has_fail_context()) {
+        job->SetFailContext(request->fail_context());
+    }
+
     context->Reply();
 }
 

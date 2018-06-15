@@ -5,6 +5,7 @@
 #include <yt/ytlib/api/public.h>
 
 #include <yt/ytlib/chunk_client/public.h>
+#include <yt/ytlib/chunk_client/chunk_reader.h>
 
 #include <yt/ytlib/node_tracker_client/public.h>
 
@@ -44,9 +45,12 @@ DEFINE_REFCOUNTED_TYPE(IUserJobIOFactory)
 struct TUserJobIOFactoryBase
     : public IUserJobIOFactory
 {
-    TUserJobIOFactoryBase(NChunkClient::TTrafficMeterPtr trafficMeter);
+    TUserJobIOFactoryBase(
+        const NChunkClient::TClientBlockReadOptions& blockReadOptions,
+        NChunkClient::TTrafficMeterPtr trafficMeter);
 
 protected:
+    const NChunkClient::TClientBlockReadOptions BlockReadOptions_;
     NChunkClient::TTrafficMeterPtr TrafficMeter_;
 };
 
@@ -54,6 +58,7 @@ protected:
 
 IUserJobIOFactoryPtr CreateUserJobIOFactory(
     const IJobSpecHelperPtr& jobSpecHelper,
+    const NChunkClient::TClientBlockReadOptions& blockReadOptions,
     NChunkClient::TTrafficMeterPtr trafficMeter);
 
 ////////////////////////////////////////////////////////////////////////////////

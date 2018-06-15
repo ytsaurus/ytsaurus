@@ -61,6 +61,7 @@ public:
 
     TJobStatistics ExtractSpec();
     TJobStatistics ExtractStderr();
+    TJobStatistics ExtractFailContext();
 
     bool IsEmpty() const;
 
@@ -76,6 +77,7 @@ public:
     void SetStatistics(const NYson::TYsonString& statistics);
     void SetEvents(const TJobEvents& events);
     void SetStderr(const TString& stderr);
+    void SetFailContext(const TString& failContext);
 
     DEFINE_FORWARD_RW_PROPERTY(NJobTrackerClient::TOperationId, OperationId)
     DEFINE_FORWARD_RW_PROPERTY(NJobTrackerClient::TJobId, JobId)
@@ -89,6 +91,7 @@ public:
     DEFINE_FORWARD_RW_PROPERTY(TNullable<TString>, Statistics)
     DEFINE_FORWARD_RW_PROPERTY(TNullable<TString>, Events)
     DEFINE_FORWARD_RW_PROPERTY(TNullable<TString>, Stderr)
+    DEFINE_FORWARD_RW_PROPERTY(TNullable<TString>, FailContext)
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -122,8 +122,6 @@ public:
 
     void ClearChunkList(TChunkList* chunkList);
 
-    TJobPtr FindJob(const TJobId& id);
-
     void ScheduleJobs(
         TNode* node,
         const std::vector<TJobPtr>& currentJobs,
@@ -181,6 +179,8 @@ public:
     TMedium* GetMediumByNameOrThrow(const TString& name) const;
 
     TChunkRequisitionRegistry* GetChunkRequisitionRegistry();
+
+    void MaybeRecomputeChunkRequisitons();
 
 private:
     class TImpl;

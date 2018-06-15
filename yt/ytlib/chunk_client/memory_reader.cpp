@@ -21,8 +21,7 @@ public:
     { }
 
     virtual TFuture<std::vector<TBlock>> ReadBlocks(
-        const TWorkloadDescriptor& /*workloadDescriptor*/,
-        const TReadSessionId& /*readSessionId*/,
+        const TClientBlockReadOptions& /*options*/,
         const std::vector<int>& blockIndexes) override
     {
         std::vector<TBlock> blocks;
@@ -30,12 +29,16 @@ public:
             YCHECK(index < Blocks_.size());
             blocks.push_back(Blocks_[index]);
         }
+
+        for (const auto& block : blocks) {
+            block.ValidateChecksum();
+        }
+
         return MakeFuture(std::move(blocks));
     }
 
     virtual TFuture<std::vector<TBlock>> ReadBlocks(
-        const TWorkloadDescriptor& /*workloadDescriptor*/,
-        const TReadSessionId& /*readSessionId*/,
+        const TClientBlockReadOptions& /*options*/,
         int firstBlockIndex,
         int blockCount) override
     {
@@ -43,14 +46,19 @@ public:
             return MakeFuture(std::vector<TBlock>());
         }
 
-        return MakeFuture(std::vector<TBlock>(
+        auto blocks = std::vector<TBlock>(
             Blocks_.begin() + firstBlockIndex,
-            Blocks_.begin() + std::min(static_cast<size_t>(blockCount), Blocks_.size() - firstBlockIndex)));
+            Blocks_.begin() + std::min(static_cast<size_t>(blockCount), Blocks_.size() - firstBlockIndex));
+
+        for (const auto& block : blocks) {
+            block.ValidateChecksum();
+        }
+
+        return MakeFuture(std::move(blocks));
     }
 
     virtual TFuture<TChunkMeta> GetMeta(
-        const TWorkloadDescriptor& /*workloadDescriptor*/,
-        const TReadSessionId& /*readSessionId*/,
+        const TClientBlockReadOptions& /*options*/,
         const TNullable<int>& partitionTag,
         const TNullable<std::vector<int>>& extensionTags) override
     {

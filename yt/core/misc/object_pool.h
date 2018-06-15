@@ -34,12 +34,9 @@ public:
     //! Either creates a fresh instance or returns a pooled one.
     TObjectPtr Allocate();
 
-    int GetSize() const
-    {
-        return PoolSize_;
-    }
+    int GetSize() const;
 
-    void Release(size_t count);
+    void Release(int count);
 
 private:
     TLockFreeStack<TObject*> PooledObjects_;
@@ -81,7 +78,7 @@ struct TPooledObjectTraitsBase
     static void Clean(TObject*)
     { }
 
-    static size_t GetMaxPoolSize()
+    static int GetMaxPoolSize()
     {
         return 256;
     }

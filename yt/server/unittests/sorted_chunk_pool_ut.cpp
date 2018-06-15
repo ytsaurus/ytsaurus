@@ -152,7 +152,7 @@ protected:
         auto inputChunk = New<TInputChunk>();
         inputChunk->ChunkId() = TChunkId::Create();
         inputChunk->SetCompressedDataSize(size);
-        inputChunk->SetUncompressedDataSize(size);
+        inputChunk->SetTotalUncompressedDataSize(size);
         inputChunk->SetTotalDataWeight(size);
         inputChunk->BoundaryKeys() = std::make_unique<TOwningBoundaryKeys>(TOwningBoundaryKeys {
             TOwningKey(minBoundaryKey),

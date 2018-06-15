@@ -6,7 +6,6 @@ from yt.wrapper import JsonFormat
 from yt.common import date_string_to_datetime
 
 import yt.environment.init_operation_archive as init_operation_archive
-from yt.environment.helpers import assert_almost_equal
 
 from operations_archive import clean_operations
 
@@ -357,14 +356,18 @@ class TestJobStderr(YTEnvSetup):
 
         command = with_breakpoint("""
                 BREAKPOINT;
-                grep -v row_19 > /dev/null;
-                IS_FAILING_JOB=$?;
+                IS_FAILING_JOB=$(($YT_JOB_INDEX>=19));
                 echo stderr 1>&2;
                 if [ $IS_FAILING_JOB -eq 1 ]; then
-                    exit 125;
+                    if mkdir {lock_dir}; then
+                        exit 125;
+                    else
+                        exit 0
+                    fi;
                 else
                     exit 0;
-                fi;""")
+                fi;"""
+                    .format(lock_dir=EventsOnFs()._get_event_filename("lock_dir")))
         op = map(
             dont_track=True,
             label="stderr_of_failed_jobs",
@@ -1429,6 +1432,173 @@ class TestSchedulerRevive(YTEnvSetup):
         op.track()
         assert sorted(read_table("//tmp/t2")) == sorted(data)
 
+    def test_new_live_preview_simple(self):
+        create_user("u")
+        data = [{"foo": i} for i in range(3)]
+
+        create("table", "//tmp/t1")
+        write_table("//tmp/t1", data)
+
+        create("table", "//tmp/t2")
+
+        op = map(
+            wait_for_jobs=True,
+            dont_track=True,
+            command=with_breakpoint("BREAKPOINT ; cat"),
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            spec={"data_size_per_job": 1})
+
+        jobs = wait_breakpoint(job_count=2)
+
+        operation_path = op.get_path()
+
+        assert exists(operation_path + "/controller_orchid")
+
+        release_breakpoint(job_id=jobs[0])
+        release_breakpoint(job_id=jobs[1])
+        wait(lambda: op.get_job_count("completed") == 2)
+
+        live_preview_data = read_table(operation_path + "/controller_orchid/data_flow_graph/vertices/map/live_previews/0", authenticated_user="u")
+        assert len(live_preview_data) == 2
+
+        assert all(record in data for record in live_preview_data)
+
+    def test_new_live_preview_intermediate_data_acl(self):
+        create_user("u1")
+        create_user("u2")
+
+        data = [{"foo": i} for i in range(3)]
+
+        create("table", "//tmp/t1")
+        write_table("//tmp/t1", data)
+
+        create("table", "//tmp/t2")
+
+        op = map(
+            wait_for_jobs=True,
+            dont_track=True,
+            command=with_breakpoint("BREAKPOINT ; cat"),
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            spec={"data_size_per_job": 1,
+                  "intermediate_data_acl": [{"action": "allow", "permissions": ["read"], "subjects": ["u1"]}]})
+
+        jobs = wait_breakpoint(job_count=2)
+
+        operation_path = op.get_path()
+
+        assert exists(operation_path + "/controller_orchid")
+
+        release_breakpoint(job_id=jobs[0])
+        release_breakpoint(job_id=jobs[1])
+        wait(lambda: op.get_job_count("completed") == 2)
+
+        read_table(operation_path + "/controller_orchid/data_flow_graph/vertices/map/live_previews/0", authenticated_user="u1")
+
+        with pytest.raises(YtError):
+            read_table(operation_path + "/controller_orchid/data_flow_graph/vertices/map/live_previews/0", authenticated_user="u2")
+
+    def test_new_live_preview_ranges(self):
+        create("table", "//tmp/t1")
+        for i in range(3):
+            write_table("<append=%true>//tmp/t1", [{"a": i}])
+
+        create("table", "//tmp/t2")
+
+        op = map_reduce(
+            wait_for_jobs=True,
+            dont_track=True,
+            mapper_command='for ((i=0; i<3; i++)); do echo "{a=$(($YT_JOB_INDEX*3+$i))};"; done',
+            reducer_command=with_breakpoint("cat; BREAKPOINT"),
+            reduce_by="a",
+            sort_by=["a"],
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            spec={"map_job_count": 3, "partition_count": 1})
+
+        wait(lambda: op.get_job_count("completed") == 3)
+
+        operation_path = op.get_path()
+
+        assert exists(operation_path + "/controller_orchid")
+
+        live_preview_path = operation_path + "/controller_orchid/data_flow_graph/vertices/partition_map/live_previews/0"
+        live_preview_data = read_table(live_preview_path)
+
+        assert len(live_preview_data) == 9
+
+        # We try all possible combinations of chunk and row index ranges and check that everything works as expected.
+        expected_all_ranges_data = []
+        all_ranges = []
+        for lower_row_index in range(10) + [None]:
+            for upper_row_index in range(10) + [None]:
+                for lower_chunk_index in range(4) + [None]:
+                    for upper_chunk_index in range(4) + [None]:
+                        lower_limit = dict()
+                        real_lower_index = 0
+                        if not lower_row_index is None:
+                            lower_limit["row_index"] = lower_row_index
+                            real_lower_index = max(real_lower_index, lower_row_index)
+                        if not lower_chunk_index is None:
+                            lower_limit["chunk_index"] = lower_chunk_index
+                            real_lower_index = max(real_lower_index, lower_chunk_index * 3)
+
+                        upper_limit = dict()
+                        real_upper_index = 9
+                        if not upper_row_index is None:
+                            upper_limit["row_index"] = upper_row_index
+                            real_upper_index = min(real_upper_index, upper_row_index)
+                        if not upper_chunk_index is None:
+                            upper_limit["chunk_index"] = upper_chunk_index
+                            real_upper_index = min(real_upper_index, upper_chunk_index * 3)
+
+                        all_ranges.append({"lower_limit": lower_limit, "upper_limit": upper_limit})
+                        expected_all_ranges_data += [live_preview_data[real_lower_index:real_upper_index]]
+
+        all_ranges_path = "<" + yson.dumps({"ranges": all_ranges}, yson_type="map_fragment", yson_format="text") + ">" + live_preview_path
+
+        all_ranges_data = read_table(all_ranges_path, verbose=False)
+
+        position = 0
+        for i, range_ in enumerate(expected_all_ranges_data):
+            if all_ranges_data[position:position + len(range_)] != range_:
+                print >>sys.stderr, "position =", position, ", range =", all_ranges[i]
+                print >>sys.stderr, "expected:", range_
+                print >>sys.stderr, "actual:", all_ranges_data[position:position + len(range_)]
+                assert all_ranges_data[position:position + len(range_)] == range_
+            position += len(range_)
+
+        release_breakpoint()
+        wait(lambda: op.get_job_count("completed") == 4)
+
+    def test_disabled_live_preview(self):
+        create_user("u")
+
+        data = [{"foo": i} for i in range(3)]
+
+        create("table", "//tmp/t1")
+        write_table("//tmp/t1", data)
+
+        create("table", "//tmp/t2")
+
+        op = map(
+            wait_for_jobs=True,
+            dont_track=True,
+            command=with_breakpoint("BREAKPOINT ; cat"),
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            spec={"data_size_per_job": 1,
+                  "enable_legacy_live_preview": False})
+
+        jobs = wait_breakpoint(job_count=2)
+
+        operation_path = get_operation_cypress_path(op.id)
+
+        async_transaction_id = get("//sys/operations/" + op.id + "/@async_scheduler_transaction_id")
+        assert not exists(operation_path + "/output_0", tx=async_transaction_id)
+
+
 ################################################################################
 
 class TestJobRevivalBase(YTEnvSetup):
@@ -1626,8 +1796,8 @@ class TestJobRevival(TestJobRevivalBase):
                      "auto_merge": {"mode": "manual", "chunk_count_per_merge_job": 3, "max_intermediate_chunk_count": 100}
                  })
 
-        # Comment about '+5' - we need some additional room for jobs that can be aborted.
-        wait(lambda: sum([events_on_fs().check_event("ready_for_revival_" + str(i)) for i in xrange(user_slots_limit + 5)]) == user_slots_limit)
+        # Comment about '+10' - we need some additional room for jobs that can be non-scheduled aborted.
+        wait(lambda: sum([events_on_fs().check_event("ready_for_revival_" + str(i)) for i in xrange(user_slots_limit + 10)]) == user_slots_limit)
 
         self._kill_and_start(components_to_kill)
         self.Env.kill_controller_agents()
@@ -2841,126 +3011,8 @@ class TestPoolMetrics(YTEnvSetup):
         assert completed_metrics["parent"] == completed_metrics["child"]
         assert aborted_metrics["parent"] == aborted_metrics["child"]
 
-    def test_runtime_parameters(self):
-        create_user("u")
-
-        create("table", "//tmp/t_input")
-        create("table", "//tmp/t_output")
-
-        write_table("<append=%true>//tmp/t_input", [{"key": i} for i in xrange(2)])
-
-        op = map(
-            command="sleep 100",
-            in_="//tmp/t_input",
-            out="//tmp/t_output",
-            spec={"weight": 5},
-            dont_track=True)
-
-        time.sleep(1.0)
-
-        assert check_permission("u", "write", "//sys/operations/" + op.id)["action"] == "deny"
-        assert get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/weight".format(op.id)) == 5.0
-
-        set("//sys/operations/{0}/@owners/end".format(op.id), "u")
-        set("//sys/operations/{0}/@weight".format(op.id), 3)
-        set("//sys/operations/{0}/@resource_limits".format(op.id), {"user_slots": 0})
-
-        time.sleep(1.0)
-
-        assert check_permission("u", "write", "//sys/operations/" + op.id)["action"] == "allow"
-        assert get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/weight".format(op.id)) == 3.0
-        assert get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/resource_limits".format(op.id))["user_slots"] == 0
-
-        set("//sys/operations/{0}/@owners/end".format(op.id), "missing_user")
-
-        get_alerts = lambda: get("//sys/operations/{0}/@alerts".format(op.id))
-        wait(get_alerts)
-        alerts = get_alerts()
-        assert alerts.keys() == ["invalid_acl"]
-
-        get("//sys/operations/{0}/@owners".format(op.id))
-
-        self.Env.kill_schedulers()
-        time.sleep(1)
-        self.Env.start_schedulers()
-
-        time.sleep(1)
-
-        get("//sys/operations/{0}/@owners".format(op.id))
-
-        alerts = get_alerts()
-        assert alerts.keys() == ["invalid_acl"]
-
-        remove("//sys/operations/{0}/@owners/-1".format(op.id))
-        time.sleep(1.0)
-
-        wait(lambda: not get_alerts())
-
-    def test_update_runtime_parameters(self):
-        create_user("u")
-
-        create("table", "//tmp/t_input")
-        create("table", "//tmp/t_output")
-
-        write_table("<append=%true>//tmp/t_input", [{"key": i} for i in xrange(2)])
-
-        op = map(
-            command="sleep 100",
-            in_="//tmp/t_input",
-            out="//tmp/t_output",
-            spec={"weight": 5},
-            dont_track=True)
-
-        wait(lambda: op.get_state() == "running", iter=10)
-
-        assert check_permission("u", "write", "//sys/operations/" + op.id)["action"] == "deny"
-        assert get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/weight".format(op.id)) == 5.0
-
-        update_op_parameters(op.id, parameters={"owners": ["u"]})
-        assert check_permission("u", "write", "//sys/operations/" + op.id)["action"] == "allow"
-
-        update_op_parameters(op.id, parameters={
-            "scheduling_options_per_pool_tree": {
-                "default": {
-                    "weight": 3.0,
-                    "resource_limits": {
-                        "user_slots": 0
-                    }
-                }
-            }
-        })
-
-        # Backward compatibility
-        assert assert_almost_equal(
-            get("//sys/operations/" + op.id + "/@weight"),
-            3.0)
-        assert get("//sys/operations/" + op.id + "/@resource_limits/user_slots") == 0
-
-        assert assert_almost_equal(
-            get("//sys/operations/" + op.id + "/@scheduling_options_per_pool_tree/default/weight"),
-            3.0)
-        assert get("//sys/operations/" + op.id + "/@scheduling_options_per_pool_tree/default/resource_limits/user_slots") == 0
-
-        assert assert_almost_equal(
-            get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/weight".format(op.id)),
-            3.0)
-
-        # wait() here is essential since resource limits are recomputed during fair-share update.
-        wait(lambda: get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/resource_limits".format(op.id))["user_slots"] == 0,
-             iter=5)
-
-        self.Env.kill_schedulers()
-        self.Env.start_schedulers()
-
-        wait(lambda: op.get_state() == "running", iter=10)
-
-        assert assert_almost_equal(
-            get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/weight".format(op.id)),
-            3.0)
-        assert get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/resource_limits".format(op.id))["user_slots"] == 0
-
-
 ##################################################################
+
 
 class TestGetJobSpecFailed(YTEnvSetup):
     NUM_MASTERS = 1
@@ -3145,7 +3197,7 @@ fi
             dont_track=True)
 
         state_path = "//sys/scheduler/orchid/scheduler/operations/{0}/state".format(op.id)
-        wait(lambda: get(state_path) == "running")
+        wait(lambda: get(state_path) == "running", ignore_exceptions=True)
         time.sleep(1.0)  # Give scheduler some time to dump attributes to cypress.
 
         assert get(get_operation_cypress_path(op.id) + "/@state") == "running"
@@ -3326,7 +3378,7 @@ class TestControllerMemoryUsage(YTEnvSetup):
 
         usage_before = get(op.get_path() + "/controller_orchid/memory_usage")
         # Normal controller footprint should not exceed a few megabytes.
-        assert usage_before < 2 * 10**6
+        assert usage_before < 4 * 10**6
         print >>sys.stderr, "usage_before =", usage_before
 
         events.notify_event("start")

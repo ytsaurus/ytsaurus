@@ -19,6 +19,8 @@
 
 #include <yt/ytlib/node_tracker_client/node_directory.h>
 
+#include <yt/ytlib/table_client/columnar_chunk_meta.h>
+
 #include <yt/core/compression/public.h>
 
 #include <yt/core/concurrency/scheduler.h>
@@ -42,97 +44,31 @@ using NChunkClient::NProto::TChunkSpec;
 ////////////////////////////////////////////////////////////////////////////////
 
 ISchemafulReaderPtr CreateSchemafulChunkReader(
+    const TChunkStatePtr& chunkState,
+    const TColumnarChunkMetaPtr& chunkMeta,
     TChunkReaderConfigPtr config,
     NChunkClient::IChunkReaderPtr chunkReader,
-    IBlockCachePtr blockCache,
-    const TReadSessionId& sessionId,
+    const TClientBlockReadOptions& blockReadOptions,
     const TTableSchema& resultSchema,
     const TKeyColumns& keyColumns,
-    const NChunkClient::NProto::TChunkMeta& chunkMeta,
-    const TReadRange& readRange,
+    const NChunkClient::TReadRange& readRange,
     TTimestamp timestamp)
 {
-    auto type = EChunkType(chunkMeta.type());
-    YCHECK(type == EChunkType::Table);
-
-    auto formatVersion = ETableChunkFormat(chunkMeta.version());
-
-    TChunkSpec chunkSpec;
-    chunkSpec.mutable_chunk_meta()->MergeFrom(chunkMeta);
-
-    switch (formatVersion) {
-        case ETableChunkFormat::SchemalessHorizontal:
-        case ETableChunkFormat::UnversionedColumnar: {
-            auto createSchemalessReader = [=] (TNameTablePtr nameTable, TColumnFilter columnFilter) {
-                auto chunkState = New<TChunkState>(
-                    std::move(blockCache),
-                    chunkSpec,
-                    nullptr,
-                    nullptr,
-                    nullptr,
-                    nullptr);
-
-                return CreateSchemalessChunkReader(
-                    std::move(chunkState),
-                    std::move(config),
-                    New<TChunkReaderOptions>(),
-                    std::move(chunkReader),
-                    std::move(nameTable),
-                    sessionId,
-                    keyColumns,
-                    columnFilter,
-                    readRange);
-            };
-
-            return CreateSchemafulReaderAdapter(createSchemalessReader, resultSchema);
-        }
-
-        default:
-            Y_UNREACHABLE();
-    }
-}
-
-ISchemafulReaderPtr CreateSchemafulChunkReader(
-    TChunkReaderConfigPtr config,
-    NChunkClient::IChunkReaderPtr chunkReader,
-    IBlockCachePtr blockCache,
-    const TReadSessionId& sessionId,
-    const TTableSchema& resultSchema,
-    const TKeyColumns& keyColumns,
-    const NChunkClient::NProto::TChunkMeta& chunkMeta,
-    const TSharedRange<TKey>& keys,
-    TTimestamp timestamp)
-{
-    auto type = EChunkType(chunkMeta.type());
-    YCHECK(type == EChunkType::Table);
-
-    auto formatVersion = ETableChunkFormat(chunkMeta.version());
-
-    TChunkSpec chunkSpec;
-    chunkSpec.mutable_chunk_meta()->MergeFrom(chunkMeta);
-
-    switch (formatVersion) {
+    switch (chunkMeta->GetChunkFormat()) {
         case ETableChunkFormat::UnversionedColumnar:
         case ETableChunkFormat::SchemalessHorizontal: {
             auto createSchemalessReader = [=] (TNameTablePtr nameTable, TColumnFilter columnFilter) {
-                auto chunkState = New<TChunkState>(
-                    std::move(blockCache),
-                    chunkSpec,
-                    nullptr,
-                    nullptr,
-                    nullptr,
-                    nullptr);
-
                 return CreateSchemalessChunkReader(
-                    std::move(chunkState),
+                    chunkState,
+                    chunkMeta,
                     std::move(config),
                     New<TChunkReaderOptions>(),
                     std::move(chunkReader),
                     std::move(nameTable),
-                    sessionId,
+                    blockReadOptions,
                     keyColumns,
                     columnFilter,
-                    keys);
+                    readRange);
             };
 
             return CreateSchemafulReaderAdapter(createSchemalessReader, resultSchema);

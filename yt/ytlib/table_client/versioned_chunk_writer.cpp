@@ -11,6 +11,8 @@
 #include <yt/ytlib/api/native_client.h>
 #include <yt/ytlib/api/native_connection.h>
 
+#include <yt/ytlib/table_client/helpers.h>
+
 #include <yt/ytlib/table_chunk_format/column_writer.h>
 #include <yt/ytlib/table_chunk_format/data_block_writer.h>
 #include <yt/ytlib/table_chunk_format/timestamp_writer.h>
@@ -76,11 +78,6 @@ public:
         , KeyFilter_(Config_->MaxKeyFilterSize, Config_->KeyFilterFalsePositiveRate)
 #endif
     { }
-
-    virtual TFuture<void> Open() override
-    {
-        return VoidFuture;
-    }
 
     virtual TFuture<void> GetReadyEvent() override
     {
@@ -198,12 +195,50 @@ protected:
     struct TVersionedChunkWriterBaseTag { };
     TSamplingRowMerger SamplingRowMerger_;
 
+    NProto::TColumnarStatisticsExt ColumnarStatisticsExt_;
+
 #if 0
     TBloomFilterBuilder KeyFilter_;
 #endif
 
     virtual void DoClose() = 0;
     virtual void DoWriteRows(const TRange<TVersionedRow>& rows) = 0;
+    virtual ETableChunkFormat GetTableChunkFormat() const = 0;
+
+    void FillCommonMeta(TChunkMeta* meta) const
+    {
+        meta->set_type(static_cast<int>(EChunkType::Table));
+        meta->set_version(static_cast<int>(GetTableChunkFormat()));
+
+        SetProtoExtension(meta->mutable_extensions(), BoundaryKeysExt_);
+    }
+
+    virtual void PrepareChunkMeta()
+    {
+        using NYT::ToProto;
+
+        ToProto(BoundaryKeysExt_.mutable_max(), LastKey_);
+
+        auto& meta = EncodingChunkWriter_->Meta();
+        FillCommonMeta(&meta);
+
+        SetProtoExtension(meta.mutable_extensions(), ToProto<TTableSchemaExt>(Schema_));
+        SetProtoExtension(meta.mutable_extensions(), BlockMetaExt_);
+        SetProtoExtension(meta.mutable_extensions(), SamplesExt_);
+        SetProtoExtension(meta.mutable_extensions(), ColumnarStatisticsExt_);
+
+#if 0
+        if (KeyFilter_.IsValid()) {
+            KeyFilter_.Shrink();
+            //FIXME: write bloom filter to chunk.
+        }
+#endif
+
+        auto& miscExt = EncodingChunkWriter_->MiscExt();
+        miscExt.set_sorted(true);
+        miscExt.set_row_count(RowCount_);
+        miscExt.set_data_weight(DataWeight_);
+    }
 
     void EmitSampleRandomly(TVersionedRow row)
     {
@@ -330,6 +365,10 @@ private:
 
         ++RowCount_;
         DataWeight_ += rowWeight;
+
+        UpdateColumnarStatistics(ColumnarStatisticsExt_, MakeRange(row.BeginKeys(), row.EndKeys()));
+        UpdateColumnarStatistics(ColumnarStatisticsExt_, MakeRange(row.BeginValues(), row.EndValues()));
+
         BlockWriter_->WriteRow(row, beginPreviousKey, endPreviousKey);
     }
 
@@ -363,45 +402,22 @@ private:
 
     virtual void DoClose() override
     {
-        using NYT::ToProto;
-
         if (BlockWriter_->GetRowCount() > 0) {
             FinishBlock(LastKey_.Begin(), LastKey_.End());
         }
 
-        ToProto(BoundaryKeysExt_.mutable_max(), LastKey_);
-
-        auto& meta = EncodingChunkWriter_->Meta();
-        FillCommonMeta(&meta);
-
-        SetProtoExtension(meta.mutable_extensions(), ToProto<TTableSchemaExt>(Schema_));
-
-        SetProtoExtension(meta.mutable_extensions(), BlockMetaExt_);
-        SetProtoExtension(meta.mutable_extensions(), SamplesExt_);
-
-#if 0
-        if (KeyFilter_.IsValid()) {
-        KeyFilter_.Shrink();
-        //FIXME: write bloom filter to chunk.
-    }
-#endif
+        PrepareChunkMeta();
 
         auto& miscExt = EncodingChunkWriter_->MiscExt();
-        miscExt.set_sorted(true);
-        miscExt.set_row_count(RowCount_);
-        miscExt.set_data_weight(DataWeight_);
         miscExt.set_min_timestamp(MinTimestamp_);
         miscExt.set_max_timestamp(MaxTimestamp_);
 
         EncodingChunkWriter_->Close();
     }
 
-    void FillCommonMeta(TChunkMeta* meta) const
+    virtual ETableChunkFormat GetTableChunkFormat() const override
     {
-        meta->set_type(static_cast<int>(EChunkType::Table));
-        meta->set_version(static_cast<int>(TSimpleVersionedBlockWriter::FormatVersion));
-
-        SetProtoExtension(meta->mutable_extensions(), BoundaryKeysExt_);
+        return TSimpleVersionedBlockWriter::FormatVersion;
     }
 };
 
@@ -515,16 +531,20 @@ private:
             i64 weight = 0;
             int rowIndex = startRowIndex;
             for (; rowIndex < rows.Size() && weight < DataToBlockFlush_; ++rowIndex) {
-                auto rowWeight = NTableClient::GetDataWeight(rows[rowIndex]);
+                const auto& row = rows[rowIndex];
+                auto rowWeight = NTableClient::GetDataWeight(row);
                 if (rowIndex == 0) {
-                    ValidateRow(rows[rowIndex], rowWeight, LastKey_.Begin(), LastKey_.End());
+                    ValidateRow(row, rowWeight, LastKey_.Begin(), LastKey_.End());
                 } else {
                     ValidateRow(
-                        rows[rowIndex],
+                        row,
                         rowWeight,
                         rows[rowIndex - 1].BeginKeys(),
                         rows[rowIndex - 1].EndKeys());
                 }
+
+                UpdateColumnarStatistics(ColumnarStatisticsExt_, MakeRange(row.BeginKeys(), row.EndKeys()));
+                UpdateColumnarStatistics(ColumnarStatisticsExt_, MakeRange(row.BeginValues(), row.EndValues()));
 
                 weight += rowWeight;
             }
@@ -603,22 +623,19 @@ private:
 
     virtual void DoClose() override
     {
-        using NYT::ToProto;
-
         for (int i = 0; i < BlockWriters_.size(); ++i) {
             if (BlockWriters_[i]->GetCurrentSize() > 0) {
                 FinishBlock(i, LastKey_.Begin(), LastKey_.End());
             }
         }
 
-        ToProto(BoundaryKeysExt_.mutable_max(), LastKey_);
+        PrepareChunkMeta();
+
+        auto& miscExt = EncodingChunkWriter_->MiscExt();
+        miscExt.set_min_timestamp(static_cast<i64>(TimestampWriter_->GetMinTimestamp()));
+        miscExt.set_max_timestamp(static_cast<i64>(TimestampWriter_->GetMaxTimestamp()));
 
         auto& meta = EncodingChunkWriter_->Meta();
-        FillCommonMeta(&meta);
-
-        SetProtoExtension(meta.mutable_extensions(), ToProto<TTableSchemaExt>(Schema_));
-        SetProtoExtension(meta.mutable_extensions(), BlockMetaExt_);
-        SetProtoExtension(meta.mutable_extensions(), SamplesExt_);
 
         NProto::TColumnMetaExt columnMetaExt;
         for (const auto& valueColumnWriter : ValueColumnWriters_) {
@@ -628,29 +645,12 @@ private:
 
         SetProtoExtension(meta.mutable_extensions(), columnMetaExt);
 
-#if 0
-        if (KeyFilter_.IsValid()) {
-        KeyFilter_.Shrink();
-        //FIXME: write bloom filter to chunk.
-    }
-#endif
-
-        auto& miscExt = EncodingChunkWriter_->MiscExt();
-        miscExt.set_sorted(true);
-        miscExt.set_row_count(RowCount_);
-        miscExt.set_data_weight(DataWeight_);
-        miscExt.set_min_timestamp(static_cast<i64>(TimestampWriter_->GetMinTimestamp()));
-        miscExt.set_max_timestamp(static_cast<i64>(TimestampWriter_->GetMaxTimestamp()));
-
         EncodingChunkWriter_->Close();
     }
 
-    void FillCommonMeta(TChunkMeta* meta) const
+    virtual ETableChunkFormat GetTableChunkFormat() const override
     {
-        meta->set_type(static_cast<int>(EChunkType::Table));
-        meta->set_version(static_cast<int>(ETableChunkFormat::VersionedColumnar));
-
-        SetProtoExtension(meta->mutable_extensions(), BoundaryKeysExt_);
+        return ETableChunkFormat::VersionedColumnar;
     }
 };
 
@@ -707,7 +707,7 @@ IVersionedMultiChunkWriterPtr CreateVersionedMultiChunkWriter(
             blockCache);
     };
 
-    return New<TVersionedMultiChunkWriter>(
+    auto writer = New<TVersionedMultiChunkWriter>(
         config,
         options,
         client,
@@ -718,6 +718,10 @@ IVersionedMultiChunkWriterPtr CreateVersionedMultiChunkWriter(
         /* trafficMeter */ nullptr,
         throttler,
         blockCache);
+
+    writer->Init();
+
+    return writer;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

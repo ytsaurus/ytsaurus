@@ -64,6 +64,7 @@ public:
     const std::vector<TSample>& GetSamples() const;
 
 private:
+    const NTableClient::TRowBufferPtr RowBuffer_;
     const ESamplingPolicy SamplingPolicy_;
     const TKeyColumns KeyColumns_;
     const int DesiredSampleCount_;

@@ -66,27 +66,6 @@ struct TOrderedByStartTimeTableDescriptor
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TStderrsTableDescriptor
-{
-    TStderrsTableDescriptor();
-
-    struct TIndex
-    {
-        explicit TIndex(const NTableClient::TNameTablePtr& nameTable);
-
-        const int OperationIdHi;
-        const int OperationIdLo;
-        const int JobIdHi;
-        const int JobIdLo;
-        const int Stderr;
-    };
-
-    const NTableClient::TNameTablePtr NameTable;
-    const TIndex Index;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 struct TJobTableDescriptor
 {
     TJobTableDescriptor();
@@ -110,6 +89,8 @@ struct TJobTableDescriptor
         const int Statistics;
         const int Events;
         const int StderrSize;
+        const int HasSpec;
+        const int HasFailContext;
     };
 
     const NTableClient::TNameTablePtr NameTable;
@@ -154,6 +135,24 @@ struct TJobStderrTableDescriptor
     const TIndex Ids;
 };
 
+struct TJobFailContextTableDescriptor
+{
+    TJobFailContextTableDescriptor();
+
+    struct TIndex
+    {
+        explicit TIndex(const NTableClient::TNameTablePtr& n);
+
+        const int OperationIdHi;
+        const int OperationIdLo;
+        const int JobIdHi;
+        const int JobIdLo;
+        const int FailContext;
+    };
+
+    const NTableClient::TNameTablePtr NameTable;
+    const TIndex Ids;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 

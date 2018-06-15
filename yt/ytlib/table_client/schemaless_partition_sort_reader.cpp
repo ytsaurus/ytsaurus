@@ -64,6 +64,7 @@ public:
         int estimatedRowCount,
         bool isApproximate,
         int partitionTag,
+        const TClientBlockReadOptions& blockReadOptions,
         TTrafficMeterPtr trafficMeter)
         : KeyColumns_(keyColumns)
         , KeyColumnCount_(static_cast<int>(KeyColumns_.size()))
@@ -96,6 +97,7 @@ public:
             nameTable,
             KeyColumns_,
             partitionTag,
+            blockReadOptions,
             trafficMeter);
 
         SortQueue_ = New<TActionQueue>("Sort");
@@ -565,6 +567,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessPartitionSortReader(
     i64 estimatedRowCount,
     bool isApproximate,
     int partitionTag,
+    const TClientBlockReadOptions& blockReadOptions,
     TTrafficMeterPtr trafficMeter)
 {
     return New<TSchemalessPartitionSortReader>(
@@ -580,6 +583,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessPartitionSortReader(
         estimatedRowCount,
         isApproximate,
         partitionTag,
+        blockReadOptions,
         trafficMeter);
 }
 

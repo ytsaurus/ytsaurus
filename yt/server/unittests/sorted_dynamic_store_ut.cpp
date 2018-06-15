@@ -205,6 +205,7 @@ protected:
 
 
     TSortedDynamicStorePtr Store_;
+    TClientBlockReadOptions BlockReadOptions_;
 
 private:
     virtual void CreateDynamicStore() override
@@ -1108,8 +1109,7 @@ TEST_F(TSingleLockSortedDynamicStoreTest, ArbitraryKeyLength)
         AsyncLastCommittedTimestamp,
         false,
         TColumnFilter(),
-        TWorkloadDescriptor(),
-        TReadSessionId());
+        BlockReadOptions_);
 
     EXPECT_TRUE(reader->Open().Get().IsOK());
 

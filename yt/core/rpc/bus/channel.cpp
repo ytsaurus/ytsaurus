@@ -486,11 +486,11 @@ private:
         //! Cached method metdata.
         struct TMethodMetadata
         {
-            NProfiling::TAggregateCounter AckTimeCounter;
-            NProfiling::TAggregateCounter ReplyTimeCounter;
-            NProfiling::TAggregateCounter TimeoutTimeCounter;
-            NProfiling::TAggregateCounter CancelTimeCounter;
-            NProfiling::TAggregateCounter TotalTimeCounter;
+            NProfiling::TAggregateGauge AckTimeCounter;
+            NProfiling::TAggregateGauge ReplyTimeCounter;
+            NProfiling::TAggregateGauge TimeoutTimeCounter;
+            NProfiling::TAggregateGauge CancelTimeCounter;
+            NProfiling::TAggregateGauge TotalTimeCounter;
             NProfiling::TMonotonicCounter RequestMessageBodySizeCounter;
             NProfiling::TMonotonicCounter RequestMessageAttachmentSizeCounter;
             NProfiling::TMonotonicCounter ResponseMessageBodySizeCounter;
@@ -516,11 +516,11 @@ private:
                     profilingManager->RegisterTag("service", TYsonString(service)),
                     profilingManager->RegisterTag("method", TYsonString(method))
                 };
-                metadata.AckTimeCounter = NProfiling::TAggregateCounter("/request_time/ack", tagIds, NProfiling::EAggregateMode::All);
-                metadata.ReplyTimeCounter = NProfiling::TAggregateCounter("/request_time/reply", tagIds, NProfiling::EAggregateMode::All);
-                metadata.TimeoutTimeCounter = NProfiling::TAggregateCounter("/request_time/timeout", tagIds, NProfiling::EAggregateMode::All);
-                metadata.CancelTimeCounter = NProfiling::TAggregateCounter("/request_time/cancel", tagIds, NProfiling::EAggregateMode::All);
-                metadata.TotalTimeCounter = NProfiling::TAggregateCounter("/request_time/total", tagIds, NProfiling::EAggregateMode::All);
+                metadata.AckTimeCounter = NProfiling::TAggregateGauge("/request_time/ack", tagIds, NProfiling::EAggregateMode::All);
+                metadata.ReplyTimeCounter = NProfiling::TAggregateGauge("/request_time/reply", tagIds, NProfiling::EAggregateMode::All);
+                metadata.TimeoutTimeCounter = NProfiling::TAggregateGauge("/request_time/timeout", tagIds, NProfiling::EAggregateMode::All);
+                metadata.CancelTimeCounter = NProfiling::TAggregateGauge("/request_time/cancel", tagIds, NProfiling::EAggregateMode::All);
+                metadata.TotalTimeCounter = NProfiling::TAggregateGauge("/request_time/total", tagIds, NProfiling::EAggregateMode::All);
                 metadata.RequestMessageBodySizeCounter = NProfiling::TMonotonicCounter("/request_message_body_bytes", tagIds);
                 metadata.RequestMessageAttachmentSizeCounter = NProfiling::TMonotonicCounter("/request_message_attachment_bytes", tagIds);
                 metadata.ResponseMessageBodySizeCounter = NProfiling::TMonotonicCounter("/response_message_body_bytes", tagIds);
@@ -646,7 +646,7 @@ private:
                 busOptions.ChecksummedPartCount,
                 options.MultiplexingBand,
                 bus->GetEndpointDescription(),
-                GetTotalMesageAttachmentSize(requestMessage));
+                GetTotalMessageAttachmentSize(requestMessage));
         }
 
         void OnAcknowledgement(const TRequestId& requestId, const TError& error)
@@ -825,7 +825,7 @@ private:
                 GetMessageBodySize(requestMessage));
             Profiler.Increment(
                 MethodMetadata_->RequestMessageAttachmentSizeCounter,
-                GetTotalMesageAttachmentSize(requestMessage));
+                GetTotalMessageAttachmentSize(requestMessage));
         }
 
         void ProfileReply(const TSharedRefArray& responseMessage)
@@ -837,7 +837,7 @@ private:
                 GetMessageBodySize(responseMessage));
             Profiler.Increment(
                 MethodMetadata_->ResponseMessageAttachmentSizeCounter,
-                GetTotalMesageAttachmentSize(responseMessage));
+                GetTotalMessageAttachmentSize(responseMessage));
         }
 
         void ProfileAck()
@@ -880,7 +880,7 @@ private:
         TDuration TotalTime_;
 
 
-        TDuration DoProfile(NProfiling::TAggregateCounter& counter)
+        TDuration DoProfile(NProfiling::TAggregateGauge& counter)
         {
             auto elapsed = Timer_.GetElapsedTime();
             Profiler.Update(counter, NProfiling::DurationToValue(elapsed));

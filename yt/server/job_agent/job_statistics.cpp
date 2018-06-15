@@ -218,8 +218,8 @@ TJobStatistics TJobStatistics::ExtractSpec()
 {
     TJobStatistics copy;
     copy.JobId_ = JobId_;
-    copy.Spec_ = std::move(Spec_);
-    copy.SpecVersion_ = std::move(SpecVersion_);
+    copy.Spec_ = Spec_;
+    copy.SpecVersion_ = SpecVersion_;
     copy.Type_ = Type_;
     return copy;
 }
@@ -233,9 +233,18 @@ TJobStatistics TJobStatistics::ExtractStderr()
     return copy;
 }
 
+TJobStatistics TJobStatistics::ExtractFailContext()
+{
+    TJobStatistics copy;
+    copy.JobId_ = JobId_;
+    copy.OperationId_ = OperationId_;
+    copy.FailContext_ = FailContext_;
+    return copy;
+}
+
 bool TJobStatistics::IsEmpty() const
 {
-    return !(Type_ || State_ || StartTime_ || FinishTime_ || Error_ || Spec_ || SpecVersion_ || Statistics_ || Events_ || Stderr_);
+    return !(Type_ || State_ || StartTime_ || FinishTime_ || Error_ || Spec_ || SpecVersion_ || Statistics_ || Events_ || Stderr_ || FailContext_);
 }
 
 void TJobStatistics::SetOperationId(NJobTrackerClient::TOperationId operationId)
@@ -301,6 +310,11 @@ void TJobStatistics::SetEvents(const TJobEvents& events)
 void TJobStatistics::SetStderr(const TString& stderr)
 {
     Stderr_ = stderr;
+}
+
+void TJobStatistics::SetFailContext(const TString& failContext)
+{
+    FailContext_ = failContext;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

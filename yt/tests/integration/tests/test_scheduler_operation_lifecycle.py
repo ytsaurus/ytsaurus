@@ -351,7 +351,6 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         self._prepare_tables()
 
         op = map(in_="//tmp/t_in", out="//tmp/t_out", command="cat")
-        assert get("//sys/operations/{0}/@pool".format(op.id)) == "root"
         assert get("//sys/operations/{0}/@brief_spec/pool".format(op.id)) == "root"
 
     def test_operation_events_attribute(self):
@@ -630,7 +629,7 @@ class SchedulerReviveBase(YTEnvSetup):
         wait(lambda: op.get_job_count("completed") == 1 and op.get_job_count("running") == 1)
 
         # Wait for snapshot after job completion.
-        time.sleep(2)
+        time.sleep(3)
 
         # This request will be retried with the new incarnation of the scheduler.
         op.complete(ignore_result=True)

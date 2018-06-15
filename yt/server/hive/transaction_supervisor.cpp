@@ -1453,7 +1453,15 @@ private:
         if (it != WeakParticipantMap_.end()) {
             auto participant = it->second.Lock();
             if (participant) {
-                return participant;
+                auto state = participant->GetState();
+                if (state == ETransactionParticipantState::Valid) {
+                    return participant;
+                }
+                if (StrongParticipantMap_.erase(cellId) == 1) {
+                    LOG_DEBUG("Participant is not valid; invalidated (ParticipantCellId: %v, State: %v)",
+                        cellId,
+                        state);
+                }
             }
             WeakParticipantMap_.erase(it);
         }
@@ -1479,7 +1487,7 @@ private:
         for (auto it = StrongParticipantMap_.begin(); it != StrongParticipantMap_.end(); ) {
             auto jt = it++;
             if (jt->second->GetState() != ETransactionParticipantState::Valid) {
-                LOG_DEBUG("Participant cell invalidated (ParticipantCellId: %v)",
+                LOG_DEBUG("Participant invalidated (ParticipantCellId: %v)",
                     jt->first);
                 StrongParticipantMap_.erase(jt);
             }

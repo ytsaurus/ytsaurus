@@ -27,6 +27,8 @@ extern const TJobId NullJobId;
 using TOperationId = TGuid;
 extern const TOperationId NullOperationId;
 
+class TStatistics;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 // NB: Please keep the range of values small as this type

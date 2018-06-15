@@ -21,11 +21,6 @@ TVersionedWriter::TVersionedWriter(
     , Consumer_(consumerBuilder(&Buffer_))
 { }
 
-TFuture<void> TVersionedWriter::Open()
-{
-    return VoidFuture;
-}
-
 TFuture<void> TVersionedWriter::Close()
 {
     return Result_;

@@ -173,7 +173,7 @@ void TBootstrap::DoRun()
     SetNodeByYPath(
         orchidRoot,
         "/scheduler",
-        CreateVirtualNode(Scheduler_->GetOrchidService()));
+        CreateVirtualNode(Scheduler_->GetOrchidService()->Via(GetControlInvoker(EControlQueue::Orchid))));
 
     SetBuildAttributes(orchidRoot, "scheduler");
 
@@ -187,7 +187,7 @@ void TBootstrap::DoRun()
 
     HttpServer_->AddHandler(
         "/orchid/",
-        NMonitoring::GetOrchidYPathHttpHandler(orchidRoot->Via(GetControlInvoker(EControlQueue::Orchid))));
+        NMonitoring::GetOrchidYPathHttpHandler(orchidRoot));
 
     RpcServer_->RegisterService(CreateSchedulerService(this));
     RpcServer_->RegisterService(CreateJobTrackerService(this));

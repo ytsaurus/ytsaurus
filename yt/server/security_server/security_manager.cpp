@@ -941,6 +941,14 @@ public:
             return result;
         }
 
+        // Fast lane: cluster is in safe mode.
+        if (permission != EPermission::Read &&
+            Bootstrap_->GetConfigManager()->GetConfig()->EnableSafeMode)
+        {
+            result.Action = ESecurityAction::Deny;
+            return result;
+        }
+
         // Slow lane: check ACLs through the object hierarchy.
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto* currentObject = object;
@@ -1027,23 +1035,16 @@ public:
             return;
         }
 
-        if (!IsUserRootOrSuperuser(user) &&
-            permission != EPermission::Read &&
-            Bootstrap_->GetConfigManager()->GetConfig()->EnableSafeMode)
-        {
-            THROW_ERROR_EXCEPTION(NSecurityClient::EErrorCode::SafeModeEnabled,
-                "Access denied: cluster is in safe mode. "
-                "Check for the announces before reporting any issues")
-                << TErrorAttribute("permission", permission)
-                << TErrorAttribute("user", user->GetName())
-                << TErrorAttribute("object", object->GetId());
-        }
-
         auto result = CheckPermission(object, user, permission);
         if (result.Action == ESecurityAction::Deny) {
             const auto& objectManager = Bootstrap_->GetObjectManager();
             TError error;
-            if (result.Object && result.Subject) {
+            if (Bootstrap_->GetConfigManager()->GetConfig()->EnableSafeMode) {
+                error = TError(
+                    NSecurityClient::EErrorCode::AuthorizationError,
+                    "Access denied: cluster is in safe mode. "
+                    "Check for the announces before reporting any issues");
+            } else if (result.Object && result.Subject) {
                 error = TError(
                     NSecurityClient::EErrorCode::AuthorizationError,
                     "Access denied: %Qlv permission for %v is denied for %Qv by ACE at %v",
@@ -1694,6 +1695,9 @@ private:
             return;
         }
 
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
+        chunkManager->MaybeRecomputeChunkRequisitons();
+
         DumpAccountResourceUsage(false);
 
         // NB: transaction resource usage isn't recomputed.
@@ -1763,7 +1767,6 @@ private:
             }
         };
 
-        const auto& chunkManager = Bootstrap_->GetChunkManager();
         const auto* requisitionRegistry = chunkManager->GetChunkRequisitionRegistry();
 
         for (const auto& pair : chunkManager->Chunks()) {
@@ -2291,7 +2294,7 @@ private:
             cellTag);
 
         for (const auto& entry : request->entries()) {
-            auto userId = FromProto<TAccountId>(entry.user_id());
+            auto userId = FromProto<TUserId>(entry.user_id());
             auto* user = FindUser(userId);
             if (!IsObjectAlive(user))
                 continue;

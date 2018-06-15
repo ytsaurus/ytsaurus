@@ -8,6 +8,8 @@
 
 #include <yt/core/actions/public.h>
 
+#include <yt/core/profiling/public.h>
+
 namespace NYT {
 namespace NHydra {
 
@@ -19,6 +21,7 @@ struct TDistributedHydraManagerOptions
     bool WriteChangelogsAtFollowers = true;
     bool WriteSnapshotsAtFollowers = true;
     NRpc::TResponseKeeperPtr ResponseKeeper;
+    NProfiling::TTagIdList ProfilingTagIds;
 };
 
 IHydraManagerPtr CreateDistributedHydraManager(
@@ -31,7 +34,7 @@ IHydraManagerPtr CreateDistributedHydraManager(
     NElection::TCellManagerPtr cellManager,
     IChangelogStoreFactoryPtr changelogStoreFactory,
     ISnapshotStorePtr snapshotStore,
-    const TDistributedHydraManagerOptions& options = TDistributedHydraManagerOptions());
+    const TDistributedHydraManagerOptions& options = {});
 
 ////////////////////////////////////////////////////////////////////////////////
 

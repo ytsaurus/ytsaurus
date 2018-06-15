@@ -333,6 +333,13 @@ TString ToString(const TUnversionedValue& value)
     return builder.Flush();
 }
 
+static inline void ValidateDoubleValueIsComparable(double value)
+{
+    if (Y_UNLIKELY(std::isnan(value))) {
+        THROW_ERROR_EXCEPTION(EErrorCode::InvalidDoubleValue, "NaN value is not comparable");
+    }
+}
+
 int CompareRowValues(const TUnversionedValue& lhs, const TUnversionedValue& rhs)
 {
     if (lhs.Type == EValueType::Any || rhs.Type == EValueType::Any) {
@@ -353,6 +360,12 @@ int CompareRowValues(const TUnversionedValue& lhs, const TUnversionedValue& rhs)
     }
 
     if (Y_UNLIKELY(lhs.Type != rhs.Type)) {
+        if (lhs.Type == EValueType::Double) {
+            ValidateDoubleValueIsComparable(lhs.Data.Double);
+        }
+        if (rhs.Type == EValueType::Double) {
+            ValidateDoubleValueIsComparable(rhs.Data.Double);
+        }
         return static_cast<int>(lhs.Type) - static_cast<int>(rhs.Type);
     }
 
@@ -384,6 +397,8 @@ int CompareRowValues(const TUnversionedValue& lhs, const TUnversionedValue& rhs)
         case EValueType::Double: {
             double lhsValue = lhs.Data.Double;
             double rhsValue = rhs.Data.Double;
+            ValidateDoubleValueIsComparable(lhsValue);
+            ValidateDoubleValueIsComparable(rhsValue);
             if (lhsValue < rhsValue) {
                 return -1;
             } else if (lhsValue > rhsValue) {
@@ -1057,13 +1072,6 @@ void ValidateStaticValue(const TUnversionedValue& value)
                     MaxRowWeightLimit);
             }
             break;
-
-        case EValueType::Double:
-            if (std::isnan(value.Data.Double)) {
-                THROW_ERROR_EXCEPTION("Value of type \"double\" is not a number");
-            }
-            break;
-
         default:
             break;
     }

@@ -18,6 +18,7 @@ public:
 private:
     NYPath::TRichYPath Path;
     NYTree::INodePtr FileReader;
+    TString EtagRevision;
 
     virtual void DoExecute(ICommandContextPtr context) override;
 };

@@ -1,6 +1,7 @@
 #include <yt/core/test_framework/framework.h>
 
 #include <yt/core/unittests/proto/protobuf_yson_ut.pb.h>
+#include <yt/core/unittests/proto/protobuf_yson_casing_ut.pb.h>
 
 #include <yt/core/yson/protobuf_interop.h>
 #include <yt/core/yson/null_consumer.h>
@@ -673,7 +674,7 @@ TEST(TProtobufToYsonTest, Success)
     EXPECT_TRUE(AreNodesEqual(writtenNode, expectedNode));
 }
 
-TEST(TProtobufToYsonTest, CamelCase)
+TEST(TProtobufToYsonTest, Casing)
 {
     NYT::NProto::TCamelCaseStyleMessage message;
     message.set_somefield(1);

@@ -2,6 +2,7 @@
 #include "tablet.h"
 #include "tablet_profiling.h"
 
+#include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
 #include <yt/ytlib/chunk_client/data_statistics.h>
 #include <yt/ytlib/chunk_client/helpers.h>
 
@@ -99,11 +100,13 @@ struct TChunkReadCounters
         : CompressedDataSize("/chunk_reader/compressed_data_size", list)
         , UnmergedDataWeight("/chunk_reader/unmerged_data_weight", list)
         , CompressionCpuTime("/chunk_reader/compression_cpu_time", list)
+        , ChunkReaderStatisticsCounters("/chunk_reader_statistics", list)
     { }
 
     TMonotonicCounter CompressedDataSize;
     TMonotonicCounter UnmergedDataWeight;
     TMonotonicCounter CompressionCpuTime;
+    TChunkReaderStatisticsCounters ChunkReaderStatisticsCounters;
 };
 
 using TChunkReadProfilerTrait = TListProfilerTrait<TChunkReadCounters>;
@@ -112,6 +115,7 @@ void ProfileChunkReader(
     TTabletSnapshotPtr tabletSnapshot,
     const TDataStatistics& dataStatistics,
     const TCodecStatistics& codecStatistics,
+    const TChunkReaderStatisticsPtr& chunkReaderStatistics,
     TTagId methodTag)
 {
     auto compressionCpuTime = codecStatistics.GetTotalDuration();
@@ -121,6 +125,7 @@ void ProfileChunkReader(
     TabletNodeProfiler.Increment(counters.CompressedDataSize, dataStatistics.compressed_data_size());
     TabletNodeProfiler.Increment(counters.UnmergedDataWeight, dataStatistics.data_weight());
     TabletNodeProfiler.Increment(counters.CompressionCpuTime, DurationToValue(compressionCpuTime));
+    counters.ChunkReaderStatisticsCounters.Increment(TabletNodeProfiler, chunkReaderStatistics);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

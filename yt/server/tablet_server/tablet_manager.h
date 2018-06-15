@@ -111,6 +111,7 @@ public:
 
     DECLARE_ENTITY_MAP_ACCESSORS(TabletCell, TTabletCell);
     TTabletCell* GetTabletCellOrThrow(const TTabletCellId& id);
+    void DecomissionTabletCell(TTabletCell* cell);
 
     DECLARE_ENTITY_MAP_ACCESSORS(Tablet, TTablet);
     TTablet* GetTabletOrThrow(const TTabletId&);
@@ -151,7 +152,8 @@ private:
         const TString& clusterName,
         const NYPath::TYPath& replicaPath,
         ETableReplicaMode mode,
-        NTransactionClient::TTimestamp startReplicationTimestamp);
+        NTransactionClient::TTimestamp startReplicationTimestamp,
+        const TNullable<std::vector<i64>>& startReplicationRowIndexes);
     void DestroyTableReplica(TTableReplica* replica);
 
     TTabletAction* CreateTabletAction(

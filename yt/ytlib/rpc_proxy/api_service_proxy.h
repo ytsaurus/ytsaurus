@@ -18,13 +18,16 @@ public:
     DEFINE_RPC_PROXY(TApiServiceProxy, ApiService,
         .SetProtocolVersion(1));
 
+    // Transaction server
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, GenerateTimestamps);
 
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, StartTransaction);
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, PingTransaction);
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, CommitTransaction);
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, AbortTransaction);
+    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, AttachTransaction);
 
+    // Cypress server
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, ExistsNode);
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, GetNode);
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, SetNode);
@@ -37,6 +40,7 @@ public:
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, LinkNode);
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, ConcatenateNodes);
 
+    // Tablet server
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, MountTable);
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, UnmountTable);
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, RemountTable);
@@ -55,8 +59,17 @@ public:
 
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, ModifyRows);
 
+    // File chaching
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, GetFileFromCache);
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, PutFileToCache);
+
+    // Object server
+    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, CreateObject);
+    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, GetTableMountInfo);
+
+    // IAdmin
+    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, BuildSnapshot);
+    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, GCCollect);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

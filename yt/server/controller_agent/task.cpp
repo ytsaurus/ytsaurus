@@ -504,11 +504,11 @@ TJobCompletedResult TTask::OnJobCompleted(TJobletPtr joblet, TCompletedJobSummar
         YCHECK(InputVertex_ != "");
 
         auto vertex = GetVertexDescriptor();
-        TaskHost_->GetDataFlowGraph()->RegisterFlow(InputVertex_, vertex, inputStatistics);
+        TaskHost_->GetDataFlowGraph()->UpdateEdgeStatistics(InputVertex_, vertex, inputStatistics);
         // TODO(max42): rewrite this properly one day.
         for (int index = 0; index < EdgeDescriptors_.size(); ++index) {
             if (EdgeDescriptors_[index].IsFinalOutput) {
-                TaskHost_->GetDataFlowGraph()->RegisterFlow(
+                TaskHost_->GetDataFlowGraph()->UpdateEdgeStatistics(
                     vertex,
                     TDataFlowGraph::SinkDescriptor,
                     outputStatisticsMap[index]);
@@ -887,6 +887,13 @@ void TTask::RegisterOutput(
         schedulerJobResultExt->output_boundary_keys());
     for (int tableIndex = 0; tableIndex < EdgeDescriptors_.size(); ++tableIndex) {
         if (outputStripes[tableIndex]) {
+            for (const auto& dataSlice : outputStripes[tableIndex]->DataSlices) {
+                TaskHost_->RegisterLivePreviewChunk(
+                    GetVertexDescriptor(),
+                    EdgeDescriptors_[tableIndex].LivePreviewIndex,
+                    dataSlice->GetSingleUnversionedChunkOrThrow());
+            }
+
             RegisterStripe(
                 std::move(outputStripes[tableIndex]),
                 EdgeDescriptors_[tableIndex],

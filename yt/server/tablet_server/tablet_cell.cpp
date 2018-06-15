@@ -54,6 +54,7 @@ void TTabletCell::Save(TSaveContext& context) const
     Save(context, TotalStatistics_);
     Save(context, PrerequisiteTransaction_);
     Save(context, CellBundle_);
+    Save(context, Decommissioned_);
 }
 
 void TTabletCell::Load(TLoadContext& context)
@@ -80,6 +81,10 @@ void TTabletCell::Load(TLoadContext& context)
     // COMPAT(babenko)
     if (context.GetVersion() >= 400) {
         Load(context, CellBundle_);
+    }
+    // COMPAT(savrus)
+    if (context.GetVersion() >= 713) {
+        Load(context, Decommissioned_);
     }
 }
 

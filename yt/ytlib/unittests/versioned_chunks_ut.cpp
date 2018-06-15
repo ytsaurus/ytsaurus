@@ -2,10 +2,12 @@
 #include <yt/core/test_framework/framework.h>
 #include "table_client_helpers.h"
 
+#include <yt/ytlib/chunk_client/chunk_reader.h>
+#include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
+#include <yt/ytlib/chunk_client/chunk_spec.h>
 #include <yt/ytlib/chunk_client/client_block_cache.h>
 #include <yt/ytlib/chunk_client/memory_reader.h>
 #include <yt/ytlib/chunk_client/memory_writer.h>
-#include <yt/ytlib/chunk_client/chunk_spec.h>
 
 #include <yt/ytlib/table_client/cached_versioned_chunk_meta.h>
 #include <yt/ytlib/table_client/chunk_state.h>
@@ -30,6 +32,8 @@ namespace {
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NTransactionClient;
+
+using NChunkClient::TChunkReaderStatistics;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -82,8 +86,6 @@ protected:
             options,
             Schema,
             MemoryWriter);
-
-        EXPECT_TRUE(ChunkWriter->Open().Get().IsOK());
     }
 
     void GetRowAndResetWriter()
@@ -166,11 +168,16 @@ protected:
 
         WriteManyRows();
 
+        TClientBlockReadOptions blockReadOptions;
+        blockReadOptions.ChunkReaderStatistics = New<TChunkReaderStatistics>();
+
         auto chunkMeta = TCachedVersionedChunkMeta::Load(
             MemoryReader,
-            TWorkloadDescriptor(),
-            TReadSessionId(),
-            Schema).Get().ValueOrThrow();
+            blockReadOptions,
+            Schema)
+            .Get()
+            .ValueOrThrow();
+
         {
             TChunkedMemoryPool pool;
             TUnversionedOwningRowBuilder builder;
@@ -237,7 +244,7 @@ protected:
             auto chunkState = New<TChunkState>(
                 GetNullBlockCache(),
                 TChunkSpec(),
-                std::move(chunkMeta),
+                nullptr,
                 nullptr,
                 New<TChunkReaderPerformanceCounters>(),
                 KeyComparer_);
@@ -245,7 +252,8 @@ protected:
                 New<TChunkReaderConfig>(),
                 MemoryReader,
                 std::move(chunkState),
-                TReadSessionId(),
+                std::move(chunkMeta),
+                blockReadOptions,
                 sharedKeys,
                 TColumnFilter(),
                 MaxTimestamp,
@@ -352,8 +360,6 @@ protected:
             writeSchema,
             memoryWriter);
 
-        EXPECT_TRUE(chunkWriter->Open().Get().IsOK());
-
         chunkWriter->Write(InitialRows_);
         EXPECT_TRUE(chunkWriter->Close().Get().IsOK());
 
@@ -361,16 +367,18 @@ protected:
             memoryWriter->GetChunkMeta(),
             memoryWriter->GetBlocks());
 
+        TClientBlockReadOptions blockReadOptions;
+        blockReadOptions.ChunkReaderStatistics = New<TChunkReaderStatistics>();
+
         auto chunkMeta = TCachedVersionedChunkMeta::Load(
             memoryReader,
-            TWorkloadDescriptor(),
-            TReadSessionId(),
+            blockReadOptions,
             readSchema).Get().ValueOrThrow();
 
         auto chunkState = New<TChunkState>(
             GetNullBlockCache(),
             TChunkSpec(),
-            std::move(chunkMeta),
+            nullptr,
             nullptr,
             New<TChunkReaderPerformanceCounters>(),
             nullptr);
@@ -378,7 +386,8 @@ protected:
             New<TChunkReaderConfig>(),
             memoryReader,
             std::move(chunkState),
-            TReadSessionId(),
+            std::move(chunkMeta),
+            blockReadOptions,
             lowerKey,
             upperKey,
             TColumnFilter(),

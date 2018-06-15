@@ -489,7 +489,7 @@ public:
         (type, options))
 
 
-    DELEGATE_TRANSACTIONAL_METHOD(TFuture<IAsyncZeroCopyInputStreamPtr>, CreateFileReader, (
+    DELEGATE_TRANSACTIONAL_METHOD(TFuture<IFileReaderPtr>, CreateFileReader, (
         const TYPath& path,
         const TFileReaderOptions& options),
         (path, options))
@@ -705,6 +705,9 @@ private:
                             TVersionedRow(modification.Row),
                             primarySchema,
                             primaryIdMapping);
+                        if (evaluator) {
+                            evaluator->EvaluateKeys(capturedRow, rowBuffer);
+                        }
                         auto tabletInfo = GetSortedTabletForRow(tableInfo, capturedRow, true);
                         auto session = Transaction_->GetOrCreateTabletSession(tabletInfo, tableInfo, TableSession_);
                         auto command = GetCommand(modification.Type);
@@ -1333,7 +1336,7 @@ private:
     {
         auto it = TablePathToSession_.find(path);
         if (it == TablePathToSession_.end()) {
-            const auto& tableMountCache = Client_->GetConnection()->GetTableMountCache();
+            const auto& tableMountCache = Client_->GetTableMountCache();
             auto tableInfo = WaitFor(tableMountCache->GetTableInfo(path))
                 .ValueOrThrow();
 

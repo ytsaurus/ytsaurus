@@ -24,7 +24,8 @@ TReadFileCommand::TReadFileCommand()
         .Optional();
     RegisterParameter("file_reader", FileReader)
         .Default(nullptr);
-
+    RegisterParameter("etag_revision", EtagRevision)
+        .Default();
 }
 
 void TReadFileCommand::DoExecute(ICommandContextPtr context)
@@ -38,6 +39,16 @@ void TReadFileCommand::DoExecute(ICommandContextPtr context)
             Path.GetPath(),
             Options))
         .ValueOrThrow();
+
+    BuildYsonMapFluently(context->Request().ResponseParametersConsumer)
+        .Item("revision").Value(reader->GetRevision());
+
+    if (EtagRevision) {
+        i64 etagRevision;
+        if (TryFromString(EtagRevision, etagRevision) && etagRevision == reader->GetRevision()) {
+            return;
+        }
+    }
 
     auto output = context->Request().OutputStream;
 

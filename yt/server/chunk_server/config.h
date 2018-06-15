@@ -354,11 +354,14 @@ class TDynamicChunkManagerConfig
 {
 public:
     bool EnableChunkReplicator;
+    TDuration ReplicaApproveTimeout;
 
     TDynamicChunkManagerConfig()
     {
         RegisterParameter("enable_chunk_replicator", EnableChunkReplicator)
             .Default(true);
+        RegisterParameter("replica_approve_timeout", ReplicaApproveTimeout)
+            .Default(TDuration::Seconds(60));
     }
 };
 

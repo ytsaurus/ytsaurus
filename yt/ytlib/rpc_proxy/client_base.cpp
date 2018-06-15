@@ -333,6 +333,9 @@ TFuture<NCypressClient::TNodeId> TClientBase::CopyNode(
     req->set_preserve_account(options.PreserveAccount);
     req->set_preserve_expiration_time(options.PreserveExpirationTime);
     req->set_preserve_creation_time(options.PreserveCreationTime);
+    if (options.SourceTransactionId) {
+        ToProto(req->mutable_source_transaction_id(), options.SourceTransactionId);
+    }
 
     ToProto(req->mutable_transactional_options(), options);
     ToProto(req->mutable_prerequisite_options(), options);
@@ -416,6 +419,23 @@ TFuture<void> TClientBase::ConcatenateNodes(
     return req->Invoke().As<void>();
 }
 
+TFuture<NObjectClient::TObjectId> TClientBase::CreateObject(
+    NObjectClient::EObjectType type,
+    const NApi::TCreateObjectOptions& options)
+{
+    TApiServiceProxy proxy(GetChannel());
+    auto req = proxy.CreateObject();
+
+    req->set_type(static_cast<i32>(type));
+    if (options.Attributes) {
+        ToProto(req->mutable_attributes(), *options.Attributes);
+    }
+
+    return req->Invoke().Apply(BIND([] (const TApiServiceProxy::TRspCreateObjectPtr& rsp) {
+        return FromProto<NObjectClient::TObjectId>(rsp->object_id());
+    }));
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TFuture<IUnversionedRowsetPtr> TClientBase::LookupRows(
@@ -439,6 +459,8 @@ TFuture<IUnversionedRowsetPtr> TClientBase::LookupRows(
     }
     req->set_timestamp(options.Timestamp);
     req->set_keep_missing_rows(options.KeepMissingRows);
+
+    ToProto(req->mutable_tablet_read_options(), options);
 
     return req->Invoke().Apply(BIND([] (const TErrorOr<TApiServiceProxy::TRspLookupRowsPtr>& rspOrError) {
         const auto& rsp = rspOrError.ValueOrThrow();

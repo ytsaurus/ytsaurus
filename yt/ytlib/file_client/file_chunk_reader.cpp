@@ -16,6 +16,7 @@
 #include <yt/ytlib/chunk_client/multi_reader_base.h>
 #include <yt/ytlib/chunk_client/helpers.h>
 #include <yt/ytlib/chunk_client/reader_factory.h>
+#include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
 
 #include <yt/ytlib/node_tracker_client/node_directory.h>
 
@@ -38,6 +39,7 @@ using namespace NNodeTrackerClient;
 using namespace NTableClient;
 
 using NChunkClient::TDataSliceDescriptor;
+using NChunkClient::TChunkReaderStatistics;
 using NYT::TRange;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -51,21 +53,21 @@ public:
         IChunkReaderPtr chunkReader,
         IBlockCachePtr blockCache,
         NCompression::ECodec codecId,
-        const TReadSessionId& sessionId,
+        const TClientBlockReadOptions& blockReadOptions,
         i64 startOffset,
         i64 endOffset)
         : Config_(std::move(config))
         , ChunkReader_(std::move(chunkReader))
         , BlockCache_(std::move(blockCache))
         , CodecId_(codecId)
-        , ReadSessionId_(sessionId)
+        , BlockReadOptions_(blockReadOptions)
         , StartOffset_(startOffset)
         , EndOffset_(endOffset)
         , AsyncSemaphore_(New<TAsyncSemaphore>(Config_->WindowSize))
     {
         Logger.AddTag("ChunkId: %v", ChunkReader_->GetChunkId());
-        if (ReadSessionId_) {
-            Logger.AddTag("ReadSessionId: %v", ReadSessionId_);
+        if (BlockReadOptions_.ReadSessionId) {
+            Logger.AddTag("ReadSessionId: %v", BlockReadOptions_.ReadSessionId);
         }
 
         LOG_INFO("Creating file chunk reader (StartOffset: %v, EndOffset: %v)",
@@ -148,7 +150,7 @@ private:
     const IChunkReaderPtr ChunkReader_;
     const IBlockCachePtr BlockCache_;
     const NCompression::ECodec CodecId_;
-    const TReadSessionId ReadSessionId_;
+    const TClientBlockReadOptions BlockReadOptions_;
 
     i64 StartOffset_;
     i64 EndOffset_;
@@ -167,7 +169,7 @@ private:
     {
         LOG_INFO("Requesting chunk meta");
 
-        auto metaOrError = WaitFor(ChunkReader_->GetMeta(Config_->WorkloadDescriptor, ReadSessionId_));
+        auto metaOrError = WaitFor(ChunkReader_->GetMeta(BlockReadOptions_));
         THROW_ERROR_EXCEPTION_IF_FAILED(metaOrError, "Failed to get file chunk meta");
 
         LOG_INFO("Chunk meta received");
@@ -245,7 +247,7 @@ private:
             ChunkReader_,
             BlockCache_,
             CodecId_,
-            ReadSessionId_);
+            BlockReadOptions_);
 
         LOG_INFO("File reader opened");
     }
@@ -280,7 +282,7 @@ IFileReaderPtr CreateFileChunkReader(
     IChunkReaderPtr chunkReader,
     IBlockCachePtr blockCache,
     NCompression::ECodec codecId,
-    const TReadSessionId& sessionId,
+    const TClientBlockReadOptions& blockReadOptions,
     i64 startOffset,
     i64 endOffset)
 {
@@ -289,7 +291,7 @@ IFileReaderPtr CreateFileChunkReader(
         chunkReader,
         blockCache,
         codecId,
-        sessionId,
+        blockReadOptions,
         startOffset,
         endOffset);
 }
@@ -345,7 +347,7 @@ IFileReaderPtr CreateFileMultiChunkReader(
     const TNodeDescriptor& localDescriptor,
     IBlockCachePtr blockCache,
     TNodeDirectoryPtr nodeDirectory,
-    const TReadSessionId& sessionId,
+    const TClientBlockReadOptions& blockReadOptions,
     const std::vector<TChunkSpec>& chunkSpecs,
     TTrafficMeterPtr trafficMeter,
     IThroughputThrottlerPtr throttler)
@@ -382,7 +384,7 @@ IFileReaderPtr CreateFileMultiChunkReader(
                 std::move(remoteReader),
                 blockCache,
                 NCompression::ECodec(miscExt.compression_codec()),
-                sessionId,
+                blockReadOptions,
                 startOffset,
                 endOffset);
         };

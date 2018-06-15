@@ -29,6 +29,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessPartitionSortReader(
     i64 estimatedRowCount,
     bool isApproximate,
     int partitionTag,
+    const NChunkClient::TClientBlockReadOptions& blockReadOptions,
     NChunkClient::TTrafficMeterPtr trafficMeter);
 
 ////////////////////////////////////////////////////////////////////////////////

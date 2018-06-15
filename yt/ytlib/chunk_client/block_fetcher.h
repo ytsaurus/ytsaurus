@@ -55,7 +55,7 @@ public:
         IChunkReaderPtr chunkReader,
         IBlockCachePtr blockCache,
         NCompression::ECodec codecId,
-        const TReadSessionId& sessionId);
+        const TClientBlockReadOptions& blockReadOptions);
 
     //! Returns |true| if there are requested blocks that were not fetched enough times.
     bool HasMoreBlocks() const;
@@ -137,7 +137,7 @@ private:
 
     bool IsFetchingCompleted_ = false;
 
-    const TReadSessionId ReadSessionId_;
+    const TClientBlockReadOptions BlockReadOptions_;
 
     NLogging::TLogger Logger;
 
@@ -160,7 +160,7 @@ public:
         IChunkReaderPtr chunkReader,
         IBlockCachePtr blockCache,
         NCompression::ECodec codecId,
-        const TReadSessionId& sessionId);
+        const TClientBlockReadOptions& blockReadOptions);
 
     TFuture<NChunkClient::TBlock> FetchNextBlock();
 

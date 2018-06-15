@@ -20,6 +20,7 @@ class TOperationDescriptor;
 DEFINE_ENUM(EControllerAgentAlertType,
     (UpdateConfig)
     (UnrecognizedConfigOptions)
+    (SnapshotLoadingDisabled)
 );
 
 DEFINE_ENUM(EControllerState,
@@ -43,6 +44,8 @@ using NScheduler::EJobType;
 using NScheduler::EJobState;
 using NScheduler::TOperationSpecBasePtr;
 using NScheduler::EOperationAlertType;
+
+DECLARE_REFCOUNTED_CLASS(TDataFlowGraph)
 
 DECLARE_REFCOUNTED_STRUCT(TBriefJobStatistics)
 
@@ -113,8 +116,6 @@ class TMasterConnector;
 class TBootstrap;
 
 DECLARE_REFCOUNTED_CLASS(TProgressCounter)
-
-class TDataFlowGraph;
 
 class TMemoryTagQueue;
 

@@ -10,6 +10,7 @@
 #include <yt/ytlib/chunk_client/read_limit.h>
 #include <yt/ytlib/chunk_client/replication_reader.h>
 #include <yt/ytlib/chunk_client/helpers.h>
+#include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
 
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
 
@@ -216,9 +217,13 @@ private:
                 CurrentRowIndex_ = BeginRowIndex_;
             }
 
+            // TODO(savrus) profile chunk reader statistics.
+            TClientBlockReadOptions options;
+            options.WorkloadDescriptor = Config_->WorkloadDescriptor;
+            options.ChunkReaderStatistics = New<TChunkReaderStatistics>();
+
             auto rowsOrError = WaitFor(CurrentChunkReader_->ReadBlocks(
-                Config_->WorkloadDescriptor,
-                TReadSessionId(),
+                options,
                 CurrentRowIndex_,
                 EndRowIndex_ - CurrentRowIndex_));
             THROW_ERROR_EXCEPTION_IF_FAILED(rowsOrError);

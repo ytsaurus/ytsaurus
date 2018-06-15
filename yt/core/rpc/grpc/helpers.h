@@ -20,6 +20,9 @@ namespace NGrpc {
 using TGprString = std::unique_ptr<char, void(*)(void*)>;
 TGprString MakeGprString(char* str);
 
+TStringBuf ToStringBuf(grpc_slice slice);
+TString ToString(grpc_slice slice);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T, void(*Deletor)(T*)>
@@ -47,7 +50,7 @@ private:
 };
 
 using TGrpcByteBufferPtr = TGrpcObjectPtr<grpc_byte_buffer, grpc_byte_buffer_destroy>;
-using TGrpcCallPtr = TGrpcObjectPtr<grpc_call, grpc_call_destroy>;
+using TGrpcCallPtr = TGrpcObjectPtr<grpc_call, grpc_call_unref>;
 using TGrpcChannelPtr = TGrpcObjectPtr<grpc_channel, grpc_channel_destroy>;
 using TGrpcCompletionQueuePtr = TGrpcObjectPtr<grpc_completion_queue, grpc_completion_queue_destroy>;
 using TGrpcServerPtr = TGrpcObjectPtr<grpc_server, grpc_server_destroy>;

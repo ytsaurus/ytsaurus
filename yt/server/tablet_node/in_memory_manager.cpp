@@ -15,6 +15,7 @@
 #include <yt/ytlib/chunk_client/chunk_meta.pb.h>
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/chunk_reader.h>
+#include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
 #include <yt/ytlib/chunk_client/data_statistics.h>
 #include <yt/ytlib/chunk_client/dispatcher.h>
 
@@ -59,10 +60,14 @@ void FinalizeChunkData(
     const TInMemoryChunkDataPtr& data,
     const TChunkId& id,
     const TChunkMeta& meta,
-    const TTabletSnapshotPtr& tabletSnapshot,
-    TNodeMemoryTracker* memoryTracker)
+    const TTabletSnapshotPtr& tabletSnapshot)
 {
-    data->ChunkMeta = TCachedVersionedChunkMeta::Create(id, meta, tabletSnapshot->PhysicalSchema, memoryTracker);
+    data->ChunkMeta = TCachedVersionedChunkMeta::Create(id, meta, tabletSnapshot->PhysicalSchema);
+
+    if (data->MemoryTrackerGuard) {
+        data->MemoryTrackerGuard.UpdateSize(data->ChunkMeta->GetMemoryUsage());
+    }
+
     if (tabletSnapshot->HashTableSize > 0) {
         data->LookupHashTable = CreateChunkLookupHashTable(
             data->Blocks,
@@ -71,13 +76,6 @@ void FinalizeChunkData(
         if (data->LookupHashTable && data->MemoryTrackerGuard) {
             data->MemoryTrackerGuard.UpdateSize(data->LookupHashTable->GetByteSize());
         }
-    }
-
-    ToProto(data->ChunkSpec.mutable_chunk_id(), id);
-    if (data->ChunkMeta->GetChunkFormat() == ETableChunkFormat::UnversionedColumnar ||
-        data->ChunkMeta->GetChunkFormat() == ETableChunkFormat::SchemalessHorizontal)
-    {
-        data->ChunkSpec.mutable_chunk_meta()->MergeFrom(meta);
     }
 }
 
@@ -169,7 +167,7 @@ public:
             return;
         }
 
-        FinalizeChunkData(data, chunkId, chunkMeta, tabletSnapshot, Bootstrap_->GetMemoryUsageTracker());
+        FinalizeChunkData(data, chunkId, chunkMeta, tabletSnapshot);
     }
 
 private:
@@ -512,10 +510,13 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
 
     LOG_INFO("Store preload started");
 
-    auto reader = store->GetChunkReader();
-    auto workloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemTabletPreload);
+    TClientBlockReadOptions blockReadOptions;
+    blockReadOptions.WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemTabletPreload);
+    blockReadOptions.ChunkReaderStatistics = New<TChunkReaderStatistics>();
+    blockReadOptions.ReadSessionId = readSessionId;
 
-    auto meta = WaitFor(reader->GetMeta(workloadDescriptor, readSessionId))
+    auto reader = store->GetChunkReader();
+    auto meta = WaitFor(reader->GetMeta(blockReadOptions))
         .ValueOrThrow();
 
     auto miscExt = GetProtoExtension<TMiscExt>(meta.extensions());
@@ -580,8 +581,7 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
             startBlockIndex);
 
         auto compressedBlocks = WaitFor(reader->ReadBlocks(
-            workloadDescriptor,
-            readSessionId,
+            blockReadOptions,
             startBlockIndex,
             totalBlockCount - startBlockIndex))
             .ValueOrThrow();
@@ -656,13 +656,14 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
         tabletSnapshot,
         dataStatistics,
         decompressionStatistics,
+        blockReadOptions.ChunkReaderStatistics,
         preloadTag);
 
     if (chunkData->MemoryTrackerGuard) {
         chunkData->MemoryTrackerGuard.UpdateSize(allocatedMemory - preallocatedMemory);
     }
 
-    FinalizeChunkData(chunkData, store->GetId(), meta, tabletSnapshot, memoryUsageTracker);
+    FinalizeChunkData(chunkData, store->GetId(), meta, tabletSnapshot);
 
     LOG_INFO(
         "Store preload completed (MemoryUsage: %v, LookupHashTable: %v)",

@@ -40,11 +40,6 @@ public:
         return UnderlyingWriter_->Write(rows);
     }
 
-    virtual TFuture<void> Open() override
-    {
-        return UnderlyingWriter_->Open();
-    }
-
     virtual TFuture<void> GetReadyEvent() override
     {
         return UnderlyingWriter_->GetReadyEvent();
@@ -187,11 +182,6 @@ public:
     virtual bool Write(const TRange<TVersionedRow>& rows) override
     {
         return UnderlyingWriter_->Write(rows);
-    }
-
-    virtual TFuture<void> Open() override
-    {
-        return UnderlyingWriter_->Open();
     }
 
     virtual TFuture<void> GetReadyEvent() override

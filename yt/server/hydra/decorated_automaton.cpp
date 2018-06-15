@@ -26,7 +26,6 @@
 #include <yt/core/pipes/pipe.h>
 
 #include <yt/core/profiling/timing.h>
-#include <yt/core/profiling/profile_manager.h>
 
 #include <yt/core/rpc/response_keeper.h>
 
@@ -49,7 +48,6 @@ using namespace NRpc;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const i64 SnapshotTransferBlockSize = 1_MB;
-static const auto& Profiler = HydraProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -589,13 +587,6 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TDecoratedAutomaton::TMutationTypeDescriptor
-{
-    TMonotonicCounter CumulativeTimeCounter;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 TDecoratedAutomaton::TDecoratedAutomaton(
     TDistributedHydraManagerConfigPtr config,
     const TDistributedHydraManagerOptions& options,
@@ -603,7 +594,8 @@ TDecoratedAutomaton::TDecoratedAutomaton(
     IAutomatonPtr automaton,
     IInvokerPtr automatonInvoker,
     IInvokerPtr controlInvoker,
-    ISnapshotStorePtr snapshotStore)
+    ISnapshotStorePtr snapshotStore,
+    const NProfiling::TProfiler& profiler)
     : Config_(std::move(config))
     , Options_(options)
     , CellManager_(std::move(cellManager))
@@ -613,10 +605,9 @@ TDecoratedAutomaton::TDecoratedAutomaton(
     , ControlInvoker_(std::move(controlInvoker))
     , SystemInvoker_(New<TSystemInvoker>(this))
     , SnapshotStore_(std::move(snapshotStore))
-    , BatchCommitTimeCounter_("/batch_commit_time")
-    , MutationWatiTimeCounter_("/mutation_wait_time", {CellManager_->GetCellIdTag()})
     , Logger(NLogging::TLogger(HydraLogger)
         .AddTag("CellId: %v", CellManager_->GetCellId()))
+    , Profiler(profiler)
 {
     YCHECK(Config_);
     YCHECK(CellManager_);
@@ -1018,84 +1009,30 @@ void TDecoratedAutomaton::RotateAutomatonVersionIfNeeded(TVersion mutationVersio
     }
 }
 
-TDecoratedAutomaton::TMutationTypeDescriptor* TDecoratedAutomaton::GetTypeDescriptor(const TString& type)
-{
-    auto it = TypeToDescriptor_.find(type);
-    if (it != TypeToDescriptor_.end()) {
-        return &it->second;
-    }
-
-    auto pair = TypeToDescriptor_.insert(std::make_pair(type, TMutationTypeDescriptor()));
-    YCHECK(pair.second);
-    it = pair.first;
-    auto* descriptor = &it->second;
-
-    TTagIdList tagIds{
-        TProfileManager::Get()->RegisterTag("type", type)
-    };
-    descriptor->CumulativeTimeCounter = TMonotonicCounter(
-        "/cumulative_mutation_time",
-        tagIds);
-
-    return descriptor;
-}
-
 void TDecoratedAutomaton::DoApplyMutation(TMutationContext* context)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     auto automatonVersion = GetAutomatonVersion();
 
-    // Refs are fine here (but see below).
-    const auto& request = context->Request();
-    const auto& mutationType = request.Type;
-    const auto& handler = request.Handler;
-
     // Cannot access #request after the handler has been invoked since the latter
     // could submit more mutations and cause #PendingMutations_ to be reallocated.
     // So we'd better make the needed copies right away.
     // Cf. YT-6908.
-    auto mutationId = request.MutationId;
+    auto mutationId = context->Request().MutationId;
 
-    if (mutationType.empty()) {
-        LOG_DEBUG_UNLESS(IsRecovery(), "Skipping heartbeat mutation (Version: %v)",
-            automatonVersion);
-    } else {
-        auto syncTime = GetInstant() - context->GetTimestamp();
+    {
+        TMutationContextGuard guard(context);
+        Automaton_->ApplyMutation(context);
+    }
 
-        if (!IsRecovery()) {
-            Profiler.Update(MutationWatiTimeCounter_, DurationToValue(syncTime));
+    if (Options_.ResponseKeeper && mutationId) {
+        if (State_ == EPeerState::Leading) {
+            YCHECK(mutationId == PendingMutationIds_.front());
+            PendingMutationIds_.pop();
         }
-
-        auto* descriptor = GetTypeDescriptor(mutationType);
-
-        TMutationContextGuard contextGuard(context);
-        TWallTimer timer;
-
-        LOG_DEBUG_UNLESS(IsRecovery(), "Applying mutation (Version: %v, MutationType: %v, MutationId: %v, WaitTime: %v)",
-            automatonVersion,
-            mutationType,
-            mutationId,
-            syncTime);
-
-        if (handler) {
-            handler.Run(context);
-        } else {
-            Automaton_->ApplyMutation(context);
-        }
-
-        Profiler.Increment(
-            descriptor->CumulativeTimeCounter,
-            DurationToValue(timer.GetElapsedTime()));
-
-        if (Options_.ResponseKeeper && mutationId) {
-            if (State_ == EPeerState::Leading) {
-                YCHECK(mutationId == PendingMutationIds_.front());
-                PendingMutationIds_.pop();
-            }
-            const auto& response = context->Response();
-            Options_.ResponseKeeper->EndRequest(mutationId, response.Data);
-        }
+        const auto& response = context->Response();
+        Options_.ResponseKeeper->EndRequest(mutationId, response.Data);
     }
 
     AutomatonVersion_ = automatonVersion.Advance();

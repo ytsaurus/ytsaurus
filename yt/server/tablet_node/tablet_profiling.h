@@ -69,6 +69,7 @@ void ProfileChunkReader(
     TTabletSnapshotPtr tabletSnapshot,
     const NChunkClient::NProto::TDataStatistics& dataStatistics,
     const NChunkClient::TCodecStatistics& codecStatistics,
+    const NChunkClient::TChunkReaderStatisticsPtr& chunkReaderStatistics,
     NProfiling::TTagId methodTag);
 
 ////////////////////////////////////////////////////////////////////////////////

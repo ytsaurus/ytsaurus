@@ -2,6 +2,7 @@
 
 import yt.wrapper as yt
 import yt.yson as yson
+import yt_driver_bindings
 from yt.common import YtError
 from yt.wrapper.table import TablePath
 from yt.wrapper.client import Yt
@@ -11,6 +12,8 @@ import random
 from time import sleep
 import sys
 import traceback
+
+LOCAL_FILES=["driver.conf"]
 
 class TInt64():
     def random(self):
@@ -228,6 +231,9 @@ class SchemafulMapper(object):
         #print >> sys.stderr, data
         raise Exception(" ".join(("Failed to execute command (%s attempts):" % attempt, command, str(params))))
 
+    def create_client(self):
+        return Yt(config={"backend": "native", "driver_config_path": "driver.conf"})
+
     def prepare(self, value):
         if not isinstance(value, list):
             value = [value]
@@ -336,6 +342,7 @@ def create_dynamic_table_from_data(data_table, table, schema, attributes, tablet
     owner = yt.get(table + "/@owner")
     yt.set(table + "/@acl", [{"permissions": ["mount"], "action": "allow", "subjects": [owner]}])
     yt.reshard_table(table, schema.get_pivot_keys())
+    yt.set(table + "/@enable_tablet_balancer", False)
     mount_table(table)
 
 def reshard_table(table, schema, tablet_count):
@@ -363,7 +370,8 @@ def create_random_data(schema, key_table, iter_table, iteration, job_count):
         key_table,
         iter_table,
         spec={"job_count": job_count, "max_failed_job_count": 100},
-        format=yt.YsonFormat(process_table_index=False, boolean_as_string=False))
+        format=yt.YsonFormat(process_table_index=False, boolean_as_string=False),
+        local_files=LOCAL_FILES)
     yt.run_sort(iter_table, sort_by=schema.get_key_column_names())
 
 @yt.aggregator
@@ -380,8 +388,7 @@ class WriterMapper(SchemafulMapper):
                     record.pop(k)
             rows.append(record)
 
-        config = {"driver_config_path": "/etc/ytdriver.conf", "api_version": "v3"}
-        client = Yt(config=config)
+        client = self.create_client()
         params = {
             "path": self.table,
             "input_format": "yson",
@@ -401,7 +408,8 @@ def write_data(schema, iter_table, table, iteration, aggregate, update, job_coun
         iter_table,
         tmp_table,
         spec={"job_count": job_count, "max_failed_job_count": 100},
-        format=yt.YsonFormat(process_table_index=False, boolean_as_string=False))
+        format=yt.YsonFormat(process_table_index=False, boolean_as_string=False),
+        local_files=LOCAL_FILES)
     yt.remove(tmp_table)
 
 class AggregateReducer:
@@ -439,7 +447,8 @@ def aggregate_data(schema, data_table, iter_table, new_data_table, aggregate, up
         [data_table, iter_table],
         new_data_table,
         reduce_by=key_columns,
-        format=yt.YsonFormat(control_attributes_mode="row_fields", boolean_as_string=False))
+        format=yt.YsonFormat(control_attributes_mode="row_fields", boolean_as_string=False),
+        local_files=LOCAL_FILES)
     yt.run_sort(new_data_table, sort_by=key_columns)
 
 def equal(columns, x, y):
@@ -455,8 +464,7 @@ class VerifierMapper(SchemafulMapper):
     def __init__(self, schema, table):
         super(VerifierMapper, self).__init__(schema, table)
     def __call__(self, records):
-        config = {"driver_config_path": "/etc/ytdriver.conf", "api_version": "v3"}
-        client = Yt(config=config)
+        client = self.create_client()
         params = {
             "path": self.table,
             "input_format": "yson",
@@ -492,7 +500,8 @@ def verify(schema, data_table, table, result_table, job_count):
         data_table,
         result_table,
         spec={"job_count": job_count, "max_failed_job_count": 100},
-        format=yt.YsonFormat(process_table_index=False, boolean_as_string=False))
+        format=yt.YsonFormat(process_table_index=False, boolean_as_string=False),
+        local_files=LOCAL_FILES)
     rows = yt.read_table(result_table, raw=False)
     if next(rows, None) != None:
         raise Exception("Verification failed")
@@ -526,7 +535,8 @@ def verify_output(schema, data_table, dump_table, result_table):
         [data_table, dump_table],
         result_table,
         reduce_by=key_columns,
-        format=yt.YsonFormat(control_attributes_mode="row_fields", boolean_as_string=False))
+        format=yt.YsonFormat(control_attributes_mode="row_fields", boolean_as_string=False),
+        local_files=LOCAL_FILES)
 
     rows = yt.read_table(result_table, raw=False)
     if next(rows, None) != None:
@@ -540,8 +550,7 @@ class SelectReducer(SchemafulMapper):
         super(SelectReducer, self).__init__(schema, table)
         self.key_columns = key_columns
     def __call__(self, row_groups):
-        config = {"driver_config_path": "/etc/ytdriver.conf", "api_version": "v3"}
-        client = Yt(config=config)
+        client = self.create_client()
 
         keys = []
         for key, rows in row_groups:
@@ -577,26 +586,28 @@ def verify_select(schema, data_table, table, dump_table, result_table, job_count
         dump_table,
         reduce_by=key_columns,
         spec={"job_count": job_count, "max_failed_job_count": 100},
-        format=yt.YsonFormat(boolean_as_string=False))
+        format=yt.YsonFormat(boolean_as_string=False),
+        local_files=LOCAL_FILES)
     verify_output(schema, data_table, dump_table, result_table)
 
 def wait_interruptable_op(op):
     period = 10
-    while True:
-        sleep(period)
-        state = op.get_state()
-        if state.is_running():
-            print "running. will interrupt jobs"
-            jobs = yt.get("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op.id))
-            for job, value in jobs.iteritems():
-                if random.random() >= 0.1 or len(jobs) < 10 or value["job_type"] not in ["map", "reduce"]:
-                    continue
-                try: yt.abort_job(job, interrupt_timeout=10000)
-                except: pass
-        else:
-            print "Operation is not in running state after {} seconds, wait without interrupts".format(period)
-            op.wait()
-            break
+    op.wait()
+    #while True:
+    #    sleep(period)
+    #    state = op.get_state()
+    #    if state.is_running():
+    #        print "running. will interrupt jobs"
+    #        jobs = yt.get("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op.id))
+    #        for job, value in jobs.iteritems():
+    #            if random.random() >= 0.1 or len(jobs) < 10 or value["job_type"] not in ["map", "reduce"]:
+    #                continue
+    #            try: yt.abort_job(job, interrupt_timeout=10000)
+    #            except: pass
+    #    else:
+    #        print "Operation is not in running state after {} seconds, wait without interrupts".format(period)
+    #        op.wait()
+    #        break
 
 def verify_merge(schema, data_table, table, dump_table, result_table, mode):
     print "Run %s merge" % (mode)
@@ -662,7 +673,8 @@ def verify_equal(columns, expected_table, actual_table, result_table):
         [expected_table, actual_table],
         result_table,
         reduce_by=columns,
-        format=yt.YsonFormat(control_attributes_mode="row_fields", boolean_as_string=False))
+        format=yt.YsonFormat(control_attributes_mode="row_fields", boolean_as_string=False),
+        local_files=LOCAL_FILES)
 
     rows = yt.read_table(result_table, raw=False)
     if next(rows, None) != None:

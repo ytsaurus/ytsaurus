@@ -96,7 +96,7 @@ private:
         TThread(TImpl* owner, int index)
             : Owner_(owner)
             , Index_(index)
-            , CompletionQueue_(grpc_completion_queue_create(nullptr))
+            , CompletionQueue_(grpc_completion_queue_create_for_next(nullptr))
             , Thread_(&TThread::ThreadMainTrampoline, this)
         {
             Thread_.Start();

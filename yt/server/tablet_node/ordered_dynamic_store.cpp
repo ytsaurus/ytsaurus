@@ -18,12 +18,15 @@
 #include <yt/ytlib/table_client/schemaful_writer.h>
 #include <yt/ytlib/table_client/name_table.h>
 #include <yt/ytlib/table_client/cached_versioned_chunk_meta.h>
+#include <yt/ytlib/table_client/chunk_state.h>
 
+#include <yt/ytlib/chunk_client/chunk_meta.pb.h>
+#include <yt/ytlib/chunk_client/chunk_reader.h>
+#include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
+#include <yt/ytlib/chunk_client/chunk_spec.pb.h>
 #include <yt/ytlib/chunk_client/config.h>
 #include <yt/ytlib/chunk_client/memory_reader.h>
 #include <yt/ytlib/chunk_client/memory_writer.h>
-#include <yt/ytlib/chunk_client/chunk_spec.pb.h>
-#include <yt/ytlib/chunk_client/chunk_meta.pb.h>
 
 namespace NYT {
 namespace NTabletNode {
@@ -300,10 +303,6 @@ TCallback<void(TSaveContext&)> TOrderedDynamicStore::AsyncSave()
             chunkWriter);
         auto tableWriter = CreateSchemafulWriterAdapter(schemalessTableWriter);
 
-        LOG_DEBUG("Opening table writer");
-        WaitFor(schemalessTableWriter->Open())
-            .ThrowOnError();
-
         std::vector<TUnversionedRow> rows;
         rows.reserve(SnapshotRowsPerRead);
 
@@ -360,15 +359,23 @@ void TOrderedDynamicStore::AsyncLoad(TLoadContext& context)
         auto chunkMeta = Load<TChunkMeta>(context);
         auto blocks = Load<std::vector<TSharedRef>>(context);
 
+        auto chunkState = New<TChunkState>(
+            GetNullBlockCache(),
+            NChunkClient::NProto::TChunkSpec(),
+            nullptr,
+            nullptr,
+            nullptr,
+            nullptr);
+
         auto chunkReader = CreateMemoryReader(chunkMeta, TBlock::Wrap(blocks));
         auto tableReader = CreateSchemafulChunkReader(
+            std::move(chunkState),
+            New<TColumnarChunkMeta>(chunkMeta),
             New<TChunkReaderConfig>(),
             chunkReader,
-            GetNullBlockCache(),
-            TReadSessionId(),
+            TClientBlockReadOptions(),
             Schema_,
             TKeyColumns(),
-            chunkMeta,
             TReadRange());
 
         std::vector<TUnversionedRow> rows;
@@ -415,8 +422,7 @@ ISchemafulReaderPtr TOrderedDynamicStore::CreateReader(
     i64 lowerRowIndex,
     i64 upperRowIndex,
     const TColumnFilter& columnFilter,
-    const TWorkloadDescriptor& /*workloadDescriptor*/,
-    const TReadSessionId& /*sessionId*/)
+    const NChunkClient::TClientBlockReadOptions& /*blockReadOptions*/)
 {
     return DoCreateReader(
         tabletIndex,

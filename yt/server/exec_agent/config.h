@@ -124,8 +124,6 @@ public:
         RegisterParameter("external_binds", ExternalBinds)
             .Default();
 
-        RegisterParameter("jobs_cpu_weight", JobsCpuWeight)
-            .Default(0.8);
         RegisterParameter("jobs_io_weight", JobsIOWeight)
             .Default(0.05);
     }

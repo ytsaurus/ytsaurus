@@ -255,7 +255,7 @@ TEST(FairShareTree, TestAttributes)
     jobResources.SetCpu(1);
     jobResources.SetMemory(10);
 
-    auto operationOptions = New<TOperationFairShareStrategyTreeOptions>();
+    auto operationOptions = New<TOperationFairShareTreeRuntimeParameters>();
     operationOptions->Weight = 1.0;
 
     auto config = New<TFairShareStrategyConfig>();
@@ -335,7 +335,7 @@ TEST(FairShareTree, TestUpdatePreemptableJobsList)
     jobResources.SetCpu(1);
     jobResources.SetMemory(10);
 
-    auto operationOptions = New<TOperationFairShareStrategyTreeOptions>();
+    auto operationOptions = New<TOperationFairShareTreeRuntimeParameters>();
     operationOptions->Weight = 1.0;
 
     auto config = New<TFairShareStrategyConfig>();
@@ -407,7 +407,7 @@ TEST(FairShareTree, TestBestAllocationRatio)
     jobResources.SetCpu(1);
     jobResources.SetMemory(150);
 
-    auto operationOptions = New<TOperationFairShareStrategyTreeOptions>();
+    auto operationOptions = New<TOperationFairShareTreeRuntimeParameters>();
     operationOptions->Weight = 1.0;
 
     auto config = New<TFairShareStrategyConfig>();

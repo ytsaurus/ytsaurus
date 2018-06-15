@@ -14,6 +14,7 @@
 #include <yt/ytlib/api/native_connection.h>
 #include <yt/ytlib/api/config.h>
 
+#include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
 #include <yt/ytlib/chunk_client/chunk_service_proxy.h>
 #include <yt/ytlib/chunk_client/replication_reader.h>
 
@@ -162,19 +163,16 @@ public:
     }
 
     virtual TFuture<std::vector<TBlock>> ReadBlocks(
-        const TWorkloadDescriptor& workloadDescriptor,
-        const TReadSessionId& readSessionId,
+        const TClientBlockReadOptions& options,
         const std::vector<int>& blockIndexes) override;
 
     virtual TFuture<std::vector<TBlock>> ReadBlocks(
-        const TWorkloadDescriptor& workloadDescriptor,
-        const TReadSessionId& readSessionId,
+        const TClientBlockReadOptions& options,
         int firstBlockIndex,
         int blockCount) override;
 
     virtual TFuture<NProto::TChunkMeta> GetMeta(
-        const TWorkloadDescriptor& workloadDescriptor,
-        const TReadSessionId& readSessionId,
+        const TClientBlockReadOptions& options,
         const TNullable<int>& partitionTag,
         const TNullable<std::vector<int>>& extensionTags) override;
 
@@ -459,6 +457,8 @@ protected:
 
     const TReplicationReaderConfigPtr Config_;
 
+    const TClientBlockReadOptions BlockReadOptions_;
+
     //! The workload descriptor from the config with instant field updated
     //! properly.
     const TWorkloadDescriptor WorkloadDescriptor_;
@@ -501,17 +501,17 @@ protected:
 
     TSessionBase(
         TReplicationReader* reader,
-        const TWorkloadDescriptor& workloadDescriptor,
-        const TReadSessionId& readSessionId)
+        const TClientBlockReadOptions& options)
         : Reader_(reader)
         , Config_(reader->Config_)
-        , WorkloadDescriptor_(Config_->EnableWorkloadFifoScheduling ? workloadDescriptor.SetCurrentInstant() : workloadDescriptor)
+        , BlockReadOptions_(options)
+        , WorkloadDescriptor_(Config_->EnableWorkloadFifoScheduling ? options.WorkloadDescriptor.SetCurrentInstant() : options.WorkloadDescriptor)
         , NodeDirectory_(reader->NodeDirectory_)
         , Networks_(reader->Networks_)
         , Logger(NLogging::TLogger(ChunkClientLogger)
             .AddTag("SessionId: %v, ReadSessionId: %v, ChunkId: %v",
                 TGuid::Create(),
-                readSessionId,
+                options.ReadSessionId,
                 reader->ChunkId_))
         , SessionInvoker_(CreateFixedPriorityInvoker(
             TDispatcher::Get()->GetPrioritizedCompressionPoolInvoker(),
@@ -966,10 +966,9 @@ class TReplicationReader::TReadBlockSetSession
 public:
     TReadBlockSetSession(
         TReplicationReader* reader,
-        const TWorkloadDescriptor& workloadDescriptor,
-        const TReadSessionId& readSessionId,
+        const TClientBlockReadOptions& options,
         const std::vector<int>& blockIndexes)
-        : TSessionBase(reader, workloadDescriptor, readSessionId)
+        : TSessionBase(reader, options)
         , BlockIndexes_(blockIndexes)
     {
         Logger.AddTag("Blocks: %v", blockIndexes);
@@ -1286,6 +1285,10 @@ private:
             LOG_DEBUG("Peer is throttling (Address: %v)", peerAddress);
         }
 
+        if (rsp->has_chunk_reader_statistics()) {
+            UpdateFromProto(&BlockReadOptions_.ChunkReaderStatistics, rsp->chunk_reader_statistics());
+        }
+
         i64 bytesReceived = 0;
         std::vector<int> receivedBlockIndexes;
 
@@ -1375,13 +1378,12 @@ private:
 };
 
 TFuture<std::vector<TBlock>> TReplicationReader::ReadBlocks(
-    const TWorkloadDescriptor& workloadDescriptor,
-    const TReadSessionId& readSessionId,
+    const TClientBlockReadOptions& options,
     const std::vector<int>& blockIndexes)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    auto session = New<TReadBlockSetSession>(this, workloadDescriptor, readSessionId, blockIndexes);
+    auto session = New<TReadBlockSetSession>(this, options, blockIndexes);
     return session->Run();
 }
 
@@ -1393,11 +1395,10 @@ class TReplicationReader::TReadBlockRangeSession
 public:
     TReadBlockRangeSession(
         TReplicationReader* reader,
-        const TWorkloadDescriptor& workloadDescriptor,
-        const TReadSessionId& readSessionId,
+        const TClientBlockReadOptions& options,
         int firstBlockIndex,
         int blockCount)
-        : TSessionBase(reader, workloadDescriptor, readSessionId)
+        : TSessionBase(reader, options)
         , FirstBlockIndex_(firstBlockIndex)
         , BlockCount_(blockCount)
     {
@@ -1507,6 +1508,10 @@ private:
 
         const auto& rsp = rspOrError.Value();
 
+        if (rsp->has_chunk_reader_statistics()) {
+            UpdateFromProto(&BlockReadOptions_.ChunkReaderStatistics, rsp->chunk_reader_statistics());
+        }
+
         auto blocks = GetRpcAttachedBlocks(rsp);
 
         int blocksReceived = 0;
@@ -1590,14 +1595,13 @@ private:
 };
 
 TFuture<std::vector<TBlock>> TReplicationReader::ReadBlocks(
-    const TWorkloadDescriptor& workloadDescriptor,
-    const TReadSessionId& readSessionId,
+    const TClientBlockReadOptions& options,
     int firstBlockIndex,
     int blockCount)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    auto session = New<TReadBlockRangeSession>(this, workloadDescriptor, readSessionId, firstBlockIndex, blockCount);
+    auto session = New<TReadBlockRangeSession>(this, options, firstBlockIndex, blockCount);
     return session->Run();
 }
 
@@ -1609,11 +1613,10 @@ class TReplicationReader::TGetMetaSession
 public:
     TGetMetaSession(
         TReplicationReader* reader,
-        const TWorkloadDescriptor& workloadDescriptor,
-        const TReadSessionId& readSessionId,
+        const TClientBlockReadOptions& options,
         const TNullable<int> partitionTag,
         const TNullable<std::vector<int>>& extensionTags)
-        : TSessionBase(reader, workloadDescriptor, readSessionId)
+        : TSessionBase(reader, options)
         , PartitionTag_(partitionTag)
         , ExtensionTags_(extensionTags)
     { }
@@ -1721,8 +1724,12 @@ private:
             LOG_DEBUG("Peer is throttling (Address: %v)", peerAddress);
             RequestMeta();
         } else {
-            TotalBytesReceived_ += rspOrError.Value()->ByteSize();
-            OnSessionSucceeded(rspOrError.Value()->chunk_meta());
+            if (rsp->has_chunk_reader_statistics()) {
+                UpdateFromProto(&BlockReadOptions_.ChunkReaderStatistics, rsp->chunk_reader_statistics());
+            }
+
+            TotalBytesReceived_ += rsp->ByteSize();
+            OnSessionSucceeded(rsp->chunk_meta());
         }
     }
 
@@ -1749,14 +1756,13 @@ private:
 };
 
 TFuture<NProto::TChunkMeta> TReplicationReader::GetMeta(
-    const TWorkloadDescriptor& workloadDescriptor,
-    const TReadSessionId& readSessionId,
+    const TClientBlockReadOptions& options,
     const TNullable<int>& partitionTag,
     const TNullable<std::vector<int>>& extensionTags)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    auto session = New<TGetMetaSession>(this, workloadDescriptor, readSessionId, partitionTag, extensionTags);
+    auto session = New<TGetMetaSession>(this, options, partitionTag, extensionTags);
     return session->Run();
 }
 

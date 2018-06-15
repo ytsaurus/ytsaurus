@@ -136,11 +136,6 @@ public:
         , SamplingThreshold_(static_cast<ui64>(std::numeric_limits<ui64>::max() * Config_->SampleRate))
     { }
 
-    virtual TFuture<void> Open() override
-    {
-        return VoidFuture;
-    }
-
     virtual TFuture<void> Close() override
     {
         if (RowCount_ == 0) {
@@ -321,6 +316,8 @@ protected:
 
         SetProtoExtension(meta.mutable_extensions(), SamplesExt_);
 
+        SetProtoExtension(meta.mutable_extensions(), ColumnarStatisticsExt_);
+
         if (IsSorted()) {
             ToProto(BoundaryKeysExt_.mutable_max(), LastKey_);
             SetProtoExtension(meta.mutable_extensions(), BoundaryKeysExt_);
@@ -356,6 +353,9 @@ protected:
         ValidateRowWeight(weight, Config_, Options_);
         DataWeight_ += weight;
         DataWeightSinceLastBlockFlush_ += weight;
+
+        UpdateColumnarStatistics(ColumnarStatisticsExt_, MakeRange(row.Begin(), row.End()));
+
         return weight;
     }
 
@@ -367,6 +367,7 @@ private:
     TRandomGenerator RandomGenerator_;
     const ui64 SamplingThreshold_;
     NProto::TSamplesExt SamplesExt_;
+    NProto::TColumnarStatisticsExt ColumnarStatisticsExt_;
     i64 SamplesExtSize_ = 0;
 
     void FillCommonMeta(NChunkClient::NProto::TChunkMeta* meta) const
@@ -1333,7 +1334,7 @@ ISchemalessMultiChunkWriterPtr CreatePartitionMultiChunkWriter(
     IThroughputThrottlerPtr throttler,
     IBlockCachePtr blockCache)
 {
-    return New<TPartitionMultiChunkWriter>(
+    auto writer = New<TPartitionMultiChunkWriter>(
         std::move(config),
         std::move(options),
         std::move(client),
@@ -1346,6 +1347,10 @@ ISchemalessMultiChunkWriterPtr CreatePartitionMultiChunkWriter(
         std::move(trafficMeter),
         std::move(throttler),
         std::move(blockCache));
+
+    writer->Init();
+
+    return writer;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1447,7 +1452,7 @@ ISchemalessMultiChunkWriterPtr CreateSchemalessMultiChunkWriter(
             blockCache);
     };
 
-    return New<TSchemalessMultiChunkWriter>(
+    auto writer = New<TSchemalessMultiChunkWriter>(
         config,
         options,
         client,
@@ -1461,6 +1466,10 @@ ISchemalessMultiChunkWriterPtr CreateSchemalessMultiChunkWriter(
         trafficMeter,
         throttler,
         blockCache);
+
+    writer->Init();
+
+    return writer;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1471,41 +1480,32 @@ class TSchemalessTableWriter
 {
 public:
     TSchemalessTableWriter(
+        NLogging::TLogger logger,
         TTableWriterConfigPtr config,
-        TTableWriterOptionsPtr options,
         const TRichYPath& richPath,
         TNameTablePtr nameTable,
         INativeClientPtr client,
+        ITransactionPtr uploadTransaction,
         ITransactionPtr transaction,
-        IThroughputThrottlerPtr throttler,
-        IBlockCachePtr blockCache)
-        : Logger(TableClientLogger)
-        , Config_(CloneYsonSerializable(config))
-        , Options_(options)
+        ISchemalessMultiChunkWriterPtr underlyingWriter,
+        TTableUploadOptions tableUploadOptions,
+        TObjectId objectId)
+        : Logger(std::move(logger))
         , RichPath_(richPath)
         , NameTable_(nameTable)
         , Client_(client)
+        , UploadTransaction_(uploadTransaction)
         , Transaction_(transaction)
-        , Throttler_(throttler)
-        , BlockCache_(blockCache)
+        , UnderlyingWriter_(underlyingWriter)
         , TransactionId_(transaction ? transaction->GetId() : NullTransactionId)
+        , TableUploadOptions_(tableUploadOptions)
+        , ObjectId_(objectId)
     {
+        ListenTransaction(UploadTransaction_);
+
         if (Transaction_) {
             ListenTransaction(Transaction_);
         }
-
-        Config_->WorkloadDescriptor.Annotations.push_back(Format("TablePath: %v", RichPath_.GetPath()));
-
-        Logger.AddTag("Path: %v, TransactionId: %v",
-            RichPath_.GetPath(),
-            TransactionId_);
-    }
-
-    virtual TFuture<void> Open() override
-    {
-        return BIND(&TSchemalessTableWriter::DoOpen, MakeStrong(this))
-            .AsyncVia(NChunkClient::TDispatcher::Get()->GetWriterInvoker())
-            .Run();
     }
 
     virtual bool Write(const TRange<TUnversionedRow>& rows) override
@@ -1546,220 +1546,15 @@ public:
 private:
     NLogging::TLogger Logger;
 
-    const TTableWriterConfigPtr Config_;
-    const TTableWriterOptionsPtr Options_;
     const TRichYPath RichPath_;
     const TNameTablePtr NameTable_;
     const INativeClientPtr Client_;
+    const ITransactionPtr UploadTransaction_;
     const ITransactionPtr Transaction_;
-    const IThroughputThrottlerPtr Throttler_;
-    const IBlockCachePtr BlockCache_;
-
-    TTableUploadOptions TableUploadOptions_;
-
-    TTransactionId TransactionId_;
-
-    TCellTag CellTag_ = InvalidCellTag;
-    TObjectId ObjectId_;
-
-    ITransactionPtr UploadTransaction_;
-    TChunkListId ChunkListId_;
-
-    TOwningKey LastKey_;
-
-    ISchemalessMultiChunkWriterPtr UnderlyingWriter_;
-
-    void DoOpen()
-    {
-        const auto& path = RichPath_.GetPath();
-        TUserObject userObject;
-        userObject.Path = path;
-
-        GetUserObjectBasicAttributes(
-            Client_,
-            TMutableRange<TUserObject>(&userObject, 1),
-            Transaction_ ? Transaction_->GetId() : NullTransactionId,
-            Logger,
-            EPermission::Write);
-
-        ObjectId_ = userObject.ObjectId;
-        CellTag_ = userObject.CellTag;
-
-        if (userObject.Type != EObjectType::Table) {
-            THROW_ERROR_EXCEPTION("Invalid type of %v: expected %Qlv, actual %Qlv",
-                path,
-                EObjectType::Table,
-                userObject.Type);
-        }
-
-        auto uploadMasterChannel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Leader, CellTag_);
-        auto objectIdPath = FromObjectId(ObjectId_);
-
-        {
-            LOG_INFO("Requesting extended table attributes");
-
-            auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Follower);
-            TObjectServiceProxy proxy(channel);
-
-            auto req = TCypressYPathProxy::Get(objectIdPath);
-            SetTransactionId(req, Transaction_);
-            std::vector<TString> attributeKeys{
-                "account",
-                "chunk_writer",
-                "compression_codec",
-                "dynamic",
-                "erasure_codec",
-                "optimize_for",
-                "primary_medium",
-                "replication_factor",
-                "row_count",
-                "schema",
-                "schema_mode",
-                "vital",
-                "enable_skynet_sharing"
-            };
-            ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
-
-            auto rspOrError = WaitFor(proxy.Execute(req));
-            THROW_ERROR_EXCEPTION_IF_FAILED(
-                rspOrError,
-                "Error requesting extended attributes of table %v",
-                path);
-
-            const auto& rsp = rspOrError.Value();
-            auto node = ConvertToNode(TYsonString(rsp->value()));
-            const auto& attributes = node->Attributes();
-
-            if (attributes.Get<bool>("dynamic")) {
-                THROW_ERROR_EXCEPTION("Write to dynamic table is not supported");
-            }
-
-            TableUploadOptions_ = GetTableUploadOptions(
-                RichPath_,
-                attributes,
-                attributes.Get<i64>("row_count")
-            );
-
-            Options_->ReplicationFactor = attributes.Get<int>("replication_factor");
-            Options_->MediumName = attributes.Get<TString>("primary_medium");
-            Options_->CompressionCodec = TableUploadOptions_.CompressionCodec;
-            Options_->ErasureCodec = TableUploadOptions_.ErasureCodec;
-            Options_->Account = attributes.Get<TString>("account");
-            Options_->ChunksVital = attributes.Get<bool>("vital");
-            Options_->EnableSkynetSharing = attributes.Get<bool>("enable_skynet_sharing", false);
-            Options_->ValidateSorted = TableUploadOptions_.TableSchema.IsSorted();
-            Options_->ValidateUniqueKeys = TableUploadOptions_.TableSchema.GetUniqueKeys();
-            Options_->OptimizeFor = TableUploadOptions_.OptimizeFor;
-            Options_->EvaluateComputedColumns = TableUploadOptions_.TableSchema.HasComputedColumns();
-
-            auto writerConfig = attributes.FindYson("chunk_writer");
-            if (writerConfig) {
-                ReconfigureYsonSerializable(Config_, writerConfig);
-            }
-
-            LOG_INFO("Extended attributes received (Account: %v, CompressionCodec: %v, ErasureCodec: %v)",
-                Options_->Account,
-                Options_->CompressionCodec,
-                Options_->ErasureCodec);
-        }
-
-        {
-            LOG_INFO("Starting table upload");
-
-            auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
-            TObjectServiceProxy proxy(channel);
-
-            auto batchReq = proxy.ExecuteBatch();
-
-            {
-                auto req = TTableYPathProxy::BeginUpload(objectIdPath);
-                req->set_update_mode(static_cast<int>(TableUploadOptions_.UpdateMode));
-                req->set_lock_mode(static_cast<int>(TableUploadOptions_.LockMode));
-                req->set_upload_transaction_title(Format("Upload to %v", path));
-                req->set_upload_transaction_timeout(ToProto<i64>(Config_->UploadTransactionTimeout));
-                SetTransactionId(req, Transaction_);
-                GenerateMutationId(req);
-                batchReq->AddRequest(req, "begin_upload");
-            }
-
-            auto batchRspOrError = WaitFor(batchReq->Invoke());
-            THROW_ERROR_EXCEPTION_IF_FAILED(
-                GetCumulativeError(batchRspOrError),
-                "Error starting upload to table %v",
-                path);
-            const auto& batchRsp = batchRspOrError.Value();
-
-            {
-                auto rsp = batchRsp->GetResponse<TTableYPathProxy::TRspBeginUpload>("begin_upload").Value();
-                auto uploadTransactionId = FromProto<TTransactionId>(rsp->upload_transaction_id());
-
-                TTransactionAttachOptions options;
-                options.AutoAbort = true;
-
-                UploadTransaction_ = Client_->AttachTransaction(uploadTransactionId, options);
-                ListenTransaction(UploadTransaction_);
-
-                LOG_INFO("Table upload started (UploadTransactionId: %v)",
-                    uploadTransactionId);
-            }
-        }
-
-        {
-            LOG_INFO("Requesting table upload parameters");
-
-            auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Follower, CellTag_);
-            TObjectServiceProxy proxy(channel);
-
-            auto req =  TTableYPathProxy::GetUploadParams(objectIdPath);
-            req->set_fetch_last_key(TableUploadOptions_.UpdateMode == EUpdateMode::Append &&
-                TableUploadOptions_.TableSchema.IsSorted());
-
-            SetTransactionId(req, UploadTransaction_);
-
-            auto rspOrError = WaitFor(proxy.Execute(req));
-            THROW_ERROR_EXCEPTION_IF_FAILED(
-                rspOrError,
-                "Error requesting upload parameters for table %v",
-                path);
-
-            const auto& rsp = rspOrError.Value();
-            ChunkListId_ = FromProto<TChunkListId>(rsp->chunk_list_id());
-            auto lastKey = FromProto<TOwningKey>(rsp->last_key());
-            if (lastKey) {
-                YCHECK(lastKey.GetCount() >= TableUploadOptions_.TableSchema.GetKeyColumnCount());
-                LastKey_ = TOwningKey(
-                    lastKey.Begin(),
-                    lastKey.Begin() + TableUploadOptions_.TableSchema.GetKeyColumnCount());
-            }
-
-            LOG_INFO("Table upload parameters received (ChunkListId: %v, HasLastKey: %v)",
-                     ChunkListId_,
-                     static_cast<bool>(LastKey_));
-        }
-
-        auto timestamp = WaitFor(Client_->GetNativeConnection()->GetTimestampProvider()->GenerateTimestamps())
-            .ValueOrThrow();
-
-        UnderlyingWriter_ = CreateSchemalessMultiChunkWriter(
-            Config_,
-            Options_,
-            NameTable_,
-            TableUploadOptions_.TableSchema,
-            LastKey_,
-            Client_,
-            CellTag_,
-            UploadTransaction_->GetId(),
-            ChunkListId_,
-            TChunkTimestamps{timestamp, timestamp},
-            /* trafficMeter */ nullptr,
-            Throttler_,
-            BlockCache_);
-
-        WaitFor(UnderlyingWriter_->Open())
-            .ThrowOnError();
-
-        LOG_INFO("Table opened");
-    }
+    const ISchemalessMultiChunkWriterPtr UnderlyingWriter_;
+    const TTransactionId TransactionId_;
+    const TTableUploadOptions TableUploadOptions_;
+    const TObjectId ObjectId_;
 
     void DoClose()
     {
@@ -1806,7 +1601,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ISchemalessWriterPtr CreateSchemalessTableWriter(
+ISchemalessWriterPtr DoCreateSchemalessTableWriter(
     TTableWriterConfigPtr config,
     TTableWriterOptionsPtr options,
     const TRichYPath& richPath,
@@ -1816,7 +1611,234 @@ ISchemalessWriterPtr CreateSchemalessTableWriter(
     IThroughputThrottlerPtr throttler,
     IBlockCachePtr blockCache)
 {
+    auto Logger = TableClientLogger;
+
+    TTransactionId transactionId = transaction ? transaction->GetId() : NullTransactionId;
+
+    Logger.AddTag("Path: %v, TransactionId: %v",
+        richPath.GetPath(),
+        transactionId);
+
+    TTableWriterConfigPtr writerConfig = CloneYsonSerializable(config);
+
+    writerConfig->WorkloadDescriptor.Annotations.push_back(Format("TablePath: %v", richPath.GetPath()));
+
+    const auto& path = richPath.GetPath();
+        TUserObject userObject;
+        userObject.Path = path;
+
+    GetUserObjectBasicAttributes(
+        client,
+        TMutableRange<TUserObject>(&userObject, 1),
+        transaction ? transaction->GetId() : NullTransactionId,
+        Logger,
+        EPermission::Write);
+
+    if (userObject.Type != EObjectType::Table) {
+        THROW_ERROR_EXCEPTION("Invalid type of %v: expected %Qlv, actual %Qlv",
+            path,
+            EObjectType::Table,
+            userObject.Type);
+    }
+
+    TObjectId objectId = userObject.ObjectId;
+    TCellTag cellTag = userObject.CellTag;
+
+    auto uploadMasterChannel = client->GetMasterChannelOrThrow(EMasterChannelKind::Leader, cellTag);
+    auto objectIdPath = FromObjectId(objectId);
+
+    TTableWriterOptionsPtr writerOptions = options;
+    TTableUploadOptions tableUploadOptions;
+
+    {
+        LOG_INFO("Requesting extended table attributes");
+
+        auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Follower);
+        TObjectServiceProxy proxy(channel);
+
+        auto req = TCypressYPathProxy::Get(objectIdPath);
+        SetTransactionId(req, transaction);
+        std::vector<TString> attributeKeys{
+            "account",
+            "chunk_writer",
+            "compression_codec",
+            "dynamic",
+            "erasure_codec",
+            "optimize_for",
+            "primary_medium",
+            "replication_factor",
+            "row_count",
+            "schema",
+            "schema_mode",
+            "vital",
+            "enable_skynet_sharing"
+        };
+        ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
+
+        auto rspOrError = WaitFor(proxy.Execute(req));
+        THROW_ERROR_EXCEPTION_IF_FAILED(
+            rspOrError,
+            "Error requesting extended attributes of table %v",
+            path);
+
+        const auto& rsp = rspOrError.Value();
+        auto node = ConvertToNode(TYsonString(rsp->value()));
+        const auto& attributes = node->Attributes();
+
+        if (attributes.Get<bool>("dynamic")) {
+            THROW_ERROR_EXCEPTION("Write to dynamic table is not supported");
+        }
+
+        tableUploadOptions = GetTableUploadOptions(
+            richPath,
+            attributes,
+            attributes.Get<i64>("row_count")
+        );
+
+        writerOptions->ReplicationFactor = attributes.Get<int>("replication_factor");
+        writerOptions->MediumName = attributes.Get<TString>("primary_medium");
+        writerOptions->CompressionCodec = tableUploadOptions.CompressionCodec;
+        writerOptions->ErasureCodec = tableUploadOptions.ErasureCodec;
+        writerOptions->Account = attributes.Get<TString>("account");
+        writerOptions->ChunksVital = attributes.Get<bool>("vital");
+        writerOptions->EnableSkynetSharing = attributes.Get<bool>("enable_skynet_sharing", false);
+        writerOptions->ValidateSorted = tableUploadOptions.TableSchema.IsSorted();
+        writerOptions->ValidateUniqueKeys = tableUploadOptions.TableSchema.GetUniqueKeys();
+        writerOptions->OptimizeFor = tableUploadOptions.OptimizeFor;
+        writerOptions->EvaluateComputedColumns = tableUploadOptions.TableSchema.HasComputedColumns();
+
+        auto chunkWriterConfig = attributes.FindYson("chunk_writer");
+        if (chunkWriterConfig) {
+            ReconfigureYsonSerializable(writerConfig, chunkWriterConfig);
+        }
+
+        LOG_INFO("Extended attributes received (Account: %v, CompressionCodec: %v, ErasureCodec: %v)",
+            writerOptions->Account,
+            writerOptions->CompressionCodec,
+            writerOptions->ErasureCodec);
+    }
+
+    ITransactionPtr uploadTransaction;
+    {
+        LOG_INFO("Starting table upload");
+
+        auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
+        TObjectServiceProxy proxy(channel);
+
+        auto batchReq = proxy.ExecuteBatch();
+
+        {
+            auto req = TTableYPathProxy::BeginUpload(objectIdPath);
+            req->set_update_mode(static_cast<int>(tableUploadOptions.UpdateMode));
+            req->set_lock_mode(static_cast<int>(tableUploadOptions.LockMode));
+            req->set_upload_transaction_title(Format("Upload to %v", path));
+            req->set_upload_transaction_timeout(ToProto<i64>(writerConfig->UploadTransactionTimeout));
+            SetTransactionId(req, transaction);
+            GenerateMutationId(req);
+            batchReq->AddRequest(req, "begin_upload");
+        }
+
+        auto batchRspOrError = WaitFor(batchReq->Invoke());
+        THROW_ERROR_EXCEPTION_IF_FAILED(
+            GetCumulativeError(batchRspOrError),
+            "Error starting upload to table %v",
+            path);
+        const auto& batchRsp = batchRspOrError.Value();
+
+        {
+            auto rsp = batchRsp->GetResponse<TTableYPathProxy::TRspBeginUpload>("begin_upload").Value();
+            auto uploadTransactionId = FromProto<TTransactionId>(rsp->upload_transaction_id());
+
+            TTransactionAttachOptions options;
+            options.AutoAbort = true;
+
+            uploadTransaction = client->AttachTransaction(uploadTransactionId, options);
+
+            LOG_INFO("Table upload started (UploadTransactionId: %v)",
+                uploadTransactionId);
+        }
+    }
+
+    TOwningKey writerLastKey;
+    TChunkListId chunkListId;
+
+    {
+        LOG_INFO("Requesting table upload parameters");
+
+        auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Follower, cellTag);
+        TObjectServiceProxy proxy(channel);
+
+        auto req =  TTableYPathProxy::GetUploadParams(objectIdPath);
+        req->set_fetch_last_key(tableUploadOptions.UpdateMode == EUpdateMode::Append &&
+            tableUploadOptions.TableSchema.IsSorted());
+
+        SetTransactionId(req, uploadTransaction);
+
+        auto rspOrError = WaitFor(proxy.Execute(req));
+        THROW_ERROR_EXCEPTION_IF_FAILED(
+            rspOrError,
+            "Error requesting upload parameters for table %v",
+            path);
+
+        const auto& rsp = rspOrError.Value();
+        chunkListId = FromProto<TChunkListId>(rsp->chunk_list_id());
+        auto lastKey = FromProto<TOwningKey>(rsp->last_key());
+        if (lastKey) {
+            YCHECK(lastKey.GetCount() >= tableUploadOptions.TableSchema.GetKeyColumnCount());
+            writerLastKey = TOwningKey(
+                lastKey.Begin(),
+                lastKey.Begin() + tableUploadOptions.TableSchema.GetKeyColumnCount());
+        }
+
+        LOG_INFO("Table upload parameters received (ChunkListId: %v, HasLastKey: %v)",
+             chunkListId,
+             static_cast<bool>(writerLastKey));
+    }
+
+    auto timestamp = WaitFor(client->GetNativeConnection()->GetTimestampProvider()->GenerateTimestamps())
+        .ValueOrThrow();
+
+    auto underlyingWriter = CreateSchemalessMultiChunkWriter(
+        writerConfig,
+        writerOptions,
+        nameTable,
+        tableUploadOptions.TableSchema,
+        writerLastKey,
+        client,
+        cellTag,
+        uploadTransaction->GetId(),
+        chunkListId,
+        TChunkTimestamps{timestamp, timestamp},
+        /* trafficMeter */ nullptr,
+        throttler,
+        blockCache);
+
+    LOG_INFO("Table opened");
+
     return New<TSchemalessTableWriter>(
+        Logger,
+        writerConfig,
+        richPath,
+        nameTable,
+        std::move(client),
+        std::move(uploadTransaction),
+        std::move(transaction),
+        std::move(underlyingWriter),
+        tableUploadOptions,
+        objectId);
+}
+
+TFuture<ISchemalessWriterPtr> CreateSchemalessTableWriter(
+    TTableWriterConfigPtr config,
+    TTableWriterOptionsPtr options,
+    const TRichYPath& richPath,
+    TNameTablePtr nameTable,
+    INativeClientPtr client,
+    ITransactionPtr transaction,
+    IThroughputThrottlerPtr throttler,
+    IBlockCachePtr blockCache)
+{
+    return BIND(&DoCreateSchemalessTableWriter,
         config,
         options,
         richPath,
@@ -1824,7 +1846,9 @@ ISchemalessWriterPtr CreateSchemalessTableWriter(
         client,
         transaction,
         throttler,
-        blockCache);
+        blockCache)
+        .AsyncVia(NChunkClient::TDispatcher::Get()->GetWriterInvoker())
+        .Run();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

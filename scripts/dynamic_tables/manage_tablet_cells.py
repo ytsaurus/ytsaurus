@@ -21,8 +21,8 @@ def execute_batch(reqs, **kwargs):
     verify_ok(reqs, rsps)
     return rsps
 
-def get_tablet_cell_count_per_bundle():
-    bundles = yt.list("//sys/tablet_cell_bundles")
+def get_tablet_cell_count_per_bundle(args):
+    bundles = [args.bundle] if args.bundle else yt.list("//sys/tablet_cell_bundles")
     reqs = []
     for bundle in bundles:
         reqs.append({"command": "get", "parameters": {
@@ -33,16 +33,20 @@ def get_tablet_cell_count_per_bundle():
         config[bundles[i]] = rsps[i]["output"]
     return config
 
-def create_tablet_cells(config):
+def create_tablet_cells(args, config):
     reqs = []
     for bundle, count in config.iteritems():
+        if args.bundle and bundle != args.bundle:
+            continue
         for i in xrange(count):
             reqs.append({"command": "create", "parameters": {
                 "type": "tablet_cell", "attributes": {"tablet_cell_bundle": bundle}}})
     execute_batch(reqs, concurrency=100)
 
-def list_empty_tablet_cells(config):
+def list_empty_tablet_cells(args, config):
     reqs = []
+    if args.bundle:
+        config = {args.bundle: config.get(args.bundle, 0)}
     data = config.items()
     for bundle, count in data:
         reqs.append({"command": "get", "parameters": {
@@ -77,12 +81,12 @@ def remove_tablet_cells(cells):
 
 
 def show(args):
-    yson.dump(get_tablet_cell_count_per_bundle(), sys.stdout, yson_format="pretty")
+    yson.dump(get_tablet_cell_count_per_bundle(args), sys.stdout, yson_format="pretty")
 
 def save(args):
     if args.file is None:
         raise Exception("Need to specify file")
-    config = get_tablet_cell_count_per_bundle()
+    config = get_tablet_cell_count_per_bundle(args)
     if os.path.isfile(args.file) and not args.force:
         raise Exception("File \"{0}\" already exists. Use --force to overwrite it.".format(args.file))
     with open(args.file, "w") as f:
@@ -93,16 +97,14 @@ def restore(args):
         raise Exception("Need to specify file")
     with open(args.file, "r") as f:
         config = yson.load(f)
-    create_tablet_cells(config)
+    create_tablet_cells(args, config)
 
 def remove(args):
-    if args.bundle is not None and args.config is not None:
-        raise Exception("Cannot determine which tablet cells to remove: both bundle and config arguments are present")
+    if args.config:
+        config, cells = list_empty_tablet_cells(args, yson.loads(args.config))
+        print "Remove: ", config
     elif args.bundle:
         cells = yt.get("//sys/tablet_cell_bundles/{0}/@tablet_cell_ids".format(args.bundle))
-    elif args.config:
-        config, cells = list_empty_tablet_cells(yson.loads(args.config))
-        print "Remove: ", config
     else:
         cells = yt.get("//sys/tablet_cells")
     remove_tablet_cells(cells)
@@ -110,7 +112,7 @@ def remove(args):
 def create(args):
     if args.config is None:
         raise Exception("Need to specify config")
-    create_tablet_cells(yson.loads(args.config))
+    create_tablet_cells(args, yson.loads(args.config))
 
 def main2():
     parser = argparse.ArgumentParser()

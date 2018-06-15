@@ -8,6 +8,8 @@
 
 #include <yt/ytlib/ypath/public.h>
 
+#include <yt/core/profiling/public.h>
+
 namespace NYT {
 namespace NHydra {
 
@@ -23,7 +25,8 @@ IChangelogStoreFactoryPtr CreateRemoteChangelogStoreFactory(
     const NYPath::TYPath& path,
     NApi::IClientPtr client,
     const NTransactionClient::TTransactionId& prerequisiteTransactionId =
-        NTransactionClient::NullTransactionId);
+        NTransactionClient::NullTransactionId,
+    const NProfiling::TTagIdList& profilerTags = NProfiling::EmptyTagIds);
 
 ////////////////////////////////////////////////////////////////////////////////
 

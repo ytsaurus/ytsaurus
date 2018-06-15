@@ -4,6 +4,7 @@
 #include "job.h"
 
 #include <yt/ytlib/chunk_client/public.h>
+#include <yt/ytlib/chunk_client/chunk_reader.h>
 
 #include <yt/ytlib/job_tracker_client/job.pb.h>
 
@@ -34,6 +35,7 @@ public:
 
     virtual std::vector<NChunkClient::TChunkId> DumpInputContext() override;
     virtual TString GetStderr() override;
+    virtual TNullable<TString> GetFailContext() override;
     virtual NYson::TYsonString StraceJob() override;
     virtual void SignalJob(const TString& signalName) override;
     virtual NYson::TYsonString PollJobShell(const NYson::TYsonString& parameters) override;
@@ -43,6 +45,7 @@ protected:
     const IJobHostPtr Host_;
     const TInstant StartTime_;
     NChunkClient::TTrafficMeterPtr TrafficMeter_;
+    NChunkClient::TClientBlockReadOptions BlockReadOptions_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

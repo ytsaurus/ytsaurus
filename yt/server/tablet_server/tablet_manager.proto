@@ -93,5 +93,10 @@ message TReqCreateTabletAction
     optional bool keep_finished = 6 [default = false];
 }
 
+message TReqKickOrphanedTabletActions
+{
+    repeated NYT.NProto.TGuid tablet_action_ids = 1;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 

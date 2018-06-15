@@ -189,7 +189,7 @@ DEFINE_REFCOUNTED_TYPE(TRemoteReaderOptions)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TBlockFetcherConfig
-    : public virtual TWorkloadConfig
+    : public virtual NYTree::TYsonSerializable
 {
 public:
     //! Prefetch window size (in bytes).
@@ -530,6 +530,7 @@ class TMultiChunkReaderConfig
     : public virtual TErasureReaderConfig
     , public virtual TBlockFetcherConfig
     , public virtual TFetchChunkSpecConfig
+    , public virtual TWorkloadConfig
 {
 public:
     i64 MaxBufferSize;
