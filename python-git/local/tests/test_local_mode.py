@@ -84,17 +84,18 @@ def _wait_instance_to_become_ready(process, instance_id):
 
     raise yt.YtError("Local YT is not started")
 
-@pytest.fixture(scope="session", autouse=True)
-def prepare_path():
-    try:
-        from yt.environment import arcadia_interop
-        destination = os.path.join(yatest_common.work_path(), "build")
-        os.makedirs(destination)
-        path, node_path = arcadia_interop.prepare_yt_environment(destination)
-        os.environ["NODE_PATH"] = node_path
-        os.environ["PATH"] = os.pathsep.join([path, os.environ.get("PATH", "")])
-    except ImportError:
-        pass
+if yatest_common is not None:
+    @pytest.fixture(scope="session", autouse=True)
+    def prepare_path():
+        try:
+            from yt.environment import arcadia_interop
+            destination = os.path.join(yatest_common.work_path(), "build")
+            os.makedirs(destination)
+            path, node_path = arcadia_interop.prepare_yt_environment(destination)
+            os.environ["NODE_PATH"] = node_path
+            os.environ["PATH"] = os.pathsep.join([path, os.environ.get("PATH", "")])
+        except ImportError:
+            pass
 
 @contextlib.contextmanager
 def local_yt(*args, **kwargs):

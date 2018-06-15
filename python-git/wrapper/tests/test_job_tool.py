@@ -16,9 +16,10 @@ import pytest
 import time
 import json
 
-ORCHID_JOB_PATH_PATTERN = "//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs/{1}"
 NODE_ORCHID_JOB_PATH_PATTERN = "//sys/nodes/{0}/orchid/job_controller/active_jobs/scheduler/{1}"
 
+def get_operation_path(operation_id):
+    return "//sys/operations/{:02x}/{}".format(int(operation_id.split("-")[-1], 16) % 256, operation_id)
 
 class TestJobRunner(object):
     @classmethod
@@ -131,8 +132,7 @@ class TestJobTool(object):
             total_job_wait_timeout = 10
             start_time = time.time()
 
-            running_jobs_pattern = "//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs"
-            running_jobs_path = running_jobs_pattern.format(operation_id)
+            running_jobs_path = get_operation_path(operation_id) + "/controller_orchid/running_jobs"
 
             while True:  # Waiting for job to start
                 jobs = yt.list(running_jobs_path)
@@ -143,7 +143,7 @@ class TestJobTool(object):
                     assert False, "Timeout occured while waiting any job of operation {0} to run".format(operation_id)
 
             job_id = jobs[0]
-            node_address = yt.get(ORCHID_JOB_PATH_PATTERN.format(operation_id, job_id))["address"]
+            node_address = yt.get(get_operation_path(operation_id) + "/controller_orchid/running_jobs/" + job_id + "/address")
             while True:
                 try:
                     job_info = yt.get(NODE_ORCHID_JOB_PATH_PATTERN.format(node_address, job_id))

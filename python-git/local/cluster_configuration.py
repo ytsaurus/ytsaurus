@@ -65,6 +65,11 @@ MASTER_CONFIG_PATCHES = [
         },
         "tablet_manager": None,
         "multicell_manager": None
+    },
+    {
+        "chunk_manager": {
+            "allow_multiple_erasure_parts_per_node": True
+        }
     }
 ]
 

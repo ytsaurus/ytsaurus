@@ -172,7 +172,12 @@ class Dumper(object):
             if isinstance(obj, yson_types.YsonInt64) and greater_than_max_int64:
                 _raise_error_with_context("Can not dump integer greater than 2^63-1 as YSON int64", context)
 
-            result = str(obj).encode("ascii")
+            if type(obj) in (yson_types.YsonInt64, yson_types.YsonUint64):
+                obj_str = str(yson_types._YsonIntegerBase(obj))
+            else:
+                obj_str = str(obj)
+
+            result = obj_str.encode("ascii")
             if not PY3:
                 result = result.rstrip(b"L")
             if greater_than_max_int64 or isinstance(obj, yson_types.YsonUint64):
@@ -186,7 +191,11 @@ class Dumper(object):
                 else:
                     result = b"%-inf"
             else:
-                result = str(obj).encode("ascii")
+                if type(obj) == yson_types.YsonDouble:
+                    obj_str = str(float(obj))
+                else:
+                    obj_str = str(obj)
+                result = obj_str.encode("ascii")
         elif isinstance(obj, (text_type, binary_type)):
             result = self._dump_string(obj, context)
         elif isinstance(obj, Mapping):

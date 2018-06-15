@@ -266,10 +266,15 @@ def canonize_uuid(uuid):
 class WaitFailed(Exception):
     pass
 
-def wait(predicate, error_message=None, iter=100, sleep_backoff=0.3):
+def wait(predicate, error_message=None, iter=100, sleep_backoff=0.3, ignore_exceptions=False):
     for _ in xrange(iter):
-        if predicate():
-            return
+        try:
+            if predicate():
+                return
+        except:
+            if ignore_exceptions:
+                continue
+            raise
         time.sleep(sleep_backoff)
 
     if error_message is None:

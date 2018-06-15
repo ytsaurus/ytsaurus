@@ -83,7 +83,8 @@ def get_default_resource_limits(client):
 
 def initialize_world(client=None, idm=None, proxy_address=None, ui_address=None, configure_pool_trees=True):
     client = get_value(client, yt)
-    users = ["odin", "cron", "cron_merge", "cron_compression", "nightly_tester", "application_operations", "robot-yt-mon", "transfer_manager", "fennel"]
+    users = ["odin", "cron", "cron_merge", "cron_compression", "cron_operations", "cron_tmp",
+             "nightly_tester", "application_operations", "robot-yt-mon", "transfer_manager", "fennel"]
     groups = ["devs", "admins", "admin_snapshots"]
     if idm:
         groups.append("yandex")
@@ -94,12 +95,11 @@ def initialize_world(client=None, idm=None, proxy_address=None, ui_address=None,
     for group in groups:
         create("group", group, client)
 
-    for cron_user in ("cron", "cron_merge", "cron_compression"):
+    for cron_user in ("cron", "cron_merge", "cron_compression", "cron_operations", "cron_tmp"):
         add_member(cron_user, "superusers", client)
         client.set("//sys/users/" + cron_user + "/@request_queue_size_limit", 500)
 
     client.create("map_node", "//sys/cron")
-    client.create("map_node", "//sys/cron/clear_operations_lock")
 
     add_member("devs", "admins", client)
     add_member("robot-yt-mon", "admin_snapshots", client)
@@ -185,8 +185,12 @@ def initialize_world(client=None, idm=None, proxy_address=None, ui_address=None,
 
     client.create("map_node", "//sys/admin/lock/autorestart/nodes/disabled", recursive=True, ignore_existing=True)
 
+    for medium in ["default", "ssd_journals"]:
+        if not client.exists("//sys/media/%s" % medium):
+            client.create("medium", attributes={"name": medium})
+
     # add_acl to schemas
-    for schema in ["user", "group", "tablet_cell"]:
+    for schema in ["user", "group", "tablet_cell", "tablet_cell_bundle"]:
         if client.exists("//sys/schemas/%s" % schema):
             client.set("//sys/schemas/%s/@acl" % schema,
                        [
@@ -227,6 +231,18 @@ def initialize_world(client=None, idm=None, proxy_address=None, ui_address=None,
         yamr_table_schema = [{"name": name, "type": "any", "sort_order": "ascending"}
                              for name in ["key", "subkey"]] + [{"name": "value", "type": "any"}]
         client.create("table", "//sys/empty_yamr_table", attributes={"schema": yamr_table_schema})
+
+    if client.exists("//sys/schemas/tablet_cell_bundle"):
+        client.set("//sys/schemas/tablet_cell_bundle/@options",
+              [{
+                  "snapshot_replication_factor": 5,
+                  "snapshot_primary_medium": "default",
+                  "changelog_write_quorum": 3,
+                  "changelog_replication_factor": 5,
+                  "changelog_read_quorum": 3,
+                  "changelog_primary_medium": "ssd_journals"
+              }])
+        client.set("//sys/schemas/tablet_cell_bundle/@enable_bundle_balancer", False)
 
     add_acl("//tmp", {"action": "allow", "subjects": [everyone_group], "permissions": ["write", "remove", "read"]}, client)
 

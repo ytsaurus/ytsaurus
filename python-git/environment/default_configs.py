@@ -21,6 +21,7 @@ b"""
         };
         {
             min_level = debug;
+            exclude_categories = [ Bus ];
             writers = [ debug ];
         };
     ];
@@ -177,9 +178,11 @@ b"""
 
         static_orchid_cache_update_period = 100;
 
-        operation_alerts_update_period = 100;
+        controller_static_orchid_update_period = 0;
 
-        suspicious_jobs_update_period = 100;
+        operations_push_period = 10;
+        operation_alerts_push_period = 100;
+        suspicious_jobs_push_period = 100;
 
         config_update_period = 100;
 
@@ -293,6 +296,7 @@ b"""
                 };
                 {
                     min_level = debug;
+                    exclude_categories = [ Bus ];
                     writers = [ debug ];
                 };
             ];

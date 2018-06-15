@@ -5,7 +5,7 @@ from __future__ import absolute_import
 import pytest
 
 import yt.yson.writer
-from yt.yson import YsonUint64, YsonInt64, YsonEntity, YsonMap, YsonError
+from yt.yson import YsonUint64, YsonInt64, YsonEntity, YsonMap, YsonDouble, YsonError
 import yt.subprocess_wrapper as subprocess
 from yt.packages.six import b, PY3
 from yt.packages.six.moves import map as imap
@@ -47,6 +47,14 @@ class YsonWriterTestBase(object):
         assert self.dumps(False, boolean_as_string=False) == b"%false"
         assert self.dumps(True, boolean_as_string=False) == b"%true"
 
+    def test_integers(self):
+        value = 0
+        assert b("0") == self.dumps(value)
+
+        value = YsonInt64(1)
+        value.attributes = {"foo": "bar"}
+        assert b('<"foo"="bar";>1') == self.dumps(value)
+
     def test_long_integers(self):
         value = 2 ** 63
         assert b(str(value) + "u") == self.dumps(value)
@@ -73,6 +81,10 @@ class YsonWriterTestBase(object):
         assert b"%nan" == self.dumps(float("nan"))
         assert b"%-inf" == self.dumps(float("-inf"))
         assert b"%inf" == self.dumps(float("inf"))
+
+        value = YsonDouble(0.0)
+        value.attributes = {"foo": "bar"}
+        assert self.dumps(value) in (b('<"foo"="bar";>0.0'), b('<"foo"="bar";>0.'))
 
     @pytest.mark.skipif("VERSION < (19, 2)")
     def test_custom_integers(self):

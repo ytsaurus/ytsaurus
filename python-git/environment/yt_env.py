@@ -146,9 +146,12 @@ class YTInstance(object):
                  port_locks_path=None, port_range_start=None, fqdn=None, jobs_memory_limit=None,
                  jobs_cpu_limit=None, jobs_user_slot_count=None, node_memory_limit_addition=None,
                  node_chunk_store_quota=None, allow_chunk_storage_in_tmpfs=False, modify_configs_func=None,
-                 kill_child_processes=False, use_porto_for_servers=False, watcher_config=None):
+                 kill_child_processes=False, use_porto_for_servers=False, watcher_config=None,
+                 add_binaries_to_path=True, driver_backend="native"):
+
         _configure_logger()
-        _add_binaries_to_path()
+        if add_binaries_to_path:
+            _add_binaries_to_path()
 
         self._subprocess_module = PortoSubprocess if use_porto_for_servers and porto_avaliable() else subprocess
         self._use_porto_for_servers = use_porto_for_servers
@@ -176,6 +179,13 @@ class YTInstance(object):
             self.abi_version = abi_versions.pop()
         else:
             raise YtError("Failed to find YT binaries (ytserver, ytserver-*) in $PATH. Make sure that YT is installed.")
+
+        valid_driver_backends = ("native", "rpc")
+        if driver_backend not in valid_driver_backends:
+            raise YtError('Unrecognized driver backend: expected one of {0}, got "{1}"'.format(valid_driver_backends, driver_backend))
+
+        if driver_backend == "rpc" and not has_rpc_proxy:
+            raise YtError("Driver with RPC backend is requested but RPC proxies aren't enabled.")
 
         self._uuid = generate_uuid()
         self._lock = RLock()
@@ -244,6 +254,7 @@ class YTInstance(object):
         self._kill_child_processes = kill_child_processes
         self._started = False
         self._wait_functions = []
+        self.driver_backend = driver_backend
 
         if watcher_config is None:
             watcher_config = get_watcher_config()
@@ -359,6 +370,7 @@ class YTInstance(object):
         provision["proxy"]["http_port"] = proxy_port
         provision["rpc_proxy"]["enable"] = self.has_rpc_proxy
         provision["rpc_proxy"]["rpc_port"] = rpc_proxy_port
+        provision["driver"]["backend"] = self.driver_backend
         provision["skynet_manager"]["count"] = self.skynet_manager_count
         provision["fqdn"] = self._hostname
         provision["enable_debug_logging"] = self._enable_debug_logging
@@ -397,7 +409,15 @@ class YTInstance(object):
             self._prepare_rpc_proxy(cluster_configuration["rpc_proxy"], cluster_configuration["rpc_client"], rpc_proxy_dir)
         if self.skynet_manager_count > 0:
             self._prepare_skynet_managers(cluster_configuration["skynet_manager"], skynet_manager_dirs)
-        self._prepare_driver(cluster_configuration["driver"], cluster_configuration["master"])
+
+        http_proxy_url = None
+        if self.has_proxy:
+            http_proxy_url = "localhost:" + self.get_proxy_address().split(":", 1)[1]
+        self._prepare_driver(
+            cluster_configuration["driver"],
+            cluster_configuration["rpc_driver"],
+            cluster_configuration["master"],
+            http_proxy_url)
         # COMPAT. Will be removed eventually.
         self._prepare_console_driver()
 
@@ -421,6 +441,9 @@ class YTInstance(object):
                 self.start_proxy(use_proxy_from_package=use_proxy_from_package, sync=False)
 
             self.start_master_cell(sync=False)
+
+            if self.has_rpc_proxy:
+                self.start_rpc_proxy(sync=False)
 
             for func in self._wait_functions:
                 func()
@@ -446,8 +469,6 @@ class YTInstance(object):
                 self.start_schedulers(sync=False)
             if self.controller_agent_count > 0:
                 self.start_controller_agents(sync=False)
-            if self.has_rpc_proxy:
-                self.start_rpc_proxy(sync=False)
             if self.skynet_manager_count > 0:
                 self.start_skynet_managers(sync=False)
 
@@ -958,6 +979,8 @@ class YTInstance(object):
         with open(driver_config_path, "rb") as f:
             driver_config = yson.load(f)
 
+        driver_config["connection_type"] = "native"
+
         config = {
             "backend": "native",
             "driver_config": driver_config
@@ -986,34 +1009,51 @@ class YTInstance(object):
             if not err.is_resolve_error():
                 raise
 
-    def _prepare_driver(self, driver_configs, master_configs):
-        for cell_index in xrange(self.secondary_master_cell_count + 1):
-            if cell_index == 0:
-                tag = master_configs["primary_cell_tag"]
-                name = "driver"
-            else:
-                tag = master_configs["secondary_cell_tags"][cell_index - 1]
-                name = "driver_secondary_" + str(cell_index - 1)
+    def _prepare_driver(self, driver_configs, rpc_driver_configs, master_configs, http_proxy_url):
+        driver_types = ["native"]
+        if self.has_rpc_proxy:
+            driver_types.append("rpc")
 
-            config_path = os.path.join(self.configs_path, "driver-{0}.yson".format(cell_index))
+        for driver_type in driver_types:
+            for cell_index in xrange(self.secondary_master_cell_count + 1):
+                if cell_index == 0:
+                    tag = master_configs["primary_cell_tag"]
+                    name = "driver"
+                else:
+                    tag = master_configs["secondary_cell_tags"][cell_index - 1]
+                    name = "driver_secondary_" + str(cell_index - 1)
 
-            if self._load_existing_environment:
-                if not os.path.isfile(config_path):
-                    raise YtError("Driver config {0} not found".format(config_path))
-                config = read_config(config_path)
-            else:
-                config = driver_configs[tag]
-                write_config(config, config_path)
+                if driver_type == "rpc":
+                    prefix = "rpc_"
+                else:
+                    prefix = ""
 
-            # COMPAT
-            if cell_index == 0:
-                link_path = os.path.join(self.path, "driver.yson")
-                if os.path.exists(link_path):
-                    os.remove(link_path)
-                os.symlink(config_path, link_path)
+                config_path = os.path.join(self.configs_path, "{0}driver-{1}.yson".format(prefix, cell_index))
 
-            self.configs[name] = config
-            self.config_paths[name] = config_path
+                if self._load_existing_environment:
+                    if not os.path.isfile(config_path):
+                        raise YtError("Driver config {0} not found".format(config_path))
+                    config = read_config(config_path)
+                else:
+                    if driver_type == "rpc":
+                        config = rpc_driver_configs[tag]
+                        # TODO(ignat): Fix this hack.
+                        if "addresses" in config and http_proxy_url is not None:
+                            del config["addresses"]
+                            config["cluster_url"] = http_proxy_url
+                    else:
+                        config = driver_configs[tag]
+                    write_config(config, config_path)
+
+                # COMPAT
+                if cell_index == 0:
+                    link_path = os.path.join(self.path, "driver.yson")
+                    if os.path.exists(link_path):
+                        os.remove(link_path)
+                    os.symlink(config_path, link_path)
+
+                self.configs[prefix + name] = config
+                self.config_paths[prefix + name] = config_path
 
         self.driver_logging_config = init_logging(None, self.logs_path, "driver", self._enable_debug_logging)
 
@@ -1216,7 +1256,7 @@ class YTInstance(object):
         with open(config_path, "w") as config_file:
             if self._enable_debug_logging:
                 for service, configs in iteritems(self.configs):
-                    if service.startswith("driver"):
+                    if service.startswith("driver") or service.startswith("rpc_driver"):
                         continue
 
                     for config in flatten(configs):
