@@ -1,4 +1,6 @@
 import os
+import fcntl
+import time
 import subprocess
 
 import yatest.common
@@ -36,12 +38,27 @@ def prepare_nodejs_yt_package(destination):
 def prepare_yt_environment(destination):
     bin_dir = os.path.join(destination, "bin")
     node_modules_dir = os.path.join(destination, "node_modules")
-    for dir_ in (bin_dir, node_modules_dir):
-        os.makedirs(dir_)
+    lock_path = os.path.join(destination, "lock")
+    prepared_path = os.path.join(destination, "prepared")
 
-    prepare_yt_binaries(bin_dir)
-    prepare_nodejs(bin_dir)
-    prepare_nodejs_modules(destination)
-    prepare_nodejs_yt_package(node_modules_dir)
+    try:
+        lock_fd = os.open(lock_path, os.O_CREAT | os.O_RDWR)
+        fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except IOError:
+        while not os.path.exists(prepared_path):
+            time.sleep(0.1)
+        return bin_dir, node_modules_dir
+
+    if not os.path.exists(bin_dir):
+        for dir_ in (bin_dir, node_modules_dir):
+            os.makedirs(dir_)
+
+        prepare_yt_binaries(bin_dir)
+        prepare_nodejs(bin_dir)
+        prepare_nodejs_modules(destination)
+        prepare_nodejs_yt_package(node_modules_dir)
+
+    with open(prepared_path, "w"):
+        pass
 
     return bin_dir, node_modules_dir
