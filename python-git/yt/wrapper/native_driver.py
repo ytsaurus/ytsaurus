@@ -15,8 +15,6 @@ try:
 except ImportError:  # Python 3
     from io import BytesIO
 
-import sys
-
 driver_bindings = None
 def lazy_import_driver_bindings():
     global driver_bindings
@@ -187,13 +185,21 @@ def make_request(command_name, params,
     if driver_user_name is not None:
         driver_user_name = str(driver_user_name)
 
-    request = driver_bindings.Request(
-        command_name=command_name,
-        parameters=params,
-        input_stream=input_stream,
-        output_stream=output_stream,
-        user=driver_user_name,
-        token=get_token())
+    try:
+	request = driver_bindings.Request(
+	    command_name=command_name,
+	    parameters=params,
+	    input_stream=input_stream,
+	    output_stream=output_stream,
+	    user=driver_user_name,
+	    token=get_token())
+    except TypeError:
+	request = driver_bindings.Request(
+	    command_name=command_name,
+	    parameters=params,
+	    input_stream=input_stream,
+	    output_stream=output_stream,
+	    user=driver_user_name)
 
     if get_config(client)["enable_passing_request_id_to_driver"]:
         request.id = request_id
