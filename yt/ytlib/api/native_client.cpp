@@ -3513,7 +3513,7 @@ private:
             .ThrowOnError();
     }
 
-    bool DoesOperationsArchiveExists()
+    bool DoesOperationsArchiveExist()
     {
         // NB: we suppose that archive should exist and work correctly if this map node is presented.
         return WaitFor(NodeExists("//sys/operations_archive", TNodeExistsOptions()))
@@ -3863,7 +3863,7 @@ private:
         LOG_DEBUG("Operation is not found in Cypress (OperationId: %v)",
             operationId);
 
-        if (DoesOperationsArchiveExists()) {
+        if (DoesOperationsArchiveExist()) {
             int version = DoGetOperationsArchiveVersion();
             const int ExpectedArchiveVersion = 7;
             if (version < ExpectedArchiveVersion) {
@@ -4657,7 +4657,7 @@ private:
 
         std::vector<TOperation> archiveData;
 
-        if (options.IncludeArchive && DoesOperationsArchiveExists()) {
+        if (options.IncludeArchive && DoesOperationsArchiveExist()) {
             int version = DoGetOperationsArchiveVersion();
 
             if (options.Pool && version < 15) {
@@ -5729,7 +5729,7 @@ private:
 
         TNullable<TListJobsStatistics> statistics;
 
-        bool doesArchiveExists = DoesOperationsArchiveExists();
+        bool doesArchiveExists = DoesOperationsArchiveExist();
 
         // Issue the requests in parallel.
         if (includeArchive && doesArchiveExists) {

@@ -864,6 +864,7 @@ private:
             }
 
             TOperationRuntimeParametersPtr runtimeParams = nullptr;
+            // COMPAT(renadeen): there is no runtime_parameters when we revive operations after cluster update on this version
             if (attributes.Contains("runtime_parameters")) {
                 runtimeParams = attributes.Get<TOperationRuntimeParametersPtr>("runtime_parameters");
             } else {
