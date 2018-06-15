@@ -863,7 +863,13 @@ private:
                 return nullptr;
             }
 
-            auto runtimeParams = attributes.Get<TOperationRuntimeParametersPtr>("runtime_parameters");
+            TOperationRuntimeParametersPtr runtimeParams = nullptr;
+            if (attributes.Contains("runtime_parameters")) {
+                runtimeParams = attributes.Get<TOperationRuntimeParametersPtr>("runtime_parameters");
+            } else {
+                runtimeParams = New<TOperationRuntimeParameters>();
+                Owner_->Bootstrap_->GetScheduler()->GetStrategy()->InitOperationRuntimeParameters(runtimeParams, spec);
+            }
 
             auto operation = New<TOperation>(
                 operationId,
