@@ -139,7 +139,7 @@ buildsnapshot "${MASTERS}" "${READONLY}"
 if [ $? -eq 0 ]; then echo "Snapshot built"; else echo "Snapshot failed"; exit; fi
 
 command="restart"
-update $MASTERS "sudo sv restart yt_master"
+update $MASTERS "sudo sv ${command} yt_master"
 update $PROXIES "sudo sv ${command} yt_http_proxy"
 update $SCHEDULERS "sudo sv ${command} yt_scheduler"
 update $CONTROLLERAGENTS "sudo sv ${command} yt_controller_agent"
