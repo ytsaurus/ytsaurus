@@ -320,7 +320,7 @@ const TBlocksExt& TFileReader::GetBlockExts()
     }
     // TODO(aozeritsky) move this check to WaitFor
     if (!CachedBlocksExt_.IsSet()) {
-        Y_UNUSED(WaitFor(CachedBlocksExt_));
+        Y_UNUSED(WaitFor(CachedBlocksExt_.As<void>()));
     }
     return CachedBlocksExt_.Get().ValueOrThrow();
 }
