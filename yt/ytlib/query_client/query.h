@@ -34,6 +34,7 @@ DEFINE_ENUM(EExpressionKind,
     (UnaryOp)
     (BinaryOp)
     (In)
+    (Between)
     (Transform)
 );
 
@@ -156,7 +157,7 @@ struct TBinaryOpExpression
     TConstExpressionPtr Rhs;
 };
 
-struct TInExpressionValuesTag
+struct TExpressionRowsetTag
 { };
 
 struct TInExpression
@@ -176,6 +177,25 @@ struct TInExpression
 
     std::vector<TConstExpressionPtr> Arguments;
     TSharedRange<TRow> Values;
+};
+
+struct TBetweenExpression
+    : public TExpression
+{
+    explicit TBetweenExpression(EValueType type)
+        : TExpression(type)
+    { }
+
+    TBetweenExpression(
+        std::vector<TConstExpressionPtr> arguments,
+        TSharedRange<TRowRange> ranges)
+        : TExpression(EValueType::Boolean)
+        , Arguments(std::move(arguments))
+        , Ranges(std::move(ranges))
+    { }
+
+    std::vector<TConstExpressionPtr> Arguments;
+    TSharedRange<TRowRange> Ranges;
 };
 
 struct TTransformExpression
@@ -610,6 +630,8 @@ struct TAbstractVisitor
             return Derived()->OnFunction(functionExpr, args...);
         } else if (auto inExpr = expr->template As<TInExpression>()) {
             return Derived()->OnIn(inExpr, args...);
+        } else if (auto betweenExpr = expr->template As<TBetweenExpression>()) {
+            return Derived()->OnBetween(betweenExpr, args...);
         } else if (auto transformExpr = expr->template As<TTransformExpression>()) {
             return Derived()->OnTransform(transformExpr, args...);
         }
@@ -637,10 +659,10 @@ struct TVisitor
     using TBase::Derived;
     using TBase::Visit;
 
-    void OnLiteral(const TLiteralExpression* literalExpr)
+    void OnLiteral(const TLiteralExpression* /*literalExpr*/)
     { }
 
-    void OnReference(const TReferenceExpression* referenceExpr)
+    void OnReference(const TReferenceExpression* /*referenceExpr*/)
     { }
 
     void OnUnary(const TUnaryOpExpression* unaryExpr)
@@ -664,6 +686,13 @@ struct TVisitor
     void OnIn(const TInExpression* inExpr)
     {
         for (auto argument : inExpr->Arguments) {
+            Visit(argument);
+        }
+    }
+
+    void OnBetween(const TBetweenExpression* betweenExpr)
+    {
+        for (auto argument : betweenExpr->Arguments) {
             Visit(argument);
         }
     }
@@ -764,6 +793,25 @@ struct TRewriter
             inExpr->Values);
     }
 
+    TConstExpressionPtr OnBetween(const TBetweenExpression* betweenExpr)
+    {
+        std::vector<TConstExpressionPtr> newArguments;
+        bool allEqual = true;
+        for (auto argument : betweenExpr->Arguments) {
+            auto newArgument = Visit(argument);
+            allEqual = allEqual && newArgument == argument;
+            newArguments.push_back(newArgument);
+        }
+
+        if (allEqual) {
+            return betweenExpr;
+        }
+
+        return New<TBetweenExpression>(
+            std::move(newArguments),
+            betweenExpr->Ranges);
+    }
+
     TConstExpressionPtr OnTransform(const TTransformExpression* transformExpr)
     {
         std::vector<TConstExpressionPtr> newArguments;
@@ -858,7 +906,7 @@ struct TAbstractExpressionPrinter
         }
     }
 
-    void OnLiteral(const TLiteralExpression* literalExpr, TArgs... args)
+    void OnLiteral(const TLiteralExpression* literalExpr, TArgs... /*args*/)
     {
         if (OmitValues) {
             Builder->AppendChar('?');
@@ -867,7 +915,7 @@ struct TAbstractExpressionPrinter
         }
     }
 
-    void OnReference(const TReferenceExpression* referenceExpr, TArgs... args)
+    void OnReference(const TReferenceExpression* referenceExpr, TArgs... /*args*/)
     {
         Builder->AppendString(referenceExpr->ColumnName);
     }
@@ -942,6 +990,35 @@ struct TAbstractExpressionPrinter
                 inExpr->Values.end(),
                 [&] (TStringBuilder* builder, const TRow& row) {
                     builder->AppendString(ToString(row));
+                });
+        }
+        Builder->AppendChar(')');
+    }
+
+    void OnBetween(const TBetweenExpression* betweenExpr, TArgs... args)
+    {
+        auto needParenthesis = betweenExpr->Arguments.size() > 1;
+        if (needParenthesis) {
+            Builder->AppendChar('(');
+        }
+        Derived()->OnArguments(betweenExpr, args...);
+        if (needParenthesis) {
+            Builder->AppendChar(')');
+        }
+
+        Builder->AppendString(" BETWEEN (");
+
+        if (OmitValues) {
+            Builder->AppendString("??");
+        } else {
+            JoinToString(
+                Builder,
+                betweenExpr->Ranges.begin(),
+                betweenExpr->Ranges.end(),
+                [&] (TStringBuilder* builder, const TRowRange& range) {
+                    builder->AppendString(ToString(range.first));
+                    builder->AppendString(" AND ");
+                    builder->AppendString(ToString(range.second));
                 });
         }
         Builder->AppendChar(')');

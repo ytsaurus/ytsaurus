@@ -851,3 +851,34 @@ class TestQuery(YTEnvSetup):
         insert_rows("//tmp/t", data)
 
         select_rows("x from [//tmp/t] where (a = 18 and b = 10 and c >= 70) or (a = 18 and b >= 10) or (a >= 18)")
+
+    def test_multi_between(self):
+        self.sync_create_cells(1)
+
+        create("table", "//tmp/t",
+            attributes={
+                "dynamic": True,
+                "optimize_for": "scan",
+                "schema": [
+                    {"name": "a", "type": "int64", "sort_order": "ascending"},
+                    {"name": "b", "type": "int64", "sort_order": "ascending"},
+                    {"name": "c", "type": "int64"}]
+            })
+
+        self.sync_mount_table("//tmp/t")
+
+        data = [{"a" : i / 10, "b" : i % 10, "c" : i} for i in xrange(0,100)]
+        insert_rows("//tmp/t", data)
+
+        expected = data[10:13] + data[23:25] + data[35:40] + data[40:60]
+
+        actual = select_rows('''
+        * from [//tmp/t] where
+            (a, b) between (
+                (1) and (1, 2),
+                (2, 3) and (2, 4),
+                (3, 5) and (3),
+                4 and 5
+            )
+        ''')
+        assert actual == expected

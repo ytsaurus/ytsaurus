@@ -8,6 +8,16 @@
 #include "schemaless_writer.h"
 #include "name_table.h"
 
+#include <yt/ytlib/api/native_client.h>
+
+#include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/ytlib/chunk_client/helpers.h>
+#include <yt/ytlib/chunk_client/input_chunk.h>
+
+#include <yt/ytlib/cypress_client/rpc_helpers.h>
+
+#include <yt/ytlib/object_client/helpers.h>
+
 #include <yt/ytlib/formats/parser.h>
 
 #include <yt/ytlib/scheduler/proto/job.pb.h>
@@ -18,18 +28,24 @@
 #include <yt/core/concurrency/periodic_yielder.h>
 #include <yt/core/concurrency/scheduler.h>
 
+#include <yt/core/misc/protobuf_helpers.h>
+
 #include <yt/core/ytree/convert.h>
 #include <yt/core/ytree/node.h>
+#include <yt/core/ytree/permission.h>
+
 
 namespace NYT {
 namespace NTableClient {
 
-using namespace NChunkClient;
+using namespace NApi;
 using namespace NChunkClient;
 using namespace NConcurrency;
 using namespace NCypressClient;
-using namespace NCypressClient;
 using namespace NFormats;
+using namespace NLogging;
+using namespace NNodeTrackerClient;
+using namespace NObjectClient;
 using namespace NProto;
 using namespace NScheduler::NProto;
 using namespace NYTree;
@@ -743,6 +759,118 @@ void ValidateDynamicTableTimestamp(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+// TODO(max42): unify with input chunk collection procedure in operation_controller_detail.cpp.
+std::vector<TInputChunkPtr> CollectTableInputChunks(
+    const TRichYPath& path,
+    const INativeClientPtr& client,
+    const TNodeDirectoryPtr& nodeDirectory,
+    const TFetchChunkSpecConfigPtr& config,
+    const TTransactionId& transactionId,
+    const TLogger& logger)
+{
+    const auto& Logger = logger;
+
+    LOG_INFO("Getting table attributes (Path: %v)", path);
+
+    TYPath objectIdPath;
+    TCellTag tableCellTag;
+    {
+        TUserObject userObject;
+        userObject.Path = path;
+        GetUserObjectBasicAttributes(
+            client,
+            TMutableRange<TUserObject>(&userObject, 1),
+            transactionId,
+            Logger,
+            EPermission::Read,
+            false /* suppressAccessTracking */);
+
+        const auto& objectId = userObject.ObjectId;
+        tableCellTag = userObject.CellTag;
+        objectIdPath = FromObjectId(objectId);
+        if (userObject.Type != EObjectType::Table) {
+            THROW_ERROR_EXCEPTION("Invalid type of %v: expected %Qlv, actual %Qlv",
+                path,
+                EObjectType::Table,
+                userObject.Type);
+        }
+    }
+
+    LOG_INFO("Requesting table chunk count (TableCellTag: %v, ObjectIdPath: %v)", tableCellTag, objectIdPath);
+    int chunkCount;
+    {
+        auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Follower);
+        TObjectServiceProxy proxy(channel);
+
+        auto req = TYPathProxy::Get(objectIdPath + "/@");
+        SetTransactionId(req, transactionId);
+        std::vector<TString> attributeKeys{"chunk_count"};
+        NYT::ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
+
+        auto rspOrError = WaitFor(proxy.Execute(req));
+        THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting chunk count of %v",
+            path);
+
+        const auto& rsp = rspOrError.Value();
+        auto attributes = ConvertToAttributes(TYsonString(rsp->value()));
+
+        chunkCount = attributes->Get<int>("chunk_count");
+    }
+
+    LOG_INFO("Fetching chunk specs (ChunkCount: %v)", chunkCount);
+
+    std::vector<NChunkClient::NProto::TChunkSpec> chunkSpecs;
+    FetchChunkSpecs(
+        client,
+        nodeDirectory,
+        tableCellTag,
+        objectIdPath,
+        path.GetRanges(),
+        chunkCount,
+        config->MaxChunksPerFetch,
+        config->MaxChunksPerLocateRequest,
+        [&] (TChunkOwnerYPathProxy::TReqFetchPtr req) {
+            req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
+            req->set_fetch_all_meta_extensions(false);
+            SetTransactionId(req, transactionId);
+        },
+        Logger,
+        &chunkSpecs);
+
+    std::vector<TInputChunkPtr> inputChunks;
+    for (const auto& chunkSpec : chunkSpecs) {
+        inputChunks.emplace_back(New<TInputChunk>(chunkSpec));
+    }
+
+    return inputChunks;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <typename TValue>
+void UpdateColumnarStatistics(TColumnarStatisticsExt& columnarStatisticsExt, const TRange<TValue>& values)
+{
+    for (const auto& value : values) {
+        auto id = value.Id;
+        if (id >= columnarStatisticsExt.data_weights().size()) {
+            columnarStatisticsExt.mutable_data_weights()->Resize(id + 1, 0);
+        }
+        columnarStatisticsExt.set_data_weights(id, columnarStatisticsExt.data_weights(id) + GetDataWeight(value));
+    }
+}
+
+// We explicitly instantiate the template function below for two possible value types. This allows us to not
+// include it to the -inl.h file and to move the implementation to the cpp file reducing the compilation time.
+template void UpdateColumnarStatistics<TUnversionedValue>(
+    TColumnarStatisticsExt& columnarStatisticsExt,
+    const TRange<TUnversionedValue>& values);
+template void UpdateColumnarStatistics<TVersionedValue>(
+    TColumnarStatisticsExt& columnarStatisticsExt,
+    const TRange<TVersionedValue>& values);
+
+////////////////////////////////////////////////////////////////////////////////
+
 
 } // namespace NYT
 } // namespace NTableClient

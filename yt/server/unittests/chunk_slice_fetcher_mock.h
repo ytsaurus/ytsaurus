@@ -18,6 +18,7 @@ class TMockChunkSliceFetcher
 {
 public:
     MOCK_METHOD1(AddChunk, void(NChunkClient::TInputChunkPtr));
+    MOCK_CONST_METHOD0(GetChunkCount, int());
     MOCK_METHOD0(Fetch, TFuture<void>());
     MOCK_METHOD0(GetChunkSlices, std::vector<NChunkClient::TInputChunkSlicePtr>());
 };

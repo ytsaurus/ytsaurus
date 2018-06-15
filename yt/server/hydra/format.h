@@ -6,6 +6,8 @@
 
 #include <yt/core/misc/serialize.h>
 
+#include <util/system/align.h>
+
 namespace NYT {
 namespace NHydra {
 
@@ -16,7 +18,9 @@ namespace NHydra {
 struct TChangelogHeader
 {
     //! Used for format validation.
-    static const ui64 ExpectedSignature = 0x3330303044435459ull; // YTCD0003
+    // COMPAT(aozeritsky): old format
+    static const ui64 ExpectedSignatureOld = 0x3330303044435459ull; // YTCD0003
+    static const ui64 ExpectedSignature = 0x3430303044435459ull; // YTCD0004
 
     //! Indicates that the changelog is not yet sealed.
     static const i32 NotTruncatedRecordCount = -2;
@@ -35,11 +39,13 @@ struct TChangelogHeader
 
     TChangelogHeader(
         int metaSize,
-        int sealedRecordCount)
+        int sealedRecordCount,
+        int alignment)
         : Signature(ExpectedSignature)
-        , HeaderSize(sizeof (TChangelogHeader) + AlignUp(metaSize))
+        , HeaderSize(::AlignUp<size_t>(sizeof(TChangelogHeader) + metaSize, alignment))
         , MetaSize(metaSize)
         , TruncatedRecordCount(sealedRecordCount)
+        , Padding(HeaderSize - sizeof(TChangelogHeader) - metaSize)
     { }
 };
 
@@ -52,34 +58,41 @@ struct TChangelogRecordHeader
     i32 RecordId;
     i32 DataSize;
     TChecksum Checksum;
+    i32 Padding;
 
     TChangelogRecordHeader()
         : RecordId(-1)
         , DataSize(-1)
         , Checksum(0)
+        , Padding(0)
     { }
 
     TChangelogRecordHeader(
         int recordIndex,
         int dataLength,
-        TChecksum checksum)
+        TChecksum checksum,
+        int padding)
         : RecordId(recordIndex)
         , DataSize(dataLength)
         , Checksum(checksum)
+        , Padding(padding)
     { }
 };
 
-static_assert(sizeof (TChangelogRecordHeader) == 16, "Binary size of TChangelogRecordHeader has changed.");
+static_assert(sizeof(TChangelogRecordHeader) == 20, "Binary size of TChangelogRecordHeader has changed.");
 
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TChangelogIndexHeader
 {
     //! Used for format validation.
-    static const ui64 ExpectedSignature = 0x3330303049435459ull; // YTCI0003
+    // COMPAT(aozeritsky): old format
+    static const ui64 ExpectedSignatureOld = 0x3330303049435459ull; // YTCI0003
+    static const ui64 ExpectedSignature = 0x3430303049435459ull; // YTCI0004
 
     ui64 Signature;
     i32 IndexRecordCount;
+    i32 Padding;
 
     TChangelogIndexHeader()
         : Signature(0)
@@ -92,7 +105,7 @@ struct TChangelogIndexHeader
     { }
 };
 
-static_assert(sizeof(TChangelogIndexHeader) == 12, "Binary size of TChangelogIndexHeader has changed.");
+static_assert(sizeof(TChangelogIndexHeader) == 16, "Binary size of TChangelogIndexHeader has changed.");
 
 ////////////////////////////////////////////////////////////////////////////////
 

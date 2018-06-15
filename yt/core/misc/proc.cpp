@@ -665,10 +665,18 @@ void SafeMakeNonblocking(int fd)
 
 void SafeSetUid(int uid)
 {
+#ifdef _linux_
+    // NB(psushin): setting real uid is really important, e.g. for acceess() call.
+    if (setresuid(uid, uid, uid) != 0) {
+        THROW_ERROR_EXCEPTION("setresuid failed to set uid to %v", uid)
+                << TError::FromSystem();
+    }
+#else
     if (setuid(uid) != 0) {
         THROW_ERROR_EXCEPTION("setuid failed to set uid to %v", uid)
             << TError::FromSystem();
     }
+#endif
 }
 
 TString SafeGetUsernameByUid(int uid)

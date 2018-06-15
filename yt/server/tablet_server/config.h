@@ -8,6 +8,8 @@
 
 #include <yt/core/ytree/yson_serializable.h>
 
+#include <yt/core/misc/arithmetic_formula.h>
+
 namespace NYT {
 namespace NTabletServer {
 
@@ -31,6 +33,8 @@ public:
     i64 DesiredInMemoryTabletSize;
 
     double TabletToCellRatio;
+
+    TTimeFormula TabletBalancerSchedule;
 
     TTabletBalancerConfig()
     {
@@ -64,6 +68,9 @@ public:
         RegisterParameter("tablet_to_cell_ratio", TabletToCellRatio)
             .GreaterThan(0)
             .Default(5.0);
+
+        RegisterParameter("tablet_balancer_schedule", TabletBalancerSchedule)
+            .Default();
 
         RegisterPostprocessor([&] () {
             if (MinTabletSize > DesiredTabletSize) {
@@ -109,6 +116,33 @@ DEFINE_REFCOUNTED_TYPE(TTabletBalancerMasterConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TTabletCellDecommissionerConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    TDuration DecommissionCheckPeriod;
+    TDuration OrphansCheckPeriod;
+
+    NConcurrency::TThroughputThrottlerConfigPtr DecommissionThrottler;
+    NConcurrency::TThroughputThrottlerConfigPtr KickOrphansThrottler;
+
+    TTabletCellDecommissionerConfig()
+    {
+        RegisterParameter("decommission_check_period", DecommissionCheckPeriod)
+            .Default(TDuration::Minutes(1));
+        RegisterParameter("orphans_check_period", OrphansCheckPeriod)
+            .Default(TDuration::Minutes(1));
+        RegisterParameter("decommission_throttler", DecommissionThrottler)
+            .DefaultNew();
+        RegisterParameter("kick_orphans_throttler", KickOrphansThrottler)
+            .DefaultNew();
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TTabletCellDecommissionerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TTabletManagerConfig
     : public NYTree::TYsonSerializable
 {
@@ -150,8 +184,11 @@ public:
     //! Chunk writer config for all dynamic tables.
     NTabletNode::TTabletChunkWriterConfigPtr ChunkWriter;
 
-    //! Tablet balancer (balancer) config.
+    //! Tablet balancer config.
     TTabletBalancerMasterConfigPtr TabletBalancer;
+
+    //! Tablet cell decommissioner config.
+    TTabletCellDecommissionerConfigPtr TabletCellDecommissioner;
 
     TTabletManagerConfig()
     {
@@ -185,11 +222,8 @@ public:
             .DefaultNew();
         RegisterParameter("tablet_balancer", TabletBalancer)
             .DefaultNew();
-
-        RegisterPreprocessor([&] () {
-            // Override default workload descriptors.
-            ChunkReader->WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::UserInteractive);
-        });
+        RegisterParameter("tablet_cell_decommissioner", TabletCellDecommissioner)
+            .DefaultNew();
     }
 };
 
@@ -197,19 +231,50 @@ DEFINE_REFCOUNTED_TYPE(TTabletManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDynamicTabletManagerConfig
+class TDynamicTabletBalancerMasterConfig
     : public NYTree::TYsonSerializable
 {
 public:
     bool EnableTabletBalancer;
-    NTabletNode::EDynamicTableProfilingMode DynamicTableProfilingMode;
+    TTimeFormula TabletBalancerSchedule;
 
-    TDynamicTabletManagerConfig()
+    TDynamicTabletBalancerMasterConfig()
     {
         RegisterParameter("enable_tablet_balancer", EnableTabletBalancer)
             .Default(true);
-        RegisterParameter("dynamc_table_profiling_mode", DynamicTableProfilingMode)
+        RegisterParameter("tablet_balancer_schedule", TabletBalancerSchedule)
+            .Default(DefaultTabletBalancerSchedule);
+
+        RegisterPostprocessor([&] () {
+            if (TabletBalancerSchedule.IsEmpty()) {
+                THROW_ERROR_EXCEPTION("tablet_balancer_schedule cannot be empty in master config");
+            }
+        });
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TDynamicTabletBalancerMasterConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TDynamicTabletManagerConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    TDuration TabletCellsCleanupPeriod;
+
+    NTabletNode::EDynamicTableProfilingMode DynamicTableProfilingMode;
+
+    TDynamicTabletBalancerMasterConfigPtr TabletBalancer;
+
+    TDynamicTabletManagerConfig()
+    {
+        RegisterParameter("tablet_cells_cleanup_period", TabletCellsCleanupPeriod)
+            .Default(TDuration::Seconds(60));
+        RegisterParameter("dynamic_table_profiling_mode", DynamicTableProfilingMode)
             .Default(NTabletNode::EDynamicTableProfilingMode::Path);
+        RegisterParameter("tablet_balancer", TabletBalancer)
+            .DefaultNew();
     }
 };
 

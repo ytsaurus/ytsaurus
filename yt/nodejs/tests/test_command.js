@@ -350,6 +350,7 @@ describe("YtCommand - command descriptors", function() {
             'get_job_stderr',
             'get_job_fail_context',
             'get_in_sync_replicas',
+            'get_table_columnar_statistics',
             'get_operation',
             'get_version',
             'insert_rows',
@@ -445,6 +446,7 @@ describe("YtCommand - command descriptors", function() {
             'get_job_fail_context',
             'get_job_stderr',
             'get_operation',
+            'get_table_columnar_statistics',
             'get_version',
             'insert_rows',
             'link',
@@ -534,11 +536,6 @@ describe("YtCommand - v2 command heaviness", function() {
         it("should disallow heavy commands", function(done) {
             ask("GET", V + "/read", {},
             function(rsp) { rsp.statusCode.should.eql(503); }, done).end();
-        });
-
-        it("should return 200 anywhere", function(done) {
-            ask("GET", V + "/read?force_ok=true", {},
-            function(rsp) { rsp.should.be.http2xx; }, done).end();
         });
     });
 });
@@ -749,7 +746,7 @@ describe("YtCommand - v2 command parameters", function() {
             rsp.body.should.be.empty;
             stub.should.have.been.calledOnce;
             stub.firstCall.args[7].Print()
-                .should.eql('{"output_format"=<"boolean_as_string"=%true;>"json";"input_format"=<"boolean_as_string"=%true;>"json";"path"=<"append"="true";>"//home";}');
+                .should.eql('{"input_format"=<"boolean_as_string"=%true;>"json";"output_format"=<"boolean_as_string"=%true;>"json";"path"=<"append"="true";>"//home";}');
         }, done).end('{"path":{"$value":"//home","$attributes":{"append":"true"}}}');
     });
 
@@ -762,7 +759,7 @@ describe("YtCommand - v2 command parameters", function() {
             rsp.body.should.be.empty;
             stub.should.have.been.calledOnce;
             stub.firstCall.args[7].Print()
-                .should.eql('{"output_format"=<"boolean_as_string"=%true;>"json";"input_format"=<"boolean_as_string"=%true;>"json";"\\x80"="\\xFF";}');
+                .should.eql('{"input_format"=<"boolean_as_string"=%true;>"json";"output_format"=<"boolean_as_string"=%true;>"json";"\\x80"="\\xFF";}');
 
         }, done).end('{"\\u0080":"\\u00FF"}');
     });
@@ -917,7 +914,7 @@ describe("YtCommand - v2 command parameters", function() {
                 rsp.should.be.http2xx;
                 rsp.body.should.be.empty;
                 stub.should.have.been.calledOnce;
-                stub.firstCall.args[7].Print().should.eql('{"output_format"="json";"input_format"="json";"path"=<"append"="true";>"//home";}');
+                stub.firstCall.args[7].Print().should.eql('{"input_format"="json";"output_format"="json";"path"=<"append"="true";>"//home";}');
             }, done).end('{"path":{"$value":"//home","$attributes":{"append":"true"}}}');
         });
 
@@ -929,7 +926,7 @@ describe("YtCommand - v2 command parameters", function() {
                 rsp.should.be.http2xx;
                 rsp.body.should.be.empty;
                 stub.should.have.been.calledOnce;
-                stub.firstCall.args[7].Print().should.eql('{"output_format"="json";"input_format"="json";"\\x80"="\\xFF";}');
+                stub.firstCall.args[7].Print().should.eql('{"input_format"="json";"output_format"="json";"\\x80"="\\xFF";}');
 
             }, done).end('{"\\u0080":"\\u00FF"}');
         });

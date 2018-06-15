@@ -33,7 +33,7 @@ public:
         NTransactionClient::EAtomicity atomicity,
         NTransactionClient::EDurability durability,
         TDuration timeout,
-        TDuration pingPeriod,
+        TNullable<TDuration> pingPeriod,
         bool sticky);
 
     // ITransaction implementation
@@ -166,7 +166,7 @@ public:
         NObjectClient::EObjectType type,
         const NApi::TCreateObjectOptions& options) override;
 
-    virtual TFuture<NConcurrency::IAsyncZeroCopyInputStreamPtr> CreateFileReader(
+    virtual TFuture<NApi::IFileReaderPtr> CreateFileReader(
         const NYPath::TYPath& path,
         const NApi::TFileReaderOptions& options) override;
 
@@ -192,7 +192,7 @@ private:
     const NTransactionClient::EAtomicity Atomicity_;
     const NTransactionClient::EDurability Durability_;
     const TDuration Timeout_;
-    const TDuration PingPeriod_;
+    const TNullable<TDuration> PingPeriod_;
     const bool Sticky_;
 
     TSpinLock SpinLock_;

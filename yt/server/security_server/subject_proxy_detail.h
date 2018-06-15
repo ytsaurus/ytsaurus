@@ -7,7 +7,8 @@
 #include <yt/server/cell_master/bootstrap.h>
 #include <yt/server/cell_master/public.h>
 
-#include <yt/server/object_server/interned_attributes.h>
+#include <yt/server/misc/interned_attributes.h>
+
 #include <yt/server/object_server/object_detail.h>
 #include <yt/server/object_server/public.h>
 
@@ -41,12 +42,12 @@ protected:
     {
         TBase::ListSystemAttributes(descriptors);
 
-        descriptors->push_back(NYTree::ISystemAttributeProvider::TAttributeDescriptor(NObjectServer::EInternedAttributeKey::Name)
+        descriptors->push_back(NYTree::ISystemAttributeProvider::TAttributeDescriptor(EInternedAttributeKey::Name)
             .SetWritable(true)
             .SetReplicated(true)
             .SetMandatory(true));
-        descriptors->push_back(NObjectServer::EInternedAttributeKey::MemberOf);
-        descriptors->push_back(NObjectServer::EInternedAttributeKey::MemberOfClosure);
+        descriptors->push_back(EInternedAttributeKey::MemberOf);
+        descriptors->push_back(EInternedAttributeKey::MemberOfClosure);
     }
 
     virtual bool GetBuiltinAttribute(NYTree::TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override
@@ -54,12 +55,12 @@ protected:
         const auto* subject = this->GetThisImpl();
 
         switch (key) {
-            case NObjectServer::EInternedAttributeKey::Name:
+            case EInternedAttributeKey::Name:
                 NYTree::BuildYsonFluently(consumer)
                     .Value(subject->GetName());
                 return true;
 
-            case NObjectServer::EInternedAttributeKey::MemberOf:
+            case EInternedAttributeKey::MemberOf:
                 NYTree::BuildYsonFluently(consumer)
                     .DoListFor(subject->MemberOf(), [] (NYTree::TFluentList fluent, TGroup* group) {
                         fluent
@@ -67,7 +68,7 @@ protected:
                     });
                 return true;
 
-            case NObjectServer::EInternedAttributeKey::MemberOfClosure:
+            case EInternedAttributeKey::MemberOfClosure:
                 NYTree::BuildYsonFluently(consumer)
                     .DoListFor(subject->RecursiveMemberOf(), [] (NYTree::TFluentList fluent, TGroup* group) {
                         fluent
@@ -88,7 +89,7 @@ protected:
         const auto& securityManager = this->Bootstrap_->GetSecurityManager();
 
         switch (key) {
-            case NObjectServer::EInternedAttributeKey::Name: {
+            case EInternedAttributeKey::Name: {
                 auto newName = NYTree::ConvertTo<TString>(value);
                 securityManager->RenameSubject(subject, newName);
                 return true;

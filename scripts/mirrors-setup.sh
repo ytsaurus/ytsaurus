@@ -106,6 +106,8 @@ configure_arcadia_mirror contrib-libs-zlib
 configure_arcadia_mirror contrib-libs-zstd
 configure_arcadia_mirror contrib-libs-gtest
 configure_arcadia_mirror contrib-libs-gmock
+configure_arcadia_mirror contrib-libs-grpc
+configure_arcadia_mirror contrib-libs-nanopb
 
 configure_arcadia_mirror library-getopt
 configure_arcadia_mirror library-http

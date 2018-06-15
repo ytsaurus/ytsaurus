@@ -126,7 +126,8 @@ public:
         IAutomatonPtr automaton,
         IInvokerPtr automatonInvoker,
         IInvokerPtr controlInvoker,
-        ISnapshotStorePtr snapshotStore);
+        ISnapshotStorePtr snapshotStore,
+        const NProfiling::TProfiler& profiler);
 
     void Initialize();
     void OnStartLeading(TEpochContextPtr epochContext);
@@ -206,8 +207,6 @@ private:
     const IInvokerPtr SystemInvoker_;
     const ISnapshotStorePtr SnapshotStore_;
 
-    struct TMutationTypeDescriptor;
-
     std::atomic<int> UserLock_ = {0};
     std::atomic<int> SystemLock_ = {0};
 
@@ -259,16 +258,13 @@ private:
 
     TRingQueue<NRpc::TMutationId> PendingMutationIds_;
 
-    NProfiling::TAggregateCounter BatchCommitTimeCounter_;
-    NProfiling::TAggregateCounter MutationWatiTimeCounter_;
-
-    THashMap<TString, TMutationTypeDescriptor> TypeToDescriptor_;
+    NProfiling::TAggregateGauge BatchCommitTimeCounter_ = {"/batch_commit_time"};
 
     const NLogging::TLogger Logger;
+    const NProfiling::TProfiler Profiler;
 
 
     void RotateAutomatonVersionIfNeeded(TVersion mutationVersion);
-    TMutationTypeDescriptor* GetTypeDescriptor(const TString& type);
     void DoApplyMutation(TMutationContext* context);
 
     bool TryAcquireUserLock();

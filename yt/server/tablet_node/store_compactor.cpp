@@ -1,6 +1,6 @@
-#include "chunk_writer_pool.h"
 #include "config.h"
 #include "in_memory_manager.h"
+#include "in_memory_chunk_writer.h"
 #include "partition.h"
 #include "private.h"
 #include "slot_manager.h"
@@ -22,6 +22,8 @@
 #include <yt/ytlib/api/native_transaction.h>
 #include <yt/ytlib/api/transaction.h>
 
+#include <yt/ytlib/chunk_client/chunk_reader.h>
+#include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
 #include <yt/ytlib/chunk_client/chunk_spec.h>
 #include <yt/ytlib/chunk_client/config.h>
 
@@ -227,7 +229,7 @@ private:
 
     void OnScanSlot(const TTabletSlotPtr& slot)
     {
-        const auto& tagIdList = slot->GetTagIdList();
+        const auto& tagIdList = slot->GetProfilingTagIds();
         PROFILE_TIMING("/scan_time", tagIdList) {
             OnScanSlotImpl(slot, tagIdList);
         }
@@ -698,11 +700,15 @@ private:
 
     void PartitionEden(TTask* task)
     {
-        auto sessionId = TReadSessionId::Create();
+        TClientBlockReadOptions blockReadOptions;
+        blockReadOptions.WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemTabletPartitioning),
+        blockReadOptions.ChunkReaderStatistics = New<TChunkReaderStatistics>();
+        blockReadOptions.ReadSessionId = TReadSessionId::Create();
+
         NLogging::TLogger Logger(TabletNodeLogger);
         Logger.AddTag("TabletId: %v, ReadSessionId: %v",
             task->TabletId,
-            sessionId);
+            blockReadOptions.ReadSessionId);
 
         auto doneGuard = Finally([&] {
             ScheduleMorePartitionings();
@@ -800,8 +806,7 @@ private:
                 tablet->GetNextPivotKey(),
                 currentTimestamp,
                 MinTimestamp, // NB: No major compaction during Eden partitioning.
-                TWorkloadDescriptor(EWorkloadCategory::SystemTabletPartitioning),
-                sessionId,
+                blockReadOptions,
                 stores.size());
 
             INativeTransactionPtr transaction;
@@ -888,6 +893,7 @@ private:
                 tabletSnapshot,
                 reader->GetDataStatistics(),
                 reader->GetDecompressionStatistics(),
+                blockReadOptions.ChunkReaderStatistics,
                 PartitioningTag_);
 
             LOG_INFO("Eden partitioning completed (RowCount: %v, StoreIdsToAdd: %v, StoreIdsToRemove: %v, WallTime: %v)",
@@ -938,18 +944,6 @@ private:
         auto writerOptions = CloneYsonSerializable(tabletSnapshot->WriterOptions);
         writerOptions->ValidateResourceUsageIncrease = false;
 
-        int writerPoolSize = std::min(
-            static_cast<int>(pivotKeys.size()),
-            Config_->StoreCompactor->PartitioningWriterPoolSize);
-        TChunkWriterPool writerPool(
-            Bootstrap_->GetInMemoryManager(),
-            tabletSnapshot,
-            writerPoolSize,
-            writerConfig,
-            writerOptions,
-            Bootstrap_->GetMasterClient(),
-            transaction->GetId());
-
         std::vector<TVersionedRow> writeRows;
         writeRows.reserve(MaxRowsPerWrite);
 
@@ -962,6 +956,11 @@ private:
         int writeRowCount = 0;
         IVersionedMultiChunkWriterPtr currentWriter;
 
+        auto inMemoryManager = Bootstrap_->GetInMemoryManager();
+        auto blockCache = Bootstrap_->GetInMemoryManager()->CreateInterceptingBlockCache(
+            tabletSnapshot->Config->InMemoryMode,
+            tabletSnapshot->InMemoryConfigRevision);
+
         auto ensurePartitionStarted = [&] () {
             if (currentWriter)
                 return;
@@ -971,7 +970,20 @@ private:
                 currentPivotKey,
                 nextPivotKey);
 
-            currentWriter = writerPool.AllocateWriter();
+            auto underlyingWriter = CreateVersionedMultiChunkWriter(
+                writerConfig,
+                writerOptions,
+                tabletSnapshot->PhysicalSchema,
+                Bootstrap_->GetMasterClient(),
+                Bootstrap_->GetMasterClient()->GetNativeConnection()->GetPrimaryMasterCellTag(),
+                transaction->GetId(),
+                NullChunkListId,
+                GetUnlimitedThrottler(),
+                blockCache);
+            currentWriter = CreateInMemoryVersionedMultiChunkWriter(
+                inMemoryManager,
+                tabletSnapshot,
+                std::move(underlyingWriter));
         };
 
         auto flushOutputRows = [&] () {
@@ -997,6 +1009,9 @@ private:
             ++currentPartitionRowCount;
         };
 
+        std::vector<TFuture<void>> asyncCloseResults;
+        std::vector<IVersionedMultiChunkWriterPtr> releasedWriters;
+
         auto flushPartition = [&] () {
             flushOutputRows();
 
@@ -1005,7 +1020,8 @@ private:
                     currentPartitionIndex,
                     currentPartitionRowCount);
 
-                writerPool.ReleaseWriter(currentWriter);
+                asyncCloseResults.push_back(currentWriter->Close());
+                releasedWriters.push_back(std::move(currentWriter));
                 currentWriter.Reset();
             }
 
@@ -1069,16 +1085,23 @@ private:
 
         YCHECK(readRowCount == writeRowCount);
 
-        return std::make_tuple(writerPool.GetAllWriters(), readRowCount);
+        WaitFor(Combine(asyncCloseResults))
+            .ThrowOnError();
+
+        return std::make_tuple(releasedWriters, readRowCount);
     }
 
     void CompactPartition(TTask* task)
     {
-        auto sessionId = TReadSessionId::Create();
+        TClientBlockReadOptions blockReadOptions;
+        blockReadOptions.WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemTabletCompaction),
+        blockReadOptions.ChunkReaderStatistics = New<TChunkReaderStatistics>();
+        blockReadOptions.ReadSessionId = TReadSessionId::Create();
+
         NLogging::TLogger Logger(TabletNodeLogger);
         Logger.AddTag("TabletId: %v, ReadSessionId: %v",
             task->TabletId,
-            sessionId);
+            blockReadOptions.ReadSessionId);
 
         auto doneGuard = Finally([&] {
             ScheduleMoreCompactions();
@@ -1181,8 +1204,7 @@ private:
                 tablet->GetNextPivotKey(),
                 currentTimestamp,
                 majorTimestamp,
-                TWorkloadDescriptor(EWorkloadCategory::SystemTabletCompaction),
-                sessionId,
+                blockReadOptions,
                 stores.size());
 
             INativeTransactionPtr transaction;
@@ -1262,12 +1284,13 @@ private:
                 tabletSnapshot,
                 writer->GetDataStatistics(),
                 writer->GetCompressionStatistics(),
-               CompactionTag_);
+                CompactionTag_);
 
             ProfileChunkReader(
                 tabletSnapshot,
                 reader->GetDataStatistics(),
                 reader->GetDecompressionStatistics(),
+                blockReadOptions.ChunkReaderStatistics,
                 CompactionTag_);
 
             LOG_INFO("Partition compaction completed (RowCount: %v, StoreIdsToAdd: %v, StoreIdsToRemove: %v, WallTime: %v)",
@@ -1318,20 +1341,27 @@ private:
         writerOptions->ChunksEden = isEden;
         writerOptions->ValidateResourceUsageIncrease = false;
 
-        TChunkWriterPool writerPool(
-            Bootstrap_->GetInMemoryManager(),
-            tabletSnapshot,
-            1,
+        auto inMemoryManager = Bootstrap_->GetInMemoryManager();
+        auto blockCache = Bootstrap_->GetInMemoryManager()->CreateInterceptingBlockCache(
+            tabletSnapshot->Config->InMemoryMode,
+            tabletSnapshot->InMemoryConfigRevision);
+
+        auto underlyingWriter = CreateVersionedMultiChunkWriter(
             writerConfig,
             writerOptions,
+            tabletSnapshot->PhysicalSchema,
             Bootstrap_->GetMasterClient(),
-            transaction->GetId());
-        auto writer = writerPool.AllocateWriter();
+            Bootstrap_->GetMasterClient()->GetNativeConnection()->GetPrimaryMasterCellTag(),
+            transaction->GetId(),
+            NullChunkListId,
+            GetUnlimitedThrottler(),
+            blockCache);
+        auto writer = CreateInMemoryVersionedMultiChunkWriter(
+            inMemoryManager,
+            tabletSnapshot,
+            std::move(underlyingWriter));
 
         WaitFor(reader->Open())
-            .ThrowOnError();
-
-        WaitFor(writer->Open())
             .ThrowOnError();
 
         std::vector<TVersionedRow> rows;

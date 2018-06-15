@@ -430,9 +430,10 @@ TYsonSerializableLite::TParameter<T>& TYsonSerializableLite::TParameter<T>::Defa
 }
 
 template <class T>
-TYsonSerializableLite::TParameter<T>& TYsonSerializableLite::TParameter<T>::DefaultNew()
+template <class... TArgs>
+TYsonSerializableLite::TParameter<T>& TYsonSerializableLite::TParameter<T>::DefaultNew(TArgs&&... args)
 {
-    return Default(New<typename T::TUnderlying>());
+    return Default(New<typename T::TUnderlying>(std::forward<TArgs>(args)...));
 }
 
 template <class T>

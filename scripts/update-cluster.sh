@@ -41,7 +41,7 @@ case $CLUSTER in
     ;;
     bohr)
     MASTERS="m0[1-3]-sas.bohr.yt.yandex.net"
-    NODES="n0[001-139]-sas.bohr.yt.yandex.net"
+    NODES="n0[001-241]-sas.bohr.yt.yandex.net"
     PROXIES="c0[1-2]-sas.bohr.yt.yandex.net"
     ;;
     vanga)
@@ -139,7 +139,7 @@ buildsnapshot "${MASTERS}" "${READONLY}"
 if [ $? -eq 0 ]; then echo "Snapshot built"; else echo "Snapshot failed"; exit; fi
 
 command="restart"
-update $MASTERS "sudo sv restart yt_master"
+update $MASTERS "sudo sv ${command} yt_master"
 update $PROXIES "sudo sv ${command} yt_http_proxy"
 update $SCHEDULERS "sudo sv ${command} yt_scheduler"
 update $CONTROLLERAGENTS "sudo sv ${command} yt_controller_agent"

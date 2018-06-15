@@ -18,8 +18,7 @@ TFuture<void> RepairErasedParts(
     const NErasure::TPartIndexList& erasedIndices,
     const std::vector<IChunkReaderPtr>& readers,
     const std::vector<IChunkWriterPtr>& writers,
-    const TWorkloadDescriptor& workloadDescriptor,
-    const TReadSessionId& readSessionId = TReadSessionId());
+    const TClientBlockReadOptions& options);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -28,8 +27,7 @@ TFuture<void> RepairErasedParts(
     const NErasure::TPartIndexList& erasedIndices,
     const std::vector<IChunkReaderAllowingRepairPtr>& readers,
     const std::vector<IChunkWriterPtr>& writers,
-    const TWorkloadDescriptor& workloadDescriptor,
-    const TReadSessionId& readSessionId = TReadSessionId());
+    const TClientBlockReadOptions& options);
 
 ////////////////////////////////////////////////////////////////////////////////
 

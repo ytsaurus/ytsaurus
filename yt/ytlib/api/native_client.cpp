@@ -16,12 +16,14 @@
 #include "operation_archive_schema.h"
 
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/ytlib/chunk_client/chunk_reader.h>
+#include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
 #include <yt/ytlib/chunk_client/chunk_replica.h>
-#include <yt/ytlib/chunk_client/read_limit.h>
-#include <yt/ytlib/chunk_client/chunk_teleporter.h>
 #include <yt/ytlib/chunk_client/chunk_service_proxy.h>
+#include <yt/ytlib/chunk_client/chunk_teleporter.h>
 #include <yt/ytlib/chunk_client/helpers.h>
 #include <yt/ytlib/chunk_client/medium_directory.pb.h>
+#include <yt/ytlib/chunk_client/read_limit.h>
 
 #include <yt/ytlib/cypress_client/cypress_ypath_proxy.h>
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
@@ -71,6 +73,7 @@
 #include <yt/ytlib/table_client/chunk_meta_extensions.h>
 #include <yt/ytlib/table_client/schemaful_reader.h>
 #include <yt/ytlib/table_client/row_merger.h>
+#include <yt/ytlib/table_client/columnar_statistics_fetcher.h>
 
 #include <yt/ytlib/tablet_client/table_mount_cache.h>
 #include <yt/ytlib/tablet_client/tablet_service_proxy.h>
@@ -129,13 +132,14 @@ using namespace NScheduler;
 using namespace NHiveClient;
 using namespace NHydra;
 
+using NChunkClient::TChunkReaderStatistics;
 using NChunkClient::TReadLimit;
 using NChunkClient::TReadRange;
-using NTableClient::TColumnSchema;
-using NNodeTrackerClient::INodeChannelFactoryPtr;
 using NNodeTrackerClient::CreateNodeChannelFactory;
+using NNodeTrackerClient::INodeChannelFactoryPtr;
 using NNodeTrackerClient::TNetworkPreferenceList;
 using NNodeTrackerClient::TNodeDescriptor;
+using NTableClient::TColumnSchema;
 
 using TTableReplicaInfoPtrList = SmallVector<TTableReplicaInfoPtr, TypicalReplicaCount>;
 
@@ -473,6 +477,16 @@ public:
         return Connection_;
     }
 
+    virtual const ITableMountCachePtr& GetTableMountCache() override
+    {
+        return Connection_->GetTableMountCache();
+    }
+
+    virtual const ITimestampProviderPtr& GetTimestampProvider() override
+    {
+        return Connection_->GetTimestampProvider();
+    }
+
     virtual const INativeConnectionPtr& GetNativeConnection() override
     {
         return Connection_;
@@ -730,7 +744,7 @@ public:
         (type, options))
 
 
-    virtual TFuture<IAsyncZeroCopyInputStreamPtr> CreateFileReader(
+    virtual TFuture<IFileReaderPtr> CreateFileReader(
         const TYPath& path,
         const TFileReaderOptions& options) override
     {
@@ -779,6 +793,11 @@ public:
     {
         return NApi::CreateTableWriter(this, path, options);
     }
+
+    IMPLEMENT_METHOD(TColumnarStatistics, GetColumnarStatistics, (
+        const TRichYPath& path,
+        const TGetColumnarStatisticsOptions& options),
+        (path, options))
 
     IMPLEMENT_METHOD(TGetFileFromCacheResult, GetFileFromCache, (
         const TString& md5,
@@ -1729,18 +1748,181 @@ private:
 
         // TODO(sandello): Use code-generated comparer here.
         std::sort(sortedKeys.begin(), sortedKeys.end());
-        std::vector<int> keyIndexToResultIndex(keys.Size());
-        int currentResultIndex = -1;
+        std::vector<size_t> keyIndexToResultIndex(keys.Size());
+        size_t currentResultIndex = 0;
 
-        THashMap<TCellId, TTabletCellLookupSessionPtr> cellIdToSession;
+        auto outputRowBuffer = New<TRowBuffer>(TLookupRowsOutputBufferTag());
+        std::vector<TTypeErasedRow> uniqueResultRows;
 
-        // TODO(sandello): Reuse code from QL here to partition sorted keys between tablets.
-        // Get rid of hash map.
-        // TODO(sandello): Those bind states must be in a cross-session shared state. Check this when refactor out batches.
-        TTabletCellLookupSession::TEncoder boundEncoder = std::bind(encoderWithMapping, remappedColumnFilter, std::placeholders::_1);
-        TTabletCellLookupSession::TDecoder boundDecoder = std::bind(decoderWithMapping, resultSchemaData, std::placeholders::_1);
-        for (int index = 0; index < sortedKeys.size(); ++index) {
-            if (index == 0 || sortedKeys[index].first != sortedKeys[index - 1].first) {
+        if (Connection_->GetConfig()->EnableLookupMultiread) {
+            struct TBatch
+            {
+                NObjectClient::TObjectId TabletId;
+                i64 MountRevision = 0;
+                std::vector<TKey> Keys;
+                size_t OffsetInResult;
+
+                TQueryServiceProxy::TRspMultireadPtr Response;
+            };
+
+            std::vector<std::vector<TBatch>> batchesByCells;
+            THashMap<TCellId, size_t> cellIdToBatchIndex;
+
+            {
+                auto itemsBegin = sortedKeys.begin();
+                auto itemsEnd = sortedKeys.end();
+
+                size_t keySize = schema.GetKeyColumnCount();
+
+                itemsBegin = std::lower_bound(
+                    itemsBegin,
+                    itemsEnd,
+                    tableInfo->LowerCapBound.Get(),
+                    [&] (const auto& item, TKey pivot) {
+                        return CompareRows(item.first, pivot, keySize) < 0;
+                    });
+
+                itemsEnd = std::upper_bound(
+                    itemsBegin,
+                    itemsEnd,
+                    tableInfo->UpperCapBound.Get(),
+                    [&] (TKey pivot, const auto& item) {
+                        return CompareRows(pivot, item.first, keySize) < 0;
+                    });
+
+                auto nextShardIt = tableInfo->Tablets.begin() + 1;
+                for (auto itemsIt = itemsBegin; itemsIt != itemsEnd;) {
+                    YCHECK(!tableInfo->Tablets.empty());
+
+                    // Run binary search to find the relevant tablets.
+                    nextShardIt = std::upper_bound(
+                        nextShardIt,
+                        tableInfo->Tablets.end(),
+                        itemsIt->first,
+                        [&] (TKey key, const TTabletInfoPtr& tabletInfo) {
+                            return CompareRows(key, tabletInfo->PivotKey.Get(), keySize) < 0;
+                        });
+
+                    const auto& startShard = *(nextShardIt - 1);
+                    auto nextPivotKey = (nextShardIt == tableInfo->Tablets.end())
+                        ? tableInfo->UpperCapBound
+                        : (*nextShardIt)->PivotKey;
+
+                    // Binary search to reduce expensive row comparisons
+                    auto endItemsIt = std::lower_bound(
+                        itemsIt,
+                        itemsEnd,
+                        nextPivotKey.Get(),
+                        [&] (const auto& item, TKey pivot) {
+                            return CompareRows(item.first, pivot) < 0;
+                        });
+
+                    ValidateTabletMountedOrFrozen(tableInfo, startShard);
+
+                    auto emplaced = cellIdToBatchIndex.emplace(startShard->CellId, batchesByCells.size());
+                    if (emplaced.second) {
+                        batchesByCells.emplace_back();
+                    }
+
+                    TBatch batch;
+                    batch.TabletId = startShard->TabletId;
+                    batch.MountRevision = startShard->MountRevision;
+                    batch.OffsetInResult = currentResultIndex;
+
+                    std::vector<TKey> rows;
+                    rows.reserve(endItemsIt - itemsIt);
+
+                    while (itemsIt != endItemsIt) {
+                        auto key = itemsIt->first;
+                        rows.push_back(key);
+
+                        do {
+                            keyIndexToResultIndex[itemsIt->second] = currentResultIndex;
+                            ++itemsIt;
+                        } while (itemsIt != endItemsIt && itemsIt->first == key);
+                        ++currentResultIndex;
+                    }
+
+                    batch.Keys = std::move(rows);
+                    batchesByCells[emplaced.first->second].push_back(std::move(batch));
+                }
+            }
+
+            TTabletCellLookupSession::TEncoder boundEncoder = std::bind(encoderWithMapping, remappedColumnFilter, std::placeholders::_1);
+            TTabletCellLookupSession::TDecoder boundDecoder = std::bind(decoderWithMapping, resultSchemaData, std::placeholders::_1);
+
+            auto* codec = NCompression::GetCodec(Connection_->GetConfig()->LookupRowsRequestCodec);
+
+            std::vector<TFuture<TQueryServiceProxy::TRspMultireadPtr>> asyncResults(batchesByCells.size());
+
+            const auto& cellDirectory = Connection_->GetCellDirectory();
+            const auto& networks = Connection_->GetNetworks();
+
+            for (const auto& item : cellIdToBatchIndex) {
+                size_t cellIndex = item.second;
+                const auto& batches = batchesByCells[cellIndex];
+
+                auto channel = CreateTabletReadChannel(
+                    ChannelFactory_,
+                    cellDirectory->GetDescriptorOrThrow(item.first),
+                    options,
+                    networks);
+
+                TQueryServiceProxy proxy(channel);
+                proxy.SetDefaultTimeout(options.Timeout);
+                proxy.SetDefaultRequestAck(false);
+
+                auto req = proxy.Multiread();
+                req->SetMultiplexingBand(NRpc::EMultiplexingBand::Heavy);
+                req->set_request_codec(static_cast<int>(Connection_->GetConfig()->LookupRowsRequestCodec));
+                req->set_response_codec(static_cast<int>(Connection_->GetConfig()->LookupRowsResponseCodec));
+                req->set_timestamp(options.Timestamp);
+
+
+                if (retentionConfig) {
+                    req->set_retention_config(*retentionConfig);
+                }
+
+                for (const auto& batch : batches) {
+                    ToProto(req->add_tablet_ids(), batch.TabletId);
+                    req->add_mount_revisions(batch.MountRevision);
+                    TSharedRef requestData = codec->Compress(boundEncoder(batch.Keys));
+                    req->Attachments().push_back(requestData);
+                }
+
+                asyncResults[cellIndex] = req->Invoke();
+            }
+
+            auto results = WaitFor(Combine(std::move(asyncResults)))
+                .ValueOrThrow();
+
+            uniqueResultRows.resize(currentResultIndex);
+
+            auto* responseCodec = NCompression::GetCodec(Connection_->GetConfig()->LookupRowsResponseCodec);
+
+            for (size_t cellIndex = 0; cellIndex < results.size(); ++cellIndex) {
+                const auto& batches = batchesByCells[cellIndex];
+
+                for (size_t batchIndex = 0; batchIndex < batches.size(); ++batchIndex) {
+                    auto responseData = responseCodec->Decompress(results[cellIndex]->Attachments()[batchIndex]);
+                    TWireProtocolReader reader(responseData, outputRowBuffer);
+
+                    const auto& batch = batches[batchIndex];
+
+                    for (size_t index = 0; index < batch.Keys.size(); ++index) {
+                        uniqueResultRows[batch.OffsetInResult + index] = boundDecoder(&reader);
+                    }
+                }
+            }
+        } else {
+            THashMap<TCellId, TTabletCellLookupSessionPtr> cellIdToSession;
+
+            // TODO(sandello): Reuse code from QL here to partition sorted keys between tablets.
+            // Get rid of hash map.
+            // TODO(sandello): Those bind states must be in a cross-session shared state. Check this when refactor out batches.
+            TTabletCellLookupSession::TEncoder boundEncoder = std::bind(encoderWithMapping, remappedColumnFilter, std::placeholders::_1);
+            TTabletCellLookupSession::TDecoder boundDecoder = std::bind(decoderWithMapping, resultSchemaData, std::placeholders::_1);
+            for (int index = 0; index < sortedKeys.size();) {
                 auto key = sortedKeys[index].first;
                 auto tabletInfo = GetSortedTabletForRow(tableInfo, key);
                 const auto& cellId = tabletInfo->CellId;
@@ -1758,32 +1940,33 @@ private:
                     it = cellIdToSession.insert(std::make_pair(cellId, std::move(session))).first;
                 }
                 const auto& session = it->second;
-                session->AddKey(++currentResultIndex, std::move(tabletInfo), key);
+                session->AddKey(currentResultIndex, std::move(tabletInfo), key);
+
+                do {
+                    keyIndexToResultIndex[sortedKeys[index].second] = currentResultIndex;
+                    ++index;
+                } while (index < sortedKeys.size() && sortedKeys[index].first == key);
+                ++currentResultIndex;
             }
 
-            keyIndexToResultIndex[sortedKeys[index].second] = currentResultIndex;
-        }
+            std::vector<TFuture<void>> asyncResults;
+            for (const auto& pair : cellIdToSession) {
+                const auto& session = pair.second;
+                asyncResults.push_back(session->Invoke(
+                    ChannelFactory_,
+                    Connection_->GetCellDirectory()));
+            }
 
-        std::vector<TFuture<void>> asyncResults;
-        for (const auto& pair : cellIdToSession) {
-            const auto& session = pair.second;
-            asyncResults.push_back(session->Invoke(
-                ChannelFactory_,
-                Connection_->GetCellDirectory()));
-        }
+            WaitFor(Combine(std::move(asyncResults)))
+                .ThrowOnError();
 
-        WaitFor(Combine(std::move(asyncResults)))
-            .ThrowOnError();
+            // Rows are type-erased here and below to handle different kinds of rowsets.
+            uniqueResultRows.resize(currentResultIndex);
 
-        // Rows are type-erased here and below to handle different kinds of rowsets.
-        std::vector<TTypeErasedRow> uniqueResultRows;
-        uniqueResultRows.resize(currentResultIndex + 1);
-
-        auto outputRowBuffer = New<TRowBuffer>(TLookupRowsOutputBufferTag());
-
-        for (const auto& pair : cellIdToSession) {
-            const auto& session = pair.second;
-            session->ParseResponse(outputRowBuffer, &uniqueResultRows);
+            for (const auto& pair : cellIdToSession) {
+                const auto& session = pair.second;
+                session->ParseResponse(outputRowBuffer, &uniqueResultRows);
+            }
         }
 
         if (!remappedColumnFilter.All) {
@@ -1900,6 +2083,11 @@ private:
         queryOptions.ReadSessionId = TReadSessionId::Create();
         queryOptions.Deadline = options.Timeout.Get(Connection_->GetConfig()->DefaultSelectRowsTimeout).ToDeadLine();
 
+        TClientBlockReadOptions blockReadOptions;
+        blockReadOptions.WorkloadDescriptor = queryOptions.WorkloadDescriptor;
+        blockReadOptions.ChunkReaderStatistics = New<TChunkReaderStatistics>();
+        blockReadOptions.ReadSessionId = queryOptions.ReadSessionId;
+
         ISchemafulWriterPtr writer;
         TFuture<IUnversionedRowsetPtr> asyncRowset;
         std::tie(writer, asyncRowset) = CreateSchemafulRowsetWriter(query->GetTableSchema());
@@ -1909,6 +2097,7 @@ private:
             externalCGInfo,
             dataSource,
             writer,
+            blockReadOptions,
             queryOptions))
             .ValueOrThrow();
 
@@ -2039,6 +2228,46 @@ private:
             options.Timestamp);
 
         return replicaIds;
+    }
+
+    TColumnarStatistics DoGetColumnarStatistics(
+        const TRichYPath& path,
+        const TGetColumnarStatisticsOptions& options)
+    {
+        LOG_INFO("Collecting table input chunks (Path: %v)", path);
+
+        auto nodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
+        auto inputChunks = CollectTableInputChunks(
+            path,
+            this,
+            nodeDirectory,
+            options.FetchChunkSpecConfig,
+            options.TransactionId,
+            Logger);
+
+        LOG_INFO("Fetching columnar statistics (Columns: %v)", *path.GetColumns());
+
+        auto fetcher = New<TColumnarStatisticsFetcher>(
+            options.FetcherConfig,
+            nodeDirectory,
+            GetCurrentInvoker(),
+            nullptr /* scraper */,
+            this,
+            Logger);
+
+        for (const auto& inputChunk : inputChunks) {
+            fetcher->AddChunk(inputChunk, *path.GetColumns());
+        }
+
+        WaitFor(fetcher->Fetch())
+            .ThrowOnError();
+
+        const auto& chunkStatistics = fetcher->GetChunkStatistics();
+        TColumnarStatistics totalStatistics = TColumnarStatistics::MakeEmpty(path.GetColumns()->size());
+        for (const auto& statistics : chunkStatistics) {
+            totalStatistics += statistics;
+        }
+        return totalStatistics;
     }
 
     std::vector<TTabletInfo> DoGetTabletInfos(
@@ -3829,6 +4058,9 @@ private:
 
         auto jobSpecHelper = NJobProxy::CreateJobSpecHelper(jobSpec);
 
+        TClientBlockReadOptions blockReadOptions;
+        blockReadOptions.ChunkReaderStatistics = New<TChunkReaderStatistics>();
+
         auto userJobReadController = CreateUserJobReadController(
             jobSpecHelper,
             MakeStrong(this),
@@ -3836,6 +4068,7 @@ private:
             TNodeDescriptor(),
             BIND([] { }) /* onNetworkRelease */,
             Null /* udfDirectory */,
+            blockReadOptions,
             nullptr /* trafficMeter */);
 
         auto jobInputReader = New<TJobInputReader>(std::move(userJobReadController), GetConnection()->GetInvoker());
@@ -3932,20 +4165,20 @@ private:
         const TJobId& jobId)
     {
         try {
-            TStderrsTableDescriptor tableDescriptor;
+            TJobStderrTableDescriptor tableDescriptor;
 
             auto rowBuffer = New<TRowBuffer>();
 
             std::vector<TUnversionedRow> keys;
             auto key = rowBuffer->AllocateUnversioned(4);
-            key[0] = MakeUnversionedUint64Value(operationId.Parts64[0], tableDescriptor.Index.OperationIdHi);
-            key[1] = MakeUnversionedUint64Value(operationId.Parts64[1], tableDescriptor.Index.OperationIdLo);
-            key[2] = MakeUnversionedUint64Value(jobId.Parts64[0], tableDescriptor.Index.JobIdHi);
-            key[3] = MakeUnversionedUint64Value(jobId.Parts64[1], tableDescriptor.Index.JobIdLo);
+            key[0] = MakeUnversionedUint64Value(operationId.Parts64[0], tableDescriptor.Ids.OperationIdHi);
+            key[1] = MakeUnversionedUint64Value(operationId.Parts64[1], tableDescriptor.Ids.OperationIdLo);
+            key[2] = MakeUnversionedUint64Value(jobId.Parts64[0], tableDescriptor.Ids.JobIdHi);
+            key[3] = MakeUnversionedUint64Value(jobId.Parts64[1], tableDescriptor.Ids.JobIdLo);
             keys.push_back(key);
 
             TLookupRowsOptions lookupOptions;
-            lookupOptions.ColumnFilter = NTableClient::TColumnFilter({tableDescriptor.Index.Stderr});
+            lookupOptions.ColumnFilter = NTableClient::TColumnFilter({tableDescriptor.Ids.Stderr});
             lookupOptions.KeepMissingRows = true;
 
             auto rowset = WaitFor(LookupRows(
@@ -4009,6 +4242,57 @@ private:
             << TErrorAttribute("job_id", jobId);
     }
 
+    TSharedRef DoGetJobFailContextFromArchive(
+        const TOperationId& operationId,
+        const TJobId& jobId)
+    {
+        try {
+            TJobFailContextTableDescriptor tableDescriptor;
+
+            auto rowBuffer = New<TRowBuffer>();
+
+            std::vector<TUnversionedRow> keys;
+            auto key = rowBuffer->AllocateUnversioned(4);
+            key[0] = MakeUnversionedUint64Value(operationId.Parts64[0], tableDescriptor.Ids.OperationIdHi);
+            key[1] = MakeUnversionedUint64Value(operationId.Parts64[1], tableDescriptor.Ids.OperationIdLo);
+            key[2] = MakeUnversionedUint64Value(jobId.Parts64[0], tableDescriptor.Ids.JobIdHi);
+            key[3] = MakeUnversionedUint64Value(jobId.Parts64[1], tableDescriptor.Ids.JobIdLo);
+            keys.push_back(key);
+
+            TLookupRowsOptions lookupOptions;
+            lookupOptions.ColumnFilter = NTableClient::TColumnFilter({tableDescriptor.Ids.FailContext});
+            lookupOptions.KeepMissingRows = true;
+
+            auto rowset = WaitFor(LookupRows(
+                "//sys/operations_archive/fail_contexts",
+                tableDescriptor.NameTable,
+                MakeSharedRange(keys, rowBuffer),
+                lookupOptions))
+                .ValueOrThrow();
+
+            auto rows = rowset->GetRows();
+            YCHECK(!rows.Empty());
+
+            if (rows[0]) {
+                auto value = rows[0][0];
+
+                YCHECK(value.Type == EValueType::String);
+                return TSharedRef::MakeCopy<char>(TRef(value.Data.String, value.Length));
+            }
+        } catch (const TErrorException& exception) {
+            auto matchedError = exception.Error().FindMatching(NYTree::EErrorCode::ResolveError);
+
+            if (!matchedError) {
+                THROW_ERROR_EXCEPTION("Failed to get job fail_context from archive")
+                    << TErrorAttribute("operation_id", operationId)
+                    << TErrorAttribute("job_id", jobId)
+                    << exception.Error();
+            }
+        }
+
+        return TSharedRef();
+    }
+
     TSharedRef DoGetJobFailContextFromCypress(
         const TOperationId& operationId,
         const TJobId& jobId)
@@ -4067,9 +4351,18 @@ private:
         const TJobId& jobId,
         const TGetJobFailContextOptions& /*options*/)
     {
-        auto failContextRef = DoGetJobFailContextFromCypress(operationId, jobId);
-        if (failContextRef) {
-            return failContextRef;
+        {
+            auto failContextRef = DoGetJobFailContextFromCypress(operationId, jobId);
+            if (failContextRef) {
+                return failContextRef;
+            }
+        }
+
+        if (DoGetOperationsArchiveVersion() >= 21) {
+            auto failContextRef = DoGetJobFailContextFromArchive(operationId, jobId);
+            if (failContextRef) {
+                return failContextRef;
+            }
         }
 
         THROW_ERROR_EXCEPTION(NScheduler::EErrorCode::NoSuchJob, "Job fail context is not found")
@@ -4286,10 +4579,10 @@ private:
             [&] (const TNullable<TString>& pool, const TString& user, const EOperationState& state, const EOperationType& type, i64 count) {
                 if (pool) {
                     poolCounts[*pool] += count;
+                }
 
-                    if (options.Pool && *options.Pool != *pool) {
-                        return false;
-                    }
+                if (options.Pool && (!pool || *options.Pool != *pool)) {
+                    return false;
                 }
 
                 userCounts[user] += count;
@@ -4566,6 +4859,13 @@ private:
         }
 
         std::sort(
+            archiveData.begin(),
+            archiveData.end(),
+            [] (const TOperation& lhs, const TOperation& rhs) {
+                return lhs.OperationId < rhs.OperationId;
+            });
+
+        std::sort(
             cypressData.begin(),
             cypressData.end(),
             [] (const TOperation& lhs, const TOperation& rhs) {
@@ -4789,9 +5089,24 @@ private:
             }
         }
 
-        // TODO(ignat): add 'fail_context_size' to archive.
-        if (options.WithFailContext && *options.WithFailContext) {
-            itemsQueryBuilder.AddWhereExpression("false");
+        if (archiveVersion >= 20 && options.WithSpec) {
+            if (*options.WithSpec) {
+                itemsQueryBuilder.AddWhereExpression("(has_spec AND NOT is_null(has_spec))");
+            } else {
+                itemsQueryBuilder.AddWhereExpression("(NOT has_spec OR is_null(has_spec))");
+            }
+        }
+
+        if (options.WithFailContext) {
+            if (archiveVersion >= 21) {
+                if (*options.WithFailContext) {
+                    itemsQueryBuilder.AddWhereExpression("(has_fail_context AND NOT is_null(has_fail_context))");
+                } else {
+                    itemsQueryBuilder.AddWhereExpression("(NOT has_fail_context OR is_null(has_fail_context))");
+                }
+            } else {
+                itemsQueryBuilder.AddWhereExpression("false");
+            }
         }
 
         if (options.Address) {
@@ -5073,6 +5388,12 @@ private:
                     stderrSize = stderrNode->Attributes().Get<i64>("uncompressed_data_size");
                 }
 
+                if (options.WithSpec) {
+                    if (*options.WithSpec == (state == EJobState::Running)) {
+                        continue;
+                    }
+                }
+
                 if (options.WithStderr) {
                     if (*options.WithStderr && stderrSize <= 0) {
                         continue;
@@ -5156,6 +5477,13 @@ private:
                 auto address = values->GetChild("address")->AsString()->GetValue();
 
                 auto stderrSize = values->GetChild("stderr_size")->AsInt64()->GetValue();
+
+                if (options.WithSpec) {
+                    if (*options.WithSpec == (state == EJobState::Running)) {
+                        continue;
+                    }
+                }
+
                 if (options.WithStderr) {
                     if (*options.WithStderr && stderrSize <= 0) {
                         continue;

@@ -280,6 +280,8 @@ TListJobsCommand::TListJobsCommand()
         .Optional();
     RegisterParameter("with_stderr", Options.WithStderr)
         .Optional();
+    RegisterParameter("with_spec", Options.WithSpec)
+        .Optional();
     RegisterParameter("with_fail_context", Options.WithFailContext)
         .Optional();
 

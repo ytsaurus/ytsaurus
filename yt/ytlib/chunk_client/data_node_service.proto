@@ -5,10 +5,12 @@ import "yt/core/misc/proto/error.proto";
 import "yt/ytlib/misc/workload.proto";
 import "yt/ytlib/node_tracker_client/node.proto";
 import "yt/ytlib/chunk_client/block_id.proto";
-import "yt/ytlib/chunk_client/chunk_meta.proto";
 import "yt/ytlib/chunk_client/chunk_info.proto";
+import "yt/ytlib/chunk_client/chunk_meta.proto";
+import "yt/ytlib/chunk_client/chunk_reader_statistics.proto";
 import "yt/ytlib/chunk_client/chunk_slice.proto";
 import "yt/ytlib/chunk_client/session_id.proto";
+import "yt/ytlib/table_client/chunk_meta.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -142,6 +144,7 @@ message TRspGetBlockSet
     required int64 net_queue_size = 6;
     required bool disk_throttling = 7;
     required int64 disk_queue_size = 8;
+    optional TChunkReaderStatistics chunk_reader_statistics = 10;
 
     // Blocks are returned via attachments and correspond to block_indexes
     // list in the request. Some blocks may be null.
@@ -169,6 +172,7 @@ message TRspGetBlockRange
     required int64 net_queue_size = 4;
     required bool disk_throttling = 5;
     required int64 disk_queue_size = 6;
+    optional TChunkReaderStatistics chunk_reader_statistics = 8;
 
     // Blocks are returned via attachments and correspond to a prefix of
     // the requested range.
@@ -206,6 +210,7 @@ message TRspGetChunkMeta
 {
     optional TChunkMeta chunk_meta = 1;
     optional bool net_throttling = 2 [default = false];
+    optional TChunkReaderStatistics chunk_reader_statistics = 3;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -293,6 +298,34 @@ message TRspGetChunkSlices
     repeated TChunkSlices slices = 1;
 
     optional bool keys_in_attachment = 2 [default = false];
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Scheduler calls this method to get a better estimation for input data weight.
+// Such information is also exposed to a client via an API method.
+message TReqGetColumnarStatistics
+{
+    required NYT.NTableClient.NProto.TNameTableExt name_table = 1;
+    message TSubrequest
+    {
+        required NYT.NProto.TGuid chunk_id = 1;
+        repeated int32 column_ids = 2;
+    }
+
+    repeated TSubrequest subrequests = 2;
+    required NYT.NProto.TWorkloadDescriptor workload_descriptor = 3;
+}
+
+message TRspGetColumnarStatistics
+{
+    message TSubresponse
+    {
+        optional NYT.NProto.TError error = 1;
+        repeated int64 data_weights = 2;
+    }
+
+    repeated TSubresponse subresponses = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

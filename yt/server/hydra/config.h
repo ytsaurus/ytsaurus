@@ -80,11 +80,19 @@ public:
     //! Maximum number of cached changelogs.
     TSlruCacheConfigPtr ChangelogReaderCache;
 
+    NChunkClient::EIOEngineType IOEngineType;
+    NYTree::INodePtr IOConfig;
+
     TFileChangelogStoreConfig()
     {
         RegisterParameter("path", Path);
         RegisterParameter("changelog_reader_cache", ChangelogReaderCache)
             .DefaultNew();
+
+        RegisterParameter("io_engine_type", IOEngineType)
+            .Default(NChunkClient::EIOEngineType::ThreadPool);
+        RegisterParameter("io_engine", IOConfig)
+            .Optional();
 
         RegisterPreprocessor([&] () {
            ChangelogReaderCache->Capacity = 4;

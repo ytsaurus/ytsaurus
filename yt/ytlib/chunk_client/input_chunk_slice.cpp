@@ -219,7 +219,7 @@ TInputChunkSlice::TInputChunkSlice(
     }
     UpperLimit_.MergeUpperRowIndex(upperRowIndex);
 
-    OverrideSize(*UpperLimit_.RowIndex - *LowerLimit_.RowIndex, dataWeight);
+    OverrideSize(*UpperLimit_.RowIndex - *LowerLimit_.RowIndex, dataWeight * inputChunk->GetColumnSelectivityFactor());
 }
 
 TInputChunkSlice::TInputChunkSlice(
@@ -235,7 +235,7 @@ TInputChunkSlice::TInputChunkSlice(
 
     if (protoChunkSlice.has_row_count_override() || protoChunkSlice.has_data_weight_override()) {
         YCHECK((protoChunkSlice.has_row_count_override() && protoChunkSlice.has_data_weight_override()));
-        OverrideSize(protoChunkSlice.row_count_override(), protoChunkSlice.data_weight_override());
+        OverrideSize(protoChunkSlice.row_count_override(), protoChunkSlice.data_weight_override() * inputChunk->GetColumnSelectivityFactor());
     }
 }
 
@@ -252,11 +252,11 @@ TInputChunkSlice::TInputChunkSlice(
 
     if (protoChunkSpec.has_row_count_override() || protoChunkSpec.has_data_weight_override()) {
         YCHECK((protoChunkSpec.has_row_count_override() && protoChunkSpec.has_data_weight_override()));
-        OverrideSize(protoChunkSpec.row_count_override(), protoChunkSpec.data_weight_override());
+        OverrideSize(protoChunkSpec.row_count_override(), protoChunkSpec.data_weight_override() * inputChunk->GetColumnSelectivityFactor());
     }
 }
 
-std::vector<TInputChunkSlicePtr> TInputChunkSlice::SliceEvenly(i64 sliceDataWeight, i64 sliceRowCount) const
+std::vector<TInputChunkSlicePtr> TInputChunkSlice::SliceEvenly(i64 sliceDataWeight, i64 sliceRowCount, TRowBufferPtr rowBuffer) const
 {
     YCHECK(sliceDataWeight > 0);
     YCHECK(sliceRowCount > 0);
@@ -280,6 +280,10 @@ std::vector<TInputChunkSlicePtr> TInputChunkSlice::SliceEvenly(i64 sliceDataWeig
                 sliceUpperRowIndex,
                 DivCeil(GetDataWeight(), count)));
         }
+    }
+    if (rowBuffer) {
+        result.front()->LowerLimit().Key = rowBuffer->Capture(LowerLimit_.Key);
+        result.back()->UpperLimit().Key = rowBuffer->Capture(UpperLimit_.Key);
     }
     return result;
 }

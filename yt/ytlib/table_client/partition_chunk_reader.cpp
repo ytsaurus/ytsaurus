@@ -10,6 +10,7 @@
 #include <yt/ytlib/chunk_client/data_source.h>
 #include <yt/ytlib/chunk_client/helpers.h>
 #include <yt/ytlib/chunk_client/reader_factory.h>
+#include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
 
 #include <yt/ytlib/node_tracker_client/node_directory.h>
 
@@ -29,6 +30,7 @@ using namespace NNodeTrackerClient;
 using namespace NYTree;
 
 using NChunkClient::TDataSliceDescriptor;
+using NChunkClient::TChunkReaderStatistics;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -37,13 +39,14 @@ TPartitionChunkReader::TPartitionChunkReader(
     IChunkReaderPtr underlyingReader,
     TNameTablePtr nameTable,
     IBlockCachePtr blockCache,
+    const TClientBlockReadOptions& blockReadOptions,
     const TKeyColumns& keyColumns,
     int partitionTag)
     : TChunkReaderBase(
         config,
         underlyingReader,
         blockCache,
-        TReadSessionId())
+        blockReadOptions)
     , NameTable_(nameTable)
     , KeyColumns_(keyColumns)
     , PartitionTag_(partitionTag)
@@ -63,8 +66,7 @@ TFuture<void> TPartitionChunkReader::InitializeBlockSequence()
     };
 
     ChunkMeta_ = WaitFor(UnderlyingReader_->GetMeta(
-        Config_->WorkloadDescriptor,
-        ReadSessionId_,
+        BlockReadOptions_,
         PartitionTag_,
         extensionTags))
         .ValueOrThrow();
@@ -155,6 +157,7 @@ TPartitionMultiChunkReaderPtr CreatePartitionMultiChunkReader(
     TNameTablePtr nameTable,
     const TKeyColumns& keyColumns,
     int partitionTag,
+    const TClientBlockReadOptions& blockReadOptions,
     TTrafficMeterPtr trafficMeter)
 {
     std::vector<IReaderFactoryPtr> factories;
@@ -187,6 +190,7 @@ TPartitionMultiChunkReaderPtr CreatePartitionMultiChunkReader(
                         remoteReader,
                         nameTable,
                         blockCache,
+                        blockReadOptions,
                         keyColumns,
                         partitionTag);
                 };

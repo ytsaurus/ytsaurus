@@ -1,5 +1,9 @@
 #pragma once
 
+#include "public.h"
+
+#include <yt/core/ypath/public.h>
+
 #include <yt/core/misc/config.h>
 
 namespace NYT {
@@ -40,56 +44,118 @@ DEFINE_REFCOUNTED_TYPE(TDefaultBlackboxServiceConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTokenAuthenticatorConfig
+class TBlackboxTokenAuthenticatorConfig
     : public virtual NYTree::TYsonSerializable
 {
 public:
-    TTokenAuthenticatorConfig()
+    TBlackboxTokenAuthenticatorConfig()
     {
         RegisterParameter("scope", Scope);
         RegisterParameter("enable_scope_check", EnableScopeCheck)
-            .Optional();
+            .Default(true);
     }
 
     TString Scope;
-    bool EnableScopeCheck = true;
+    bool EnableScopeCheck;
 };
 
-DEFINE_REFCOUNTED_TYPE(TTokenAuthenticatorConfig)
+DEFINE_REFCOUNTED_TYPE(TBlackboxTokenAuthenticatorConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCachingTokenAuthenticatorConfig
-    : public TTokenAuthenticatorConfig
+class TCachingBlackboxTokenAuthenticatorConfig
+    : public TBlackboxTokenAuthenticatorConfig
     , public TAsyncExpiringCacheConfig
 { };
 
-DEFINE_REFCOUNTED_TYPE(TCachingTokenAuthenticatorConfig)
+DEFINE_REFCOUNTED_TYPE(TCachingBlackboxTokenAuthenticatorConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCookieAuthenticatorConfig
+class TCypressTokenAuthenticatorConfig
     : public virtual NYTree::TYsonSerializable
 {
 public:
-    TCookieAuthenticatorConfig()
-    { }
+    TCypressTokenAuthenticatorConfig()
+    {
+        RegisterParameter("root_path", RootPath);
+        RegisterParameter("realm", Realm)
+            .Default("cypress");
+    }
+
+    NYPath::TYPath RootPath;
+    TString Realm;
 };
 
-DEFINE_REFCOUNTED_TYPE(TCookieAuthenticatorConfig)
+DEFINE_REFCOUNTED_TYPE(TCypressTokenAuthenticatorConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCachingCookieAuthenticatorConfig
-    : public TCookieAuthenticatorConfig
+class TCachingCypressTokenAuthenticatorConfig
+    : public TCypressTokenAuthenticatorConfig
     , public TAsyncExpiringCacheConfig
+{ };
+
+DEFINE_REFCOUNTED_TYPE(TCachingCypressTokenAuthenticatorConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TBlackboxCookieAuthenticatorConfig
+    : public virtual NYTree::TYsonSerializable
 {
 public:
-    TCachingCookieAuthenticatorConfig()
+    TBlackboxCookieAuthenticatorConfig()
     { }
 };
 
-DEFINE_REFCOUNTED_TYPE(TCachingCookieAuthenticatorConfig)
+DEFINE_REFCOUNTED_TYPE(TBlackboxCookieAuthenticatorConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TCachingBlackboxCookieAuthenticatorConfig
+    : public TBlackboxCookieAuthenticatorConfig
+    , public TAsyncExpiringCacheConfig
+{
+public:
+    TCachingBlackboxCookieAuthenticatorConfig()
+    { }
+};
+
+DEFINE_REFCOUNTED_TYPE(TCachingBlackboxCookieAuthenticatorConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TAuthenticationManagerConfig
+    : public virtual NYT::NYTree::TYsonSerializable
+{
+public:
+    bool RequireAuthentication;
+    NAuth::TCachingBlackboxTokenAuthenticatorConfigPtr BlackboxTokenAuthenticator;
+    NAuth::TCachingBlackboxCookieAuthenticatorConfigPtr BlackboxCookieAuthenticator;
+    NAuth::TDefaultBlackboxServiceConfigPtr BlackboxService;
+    NAuth::TCachingCypressTokenAuthenticatorConfigPtr CypressTokenAuthenticator;
+
+    TAuthenticationManagerConfig()
+    {
+        // COMPAT(prime@)
+        RegisterParameter("require_authentication", RequireAuthentication)
+            .Alias("enable_authentication")
+            .Default(true);
+        RegisterParameter("blackbox_token_authenticator", BlackboxTokenAuthenticator)
+            .Alias("token_authenticator")
+            .Optional();
+        RegisterParameter("blackbox_cookie_authenticator", BlackboxCookieAuthenticator)
+            .Alias("cookie_authenticator")
+            .Optional();
+        RegisterParameter("blackbox_service", BlackboxService)
+            .Alias("blackbox")
+            .DefaultNew();
+        RegisterParameter("cypress_token_authenticator", CypressTokenAuthenticator)
+            .Optional();
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TAuthenticationManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

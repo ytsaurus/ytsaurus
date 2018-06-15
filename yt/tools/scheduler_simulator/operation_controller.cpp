@@ -90,16 +90,20 @@ TOperationController::TOperationController(const TOperation* operation, const TO
 
 int TOperationController::GetPendingJobCount() const
 {
+    auto guard = TGuard<TAdaptiveLock>(Lock_);
     return StagePendingJobCount_;
 }
 
 NScheduler::TJobResources TOperationController::GetNeededResources() const
 {
+    auto guard = TGuard<TAdaptiveLock>(Lock_);
     return NeededResources_;
 }
 
 void TOperationController::OnJobCompleted(std::unique_ptr<NControllerAgent::TCompletedJobSummary> jobSummary)
 {
+    auto guard = TGuard<TAdaptiveLock>(Lock_);
+
     StageCompletedJobCount_ += 1;
     CompletedJobCount_ += 1;
     RunningJobCount_ -= 1;
@@ -111,6 +115,8 @@ void TOperationController::OnJobCompleted(std::unique_ptr<NControllerAgent::TCom
 
 void TOperationController::OnNonscheduledJobAborted(const NScheduler::TJobId& jobId, NScheduler::EAbortReason)
 {
+    auto guard = TGuard<TAdaptiveLock>(Lock_);
+
     NeededResources_ += IdToDescription_[jobId].ResourceLimits;
     StagePendingJobCount_ += 1;
     RunningJobCount_ -= 1;
@@ -120,6 +126,7 @@ void TOperationController::OnNonscheduledJobAborted(const NScheduler::TJobId& jo
 
 bool TOperationController::IsOperationCompleted() const
 {
+    auto guard = TGuard<TAdaptiveLock>(Lock_);
     return OperationCompleted_;
 }
 
@@ -128,6 +135,8 @@ TFuture<TScheduleJobResultPtr> TOperationController::ScheduleJob(
     const NScheduler::TJobResourcesWithQuota& nodeLimits,
     const TString& /* treeId */)
 {
+    auto guard = TGuard<TAdaptiveLock>(Lock_);
+
     auto scheduleJobResult = New<TScheduleJobResult>();
 
     if (CurrentStage_ == PendingJobs_.size() || PendingJobs_[CurrentStage_].empty()) {
@@ -149,7 +158,7 @@ TFuture<TScheduleJobResultPtr> TOperationController::ScheduleJob(
         jobNeededResources,
         /* interruptible */ false);
 
-    dynamic_cast<TSchedulingContext*>(context.Get())->SetDurationForStartedJob(jobDescription.Duration);
+    dynamic_cast<TSchedulingContext*>(context.Get())->SetDurationForStartedJob(jobId, jobDescription.Duration);
     IdToDescription_[jobId] = jobDescription;
     PendingJobs_[CurrentStage_].pop_front();
     NeededResources_ -= jobNeededResources;
@@ -169,6 +178,7 @@ NScheduler::TJobResourcesWithQuotaList TOperationController::GetMinNeededJobReso
 
 TString TOperationController::GetLoggingProgress() const
 {
+    auto guard = TGuard<TAdaptiveLock>(Lock_);
     return Format(
         "Stage: {T: %v, C: %v}, Jobs = {T: %v, R: %v, C: %v, P: %v, A: %v}",
         PendingJobs_.size(),
@@ -180,8 +190,21 @@ TString TOperationController::GetLoggingProgress() const
         AbortedJobCount_);
 }
 
+namespace {
+    TString GetPendingJobCountDecription(const std::vector<std::deque<TJobDescription>>& pendingJobs, int stage) {
+        if (stage < pendingJobs.size()) {
+            return ToString(pendingJobs[stage].size());
+        }
+        return "None(stage out of pendingJobs)";
+    }
+}
+
 void TOperationController::SetStage(int stage)
 {
+    LOG_DEBUG("Setting stage (stage: %v, pending_job_count: %v, OperationId: %v)",
+              stage,
+              GetPendingJobCountDecription(PendingJobs_, stage),
+              Operation_->GetId());
     CurrentStage_ = stage;
     if (stage == PendingJobs_.size()) {
         YCHECK(CompletedJobCount_ == OperationDescription_->JobDescriptions.size());

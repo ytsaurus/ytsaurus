@@ -2,6 +2,8 @@
 
 #include "private.h"
 
+#include <yt/core/rpc/public.h>
+
 #include <yt/ytlib/transaction_client/public.h>
 
 namespace NYT {
@@ -10,7 +12,7 @@ namespace NRpcProxy {
 ////////////////////////////////////////////////////////////////////////////////
 
 NTransactionClient::ITimestampProviderPtr CreateTimestampProvider(
-    TWeakPtr<TConnection> connection,
+    NRpc::IChannelPtr channel,
     TDuration rpcTimeout);
 
 ////////////////////////////////////////////////////////////////////////////////

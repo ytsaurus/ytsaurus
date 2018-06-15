@@ -45,26 +45,29 @@
 
 #include <yt/core/ytree/helpers.h>
 
+#include <yt/core/profiling/profile_manager.h>
+
 #include <deque>
 #include <queue>
 
 namespace NYT {
 namespace NApi {
 
-using namespace NConcurrency;
-using namespace NYTree;
-using namespace NYson;
-using namespace NYPath;
-using namespace NRpc;
-using namespace NCypressClient;
-using namespace NObjectClient;
-using namespace NObjectClient::NProto;
-using namespace NChunkClient;
 using namespace NChunkClient::NProto;
-using namespace NTransactionClient;
+using namespace NChunkClient;
+using namespace NConcurrency;
+using namespace NCypressClient;
 using namespace NJournalClient;
 using namespace NNodeTrackerClient;
+using namespace NObjectClient::NProto;
+using namespace NObjectClient;
+using namespace NProfiling;
+using namespace NRpc;
 using namespace NTransactionClient;
+using namespace NTransactionClient;
+using namespace NYPath;
+using namespace NYTree;
+using namespace NYson;
 
 using NYT::TRange;
 
@@ -117,6 +120,7 @@ private:
             , Path_(path)
             , Options_(options)
             , Config_(options.Config ? options.Config : New<TJournalWriterConfig>())
+            , Profiler(options.Profiler)
         {
             if (Options_.TransactionId) {
                 Transaction_ = Client_->AttachTransaction(Options_.TransactionId);
@@ -180,6 +184,7 @@ private:
         const TYPath Path_;
         const TJournalWriterOptions Options_;
         const TJournalWriterConfigPtr Config_;
+        const TProfiler Profiler;
 
         const IInvokerPtr Invoker_ = NChunkClient::TDispatcher::Get()->GetWriterInvoker();
 
@@ -193,6 +198,7 @@ private:
             std::vector<TSharedRef> Rows;
             TPromise<void> FlushedPromise = NewPromise<void>();
             int FlushedReplicas = 0;
+            TCpuInstant StartTime;
         };
 
         typedef TIntrusivePtr<TBatch> TBatchPtr;
@@ -220,6 +226,12 @@ private:
         TChunkListId ChunkListId_;
         IChannelPtr UploadMasterChannel_;
 
+        const TString DelayCounterPath_ = "/delay_time";
+        TTimer DelayTimer_;
+        THashMap<TString, TTagIdList> StageTags_;
+
+        TAggregateGauge QuorumLagTime_ = {"/quorum_lag"};
+
         struct TNode
             : public TRefCounted
         {
@@ -234,6 +246,8 @@ private:
             i64 FirstPendingBlockIndex = 0;
             i64 FirstPendingRowIndex = 0;
 
+            TAggregateGauge LagTime;
+
             std::queue<TBatchPtr> PendingBatches;
             std::vector<TBatchPtr> InFlightBatches;
 
@@ -242,11 +256,13 @@ private:
                 i64 firstPendingRowIndex,
                 IChannelPtr lightChannel,
                 IChannelPtr heavyChannel,
-                TDuration rpcTimeout)
+                TDuration rpcTimeout,
+                TTagIdList tagIds)
                 : Descriptor(descriptor)
                 , LightProxy(std::move(lightChannel))
                 , HeavyProxy(std::move(heavyChannel))
                 , FirstPendingRowIndex(firstPendingRowIndex)
+                , LagTime("/replica_lag", tagIds)
             {
                 LightProxy.SetDefaultTimeout(rpcTimeout);
                 HeavyProxy.SetDefaultTimeout(rpcTimeout);
@@ -300,6 +316,16 @@ private:
 
         THashMap<TString, TInstant> BannedNodeToDeadline_;
 
+        TTagIdList GetStageTag(const TString& stage)
+        {
+            if (auto it = StageTags_.find(stage)) {
+                return it->second;
+            }
+
+            TTagIdList tagId = {TProfileManager::Get()->RegisterTag("stage", stage)};
+            YCHECK(StageTags_.insert(std::make_pair(stage, tagId)).second);
+            return tagId;
+        }
 
         void EnqueueCommand(TCommand command)
         {
@@ -341,6 +367,10 @@ private:
 
         void OpenJournal()
         {
+            DelayTimer_ = Profiler.TimingStart(
+                DelayCounterPath_,
+                EmptyTagIds,
+                ETimerMode::Sequential);
 
             TUserObject userObject;
             userObject.Path = Path_;
@@ -351,6 +381,10 @@ private:
                 Transaction_ ? Transaction_->GetId() : NullTransactionId,
                 Logger,
                 EPermission::Write);
+
+            Profiler.TimingCheckpoint(
+                DelayTimer_,
+                GetStageTag("get_basic_attributes"));
 
             const auto cellTag = userObject.CellTag;
             ObjectId_ = userObject.ObjectId;
@@ -406,6 +440,10 @@ private:
                     PrimaryMedium_);
             }
 
+            Profiler.TimingCheckpoint(
+                DelayTimer_,
+                GetStageTag("get_extended_attributes"));
+
             {
                 LOG_INFO("Starting journal upload");
 
@@ -456,6 +494,10 @@ private:
                 }
             }
 
+            Profiler.TimingCheckpoint(
+                DelayTimer_,
+                GetStageTag("begin_upload"));
+
             {
                 LOG_INFO("Requesting journal upload parameters");
 
@@ -478,6 +520,10 @@ private:
                     ChunkListId_);
             }
 
+            Profiler.TimingCheckpoint(
+                DelayTimer_,
+                GetStageTag("get_upload_parameters"));
+
             LOG_INFO("Journal opened");
             OpenedPromise_.Set(TError());
         }
@@ -485,6 +531,11 @@ private:
         void CloseJournal()
         {
             LOG_INFO("Closing journal");
+
+            DelayTimer_ = Profiler.TimingStart(
+                DelayCounterPath_,
+                EmptyTagIds,
+                ETimerMode::Sequential);
 
             auto objectIdPath = FromObjectId(ObjectId_);
 
@@ -517,6 +568,10 @@ private:
                 "Error finishing upload to journal %v",
                 Path_);
 
+            Profiler.TimingCheckpoint(
+                DelayTimer_,
+                GetStageTag("close_journal"));
+
             LOG_INFO("Journal closed");
             ClosedPromise_.TrySet(TError());
         }
@@ -524,6 +579,11 @@ private:
         bool TryOpenChunk()
         {
             auto session = New<TChunkSession>();
+
+            DelayTimer_ = Profiler.TimingStart(
+                DelayCounterPath_,
+                EmptyTagIds,
+                ETimerMode::Sequential);
 
             LOG_INFO("Creating chunk");
 
@@ -560,6 +620,10 @@ private:
             LOG_INFO("Chunk created (ChunkId: %v)",
                 session->Id);
 
+            Profiler.TimingCheckpoint(
+                DelayTimer_,
+                GetStageTag("create_chunk"));
+
             auto replicas = AllocateWriteTargets(
                 Client_,
                 session->Id,
@@ -570,6 +634,10 @@ private:
                 GetBannedNodes(),
                 NodeDirectory_,
                 Logger);
+
+            Profiler.TimingCheckpoint(
+                DelayTimer_,
+                GetStageTag("allocate_targets"));
 
             std::vector<TNodeDescriptor> targets;
             for (auto replica : replicas) {
@@ -592,7 +660,8 @@ private:
                     SealedRowCount_,
                     std::move(lightChannel),
                     std::move(heavyChannel),
-                    Config_->NodeRpcTimeout);
+                    Config_->NodeRpcTimeout,
+                    TTagIdList{TProfileManager::Get()->RegisterTag("replica_address", target.GetDefaultAddress())});
                 session->Nodes.push_back(node);
             }
 
@@ -616,6 +685,10 @@ private:
                 return false;
             }
             LOG_INFO("Chunk sessions started");
+
+            Profiler.TimingCheckpoint(
+                DelayTimer_,
+                GetStageTag("start_sessions"));
 
             for (const auto& node : session->Nodes) {
                 node->PingExecutor = New<TPeriodicExecutor>(
@@ -654,6 +727,10 @@ private:
             }
             LOG_INFO("Chunk confirmed");
 
+            Profiler.TimingCheckpoint(
+                DelayTimer_,
+                GetStageTag("confirm_chunk"));
+
             LOG_INFO("Attaching chunk");
             {
                 TChunkServiceProxy proxy(UploadMasterChannel_);
@@ -672,6 +749,10 @@ private:
                     chunkId);
             }
             LOG_INFO("Chunk attached");
+
+            Profiler.TimingCheckpoint(
+                DelayTimer_,
+                GetStageTag("attach_chunk"));
 
             CurrentSession_ = session;
 
@@ -787,6 +868,11 @@ private:
 
             const auto& sessionId = session->Id;
 
+            DelayTimer_ = Profiler.TimingStart(
+                DelayCounterPath_,
+                EmptyTagIds,
+                ETimerMode::Sequential);
+
             LOG_INFO("Finishing chunk sessions");
             for (const auto& node : session->Nodes) {
                 auto req = node->LightProxy.FinishChunk();
@@ -799,6 +885,10 @@ private:
                     node->PingExecutor.Reset();
                 }
             }
+
+            Profiler.TimingCheckpoint(
+                DelayTimer_,
+                GetStageTag("finish_chunk"));
 
             {
                 LOG_INFO("Sealing chunk (ChunkId: %v, RowCount: %v)",
@@ -829,6 +919,10 @@ private:
 
                 SealedRowCount_ += session->FlushedRowCount;
             }
+
+            Profiler.TimingCheckpoint(
+                DelayTimer_,
+                GetStageTag("seal_chunk"));
         }
 
 
@@ -915,6 +1009,7 @@ private:
 
             if (!CurrentBatch_) {
                 CurrentBatch_ = New<TBatch>();
+                CurrentBatch_->StartTime = GetCpuInstant();
                 CurrentBatch_->FirstRowIndex = CurrentRowIndex_;
                 CurrentBatchFlushCookie_ = TDelayedExecutor::Submit(
                     BIND(&TImpl::OnBatchTimeout, MakeWeak(this), CurrentBatch_)
@@ -1040,12 +1135,18 @@ private:
             }
 
             if (!node->InFlightBatches.empty()) {
+                auto lagTime = GetCpuInstant() - node->InFlightBatches.front()->StartTime;
+                Profiler.Update(node->LagTime, CpuDurationToValue(lagTime));
                 return;
             }
 
             if (node->PendingBatches.empty()) {
+                Profiler.Update(node->LagTime, 0);
                 return;
             }
+
+            auto lagTime = GetCpuInstant() - node->PendingBatches.front()->StartTime;
+            Profiler.Update(node->LagTime, CpuDurationToValue(lagTime));
 
             i64 flushRowCount = 0;
             i64 flushDataSize = 0;

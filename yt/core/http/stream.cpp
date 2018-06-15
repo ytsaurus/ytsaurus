@@ -1,4 +1,5 @@
 #include "stream.h"
+#include "config.h"
 
 #include <yt/core/net/connection.h>
 
@@ -221,15 +222,16 @@ struct THttpParserTag
 { };
 
 THttpInput::THttpInput(
-    const IAsyncInputStreamPtr& reader,
+    const IConnectionPtr& connection,
     const TNetworkAddress& remoteAddress,
     const IInvokerPtr& readInvoker,
     EMessageType messageType,
-    size_t bufferSize)
-    : Reader_(reader)
+    const THttpIOConfigPtr& config)
+    : Connection_(connection)
     , RemoteAddress_(remoteAddress)
     , MessageType_(messageType)
-    , InputBuffer_(TSharedMutableRef::Allocate<THttpParserTag>(bufferSize))
+    , Config_(config)
+    , InputBuffer_(TSharedMutableRef::Allocate<THttpParserTag>(Config_->ReadBufferSize))
     , Parser_(messageType == EMessageType::Request ? HTTP_REQUEST : HTTP_RESPONSE)
     , ReadInvoker_(readInvoker)
 { }
@@ -304,10 +306,11 @@ void THttpInput::EnsureHeadersReceived()
         return;
     }
 
+    Connection_->SetReadDeadline(TInstant::Now() + Config_->HeaderReadTimeout);
     while (true) {
         bool eof = false;
         if (UnconsumedData_.Empty()) {
-            auto asyncRead = Reader_->Read(InputBuffer_);
+            auto asyncRead = Connection_->Read(InputBuffer_);
             UnconsumedData_ = InputBuffer_.Slice(0, WaitFor(asyncRead).ValueOrThrow());
             eof = UnconsumedData_.Size() == 0;
         }
@@ -315,6 +318,7 @@ void THttpInput::EnsureHeadersReceived()
         UnconsumedData_ = Parser_.Feed(UnconsumedData_);
         if (Parser_.GetState() == EParserState::HeadersFinished) {
             FinishHeaders();
+            Connection_->SetReadDeadline({});
             return;
         }
 
@@ -357,21 +361,24 @@ TSharedRef THttpInput::DoRead()
         return EmptySharedRef;
     }
 
+    Connection_->SetReadDeadline(TInstant::Now() + Config_->BodyReadIdleTimeout);
     while (true) {
         auto chunk = Parser_.GetLastBodyChunk();
         if (!chunk.Empty()) {
+            Connection_->SetReadDeadline({});
             return chunk;
         }
 
         bool eof = false;
         if (UnconsumedData_.Empty()) {
-            auto asyncRead = Reader_->Read(InputBuffer_);
+            auto asyncRead = Connection_->Read(InputBuffer_);
             UnconsumedData_ = InputBuffer_.Slice(0, WaitFor(asyncRead).ValueOrThrow());
             eof = UnconsumedData_.Size() == 0;
         }
 
         UnconsumedData_ = Parser_.Feed(UnconsumedData_);
         if (Parser_.GetState() == EParserState::MessageFinished) {
+            Connection_->SetReadDeadline({});
             return EmptySharedRef;
         }
 
@@ -386,17 +393,21 @@ THttpOutput::THttpOutput(
     const THeadersPtr& headers,
     const IConnectionPtr& connection,
     EMessageType messageType,
-    size_t bufferSize)
+    const THttpIOConfigPtr& config)
     : Connection_(connection)
     , MessageType_(messageType)
+    , Config_(config)
+    , ResetConnectionDeadline_(BIND([connection] () {
+          connection->SetWriteDeadline({});
+      }))
     , Headers_(headers)
 { }
 
 THttpOutput::THttpOutput(
     const IConnectionPtr& connection,
     EMessageType messageType,
-    size_t bufferSize)
-    : THttpOutput(New<THeaders>(), connection, messageType, bufferSize)
+    const THttpIOConfigPtr& config)
+    : THttpOutput(New<THeaders>(), connection, messageType, config)
 { }
 
 const THeadersPtr& THttpOutput::GetHeaders()
@@ -528,7 +539,9 @@ TFuture<void> THttpOutput::Write(const TSharedRef& data)
         writeRefs.push_back(CrLf);
     }
 
-    return Connection_->WriteV(TSharedRefArray(std::move(writeRefs)));
+    Connection_->SetWriteDeadline(TInstant::Now() + Config_->WriteIdleTimeout);
+    return Connection_->WriteV(TSharedRefArray(std::move(writeRefs)))
+        .Apply(ResetConnectionDeadline_);
 }
 
 TFuture<void> THttpOutput::Close()
@@ -557,7 +570,9 @@ TFuture<void> THttpOutput::FinishChunked()
     }
 
     MessageFinished_ = true;
-    return Connection_->WriteV(TSharedRefArray(std::move(writeRefs)));
+    Connection_->SetWriteDeadline(TInstant::Now() + Config_->WriteIdleTimeout);
+    return Connection_->WriteV(TSharedRefArray(std::move(writeRefs)))
+        .Apply(ResetConnectionDeadline_);
 }
 
 TFuture<void> THttpOutput::WriteBody(const TSharedRef& smallBody)
@@ -582,7 +597,9 @@ TFuture<void> THttpOutput::WriteBody(const TSharedRef& smallBody)
 
     HeadersFlushed_ = true;
     MessageFinished_ = true;
-    return Connection_->WriteV(writeRefs);
+    Connection_->SetWriteDeadline(TInstant::Now() + Config_->WriteIdleTimeout);
+    return Connection_->WriteV(writeRefs)
+        .Apply(ResetConnectionDeadline_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

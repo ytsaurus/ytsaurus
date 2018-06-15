@@ -38,6 +38,8 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/chunk_meta.proto
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/chunk_meta_extensions.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/chunk_owner_ypath.proto
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_client/chunk_reader_statistics.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_client/chunk_reader_statistics.proto
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/chunk_replica.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/chunk_scraper.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/chunk_service.proto
@@ -273,13 +275,15 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/program/configure_singletons.cpp
   ${CMAKE_CURRENT_LIST_DIR}/program/config.cpp
 
+  ${CMAKE_CURRENT_LIST_DIR}/rpc_proxy/admin.cpp
   ${CMAKE_CURRENT_LIST_DIR}/rpc_proxy/credentials_injecting_channel.cpp
   ${CMAKE_CURRENT_LIST_DIR}/rpc_proxy/helpers.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/rpc_proxy/discovering_channel.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/rpc_proxy/dynamic_channel_pool.cpp
   ${CMAKE_CURRENT_LIST_DIR}/rpc_proxy/client_impl.cpp
   ${CMAKE_CURRENT_LIST_DIR}/rpc_proxy/client_base.cpp
   ${CMAKE_CURRENT_LIST_DIR}/rpc_proxy/connection.cpp
   ${CMAKE_CURRENT_LIST_DIR}/rpc_proxy/connection_impl.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/rpc_proxy/table_mount_cache.cpp
   ${CMAKE_CURRENT_LIST_DIR}/rpc_proxy/transaction.cpp
   ${CMAKE_CURRENT_LIST_DIR}/rpc_proxy/transaction_impl.cpp
   ${CMAKE_CURRENT_LIST_DIR}/rpc_proxy/timestamp_provider.cpp
@@ -333,6 +337,8 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/table_client/chunk_slice_fetcher.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/columnar_chunk_reader_base.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/columnar_chunk_meta.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/table_client/columnar_statistics.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/table_client/columnar_statistics_fetcher.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/config.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/helpers.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/name_table.cpp
@@ -381,6 +387,7 @@ SET(YT_SRCS
 
   ${CMAKE_CURRENT_LIST_DIR}/tablet_client/heartbeat.proto
   ${CMAKE_CURRENT_LIST_DIR}/tablet_client/native_table_mount_cache.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/tablet_client/table_mount_cache_detail.cpp
   ${CMAKE_CURRENT_LIST_DIR}/tablet_client/private.cpp
   ${CMAKE_CURRENT_LIST_DIR}/tablet_client/public.cpp
   ${CMAKE_CURRENT_LIST_DIR}/tablet_client/table_replica_ypath.proto

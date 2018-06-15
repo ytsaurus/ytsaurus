@@ -21,10 +21,10 @@ using NPython::GetYsonTypeClass;
 
 Py::Exception CreateYsonError(const std::string& message, TContext* context)
 {
-    static Py::Callable ysonErrorClass;
-    if (ysonErrorClass.isNone()) {
-        auto ysonModule = Py::Module(PyImport_ImportModule("yt.yson.common"), true);
-        ysonErrorClass = Py::Callable(GetAttr(ysonModule, "YsonError"));
+    thread_local PyObject* ysonErrorClass = nullptr;
+    if (!ysonErrorClass) {
+        auto ysonModule = Py::Module(PyImport_ImportModule("yt.yson.common"), /* owned */ true);
+        ysonErrorClass = PyObject_GetAttrString(ysonModule.ptr(), "YsonError");
     }
     Py::Dict attributes;
     if (context->RowIndex) {
@@ -62,7 +62,7 @@ Py::Exception CreateYsonError(const std::string& message, TContext* context)
     options.setItem("code", Py::Long(1));
     options.setItem("attributes", attributes);
 
-    auto ysonError = ysonErrorClass.apply(Py::Tuple(), options);
+    auto ysonError = Py::Callable(ysonErrorClass).apply(Py::Tuple(), options);
     return Py::Exception(*ysonError.type(), ysonError);
 }
 
@@ -76,7 +76,7 @@ namespace NPython {
 
 Py::Object CreateYsonObject(const std::string& className, const Py::Object& object, const Py::Object& attributes)
 {
-    auto result = GetYsonTypeClass(className).apply(Py::TupleN(object));
+    auto result = Py::Callable(GetYsonTypeClass(className)).apply(Py::TupleN(object));
     result.setAttr("attributes", attributes);
     return result;
 }
@@ -187,24 +187,18 @@ void SerializeMapFragment(
 
 void SerializePythonInteger(const Py::Object& obj, IYsonConsumer* consumer, TContext* context)
 {
-    static Py::Callable YsonBooleanClass;
-    if (YsonBooleanClass.isNone()) {
-        YsonBooleanClass = GetYsonTypeClass("YsonBoolean");
-    }
-    static Py::Callable YsonUint64Class;
-    if (YsonUint64Class.isNone()) {
-        YsonUint64Class = GetYsonTypeClass("YsonUint64");
-    }
-    static Py::Callable YsonInt64Class;
-    if (YsonInt64Class.isNone()) {
-        YsonInt64Class = GetYsonTypeClass("YsonInt64");
-    }
-    static Py::LongLong SignedInt64Min(std::numeric_limits<i64>::min());
-    static Py::LongLong SignedInt64Max(std::numeric_limits<i64>::max());
-    static Py::LongLong UnsignedInt64Max(std::numeric_limits<ui64>::max());
+    thread_local PyObject* YsonBooleanClass = GetYsonTypeClass("YsonBoolean");
+    thread_local PyObject* YsonUint64Class = GetYsonTypeClass("YsonUint64");
+    thread_local PyObject* YsonInt64Class = GetYsonTypeClass("YsonInt64");
 
-    if (PyObject_RichCompareBool(UnsignedInt64Max.ptr(), obj.ptr(), Py_LT) == 1 ||
-        PyObject_RichCompareBool(obj.ptr(), SignedInt64Min.ptr(), Py_LT) == 1)
+    // TODO(asaitgalin): Make singleton with all global variables and
+    // free all objects there before interpreter exit.
+    thread_local PyObject* SignedInt64Min = PyLong_FromLongLong(std::numeric_limits<i64>::min());
+    thread_local PyObject* SignedInt64Max = PyLong_FromLongLong(std::numeric_limits<i64>::max());
+    thread_local PyObject* UnsignedInt64Max = PyLong_FromUnsignedLongLong(std::numeric_limits<ui64>::max());;
+
+    if (PyObject_RichCompareBool(UnsignedInt64Max, obj.ptr(), Py_LT) == 1 ||
+        PyObject_RichCompareBool(obj.ptr(), SignedInt64Min, Py_LT) == 1)
     {
         throw CreateYsonError(
             Format(
@@ -215,7 +209,7 @@ void SerializePythonInteger(const Py::Object& obj, IYsonConsumer* consumer, TCon
     }
 
     auto consumeAsLong = [&] {
-        int greaterThanInt64 = PyObject_RichCompareBool(SignedInt64Max.ptr(), obj.ptr(), Py_LT);
+        int greaterThanInt64 = PyObject_RichCompareBool(SignedInt64Max, obj.ptr(), Py_LT);
 
         if (greaterThanInt64 == 1) {
             auto value = PyLong_AsUnsignedLongLong(obj.ptr());
@@ -236,16 +230,16 @@ void SerializePythonInteger(const Py::Object& obj, IYsonConsumer* consumer, TCon
 
     if (PyLong_CheckExact(obj.ptr())) {
         consumeAsLong();
-    } else if (IsInstance(obj, YsonBooleanClass)) {
+    } else if (PyObject_IsInstance(obj.ptr(), YsonBooleanClass)) {
         // YsonBoolean inherited from int
         consumer->OnBooleanScalar(Py::Boolean(obj));
-    } else if (IsInstance(obj, YsonUint64Class)) {
+    } else if (PyObject_IsInstance(obj.ptr(), YsonUint64Class)) {
         auto value = static_cast<ui64>(Py::LongLong(obj));
         if (PyErr_Occurred()) {
             throw CreateYsonError("Can not dump negative integer as YSON uint64", context);
         }
         consumer->OnUint64Scalar(value);
-    } else if (IsInstance(obj, YsonInt64Class)) {
+    } else if (PyObject_IsInstance(obj.ptr(), YsonInt64Class)) {
         auto value = static_cast<i64>(Py::LongLong(obj));
         if (PyErr_Occurred()) {
             throw CreateYsonError("Can not dump integer as YSON int64", context);
@@ -267,10 +261,7 @@ void Serialize(
     int depth,
     TContext* context)
 {
-    static Py::Callable YsonEntityClass;
-    if (YsonEntityClass.isNone()) {
-        YsonEntityClass = GetYsonTypeClass("YsonEntity");
-    }
+    thread_local PyObject* YsonEntityClass = GetYsonTypeClass("YsonEntity");
 
     std::unique_ptr<TContext> contextHolder;
     if (!context) {
@@ -330,7 +321,7 @@ void Serialize(
         consumer->OnEndList();
     } else if (Py::IsFloat(obj)) {
         consumer->OnDoubleScalar(Py::Float(obj));
-    } else if (obj.isNone() || IsInstance(obj, YsonEntityClass)) {
+    } else if (obj.isNone() || PyObject_IsInstance(obj.ptr(), YsonEntityClass)) {
         consumer->OnEntity();
     } else {
         throw CreateYsonError(

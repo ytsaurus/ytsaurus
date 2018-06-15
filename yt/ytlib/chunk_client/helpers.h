@@ -49,7 +49,8 @@ void ProcessFetchResponse(
     int maxChunksPerLocateRequest,
     TNullable<int> rangeIndex,
     const NLogging::TLogger& logger,
-    std::vector<NProto::TChunkSpec>* chunkSpecs);
+    std::vector<NProto::TChunkSpec>* chunkSpecs,
+    bool skipUnavailableChunks = false);
 
 //! Synchronously fetches chunk specs from master,
 //! waits for thre result and processes the response.
@@ -58,15 +59,15 @@ void FetchChunkSpecs(
     const NApi::INativeClientPtr& client,
     const NNodeTrackerClient::TNodeDirectoryPtr& nodeDirectory,
     NObjectClient::TCellTag cellTag,
-    const NYPath::TRichYPath& path,
-    const NObjectClient::TObjectId& objectId,
+    const NYPath::TYPath& path,
     const std::vector<TReadRange>& ranges,
     int chunkCount,
     int maxChunksPerFetch,
     int maxChunksPerLocateRequest,
     const std::function<void(TChunkOwnerYPathProxy::TReqFetchPtr)> initializeFetchRequest,
     const NLogging::TLogger& logger,
-    std::vector<NProto::TChunkSpec>* chunkSpecs);
+    std::vector<NProto::TChunkSpec>* chunkSpecs,
+    bool skipUnavialableChunks = false);
 
 //! Synchronously invokes TChunkServiceProxy::AllocateWriteTargets.
 //! Populates #nodeDirectory with the returned node descriptors.
@@ -101,11 +102,13 @@ void LocateChunks(
     int maxChunksPerLocateRequest,
     const std::vector<NProto::TChunkSpec*> chunkSpecList,
     const NNodeTrackerClient::TNodeDirectoryPtr& nodeDirectory,
-    const NLogging::TLogger& logger);
+    const NLogging::TLogger& logger,
+    bool skipUnavailableChunks = false);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 i64 GetChunkDataWeight(const NProto::TChunkSpec& chunkSpec);
+i64 GetChunkUncompressedDataSize(const NProto::TChunkSpec& chunkSpec);
 i64 GetChunkReaderMemoryEstimate(const NProto::TChunkSpec& chunkSpec, TMultiChunkReaderConfigPtr config);
 
 IChunkReaderPtr CreateRemoteReader(

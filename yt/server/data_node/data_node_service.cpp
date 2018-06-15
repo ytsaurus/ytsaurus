@@ -18,6 +18,7 @@
 #include <yt/server/cell_node/bootstrap.h>
 
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
 #include <yt/ytlib/chunk_client/chunk_slice.h>
 #include <yt/ytlib/chunk_client/chunk_spec.pb.h>
 #include <yt/ytlib/chunk_client/data_node_service.pb.h>
@@ -65,7 +66,11 @@ using namespace NTableClient;
 using namespace NTableClient::NProto;
 using namespace NProfiling;
 
+using NChunkClient::TChunkReaderStatistics;
 using NYT::FromProto;
+
+using TRefCountedColumnarStatisticsSubresponse = TRefCountedProto<TRspGetColumnarStatistics::TSubresponse>;
+using TRefCountedColumnarStatisticsSubresponsePtr = TIntrusivePtr<TRefCountedColumnarStatisticsSubresponse>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -131,6 +136,8 @@ public:
             .SetCancelable(true)
             .SetResponseCodec(NCompression::ECodec::Lz4)
             .SetHeavy(true));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetColumnarStatistics)
+            .SetCancelable(true));
     }
 
 private:
@@ -449,6 +456,8 @@ private:
             }
         }
 
+        auto chunkReaderStatistics = New<TChunkReaderStatistics>();
+
         if (fetchFromCache || fetchFromDisk) {
             TBlockReadOptions options;
             options.WorkloadDescriptor = workloadDescriptor;
@@ -456,6 +465,7 @@ private:
             options.BlockCache = Bootstrap_->GetBlockCache();
             options.FetchFromCache = fetchFromCache && !netThrottling;
             options.FetchFromDisk = fetchFromDisk && !netThrottling && !diskThrottling;
+            options.ChunkReaderStatistics = chunkReaderStatistics;
 
             auto chunkBlockManager = Bootstrap_->GetChunkBlockManager();
             auto asyncBlocks = chunkBlockManager->ReadBlockSet(
@@ -474,6 +484,8 @@ private:
             }
             SetRpcAttachedBlocks(response, blocks);
         }
+
+        ToProto(response->mutable_chunk_reader_statistics(), chunkReaderStatistics);
 
         int blocksWithData = 0;
         for (const auto& block : response->Attachments()) {
@@ -567,6 +579,8 @@ private:
                 context->GetEndpointAttributes().Get("network", DefaultNetworkName));
         }
 
+        auto chunkReaderStatistics = New<TChunkReaderStatistics>();
+
         if (fetchFromCache || fetchFromDisk) {
             TBlockReadOptions options;
             options.WorkloadDescriptor = workloadDescriptor;
@@ -574,6 +588,7 @@ private:
             options.BlockCache = Bootstrap_->GetBlockCache();
             options.FetchFromCache = fetchFromCache && !netThrottling;
             options.FetchFromDisk = fetchFromDisk && !netThrottling && !diskThrottling;
+            options.ChunkReaderStatistics = chunkReaderStatistics;
 
             auto chunkBlockManager = Bootstrap_->GetChunkBlockManager();
             auto asyncBlocks = chunkBlockManager->ReadBlockRange(
@@ -586,6 +601,8 @@ private:
                 .ValueOrThrow();
             SetRpcAttachedBlocks(response, blocks);
         }
+
+        ToProto(response->mutable_chunk_reader_statistics(), chunkReaderStatistics);
 
         int blocksWithData = static_cast<int>(response->Attachments().size());
         i64 blocksSize = GetByteSize(response->Attachments());
@@ -645,15 +662,33 @@ private:
         auto chunkRegistry = Bootstrap_->GetChunkRegistry();
         auto chunk = chunkRegistry->GetChunkOrThrow(chunkId);
 
-        auto asyncChunkMeta = chunk->ReadMeta(workloadDescriptor, extensionTags);
+        TBlockReadOptions options;
+        options.WorkloadDescriptor = workloadDescriptor;
+        options.ChunkReaderStatistics = New<TChunkReaderStatistics>();
+
+        auto asyncChunkMeta = chunk->ReadMeta(
+            options,
+            extensionTags);
+
         context->ReplyFrom(asyncChunkMeta.Apply(BIND([=] (const TRefCountedChunkMetaPtr& meta) {
             if (context->IsCanceled()) {
                 throw TFiberCanceledException();
             }
 
-            *response->mutable_chunk_meta() = partitionTag
-                ? FilterChunkMetaByPartitionTag(*meta, *partitionTag)
-                : static_cast<TChunkMeta>(*meta);
+            if (partitionTag) {
+                auto cachedBlockMeta = Bootstrap_->GetBlockMetaCache()->Find(chunkId);
+                if (!cachedBlockMeta) {
+                    auto blockMetaExt = GetProtoExtension<TBlockMetaExt>(meta->extensions());
+                    cachedBlockMeta = New<TCachedBlockMeta>(chunkId, std::move(blockMetaExt));
+                    Bootstrap_->GetBlockMetaCache()->TryInsert(cachedBlockMeta);
+                }
+
+                *response->mutable_chunk_meta() = FilterChunkMetaByPartitionTag(*meta, cachedBlockMeta, *partitionTag);
+            } else {
+                *response->mutable_chunk_meta() = static_cast<TChunkMeta>(*meta);
+            }
+
+            ToProto(response->mutable_chunk_reader_statistics(), options.ChunkReaderStatistics);
         }).AsyncVia(MetaProcessorThread_->GetInvoker())));
     }
 
@@ -694,7 +729,11 @@ private:
                 continue;
             }
 
-            auto asyncResult = chunk->ReadMeta(workloadDescriptor);
+            TBlockReadOptions options;
+            options.WorkloadDescriptor = workloadDescriptor;
+            options.ChunkReaderStatistics = New<TChunkReaderStatistics>();
+
+            auto asyncResult = chunk->ReadMeta(options);
             asyncResults.push_back(asyncResult.Apply(
                 BIND(
                     &TDataNodeService::MakeChunkSlices,
@@ -826,7 +865,11 @@ private:
                 continue;
             }
 
-            auto asyncChunkMeta = chunk->ReadMeta(workloadDescriptor);
+            TBlockReadOptions options;
+            options.WorkloadDescriptor = workloadDescriptor;
+            options.ChunkReaderStatistics = New<TChunkReaderStatistics>();
+
+            auto asyncChunkMeta = chunk->ReadMeta(options);
             asyncResults.push_back(asyncChunkMeta.Apply(
                 BIND(
                     &TDataNodeService::ProcessSample,
@@ -1075,6 +1118,124 @@ private:
                 maxSampleSize,
                 hasWeights ? samplesExt.weights(index) : samplesExt.entries(index).length(),
                 keySetWriter);
+        }
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, GetColumnarStatistics)
+    {
+        auto workloadDescriptor = FromProto<TWorkloadDescriptor>(request->workload_descriptor());
+
+        context->SetRequestInfo(
+            "SubrequestCount: %v, Workload: %v",
+            request->subrequests_size(),
+            workloadDescriptor);
+
+        ValidateConnected();
+
+        const auto& chunkStore = Bootstrap_->GetChunkStore();
+
+        std::vector<TRefCountedColumnarStatisticsSubresponsePtr> subresponses;
+        std::vector<TFuture<void>> asyncResults;
+
+        TNameTablePtr nameTable = NYT::FromProto<TNameTablePtr>(request->name_table());
+
+        for (const auto& subrequest : request->subrequests()) {
+            auto chunkId = FromProto<TChunkId>(subrequest.chunk_id());
+
+            auto subresponse = New<TRefCountedColumnarStatisticsSubresponse>();
+            subresponses.emplace_back(subresponse);
+
+            auto chunk = chunkStore->FindChunk(chunkId);
+            if (!chunk) {
+                auto error = TError(
+                    NChunkClient::EErrorCode::NoSuchChunk,
+                    "No such chunk %v",
+                    chunkId);
+                LOG_WARNING(error);
+                ToProto(subresponse->mutable_error(), error);
+                continue;
+            }
+            auto columnIds = FromProto<std::vector<int>>(subrequest.column_ids());
+            std::vector<TString> columnNames;
+            for (auto id : columnIds) {
+                columnNames.emplace_back(nameTable->GetName(id));
+            }
+
+            TBlockReadOptions options;
+            options.WorkloadDescriptor = workloadDescriptor;
+            options.ChunkReaderStatistics = New<TChunkReaderStatistics>();
+
+            auto asyncChunkMeta = chunk->ReadMeta(options);
+            asyncResults.push_back(asyncChunkMeta.Apply(
+                BIND(
+                    &TDataNodeService::ProcessColumnarStatistics,
+                    MakeStrong(this),
+                    Passed(std::move(columnNames)),
+                    chunkId,
+                    Passed(std::move(subresponse)))
+                    .AsyncVia(WorkerThread_->GetInvoker())));
+        }
+
+        auto combinedResult = Combine(asyncResults);
+        context->SubscribeCanceled(BIND([combinedResult = combinedResult] () mutable {
+            combinedResult.Cancel();
+        }));
+        context->ReplyFrom(combinedResult.Apply(BIND([subresponses = std::move(subresponses), response] () mutable {
+            for (int index = 0; index < subresponses.size(); ++index) {
+                response->add_subresponses()->Swap(subresponses[index].Get());
+            }
+        })));
+    }
+
+    void ProcessColumnarStatistics(
+        std::vector<TString> columnNames,
+        TChunkId chunkId,
+        TRefCountedColumnarStatisticsSubresponsePtr subresponse,
+        const TErrorOr<TRefCountedChunkMetaPtr>& metaOrError)
+    {
+        try {
+            THROW_ERROR_EXCEPTION_IF_FAILED(metaOrError, "Error getting meta of chunk %v",
+                chunkId);
+            const auto& meta = *metaOrError.Value();
+
+            auto type = EChunkType(meta.type());
+            if (type != EChunkType::Table) {
+                THROW_ERROR_EXCEPTION("Invalid type of chunk %v: expected %Qlv, actual %Qlv",
+                    chunkId,
+                    EChunkType::Table,
+                    type);
+            }
+
+            auto maybeColumnarStatisticsExt = FindProtoExtension<TColumnarStatisticsExt>(meta.extensions());
+            // COMPAT(max42): remove second option when YT-8954 is at least several months old.
+            if (!maybeColumnarStatisticsExt || maybeColumnarStatisticsExt->data_weights_size() == 0) {
+                ToProto(
+                    subresponse->mutable_error(),
+                    TError(NChunkClient::EErrorCode::MissingExtension, "Columnar statistics chunk meta extension missing"));
+                return;
+            }
+            const auto& columnarStatisticsExt = *maybeColumnarStatisticsExt;
+
+            auto nameTableExt = FindProtoExtension<TNameTableExt>(meta.extensions());
+            TNameTablePtr nameTable;
+            if (nameTableExt) {
+                nameTable = FromProto<TNameTablePtr>(*nameTableExt);
+            } else {
+                auto schemaExt = GetProtoExtension<TTableSchemaExt>(meta.extensions());
+                nameTable = TNameTable::FromSchema(FromProto<TTableSchema>(schemaExt));
+            }
+
+            for (const auto& columnName : columnNames) {
+                if (auto id = nameTable->FindId(columnName)) {
+                    subresponse->add_data_weights(columnarStatisticsExt.data_weights(*id));
+                } else {
+                    subresponse->add_data_weights(0);
+                }
+            }
+        } catch (const std::exception& ex) {
+            auto error = TError(ex);
+            LOG_WARNING(error);
+            ToProto(subresponse->mutable_error(), error);
         }
     }
 

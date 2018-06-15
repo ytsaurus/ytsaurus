@@ -118,7 +118,8 @@ void ProcessFetchResponse(
     int maxChunksPerLocateRequest,
     TNullable<int> rangeIndex,
     const NLogging::TLogger& logger,
-    std::vector<NProto::TChunkSpec>* chunkSpecs)
+    std::vector<NProto::TChunkSpec>* chunkSpecs,
+    bool skipUnavialableChunks)
 {
     if (nodeDirectory) {
         nodeDirectory->MergeFrom(fetchResponse->node_directory());
@@ -135,7 +136,7 @@ void ProcessFetchResponse(
             foreignChunkList.push_back(&chunkSpec);
         }
     }
-    LocateChunks(client, maxChunksPerLocateRequest, foreignChunkList, nodeDirectory, logger);
+    LocateChunks(client, maxChunksPerLocateRequest, foreignChunkList, nodeDirectory, logger, skipUnavialableChunks);
 
     for (auto& chunkSpec : *fetchResponse->mutable_chunks()) {
         chunkSpecs->push_back(NProto::TChunkSpec());
@@ -147,15 +148,15 @@ void FetchChunkSpecs(
     const INativeClientPtr& client,
     const TNodeDirectoryPtr& nodeDirectory,
     TCellTag cellTag,
-    const TRichYPath& path,
-    const TObjectId& objectId,
+    const TYPath& path,
     const std::vector<NChunkClient::TReadRange>& ranges,
     int chunkCount,
     int maxChunksPerFetch,
     int maxChunksPerLocateRequest,
     const std::function<void(TChunkOwnerYPathProxy::TReqFetchPtr)> initializeFetchRequest,
     const NLogging::TLogger& logger,
-    std::vector<NProto::TChunkSpec>* chunkSpecs)
+    std::vector<NProto::TChunkSpec>* chunkSpecs,
+    bool skipUnavailableChunks)
 {
     std::vector<int> rangeIndices;
 
@@ -180,7 +181,7 @@ void FetchChunkSpecs(
             }
             adjustedRange.UpperLimit().SetChunkIndex(chunkCountUpperLimit);
 
-            auto req = TChunkOwnerYPathProxy::Fetch(FromObjectId(objectId));
+            auto req = TChunkOwnerYPathProxy::Fetch(path);
             initializeFetchRequest(req.Get());
             NYT::ToProto(req->mutable_ranges(), std::vector<NChunkClient::TReadRange>{adjustedRange});
             batchReq->AddRequest(req, "fetch");
@@ -189,8 +190,7 @@ void FetchChunkSpecs(
     }
 
     auto batchRspOrError = WaitFor(batchReq->Invoke());
-    THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error fetching input table %v",
-        path.GetPath());
+    THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error fetching input table %v", path);
     const auto& batchRsp = batchRspOrError.Value();
     auto rspsOrError = batchRsp->GetResponses<TChunkOwnerYPathProxy::TRspFetch>("fetch");
 
@@ -204,7 +204,8 @@ void FetchChunkSpecs(
             maxChunksPerLocateRequest,
             rangeIndices[resultIndex],
             logger,
-            chunkSpecs);
+            chunkSpecs,
+            skipUnavailableChunks);
     }
 }
 
@@ -314,8 +315,14 @@ i64 GetChunkDataWeight(const NProto::TChunkSpec& chunkSpec)
     if (chunkSpec.has_data_weight_override()) {
         return chunkSpec.data_weight_override();
     }
-    auto miscExt = FindProtoExtension<NProto::TMiscExt>(chunkSpec.chunk_meta().extensions());
-    return miscExt->data_weight();
+    const auto& miscExt = GetProtoExtension<NProto::TMiscExt>(chunkSpec.chunk_meta().extensions());
+    return miscExt.data_weight();
+}
+
+i64 GetChunkUncompressedDataSize(const NProto::TChunkSpec& chunkSpec)
+{
+    const auto& miscExt = GetProtoExtension<NProto::TMiscExt>(chunkSpec.chunk_meta().extensions());
+    return miscExt.uncompressed_data_size();
 }
 
 i64 GetChunkReaderMemoryEstimate(const NProto::TChunkSpec& chunkSpec, TMultiChunkReaderConfigPtr config)
@@ -426,7 +433,8 @@ void LocateChunks(
     int maxChunksPerLocateRequest,
     const std::vector<NProto::TChunkSpec*> chunkSpecList,
     const NNodeTrackerClient::TNodeDirectoryPtr& nodeDirectory,
-    const NLogging::TLogger& logger)
+    const NLogging::TLogger& logger,
+    bool skipUnavailableChunks)
 {
     const auto& Logger = logger;
 
@@ -477,13 +485,18 @@ void LocateChunks(
                 auto* subresponse = rsp->mutable_subresponses(localIndex);
                 auto chunkId = FromProto<TChunkId>(subrequest);
                 if (subresponse->missing()) {
-                    THROW_ERROR_EXCEPTION(
-                        NChunkClient::EErrorCode::NoSuchChunk,
-                        "No such chunk %v",
-                        chunkId);
+                    if (!skipUnavailableChunks) {
+                        THROW_ERROR_EXCEPTION(
+                            NChunkClient::EErrorCode::NoSuchChunk,
+                            "No such chunk %v",
+                            chunkId);
+                    } else {
+                        chunkSpecs[globalIndex]->mutable_replicas();
+                    }
+                } else {
+                    chunkSpecs[globalIndex]->mutable_replicas()->Swap(subresponse->mutable_replicas());
+                    chunkSpecs[globalIndex]->set_erasure_codec(subresponse->erasure_codec());
                 }
-                chunkSpecs[globalIndex]->mutable_replicas()->Swap(subresponse->mutable_replicas());
-                chunkSpecs[globalIndex]->set_erasure_codec(subresponse->erasure_codec());
             }
         }
     }

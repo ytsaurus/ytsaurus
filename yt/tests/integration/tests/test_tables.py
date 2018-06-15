@@ -4,7 +4,9 @@ from yt_commands import *
 from yt.yson import to_yson_type, loads
 from yt.environment.helpers import assert_items_equal
 
+import math
 from time import sleep
+
 import pytest
 
 ##################################################################
@@ -1230,3 +1232,65 @@ class TestTablesMulticell(TestTables):
         concatenate(["//tmp/t2", "//tmp/t2"], "//tmp/t3")
         assert read_table("//tmp/t3") == [{"key": "x"}] * 4
         check_multicell_statistics("//tmp/t3", {"1": 4})
+
+    def test_nan_values_operations(self):
+        create("table", "//tmp/input")
+        create("table", "//tmp/failed_sort")
+        create("table", "//tmp/failed_mapreduce")
+        create("table", "//tmp/sorted")
+        create("table", "//tmp/map_reduce")
+
+        write_table("//tmp/input", [
+            {"foo": float(1),     "bar": "a"},
+            {"foo": float("nan"), "bar": "b"},
+            {"foo": float("nan"), "bar": "d"},
+            {"foo": float(2),     "bar": "c"},
+        ])
+
+        with pytest.raises(YtError):
+            sort(in_="//tmp/input", out="//tmp/failed_sort", sort_by=["foo"])
+
+        with pytest.raises(YtError):
+            map_reduce(in_="//tmp/input", out="//tmp/failed_map_reduce",
+                       mapper_command="cat", reducer_command="cat",
+                       sort_by=["foo"])
+                       
+        sort(in_="//tmp/input", out="//tmp/sorted", sort_by=["bar"])
+        map_reduce(in_="//tmp/input", out="//tmp/map_reduce",
+                   mapper_command="cat", reducer_command="cat",
+                   sort_by=["bar"])
+
+        def check_table(table_name):
+            for row in read_table(table_name):
+                if row["bar"] in "bd":
+                    assert math.isnan(row["foo"])
+                else:
+                    assert not math.isnan(row["foo"])
+        check_table("//tmp/sorted")
+        check_table("//tmp/map_reduce")
+
+    def test_nan_values_sorted_write(self):
+        create("table", "//tmp/input",
+            attributes={
+                "schema": make_schema(
+                    [
+                        {"name": "foo", "type": "double", "sort_order": "ascending"},
+                        {"name": "bar", "type": "string"},
+                    ])
+            })
+
+        write_table("//tmp/input", [
+            {"foo": 1.0, "bar": "a"},
+            {"foo": 2.0, "bar": "b"},
+        ])
+
+        write_table("<append=%true>//tmp/input", [
+            {"foo": 3.0, "bar": "c"},
+            {"foo": 4.0, "bar": "d"},
+        ])
+
+        with pytest.raises(YtError):
+            write_table("<append=%true>//tmp/input", [
+                {"foo": float("nan"), "bar": "e"},
+            ])
+

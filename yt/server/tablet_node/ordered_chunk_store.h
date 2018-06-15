@@ -20,6 +20,7 @@ public:
         NChunkClient::IBlockCachePtr blockCache,
         NDataNode::TChunkRegistryPtr chunkRegistry = nullptr,
         NDataNode::TChunkBlockManagerPtr chunkBlockManager = nullptr,
+        TVersionedChunkMetaManagerPtr chunkMetaManager = nullptr,
         NApi::INativeClientPtr client = nullptr,
         const NNodeTrackerClient::TNodeDescriptor& localDescriptor = NNodeTrackerClient::TNodeDescriptor());
     ~TOrderedChunkStore();
@@ -39,8 +40,7 @@ public:
         i64 lowerRowIndex,
         i64 upperRowIndex,
         const TColumnFilter& columnFilter,
-        const TWorkloadDescriptor& workloadDescriptor,
-        const NChunkClient::TReadSessionId& sessionId) override;
+        const NChunkClient::TClientBlockReadOptions& blockReadOptions) override;
 
 private:
     class TReader;

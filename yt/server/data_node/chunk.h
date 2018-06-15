@@ -2,9 +2,8 @@
 
 #include "public.h"
 
-#include <yt/ytlib/misc/workload.h>
-
 #include <yt/ytlib/chunk_client/block.h>
+#include <yt/ytlib/chunk_client/chunk_reader.h>
 
 #include <yt/core/actions/future.h>
 
@@ -16,8 +15,8 @@ namespace NDataNode {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TBlockReadOptions
+    : public NChunkClient::TClientBlockReadOptions
 {
-    TWorkloadDescriptor WorkloadDescriptor;
     NChunkClient::IBlockCachePtr BlockCache;
     bool PopulateCache = false;
     bool FetchFromCache = true;
@@ -62,7 +61,7 @@ struct IChunk
      *  Thread affinity: any
      */
     virtual TFuture<NChunkClient::TRefCountedChunkMetaPtr> ReadMeta(
-        const TWorkloadDescriptor& workloadDescriptor,
+        const TBlockReadOptions& options,
         const TNullable<std::vector<int>>& extensionTags = Null) = 0;
 
     //! Asynchronously reads a set of blocks.

@@ -3,6 +3,9 @@
 #include "public.h"
 
 #include <yt/core/ytree/public.h>
+#include <yt/core/ytree/permission.h>
+
+#include <yt/core/logging/log.h>
 
 #include <yt/ytlib/transaction_client/public.h>
 
@@ -56,6 +59,7 @@ const NYPath::TYPath& GetOperationsArchiveVersionPath();
 const NYPath::TYPath& GetOperationsArchiveJobsPath();
 const NYPath::TYPath& GetOperationsArchiveJobSpecsPath();
 const NYPath::TYPath& GetOperationsArchiveJobStderrsPath();
+const NYPath::TYPath& GetOperationsArchiveJobFailContextsPath();
 
 bool IsOperationFinished(EOperationState state);
 bool IsOperationFinishing(EOperationState state);
@@ -84,6 +88,18 @@ struct TJobFile
 };
 
 void SaveJobFiles(NApi::INativeClientPtr client, const TOperationId& operationId, const std::vector<TJobFile>& files);
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Validate that given user has permission to an operation node of a given operation.
+//! If needed, access to a certain subnode may be checked, not to the whole operation node.
+void ValidateOperationPermission(
+    const TString& user,
+    const TOperationId& operationId,
+    const NApi::INativeClientPtr& client,
+    NYTree::EPermission permission,
+    const NLogging::TLogger& logger,
+    const TString& subnodePath = "");
 
 ////////////////////////////////////////////////////////////////////////////////
 

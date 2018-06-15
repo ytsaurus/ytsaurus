@@ -66,10 +66,10 @@ TSamplesFetcher::TSamplesFetcher(
         config,
         nodeDirectory,
         invoker,
-        rowBuffer,
         chunkScraper,
         client,
         logger)
+    , RowBuffer_(std::move(rowBuffer))
     , SamplingPolicy_(samplingPolicy)
     , KeyColumns_(keyColumns)
     , DesiredSampleCount_(desiredSampleCount)
@@ -170,7 +170,7 @@ void TSamplesFetcher::OnResponse(
     const TDataNodeServiceProxy::TErrorOrRspGetTableSamplesPtr& rspOrError)
 {
     if (!rspOrError.IsOK()) {
-        LOG_WARNING("Failed to get samples from node (Address: %v, NodeId: %v)",
+        LOG_WARNING(rspOrError, "Failed to get samples from node (Address: %v, NodeId: %v)",
             NodeDirectory_->GetDescriptor(nodeId).GetDefaultAddress(),
             nodeId);
         OnNodeFailed(nodeId, requestedChunkIndexes);

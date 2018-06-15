@@ -105,13 +105,26 @@ void TVirtualMapBase::GetSelf(
             if (service) {
                 writer.OnKeyedItem(key);
                 service->WriteAttributes(&writer, attributeKeys, false);
-                writer.OnEntity();
+                if (Opaque_) {
+                    writer.OnEntity();
+                } else {
+                    auto asyncResult = AsyncYPathGet(service, "");
+                    writer.OnRaw(asyncResult);
+                }
             }
         }
     } else {
         for (const auto& key : keys) {
-            writer.OnKeyedItem(key);
-            writer.OnEntity();
+            if (Opaque_) {
+                writer.OnKeyedItem(key);
+                writer.OnEntity();
+            } else {
+                if (auto service = FindItemService(key)) {
+                    writer.OnKeyedItem(key);
+                    auto asyncResult = AsyncYPathGet(service, "");
+                    writer.OnRaw(asyncResult);
+                }
+            }
         }
     }
     writer.OnEndMap();
@@ -405,6 +418,162 @@ private:
 INodePtr CreateVirtualNode(IYPathServicePtr service)
 {
     return New<TVirtualEntityNode>(service);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool TVirtualListBase::DoInvoke(const IServiceContextPtr& context)
+{
+    DISPATCH_YPATH_SERVICE_METHOD(Get);
+    DISPATCH_YPATH_SERVICE_METHOD(Exists);
+    return TSupportsAttributes::DoInvoke(context);
+}
+
+IYPathService::TResolveResult TVirtualListBase::ResolveRecursive(
+    const TYPath& path,
+    const IServiceContextPtr& context)
+{
+    NYPath::TTokenizer tokenizer(path);
+    tokenizer.Advance();
+    tokenizer.Expect(NYPath::ETokenType::Literal);
+    int index = ParseListIndex(tokenizer.GetToken());
+    int originalIndex = index;
+    if (index < 0) {
+        index += GetSize();
+    }
+    IYPathServicePtr service = nullptr;
+    if (index >= 0 && index < GetSize()) {
+        service = FindItemService(index);
+    }
+    if (!service) {
+        if (context->GetMethod() == "Exists") {
+            return TResolveResultHere{path};
+        }
+        THROW_ERROR_EXCEPTION("Node has no child with index %v", originalIndex);
+    }
+
+    return TResolveResultThere{std::move(service), TYPath(tokenizer.GetSuffix())};
+}
+
+void TVirtualListBase::GetSelf(
+    TReqGet* request,
+    TRspGet* response,
+    const TCtxGetPtr& context)
+{
+    Y_ASSERT(!NYson::TTokenizer(GetRequestYPath(context->RequestHeader())).ParseNext());
+
+    auto attributeKeys = request->has_attributes()
+        ? MakeNullable(NYT::FromProto<std::vector<TString>>(request->attributes().keys()))
+        : Null;
+
+    i64 limit = request->has_limit()
+        ? request->limit()
+        : DefaultVirtualChildLimit;
+
+    context->SetRequestInfo("AttributeKeys: %v, Limit: %v",
+        attributeKeys,
+        limit);
+
+    i64 size = GetSize();
+
+    TAsyncYsonWriter writer;
+
+    // NB: we do not want empty attributes (<>) to appear in the result in order to comply
+    // with current behaviour for some paths (like //sys/scheduler/orchid/scheduler/operations).
+    if (limit < size) {
+        writer.OnBeginAttributes();
+        writer.OnKeyedItem("incomplete");
+        writer.OnBooleanScalar(true);
+        writer.OnEndAttributes();
+    }
+
+    writer.OnBeginList();
+
+    if (attributeKeys && !attributeKeys->empty()) {
+        for (int index = 0; index < limit && index < size; ++index) {
+            auto service = FindItemService(index);
+            writer.OnListItem();
+            if (service) {
+                service->WriteAttributes(&writer, attributeKeys, false);
+                if (Opaque_) {
+                    writer.OnEntity();
+                } else {
+                    auto asyncResult = AsyncYPathGet(service, "");
+                    writer.OnRaw(asyncResult);
+                }
+            } else {
+                writer.OnEntity();
+            }
+        }
+    } else {
+        for (int index = 0; index < limit && index < size; ++index) {
+            writer.OnListItem();
+            if (Opaque_) {
+                writer.OnEntity();
+            } else {
+                if (auto service = FindItemService(index)) {
+                    writer.OnListItem();
+                    auto asyncResult = AsyncYPathGet(service, "");
+                    writer.OnRaw(asyncResult);
+                } else {
+                    writer.OnEntity();
+                }
+            }
+        }
+    }
+
+    writer.OnEndList();
+
+    writer.Finish().Subscribe(BIND([=] (const TErrorOr<TYsonString>& resultOrError) {
+        if (resultOrError.IsOK()) {
+            response->set_value(resultOrError.Value().GetData());
+            context->Reply();
+        } else {
+            context->Reply(resultOrError);
+        }
+    }));
+}
+
+void TVirtualListBase::ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors)
+{
+    descriptors->push_back(CountInternedAttribute);
+}
+
+const THashSet<TInternedAttributeKey>& TVirtualListBase::GetBuiltinAttributeKeys()
+{
+    return BuiltinAttributeKeysCache_.GetBuiltinAttributeKeys(this);
+}
+
+bool TVirtualListBase::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer)
+{
+    switch (key) {
+        case CountInternedAttribute:
+            BuildYsonFluently(consumer)
+                .Value(GetSize());
+            return true;
+        default:
+            return false;
+    }
+}
+
+TFuture<TYsonString> TVirtualListBase::GetBuiltinAttributeAsync(TInternedAttributeKey /*key*/)
+{
+    return Null;
+}
+
+ISystemAttributeProvider* TVirtualListBase::GetBuiltinAttributeProvider()
+{
+    return this;
+}
+
+bool TVirtualListBase::SetBuiltinAttribute(TInternedAttributeKey /*key*/, const TYsonString& /*value*/)
+{
+    return false;
+}
+
+bool TVirtualListBase::RemoveBuiltinAttribute(TInternedAttributeKey /*key*/)
+{
+    return false;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

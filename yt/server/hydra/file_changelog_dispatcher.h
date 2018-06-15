@@ -2,6 +2,7 @@
 
 #include "public.h"
 
+#include <yt/ytlib/chunk_client/public.h>
 #include <yt/ytlib/hydra/hydra_manager.pb.h>
 
 #include <yt/core/actions/public.h>
@@ -23,6 +24,7 @@ class TFileChangelogDispatcher
 {
 public:
     TFileChangelogDispatcher(
+        const NChunkClient::IIOEnginePtr& ioEngine,
         const TFileChangelogDispatcherConfigPtr& config,
         const TString& threadName,
         const NProfiling::TProfiler& profiler);

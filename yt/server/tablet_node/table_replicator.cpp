@@ -10,6 +10,9 @@
 
 #include <yt/server/tablet_node/tablet_manager.pb.h>
 
+#include <yt/ytlib/chunk_client/chunk_reader.h>
+#include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
+
 #include <yt/ytlib/hive/cluster_directory.h>
 
 #include <yt/ytlib/table_client/unversioned_row.h>
@@ -26,6 +29,7 @@
 
 #include <yt/ytlib/transaction_client/action.h>
 #include <yt/ytlib/transaction_client/helpers.h>
+#include <yt/ytlib/transaction_client/timestamp_provider.h>
 
 #include <yt/ytlib/security_client/public.h>
 
@@ -85,11 +89,13 @@ public:
             .AddTag("TabletId: %v, ReplicaId: %v",
                 TabletId_,
                 ReplicaId_))
-        , Profiler(replicaInfo->BuildReplicatorProfiler())
+        , Profiler(TabletNodeProfiler)
         , Throttler_(CreateReconfigurableThroughputThrottler(
             MountConfig_->ReplicationThrottler,
             Logger,
-            Profiler))
+            NProfiling::TProfiler(
+                Profiler.GetPathPrefix() + "/replica/replication_data_weight_throttler",
+                replicaInfo->GetCounters()->Tags)))
     { }
 
     void Enable()
@@ -143,18 +149,6 @@ private:
         }
     }
 
-    bool CheckThrottler(i64 dataWeight)
-    {
-        Throttler_->Acquire(dataWeight);
-        if (Throttler_->IsOverdraft()) {
-            LOG_DEBUG("Bandwidth limit is reached (TotalCount: %v, DataWeight: %v)",
-                Throttler_->GetQueueTotalCount(),
-                dataWeight);
-            return false;
-        }
-        return true;
-    }
-
     void FiberIteration()
     {
         TTableReplicaSnapshotPtr replicaSnapshot;
@@ -206,11 +200,12 @@ private:
                 auto rowCount = std::max(
                     static_cast<i64>(0),
                     tabletRuntimeData->TotalRowCount.load() - replicaRuntimeData->CurrentReplicationRowIndex.load());
+                const auto& timestampProvider = LocalConnection_->GetTimestampProvider();
                 auto time = (rowCount == 0)
                     ? TDuration::Zero()
-                    : TimestampDiffToDuration(replicaRuntimeData->CurrentReplicationTimestamp, tabletRuntimeData->LastWriteTimestamp).second;
-                TabletNodeProfiler.Update(counters->LagRowCount, rowCount);
-                TabletNodeProfiler.Update(counters->LagTime, NProfiling::DurationToValue(time));
+                    : TimestampToInstant(timestampProvider->GetLatestTimestamp()).second - TimestampToInstant(replicaRuntimeData->CurrentReplicationTimestamp).first;
+                Profiler.Update(counters->LagRowCount, rowCount);
+                Profiler.Update(counters->LagTime, NProfiling::DurationToValue(time));
             });
 
             if (totalRowCount <= lastReplicationRowIndex) {
@@ -247,12 +242,19 @@ private:
             i64 newReplicationRowIndex;
             TTimestamp newReplicationTimestamp;
 
+            // TODO(savrus) profile chunk reader statistics.
+            TClientBlockReadOptions blockReadOptions;
+            blockReadOptions.WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemReplication),
+            blockReadOptions.ReadSessionId = TReadSessionId::Create();
+            blockReadOptions.ChunkReaderStatistics = New<TChunkReaderStatistics>();
+
             PROFILE_AGGREGATED_TIMING(counters->ReplicationRowsReadTime) {
                 auto readReplicationBatch = [&]() {
                     return ReadReplicationBatch(
                         MountConfig_,
                         tabletSnapshot,
                         replicaSnapshot,
+                        blockReadOptions,
                         startRowIndex,
                         &replicationRows,
                         &rowBuffer,
@@ -264,7 +266,8 @@ private:
                     startRowIndex = ComputeStartRowIndex(
                         MountConfig_,
                         tabletSnapshot,
-                        replicaSnapshot);
+                        replicaSnapshot,
+                        blockReadOptions);
                     YCHECK(readReplicationBatch());
                 }
             }
@@ -327,6 +330,7 @@ private:
     TTimestamp ReadLogRowTimestamp(
         const TTableMountConfigPtr& mountConfig,
         const TTabletSnapshotPtr& tabletSnapshot,
+        const TClientBlockReadOptions& blockReadOptions,
         i64 rowIndex)
     {
         auto reader = CreateSchemafulTabletReader(
@@ -335,8 +339,7 @@ private:
             MakeRowBound(rowIndex),
             MakeRowBound(rowIndex + 1),
             NullTimestamp,
-            TWorkloadDescriptor(EWorkloadCategory::SystemReplication),
-            TReadSessionId());
+            blockReadOptions);
 
         std::vector<TUnversionedRow> readerRows;
         readerRows.reserve(1);
@@ -378,7 +381,8 @@ private:
     i64 ComputeStartRowIndex(
         const TTableMountConfigPtr& mountConfig,
         const TTabletSnapshotPtr& tabletSnapshot,
-        const TTableReplicaSnapshotPtr& replicaSnapshot)
+        const TTableReplicaSnapshotPtr& replicaSnapshot,
+        const TClientBlockReadOptions& blockReadOptions)
     {
         auto trimmedRowCount = tabletSnapshot->RuntimeData->TrimmedRowCount.load();
         auto totalRowCount = tabletSnapshot->RuntimeData->TotalRowCount.load();
@@ -399,7 +403,7 @@ private:
 
         while (rowIndexLo < rowIndexHi - 1) {
             auto rowIndexMid = rowIndexLo + (rowIndexHi - rowIndexLo) / 2;
-            auto timestampMid = ReadLogRowTimestamp(mountConfig, tabletSnapshot, rowIndexMid);
+            auto timestampMid = ReadLogRowTimestamp(mountConfig, tabletSnapshot, blockReadOptions, rowIndexMid);
             if (timestampMid <= startReplicationTimestamp) {
                 rowIndexLo = rowIndexMid;
             } else {
@@ -410,7 +414,7 @@ private:
         auto startRowIndex = rowIndexLo;
         auto startTimestamp = NullTimestamp;
         while (startRowIndex < totalRowCount) {
-            startTimestamp = ReadLogRowTimestamp(mountConfig, tabletSnapshot, startRowIndex);
+            startTimestamp = ReadLogRowTimestamp(mountConfig, tabletSnapshot, blockReadOptions, startRowIndex);
             if (startTimestamp > startReplicationTimestamp) {
                 break;
             }
@@ -428,6 +432,7 @@ private:
         const TTableMountConfigPtr& mountConfig,
         const TTabletSnapshotPtr& tabletSnapshot,
         const TTableReplicaSnapshotPtr& replicaSnapshot,
+        const TClientBlockReadOptions& blockReadOptions,
         i64 startRowIndex,
         std::vector<TRowModification>* replicationRows,
         TRowBufferPtr* rowBuffer,
@@ -445,8 +450,7 @@ private:
             MakeRowBound(startRowIndex),
             MakeRowBound(std::numeric_limits<i64>::max()),
             NullTimestamp,
-            TWorkloadDescriptor(EWorkloadCategory::SystemReplication),
-            sessionId);
+            blockReadOptions);
 
         int timestampCount = 0;
         int rowCount = 0;
@@ -463,16 +467,8 @@ private:
         auto prevTimestamp = replicaSnapshot->RuntimeData->CurrentReplicationTimestamp.load();
 
         // Throttling control.
-        i64 dataWeightToAcquire = 0;
-        auto flushThrottler = [&] {
-            Throttler_->Acquire(dataWeightToAcquire);
-            dataWeightToAcquire = 0;
-        };
         auto acquireThrottler = [&] (i64 dataWeight) {
-            dataWeightToAcquire += dataWeight;
-            if (dataWeightToAcquire >= 1) {
-                flushThrottler();
-            }
+            Throttler_->Acquire(dataWeight);
         };
         auto isThrottlerOverdraft = [&] {
             if (!Throttler_->IsOverdraft()) {
@@ -521,7 +517,7 @@ private:
                     &timestamp);
 
                 if (timestamp <= replicaSnapshot->StartReplicationTimestamp) {
-                    YCHECK(row == readerRows[0]);
+                    YCHECK(row.GetHeader() == readerRows[0].GetHeader());
                     LOG_INFO("Replication log row violates timestamp bound (StartReplicationTimestamp: %llx, LogRecordTimestamp: %llx)",
                         replicaSnapshot->StartReplicationTimestamp,
                         timestamp);
@@ -560,8 +556,6 @@ private:
                 prevTimestamp = timestamp;
             }
         }
-
-        flushThrottler();
 
         *newReplicationRowIndex = startRowIndex + rowCount;
         *newReplicationTimestamp = prevTimestamp;

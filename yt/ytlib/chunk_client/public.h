@@ -164,6 +164,7 @@ DEFINE_ENUM(EErrorCode,
     ((InvalidBlockChecksum)     (721))
     ((BlockOutOfRange)          (722))
     ((ObjectNotReplicated)      (723))
+    ((MissingExtension)         (724))
 );
 
 //! Values must be contiguous.
@@ -237,6 +238,8 @@ DECLARE_REFCOUNTED_CLASS(TThrottlerManager)
 DECLARE_REFCOUNTED_CLASS(TChunkTeleporter)
 DECLARE_REFCOUNTED_CLASS(TMediumDirectory)
 
+DECLARE_REFCOUNTED_STRUCT(TChunkReaderStatistics)
+
 class TReadLimit;
 
 using TRefCountedChunkMeta = TRefCountedProto<NChunkClient::NProto::TChunkMeta>;
@@ -249,6 +252,8 @@ struct TDataSliceDescriptor;
 struct TInterruptDescriptor;
 
 class TCodecStatistics;
+
+struct TClientBlockReadOptions;
 
 DECLARE_REFCOUNTED_CLASS(TKeySetWriter)
 

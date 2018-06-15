@@ -2,6 +2,8 @@
 
 #include <yt/ytlib/chunk_client/chunk_spec.h>
 
+#include <yt/core/misc/object_pool.h>
+
 #include <yt/core/ytree/fluent.h>
 
 namespace NYT {
@@ -79,24 +81,49 @@ std::unique_ptr<TOwningBoundaryKeys> FindBoundaryKeys(const TChunkMeta& chunkMet
     return std::make_unique<TOwningBoundaryKeys>(std::move(keys));
 }
 
-TChunkMeta FilterChunkMetaByPartitionTag(const TChunkMeta& chunkMeta, int partitionTag)
+TChunkMeta FilterChunkMetaByPartitionTag(const TChunkMeta& chunkMeta, const TCachedBlockMetaPtr& cachedBlockMeta, int partitionTag)
 {
     YCHECK(chunkMeta.type() == static_cast<int>(EChunkType::Table));
     auto filteredChunkMeta = chunkMeta;
-    auto blockMetaExt = GetProtoExtension<TBlockMetaExt>(chunkMeta.extensions());
 
     std::vector<TBlockMeta> filteredBlocks;
-    for (const auto& blockMeta : blockMetaExt.blocks()) {
+    for (const auto& blockMeta : cachedBlockMeta->blocks()) {
         YCHECK(blockMeta.partition_index() != DefaultPartitionTag);
         if (blockMeta.partition_index() == partitionTag) {
             filteredBlocks.push_back(blockMeta);
         }
     }
 
+    TBlockMetaExt blockMetaExt;
     NYT::ToProto(blockMetaExt.mutable_blocks(), filteredBlocks);
     SetProtoExtension(filteredChunkMeta.mutable_extensions(), blockMetaExt);
 
     return filteredChunkMeta;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TCachedBlockMeta::TCachedBlockMeta(const NChunkClient::TChunkId& chunkId, NTableClient::NProto::TBlockMetaExt blockMeta)
+    : TSyncCacheValueBase<NChunkClient::TChunkId, TCachedBlockMeta>(chunkId)
+    , NTableClient::NProto::TBlockMetaExt(std::move(blockMeta))
+{
+    Weight_ = SpaceUsedLong();
+}
+
+i64 TCachedBlockMeta::GetWeight() const
+{
+    return Weight_;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TBlockMetaCache::TBlockMetaCache(TSlruCacheConfigPtr config, const NProfiling::TProfiler& profiler)
+    : TSyncSlruCacheBase<NChunkClient::TChunkId, TCachedBlockMeta>(std::move(config), profiler)
+{ }
+
+i64 TBlockMetaCache::GetWeight(const TCachedBlockMetaPtr& value) const
+{
+    return value->GetWeight();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

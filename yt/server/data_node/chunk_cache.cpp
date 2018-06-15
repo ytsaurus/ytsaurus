@@ -20,6 +20,7 @@
 #include <yt/ytlib/chunk_client/client_block_cache.h>
 #include <yt/ytlib/chunk_client/data_slice_descriptor.h>
 #include <yt/ytlib/chunk_client/data_source.h>
+#include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
 #include <yt/ytlib/chunk_client/file_writer.h>
 #include <yt/ytlib/chunk_client/replication_reader.h>
 #include <yt/ytlib/chunk_client/block_fetcher.h>
@@ -66,6 +67,7 @@ using namespace NApi;
 using namespace NFormats;
 
 using NChunkClient::TDataSliceDescriptor;
+using NChunkClient::TChunkReaderStatistics;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -351,9 +353,13 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
+        TClientBlockReadOptions blockReadOptions;
+        blockReadOptions.WorkloadDescriptor = Config_->ArtifactCacheReader->WorkloadDescriptor;
+        blockReadOptions.ChunkReaderStatistics = New<TChunkReaderStatistics>();
+        blockReadOptions.ReadSessionId = TReadSessionId::Create();
+
         auto Logger = DataNodeLogger;
-        auto readSessionId = TReadSessionId::Create();
-        Logger.AddTag("Key: %v, ReadSessionId: %v", key, readSessionId);
+        Logger.AddTag("Key: %v, ReadSessionId: %v", key, blockReadOptions.ReadSessionId);
 
         auto cookie = BeginInsert(key);
         auto cookieValue = cookie.GetValue();
@@ -397,7 +403,7 @@ public:
                 location,
                 chunkId,
                 nodeDirectory ? std::move(nodeDirectory) : New<TNodeDirectory>(),
-                readSessionId,
+                blockReadOptions,
                 Passed(std::move(cookie)),
                 trafficMeter));
 
@@ -588,7 +594,7 @@ private:
         TCacheLocationPtr location,
         const TChunkId& chunkId,
         TNodeDirectoryPtr nodeDirectory,
-        const TReadSessionId& readSessionId,
+        const TClientBlockReadOptions& blockReadOptions,
         TInsertCookie cookie,
         TTrafficMeterPtr trafficMeter)
     {
@@ -596,7 +602,7 @@ private:
         auto seedReplicas = FromProto<TChunkReplicaList>(chunkSpec.replicas());
 
         auto Logger = DataNodeLogger;
-        Logger.AddTag("ChunkId: %v, ReadSessionId: %v, Location: %v", chunkId, readSessionId, location->GetId());
+        Logger.AddTag("ChunkId: %v, ReadSessionId: %v, Location: %v", chunkId, blockReadOptions.ReadSessionId, location->GetId());
 
         try {
             auto options = New<TRemoteReaderOptions>();
@@ -629,9 +635,9 @@ private:
                 .ThrowOnError();
 
             LOG_DEBUG("Getting chunk meta");
+
             auto chunkMeta = WaitFor(chunkReader->GetMeta(
-                Config_->ArtifactCacheReader->WorkloadDescriptor,
-                readSessionId))
+                blockReadOptions))
                 .ValueOrThrow();
 
             // Download all blocks.
@@ -655,7 +661,7 @@ private:
                 chunkReader,
                 GetNullBlockCache(),
                 NCompression::ECodec::None,
-                readSessionId);
+                blockReadOptions);
 
             for (int index = 0; index < blockCount; ++index) {
                 LOG_DEBUG("Downloading block (BlockIndex: %v)",
@@ -705,7 +711,7 @@ private:
         TCacheLocationPtr location,
         const TChunkId& chunkId,
         TNodeDirectoryPtr nodeDirectory,
-        const TReadSessionId& readSessionId,
+        const TClientBlockReadOptions& blockReadOptions,
         TInsertCookie cookie,
         TTrafficMeterPtr trafficMeter)
     {
@@ -721,7 +727,7 @@ private:
             Bootstrap_->GetMasterConnector()->GetLocalDescriptor(),
             Bootstrap_->GetBlockCache(),
             nodeDirectory,
-            readSessionId,
+            blockReadOptions,
             chunkSpecs,
             trafficMeter,
             Bootstrap_->GetArtifactCacheInThrottler());
@@ -761,7 +767,7 @@ private:
         TCacheLocationPtr location,
         const TChunkId& chunkId,
         TNodeDirectoryPtr nodeDirectory,
-        const TReadSessionId& readSessionId,
+        const TClientBlockReadOptions& blockReadOptions,
         TInsertCookie cookie,
         TTrafficMeterPtr trafficMeter)
     {
@@ -819,7 +825,7 @@ private:
             dataSourceDirectory,
             std::move(dataSliceDescriptors),
             nameTable,
-            readSessionId,
+            blockReadOptions,
             TColumnFilter(),
             TKeyColumns(),
             /* partitionTag */ Null,

@@ -64,8 +64,6 @@ TNativeConnectionConfig::TNativeConnectionConfig()
         .DefaultNew();
     RegisterParameter("block_cache", BlockCache)
         .DefaultNew();
-    RegisterParameter("table_mount_cache", TableMountCache)
-        .DefaultNew();
     RegisterParameter("cluster_directory_synchronizer", ClusterDirectorySynchronizer)
         .DefaultNew();
 
@@ -118,9 +116,9 @@ TNativeConnectionConfig::TNativeConnectionConfig()
         .Alias("max_rows_per_read_request")
         .GreaterThan(0)
         .Default(1000);
-
-    RegisterParameter("enable_udf", EnableUdf)
+    RegisterParameter("enable_lookup_multiread", EnableLookupMultiread)
         .Default(false);
+
     RegisterParameter("udf_registry_path", UdfRegistryPath)
         .Default("//tmp/udfs");
     RegisterParameter("function_registry_cache", FunctionRegistryCache)

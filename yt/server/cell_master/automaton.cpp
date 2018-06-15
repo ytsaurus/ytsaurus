@@ -9,7 +9,9 @@ namespace NCellMaster {
 ////////////////////////////////////////////////////////////////////////////////
 
 TMasterAutomaton::TMasterAutomaton(TBootstrap* bootstrap)
-    : TCompositeAutomaton(nullptr)
+    : TCompositeAutomaton(
+        nullptr,
+        bootstrap->GetCellId())
     , Bootstrap_(bootstrap)
 { }
 

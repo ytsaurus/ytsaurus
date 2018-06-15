@@ -44,8 +44,7 @@ public:
         TTabletSnapshotPtr tabletSnapshot,
         TTimestamp timestamp,
         const TString& user,
-        const TWorkloadDescriptor& workloadDescriptor,
-        const NChunkClient::TReadSessionId& sessionId,
+        const NChunkClient::TClientBlockReadOptions& blockReadOptions,
         NTableClient::TRetentionConfigPtr retentionConfig,
         NTabletClient::TWireProtocolReader* reader,
         NTabletClient::TWireProtocolWriter* writer);

@@ -1,6 +1,6 @@
 import pytest
 
-from yt_env_setup import YTEnvSetup
+from yt_env_setup import YTEnvSetup, wait
 from yt_commands import *
 
 from yt.yson import to_yson_type
@@ -182,8 +182,9 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
                 },
                 "fail_on_job_restart": True,
             })
-        # By this moment all 2 running jobs made it to snapshot, so operation will not fail on revival.
+        wait(lambda: len(op.get_running_jobs()) == 2)
         time.sleep(1.0)
+        # By this moment all 2 running jobs made it to snapshot, so operation will not fail on revival.
         self.Env.kill_schedulers()
         self.Env.start_schedulers()
         release_breakpoint()

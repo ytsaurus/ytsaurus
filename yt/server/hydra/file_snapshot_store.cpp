@@ -358,7 +358,9 @@ private:
         if (ChecksumOutput_) {
             ChecksumOutput_->Finish();
         }
-        FileOutput_->Finish();
+        if (FileOutput_) {
+            FileOutput_->Finish();
+        }
     }
 
     void DoClose()

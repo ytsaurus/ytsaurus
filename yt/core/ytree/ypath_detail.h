@@ -149,9 +149,13 @@ class TSupportsPermissions
 protected:
     virtual ~TSupportsPermissions() = default;
 
+    // The last argument will be empty for contexts where authenticated user is known
+    // a-priori (like in object proxies in master), otherwise it will be set to user name
+    // (like in operation controller orchid).
     virtual void ValidatePermission(
         EPermissionCheckScope scope,
-        EPermission permission);
+        EPermission permission,
+        const TString& user = "");
 
     class TCachingPermissionValidator
     {
@@ -160,14 +164,13 @@ protected:
             TSupportsPermissions* owner,
             EPermissionCheckScope scope);
 
-        void Validate(EPermission permission);
+        void Validate(EPermission permission, const TString& user = "");
 
     private:
         TSupportsPermissions* const Owner_;
         const EPermissionCheckScope Scope_;
 
-        EPermissionSet ValidatedPermissions_ = NonePermissions;
-
+        THashMap<TString, EPermissionSet> ValidatedPermissions_;
     };
 
 };

@@ -78,6 +78,7 @@ message TAgentToSchedulerJobEvent
 
     optional bool archive_job_spec = 5;
     optional bool archive_stderr = 6;
+    optional bool archive_fail_context = 7;
 }
 
 message TSchedulerToAgentJobEvent

@@ -45,10 +45,6 @@ void RunQuery(
     auto resultSchema = query->GetTableSchema();
     auto resultNameTable = TNameTable::FromSchema(resultSchema);
     auto schemalessWriter = writerFactory(resultNameTable);
-
-    WaitFor(schemalessWriter->Open())
-        .ThrowOnError();
-
     auto writer = CreateSchemafulWriterAdapter(schemalessWriter);
 
     auto externalCGInfo = New<TExternalCGInfo>();

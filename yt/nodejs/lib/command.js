@@ -255,6 +255,7 @@ YtCommand.prototype.dispatch = function(req, rsp) {
         .then(self._captureParameters.bind(self))
         .then(function() {
             self._setContentDispositionAndMime();
+            self._setEtagRevision();
             self._logRequest();
             self._addHeaders();
         })
@@ -303,12 +304,8 @@ YtCommand.prototype._epilogue = function(result, bytes_in, bytes_out) {
     if (result.isUserBanned()) {
         this.sticky_cache.set(this.user, {
             code: this.rsp.statusCode,
-            body: YtError("User is banned")
+            body: (new YtError("User '" + this.user + "' is banned")).toJson()
         });
-    }
-
-    if (this.force_ok) {
-        this.rsp.statusCode = 200;
     }
 
     var extra_headers = {
@@ -361,8 +358,6 @@ YtCommand.prototype._epilogue = function(result, bytes_in, bytes_out) {
 YtCommand.prototype._parseRequest = function() {
     this.__DBG("_parseRequest");
 
-    var forceOK;
-
     this.req.parsedUrl = url.parse(this.req.url);
     this.req.parsedQuery = qs.parse(this.req.parsedUrl.query);
 
@@ -379,9 +374,6 @@ YtCommand.prototype._parseRequest = function() {
     if (has_omit_trailers_option) {
         this.omit_trailers = true;
     }
-
-    forceOK = this.req.parsedQuery["force_ok"];
-    this.force_ok = (forceOK == "true") || (forceOK == "1");
 };
 
 YtCommand.prototype._getName = function() {
@@ -724,6 +716,14 @@ YtCommand.prototype._setContentDispositionAndMime = function() {
     this.mime_type = formatToMime(this.parameters.GetByYPath("/output_format"));
 };
 
+YtCommand.prototype._setEtagRevision = function() {
+    this.__DBG("_setEtagRevision");
+    revision = this.req.headers["if-none-match"];
+    if (revision && typeof(revision) === "string" && this.command == "read_file") {
+        this.parameters["etag_revision"] = revision;
+    }
+};
+
 YtCommand.prototype._getOutputFormat = function() {
     this.__DBG("_getOutputFormat");
 
@@ -1024,6 +1024,21 @@ YtCommand.prototype._execute = function(cb) {
                     self.response_parameters.Print(
                         binding.ECompression_None,
                         self.header_format));
+            }
+
+            if (typeof(key) === "string" && key === "revision") {
+                var etag_string = value.Print();
+                // Etag has ui64 type that cannot be represented as javascript number.
+                // Therefore we dump it into yson and strip "u" if necessary.
+                if (etag_string[etag_string.length - 1] == "u") {
+                    etag_string = etag_string.substr(0, etag_string.length - 1);
+                }
+                self.rsp.setHeader("ETag", etag_string);
+
+                header = self.req.headers["if-none-match"];
+                if (header && typeof(header) === "string" && header === etag_string) {
+                    self.rsp.statusCode = 304;
+                }
             }
         },
         function execute$interceptor(result, bytes_in, bytes_out) {

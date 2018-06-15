@@ -54,11 +54,15 @@ struct TJobSpecTag
 struct TJobStderrTag
 { };
 
+struct TJobFailContextTag
+{ };
+
 namespace {
 
 static const TProfiler JobProfiler("/statistics_reporter/jobs");
 static const TProfiler JobSpecProfiler("/statistics_reporter/job_specs");
 static const TProfiler JobStderrProfiler("/statistics_reporter/stderrs");
+static const TProfiler JobFailContextProfiler("/statistics_reporter/fail_contexts");
 static const TLogger ReporterLogger("JobReporter");
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -402,6 +406,12 @@ private:
             if (GetSharedData()->GetOperationArchiveVersion() >= 18) {
                 builder.AddValue(MakeUnversionedInt64Value(TInstant::Now().MicroSeconds(), Table_.Index.UpdateTime));
             }
+            if (GetSharedData()->GetOperationArchiveVersion() >= 20 && statistics.Spec()) {
+                builder.AddValue(MakeUnversionedBooleanValue(statistics.Spec().HasValue(), Table_.Index.HasSpec));
+            }
+            if (GetSharedData()->GetOperationArchiveVersion() >= 21 && statistics.FailContext()) {
+                builder.AddValue(MakeUnversionedBooleanValue(statistics.FailContext().HasValue(), Table_.Index.HasFailContext));
+            }
             rows.push_back(rowBuffer->Capture(builder.GetRow()));
             dataWeight += GetDataWeight(rows.back());
         }
@@ -525,6 +535,61 @@ private:
     }
 };
 
+class TJobFailContextHandler
+    : public THandlerBase
+{
+public:
+    TJobFailContextHandler(
+        TSharedDataPtr data,
+        const TStatisticsReporterConfigPtr& config,
+        INativeClientPtr client,
+        IInvokerPtr invoker)
+        : THandlerBase(
+            std::move(data),
+            config,
+            "fail_contexts",
+            std::move(client),
+            invoker,
+            JobFailContextProfiler,
+            config->MaxInProgressJobFailContextDataSize)
+    { }
+
+private:
+    const TJobFailContextTableDescriptor Table_;
+
+    virtual size_t HandleBatchTransaction(ITransaction& transaction, const TBatch& batch) override
+    {
+        if (GetSharedData()->GetOperationArchiveVersion() < 21) {
+            return 0;
+        }
+
+        std::vector<TUnversionedRow> rows;
+        auto rowBuffer = New<TRowBuffer>(TJobFailContextTag());
+
+        size_t dataWeight = 0;
+        for (auto&& statistics : batch) {
+            TUnversionedRowBuilder builder;
+            builder.AddValue(MakeUnversionedUint64Value(statistics.OperationId().Parts64[0], Table_.Ids.OperationIdHi));
+            builder.AddValue(MakeUnversionedUint64Value(statistics.OperationId().Parts64[1], Table_.Ids.OperationIdLo));
+            builder.AddValue(MakeUnversionedUint64Value(statistics.JobId().Parts64[0], Table_.Ids.JobIdHi));
+            builder.AddValue(MakeUnversionedUint64Value(statistics.JobId().Parts64[1], Table_.Ids.JobIdLo));
+            if (statistics.FailContext()) {
+                builder.AddValue(MakeUnversionedStringValue(*statistics.FailContext(), Table_.Ids.FailContext));
+            }
+
+            rows.push_back(rowBuffer->Capture(builder.GetRow()));
+            dataWeight += GetDataWeight(rows.back());
+        }
+
+        transaction.WriteRows(
+            GetOperationsArchiveJobFailContextsPath(),
+            Table_.NameTable,
+            MakeSharedRange(std::move(rows), std::move(rowBuffer)));
+
+        return dataWeight;
+    }
+};
+
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -557,6 +622,12 @@ public:
                 reporterConfig,
                 Client_,
                 Reporter_->GetInvoker()))
+        , JobFailContextHandler_(
+            New<TJobFailContextHandler>(
+                Data_,
+                reporterConfig,
+                Client_,
+                Reporter_->GetInvoker()))
     { }
 
     void ReportStatistics(TJobStatistics&& statistics)
@@ -566,6 +637,9 @@ public:
         }
         if (statistics.Stderr()) {
             JobStderrHandler_->Enqueue(statistics.ExtractStderr());
+        }
+        if (statistics.FailContext()) {
+            JobFailContextHandler_->Enqueue(statistics.ExtractFailContext());
         }
         if (!statistics.IsEmpty()) {
             JobHandler_->Enqueue(std::move(statistics));
@@ -587,6 +661,11 @@ public:
         JobStderrHandler_->SetEnabled(enable);
     }
 
+    void SetFailContextEnabled(bool enable)
+    {
+        JobFailContextHandler_->SetEnabled(enable);
+    }
+
     void SetOperationArchiveVersion(int version)
     {
         Data_->SetOperationArchiveVersion(version);
@@ -599,6 +678,7 @@ private:
     const TJobHandlerPtr JobHandler_;
     const THandlerBasePtr JobSpecHandler_;
     const THandlerBasePtr JobStderrHandler_;
+    const THandlerBasePtr JobFailContextHandler_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -637,6 +717,13 @@ void TStatisticsReporter::SetStderrEnabled(bool enable)
 {
     if (Impl_) {
         Impl_->SetStderrEnabled(enable);
+    }
+}
+
+void TStatisticsReporter::SetFailContextEnabled(bool enable)
+{
+    if (Impl_) {
+        Impl_->SetFailContextEnabled(enable);
     }
 }
 

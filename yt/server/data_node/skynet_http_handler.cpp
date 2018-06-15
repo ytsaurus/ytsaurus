@@ -8,10 +8,12 @@
 #include <yt/server/cell_node/config.h>
 
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
 
 #include <yt/ytlib/table_client/schemaless_chunk_reader.h>
 #include <yt/ytlib/table_client/name_table.h>
 #include <yt/ytlib/table_client/chunk_state.h>
+#include <yt/ytlib/table_client/columnar_chunk_meta.h>
 
 #include <yt/ytlib/api/table_reader.h>
 
@@ -92,7 +94,6 @@ public:
 
         auto chunkPtr = Bootstrap_->GetChunkStore()->GetChunkOrThrow(chunkId, AllMediaIndex);
         auto chunkGuard = TChunkReadGuard::AcquireOrThrow(chunkPtr);
-        auto sessionId = TReadSessionId::Create();
 
         TWorkloadDescriptor skynetWorkload(EWorkloadCategory::UserBatch);
         skynetWorkload.Annotations = {"skynet"};
@@ -100,10 +101,14 @@ public:
         static std::vector<int> miscExtension = {
             TProtoExtensionTag<TMiscExt>::Value
         };
-        auto asyncChunkMeta = chunkPtr->ReadMeta(
-            skynetWorkload,
-            miscExtension);
-        auto chunkMeta = WaitFor(asyncChunkMeta).ValueOrThrow();
+
+        TBlockReadOptions blockReadOptions;
+        blockReadOptions.WorkloadDescriptor = skynetWorkload;
+        blockReadOptions.ChunkReaderStatistics = New<TChunkReaderStatistics>();
+        blockReadOptions.ReadSessionId = TReadSessionId::Create();
+
+        auto chunkMeta = WaitFor(chunkPtr->ReadMeta(blockReadOptions))
+            .ValueOrThrow();
 
         auto miscExt = GetProtoExtension<TMiscExt>(chunkMeta->extensions());
         if (!miscExt.shared_to_skynet()) {
@@ -124,7 +129,8 @@ public:
             readerConfig,
             chunkPtr,
             Bootstrap_->GetChunkBlockManager(),
-            Bootstrap_->GetBlockCache());
+            Bootstrap_->GetBlockCache(),
+            Bootstrap_->GetBlockMetaCache() );
 
         auto chunkState = New<TChunkState>(
             Bootstrap_->GetBlockCache(),
@@ -134,18 +140,14 @@ public:
             nullptr,
             nullptr);
 
-        *chunkState->ChunkSpec.mutable_chunk_meta() = *chunkMeta;
-
-        auto schemalessReaderConfig = New<TChunkReaderConfig>();
-        schemalessReaderConfig->WorkloadDescriptor = skynetWorkload;
-
         auto schemalessReader = CreateSchemalessChunkReader(
             chunkState,
-            schemalessReaderConfig,
+            New<TColumnarChunkMeta>(*chunkMeta),
+            New<TChunkReaderConfig>(),
             New<TChunkReaderOptions>(),
             chunkReader,
             New<TNameTable>(),
-            sessionId,
+            blockReadOptions,
             TKeyColumns(),
             TColumnFilter(),
             readRange);

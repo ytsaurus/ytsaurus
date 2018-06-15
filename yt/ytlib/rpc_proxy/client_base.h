@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "helpers.h"
 #include "connection_impl.h"
 #include "api_service_proxy.h"
 
@@ -108,26 +109,22 @@ public:
 
     // Objects
     virtual TFuture<NObjectClient::TObjectId> CreateObject(
-        NObjectClient::EObjectType,
-        const NApi::TCreateObjectOptions&) override
-    {
-        Y_UNIMPLEMENTED();
-    }
-
+        NObjectClient::EObjectType type,
+        const NApi::TCreateObjectOptions& options) override;
 
     // Files
-    virtual TFuture<NConcurrency::IAsyncZeroCopyInputStreamPtr> CreateFileReader(
+    virtual TFuture<NApi::IFileReaderPtr> CreateFileReader(
         const NYPath::TYPath&,
         const NApi::TFileReaderOptions&) override
     {
-        Y_UNIMPLEMENTED();
+        ThrowUnimplemented("read_file");
     }
 
     virtual NApi::IFileWriterPtr CreateFileWriter(
         const NYPath::TYPath&,
         const NApi::TFileWriterOptions&) override
     {
-        Y_UNIMPLEMENTED();
+        ThrowUnimplemented("write_file");
     }
 
 
@@ -136,14 +133,14 @@ public:
         const NYPath::TYPath&,
         const NApi::TJournalReaderOptions&) override
     {
-        Y_UNIMPLEMENTED();
+        ThrowUnimplemented("read_journal");
     }
 
     virtual NApi::IJournalWriterPtr CreateJournalWriter(
         const NYPath::TYPath&,
         const NApi::TJournalWriterOptions&) override
     {
-        Y_UNIMPLEMENTED();
+        ThrowUnimplemented("write_journal");
     }
 
 
@@ -152,14 +149,14 @@ public:
         const NYPath::TRichYPath&,
         const NApi::TTableReaderOptions&) override
     {
-        Y_UNIMPLEMENTED();
+        ThrowUnimplemented("read_table");
     }
 
     virtual TFuture<NTableClient::ISchemalessWriterPtr> CreateTableWriter(
         const NYPath::TRichYPath&,
         const NApi::TTableWriterOptions&) override
     {
-        Y_UNIMPLEMENTED();
+        ThrowUnimplemented("write_table");
     }
 };
 

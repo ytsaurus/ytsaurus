@@ -19,6 +19,7 @@ udf_bc_header(
     ${CMAKE_SOURCE_DIR}/contrib/libs/farmhash/farmhash.cc
 )
 udf_bc_header( ${CMAKE_CURRENT_LIST_DIR}/udf/farm_hash.cpp YT_SOURCE_FILES )
+udf_bc_header( ${CMAKE_CURRENT_LIST_DIR}/udf/bigb_hash.cpp YT_SOURCE_FILES )
 udf_bc_header( ${CMAKE_CURRENT_LIST_DIR}/udf/make_map.cpp YT_SOURCE_FILES )
 
 udf_bc_header(

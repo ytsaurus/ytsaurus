@@ -45,6 +45,8 @@
 
 #include <yt/ytlib/chunk_client/medium_directory.h>
 
+#include <yt/ytlib/table_client/chunk_meta_extensions.h>
+
 #include <yt/core/concurrency/delayed_executor.h>
 
 #include <yt/core/misc/serialize.h>
@@ -1041,6 +1043,8 @@ void TMasterConnector::OnChunkRemoved(IChunkPtr chunk)
 
     delta->AddedSinceLastSuccess.erase(chunk);
     delta->RemovedSinceLastSuccess.insert(chunk);
+
+    Bootstrap_->GetBlockMetaCache()->TryRemove(chunk->GetId());
 
     LOG_DEBUG("Chunk removal registered (ChunkId: %v, LocationId: %v)",
         chunk->GetId(),

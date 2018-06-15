@@ -2342,15 +2342,18 @@ private:
                 continue;
             }
 
+            const auto& cypressManager = Bootstrap_->GetCypressManager();
             try {
+                LOG_DEBUG_UNLESS(IsRecovery(), "Removing expired node (NodeId: %v, Path: %v)",
+                    nodeId,
+                    cypressManager->GetNodePath(trunkNode, nullptr));
                 auto nodeProxy = GetNodeProxy(trunkNode, nullptr);
                 auto parentProxy = nodeProxy->GetParent();
                 parentProxy->RemoveChild(nodeProxy);
-                LOG_DEBUG_UNLESS(IsRecovery(), "Expired node removed (NodeId: %v)",
-                    nodeId);
             } catch (const std::exception& ex) {
-                LOG_DEBUG_UNLESS(IsRecovery(), ex, "Cannot remove an expired node; backing off and retrying (NodeId: %v)",
-                    nodeId);
+                LOG_DEBUG_UNLESS(IsRecovery(), ex, "Cannot remove an expired node; backing off and retrying (NodeId: %v, Path: %v)",
+                    nodeId,
+                    cypressManager->GetNodePath(trunkNode, nullptr));
                 ExpirationTracker_->OnNodeRemovalFailed(trunkNode);
             }
         }

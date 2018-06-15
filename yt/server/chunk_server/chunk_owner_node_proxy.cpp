@@ -13,7 +13,8 @@
 
 #include <yt/server/node_tracker_server/node_directory_builder.h>
 
-#include <yt/server/object_server/interned_attributes.h>
+#include <yt/server/misc/interned_attributes.h>
+
 #include <yt/server/object_server/object.h>
 
 #include <yt/server/table_server/shared_table_schema.h>

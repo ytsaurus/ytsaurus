@@ -2,7 +2,11 @@
 
 #include "public.h"
 
+#include <yt/ytlib/api/public.h>
+
 #include <yt/core/actions/public.h>
+
+#include <yt/core/rpc/public.h>
 
 namespace NYT {
 namespace NAuth {
@@ -18,13 +22,25 @@ struct ITokenAuthenticator
 
 DEFINE_REFCOUNTED_TYPE(ITokenAuthenticator)
 
+////////////////////////////////////////////////////////////////////////////////
+
 ITokenAuthenticatorPtr CreateBlackboxTokenAuthenticator(
-    TTokenAuthenticatorConfigPtr config,
+    TBlackboxTokenAuthenticatorConfigPtr config,
     IBlackboxServicePtr blackbox);
+
+ITokenAuthenticatorPtr CreateCypressTokenAuthenticator(
+    TCypressTokenAuthenticatorConfigPtr config,
+    NApi::IClientPtr client);
 
 ITokenAuthenticatorPtr CreateCachingTokenAuthenticator(
     TAsyncExpiringCacheConfigPtr config,
     ITokenAuthenticatorPtr authenticator);
+
+ITokenAuthenticatorPtr CreateCompositeTokenAuthenticator(
+    std::vector<ITokenAuthenticatorPtr> authenticators);
+
+NRpc::IAuthenticatorPtr CreateTokenAuthenticatorWrapper(
+    ITokenAuthenticatorPtr underlying);
 
 ////////////////////////////////////////////////////////////////////////////////
 

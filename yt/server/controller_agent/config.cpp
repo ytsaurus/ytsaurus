@@ -322,7 +322,7 @@ TControllerAgentConfig::TControllerAgentConfig()
         .Default(TDuration::Seconds(3));
 
     RegisterParameter("controller_thread_count", ControllerThreadCount)
-        .Default(4)
+        .Default(16)
         .GreaterThan(0);
 
     RegisterParameter("controller_static_orchid_update_period", ControllerStaticOrchidUpdatePeriod)
@@ -383,18 +383,22 @@ TControllerAgentConfig::TControllerAgentConfig()
         .Default(100000)
         .GreaterThan(0);
 
-    RegisterParameter("max_file_size", MaxFileSize)
+    RegisterParameter("max_user_file_count", MaxUserFileCount)
+        .Default(1000)
+        .GreaterThan(0);
+    RegisterParameter("max_user_file_size", MaxUserFileSize)
+        .Alias("max_file_size")
         .Default(10_GB);
+    RegisterParameter("max_user_file_table_data_weight", MaxUserFileTableDataWeight)
+        .Default(10_GB);
+    RegisterParameter("max_user_file_chunk_count", MaxUserFileChunkCount)
+        .Default(1000);
 
     RegisterParameter("max_input_table_count", MaxInputTableCount)
         .Default(1000)
         .GreaterThan(0);
 
     RegisterParameter("max_ranges_on_table", MaxRangesOnTable)
-        .Default(1000)
-        .GreaterThan(0);
-
-    RegisterParameter("max_user_file_count", MaxUserFileCount)
         .Default(1000)
         .GreaterThan(0);
 

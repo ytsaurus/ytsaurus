@@ -51,6 +51,7 @@
 #include <yt/server/tablet_node/store_compactor.h>
 #include <yt/server/tablet_node/store_flusher.h>
 #include <yt/server/tablet_node/store_trimmer.h>
+#include <yt/server/tablet_node/versioned_chunk_meta_manager.h>
 
 #include <yt/server/transaction_server/timestamp_proxy_service.h>
 
@@ -87,6 +88,8 @@
 #include <yt/ytlib/node_tracker_client/node_directory_synchronizer.h>
 
 #include <yt/ytlib/core_dump/core_dumper.h>
+
+#include <yt/ytlib/table_client/chunk_meta_extensions.h>
 
 #include <yt/core/bus/server.h>
 
@@ -147,6 +150,7 @@ using namespace NTransactionServer;
 using namespace NHiveClient;
 using namespace NHiveServer;
 using namespace NObjectClient;
+using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -286,6 +290,8 @@ void TBootstrap::DoRun()
     NetworkStatistics = New<TNetworkStatistics>(Config->DataNode);
 
     BlockCache = CreateServerBlockCache(Config->DataNode, this);
+
+    BlockMetaCache = New<TBlockMetaCache>(Config->DataNode->BlockMetaCache, TProfiler("/data_node/block_meta_cache"));
 
     PeerBlockDistributor = New<TPeerBlockDistributor>(Config->DataNode->PeerBlockDistributor, this);
     PeerBlockTable = New<TPeerBlockTable>(Config->DataNode->PeerBlockTable, this);
@@ -501,6 +507,8 @@ void TBootstrap::DoRun()
 
     InMemoryManager = New<TInMemoryManager>(Config->TabletNode->InMemoryManager, this);
 
+    VersionedChunkMetaManager = New<TVersionedChunkMetaManager>(Config->TabletNode, this);
+
     QueryExecutor = CreateQuerySubexecutor(Config->QueryAgent, this);
 
     RpcServer->RegisterService(CreateQueryService(Config->QueryAgent, this));
@@ -555,7 +563,7 @@ void TBootstrap::DoRun()
 
     HttpServer->AddHandler(
         "/orchid/",
-        NMonitoring::GetOrchidYPathHttpHandler(OrchidRoot->Via(GetControlInvoker())));
+        NMonitoring::GetOrchidYPathHttpHandler(OrchidRoot));
 
     SkynetHttpServer->AddHandler(
         "/read_skynet_part",
@@ -668,6 +676,11 @@ const TInMemoryManagerPtr& TBootstrap::GetInMemoryManager() const
     return InMemoryManager;
 }
 
+const TVersionedChunkMetaManagerPtr& TBootstrap::GetVersionedChunkMetaManager() const
+{
+    return VersionedChunkMetaManager;
+}
+
 const NExecAgent::TSlotManagerPtr& TBootstrap::GetExecSlotManager() const
 {
     return ExecSlotManager;
@@ -716,6 +729,11 @@ const TChunkMetaManagerPtr& TBootstrap::GetChunkMetaManager() const
 const IBlockCachePtr& TBootstrap::GetBlockCache() const
 {
     return BlockCache;
+}
+
+const TBlockMetaCachePtr& TBootstrap::GetBlockMetaCache() const
+{
+    return BlockMetaCache;
 }
 
 const TPeerBlockDistributorPtr& TBootstrap::GetPeerBlockDistributor() const

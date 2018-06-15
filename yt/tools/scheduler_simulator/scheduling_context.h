@@ -26,18 +26,18 @@ public:
         : TSchedulingContextBase(schedulerConfig, node, runningJobs)
     { }
 
-    void SetDurationForStartedJob(const TDuration& duration)
+    void SetDurationForStartedJob(const NScheduler::TJobId& jobId, const TDuration& duration)
     {
-        Durations_.push_back(duration);
+        Durations_[jobId] = duration;
     }
 
-    const std::vector<TDuration>& GetStartedJobsDurations() const
+    const THashMap<NScheduler::TJobId, TDuration>& GetStartedJobsDurations() const
     {
         return Durations_;
     }
 
 private:
-    std::vector<TDuration> Durations_;
+    THashMap<NScheduler::TJobId, TDuration> Durations_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

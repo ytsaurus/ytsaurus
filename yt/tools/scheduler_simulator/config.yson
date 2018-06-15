@@ -27,6 +27,11 @@
             info  = { file_name = "info.log"; type = file; };
             stderr = { type = stderr; };
         };
+
+        suppressed_messages = [
+            "Job started";
+            "Job finished"
+        ];
     };
 
     cycles_per_flush = 1000000;

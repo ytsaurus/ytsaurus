@@ -242,6 +242,7 @@ protected:
     std::vector<TString> PrimaryKeyColumns_;
     std::vector<TString> ForeignKeyColumns_;
 
+    // XXX(max42): this field is effectively transient, do not persist it.
     IJobSizeConstraintsPtr JobSizeConstraints_;
 
     i64 InputSliceDataWeight_;
@@ -249,16 +250,6 @@ protected:
     IFetcherChunkScraperPtr FetcherChunkScraper_;
 
     // Custom bits of preparation pipeline.
-
-    TInputStreamDirectory GetInputStreamDirectory()
-    {
-        std::vector<TInputStreamDescriptor> inputStreams;
-        inputStreams.reserve(InputTables.size());
-        for (const auto& inputTable : InputTables) {
-            inputStreams.emplace_back(inputTable.IsTeleportable, inputTable.IsPrimary(), inputTable.IsDynamic /* isVersioned */);
-        }
-        return TInputStreamDirectory(inputStreams);
-    }
 
     virtual bool IsCompleted() const override
     {
@@ -340,18 +331,18 @@ protected:
             for (const auto& chunk : CollectPrimaryUnversionedChunks()) {
                 const auto& slice = CreateUnversionedInputDataSlice(CreateInputChunkSlice(chunk));
                 InferLimitsFromBoundaryKeys(slice, RowBuffer);
-                RegisterInputStripe(CreateChunkStripe(slice), SortedTask_);
+                SortedTask_->AddInput(CreateChunkStripe(slice));
                 ++primaryUnversionedSlices;
                 yielder.TryYield();
             }
             for (const auto& slice : CollectPrimaryVersionedDataSlices(InputSliceDataWeight_)) {
-                RegisterInputStripe(CreateChunkStripe(slice), SortedTask_);
+                SortedTask_->AddInput(CreateChunkStripe(slice));
                 ++primaryVersionedSlices;
                 yielder.TryYield();
             }
             for (const auto& tableSlices : CollectForeignInputDataSlices(ForeignKeyColumns_.size())) {
                 for (const auto& slice : tableSlices) {
-                    RegisterInputStripe(CreateChunkStripe(slice), SortedTask_);
+                    SortedTask_->AddInput(CreateChunkStripe(slice));
                     ++foreignSlices;
                     yielder.TryYield();
                 }
@@ -572,15 +563,7 @@ protected:
 private:
     IChunkSliceFetcherPtr CreateChunkSliceFetcher()
     {
-        if (Spec_->UnavailableChunkStrategy == EUnavailableChunkAction::Wait) {
-            FetcherChunkScraper_ = CreateFetcherChunkScraper(
-                Config->ChunkScraper,
-                GetCancelableInvoker(),
-                Host->GetChunkLocationThrottlerManager(),
-                InputClient,
-                InputNodeDirectory_,
-                Logger);
-        }
+        FetcherChunkScraper_ = CreateFetcherChunkScraper();
 
         return NTableClient::CreateChunkSliceFetcher(
             Config->Fetcher,
@@ -942,7 +925,7 @@ public:
 
     virtual bool IsOutputLivePreviewSupported() const override
     {
-        return true;
+        return Spec_->EnableLegacyLivePreview;
     }
 
     virtual i64 GetForeignInputDataWeight() const override
@@ -1312,6 +1295,11 @@ public:
                     << TErrorAttribute("sort_by", SortKeyColumns_);
             }
 
+            if (Spec_->ReduceBy.empty()) {
+                THROW_ERROR_EXCEPTION("Reduce by can not be empty when key guarantee is enabled")
+                    << TErrorAttribute("operation_type", OperationType);
+            }
+
             PrimaryKeyColumns_ = Spec_->ReduceBy;
             ForeignKeyColumns_ = Spec_->JoinBy;
             if (!ForeignKeyColumns_.empty()) {
@@ -1330,6 +1318,10 @@ public:
                 THROW_ERROR_EXCEPTION("At least one of reduce_by or join_by is required for this operation");
             }
             PrimaryKeyColumns_ = CheckInputTablesSorted(!Spec_->ReduceBy.empty() ? Spec_->ReduceBy : Spec_->JoinBy);
+            if (PrimaryKeyColumns_.empty()) {
+                THROW_ERROR_EXCEPTION("At least one of reduce_by and join_by should be specified when key guarantee is disabled")
+                    << TErrorAttribute("operation_type", OperationType);
+            }
             SortKeyColumns_ = ForeignKeyColumns_ = PrimaryKeyColumns_;
         }
         LOG_INFO("Key columns adjusted (PrimaryKeyColumns: %v, ForeignKeyColumns: %v, SortKeyColumns: %v)",
@@ -1453,7 +1445,7 @@ IOperationControllerPtr CreateAppropriateReduceController(
     bool isJoinReduce)
 {
     auto options = isJoinReduce ? config->JoinReduceOperationOptions : config->ReduceOperationOptions;
-    INodePtr mergedSpec = UpdateSpec(options->SpecTemplate, operation->GetSpec());
+    auto mergedSpec = UpdateSpec(options->SpecTemplate, operation->GetSpec());
     auto spec = ParseOperationSpec<TNewReduceOperationSpec>(mergedSpec);
     if (spec->UseNewController) {
         if (!spec->EnableKeyGuarantee.HasValue()) {

@@ -36,6 +36,8 @@ using namespace NCypressClient;
 using namespace NObjectClient;
 using namespace NFileClient;
 using namespace NTransactionClient;
+using namespace NSecurityClient;
+using namespace NLogging;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -243,6 +245,12 @@ const TYPath& GetOperationsArchiveJobSpecsPath()
 const TYPath& GetOperationsArchiveJobStderrsPath()
 {
     static TYPath path = "//sys/operations_archive/stderrs";
+    return path;
+}
+
+const TYPath& GetOperationsArchiveJobFailContextsPath()
+{
+    static TYPath path = "//sys/operations_archive/fail_contexts";
     return path;
 }
 
@@ -515,6 +523,60 @@ void SaveJobFiles(INativeClientPtr client, const TOperationId& operationId, cons
 
     WaitFor(transaction->Commit())
         .ThrowOnError();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ValidateOperationPermission(
+    const TString& user,
+    const TOperationId& operationId,
+    const INativeClientPtr& client,
+    EPermission permission,
+    const TLogger& logger,
+    const TString& subnodePath)
+{
+    const auto& Logger = logger;
+
+    LOG_DEBUG("Validating operation permission (Permission: %v, User: %v, OperationId: %v, SubnodePath: %Qv)",
+        permission,
+        user,
+        operationId,
+        subnodePath);
+
+    std::vector<NYTree::TYPath> paths = {
+        GetOperationPath(operationId),
+        GetNewOperationPath(operationId)
+    };
+
+    for (const auto& path : paths) {
+        auto asyncResult = client->CheckPermission(user, path + subnodePath, permission);
+        auto resultOrError = WaitFor(asyncResult);
+        if (!resultOrError.IsOK()) {
+            if (resultOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
+                continue;
+            }
+
+            THROW_ERROR_EXCEPTION("Error checking permission for operation %v",
+                operationId)
+                << resultOrError;
+        }
+
+        const auto& result = resultOrError.Value();
+        if (result.Action == ESecurityAction::Allow) {
+            LOG_DEBUG("Operation permission successfully validated (Permission: %v, User: %v, OperationId: %v, SubnodePath: %Qv)",
+                permission,
+                user,
+                operationId,
+                subnodePath);
+            return;
+        }
+    }
+
+    THROW_ERROR_EXCEPTION(
+        NSecurityClient::EErrorCode::AuthorizationError,
+        "User %Qv has been denied access to operation %v",
+        user,
+        operationId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

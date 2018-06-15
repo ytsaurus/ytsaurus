@@ -593,20 +593,6 @@ def action_submodule_fast_pull(ctx, args):
             logger.warning("Manual pull is required in '%s'!", ctx.name)
 
 
-def git_dry_run(flag, ctx, *args):
-    if flag:
-        ctx.git.call(*args, capture=False)
-    else:
-        def _escape(s):
-            if re.match(r"^[a-zA-Z0-9_-]*$", s):
-                return s
-            if "'" in s:
-                return '"' + s.replace('"', '\\"') + '"'
-            else:
-                return "'" + s + "'"
-        print("git " + " ".join(map(_escape, args)))
-
-
 def action_submodule_fast_push(ctx, args):
     old_head = ctx.git.resolve_ref(ctx.gh_git_remote_ref + "/" + ctx.gh_branch)
     new_head = ctx.git.resolve_ref("HEAD")

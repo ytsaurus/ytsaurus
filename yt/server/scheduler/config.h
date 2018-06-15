@@ -120,6 +120,11 @@ public:
     //! Backoff for scheduling with preemption on the node (it is need to decrease number of calls of PrescheduleJob).
     TDuration PreemptiveSchedulingBackoff;
 
+    //! Enables new possible resource usage computation scheme.
+    //! TODO(asaitgalin): Use this by default and remove ThresholdToEnableMaxPossibleUsageRegularization
+    //! option.
+    bool EnableNewPossibleResourceUsageComputation;
+
     TFairShareStrategyTreeConfig();
 };
 
@@ -192,8 +197,8 @@ public:
     //! Operations are kept in Cypress for this duration after finish.
     TDuration CleanDelay;
 
-    //! Archivation period.
-    TDuration ArchivationPeriod;
+    //! Analysis period.
+    TDuration AnalysisPeriod;
 
     //! Number of operations to remove in one batch.
     int RemoveBatchSize;
@@ -212,6 +217,9 @@ public:
     //! Timeout for archival batch to be collected. If timeout expires then
     //! archivation of smaller batch will be performed.
     TDuration ArchiveBatchTimeout;
+
+    //! Number of operations to fetch from Cypress in one batch.
+    int FetchBatchSize;
 
     //! Leave no more than this amount of operation per each user.
     int MaxOperationCountPerUser;
@@ -316,6 +324,9 @@ public:
 
     // Enables job reporter to send job stderrs.
     bool EnableJobStderrReporter;
+
+    // Enables job reporter to send job fail contexts.
+    bool EnableJobFailContextReporter;
 
     // Timeout to try interrupt job before abort it.
     TDuration JobInterruptTimeout;

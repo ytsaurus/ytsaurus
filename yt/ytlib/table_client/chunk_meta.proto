@@ -111,4 +111,9 @@ message TColumnMetaExt
     repeated NTableChunkFormat.NProto.TColumnMeta columns = 1;
 }
 
+message TColumnarStatisticsExt
+{
+    repeated int64 data_weights = 1;
+}
+
 ////////////////////////////////////////////////////////////////////////////////

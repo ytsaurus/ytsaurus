@@ -47,8 +47,11 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TUserJobIOFactoryBase::TUserJobIOFactoryBase(NChunkClient::TTrafficMeterPtr trafficMeter)
-    : TrafficMeter_(std::move(trafficMeter))
+TUserJobIOFactoryBase::TUserJobIOFactoryBase(
+    const TClientBlockReadOptions& blockReadOptions,
+    NChunkClient::TTrafficMeterPtr trafficMeter)
+    : BlockReadOptions_(blockReadOptions)
+    , TrafficMeter_(std::move(trafficMeter))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -95,6 +98,7 @@ ISchemalessMultiChunkReaderPtr CreateTableReader(
     TNameTablePtr nameTable,
     const TColumnFilter& columnFilter,
     bool isParallel,
+    const TClientBlockReadOptions& blockReadOptions,
     TTrafficMeterPtr trafficMeter)
 {
     if (isParallel) {
@@ -108,7 +112,7 @@ ISchemalessMultiChunkReaderPtr CreateTableReader(
             dataSourceDirectory,
             std::move(dataSliceDescriptors),
             std::move(nameTable),
-            TReadSessionId(),
+            blockReadOptions,
             columnFilter,
             TKeyColumns(),
             /* partitionTag */ Null,
@@ -124,7 +128,7 @@ ISchemalessMultiChunkReaderPtr CreateTableReader(
             dataSourceDirectory,
             std::move(dataSliceDescriptors),
             std::move(nameTable),
-            TReadSessionId(),
+            blockReadOptions,
             columnFilter,
             TKeyColumns(),
             /* partitionTag */ Null,
@@ -139,6 +143,7 @@ ISchemalessMultiChunkReaderPtr CreateRegularReader(
     bool isParallel,
     TNameTablePtr nameTable,
     const TColumnFilter& columnFilter,
+    const TClientBlockReadOptions& blockReadOptions,
     TTrafficMeterPtr trafficMeter)
 {
     const auto& schedulerJobSpecExt = jobSpecHelper->GetSchedulerJobSpecExt();
@@ -164,6 +169,7 @@ ISchemalessMultiChunkReaderPtr CreateRegularReader(
         std::move(nameTable),
         columnFilter,
         isParallel,
+        blockReadOptions,
         trafficMeter);
 }
 
@@ -173,8 +179,12 @@ class TMapJobIOFactory
     : public TUserJobIOFactoryBase
 {
 public:
-    TMapJobIOFactory(IJobSpecHelperPtr jobSpecHelper, bool useParallelReader, NChunkClient::TTrafficMeterPtr trafficMeter)
-        : TUserJobIOFactoryBase(std::move(trafficMeter))
+    TMapJobIOFactory(
+        IJobSpecHelperPtr jobSpecHelper,
+        bool useParallelReader,
+        const TClientBlockReadOptions& blockReadOptions,
+        NChunkClient::TTrafficMeterPtr trafficMeter)
+        : TUserJobIOFactoryBase(blockReadOptions, std::move(trafficMeter))
         , JobSpecHelper_(std::move(jobSpecHelper))
         , UseParallelReader_(useParallelReader)
     { }
@@ -193,6 +203,7 @@ public:
             UseParallelReader_,
             std::move(nameTable),
             columnFilter,
+            BlockReadOptions_,
             TrafficMeter_);
     }
 
@@ -228,8 +239,12 @@ class TSortedReduceJobIOFactory
     : public TUserJobIOFactoryBase
 {
 public:
-    TSortedReduceJobIOFactory(IJobSpecHelperPtr jobSpecHelper, bool interruptAtKeyEdge, NChunkClient::TTrafficMeterPtr trafficMeter)
-        : TUserJobIOFactoryBase(std::move(trafficMeter))
+    TSortedReduceJobIOFactory(
+        IJobSpecHelperPtr jobSpecHelper,
+        bool interruptAtKeyEdge,
+        const TClientBlockReadOptions& blockReadOptions,
+        NChunkClient::TTrafficMeterPtr trafficMeter)
+        : TUserJobIOFactoryBase(blockReadOptions, std::move(trafficMeter))
         , JobSpecHelper_(jobSpecHelper)
         , InterruptAtKeyEdge_(interruptAtKeyEdge)
     { }
@@ -272,7 +287,7 @@ public:
                 dataSourceDirectory,
                 std::move(dataSliceDescriptors),
                 nameTable,
-                TReadSessionId(),
+                BlockReadOptions_,
                 columnFilter,
                 keyColumns,
                 /* partitionTag */ Null,
@@ -298,7 +313,7 @@ public:
                 dataSourceDirectory,
                 std::move(dataSliceDescriptors),
                 nameTable,
-                TReadSessionId(),
+                BlockReadOptions_,
                 columnFilter,
                 keyColumns,
                 /* partitionTag */ Null,
@@ -346,8 +361,11 @@ class TPartitionMapJobIOFactory
     : public TUserJobIOFactoryBase
 {
 public:
-    explicit TPartitionMapJobIOFactory(IJobSpecHelperPtr jobSpecHelper, NChunkClient::TTrafficMeterPtr trafficMeter)
-        : TUserJobIOFactoryBase(std::move(trafficMeter))
+    explicit TPartitionMapJobIOFactory(
+        IJobSpecHelperPtr jobSpecHelper,
+        const TClientBlockReadOptions& blockReadOptions,
+        NChunkClient::TTrafficMeterPtr trafficMeter)
+        : TUserJobIOFactoryBase(blockReadOptions, std::move(trafficMeter))
         , JobSpecHelper_(jobSpecHelper)
     { }
 
@@ -367,6 +385,7 @@ public:
             false,
             std::move(nameTable),
             columnFilter,
+            BlockReadOptions_,
             TrafficMeter_);
     }
 
@@ -432,8 +451,11 @@ class TPartitionReduceJobIOFactory
     : public TUserJobIOFactoryBase
 {
 public:
-    explicit TPartitionReduceJobIOFactory(IJobSpecHelperPtr jobSpecHelper, NChunkClient::TTrafficMeterPtr trafficMeter)
-        : TUserJobIOFactoryBase(std::move(trafficMeter))
+    explicit TPartitionReduceJobIOFactory(
+        IJobSpecHelperPtr jobSpecHelper,
+        const TClientBlockReadOptions& blockReadOptions,
+        NChunkClient::TTrafficMeterPtr trafficMeter)
+        : TUserJobIOFactoryBase(blockReadOptions, std::move(trafficMeter))
         , JobSpecHelper_(jobSpecHelper)
     { }
 
@@ -474,6 +496,7 @@ public:
             schedulerJobSpecExt.input_row_count(),
             schedulerJobSpecExt.is_approximate(),
             reduceJobSpecExt.partition_tag(),
+            BlockReadOptions_,
             TrafficMeter_);
     }
 
@@ -544,29 +567,30 @@ private:
 
 IUserJobIOFactoryPtr CreateUserJobIOFactory(
     const IJobSpecHelperPtr& jobSpecHelper,
+    const TClientBlockReadOptions& blockReadOptions,
     TTrafficMeterPtr trafficMeter)
 {
     const auto jobType = jobSpecHelper->GetJobType();
     switch (jobType) {
         case EJobType::Map:
-            return New<TMapJobIOFactory>(jobSpecHelper, true, std::move(trafficMeter));
+            return New<TMapJobIOFactory>(jobSpecHelper, true, blockReadOptions, std::move(trafficMeter));
 
         case EJobType::OrderedMap:
-            return New<TMapJobIOFactory>(jobSpecHelper, false, std::move(trafficMeter));
+            return New<TMapJobIOFactory>(jobSpecHelper, false, blockReadOptions, std::move(trafficMeter));
 
         case EJobType::SortedReduce:
-            return New<TSortedReduceJobIOFactory>(jobSpecHelper, true, std::move(trafficMeter));
+            return New<TSortedReduceJobIOFactory>(jobSpecHelper, true, blockReadOptions, std::move(trafficMeter));
 
         case EJobType::JoinReduce:
-            return New<TSortedReduceJobIOFactory>(jobSpecHelper, false, std::move(trafficMeter));
+            return New<TSortedReduceJobIOFactory>(jobSpecHelper, false, blockReadOptions, std::move(trafficMeter));
 
         case EJobType::PartitionMap:
-            return New<TPartitionMapJobIOFactory>(jobSpecHelper, std::move(trafficMeter));
+            return New<TPartitionMapJobIOFactory>(jobSpecHelper, blockReadOptions, std::move(trafficMeter));
 
         // ToDo(psushin): handle separately to form job result differently.
         case EJobType::ReduceCombiner:
         case EJobType::PartitionReduce:
-            return New<TPartitionReduceJobIOFactory>(jobSpecHelper, std::move(trafficMeter));
+            return New<TPartitionReduceJobIOFactory>(jobSpecHelper, blockReadOptions, std::move(trafficMeter));
 
         case EJobType::Vanilla:
             return New<TVanillaJobIOFactory>(jobSpecHelper);

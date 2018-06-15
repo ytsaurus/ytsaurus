@@ -50,6 +50,9 @@ struct TDriverRequest
     //! Name of the user issuing the request.
     TString AuthenticatedUser = NSecurityClient::RootUserName;
 
+    //! User token.
+    TNullable<TString> UserToken;
+
     //! Provides means to return arbitrary structured data from any command.
     //! Must be filled before writing data to output stream.
     NYson::IYsonConsumer* ResponseParametersConsumer;
@@ -114,6 +117,8 @@ struct IDriver
 
     //! Returns the list of descriptors for all supported commands.
     virtual const std::vector<TCommandDescriptor> GetCommandDescriptors() const = 0;
+
+    virtual void ClearMetadataCaches() = 0;
 
     //! Returns the underlying connection.
     virtual NApi::IConnectionPtr GetConnection() = 0;

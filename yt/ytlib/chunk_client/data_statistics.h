@@ -1,7 +1,8 @@
 #pragma once
 
 #include <yt/ytlib/chunk_client/data_statistics.pb.h>
-#include <yt/ytlib/job_tracker_client/statistics.h>
+
+#include <yt/ytlib/job_tracker_client/public.h>
 
 #include <yt/core/compression/public.h>
 

@@ -34,9 +34,9 @@ private:
     TInstant LastThrottledHeartbeatTime_;
     TInstant LastFailedHeartbeatTime_;
 
-    NProfiling::TAggregateCounter TimeBetweenSentHeartbeatsCounter_;
-    NProfiling::TAggregateCounter TimeBetweenAcknowledgedHeartbeatsCounter_;
-    NProfiling::TAggregateCounter TimeBetweenFullyProcessedHeartbeatsCounter_;
+    NProfiling::TAggregateGauge TimeBetweenSentHeartbeatsCounter_;
+    NProfiling::TAggregateGauge TimeBetweenAcknowledgedHeartbeatsCounter_;
+    NProfiling::TAggregateGauge TimeBetweenFullyProcessedHeartbeatsCounter_;
 
     NConcurrency::TPeriodicExecutorPtr HeartbeatExecutor_;
 

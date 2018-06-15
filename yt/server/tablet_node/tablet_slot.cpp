@@ -42,7 +42,7 @@
 
 #include <yt/server/cell_node/bootstrap.h>
 
-#include <yt/server/object_server/interned_attributes.h>
+#include <yt/server/misc/interned_attributes.h>
 
 #include <yt/ytlib/api/native_connection.h>
 #include <yt/ytlib/api/native_client.h>
@@ -86,7 +86,6 @@ using namespace NHiveClient;
 using namespace NHiveServer;
 using namespace NTabletClient::NProto;
 using namespace NObjectClient;
-using namespace NObjectServer;
 using namespace NApi;
 
 using NHydra::EPeerState;
@@ -206,7 +205,6 @@ private:
     {
         return EpochContext_ && EpochContext_->LeaderId == CellManager_->GetSelfPeerId();
     }
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -232,9 +230,17 @@ public:
             Format("TabletSnap:%v", SlotIndex_)))
         , PeerId_(createInfo.peer_id())
         , CellDescriptor_(FromProto<TCellId>(createInfo.cell_id()))
-        , TagIdList_{
-            NProfiling::TProfileManager::Get()->RegisterTag("cell_id", CellDescriptor_.CellId),
-            NProfiling::TProfileManager::Get()->RegisterTag("peer_id", PeerId_)
+        , TabletCellBundle(createInfo.tablet_cell_bundle())
+        , ProfilingTagIds_{
+            NProfiling::TProfileManager::Get()->RegisterTag(
+                "cell_id",
+                CellDescriptor_.CellId),
+            NProfiling::TProfileManager::Get()->RegisterTag(
+                "peer_id",
+                PeerId_),
+            NProfiling::TProfileManager::Get()->RegisterTag(
+                "tablet_cell_bundle",
+                TabletCellBundle ? TabletCellBundle : UnknownProfilingTag)
         }
         , OptionsString_(TYsonString(createInfo.options()))
         , Logger(NLogging::TLogger(TabletNodeLogger)
@@ -440,7 +446,8 @@ public:
             Options_,
             Format("//sys/tablet_cells/%v/changelogs", GetCellId()),
             Bootstrap_->GetMasterClient(),
-            PrerequisiteTransaction_ ? PrerequisiteTransaction_->GetId() : NullTransactionId);
+            PrerequisiteTransaction_ ? PrerequisiteTransaction_->GetId() : NullTransactionId,
+            ProfilingTagIds_);
         ChangelogStoreFactoryThunk_->SetUnderlying(changelogStoreFactory);
 
         auto cellConfig = CellDescriptor_.ToConfig(Bootstrap_->GetLocalNetworks());
@@ -480,6 +487,7 @@ public:
             hydraManagerOptions.UseFork = false;
             hydraManagerOptions.WriteChangelogsAtFollowers = false;
             hydraManagerOptions.WriteSnapshotsAtFollowers = false;
+            hydraManagerOptions.ProfilingTagIds = ProfilingTagIds_;
             HydraManager_ = CreateDistributedHydraManager(
                 Config_->HydraManager,
                 Bootstrap_->GetControlInvoker(),
@@ -607,11 +615,11 @@ public:
         return OrchidService_;
     }
 
-    const NProfiling::TTagIdList& GetTagIdList()
+    const NProfiling::TTagIdList& GetProfilingTagIds()
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        return TagIdList_;
+        return ProfilingTagIds_;
     }
 
     const TRuntimeTabletCellDataPtr& GetRuntimeData() const
@@ -637,7 +645,9 @@ private:
     const TPeerId PeerId_;
     TCellDescriptor CellDescriptor_;
 
-    const NProfiling::TTagIdList TagIdList_;
+    const TString TabletCellBundle;
+
+    const NProfiling::TTagIdList ProfilingTagIds_;
 
     const TYsonString OptionsString_;
     TTabletCellOptionsPtr Options_;
@@ -973,9 +983,9 @@ const IYPathServicePtr& TTabletSlot::GetOrchidService()
     return Impl_->GetOrchidService();
 }
 
-const NProfiling::TTagIdList& TTabletSlot::GetTagIdList()
+const NProfiling::TTagIdList& TTabletSlot::GetProfilingTagIds()
 {
-    return Impl_->GetTagIdList();
+    return Impl_->GetProfilingTagIds();
 }
 
 const TRuntimeTabletCellDataPtr& TTabletSlot::GetRuntimeData() const

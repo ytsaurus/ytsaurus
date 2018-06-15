@@ -26,8 +26,6 @@ public:
         const NTableClient::TTableSchema& schema,
         const std::function<std::unique_ptr<NYson::IFlushableYsonConsumer>(IOutputStream*)>& consumerBuilder);
 
-    virtual TFuture<void> Open() override;
-
     virtual TFuture<void> Close() override;
 
     virtual bool Write(const TRange<NTableClient::TVersionedRow>& rows) override;

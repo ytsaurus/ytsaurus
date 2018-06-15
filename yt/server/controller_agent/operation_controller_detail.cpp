@@ -47,6 +47,7 @@
 #include <yt/ytlib/scheduler/helpers.h>
 
 #include <yt/ytlib/table_client/chunk_meta_extensions.h>
+#include <yt/ytlib/table_client/columnar_statistics_fetcher.h>
 #include <yt/ytlib/table_client/data_slice_fetcher.h>
 #include <yt/ytlib/table_client/helpers.h>
 #include <yt/ytlib/table_client/schema.h>
@@ -64,6 +65,7 @@
 #include <yt/core/erasure/codec.h>
 
 #include <yt/core/misc/fs.h>
+#include <yt/core/misc/chunked_input_stream.h>
 #include <yt/core/misc/collection_helpers.h>
 #include <yt/core/misc/numeric_helpers.h>
 
@@ -396,6 +398,10 @@ TOperationControllerInitializationResult TOperationControllerBase::InitializeRev
 
 
     if (cleanStart) {
+        if (Spec_->FailOnJobRestart) {
+            THROW_ERROR_EXCEPTION("Cannot use clean restart when spec option fail_on_job_restart is set");
+        }
+
         LOG_INFO("Using clean start instead of revive");
 
         Snapshot = TOperationSnapshot();
@@ -408,7 +414,6 @@ TOperationControllerInitializationResult TOperationControllerBase::InitializeRev
     }
 
     InitUnrecognizedSpec();
-    InitializeOrchid();
 
     WaitFor(Host->UpdateInitializedOperationNode())
         .ThrowOnError();
@@ -441,7 +446,6 @@ TOperationControllerInitializationResult TOperationControllerBase::InitializeCle
         .ThrowOnError();
 
     InitUnrecognizedSpec();
-    InitializeOrchid();
 
     WaitFor(Host->UpdateInitializedOperationNode())
         .ThrowOnError();
@@ -466,6 +470,8 @@ bool TOperationControllerBase::HasUserJobFiles() const
 void TOperationControllerBase::InitializeStructures()
 {
     InputNodeDirectory_ = New<NNodeTrackerClient::TNodeDirectory>();
+    DataFlowGraph_ = New<TDataFlowGraph>(InputNodeDirectory_);
+    InitializeOrchid();
 
     for (const auto& path : GetInputTablePaths()) {
         TInputTable table;
@@ -557,6 +563,11 @@ void TOperationControllerBase::FillInitializationResult(TOperationControllerInit
     result->Transactions = GetTransactions();
 }
 
+void TOperationControllerBase::ValidateIntermediateDataAccess(const TString& user, EPermission permission) const
+{
+    Host->ValidateOperationPermission(user, permission, "/intermediate_data_access");
+}
+
 void TOperationControllerBase::InitUpdatingTables()
 {
     UpdatingTables.clear();
@@ -607,13 +618,17 @@ void TOperationControllerBase::InitializeOrchid()
 
     // NB: we may safely pass unretained this below as all the callbacks are wrapped with a createService helper
     // that takes care on checking the controller presence and properly replying in case it is already destroyed.
-    Orchid_ = New<TCompositeMapService>()
+    auto service = New<TCompositeMapService>()
         ->AddChild("progress", createCachedMapService(BIND(&TOperationControllerBase::BuildProgress, Unretained(this))))
         ->AddChild("brief_progress", createCachedMapService(BIND(&TOperationControllerBase::BuildBriefProgress, Unretained(this))))
         ->AddChild("running_jobs", createCachedMapService(BIND(&TOperationControllerBase::BuildJobsYson, Unretained(this))))
         ->AddChild("job_splitter", createCachedMapService(BIND(&TOperationControllerBase::BuildJobSplitterInfo, Unretained(this))))
         ->AddChild("memory_usage", createService(BIND(&TOperationControllerBase::BuildMemoryUsageYson, Unretained(this))))
         ->AddChild("state", createService(BIND(&TOperationControllerBase::BuildStateYson, Unretained(this))))
+        ->AddChild("data_flow_graph", DataFlowGraph_->GetService()
+            ->WithPermissionValidator(BIND(&TOperationControllerBase::ValidateIntermediateDataAccess, MakeWeak(this))));
+    service->SetOpaque(false);
+    Orchid_ = service
         ->Via(Invoker);
 }
 
@@ -722,6 +737,7 @@ void TOperationControllerBase::SafeMaterialize()
     try {
         FetchInputTables();
         FetchUserFiles();
+        ValidateUserFileSizes();
 
         PickIntermediateDataCell();
         InitChunkListPools();
@@ -766,7 +782,7 @@ void TOperationControllerBase::SafeMaterialize()
             SaveSnapshot(&stringStream);
             TOperationSnapshot snapshot;
             snapshot.Version = GetCurrentSnapshotVersion();
-            snapshot.Data = TSharedRef::FromString(stringStream.Str());
+            snapshot.Blocks = {TSharedRef::FromString(stringStream.Str())};
             DoLoadSnapshot(snapshot);
         }
 
@@ -833,7 +849,7 @@ TOperationControllerReviveResult TOperationControllerBase::Revive()
     // this is not a vanilla operation.
     ValidateRevivalAllowed();
 
-    if (!Snapshot.Data) {
+    if (Snapshot.Blocks.empty()) {
         LOG_INFO("Snapshot data is missing, preparing operation from scratch");
         TOperationControllerReviveResult result;
         result.RevivedFromSnapshot = false;
@@ -868,6 +884,10 @@ TOperationControllerReviveResult TOperationControllerBase::Revive()
     // Input chunk scraper initialization should be the last step to avoid races.
     InitInputChunkScraper();
     InitIntermediateChunkScraper();
+
+    if (UnavailableIntermediateChunkCount > 0) {
+        IntermediateChunkScraper->Start();
+    }
 
     UpdateMinNeededJobResources();
 
@@ -969,6 +989,29 @@ void TOperationControllerBase::StartTransactions()
         OutputTransaction = results[2].ValueOrThrow();
         DebugTransaction = results[3].ValueOrThrow();
     }
+}
+
+TInputStreamDirectory TOperationControllerBase::GetInputStreamDirectory() const
+{
+    std::vector<TInputStreamDescriptor> inputStreams;
+    inputStreams.reserve(InputTables.size());
+    for (const auto& inputTable : InputTables) {
+        inputStreams.emplace_back(inputTable.IsTeleportable, inputTable.IsPrimary(), inputTable.IsDynamic /* isVersioned */);
+    }
+    return TInputStreamDirectory(std::move(inputStreams));
+}
+
+IFetcherChunkScraperPtr TOperationControllerBase::CreateFetcherChunkScraper() const
+{
+    return Spec_->UnavailableChunkStrategy == EUnavailableChunkAction::Wait
+        ? NChunkClient::CreateFetcherChunkScraper(
+            Config->ChunkScraper,
+            GetCancelableInvoker(),
+            Host->GetChunkLocationThrottlerManager(),
+            InputClient,
+            InputNodeDirectory_,
+            Logger)
+        : nullptr;
 }
 
 TTransactionId TOperationControllerBase::GetInputTransactionParentId()
@@ -1221,7 +1264,6 @@ bool TOperationControllerBase::TryInitAutoMerge(int outputChunkCountEstimate, do
                 index,
                 chunkCountPerMergeJob,
                 autoMergeSpec->ChunkSizeThreshold,
-                desiredChunkSize,
                 dataWeightPerJob,
                 Spec_->MaxDataWeightPerJob,
                 edgeDescriptor);
@@ -1299,11 +1341,12 @@ void TOperationControllerBase::ReinstallLivePreview()
 
 void TOperationControllerBase::DoLoadSnapshot(const TOperationSnapshot& snapshot)
 {
-    LOG_INFO("Started loading snapshot (Size: %v, Version: %v)",
-        snapshot.Data.Size(),
+    LOG_INFO("Started loading snapshot (Size: %v, BlockCount: %v, Version: %v)",
+        GetByteSize(snapshot.Blocks),
+        snapshot.Blocks.size(),
         snapshot.Version);
 
-    TMemoryInput input(snapshot.Data.Begin(), snapshot.Data.Size());
+    TChunkedInputStream input(snapshot.Blocks);
 
     TLoadContext context;
     context.SetInput(&input);
@@ -2809,28 +2852,36 @@ void TOperationControllerBase::AnalyzeJobsCpuUsage()
         "/user_job/cpu/user/$/completed/"
     };
 
-    TVector<TError> innerErrors;
+    THashMap<EJobType, TError> jobTypeToError;
     for (const auto& task : Tasks) {
+        auto jobType = task->GetJobType();
+        if (jobTypeToError.find(jobType) != jobTypeToError.end()) {
+            continue;
+        }
+
         const auto& userJobSpecPtr = task->GetUserJobSpec();
         if (!userJobSpecPtr) {
             continue;
         }
-        auto jobType = task->GetJobType();
+
         auto summary = FindSummary(JobStatistics, "/time/exec/$/completed/" + FormatEnum(jobType));
         if (!summary) {
             continue;
         }
+
         i64 totalExecutionTime = summary->GetSum();
         i64 jobCount = summary->GetCount();
         double cpuLimit = userJobSpecPtr->CpuLimit;
         if (jobCount == 0 || totalExecutionTime == 0 || cpuLimit == 0) {
             continue;
         }
+
         i64 cpuUsage = 0;
-        for (const TString& stat : allCpuStatistics) {
+        for (const auto& stat : allCpuStatistics) {
             auto value = FindNumericValue(JobStatistics, stat + FormatEnum(jobType));
             cpuUsage += value ? *value : 0;
         }
+
         TDuration averageJobDuration = TDuration::MilliSeconds(totalExecutionTime / jobCount);
         TDuration totalExecutionDuration = TDuration::MilliSeconds(totalExecutionTime);
         double cpuRatio = static_cast<double>(cpuUsage) / (totalExecutionTime * cpuLimit);
@@ -2843,17 +2894,23 @@ void TOperationControllerBase::AnalyzeJobsCpuUsage()
                 << TErrorAttribute("cpu_time", cpuUsage)
                 << TErrorAttribute("exec_time", totalExecutionDuration)
                 << TErrorAttribute("cpu_limit", cpuLimit);
-            innerErrors.push_back(error);
+            YCHECK(jobTypeToError.emplace(jobType, error).second);
         }
     }
 
     TError error;
-    if (!innerErrors.empty()) {
+    if (!jobTypeToError.empty()) {
+        std::vector<TError> innerErrors;
+        innerErrors.reserve(jobTypeToError.size());
+        for (const auto& pair : jobTypeToError) {
+            innerErrors.push_back(pair.second);
+        }
         error = TError(
             "Average cpu usage of some of your job types is significantly lower than requested 'cpu_limit'. "
-            "Consider decreasing cpu_limit in spec of your operation"
-        ) << innerErrors;
+            "Consider decreasing cpu_limit in spec of your operation")
+            << innerErrors;
     }
+
     SetOperationAlert(EOperationAlertType::LowCpuUsage, error);
 }
 
@@ -3746,7 +3803,29 @@ void TOperationControllerBase::InitializeStandardEdgeDescriptors()
         StandardEdgeDescriptors_[index] = OutputTables_[index].GetEdgeDescriptorTemplate();
         StandardEdgeDescriptors_[index].DestinationPool = Sinks_[index].get();
         StandardEdgeDescriptors_[index].IsFinalOutput = true;
+        StandardEdgeDescriptors_[index].LivePreviewIndex = index;
     }
+}
+
+void TOperationControllerBase::AddChunksToUnstageList(std::vector<TInputChunkPtr> chunks)
+{
+    std::vector<TChunkId> chunkIds;
+    for (const auto& chunk : chunks) {
+        auto it = LivePreviewChunks_.find(chunk);
+        YCHECK(it != LivePreviewChunks_.end());
+        auto livePreviewDescriptor = it->second;
+        DataFlowGraph_->UnregisterLivePreviewChunk(
+            livePreviewDescriptor.VertexDescriptor,
+            livePreviewDescriptor.LivePreviewIndex,
+            chunk);
+        chunkIds.emplace_back(chunk->ChunkId());
+        LOG_DEBUG("Releasing intermediate chunk (ChunkId: %v, VertexDescriptor: %v, LivePreviewIndex: %v)",
+            chunk->ChunkId(),
+            livePreviewDescriptor.VertexDescriptor,
+            livePreviewDescriptor.LivePreviewIndex);
+        LivePreviewChunks_.erase(it);
+    }
+    Host->AddChunkTreesToUnstageList(std::move(chunkIds), false /* recursive */);
 }
 
 void TOperationControllerBase::ProcessSafeException(const std::exception& ex)
@@ -3797,6 +3876,9 @@ void TOperationControllerBase::ProcessFinishedJobResult(std::unique_ptr<TJobSumm
     if (stderrChunkId && shouldCreateJobNode) {
         summary->ArchiveStderr = true;
     }
+    if (failContextChunkId && shouldCreateJobNode) {
+        summary->ArchiveFailContext = true;
+    }
 
     auto inputPaths = BuildInputPathYson(joblet);
     auto finishedJob = New<TFinishedJobInfo>(joblet, std::move(*summary), std::move(inputPaths));
@@ -3804,7 +3886,7 @@ void TOperationControllerBase::ProcessFinishedJobResult(std::unique_ptr<TJobSumm
     finishedJob->Summary.StatisticsYson = TYsonString();
     finishedJob->Summary.Statistics.Reset();
 
-    if (finishedJob->Summary.ArchiveJobSpec || finishedJob->Summary.ArchiveStderr) {
+    if (finishedJob->Summary.ArchiveJobSpec || finishedJob->Summary.ArchiveStderr || finishedJob->Summary.ArchiveFailContext) {
         FinishedJobs_.insert(std::make_pair(jobId, finishedJob));
     }
 
@@ -3978,6 +4060,26 @@ void TOperationControllerBase::CreateLivePreviewTables()
             Null);
     }
 
+    {
+        LOG_INFO("Creating intermediate data access node (IntermediateDataAcl: %v)",
+            ConvertToYsonString(Spec_->IntermediateDataAcl, EYsonFormat::Text));
+
+        auto path = GetNewOperationPath(OperationId) + "/intermediate_data_access";
+
+        auto req = TCypressYPathProxy::Create(path);
+        req->set_type(static_cast<int>(EObjectType::MapNode));
+        req->set_ignore_existing(true);
+
+        auto attributes = CreateEphemeralAttributes();
+        attributes->Set("acl", ConvertToYsonString(Spec_->IntermediateDataAcl));
+        attributes->Set("inherit_acl", false);
+
+        ToProto(req->mutable_node_attributes(), *attributes);
+        GenerateMutationId(req);
+
+        batchReq->AddRequest(req, "create_intermediate_data_access");
+    }
+
     auto batchRspOrError = WaitFor(batchReq->Invoke());
     THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error creating live preview tables");
     const auto& batchRsp = batchRspOrError.Value();
@@ -4023,6 +4125,15 @@ void TOperationControllerBase::FetchInputTables()
     queryOptions.VerboseLogging = true;
     queryOptions.RangeExpansionLimit = Config->MaxRangesOnTable;
 
+    auto columnarStatisticsFetcher = New<TColumnarStatisticsFetcher>(
+        Config->Fetcher,
+        InputNodeDirectory_,
+        CancelableInvoker,
+        CreateFetcherChunkScraper(),
+        InputClient,
+        Logger);
+
+    // We fetch columnar statistics only for the tables that have column selectors specified.
     for (int tableIndex = 0; tableIndex < static_cast<int>(InputTables.size()); ++tableIndex) {
         auto& table = InputTables[tableIndex];
         auto ranges = table.Path.GetRanges();
@@ -4030,6 +4141,7 @@ void TOperationControllerBase::FetchInputTables()
         if (ranges.empty()) {
             continue;
         }
+        bool hasColumnSelectors = table.Path.GetColumns().HasValue();
 
         if (InputQuery && table.Schema.IsSorted()) {
             auto rangeInferrer = CreateRangeInferrer(
@@ -4063,18 +4175,18 @@ void TOperationControllerBase::FetchInputTables()
                 << TErrorAttribute("table_path", table.Path.GetPath());
         }
 
-        LOG_INFO("Fetching input table (Path: %v, RangeCount: %v, InferredRangeCount: %v)",
+        LOG_INFO("Fetching input table (Path: %v, RangeCount: %v, InferredRangeCount: %v, HasColumnSelectors: %v)",
             table.Path.GetPath(),
             originalRangeCount,
-            ranges.size());
+            ranges.size(),
+            hasColumnSelectors);
 
         std::vector<NChunkClient::NProto::TChunkSpec> chunkSpecs;
         FetchChunkSpecs(
             InputClient,
             InputNodeDirectory_,
             table.CellTag,
-            table.Path,
-            table.ObjectId,
+            FromObjectId(table.ObjectId),
             ranges,
             table.ChunkCount,
             Config->MaxChunksPerFetch,
@@ -4101,17 +4213,29 @@ void TOperationControllerBase::FetchInputTables()
             if (inputChunk->GetRowCount() > 0) {
                 // Input chunks may have zero row count in case of unsensible read range with coinciding
                 // lower and upper row index. We skip such chunks.
-                table.Chunks.emplace_back(std::move(inputChunk));
+                table.Chunks.emplace_back(inputChunk);
                 for (const auto& extension : chunkSpec.chunk_meta().extensions().extensions()) {
                     totalExtensionSize += extension.data().size();
                 }
                 RegisterInputChunk(table.Chunks.back());
+                if (hasColumnSelectors && Spec_->UseColumnarStatistics) {
+                    columnarStatisticsFetcher->AddChunk(inputChunk, *table.Path.GetColumns());
+                }
             }
         }
 
         LOG_INFO("Input table fetched (Path: %v, ChunkCount: %v)",
             table.Path.GetPath(),
             table.Chunks.size());
+    }
+
+    if (columnarStatisticsFetcher->GetChunkCount() > 0) {
+        LOG_INFO("Fetching chunk columnar statistics for tables with column selectors (ChunkCount: %v)",
+            columnarStatisticsFetcher->GetChunkCount());
+        WaitFor(columnarStatisticsFetcher->Fetch())
+            .ThrowOnError();
+        LOG_INFO("Columnar statistics fetched");
+        columnarStatisticsFetcher->ApplyColumnSelectivityFactors();
     }
 
     LOG_INFO("Finished fetching input tables (TotalChunkCount: %v, TotalExtensionSize: %v)",
@@ -4545,8 +4669,7 @@ void TOperationControllerBase::DoFetchUserFiles(const TUserJobSpecPtr& userJobSp
                     InputClient,
                     InputNodeDirectory_,
                     file.CellTag,
-                    file.Path,
-                    file.ObjectId,
+                    objectIdPath,
                     file.Path.GetRanges(),
                     file.ChunkCount,
                     Config->MaxChunksPerFetch,
@@ -4564,9 +4687,11 @@ void TOperationControllerBase::DoFetchUserFiles(const TUserJobSpecPtr& userJobSp
                     },
                     Logger,
                     &file.ChunkSpecs);
+
                 break;
 
             case EObjectType::File: {
+                // TODO(max42): use FetchChunkSpecs here.
                 auto channel = InputClient->GetMasterChannelOrThrow(
                     EMasterChannelKind::Follower,
                     file.CellTag);
@@ -4622,6 +4747,87 @@ void TOperationControllerBase::FetchUserFiles()
                 << ex;
         }
     }
+}
+
+void TOperationControllerBase::ValidateUserFileSizes()
+{
+    LOG_INFO("Validating user file sizes");
+    auto columnarStatisticsFetcher = New<TColumnarStatisticsFetcher>(
+        Config->Fetcher,
+        InputNodeDirectory_,
+        CancelableInvoker,
+        CreateFetcherChunkScraper(),
+        InputClient,
+        Logger);
+
+    // Collect columnar statistics for table files with column selectors.
+    for (auto& pair : UserJobFiles_) {
+        auto& files = pair.second;
+        for (auto& file : files) {
+            if (file.Type == EObjectType::Table) {
+                for (const auto& chunkSpec : file.ChunkSpecs) {
+                    auto chunk = New<TInputChunk>(chunkSpec);
+                    file.Chunks.emplace_back(chunk);
+                    if (file.Path.GetColumns() && Spec_->UseColumnarStatistics) {
+                        columnarStatisticsFetcher->AddChunk(chunk, *file.Path.GetColumns());
+                    }
+                }
+            }
+        }
+    }
+    
+    if (columnarStatisticsFetcher->GetChunkCount() > 0) {
+        LOG_INFO("Fetching columnar statistics for table files with column selectors (ChunkCount: %v)",
+            columnarStatisticsFetcher->GetChunkCount());
+        WaitFor(columnarStatisticsFetcher->Fetch())
+            .ThrowOnError();
+        columnarStatisticsFetcher->ApplyColumnSelectivityFactors();
+    }
+
+    for (auto& pair : UserJobFiles_) {
+        auto& files = pair.second;
+        for (const auto& file : files) {
+            LOG_DEBUG("Validating user file (FileName: %v, Path: %v, Type: %v, HasColumns: %v)",
+                file.FileName,
+                file.Path,
+                file.Type,
+                file.Path.GetColumns().HasValue());
+            auto chunkCount = file.Type == NObjectClient::EObjectType::File ? file.ChunkCount : file.Chunks.size();
+            if (chunkCount > Config->MaxUserFileChunkCount) {
+                THROW_ERROR_EXCEPTION(
+                    "User file %v exceeds chunk count limit: %v > %v",
+                    file.Path,
+                    chunkCount,
+                    Config->MaxUserFileChunkCount);
+            }
+            if (file.Type == NObjectClient::EObjectType::Table) {
+                i64 dataWeight = 0;
+                for (const auto& chunk : file.Chunks) {
+                    dataWeight += chunk->GetDataWeight();
+                }
+                if (dataWeight > Config->MaxUserFileTableDataWeight) {
+                    THROW_ERROR_EXCEPTION(
+                        "User file table %v exceeds data weight limit: %v > %v",
+                        file.Path,
+                        dataWeight,
+                        Config->MaxUserFileTableDataWeight);
+                }
+            } else {
+                i64 uncompressedSize = 0;
+                for (const auto& chunkSpec : file.ChunkSpecs) {
+                    uncompressedSize += GetChunkUncompressedDataSize(chunkSpec);
+                }
+                if (uncompressedSize > Config->MaxUserFileSize) {
+                    THROW_ERROR_EXCEPTION(
+                        "User file %v exceeds size limit: %v > %v",
+                        file.Path,
+                        uncompressedSize,
+                        Config->MaxUserFileSize);
+                }
+            }
+        }
+    }
+
 }
 
 void TOperationControllerBase::LockUserFiles()
@@ -4730,7 +4936,6 @@ void TOperationControllerBase::GetUserFilesAttributes()
                 }
                 attributeKeys.push_back("key");
                 attributeKeys.push_back("chunk_count");
-                attributeKeys.push_back("uncompressed_data_size");
                 ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
                 batchReq->AddRequest(req, "get_attributes");
             }
@@ -4821,22 +5026,13 @@ void TOperationControllerBase::GetUserFilesAttributes()
                             Y_UNREACHABLE();
                     }
 
-                    i64 fileSize = attributes.Get<i64>("uncompressed_data_size");
-                    if (fileSize > Config->MaxFileSize) {
-                        THROW_ERROR_EXCEPTION(
-                            "User file %v exceeds size limit: %v > %v",
-                            path,
-                            fileSize,
-                            Config->MaxFileSize);
-                    }
-
                     i64 chunkCount = attributes.Get<i64>("chunk_count");
-                    if (chunkCount > Config->MaxChunksPerFetch) {
+                    if (file.Type == EObjectType::File && chunkCount > Config->MaxUserFileChunkCount) {
                         THROW_ERROR_EXCEPTION(
                             "User file %v exceeds chunk count limit: %v > %v",
                             path,
                             chunkCount,
-                            Config->MaxChunksPerFetch);
+                            Config->MaxUserFileChunkCount);
                     }
                     file.ChunkCount = chunkCount;
 
@@ -5027,19 +5223,6 @@ void TOperationControllerBase::FillPrepareResult(TOperationControllerPrepareResu
         .Finish();
 }
 
-void TOperationControllerBase::ClearInputChunkBoundaryKeys()
-{
-    for (auto& pair : InputChunkMap) {
-        auto& inputChunkDescriptor = pair.second;
-        for (const auto& chunkSpec : inputChunkDescriptor.InputChunks) {
-            // We don't need boundary key ext after preparation phase (for primary tables only).
-            if (InputTables[chunkSpec->GetTableIndex()].IsPrimary()) {
-                chunkSpec->ReleaseBoundaryKeys();
-            }
-        }
-    }
-}
-
 // NB: must preserve order of chunks in the input tables, no shuffling.
 std::vector<TInputChunkPtr> TOperationControllerBase::CollectPrimaryChunks(bool versioned) const
 {
@@ -5096,16 +5279,9 @@ std::vector<TInputDataSlicePtr> TOperationControllerBase::CollectPrimaryVersione
 {
     auto createScraperForFetcher = [&] () -> IFetcherChunkScraperPtr {
         if (Spec_->UnavailableChunkStrategy == EUnavailableChunkAction::Wait) {
-            auto scraper = CreateFetcherChunkScraper(
-                Config->ChunkScraper,
-                GetCancelableInvoker(),
-                Host->GetChunkLocationThrottlerManager(),
-                InputClient,
-                InputNodeDirectory_,
-                Logger);
+            auto scraper = CreateFetcherChunkScraper();
             DataSliceFetcherChunkScrapers.push_back(scraper);
             return scraper;
-
         } else {
             return IFetcherChunkScraperPtr();
         }
@@ -5240,16 +5416,6 @@ std::vector<std::deque<TInputDataSlicePtr>> TOperationControllerBase::CollectFor
     return result;
 }
 
-bool TOperationControllerBase::InputHasDynamicTables() const
-{
-    for (const auto& table : InputTables) {
-        if (table.IsDynamic) {
-            return true;
-        }
-    }
-    return false;
-}
-
 bool TOperationControllerBase::InputHasVersionedTables() const
 {
     for (const auto& table : InputTables) {
@@ -5290,78 +5456,9 @@ TString TOperationControllerBase::GetLoggingProgress() const
         GetUnavailableInputChunkCount());
 }
 
-void TOperationControllerBase::SliceUnversionedChunks(
-    const std::vector<TInputChunkPtr>& unversionedChunks,
-    const IJobSizeConstraintsPtr& jobSizeConstraints,
-    std::vector<TChunkStripePtr>* result) const
-{
-    auto appendStripes = [&] (const std::vector<TInputChunkSlicePtr>& slices) {
-        for (const auto& slice : slices) {
-            result->push_back(New<TChunkStripe>(CreateUnversionedInputDataSlice(slice)));
-        }
-    };
-
-    LOG_DEBUG("Slicing unversioned chunks (SliceDataWeight: %v, SliceRowCount: %v, ChunkCount: %v)",
-        jobSizeConstraints->GetInputSliceDataWeight(),
-        jobSizeConstraints->GetInputSliceRowCount(),
-        unversionedChunks.size());
-
-    for (const auto& chunkSpec : unversionedChunks) {
-        int oldSize = result->size();
-
-        bool hasNontrivialLimits = !chunkSpec->IsCompleteChunk();
-
-        auto codecId = NErasure::ECodec(chunkSpec->GetErasureCodec());
-        if (hasNontrivialLimits || codecId == NErasure::ECodec::None || !Spec_->SliceErasureChunksByParts) {
-            auto slices = SliceChunkByRowIndexes(
-                chunkSpec,
-                jobSizeConstraints->GetInputSliceDataWeight(),
-                jobSizeConstraints->GetInputSliceRowCount());
-
-            appendStripes(slices);
-        } else {
-            for (const auto& slice : CreateErasureInputChunkSlices(chunkSpec, codecId)) {
-                auto slices = slice->SliceEvenly(
-                    jobSizeConstraints->GetInputSliceDataWeight(),
-                    jobSizeConstraints->GetInputSliceRowCount());
-
-                appendStripes(slices);
-            }
-        }
-
-        LOG_TRACE("Slicing chunk (ChunkId: %v, SliceCount: %v)",
-            chunkSpec->ChunkId(),
-            result->size() - oldSize);
-    }
-
-    LOG_DEBUG("Finished slicing unversioned chunks (SliceCount: %v)", result->size());
-}
-
-void TOperationControllerBase::SlicePrimaryUnversionedChunks(
-    const IJobSizeConstraintsPtr& jobSizeConstraints,
-    std::vector<TChunkStripePtr>* result) const
-{
-    SliceUnversionedChunks(CollectPrimaryUnversionedChunks(), jobSizeConstraints, result);
-}
-
-void TOperationControllerBase::SlicePrimaryVersionedChunks(
-    const IJobSizeConstraintsPtr& jobSizeConstraints,
-    std::vector<TChunkStripePtr>* result)
-{
-    for (const auto& dataSlice : CollectPrimaryVersionedDataSlices(jobSizeConstraints->GetInputSliceDataWeight())) {
-        result->push_back(New<TChunkStripe>(dataSlice));
-    }
-}
-
 bool TOperationControllerBase::IsJobInterruptible() const
 {
     return Spec_->AutoMerge->Mode == EAutoMergeMode::Disabled;
-}
-
-void TOperationControllerBase::ReinstallUnreadInputDataSlices(
-    const std::vector<NChunkClient::TInputDataSlicePtr>& inputDataSlices)
-{
-    Y_UNREACHABLE();
 }
 
 void TOperationControllerBase::ExtractInterruptDescriptor(TCompletedJobSummary& jobSummary) const
@@ -5793,8 +5890,8 @@ void TOperationControllerBase::SafeOnSnapshotCompleted(const TSnapshotCookie& co
             cookie.SnapshotIndex);
 
         for (const auto& stripeList : stripeListsToRelease) {
-            auto chunkIds = GetStripeListChunkIds(stripeList);
-            Host->AddChunkTreesToUnstageList(std::move(chunkIds), false /* recursive */);
+            auto chunks = GetStripeListChunks(stripeList);
+            AddChunksToUnstageList(std::move(chunks));
             OnChunksReleased(stripeList->TotalChunkCount);
         }
     }
@@ -6081,7 +6178,12 @@ void TOperationControllerBase::BuildProgress(TFluentMap fluent) const
             .Item("duration").Value(ScheduleJobStatistics_->Duration)
             .Item("failed").Value(ScheduleJobStatistics_->Failed)
         .EndMap()
-        .Item("data_flow_graph").DoMap(BIND(&TDataFlowGraph::BuildYson, &DataFlowGraph_))
+		.DoIf(DataFlowGraph_.operator bool(), [=] (TFluentMap fluent) {
+		    fluent
+                .Item("data_flow_graph").BeginMap()
+                    .Do(BIND(&TDataFlowGraph::BuildLegacyYson, DataFlowGraph_))
+                .EndMap();
+		})
         .DoIf(EstimatedInputDataSizeHistogram_.operator bool(), [=] (TFluentMap fluent) {
             EstimatedInputDataSizeHistogram_->BuildHistogramView();
             fluent
@@ -6297,15 +6399,17 @@ void TOperationControllerBase::ReleaseJobs(const std::vector<TJobId>& jobIds)
     for (const auto& jobId : jobIds) {
         bool archiveJobSpec = false;
         bool archiveStderr = false;
+        bool archiveFailContext = false;
 
         auto it = FinishedJobs_.find(jobId);
         if (it != FinishedJobs_.end()) {
             const auto& jobSummary = it->second->Summary;
             archiveJobSpec = jobSummary.ArchiveJobSpec;
             archiveStderr = jobSummary.ArchiveStderr;
+            archiveFailContext = jobSummary.ArchiveFailContext;
             FinishedJobs_.erase(it);
         }
-        jobsToRelease.emplace_back(TJobToRelease{jobId, archiveJobSpec, archiveStderr});
+        jobsToRelease.emplace_back(TJobToRelease{jobId, archiveJobSpec, archiveStderr, archiveFailContext});
     }
     Host->ReleaseJobs(jobsToRelease);
 }
@@ -6854,7 +6958,11 @@ void TOperationControllerBase::InferSchemaFromInput(const TKeyColumns& keyColumn
     OutputTables_[0].TableUploadOptions.SchemaMode = InputTables[0].SchemaMode;
     for (const auto& table : InputTables) {
         if (table.SchemaMode != OutputTables_[0].TableUploadOptions.SchemaMode) {
-            THROW_ERROR_EXCEPTION("Cannot infer output schema from input, tables have different schema modes");
+            THROW_ERROR_EXCEPTION("Cannot infer output schema from input, tables have different schema modes")
+                    << TErrorAttribute("input_table1_path", table.GetPath())
+                    << TErrorAttribute("input_table1_schema_mode", table.SchemaMode)
+                    << TErrorAttribute("input_table2_path", InputTables[0].GetPath())
+                    << TErrorAttribute("input_table2_schema_mode", InputTables[0].SchemaMode);
         }
     }
 
@@ -6973,13 +7081,8 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
     Persist(context, StderrTable_);
     Persist(context, CoreTable_);
     Persist(context, IntermediateTable);
-    Persist<
-        TMapSerializer<
-            TDefaultSerializer,
-            TDefaultSerializer,
-            TUnsortedTag
-        >
-    >(context, UserJobFiles_);
+    Persist<TMapSerializer<TDefaultSerializer, TDefaultSerializer, TUnsortedTag>>(context, UserJobFiles_);
+    Persist<TMapSerializer<TDefaultSerializer, TDefaultSerializer, TUnsortedTag>>(context, LivePreviewChunks_);
     Persist(context, Tasks);
     Persist(context, TaskGroups);
     Persist(context, InputChunkMap);
@@ -7040,6 +7143,7 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
             task->Initialize();
         }
         InitUpdatingTables();
+        InitializeOrchid();
     }
 }
 
@@ -7144,10 +7248,10 @@ TEdgeDescriptor TOperationControllerBase::GetIntermediateEdgeDescriptorTemplate(
 
 void TOperationControllerBase::ReleaseIntermediateStripeList(const NChunkPools::TChunkStripeListPtr& stripeList)
 {
-    auto chunkIds = GetStripeListChunkIds(stripeList);
     switch (GetIntermediateChunkUnstageMode()) {
         case EIntermediateChunkUnstageMode::OnJobCompleted: {
-            Host->AddChunkTreesToUnstageList(std::move(chunkIds), false /* recursive */);
+            auto chunks = GetStripeListChunks(stripeList);
+            AddChunksToUnstageList(std::move(chunks));
             OnChunksReleased(stripeList->TotalChunkCount);
             break;
         }
@@ -7162,7 +7266,27 @@ void TOperationControllerBase::ReleaseIntermediateStripeList(const NChunkPools::
 
 TDataFlowGraph* TOperationControllerBase::GetDataFlowGraph()
 {
-    return &DataFlowGraph_;
+    return DataFlowGraph_.Get();
+}
+
+void TOperationControllerBase::TLivePreviewChunkDescriptor::Persist(const TPersistenceContext& context)
+{
+    using NYT::Persist;
+
+    Persist(context, VertexDescriptor);
+    Persist(context, LivePreviewIndex);
+}
+
+void TOperationControllerBase::RegisterLivePreviewChunk(
+    const TDataFlowGraph::TVertexDescriptor& vertexDescriptor,
+    int index,
+    const TInputChunkPtr& chunk)
+{
+    YCHECK(LivePreviewChunks_.insert(std::make_pair(
+        chunk,
+        TLivePreviewChunkDescriptor{vertexDescriptor, index})).second);
+
+    DataFlowGraph_->RegisterLivePreviewChunk(vertexDescriptor, index, chunk);
 }
 
 const IThroughputThrottlerPtr& TOperationControllerBase::GetJobSpecSliceThrottler() const

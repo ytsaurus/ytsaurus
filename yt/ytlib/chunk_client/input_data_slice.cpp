@@ -5,6 +5,7 @@
 
 #include <yt/ytlib/table_client/row_buffer.h>
 #include <yt/ytlib/table_client/serialize.h>
+#include <yt/core/logging/log.h>
 
 namespace NYT {
 namespace NChunkClient {
@@ -289,6 +290,27 @@ bool CompareDataSlicesByLowerLimit(const TInputDataSlicePtr& slice1, const TInpu
     return diff < 0;
 }
 
+bool CompareChunkSlicesByLowerLimit(const TInputChunkSlicePtr& slice1, const TInputChunkSlicePtr& slice2)
+{
+    const auto& limit1 = slice1->LowerLimit();
+    const auto& limit2 = slice2->LowerLimit();
+    i64 diff;
+
+    diff = slice1->GetInputChunk()->GetRangeIndex() - slice2->GetInputChunk()->GetRangeIndex();
+    if (diff != 0) {
+        return diff < 0;
+    }
+
+    diff = (limit1.RowIndex.Get(0) + slice1->GetInputChunk()->GetTableRowIndex()) -
+           (limit2.RowIndex.Get(0) + slice2->GetInputChunk()->GetTableRowIndex());
+    if (diff != 0) {
+        return diff < 0;
+    }
+
+    diff = CompareRows(limit1.Key, limit2.Key);
+    return diff < 0;
+}
+
 bool CanMergeSlices(const TInputDataSlicePtr& slice1, const TInputDataSlicePtr& slice2)
 {
     //FIXME(savrus) really&
@@ -302,23 +324,18 @@ bool CanMergeSlices(const TInputDataSlicePtr& slice1, const TInputDataSlicePtr& 
 
     const auto& limit1 = slice1->UpperLimit();
     const auto& limit2 = slice2->LowerLimit();
+    const auto& chunk1 = slice1->GetSingleUnversionedChunkOrThrow();
+    const auto& chunk2 = slice2->GetSingleUnversionedChunkOrThrow();
 
-    if ((limit1.RowIndex || limit1.Key) &&
-        limit1.RowIndex.operator bool() == limit2.RowIndex.operator bool() &&
-        limit1.Key.operator bool() == limit2.Key.operator bool())
-    {
-        if (limit1.RowIndex &&
-            *limit1.RowIndex + slice1->ChunkSlices[0]->GetInputChunk()->GetTableRowIndex() !=
-            *limit2.RowIndex + slice2->ChunkSlices[0]->GetInputChunk()->GetTableRowIndex())
-        {
-            return false;
-        }
-        if (limit1.Key && limit1.Key < limit2.Key) {
-            return false;
-        }
-        return true;
+    if ((limit1.Key || limit2.Key) && limit1.Key != limit2.Key) {
+        return false;
     }
-    return false;
+
+    // Now it is safe to assume that keys are ok, so we need just to compare row indices.
+    auto rowIndex1 = limit1.RowIndex.Get(chunk1->GetRowCount()) + chunk1->GetTableRowIndex();
+    auto rowIndex2 = limit2.RowIndex.Get(0) + chunk2->GetTableRowIndex();
+
+    return rowIndex1 == rowIndex2;
 }
 
 i64 GetCumulativeRowCount(const std::vector<TInputDataSlicePtr>& dataSlices)

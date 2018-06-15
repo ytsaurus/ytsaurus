@@ -93,6 +93,8 @@ TStringBuf GetServiceHostName(TStringBuf address)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+const TNetworkAddress NullNetworkAddress;
+
 TNetworkAddress::TNetworkAddress()
 {
     memset(&Storage, 0, sizeof(Storage));
@@ -219,27 +221,45 @@ socklen_t* TNetworkAddress::GetLengthPtr()
 
 TErrorOr<TNetworkAddress> TNetworkAddress::TryParse(TStringBuf address)
 {
-    int closingBracketIndex = address.find(']');
-    if (closingBracketIndex == TString::npos || address.empty() || address[0] != '[') {
-        return TError("Address %Qv is malformed, expected [<addr>]:<port> or [<addr>] format",
-            address);
-    }
-
-    int colonIndex = address.find(':', closingBracketIndex + 1);
+    TString ipAddress(address);
     TNullable<int> port;
-    if (colonIndex != TString::npos) {
-        try {
-            port = FromString<int>(address.substr(colonIndex + 1));
-        } catch (const std::exception) {
-            return TError("Port number in address %Qv is malformed",
+
+    int closingBracketIndex = address.find(']');
+    if (closingBracketIndex != TString::npos) {
+        if (closingBracketIndex == TString::npos || address.empty() || address[0] != '[') {
+            return TError("Address %Qv is malformed, expected [<addr>]:<port> or [<addr>] format",
                 address);
+        }
+
+        int colonIndex = address.find(':', closingBracketIndex + 1);
+        if (colonIndex != TString::npos) {
+            try {
+                port = FromString<int>(address.substr(colonIndex + 1));
+            } catch (const std::exception) {
+                return TError("Port number in address %Qv is malformed",
+                    address);
+            }
+        }
+
+        ipAddress = TString(address.substr(1, closingBracketIndex - 1));
+    } else {
+        if (address.find('.') != TString::npos) {
+            int colonIndex = address.find(':', closingBracketIndex + 1);
+            if (colonIndex != TString::npos) {
+                try {
+                    port = FromString<int>(address.substr(colonIndex + 1));
+                    ipAddress = TString(address.substr(0, colonIndex));
+                } catch (const std::exception) {
+                    return TError("Port number in address %Qv is malformed",
+                        address);
+                }
+            }
         }
     }
 
-    auto ipAddress = TString(address.substr(1, closingBracketIndex - 1));
     {
         // Try to parse as ipv4.
-        struct sockaddr_in sa;
+        struct sockaddr_in sa = {};
         if (inet_pton(AF_INET, ipAddress.c_str(), &sa.sin_addr) == 1) {
             if (port) {
                 sa.sin_port = htons(*port);
@@ -250,7 +270,7 @@ TErrorOr<TNetworkAddress> TNetworkAddress::TryParse(TStringBuf address)
     }
     {
         // Try to parse as ipv6.
-        struct sockaddr_in6 sa;
+        struct sockaddr_in6 sa = {};
         if (inet_pton(AF_INET6, ipAddress.c_str(), &(sa.sin6_addr))) {
             if (port) {
                 sa.sin6_port = htons(*port);
@@ -307,6 +327,38 @@ TNetworkAddress TNetworkAddress::CreateUnixDomainAddress(const TString& name)
 TNetworkAddress TNetworkAddress::Parse(TStringBuf address)
 {
     return TryParse(address).ValueOrThrow();
+}
+
+TString TNetworkAddress::FormatIP() const
+{
+    const void* ipAddr;
+    switch (GetSockAddr()->sa_family) {
+        case AF_INET: {
+            const auto* typedAddr = reinterpret_cast<const sockaddr_in*>(GetSockAddr());
+            ipAddr = &typedAddr->sin_addr;
+            break;
+        }
+        case AF_INET6: {
+            const auto* typedAddr = reinterpret_cast<const sockaddr_in6*>(GetSockAddr());
+            ipAddr = &typedAddr->sin6_addr;
+            break;
+        }
+        default: {
+            THROW_ERROR_EXCEPTION("Invalid address type");
+        }
+    }
+    
+    std::array<char, 256> buffer;
+    if (!inet_ntop(
+        GetSockAddr()->sa_family,
+        const_cast<void*>(ipAddr),
+        buffer.data(),
+        buffer.size()))
+    {
+        THROW_ERROR_EXCEPTION("Failed to format IP address");
+    }
+
+    return TString(buffer.data());
 }
 
 TString ToString(const TNetworkAddress& address, bool withPort)

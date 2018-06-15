@@ -173,10 +173,12 @@ void TestMemoryTaggingInvoker()
         .AsyncVia(controller->GetControlInvoker())
         .Run())
         .ThrowOnError();
-    EXPECT_NEAR(controller->GetMemoryUsage(), 128_MB, 1_KB);
+    EXPECT_NEAR(controller->GetMemoryUsage(), 128_MB, 1_MB);
 
-    controller = nullptr;
-    EXPECT_NEAR(GetMemoryUsageForTag(1), 0, 1_KB);
+    controller->Allocations().clear();
+    controller->Allocations().shrink_to_fit();
+
+    EXPECT_NEAR(GetMemoryUsageForTag(1), 0, 1_MB);
 }
 
 void TestControllersInThreadPool()

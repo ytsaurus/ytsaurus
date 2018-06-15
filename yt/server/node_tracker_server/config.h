@@ -4,7 +4,7 @@
 
 #include <yt/core/ytree/yson_serializable.h>
 
-#include <yt/core/misc/boolean_formula.h>
+#include <yt/core/misc/arithmetic_formula.h>
 
 namespace NYT {
 namespace NNodeTrackerServer {
@@ -21,7 +21,7 @@ public:
     {
         RegisterParameter("max_concurrent_node_registrations", MaxConcurrentNodeRegistrations)
             .Default(5)
-            .GreaterThan(0);
+            .GreaterThanOrEqual(0);
     }
 };
 
@@ -80,11 +80,14 @@ class TDynamicNodeTrackerConfig
 {
 public:
     THashMap<TString, TNodeGroupConfigPtr> NodeGroups;
+    TDuration TotalNodeStatisticsUpdatePeriod;
 
     TDynamicNodeTrackerConfig()
     {
         RegisterParameter("node_groups", NodeGroups)
             .Default();
+        RegisterParameter("total_node_statistics_update_period", TotalNodeStatisticsUpdatePeriod)
+            .Default(TDuration::Seconds(60));
     }
 };
 

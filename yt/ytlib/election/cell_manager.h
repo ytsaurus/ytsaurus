@@ -60,7 +60,7 @@ private:
 
     std::vector<NRpc::IChannelPtr> PeerChannels_;
 
-    std::vector<NProfiling::TTagId> PeerTags_;
+    NProfiling::TTagIdList PeerTags_;
     NProfiling::TTagId AllPeersTag_;
     NProfiling::TTagId PeerQuorumTag_;
     NProfiling::TTagId CellIdTag_;

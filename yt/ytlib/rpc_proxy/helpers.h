@@ -4,7 +4,8 @@
 
 #include <yt/core/rpc/public.h>
 
-#include <yt/ytlib/api/public.h>
+#include <yt/ytlib/api/admin.h>
+#include <yt/ytlib/api/client.h>
 
 #include <yt/ytlib/rpc_proxy/proto/api_service.pb.h>
 
@@ -16,6 +17,8 @@ namespace NRpcProxy {
 void SetTimeoutOptions(
     NRpc::TClientRequest& request,
     const NApi::TTimeoutOptions& options);
+
+Y_NO_RETURN void ThrowUnimplemented(const TString& method);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -60,6 +63,25 @@ void ToProto(
 void FromProto(
     NApi::TPutFileToCacheResult* result,
     const NProto::TPutFileToCacheResult& proto);
+
+void ToProto(NProto::TColumnSchema* protoSchema, const NTableClient::TColumnSchema& schema);
+void FromProto(NTableClient::TColumnSchema* schema, const NProto::TColumnSchema& protoSchema);
+
+void ToProto(NProto::TTableSchema* protoSchema, const NTableClient::TTableSchema& schema);
+void FromProto(NTableClient::TTableSchema* schema, const NProto::TTableSchema& protoSchema);
+
+// Doesn't fill cell_config_version.
+void ToProto(
+    NProto::TTabletInfo* protoTabletInfo,
+    const NTabletClient::TTabletInfo& tabletInfo);
+// Doesn't fill TableId, UpdateTime and Owners.
+void FromProto(
+    NTabletClient::TTabletInfo* tabletInfo,
+    const NProto::TTabletInfo& protoTabletInfo);
+
+void ToProto(
+    NProto::TTabletReadOptions* proto,
+    const NApi::TTabletReadOptions& options);
 
 } // namespace NProto
 ////////////////////////////////////////////////////////////////////////////////

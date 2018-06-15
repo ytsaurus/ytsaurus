@@ -492,47 +492,9 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        LOG_DEBUG("Validating operation permission (Permission: %v, User: %v, OperationId: %v)",
-            permission,
-            user,
-            operationId);
+        NScheduler::ValidateOperationPermission(user, operationId, GetMasterClient(), permission, Logger);
 
-        const auto& client = GetMasterClient();
-
-        std::vector<NYTree::TYPath> paths = {
-            GetOperationPath(operationId),
-            GetNewOperationPath(operationId)
-        };
-
-        for (const auto& path : paths) {
-            auto asyncResult = client->CheckPermission(user, path, permission);
-            auto resultOrError = WaitFor(asyncResult);
-            if (!resultOrError.IsOK()) {
-                if (resultOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
-                    continue;
-                }
-
-                THROW_ERROR_EXCEPTION("Error checking permission for operation %v",
-                    operationId)
-                    << resultOrError;
-            }
-
-            const auto& result = resultOrError.Value();
-            if (result.Action == ESecurityAction::Allow) {
-                ValidateConnected();
-                LOG_DEBUG("Operation permission successfully validated (Permission: %v, User: %v, OperationId: %v)",
-                    permission,
-                    user,
-                    operationId);
-                return;
-            }
-        }
-
-        THROW_ERROR_EXCEPTION(
-            NSecurityClient::EErrorCode::AuthorizationError,
-            "User %Qv has been denied access to operation %v",
-            user,
-            operationId);
+        ValidateConnected();
     }
 
     TFuture<TOperationPtr> StartOperation(
@@ -571,10 +533,7 @@ public:
             GetMasterClient()->GetNativeConnection()->GetPrimaryMasterCellTag());
 
         auto runtimeParams = New<TOperationRuntimeParameters>();
-        runtimeParams->Owners = spec->Owners;
-        // NOTE: At this point not all runtime params are filled since there are options that
-        // are unknown until operation is registered in strategy (e.g. trees in which operation will run).
-        // These unknown runtime params will be filled inside strategy.
+        Strategy_->InitOperationRuntimeParameters(runtimeParams, spec);
 
         auto operation = New<TOperation>(
             operationId,
@@ -776,8 +735,8 @@ public:
             MakeStrong(this),
             operation,
             error,
-        /* abortRunningJobs */ true,
-        /* setAlert */ true));
+            /* abortRunningJobs */ true,
+            /* setAlert */ true));
     }
 
     void OnOperationAgentUnregistered(const TOperationPtr& operation)
@@ -816,17 +775,13 @@ public:
 
         auto codicilGuard = operation->MakeCodicilGuard();
 
-        // Not applying runtime params until they are persisted in Cypress.
-        auto resultOrError = MasterConnector_->FlushOperationRuntimeParameters(operation, runtimeParams);
-        WaitFor(resultOrError)
-            .ThrowOnError();
+        Strategy_->ValidateOperationRuntimeParameters(operation.Get(), runtimeParams);
 
         if (runtimeParams->Owners && operation->GetOwners() != *runtimeParams->Owners) {
             operation->SetOwners(*runtimeParams->Owners);
         }
-
         operation->SetRuntimeParameters(runtimeParams);
-        Strategy_->UpdateOperationRuntimeParameters(operation.Get());
+        Strategy_->ApplyOperationRuntimeParameters(operation.Get());
 
         // Updating ACL and other attributes.
         WaitFor(MasterConnector_->FlushOperationNode(operation))
@@ -834,6 +789,9 @@ public:
 
         LogEventFluently(ELogEventType::RuntimeParametersInfo)
             .Item("runtime_params").Value(runtimeParams);
+
+        WaitFor(MasterConnector_->FlushOperationRuntimeParameters(operation, runtimeParams))
+            .ThrowOnError();
 
         LOG_INFO("Operation runtime parameters updated (OperationId: %v)",
             operation->GetId());
@@ -847,9 +805,10 @@ public:
 
         ValidateOperationPermission(user, operation->GetId(), EPermission::Write);
 
-        auto newRuntimeParams = UpdateYsonSerializable(
-            operation->GetRuntimeParameters(),
-            parameters);
+        auto userRuntimeParams = New<TUserFriendlyOperationRuntimeParameters>();
+        Deserialize(userRuntimeParams, parameters);
+
+        auto newRuntimeParams = userRuntimeParams->UpdateParameters(operation->GetRuntimeParameters());
 
         auto updateFuture = BIND(&TImpl::DoUpdateOperationParameters, MakeStrong(this))
             .AsyncVia(operation->GetCancelableControlInvoker())
@@ -1659,11 +1618,7 @@ private:
         const TOperationPtr& operation,
         const TObjectServiceProxy::TReqExecuteBatchPtr& batchReq)
     {
-        static auto treeParamsTemplate = New<TOperationFairShareStrategyTreeOptions>();
-
-        auto keySet = treeParamsTemplate->GetRegisteredKeys();
-        std::vector<TString> keys(keySet.begin(), keySet.end());
-        keys.push_back("owners");
+        std::vector<TString> keys{"weight", "resource_limits", "owners"};
 
         auto req = TYPathProxy::Get(GetOperationPath(operation->GetId()) + "/@");
         ToProto(req->mutable_attributes()->mutable_keys(), keys);
@@ -1697,7 +1652,7 @@ private:
                 ownerList = ConvertTo<std::vector<TString>>(owners->AsList());
             }
 
-            Strategy_->UpdateOperationRuntimeParameters(operation.Get(), runtimeParamsNode);
+            Strategy_->UpdateOperationRuntimeParametersOld(operation.Get(), runtimeParamsMap);
 
             if (operation->GetOwners() != ownerList) {
                 operation->SetOwners(ownerList);
@@ -1899,7 +1854,7 @@ private:
 
         try {
             // NB(babenko): now we only validate this on start but not during revival
-            Strategy_->ValidateOperationCanBeRegistered(operation.Get());
+            Strategy_->ValidatePoolLimits(operation.Get(), operation->GetRuntimeParameters());
 
             WaitFor(MasterConnector_->CreateOperationNode(operation))
                 .ThrowOnError();

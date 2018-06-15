@@ -21,6 +21,7 @@
 #include <yt/ytlib/table_client/config.h>
 #include <yt/ytlib/table_client/row_base.h>
 #include <yt/ytlib/table_client/schema.h>
+#include <yt/ytlib/table_client/columnar_statistics.h>
 
 #include <yt/ytlib/tablet_client/public.h>
 
@@ -49,6 +50,8 @@
 #include <yt/core/yson/string.h>
 
 #include <yt/core/misc/enum.h>
+
+#include <yt/core/profiling/profiler.h>
 
 namespace NYT {
 namespace NApi {
@@ -560,6 +563,7 @@ struct TJournalWriterOptions
 {
     TJournalWriterConfigPtr Config;
     bool EnableMultiplexing = true;
+    NProfiling::TProfiler Profiler;
 };
 
 struct TTableReaderOptions
@@ -573,6 +577,14 @@ struct TTableWriterOptions
     : public TTransactionalOptions
 {
     NTableClient::TTableWriterConfigPtr Config;
+};
+
+struct TGetColumnarStatisticsOptions
+    : public TTransactionalOptions
+    , public TTimeoutOptions
+{
+    NChunkClient::TFetchChunkSpecConfigPtr FetchChunkSpecConfig;
+    NChunkClient::TFetcherConfigPtr FetcherConfig;
 };
 
 struct TLocateSkynetShareOptions
@@ -695,6 +707,7 @@ struct TListJobsOptions
     TNullable<TString> Address;
     TNullable<bool> WithStderr;
     TNullable<bool> WithFailContext;
+    TNullable<bool> WithSpec;
 
     EJobSortField SortField = EJobSortField::None;
     EJobSortDirection SortOrder = EJobSortDirection::Ascending;
@@ -953,7 +966,7 @@ struct IClientBase
 
 
     // Files
-    virtual TFuture<NConcurrency::IAsyncZeroCopyInputStreamPtr> CreateFileReader(
+    virtual TFuture<IFileReaderPtr> CreateFileReader(
         const NYPath::TYPath& path,
         const TFileReaderOptions& options = TFileReaderOptions()) = 0;
 
@@ -994,12 +1007,13 @@ struct IClient
     //! Returns a async flag indicating completion.
     virtual TFuture<void> Terminate() = 0;
 
+    virtual const NTabletClient::ITableMountCachePtr& GetTableMountCache() = 0;
+    virtual const NTransactionClient::ITimestampProviderPtr& GetTimestampProvider() = 0;
 
     // Transactions
     virtual ITransactionPtr AttachTransaction(
         const NTransactionClient::TTransactionId& transactionId,
         const TTransactionAttachOptions& options = TTransactionAttachOptions()) = 0;
-
 
     // Tables
     virtual TFuture<void> MountTable(
@@ -1060,6 +1074,10 @@ struct IClient
     virtual TFuture<TSkynetSharePartsLocationsPtr> LocateSkynetShare(
         const NYPath::TRichYPath& path,
         const TLocateSkynetShareOptions& options = TLocateSkynetShareOptions()) = 0;
+
+    virtual TFuture<NTableClient::TColumnarStatistics> GetColumnarStatistics(
+        const NYPath::TRichYPath& path,
+        const TGetColumnarStatisticsOptions& options = TGetColumnarStatisticsOptions()) = 0;
 
     // Files
     virtual TFuture<TGetFileFromCacheResult> GetFileFromCache(

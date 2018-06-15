@@ -25,9 +25,9 @@ public:
         const TStoreId& id,
         TTablet* tablet,
         NChunkClient::IBlockCachePtr blockCache,
-        NNodeTrackerClient::TNodeMemoryTracker* memoryTracker = nullptr,
         NDataNode::TChunkRegistryPtr chunkRegistry = nullptr,
         NDataNode::TChunkBlockManagerPtr chunkBlockManager = nullptr,
+        TVersionedChunkMetaManagerPtr chunkMetaManager = nullptr,
         NApi::INativeClientPtr client = nullptr,
         const NNodeTrackerClient::TNodeDescriptor& localDescriptor = NNodeTrackerClient::TNodeDescriptor());
     ~TSortedChunkStore();
@@ -48,8 +48,7 @@ public:
         TTimestamp timestamp,
         bool produceAllVersions,
         const TColumnFilter& columnFilter,
-        const TWorkloadDescriptor& workloadDescriptor,
-        const NChunkClient::TReadSessionId& sessionId) override;
+        const NChunkClient::TClientBlockReadOptions& blockReadOptions) override;
 
     virtual NTableClient::IVersionedReaderPtr CreateReader(
         const TTabletSnapshotPtr& tabletSnapshot,
@@ -57,8 +56,7 @@ public:
         TTimestamp timestamp,
         bool produceAllVersions,
         const TColumnFilter& columnFilter,
-        const TWorkloadDescriptor& workloadDescriptor,
-        const NChunkClient::TReadSessionId& sessionId) override;
+        const NChunkClient::TClientBlockReadOptions& blockReadOptions) override;
 
     virtual TError CheckRowLocks(
         TUnversionedRow row,
@@ -71,29 +69,25 @@ private:
     TOwningKey MaxKey_;
 
     const NTableClient::TKeyComparer KeyComparer_;
-    NNodeTrackerClient::TNodeMemoryTracker* MemoryTracker_;
-
-    NTableClient::TCachedVersionedChunkMetaPtr CachedVersionedChunkMeta_;
 
     NTableClient::IVersionedReaderPtr CreateCacheBasedReader(
         const TSharedRange<TKey>& keys,
         TTimestamp timestamp,
         bool produceAllVersions,
         const TColumnFilter& columnFilter,
-        const NChunkClient::TReadSessionId& sessionId,
+        const NChunkClient::TClientBlockReadOptions& blockReadOptions,
         const TTableSchema& schema);
     NTableClient::IVersionedReaderPtr CreateCacheBasedReader(
         TSharedRange<NTableClient::TRowRange> bounds,
         TTimestamp timestamp,
         bool produceAllVersions,
         const TColumnFilter& columnFilter,
-        const NChunkClient::TReadSessionId& sessionId,
+        const NChunkClient::TClientBlockReadOptions& blockReadOptions,
         const TTableSchema& schema);
 
     NTableClient::TChunkStatePtr PrepareCachedChunkState(
         NChunkClient::IChunkReaderPtr chunkReader,
-        const TWorkloadDescriptor& workloadDescriptor,
-        const NChunkClient::TReadSessionId& readSessionId);
+        const NChunkClient::TClientBlockReadOptions& blockReadOptions);
 
     void ValidateBlockSize(
         const TTabletSnapshotPtr& tabletSnapshot,

@@ -75,7 +75,7 @@ int IListNode::AdjustChildIndex(int index) const
 
 void Serialize(INode& value, IYsonConsumer* consumer)
 {
-    VisitTree(&value, consumer);
+    VisitTree(&value, consumer, Null /*attributeKeys*/, true /*stable*/);
 }
 
 void Deserialize(INodePtr& value, const INodePtr& node)
