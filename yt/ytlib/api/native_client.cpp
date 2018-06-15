@@ -4879,28 +4879,28 @@ private:
             auto it2 = source2.begin();
             auto end2 = source2.end();
 
-            std::vector<TOperation> result;
+            std::vector<TOperation> merged;
             while (it1 != end1 && it2 != end2) {
                 if (it1->OperationId == it2->OperationId) {
-                    result.push_back(*it1);
+                    merged.push_back(*it1);
 
                     filterAndCount(it1->Pool, it1->AuthenticatedUser, it1->OperationState, it1->OperationType, -1);
 
                     ++it1;
                     ++it2;
                 } else if (it1->OperationId < it2->OperationId) {
-                    result.push_back(*it1);
+                    merged.push_back(*it1);
                     ++it1;
                 } else {
-                    result.push_back(*it2);
+                    merged.push_back(*it2);
                     ++it2;
                 }
             }
 
-            result.insert(result.end(), it1, end1);
-            result.insert(result.end(), it2, end2);
+            merged.insert(merged.end(), it1, end1);
+            merged.insert(merged.end(), it2, end2);
 
-            return result;
+            return merged;
         };
 
         std::vector<TOperation> mergedData = mergeOperations(cypressData, archiveData);
