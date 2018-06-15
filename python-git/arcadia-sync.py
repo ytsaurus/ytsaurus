@@ -83,8 +83,4 @@ def main():
         assert False, "Unknown command " + args.command
 
 if __name__ == "__main__":
-    try:
-        main()
-    except Exception as err:
-        print('Exception "{0}": {1}'.format(err.__class__.__name__, str(err)))
-        sys.exit(1)
+    main()
