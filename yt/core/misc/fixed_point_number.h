@@ -41,6 +41,8 @@ public:
     template <typename T>
     TFixedPointNumber& operator *= (const T& value);
 
+    TFixedPointNumber& operator *= (const double& value);
+
     template <typename T>
     TFixedPointNumber& operator /= (const T& value);
 
