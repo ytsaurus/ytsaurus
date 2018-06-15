@@ -186,20 +186,20 @@ def make_request(command_name, params,
         driver_user_name = str(driver_user_name)
 
     try:
-	request = driver_bindings.Request(
-	    command_name=command_name,
-	    parameters=params,
-	    input_stream=input_stream,
-	    output_stream=output_stream,
-	    user=driver_user_name,
-	    token=get_token())
+        request = driver_bindings.Request(
+            command_name=command_name,
+            parameters=params,
+            input_stream=input_stream,
+            output_stream=output_stream,
+            user=driver_user_name,
+            token=get_token())
     except TypeError:
-	request = driver_bindings.Request(
-	    command_name=command_name,
-	    parameters=params,
-	    input_stream=input_stream,
-	    output_stream=output_stream,
-	    user=driver_user_name)
+        request = driver_bindings.Request(
+            command_name=command_name,
+            parameters=params,
+            input_stream=input_stream,
+            output_stream=output_stream,
+            user=driver_user_name)
 
     if get_config(client)["enable_passing_request_id_to_driver"]:
         request.id = request_id
