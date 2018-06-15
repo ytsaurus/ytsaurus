@@ -63,11 +63,20 @@ def _raise_for_status(response):
 
     raise YtError(**response_json)
 
-class HTTPRequestRetrier(Retrier):
+class HTTPRequestRetrierConfiguration(object):
     def __init__(self, request_timeout, enable_retries, retry_count, token, force_ipv4, force_ipv6):
+        self.request_timeout = request_timeout
+        self.enable_retries = enable_retries
+        self.retry_count = retry_count
+        self.token = token
+        self.force_ipv4 = force_ipv4
+        self.force_ipv6 = force_ipv6
+
+class HTTPRequestRetrier(Retrier):
+    def __init__(self, configuration, method, url, params=None, is_mutating=False, data=None):
         config = {
-            "enable": enable_retries,
-            "count": retry_count,
+            "enable": configuration.enable_retries,
+            "count": configuration.retry_count,
             "backoff": {
                 "policy": "exponential",
                 "exponential_policy": {
@@ -80,18 +89,35 @@ class HTTPRequestRetrier(Retrier):
         }
         retriable_errors = get_retriable_errors() + (TransferManagerUnavailableError,
                                                      RequestIsBeingProcessedError)
-        super(HTTPRequestRetrier, self).__init__(config, request_timeout, exceptions=retriable_errors)
+        super(HTTPRequestRetrier, self).__init__(config, configuration.request_timeout, exceptions=retriable_errors)
 
-        self.token = token
+        self.token = configuration.token
         self.session = requests.Session()
-        configure_ip(self.session, force_ipv4=force_ipv4, force_ipv6=force_ipv6)
+        configure_ip(self.session, force_ipv4=configuration.force_ipv4, force_ipv6=configuration.force_ipv6)
 
-        self.method = None
-        self.url = None
-        self.params = None
-        self.headers = None
-        self.is_mutating = None
-        self.data = None
+        self.method = method
+        self.url = url
+        self.is_mutating = is_mutating
+        self.data = data
+
+        headers = {
+            "Accept-Type": "application/json",
+            "Content-Type": "application/json",
+            "User-Agent": "Transfer Manager client " + get_version()
+        }
+
+        if method == "POST":
+            require(self.token is not None, lambda: YtError("YT token is not specified"))
+            headers["Authorization"] = "OAuth " + self.token
+
+        self.headers = headers
+
+        params = get_value(params, {})
+        if is_mutating:
+            params["mutation_id"] = generate_uuid()
+            params["retry"] = bool_to_string(False)
+
+        self.params = params
 
     def except_action(self, exception, attempt):
         logger.warning('HTTP %s request %s failed with error %s, message: "%s", headers: %s',
@@ -110,30 +136,6 @@ class HTTPRequestRetrier(Retrier):
                                         timeout=self.timeout / 1000.0, data=self.data)
         _raise_for_status(response)
         return response
-
-    def make_request(self, method, url, params=None, data=None, is_mutating=False):
-        params = get_value(params, {})
-        if is_mutating:
-            params["mutation_id"] = generate_uuid()
-            params["retry"] = bool_to_string(False)
-
-        headers = {
-            "Accept-Type": "application/json",
-            "Content-Type": "application/json",
-            "User-Agent": "Transfer Manager client " + get_version()
-        }
-        if method == "POST":
-            require(self.token is not None, lambda: YtError("YT token is not specified"))
-            headers["Authorization"] = "OAuth " + self.token
-
-        self.method = method
-        self.url = url
-        self.params = params
-        self.headers = headers
-        self.is_mutating = is_mutating
-        self.data = data
-
-        return self.run()
 
 class Poller(object):
     def __init__(self, client, poll_period, running_tasks_limit,
@@ -323,7 +325,7 @@ class TransferManager(object):
             self.backend_url = "http://{0}".format(backend_url)
 
         self.token = get_token(token=token)
-        self.retrier = HTTPRequestRetrier(
+        self.retrier_configuration = HTTPRequestRetrierConfiguration(
             http_request_timeout,
             enable_retries,
             retry_count,
@@ -347,23 +349,23 @@ class TransferManager(object):
         return self.add_tasks_from_src_dst_pairs(src_dst_pairs, source_cluster, destination_cluster, **kwargs)
 
     def abort_task(self, task_id):
-        self.retrier.make_request(
+        self._make_request(
             "POST",
             "{0}/tasks/{1}/abort/".format(self.backend_url, task_id),
             is_mutating=True)
 
     def restart_task(self, task_id):
-        self.retrier.make_request(
+        self._make_request(
             "POST",
             "{0}/tasks/{1}/restart/".format(self.backend_url, task_id),
             is_mutating=True)
 
     def get_task_info(self, task_id):
-        return self.retrier.make_request("GET", "{0}/tasks/{1}/".format(self.backend_url, task_id)).json()
+        return self._make_request("GET", "{0}/tasks/{1}/".format(self.backend_url, task_id)).json()
 
     def ping_task_and_get(self, task_id):
         url = "{0}/tasks/{1}/ping_and_get/".format(self.backend_url, task_id)
-        return self.retrier.make_request("POST", url).json()
+        return self._make_request("POST", url).json()
 
     def get_tasks(self, user=None, fields=None):
         params = {}
@@ -372,10 +374,10 @@ class TransferManager(object):
         if fields is not None:
             params["fields[]"] = deepcopy(fields)
 
-        return self.retrier.make_request("GET", "{0}/tasks/".format(self.backend_url), params=params).json()
+        return self._make_request("GET", "{0}/tasks/".format(self.backend_url), params=params).json()
 
     def get_backend_config(self):
-        return self.retrier.make_request("GET", "{0}/config/".format(self.backend_url)).json()
+        return self._make_request("GET", "{0}/config/".format(self.backend_url)).json()
 
     def match_src_dst_pattern(self, source_cluster, source_table, destination_cluster, destination_table,
                               include_files=False):
@@ -387,7 +389,7 @@ class TransferManager(object):
             "include_files": include_files,
         }
 
-        return self.retrier.make_request(
+        return self._make_request(
             "POST",
             self.backend_url + "/match/",
             is_mutating=False,
@@ -406,7 +408,7 @@ class TransferManager(object):
         if destination_table is not None:
             data["destination_table"] = destination_table
 
-        rsp = self.retrier.make_request(
+        rsp = self._make_request(
             "POST",
             self.backend_url + "/tasks/",
             is_mutating=True,
@@ -514,3 +516,14 @@ class TransferManager(object):
                 logger.info("All tasks successfully finished")
 
         return tasks
+
+    def _make_request(self, method, url, params=None, is_mutating=False, data=None):
+        retrier = HTTPRequestRetrier(
+            self.retrier_configuration,
+            method,
+            url,
+            params=params,
+            is_mutating=is_mutating,
+            data=data)
+
+        return retrier.run()

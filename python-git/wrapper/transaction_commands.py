@@ -43,7 +43,7 @@ def abort_transaction(transaction, sticky=False, client=None):
     """
     params = transaction_params(transaction, client=client)
     params["sticky"] = sticky
-    make_request("abort_tx", params, client=client)
+    return make_request("abort_tx", params, client=client)
 
 def commit_transaction(transaction, sticky=False, client=None):
     """Saves all transaction changes.
@@ -54,7 +54,7 @@ def commit_transaction(transaction, sticky=False, client=None):
     """
     params = transaction_params(transaction, client=client)
     params["sticky"] = sticky
-    make_request("commit_tx", params, client=client)
+    return make_request("commit_tx", params, client=client)
 
 def ping_transaction(transaction, sticky=False, client=None):
     """Prolongs transaction lifetime.
@@ -65,4 +65,4 @@ def ping_transaction(transaction, sticky=False, client=None):
     """
     params = transaction_params(transaction, client=client)
     params["sticky"] = sticky
-    make_request("ping_tx", params, client=client)
+    return make_request("ping_tx", params, client=client)

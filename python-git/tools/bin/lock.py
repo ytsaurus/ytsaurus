@@ -20,11 +20,14 @@ def main():
     parser.add_argument("--step", type=float, default=1.0)
     parser.add_argument("--conflict-exit-code", type=int, default=1)
     parser.add_argument("--set-address", action="store_true", default=False)
-    # TODO: support `--auto-create-file`.
+    parser.add_argument("--create-lock", action="store_true", default=False, help="Unconditionally creates lock path")
     args = parser.parse_args()
 
     if args.proxy is not None:
         yt.config["proxy"]["url"] = args.proxy
+
+    if args.create_lock:
+        yt.create("map_node", args.path, ignore_existing=True, recursive=True)
 
     with yt.Transaction(attributes={"title": "yt_lock transaction"}) as tx:
         try:

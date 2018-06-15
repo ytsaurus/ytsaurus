@@ -42,7 +42,7 @@ ACL commands:
     add-member, remove-member, check-permission
 Operation commands:
     map-reduce, map, sort, reduce, join-reduce, merge, erase,
-    remote-copy, abort-op, suspend-op, resume-op, track-op, complete-op,
+    remote-copy, vanilla, abort-op, suspend-op, resume-op, track-op, complete-op,
     update-op-parameters
 Transaction commands:
     lock, start-tx, abort-tx, commit-tx, ping-tx
@@ -807,16 +807,18 @@ def add_remote_copy_parser(add_parser):
     add_structured_argument(parser, "--cluster-connection")
     add_structured_argument(parser, "--spec")
 
-def run_vanilla_operation(sync, tasks):
+def run_vanilla_operation(sync, tasks, spec):
     """Run vanilla operation."""
     spec_builder = VanillaSpecBuilder()
     for name, description in iteritems(tasks):
         spec_builder.task(name, description)
+    spec_builder.spec(spec)
     yt.run_operation(spec_builder, sync=sync)
 
 def add_vanilla_parser(add_parser):
     parser = add_parser("vanilla", operation_handler(run_vanilla_operation))
     add_structured_argument(parser, "--tasks", help="task descriptions")
+    add_structured_argument(parser, "--spec")
 
 @copy_docstring_from(yt.shuffle_table)
 def shuffle_handler(*args, **kwargs):

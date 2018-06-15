@@ -50,7 +50,7 @@ def get_command_list(client=None):
         raise YtError("Command \"get_command_list\" is not supported in batch mode")
 
     backend = get_backend_type(client)
-    if backend == "native":
+    if backend in ("native", "rpc"):
         return list(native_driver.get_command_descriptors(client))
     else: # backend == "http"
         return list(get_api_commands(client))
@@ -90,7 +90,7 @@ def make_request(command_name,
             result = apply_function_to_result(lambda output: yson.dumps(output), result)
         return result
 
-    if backend == "native":
+    if backend in ("native", "rpc"):
         if is_data_compressed:
             raise YtError("Native driver does not support compressed input for file and tabular data")
         result = native_driver.make_request(

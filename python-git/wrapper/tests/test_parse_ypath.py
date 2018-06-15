@@ -8,6 +8,8 @@ from yt.ypath import YPathError, parse_ypath
 
 from yt.packages.six.moves import xrange
 
+from flaky import flaky
+
 import pytest
 import time
 import sys
@@ -95,6 +97,7 @@ class TestParseYpath(object):
             with pytest.raises((YtError, TypeError, YsonError, YPathError)):
                 parse_ypath(path)
 
+    @flaky(max_runs=5)
     def test_speed(self):
         start_time = time.time()
         for _ in xrange(50):
