@@ -380,13 +380,10 @@ private:
         for (size_t index = 0; index < blocks.size(); ++index) {
             const auto& block = blocks[index];
             const auto& protoBlock = request->blocks(index);
-            TBlockId blockId;
-            TNullable<TNodeDescriptor> sourceDescriptor;
-            FromProto(&blockId, protoBlock.block_id());
-            if (protoBlock.has_source_descriptor()) {
-                sourceDescriptor.Emplace();
-                FromProto(sourceDescriptor.GetPtr(), protoBlock.source_descriptor());
-            }
+            auto blockId = FromProto<TBlockId>(protoBlock.block_id());
+            auto sourceDescriptor = protoBlock.has_source_descriptor()
+                ? MakeNullable(FromProto<TNodeDescriptor>(protoBlock.source_descriptor()))
+                : Null;
             blockManager->PutCachedBlock(blockId, block, sourceDescriptor);
         }
 
