@@ -291,18 +291,44 @@ TStringBuf TEnumTraits<T, true>::GetTypeName()
 
 template <class T, class E, E Min, E Max>
 TEnumIndexedVector<T, E, Min, Max>::TEnumIndexedVector()
-    : Items_(N)
+    : Items_{}
 { }
 
 template <class T, class E, E Min, E Max>
+TEnumIndexedVector<T, E, Min, Max>::TEnumIndexedVector(const TEnumIndexedVector& other)
+{
+    *this = other;
+}
+
+template <class T, class E, E Min, E Max>
+TEnumIndexedVector<T, E, Min, Max>::TEnumIndexedVector(TEnumIndexedVector&& other)
+{
+    *this = std::move(other);
+}
+
+template <class T, class E, E Min, E Max>
 TEnumIndexedVector<T, E, Min, Max>::TEnumIndexedVector(std::initializer_list<T> elements)
-    : Items_(N)
+    : Items_{}
 {
     Y_ASSERT(std::distance(elements.begin(), elements.end()) <= N);
-    int index = 0;
+    size_t index = 0;
     for (const auto& element : elements) {
         Items_[index++] = element;
     }
+}
+
+template <class T, class E, E Min, E Max>
+TEnumIndexedVector<T, E, Min, Max>& TEnumIndexedVector<T, E, Min, Max>::operator=(const TEnumIndexedVector& other)
+{
+    std::copy(other.Items_.begin(), other.Items_.end(), Items_.begin());
+    return *this;
+}
+
+template <class T, class E, E Min, E Max>
+TEnumIndexedVector<T, E, Min, Max>& TEnumIndexedVector<T, E, Min, Max>::operator=(TEnumIndexedVector&& other)
+{
+    std::move(other.Items_.begin(), other.Items_.end(), Items_.begin());
+    return *this;
 }
 
 template <class T, class E, E Min, E Max>
