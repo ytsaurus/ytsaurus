@@ -1332,11 +1332,11 @@ private:
         std::vector<TAbortedJobCounter> shardAbortedJobCounter(NodeShards_.size());
         std::vector<TCompletedJobCounter> shardCompletedJobCounter(NodeShards_.size());
 
-        for (int i = 0; i < NodeShards_.size(); ++i) {
-            auto& nodeShard = NodeShards_[i];
-            shardJobCounter[i] = nodeShard->GetJobCounter();
-            shardAbortedJobCounter[i] = nodeShard->GetAbortedJobCounter();
-            shardCompletedJobCounter[i] = nodeShard->GetCompletedJobCounter();
+        for (int shardId = 0; shardId < NodeShards_.size(); ++shardId) {
+            const auto& nodeShard = NodeShards_[shardId];
+            shardJobCounter[shardId] = nodeShard->GetJobCounter();
+            shardAbortedJobCounter[shardId] = nodeShard->GetAbortedJobCounter();
+            shardCompletedJobCounter[shardId] = nodeShard->GetCompletedJobCounter();
         }
 
         for (auto type : TEnumTraits<EJobType>::GetDomainValues()) {
