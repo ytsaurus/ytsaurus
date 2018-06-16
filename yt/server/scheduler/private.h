@@ -32,9 +32,9 @@ class TJobMetrics;
 
 using TOperationElementByIdMap = THashMap<TOperationId, TOperationElement*>;
 
-using TJobCounter = TEnumIndexedVector<TEnumIndexedVector<i64, EJobType>, EJobState>;
-using TAbortedJobCounter = TEnumIndexedVector<TJobCounter, EAbortReason>;
-using TCompletedJobCounter = TEnumIndexedVector<TJobCounter, EInterruptReason>;
+using TJobCounter = THashMap<std::tuple<EJobType, EJobState>, int>;
+using TAbortedJobCounter = THashMap<std::tuple<EJobType, EJobState, EAbortReason>, int>;
+using TCompletedJobCounter = THashMap<std::tuple<EJobType, EJobState, EInterruptReason>, int>;
 
 DEFINE_ENUM(ESchedulableStatus,
     (Normal)

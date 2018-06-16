@@ -326,7 +326,7 @@ private:
     void OnJobCompleted(const TJobPtr& job, TJobStatus* status, bool abandoned = false);
     void OnJobFailed(const TJobPtr& job, TJobStatus* status);
 
-    void IncreaseProfilingCounter(const TJobPtr& job, i64 value);
+    void IncreaseProfilingCounter(const TJobPtr& job, int value);
 
     void SetJobState(const TJobPtr& job, EJobState state);
 

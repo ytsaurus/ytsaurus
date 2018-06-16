@@ -176,17 +176,9 @@ void TNodeShard::DoCleanup()
 
     {
         TWriterGuard guard(JobCounterLock_);
-        for (auto state : TEnumTraits<EJobState>::GetDomainValues()) {
-            for (auto type : TEnumTraits<EJobType>::GetDomainValues()) {
-                JobCounter_[state][type] = 0;
-                for (auto reason : TEnumTraits<EAbortReason>::GetDomainValues()) {
-                    AbortedJobCounter_[reason][state][type] = 0;
-                }
-                for (auto reason : TEnumTraits<EInterruptReason>::GetDomainValues()) {
-                    CompletedJobCounter_[reason][state][type] = 0;
-                }
-            }
-        }
+        JobCounter_.clear();
+        AbortedJobCounter_.clear();
+        CompletedJobCounter_.clear();
     }
 
     JobsToSubmitToStrategy_.clear();
@@ -2041,17 +2033,14 @@ void TNodeShard::SubmitJobsToStrategy()
     }
 }
 
-void TNodeShard::IncreaseProfilingCounter(const TJobPtr& job, i64 value)
+void TNodeShard::IncreaseProfilingCounter(const TJobPtr& job, int value)
 {
     TWriterGuard guard(JobCounterLock_);
-
-    TJobCounter* counter = &JobCounter_;
     if (job->GetState() == EJobState::Aborted) {
-        counter = &AbortedJobCounter_[job->GetAbortReason()];
+        AbortedJobCounter_[std::make_tuple(job->GetType(), job->GetState(), job->GetAbortReason())] += value;
     } else if (job->GetState() == EJobState::Completed) {
-        counter = &CompletedJobCounter_[job->GetInterruptReason()];
+        CompletedJobCounter_[std::make_tuple(job->GetType(), job->GetState(), job->GetInterruptReason())] += value;
     }
-    (*counter)[job->GetState()][job->GetType()] += value;
 }
 
 void TNodeShard::SetJobState(const TJobPtr& job, EJobState state)
