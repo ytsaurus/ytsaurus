@@ -66,7 +66,7 @@ The package is available on PYPI:
 
 .. code:: bash
 
-    pip install pyspark-stub
+    pip install pyspark-stubs
 
 In general package is useful only in development, and the shouldn't be
 installed in a production environment.
