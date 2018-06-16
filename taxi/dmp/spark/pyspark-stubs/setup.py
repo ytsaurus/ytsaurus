@@ -26,7 +26,7 @@ setup(
     package_dir={'': src_path},
     version='2.3.0',
     description='A collection of the Apache Spark stub files',
-    long_description=(open('README.md').read() if os.path.exists('README.md')
+    long_description=(open('README.rst').read() if os.path.exists('README.rst')
                         else ''),
     packages=list(list_packages()),
     package_data={
