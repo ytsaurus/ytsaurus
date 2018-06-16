@@ -6,7 +6,8 @@ from typing import Any, Dict, Callable, Generic, List, Optional, Tuple, TypeVar
 from pyspark.rdd import RDD
 from pyspark.context import SparkContext
 from pyspark.serializers import Serializer
-from pyspark.streaming.context import StreamingContext, StorageLevel
+from pyspark.storagelevel import StorageLevel
+from pyspark.streaming.context import StreamingContext
 from pyspark.streaming.dstream import DStream, TransformedDStream
 from py4j.java_gateway import JavaObject  # type: ignore
 import datetime
