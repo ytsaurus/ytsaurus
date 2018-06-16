@@ -1350,8 +1350,12 @@ private:
                         auto tags = commonTags;
                         tags.push_back(JobAbortReasonToTag_[reason]);
                         int counter = 0;
-                        for (int i = 0; i < NodeShards_.size(); ++i) {
-                            counter += shardAbortedJobCounter[i][reason][state][type];
+                        for (int shardId = 0; shardId < NodeShards_.size(); ++shardId) {
+                            const auto& map = shardAbortedJobCounter[shardId];
+                            auto it = map.find(std::make_tuple(type, state, reason));
+                            if (it != map.end()) {
+                                counter += it->second;
+                            }
                         }
                         Profiler.Enqueue("/job_count", counter, EMetricType::Counter, tags);
                     }
@@ -1360,15 +1364,23 @@ private:
                         auto tags = commonTags;
                         tags.push_back(JobInterruptReasonToTag_[reason]);
                         int counter = 0;
-                        for (int i = 0; i < NodeShards_.size(); ++i) {
-                            counter += shardCompletedJobCounter[i][reason][state][type];
+                        for (int shardId = 0; shardId < NodeShards_.size(); ++shardId) {
+                            const auto& map = shardCompletedJobCounter[shardId];
+                            auto it = map.find(std::make_tuple(type, state, reason));
+                            if (it != map.end()) {
+                                counter += it->second;
+                            }
                         }
                         Profiler.Enqueue("/job_count", counter, EMetricType::Counter, tags);
                     }
                 } else {
                     int counter = 0;
-                    for (int i = 0; i < NodeShards_.size(); ++i) {
-                        counter += shardJobCounter[i][state][type];
+                    for (int shardId = 0; shardId < NodeShards_.size(); ++shardId) {
+                        const auto& map = shardJobCounter[shardId];
+                        auto it = map.find(std::make_tuple(type, state));
+                        if (it != map.end()) {
+                            counter += it->second;
+                        }
                     }
                     Profiler.Enqueue("/job_count", counter, EMetricType::Counter, commonTags);
                 }
