@@ -22,10 +22,9 @@ Motivation
 -  Static error detection (see
    `SPARK-20631 <https://issues.apache.org/jira/browse/SPARK-20631>`__)
 
-.. figure:: https://i.imgur.com/GfDCGjv.gif
-   :alt: SPARK-20631
+   |SPARK-20631|
 
-   SPARK-20631
+
 
 -  Improved completion for chained method calls.
 
@@ -272,3 +271,5 @@ sponsored by The Apache Software Foundation.
    :target: https://travis-ci.org/zero323/pyspark-stubs
 .. |PyPI version| image:: https://badge.fury.io/py/pyspark-stubs.svg
    :target: https://badge.fury.io/py/pyspark-stubs
+.. |SPARK-20631| image:: https://i.imgur.com/GfDCGjv.gif
+     :alt: SPARK-20631
