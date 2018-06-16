@@ -263,8 +263,9 @@ API Coverage
 Disclaimer
 ----------
 
-Apache Spark, Spark, Apache, and the Spark logo are trademarks of The
-Apache Software Foundation. This project is not owned, endorsed, or
+
+Apache Spark, Spark, Apache, and the Spark logo are `trademarks <https://www.apache.org/foundation/marks/>`__ of `The
+Apache Software Foundation <http://www.apache.org/>`__. This project is not owned, endorsed, or
 sponsored by The Apache Software Foundation.
 
 .. |Build Status| image:: https://travis-ci.org/zero323/pyspark-stubs.svg?branch=master
