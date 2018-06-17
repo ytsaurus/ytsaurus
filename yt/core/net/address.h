@@ -66,6 +66,7 @@ public:
     static TNetworkAddress CreateUnixDomainAddress(const TString& name);
 
     bool IsUnix() const;
+    bool IsIP4() const;
     bool IsIP6() const;
 
     TIP6Address ToIP6Address() const;

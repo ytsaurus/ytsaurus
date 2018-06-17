@@ -193,6 +193,11 @@ bool TNetworkAddress::IsUnix() const
     return Storage.ss_family == AF_UNIX;
 }
 
+bool TNetworkAddress::IsIP4() const
+{
+    return Storage.ss_family == AF_INET;
+}
+
 bool TNetworkAddress::IsIP6() const
 {
     return Storage.ss_family == AF_INET6;
