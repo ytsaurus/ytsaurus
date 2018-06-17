@@ -180,8 +180,8 @@ void Action3(TMiniControllerPtr controller)
 
 void TestMemoryTaggingInvoker()
 {
-    TActionQueuePtr queue = New<TActionQueue>();
-    TMiniControllerPtr controller = New<TMiniController>(queue->GetInvoker(), 1);
+    auto queue = New<TActionQueue>();
+    auto controller = New<TMiniController>(queue->GetInvoker(), 1);
     EXPECT_EQ(controller->GetMemoryUsage(), 0);
 
     WaitFor(BIND(&Action3, controller)
@@ -200,7 +200,7 @@ void TestControllersInThreadPool()
 {
     std::vector<TMiniControllerPtr> controllers;
     constexpr int controllerCount = 1000;
-    TThreadPoolPtr pool = New<TThreadPool>(16, "TestPool");
+    auto pool = New<TThreadPool>(16, "TestPool");
     for (int index = 0; index < controllerCount; ++index) {
         controllers.emplace_back(New<TMiniController>(pool->GetInvoker(), index + 1));
     }
