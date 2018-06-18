@@ -20,6 +20,7 @@ def main():
     parser.add_argument("--step", type=float, default=1.0)
     parser.add_argument("--conflict-exit-code", type=int, default=1)
     parser.add_argument("--set-address", action="store_true", default=False)
+    parser.add_argument("--address-path")
     parser.add_argument("--create-lock", action="store_true", default=False, help="Unconditionally creates lock path")
     args = parser.parse_args()
 
