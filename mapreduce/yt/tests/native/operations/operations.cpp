@@ -1491,45 +1491,82 @@ Y_UNIT_TEST_SUITE(Operations)
             yexception);
     }
 
-    Y_UNIT_TEST(LockConflictWhileTouchingCachedFiles)
+    Y_UNIT_TEST(FileCacheModes)
     {
         auto client = CreateTestClient();
         client->Create("//testing/file_storage", NT_MAP);
-
         CreateTableWithFooColumn(client, "//testing/input");
 
-        { // Load files to cache
-            client->Map(
-                TMapOperationSpec()
-                    .AddInput<TNode>("//testing/input")
-                    .AddOutput<TNode>("//testing/output_1"),
-                new TIdMapper(),
-                TOperationOptions()
-                    .FileStorage("//testing/file_storage"));
+        TTempFile tempFile("/tmp/yt-cpp-api-testing");
+        {
+            TOFStream os(tempFile.Name());
+            // Create a file with unique contents to get cache miss
+            os << CreateGuidAsString();
         }
 
-        auto tx1 = client->StartTransaction();
-        { // Now operation will touch files using tx1
-            client->Map(
+        auto tx = client->StartTransaction();
+
+        UNIT_ASSERT_EXCEPTION(
+            tx->Map(
                 TMapOperationSpec()
                     .AddInput<TNode>("//testing/input")
-                    .AddOutput<TNode>("//testing/output_1"),
-                new TIdMapper(),
+                    .AddOutput<TNode>("//testing/output")
+                    .MapperSpec(TUserJobSpec()
+                        .AddLocalFile(tempFile.Name())),
+                new TIdMapper,
                 TOperationOptions()
                     .FileStorage("//testing/file_storage")
-                    .FileStorageTransactionId(tx1->GetId()));
+                    .FileStorageTransactionId(tx->GetId())),
+            TApiUsageError);
+
+        UNIT_ASSERT_NO_EXCEPTION(
+            tx->Map(
+                TMapOperationSpec()
+                    .AddInput<TNode>("//testing/input")
+                    .AddOutput<TNode>("//testing/output")
+                    .MapperSpec(TUserJobSpec()
+                        .AddLocalFile(tempFile.Name())),
+                new TIdMapper,
+                TOperationOptions()
+                    .FileStorage("//testing/file_storage")
+                    .FileStorageTransactionId(tx->GetId())
+                    .FileCacheMode(TOperationOptions::EFileCacheMode::CachelessRandomPathUpload)));
+    }
+
+    Y_UNIT_TEST(RetryLockConflict)
+    {
+        auto client = CreateTestClient();
+        CreateTableWithFooColumn(client, "//testing/input");
+
+        TTempFile tempFile("/tmp/yt-cpp-api-testing");
+        {
+            TOFStream os(tempFile.Name());
+            // Create a file with unique contents to get cache miss
+            os << CreateGuidAsString();
         }
 
-        auto tx2 = client->StartTransaction();
-        { // Second operation will touch files using tx2, but they are still holded by tx1
-            client->Map(
+        auto runMap = [&] {
+            auto tx = client->StartTransaction();
+            tx->Map(
                 TMapOperationSpec()
                     .AddInput<TNode>("//testing/input")
-                    .AddOutput<TNode>("//testing/output_1"),
-                new TIdMapper(),
+                    .AddOutput<TNode>("//testing/output_" + CreateGuidAsString())
+                    .MapperSpec(TUserJobSpec()
+                        .AddLocalFile(tempFile.Name())),
+                new TAlwaysFailingMapper, // No exception here because of '.Wait(false)'.
                 TOperationOptions()
-                    .FileStorage("//testing/file_storage")
-                    .FileStorageTransactionId(tx2->GetId()));
+                    .Wait(false));
+        };
+
+        auto threadPool = SystemThreadPool();
+        TVector<TAutoPtr<IThreadPool::IThread>> threads;
+        // Run many concurrent threads to get lock conflict in 'put_file_to_cache'
+        // with high probability.
+        for (int i = 0; i < 10; ++i) {
+            threads.push_back(threadPool->Run(runMap));
+        }
+        for (auto& t : threads) {
+            t->Join();
         }
     }
 
@@ -1574,44 +1611,6 @@ Y_UNIT_TEST_SUITE(Operations)
             TOperationFailedError);
 
         UNIT_ASSERT_UNEQUAL(client->Get(stderrPath + "/@row_count"), 0);
-    }
-
-    Y_UNIT_TEST(RetryLockConflict)
-    {
-        auto client = CreateTestClient();
-
-        TTempFile tempFile("/tmp/yt-cpp-api-testing");
-        {
-            TOFStream os(tempFile.Name());
-            // Create a file with unique contents to get cache miss
-            os << CreateGuidAsString();
-        }
-
-        auto runMap = [&] {
-            client->StartTransaction()->Map(
-                TMapOperationSpec()
-                    // Use nonexistent input table to fail operation at early stage
-                    // as we are interested only in preparation stage.
-                    // We will not get an exception because of '.Wait(false)'.
-                    .AddInput<TNode>("//testing/nonexistent-input")
-                    .AddOutput<TNode>("//testing/output_" + CreateGuidAsString())
-                    .MapperSpec(TUserJobSpec()
-                        .AddLocalFile(tempFile.Name())),
-                new TIdMapper(),
-                TOperationOptions()
-                    .Wait(false));
-        };
-
-        auto threadPool = SystemThreadPool();
-        TVector<TAutoPtr<IThreadPool::IThread>> threads;
-        // Run many concurrent threads to get lock conflict in 'put_file_to_cache'
-        // with high probability.
-        for (int i = 0; i < 10; ++i) {
-            threads.push_back(threadPool->Run(runMap));
-        }
-        for (auto& t : threads) {
-            t->Join();
-        }
     }
 
     Y_UNIT_TEST(LazySort)

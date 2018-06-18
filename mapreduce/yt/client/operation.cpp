@@ -66,7 +66,7 @@ namespace {
 ////////////////////////////////////////////////////////////////////////////////
 
 constexpr bool USE_GET_OPERATION = true;
-constexpr bool USE_NEW_FILE_CACHE = false;
+constexpr bool USE_NEW_FILE_CACHE = true;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -695,7 +695,21 @@ private:
         }
     };
 
-    TString UploadToCacheNew(const IItemToUpload& itemToUpload) const
+    TString UploadToRandomPath(const IItemToUpload& itemToUpload) const
+    {
+        TString uniquePath = AddPathPrefix(TStringBuilder() << GetFileStorage() << "/cpp_" << CreateGuidAsString());
+        Create(Auth_, Options_.FileStorageTransactionId_, uniquePath, NT_FILE, TCreateOptions()
+            .IgnoreExisting(true)
+            .Recursive(true));
+        {
+            TFileWriter writer(uniquePath, Auth_, Options_.FileStorageTransactionId_);
+            itemToUpload.CreateInputStream()->ReadAll(writer);
+            writer.Finish();
+        }
+        return uniquePath;
+    }
+
+    TString UploadToCacheUsingApi(const IItemToUpload& itemToUpload) const
     {
         auto md5Signature = itemToUpload.CalculateMD5();
         Y_VERIFY(md5Signature.size() == 32);
@@ -740,7 +754,16 @@ private:
     TString UploadToCache(const IItemToUpload& itemToUpload) const
     {
         if (USE_NEW_FILE_CACHE) {
-            return UploadToCacheNew(itemToUpload);
+            switch (Options_.FileCacheMode_) {
+                case TOperationOptions::EFileCacheMode::ApiCommandBased:
+                    Y_ENSURE_EX(Options_.FileStorageTransactionId_.IsEmpty(), TApiUsageError() <<
+                        "Default cache mode (API command-based) doesn't allow non-default 'FileStorageTransactionId_'");
+                    return UploadToCacheUsingApi(itemToUpload);
+                case TOperationOptions::EFileCacheMode::CachelessRandomPathUpload:
+                    return UploadToRandomPath(itemToUpload);
+                default:
+                    Y_FAIL("Unknown file cache mode: %d", static_cast<int>(Options_.FileCacheMode_));
+            }
         } else {
             return UploadToCacheOld(itemToUpload);
         }
