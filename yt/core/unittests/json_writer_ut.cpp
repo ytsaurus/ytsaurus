@@ -604,6 +604,46 @@ TEST(TJsonWriterTest, DISABLED_TestPrettyFormat)
     EXPECT_EQ(output, outputStream.Str());
 }
 
+TEST(TJsonWriterTest, TestNodeWeightLimitAccepted)
+{
+    TStringStream outputStream;
+    auto config = New<TJsonFormatConfig>();
+    config->AnnotateWithTypes = true;
+    auto consumer = CreateJsonConsumer(&outputStream, EYsonType::Node, config);
+
+    TString yson = "<\"attr\"=123>\"456\"";
+    consumer->OnNodeWeightLimited(yson, yson.Size() - 1);
+    consumer->Flush();
+
+    TString expectedOutput =
+        "{"
+            "\"$incomplete\":true,"
+            "\"$type\":\"any\","
+            "\"$value\":\"\""
+        "}";
+    EXPECT_EQ(expectedOutput, outputStream.Str());
+}
+
+TEST(TJsonWriterTest, TestNodeWeightLimitRejected)
+{
+    TStringStream outputStream;
+    auto config = New<TJsonFormatConfig>();
+    auto consumer = CreateJsonConsumer(&outputStream, EYsonType::Node, config);
+
+    TString yson = "<\"attr\"=123>\"456\"";
+    consumer->OnNodeWeightLimited(yson, yson.Size());
+    consumer->Flush();
+
+    TString expectedOutput =
+        "{"
+            "\"$attributes\":{"
+                "\"attr\":123"
+            "},"
+            "\"$value\":\"456\""
+        "}";
+    EXPECT_EQ(expectedOutput, outputStream.Str());
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
