@@ -804,11 +804,24 @@ struct TOperationOptions
     FLUENT_FIELD_OPTION(TString, FileStorage);
     FLUENT_FIELD_OPTION(TNode, SecureVault);
 
+    enum class EFileCacheMode : int
+    {
+        // Use YT API commands "get_file_from_cache" and "put_file_to_cache".
+        ApiCommandBased,
+
+        // Upload files to random paths inside 'FileStorage' without caching.
+        CachelessRandomPathUpload,
+    };
+
+    FLUENT_FIELD_DEFAULT(EFileCacheMode, FileCacheMode, EFileCacheMode::ApiCommandBased);
+
     // Provides the transaction id, under which all
     // Cypress file storage entries will be checked/created.
     // By default, the global transaction is used.
     // Set a specific transaction only if you specify non-default file storage
     // path in 'FileStorage' option or in 'RemoteTempFilesDirectory' property of config.
+    //
+    // NOTE: this option can be set only for 'CachelessRandomPathUpload' caching mode.
     FLUENT_FIELD(TTransactionId, FileStorageTransactionId);
 };
 
