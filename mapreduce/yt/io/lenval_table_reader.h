@@ -1,5 +1,7 @@
 #pragma once
 
+#include "counting_raw_reader.h"
+
 #include <mapreduce/yt/interface/io.h>
 
 namespace NYT {
@@ -18,6 +20,7 @@ protected:
     ui32 GetTableIndex() const;
     ui64 GetRowIndex() const;
     void NextKey();
+    TMaybe<size_t> GetReadByteCount() const;
 
     void CheckValidity() const;
 
@@ -26,22 +29,20 @@ protected:
     template <class T>
     bool ReadInteger(T* result, bool acceptEndOfStream = false)
     {
-        size_t count = Input_->Load(result, sizeof(T));
+        size_t count = Input_.Load(result, sizeof(T));
         if (acceptEndOfStream && count == 0) {
             Finished_ = true;
             Valid_ = false;
             return false;
         }
-        if (count != sizeof(T)) {
-            ythrow yexception() << "Premature end of stream";
-        }
+        Y_ENSURE(count == sizeof(T), "Premature end of stream");
         return true;
     }
 
     virtual void SkipRow() = 0;
 
 protected:
-    ::TIntrusivePtr<TRawTableReader> Input_;
+    NDetail::TCountingRawTableReader Input_;
 
     bool Valid_ = true;
     bool Finished_ = false;

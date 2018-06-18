@@ -99,7 +99,7 @@ void TLenvalTableReader::Next()
             }
 
             if (rowIndex) {
-                if (Input_->HasRangeIndices()) {
+                if (Input_.HasRangeIndices()) {
                     if (rangeIndex) {
                         RowIndex_ = rowIndex;
                         RangeIndex_ = rangeIndex;
@@ -163,9 +163,14 @@ ui64 TLenvalTableReader::GetRowIndex() const
     return RowIndex_.GetOrElse(0UL);
 }
 
+TMaybe<size_t> TLenvalTableReader::GetReadByteCount() const
+{
+    return Input_.GetReadByteCount();
+}
+
 bool TLenvalTableReader::PrepareRetry()
 {
-    if (Input_->Retry(RangeIndex_, RowIndex_)) {
+    if (Input_.Retry(RangeIndex_, RowIndex_)) {
         RowIndex_.Clear();
         RangeIndex_.Clear();
         return true;

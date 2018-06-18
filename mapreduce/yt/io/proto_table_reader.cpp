@@ -154,6 +154,11 @@ void TProtoTableReader::NextKey()
     NodeReader_->NextKey();
 }
 
+TMaybe<size_t> TProtoTableReader::GetReadByteCount() const
+{
+    return NodeReader_->GetReadByteCount();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TLenvalProtoTableReader::TLenvalProtoTableReader(
@@ -172,7 +177,7 @@ void TLenvalProtoTableReader::ReadRow(Message* row)
 
     while (true) {
         try {
-            ParseFromStream(Input_.Get(), *row, Length_);
+            ParseFromStream(&Input_, *row, Length_);
             RowTaken_ = true;
             break;
         } catch (const yexception& ) {
@@ -208,11 +213,16 @@ void TLenvalProtoTableReader::NextKey()
     TLenvalTableReader::NextKey();
 }
 
+TMaybe<size_t> TLenvalProtoTableReader::GetReadByteCount() const
+{
+    return TLenvalTableReader::GetReadByteCount();
+}
+
 void TLenvalProtoTableReader::SkipRow()
 {
     while (true) {
         try {
-            size_t skipped = Input_->Skip(Length_);
+            size_t skipped = Input_.Skip(Length_);
             if (skipped != Length_) {
                 ythrow yexception() << "Premature end of stream";
             }

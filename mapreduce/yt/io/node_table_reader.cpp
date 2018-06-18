@@ -315,7 +315,7 @@ void TNodeTableReader::Next()
             }
 
             if (rowIndex) {
-                if (Input_->HasRangeIndices()) {
+                if (Input_.HasRangeIndices()) {
                     if (rangeIndex) {
                         RowIndex_ = rowIndex;
                         RangeIndex_ = rangeIndex;
@@ -371,17 +371,24 @@ void TNodeTableReader::NextKey()
     }
 }
 
+TMaybe<size_t> TNodeTableReader::GetReadByteCount() const
+{
+    return Input_.GetReadByteCount();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TNodeTableReader::PrepareParsing()
 {
     RowQueue_.Clear();
     Builder_.Reset(new TRowBuilder(&RowQueue_));
-    Parser_.Reset(new TYsonParser(Builder_.Get(), Input_.Get(), YT_LIST_FRAGMENT));
+    Parser_.Reset(new TYsonParser(Builder_.Get(), &Input_, YT_LIST_FRAGMENT));
 }
 
 void TNodeTableReader::OnStreamError()
 {
     LOG_ERROR("Read error: %s", Exception_.what());
-    if (Input_->Retry(RangeIndex_, RowIndex_))
+    if (Input_.Retry(RangeIndex_, RowIndex_))
     {
         RowIndex_.Clear();
         RangeIndex_.Clear();

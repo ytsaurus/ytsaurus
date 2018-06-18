@@ -1,5 +1,7 @@
 #pragma once
 
+#include "counting_raw_reader.h"
+
 #include <mapreduce/yt/interface/io.h>
 
 #include <util/stream/input.h>
@@ -78,6 +80,7 @@ public:
     ui32 GetTableIndex() const override;
     ui64 GetRowIndex() const override;
     void NextKey() override;
+    TMaybe<size_t> GetReadByteCount() const override;
 
 private:
     void OnStreamError();
@@ -88,7 +91,7 @@ private:
     static void* FetchThread(void* opaque);
 
 private:
-    ::TIntrusivePtr<TRawTableReader> Input_;
+    NDetail::TCountingRawTableReader Input_;
 
     bool Valid_ = true;
     bool Finished_ = false;

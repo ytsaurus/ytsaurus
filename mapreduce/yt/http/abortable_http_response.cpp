@@ -116,7 +116,7 @@ TAbortableHttpResponse::~TAbortableHttpResponse()
 size_t TAbortableHttpResponse::DoRead(void* buf, size_t len)
 {
     if (Aborted_) {
-        ythrow TAbortedForTestPurpose();
+        ythrow TAbortedForTestPurpose() << "response was aborted";
     }
     return THttpResponse::DoRead(buf, len);
 }
@@ -124,7 +124,7 @@ size_t TAbortableHttpResponse::DoRead(void* buf, size_t len)
 size_t TAbortableHttpResponse::DoSkip(size_t len)
 {
     if (Aborted_) {
-        ythrow TAbortedForTestPurpose();
+        ythrow TAbortedForTestPurpose() << "response was aborted";
     }
     return THttpResponse::DoSkip(len);
 }

@@ -51,7 +51,7 @@ TSkiffTableReader::TSkiffTableReader(
     ::TIntrusivePtr<TRawTableReader> input,
     const NSkiff::TSkiffSchemaPtr& schema)
     : Input_(std::move(input))
-    , BufferedInput_(Input_.Get())
+    , BufferedInput_(&Input_)
     , Parser_(&BufferedInput_)
     , Schemas_(CreateSkiffTableSchemas(schema))
 {
@@ -98,7 +98,7 @@ void TSkiffTableReader::Next()
         ReadRow();
     } catch (const yexception& exception) {
         LOG_ERROR("Read error: %s", exception.what());
-        if (Input_->Retry(RangeIndex_, RowIndex_)) {
+        if (Input_.Retry(RangeIndex_, RowIndex_)) {
             RangeIndex_.Clear();
             RowIndex_.Clear();
             ReadRow();
@@ -131,6 +131,11 @@ void TSkiffTableReader::NextKey()
     }
 
     Valid_ = true;
+}
+
+TMaybe<size_t> TSkiffTableReader::GetReadByteCount() const
+{
+    return Input_.GetReadByteCount();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

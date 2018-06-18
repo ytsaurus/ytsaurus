@@ -543,7 +543,7 @@ Y_UNIT_TEST_SUITE(Operations)
 
         auto reader = client->CreateTableReader<TNode>("//testing/stderr");
         UNIT_ASSERT(reader->IsValid());
-        UNIT_ASSERT_VALUES_EQUAL(reader->GetRow()["data"].AsString(), "PYSHCH\n");
+        UNIT_ASSERT(reader->GetRow()["data"].AsString().Contains("PYSHCH\n"));
         reader->Next();
         UNIT_ASSERT(!reader->IsValid());
     }
