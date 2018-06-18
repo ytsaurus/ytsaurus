@@ -1858,6 +1858,7 @@ private:
             .Item("demand_ratio").Value(attributes.DemandRatio)
             .Item("fair_share_ratio").Value(attributes.FairShareRatio)
             .Item("satisfaction_ratio").Value(dynamicAttributes.SatisfactionRatio)
+            .Item("dominant_resource").Value(attributes.DominantResource)
             .DoIf(shouldPrintResourceUsage, [&] (TFluentMap fluent) {
                 fluent
                     .Item("resource_usage").Value(element->GetResourceUsage());
