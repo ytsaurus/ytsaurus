@@ -22,13 +22,15 @@ class TestColumnarStatistics(YTEnvSetup):
         },
     }
 
-    def _expect_statistics(self, lower_row_index, upper_row_index, columns, expected_data_weights):
+    def _expect_statistics(self, lower_row_index, upper_row_index, columns, expected_data_weights, expected_timestamp_weight=None):
         path = "//tmp/t{{{0}}}[{1}:{2}]".format(columns,
                                                 "#" + str(lower_row_index) if lower_row_index is not None else "",
                                                 "#" + str(upper_row_index) if upper_row_index is not None else "")
         statistics = get_table_columnar_statistics(path)
         assert statistics["legacy_chunks_data_weight"] == 0
         assert statistics["column_data_weights"] == dict(zip(columns.split(','), expected_data_weights))
+        if expected_timestamp_weight is not None:
+            assert statistics["timestamp_total_weight"] == expected_timestamp_weight
 
     def _create_simple_dynamic_table(self, path, optimize_for="lookup"):
         create("table", path,
@@ -77,6 +79,26 @@ class TestColumnarStatistics(YTEnvSetup):
         op = merge(in_="//tmp/t{b}",
                    out="//tmp/d",
                    spec={"data_weight_per_job": 1000})
+        op.track()
+        assert 9 <= get("//tmp/d/@chunk_count") <= 11
+
+    def test_map_thin_column_dynamic(self):
+        self.sync_create_cells(1)
+        self._create_simple_dynamic_table("//tmp/t")
+        set("//tmp/t/@optimize_for", "scan")
+        set("//tmp/t/@enable_compaction_and_partitioning", False)
+        self.sync_mount_table("//tmp/t")
+        for i in range(10):
+            insert_rows("//tmp/t", [{"key": j, "value": 'y' * 80} for j in range(i * 100, (i + 1) * 100)])
+            self.sync_flush_table("//tmp/t")
+        create("table", "//tmp/d")
+        assert get("//tmp/t/@chunk_count") == 10
+        assert get("//tmp/t/@data_weight") == (8 + (80 + 8) + 8) * 10**3
+        self._expect_statistics(None, None, "key,value", [8 * 10**3, (80 + 8) * 10**3], expected_timestamp_weight=(8 * 1000))
+        op = map(in_="//tmp/t{key}",
+                 out="//tmp/d",
+                 spec={"data_weight_per_job": 1600},
+                 command="echo '{a=1}'")
         op.track()
         assert 9 <= get("//tmp/d/@chunk_count") <= 11
 
@@ -138,10 +160,30 @@ class TestColumnarStatistics(YTEnvSetup):
         self._create_simple_dynamic_table("//tmp/t")
         set("//tmp/t/@optimize_for", optimize_for)
 
-        rows = [{"key": i, "value": str(i) * 1000} for i in range(10)]
         self.sync_mount_table("//tmp/t")
+        rows = [{"key": i, "value": str(i) * 1000} for i in range(10)]
         insert_rows("//tmp/t", rows)
-        self.sync_unmount_table("//tmp/t")
-        self._expect_statistics(None, None, "key,value", [80, 10080])
+        self.sync_flush_table("//tmp/t")
 
+        self._expect_statistics(None, None, "key,value", [80, 10080], expected_timestamp_weight=(8 * 10))
+
+        rows = [{"key": i, "value": str(i // 2) * 1000} for i in range(10)]
+        insert_rows("//tmp/t", rows)
+        self.sync_flush_table("//tmp/t")
+
+        self._expect_statistics(None, None, "key,value", [160, 20160], expected_timestamp_weight=(8 * 20))
+
+        self.sync_compact_table("//tmp/t")
+
+        self._expect_statistics(None, None, "key,value", [80, 20160], expected_timestamp_weight=(8 * 20))
+
+        rows = [{"key": i} for i in range(10)]
+        delete_rows("//tmp/t", rows)
+        self.sync_flush_table("//tmp/t")
+
+        self._expect_statistics(None, None, "key,value", [160, 20160], expected_timestamp_weight=(8 * 30))
+
+        self.sync_compact_table("//tmp/t")
+
+        self._expect_statistics(None, None, "key,value", [80, 20160], expected_timestamp_weight=(8 * 30))
 

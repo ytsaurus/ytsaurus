@@ -305,6 +305,9 @@ void TGetTableColumnarStatisticsCommand::DoExecute(ICommandContextPtr context)
                             .Item(columns[index]).Value(statistics.ColumnDataWeights[index]);
                     }
                 })
+                .DoIf(statistics.TimestampTotalWeight.HasValue(), [&] (TFluentMap fluent) {
+                    fluent.Item("timestamp_total_weight").Value(statistics.TimestampTotalWeight);
+                })
                 .Item("legacy_chunks_data_weight").Value(statistics.LegacyChunkDataWeight)
             .EndMap();
     };
