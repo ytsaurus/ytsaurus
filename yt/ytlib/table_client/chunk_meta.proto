@@ -114,6 +114,8 @@ message TColumnMetaExt
 message TColumnarStatisticsExt
 {
     repeated int64 data_weights = 1;
+    // Total weight of all write and delete timestamps.
+    optional int64 timestamp_weight = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
