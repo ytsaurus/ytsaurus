@@ -24,8 +24,6 @@
 
 #include <yt/ytlib/query_client/public.h>
 
-#include <yt/ytlib/hive/public.h>
-
 #include <yt/ytlib/monitoring/public.h>
 
 #include <yt/core/bus/public.h>
@@ -129,7 +127,6 @@ private:
     NBus::IBusServerPtr BusServer;
     NApi::NNative::IConnectionPtr MasterConnection;
     NApi::NNative::IClientPtr MasterClient;
-    NHiveClient::TCellDirectorySynchronizerPtr CellDirectorySynchronizer;
     NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory;
     NNodeTrackerClient::TNodeDirectorySynchronizerPtr NodeDirectorySynchronizer;
     NRpc::IServerPtr RpcServer;
@@ -159,8 +156,6 @@ private:
     NDataNode::TBlobReaderCachePtr BlobReaderCache;
     NDataNode::TJournalDispatcherPtr JournalDispatcher;
     NDataNode::TMasterConnectorPtr MasterConnector;
-    NHiveClient::TClusterDirectoryPtr ClusterDirectory;
-    NHiveClient::TClusterDirectorySynchronizerPtr ClusterDirectorySynchronizer;
     ICoreDumperPtr CoreDumper;
 
     NConcurrency::IThroughputThrottlerPtr TotalInThrottler;
