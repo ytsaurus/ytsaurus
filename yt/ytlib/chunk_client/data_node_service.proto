@@ -323,6 +323,7 @@ message TRspGetColumnarStatistics
     {
         optional NYT.NProto.TError error = 1;
         repeated int64 data_weights = 2;
+        optional int64 timestamp_total_weight = 3;
     }
 
     repeated TSubresponse subresponses = 1;
