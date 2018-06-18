@@ -3182,14 +3182,14 @@ class TestResourceLimitsOverrides(YTEnvSetup):
             command='if [ "$YT_JOB_INDEX" == "0" ]; then sleep 1000; else cat; fi',
             in_="//tmp/t_input",
             out="//tmp/t_output",
-            spec={"mapper": {"memory_limit": 50 * 1024 * 1024}},
+            spec={"mapper": {"memory_limit": 100 * 1024 * 1024}},
             dont_track=True)
 
         jobs = self._wait_for_jobs(op.id)
         job_id = jobs.keys()[0]
         address = jobs[job_id]["address"]
 
-        set("//sys/nodes/{0}/@resource_limits_overrides/user_memory".format(address), 49 * 1024 * 1024)
+        set("//sys/nodes/{0}/@resource_limits_overrides/user_memory".format(address), 99 * 1024 * 1024)
         op.track()
 
         assert get("//sys/operations/{0}/@progress/jobs/aborted/total".format(op.id)) == 1
