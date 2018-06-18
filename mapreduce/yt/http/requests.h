@@ -65,6 +65,12 @@ TString RetryRequest(
     bool isHeavy = false,
     bool isOperation = false);
 
+void LogRequestError(
+    const TString& requestId,
+    const THttpHeader& header,
+    const TString& message,
+    const TString& attemptDescription);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT

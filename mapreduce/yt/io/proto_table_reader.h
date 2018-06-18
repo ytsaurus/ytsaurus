@@ -27,6 +27,7 @@ public:
     ui32 GetTableIndex() const override;
     ui64 GetRowIndex() const override;
     void NextKey() override;
+    TMaybe<size_t> GetReadByteCount() const override;
 
 private:
     THolder<TNodeTableReader> NodeReader_;
@@ -52,6 +53,7 @@ public:
     ui32 GetTableIndex() const override;
     ui64 GetRowIndex() const override;
     void NextKey() override;
+    TMaybe<size_t> GetReadByteCount() const override;
 
 protected:
     void SkipRow() override;

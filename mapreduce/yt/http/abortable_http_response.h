@@ -15,7 +15,7 @@ class TAbortedForTestPurpose
 { };
 
 //
-// Class extends NYT::THttpResponse with possibility to emultate errors.
+// Class extends NYT::THttpResponse with possibility to emulate errors.
 class TAbortableHttpResponse
     : public THttpResponse
     , public TIntrusiveListItem<TAbortableHttpResponse>

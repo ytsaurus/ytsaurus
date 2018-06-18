@@ -61,6 +61,9 @@ struct IReaderImplBase
     virtual ui32 GetTableIndex() const = 0;
     virtual ui64 GetRowIndex() const = 0;
     virtual void NextKey() = 0;
+
+    // Not pure virtual because of clients that has already implemented this interface.
+    virtual TMaybe<size_t> GetReadByteCount() const;
 };
 
 struct INodeReaderImpl
@@ -88,6 +91,14 @@ struct IProtoReaderImpl
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// We don't include <mapreduce/yt/interface/logging/log.h> in this file
+// to avoid macro name clashes (specifically LOG_DEBUG)
+namespace NDetail {
+    void LogTableReaderStatistics(ui64 rowCount, TMaybe<size_t> byteCount);
+} // namespace NDetail
+
+////////////////////////////////////////////////////////////////////////////////
+
 template <class T>
 class TTableReaderBase
     : public TThrRefBase
@@ -98,6 +109,11 @@ public:
 
     TTableReaderBase()
     { }
+
+    ~TTableReaderBase()
+    {
+        NDetail::LogTableReaderStatistics(ReadRowCount_, Reader_->GetReadByteCount());
+    }
 
     explicit TTableReaderBase(::TIntrusivePtr<IReaderImpl> reader)
         : Reader_(reader)
@@ -129,6 +145,7 @@ public:
     void Next()
     {
         Reader_->Next();
+        ++ReadRowCount_;
     }
 
     ui32 GetTableIndex() const
@@ -148,6 +165,7 @@ public:
 
 private:
     ::TIntrusivePtr<IReaderImpl> Reader_;
+    ui64 ReadRowCount_ = 0;
 };
 
 template <>

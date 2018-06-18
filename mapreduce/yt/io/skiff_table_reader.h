@@ -1,5 +1,7 @@
 #pragma once
 
+#include "counting_raw_reader.h"
+
 #include <mapreduce/yt/interface/io.h>
 
 #include <mapreduce/yt/skiff/public.h>
@@ -30,6 +32,7 @@ public:
     ui32 GetTableIndex() const override;
     ui64 GetRowIndex() const override;
     void NextKey() override;
+    TMaybe<size_t> GetReadByteCount() const override;
 
 private:
     struct TSkiffTableSchema;
@@ -40,7 +43,7 @@ private:
     static TVector<TSkiffTableSchema> CreateSkiffTableSchemas(const NSkiff::TSkiffSchemaPtr& schema);
 
 private:
-    ::TIntrusivePtr<TRawTableReader> Input_;
+    NDetail::TCountingRawTableReader Input_;
     TBufferedInput BufferedInput_;
     NSkiff::TUncheckedSkiffParser Parser_;
     TVector<TSkiffTableSchema> Schemas_;

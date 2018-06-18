@@ -7,6 +7,8 @@
 
 #include <mapreduce/yt/interface/logging/log.h>
 
+#include <mapreduce/yt/node/node_io.h>
+
 #include <util/stream/str.h>
 
 namespace NYT {
@@ -97,10 +99,7 @@ TResponseInfo RetryRequestWithPolicy(
             result.Response = request.GetResponse();
             return result;
         } catch (const TErrorResponse& e) {
-            LOG_ERROR("RSP %s - %s - failed (%s)",
-                ~e.GetError().GetMessage(),
-                ~requestId,
-                ~retryPolicy->GetAttemptDescription());
+            LogRequestError(requestId, header, e.GetError().GetMessage(), retryPolicy->GetAttemptDescription());
             retryWithSameMutationId = false;
 
             auto maybeRetryTimeout = retryPolicy->GetRetryInterval(e);
@@ -110,10 +109,7 @@ TResponseInfo RetryRequestWithPolicy(
                 throw;
             }
         } catch (const yexception& e) {
-            LOG_ERROR("RSP %s - %s - failed (%s)",
-                ~requestId,
-                e.what(),
-                ~retryPolicy->GetAttemptDescription());
+            LogRequestError(requestId, header, e.what(), retryPolicy->GetAttemptDescription());
             retryWithSameMutationId = true;
 
             auto maybeRetryTimeout = retryPolicy->GetRetryInterval(e);

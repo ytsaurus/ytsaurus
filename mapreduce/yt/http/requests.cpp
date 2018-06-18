@@ -18,7 +18,7 @@
 
 #include <util/random//normal.h>
 #include <util/stream/file.h>
-#include <util/string/printf.h>
+#include <util/string/builder.h>
 #include <util/generic/buffer.h>
 #include <util/generic/ymath.h>
 
@@ -267,9 +267,11 @@ TString RetryRequest(
             }
             response = request.GetResponse();
         } catch (TErrorResponse& e) {
-            LOG_ERROR("RSP %s - attempt %d failed",
-                ~requestId,
-                attempt);
+            LogRequestError(
+                requestId,
+                header,
+                e.GetError().GetMessage(),
+                TStringBuilder() << "attempt " << attempt << " of " << retryCount);
 
             if (!NDetail::IsRetriable(e) || attempt + 1 == retryCount) {
                 throw;
@@ -281,10 +283,11 @@ TString RetryRequest(
             hasError = true;
             retryInterval = NDetail::GetRetryInterval(e);
         } catch (yexception& e) {
-            LOG_ERROR("RSP %s - %s - attempt %d failed",
-                ~requestId,
+            LogRequestError(
+                requestId,
+                header,
                 e.what(),
-                attempt);
+                TStringBuilder() << "attempt " << attempt << " of " << retryCount);
 
             if (attempt + 1 == retryCount) {
                 throw;
@@ -300,7 +303,21 @@ TString RetryRequest(
         NDetail::TWaitProxy::Sleep(retryInterval);
     }
 
-    Y_UNREACHABLE();
+    Y_FAIL("Must be unreachable");
+}
+
+void LogRequestError(
+    const TString& requestId,
+    const THttpHeader& header,
+    const TString& message,
+    const TString& attemptDescription)
+{
+    LOG_ERROR("RSP %s - %s - %s - %s - X-YT-Parameters: %s",
+        ~requestId,
+        ~header.GetUrl(),
+        ~message,
+        ~attemptDescription,
+        ~NodeToYsonString(header.GetParameters()));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

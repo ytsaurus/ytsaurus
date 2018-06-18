@@ -8,9 +8,7 @@
 static void CheckedSkip(IInputStream* input, size_t byteCount)
 {
     size_t skipped = input->Skip(byteCount);
-    if (skipped != byteCount) {
-        ythrow yexception() << "Premature end of stream";
-    }
+    Y_ENSURE(skipped == byteCount, "Premature end of YaMR stream");
 }
 
 ////////////////////////////////////////////////////////////////////
@@ -140,13 +138,16 @@ ui64 TYaMRTableReader::GetRowIndex() const
     return TLenvalTableReader::GetRowIndex();
 }
 
+TMaybe<size_t> TYaMRTableReader::GetReadByteCount() const
+{
+    return TLenvalTableReader::GetReadByteCount();
+}
+
 void TYaMRTableReader::ReadField(TString* result, i32 length)
 {
     result->resize(length);
-    size_t count = Input_->Load(result->begin(), length);
-    if (count != static_cast<size_t>(length)) {
-        ythrow yexception() << "Premature end of YaMR stream";
-    }
+    size_t count = Input_.Load(result->begin(), length);
+    Y_ENSURE(count == static_cast<size_t>(length), "Premature end of YaMR stream");
 }
 
 void TYaMRTableReader::ReadRow()
@@ -180,13 +181,13 @@ void TYaMRTableReader::SkipRow()
     while (true) {
         try {
             i32 value = static_cast<i32>(Length_);
-            CheckedSkip(Input_.Get(), value);
+            CheckedSkip(&Input_, value);
 
             ReadInteger(&value);
-            CheckedSkip(Input_.Get(), value);
+            CheckedSkip(&Input_, value);
 
             ReadInteger(&value);
-            CheckedSkip(Input_.Get(), value);
+            CheckedSkip(&Input_, value);
             break;
         } catch (const yexception& ) {
             if (!TLenvalTableReader::Retry()) {
