@@ -35,12 +35,6 @@ protected:
         ConfigureCrashHandler();
         EnablePhdrCache();
 
-        try {
-            LockAllMemory(ELockAllMemoryFlag::LockCurrentMemory | ELockAllMemoryFlag::LockFutureMemory);
-        } catch (const std::exception& ex) {
-            OnError(Format("Failed to lock memory: %v", ex.what()));
-        }
-
         if (HandlePdeathsigOptions()) {
             return;
         }
