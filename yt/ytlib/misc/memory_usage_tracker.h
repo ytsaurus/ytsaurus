@@ -8,12 +8,15 @@
 
 #include <yt/core/profiling/profiler.h>
 
+#include <yt/core/concurrency/periodic_executor.h>
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class ECategory>
 class TMemoryUsageTracker
+    : public TRefCounted
 {
 public:
     TMemoryUsageTracker(
@@ -59,8 +62,11 @@ private:
     NLogging::TLogger Logger;
     NProfiling::TProfiler Profiler;
 
+    NConcurrency::TPeriodicExecutorPtr PeriodicUpdater_;
 
     void DoAcquire(ECategory category, i64 size);
+
+    void UpdateMetrics();
 
 };
 
