@@ -457,14 +457,16 @@ void TClientBase::AlterTable(
 ::TIntrusivePtr<TClientReader> TClientBase::CreateClientReader(
     const TRichYPath& path,
     const TFormat& format,
-    const TTableReaderOptions& options)
+    const TTableReaderOptions& options,
+    bool useFormatFromTableAttributes)
 {
     return ::MakeIntrusive<TClientReader>(
         CanonizePath(Auth_, path),
         Auth_,
         TransactionId_,
         format,
-        options);
+        options,
+        useFormatFromTableAttributes);
 }
 
 THolder<TClientWriter> TClientBase::CreateClientWriter(
@@ -498,7 +500,7 @@ THolder<TClientWriter> TClientBase::CreateClientWriter(
     const TRichYPath& path, const TTableReaderOptions& options)
 {
     return new TYaMRTableReader(
-        CreateClientReader(path, TFormat::YaMRLenval(), options));
+        CreateClientReader(path, TFormat::YaMRLenval(), options, /* useFormatFromTableAttributes = */ true));
 }
 
 ::TIntrusivePtr<IProtoReaderImpl> TClientBase::CreateProtoReader(
@@ -514,7 +516,7 @@ THolder<TClientWriter> TClientBase::CreateClientWriter(
             CreateClientReader(path, TFormat::YsonBinary(), options),
             std::move(descriptors));
     } else {
-        TFormat format({prototype->GetDescriptor()});
+        auto format = TFormat::Protobuf({prototype->GetDescriptor()});
         return new TLenvalProtoTableReader(
             CreateClientReader(path, format, options),
             std::move(descriptors));
@@ -548,7 +550,7 @@ THolder<TClientWriter> TClientBase::CreateClientWriter(
             CreateClientWriter(path, TFormat::YsonBinary(), options),
             std::move(descriptors));
     } else {
-        TFormat format({prototype->GetDescriptor()});
+        auto format = TFormat::Protobuf({prototype->GetDescriptor()});
         return new TLenvalProtoTableWriter(
             CreateClientWriter(path, format, options),
             std::move(descriptors));

@@ -19,8 +19,9 @@ public:
         const TRichYPath& path,
         const TAuth& auth,
         const TTransactionId& transactionId,
-        const TMaybe<TFormat>& format,
-        const TTableReaderOptions& options);
+        const TFormat& format,
+        const TTableReaderOptions& options,
+        bool useFormatFromTableAttributes);
 
     bool Retry(
         const TMaybe<ui32>& rangeIndex,

@@ -200,7 +200,8 @@ private:
     ::TIntrusivePtr<TClientReader> CreateClientReader(
         const TRichYPath& path,
         const TFormat& format,
-        const TTableReaderOptions& options);
+        const TTableReaderOptions& options,
+        bool useFormatFromTableAttributes = false);
 
     THolder<TClientWriter> CreateClientWriter(
         const TRichYPath& path,

@@ -36,8 +36,9 @@ TClientReader::TClientReader(
     const TRichYPath& path,
     const TAuth& auth,
     const TTransactionId& transactionId,
-    const TMaybe<TFormat>& format,
-    const TTableReaderOptions& options)
+    const TFormat& format,
+    const TTableReaderOptions& options,
+    bool useFormatFromTableAttributes)
     : Path_(path)
     , Auth_(auth)
     , ParentTransactionId_(transactionId)
@@ -65,7 +66,7 @@ TClientReader::TClientReader(
         }
     }
 
-    if (Format_ && Format_->Type == EFormatType::YaMRLenval) {
+    if (useFormatFromTableAttributes) {
         auto transactionId2 = ReadTransaction_ ? ReadTransaction_->GetId() : ParentTransactionId_;
         auto newFormat = GetTableFormat(Auth_, transactionId2, Path_);
         if (newFormat) {

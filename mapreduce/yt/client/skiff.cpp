@@ -192,7 +192,7 @@ TFormat CreateSkiffFormat(const NSkiff::TSkiffSchemaPtr& schema) {
     Serialize(schema, &nodeBuilder);
     auto config = TNode("skiff");
     config.Attributes()["table_skiff_schemas"] = node["children"];
-    return TFormat(EFormatType::Custom, config);
+    return TFormat(config);
 }
 
 NSkiff::TSkiffSchemaPtr CreateSkiffSchemaIfNecessary(
