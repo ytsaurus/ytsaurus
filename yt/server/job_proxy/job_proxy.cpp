@@ -430,6 +430,11 @@ TJobResult TJobProxy::DoRun()
                 rootFS.Binds.emplace_back(TBind {*Config_->TmpfsPath, AdjustPath(*Config_->TmpfsPath), false});
             }
 
+            // Temporary workaround for nirvana - make tmp directories writable.
+            auto tmpPath = NFS::CombinePaths(NFs::CurrentWorkingDirectory(), SandboxDirectoryNames[ESandboxKind::Tmp]);
+            rootFS.Binds.emplace_back(TBind {tmpPath, "/tmp", false});
+            rootFS.Binds.emplace_back(TBind {tmpPath, "/var/tmp", false});
+
             return rootFS;
         };
 
