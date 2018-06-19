@@ -7,6 +7,7 @@
 #include <mapreduce/yt/common/helpers.h>
 #include <mapreduce/yt/common/finally_guard.h>
 #include <mapreduce/yt/http/retry_request.h>
+#include <mapreduce/yt/interface/operation.h>
 #include <mapreduce/yt/node/node_io.h>
 
 namespace NYT {
@@ -168,14 +169,100 @@ TLockId Lock(
     return ParseGuidFromResponse(RetryRequest(auth, header));
 }
 
-TNode GetOperation(
+TOperationAttributes ParseOperationAttributes(const TNode& node)
+{
+    const auto& mapNode = node.AsMap();
+    TOperationAttributes result;
+
+    if (auto idNode = mapNode.FindPtr("id")) {
+        result.Id = GetGuid(idNode->AsString());
+    }
+
+    if (auto typeNode = mapNode.FindPtr("type")) {
+        result.Type = FromString<EOperationType>(typeNode->AsString());
+    } else if (auto operationTypeNode = mapNode.FindPtr("operation_type")) {
+        // COMPAT(levysotsky): "operation_type" is a deprecated synonim for "type".
+        // This branch should be removed when all clusters are updated.
+        result.Type = FromString<EOperationType>(typeNode->AsString());
+    }
+
+    if (auto stateNode = mapNode.FindPtr("state")) {
+        result.State = stateNode->AsString();
+        // We don't use FromString here, because OS_IN_PROGRESS unites many states: "initializing", "running", etc.
+        if (*result.State == "completed") {
+            result.BriefState = EOperationBriefState::Completed;
+        } else if (*result.State == "aborted") {
+            result.BriefState = EOperationBriefState::Aborted;
+        } else if (*result.State == "failed") {
+            result.BriefState = EOperationBriefState::Failed;
+        } else {
+            result.BriefState = EOperationBriefState::InProgress;
+        }
+    }
+    if (auto authenticatedUserNode = mapNode.FindPtr("authenticated_user")) {
+        result.AuthenticatedUser = authenticatedUserNode->AsString();
+    }
+    if (auto startTimeNode = mapNode.FindPtr("start_time")) {
+        result.StartTime = TInstant::ParseIso8601(startTimeNode->AsString());
+    }
+    if (auto finishTimeNode = mapNode.FindPtr("finish_time")) {
+        result.FinishTime = TInstant::ParseIso8601(finishTimeNode->AsString());
+    }
+    auto briefProgressNode = mapNode.FindPtr("brief_progress");
+    if (briefProgressNode && briefProgressNode->HasKey("jobs")) {
+        result.BriefProgress.ConstructInPlace();
+        static auto load = [] (const TNode& item) {
+            // Backward compatibility with old YT versions
+            return item.IsInt64() ? item.AsInt64() : item["total"].AsInt64();
+        };
+        const auto& jobs = (*briefProgressNode)["jobs"];
+        result.BriefProgress->Aborted = load(jobs["aborted"]);
+        result.BriefProgress->Completed = load(jobs["completed"]);
+        result.BriefProgress->Running = jobs["running"].AsInt64();
+        result.BriefProgress->Total = jobs["total"].AsInt64();
+        result.BriefProgress->Failed = jobs["failed"].AsInt64();
+        result.BriefProgress->Lost = jobs["lost"].AsInt64();
+        result.BriefProgress->Pending = jobs["pending"].AsInt64();
+    }
+    if (auto briefSpecNode = mapNode.FindPtr("brief_spec")) {
+        result.BriefSpec = *briefSpecNode;
+    }
+    if (auto suspendedNode = mapNode.FindPtr("suspended")) {
+        result.Suspended = suspendedNode->AsBool();
+    }
+    if (auto weightNode = mapNode.FindPtr("weight")) {
+        result.Weight = weightNode->AsDouble();
+    }
+    if (auto resultNode = mapNode.FindPtr("result")) {
+        result.Result.ConstructInPlace();
+        auto error = TYtError((*resultNode)["error"]);
+        if (error.GetCode() != 0) {
+            result.Result->Error = std::move(error);
+        }
+    }
+    if (auto progressNode = mapNode.FindPtr("progress")) {
+        result.Progress = TOperationProgress{TJobStatistics((*progressNode)["job_statistics"])};
+    }
+    if (auto eventsNode = mapNode.FindPtr("events")) {
+        result.Events.ConstructInPlace().reserve(eventsNode->Size());
+        for (const auto& eventNode : eventsNode->AsList()) {
+            result.Events->push_back(TOperationEvent{
+                eventNode["state"].AsString(),
+                TInstant::ParseIso8601(eventNode["time"].AsString())});
+        }
+    }
+
+    return result;
+}
+
+TOperationAttributes GetOperation(
     const TAuth& auth,
     const TOperationId& operationId,
     const TGetOperationOptions& options)
 {
     THttpHeader header("GET", "get_operation");
     header.MergeParameters(NDetail::SerializeParamsForGetOperation(operationId, options));
-    return NodeFromYsonString(RetryRequest(auth, header));
+    return ParseOperationAttributes(NodeFromYsonString(RetryRequest(auth, header)));
 }
 
 TNode ListJobs(

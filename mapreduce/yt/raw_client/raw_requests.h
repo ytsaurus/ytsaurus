@@ -2,6 +2,7 @@
 
 #include <mapreduce/yt/interface/fwd.h>
 #include <mapreduce/yt/interface/client_method_options.h>
+#include <mapreduce/yt/interface/operation.h>
 
 namespace NYT {
 
@@ -21,6 +22,8 @@ struct IRetryPolicy;
 class TRawBatchRequest;
 
 ////////////////////////////////////////////////////////////////////////////////
+
+TOperationAttributes ParseOperationAttributes(const TNode& node);
 
 //
 // marks `batchRequest' as executed
@@ -82,7 +85,7 @@ TLockId Lock(
     ELockMode mode,
     const TLockOptions& options = TLockOptions());
 
-TNode GetOperation(
+TOperationAttributes GetOperation(
     const TAuth& auth,
     const TOperationId& operationId,
     const TGetOperationOptions& options = TGetOperationOptions());

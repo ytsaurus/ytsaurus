@@ -1,4 +1,5 @@
 #include <mapreduce/yt/interface/job_statistics.h>
+#include <mapreduce/yt/interface/operation.h>
 
 #include <mapreduce/yt/node/node_io.h>
 

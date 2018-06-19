@@ -1,6 +1,7 @@
 #pragma once
 
 #include "fwd.h"
+
 #include <mapreduce/yt/node/node.h>
 
 #include <util/generic/guid.h>

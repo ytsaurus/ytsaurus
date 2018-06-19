@@ -153,7 +153,7 @@ public:
         ::TIntrusivePtr<IRawJob> mapper,
         ::TIntrusivePtr<IRawJob> reduceCombiner,
         ::TIntrusivePtr<IRawJob> reducer,
-        const TOperationOptions& options = TOperationOptions()) override;
+        const TOperationOptions& options) override;
 
     IOperationPtr Sort(
         const TSortOperationSpec& spec,
@@ -180,6 +180,10 @@ public:
     void CompleteOperation(const TOperationId& operationId) override;
 
     void WaitForOperation(const TOperationId& operationId) override;
+
+    TOperationAttributes GetOperation(
+        const TOperationId& operationId,
+        const TGetOperationOptions& options) override;
 
     void AlterTable(
         const TYPath& path,

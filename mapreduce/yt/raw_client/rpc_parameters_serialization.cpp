@@ -3,6 +3,7 @@
 #include <mapreduce/yt/common/helpers.h>
 
 #include <mapreduce/yt/interface/client_method_options.h>
+#include <mapreduce/yt/interface/operation.h>
 #include <mapreduce/yt/interface/serialize.h>
 
 #include <mapreduce/yt/node/node.h>
@@ -226,7 +227,6 @@ TNode SerializeParamsForGetOperation(
     if (options.AttributeFilter_) {
         result["attributes"] = SerializeAttributeFilter(*options.AttributeFilter_);
     }
-
     return result;
 }
 
@@ -236,11 +236,11 @@ TNode SerializeParamsForListJobs(
 {
     TNode result;
     result["operation_id"] = GetGuidAsString(operationId);
-    if (options.JobType_) {
-        result["job_type"] = ::ToString(*options.JobType_);
+    if (options.Type_) {
+        result["job_type"] = ::ToString(*options.Type_);
     }
-    if (options.JobState_) {
-        result["job_state"] = ::ToString(*options.JobState_);
+    if (options.State_) {
+        result["job_state"] = ::ToString(*options.State_);
     }
     if (options.Address_) {
         result["address"] = *options.Address_;
@@ -251,8 +251,8 @@ TNode SerializeParamsForListJobs(
     if (options.SortField_) {
         result["sort_field"] = ::ToString(*options.SortField_);
     }
-    if (options.SortDirection_) {
-        result["sort_order"] = ::ToString(*options.SortDirection_);
+    if (options.SortOrder_) {
+        result["sort_order"] = ::ToString(*options.SortOrder_);
     }
     if (options.Offset_) {
         result["offset"] = *options.Offset_;

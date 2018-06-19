@@ -1,5 +1,7 @@
 #include "job_statistics.h"
 
+#include "operation.h"
+
 #include <mapreduce/yt/node/node.h>
 #include <mapreduce/yt/node/serialize.h>
 
@@ -163,7 +165,7 @@ TJobStatistics::~TJobStatistics() = default;
 TJobStatistics TJobStatistics::JobType(TVector<EJobType> filter) const
 {
     auto newFilter = ::MakeIntrusive<TFilter>();
-    newFilter->JobTypeFilter = filter;
+    newFilter->JobTypeFilter = std::move(filter);
     newFilter->JobStateFilter = Filter_->JobStateFilter;
 
     return TJobStatistics(Data_, std::move(newFilter));
@@ -173,7 +175,7 @@ TJobStatistics TJobStatistics::JobState(TVector<EJobState> filter) const
 {
     auto newFilter = ::MakeIntrusive<TFilter>();
     newFilter->JobTypeFilter = Filter_->JobTypeFilter;
-    newFilter->JobStateFilter = filter;
+    newFilter->JobStateFilter = std::move(filter);
 
     return TJobStatistics(Data_, std::move(newFilter));
 }

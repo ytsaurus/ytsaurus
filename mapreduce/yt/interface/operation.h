@@ -3,6 +3,7 @@
 #include "client_method_options.h"
 #include "io.h"
 #include "job_statistics.h"
+#include "errors.h"
 
 #include <library/threading/future/future.h>
 
@@ -692,12 +693,237 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+enum class EOperationAttribute : int
+{
+    Id                /* "id" */,
+    Type              /* "type" */,
+    State             /* "state" */,
+    AuthenticatedUser /* "authenticated_user" */,
+    StartTime         /* "start_time" */,
+    FinishTime        /* "finish_time" */,
+    BriefProgress     /* "brief_progress" */,
+    BriefSpec         /* "brief_spec" */,
+    Suspended         /* "suspended" */,
+    Weight            /* "weight" */,
+    Result            /* "result" */,
+    Progress          /* "progress" */,
+    Events            /* "events" */,
+};
+
+struct TOperationAttributeFilter
+{
+    using TSelf = TOperationAttributeFilter;
+
+    TVector<EOperationAttribute> Attributes_;
+
+    TSelf& Add(EOperationAttribute attribute)
+    {
+        Attributes_.push_back(attribute);
+        return *this;
+    }
+};
+
+struct TGetOperationOptions
+{
+    using TSelf = TGetOperationOptions;
+
+    FLUENT_FIELD_OPTION(TOperationAttributeFilter, AttributeFilter);
+};
+
 enum class EOperationBriefState : int
 {
     InProgress    /* "in_progress" */,
     Completed     /* "completed" */,
     Aborted       /* "aborted" */,
     Failed        /* "failed" */,
+};
+
+enum class EOperationType : int
+{
+    Map         /* "map" */,
+    Merge       /* "merge" */,
+    Erase       /* "erase" */,
+    Sort        /* "sort" */,
+    Reduce      /* "reduce" */,
+    MapReduce   /* "map_reduce" */,
+    RemoteCopy  /* "remote_copy" */,
+    JoinReduce  /* "join_reduce" */,
+    Vanilla     /* "vanilla" */,
+};
+
+struct TOperationProgress
+{
+    TJobStatistics JobStatistics;
+};
+
+struct TOperationBriefProgress
+{
+    ui64 Aborted = 0;
+    ui64 Completed = 0;
+    ui64 Failed = 0;
+    ui64 Lost = 0;
+    ui64 Pending = 0;
+    ui64 Running = 0;
+    ui64 Total = 0;
+};
+
+struct TOperationResult
+{
+    TMaybe<TYtError> Error;
+};
+
+struct TOperationEvent
+{
+    TString State;
+    TInstant Time;
+};
+
+struct TOperationAttributes
+{
+    TMaybe<TOperationId> Id;
+    TMaybe<EOperationType> Type;
+    TMaybe<TString> State;
+    TMaybe<EOperationBriefState> BriefState;
+    TMaybe<TString> AuthenticatedUser;
+    TMaybe<TInstant> StartTime;
+    TMaybe<TInstant> FinishTime;
+    TMaybe<TOperationBriefProgress> BriefProgress;
+    TMaybe<TNode> BriefSpec;
+    TMaybe<bool> Suspended;
+    TMaybe<i64> Weight;
+    TMaybe<TOperationResult> Result;
+    TMaybe<TOperationProgress> Progress;
+    TMaybe<TVector<TOperationEvent>> Events;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+enum class EJobSortField : int
+{
+    Type       /* "type" */,
+    State      /* "state" */,
+    StartTime  /* "start_time" */,
+    FinishTime /* "finish_time" */,
+    Address    /* "address" */,
+    Duration   /* "duration" */,
+    Progress   /* "progress" */,
+    Id         /* "id" */,
+};
+
+enum class EListJobsDataSource : int
+{
+    Runtime  /* "runtime" */,
+    Archive  /* "archive" */,
+    Auto     /* "auto" */,
+    Manual   /* "manual" */,
+};
+
+enum class EJobType : int
+{
+    SchedulerFirst    /* "scheduler_first" */,
+    Map               /* "map" */,
+    PartitionMap      /* "partition_map" */,
+    SortedMerge       /* "sorted_merge" */,
+    OrderedMerge      /* "ordered_merge" */,
+    UnorderedMerge    /* "unordered_merge" */,
+    Partition         /* "partition" */,
+    SimpleSort        /* "simple_sort" */,
+    FinalSort         /* "final_sort" */,
+    SortedReduce      /* "sorted_reduce" */,
+    PartitionReduce   /* "partition_reduce" */,
+    ReduceCombiner    /* "reduce_combiner" */,
+    RemoteCopy        /* "remote_copy" */,
+    IntermediateSort  /* "intermediate_sort" */,
+    OrderedMap        /* "ordered_map" */,
+    JoinReduce        /* "join_reduce" */,
+    Vanilla           /* "vanilla" */,
+    SchedulerUnknown  /* "scheduler_unknown" */,
+    SchedulerLast     /* "scheduler_last" */,
+    ReplicatorFirst   /* "replicator_first" */,
+    ReplicateChunk    /* "replicate_chunk" */,
+    RemoveChunk       /* "remove_chunk" */,
+    RepairChunk       /* "repair_chunk" */,
+    SealChunk         /* "seal_chunk" */,
+    ReplicatorLast    /* "replicator_last" */,
+};
+
+enum class EJobState : int
+{
+    None       /* "none" */,
+    Waiting    /* "waiting" */,
+    Running    /* "running" */,
+    Aborting   /* "aborting" */,
+    Completed  /* "completed" */,
+    Failed     /* "failed" */,
+    Aborted    /* "aborted" */,
+    Lost       /* "lost" */,
+};
+
+enum class EJobSortDirection : int
+{
+    Ascending /* "ascending" */,
+    Descending /* "descending" */,
+};
+
+// https://wiki.yandex-team.ru/yt/userdoc/api/#listjobs
+struct TListJobsOptions
+{
+    using TSelf = TListJobsOptions;
+
+    // Choose only jobs with given value of parameter (type, state, address and existence of stderr).
+    // If a field is Nothing, choose jobs with all possible values of the corresponding parameter.
+    FLUENT_FIELD_OPTION(EJobType, Type);
+    FLUENT_FIELD_OPTION(EJobState, State);
+    FLUENT_FIELD_OPTION(TString, Address);
+    FLUENT_FIELD_OPTION(bool, WithStderr);
+
+    FLUENT_FIELD_OPTION(EJobSortField, SortField);
+    FLUENT_FIELD_OPTION(ESortOrder, SortOrder);
+
+    // Where to search for jobs: in scheduler and Cypress (`Runtime'), in archive (`Archive'),
+    // automatically basing on operation presence in Cypress (`Auto') or choose manually (`Manual').
+    FLUENT_FIELD_OPTION(EListJobsDataSource, DataSource);
+
+    // These three options are taken into account only for `DataSource == Manual'.
+    FLUENT_FIELD_OPTION(bool, IncludeCypress);
+    FLUENT_FIELD_OPTION(bool, IncludeScheduler);
+    FLUENT_FIELD_OPTION(bool, IncludeArchive);
+
+    // Skip `Offset' first jobs and return not more than `Limit' of remaining.
+    FLUENT_FIELD_OPTION(i64, Limit);
+    FLUENT_FIELD_OPTION(i64, Offset);
+};
+
+struct TCoreInfo
+{
+    i64 ProcessId;
+    TString ExecutableName;
+    TMaybe<ui64> Size;
+    TMaybe<TYtError> Error;
+};
+
+struct TJobAttributes
+{
+    TJobId Id;
+    EJobType Type;
+    EJobState State;
+    TString Address;
+    TInstant StartTime;
+
+    TMaybe<TInstant> FinishTime;
+    TMaybe<double> Progress;
+    TMaybe<i64> StderrSize;
+    TMaybe<TYtError> Error;
+    TMaybe<TNode> BriefStatistics;
+    TMaybe<TVector<TRichYPath>> InputPaths;
+    TMaybe<TVector<TCoreInfo>> CoreInfos;
+};
+
+////////////////////////////////////////////////////////////////////
+
+struct TGetJobStderrOptions
+{
+    using TSelf = TGetJobStderrOptions;
 };
 
 ////////////////////////////////////////////////////////////////////
@@ -711,19 +937,6 @@ struct TGetFailedJobInfoOptions
 
     // How much of stderr should be downloaded.
     FLUENT_FIELD_DEFAULT(ui64, StderrTailSize, 64 * 1024);
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TOperationBriefProgress
-{
-    ui64 Aborted = 0;
-    ui64 Completed = 0;
-    ui64 Failed = 0;
-    ui64 Lost = 0;
-    ui64 Pending = 0;
-    ui64 Running = 0;
-    ui64 Total = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -758,12 +971,11 @@ struct IOperation
     // quite quickly (in about ~30 seconds).
     virtual TVector<TFailedJobInfo> GetFailedJobInfo(const TGetFailedJobInfoOptions& options = TGetFailedJobInfoOptions()) = 0;
 
-    //
     // Return current operation brief state.
     virtual EOperationBriefState GetBriefState() = 0;
 
     //
-    // Will return Nothing if operation is in EOperationBriefState::Completed or EOperationBriefState::InProgress state.
+    // Will return Nothing if operation is in 'Completed' or 'InProgress' state.
     // For failed / aborted operation will return nonempty error explaining operation fail / abort.
     virtual TMaybe<TYtError> GetError() = 0;
 
@@ -783,6 +995,11 @@ struct IOperation
     //
     // Complete operation.
     virtual void CompleteOperation() = 0;
+
+    //
+    // Get operation attributes.
+    virtual TOperationAttributes GetAttributes(
+        const TGetOperationOptions& options = TGetOperationOptions()) = 0;
 };
 
 struct TOperationOptions
@@ -917,6 +1134,10 @@ struct IOperationClient
     // Creates operation object given operation id.
     // Will throw TErrorResponse exception if operation doesn't exist.
     virtual IOperationPtr AttachOperation(const TOperationId& operationId) = 0;
+
+    virtual TOperationAttributes GetOperation(
+        const TOperationId& operationId,
+        const TGetOperationOptions& options = TGetOperationOptions()) = 0;
 
 private:
     virtual IOperationPtr DoMap(

@@ -68,6 +68,8 @@ public:
 
     EOperationBriefState CheckOperation(const TOperationId&) override;
 
+    TOperationAttributes GetOperation(const TOperationId&, const TGetOperationOptions&) override;
+
     IOperationPtr RunVanilla(const TVanillaOperationSpec&, const TOperationOptions&) override;
 
     IOperationPtr DoMap(const TMapOperationSpec&, IJob*, const TOperationOptions&) override;
