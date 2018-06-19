@@ -149,7 +149,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
     }
 
     auto chunkReader = GetChunkReader();
-    auto chunkState = PrepareCachedChunkState(chunkReader, blockReadOptions);
+    auto chunkState = PrepareChunkState(chunkReader, blockReadOptions);
 
     ValidateBlockSize(tabletSnapshot, chunkState, blockReadOptions.WorkloadDescriptor);
 
@@ -229,7 +229,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
 
     auto blockCache = GetBlockCache();
     auto chunkReader = GetChunkReader();
-    auto chunkState = PrepareCachedChunkState(chunkReader, blockReadOptions);
+    auto chunkState = PrepareChunkState(chunkReader, blockReadOptions);
 
     ValidateBlockSize(tabletSnapshot, chunkState, blockReadOptions.WorkloadDescriptor);
 
@@ -294,7 +294,7 @@ TError TSortedChunkStore::CheckRowLocks(
         << TErrorAttribute("key", RowToKey(row));
 }
 
-TChunkStatePtr TSortedChunkStore::PrepareCachedChunkState(
+TChunkStatePtr TSortedChunkStore::PrepareChunkState(
     IChunkReaderPtr chunkReader,
     const TClientBlockReadOptions& blockReadOptions)
 {
@@ -309,17 +309,13 @@ TChunkStatePtr TSortedChunkStore::PrepareCachedChunkState(
     auto chunkMeta = WaitFor(asyncChunkMeta)
         .ValueOrThrow();
 
-    {
-        TWriterGuard guard(SpinLock_);
-        ChunkState_ = New<TChunkState>(
-            BlockCache_,
-            std::move(chunkSpec),
-            std::move(chunkMeta),
-            nullptr,
-            PerformanceCounters_,
-            GetKeyComparer());
-        return ChunkState_;
-    }
+    return New<TChunkState>(
+        BlockCache_,
+        std::move(chunkSpec),
+        std::move(chunkMeta),
+        nullptr,
+        PerformanceCounters_,
+        GetKeyComparer());
 }
 
 void TSortedChunkStore::ValidateBlockSize(
