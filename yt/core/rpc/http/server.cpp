@@ -125,7 +125,7 @@ public:
         }
 
         FillYTErrorHeaders(Rsp_, TError{});
-        Rsp_->SetStatus(EStatusCode::Ok);
+        Rsp_->SetStatus(EStatusCode::OK);
         auto bodySent = Rsp_->WriteBody(PopEnvelope(message[1]));
         bodySent.Subscribe(BIND([this, this_ = MakeStrong(this)] (const TErrorOr<void>& result){
             ReplySent_.Set(result);

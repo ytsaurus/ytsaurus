@@ -120,5 +120,29 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(EProxyType,
+    (Http)
+    (Rpc)
+);
+
+struct TDiscoverProxiesOptions
+    : NApi::TGetNodeOptions
+{ };
+
+class TDiscoverProxiesCommand
+    : public TTypedCommand<TDiscoverProxiesOptions>
+{
+public:
+    TDiscoverProxiesCommand();
+
+private:
+    EProxyType Type;
+    TNullable<TString> Role;
+
+    virtual void DoExecute(ICommandContextPtr context) override;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NDriver
 } // namespace NYT

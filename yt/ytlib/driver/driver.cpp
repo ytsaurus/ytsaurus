@@ -262,6 +262,8 @@ public:
 
         REGISTER_ALL(TExecuteBatchCommand,                "execute_batch",                 Null,       Structured, true,  false);
 
+        REGISTER    (TDiscoverProxiesCommand,             "discover_proxies",              Null,       Structured, false, false, ApiVersion4);
+
 #undef REGISTER
 #undef REGISTER_ALL
     }
