@@ -295,7 +295,7 @@ TEST(THttpOutputTest, Full)
             "Content-Length: 0\r\n"
             "\r\n",
             [] (THttpOutput* out) {
-                out->SetStatus(EStatusCode::Ok);
+                out->SetStatus(EStatusCode::OK);
                 FinishBody(out);
             }
         },
@@ -334,7 +334,7 @@ TEST(THttpOutputTest, Full)
             "0\r\n"
             "\r\n",
             [] (THttpOutput* out) {
-                out->SetStatus(EStatusCode::Ok);
+                out->SetStatus(EStatusCode::OK);
 
                 WriteChunk(out, AsStringBuf("X"));
                 WriteChunk(out, AsStringBuf("0123456789"));
@@ -380,7 +380,7 @@ TEST(THttpInputTest, Simple)
             "HTTP/1.1 200 OK\r\n"
             "\r\n",
             [] (THttpInput* in) {
-                EXPECT_EQ(in->GetStatusCode(), EStatusCode::Ok);
+                EXPECT_EQ(in->GetStatusCode(), EStatusCode::OK);
                 ExpectBodyEnd(in);
             }
         },
@@ -546,7 +546,7 @@ class TOKHttpHandler
 public:
     virtual void HandleRequest(const IRequestPtr& req, const IResponseWriterPtr& rsp) override
     {
-        rsp->SetStatus(EStatusCode::Ok);
+        rsp->SetStatus(EStatusCode::OK);
         WaitFor(rsp->Close()).ThrowOnError();
     }
 };
@@ -557,7 +557,7 @@ TEST_P(THttpServerTest, SimpleRequest)
     Server->Start();
 
     auto rsp = WaitFor(Client->Get(TestUrl + "/ok")).ValueOrThrow();
-    ASSERT_EQ(EStatusCode::Ok, rsp->GetStatusCode());
+    ASSERT_EQ(EStatusCode::OK, rsp->GetStatusCode());
 
     Server->Stop();
     Sleep(TDuration::MilliSeconds(10));
@@ -569,7 +569,7 @@ class TEchoHttpHandler
 public:
     virtual void HandleRequest(const IRequestPtr& req, const IResponseWriterPtr& rsp) override
     {
-        rsp->SetStatus(EStatusCode::Ok);
+        rsp->SetStatus(EStatusCode::OK);
         while (true) {
             auto data = WaitFor(req->Read()).ValueOrThrow();
             if (data.Size() == 0) {
@@ -607,7 +607,7 @@ TEST_P(THttpServerTest, TransferSmallBody)
     std::fill(reqBody.Begin(), reqBody.End(), 0xab);
     
     auto rsp = WaitFor(Client->Post(TestUrl + "/echo", reqBody)).ValueOrThrow();
-    ASSERT_EQ(EStatusCode::Ok, rsp->GetStatusCode());
+    ASSERT_EQ(EStatusCode::OK, rsp->GetStatusCode());
 
     auto rspBody = ReadAll(rsp);
     ASSERT_EQ(TString(reqBody.Begin(), reqBody.Size()), rspBody);
@@ -626,7 +626,7 @@ public:
         WaitFor(rsp->Close()).ThrowOnError();
     }
 
-    EStatusCode Code = EStatusCode::Ok;
+    EStatusCode Code = EStatusCode::OK;
 };
 
 TEST_P(THttpServerTest, StatusCode)
@@ -665,7 +665,7 @@ public:
             rsp->GetHeaders()->Add(header.first, header.second);
         }
 
-        rsp->SetStatus(EStatusCode::Ok);
+        rsp->SetStatus(EStatusCode::OK);
         WaitFor(rsp->Close()).ThrowOnError();
     }
 
@@ -752,7 +752,7 @@ class TForgetfulHandler
 public:
     virtual void HandleRequest(const IRequestPtr& req, const IResponseWriterPtr& rsp) override
     {
-        rsp->SetStatus(EStatusCode::Ok);
+        rsp->SetStatus(EStatusCode::OK);
     }
 };
 
@@ -822,7 +822,7 @@ public:
         while (WaitFor(req->Read()).ValueOrThrow().Size() != 0)
         { }
 
-        rsp->SetStatus(EStatusCode::Ok);
+        rsp->SetStatus(EStatusCode::OK);
         WaitFor(rsp->Close()).ThrowOnError();
     }
 };
@@ -833,7 +833,7 @@ TEST_P(THttpServerTest, RequestStreaming)
     Server->Start();
 
     auto body = TSharedMutableRef::Allocate(128 * 1024 * 1024);
-    ASSERT_EQ(EStatusCode::Ok,
+    ASSERT_EQ(EStatusCode::OK,
         WaitFor(Client->Post(TestUrl + "/consuming", body))
             .ValueOrThrow()->GetStatusCode());
 
@@ -847,7 +847,7 @@ class TStreamingHandler
 public:
     virtual void HandleRequest(const IRequestPtr& req, const IResponseWriterPtr& rsp) override
     {
-        rsp->SetStatus(EStatusCode::Ok);
+        rsp->SetStatus(EStatusCode::OK);
         auto data = TSharedRef::FromString(TString(1024, 'f'));
         for (int i = 0; i < 16 * 1024; i++) {
             WaitFor(rsp->Write(data));

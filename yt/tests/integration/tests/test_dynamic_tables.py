@@ -1657,6 +1657,7 @@ class TestDynamicTablesMulticell(TestDynamicTables):
 class TestDynamicTablesRpcProxy(TestDynamicTables):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
+    ENABLE_PROXY = True
 
 class TestDynamicTablesResourceLimitsRpcProxy(TestDynamicTablesResourceLimits):
     DRIVER_BACKEND = "rpc"

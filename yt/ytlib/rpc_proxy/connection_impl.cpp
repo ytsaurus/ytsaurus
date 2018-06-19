@@ -24,6 +24,8 @@
 #include <yt/core/rpc/bus/channel.h>
 #include <yt/core/rpc/roaming_channel.h>
 
+#include <yt/core/ytree/fluent.h>
+
 namespace NYT {
 namespace NRpcProxy {
 
@@ -43,22 +45,49 @@ using namespace NConcurrency;
 std::vector<TString> GetProxyListFromHttp(
     const NHttp::TClientConfigPtr& config,
     const TString& proxyUrl,
-    const TString& oauthToken)
+    const TString& oauthToken,
+    bool useCypress,
+    const TNullable<TString>& role)
 {
     auto client = CreateClient(config, TTcpDispatcher::Get()->GetXferPoller());
     auto headers = New<THeaders>();
     headers->Add("Authorization", "OAuth " + oauthToken);
     headers->Add("X-YT-Header-Format", "<format=text>yson");
-    headers->Add("X-YT-Parameters", "{path=\"//sys/rpc_proxies\"; output_format=<format=text>yson; read_from=cache}");
 
-    auto rsp = WaitFor(client->Get(proxyUrl + "/api/v3/list", headers))
+    if (useCypress) {
+        headers->Add("X-YT-Parameters", "{path=\"//sys/rpc_proxies\"; output_format=<format=text>yson; read_from=cache}");
+    } else {
+        headers->Add("X-YT-Parameters", BuildYsonStringFluently(EYsonFormat::Text)
+            .BeginMap()
+                .Item("output_format")
+                    .BeginAttributes()
+                        .Item("format").Value("text")
+                    .EndAttributes()
+                    .Value("yson")
+                .DoIf(role.HasValue(), [&] (auto fluent) {
+                    fluent.Item("role").Value(*role);
+                })
+            .EndMap().GetData());
+    }
+
+    auto path = proxyUrl;
+    if (useCypress) {
+        path += "/api/v3/list";
+    } else {
+        path += "/api/v4/discover_proxies";
+    }
+    auto rsp = WaitFor(client->Get(path, headers))
         .ValueOrThrow();
-    if (rsp->GetStatusCode() != EStatusCode::Ok) {
-        THROW_ERROR_EXCEPTION("Http proxy discovery failed with code %v",
-            static_cast<int>(rsp->GetStatusCode()))
+    if (rsp->GetStatusCode() != EStatusCode::OK) {
+        THROW_ERROR_EXCEPTION("HTTP proxy discovery failed with code %v", rsp->GetStatusCode())
             << ParseYTError(rsp);
     }
-    return ConvertTo<std::vector<TString>>(TYsonString{ToString(rsp->ReadBody())});
+
+    auto node = ConvertTo<INodePtr>(TYsonString{ToString(rsp->ReadBody())});
+    if (!useCypress) {
+        node = node->AsMap()->FindChild("proxies");
+    }
+    return ConvertTo<std::vector<TString>>(node);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -202,6 +231,9 @@ std::vector<TString> TConnection::DiscoverProxiesByRpc(const IChannelPtr& channe
     TDiscoveryServiceProxy proxy(channel);
 
     auto req = proxy.DiscoverProxies();
+    if (Config_->ProxyRole) {
+        req->set_role(*Config_->ProxyRole);
+    }
     req->SetTimeout(Config_->RpcTimeout);
 
     auto rsp = WaitFor(req->Invoke())
@@ -220,7 +252,9 @@ std::vector<TString> TConnection::DiscoverProxiesByHttp(const TClientOptions& op
         return GetProxyListFromHttp(
             Config_->HttpClient,
             *Config_->ClusterUrl,
-            options.Token.Get({}));
+            options.Token.Get({}),
+            Config_->DiscoverProxiesFromCypress,
+            Config_->ProxyRole);
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error discovering proxies from HTTP")
             << TError(ex);

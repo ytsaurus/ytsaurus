@@ -90,7 +90,7 @@ void TSkynetManager::HealthCheck(IRequestPtr req, IResponseWriterPtr rsp)
             && SyncedClusters_.size() == Bootstrap_->GetClustersCount();
     }
 
-    rsp->SetStatus(ok ? EStatusCode::Ok : EStatusCode::InternalServerError);
+    rsp->SetStatus(ok ? EStatusCode::OK : EStatusCode::InternalServerError);
     WaitFor(rsp->Close())
         .ThrowOnError();
 }
@@ -146,7 +146,7 @@ void TSkynetManager::Share(IRequestPtr req, IResponseWriterPtr rsp)
     LOG_INFO("Share created (Key: %v, RbTorrentId: %v)", FormatShareKey(shareKey), rbTorrentId);
 
     rsp->GetHeaders()->Add("Content-Type", "text/plain");
-    rsp->SetStatus(EStatusCode::Ok);
+    rsp->SetStatus(EStatusCode::OK);
     WaitFor(rsp->WriteBody(TSharedRef::FromString(rbTorrentId)))
         .ThrowOnError();
 }
@@ -189,7 +189,7 @@ void TSkynetManager::Discover(IRequestPtr req, IResponseWriterPtr rsp)
         discoverInfo->TablePath,
         reply.Parts.size());
 
-    rsp->SetStatus(EStatusCode::Ok);
+    rsp->SetStatus(EStatusCode::OK);
     auto output = CreateBufferedSyncAdapter(rsp);
     auto json = NJson::CreateJsonConsumer(output.get());
 
@@ -405,7 +405,7 @@ IResponsePtr HandleRedirectAndCheckStatus(
             .ValueOrThrow();
     }
 
-    if (rsp->GetStatusCode() != EStatusCode::Ok && rsp->GetStatusCode() != EStatusCode::Accepted) {
+    if (rsp->GetStatusCode() != EStatusCode::OK && rsp->GetStatusCode() != EStatusCode::Accepted) {
         THROW_ERROR_EXCEPTION("Proxy request failed with code %v", rsp->GetStatusCode())
             << ParseYTError(rsp);
     }

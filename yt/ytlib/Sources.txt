@@ -276,6 +276,8 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/program/config.cpp
 
   ${CMAKE_CURRENT_LIST_DIR}/rpc_proxy/admin.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/rpc_proxy/public.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/rpc_proxy/config.cpp
   ${CMAKE_CURRENT_LIST_DIR}/rpc_proxy/credentials_injecting_channel.cpp
   ${CMAKE_CURRENT_LIST_DIR}/rpc_proxy/helpers.cpp
   ${CMAKE_CURRENT_LIST_DIR}/rpc_proxy/dynamic_channel_pool.cpp
