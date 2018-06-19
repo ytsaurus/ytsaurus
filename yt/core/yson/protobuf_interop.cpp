@@ -618,8 +618,9 @@ private:
 
     virtual void OnMyEntity() override
     {
-        THROW_ERROR_EXCEPTION("Entities are not supported")
-            << TErrorAttribute("ypath", YPathStack_.GetPath());
+        ValidateNotRepeated();
+        FieldStack_.pop_back();
+        YPathStack_.Pop();
     }
 
     virtual void OnMyBeginList() override

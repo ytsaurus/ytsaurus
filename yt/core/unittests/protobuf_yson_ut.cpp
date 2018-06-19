@@ -247,15 +247,6 @@ TEST(TYsonToProtobufTest, Failure)
         TEST_PROLOGUE(TMessage)
             .BeginMap()
                 .Item("nested_message1").BeginMap()
-                    .Item("int32_field").Entity()
-                .EndMap()
-            .EndMap();
-    }, "/nested_message1/int32_field");
-
-    EXPECT_YPATH({
-        TEST_PROLOGUE(TMessage)
-            .BeginMap()
-                .Item("nested_message1").BeginMap()
                     .Item("int32_field").BeginAttributes().EndAttributes().Value(123)
                 .EndMap()
             .EndMap();
@@ -530,6 +521,19 @@ TEST(TYsonToProtobufTest, UnknownFields)
         EXPECT_EQ(1, message.repeated_nested_message().size());
         EXPECT_EQ(456, message.repeated_nested_message().Get(0).int32_field());
     }
+}
+
+TEST(TYsonToProtobufTest, Entities)
+{
+    TProtobufWriterOptions options;
+
+    TEST_PROLOGUE_WITH_OPTIONS(TMessage, options)
+        .BeginMap()
+            .Item("nested_message1").Entity()
+        .EndMap();
+    TEST_EPILOGUE(TMessage)
+
+    EXPECT_FALSE(message.has_nested_message1());
 }
 
 #undef TEST_PROLOGUE
