@@ -444,6 +444,13 @@ void TClientBase::WaitForOperation(const TOperationId& operationId)
     NYT::NDetail::WaitForOperation(Auth_, operationId);
 }
 
+TOperationAttributes TClientBase::GetOperation(
+    const TOperationId& operationId,
+    const TGetOperationOptions& options)
+{
+    return NYT::NDetail::GetOperation(Auth_, operationId, options);
+}
+
 void TClientBase::AlterTable(
     const TYPath& path,
     const TAlterTableOptions& options)

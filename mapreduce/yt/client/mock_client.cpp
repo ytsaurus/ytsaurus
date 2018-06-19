@@ -337,6 +337,10 @@ EOperationBriefState TMockClient::CheckOperation(const TOperationId&) {
     return EOperationBriefState::Completed;
 }
 
+TOperationAttributes TMockClient::GetOperation(const TOperationId&, const TGetOperationOptions&) {
+    return TOperationAttributes();
+}
+
 IOperationPtr TMockClient::RunVanilla(const TVanillaOperationSpec&, const TOperationOptions&) {
     return nullptr;
 }

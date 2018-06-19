@@ -36,35 +36,23 @@ static TString RequestInfo(const TNode& request)
 
 static void EnsureNothing(const TMaybe<TNode>& node)
 {
-    if (node) {
-        ythrow yexception()
-            << "Internal error: expected to have no response, but got response of type " << node->GetType();
-    }
+    Y_ENSURE(!node, "Internal error: expected to have no response, but got response of type " << node->GetType());
 }
 
 static void EnsureSomething(const TMaybe<TNode>& node)
 {
-    if (!node) {
-        ythrow yexception()
-            << "Internal error: expected to have response of any type, but got no response.";
-    }
+    Y_ENSURE(node, "Internal error: expected to have response of any type, but got no response.");
 }
 
 static void EnsureType(const TNode& node, TNode::EType type)
 {
-    if (node.GetType() != type) {
-        ythrow yexception() << "Internal error: unexpected response type. "
-            << "Expected: " << type << ", actual: " << node.GetType();
-    }
+    Y_ENSURE(node.GetType() == type, "Internal error: unexpected response type. "
+        << "Expected: " << type << ", actual: " << node.GetType());
 }
 
 static void EnsureType(const TMaybe<TNode>& node, TNode::EType type)
 {
-    if (!node) {
-        ythrow yexception()
-            << "Internal error: expected to have response of type " << type << ", but got no response.";
-    }
-
+    Y_ENSURE(node, "Internal error: expected to have response of type " << type << ", but got no response.");
     EnsureType(*node, type);
 }
 
@@ -191,6 +179,19 @@ private:
 
 ////////////////////////////////////////////////////////////////////
 
+class TGetOperationResponseParser
+    : public TResponseParserBase<TOperationAttributes>
+{
+public:
+    virtual void SetResponse(TMaybe<TNode> node) override
+    {
+        EnsureType(node, TNode::Map);
+        Result.SetValue(ParseOperationAttributes(*node));
+    }
+};
+
+////////////////////////////////////////////////////////////////////
+
 TRawBatchRequest::TBatchItem::TBatchItem(TNode parameters, ::TIntrusivePtr<IResponseItemParser> responseParser)
     : Parameters(std::move(parameters))
     , ResponseParser(std::move(responseParser))
@@ -235,9 +236,7 @@ typename TResponseParser::TFutureResult TRawBatchRequest::AddRequest(
     TMaybe<TNode> input,
     TIntrusivePtr<TResponseParser> parser)
 {
-    if (Executed_) {
-        ythrow yexception() << "Cannot add request: batch request is already executed";
-    }
+    Y_ENSURE(!Executed_, "Cannot add request: batch request is already executed");
     TNode request;
     request["command"] = command;
     request["parameters"] = std::move(parameters);
@@ -250,9 +249,7 @@ typename TResponseParser::TFutureResult TRawBatchRequest::AddRequest(
 
 void TRawBatchRequest::AddRequest(TBatchItem batchItem)
 {
-    if (Executed_) {
-        ythrow yexception() << "Cannot add request: batch request is already executed";
-    }
+    Y_ENSURE(!Executed_, "Cannot add request: batch request is already executed");
     BatchItemList_.push_back(batchItem);
 }
 
@@ -369,16 +366,15 @@ TFuture<TLockId> TRawBatchRequest::Lock(
         Nothing());
 }
 
-TFuture<TNode> TRawBatchRequest::GetOperation(
+TFuture<TOperationAttributes> TRawBatchRequest::GetOperation(
     const TOperationId& operationId,
     const TGetOperationOptions& options)
 {
-    return AddRequest<TGetResponseParser>(
+    return AddRequest<TGetOperationResponseParser>(
         "get_operation",
         SerializeParamsForGetOperation(operationId, options),
         Nothing());
 }
-
 
 TFuture<TRichYPath> TRawBatchRequest::CanonizeYPath(const TRichYPath& path)
 {
@@ -434,11 +430,10 @@ void TRawBatchRequest::ParseResponse(
     EnsureType(node, TNode::List);
     auto& responseList = node.AsList();
     const auto size = responseList.size();
-    if (size > BatchItemList_.size()) {
-        ythrow yexception() << "Size of server response exceeds size of batch request; "
-            " size of batch: " << BatchItemList_.size() <<
-            " size of server response: " << size << '.';
-    }
+    Y_ENSURE(size <= BatchItemList_.size(),
+        "Size of server response exceeds size of batch request;"
+        " size of batch: " << BatchItemList_.size() <<
+        " size of server response: " << size << '.');
 
     for (size_t i = 0; i != size; ++i) {
         try {

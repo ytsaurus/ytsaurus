@@ -19,49 +19,6 @@ class TJobStatisticsEntry;
 
 ////////////////////////////////////////////////////////////////////
 
-enum class EJobType : int
-{
-    SchedulerFirst    /* "scheduler_first" */,
-    Map               /* "map" */,
-    PartitionMap      /* "partition_map" */,
-    SortedMerge       /* "sorted_merge" */,
-    OrderedMerge      /* "ordered_merge" */,
-    UnorderedMerge    /* "unordered_merge" */,
-    Partition         /* "partition" */,
-    SimpleSort        /* "simple_sort" */,
-    FinalSort         /* "final_sort" */,
-    SortedReduce      /* "sorted_reduce" */,
-    PartitionReduce   /* "partition_reduce" */,
-    ReduceCombiner    /* "reduce_combiner" */,
-    RemoteCopy        /* "remote_copy" */,
-    IntermediateSort  /* "intermediate_sort" */,
-    OrderedMap        /* "ordered_map" */,
-    JoinReduce        /* "join_reduce" */,
-    Vanilla           /* "vanilla" */,
-    SchedulerUnknown  /* "scheduler_unknown" */,
-    SchedulerLast     /* "scheduler_last" */,
-    ReplicatorFirst   /* "replicator_first" */,
-    ReplicateChunk    /* "replicate_chunk" */,
-    RemoveChunk       /* "remove_chunk" */,
-    RepairChunk       /* "repair_chunk" */,
-    SealChunk         /* "seal_chunk" */,
-    ReplicatorLast    /* "replicator_last" */,
-};
-
-enum class EJobState : int
-{
-    Waiting    /* "waiting" */,
-    Running    /* "running" */,
-    Aborting   /* "aborting" */,
-    Completed  /* "completed" */,
-    Failed     /* "failed" */,
-    Aborted    /* "aborted" */,
-    Lost       /* "lost" */,
-};
-
-
-////////////////////////////////////////////////////////////////////
-
 //
 // Function converts i64 representation of statistics to other type.
 // Library defines this template for types TDuration and i64.

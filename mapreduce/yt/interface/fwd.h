@@ -278,7 +278,23 @@ namespace NYT {
 
     enum class EOperationBriefState : int;
 
+    struct TOperationAttributes;
+
     struct TOperationOptions;
 
+    enum class EOperationAttribute : int;
+
+    struct TOperationAttributeFilter;
+
+    struct TGetOperationOptions;
+
+    struct TListOperationsOptions;
+
+    struct TListJobsOptions;
+
     struct IOperationClient;
+
+    enum class EFinishedJobState : int;
+
+    enum class EJobType : int;
 }

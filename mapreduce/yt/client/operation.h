@@ -34,6 +34,7 @@ public:
     virtual TMaybe<TOperationBriefProgress> GetBriefProgress() override;
     virtual void AbortOperation() override;
     virtual void CompleteOperation() override;
+    virtual TOperationAttributes GetAttributes(const TGetOperationOptions& options) override;
 
 private:
     TClientPtr Client_;

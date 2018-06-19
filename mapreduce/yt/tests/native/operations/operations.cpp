@@ -1676,6 +1676,169 @@ Y_UNIT_TEST_SUITE(Operations)
         }
     }
 
+    void TestGetOperation_Completed(bool useClientGetOperation)
+    {
+        auto client = CreateTestClient();
+
+        CreateTableWithFooColumn(client, "//testing/input");
+
+        auto beforeStart = TInstant::Now();
+        auto op = client->Map(
+            TMapOperationSpec()
+                .AddInput<TNode>("//testing/input")
+                .AddOutput<TNode>("//testing/output"),
+            new TIdMapper);
+        auto afterFinish = TInstant::Now();
+
+        TOperationAttributes attrs;
+        if (useClientGetOperation) {
+            attrs = client->GetOperation(op->GetId());
+        } else {
+            attrs = op->GetAttributes();
+        }
+
+        UNIT_ASSERT(attrs.Id);
+        UNIT_ASSERT_EQUAL(*attrs.Id, op->GetId());
+
+        UNIT_ASSERT(attrs.Type);
+        UNIT_ASSERT_VALUES_EQUAL(*attrs.Type, EOperationType::Map);
+
+        UNIT_ASSERT(attrs.State);
+        UNIT_ASSERT_VALUES_EQUAL(*attrs.State, "completed");
+
+        UNIT_ASSERT(attrs.BriefState);
+        UNIT_ASSERT_VALUES_EQUAL(*attrs.BriefState, EOperationBriefState::Completed);
+
+        UNIT_ASSERT(attrs.AuthenticatedUser);
+        UNIT_ASSERT_VALUES_EQUAL(*attrs.AuthenticatedUser, "root");
+
+        UNIT_ASSERT(attrs.StartTime);
+        UNIT_ASSERT(*attrs.StartTime > beforeStart);
+
+        UNIT_ASSERT(attrs.FinishTime);
+        UNIT_ASSERT(*attrs.FinishTime < afterFinish);
+
+        UNIT_ASSERT(attrs.BriefProgress);
+        UNIT_ASSERT(attrs.BriefProgress->Completed > 0);
+        UNIT_ASSERT_VALUES_EQUAL(attrs.BriefProgress->Failed, 0);
+
+        UNIT_ASSERT(attrs.BriefSpec);
+        const auto& input_paths = (*attrs.BriefSpec)["input_table_paths"];
+        UNIT_ASSERT_VALUES_EQUAL(input_paths.AsList(), TNode().Add("//testing/input").AsList());
+
+        UNIT_ASSERT(attrs.Suspended);
+        UNIT_ASSERT_VALUES_EQUAL(*attrs.Suspended, false);
+
+        UNIT_ASSERT(attrs.Weight);
+        UNIT_ASSERT_VALUES_EQUAL(*attrs.Weight, 1.0);
+
+        UNIT_ASSERT(attrs.Result);
+        UNIT_ASSERT(!attrs.Result->Error);
+
+        UNIT_ASSERT(attrs.Progress);
+        auto row_count = client->Get("//testing/input/@row_count").AsInt64();
+        UNIT_ASSERT_VALUES_EQUAL(attrs.Progress->JobStatistics.GetStatistics("data/input/row_count").Sum(), row_count);
+
+        UNIT_ASSERT(attrs.Events);
+        for (const char* state : {"starting", "running", "completed"}) {
+            UNIT_ASSERT(FindIfPtr(*attrs.Events, [=](const TOperationEvent& event) {
+                return event.State == state;
+            }));
+        }
+        UNIT_ASSERT(attrs.Events->front().Time > beforeStart);
+        UNIT_ASSERT(attrs.Events->back().Time < afterFinish);
+        for (size_t i = 1; i != attrs.Events->size(); ++i) {
+            UNIT_ASSERT((*attrs.Events)[i].Time >= (*attrs.Events)[i - 1].Time);
+        }
+
+        // Can get operation with filter.
+
+        auto options = TGetOperationOptions()
+            .AttributeFilter(
+                TOperationAttributeFilter()
+                .Add(EOperationAttribute::Progress)
+                .Add(EOperationAttribute::State));
+
+        if (useClientGetOperation) {
+            attrs = client->GetOperation(op->GetId(), options);
+        } else {
+            attrs = op->GetAttributes(options);
+        }
+
+        UNIT_ASSERT(!attrs.Id);
+        UNIT_ASSERT(!attrs.Type);
+        UNIT_ASSERT( attrs.State);
+        UNIT_ASSERT(!attrs.AuthenticatedUser);
+        UNIT_ASSERT(!attrs.StartTime);
+        UNIT_ASSERT(!attrs.FinishTime);
+        UNIT_ASSERT(!attrs.BriefProgress);
+        UNIT_ASSERT(!attrs.BriefSpec);
+        UNIT_ASSERT(!attrs.Suspended);
+        UNIT_ASSERT(!attrs.Weight);
+        UNIT_ASSERT(!attrs.Result);
+        UNIT_ASSERT( attrs.Progress);
+    }
+
+    Y_UNIT_TEST(GetOperation_Completed_ClientGetOperation)
+    {
+        TestGetOperation_Completed(true);
+    }
+
+    Y_UNIT_TEST(GetOperation_Completed_OperationGetAttributes)
+    {
+        TestGetOperation_Completed(false);
+    }
+
+
+    void TestGetOperation_Failed(bool useClientGetOperation)
+    {
+        auto client = CreateTestClient();
+
+        CreateTableWithFooColumn(client, "//testing/input");
+
+        auto op = client->Map(
+            TMapOperationSpec()
+                .AddInput<TNode>("//testing/input")
+                .AddOutput<TNode>("//testing/output")
+                .MaxFailedJobCount(2),
+            new TAlwaysFailingMapper,
+            TOperationOptions()
+                .Wait(false));
+
+        op->Watch().Wait();
+
+        TOperationAttributes attrs;
+        if (useClientGetOperation) {
+            attrs = client->GetOperation(op->GetId());
+        } else {
+            attrs = op->GetAttributes();
+        }
+
+        UNIT_ASSERT(attrs.Type);
+        UNIT_ASSERT_VALUES_EQUAL(*attrs.Type, EOperationType::Map);
+
+        UNIT_ASSERT(attrs.BriefState);
+        UNIT_ASSERT_VALUES_EQUAL(*attrs.BriefState, EOperationBriefState::Failed);
+
+        UNIT_ASSERT(attrs.BriefProgress);
+        UNIT_ASSERT_VALUES_EQUAL(attrs.BriefProgress->Completed, 0);
+        UNIT_ASSERT_VALUES_EQUAL(attrs.BriefProgress->Failed, 2);
+
+        UNIT_ASSERT(attrs.Result);
+        UNIT_ASSERT(attrs.Result->Error);
+        UNIT_ASSERT(attrs.Result->Error->ContainsText("Failed jobs limit exceeded"));
+    }
+
+    Y_UNIT_TEST(GetOperation_Failed_ClientGetOperation)
+    {
+        TestGetOperation_Failed(true);
+    }
+
+    Y_UNIT_TEST(GetOperation_Failed_OperationGetAttributes)
+    {
+        TestGetOperation_Failed(false);
+    }
+
     Y_UNIT_TEST(FormatHint)
     {
         auto client = CreateTestClient();
