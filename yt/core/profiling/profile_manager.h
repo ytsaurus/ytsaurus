@@ -107,6 +107,15 @@ private:
 } // namespace NProfiling
 } // namespace NYT
 
+template <>
+struct TSingletonTraits<NYT::NProfiling::TProfileManager>
+{
+    enum
+    {
+        Priority = 2047
+    };
+};
+
 #define PROFILE_MANAGER_INL_H_
 #include "profile_manager-inl.h"
 #undef PROFILE_MANAGER_INL_H_
