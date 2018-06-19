@@ -4,9 +4,9 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Registers a callback to be called during Shutdown(). Callback are
+//! Registers a callback to be called during Shutdown(). Callbacks are
 //! invoked from highest priority to lower. Invocation order for
-//! callback with the same priority is unspecified.
+//! callbacks with the same priority is unspecified.
 void RegisterShutdownCallback(double priority, void(*callback)());
 
 //! Invokes all registered shutdown callbacks.
