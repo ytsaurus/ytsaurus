@@ -627,7 +627,7 @@ THttpOutput* THttpRequest::StartRequestImpl(const THttpHeader& header, bool incl
         ~Url_);
 
     auto outputFormat = header.GetOutputFormat();
-    if (outputFormat && outputFormat->Type == EFormatType::YsonText) {
+    if (outputFormat && outputFormat->IsTextYson()) {
         LogResponse = true;
     }
 

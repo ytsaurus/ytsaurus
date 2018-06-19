@@ -169,7 +169,7 @@ public:
         : FormatDesc_(formatDesc)
         , SkiffSchema_(nullptr)
         , FormatFromTableAttribute_()
-        , Format_(EFormatType::Custom, TNode("NO_FORMAT")) // It will be properly initialized in the constructor body
+        , Format_(TNode("NO_FORMAT")) // It will be properly initialized in the constructor body
     {
         switch (FormatDesc_.Format) {
             case TMultiFormatDesc::F_NODE:
@@ -185,14 +185,14 @@ public:
                     FormatFromTableAttribute_ = GetTableFormats(auth, transactionId, tables);
                 }
                 if (FormatFromTableAttribute_) {
-                    Format_ = TFormat(EFormatType::Custom, *FormatFromTableAttribute_);
+                    Format_ = TFormat(*FormatFromTableAttribute_);
                 } else {
                     auto formatNode = TNode("yamr");
                     formatNode.Attributes() = TNode()
                         ("lenval", true)
                         ("has_subkey", true)
                         ("enable_table_index", true);
-                    Format_ = TFormat(EFormatType::Custom, formatNode);
+                    Format_ = TFormat(formatNode);
                 }
                 break;
             case TMultiFormatDesc::F_PROTO:
@@ -201,7 +201,7 @@ public:
                 } else {
                     Y_ENSURE_EX(!FormatDesc_.ProtoDescriptors.empty(),
                         TApiUsageError() << "Messages for proto format are unknown (empty ProtoDescriptors)");
-                    Format_ = TFormat(FormatDesc_.ProtoDescriptors);
+                    Format_ = TFormat::Protobuf(FormatDesc_.ProtoDescriptors);
                 }
                 break;
             default:

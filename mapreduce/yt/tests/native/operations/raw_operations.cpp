@@ -108,7 +108,7 @@ Y_UNIT_TEST_SUITE(RawOperations)
             TRawMapOperationSpec()
             .AddInput("//testing/input")
             .AddOutput("//testing/output")
-            .Format(TFormat(EFormatType::Custom, TNode("json"))),
+            .Format(TFormat(TNode("json"))),
             new TJsonKvSwapper);
 
         TVector<TNode> actual = ReadTable(client, "//testing/output");
@@ -141,7 +141,7 @@ Y_UNIT_TEST_SUITE(RawOperations)
             .ReduceBy({"key"})
             .AddInput("//testing/input")
             .AddOutput("//testing/output")
-            .Format(TFormat(EFormatType::Custom, TNode("json"))),
+            .Format(TFormat(TNode("json"))),
             new TJsonValueJoin);
 
         TVector<TNode> actual = ReadTable(client, "//testing/output");
@@ -174,8 +174,8 @@ Y_UNIT_TEST_SUITE(RawOperations)
             .AddInput("//testing/input")
             .AddOutput("//testing/output")
             .SortBy("key")
-            .MapperFormat(TFormat(EFormatType::Custom, TNode("json")))
-            .ReducerFormat(TFormat(EFormatType::Custom, TNode("json"))),
+            .MapperFormat(TFormat(TNode("json")))
+            .ReducerFormat(TFormat(TNode("json"))),
             new TJsonKvSwapper,
             nullptr,
             new TJsonValueJoin);

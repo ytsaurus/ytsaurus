@@ -127,50 +127,55 @@ TNode MakeProtoFormatConfig(const TVector<const Descriptor*>& descriptors)
     }
 }
 
-TNode GetDefaultFormatConfig(EFormatType type)
-{
-    switch (type) {
-        case EFormatType::YsonText: {
-            TNode config("yson");
-            config.Attributes()("format", "text");
-            return config;
-        }
-        case EFormatType::YsonBinary: {
-            TNode config("yson");
-            config.Attributes()("format", "binary");
-            return config;
-        }
-        case EFormatType::YaMRLenval: {
-            TNode config("yamr");
-            config.Attributes()("lenval", true)("has_subkey", true);
-            return config;
-        }
-        default:
-            Y_UNREACHABLE();
-    }
-}
-
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFormat::TFormat(EFormatType type, const TNode& config)
-    : Type(type)
-    , Config(config)
-{
-    Y_VERIFY(type != EFormatType::Protobuf, "Use TFormat::Protobuf<TYourProtoMessage>() for this");
+TFormat::TFormat(const TNode& config)
+    : Config(config)
+{ }
 
-    if (Config.IsUndefined()) {
-        Y_VERIFY(type != EFormatType::Custom, "Cannot create custom format without config");
-        Config = GetDefaultFormatConfig(type);
-    }
+
+TFormat TFormat::Protobuf(const TVector<const ::google::protobuf::Descriptor*>& descriptors)
+{
+    return TFormat(MakeProtoFormatConfig(descriptors));
 }
 
+TFormat TFormat::YsonText()
+{
+    TNode config("yson");
+    config.Attributes()("format", "text");
+    return TFormat(config);
+}
 
-TFormat::TFormat(const TVector<const ::google::protobuf::Descriptor*>& descriptors)
-    : Type(EFormatType::Protobuf)
-    , Config(MakeProtoFormatConfig(descriptors))
-{ }
+TFormat TFormat::YsonBinary()
+{
+    TNode config("yson");
+    config.Attributes()("format", "binary");
+    return TFormat(config);
+}
+
+TFormat TFormat::YaMRLenval()
+{
+    TNode config("yamr");
+    config.Attributes()("lenval", true)("has_subkey", true);
+    return TFormat(config);
+}
+
+bool TFormat::IsTextYson() const
+{
+    if (!Config.IsString() || Config.AsString() != "yson") {
+        return false;
+    }
+    if (!Config.HasAttributes()) {
+        return false;
+    }
+    const auto& attributes = Config.GetAttributes();
+    if (!attributes.HasKey("format") || attributes["format"] != TNode("text")) {
+        return false;
+    }
+    return true;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

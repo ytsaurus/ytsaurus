@@ -8,51 +8,31 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-enum class EFormatType : int {
-    YsonText,
-    YsonBinary,
-    YaMRLenval,
-    Protobuf,
-    Skiff,
-
-    Custom, // Allows to specify arbitrary format
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 // Data format for communication with YT proxies
 struct TFormat {
-    EFormatType Type;
+public:
     TNode Config;
 
-    TFormat(EFormatType type, const TNode& config = TNode());
-    TFormat(const TVector<const ::google::protobuf::Descriptor*>& descriptors);
+public:
+    explicit TFormat(const TNode& config = TNode());
 
     // Prefer using these methods to create your formats
-    static inline TFormat YsonText();
-    static inline TFormat YsonBinary();
-    static inline TFormat YaMRLenval();
+    static TFormat YsonText();
+    static TFormat YsonBinary();
+    static TFormat YaMRLenval();
+    static TFormat Protobuf(const TVector<const ::google::protobuf::Descriptor*>& descriptors);
+
     template<typename T>
     static inline TFormat Protobuf();
+
+    bool IsTextYson() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-
-TFormat TFormat::YsonText() {
-    return TFormat(EFormatType::YsonText);
-}
-
-TFormat TFormat::YsonBinary() {
-    return TFormat(EFormatType::YsonBinary);
-}
-
-TFormat TFormat::YaMRLenval() {
-    return TFormat(EFormatType::YaMRLenval);
-}
 
 template<typename T>
 TFormat TFormat::Protobuf() {
-    return TFormat({T::descriptor()});
+    return TFormat::Protobuf({T::descriptor()});
 }
 
 ////////////////////////////////////////////////////////////////////////////////
