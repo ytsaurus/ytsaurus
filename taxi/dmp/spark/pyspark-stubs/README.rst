@@ -74,7 +74,8 @@ installed in a production environment.
 Version Compatibility
 ---------------------
 
-Currently this project uses Spark 2.3 as a reference (work in progress).
+Package versions follow PySpark versions with exception to maintenance releases - i.e. `pyspark-stubs==2.3.0` should be compatible with `pyspark>=2.3.0<2.4.0`.
+Maintenance releases (`post1`, `post2`, ..., `postN`) are reserved for internal annotations updates.
 
 API Coverage
 ------------
