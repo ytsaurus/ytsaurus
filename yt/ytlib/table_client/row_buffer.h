@@ -40,7 +40,7 @@ public:
         TTag,
         IMemoryChunkProviderPtr chunkProvider)
         : Pool_(
-            GetRefCountedTypeCookie<TTag>(),
+            TTag(),
             std::move(chunkProvider))
     { }
 
