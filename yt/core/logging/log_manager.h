@@ -26,7 +26,6 @@ class TLogManager
     : public IShutdownable
 {
 public:
-    TLogManager();
     ~TLogManager();
 
     static TLogManager* Get();
@@ -52,6 +51,10 @@ public:
     TDuration GetPerThreadBatchingPeriod() const;
 
 private:
+    TLogManager();
+
+    Y_DECLARE_SINGLETON_FRIEND();
+
     class TImpl;
     const TIntrusivePtr<TImpl> Impl_;
 };
