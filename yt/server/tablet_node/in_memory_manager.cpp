@@ -496,7 +496,7 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
     const TTabletSnapshotPtr& tabletSnapshot,
     const IChunkStorePtr& store,
     const TReadSessionId& readSessionId,
-    TMemoryUsageTracker<EMemoryCategory>* memoryUsageTracker,
+    TNodeMemoryTracker* memoryUsageTracker,
     const IInvokerPtr& compressionInvoker,
     const NProfiling::TTagId& preloadTag)
 {

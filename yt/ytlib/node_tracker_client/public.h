@@ -98,6 +98,8 @@ DEFINE_ENUM(EMemoryCategory,
 );
 
 using TNodeMemoryTracker = TMemoryUsageTracker<EMemoryCategory>;
+using TNodeMemoryTrackerPtr = TIntrusivePtr<TNodeMemoryTracker>;
+
 using TNodeMemoryTrackerGuard = TMemoryUsageTrackerGuard<EMemoryCategory>;
 
 ////////////////////////////////////////////////////////////////////////////////
