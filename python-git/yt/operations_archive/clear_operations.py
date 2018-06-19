@@ -198,7 +198,7 @@ class OperationArchiver(object):
                     by_start_time_row[key] = data[key]
 
         if self.version >= 15:
-            by_start_time_row["pool"] = by_id_row["brief_spec"].get("pool")
+            by_start_time_row["pool"] = by_id_row.get("brief_spec", {}).get("pool")
 
         return by_id_row, by_start_time_row
 
