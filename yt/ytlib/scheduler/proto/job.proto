@@ -185,7 +185,7 @@ message TSchedulerJobSpecExt
     // Total input row count estimate.
     optional int64 input_row_count = 7 [default = 0];
 
-    required int64 lfalloc_buffer_size = 8;
+    required int64 yt_alloc_large_unreclaimable_bytes = 8;
 
     // True if data_size and row_count are approximate (e.g. restarted sort jobs).
     optional bool is_approximate = 9 [default = false];

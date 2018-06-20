@@ -47,9 +47,10 @@
 #include <yt/core/logging/log_manager.h>
 
 #include <yt/core/misc/fs.h>
-#include <yt/core/misc/lfalloc_helpers.h>
 #include <yt/core/misc/proc.h>
 #include <yt/core/misc/ref_counted_tracker.h>
+
+#include <yt/core/alloc/alloc.h>
 
 #include <yt/core/rpc/bus/channel.h>
 #include <yt/core/rpc/bus/server.h>
@@ -504,7 +505,7 @@ TJobResult TJobProxy::DoRun()
     }
 
     const auto& schedulerJobSpecExt = GetJobSpecHelper()->GetSchedulerJobSpecExt();
-    NLFAlloc::SetBufferSize(schedulerJobSpecExt.lfalloc_buffer_size());
+    NYTAlloc::SetLargeUnreclaimableBytes(schedulerJobSpecExt.yt_alloc_large_unreclaimable_bytes());
     JobProxyMemoryOvercommitLimit_ =
         schedulerJobSpecExt.has_job_proxy_memory_overcommit_limit() ?
         MakeNullable(schedulerJobSpecExt.job_proxy_memory_overcommit_limit()) :
@@ -728,12 +729,7 @@ void TJobProxy::CheckMemoryUsage()
         JobProxyMemoryReserve_,
         UserJobCurrentMemoryUsage_.load());
 
-    LOG_DEBUG("LFAlloc counters (LargeBlocks: %v, SmallBlocks: %v, System: %v, Used: %v, Mmapped: %v)",
-        NLFAlloc::GetCurrentLargeBlocks(),
-        NLFAlloc::GetCurrentSmallBlocks(),
-        NLFAlloc::GetCurrentSystem(),
-        NLFAlloc::GetCurrentUsed(),
-        NLFAlloc::GetCurrentMmapped());
+    LOG_DEBUG("YTAlloc counters (%v)", NYTAlloc::FormatCounters());
 
     if (JobProxyMaxMemoryUsage_.load() > JobProxyMemoryReserve_) {
         if (TInstant::Now() - LastRefCountedTrackerLogTime_ > RefCountedTrackerLogPeriod_) {

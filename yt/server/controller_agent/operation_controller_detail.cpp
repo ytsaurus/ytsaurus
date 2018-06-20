@@ -3223,7 +3223,7 @@ void TOperationControllerBase::CustomizeJobSpec(const TJobletPtr& joblet, TJobSp
 {
     auto* schedulerJobSpecExt = jobSpec->MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
 
-    schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
+    schedulerJobSpecExt->set_yt_alloc_large_unreclaimable_bytes(GetYTAllocLargeUnreclaimableBytes());
     if (OutputTransaction) {
         ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransaction->GetId());
     }
