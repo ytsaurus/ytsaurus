@@ -42,15 +42,15 @@ TMemoryTagGuard::TMemoryTagGuard(TMemoryTagGuard&& other)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void SetCurrentMemoryTag(TMemoryTag /* tag */)
+Y_WEAK void SetCurrentMemoryTag(TMemoryTag /*tag*/)
 { }
 
-ssize_t GetMemoryUsageForTag(TMemoryTag /* tag */)
+Y_WEAK size_t GetMemoryUsageForTag(TMemoryTag /*tag*/)
 {
     return 0;
 }
 
-void GetMemoryUsageForTagList(TMemoryTag* tagList, int count, ssize_t* result)
+Y_WEAK void GetMemoryUsageForTags(TMemoryTag* /*tags*/, size_t /*count*/, size_t* /*result*/)
 { }
 
 ////////////////////////////////////////////////////////////////////////////////

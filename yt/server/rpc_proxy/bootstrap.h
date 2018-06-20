@@ -58,7 +58,6 @@ private:
     const NConcurrency::TThreadPoolPtr WorkerPool_;
 
     NMonitoring::TMonitoringManagerPtr MonitoringManager_;
-    std::unique_ptr<NLFAlloc::TLFAllocProfiler> LFAllocProfiler_;
     NBus::IBusServerPtr BusServer_;
     NRpc::IServicePtr ApiService_;
     NRpc::IServicePtr DiscoveryService_;

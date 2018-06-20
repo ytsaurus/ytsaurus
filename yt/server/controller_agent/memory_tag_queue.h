@@ -21,7 +21,7 @@ constexpr double MemoryTagQueueLoadFactor = 0.5;
 class TMemoryTagQueue
 {
 public:
-    TMemoryTagQueue(TControllerAgentConfigPtr config);
+    explicit TMemoryTagQueue(TControllerAgentConfigPtr config);
 
     TMemoryTag AssignTagToOperation(const TOperationId& operationId);
     void ReclaimTag(TMemoryTag tag);

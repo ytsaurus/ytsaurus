@@ -150,8 +150,6 @@ void TBootstrap::DoRun()
         CreateRefCountedTrackerStatisticsProducer());
     MonitoringManager_->Start();
 
-    LFAllocProfiler_ = std::make_unique<NLFAlloc::TLFAllocProfiler>();
-
     ControllerAgent_->Initialize();
 
     auto orchidRoot = NYTree::GetEphemeralNodeFactory(true)->CreateMap();
