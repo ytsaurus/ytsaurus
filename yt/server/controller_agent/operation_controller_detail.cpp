@@ -2242,10 +2242,6 @@ void TOperationControllerBase::FinalizeJoblet(
     {
         auto duration = joblet->FinishTime - joblet->StartTime;
         statistics.AddSample("/time/total", duration.MilliSeconds());
-        // XXX(babenko): drop after investigating test flaps
-        LOG_DEBUG("Joblet finalized (JobId: %v, TimeTotal: %v)",
-            joblet->JobId,
-            duration);
     }
 
     if (jobSummary->PrepareDuration) {
