@@ -664,9 +664,18 @@ class ConfigsProvider_19(ConfigsProvider):
         return configs, rpc_configs
 
     def _build_rpc_proxy_config(self, provision, proxy_logs_dir, master_connection_configs, ports_generator):
+        grpc_server_config = {
+            "addresses": [
+                {
+                    "address": "{}:{}".format(provision["fqdn"], next(ports_generator))
+                }
+            ]
+        }
+
         config = {
             "cluster_connection": master_connection_configs,
             "rpc_port": next(ports_generator),
+            "grpc_server": grpc_server_config,
             "monitoring_port": next(ports_generator),
             "enable_authentication": False,
             "address_resolver": {"localhost_fqdn": "localhost"},
