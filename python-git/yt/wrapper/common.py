@@ -1,5 +1,6 @@
 from yt.common import (require, flatten, update, update_inplace, which, YtError, update_from_env,
-                       unlist, get_value, filter_dict, date_string_to_timestamp, datetime_to_string)
+                       unlist, get_value, filter_dict, date_string_to_timestamp, datetime_to_string,
+                       guid_to_parts)
 import yt.yson as yson
 
 from yt.packages.decorator import decorator
@@ -317,10 +318,8 @@ def is_arcadia_python():
 HashPair = collections.namedtuple("HashPair", ["lo", "hi"])
 
 def uuid_hash_pair(uuid):
-    i3, i2, i1, i0 = (int(s, 16) for s in uuid.split("-"))
-    return HashPair(
-        yson.YsonUint64(i2 + (i3 << 32)),
-        yson.YsonUint64(i0 + (i1 << 32)))
+    id_hi, id_lo = guid_to_parts(uuid)
+    return HashPair(yson.YsonUint64(id_hi), yson.YsonUint64(id_lo))
 
 def object_type_from_uuid(uuid):
     i3, i2, i1, i0 = (int(s, 16) for s in uuid.split("-"))

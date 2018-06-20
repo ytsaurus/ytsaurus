@@ -142,12 +142,14 @@ def _read_pids_file(pids_file_path):
     with open(pids_file_path) as f:
         return list(imap(int, f))
 
-def log_started_instance_info(environment, start_proxy, prepare_only):
+def log_started_instance_info(environment, start_proxy, start_rpc_proxy, prepare_only):
     logger.info("Local YT {0}, id: {1}".format(
         "prepared" if prepare_only else "started",
         environment.id))
     if start_proxy:
         logger.info("Proxy address: {0}".format(environment.get_proxy_address()))
+    if start_rpc_proxy:
+        logger.info("GRPC proxy addresses: {0}".format(", ".join(environment.get_grpc_proxy_addresses())))
 
 def _safe_kill(pid, signal_number=signal.SIGKILL):
     try:
@@ -307,7 +309,7 @@ def start(master_count=None, node_count=None, scheduler_count=None, start_proxy=
             if local_cypress_dir is not None:
                 _synchronize_cypress_with_local_dir(local_cypress_dir, client)
 
-    log_started_instance_info(environment, start_proxy, prepare_only)
+    log_started_instance_info(environment, start_proxy, start_rpc_proxy, prepare_only)
     touch(is_started_file)
 
     return environment
