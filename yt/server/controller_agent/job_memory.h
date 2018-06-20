@@ -10,7 +10,7 @@ namespace NControllerAgent {
 ////////////////////////////////////////////////////////////////////////////////
 
 i64 GetFootprintMemorySize();
-i64 GetLFAllocBufferSize();
+i64 GetYTAllocLargeUnreclaimableBytes();
 
 i64 GetInputIOMemorySize(
     NScheduler::TJobIOConfigPtr ioConfig,

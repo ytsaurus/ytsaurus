@@ -17,21 +17,21 @@ using NChunkClient::ChunkReaderMemorySize;
 //! Accounts for job proxy process and other lightweight stuff.
 static const i64 FootprintMemorySize = 64_MB;
 
-//! Memory overhead caused by LFAlloc.
-static const i64 LFAllocBufferSize = 64_MB;
+//! Memory overhead caused by YTAlloc.
+static const i64 YTAllocLargeUnreclaimableBytes = 64_MB;
 
-static const i64 ChunkSpecOverhead = (i64) 1000;
+static const i64 ChunkSpecOverhead = 1000;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 i64 GetFootprintMemorySize()
 {
-    return FootprintMemorySize + GetLFAllocBufferSize();
+    return FootprintMemorySize + GetYTAllocLargeUnreclaimableBytes();
 }
 
-i64 GetLFAllocBufferSize()
+i64 GetYTAllocLargeUnreclaimableBytes()
 {
-    return LFAllocBufferSize;
+    return YTAllocLargeUnreclaimableBytes;
 }
 
 i64 GetOutputWindowMemorySize(TJobIOConfigPtr ioConfig)
