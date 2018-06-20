@@ -63,10 +63,6 @@ void TBlock::ValidateChecksum() const
 
     auto actual = GetChecksum(Data);
     YCHECK(actual == Checksum);
-    // XXX(babenko)
-    //if (actual != Checksum) {
-    //    throw TBlockChecksumValidationException(Checksum, actual);
-    //}
 }
 
 TChecksum TBlock::GetOrComputeChecksum() const
