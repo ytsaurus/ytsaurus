@@ -132,18 +132,20 @@ TFuture<TNullable<TString>> TSlotLocation::CreateSandboxDirectories(int slotInde
         }
 
         // Apply quota to tmp directories.
-        auto tmpPath = GetSandboxPath(slotIndex, ESandboxKind::Tmp);
-        try {
-            // Hard coded tmp size is a temporary workaround.
-            auto properties = TJobDirectoryProperties {1_GB, Null, userId};
-            WaitFor(JobDirectoryManager_->ApplyQuota(tmpPath, properties))
-                .ThrowOnError();
-        } catch (const std::exception& ex) {
-            auto error = TError(EErrorCode::QuotaSettingFailed, "Failed to set FS quota for a job tmp directory")
-                << TErrorAttribute("tmp_path", tmpPath)
-                << ex;
-            Disable(error);
-            THROW_ERROR error;
+        if (shouldApplyQuota()) {
+            auto tmpPath = GetSandboxPath(slotIndex, ESandboxKind::Tmp);
+            try {
+                // Hard coded tmp size is a temporary workaround.
+                auto properties = TJobDirectoryProperties{1_GB, Null, userId};
+                WaitFor(JobDirectoryManager_->ApplyQuota(tmpPath, properties))
+                    .ThrowOnError();
+            } catch (const std::exception& ex) {
+                auto error = TError(EErrorCode::QuotaSettingFailed, "Failed to set FS quota for a job tmp directory")
+                    << TErrorAttribute("tmp_path", tmpPath)
+                    << ex;
+                Disable(error);
+                THROW_ERROR error;
+            }
         }
 
         {
