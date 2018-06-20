@@ -11,8 +11,6 @@
 
 #include <yt/core/concurrency/fiber.h>
 
-#include <yt/core/misc/lfalloc_helpers.h>
-
 #include <yt/core/net/local_address.h>
 
 #include <yt/core/rpc/dispatcher.h>
@@ -23,8 +21,6 @@ namespace NYT {
 
 void ConfigureSingletons(const TSingletonsConfigPtr& config)
 {
-    NLFAlloc::SetEnableDefrag(false);
-
     for (const auto& pair : config->FiberStackPoolSizes) {
         NConcurrency::SetFiberStackPoolSize(ParseEnum<NConcurrency::EExecutionStackKind>(pair.first), pair.second);
     }
