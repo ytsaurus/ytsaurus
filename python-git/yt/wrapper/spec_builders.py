@@ -265,6 +265,10 @@ class UserJobSpecBuilder(object):
     def file_paths(self, paths):
         return _set_spec_value(self, "file_paths", paths)
 
+    @spec_option("The list of paths to Porto layers in Cypress")
+    def layer_paths(self, paths):
+        return _set_spec_value(self, "layer_paths", paths)
+
     @deprecated(alternative='file_paths with local paths wrapped with LocalFile object '
                             '(e.g. .file_paths([yt.LocalFile("/home/user/file")]))')
     def local_files(self, files):
