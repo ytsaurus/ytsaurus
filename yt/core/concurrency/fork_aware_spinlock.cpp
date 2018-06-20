@@ -1,8 +1,6 @@
 #include "fork_aware_spinlock.h"
 #include "rw_spinlock.h"
 
-#include <yt/core/misc/lfalloc_helpers.h>
-
 #ifdef _unix_
     #include <pthread.h>
 #endif
@@ -36,9 +34,6 @@ void TForkAwareSpinLock::Release()
 
 #ifdef _unix_
 
-static void BeforeLFAllocGlobalLockAcquired();
-static void AfterLFAllocGlobalLockReleased();
-
 class TForkProtector
 {
 public:
@@ -48,12 +43,6 @@ public:
             &TForkProtector::OnPrepare,
             &TForkProtector::OnParent,
             &TForkProtector::OnChild);
-        NLFAlloc::SafeMallocSetParam(
-            "BeforeLFAllocGlobalLockAcquired",
-            (void*)&BeforeLFAllocGlobalLockAcquired);
-        NLFAlloc::SafeMallocSetParam(
-            "AfterLFAllocGlobalLockReleased",
-            (void*)&AfterLFAllocGlobalLockReleased);
     }
 
 private:
@@ -74,18 +63,6 @@ private:
 };
 
 static TForkProtector ForkProtector;
-
-// LFAlloc hooks
-
-static void BeforeLFAllocGlobalLockAcquired()
-{
-    NYT::NConcurrency::ForkLock().AcquireReader();
-}
-
-static void AfterLFAllocGlobalLockReleased()
-{
-    NYT::NConcurrency::ForkLock().ReleaseReader();
-}
 
 #endif
 
