@@ -10,8 +10,8 @@ namespace NJobAgent {
 class TGpuSlot
 {
 public:
-    TGpuSlot(int deviceNumber);
-    TGpuSlot(TGpuSlot&& gpuSlot) = default;
+    explicit TGpuSlot(int deviceNumber);
+    explicit TGpuSlot(TGpuSlot&& gpuSlot) = default;
 
     TString GetDeviceName() const;
     int GetDeviceNumber() const;
@@ -39,7 +39,6 @@ public:
     TGpuSlotPtr AcquireGpuSlot();
 
 private:
-    int GpuCount_ = 0;
     TSpinLock SpinLock_;
     std::vector<TGpuSlot> FreeSlots_;
 
@@ -50,5 +49,5 @@ DEFINE_REFCOUNTED_TYPE(TGpuManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-}
-}
+} // namespace NJobAgent
+} // namespace NYT
