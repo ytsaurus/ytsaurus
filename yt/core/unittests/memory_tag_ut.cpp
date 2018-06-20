@@ -44,12 +44,17 @@ std::vector<char> MakeAllocation(size_t size)
     YCHECK(size > 16);
     // Size should be a power of two:
     YCHECK((size & (size - 1)) == 0);
+<<<<<<< HEAD
     auto result = std::vector<char>(size - 16);
 
     // We make fake side effect to prevent any compiler optimizations here.
     // (Clever compilers like to throw away our unused allocations).
     FakeSideEffectVolatileVariable = result.data();
     return result;
+=======
+    // Do not forget about 16-byte tag header.
+    return std::vector<char>(size - 16);
+>>>>>>> Working on YTAlloc
 }
 
 // GDB does not allow to set breakpoints inside lambda functions, so
@@ -60,7 +65,6 @@ void TestSimple()
     for (int allocationSize = 1 << 5; allocationSize <= (1 << 20); allocationSize <<= 1) {
         {
             TMemoryTagGuard guard(42);
-            // Do not forget about 16-byte tag header.
             auto allocation = MakeAllocation(allocationSize);
             EXPECT_EQ(GetMemoryUsageForTag(42), allocationSize);
         }
@@ -240,7 +244,7 @@ TEST_P(TMemoryTagTest, Test)
 {
     // We wrap anything with an outer action queue to make
     // fiber-friendly environment.
-    TActionQueuePtr outerQueue = New<TActionQueue>();
+    auto outerQueue = New<TActionQueue>();
     WaitFor(BIND(GetParam())
         .AsyncVia(outerQueue->GetInvoker())
         .Run())

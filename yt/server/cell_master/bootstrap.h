@@ -117,7 +117,6 @@ private:
     NRpc::IChannelPtr LocalRpcChannel_;
     NApi::NNative::IConnectionPtr ClusterConnection_;
     NMonitoring::TMonitoringManagerPtr MonitoringManager_;
-    std::unique_ptr<NLFAlloc::TLFAllocProfiler> LFAllocProfiler_;
     NHttp::IServerPtr HttpServer_;
     NHttp::IHttpHandlerPtr OrchidHttpHandler_;
     NElection::TCellManagerPtr CellManager_;

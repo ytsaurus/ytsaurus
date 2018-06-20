@@ -8,6 +8,7 @@ add_subdirectory(re2)
 add_subdirectory(skiff)
 add_subdirectory(erasure)
 add_subdirectory(phdr_cache)
+add_subdirectory(alloc)
 
 include(Sources.txt)
 

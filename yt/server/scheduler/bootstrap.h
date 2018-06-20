@@ -46,7 +46,6 @@ private:
     const NYTree::INodePtr ConfigNode_;
 
     NMonitoring::TMonitoringManagerPtr MonitoringManager_;
-    std::unique_ptr<NLFAlloc::TLFAllocProfiler> LFAllocProfiler_;
     NConcurrency::TFairShareActionQueuePtr ControlQueue_;
     NBus::IBusServerPtr BusServer_;
     NRpc::IServerPtr RpcServer_;

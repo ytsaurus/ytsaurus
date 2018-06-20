@@ -264,9 +264,7 @@ void TBootstrap::DoRun()
         "/ref_counted",
         CreateRefCountedTrackerStatisticsProducer());
 
-    LFAllocProfiler_ = std::make_unique<NLFAlloc::TLFAllocProfiler>();
-
-    auto createBatchingChunkService = [&] (const NNative::TMasterConnectionConfigPtr& config) {
+    auto createBatchingChunkService = [&] (const auto& config) {
         RpcServer->RegisterService(CreateBatchingChunkService(
             config->CellId,
             Config->BatchingChunkService,

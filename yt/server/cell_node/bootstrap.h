@@ -123,7 +123,6 @@ private:
     NConcurrency::TActionQueuePtr TransactionTrackerQueue;
 
     NMonitoring::TMonitoringManagerPtr MonitoringManager_;
-    std::unique_ptr<NLFAlloc::TLFAllocProfiler> LFAllocProfiler_;
     NBus::IBusServerPtr BusServer;
     NApi::NNative::IConnectionPtr MasterConnection;
     NApi::NNative::IClientPtr MasterClient;

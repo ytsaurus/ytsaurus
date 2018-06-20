@@ -107,7 +107,7 @@ void TMemoryTagQueue::UpdateStatistics()
     auto fluent = BuildYsonStringFluently<NYson::EYsonType::ListFragment>();
 
     std::vector<TMemoryTag> tags;
-    std::vector<ssize_t> usages;
+    std::vector<size_t> usages;
     {
         TGuard<TSpinLock> guard(Lock_);
         tags.resize(AllocatedTagCount_ - 1);
@@ -116,7 +116,7 @@ void TMemoryTagQueue::UpdateStatistics()
     }
 
     LOG_INFO("Started building tagged memory statistics (EntryCount: %v)", tags.size());
-    GetMemoryUsageForTagList(tags.data(), tags.size(), usages.data());
+    GetMemoryUsageForTags(tags.data(), tags.size(), usages.data());
     LOG_INFO("Finished building tagged memory statistics (EntryCount: %v)", tags.size());
 
     {

@@ -628,8 +628,6 @@ void TBootstrap::DoInitialize()
         "/hive",
         HiveManager_->GetOrchidService()->ToProducer());
 
-    LFAllocProfiler_ = std::make_unique<NLFAlloc::TLFAllocProfiler>();
-
     auto orchidRoot = GetEphemeralNodeFactory(true)->CreateMap();
     SetNodeByYPath(
         orchidRoot,
