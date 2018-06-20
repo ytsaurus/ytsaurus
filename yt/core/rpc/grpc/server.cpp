@@ -280,7 +280,7 @@ private:
 
         TString PeerAddressString_;
         NNet::TNetworkAddress PeerAddress_;
-        
+
         TRequestId RequestId_;
         TNullable<TString> User_;
         TNullable<NGrpc::NProto::TSslCredentialsExt> SslCredentialsExt_;
@@ -297,6 +297,7 @@ private:
         TGrpcMetadataArray CallMetadata_;
         TGrpcCallPtr Call_;
         TGrpcByteBufferPtr RequestBodyBuffer_;
+        TNullable<ui32> RequestMessageBodySize_;
         TGrpcByteBufferPtr ResponseBodyBuffer_;
         TString ErrorMessage_;
         grpc_slice ErrorMessageSlice_ = grpc_empty_slice();
@@ -344,6 +345,11 @@ private:
                 LOG_DEBUG("Malformed request routing parameters (RawMethod: %v, RequestId: %v)",
                     ToStringBuf(CallDetails_->method),
                     RequestId_);
+                Unref();
+                return;
+            }
+
+            if (!TryParseMessageBodySize()) {
                 Unref();
                 return;
             }
@@ -495,6 +501,24 @@ private:
             return true;
         }
 
+        bool TryParseMessageBodySize()
+        {
+            auto messageBodySizeString = CallMetadata_.Find(MessageBodySizeMetadataKey);
+            if (!messageBodySizeString) {
+                return true;
+            }
+
+            try {
+                RequestMessageBodySize_ = FromString<ui32>(messageBodySizeString);
+            } catch (const std::exception& ex) {
+                LOG_WARNING(ex, "Failed to parse message body size from request metadata (RequestId: %v)",
+                    RequestId_);
+                return false;
+            }
+
+            return true;
+        }
+
         void OnRequestReceived(bool success)
         {
             if (!success) {
@@ -511,7 +535,17 @@ private:
                 return;
             }
 
-            auto requestBody = ByteBufferToEnvelopedMessage(RequestBodyBuffer_.Unwrap());
+            TMessageWithAttachments messageWithAttachments;
+            try {
+                messageWithAttachments = ByteBufferToMessageWithAttachments(
+                    RequestBodyBuffer_.Unwrap(),
+                    RequestMessageBodySize_);
+            } catch (const std::exception& ex) {
+                LOG_DEBUG(ex, "Failed to receive request body (RequestId: %v)",
+                    RequestId_);
+                Unref();
+                return;
+            }
 
             auto header = std::make_unique<NRpc::NProto::TRequestHeader>();
             ToProto(header->mutable_request_id(), RequestId_);
@@ -568,7 +602,11 @@ private:
             }
 
             if (Service_) {
-                auto requestMessage = CreateRequestMessage(*header, requestBody, {});
+                auto requestMessage = CreateRequestMessage(
+                    *header,
+                    messageWithAttachments.Message,
+                    messageWithAttachments.Attachments);
+
                 Service_->HandleRequest(std::move(header), std::move(requestMessage), this);
             } else {
                 auto error = TError(
@@ -624,9 +662,19 @@ private:
                 ErrorMessageSlice_ = grpc_slice_from_static_string(ErrorMessage_.c_str());
                 TrailingMetadataBuilder_.Add(ErrorMetadataKey, SerializeError(error));
             } else {
-                // Attachments are not supported.
-                YCHECK(ResponseMessage_.Size() == 2);
-                ResponseBodyBuffer_ = EnvelopedMessageToByteBuffer(ResponseMessage_[1]);
+                YCHECK(ResponseMessage_.Size() >= 2);
+
+                TMessageWithAttachments messageWithAttachments;
+                messageWithAttachments.Message = ExtractMessageFromEnvelopedMessage(ResponseMessage_[1]);
+                for (int index = 2; index < ResponseMessage_.Size(); ++index) {
+                    messageWithAttachments.Attachments.push_back(ResponseMessage_[index]);
+                }
+
+                ResponseBodyBuffer_ = MessageWithAttachmentsToByteBuffer(messageWithAttachments);
+
+                if (!messageWithAttachments.Attachments.empty()) {
+                    TrailingMetadataBuilder_.Add(MessageBodySizeMetadataKey, ToString(messageWithAttachments.Message.Size()));
+                }
 
                 ops.emplace_back();
                 ops.back().op = GRPC_OP_SEND_MESSAGE;
