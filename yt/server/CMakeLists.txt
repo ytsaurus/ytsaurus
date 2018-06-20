@@ -17,6 +17,7 @@ target_link_libraries(yt-library-server
   yt-library-server-misc
   yt-core-re2
   yt-core-rpc-grpc
+  yt-core-alloc
   deps-arcadia-library-http
 )
 
@@ -34,7 +35,6 @@ target_link_libraries(ytserver-master
   yt-core-phdr-cache
   yt-library-server
   deps-arcadia-library-getopt
-  deps-arcadia-library-lfalloc
 )
 
 set_target_properties(ytserver-master PROPERTIES LINK_FLAGS "-static-libstdc++")
@@ -49,7 +49,6 @@ target_link_libraries(ytserver-node
   yt-core-phdr-cache
   yt-library-server
   deps-arcadia-library-getopt
-  deps-arcadia-library-lfalloc
 )
 
 set_target_properties(ytserver-node PROPERTIES LINK_FLAGS "-static-libstdc++")
@@ -64,7 +63,6 @@ target_link_libraries(ytserver-scheduler
   yt-core-phdr-cache
   yt-library-server
   deps-arcadia-library-getopt
-  deps-arcadia-library-lfalloc
 )
 
 set_target_properties(ytserver-scheduler PROPERTIES LINK_FLAGS "-static-libstdc++")
@@ -79,7 +77,6 @@ target_link_libraries(ytserver-controller-agent
   yt-core-phdr-cache
   yt-library-server
   deps-arcadia-library-getopt
-  deps-arcadia-library-lfalloc
 )
 
 set_target_properties(ytserver-controller-agent PROPERTIES LINK_FLAGS "-static-libstdc++")
@@ -94,7 +91,6 @@ target_link_libraries(ytserver-proxy
   yt-core-phdr-cache
   yt-library-server-rpc-proxy
   deps-arcadia-library-getopt
-  deps-arcadia-library-lfalloc
 )
 
 set_target_properties(ytserver-proxy PROPERTIES LINK_FLAGS "-static-libstdc++")
@@ -122,7 +118,6 @@ add_executable(ytserver-job-proxy
 target_link_libraries(ytserver-job-proxy
   yt-library-server
   deps-arcadia-library-getopt
-  deps-arcadia-library-lfalloc
 )
 
 set_target_properties(ytserver-job-proxy PROPERTIES LINK_FLAGS "-static-libstdc++")
@@ -136,7 +131,6 @@ add_executable(ytserver-exec
 target_link_libraries(ytserver-exec
   yt-library-server
   deps-arcadia-library-getopt
-  deps-arcadia-library-lfalloc
 )
 
 set_target_properties(ytserver-exec PROPERTIES LINK_FLAGS "-static-libstdc++")
@@ -150,7 +144,6 @@ add_executable(ytserver-tools
 target_link_libraries(ytserver-tools
   yt-library-server
   deps-arcadia-library-getopt
-  deps-arcadia-library-lfalloc
 )
 
 set_target_properties(ytserver-tools PROPERTIES LINK_FLAGS "-static-libstdc++")
@@ -164,7 +157,6 @@ add_executable(ytserver-core-forwarder
 target_link_libraries(ytserver-core-forwarder
   yt-library-server
   deps-arcadia-library-getopt
-  deps-arcadia-library-lfalloc
 )
 
 set_target_properties(ytserver-core-forwarder PROPERTIES LINK_FLAGS "-static-libstdc++")
@@ -179,7 +171,6 @@ target_link_libraries(ytserver-skynet-manager
   yt-core-phdr-cache
   yt-library-server-skynet-manager
   deps-arcadia-library-getopt
-  deps-arcadia-library-lfalloc
 )
 
 set_target_properties(ytserver-skynet-manager PROPERTIES LINK_FLAGS "-static-libstdc++")
