@@ -146,6 +146,9 @@ template <
 class TEnumIndexedVector
 {
 public:
+    using TIndex = E;
+    using TValue = T;
+
     TEnumIndexedVector();
     TEnumIndexedVector(const TEnumIndexedVector& other);
     TEnumIndexedVector(TEnumIndexedVector&& other);
