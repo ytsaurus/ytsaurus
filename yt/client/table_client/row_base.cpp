@@ -95,7 +95,6 @@ void ValidateDataValueType(EValueType type)
 
 void ValidateKeyValueType(EValueType type)
 {
-    // TODO(babenko): handle any
     if (type != EValueType::Int64 &&
         type != EValueType::Uint64 &&
         type != EValueType::Double &&
@@ -111,7 +110,6 @@ void ValidateKeyValueType(EValueType type)
 
 void ValidateSchemaValueType(EValueType type)
 {
-    // TODO(babenko): handle any
     if (type != EValueType::Int64 &&
         type != EValueType::Uint64 &&
         type != EValueType::Double &&
