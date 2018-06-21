@@ -1155,7 +1155,7 @@ private:
 
             const auto& path = Spec_->InputTablePaths[0].GetPath();
 
-            auto channel = InputClient->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
+            auto channel = InputClient->GetMasterChannelOrThrow(EMasterChannelKind::Follower);
             TObjectServiceProxy proxy(channel);
 
             auto req = TObjectYPathProxy::Get(path + "/@");
