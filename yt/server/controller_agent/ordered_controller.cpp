@@ -291,6 +291,7 @@ protected:
                     return CreateMergeJobSizeConstraints(
                         Spec_,
                         Options_,
+                        TotalEstimatedInputChunkCount,
                         PrimaryInputDataWeight,
                         DataWeightRatio,
                         InputCompressionRatio);
@@ -301,6 +302,7 @@ protected:
                         Options_,
                         OutputTables_.size(),
                         DataWeightRatio,
+                        TotalEstimatedInputChunkCount,
                         PrimaryInputDataWeight);
 
                 default:
