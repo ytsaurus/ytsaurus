@@ -121,12 +121,11 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(EProxyType,
-    (Http)
-    (Rpc)
+    ((Http) (1))
+    ((Rpc) (2))
 );
 
 struct TDiscoverProxiesOptions
-    : NApi::TGetNodeOptions
 { };
 
 class TDiscoverProxiesCommand

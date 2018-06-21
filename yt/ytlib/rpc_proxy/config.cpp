@@ -28,7 +28,7 @@ TConnectionConfig::TConnectionConfig()
                 ClusterUrl = *ClusterUrl + ".yt.yandex.net";
             }
 
-            if (!ClusterUrl->StartsWith("http")) {
+            if (!ClusterUrl->StartsWith("http://")) {
                 ClusterUrl = "http://" + *ClusterUrl;
             }
         }

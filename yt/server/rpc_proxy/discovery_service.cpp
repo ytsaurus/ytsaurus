@@ -307,10 +307,6 @@ private:
             }
         }
 
-        if (response->addresses().empty()) {
-            THROW_ERROR_EXCEPTION("Found 0 proxies with role")
-                << TErrorAttribute("role", roleFilter);
-        }
         context->Reply();
     }
 };

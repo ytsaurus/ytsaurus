@@ -270,6 +270,11 @@ TDiscoverProxiesCommand::TDiscoverProxiesCommand()
 
 void TDiscoverProxiesCommand::DoExecute(ICommandContextPtr context)
 {
+    if (Type != EProxyType::Rpc) {
+        THROW_ERROR_EXCEPTION("Proxy type is not supported")
+            << TErrorAttribute("proxy_type", Type);
+    }
+
     TGetNodeOptions options;
     options.ReadFrom = EMasterChannelKind::Cache;
     options.Attributes = {BannedAttributeName, RoleAttributeName};
@@ -292,11 +297,6 @@ void TDiscoverProxiesCommand::DoExecute(ICommandContextPtr context)
         }
 
         addresses.push_back(proxy.first);
-    }
-
-    if (addresses.empty()) {
-        THROW_ERROR_EXCEPTION("Found 0 proxies")
-            << TErrorAttribute("role", Role);
     }
 
     ProduceSingleOutputValue(context, "proxies", addresses);
