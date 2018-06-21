@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include <yt/core/misc/dense_map.h>
 
 namespace NYT {
 namespace NTableClient {
@@ -147,8 +148,10 @@ struct TColumnFilter
     TColumnFilter(int schemaColumnCount);
 
     bool Contains(int index) const;
+    int GetIndex(int originalColumnIndex) const;
 
     bool All;
+    SmallDenseMap<int, int, TypicalColumnCount> InvertedIndexMap;
     SmallVector<int, TypicalColumnCount> Indexes;
 };
 

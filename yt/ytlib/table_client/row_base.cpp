@@ -16,19 +16,37 @@ TColumnFilter::TColumnFilter()
 TColumnFilter::TColumnFilter(const std::initializer_list<int>& indexes)
     : All(false)
     , Indexes(indexes.begin(), indexes.end())
-{ }
+{
+    for (int i = 0; i < Indexes.size(); ++i) {
+        InvertedIndexMap.try_emplace(Indexes[i], i);
+    }
+}
 
 TColumnFilter::TColumnFilter(const std::vector<int>& indexes)
     : All(false)
     , Indexes(indexes.begin(), indexes.end())
-{ }
+{
+    for (int i = 0; i < Indexes.size(); ++i) {
+        InvertedIndexMap.try_emplace(Indexes[i], i);
+    }
+}
 
 TColumnFilter::TColumnFilter(int schemaColumnCount)
     : All(false)
 {
     for (int i = 0; i < schemaColumnCount; ++i) {
         Indexes.push_back(i);
+        InvertedIndexMap.try_emplace(i, i);
     }
+}
+
+int TColumnFilter::GetIndex(int originalColumnIndex) const
+{
+    auto it = InvertedIndexMap.find(originalColumnIndex);
+    if (it == InvertedIndexMap.end()) {
+        THROW_ERROR_EXCEPTION("Column filter does not contain column index %Qv", originalColumnIndex);
+    }
+    return it->second;
 }
 
 bool TColumnFilter::Contains(int index) const
