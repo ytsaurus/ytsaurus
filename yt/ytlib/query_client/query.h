@@ -34,8 +34,8 @@ DEFINE_ENUM(EExpressionKind,
     (UnaryOp)
     (BinaryOp)
     (In)
-    (Between)
     (Transform)
+    (Between)
 );
 
 struct TExpression
