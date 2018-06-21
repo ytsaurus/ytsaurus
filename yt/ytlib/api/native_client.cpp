@@ -3255,7 +3255,6 @@ private:
         ITransactionPtr transaction;
         {
             auto transactionStartOptions = TTransactionStartOptions();
-            transactionStartOptions.Sticky = true;
             auto attributes = CreateEphemeralAttributes();
             attributes->Set("title", Format("Putting file %v to cache", path));
             transactionStartOptions.Attributes = std::move(attributes);
@@ -3263,10 +3262,6 @@ private:
             auto asyncTransaction = StartTransaction(ETransactionType::Master, transactionStartOptions);
             transaction = WaitFor(asyncTransaction)
                 .ValueOrThrow();
-
-            auto transactionAttachOptions = TTransactionAttachOptions();
-            transactionAttachOptions.AutoAbort = true;
-            transaction = AttachTransaction(transaction->GetId(), transactionAttachOptions);
 
             LOG_DEBUG(
                 "Transaction started (TransactionId: %v)",
