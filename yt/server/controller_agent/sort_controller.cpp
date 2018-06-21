@@ -13,6 +13,7 @@
 #include "config.h"
 
 #include <yt/server/chunk_pools/chunk_pool.h>
+#include <yt/server/chunk_pools/ordered_chunk_pool.h>
 #include <yt/server/chunk_pools/shuffle_chunk_pool.h>
 #include <yt/server/chunk_pools/sorted_chunk_pool.h>
 #include <yt/server/chunk_pools/unordered_chunk_pool.h>
@@ -1571,17 +1572,33 @@ protected:
         LOG_DEBUG("Partitions assigned");
     }
 
-    void InitPartitionPool(IJobSizeConstraintsPtr jobSizeConstraints, TJobSizeAdjusterConfigPtr jobSizeAdjusterConfig)
+    void InitPartitionPool(
+        IJobSizeConstraintsPtr jobSizeConstraints,
+        TJobSizeAdjusterConfigPtr jobSizeAdjusterConfig,
+        bool ordered)
     {
-        TUnorderedChunkPoolOptions options;
-        options.JobSizeConstraints = std::move(jobSizeConstraints);
-        options.JobSizeAdjusterConfig = std::move(jobSizeAdjusterConfig);
-        options.OperationId = OperationId;
-        options.Task = PartitionTask->GetTitle();
+        if (ordered) {
+            TOrderedChunkPoolOptions options;
+            options.JobSizeConstraints = std::move(jobSizeConstraints);
+            options.OperationId = OperationId;
+            options.Task = PartitionTask->GetTitle();
+            options.MaxTotalSliceCount = Config->MaxTotalSliceCount;
+            options.EnablePeriodicYielder = true;
 
-        PartitionPool = CreateUnorderedChunkPool(
-            std::move(options),
-            GetInputStreamDirectory());
+            PartitionPool = CreateOrderedChunkPool(
+                std::move(options),
+                IntermediateInputStreamDirectory);
+        } else {
+            TUnorderedChunkPoolOptions options;
+            options.JobSizeConstraints = std::move(jobSizeConstraints);
+            options.JobSizeAdjusterConfig = std::move(jobSizeAdjusterConfig);
+            options.OperationId = OperationId;
+            options.Task = PartitionTask->GetTitle();
+
+            PartitionPool = CreateUnorderedChunkPool(
+                std::move(options),
+                GetInputStreamDirectory());
+        }
     }
 
     void InitShufflePool()
@@ -2502,7 +2519,7 @@ private:
         shuffleEdgeDescriptor.ChunkMapping = ShuffleChunkMapping_;
         shuffleEdgeDescriptor.TableWriterOptions->ReturnBoundaryKeys = false;
         PartitionTask = New<TPartitionTask>(this, std::vector<TEdgeDescriptor> {shuffleEdgeDescriptor});
-        InitPartitionPool(partitionJobSizeConstraints, nullptr);
+        InitPartitionPool(partitionJobSizeConstraints, nullptr, false /* ordered */);
         RegisterTask(PartitionTask);
         ProcessInputs(PartitionTask, partitionJobSizeConstraints);
         FinishTaskInput(PartitionTask);
@@ -3086,9 +3103,12 @@ private:
 
         PartitionTask = New<TPartitionTask>(this, std::move(partitionEdgeDescriptors));
 
-        InitPartitionPool(partitionJobSizeConstraints, Config->EnablePartitionMapJobSizeAdjustment
+        InitPartitionPool(
+            partitionJobSizeConstraints,
+            Config->EnablePartitionMapJobSizeAdjustment && !Spec->Ordered
             ? Options->PartitionJobSizeAdjuster
-            : nullptr);
+            : nullptr,
+            Spec->Ordered);
 
         ProcessInputs(PartitionTask, partitionJobSizeConstraints);
         RegisterTask(PartitionTask);
