@@ -1,4 +1,4 @@
-set(BASE ${CMAKE_SOURCE_DIR}/contrib/benchmark/src)
+set(BASE ${CMAKE_SOURCE_DIR}/non_arcadia_contrib/benchmark/src)
 set(SRCS
   ${BASE}/benchmark.cc
   ${BASE}/benchmark_register.cc
@@ -56,6 +56,6 @@ endif()
 include_directories(${BASE}/../include)
 include_directories(${BASE}/../src)
 
-add_library(yt-contrib-benchmark STATIC ${SRCS})
-target_link_libraries(yt-contrib-benchmark ${CMAKE_THREAD_LIBS_INIT})
+add_library(yt-non_arcadia_contrib-benchmark STATIC ${SRCS})
+target_link_libraries(yt-non_arcadia_contrib-benchmark ${CMAKE_THREAD_LIBS_INIT})
 
