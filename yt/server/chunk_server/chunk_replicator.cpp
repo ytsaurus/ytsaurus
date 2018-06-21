@@ -333,12 +333,10 @@ void TChunkReplicator::ComputeRegularChunkStatisticsForMedium(
         result.Status |= EChunkStatus::Underreplicated;
     }
 
-    if (replicaCount == replicationFactor && decommissionedReplicaCount > 0) {
+    if (decommissionedReplicaCount > 0 && replicaCount + decommissionedReplicaCount > replicationFactor) {
         result.Status |= EChunkStatus::Overreplicated;
         result.DecommissionedRemovalReplicas.append(decommissionedReplicas.begin(), decommissionedReplicas.end());
-    }
-
-    if (replicaCount > replicationFactor) {
+    } else if (replicaCount > replicationFactor) {
         result.Status |= EChunkStatus::Overreplicated;
         result.BalancingRemovalIndexes.push_back(GenericChunkReplicaIndex);
     }
