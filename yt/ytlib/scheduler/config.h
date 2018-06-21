@@ -853,6 +853,9 @@ public:
     // mapper's output to file handlers #4, #7, ...
     int MapperOutputTableCount;
 
+    // Turn map phase into ordered map.
+    bool Ordered;
+
     TMapReduceOperationSpec();
 
 private:

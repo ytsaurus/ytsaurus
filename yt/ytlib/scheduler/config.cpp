@@ -749,6 +749,9 @@ TMapReduceOperationSpec::TMapReduceOperationSpec()
     RegisterParameter("force_reduce_combiners", ForceReduceCombiners)
         .Default(false);
 
+    RegisterParameter("ordered", Ordered)
+        .Default(false);
+
     // The following settings are inherited from base but make no sense for map-reduce:
     //   SimpleSortLocalityTimeout
     //   SimpleMergeLocalityTimeout
