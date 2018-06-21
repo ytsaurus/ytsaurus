@@ -578,10 +578,6 @@ def action_submodule_fast_pull(ctx, args):
         logger.info(
             "'%s' is up-to-date: %s superseedes latest commit %s in '%s'",
             ctx.name, abbrev(old_head), abbrev(new_head), ctx.arc_git_remote)
-    elif ctx.git.is_ancestor(old_head, new_head):
-        logging.info(
-            "Checking out '%s': %s -> %s",
-            ctx.name, abbrev(old_head), abbrev(new_head))
     else:
         if ctx.git.test("rebase", "--quiet", new_head):
             rebased_head = ctx.git.resolve_ref("HEAD")
