@@ -19,7 +19,6 @@ from xml.etree import ElementTree
 logger = logging.getLogger("Yt.Yarc")
 
 ARC = "svn+ssh://arcadia.yandex.ru/arc/trunk/arcadia"
-ARCADIA_SNAPSHOT_STORE_GH = "git@github.yandex-team.ru:yt/arcadia-snapshot-store.git"
 BUILD_DIR = "buildall"
 
 SCRIPT_PATH = os.path.dirname(os.path.realpath(__file__))
@@ -62,7 +61,7 @@ def iter_arcadia_submodules(git):
     for m in re.finditer("^submodule[.]([^.]*)[.]url=(.*)$", out, re.MULTILINE):
         submodule_name = m.group(1)
         submodule_url = m.group(2)
-        if submodule_url == ARCADIA_SNAPSHOT_STORE_GH:
+        if submodule_url.startswith("git@github.yandex-team.ru:yt/arcadia-snapshot-"):
             commit = git_get_submodule_head_version(git, ":/" + submodule_name)
             yield ArcadiaSubmodule(submodule_name, submodule_url, commit)
 
@@ -313,15 +312,17 @@ class ReplaceSvnStuffStep(Step):
                 unknown_submodules = "".join("  - {}\n".format(s) for s in sorted(files_by_submodule.keys()))
                 raise ArcupError("Svn delivered unknown directory. New submodule have to be created for them.\n"
                                  "List of unknown directories:\n{unknown_submodules}\n"
-                                 "Please abort this update:\n"
+                                 "What should you do:\n"
+                                 "1. Abort current update\n"
                                  "  $ {argv0} abort\n"
-                                 "then run:\n"
-                                 "  $ git submodule add {arcadia_snapshot_store_gh} <directory>\n"
-                                 "for each directory, then retry update.\n"
+                                 "2. For each directory listed above create a git repo at\n"
+                                 "  github.yandex-team.ru:yt/arcadia-snapshot-<directory>\n"
+                                 "3. Add newly created directory as submodule:\n"
+                                 "  $ git submodule add github.yandex-team.ru:yt/arcadia-snapshot-<directory> <directory>\n"
+                                 "4. Retry update.\n"
                                  .format(
                                      unknown_submodules=unknown_submodules,
-                                     argv0=ARGV0,
-                                     arcadia_snapshot_store_gh=ARCADIA_SNAPSHOT_STORE_GH))
+                                     argv0=ARGV0))
 
             return result
 
@@ -697,7 +698,7 @@ def cleanup_svn_working_copy(repo_path):
             git_link_file = os.path.join(item.path, ".git")
             if os.path.isfile(git_link_file):
                 os.remove(git_link_file)
-            os.rmdir(item.path)
+            shutil.rmtree(item.path)
         else:
             os.remove(item.path)
 
