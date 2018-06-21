@@ -845,6 +845,11 @@ TRemoteCopyOperationSpec::TRemoteCopyOperationSpec()
     RegisterParameter("schema_inference_mode", SchemaInferenceMode)
         .Default(ESchemaInferenceMode::Auto);
 
+    RegisterPreprocessor([&] {
+        // NB: in remote copy operation chunks are never decompressed,
+        // so the data weight does not affect anything.
+        MaxDataWeightPerJob = std::numeric_limits<i64>::max();
+    });
     RegisterPostprocessor([&] {
         InputTablePaths = NYPath::Normalize(InputTablePaths);
         OutputTablePath = OutputTablePath.Normalize();
