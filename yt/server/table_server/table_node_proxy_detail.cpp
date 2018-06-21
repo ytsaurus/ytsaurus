@@ -146,7 +146,7 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* de
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ChunkWriter)
         .SetCustom(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::UpstreamReplicaId)
-        .SetPresent(isSorted && isDynamic));
+        .SetPresent(isDynamic));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::TableChunkFormatStatistics)
         .SetExternal(table->IsExternal())
         .SetOpaque(true));
@@ -413,7 +413,7 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
             return true;
 
         case EInternedAttributeKey::UpstreamReplicaId:
-            if (!isSorted || !isDynamic) {
+            if (!isDynamic) {
                 break;
             }
             BuildYsonFluently(consumer)
