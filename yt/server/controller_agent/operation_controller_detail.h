@@ -179,6 +179,9 @@ private: \
         (cookie),
         false)
 
+    //! Called by task's ScheduleJob to wrap the job spec proto building routine with safe environmnet.
+    IMPLEMENT_SAFE_METHOD(TSharedRef, BuildJobSpecProto, (const TJobletPtr& joblet), (joblet), true)
+
 public:
     // These are "pure" interface methods, i. e. those that do not involve YCHECKs.
     // If some of these methods still fails due to unnoticed YCHECK, consider

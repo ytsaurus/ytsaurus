@@ -129,6 +129,8 @@ struct ITaskHost
         const NChunkClient::TInputChunkPtr& chunk) = 0;
 
     virtual const NConcurrency::IThroughputThrottlerPtr& GetJobSpecSliceThrottler() const = 0;
+
+    virtual TSharedRef BuildJobSpecProto(const TJobletPtr& joblet) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ITaskHost)
