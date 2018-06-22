@@ -6319,6 +6319,11 @@ void TOperationControllerBase::BuildJobsYson(TFluentMap fluent) const
     fluent.GetConsumer()->OnRaw(CachedRunningJobsYson_);
 }
 
+TSharedRef TOperationControllerBase::SafeBuildJobSpecProto(const TJobletPtr& joblet)
+{
+    return joblet->Task->BuildJobSpecProto(joblet);
+}
+
 TSharedRef TOperationControllerBase::ExtractJobSpec(const TJobId& jobId) const
 {
     if (Spec_->TestingOperationOptions->FailGetJobSpec) {

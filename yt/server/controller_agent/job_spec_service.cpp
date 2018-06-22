@@ -76,14 +76,18 @@ private:
             const auto& subrequest = jobSpecRequests[index];
             const auto& subresponse = results[index];
             auto* protoSubresponse = response->add_responses();
-            ToProto(protoSubresponse->mutable_error(), subresponse);
-            if (subresponse.IsOK()) {
+            if (subresponse.IsOK() && subresponse.Value()) {
                 jobSpecs.push_back(subresponse.Value());
             } else {
-                LOG_DEBUG(subresponse, "Failed to extract job spec (OperationId: %v, JobId: %v)",
+                jobSpecs.emplace_back();
+                auto error = !subresponse.IsOK()
+                    ? static_cast<TError>(subresponse)
+                    : TError("Controller returned empty job spec (has controller crashed?)");
+                LOG_DEBUG(error, "Failed to extract job spec (OperationId: %v, JobId: %v)",
                     subrequest.OperationId,
                     subrequest.JobId);
-                jobSpecs.emplace_back();
+
+                ToProto(protoSubresponse->mutable_error(), error);
             }
         }
 
