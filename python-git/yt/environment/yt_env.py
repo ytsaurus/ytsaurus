@@ -1041,6 +1041,7 @@ class YTInstance(object):
                         if "addresses" in config and http_proxy_url is not None:
                             del config["addresses"]
                             config["cluster_url"] = http_proxy_url
+                            config["discover_proxies_from_cypress"] = False
                     else:
                         config = driver_configs[tag]
                     write_config(config, config_path)
