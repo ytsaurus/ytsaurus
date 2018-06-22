@@ -131,7 +131,13 @@ TConnection::TConnection(TConnectionConfigPtr config)
         BIND(&TConnection::OnProxyListUpdate, MakeWeak(this)),
         Config_->ProxyListUpdatePeriod))
 {
-    ResetAddresses();
+    if (Config_->Addresses.empty() && !Config_->ClusterUrl) {
+        THROW_ERROR_EXCEPTION("Either \"cluster_url\" or \"addresses\" must be specified");
+    }
+
+    DiscoveryPromise_ = NewPromise<std::vector<TString>>();
+    ChannelPool_->SetAddressList(DiscoveryPromise_.ToFuture());
+
     if (!Config_->Addresses.empty()) {
         UpdateProxyListExecutor_->Start();        
     }
@@ -261,66 +267,55 @@ std::vector<TString> TConnection::DiscoverProxiesByHttp(const TClientOptions& op
     }
 }
 
-void TConnection::ResetAddresses()
-{
-    if (!Config_->Addresses.empty()) {
-        LOG_INFO("Proxy address list reset (Addresses: %v)",
-            Config_->Addresses);
-        ChannelPool_->SetAddressList(MakeFuture(Config_->Addresses));
-    } else if (Config_->ClusterUrl) {
-        LOG_INFO("Fetching proxy address list from HTTP (ClusterUrl: %v)",
-            Config_->ClusterUrl);
-        HttpDiscoveryPromise_ = NewPromise<std::vector<TString>>();
-        ChannelPool_->SetAddressList(HttpDiscoveryPromise_.ToFuture());        
-    } else {
-        THROW_ERROR_EXCEPTION("Either \"cluster_url\" or \"addresses\" must be specified");
-    }
-}
-
 void TConnection::OnProxyListUpdate()
 {
-    try {
-        if (HttpDiscoveryPromise_ && !HttpDiscoveryPromise_.IsSet()) {
-            LOG_DEBUG("Updating proxy list from HTTP");
-            try {
+    auto backoff = Config_->ProxyListRetryPeriod;
+    for (int attempt = 0;; ++attempt) {
+        try {
+            std::vector<TString> proxies;
+            if (Config_->ClusterUrl) {
+                LOG_DEBUG("Updating proxy list from HTTP");
                 YCHECK(HttpCredentials_);
-                auto proxies = DiscoverProxiesByHttp(*HttpCredentials_);
-                if (proxies.empty()) {
-                    LOG_ERROR("Empty proxy list returned, skipping proxy list update");
-                    return;
+                proxies = DiscoverProxiesByHttp(*HttpCredentials_);
+            } else {
+                LOG_DEBUG("Updating proxy list from RPC");
+                if (!DiscoveryChannel_) {
+                    auto address = Config_->Addresses[RandomNumber(Config_->Addresses.size())];
+                    DiscoveryChannel_ = ChannelFactory_->CreateChannel(address);
                 }
 
-                HttpDiscoveryPromise_.Set(proxies);
-            } catch (const std::exception& ex) {
-                HttpDiscoveryPromise_.Set(TError(ex));
-                HttpDiscoveryPromise_ = NewPromise<std::vector<TString>>();
-                ChannelPool_->SetAddressList(HttpDiscoveryPromise_.ToFuture());
-                throw;
+                try {
+                    proxies = DiscoverProxiesByRpc(DiscoveryChannel_);
+                } catch (const std::exception& ) {
+                    DiscoveryChannel_.Reset();
+                    throw;
+                }
             }
-        } else {
-            LOG_DEBUG("Updating proxy list from RPC");
-            if (!DiscoveryChannel_) {
-                DiscoveryChannel_ = ChannelPool_->TryCreateChannel().ValueOrThrow();
-            }
-    
-            auto proxies = DiscoverProxiesByRpc(DiscoveryChannel_);
+
             if (proxies.empty()) {
-                LOG_ERROR("Empty proxy list returned, skipping proxy list update");
-                return;
+                THROW_ERROR_EXCEPTION("Proxy list is empty");
             }
 
-            ChannelPool_->SetAddressList(MakeFuture(proxies));
-        }
+            if (!DiscoveryPromise_.IsSet()) {
+                DiscoveryPromise_.Set(std::move(proxies));
+            } else {
+                ChannelPool_->SetAddressList(MakeFuture(std::move(proxies)));
+            }
 
-        ProxyListUpdatesFailedAttempts_ = 0;
-    } catch (const std::exception& ex) {
-        LOG_WARNING(ex, "Error updating proxy list");
-        DiscoveryChannel_.Reset();
-        ++ProxyListUpdatesFailedAttempts_;
-        if (ProxyListUpdatesFailedAttempts_ == Config_->MaxProxyListUpdateAttempts) {
-            ProxyListUpdatesFailedAttempts_ = 0;
-            ResetAddresses();
-        }
+            break;
+        } catch (const std::exception& ex) {
+            if (attempt > Config_->MaxProxyListUpdateAttempts && !DiscoveryPromise_.IsSet()) {
+                DiscoveryPromise_.Set(TError(ex));
+                DiscoveryPromise_ = NewPromise<std::vector<TString>>();
+                ChannelPool_->SetAddressList(DiscoveryPromise_.ToFuture());
+            }
+        
+            LOG_ERROR(ex, "Error updating proxy list (Attempt: %d, Backoff: %d)", attempt, backoff);
+            TDelayedExecutor::WaitForDuration(backoff);
+            if (backoff < Config_->MaxProxyListRetryPeriod) {
+                backoff *= 1.2;
+            }
+        }        
     }
 }
 
