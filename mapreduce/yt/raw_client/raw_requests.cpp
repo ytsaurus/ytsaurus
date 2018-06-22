@@ -230,9 +230,6 @@ TOperationAttributes ParseOperationAttributes(const TNode& node)
     if (auto suspendedNode = mapNode.FindPtr("suspended")) {
         result.Suspended = suspendedNode->AsBool();
     }
-    if (auto weightNode = mapNode.FindPtr("weight")) {
-        result.Weight = weightNode->AsDouble();
-    }
     if (auto resultNode = mapNode.FindPtr("result")) {
         result.Result.ConstructInPlace();
         auto error = TYtError((*resultNode)["error"]);
