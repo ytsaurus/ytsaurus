@@ -358,7 +358,7 @@ private:
         const NHttp::IResponseWriterPtr& rsp)
     {
         rsp->SetStatus(YTConnector_->IsConnected()
-            ? NHttp::EStatusCode::Ok
+            ? NHttp::EStatusCode::OK
             : NHttp::EStatusCode::BadRequest);
         WaitFor(rsp->Close())
             .ThrowOnError();
