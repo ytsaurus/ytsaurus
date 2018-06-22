@@ -118,6 +118,8 @@ function YtDriverFacadeV2(logger, driver)
 
     delete descriptors.execute_batch;
 
+    delete descriptors.get_table_columnar_statistics;
+
     delete descriptors.get_operation;
 
     this.logger = logger;

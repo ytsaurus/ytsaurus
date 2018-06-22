@@ -173,6 +173,9 @@ public:
         if (!ext.has_session_id() && !ext.has_ssl_session_id()) {
             return Null;
         }
+        if (!context.UserIP.IsIP4() && !context.UserIP.IsIP6()) {
+            return Null;
+        }
 
         TCookieCredentials credentials;
         credentials.SessionId = ext.session_id();

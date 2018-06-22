@@ -34,6 +34,7 @@
 #include <yt/server/exec_agent/slot_manager.h>
 #include <yt/server/exec_agent/supervisor_service.h>
 
+#include <yt/server/job_agent/gpu_manager.h>
 #include <yt/server/job_agent/job_controller.h>
 #include <yt/server/job_agent/statistics_reporter.h>
 
@@ -434,6 +435,7 @@ void TBootstrap::DoRun()
     JobProxyConfigTemplate->CoreForwarderTimeout = Config->ExecAgent->CoreForwarderTimeout;
 
     ExecSlotManager = New<NExecAgent::TSlotManager>(Config->ExecAgent->SlotManager, this);
+    GpuManager = New<TGpuManager>();
 
     JobController = New<TJobController>(Config->ExecAgent->JobController, this);
 
@@ -684,6 +686,11 @@ const TVersionedChunkMetaManagerPtr& TBootstrap::GetVersionedChunkMetaManager() 
 const NExecAgent::TSlotManagerPtr& TBootstrap::GetExecSlotManager() const
 {
     return ExecSlotManager;
+}
+
+const NJobAgent::TGpuManagerPtr& TBootstrap::GetGpuManager() const
+{
+    return GpuManager;
 }
 
 const TChunkStorePtr& TBootstrap::GetChunkStore() const

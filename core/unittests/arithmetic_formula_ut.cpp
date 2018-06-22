@@ -94,7 +94,13 @@ INSTANTIATE_TEST_CASE_P(
         std::make_tuple("(1)-1", 0),
         std::make_tuple("(1) --1", 2),
         std::make_tuple("9223372036854775807", std::numeric_limits<i64>::max()),
-        std::make_tuple("-9223372036854775808", std::numeric_limits<i64>::min())
+        std::make_tuple("-9223372036854775808", std::numeric_limits<i64>::min()),
+        std::make_tuple("10 in (10, 20, 30)", 1),
+        std::make_tuple("10 in 10, 20, 30", 1),
+        std::make_tuple("5+10 in 12+3", 1),
+        std::make_tuple("5+(10 in 12)+3", 8),
+        std::make_tuple("10 in 5, 6, 7+4, 2+8", 1),
+        std::make_tuple("11 in 5, 6, 7+4, 2+8", 1)
 ));
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -135,7 +141,22 @@ INSTANTIATE_TEST_CASE_P(
         "!= 10",
         "a = = b",
         "a > = b",
-        "a =- b"
+        "a =- b",
+        "in + 1",
+        "in in",
+        "5, 6,",
+        ",",
+        ", 5",
+        "in 2",
+        "10 in",
+        "10 in ()",
+        "1, 1",
+        "1, 1 in 1",
+        "1, 1 in (1, 1)",
+        "(1, 1) in (1, 1)",
+        "1, 1 + 2",
+        "in/",
+        "1,(1,1)"
 ));
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -150,6 +171,12 @@ TEST(TArithmeticFormulaTest, Misc)
     auto modulusByZero = MakeArithmeticFormula("1%(10-5*2)");
     EXPECT_THROW(modulusByZero.Eval({}), TErrorException);
 
+    auto divideMinIntByMinusOne = MakeArithmeticFormula("a / -1");
+    EXPECT_THROW(divideMinIntByMinusOne.Eval({{"a", std::numeric_limits<i64>::min()}}), TErrorException);
+
+    auto minIntModuloMinusOne = MakeArithmeticFormula("a % -1");
+    EXPECT_THROW(minIntModuloMinusOne.Eval({{"a", std::numeric_limits<i64>::min()}}), TErrorException);
+
     auto formulaWithVariables = MakeArithmeticFormula("( a+ b)/c");
 
     // divide by zero
@@ -158,10 +185,10 @@ TEST(TArithmeticFormulaTest, Misc)
     // not enough variables
     EXPECT_THROW(formulaWithVariables.Eval({{"a", 1}, {"b", 2}}), TErrorException);
 
-    EXPECT_EQ(formulaWithVariables.Eval({{"a", 20}, {"b", 30}, {"c", 5}}), 10);
+    EXPECT_EQ(10, formulaWithVariables.Eval({{"a", 20}, {"b", 30}, {"c", 5}}));
 
     auto longVars = MakeArithmeticFormula("abacaba ^ variable");
-    EXPECT_EQ(longVars.Eval({{"variable", 123}, {"abacaba", 456}}), 435);
+    EXPECT_EQ(435, longVars.Eval({{"variable", 123}, {"abacaba", 456}}));
 
     auto schedule = MakeArithmeticFormula("hours % 2 == 1 && minutes % 5 == 2");
     int cnt = 0;
@@ -177,6 +204,18 @@ TEST(TArithmeticFormulaTest, Misc)
     auto emptyFormula = MakeArithmeticFormula("");
     EXPECT_TRUE(emptyFormula.IsEmpty());
     EXPECT_THROW(emptyFormula.Eval({}), TErrorException);
+}
+
+TEST(TArithmeticFormulaTest, InExpression)
+{
+    auto formulaWithIn = MakeArithmeticFormula("inf in (1000*1000*1000, 10, 20, 30)");
+    EXPECT_EQ(1, formulaWithIn.Eval({{"inf", 1'000'000'000}}));
+
+    auto multilevelIn = MakeArithmeticFormula("a in b in c");
+    EXPECT_EQ(1, multilevelIn.Eval({{"a", 1}, {"b", 1}, {"c", 1}}));
+    EXPECT_EQ(0, multilevelIn.Eval({{"a", 0}, {"b", 1}, {"c", 1}}));
+    // Check associativity.
+    EXPECT_EQ(1, multilevelIn.Eval({{"a", 1}, {"b", 2}, {"c", 0}}));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -232,7 +271,9 @@ TEST(TArithmeticFormulaTest, TestValidateVariable)
     ValidateArithmeticFormulaVariable("abc");
     ValidateArithmeticFormulaVariable("abc123");
     ValidateArithmeticFormulaVariable("ABc_123");
-    ValidateArithmeticFormulaVariable("in");
+    ValidateArithmeticFormulaVariable("IN");
+    ValidateArithmeticFormulaVariable("iN");
+    ValidateArithmeticFormulaVariable("In");
 
     EXPECT_THROW(ValidateArithmeticFormulaVariable("123abc"), TErrorException);
     EXPECT_THROW(ValidateArithmeticFormulaVariable(" abc"), TErrorException);
@@ -241,6 +282,7 @@ TEST(TArithmeticFormulaTest, TestValidateVariable)
     EXPECT_THROW(ValidateArithmeticFormulaVariable(""), TErrorException);
     EXPECT_THROW(ValidateArithmeticFormulaVariable("dollar$"), TErrorException);
     EXPECT_THROW(ValidateArithmeticFormulaVariable("a+b"), TErrorException);
+    EXPECT_THROW(ValidateArithmeticFormulaVariable("in"), TErrorException);
 
     // OK for boolean, but parse error for arithmetic
     EXPECT_THROW(ValidateArithmeticFormulaVariable("var/2"), TErrorException);

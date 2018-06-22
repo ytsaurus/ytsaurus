@@ -158,18 +158,18 @@ def do_reduce(records, key_column, func):
 ##################################################################
 #TODO: get rid of copypaste: extract_pools_distribution is from analytics script
 
-def extract_pools_distribution(row, metric, target):
+def extract_metric_distribution(row, metric, target):
     if row["event_type"] != "fair_share_info":
         return None
     timestamp = row["timestamp"]
     pools = row[target]
-    pools_formatted = {}
+    result = {target: {}, "timestamp": timestamp}
     for pool in pools.iteritems():
         name = pool[0]
-        fair_share = pool[1][metric]
-        if fair_share != 0:
-            pools_formatted[name] = fair_share
-    return {"pools": pools_formatted, "timestamp": timestamp}
+        metric_value = pool[1][metric]
+        if metric_value != 0:
+            result[target][name] = metric_value
+    return result
 
 ##################################################################
 
@@ -192,11 +192,11 @@ scheduler_simulator_config = {
 
 pools_config = yson.to_yson_type(
     {
-        "physical" : yson.to_yson_type(
+        "default": yson.to_yson_type(
             {
                 "test_pool": yson.to_yson_type(
                     {},
-                    attributes = {
+                    attributes={
                         "resource_limits": {
                             "user_slots": 10,
                             "cpu": 10,
@@ -206,7 +206,7 @@ pools_config = yson.to_yson_type(
                     }
                 )
             },
-            attributes = {
+            attributes={
                 "nodes_filter": "internal",
                 "max_operation_count": 2000,
                 "max_operation_count_per_pool": 50,
@@ -215,8 +215,8 @@ pools_config = yson.to_yson_type(
             }
         )
     },
-    attributes = {
-        "default_tree": "physical",
+    attributes={
+        "default_tree": "default",
     }
 )
 
@@ -231,7 +231,7 @@ class TestSchedulerSimulator(YTEnvSetup, PrepareTables):
             "connect_retry_backoff_time": 100,
             "fair_share_update_period": 100,
             "fair_share_profiling_period": 100,
-            "event_log" : {
+            "event_log": {
                 "flush_period": 100,
             }
         }
@@ -239,7 +239,7 @@ class TestSchedulerSimulator(YTEnvSetup, PrepareTables):
 
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "controller_agent": {
-            "event_log" : {
+            "event_log": {
                 "flush_period": 100,
             }
         }
@@ -253,15 +253,15 @@ class TestSchedulerSimulator(YTEnvSetup, PrepareTables):
         data = [{"foo": i} for i in xrange(3)]
         write_table("//tmp/t_in", data)
 
-        op = map(
-            command="sleep 1;" ,
+        map(
+            command="sleep 1;",
             in_="//tmp/t_in",
             out="//tmp/t_out",
             spec={"job_count": 1,
                   "max_failed_job_count": 1,
                   "data_size_per_job": 1,
                   "pool": "test_pool",
-                  "pool_trees":["physical",]})
+                  "pool_trees": ["default"]})
 
         time.sleep(5)
 
@@ -311,12 +311,11 @@ class TestSchedulerSimulator(YTEnvSetup, PrepareTables):
         pool_and_operations_validated = False
         with open(simulator_files_path["scheduler_event_log_file"]) as fin:
             for item in yson.load(fin, "list_fragment"):
-                usage_pools = extract_pools_distribution(item, "usage_ratio", "pools")
-                usage_operations = extract_pools_distribution(item, "usage_ratio", "operations")
-
-                if usage_pools and "test_pool" in usage_pools["pools"] and \
-                   usage_operations and operation_id in usage_operations["pools"]:
-                    assert usage_pools["pools"]["test_pool"] == usage_operations["pools"][operation_id]
+                usage_pools = extract_metric_distribution(item, "usage_ratio", "pools")
+                usage_operations = extract_metric_distribution(item, "usage_ratio", "operations")
+                if usage_pools is not None and "test_pool" in usage_pools["pools"] and \
+                   usage_operations is not None and operation_id in usage_operations["operations"]:
+                    assert usage_pools["pools"]["test_pool"] == usage_operations["operations"][operation_id]
                     pool_and_operations_validated = True
         assert pool_and_operations_validated
 

@@ -3,12 +3,16 @@
 #include "versioned_row.h"
 #include "unversioned_row.h"
 
+#include <yt/ytlib/api/public.h>
+
 #include <yt/ytlib/formats/format.h>
 
 #include <yt/ytlib/chunk_client/chunk_owner_ypath_proxy.h>
 #include <yt/ytlib/chunk_client/chunk_spec.h>
 
 #include <yt/ytlib/cypress_client/public.h>
+
+#include <yt/ytlib/object_client/public.h>
 
 #include <yt/ytlib/scheduler/public.h>
 
@@ -138,6 +142,22 @@ void ValidateDynamicTableTimestamp(
     bool dynamic,
     const TTableSchema& schema,
     const NYTree::IAttributeDictionary& attributes);
+
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<NChunkClient::TInputChunkPtr> CollectTableInputChunks(
+    const NYPath::TRichYPath& path,
+    const NApi::INativeClientPtr& client,
+    const NNodeTrackerClient::TNodeDirectoryPtr& nodeDirectory,
+    const NChunkClient::TFetchChunkSpecConfigPtr& config,
+    const NObjectClient::TTransactionId& transactionId,
+    const NLogging::TLogger& logger);
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! A helper for updating columnar statistics with a bunch of valuees (either versioned or unversioned).
+template <class TValue>
+void UpdateColumnarStatistics(NProto::TColumnarStatisticsExt& columnarStatisticsExt, const TRange<TValue>& values);
 
 ////////////////////////////////////////////////////////////////////////////////
 

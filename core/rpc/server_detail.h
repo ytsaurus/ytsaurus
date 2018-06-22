@@ -81,6 +81,7 @@ protected:
 
     TRequestId RequestId_;
     TRealmId RealmId_;
+
     TString User_;
 
     TSharedRef RequestBody_;

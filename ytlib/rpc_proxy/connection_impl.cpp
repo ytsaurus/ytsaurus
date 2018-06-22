@@ -54,7 +54,8 @@ std::vector<TString> GetProxyListFromHttp(
     auto rsp = WaitFor(client->Get(proxyUrl + "/api/v3/list", headers))
         .ValueOrThrow();
     if (rsp->GetStatusCode() != EStatusCode::Ok) {
-        THROW_ERROR_EXCEPTION("Http proxy discovery failed")
+        THROW_ERROR_EXCEPTION("Http proxy discovery failed with code %v",
+            static_cast<int>(rsp->GetStatusCode()))
             << ParseYTError(rsp);
     }
     return ConvertTo<std::vector<TString>>(TYsonString{ToString(rsp->ReadBody())});
@@ -166,6 +167,11 @@ void TConnection::Terminate()
 
 TString TConnection::GetLocalAddress()
 {
+    // Check local hostname and initialize it.
+    if (!TAddressResolver::Get()->IsLocalHostNameOK()) {
+        THROW_ERROR_EXCEPTION("Local hostname is not ok, more details in logs");
+    }
+
     // TODO(sandello): Extract this to a new TAddressResolver method.
     auto localHostname = GetLocalHostName();
     auto localAddress = TAddressResolver::Get()->Resolve(localHostname).Get().ValueOrThrow();

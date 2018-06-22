@@ -42,7 +42,7 @@ struct IFetcher
     : public virtual TRefCounted
 {
     virtual void AddChunk(TInputChunkPtr chunk) = 0;
-
+    virtual int GetChunkCount() const = 0;
     virtual TFuture<void> Fetch() = 0;
 };
 
@@ -56,19 +56,18 @@ public:
         TFetcherConfigPtr config,
         NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
         IInvokerPtr invoker,
-        NTableClient::TRowBufferPtr rowBuffer,
         IFetcherChunkScraperPtr chunkScraper,
         NApi::INativeClientPtr client,
         const NLogging::TLogger& logger);
 
     virtual void AddChunk(TInputChunkPtr chunk) override;
+    virtual int GetChunkCount() const override;
     virtual TFuture<void> Fetch() override;
 
 protected:
     const TFetcherConfigPtr Config_;
     const NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory_;
     const IInvokerPtr Invoker_;
-    const NTableClient::TRowBufferPtr RowBuffer_;
     const IFetcherChunkScraperPtr ChunkScraper_;
     const NLogging::TLogger Logger;
 

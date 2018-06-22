@@ -6,7 +6,6 @@ from yt.wrapper import JsonFormat
 from yt.common import date_string_to_datetime
 
 import yt.environment.init_operation_archive as init_operation_archive
-from yt.environment.helpers import assert_almost_equal
 
 from operations_archive import clean_operations
 
@@ -360,10 +359,15 @@ class TestJobStderr(YTEnvSetup):
                 IS_FAILING_JOB=$(($YT_JOB_INDEX>=19));
                 echo stderr 1>&2;
                 if [ $IS_FAILING_JOB -eq 1 ]; then
-                    exit 125;
+                    if mkdir {lock_dir}; then
+                        exit 125;
+                    else
+                        exit 0
+                    fi;
                 else
                     exit 0;
-                fi;""")
+                fi;"""
+                    .format(lock_dir=EventsOnFs()._get_event_filename("lock_dir")))
         op = map(
             dont_track=True,
             label="stderr_of_failed_jobs",
@@ -1792,8 +1796,8 @@ class TestJobRevival(TestJobRevivalBase):
                      "auto_merge": {"mode": "manual", "chunk_count_per_merge_job": 3, "max_intermediate_chunk_count": 100}
                  })
 
-        # Comment about '+5' - we need some additional room for jobs that can be aborted.
-        wait(lambda: sum([events_on_fs().check_event("ready_for_revival_" + str(i)) for i in xrange(user_slots_limit + 5)]) == user_slots_limit)
+        # Comment about '+10' - we need some additional room for jobs that can be non-scheduled aborted.
+        wait(lambda: sum([events_on_fs().check_event("ready_for_revival_" + str(i)) for i in xrange(user_slots_limit + 10)]) == user_slots_limit)
 
         self._kill_and_start(components_to_kill)
         self.Env.kill_controller_agents()
@@ -2566,6 +2570,7 @@ class TestSchedulerGpu(YTEnvSetup):
         cls.node_counter += 1
         if cls.node_counter == 1:
             config["exec_agent"]["job_controller"]["resource_limits"]["gpu"] = 1
+            config["exec_agent"]["job_controller"]["test_gpu"] = True
 
     def test_job_count(self):
         gpu_nodes = [node for node in ls("//sys/nodes") if get("//sys/nodes/{}/@resource_limits/gpu".format(node)) > 0]
@@ -3007,126 +3012,8 @@ class TestPoolMetrics(YTEnvSetup):
         assert completed_metrics["parent"] == completed_metrics["child"]
         assert aborted_metrics["parent"] == aborted_metrics["child"]
 
-    def test_runtime_parameters(self):
-        create_user("u")
-
-        create("table", "//tmp/t_input")
-        create("table", "//tmp/t_output")
-
-        write_table("<append=%true>//tmp/t_input", [{"key": i} for i in xrange(2)])
-
-        op = map(
-            command="sleep 100",
-            in_="//tmp/t_input",
-            out="//tmp/t_output",
-            spec={"weight": 5},
-            dont_track=True)
-
-        time.sleep(1.0)
-
-        assert check_permission("u", "write", "//sys/operations/" + op.id)["action"] == "deny"
-        assert get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/weight".format(op.id)) == 5.0
-
-        set("//sys/operations/{0}/@owners/end".format(op.id), "u")
-        set("//sys/operations/{0}/@weight".format(op.id), 3)
-        set("//sys/operations/{0}/@resource_limits".format(op.id), {"user_slots": 0})
-
-        time.sleep(1.0)
-
-        assert check_permission("u", "write", "//sys/operations/" + op.id)["action"] == "allow"
-        assert get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/weight".format(op.id)) == 3.0
-        assert get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/resource_limits".format(op.id))["user_slots"] == 0
-
-        set("//sys/operations/{0}/@owners/end".format(op.id), "missing_user")
-
-        get_alerts = lambda: get("//sys/operations/{0}/@alerts".format(op.id))
-        wait(get_alerts)
-        alerts = get_alerts()
-        assert alerts.keys() == ["invalid_acl"]
-
-        get("//sys/operations/{0}/@owners".format(op.id))
-
-        self.Env.kill_schedulers()
-        time.sleep(1)
-        self.Env.start_schedulers()
-
-        time.sleep(1)
-
-        get("//sys/operations/{0}/@owners".format(op.id))
-
-        alerts = get_alerts()
-        assert alerts.keys() == ["invalid_acl"]
-
-        remove("//sys/operations/{0}/@owners/-1".format(op.id))
-        time.sleep(1.0)
-
-        wait(lambda: not get_alerts())
-
-    def test_update_runtime_parameters(self):
-        create_user("u")
-
-        create("table", "//tmp/t_input")
-        create("table", "//tmp/t_output")
-
-        write_table("<append=%true>//tmp/t_input", [{"key": i} for i in xrange(2)])
-
-        op = map(
-            command="sleep 100",
-            in_="//tmp/t_input",
-            out="//tmp/t_output",
-            spec={"weight": 5},
-            dont_track=True)
-
-        wait(lambda: op.get_state() == "running", iter=10)
-
-        assert check_permission("u", "write", "//sys/operations/" + op.id)["action"] == "deny"
-        assert get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/weight".format(op.id)) == 5.0
-
-        update_op_parameters(op.id, parameters={"owners": ["u"]})
-        assert check_permission("u", "write", "//sys/operations/" + op.id)["action"] == "allow"
-
-        update_op_parameters(op.id, parameters={
-            "scheduling_options_per_pool_tree": {
-                "default": {
-                    "weight": 3.0,
-                    "resource_limits": {
-                        "user_slots": 0
-                    }
-                }
-            }
-        })
-
-        # Backward compatibility
-        assert assert_almost_equal(
-            get("//sys/operations/" + op.id + "/@weight"),
-            3.0)
-        assert get("//sys/operations/" + op.id + "/@resource_limits/user_slots") == 0
-
-        assert assert_almost_equal(
-            get("//sys/operations/" + op.id + "/@scheduling_options_per_pool_tree/default/weight"),
-            3.0)
-        assert get("//sys/operations/" + op.id + "/@scheduling_options_per_pool_tree/default/resource_limits/user_slots") == 0
-
-        assert assert_almost_equal(
-            get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/weight".format(op.id)),
-            3.0)
-
-        # wait() here is essential since resource limits are recomputed during fair-share update.
-        wait(lambda: get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/resource_limits".format(op.id))["user_slots"] == 0,
-             iter=5)
-
-        self.Env.kill_schedulers()
-        self.Env.start_schedulers()
-
-        wait(lambda: op.get_state() == "running", iter=10)
-
-        assert assert_almost_equal(
-            get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/weight".format(op.id)),
-            3.0)
-        assert get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/resource_limits".format(op.id))["user_slots"] == 0
-
-
 ##################################################################
+
 
 class TestGetJobSpecFailed(YTEnvSetup):
     NUM_MASTERS = 1
@@ -3311,7 +3198,7 @@ fi
             dont_track=True)
 
         state_path = "//sys/scheduler/orchid/scheduler/operations/{0}/state".format(op.id)
-        wait(lambda: get(state_path) == "running")
+        wait(lambda: get(state_path) == "running", ignore_exceptions=True)
         time.sleep(1.0)  # Give scheduler some time to dump attributes to cypress.
 
         assert get(get_operation_cypress_path(op.id) + "/@state") == "running"
@@ -3511,7 +3398,8 @@ class TestControllerMemoryUsage(YTEnvSetup):
 
         # After all jobs are finished, controller should contain at least 40 pairs of boundary keys of length 250kb,
         # resulting in about 20mb of memory.
-        wait(lambda: get(op.get_path() + "/controller_orchid/memory_usage") > 15 * 10**6)
+        wait(lambda: get(op.get_path() + "/controller_orchid/memory_usage") > 15 * 10**6 and
+                     get(controller_agent_orchid + "/tagged_memory_statistics/0/usage") > 15 * 10**6)
 
         op.track()
 

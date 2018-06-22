@@ -29,6 +29,11 @@ public:
             YCHECK(index < Blocks_.size());
             blocks.push_back(Blocks_[index]);
         }
+
+        for (const auto& block : blocks) {
+            block.ValidateChecksum();
+        }
+
         return MakeFuture(std::move(blocks));
     }
 
@@ -41,9 +46,15 @@ public:
             return MakeFuture(std::vector<TBlock>());
         }
 
-        return MakeFuture(std::vector<TBlock>(
+        auto blocks = std::vector<TBlock>(
             Blocks_.begin() + firstBlockIndex,
-            Blocks_.begin() + std::min(static_cast<size_t>(blockCount), Blocks_.size() - firstBlockIndex)));
+            Blocks_.begin() + std::min(static_cast<size_t>(blockCount), Blocks_.size() - firstBlockIndex));
+
+        for (const auto& block : blocks) {
+            block.ValidateChecksum();
+        }
+
+        return MakeFuture(std::move(blocks));
     }
 
     virtual TFuture<TChunkMeta> GetMeta(

@@ -24,6 +24,7 @@ class TKeyColumnsExt;
 class TBoundaryKeysExt;
 class TBlockIndexesExt;
 class TBlockMetaExt;
+class TColumnarStatisticsExt;
 class TBlockMeta;
 class TSimpleVersionedBlockMeta;
 class TSchemaDictionary;
@@ -220,6 +221,8 @@ DECLARE_REFCOUNTED_STRUCT(IPartitioner)
 
 DECLARE_REFCOUNTED_CLASS(TColumnarChunkMeta)
 DECLARE_REFCOUNTED_CLASS(TCachedVersionedChunkMeta)
+
+DECLARE_REFCOUNTED_CLASS(TColumnarStatisticsFetcher)
 
 DECLARE_REFCOUNTED_STRUCT(TChunkReaderPerformanceCounters)
 

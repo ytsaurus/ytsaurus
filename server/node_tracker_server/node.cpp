@@ -336,6 +336,22 @@ void TNode::Load(NCellMaster::TLoadContext& context)
     ComputeDefaultAddress();
 }
 
+TJobPtr TNode::FindJob(const TJobId& jobId)
+{
+    auto it = IdToJob_.find(jobId);
+    return it == IdToJob_.end() ? nullptr : it->second;
+}
+
+void TNode::RegisterJob(const TJobPtr& job)
+{
+    YCHECK(IdToJob_.emplace(job->GetJobId(), job).second);
+}
+
+void TNode::UnregisterJob(const TJobPtr& job)
+{
+    YCHECK(IdToJob_.erase(job->GetJobId()) == 1);
+}
+
 void TNode::ReserveReplicas(int mediumIndex, int sizeHint)
 {
     Replicas_[mediumIndex].reserve(sizeHint);
@@ -598,7 +614,7 @@ void TNode::ShrinkHashTables()
         }
     }
     ShrinkHashTable(&UnapprovedReplicas_);
-    ShrinkHashTable(&Jobs_);
+    ShrinkHashTable(&IdToJob_);
     for (auto& queue : ChunkReplicationQueues_) {
         ShrinkHashTable(&queue);
     }
@@ -610,7 +626,7 @@ void TNode::Reset()
 {
     LastGossipState_ = ENodeState::Unknown;
     ClearSessionHints();
-    Jobs_.clear();
+    IdToJob_.clear();
     ChunkRemovalQueue_.clear();
     for (auto& queue : ChunkReplicationQueues_) {
         queue.clear();

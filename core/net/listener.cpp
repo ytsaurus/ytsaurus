@@ -58,7 +58,7 @@ public:
     {
         return Address_;
     }
-    
+
     TFuture<IConnectionPtr> Accept()
     {
         auto promise = NewPromise<IConnectionPtr>();
@@ -74,6 +74,17 @@ public:
                 promise.Set(Error_);
             }
         }
+
+        promise.OnCanceled(BIND([promise, this, this_ = MakeStrong(this)] () mutable {
+            {
+                auto guard = Guard(Lock_);
+                auto it = std::find(Queue_.begin(), Queue_.end(), promise);
+                if (it != Queue_.end()) {
+                    Queue_.erase(it);
+                }
+            }
+            promise.TrySet(TError("The promise was canceled"));
+        }));
 
         return promise.ToFuture();
     }
@@ -111,7 +122,7 @@ private:
                 return false;
             }
         }
-    
+
         TNetworkAddress clientAddress;
         SOCKET clientSocket = AcceptSocket(ServerSocket_, &clientAddress);
 
@@ -130,7 +141,7 @@ private:
         }
 
         auto localAddress = GetSocketName(clientSocket);
-        promise.Set(CreateConnectionFromFD(
+        promise.TrySet(CreateConnectionFromFD(
             clientSocket,
             localAddress,
             clientAddress,

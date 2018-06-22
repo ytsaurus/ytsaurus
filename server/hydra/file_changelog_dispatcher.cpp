@@ -54,6 +54,12 @@ public:
         , FlushedRecordCount_(Changelog_->GetRecordCount())
     { }
 
+    ~TFileChangelogQueue()
+    {
+        LOG_DEBUG("Changelog queue destroyed (Path: %v)",
+            Changelog_->GetFileName());
+    }
+
     const TSyncFileChangelogPtr& GetChangelog()
     {
         return Changelog_;
@@ -532,6 +538,8 @@ public:
 
     ~TFileChangelog()
     {
+        LOG_DEBUG("Destroying changelog queue (Path: %v)",
+            Queue_->GetChangelog()->GetFileName());
         Close();
         DispatcherImpl_->UnregisterQueue(Queue_);
     }

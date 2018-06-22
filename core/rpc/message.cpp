@@ -234,7 +234,7 @@ int GetMessageAttachmentCount(const TSharedRefArray& message)
     return std::max(message.Size() - 2, 0);
 }
 
-i64 GetTotalMesageAttachmentSize(const TSharedRefArray& message)
+i64 GetTotalMessageAttachmentSize(const TSharedRefArray& message)
 {
     i64 result = 0;
     for (int index = 2; index < message.Size(); ++index) {

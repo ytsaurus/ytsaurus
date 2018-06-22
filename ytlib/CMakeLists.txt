@@ -18,6 +18,17 @@ list(APPEND YT_SRCS_RESOLVED ${YT_SOURCE_FILES})
 
 add_library(yt-library-client ${YT_SRCS_RESOLVED})
 
+# These protos are used in YT python client.
+
+SET(PROTO_TARGETS "")
+
+foreach(proto_suffix "hive/hive_service.proto" "hive/timestamp_map.proto"
+                     "rpc_proxy/proto/api_service.proto" "rpc_proxy/proto/discovery_service.proto")
+  prepare_proto(${PROJECT_SOURCE_DIR}/python yt/ytlib/${proto_suffix} PROTO_TARGETS)
+endforeach(proto_suffix)
+
+add_custom_target(yt-ytlib-python-protos ALL DEPENDS yt-core-python-protos ${PROTO_TARGETS})
+
 target_link_libraries(yt-library-client
   deps-arcadia-contrib-libs-re2
   deps-arcadia-library-http

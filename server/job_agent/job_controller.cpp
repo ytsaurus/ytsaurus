@@ -1,5 +1,6 @@
 #include "job_controller.h"
 #include "private.h"
+#include "gpu_manager.h"
 #include "config.h"
 
 #include <limits>
@@ -311,6 +312,10 @@ TNodeResources TJobController::TImpl::GetResourceLimits() const
             : Config_->ResourceLimits->Name);
     ITERATE_NODE_RESOURCE_LIMITS_OVERRIDES(XX)
     #undef XX
+
+    if (!Config_->TestGpu) {
+        result.set_gpu(Bootstrap_->GetGpuManager()->GetTotalGpuCount());
+    }
 
     const auto* userTracker = GetUserMemoryUsageTracker();
     result.set_user_memory(std::min(

@@ -200,14 +200,12 @@ TFetcherBase::TFetcherBase(
     TFetcherConfigPtr config,
     TNodeDirectoryPtr nodeDirectory,
     IInvokerPtr invoker,
-    TRowBufferPtr rowBuffer,
     IFetcherChunkScraperPtr chunkScraper,
     INativeClientPtr client,
     const NLogging::TLogger& logger)
     : Config_(std::move(config))
     , NodeDirectory_(std::move(nodeDirectory))
     , Invoker_(invoker)
-    , RowBuffer_(std::move(rowBuffer))
     , ChunkScraper_(std::move(chunkScraper))
     , Logger(logger)
     , Client_(std::move(client))
@@ -217,6 +215,11 @@ void TFetcherBase::AddChunk(TInputChunkPtr chunk)
 {
     YCHECK(UnfetchedChunkIndexes_.insert(static_cast<int>(Chunks_.size())).second);
     Chunks_.push_back(chunk);
+}
+
+int TFetcherBase::GetChunkCount() const
+{
+    return Chunks_.size();
 }
 
 TFuture<void> TFetcherBase::Fetch()

@@ -164,6 +164,7 @@ DEFINE_ENUM(EErrorCode,
     ((InvalidBlockChecksum)     (721))
     ((BlockOutOfRange)          (722))
     ((ObjectNotReplicated)      (723))
+    ((MissingExtension)         (724))
 );
 
 //! Values must be contiguous.

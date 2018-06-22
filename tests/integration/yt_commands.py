@@ -227,6 +227,10 @@ def get_job_input(job_id, **kwargs):
     kwargs["job_id"] = job_id
     return execute_command("get_job_input", kwargs)
 
+def get_table_columnar_statistics(path, **kwargs):
+    kwargs["path"] = path
+    return yson.loads(execute_command("get_table_columnar_statistics", kwargs))
+
 def get_job_stderr(operation_id, job_id, **kwargs):
     kwargs["operation_id"] = operation_id
     kwargs["job_id"] = job_id
@@ -962,6 +966,11 @@ def create_user(name, **kwargs):
         kwargs["attributes"] = dict()
     kwargs["attributes"]["name"] = name
     execute_command("create", kwargs)
+
+def create_test_tables(row_count=1, **kwargs):
+    create("table", "//tmp/t_in", **kwargs)
+    write_table("//tmp/t_in", [{"x": str(i)} for i in xrange(row_count)])
+    create("table", "//tmp/t_out", **kwargs)
 
 def remove_user(name, **kwargs):
     remove("//sys/users/" + name, **kwargs)

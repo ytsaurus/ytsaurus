@@ -2294,7 +2294,7 @@ private:
             cellTag);
 
         for (const auto& entry : request->entries()) {
-            auto userId = FromProto<TAccountId>(entry.user_id());
+            auto userId = FromProto<TUserId>(entry.user_id());
             auto* user = FindUser(userId);
             if (!IsObjectAlive(user))
                 continue;

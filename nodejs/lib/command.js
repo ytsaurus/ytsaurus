@@ -255,6 +255,7 @@ YtCommand.prototype.dispatch = function(req, rsp) {
         .then(self._captureParameters.bind(self))
         .then(function() {
             self._setContentDispositionAndMime();
+            self._setEtagRevision();
             self._logRequest();
             self._addHeaders();
         })
@@ -715,6 +716,14 @@ YtCommand.prototype._setContentDispositionAndMime = function() {
     this.mime_type = formatToMime(this.parameters.GetByYPath("/output_format"));
 };
 
+YtCommand.prototype._setEtagRevision = function() {
+    this.__DBG("_setEtagRevision");
+    revision = this.req.headers["if-none-match"];
+    if (revision && typeof(revision) === "string" && this.command == "read_file") {
+        this.parameters["etag_revision"] = revision;
+    }
+};
+
 YtCommand.prototype._getOutputFormat = function() {
     this.__DBG("_getOutputFormat");
 
@@ -1026,7 +1035,7 @@ YtCommand.prototype._execute = function(cb) {
                 }
                 self.rsp.setHeader("ETag", etag_string);
 
-                header = utils.gather(self.req.headers, "if-none-match");
+                header = self.req.headers["if-none-match"];
                 if (header && typeof(header) === "string" && header === etag_string) {
                     self.rsp.statusCode = 304;
                 }
