@@ -60,6 +60,8 @@ public:
         const TConcatenateOptions& options = TConcatenateOptions()) = 0;
 
     virtual TRichYPath CanonizeYPath(const TRichYPath& path) = 0;
+
+    virtual TTableColumnarStatistics GetTableColumnarStatistics(const TRichYPath& path) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

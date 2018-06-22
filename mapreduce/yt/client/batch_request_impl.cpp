@@ -135,6 +135,11 @@ TFuture<TRichYPath> TBatchRequest::CanonizeYPath(const TRichYPath& path)
     return Impl_->CanonizeYPath(path);
 }
 
+TFuture<TTableColumnarStatistics> TBatchRequest::GetTableColumnarStatistics(const TRichYPath& path)
+{
+    return Impl_->GetTableColumnarStatistics(DefaultTransaction_, path);
+}
+
 void TBatchRequest::ExecuteBatch(const TExecuteBatchOptions& options)
 {
     NYT::NDetail::ExecuteBatch(Client_->GetAuth(), *Impl_, options);

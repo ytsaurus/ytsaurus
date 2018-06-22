@@ -264,6 +264,10 @@ TRichYPath TMockClient::CanonizeYPath(const TRichYPath&) {
     ythrow yexception() << "not implemented";
 }
 
+TTableColumnarStatistics TMockClient::GetTableColumnarStatistics(const TRichYPath& /*path*/) {
+    ythrow yexception() << "not implemented";
+}
+
 IFileReaderPtr TMockClient::CreateFileReader(const TRichYPath&, const TFileReaderOptions&) {
     return new TMockFileReader();
 }

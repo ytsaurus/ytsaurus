@@ -20,9 +20,11 @@ void Serialize(const TAttributeFilter& filter, IYsonConsumer* consumer);
 
 void Serialize(const TColumnSchema& columnSchema, IYsonConsumer* consumer);
 void Serialize(const TTableSchema& tableSchema, IYsonConsumer* consumer);
+
 void Deserialize(EValueType& valueType, const TNode& node);
 void Deserialize(TTableSchema& tableSchema, const TNode& node);
 void Deserialize(TColumnSchema& columnSchema, const TNode& node);
+void Deserialize(TTableColumnarStatistics& statistics, const TNode& node);
 
 ////////////////////////////////////////////////////////////////////////////////
 

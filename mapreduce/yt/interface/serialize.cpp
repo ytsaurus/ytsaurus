@@ -23,6 +23,15 @@ void Deserialize(TVector<T>& value, const TNode& node)
         Deserialize(value.back(), element);
     }
 }
+
+template <class T>
+void Deserialize(THashMap<TString, T>& value, const TNode& node)
+{
+    for (const auto& item : node.AsMap()) {
+        Deserialize(value[item.first], item.second);
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 // const auto& nodeMap = node.AsMap();
@@ -285,6 +294,14 @@ void Deserialize(TRichYPath& path, const TNode& node)
 void Serialize(const TAttributeFilter& filter, IYsonConsumer* consumer)
 {
     BuildYsonFluently(consumer).List(filter.Attributes_);
+}
+
+void Deserialize(TTableColumnarStatistics& statistics, const TNode& node)
+{
+    const auto& nodeMap = node.AsMap();
+    DESERIALIZE_ITEM("column_data_weights", statistics.ColumnDataWeight);
+    DESERIALIZE_ITEM("legacy_chunks_data_weight", statistics.LegacyChunksDataWeight);
+    DESERIALIZE_ITEM("timestamp_total_weight", statistics.TimestampTotalWeight);
 }
 
 #undef DESERIALIZE_ITEM

@@ -62,6 +62,8 @@ public:
         const TLockOptions& options = TLockOptions()) = 0;
 
     virtual NThreading::TFuture<TRichYPath> CanonizeYPath(const TRichYPath& path) = 0;
+
+    virtual NThreading::TFuture<TTableColumnarStatistics> GetTableColumnarStatistics(const TRichYPath& path) = 0;
 };
 
 class IBatchRequest
