@@ -1125,8 +1125,8 @@ struct TEnumIndexedVectorSerializer
 
         auto keys = TEnumTraits<E>::GetDomainValues();
         size_t count = 0;
-        for (auto key : keys) {
-            if (!vector.IsDomainValue(key)) {
+        for (auto aKey : keys) {
+            if (!vector.IsDomainValue(aKey)) {
                 continue;
             }
             ++count;
@@ -1134,12 +1134,12 @@ struct TEnumIndexedVectorSerializer
 
         TSizeSerializer::Save(context, count);
 
-        for (auto key : keys) {
-            if (!vector.IsDomainValue(key)) {
+        for (auto aKey : keys) {
+            if (!vector.IsDomainValue(aKey)) {
                 continue;
             }
-            Save(context, key);
-            TItemSerializer::Save(context, vector[key]);
+            Save(context, aKey);
+            TItemSerializer::Save(context, vector[aKey]);
         }
     }
 
@@ -1153,14 +1153,14 @@ struct TEnumIndexedVectorSerializer
         SERIALIZATION_DUMP_WRITE(context, "vector[%v]", size);
         SERIALIZATION_DUMP_INDENT(context) {
             for (size_t index = 0; index != size; ++index) {
-                auto key = LoadSuspended<E>(context);
-                SERIALIZATION_DUMP_WRITE(context, "%v =>", key);
+                auto theKey = LoadSuspended<E>(context);
+                SERIALIZATION_DUMP_WRITE(context, "%v =>", theKey);
                 SERIALIZATION_DUMP_INDENT(context) {
-                    if (!vector.IsDomainValue(key)) {
+                    if (!vector.IsDomainValue(theKey)) {
                         T dummy;
                         TItemSerializer::Load(context, dummy);
                     } else {
-                        TItemSerializer::Load(context, vector[key]);
+                        TItemSerializer::Load(context, vector[theKey]);
                     }
                 }
             }
@@ -1202,12 +1202,12 @@ struct TSetSerializer
             for (size_t index = 0; index < size; ++index) {
                 SERIALIZATION_DUMP_WRITE(context, "%v =>", index);
 
-                TKey key;
+                TKey theKey;
                 SERIALIZATION_DUMP_INDENT(context) {
-                    TItemSerializer::Load(context, key);
+                    TItemSerializer::Load(context, theKey);
                 }
 
-                YCHECK(set.insert(key).second);
+                YCHECK(set.insert(theKey).second);
             }
         }
     }
@@ -1239,12 +1239,12 @@ struct TMultiSetSerializer
             for (size_t index = 0; index < size; ++index) {
                 SERIALIZATION_DUMP_WRITE(context, "%v =>", index);
 
-                TKey key;
+                TKey theKey;
                 SERIALIZATION_DUMP_INDENT(context) {
-                    TItemSerializer::Load(context, key);
+                    TItemSerializer::Load(context, theKey);
                 }
 
-                set.insert(key);
+                set.insert(theKey);
             }
         }
     }
@@ -1286,12 +1286,12 @@ struct TNullableSetSerializer
             for (size_t index = 0; index < size; ++index) {
                 SERIALIZATION_DUMP_WRITE(context, "%v =>", index);
 
-                TKey key;
+                TKey theKey;
                 SERIALIZATION_DUMP_INDENT(context) {
-                    TItemSerializer::Load(context, key);
+                    TItemSerializer::Load(context, theKey);
                 }
 
-                YCHECK(set->insert(key).second);
+                YCHECK(set->insert(theKey).second);
             }
         }
     }
@@ -1327,8 +1327,8 @@ struct TMapSerializer
 
         SERIALIZATION_DUMP_INDENT(context) {
             for (size_t index = 0; index < size; ++index) {
-                typename TMapType::key_type key;
-                TKeySerializer::Load(context, key);
+                typename TMapType::key_type theKey;
+                TKeySerializer::Load(context, theKey);
 
                 SERIALIZATION_DUMP_WRITE(context, "=>");
 
@@ -1337,7 +1337,7 @@ struct TMapSerializer
                     TValueSerializer::Load(context, value);
                 }
 
-                YCHECK(map.emplace(key, std::move(value)).second);
+                YCHECK(map.emplace(theKey, std::move(value)).second);
             }
         }
     }
@@ -1370,8 +1370,8 @@ struct TMultiMapSerializer
         map.clear();
 
         for (size_t index = 0; index < size; ++index) {
-            typename TMapType::key_type key;
-            TKeySerializer::Load(context, key);
+            typename TMapType::key_type theKey;
+            TKeySerializer::Load(context, theKey);
 
             SERIALIZATION_DUMP_WRITE(context, "=>");
 
@@ -1380,7 +1380,7 @@ struct TMultiMapSerializer
                 TValueSerializer::Load(context, value);
             }
 
-            map.insert(std::make_pair(key, value));
+            map.insert(std::make_pair(theKey, value));
         }
     }
 };

@@ -77,9 +77,9 @@ struct TEnumTraits<T, true>
             return static_cast<TType>(-2);
         }
 
-        static unsigned getHashValue(const TType& key)
+        static unsigned getHashValue(const TType& theKey)
         {
-            return static_cast<unsigned>(key) * 37U;
+            return static_cast<unsigned>(theKey) * 37U;
         }
 
         static bool isEqual(const TType& lhs, const TType& rhs)
