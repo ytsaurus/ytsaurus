@@ -420,7 +420,7 @@ class TestLocalMode(object):
         finally:
             self.yt_local("stop", env_id, "--delete")
 
-        patch = {"exec_agent": {"job_controller": {"resource_limits": {"user_slots": 100}}}}
+        patch = {"exec_agent": {"job_controller": {"resource_limits": {"user_slots": 20}}}}
         try:
             with tempfile.NamedTemporaryFile(dir=_get_tests_sandbox(), delete=False) as node_config:
                 yson.dump(patch, node_config)
