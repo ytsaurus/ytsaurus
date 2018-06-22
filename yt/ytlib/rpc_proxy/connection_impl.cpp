@@ -315,6 +315,10 @@ void TConnection::OnProxyListUpdate()
             if (backoff < Config_->MaxProxyListRetryPeriod) {
                 backoff *= 1.2;
             }
+
+            if (attempt > Config_->MaxProxyListUpdateAttempts) {
+                attempt = 0;
+            }
         }        
     }
 }
