@@ -447,9 +447,7 @@ protected:
             return Controller->Spec->EnableIntermediateOutputRecalculation;
         }
 
-        virtual TNullable<EScheduleJobFailReason> GetScheduleFailReason(
-            ISchedulingContext* context,
-            const TJobResources& /*jobLimits*/) override
+        virtual TNullable<EScheduleJobFailReason> GetScheduleFailReason(ISchedulingContext* context) override
         {
             if (!Controller->Spec->EnablePartitionedDataBalancing ||
                 Controller->TotalEstimatedInputDataWeight < Controller->Spec->MinLocalityInputDataWeight)

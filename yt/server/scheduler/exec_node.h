@@ -156,6 +156,7 @@ struct TExecNodeDescriptor
         const TString& address,
         double ioWeight,
         const TJobResources& resourceLimits,
+        i64 maxDiskSpace,
         const THashSet<TString>& tags);
 
     bool CanSchedule(const TSchedulingTagFilter& filter) const;
@@ -164,6 +165,7 @@ struct TExecNodeDescriptor
     TString Address;
     double IOWeight = 0.0;
     TJobResources ResourceLimits;
+    i64 MaxDiskSpace = 0;
     THashSet<TString> Tags;
 
     void Persist(const TStreamPersistenceContext& context);

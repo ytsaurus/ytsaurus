@@ -48,7 +48,7 @@ struct TScheduleJobRequest
 {
     TOperationId OperationId;
     TJobId JobId;
-    NScheduler::TJobResourcesWithQuota JobResourceLimits;
+    TJobResources JobResourceLimits;
     TString TreeId;
     NNodeTrackerClient::TNodeId NodeId;
     TJobResources NodeResourceLimits;

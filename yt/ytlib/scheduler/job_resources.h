@@ -187,6 +187,7 @@ bool operator == (const TJobResources& lhs, const TJobResources& rhs);
 bool operator != (const TJobResources& lhs, const TJobResources& rhs);
 
 bool Dominates(const TJobResources& lhs, const TJobResources& rhs);
+bool Dominates(const TJobResourcesWithQuota& lhs, const TJobResourcesWithQuota& rhs);
 
 TJobResources Max(const TJobResources& lhs, const TJobResources& rhs);
 TJobResources Min(const TJobResources& lhs, const TJobResources& rhs);
@@ -200,6 +201,9 @@ const TJobResources& MinSpareNodeResources();
 bool CanSatisfyDiskRequest(
     const NNodeTrackerClient::NProto::TDiskResources& diskInfo,
     i64 diskRequest);
+
+i64 GetMaxAvailableDiskSpace(
+    const NNodeTrackerClient::NProto::TDiskResources& diskInfo);
 
 ////////////////////////////////////////////////////////////////////////////////
 
