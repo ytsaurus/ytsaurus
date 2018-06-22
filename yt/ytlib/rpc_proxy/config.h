@@ -24,6 +24,8 @@ public:
     std::vector<TString> Addresses;
     TDuration PingPeriod;
     TDuration ProxyListUpdatePeriod;
+    TDuration ProxyListRetryPeriod;
+    TDuration MaxProxyListRetryPeriod;
     int MaxProxyListUpdateAttempts;
     TDuration RpcTimeout;
     TDuration TimestampProviderUpdatePeriod;
