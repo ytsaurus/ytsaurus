@@ -77,14 +77,17 @@ message TPodAgentDebugStatus {
 
 //============================== SPEC ==========================
 message TComputeResources {
-    uint64 VcpuGuarantee = 2;
-    uint64 VcpuLimit = 3;
+    // Ограничения по CPU, в процентах ядра: 50 - пол-ядра, 400 - 4 ядра
+    uint64 CpuGuarantee = 2;
+    uint64 CpuLimit = 3;
+
+    // Ограничения по памяти, в байтах
     uint64 MemoryGuarantee = 4;
     uint64 MemoryLimit = 5;
     uint64 AnonymousMemoryLimit = 6;
 
-    // Свойства porto-контейнеров хуков, задаваемые непосредственно.
-    // Описание формата https://wiki.yandex-team.ru/iss3/specifications/configuration/container/
+    // Свойства porto-контейнеров, задаваемые непосредственно.
+    // Список доступных свойств смотри так: `portoctl --help`
     map<string, string> Properties = 1;
 }
 
@@ -167,8 +170,8 @@ message TFileStorage {
 }
 
 message TGenericVolume {
-    // Сейчас определено только свойство bind
-    // https://wiki.yandex-team.ru/iss3/specifications/configuration/instance/volumes/#polzovatelskijjbind
+    // Свойства porto volumes, задаваемые непосредственно.
+    // Список доступных свойств смотри так: `portoctl --help`
     map<string, string> Properties = 3;
 
     // Слои, из которых собирается volume
@@ -338,7 +341,7 @@ message TBoxStatus {
 
     EBoxState State = 2;
 
-    repeated TUtilityContainer Inits = 3;
+    repeated TContainerStatus Inits = 3;
 
     //Нужно понять удобно ли так
     repeated string VolumeRefs = 4;
