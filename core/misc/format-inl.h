@@ -47,22 +47,22 @@ inline void FormatValue(TStringBuilder* builder, TStringBuf value, TStringBuf fo
 
     // Parse alignment.
     bool alignLeft = false;
-    const char* current = format.begin();
-    if (*current == '-') {
+    const char* current1 = format.begin();
+    if (*current1 == '-') {
         alignLeft = true;
-        ++current;
+        ++current1;
     }
 
     bool hasAlign = false;
     int alignSize = 0;
-    while (*current >= '0' && *current <= '9') {
+    while (*current1 >= '0' && *current1 <= '9') {
         hasAlign = true;
-        alignSize = 10 * alignSize + (*current - '0');
+        alignSize = 10 * alignSize + (*current1 - '0');
         if (alignSize > 1000000) {
             builder->AppendString(AsStringBuf("<alignment overflow>"));
             return;
         }
-        ++current;
+        ++current1;
     }
 
     int padding = 0;
@@ -79,13 +79,13 @@ inline void FormatValue(TStringBuilder* builder, TStringBuf value, TStringBuf fo
 
     bool singleQuotes = false;
     bool doubleQuotes = false;
-    while (current < format.end()) {
-        if (*current == 'q') {
+    while (current1 < format.end()) {
+        if (*current1 == 'q') {
             singleQuotes = true;
-        } else if (*current == 'Q') {
+        } else if (*current1 == 'Q') {
             doubleQuotes = true;
         }
-        ++current;
+        ++current1;
     }
 
     if (padLeft) {
@@ -93,17 +93,17 @@ inline void FormatValue(TStringBuilder* builder, TStringBuf value, TStringBuf fo
     }
 
     if (singleQuotes || doubleQuotes) {
-        for (const char* current = value.begin(); current < value.end(); ++current) {
-            char ch = *current;
+        for (const char* current2 = value.begin(); current2 < value.end(); ++current2) {
+            char ch = *current2;
             if (!std::isprint(ch) && !std::isspace(ch)) {
                 builder->AppendString("\\x");
                 builder->AppendChar(Int2Hex[static_cast<ui8>(ch) >> 4]);
                 builder->AppendChar(Int2Hex[static_cast<ui8>(ch) & 0xf]);
-            } else if ((singleQuotes && *current == '\'') || (doubleQuotes && *current == '\"')) {
+            } else if ((singleQuotes && *current2 == '\'') || (doubleQuotes && *current2 == '\"')) {
                 builder->AppendChar('\\');
-                builder->AppendChar(*current);
+                builder->AppendChar(*current2);
             } else {
-                builder->AppendChar(*current);
+                builder->AppendChar(*current2);
             }
         }
     } else {
