@@ -5458,7 +5458,7 @@ TString TOperationControllerBase::GetLoggingProgress() const
 
 bool TOperationControllerBase::IsJobInterruptible() const
 {
-    return Spec_->AutoMerge->Mode == EAutoMergeMode::Disabled;
+    return true;
 }
 
 void TOperationControllerBase::ExtractInterruptDescriptor(TCompletedJobSummary& jobSummary) const
