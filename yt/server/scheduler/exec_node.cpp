@@ -37,11 +37,13 @@ bool TExecNode::CanSchedule(const TSchedulingTagFilter& filter) const
 TExecNodeDescriptor TExecNode::BuildExecDescriptor() const
 {
     TReaderGuard guard(SpinLock_);
+
     return TExecNodeDescriptor{
         Id_,
         GetDefaultAddress(),
         IOWeight_,
         ResourceLimits_,
+        GetMaxAvailableDiskSpace(DiskInfo_),
         Tags_
     };
 }
@@ -99,11 +101,13 @@ TExecNodeDescriptor::TExecNodeDescriptor(
     const TString& address,
     double ioWeight,
     const TJobResources& resourceLimits,
+    i64 maxDiskSpace,
     const THashSet<TString>& tags)
     : Id(id)
     , Address(address)
     , IOWeight(ioWeight)
     , ResourceLimits(resourceLimits)
+    , MaxDiskSpace(maxDiskSpace)
     , Tags(tags)
 { }
 

@@ -8,8 +8,6 @@ import __builtin__
 
 from time import sleep
 
-from yt.environment.helpers import assert_items_equal
-
 ################################################################################
 
 class TestMedia(YTEnvSetup):

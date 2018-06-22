@@ -418,6 +418,15 @@ bool Dominates(const TJobResources& lhs, const TJobResources& rhs)
     true;
 }
 
+bool Dominates(const TJobResourcesWithQuota& lhs, const TJobResourcesWithQuota& rhs)
+{
+    return
+    #define XX(name, Name) lhs.Get##Name() >= rhs.Get##Name() &&
+        ITERATE_JOB_RESOURCES(XX)
+    #undef XX
+    lhs.GetDiskQuota() >= rhs.GetDiskQuota();
+}
+
 TJobResources Max(const TJobResources& lhs, const TJobResources& rhs)
 {
     TJobResources result;
@@ -487,6 +496,16 @@ bool CanSatisfyDiskRequest(
         ++it;
     }
     return false;
+}
+
+i64 GetMaxAvailableDiskSpace(
+    const NNodeTrackerClient::NProto::TDiskResources& diskInfo)
+{
+    i64 result = 0;
+    for (const auto& diskReport : diskInfo.disk_reports()) {
+        result = std::max(result, diskReport.limit() - diskReport.usage());
+    }
+    return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
