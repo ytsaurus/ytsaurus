@@ -150,12 +150,12 @@ private:
         (context).Dumper().Write(__VA_ARGS__)
 
 #define SERIALIZATION_DUMP_INDENT(context) \
-    if (auto Y_GENERATE_UNIQUE_ID(SERIALIZATION_DUMP_INDENT__Guard) = NYT::TSerializeDumpIndentGuard(&(context).Dumper())) \
+    if (auto SERIALIZATION_DUMP_INDENT__Guard = NYT::TSerializeDumpIndentGuard(&(context).Dumper())) \
         { Y_UNREACHABLE(); } \
     else
 
 #define SERIALIZATION_DUMP_SUSPEND(context) \
-    if (auto Y_GENERATE_UNIQUE_ID(SERIALIZATION_DUMP_SUSPEND__Guard) = NYT::TSerializeDumpSuspendGuard(&(context).Dumper())) \
+    if (auto SERIALIZATION_DUMP_SUSPEND__Guard = NYT::TSerializeDumpSuspendGuard(&(context).Dumper())) \
         { Y_UNREACHABLE(); } \
     else
 
