@@ -175,6 +175,16 @@ TRichYPath TClientBase::CanonizeYPath(const TRichYPath& path)
     return CanonizePath(Auth_, path);
 }
 
+TTableColumnarStatistics TClientBase::GetTableColumnarStatistics(const TRichYPath& path)
+{
+    THttpHeader header("GET", "get_table_columnar_statistics");
+    header.MergeParameters(NDetail::SerializeParamsForGetTableColumnarStatistics(TransactionId_, path));
+    auto response = NodeFromYsonString(RetryRequest(Auth_, header));
+    TTableColumnarStatistics result;
+    Deserialize(result, response);
+    return result;
+}
+
 IFileReaderPtr TClientBase::CreateBlobTableReader(
     const TYPath& path,
     const TKey& key,

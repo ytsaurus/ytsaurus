@@ -349,4 +349,28 @@ Y_UNIT_TEST_SUITE(CypressClient) {
             UNIT_ASSERT_NO_EXCEPTION(client->Set("//testing/table/@my_attr", -43));
         }
     }
+
+    // Y_UNIT_TEST(TestGetColumnarStatistics)
+    // TODO: enable after github <-> arcadia sync
+    void TestGetColumnarStatistics()
+    {
+        auto client = CreateTestClient();
+        auto tx = client->StartTransaction();
+        {
+            auto writer = tx->CreateTableWriter<TNode>("//tmp/table");
+            writer->AddRow(TNode()("foo", 1)("bar", "baz"));
+            writer->AddRow(TNode()("foo", 2)("bar", "qux"));
+            writer->Finish();
+        }
+
+        auto statistics = tx->GetTableColumnarStatistics(TRichYPath("//testing/table").Columns({"bar", "foo"}));
+
+        UNIT_ASSERT_VALUES_EQUAL(statistics.ColumnDataWeight.size(), 2);
+        UNIT_ASSERT(statistics.ColumnDataWeight.at("foo") > 0);
+        UNIT_ASSERT(statistics.ColumnDataWeight.at("bar") > 0);
+
+        UNIT_ASSERT_EXCEPTION(
+            client->GetTableColumnarStatistics(TRichYPath("//testing/table").Columns({"bar", "foo"})),
+            TErrorResponse);
+    }
 }

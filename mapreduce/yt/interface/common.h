@@ -285,6 +285,23 @@ struct TRichYPath
     { }
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
+// Statistics about table columns.
+struct TTableColumnarStatistics
+{
+    // Total data weight for all chunks for each of requested columns.
+    THashMap<TString, i64> ColumnDataWeight;
+
+    // Total weight of all old chunks that don't keep columnar statitics.
+    i64 LegacyChunksDataWeight = 0;
+
+    // Timestamps total weight (only for dynamic tables).
+    TMaybe<i64> TimestampTotalWeight;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TAttributeFilter
 {
     using TSelf = TAttributeFilter;

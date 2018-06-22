@@ -192,6 +192,21 @@ public:
 
 ////////////////////////////////////////////////////////////////////
 
+class TTableColumnarStatisticsParser
+    : public TResponseParserBase<TTableColumnarStatistics>
+{
+public:
+    virtual void SetResponse(TMaybe<TNode> node) override
+    {
+        EnsureType(node, TNode::Map);
+        TTableColumnarStatistics statistics;
+        Deserialize(statistics, *node);
+        Result.SetValue(std::move(statistics));
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 TRawBatchRequest::TBatchItem::TBatchItem(TNode parameters, ::TIntrusivePtr<IResponseItemParser> responseParser)
     : Parameters(std::move(parameters))
     , ResponseParser(std::move(responseParser))
@@ -389,6 +404,14 @@ TFuture<TRichYPath> TRawBatchRequest::CanonizeYPath(const TRichYPath& path)
         result.Path_ = AddPathPrefix(result.Path_);
         return NThreading::MakeFuture(result);
     }
+}
+
+TFuture<TTableColumnarStatistics> TRawBatchRequest::GetTableColumnarStatistics(const TTransactionId& transaction, const TRichYPath& path)
+{
+    return AddRequest<TTableColumnarStatisticsParser>(
+        "get_table_columnar_statistics",
+        SerializeParamsForGetTableColumnarStatistics(transaction, path),
+        Nothing());
 }
 
 void TRawBatchRequest::FillParameterList(size_t maxSize, TNode* result, TInstant* nextTry) const

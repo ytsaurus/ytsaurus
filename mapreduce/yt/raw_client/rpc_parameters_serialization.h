@@ -67,8 +67,7 @@ TNode SerializeParamsForGetOperation(
     const TGetOperationOptions& options);
 
 TNode SerializeParamsForListJobs(
-    const TOperationId& operationId,
-    const TListJobsOptions& options);
+    const TOperationId& operationId, const TListJobsOptions& options);
 
 TNode SerializeParametersForInsertRows(
     const TYPath& path,
@@ -90,6 +89,10 @@ TNode SerializeParamsForAlterTable(
     const TTransactionId& transactionId,
     const TYPath& path,
     const TAlterTableOptions& options);
+
+TNode SerializeParamsForGetTableColumnarStatistics(
+    const TTransactionId& transactionId,
+    const TRichYPath& path);
 
 ////////////////////////////////////////////////////////////////////
 

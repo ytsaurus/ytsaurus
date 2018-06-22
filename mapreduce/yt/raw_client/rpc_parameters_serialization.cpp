@@ -359,5 +359,15 @@ TNode SerializeParamsForAlterTable(
     return result;
 }
 
+TNode SerializeParamsForGetTableColumnarStatistics(
+    const TTransactionId& transactionId,
+    const TRichYPath& path)
+{
+    TNode result;
+    SetTransactionIdParam(&result, transactionId);
+    result["path"] = PathToNode(path);
+    return result;
+}
+
 } // namespace NDetail
 } // namespace NYT
