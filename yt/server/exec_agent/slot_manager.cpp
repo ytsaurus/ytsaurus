@@ -42,7 +42,7 @@ void TSlotManager::Initialize()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    LOG_INFO("Initializing %v exec slots", SlotCount_);
+    LOG_INFO("Initializing exec slots (Count: %v)", SlotCount_);
 
     for (int slotIndex = 0; slotIndex < SlotCount_; ++slotIndex) {
         FreeSlots_.insert(slotIndex);
@@ -83,7 +83,7 @@ void TSlotManager::Initialize()
 
     // Then clean all the sandboxes.
     auto environmentConfig = NYTree::ConvertTo<TJobEnvironmentConfigPtr>(Config_->JobEnvironment);
-    for (auto& location : AliveLocations_) {
+    for (const auto& location : AliveLocations_) {
         try {
             for (int slotIndex = 0; slotIndex < SlotCount_; ++slotIndex) {
                 WaitFor(location->CleanSandboxes(slotIndex))
