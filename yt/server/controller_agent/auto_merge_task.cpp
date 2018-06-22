@@ -143,7 +143,7 @@ EJobType TAutoMergeTask::GetJobType() const
     return EJobType::UnorderedMerge;
 }
 
-TNullable<EScheduleJobFailReason> TAutoMergeTask::GetScheduleFailReason(ISchedulingContext* /* context */, const TJobResources& /* jobLimits */)
+TNullable<EScheduleJobFailReason> TAutoMergeTask::GetScheduleFailReason(ISchedulingContext* /* context */)
 {
     return MakeNullable(!CanScheduleJob_, EScheduleJobFailReason::TaskRefusal);
 }

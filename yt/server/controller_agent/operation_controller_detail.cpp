@@ -96,7 +96,7 @@ using namespace NFormats;
 using namespace NJobProxy;
 using namespace NJobTrackerClient;
 using namespace NNodeTrackerClient;
-using namespace NScheduler::NProto;
+//using namespace NScheduler::NProto;
 using namespace NJobTrackerClient::NProto;
 using namespace NCoreDump::NProto;
 using namespace NConcurrency;
@@ -115,6 +115,8 @@ using NProfiling::TCpuInstant;
 using NTableClient::NProto::TBoundaryKeysExt;
 using NTableClient::TTableReaderOptions;
 using NScheduler::TExecNodeDescriptor;
+using NScheduler::NProto::TSchedulerJobResultExt;
+using NScheduler::NProto::TSchedulerJobSpecExt;
 
 using std::placeholders::_1;
 
@@ -3032,7 +3034,8 @@ void TOperationControllerBase::UpdateCachedMaxAvailableExecNodeResources()
 
     TJobResources maxAvailableResources;
     for (const auto& pair : nodeDescriptors) {
-        maxAvailableResources = Max(maxAvailableResources, pair.second.ResourceLimits);
+        const auto& descriptor = pair.second;
+        maxAvailableResources = Max(maxAvailableResources, descriptor.ResourceLimits);
     }
 
     CachedMaxAvailableExecNodeResources_ = maxAvailableResources;
@@ -3051,12 +3054,12 @@ void TOperationControllerBase::CheckMinNeededResourcesSanity()
             continue;
         }
 
-        const auto& neededResources = task->GetMinNeededResources().ToJobResources();
-        if (!Dominates(*CachedMaxAvailableExecNodeResources_, neededResources)) {
+        const auto& neededResources = task->GetMinNeededResources();
+        if (!Dominates(*CachedMaxAvailableExecNodeResources_, neededResources.ToJobResources())) {
             OnOperationFailed(
                 TError("No online node can satisfy the resource demand")
                     << TErrorAttribute("task_id", task->GetTitle())
-                    << TErrorAttribute("needed_resources", neededResources)
+                    << TErrorAttribute("needed_resources", neededResources.ToJobResources())
                     << TErrorAttribute("max_available_resources", *CachedMaxAvailableExecNodeResources_));
         }
     }
@@ -3064,7 +3067,7 @@ void TOperationControllerBase::CheckMinNeededResourcesSanity()
 
 TScheduleJobResultPtr TOperationControllerBase::SafeScheduleJob(
     ISchedulingContext* context,
-    const NScheduler::TJobResourcesWithQuota& jobLimits,
+    const TJobResourcesWithQuota& jobLimits,
     const TString& treeId)
 {
     if (Spec_->TestingOperationOptions->SchedulingDelay) {
@@ -3265,10 +3268,10 @@ void TOperationControllerBase::ResetTaskLocalityDelays()
 
 bool TOperationControllerBase::CheckJobLimits(
     TTaskPtr task,
-    const TJobResources& jobLimits,
-    const TJobResources& nodeResourceLimits)
+    const TJobResourcesWithQuota& jobLimits,
+    const TJobResourcesWithQuota& nodeResourceLimits)
 {
-    auto neededResources = task->GetMinNeededResources().ToJobResources();
+    auto neededResources = task->GetMinNeededResources();
     if (Dominates(jobLimits, neededResources)) {
         return true;
     }
@@ -3278,7 +3281,7 @@ bool TOperationControllerBase::CheckJobLimits(
 
 void TOperationControllerBase::DoScheduleJob(
     ISchedulingContext* context,
-    const NScheduler::TJobResourcesWithQuota& jobLimits,
+    const TJobResourcesWithQuota& jobLimits,
     const TString& treeId,
     TScheduleJobResult* scheduleJobResult)
 {
@@ -3291,20 +3294,16 @@ void TOperationControllerBase::DoScheduleJob(
         LOG_TRACE("No pending jobs left, scheduling request ignored");
         scheduleJobResult->RecordFail(EScheduleJobFailReason::NoPendingJobs);
     } else {
-        if (!CanSatisfyDiskRequest(context->DiskInfo(), jobLimits.GetDiskQuota())) {
-            scheduleJobResult->RecordFail(EScheduleJobFailReason::NotEnoughResources);
-            return;
-        }
-        DoScheduleLocalJob(context, jobLimits.ToJobResources(), treeId, scheduleJobResult);
+        DoScheduleLocalJob(context, jobLimits, treeId, scheduleJobResult);
         if (!scheduleJobResult->StartDescriptor) {
-            DoScheduleNonLocalJob(context, jobLimits.ToJobResources(), treeId, scheduleJobResult);
+            DoScheduleNonLocalJob(context, jobLimits, treeId, scheduleJobResult);
         }
     }
 }
 
 void TOperationControllerBase::DoScheduleLocalJob(
     ISchedulingContext* context,
-    const TJobResources& jobLimits,
+    const TJobResourcesWithQuota& jobLimits,
     const TString& treeId,
     TScheduleJobResult* scheduleJobResult)
 {
@@ -3316,7 +3315,8 @@ void TOperationControllerBase::DoScheduleLocalJob(
         if (scheduleJobResult->IsScheduleStopNeeded()) {
             return;
         }
-        if (!Dominates(jobLimits, group->MinNeededResources)) {
+        if (!Dominates(jobLimits, group->MinNeededResources))
+        {
             scheduleJobResult->RecordFail(EScheduleJobFailReason::NotEnoughResources);
             continue;
         }
@@ -3403,7 +3403,7 @@ void TOperationControllerBase::DoScheduleLocalJob(
 
 void TOperationControllerBase::DoScheduleNonLocalJob(
     ISchedulingContext* context,
-    const TJobResources& jobLimits,
+    const TJobResourcesWithQuota& jobLimits,
     const TString& treeId,
     TScheduleJobResult* scheduleJobResult)
 {
@@ -3415,7 +3415,8 @@ void TOperationControllerBase::DoScheduleNonLocalJob(
         if (scheduleJobResult->IsScheduleStopNeeded()) {
             return;
         }
-        if (!Dominates(jobLimits, group->MinNeededResources)) {
+        if (!Dominates(jobLimits, group->MinNeededResources))
+        {
             scheduleJobResult->RecordFail(EScheduleJobFailReason::NotEnoughResources);
             continue;
         }
@@ -3645,7 +3646,7 @@ void TOperationControllerBase::UpdateMinNeededJobResources()
     CancelableInvoker->Invoke(BIND([=, this_ = MakeStrong(this)] {
         VERIFY_INVOKER_AFFINITY(CancelableInvoker);
 
-        THashMap<EJobType, NScheduler::TJobResourcesWithQuota> minNeededJobResources;
+        THashMap<EJobType, TJobResourcesWithQuota> minNeededJobResources;
 
         for (const auto& task : Tasks) {
             if (task->GetPendingJobCount() == 0) {
@@ -5147,8 +5148,7 @@ void TOperationControllerBase::ParseInputQuery(
     InputQuery->ExternalCGInfo = std::move(externalCGInfo);
 }
 
-void TOperationControllerBase::WriteInputQueryToJobSpec(
-    NScheduler::NProto::TSchedulerJobSpecExt* schedulerJobSpecExt)
+void TOperationControllerBase::WriteInputQueryToJobSpec(TSchedulerJobSpecExt* schedulerJobSpecExt)
 {
     auto* querySpec = schedulerJobSpecExt->mutable_input_query_spec();
     ToProto(querySpec->mutable_query(), InputQuery->Query);
@@ -5759,7 +5759,7 @@ void TOperationControllerBase::RegisterTeleportChunk(
         YCHECK(chunkSpec->GetRowCount() > 0);
         YCHECK(chunkSpec->GetUniqueKeys() || !table.Options->ValidateUniqueKeys);
 
-        TOutputResult resultBoundaryKeys;
+        NScheduler::NProto::TOutputResult resultBoundaryKeys;
         resultBoundaryKeys.set_empty(false);
         resultBoundaryKeys.set_sorted(true);
         resultBoundaryKeys.set_unique_keys(chunkSpec->GetUniqueKeys());
@@ -5924,7 +5924,7 @@ void TOperationControllerBase::Dispose()
     ReleaseJobs(jobIdsToRelease);
 }
 
-NScheduler::TOperationJobMetrics TOperationControllerBase::PullJobMetricsDelta()
+TOperationJobMetrics TOperationControllerBase::PullJobMetricsDelta()
 {
     TGuard<TSpinLock> guard(JobMetricsDeltaPerTreeLock_);
 
@@ -5933,13 +5933,13 @@ NScheduler::TOperationJobMetrics TOperationControllerBase::PullJobMetricsDelta()
         return {};
     }
 
-    NScheduler::TOperationJobMetrics result;
+    TOperationJobMetrics result;
     for (auto& pair : JobMetricsDeltaPerTree_) {
         const auto& treeId = pair.first;
         auto& delta = pair.second;
         if (!delta.IsEmpty()) {
             result.push_back({treeId, delta});
-            delta = NScheduler::TJobMetrics();
+            delta = TJobMetrics();
         }
     }
     LastJobMetricsDeltaReportTime_ = now;

@@ -463,8 +463,8 @@ protected:
 
     bool CheckJobLimits(
         TTaskPtr task,
-        const TJobResources& jobLimits,
-        const TJobResources& nodeResourceLimits);
+        const TJobResourcesWithQuota& jobLimits,
+        const TJobResourcesWithQuota& nodeResourceLimits);
 
     void CheckTimeLimit();
 
@@ -496,13 +496,13 @@ protected:
 
     void DoScheduleLocalJob(
         ISchedulingContext* context,
-        const TJobResources& jobLimits,
+        const NScheduler::TJobResourcesWithQuota& jobLimits,
         const TString& treeId,
         TScheduleJobResult* scheduleJobResult);
 
     void DoScheduleNonLocalJob(
         ISchedulingContext* context,
-        const TJobResources& jobLimits,
+        const NScheduler::TJobResourcesWithQuota& jobLimits,
         const TString& treeId,
         TScheduleJobResult* scheduleJobResult);
 

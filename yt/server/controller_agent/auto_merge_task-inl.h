@@ -27,7 +27,7 @@ public:
         }
     }
 
-    virtual TNullable<EScheduleJobFailReason> GetScheduleFailReason(ISchedulingContext* context, const TJobResources& jobLimits) override
+    virtual TNullable<EScheduleJobFailReason> GetScheduleFailReason(ISchedulingContext* context) override
     {
         return MakeNullable(!CanScheduleJob_, EScheduleJobFailReason::TaskRefusal);
     }
