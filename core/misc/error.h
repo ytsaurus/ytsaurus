@@ -167,13 +167,13 @@ NYson::TYsonString ConvertToYsonString(TStringBuf value);
 struct TErrorAttribute
 {
     template <class T>
-    TErrorAttribute(const TString& theKey, const T& value)
-        : Key(theKey)
+    TErrorAttribute(const TString& key, const T& value)
+        : Key(key)
         , Value(NYTree::ConvertToYsonString(value))
     { }
 
-    TErrorAttribute(const TString& theKey, const NYson::TYsonString& value)
-        : Key(theKey)
+    TErrorAttribute(const TString& key, const NYson::TYsonString& value)
+        : Key(key)
         , Value(value)
     { }
 
