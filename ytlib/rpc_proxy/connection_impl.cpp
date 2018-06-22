@@ -24,6 +24,8 @@
 #include <yt/core/rpc/bus/channel.h>
 #include <yt/core/rpc/roaming_channel.h>
 
+#include <yt/core/ytree/fluent.h>
+
 namespace NYT {
 namespace NRpcProxy {
 
@@ -43,22 +45,49 @@ using namespace NConcurrency;
 std::vector<TString> GetProxyListFromHttp(
     const NHttp::TClientConfigPtr& config,
     const TString& proxyUrl,
-    const TString& oauthToken)
+    const TString& oauthToken,
+    bool useCypress,
+    const TNullable<TString>& role)
 {
     auto client = CreateClient(config, TTcpDispatcher::Get()->GetXferPoller());
     auto headers = New<THeaders>();
     headers->Add("Authorization", "OAuth " + oauthToken);
     headers->Add("X-YT-Header-Format", "<format=text>yson");
-    headers->Add("X-YT-Parameters", "{path=\"//sys/rpc_proxies\"; output_format=<format=text>yson; read_from=cache}");
 
-    auto rsp = WaitFor(client->Get(proxyUrl + "/api/v3/list", headers))
+    if (useCypress) {
+        headers->Add("X-YT-Parameters", "{path=\"//sys/rpc_proxies\"; output_format=<format=text>yson; read_from=cache}");
+    } else {
+        headers->Add("X-YT-Parameters", BuildYsonStringFluently(EYsonFormat::Text)
+            .BeginMap()
+                .Item("output_format")
+                    .BeginAttributes()
+                        .Item("format").Value("text")
+                    .EndAttributes()
+                    .Value("yson")
+                .DoIf(role.HasValue(), [&] (auto fluent) {
+                    fluent.Item("role").Value(*role);
+                })
+            .EndMap().GetData());
+    }
+
+    auto path = proxyUrl;
+    if (useCypress) {
+        path += "/api/v3/list";
+    } else {
+        path += "/api/v4/discover_proxies";
+    }
+    auto rsp = WaitFor(client->Get(path, headers))
         .ValueOrThrow();
-    if (rsp->GetStatusCode() != EStatusCode::Ok) {
-        THROW_ERROR_EXCEPTION("Http proxy discovery failed with code %v",
-            static_cast<int>(rsp->GetStatusCode()))
+    if (rsp->GetStatusCode() != EStatusCode::OK) {
+        THROW_ERROR_EXCEPTION("HTTP proxy discovery failed with code %v", rsp->GetStatusCode())
             << ParseYTError(rsp);
     }
-    return ConvertTo<std::vector<TString>>(TYsonString{ToString(rsp->ReadBody())});
+
+    auto node = ConvertTo<INodePtr>(TYsonString{ToString(rsp->ReadBody())});
+    if (!useCypress) {
+        node = node->AsMap()->FindChild("proxies");
+    }
+    return ConvertTo<std::vector<TString>>(node);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -102,7 +131,13 @@ TConnection::TConnection(TConnectionConfigPtr config)
         BIND(&TConnection::OnProxyListUpdate, MakeWeak(this)),
         Config_->ProxyListUpdatePeriod))
 {
-    ResetAddresses();
+    if (Config_->Addresses.empty() && !Config_->ClusterUrl) {
+        THROW_ERROR_EXCEPTION("Either \"cluster_url\" or \"addresses\" must be specified");
+    }
+
+    DiscoveryPromise_ = NewPromise<std::vector<TString>>();
+    ChannelPool_->SetAddressList(DiscoveryPromise_.ToFuture());
+
     if (!Config_->Addresses.empty()) {
         UpdateProxyListExecutor_->Start();        
     }
@@ -202,6 +237,9 @@ std::vector<TString> TConnection::DiscoverProxiesByRpc(const IChannelPtr& channe
     TDiscoveryServiceProxy proxy(channel);
 
     auto req = proxy.DiscoverProxies();
+    if (Config_->ProxyRole) {
+        req->set_role(*Config_->ProxyRole);
+    }
     req->SetTimeout(Config_->RpcTimeout);
 
     auto rsp = WaitFor(req->Invoke())
@@ -220,73 +258,64 @@ std::vector<TString> TConnection::DiscoverProxiesByHttp(const TClientOptions& op
         return GetProxyListFromHttp(
             Config_->HttpClient,
             *Config_->ClusterUrl,
-            options.Token.Get({}));
+            options.Token.Get({}),
+            Config_->DiscoverProxiesFromCypress,
+            Config_->ProxyRole);
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error discovering proxies from HTTP")
             << TError(ex);
     }
 }
 
-void TConnection::ResetAddresses()
-{
-    if (!Config_->Addresses.empty()) {
-        LOG_INFO("Proxy address list reset (Addresses: %v)",
-            Config_->Addresses);
-        ChannelPool_->SetAddressList(MakeFuture(Config_->Addresses));
-    } else if (Config_->ClusterUrl) {
-        LOG_INFO("Fetching proxy address list from HTTP (ClusterUrl: %v)",
-            Config_->ClusterUrl);
-        HttpDiscoveryPromise_ = NewPromise<std::vector<TString>>();
-        ChannelPool_->SetAddressList(HttpDiscoveryPromise_.ToFuture());        
-    } else {
-        THROW_ERROR_EXCEPTION("Either \"cluster_url\" or \"addresses\" must be specified");
-    }
-}
-
 void TConnection::OnProxyListUpdate()
 {
-    try {
-        if (HttpDiscoveryPromise_ && !HttpDiscoveryPromise_.IsSet()) {
-            LOG_DEBUG("Updating proxy list from HTTP");
-            try {
+    auto backoff = Config_->ProxyListRetryPeriod;
+    for (int attempt = 0;; ++attempt) {
+        try {
+            std::vector<TString> proxies;
+            if (Config_->ClusterUrl) {
+                LOG_DEBUG("Updating proxy list from HTTP");
                 YCHECK(HttpCredentials_);
-                auto proxies = DiscoverProxiesByHttp(*HttpCredentials_);
-                if (proxies.empty()) {
-                    LOG_ERROR("Empty proxy list returned, skipping proxy list update");
-                    return;
+                proxies = DiscoverProxiesByHttp(*HttpCredentials_);
+            } else {
+                LOG_DEBUG("Updating proxy list from RPC");
+                if (!DiscoveryChannel_) {
+                    auto address = Config_->Addresses[RandomNumber(Config_->Addresses.size())];
+                    DiscoveryChannel_ = ChannelFactory_->CreateChannel(address);
                 }
 
-                HttpDiscoveryPromise_.Set(proxies);
-            } catch (const std::exception& ex) {
-                HttpDiscoveryPromise_.Set(TError(ex));
-                HttpDiscoveryPromise_ = NewPromise<std::vector<TString>>();
-                ChannelPool_->SetAddressList(HttpDiscoveryPromise_.ToFuture());
-                throw;
+                try {
+                    proxies = DiscoverProxiesByRpc(DiscoveryChannel_);
+                } catch (const std::exception& ) {
+                    DiscoveryChannel_.Reset();
+                    throw;
+                }
             }
-        } else {
-            LOG_DEBUG("Updating proxy list from RPC");
-            if (!DiscoveryChannel_) {
-                DiscoveryChannel_ = ChannelPool_->TryCreateChannel().ValueOrThrow();
-            }
-    
-            auto proxies = DiscoverProxiesByRpc(DiscoveryChannel_);
+
             if (proxies.empty()) {
-                LOG_ERROR("Empty proxy list returned, skipping proxy list update");
-                return;
+                THROW_ERROR_EXCEPTION("Proxy list is empty");
             }
 
-            ChannelPool_->SetAddressList(MakeFuture(proxies));
-        }
+            if (!DiscoveryPromise_.IsSet()) {
+                DiscoveryPromise_.Set(std::move(proxies));
+            } else {
+                ChannelPool_->SetAddressList(MakeFuture(std::move(proxies)));
+            }
 
-        ProxyListUpdatesFailedAttempts_ = 0;
-    } catch (const std::exception& ex) {
-        LOG_WARNING(ex, "Error updating proxy list");
-        DiscoveryChannel_.Reset();
-        ++ProxyListUpdatesFailedAttempts_;
-        if (ProxyListUpdatesFailedAttempts_ == Config_->MaxProxyListUpdateAttempts) {
-            ProxyListUpdatesFailedAttempts_ = 0;
-            ResetAddresses();
-        }
+            break;
+        } catch (const std::exception& ex) {
+            if (attempt > Config_->MaxProxyListUpdateAttempts && !DiscoveryPromise_.IsSet()) {
+                DiscoveryPromise_.Set(TError(ex));
+                DiscoveryPromise_ = NewPromise<std::vector<TString>>();
+                ChannelPool_->SetAddressList(DiscoveryPromise_.ToFuture());
+            }
+        
+            LOG_ERROR(ex, "Error updating proxy list (Attempt: %d, Backoff: %d)", attempt, backoff);
+            TDelayedExecutor::WaitForDuration(backoff);
+            if (backoff < Config_->MaxProxyListRetryPeriod) {
+                backoff *= 1.2;
+            }
+        }        
     }
 }
 

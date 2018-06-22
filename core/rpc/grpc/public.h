@@ -21,6 +21,7 @@ extern const char* const RequestIdMetadataKey;
 extern const char* const UserMetadataKey;
 extern const char* const TokenMetadataKey;
 extern const char* const ErrorMetadataKey;
+extern const char* const MessageBodySizeMetadataKey;
 
 constexpr int GenericErrorStatusCode = 100;
 

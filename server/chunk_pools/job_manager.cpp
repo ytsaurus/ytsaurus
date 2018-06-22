@@ -365,10 +365,12 @@ void TJobManager::Aborted(IChunkPoolOutput::TCookie cookie, EAbortReason reason)
     Jobs_[cookie].SetState(EJobState::Pending);
 }
 
-void TJobManager::Lost(IChunkPoolOutput::TCookie /* cookie */)
+void TJobManager::Lost(IChunkPoolOutput::TCookie cookie)
 {
-    // TODO(max42): YT-6565 =)
-    Y_UNREACHABLE();
+    JobCounter_->Lost(1);
+    DataWeightCounter_->Lost(Jobs_[cookie].GetDataWeight());
+    RowCounter_->Lost(Jobs_[cookie].GetRowCount());
+    Jobs_[cookie].SetState(EJobState::Pending);
 }
 
 void TJobManager::Suspend(IChunkPoolInput::TCookie inputCookie)

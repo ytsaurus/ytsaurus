@@ -8,6 +8,7 @@ option java_multiple_files = true;
 
 message TReqDiscoverProxies
 {
+    optional string role = 1;
 }
 
 message TRspDiscoverProxies

@@ -248,6 +248,7 @@ protected:
                 JobSizeConstraints_ = CreateMergeJobSizeConstraints(
                     Spec,
                     Options,
+                    TotalEstimatedInputChunkCount,
                     PrimaryInputDataWeight,
                     DataWeightRatio,
                     InputCompressionRatio);
@@ -259,6 +260,7 @@ protected:
                     Options,
                     GetOutputTablePaths().size(),
                     DataWeightRatio,
+                    TotalEstimatedInputChunkCount,
                     PrimaryInputDataWeight,
                     TotalEstimatedInputRowCount);
                 break;

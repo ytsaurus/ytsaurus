@@ -120,5 +120,28 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(EProxyType,
+    ((Http) (1))
+    ((Rpc) (2))
+);
+
+struct TDiscoverProxiesOptions
+{ };
+
+class TDiscoverProxiesCommand
+    : public TTypedCommand<TDiscoverProxiesOptions>
+{
+public:
+    TDiscoverProxiesCommand();
+
+private:
+    EProxyType Type;
+    TNullable<TString> Role;
+
+    virtual void DoExecute(ICommandContextPtr context) override;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NDriver
 } // namespace NYT

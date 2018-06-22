@@ -860,17 +860,21 @@ void UpdateColumnarStatistics(TColumnarStatisticsExt& columnarStatisticsExt, con
     }
 }
 
-// We explicitly instantiate the template function below for two possible value types. This allows us to not
-// include it to the -inl.h file and to move the implementation to the cpp file reducing the compilation time.
-template void UpdateColumnarStatistics<TUnversionedValue>(
-    TColumnarStatisticsExt& columnarStatisticsExt,
-    const TRange<TUnversionedValue>& values);
-template void UpdateColumnarStatistics<TVersionedValue>(
-    TColumnarStatisticsExt& columnarStatisticsExt,
-    const TRange<TVersionedValue>& values);
+void UpdateColumnarStatistics(TColumnarStatisticsExt& columnarStatisticsExt, const TUnversionedRow& row)
+{
+    UpdateColumnarStatistics(columnarStatisticsExt, MakeRange(row.Begin(), row.End()));
+}
+
+void UpdateColumnarStatistics(TColumnarStatisticsExt& columnarStatisticsExt, const TVersionedRow& row)
+{
+    UpdateColumnarStatistics(columnarStatisticsExt, MakeRange(row.BeginKeys(), row.EndKeys()));
+    UpdateColumnarStatistics(columnarStatisticsExt, MakeRange(row.BeginValues(), row.EndValues()));
+    columnarStatisticsExt.set_timestamp_weight(
+        columnarStatisticsExt.timestamp_weight() +
+        (row.GetWriteTimestampCount() + row.GetDeleteTimestampCount()) * sizeof(TTimestamp));
+}
 
 ////////////////////////////////////////////////////////////////////////////////
-
 
 } // namespace NYT
 } // namespace NTableClient

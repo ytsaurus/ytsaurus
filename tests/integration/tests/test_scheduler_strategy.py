@@ -2142,6 +2142,7 @@ class TestSchedulingOptionsPerTree(YTEnvSetup):
                     tentative_job_count += 1
 
                     if tentative_job_count == TestSchedulingOptionsPerTree.TENTATIVE_TREE_ELIGIBILITY_SAMPLE_JOB_COUNT:
+                        time.sleep(0.5)
                         # Tentative tree should've been banned by now.
                         wait(lambda: not exists(op_pool_trees_path + "other"))
                         assert exists(op_pool_trees_path + "default") or operation_completed()

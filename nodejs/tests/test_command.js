@@ -432,6 +432,7 @@ describe("YtCommand - command descriptors", function() {
             'create',
             'delete_rows',
             'disable_table_replica',
+            'discover_proxies',
             'dump_job_context',
             'enable_table_replica',
             'execute_batch',

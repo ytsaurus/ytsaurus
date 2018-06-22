@@ -366,8 +366,7 @@ private:
         ++RowCount_;
         DataWeight_ += rowWeight;
 
-        UpdateColumnarStatistics(ColumnarStatisticsExt_, MakeRange(row.BeginKeys(), row.EndKeys()));
-        UpdateColumnarStatistics(ColumnarStatisticsExt_, MakeRange(row.BeginValues(), row.EndValues()));
+        UpdateColumnarStatistics(ColumnarStatisticsExt_, row);
 
         BlockWriter_->WriteRow(row, beginPreviousKey, endPreviousKey);
     }
@@ -543,8 +542,7 @@ private:
                         rows[rowIndex - 1].EndKeys());
                 }
 
-                UpdateColumnarStatistics(ColumnarStatisticsExt_, MakeRange(row.BeginKeys(), row.EndKeys()));
-                UpdateColumnarStatistics(ColumnarStatisticsExt_, MakeRange(row.BeginValues(), row.EndValues()));
+                UpdateColumnarStatistics(ColumnarStatisticsExt_, row);
 
                 weight += rowWeight;
             }

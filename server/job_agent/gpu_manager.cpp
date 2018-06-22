@@ -32,14 +32,12 @@ static const TString DevNvidia("/dev/nvidia");
 
 TNullable<int> GetDeviceNumber(const TString& deviceName)
 {
-    for (int i = DevNvidia.length(); i < deviceName.length(); ++i) {
-        if (deviceName[i] < '0' ||  deviceName[i] > '9') {
-            LOG_WARNING("Unexpected nvidia device name %Qv", deviceName);
-            return Null;
-        }
+    int deviceNumber;
+    if (TryFromString(deviceName.data() + DevNvidia.length(), deviceNumber)) {
+        return deviceNumber;
+    } else {
+        return Null;
     }
-
-    return FromString<int>(deviceName.substr(DevNvidia.length()));
 }
 
 TGpuManager::TGpuManager()
@@ -82,8 +80,7 @@ TGpuManager::TGpuManager()
     }
 
     if (foundMetaDeviceCount == GetMetaGpuDeviceNames().size()) {
-        GpuCount_ = FreeSlots_.size();
-        LOG_INFO("Found %v nvidia GPUs", GpuCount_);
+        LOG_INFO("Found %v nvidia GPUs", GpuDevices_.size());
     } else {
         FreeSlots_.clear();
         GpuDevices_.clear();
@@ -93,7 +90,7 @@ TGpuManager::TGpuManager()
 
 int TGpuManager::GetTotalGpuCount() const
 {
-    return GpuCount_;
+    return GpuDevices_.size();
 }
 
 int TGpuManager::GetFreeGpuCount() const
@@ -140,5 +137,5 @@ TString TGpuManager::GetDeviceName(int deviceNumber)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-}
-}
+} // namespace NJobAgent
+} // namespace NYT

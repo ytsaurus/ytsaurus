@@ -27,15 +27,15 @@ struct TColumnDescriptor
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(EExpressionKind,
-    (None)
-    (Literal)
-    (Reference)
-    (Function)
-    (UnaryOp)
-    (BinaryOp)
-    (In)
-    (Between)
-    (Transform)
+    ((None)       (0))
+    ((Literal)    (1))
+    ((Reference)  (2))
+    ((Function)   (3))
+    ((UnaryOp)    (4))
+    ((BinaryOp)   (5))
+    ((In)         (6))
+    ((Transform)  (7))
+    ((Between)    (8))
 );
 
 struct TExpression

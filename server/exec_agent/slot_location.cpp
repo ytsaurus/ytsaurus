@@ -131,6 +131,22 @@ TFuture<TNullable<TString>> TSlotLocation::CreateSandboxDirectories(int slotInde
             }
         }
 
+        // This tmp sandbox is a temporary workaround for nirvana. We apply the same quota as we do for usual sandbox.
+        if (options.DiskSpaceLimit ||  options.InodeLimit) {
+            auto tmpPath = GetSandboxPath(slotIndex, ESandboxKind::Tmp);
+            try {
+                auto properties = TJobDirectoryProperties{options.DiskSpaceLimit,  options.InodeLimit, userId};
+                WaitFor(JobDirectoryManager_->ApplyQuota(tmpPath, properties))
+                    .ThrowOnError();
+            } catch (const std::exception& ex) {
+                auto error = TError(EErrorCode::QuotaSettingFailed, "Failed to set FS quota for a job tmp directory")
+                    << TErrorAttribute("tmp_path", tmpPath)
+                    << ex;
+                Disable(error);
+                THROW_ERROR error;
+            }
+        }
+
         {
             TWriterGuard guard(SlotsLock_);
             YCHECK(OccupiedSlotToDiskLimit_.emplace(slotIndex, options.DiskSpaceLimit).second);

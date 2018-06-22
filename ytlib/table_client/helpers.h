@@ -155,9 +155,9 @@ std::vector<NChunkClient::TInputChunkPtr> CollectTableInputChunks(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! A helper for updating columnar statistics with a bunch of valuees (either versioned or unversioned).
-template <class TValue>
-void UpdateColumnarStatistics(NProto::TColumnarStatisticsExt& columnarStatisticsExt, const TRange<TValue>& values);
+//! Helpers for updating columnar statistics with versioned and unversioned rows.
+void UpdateColumnarStatistics(NProto::TColumnarStatisticsExt& columnarStatisticsExt, const TUnversionedRow& row);
+void UpdateColumnarStatistics(NProto::TColumnarStatisticsExt& columnarStatisticsExt, const TVersionedRow& row);
 
 ////////////////////////////////////////////////////////////////////////////////
 
