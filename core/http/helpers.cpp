@@ -39,15 +39,27 @@ void FillYTErrorHeaders(const IResponseWriterPtr& rsp, const TError& error)
 
 TError ParseYTError(const IResponsePtr& rsp)
 {
-    auto errorJson = rsp->GetHeaders()->Find("X-YT-Error");
-    if (!errorJson) {
-        return {};
+    TString errorJson;
+    TString source;
+    auto* errorJsonPtr = rsp->GetHeaders()->Find("X-YT-Error");
+    if (errorJsonPtr == nullptr) {
+        source = "header";
+        errorJson = *errorJsonPtr;
+    } else {
+        source = "body";
+        errorJson = ToString(rsp->ReadBody());
     }
 
-    TStringInput errorJsonInput(*errorJson);
+    TStringInput errorJsonInput(errorJson);
     std::unique_ptr<IBuildingYsonConsumer<TError>> buildingConsumer;
     CreateBuildingYsonConsumer(&buildingConsumer, EYsonType::Node);
-    ParseJson(&errorJsonInput, buildingConsumer.get());
+    try {
+        ParseJson(&errorJsonInput, buildingConsumer.get());
+    } catch (const TErrorException& ex) {
+        return TError("Failed to parse error from response")
+            << TErrorAttribute("source", source)
+            << ex;
+    }
     return buildingConsumer->Finish();
 }
 

@@ -249,10 +249,15 @@ void TSchedulerElement::UpdateAttributes()
         Attributes_.DominantLimit == 0 ? 1.0 : dominantDemand / Attributes_.DominantLimit;
 
     double possibleUsageRatio = Attributes_.DemandRatio;
-    if (GetResourceUsageRatio() <= TreeConfig_->ThresholdToEnableMaxPossibleUsageRegularization * Attributes_.DemandRatio) {
-        auto possibleUsage = usage + ComputePossibleResourceUsage(maxPossibleResourceUsage - usage);
-        possibleUsage = Min(possibleUsage, MaxPossibleResourceUsage_);
+    if (TreeConfig_->EnableNewPossibleResourceUsageComputation) {
+        auto possibleUsage = ComputePossibleResourceUsage(maxPossibleResourceUsage);
         possibleUsageRatio = GetDominantResourceUsage(possibleUsage, TotalResourceLimits_);
+    } else {
+        if (GetResourceUsageRatio() <= TreeConfig_->ThresholdToEnableMaxPossibleUsageRegularization * Attributes_.DemandRatio)
+        {
+            auto possibleUsage = usage + ComputePossibleResourceUsage(maxPossibleResourceUsage - usage);
+            possibleUsageRatio = GetDominantResourceUsage(possibleUsage, TotalResourceLimits_);
+        }
     }
 
     Attributes_.MaxPossibleUsageRatio = std::min(
@@ -585,13 +590,18 @@ void TCompositeSchedulerElement::UpdateTopDown(TDynamicAttributesList& dynamicAt
 
 TJobResources TCompositeSchedulerElement::ComputePossibleResourceUsage(TJobResources limit) const
 {
-    limit = Min(limit, MaxPossibleResourceUsage() - GetResourceUsage());
+    if (!TreeConfig_->EnableNewPossibleResourceUsageComputation) {
+        limit = Min(limit, MaxPossibleResourceUsage() - GetResourceUsage());
+    }
+
     auto additionalUsage = ZeroJobResources();
+
     for (const auto& child : EnabledChildren_) {
         auto childUsage = child->ComputePossibleResourceUsage(limit);
         limit -= childUsage;
         additionalUsage += childUsage;
     }
+
     return additionalUsage;
 }
 
@@ -938,10 +948,16 @@ void TCompositeSchedulerElement::ComputeByFitting(
     // Run binary search to compute fit factor.
     double fitFactor = BinarySearch(getSum, sum);
 
+    double resultSum = getSum(fitFactor);
+    double uncertantyRatio = 1.0;
+    if (resultSum > RatioComputationPrecision && std::abs(sum - resultSum) > RatioComputationPrecision) {
+        uncertantyRatio = sum / resultSum;
+    }
+
     // Compute actual min shares from fit factor.
     for (const auto& child : EnabledChildren_) {
         double value = getter(fitFactor, child);
-        setter(child, value);
+        setter(child, value, uncertantyRatio);
     }
 }
 
@@ -1037,7 +1053,6 @@ void TCompositeSchedulerElement::UpdateFairShare(TDynamicAttributesList& dynamic
         }
     }
 
-
     // Compute fair shares.
     ComputeByFitting(
         [&] (double fitFactor, const TSchedulerElementPtr& child) -> double {
@@ -1051,8 +1066,11 @@ void TCompositeSchedulerElement::UpdateFairShare(TDynamicAttributesList& dynamic
             result = std::min(result, childAttributes.BestAllocationRatio);
             return result;
         },
-        [&] (const TSchedulerElementPtr& child, double value) {
-            child->SetFairShareRatio(value);
+        [&] (const TSchedulerElementPtr& child, double value, double uncertantyRatio) {
+            if (IsRoot() && uncertantyRatio > 1.0) {
+                uncertantyRatio = 1.0;
+            }
+            child->SetFairShareRatio(value * uncertantyRatio);
         },
         Attributes_.FairShareRatio);
 
@@ -1066,9 +1084,9 @@ void TCompositeSchedulerElement::UpdateFairShare(TDynamicAttributesList& dynamic
             result = std::max(result, childAttributes.AdjustedMinShareRatio);
             return result;
         },
-        [&] (const TSchedulerElementPtr& child, double value) {
+        [&] (const TSchedulerElementPtr& child, double value, double uncertantyRatio) {
             auto& attributes = child->Attributes();
-            attributes.GuaranteedResourcesRatio = value;
+            attributes.GuaranteedResourcesRatio = value * uncertantyRatio;
         },
         Attributes_.GuaranteedResourcesRatio);
 
@@ -1392,7 +1410,7 @@ std::vector<EFifoSortParameter> TPool::GetFifoSortParameters() const
     return FifoSortParameters_;
 }
 
-bool TPool::AreImmediateOperationsFobidden() const
+bool TPool::AreImmediateOperationsForbidden() const
 {
     return Config_->ForbidImmediateOperations;
 }
@@ -1429,7 +1447,7 @@ TOperationElementFixedState::TOperationElementFixedState(
     : OperationId_(operation->GetId())
     , Schedulable_(operation->IsSchedulable())
     , Operation_(operation)
-    , ControllerConfig_(controllerConfig)
+    , ControllerConfig_(std::move(controllerConfig))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1637,7 +1655,7 @@ void TOperationElement::Disable()
     LOG_DEBUG("Operation element disabled in strategy (OperationId: %v)", OperationId_);
 
     auto delta = SharedState_->Disable();
-    IncreaseResourceUsage(-delta);
+    IncreaseLocalResourceUsage(-delta);
 }
 
 void TOperationElement::Enable()
@@ -1748,7 +1766,7 @@ const TOperationElementSharedState::TJobProperties* TOperationElementSharedState
 TOperationElement::TOperationElement(
     TFairShareStrategyTreeConfigPtr treeConfig,
     TStrategyOperationSpecPtr spec,
-    TOperationFairShareStrategyTreeOptionsPtr runtimeParams,
+    TOperationFairShareTreeRuntimeParametersPtr runtimeParams,
     TFairShareStrategyOperationControllerPtr controller,
     TFairShareStrategyOperationControllerConfigPtr controllerConfig,
     ISchedulerStrategyHost* host,
@@ -1829,13 +1847,28 @@ void TOperationElement::UpdateTopDown(TDynamicAttributesList& dynamicAttributesL
 TJobResources TOperationElement::ComputePossibleResourceUsage(TJobResources limit) const
 {
     auto usage = GetResourceUsage();
-    // Max possible resource usage can be less than usage just after scheduler connection
-    // when not all nodes come with heartbeat to the scheduler.
-    limit = Max(ZeroJobResources(), Min(limit, MaxPossibleResourceUsage() - usage));
-    if (usage == ZeroJobResources()) {
-        return limit;
+    if (TreeConfig_->EnableNewPossibleResourceUsageComputation) {
+        if (!Dominates(limit, usage)) {
+            return usage * GetMinResourceRatio(limit, usage);
+        } else {
+            auto remainingDemand = ResourceDemand() - usage;
+            if (remainingDemand == ZeroJobResources()) {
+                return usage;
+            }
+
+            auto remainingLimit = Max(ZeroJobResources(), limit - usage);
+            // TODO(asaitgalin): Move this to MaxPossibleResourceUsage computation.
+            return usage + remainingDemand * GetMinResourceRatio(remainingLimit, remainingDemand);
+        }
     } else {
-        return usage * GetMinResourceRatio(limit, usage);
+        // Max possible resource usage can be less than usage just after scheduler connection
+        // when not all nodes come with heartbeat to the scheduler.
+        limit = Max(ZeroJobResources(), Min(limit, MaxPossibleResourceUsage() - usage));
+        if (usage == ZeroJobResources()) {
+            return limit;
+        } else {
+            return usage * GetMinResourceRatio(limit, usage);
+        }
     }
 }
 
@@ -2012,7 +2045,7 @@ bool TOperationElement::IsAggressiveStarvationPreemptionAllowed() const
 
 double TOperationElement::GetWeight() const
 {
-    return RuntimeParams_->Weight;
+    return RuntimeParams_->Weight.Get(1.0);
 }
 
 double TOperationElement::GetMinShareRatio() const
@@ -2458,7 +2491,7 @@ std::vector<EFifoSortParameter> TRootElement::GetFifoSortParameters() const
     Y_UNREACHABLE();
 }
 
-bool TRootElement::AreImmediateOperationsFobidden() const
+bool TRootElement::AreImmediateOperationsForbidden() const
 {
     return TreeConfig_->ForbidImmediateOperationsInRoot;
 }

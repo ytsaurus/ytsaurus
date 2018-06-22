@@ -154,18 +154,16 @@ void TChunkReplicator::Start(TChunk* frontChunk, int chunkCount)
 
 void TChunkReplicator::Stop()
 {
-    const auto& nodeTracker = Bootstrap_->GetNodeTracker();
-    for (const auto& pair : nodeTracker->Nodes()) {
-        auto* node = pair.second;
-        node->Jobs().clear();
-    }
-
     const auto& chunkManager = Bootstrap_->GetChunkManager();
-    for (const auto& pair : JobMap_) {
-        const auto& job = pair.second;
-        auto* chunk = chunkManager->FindChunk(job->GetChunkIdWithIndexes().Id);
-        if (chunk) {
-            chunk->SetJob(nullptr);
+    const auto& nodeTracker = Bootstrap_->GetNodeTracker();
+    for (const auto& nodePair : nodeTracker->Nodes()) {
+        const auto* node = nodePair.second;
+        for (const auto& jobPair : node->IdToJob()) {
+            const auto& job = jobPair.second;
+            auto* chunk = chunkManager->FindChunk(job->GetChunkIdWithIndexes().Id);
+            if (chunk) {
+                chunk->SetJob(nullptr);
+            }
         }
     }
 
@@ -191,12 +189,6 @@ void TChunkReplicator::TouchChunk(TChunk* chunk)
         auto newRepairIt = chunkRepairQueue.insert(chunkRepairQueue.begin(), chunkWithIndexes);
         chunk->SetRepairQueueIterator(mediumIndex, newRepairIt);
     }
-}
-
-TJobPtr TChunkReplicator::FindJob(const TJobId& id)
-{
-    auto it = JobMap_.find(id);
-    return it == JobMap_.end() ? nullptr : it->second;
 }
 
 TPerMediumArray<EChunkStatus> TChunkReplicator::ComputeChunkStatuses(TChunk* chunk)
@@ -790,16 +782,18 @@ void TChunkReplicator::OnNodeRegistered(TNode* /*node*/)
 
 void TChunkReplicator::OnNodeUnregistered(TNode* node)
 {
-    for (const auto& job : node->Jobs()) {
+    auto idToJob = node->IdToJob();
+    for (const auto& pair : idToJob) {
+        const auto& job = pair.second;
         LOG_DEBUG("Job canceled (JobId: %v)", job->GetJobId());
-        UnregisterJob(job, EJobUnregisterFlags::ScheduleChunkRefresh);
+        UnregisterJob(job);
     }
     node->Reset();
 }
 
 void TChunkReplicator::OnNodeDisposed(TNode* node)
 {
-    YCHECK(node->Jobs().empty());
+    YCHECK(node->IdToJob().empty());
     YCHECK(node->ChunkSealQueue().empty());
     YCHECK(node->ChunkRemovalQueue().empty());
     for (const auto& queue : node->ChunkReplicationQueues()) {
@@ -934,7 +928,8 @@ void TChunkReplicator::ProcessExistingJobs(
     // Check for missing jobs
     THashSet<TJobPtr> currentJobSet(currentJobs.begin(), currentJobs.end());
     std::vector<TJobPtr> missingJobs;
-    for (const auto& job : node->Jobs()) {
+    for (const auto& pair : node->IdToJob()) {
+        const auto& job = pair.second;
         if (currentJobSet.find(job) == currentJobSet.end()) {
             missingJobs.push_back(job);
             LOG_WARNING("Job is missing (JobId: %v, Address: %v)",
@@ -1713,7 +1708,7 @@ void TChunkReplicator::CancelChunkJobs(TChunk* chunk)
     auto job = chunk->GetJob();
     if (job) {
         LOG_DEBUG("Job canceled (JobId: %v)", job->GetJobId());
-        UnregisterJob(job, EJobUnregisterFlags::UnregisterFromNode);
+        UnregisterJob(job);
     }
 }
 
@@ -2179,9 +2174,8 @@ TChunkList* TChunkReplicator::FollowParentLinks(TChunkList* chunkList)
 
 void TChunkReplicator::RegisterJob(const TJobPtr& job)
 {
-    YCHECK(JobMap_.insert(std::make_pair(job->GetJobId(), job)).second);
+    job->GetNode()->RegisterJob(job);
     UpdateJobCountGauge(job->GetType(), +1);
-    YCHECK(job->GetNode()->Jobs().insert(job).second);
 
     const auto& chunkManager = Bootstrap_->GetChunkManager();
     auto chunkId = job->GetChunkIdWithIndexes().Id;
@@ -2193,23 +2187,17 @@ void TChunkReplicator::RegisterJob(const TJobPtr& job)
     UpdateInterDCEdgeConsumption(job, job->GetNode()->GetDataCenter(), +1);
 }
 
-void TChunkReplicator::UnregisterJob(const TJobPtr& job, EJobUnregisterFlags flags)
+void TChunkReplicator::UnregisterJob(const TJobPtr& job)
 {
-    YCHECK(JobMap_.erase(job->GetJobId()) == 1);
+    job->GetNode()->UnregisterJob(job);
     UpdateJobCountGauge(job->GetType(), -1);
-
-    if (Any(flags & EJobUnregisterFlags::UnregisterFromNode)) {
-        YCHECK(job->GetNode()->Jobs().erase(job) == 1);
-    }
 
     const auto& chunkManager = Bootstrap_->GetChunkManager();
     auto chunkId = job->GetChunkIdWithIndexes().Id;
     auto* chunk = chunkManager->FindChunk(chunkId);
     if (chunk) {
         chunk->SetJob(nullptr);
-        if (Any(flags & EJobUnregisterFlags::ScheduleChunkRefresh)) {
-            ScheduleChunkRefresh(chunk);
-        }
+        ScheduleChunkRefresh(chunk);
     }
 
     UpdateInterDCEdgeConsumption(job, job->GetNode()->GetDataCenter(), -1);
@@ -2233,7 +2221,8 @@ void TChunkReplicator::HandleNodeDataCenterChange(TNode* node, TDataCenter* oldD
 {
     Y_ASSERT(node->GetDataCenter() != oldDataCenter);
 
-    for (const auto& job : node->Jobs()) {
+    for (const auto& pair : node->IdToJob()) {
+        const auto& job = pair.second;
         UpdateInterDCEdgeConsumption(job, oldDataCenter, -1);
         UpdateInterDCEdgeConsumption(job, node->GetDataCenter(), +1);
     }

@@ -23,10 +23,11 @@ using namespace NCellNode;
 TTabletAutomaton::TTabletAutomaton(
     TTabletSlotPtr slot,
     IInvokerPtr snapshotInvoker)
-    : TCompositeAutomaton(snapshotInvoker)
-{
-    Logger.AddTag("CellId: %v", slot->GetCellId());
-}
+    : TCompositeAutomaton(
+        snapshotInvoker,
+        slot->GetCellId(),
+        slot->GetProfilingTagIds())
+{ }
 
 std::unique_ptr<NHydra::TSaveContext> TTabletAutomaton::CreateSaveContext(
     ICheckpointableOutputStream* output)

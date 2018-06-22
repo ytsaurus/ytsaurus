@@ -229,7 +229,7 @@ private:
 
     void OnScanSlot(const TTabletSlotPtr& slot)
     {
-        const auto& tagIdList = slot->GetTagIdList();
+        const auto& tagIdList = slot->GetProfilingTagIds();
         PROFILE_TIMING("/scan_time", tagIdList) {
             OnScanSlotImpl(slot, tagIdList);
         }

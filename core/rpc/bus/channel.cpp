@@ -646,7 +646,7 @@ private:
                 busOptions.ChecksummedPartCount,
                 options.MultiplexingBand,
                 bus->GetEndpointDescription(),
-                GetTotalMesageAttachmentSize(requestMessage));
+                GetTotalMessageAttachmentSize(requestMessage));
         }
 
         void OnAcknowledgement(const TRequestId& requestId, const TError& error)
@@ -825,7 +825,7 @@ private:
                 GetMessageBodySize(requestMessage));
             Profiler.Increment(
                 MethodMetadata_->RequestMessageAttachmentSizeCounter,
-                GetTotalMesageAttachmentSize(requestMessage));
+                GetTotalMessageAttachmentSize(requestMessage));
         }
 
         void ProfileReply(const TSharedRefArray& responseMessage)
@@ -837,7 +837,7 @@ private:
                 GetMessageBodySize(responseMessage));
             Profiler.Increment(
                 MethodMetadata_->ResponseMessageAttachmentSizeCounter,
-                GetTotalMesageAttachmentSize(responseMessage));
+                GetTotalMessageAttachmentSize(responseMessage));
         }
 
         void ProfileAck()

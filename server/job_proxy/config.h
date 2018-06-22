@@ -36,6 +36,8 @@ public:
     TNullable<TString> TmpfsPath;
     std::vector<NExecAgent::TBindConfigPtr> Binds;
 
+    std::vector<TString> GpuDevices;
+
     //! Path for container root.
     TNullable<TString> RootPath;
 
@@ -72,6 +74,9 @@ public:
             .Default();
 
         RegisterParameter("binds", Binds)
+            .Default();
+
+        RegisterParameter("gpu_devices", GpuDevices)
             .Default();
 
         RegisterParameter("cluster_connection", ClusterConnection);

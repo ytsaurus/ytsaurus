@@ -44,13 +44,6 @@ DEFINE_ENUM(ERemoveReplicaReason,
     (NodeDisposed)
 );
 
-DEFINE_BIT_ENUM(EJobUnregisterFlags,
-    ((None)                  (0x0000))
-    ((UnregisterFromNode)    (0x0001))
-    ((ScheduleChunkRefresh)  (0x0002))
-    ((All)                   (0xffff))
-);
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NChunkServer

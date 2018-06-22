@@ -21,6 +21,7 @@ public:
 
     void Initialize();
     void OnAfterSnapshotLoaded();
+    void Clear();
 
     const THashSet<NNodeTrackerServer::TNode*>& GetBundleNodes(const TTabletCellBundle* bundle) const;
 

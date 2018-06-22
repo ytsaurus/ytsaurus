@@ -11,6 +11,8 @@
 
 #include <util/random/random.h>
 
+#include <util/system/compiler.h>
+
 namespace NYT {
 namespace {
 
@@ -219,6 +221,8 @@ void TestControllersInThreadPool()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+#ifndef _asan_enabled_
+
 TEST_P(TMemoryTagTest, Test)
 {
     // We wrap anything with an outer action queue to make
@@ -236,6 +240,8 @@ INSTANTIATE_TEST_CASE_P(MemoryTagTest, TMemoryTagTest, Values(
     &TestSwitchingFibers,
     &TestMemoryTaggingInvoker,
     &TestControllersInThreadPool));
+
+#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 

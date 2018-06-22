@@ -205,7 +205,6 @@ private:
     {
         return EpochContext_ && EpochContext_->LeaderId == CellManager_->GetSelfPeerId();
     }
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -231,12 +230,19 @@ public:
             Format("TabletSnap:%v", SlotIndex_)))
         , PeerId_(createInfo.peer_id())
         , CellDescriptor_(FromProto<TCellId>(createInfo.cell_id()))
-        , TagIdList_{
-            NProfiling::TProfileManager::Get()->RegisterTag("cell_id", CellDescriptor_.CellId),
-            NProfiling::TProfileManager::Get()->RegisterTag("peer_id", PeerId_)
+        , TabletCellBundle(createInfo.tablet_cell_bundle())
+        , ProfilingTagIds_{
+            NProfiling::TProfileManager::Get()->RegisterTag(
+                "cell_id",
+                CellDescriptor_.CellId),
+            NProfiling::TProfileManager::Get()->RegisterTag(
+                "peer_id",
+                PeerId_),
+            NProfiling::TProfileManager::Get()->RegisterTag(
+                "tablet_cell_bundle",
+                TabletCellBundle ? TabletCellBundle : UnknownProfilingTag)
         }
         , OptionsString_(TYsonString(createInfo.options()))
-        , TabletCellBundle(createInfo.tablet_cell_bundle())
         , Logger(NLogging::TLogger(TabletNodeLogger)
             .AddTag("CellId: %v, PeerId: %v",
                 CellDescriptor_.CellId,
@@ -435,20 +441,13 @@ public:
             PrerequisiteTransaction_ ? PrerequisiteTransaction_->GetId() : NullTransactionId);
         SnapshotStoreThunk_->SetUnderlying(snapshotStore);
 
-        auto bundleTag = NProfiling::TProfileManager::Get()->RegisterTag(
-            "tablet_cell_bundle",
-            TabletCellBundle ? TabletCellBundle : UnknownProfilingTag);
-        auto changelogTags = {
-            NProfiling::TProfileManager::Get()->RegisterTag("cell_id", CellDescriptor_.CellId),
-            bundleTag};
-
         auto changelogStoreFactory = CreateRemoteChangelogStoreFactory(
             Config_->Changelogs,
             Options_,
             Format("//sys/tablet_cells/%v/changelogs", GetCellId()),
             Bootstrap_->GetMasterClient(),
             PrerequisiteTransaction_ ? PrerequisiteTransaction_->GetId() : NullTransactionId,
-            changelogTags);
+            ProfilingTagIds_);
         ChangelogStoreFactoryThunk_->SetUnderlying(changelogStoreFactory);
 
         auto cellConfig = CellDescriptor_.ToConfig(Bootstrap_->GetLocalNetworks());
@@ -471,8 +470,6 @@ public:
                 channelFactory,
                 PeerId_);
 
-            CellManager_->SetCustomTags({bundleTag});
-
             Automaton_ = New<TTabletAutomaton>(
                 Owner_,
                 SnapshotQueue_->GetInvoker());
@@ -490,6 +487,7 @@ public:
             hydraManagerOptions.UseFork = false;
             hydraManagerOptions.WriteChangelogsAtFollowers = false;
             hydraManagerOptions.WriteSnapshotsAtFollowers = false;
+            hydraManagerOptions.ProfilingTagIds = ProfilingTagIds_;
             HydraManager_ = CreateDistributedHydraManager(
                 Config_->HydraManager,
                 Bootstrap_->GetControlInvoker(),
@@ -617,11 +615,11 @@ public:
         return OrchidService_;
     }
 
-    const NProfiling::TTagIdList& GetTagIdList()
+    const NProfiling::TTagIdList& GetProfilingTagIds()
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        return TagIdList_;
+        return ProfilingTagIds_;
     }
 
     const TRuntimeTabletCellDataPtr& GetRuntimeData() const
@@ -647,12 +645,12 @@ private:
     const TPeerId PeerId_;
     TCellDescriptor CellDescriptor_;
 
-    const NProfiling::TTagIdList TagIdList_;
+    const TString TabletCellBundle;
+
+    const NProfiling::TTagIdList ProfilingTagIds_;
 
     const TYsonString OptionsString_;
     TTabletCellOptionsPtr Options_;
-
-    const TString TabletCellBundle;
 
     TTransactionId PrerequisiteTransactionId_;
     ITransactionPtr PrerequisiteTransaction_;  // only created for leaders
@@ -985,9 +983,9 @@ const IYPathServicePtr& TTabletSlot::GetOrchidService()
     return Impl_->GetOrchidService();
 }
 
-const NProfiling::TTagIdList& TTabletSlot::GetTagIdList()
+const NProfiling::TTagIdList& TTabletSlot::GetProfilingTagIds()
 {
-    return Impl_->GetTagIdList();
+    return Impl_->GetProfilingTagIds();
 }
 
 const TRuntimeTabletCellDataPtr& TTabletSlot::GetRuntimeData() const

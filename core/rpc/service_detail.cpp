@@ -240,7 +240,7 @@ private:
             GetMessageBodySize(RequestMessage_));
         Profiler.Increment(
             PerformanceCounters_->RequestMessageAttachmentSizeCounter,
-            GetTotalMesageAttachmentSize(RequestMessage_));
+            GetTotalMessageAttachmentSize(RequestMessage_));
 
         if (RequestHeader_->has_start_time()) {
             // Decode timing information.
@@ -386,7 +386,7 @@ private:
             GetMessageBodySize(responseMessage));
         Profiler.Increment(
             PerformanceCounters_->ResponseMessageAttachmentSizeCounter,
-            GetTotalMesageAttachmentSize(responseMessage));
+            GetTotalMessageAttachmentSize(responseMessage));
 
         Finalize();
     }
@@ -449,7 +449,7 @@ private:
         delimitedBuilder->AppendFormat("Error: %v, BodySize: %v, AttachmentsSize: %v/%v",
             Error_,
             GetMessageBodySize(responseMessage),
-            GetTotalMesageAttachmentSize(responseMessage),
+            GetTotalMessageAttachmentSize(responseMessage),
             GetMessageAttachmentCount(responseMessage));
 
         if (ResponseInfo_) {
@@ -632,6 +632,19 @@ void TServiceBase::OnRequestAuthenticated(
             acceptedRequest.RequestId,
             authResult.User,
             authResult.Realm);
+        const auto& authenticatedUser = authResult.User;
+        if (acceptedRequest.Header->has_user()) {
+            const auto& user = acceptedRequest.Header->user();
+            if (user != authenticatedUser) {
+                ReplyError(
+                    TError("Manually specified and authenticated users mismatch")
+                        << TErrorAttribute("user", user)
+                        << TErrorAttribute("authenticated_user", authenticatedUser),
+                    *acceptedRequest.Header,
+                    acceptedRequest.ReplyBus);
+                return;
+            }
+        }
         acceptedRequest.Header->set_user(std::move(authResult.User));
         HandleAuthenticatedRequest(std::move(acceptedRequest));
     } else {
@@ -1023,7 +1036,7 @@ TString TServiceBase::FormatRequestInfo(
 
     delimitedBuilder->AppendFormat("BodySize: %v, AttachmentsSize: %v/%v",
         GetMessageBodySize(message),
-        GetTotalMesageAttachmentSize(message),
+        GetTotalMessageAttachmentSize(message),
         GetMessageAttachmentCount(message));
 
     return builder.Flush();

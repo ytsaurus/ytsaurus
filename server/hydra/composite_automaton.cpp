@@ -8,6 +8,8 @@
 
 #include <yt/core/concurrency/async_stream.h>
 
+#include <yt/core/profiling/profile_manager.h>
+
 #include <yt/core/misc/finally.h>
 #include <yt/core/misc/serialize.h>
 
@@ -17,6 +19,7 @@ namespace NYT {
 namespace NHydra {
 
 using namespace NConcurrency;
+using namespace NProfiling;
 using namespace NHydra::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -31,7 +34,7 @@ TCompositeAutomatonPart::TCompositeAutomatonPart(
     IHydraManagerPtr hydraManager,
     TCompositeAutomatonPtr automaton,
     IInvokerPtr automatonInvoker)
-    : HydraManager_(std::move(hydraManager))
+    : HydraManager_(hydraManager.Get())
     , Automaton_(automaton.Get())
     , AutomatonInvoker_(std::move(automatonInvoker))
 {
@@ -109,8 +112,12 @@ void TCompositeAutomatonPart::RegisterMethod(
     const TString& type,
     TCallback<void(TMutationContext*)> callback)
 {
+    TTagIdList tagIds{
+        TProfileManager::Get()->RegisterTag("type", type)
+    };
     TCompositeAutomaton::TMethodDescriptor descriptor{
-        callback
+        callback,
+        TMonotonicCounter("/cumulative_mutation_time", tagIds)
     };
     YCHECK(Automaton_->MethodNameToDescriptor_.insert(std::make_pair(type, descriptor)).second);
 }
@@ -208,9 +215,13 @@ void TCompositeAutomatonPart::LogHandlerError(const TError& error)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCompositeAutomaton::TCompositeAutomaton(IInvokerPtr asyncSnapshotInvoker)
-    : Logger(HydraLogger)
-    , Profiler(HydraProfiler)
+TCompositeAutomaton::TCompositeAutomaton(
+    IInvokerPtr asyncSnapshotInvoker,
+    const TCellId& cellId,
+    const NProfiling::TTagIdList& profilingTagIds)
+    : Logger(NLogging::TLogger(HydraLogger)
+        .AddTag("CellId: %v", cellId))
+    , Profiler(HydraProfiler.GetPathPrefix(), profilingTagIds)
     , AsyncSnapshotInvoker_(asyncSnapshotInvoker)
 { }
 
@@ -225,14 +236,16 @@ void TCompositeAutomaton::RegisterPart(TCompositeAutomatonPartPtr part)
 
     Parts_.push_back(part);
 
-    if (Parts_.size() == 1) {
-        const auto& hydraManager = part->HydraManager_;
+    if (HydraManager_) {
+        YCHECK(HydraManager_ == part->HydraManager_);
+    } else {
+        HydraManager_ = part->HydraManager_;
 
-        hydraManager->SubscribeStartLeading(BIND(&TThis::OnRecoveryStarted, MakeWeak(this)));
-        hydraManager->SubscribeLeaderRecoveryComplete(BIND(&TThis::OnRecoveryComplete, MakeWeak(this)));
+        HydraManager_->SubscribeStartLeading(BIND(&TThis::OnRecoveryStarted, MakeWeak(this)));
+        HydraManager_->SubscribeLeaderRecoveryComplete(BIND(&TThis::OnRecoveryComplete, MakeWeak(this)));
 
-        hydraManager->SubscribeStartFollowing(BIND(&TThis::OnRecoveryStarted, MakeWeak(this)));
-        hydraManager->SubscribeFollowerRecoveryComplete(BIND(&TThis::OnRecoveryComplete, MakeWeak(this)));
+        HydraManager_->SubscribeStartFollowing(BIND(&TThis::OnRecoveryStarted, MakeWeak(this)));
+        HydraManager_->SubscribeFollowerRecoveryComplete(BIND(&TThis::OnRecoveryComplete, MakeWeak(this)));
     }
 }
 
@@ -372,16 +385,45 @@ void TCompositeAutomaton::LoadSnapshot(IAsyncZeroCopyInputStreamPtr reader)
 
 void TCompositeAutomaton::ApplyMutation(TMutationContext* context)
 {
-    const auto& type = context->Request().Type;
-    if (type.empty()) {
-        // Empty mutation. Typically appears as a tombstone after editing changelogs.
-        return;
+    const auto& request = context->Request();
+    const auto& mutationType = request.Type;
+    auto mutationId = request.MutationId;
+    auto version = context->GetVersion();
+    auto isRecovery = IsRecovery();
+    auto waitTime = GetInstant() - context->GetTimestamp();
+
+    if (!isRecovery) {
+        Profiler.Update(MutationWaitTimeCounter_, DurationToValue(waitTime));
     }
 
-    auto it = MethodNameToDescriptor_.find(type);
-    YCHECK(it != MethodNameToDescriptor_.end());
-    const auto& descriptor = it->second;
-    descriptor.Callback.Run(context);
+    if (mutationType.empty()) {
+        LOG_DEBUG_UNLESS(isRecovery, "Skipping heartbeat mutation (Version: %v)",
+            version);
+    } else {
+        NProfiling::TWallTimer timer;
+
+        LOG_DEBUG_UNLESS(isRecovery, "Applying mutation (Version: %v, MutationType: %v, MutationId: %v, WaitTime: %v)",
+            version,
+            mutationType,
+            mutationId,
+            waitTime);
+
+        auto* descriptor = GetMethodDescriptor(mutationType);
+        const auto& handler = request.Handler;
+        if (handler) {
+            handler.Run(context);
+        } else {
+            descriptor->Callback.Run(context);
+        }
+
+        if (!isRecovery) {
+                Profiler.Increment(descriptor->CumulativeTimeCounter, DurationToValue(timer.GetElapsedTime()));
+        }
+    }
+
+    if (!isRecovery) {
+        Profiler.Increment(MutationCounter_);
+    }
 }
 
 void TCompositeAutomaton::Clear()
@@ -444,6 +486,13 @@ void TCompositeAutomaton::OnRecoveryComplete()
     Profiler.SetEnabled(true);
 }
 
+TCompositeAutomaton::TMethodDescriptor* TCompositeAutomaton::GetMethodDescriptor(const TString& mutationType)
+{
+    auto it = MethodNameToDescriptor_.find(mutationType);
+    YCHECK(it != MethodNameToDescriptor_.end());
+    return &it->second;
+}
+
 std::vector<TCompositeAutomatonPartPtr> TCompositeAutomaton::GetParts()
 {
     std::vector<TCompositeAutomatonPartPtr> parts;
@@ -459,6 +508,11 @@ std::vector<TCompositeAutomatonPartPtr> TCompositeAutomaton::GetParts()
 void TCompositeAutomaton::LogHandlerError(const TError& error)
 {
     LOG_DEBUG(error, "Error executing mutation handler");
+}
+
+bool TCompositeAutomaton::IsRecovery() const
+{
+    return HydraManager_->IsRecovery();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

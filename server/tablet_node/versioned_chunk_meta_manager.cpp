@@ -23,8 +23,10 @@ using namespace NCellNode;
 ////////////////////////////////////////////////////////////////////////////////
 
 using TVersionedChunkMetaCacheKey = std::pair<TChunkId, TTableSchema>;
+DECLARE_REFCOUNTED_CLASS(TVersionedChunkMetaCacheEntry)
 
-//! Represents a cached chunk meta.
+////////////////////////////////////////////////////////////////////////////////
+
 class TVersionedChunkMetaCacheEntry
     : public TAsyncCacheValueBase<TVersionedChunkMetaCacheKey, TVersionedChunkMetaCacheEntry>
 {
@@ -38,14 +40,8 @@ public:
         : TAsyncCacheValueBase(key)
         , Meta_(std::move(meta))
     { }
-
-    i64 GetSize() const
-    {
-        return Meta_->GetMemoryUsage();
-    }
 };
 
-DECLARE_REFCOUNTED_TYPE(TVersionedChunkMetaCacheEntry)
 DEFINE_REFCOUNTED_TYPE(TVersionedChunkMetaCacheEntry)
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -99,6 +95,11 @@ public:
 
 private:
     const TBootstrap* Bootstrap_;
+
+    virtual i64 GetWeight(const TVersionedChunkMetaCacheEntryPtr& entry) const override
+    {
+        return entry->GetMeta()->GetMemoryUsage();
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -375,7 +375,7 @@ private:
         {
             TGuard<TSpinLock> guard(state->SpinLock);
             if (tablet.FetchRowIndex > tablet.LastTrimmedRowIndex + Config_->MaxFetchedUntrimmedRowCount) {
-                LOG_ERROR("Number of fetched but trimmed rows exceeds the limit; fetching new rows suspended (TabletIndex: %v, RowCount: %v, Limit: %v)",
+                LOG_INFO("Number of fetched but trimmed rows exceeds the limit; fetching new rows suspended (TabletIndex: %v, RowCount: %v, Limit: %v)",
                     tabletIndex,
                     tablet.FetchRowIndex - tablet.LastTrimmedRowIndex,
                     Config_->MaxFetchedUntrimmedRowCount);

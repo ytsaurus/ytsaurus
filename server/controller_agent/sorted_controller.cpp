@@ -563,15 +563,7 @@ protected:
 private:
     IChunkSliceFetcherPtr CreateChunkSliceFetcher()
     {
-        if (Spec_->UnavailableChunkStrategy == EUnavailableChunkAction::Wait) {
-            FetcherChunkScraper_ = CreateFetcherChunkScraper(
-                Config->ChunkScraper,
-                GetCancelableInvoker(),
-                Host->GetChunkLocationThrottlerManager(),
-                InputClient,
-                InputNodeDirectory_,
-                Logger);
-        }
+        FetcherChunkScraper_ = CreateFetcherChunkScraper();
 
         return NTableClient::CreateChunkSliceFetcher(
             Config->Fetcher,
@@ -1303,6 +1295,11 @@ public:
                     << TErrorAttribute("sort_by", SortKeyColumns_);
             }
 
+            if (Spec_->ReduceBy.empty()) {
+                THROW_ERROR_EXCEPTION("Reduce by can not be empty when key guarantee is enabled")
+                    << TErrorAttribute("operation_type", OperationType);
+            }
+
             PrimaryKeyColumns_ = Spec_->ReduceBy;
             ForeignKeyColumns_ = Spec_->JoinBy;
             if (!ForeignKeyColumns_.empty()) {
@@ -1321,6 +1318,10 @@ public:
                 THROW_ERROR_EXCEPTION("At least one of reduce_by or join_by is required for this operation");
             }
             PrimaryKeyColumns_ = CheckInputTablesSorted(!Spec_->ReduceBy.empty() ? Spec_->ReduceBy : Spec_->JoinBy);
+            if (PrimaryKeyColumns_.empty()) {
+                THROW_ERROR_EXCEPTION("At least one of reduce_by and join_by should be specified when key guarantee is disabled")
+                    << TErrorAttribute("operation_type", OperationType);
+            }
             SortKeyColumns_ = ForeignKeyColumns_ = PrimaryKeyColumns_;
         }
         LOG_INFO("Key columns adjusted (PrimaryKeyColumns: %v, ForeignKeyColumns: %v, SortKeyColumns: %v)",
@@ -1444,7 +1445,7 @@ IOperationControllerPtr CreateAppropriateReduceController(
     bool isJoinReduce)
 {
     auto options = isJoinReduce ? config->JoinReduceOperationOptions : config->ReduceOperationOptions;
-    INodePtr mergedSpec = UpdateSpec(options->SpecTemplate, operation->GetSpec());
+    auto mergedSpec = UpdateSpec(options->SpecTemplate, operation->GetSpec());
     auto spec = ParseOperationSpec<TNewReduceOperationSpec>(mergedSpec);
     if (spec->UseNewController) {
         if (!spec->EnableKeyGuarantee.HasValue()) {

@@ -662,7 +662,8 @@ private:
                         FileName_) << TError::FromSystem();
                 }
                 LOG_WARNING("Error locking data file; backing off and retrying");
-                Sleep(LockBackoffTime);
+                WaitFor(TDelayedExecutor::MakeDelayed(LockBackoffTime))
+                    .ThrowOnError();
             }
         }
     }

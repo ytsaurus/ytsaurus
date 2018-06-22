@@ -73,6 +73,7 @@
 #include <yt/ytlib/table_client/chunk_meta_extensions.h>
 #include <yt/ytlib/table_client/schemaful_reader.h>
 #include <yt/ytlib/table_client/row_merger.h>
+#include <yt/ytlib/table_client/columnar_statistics_fetcher.h>
 
 #include <yt/ytlib/tablet_client/table_mount_cache.h>
 #include <yt/ytlib/tablet_client/tablet_service_proxy.h>
@@ -792,6 +793,11 @@ public:
     {
         return NApi::CreateTableWriter(this, path, options);
     }
+
+    IMPLEMENT_METHOD(TColumnarStatistics, GetColumnarStatistics, (
+        const TRichYPath& path,
+        const TGetColumnarStatisticsOptions& options),
+        (path, options))
 
     IMPLEMENT_METHOD(TGetFileFromCacheResult, GetFileFromCache, (
         const TString& md5,
@@ -2224,6 +2230,46 @@ private:
         return replicaIds;
     }
 
+    TColumnarStatistics DoGetColumnarStatistics(
+        const TRichYPath& path,
+        const TGetColumnarStatisticsOptions& options)
+    {
+        LOG_INFO("Collecting table input chunks (Path: %v)", path);
+
+        auto nodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
+        auto inputChunks = CollectTableInputChunks(
+            path,
+            this,
+            nodeDirectory,
+            options.FetchChunkSpecConfig,
+            options.TransactionId,
+            Logger);
+
+        LOG_INFO("Fetching columnar statistics (Columns: %v)", *path.GetColumns());
+
+        auto fetcher = New<TColumnarStatisticsFetcher>(
+            options.FetcherConfig,
+            nodeDirectory,
+            GetCurrentInvoker(),
+            nullptr /* scraper */,
+            this,
+            Logger);
+
+        for (const auto& inputChunk : inputChunks) {
+            fetcher->AddChunk(inputChunk, *path.GetColumns());
+        }
+
+        WaitFor(fetcher->Fetch())
+            .ThrowOnError();
+
+        const auto& chunkStatistics = fetcher->GetChunkStatistics();
+        TColumnarStatistics totalStatistics = TColumnarStatistics::MakeEmpty(path.GetColumns()->size());
+        for (const auto& statistics : chunkStatistics) {
+            totalStatistics += statistics;
+        }
+        return totalStatistics;
+    }
+
     std::vector<TTabletInfo> DoGetTabletInfos(
         const TYPath& path,
         const std::vector<int>& tabletIndexes,
@@ -3467,7 +3513,7 @@ private:
             .ThrowOnError();
     }
 
-    bool DoesOperationsArchiveExists()
+    bool DoesOperationsArchiveExist()
     {
         // NB: we suppose that archive should exist and work correctly if this map node is presented.
         return WaitFor(NodeExists("//sys/operations_archive", TNodeExistsOptions()))
@@ -3817,7 +3863,7 @@ private:
         LOG_DEBUG("Operation is not found in Cypress (OperationId: %v)",
             operationId);
 
-        if (DoesOperationsArchiveExists()) {
+        if (DoesOperationsArchiveExist()) {
             int version = DoGetOperationsArchiveVersion();
             const int ExpectedArchiveVersion = 7;
             if (version < ExpectedArchiveVersion) {
@@ -4611,7 +4657,7 @@ private:
 
         std::vector<TOperation> archiveData;
 
-        if (options.IncludeArchive && DoesOperationsArchiveExists()) {
+        if (options.IncludeArchive && DoesOperationsArchiveExist()) {
             int version = DoGetOperationsArchiveVersion();
 
             if (options.Pool && version < 15) {
@@ -5683,7 +5729,7 @@ private:
 
         TNullable<TListJobsStatistics> statistics;
 
-        bool doesArchiveExists = DoesOperationsArchiveExists();
+        bool doesArchiveExists = DoesOperationsArchiveExist();
 
         // Issue the requests in parallel.
         if (includeArchive && doesArchiveExists) {

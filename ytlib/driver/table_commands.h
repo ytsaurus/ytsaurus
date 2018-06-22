@@ -84,6 +84,18 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TGetTableColumnarStatisticsCommand
+    : public TTypedCommand<NApi::TGetColumnarStatisticsOptions>
+{
+public:
+    TGetTableColumnarStatisticsCommand();
+
+private:
+    NYPath::TRichYPath Path;
+
+    virtual void DoExecute(ICommandContextPtr context) override;
+};
+
 template <class TOptions>
 class TTabletCommandBase
     : public TTypedCommand<TOptions>

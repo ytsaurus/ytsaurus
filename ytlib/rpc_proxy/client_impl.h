@@ -276,6 +276,13 @@ public:
         ThrowUnimplemented("locate_skynet_share");
     }
 
+    TFuture<NTableClient::TColumnarStatistics> GetColumnarStatistics(
+        const NYPath::TRichYPath&,
+        const NApi::TGetColumnarStatisticsOptions&) override
+    {
+        Y_UNIMPLEMENTED();
+    }
+
 private:
     const TConnectionPtr Connection_;
     const NRpc::IChannelPtr Channel_;

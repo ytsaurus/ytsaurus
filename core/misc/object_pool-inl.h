@@ -61,7 +61,13 @@ void TObjectPool<T>::Reclaim(T* obj)
 }
 
 template <class T>
-void TObjectPool<T>:: Release(size_t count)
+int TObjectPool<T>::GetSize() const
+{
+    return PoolSize_;
+}
+
+template <class T>
+void TObjectPool<T>:: Release(int count)
 {
     T* obj;
     while (count > 0 && PooledObjects_.Dequeue(&obj)) {

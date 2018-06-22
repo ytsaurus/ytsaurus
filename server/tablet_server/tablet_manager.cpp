@@ -2556,8 +2556,8 @@ private:
 
     void OnDynamicConfigChanged()
     {
+        const auto& dynamicConfig = GetDynamicConfig();
         if (CleanupExecutor_) {
-            const auto& dynamicConfig = GetDynamicConfig();
             CleanupExecutor_->SetPeriod(dynamicConfig->TabletCellsCleanupPeriod);
         }
     }
@@ -2653,8 +2653,8 @@ private:
             }
         }
 
-        InitBuiltins();
         BundleNodeTracker_->OnAfterSnapshotLoaded();
+        InitBuiltins();
 
         // COMPAT(babenko)
         if (InitializeCellBundles_) {
@@ -2760,6 +2760,7 @@ private:
         AddressToCell_.clear();
         TransactionToCellMap_.clear();
 
+        BundleNodeTracker_->Clear();
 
         DefaultTabletCellBundle_ = nullptr;
     }
@@ -4342,10 +4343,9 @@ private:
     {
         try {
             const auto& cypressManager = Bootstrap_->GetCypressManager();
-            const auto& tabletManager = Bootstrap_->GetTabletManager();
-            auto cellIds = GetKeys(TabletCellMap_);
-            for (const auto& cellId : cellIds) {
-                auto* cell = tabletManager->FindTabletCell(cellId);
+            for (const auto& pair : TabletCellMap_) {
+                const auto& cellId = pair.first;
+                auto* cell = pair.second;
                 if (!IsObjectAlive(cell)) {
                     continue;
                 }

@@ -23,6 +23,17 @@ resolve_srcs(YT_SRCS YT_SRCS_RESOLVED)
 
 add_library(yt-core ${YT_SRCS_RESOLVED})
 
+# These protos are used in YT and YP python clients.
+
+SET(PROTO_TARGETS "")
+
+foreach(proto_suffix "misc/proto/error.proto" "misc/proto/guid.proto"
+                     "ytree/proto/attributes.proto" "yson/proto/protobuf_interop.proto")
+  prepare_proto(${PROJECT_SOURCE_DIR}/python yt/core/${proto_suffix} PROTO_TARGETS)
+endforeach(proto_suffix)
+
+add_custom_target(yt-core-python-protos ALL DEPENDS ${PROTO_TARGETS})
+
 target_link_libraries(yt-core
   deps-arcadia-contrib-libs-c--ares
   deps-arcadia-contrib-libs-farmhash

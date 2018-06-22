@@ -99,8 +99,6 @@ public:
 
     void TouchChunk(TChunk* chunk);
 
-    TJobPtr FindJob(const TJobId& id);
-
     TPerMediumArray<EChunkStatus> ComputeChunkStatuses(TChunk* chunk);
 
     void ScheduleJobs(
@@ -177,8 +175,6 @@ private:
 
     const NConcurrency::TPeriodicExecutorPtr RequisitionUpdateExecutor_;
     const std::unique_ptr<TChunkScanner> RequisitionUpdateScanner_;
-
-    THashMap<TJobId, TJobPtr> JobMap_;
 
     //! A queue of chunks to be repaired on each medium.
     //! Replica index is always GenericChunkReplicaIndex.
@@ -293,8 +289,7 @@ private:
     TChunkList* FollowParentLinks(TChunkList* chunkList);
 
     void RegisterJob(const TJobPtr& job);
-
-    void UnregisterJob(const TJobPtr& job, EJobUnregisterFlags flags = EJobUnregisterFlags::All);
+    void UnregisterJob(const TJobPtr& job);
 
     void UpdateJobCountGauge(EJobType jobType, int delta);
 

@@ -316,6 +316,8 @@ protected:
 
         SetProtoExtension(meta.mutable_extensions(), SamplesExt_);
 
+        SetProtoExtension(meta.mutable_extensions(), ColumnarStatisticsExt_);
+
         if (IsSorted()) {
             ToProto(BoundaryKeysExt_.mutable_max(), LastKey_);
             SetProtoExtension(meta.mutable_extensions(), BoundaryKeysExt_);
@@ -351,6 +353,9 @@ protected:
         ValidateRowWeight(weight, Config_, Options_);
         DataWeight_ += weight;
         DataWeightSinceLastBlockFlush_ += weight;
+
+        UpdateColumnarStatistics(ColumnarStatisticsExt_, MakeRange(row.Begin(), row.End()));
+
         return weight;
     }
 
@@ -362,6 +367,7 @@ private:
     TRandomGenerator RandomGenerator_;
     const ui64 SamplingThreshold_;
     NProto::TSamplesExt SamplesExt_;
+    NProto::TColumnarStatisticsExt ColumnarStatisticsExt_;
     i64 SamplesExtSize_ = 0;
 
     void FillCommonMeta(NChunkClient::NProto::TChunkMeta* meta) const

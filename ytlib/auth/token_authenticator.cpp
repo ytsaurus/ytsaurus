@@ -42,7 +42,15 @@ public:
         const TTokenCredentials& credentials) override
     {
         const auto& token = credentials.Token;
-        auto userIP = credentials.UserIP.FormatIP();
+        TString userIP;
+        if (credentials.UserIP.IsIP6() || credentials.UserIP.IsIP4()) {
+            userIP = credentials.UserIP.FormatIP();
+        } else {
+            // UserIP is not required for token authentication, but
+            // blackbox requires that parameter anyway.
+            userIP = "127.0.0.1";
+        }
+        
         auto tokenMD5 = TMD5Hasher().Append(token).GetHexDigestUpper();
         LOG_DEBUG("Authenticating user with token via Blackbox (TokenMD5: %v, UserIP: %v)",
             tokenMD5,

@@ -16,6 +16,7 @@
 #include <yt/server/data_node/volume_manager.h>
 
 #include <yt/server/job_agent/job.h>
+#include <yt/server/job_agent/gpu_manager.h>
 #include <yt/server/job_agent/statistics_reporter.h>
 
 #include <yt/server/scheduler/config.h>
@@ -147,6 +148,12 @@ public:
                 const auto& userJobSpec = schedulerJobSpecExt.user_job_spec();
                 if (userJobSpec.has_disk_space_limit()) {
                     diskSpaceLimit = userJobSpec.disk_space_limit();
+                }
+            }
+
+            if (!Config_->JobController->TestGpu) {
+                for (int i = 0; i < GetResourceUsage().gpu(); ++i) {
+                    GpuSlots_.emplace_back(Bootstrap_->GetGpuManager()->AcquireGpuSlot());
                 }
             }
 
@@ -629,6 +636,7 @@ private:
     TNullable<TInstant> ExecTime_;
     TNullable<TInstant> FinishTime_;
 
+    std::vector<TGpuManager::TGpuSlotPtr> GpuSlots_;
 
     ISlotPtr Slot_;
     TNullable<TString> TmpfsPath_;
@@ -934,6 +942,8 @@ private:
         FinishTime_ = TInstant::Now();
         SetJobPhase(EJobPhase::Cleanup);
 
+        GpuSlots_.clear();
+
         if (Slot_) {
             try {
                 LOG_DEBUG("Cleanup (SlotIndex: %v)", Slot_->GetSlotIndex());
@@ -1086,6 +1096,10 @@ private:
         if (RootVolume_) {
             proxyConfig->RootPath = RootVolume_->GetPath();
             proxyConfig->Binds = Config_->RootFSBinds;
+        }
+
+        for (const auto& slot : GpuSlots_) {
+            proxyConfig->GpuDevices.push_back(slot->GetDeviceName());
         }
 
         return proxyConfig;

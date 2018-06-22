@@ -66,6 +66,11 @@ public:
         return it->second;
     }
 
+    void Clear()
+    {
+        NodeMap_.clear();
+    }
+
 private:
     const TBootstrap* const Bootstrap_;
     THashMap<const TTabletCellBundle*, THashSet<TNode*>> NodeMap_;
@@ -195,6 +200,11 @@ void TBundleNodeTracker::Initialize()
 void TBundleNodeTracker::OnAfterSnapshotLoaded()
 {
     Impl_->OnAfterSnapshotLoaded();
+}
+
+void TBundleNodeTracker::Clear()
+{
+    Impl_->Clear();
 }
 
 const THashSet<TNode*>& TBundleNodeTracker::GetBundleNodes(const TTabletCellBundle* bundle) const

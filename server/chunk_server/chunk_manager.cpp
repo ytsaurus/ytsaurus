@@ -889,12 +889,6 @@ public:
     }
 
 
-    TJobPtr FindJob(const TJobId& id)
-    {
-        return ChunkReplicator_->FindJob(id);
-    }
-
-
     void ScheduleJobs(
         TNode* node,
         const std::vector<TJobPtr>& currentJobs,
@@ -3240,11 +3234,6 @@ void TChunkManager::RebalanceChunkTree(TChunkList* chunkList)
 void TChunkManager::ClearChunkList(TChunkList* chunkList)
 {
     Impl_->ClearChunkList(chunkList);
-}
-
-TJobPtr TChunkManager::FindJob(const TJobId& id)
-{
-    return Impl_->FindJob(id);
 }
 
 void TChunkManager::ScheduleJobs(

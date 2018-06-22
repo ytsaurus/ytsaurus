@@ -525,6 +525,8 @@ struct THttpServerTest
 
     ~THttpServerTest()
     {
+        Server->Stop();
+        Server.Reset();
         Poller->Shutdown();
     }
 

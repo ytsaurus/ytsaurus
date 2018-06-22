@@ -85,7 +85,7 @@ private:
         const NChunkClient::TClientBlockReadOptions& blockReadOptions,
         const TTableSchema& schema);
 
-    NTableClient::TChunkStatePtr PrepareCachedChunkState(
+    NTableClient::TChunkStatePtr PrepareChunkState(
         NChunkClient::IChunkReaderPtr chunkReader,
         const NChunkClient::TClientBlockReadOptions& blockReadOptions);
 

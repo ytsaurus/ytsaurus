@@ -37,7 +37,11 @@ public:
 
     virtual NScheduler::TOperationRuntimeParametersPtr GetRuntimeParameters() const override;
 
+    bool SetCompleting();
+
 private:
+    std::atomic<bool> Completing_ = {false};
+
     const NScheduler::TOperationId Id_;
     const NScheduler::EOperationType Type_;
     const NYTree::IMapNodePtr Spec_;
