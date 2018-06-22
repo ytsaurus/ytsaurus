@@ -704,7 +704,6 @@ enum class EOperationAttribute : int
     BriefProgress     /* "brief_progress" */,
     BriefSpec         /* "brief_spec" */,
     Suspended         /* "suspended" */,
-    Weight            /* "weight" */,
     Result            /* "result" */,
     Progress          /* "progress" */,
     Events            /* "events" */,
@@ -790,7 +789,6 @@ struct TOperationAttributes
     TMaybe<TOperationBriefProgress> BriefProgress;
     TMaybe<TNode> BriefSpec;
     TMaybe<bool> Suspended;
-    TMaybe<i64> Weight;
     TMaybe<TOperationResult> Result;
     TMaybe<TOperationProgress> Progress;
     TMaybe<TVector<TOperationEvent>> Events;

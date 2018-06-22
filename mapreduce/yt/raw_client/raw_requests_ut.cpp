@@ -124,9 +124,6 @@ Y_UNIT_TEST_SUITE(OperationsApiParsing) {
         UNIT_ASSERT(attrs.Suspended);
         UNIT_ASSERT_VALUES_EQUAL(*attrs.Suspended, false);
 
-        UNIT_ASSERT(attrs.Weight);
-        UNIT_ASSERT_VALUES_EQUAL(*attrs.Weight, 1.0);
-
         UNIT_ASSERT(attrs.Result);
         UNIT_ASSERT(!attrs.Result->Error);
 
