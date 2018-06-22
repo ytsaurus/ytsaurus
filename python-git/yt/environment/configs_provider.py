@@ -455,12 +455,14 @@ class ConfigsProvider_19(ConfigsProvider):
         }
 
         update_inplace(cluster_connection["primary_master"], _get_retrying_channel_config())
+        update_inplace(cluster_connection["primary_master"], _get_balancing_channel_config())
         update_inplace(cluster_connection["primary_master"], _get_rpc_config())
 
         cluster_connection["secondary_masters"] = []
         for tag in secondary_cell_tags:
             config = master_connection_configs[tag]
             update_inplace(config, _get_retrying_channel_config())
+            update_inplace(config, _get_balancing_channel_config())
             update_inplace(config, _get_rpc_config())
             cluster_connection["secondary_masters"].append(config)
 
