@@ -99,6 +99,7 @@
     XX(Index, index) \
     XX(InheritAcl, inherit_acl) \
     XX(IOWeights, io_weights) \
+    XX(JobId, job_id)                \
     XX(KeepFinished, keep_finished) \
     XX(Key, key) \
     XX(KeyColumns, key_columns) \

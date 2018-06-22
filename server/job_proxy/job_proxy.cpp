@@ -312,7 +312,13 @@ void TJobProxy::Run()
         auto interruptDescriptor = Job_->GetInterruptDescriptor();
 
         if (!interruptDescriptor.UnreadDataSliceDescriptors.empty()) {
-            if (!interruptDescriptor.ReadDataSliceDescriptors.empty()) {
+            auto inputStatistics = GetTotalInputDataStatistics(Job_->GetStatistics());
+            if (inputStatistics.row_count() > 0) {
+                // NB(psushin): although we definitely have read some of the rows, the job may have made no progress,
+                // since all of these row are from foreign tables, and therefor the ReadDataSliceDescriptors is empty.
+                // Still we would like to treat such a job as interrupted, otherwise it may lead to an infinite sequence
+                // of jobs being aborted by splitter instead of interrupts.
+
                 ToProto(
                     schedulerResultExt->mutable_unread_chunk_specs(),
                     schedulerResultExt->mutable_chunk_spec_count_per_unread_data_slice(),
@@ -329,10 +335,6 @@ void TJobProxy::Run()
                     schedulerResultExt->ShortDebugString());
             } else {
                 if (result.error().code() == 0) {
-                    // It is tempting to check /data/input/row_count statistics to be equal to zero.
-                    // Surprisingly we could still have read some foreign rows, but since we didn't read primary rows
-                    // we made no progress. So let's chunk data slice count at least.
-
                     auto getPrimaryDataSliceCount = [&] () {
                         int result = 0;
                         for (const auto& inputTableSpec : JobSpecHelper_->GetSchedulerJobSpecExt().input_table_specs()) {
@@ -427,6 +429,11 @@ TJobResult TJobProxy::DoRun()
             if (Config_->TmpfsPath) {
                 rootFS.Binds.emplace_back(TBind {*Config_->TmpfsPath, AdjustPath(*Config_->TmpfsPath), false});
             }
+
+            // Temporary workaround for nirvana - make tmp directories writable.
+            auto tmpPath = NFS::CombinePaths(NFs::CurrentWorkingDirectory(), SandboxDirectoryNames[ESandboxKind::Tmp]);
+            rootFS.Binds.emplace_back(TBind {tmpPath, "/tmp", false});
+            rootFS.Binds.emplace_back(TBind {tmpPath, "/var/tmp", false});
 
             return rootFS;
         };

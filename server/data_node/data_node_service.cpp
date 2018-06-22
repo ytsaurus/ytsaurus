@@ -1226,11 +1226,16 @@ private:
             }
 
             for (const auto& columnName : columnNames) {
-                if (auto id = nameTable->FindId(columnName)) {
+                auto id = nameTable->FindId(columnName);
+                if (id && *id < columnarStatisticsExt.data_weights().size()) {
                     subresponse->add_data_weights(columnarStatisticsExt.data_weights(*id));
                 } else {
                     subresponse->add_data_weights(0);
                 }
+            }
+
+            if (columnarStatisticsExt.has_timestamp_weight()) {
+                subresponse->set_timestamp_total_weight(columnarStatisticsExt.timestamp_weight());
             }
         } catch (const std::exception& ex) {
             auto error = TError(ex);

@@ -58,8 +58,7 @@ private:
 
     const NConcurrency::TPeriodicExecutorPtr UpdateProxyListExecutor_;
     NRpc::IChannelPtr DiscoveryChannel_;
-    TPromise<std::vector<TString>> HttpDiscoveryPromise_;
-    int ProxyListUpdatesFailedAttempts_ = 0;
+    TPromise<std::vector<TString>> DiscoveryPromise_;
 
     TSpinLock HttpDiscoveryLock_;
     // TODO(prime@): Create http endpoint for discovery that works without authentication.
@@ -68,7 +67,6 @@ private:
     std::vector<TString> DiscoverProxiesByRpc(const NRpc::IChannelPtr& channel);
     std::vector<TString> DiscoverProxiesByHttp(const NApi::TClientOptions& options);
 
-    void ResetAddresses();
     void OnProxyListUpdate();
 
     TString GetLocalAddress();

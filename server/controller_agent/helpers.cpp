@@ -50,11 +50,13 @@ public:
         const TSimpleOperationOptionsPtr& options,
         int outputTableCount,
         double dataWeightRatio,
+        i64 inputChunkCount,
         i64 primaryInputDataWeight,
         i64 inputRowCount,
         i64 foreignInputDataWeight)
         : Spec_(spec)
         , Options_(options)
+        , InputChunkCount_(inputChunkCount)
         , InputDataWeight_(primaryInputDataWeight + foreignInputDataWeight)
         , PrimaryInputDataWeight_(primaryInputDataWeight)
         , InputRowCount_(inputRowCount)
@@ -140,7 +142,9 @@ public:
 
     virtual i64 GetMaxDataSlicesPerJob() const override
     {
-        return Options_->MaxDataSlicesPerJob;
+        return std::max<i64>(Options_->MaxDataSlicesPerJob, Spec_->JobCount && Spec_->JobCount.Get() > 0
+            ? DivCeil<i64>(InputChunkCount_, Spec_->JobCount.Get())
+            : 1);
     }
 
     virtual i64 GetMaxDataWeightPerJob() const override
@@ -193,6 +197,7 @@ private:
     TSimpleOperationSpecBasePtr Spec_;
     TSimpleOperationOptionsPtr Options_;
 
+    i64 InputChunkCount_;
     i64 InputDataWeight_;
     i64 PrimaryInputDataWeight_;
     i64 InputRowCount_;
@@ -233,11 +238,13 @@ public:
     TMergeJobSizeConstraints(
         const TSimpleOperationSpecBasePtr& spec,
         const TSimpleOperationOptionsPtr& options,
+        i64 inputChunkCount,
         i64 inputDataWeight,
         double dataWeightRatio,
         double compressionRatio)
         : Spec_(spec)
         , Options_(options)
+        , InputChunkCount_(inputChunkCount)
         , InputDataWeight_(inputDataWeight)
     {
         if (Spec_->JobCount) {
@@ -302,7 +309,9 @@ public:
 
     virtual i64 GetMaxDataSlicesPerJob() const override
     {
-        return Options_->MaxDataSlicesPerJob;
+        return std::max<i64>(Options_->MaxDataSlicesPerJob, Spec_->JobCount && Spec_->JobCount.Get() > 0
+            ? DivCeil<i64>(InputChunkCount_, Spec_->JobCount.Get())
+            : 1);
     }
 
     virtual i64 GetMaxDataWeightPerJob() const override
@@ -351,6 +360,7 @@ private:
     TSimpleOperationSpecBasePtr Spec_;
     TSimpleOperationOptionsPtr Options_;
 
+    i64 InputChunkCount_;
     i64 InputDataWeight_;
     i64 JobCount_;
 };
@@ -729,6 +739,7 @@ IJobSizeConstraintsPtr CreateUserJobSizeConstraints(
     const TSimpleOperationOptionsPtr& options,
     int outputTableCount,
     double dataWeightRatio,
+    i64 inputChunkCount,
     i64 primaryInputDataSize,
     i64 inputRowCount,
     i64 foreignInputDataSize)
@@ -738,6 +749,7 @@ IJobSizeConstraintsPtr CreateUserJobSizeConstraints(
         options,
         outputTableCount,
         dataWeightRatio,
+        inputChunkCount,
         primaryInputDataSize,
         inputRowCount,
         foreignInputDataSize);
@@ -746,6 +758,7 @@ IJobSizeConstraintsPtr CreateUserJobSizeConstraints(
 IJobSizeConstraintsPtr CreateMergeJobSizeConstraints(
     const NScheduler::TSimpleOperationSpecBasePtr& spec,
     const TSimpleOperationOptionsPtr& options,
+    i64 inputChunkCount,
     i64 inputDataWeight,
     double dataWeightRatio,
     double compressionRatio)
@@ -753,6 +766,7 @@ IJobSizeConstraintsPtr CreateMergeJobSizeConstraints(
     return New<TMergeJobSizeConstraints>(
         spec,
         options,
+        inputChunkCount,
         inputDataWeight,
         dataWeightRatio,
         compressionRatio);

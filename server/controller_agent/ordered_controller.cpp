@@ -291,6 +291,7 @@ protected:
                     return CreateMergeJobSizeConstraints(
                         Spec_,
                         Options_,
+                        TotalEstimatedInputChunkCount,
                         PrimaryInputDataWeight,
                         DataWeightRatio,
                         InputCompressionRatio);
@@ -301,6 +302,7 @@ protected:
                         Options_,
                         OutputTables_.size(),
                         DataWeightRatio,
+                        TotalEstimatedInputChunkCount,
                         PrimaryInputDataWeight);
 
                 default:
@@ -1155,7 +1157,7 @@ private:
 
             const auto& path = Spec_->InputTablePaths[0].GetPath();
 
-            auto channel = InputClient->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
+            auto channel = InputClient->GetMasterChannelOrThrow(EMasterChannelKind::Follower);
             TObjectServiceProxy proxy(channel);
 
             auto req = TObjectYPathProxy::Get(path + "/@");

@@ -115,7 +115,7 @@ bool MaybeHandleCors(const IRequestPtr& req, const IResponseWriterPtr& rsp)
 
             if (req->GetMethod() == EMethod::Options) {
                 rsp->GetHeaders()->Add("Access-Control-Allow-Headers", HeadersWhitelist);
-                rsp->SetStatus(EStatusCode::Ok);
+                rsp->SetStatus(EStatusCode::OK);
                 WaitFor(rsp->Close())
                     .ThrowOnError();
                 return true;

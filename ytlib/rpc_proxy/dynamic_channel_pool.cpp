@@ -133,6 +133,16 @@ TExpiringChannelPtr TDynamicChannelPool::CreateChannel()
             auto address = addresses[RandomNumber(addresses.size())];
 
             auto channel = ChannelFactory_->CreateChannel(address);
+            channel = CreateFailureDetectingChannel(
+                std::move(channel),
+                BIND([pool = MakeWeak(this), cookie = MakeWeak(channelCookie)] (IChannelPtr channel) {
+                    auto strongPool = pool.Lock();
+                    auto strongCookie = cookie.Lock();
+                    if (strongPool && strongCookie && !strongCookie->IsExpired()) {
+                        strongPool->EvictChannel(strongCookie);
+                    }
+                }));
+            
             auto guard = Guard(SpinLock_);
             if (Terminated_) {
                 channel->Terminate(TError("Channel pool is terminated"));
@@ -157,7 +167,12 @@ void TDynamicChannelPool::EvictChannel(TExpiringChannelPtr channelCookie)
     auto guard = Guard(SpinLock_);
     if (channelCookie->IsActive_) {
         channelCookie->IsExpired_ = true;
-        ActiveChannels_[channelCookie->Address_].erase(channelCookie);
+
+        auto it = ActiveChannels_.find(channelCookie->Address_);
+        if (it == ActiveChannels_.end()) {
+            return;
+        }
+        it->second.erase(channelCookie);
     }
 }
 
@@ -248,13 +263,6 @@ void TDynamicChannelPool::OnAddressListChange(const TErrorOr<std::vector<TString
 
     for (auto&& address : expiredAddresses) {
         LOG_ERROR("Proxy is anavailable (Address: %s)", address);
-    }
-    
-    for (auto&& expiredChannel : expiredChannels) {
-        expiredChannel->IsExpired_ = true;
-        YCHECK(expiredChannel->Channel_.IsSet());
-        expiredChannel->Channel_.Get().Value()->Terminate(
-            TError(NRpc::EErrorCode::Unavailable, "Channel is unavailable"));
     }
 }
 

@@ -4,6 +4,8 @@
 
 #include <yt/ytlib/ypath/rich.h>
 
+#include <yt/ytlib/rpc_proxy/public.h>
+
 #include <yt/build/build.h>
 
 #include <yt/core/concurrency/scheduler.h>
@@ -23,6 +25,7 @@ using namespace NObjectClient;
 using namespace NConcurrency;
 using namespace NApi;
 using namespace NFormats;
+using namespace NRpcProxy;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -253,6 +256,50 @@ void TExecuteBatchCommand::DoExecute(ICommandContextPtr context)
                 fluent.Item().Value(result.ValueOrThrow());
             });
     });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TDiscoverProxiesCommand::TDiscoverProxiesCommand()
+{
+    RegisterParameter("type", Type)
+        .Default(EProxyType::Rpc);
+    RegisterParameter("role", Role)
+        .Default(NRpcProxy::DefaultProxyRole);
+}
+
+void TDiscoverProxiesCommand::DoExecute(ICommandContextPtr context)
+{
+    if (Type != EProxyType::Rpc) {
+        THROW_ERROR_EXCEPTION("Proxy type is not supported")
+            << TErrorAttribute("proxy_type", Type);
+    }
+
+    TGetNodeOptions options;
+    options.ReadFrom = EMasterChannelKind::Cache;
+    options.Attributes = {BannedAttributeName, RoleAttributeName};
+
+    auto nodesYson = WaitFor(context->GetClient()->GetNode(RpcProxiesPath, options))
+        .ValueOrThrow();
+
+    std::vector<TString> addresses;
+    for (const auto& proxy : ConvertTo<THashMap<TString, IMapNodePtr>>(nodesYson)) {
+        if (!proxy.second->FindChild(AliveNodeName)) {
+            continue;
+        }
+
+        if (proxy.second->Attributes().Get(BannedAttributeName, false)) {
+            continue;
+        }
+
+        if (Role && proxy.second->Attributes().Get<TString>(RoleAttributeName, DefaultProxyRole) != *Role) {
+            continue;
+        }
+
+        addresses.push_back(proxy.first);
+    }
+
+    ProduceSingleOutputValue(context, "proxies", addresses);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

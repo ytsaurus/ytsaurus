@@ -10,7 +10,7 @@ namespace NRpcProxy {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TExpiringChannel
-    : public TIntrinsicRefCounted
+    : public TRefCounted
 {
 public:
     TFuture<NRpc::IChannelPtr> GetChannel();

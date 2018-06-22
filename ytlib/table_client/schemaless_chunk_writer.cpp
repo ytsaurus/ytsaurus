@@ -354,7 +354,7 @@ protected:
         DataWeight_ += weight;
         DataWeightSinceLastBlockFlush_ += weight;
 
-        UpdateColumnarStatistics(ColumnarStatisticsExt_, MakeRange(row.Begin(), row.End()));
+        UpdateColumnarStatistics(ColumnarStatisticsExt_, row);
 
         return weight;
     }

@@ -3255,7 +3255,6 @@ private:
         ITransactionPtr transaction;
         {
             auto transactionStartOptions = TTransactionStartOptions();
-            transactionStartOptions.Sticky = true;
             auto attributes = CreateEphemeralAttributes();
             attributes->Set("title", Format("Putting file %v to cache", path));
             transactionStartOptions.Attributes = std::move(attributes);
@@ -3263,10 +3262,6 @@ private:
             auto asyncTransaction = StartTransaction(ETransactionType::Master, transactionStartOptions);
             transaction = WaitFor(asyncTransaction)
                 .ValueOrThrow();
-
-            auto transactionAttachOptions = TTransactionAttachOptions();
-            transactionAttachOptions.AutoAbort = true;
-            transaction = AttachTransaction(transaction->GetId(), transactionAttachOptions);
 
             LOG_DEBUG(
                 "Transaction started (TransactionId: %v)",
@@ -4384,44 +4379,36 @@ private:
 
     TString ExtractTextFactorForCypressItem(const TOperation& operation)
     {
-        TString textFactor;
+        std::vector<TString> textFactors;
 
-        auto pushTextFactor = [&textFactor] (const auto& text) {
-            if (textFactor.size())
-                textFactor += " ";
-            textFactor += text;
-        };
-
-        pushTextFactor(ToString(operation.OperationId));
-        pushTextFactor(operation.AuthenticatedUser);
-        pushTextFactor(ToString(operation.OperationState));
-        pushTextFactor(ToString(operation.OperationType));
+        textFactors.push_back(ToString(operation.OperationId));
+        textFactors.push_back(operation.AuthenticatedUser);
+        textFactors.push_back(ToString(operation.OperationState));
+        textFactors.push_back(ToString(operation.OperationType));
 
         if (operation.BriefSpec) {
             auto briefSpecMapNode = ConvertToNode(operation.BriefSpec)->AsMap();
             if (briefSpecMapNode->FindChild("pool")) {
-                pushTextFactor(briefSpecMapNode->GetChild("pool")->AsString()->GetValue());
+                textFactors.push_back(briefSpecMapNode->GetChild("pool")->AsString()->GetValue());
             }
             if (briefSpecMapNode->FindChild("title")) {
-                pushTextFactor(briefSpecMapNode->GetChild("title")->AsString()->GetValue());
+                textFactors.push_back(briefSpecMapNode->GetChild("title")->AsString()->GetValue());
             }
             if (briefSpecMapNode->FindChild("input_table_paths")) {
                 auto inputTablesNode = briefSpecMapNode->GetChild("input_table_paths")->AsList();
                 if (inputTablesNode->GetChildCount() > 0) {
-                    pushTextFactor(inputTablesNode->GetChildren()[0]->AsString()->GetValue());
+                    textFactors.push_back(inputTablesNode->GetChildren()[0]->AsString()->GetValue());
                 }
             }
             if (briefSpecMapNode->FindChild("output_table_paths")) {
                 auto outputTablesNode = briefSpecMapNode->GetChild("output_table_paths")->AsList();
                 if (outputTablesNode->GetChildCount() > 0) {
-                    pushTextFactor(outputTablesNode->GetChildren()[0]->AsString()->GetValue());
+                    textFactors.push_back(outputTablesNode->GetChildren()[0]->AsString()->GetValue());
                 }
             }
         }
 
-        textFactor = to_lower(textFactor);
-
-        return textFactor;
+        return to_lower(JoinToString(textFactors, AsStringBuf(" ")));
     }
 
     TListOperationsResult DoListOperations(
@@ -4790,35 +4777,24 @@ private:
 
             auto rows = rowset->GetRows();
 
-            auto getYson = [&] (const TUnversionedValue& value, TStringBuf name) {
+            auto getYson = [&] (const TUnversionedValue& value) {
                 return value.Type == EValueType::Null
                     ? TYsonString()
                     : TYsonString(value.Data.String, value.Length);
             };
-            auto checkIsNotNull = [&] (const TUnversionedValue& value, TStringBuf name) {
+            auto getString = [&] (const TUnversionedValue& value, TStringBuf name) {
                 if (value.Type == EValueType::Null) {
                     THROW_ERROR_EXCEPTION("Unexpected null value in column %Qv in job archive", name);
                 }
+                return TStringBuf(value.Data.String, value.Length);
             };
 
-            auto checkWithFailedJobsFilter =
-                [&options] (bool hasFailedJobs) {
-                    if (options.WithFailedJobs) {
-                        if (*options.WithFailedJobs) {
-                            return hasFailedJobs;
-                        } else {
-                            return !hasFailedJobs;
-                        }
-                    }
-
-                    return true;
-                };
-
+            auto& columnFilter = lookupOptions.ColumnFilter;
+            auto& tableIndex = tableDescriptor.Index;
             for (auto row : rows) {
                 TOperation operation;
 
-                operation.BriefProgress = getYson(row[5], "brief_progress");
-
+                operation.BriefProgress = getYson(row[columnFilter.GetIndex(tableIndex.BriefProgress)]);
                 bool hasFailedJobs = false;
                 if (operation.BriefProgress) {
                     auto briefProgressMapNode = ConvertToNode(operation.BriefProgress)->AsMap();
@@ -4826,32 +4802,37 @@ private:
                         briefProgressMapNode->FindChild("jobs") &&
                         briefProgressMapNode->GetChild("jobs")->AsMap()->GetChild("failed")->GetValue<i64>() > 0;
 
-                    if (!checkWithFailedJobsFilter(hasFailedJobs)) {
+                    if (options.WithFailedJobs.HasValue() && *options.WithFailedJobs != hasFailedJobs) {
                         continue;
                     }
                 }
 
-                TGuid operationId(row[0].Data.Uint64, row[1].Data.Uint64);
+                TGuid operationId(
+                    row[columnFilter.GetIndex(tableIndex.IdHi)].Data.Uint64,
+                    row[columnFilter.GetIndex(tableIndex.IdLo)].Data.Uint64);
+
                 operation.OperationId = operationId;
 
-                checkIsNotNull(row[2], "operation_type");
-                operation.OperationType = ParseEnum<EOperationType>(TString(row[2].Data.String, row[2].Length));
+                auto value = row[columnFilter.GetIndex(tableIndex.OperationType)];
+                operation.OperationType = ParseEnum<EOperationType>(getString(value, "operation_type"));
 
-                checkIsNotNull(row[3], "state");
-                operation.OperationState = ParseEnum<EOperationState>(TString(row[3].Data.String, row[3].Length));
+                value = row[columnFilter.GetIndex(tableIndex.State)];
+                operation.OperationState = ParseEnum<EOperationState>(getString(value, "state"));
 
-                checkIsNotNull(row[4], "authenticated_user");
-                operation.AuthenticatedUser = TString(row[4].Data.String, row[4].Length);
+                value = row[columnFilter.GetIndex(tableIndex.AuthenticatedUser)];
+                operation.AuthenticatedUser = getString(value, "authenticated_user");
 
                 failedJobsCount += hasFailedJobs;
 
-                operation.BriefSpec = getYson(row[6], "brief_spec");
+                operation.BriefSpec = getYson(row[columnFilter.GetIndex(tableIndex.BriefSpec)]);
 
-                checkIsNotNull(row[7], "start_time");
-                operation.StartTime = TInstant::MicroSeconds(row[7].Data.Int64);
+                if (row[columnFilter.GetIndex(tableIndex.StartTime)].Type == EValueType::Null) {
+                    THROW_ERROR_EXCEPTION("Unexpected null value in column start_time in job archive");
+                }
+                operation.StartTime = TInstant::MicroSeconds(row[columnFilter.GetIndex(tableIndex.StartTime)].Data.Int64);
 
-                if (row[8].Type != EValueType::Null) {
-                    operation.FinishTime = TInstant::MicroSeconds(row[8].Data.Int64);
+                if (row[columnFilter.GetIndex(tableIndex.FinishTime)].Type != EValueType::Null) {
+                    operation.FinishTime = TInstant::MicroSeconds(row[columnFilter.GetIndex(tableIndex.FinishTime)].Data.Int64);
                 }
 
                 archiveData.push_back(operation);
@@ -4879,28 +4860,28 @@ private:
             auto it2 = source2.begin();
             auto end2 = source2.end();
 
-            std::vector<TOperation> result;
+            std::vector<TOperation> merged;
             while (it1 != end1 && it2 != end2) {
                 if (it1->OperationId == it2->OperationId) {
-                    result.push_back(*it1);
+                    merged.push_back(*it1);
 
                     filterAndCount(it1->Pool, it1->AuthenticatedUser, it1->OperationState, it1->OperationType, -1);
 
                     ++it1;
                     ++it2;
                 } else if (it1->OperationId < it2->OperationId) {
-                    result.push_back(*it1);
+                    merged.push_back(*it1);
                     ++it1;
                 } else {
-                    result.push_back(*it2);
+                    merged.push_back(*it2);
                     ++it2;
                 }
             }
 
-            result.insert(result.end(), it1, end1);
-            result.insert(result.end(), it2, end2);
+            merged.insert(merged.end(), it1, end1);
+            merged.insert(merged.end(), it2, end2);
 
-            return result;
+            return merged;
         };
 
         std::vector<TOperation> mergedData = mergeOperations(cypressData, archiveData);

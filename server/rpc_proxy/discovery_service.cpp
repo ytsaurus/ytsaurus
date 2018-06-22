@@ -53,9 +53,6 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const TString RpcProxiesPath = "//sys/rpc_proxies";
-static const TString AliveName = "alive";
-static const TString BannedAttributeName = "banned";
 static const TString BanMessageAttributeName = "ban_message";
 static const TString ExpirationTimeAttributeName = "expiration_time";
 static const TString VersionAttributeName = "version";
@@ -106,7 +103,14 @@ private:
     TInstant LastSuccessTimestamp_ = Now();
 
     TSpinLock ProxySpinLock_;
-    std::vector<TString> AvailableProxies_;
+
+    struct TProxy
+    {
+        TString Address;
+        TString Role;
+    };
+    
+    std::vector<TProxy> AvailableProxies_;
 
     bool Initialized_ = false;
 
@@ -192,7 +196,7 @@ private:
         TObjectServiceProxy proxy(channel);
         auto batchReq = proxy.ExecuteBatch();
         {
-            auto req = TCypressYPathProxy::Create(ProxyPath_ + "/" + AliveName);
+            auto req = TCypressYPathProxy::Create(ProxyPath_ + "/" + AliveNodeName);
             req->set_type(static_cast<int>(EObjectType::MapNode));
             auto* attr = req->mutable_node_attributes()->add_attributes();
             attr->set_key(ExpirationTimeAttributeName);
@@ -222,7 +226,11 @@ private:
             auto req = TYPathProxy::Get(ProxyPath_ + "/@");
             ToProto(
                 req->mutable_attributes()->mutable_keys(),
-                std::vector<TString>{BannedAttributeName, BanMessageAttributeName});
+                std::vector<TString>{
+                    RoleAttributeName,
+                    BannedAttributeName,
+                    BanMessageAttributeName
+                });
             batchReq->AddRequest(req, "get_ban");
         }
         {
@@ -260,16 +268,17 @@ private:
             }
         }
         {
-            std::vector<TString> proxies;
+            std::vector<TProxy> proxies;
 
             auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_proxies").Value();
             auto nodeResult = ConvertToNode(TYsonString(rsp->value()));
             for (const auto& child : nodeResult->AsMap()->GetChildren()) {
                 bool banned = child.second->Attributes().Get(BannedAttributeName, false);
-                bool alive = static_cast<bool>(child.second->AsMap()->FindChild(AliveName));
+                auto role = child.second->Attributes().Get<TString>(RoleAttributeName, DefaultProxyRole);
+                bool alive = static_cast<bool>(child.second->AsMap()->FindChild(AliveNodeName));
                 bool available = alive && !banned;
                 if (available) {
-                    proxies.push_back(child.first);
+                    proxies.push_back({child.first, role});
                 }
             }
             LOG_DEBUG("Updated proxy list (ProxyCount: %v)", proxies.size());
@@ -286,10 +295,18 @@ private:
         if (!Coordinator_->IsOperable(context)) {
             return;
         }
+
+        TString roleFilter = request->has_role() ? request->role() : DefaultProxyRole;
+        
         {
             auto guard = Guard(ProxySpinLock_);
-            ToProto(response->mutable_addresses(), AvailableProxies_);
+            for (const auto& proxy : AvailableProxies_) {
+                if (proxy.Role == roleFilter) {
+                    *response->mutable_addresses()->Add() = proxy.Address;
+                }
+            }
         }
+
         context->Reply();
     }
 };

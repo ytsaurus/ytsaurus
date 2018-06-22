@@ -54,6 +54,7 @@ DEFINE_ENUM(ESandboxKind,
     (Udf)
     (Home)
     (Pipes)
+    (Tmp)
 );
 
 DEFINE_ENUM(EJobEnvironmentType,
