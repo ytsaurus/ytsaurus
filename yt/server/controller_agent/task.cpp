@@ -27,9 +27,12 @@ using namespace NJobTrackerClient;
 using namespace NJobTrackerClient::NProto;
 using namespace NNodeTrackerClient;
 using namespace NScheduler;
-using namespace NScheduler::NProto;
 using namespace NTableClient;
 using namespace NYTree;
+
+using NScheduler::NProto::TSchedulerJobSpecExt;
+using NScheduler::NProto::TSchedulerJobResultExt;
+using NScheduler::NProto::TTableInputSpec;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -230,12 +233,12 @@ bool TTask::ValidateChunkCount(int /* chunkCount */)
 
 void TTask::ScheduleJob(
     ISchedulingContext* context,
-    const TJobResources& jobLimits,
+    const TJobResourcesWithQuota& jobLimits,
     const TString& treeId,
     bool treeIsTentative,
     TScheduleJobResult* scheduleJobResult)
 {
-    if (auto failReason = GetScheduleFailReason(context, jobLimits)) {
+    if (auto failReason = GetScheduleFailReason(context)) {
         scheduleJobResult->RecordFail(*failReason);
         return;
     }
@@ -288,10 +291,15 @@ void TTask::ScheduleJob(
     joblet->InputStripeList = chunkPoolOutput->GetStripeList(joblet->OutputCookie);
 
     auto estimatedResourceUsage = GetNeededResources(joblet);
-    auto neededResources = ApplyMemoryReserve(estimatedResourceUsage);
+    TJobResourcesWithQuota neededResources = ApplyMemoryReserve(estimatedResourceUsage);
 
     joblet->EstimatedResourceUsage = estimatedResourceUsage;
-    joblet->ResourceLimits = neededResources;
+    joblet->ResourceLimits = neededResources.ToJobResources();
+    if (auto userJobSpec = GetUserJobSpec()) {
+        if (userJobSpec->DiskSpaceLimit) {
+            neededResources.SetDiskQuota(*userJobSpec->DiskSpaceLimit);
+        }
+    }
 
     // Check the usage against the limits. This is the last chance to give up.
     if (!Dominates(jobLimits, neededResources)) {
@@ -326,7 +334,7 @@ void TTask::ScheduleJob(
     scheduleJobResult->StartDescriptor.Emplace(
         joblet->JobId,
         jobType,
-        neededResources,
+        neededResources.ToJobResources(),
         TaskHost_->IsJobInterruptible());
 
     joblet->Restarted = restarted;
@@ -608,32 +616,30 @@ void TTask::OnTaskCompleted()
     LOG_DEBUG("Task completed");
 }
 
-TNullable<EScheduleJobFailReason> TTask::GetScheduleFailReason(
-    ISchedulingContext* /*context*/,
-    const TJobResources& /*jobLimits*/)
+TNullable<EScheduleJobFailReason> TTask::GetScheduleFailReason(ISchedulingContext* context)
 {
     return Null;
 }
 
 void TTask::DoCheckResourceDemandSanity(
-    const TJobResources& neededResources)
+    const TJobResourcesWithQuota& neededResources)
 {
     if (TaskHost_->ShouldSkipSanityCheck()) {
         return;
     }
 
-    if (!Dominates(*TaskHost_->CachedMaxAvailableExecNodeResources(), neededResources)) {
+    if (!Dominates(*TaskHost_->CachedMaxAvailableExecNodeResources(), neededResources.ToJobResources())) {
         // It seems nobody can satisfy the demand.
         TaskHost_->OnOperationFailed(
             TError("No online node can satisfy the resource demand")
                 << TErrorAttribute("task", GetTitle())
-                << TErrorAttribute("needed_resources", neededResources));
+                << TErrorAttribute("needed_resources", neededResources.ToJobResources()));
     }
 }
 
 void TTask::CheckResourceDemandSanity(
-    const TJobResources& nodeResourceLimits,
-    const TJobResources& neededResources)
+    const TJobResourcesWithQuota& nodeResourceLimits,
+    const TJobResourcesWithQuota& neededResources)
 {
     // The task is requesting more than some node is willing to provide it.
     // Maybe it's OK and we should wait for some time.
@@ -909,7 +915,7 @@ void TTask::RegisterOutput(
     }
 }
 
-NScheduler::TJobResourcesWithQuota TTask::GetMinNeededResources() const
+TJobResourcesWithQuota TTask::GetMinNeededResources() const
 {
     if (!CachedMinNeededResources_) {
         YCHECK(GetPendingJobCount() > 0);
@@ -919,7 +925,13 @@ NScheduler::TJobResourcesWithQuota TTask::GetMinNeededResources() const
     if (result.GetUserSlots() > 0 && result.GetMemory() == 0) {
         LOG_WARNING("Found min needed resources of task with non-zero user slots and zero memory");
     }
-    return NScheduler::TJobResourcesWithQuota(result);
+    auto resultWithQuota = TJobResourcesWithQuota(result);
+    if (auto userJobSpec = GetUserJobSpec()) {
+        if (userJobSpec->DiskSpaceLimit) {
+            resultWithQuota.SetDiskQuota(*userJobSpec->DiskSpaceLimit);
+        }
+    }
+    return resultWithQuota;
 }
 
 void TTask::RegisterStripe(
@@ -1042,7 +1054,7 @@ TChunkStripePtr TTask::BuildIntermediateChunkStripe(
 }
 
 std::vector<TChunkStripePtr> TTask::BuildOutputChunkStripes(
-    NScheduler::NProto::TSchedulerJobResultExt* schedulerJobResultExt,
+    TSchedulerJobResultExt* schedulerJobResultExt,
     const std::vector<NChunkClient::TChunkTreeId>& chunkTreeIds,
     google::protobuf::RepeatedPtrField<NScheduler::NProto::TOutputResult> boundaryKeysPerTable)
 {

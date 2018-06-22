@@ -410,7 +410,7 @@ public:
         auto request = std::make_unique<TScheduleJobRequest>();
         request->OperationId = OperationId_;
         request->JobId = jobId;
-        request->JobResourceLimits = jobLimits;
+        request->JobResourceLimits = jobLimits.ToJobResources();
         request->TreeId = treeId;
         request->NodeId = nodeId;
         request->NodeResourceLimits = context->ResourceLimits();
