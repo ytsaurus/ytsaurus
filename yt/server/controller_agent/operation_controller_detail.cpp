@@ -96,7 +96,6 @@ using namespace NFormats;
 using namespace NJobProxy;
 using namespace NJobTrackerClient;
 using namespace NNodeTrackerClient;
-//using namespace NScheduler::NProto;
 using namespace NJobTrackerClient::NProto;
 using namespace NCoreDump::NProto;
 using namespace NConcurrency;
