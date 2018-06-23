@@ -193,12 +193,6 @@ DEFINE_ENUM(EObjectType,
 //! A bit mask marking schema types.
 const int SchemaObjectTypeMask = 0x8000;
 
-// The range of valid object types (including schemas).
-const EObjectType MinObjectType = TEnumTraits<EObjectType>::GetMinValue();
-const EObjectType MaxObjectType = EObjectType(
-    static_cast<int>(TEnumTraits<EObjectType>::GetMaxValue()) +
-    SchemaObjectTypeMask);
-
 // The range of erasure chunk part types.
 const EObjectType MinErasureChunkPartType = EObjectType::ErasureChunkPart_0;
 const EObjectType MaxErasureChunkPartType = EObjectType::ErasureChunkPart_15;

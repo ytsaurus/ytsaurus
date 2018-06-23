@@ -24,8 +24,6 @@ using NObjectClient::TObjectId;
 using NObjectClient::TTransactionId;
 using NObjectClient::TVersionedObjectId;
 using NObjectClient::EObjectType;
-using NObjectClient::MinObjectType;
-using NObjectClient::MaxObjectType;
 using NObjectClient::TCellTag;
 using NObjectClient::TCellTagList;
 using NObjectClient::NullObjectId;
