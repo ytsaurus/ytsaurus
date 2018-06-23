@@ -570,6 +570,11 @@ bool TRichYPath::GetAutoMerge() const
     return GetAttribute<bool>(*this, "auto_merge", true);
 }
 
+TNullable<NObjectClient::TTransactionId> TRichYPath::GetTransactionId() const
+{
+    return FindAttribute<NObjectClient::TTransactionId>(*this, "transaction_id");
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TString ToString(const TRichYPath& path)
