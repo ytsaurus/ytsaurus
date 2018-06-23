@@ -235,7 +235,7 @@ private:
     };
 
     std::set<EObjectType> RegisteredTypes_;
-    TEnumIndexedVector<TTypeEntry, EObjectType, MinObjectType, MaxObjectType> TypeToEntry_;
+    THashMap<EObjectType, TTypeEntry> TypeToEntry_;
 
     struct TMethodEntry
     {
