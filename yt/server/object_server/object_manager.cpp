@@ -365,7 +365,8 @@ TObjectBase* TObjectManager::FindSchema(EObjectType type)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    return TypeToEntry_[type].SchemaObject;
+    auto it = TypeToEntry_.find(type);
+    return it == TypeToEntry_.end() ? nullptr : it->second.SchemaObject;
 }
 
 TObjectBase* TObjectManager::GetSchema(EObjectType type)
@@ -381,7 +382,9 @@ IObjectProxyPtr TObjectManager::GetSchemaProxy(EObjectType type)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    const auto& entry = TypeToEntry_[type];
+    auto it = TypeToEntry_.find(type);
+    YCHECK(it != TypeToEntry_.end());
+    const auto& entry = it->second;
     YCHECK(entry.SchemaProxy);
     return entry.SchemaProxy;
 }
@@ -393,10 +396,10 @@ void TObjectManager::RegisterHandler(IObjectTypeHandlerPtr handler)
     YCHECK(handler);
 
     auto type = handler->GetType();
-    YCHECK(!TypeToEntry_[type].Handler);
-    YCHECK(RegisteredTypes_.insert(type).second);
-    auto& entry = TypeToEntry_[type];
+
+    TTypeEntry entry;
     entry.Handler = handler;
+    YCHECK(TypeToEntry_.emplace(type, entry).second);
 
     if (HasSchema(type)) {
         auto schemaType = SchemaTypeFromType(type);
@@ -417,9 +420,8 @@ const IObjectTypeHandlerPtr& TObjectManager::FindHandler(EObjectType type) const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    return type >= MinObjectType && type <= MaxObjectType
-        ? TypeToEntry_[type].Handler
-        : NullTypeHandler;
+    auto it = TypeToEntry_.find(type);
+    return it == TypeToEntry_.end() ? NullTypeHandler : it->second.Handler;
 }
 
 const IObjectTypeHandlerPtr& TObjectManager::GetHandler(EObjectType type) const
@@ -615,7 +617,8 @@ void TObjectManager::Clear()
 
 void TObjectManager::InitSchemas()
 {
-    for (auto& entry : TypeToEntry_) {
+    for (auto& pair : TypeToEntry_) {
+        auto& entry = pair.second;
         entry.SchemaObject = nullptr;
         entry.SchemaProxy.Reset();
     }
