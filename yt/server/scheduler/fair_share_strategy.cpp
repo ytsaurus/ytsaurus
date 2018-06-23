@@ -2385,12 +2385,12 @@ public:
             });
     }
 
-    virtual std::vector<TSchedulingTagFilter> GetOperationPoolTreeSchedulingTagFilters(const TOperationId& operationId) override
+    virtual TPoolTreeToSchedulingTagFilter GetOperationPoolTreeToSchedulingTagFilter(const TOperationId& operationId) override
     {
-        std::vector<TSchedulingTagFilter> result;
+        TPoolTreeToSchedulingTagFilter result;
         for (const auto& pair : GetOperationState(operationId)->TreeIdToPoolIdMap()) {
             const auto& treeName = pair.first;
-            result.push_back(GetTree(treeName)->GetNodesFilter());
+            result.insert(std::make_pair(treeName, GetTree(treeName)->GetNodesFilter()));
         }
         return result;
     }

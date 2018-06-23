@@ -859,7 +859,7 @@ private:
 
     const TMemoryTag MemoryTag_;
 
-    std::vector<NScheduler::TSchedulingTagFilter> PoolTreeSchedulingTagFilters_;
+    NScheduler::TPoolTreeToSchedulingTagFilter PoolTreeToSchedulingTagFilter_;
 
     //! Keeps information needed to maintain the liveness state of input chunks.
     THashMap<NChunkClient::TChunkId, TInputChunkDescriptor> InputChunkMap;
