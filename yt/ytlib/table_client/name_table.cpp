@@ -130,6 +130,25 @@ TNameTableReader::TNameTableReader(TNameTablePtr nameTable)
     Fill();
 }
 
+bool TNameTableReader::TryGetName(int id, TStringBuf& name) const
+{
+    if (id < 0) {
+        return false;
+    }
+
+    if (id >= IdToNameCache_.size()) {
+        Fill();
+
+        if (id >= IdToNameCache_.size()) {
+            return false;
+        }
+    }
+
+    name = IdToNameCache_[id];
+
+    return true;
+}
+
 TStringBuf TNameTableReader::GetName(int id) const
 {
     Y_ASSERT(id >= 0);
