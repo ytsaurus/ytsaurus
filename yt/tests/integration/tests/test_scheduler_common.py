@@ -1167,6 +1167,20 @@ class TestSchedulerCommon(YTEnvSetup):
         op.abort()
         assert get(path) == "aborted"
 
+    def test_input_with_custom_transaction(self):
+        custom_tx = start_transaction()
+        create("table", "//tmp/in", tx=custom_tx)
+        write_table("//tmp/in", {"foo": "bar"}, tx=custom_tx)
+
+        create("table", "//tmp/out")
+
+        with pytest.raises(YtError):
+            map(command="cat", in_="//tmp/in", out="//tmp/out")
+
+        map(command="cat", in_='<transaction_id="{}">//tmp/in'.format(custom_tx), out="//tmp/out")
+
+        assert list(read_table("//tmp/out")) == [{"foo": "bar"}]
+
 ##################################################################
 
 class TestSchedulerCommonMulticell(TestSchedulerCommon):
@@ -3497,10 +3511,11 @@ class TestNewLivePreview(YTEnvSetup):
             spec={"data_size_per_job": 1,
                   "enable_legacy_live_preview": False})
 
-        jobs = wait_breakpoint(job_count=2)
+        wait_breakpoint(job_count=2)
 
         operation_path = get_operation_cypress_path(op.id)
 
         async_transaction_id = get("//sys/operations/" + op.id + "/@async_scheduler_transaction_id")
         assert not exists(operation_path + "/output_0", tx=async_transaction_id)
+
 

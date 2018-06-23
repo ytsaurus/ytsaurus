@@ -477,6 +477,7 @@ void TOperationControllerBase::InitializeStructures()
     for (const auto& path : GetInputTablePaths()) {
         TInputTable table;
         table.Path = path;
+        table.TransactionId = path.GetTransactionId().Get(InputTransaction->GetId());
         InputTables.push_back(table);
     }
 
@@ -517,6 +518,7 @@ void TOperationControllerBase::InitializeStructures()
         for (const auto& path : userJobSpec->FilePaths) {
             TUserFile file;
             file.Path = path;
+            file.TransactionId = path.GetTransactionId().Get(InputTransaction->GetId());
             file.IsLayer = false;
             files.emplace_back(std::move(file));
         }
@@ -528,6 +530,7 @@ void TOperationControllerBase::InitializeStructures()
         for (const auto& path : layerPaths) {
             TUserFile file;
             file.Path = path;
+            file.TransactionId = path.GetTransactionId().Get(InputTransaction->GetId());
             file.IsLayer = true;
             // This must be the top layer, so insert in the beginning.
             files.insert(files.begin(), std::move(file));
@@ -4198,7 +4201,7 @@ void TOperationControllerBase::FetchInputTables()
                 // NB: we always fetch parity replicas since
                 // erasure reader can repair data on flight.
                 req->set_fetch_parity_replicas(true);
-                SetTransactionId(req, InputTransaction->GetId());
+                SetTransactionId(req, *table.TransactionId);
             },
             Logger,
             &chunkSpecs);
@@ -4267,7 +4270,7 @@ void TOperationControllerBase::LockInputTables()
     for (const auto& table : InputTables) {
         auto req = TTableYPathProxy::Lock(table.Path.GetPath());
         req->set_mode(static_cast<int>(ELockMode::Snapshot));
-        SetTransactionId(req, InputTransaction->GetId());
+        SetTransactionId(req, *table.TransactionId);
         GenerateMutationId(req);
         batchReq->AddRequest(req);
     }
@@ -4325,7 +4328,7 @@ void TOperationControllerBase::GetInputTablesAttributes()
                     "unflushed_timestamp"
                 };
                 ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
-                SetTransactionId(req, InputTransaction->GetId());
+                SetTransactionId(req, *table.TransactionId);
                 batchReq->AddRequest(req, "get_attributes");
             }
         }
@@ -4681,7 +4684,7 @@ void TOperationControllerBase::DoFetchUserFiles(const TUserJobSpecPtr& userJobSp
                         // NB: we always fetch parity replicas since
                         // erasure reader can repair data on flight.
                         req->set_fetch_parity_replicas(true);
-                        SetTransactionId(req, InputTransaction->GetId());
+                        SetTransactionId(req, *file.TransactionId);
                     },
                     Logger,
                     &file.ChunkSpecs);
@@ -4700,7 +4703,7 @@ void TOperationControllerBase::DoFetchUserFiles(const TUserJobSpecPtr& userJobSp
                 auto req = TChunkOwnerYPathProxy::Fetch(objectIdPath);
                 ToProto(req->mutable_ranges(), std::vector<TReadRange>({TReadRange()}));
                 req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
-                SetTransactionId(req, InputTransaction->GetId());
+                SetTransactionId(req, *file.TransactionId);
                 batchReq->AddRequest(req, "fetch");
 
                 auto batchRspOrError = WaitFor(batchReq->Invoke());
@@ -4841,7 +4844,7 @@ void TOperationControllerBase::LockUserFiles()
             auto req = TCypressYPathProxy::Lock(file.Path.GetPath());
             req->set_mode(static_cast<int>(ELockMode::Snapshot));
             GenerateMutationId(req);
-            SetTransactionId(req, InputTransaction->GetId());
+            SetTransactionId(req, *file.TransactionId);
             batchReq->AddRequest(req);
         }
     }
@@ -4913,7 +4916,7 @@ void TOperationControllerBase::GetUserFilesAttributes()
             auto objectIdPath = FromObjectId(file.ObjectId);
             {
                 auto req = TYPathProxy::Get(objectIdPath + "/@");
-                SetTransactionId(req, InputTransaction->GetId());
+                SetTransactionId(req, *file.TransactionId);
                 std::vector<TString> attributeKeys;
                 attributeKeys.push_back("file_name");
                 switch (file.Type) {
@@ -4940,7 +4943,7 @@ void TOperationControllerBase::GetUserFilesAttributes()
 
             {
                 auto req = TYPathProxy::Get(file.Path.GetPath() + "&/@");
-                SetTransactionId(req, InputTransaction->GetId());
+                SetTransactionId(req, *file.TransactionId);
                 std::vector<TString> attributeKeys;
                 attributeKeys.push_back("key");
                 attributeKeys.push_back("file_name");
