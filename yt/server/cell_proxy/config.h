@@ -12,6 +12,8 @@
 
 #include <yt/ytlib/api/config.h>
 
+#include <yt/core/rpc/grpc/config.h>
+
 namespace NYT {
 namespace NCellProxy {
 
@@ -29,11 +31,15 @@ public:
     //! Known RPC proxy addresses.
     NNodeTrackerClient::TNetworkAddressList Addresses;
     int WorkerThreadPoolSize;
+    //! GRPC server configuration.
+    NRpc::NGrpc::TServerConfigPtr GrpcServer;
 
     TCellProxyConfig()
     {
         RegisterParameter("cluster_connection", ClusterConnection);
 
+        RegisterParameter("grpc_server", GrpcServer)
+            .Default();
         RegisterParameter("api_service", ApiService)
             .DefaultNew();
         RegisterParameter("discovery_service", DiscoveryService)
