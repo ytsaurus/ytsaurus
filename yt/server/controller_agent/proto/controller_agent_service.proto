@@ -37,6 +37,16 @@ message TRspGetJobInfo
 
 message TOperationDescriptor
 {
+    message TPoolTreeSchedulingTagFilter
+    {
+        required string tree_name = 1;
+        required string filter = 2;
+    }
+    message TPoolTreeSchedulingTagFilters
+    {
+        repeated TPoolTreeSchedulingTagFilter tree_filter = 1;
+    }
+
     required NYT.NProto.TGuid operation_id = 1;
     required int32 operation_type = 2; // EOperationType
     required bytes spec = 3; // YSON
@@ -45,7 +55,7 @@ message TOperationDescriptor
     optional bytes secure_vault = 6; // YSON
     repeated string owners = 7;
     required NYT.NProto.TGuid user_transaction_id = 8;
-    repeated string pool_tree_scheduling_tag_filters = 9;
+    required TPoolTreeSchedulingTagFilters pool_tree_scheduling_tag_filters = 9;
 }
 
 message TReqRegisterOperation

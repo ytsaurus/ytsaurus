@@ -192,7 +192,7 @@ TOperationControllerBase::TOperationControllerBase(
     , JobCounter(New<TProgressCounter>(0))
     , RowBuffer(New<TRowBuffer>(TRowBufferTag(), Config->ControllerRowBufferChunkSize))
     , MemoryTag_(operation->GetMemoryTag())
-    , PoolTreeSchedulingTagFilters_(operation->PoolTreeSchedulingTagFilters())
+    , PoolTreeToSchedulingTagFilter_(operation->PoolTreeToSchedulingTagFilter())
     , Spec_(std::move(spec))
     , Options(std::move(options))
     , SuspiciousJobsYsonUpdater_(New<TPeriodicExecutor>(
@@ -2675,7 +2675,8 @@ void TOperationControllerBase::CheckAvailableExecNodes()
     bool success = false;
     for (const auto& pair : GetExecNodeDescriptors()) {
         const auto& descriptor = pair.second;
-        for (const auto& filter : PoolTreeSchedulingTagFilters_) {
+        for (const auto& pair : PoolTreeToSchedulingTagFilter_) {
+            const auto& filter = pair.second;
             if (descriptor.CanSchedule(filter)) {
                 success = true;
                 break;

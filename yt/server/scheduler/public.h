@@ -81,6 +81,7 @@ using TIncarnationId = TGuid;
 using TAgentId = TString;
 
 class TSchedulingTagFilter;
+using TPoolTreeToSchedulingTagFilter = THashMap<TString, TSchedulingTagFilter>;
 
 class TBootstrap;
 

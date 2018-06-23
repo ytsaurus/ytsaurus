@@ -2107,7 +2107,7 @@ private:
         operation->SetController(controller);
 
         Strategy_->RegisterOperation(operation.Get());
-        operation->PoolTreeSchedulingTagFilters() = Strategy_->GetOperationPoolTreeSchedulingTagFilters(operation->GetId());
+        operation->PoolTreeToSchedulingTagFilter() = Strategy_->GetOperationPoolTreeToSchedulingTagFilter(operation->GetId());
 
         for (const auto& nodeShard : NodeShards_) {
             nodeShard->GetInvoker()->Invoke(BIND(
