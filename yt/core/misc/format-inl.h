@@ -93,17 +93,17 @@ inline void FormatValue(TStringBuilder* builder, TStringBuf value, TStringBuf fo
     }
 
     if (singleQuotes || doubleQuotes) {
-        for (const char* current = value.begin(); current < value.end(); ++current) {
-            char ch = *current;
+        for (const char* valueCurrent = value.begin(); valueCurrent < value.end(); ++valueCurrent) {
+            char ch = *valueCurrent;
             if (!std::isprint(ch) && !std::isspace(ch)) {
                 builder->AppendString("\\x");
                 builder->AppendChar(Int2Hex[static_cast<ui8>(ch) >> 4]);
                 builder->AppendChar(Int2Hex[static_cast<ui8>(ch) & 0xf]);
-            } else if ((singleQuotes && *current == '\'') || (doubleQuotes && *current == '\"')) {
+            } else if ((singleQuotes && ch == '\'') || (doubleQuotes && ch == '\"')) {
                 builder->AppendChar('\\');
-                builder->AppendChar(*current);
+                builder->AppendChar(ch);
             } else {
-                builder->AppendChar(*current);
+                builder->AppendChar(ch);
             }
         }
     } else {
