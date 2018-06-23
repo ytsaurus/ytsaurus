@@ -429,15 +429,22 @@ class TSchemalessWebJsonFormatConfig
 public:
     int ColumnLimit;
     int FieldWeightLimit;
+    int AllColumnNamesLimit;
+
+    // Intentionally do not reveal following options to user.
+    bool SkipSystemColumns = true;
 
     TSchemalessWebJsonFormatConfig()
     {
         RegisterParameter("column_limit", ColumnLimit)
             .Default(50)
-            .GreaterThan(0);
+            .GreaterThanOrEqual(0);
         RegisterParameter("field_weight_limit", FieldWeightLimit)
             .Default(1_KB)
-            .GreaterThan(0);
+            .GreaterThanOrEqual(0);
+        RegisterParameter("all_column_names_limit", AllColumnNamesLimit)
+            .Default(1000)
+            .GreaterThanOrEqual(0);
     }
 };
 

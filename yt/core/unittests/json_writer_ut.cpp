@@ -609,7 +609,7 @@ TEST(TJsonWriterTest, TestNodeWeightLimitAccepted)
     TStringStream outputStream;
     auto config = New<TJsonFormatConfig>();
     config->AnnotateWithTypes = true;
-    auto consumer = CreateJsonConsumer(&outputStream, EYsonType::Node, config);
+    auto consumer = CreateJsonConsumer(&outputStream, EYsonType::Node, std::move(config));
 
     TString yson = "<\"attr\"=123>\"456\"";
     consumer->OnNodeWeightLimited(yson, yson.Size() - 1);
@@ -627,8 +627,7 @@ TEST(TJsonWriterTest, TestNodeWeightLimitAccepted)
 TEST(TJsonWriterTest, TestNodeWeightLimitRejected)
 {
     TStringStream outputStream;
-    auto config = New<TJsonFormatConfig>();
-    auto consumer = CreateJsonConsumer(&outputStream, EYsonType::Node, config);
+    auto consumer = CreateJsonConsumer(&outputStream);
 
     TString yson = "<\"attr\"=123>\"456\"";
     consumer->OnNodeWeightLimited(yson, yson.Size());
@@ -641,6 +640,69 @@ TEST(TJsonWriterTest, TestNodeWeightLimitRejected)
             "},"
             "\"$value\":\"456\""
         "}";
+    EXPECT_EQ(expectedOutput, outputStream.Str());
+}
+
+TEST(TJsonWriterTest, TestStringScalarWeightLimitAccepted)
+{
+    TStringStream outputStream;
+    auto config = New<TJsonFormatConfig>();
+    config->AnnotateWithTypes = true;
+    auto consumer = CreateJsonConsumer(&outputStream, EYsonType::Node, std::move(config));
+
+    consumer->OnStringScalarWeightLimited("1234567", 5);
+    consumer->Flush();
+
+    TString expectedOutput =
+        "{"
+            "\"$incomplete\":true,"
+            "\"$type\":\"string\","
+            "\"$value\":\"12345\""
+        "}";
+    EXPECT_EQ(expectedOutput, outputStream.Str());
+}
+
+TEST(TJsonWriterTest, TestStringScalarWeightLimitRejected)
+{
+    TStringStream outputStream;
+    auto consumer = CreateJsonConsumer(&outputStream);
+
+    TString value = "1234567";
+    consumer->OnStringScalarWeightLimited(value, value.size());
+    consumer->Flush();
+
+    EXPECT_EQ(SurroundWithQuotes(value), outputStream.Str());
+}
+
+TEST(TJsonWriterTest, TestSetAnnotateWithTypesParameter)
+{
+    TStringStream outputStream;
+    auto config = New<TJsonFormatConfig>();
+    config->AnnotateWithTypes = true;
+    auto consumer = CreateJsonConsumer(&outputStream, EYsonType::Node, std::move(config));
+
+    consumer->OnBeginList();
+
+    consumer->OnListItem();
+    consumer->OnStringScalar("1234567");
+
+    consumer->SetAnnotateWithTypesParameter(false);
+    consumer->OnListItem();
+    consumer->OnStringScalar("1234567");
+
+    consumer->OnEndList();
+
+    consumer->Flush();
+
+    TString expectedOutput =
+        "["
+            "{"
+                "\"$type\":\"string\","
+                "\"$value\":\"1234567\""
+            "},"
+            "\"1234567\""
+        "]";
+
     EXPECT_EQ(expectedOutput, outputStream.Str());
 }
 

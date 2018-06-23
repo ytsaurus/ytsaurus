@@ -107,43 +107,22 @@ private:
     const TNameTableReader NameTableReader_;
 
     TWrittenSizeAccountedOutputStream Output_;
-    std::unique_ptr<IWeightLimitAwareYsonConsumer> JsonConsumer_;
+    std::unique_ptr<IJsonConsumer> ResponseBuilder_;
 
+    THashMap<ui16, TString> AllColumnIdToName_;
     THashSet<ui16> RegisteredColumnIds_;
 
     bool IncompleteColumns_ = false;
 
     TError Error_;
 
-    int RowIndexId_ = -1;
-    int RangeIndexId_ = -1;
-    int TableIndexId_ = -1;
+    bool TryRegisterColumn(ui16 columnId, TStringBuf columnName);
+    bool SkipSystemColumn(TStringBuf columnName) const;
 
-    bool IsSystemColumnId(int id) const;
-
-    bool TryRegisterColumn(ui16 columnId);
-
-    void DoFlush();
+    void DoFlush(bool force);
     void DoWrite(const TRange<TUnversionedRow>& rows);
     void DoClose();
 };
-
-bool TSchemalessWriterForWebJson::TryRegisterColumn(ui16 columnId)
-{
-    THashSet<ui16>::insert_ctx insertContext;
-    const auto iterator = RegisteredColumnIds_.find(columnId, insertContext);
-    if (iterator != RegisteredColumnIds_.end()) {
-        return true;
-    }
-
-    if (RegisteredColumnIds_.size() >= Config_->ColumnLimit) {
-        IncompleteColumns_ = true;
-        return false;
-    }
-
-    RegisteredColumnIds_.insert_direct(columnId, insertContext);
-    return true;
-}
 
 TSchemalessWriterForWebJson::TSchemalessWriterForWebJson(
     NConcurrency::IAsyncOutputStreamPtr output,
@@ -166,25 +145,16 @@ TSchemalessWriterForWebJson::TSchemalessWriterForWebJson(
         auto jsonConfig = New<TJsonFormatConfig>();
         jsonConfig->Stringify = true;
         jsonConfig->AnnotateWithTypes = true;
-        jsonConfig->StringLengthLimit = Config_->FieldWeightLimit;
 
-        JsonConsumer_ = CreateJsonConsumer(
+        ResponseBuilder_ = CreateJsonConsumer(
             &Output_,
             NYson::EYsonType::Node,
             std::move(jsonConfig));
     }
 
-    JsonConsumer_->OnBeginMap();
-    JsonConsumer_->OnKeyedItem("rows");
-    JsonConsumer_->OnBeginList();
-
-    try {
-        RowIndexId_ = NameTable_->GetIdOrRegisterName(RowIndexColumnName);
-        RangeIndexId_ = NameTable_->GetIdOrRegisterName(RangeIndexColumnName);
-        TableIndexId_ = NameTable_->GetIdOrRegisterName(TableIndexColumnName);
-    } catch (const std::exception& ex) {
-        Error_ = TError("Failed to add system columns to name table for a format writer") << ex;
-    }
+    ResponseBuilder_->OnBeginMap();
+    ResponseBuilder_->OnKeyedItem("rows");
+    ResponseBuilder_->OnBeginList();
 }
 
 bool TSchemalessWriterForWebJson::Write(const TRange<TUnversionedRow>& rows)
@@ -215,24 +185,17 @@ const TTableSchema& TSchemalessWriterForWebJson::GetSchema() const
 
 const TNameTablePtr& TSchemalessWriterForWebJson::GetNameTable() const
 {
-    Y_UNREACHABLE();
+    return NameTable_;
 }
 
 TBlob TSchemalessWriterForWebJson::GetContext() const
 {
-    Y_UNREACHABLE();
+    return TBlob();
 }
 
 i64 TSchemalessWriterForWebJson::GetWrittenSize() const
 {
     return Output_.GetWrittenSize();
-}
-
-bool TSchemalessWriterForWebJson::IsSystemColumnId(int id) const
-{
-    return id == TableIndexId_ ||
-        id == RowIndexId_ ||
-        id == RangeIndexId_;
 }
 
 TFuture<void> TSchemalessWriterForWebJson::Close()
@@ -246,10 +209,45 @@ TFuture<void> TSchemalessWriterForWebJson::Close()
     return GetReadyEvent();
 }
 
-void TSchemalessWriterForWebJson::DoFlush()
+bool TSchemalessWriterForWebJson::TryRegisterColumn(ui16 columnId, TStringBuf columnName)
 {
-    JsonConsumer_->Flush();
-    Output_.Flush();
+    if (SkipSystemColumn(columnName)) {
+        return false;
+    }
+
+    if (AllColumnIdToName_.size() < Config_->AllColumnNamesLimit) {
+        AllColumnIdToName_[columnId] = columnName;
+    }
+
+    THashSet<ui16>::insert_ctx insertContext;
+    const auto iterator = RegisteredColumnIds_.find(columnId, insertContext);
+    if (iterator != RegisteredColumnIds_.end()) {
+        return true;
+    }
+
+    if (RegisteredColumnIds_.size() >= Config_->ColumnLimit) {
+        IncompleteColumns_ = true;
+        return false;
+    }
+
+    RegisteredColumnIds_.insert_direct(columnId, insertContext);
+    return true;
+}
+
+bool TSchemalessWriterForWebJson::SkipSystemColumn(TStringBuf columnName) const
+{
+    if (!columnName.StartsWith(SystemColumnNamePrefix)) {
+        return false;
+    }
+    return Config_->SkipSystemColumns;
+}
+
+void TSchemalessWriterForWebJson::DoFlush(bool force)
+{
+    ResponseBuilder_->Flush();
+    if (force) {
+        Output_.Flush();
+    }
 }
 
 void TSchemalessWriterForWebJson::DoWrite(const TRange<TUnversionedRow>& rows)
@@ -260,45 +258,73 @@ void TSchemalessWriterForWebJson::DoWrite(const TRange<TUnversionedRow>& rows)
             continue;
         }
 
-        JsonConsumer_->OnListItem();
-        JsonConsumer_->OnBeginMap();
+        ResponseBuilder_->OnListItem();
+        ResponseBuilder_->OnBeginMap();
 
         for (const auto& value : row) {
-            if (IsSystemColumnId(value.Id)) {
+            TStringBuf columnName;
+            if (!NameTableReader_.TryGetName(value.Id, columnName)) {
                 continue;
             }
 
-            if (!TryRegisterColumn(value.Id)) {
+            if (!TryRegisterColumn(value.Id, columnName)) {
                 continue;
             }
 
-            JsonConsumer_->OnKeyedItem(NameTableReader_.GetName(value.Id));
+            ResponseBuilder_->OnKeyedItem(columnName);
 
-            if (value.Type == EValueType::Any) {
-                JsonConsumer_->OnNodeWeightLimited(
-                    TStringBuf(value.Data.String, value.Length),
-                    Config_->FieldWeightLimit);
-            } else {
-                WriteYsonValue(JsonConsumer_.get(), value);
+            const TStringBuf valueBuf(value.Data.String, value.Length);
+            switch (value.Type) {
+                case EValueType::Any:
+                    ResponseBuilder_->OnNodeWeightLimited(valueBuf, Config_->FieldWeightLimit);
+                    break;
+                case EValueType::String:
+                    ResponseBuilder_->OnStringScalarWeightLimited(valueBuf, Config_->FieldWeightLimit);
+                    break;
+                default:
+                    WriteYsonValue(ResponseBuilder_.get(), value);
             }
         }
 
-        JsonConsumer_->OnEndMap();
+        ResponseBuilder_->OnEndMap();
+
+        DoFlush(false);
     }
 
-    DoFlush();
+    DoFlush(true);
 }
 
 void TSchemalessWriterForWebJson::DoClose()
 {
-    JsonConsumer_->OnEndList();
+    if (Error_.IsOK()) {
+        ResponseBuilder_->OnEndList();
 
-    JsonConsumer_->OnKeyedItem("incomplete_columns");
-    JsonConsumer_->OnBooleanScalar(IncompleteColumns_);
+        ResponseBuilder_->SetAnnotateWithTypesParameter(false);
 
-    JsonConsumer_->OnEndMap();
+        ResponseBuilder_->OnKeyedItem("incomplete_columns");
+        ResponseBuilder_->OnBooleanScalar(IncompleteColumns_);
 
-    DoFlush();
+        ResponseBuilder_->OnKeyedItem("all_column_names");
+        ResponseBuilder_->OnBeginList();
+
+        std::vector<TStringBuf> allColumnNamesSorted;
+        allColumnNamesSorted.reserve(AllColumnIdToName_.size());
+        for (const auto& columnIdToName : AllColumnIdToName_) {
+            allColumnNamesSorted.push_back(columnIdToName.second);
+        }
+        std::sort(allColumnNamesSorted.begin(), allColumnNamesSorted.end());
+
+        for (const auto columnName : allColumnNamesSorted) {
+            ResponseBuilder_->OnListItem();
+            ResponseBuilder_->OnStringScalar(columnName);
+        }
+
+        ResponseBuilder_->OnEndList();
+
+        ResponseBuilder_->OnEndMap();
+
+        DoFlush(true);
+    }
 }
 
 ISchemalessFormatWriterPtr CreateSchemalessWriterForWebJson(
@@ -317,9 +343,8 @@ ISchemalessFormatWriterPtr CreateSchemalessWriterForWebJson(
     NConcurrency::IAsyncOutputStreamPtr stream,
     TNameTablePtr nameTable)
 {
-    auto config = ConvertTo<TSchemalessWebJsonFormatConfigPtr>(&attributes);
     return CreateSchemalessWriterForWebJson(
-        config,
+        ConvertTo<TSchemalessWebJsonFormatConfigPtr>(&attributes),
         stream,
         nameTable);
 }

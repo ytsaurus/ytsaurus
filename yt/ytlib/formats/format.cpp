@@ -30,6 +30,7 @@
 #include <yt/core/json/json_writer.h>
 
 #include <yt/ytlib/table_client/name_table.h>
+#include <yt/ytlib/table_client/schemaful_writer_adapter.h>
 #include <yt/ytlib/table_client/table_consumer.h>
 
 namespace NYT {
@@ -256,11 +257,21 @@ ISchemafulWriterPtr CreateSchemafulWriterForFormat(
 {
     switch (format.GetType()) {
         case EFormatType::Yson:
-            return CreateAdaptedWriterForYson<ISchemafulWriter, TSchemafulWriter>(format.Attributes(), schema, output);
+            return CreateAdaptedWriterForYson<ISchemafulWriter, TSchemafulWriter>(format.Attributes(), schema, std::move(output));
         case EFormatType::Json:
-            return CreateAdaptedWriterForJson<ISchemafulWriter, TSchemafulWriter>(format.Attributes(), schema, output);
+            return CreateAdaptedWriterForJson<ISchemafulWriter, TSchemafulWriter>(format.Attributes(), schema, std::move(output));
         case EFormatType::SchemafulDsv:
-            return CreateSchemafulWriterForSchemafulDsv(format.Attributes(), schema, output);
+            return CreateSchemafulWriterForSchemafulDsv(format.Attributes(), schema, std::move(output));
+        case EFormatType::WebJson: {
+            auto webJsonFormatConfig = ConvertTo<TSchemalessWebJsonFormatConfigPtr>(&format.Attributes());
+            webJsonFormatConfig->SkipSystemColumns = false;
+
+            return CreateSchemafulWriterAdapter(
+                CreateSchemalessWriterForWebJson(
+                    std::move(webJsonFormatConfig),
+                    std::move(output),
+                    TNameTable::FromSchema(schema)));
+        }
         default:
             THROW_ERROR_EXCEPTION("Unsupported output format %Qlv",
                 format.GetType());

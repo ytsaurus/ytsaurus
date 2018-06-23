@@ -50,7 +50,7 @@ private:
 
 class TJsonConsumer
     : public TYsonConsumerBase
-    , public IWeightLimitAwareYsonConsumer
+    , public IJsonConsumer
 {
 public:
     TJsonConsumer(
@@ -77,6 +77,9 @@ public:
     virtual void OnBeginAttributes() override;
     virtual void OnEndAttributes() override;
 
+    virtual void SetAnnotateWithTypesParameter(bool value) override;
+
+    virtual void OnStringScalarWeightLimited(TStringBuf value, TNullable<i64> weightLimit) override;
     virtual void OnNodeWeightLimited(TStringBuf yson, TNullable<i64> weightLimit) override;
 
     virtual void Flush() override;
@@ -511,6 +514,23 @@ void TJsonConsumer::WriteStringScalarWithAttributes(
     }
 }
 
+void TJsonConsumer::SetAnnotateWithTypesParameter(bool value)
+{
+    Config->AnnotateWithTypes = value;
+}
+
+void TJsonConsumer::OnStringScalarWeightLimited(TStringBuf value, TNullable<i64> weightLimit)
+{
+    TStringBuf writeValue = value;
+    bool incomplete = false;
+    if (CheckLimit && weightLimit && value.Size() > *weightLimit) {
+        writeValue = value.substr(0, *weightLimit);
+        incomplete = true;
+    }
+
+    WriteStringScalarWithAttributes(writeValue, "string", incomplete);
+}
+
 void TJsonConsumer::OnNodeWeightLimited(TStringBuf yson, TNullable<i64> weightLimit)
 {
     if (CheckLimit && weightLimit && yson.Size() > *weightLimit) {
@@ -521,7 +541,7 @@ void TJsonConsumer::OnNodeWeightLimited(TStringBuf yson, TNullable<i64> weightLi
     OnRaw(yson, EYsonType::Node);
 }
 
-std::unique_ptr<IWeightLimitAwareYsonConsumer> CreateJsonConsumer(
+std::unique_ptr<IJsonConsumer> CreateJsonConsumer(
     IOutputStream* output,
     EYsonType type,
     TJsonFormatConfigPtr config)
