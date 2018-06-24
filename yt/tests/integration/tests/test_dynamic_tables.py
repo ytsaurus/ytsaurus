@@ -689,6 +689,7 @@ class TestDynamicTables(TestDynamicTablesBase):
 
         assert int(empty_node_cpu - assigned_node_cpu) == 1
 
+    @skip_if_rpc_driver_backend
     def test_bundle_node_list(self):
         create_tablet_cell_bundle("b", attributes={"node_tag_filter": "b"})
 
