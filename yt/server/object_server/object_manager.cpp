@@ -400,6 +400,7 @@ void TObjectManager::RegisterHandler(IObjectTypeHandlerPtr handler)
     TTypeEntry entry;
     entry.Handler = handler;
     YCHECK(TypeToEntry_.emplace(type, entry).second);
+    YCHECK(RegisteredTypes_.insert(type).second);
 
     if (HasSchema(type)) {
         auto schemaType = SchemaTypeFromType(type);
