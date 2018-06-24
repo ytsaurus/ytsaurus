@@ -279,7 +279,6 @@ bool TJobManager::TStripeListComparator::operator()(IChunkPoolOutput::TCookie lh
 TJobManager::TJobManager()
     : CookiePool_(std::make_unique<TCookiePool>(TJobManager::TStripeListComparator(this /* owner */)))
 {
-
     DataWeightCounter_->Set(0);
     RowCounter_->Set(0);
     JobCounter_->Set(0);
