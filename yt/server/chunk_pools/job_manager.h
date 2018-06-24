@@ -169,6 +169,10 @@ private:
 
         void Persist(const TPersistenceContext& context);
 
+        //! A helper for accounting this job in all three progress counters of the owner simultaneously.
+        template <class... TArgs>
+        void UpdateCounters(void (NControllerAgent::TProgressCounter::*Method)(i64, TArgs...), TArgs... args);
+
     private:
         TJobManager* Owner_ = nullptr;
         int SuspendedStripeCount_ = 0;
