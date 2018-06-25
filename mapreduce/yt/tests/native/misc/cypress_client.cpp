@@ -350,14 +350,12 @@ Y_UNIT_TEST_SUITE(CypressClient) {
         }
     }
 
-    // Y_UNIT_TEST(TestGetColumnarStatistics)
-    // TODO: enable after github <-> arcadia sync
-    void TestGetColumnarStatistics()
+    Y_UNIT_TEST(TestGetColumnarStatistics)
     {
         auto client = CreateTestClient();
         auto tx = client->StartTransaction();
         {
-            auto writer = tx->CreateTableWriter<TNode>("//tmp/table");
+            auto writer = tx->CreateTableWriter<TNode>("//testing/table");
             writer->AddRow(TNode()("foo", 1)("bar", "baz"));
             writer->AddRow(TNode()("foo", 2)("bar", "qux"));
             writer->Finish();
