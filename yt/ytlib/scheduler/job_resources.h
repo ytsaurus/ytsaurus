@@ -70,36 +70,25 @@ public:
     using Base::Get ## Field; \
     using Base::Set ## Field;
 
-template <class TResourceType>
-class TResourcesWithQuota
-{
-public:
-    i64 GetDiskQuota() const
-    {
-        return DiskQuota_;
-    }
-
-    void SetDiskQuota(i64 DiskQuota)
-    {
-        DiskQuota_ = DiskQuota;
-    }
-
-protected:
-    i64 DiskQuota_ = 0;
-};
-
-template <>
-struct TResourcesWithQuota<TJobResources>
+struct TJobResourcesWithQuota
     : private TJobResources
-    , private TResourcesWithQuota<void>
 {
 public:
+    DEFINE_BYVAL_RW_PROPERTY(i64, DiskQuota)
+
     MAKE_JOB_METHODS(TJobResources, UserSlots)
     MAKE_JOB_METHODS(TJobResources, Cpu)
     MAKE_JOB_METHODS(TJobResources, Gpu)
     MAKE_JOB_METHODS(TJobResources, Memory)
     MAKE_JOB_METHODS(TJobResources, Network)
-    MAKE_JOB_METHODS(TResourcesWithQuota<void>, DiskQuota);
+
+    TJobResourcesWithQuota() = default;
+
+    TJobResourcesWithQuota(const TJobResources& jobResources)
+        : TJobResources(jobResources)
+    {
+        SetDiskQuota(0);
+    }
 
     TJobResources ToJobResources() const
     {
@@ -112,17 +101,8 @@ public:
         TJobResources::Persist(context);
         Persist(context, DiskQuota_);
     }
-
-    TResourcesWithQuota() = default;
-
-    TResourcesWithQuota(const TJobResources& jobResources)
-        : TJobResources(jobResources)
-    {
-        SetDiskQuota(0);
-    }
 };
 
-using TJobResourcesWithQuota = TResourcesWithQuota<TJobResources>;
 using TJobResourcesWithQuotaList = SmallVector<TJobResourcesWithQuota, 8>;
 
 TString FormatResourceUsage(const TJobResources& usage, const TJobResources& limits);
