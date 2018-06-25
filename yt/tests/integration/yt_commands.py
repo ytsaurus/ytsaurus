@@ -303,6 +303,12 @@ def get_operation(operation_id, is_raw=False, **kwargs):
     result = execute_command("get_operation", kwargs)
     return result if is_raw else yson.loads(result)
 
+def get_job(operation_id, job_id, is_raw=False, **kwargs):
+    kwargs["operation_id"] = operation_id
+    kwargs["job_id"] = job_id
+    result = execute_command("get_job", kwargs)
+    return result if is_raw else yson.loads(result)
+
 def set(path, value, is_raw=False, **kwargs):
     if not is_raw:
         value = yson.dumps(value)

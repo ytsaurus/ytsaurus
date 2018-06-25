@@ -5923,6 +5923,7 @@ private:
                     SET_ITEM_INSTANT_VALUE("start_time")
                     SET_ITEM_INSTANT_VALUE("finish_time")
                     SET_ITEM_STRING_VALUE("address")
+                    SET_ITEM_STRING_VALUE("type")
                     SET_ITEM_YSON_STRING_VALUE("error")
                     SET_ITEM_YSON_STRING_VALUE("statistics")
                     SET_ITEM_YSON_STRING_VALUE("events")
