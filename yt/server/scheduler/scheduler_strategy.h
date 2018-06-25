@@ -156,7 +156,8 @@ struct ISchedulerStrategy
 
     virtual void InitOperationRuntimeParameters(
         const TOperationRuntimeParametersPtr& runtimeParameters,
-        const TOperationSpecBasePtr& spec) = 0;
+        const TOperationSpecBasePtr& spec,
+        const TString& user) = 0;
 
     virtual void UpdateOperationRuntimeParametersOld(
         IOperationStrategyHost* operation,
@@ -193,12 +194,6 @@ struct ISchedulerStrategy
 
     //! Provides a string describing operation status and statistics.
     virtual TString GetOperationLoggingProgress(const TOperationId& operationId) = 0;
-
-    //! Called for a just initialized operation to construct its brief spec
-    //! to be used by UI.
-    virtual void BuildBriefSpec(
-        const TOperationId& operationId,
-        NYTree::TFluentMap fluent) = 0;
 
     virtual TPoolTreeToSchedulingTagFilter GetOperationPoolTreeToSchedulingTagFilter(const TOperationId& operationId) = 0;
 };

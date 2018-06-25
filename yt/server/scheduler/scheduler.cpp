@@ -533,7 +533,7 @@ public:
             GetMasterClient()->GetNativeConnection()->GetPrimaryMasterCellTag());
 
         auto runtimeParams = New<TOperationRuntimeParameters>();
-        Strategy_->InitOperationRuntimeParameters(runtimeParams, spec);
+        Strategy_->InitOperationRuntimeParameters(runtimeParams, spec, user);
 
         auto operation = New<TOperation>(
             operationId,
@@ -1883,7 +1883,6 @@ private:
         auto briefSpec = BuildYsonStringFluently()
             .BeginMap()
                 .Items(operation->ControllerAttributes().InitializationAttributes->BriefSpec)
-                .Do(BIND(&ISchedulerStrategy::BuildBriefSpec, Strategy_, operation->GetId()))
             .EndMap();
         return briefSpec;
     }

@@ -149,14 +149,14 @@ void TListOperationsCommand::BuildOperations(const TListOperationsResult& result
                         .DoIf(operation.BriefSpec.operator bool(), [&] (TFluentMap fluent) {
                             fluent.Item("brief_spec").Value(operation.BriefSpec);
                         })
+                        .DoIf(operation.RuntimeParameters.operator bool(), [&] (TFluentMap fluent) {
+                            fluent.Item("runtime_parameters").Value(operation.RuntimeParameters);
+                        })
                         .DoIf(operation.FinishTime.operator bool(), [&] (TFluentMap fluent) {
                             fluent.Item("finish_time").Value(operation.FinishTime);
                         })
                         .DoIf(operation.Suspended.operator bool(), [&] (TFluentMap fluent) {
                             fluent.Item("suspended").Value(operation.Suspended);
-                        })
-                        .DoIf(operation.Weight.operator bool(), [&] (TFluentMap fluent) {
-                            fluent.Item("weight").Value(operation.Weight);
                         })
                     .EndAttributes()
                     .Value(operation.OperationId);
@@ -197,14 +197,14 @@ void TListOperationsCommand::BuildOperations(const TListOperationsResult& result
                             .DoIf(operation.BriefSpec.operator bool(), [&] (TFluentMap fluent) {
                                 fluent.Item("brief_spec").Value(operation.BriefSpec);
                             })
+                            .DoIf(operation.RuntimeParameters.operator bool(), [&] (TFluentMap fluent) {
+                                fluent.Item("runtime_parameters").Value(operation.RuntimeParameters);
+                            })
                             .DoIf(operation.FinishTime.operator bool(), [&] (TFluentMap fluent) {
                                 fluent.Item("finish_time").Value(operation.FinishTime);
                             })
                             .DoIf(operation.Suspended.operator bool(), [&] (TFluentMap fluent) {
                                 fluent.Item("suspended").Value(operation.Suspended);
-                            })
-                            .DoIf(operation.Weight.operator bool(), [&] (TFluentMap fluent) {
-                                fluent.Item("weight").Value(operation.Weight);
                             })
                             .DoIf(operation.Pool.operator bool(), [&] (TFluentMap fluent) {
                                 fluent.Item("pool").Value(operation.Pool);

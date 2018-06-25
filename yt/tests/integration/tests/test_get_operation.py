@@ -64,6 +64,7 @@ class TestGetOperation(YTEnvSetup):
                 "authenticated_user",
                 "brief_progress",
                 "brief_spec",
+                "runtime_parameters",
                 "finish_time",
                 "type",
                 # COMPAT(levysotsky): Old name for "type"
@@ -72,13 +73,11 @@ class TestGetOperation(YTEnvSetup):
                 "start_time",
                 "state",
                 "suspended",
-                "title",
-                "weight",
                 "spec",
                 "unrecognized_spec",
                 "full_spec",
             ]
-            return {key : attrs[key] for key in PROPER_ATTRS if key in attrs}
+            return {key: attrs[key] for key in PROPER_ATTRS if key in attrs}
 
         assert filter_attrs(res_get_operation) == filter_attrs(res_cypress)
 

@@ -636,6 +636,7 @@ public:
         const auto& attributes = element->Attributes();
         fluent
             .Item("pool").Value(parent->GetId())
+            .Item("weight").Value(element->GetWeight())
             .Item("fair_share_ratio").Value(attributes.FairShareRatio);
     }
 
@@ -681,15 +682,6 @@ public:
             element->GetWeight(),
             element->GetPreemptableJobCount(),
             element->GetAggressivelyPreemptableJobCount());
-    }
-
-    void BuildBriefSpec(const TOperationId& operationId, TFluentMap fluent)
-    {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
-
-        const auto& element = GetOperationElement(operationId);
-        fluent
-            .Item("pool").Value(element->GetParent()->GetId());
     }
 
     // NB: This function is public for testing purposes.
@@ -2363,29 +2355,6 @@ public:
         DoBuildOperationProgress(&TFairShareTree::BuildBriefOperationProgress, operationId, fluent);
     }
 
-    virtual void BuildBriefSpec(const TOperationId& operationId, TFluentMap fluent) override
-    {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
-
-        const auto& state = GetOperationState(operationId);
-        const auto& pools = state->TreeIdToPoolIdMap();
-
-        fluent
-            .DoIf(DefaultTreeId_.HasValue(), BIND([&] (TFluentMap fluent) {
-                auto it = pools.find(*DefaultTreeId_);
-                if (it != pools.end()) {
-                    fluent
-                        .Item("pool").Value(it->second);
-                }
-            }))
-            .Item("scheduling_info_per_pool_tree").DoMapFor(pools, [&] (TFluentMap fluent, const auto& value) {
-                fluent
-                    .Item(value.first).BeginMap()
-                        .Item("pool").Value(value.second)
-                    .EndMap();
-            });
-    }
-
     virtual TPoolTreeToSchedulingTagFilter GetOperationPoolTreeToSchedulingTagFilter(const TOperationId& operationId) override
     {
         TPoolTreeToSchedulingTagFilter result;
@@ -2468,11 +2437,12 @@ public:
 
     virtual void InitOperationRuntimeParameters(
         const TOperationRuntimeParametersPtr& runtimeParameters,
-        const TOperationSpecBasePtr& spec) override
+        const TOperationSpecBasePtr& spec,
+        const TString& user) override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
-        runtimeParameters->FillFromSpec(spec, DefaultTreeId_);
+        runtimeParameters->FillFromSpec(spec, DefaultTreeId_, user);
     }
 
     virtual void ValidateOperationRuntimeParameters(
@@ -2883,7 +2853,6 @@ private:
     {
         auto spec = ParseSpec(operation);
 
-        // Skipping unknown trees.
         for (const auto& treeId : spec->PoolTrees) {
             if (!FindTree(treeId)) {
                 THROW_ERROR_EXCEPTION("Pool tree %Qv not found", treeId);
@@ -2922,14 +2891,10 @@ private:
         THashMap<TString, TString> pools;
 
         for (const auto& treeId : allTrees) {
-            TString pool;
             auto optionsIt = runtimeParams->SchedulingOptionsPerPoolTree.find(treeId);
-            if (optionsIt != runtimeParams->SchedulingOptionsPerPoolTree.end() && optionsIt->second->Pool) {
-                pool = optionsIt->second->Pool.Get();
-            } else {
-                pool = operation->GetAuthenticatedUser();
-            }
-            pools.emplace(treeId, pool);
+            YCHECK(optionsIt != runtimeParams->SchedulingOptionsPerPoolTree.end());
+            YCHECK(optionsIt->second->Pool.HasValue());
+            pools.emplace(treeId, optionsIt->second->Pool.Get());
         }
 
         return pools;
@@ -3016,8 +2981,6 @@ private:
         const auto& pools = state->TreeIdToPoolIdMap();
 
         fluent
-            .DoIf(DefaultTreeId_ && pools.find(*DefaultTreeId_) != pools.end(),
-                  BIND(method, GetTree(*DefaultTreeId_), operationId))
             .Item("scheduling_info_per_pool_tree")
                 .DoMapFor(pools, [&] (TFluentMap fluent, const std::pair<TString, TString>& value) {
                     const auto& treeId = value.first;
