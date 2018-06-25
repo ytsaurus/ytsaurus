@@ -221,7 +221,7 @@ endif()
 include_directories(
   ${CMAKE_BINARY_DIR}
   ${CMAKE_SOURCE_DIR}
-  ${CMAKE_SOURCE_DIR}/contrib/tclap # header-only library
+  ${CMAKE_SOURCE_DIR}/yt/contrib/tclap # header-only library
   ${CMAKE_SOURCE_DIR}/contrib/libs/sparsehash/src # header-only library
   ${CMAKE_SOURCE_DIR}/contrib/libs/re2 # re2 contains relative includes
   ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf # protobuf contains relative includes
