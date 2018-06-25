@@ -1220,7 +1220,7 @@ class TestPreserveSlotIndexAfterRevive(YTEnvSetup, PrepareTables):
         write_table("//tmp/t_in", [{"x": "y"}])
 
         def get_slot_index(op_id):
-            path = "//sys/scheduler/orchid/scheduler/operations/{0}/progress/slot_index".format(op_id)
+            path = "//sys/scheduler/orchid/scheduler/operations/{0}/progress/scheduling_info_per_pool_tree/default/slot_index".format(op_id)
             wait(lambda: exists(path))
             return get(path)
 
@@ -2201,7 +2201,7 @@ class TestSchedulerConfig(YTEnvSetup):
         create("table", "//tmp/t_in")
         write_table("//tmp/t_in", [{"a": "b"}])
         create("table", "//tmp/t_out")
-        op = map(command="sleep 1000", in_=["//tmp/t_in"], out="//tmp/t_out", dont_track=True, spec={"xxx": "yyy"})
+        op = map(command="sleep 1000", in_=["//tmp/t_in"], out="//tmp/t_out", dont_track=True)
 
         wait(lambda: exists("//sys/operations/{0}/@brief_progress".format(op.id)))
         assert list(get("//sys/operations/{0}/@brief_progress".format(op.id))) == ["jobs"]
@@ -2396,7 +2396,7 @@ class TestSchedulerHeterogeneousConfiguration(YTEnvSetup):
 
         time.sleep(2)
 
-        assert get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/resource_usage/user_slots".format(op.id)) == 2
+        assert get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/scheduling_info_per_pool_tree/default/resource_usage/user_slots".format(op.id)) == 2
         assert get("//sys/scheduler/orchid/scheduler/cell/resource_limits/user_slots") == 2
         assert get("//sys/scheduler/orchid/scheduler/cell/resource_usage/user_slots") == 2
 
@@ -3072,7 +3072,7 @@ fi
         set("//sys/operations/" + op.id + "/@resource_limits", {"user_slots": 1})
         set(get_operation_cypress_path(op.id) + "/@resource_limits", {"user_slots": 3})
 
-        orchid_path = "//sys/scheduler/orchid/scheduler/operations/{0}/progress/resource_limits/user_slots".format(op.id)
+        orchid_path = "//sys/scheduler/orchid/scheduler/operations/{0}/progress/scheduling_info_per_pool_tree/default/resource_limits/user_slots".format(op.id)
         wait(lambda: get(orchid_path) == 1)
 
     def test_inner_operation_nodes(self):

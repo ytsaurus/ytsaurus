@@ -795,14 +795,15 @@ struct TOperation
     NScheduler::TOperationId OperationId;
     NScheduler::EOperationType OperationType;
     NScheduler::EOperationState OperationState;
+    //TODO(renadeen): remove
     TNullable<TString> Pool;
     TString AuthenticatedUser;
     NYson::TYsonString BriefProgress;
     NYson::TYsonString BriefSpec;
+    NYson::TYsonString RuntimeParameters;
     TInstant StartTime;
     TNullable<TInstant> FinishTime;
     TNullable<bool> Suspended;
-    TNullable<double> Weight;
 };
 
 struct TListOperationsResult

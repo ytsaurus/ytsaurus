@@ -100,7 +100,7 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
         self._prepare_tables()
 
         get_operation_guaranteed_resources_ratio = lambda op_id: \
-            get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/guaranteed_resources_ratio".format(op_id))
+            get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/scheduling_info_per_pool_tree/default/guaranteed_resources_ratio".format(op_id))
 
         op = map(
             dont_track=True,
@@ -157,7 +157,7 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
             out="//tmp/t_out",
             spec={"job_count": 3, "resource_limits": resource_limits, "mapper": {"memory_limit": memory_limit}, "testing": testing_options})
         self._check_running_jobs(op, 1)
-        op_limits = get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/resource_limits".format(op.id))
+        op_limits = get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/scheduling_info_per_pool_tree/default/resource_limits".format(op.id))
         for resource, limit in resource_limits.iteritems():
             resource_name = "user_memory" if resource == "memory" else resource
             assert assert_almost_equal(op_limits[resource_name], limit)
@@ -272,7 +272,7 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
             spec={"job_count": 3, "mapper": {"cpu_limit": 0.87}})
         wait_breakpoint()
 
-        resource_usage = get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/resource_usage".format(op.id))
+        resource_usage = get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/scheduling_info_per_pool_tree/default/resource_usage".format(op.id))
         assert_almost_equal(resource_usage["cpu"], 3 * 0.87)
 
         release_breakpoint()
@@ -860,7 +860,7 @@ class TestSchedulerPreemption(YTEnvSetup):
         create("table", "//tmp/t_out")
 
         get_operation_min_share_ratio = lambda op_id: \
-            get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/adjusted_min_share_ratio".format(op_id))
+            get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/scheduling_info_per_pool_tree/default/adjusted_min_share_ratio".format(op_id))
 
         min_share_settings = [
             {"min_share_ratio": 0.5},
@@ -955,7 +955,7 @@ class TestSchedulerPreemption(YTEnvSetup):
         time.sleep(1)
 
         get_operation_tolerance = lambda op_id: \
-            get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/adjusted_fair_share_starvation_tolerance".format(op_id))
+            get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/scheduling_info_per_pool_tree/default/adjusted_fair_share_starvation_tolerance".format(op_id))
 
         assert get_operation_tolerance(op1.id) == 0.4
         assert get_operation_tolerance(op2.id) == 0.6
@@ -1043,10 +1043,10 @@ class TestSchedulerAggressivePreemption(YTEnvSetup):
         set("//sys/pools/special_pool/@aggressive_starvation_enabled", True)
 
         get_fair_share_ratio = lambda op_id: \
-            get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/fair_share_ratio".format(op_id))
+            get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/scheduling_info_per_pool_tree/default/fair_share_ratio".format(op_id))
 
         get_usage_ratio = lambda op_id: \
-            get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/usage_ratio".format(op_id))
+            get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/scheduling_info_per_pool_tree/default/usage_ratio".format(op_id))
 
         ops = []
         for index in xrange(2):
@@ -1112,10 +1112,10 @@ class TestSchedulerAggressiveStarvationPreemption(YTEnvSetup):
         set("//sys/pools/pool0/@allow_aggressive_starvation_preemption", False)
 
         get_fair_share_ratio = lambda op_id: \
-            get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/fair_share_ratio".format(op_id))
+            get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/scheduling_info_per_pool_tree/default/fair_share_ratio".format(op_id))
 
         get_usage_ratio = lambda op_id: \
-            get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/usage_ratio".format(op_id))
+            get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/scheduling_info_per_pool_tree/default/usage_ratio".format(op_id))
 
         ops = []
         for index in xrange(4):

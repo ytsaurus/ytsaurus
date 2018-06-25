@@ -3549,6 +3549,7 @@ private:
         "unrecognized_spec",
         "brief_progress",
         "brief_spec",
+        "runtime_parameters",
         "start_time",
         "finish_time",
         "result",
@@ -4367,6 +4368,7 @@ private:
 
         if (operation.BriefSpec) {
             auto briefSpecMapNode = ConvertToNode(operation.BriefSpec)->AsMap();
+            // TODO(renadeen): extract pool from runtime_parameters.
             if (briefSpecMapNode->FindChild("pool")) {
                 textFactors.push_back(briefSpecMapNode->GetChild("pool")->AsString()->GetValue());
             }
@@ -4425,7 +4427,7 @@ private:
         }
 
         if (options.Limit > 100) {
-            THROW_ERROR_EXCEPTION("Maximum result size exceedes allowed limit");
+            THROW_ERROR_EXCEPTION("Maximum result size exceeds allowed limit");
         }
 
         std::vector<TString> attributes = {
@@ -4434,6 +4436,7 @@ private:
             "brief_spec",
             "finish_time",
             "operation_type",
+            "runtime_parameters",
             "start_time",
             "state",
             "suspended",
@@ -4464,8 +4467,8 @@ private:
             }
 
             operation.BriefProgress = attributes.FindYson("brief_progress");
+            operation.RuntimeParameters = attributes.FindYson("runtime_parameters");
             operation.Suspended = attributes.Get<bool>("suspended");
-            operation.Weight = attributes.Find<double>("weight");
             return operation;
         };
 
@@ -4733,6 +4736,7 @@ private:
                 tableDescriptor.Index.BriefSpec,
                 tableDescriptor.Index.StartTime,
                 tableDescriptor.Index.FinishTime,
+                tableDescriptor.Index.RuntimeParameters,
             });
             lookupOptions.KeepMissingRows = true;
             lookupOptions.Timeout = deadline - Now();
@@ -4804,6 +4808,7 @@ private:
                     operation.FinishTime = TInstant::MicroSeconds(row[columnFilter.GetIndex(tableIndex.FinishTime)].Data.Int64);
                 }
 
+                operation.RuntimeParameters = getYson(row[columnFilter.GetIndex(tableIndex.RuntimeParameters)]);
                 archiveData.push_back(operation);
             }
         }
