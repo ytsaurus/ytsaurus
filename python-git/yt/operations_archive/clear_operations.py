@@ -159,6 +159,8 @@ class OperationArchiver(object):
         if self.version >= 17:
             value_columns.append("full_spec")
             value_columns.append("unrecognized_spec")
+        if self.version >= 22:
+            value_columns.append("runtime_parameters")
 
         by_id_row = {}
         for key in index_columns + value_columns:
@@ -497,7 +499,7 @@ def request_operations_recursive(yt_client, root_operation_ids, prefixes):
         else:
             error = yt.YtResponseError(response.get_error())
             if not error.is_resolve_error():
-                raise
+                raise error
 
     # It is important to make additional existance check due to possible races.
     exists_responses = []
