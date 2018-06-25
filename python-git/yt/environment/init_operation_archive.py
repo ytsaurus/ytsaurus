@@ -128,9 +128,7 @@ class Convert(object):
 
             if client.exists(source_table):
                 table_info.create_table(client, target_table)
-                mapper = self.mapper
-                if not mapper:
-                    mapper = table_info.get_default_mapper()
+                mapper = self.mapper if self.mapper else table_info.get_default_mapper()
                 unmount_table(client, source_table)
 
                 logging.info("Run mapper '%s': %s -> %s", mapper.__name__, source_table, target_table)
@@ -745,6 +743,33 @@ TRANSFORMS[21] = [
                 ("update_time", "int64"),
             ],
             attributes={"atomicity": "none"})),
+]
+
+TRANSFORMS[22] = [
+    Convert(
+        "ordered_by_id",
+        table_info=TableInfo([
+            ("id_hash", "uint64", "farm_hash(id_hi, id_lo)"),
+            ("id_hi", "uint64"),
+            ("id_lo", "uint64"),
+        ], [
+            ("state", "string"),
+            ("authenticated_user", "string"),
+            ("operation_type", "string"),
+            ("progress", "any"),
+            ("spec", "any"),
+            ("brief_progress", "any"),
+            ("brief_spec", "any"),
+            ("start_time", "int64"),
+            ("finish_time", "int64"),
+            ("filter_factors", "string"),
+            ("result", "any"),
+            ("events", "any"),
+            ("alerts", "any"),
+            ("runtime_parameters", "any")
+        ],
+            in_memory=True,
+            get_pivot_keys=get_default_pivots))
 ]
 
 def swap_table(client, target, source, version):
