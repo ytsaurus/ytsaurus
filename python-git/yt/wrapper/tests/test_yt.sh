@@ -505,6 +505,49 @@ test_ping_ancestor_transactions_in_operations()
     $YT vanilla --tasks '{sample={command="sleep 12";job_count=1}}' --tx $TX --ping-ancestor-txs
 }
 
+test_operation_and_job_commands()
+{
+    export YT_TABULAR_DATA_FORMAT="dsv"
+    echo -e "x=1\n" | $YT write //home/wrapper_test/input_table
+    map_op=$($YT map 'echo "Well hello there" >&2 && tr 1 2' --src //home/wrapper_test/input_table --dst //home/wrapper_test/map_output --async)
+    $YT track-op $map_op
+
+    get_operation_res="$($YT get-operation $map_op --attribute state --attribute authenticated_user --format json)"
+    state=$(echo "$get_operation_res" | $PYTHON_BINARY -c 'import sys, json; sys.stdout.write(json.load(sys.stdin)["state"])')
+    user=$(echo "$get_operation_res" | $PYTHON_BINARY -c 'import sys, json; sys.stdout.write(json.load(sys.stdin)["authenticated_user"])')
+    check "$state" "completed"
+    check "$user" "root"
+    echo "$get_operation_res" | $PYTHON_BINARY -c 'import sys, json; assert len(json.load(sys.stdin)) == 2'
+
+    list_operations_res="$($YT list-operations --format json)"
+    echo "$list_operations_res" | \
+        $PYTHON_BINARY -c 'import sys, json; assert '"\"$map_op\""' in [d["id"] for d in json.load(sys.stdin)["operations"]]'
+
+    list_operations_res_ts="$($YT list-operations --to-time 1 --format json)"
+    echo "$list_operations_res_ts" | \
+        $PYTHON_BINARY -c 'import sys, json; assert '"\"$map_op\""' not in [d["id"] for d in json.load(sys.stdin)["operations"]]'
+
+    list_jobs_res="$($YT list-jobs $map_op --format json)"
+    job_id="$(echo "$list_jobs_res" | $PYTHON_BINARY -c 'import sys, json; sys.stdout.write(json.load(sys.stdin)["jobs"][0]["id"])')"
+
+    success="0"
+    set +e
+    for i in {1..10}; do
+        get_job_res="$($YT get-job $job_id $map_op --format json)"
+        if [ $? = "0" ]; then
+            job_state=$(echo "$get_job_res" | $PYTHON_BINARY -c 'import sys, json; sys.stdout.write(json.load(sys.stdin)["state"])')
+            check "$job_state" "completed"
+            success="1"
+            break
+        fi
+        sleep 1
+    done
+    set -e
+
+    check $success "1"
+    unset YT_TABULAR_DATA_FORMAT
+}
+
 tear_down
 run_test test_cypress_commands
 run_test test_list_long_format
@@ -529,3 +572,4 @@ run_test test_execute
 run_test test_brotli_write
 run_test test_vanilla_operations
 run_test test_ping_ancestor_transactions_in_operations
+run_test test_operation_and_job_commands
