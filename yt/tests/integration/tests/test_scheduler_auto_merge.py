@@ -268,15 +268,16 @@ class TestSchedulerAutoMerge(YTEnvSetup):
     @pytest.mark.timeout(60)
     def test_teleport_large_chunks(self):
         create("table", "//tmp/t_in")
-        create("table", "//tmp/t_out")
+        create("table", "//tmp/t_out1")
+        create("table", "//tmp/t_out2")
         for i in range(10):
             write_table("<append=%true>//tmp/t_in", [{"a": i}])
 
         # For even lines output a long random string, for odd lines output a single character.
         op = map(
             in_="//tmp/t_in",
-            out=["//tmp/t_out"],
-            command="read x; if [[ $(($x % 2)) == 0 ]]; then head -c 1000000 /dev/urandom | base64 -w 0; echo -ne '\n'; else echo $x; fi",
+            out=["//tmp/t_out1", "//tmp/t_out2"],
+            command="read x; if [[ $(($x % 2)) == 0 ]]; then head -c 1000000 /dev/urandom | base64 -w 0; echo -ne '\n'; else echo $x; fi >&4",
             spec={
                 "auto_merge": {
                     "mode": "manual",
@@ -289,8 +290,9 @@ class TestSchedulerAutoMerge(YTEnvSetup):
                     "format": yson.loads("<columns=[a]>schemaful_dsv")
                 },
             })
-        assert get("//tmp/t_out/@chunk_count") == 6
-        chunk_ids = get("//tmp/t_out/@chunk_ids")
+        assert get("//tmp/t_out1/@chunk_count") == 0
+        assert get("//tmp/t_out2/@chunk_count") == 6
+        chunk_ids = get("//tmp/t_out2/@chunk_ids")
         row_counts = []
         for chunk_id in chunk_ids:
             row_counts.append(get("#{0}/@row_count".format(chunk_id)))
