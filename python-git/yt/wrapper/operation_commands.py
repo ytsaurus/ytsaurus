@@ -72,7 +72,7 @@ def complete_operation(operation, client=None):
         return
     return make_request("complete_op", {"operation_id": operation}, client=client)
 
-def get_operation(operation_id, attributes=None, include_scheduler=None, client=None):
+def get_operation(operation_id, attributes=None, include_scheduler=None, format=None, client=None):
     """Get operation attributes through API.
     """
     params={"operation_id": operation_id}
@@ -81,13 +81,13 @@ def get_operation(operation_id, attributes=None, include_scheduler=None, client=
     return make_formatted_request(
         "get_operation",
         params,
-        format=None,
+        format=format,
         client=client)
 
 def list_operations(user=None, state=None, type=None, filter=None, pool=None, with_failed_jobs=None,
                     from_time=None, to_time=None, cursor_time=None, cursor_direction=None,
                     include_archive=None, include_counters=None, limit=None, enable_ui_mode=False,
-                    client=None):
+                    format=None, client=None):
     """List operations that satisfy given options.
     """
     def format_time(time):
@@ -114,7 +114,7 @@ def list_operations(user=None, state=None, type=None, filter=None, pool=None, wi
     return make_formatted_request(
         "list_operations",
         params=params,
-        format=None,
+        format=format,
         client=client)
 
 def update_operation_parameters(operation_id, parameters, client=None):

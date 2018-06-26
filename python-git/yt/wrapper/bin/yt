@@ -27,6 +27,7 @@ import inspect
 import fnmatch
 import shlex
 from argparse import ArgumentParser, Action, RawDescriptionHelpFormatter
+from datetime import datetime
 
 DESCRIPTION = '''Shell utility to work with YT system.\n
 Cypress (metainformation tree) commands:
@@ -43,11 +44,11 @@ ACL commands:
 Operation commands:
     map-reduce, map, sort, reduce, join-reduce, merge, erase,
     remote-copy, vanilla, abort-op, suspend-op, resume-op, track-op, complete-op,
-    update-op-parameters
+    update-op-parameters, get-operation, list-operations
 Transaction commands:
     lock, start-tx, abort-tx, commit-tx, ping-tx
 Job commands:
-    get-job-stderr, run-job-shell, abort-job
+    get-job-stderr, run-job-shell, abort-job, get-job, list-jobs
 Other commands:
     transform, show-spec, show-default-config'''
 
@@ -172,6 +173,16 @@ class ParseStructuredArgument(Action):
         old_value = get_value(getattr(namespace, self.dest), {})
         new_value = update(old_value, parse_arguments(values))
         setattr(namespace, self.dest, new_value)
+
+class ParseTimeArgument(Action):
+    def __call__(self, parser, namespace, values, option_string=None):
+        setattr(namespace, self.dest, self.parse_time(values))
+
+    def parse_time(self, value):
+        try:
+            return datetime.utcfromtimestamp(int(value))
+        except ValueError:
+            return value
 
 class ParseStructuredData(Action):
     def __call__(self, parser, namespace, values, option_string=None):
@@ -913,6 +924,52 @@ def add_update_op_parameters_parser(add_parser):
     operation_id_args(parser, dest="operation_id")
     add_structured_argument(parser, "parameters")
 
+@copy_docstring_from(yt.get_operation)
+def get_operation(**args):
+    result = yt.get_operation(**args)
+    if args["format"] is None:
+        result = dump_data(result)
+    sys.stdout.write(result)
+
+def add_get_operation_parser(add_parser):
+    parser = add_parser("get-operation", get_operation)
+    parser.add_argument("--attribute", action="append", dest="attributes", help="desired attributes in the response")
+    parser.add_argument("--include-scheduler", action="store_true", help="request runtime operation information")
+    operation_id_args(parser, dest="operation_id")
+    add_structured_format_argument(parser)
+
+def add_time_argument(parser, name, help="", **kwargs):
+    description = "Time is accepted as unix timestamp or time string in YT format"
+    add_argument(parser, name, help, description=description, action=ParseTimeArgument, **kwargs)
+
+@copy_docstring_from(yt.list_operations)
+def list_operations(**args):
+    args["include_counters"] = not args.pop("no_include_counters")
+    result = yt.list_operations(**args)
+    if args["format"] is None:
+        result = dump_data(result)
+    sys.stdout.write(result)
+
+@copy_docstring_from(yt.list_operations)
+def add_list_operations_parser(add_parser):
+    parser = add_parser("list-operations", list_operations)
+    parser.add_argument("--user", help="filter operations by user")
+    parser.add_argument("--state", help="filter operations by state")
+    parser.add_argument("--type", help="filter operations by operation type")
+    parser.add_argument("--filter", help="filter operation by some text factor. "
+                                         "For example, part of the title can be passed to this option")
+    parser.add_argument("--pool", help="filter operations by pool")
+    parser.add_argument("--with-failed-jobs", action="store_true", help="show only operations with failed jobs")
+    add_time_argument(parser, "--from-time", help="lower limit for operations start time")
+    add_time_argument(parser, "--to-time", help="upper limit for operations start time")
+    add_time_argument(parser, "--cursor-time", help="cursor time. Used in combination with --cursor-direction and --limit")
+    parser.add_argument("--cursor-direction", help='cursor direction, can be one of ("none", "past", "future"). '
+                                                   'Used in combination with --cursor-time and --limit')
+    parser.add_argument("--include-archive", action="store_true", help="include operations from archive in result")
+    parser.add_argument("--no-include-counters", action="store_true", help="do not include operation counters in result")
+    parser.add_argument("--limit", type=int, help="maximum number of operations in output")
+    add_structured_format_argument(parser)
+
 @copy_docstring_from(yt.start_transaction)
 def start_tx(**args):
     print(yt.start_transaction(**args))
@@ -1019,10 +1076,50 @@ def add_abort_job_parser(add_parser):
 def get_job_stderr(**args):
     write_silently(chunk_iter_stream(yt.get_job_stderr(**args), yt.config["read_buffer_size"]))
 
-def add_run_get_job_stderr_parser(add_parser):
+def add_get_job_stderr_parser(add_parser):
     parser = add_parser("get-job-stderr", get_job_stderr)
-    parser.add_argument("--job-id", required=True, help="job id, for example: 5c51-24e204-384-9f3f6437")
-    parser.add_argument("--operation-id", required=True, help="operation id, for example: 876084ca-efd01a47-3e8-7a62e787")
+    add_hybrid_argument(parser, "job_id", help="job id, for example: 5c51-24e204-384-9f3f6437")
+    add_hybrid_argument(parser, "operation_id", help="operation id, for example: 876084ca-efd01a47-3e8-7a62e787")
+
+@copy_docstring_from(yt.get_job)
+def get_job(**args):
+    result = yt.get_job(**args)
+    if args["format"] is None:
+        result = dump_data(result)
+    sys.stdout.write(result)
+
+def add_get_job_parser(add_parser):
+    parser = add_parser("get-job", get_job)
+    add_hybrid_argument(parser, "job_id", help="job id, for example: 5c51-24e204-384-9f3f6437")
+    add_hybrid_argument(parser, "operation_id", help="operation id, for example: 876084ca-efd01a47-3e8-7a62e787")
+    add_structured_format_argument(parser)
+
+@copy_docstring_from(yt.list_jobs)
+def list_jobs(**args):
+    result = yt.list_jobs(**args)
+    if args["format"] is None:
+        result = dump_data(result)
+    sys.stdout.write(result)
+
+def add_list_jobs_parser(add_parser):
+    parser = add_parser("list-jobs", list_jobs)
+    operation_id_args(parser, dest="operation_id")
+    parser.add_argument("--job-type", help="filter jobs by job type")
+    parser.add_argument("--job-state", help="filter jobs by job state")
+    parser.add_argument("--address", help="filter jobs by node address")
+    parser.add_argument("--sort-field", help='field to sort jobs by. Can be one of ("none", "type", "state", "start_time", '
+                                             '"finish_time", "address", "duration", "progress", "id")')
+    parser.add_argument("--sort-order", help='sort order. Can be either "ascending" or "descending"')
+    parser.add_argument("--limit", type=int, help="output limit")
+    parser.add_argument("--offset", type=int, help="offset starting from zero")
+    parser.add_argument("--include-cypress", action="store_true",
+                        help='include jobs from Cypress in result. Have effect only if --data-source is set to "manual"')
+    parser.add_argument("--include-runtime", action="store_true",
+                        help='include jobs from controller agents in result. Have effect only if --data-source is set to "manual"')
+    parser.add_argument("--include-archive", action="store_true",
+                        help='include jobs from archive in result. Have effect only if --data-source is set to "manual"')
+    parser.add_argument("--data-source", help='data sources to list jobs from. Can be one of ("auto", "runtime", "archive", "manual")')
+    add_structured_format_argument(parser)
 
 def add_transform_parser(add_parser):
     parser = add_parser("transform", yt.transform)
@@ -1163,6 +1260,8 @@ def main():
     add_track_op_parser(add_parser)
     add_complete_op_parser(add_parser)
     add_update_op_parameters_parser(add_parser)
+    add_get_operation_parser(add_parser)
+    add_list_operations_parser(add_parser)
 
     add_start_tx_parser(add_parser)
     add_abort_tx_parser(add_parser)
@@ -1177,8 +1276,10 @@ def main():
     add_execute_batch_parser(add_parser)
 
     add_run_job_shell_parser(add_parser)
-    add_run_get_job_stderr_parser(add_parser)
+    add_get_job_stderr_parser(add_parser)
     add_abort_job_parser(add_parser)
+    add_list_jobs_parser(add_parser)
+    add_get_job_parser(add_parser)
 
     add_execute_parser(add_parser)
 

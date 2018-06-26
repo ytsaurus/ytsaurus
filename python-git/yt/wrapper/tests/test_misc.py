@@ -1,7 +1,7 @@
 from __future__ import print_function
 
 from .helpers import (TEST_DIR, get_tests_sandbox, get_tests_location,
-                      get_environment_for_binary_test, check, set_config_options, set_config_option, yatest_common)
+                      get_environment_for_binary_test, check, set_config_options, set_config_option)
 
 from yt.wrapper.exceptions_catcher import KeyboardInterruptsCatcher
 from yt.wrapper.response_stream import ResponseStream, EmptyResponseStream
@@ -29,7 +29,6 @@ import uuid
 import tempfile
 import time
 import pytest
-import shutil
 import collections
 from copy import deepcopy
 
@@ -112,10 +111,10 @@ def test_ypath_dirname():
         assert ypath_dirname("abc/def")
 
 @pytest.mark.timeout(1200)
-@pytest.mark.usefixtures("yt_env")
+@pytest.mark.usefixtures("yt_env_job_archive")
 class TestYtBinary(object):
-    def test_yt_binary(self, yt_env):
-        env = get_environment_for_binary_test(yt_env)
+    def test_yt_binary(self, yt_env_job_archive):
+        env = get_environment_for_binary_test(yt_env_job_archive)
         env["FALSE"] = "%false"
         env["TRUE"] = "%true"
 
