@@ -186,14 +186,6 @@ struct TUserOperationSpecBase
     // Table to save coredumps of operation
     // https://clubs.at.yandex-team.ru/yt/1045
     FLUENT_FIELD_OPTION(TYPath, CoreTablePath);
-
-    // Ensure stderr, core tables exist before starting operation.
-    // If set to false, it is caller's responsibility to ensure these tables exist.
-    FLUENT_FIELD_DEFAULT(bool, CreateDebugOutputTables, true);
-
-    // Ensure output tables exist before starting operation.
-    // If set to false, it is caller's responsibility to ensure output tables exist.
-    FLUENT_FIELD_DEFAULT(bool, CreateOutputTables, true);
 };
 
 template <class TDerived>
@@ -1038,6 +1030,14 @@ struct TOperationOptions
     //
     // NOTE: this option can be set only for 'CachelessRandomPathUpload' caching mode.
     FLUENT_FIELD(TTransactionId, FileStorageTransactionId);
+
+    // Ensure stderr, core tables exist before starting operation.
+    // If set to false, it is caller's responsibility to ensure these tables exist.
+    FLUENT_FIELD_DEFAULT(bool, CreateDebugOutputTables, true);
+
+    // Ensure output tables exist before starting operation.
+    // If set to false, it is caller's responsibility to ensure output tables exist.
+    FLUENT_FIELD_DEFAULT(bool, CreateOutputTables, true);
 };
 
 struct IOperationClient

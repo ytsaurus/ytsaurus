@@ -559,26 +559,29 @@ Y_UNIT_TEST_SUITE(Operations)
         }
 
         // stderr table does not exist => should fail
-        try {
+        UNIT_ASSERT_EXCEPTION(
             client->Map(
-                TMapOperationSpec().CreateDebugOutputTables(false)
-                .AddInput<TNode>("//testing/input")
-                .AddOutput<TNode>("//testing/output")
-                .StderrTablePath("//testing/stderr"),
-                new TMapperThatWritesStderr);
-            UNIT_FAIL("operation expected to fail");
-        } catch (const TOperationFailedError& e) {
-        }
+                TMapOperationSpec()
+                    .AddInput<TNode>("//testing/input")
+                    .AddOutput<TNode>("//testing/output")
+                    .StderrTablePath("//testing/stderr"),
+                new TMapperThatWritesStderr,
+                TOperationOptions()
+                    .CreateDebugOutputTables(false)),
+            TOperationFailedError);
 
         client->Create("//testing/stderr", NT_TABLE);
 
         // stderr table exists => should pass
-        client->Map(
-            TMapOperationSpec().CreateDebugOutputTables(false)
-            .AddInput<TNode>("//testing/input")
-            .AddOutput<TNode>("//testing/output")
-            .StderrTablePath("//testing/stderr"),
-            new TMapperThatWritesStderr);
+        UNIT_ASSERT_NO_EXCEPTION(
+            client->Map(
+                TMapOperationSpec()
+                    .AddInput<TNode>("//testing/input")
+                    .AddOutput<TNode>("//testing/output")
+                    .StderrTablePath("//testing/stderr"),
+                new TMapperThatWritesStderr,
+                TOperationOptions()
+                    .CreateDebugOutputTables(false)));
     }
 
     Y_UNIT_TEST(CreateOutputTables)
@@ -594,22 +597,27 @@ Y_UNIT_TEST_SUITE(Operations)
         // Output table does not exist => operation should fail.
         UNIT_ASSERT_EXCEPTION(
             client->Map(
-                TMapOperationSpec().CreateOutputTables(false)
-                .AddInput<TNode>("//testing/input")
-                .AddOutput<TNode>("//testing/output")
-                .StderrTablePath("//testing/stderr"),
-                new TMapperThatWritesStderr),
+                TMapOperationSpec()
+                    .AddInput<TNode>("//testing/input")
+                    .AddOutput<TNode>("//testing/output")
+                    .StderrTablePath("//testing/stderr"),
+                new TMapperThatWritesStderr,
+                TOperationOptions()
+                    .CreateOutputTables(false)),
             TOperationFailedError);
 
         client->Create("//testing/output", NT_TABLE);
 
         // Output table exists => should complete ok.
-        client->Map(
-            TMapOperationSpec().CreateDebugOutputTables(false)
-            .AddInput<TNode>("//testing/input")
-            .AddOutput<TNode>("//testing/output")
-            .StderrTablePath("//testing/stderr"),
-            new TMapperThatWritesStderr);
+        UNIT_ASSERT_NO_EXCEPTION(
+            client->Map(
+                TMapOperationSpec()
+                    .AddInput<TNode>("//testing/input")
+                    .AddOutput<TNode>("//testing/output")
+                    .StderrTablePath("//testing/stderr"),
+                new TMapperThatWritesStderr,
+                TOperationOptions()
+                    .CreateDebugOutputTables(false)));
     }
 
     Y_UNIT_TEST(JobCount)
