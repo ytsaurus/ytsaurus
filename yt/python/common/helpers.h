@@ -11,7 +11,7 @@
 #include <util/generic/strbuf.h>
 #include <util/generic/string.h>
 
-#include <contrib/libs/pycxx/Objects.hxx>
+#include <pycxx/Objects.hxx>
 
 namespace Py {
 
