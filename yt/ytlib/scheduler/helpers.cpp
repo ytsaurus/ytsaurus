@@ -337,13 +337,17 @@ bool IsSentinelReason(EAbortReason reason)
 
 TError GetSchedulerTransactionsAbortedError(const std::vector<TTransactionId>& transactionIds)
 {
-    return TError("Scheduler transactions %v have expired or were aborted",
+    return TError(
+        NTransactionClient::EErrorCode::NoSuchTransaction,
+        "Scheduler transactions %v have expired or were aborted",
         transactionIds);
 }
 
 TError GetUserTransactionAbortedError(const TTransactionId& transactionId)
 {
-    return TError("User transaction %v has expired or was aborted",
+    return TError(
+        NTransactionClient::EErrorCode::NoSuchTransaction,
+        "User transaction %v has expired or was aborted",
         transactionId);
 }
 
