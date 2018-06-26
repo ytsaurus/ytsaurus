@@ -206,6 +206,9 @@ class YtTestEnvironment(object):
 
         os.environ["PATH"] = ".:" + os.environ["PATH"]
 
+        # To avoid using user-defined proxy in tests. 
+        del os.environ["YT_PROXY"]
+
         os.environ["YT_LOCAL_PORT_LOCKS_PATH"] = get_port_locks_path()
 
         # Resolve indeterminacy in sys.modules due to presence of lazy imported modules.
