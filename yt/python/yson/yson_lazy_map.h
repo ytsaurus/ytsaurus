@@ -2,8 +2,8 @@
 
 #include "lazy_dict.h"
 
-#include <contrib/libs/pycxx/Extensions.hxx>
-#include <contrib/libs/pycxx/Objects.hxx>
+#include <pycxx/Extensions.hxx>
+#include <pycxx/Objects.hxx>
 
 namespace NYT {
 namespace NYTree {

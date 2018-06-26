@@ -6,7 +6,7 @@
 #include <util/stream/output.h>
 #include <util/stream/str.h>
 
-#include <contrib/libs/pycxx/Objects.hxx>
+#include <pycxx/Objects.hxx>
 
 namespace NYT {
 namespace NPython {
