@@ -99,7 +99,7 @@ class YtResponseError(YtError):
 
     def is_concurrent_operations_limit_reached(self):
         """Too many concurrent operations."""
-        return self.contains_code(202) or self.contains_text("Limit for the number of concurrent operations")
+        return self.contains_code(202)
 
     def is_no_such_transaction(self):
         """No such transaction."""
