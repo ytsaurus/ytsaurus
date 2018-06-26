@@ -1373,10 +1373,10 @@ TOperationId DoExecuteMap(
     IJob* mapper,
     const TOperationOptions& options)
 {
-    if (spec.CreateDebugOutputTables_) {
+    if (options.CreateDebugOutputTables_) {
         CreateDebugOutputTables(spec, auth);
     }
-    if (spec.CreateOutputTables_) {
+    if (options.CreateOutputTables_) {
         CreateOutputTables(auth, transactionId, operationIo.Outputs);
     }
 
@@ -1471,10 +1471,10 @@ TOperationId DoExecuteReduce(
     IJob* reducer,
     const TOperationOptions& options)
 {
-    if (spec.CreateDebugOutputTables_) {
+    if (options.CreateDebugOutputTables_) {
         CreateDebugOutputTables(spec, auth);
     }
-    if (spec.CreateOutputTables_) {
+    if (options.CreateOutputTables_) {
         CreateOutputTables(auth, transactionId, operationIo.Outputs);
     }
 
@@ -1575,10 +1575,10 @@ TOperationId DoExecuteJoinReduce(
     IJob* reducer,
     const TOperationOptions& options)
 {
-    if (spec.CreateDebugOutputTables_) {
+    if (options.CreateDebugOutputTables_) {
         CreateDebugOutputTables(spec, auth);
     }
-    if (spec.CreateOutputTables_) {
+    if (options.CreateOutputTables_) {
         CreateOutputTables(auth, transactionId, operationIo.Outputs);
     }
 
@@ -1681,10 +1681,10 @@ TOperationId DoExecuteMapReduce(
     allOutputs.insert(allOutputs.end(), operationIo.MapOutputs.begin(), operationIo.MapOutputs.end());
     allOutputs.insert(allOutputs.end(), operationIo.Outputs.begin(), operationIo.Outputs.end());
 
-    if (spec.CreateDebugOutputTables_) {
+    if (options.CreateDebugOutputTables_) {
         CreateDebugOutputTables(spec, auth);
     }
-    if (spec.CreateOutputTables_) {
+    if (options.CreateOutputTables_) {
         CreateOutputTables(auth, transactionId, allOutputs);
     }
 
@@ -2022,7 +2022,9 @@ TOperationId ExecuteSort(
     auto inputs = CanonizePaths(auth, spec.Inputs_);
     auto output = CanonizePath(auth, spec.Output_);
 
-    CreateOutputTable(auth, transactionId, output);
+    if (options.CreateOutputTables_) {
+        CreateOutputTable(auth, transactionId, output);
+    }
 
     TNode specNode = BuildYsonNodeFluently()
     .BeginMap().Item("spec").BeginMap()
@@ -2056,7 +2058,9 @@ TOperationId ExecuteMerge(
     auto inputs = CanonizePaths(auth, spec.Inputs_);
     auto output = CanonizePath(auth, spec.Output_);
 
-    CreateOutputTable(auth, transactionId, output);
+    if (options.CreateOutputTables_) {
+        CreateOutputTable(auth, transactionId, output);
+    }
 
     TNode specNode = BuildYsonNodeFluently()
     .BeginMap().Item("spec").BeginMap()
