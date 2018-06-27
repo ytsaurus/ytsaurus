@@ -706,14 +706,10 @@ def log_sandbox_upload(options, build_context, task_id):
     }
 
     # Add to locke.
-    src_root = os.path.dirname(os.path.dirname(__file__))
-    sys.path.insert(0, os.path.join(src_root, "python"))
-
-    import yt.wrapper
-    yt.wrapper.config["proxy"]["url"] = "locke"
-    yt.wrapper.config["token"] = os.environ["TEAMCITY_YT_TOKEN"]
-    yt.wrapper.insert_rows("//sys/admin/skynet/builds", [build_log_record])
-    yt.wrapper.insert_rows("//sys/admin/skynet/resources", resource_rows)
+    yt_wrapper = build_context["yt.wrapper"]
+    yt_wrapper.config["proxy"]["url"] = "locke"
+    yt_wrapper.insert_rows("//sys/admin/skynet/builds", [build_log_record])
+    yt_wrapper.insert_rows("//sys/admin/skynet/resources", resource_rows)
 
 @build_step
 def wait_for_sandbox_upload(options, build_context):
