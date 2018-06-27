@@ -230,7 +230,7 @@ def sky_share(resource, cwd):
         raise RuntimeError("Failed to parse rbtorrent url: {0}".format(rbtorrent))
     return rbtorrent
 
-def share_packages(options, version, yt_wrapper):
+def share_packages(options, build_context):
     # Share all important packages via skynet and store in sandbox.
     upload_packages = [
         "yandex-yt-python-skynet-driver",
@@ -251,6 +251,8 @@ def share_packages(options, version, yt_wrapper):
     ]
 
     try:
+        version = build_context["yt_version"]
+        build_time = build_context["build_time"]
         cli = sandbox_client.SandboxClient(oauth_token=os.environ["TEAMCITY_SANDBOX_TOKEN"])
 
         dir = os.path.join(options.working_directory, "./ARTIFACTS")
@@ -285,13 +287,14 @@ def share_packages(options, version, yt_wrapper):
                 teamcity_message("Created sandbox upload task: package: {0}, task_id: {1}, torrent_id: {2}".format(pkg, task_id, torrent_id))
                 rows.append({
                     "package" : pkg,
-                    "version" : build_context["yt_version"],
+                    "version" : version,
                     "ubuntu_codename" : options.codename,
                     "torrent_id" : torrent_id,
                     "task_id" : task_id,
-                    "build_time" : build_context["build_time"]})
+                    "build_time" : build_time})
 
         # Add to locke.
+        yt_wrapper = build_context["yt.wrapper"]
         yt_wrapper.config["proxy"]["url"] = "locke"
         yt_wrapper.insert_rows("//sys/admin/skynet/packages", rows)
 
@@ -318,7 +321,7 @@ def package(options, build_context):
         teamcity_interact("setParameter", name="yt.package_version", value=version)
         teamcity_interact("buildStatus", text="{{build.status.text}}; Package: {0}".format(version))
 
-        share_packages(options, version, build_context["yt.wrapper"])
+        share_packages(options, build_context)
 
         artifacts = glob.glob("./ARTIFACTS/yandex-*{0}*.changes".format(version))
         if artifacts:
