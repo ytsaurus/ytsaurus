@@ -62,6 +62,9 @@ set(YT_VERSION_MINOR 3)
 set(YT_VERSION_PATCH ${YT_BUILD_GIT_DEPTH})
 set(YT_ABI_VERSION "${YT_VERSION_MAJOR}.${YT_VERSION_MINOR}")
 
+# Set the YT RPC protocol version
+include(${PROJECT_SOURCE_DIR}/yt/RpcProxyProtocolVersion.txt)
+
 # Clone some version attributes from YT to YP
 set(YP_BUILD_BRANCH "${YT_BUILD_BRANCH}")
 set(YP_BUILD_NUMBER "${YT_BUILD_NUMBER}")

@@ -10,6 +10,8 @@ const TString AliveNodeName = "alive";
 const TString BannedAttributeName = "banned";
 const TString RoleAttributeName = "role";
 const TString DefaultProxyRole = "default";
+const TString ApiServiceName = "ApiService";
+const TString DiscoveryServiceName = "DiscoveryService";
 
 ////////////////////////////////////////////////////////////////////////////////
 

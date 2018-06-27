@@ -123,7 +123,7 @@ public:
     {
         Y_UNREACHABLE();
     }
-    
+
     virtual size_t GetHash() const override
     {
         return 0;
@@ -307,11 +307,11 @@ public:
 private:
     const TServiceId ServiceId_;
     const IChannelPtr SinkChannel_;
-    
+
     TSpinLock SpinLock_;
     THashMap<TRequestId, IClientRequestControlPtr> ActiveRequestMap_;
-    
-    
+
+
     void OnResponse(
         const TRequestId& requestId,
         const IBusPtr& replyBus,

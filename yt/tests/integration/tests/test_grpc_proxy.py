@@ -4,6 +4,7 @@ from yt_env_setup import YTEnvSetup, wait
 from yt_yson_bindings import loads_proto, dumps_proto, loads, dumps
 
 import yt_proto.yt.ytlib.rpc_proxy.proto.api_service_pb2 as api_service_pb2
+import yt_proto.yt.core.misc.proto.error_pb2 as error_pb2
 
 from yt.environment.helpers import assert_items_equal
 from yt.common import YtError, guid_to_parts, parts_to_guid, underscore_case_to_camel_case
@@ -228,7 +229,9 @@ class TestGrpcProxy(YTEnvSetup):
         rsp_msg_class = getattr(api_service_pb2, "TRsp" + camel_case_method)
 
         serialized_message = loads_proto(dumps(params), req_msg_class).SerializeToString()
-        metadata = [("yt-message-body-size", str(len(serialized_message)))]
+        metadata = [
+            ("yt-message-body-size", str(len(serialized_message)))
+        ]
 
         message_parts = [serialized_message]
 
@@ -384,3 +387,26 @@ class TestGrpcProxy(YTEnvSetup):
 
         selected_rows = fmt.load_rows(attachments, [col["name"] for col in msg["rowset_descriptor"]["columns"]])
         assert_items_equal(selected_rows, rows)
+
+    def test_protocol_version(self):
+        msg = api_service_pb2.TReqGetNode(path="//tmp")
+
+        unary = self.channel.unary_unary(
+            "/ApiService/GetNode",
+            request_serializer=api_service_pb2.TReqGetNode.SerializeToString,
+            response_deserializer=api_service_pb2.TReqGetNode.FromString)
+
+        # Require min protocol version
+        rsp = unary.future(msg, metadata=[("yt-protocol-version", "3.14")])
+        self._wait_response(rsp)
+
+        error_found = False
+        for key, value in rsp.trailing_metadata():
+            if key == "yt-error-bin":
+                error = error_pb2.TError()
+                error.ParseFromString(value)
+                assert "protocol version" in error.message
+                error_found = True
+                break
+
+        assert error_found, "Request should fail!"

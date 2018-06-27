@@ -9,6 +9,14 @@ if(YT_ADD_HEADERS_TO_SRCS)
     set(YT_SRCS ${YT_SRCS} ${HEADERS})
 endif()
 
+configure_file(
+  ${CMAKE_CURRENT_SOURCE_DIR}/rpc_proxy/protocol_version.cpp.in
+  ${CMAKE_CURRENT_BINARY_DIR}/rpc_proxy/protocol_version.cpp
+  @ONLY
+)
+
+set(YT_SRCS ${YT_SRCS} ${CMAKE_CURRENT_BINARY_DIR}/rpc_proxy/protocol_version.cpp)
+
 set(YT_SOURCE_FILES)
 protoc(${CMAKE_SOURCE_DIR}/mapreduce/yt/interface/protos/extension.proto YT_SOURCE_FILES)
 include(query_client/CMakeLists.txt)

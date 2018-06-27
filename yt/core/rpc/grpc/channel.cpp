@@ -160,6 +160,13 @@ private:
             InitialMetadataBuilder_.Add(RequestIdMetadataKey, ToString(Request_->GetRequestId()));
             InitialMetadataBuilder_.Add(UserMetadataKey, Request_->GetUser());
 
+            TProtocolVersion protocolVersion{
+                Request_->Header().protocol_version_major(),
+                Request_->Header().protocol_version_minor()
+            };
+
+            InitialMetadataBuilder_.Add(ProtocolVersionMetadataKey, ToString(protocolVersion));
+
             if (Request_->Header().HasExtension(NRpc::NProto::TCredentialsExt::credentials_ext)) {
                 const auto& credentialsExt = Request_->Header().GetExtension(NRpc::NProto::TCredentialsExt::credentials_ext);
                 if (credentialsExt.has_token()) {

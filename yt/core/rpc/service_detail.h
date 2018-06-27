@@ -547,7 +547,7 @@ private:
     const IInvokerPtr DefaultInvoker_;
     const IAuthenticatorPtr Authenticator_;
     const TServiceId ServiceId_;
-    const int ProtocolVersion_;
+    const TProtocolVersion ProtocolVersion_;
 
     const NProfiling::TTagId ServiceTagId_;
 

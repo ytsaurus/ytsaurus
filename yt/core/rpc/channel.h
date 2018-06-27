@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include "protocol_version.h"
+
 #include <yt/core/actions/future.h>
 
 #include <yt/core/bus/client.h>
