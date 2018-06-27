@@ -26,6 +26,8 @@ namespace NYP {
 namespace NServer {
 namespace NObjects {
 
+using namespace NAccessControl;
+
 using namespace NYT::NYson;
 using namespace NYT::NYTree;
 using namespace NYP::NServer::NNodes;
@@ -220,6 +222,11 @@ public:
     }
 
 private:
+    virtual std::vector<EAccessControlPermission> GetDefaultPermissions() override
+    {
+        return {};
+    }
+
     void PreevaluateMasterSpecTimestamp(const TTransactionPtr& /*transaction*/, TPod* pod)
     {
         pod->Spec().UpdateTimestamp().ScheduleLoad();

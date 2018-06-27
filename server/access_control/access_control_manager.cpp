@@ -15,9 +15,6 @@
 #include <yt/ytlib/api/rowset.h>
 #include <yt/ytlib/api/native_client.h>
 
-#include <yt/ytlib/auth/token_authenticator.h>
-#include <yt/ytlib/auth/default_blackbox_service.h>
-
 #include <yt/core/misc/property.h>
 #include <yt/core/misc/error.h>
 
@@ -25,8 +22,6 @@
 #include <yt/core/concurrency/periodic_executor.h>
 #include <yt/core/concurrency/thread_affinity.h>
 #include <yt/core/concurrency/fls.h>
-
-#include <yt/core/rpc/authenticator.h>
 
 namespace NYP {
 namespace NServer {
@@ -37,7 +32,6 @@ using namespace NApi;
 using namespace NRpc;
 using namespace NTableClient;
 using namespace NConcurrency;
-using namespace NAuth;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -157,7 +151,8 @@ public:
     {
         auto id = subject->GetId();
         if (!IdToSubject_.emplace(std::move(id), std::move(subject)).second) {
-            THROW_ERROR_EXCEPTION("Duplicate subject %Qv", id);
+            THROW_ERROR_EXCEPTION("Duplicate subject %Qv",
+                id);
         }
     }
 
@@ -196,7 +191,8 @@ public:
             auto* superusersSubject = FindSubject(SuperusersSubjectId);
             if (superusersSubject) {
                 if (superusersSubject->GetType() != EObjectType::Group) {
-                    THROW_ERROR_EXCEPTION("%Qv must be a group", SuperusersSubjectId);
+                    THROW_ERROR_EXCEPTION("%Qv must be a group",
+                        SuperusersSubjectId);
                 }
                 SuperusersGroup_ = superusersSubject->AsGroup();
             }
@@ -206,11 +202,10 @@ public:
     TNullable<std::tuple<EAccessControlAction, TObjectId>> ApplyAcl(
         const std::vector<NClient::NApi::NProto::TAccessControlEntry>& acl,
         EAccessControlPermission permission,
-        const TObjectId& userId,
-        const TObjectId& ownerId)
+        const TObjectId& userId)
     {
         for (const auto& ace : acl) {
-            auto result = ApplyAce(ace, permission, userId, ownerId);
+            auto result = ApplyAce(ace, permission, userId);
             if (result) {
                 return result;
             }
@@ -253,8 +248,7 @@ private:
     TNullable<std::tuple<EAccessControlAction, TObjectId>> ApplyAce(
         const NClient::NApi::NProto::TAccessControlEntry& ace,
         EAccessControlPermission permission,
-        const TObjectId& userId,
-        const TObjectId& ownerId)
+        const TObjectId& userId)
     {
         if (std::find(
             ace.permissions().begin(),
@@ -266,13 +260,6 @@ private:
         }
 
         for (const auto& subjectId : ace.subjects()) {
-            if (subjectId == OwnerSubjectId) {
-                if (ownerId == userId) {
-                    return std::make_tuple(static_cast<EAccessControlAction>(ace.action()), OwnerSubjectId);
-                }
-                continue;
-            }
-
             if (subjectId == EveryoneSubjectId) {
                 return std::make_tuple(static_cast<EAccessControlAction>(ace.action()), EveryoneSubjectId);
             }
@@ -328,38 +315,6 @@ public:
         const auto& ytConnector = Bootstrap_->GetYTConnector();
         ytConnector->SubscribeConnected(BIND(&TImpl::OnConnected, MakeWeak(this)));
         ytConnector->SubscribeDisconnected(BIND(&TImpl::OnDisconnected, MakeWeak(this)));
-
-        std::vector<IAuthenticatorPtr> authenticators;
-        if (Config_->BlackboxTokenAuthenticator && Config_->BlackboxService) {
-            auto blackboxService = CreateDefaultBlackboxService(
-                Config_->BlackboxService,
-                Bootstrap_->GetWorkerPoolInvoker());
-            authenticators.push_back(
-                CreateTokenAuthenticatorWrapper(
-                    CreateCachingTokenAuthenticator(
-                        Config_->BlackboxTokenAuthenticator,
-                        CreateBlackboxTokenAuthenticator(
-                            Config_->BlackboxTokenAuthenticator,
-                            std::move(blackboxService)))));
-        }
-        if (Config_->CypressTokenAuthenticator) {
-            authenticators.push_back(
-                CreateTokenAuthenticatorWrapper(
-                    CreateCachingTokenAuthenticator(
-                        Config_->CypressTokenAuthenticator,
-                        CreateCypressTokenAuthenticator(
-                            Config_->CypressTokenAuthenticator,
-                            Bootstrap_->GetYTConnector()->GetClient()))));
-        }
-        if (!Config_->RequireAuthentication) {
-            authenticators.push_back(CreateNoopAuthenticator());
-        }
-        Authenticator_ = CreateCompositeAuthenticator(std::move(authenticators));
-    }
-
-    const IAuthenticatorPtr& GetAuthenticator() const
-    {
-        return Authenticator_;
     }
 
     TPermissionCheckResult CheckPermission(
@@ -367,13 +322,10 @@ public:
         TObject* object,
         EAccessControlPermission permission)
     {
-        object->ValidateExists();
-
         TPermissionCheckResult result;
         result.Action = EAccessControlAction::Deny;
 
         auto snapshot = GetClusterSnapshot();
-        const auto& ownerId = object->Owner().Load();
 
         if (snapshot->IsSuperuser(userId)) {
             result.Action = EAccessControlAction::Allow;
@@ -382,7 +334,7 @@ public:
 
         while (object) {
             const auto& acl = object->Acl().Load();
-            auto subresult = snapshot->ApplyAcl(acl, permission, userId, ownerId);
+            auto subresult = snapshot->ApplyAcl(acl, permission, userId);
             if (subresult) {
                 result.ObjectId = object->GetId();
                 result.ObjectType = object->GetType();
@@ -428,7 +380,7 @@ public:
         auto userId = *AuthenticatedUserId_;
         if (!userId) {
             THROW_ERROR_EXCEPTION(
-                NAccessControl::EErrorCode::AuthenticationError,
+                NClient::NApi::EErrorCode::AuthenticationError,
                 "User is not authenticated");
         }
         return *userId;
@@ -442,7 +394,7 @@ public:
             TError error;
             if (result.ObjectId && result.SubjectId) {
                 error = TError(
-                    NAccessControl::EErrorCode::AuthorizationError,
+                    NClient::NApi::EErrorCode::AuthorizationError,
                     "Access denied: %Qlv permission for %v %Qv is denied for %Qv by ACE at %v %Qv",
                     permission,
                     GetLowercaseHumanReadableTypeName(object->GetType()),
@@ -452,7 +404,7 @@ public:
                     result.ObjectId);
             } else {
                 error = TError(
-                    NAccessControl::EErrorCode::AuthorizationError,
+                    NClient::NApi::EErrorCode::AuthorizationError,
                     "Access denied: %Qlv permission for %v %Qv is not allowed by any matching ACE",
                     permission,
                     GetLowercaseHumanReadableTypeName(object->GetType()),
@@ -483,8 +435,6 @@ private:
     TClusterSnapshotPtr ClusterSnapshot_;
 
     static NConcurrency::TFls<TNullable<TObjectId>> AuthenticatedUserId_;
-
-    IAuthenticatorPtr Authenticator_;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
@@ -649,11 +599,6 @@ TAccessControlManager::TAccessControlManager(
 void TAccessControlManager::Initialize()
 {
     Impl_->Initialize();
-}
-
-const IAuthenticatorPtr& TAccessControlManager::GetAuthenticator() const
-{
-    return Impl_->GetAuthenticator();
 }
 
 TPermissionCheckResult TAccessControlManager::CheckPermission(

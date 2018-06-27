@@ -51,7 +51,7 @@ class TestUsers(object):
         yp_client = yp_env.yp_client
 
         for type in ["user", "group"]:
-            for id in ["owner", "everyone"]:
+            for id in ["everyone"]:
                 with pytest.raises(YpResponseError): 
                     yp_client.create_object(type, attributes={"meta": {"id": id}})
 

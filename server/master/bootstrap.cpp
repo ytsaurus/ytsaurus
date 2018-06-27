@@ -24,6 +24,10 @@
 #include <yt/ytlib/monitoring/monitoring_manager.h>
 #include <yt/ytlib/monitoring/http_integration.h>
 
+#include <yt/ytlib/auth/authentication_manager.h>
+
+#include <yt/ytlib/api/native_client.h>
+
 #include <yt/core/http/server.h>
 
 #include <yt/core/https/server.h>
@@ -58,6 +62,7 @@ using namespace NYT;
 using namespace NYT::NConcurrency;
 using namespace NYT::NNet;
 using namespace NYT::NYTree;
+using namespace NYT::NAuth;
 
 using namespace NServer::NObjects;
 using namespace NServer::NNet;
@@ -124,6 +129,11 @@ public:
         return AccessControlManager_;
     }
 
+    const TAuthenticationManagerPtr& GetAuthenticationManager()
+    {
+        return AuthenticationManager_;
+    }
+
     const TString& GetFqdn()
     {
         return Fqdn_;
@@ -178,6 +188,7 @@ private:
     TNodeTrackerPtr NodeTracker_;
     TResourceManagerPtr ResourceManager_;
     TAccessControlManagerPtr AccessControlManager_;
+    TAuthenticationManagerPtr AuthenticationManager_;
     TSchedulerPtr Scheduler_;
     NMonitoring::TMonitoringManagerPtr MonitoringManager_;
     std::unique_ptr<NLFAlloc::TLFAllocProfiler> LFAllocProfiler_;
@@ -250,6 +261,10 @@ private:
         NodeTracker_ = New<TNodeTracker>(Bootstrap_, Config_->NodeTracker);
         ResourceManager_ = New<TResourceManager>(Bootstrap_);
         AccessControlManager_ = New<TAccessControlManager>(Bootstrap_, Config_->AccessControlManager);
+        AuthenticationManager_ = New<TAuthenticationManager>(
+            Config_->AuthenticationManager,
+            GetWorkerPoolInvoker(),
+            YTConnector_->GetClient());
         Scheduler_ = New<TScheduler>(Bootstrap_, Config_->Scheduler);
 
         YTConnector_->Initialize();
@@ -414,6 +429,11 @@ const TResourceManagerPtr& TBootstrap::GetResourceManager()
 const TAccessControlManagerPtr& TBootstrap::GetAccessControlManager()
 {
     return Impl_->GetAccessControlManager();
+}
+
+const TAuthenticationManagerPtr& TBootstrap::GetAuthenticationManager()
+{
+    return Impl_->GetAuthenticationManager();
 }
 
 const TString& TBootstrap::GetFqdn()

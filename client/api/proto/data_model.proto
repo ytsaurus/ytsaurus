@@ -115,9 +115,7 @@ message TSchemaMeta
     optional string id = 1;
     optional EObjectType type = 2;
     optional uint64 creation_time = 3;
-    optional bool inherit_acl = 10;
     repeated TAccessControlEntry acl = 11;
-    optional string owner = 12;
 }
 
 message TSchemaSpec
@@ -167,7 +165,6 @@ message TResourceMeta
     required EResourceKind kind = 5;
     optional bool inherit_acl = 10;
     repeated TAccessControlEntry acl = 11;
-    optional string owner = 12;
 }
 
 message TResourceSpec
@@ -309,7 +306,6 @@ message TNodeMeta
     optional uint64 creation_time = 3;
     optional bool inherit_acl = 10;
     repeated TAccessControlEntry acl = 11;
-    optional string owner = 12;
 }
 
 message TNodeSpec
@@ -462,7 +458,6 @@ message TPodMeta
     required string pod_set_id = 4;
     optional bool inherit_acl = 10;
     repeated TAccessControlEntry acl = 11;
-    optional string owner = 12;
 }
 
 message TPodSpec
@@ -842,7 +837,6 @@ message TPodSetMeta
     optional uint64 creation_time = 3;
     optional bool inherit_acl = 10;
     repeated TAccessControlEntry acl = 11;
-    optional string owner = 12;
 }
 
 message TPodSetSpec
@@ -892,7 +886,6 @@ message TEndpointMeta
     required string endpoint_set_id = 4;
     optional bool inherit_acl = 10;
     repeated TAccessControlEntry acl = 11;
-    optional string owner = 12;
 }
 
 message TEndpointSpec
@@ -925,7 +918,6 @@ message TEndpointSetMeta
     optional uint64 creation_time = 3;
     optional bool inherit_acl = 10;
     repeated TAccessControlEntry acl = 11;
-    optional string owner = 12;
 }
 
 message TEndpointSetSpec
@@ -961,7 +953,6 @@ message TNetworkProjectMeta
     optional uint64 creation_time = 3;
     optional bool inherit_acl = 10;
     repeated TAccessControlEntry acl = 11;
-    optional string owner = 12;
 }
 
 message TNetworkProjectSpec
@@ -991,7 +982,6 @@ message TNodeSegmentMeta
     optional uint64 creation_time = 3;
     optional bool inherit_acl = 10;
     repeated TAccessControlEntry acl = 11;
-    optional string owner = 12;
 }
 
 message TNodeSegmentSpec
@@ -1020,7 +1010,6 @@ message TVirtualServiceMeta
     optional uint64 creation_time = 3;
     optional bool inherit_acl = 10;
     repeated TAccessControlEntry acl = 11;
-    optional string owner = 12;
 }
 
 message TVirtualServiceSpec
@@ -1052,7 +1041,6 @@ message TUserMeta
     optional uint64 creation_time = 3;
     optional bool inherit_acl = 10;
     repeated TAccessControlEntry acl = 11;
-    optional string owner = 12;
 }
 
 message TUserSpec
@@ -1079,7 +1067,6 @@ message TGroupMeta
     optional uint64 creation_time = 3;
     optional bool inherit_acl = 10;
     repeated TAccessControlEntry acl = 11;
-    optional string owner = 12;
 }
 
 message TGroupSpec

@@ -57,19 +57,17 @@ public:
             Bootstrap_->GetControlInvoker(),
             BIND(&TImpl::OnMasterDiscovery, MakeWeak(this)),
             Config_->MasterDiscoveryPeriod))
+        , DBPath_(GetRootPath() + "/db")
+        , Connection_(CreateNativeConnection(Config_->Connection))
+        , Client_(Connection_->CreateNativeClient(TClientOptions(Config_->User)))
     { }
 
     void Initialize()
     {
         VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetControlInvoker(), ControlThread);
 
-        DBPath_= GetRootPath() + "/db";
-
         LOG_INFO("DB initialized (Path: %v)",
             DBPath_);
-
-        Connection_ = CreateNativeConnection(Config_->Connection);
-        Client_ = Connection_->CreateNativeClient(TClientOptions(Config_->User));
 
         MasterDiscoveryExecutor_->Start();
 
@@ -162,10 +160,10 @@ private:
 
     const TPeriodicExecutorPtr MasterDiscoveryExecutor_;
 
-    TYPath DBPath_;
+    const TYPath DBPath_;
 
-    INativeConnectionPtr Connection_;
-    INativeClientPtr Client_;
+    const INativeConnectionPtr Connection_;
+    const INativeClientPtr Client_;
 
     bool UdfsLoaded_ = false;
     TTypeInferrerMapPtr TypeInferrers_;

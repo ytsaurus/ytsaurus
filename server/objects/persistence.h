@@ -259,8 +259,6 @@ public:
 protected:
     TObject* const Owner_;
 
-    void ThrowObjectMissing() const;
-
     void DoScheduleLoad(int priority = ISession::DefaultLoadPriority) const;
     void DoScheduleStore() const;
 

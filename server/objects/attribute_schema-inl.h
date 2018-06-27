@@ -148,7 +148,9 @@ TAttributeSchema* TAttributeSchema::SetAttribute(const TManyToOneAttributeSchema
             try {
                 id = NYTree::ConvertTo<TObjectId>(value);
             } catch (const std::exception& ex) {
-                THROW_ERROR_EXCEPTION("Error parsing object id")
+                THROW_ERROR_EXCEPTION(
+                    NClient::NApi::EErrorCode::InvalidObjectId,
+                    "Error parsing object id %Qv")
                     << ex;
             }
 

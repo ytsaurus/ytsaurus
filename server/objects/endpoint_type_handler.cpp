@@ -16,6 +16,8 @@ namespace NYP {
 namespace NServer {
 namespace NObjects {
 
+using namespace NAccessControl;
+
 using namespace NYT::NNet;
 
 using std::placeholders::_1;
@@ -81,6 +83,11 @@ public:
     }
 
 private:
+    virtual std::vector<EAccessControlPermission> GetDefaultPermissions() override
+    {
+        return {};
+    }
+
     void ValidateSpec(const TTransactionPtr& transaction, TEndpoint* endpoint)
     {
         const auto& spec = endpoint->Spec().Load();

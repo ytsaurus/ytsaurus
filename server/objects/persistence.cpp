@@ -277,6 +277,10 @@ void FromDBValueImpl(
     const TProtobufMessageType* type,
     const TUnversionedValue& dbValue)
 {
+    if (dbValue.Type == EValueType::Null) {
+        value->Clear();
+        return;
+    }
     if (dbValue.Type != EValueType::Any) {
         THROW_ERROR_EXCEPTION("Cannot parse a protobuf message from %Qlv",
             dbValue.Type);
@@ -762,13 +766,6 @@ TObject* TAttributeBase::GetOwner() const
     return Owner_;
 }
 
-void TAttributeBase::ThrowObjectMissing() const
-{
-    THROW_ERROR_EXCEPTION("Object %Qv of type %Qlv is missing",
-        Owner_->GetId(),
-        Owner_->GetType());
-}
-
 void TAttributeBase::DoScheduleLoad(int priority) const
 {
     auto this_ = const_cast<TAttributeBase*>(this);
@@ -834,7 +831,11 @@ const TObjectId& TParentIdAttribute::GetId() const
     }
 
     if (Missing_) {
-        ThrowObjectMissing();
+        THROW_ERROR_EXCEPTION(
+            NClient::NApi::EErrorCode::NoSuchObject,
+            "%v %Qv is missing",
+            GetCapitalizedHumanReadableTypeName(Owner_->GetType()),
+            Owner_->GetId());
     }
 
     return ParentId_;

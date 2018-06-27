@@ -15,7 +15,9 @@ void TObject::ValidateAs() const
     auto expectedType = T::Type;
     auto actualType = GetType();
     if (expectedType != actualType) {
-        THROW_ERROR_EXCEPTION("Invalid type of object %Qv: expected %Qlv, actual %Qlv",
+        THROW_ERROR_EXCEPTION(
+            NClient::NApi::EErrorCode::InvalidObjectType,
+            "Invalid type of object %Qv: expected %Qlv, actual %Qlv",
             GetId(),
             expectedType,
             actualType);

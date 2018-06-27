@@ -16,6 +16,8 @@
 
 #include <yp/client/api/object_service_proxy.h>
 
+#include <yt/ytlib/auth/authentication_manager.h>
+
 #include <yt/core/ytree/convert.h>
 
 #include <yt/core/concurrency/async_semaphore.h>
@@ -45,7 +47,7 @@ public:
             bootstrap,
             NClient::NApi::TObjectServiceProxy::GetDescriptor(),
             NApi::Logger,
-            bootstrap->GetAccessControlManager()->GetAuthenticator())
+            bootstrap->GetAuthenticationManager()->GetRpcAuthenticator())
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GenerateTimestamp));
 
@@ -79,7 +81,9 @@ private:
 
                 auto transaction = transactionManager->GetTransactionOrThrow(id);
                 if (transaction->GetState() != ETransactionState::Active) {
-                    THROW_ERROR_EXCEPTION("Transaction %v is in %Qlv state",
+                    THROW_ERROR_EXCEPTION(
+                        NClient::NApi::EErrorCode::InvalidTransactionState,
+                        "Transaction %v is in %Qlv state",
                         id,
                         transaction->GetState());
                 }
@@ -88,7 +92,9 @@ private:
                 LockGuard_ = Transaction_->AcquireLock();
             } else {
                 if (mustOwn) {
-                    THROW_ERROR_EXCEPTION("Null transaction id is not allowed");
+                    THROW_ERROR_EXCEPTION(
+                        NClient::NApi::EErrorCode::InvalidTransactionId,
+                        "Null transaction id is not allowed");
                 }
                 Owned_ = true;
                 Transaction_ = WaitFor(transactionManager->StartReadWriteTransaction())
@@ -459,7 +465,9 @@ private:
             selector);
 
         if (!result.Object) {
-            THROW_ERROR_EXCEPTION("%v %Qv is missing",
+            THROW_ERROR_EXCEPTION(
+                NClient::NApi::EErrorCode::NoSuchObject,
+                "%v %Qv is missing",
                 GetCapitalizedHumanReadableTypeName(objectType),
                 objectId);
         }

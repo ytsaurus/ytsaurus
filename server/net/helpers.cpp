@@ -34,9 +34,7 @@ void ValidateNodeShortName(const TString& name)
         "-";
     for (char ch : name) {
         if (!strchr(ValidChars, ch)) {
-            THROW_ERROR_EXCEPTION(
-                NClient::NApi::EErrorCode::InvalidObjectId,
-                "Node short name %Qv contains invalid symbol %Qv",
+            THROW_ERROR_EXCEPTION("Node short name %Qv contains invalid symbol %Qv",
                 name,
                 ch);
         }

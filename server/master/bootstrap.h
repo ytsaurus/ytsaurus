@@ -12,6 +12,8 @@
 
 #include <yp/server/access_control/public.h>
 
+#include <yt/ytlib/auth/public.h>
+
 #include <yt/core/concurrency/public.h>
 
 #include <yt/core/actions/public.h>
@@ -36,6 +38,7 @@ public:
     const NNodes::TNodeTrackerPtr& GetNodeTracker();
     const NScheduler::TResourceManagerPtr& GetResourceManager();
     const NAccessControl::TAccessControlManagerPtr& GetAccessControlManager();
+    const NAuth::TAuthenticationManagerPtr& GetAuthenticationManager();
 
     const TString& GetFqdn();
     const TString& GetClientGrpcAddress();

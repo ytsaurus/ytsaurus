@@ -10,6 +10,8 @@ namespace NYP {
 namespace NServer {
 namespace NObjects {
 
+using namespace NAccessControl;
+
 using namespace NYT::NYTree;
 using namespace NYT::NQueryClient;
 using namespace NYT::NQueryClient::NAst;
@@ -38,13 +40,6 @@ TObjectTypeHandlerBase::TObjectTypeHandlerBase(
                     MakeAttributeSchema("creation_time")
                         ->SetAttribute(TObject::CreationTimeSchema),
 
-                    MakeAttributeSchema("owner")
-                        ->SetAttribute(TObject::OwnerSchema),
-
-                    MakeAttributeSchema("inherit_acl")
-                        ->SetAttribute(TObject::InheritAclSchema)
-                        ->SetUpdatable(),
-
                     MakeAttributeSchema("acl")
                         ->SetAttribute(TObject::AclSchema)
                         ->SetUpdatable()
@@ -65,6 +60,13 @@ TObjectTypeHandlerBase::TObjectTypeHandlerBase(
             ControlAttributeSchema_ = MakeAttributeSchema("control")
                 ->SetControlAttribute()
         });
+
+    if (Type_ != EObjectType::Schema) {
+        MetaAttributeSchema_->AddChild(
+            MakeAttributeSchema("inherit_acl")
+                ->SetAttribute(TObject::InheritAclSchema)
+                ->SetUpdatable());
+    }
 }
 
 EObjectType TObjectTypeHandlerBase::GetType()
@@ -125,7 +127,13 @@ void TObjectTypeHandlerBase::BeforeObjectCreated(
 
     const auto& accessControlManager = Bootstrap_->GetAccessControlManager();
     object->InheritAcl() = true;
-    object->Owner() = accessControlManager->GetAuthenticatedUser();
+    NClient::NApi::NProto::TAccessControlEntry ace;
+    ace.set_action(NClient::NApi::NProto::ACA_ALLOW);
+    for (auto permission : GetDefaultPermissions()) {
+        ace.add_permissions(static_cast<NClient::NApi::NProto::EAccessControlPermission>(permission));
+    }
+    ace.add_subjects(accessControlManager->GetAuthenticatedUser());
+    object->Acl()->push_back(std::move(ace));
 }
 
 void TObjectTypeHandlerBase::AfterObjectCreated(
@@ -156,6 +164,14 @@ TAttributeSchema* TObjectTypeHandlerBase::MakeFallbackAttributeSchema()
 {
     return MakeAttributeSchema(TString())
         ->SetFallback();
+}
+
+std::vector<EAccessControlPermission> TObjectTypeHandlerBase::GetDefaultPermissions()
+{
+    return {
+        EAccessControlPermission::Read,
+        EAccessControlPermission::Write,
+    };
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -13,6 +13,8 @@ package NInfra.NPodAgent.API;
 import "google/protobuf/timestamp.proto";
 import "yt/core/yson/proto/protobuf_interop.proto";
 
+option (NYT.NYson.NProto.derive_underscore_case_names) = true;
+
 //TODO: добавить секреты
 //TODO: itype (labels)
 //TODO: propabilty + core dump

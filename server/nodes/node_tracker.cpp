@@ -64,7 +64,6 @@ public:
     }
 
     void ProcessHeartbeat(
-        const TTransactionPtr& transaction,
         TNode* node,
         const TEpochId& epochId,
         ui64 sequenceNumber,
@@ -337,7 +336,6 @@ TNode* TNodeTracker::ProcessHandshake(
 }
 
 void TNodeTracker::ProcessHeartbeat(
-    const NObjects::TTransactionPtr& transaction,
     TNode* node,
     const TEpochId& epochId,
     ui64 sequenceNumber,
@@ -345,7 +343,6 @@ void TNodeTracker::ProcessHeartbeat(
     TRspHeartbeat* response)
 {
     Impl_->ProcessHeartbeat(
-        transaction,
         node,
         epochId,
         sequenceNumber,

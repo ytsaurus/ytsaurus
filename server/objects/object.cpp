@@ -22,11 +22,6 @@ const TScalarAttributeSchema<TObject, NYT::NYTree::IMapNodePtr> TObject::LabelsS
     [] (TObject* object) { return &object->Labels(); }
 };
 
-const TScalarAttributeSchema<TObject, TObjectId> TObject::OwnerSchema{
-    &ObjectsTable.Fields.Meta_Owner,
-    [] (TObject* object) { return &object->Owner(); }
-};
-
 const TScalarAttributeSchema<TObject, bool> TObject::InheritAclSchema{
     &ObjectsTable.Fields.Meta_InheritAcl,
     [] (TObject* object) { return &object->InheritAcl(); }
@@ -45,7 +40,6 @@ TObject::TObject(
     : CreationTime_(this, &CreationTimeSchema)
     , Labels_(this, &LabelsSchema)
     , Annotations_(this)
-    , Owner_(this, &OwnerSchema)
     , InheritAcl_(this, &InheritAclSchema)
     , Acl_(this, &AclSchema)
     , Id_(id)
@@ -122,7 +116,7 @@ void TObject::ValidateExists() const
 {
     if (!Exists()) {
         THROW_ERROR_EXCEPTION(
-            NClient::NApi::EErrorCode::MissingObjectId,
+            NClient::NApi::EErrorCode::NoSuchObject,
             "%v %Qv does not exist",
             GetCapitalizedHumanReadableTypeName(GetType()),
             Id_);
@@ -159,7 +153,9 @@ TObjectId GetObjectId(TObject* object)
 void ValidateObjectId(EObjectType type, const TObjectId& id)
 {
     if (id.empty()) {
-        THROW_ERROR_EXCEPTION("Object id cannot be empty");
+        THROW_ERROR_EXCEPTION(
+            NClient::NApi::EErrorCode::InvalidObjectId,
+            "Object id cannot be empty");
     }
 
     if (id.length() > NClient::NApi::MaxObjectIdLength) {

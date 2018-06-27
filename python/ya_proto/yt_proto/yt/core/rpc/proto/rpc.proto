@@ -3,8 +3,8 @@ package NYtPython.NRpc.NProto;
 option java_package = "ru.yandex.yt.rpc";
 option java_multiple_files = true;
 
-import "proto/yt/core/misc/proto/guid.proto";
-import "proto/yt/core/misc/proto/error.proto";
+import "yt_proto/yt/core/misc/proto/guid.proto";
+import "yt_proto/yt/core/misc/proto/error.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 

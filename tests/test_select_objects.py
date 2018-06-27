@@ -4,6 +4,12 @@ from yp.client import YpResponseError
 
 @pytest.mark.usefixtures("yp_env")
 class TestSelectObjects(object):
+    def test_select_null(self, yp_env):
+        yp_client = yp_env.yp_client
+
+        with pytest.raises(YpResponseError):
+            yp_client.select_objects("null", selectors=["/meta"])
+
     def test_select_limit(self, yp_env):
         yp_client = yp_env.yp_client
 

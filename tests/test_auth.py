@@ -6,7 +6,7 @@ from yt.environment.helpers import assert_items_equal
 @pytest.mark.usefixtures("yp_env_configurable")
 class TestAuth(object):
     YP_MASTER_CONFIG = {
-        "access_control_manager": {
+        "authentication_manager": {
             "cypress_token_authenticator": {
                 "root_path": "//yp/tokens"
             }

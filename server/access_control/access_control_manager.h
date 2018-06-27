@@ -67,8 +67,6 @@ public:
 
     void Initialize();
 
-    const NRpc::IAuthenticatorPtr& GetAuthenticator() const;
-
     TPermissionCheckResult CheckPermission(
         const TString& userId,
         NObjects::TObject* object,

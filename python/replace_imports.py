@@ -9,8 +9,8 @@ def main():
     )
     for line in sys.stdin:
         if line.strip().startswith("import") and "protobuf_interop.proto" not in line:
-            line = line.replace("\"yt/", "\"proto/yt/")
-            line = line.replace("\"yp/", "\"proto/yp/")
+            line = line.replace("\"yt/", "\"yt_proto/yt/")
+            line = line.replace("\"yp/", "\"yp_proto/yp/")
         if "NYT." in line and all([item not in line for item in protobuf_interop_fields]):
             line = line.replace("NYT.", "NYtPython.")
         sys.stdout.write(line)

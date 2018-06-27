@@ -1,7 +1,7 @@
 package NYtPython.NYTree.NProto;
 
-import "proto/yt/core/rpc/proto/rpc.proto";
-import "proto/yt/core/ytree/proto/attributes.proto";
+import "yt_proto/yt/core/rpc/proto/rpc.proto";
+import "yt_proto/yt/core/ytree/proto/attributes.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 

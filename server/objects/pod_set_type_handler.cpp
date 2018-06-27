@@ -9,6 +9,8 @@ namespace NYP {
 namespace NServer {
 namespace NObjects {
 
+using namespace NAccessControl;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TPodSetTypeHandler
@@ -50,6 +52,15 @@ public:
     {
         YCHECK(!parentId);
         return std::unique_ptr<TObject>(new TPodSet(id, this, session));
+    }
+
+private:
+    virtual std::vector<EAccessControlPermission> GetDefaultPermissions() override
+    {
+        auto result = TObjectTypeHandlerBase::GetDefaultPermissions();
+        result.push_back(EAccessControlPermission::SshAccess);
+        result.push_back(EAccessControlPermission::RootSshAccess);
+        return result;
     }
 };
 

@@ -24,7 +24,6 @@ public:
         const TString& address);
 
     void ProcessHeartbeat(
-        const NObjects::TTransactionPtr& transaction,
         NObjects::TNode* node,
         const TEpochId& epochId,
         ui64 sequenceNumber,

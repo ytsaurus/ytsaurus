@@ -3,7 +3,7 @@ package NYtPython.NProto;
 option java_package = "ru.yandex.yt";
 option java_multiple_files = true;
 
-import "proto/yt/core/ytree/proto/attributes.proto";
+import "yt_proto/yt/core/ytree/proto/attributes.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 

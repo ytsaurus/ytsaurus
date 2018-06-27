@@ -35,23 +35,11 @@ class TAccessControlManagerConfig
 {
 public:
     TDuration ClusterStateUpdatePeriod;
-    bool RequireAuthentication;
-    NAuth::TCachingBlackboxTokenAuthenticatorConfigPtr BlackboxTokenAuthenticator;
-    NAuth::TDefaultBlackboxServiceConfigPtr BlackboxService;
-    NAuth::TCachingCypressTokenAuthenticatorConfigPtr CypressTokenAuthenticator;
 
     TAccessControlManagerConfig()
     {
         RegisterParameter("cluster_state_update_period", ClusterStateUpdatePeriod)
             .Default(TDuration::Seconds(1));
-        RegisterParameter("require_authentication", RequireAuthentication)
-            .Default(false);
-        RegisterParameter("blackbox_token_authenticator", BlackboxTokenAuthenticator)
-            .Optional();
-        RegisterParameter("blackbox_service", BlackboxService)
-            .Optional();
-        RegisterParameter("cypress_token_authenticator", CypressTokenAuthenticator)
-            .Optional();
     }
 };
 

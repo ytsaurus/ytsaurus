@@ -94,7 +94,9 @@ public:
     {
         auto* typeHandler = FindTypeHandler(type);
         if (!typeHandler) {
-            THROW_ERROR_EXCEPTION("Unknown object type %v",
+            THROW_ERROR_EXCEPTION(
+                NClient::NApi::EErrorCode::InvalidObjectType,
+                "Unknown object type %v",
                 type);
         }
         return typeHandler;

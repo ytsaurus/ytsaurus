@@ -1,6 +1,6 @@
 package NYtPython.NRpc.NGrpc.NProto;
 
-import "proto/yt/core/rpc/proto/rpc.proto";
+import "yt_proto/yt/core/rpc/proto/rpc.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 

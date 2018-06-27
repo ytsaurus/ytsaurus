@@ -72,7 +72,10 @@ public:
         }
         auto* node = FindNode(id);
         if (!node) {
-            THROW_ERROR_EXCEPTION("No such node %Qv", id);
+            THROW_ERROR_EXCEPTION(
+                NClient::NApi::EErrorCode::NoSuchObject,
+                "No such node %Qv",
+                id);
         }
         return node;
     }
@@ -105,11 +108,15 @@ public:
     TNodeSegment* GetNodeSegmentOrThrow(const TObjectId& id)
     {
         if (!id) {
-            THROW_ERROR_EXCEPTION("Node segment id cannot be null");
+            THROW_ERROR_EXCEPTION(
+                NClient::NApi::EErrorCode::InvalidObjectId,
+                "Node segment id cannot be null");
         }
         auto* segment = FindNodeSegment(id);
         if (!segment) {
-            THROW_ERROR_EXCEPTION("No such node segment %Qv", id);
+            THROW_ERROR_EXCEPTION(
+                NClient::NApi::EErrorCode::NoSuchObject,
+                "No such node segment %Qv", id);
         }
         return segment;
     }

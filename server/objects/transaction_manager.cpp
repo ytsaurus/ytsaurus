@@ -107,7 +107,9 @@ public:
         }
         auto transaction = FindTransaction(id);
         if (!transaction) {
-            THROW_ERROR_EXCEPTION("No such transaction %v",
+            THROW_ERROR_EXCEPTION(
+                NClient::NApi::EErrorCode::NoSuchTransaction,
+                "No such transaction %v",
                 id);
         }
         return transaction;

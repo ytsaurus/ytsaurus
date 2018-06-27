@@ -2,8 +2,8 @@ import pytest
 
 from yp.client import YpClient
 
-import proto.yp.client.api.proto.object_service_pb2 as object_service_pb2
-import proto.yp.client.api.proto.data_model_pb2 as data_model_pb2
+import yp_proto.yp.client.api.proto.object_service_pb2 as object_service_pb2
+import yp_proto.yp.client.api.proto.data_model_pb2 as data_model_pb2
 
 import yt.yson as yson
 

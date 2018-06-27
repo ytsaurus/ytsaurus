@@ -92,6 +92,7 @@ public:
     NNodes::TNodeTrackerConfigPtr NodeTracker;
     NScheduler::TSchedulerConfigPtr Scheduler;
     NAccessControl::TAccessControlManagerConfigPtr AccessControlManager;
+    NAuth::TAuthenticationManagerConfigPtr AuthenticationManager;
     int WorkerThreadPoolSize;
 
     TMasterConfig()
@@ -120,6 +121,8 @@ public:
             .DefaultNew();
         RegisterParameter("access_control_manager", AccessControlManager)
             .DefaultNew();
+        RegisterParameter("authentication_manager", AuthenticationManager)
+            .DefaultNew();
         RegisterParameter("worker_thread_pool_size", WorkerThreadPoolSize)
             .GreaterThan(0)
             .Default(8);
@@ -131,7 +134,7 @@ public:
             if (SecureClientGrpcServer && SecureClientGrpcServer->Addresses.size() != 1) {
                 THROW_ERROR_EXCEPTION("Exactly one GRPC API server address must be given \"secure_client_grpc_server\"");
             }
-            if (AgentGrpcServer->Addresses.size() != 1) {
+            if (AgentGrpcServer && AgentGrpcServer->Addresses.size() != 1) {
                 THROW_ERROR_EXCEPTION("Exactly one GRPC agent server address must be given in \"agent_grpc_server\"");
             }
         });

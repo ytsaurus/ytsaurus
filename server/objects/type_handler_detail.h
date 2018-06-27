@@ -6,6 +6,8 @@
 
 #include <yp/server/master/public.h>
 
+#include <yp/server/access_control/public.h>
+
 #include <yt/ytlib/api/public.h>
 
 namespace NYP {
@@ -65,6 +67,9 @@ protected:
 
     TAttributeSchema* MakeAttributeSchema(const TString& name);
     TAttributeSchema* MakeFallbackAttributeSchema();
+
+protected:
+    virtual std::vector<NAccessControl::EAccessControlPermission> GetDefaultPermissions();
 };
 
 ////////////////////////////////////////////////////////////////////////////////

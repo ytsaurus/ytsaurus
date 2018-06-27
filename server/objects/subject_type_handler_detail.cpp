@@ -18,10 +18,10 @@ void TSubjectTypeHandlerBase::BeforeObjectCreated(
     TObject* object)
 {
     const auto& id = object->GetId();
-    if (id == EveryoneSubjectId ||
-        id == OwnerSubjectId)
-    {
-        THROW_ERROR_EXCEPTION("Subject %Qv cannot be created",
+    if (id == EveryoneSubjectId) {
+        THROW_ERROR_EXCEPTION(
+            NClient::NApi::EErrorCode::InvalidObjectId,
+            "Subject %Qv cannot be created",
             id);
     }
 
@@ -38,7 +38,9 @@ void TSubjectTypeHandlerBase::BeforeObjectCreated(
                 MakeArray(&SubjectToTypeTable.Fields.Type),
                 [=] (const TNullable<TRange<TVersionedValue>>& maybeValues) {
                     if (maybeValues) {
-                        THROW_ERROR_EXCEPTION("Subject %Qv already exists",
+                        THROW_ERROR_EXCEPTION(
+                            NClient::NApi::EErrorCode::DuplicateObjectId,
+                            "Subject %Qv already exists",
                             id);
                     }
                 });

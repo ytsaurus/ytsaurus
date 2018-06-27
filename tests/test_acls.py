@@ -16,7 +16,6 @@ class TestAcls(object):
         yp_env.sync_access_control()
 
         id = yp_client1.create_object("pod_set")
-        assert yp_client1.get_object("pod_set", id, selectors=["/meta/owner"])[0] == "u1"
         yp_client1.update_object("pod_set", id, set_updates=[{"path": "/labels/a", "value": "b"}])
         with pytest.raises(YpResponseError):
             yp_client2.update_object("pod_set", id, set_updates=[{"path": "/labels/a", "value": "b"}])
@@ -76,12 +75,13 @@ class TestAcls(object):
         yp_client1 = yp_env.yp_instance.create_client(config={"user": "u1"})
         yp_env.sync_access_control()
 
-        id = yp_client1.create_object("pod_set")
-        yp_client1.update_object("pod_set", id, set_updates=[{"path": "/labels/a", "value": "b"}])
-        
-        yp_client.update_object("pod_set", id, set_updates=[{"path": "/meta/inherit_acl", "value": False}])
+        pod_set_id = yp_client1.create_object("pod_set")
+        pod_id = yp_client1.create_object("pod", attributes={"meta": {"pod_set_id": pod_set_id, "acl": []}})
+        yp_client1.update_object("pod", pod_id, set_updates=[{"path": "/labels/a", "value": "b"}])
+
+        yp_client.update_object("pod", pod_id, set_updates=[{"path": "/meta/inherit_acl", "value": False}])
         with pytest.raises(YpResponseError):
-            yp_client1.update_object("pod_set", id, set_updates=[{"path": "/labels/a", "value": "b"}])
+            yp_client1.update_object("pod", pod_id, set_updates=[{"path": "/labels/a", "value": "b"}])
 
     def test_endpoint_inherits_from_endpoint_set(self, yp_env):
         yp_client = yp_env.yp_client

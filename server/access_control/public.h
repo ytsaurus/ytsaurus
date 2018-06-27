@@ -23,11 +23,6 @@ DEFINE_ENUM(EAccessControlPermission,
     ((RootSshAccess) (5))
 );
 
-DEFINE_ENUM(EErrorCode,
-    ((AuthenticationError)          (20000))
-    ((AuthorizationError)           (20001))
-);
-
 struct TPermissionCheckResult;
 
 // Built-in users.
@@ -37,7 +32,6 @@ extern const TString RootUserId;
 extern const TString SuperusersSubjectId;
 
 // Pseudo-subjects.
-extern const TString OwnerSubjectId;
 extern const TString EveryoneSubjectId;
 
 DECLARE_REFCOUNTED_CLASS(TAccessControlManagerConfig)

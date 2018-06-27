@@ -9,6 +9,8 @@ namespace NYP {
 namespace NServer {
 namespace NObjects {
 
+using namespace NAccessControl;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TResourceTypeHandler
@@ -67,6 +69,11 @@ public:
         return &parent->As<TNode>()->Resources();
     }
 
+    virtual TObject* GetAccessControlParent(TObject* object) override
+    {
+        return object->As<TResource>()->Node().Load();
+    }
+
     virtual std::unique_ptr<TObject> InstantiateObject(
         const TObjectId& id,
         const TObjectId& parentId,
@@ -76,6 +83,11 @@ public:
     }
 
 private:
+    virtual std::vector<EAccessControlPermission> GetDefaultPermissions() override
+    {
+        return {};
+    }
+
     static void ValidateSpec(const TResource::TSpec& oldSpec, const TResource::TSpec& newSpec)
     {
         if (oldSpec.has_kind() &&

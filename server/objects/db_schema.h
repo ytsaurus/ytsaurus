@@ -18,7 +18,6 @@ extern const struct TObjectTableBase
         TDBField Meta_Id{"meta.id"};
         TDBField Meta_CreationTime{"meta.creation_time"};
         TDBField Meta_RemovalTime{"meta.removal_time"};
-        TDBField Meta_Owner{"meta.owner"};
         TDBField Meta_InheritAcl{"meta.inherit_acl"};
         TDBField Meta_Acl{"meta.acl"};
         TDBField Labels{"labels"};

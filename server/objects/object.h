@@ -47,9 +47,6 @@ public:
 
     DEFINE_BYREF_RW_PROPERTY_NO_INIT(TAnnotationsAttribute, Annotations);
 
-    static const TScalarAttributeSchema<TObject, TObjectId> OwnerSchema;
-    DEFINE_BYREF_RW_PROPERTY_NO_INIT(TScalarAttribute<TObjectId>, Owner);
-
     static const TScalarAttributeSchema<TObject, bool> InheritAclSchema;
     DEFINE_BYREF_RW_PROPERTY_NO_INIT(TScalarAttribute<bool>, InheritAcl);
 

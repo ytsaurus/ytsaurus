@@ -297,7 +297,7 @@ public:
         const TAttributeSelector& selector)
     {
         const auto& objectManager = Bootstrap_->GetObjectManager();
-        auto* typeHandler = objectManager->GetTypeHandler(type);
+        auto* typeHandler = objectManager->GetTypeHandlerOrThrow(type);
 
         auto* object = GetObject(type, id);
         object->ValidateExists();
@@ -397,7 +397,7 @@ public:
         }
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
-        auto* typeHandler = objectManager->GetTypeHandler(type);
+        auto* typeHandler = objectManager->GetTypeHandlerOrThrow(type);
 
         auto query = MakeQuery(typeHandler);
 
@@ -774,13 +774,13 @@ private:
             const TString& query,
             std::function<void(const NYT::NApi::IUnversionedRowsetPtr&)> handler) override
         {
-            SelectRequests_.push_back(TSelectRequest{
-                query,
-                handler
-            });
+            TSelectRequest request;
+            request.Query = query;
+            request.Handler = std::move(handler);
+            SelectRequests_.emplace_back(std::move(request));
         }
 
-        void RunReads(const IClientBasePtr& client)
+        void RunReads()
         {
             if (SelectRequests_.empty() && LookupRequests_.empty()) {
                 return;
@@ -1210,7 +1210,9 @@ private:
             auto it = InstantiatedObjects_.find(key);
             if (it != InstantiatedObjects_.end()) {
                 auto* existingObject = it->second.get();
-                THROW_ERROR_EXCEPTION("%v %Qv is already in %Qlv state",
+                THROW_ERROR_EXCEPTION(
+                    NClient::NApi::EErrorCode::InvalidObjectState,
+                    "%v %Qv is already in %Qlv state",
                     GetCapitalizedHumanReadableTypeName(type),
                     actualId,
                     existingObject->GetState());
@@ -1256,7 +1258,9 @@ private:
         virtual TObject* GetObject(EObjectType type, const TObjectId& id, const TObjectId& parentId = {}) override
         {
             if (!id) {
-                THROW_ERROR_EXCEPTION("%v id cannot be empty",
+                THROW_ERROR_EXCEPTION(
+                    NClient::NApi::EErrorCode::InvalidObjectId,
+                    "%v id cannot be empty",
                     GetCapitalizedHumanReadableTypeName(type));
             }
 
@@ -1270,7 +1274,6 @@ private:
                 it = InstantiatedObjects_.emplace(key, std::move(objectHolder)).first;
 
                 object->ScheduleExists();
-                object->Owner().ScheduleLoad();
                 object->InheritAcl().ScheduleLoad();
                 object->Acl().ScheduleLoad();
 
@@ -1454,7 +1457,9 @@ private:
 
             for (const auto& pair : objectParentPairs) {
                 if (!pair.second->Exists()) {
-                    THROW_ERROR_EXCEPTION("Parent %v %Qv of %v %Qv does not exist",
+                    THROW_ERROR_EXCEPTION(
+                        NClient::NApi::EErrorCode::NoSuchObject,
+                        "Parent %v %Qv of %v %Qv does not exist",
                         GetLowercaseHumanReadableTypeName(pair.second->GetType()),
                         pair.second->GetId(),
                         GetLowercaseHumanReadableTypeName(pair.first->GetType()),
@@ -1566,7 +1571,7 @@ private:
 
                 LOG_DEBUG("Finished preparing reads");
 
-                context.RunReads(Owner_->UnderlyingTransaction_);
+                context.RunReads();
             }
         }
 
@@ -1680,7 +1685,7 @@ private:
         IUpdateContext* context)
     {
         const auto& objectManager = Bootstrap_->GetObjectManager();
-        auto* typeHandler = objectManager->GetTypeHandler(type);
+        auto* typeHandler = objectManager->GetTypeHandlerOrThrow(type);
 
         auto transaction = MakeStrong(Owner_);
 

@@ -15,7 +15,12 @@ def recursive(path):
     return list(imap(lambda package: prefix + "." + package, find_packages(path))) + [prefix]
 
 def setup_package(name, python_dependent_requires):
-    requires = ["yandex-yt >= 0.8.25-0", "protobuf >= 3.2.1", "grpcio == 1.2.0rc1"] + python_dependent_requires
+    requires = [
+        "yandex-yt >= 0.8.25-0",
+        "yandex-yt-proto",
+        "protobuf >= 3.2.1",
+        "grpcio == 1.2.0rc1"
+    ] + python_dependent_requires
 
     version = get_version()
 
@@ -28,11 +33,11 @@ def setup_package(name, python_dependent_requires):
         scripts.extend(binaries)
 
     find_packages("yp/packages")
-    find_packages("proto")
+    find_packages("yp_proto")
     setup(
         name = name,
         version = version,
-        packages = ["yp"] + recursive("yp/packages") + recursive("proto"),
+        packages = ["yp"] + recursive("yp/packages") + recursive("yp_proto"),
         package_data = {
             name: ["yp/YandexInternalRootCA.crt", "yp/enums.bc"],
         },
