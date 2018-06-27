@@ -1,0 +1,10 @@
+# Update major version when protocol changed significally, i.e.:
+# 1. Some messages are removed, renamed or redesigned.
+# 2. Some fields in messages change their meaning.
+SET(YT_RPC_PROXY_PROTOCOL_VERSION_MAJOR 1)
+
+# Update minor version when non-harmful actions are performed:
+# 1. New messages are added without affecting older ones.
+# 2. New optional fields are added to old messages.
+# 3. To force rebuild proto package without changes.
+SET(YT_RPC_PROXY_PROTOCOL_VERSION_MINOR 0)

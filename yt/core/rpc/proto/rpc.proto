@@ -15,7 +15,8 @@ message TRequestHeader
     required string method = 3;
     optional NYT.NProto.TGuid realm_id = 8;
 
-    optional int32 protocol_version = 9 [default = 0];
+    optional int32 protocol_version_major = 9 [default = 1];
+    optional int32 protocol_version_minor = 19 [default = 0];
 
     optional int64 start_time = 7;
     optional bool retry = 11 [default = false];
@@ -79,7 +80,7 @@ message TCredentialsExt
 message TResponseHeader
 {
     optional NYT.NProto.TGuid request_id = 1;
-    
+
     // If omitted then OK is assumed.
     optional NYT.NProto.TError error = 2;
 

@@ -90,9 +90,6 @@ DEFINE_ENUM(EMultiplexingBand,
 
 ////////////////////////////////////////////////////////////////////////////////
 
-constexpr int DefaultProtocolVersion = 0;
-constexpr int GenericProtocolVersion = -1;
-
 DEFINE_ENUM(EErrorCode,
     ((TransportError)               (static_cast<int>(NBus::EErrorCode::TransportError)))
     ((ProtocolError)                (101))

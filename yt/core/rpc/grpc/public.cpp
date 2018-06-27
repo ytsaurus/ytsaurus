@@ -14,6 +14,7 @@ const char* const AuthSessionIdMetadataKey = "yt-auth-session-id";
 const char* const AuthSslSessionIdMetadataKey = "yt-auth-ssl-session-id";
 const char* const ErrorMetadataKey = "yt-error-bin";
 const char* const MessageBodySizeMetadataKey = "yt-message-body-size";
+const char* const ProtocolVersionMetadataKey = "yt-protocol-version";
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -299,6 +299,7 @@ private:
         TGrpcCallPtr Call_;
         TGrpcByteBufferPtr RequestBodyBuffer_;
         TNullable<ui32> RequestMessageBodySize_;
+        TProtocolVersion ProtocolVersion_ = DefaultProtocolVersion;
         TGrpcByteBufferPtr ResponseBodyBuffer_;
         TString ErrorMessage_;
         grpc_slice ErrorMessageSlice_ = grpc_empty_slice();
@@ -356,14 +357,20 @@ private:
                 return;
             }
 
-            LOG_DEBUG("Request accepted (RequestId: %v, Host: %v, Method: %v:%v, User: %v, PeerAddress: %v, Timeout: %v)",
+            if (!TryParseProtocolVersion()) {
+                Unref();
+                return;
+            }
+
+            LOG_DEBUG("Request accepted (RequestId: %v, Host: %v, Method: %v:%v, User: %v, PeerAddress: %v, Timeout: %v, ProtocolVersion: %v)",
                 RequestId_,
                 ToStringBuf(CallDetails_->host),
                 ServiceName_,
                 MethodName_,
                 User_,
                 PeerAddressString_,
-                Timeout_);
+                Timeout_,
+                ProtocolVersion_);
 
             Service_ = Owner_->FindService(TServiceId(ServiceName_));
 
@@ -543,6 +550,24 @@ private:
             return true;
         }
 
+        bool TryParseProtocolVersion()
+        {
+            auto protocolVersionString = CallMetadata_.Find(ProtocolVersionMetadataKey);
+            if (!protocolVersionString) {
+                return true;
+            }
+
+            try {
+                ProtocolVersion_ = TProtocolVersion::FromString(protocolVersionString);
+            } catch (const std::exception& ex) {
+                LOG_WARNING(ex, "Failed to parse protocol version from string (RequestId: %v)",
+                    RequestId_);
+                return false;
+            }
+
+            return true;
+        }
+
         void OnRequestReceived(bool success)
         {
             if (!success) {
@@ -581,7 +606,8 @@ private:
             }
             header->set_service(ServiceName_);
             header->set_method(MethodName_);
-            header->set_protocol_version(GenericProtocolVersion);
+            header->set_protocol_version_major(ProtocolVersion_.Major);
+            header->set_protocol_version_minor(ProtocolVersion_.Minor);
             if (Timeout_) {
                 header->set_timeout(ToProto<i64>(*Timeout_));
             }

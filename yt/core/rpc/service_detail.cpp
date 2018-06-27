@@ -500,7 +500,11 @@ void TServiceBase::HandleRequest(
 {
     const auto& method = header->method();
     auto requestId = FromProto<TRequestId>(header->request_id());
-    auto requestProtocolVersion = header->protocol_version();
+
+    TProtocolVersion requestProtocolVersion{
+        header->protocol_version_major(),
+        header->protocol_version_minor()
+    };
 
     TRuntimeMethodInfoPtr runtimeInfo;
     auto replyError = [&] (TError error) {
@@ -514,14 +518,26 @@ void TServiceBase::HandleRequest(
         return;
     }
 
-    if (requestProtocolVersion != GenericProtocolVersion &&
-        requestProtocolVersion != ProtocolVersion_) {
-        replyError(TError(
-            EErrorCode::ProtocolError,
-            "Protocol version mismatch: expected %v, received %v",
-            ProtocolVersion_,
-            requestProtocolVersion));
-        return;
+    if (requestProtocolVersion != GenericProtocolVersion) {
+        if (ProtocolVersion_.Major != requestProtocolVersion.Major) {
+            auto error = TError(
+                EErrorCode::ProtocolError,
+                "Server major protocol version differs from client major protocol version: %v != %v",
+                requestProtocolVersion.Major,
+                ProtocolVersion_.Major);
+            replyError(std::move(error));
+            return;
+        }
+
+        if (ProtocolVersion_.Minor < requestProtocolVersion.Minor) {
+            auto error = TError(
+                EErrorCode::ProtocolError,
+                "Server minor protocol version is less than minor protocol version required by client: %v < %v",
+                ProtocolVersion_.Minor,
+                requestProtocolVersion.Minor);
+            replyError(std::move(error));
+            return;
+        }
     }
 
     runtimeInfo = FindMethodInfo(method);
@@ -904,7 +920,7 @@ TServiceBase::TRuntimeMethodInfoPtr TServiceBase::RegisterMethod(const TMethodDe
         ServiceTagId_,
         profileManager->RegisterTag("method", descriptor.Method)
     };
-    
+
     auto runtimeInfo = New<TRuntimeMethodInfo>(descriptor, tagIds);
     runtimeInfo->RootPerformanceCounters = CreateMethodPerformanceCounters(runtimeInfo, "root");
 

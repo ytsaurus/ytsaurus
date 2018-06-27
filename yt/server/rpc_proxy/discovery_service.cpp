@@ -59,6 +59,19 @@ static const TString VersionAttributeName = "version";
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
+const TServiceDescriptor& GetDescriptor()
+{
+    static const auto descriptor = TServiceDescriptor(DiscoveryServiceName)
+        .SetProtocolVersion({0, 0});
+    return descriptor;
+}
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TDiscoveryService
     : public TServiceBase
 {
@@ -67,7 +80,7 @@ public:
         NCellProxy::TBootstrap* bootstrap)
         : TServiceBase(
             bootstrap->GetWorkerInvoker(),
-            TDiscoveryServiceProxy::GetDescriptor(),
+            GetDescriptor(),
             RpcProxyLogger)
         , Bootstrap_(bootstrap)
         , Config_(bootstrap->GetConfig()->DiscoveryService)
@@ -109,7 +122,7 @@ private:
         TString Address;
         TString Role;
     };
-    
+
     std::vector<TProxy> AvailableProxies_;
 
     bool Initialized_ = false;
@@ -297,7 +310,7 @@ private:
         }
 
         TString roleFilter = request->has_role() ? request->role() : DefaultProxyRole;
-        
+
         {
             auto guard = Guard(ProxySpinLock_);
             for (const auto& proxy : AvailableProxies_) {

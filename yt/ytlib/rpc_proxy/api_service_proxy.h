@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include "protocol_version.h"
+
 #include <yt/ytlib/rpc_proxy/proto/api_service.pb.h>
 
 #include <yt/core/rpc/client.h>
@@ -16,7 +18,7 @@ class TApiServiceProxy
 {
 public:
     DEFINE_RPC_PROXY(TApiServiceProxy, ApiService,
-        .SetProtocolVersion(1));
+        .SetProtocolVersion(NRpc::TProtocolVersion{1, 0}));
 
     // Transaction server
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, GenerateTimestamps);

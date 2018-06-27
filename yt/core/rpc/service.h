@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include "protocol_version.h"
+
 #include <yt/core/actions/signal.h>
 
 #include <yt/core/bus/public.h>
@@ -229,6 +231,7 @@ struct IService
     //! Handles request cancelation.
     virtual void HandleRequestCancelation(
         const TRequestId& requestId) = 0;
+
 };
 
 DEFINE_REFCOUNTED_TYPE(IService)

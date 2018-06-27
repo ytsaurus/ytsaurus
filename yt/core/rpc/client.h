@@ -136,7 +136,7 @@ protected:
         IChannelPtr channel,
         const TString& service,
         const TString& method,
-        int protocolVersion);
+        TProtocolVersion protocolVersion);
 
     // NB: doesn't copy base class.
     TClientRequest(const TClientRequest& other);
@@ -168,7 +168,7 @@ public:
         IChannelPtr channel,
         const TString& path,
         const TString& method,
-        int protocolVersion);
+        TProtocolVersion protocolVersion);
 
     TFuture<typename TResponse::TResult> Invoke();
 
@@ -299,11 +299,12 @@ struct TServiceDescriptor
 {
     TString ServiceName;
     TString Namespace;
-    int ProtocolVersion = DefaultProtocolVersion;
+    TProtocolVersion ProtocolVersion = DefaultProtocolVersion;
 
     explicit TServiceDescriptor(const TString& serviceName);
 
-    TServiceDescriptor& SetProtocolVersion(int value);
+    TServiceDescriptor& SetProtocolVersion(int majorVersion);
+    TServiceDescriptor& SetProtocolVersion(TProtocolVersion version);
     TServiceDescriptor& SetNamespace(const TString& value);
 
     TString GetFullServiceName() const;

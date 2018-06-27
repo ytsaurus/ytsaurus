@@ -25,6 +25,7 @@ extern const char* const AuthSessionIdMetadataKey;
 extern const char* const AuthSslSessionIdMetadataKey;
 extern const char* const ErrorMetadataKey;
 extern const char* const MessageBodySizeMetadataKey;
+extern const char* const ProtocolVersionMetadataKey;
 
 constexpr int GenericErrorStatusCode = 100;
 
