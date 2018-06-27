@@ -3318,7 +3318,8 @@ void TOperationControllerBase::DoScheduleLocalJob(
         if (scheduleJobResult->IsScheduleStopNeeded()) {
             return;
         }
-        if (!Dominates(jobLimits, group->MinNeededResources)) {
+        if (!Dominates(jobLimits, group->MinNeededResources))
+        {
             scheduleJobResult->RecordFail(EScheduleJobFailReason::NotEnoughResources);
             continue;
         }
@@ -3417,7 +3418,8 @@ void TOperationControllerBase::DoScheduleNonLocalJob(
         if (scheduleJobResult->IsScheduleStopNeeded()) {
             return;
         }
-        if (!Dominates(jobLimits, group->MinNeededResources)) {
+        if (!Dominates(jobLimits, group->MinNeededResources))
+        {
             scheduleJobResult->RecordFail(EScheduleJobFailReason::NotEnoughResources);
             continue;
         }
@@ -4777,7 +4779,7 @@ void TOperationControllerBase::ValidateUserFileSizes()
             }
         }
     }
-    
+
     if (columnarStatisticsFetcher->GetChunkCount() > 0) {
         LOG_INFO("Fetching columnar statistics for table files with column selectors (ChunkCount: %v)",
             columnarStatisticsFetcher->GetChunkCount());

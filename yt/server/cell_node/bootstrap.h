@@ -143,7 +143,7 @@ private:
     NExecAgent::TSlotManagerPtr ExecSlotManager;
     NJobAgent::TGpuManagerPtr GpuManager;
     NJobProxy::TJobProxyConfigPtr JobProxyConfigTemplate;
-    std::unique_ptr<TMemoryUsageTracker<NNodeTrackerClient::EMemoryCategory>> MemoryUsageTracker;
+    NNodeTrackerClient::TNodeMemoryTrackerPtr MemoryUsageTracker;
     NExecAgent::TSchedulerConnectorPtr SchedulerConnector;
     NDataNode::TChunkStorePtr ChunkStore;
     NDataNode::TChunkCachePtr ChunkCache;

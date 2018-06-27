@@ -165,7 +165,9 @@ struct TInExpression
 {
     explicit TInExpression(EValueType type)
         : TExpression(type)
-    { }
+    {
+        YCHECK(type == EValueType::Boolean);
+    }
 
     TInExpression(
         std::vector<TConstExpressionPtr> arguments,
@@ -184,7 +186,9 @@ struct TBetweenExpression
 {
     explicit TBetweenExpression(EValueType type)
         : TExpression(type)
-    { }
+    {
+        YCHECK(type == EValueType::Boolean);
+    }
 
     TBetweenExpression(
         std::vector<TConstExpressionPtr> arguments,
