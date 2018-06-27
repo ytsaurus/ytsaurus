@@ -58,12 +58,23 @@ def iter_arcadia_submodules(git):
     ArcadiaSubmodule = collections.namedtuple("ArcadiaSubmodule", ["path", "gitrepo", "commit"])
 
     out = git.call("config", "--file", os.path.join(PROJECT_PATH, ".gitmodules"), "--list", capture=True)
-    for m in re.finditer("^submodule[.]([^.]*)[.]url=(.*)$", out, re.MULTILINE):
+    submodule_map = {}
+    for m in re.finditer("^submodule[.]([^.]*)[.]([^=]*)=(.*)$", out, re.MULTILINE):
         submodule_name = m.group(1)
-        submodule_url = m.group(2)
-        if submodule_url.startswith("git@github.yandex-team.ru:yt/arcadia-snapshot-"):
-            commit = git_get_submodule_head_version(git, ":/" + submodule_name)
-            yield ArcadiaSubmodule(submodule_name, submodule_url, commit)
+        key = m.group(2)
+        value = m.group(3)
+        submodule_map.setdefault(submodule_name, {})[key] = value
+
+    result = []
+    for m in submodule_map.itervalues():
+        url = m["url"]
+        path = m["path"]
+        if url.startswith("git@github.yandex-team.ru:yt/arcadia-snapshot-"):
+            commit = git_get_submodule_head_version(git, ":/" + path)
+            result.append(ArcadiaSubmodule(path, url, commit))
+    if not result:
+        raise RuntimeError, "No arcadia submodules found"
+    return result
 
 class CheckError(Exception):
     pass
