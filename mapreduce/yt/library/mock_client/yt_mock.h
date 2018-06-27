@@ -1,0 +1,158 @@
+#pragma once
+
+#include <mapreduce/yt/interface/client.h>
+
+#include <library/testing/gmock/gmock.h>
+
+namespace NYT {
+namespace NTesting {
+    class TClientMock : public IClient {
+    public:
+        TClientMock();
+        ~TClientMock();
+
+        MOCK_METHOD3(Create, TNodeId(const TYPath&, ENodeType, const TCreateOptions&));
+        MOCK_METHOD2(Remove, void(const TYPath&, const TRemoveOptions&));
+        MOCK_METHOD1(Exists, bool(const TYPath&));
+        MOCK_METHOD2(Get, TNode(const TYPath&, const TGetOptions&));
+        MOCK_METHOD2(GetOperation, TOperationAttributes(const TOperationId&, const TGetOperationOptions&));
+        MOCK_METHOD3(Set, void(const TYPath&, const TNode&, const TSetOptions&));
+        MOCK_METHOD2(List, TNode::TListType(const TYPath&, const TListOptions&));
+        MOCK_METHOD3(Copy, TNodeId(const TYPath&, const TYPath&, const TCopyOptions&));
+        MOCK_METHOD3(Move, TNodeId(const TYPath&, const TYPath&, const TMoveOptions&));
+        MOCK_METHOD3(Link, TNodeId(const TYPath&, const TYPath&, const TLinkOptions&));
+        MOCK_METHOD3(Concatenate, void(const TVector<TYPath>&, const TYPath&, const TConcatenateOptions&));
+        MOCK_METHOD1(CanonizeYPath, TRichYPath(const TRichYPath&));
+        MOCK_METHOD1(GetTableColumnarStatistics, TTableColumnarStatistics(const TRichYPath&));
+        MOCK_METHOD0(CreateBatchRequest, TBatchRequestPtr());
+
+        MOCK_METHOD2(CreateFileReader, IFileReaderPtr(const TRichYPath&, const TFileReaderOptions&));
+        MOCK_METHOD2(CreateFileWriter, IFileWriterPtr(const TRichYPath&, const TFileWriterOptions&));
+        MOCK_METHOD3(CreateBlobTableReader, IFileReaderPtr(const TYPath&, const TKey&, const TBlobTableReaderOptions&));
+        MOCK_METHOD3(CreateTableWriter, TTableWriterPtr<::google::protobuf::Message>(const TRichYPath& path, const ::google::protobuf::Descriptor& descriptor, const TTableWriterOptions& options));
+        MOCK_METHOD3(CreateRawReader, TRawTableReaderPtr(const TRichYPath& path, const TFormat& format, const TTableReaderOptions& options));
+        MOCK_METHOD3(CreateRawWriter, TRawTableWriterPtr(const TRichYPath& path, const TFormat& format, const TTableWriterOptions& options));
+        MOCK_METHOD2(CreateNodeReader, ::TIntrusivePtr<INodeReaderImpl>(const TRichYPath&, const TTableReaderOptions&));
+        MOCK_METHOD2(CreateYaMRReader, ::TIntrusivePtr<IYaMRReaderImpl>(const TRichYPath&, const TTableReaderOptions&));
+        MOCK_METHOD3(CreateProtoReader, ::TIntrusivePtr<IProtoReaderImpl>(const TRichYPath&, const TTableReaderOptions&, const ::google::protobuf::Message*));
+        MOCK_METHOD2(CreateNodeWriter, ::TIntrusivePtr<INodeWriterImpl>(const TRichYPath&, const TTableWriterOptions&));
+        MOCK_METHOD2(CreateYaMRWriter, ::TIntrusivePtr<IYaMRWriterImpl>(const TRichYPath&, const TTableWriterOptions&));
+        MOCK_METHOD3(CreateProtoWriter, ::TIntrusivePtr<IProtoWriterImpl>(const TRichYPath&, const TTableWriterOptions&, const ::google::protobuf::Message*));
+
+        MOCK_METHOD2(Sort, IOperationPtr(const TSortOperationSpec&, const TOperationOptions&));
+        MOCK_METHOD2(Merge, IOperationPtr(const TMergeOperationSpec&, const TOperationOptions&));
+        MOCK_METHOD2(Erase, IOperationPtr(const TEraseOperationSpec&, const TOperationOptions&));
+        MOCK_METHOD1(AbortOperation, void(const TOperationId&));
+        MOCK_METHOD1(CompleteOperation, void(const TOperationId&));
+        MOCK_METHOD1(WaitForOperation, void(const TOperationId&));
+        MOCK_METHOD1(CheckOperation, EOperationBriefState(const TOperationId&));
+        MOCK_METHOD3(DoMap, IOperationPtr(const TMapOperationSpec&, IJob*, const TOperationOptions&));
+        MOCK_METHOD3(RawMap, IOperationPtr(const TRawMapOperationSpec&, ::TIntrusivePtr<IRawJob>, const TOperationOptions&));
+        MOCK_METHOD3(DoReduce, IOperationPtr(const TReduceOperationSpec&, IJob*, const TOperationOptions&));
+        MOCK_METHOD3(RawReduce, IOperationPtr(const TRawReduceOperationSpec&, ::TIntrusivePtr<IRawJob>, const TOperationOptions&));
+        MOCK_METHOD3(DoJoinReduce, IOperationPtr(const TJoinReduceOperationSpec&, IJob*, const TOperationOptions&));
+        MOCK_METHOD3(RawJoinReduce, IOperationPtr(const TRawJoinReduceOperationSpec&, ::TIntrusivePtr<IRawJob>, const TOperationOptions&));
+        MOCK_METHOD9(DoMapReduce, IOperationPtr(const TMapReduceOperationSpec&, IJob*, IJob*, IJob*, const TMultiFormatDesc&, const TMultiFormatDesc&, const TMultiFormatDesc&, const TMultiFormatDesc&, const TOperationOptions&));
+        MOCK_METHOD5(RawMapReduce, IOperationPtr(const TRawMapReduceOperationSpec&, ::TIntrusivePtr<IRawJob>, ::TIntrusivePtr<IRawJob>, ::TIntrusivePtr<IRawJob>, const TOperationOptions&));
+        MOCK_METHOD2(RunVanilla, IOperationPtr(const TVanillaOperationSpec&, const TOperationOptions&));
+        MOCK_METHOD1(AttachOperation, IOperationPtr(const TOperationId&));
+
+        MOCK_METHOD1(StartTransaction, ITransactionPtr(const TStartTransactionOptions&));
+        MOCK_METHOD2(AlterTable, void(const TYPath&, const TAlterTableOptions&));
+
+        MOCK_METHOD1(AttachTransaction, ITransactionPtr(const TTransactionId&));
+        MOCK_METHOD2(MountTable, void(const TYPath&, const TMountTableOptions&));
+        MOCK_METHOD2(UnmountTable, void(const TYPath&, const TUnmountTableOptions&));
+        MOCK_METHOD2(RemountTable, void(const TYPath&, const TRemountTableOptions&));
+        MOCK_METHOD2(FreezeTable, void(const TYPath&, const TFreezeTableOptions&));
+        MOCK_METHOD2(UnfreezeTable, void(const TYPath&, const TUnfreezeTableOptions&));
+        MOCK_METHOD3(ReshardTable, void(const TYPath&, const TVector<TKey>&, const TReshardTableOptions&));
+        MOCK_METHOD3(ReshardTable, void(const TYPath&, i64, const TReshardTableOptions&));
+        MOCK_METHOD3(InsertRows, void(const TYPath&, const TNode::TListType&, const TInsertRowsOptions&));
+        MOCK_METHOD3(DeleteRows, void(const TYPath&, const TNode::TListType&, const TDeleteRowsOptions&));
+        MOCK_METHOD4(TrimRows, void(const TYPath&, i64, i64, const TTrimRowsOptions&));
+        MOCK_METHOD3(LookupRows, TNode::TListType(const TYPath&, const TNode::TListType&, const TLookupRowsOptions&));
+        MOCK_METHOD2(SelectRows, TNode::TListType(const TString&, const TSelectRowsOptions&));
+        MOCK_METHOD0(GenerateTimestamp, ui64());
+        MOCK_METHOD1(EnableTableReplica, void(const TReplicaId& replicaid));
+        MOCK_METHOD1(DisableTableReplica, void(const TReplicaId& replicaid));
+        MOCK_METHOD2(AlterTableReplica, void(const TReplicaId& replicaid, const TAlterTableReplicaOptions&));
+
+        MOCK_METHOD0(WhoAmI, TAuthorizationInfo());
+    };
+
+    class TTransactionMock : public ITransaction {
+    public:
+        TTransactionMock();
+        ~TTransactionMock();
+
+        MOCK_METHOD3(Create, TNodeId(const TYPath&, ENodeType, const TCreateOptions&));
+        MOCK_METHOD2(Remove, void(const TYPath&, const TRemoveOptions&));
+        MOCK_METHOD1(Exists, bool(const TYPath&));
+        MOCK_METHOD2(Get, TNode(const TYPath&, const TGetOptions&));
+        MOCK_METHOD2(GetOperation, TOperationAttributes(const TOperationId&, const TGetOperationOptions&));
+        MOCK_METHOD3(Set, void(const TYPath&, const TNode&, const TSetOptions&));
+        MOCK_METHOD2(List, TNode::TListType(const TYPath&, const TListOptions&));
+        MOCK_METHOD3(Copy, TNodeId(const TYPath&, const TYPath&, const TCopyOptions&));
+        MOCK_METHOD3(Move, TNodeId(const TYPath&, const TYPath&, const TMoveOptions&));
+        MOCK_METHOD3(Link, TNodeId(const TYPath&, const TYPath&, const TLinkOptions&));
+        MOCK_METHOD3(Concatenate, void(const TVector<TYPath>&, const TYPath&, const TConcatenateOptions&));
+        MOCK_METHOD1(CanonizeYPath, TRichYPath(const TRichYPath&));
+        MOCK_METHOD1(GetTableColumnarStatistics, TTableColumnarStatistics(const TRichYPath&));
+        MOCK_METHOD0(CreateBatchRequest, TBatchRequestPtr());
+
+        MOCK_METHOD2(CreateFileReader, IFileReaderPtr(const TRichYPath&, const TFileReaderOptions&));
+        MOCK_METHOD2(CreateFileWriter, IFileWriterPtr(const TRichYPath&, const TFileWriterOptions&));
+        MOCK_METHOD3(CreateTableWriter, TTableWriterPtr<::google::protobuf::Message>(const TRichYPath& path, const ::google::protobuf::Descriptor& descriptor, const TTableWriterOptions& options));
+        MOCK_METHOD3(CreateRawReader, TRawTableReaderPtr(const TRichYPath& path, const TFormat& format, const TTableReaderOptions& options));
+        MOCK_METHOD3(CreateRawWriter, TRawTableWriterPtr(const TRichYPath& path, const TFormat& format, const TTableWriterOptions& options));
+        MOCK_METHOD3(CreateBlobTableReader, IFileReaderPtr(const TYPath&, const TKey&, const TBlobTableReaderOptions&));
+        MOCK_METHOD2(CreateNodeReader, ::TIntrusivePtr<INodeReaderImpl>(const TRichYPath&, const TTableReaderOptions&));
+        MOCK_METHOD2(CreateYaMRReader, ::TIntrusivePtr<IYaMRReaderImpl>(const TRichYPath&, const TTableReaderOptions&));
+        MOCK_METHOD3(CreateProtoReader, ::TIntrusivePtr<IProtoReaderImpl>(const TRichYPath&, const TTableReaderOptions&, const ::google::protobuf::Message*));
+        MOCK_METHOD2(CreateNodeWriter, ::TIntrusivePtr<INodeWriterImpl>(const TRichYPath&, const TTableWriterOptions&));
+        MOCK_METHOD2(CreateYaMRWriter, ::TIntrusivePtr<IYaMRWriterImpl>(const TRichYPath&, const TTableWriterOptions&));
+        MOCK_METHOD3(CreateProtoWriter, ::TIntrusivePtr<IProtoWriterImpl>(const TRichYPath&, const TTableWriterOptions&, const ::google::protobuf::Message*));
+
+        MOCK_METHOD2(Sort, IOperationPtr(const TSortOperationSpec&, const TOperationOptions&));
+        MOCK_METHOD2(Merge, IOperationPtr(const TMergeOperationSpec&, const TOperationOptions&));
+        MOCK_METHOD2(Erase, IOperationPtr(const TEraseOperationSpec&, const TOperationOptions&));
+        MOCK_METHOD1(AbortOperation, void(const TOperationId&));
+        MOCK_METHOD1(CompleteOperation, void(const TOperationId&));
+        MOCK_METHOD1(WaitForOperation, void(const TOperationId&));
+        MOCK_METHOD1(CheckOperation, EOperationBriefState(const TOperationId&));
+        MOCK_METHOD3(DoMap, IOperationPtr(const TMapOperationSpec&, IJob*, const TOperationOptions&));
+        MOCK_METHOD3(RawMap, IOperationPtr(const TRawMapOperationSpec&, ::TIntrusivePtr<IRawJob>, const TOperationOptions&));
+        MOCK_METHOD3(DoReduce, IOperationPtr(const TReduceOperationSpec&, IJob*, const TOperationOptions&));
+        MOCK_METHOD3(RawReduce, IOperationPtr(const TRawReduceOperationSpec&, ::TIntrusivePtr<IRawJob>, const TOperationOptions&));
+        MOCK_METHOD3(DoJoinReduce, IOperationPtr(const TJoinReduceOperationSpec&, IJob*, const TOperationOptions&));
+        MOCK_METHOD3(RawJoinReduce, IOperationPtr(const TRawJoinReduceOperationSpec&, ::TIntrusivePtr<IRawJob>, const TOperationOptions&));
+        MOCK_METHOD9(DoMapReduce, IOperationPtr(const TMapReduceOperationSpec&, IJob*, IJob*, IJob*, const TMultiFormatDesc&, const TMultiFormatDesc&, const TMultiFormatDesc&, const TMultiFormatDesc&, const TOperationOptions&));
+        MOCK_METHOD5(RawMapReduce, IOperationPtr(const TRawMapReduceOperationSpec&, ::TIntrusivePtr<IRawJob>, ::TIntrusivePtr<IRawJob>, ::TIntrusivePtr<IRawJob>, const TOperationOptions&));
+        MOCK_METHOD2(RunVanilla, IOperationPtr(const TVanillaOperationSpec&, const TOperationOptions&));
+        MOCK_METHOD1(AttachOperation, IOperationPtr(const TOperationId&));
+
+        MOCK_METHOD1(StartTransaction, ITransactionPtr(const TStartTransactionOptions&));
+        MOCK_METHOD2(AlterTable, void(const TYPath&, const TAlterTableOptions&));
+
+        MOCK_CONST_METHOD0(GetId, const TTransactionId&());
+
+        MOCK_METHOD3(Lock, ILockPtr(const TYPath& path, ELockMode mode, const TLockOptions& options));
+
+        MOCK_METHOD0(Commit, void());
+        MOCK_METHOD0(Abort, void());
+        MOCK_METHOD0(Ping, void());
+    };
+
+    class TLockMock : public ILock {
+    public:
+        MOCK_CONST_METHOD0(GetId, const TLockId&());
+        MOCK_CONST_METHOD0(GetAcquiredFuture, const NThreading::TFuture<void>&());
+    };
+
+    class TOperationMock : public IOperation {
+        MOCK_CONST_METHOD0(GetId, const TOperationId&());
+    };
+
+} // namespace NTesting
+} // namespace NYT
