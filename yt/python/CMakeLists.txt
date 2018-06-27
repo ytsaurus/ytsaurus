@@ -65,8 +65,7 @@ function(BUILD_AND_INSTALL_PYTHON_LIBRARY python_kind target_name component)
 
 endfunction()
 
-set(NON_ARCADIA_CONTRIB ${CMAKE_SOURCE_DIR}/non_arcadia_contrib)
-set(PYCXX_BASE ${NON_ARCADIA_CONTRIB}/pycxx)
+set(PYCXX_BASE ${CMAKE_SOURCE_DIR}/non_arcadia_contrib/pycxx)
 set(PYCXX_SRCS
   ${PYCXX_BASE}/cxx_exceptions.cxx
   ${PYCXX_BASE}/cxx_extensions.cxx
@@ -82,7 +81,7 @@ foreach(PYTHON_KIND IN LISTS PYTHON_KINDS)
   set(TARGET_NAME_PREFIX "yt-python-${PYTHON_KIND_DASHED}-")
 
   add_library(${TARGET_NAME_PREFIX}pycxx STATIC ${PYCXX_SRCS})
-  target_include_directories(${TARGET_NAME_PREFIX}pycxx PUBLIC ${NON_ARCADIA_CONTRIB} ${PYCXX_BASE} ${PYTHON_${PYTHON_KIND}_INCLUDE_DIR})
+  target_include_directories(${TARGET_NAME_PREFIX}pycxx PUBLIC ${PYCXX_BASE} ${PYTHON_${PYTHON_KIND}_INCLUDE_DIR})
   target_compile_definitions(${TARGET_NAME_PREFIX}pycxx
     PUBLIC
       -DPYCXX_PYTHON_2TO3

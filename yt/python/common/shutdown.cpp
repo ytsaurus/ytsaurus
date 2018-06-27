@@ -2,7 +2,7 @@
 
 #include <yt/core/misc/shutdown.h>
 
-#include <pycxx/Objects.hxx>
+#include <Objects.hxx> // pycxx
 
 namespace NYT {
 namespace NPython {

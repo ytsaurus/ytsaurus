@@ -7,7 +7,7 @@
 
 #include <yt/core/ytree/public.h>
 
-#include <pycxx/Objects.hxx>
+#include <Objects.hxx> // pycxx
 
 #include <queue>
 #include <stack>
