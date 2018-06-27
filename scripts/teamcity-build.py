@@ -44,16 +44,6 @@ try:
 except:
     sandbox_client = None
 
-try:
-    src_root = os.path.dirname(os.path.dirname(__file__))
-    sys.path.insert(0, os.path.join(src_root, "python"))
-    import yt.wrapper as yt
-except Exception as err:
-    teamcity_message("Failed to import yt wrapper - {0}".format(err), "WARNING")
-    yt = None
-else:
-    yt.config["token"] = os.environ["TEAMCITY_YT_TOKEN"]
-
 def yt_processes_cleanup():
     kill_by_name("^ytserver")
     kill_by_name("^node")
@@ -215,6 +205,17 @@ def set_suid_bit(options, build_context):
         run(["sudo", "chown", "root", path])
         run(["sudo", "chmod", "4755", path])
 
+@build_step
+def import_yt_wrapper(options, build_context):
+    src_root = os.path.dirname(os.path.dirname(__file__))
+    sys.path.insert(0, os.path.join(src_root, "python"))
+    try:
+        import yt.wrapper
+    except ImportError as err:
+        raise RuntimeError("Failed to import yt wrapper: {0}".format(err))
+    yt.wrapper.config["token"] = os.environ["TEAMCITY_YT_TOKEN"]
+    build_context["yt.wrapper"] = yt.wrapper
+
 def sky_share(resource, cwd):
     run_result = run(
         ["sky", "share", resource],
@@ -229,7 +230,7 @@ def sky_share(resource, cwd):
         raise RuntimeError("Failed to parse rbtorrent url: {0}".format(rbtorrent))
     return rbtorrent
 
-def share_packages(options, build_context):
+def share_packages(options, version, yt_wrapper):
     # Share all important packages via skynet and store in sandbox.
     upload_packages = [
         "yandex-yt-python-skynet-driver",
@@ -291,11 +292,8 @@ def share_packages(options, build_context):
                     "build_time" : build_context["build_time"]})
 
         # Add to locke.
-        if yt:
-            yt.config["proxy"]["url"] = "locke"
-            yt.insert_rows("//sys/admin/skynet/packages", rows)
-        else:
-            raise RuntimeError("No yt wrapper available")
+        yt_wrapper.config["proxy"]["url"] = "locke"
+        yt_wrapper.insert_rows("//sys/admin/skynet/packages", rows)
 
     except Exception as err:
         teamcity_message("Failed to share packages via locke and sandbox - {0}".format(err), "WARNING")
@@ -320,7 +318,7 @@ def package(options, build_context):
         teamcity_interact("setParameter", name="yt.package_version", value=version)
         teamcity_interact("buildStatus", text="{{build.status.text}}; Package: {0}".format(version))
 
-        share_packages(options, build_context)
+        share_packages(options, version, build_context["yt.wrapper"])
 
         artifacts = glob.glob("./ARTIFACTS/yandex-*{0}*.changes".format(version))
         if artifacts:
