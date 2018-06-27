@@ -766,6 +766,9 @@ TRANSFORMS[22] = [
             ("result", "any"),
             ("events", "any"),
             ("alerts", "any"),
+            ("slot_index", "int64"),
+            ("unrecognized_spec", "any"),
+            ("full_spec", "any"),
             ("runtime_parameters", "any")
         ],
             in_memory=True,
