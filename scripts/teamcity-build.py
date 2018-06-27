@@ -44,6 +44,16 @@ try:
 except:
     sandbox_client = None
 
+try:
+    src_root = os.path.dirname(os.path.dirname(__file__))
+    sys.path.insert(0, os.path.join(src_root, "python"))
+    import yt.wrapper as yt
+except Exception as err:
+    teamcity_message("Failed to import yt wrapper - {0}".format(err), "WARNING")
+    yt = None
+else:
+    yt.config["token"] = os.environ["TEAMCITY_YT_TOKEN"]
+
 def yt_processes_cleanup():
     kill_by_name("^ytserver")
     kill_by_name("^node")
@@ -281,13 +291,11 @@ def share_packages(options, build_context):
                     "build_time" : build_context["build_time"]})
 
         # Add to locke.
-        src_root = os.path.dirname(os.path.dirname(__file__))
-        sys.path.insert(0, os.path.join(src_root, "python"))
-
-        import yt.wrapper
-        yt.wrapper.config["proxy"]["url"] = "locke"
-        yt.wrapper.config["token"] = os.environ["TEAMCITY_YT_TOKEN"]
-        yt.wrapper.insert_rows("//sys/admin/skynet/packages",  rows)
+        if yt:
+            yt.config["proxy"]["url"] = "locke"
+            yt.wrapper.insert_rows("//sys/admin/skynet/packages", rows)
+        else:
+            raise RuntimeError("No yt wrapper available")
 
     except Exception as err:
         teamcity_message("Failed to share packages via locke and sandbox - {0}".format(err), "WARNING")
