@@ -62,7 +62,7 @@ size_t TSchemaDictionary::THashInternal::operator()(const TTableSchemaInternal& 
     return MultiHash(
         tableSchema.strict(),
         tableSchema.unique_keys(),
-        FarmHash(tableSchema.columns().data(), tableSchema.columns().size() * sizeof(tableSchema.columns().Get(0))));
+        FarmFingerprint(tableSchema.columns().data(), tableSchema.columns().size() * sizeof(tableSchema.columns().Get(0))));
 }
 
 bool TSchemaDictionary::TEqualsInternal::operator()(

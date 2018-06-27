@@ -1365,7 +1365,7 @@ size_t StringHash(
     const char* data,
     ui32 length)
 {
-    return FarmHash(data, length);
+    return FarmFingerprint(data, length);
 }
 
 // FarmHash and MurmurHash hybrid to hash TRow.
