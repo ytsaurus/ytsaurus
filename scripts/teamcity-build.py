@@ -293,7 +293,7 @@ def share_packages(options, build_context):
         # Add to locke.
         if yt:
             yt.config["proxy"]["url"] = "locke"
-            yt.wrapper.insert_rows("//sys/admin/skynet/packages", rows)
+            yt.insert_rows("//sys/admin/skynet/packages", rows)
         else:
             raise RuntimeError("No yt wrapper available")
 
