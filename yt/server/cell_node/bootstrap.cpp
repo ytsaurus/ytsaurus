@@ -199,7 +199,7 @@ void TBootstrap::DoRun()
         Config->ClusterConnection->PrimaryMaster->Addresses,
         Config->Tags);
 
-    MemoryUsageTracker = std::make_unique<TNodeMemoryTracker>(
+    MemoryUsageTracker = New<TNodeMemoryTracker>(
         Config->ResourceLimits->Memory,
         std::vector<std::pair<EMemoryCategory, i64>>{
             {EMemoryCategory::TabletStatic, Config->TabletNode->ResourceLimits->TabletStaticMemory},
@@ -705,7 +705,7 @@ const TChunkCachePtr& TBootstrap::GetChunkCache() const
 
 TNodeMemoryTracker* TBootstrap::GetMemoryUsageTracker() const
 {
-    return MemoryUsageTracker.get();
+    return MemoryUsageTracker.Get();
 }
 
 const TChunkRegistryPtr& TBootstrap::GetChunkRegistry() const
