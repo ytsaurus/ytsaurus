@@ -281,7 +281,7 @@ def share_packages(options, version, yt_wrapper):
                     options.btid,
                     pkg)
 
-                task_id = cli.create_task("REMOTE_COPY_RESOURCE", "YT_ROBOT", task_description, sandbox_ctx)
+                task_id = cli.create_task("YT_REMOTE_COPY_RESOURCE", "YT_ROBOT", task_description, sandbox_ctx)
                 teamcity_message("Created sandbox upload task: package: {0}, task_id: {1}, torrent_id: {2}".format(pkg, task_id, torrent_id))
                 rows.append({
                     "package" : pkg,
