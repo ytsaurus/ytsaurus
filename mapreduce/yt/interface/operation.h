@@ -317,6 +317,9 @@ struct TReduceOperationSpecBase
     FLUENT_FIELD(TKeyColumns, SortBy);
     FLUENT_FIELD(TKeyColumns, ReduceBy);
     FLUENT_FIELD_OPTION(TKeyColumns, JoinBy);
+    //When set to true forces controller to put all rows with same ReduceBy columns in one job
+    //When set to false controller can relax this demand (default true)
+    FLUENT_FIELD_OPTION(bool, EnableKeyGuarantee);
 
     // Similar to corresponding options in `TMapOperationSpec'.
     FLUENT_FIELD_OPTION(ui32, JobCount);
@@ -780,6 +783,8 @@ struct TOperationAttributes
     TMaybe<TInstant> FinishTime;
     TMaybe<TOperationBriefProgress> BriefProgress;
     TMaybe<TNode> BriefSpec;
+    TMaybe<TNode> Spec;
+    TMaybe<TNode> FullSpec;
     TMaybe<bool> Suspended;
     TMaybe<TOperationResult> Result;
     TMaybe<TOperationProgress> Progress;

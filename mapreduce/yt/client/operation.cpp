@@ -1501,6 +1501,9 @@ TOperationId DoExecuteReduce(
         .DoIf(spec.JoinBy_.Defined(), [&] (TFluentMap fluent) {
             fluent.Item("join_by").Value(spec.JoinBy_.GetRef());
         })
+        .DoIf(spec.EnableKeyGuarantee_.Defined(), [&] (TFluentMap fluent) {
+            fluent.Item("enable_key_guarantee").Value(spec.EnableKeyGuarantee_.GetRef());
+        })
         .Item("input_table_paths").List(operationIo.Inputs)
         .Item("output_table_paths").List(operationIo.Outputs)
         .Item("job_io").BeginMap()

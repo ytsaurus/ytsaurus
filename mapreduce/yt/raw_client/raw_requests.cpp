@@ -227,6 +227,12 @@ TOperationAttributes ParseOperationAttributes(const TNode& node)
     if (auto briefSpecNode = mapNode.FindPtr("brief_spec")) {
         result.BriefSpec = *briefSpecNode;
     }
+    if (auto specNode = mapNode.FindPtr("spec")) {
+        result.Spec = *specNode;
+    }
+    if (auto fullSpecNode = mapNode.FindPtr("full_spec")) {
+        result.FullSpec = *fullSpecNode;
+    }
     if (auto suspendedNode = mapNode.FindPtr("suspended")) {
         result.Suspended = suspendedNode->AsBool();
     }

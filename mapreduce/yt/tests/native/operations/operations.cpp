@@ -465,6 +465,31 @@ Y_UNIT_TEST_SUITE(Operations)
             new TMapperThatWritesToIncorrectTable);
     }
 
+    Y_UNIT_TEST(EnableKeyGuarantee)
+    {
+        auto client = CreateTestClient();
+
+        {
+            auto writer = client->CreateTableWriter<TNode>(
+                TRichYPath("//testing/input")
+                    .Schema(TTableSchema()
+                        .Strict(true)
+                        .AddColumn(TColumnSchema().Name("key").Type(VT_STRING).SortOrder(SO_ASCENDING))));
+            writer->AddRow(TNode()("key", "foo"));
+            writer->Finish();
+        }
+
+        auto op = client->Reduce(
+            TReduceOperationSpec()
+            .AddInput<TNode>("//testing/input")
+            .AddOutput<TNode>("//testing/output")
+            .ReduceBy("key")
+            .EnableKeyGuarantee(false),
+            new TIdReducer);
+        auto spec = client->GetOperation(op->GetId()).Spec;
+        UNIT_ASSERT_EQUAL((*spec)["enable_key_guarantee"].AsBool(), false);
+    }
+
     Y_UNIT_TEST(MaxFailedJobCount)
     {
         auto client = CreateTestClient();
@@ -1730,9 +1755,14 @@ Y_UNIT_TEST_SUITE(Operations)
         UNIT_ASSERT(attrs.BriefProgress->Completed > 0);
         UNIT_ASSERT_VALUES_EQUAL(attrs.BriefProgress->Failed, 0);
 
+        auto inputTables = TNode().Add("//testing/input").AsList();
         UNIT_ASSERT(attrs.BriefSpec);
-        const auto& input_paths = (*attrs.BriefSpec)["input_table_paths"];
-        UNIT_ASSERT_VALUES_EQUAL(input_paths.AsList(), TNode().Add("//testing/input").AsList());
+        UNIT_ASSERT(attrs.Spec);
+        UNIT_ASSERT(attrs.FullSpec);
+        UNIT_ASSERT_VALUES_EQUAL((*attrs.BriefSpec)["input_table_paths"].AsList(), inputTables);
+        UNIT_ASSERT_VALUES_EQUAL((*attrs.Spec)["input_table_paths"].AsList(), inputTables);
+        UNIT_ASSERT_VALUES_EQUAL((*attrs.FullSpec)["input_table_paths"].AsList(), inputTables);
+
 
         UNIT_ASSERT(attrs.Suspended);
         UNIT_ASSERT_VALUES_EQUAL(*attrs.Suspended, false);
@@ -1778,6 +1808,8 @@ Y_UNIT_TEST_SUITE(Operations)
         UNIT_ASSERT(!attrs.FinishTime);
         UNIT_ASSERT(!attrs.BriefProgress);
         UNIT_ASSERT(!attrs.BriefSpec);
+        UNIT_ASSERT(!attrs.Spec);
+        UNIT_ASSERT(!attrs.FullSpec);
         UNIT_ASSERT(!attrs.Suspended);
         UNIT_ASSERT(!attrs.Result);
         UNIT_ASSERT( attrs.Progress);
