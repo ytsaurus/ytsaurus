@@ -10,8 +10,8 @@
 
 #include <yt/core/ytree/convert.h>
 
-#include <pycxx/Extensions.hxx>
-#include <pycxx/Objects.hxx>
+#include <Extensions.hxx> // pycxx
+#include <Objects.hxx> // pycxx
 
 #include <Python.h>
 
