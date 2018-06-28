@@ -117,7 +117,6 @@ std::vector<TString> GetRpcProxiesFromHttp(
 IChannelPtr CreateCredentialsInjectingChannel(
     IChannelPtr underlying,
     const TClientOptions& options,
-    const TString& domain,
     const TString& localAddress)
 {
     if (options.Token) {
@@ -130,10 +129,8 @@ IChannelPtr CreateCredentialsInjectingChannel(
         return CreateCookieInjectingChannel(
             underlying,
             options.User,
-            domain,
             options.SessionId.Get(TString()),
-            options.SslSessionId.Get(TString()),
-            localAddress);
+            options.SslSessionId.Get(TString()));
     } else {
         return CreateUserInjectingChannel(underlying, options.User);
     }
@@ -200,7 +197,6 @@ NApi::IClientPtr TConnection::CreateClient(const TClientOptions& options)
     auto authenticatedChannel = CreateCredentialsInjectingChannel(
         std::move(channel),
         options,
-        Config_->Domain,
         localAddress);
 
     return New<TClient>(this, std::move(authenticatedChannel));

@@ -586,6 +586,7 @@ void TServiceBase::HandleRequest(
     TAuthenticationContext context;
     context.Header = acceptedRequest.Header.get();
     context.UserIP = acceptedRequest.ReplyBus->GetEndpointAddress();
+    context.CookieDomain = CookieDomain_;
     auto asyncAuthResult = Authenticator_->Authenticate(context);
     if (asyncAuthResult.IsSet()) {
         OnRequestAuthenticated(timer, std::move(acceptedRequest), asyncAuthResult.Get());
@@ -921,6 +922,7 @@ void TServiceBase::Configure(INodePtr configNode)
         auto config = ConvertTo<TServiceConfigPtr>(configNode);
 
         MaxAuthenticationQueueSize_ = config->MaxAuthenticationQueueSize;
+        CookieDomain_ = config->CookieDomain;
 
         for (const auto& pair : config->Methods) {
             const auto& methodName = pair.first;

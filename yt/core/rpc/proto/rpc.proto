@@ -70,7 +70,6 @@ message TCredentialsExt
     // COMPAT(babenko)
     optional string user_ip = 1;
     optional string token = 2;
-    optional string domain = 3;
     optional string session_id = 4;
     optional string ssl_session_id = 5;
 }

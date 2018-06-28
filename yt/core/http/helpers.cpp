@@ -128,6 +128,30 @@ bool MaybeHandleCors(const IRequestPtr& req, const IResponseWriterPtr& rsp)
     return false;
 }
 
+THashMap<TString, TString> ParseCookies(const TStringBuf& cookies)
+{
+    THashMap<TString, TString> map;
+    size_t index = 0;
+    while (index < cookies.size()) {
+        auto nameStartIndex = index;
+        auto nameEndIndex = cookies.find('=', index);
+        if (nameEndIndex == TString::npos) {
+            THROW_ERROR_EXCEPTION("Malformed cookies");
+        }
+        auto name = cookies.substr(nameStartIndex, nameEndIndex - nameStartIndex);
+        auto valueStartIndex = nameEndIndex + 1;
+        const auto Delimiter = AsStringBuf("; ");
+        auto valueEndIndex = cookies.find(Delimiter, index);
+        if (valueEndIndex == TString::npos) {
+            valueEndIndex = cookies.size();
+        }
+        auto value = cookies.substr(valueStartIndex, valueEndIndex);
+        map[name] = std::move(value);
+        index = valueEndIndex + Delimiter.length();
+    }
+    return map;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NHttp

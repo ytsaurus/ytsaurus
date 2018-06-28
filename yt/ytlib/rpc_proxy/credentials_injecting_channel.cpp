@@ -111,17 +111,11 @@ public:
     TCookieInjectingChannel(
         IChannelPtr underlyingChannel,
         const TString& user,
-        const TString& domain,
         const TString& sessionId,
-        const TString& sslSessionId,
-        // COMPAT(babenko)
-        const TString& userIP)
+        const TString& sslSessionId)
         : TUserInjectingChannel(std::move(underlyingChannel), user)
-        , Domain_(domain)
         , SessionId_(sessionId)
         , SslSessionId_(sslSessionId)
-        // COMPAT(babenko)
-        , UserIP_(userIP)
     { }
 
 protected:
@@ -130,39 +124,27 @@ protected:
         TUserInjectingChannel::DoInject(request);
 
         auto* ext = request->Header().MutableExtension(NRpc::NProto::TCredentialsExt::credentials_ext);
-        ext->set_domain(Domain_);
         ext->set_session_id(SessionId_);
         ext->set_ssl_session_id(SslSessionId_);
-        // COMPAT(babenko)
-        ext->set_user_ip(UserIP_);
     }
 
 private:
-    const TString Domain_;
     const TString SessionId_;
     const TString SslSessionId_;
-    // COMPAT(babenko)
-    const TString UserIP_;
 };
 
 IChannelPtr CreateCookieInjectingChannel(
     IChannelPtr underlyingChannel,
     const TString& user,
-    const TString& domain,
     const TString& sessionId,
-    const TString& sslSessionId,
-    // COMPAT(babenko)
-    const TString& userIP)
+    const TString& sslSessionId)
 {
     YCHECK(underlyingChannel);
     return New<TCookieInjectingChannel>(
         std::move(underlyingChannel),
         user,
-        domain,
         sessionId,
-        sslSessionId,
-        // COMPAT(babenko)
-        userIP);
+        sslSessionId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

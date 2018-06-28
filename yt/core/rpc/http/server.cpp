@@ -236,7 +236,9 @@ private:
         rpcHeader->set_service(Underlying_->GetServiceId().ServiceName);
         rpcHeader->set_method(TString(url.Path.SubStr(BaseUrl_.Size())));
 
-        auto contentTypeString = req->GetHeaders()->Find("Content-Type");
+        const auto& httpHeaders = req->GetHeaders();
+
+        auto contentTypeString = httpHeaders->Find("Content-Type");
         if (contentTypeString) {
             auto decodedType = FromHttpContentType(*contentTypeString);
             if (!decodedType) {
@@ -246,7 +248,7 @@ private:
             rpcHeader->set_request_format(static_cast<i32>(*decodedType));
         }
 
-        auto acceptString = req->GetHeaders()->Find("Accept");
+        auto acceptString = httpHeaders->Find("Accept");
         if (acceptString) {
             auto decodedType = FromHttpContentType(*acceptString);
             if (!decodedType) {
@@ -256,7 +258,7 @@ private:
             rpcHeader->set_response_format(static_cast<i32>(*decodedType));
         }
 
-        auto requestIdString = req->GetHeaders()->Find("X-YT-Request-Id");
+        auto requestIdString = httpHeaders->Find("X-YT-Request-Id");
         TRequestId requestId;
         if (requestIdString) {
             if (!TRequestId::FromString(*requestIdString, &requestId)) {
@@ -268,7 +270,33 @@ private:
         }
         ToProto(rpcHeader->mutable_request_id(), requestId);
 
-        auto userAgent = req->GetHeaders()->Find("User-Agent");
+        auto getCredentialsExt = [&] {
+            return rpcHeader->MutableExtension(NRpc::NProto::TCredentialsExt::credentials_ext);
+        };
+
+        auto authorizationString = httpHeaders->Find("Authorization");
+        if (authorizationString) {
+            const auto Prefix = AsStringBuf("OAuth ");
+            if (!authorizationString->StartsWith(Prefix)) {
+                return TError("Invalid \"Authorization\" header value");
+            }
+            getCredentialsExt()->set_token(TrimLeadingWhitespaces(authorizationString->substr(Prefix.length())));
+        }
+
+        auto cookieString = httpHeaders->Find("Cookie");
+        if (cookieString) {
+            auto cookieMap = ParseCookies(*cookieString);
+            auto sessionIdIt = cookieMap.find("Session_id");
+            if (sessionIdIt != cookieMap.end()) {
+                getCredentialsExt()->set_session_id(sessionIdIt->second);
+            }
+            auto sslSessionIdIt = cookieMap.find("sessionid2");
+            if (sslSessionIdIt != cookieMap.end()) {
+                getCredentialsExt()->set_ssl_session_id(sslSessionIdIt->second);
+            }
+        }
+
+        auto userAgent = httpHeaders->Find("User-Agent");
         if (userAgent) {
             rpcHeader->set_user_agent(*userAgent);
         }
@@ -312,7 +340,7 @@ private:
         auto baseUrl = Format("/%v/", service->GetServiceId().ServiceName);
         HttpServer_->AddHandler(baseUrl, New<THttpHandler>(std::move(service), baseUrl, Logger));
 
-        // XXX(babenko): remove this once fully migrated to new url scheme
+        // COMPAT(babenko): remove this once fully migrated to new url scheme
         auto index = service->GetServiceId().ServiceName.find_last_of('.');
         if (index != TString::npos) {
             auto anotherBaseUrl = Format("/%v/", service->GetServiceId().ServiceName.substr(index + 1));

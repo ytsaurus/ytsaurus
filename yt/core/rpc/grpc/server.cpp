@@ -438,8 +438,14 @@ private:
 
         void ParseRpcCredentials()
         {
-            auto tokenString = CallMetadata_.Find(TokenMetadataKey);
-            if (!tokenString) {
+            auto tokenString = CallMetadata_.Find(AuthTokenMetadataKey);
+            auto sessionIdString = CallMetadata_.Find(AuthSessionIdMetadataKey);
+            auto sslSessionIdString = CallMetadata_.Find(AuthSslSessionIdMetadataKey);
+
+            if (!tokenString &&
+                !sessionIdString &&
+                !sslSessionIdString)
+            {
                 return;
             }
 
@@ -447,6 +453,12 @@ private:
 
             if (tokenString) {
                 RpcCredentialsExt_->set_token(TString(tokenString));
+            }
+            if (sessionIdString) {
+                RpcCredentialsExt_->set_session_id(TString(sessionIdString));
+            }
+            if (sslSessionIdString) {
+                RpcCredentialsExt_->set_ssl_session_id(TString(sslSessionIdString));
             }
         }
 
