@@ -232,7 +232,8 @@ public:
     virtual bool IsChunk() const override;
     virtual IChunkStorePtr AsChunk() override;
 
-    virtual NChunkClient::IChunkReaderPtr GetChunkReader() override;
+    virtual NChunkClient::IChunkReaderPtr GetChunkReader(
+        const NConcurrency::IThroughputThrottlerPtr& throttler) override;
 
     virtual NTabletClient::EInMemoryMode GetInMemoryMode() const override;
     virtual void SetInMemoryMode(NTabletClient::EInMemoryMode mode, ui64 configRevision) override;

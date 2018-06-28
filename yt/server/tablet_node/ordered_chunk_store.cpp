@@ -20,6 +20,8 @@
 
 #include <yt/core/misc/protobuf_helpers.h>
 
+#include <yt/core/concurrency/throughput_throttler.h>
+
 namespace NYT {
 namespace NTabletNode {
 
@@ -186,7 +188,7 @@ ISchemafulReaderPtr TOrderedChunkStore::CreateReader(
     const TColumnFilter& columnFilter,
     const TClientBlockReadOptions& blockReadOptions)
 {
-    auto chunkReader = GetChunkReader();
+    auto chunkReader = GetChunkReader(NConcurrency::GetUnlimitedThrottler());
     auto asyncChunkMeta = ChunkMetaManager_->GetMeta(
         chunkReader,
         Schema_,
