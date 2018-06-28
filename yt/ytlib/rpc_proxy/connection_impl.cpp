@@ -102,10 +102,10 @@ std::vector<TString> GetRpcProxiesFromHttp(
         .ValueOrThrow();
     if (rsp->GetStatusCode() != EStatusCode::OK) {
         THROW_ERROR_EXCEPTION("HTTP proxy discovery failed with code %v", rsp->GetStatusCode())
-                << ParseYTError(rsp);
+            << ParseYTError(rsp);
     }
 
-    auto node = ConvertTo<INodePtr>(TYsonString{ ToString(rsp->ReadBody()) });
+    auto node = ConvertTo<INodePtr>(TYsonString{ToString(rsp->ReadBody())});
     if (!useCypress) {
         node = node->AsMap()->FindChild("proxies");
     }
