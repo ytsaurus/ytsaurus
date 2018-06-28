@@ -148,7 +148,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
             blockReadOptions);
     }
 
-    auto chunkReader = GetChunkReader();
+    auto chunkReader = GetChunkReader(GetUnlimitedThrottler());
     auto chunkState = PrepareChunkState(chunkReader, blockReadOptions);
 
     ValidateBlockSize(tabletSnapshot, chunkState, blockReadOptions.WorkloadDescriptor);
@@ -228,7 +228,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
     }
 
     auto blockCache = GetBlockCache();
-    auto chunkReader = GetChunkReader();
+    auto chunkReader = GetChunkReader(GetUnlimitedThrottler());
     auto chunkState = PrepareChunkState(chunkReader, blockReadOptions);
 
     ValidateBlockSize(tabletSnapshot, chunkState, blockReadOptions.WorkloadDescriptor);
