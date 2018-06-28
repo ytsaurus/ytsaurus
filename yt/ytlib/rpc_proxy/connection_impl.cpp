@@ -29,8 +29,6 @@
 namespace NYT {
 namespace NRpcProxy {
 
-////////////////////////////////////////////////////////////////////////////////
-
 using namespace NApi;
 using namespace NBus;
 using namespace NRpc;
@@ -42,7 +40,28 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<TString> GetProxyListFromHttp(
+namespace {
+
+TString NormalizeHttpProxyUrl(TString url)
+{
+    const auto CanonicalPrefix = AsStringBuf("http://");
+    const auto CanonicalSuffix = AsStringBuf(".yt.yandex.net");
+
+    if (url.find('.') == TString::npos &&
+        url.find(':') == TString::npos &&
+        url.find("localhost") == TString::npos)
+    {
+        url.append(CanonicalSuffix);
+    }
+
+    if (!url.StartsWith(CanonicalPrefix)) {
+        url.prepend(CanonicalPrefix);
+    }
+
+    return url;
+}
+
+std::vector<TString> GetRpcProxiesFromHttp(
     const NHttp::TClientConfigPtr& config,
     const TString& proxyUrl,
     const TString& oauthToken,
@@ -55,19 +74,22 @@ std::vector<TString> GetProxyListFromHttp(
     headers->Add("X-YT-Header-Format", "<format=text>yson");
 
     if (useCypress) {
-        headers->Add("X-YT-Parameters", "{path=\"//sys/rpc_proxies\"; output_format=<format=text>yson; read_from=cache}");
+        headers->Add(
+            "X-YT-Parameters", "{path=\"//sys/rpc_proxies\"; output_format=<format=text>yson; read_from=cache}");
     } else {
-        headers->Add("X-YT-Parameters", BuildYsonStringFluently(EYsonFormat::Text)
-            .BeginMap()
+        headers->Add(
+            "X-YT-Parameters", BuildYsonStringFluently(EYsonFormat::Text)
+                .BeginMap()
                 .Item("output_format")
-                    .BeginAttributes()
-                        .Item("format").Value("text")
-                    .EndAttributes()
-                    .Value("yson")
-                .DoIf(role.HasValue(), [&] (auto fluent) {
-                    fluent.Item("role").Value(*role);
-                })
-            .EndMap().GetData());
+                .BeginAttributes()
+                .Item("format").Value("text")
+                .EndAttributes()
+                .Value("yson")
+                .DoIf(
+                    role.HasValue(), [&](auto fluent) {
+                        fluent.Item("role").Value(*role);
+                    })
+                .EndMap().GetData());
     }
 
     auto path = proxyUrl;
@@ -80,17 +102,15 @@ std::vector<TString> GetProxyListFromHttp(
         .ValueOrThrow();
     if (rsp->GetStatusCode() != EStatusCode::OK) {
         THROW_ERROR_EXCEPTION("HTTP proxy discovery failed with code %v", rsp->GetStatusCode())
-            << ParseYTError(rsp);
+                << ParseYTError(rsp);
     }
 
-    auto node = ConvertTo<INodePtr>(TYsonString{ToString(rsp->ReadBody())});
+    auto node = ConvertTo<INodePtr>(TYsonString{ ToString(rsp->ReadBody()) });
     if (!useCypress) {
         node = node->AsMap()->FindChild("proxies");
     }
     return ConvertTo<std::vector<TString>>(node);
 }
-
-////////////////////////////////////////////////////////////////////////////////
 
 IChannelPtr CreateCredentialsInjectingChannel(
     IChannelPtr underlying,
@@ -117,6 +137,8 @@ IChannelPtr CreateCredentialsInjectingChannel(
     }
 }
 
+} // namespace
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TConnection::TConnection(TConnectionConfigPtr config)
@@ -131,9 +153,7 @@ TConnection::TConnection(TConnectionConfigPtr config)
         BIND(&TConnection::OnProxyListUpdate, MakeWeak(this)),
         Config_->ProxyListUpdatePeriod))
 {
-    if (Config_->Addresses.empty() && !Config_->ClusterUrl) {
-        THROW_ERROR_EXCEPTION("Either \"cluster_url\" or \"addresses\" must be specified");
-    }
+    Config_->Postprocess();
 
     DiscoveryPromise_ = NewPromise<std::vector<TString>>();
     ChannelPool_->SetAddressList(DiscoveryPromise_.ToFuture());
@@ -255,10 +275,13 @@ std::vector<TString> TConnection::DiscoverProxiesByRpc(const IChannelPtr& channe
 std::vector<TString> TConnection::DiscoverProxiesByHttp(const TClientOptions& options)
 {
     try {
-        return GetProxyListFromHttp(
+        if (!options.Token) {
+            THROW_ERROR_EXCEPTION("Missing token in client options");
+        }
+        return GetRpcProxiesFromHttp(
             Config_->HttpClient,
-            *Config_->ClusterUrl,
-            options.Token.Get({}),
+            NormalizeHttpProxyUrl(*Config_->ClusterUrl),
+            *options.Token,
             Config_->DiscoverProxiesFromCypress,
             Config_->ProxyRole);
     } catch (const std::exception& ex) {

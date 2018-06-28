@@ -50,19 +50,6 @@ TConnectionConfig::TConnectionConfig()
         if (!ClusterUrl && Addresses.empty()) {
             THROW_ERROR_EXCEPTION("Either \"cluster_url\" or \"addresses\" must be specified");
         }
-
-        if (ClusterUrl) {
-            if (ClusterUrl->find('.') == TString::npos &&
-                ClusterUrl->find(':') == TString::npos &&
-                ClusterUrl->find("localhost") == TString::npos)
-            {
-                ClusterUrl = *ClusterUrl + ".yt.yandex.net";
-            }
-
-            if (!ClusterUrl->StartsWith("http://")) {
-                ClusterUrl = "http://" + *ClusterUrl;
-            }
-        }
     });
 }
 
