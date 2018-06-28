@@ -631,7 +631,7 @@ IChunkStorePtr TChunkStoreBase::AsChunk()
     return this;
 }
 
-IChunkReaderPtr TChunkStoreBase::GetChunkReader()
+IChunkReaderPtr TChunkStoreBase::GetChunkReader(const NConcurrency::IThroughputThrottlerPtr& throttler)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 

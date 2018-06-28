@@ -295,6 +295,7 @@ private:
                 readSessionId,
                 Bootstrap_->GetMemoryUsageTracker(),
                 CompressionInvoker_,
+                Config_->PreloadThrottler,
                 PreloadTag_);
             // Now, check is the revision in still the same.
 
@@ -498,6 +499,7 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
     const TReadSessionId& readSessionId,
     TNodeMemoryTracker* memoryUsageTracker,
     const IInvokerPtr& compressionInvoker,
+    NConcurrency::TThroughputThrottlerConfigPtr throttlerConfig,
     const NProfiling::TTagId& preloadTag)
 {
     auto mode = tabletSnapshot->Config->InMemoryMode;
@@ -515,7 +517,7 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
     blockReadOptions.ChunkReaderStatistics = New<TChunkReaderStatistics>();
     blockReadOptions.ReadSessionId = readSessionId;
 
-    auto reader = store->GetChunkReader();
+    auto reader = store->GetChunkReader(CreateReconfigurableThroughputThrottler(throttlerConfig));
     auto meta = WaitFor(reader->GetMeta(blockReadOptions))
         .ValueOrThrow();
 
