@@ -34,6 +34,10 @@ import xml.etree.ElementTree as etree
 import xml.parsers.expat
 import urlparse
 
+import urllib3
+urllib3.disable_warnings()
+import requests
+
 try:
     sys.path.insert(0, os.path.join(os.path.dirname(__file__), "nanny-releaselib", "src"))
     from releaselib.sandbox import client as sandbox_client
@@ -201,6 +205,17 @@ def set_suid_bit(options, build_context):
         run(["sudo", "chown", "root", path])
         run(["sudo", "chmod", "4755", path])
 
+@build_step
+def import_yt_wrapper(options, build_context):
+    src_root = os.path.dirname(os.path.dirname(__file__))
+    sys.path.insert(0, os.path.join(src_root, "python"))
+    try:
+        import yt.wrapper
+    except ImportError as err:
+        raise RuntimeError("Failed to import yt wrapper: {0}".format(err))
+    yt.wrapper.config["token"] = os.environ["TEAMCITY_YT_TOKEN"]
+    build_context["yt.wrapper"] = yt.wrapper
+
 def sky_share(resource, cwd):
     run_result = run(
         ["sky", "share", resource],
@@ -215,7 +230,7 @@ def sky_share(resource, cwd):
         raise RuntimeError("Failed to parse rbtorrent url: {0}".format(rbtorrent))
     return rbtorrent
 
-def share_packages(options, version):
+def share_packages(options, build_context):
     # Share all important packages via skynet and store in sandbox.
     upload_packages = [
         "yandex-yt-python-skynet-driver",
@@ -236,7 +251,8 @@ def share_packages(options, version):
     ]
 
     try:
-        build_time = datetime.now().isoformat()
+        version = build_context["yt_version"]
+        build_time = build_context["build_time"]
         cli = sandbox_client.SandboxClient(oauth_token=os.environ["TEAMCITY_SANDBOX_TOKEN"])
 
         dir = os.path.join(options.working_directory, "./ARTIFACTS")
@@ -278,13 +294,9 @@ def share_packages(options, version):
                     "build_time" : build_time})
 
         # Add to locke.
-        src_root = os.path.dirname(os.path.dirname(__file__))
-        sys.path.insert(0, os.path.join(src_root, "python"))
-
-        import yt.wrapper
-        yt.wrapper.config["proxy"]["url"] = "locke"
-        yt.wrapper.config["token"] = os.environ["TEAMCITY_YT_TOKEN"]
-        yt.wrapper.insert_rows("//sys/admin/skynet/packages",  rows)
+        yt_wrapper = build_context["yt.wrapper"]
+        yt_wrapper.config["proxy"]["url"] = "locke"
+        yt_wrapper.insert_rows("//sys/admin/skynet/packages", rows)
 
     except Exception as err:
         teamcity_message("Failed to share packages via locke and sandbox - {0}".format(err), "WARNING")
@@ -302,13 +314,14 @@ def package(options, build_context):
         with open("ytversion") as handle:
             version = handle.read().strip()
         build_context["yt_version"] = version
+        build_context["build_time"] = datetime.now().isoformat()
 
         teamcity_message("We have built a package")
         teamcity_interact("setParameter", name="yt.package_built", value=1)
         teamcity_interact("setParameter", name="yt.package_version", value=version)
         teamcity_interact("buildStatus", text="{{build.status.text}}; Package: {0}".format(version))
 
-        share_packages(options, version)
+        share_packages(options, build_context)
 
         artifacts = glob.glob("./ARTIFACTS/yandex-*{0}*.changes".format(version))
         if artifacts:
@@ -656,6 +669,51 @@ def run_perl_tests(options, build_context):
         return
     run_pytest(options, "perl", "{0}/perl/tests".format(options.checkout_directory))
 
+def log_sandbox_upload(options, build_context, task_id):
+    client = requests.Session()
+    client.headers.update({
+        "Authorization" : "OAuth {0}".format(os.environ["TEAMCITY_SANDBOX_TOKEN"]),
+        "Accept" : "application/json; charset=utf-8",
+        "Content-type" : "application/json",
+    })
+    resp = client.get("https://sandbox.yandex-team.ru/api/v1.0/task/{0}/resources".format(task_id))
+    api_data = resp.json()
+
+    resources = {}
+    resource_rows = []
+    for resource in api_data["items"]:
+        if resource["type"] == "TASK_LOGS":
+            continue
+        resources.update({
+            resource["type"] : resource["id"],
+        })
+        resource_rows.append({
+            "id" : resource["id"],
+            "type" : resource["type"],
+            "build_number" : int(options.build_number),
+            "version" : build_context["yt_version"],
+        })
+
+    build_log_record = {
+        "version" : build_context["yt_version"],
+        "build_number" : int(options.build_number),
+        "task_id" : task_id,
+        "git_branch" : options.git_branch,
+        "git_commit" : options.build_vcs_number,
+        "build_time" : build_context["build_time"],
+        "build_type" : options.type,
+        "build_host" : socket.getfqdn(),
+        "build_btid" : options.btid,
+        "ubuntu_codename" : options.codename,
+        "resources" : resources,
+    }
+
+    # Add to locke.
+    yt_wrapper = build_context["yt.wrapper"]
+    yt_wrapper.config["proxy"]["url"] = "locke"
+    yt_wrapper.insert_rows("//sys/admin/skynet/builds", [build_log_record])
+    yt_wrapper.insert_rows("//sys/admin/skynet/resources", resource_rows)
+
 @build_step
 def wait_for_sandbox_upload(options, build_context):
     if not options.package or sys.version_info < (2, 7):
@@ -669,6 +727,10 @@ def wait_for_sandbox_upload(options, build_context):
         cli.wait_for_complete(task_id)
     except sandbox_client.SandboxTaskError as err:
         teamcity_message("Failed waiting for task: {0}".format(err), status="WARNING")
+    try:
+        log_sandbox_upload(options, build_context, task_id)
+    except Exception as err:
+        teamcity_message("Failed to log sandbox upload: {0}".format(err), status="WARNING")
 
 @cleanup_step
 def clean_sandbox_upload(options, build_context):
