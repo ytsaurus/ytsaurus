@@ -41,6 +41,8 @@
 
 #include <yt/core/misc/numeric_helpers.h>
 
+#include <yt/core/profiling/timing.h>
+
 #include <cmath>
 
 namespace NYT {
@@ -62,6 +64,7 @@ using namespace NJobTrackerClient::NProto;
 using namespace NConcurrency;
 using namespace NChunkClient;
 using namespace NScheduler;
+using namespace NProfiling;
 
 using NTableClient::TKey;
 using NNodeTrackerClient::TNodeId;
@@ -392,6 +395,9 @@ protected:
             Persist(context, Controller);
             Persist(context, NodeIdToAdjustedDataWeight);
             Persist(context, AdjustedScheduledDataWeight);
+            if (context.IsSave() || context.GetVersion() >= 300008) {
+                Persist(context, DataBalancingViolationCount_);
+            }
 
             // COMPAT(psushin).
             if (context.IsLoad() && context.GetVersion() < 200926) {
@@ -418,6 +424,31 @@ protected:
         //! This value is IO weight-adjusted.
         i64 AdjustedScheduledDataWeight = 0;
 
+        i64 DataBalancingViolationCount_ = 0;
+        TInstant LastDataBalancingViolationLogTime_;
+
+        void LogDataBalancingViolation()
+        {
+            auto now = GetInstant();
+            if (DataBalancingViolationCount_ >= Controller->Options->DataBalancingViolationLoggingMinCount &&
+                now > LastDataBalancingViolationLogTime_ + Controller->Options->DataBalancingViolationLoggingPeriod)
+            {
+                TString line;
+                bool isFirst = true;
+                for (const auto& pair : NodeIdToAdjustedDataWeight) {
+                    if (!isFirst) {
+                        line += "; ";
+                    }
+                    isFirst = false;
+                    line += Format("%v: %v", pair.first, pair.second);
+                }
+                LastDataBalancingViolationLogTime_ = now;
+                LOG_WARNING("Too many scheduling failures due to data balancing violation "
+                    "(DataBalancingViolationCount: %v, NodeIdToAdjustedDataWeight: {%v})",
+                    DataBalancingViolationCount_,
+                    line);
+            }
+        }
 
         void UpdateNodeDataWeight(const TJobNodeDescriptor& descriptor, i64 delta)
         {
@@ -471,11 +502,35 @@ protected:
             auto newAdjustedScheduledDataWeight = AdjustedScheduledDataWeight + adjustedJobDataWeight;
             auto newAvgAdjustedScheduledDataWeight = newAdjustedScheduledDataWeight / NodeIdToAdjustedDataWeight.size();
             auto newAdjustedNodeDataWeight = NodeIdToAdjustedDataWeight[nodeId] + adjustedJobDataWeight;
-            auto result =
-                newAdjustedNodeDataWeight <=
-                newAvgAdjustedScheduledDataWeight + Controller->Spec->PartitionedDataBalancingTolerance * adjustedJobDataWeight;
+            auto allowedAdjustedNodeDataWeight = newAvgAdjustedScheduledDataWeight +
+                Controller->Spec->PartitionedDataBalancingTolerance * adjustedJobDataWeight;
+            auto result = newAdjustedNodeDataWeight <= allowedAdjustedNodeDataWeight;
 
-            return MakeNullable(!result, EScheduleJobFailReason::DataBalancingViolation);
+            if (!result) {
+                LOG_DEBUG("Scheduling failed due to data balancing violation (IOWeight: %v, AdjustedJobDataWeight: %v, "
+                     "NodeId: %v, NodeAddress: %v, AdjustedNodeDataWeight: %v, NewAdjustedNodeDataWeight: %v, "
+                     "NodeCount: %v, AdjustedScheduledDataWeight: %v, NewAdjustedScheduledDataWeight: %v, "
+                     "NewAvgAdjustedScheduledDataWeight: %v, PartitionedDataBalancingTolerance: %v, "
+                     "AllowedAdjustedNodeDataWeight: %v)",
+                     ioWeight,
+                     adjustedJobDataWeight,
+                     nodeId,
+                     context->GetNodeDescriptor().Address,
+                     NodeIdToAdjustedDataWeight[nodeId],
+                     newAdjustedNodeDataWeight,
+                     NodeIdToAdjustedDataWeight.size(),
+                     AdjustedScheduledDataWeight,
+                     newAdjustedScheduledDataWeight,
+                     newAvgAdjustedScheduledDataWeight,
+                     Controller->Spec->PartitionedDataBalancingTolerance,
+                     allowedAdjustedNodeDataWeight);
+                ++DataBalancingViolationCount_;
+                LogDataBalancingViolation();
+
+                return EScheduleJobFailReason::DataBalancingViolation;
+            }
+
+            return Null;
         }
 
         virtual TExtendedJobResources GetMinNeededResourcesHeavy() const override
