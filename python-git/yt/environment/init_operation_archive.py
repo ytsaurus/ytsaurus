@@ -874,6 +874,6 @@ def main():
         target_version = args.target_version
         transform_archive(client, next_version, target_version, args.force, archive_path, shard_count=args.shard_count)
 
+
 if __name__ == "__main__":
     main()
-
