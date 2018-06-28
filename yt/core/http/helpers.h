@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/core/misc/public.h>
+#include <yt/core/misc/error.h>
 
 namespace NYT {
 namespace NHttp {
@@ -18,6 +18,8 @@ TError ParseYTError(const IResponsePtr& rsp);
 IHttpHandlerPtr WrapYTException(const IHttpHandlerPtr& underlying);
 
 bool MaybeHandleCors(const IRequestPtr& req, const IResponseWriterPtr& rsp);
+
+THashMap<TString, TString> ParseCookies(const TStringBuf& cookies);
 
 ////////////////////////////////////////////////////////////////////////////////
 

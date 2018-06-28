@@ -163,7 +163,13 @@ private:
             if (Request_->Header().HasExtension(NRpc::NProto::TCredentialsExt::credentials_ext)) {
                 const auto& credentialsExt = Request_->Header().GetExtension(NRpc::NProto::TCredentialsExt::credentials_ext);
                 if (credentialsExt.has_token()) {
-                    InitialMetadataBuilder_.Add(TokenMetadataKey, credentialsExt.token());
+                    InitialMetadataBuilder_.Add(AuthTokenMetadataKey, credentialsExt.token());
+                }
+                if (credentialsExt.has_session_id()) {
+                    InitialMetadataBuilder_.Add(AuthSessionIdMetadataKey, credentialsExt.session_id());
+                }
+                if (credentialsExt.has_ssl_session_id()) {
+                    InitialMetadataBuilder_.Add(AuthSslSessionIdMetadataKey, credentialsExt.ssl_session_id());
                 }
             }
 

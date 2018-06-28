@@ -21,11 +21,8 @@ NRpc::IChannelPtr CreateTokenInjectingChannel(
 NRpc::IChannelPtr CreateCookieInjectingChannel(
     NRpc::IChannelPtr underlyingChannel,
     const TString& user,
-    const TString& domain,
     const TString& sessionId,
-    const TString& sslSessionId,
-    // COMPAT(babenko)
-    const TString& userIP);
+    const TString& sslSessionId);
 
 ////////////////////////////////////////////////////////////////////////////////
 
