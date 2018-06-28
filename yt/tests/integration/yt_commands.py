@@ -27,8 +27,12 @@ AsyncLastCommittedTimestamp  = 0x3fffffffffffff04
 MinTimestamp                 = 0x0000000000000001
 
 def is_debug():
-    from build_type import BUILD_TYPE
-    return BUILD_TYPE == "Debug"
+    try:
+        from yson_lib import is_debug_build
+    except ImportError:
+        from yt_yson_bindings.yson_lib import is_debug_build
+
+    return is_debug_build()
 
 def get_driver(cell_index=0, cluster="primary"):
     if cluster not in clusters_drivers:
