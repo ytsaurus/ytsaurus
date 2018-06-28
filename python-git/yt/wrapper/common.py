@@ -319,7 +319,7 @@ HashPair = collections.namedtuple("HashPair", ["lo", "hi"])
 
 def uuid_hash_pair(uuid):
     id_hi, id_lo = guid_to_parts(uuid)
-    return HashPair(yson.YsonUint64(id_hi), yson.YsonUint64(id_lo))
+    return HashPair(yson.YsonUint64(id_lo), yson.YsonUint64(id_hi))
 
 def object_type_from_uuid(uuid):
     i3, i2, i1, i0 = (int(s, 16) for s in uuid.split("-"))
