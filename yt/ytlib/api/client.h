@@ -827,6 +827,7 @@ struct TJob
     TNullable<double> Progress;
     TNullable<ui64> StderrSize;
     TNullable<ui64> FailContextSize;
+    TNullable<bool> HasSpec;
     NYson::TYsonString Error;
     NYson::TYsonString BriefStatistics;
     NYson::TYsonString InputPaths;
