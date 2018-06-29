@@ -127,7 +127,7 @@ struct TSelectCpuCounters
     TChunkReaderStatisticsCounters ChunkReaderStatisticsCounters;
 };
 
-using TSelectCpuProfilerTrait = TSimpleProfilerTrait<TSelectCpuCounters>;
+using TSelectCpuProfilerTrait = TTabletProfilerTrait<TSelectCpuCounters>;
 
 struct TSelectReadCounters
 {
