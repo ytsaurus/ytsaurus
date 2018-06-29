@@ -18,6 +18,7 @@
 #endif
 
 namespace NYT {
+namespace NJobProxy {
 
 using namespace NYTree;
 using namespace NYson;
@@ -26,7 +27,7 @@ using namespace NYson;
 
 class TExecProgram
     : public TProgram
-    , public TProgramConfigMixin<NJobProxy::TJobSatelliteConnectionConfig>
+    , public TProgramConfigMixin<TJobSatelliteConnectionConfig>
     , public TProgramCgroupMixin
 {
 public:
@@ -91,7 +92,7 @@ protected:
         ConfigureCrashHandler();
 
         if (Pty_ == -1) {
-            NJobProxy::RunJobSatellite(GetConfig(), Uid_, Environment_, JobId_);
+            RunJobSatellite(GetConfig(), Uid_, Environment_, JobId_);
         }
         TThread::CurrentThreadSetName("ExecMain");
 
@@ -208,7 +209,7 @@ protected:
         // We are ready to execute user code, send signal to JobProxy.
         if (Pty_ == -1) {
             try {
-                NJobProxy::NotifyExecutorPrepared(GetConfig());
+                NotifyExecutorPrepared(GetConfig());
             } catch (const std::exception& ex) {
                 fprintf(stderr, "Unable to notify job proxy\n%s", ex.what());
                 Y_UNREACHABLE();
@@ -236,10 +237,11 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NJobProxy
 } // namespace NYT
 
 int main(int argc, const char** argv)
 {
-    return NYT::TExecProgram().Run(argc, argv);
+    return NYT::NJobProxy::TExecProgram().Run(argc, argv);
 }
 

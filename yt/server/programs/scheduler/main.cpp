@@ -8,6 +8,8 @@
 
 #include <yt/core/phdr_cache/phdr_cache.h>
 
+#include <yt/core/alloc/alloc.h>
+
 namespace NYT {
 namespace NScheduler {
 
@@ -34,6 +36,8 @@ protected:
         ConfigureCrashHandler();
         ConfigureExitZeroOnSigterm();
         EnablePhdrCache();
+        NYTAlloc::EnableLogging();
+        NYTAlloc::EnableProfiling();
 
         if (HandlePdeathsigOptions()) {
             return;
