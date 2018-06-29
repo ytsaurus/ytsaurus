@@ -6906,6 +6906,11 @@ void TOperationControllerBase::ValidateUserFileCount(TUserJobSpecPtr spec, const
     }
 }
 
+void TOperationControllerBase::OnExecNodesUpdated(
+    const TRefCountedExecNodeDescriptorMapPtr& oldExecNodes,
+    const TRefCountedExecNodeDescriptorMapPtr& newExecNodes)
+{ }
+
 void TOperationControllerBase::GetExecNodesInformation()
 {
     auto now = NProfiling::GetCpuInstant();
@@ -6914,7 +6919,9 @@ void TOperationControllerBase::GetExecNodesInformation()
     }
 
     ExecNodeCount_ = Host->GetExecNodeCount();
-    ExecNodesDescriptors_ = Host->GetExecNodeDescriptors(NScheduler::TSchedulingTagFilter(Spec_->SchedulingTagFilter));
+    auto newExecNodesDescriptors = Host->GetExecNodeDescriptors(NScheduler::TSchedulingTagFilter(Spec_->SchedulingTagFilter));
+    OnExecNodesUpdated(ExecNodesDescriptors_, newExecNodesDescriptors);
+    ExecNodesDescriptors_ = std::move(newExecNodesDescriptors);
     GetExecNodesInformationDeadline_ = now + NProfiling::DurationToCpuDuration(Config->ControllerExecNodeInfoUpdatePeriod);
     LOG_DEBUG("Exec nodes information updated (ExecNodeCount: %v)", ExecNodeCount_);
 }
