@@ -10,6 +10,8 @@
 
 #include <yt/core/phdr_cache/phdr_cache.h>
 
+#include <yt/core/alloc/alloc.h>
+
 namespace NYT {
 namespace NControllerAgent {
 
@@ -36,6 +38,8 @@ protected:
         ConfigureCrashHandler();
         ConfigureExitZeroOnSigterm();
         EnablePhdrCache();
+        NYTAlloc::EnableLogging();
+        NYTAlloc::EnableProfiling();
 
         if (HandlePdeathsigOptions()) {
             return;

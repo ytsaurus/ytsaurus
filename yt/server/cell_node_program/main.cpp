@@ -9,9 +9,10 @@
 
 #include <yt/core/phdr_cache/phdr_cache.h>
 
-#include <util/system/mlock.h>
+#include <yt/core/alloc/alloc.h>
 
 namespace NYT {
+namespace NCellNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -26,8 +27,7 @@ public:
         : TProgramPdeathsigMixin(Opts_)
         , TProgramToolMixin(Opts_)
         , TProgramConfigMixin(Opts_, false)
-    {
-    }
+    { }
 
 protected:
     virtual void DoRun(const NLastGetopt::TOptsParseResult& parseResult) override
@@ -39,6 +39,8 @@ protected:
         ConfigureCrashHandler();
         ConfigureExitZeroOnSigterm();
         EnablePhdrCache();
+        NYTAlloc::EnableLogging();
+        NYTAlloc::EnableProfiling();
 
         if (HandlePdeathsigOptions()) {
             return;
@@ -67,10 +69,11 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NCellNode
 } // namespace NYT
 
 int main(int argc, const char** argv)
 {
-    return NYT::TCellNodeProgram().Run(argc, argv);
+    return NYT::NCellNode::TCellNodeProgram().Run(argc, argv);
 }
 

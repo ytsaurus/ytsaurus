@@ -8,9 +8,10 @@
 
 #include <yt/core/phdr_cache/phdr_cache.h>
 
-#include <util/system/mlock.h>
+#include <yt/core/alloc/alloc.h>
 
 namespace NYT {
+namespace NCellProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -34,6 +35,9 @@ protected:
         ConfigureSignals();
         ConfigureCrashHandler();
         EnablePhdrCache();
+        ConfigureExitZeroOnSigterm();
+        NYTAlloc::EnableLogging();
+        NYTAlloc::EnableProfiling();
 
         if (HandlePdeathsigOptions()) {
             return;
@@ -58,10 +62,11 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NCellProxy
 } // namespace NYT
 
 int main(int argc, const char** argv)
 {
-    return NYT::TCellProxyProgram().Run(argc, argv);
+    return NYT::NCellProxy::TCellProxyProgram().Run(argc, argv);
 }
 

@@ -8,9 +8,10 @@
 
 #include <yt/core/phdr_cache/phdr_cache.h>
 
-namespace NYT {
+#include <yt/core/alloc/alloc.h>
 
-using namespace NSkynetManager;
+namespace NYT {
+namespace NSkynetManager {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -35,6 +36,8 @@ protected:
         ConfigureCrashHandler();
         ConfigureExitZeroOnSigterm();
         EnablePhdrCache();
+        NYTAlloc::EnableLogging();
+        NYTAlloc::EnableProfiling();
 
         if (HandlePdeathsigOptions()) {
             return;
@@ -58,10 +61,11 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NSkynetManager
 } // namespace NYT
 
 int main(int argc, const char** argv)
 {
-    return NYT::TSkynetManagerProgram().Run(argc, argv);
+    return NYT::NSkynetManager::TSkynetManagerProgram().Run(argc, argv);
 }
 

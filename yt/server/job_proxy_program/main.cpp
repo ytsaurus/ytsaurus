@@ -9,15 +9,18 @@
 
 #include <yt/core/misc/proc.h>
 
-namespace NYT {
+#include <yt/core/alloc/alloc.h>
 
-static const auto& Logger = NJobProxy::JobProxyLogger;
+namespace NYT {
+namespace NJobProxy {
+
+static const auto& Logger = JobProxyLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TJobProxyProgram
     : public TProgram
-    , public TProgramConfigMixin<NJobProxy::TJobProxyConfig>
+    , public TProgramConfigMixin<TJobProxyConfig>
     , public TProgramCgroupMixin
 {
 public:
@@ -48,6 +51,7 @@ protected:
         ConfigureSignals();
         ConfigureCrashHandler();
         CloseAllDescriptors();
+        NYTAlloc::EnableLogging();
 
         try {
             SafeCreateStderrFile("stderr");
@@ -72,7 +76,7 @@ protected:
         // JobProxy <-> Job
         // JobProxy <-> JobProberService
         // But we (currently) don't care.
-        auto jobProxy = New<NJobProxy::TJobProxy>(std::move(config), OperationId_, JobId_);
+        auto jobProxy = New<TJobProxy>(std::move(config), OperationId_, JobId_);
         jobProxy->Run();
     }
 
@@ -83,10 +87,11 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NJobProxy
 } // namespace NYT
 
 int main(int argc, const char** argv)
 {
-    return NYT::TJobProxyProgram().Run(argc, argv);
+    return NYT::NJobProxy::TJobProxyProgram().Run(argc, argv);
 }
 
