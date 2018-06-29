@@ -36,7 +36,7 @@ case $CLUSTER in
     ;;
     perelman)
     MASTERS="m0[1-3]i.perelman.yt.yandex.net"
-    NODES="n0[002-426]i.perelman.yt.yandex.net"
+    NODES="n0[002-589]i.perelman.yt.yandex.net"
     PROXIES="c0[1-2]i.perelman.yt.yandex.net"
     ;;
     bohr)
