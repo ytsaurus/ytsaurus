@@ -816,7 +816,7 @@ void TOperationControllerBase::SafeMaterialize()
         LogProgress(/* force */ true);
     } catch (const std::exception& ex) {
         auto wrappedError = TError("Materialization failed") << ex;
-        LOG_ERROR(wrappedError);
+        LOG_INFO(wrappedError);
         OnOperationFailed(wrappedError);
         return;
     }
