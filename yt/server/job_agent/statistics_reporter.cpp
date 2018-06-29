@@ -269,9 +269,7 @@ private:
             GetPendingCount(),
             Data_->GetOperationArchiveVersion());
         TTransactionStartOptions transactionOptions;
-        transactionOptions.Atomicity = Data_->GetOperationArchiveVersion() >= 16
-            ? EAtomicity::None
-            : EAtomicity::Full;
+        transactionOptions.Atomicity = EAtomicity::None;
         auto asyncTransaction = Client_->StartTransaction(ETransactionType::Tablet, transactionOptions);
         auto transactionOrError = WaitFor(asyncTransaction);
         auto transaction = transactionOrError.ValueOrThrow();
@@ -380,9 +378,7 @@ private:
             if (statistics.State()) {
                 builder.AddValue(MakeUnversionedStringValue(
                     *statistics.State(),
-                    GetSharedData()->GetOperationArchiveVersion() >= 16
-                        ? Table_.Index.TransientState
-                        : Table_.Index.State));
+                    Table_.Index.TransientState));
             }
             if (statistics.StartTime()) {
                 builder.AddValue(MakeUnversionedInt64Value(*statistics.StartTime(), Table_.Index.StartTime));
@@ -466,10 +462,8 @@ private:
             if (statistics.SpecVersion()) {
                 builder.AddValue(MakeUnversionedInt64Value(*statistics.SpecVersion(), Table_.Index.SpecVersion));
             }
-            if (GetSharedData()->GetOperationArchiveVersion() >= 16) {
-                if (statistics.Type()) {
-                    builder.AddValue(MakeUnversionedStringValue(*statistics.Type(), Table_.Index.Type));
-                }
+            if (statistics.Type()) {
+                builder.AddValue(MakeUnversionedStringValue(*statistics.Type(), Table_.Index.Type));
             }
             rows.push_back(rowBuffer->Capture(builder.GetRow()));
             dataWeight += GetDataWeight(rows.back());
