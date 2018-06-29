@@ -238,12 +238,17 @@ void TTask::ScheduleJob(
     bool treeIsTentative,
     TScheduleJobResult* scheduleJobResult)
 {
+    NLogging::TLogger Logger(this->Logger);
+    Logger.AddTag("JobId: %v", context->GetJobId());
+
     if (auto failReason = GetScheduleFailReason(context)) {
+        LOG_DEBUG("Failed to schedule job (FailReason: %v)", failReason);
         scheduleJobResult->RecordFail(*failReason);
         return;
     }
 
     if (treeIsTentative && !TentativeTreeEligibility_.CanScheduleJob(treeId, treeIsTentative)) {
+        LOG_DEBUG("Failed to schedule job (FailReason: %v)", EScheduleJobFailReason::TentativeTreeDeclined);
         scheduleJobResult->RecordFail(EScheduleJobFailReason::TentativeTreeDeclined);
         return;
     }
@@ -270,6 +275,7 @@ void TTask::ScheduleJob(
     int sliceCount = chunkPoolOutput->GetStripeListSliceCount(joblet->OutputCookie);
 
     if (!ValidateChunkCount(sliceCount)) {
+        LOG_DEBUG("Failed to schedule job (FailReason: %v)", EScheduleJobFailReason::IntermediateChunkLimitExceeded);
         scheduleJobResult->RecordFail(EScheduleJobFailReason::IntermediateChunkLimitExceeded);
         chunkPoolOutput->Aborted(joblet->OutputCookie, EAbortReason::IntermediateChunkLimitExceeded);
         return;
@@ -304,8 +310,8 @@ void TTask::ScheduleJob(
     // Check the usage against the limits. This is the last chance to give up.
     if (!Dominates(jobLimits, neededResources)) {
         LOG_DEBUG("Job actual resource demand is not met (Limits: %v, Demand: %v)",
-                  FormatResources(jobLimits),
-                  FormatResources(neededResources));
+            FormatResources(jobLimits),
+            FormatResources(neededResources));
         CheckResourceDemandSanity(nodeResourceLimits, neededResources);
         chunkPoolOutput->Aborted(joblet->OutputCookie, EAbortReason::SchedulingOther);
         // Seems like cached min needed resources are too optimistic.
