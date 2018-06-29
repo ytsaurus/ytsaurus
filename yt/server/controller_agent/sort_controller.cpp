@@ -401,7 +401,7 @@ protected:
                 i64 _;
                 Persist(context, _);
             }
-            if (context.IsSave() || context.GetVersion() > 300009) {
+            if (context.IsSave() || context.GetVersion() >= 300009) {
                 Persist(context, DataBalancingViolationConsecutiveCount_);
             }
 
