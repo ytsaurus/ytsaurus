@@ -38,9 +38,13 @@
 #define MADV_POPULATE 0x59410001
 #endif
 
-#ifndef MADV_FREE
-#define MADV_FREE 8
-#endif
+//#ifndef MADV_FREE
+//#define MADV_FREE 8
+//#endif
+
+// XXX(babenko)
+#undef MADV_FREE
+#define MADV_FREE MADV_DONTNEED
 
 namespace NYT {
 namespace NYTAlloc {
@@ -77,7 +81,6 @@ constexpr size_t PageSize = 4_KB;
 constexpr size_t ZoneSize = 1_TB;
 
 constexpr size_t LargeSizeThreshold = 32_KB;
-constexpr size_t SmallRankCount = 25;
 static_assert(SmallRankCount <= 32, "SmallRankCount > 32");
 constexpr size_t MaxCachedChunksPerRank = 256;
 
@@ -97,14 +100,13 @@ constexpr uintptr_t SystemZoneStart = HugeZoneStart + ZoneSize;
 constexpr uintptr_t SystemZoneEnd = SystemZoneStart + ZoneSize;
 
 constexpr size_t SmallExtentSize = 256_MB;
-constexpr size_t SmallSegmentSize = 2_MB;
+constexpr size_t SmallSegmentSize = 1_MB;
 
 constexpr size_t LargeExtentSize = 1_GB;
-constexpr size_t LargeRankCount = 30;
 constexpr size_t HugeSizeThreshold = 1ULL << (LargeRankCount - 1);
 
-constexpr double LargeUsedToUnreclaimableCoeff = 0.1;
-constexpr size_t MinUnreclaimableLargeBytes = 128_MB;
+std::atomic<double> LargeUnreclaimableCoeff = {0.1};
+std::atomic<size_t> LargeUnreclaimableBytes = {128_MB};
 
 DEFINE_ENUM(EAllocationKind,
     (Untagged)
@@ -217,38 +219,10 @@ static const unsigned char SmallSizeToRank2[128] = {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM(EBasicCounter,
-    (BytesAllocated)
-    (BytesFreed)
-);
-
-DEFINE_ENUM(ELargeArenaCounter,
-    (BytesSpare)
-    (BytesOverhead)
-    (BlobsAllocated)
-    (BytesAllocated)
-    (BlobsFreed)
-    (BytesFreed)
-    (ExtentsAllocated)
-    (PagesPopulated)
-    (PagesReleased)
-    (OverheadBytesReclaimed)
-    (SpareBytesReclaimed)
-);
-
-DEFINE_ENUM(EHugeArenaCounter,
-    (BlobsAllocated)
-    (BytesAllocated)
-    (BlobsFreed)
-    (BytesFreed)
-);
-
-Y_FORCE_INLINE size_t GetUsed(size_t allocated, size_t freed)
+Y_FORCE_INLINE size_t GetUsed(ssize_t allocated, ssize_t freed)
 {
     return allocated >= freed ? allocated - freed : 0;
 }
-
-////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
 Y_FORCE_INLINE void* HeaderToPtr(T* header)
@@ -262,7 +236,7 @@ Y_FORCE_INLINE T* PtrToHeader(void* ptr)
     return static_cast<T*>(ptr) - 1;
 }
 
-Y_FORCE_INLINE ui8 PtrToSmallRank(void* ptr)
+Y_FORCE_INLINE size_t PtrToSmallRank(void* ptr)
 {
     return (reinterpret_cast<uintptr_t>(ptr) >> 40) & 0x1f;
 }
@@ -472,7 +446,10 @@ public:
                 head = item;
             }
             if (tail) {
-                tail->Next = tail;
+                Y_ASSERT(!tail->Next);
+                tail->Next = item;
+            } else {
+                tail = item;
             }
             while (tail && tail->Next) {
                 tail = tail->Next;
@@ -728,40 +705,49 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 // Handles allocations inside a zone of memory given by its start and end pointers.
-// Each allocation is a separate mmaped region of memory.
+// Each allocation is a separate mapped region of memory.
 // Some care is taken to ensure that allocated regions fall inside the zone.
-// This class is not thread-safe.
 class TZoneAllocator
 {
 public:
     TZoneAllocator(uintptr_t zoneStart, uintptr_t zoneEnd)
         : ZoneStart_(zoneStart)
         , ZoneEnd_(zoneEnd)
-        , Hint_(zoneStart)
+        , Current_(zoneStart)
     {
-        YCHECK(Hint_ % PageSize == 0);
+        YCHECK(ZoneStart_ % PageSize == 0);
     }
 
     void* Allocate(size_t size, int flags)
     {
         YCHECK(size % PageSize == 0);
+        bool restarted = false;
         while (true) {
-            auto hint = Hint_;
-            Hint_ += size;
-            char* ptr = static_cast<char*>(MappedMemoryManager->Map(hint, size, flags));
-            if (reinterpret_cast<uintptr_t>(ptr) == hint) {
-                YCHECK(reinterpret_cast<uintptr_t>(ptr + size) <= ZoneEnd_);
-                return ptr;
+            auto hint = (Current_ += size) - size;
+            if (reinterpret_cast<uintptr_t>(hint) + size > ZoneEnd_) {
+                YCHECK(!restarted);
+                restarted = true;
+                Current_ = ZoneStart_;
+            } else {
+                char* ptr = static_cast<char*>(MappedMemoryManager->Map(hint, size, flags));
+                if (reinterpret_cast<uintptr_t>(ptr) == hint) {
+                    return ptr;
+                }
+                MappedMemoryManager->Unmap(ptr, size);
             }
-            MappedMemoryManager->Unmap(ptr, size);
         }
+    }
+
+    void Free(void* ptr, size_t size)
+    {
+        MappedMemoryManager->Unmap(ptr, size);
     }
 
 private:
     const uintptr_t ZoneStart_;
     const uintptr_t ZoneEnd_;
 
-    uintptr_t Hint_;
+    std::atomic<uintptr_t> Current_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -779,62 +765,78 @@ static_assert(
     "MaxMemoryTag != TaggedCounterSetSize * MaxTaggedCounterSets - 1");
 
 template <class TCounter>
-using TUntaggedBasicCounters = TEnumIndexedVector<TCounter, EBasicCounter>;
+using TUntaggedTotalCounters = TEnumIndexedVector<TCounter, ETotalCounter>;
 
 template <class TCounter>
-struct TTaggedBasicCounterSet
+struct TTaggedTotalCounterSet
     : public TSystemAllocatable
 {
-    std::array<TEnumIndexedVector<TCounter, EBasicCounter>, TaggedCounterSetSize> Counters{};
+    std::array<TEnumIndexedVector<TCounter, ETotalCounter>, TaggedCounterSetSize> Counters;
 };
 
-using TLocalTaggedBasicCounterSet = TTaggedBasicCounterSet<size_t>;
-using TGlobalTaggedBasicCounterSet = TTaggedBasicCounterSet<std::atomic<size_t>>;
+using TLocalTaggedBasicCounterSet = TTaggedTotalCounterSet<ssize_t>;
+using TGlobalTaggedBasicCounterSet = TTaggedTotalCounterSet<std::atomic<ssize_t>>;
 
 template <class TCounter>
-struct TBasicCounters
+struct TTotalCounters
 {
     // The sum of counters across all tags.
-    TUntaggedBasicCounters<TCounter> CumulativeTaggedCounters{};
+    TUntaggedTotalCounters<TCounter> CumulativeTaggedCounters;
 
     // Counters for untagged allocations.
-    TUntaggedBasicCounters<TCounter> UntaggedCounters{};
+    TUntaggedTotalCounters<TCounter> UntaggedCounters;
 
     // Access to tagged counters may involve creation of a new tag set.
     // For simplicity, we separate the read-side (TaggedCounterSets) and the write-side (TaggedCounterSetHolders).
     // These arrays contain virtually identical data (up to std::unique_ptr and std::atomic semantic differences).
-    std::array<std::atomic<TTaggedBasicCounterSet<TCounter>*>, MaxTaggedCounterSets> TaggedCounterSets;
-    std::array<std::unique_ptr<TTaggedBasicCounterSet<TCounter>>, MaxTaggedCounterSets> TaggedCounterSetHolders;
+    std::array<std::atomic<TTaggedTotalCounterSet<TCounter>*>, MaxTaggedCounterSets> TaggedCounterSets;
+    std::array<std::unique_ptr<TTaggedTotalCounterSet<TCounter>>, MaxTaggedCounterSets> TaggedCounterSetHolders;
 
-    // Thread-safe access to a set. Returns null is the set is not yet constructed.
-    Y_FORCE_INLINE TTaggedBasicCounterSet<TCounter>* FindTaggedCounterSet(size_t index) const
+    // Protects TaggedCounterSetHolders from concurrent updates.
+    NConcurrency::TForkAwareSpinLock TaggedCounterSetsLock;
+
+    // Returns null is the set is not yet constructed.
+    Y_FORCE_INLINE TTaggedTotalCounterSet<TCounter>* FindTaggedCounterSet(size_t index) const
     {
         return TaggedCounterSets[index].load();
     }
 
-    // Not thread-safe. Constructs the set on first access.
-    TTaggedBasicCounterSet<TCounter>* GetOrCreateTaggedCounterSet(size_t index)
+    // Constructs the set on first access.
+    TTaggedTotalCounterSet<TCounter>* GetOrCreateTaggedCounterSet(size_t index)
     {
-        auto& set = TaggedCounterSetHolders[index];
-        if (!set) {
-            set = std::make_unique<TTaggedBasicCounterSet<TCounter>>();
-            TaggedCounterSets[index] = set.get();
+        auto* set = TaggedCounterSets[index].load();
+        if (Y_LIKELY(set)) {
+            return set;
         }
-        return set.get();
+
+        auto guard = Guard(TaggedCounterSetsLock);
+        auto& setHolder = TaggedCounterSetHolders[index];
+        if (!setHolder) {
+            setHolder = std::make_unique<TTaggedTotalCounterSet<TCounter>>();
+            TaggedCounterSets[index] = setHolder.get();
+        }
+        return setHolder.get();
     }
 };
+
+using TLocalSystemCounters = TEnumIndexedVector<ssize_t, ESystemCounter>;
+using TGlobalSystemCounters = TEnumIndexedVector<std::atomic<ssize_t>, ESystemCounter>;
+
+using TLocalSmallArenaCounters = TEnumIndexedVector<ssize_t, ESmallArenaCounter>;
+using TGlobalSmallArenaCounters = TEnumIndexedVector<std::atomic<ssize_t>, ESmallArenaCounter>;
 
 using TLocalLargeArenaCounters = TEnumIndexedVector<ssize_t, ELargeArenaCounter>;
 using TGlobalLargeArenaCounters = TEnumIndexedVector<std::atomic<ssize_t>, ELargeArenaCounter>;
 
-using THugeArenaCounters = TEnumIndexedVector<std::atomic<ssize_t>, EHugeArenaCounter>;
+using TLocalHugeArenaCounters = TEnumIndexedVector<ssize_t, EHugeArenaCounter>;
+using TGlobalHugeArenaCounters = TEnumIndexedVector<std::atomic<ssize_t>, EHugeArenaCounter>;
 
-Y_FORCE_INLINE size_t LoadCounter(size_t counter)
+Y_FORCE_INLINE ssize_t LoadCounter(ssize_t counter)
 {
     return counter;
 }
 
-Y_FORCE_INLINE size_t LoadCounter(const std::atomic<size_t>& counter)
+Y_FORCE_INLINE ssize_t LoadCounter(const std::atomic<ssize_t>& counter)
 {
     return counter.load();
 }
@@ -857,7 +859,7 @@ struct TThreadState
     std::atomic<int> RefCounter = {1};
 
     // Per-thread counters.
-    TBasicCounters<size_t> BasicCounters;
+    TTotalCounters<ssize_t> TotalCounters;
     std::array<TLocalLargeArenaCounters, LargeRankCount> LargeArenaCounters;
 
     // Each thread maintains caches of small chunks.
@@ -874,7 +876,7 @@ struct TThreadState
         TSmallBlobCache()
         {
             void** chunkPtrs = CachedChunks.data();
-            for (ui8 rank = 0; rank < SmallRankCount; ++rank) {
+            for (size_t rank = 0; rank < SmallRankCount; ++rank) {
                 RankToCachedChunkPtr[rank] = chunkPtrs;
                 chunkPtrs[0] = reinterpret_cast<void*>(LeftSentinel);
                 chunkPtrs[MaxCachedChunksPerRank + 1] = reinterpret_cast<void*>(RightSentinel);
@@ -1026,11 +1028,11 @@ TBox<TThreadManager> ThreadManager;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Mimics the counters of TThreadState but used std::atomic to survive concurrent access.
+// Mimics the counters of TThreadState but uses std::atomic to survive concurrent access.
 struct TGlobalState
     : public TGlobalShardedState
 {
-    TBasicCounters<std::atomic<size_t>> BasicCounters;
+    TTotalCounters<std::atomic<ssize_t>> TotalCounters;
     std::array<TGlobalLargeArenaCounters, LargeRankCount> LargeArenaCounters;
 };
 
@@ -1043,19 +1045,24 @@ class TStatisticsManager
 {
 public:
     template <EAllocationKind Kind = EAllocationKind::Tagged, class TState>
-    static Y_FORCE_INLINE void IncrementBasicCounter(TState* state, TMemoryTag tag, EBasicCounter counter, ssize_t delta)
+    static Y_FORCE_INLINE void IncrementTotalCounter(TState* state, TMemoryTag tag, ETotalCounter counter, ssize_t delta)
     {
         // This branch is typically resolved at compile time.
         if (Kind == EAllocationKind::Tagged && tag != NullMemoryTag) {
-            IncrementTaggedBasicCounter(&state->BasicCounters, tag, counter, delta);
+            IncrementTaggedTotalCounter(&state->TotalCounters, tag, counter, delta);
         } else {
-            IncrementUntaggedBasicCounter(&state->BasicCounters, counter, delta);
+            IncrementUntaggedTotalCounter(&state->TotalCounters, counter, delta);
         }
     }
 
-    static Y_FORCE_INLINE void IncrementBasicCounter(TMemoryTag tag, EBasicCounter counter, ssize_t delta)
+    static Y_FORCE_INLINE void IncrementTotalCounter(TMemoryTag tag, ETotalCounter counter, ssize_t delta)
     {
-        IncrementBasicCounter(GlobalState.Get(), tag, counter, delta);
+        IncrementTotalCounter(GlobalState.Get(), tag, counter, delta);
+    }
+
+    void IncrementSmallArenaCounter(ESmallArenaCounter counter, size_t rank, ssize_t delta)
+    {
+        SmallArenaCounters_[rank][counter] += delta;
     }
 
     template <class TState>
@@ -1069,7 +1076,7 @@ public:
         HugeArenaCounters_[counter] += delta;
     }
 
-    void IncrementSystemCounter(EBasicCounter counter, ssize_t delta)
+    void IncrementSystemCounter(ESystemCounter counter, ssize_t delta)
     {
         SystemCounters_[counter] += delta;
     }
@@ -1084,16 +1091,16 @@ public:
 
         for (size_t index = 0; index < tags.Size(); ++index) {
             auto tag = tags[index];
-            bytesAllocated[index] += LoadTaggedBasicCounter(GlobalState->BasicCounters, tag, EBasicCounter::BytesAllocated);
-            bytesFreed[index] += LoadTaggedBasicCounter(GlobalState->BasicCounters, tag, EBasicCounter::BytesFreed);
+            bytesAllocated[index] += LoadTaggedTotalCounter(GlobalState->TotalCounters, tag, ETotalCounter::BytesAllocated);
+            bytesFreed[index] += LoadTaggedTotalCounter(GlobalState->TotalCounters, tag, ETotalCounter::BytesFreed);
         }
 
         ThreadManager->EnumerateThreadStates(
             [&] (const auto* state) {
                 for (size_t index = 0; index < tags.Size(); ++index) {
                     auto tag = tags[index];
-                    bytesAllocated[index] += LoadTaggedBasicCounter(state->BasicCounters, tag, EBasicCounter::BytesAllocated);
-                    bytesFreed[index] += LoadTaggedBasicCounter(state->BasicCounters, tag, EBasicCounter::BytesFreed);
+                    bytesAllocated[index] += LoadTaggedTotalCounter(state->TotalCounters, tag, ETotalCounter::BytesAllocated);
+                    bytesFreed[index] += LoadTaggedTotalCounter(state->TotalCounters, tag, ETotalCounter::BytesFreed);
                 }
             });
 
@@ -1102,23 +1109,38 @@ public:
         }
     }
 
-    // Aggregates basic counters across threads.
-    TEnumIndexedVector<size_t, EBasicCounter> GetBasicCounters()
+    // Aggregates total counters across threads.
+    TEnumIndexedVector<ssize_t, ETotalCounter> GetTotalCounters()
     {
-        TEnumIndexedVector<size_t, EBasicCounter> result{};
+        TEnumIndexedVector<ssize_t, ETotalCounter> result;
 
-        for (auto counter : TEnumTraits<EBasicCounter>::GetDomainValues()) {
-            result[counter] += GlobalState->BasicCounters.UntaggedCounters[counter].load();
-            result[counter] += GlobalState->BasicCounters.CumulativeTaggedCounters[counter].load();
+        for (auto counter : TEnumTraits<ETotalCounter>::GetDomainValues()) {
+            result[counter] += GlobalState->TotalCounters.UntaggedCounters[counter].load();
+            result[counter] += GlobalState->TotalCounters.CumulativeTaggedCounters[counter].load();
         }
 
         ThreadManager->EnumerateThreadStates(
             [&] (const auto* state) {
-                for (auto counter : TEnumTraits<EBasicCounter>::GetDomainValues()) {
-                    result[counter] += state->BasicCounters.UntaggedCounters[counter];
-                    result[counter] += state->BasicCounters.CumulativeTaggedCounters[counter];
+                for (auto counter : TEnumTraits<ETotalCounter>::GetDomainValues()) {
+                    result[counter] += state->TotalCounters.UntaggedCounters[counter];
+                    result[counter] += state->TotalCounters.CumulativeTaggedCounters[counter];
                 }
             });
+
+        result[ETotalCounter::BytesUsed] = GetUsed(result[ETotalCounter::BytesAllocated], result[ETotalCounter::BytesFreed]);
+
+        return result;
+    }
+
+    // Returns small arena counters.
+    std::array<TLocalSmallArenaCounters, SmallRankCount> GetSmallArenaCounters()
+    {
+        std::array<TLocalSmallArenaCounters, SmallRankCount> result;
+        for (size_t rank = 0; rank < SmallRankCount; ++rank) {
+            for (auto counter : TEnumTraits<ESmallArenaCounter>::GetDomainValues()) {
+                result[rank][counter] = SmallArenaCounters_[rank][counter].load();
+            }
+        }
         return result;
     }
 
@@ -1141,6 +1163,35 @@ public:
                     }
                 }
             });
+
+        for (size_t rank = 0; rank < LargeRankCount; ++rank) {
+            result[rank][ELargeArenaCounter::BytesUsed] = GetUsed(result[rank][ELargeArenaCounter::BytesAllocated], result[rank][ELargeArenaCounter::BytesFreed]);
+            result[rank][ELargeArenaCounter::BlobsUsed] = GetUsed(result[rank][ELargeArenaCounter::BlobsAllocated], result[rank][ELargeArenaCounter::BlobsFreed]);
+        }
+
+        return result;
+    }
+
+    // Returns system counters.
+    TLocalSystemCounters GetSystemCounters()
+    {
+        TLocalSystemCounters result;
+        for (auto counter : TEnumTraits<ESystemCounter>::GetDomainValues()) {
+            result[counter] = SystemCounters_[counter].load();
+        }
+        result[ESystemCounter::BytesUsed] = GetUsed(result[ESystemCounter::BytesAllocated], result[ESystemCounter::BytesFreed]);
+        return result;
+    }
+
+    // Returns huge arena counters.
+    TLocalHugeArenaCounters GetHugeArenaCounters()
+    {
+        TLocalHugeArenaCounters result;
+        for (auto counter : TEnumTraits<EHugeArenaCounter>::GetDomainValues()) {
+            result[counter] = HugeArenaCounters_[counter].load();
+        }
+        result[EHugeArenaCounter::BytesUsed] = GetUsed(result[EHugeArenaCounter::BytesAllocated], result[EHugeArenaCounter::BytesFreed]);
+        result[EHugeArenaCounter::BlobsUsed] = GetUsed(result[EHugeArenaCounter::BlobsAllocated], result[EHugeArenaCounter::BlobsFreed]);
         return result;
     }
 
@@ -1148,18 +1199,18 @@ public:
     // Adds the counter values from TThreadState to the global counters.
     void AccumulateLocalCounters(TThreadState* state)
     {
-        for (auto counter : TEnumTraits<EBasicCounter>::GetDomainValues()) {
-            GlobalState->BasicCounters.CumulativeTaggedCounters[counter] += state->BasicCounters.CumulativeTaggedCounters[counter];
-            GlobalState->BasicCounters.UntaggedCounters[counter] += state->BasicCounters.UntaggedCounters[counter];
+        for (auto counter : TEnumTraits<ETotalCounter>::GetDomainValues()) {
+            GlobalState->TotalCounters.CumulativeTaggedCounters[counter] += state->TotalCounters.CumulativeTaggedCounters[counter];
+            GlobalState->TotalCounters.UntaggedCounters[counter] += state->TotalCounters.UntaggedCounters[counter];
         }
         for (size_t index = 0; index < MaxTaggedCounterSets; ++index) {
-            const auto* localSet = state->BasicCounters.FindTaggedCounterSet(index);
+            const auto* localSet = state->TotalCounters.FindTaggedCounterSet(index);
             if (!localSet) {
                 continue;
             }
-            auto* globalSet = GlobalState->BasicCounters.GetOrCreateTaggedCounterSet(index);
+            auto* globalSet = GlobalState->TotalCounters.GetOrCreateTaggedCounterSet(index);
             for (size_t jndex = 0; jndex < TaggedCounterSetSize; ++jndex) {
-                for (auto counter : TEnumTraits<EBasicCounter>::GetDomainValues()) {
+                for (auto counter : TEnumTraits<ETotalCounter>::GetDomainValues()) {
                     globalSet->Counters[jndex][counter] += localSet->Counters[jndex][counter];
                 }
             }
@@ -1176,13 +1227,14 @@ public:
     {
         PushSystemStatistics(context);
         PushTotalStatistics(context);
+        PushSmallArenaStatistics(context);
         PushLargeArenaStatistics(context);
         PushHugeArenaStatistics(context);
     }
 
 private:
     template <class TCounter>
-    static size_t LoadTaggedBasicCounter(const TBasicCounters<TCounter>& counters, TMemoryTag tag, EBasicCounter counter)
+    static ssize_t LoadTaggedTotalCounter(const TTotalCounters<TCounter>& counters, TMemoryTag tag, ETotalCounter counter)
     {
         const auto* set = counters.FindTaggedCounterSet(tag / TaggedCounterSetSize);
         if (Y_UNLIKELY(!set)) {
@@ -1192,13 +1244,13 @@ private:
     }
 
     template <class TCounter>
-    static Y_FORCE_INLINE void IncrementUntaggedBasicCounter(TBasicCounters<TCounter>* counters, EBasicCounter counter, ssize_t delta)
+    static Y_FORCE_INLINE void IncrementUntaggedTotalCounter(TTotalCounters<TCounter>* counters, ETotalCounter counter, ssize_t delta)
     {
         counters->UntaggedCounters[counter] += delta;
     }
 
     template <class TCounter>
-    static Y_FORCE_INLINE void IncrementTaggedBasicCounter(TBasicCounters<TCounter>* counters, TMemoryTag tag, EBasicCounter counter, ssize_t delta)
+    static Y_FORCE_INLINE void IncrementTaggedTotalCounter(TTotalCounters<TCounter>* counters, TMemoryTag tag, ETotalCounter counter, ssize_t delta)
     {
         counters->CumulativeTaggedCounters[counter] += delta;
         auto* set = counters->GetOrCreateTaggedCounterSet(tag / TaggedCounterSetSize);
@@ -1206,46 +1258,54 @@ private:
     }
 
     template <class TCounters>
-    static void PushBasicCounterStatistics(NProfiling::TProfiler* profiler, const TCounters& counters)
+    static void PushCounterStatistics(const NProfiling::TProfiler& profiler, const TCounters& counters)
     {
-        auto bytesAllocated = LoadCounter(counters[EBasicCounter::BytesAllocated]);
-        auto bytesFreed = LoadCounter(counters[EBasicCounter::BytesFreed]);
-        auto bytesUsed = GetUsed(bytesAllocated, bytesFreed);
-        profiler->Enqueue("/bytes_allocated", bytesAllocated, NProfiling::EMetricType::Counter);
-        profiler->Enqueue("/bytes_freed", bytesFreed, NProfiling::EMetricType::Counter);
-        profiler->Enqueue("/bytes_used", bytesUsed, NProfiling::EMetricType::Gauge);
+        using T = typename TCounters::TIndex;
+        for (auto counter : TEnumTraits<T>::GetDomainValues()) {
+            profiler.Enqueue("/" + FormatEnum(counter), counters[counter], NProfiling::EMetricType::Gauge);
+        }
     }
 
     void PushSystemStatistics(const TBackgroundContext& context)
     {
+        auto counters = GetSystemCounters();
         NProfiling::TProfiler profiler(context.Profiler.GetPathPrefix() + "/system");
-        PushBasicCounterStatistics(&profiler, SystemCounters_);
+        PushCounterStatistics(profiler, counters);
     }
 
     void PushTotalStatistics(const TBackgroundContext& context)
     {
-        auto counters = GetBasicCounters();
+        auto counters = GetTotalCounters();
         NProfiling::TProfiler profiler(context.Profiler.GetPathPrefix() + "/total");
-        PushBasicCounterStatistics(&profiler, counters);
+        PushCounterStatistics(profiler, counters);
     }
 
     void PushHugeArenaStatistics(const TBackgroundContext& context)
     {
+        auto counters = GetHugeArenaCounters();
         NProfiling::TProfiler profiler(context.Profiler.GetPathPrefix() + "/huge_arena");
+        PushCounterStatistics(profiler, counters);
+    }
 
-        for (auto counter : TEnumTraits<EHugeArenaCounter>::GetDomainValues()) {
-            profiler.Enqueue("/" + FormatEnum(counter), HugeArenaCounters_[counter].load(), NProfiling::EMetricType::Counter);
+    void PushSmallArenaStatistics(
+        const TBackgroundContext& context,
+        size_t rank,
+        const TLocalSmallArenaCounters& counters)
+    {
+        NProfiling::TProfiler profiler(
+            context.Profiler.GetPathPrefix() + "/small_arena",
+            {
+                NProfiling::TProfileManager::Get()->RegisterTag("rank", rank)
+            });
+        PushCounterStatistics(profiler, counters);
+    }
+
+    void PushSmallArenaStatistics(const TBackgroundContext& context)
+    {
+        auto counters = GetSmallArenaCounters();
+        for (size_t rank = 1; rank < SmallRankCount; ++rank) {
+            PushSmallArenaStatistics(context, rank, counters[rank]);
         }
-
-        auto bytesAllocated = HugeArenaCounters_[EHugeArenaCounter::BytesAllocated].load();
-        auto bytesFreed = HugeArenaCounters_[EHugeArenaCounter::BytesFreed].load();
-        auto bytesUsed = GetUsed(bytesAllocated, bytesFreed);
-        profiler.Enqueue("/bytes_used", bytesUsed, NProfiling::EMetricType::Gauge);
-
-        auto blobsAllocated = HugeArenaCounters_[EHugeArenaCounter::BlobsAllocated].load();
-        auto blobsFreed = HugeArenaCounters_[EHugeArenaCounter::BlobsFreed].load();
-        auto blobsUsed = GetUsed(blobsAllocated, blobsFreed);
-        profiler.Enqueue("/blobs_used", blobsUsed, NProfiling::EMetricType::Gauge);
     }
 
     void PushLargeArenaStatistics(
@@ -1258,26 +1318,10 @@ private:
             {
                 NProfiling::TProfileManager::Get()->RegisterTag("rank", rank)
             });
+        PushCounterStatistics(profiler, counters);
 
-        for (auto counter : TEnumTraits<ELargeArenaCounter>::GetDomainValues()) {
-            profiler.Enqueue("/" + FormatEnum(counter), counters[counter], NProfiling::EMetricType::Counter);
-        }
-
-        auto bytesAllocated = counters[ELargeArenaCounter::BytesAllocated];
         auto bytesFreed = counters[ELargeArenaCounter::BytesFreed];
-        auto bytesUsed = GetUsed(bytesAllocated, bytesFreed);
-        profiler.Enqueue("/bytes_used", bytesUsed, NProfiling::EMetricType::Gauge);
-
-        auto blobsAllocated = counters[ELargeArenaCounter::BlobsAllocated];
-        auto blobsFreed = counters[ELargeArenaCounter::BlobsFreed];
-        auto blobsUsed = GetUsed(blobsAllocated, blobsFreed);
-        profiler.Enqueue("/blobs_used", blobsUsed, NProfiling::EMetricType::Gauge);
-
-        auto pagesPopulated = counters[ELargeArenaCounter::PagesPopulated];
         auto pagesReleased = counters[ELargeArenaCounter::PagesReleased];
-        auto pagesUsed = GetUsed(pagesPopulated, pagesReleased);
-        profiler.Enqueue("/pages_used", pagesUsed, NProfiling::EMetricType::Gauge);
-
         auto bytesReleased = pagesReleased * PageSize;
         int poolHitRatio;
         if (bytesFreed == 0) {
@@ -1293,14 +1337,15 @@ private:
     void PushLargeArenaStatistics(const TBackgroundContext& context)
     {
         auto counters = GetLargeArenaCounters();
-        for (size_t rank = 0; rank < LargeRankCount; ++rank) {
+        for (size_t rank = 1; rank < LargeRankCount; ++rank) {
             PushLargeArenaStatistics(context, rank, counters[rank]);
         }
     }
 
 private:
-    TEnumIndexedVector<std::atomic<size_t>, EBasicCounter> SystemCounters_;
-    THugeArenaCounters HugeArenaCounters_{};
+    TGlobalSystemCounters SystemCounters_;
+    std::array<TGlobalSmallArenaCounters, SmallRankCount> SmallArenaCounters_;
+    TGlobalHugeArenaCounters HugeArenaCounters_;
 };
 
 TBox<TStatisticsManager> StatisticsManager;
@@ -1350,7 +1395,7 @@ void TThreadManager::DestroyThreadState(TThreadState* state)
 void* TSystemAllocator::Allocate(size_t size)
 {
     auto rawSize = GetRawBlobSize<TSystemBlobHeader>(size);
-    StatisticsManager->IncrementSystemCounter(EBasicCounter::BytesAllocated, rawSize);
+    StatisticsManager->IncrementSystemCounter(ESystemCounter::BytesAllocated, rawSize);
     auto* blob = static_cast<TSystemBlobHeader*>(MappedMemoryManager->Map(SystemZoneStart, rawSize, MAP_POPULATE));
     new (blob) TSystemBlobHeader(size);
     return HeaderToPtr(blob);
@@ -1360,7 +1405,7 @@ void TSystemAllocator::Free(void* ptr)
 {
     auto* blob = PtrToHeader<TSystemBlobHeader>(ptr);
     auto rawSize = GetRawBlobSize<TSystemBlobHeader>(blob->Size);
-    StatisticsManager->IncrementSystemCounter(EBasicCounter::BytesFreed, rawSize);
+    StatisticsManager->IncrementSystemCounter(ESystemCounter::BytesFreed, rawSize);
     MappedMemoryManager->Unmap(blob, rawSize);
 }
 
@@ -1424,7 +1469,7 @@ CHECK_HEADER_SIZE(TTaggedSmallChunkHeader)
 class TSmallArenaAllocator
 {
 public:
-    explicit TSmallArenaAllocator(ui8 rank, uintptr_t zoneStart)
+    explicit TSmallArenaAllocator(size_t rank, uintptr_t zoneStart)
         : Rank_(rank)
         , ChunkSize_(SmallRankToSize[Rank_])
         , ZoneAllocator_(zoneStart, zoneStart + ZoneSize)
@@ -1433,6 +1478,7 @@ public:
     void* Allocate(size_t size)
     {
         void* ptr;
+
         while (true) {
             ptr = TryAllocateFromCurrentSegment();
             if (Y_LIKELY(ptr)) {
@@ -1479,14 +1525,18 @@ private:
         } else {
             CurrentExtent_ = static_cast<char*>(ZoneAllocator_.Allocate(SmallExtentSize, 0));
             CurrentSegment_ = CurrentExtent_;
+            StatisticsManager->IncrementSmallArenaCounter(ESmallArenaCounter::BytesMapped, Rank_, SmallExtentSize);
+            StatisticsManager->IncrementSmallArenaCounter(ESmallArenaCounter::PagesMapped, Rank_, SmallExtentSize / PageSize);
         }
 
         MappedMemoryManager->Populate(CurrentSegment_, SmallSegmentSize);
+        StatisticsManager->IncrementSmallArenaCounter(ESmallArenaCounter::BytesActive, Rank_, SmallSegmentSize);
+        StatisticsManager->IncrementSmallArenaCounter(ESmallArenaCounter::PagesActive, Rank_, SmallSegmentSize / PageSize);
         CurrentPtr_.store(CurrentSegment_);
     }
 
 private:
-    const ui8 Rank_;
+    const size_t Rank_;
     const size_t ChunkSize_;
 
     TZoneAllocator ZoneAllocator_;
@@ -1550,7 +1600,7 @@ public:
         : Kind_(kind)
     { }
 
-    bool TryMoveGroupToLocal(TThreadState* state, ui8 rank)
+    bool TryMoveGroupToLocal(TThreadState* state, size_t rank)
     {
         auto& groups = RankToChunkGroups_[rank];
         auto* group = groups.Extract(state);
@@ -1568,7 +1618,7 @@ public:
         return true;
     }
 
-    void MoveGroupToGlobal(TThreadState* state, ui8 rank)
+    void MoveGroupToGlobal(TThreadState* state, size_t rank)
     {
         auto* group = GroupPool_.Allocate(state);
 
@@ -1582,7 +1632,7 @@ public:
         groups.Put(state, group);
     }
 
-    void MoveOneToGlobal(void* ptr, ui8 rank)
+    void MoveOneToGlobal(void* ptr, size_t rank)
     {
         auto* group = GroupPool_.Allocate(&GlobalShardedState_);
         group->PutOne(ptr);
@@ -1608,7 +1658,7 @@ class TSmallAllocator
 {
 public:
     template <EAllocationKind Kind>
-    static Y_FORCE_INLINE void* Allocate(TMemoryTag tag, ui8 rank)
+    static Y_FORCE_INLINE void* Allocate(TMemoryTag tag, size_t rank)
     {
         size_t size = SmallRankToSize[rank];
 
@@ -1617,7 +1667,7 @@ public:
             return AllocateGlobal<Kind>(tag, size, rank);
         }
 
-        StatisticsManager->IncrementBasicCounter<Kind>(state, tag, EBasicCounter::BytesAllocated, size);
+        StatisticsManager->IncrementTotalCounter<Kind>(state, tag, ETotalCounter::BytesAllocated, size);
 
         while (true) {
             auto& chunkPtr = state->SmallBlobCache[Kind].RankToCachedChunkPtr[rank];
@@ -1648,7 +1698,7 @@ public:
             return;
         }
 
-        StatisticsManager->IncrementBasicCounter<Kind>(state, tag, EBasicCounter::BytesFreed, size);
+        StatisticsManager->IncrementTotalCounter<Kind>(state, tag, ETotalCounter::BytesFreed, size);
 
         while (true) {
             auto& chunkPtrPtr = state->SmallBlobCache[Kind].RankToCachedChunkPtr[rank];
@@ -1675,16 +1725,16 @@ public:
 
 private:
     template <EAllocationKind Kind>
-    static void* AllocateGlobal(TMemoryTag tag, size_t size, ui8 rank)
+    static void* AllocateGlobal(TMemoryTag tag, size_t size, size_t rank)
     {
-        StatisticsManager->IncrementBasicCounter(tag, EBasicCounter::BytesAllocated, size);
+        StatisticsManager->IncrementTotalCounter(tag, ETotalCounter::BytesAllocated, size);
         return (*SmallArenaAllocators)[Kind][rank]->Allocate(size);
     }
 
     template <EAllocationKind Kind>
-    static void FreeGlobal(TMemoryTag tag, void* ptr, ui8 rank, size_t size)
+    static void FreeGlobal(TMemoryTag tag, void* ptr, size_t rank, size_t size)
     {
-        StatisticsManager->IncrementBasicCounter(tag, EBasicCounter::BytesFreed, size);
+        StatisticsManager->IncrementTotalCounter(tag, ETotalCounter::BytesFreed, size);
         (*GlobalSmallChunkCaches)[Kind]->MoveOneToGlobal(ptr, rank);
     }
 };
@@ -1776,10 +1826,13 @@ struct TLargeBlobHeader
     { }
 
     TLargeBlobExtent* Extent;
+    // Number of bytes in all acquired pages.
     size_t BytesAcquired;
     std::atomic<bool> Locked = {false};
     TMemoryTag Tag = NullMemoryTag;
     char Padding[4];
+    // For spare blobs this is zero.
+    // For allocated blobs this is the number of bytes requested by user (not including header of any alignment).
     size_t BytesAllocated;
 };
 
@@ -1876,14 +1929,20 @@ private:
     void PopulateArenaPages(TState* state, TLargeArena* arena, void* ptr, size_t size)
     {
         MappedMemoryManager->Populate(ptr, size);
+        StatisticsManager->IncrementLargeArenaCounter(state, arena->Rank, ELargeArenaCounter::BytesPopulated, size);
         StatisticsManager->IncrementLargeArenaCounter(state, arena->Rank, ELargeArenaCounter::PagesPopulated, size / PageSize);
+        StatisticsManager->IncrementLargeArenaCounter(state, arena->Rank, ELargeArenaCounter::BytesActive, size);
+        StatisticsManager->IncrementLargeArenaCounter(state, arena->Rank, ELargeArenaCounter::PagesActive, size / PageSize);
     }
 
     template <class TState>
     void ReleaseArenaPages(TState* state, TLargeArena* arena, void* ptr, size_t size)
     {
         MappedMemoryManager->Release(ptr, size);
+        StatisticsManager->IncrementLargeArenaCounter(state, arena->Rank, ELargeArenaCounter::BytesReleased, size);
         StatisticsManager->IncrementLargeArenaCounter(state, arena->Rank, ELargeArenaCounter::PagesReleased, size / PageSize);
+        StatisticsManager->IncrementLargeArenaCounter(state, arena->Rank, ELargeArenaCounter::BytesActive, -size);
+        StatisticsManager->IncrementLargeArenaCounter(state, arena->Rank, ELargeArenaCounter::PagesActive, -size / PageSize);
     }
 
     bool TryLockBlob(TLargeBlobHeader* blob)
@@ -1904,7 +1963,7 @@ private:
         auto size = blob->BytesAllocated;
         auto rawSize = GetRawBlobSize<TLargeBlobHeader>(size);
         StatisticsManager->IncrementLargeArenaCounter(state, rank, ELargeArenaCounter::BytesSpare, blob->BytesAcquired);
-        StatisticsManager->IncrementLargeArenaCounter(state, rank, ELargeArenaCounter::BytesOverhead, blob->BytesAcquired - rawSize);
+        StatisticsManager->IncrementLargeArenaCounter(state, rank, ELargeArenaCounter::BytesOverhead, -(blob->BytesAcquired - rawSize));
         blob->BytesAllocated = 0;
         if (unlock) {
             UnlockBlob(blob);
@@ -1932,7 +1991,7 @@ private:
         auto totalBytesUsed = totalBytesAllocated - totalBytesFreed;
         auto totalBytesReclaimable = totalBytesSpare + totalBytesOverhead;
 
-        auto threshold = std::max(static_cast<size_t>(LargeUsedToUnreclaimableCoeff * totalBytesUsed), MinUnreclaimableLargeBytes);
+        auto threshold = std::max(static_cast<size_t>(LargeUnreclaimableCoeff.load() * totalBytesUsed), LargeUnreclaimableBytes.load());
         if (totalBytesReclaimable < threshold) {
             return 0;
         }
@@ -2156,7 +2215,7 @@ private:
             bytesReclaimablePerArena[rank * 2 + 1] = arenaCounters[rank][ELargeArenaCounter::BytesSpare];
         }
 
-        std::array<ssize_t, LargeRankCount * 2> bytesToReclaimPerArena = {};
+        std::array<ssize_t, LargeRankCount * 2> bytesToReclaimPerArena{};
         while (bytesToReclaim > 0) {
             ssize_t maxBytes = std::numeric_limits<ssize_t>::min();
             int maxIndex = -1;
@@ -2194,13 +2253,22 @@ private:
     void AllocateArenaExtent(TState* state, TLargeArena* arena)
     {
         auto rank = arena->Rank;
+        StatisticsManager->IncrementLargeArenaCounter(state, rank, ELargeArenaCounter::ExtentsAllocated, 1);
+
         size_t segmentCount = LargeExtentSize / arena->SegmentSize;
         size_t extentHeaderSize = AlignUp(sizeof (TLargeBlobExtent) + sizeof (TLargeBlobExtent::DisposedFlags[0]) * segmentCount, PageSize);
         size_t allocationSize = extentHeaderSize + LargeExtentSize;
 
         auto* ptr = ZoneAllocator_.Allocate(allocationSize, MAP_NORESERVE);
+        StatisticsManager->IncrementLargeArenaCounter(state, rank, ELargeArenaCounter::BytesMapped, allocationSize);
+        StatisticsManager->IncrementLargeArenaCounter(state, rank, ELargeArenaCounter::PagesMapped, allocationSize / PageSize);
+
         auto* extent = static_cast<TLargeBlobExtent*>(ptr);
         MappedMemoryManager->Populate(ptr, extentHeaderSize);
+        StatisticsManager->IncrementLargeArenaCounter(state, rank, ELargeArenaCounter::BytesPopulated, extentHeaderSize);
+        StatisticsManager->IncrementLargeArenaCounter(state, rank, ELargeArenaCounter::PagesPopulated, extentHeaderSize / PageSize);
+        StatisticsManager->IncrementSystemCounter(ESystemCounter::BytesAllocated, extentHeaderSize);
+
         new (extent) TLargeBlobExtent(segmentCount, static_cast<char*>(ptr) + extentHeaderSize);
 
         for (size_t index = 0; index < segmentCount; ++index) {
@@ -2218,8 +2286,6 @@ private:
                 break;
             }
         }
-
-        StatisticsManager->IncrementLargeArenaCounter(state, rank, ELargeArenaCounter::ExtentsAllocated, 1);
     }
 
     template <class TState>
@@ -2283,7 +2349,7 @@ private:
 
         StatisticsManager->IncrementLargeArenaCounter(state, rank, ELargeArenaCounter::BlobsAllocated, 1);
         StatisticsManager->IncrementLargeArenaCounter(state, rank, ELargeArenaCounter::BytesAllocated, size);
-        StatisticsManager->IncrementBasicCounter(state, tag, EBasicCounter::BytesAllocated, size);
+        StatisticsManager->IncrementTotalCounter(state, tag, ETotalCounter::BytesAllocated, size);
 
         auto* ptr = HeaderToPtr(blob);
         Y_ASSERT(reinterpret_cast<uintptr_t>(ptr) >= LargeZoneStart && reinterpret_cast<uintptr_t>(ptr) < LargeZoneEnd);
@@ -2306,7 +2372,7 @@ private:
 
         StatisticsManager->IncrementLargeArenaCounter(state, rank, ELargeArenaCounter::BlobsFreed, 1);
         StatisticsManager->IncrementLargeArenaCounter(state, rank, ELargeArenaCounter::BytesFreed, size);
-        StatisticsManager->IncrementBasicCounter(state, tag, EBasicCounter::BytesFreed, size);
+        StatisticsManager->IncrementTotalCounter(state, tag, ETotalCounter::BytesFreed, size);
 
         if (TryLockBlob(blob)) {
             MoveBlobToSpare(state, &arena, blob, true);
@@ -2347,29 +2413,33 @@ CHECK_HEADER_SIZE(THugeBlobHeader)
 class THugeBlobAllocator
 {
 public:
-    static void* Allocate(size_t size)
+    THugeBlobAllocator()
+        : ZoneAllocator_(HugeZoneStart, HugeZoneEnd)
+    { }
+
+    void* Allocate(size_t size)
     {
         auto tag = TThreadManager::GetCurrentMemoryTag();
         auto rawSize = GetRawBlobSize<THugeBlobHeader>(size);
-        auto* blob = static_cast<THugeBlobHeader*>(MappedMemoryManager->Map(HugeZoneStart, rawSize, MAP_POPULATE));
+        auto* blob = static_cast<THugeBlobHeader*>(ZoneAllocator_.Allocate(rawSize, MAP_POPULATE));
         new (blob) THugeBlobHeader(tag, size);
 
-        StatisticsManager->IncrementBasicCounter(tag, EBasicCounter::BytesAllocated, size);
+        StatisticsManager->IncrementTotalCounter(tag, ETotalCounter::BytesAllocated, size);
         StatisticsManager->IncrementHugeArenaCounter(EHugeArenaCounter::BlobsAllocated, 1);
         StatisticsManager->IncrementHugeArenaCounter(EHugeArenaCounter::BytesAllocated, size);
 
         return HeaderToPtr(blob);
     }
 
-    static void Free(void* ptr)
+    void Free(void* ptr)
     {
         auto* blob = PtrToHeader<THugeBlobHeader>(ptr);
         auto tag = blob->Tag;
         auto size = blob->Size;
         auto rawSize = GetRawBlobSize<THugeBlobHeader>(size);
-        MappedMemoryManager->Unmap(blob, rawSize);
+        ZoneAllocator_.Free(blob, rawSize);
 
-        StatisticsManager->IncrementBasicCounter(tag, EBasicCounter::BytesFreed, size);
+        StatisticsManager->IncrementTotalCounter(tag, ETotalCounter::BytesFreed, size);
         StatisticsManager->IncrementHugeArenaCounter(EHugeArenaCounter::BlobsFreed, 1);
         StatisticsManager->IncrementHugeArenaCounter(EHugeArenaCounter::BytesFreed, size);
     }
@@ -2380,7 +2450,12 @@ public:
         const auto* blob = PtrToHeader<THugeBlobHeader>(ptr);
         return blob->Size;
     }
+
+private:
+    TZoneAllocator ZoneAllocator_;
 };
+
+TBox<THugeBlobAllocator> HugeBlobAllocator;
 
 ////////////////////////////////////////////////////////////////////////////////
 // A thunk to large and huge blob allocators
@@ -2394,7 +2469,7 @@ public:
         if (size < HugeSizeThreshold) {
             return LargeBlobAllocator->Allocate(size);
         } else {
-            return THugeBlobAllocator::Allocate(size);
+            return HugeBlobAllocator->Allocate(size);
         }
     }
     
@@ -2406,7 +2481,7 @@ public:
             LargeBlobAllocator->Free(ptr);
         } else if (reinterpret_cast<uintptr_t>(ptr) < HugeZoneEnd) {
             UnalignPtr<THugeBlobHeader>(ptr);
-            THugeBlobAllocator::Free(ptr);
+            HugeBlobAllocator->Free(ptr);
         } else {
             Y_UNREACHABLE();
         }
@@ -2477,10 +2552,11 @@ void InitializeGlobals()
         ThreadManager.Construct();
         GlobalState.Construct();
         LargeBlobAllocator.Construct();
+        HugeBlobAllocator.Construct();
 
         SmallArenaAllocators.Construct();
         auto constructSmallArenaAllocators = [&] (EAllocationKind kind, uintptr_t zonesStart) {
-            for (ui8 rank = 1; rank < SmallRankCount; ++rank) {
+            for (size_t rank = 1; rank < SmallRankCount; ++rank) {
                 (*SmallArenaAllocators)[kind][rank].Construct(rank, zonesStart + rank * ZoneSize);
             }
         };
@@ -2499,7 +2575,7 @@ void InitializeGlobals()
 void* YTAlloc(size_t size)
 {
 #define XX() \
-    ui8 rank; \
+    size_t rank; \
     if (Y_LIKELY(size <= 512)) { \
         rank = SmallSizeToRank1[1 + ((static_cast<int>(size) - 1) >> 3)]; \
     } else { \
@@ -2563,6 +2639,85 @@ size_t YTGetSize(void* ptr)
     } else {
         Y_UNREACHABLE();
     }
+}
+
+void SetLargeUnreclaimableCoeff(double value)
+{
+    NYTAlloc::LargeUnreclaimableCoeff.store(value);
+}
+
+void SetLargeUnreclaimableBytes(size_t value)
+{
+    NYTAlloc::LargeUnreclaimableCoeff.store(value);
+}
+
+TEnumIndexedVector<ssize_t, ETotalCounter> GetTotalCounters()
+{
+    return StatisticsManager->GetTotalCounters();
+}
+
+TEnumIndexedVector<ssize_t, ESystemCounter> GetSystemCounters()
+{
+    return StatisticsManager->GetSystemCounters();
+}
+
+std::array<TEnumIndexedVector<ssize_t, ESmallArenaCounter>, SmallRankCount> GetSmallArenaCounters()
+{
+    return StatisticsManager->GetSmallArenaCounters();
+}
+
+std::array<TEnumIndexedVector<ssize_t, ELargeArenaCounter>, LargeRankCount> GetLargeArenaCounters()
+{
+    return StatisticsManager->GetLargeArenaCounters();
+}
+
+TEnumIndexedVector<ssize_t, EHugeArenaCounter> GetHugeArenaCounters()
+{
+    return StatisticsManager->GetHugeArenaCounters();
+}
+
+TString FormatCounters()
+{
+    TStringBuilder builder;
+
+    auto formatCounters = [&] (const auto& counters) {
+        using T = typename std::decay_t<decltype(counters)>::TIndex;
+        builder.AppendString("{");
+        TDelimitedStringBuilderWrapper delimitedBuilder(&builder);
+        for (auto counter : TEnumTraits<T>::GetDomainValues()) {
+            delimitedBuilder->AppendFormat("%v: %v", counter, counters[counter]);
+        }
+        builder.AppendString("}");
+    };
+
+    auto formatPerArenaCounters = [&] (const auto& perArenaCounters) {
+        using T = typename std::decay_t<decltype(perArenaCounters[0])>::TIndex;
+        TEnumIndexedVector<ssize_t, T> counters;
+        for (size_t rank = 0; rank < perArenaCounters.size(); ++rank) {
+            for (auto counter : TEnumTraits<T>::GetDomainValues()) {
+                counters[counter] += perArenaCounters[rank][counter];
+            }
+        }
+        formatCounters(counters);
+    };
+
+    builder.AppendString("Total = {");
+    formatCounters(GetTotalCounters());
+
+    builder.AppendString("}, System = {");
+    formatCounters(GetSystemCounters());
+
+    builder.AppendString("}, Small = {");
+    formatPerArenaCounters(GetSmallArenaCounters());
+
+    builder.AppendString("}, Large = {");
+    formatPerArenaCounters(GetLargeArenaCounters());
+
+    builder.AppendString("}, Huge = {");
+    formatCounters(GetHugeArenaCounters());
+
+    builder.AppendString("}");
+    return builder.Flush();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
