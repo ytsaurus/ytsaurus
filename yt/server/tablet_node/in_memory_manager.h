@@ -81,7 +81,7 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
     const NChunkClient::TReadSessionId& readSessionId,
     NNodeTrackerClient::TNodeMemoryTracker* memoryUsageTracker,
     const IInvokerPtr& compressionInvoker,
-    NConcurrency::TThroughputThrottlerConfigPtr throttlerConfig,
+    const NConcurrency::IThroughputThrottlerPtr& throttler,
     const NProfiling::TTagId& preloadTag = {});
 
 ////////////////////////////////////////////////////////////////////////////////
