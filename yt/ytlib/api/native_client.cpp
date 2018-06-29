@@ -3859,15 +3859,6 @@ private:
             operationId);
 
         if (DoesOperationsArchiveExist()) {
-            int version = DoGetOperationsArchiveVersion();
-            const int ExpectedArchiveVersion = 7;
-            if (version < ExpectedArchiveVersion) {
-                THROW_ERROR_EXCEPTION(
-                    "Failed to get operation: operations archive version is too old: expected >= %v, got %v",
-                    ExpectedArchiveVersion,
-                    version);
-            }
-
             try {
                 if (auto result = DoGetOperationFromArchive(operationId, deadline, options)) {
                     return result;
@@ -3949,12 +3940,6 @@ private:
 
     NJobTrackerClient::NProto::TJobSpec GetJobSpecFromArchive(const TJobId& jobId)
     {
-        int version = DoGetOperationsArchiveVersion();
-
-        if (version < 7) {
-            THROW_ERROR_EXCEPTION("Failed to get job input: operations archive version is too old: expected >= 7, got %v", version);
-        }
-
         auto nameTable = New<TNameTable>();
 
         TLookupRowsOptions lookupOptions;
@@ -4221,15 +4206,9 @@ private:
             return stderrRef;
         }
 
-        int version = DoGetOperationsArchiveVersion();
-
-        if (version >= 7) {
-            stderrRef = DoGetJobStderrFromArchive(operationId, jobId);
-            if (stderrRef) {
-                return stderrRef;
-            }
-        } else {
-            LOG_DEBUG("Operations archive version is too old: expected >= 7, got %v", version);
+        stderrRef = DoGetJobStderrFromArchive(operationId, jobId);
+        if (stderrRef) {
+            return stderrRef;
         }
 
         THROW_ERROR_EXCEPTION(NScheduler::EErrorCode::NoSuchJob, "Job stderr is not found")
@@ -4645,16 +4624,6 @@ private:
         std::vector<TOperation> archiveData;
 
         if (options.IncludeArchive && DoesOperationsArchiveExist()) {
-            int version = DoGetOperationsArchiveVersion();
-
-            if (options.Pool && version < 15) {
-                THROW_ERROR_EXCEPTION("Failed to get operation's pool: operations archive version is too old: expected >= 15, got %v", version);
-            }
-
-            if (version < 9) {
-                THROW_ERROR_EXCEPTION("Failed to get operation: operations archive version is too old: expected >= 9, got %v", version);
-            }
-
             std::vector<TString> itemsConditions;
             std::vector<TString> countsConditions;
             TString itemsSortDirection;
@@ -4705,7 +4674,7 @@ private:
                 1 + options.Limit);
 
             static const TString NullPoolName = "unknown";
-            auto poolColumnName = version < 15 ? "'" + NullPoolName + "'" : "pool";
+            auto poolColumnName = "pool";
 
             auto queryForCounts = Format(
                 "pool, user, state, type, sum(1) AS count FROM [%v] WHERE %v GROUP BY %v AS pool, authenticated_user AS user, state AS state, operation_type AS type",
