@@ -5017,6 +5017,7 @@ private:
         auto errorIndex = itemsQueryBuilder.AddSelectExpression("error");
         auto statisticsIndex = itemsQueryBuilder.AddSelectExpression("statistics");
         auto stderrSizeIndex = itemsQueryBuilder.AddSelectExpression("stderr_size");
+        auto hasSpecIndex = itemsQueryBuilder.AddSelectExpression("has_spec");
 
         auto operationIdExpression = Format(
             "(operation_id_hi, operation_id_lo) = (%vu, %vu)",
@@ -5180,6 +5181,10 @@ private:
 
                 if (row[stderrSizeIndex].Type != EValueType::Null) {
                     job.StderrSize = row[stderrSizeIndex].Data.Int64;
+                }
+
+                if (row[hasSpecIndex].Type != EValueType::Null) {
+                    job.HasSpec = row[hasSpecIndex].Data.Boolean;
                 }
 
                 if (row[errorIndex].Type != EValueType::Null) {
@@ -5382,6 +5387,7 @@ private:
                 if (failContextSize >= 0) {
                     job.FailContextSize = failContextSize;
                 }
+                job.HasSpec = true;
                 job.Error = attributes.FindYson("error");
                 job.BriefStatistics = attributes.FindYson("brief_statistics");
                 job.InputPaths = attributes.FindYson("input_paths");
