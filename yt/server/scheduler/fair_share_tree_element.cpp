@@ -2293,9 +2293,9 @@ TScheduleJobResultPtr TOperationElement::DoScheduleJob(
         auto jobLimits = GetHierarchicalResourceLimits(*context) + jobResourceDiscount;
         if (!Dominates(jobLimits, startDescriptor.ResourceLimits)) {
             const auto& jobId = scheduleJobResult->StartDescriptor->Id;
-            LOG_DEBUG("Aborting job with resource overcommit: %v > %v (JobId: %v, OperationId: %v)",
-                FormatResources(startDescriptor.ResourceLimits),
+            LOG_DEBUG("Aborting job with resource overcommit (JobId: %v, OperationId: %v, Limits: %v, JobResources: %v)",
                 FormatResources(jobLimits),
+                FormatResources(startDescriptor.ResourceLimits),
                 jobId,
                 OperationId_);
 
