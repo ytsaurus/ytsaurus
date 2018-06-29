@@ -6,3 +6,4 @@ SET(YT_INSIDE_ARCADIA no)
 
 SET(YT_ROOT ".")
 SET(YT_PYTHON_ROOT ".")
+SET(YT_YSON_BINDINGS_ROOT "python/yson-debian")
