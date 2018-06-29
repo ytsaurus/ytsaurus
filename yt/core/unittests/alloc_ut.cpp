@@ -1,69 +1,79 @@
 #include <yt/core/test_framework/framework.h>
 
-#include <yt/core/misc/checksum.h>
+#include <yt/core/alloc/alloc.h>
 
 namespace NYT {
+namespace NYTAlloc {
 namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TCrcTestCase
+template <class T, size_t N>
+TEnumIndexedVector<ssize_t, T> AggregateArenaCounters(const std::array<TEnumIndexedVector<ssize_t, T>, N>& counters)
 {
-    ui64 Iso;
-    ui64 Ecma;
-    ui64 Ours;
-    TString Data;
-};
-
-static std::vector<TCrcTestCase> Cases = {
-    {
-        0x0000000000000000, 0x0000000000000000, 0x0000000000000000,
-        ""
-    }, {
-        0x3420000000000000, 0x330284772e652b05, 0x74b42565ce6232d5,
-        "a"
-    }, {
-        0x36c4200000000000, 0xbc6573200e84b046, 0x5f02be5e81cf7b1c,
-        "ab"
-    }, {
-        0x3776c42000000000, 0x2cd8094a1a277627, 0xaadaac6d7d340c20,
-        "abc"
-    }, {
-        0x336776c420000000, 0x3c9d28596e5960ba, 0xd35b54234f7f70a0,
-        "abcd"
-    }, {
-        0x32d36776c4200000, 0x040bdf58fb0895f2, 0xe729d85f050fa861,
-        "abcde"
-    }, {
-        0x3002d36776c42000, 0xd08e9f8545a700f4, 0x4852bb31b666ae4f,
-        "abcdef"
-    }, {
-        0x31b002d36776c420, 0xec20a3a8cc710e66, 0xab31ee2e0fe39abb,
-        "abcdefg"
-    }, {
-        0xe21b002d36776c40, 0x67b4f30a647a0c59, 0x3dc543531acca62b,
-        "abcdefgh"
-    }, {
-        0x8b6e21b002d36776, 0x9966f6c89d56ef8e, 0x43c501e26fc35778,
-        "abcdefghi"
-    }, {
-        0x7f5b6e21b002d367, 0x32093a2ecd5773f4, 0x4cc4843d59c1373e,
-        "abcdefghij"
-    }, {
-        0xa7b9d53ea87eb82f, 0x561cc0cfa235ac68, 0x481ac76eee0d3ebd,
-        "There is no reason for any individual to have a computer in their home. -Ken Olsen, 1977"
-    },
-};
-
-TEST(TChecksumTest, Ours)
-{
-    for (size_t i = 0; i < Cases.size(); ++i) {
-        auto crc = GetChecksum(TRef::FromString(Cases[i].Data));
-        EXPECT_EQ(crc, Cases[i].Ours);
+    TEnumIndexedVector<ssize_t, T> result;
+    for (size_t index = 0; index < counters.size(); ++index) {
+        for (auto counter : TEnumTraits<T>::GetDomainValues()) {
+            result[counter] += counters[index][counter];
+        }
     }
+    return result;
 }
+
+class TYTAllocTest
+    : public ::testing::TestWithParam<TMemoryTag>
+{ };
+
+TEST_P(TYTAllocTest, LargeCounters)
+{
+    TMemoryTagGuard guard(GetParam());
+    constexpr auto N = 100_MB;
+    constexpr auto Eps = 1_MB;
+    auto total1 = GetTotalCounters()[ETotalCounter::BytesUsed];
+    auto largeTotal1 = AggregateArenaCounters(GetLargeArenaCounters())[ELargeArenaCounter::BytesUsed];
+    std::unique_ptr<char[]> holder(new char[N]);
+    auto total2 = GetTotalCounters()[ETotalCounter::BytesUsed];
+    auto largeTotal2 = AggregateArenaCounters(GetLargeArenaCounters())[ELargeArenaCounter::BytesUsed];
+    EXPECT_LE(std::abs(total2 - total1 - N), Eps);
+    EXPECT_LE(std::abs(largeTotal2 - largeTotal1 - N), Eps);
+    holder.reset();
+    auto total3 = GetTotalCounters()[ETotalCounter::BytesUsed];
+    auto largeTotal3 = AggregateArenaCounters(GetLargeArenaCounters())[ELargeArenaCounter::BytesUsed];
+    EXPECT_LE(std::abs(total3 - total1), Eps);
+    EXPECT_LE(std::abs(largeTotal3 - largeTotal1), Eps);
+}
+
+TEST_P(TYTAllocTest, HugeCounters)
+{
+    TMemoryTagGuard guard(GetParam());
+    constexpr auto N = 10_GB;
+    constexpr auto Eps = 1_MB;
+    auto total1 = GetTotalCounters()[ETotalCounter::BytesUsed];
+    auto hugeTotal1 = GetHugeCounters()[EHugeCounter::BytesUsed];
+    std::unique_ptr<char[]> holder(new char[N]);
+    auto total2 = GetTotalCounters()[ETotalCounter::BytesUsed];
+    auto hugeTotal2 = GetHugeCounters()[EHugeCounter::BytesUsed];
+    EXPECT_LE(std::abs(total2 - total1 - N), Eps);
+    EXPECT_LE(std::abs(hugeTotal2 - hugeTotal1 - N), Eps);
+    holder.reset();
+    auto total3 = GetTotalCounters()[ETotalCounter::BytesUsed];
+    auto hugeTotal3 = GetHugeCounters()[EHugeCounter::BytesUsed];
+    EXPECT_LE(std::abs(total3 - total1), Eps);
+    EXPECT_LE(std::abs(hugeTotal3 - hugeTotal1), Eps);
+}
+
+INSTANTIATE_TEST_CASE_P(
+    LargeCounters,
+    TYTAllocTest,
+    ::testing::Values(0, 1));
+
+INSTANTIATE_TEST_CASE_P(
+    HugeCounters,
+    TYTAllocTest,
+    ::testing::Values(0, 1));
 
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
+} // namespace NYTAlloc
 } // namespace NYT
