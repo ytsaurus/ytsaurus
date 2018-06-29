@@ -1355,42 +1355,6 @@ print(op.id)
         assert operation["state"] == "completed"
         assert operation["type"] == "map"
 
-    def test_list_operations_compatibility(self, yt_env):
-        if yt.config["backend"] == "native":
-            pytest.skip()
-
-        table = TEST_DIR + "/table"
-        yt.write_table(table, [{"x": "0"}])
-        yt.run_map("cat; echo 'AAA' >&2", table, table)
-
-        operations_old = yson.json_to_yson(make_request_with_retries("GET", url="http://{0}/api/v3/_list_operations".format(yt.config["proxy"]["url"])).json())
-        operations_new = yt.list_operations(enable_ui_mode=True)
-        del operations_old["timings"]
-        for op in operations_new["operations"]:
-            # TODO(asaitgalin): weight should always be presented in list operation response.
-            if "weight" in op.attributes:
-                op.attributes["weight"] = int(op.attributes["weight"])
-
-        assert operations_new == operations_old
-
-    #def test_get_operation_compatibility(self):
-    #    if yt.config["backend"] == "native":
-    #        pytest.skip()
-
-    #    table = TEST_DIR + "/table"
-    #    yt.write_table(table, [{"x": "0"}])
-    #    op = yt.run_map("cat; echo 'AAA' >&2", table, table)
-
-    #    operation_old = yson.json_to_yson(make_request_with_retries("GET", url="http://{0}/api/v3/_get_operation?id={1}".format(yt.config["proxy"]["url"], op.id)).json())
-    #    operation_new = yt.get_operation(op.id, attributes=["id"])
-    #
-    #    with open("/home/ignat/operation_old", "w") as fout:
-    #        yson.dump(operation_old, fout, yson_format="pretty")
-    #    with open("/home/ignat/operation_new", "w") as fout:
-    #        yson.dump(operation_new, fout, yson_format="pretty")
-
-    #    assert operation_old == operation_new
-
     def test_lazy_yson(self):
         def mapper(row):
             assert not isinstance(row, (YsonMap, dict))
