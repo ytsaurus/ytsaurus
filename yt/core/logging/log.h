@@ -60,7 +60,7 @@ public:
     explicit TLogger(const char* categoryName);
     TLogger(const TLogger& other) = default;
 
-    operator bool() const;
+    explicit operator bool() const;
 
     const TLoggingCategory* GetCategory() const;
     bool IsLevelEnabled(ELogLevel level) const;
