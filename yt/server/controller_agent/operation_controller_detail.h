@@ -1033,6 +1033,10 @@ private:
     void InitializeHistograms();
     void UpdateActualHistogram(const NJobTrackerClient::TStatistics& statistics);
 
+    virtual void OnExecNodesUpdated(
+        const TRefCountedExecNodeDescriptorMapPtr& oldExecNodes,
+        const TRefCountedExecNodeDescriptorMapPtr& newExecNodes);
+
     void GetExecNodesInformation();
     int GetExecNodeCount();
 
