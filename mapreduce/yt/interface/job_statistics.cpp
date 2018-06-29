@@ -180,6 +180,11 @@ TJobStatistics TJobStatistics::JobState(TVector<EJobState> filter) const
     return TJobStatistics(Data_, std::move(newFilter));
 }
 
+bool TJobStatistics::HasStatistics(TStringBuf name) const
+{
+    return Data_->Name2State2Type2Data.has(name);
+}
+
 TJobStatisticsEntry<i64> TJobStatistics::GetStatistics(TStringBuf name) const
 {
     return GetStatisticsAs<i64>(name);
@@ -193,7 +198,9 @@ TJobStatisticsEntry<i64> TJobStatistics::GetCustomStatistics(TStringBuf name) co
 
 TMaybe<TJobStatistics::TDataEntry> TJobStatistics::GetStatisticsImpl(TStringBuf name) const
 {
-    const auto& state2Type2Data = Data_->Name2State2Type2Data.at(name);
+    auto name2State2Type2DataIt = Data_->Name2State2Type2Data.find(name);
+    Y_ENSURE(name2State2Type2DataIt != Data_->Name2State2Type2Data.end(), "Statistics '" << name << "' are missing");
+    const auto& state2Type2Data = name2State2Type2DataIt->second;
 
     TMaybe<TDataEntry> result;
     auto aggregate = [&] (const TDataEntry& data) {

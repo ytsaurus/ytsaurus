@@ -64,10 +64,18 @@ public:
     TJobStatistics JobState(TVector<EJobState> filter) const;
 
     //
+    // Check that given statistics exist.
+    //
+    // Slash separated statistics name should be used e.g. "time/total" (like it appears in web interface).
+    bool HasStatistics(TStringBuf name) const;
+
+    //
     // Get statistics by name.
+    //
     // Slash separated statistics name should be used e.g. "time/total" (like it appears in web interface).
     //
-    // If statistics is missing returned value is empty (all fields are Nothing).
+    // If statistics is missing an exception is thrown. If because of filters
+    // no fields remain the returned value is empty (all fields are Nothing).
     //
     // In order to use GetStatisticsAs method, ConvertJobStatisticsEntry function must be defined.
     // (Library defines it for i64 and TDuration, user may define it for other types).

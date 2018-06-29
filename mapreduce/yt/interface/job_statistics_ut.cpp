@@ -49,6 +49,10 @@ Y_UNIT_TEST_SUITE(JobStatistics)
 
         TJobStatistics stat(NodeFromYsonString(input));
 
+        UNIT_ASSERT(stat.HasStatistics("data/output/0/uncompressed_data_size"));
+        UNIT_ASSERT(!stat.HasStatistics("nonexistent-statistics"));
+        UNIT_ASSERT_EXCEPTION_CONTAINS(stat.GetStatistics("BLAH-BLAH"), yexception, "Statistics");
+
         UNIT_ASSERT_VALUES_EQUAL(stat.GetStatistics("data/output/0/uncompressed_data_size").Max(), 130);
         UNIT_ASSERT_VALUES_EQUAL(stat.GetStatistics("data/output/0/uncompressed_data_size").Count(), 2);
         UNIT_ASSERT_VALUES_EQUAL(stat.GetStatistics("data/output/0/uncompressed_data_size").Min(), 42);
