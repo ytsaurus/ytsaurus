@@ -31,6 +31,11 @@ size_t YTGetSize(void* ptr);
 ////////////////////////////////////////////////////////////////////////////////
 // Configuration API
 
+// Calling these functions turns on periodic logging and profiling.
+// Once on, these cannot be disabled.
+void EnableLogging();
+void EnableProfiling();
+
 // For large blobs, YTAlloc keeps at least
 // max(LargeUnreclaimableBytes, LargeUnreclaimableCoeff * TotalLargeBytesUsed)
 // bytes of pooled (unreclaimable) memory.
@@ -46,14 +51,16 @@ DEFINE_ENUM(EBasicCounter,
     (BytesUsed)
 );
 
-using ETotalCounter = EBasicCounter;
 using ESystemCounter = EBasicCounter;
+using ETotalCounter = EBasicCounter;
+using ESmallCounter = EBasicCounter;
+using ELargeCounter = EBasicCounter;
 
 DEFINE_ENUM(ESmallArenaCounter,
     (PagesMapped)
     (BytesMapped)
-    (PagesActive)
-    (BytesActive)
+    (PagesCommitted)
+    (BytesCommitted)
 );
 
 DEFINE_ENUM(ELargeArenaCounter,
@@ -72,13 +79,13 @@ DEFINE_ENUM(ELargeArenaCounter,
     (BytesPopulated)
     (PagesReleased)
     (BytesReleased)
-    (PagesActive)
-    (BytesActive)
+    (PagesCommitted)
+    (BytesCommitted)
     (OverheadBytesReclaimed)
     (SpareBytesReclaimed)
 );
 
-DEFINE_ENUM(EHugeArenaCounter,
+DEFINE_ENUM(EHugeCounter,
     (BytesAllocated)
     (BytesFreed)
     (BytesUsed)
@@ -87,11 +94,14 @@ DEFINE_ENUM(EHugeArenaCounter,
     (BlobsUsed)
 );
 
-constexpr size_t SmallRankCount = 25;
-constexpr size_t LargeRankCount = 30;
-
 // Returns statistics for all user allocations.
 TEnumIndexedVector<ssize_t, ETotalCounter> GetTotalCounters();
+
+// Returns statistics for small allocations; these are included into total statistics.
+TEnumIndexedVector<ssize_t, ESmallCounter> GetSmallCounters();
+
+// Returns statistics for large allocations; these are included into total statistics.
+TEnumIndexedVector<ssize_t, ELargeCounter> GetLargeCounters();
 
 // Returns per-arena statistics for small allocations; these are included into total statistics.
 std::array<TEnumIndexedVector<ssize_t, ESmallArenaCounter>, SmallRankCount> GetSmallArenaCounters();
@@ -100,7 +110,7 @@ std::array<TEnumIndexedVector<ssize_t, ESmallArenaCounter>, SmallRankCount> GetS
 std::array<TEnumIndexedVector<ssize_t, ELargeArenaCounter>, LargeRankCount> GetLargeArenaCounters();
 
 // Returns statistics for huge allocations; these are included into total statistics.
-TEnumIndexedVector<ssize_t, EHugeArenaCounter> GetHugeArenaCounters();
+TEnumIndexedVector<ssize_t, EHugeCounter> GetHugeCounters();
 
 // Returns statistics for all system allocations; these are not included into total statistics.
 TEnumIndexedVector<ssize_t, ESystemCounter> GetSystemCounters();
