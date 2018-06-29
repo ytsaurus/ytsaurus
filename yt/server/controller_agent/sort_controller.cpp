@@ -396,19 +396,7 @@ protected:
             Persist(context, Controller);
             Persist(context, NodeIdToAdjustedDataWeight);
             Persist(context, AdjustedScheduledDataWeight);
-            if (context.IsLoad() || context.GetVersion() == 300008) {
-                i64 _;
-                Persist(context, _);
-            }
-            if (context.IsSave() || context.GetVersion() >= 300009) {
-                Persist(context, DataBalancingViolationConsecutiveCount_);
-            }
-
-            // COMPAT(psushin).
-            if (context.IsLoad() && context.GetVersion() < 200926) {
-                i64 _;
-                Persist(context, _);
-            }
+            Persist(context, DataBalancingViolationConsecutiveCount_);
         }
 
         virtual bool SupportsInputPathYson() const override
