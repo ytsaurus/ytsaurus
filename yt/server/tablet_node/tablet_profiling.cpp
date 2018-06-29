@@ -45,14 +45,6 @@ TTagIdList AddUserTag(const TString& user, TTagIdList tags)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSimpleProfilerTraitBase::TKey TSimpleProfilerTraitBase::ToKey(const TTagIdList& list)
-{
-    // list.back() is user tag.
-    return list.back();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 TListProfilerTraitBase::TKey TListProfilerTraitBase::ToKey(const TTagIdList& list)
 {
     return list;
@@ -73,7 +65,7 @@ struct TChunkWriteCounters
     TMonotonicCounter CompressionCpuTime;
 };
 
-using TChunkWriteProfilerTrait = TListProfilerTrait<TChunkWriteCounters>;
+using TChunkWriteProfilerTrait = TTabletProfilerTrait<TChunkWriteCounters>;
 
 void ProfileChunkWriter(
     TTabletSnapshotPtr tabletSnapshot,
@@ -109,7 +101,7 @@ struct TChunkReadCounters
     TChunkReaderStatisticsCounters ChunkReaderStatisticsCounters;
 };
 
-using TChunkReadProfilerTrait = TListProfilerTrait<TChunkReadCounters>;
+using TChunkReadProfilerTrait = TTabletProfilerTrait<TChunkReadCounters>;
 
 void ProfileChunkReader(
     TTabletSnapshotPtr tabletSnapshot,
