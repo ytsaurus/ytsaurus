@@ -64,13 +64,15 @@ TString NormalizeHttpProxyUrl(TString url)
 std::vector<TString> GetRpcProxiesFromHttp(
     const NHttp::TClientConfigPtr& config,
     const TString& proxyUrl,
-    const TString& oauthToken,
+    const TNullable<TString>& oauthToken,
     bool useCypress,
     const TNullable<TString>& role)
 {
     auto client = CreateClient(config, TTcpDispatcher::Get()->GetXferPoller());
     auto headers = New<THeaders>();
-    headers->Add("Authorization", "OAuth " + oauthToken);
+    if (oauthToken) {
+        headers->Add("Authorization", "OAuth " + *oauthToken);
+    }
     headers->Add("X-YT-Header-Format", "<format=text>yson");
 
     if (useCypress) {
@@ -275,18 +277,15 @@ std::vector<TString> TConnection::DiscoverProxiesByRpc(const IChannelPtr& channe
 std::vector<TString> TConnection::DiscoverProxiesByHttp(const TClientOptions& options)
 {
     try {
-        if (!options.Token) {
-            THROW_ERROR_EXCEPTION("Missing token in client options");
-        }
         return GetRpcProxiesFromHttp(
             Config_->HttpClient,
             NormalizeHttpProxyUrl(*Config_->ClusterUrl),
-            *options.Token,
+            options.Token,
             Config_->DiscoverProxiesFromCypress,
             Config_->ProxyRole);
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error discovering proxies from HTTP")
-            << TError(ex);
+            << ex;
     }
 }
 
