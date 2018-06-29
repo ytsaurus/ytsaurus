@@ -384,10 +384,11 @@ public:
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
         auto operationElement = GetOperationElement(state->GetHost()->GetId());
+        auto usage = operationElement->GetResourceUsage();
         operationElement->Disable();
 
         auto* parent = operationElement->GetParent();
-        parent->IncreaseResourceUsage(-operationElement->GetResourceUsage());
+        parent->IncreaseResourceUsage(-usage);
         parent->DisableChild(operationElement);
     }
 
