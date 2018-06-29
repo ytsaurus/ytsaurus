@@ -195,14 +195,48 @@ private:
             return;
         }
 
-        FillActiveTabletActions();
+        PROFILE_TIMING("balance_all") {
+            FillActiveTabletActions();
 
-        CurrentTime_ = TruncatedNow();
+            CurrentTime_ = TruncatedNow();
 
-        BalanceTablets();
-        BalanceTabletCells();
+            const auto& tabletManager = Bootstrap_->GetTabletManager();
+            THashSet<TTabletCellBundleId> bundlesForCellBalancingOnNextIteration;
+            for (const auto& bundleAndId : tabletManager->TabletCellBundles()) {
+                const auto& bundleId = bundleAndId.first;
+                const auto* bundle = bundleAndId.second;
 
-        LastBalancingTime_ = CurrentTime_;
+                if (BundlesPendingCellBalancing_.has(bundleId) && !BundlesWithActiveActions_.has(bundle)) {
+                    LOG_DEBUG("Balancing for bundle (Bundle: %v)",
+                        bundle->GetName());
+                    ReassignInMemoryTablets(bundle);
+                } else if (DidBundleBalancingTimeHappen(bundle)) {
+                    LOG_DEBUG("Balancing tablets for bundle (Bundle: %v)",
+                        bundle->GetName());
+                    BalanceTablets(bundle);
+                    bundlesForCellBalancingOnNextIteration.insert(bundleId);
+                }
+
+                if (BundlesPendingCellBalancing_.has(bundleId) && BundlesWithActiveActions_.has(bundle)) {
+                    LOG_DEBUG(
+                        "Tablet balancer did not balance cells because bundle participates in action (Bundle: %v)",
+                        bundle->GetName());
+                    bundlesForCellBalancingOnNextIteration.insert(bundleId);
+                }
+            }
+
+            BundlesPendingCellBalancing_ = std::move(bundlesForCellBalancingOnNextIteration);
+            TouchedTablets_.clear();
+            PurgeDeletedBundles();
+
+            size_t totalSize = 0;
+            for (const auto& bundleQueue : TabletIdQueue_) {
+                totalSize += bundleQueue.second.size();
+            }
+            Profiler.Update(QueueSizeCounter_, totalSize);
+
+            LastBalancingTime_ = CurrentTime_;
+        }
     }
 
     void FillActiveTabletActions()
@@ -223,22 +257,6 @@ private:
                 }
             }
         }
-    }
-
-    void BalanceTabletCells()
-    {
-        const auto& tabletManager = Bootstrap_->GetTabletManager();
-        const auto& cells = tabletManager->TabletCells();
-
-        if (cells.size() < 2) {
-            return;
-        }
-
-        PROFILE_TIMING("/balance_cells_memory") {
-            ReassignInMemoryTablets();
-        }
-
-        // TODO(savrus) balance other tablets.
     }
 
     bool DidBundleBalancingTimeHappen(const TTabletCellBundle* bundle)
@@ -276,6 +294,11 @@ private:
         }
 
         const auto& tabletManager = Bootstrap_->GetTabletManager();
+
+        if (tabletManager->TabletCells().size() < 2) {
+            return;
+        }
+
         std::vector<const TTabletCell*> cells;
 
         for (const auto& pair : tabletManager->TabletCells()) {
@@ -377,42 +400,13 @@ private:
             {bundle->GetProfilingTag()});
     }
 
-    void ReassignInMemoryTablets()
+    void BalanceTablets(const TTabletCellBundle* bundle)
     {
-        const auto& tabletManager = Bootstrap_->GetTabletManager();
-        THashSet<TTabletCellBundleId> failedToBalance;
-        for (const auto& bundleId : BundlesPendingCellBalancing_) {
-            auto bundle = tabletManager->FindTabletCellBundle(bundleId);
-            if (bundle && IsObjectAlive(bundle)) {
-                if (BundlesWithActiveActions_.has(bundle)) {
-                    LOG_DEBUG("Tablet balancer did not balance cells because bundle participates in action (Bundle: %v)",
-                        bundle->GetName());
-                    failedToBalance.insert(bundleId);
-                } else {
-                    ReassignInMemoryTablets(bundle);
-                }
-            }
+        if (!DidBundleBalancingTimeHappen(bundle)) {
+            return;
         }
-        BundlesPendingCellBalancing_ = std::move(failedToBalance);
-    }
+        BundlesPendingCellBalancing_.insert(bundle->GetId());
 
-    void BalanceTablets()
-    {
-        PROFILE_TIMING("/balance_tablets") {
-            DoBalanceTablets();
-        }
-
-        TouchedTablets_.clear();
-
-        size_t totalSize = 0;
-        for (const auto& bundleQueue : TabletIdQueue_) {
-            totalSize += bundleQueue.second.size();
-        }
-        Profiler.Update(QueueSizeCounter_, totalSize);
-    }
-
-    void DoBalanceTablets(const TTabletCellBundle* bundle)
-    {
         if (!TabletIdQueue_.has(bundle->GetId())) {
             return;
         }
@@ -443,13 +437,8 @@ private:
             if (size < bounds.MinTabletSize || size > bounds.MaxTabletSize) {
                 if (MergeSplitTablet(tablet, bounds)) {
                     ++actionCount;
-                    TablesWithActiveActions_.insert(tablet->GetTable());
                 }
             }
-        }
-
-        if (actionCount > 0) {
-            BundlesWithActiveActions_.insert(bundle);
         }
 
         Profiler.Enqueue(
@@ -457,31 +446,6 @@ private:
             actionCount,
             NProfiling::EMetricType::Gauge,
             {bundle->GetProfilingTag()});
-    }
-
-    void DoBalanceTablets()
-    {
-        // TODO(savrus) limit duration of single execution.
-        const auto& tabletManager = Bootstrap_->GetTabletManager();
-
-        for (const auto& bundle : tabletManager->TabletCellBundles()) {
-            if (DidBundleBalancingTimeHappen(bundle.second)) {
-                BundlesPendingCellBalancing_.insert(bundle.first);
-
-                if (!BundlesWithActiveActions_.has(bundle.second)) {
-                    DoBalanceTablets(bundle.second);
-                }
-            }
-        }
-        std::vector<TTabletCellBundleId> toErase;
-        for (const auto& it : TabletIdQueue_) {
-            if (!tabletManager->FindTabletCellBundle(it.first)) {
-                toErase.push_back(it.first);
-            }
-        }
-        for (const auto& bundleId : toErase) {
-            TabletIdQueue_.erase(bundleId);
-        }
     }
 
     i64 GetTabletSize(TTablet* tablet)
@@ -572,6 +536,20 @@ private:
             ->CommitAndLog(Logger);
 
         return true;
+    }
+
+    void PurgeDeletedBundles()
+    {
+        const auto& tabletManager = Bootstrap_->GetTabletManager();
+        std::vector<TTabletCellBundleId> toErase;
+        for (const auto& it : TabletIdQueue_) {
+            if (!tabletManager->FindTabletCellBundle(it.first)) {
+                toErase.push_back(it.first);
+            }
+        }
+        for (const auto& bundleId : toErase) {
+            TabletIdQueue_.erase(bundleId);
+        }
     }
 
     TTabletSizeConfig GetTabletSizeConfig(TTablet* tablet)
