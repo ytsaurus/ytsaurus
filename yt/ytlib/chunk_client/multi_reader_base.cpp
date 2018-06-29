@@ -151,7 +151,18 @@ void TMultiReaderBase::DoOpenReader(int index)
     if (!error.IsOK()) {
         if (reader) {
             RegisterFailedReader(reader);
+        } else {
+            const auto& descriptor = ReaderFactories_[index]->GetDataSliceDescriptor();
+            std::vector<TChunkId> chunkIds;
+            for (const auto& chunkSpec : descriptor.ChunkSpecs) {
+                chunkIds.push_back(FromProto<TChunkId>(chunkSpec.chunk_id()));
+            }
+            LOG_WARNING("Failed to open reader (Index: %v, ChunkIds: %v)", index, chunkIds);
+
+            TGuard<TSpinLock> guard(FailedChunksLock_);
+            FailedChunks_.insert(chunkIds.begin(), chunkIds.end());
         }
+
         CompletionError_.TrySet(error);
     }
 
