@@ -247,11 +247,11 @@ public:
             if (dataWeightRatio < 1.0 / 2) {
                 // This means that uncompressed data size is larger than 2x data weight,
                 // which may happen for very sparse data. Than, adjust data weight accordingly.
-                dataWeightPerJob = std::max(static_cast<i64>(dataWeightPerJob * dataWeightRatio * 2), (i64)1);
+                dataWeightPerJob = std::max<i64>(dataWeightPerJob * dataWeightRatio * 2, 1);
             }
             JobCount_ = DivCeil(InputDataWeight_, dataWeightPerJob);
         } else {
-            i64 dataWeightPerJob = Spec_->JobIO->TableWriter->DesiredChunkSize / compressionRatio;
+            i64 dataWeightPerJob = std::max<i64>(Spec_->JobIO->TableWriter->DesiredChunkSize / compressionRatio, 1);
 
             if (dataWeightPerJob / dataWeightRatio > Options_->DataWeightPerJob) {
                 // This means that compression ration w.r.t data weight is very small,
