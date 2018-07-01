@@ -2891,10 +2891,14 @@ private:
         THashMap<TString, TString> pools;
 
         for (const auto& treeId : allTrees) {
+            TString pool;
             auto optionsIt = runtimeParams->SchedulingOptionsPerPoolTree.find(treeId);
-            YCHECK(optionsIt != runtimeParams->SchedulingOptionsPerPoolTree.end());
-            YCHECK(optionsIt->second->Pool.HasValue());
-            pools.emplace(treeId, optionsIt->second->Pool.Get());
+            if (optionsIt != runtimeParams->SchedulingOptionsPerPoolTree.end() && optionsIt->second->Pool) {
+                pool = optionsIt->second->Pool.Get();
+            } else {
+                pool = operation->GetAuthenticatedUser();
+            }
+            pools.emplace(treeId, pool);
         }
 
         return pools;
