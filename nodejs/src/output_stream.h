@@ -21,7 +21,7 @@ class TOutputStreamWrap
 {
 protected:
     TOutputStreamWrap(ui64 watermark);
-    ~TOutputStreamWrap() throw();
+    ~TOutputStreamWrap();
 
 public:
     static v8::Persistent<v8::FunctionTemplate> ConstructorTemplate;

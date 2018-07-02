@@ -64,7 +64,7 @@ TTableOutput::TTableOutput(std::unique_ptr<IParser> parser)
     : Parser_(std::move(parser))
 { }
 
-TTableOutput::~TTableOutput() throw() = default;
+TTableOutput::~TTableOutput() = default;
 
 void TTableOutput::DoWrite(const void* buf, size_t len)
 {
