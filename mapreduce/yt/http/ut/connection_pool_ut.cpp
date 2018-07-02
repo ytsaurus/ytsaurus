@@ -66,7 +66,7 @@ public:
         : Func(func)
     { }
 
-    virtual void* ThreadProc() throw () {
+    virtual void* ThreadProc() noexcept {
         Func();
         return nullptr;
     }
