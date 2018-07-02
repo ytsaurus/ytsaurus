@@ -414,6 +414,7 @@ TFuture<void> TClientBase::ConcatenateNodes(
     req->set_dst_path(dstPath);
     req->set_append(options.Append);
     ToProto(req->mutable_transactional_options(), options);
+    // TODO(babenko)
     // ToProto(req->mutable_prerequisite_options(), options);
     ToProto(req->mutable_mutating_options(), options);
 
