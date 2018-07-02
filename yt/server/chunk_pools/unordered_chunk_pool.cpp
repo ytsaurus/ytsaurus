@@ -111,6 +111,7 @@ public:
 
         auto cookie = InputCookieToInternalCookies_.size();
         InputCookieToInternalCookies_.emplace_back();
+        InputCookieIsSuspended_.emplace_back(false);
 
         for (const auto& dataSlice : stripe->DataSlices) {
             AddDataSlice(dataSlice, cookie);
@@ -130,51 +131,65 @@ public:
 
     virtual void Suspend(IChunkPoolInput::TCookie inputCookie) override
     {
+        YCHECK(!InputCookieIsSuspended_[inputCookie]);
+        InputCookieIsSuspended_[inputCookie] = true;
         for (auto cookie : InputCookieToInternalCookies_[inputCookie]) {
-            auto& suspendableStripe = Stripes[cookie];
-            suspendableStripe.Suspend();
+            DoSuspend(cookie);
+        }
+    }
 
-            auto outputCookie = suspendableStripe.GetExtractedCookie();
-            if (outputCookie == IChunkPoolOutput::NullCookie) {
-                Unregister(cookie);
-                SuspendedDataWeight += suspendableStripe.GetStatistics().DataWeight;
-            } else {
-                auto it = ExtractedLists.find(outputCookie);
-                YCHECK(it != ExtractedLists.end());
-                const auto& extractedStripeList = it->second;
+    void DoSuspend(IChunkPoolInput::TCookie cookie)
+    {
+        auto& suspendableStripe = Stripes[cookie];
+        suspendableStripe.Suspend();
 
-                if (LostCookies.find(outputCookie) != LostCookies.end() &&
-                    extractedStripeList->UnavailableStripeCount == 0)
-                {
-                    ++UnavailableLostCookieCount;
-                }
-                ++extractedStripeList->UnavailableStripeCount;
+        auto outputCookie = suspendableStripe.GetExtractedCookie();
+        if (outputCookie == IChunkPoolOutput::NullCookie) {
+            Unregister(cookie);
+            SuspendedDataWeight += suspendableStripe.GetStatistics().DataWeight;
+        } else {
+            auto it = ExtractedLists.find(outputCookie);
+            YCHECK(it != ExtractedLists.end());
+            const auto& extractedStripeList = it->second;
+
+            if (LostCookies.find(outputCookie) != LostCookies.end() &&
+                extractedStripeList->UnavailableStripeCount == 0)
+            {
+                ++UnavailableLostCookieCount;
             }
+            ++extractedStripeList->UnavailableStripeCount;
         }
     }
 
     virtual void Resume(IChunkPoolInput::TCookie inputCookie) override
     {
+        YCHECK(InputCookieIsSuspended_[inputCookie]);
+        InputCookieIsSuspended_[inputCookie] = false;
         for (auto cookie : InputCookieToInternalCookies_[inputCookie]) {
-            auto& suspendableStripe = Stripes[cookie];
-            suspendableStripe.Resume();
+            DoResume(cookie);
+        }
+    }
 
-            auto outputCookie = suspendableStripe.GetExtractedCookie();
-            if (outputCookie == IChunkPoolOutput::NullCookie) {
-                Register(cookie);
-                SuspendedDataWeight -= suspendableStripe.GetStatistics().DataWeight;
-                YCHECK(SuspendedDataWeight >= 0);
-            } else {
-                auto it = ExtractedLists.find(outputCookie);
-                YCHECK(it != ExtractedLists.end());
-                const auto& extractedStripeList = it->second;
-                --extractedStripeList->UnavailableStripeCount;
+    void DoResume(IChunkPoolInput::TCookie cookie)
+    {
+        auto& suspendableStripe = Stripes[cookie];
+        suspendableStripe.Resume();
 
-                if (LostCookies.find(outputCookie) != LostCookies.end() &&
-                    extractedStripeList->UnavailableStripeCount == 0)
-                {
-                    --UnavailableLostCookieCount;
-                }
+        auto outputCookie = suspendableStripe.GetExtractedCookie();
+        if (outputCookie == IChunkPoolOutput::NullCookie) {
+            Register(cookie);
+            SuspendedDataWeight -= suspendableStripe.GetStatistics().DataWeight;
+            YCHECK(SuspendedDataWeight >= 0);
+        } else {
+            auto it = ExtractedLists.find(outputCookie);
+            YCHECK(it != ExtractedLists.end());
+            const auto& extractedStripeList = it->second;
+            --extractedStripeList->UnavailableStripeCount;
+
+            if (LostCookies.find(outputCookie) != LostCookies.end() &&
+                extractedStripeList->UnavailableStripeCount == 0)
+            {
+                --UnavailableLostCookieCount;
             }
         }
     }
@@ -477,6 +492,7 @@ public:
         Persist(context, OperationId_);
         Persist(context, Task_);
         Persist(context, InputCookieToInternalCookies_);
+        Persist(context, InputCookieIsSuspended_);
         Persist(context, Stripes);
         Persist(context, JobSizeConstraints_);
         Persist(context, JobSizeAdjuster);
@@ -516,6 +532,9 @@ private:
     //! stripe cookies that are obtained by slicing the input stripes.
     std::vector<std::vector<int>> InputCookieToInternalCookies_;
     std::vector<TSuspendableStripe> Stripes;
+    // char is used instead of bool because std::vector<bool> is not currently persistable,
+    // and I am too lazy to fix that.
+    std::vector<char> InputCookieIsSuspended_;
 
     IJobSizeConstraintsPtr JobSizeConstraints_;
     std::unique_ptr<IJobSizeAdjuster> JobSizeAdjuster;
@@ -645,14 +664,17 @@ private:
     {
         int internalCookie = Stripes.size();
 
+        bool suspended = false;
         for (const auto& dataSlice : stripe->DataSlices) {
             YCHECK(dataSlice->Tag);
             auto inputCookie = *dataSlice->Tag;
             InputCookieToInternalCookies_[inputCookie].emplace_back(internalCookie);
+            suspended |= InputCookieIsSuspended_[inputCookie];
         }
 
         ++PendingStripeCount;
         TSuspendableStripe suspendableStripe(stripe);
+
         Stripes.push_back(suspendableStripe);
 
         DataWeightCounter->Increment(suspendableStripe.GetStatistics().DataWeight);
@@ -665,6 +687,10 @@ private:
             AddSolid(internalCookie);
         } else {
             Register(internalCookie);
+        }
+
+        if (suspended) {
+            DoSuspend(internalCookie);
         }
     }
 

@@ -51,7 +51,7 @@ public:
             // blackbox requires that parameter anyway.
             userIP = LocalUserIP;
         }
-        
+
         auto tokenMD5 = TMD5Hasher().Append(token).GetHexDigestUpper();
         LOG_DEBUG("Authenticating user with token via Blackbox (TokenMD5: %v, UserIP: %v)",
             tokenMD5,
