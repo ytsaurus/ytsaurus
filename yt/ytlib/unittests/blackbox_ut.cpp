@@ -368,13 +368,13 @@ protected:
     TFuture<TAuthenticationResult> Authenticate(
         const TString& sessionId,
         const TString& sslSessionId,
-        const TString& host,
+        const TString& domain,
         const TString& userIP)
     {
         TCookieCredentials credentials;
         credentials.SessionId = sessionId;
         credentials.SslSessionId = sslSessionId;
-        credentials.Host = host;
+        credentials.Domain = domain;
         credentials.UserIP = NNet::TNetworkAddress::Parse(userIP);
         return Authenticator_->Authenticate(credentials);
     }
