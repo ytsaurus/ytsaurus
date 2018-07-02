@@ -144,18 +144,10 @@ public:
     //! How often min needed resources for jobs are retrieved from controller.
     TDuration MinNeededResourcesUpdatePeriod;
 
-    //! Limit on number of running operations in cluster.
-    int MaxRunningOperationCount;
     //! Limit on number of operations in cluster.
     int MaxOperationCount;
 
     TFairShareStrategyConfig();
-
-private:
-    //! COMPAT
-    bool EnableOperationsProfiling;
-    TSchedulingTagFilter MainNodesFilter;
-    TDuration TotalResourceLimitsConsiderDelay;
 };
 
 DEFINE_REFCOUNTED_TYPE(TFairShareStrategyConfig)
@@ -269,12 +261,8 @@ public:
 
     TDuration AlertsUpdatePeriod;
 
-    TDuration NodeShardsUpdatePeriod;
-
     //! All update and completed jobs submitted to strategy with at least such frequency.
     TDuration NodeShardSubmitJobsToStrategyPeriod;
-
-    TDuration ResourceDemandSanityCheckPeriod;
 
     TDuration LockTransactionTimeout;
 
