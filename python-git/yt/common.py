@@ -398,12 +398,12 @@ def is_process_alive(pid):
 
 def guid_to_parts(guid):
     id_parts = guid.split("-")
-    id_hi = long(id_parts[2], 16) << 32 | int(id_parts[3], 16)
-    id_lo = long(id_parts[0], 16) << 32 | int(id_parts[1], 16)
+    id_hi = int(id_parts[2], 16) << 32 | int(id_parts[3], 16)
+    id_lo = int(id_parts[0], 16) << 32 | int(id_parts[1], 16)
     return id_hi, id_lo
 
 def parts_to_guid(id_hi, id_lo):
-    guid = long(id_lo) << 64 | id_hi
+    guid = id_lo << 64 | id_hi
     mask = 0xFFFFFFFF
 
     parts = []
