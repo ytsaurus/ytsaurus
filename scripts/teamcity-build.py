@@ -62,6 +62,57 @@ def process_core_dumps(options, suite_name, suite_path):
 
     return find_core_dumps_with_report(suite_name, search_paths, artifacts, sandbox_archive)
 
+def disable_for_ya(func):
+    def wrapper_function(options, build_context):
+        if options.build_system == "ya":
+            teamcity_message("Step {0} is not supported for ya build system yet".format(func.__name__))
+            return
+        func(options, build_context)
+    return wrapper_function
+
+def get_bin_dir(options):
+    return os.path.join(options.working_directory, "bin")
+
+def get_output_dir(options):
+    return os.path.join(options.working_directory, "output")
+
+def get_ya_cache_dir(options):
+    ya_cache = os.environ.get("YA_CACHE_DIR", None)
+    if ya_cache is None:
+        ya_cache = os.path.join(options.working_directory, "ya_cache")
+    return ya_cache
+
+def run_yall(args, options, mkdirs=False, env=None):
+    assert options.build_system == "ya"
+    yall = os.path.join(options.checkout_directory, "yall")
+
+    ya_cache = get_ya_cache_dir(options)
+
+    output_dir = get_output_dir(options)
+    bin_dir = get_bin_dir(options)
+
+    if mkdirs:
+        mkdirp(ya_cache)
+        mkdirp(output_dir)
+        mkdirp(bin_dir)
+
+    run_env = {
+        "YA_CACHE_DIR": ya_cache,
+    }
+
+    if env is not None:
+        run_env.update(env)
+
+    run([yall,
+         "-T",
+         "--build", options.ya_build_type,
+         "--no-src-links",
+         "--output", output_dir,
+         "--install", bin_dir,
+        ] + args,
+        cwd=options.checkout_directory,
+        env=run_env)
+
 @build_step
 def prepare(options, build_context):
     os.environ["LANG"] = "en_US.UTF-8"
@@ -113,6 +164,12 @@ def prepare(options, build_context):
     # options.use_lto = (options.type != "Debug")
     options.use_lto = False
 
+    options.ya_build_type = {
+        "Debug": "debug",
+        "Release": "release",
+        "RelWithDebInfo": "release",
+    }[options.type]
+
     if os.path.exists(options.working_directory) and options.clean_working_directory:
         teamcity_message("Cleaning working directory...", status="WARNING")
         rmtree(options.working_directory)
@@ -132,7 +189,8 @@ def prepare(options, build_context):
 
     cleanup_cgroups()
 
-    clear_system_tmp()
+    if options.clear_system_tmp:
+        clear_system_tmp()
 
     yt_processes_cleanup()
 
@@ -181,31 +239,41 @@ def _configure(options, build_context, build_directory, use_asan=False, build_se
 
 @build_step
 def configure(options, build_context):
-    if options.use_asan:
-        _configure(options, build_context, options.working_directory, use_asan=False, build_server=False, build_tests=False)
-        _configure(options, build_context, options.asan_build_directory, use_asan=True, build_server=True, build_tests=True)
+    if options.build_system == "cmake":
+        if options.use_asan:
+            _configure(options, build_context, options.working_directory, use_asan=False, build_server=False, build_tests=False)
+            _configure(options, build_context, options.asan_build_directory, use_asan=True, build_server=True, build_tests=True)
+        else:
+            _configure(options, build_context, options.working_directory)
     else:
-        _configure(options, build_context, options.working_directory)
+        assert options.build_system == "ya"
+        teamcity_message("ya does not require configuration")
 
 @build_step
 def build(options, build_context):
     cpus = int(os.sysconf("SC_NPROCESSORS_ONLN"))
-    run(["make", "-j", str(cpus)], cwd=options.working_directory, silent_stdout=True)
-    if options.use_asan:
-        run(["make", "-j", str(cpus)], cwd=options.asan_build_directory, silent_stdout=True)
-        run(["cp"] +
-            glob.glob(os.path.join(options.asan_build_directory, "bin", "ytserver-*")) +
-            glob.glob(os.path.join(options.asan_build_directory, "bin", "unittester-*")) +
-            [os.path.join(options.working_directory, "bin")])
+    if options.build_system == "cmake":
+        run(["make", "-j", str(cpus)], cwd=options.working_directory, silent_stdout=True)
+        if options.use_asan:
+            run(["make", "-j", str(cpus)], cwd=options.asan_build_directory, silent_stdout=True)
+            run(["cp"] +
+                glob.glob(os.path.join(options.asan_build_directory, "bin", "ytserver-*")) +
+                glob.glob(os.path.join(options.asan_build_directory, "bin", "unittester-*")) +
+                [get_bin_dir(options)])
+    else:
+        assert options.build_system == "ya"
+        run_yall(["--threads", str(cpus)], options, mkdirs=True)
 
 @build_step
+@disable_for_ya
 def set_suid_bit(options, build_context):
     for binary in ["ytserver-node", "ytserver-exec", "ytserver-job-proxy", "ytserver-tools"]:
-        path = "{0}/bin/{1}".format(options.working_directory, binary)
+        path = os.path.join(get_bin_dir(options), binary)
         run(["sudo", "chown", "root", path])
         run(["sudo", "chmod", "4755", path])
 
 @build_step
+@disable_for_ya
 def import_yt_wrapper(options, build_context):
     src_root = os.path.dirname(os.path.dirname(__file__))
     sys.path.insert(0, os.path.join(src_root, "python"))
@@ -302,6 +370,7 @@ def share_packages(options, build_context):
         teamcity_message("Failed to share packages via locke and sandbox - {0}".format(err), "WARNING")
 
 @build_step
+@disable_for_ya
 def package(options, build_context):
     if not options.package:
         return
@@ -331,6 +400,7 @@ def package(options, build_context):
                 teamcity_interact("setParameter", name="yt.package_uploaded." + repository, value=1)
 
 @build_step
+@disable_for_ya
 def run_prepare(options, build_context):
     nodejs_source = os.path.join(options.checkout_directory, "yt", "nodejs")
     nodejs_build = os.path.join(options.working_directory, "yt", "nodejs")
@@ -349,6 +419,7 @@ def run_prepare(options, build_context):
     run(["ln", "-s", nodejs_source, link_path])
 
 @build_step
+@disable_for_ya
 def run_sandbox_upload(options, build_context):
     if not options.package or sys.version_info < (2, 7):
         return
@@ -362,7 +433,7 @@ def run_sandbox_upload(options, build_context):
     # {working_directory}/bin contains lots of extra binaries,
     # filter daemon binaries by prefix "ytserver-"
 
-    source_binary_root = os.path.join(options.working_directory, "bin")
+    source_binary_root = get_bin_dir(options)
     processed_files = set()
     filename_prefix_whitelist = ["ytserver-", "ypserver-"]
     for filename in os.listdir(source_binary_root):
@@ -465,6 +536,7 @@ def run_sandbox_upload(options, build_context):
     teamcity_interact("buildStatus", text=status)
 
 @build_step
+@disable_for_ya
 def run_unit_tests(options, build_context):
     if options.disable_tests:
         teamcity_message("Skipping unit tests since tests are disabled")
@@ -474,7 +546,7 @@ def run_unit_tests(options, build_context):
     sandbox_archive = os.path.join(options.failed_tests_path,
         "__".join([options.btid, options.build_number, "unit_tests"]))
 
-    all_unittests = fnmatch.filter(os.listdir(os.path.join(options.working_directory, "bin")), "unittester*")
+    all_unittests = fnmatch.filter(os.listdir(get_bin_dir(options)), "unittester*")
 
     mkdirp(sandbox_current)
     try:
@@ -485,7 +557,7 @@ def run_unit_tests(options, build_context):
                 "--return-child-result",
                 "--command={0}/scripts/teamcity-build/teamcity-gdb-script".format(options.checkout_directory),
                 "--args",
-                os.path.join(options.working_directory, "bin", unittest_binary),
+                os.path.join(get_bin_dir(options), unittest_binary),
                 "--gtest_color=no",
                 "--gtest_death_test_style=threadsafe",
                 "--gtest_output=xml:" + os.path.join(options.working_directory, "gtest_" + unittest_binary + ".xml")],
@@ -497,7 +569,7 @@ def run_unit_tests(options, build_context):
         copytree(sandbox_current, sandbox_archive)
         for unittest_binary in all_unittests:
             shutil.copy2(
-                os.path.join(options.working_directory, "bin", unittest_binary),
+                os.path.join(get_bin_dir(options), unittest_binary),
                 os.path.join(sandbox_archive, unittest_binary))
 
         raise StepFailedWithNonCriticalError(str(err))
@@ -507,6 +579,7 @@ def run_unit_tests(options, build_context):
 
 
 @build_step
+@disable_for_ya
 def run_javascript_tests(options, build_context):
     if not options.build_enable_nodejs or options.disable_tests:
         return
@@ -541,7 +614,7 @@ def run_pytest(options, suite_name, suite_path, pytest_args=None, env=None):
     if env is None:
         env = {}
 
-    env["PATH"] = "{0}/bin:{0}/yt/nodejs:/usr/sbin:{1}".format(options.working_directory, os.environ.get("PATH", ""))
+    env["PATH"] = "{0}:{1}/yt/nodejs:/usr/sbin:{2}".format(get_bin_dir(options), options.working_directory, os.environ.get("PATH", ""))
     env["PYTHONPATH"] = "{0}/python:{0}/yp/python:{1}".format(options.checkout_directory, os.environ.get("PYTHONPATH", ""))
     env["TESTS_SANDBOX"] = sandbox_current
     env["TESTS_SANDBOX_STORAGE"] = sandbox_storage
@@ -613,6 +686,7 @@ def run_pytest(options, suite_name, suite_path, pytest_args=None, env=None):
             sudo_rmtree(sandbox_storage)
 
 @build_step
+@disable_for_ya
 def run_yt_integration_tests(options, build_context):
     if options.disable_tests:
         teamcity_message("Integration tests are skipped since all tests are disabled")
@@ -626,6 +700,7 @@ def run_yt_integration_tests(options, build_context):
                pytest_args=pytest_args)
 
 @build_step
+@disable_for_ya
 def run_yt_cpp_integration_tests(options, build_context):
     if options.disable_tests:
         teamcity_message("C++ integration tests are skipped since all tests are disabled")
@@ -633,6 +708,7 @@ def run_yt_cpp_integration_tests(options, build_context):
     run_pytest(options, "cpp_integration", "{0}/yt/tests/cpp".format(options.checkout_directory))
 
 @build_step
+@disable_for_ya
 def run_yp_integration_tests(options, build_context):
     if options.disable_tests:
         teamcity_message("YP integration tests are skipped since all tests are disabled")
@@ -645,6 +721,7 @@ def run_yp_integration_tests(options, build_context):
                })
 
 @build_step
+@disable_for_ya
 def run_python_libraries_tests(options, build_context):
     if options.disable_tests:
         teamcity_message("Python tests are skipped since all tests are disabled")
@@ -664,6 +741,7 @@ def run_python_libraries_tests(options, build_context):
                 })
 
 @build_step
+@disable_for_ya
 def run_perl_tests(options, build_context):
     if not options.build_enable_perl or options.disable_tests:
         return
@@ -715,6 +793,7 @@ def log_sandbox_upload(options, build_context, task_id):
     yt_wrapper.insert_rows("//sys/admin/skynet/resources", resource_rows)
 
 @build_step
+@disable_for_ya
 def wait_for_sandbox_upload(options, build_context):
     if not options.package or sys.version_info < (2, 7):
         return
@@ -810,6 +889,13 @@ def main():
         type=str, action="store", required=True)
     parser.add_argument(
         "--clean_sandbox_directory",
+        type=parse_bool, action="store", default=True)
+    parser.add_argument(
+        "--build_system",
+        choices=["cmake", "ya"], default="cmake")
+
+    parser.add_argument(
+        "--clear-system-tmp",
         type=parse_bool, action="store", default=True)
 
     parser.add_argument(
