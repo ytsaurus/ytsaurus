@@ -258,7 +258,7 @@ void BuildRow(
     TUnversionedRowBuilder* rowBuilder,
     const NAst::TLiteralValueTuple& tuple,
     const std::vector<EValueType>& argTypes,
-    const TStringBuf& source)
+    TStringBuf source)
 {
     for (int i = 0; i < tuple.size(); ++i) {
         auto valueType = GetType(tuple[i]);
@@ -307,7 +307,7 @@ TSharedRange<TRow> LiteralTupleListToRows(
 TSharedRange<TRowRange> LiteralRangesListToRows(
     const NAst::TLiteralValueRangeList& literalRanges,
     const std::vector<EValueType>& argTypes,
-    const TStringBuf& source)
+    TStringBuf source)
 {
     auto rowBuffer = New<TRowBuffer>(TQueryPreparerBufferTag());
     TUnversionedRowBuilder rowBuilder;
