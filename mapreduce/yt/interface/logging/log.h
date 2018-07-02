@@ -15,11 +15,11 @@ class ILogger
 public:
     enum ELevel
     {
-        FATAL /* "fatal" */,
+        FATAL /* "fatal", "FATAL" */,
         // We don't have such level as `warning', but we support it for compatibility with other APIs.
-        ERROR /* "error", "warning" */,
-        INFO /* "info" */,
-        DEBUG /* "debug" */
+        ERROR /* "error", "warning", "ERROR", "WARNING" */,
+        INFO /* "info", "INFO" */,
+        DEBUG /* "debug", "DEBUG" */
     };
 
     virtual void Log(ELevel level, const TSourceLocation& sourceLocation, const char* format, va_list args) = 0;
