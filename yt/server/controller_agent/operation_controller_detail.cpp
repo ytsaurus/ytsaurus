@@ -6964,6 +6964,9 @@ void TOperationControllerBase::ValidateUserFileCount(TUserJobSpecPtr spec, const
     }
 }
 
+void TOperationControllerBase::OnExecNodesUpdated()
+{ }
+
 void TOperationControllerBase::GetExecNodesInformation()
 {
     auto now = NProfiling::GetCpuInstant();
@@ -6974,6 +6977,7 @@ void TOperationControllerBase::GetExecNodesInformation()
     ExecNodeCount_ = Host->GetExecNodeCount();
     ExecNodesDescriptors_ = Host->GetExecNodeDescriptors(NScheduler::TSchedulingTagFilter(Spec_->SchedulingTagFilter));
     GetExecNodesInformationDeadline_ = now + NProfiling::DurationToCpuDuration(Config->ControllerExecNodeInfoUpdatePeriod);
+    OnExecNodesUpdated();
     LOG_DEBUG("Exec nodes information updated (ExecNodeCount: %v)", ExecNodeCount_);
 }
 

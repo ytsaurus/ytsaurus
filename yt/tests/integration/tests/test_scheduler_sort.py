@@ -771,7 +771,6 @@ class TestSchedulerSortCommands(YTEnvSetup):
                 out="//tmp/t2",
                 spec={"input_query": "a where a > 0"})
 
-
 ##################################################################
 
 class TestSchedulerSortCommandsMulticell(TestSchedulerSortCommands):

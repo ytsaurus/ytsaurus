@@ -46,6 +46,7 @@ struct TInputTable;
 struct TOutputTable;
 
 class TAutoMergeDirector;
+struct TJobNodeDescriptor;
 
 ////////////////////////////////////////////////////////////////////////////////
 
