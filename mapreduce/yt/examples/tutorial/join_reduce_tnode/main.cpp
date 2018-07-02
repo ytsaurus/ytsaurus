@@ -10,7 +10,10 @@ class TFilterVideoRegexp
     : public IReducer<TTableReader<TNode>, TTableWriter<TNode>>
 {
 public:
-    void Do(TReader* reader, TWriter* writer) {
+    void Do(TReader* reader, TWriter* writer)
+    {
+        // Так же как и с обычным Reducer'ом в каждый вызов метода Do
+        // придут записи с общим JoinBy ключом.
         TMaybe<TRegExMatch> regex;
         for (; reader->IsValid(); reader->Next()) {
             auto row = reader->GetRow();
