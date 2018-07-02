@@ -172,6 +172,21 @@ DEFINE_REFCOUNTED_TYPE(TSuspiciousJobsOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TDataBalancerOptions
+    : public NYTree::TYsonSerializable
+{
+public:
+    i64 LoggingMinConsecutiveViolationCount;
+    TDuration LoggingPeriod;
+    double Tolerance;
+
+    TDataBalancerOptions();
+};
+
+DEFINE_REFCOUNTED_TYPE(TDataBalancerOptions)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TOperationOptions
     : public NYTree::TYsonSerializable
     , public virtual NPhoenix::TDynamicTag
@@ -229,7 +244,7 @@ private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TMapOperationOptions, 0x5d08252b);
 
 public:
-    NControllerAgent::TJobSizeAdjusterConfigPtr JobSizeAdjuster;
+    TJobSizeAdjusterConfigPtr JobSizeAdjuster;
 
     TMapOperationOptions();
 };
@@ -309,7 +324,8 @@ public:
     i64 CompressedBlockSize;
     i64 MinPartitionWeight;
     i64 MinUncompressedBlockSize;
-    NControllerAgent::TJobSizeAdjusterConfigPtr PartitionJobSizeAdjuster;
+    TJobSizeAdjusterConfigPtr PartitionJobSizeAdjuster;
+    TDataBalancerOptionsPtr DataBalancer;
 
     TSortOperationOptionsBase();
 };
@@ -612,7 +628,7 @@ public:
     int HeavyJobSpecSliceCountThreshold;
 
     //! We use the same config for input chunk scraper and intermediate chunk scraper.
-    NControllerAgent::TIntermediateChunkScraperConfigPtr ChunkScraper;
+    TIntermediateChunkScraperConfigPtr ChunkScraper;
 
     //! Total number of data slices in operation, summed up over all jobs.
     i64 MaxTotalSliceCount;
@@ -671,7 +687,7 @@ public:
     //! Node directory synchronization.
     NNodeTrackerClient::TNodeDirectorySynchronizerConfigPtr NodeDirectorySynchronizer;
 
-    NControllerAgent::TControllerAgentConfigPtr ControllerAgent;
+    TControllerAgentConfigPtr ControllerAgent;
 
     //! Known scheduler addresses.
     NNodeTrackerClient::TNetworkAddressList Addresses;
