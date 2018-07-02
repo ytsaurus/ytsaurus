@@ -85,10 +85,10 @@ struct IObjectTypeHandler
         NYTree::IAttributeDictionary* attributes) = 0;
 
     //! Raised when the strong ref-counter of the object decreases to zero.
-    virtual void ZombifyObject(TObjectBase* object) throw() = 0;
+    virtual void ZombifyObject(TObjectBase* object) noexcept = 0;
 
     //! Raised when GC finally destroys the object.
-    virtual void DestroyObject(TObjectBase* object) throw() = 0;
+    virtual void DestroyObject(TObjectBase* object) noexcept = 0;
 
     //! Resets staging information for #object.
     /*!

@@ -56,7 +56,7 @@ class TEmptyBusHandler
 public:
     virtual void HandleMessage(
         TSharedRefArray message,
-        IBusPtr replyBus) throw() override
+        IBusPtr replyBus) noexcept override
     {
         Y_UNUSED(message);
         Y_UNUSED(replyBus);
@@ -73,7 +73,7 @@ public:
 
     virtual void HandleMessage(
         TSharedRefArray message,
-        IBusPtr replyBus) throw() override
+        IBusPtr replyBus) noexcept override
     {
         EXPECT_EQ(NumPartsExpecting, message.Size());
         auto replyMessage = Serialize("42");
@@ -103,7 +103,7 @@ private:
 
     virtual void HandleMessage(
         TSharedRefArray message,
-        IBusPtr /*replyBus*/) throw() override
+        IBusPtr /*replyBus*/) noexcept override
     {
         auto value = Deserialize(message);
         EXPECT_EQ("42", value);

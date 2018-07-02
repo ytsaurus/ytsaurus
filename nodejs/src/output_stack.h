@@ -18,7 +18,7 @@ public:
     TNodeJSOutputStack(
         TOutputStreamWrap* base,
         IInvokerPtr invoker);
-    virtual ~TNodeJSOutputStack() throw();
+    virtual ~TNodeJSOutputStack();
 
     void AddCompression(ECompression compression);
 
