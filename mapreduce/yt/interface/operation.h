@@ -571,6 +571,9 @@ public:
         Y_UNUSED(writer);
     }
 
+    //
+    // Each mapper job will call Do method only once.
+    // Reader reader will read whole range of job input.
     virtual void Do(TReader* reader, TWriter* writer) = 0;
 
     virtual void Finish(TWriter* writer)
@@ -609,6 +612,9 @@ public:
         Y_UNUSED(writer);
     }
 
+    //
+    // Reduce jobs will call Do multiple times.
+    // Each time Do is called reader will point to the range of records that have same ReduceBy or JoinBy key.
     virtual void Do(TReader* reader, TWriter* writer) = 0;
 
     virtual void Finish(TWriter* writer)
