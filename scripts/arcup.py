@@ -27,6 +27,11 @@ PROJECT_PATH = os.path.abspath(os.path.join(SCRIPT_PATH, ".."))
 ARCUP_WORKING_PATH = os.path.join(PROJECT_PATH, ".arcup")
 ARGV0 = sys.argv[0]
 
+TARGET_PLATFORM_LIST = [
+    "linux",
+    "darwin",
+]
+
 # TODO: to git-svn
 def svn_get_last_modified_revision(url):
     svn = Svn()
@@ -247,7 +252,14 @@ class ReplaceSvnStuffStep(Step):
             svn = Svn()
             svn.call("checkout", arcadia_svn_url, "--depth=empty", "--revision", str(revision), ".")
             svn.call("update", "--revision", str(revision), *arcadia_updatable_files)
-            subprocess.check_call(["./yall", "--threads=0", "--checkout"])
+
+            for target_platform in TARGET_PLATFORM_LIST:
+                subprocess.check_call([
+                    "./yall",
+                    "--threads=0",
+                    "--checkout",
+                    "--target-platform", target_platform,
+                ])
 
             #
             # Now it's time to put all the stuff that we checked out from svn to our git submodules.
