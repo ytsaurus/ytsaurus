@@ -10,17 +10,17 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Y_WEAK int GetVersionMajor()
+int GetVersionMajor()
 {
     return @YT_VERSION_MAJOR@;
 }
 
-Y_WEAK int GetVersionMinor()
+int GetVersionMinor()
 {
     return @YT_VERSION_MINOR@;
 }
 
-Y_WEAK int GetVersionPatch()
+int GetVersionPatch()
 {
     return @YT_VERSION_PATCH@;
 }
@@ -28,7 +28,7 @@ Y_WEAK int GetVersionPatch()
 
 #if defined(YT_IN_ARCADIA)
 
-Y_WEAK const char* GetVersion()
+const char* GetVersion()
 {
     static TString version = CreateYtVersion(@YT_VERSION_MAJOR@, @YT_VERSION_MINOR@, @YT_VERSION_PATCH@, AsStringBuf("local"));
     return version.c_str();
@@ -36,24 +36,24 @@ Y_WEAK const char* GetVersion()
 
 #else
 
-Y_WEAK const char* GetVersion()
+const char* GetVersion()
 {
     return "@YT_VERSION@";
 }
 
 #endif
 
-Y_WEAK const char* GetBuildHost()
+const char* GetBuildHost()
 {
     return "@YT_BUILD_HOST@";
 }
 
-Y_WEAK const char* GetBuildMachine()
+const char* GetBuildMachine()
 {
     return "@YT_BUILD_MACHINE@";
 }
 
-Y_WEAK const char* GetBuildTime()
+const char* GetBuildTime()
 {
     return "@YT_BUILD_TIME@";
 }
