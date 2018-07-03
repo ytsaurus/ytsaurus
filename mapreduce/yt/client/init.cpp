@@ -203,11 +203,11 @@ void Initialize(int argc, const char* argv[], const TInitializeOptions& options)
     NDetail::GetInitStatus() = NDetail::EInitStatus::FullInitialization;
 
     const bool isInsideJob = !GetEnv("YT_JOB_ID").empty();
-    if (!isInsideJob) {
+    if (isInsideJob) {
+        NDetail::ExecJob(argc, argv, options);
+    } else {
         NDetail::NonJobInitialize(options);
     }
-
-    NDetail::ExecJob(argc, argv, options);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
