@@ -7,7 +7,7 @@ from .transaction_commands import _make_transactional_request
 from .ypath import TablePath
 from .http_helpers import get_retriable_errors
 from .transaction import null_transaction_id
-from .retries import Retrier
+from .retries import Retrier, default_chaos_monkey
 
 try:
     from cStringIO import StringIO as BytesIO
@@ -57,7 +57,7 @@ class DynamicTableRequestRetrier(Retrier):
             retry_config=retry_config,
             timeout=request_timeout,
             exceptions=get_retriable_errors(),
-            chaos_monkey_enable=chaos_monkey_enable)
+            chaos_monkey=default_chaos_monkey(chaos_monkey_enable))
 
         self.request_timeout = request_timeout
         self.params = params

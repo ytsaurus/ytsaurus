@@ -1,7 +1,7 @@
 from .config import get_option, get_config, get_total_request_timeout, get_command_param
 from .common import (group_blobs_by_size, YtError, update, remove_nones_from_dict,
                      get_value)
-from .retries import Retrier, IteratorRetrier
+from .retries import Retrier, IteratorRetrier, default_chaos_monkey
 from .errors import YtMasterCommunicationError, YtChunkUnavailable
 from .ypath import YPathSupportingAppend
 from .transaction import Transaction
@@ -52,7 +52,7 @@ class WriteRequestRetrier(Retrier):
         super(WriteRequestRetrier, self).__init__(retry_config=retry_config,
                                                   timeout=request_timeout,
                                                   exceptions=get_retriable_errors() + (YtMasterCommunicationError,),
-                                                  chaos_monkey_enable=chaos_monkey_enable)
+                                                  chaos_monkey=default_chaos_monkey(chaos_monkey_enable))
         self.write_action = write_action
         self.transaction_timeout = transaction_timeout
         self.client = client
@@ -162,7 +162,7 @@ class ReadIterator(IteratorRetrier):
                             get_config(client)["proxy"]["heavy_request_timeout"])
 
         super(ReadIterator, self).__init__(retry_config, timeout, retriable_errors,
-                                           chaos_monkey_enabled)
+                                           default_chaos_monkey(chaos_monkey_enabled))
         self.client = client
         self.command_name = command_name
         self.transaction = transaction

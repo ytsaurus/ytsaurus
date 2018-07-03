@@ -3,10 +3,11 @@ from __future__ import print_function
 from .helpers import (TEST_DIR, get_tests_sandbox, get_tests_location,
                       get_environment_for_binary_test, check, set_config_options, set_config_option)
 
+from yt.wrapper.errors import YtRetriableError
 from yt.wrapper.exceptions_catcher import KeyboardInterruptsCatcher
-from yt.wrapper.response_stream import ResponseStream, EmptyResponseStream
-from yt.wrapper.retries import run_with_retries
 from yt.wrapper.mappings import VerifiedDict, FrozenDict
+from yt.wrapper.response_stream import ResponseStream, EmptyResponseStream
+from yt.wrapper.retries import run_with_retries, Retrier
 from yt.wrapper.ypath import ypath_join, ypath_dirname, ypath_split
 from yt.common import makedirp
 from yt.yson import to_yson_type
@@ -19,18 +20,19 @@ from yt.packages.six.moves import xrange, filter as ifilter
 
 import yt.wrapper as yt
 
+from copy import deepcopy
+import collections
+import gc
 import inspect
+import itertools
+import os
+import pytest
 import random
 import string
-import gc
-import os
 import sys
-import uuid
 import tempfile
 import time
-import pytest
-import collections
-from copy import deepcopy
+import uuid
 
 def test_docs_exist():
     functions = inspect.getmembers(
@@ -218,6 +220,33 @@ class TestMutations(object):
 
 @pytest.mark.usefixtures("yt_env")
 class TestRetries(object):
+    def test_custom_chaos_monkey(self):
+        class _Retrier(Retrier):
+            def __init__(self, chaos_monkey_values, retries_count=1):
+                retry_config = {
+                    "enable": True,
+                    "count": retries_count,
+                    "backoff": {
+                        "policy": "rounded_up_to_request_timeout"
+                    }
+                }
+                chaos_monkey_state = itertools.cycle(chaos_monkey_values)
+                chaos_monkey = lambda: next(chaos_monkey_state)
+                super(_Retrier, self).__init__(
+                    retry_config,
+                    timeout=10,
+                    exceptions=(YtRetriableError,),
+                    chaos_monkey=chaos_monkey)
+
+            def action(self):
+                return 42
+
+        for retries_count in range(1, 5):
+            chaos_monkey_values = [True] * retries_count + [False]
+            with pytest.raises(YtRetriableError):
+                _Retrier(chaos_monkey_values, retries_count).run()
+            assert 42 == _Retrier(chaos_monkey_values, retries_count + 1).run()
+
     def test_run_with_retries(self):
         def action():
             if random.randint(0, 3) == 1:

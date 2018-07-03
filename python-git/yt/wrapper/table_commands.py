@@ -4,6 +4,7 @@ from .config import get_config, get_option
 from .cypress_commands import (exists, remove, get_attribute, copy,
                                move, mkdir, find_free_subpath, create, get, has_attribute)
 from .driver import make_request
+from .retries import default_chaos_monkey, run_chaos_monkey
 from .errors import YtIncorrectResponse, YtError, YtRetriableError, YtResponseError
 from .format import create_format, YsonFormat
 from .batch_response import apply_function_to_result
@@ -448,6 +449,8 @@ def read_table(table, format=None, table_reader=None, control_attributes=None, u
         set_response_parameters(response.response_parameters)
 
     chaos_monkey_enabled = get_option("_ENABLE_READ_TABLE_CHAOS_MONKEY", client)
+    chaos_monkey = default_chaos_monkey(chaos_monkey_enabled)
+
     multiple_ranges_allowed = get_config(client)["read_retries"]["allow_multiple_ranges"]
 
     class RetriableState(object):
@@ -557,8 +560,7 @@ def read_table(table, format=None, table_reader=None, control_attributes=None, u
                 self.started = True
 
             for row in format_for_raw_load.load_rows(response, raw=True):
-                if chaos_monkey_enabled and random.randint(1, 5) == 1:
-                    raise YtRetriableError()
+                run_chaos_monkey(chaos_monkey)
 
                 # NB: Low level check for optimization purposes. Only YSON and JSON format supported!
                 if is_control_row(row):

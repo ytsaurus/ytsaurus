@@ -40,22 +40,32 @@ def run_with_retries(action, retry_count=6, backoff=20.0, exceptions=(YtError,),
 
     return SimpleRetrier().run()
 
+
+def default_chaos_monkey(enable):
+    def chaos_monkey():
+        return enable and random.randint(1, 5) == 1
+    return chaos_monkey
+
+def run_chaos_monkey(chaos_monkey):
+    if chaos_monkey is not None and chaos_monkey():
+        raise YtRetriableError()
+
+
 class Retrier(object):
-    def __init__(self, retry_config, timeout=None, exceptions=(YtError,), chaos_monkey_enable=False):
+    def __init__(self, retry_config, timeout=None, exceptions=(YtError,), chaos_monkey=None):
         self.retry_config = copy.deepcopy(retry_config)
         if not self.retry_config["enable"]:
             self.retry_config["count"] = 1
         self.exceptions = exceptions
         self.timeout = timeout
-        self.chaos_monkey_enabled = chaos_monkey_enable
+        self._chaos_monkey = chaos_monkey
 
     def run(self):
         retry_count = self.retry_config["count"]
         for attempt in xrange(1, retry_count + 1):
             start_time = datetime.now()
             try:
-                if self.chaos_monkey_enabled and random.randint(1, 5) == 1:
-                    raise YtRetriableError()
+                run_chaos_monkey(self._chaos_monkey)
                 return self.action()
             except self.exceptions + (YtResponseError, ) as exception:
                 if attempt == retry_count:
@@ -107,8 +117,8 @@ class Retrier(object):
         pass
 
 class IteratorRetrier(Retrier):
-    def __init__(self, retry_config, timeout=None, exceptions=(YtError,), chaos_monkey_enabled=False):
-        super(IteratorRetrier, self).__init__(retry_config, timeout, exceptions, chaos_monkey_enabled)
+    def __init__(self, retry_config, timeout=None, exceptions=(YtError,), chaos_monkey=None):
+        super(IteratorRetrier, self).__init__(retry_config, timeout, exceptions, chaos_monkey)
         self._iter = None
 
     def action(self):
@@ -126,8 +136,7 @@ class IteratorRetrier(Retrier):
         while True:
             start_time = datetime.now()
             try:
-                if self.chaos_monkey_enabled and random.randint(1, 5) == 1:
-                    raise YtRetriableError()
+                run_chaos_monkey(self._chaos_monkey)
                 yield self.action()
                 attempt = 0
             except self.exceptions as exception:
