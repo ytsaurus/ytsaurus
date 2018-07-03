@@ -158,7 +158,7 @@ def assert_items_equal(actual_seq, expected_seq):
         actual = Counter(iter(actual_seq))
         expected = Counter(iter(expected_seq))
     except TypeError:
-        # Unsortable items (example: set(), complex(), ...)
+        # Unhashable items (example: set(), list(), ...)
         actual = list(actual_seq)
         expected = list(expected_seq)
         missing, unexpected = unorderable_list_difference(expected, actual)
@@ -171,9 +171,9 @@ def assert_items_equal(actual_seq, expected_seq):
     assert not missing, "Expected, but missing:\n    %s" % repr(missing)
     assert not unexpected, "Unexpected, but present:\n    %s" % repr(unexpected)
 
-def assert_almost_equal(actual, expected, decimal_places=4):
+def are_almost_equal(lhs, rhs, decimal_places=4):
     eps = 10**(-decimal_places)
-    return abs(actual - expected) < eps
+    return abs(lhs - rhs) < eps
 
 def versions_cmp(version1, version2):
     def normalize(v):
