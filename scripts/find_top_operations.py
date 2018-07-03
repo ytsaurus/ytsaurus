@@ -12,10 +12,10 @@ class Operation(object):
         self._cluster = cluster
 
         self.operation_id = operation_id
+        self.operation_path = "//sys/operations/{}/{}".format(operation_id[-2:], operation_id)
         self.errors = []
         self._attrs = None
         self._snapshot_size = None
-        self._orchid = None
         self._output_resource_usage = None
         self._debug_output_resource_usage = None
         self._output_chunks = None
@@ -24,7 +24,7 @@ class Operation(object):
         self._input_disk_usage = None
 
     def fetch_attrs(self):
-        attrs = self._batch_client.get("//sys/operations/{}/@".format(self.operation_id))
+        attrs = self._batch_client.get("{}/@".format(self.operation_path, self.operation_id))
         yield
 
         if attrs.is_ok():
@@ -33,7 +33,7 @@ class Operation(object):
             self.errors.append(attrs.get_error())
 
     def fetch_snapshot_size(self):
-        snapshot_size = self._batch_client.get("//sys/operations/{}/snapshot/@uncompressed_data_size".format(self.operation_id))
+        snapshot_size = self._batch_client.get("{}/snapshot/@uncompressed_data_size".format(self.operation_path))
         yield
 
         if snapshot_size.is_ok():
@@ -108,18 +108,9 @@ class Operation(object):
 
             disk_space += input_object.get_result()["resource_usage"]["disk_space"]
         self._input_disk_usage = disk_space
-
-    def fetch_orchid(self):
-        orchid = self._batch_client.get("//sys/scheduler/orchid/scheduler/operations/{}".format(self.operation_id))
-        yield
-        if orchid.is_ok():
-            self._orchid = orchid.get_result()
-        else:
-            self._orchid = None
-            self.errors.append(orchid.get_error())
-    
+  
     def fetch_controller_memory_usage(self):
-        controller_memory_usage = self._batch_client.get("//sys/scheduler/orchid/scheduler/operations/{}/controller_memory_usage".format(self.operation_id))
+        controller_memory_usage = self._batch_client.get("{}/controller_orchid/memory_usage".format(self.operation_path))
         yield
         if controller_memory_usage.is_ok():
             self._controller_memory_usage = controller_memory_usage.get_result()
@@ -136,7 +127,7 @@ class Operation(object):
         return {
             "operation_type": self._attrs["operation_type"],
             "authenticated_user": self._attrs["authenticated_user"],
-            "pool": self._attrs.get("pool", "<unknown>"),
+            "pool": self._attrs["spec"].get("pool", "<unknown>"),
             "title": self._attrs["spec"].get("title", "")
         }
 
@@ -253,7 +244,7 @@ if __name__ == "__main__":
 
     client = yt.YtClient(proxy=args.proxy)
     batch_client = client.create_batch_client()
-    operations = [Operation(operation_id, args.proxy, batch_client) for operation_id in client.list("//sys/operations") if len(operation_id) > 2]
+    operations = [Operation(operation_id, args.proxy, batch_client) for operation_id in client.list("//sys/scheduler/orchid/scheduler/operations")]
 
     fetch_batch(batch_client, operations, lambda op: op.fetch_attrs())
 
