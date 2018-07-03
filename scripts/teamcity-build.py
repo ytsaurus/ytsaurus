@@ -151,15 +151,16 @@ def prepare(options, build_context):
     extra_repositories = filter(lambda x: x != "", map(str.strip, os.environ.get("EXTRA_REPOSITORIES", "").split(",")))
     options.repositories = ["yt-" + codename] + extra_repositories
 
-    # Now determine the compiler.
-    options.cc = run_captured(["which", options.cc])
-    options.cxx = run_captured(["which", options.cxx])
+    if options.build_system != "ya":
+        # Now determine the compiler.
+        options.cc = run_captured(["which", options.cc])
+        options.cxx = run_captured(["which", options.cxx])
 
-    if not options.cc:
-        raise RuntimeError("Failed to locate C compiler")
+        if not options.cc:
+            raise RuntimeError("Failed to locate C compiler")
 
-    if not options.cxx:
-        raise RuntimeError("Failed to locate CXX compiler")
+        if not options.cxx:
+            raise RuntimeError("Failed to locate CXX compiler")
 
     # options.use_lto = (options.type != "Debug")
     options.use_lto = False
