@@ -829,7 +829,7 @@ echo {v = 2} >&7
             op.track();
 
     def test_join_reduce_on_dynamic_table(self):
-        self.sync_create_cells(1)
+        sync_create_cells(1)
         create("table", "//tmp/t1",
            attributes = {
                "schema": [
@@ -842,9 +842,9 @@ echo {v = 2} >&7
         create("table", "//tmp/t_out")
 
         rows = [{"key": str(i), "value": str(i)} for i in range(1)]
-        self.sync_mount_table("//tmp/t1")
+        sync_mount_table("//tmp/t1")
         insert_rows("//tmp/t1", rows)
-        self.sync_unmount_table("//tmp/t1")
+        sync_unmount_table("//tmp/t1")
 
         joined_rows = [{"key": "0", "value": "joined"}]
         write_table("//tmp/t2", joined_rows, sorted_by=["key"])
@@ -862,9 +862,9 @@ echo {v = 2} >&7
         assert read_table("//tmp/t_out") == rows + joined_rows
 
         rows = [{"key": str(i), "value": str(i+1)} for i in range(1)]
-        self.sync_mount_table("//tmp/t1")
+        sync_mount_table("//tmp/t1")
         insert_rows("//tmp/t1", rows)
-        self.sync_unmount_table("//tmp/t1")
+        sync_unmount_table("//tmp/t1")
 
         join_reduce(
             in_=["//tmp/t1", "<foreign=true>//tmp/t2"],
@@ -887,7 +887,7 @@ echo {v = 2} >&7
                 ]
             })
 
-        self.sync_create_cells(1)
+        sync_create_cells(1)
         create("table", "//tmp/t2",
             attributes = {
                 "schema": [
@@ -902,9 +902,9 @@ echo {v = 2} >&7
         write_table("//tmp/t1", [{"key1": "7", "primary_value": 42}])
 
         rows = [{"key1": str(i), "key2": str(i * i), "foreign_value": i} for i in range(10)]
-        self.sync_mount_table("//tmp/t2")
+        sync_mount_table("//tmp/t2")
         insert_rows("//tmp/t2", rows)
-        self.sync_unmount_table("//tmp/t2")
+        sync_unmount_table("//tmp/t2")
 
         join_reduce(
             in_=["//tmp/t1", "<foreign=%true>//tmp/t2"],

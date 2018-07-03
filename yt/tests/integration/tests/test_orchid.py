@@ -35,7 +35,7 @@ class TestOrchid(YTEnvSetup):
         self._check_service("//sys/scheduler/orchid", "scheduler")
 
     def test_at_tablet_cells(self):
-        self.sync_create_cells(1)
+        sync_create_cells(1)
         cells = ls("//sys/tablet_cells")
         assert len(cells) == 1
         for cell in cells:

@@ -733,15 +733,15 @@ print "x={0}\ty={1}".format(x, y)
                     "optimize_for": optimize_for
                 })
 
-        self.sync_create_cells(1)
+        sync_create_cells(1)
         _create_dynamic_table("//tmp/t")
 
         create("table", "//tmp/t_out")
 
         rows = [{"key": i, "value": str(i)} for i in range(6)]
-        self.sync_mount_table("//tmp/t")
+        sync_mount_table("//tmp/t")
         insert_rows("//tmp/t", rows)
-        self.sync_unmount_table("//tmp/t")
+        sync_unmount_table("//tmp/t")
 
         map_reduce(
             in_="//tmp/t",
@@ -753,9 +753,9 @@ print "x={0}\ty={1}".format(x, y)
         assert_items_equal(read_table("//tmp/t_out"), rows)
 
         rows1 = [{"key": i, "value": str(i+1)} for i in range(3, 10)]
-        self.sync_mount_table("//tmp/t")
+        sync_mount_table("//tmp/t")
         insert_rows("//tmp/t", rows1)
-        self.sync_unmount_table("//tmp/t")
+        sync_unmount_table("//tmp/t")
 
         map_reduce(
             in_="//tmp/t",

@@ -1,7 +1,7 @@
-from yt_env_setup import YTEnvSetup, unix_only
+from yt_env_setup import YTEnvSetup, unix_only, find_ut_file
 from yt_commands import *
 
-from yt.environment.helpers import assert_items_equal, assert_almost_equal
+from yt.environment.helpers import assert_items_equal, are_almost_equal
 
 import pytest
 import os
@@ -37,7 +37,7 @@ class TestJobQuery(YTEnvSetup):
                     "value": "int64"},
                 "calling_convention": "simple"}})
 
-        abs_impl_path = self._find_ut_file("test_udfs.bc")
+        abs_impl_path = find_ut_file("test_udfs.bc")
         write_local_file(abs_path, abs_impl_path)
 
     def test_query_simple(self):

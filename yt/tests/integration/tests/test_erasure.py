@@ -70,10 +70,10 @@ class TestErasure(YTEnvSetup):
             replica_index = r.attributes["index"]
             address = str(r)
             print >>sys.stderr, "Banning node %s containing replica %d" % (address, replica_index)
-            self.set_node_banned(address, True)
+            set_node_banned(address, True)
             wait(lambda: self._is_chunk_ok(chunk_id))
             assert read_table("//tmp/table") == [{"b":"hello"}]
-            self.set_node_banned(r, False)
+            set_node_banned(r, False)
 
     def _get_blocks_count(self, chunk_id, replica, replica_index):
         address = str(replica)
@@ -111,7 +111,7 @@ class TestErasure(YTEnvSetup):
         replicas, _ = self._prepare_table()
         replica = replicas[3]
         address_to_ban = str(replica)
-        self.set_node_banned(address_to_ban, True)
+        set_node_banned(address_to_ban, True)
         time.sleep(1)
 
         has_failed = None
@@ -128,7 +128,7 @@ class TestErasure(YTEnvSetup):
         else:
             has_failed = False
         finally:
-            self.set_node_banned(address_to_ban, False)
+            set_node_banned(address_to_ban, False)
 
         return has_failed
 
@@ -143,7 +143,7 @@ class TestErasure(YTEnvSetup):
         try:
             replica = replicas[3]
             address_to_ban = str(replica)
-            self.set_node_banned(address_to_ban, True)
+            set_node_banned(address_to_ban, True)
             time.sleep(1)
 
             start = time.time()
@@ -158,7 +158,7 @@ class TestErasure(YTEnvSetup):
                        verbose=False)
             end = time.time()
             time_passed = end - start
-            self.set_node_banned(address_to_ban, False)
+            set_node_banned(address_to_ban, False)
             assert time_passed <= 10
             assert data == correct_data
         finally:
@@ -193,7 +193,7 @@ class TestErasure(YTEnvSetup):
         full_output = output_stream.read(window_size)
 
         address_to_ban = str(replica)
-        self.set_node_banned(address_to_ban, True)
+        set_node_banned(address_to_ban, True)
 
         time.sleep(1)
 
@@ -204,7 +204,7 @@ class TestErasure(YTEnvSetup):
             full_output += bytes
 
         response.wait()
-        self.set_node_banned(address_to_ban, False)
+        set_node_banned(address_to_ban, False)
 
         if allow_repair:
             if not response.is_ok():

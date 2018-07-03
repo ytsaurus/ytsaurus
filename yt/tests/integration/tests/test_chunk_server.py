@@ -64,7 +64,7 @@ class TestChunkServer(YTEnvSetup):
         node_to_decommission = get("#%s/@stored_replicas/0" % chunk_id)
         assert node_has_chunk(node_to_decommission, chunk_id)
 
-        self.set_node_decommissioned(node_to_decommission, True)
+        set_node_decommissioned(node_to_decommission, True)
 
         wait(lambda: not node_has_chunk(node_to_decommission, chunk_id) and
                      len(get("#%s/@stored_replicas" % chunk_id)) == replica_count)

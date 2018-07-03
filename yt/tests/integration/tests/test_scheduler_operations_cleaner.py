@@ -47,7 +47,7 @@ class TestSchedulerOperationsCleaner(YTEnvSetup):
     }
 
     def setup(self):
-        self.sync_create_cells(1)
+        sync_create_cells(1)
 
     def teardown(self):
         remove("//sys/operations_archive", force=True)

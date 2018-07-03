@@ -26,7 +26,7 @@ class TestGetOperation(YTEnvSetup):
     USE_DYNAMIC_TABLES = True
 
     def setup(self):
-        self.sync_create_cells(1)
+        sync_create_cells(1)
         init_operation_archive.create_tables_latest_version(self.Env.create_native_client())
 
     def teardown(self):

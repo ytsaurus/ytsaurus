@@ -585,16 +585,16 @@ class TestSchedulerSortCommands(YTEnvSetup):
                     "optimize_for": optimize_for
                 })
 
-        self.sync_create_cells(1)
+        sync_create_cells(1)
         _create_dynamic_table("//tmp/t")
 
         create("table", "//tmp/t_out")
 
         rows = [{"key1": None, "key2": i, "value": str(i)} for i in range(2)]
         rows += [{"key1": i, "key2": i, "value": str(i)} for i in range(6)]
-        self.sync_mount_table("//tmp/t")
+        sync_mount_table("//tmp/t")
         insert_rows("//tmp/t", rows)
-        self.sync_unmount_table("//tmp/t")
+        sync_unmount_table("//tmp/t")
 
         sort(
             in_="//tmp/t",
@@ -603,9 +603,9 @@ class TestSchedulerSortCommands(YTEnvSetup):
         assert read_table("//tmp/t_out") == rows
 
         rows1 = [{"key1": i, "key2": i, "value": str(i+1)} for i in range(3, 10)]
-        self.sync_mount_table("//tmp/t")
+        sync_mount_table("//tmp/t")
         insert_rows("//tmp/t", rows1)
-        self.sync_unmount_table("//tmp/t")
+        sync_unmount_table("//tmp/t")
 
         def update(new):
             def update_row(row):

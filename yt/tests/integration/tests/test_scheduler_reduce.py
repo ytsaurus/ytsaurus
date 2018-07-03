@@ -1081,14 +1081,14 @@ echo {v = 2} >&7
     @unix_only
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
     def test_reduce_on_dynamic_table(self, optimize_for):
-        self.sync_create_cells(1)
+        sync_create_cells(1)
         self._create_simple_dynamic_table("//tmp/t", optimize_for)
         create("table", "//tmp/t_out")
 
         rows = [{"key": i, "value": str(i)} for i in range(10)]
-        self.sync_mount_table("//tmp/t")
+        sync_mount_table("//tmp/t")
         insert_rows("//tmp/t", rows)
-        self.sync_unmount_table("//tmp/t")
+        sync_unmount_table("//tmp/t")
 
         reduce(
             in_="//tmp/t",
@@ -1099,9 +1099,9 @@ echo {v = 2} >&7
         assert_items_equal(read_table("//tmp/t_out"), rows)
 
         rows = [{"key": i, "value": str(i+1)} for i in range(10)]
-        self.sync_mount_table("//tmp/t")
+        sync_mount_table("//tmp/t")
         insert_rows("//tmp/t", rows)
-        self.sync_unmount_table("//tmp/t")
+        sync_unmount_table("//tmp/t")
 
         reduce(
             in_="//tmp/t",
@@ -1114,15 +1114,15 @@ echo {v = 2} >&7
     @unix_only
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
     def test_reduce_with_foreign_dynamic(self, optimize_for):
-        self.sync_create_cells(1)
+        sync_create_cells(1)
         self._create_simple_dynamic_table("//tmp/t2", optimize_for)
         create("table", "//tmp/t1")
         create("table", "//tmp/t_out")
 
         rows = [{"key": i, "value": str(i)} for i in range(10)]
-        self.sync_mount_table("//tmp/t2")
+        sync_mount_table("//tmp/t2")
         insert_rows("//tmp/t2", rows)
-        self.sync_unmount_table("//tmp/t2")
+        sync_unmount_table("//tmp/t2")
 
         write_table("<sorted_by=[key]>//tmp/t1", [{"key": i} for i in (8, 9)])
 
@@ -1144,21 +1144,21 @@ echo {v = 2} >&7
         assert_items_equal(read_table("//tmp/t_out"), expected)
 
     def test_dynamic_table_index(self):
-        self.sync_create_cells(1)
+        sync_create_cells(1)
         create("table", "//tmp/t1")
         self._create_simple_dynamic_table("//tmp/t2")
         self._create_simple_dynamic_table("//tmp/t3")
         create("table", "//tmp/t_out")
 
-        self.sync_mount_table("//tmp/t2")
-        self.sync_mount_table("//tmp/t3")
+        sync_mount_table("//tmp/t2")
+        sync_mount_table("//tmp/t3")
 
         write_table("<sorted_by=[key]>//tmp/t1", [{"key": i, "value": str(i)} for i in range(1)])
         insert_rows("//tmp/t2", [{"key": i, "value": str(i)} for i in range(1, 2)])
         insert_rows("//tmp/t3", [{"key": i, "value": str(i)} for i in range(2, 3)])
 
-        self.sync_flush_table("//tmp/t2")
-        self.sync_flush_table("//tmp/t3")
+        sync_flush_table("//tmp/t2")
+        sync_flush_table("//tmp/t3")
 
         op = reduce(in_=["//tmp/t1", "//tmp/t2", "//tmp/t3"],
             out="//tmp/t_out",
