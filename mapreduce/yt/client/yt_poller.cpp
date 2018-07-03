@@ -49,8 +49,11 @@ void TYtPoller::WatchLoop()
                 return;
             }
 
-            TWaitProxy::SleepUntil(nextRequest);
-            nextRequest = TInstant::Now() + TConfig::Get()->WaitLockPollInterval;
+            {
+                auto ug = Unguard(Lock_);  // allow adding new items into Pending_
+                TWaitProxy::SleepUntil(nextRequest);
+                nextRequest = TInstant::Now() + TConfig::Get()->WaitLockPollInterval;
+            }
             if (!Pending_.empty()) {
                 InProgress_.splice(InProgress_.end(), Pending_);
             }
