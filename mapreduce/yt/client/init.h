@@ -7,10 +7,11 @@ namespace NDetail {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-enum EInitStatus : int
+enum class EInitStatus : int
 {
-    IS_NOT_INITIALIZED,
-    IS_INITIALIZED
+    NotInitialized,
+    JoblessInitialization,
+    FullInitialization,
 };
 
 EInitStatus& GetInitStatus();
