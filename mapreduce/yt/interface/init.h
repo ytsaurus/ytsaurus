@@ -28,6 +28,12 @@ struct TInitializeOptions
     FLUENT_FIELD_OPTION(std::function<void()>, JobOnExitFunction);
 };
 
+// Performs basic initialization (logging, termination handlers, etc).
+// This function never switches to job mode.
+void JoblessInitialize(const TInitializeOptions& options = TInitializeOptions());
+
+// Performs basic initialization and switches to a job mode if required.
+// This function should be called if application starts operations.
 void Initialize(int argc, const char **argv, const TInitializeOptions &options = TInitializeOptions());
 
 ////////////////////////////////////////////////////////////////////////////////

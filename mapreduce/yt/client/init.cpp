@@ -120,15 +120,11 @@ namespace NDetail {
 
 EInitStatus& GetInitStatus()
 {
-    static EInitStatus initStatus = IS_NOT_INITIALIZED;
+    static EInitStatus initStatus = EInitStatus::NotInitialized;
     return initStatus;
 }
 
-} // namespace NDetail
-
-////////////////////////////////////////////////////////////////////////////////
-
-void Initialize(int argc, const char* argv[], const TInitializeOptions& options)
+void CommonInitialize(int argc, const char** argv)
 {
     auto logLevelStr = to_lower(TConfig::Get()->LogLevel);
     ILogger::ELevel logLevel;
@@ -141,26 +137,26 @@ void Initialize(int argc, const char* argv[], const TInitializeOptions& options)
     SetLogger(CreateStdErrLogger(logLevel));
 
     TProcessState::Get()->SetCommandLine(argc, argv);
+}
 
-    NDetail::GetInitStatus() = NDetail::IS_INITIALIZED;
-
-    const bool isInsideJob = !GetEnv("YT_JOB_ID").empty();
-    if (!isInsideJob) {
-        if (FromString<bool>(GetEnv("YT_CLEANUP_ON_TERMINATION", "0")) || options.CleanupOnTermination_) {
-            TAbnormalTerminator::SetErrorTerminationHandler();
-        }
-        if (options.WaitProxy_) {
-            NDetail::TWaitProxy::Get() = options.WaitProxy_;
-        }
-        WriteVersionToLog();
-        return;
+void NonJobInitialize(const TInitializeOptions& options)
+{
+    if (FromString<bool>(GetEnv("YT_CLEANUP_ON_TERMINATION", "0")) || options.CleanupOnTermination_) {
+        TAbnormalTerminator::SetErrorTerminationHandler();
     }
+    if (options.WaitProxy_) {
+        NDetail::TWaitProxy::Get() = options.WaitProxy_;
+    }
+    WriteVersionToLog();
+}
 
+void ExecJob(int argc, const char** argv, const TInitializeOptions& options)
+{
     // Now we are definitely in job.
     // We take this setting from environment variable to be consistent with client code.
     TConfig::Get()->UseClientProtobuf = IsTrue(GetEnv("YT_USE_CLIENT_PROTOBUF", ""));
 
-    TString jobType = argv[1];
+    TString jobType = argc >= 2 ? argv[1] : TString();
     if (argc != 5 || jobType != "--yt-map" && jobType != "--yt-reduce") {
         // We are inside job but probably using old API
         // (i.e. both NYT::Initialize and NMR::Initialize are called).
@@ -188,7 +184,32 @@ void Initialize(int argc, const char* argv[], const TInitializeOptions& options)
     exit(ret);
 }
 
+} // namespace NDetail
+
+////////////////////////////////////////////////////////////////////////////////
+
+void JoblessInitialize(const TInitializeOptions& options)
+{
+    static const char* fakeArgv[] = {"unknown..."};
+    NDetail::CommonInitialize(1, fakeArgv);
+    NDetail::NonJobInitialize(options);
+    NDetail::GetInitStatus() = NDetail::EInitStatus::JoblessInitialization;
+}
+
+void Initialize(int argc, const char* argv[], const TInitializeOptions& options)
+{
+    NDetail::CommonInitialize(argc, argv);
+
+    NDetail::GetInitStatus() = NDetail::EInitStatus::FullInitialization;
+
+    const bool isInsideJob = !GetEnv("YT_JOB_ID").empty();
+    if (!isInsideJob) {
+        NDetail::NonJobInitialize(options);
+    }
+
+    NDetail::ExecJob(argc, argv, options);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
-

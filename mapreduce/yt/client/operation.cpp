@@ -471,7 +471,7 @@ public:
         if (Spec_.JobBinary_) {
             binaryPath = *Spec_.JobBinary_;
         }
-        if (binaryPath == GetExecPath() && GetInitStatus() == IS_NOT_INITIALIZED) {
+        if (binaryPath == GetExecPath() && GetInitStatus() != EInitStatus::FullInitialization) {
             ythrow yexception() << "NYT::Initialize() must be called prior to any operation";
         }
 
