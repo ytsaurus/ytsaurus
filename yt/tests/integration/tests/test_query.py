@@ -3,7 +3,7 @@ import pytest
 import os
 import os.path
 
-from yt_env_setup import YTEnvSetup
+from yt_env_setup import YTEnvSetup, find_ut_file
 from yt_commands import *
 
 from yt.environment.helpers import assert_items_equal
@@ -42,7 +42,7 @@ class TestQuery(YTEnvSetup):
                     ]
                })
 
-        self.sync_mount_table(path)
+        sync_mount_table(path)
 
         for i in xrange(chunks):
             data = [
@@ -58,11 +58,11 @@ class TestQuery(YTEnvSetup):
                    "schema": schema
                })
 
-        self.sync_mount_table(path)
+        sync_mount_table(path)
         insert_rows(path, data)
 
     def test_simple(self):
-        self.sync_create_cells(1)
+        sync_create_cells(1)
         for i in xrange(0, 50, 10):
             path = "//tmp/t{0}".format(i)
 
@@ -72,33 +72,33 @@ class TestQuery(YTEnvSetup):
             assert len(result) == 10 * i
 
     def test_full_scan(self):
-        self.sync_create_cells(1)
+        sync_create_cells(1)
         self._sample_data(path="//tmp/t")
         with pytest.raises(YtError): select_rows("* from [//tmp/t]", allow_full_scan=False)
 
     def test_project1(self):
-        self.sync_create_cells(1)
+        sync_create_cells(1)
         self._sample_data(path="//tmp/t")
         expected = [{"s": 2 * i + 10 * i - 1} for i in xrange(1, 10)]
         actual = select_rows("2 * a + b - 1 as s from [//tmp/t]")
         assert expected == actual
 
     def test_group_by1(self):
-        self.sync_create_cells(1)
+        sync_create_cells(1)
         self._sample_data(path="//tmp/t")
         expected = [{"s": 450}]
         actual = select_rows("sum(b) as s from [//tmp/t] group by 1 as k")
         assert_items_equal(actual, expected)
 
     def test_group_by2(self):
-        self.sync_create_cells(1)
+        sync_create_cells(1)
         self._sample_data(path="//tmp/t")
         expected = [{"k": 0, "s": 200}, {"k": 1, "s": 250}]
         actual = select_rows("k, sum(b) as s from [//tmp/t] group by a % 2 as k")
         assert_items_equal(actual, expected)
 
     def test_having(self):
-        self.sync_create_cells(3)
+        sync_create_cells(3)
 
         create("table", "//tmp/t",
             attributes={
@@ -109,7 +109,7 @@ class TestQuery(YTEnvSetup):
                     {"name": "b", "type": "int64"}]
             })
 
-        self.sync_mount_table("//tmp/t")
+        sync_mount_table("//tmp/t")
 
         data = [{"a" : i, "b" : i * 10} for i in xrange(0,100)]
         insert_rows("//tmp/t", data)
@@ -123,7 +123,7 @@ class TestQuery(YTEnvSetup):
         assert expected == actual
 
     def test_merging_group_by(self):
-        self.sync_create_cells(1)
+        sync_create_cells(1)
 
         create("table", "//tmp/t",
             attributes={
@@ -138,7 +138,7 @@ class TestQuery(YTEnvSetup):
         pivots.insert(0, [])
         reshard_table("//tmp/t", pivots)
 
-        self.sync_mount_table("//tmp/t")
+        sync_mount_table("//tmp/t")
 
         data = [{"a" : i, "b" : i * 10} for i in xrange(0,100)]
         insert_rows("//tmp/t", data)
@@ -154,7 +154,7 @@ class TestQuery(YTEnvSetup):
         assert expected == actual
 
     def test_merging_group_by2(self):
-        self.sync_create_cells(1)
+        sync_create_cells(1)
 
         create("table", "//tmp/t",
             attributes={
@@ -169,7 +169,7 @@ class TestQuery(YTEnvSetup):
         pivots.insert(0, [])
         reshard_table("//tmp/t", pivots)
 
-        self.sync_mount_table("//tmp/t")
+        sync_mount_table("//tmp/t")
 
         data = [{"a" : i, "b" : str(i)} for i in xrange(0,100)]
         insert_rows("//tmp/t", data)
@@ -181,14 +181,14 @@ class TestQuery(YTEnvSetup):
         assert expected == actual
 
     def test_limit(self):
-        self.sync_create_cells(1)
+        sync_create_cells(1)
         self._sample_data(path="//tmp/t")
         expected = [{"a": 1, "b": 10}]
         actual = select_rows("* from [//tmp/t] limit 1")
         assert expected == actual
 
     def test_order_by(self):
-        self.sync_create_cells(1)
+        sync_create_cells(1)
 
         create("table", "//tmp/t",
             attributes={
@@ -200,7 +200,7 @@ class TestQuery(YTEnvSetup):
                     {"name": "v", "type": "int64"}]
             })
 
-        self.sync_mount_table("//tmp/t")
+        sync_mount_table("//tmp/t")
 
         values = [i for i in xrange(0, 300)]
         shuffle(values)
@@ -220,7 +220,7 @@ class TestQuery(YTEnvSetup):
         assert expected == actual
 
     def test_inefficient_join(self):
-        self.sync_create_cells(1)
+        sync_create_cells(1)
         self._create_table(
             "//tmp/jl",
             [
@@ -240,7 +240,7 @@ class TestQuery(YTEnvSetup):
         with pytest.raises(YtError): select_rows("* from [//tmp/jl] join [//tmp/jr] on b = d", allow_join_without_index=False)
 
     def test_join(self):
-        self.sync_create_cells(1)
+        sync_create_cells(1)
 
         self._create_table(
             "//tmp/jl",
@@ -308,7 +308,7 @@ class TestQuery(YTEnvSetup):
         assert expected == actual
 
     def test_join_common_prefix(self):
-        self.sync_create_cells(1)
+        sync_create_cells(1)
 
         self._create_table(
             "//tmp/jl",
@@ -358,7 +358,7 @@ class TestQuery(YTEnvSetup):
         assert sorted(expected) == sorted(actual)
 
     def test_join_common_prefix2(self):
-        self.sync_create_cells(1)
+        sync_create_cells(1)
 
         self._create_table(
             "//tmp/jl",
@@ -389,7 +389,7 @@ class TestQuery(YTEnvSetup):
         assert sorted(expected) == sorted(actual)
 
     def test_join_many(self):
-        self.sync_create_cells(1)
+        sync_create_cells(1)
 
         self._create_table(
             "//tmp/a",
@@ -446,7 +446,7 @@ class TestQuery(YTEnvSetup):
         assert sorted(expected) == sorted(actual)
 
     def test_types(self):
-        self.sync_create_cells(1)
+        sync_create_cells(1)
 
         create("table", "//tmp/t",
             attributes={
@@ -458,7 +458,7 @@ class TestQuery(YTEnvSetup):
                     {"name": "d", "type": "uint64"}
                 ]
             })
-        self.sync_mount_table("//tmp/t")
+        sync_mount_table("//tmp/t")
 
         format = yson.loads("<boolean_as_string=false;format=text>yson")
         insert_rows(
@@ -471,7 +471,7 @@ class TestQuery(YTEnvSetup):
                 '{"a"=10;"b"=%false;"c"="hello";"d"=32u;};\n'
 
     def test_tablets(self):
-        self.sync_create_cells(1)
+        sync_create_cells(1)
 
         create("table", "//tmp/t",
             attributes={
@@ -482,7 +482,7 @@ class TestQuery(YTEnvSetup):
                     {"name": "value", "type": "int64"}]
             })
 
-        self.sync_mount_table("//tmp/t")
+        sync_mount_table("//tmp/t")
 
         stripe = 10
 
@@ -492,16 +492,16 @@ class TestQuery(YTEnvSetup):
                 for j in xrange(1, 1 + stripe)]
             insert_rows("//tmp/t", data)
 
-        self.sync_unmount_table("//tmp/t")
+        sync_unmount_table("//tmp/t")
         reshard_table("//tmp/t", [[], [10], [30], [50], [70], [90]])
-        self.sync_mount_table("//tmp/t", first_tablet_index=0, last_tablet_index=2)
+        sync_mount_table("//tmp/t", first_tablet_index=0, last_tablet_index=2)
 
         select_rows("* from [//tmp/t] where key < 50")
 
         with pytest.raises(YtError): select_rows("* from [//tmp/t] where key < 51")
 
     def test_computed_column_simple(self):
-        self.sync_create_cells(1)
+        sync_create_cells(1)
 
         create("table", "//tmp/t",
                 attributes={
@@ -513,7 +513,7 @@ class TestQuery(YTEnvSetup):
                     ]
                 })
         reshard_table("//tmp/t", [[]] + [[i] for i in xrange(1, 100 * 33, 1000)])
-        self.sync_mount_table("//tmp/t")
+        sync_mount_table("//tmp/t")
 
         insert_rows("//tmp/t", [{"key": i, "value": i * 2} for i in xrange(0,100)])
 
@@ -530,7 +530,7 @@ class TestQuery(YTEnvSetup):
         assert_items_equal(actual, expected)
 
     def test_computed_column_far_divide(self):
-        self.sync_create_cells(1)
+        sync_create_cells(1)
 
         create("table", "//tmp/t",
             attributes={
@@ -544,7 +544,7 @@ class TestQuery(YTEnvSetup):
             })
 
         reshard_table("//tmp/t", [[]] + [[i] for i in xrange(1, 500, 10)])
-        self.sync_mount_table("//tmp/t")
+        sync_mount_table("//tmp/t")
 
         def expected(key_range):
             return [{"hash": i / 2, "key1": i, "key2": i, "value": i * 2} for i in key_range]
@@ -564,7 +564,7 @@ class TestQuery(YTEnvSetup):
         assert_items_equal(actual, expected([30]))
 
     def test_computed_column_modulo(self):
-        self.sync_create_cells(1)
+        sync_create_cells(1)
 
         create("table", "//tmp/t",
              attributes={
@@ -578,7 +578,7 @@ class TestQuery(YTEnvSetup):
              })
 
         reshard_table("//tmp/t", [[]] + [[i] for i in xrange(1, 500, 10)])
-        self.sync_mount_table("//tmp/t")
+        sync_mount_table("//tmp/t")
 
         def expected(key_range):
             return [{"hash": i % 2, "key1": i, "key2": i, "value": i * 2} for i in key_range]
@@ -613,10 +613,10 @@ class TestQuery(YTEnvSetup):
                     "value": "int64"},
                 "calling_convention": "simple"}})
 
-        local_implementation_path = self._find_ut_file("test_udfs.bc")
+        local_implementation_path = find_ut_file("test_udfs.bc")
         write_local_file(abs_path, local_implementation_path)
 
-        self.sync_create_cells(1)
+        sync_create_cells(1)
         self._sample_data(path="//tmp/u")
         expected = [{"s": 2 * i} for i in xrange(1, 10)]
         actual = select_rows("abs_udf(-2 * a) as s from [//tmp/u]")
@@ -639,10 +639,10 @@ class TestQuery(YTEnvSetup):
                 "calling_convention": "unversioned_value",
                 "use_function_context": True}})
 
-        local_implementation_path = self._find_ut_file("test_udfs_fc.bc")
+        local_implementation_path = find_ut_file("test_udfs_fc.bc")
         write_local_file(udf_fc_path, local_implementation_path)
 
-        self.sync_create_cells(1)
+        sync_create_cells(1)
         self._sample_data(path="//tmp/u")
         expected = [{"s": 2 * i} for i in xrange(1, 10)]
         actual = select_rows("udf_fc(2 * a) as s from [//tmp/u]")
@@ -667,10 +667,10 @@ class TestQuery(YTEnvSetup):
                     "value": "double"},
                 "calling_convention": "unversioned_value"}})
 
-        local_implementation_path = self._find_ut_file("test_udfs.bc")
+        local_implementation_path = find_ut_file("test_udfs.bc")
         write_local_file(avg_path, local_implementation_path)
 
-        self.sync_create_cells(1)
+        sync_create_cells(1)
         self._sample_data(path="//tmp/ua")
         expected = [{"x": 5.0}]
         actual = select_rows("avg_udaf(a) as x from [//tmp/ua] group by 1")
@@ -678,7 +678,7 @@ class TestQuery(YTEnvSetup):
 
     @flaky(max_runs=5)
     def test_udf_cache(self):
-        self.sync_create_cells(1)
+        sync_create_cells(1)
         self._sample_data(path="//tmp/u")
         query = "a, xxx_udf(a, 2) as s from [//tmp/u]"
 
@@ -687,7 +687,7 @@ class TestQuery(YTEnvSetup):
         xxx_path = os.path.join(registry_path, "xxx_udf")
         create("map_node", registry_path)
 
-        udfs_impl_path = self._find_ut_file("test_udfs.bc")
+        udfs_impl_path = find_ut_file("test_udfs.bc")
 
         create("file", xxx_path,
             attributes = { "function_descriptor": {
@@ -734,7 +734,7 @@ class TestQuery(YTEnvSetup):
         assert_items_equal(actual, expected_sum)
 
     def test_aggregate_string_capture(self):
-        self.sync_create_cells(1)
+        sync_create_cells(1)
 
         create("table", "//tmp/t",
             attributes={
@@ -745,7 +745,7 @@ class TestQuery(YTEnvSetup):
                 ]
             })
 
-        self.sync_mount_table("//tmp/t")
+        sync_mount_table("//tmp/t")
 
         # Need at least 1024 items to ensure a second batch in the scan operator
         data = [
@@ -758,7 +758,7 @@ class TestQuery(YTEnvSetup):
         assert_items_equal(actual, expected)
 
     def test_cardinality(self):
-        self.sync_create_cells(1)
+        sync_create_cells(1)
 
         create("table", "//tmp/card",
             attributes={
@@ -773,7 +773,7 @@ class TestQuery(YTEnvSetup):
         pivots.insert(0, [])
         reshard_table("//tmp/card", pivots)
 
-        self.sync_mount_table("//tmp/card")
+        sync_mount_table("//tmp/card")
 
         data = [{"a" : i} for i in xrange(0,20000)]
         insert_rows("//tmp/card", data)
@@ -790,7 +790,7 @@ class TestQuery(YTEnvSetup):
         assert actual[2]["b"] < 2.05 * 10000
 
     def test_yt_2375(self):
-        self.sync_create_cells(1)
+        sync_create_cells(1)
         create("table", "//tmp/t",
             attributes={
                 "dynamic": True,
@@ -800,14 +800,14 @@ class TestQuery(YTEnvSetup):
                 ]
             })
         reshard_table("//tmp/t", [[]] + [[i] for i in xrange(1, 1000, 10)])
-        self.sync_mount_table("//tmp/t")
+        sync_mount_table("//tmp/t")
 
         insert_rows("//tmp/t", [{"key": i, "value": 10 * i} for i in xrange(0, 1000)])
         # should not raise
         select_rows("sleep(value) from [//tmp/t]", output_row_limit=1, fail_on_incomplete_result=False)
 
     def test_null(self):
-        self.sync_create_cells(1)
+        sync_create_cells(1)
 
         create("table", "//tmp/t",
             attributes={
@@ -818,7 +818,7 @@ class TestQuery(YTEnvSetup):
                     {"name": "b", "type": "int64"}]
             })
 
-        self.sync_mount_table("//tmp/t")
+        sync_mount_table("//tmp/t")
 
         data = [{"a" : None, "b" : 0}, {"a" : 1, "b" : 1}]
         insert_rows("//tmp/t", data)
@@ -828,7 +828,7 @@ class TestQuery(YTEnvSetup):
         assert actual == expected
 
     def test_bad_limits(self):
-        self.sync_create_cells(1)
+        sync_create_cells(1)
 
         create("table", "//tmp/t",
             attributes={
@@ -845,7 +845,7 @@ class TestQuery(YTEnvSetup):
         pivots.insert(0, [])
         reshard_table("//tmp/t", pivots)
 
-        self.sync_mount_table("//tmp/t")
+        sync_mount_table("//tmp/t")
 
         data = [{"a" : i, "b" : i, "c" : i, "x" : str(i)} for i in xrange(0,100)]
         insert_rows("//tmp/t", data)
@@ -853,7 +853,7 @@ class TestQuery(YTEnvSetup):
         select_rows("x from [//tmp/t] where (a = 18 and b = 10 and c >= 70) or (a = 18 and b >= 10) or (a >= 18)")
 
     def test_multi_between(self):
-        self.sync_create_cells(1)
+        sync_create_cells(1)
 
         create("table", "//tmp/t",
             attributes={
@@ -865,7 +865,7 @@ class TestQuery(YTEnvSetup):
                     {"name": "c", "type": "int64"}]
             })
 
-        self.sync_mount_table("//tmp/t")
+        sync_mount_table("//tmp/t")
 
         data = [{"a" : i / 10, "b" : i % 10, "c" : i} for i in xrange(0,100)]
         insert_rows("//tmp/t", data)

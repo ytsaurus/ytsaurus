@@ -950,15 +950,15 @@ class TestSchedulerMergeCommands(YTEnvSetup):
                     "optimize_for": optimize_for
                 })
 
-        self.sync_create_cells(1)
+        sync_create_cells(1)
         _create_dynamic_table("//tmp/t")
 
         create("table", "//tmp/t_out")
 
         rows1 = [{"key": i, "value": str(i)} for i in range(10)]
-        self.sync_mount_table("//tmp/t")
+        sync_mount_table("//tmp/t")
         insert_rows("//tmp/t", rows1)
-        self.sync_unmount_table("//tmp/t")
+        sync_unmount_table("//tmp/t")
 
         merge(
             mode="sorted",
@@ -969,9 +969,9 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         assert_items_equal(read_table("//tmp/t_out"), rows1)
 
         rows2 = [{"key": i, "value": str(i+1)} for i in range(5, 15)]
-        self.sync_mount_table("//tmp/t")
+        sync_mount_table("//tmp/t")
         insert_rows("//tmp/t", rows2)
-        self.sync_unmount_table("//tmp/t")
+        sync_unmount_table("//tmp/t")
 
         merge(
             mode="sorted",

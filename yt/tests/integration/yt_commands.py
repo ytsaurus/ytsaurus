@@ -4,6 +4,7 @@ import yt_driver_bindings
 from yt.common import YtError, YtResponseError, flatten, update_inplace
 from yt.environment.helpers import wait
 
+import __builtin__
 import copy as pycopy
 import os
 import stat
@@ -1272,3 +1273,119 @@ class PrepareTables(object):
 
         self._create_table("//tmp/t_out")
 
+##################################################################
+
+def set_node_banned(address, flag, driver=None):
+    set("//sys/nodes/%s/@banned" % address, flag, driver=driver)
+    ban, state = ("banned", "offline") if flag else ("unbanned", "online")
+    print >>sys.stderr, "Waiting for node %s to become %s..." % (address, ban)
+    wait(lambda: get("//sys/nodes/%s/@state" % address, driver=driver) == state)
+
+def set_node_decommissioned(address, flag, driver=None):
+    set("//sys/nodes/%s/@decommissioned" % address, flag, driver=driver)
+    print >>sys.stderr, "Node %s is %s" % (address, "decommissioned" if flag else "not decommissioned")
+
+def wait_for_nodes(driver=None):
+    print >>sys.stderr, "Waiting for nodes to become online..."
+    wait(lambda: all(n.attributes["state"] == "online"
+                     for n in ls("//sys/nodes", attributes=["state"], driver=driver)))
+
+def wait_for_chunk_replicator(driver=None):
+    print >>sys.stderr, "Waiting for chunk replicator to become enabled..."
+    wait(lambda: get("//sys/@chunk_replicator_enabled", driver=driver))
+
+def wait_for_cells(cell_ids=None, driver=None):
+    print >>sys.stderr, "Waiting for tablet cells to become healthy..."
+    def get_cells():
+        cells = ls("//sys/tablet_cells", attributes=["health", "id", "peers"], driver=driver)
+        if cell_ids == None:
+            return cells
+        return [cell for cell in cells if cell.attributes["id"] in cell_ids]
+
+    def check_cells():
+        cells = get_cells()
+        for cell in cells:
+            if cell.attributes["health"] != "good":
+                return False
+            node = cell.attributes["peers"][0]["address"]
+            try:
+                if not exists("//sys/nodes/{0}/orchid/tablet_cells/{1}".format(node, cell.attributes["id"]), driver=driver):
+                    return False
+            except YtResponseError:
+                return False
+        return True
+
+    wait(check_cells)
+
+def sync_create_cells(cell_count, tablet_cell_bundle="default", driver=None):
+    cell_ids = []
+    for _ in xrange(cell_count):
+        cell_id = create_tablet_cell(attributes={
+            "tablet_cell_bundle": tablet_cell_bundle
+        }, driver=driver)
+        cell_ids.append(cell_id)
+    wait_for_cells(cell_ids, driver=driver)
+    return cell_ids
+
+def wait_until_sealed(path, driver=None):
+    wait(lambda: get(path + "/@sealed", driver=driver))
+
+def wait_for_tablet_state(path, state_or_states, **kwargs):
+    states = [state_or_states] if isinstance(state_or_states, str) else state_or_states
+    print >>sys.stderr, "Waiting for tablets to become %s..." % ", ".join(str(state) for state in states)
+    driver = kwargs.pop("driver", None)
+    tablet_count = get(path + '/@tablet_count', driver=driver)
+    first_tablet_index = kwargs.get("first_tablet_index", 0)
+    last_tablet_index = kwargs.get("last_tablet_index", tablet_count - 1)
+    wait(lambda: all(x["state"] in states for x in
+         get(path + "/@tablets", driver=driver)[first_tablet_index:last_tablet_index + 1]))
+
+def sync_mount_table(path, freeze=False, **kwargs):
+    mount_table(path, freeze=freeze, **kwargs)
+    wait_for_tablet_state(path, "frozen" if freeze else "mounted", **kwargs)
+
+def sync_unmount_table(path, **kwargs):
+    unmount_table(path, **kwargs)
+    wait_for_tablet_state(path, "unmounted", **kwargs)
+
+def sync_freeze_table(path, **kwargs):
+    freeze_table(path, **kwargs)
+    wait_for_tablet_state(path, "frozen", **kwargs)
+
+def sync_unfreeze_table(path, **kwargs):
+    unfreeze_table(path, **kwargs)
+    wait_for_tablet_state(path, "mounted", **kwargs)
+
+def sync_flush_table(path, driver=None):
+    sync_freeze_table(path, driver=driver)
+    sync_unfreeze_table(path, driver=driver)
+
+def sync_compact_table(path, driver=None):
+    chunk_ids = __builtin__.set(get(path + "/@chunk_ids", driver=driver))
+    sync_unmount_table(path, driver=driver)
+    revision = get("//sys/@current_commit_revision", driver=driver)
+    set(path + "/@forced_compaction_revision", revision, driver=driver)
+    sync_mount_table(path, driver=driver)
+
+    print >>sys.stderr, "Waiting for tablets to become compacted..."
+    wait(lambda: len(chunk_ids.intersection(__builtin__.set(get(path + "/@chunk_ids", driver=driver)))) == 0)
+
+    print >>sys.stderr, "Waiting for tablets to become stable..."
+    def check_stable():
+        chunk_ids1 = get(path + "/@chunk_ids", driver=driver)
+        time.sleep(3.0)
+        chunk_ids2 = get(path + "/@chunk_ids", driver=driver)
+        return chunk_ids1 == chunk_ids2
+    wait(lambda: check_stable())
+
+def sync_enable_table_replica(replica_id, driver=None):
+    alter_table_replica(replica_id, enabled=True, driver=driver)
+
+    print >>sys.stderr, "Waiting for replica to become enabled..."
+    wait(lambda: get("#{0}/@state".format(replica_id), driver=driver) == "enabled")
+
+def sync_disable_table_replica(replica_id, driver=None):
+    alter_table_replica(replica_id, enabled=False, driver=driver)
+
+    print >>sys.stderr, "Waiting for replica to become disabled..."
+    wait(lambda: get("#{0}/@state".format(replica_id), driver=driver) == "disabled")

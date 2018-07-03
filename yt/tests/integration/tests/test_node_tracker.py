@@ -21,8 +21,8 @@ class TestNodeTracker(YTEnvSetup):
         test_node = nodes[0]
         assert get("//sys/nodes/%s/@state" % test_node) == "online"
 
-        self.set_node_banned(test_node, True)
-        self.set_node_banned(test_node, False)
+        set_node_banned(test_node, True)
+        set_node_banned(test_node, False)
 
     def test_resource_limits_overrides_defaults(self):
         node = ls("//sys/nodes")[0]

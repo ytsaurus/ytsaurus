@@ -68,7 +68,7 @@ class TestListJobs(YTEnvSetup):
     USE_DYNAMIC_TABLES = True
 
     def setup(self):
-        self.sync_create_cells(1)
+        sync_create_cells(1)
         init_operation_archive.create_tables_latest_version(self.Env.create_native_client())
 
     def teardown(self):
@@ -441,7 +441,7 @@ class TestListJobs(YTEnvSetup):
 
         clear_metadata_caches()
 
-        self.wait_for_cells(ls("//sys/tablet_cells"))
+        wait_for_cells(ls("//sys/tablet_cells"))
 
         mount_table("//sys/operations_archive/jobs")
         wait(lambda: get("//sys/operations_archive/jobs/@tablet_state") == "mounted")
