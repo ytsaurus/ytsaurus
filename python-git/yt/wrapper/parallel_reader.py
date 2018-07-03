@@ -6,7 +6,7 @@ from .heavy_commands import process_read_exception, _get_read_response
 from .http_helpers import get_retriable_errors
 from .lock_commands import lock
 from .response_stream import ResponseStreamWithReadRow, EmptyResponseStream
-from .retries import Retrier
+from .retries import Retrier, default_chaos_monkey
 from .transaction import Transaction, null_transaction_id
 from .thread_pool import ThreadPool
 from .ypath import TablePath
@@ -29,7 +29,7 @@ class ParallelReadRetrier(Retrier):
         super(ParallelReadRetrier, self).__init__(retry_config=retry_config,
                                                   timeout=timeout,
                                                   exceptions=retriable_errors,
-                                                  chaos_monkey_enable=chaos_monkey_enabled)
+                                                  chaos_monkey=default_chaos_monkey(chaos_monkey_enabled))
         self._command_name = command_name
         self._transaction_id = transaction_id
         self._client = client

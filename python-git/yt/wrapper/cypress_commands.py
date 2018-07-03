@@ -8,7 +8,7 @@ from .transaction import Transaction
 from .ypath import YPath, escape_ypath_literal, ypath_join, ypath_dirname
 from .format import create_format
 from .batch_response import apply_function_to_result
-from .retries import Retrier
+from .retries import Retrier, default_chaos_monkey
 from .http_helpers import get_retriable_errors
 
 import yt.logger as logger
@@ -159,7 +159,7 @@ class _ConcatenateRetrier(Retrier):
         chaos_monkey_enable = get_option("_ENABLE_HEAVY_REQUEST_CHAOS_MONKEY", client)
         super(_ConcatenateRetrier, self).__init__(retry_config=retry_config,
                                                   exceptions=get_retriable_errors(),
-                                                  chaos_monkey_enable=chaos_monkey_enable)
+                                                  chaos_monkey=default_chaos_monkey(chaos_monkey_enable))
 
     def action(self):
         title = "Python wrapper: concatenate"
