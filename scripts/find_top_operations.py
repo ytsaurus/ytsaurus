@@ -122,13 +122,12 @@ class Operation(object):
 
     def get_default_attrs(self):
         if self._attrs is None:
-            return None
+            self._attrs = {}
 
         return {
-            "operation_type": self._attrs["operation_type"],
-            "authenticated_user": self._attrs["authenticated_user"],
-            "pool": self._attrs["spec"].get("pool", "<unknown>"),
-            "title": self._attrs["spec"].get("title", "")
+            "operation_type": self._attrs.get("operation_type", "<unknown>"),
+            "authenticated_user": self._attrs.get("authenticated_user", "<unknown>"),
+            "pool": self._attrs.get("spec", {}).get("pool", "<unknown>"),
         }
 
     def get_job_count(self):
