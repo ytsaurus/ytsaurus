@@ -21,6 +21,7 @@ from datetime import datetime
 
 import argparse
 import glob
+import functools
 import os.path
 import pprint
 import re
@@ -63,6 +64,7 @@ def process_core_dumps(options, suite_name, suite_path):
     return find_core_dumps_with_report(suite_name, search_paths, artifacts, sandbox_archive)
 
 def disable_for_ya(func):
+    @functools.wraps(func)
     def wrapper_function(options, build_context):
         if options.build_system == "ya":
             teamcity_message("Step {0} is not supported for ya build system yet".format(func.__name__))
