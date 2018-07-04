@@ -300,8 +300,10 @@ public:
     // Maximum number of simultaneously processed heartbeats.
     int HardConcurrentHeartbeatLimit;
 
+    // Scheduler does not apply this option on the fly yet.
     TDuration OrchidKeysUpdatePeriod;
 
+    // Scheduler does not apply this option on the fly yet.
     TDuration StaticOrchidCacheUpdatePeriod;
 
     // Enables job reporter to send job events/statistics etc.

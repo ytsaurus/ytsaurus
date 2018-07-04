@@ -235,7 +235,8 @@ public:
             &TImpl::HandlePoolTrees,
             Unretained(this)));
 
-        MasterConnector_->AddGlobalWatcher(
+        MasterConnector_->AddCustomGlobalWatcher(
+            EWatcherType::NodeAttributes,
             BIND(&TImpl::RequestNodesAttributes, Unretained(this)),
             BIND(&TImpl::HandleNodesAttributes, Unretained(this)),
             Config_->NodesAttributesUpdatePeriod);
@@ -1726,6 +1727,7 @@ private:
             Strategy_->UpdateConfig(Config_);
             MasterConnector_->UpdateConfig(Config_);
             OperationsCleaner_->UpdateConfig(Config_->OperationsCleaner);
+            CachedExecNodeMemoryDistributionByTags_->SetExpirationTimeout(Config_->SchedulingTagFilterExpireTimeout);
 
             ProfilingExecutor_->SetPeriod(Config_->ProfilingUpdatePeriod);
             LoggingExecutor_->SetPeriod(Config_->ClusterInfoLoggingPeriod);

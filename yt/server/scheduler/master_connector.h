@@ -32,6 +32,10 @@ DEFINE_ENUM(EMasterConnectorState,
     (Connected)
 );
 
+DEFINE_ENUM(EWatcherType,
+    (NodeAttributes)
+);
+
 //! Mediates communication between scheduler and master.
 /*!
  *  \note Thread affinity: control unless noted otherwise
@@ -88,7 +92,7 @@ public:
 
     void AddGlobalWatcherRequester(TWatcherRequester requester);
     void AddGlobalWatcherHandler(TWatcherHandler handler);
-    void AddGlobalWatcher(TWatcherRequester requester, TWatcherHandler handler, TDuration period);
+    void AddCustomGlobalWatcher(EWatcherType type, TWatcherRequester requester, TWatcherHandler handler, TDuration period);
 
     void AddOperationWatcherRequester(const TOperationPtr& operation, TWatcherRequester requester);
     void AddOperationWatcherHandler(const TOperationPtr& operation, TWatcherHandler handler);

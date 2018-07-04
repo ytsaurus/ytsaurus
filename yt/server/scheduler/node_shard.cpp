@@ -107,6 +107,9 @@ void TNodeShard::UpdateConfig(const TSchedulerConfigPtr& config)
     VERIFY_INVOKER_AFFINITY(GetInvoker());
 
     Config_ = config;
+
+    SubmitJobsToStrategyExecutor_->SetPeriod(config->NodeShardSubmitJobsToStrategyPeriod);
+    CachedExecNodeDescriptorsRefresher_->SetPeriod(config->NodeShardExecNodesCacheUpdatePeriod);
 }
 
 IInvokerPtr TNodeShard::OnMasterConnected()
