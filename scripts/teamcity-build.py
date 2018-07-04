@@ -276,7 +276,6 @@ def build(options, build_context):
         run_yall(["--threads", str(cpus)], options, mkdirs=True)
 
 @build_step
-@disable_for_ya
 def set_suid_bit(options, build_context):
     for binary in ["ytserver-node", "ytserver-exec", "ytserver-job-proxy", "ytserver-tools"]:
         path = os.path.join(get_bin_dir(options), binary)
