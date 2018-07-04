@@ -67,7 +67,7 @@ protected:
 
 TEST_F(TSchemalessWriterForWebJson, Simple)
 {
-    Config_->AllColumnNamesLimit = 2;
+    Config_->MaxAllColumnNamesCount = 2;
 
     CreateStandardWriter();
 
@@ -116,6 +116,7 @@ TEST_F(TSchemalessWriterForWebJson, Simple)
                 "}"
             "],"
             "\"incomplete_columns\":\"false\","
+            "\"incomplete_all_column_names\":\"true\","
             "\"all_column_names\":["
                 "\"column_a\","
                 "\"column_b\""
@@ -126,9 +127,9 @@ TEST_F(TSchemalessWriterForWebJson, Simple)
     EXPECT_EQ(expectedOutput, OutputStream_.Str());
 }
 
-TEST_F(TSchemalessWriterForWebJson, SliceColumns)
+TEST_F(TSchemalessWriterForWebJson, SliceColumnsByMaxCount)
 {
-    Config_->ColumnLimit = 2;
+    Config_->MaxSelectedColumnCount = 2;
 
     CreateStandardWriter();
 
@@ -172,6 +173,7 @@ TEST_F(TSchemalessWriterForWebJson, SliceColumns)
                 "}"
             "],"
             "\"incomplete_columns\":\"true\","
+            "\"incomplete_all_column_names\":\"false\","
             "\"all_column_names\":["
                 "\"column_a\","
                 "\"column_b\","
@@ -243,6 +245,7 @@ TEST_F(TSchemalessWriterForWebJson, SliceStrings)
                 "}"
             "],"
             "\"incomplete_columns\":\"false\","
+            "\"incomplete_all_column_names\":\"false\","
             "\"all_column_names\":["
                 "\"column_a\","
                 "\"column_b\","
@@ -315,6 +318,7 @@ TEST_F(TSchemalessWriterForWebJson, ReplaceAnyWithNull)
                 "}"
             "],"
             "\"incomplete_columns\":\"false\","
+            "\"incomplete_all_column_names\":\"false\","
             "\"all_column_names\":["
                 "\"column_a\","
                 "\"column_b\","
@@ -361,6 +365,7 @@ TEST_F(TSchemalessWriterForWebJson, SkipSystemColumns)
                 "}"
             "],"
             "\"incomplete_columns\":\"false\","
+            "\"incomplete_all_column_names\":\"false\","
             "\"all_column_names\":["
                 "\"$row_index\","
                 "\"$table_index\","
@@ -405,8 +410,63 @@ TEST_F(TSchemalessWriterForWebJson, SkipUnregisteredColumns)
                 "}"
             "],"
             "\"incomplete_columns\":\"false\","
+            "\"incomplete_all_column_names\":\"false\","
             "\"all_column_names\":["
                 "\"column_d\""
+            "]"
+        "}";
+
+    EXPECT_EQ(expectedOutput.length(), Writer_->GetWrittenSize());
+    EXPECT_EQ(expectedOutput, OutputStream_.Str());
+}
+
+TEST_F(TSchemalessWriterForWebJson, SliceColumnsByName)
+{
+    Config_->ColumnNames = {
+        "column_b",
+        "column_c",
+        "$tablet_index"};
+    Config_->MaxSelectedColumnCount = 2;
+    Config_->SkipSystemColumns = false;
+
+    CreateStandardWriter();
+
+    TUnversionedRowBuilder row;
+    row.AddValue(MakeUnversionedUint64Value(100500, KeyAId_));
+    row.AddValue(MakeUnversionedDoubleValue(0.42, KeyBId_));
+    row.AddValue(MakeUnversionedStringValue("abracadabra", KeyCId_));
+    row.AddValue(MakeUnversionedInt64Value(10, TabletIndexColumnId_));
+
+    std::vector<TUnversionedRow> rows = {row.GetRow()};
+
+    EXPECT_EQ(true, Writer_->Write(rows));
+    Writer_->Close();
+
+    TString expectedOutput =
+        "{"
+            "\"rows\":["
+                "{"
+                    "\"column_b\":{"
+                        "\"$type\":\"double\","
+                        "\"$value\":\"0.42\""
+                    "},"
+                    "\"column_c\":{"
+                        "\"$type\":\"string\","
+                        "\"$value\":\"abracadabra\""
+                    "},"
+                    "\"$$tablet_index\":{"
+                        "\"$type\":\"int64\","
+                        "\"$value\":\"10\""
+                    "}"
+                "}"
+            "],"
+            "\"incomplete_columns\":\"true\","
+            "\"incomplete_all_column_names\":\"false\","
+            "\"all_column_names\":["
+                "\"$tablet_index\","
+                "\"column_a\","
+                "\"column_b\","
+                "\"column_c\""
             "]"
         "}";
 

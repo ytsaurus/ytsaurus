@@ -116,7 +116,8 @@ EXPECTED_OUTPUT_BASE = {
             }
         },
     ],
-    "incomplete_columns": "false"
+    "incomplete_columns": "false",
+    "incomplete_all_column_names": "false"
 }
 
 TABLE_PATH = "//tmp/table"
@@ -147,7 +148,7 @@ def get_expected_all_column_names(dynamic_ordered):
 def get_web_json_format(field_weight_limit, column_limit):
     format_ = yson.YsonString("web_json")
     format_.attributes["field_weight_limit"] = field_weight_limit
-    format_.attributes["column_limit"] = column_limit
+    format_.attributes["max_selected_column_count"] = column_limit
     return format_
 
 def get_dynamic_table_select_query(column_names, table_path):
