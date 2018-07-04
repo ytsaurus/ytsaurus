@@ -1858,7 +1858,7 @@ TJobResources TOperationElement::ComputePossibleResourceUsage(TJobResources limi
 
             auto remainingLimit = Max(ZeroJobResources(), limit - usage);
             // TODO(asaitgalin): Move this to MaxPossibleResourceUsage computation.
-            return usage + remainingDemand * GetMinResourceRatio(remainingLimit, remainingDemand);
+            return Min(ResourceDemand(), usage + remainingDemand * GetMinResourceRatio(remainingLimit, remainingDemand));
         }
     } else {
         // Max possible resource usage can be less than usage just after scheduler connection
