@@ -28,7 +28,7 @@ def mount_table(client, path):
 
 class TableInfo(object):
     def __init__(self, key_columns, value_columns, in_memory=False, get_pivot_keys=None, attributes={}):
-        def make_column(name, type_name, expression=None):
+        def make_column(name, type_name):
             return {
                 "name": name,
                 "type": type_name
@@ -671,8 +671,7 @@ TRANSFORMS[19] = [
             ], [
                 ("stderr", "string")
             ],
-            attributes={"atomicity": "none"}),
-        use_default_mapper=True)
+            attributes={"atomicity": "none"}))
 ]
 
 TRANSFORMS[20] = [
@@ -860,6 +859,8 @@ def main():
     logging.basicConfig(format="%(asctime)s - %(levelname)s - %(message)s", level=logging.INFO)
 
     client = YtClient(proxy=config["proxy"]["url"], token=config["token"])
+
+    client.config['pickling']['module_filter'] = lambda module: 'hashlib' not in getattr(module, '__name__', '')
 
     if client.exists(archive_path):
         current_version = client.get("{0}/@".format(archive_path)).get("version", -1)
