@@ -140,7 +140,7 @@ def _get_cgroup_path(cgroup_type, *args):
 class YTInstance(object):
     def __init__(self, path, master_count=1, nonvoting_master_count=0, secondary_master_cell_count=0,
                  node_count=1, scheduler_count=1, controller_agent_count=None,
-                 has_proxy=False, proxy_port=None, has_rpc_proxy=False,
+                 has_proxy=False, proxy_port=None, has_rpc_proxy=None,
                  rpc_proxy_port=None, cell_tag=0, skynet_manager_count=0,
                  enable_debug_logging=True, preserve_working_dir=False, tmpfs_path=None,
                  port_locks_path=None, port_range_start=None, fqdn=None, jobs_memory_limit=None,
@@ -183,6 +183,9 @@ class YTInstance(object):
         valid_driver_backends = ("native", "rpc")
         if driver_backend not in valid_driver_backends:
             raise YtError('Unrecognized driver backend: expected one of {0}, got "{1}"'.format(valid_driver_backends, driver_backend))
+
+        if has_rpc_proxy is None:
+            has_rpc_proxy = (driver_backend == "rpc")
 
         if driver_backend == "rpc" and not has_rpc_proxy:
             raise YtError("Driver with RPC backend is requested but RPC proxies aren't enabled.")
