@@ -12,7 +12,13 @@ TString CreateYtVersion(int major, int minor, int patch, const TStringBuf& branc
     TStringStream out;
     out << major << "." << minor << "." << patch;
     out << "-" << branch;
-    out << "-ya~" << TString(ARCADIA_SOURCE_REVISION).substr(0, 7);
+    out << "-ya";
+
+#if !defined(NDEBUG)
+    out << "_debug";
+#endif
+
+    out << "~" << TString(ARCADIA_SOURCE_REVISION).substr(0, 7);
 
     TString buildUser = BUILD_USER;
     if (buildUser != "teamcity") {
