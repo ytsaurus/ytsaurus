@@ -131,6 +131,8 @@ def skip_if_rpc_driver_backend(func):
     def wrapped_func(self, *args, **kwargs):
         if self.DRIVER_BACKEND == "rpc":
             pytest.skip("This test is not supported with RPC proxy driver backend")
+        func(self, *args, **kwargs)
+
     return wrapped_func
 
 def require_enabled_core_dump(func):
