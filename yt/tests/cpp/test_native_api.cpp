@@ -47,7 +47,6 @@ namespace {
 using namespace NApi;
 using namespace NConcurrency;
 using namespace NObjectClient;
-using namespace NSecurityClient;
 using namespace NTableClient;
 using namespace NTransactionClient;
 using namespace NYTree;
@@ -75,7 +74,7 @@ protected:
         Connection_ = CreateNativeConnection(ConvertTo<TNativeConnectionConfigPtr>(config->GetChild("driver")));
 
         TClientOptions clientOptions;
-        clientOptions.User = RootUserName;
+        clientOptions.User = "root";
         Client_ = Connection_->CreateNativeClient(clientOptions);
     }
 
@@ -338,7 +337,6 @@ static auto ku2 = "{name=k2;type=int64};";
 static auto v3 = "{name=v3;type=int64};";
 static auto v4 = "{name=v4;type=int64};";
 static auto v5 = "{name=v5;type=int64};";
-
 
 TEST_F(TLookupFilterTest, TestLookupAll)
 {
@@ -647,14 +645,29 @@ class TVersionedWriteTest
 public:
     static void SetUpTestCase()
     {
+        TDynamicTablesTestBase::SetUpTestCase();
+
+        TClientOptions clientOptions;
+        clientOptions.User = "replicator";
+        Client_ = Connection_->CreateNativeClient(clientOptions);
+
         Table_ = TYPath("//tmp/write_test");
-        DoSetUpTestCase("["
+        auto attributes = ConvertToNode(TYsonString(
+            "{dynamic=%true;schema=["
             "{name=k0;type=int64;sort_order=ascending};"
             "{name=k1;type=int64;sort_order=ascending};"
             "{name=k2;type=int64;sort_order=ascending};"
             "{name=v3;type=int64};"
             "{name=v4;type=int64};"
-            "{name=v5;type=int64}]");
+            "{name=v5;type=int64}]}"));
+
+        TCreateNodeOptions options;
+        options.Attributes = ConvertToAttributes(attributes);
+
+        WaitFor(Client_->CreateNode(Table_, EObjectType::Table, options))
+            .ThrowOnError();
+
+        SyncMountTable(Table_);
     }
 
     static void TearDownTestCase()
@@ -668,24 +681,6 @@ protected:
     static INativeClientPtr Client_;
     static TYPath Table_;
     TRowBufferPtr Buffer_ = New<TRowBuffer>();
-
-    static void DoSetUpTestCase(const TString& schema)
-    {
-        TDynamicTablesTestBase::SetUpTestCase();
-
-        TClientOptions clientOptions;
-        clientOptions.User = ReplicatorUserName;
-        Client_ = Connection_->CreateNativeClient(clientOptions);
-
-        auto attributes = TYsonString("{dynamic=%true;schema=" + schema + "}");
-        TCreateNodeOptions options;
-        options.Attributes = ConvertToAttributes(attributes);
-
-        WaitFor(Client_->CreateNode(Table_, EObjectType::Table, options))
-            .ThrowOnError();
-
-        SyncMountTable(Table_);
-    }
 
     static void WriteVersionedRow(
         std::vector<TString> names,
@@ -712,35 +707,6 @@ protected:
 
         auto commitResult = WaitFor(transaction->Commit())
             .ValueOrThrow();
-    }
-
-    static void WriteUnversionedRow(
-        std::vector<TString> names,
-        const TString& rowString)
-    {
-        auto preparedRow = PrepareUnversionedRow(names, rowString);
-        WriteRows(
-            std::get<1>(preparedRow),
-            std::get<0>(preparedRow));
-    }
-
-    static void WriteRows(
-        TNameTablePtr nameTable,
-        TSharedRange<TUnversionedRow> rows)
-    {
-        auto transaction = WaitFor(Client_->StartTransaction(NTransactionClient::ETransactionType::Tablet))
-            .ValueOrThrow();
-
-        transaction->WriteRows(
-            Table_,
-            nameTable,
-            rows);
-
-        auto commitResult = WaitFor(transaction->Commit())
-            .ValueOrThrow();
-
-        const auto& timestamps = commitResult.CommitTimestamps.Timestamps;
-        ASSERT_EQ(timestamps.size(), 1);
     }
 
     static std::tuple<TSharedRange<TVersionedRow>, TNameTablePtr> PrepareVersionedRow(
@@ -841,82 +807,6 @@ TEST_F(TVersionedWriteTest, TestWriteTypeChecking)
         TErrorException);
 }
 
-TEST_F(TVersionedWriteTest, TestInsertDuplicateKeyColumns)
-{
-    auto preparedKey = PrepareUnversionedRow(
-        {"k0", "k1", "k2"},
-        "<id=0> 20; <id=1> 21; <id=2> 22");
-
-    EXPECT_THROW(
-        WriteUnversionedRow(
-            {"k0", "k1", "k2", "v3", "v4", "v5"},
-            "<id=0> 20; <id=1> 21; <id=2> 22; <id=3> 13; <id=4> 14; <id=5> 15; <id=5> 25"),
-        TErrorException);
-}
-
-TEST_F(TLookupFilterTest, TestLookupDuplicateKeyColumns)
-{
-    auto preparedKey = PrepareUnversionedRow(
-        {"k0", "k1", "k2"},
-        "<id=0> 20; <id=1> 21; <id=2> 22; <id=2> 22");
-
-    EXPECT_THROW(WaitFor(Client_->LookupRows(
-        Table_,
-        std::get<1>(preparedKey),
-        std::get<0>(preparedKey)))
-        .ValueOrThrow(), TErrorException);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TVersionedWriteTestWithRequired
-    : public TVersionedWriteTest
-{
-public:
-    static void SetUpTestCase()
-    {
-        Table_ = TYPath("//tmp/write_test_required");
-        DoSetUpTestCase("["
-            "{name=k0;type=int64;sort_order=ascending};"
-            "{name=k1;type=int64;sort_order=ascending};"
-            "{name=k2;type=int64;sort_order=ascending};"
-            "{name=v3;type=int64;required=%true};"
-            "{name=v4;type=int64};"
-            "{name=v5;type=int64}]");
-    }
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-TEST_F(TVersionedWriteTestWithRequired, TestNoRequiredColumns)
-{
-    EXPECT_THROW(
-        WriteVersionedRow(
-            {"k0", "k1", "k2", "v4"},
-            "<id=0> 30; <id=1> 30; <id=2> 30;",
-            "<id=3;ts=1> 10"),
-        TErrorException);
-
-    EXPECT_THROW(
-        WriteVersionedRow(
-            {"k0", "k1", "k2", "v3", "v4"},
-            "<id=0> 30; <id=1> 30; <id=2> 30;",
-            "<id=3;ts=2> 10; <id=4;ts=2> 10; <id=4;ts=1> 15"),
-        TErrorException);
-
-    EXPECT_THROW(
-        WriteVersionedRow(
-            {"k0", "k1", "k2", "v3", "v4"},
-            "<id=0> 30; <id=1> 30; <id=2> 30;",
-            "<id=4;ts=2> 10; <id=4;ts=1> 15"),
-        TErrorException);
-
-    WriteVersionedRow(
-        {"k0", "k1", "k2", "v3", "v4"},
-        "<id=0> 40; <id=1> 40; <id=2> 40;",
-        "<id=3;ts=2> 10; <id=3;ts=1> 20; <id=4;ts=1> 15");
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 class TOrderedDynamicTablesTest
@@ -928,7 +818,7 @@ public:
         TDynamicTablesTestBase::SetUpTestCase();
 
         TClientOptions clientOptions;
-        clientOptions.User = RootUserName;
+        clientOptions.User = NSecurityClient::RootUserName;
         Client_ = Connection_->CreateNativeClient(clientOptions);
 
         Table_ = TYPath("//tmp/write_ordered_test");

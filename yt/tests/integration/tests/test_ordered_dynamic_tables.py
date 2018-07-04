@@ -714,49 +714,6 @@ class TestOrderedDynamicTables(TestDynamicTablesBase):
         self.sync_flush_table("//tmp/t")
         wait(lambda: get("//tmp/t/@tablets/0/trimmed_row_count") == 1)
 
-    def test_required_columns(self):
-        schema = [
-                {"name": "a", "type": "int64", "required": True},
-                {"name": "b", "type": "int64"}]
-
-        self.sync_create_cells(1)
-        self._create_simple_table("//tmp/t", schema=schema)
-        self.sync_mount_table("//tmp/t")
-
-        with pytest.raises(YtError):
-            insert_rows("//tmp/t", [dict()])
-        with pytest.raises(YtError):
-            insert_rows("//tmp/t", [dict(b=1)])
-
-        insert_rows("//tmp/t", [dict(a=1)])
-        insert_rows("//tmp/t", [dict(a=1, b=1)])
-
-    def test_required_computed_column_fails(self):
-        schema = [
-                {"name": "key", "type": "int64"},
-                {"name": "computed", "type": "int64", "expression": "key * 10", "required": True},
-                {"name": "value", "type": "string"}]
-
-        self.sync_create_cells(1)
-        with pytest.raises(YtError):
-            self._create_simple_table("//tmp/t", schema=schema)
-
-    def test_required_aggregate_columns(self):
-        schema = [
-                {"name": "key", "type": "int64"},
-                {"name": "value", "type": "int64", "aggregate": "sum", "required": True}]
-
-        self.sync_create_cells(1)
-        self._create_simple_table("//tmp/t", schema=schema)
-        self.sync_mount_table("//tmp/t")
-
-        with pytest.raises(YtError):
-            insert_rows("//tmp/t", [dict(key=1)])
-        insert_rows("//tmp/t", [dict(key=1, value=2)])
-        with pytest.raises(YtError):
-            insert_rows("//tmp/t", [dict(key=1)])
-
-
 ##################################################################
 
 class TestOrderedDynamicTablesMulticell(TestOrderedDynamicTables):
