@@ -84,6 +84,14 @@ def get_ya_cache_dir(options):
         ya_cache = os.path.join(options.working_directory, "ya_cache")
     return ya_cache
 
+def get_git_depth(options):
+    git_depth = os.path.join(options.checkout_directory, "git-depth.py")
+    run_result = run(
+        [git_depth],
+        cwd=options.checkout_directory,
+        capture_output=True)
+    return run_result.stdout.rstrip("\n")
+
 def run_yall(args, options, mkdirs=False, env=None):
     assert options.build_system == "ya"
     yall = os.path.join(options.checkout_directory, "yall")
@@ -373,34 +381,76 @@ def share_packages(options, build_context):
         teamcity_message("Failed to share packages via locke and sandbox - {0}".format(err), "WARNING")
 
 @build_step
-@disable_for_ya
 def package(options, build_context):
     if not options.package:
         return
 
     with cwd(options.working_directory):
-        run(["make", "-j", "8", "package"])
-        run(["make", "-j", "8", "python-package"])
-        run(["make", "version"])
+        if options.build_system == "cmake":
+            run(["make", "-j", "8", "package"])
+            run(["make", "-j", "8", "python-package"])
+            run(["make", "version"])
 
-        with open("ytversion") as handle:
-            version = handle.read().strip()
-        build_context["yt_version"] = version
-        build_context["build_time"] = datetime.now().isoformat()
+            with open("ytversion") as handle:
+                version = handle.read().strip()
+            build_context["yt_version"] = version
+            build_context["build_time"] = datetime.now().isoformat()
 
-        teamcity_message("We have built a package")
-        teamcity_interact("setParameter", name="yt.package_built", value=1)
-        teamcity_interact("setParameter", name="yt.package_version", value=version)
-        teamcity_interact("buildStatus", text="{{build.status.text}}; Package: {0}".format(version))
+            teamcity_message("We have built a package")
+            teamcity_interact("setParameter", name="yt.package_built", value=1)
+            teamcity_interact("setParameter", name="yt.package_version", value=version)
+            teamcity_interact("buildStatus", text="{{build.status.text}}; Package: {0}".format(version))
 
-        share_packages(options, build_context)
+            share_packages(options, build_context)
 
-        artifacts = glob.glob("./ARTIFACTS/yandex-*{0}*.changes".format(version))
-        if artifacts:
-            for repository in options.repositories:
-                run(["dupload", "--to", repository, "--nomail", "--force"] + artifacts)
-                teamcity_message("We have uploaded a package to " + repository)
-                teamcity_interact("setParameter", name="yt.package_uploaded." + repository, value=1)
+            artifacts = glob.glob("./ARTIFACTS/yandex-*{0}*.changes".format(version))
+            if artifacts:
+                for repository in options.repositories:
+                    run(["dupload", "--to", repository, "--nomail", "--force"] + artifacts)
+                    teamcity_message("We have uploaded a package to " + repository)
+                    teamcity_interact("setParameter", name="yt.package_uploaded." + repository, value=1)
+        else:
+            cpus = int(os.sysconf("SC_NPROCESSORS_ONLN")) # TODO: factorize
+            os.mkdir("ARTIFACTS")
+            with cwd("ARTIFACTS"):
+                package_script = os.path.join(options.checkout_directory, "scripts", "package.py")
+                ya_version_printer = os.path.join(get_bin_dir(options), "ya_version_printer")
+
+                patch_number = get_git_depth(options)
+                yt_version = run_captured([
+                    ya_version_printer,
+                    "--project=yt",
+                    "--branch", options.branch,
+                    "--patch-number", patch_number,
+                ])
+                yp_version = run_captured([
+                    ya_version_printer,
+                    "--project=yp",
+                    "--branch", options.branch,
+                    "--patch-number", patch_number,
+                ])
+                teamcity_message("Building packages, yt version '{0}', yp version: '{1}'".format(yt_version, yp_version))
+
+                description_file = os.path.join(options.checkout_directory, description_file)
+                env = os.environ.copy()
+                env["YA_CACHE_DIR"] = get_ya_cache_dir(options)
+                package_list = [
+                    "yt/packages/yandex-yt-master.json",
+                    "yt/packages/yandex-yt-scheduler.json",
+                    "yt/packages/yandex-yt-controller-agent.json",
+                    "yt/packages/yandex-yt-node.json",
+                    "yt/packages/yandex-yt-proxy.json",
+                ]
+                run([
+                    package_script,
+                    "--override-yt-version", yt_version,
+                    "--override-yp-version", yp_version,
+                    "--build", options.ya_build_type] + package_list,
+                    env=env)
+
+                teamcity_interact("setParameter", name="yt.package_built", value=1)
+                teamcity_interact("setParameter", name="yt.package_version", value=yt_version)
+                teamcity_interact("buildStatus", text="{{build.status.text}}; Package: {0}".format(yt_version))
 
 @build_step
 @disable_for_ya
