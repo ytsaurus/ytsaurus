@@ -15,7 +15,7 @@ TString CreateYtVersion(int major, int minor, int patch, const TStringBuf& branc
     out << "-ya";
 
 #if !defined(NDEBUG)
-    out << "_debug";
+    out << "debug";
 #endif
 
     out << "~" << TString(ARCADIA_SOURCE_REVISION).substr(0, 7);
