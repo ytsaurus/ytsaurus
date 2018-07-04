@@ -1404,8 +1404,10 @@ class SortSpecBuilder(SpecBuilder):
             return spec
 
         if "output_table_path" not in spec:
-            require(len(input_table_paths) == 1 and not input_table_paths[0].has_delimiters(),
+            require(len(input_table_paths) == 1,
                     lambda: YtError("You must specify destination sort table in case of multiple source tables"))
+            require(not input_table_paths[0].has_delimiters(),
+                    lambda: YtError("Source table must not have delimiters in case of inplace sort"))
             spec["output_table_path"] = input_table_paths[0]
 
         output_table_path = _prepare_destination_tables(spec["output_table_path"], client=client)
