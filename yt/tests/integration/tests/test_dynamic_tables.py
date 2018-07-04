@@ -150,7 +150,6 @@ class TestDynamicTablesBase(YTEnvSetup):
     def _get_table_profiling(self, table):
         return self._get_profiling(table, "table_path", filter_table=True)
 
-
 ##################################################################
 
 class TestDynamicTables(TestDynamicTablesBase):
@@ -719,23 +718,6 @@ class TestDynamicTables(TestDynamicTablesBase):
         self.Env.start_master_cell()
 
         assert get("//sys/tablet_cell_bundles/b/@nodes") == [node]
-
-    def test_update_only_key_columns(self):
-        self.sync_create_cells(1)
-        self._create_sorted_table("//tmp/t")
-        self.sync_mount_table("//tmp/t")
-
-        with pytest.raises(YtError):
-            insert_rows("//tmp/t", [{"key": 1}], update=True)
-
-        assert len(select_rows("* from [//tmp/t]")) == 0
-
-        insert_rows("//tmp/t", [{"key": 1, "value": "x"}])
-        with pytest.raises(YtError):
-            insert_rows("//tmp/t", [{"key": 1}], update=True)
-
-        assert len(select_rows("* from [//tmp/t]")) == 1
-
 
 ##################################################################
 
