@@ -89,6 +89,7 @@ const std::vector<TString>& TArchiveOperationRequest::GetAttributeKeys()
         "alerts",
         "full_spec",
         "unrecognized_spec"
+        "runtime_parameters"
     };
 
     return attributeKeys;
@@ -111,6 +112,7 @@ void TArchiveOperationRequest::InitializeFromAttributes(const IAttributeDictiona
     Alerts = attributes.GetYson("alerts");
     FullSpec = attributes.FindYson("full_spec");
     UnrecognizedSpec = attributes.FindYson("unrecognized_spec");
+    RuntimeParameters = attributes.FindYson("runtime_parameters");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -214,6 +216,10 @@ TUnversionedRow BuildOrderedByIdTableRow(
         if (request.FullSpec) {
             builder.AddValue(MakeUnversionedAnyValue(request.FullSpec.GetData(), index.FullSpec));
         }
+    }
+
+    if (version >= 22 && request.RuntimeParameters) {
+        builder.AddValue(MakeUnversionedAnyValue(request.RuntimeParameters.GetData(), index.RuntimeParameters));
     }
 
     return rowBuffer->Capture(builder.GetRow());
