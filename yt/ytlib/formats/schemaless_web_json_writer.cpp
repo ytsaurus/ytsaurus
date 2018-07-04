@@ -84,6 +84,62 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TWebJsonColumnFilter
+{
+public:
+    TWebJsonColumnFilter(int maxSelectedColumnCount, TNullable<THashSet<TString>> names)
+        : MaxSelectedColumnCount_(maxSelectedColumnCount)
+        , Names_(std::move(names))
+    { }
+
+    bool Accept(ui16 columnId, TStringBuf columnName)
+    {
+        if (Names_) {
+            return AcceptByNames(columnId, columnName);
+        }
+        return AcceptByMaxCount(columnId, columnName);
+    }
+
+private:
+    const int MaxSelectedColumnCount_;
+    TNullable<THashSet<TString>> Names_;
+
+    THashSet<ui16> AcceptedColumnIds_;
+
+    bool AcceptByNames(ui16 columnId, TStringBuf columnName)
+    {
+        return Names_->has(columnName);
+    }
+
+    bool AcceptByMaxCount(ui16 columnId, TStringBuf columnName)
+    {
+        if (AcceptedColumnIds_.size() < MaxSelectedColumnCount_) {
+            AcceptedColumnIds_.insert(columnId);
+            return true;
+        }
+        return AcceptedColumnIds_.has(columnId);
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+TWebJsonColumnFilter CreateWebJsonColumnFilter(const TSchemalessWebJsonFormatConfigPtr& webJsonConfig)
+{
+    TNullable<THashSet<TString>> columnNames;
+    if (webJsonConfig->ColumnNames) {
+        columnNames.Emplace();
+        for (const auto& columnName : *webJsonConfig->ColumnNames) {
+            if (!columnNames->insert(columnName).second) {
+                THROW_ERROR_EXCEPTION("Duplicate column name %Qv in \"column_names\" parameter of web_json format config",
+                    columnName);
+            }
+        }
+    }
+    return TWebJsonColumnFilter(webJsonConfig->MaxSelectedColumnCount, std::move(columnNames));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TSchemalessWriterForWebJson
     : public ISchemalessFormatWriter
 {
@@ -91,7 +147,8 @@ public:
     TSchemalessWriterForWebJson(
         NConcurrency::IAsyncOutputStreamPtr output,
         TSchemalessWebJsonFormatConfigPtr config,
-        TNameTablePtr nameTable);
+        TNameTablePtr nameTable,
+        TWebJsonColumnFilter columnFilter);
 
     virtual bool Write(const TRange<TUnversionedRow>& rows) override;
     virtual TFuture<void> GetReadyEvent() override;
@@ -109,9 +166,10 @@ private:
     TWrittenSizeAccountedOutputStream Output_;
     std::unique_ptr<IJsonConsumer> ResponseBuilder_;
 
+    TWebJsonColumnFilter ColumnFilter_;
     THashMap<ui16, TString> AllColumnIdToName_;
-    THashSet<ui16> RegisteredColumnIds_;
 
+    bool IncompleteAllColumnNames_ = false;
     bool IncompleteColumns_ = false;
 
     TError Error_;
@@ -127,10 +185,12 @@ private:
 TSchemalessWriterForWebJson::TSchemalessWriterForWebJson(
     NConcurrency::IAsyncOutputStreamPtr output,
     TSchemalessWebJsonFormatConfigPtr config,
-    TNameTablePtr nameTable)
+    TNameTablePtr nameTable,
+    TWebJsonColumnFilter columnFilter)
     : Config_(std::move(config))
     , NameTable_(std::move(nameTable))
     , NameTableReader_(NameTable_)
+    , ColumnFilter_(std::move(columnFilter))
 {
     {
         auto bufferedSyncOutput = CreateBufferedSyncAdapter(
@@ -215,23 +275,18 @@ bool TSchemalessWriterForWebJson::TryRegisterColumn(ui16 columnId, TStringBuf co
         return false;
     }
 
-    if (AllColumnIdToName_.size() < Config_->AllColumnNamesLimit) {
+    if (AllColumnIdToName_.size() < Config_->MaxAllColumnNamesCount) {
         AllColumnIdToName_[columnId] = columnName;
+    } else if (!AllColumnIdToName_.has(columnId)) {
+        IncompleteAllColumnNames_ = true;
     }
 
-    THashSet<ui16>::insert_ctx insertContext;
-    const auto iterator = RegisteredColumnIds_.find(columnId, insertContext);
-    if (iterator != RegisteredColumnIds_.end()) {
-        return true;
-    }
-
-    if (RegisteredColumnIds_.size() >= Config_->ColumnLimit) {
+    const auto result = ColumnFilter_.Accept(columnId, columnName);
+    if (!result) {
         IncompleteColumns_ = true;
-        return false;
     }
 
-    RegisteredColumnIds_.insert_direct(columnId, insertContext);
-    return true;
+    return result;
 }
 
 bool TSchemalessWriterForWebJson::SkipSystemColumn(TStringBuf columnName) const
@@ -304,6 +359,9 @@ void TSchemalessWriterForWebJson::DoClose()
         ResponseBuilder_->OnKeyedItem("incomplete_columns");
         ResponseBuilder_->OnBooleanScalar(IncompleteColumns_);
 
+        ResponseBuilder_->OnKeyedItem("incomplete_all_column_names");
+        ResponseBuilder_->OnBooleanScalar(IncompleteAllColumnNames_);
+
         ResponseBuilder_->OnKeyedItem("all_column_names");
         ResponseBuilder_->OnBeginList();
 
@@ -333,9 +391,10 @@ ISchemalessFormatWriterPtr CreateSchemalessWriterForWebJson(
     TNameTablePtr nameTable)
 {
     return New<TSchemalessWriterForWebJson>(
-        output,
-        config,
-        nameTable);
+        std::move(output),
+        std::move(config),
+        std::move(nameTable),
+        CreateWebJsonColumnFilter(config));
 }
 
 ISchemalessFormatWriterPtr CreateSchemalessWriterForWebJson(
@@ -345,8 +404,8 @@ ISchemalessFormatWriterPtr CreateSchemalessWriterForWebJson(
 {
     return CreateSchemalessWriterForWebJson(
         ConvertTo<TSchemalessWebJsonFormatConfigPtr>(&attributes),
-        stream,
-        nameTable);
+        std::move(stream),
+        std::move(nameTable));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
