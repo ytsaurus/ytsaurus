@@ -359,11 +359,11 @@ public:
         GlobalWatcherHandlers_.push_back(handler);
     }
 
-    void AddGlobalWatcher(TWatcherRequester requester, TWatcherHandler handler, TDuration period)
+    void AddCustomGlobalWatcher(EWatcherType type, TWatcherRequester requester, TWatcherHandler handler, TDuration period)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        CustomGlobalWatcherRecords_.push_back(TPeriodicExecutorRecord{std::move(requester), std::move(handler), period});
+        CustomGlobalWatcherRecords_.push_back(TPeriodicExecutorRecord{type, std::move(requester), std::move(handler), period});
     }
 
     void AddOperationWatcherRequester(const TOperationPtr& operation, TWatcherRequester requester)
@@ -399,6 +399,9 @@ public:
         if (AlertsExecutor_) {
             AlertsExecutor_->SetPeriod(Config_->AlertsUpdatePeriod);
         }
+        if (CustomGlobalWatcherExecutors_[EWatcherType::NodeAttributes]) {
+            CustomGlobalWatcherExecutors_[EWatcherType::NodeAttributes]->SetPeriod(Config_->NodesAttributesUpdatePeriod);
+        }
 
         ScheduleTestingDisconnect();
     }
@@ -425,6 +428,7 @@ private:
 
     struct TPeriodicExecutorRecord
     {
+        EWatcherType WatcherType;
         TWatcherRequester Requester;
         TWatcherHandler Handler;
         TDuration Period;
@@ -434,14 +438,14 @@ private:
     std::vector<TWatcherHandler>   GlobalWatcherHandlers_;
 
     std::vector<TPeriodicExecutorRecord> CustomGlobalWatcherRecords_;
-    std::vector<TPeriodicExecutorPtr> CustomGlobalWatcherExecutors_;
+    TEnumIndexedVector<TPeriodicExecutorPtr, EWatcherType> CustomGlobalWatcherExecutors_;
 
     TEnumIndexedVector<TError, ESchedulerAlertType> Alerts_;
 
     struct TOperationNodeUpdate
     {
-        explicit TOperationNodeUpdate(const TOperationPtr& operation)
-            : Operation(operation)
+        explicit TOperationNodeUpdate(TOperationPtr operation)
+            : Operation(std::move(operation))
         { }
 
         TOperationPtr Operation;
@@ -451,8 +455,8 @@ private:
 
     struct TWatcherList
     {
-        explicit TWatcherList(const TOperationPtr& operation)
-            : Operation(operation)
+        explicit TWatcherList(TOperationPtr operation)
+            : Operation(std::move(operation))
         { }
 
         TOperationPtr Operation;
@@ -538,7 +542,7 @@ private:
                 BIND(&TImpl::ExecuteCustomWatcherUpdate, MakeWeak(this), record.Requester, record.Handler),
                 record.Period,
                 EPeriodicExecutorMode::Automatic);
-            CustomGlobalWatcherExecutors_.push_back(executor);
+            CustomGlobalWatcherExecutors_[record.WatcherType] = executor;
         }
 
         auto pipeline = New<TRegistrationPipeline>(this);
@@ -1267,10 +1271,10 @@ private:
             AlertsExecutor_.Reset();
         }
 
-        for (const auto& executor : CustomGlobalWatcherExecutors_) {
+        for (auto& executor : CustomGlobalWatcherExecutors_) {
             executor->Stop();
+            executor.Reset();
         }
-        CustomGlobalWatcherExecutors_.clear();
     }
 
 
@@ -1696,9 +1700,9 @@ void TMasterConnector::AddGlobalWatcherHandler(TWatcherHandler handler)
     Impl_->AddGlobalWatcherHandler(handler);
 }
 
-void TMasterConnector::AddGlobalWatcher(TWatcherRequester requester, TWatcherHandler handler, TDuration period)
+void TMasterConnector::AddCustomGlobalWatcher(EWatcherType type, TWatcherRequester requester, TWatcherHandler handler, TDuration period)
 {
-    Impl_->AddGlobalWatcher(std::move(requester), std::move(handler), period);
+    Impl_->AddCustomGlobalWatcher(type, std::move(requester), std::move(handler), period);
 }
 
 void TMasterConnector::AddOperationWatcherRequester(const TOperationPtr& operation, TWatcherRequester requester)
