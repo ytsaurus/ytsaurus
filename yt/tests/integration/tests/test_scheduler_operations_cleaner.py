@@ -101,6 +101,7 @@ class TestSchedulerOperationsCleaner(YTEnvSetup):
             assert "finish_time" in row
             assert "start_time" in row
             assert "alerts" in row
+            assert row["runtime_parameters"]["scheduling_options_per_pool_tree"]["default"]["pool"] == "root"
 
     def test_operations_archive_is_not_initialized(self):
         create("table", "//tmp/t1")
