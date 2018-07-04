@@ -431,7 +431,6 @@ def package(options, build_context):
                 ])
                 teamcity_message("Building packages, yt version '{0}', yp version: '{1}'".format(yt_version, yp_version))
 
-                description_file = os.path.join(options.checkout_directory, description_file)
                 env = os.environ.copy()
                 env["YA_CACHE_DIR"] = get_ya_cache_dir(options)
                 package_list = [
