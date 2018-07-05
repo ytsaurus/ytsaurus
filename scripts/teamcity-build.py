@@ -818,6 +818,7 @@ def log_sandbox_upload(options, build_context, task_id):
         })
         resource_rows.append({
             "id" : resource["id"],
+            "task_id" : task_id,
             "type" : resource["type"],
             "build_number" : int(options.build_number),
             "version" : build_context["yt_version"],
