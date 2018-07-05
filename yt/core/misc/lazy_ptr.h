@@ -34,7 +34,7 @@ public:
         : Factory(std::move(factory))
     { }
 
-    T* Get() const throw()
+    T* Get() const noexcept
     {
         static_assert(NMpl::TIsConvertible<T*, TRefCountedBase*>::Value, "T must be ref-counted.");
         if (!Value) {
@@ -47,7 +47,7 @@ public:
         return Value.Get();
     }
 
-    bool HasValue() const throw()
+    bool HasValue() const noexcept
     {
         return Value.operator bool();
     }
@@ -82,7 +82,7 @@ public:
         : Factory(std::move(factory))
     { }
 
-    T* Get() const throw()
+    T* Get() const noexcept
     {
         static_assert(!NMpl::TIsConvertible<T*, TRefCountedBase*>::Value, "T must not be ref-counted.");
         if (!Value) {
@@ -95,7 +95,7 @@ public:
         return Value.get();
     }
 
-    bool HasValue() const throw()
+    bool HasValue() const noexcept
     {
         return Value;
     }

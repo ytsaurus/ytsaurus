@@ -30,7 +30,7 @@ void FillYTErrorHeaders(const IResponseWriterPtr& rsp, const TError& error)
     auto jsonWriter = CreateJsonConsumer(&errorJsonOutput);
     Serialize(error, jsonWriter.get());
     jsonWriter->Flush();
-            
+
     rsp->GetHeaders()->Add("X-YT-Error", errorJson);
     rsp->GetHeaders()->Add("X-YT-Response-Code",
         ToString(static_cast<i64>(error.GetCode())));
@@ -41,10 +41,10 @@ TError ParseYTError(const IResponsePtr& rsp)
 {
     TString errorJson;
     TString source;
-    auto* errorJsonPtr = rsp->GetHeaders()->Find("X-YT-Error");
-    if (errorJsonPtr == nullptr) {
+    auto* errorHeader = rsp->GetHeaders()->Find("X-YT-Error");
+    if (errorHeader) {
         source = "header";
-        errorJson = *errorJsonPtr;
+        errorJson = *errorHeader;
     } else {
         source = "body";
         errorJson = ToString(rsp->ReadBody());

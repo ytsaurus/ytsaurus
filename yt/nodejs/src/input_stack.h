@@ -18,7 +18,7 @@ public:
     TNodeJSInputStack(
         TInputStreamWrap* base,
         IInvokerPtr invoker);
-    virtual ~TNodeJSInputStack() throw();
+    virtual ~TNodeJSInputStack();
 
     void AddCompression(ECompression compression);
 

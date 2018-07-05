@@ -34,7 +34,7 @@ public:
         }
     }
 
-    virtual ~TCheckpointableInputStream() throw()
+    virtual ~TCheckpointableInputStream()
     { }
 
 private:
@@ -117,7 +117,7 @@ public:
         , FakeHeader_{TBlockHeader::CheckpointsDisabled}
     { }
 
-    virtual ~TEnscapsulatedCheckpointableInputStream() throw()
+    virtual ~TEnscapsulatedCheckpointableInputStream()
     { }
 
 private:
@@ -163,7 +163,7 @@ public:
         WritePod(*UnderlyingStream_, TBlockHeader{TBlockHeader::CheckpointSentinel});
     }
 
-    virtual ~TCheckpointableOutputStream() throw()
+    virtual ~TCheckpointableOutputStream()
     { }
 
 private:
@@ -215,7 +215,7 @@ public:
         UnderlyingStream_->MakeCheckpoint();
     }
 
-    virtual ~TBufferedCheckpointableOutputStream() throw()
+    virtual ~TBufferedCheckpointableOutputStream()
     {
         try {
             Finish();
