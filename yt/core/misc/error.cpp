@@ -507,7 +507,7 @@ TError operator << (TError error, const NYTree::IAttributeDictionary& attributes
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const char* TErrorException::what() const throw()
+const char* TErrorException::what() const noexcept
 {
     if (CachedWhat_.empty()) {
         CachedWhat_ = ToString(Error_);
