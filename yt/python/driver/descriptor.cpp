@@ -23,7 +23,7 @@ Py::Object TCommandDescriptor::OutputType(Py::Tuple& args, Py::Dict& kwargs)
 {
     return Py::Bytes(ToString(Descriptor_.OutputType));
 }
-    
+
 Py::Object TCommandDescriptor::IsVolatile(Py::Tuple& args, Py::Dict& kwargs)
 {
     return Py::Boolean(Descriptor_.Volatile);

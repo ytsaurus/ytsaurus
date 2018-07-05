@@ -133,8 +133,8 @@ class TestDiskUsage(QuotaMixin):
                   spec={"mapper": {"disk_space_limit": 2 * 1024 * 1024 / 3}, "max_failed_job_count": 1})
         wait(lambda: op1.get_state() == "running")
         wait(lambda: op1.get_job_count("running") == 1)
-        
-        
+
+
         op2 = map(dont_track=True, command="sleep 1000", in_="//tmp/t1", out="//tmp/t3",
                   spec={"mapper": {"disk_space_limit": 2 * 1024 * 1024 / 3}, "max_failed_job_count": 1})
         wait(lambda: op2.get_state() == "running")
@@ -142,7 +142,7 @@ class TestDiskUsage(QuotaMixin):
             assert op2.get_job_count(type) == 0
 
         op1.abort()
-        
+
         wait(lambda: op2.get_job_count("running") == 1)
         op2.abort()
 

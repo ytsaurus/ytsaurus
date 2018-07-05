@@ -454,7 +454,7 @@ class TestDynamicTables(TestDynamicTablesBase):
         remove("//tmp/t")
         gc_collect()
         assert get("//sys/tablet_cell_bundles/b/@ref_counter") == 1
-        
+
     def test_table_with_custom_cell_bundle_name_validation(self):
         with pytest.raises(YtError): create("table", "//tmp/t", attributes={"tablet_cell_bundle": "b"})
 
@@ -484,7 +484,7 @@ class TestDynamicTables(TestDynamicTablesBase):
         for i in xrange(len(cell_ids)):
             mount_table("//tmp/t", first_tablet_index = i, last_tablet_index=i, cell_id = cell_ids[i])
         wait(lambda: all(x["state"] == "mounted" for x in get("//tmp/t/@tablets")))
-        rows = [{"key": i * 100 - j, "value": "payload" + str(i)} 
+        rows = [{"key": i * 100 - j, "value": "payload" + str(i)}
                 for i in xrange(cell_count)
                 for j in xrange(10)]
         insert_rows("//tmp/t", rows)
@@ -1172,7 +1172,7 @@ class TestTabletActions(TestDynamicTablesBase):
     }
 
     def _configure_bundle(self, bundle):
-        set("//sys/tablet_cell_bundles/{0}/@tablet_balancer_config".format(bundle), { 
+        set("//sys/tablet_cell_bundles/{0}/@tablet_balancer_config".format(bundle), {
             "cell_balance_factor": 0.0,
             "min_tablet_size": 128,
             "max_tablet_size": 512,
@@ -1395,7 +1395,7 @@ class TestTabletActions(TestDynamicTablesBase):
             else:
                 sleep(1)
                 assert get("//tmp/t/@tablet_count") == 2
-                
+
             self.sync_unmount_table("//tmp/t")
 
         global_config = "//sys/@config/tablet_manager/tablet_balancer/tablet_balancer_schedule"

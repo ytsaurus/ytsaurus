@@ -1409,10 +1409,10 @@ private:
             for (auto* request : pendingRequests) {
                 request->PrepareTableSessions();
             }
- 
+
             decltype(PendingSessions_) pendingSessions;
             std::swap(PendingSessions_, pendingSessions);
- 
+
             for (const auto& tableSession : pendingSessions) {
                 tableSession->RegisterSyncReplicas(&clusterDirectorySynched);
             }

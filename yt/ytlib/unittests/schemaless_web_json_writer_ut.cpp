@@ -22,7 +22,7 @@ using namespace NTableClient;
 
 class TSchemalessWriterForWebJson
     : public ::testing::Test
-{ 
+{
 protected:
     TNameTablePtr NameTable_;
     TSchemalessWebJsonFormatConfigPtr Config_;
