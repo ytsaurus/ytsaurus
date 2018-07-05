@@ -30,7 +30,7 @@ class VersionGetter(object):
 
     def build_ya_version_printer(self):
         subprocess.check_call([
-            YA, "make", "yt/tools/ya_version_printer",
+            YA, "make", "utilities/ya_version_printer",
             "--install", self.install_dir
         ], cwd=REPO_ROOT)
         self.ya_version_printer = os.path.join(self.install_dir, "ya_version_printer")
