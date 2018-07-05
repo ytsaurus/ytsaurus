@@ -490,6 +490,32 @@ Y_UNIT_TEST_SUITE(Operations)
         UNIT_ASSERT_EQUAL((*spec)["enable_key_guarantee"].AsBool(), false);
     }
 
+    Y_UNIT_TEST(OrderedMapReduce)
+    {
+        auto client = CreateTestClient();
+
+        {
+            auto writer = client->CreateTableWriter<TNode>(
+                TRichYPath("//testing/input")
+                    .Schema(TTableSchema()
+                        .Strict(true)
+                        .AddColumn(TColumnSchema().Name("key").Type(VT_STRING).SortOrder(SO_ASCENDING))));
+            writer->AddRow(TNode()("key", "foo"));
+            writer->Finish();
+        }
+
+        auto op = client->MapReduce(
+            TMapReduceOperationSpec()
+            .AddInput<TNode>("//testing/input")
+            .AddOutput<TNode>("//testing/output")
+            .ReduceBy("key")
+            .Ordered(true),
+            new TIdMapper,
+            new TIdReducer);
+        auto spec = client->GetOperation(op->GetId()).Spec;
+        UNIT_ASSERT_EQUAL((*spec)["ordered"].AsBool(), true);
+    }
+
     Y_UNIT_TEST(MaxFailedJobCount)
     {
         auto client = CreateTestClient();

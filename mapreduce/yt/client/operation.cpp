@@ -1793,6 +1793,10 @@ TOperationId DoExecuteMapReduce(
         .Do(std::bind(BuildCommonOperationPart, options, std::placeholders::_1))
     .EndMap().EndMap();
 
+    if (spec.Ordered_) {
+        specNode["spec"]["ordered"] = *spec.Ordered_;
+    }
+
     BuildCommonUserOperationPart(spec, &specNode["spec"]);
     BuildMapJobCountOperationPart(spec, &specNode["spec"]);
     BuildPartitionCountOperationPart(spec, &specNode["spec"]);
