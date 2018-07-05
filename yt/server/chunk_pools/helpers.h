@@ -23,6 +23,7 @@ std::vector<NChunkClient::TInputChunkPtr> GetStripeListChunks(const TChunkStripe
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO(max42): move this class to unordered_pool.cpp and remove unused methods.
 class TSuspendableStripe
 {
 public:
@@ -35,17 +36,18 @@ public:
 
     const TChunkStripePtr& GetStripe() const;
     const TChunkStripeStatistics& GetStatistics() const;
-    void Suspend();
+    // Increase suspended stripe count by one and return true if 0 -> 1 transition happened.
+    bool Suspend();
+    // Decrease suspended stripe count by one and return true if 1 -> 0 transition happened.
+    bool Resume();
     bool IsSuspended() const;
-    void Resume();
-    void Resume(TChunkStripePtr stripe);
     void Reset(TChunkStripePtr stripe);
 
     void Persist(const TPersistenceContext& context);
 
 private:
     TChunkStripePtr Stripe_;
-    bool Suspended_ = false;
+    int SuspendedStripeCount_ = 0;
     TChunkStripeStatistics Statistics_;
 };
 

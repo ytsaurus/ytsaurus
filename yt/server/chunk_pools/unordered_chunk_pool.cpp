@@ -141,7 +141,9 @@ public:
     void DoSuspend(IChunkPoolInput::TCookie cookie)
     {
         auto& suspendableStripe = Stripes[cookie];
-        suspendableStripe.Suspend();
+        if (!suspendableStripe.Suspend()) {
+            return;
+        }
 
         auto outputCookie = suspendableStripe.GetExtractedCookie();
         if (outputCookie == IChunkPoolOutput::NullCookie) {
@@ -173,7 +175,9 @@ public:
     void DoResume(IChunkPoolInput::TCookie cookie)
     {
         auto& suspendableStripe = Stripes[cookie];
-        suspendableStripe.Resume();
+        if (!suspendableStripe.Resume()) {
+            return;
+        }
 
         auto outputCookie = suspendableStripe.GetExtractedCookie();
         if (outputCookie == IChunkPoolOutput::NullCookie) {
