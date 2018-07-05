@@ -285,6 +285,11 @@ struct TMapOperationSpecBase
     using TSelf = TDerived;
 
     FLUENT_FIELD(TUserJobSpec, MapperSpec);
+
+    // When `Ordered' is false (by default), there is no guaranties about order of reading rows.
+    // In this case mapper might work slightly faster because row delivered from fast node can be processed YT waits
+    // response from slow nodes.
+    // When `Ordered' is true, rows will come in order in which they are stored in input tables.
     FLUENT_FIELD_OPTION(bool, Ordered);
 
     // `JobCount' and `DataSizePerJob' options affect how many jobs will be launched.
@@ -384,6 +389,10 @@ struct TMapReduceOperationSpecBase
 
     FLUENT_FIELD_OPTION(ui64, PartitionCount);
     FLUENT_FIELD_OPTION(ui64, PartitionDataSize);
+
+    // Ordered mode for map stage.
+    // Check `Ordered' option for Map operation for more info.
+    FLUENT_FIELD_OPTION(bool, Ordered);
 };
 
 struct TMapReduceOperationSpec
