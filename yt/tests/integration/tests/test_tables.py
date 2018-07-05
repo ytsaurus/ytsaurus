@@ -1269,7 +1269,7 @@ class TestTablesMulticell(TestTables):
             map_reduce(in_="//tmp/input", out="//tmp/failed_map_reduce",
                        mapper_command="cat", reducer_command="cat",
                        sort_by=["foo"])
-                       
+
         sort(in_="//tmp/input", out="//tmp/sorted", sort_by=["bar"])
         map_reduce(in_="//tmp/input", out="//tmp/map_reduce",
                    mapper_command="cat", reducer_command="cat",

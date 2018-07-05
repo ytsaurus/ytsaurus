@@ -161,7 +161,7 @@ TConnection::TConnection(TConnectionConfigPtr config)
     ChannelPool_->SetAddressList(DiscoveryPromise_.ToFuture());
 
     if (!Config_->Addresses.empty()) {
-        UpdateProxyListExecutor_->Start();        
+        UpdateProxyListExecutor_->Start();
     }
 }
 
@@ -202,7 +202,7 @@ NApi::IClientPtr TConnection::CreateClient(const TClientOptions& options)
         options,
         Config_->Domain,
         localAddress);
-        
+
     return New<TClient>(this, std::move(authenticatedChannel));
 }
 
@@ -331,7 +331,7 @@ void TConnection::OnProxyListUpdate()
                 DiscoveryPromise_ = NewPromise<std::vector<TString>>();
                 ChannelPool_->SetAddressList(DiscoveryPromise_.ToFuture());
             }
-        
+
             LOG_ERROR(ex, "Error updating proxy list (Attempt: %d, Backoff: %d)", attempt, backoff);
             TDelayedExecutor::WaitForDuration(backoff);
             if (backoff < Config_->MaxProxyListRetryPeriod) {
@@ -341,7 +341,7 @@ void TConnection::OnProxyListUpdate()
             if (attempt > Config_->MaxProxyListUpdateAttempts) {
                 attempt = 0;
             }
-        }        
+        }
     }
 }
 
