@@ -1250,6 +1250,7 @@ private:
         AlertsExecutor_->Start();
 
         for (const auto& executor : CustomGlobalWatcherExecutors_) {
+            YCHECK(executor);
             executor->Start();
         }
     }
@@ -1272,7 +1273,9 @@ private:
         }
 
         for (auto& executor : CustomGlobalWatcherExecutors_) {
-            executor->Stop();
+            if (executor) {
+                executor->Stop();
+            }
             executor.Reset();
         }
     }
