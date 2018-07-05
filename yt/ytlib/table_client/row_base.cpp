@@ -55,7 +55,7 @@ bool TColumnFilter::Contains(int index) const
         return true;
     }
 
-    return InvertedIndexMap.find(index) != InvertedIndexMap.end();
+    return std::find(Indexes.begin(), Indexes.end(), index) != Indexes.end();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
