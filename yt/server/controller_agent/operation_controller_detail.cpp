@@ -3060,7 +3060,7 @@ void TOperationControllerBase::CheckMinNeededResourcesSanity()
         if (!Dominates(*CachedMaxAvailableExecNodeResources_, neededResources.ToJobResources())) {
             OnOperationFailed(
                 TError("No online node can satisfy the resource demand")
-                    << TErrorAttribute("task_id", task->GetTitle())
+                    << TErrorAttribute("task_name", task->GetTitle())
                     << TErrorAttribute("needed_resources", neededResources.ToJobResources())
                     << TErrorAttribute("max_available_resources", *CachedMaxAvailableExecNodeResources_));
         }
