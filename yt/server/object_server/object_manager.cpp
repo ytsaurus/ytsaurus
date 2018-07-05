@@ -1070,7 +1070,10 @@ TFuture<TSharedRefArray> TObjectManager::ForwardToLeader(
     auto batchReq = proxy.ExecuteBatch();
     batchReq->SetTimeout(timeout);
     batchReq->SetUser(user->GetName());
-    batchReq->AddRequestMessage(requestMessage);
+    // NB: since single-subrequest batches are never backed off, this flag will
+    // have no effect. Still, let's keep it correct just in case.
+    bool needsSettingRetry = !header.retry() && FromProto<TMutationId>(header.mutation_id());
+    batchReq->AddRequestMessage(requestMessage, needsSettingRetry);
 
     return batchReq->Invoke().Apply(BIND([=] (const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError) {
         THROW_ERROR_EXCEPTION_IF_FAILED(batchRspOrError, "Request forwarding failed");
