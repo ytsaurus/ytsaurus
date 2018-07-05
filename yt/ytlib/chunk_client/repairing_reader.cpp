@@ -150,7 +150,7 @@ private:
             auto bannedPartIndices = reader->GetBannedIndices();
 
             if (erasedIndicesOnPreviousIteration && bannedPartIndices == *erasedIndicesOnPreviousIteration) {
-                THROW_ERROR_EXCEPTION("Read with repair failed, but list of valid underlying part readers did not changed")
+                THROW_ERROR_EXCEPTION("Read with repair failed, but list of valid underlying part readers did not change")
                     << error;
             }
 
