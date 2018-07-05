@@ -123,7 +123,7 @@ struct IMessageHandler
      *  and must return ASAP. No context switch or fiber cancelation is possible.
      *
      */
-    virtual void HandleMessage(TSharedRefArray message, IBusPtr replyBus) throw() = 0;
+    virtual void HandleMessage(TSharedRefArray message, IBusPtr replyBus) noexcept = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IMessageHandler)

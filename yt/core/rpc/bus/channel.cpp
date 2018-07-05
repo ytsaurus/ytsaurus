@@ -212,7 +212,7 @@ private:
             : Session_(std::move(session))
         { }
 
-        virtual void HandleMessage(TSharedRefArray message, IBusPtr replyBus) throw() override
+        virtual void HandleMessage(TSharedRefArray message, IBusPtr replyBus) noexcept override
         {
             auto session_ = Session_.Lock();
             if (session_) {
@@ -421,7 +421,7 @@ private:
                     : "Request timed out"));
         }
 
-        virtual void HandleMessage(TSharedRefArray message, IBusPtr /*replyBus*/) throw() override
+        virtual void HandleMessage(TSharedRefArray message, IBusPtr /*replyBus*/) noexcept override
         {
             VERIFY_THREAD_AFFINITY_ANY();
 

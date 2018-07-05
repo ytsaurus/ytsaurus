@@ -38,7 +38,7 @@ public:
 
     explicit TTableOutput(std::unique_ptr<NFormats::IParser> parser);
 
-    ~TTableOutput() throw();
+    ~TTableOutput();
 
 private:
     void DoWrite(const void* buf, size_t len);
