@@ -16,7 +16,7 @@ TNodeJSOutputStack::TNodeJSOutputStack(
     GetBaseStream()->AsyncRef();
 }
 
-TNodeJSOutputStack::~TNodeJSOutputStack() throw()
+TNodeJSOutputStack::~TNodeJSOutputStack()
 {
     GetBaseStream()->AsyncUnref();
 }

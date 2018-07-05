@@ -36,7 +36,7 @@ TInputStreamWrap::TInputStreamWrap(ui64 lowWatermark, ui64 highWatermark)
     YCHECK(LowWatermark_ < HighWatermark_);
 }
 
-TInputStreamWrap::~TInputStreamWrap() throw()
+TInputStreamWrap::~TInputStreamWrap()
 {
     THREAD_AFFINITY_IS_V8();
 

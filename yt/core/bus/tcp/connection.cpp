@@ -689,7 +689,7 @@ bool TTcpConnection::AdvanceDecoder(size_t size)
     return true;
 }
 
-bool TTcpConnection::OnPacketReceived() throw()
+bool TTcpConnection::OnPacketReceived() noexcept
 {
     Counters_->InPackets.fetch_add(1, std::memory_order_relaxed);
     switch (Decoder_.GetPacketType()) {
