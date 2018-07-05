@@ -792,6 +792,7 @@ private:
     void OnConnected()
     {
         Connected_ = true;
+        ConnectionTime_.store(TInstant::Now());
 
         LOG_INFO("Controller agent connected (IncarnationId: %v)",
             IncarnationId_);

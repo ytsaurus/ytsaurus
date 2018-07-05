@@ -638,7 +638,7 @@ void TTask::DoCheckResourceDemandSanity(
         // It seems nobody can satisfy the demand.
         TaskHost_->OnOperationFailed(
             TError("No online node can satisfy the resource demand")
-                << TErrorAttribute("task", GetTitle())
+                << TErrorAttribute("task_name", GetTitle())
                 << TErrorAttribute("needed_resources", neededResources.ToJobResources()));
     }
 }
