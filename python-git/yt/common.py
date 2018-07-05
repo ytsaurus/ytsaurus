@@ -2,6 +2,10 @@ from yt.packages.six import iteritems, PY3, text_type, binary_type, string_types
 from yt.packages.six.moves import map as imap
 import yt.json_wrapper as json
 
+# Fix for thread unsafety of datetime module.
+# See http://bugs.python.org/issue7980 for more details.
+import _strptime
+
 from collections import Mapping
 from datetime import datetime
 from itertools import chain
