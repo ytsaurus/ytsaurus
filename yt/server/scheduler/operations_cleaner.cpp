@@ -61,6 +61,7 @@ void TArchiveOperationRequest::InitializeFromOperation(const TOperationPtr& oper
     Events = ConvertToYsonString(operation->Events());
     Alerts = operation->BuildAlertsString();
     BriefSpec = operation->BriefSpec();
+    RuntimeParameters = ConvertToYsonString(operation->GetRuntimeParameters(), EYsonFormat::Binary);
 
     const auto& attributes = operation->ControllerAttributes();
     const auto& initializationAttributes = attributes.InitializationAttributes;
@@ -1001,11 +1002,8 @@ std::vector<TArchiveOperationRequest> FetchOperationsFromCypressForCleaner(
         YCHECK(batch.size() == rsps.size());
 
         for (int index = 0; index < batch.size(); ++index) {
-            const auto& id = batch[index];
-            const auto& rspOrError = rsps[index];
-
-            auto attributes = ConvertToAttributes(TYsonString(rspOrError.Value()->value()));
-            YCHECK(TOperationId::FromString(attributes->Get<TString>("key")) == id);
+            auto attributes = ConvertToAttributes(TYsonString(rsps[index].Value()->value()));
+            YCHECK(TOperationId::FromString(attributes->Get<TString>("key")) == batch[index]);
 
             TArchiveOperationRequest req;
             req.InitializeFromAttributes(*attributes);
