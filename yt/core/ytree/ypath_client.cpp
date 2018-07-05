@@ -93,22 +93,26 @@ const TString& TYPathRequest::GetUser() const
 
 bool TYPathRequest::GetRetry() const
 {
-    Y_UNREACHABLE();
+    return Header_.retry();
 }
 
-void TYPathRequest::SetRetry(bool /*value*/)
+void TYPathRequest::SetRetry(bool value)
 {
-    Y_UNREACHABLE();
+    Header_.set_retry(value);
 }
 
-NRpc::TMutationId TYPathRequest::GetMutationId() const
+TMutationId TYPathRequest::GetMutationId() const
 {
-    Y_UNREACHABLE();
+    return FromProto<TMutationId>(Header_.mutation_id());
 }
 
-void TYPathRequest::SetMutationId(const NRpc::TMutationId& /*id*/)
+void TYPathRequest::SetMutationId(const TMutationId& id)
 {
-    Y_UNREACHABLE();
+    if (id) {
+        ToProto(Header_.mutable_mutation_id(), id);
+    } else {
+        Header_.clear_mutation_id();
+    }
 }
 
 size_t TYPathRequest::GetHash() const
