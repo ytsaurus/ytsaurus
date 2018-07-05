@@ -179,7 +179,7 @@ void TTableNodeTypeHandlerBase<TImpl>::DoBranch(
     branchedNode->SetSchemaMode(originatingNode->GetSchemaMode());
     branchedNode->SetRetainedTimestamp(originatingNode->GetCurrentRetainedTimestamp());
     branchedNode->SetUnflushedTimestamp(originatingNode->GetCurrentUnflushedTimestamp(lockRequest.Timestamp));
-    branchedNode->SetUpstreamReplicaId(originatingNode->GetUpstreamReplicaId());
+    branchedNode->SetOptimizeFor(originatingNode->GetOptimizeFor());
 
     TBase::DoBranch(originatingNode, branchedNode, lockRequest);
 }
