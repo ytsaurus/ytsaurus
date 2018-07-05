@@ -155,7 +155,7 @@ describe("ApplicationAuth", function() {
             code: 123456789,
             state: JSON.stringify({
                 realm: "ytrealm-key",
-                return_path: "http://ya.ru/?my_foo=a&my_bar=b"
+                return_path: "http://xxx.yandex.net/?my_foo=a&my_bar=b"
             })
         });
         var mock1 = nock("http://localhost:8000")
@@ -173,7 +173,7 @@ describe("ApplicationAuth", function() {
             });
         ask("GET", "/new?" + params, {}, function(rsp) {
             rsp.should.be.http3xx;
-            rsp.headers["location"].should.eql("http://ya.ru/?my_foo=a&my_bar=b&token=deadbabedeadbabe&login=scorpion");
+            rsp.headers["location"].should.eql("http://xxx.yandex.net/?my_foo=a&my_bar=b&token=deadbabedeadbabe&login=scorpion");
             mock1.done();
             mock2.done();
         }, done).end();
