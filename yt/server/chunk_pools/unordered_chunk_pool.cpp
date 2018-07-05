@@ -493,7 +493,7 @@ public:
         Persist(context, Task_);
 
         // COMPAT(max42).
-        if (context.GetVersion() <= 300011) {
+        if (context.GetVersion() <= 300012) {
             std::vector<std::vector<int>> old;
             Persist(context, old);
             for (const auto& oldVector : old) {
