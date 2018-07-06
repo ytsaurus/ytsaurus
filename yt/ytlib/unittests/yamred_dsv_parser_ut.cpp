@@ -149,6 +149,39 @@ TEST(TYamredDsvParserTest, Lenval)
     ParseYamredDsv(input, &Mock, config);
 }
 
+TEST(TYamredDsvParserTest, EOM)
+{
+    StrictMock<TMockYsonConsumer> Mock;
+    InSequence dummy;
+
+    EXPECT_CALL(Mock, OnListItem());
+    EXPECT_CALL(Mock, OnBeginMap());
+        EXPECT_CALL(Mock, OnKeyedItem("key"));
+        EXPECT_CALL(Mock, OnStringScalar("a"));
+        EXPECT_CALL(Mock, OnKeyedItem("subkey"));
+        EXPECT_CALL(Mock, OnStringScalar("bc"));
+        EXPECT_CALL(Mock, OnKeyedItem("d"));
+        EXPECT_CALL(Mock, OnStringScalar("e"));
+    EXPECT_CALL(Mock, OnEndMap());
+
+    TString input = TString(
+        "\x01\x00\x00\x00" "a"
+        "\x02\x00\x00\x00" "bc"
+        "\x03\x00\x00\x00" "d=e"
+        "\xfb\xff\xff\xff" "\x01\x00\x00\x00\x00\x00\x00\x00"
+        , 3 * 4 + 1 + 2 + 3 + 12
+    );
+
+    auto config = New<TYamredDsvFormatConfig>();
+    config->Lenval = true;
+    config->EnableEom = true;
+    config->HasSubkey = true;
+    config->KeyColumnNames.push_back("key");
+    config->SubkeyColumnNames.push_back("subkey");
+
+    ParseYamredDsv(input, &Mock, config);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace

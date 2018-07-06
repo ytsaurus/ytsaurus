@@ -94,6 +94,7 @@ class TYamrFormatConfigBase
 public:
     bool HasSubkey;
     bool Lenval;
+    bool EnableEom;
 };
 
 DEFINE_REFCOUNTED_TYPE(TYamrFormatConfigBase)
@@ -144,6 +145,14 @@ public:
             .Default(false);
         RegisterParameter("escaping_symbol", EscapingSymbol)
             .Default('\\');
+        RegisterParameter("enable_eom", EnableEom)
+            .Default(false);
+
+        RegisterPreprocessor([&] {
+            if (EnableEom && !Lenval) {
+                THROW_ERROR_EXCEPTION("EOM marker is not supported in YAMR text mode");
+            }
+        });
     }
 };
 
@@ -219,8 +228,16 @@ public:
             .Default();
         RegisterParameter("yamr_keys_separator", YamrKeysSeparator)
             .Default(' ');
+        RegisterParameter("enable_eom", EnableEom)
+            .Default(false);
+            
+        RegisterPreprocessor([&] {
+            if (EnableEom && !Lenval) {
+                THROW_ERROR_EXCEPTION("EOM marker is not supported in YAMR text mode");
+            }
+        });
 
-        RegisterPostprocessor([&] () {
+        RegisterPostprocessor([&] {
             THashSet<TString> names;
 
             for (const auto& name : KeyColumnNames) {
@@ -296,7 +313,7 @@ public:
         RegisterParameter("enable_column_names_header", EnableColumnNamesHeader)
             .Default();
 
-        RegisterPostprocessor([&] () {
+        RegisterPostprocessor([&] {
             if (Columns) {
                 THashSet<TString> names;
                 for (const auto& name : *Columns) {
