@@ -250,9 +250,11 @@ class TestListJobs(YTEnvSetup):
 
             res = list_jobs(op.id,  with_fail_context=True, **options)["jobs"]
             assert sorted(jobs_with_fail_context) == sorted([job["id"] for job in res])
+            assert all(["fail_context_size" in job for job in res])
 
             res = list_jobs(op.id, with_fail_context=False, **options)["jobs"]
             assert sorted(jobs_without_fail_context) == sorted([job["id"] for job in res])
+            assert all(["fail_context_size" not in job for job in res])
 
             validate_address_filter(op, False, True, False)
 
@@ -343,9 +345,11 @@ class TestListJobs(YTEnvSetup):
 
             res = list_jobs(op.id,  with_fail_context=True, **options)["jobs"]
             assert sorted(jobs_with_fail_context) == sorted([job["id"] for job in res])
+            assert all(["fail_context_size" in job for job in res])
 
             res = list_jobs(op.id, with_fail_context=False, **options)["jobs"]
             assert sorted(jobs_without_fail_context) == sorted([job["id"] for job in res])
+            assert all(["fail_context_size" not in job for job in res])
 
             validate_address_filter(op, True, False, False)
 

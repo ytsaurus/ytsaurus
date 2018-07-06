@@ -78,6 +78,7 @@ TJobTableDescriptor::TIndex::TIndex(const TNameTablePtr& n)
     , StderrSize(n->RegisterName("stderr_size"))
     , HasSpec(n->RegisterName("has_spec"))
     , HasFailContext(n->RegisterName("has_fail_context"))
+    , FailContextSize(n->RegisterName("fail_context_size"))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
