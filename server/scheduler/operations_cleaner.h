@@ -31,6 +31,8 @@ struct TArchiveOperationRequest
     // Archive version >= 17
     NYson::TYsonString FullSpec;
     NYson::TYsonString UnrecognizedSpec;
+    // Archive version >= 22
+    NYson::TYsonString RuntimeParameters;
 
     void InitializeFromOperation(const TOperationPtr& operation);
 

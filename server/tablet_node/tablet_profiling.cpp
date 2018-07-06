@@ -45,14 +45,6 @@ TTagIdList AddUserTag(const TString& user, TTagIdList tags)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSimpleProfilerTraitBase::TKey TSimpleProfilerTraitBase::ToKey(const TTagIdList& list)
-{
-    // list.back() is user tag.
-    return list.back();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 TListProfilerTraitBase::TKey TListProfilerTraitBase::ToKey(const TTagIdList& list)
 {
     return list;
@@ -63,17 +55,17 @@ TListProfilerTraitBase::TKey TListProfilerTraitBase::ToKey(const TTagIdList& lis
 struct TChunkWriteCounters
 {
     explicit TChunkWriteCounters(const TTagIdList& list)
-        : DiskBytesWritten("/disk_bytes_written", list)
-        , DiskDataWeightWritten("/disk_data_weight_written", list)
+        : DiskSpace("/chunk_writer/disk_space", list)
+        , DataWeight("/chunk_writer/data_weight", list)
         , CompressionCpuTime("/chunk_writer/compression_cpu_time", list)
     { }
 
-    TMonotonicCounter DiskBytesWritten;
-    TMonotonicCounter DiskDataWeightWritten;
+    TMonotonicCounter DiskSpace;
+    TMonotonicCounter DataWeight;
     TMonotonicCounter CompressionCpuTime;
 };
 
-using TChunkWriteProfilerTrait = TListProfilerTrait<TChunkWriteCounters>;
+using TChunkWriteProfilerTrait = TTabletProfilerTrait<TChunkWriteCounters>;
 
 void ProfileChunkWriter(
     TTabletSnapshotPtr tabletSnapshot,
@@ -89,8 +81,8 @@ void ProfileChunkWriter(
     auto tags = tabletSnapshot->DiskProfilerTags;
     tags.push_back(methodTag);
     auto& counters = GetLocallyGloballyCachedValue<TChunkWriteProfilerTrait>(tags);
-    TabletNodeProfiler.Increment(counters.DiskBytesWritten, diskSpace);
-    TabletNodeProfiler.Increment(counters.DiskDataWeightWritten, dataStatistics.data_weight());
+    TabletNodeProfiler.Increment(counters.DiskSpace, diskSpace);
+    TabletNodeProfiler.Increment(counters.DataWeight, dataStatistics.data_weight());
     TabletNodeProfiler.Increment(counters.CompressionCpuTime, DurationToValue(compressionCpuTime));
 }
 
@@ -99,17 +91,17 @@ struct TChunkReadCounters
     explicit TChunkReadCounters(const TTagIdList& list)
         : CompressedDataSize("/chunk_reader/compressed_data_size", list)
         , UnmergedDataWeight("/chunk_reader/unmerged_data_weight", list)
-        , CompressionCpuTime("/chunk_reader/compression_cpu_time", list)
+        , DecompressionCpuTime("/chunk_reader/decompression_cpu_time", list)
         , ChunkReaderStatisticsCounters("/chunk_reader_statistics", list)
     { }
 
     TMonotonicCounter CompressedDataSize;
     TMonotonicCounter UnmergedDataWeight;
-    TMonotonicCounter CompressionCpuTime;
+    TMonotonicCounter DecompressionCpuTime;
     TChunkReaderStatisticsCounters ChunkReaderStatisticsCounters;
 };
 
-using TChunkReadProfilerTrait = TListProfilerTrait<TChunkReadCounters>;
+using TChunkReadProfilerTrait = TTabletProfilerTrait<TChunkReadCounters>;
 
 void ProfileChunkReader(
     TTabletSnapshotPtr tabletSnapshot,
@@ -124,7 +116,7 @@ void ProfileChunkReader(
     auto& counters = GetLocallyGloballyCachedValue<TChunkReadProfilerTrait>(tags);
     TabletNodeProfiler.Increment(counters.CompressedDataSize, dataStatistics.compressed_data_size());
     TabletNodeProfiler.Increment(counters.UnmergedDataWeight, dataStatistics.data_weight());
-    TabletNodeProfiler.Increment(counters.CompressionCpuTime, DurationToValue(compressionCpuTime));
+    TabletNodeProfiler.Increment(counters.DecompressionCpuTime, DurationToValue(compressionCpuTime));
     counters.ChunkReaderStatisticsCounters.Increment(TabletNodeProfiler, chunkReaderStatistics);
 }
 

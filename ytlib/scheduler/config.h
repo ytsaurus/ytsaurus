@@ -945,7 +945,7 @@ public:
 
     TOperationRuntimeParameters();
 
-    void FillFromSpec(const TOperationSpecBasePtr& spec, const TNullable<TString>& defaultTree);
+    void FillFromSpec(const TOperationSpecBasePtr& spec, const TNullable<TString>& defaultTree, const TString& user);
 };
 
 DEFINE_REFCOUNTED_TYPE(TOperationRuntimeParameters)

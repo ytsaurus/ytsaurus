@@ -96,7 +96,6 @@ using namespace NFormats;
 using namespace NJobProxy;
 using namespace NJobTrackerClient;
 using namespace NNodeTrackerClient;
-using namespace NScheduler::NProto;
 using namespace NJobTrackerClient::NProto;
 using namespace NCoreDump::NProto;
 using namespace NConcurrency;
@@ -115,6 +114,8 @@ using NProfiling::TCpuInstant;
 using NTableClient::NProto::TBoundaryKeysExt;
 using NTableClient::TTableReaderOptions;
 using NScheduler::TExecNodeDescriptor;
+using NScheduler::NProto::TSchedulerJobResultExt;
+using NScheduler::NProto::TSchedulerJobSpecExt;
 
 using std::placeholders::_1;
 
@@ -191,7 +192,7 @@ TOperationControllerBase::TOperationControllerBase(
     , JobCounter(New<TProgressCounter>(0))
     , RowBuffer(New<TRowBuffer>(TRowBufferTag(), Config->ControllerRowBufferChunkSize))
     , MemoryTag_(operation->GetMemoryTag())
-    , PoolTreeSchedulingTagFilters_(operation->PoolTreeSchedulingTagFilters())
+    , PoolTreeToSchedulingTagFilter_(operation->PoolTreeToSchedulingTagFilter())
     , Spec_(std::move(spec))
     , Options(std::move(options))
     , SuspiciousJobsYsonUpdater_(New<TPeriodicExecutor>(
@@ -476,6 +477,7 @@ void TOperationControllerBase::InitializeStructures()
     for (const auto& path : GetInputTablePaths()) {
         TInputTable table;
         table.Path = path;
+        table.TransactionId = path.GetTransactionId().Get(InputTransaction->GetId());
         InputTables.push_back(table);
     }
 
@@ -516,6 +518,7 @@ void TOperationControllerBase::InitializeStructures()
         for (const auto& path : userJobSpec->FilePaths) {
             TUserFile file;
             file.Path = path;
+            file.TransactionId = path.GetTransactionId().Get(InputTransaction->GetId());
             file.IsLayer = false;
             files.emplace_back(std::move(file));
         }
@@ -527,6 +530,7 @@ void TOperationControllerBase::InitializeStructures()
         for (const auto& path : layerPaths) {
             TUserFile file;
             file.Path = path;
+            file.TransactionId = path.GetTransactionId().Get(InputTransaction->GetId());
             file.IsLayer = true;
             // This must be the top layer, so insert in the beginning.
             files.insert(files.begin(), std::move(file));
@@ -814,7 +818,7 @@ void TOperationControllerBase::SafeMaterialize()
         LogProgress(/* force */ true);
     } catch (const std::exception& ex) {
         auto wrappedError = TError("Materialization failed") << ex;
-        LOG_ERROR(wrappedError);
+        LOG_INFO(wrappedError);
         OnOperationFailed(wrappedError);
         return;
     }
@@ -2671,7 +2675,8 @@ void TOperationControllerBase::CheckAvailableExecNodes()
     bool success = false;
     for (const auto& pair : GetExecNodeDescriptors()) {
         const auto& descriptor = pair.second;
-        for (const auto& filter : PoolTreeSchedulingTagFilters_) {
+        for (const auto& pair : PoolTreeToSchedulingTagFilter_) {
+            const auto& filter = pair.second;
             if (descriptor.CanSchedule(filter)) {
                 success = true;
                 break;
@@ -3032,7 +3037,8 @@ void TOperationControllerBase::UpdateCachedMaxAvailableExecNodeResources()
 
     TJobResources maxAvailableResources;
     for (const auto& pair : nodeDescriptors) {
-        maxAvailableResources = Max(maxAvailableResources, pair.second.ResourceLimits);
+        const auto& descriptor = pair.second;
+        maxAvailableResources = Max(maxAvailableResources, descriptor.ResourceLimits);
     }
 
     CachedMaxAvailableExecNodeResources_ = maxAvailableResources;
@@ -3051,12 +3057,12 @@ void TOperationControllerBase::CheckMinNeededResourcesSanity()
             continue;
         }
 
-        const auto& neededResources = task->GetMinNeededResources().ToJobResources();
-        if (!Dominates(*CachedMaxAvailableExecNodeResources_, neededResources)) {
+        const auto& neededResources = task->GetMinNeededResources();
+        if (!Dominates(*CachedMaxAvailableExecNodeResources_, neededResources.ToJobResources())) {
             OnOperationFailed(
                 TError("No online node can satisfy the resource demand")
-                    << TErrorAttribute("task_id", task->GetTitle())
-                    << TErrorAttribute("needed_resources", neededResources)
+                    << TErrorAttribute("task_name", task->GetTitle())
+                    << TErrorAttribute("needed_resources", neededResources.ToJobResources())
                     << TErrorAttribute("max_available_resources", *CachedMaxAvailableExecNodeResources_));
         }
     }
@@ -3064,7 +3070,7 @@ void TOperationControllerBase::CheckMinNeededResourcesSanity()
 
 TScheduleJobResultPtr TOperationControllerBase::SafeScheduleJob(
     ISchedulingContext* context,
-    const NScheduler::TJobResourcesWithQuota& jobLimits,
+    const TJobResourcesWithQuota& jobLimits,
     const TString& treeId)
 {
     if (Spec_->TestingOperationOptions->SchedulingDelay) {
@@ -3265,10 +3271,10 @@ void TOperationControllerBase::ResetTaskLocalityDelays()
 
 bool TOperationControllerBase::CheckJobLimits(
     TTaskPtr task,
-    const TJobResources& jobLimits,
-    const TJobResources& nodeResourceLimits)
+    const TJobResourcesWithQuota& jobLimits,
+    const TJobResourcesWithQuota& nodeResourceLimits)
 {
-    auto neededResources = task->GetMinNeededResources().ToJobResources();
+    auto neededResources = task->GetMinNeededResources();
     if (Dominates(jobLimits, neededResources)) {
         return true;
     }
@@ -3278,7 +3284,7 @@ bool TOperationControllerBase::CheckJobLimits(
 
 void TOperationControllerBase::DoScheduleJob(
     ISchedulingContext* context,
-    const NScheduler::TJobResourcesWithQuota& jobLimits,
+    const TJobResourcesWithQuota& jobLimits,
     const TString& treeId,
     TScheduleJobResult* scheduleJobResult)
 {
@@ -3291,20 +3297,16 @@ void TOperationControllerBase::DoScheduleJob(
         LOG_TRACE("No pending jobs left, scheduling request ignored");
         scheduleJobResult->RecordFail(EScheduleJobFailReason::NoPendingJobs);
     } else {
-        if (!CanSatisfyDiskRequest(context->DiskInfo(), jobLimits.GetDiskQuota())) {
-            scheduleJobResult->RecordFail(EScheduleJobFailReason::NotEnoughResources);
-            return;
-        }
-        DoScheduleLocalJob(context, jobLimits.ToJobResources(), treeId, scheduleJobResult);
+        DoScheduleLocalJob(context, jobLimits, treeId, scheduleJobResult);
         if (!scheduleJobResult->StartDescriptor) {
-            DoScheduleNonLocalJob(context, jobLimits.ToJobResources(), treeId, scheduleJobResult);
+            DoScheduleNonLocalJob(context, jobLimits, treeId, scheduleJobResult);
         }
     }
 }
 
 void TOperationControllerBase::DoScheduleLocalJob(
     ISchedulingContext* context,
-    const TJobResources& jobLimits,
+    const TJobResourcesWithQuota& jobLimits,
     const TString& treeId,
     TScheduleJobResult* scheduleJobResult)
 {
@@ -3316,7 +3318,8 @@ void TOperationControllerBase::DoScheduleLocalJob(
         if (scheduleJobResult->IsScheduleStopNeeded()) {
             return;
         }
-        if (!Dominates(jobLimits, group->MinNeededResources)) {
+        if (!Dominates(jobLimits, group->MinNeededResources))
+        {
             scheduleJobResult->RecordFail(EScheduleJobFailReason::NotEnoughResources);
             continue;
         }
@@ -3403,7 +3406,7 @@ void TOperationControllerBase::DoScheduleLocalJob(
 
 void TOperationControllerBase::DoScheduleNonLocalJob(
     ISchedulingContext* context,
-    const TJobResources& jobLimits,
+    const TJobResourcesWithQuota& jobLimits,
     const TString& treeId,
     TScheduleJobResult* scheduleJobResult)
 {
@@ -3415,7 +3418,8 @@ void TOperationControllerBase::DoScheduleNonLocalJob(
         if (scheduleJobResult->IsScheduleStopNeeded()) {
             return;
         }
-        if (!Dominates(jobLimits, group->MinNeededResources)) {
+        if (!Dominates(jobLimits, group->MinNeededResources))
+        {
             scheduleJobResult->RecordFail(EScheduleJobFailReason::NotEnoughResources);
             continue;
         }
@@ -3645,7 +3649,7 @@ void TOperationControllerBase::UpdateMinNeededJobResources()
     CancelableInvoker->Invoke(BIND([=, this_ = MakeStrong(this)] {
         VERIFY_INVOKER_AFFINITY(CancelableInvoker);
 
-        THashMap<EJobType, NScheduler::TJobResourcesWithQuota> minNeededJobResources;
+        THashMap<EJobType, TJobResourcesWithQuota> minNeededJobResources;
 
         for (const auto& task : Tasks) {
             if (task->GetPendingJobCount() == 0) {
@@ -4200,7 +4204,7 @@ void TOperationControllerBase::FetchInputTables()
                 // NB: we always fetch parity replicas since
                 // erasure reader can repair data on flight.
                 req->set_fetch_parity_replicas(true);
-                SetTransactionId(req, InputTransaction->GetId());
+                SetTransactionId(req, *table.TransactionId);
             },
             Logger,
             &chunkSpecs);
@@ -4269,7 +4273,7 @@ void TOperationControllerBase::LockInputTables()
     for (const auto& table : InputTables) {
         auto req = TTableYPathProxy::Lock(table.Path.GetPath());
         req->set_mode(static_cast<int>(ELockMode::Snapshot));
-        SetTransactionId(req, InputTransaction->GetId());
+        SetTransactionId(req, *table.TransactionId);
         GenerateMutationId(req);
         batchReq->AddRequest(req);
     }
@@ -4327,7 +4331,7 @@ void TOperationControllerBase::GetInputTablesAttributes()
                     "unflushed_timestamp"
                 };
                 ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
-                SetTransactionId(req, InputTransaction->GetId());
+                SetTransactionId(req, *table.TransactionId);
                 batchReq->AddRequest(req, "get_attributes");
             }
         }
@@ -4683,7 +4687,7 @@ void TOperationControllerBase::DoFetchUserFiles(const TUserJobSpecPtr& userJobSp
                         // NB: we always fetch parity replicas since
                         // erasure reader can repair data on flight.
                         req->set_fetch_parity_replicas(true);
-                        SetTransactionId(req, InputTransaction->GetId());
+                        SetTransactionId(req, *file.TransactionId);
                     },
                     Logger,
                     &file.ChunkSpecs);
@@ -4702,7 +4706,7 @@ void TOperationControllerBase::DoFetchUserFiles(const TUserJobSpecPtr& userJobSp
                 auto req = TChunkOwnerYPathProxy::Fetch(objectIdPath);
                 ToProto(req->mutable_ranges(), std::vector<TReadRange>({TReadRange()}));
                 req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
-                SetTransactionId(req, InputTransaction->GetId());
+                SetTransactionId(req, *file.TransactionId);
                 batchReq->AddRequest(req, "fetch");
 
                 auto batchRspOrError = WaitFor(batchReq->Invoke());
@@ -4775,7 +4779,7 @@ void TOperationControllerBase::ValidateUserFileSizes()
             }
         }
     }
-    
+
     if (columnarStatisticsFetcher->GetChunkCount() > 0) {
         LOG_INFO("Fetching columnar statistics for table files with column selectors (ChunkCount: %v)",
             columnarStatisticsFetcher->GetChunkCount());
@@ -4843,7 +4847,7 @@ void TOperationControllerBase::LockUserFiles()
             auto req = TCypressYPathProxy::Lock(file.Path.GetPath());
             req->set_mode(static_cast<int>(ELockMode::Snapshot));
             GenerateMutationId(req);
-            SetTransactionId(req, InputTransaction->GetId());
+            SetTransactionId(req, *file.TransactionId);
             batchReq->AddRequest(req);
         }
     }
@@ -4915,7 +4919,7 @@ void TOperationControllerBase::GetUserFilesAttributes()
             auto objectIdPath = FromObjectId(file.ObjectId);
             {
                 auto req = TYPathProxy::Get(objectIdPath + "/@");
-                SetTransactionId(req, InputTransaction->GetId());
+                SetTransactionId(req, *file.TransactionId);
                 std::vector<TString> attributeKeys;
                 attributeKeys.push_back("file_name");
                 switch (file.Type) {
@@ -4942,7 +4946,7 @@ void TOperationControllerBase::GetUserFilesAttributes()
 
             {
                 auto req = TYPathProxy::Get(file.Path.GetPath() + "&/@");
-                SetTransactionId(req, InputTransaction->GetId());
+                SetTransactionId(req, *file.TransactionId);
                 std::vector<TString> attributeKeys;
                 attributeKeys.push_back("key");
                 attributeKeys.push_back("file_name");
@@ -5147,8 +5151,7 @@ void TOperationControllerBase::ParseInputQuery(
     InputQuery->ExternalCGInfo = std::move(externalCGInfo);
 }
 
-void TOperationControllerBase::WriteInputQueryToJobSpec(
-    NScheduler::NProto::TSchedulerJobSpecExt* schedulerJobSpecExt)
+void TOperationControllerBase::WriteInputQueryToJobSpec(TSchedulerJobSpecExt* schedulerJobSpecExt)
 {
     auto* querySpec = schedulerJobSpecExt->mutable_input_query_spec();
     ToProto(querySpec->mutable_query(), InputQuery->Query);
@@ -5458,7 +5461,7 @@ TString TOperationControllerBase::GetLoggingProgress() const
 
 bool TOperationControllerBase::IsJobInterruptible() const
 {
-    return Spec_->AutoMerge->Mode == EAutoMergeMode::Disabled;
+    return true;
 }
 
 void TOperationControllerBase::ExtractInterruptDescriptor(TCompletedJobSummary& jobSummary) const
@@ -5759,7 +5762,7 @@ void TOperationControllerBase::RegisterTeleportChunk(
         YCHECK(chunkSpec->GetRowCount() > 0);
         YCHECK(chunkSpec->GetUniqueKeys() || !table.Options->ValidateUniqueKeys);
 
-        TOutputResult resultBoundaryKeys;
+        NScheduler::NProto::TOutputResult resultBoundaryKeys;
         resultBoundaryKeys.set_empty(false);
         resultBoundaryKeys.set_sorted(true);
         resultBoundaryKeys.set_unique_keys(chunkSpec->GetUniqueKeys());
@@ -5924,7 +5927,7 @@ void TOperationControllerBase::Dispose()
     ReleaseJobs(jobIdsToRelease);
 }
 
-NScheduler::TOperationJobMetrics TOperationControllerBase::PullJobMetricsDelta()
+TOperationJobMetrics TOperationControllerBase::PullJobMetricsDelta()
 {
     TGuard<TSpinLock> guard(JobMetricsDeltaPerTreeLock_);
 
@@ -5933,13 +5936,13 @@ NScheduler::TOperationJobMetrics TOperationControllerBase::PullJobMetricsDelta()
         return {};
     }
 
-    NScheduler::TOperationJobMetrics result;
+    TOperationJobMetrics result;
     for (auto& pair : JobMetricsDeltaPerTree_) {
         const auto& treeId = pair.first;
         auto& delta = pair.second;
         if (!delta.IsEmpty()) {
             result.push_back({treeId, delta});
-            delta = NScheduler::TJobMetrics();
+            delta = TJobMetrics();
         }
     }
     LastJobMetricsDeltaReportTime_ = now;
@@ -6178,12 +6181,12 @@ void TOperationControllerBase::BuildProgress(TFluentMap fluent) const
             .Item("duration").Value(ScheduleJobStatistics_->Duration)
             .Item("failed").Value(ScheduleJobStatistics_->Failed)
         .EndMap()
-		.DoIf(DataFlowGraph_.operator bool(), [=] (TFluentMap fluent) {
-		    fluent
+        .DoIf(DataFlowGraph_.operator bool(), [=] (TFluentMap fluent) {
+            fluent
                 .Item("data_flow_graph").BeginMap()
                     .Do(BIND(&TDataFlowGraph::BuildLegacyYson, DataFlowGraph_))
                 .EndMap();
-		})
+        })
         .DoIf(EstimatedInputDataSizeHistogram_.operator bool(), [=] (TFluentMap fluent) {
             EstimatedInputDataSizeHistogram_->BuildHistogramView();
             fluent
@@ -6317,6 +6320,11 @@ void TOperationControllerBase::BuildJobsYson(TFluentMap fluent) const
     }
 
     fluent.GetConsumer()->OnRaw(CachedRunningJobsYson_);
+}
+
+TSharedRef TOperationControllerBase::SafeBuildJobSpecProto(const TJobletPtr& joblet)
+{
+    return joblet->Task->BuildJobSpecProto(joblet);
 }
 
 TSharedRef TOperationControllerBase::ExtractJobSpec(const TJobId& jobId) const
@@ -6906,6 +6914,11 @@ void TOperationControllerBase::ValidateUserFileCount(TUserJobSpecPtr spec, const
     }
 }
 
+void TOperationControllerBase::OnExecNodesUpdated(
+    const TRefCountedExecNodeDescriptorMapPtr& oldExecNodes,
+    const TRefCountedExecNodeDescriptorMapPtr& newExecNodes)
+{ }
+
 void TOperationControllerBase::GetExecNodesInformation()
 {
     auto now = NProfiling::GetCpuInstant();
@@ -6914,7 +6927,9 @@ void TOperationControllerBase::GetExecNodesInformation()
     }
 
     ExecNodeCount_ = Host->GetExecNodeCount();
-    ExecNodesDescriptors_ = Host->GetExecNodeDescriptors(NScheduler::TSchedulingTagFilter(Spec_->SchedulingTagFilter));
+    auto newExecNodesDescriptors = Host->GetExecNodeDescriptors(NScheduler::TSchedulingTagFilter(Spec_->SchedulingTagFilter));
+    OnExecNodesUpdated(ExecNodesDescriptors_, newExecNodesDescriptors);
+    ExecNodesDescriptors_ = std::move(newExecNodesDescriptors);
     GetExecNodesInformationDeadline_ = now + NProfiling::DurationToCpuDuration(Config->ControllerExecNodeInfoUpdatePeriod);
     LOG_DEBUG("Exec nodes information updated (ExecNodeCount: %v)", ExecNodeCount_);
 }

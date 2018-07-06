@@ -8,8 +8,6 @@ import __builtin__
 
 from time import sleep
 
-from yt.environment.helpers import assert_items_equal
-
 ################################################################################
 
 class TestMedia(YTEnvSetup):
@@ -312,7 +310,7 @@ class TestMedia(YTEnvSetup):
         chunk_id = chunk_ids[0]
         for replica in get("#{0}/@stored_replicas".format(chunk_id)):
             assert replica.attributes["medium"] == self.NON_DEFAULT_MEDIUM
-        
+
     def test_file_medium(self):
         create("file", "//tmp/f", attributes={"primary_medium": self.NON_DEFAULT_MEDIUM})
         assert exists("//tmp/f/@media/{0}".format(self.NON_DEFAULT_MEDIUM))

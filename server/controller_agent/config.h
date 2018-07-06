@@ -310,6 +310,8 @@ public:
     i64 MinPartitionWeight;
     i64 MinUncompressedBlockSize;
     NControllerAgent::TJobSizeAdjusterConfigPtr PartitionJobSizeAdjuster;
+    i64 DataBalancingViolationLoggingMinConsecutiveCount;
+    TDuration DataBalancingViolationLoggingPeriod;
 
     TSortOperationOptionsBase();
 };

@@ -427,21 +427,24 @@ class TSchemalessWebJsonFormatConfig
     : public NYTree::TYsonSerializable
 {
 public:
-    int RowLimit;
     int ColumnLimit;
-    int StringLikeLengthLimit;
+    int FieldWeightLimit;
+    int AllColumnNamesLimit;
+
+    // Intentionally do not reveal following options to user.
+    bool SkipSystemColumns = true;
 
     TSchemalessWebJsonFormatConfig()
     {
-        RegisterParameter("row_limit", RowLimit)
-            .Default(100)
-            .GreaterThan(0);
         RegisterParameter("column_limit", ColumnLimit)
             .Default(50)
-            .GreaterThan(0);
-        RegisterParameter("string_like_length_limit", StringLikeLengthLimit)
-            .Default(4 * 1024)
-            .GreaterThan(0);
+            .GreaterThanOrEqual(0);
+        RegisterParameter("field_weight_limit", FieldWeightLimit)
+            .Default(1_KB)
+            .GreaterThanOrEqual(0);
+        RegisterParameter("all_column_names_limit", AllColumnNamesLimit)
+            .Default(1000)
+            .GreaterThanOrEqual(0);
     }
 };
 

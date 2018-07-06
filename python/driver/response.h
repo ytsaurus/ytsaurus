@@ -9,7 +9,7 @@
 
 #include <yt/core/yson/consumer.h>
 
-#include <contrib/libs/pycxx/Extensions.hxx>
+#include <Extensions.hxx> // pycxx
 
 namespace NYT {
 namespace NPython {

@@ -20,6 +20,8 @@
 
 #include <yt/core/rpc/public.h>
 
+#include <yt/core/rpc/grpc/public.h>
+
 #include <yt/core/http/public.h>
 
 #include <yt/core/ytree/public.h>
@@ -56,7 +58,10 @@ private:
     NMonitoring::TMonitoringManagerPtr MonitoringManager_;
     std::unique_ptr<NLFAlloc::TLFAllocProfiler> LFAllocProfiler_;
     NBus::IBusServerPtr BusServer_;
+    NRpc::IServicePtr ApiService_;
+    NRpc::IServicePtr DiscoveryService_;
     NRpc::IServerPtr RpcServer_;
+    NRpc::IServerPtr GrpcServer_;
     NHttp::IServerPtr HttpServer_;
     ICoreDumperPtr CoreDumper_;
 

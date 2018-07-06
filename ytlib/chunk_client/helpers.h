@@ -130,6 +130,7 @@ struct TUserObject
     NObjectClient::TObjectId ObjectId;
     NObjectClient::TCellTag CellTag;
     NObjectClient::EObjectType Type = NObjectClient::EObjectType::Null;
+    TNullable<NObjectClient::TTransactionId> TransactionId;
 
     virtual ~TUserObject() = default;
 
@@ -144,7 +145,7 @@ template <class T>
 void GetUserObjectBasicAttributes(
     NApi::INativeClientPtr client,
     TMutableRange<T> objects,
-    const NObjectClient::TTransactionId& transactionId,
+    const NObjectClient::TTransactionId& defaultTransactionId,
     const NLogging::TLogger& logger,
     NYTree::EPermission permission,
     bool suppressAccessTracking = false);

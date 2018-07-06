@@ -77,7 +77,8 @@ TColumnarChunkMetaPtr DownloadChunkMeta(
         TProtoExtensionTag<TTableSchemaExt>::Value,
         TProtoExtensionTag<TBlockMetaExt>::Value,
         TProtoExtensionTag<TColumnMetaExt>::Value,
-        TProtoExtensionTag<TNameTableExt>::Value
+        TProtoExtensionTag<TNameTableExt>::Value,
+        TProtoExtensionTag<TKeyColumnsExt>::Value
     };
 
     auto asynChunkMeta = chunkReader->GetMeta(
@@ -495,7 +496,13 @@ THorizontalSchemalessRangeChunkReader::THorizontalSchemalessRangeChunkReader(
     ReadyEvent_ = BIND(&THorizontalSchemalessRangeChunkReader::InitializeBlockSequence, MakeStrong(this))
         .AsyncVia(NChunkClient::TDispatcher::Get()->GetReaderInvoker())
         .Run()
-        .Apply(BIND([this, this_ = MakeStrong(this)] () {
+        .Apply(BIND([this, this_ = MakeStrong(this)] (const TError& error) {
+            if (!error.IsOK()) {
+                THROW_ERROR_EXCEPTION("Failed to initialize chunk reader")
+                    << TErrorAttribute("chunk_id", UnderlyingReader_->GetChunkId())
+                    << error;
+            }
+
             if (InitFirstBlockNeeded_) {
                 InitFirstBlock();
                 InitFirstBlockNeeded_ = false;

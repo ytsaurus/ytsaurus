@@ -113,6 +113,7 @@ public:
             NChunkClient::TDispatcher::Get()->GetPrioritizedCompressionPoolInvoker(),
             Config_->WorkloadDescriptor.GetPriority()))
         , PreloadSemaphore_(New<TAsyncSemaphore>(Config_->MaxConcurrentPreloads))
+        , Throttler_(CreateReconfigurableThroughputThrottler(config->PreloadThrottler))
     {
         auto slotManager = Bootstrap_->GetTabletSlotManager();
         slotManager->SubscribeScanSlot(BIND(&TImpl::ScanSlot, MakeStrong(this)));
@@ -183,6 +184,7 @@ private:
     TReaderWriterSpinLock InterceptedDataSpinLock_;
     THashMap<TChunkId, TInMemoryChunkDataPtr> ChunkIdToData_;
 
+    IThroughputThrottlerPtr Throttler_;
 
     void ScanSlot(const TTabletSlotPtr& slot)
     {
@@ -295,6 +297,7 @@ private:
                 readSessionId,
                 Bootstrap_->GetMemoryUsageTracker(),
                 CompressionInvoker_,
+                Throttler_,
                 PreloadTag_);
             // Now, check is the revision in still the same.
 
@@ -496,8 +499,9 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
     const TTabletSnapshotPtr& tabletSnapshot,
     const IChunkStorePtr& store,
     const TReadSessionId& readSessionId,
-    TMemoryUsageTracker<EMemoryCategory>* memoryUsageTracker,
+    TNodeMemoryTracker* memoryUsageTracker,
     const IInvokerPtr& compressionInvoker,
+    const NConcurrency::IThroughputThrottlerPtr& throttler,
     const NProfiling::TTagId& preloadTag)
 {
     auto mode = tabletSnapshot->Config->InMemoryMode;
@@ -515,7 +519,7 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
     blockReadOptions.ChunkReaderStatistics = New<TChunkReaderStatistics>();
     blockReadOptions.ReadSessionId = readSessionId;
 
-    auto reader = store->GetChunkReader();
+    auto reader = store->GetChunkReader(throttler);
     auto meta = WaitFor(reader->GetMeta(blockReadOptions))
         .ValueOrThrow();
 

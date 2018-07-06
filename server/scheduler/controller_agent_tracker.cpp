@@ -14,6 +14,7 @@
 #include "config.h"
 
 #include <yt/server/controller_agent/controller_agent_service_proxy.h>
+#include <yt/server/controller_agent/operation.h>
 
 #include <yt/ytlib/api/native_connection.h>
 #include <yt/ytlib/api/transaction.h>
@@ -410,7 +411,7 @@ public:
         auto request = std::make_unique<TScheduleJobRequest>();
         request->OperationId = OperationId_;
         request->JobId = jobId;
-        request->JobResourceLimits = jobLimits;
+        request->JobResourceLimits = jobLimits.ToJobResources();
         request->TreeId = treeId;
         request->NodeId = nodeId;
         request->NodeResourceLimits = context->ResourceLimits();
@@ -665,7 +666,7 @@ public:
         }
         ToProto(descriptor->mutable_owners(), operation->GetOwners());
         ToProto(descriptor->mutable_user_transaction_id(), operation->GetUserTransactionId());
-        ToProto(descriptor->mutable_pool_tree_scheduling_tag_filters(), operation->PoolTreeSchedulingTagFilters());
+        ToProto(descriptor->mutable_pool_tree_scheduling_tag_filters(), operation->PoolTreeToSchedulingTagFilter());
 
         return InvokeAgent<TControllerAgentServiceProxy::TRspRegisterOperation>(
             Bootstrap_,

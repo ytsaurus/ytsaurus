@@ -52,6 +52,21 @@ TClientRequest::TClientRequest(
     Header_.set_protocol_version(protocolVersion);
 }
 
+TClientRequest::TClientRequest(const TClientRequest& other)
+    : Attachments_(other.Attachments_)
+    , Timeout_(other.Timeout_)
+    , RequestAck_(other.RequestAck_)
+    , Heavy_(other.Heavy_)
+    , Codec_(other.Codec_)
+    , GenerateAttachmentChecksums_(other.GenerateAttachmentChecksums_)
+    , Channel_(other.Channel_)
+    , Header_(other.Header_)
+    , SerializedBody_(other.SerializedBody_)
+    , Hash_(other.Hash_)
+    , MultiplexingBand_(other.MultiplexingBand_)
+    , FirstTimeSerialization_(other.FirstTimeSerialization_)
+{ }
+
 TSharedRefArray TClientRequest::Serialize()
 {
     if (!FirstTimeSerialization_) {

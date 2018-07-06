@@ -153,20 +153,6 @@ TFairShareStrategyConfig::TFairShareStrategyConfig()
         // It should be changed simultaneously with values of all `MaxTagValue`
         // across the code base.
         .LessThan(MaxMemoryTag);
-
-    RegisterParameter("max_running_operation_count", MaxRunningOperationCount)
-        .Alias("max_running_operations")
-        .Default(1000)
-        .GreaterThan(0);
-
-    RegisterParameter("total_resource_limits_consider_delay", TotalResourceLimitsConsiderDelay)
-        .Default();
-
-    RegisterParameter("main_nodes_filter", MainNodesFilter)
-        .Default();
-
-    RegisterParameter("enable_operations_profiling", EnableOperationsProfiling)
-        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -257,8 +243,6 @@ TSchedulerConfig::TSchedulerConfig()
         .Default(TDuration::Seconds(1));
     RegisterParameter("alerts_update_period", AlertsUpdatePeriod)
         .Default(TDuration::Seconds(1));
-    RegisterParameter("node_shards_update_period", NodeShardsUpdatePeriod)
-        .Default(TDuration::Seconds(10));
     RegisterParameter("node_shard_submit_jobs_to_strategy_period", NodeShardSubmitJobsToStrategyPeriod)
         .Default(TDuration::MilliSeconds(100));
 

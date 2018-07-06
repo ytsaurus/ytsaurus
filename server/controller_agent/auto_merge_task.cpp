@@ -143,7 +143,7 @@ EJobType TAutoMergeTask::GetJobType() const
     return EJobType::UnorderedMerge;
 }
 
-TNullable<EScheduleJobFailReason> TAutoMergeTask::GetScheduleFailReason(ISchedulingContext* /* context */, const TJobResources& /* jobLimits */)
+TNullable<EScheduleJobFailReason> TAutoMergeTask::GetScheduleFailReason(ISchedulingContext* /* context */)
 {
     return MakeNullable(!CanScheduleJob_, EScheduleJobFailReason::TaskRefusal);
 }
@@ -225,7 +225,7 @@ void TAutoMergeTask::RegisterNewTeleportChunks()
 {
     const auto& teleportChunks = ChunkPool_->GetTeleportChunks();
     while (RegisteredTeleportChunkCount_ < teleportChunks.size()) {
-        TaskHost_->RegisterTeleportChunk(teleportChunks[RegisteredTeleportChunkCount_++], 0 /* key */, 0 /* tableIndex */);
+        TaskHost_->RegisterTeleportChunk(teleportChunks[RegisteredTeleportChunkCount_++], 0 /* key */, TableIndex_);
         --CurrentChunkCount_;
     }
 }

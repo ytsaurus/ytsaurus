@@ -22,6 +22,7 @@ T Clamp(const T& value, const T& minValue, const T& maxValue)
 template <class T>
 T DivCeil(const T& numerator, const T& denominator)
 {
+    YCHECK(denominator != 0);
     auto res = std::div(numerator, denominator);
     return res.quot + (res.rem > static_cast<T>(0) ? static_cast<T>(1) : static_cast<T>(0));
 }

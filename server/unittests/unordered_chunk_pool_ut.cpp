@@ -348,7 +348,7 @@ protected:
     TCompletedJobSummary SummaryWithSplitJobCount(TChunkStripeListPtr stripeList, int splitJobCount)
     {
         TCompletedJobSummary jobSummary;
-        std::move(
+        std::copy(
             stripeList->Stripes[0]->DataSlices.begin(),
             stripeList->Stripes[0]->DataSlices.end(),
             std::back_inserter(jobSummary.UnreadInputDataSlices));
@@ -475,6 +475,48 @@ TEST_F(TUnorderedChunkPoolTest, InputChunksAreSliced)
         EXPECT_GE(stripeList->TotalDataWeight, DataSizePerJob_ * 0.9);
         EXPECT_LE(stripeList->TotalDataWeight, DataSizePerJob_ * 1.1);
     }
+}
+
+TEST_F(TUnorderedChunkPoolTest, InterruptionWithSuspendedChunks)
+{
+    InitTables(
+        {false} /* isTeleportable */,
+        {false} /* isVersioned */
+    );
+
+    DataSizePerJob_ = 5_KB;
+    IsExplicitJobCount_ = true;
+    JobCount_ = 1;
+    InitJobConstraints();
+
+    auto chunkA = CreateChunk(0); // 2Kb.
+
+    CreateChunkPool();
+
+    AddChunk(chunkA);
+
+    ChunkPool_->Finish();
+
+    EXPECT_EQ(1, ChunkPool_->GetPendingJobCount());
+    EXPECT_EQ(0, ChunkPool_->Extract(TNodeId()));
+    auto stripeList = ChunkPool_->GetStripeList(0);
+    const auto& teleportChunks = ChunkPool_->GetTeleportChunks();
+    EXPECT_EQ(1, stripeList->Stripes.size());
+    EXPECT_TRUE(teleportChunks.empty());
+
+    ChunkPool_->Suspend(0);
+    ChunkPool_->Aborted(0, EAbortReason::FailedChunks);
+
+    EXPECT_EQ(0, ChunkPool_->GetPendingJobCount());
+    ChunkPool_->Resume(0);
+    EXPECT_EQ(1, ChunkPool_->GetPendingJobCount());
+    EXPECT_EQ(1, ChunkPool_->Extract(TNodeId()));
+    ChunkPool_->Suspend(0);
+    SplitJob(1 /* cookie */, 1 /* splitJobCount */);
+    EXPECT_EQ(0, ChunkPool_->GetPendingJobCount());
+    ChunkPool_->Resume(0);
+    EXPECT_EQ(1, ChunkPool_->GetPendingJobCount());
+    EXPECT_EQ(2, ChunkPool_->Extract(TNodeId()));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

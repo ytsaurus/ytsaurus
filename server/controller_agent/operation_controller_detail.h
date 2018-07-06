@@ -179,6 +179,9 @@ private: \
         (cookie),
         false)
 
+    //! Called by task's ScheduleJob to wrap the job spec proto building routine with safe environmnet.
+    IMPLEMENT_SAFE_METHOD(TSharedRef, BuildJobSpecProto, (const TJobletPtr& joblet), (joblet), true)
+
 public:
     // These are "pure" interface methods, i. e. those that do not involve YCHECKs.
     // If some of these methods still fails due to unnoticed YCHECK, consider
@@ -463,8 +466,8 @@ protected:
 
     bool CheckJobLimits(
         TTaskPtr task,
-        const TJobResources& jobLimits,
-        const TJobResources& nodeResourceLimits);
+        const TJobResourcesWithQuota& jobLimits,
+        const TJobResourcesWithQuota& nodeResourceLimits);
 
     void CheckTimeLimit();
 
@@ -496,13 +499,13 @@ protected:
 
     void DoScheduleLocalJob(
         ISchedulingContext* context,
-        const TJobResources& jobLimits,
+        const NScheduler::TJobResourcesWithQuota& jobLimits,
         const TString& treeId,
         TScheduleJobResult* scheduleJobResult);
 
     void DoScheduleNonLocalJob(
         ISchedulingContext* context,
-        const TJobResources& jobLimits,
+        const NScheduler::TJobResourcesWithQuota& jobLimits,
         const TString& treeId,
         TScheduleJobResult* scheduleJobResult);
 
@@ -856,7 +859,7 @@ private:
 
     const TMemoryTag MemoryTag_;
 
-    std::vector<NScheduler::TSchedulingTagFilter> PoolTreeSchedulingTagFilters_;
+    NScheduler::TPoolTreeToSchedulingTagFilter PoolTreeToSchedulingTagFilter_;
 
     //! Keeps information needed to maintain the liveness state of input chunks.
     THashMap<NChunkClient::TChunkId, TInputChunkDescriptor> InputChunkMap;
@@ -1032,6 +1035,10 @@ private:
 
     void InitializeHistograms();
     void UpdateActualHistogram(const NJobTrackerClient::TStatistics& statistics);
+
+    virtual void OnExecNodesUpdated(
+        const TRefCountedExecNodeDescriptorMapPtr& oldExecNodes,
+        const TRefCountedExecNodeDescriptorMapPtr& newExecNodes);
 
     void GetExecNodesInformation();
     int GetExecNodeCount();

@@ -235,7 +235,8 @@ public:
             &TImpl::HandlePoolTrees,
             Unretained(this)));
 
-        MasterConnector_->AddGlobalWatcher(
+        MasterConnector_->AddCustomGlobalWatcher(
+            EWatcherType::NodeAttributes,
             BIND(&TImpl::RequestNodesAttributes, Unretained(this)),
             BIND(&TImpl::HandleNodesAttributes, Unretained(this)),
             Config_->NodesAttributesUpdatePeriod);
@@ -533,7 +534,7 @@ public:
             GetMasterClient()->GetNativeConnection()->GetPrimaryMasterCellTag());
 
         auto runtimeParams = New<TOperationRuntimeParameters>();
-        Strategy_->InitOperationRuntimeParameters(runtimeParams, spec);
+        Strategy_->InitOperationRuntimeParameters(runtimeParams, spec, user);
 
         auto operation = New<TOperation>(
             operationId,
@@ -1726,6 +1727,7 @@ private:
             Strategy_->UpdateConfig(Config_);
             MasterConnector_->UpdateConfig(Config_);
             OperationsCleaner_->UpdateConfig(Config_->OperationsCleaner);
+            CachedExecNodeMemoryDistributionByTags_->SetExpirationTimeout(Config_->SchedulingTagFilterExpireTimeout);
 
             ProfilingExecutor_->SetPeriod(Config_->ProfilingUpdatePeriod);
             LoggingExecutor_->SetPeriod(Config_->ClusterInfoLoggingPeriod);
@@ -1883,7 +1885,6 @@ private:
         auto briefSpec = BuildYsonStringFluently()
             .BeginMap()
                 .Items(operation->ControllerAttributes().InitializationAttributes->BriefSpec)
-                .Do(BIND(&ISchedulerStrategy::BuildBriefSpec, Strategy_, operation->GetId()))
             .EndMap();
         return briefSpec;
     }
@@ -2107,7 +2108,7 @@ private:
         operation->SetController(controller);
 
         Strategy_->RegisterOperation(operation.Get());
-        operation->PoolTreeSchedulingTagFilters() = Strategy_->GetOperationPoolTreeSchedulingTagFilters(operation->GetId());
+        operation->PoolTreeToSchedulingTagFilter() = Strategy_->GetOperationPoolTreeToSchedulingTagFilter(operation->GetId());
 
         for (const auto& nodeShard : NodeShards_) {
             nodeShard->GetInvoker()->Invoke(BIND(

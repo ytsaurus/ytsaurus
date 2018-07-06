@@ -1,6 +1,7 @@
 //%NUM_MASTERS=1
 //%NUM_NODES=3
 //%NUM_SCHEDULERS=0
+//%DELTA_MASTER_CONFIG={ "object_service": { "timeout_backoff_lead_time": 100 } }
 
 #include <yt/ytlib/api/config.h>
 #include <yt/ytlib/api/native_client.h>
@@ -8,7 +9,10 @@
 #include <yt/ytlib/api/rowset.h>
 #include <yt/ytlib/api/transaction.h>
 
+#include <yt/ytlib/cypress_client/cypress_ypath_proxy.h>
+
 #include <yt/ytlib/object_client/public.h>
+#include <yt/ytlib/object_client/object_service_proxy.h>
 
 #include <yt/ytlib/table_client/config.h>
 #include <yt/ytlib/table_client/helpers.h>
@@ -28,6 +32,8 @@
 
 #include <util/datetime/base.h>
 
+#include <util/random/random.h>
+
 #include <cstdlib>
 #include <functional>
 #include <tuple>
@@ -46,7 +52,9 @@ namespace {
 
 using namespace NApi;
 using namespace NConcurrency;
+using namespace NCypressClient;
 using namespace NObjectClient;
+using namespace NSecurityClient;
 using namespace NTableClient;
 using namespace NTransactionClient;
 using namespace NYTree;
@@ -74,7 +82,7 @@ protected:
         Connection_ = CreateNativeConnection(ConvertTo<TNativeConnectionConfigPtr>(config->GetChild("driver")));
 
         TClientOptions clientOptions;
-        clientOptions.User = "root";
+        clientOptions.User = RootUserName;
         Client_ = Connection_->CreateNativeClient(clientOptions);
     }
 
@@ -100,6 +108,268 @@ TEST_F(TApiTestBase, TestCreateInvalidNode)
 {
     auto resOrError = Client_->CreateNode(TYPath("//tmp/a"), EObjectType::SortedDynamicTabletStore);
     EXPECT_FALSE(resOrError.Get().IsOK());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TBatchRequestTest
+    : public TApiTestBase
+{
+protected:
+    using TReqExecuteBatchPtr = TObjectServiceProxy::TReqExecuteBatchPtr;
+    using TSubrequestType = TString;
+
+    enum EAllowedSubrequestCategory
+    {
+        AllowAll,
+        AllowMutationsOnly,
+        AllowNonMutationsOnly
+    };
+
+    void TestBatchRequest(
+        int subrequestCount,
+        EAllowedSubrequestCategory subrequestCategory = AllowAll)
+    {
+        auto subrequestTypes = ChooseRandomSubrequestTypes(subrequestCount, subrequestCategory);
+        TestBatchRequest(subrequestTypes);
+    }
+
+    void TestBatchRequest(
+        const std::vector<TSubrequestType>& subrequestTypes)
+    {
+        auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Follower);
+        TObjectServiceProxy proxy(channel);
+
+        auto batchReq = proxy.ExecuteBatch();
+        batchReq->SetTimeout(TDuration::MilliSeconds(200));
+        MaybeSetMutationId(batchReq, subrequestTypes);
+
+        FillWithSubrequests(batchReq, subrequestTypes);
+
+        WaitFor(batchReq->Invoke())
+            .ThrowOnError();
+    }
+
+    void FillWithSubrequests(
+        const TReqExecuteBatchPtr& batchReq,
+        const std::vector<TSubrequestType>& subrequestTypes)
+    {
+        for (const auto& subrequestType : subrequestTypes) {
+            auto addSubrequest = GetSubrequestAdder(subrequestType);
+            (this->*addSubrequest)(batchReq);
+        }
+    }
+
+    void AddCreateTableSubrequest(const TReqExecuteBatchPtr& batchReq)
+    {
+        RecentTableGuid_ = TGuid::Create();
+
+        auto req = TCypressYPathProxy::Create(GetRecentTablePath());
+        req->set_type(static_cast<int>(EObjectType::Table));
+        req->set_recursive(false);
+        auto attributes = CreateEphemeralAttributes();
+        attributes->Set("replication_factor", 1);
+        ToProto(req->mutable_node_attributes(), *attributes);
+        GenerateMutationId(req);
+        batchReq->AddRequest(req, GenerateRequestKey("create"));
+    }
+
+    void AddReadSubrequest(const TReqExecuteBatchPtr& batchReq)
+    {
+        auto req = TCypressYPathProxy::Get(GetRecentTablePath() + "/@");
+        batchReq->AddRequest(req, GenerateRequestKey("get"));
+    }
+
+    void AddWriteSubrequest(const TReqExecuteBatchPtr& batchReq)
+    {
+        auto req = TCypressYPathProxy::Set(GetRecentTablePath() + "/@replication_factor");
+        req->set_value(TYsonString("3").GetData());
+        GenerateMutationId(req);
+        batchReq->AddRequest(req, GenerateRequestKey("set"));
+    }
+
+private:
+    using TSubrequestAdder = void (TBatchRequestTest::*)(const TReqExecuteBatchPtr&);
+
+    void MaybeSetMutationId(const TReqExecuteBatchPtr& batchReq, const std::vector<TSubrequestType>& subrequestTypes)
+    {
+        auto isMutating = false;
+        for (const auto& subrequestType : subrequestTypes) {
+            if (subrequestType != "get") {
+                isMutating = true;
+                break;
+            }
+        }
+
+        if (isMutating) {
+            GenerateMutationId(batchReq);
+        }
+    }
+
+    std::vector<TSubrequestType> ChooseRandomSubrequestTypes(
+        int subrequestCount,
+        EAllowedSubrequestCategory subrequestCategory)
+    {
+        YCHECK(subrequestCount >= 0);
+
+        std::vector<TSubrequestType> result;
+
+        if (subrequestCount == 0) {
+            return result;
+        }
+
+        result.reserve(subrequestCount);
+
+        // Start with creating at least one table so that there's
+        // something to work with.
+        bool forceCreate = subrequestCategory != AllowNonMutationsOnly;
+        for (auto i = 0; i < subrequestCount; ++i) {
+            auto adderId = forceCreate
+                ? "create" :
+                ChooseRandomSubrequestType(subrequestCategory);
+            result.push_back(adderId);
+        }
+
+        return result;
+    }
+
+    TSubrequestType ChooseRandomSubrequestType(
+        EAllowedSubrequestCategory subrequestCategory)
+    {
+        int shift;
+        int spread;
+        switch (subrequestCategory)
+        {
+            case AllowAll:
+                shift = 0;
+                spread = 3;
+                break;
+            case AllowMutationsOnly:
+                shift = 1;
+                spread = 2;
+                break;
+            case AllowNonMutationsOnly:
+                shift = 0;
+                spread = 1;
+                break;
+            default:
+                Y_UNREACHABLE();
+        }
+
+        switch (shift + RandomNumber<ui32>(spread)) {
+            case 0:
+                return "read";
+            case 1:
+                return "create";
+            case 2:
+                return "write";
+            default:
+                Y_UNREACHABLE();
+        }
+    }
+
+    TSubrequestAdder GetSubrequestAdder(const TSubrequestType& subrequestType)
+    {
+        if (subrequestType == "create") {
+            return &TBatchRequestTest::AddCreateTableSubrequest;
+        }
+
+        if (subrequestType == "read") {
+            return &TBatchRequestTest::AddReadSubrequest;
+        }
+
+        if (subrequestType == "write") {
+            return &TBatchRequestTest::AddWriteSubrequest;
+        }
+
+        Y_UNREACHABLE();
+    }
+
+    TString GetRecentTablePath() const
+    {
+        YCHECK(!RecentTableGuid_.IsEmpty());
+        return Format("//tmp/%v", RecentTableGuid_);
+    }
+
+    TString GenerateRequestKey(const TString& prefix)
+    {
+        return Format("%v %v %v", prefix, RecentTableGuid_, SubrequestCounter_++);
+    }
+
+    TGuid RecentTableGuid_;
+    int SubrequestCounter_ = 0;
+};
+
+TEST_F(TBatchRequestTest, TestEmptyBatchRequest)
+{
+    TestBatchRequest(0);
+}
+
+TEST_F(TBatchRequestTest, TestBatchRequestNoMutations)
+{
+    // Create a table to read via a separate batch request.
+    TestBatchRequest({"create"});
+
+    TestBatchRequest(99, AllowNonMutationsOnly);
+    TestBatchRequest(100, AllowNonMutationsOnly);
+    TestBatchRequest(101, AllowNonMutationsOnly);
+}
+
+TEST_F(TBatchRequestTest, TestBatchRequestOnlyMutations)
+{
+    TestBatchRequest(99, AllowMutationsOnly);
+    TestBatchRequest(100, AllowMutationsOnly);
+    TestBatchRequest(101, AllowMutationsOnly);
+}
+
+TEST_F(TBatchRequestTest, TestBatchRequestWith1Subrequest)
+{
+    TestBatchRequest(1);
+}
+
+TEST_F(TBatchRequestTest, TestBatchRequestWith50Subrequests)
+{
+    TestBatchRequest(50);
+}
+
+TEST_F(TBatchRequestTest, TestBatchRequestWith99Subrequests)
+{
+    TestBatchRequest(99);
+}
+
+TEST_F(TBatchRequestTest, TestBatchRequestWith100Subrequests)
+{
+    TestBatchRequest(100);
+}
+
+TEST_F(TBatchRequestTest, TestBatchRequestWith101Subrequests)
+{
+    TestBatchRequest(101);
+}
+
+TEST_F(TBatchRequestTest, TestBatchRequestWith150Subrequests)
+{
+    TestBatchRequest(150);
+}
+
+TEST_F(TBatchRequestTest, TestBatchRequestWith199Subrequests)
+{
+    TestBatchRequest(199);
+}
+
+TEST_F(TBatchRequestTest, TestBatchRequestWith200Subrequests)
+{
+    TestBatchRequest(200);
+}
+
+TEST_F(TBatchRequestTest, TestBatchRequestWith201Subrequests)
+{
+    TestBatchRequest(201);
+}
+
+TEST_F(TBatchRequestTest, TestBatchRequestWith1151Subrequests)
+{
+    TestBatchRequest(1151);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -337,6 +607,7 @@ static auto ku2 = "{name=k2;type=int64};";
 static auto v3 = "{name=v3;type=int64};";
 static auto v4 = "{name=v4;type=int64};";
 static auto v5 = "{name=v5;type=int64};";
+
 
 TEST_F(TLookupFilterTest, TestLookupAll)
 {
@@ -645,29 +916,14 @@ class TVersionedWriteTest
 public:
     static void SetUpTestCase()
     {
-        TDynamicTablesTestBase::SetUpTestCase();
-
-        TClientOptions clientOptions;
-        clientOptions.User = "replicator";
-        Client_ = Connection_->CreateNativeClient(clientOptions);
-
         Table_ = TYPath("//tmp/write_test");
-        auto attributes = ConvertToNode(TYsonString(
-            "{dynamic=%true;schema=["
+        DoSetUpTestCase("["
             "{name=k0;type=int64;sort_order=ascending};"
             "{name=k1;type=int64;sort_order=ascending};"
             "{name=k2;type=int64;sort_order=ascending};"
             "{name=v3;type=int64};"
             "{name=v4;type=int64};"
-            "{name=v5;type=int64}]}"));
-
-        TCreateNodeOptions options;
-        options.Attributes = ConvertToAttributes(attributes);
-
-        WaitFor(Client_->CreateNode(Table_, EObjectType::Table, options))
-            .ThrowOnError();
-
-        SyncMountTable(Table_);
+            "{name=v5;type=int64}]");
     }
 
     static void TearDownTestCase()
@@ -681,6 +937,24 @@ protected:
     static INativeClientPtr Client_;
     static TYPath Table_;
     TRowBufferPtr Buffer_ = New<TRowBuffer>();
+
+    static void DoSetUpTestCase(const TString& schema)
+    {
+        TDynamicTablesTestBase::SetUpTestCase();
+
+        TClientOptions clientOptions;
+        clientOptions.User = ReplicatorUserName;
+        Client_ = Connection_->CreateNativeClient(clientOptions);
+
+        auto attributes = TYsonString("{dynamic=%true;schema=" + schema + "}");
+        TCreateNodeOptions options;
+        options.Attributes = ConvertToAttributes(attributes);
+
+        WaitFor(Client_->CreateNode(Table_, EObjectType::Table, options))
+            .ThrowOnError();
+
+        SyncMountTable(Table_);
+    }
 
     static void WriteVersionedRow(
         std::vector<TString> names,
@@ -707,6 +981,35 @@ protected:
 
         auto commitResult = WaitFor(transaction->Commit())
             .ValueOrThrow();
+    }
+
+    static void WriteUnversionedRow(
+        std::vector<TString> names,
+        const TString& rowString)
+    {
+        auto preparedRow = PrepareUnversionedRow(names, rowString);
+        WriteRows(
+            std::get<1>(preparedRow),
+            std::get<0>(preparedRow));
+    }
+
+    static void WriteRows(
+        TNameTablePtr nameTable,
+        TSharedRange<TUnversionedRow> rows)
+    {
+        auto transaction = WaitFor(Client_->StartTransaction(NTransactionClient::ETransactionType::Tablet))
+            .ValueOrThrow();
+
+        transaction->WriteRows(
+            Table_,
+            nameTable,
+            rows);
+
+        auto commitResult = WaitFor(transaction->Commit())
+            .ValueOrThrow();
+
+        const auto& timestamps = commitResult.CommitTimestamps.Timestamps;
+        ASSERT_EQ(timestamps.size(), 1);
     }
 
     static std::tuple<TSharedRange<TVersionedRow>, TNameTablePtr> PrepareVersionedRow(
@@ -807,6 +1110,82 @@ TEST_F(TVersionedWriteTest, TestWriteTypeChecking)
         TErrorException);
 }
 
+TEST_F(TVersionedWriteTest, TestInsertDuplicateKeyColumns)
+{
+    auto preparedKey = PrepareUnversionedRow(
+        {"k0", "k1", "k2"},
+        "<id=0> 20; <id=1> 21; <id=2> 22");
+
+    EXPECT_THROW(
+        WriteUnversionedRow(
+            {"k0", "k1", "k2", "v3", "v4", "v5"},
+            "<id=0> 20; <id=1> 21; <id=2> 22; <id=3> 13; <id=4> 14; <id=5> 15; <id=5> 25"),
+        TErrorException);
+}
+
+TEST_F(TLookupFilterTest, TestLookupDuplicateKeyColumns)
+{
+    auto preparedKey = PrepareUnversionedRow(
+        {"k0", "k1", "k2"},
+        "<id=0> 20; <id=1> 21; <id=2> 22; <id=2> 22");
+
+    EXPECT_THROW(WaitFor(Client_->LookupRows(
+        Table_,
+        std::get<1>(preparedKey),
+        std::get<0>(preparedKey)))
+        .ValueOrThrow(), TErrorException);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TVersionedWriteTestWithRequired
+    : public TVersionedWriteTest
+{
+public:
+    static void SetUpTestCase()
+    {
+        Table_ = TYPath("//tmp/write_test_required");
+        DoSetUpTestCase("["
+            "{name=k0;type=int64;sort_order=ascending};"
+            "{name=k1;type=int64;sort_order=ascending};"
+            "{name=k2;type=int64;sort_order=ascending};"
+            "{name=v3;type=int64;required=%true};"
+            "{name=v4;type=int64};"
+            "{name=v5;type=int64}]");
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_F(TVersionedWriteTestWithRequired, TestNoRequiredColumns)
+{
+    EXPECT_THROW(
+        WriteVersionedRow(
+            {"k0", "k1", "k2", "v4"},
+            "<id=0> 30; <id=1> 30; <id=2> 30;",
+            "<id=3;ts=1> 10"),
+        TErrorException);
+
+    EXPECT_THROW(
+        WriteVersionedRow(
+            {"k0", "k1", "k2", "v3", "v4"},
+            "<id=0> 30; <id=1> 30; <id=2> 30;",
+            "<id=3;ts=2> 10; <id=4;ts=2> 10; <id=4;ts=1> 15"),
+        TErrorException);
+
+    EXPECT_THROW(
+        WriteVersionedRow(
+            {"k0", "k1", "k2", "v3", "v4"},
+            "<id=0> 30; <id=1> 30; <id=2> 30;",
+            "<id=4;ts=2> 10; <id=4;ts=1> 15"),
+        TErrorException);
+
+    WriteVersionedRow(
+        {"k0", "k1", "k2", "v3", "v4"},
+        "<id=0> 40; <id=1> 40; <id=2> 40;",
+        "<id=3;ts=2> 10; <id=3;ts=1> 20; <id=4;ts=1> 15");
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TOrderedDynamicTablesTest
@@ -818,7 +1197,7 @@ public:
         TDynamicTablesTestBase::SetUpTestCase();
 
         TClientOptions clientOptions;
-        clientOptions.User = NSecurityClient::RootUserName;
+        clientOptions.User = RootUserName;
         Client_ = Connection_->CreateNativeClient(clientOptions);
 
         Table_ = TYPath("//tmp/write_ordered_test");

@@ -118,7 +118,7 @@ struct IChunkStore
     virtual TFuture<void> GetPreloadFuture() const = 0;
     virtual void SetPreloadFuture(TFuture<void> future) = 0;
 
-    virtual NChunkClient::IChunkReaderPtr GetChunkReader() = 0;
+    virtual NChunkClient::IChunkReaderPtr GetChunkReader(const NConcurrency::IThroughputThrottlerPtr& throttler) = 0;
 
     virtual NTabletClient::EInMemoryMode GetInMemoryMode() const = 0;
     virtual void SetInMemoryMode(NTabletClient::EInMemoryMode mode, ui64 configRevision) = 0;

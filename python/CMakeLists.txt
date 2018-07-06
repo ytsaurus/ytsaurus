@@ -65,7 +65,7 @@ function(BUILD_AND_INSTALL_PYTHON_LIBRARY python_kind target_name component)
 
 endfunction()
 
-set(PYCXX_BASE ${CMAKE_SOURCE_DIR}/contrib/libs/pycxx)
+set(PYCXX_BASE ${CMAKE_SOURCE_DIR}/non_arcadia_contrib/pycxx)
 set(PYCXX_SRCS
   ${PYCXX_BASE}/cxx_exceptions.cxx
   ${PYCXX_BASE}/cxx_extensions.cxx

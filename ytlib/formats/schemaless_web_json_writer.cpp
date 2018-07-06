@@ -8,12 +8,12 @@
 
 #include <yt/ytlib/table_client/name_table.h>
 
+#include <yt/core/concurrency/async_stream.h>
+
 #include <yt/core/yson/format.h>
 
 #include <yt/core/json/json_writer.h>
 #include <yt/core/json/config.h>
-
-#include <util/string/escape.h>
 
 namespace NYT {
 namespace NFormats {
@@ -26,8 +26,61 @@ using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const i64 ContextBufferCapacity = static_cast<i64>(1024) * 1024;
-static const TString IncompleteValue = "{\"$incomplete\":\"true\",\"$type\":\"any\"}\n";
+static constexpr auto ContextBufferCapacity = 1_MB;
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TWrittenSizeAccountedOutputStream
+    : public IOutputStream
+{
+public:
+    explicit TWrittenSizeAccountedOutputStream(
+        std::unique_ptr<IOutputStream> underlyingStream = nullptr)
+    {
+        Reset(std::move(underlyingStream));
+    }
+
+    void Reset(std::unique_ptr<IOutputStream> underlyingStream)
+    {
+        UnderlyingStream_ = std::move(underlyingStream);
+        WrittenSize_ = 0;
+    }
+
+    i64 GetWrittenSize() const
+    {
+        return WrittenSize_;
+    }
+
+protected:
+    // For simplicity we do not override DoWriteV and DoWriteC methods here.
+    // Overriding DoWrite method is enough for local usage.
+    virtual void DoWrite(const void* buf, size_t length) override
+    {
+        if (UnderlyingStream_) {
+            UnderlyingStream_->Write(buf, length);
+            WrittenSize_ += length;
+        }
+    }
+
+    virtual void DoFlush() override
+    {
+        if (UnderlyingStream_) {
+            UnderlyingStream_->Flush();
+        }
+    }
+
+    virtual void DoFinish() override
+    {
+        if (UnderlyingStream_) {
+            UnderlyingStream_->Finish();
+        }
+    }
+
+private:
+    std::unique_ptr<IOutputStream> UnderlyingStream_;
+
+    i64 WrittenSize_ = 0;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -48,67 +101,63 @@ public:
     virtual i64 GetWrittenSize() const override;
     virtual TFuture<void> Close() override;
 
-protected:
-    bool IsSystemColumnId(int id) const;
-    bool IsTableIndexColumnId(int id) const;
-    bool IsRangeIndexColumnId(int id) const;
-    bool IsRowIndexColumnId(int id) const;
-
 private:
-    const NConcurrency::IAsyncOutputStreamPtr Output_;
     const TSchemalessWebJsonFormatConfigPtr Config_;
     const TNameTablePtr NameTable_;
+    const TNameTableReader NameTableReader_;
 
-    std::unique_ptr<NYson::IFlushableYsonConsumer> JsonConsumer_;
+    TWrittenSizeAccountedOutputStream Output_;
+    std::unique_ptr<IJsonConsumer> ResponseBuilder_;
 
-    TBlobOutput Buffer_;
+    THashMap<ui16, TString> AllColumnIdToName_;
+    THashSet<ui16> RegisteredColumnIds_;
 
-    THashMap<ui16, int> ColumnIds_;
-    std::vector<std::vector<std::pair<TSharedRef, int>>> ResultRows_;
-
-    bool IncompleteRows_ = false;
     bool IncompleteColumns_ = false;
-
-    int RowIndexId_ = -1;
-    int RangeIndexId_ = -1;
-    int TableIndexId_ = -1;
 
     TError Error_;
 
-    void DoWrite(const TRange<NTableClient::TUnversionedRow>& rows);
+    bool TryRegisterColumn(ui16 columnId, TStringBuf columnName);
+    bool SkipSystemColumn(TStringBuf columnName) const;
+
+    void DoFlush(bool force);
+    void DoWrite(const TRange<TUnversionedRow>& rows);
+    void DoClose();
 };
 
 TSchemalessWriterForWebJson::TSchemalessWriterForWebJson(
     NConcurrency::IAsyncOutputStreamPtr output,
     TSchemalessWebJsonFormatConfigPtr config,
     TNameTablePtr nameTable)
-    : Output_(std::move(output))
-    , Config_(std::move(config))
+    : Config_(std::move(config))
     , NameTable_(std::move(nameTable))
+    , NameTableReader_(NameTable_)
 {
-    Buffer_.Reserve(ContextBufferCapacity);
+    {
+        auto bufferedSyncOutput = CreateBufferedSyncAdapter(
+            std::move(output),
+            ESyncStreamAdapterStrategy::WaitFor,
+            ContextBufferCapacity);
 
-    auto jsonConfig = New<TJsonFormatConfig>();
-    jsonConfig->Stringify = true;
-    jsonConfig->AnnotateWithTypes = true;
-    jsonConfig->BooleanAsString = true;
-    jsonConfig->StringLengthLimit = Config_->StringLikeLengthLimit;
-
-    JsonConsumer_ = CreateJsonConsumer(
-        &Buffer_,
-        NYson::EYsonType::ListFragment,
-        jsonConfig);
-
-    try {
-        RowIndexId_ = NameTable_->GetIdOrRegisterName(RowIndexColumnName);
-        RangeIndexId_ = NameTable_->GetIdOrRegisterName(RangeIndexColumnName);
-        TableIndexId_ = NameTable_->GetIdOrRegisterName(TableIndexColumnName);
-    } catch (const std::exception& ex) {
-        Error_ = TError("Failed to add system columns to name table for a format writer") << ex;
+        Output_.Reset(std::move(bufferedSyncOutput));
     }
+
+    {
+        auto jsonConfig = New<TJsonFormatConfig>();
+        jsonConfig->Stringify = true;
+        jsonConfig->AnnotateWithTypes = true;
+
+        ResponseBuilder_ = CreateJsonConsumer(
+            &Output_,
+            NYson::EYsonType::Node,
+            std::move(jsonConfig));
+    }
+
+    ResponseBuilder_->OnBeginMap();
+    ResponseBuilder_->OnKeyedItem("rows");
+    ResponseBuilder_->OnBeginList();
 }
 
-bool TSchemalessWriterForWebJson::Write(const TRange<TUnversionedRow> &rows)
+bool TSchemalessWriterForWebJson::Write(const TRange<TUnversionedRow>& rows)
 {
     if (!Error_.IsOK()) {
         return false;
@@ -136,230 +185,145 @@ const TTableSchema& TSchemalessWriterForWebJson::GetSchema() const
 
 const TNameTablePtr& TSchemalessWriterForWebJson::GetNameTable() const
 {
-    Y_UNREACHABLE();
+    return NameTable_;
 }
 
 TBlob TSchemalessWriterForWebJson::GetContext() const
 {
-    Y_UNREACHABLE();
+    return TBlob();
 }
 
 i64 TSchemalessWriterForWebJson::GetWrittenSize() const
 {
-    Y_UNREACHABLE();
-}
-
-bool TSchemalessWriterForWebJson::IsSystemColumnId(int id) const
-{
-    return IsTableIndexColumnId(id) ||
-        IsRangeIndexColumnId(id) ||
-        IsRowIndexColumnId(id);
-}
-
-bool TSchemalessWriterForWebJson::IsTableIndexColumnId(int id) const
-{
-    return id == TableIndexId_;
-}
-
-bool TSchemalessWriterForWebJson::IsRowIndexColumnId(int id) const
-{
-    return id == RowIndexId_;
-}
-
-bool TSchemalessWriterForWebJson::IsRangeIndexColumnId(int id) const
-{
-    return id == RangeIndexId_;
+    return Output_.GetWrittenSize();
 }
 
 TFuture<void> TSchemalessWriterForWebJson::Close()
 {
-    int columnCount = static_cast<int>(ColumnIds_.size());
-
-    auto writeSeparatorSymbol = [&] (bool& first, char ch) {
-        if (!first) {
-            Buffer_.Write(ch);
-        } else {
-            first = false;
-        }
-    };
-
-    bool firstValue = true;
-
-    Buffer_.Write('{');
-
-    if (IncompleteRows_) {
-        writeSeparatorSymbol(firstValue, ',');
-        Buffer_.Write("\"incomplete_rows\":true");
+    try {
+        DoClose();
+    } catch (const std::exception& exception) {
+        Error_ = TError(exception);
     }
-
-    if (IncompleteColumns_) {
-        writeSeparatorSymbol(firstValue, ',');
-        Buffer_.Write("\"incomplete_columns\":true");
-    }
-
-    std::vector<int> columnsPositions(columnCount);
-
-    for (const auto& columnId : ColumnIds_) {
-        columnsPositions[columnId.second] = columnId.first;
-    }
-
-    writeSeparatorSymbol(firstValue, ',');
-    Buffer_.Write("\"column_names\":");
-
-    Buffer_.Write('[');
-
-    bool firstColumnName = true;
-    for (const auto& columnId: columnsPositions) {
-        writeSeparatorSymbol(firstColumnName, ',');
-        Buffer_.Write("\"" + EscapeC(ToString(NameTable_->GetName(columnId))) + "\"");
-    }
-
-    Buffer_.Write(']');
-
-    writeSeparatorSymbol(firstValue, ',');
-    Buffer_.Write("\"rows\":");
-
-    Buffer_.Write('[');
-
-    bool firstRow = true;
-    for (const auto& row : ResultRows_) {
-        int prevColumn = -1;
-        bool firstRecord = true;
-        int rowLength = static_cast<int>(row.size());
-        int count;
-
-        writeSeparatorSymbol(firstRow, ',');
-
-        Buffer_.Write('[');
-
-        for (int i = 0; i < rowLength; ++i) {
-            count = row[i].second - prevColumn - 1;
-            while (count--) {
-                writeSeparatorSymbol(firstRecord, ',');
-                Buffer_.Write("null");
-            }
-
-            prevColumn = row[i].second;
-            writeSeparatorSymbol(firstRecord, ',');
-            Buffer_.Write(row[i].first.Begin(), row[i].first.Size() - 1);
-        }
-
-        count = columnCount - prevColumn - 1;
-        while (count--) {
-            writeSeparatorSymbol(firstRecord, ',');
-            Buffer_.Write("null");
-        }
-
-        Buffer_.Write(']');
-    }
-
-    Buffer_.Write(']');
-
-    Buffer_.Write('}');
-
-    TSharedRef result = Buffer_.Flush();
-    WaitFor(Output_->Write(result))
-        .ThrowOnError();
-
-    Buffer_.Reserve(ContextBufferCapacity);
 
     return GetReadyEvent();
 }
 
-
-void TSchemalessWriterForWebJson::DoWrite(const TRange<NTableClient::TUnversionedRow>& rows)
+bool TSchemalessWriterForWebJson::TryRegisterColumn(ui16 columnId, TStringBuf columnName)
 {
-    IncompleteRows_ = (ResultRows_.size() + rows.Size()) > Config_->RowLimit;
-
-    if (ResultRows_.size() >= Config_->RowLimit) {
-        return;
+    if (SkipSystemColumn(columnName)) {
+        return false;
     }
 
-    int rowCount = std::min(static_cast<int>(rows.Size()), Config_->RowLimit - static_cast<int>(ResultRows_.size()));
+    if (AllColumnIdToName_.size() < Config_->AllColumnNamesLimit) {
+        AllColumnIdToName_[columnId] = columnName;
+    }
 
-    int nextUnusedColumnIndex = static_cast<int>(ColumnIds_.size());
+    THashSet<ui16>::insert_ctx insertContext;
+    const auto iterator = RegisteredColumnIds_.find(columnId, insertContext);
+    if (iterator != RegisteredColumnIds_.end()) {
+        return true;
+    }
 
-    for (int index = 0; index < rowCount && nextUnusedColumnIndex < Config_->ColumnLimit; ++index) {
-        auto row = rows[index];
+    if (RegisteredColumnIds_.size() >= Config_->ColumnLimit) {
+        IncompleteColumns_ = true;
+        return false;
+    }
 
-        for (auto* it = row.Begin(); it != row.End() && nextUnusedColumnIndex < Config_->ColumnLimit; ++it) {
-            auto& value = *it;
-            if (IsSystemColumnId(value.Id)) {
-                continue;
-            }
-            if (ColumnIds_.find(value.Id) == ColumnIds_.end()) {
-                ColumnIds_[value.Id] = nextUnusedColumnIndex;
-                ++nextUnusedColumnIndex;
-            }
+    RegisteredColumnIds_.insert_direct(columnId, insertContext);
+    return true;
+}
+
+bool TSchemalessWriterForWebJson::SkipSystemColumn(TStringBuf columnName) const
+{
+    if (!columnName.StartsWith(SystemColumnNamePrefix)) {
+        return false;
+    }
+    return Config_->SkipSystemColumns;
+}
+
+void TSchemalessWriterForWebJson::DoFlush(bool force)
+{
+    ResponseBuilder_->Flush();
+    if (force) {
+        Output_.Flush();
+    }
+}
+
+void TSchemalessWriterForWebJson::DoWrite(const TRange<TUnversionedRow>& rows)
+{
+    for (int rowIndex = 0; rowIndex < rows.Size(); ++rowIndex) {
+        const auto row = rows[rowIndex];
+        if (!row) {
+            continue;
         }
-    }
 
-    for (int index = 0; index < rowCount; ++index) {
-        auto row = rows[index];
-        int size = row.GetCount();
+        ResponseBuilder_->OnListItem();
+        ResponseBuilder_->OnBeginMap();
 
-        std::vector<std::pair<TSharedRef, int>> currentRow;
-
-        for (int i = 0; i < size; ++i) {
-            auto& value = row[i];
-            int columnIndex;
-
-            if (ColumnIds_.find(value.Id) != ColumnIds_.end()) {
-                columnIndex = ColumnIds_[value.Id];
-            } else {
-                if (!IsSystemColumnId(value.Id)) {
-                    IncompleteColumns_ = true;
-                }
+        for (const auto& value : row) {
+            TStringBuf columnName;
+            if (!NameTableReader_.TryGetName(value.Id, columnName)) {
                 continue;
             }
 
-            JsonConsumer_->OnListItem();
+            if (!TryRegisterColumn(value.Id, columnName)) {
+                continue;
+            }
 
+            ResponseBuilder_->OnKeyedItem(columnName);
+
+            const TStringBuf valueBuf(value.Data.String, value.Length);
             switch (value.Type) {
-                case EValueType::Int64:
-                    JsonConsumer_->OnInt64Scalar(value.Data.Int64);
-                    break;
-                case EValueType::Uint64:
-                    JsonConsumer_->OnUint64Scalar(value.Data.Uint64);
-                    break;
-                case EValueType::Double:
-                    JsonConsumer_->OnDoubleScalar(value.Data.Double);
-                    break;
-                case EValueType::Boolean:
-                    JsonConsumer_->OnBooleanScalar(value.Data.Boolean);
+                case EValueType::Any:
+                    ResponseBuilder_->OnNodeWeightLimited(valueBuf, Config_->FieldWeightLimit);
                     break;
                 case EValueType::String:
-                    JsonConsumer_->OnStringScalar(TStringBuf(value.Data.String, value.Length));
-                    break;
-                case EValueType::Null:
-                    JsonConsumer_->OnEntity();
-                    break;
-                case EValueType::Any:
-                    JsonConsumer_->OnRaw(TStringBuf(value.Data.String, value.Length), EYsonType::Node);
+                    ResponseBuilder_->OnStringScalarWeightLimited(valueBuf, Config_->FieldWeightLimit);
                     break;
                 default:
-                    Y_UNREACHABLE();
+                    WriteYsonValue(ResponseBuilder_.get(), value);
             }
-
-            JsonConsumer_->Flush();
-
-            if (value.Type == EValueType::Any && Buffer_.Size() > Config_->StringLikeLengthLimit) {
-                Buffer_.Clear();
-                Buffer_.Write(IncompleteValue);
-            }
-
-            currentRow.push_back(std::make_pair(Buffer_.Flush(), columnIndex));
         }
 
-        std::sort(
-            currentRow.begin(),
-            currentRow.end(),
-            [] (const std::pair<TSharedRef, int>& lhs,
-                const std::pair<TSharedRef, int>& rhs) {
-                return lhs.second < rhs.second;
-            });
+        ResponseBuilder_->OnEndMap();
 
-        ResultRows_.emplace_back(std::move(currentRow));
+        DoFlush(false);
+    }
+
+    DoFlush(true);
+}
+
+void TSchemalessWriterForWebJson::DoClose()
+{
+    if (Error_.IsOK()) {
+        ResponseBuilder_->OnEndList();
+
+        ResponseBuilder_->SetAnnotateWithTypesParameter(false);
+
+        ResponseBuilder_->OnKeyedItem("incomplete_columns");
+        ResponseBuilder_->OnBooleanScalar(IncompleteColumns_);
+
+        ResponseBuilder_->OnKeyedItem("all_column_names");
+        ResponseBuilder_->OnBeginList();
+
+        std::vector<TStringBuf> allColumnNamesSorted;
+        allColumnNamesSorted.reserve(AllColumnIdToName_.size());
+        for (const auto& columnIdToName : AllColumnIdToName_) {
+            allColumnNamesSorted.push_back(columnIdToName.second);
+        }
+        std::sort(allColumnNamesSorted.begin(), allColumnNamesSorted.end());
+
+        for (const auto columnName : allColumnNamesSorted) {
+            ResponseBuilder_->OnListItem();
+            ResponseBuilder_->OnStringScalar(columnName);
+        }
+
+        ResponseBuilder_->OnEndList();
+
+        ResponseBuilder_->OnEndMap();
+
+        DoFlush(true);
     }
 }
 
@@ -379,9 +343,8 @@ ISchemalessFormatWriterPtr CreateSchemalessWriterForWebJson(
     NConcurrency::IAsyncOutputStreamPtr stream,
     TNameTablePtr nameTable)
 {
-    auto config = ConvertTo<TSchemalessWebJsonFormatConfigPtr>(&attributes);
     return CreateSchemalessWriterForWebJson(
-        config,
+        ConvertTo<TSchemalessWebJsonFormatConfigPtr>(&attributes),
         stream,
         nameTable);
 }
