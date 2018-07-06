@@ -175,6 +175,9 @@ def are_almost_equal(lhs, rhs, decimal_places=4):
     eps = 10**(-decimal_places)
     return abs(lhs - rhs) < eps
 
+# COMPAT
+assert_almost_equal = are_almost_equal
+
 def versions_cmp(version1, version2):
     def normalize(v):
         return list(imap(int, v.split(".")))
