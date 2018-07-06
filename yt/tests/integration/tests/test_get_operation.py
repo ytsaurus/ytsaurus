@@ -138,9 +138,10 @@ class TestGetOperation(YTEnvSetup):
 
         clean_operations(self.Env.create_native_client())
 
-        res_get_operation_archive = get_operation(op.id, attributes=["progress", "state"])
-        assert sorted(list(res_get_operation_archive)) == ["progress", "state"]
+        res_get_operation_archive = get_operation(op.id, attributes=["progress", "state", "runtime_parameters"])
+        assert sorted(list(res_get_operation_archive)) == ["progress", "runtime_parameters", "state"]
         assert res_get_operation_archive["state"] == "completed"
+        assert res_get_operation_archive["runtime_parameters"]["scheduling_options_per_pool_tree"]["default"]["pool"] == "root"
         with pytest.raises(YtError):
             get_operation(op.id, attributes=["PYSCH"])
 
