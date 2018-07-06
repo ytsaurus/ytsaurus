@@ -90,6 +90,12 @@ TOperationAttributes GetOperation(
     const TOperationId& operationId,
     const TGetOperationOptions& options = TGetOperationOptions());
 
+void UpdateOperationParameters(
+    const TAuth& auth,
+    const TOperationId& operationId,
+    const TNode& newParameters,
+    IRetryPolicy* retryPolicy = nullptr);
+
 TNode ListJobs(
     const TAuth& auth,
     const TOperationId& operationId,

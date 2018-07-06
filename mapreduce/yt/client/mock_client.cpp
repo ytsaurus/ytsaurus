@@ -345,6 +345,9 @@ TOperationAttributes TMockClient::GetOperation(const TOperationId&, const TGetOp
     return TOperationAttributes();
 }
 
+void TMockClient::UpdateOperationParameters(const TOperationId&, const TNode&) {
+}
+
 IOperationPtr TMockClient::RunVanilla(const TVanillaOperationSpec&, const TOperationOptions&) {
     return nullptr;
 }

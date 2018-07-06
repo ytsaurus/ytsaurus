@@ -188,6 +188,10 @@ public:
         const TOperationId& operationId,
         const TGetOperationOptions& options) override;
 
+    void UpdateOperationParameters(
+        const TOperationId& operationId,
+        const TNode& newParameters) override;
+
     void AlterTable(
         const TYPath& path,
         const TAlterTableOptions& options) override;

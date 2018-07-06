@@ -72,6 +72,8 @@ public:
 
     TOperationAttributes GetOperation(const TOperationId&, const TGetOperationOptions&) override;
 
+    void UpdateOperationParameters(const TOperationId&, const TNode&) override;
+
     IOperationPtr RunVanilla(const TVanillaOperationSpec&, const TOperationOptions&) override;
 
     IOperationPtr DoMap(const TMapOperationSpec&, IJob*, const TOperationOptions&) override;

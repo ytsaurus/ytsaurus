@@ -268,6 +268,17 @@ TOperationAttributes GetOperation(
     return ParseOperationAttributes(NodeFromYsonString(RetryRequest(auth, header)));
 }
 
+void UpdateOperationParameters(
+    const TAuth& auth,
+    const TOperationId& operationId,
+    const TNode& newParameters,
+    IRetryPolicy* retryPolicy)
+{
+    THttpHeader header("POST", "update_op_parameters");
+    header.MergeParameters(NDetail::SerializeParamsForUpdateOperationParameters(operationId, newParameters));
+    RetryRequestWithPolicy(auth, header, "", retryPolicy);
+}
+
 TNode ListJobs(
     const TAuth& auth,
     const TOperationId& operationId,

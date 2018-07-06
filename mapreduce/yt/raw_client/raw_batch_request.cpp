@@ -391,6 +391,16 @@ TFuture<TOperationAttributes> TRawBatchRequest::GetOperation(
         Nothing());
 }
 
+TFuture<void> TRawBatchRequest::UpdateOperationParameters(
+    const TOperationId& operationId,
+    const TNode& newParameters)
+{
+    return AddRequest<TVoidResponseParser>(
+        "update_op_parameters",
+        SerializeParamsForUpdateOperationParameters(operationId, newParameters),
+        Nothing());
+}
+
 TFuture<TRichYPath> TRawBatchRequest::CanonizeYPath(const TRichYPath& path)
 {
     if (path.Path_.find_first_of("<>{}[]") != TString::npos) {

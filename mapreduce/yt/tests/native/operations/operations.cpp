@@ -1688,8 +1688,9 @@ Y_UNIT_TEST_SUITE(Operations)
         };
 
         auto getType = [&](const IOperationPtr& operation) {
-            // TODO(levysotsky) Use client->GetOperation() when it's ready (YT-8606)
-            return client->Get("//sys/operations/" + GetGuidAsString(operation->GetId()) + "/@operation_type").AsString();
+            auto attrs = operation->GetAttributes(TGetOperationOptions().AttributeFilter(
+                TOperationAttributeFilter().Add(EOperationAttribute::Type)));
+            return *attrs.Type;
         };
 
         {
@@ -1714,7 +1715,7 @@ Y_UNIT_TEST_SUITE(Operations)
 
             UNIT_ASSERT_UNEQUAL(operation, nullptr);
             // It must be merge because input tables are already sorted
-            UNIT_ASSERT_VALUES_EQUAL(getType(operation), "merge");
+            UNIT_ASSERT_VALUES_EQUAL(getType(operation), EOperationType::Merge);
             UNIT_ASSERT_VALUES_EQUAL(getSortedBy(outputTable).Parts_, prefixColumns.Parts_);
             UNIT_ASSERT_VALUES_EQUAL(
                 client->Get(outputTable + "/@row_count").AsInt64(),
@@ -1730,7 +1731,7 @@ Y_UNIT_TEST_SUITE(Operations)
                     .Output(outputTable)
                     .SortBy(nonPrefixColumns));
             UNIT_ASSERT_UNEQUAL(operation, nullptr);
-            UNIT_ASSERT_VALUES_EQUAL(getType(operation), "sort");
+            UNIT_ASSERT_VALUES_EQUAL(getType(operation), EOperationType::Sort);
             UNIT_ASSERT_VALUES_EQUAL(getSortedBy(outputTable).Parts_, nonPrefixColumns.Parts_);
         }
     }
@@ -1899,6 +1900,42 @@ Y_UNIT_TEST_SUITE(Operations)
     Y_UNIT_TEST(GetOperation_Failed_OperationGetAttributes)
     {
         TestGetOperation_Failed(false);
+    }
+
+    Y_UNIT_TEST(UpdateOperationParameters)
+    {
+        auto client = CreateTestClient();
+
+        CreateTableWithFooColumn(client, "//testing/input");
+
+        auto op = client->Map(
+            TMapOperationSpec()
+                .AddInput<TNode>("//testing/input")
+                .AddOutput<TNode>("//testing/output"),
+            new TSleepingMapper(TDuration::Seconds(100)),
+            TOperationOptions()
+                .Spec(TNode()("weight", 5.0))
+                .Wait(false));
+
+        static auto getState = [](const IOperationPtr& op) {
+            auto attrs = op->GetAttributes(TGetOperationOptions().AttributeFilter(
+                TOperationAttributeFilter().Add(EOperationAttribute::State)));
+            return *attrs.BriefState;
+        };
+
+        while (getState(op) != EOperationBriefState::InProgress) {
+            Sleep(TDuration::MilliSeconds(100));
+        }
+
+        client->UpdateOperationParameters(op->GetId(),
+            TNode()("scheduling_options_per_pool_tree",
+                TNode()("default",
+                    TNode()("weight", 10.0))));
+
+        auto weightPath = "//sys/scheduler/orchid/scheduler/operations/" +
+            GetGuidAsString(op->GetId()) +
+            "/progress/scheduling_info_per_pool_tree/default/weight";
+        UNIT_ASSERT_DOUBLES_EQUAL(client->Get(weightPath).AsDouble(), 10.0, 1e-9);
     }
 
     Y_UNIT_TEST(FormatHint)

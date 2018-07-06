@@ -1010,6 +1010,11 @@ struct IOperation
     // Get operation attributes.
     virtual TOperationAttributes GetAttributes(
         const TGetOperationOptions& options = TGetOperationOptions()) = 0;
+
+    //
+    // Update operation runtime parameters.
+    virtual void UpdateParameters(
+        const TNode& newParameters) = 0;
 };
 
 struct TOperationOptions
@@ -1153,9 +1158,17 @@ struct IOperationClient
     // Will throw TErrorResponse exception if operation doesn't exist.
     virtual IOperationPtr AttachOperation(const TOperationId& operationId) = 0;
 
+    //
+    // Get operation attributes.
     virtual TOperationAttributes GetOperation(
         const TOperationId& operationId,
         const TGetOperationOptions& options = TGetOperationOptions()) = 0;
+
+    //
+    // Update operation runtime parameters.
+    virtual void UpdateOperationParameters(
+        const TOperationId& operationId,
+        const TNode& newParameters) = 0;
 
 private:
     virtual IOperationPtr DoMap(
