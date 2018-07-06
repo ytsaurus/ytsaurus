@@ -5024,6 +5024,12 @@ private:
         auto statisticsIndex = itemsQueryBuilder.AddSelectExpression("statistics");
         auto stderrSizeIndex = itemsQueryBuilder.AddSelectExpression("stderr_size");
         auto hasSpecIndex = itemsQueryBuilder.AddSelectExpression("has_spec");
+        auto hasFailContextIndex = itemsQueryBuilder.AddSelectExpression("has_fail_context");
+
+        TNullable<int> failContextSizeIndex;
+        if (archiveVersion >= 23) {
+            failContextSizeIndex = itemsQueryBuilder.AddSelectExpression("fail_context_size");
+        }
 
         auto operationIdExpression = Format(
             "(operation_id_hi, operation_id_lo) = (%vu, %vu)",
@@ -5055,7 +5061,13 @@ private:
         }
 
         if (options.WithFailContext) {
-            if (archiveVersion >= 21) {
+            if (archiveVersion >= 23) {
+                if (*options.WithFailContext) {
+                    itemsQueryBuilder.AddWhereExpression("(fail_context_size != 0 AND NOT is_null(fail_context_size))");
+                } else {
+                    itemsQueryBuilder.AddWhereExpression("(fail_context_size = 0 OR is_null(fail_context_size))");
+                }
+            } else if (archiveVersion >= 21) {
                 if (*options.WithFailContext) {
                     itemsQueryBuilder.AddWhereExpression("(has_fail_context AND NOT is_null(has_fail_context))");
                 } else {
@@ -5186,7 +5198,17 @@ private:
                 }
 
                 if (row[stderrSizeIndex].Type != EValueType::Null) {
-                    job.StderrSize = row[stderrSizeIndex].Data.Int64;
+                    job.StderrSize = row[stderrSizeIndex].Data.Uint64;
+                }
+
+                if (failContextSizeIndex) {
+                    if (row[*failContextSizeIndex].Type != EValueType::Null) {
+                        job.FailContextSize = row[*failContextSizeIndex].Data.Uint64;
+                    }
+                } else {
+                    if (row[hasFailContextIndex].Type != EValueType::Null && row[hasFailContextIndex].Data.Boolean) {
+                        job.FailContextSize = 1024;
+                    }
                 }
 
                 if (row[hasSpecIndex].Type != EValueType::Null) {

@@ -405,8 +405,12 @@ private:
             if (GetSharedData()->GetOperationArchiveVersion() >= 20 && statistics.Spec()) {
                 builder.AddValue(MakeUnversionedBooleanValue(statistics.Spec().HasValue(), Table_.Index.HasSpec));
             }
-            if (GetSharedData()->GetOperationArchiveVersion() >= 21 && statistics.FailContext()) {
-                builder.AddValue(MakeUnversionedBooleanValue(statistics.FailContext().HasValue(), Table_.Index.HasFailContext));
+            if (statistics.FailContext()) {
+                if (GetSharedData()->GetOperationArchiveVersion() >= 23) {
+                    builder.AddValue(MakeUnversionedUint64Value(statistics.FailContext()->Size(), Table_.Index.FailContextSize));
+                } else if (GetSharedData()->GetOperationArchiveVersion() >= 21) {
+                    builder.AddValue(MakeUnversionedBooleanValue(statistics.FailContext().HasValue(), Table_.Index.HasFailContext));
+                }
             }
             rows.push_back(rowBuffer->Capture(builder.GetRow()));
             dataWeight += GetDataWeight(rows.back());
