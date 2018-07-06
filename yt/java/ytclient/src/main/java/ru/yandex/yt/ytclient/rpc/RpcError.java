@@ -13,7 +13,7 @@ import ru.yandex.yt.ytree.TAttributeDictionary;
 public class RpcError extends RuntimeException {
     private final TError error;
 
-    public RpcError(TError error) {
+    RpcError(TError error) {
         super(errorMessage(error));
         this.error = error;
         for (TError innerError : error.getInnerErrorsList()) {
@@ -23,6 +23,21 @@ public class RpcError extends RuntimeException {
 
     public TError getError() {
         return error;
+    }
+
+    public RpcError findMatching(int code) {
+        if (error.getCode() == code) {
+            return this;
+        }
+
+        for (Throwable e : getSuppressed()) {
+            RpcError matching;
+            if (e instanceof RpcError && (matching = ((RpcError)e).findMatching(code)) != null) {
+                return matching;
+            }
+        }
+
+        return null;
     }
 
     private static YTreeNode parseByteString(ByteString byteString) {
