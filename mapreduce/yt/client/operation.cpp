@@ -2189,6 +2189,7 @@ public:
     void AbortOperation();
     void CompleteOperation();
     TOperationAttributes GetAttributes(const TGetOperationOptions& options);
+    void UpdateParameters(const TNode& newParameters);
 
     void AsyncFinishOperation(TOperationAttributes operationAttributes);
     void FinishWithException(std::exception_ptr exception);
@@ -2412,6 +2413,11 @@ TOperationAttributes TOperation::TOperationImpl::GetAttributes(const TGetOperati
     return NYT::NDetail::GetOperation(Auth_, Id_, options);
 }
 
+void TOperation::TOperationImpl::UpdateParameters(const TNode& newParameters)
+{
+    return NYT::NDetail::UpdateOperationParameters(Auth_, Id_, newParameters);
+}
+
 struct TAsyncFinishOperationsArgs
 {
     ::TIntrusivePtr<TOperation::TOperationImpl> OperationImpl;
@@ -2539,6 +2545,11 @@ void TOperation::CompleteOperation()
 TOperationAttributes TOperation::GetAttributes(const TGetOperationOptions& options)
 {
     return Impl_->GetAttributes(options);
+}
+
+void TOperation::UpdateParameters(const TNode& newParameters)
+{
+    return Impl_->UpdateParameters(newParameters);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

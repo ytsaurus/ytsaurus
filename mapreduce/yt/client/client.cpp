@@ -461,6 +461,13 @@ TOperationAttributes TClientBase::GetOperation(
     return NYT::NDetail::GetOperation(Auth_, operationId, options);
 }
 
+void TClientBase::UpdateOperationParameters(
+    const TOperationId& operationId,
+    const TNode& newParameters)
+{
+    return NYT::NDetail::UpdateOperationParameters(Auth_, operationId, newParameters);
+}
+
 void TClientBase::AlterTable(
     const TYPath& path,
     const TAlterTableOptions& options)
