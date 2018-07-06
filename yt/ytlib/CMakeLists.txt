@@ -29,8 +29,6 @@ endforeach(proto_suffix)
 
 add_custom_target(yt-ytlib-python-protos ALL DEPENDS ${PROTO_TARGETS})
 
-add_dependencies(yt-ytlib-python-protos yt-core-python-protos)
-
 target_link_libraries(yt-library-client
   deps-arcadia-contrib-libs-re2
   deps-arcadia-library-http
