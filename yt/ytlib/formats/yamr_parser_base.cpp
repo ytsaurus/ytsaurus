@@ -283,12 +283,11 @@ void TYamrDelimitedBaseParser::AppendToContextBuffer(char symbol)
 
 TYamrLenvalBaseParser::TYamrLenvalBaseParser(
     IYamrConsumerPtr consumer,
-    bool hasSubkey)
+    bool enableSubkey,
+    bool enableEom)
     : Consumer(consumer)
-    , HasSubkey(hasSubkey)
-    , ReadingLength(true)
-    , BytesToRead(4)
-    , State(EState::InsideKey)
+    , EnableSubkey(enableSubkey)
+    , EnableEom(enableEom)
 { }
 
 void TYamrLenvalBaseParser::Read(TStringBuf data)
@@ -301,6 +300,10 @@ void TYamrLenvalBaseParser::Read(TStringBuf data)
 
 void TYamrLenvalBaseParser::Finish()
 {
+    if (EnableEom && !MetEom) {
+        THROW_ERROR_EXCEPTION("Missing EOM marker in the stream");
+    }
+
     if (State == EState::InsideValue && !ReadingLength && BytesToRead == 0) {
         Consumer->ConsumeValue(CurrentToken);
         return;
@@ -313,6 +316,9 @@ void TYamrLenvalBaseParser::Finish()
 
 const char* TYamrLenvalBaseParser::Consume(const char* begin, const char* end)
 {
+    if (MetEom) {
+        THROW_ERROR_EXCEPTION("Garbage after EOM marker");
+    }
     if (ReadingLength) {
         return ConsumeLength(begin, end);
     } else {
@@ -320,11 +326,11 @@ const char* TYamrLenvalBaseParser::Consume(const char* begin, const char* end)
     }
 }
 
-const char* TYamrLenvalBaseParser::ConsumeInt(const char* begin, const char* end)
+const char* TYamrLenvalBaseParser::ConsumeInt(const char* begin, const char* end, int length)
 {
     const char* current = begin;
     while (BytesToRead != 0 && current != end) {
-        Union.Bytes[4 - BytesToRead] = *current;
+        Union.Bytes[length - BytesToRead] = *current;
         ++current;
         --BytesToRead;
     }
@@ -334,11 +340,11 @@ const char* TYamrLenvalBaseParser::ConsumeInt(const char* begin, const char* end
 const char* TYamrLenvalBaseParser::ConsumeLength(const char* begin, const char* end)
 {
     Y_ASSERT(ReadingLength);
-    const char* next = ConsumeInt(begin, end);
+    const char* next = ConsumeInt(begin, end, 4);
 
     if (BytesToRead == 0) {
         ReadingLength = false;
-        BytesToRead = Union.Value;
+        BytesToRead = static_cast<ui32>(Union.Value);
     }
 
     if (BytesToRead == static_cast<ui32>(-1)) {
@@ -347,6 +353,16 @@ const char* TYamrLenvalBaseParser::ConsumeLength(const char* begin, const char* 
             State = EState::InsideTableSwitch;
         } else {
             THROW_ERROR_EXCEPTION("Unexpected table switch instruction");
+        }
+    } else if (BytesToRead == static_cast<ui32>(-5)) {
+        if (!EnableEom) {
+            THROW_ERROR_EXCEPTION("Unexpected EOM marker");
+        }
+        if (State == EState::InsideKey) {
+            BytesToRead = 8;
+            State = EState::InsideEom;
+        } else {
+            THROW_ERROR_EXCEPTION("Unexpected EOM marker");
         }
     }
 
@@ -364,10 +380,26 @@ const char* TYamrLenvalBaseParser::ConsumeData(const char* begin, const char* en
 {
     if (State == EState::InsideTableSwitch) {
         Y_ASSERT(CurrentToken.empty());
-        const char* next = ConsumeInt(begin, end);
+        const char* next = ConsumeInt(begin, end, 4);
 
         if (BytesToRead == 0) {
-            Consumer->SwitchTable(static_cast<i64>(Union.Value));
+            Consumer->SwitchTable(static_cast<ui32>(Union.Value));
+            State = EState::InsideKey;
+            ReadingLength = true;
+            BytesToRead = 4;
+        }
+
+        return next;
+    } else if (State == EState::InsideEom) {
+        const char* next = ConsumeInt(begin, end, 8);
+
+        if (BytesToRead == 0) {
+            MetEom = true;
+            if (Union.Value != RowCount) {
+                THROW_ERROR_EXCEPTION("Row count mismatch")
+                    << TErrorAttribute("eom_marker_row_count", Union.Value)
+                    << TErrorAttribute("actual_row_count", RowCount);
+            }
             State = EState::InsideKey;
             ReadingLength = true;
             BytesToRead = 4;
@@ -396,8 +428,9 @@ const char* TYamrLenvalBaseParser::ConsumeData(const char* begin, const char* en
 
     switch (State) {
         case EState::InsideKey:
+            ++RowCount;
             Consumer->ConsumeKey(data);
-            State = HasSubkey ? EState::InsideSubkey : EState::InsideValue;
+            State = EnableSubkey ? EState::InsideSubkey : EState::InsideValue;
             break;
         case EState::InsideSubkey:
             Consumer->ConsumeSubkey(data);

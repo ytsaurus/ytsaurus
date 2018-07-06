@@ -63,7 +63,8 @@ std::unique_ptr<IParser> CreateParserForYamr(
         ? std::unique_ptr<IParser>(
             new TYamrLenvalBaseParser(
                 parserConsumer,
-                config->HasSubkey))
+                config->HasSubkey,
+                config->EnableEom))
         : std::unique_ptr<IParser>(
             new TYamrDelimitedBaseParser(
                 parserConsumer,
